@@ -3,13 +3,15 @@
     "Name": "resourceAttributesBytesKey",
     "Data": {
       "Offsets": [
-        1,
-        2
+        2,
+        4
       ],
       "Data": {
         "Values": [
-          "bytes",
-          "bytes"
+          "int-value-with-bytes",
+          "string-value-with-bytes",
+          "int-value-with-bytes",
+          "string-value-with-bytes"
         ]
       }
     }
@@ -44,14 +46,14 @@
       ],
       "Data": {
         "Values": [
+          "bool-value-with-map",
           "double-value-with-map",
           "int-value-with-map",
           "string-value-with-map",
           "bool-value-with-map",
           "double-value-with-map",
           "int-value-with-map",
-          "string-value-with-map",
-          "bool-value-with-map"
+          "string-value-with-map"
         ]
       }
     }
@@ -60,12 +62,14 @@
     "Name": "resourceAttributesBytesValue",
     "Data": {
       "Offsets": [
-        1,
-        2
+        2,
+        4
       ],
       "Data": {
         "Values": [
+          "AQIDBA==",
           "YXMgeW91IGNhbiBzZWUu",
+          "AQIDBA==",
           "YXMgeW91IGNhbiBzZWUu"
         ]
       }
@@ -101,14 +105,14 @@
       ],
       "Data": {
         "Values": [
+          "{\"false\":false,\"true\":true}",
           "{\"e\":2.7,\"pai\":3.14}",
           "{\"one\":1,\"three\":3,\"two\":2}",
           "{\"hello\":\"world\",\"ni hao\":\"shi jie\"}",
           "{\"false\":false,\"true\":true}",
           "{\"e\":2.7,\"pai\":3.14}",
           "{\"one\":1,\"three\":3,\"two\":2}",
-          "{\"hello\":\"world\",\"ni hao\":\"shi jie\"}",
-          "{\"false\":false,\"true\":true}"
+          "{\"hello\":\"world\",\"ni hao\":\"shi jie\"}"
         ]
       }
     }
@@ -117,13 +121,15 @@
     "Name": "scopeAttributesBytesKey",
     "Data": {
       "Offsets": [
-        1,
-        2
+        2,
+        4
       ],
       "Data": {
         "Values": [
-          "bytes",
-          "bytes"
+          "string-value-with-bytes",
+          "int-value-with-bytes",
+          "string-value-with-bytes",
+          "int-value-with-bytes"
         ]
       }
     }
@@ -137,134 +143,20 @@
       ],
       "Data": {
         "Values": [
-          "bool-value-with-slice",
           "double-value-with-slice",
           "int-value-with-slice",
           "string-value-with-slice",
           "bool-value-with-slice",
           "double-value-with-slice",
           "int-value-with-slice",
-          "string-value-with-slice"
+          "string-value-with-slice",
+          "bool-value-with-slice"
         ]
       }
     }
   },
   {
     "Name": "scopeAttributesMapKey",
-    "Data": {
-      "Offsets": [
-        4,
-        8
-      ],
-      "Data": {
-        "Values": [
-          "double-value-with-map",
-          "int-value-with-map",
-          "string-value-with-map",
-          "bool-value-with-map",
-          "double-value-with-map",
-          "int-value-with-map",
-          "string-value-with-map",
-          "bool-value-with-map"
-        ]
-      }
-    }
-  },
-  {
-    "Name": "scopeAttributesBytesValue",
-    "Data": {
-      "Offsets": [
-        1,
-        2
-      ],
-      "Data": {
-        "Values": [
-          "YXMgeW91IGNhbiBzZWUu",
-          "YXMgeW91IGNhbiBzZWUu"
-        ]
-      }
-    }
-  },
-  {
-    "Name": "scopeAttributesSliceValue",
-    "Data": {
-      "Offsets": [
-        4,
-        8
-      ],
-      "Data": {
-        "Values": [
-          "[true,false,true]",
-          "[3.14,2.7,3]",
-          "[1,2,3]",
-          "[\"hello\",\"ni hao\"]",
-          "[true,false,true]",
-          "[3.14,2.7,3]",
-          "[1,2,3]",
-          "[\"hello\",\"ni hao\"]"
-        ]
-      }
-    }
-  },
-  {
-    "Name": "scopeAttributesMapValue",
-    "Data": {
-      "Offsets": [
-        4,
-        8
-      ],
-      "Data": {
-        "Values": [
-          "{\"e\":2.7,\"pai\":3.14}",
-          "{\"one\":1,\"three\":3,\"two\":2}",
-          "{\"hello\":\"world\",\"ni hao\":\"shi jie\"}",
-          "{\"false\":false,\"true\":true}",
-          "{\"e\":2.7,\"pai\":3.14}",
-          "{\"one\":1,\"three\":3,\"two\":2}",
-          "{\"hello\":\"world\",\"ni hao\":\"shi jie\"}",
-          "{\"false\":false,\"true\":true}"
-        ]
-      }
-    }
-  },
-  {
-    "Name": "spanAttributesBytesKey",
-    "Data": {
-      "Offsets": [
-        1,
-        2
-      ],
-      "Data": {
-        "Values": [
-          "bytes",
-          "bytes"
-        ]
-      }
-    }
-  },
-  {
-    "Name": "spanAttributesSliceKey",
-    "Data": {
-      "Offsets": [
-        4,
-        8
-      ],
-      "Data": {
-        "Values": [
-          "string-value-with-slice",
-          "bool-value-with-slice",
-          "double-value-with-slice",
-          "int-value-with-slice",
-          "string-value-with-slice",
-          "bool-value-with-slice",
-          "double-value-with-slice",
-          "int-value-with-slice"
-        ]
-      }
-    }
-  },
-  {
-    "Name": "spanAttributesMapKey",
     "Data": {
       "Offsets": [
         4,
@@ -285,22 +177,24 @@
     }
   },
   {
-    "Name": "spanAttributesBytesValue",
+    "Name": "scopeAttributesBytesValue",
     "Data": {
       "Offsets": [
-        1,
-        2
+        2,
+        4
       ],
       "Data": {
         "Values": [
           "YXMgeW91IGNhbiBzZWUu",
-          "YXMgeW91IGNhbiBzZWUu"
+          "AQIDBA==",
+          "YXMgeW91IGNhbiBzZWUu",
+          "AQIDBA=="
         ]
       }
     }
   },
   {
-    "Name": "spanAttributesSliceValue",
+    "Name": "scopeAttributesSliceValue",
     "Data": {
       "Offsets": [
         4,
@@ -308,20 +202,20 @@
       ],
       "Data": {
         "Values": [
-          "[\"hello\",\"ni hao\"]",
-          "[true,false,true]",
           "[3.14,2.7,3]",
           "[1,2,3]",
           "[\"hello\",\"ni hao\"]",
           "[true,false,true]",
           "[3.14,2.7,3]",
-          "[1,2,3]"
+          "[1,2,3]",
+          "[\"hello\",\"ni hao\"]",
+          "[true,false,true]"
         ]
       }
     }
   },
   {
-    "Name": "spanAttributesMapValue",
+    "Name": "scopeAttributesMapValue",
     "Data": {
       "Offsets": [
         4,
@@ -342,6 +236,124 @@
     }
   },
   {
+    "Name": "spanAttributesBytesKey",
+    "Data": {
+      "Offsets": [
+        2,
+        4
+      ],
+      "Data": {
+        "Values": [
+          "string-value-with-bytes",
+          "int-value-with-bytes",
+          "string-value-with-bytes",
+          "int-value-with-bytes"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesSliceKey",
+    "Data": {
+      "Offsets": [
+        4,
+        8
+      ],
+      "Data": {
+        "Values": [
+          "bool-value-with-slice",
+          "double-value-with-slice",
+          "int-value-with-slice",
+          "string-value-with-slice",
+          "bool-value-with-slice",
+          "double-value-with-slice",
+          "int-value-with-slice",
+          "string-value-with-slice"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesMapKey",
+    "Data": {
+      "Offsets": [
+        4,
+        8
+      ],
+      "Data": {
+        "Values": [
+          "bool-value-with-map",
+          "double-value-with-map",
+          "int-value-with-map",
+          "string-value-with-map",
+          "int-value-with-map",
+          "string-value-with-map",
+          "bool-value-with-map",
+          "double-value-with-map"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesBytesValue",
+    "Data": {
+      "Offsets": [
+        2,
+        4
+      ],
+      "Data": {
+        "Values": [
+          "YXMgeW91IGNhbiBzZWUu",
+          "AQIDBA==",
+          "YXMgeW91IGNhbiBzZWUu",
+          "AQIDBA=="
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesSliceValue",
+    "Data": {
+      "Offsets": [
+        4,
+        8
+      ],
+      "Data": {
+        "Values": [
+          "[true,false,true]",
+          "[3.14,2.7,3]",
+          "[1,2,3]",
+          "[\"hello\",\"ni hao\"]",
+          "[true,false,true]",
+          "[3.14,2.7,3]",
+          "[1,2,3]",
+          "[\"hello\",\"ni hao\"]"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesMapValue",
+    "Data": {
+      "Offsets": [
+        4,
+        8
+      ],
+      "Data": {
+        "Values": [
+          "{\"false\":false,\"true\":true}",
+          "{\"e\":2.7,\"pai\":3.14}",
+          "{\"one\":1,\"three\":3,\"two\":2}",
+          "{\"hello\":\"world\",\"ni hao\":\"shi jie\"}",
+          "{\"one\":1,\"three\":3,\"two\":2}",
+          "{\"hello\":\"world\",\"ni hao\":\"shi jie\"}",
+          "{\"false\":false,\"true\":true}",
+          "{\"e\":2.7,\"pai\":3.14}"
+        ]
+      }
+    }
+  },
+  {
     "Name": "eventsAttributesBytesKeys",
     "Data": {
       "Offsets": [
@@ -350,13 +362,15 @@
       ],
       "Data": {
         "Offsets": [
-          1,
-          2
+          2,
+          4
         ],
         "Data": {
           "Values": [
-            "bytes",
-            "bytes"
+            "string-value-with-bytes",
+            "int-value-with-bytes",
+            "string-value-with-bytes",
+            "int-value-with-bytes"
           ]
         }
       }
@@ -380,10 +394,10 @@
             "double-value-with-slice",
             "int-value-with-slice",
             "string-value-with-slice",
-            "string-value-with-slice",
             "bool-value-with-slice",
             "double-value-with-slice",
-            "int-value-with-slice"
+            "int-value-with-slice",
+            "string-value-with-slice"
           ]
         }
       }
@@ -403,10 +417,10 @@
         ],
         "Data": {
           "Values": [
-            "bool-value-with-map",
-            "double-value-with-map",
             "int-value-with-map",
             "string-value-with-map",
+            "bool-value-with-map",
+            "double-value-with-map",
             "bool-value-with-map",
             "double-value-with-map",
             "int-value-with-map",
@@ -425,13 +439,15 @@
       ],
       "Data": {
         "Offsets": [
-          1,
-          2
+          2,
+          4
         ],
         "Data": {
           "Values": [
             "YXMgeW91IGNhbiBzZWUu",
-            "YXMgeW91IGNhbiBzZWUu"
+            "AQIDBA==",
+            "YXMgeW91IGNhbiBzZWUu",
+            "AQIDBA=="
           ]
         }
       }
@@ -455,10 +471,10 @@
             "[3.14,2.7,3]",
             "[1,2,3]",
             "[\"hello\",\"ni hao\"]",
-            "[\"hello\",\"ni hao\"]",
             "[true,false,true]",
             "[3.14,2.7,3]",
-            "[1,2,3]"
+            "[1,2,3]",
+            "[\"hello\",\"ni hao\"]"
           ]
         }
       }
@@ -478,10 +494,10 @@
         ],
         "Data": {
           "Values": [
-            "{\"false\":false,\"true\":true}",
-            "{\"e\":2.7,\"pai\":3.14}",
             "{\"one\":1,\"three\":3,\"two\":2}",
             "{\"hello\":\"world\",\"ni hao\":\"shi jie\"}",
+            "{\"false\":false,\"true\":true}",
+            "{\"e\":2.7,\"pai\":3.14}",
             "{\"false\":false,\"true\":true}",
             "{\"e\":2.7,\"pai\":3.14}",
             "{\"one\":1,\"three\":3,\"two\":2}",
@@ -500,13 +516,15 @@
       ],
       "Data": {
         "Offsets": [
-          1,
-          2
+          2,
+          4
         ],
         "Data": {
           "Values": [
-            "bytes",
-            "bytes"
+            "string-value-with-bytes",
+            "int-value-with-bytes",
+            "string-value-with-bytes",
+            "int-value-with-bytes"
           ]
         }
       }
@@ -526,14 +544,14 @@
         ],
         "Data": {
           "Values": [
-            "int-value-with-slice",
             "string-value-with-slice",
             "bool-value-with-slice",
             "double-value-with-slice",
-            "bool-value-with-slice",
-            "double-value-with-slice",
             "int-value-with-slice",
-            "string-value-with-slice"
+            "int-value-with-slice",
+            "string-value-with-slice",
+            "bool-value-with-slice",
+            "double-value-with-slice"
           ]
         }
       }
@@ -553,10 +571,10 @@
         ],
         "Data": {
           "Values": [
-            "double-value-with-map",
             "int-value-with-map",
             "string-value-with-map",
             "bool-value-with-map",
+            "double-value-with-map",
             "bool-value-with-map",
             "double-value-with-map",
             "int-value-with-map",
@@ -575,13 +593,15 @@
       ],
       "Data": {
         "Offsets": [
-          1,
-          2
+          2,
+          4
         ],
         "Data": {
           "Values": [
             "YXMgeW91IGNhbiBzZWUu",
-            "YXMgeW91IGNhbiBzZWUu"
+            "AQIDBA==",
+            "YXMgeW91IGNhbiBzZWUu",
+            "AQIDBA=="
           ]
         }
       }
@@ -601,14 +621,14 @@
         ],
         "Data": {
           "Values": [
-            "[1,2,3]",
             "[\"hello\",\"ni hao\"]",
             "[true,false,true]",
             "[3.14,2.7,3]",
-            "[true,false,true]",
-            "[3.14,2.7,3]",
             "[1,2,3]",
-            "[\"hello\",\"ni hao\"]"
+            "[1,2,3]",
+            "[\"hello\",\"ni hao\"]",
+            "[true,false,true]",
+            "[3.14,2.7,3]"
           ]
         }
       }
@@ -628,10 +648,10 @@
         ],
         "Data": {
           "Values": [
-            "{\"e\":2.7,\"pai\":3.14}",
             "{\"one\":1,\"three\":3,\"two\":2}",
             "{\"hello\":\"world\",\"ni hao\":\"shi jie\"}",
             "{\"false\":false,\"true\":true}",
+            "{\"e\":2.7,\"pai\":3.14}",
             "{\"false\":false,\"true\":true}",
             "{\"e\":2.7,\"pai\":3.14}",
             "{\"one\":1,\"three\":3,\"two\":2}",
