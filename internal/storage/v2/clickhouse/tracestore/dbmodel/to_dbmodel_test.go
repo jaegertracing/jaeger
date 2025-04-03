@@ -35,13 +35,14 @@ func TestAttributesToGroup(t *testing.T) {
 					m.PutEmptyMap("int-map").FromRaw(map[string]any{"times": 1})
 					m.PutEmptyMap("bool-map").FromRaw(map[string]any{"enable": true})
 
-					m.PutEmptyBytes("bytes").FromRaw([]byte{0, 1, 2, 3})
+					m.PutEmptyBytes("string-value-with-bytes").FromRaw([]byte("as you can see."))
+					m.PutEmptyBytes("int-value-with-bytes").FromRaw([]byte{1, 2, 3, 4})
 					return m
 				}(),
 			},
 			want: AttributesGroup{
-				BytesKeys:   []string{"bytes"},
-				BytesValues: []string{"AAECAw=="},
+				BytesKeys:   []string{"int-value-with-bytes", "string-value-with-bytes"},
+				BytesValues: []string{"AQIDBA==", "YXMgeW91IGNhbiBzZWUu"},
 				MapKeys:     []string{"string-map", "double-map", "int-map", "bool-map"},
 				MapValues:   []string{"{\"hello\":\"world\"}", "{\"sys\":6.824}", "{\"times\":1}", "{\"enable\":true}"},
 				SliceKeys:   []string{"int-slices", "double-slices", "string-slices", "bool-slices"},
@@ -100,14 +101,15 @@ func TestAttributesToMap(t *testing.T) {
 					m.PutEmptyMap("int-map").FromRaw(map[string]any{"times": 1})
 					m.PutEmptyMap("bool-map").FromRaw(map[string]any{"enable": true})
 
-					m.PutEmptyBytes("bytes").FromRaw([]byte{0, 1, 2, 3})
+					m.PutEmptyBytes("string-value-with-bytes").FromRaw([]byte("as you can see."))
+					m.PutEmptyBytes("int-value-with-bytes").FromRaw([]byte{1, 2, 3, 4})
 					return m
 				}(),
 			},
 			want: map[pcommon.ValueType]map[string]string{
 				pcommon.ValueTypeSlice: {"string-slices": "[\"world\",\"shi jie\"]", "double-slices": "[6.824,0.81]", "int-slices": "[2,3,3,3]", "bool-slices": "[true,false]"},
 				pcommon.ValueTypeMap:   {"string-map": "{\"hello\":\"world\"}", "double-map": "{\"sys\":6.824}", "int-map": "{\"times\":1}", "bool-map": "{\"enable\":true}"},
-				pcommon.ValueTypeBytes: {"bytes": "AAECAw=="},
+				pcommon.ValueTypeBytes: {"int-value-with-bytes": "AQIDBA==", "string-value-with-bytes": "YXMgeW91IGNhbiBzZWUu"},
 			},
 		},
 	}

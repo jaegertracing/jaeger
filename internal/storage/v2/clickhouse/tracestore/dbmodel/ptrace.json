@@ -78,15 +78,15 @@
               "kvlistValue": {
                 "values": [
                   {
-                    "key": "e",
-                    "value": {
-                      "doubleValue": 2.7
-                    }
-                  },
-                  {
                     "key": "pai",
                     "value": {
                       "doubleValue": 3.14
+                    }
+                  },
+                  {
+                    "key": "e",
+                    "value": {
+                      "doubleValue": 2.7
                     }
                   }
                 ]
@@ -142,9 +142,15 @@
             }
           },
           {
-            "key": "bytes",
+            "key": "string-value-with-bytes",
             "value": {
               "bytesValue": "YXMgeW91IGNhbiBzZWUu"
+            }
+          },
+          {
+            "key": "int-value-with-bytes",
+            "value": {
+              "bytesValue": "AQIDBA=="
             }
           },
           {
@@ -273,15 +279,15 @@
                   "kvlistValue": {
                     "values": [
                       {
-                        "key": "true",
-                        "value": {
-                          "boolValue": true
-                        }
-                      },
-                      {
                         "key": "false",
                         "value": {
                           "boolValue": false
+                        }
+                      },
+                      {
+                        "key": "true",
+                        "value": {
+                          "boolValue": true
                         }
                       }
                     ]
@@ -294,15 +300,15 @@
                   "kvlistValue": {
                     "values": [
                       {
-                        "key": "e",
-                        "value": {
-                          "doubleValue": 2.7
-                        }
-                      },
-                      {
                         "key": "pai",
                         "value": {
                           "doubleValue": 3.14
+                        }
+                      },
+                      {
+                        "key": "e",
+                        "value": {
+                          "doubleValue": 2.7
                         }
                       }
                     ]
@@ -315,12 +321,6 @@
                   "kvlistValue": {
                     "values": [
                       {
-                        "key": "one",
-                        "value": {
-                          "intValue": "1"
-                        }
-                      },
-                      {
                         "key": "two",
                         "value": {
                           "intValue": "2"
@@ -330,6 +330,12 @@
                         "key": "three",
                         "value": {
                           "intValue": "3"
+                        }
+                      },
+                      {
+                        "key": "one",
+                        "value": {
+                          "intValue": "1"
                         }
                       }
                     ]
@@ -358,9 +364,15 @@
                 }
               },
               {
-                "key": "bytes",
+                "key": "string-value-with-bytes",
                 "value": {
                   "bytesValue": "YXMgeW91IGNhbiBzZWUu"
+                }
+              },
+              {
+                "key": "int-value-with-bytes",
+                "value": {
+                  "bytesValue": "AQIDBA=="
                 }
               },
               {
@@ -494,15 +506,15 @@
                     "kvlistValue": {
                       "values": [
                         {
-                          "key": "true",
-                          "value": {
-                            "boolValue": true
-                          }
-                        },
-                        {
                           "key": "false",
                           "value": {
                             "boolValue": false
+                          }
+                        },
+                        {
+                          "key": "true",
+                          "value": {
+                            "boolValue": true
                           }
                         }
                       ]
@@ -536,12 +548,6 @@
                     "kvlistValue": {
                       "values": [
                         {
-                          "key": "one",
-                          "value": {
-                            "intValue": "1"
-                          }
-                        },
-                        {
                           "key": "two",
                           "value": {
                             "intValue": "2"
@@ -551,6 +557,12 @@
                           "key": "three",
                           "value": {
                             "intValue": "3"
+                          }
+                        },
+                        {
+                          "key": "one",
+                          "value": {
+                            "intValue": "1"
                           }
                         }
                       ]
@@ -579,9 +591,15 @@
                   }
                 },
                 {
-                  "key": "bytes",
+                  "key": "string-value-with-bytes",
                   "value": {
                     "bytesValue": "YXMgeW91IGNhbiBzZWUu"
+                  }
+                },
+                {
+                  "key": "int-value-with-bytes",
+                  "value": {
+                    "bytesValue": "AQIDBA=="
                   }
                 },
                 {
@@ -792,9 +810,15 @@
                       }
                     },
                     {
-                      "key": "bytes",
+                      "key": "string-value-with-bytes",
                       "value": {
                         "bytesValue": "YXMgeW91IGNhbiBzZWUu"
+                      }
+                    },
+                    {
+                      "key": "int-value-with-bytes",
+                      "value": {
+                        "bytesValue": "AQIDBA=="
                       }
                     },
                     {
@@ -1008,9 +1032,15 @@
                       }
                     },
                     {
-                      "key": "bytes",
+                      "key": "string-value-with-bytes",
                       "value": {
                         "bytesValue": "YXMgeW91IGNhbiBzZWUu"
+                      }
+                    },
+                    {
+                      "key": "int-value-with-bytes",
+                      "value": {
+                        "bytesValue": "AQIDBA=="
                       }
                     },
                     {
@@ -1148,15 +1178,15 @@
                     "kvlistValue": {
                       "values": [
                         {
-                          "key": "true",
-                          "value": {
-                            "boolValue": true
-                          }
-                        },
-                        {
                           "key": "false",
                           "value": {
                             "boolValue": false
+                          }
+                        },
+                        {
+                          "key": "true",
+                          "value": {
+                            "boolValue": true
                           }
                         }
                       ]
@@ -1169,15 +1199,15 @@
                     "kvlistValue": {
                       "values": [
                         {
-                          "key": "pai",
-                          "value": {
-                            "doubleValue": 3.14
-                          }
-                        },
-                        {
                           "key": "e",
                           "value": {
                             "doubleValue": 2.7
+                          }
+                        },
+                        {
+                          "key": "pai",
+                          "value": {
+                            "doubleValue": 3.14
                           }
                         }
                       ]
@@ -1233,9 +1263,15 @@
                   }
                 },
                 {
-                  "key": "bytes",
+                  "key": "string-value-with-bytes",
                   "value": {
                     "bytesValue": "YXMgeW91IGNhbiBzZWUu"
+                  }
+                },
+                {
+                  "key": "int-value-with-bytes",
+                  "value": {
+                    "bytesValue": "AQIDBA=="
                   }
                 },
                 {
@@ -1403,6 +1439,12 @@
                         "kvlistValue": {
                           "values": [
                             {
+                              "key": "one",
+                              "value": {
+                                "intValue": "1"
+                              }
+                            },
+                            {
                               "key": "two",
                               "value": {
                                 "intValue": "2"
@@ -1412,12 +1454,6 @@
                               "key": "three",
                               "value": {
                                 "intValue": "3"
-                              }
-                            },
-                            {
-                              "key": "one",
-                              "value": {
-                                "intValue": "1"
                               }
                             }
                           ]
@@ -1430,15 +1466,15 @@
                         "kvlistValue": {
                           "values": [
                             {
-                              "key": "ni hao",
-                              "value": {
-                                "stringValue": "shi jie"
-                              }
-                            },
-                            {
                               "key": "hello",
                               "value": {
                                 "stringValue": "world"
+                              }
+                            },
+                            {
+                              "key": "ni hao",
+                              "value": {
+                                "stringValue": "shi jie"
                               }
                             }
                           ]
@@ -1446,9 +1482,15 @@
                       }
                     },
                     {
-                      "key": "bytes",
+                      "key": "string-value-with-bytes",
                       "value": {
                         "bytesValue": "YXMgeW91IGNhbiBzZWUu"
+                      }
+                    },
+                    {
+                      "key": "int-value-with-bytes",
+                      "value": {
+                        "bytesValue": "AQIDBA=="
                       }
                     },
                     {
@@ -1619,6 +1661,12 @@
                         "kvlistValue": {
                           "values": [
                             {
+                              "key": "three",
+                              "value": {
+                                "intValue": "3"
+                              }
+                            },
+                            {
                               "key": "one",
                               "value": {
                                 "intValue": "1"
@@ -1628,12 +1676,6 @@
                               "key": "two",
                               "value": {
                                 "intValue": "2"
-                              }
-                            },
-                            {
-                              "key": "three",
-                              "value": {
-                                "intValue": "3"
                               }
                             }
                           ]
@@ -1662,9 +1704,15 @@
                       }
                     },
                     {
-                      "key": "bytes",
+                      "key": "string-value-with-bytes",
                       "value": {
                         "bytesValue": "YXMgeW91IGNhbiBzZWUu"
+                      }
+                    },
+                    {
+                      "key": "int-value-with-bytes",
+                      "value": {
+                        "bytesValue": "AQIDBA=="
                       }
                     },
                     {

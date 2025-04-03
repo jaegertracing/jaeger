@@ -14,8 +14,8 @@ var (
 	scopeAttributesSliceKey   = new(proto.ColStr).LowCardinality().Array()
 	scopeAttributesMapKey     = new(proto.ColStr).LowCardinality().Array()
 	scopeAttributesBytesValue = new(proto.ColStr).LowCardinality().Array()
-	scopeAttributesSliceValue = new(proto.ColStr).LowCardinality().Array()
-	scopeAttributesMapValue   = new(proto.ColStr).LowCardinality().Array()
+	scopeAttributesSliceValue = new(proto.ColJSONStr).LowCardinality().Array()
+	scopeAttributesMapValue   = new(proto.ColJSONStr).LowCardinality().Array()
 
 	ColumnScopeAttributesBytesKey   = "scopeAttributesBytesKey"
 	ColumnScopeAttributesSliceKey   = "scopeAttributesSliceKey"
@@ -30,8 +30,8 @@ var (
 	resourceAttributesSliceKey   = new(proto.ColStr).LowCardinality().Array()
 	resourceAttributesMapKey     = new(proto.ColStr).LowCardinality().Array()
 	resourceAttributesBytesValue = new(proto.ColStr).LowCardinality().Array()
-	resourceAttributesSliceValue = new(proto.ColStr).LowCardinality().Array()
-	resourceAttributesMapValue   = new(proto.ColStr).LowCardinality().Array()
+	resourceAttributesSliceValue = new(proto.ColJSONStr).LowCardinality().Array()
+	resourceAttributesMapValue   = new(proto.ColJSONStr).LowCardinality().Array()
 
 	ColumnResourceAttributesBytesKey   = "resourceAttributesBytesKey"
 	ColumnResourceAttributesSliceKey   = "resourceAttributesSliceKey"
@@ -46,8 +46,8 @@ var (
 	spanAttributesSliceKey   = new(proto.ColStr).LowCardinality().Array()
 	spanAttributesMapKey     = new(proto.ColStr).LowCardinality().Array()
 	spanAttributesBytesValue = new(proto.ColStr).LowCardinality().Array()
-	spanAttributesSliceValue = new(proto.ColStr).LowCardinality().Array()
-	spanAttributesMapValue   = new(proto.ColStr).LowCardinality().Array()
+	spanAttributesSliceValue = new(proto.ColJSONStr).LowCardinality().Array()
+	spanAttributesMapValue   = new(proto.ColJSONStr).LowCardinality().Array()
 
 	ColumnSpanAttributesBytesKey   = "spanAttributesBytesKey"
 	ColumnSpanAttributesSliceKey   = "spanAttributesSliceKey"
@@ -62,8 +62,8 @@ var (
 	eventsAttributesSlicesKeys   = proto.NewArray(new(proto.ColStr).LowCardinality().Array())
 	eventsAttributesMapKeys      = proto.NewArray(new(proto.ColStr).LowCardinality().Array())
 	eventsAttributesBytesValue   = proto.NewArray(new(proto.ColStr).LowCardinality().Array())
-	eventsAttributesSlicesValues = proto.NewArray(new(proto.ColStr).LowCardinality().Array())
-	eventsAttributeMapValues     = proto.NewArray(new(proto.ColStr).LowCardinality().Array())
+	eventsAttributesSlicesValues = proto.NewArray(new(proto.ColJSONStr).LowCardinality().Array())
+	eventsAttributeMapValues     = proto.NewArray(new(proto.ColJSONStr).LowCardinality().Array())
 
 	ColumnEventsAttributesBytesKeys   = "eventsAttributesBytesKeys"
 	ColumnEventsAttributesSliceKeys   = "eventsAttributesSliceKeys"
@@ -78,8 +78,8 @@ var (
 	linksAttributesSlicesKeys   = proto.NewArray(new(proto.ColStr).LowCardinality().Array())
 	linksAttributesMapKeys      = proto.NewArray(new(proto.ColStr).LowCardinality().Array())
 	linksAttributesBytesValue   = proto.NewArray(new(proto.ColStr).LowCardinality().Array())
-	linksAttributesSlicesValues = proto.NewArray(new(proto.ColStr).LowCardinality().Array())
-	linksAttributeMapValues     = proto.NewArray(new(proto.ColStr).LowCardinality().Array())
+	linksAttributesSlicesValues = proto.NewArray(new(proto.ColJSONStr).LowCardinality().Array())
+	linksAttributeMapValues     = proto.NewArray(new(proto.ColJSONStr).LowCardinality().Array())
 
 	ColumnLinksAttributesBytesKeys   = "linksAttributesBytesKeys"
 	ColumnLinksAttributesSliceKeys   = "linksAttributesSliceKeys"
