@@ -18,9 +18,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
-	p2json "github.com/jaegertracing/jaeger/internal/converter/json"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	tSampling092 "github.com/jaegertracing/jaeger/internal/sampling/http/thrift-0.9.2"
+	p2json "github.com/jaegertracing/jaeger/internal/uimodel/converter/v1/json"
 )
 
 type testServer struct {

@@ -2,7 +2,7 @@
 // Copyright (c) 2017 Uber Technologies, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package json
+package uimodel
 
 // ReferenceType is the reference type of one span to another
 type ReferenceType string

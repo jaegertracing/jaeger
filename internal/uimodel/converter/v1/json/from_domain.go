@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/internal/uimodel"
 )
 
 const (
@@ -20,7 +20,7 @@ const (
 // FromDomain converts model.Trace into json.Trace format.
 // It assumes that the domain model is valid, namely that all enums
 // have valid values, so that it does not need to check for errors.
-func FromDomain(trace *model.Trace) *json.Trace {
+func FromDomain(trace *model.Trace) *uimodel.Trace {
 	fd := fromDomain{}
 	fd.convertKeyValuesFunc = fd.convertKeyValues
 	return fd.fromDomain(trace)
@@ -28,28 +28,28 @@ func FromDomain(trace *model.Trace) *json.Trace {
 
 // FromDomainEmbedProcess converts model.Span into json.Span format.
 // This format includes a ParentSpanID and an embedded Process.
-func FromDomainEmbedProcess(span *model.Span) *json.Span {
+func FromDomainEmbedProcess(span *model.Span) *uimodel.Span {
 	fd := fromDomain{}
 	fd.convertKeyValuesFunc = fd.convertKeyValuesString
 	return fd.convertSpanEmbedProcess(span)
 }
 
 type fromDomain struct {
-	convertKeyValuesFunc func(keyValues model.KeyValues) []json.KeyValue
+	convertKeyValuesFunc func(keyValues model.KeyValues) []uimodel.KeyValue
 }
 
-func (fd fromDomain) fromDomain(trace *model.Trace) *json.Trace {
-	jSpans := make([]json.Span, len(trace.Spans))
+func (fd fromDomain) fromDomain(trace *model.Trace) *uimodel.Trace {
+	jSpans := make([]uimodel.Span, len(trace.Spans))
 	processes := &processHashtable{}
-	var traceID json.TraceID
+	var traceID uimodel.TraceID
 	for i, span := range trace.Spans {
 		if i == 0 {
-			traceID = json.TraceID(span.TraceID.String())
+			traceID = uimodel.TraceID(span.TraceID.String())
 		}
-		processID := json.ProcessID(processes.getKey(span.Process))
+		processID := uimodel.ProcessID(processes.getKey(span.Process))
 		jSpans[i] = fd.convertSpan(span, processID)
 	}
-	jTrace := &json.Trace{
+	jTrace := &uimodel.Trace{
 		TraceID:   traceID,
 		Spans:     jSpans,
 		Processes: fd.convertProcesses(processes.getMapping()),
@@ -58,10 +58,10 @@ func (fd fromDomain) fromDomain(trace *model.Trace) *json.Trace {
 	return jTrace
 }
 
-func (fd fromDomain) convertSpanInternal(span *model.Span) json.Span {
-	return json.Span{
-		TraceID:       json.TraceID(span.TraceID.String()),
-		SpanID:        json.SpanID(span.SpanID.String()),
+func (fd fromDomain) convertSpanInternal(span *model.Span) uimodel.Span {
+	return uimodel.Span{
+		TraceID:       uimodel.TraceID(span.TraceID.String()),
+		SpanID:        uimodel.SpanID(span.SpanID.String()),
 		Flags:         uint32(span.Flags),
 		OperationName: span.OperationName,
 		StartTime:     model.TimeAsEpochMicroseconds(span.StartTime),
@@ -71,7 +71,7 @@ func (fd fromDomain) convertSpanInternal(span *model.Span) json.Span {
 	}
 }
 
-func (fd fromDomain) convertSpan(span *model.Span, processID json.ProcessID) json.Span {
+func (fd fromDomain) convertSpan(span *model.Span, processID uimodel.ProcessID) uimodel.Span {
 	s := fd.convertSpanInternal(span)
 	s.ProcessID = processID
 	s.Warnings = span.Warnings
@@ -79,7 +79,7 @@ func (fd fromDomain) convertSpan(span *model.Span, processID json.ProcessID) jso
 	return s
 }
 
-func (fd fromDomain) convertSpanEmbedProcess(span *model.Span) *json.Span {
+func (fd fromDomain) convertSpanEmbedProcess(span *model.Span) *uimodel.Span {
 	s := fd.convertSpanInternal(span)
 	process := fd.convertProcess(span.Process)
 	s.Process = &process
@@ -87,27 +87,27 @@ func (fd fromDomain) convertSpanEmbedProcess(span *model.Span) *json.Span {
 	return &s
 }
 
-func (fd fromDomain) convertReferences(span *model.Span) []json.Reference {
-	out := make([]json.Reference, 0, len(span.References))
+func (fd fromDomain) convertReferences(span *model.Span) []uimodel.Reference {
+	out := make([]uimodel.Reference, 0, len(span.References))
 	for _, ref := range span.References {
-		out = append(out, json.Reference{
+		out = append(out, uimodel.Reference{
 			RefType: fd.convertRefType(ref.RefType),
-			TraceID: json.TraceID(ref.TraceID.String()),
-			SpanID:  json.SpanID(ref.SpanID.String()),
+			TraceID: uimodel.TraceID(ref.TraceID.String()),
+			SpanID:  uimodel.SpanID(ref.SpanID.String()),
 		})
 	}
 	return out
 }
 
-func (fromDomain) convertRefType(refType model.SpanRefType) json.ReferenceType {
+func (fromDomain) convertRefType(refType model.SpanRefType) uimodel.ReferenceType {
 	if refType == model.FollowsFrom {
-		return json.FollowsFrom
+		return uimodel.FollowsFrom
 	}
-	return json.ChildOf
+	return uimodel.ChildOf
 }
 
-func (fromDomain) convertKeyValues(keyValues model.KeyValues) []json.KeyValue {
-	out := make([]json.KeyValue, len(keyValues))
+func (fromDomain) convertKeyValues(keyValues model.KeyValues) []uimodel.KeyValue {
+	out := make([]uimodel.KeyValue, len(keyValues))
 	for i, kv := range keyValues {
 		var value any
 		switch kv.VType {
@@ -126,31 +126,31 @@ func (fromDomain) convertKeyValues(keyValues model.KeyValues) []json.KeyValue {
 			value = kv.Binary()
 		}
 
-		out[i] = json.KeyValue{
+		out[i] = uimodel.KeyValue{
 			Key:   kv.Key,
-			Type:  json.ValueType(strings.ToLower(kv.VType.String())),
+			Type:  uimodel.ValueType(strings.ToLower(kv.VType.String())),
 			Value: value,
 		}
 	}
 	return out
 }
 
-func (fromDomain) convertKeyValuesString(keyValues model.KeyValues) []json.KeyValue {
-	out := make([]json.KeyValue, len(keyValues))
+func (fromDomain) convertKeyValuesString(keyValues model.KeyValues) []uimodel.KeyValue {
+	out := make([]uimodel.KeyValue, len(keyValues))
 	for i, kv := range keyValues {
-		out[i] = json.KeyValue{
+		out[i] = uimodel.KeyValue{
 			Key:   kv.Key,
-			Type:  json.ValueType(strings.ToLower(kv.VType.String())),
+			Type:  uimodel.ValueType(strings.ToLower(kv.VType.String())),
 			Value: kv.AsString(),
 		}
 	}
 	return out
 }
 
-func (fd fromDomain) convertLogs(logs []model.Log) []json.Log {
-	out := make([]json.Log, len(logs))
+func (fd fromDomain) convertLogs(logs []model.Log) []uimodel.Log {
+	out := make([]uimodel.Log, len(logs))
 	for i, log := range logs {
-		out[i] = json.Log{
+		out[i] = uimodel.Log{
 			Timestamp: model.TimeAsEpochMicroseconds(log.Timestamp),
 			Fields:    fd.convertKeyValuesFunc(log.Fields),
 		}
@@ -158,28 +158,28 @@ func (fd fromDomain) convertLogs(logs []model.Log) []json.Log {
 	return out
 }
 
-func (fd fromDomain) convertProcesses(processes map[string]*model.Process) map[json.ProcessID]json.Process {
-	out := make(map[json.ProcessID]json.Process)
+func (fd fromDomain) convertProcesses(processes map[string]*model.Process) map[uimodel.ProcessID]uimodel.Process {
+	out := make(map[uimodel.ProcessID]uimodel.Process)
 	for key, process := range processes {
-		out[json.ProcessID(key)] = fd.convertProcess(process)
+		out[uimodel.ProcessID(key)] = fd.convertProcess(process)
 	}
 	return out
 }
 
-func (fd fromDomain) convertProcess(process *model.Process) json.Process {
-	return json.Process{
+func (fd fromDomain) convertProcess(process *model.Process) uimodel.Process {
+	return uimodel.Process{
 		ServiceName: process.ServiceName,
 		Tags:        fd.convertKeyValuesFunc(process.Tags),
 	}
 }
 
 // DependenciesFromDomain converts []model.DependencyLink into []json.DependencyLink format.
-func DependenciesFromDomain(dependencyLinks []model.DependencyLink) []json.DependencyLink {
-	retMe := make([]json.DependencyLink, 0, len(dependencyLinks))
+func DependenciesFromDomain(dependencyLinks []model.DependencyLink) []uimodel.DependencyLink {
+	retMe := make([]uimodel.DependencyLink, 0, len(dependencyLinks))
 	for _, dependencyLink := range dependencyLinks {
 		retMe = append(
 			retMe,
-			json.DependencyLink{
+			uimodel.DependencyLink{
 				Parent:    dependencyLink.Parent,
 				Child:     dependencyLink.Child,
 				CallCount: dependencyLink.CallCount,
