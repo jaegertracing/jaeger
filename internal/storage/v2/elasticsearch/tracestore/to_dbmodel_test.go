@@ -7,6 +7,10 @@
 package tracestore
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -39,9 +43,9 @@ func TestGetTagFromStatusCode(t *testing.T) {
 			name: "error",
 			code: ptrace.StatusCodeError,
 			tag: dbmodel.KeyValue{
-				Key:   conventions.OtelStatusCode,
-				Type:  dbmodel.StringType,
-				Value: statusError,
+				Key:   tagError,
+				Type:  dbmodel.BoolType,
+				Value: "true",
 			},
 		},
 	}
@@ -50,7 +54,7 @@ func TestGetTagFromStatusCode(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			got, ok := getTagFromStatusCode(test.code)
 			assert.True(t, ok)
-			assert.Equal(t, test.tag, got)
+			assert.EqualValues(t, test.tag, got)
 		})
 	}
 }
@@ -84,7 +88,7 @@ func TestGetTagFromStatusMsg(t *testing.T) {
 
 	got, ok := getTagFromStatusMsg("test-error")
 	assert.True(t, ok)
-	assert.Equal(t, dbmodel.KeyValue{
+	assert.EqualValues(t, dbmodel.KeyValue{
 		Key:   conventions.OtelStatusDescription,
 		Value: "test-error",
 		Type:  dbmodel.StringType,
@@ -198,7 +202,7 @@ func TestGetTagFromSpanKind(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			got, ok := getTagFromSpanKind(test.kind)
 			assert.Equal(t, test.ok, ok)
-			assert.Equal(t, test.tag, got)
+			assert.EqualValues(t, test.tag, got)
 		})
 	}
 }
@@ -236,7 +240,7 @@ func TestAttributesToDbSpanTags(t *testing.T) {
 		{
 			Key:   "bytes-val",
 			Type:  dbmodel.BinaryType,
-			Value: "AQIDBA==",
+			Value: "01020304",
 		},
 		{
 			Key:   conventions.AttributeServiceName,
@@ -246,7 +250,7 @@ func TestAttributesToDbSpanTags(t *testing.T) {
 	}
 
 	got := appendTagsFromAttributes(make([]dbmodel.KeyValue, 0, len(expected)), attributes)
-	require.Equal(t, expected, got)
+	require.EqualValues(t, expected, got)
 }
 
 func TestAttributesToDbSpanTags_MapType(t *testing.T) {
@@ -260,111 +264,70 @@ func TestAttributesToDbSpanTags_MapType(t *testing.T) {
 			Value: "{}",
 		},
 	}
-	require.Equal(t, expected, got)
+	require.EqualValues(t, expected, got)
 }
 
-func TestToDBModel(t *testing.T) {
-	tests := []struct {
-		name string
-		td   ptrace.Traces
-		db   []dbmodel.Span
-	}{
-		{
-			name: "empty",
-			td:   ptrace.NewTraces(),
-		},
+func TestToDbModel_Fixtures(t *testing.T) {
+	tracesStr, spansStr := loadFixtures(t, 1)
+	var span dbmodel.Span
+	err := json.Unmarshal(spansStr, &span)
+	require.NoError(t, err)
+	td, err := FromDBModel([]dbmodel.Span{span})
+	require.NoError(t, err)
+	testTraces(t, tracesStr, td)
+	spans := ToDBModel(td)
+	assert.Len(t, spans, 1)
+	testSpans(t, spansStr, spans[0])
+}
 
-		{
-			name: "no-resource-attrs",
-			td:   generateTracesResourceOnlyWithNoAttrs(),
-		},
+func writeActualData(t *testing.T, name string, data []byte) {
+	var prettyJson bytes.Buffer
+	err := json.Indent(&prettyJson, data, "", "  ")
+	require.NoError(t, err)
+	err = os.WriteFile("actual_"+name+".json", prettyJson.Bytes(), 0o644)
+	require.NoError(t, err)
+}
 
-		{
-			name: "one-span-no-resources",
-			td:   generateTracesOneSpanNoResourceWithTraceState(),
-			db:   []dbmodel.Span{generateProtoSpanWithTraceState()},
-		},
-		{
-			name: "library-info",
-			td:   generateTracesWithLibraryInfo(),
-			db:   []dbmodel.Span{generateProtoSpanWithLibraryInfo("io.opentelemetry.test")},
-		},
-		{
-			name: "two-spans-child-parent",
-			td:   generateTracesTwoSpansChildParent(),
-			db: []dbmodel.Span{
-				generateProtoSpan(),
-				generateProtoChildSpan(),
-			},
-		},
+// Loads and returns domain model and JSON model fixtures with given number i.
+func loadFixtures(t *testing.T, i int) (tracesData []byte, spansData []byte) {
+	var err error
+	inTraces := fmt.Sprintf("fixtures/otel_traces_%02d.json", i)
+	tracesData, err = os.ReadFile(inTraces)
+	require.NoError(t, err)
+	inSpans := fmt.Sprintf("fixtures/es_%02d.json", i)
+	spansData, err = os.ReadFile(inSpans)
+	require.NoError(t, err)
+	return tracesData, spansData
+}
 
-		{
-			name: "two-spans-with-follower",
-			td:   generateTracesTwoSpansWithFollower(),
-			db: []dbmodel.Span{
-				generateProtoSpan(),
-				generateProtoFollowerSpan(),
-			},
-		},
-
-		{
-			name: "span-with-span-event-attribute",
-			td:   generateTracesOneSpanNoResourceWithEventAttribute(),
-			db:   []dbmodel.Span{generateJProtoSpanWithEventAttribute()},
-		},
-		{
-			name: "a-spans-with-two-parent",
-			td:   generateTracesSpanWithTwoParents(),
-			db: []dbmodel.Span{
-				generateProtoSpan(),
-				generateProtoFollowerSpan(),
-				generateProtoTwoParentsSpan(),
-			},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			jbs := ToDBModel(test.td)
-			if test.db == nil {
-				assert.Empty(t, jbs)
-			} else {
-				require.Len(t, jbs, len(test.db))
-				assert.Equal(t, test.db, jbs)
-			}
-		})
+func testTraces(t *testing.T, expectedTraces []byte, actualTraces ptrace.Traces) {
+	unmarshaller := ptrace.JSONUnmarshaler{}
+	expectedTd, err := unmarshaller.UnmarshalTraces(expectedTraces)
+	require.NoError(t, err)
+	if !assert.Equal(t, expectedTd, actualTraces) {
+		marshaller := ptrace.JSONMarshaler{}
+		actualTd, err := marshaller.MarshalTraces(actualTraces)
+		require.NoError(t, err)
+		writeActualData(t, "traces", actualTd)
 	}
 }
 
-func generateTracesOneSpanNoResourceWithEventAttribute() ptrace.Traces {
-	td := generateTracesOneSpanNoResource()
-	event := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Events().At(0)
-	event.SetName("must-be-ignorred")
-	event.Attributes().PutStr("event", "must-be-used-instead-of-event-name")
-	return td
-}
-
-func generateJProtoSpanWithEventAttribute() dbmodel.Span {
-	span := generateProtoSpan()
-	span.Logs[0].Fields = []dbmodel.KeyValue{
-		{
-			Key:   "span-event-attr",
-			Type:  dbmodel.StringType,
-			Value: "span-event-attr-val",
-		},
-		{
-			Key:   eventNameAttr,
-			Type:  dbmodel.StringType,
-			Value: "must-be-used-instead-of-event-name",
-		},
+func testSpans(t *testing.T, expectedSpan []byte, actualSpan dbmodel.Span) {
+	buf := &bytes.Buffer{}
+	enc := json.NewEncoder(buf)
+	enc.SetIndent("", "  ")
+	require.NoError(t, enc.Encode(actualSpan))
+	if !assert.Equal(t, string(expectedSpan), buf.String()) {
+		writeActualData(t, "spans", buf.Bytes())
 	}
-	return span
 }
 
 func BenchmarkInternalTracesToDbSpans(b *testing.B) {
-	td := generateTracesTwoSpansChildParent()
-	resource := generateTracesResourceOnly().ResourceSpans().At(0).Resource()
-	resource.CopyTo(td.ResourceSpans().At(0).Resource())
+	unmarshaller := ptrace.JSONUnmarshaler{}
+	data, err := os.ReadFile("fixtures/otel_traces_01.json")
+	require.NoError(b, err)
+	td, err := unmarshaller.UnmarshalTraces(data)
+	require.NoError(b, err)
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
