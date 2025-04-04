@@ -35,6 +35,7 @@
               "spanId": "0000000000000002",
               "parentSpanId": "0000000000000003",
               "flags": 1,
+              "traceState": "testing-state",
               "name": "test-general-conversion",
               "startTimeUnixNano": "1485467191639875000",
               "endTimeUnixNano": "1485467191639880000",

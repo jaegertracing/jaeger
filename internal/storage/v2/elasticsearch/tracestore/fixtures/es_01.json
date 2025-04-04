@@ -58,6 +58,11 @@
       "key": "temperature",
       "type": "float64",
       "value": "72.5"
+    },
+    {
+      "key": "w3c.tracestate",
+      "type": "string",
+      "value": "testing-state"
     }
   ],
   "logs": [

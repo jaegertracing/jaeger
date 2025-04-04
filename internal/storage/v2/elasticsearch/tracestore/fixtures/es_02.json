@@ -36,7 +36,8 @@
     "otel#scope#version": "1.1.1",
     "peer#ipv4": 23456,
     "peer#service": "service-y",
-    "temperature": 72.5
+    "temperature": 72.5,
+    "w3c#tracestate": "testing-state"
   },
   "logs": [
     {

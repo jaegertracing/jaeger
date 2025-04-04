@@ -180,6 +180,7 @@ func TestToDbModel_DotReplacement_TagKeysAsFields(t *testing.T) {
 				"temperature",
 				"sdk.version.1",
 				"sdk.version.2",
+				"w3c.tracestate",
 			},
 		},
 	}
