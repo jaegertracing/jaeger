@@ -19,45 +19,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	conventions "go.opentelemetry.io/collector/semconv/v1.9.0"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 )
-
-func TestGetTagFromStatusCode(t *testing.T) {
-	tests := []struct {
-		name string
-		code ptrace.StatusCode
-		tag  dbmodel.KeyValue
-	}{
-		{
-			name: "ok",
-			code: ptrace.StatusCodeOk,
-			tag: dbmodel.KeyValue{
-				Key:   conventions.OtelStatusCode,
-				Type:  dbmodel.StringType,
-				Value: statusOk,
-			},
-		},
-
-		{
-			name: "error",
-			code: ptrace.StatusCodeError,
-			tag: dbmodel.KeyValue{
-				Key:   tagError,
-				Type:  dbmodel.BoolType,
-				Value: "true",
-			},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			got, ok := getTagFromStatusCode(test.code)
-			assert.True(t, ok)
-			assert.Equal(t, test.tag, got)
-		})
-	}
-}
 
 func TestEmptyAttributes(t *testing.T) {
 	traces := ptrace.NewTraces()
@@ -65,7 +28,8 @@ func TestEmptyAttributes(t *testing.T) {
 	scopeSpans := spans.ScopeSpans().AppendEmpty()
 	spanScope := scopeSpans.Scope()
 	span := scopeSpans.Spans().AppendEmpty()
-	modelSpan := spanToDbSpan(span, spanScope, dbmodel.Process{})
+	toDb := NewToDBModel(false, nil, ".")
+	modelSpan := toDb.spanToDbSpan(span, spanScope, dbmodel.Process{})
 	assert.Empty(t, modelSpan.Tags)
 }
 
@@ -77,22 +41,10 @@ func TestEmptyLinkRefs(t *testing.T) {
 	span := scopeSpans.Spans().AppendEmpty()
 	spanLink := span.Links().AppendEmpty()
 	spanLink.Attributes().PutStr("testing-key", "testing-inputValue")
-	modelSpan := spanToDbSpan(span, spanScope, dbmodel.Process{})
+	toDb := NewToDBModel(false, nil, ".")
+	modelSpan := toDb.spanToDbSpan(span, spanScope, dbmodel.Process{})
 	assert.Len(t, modelSpan.References, 1)
 	assert.Equal(t, dbmodel.FollowsFrom, modelSpan.References[0].RefType)
-}
-
-func TestGetTagFromStatusMsg(t *testing.T) {
-	_, ok := getTagFromStatusMsg("")
-	assert.False(t, ok)
-
-	got, ok := getTagFromStatusMsg("test-error")
-	assert.True(t, ok)
-	assert.Equal(t, dbmodel.KeyValue{
-		Key:   conventions.OtelStatusDescription,
-		Value: "test-error",
-		Type:  dbmodel.StringType,
-	}, got)
 }
 
 func Test_resourceToDbProcess(t *testing.T) {
@@ -101,7 +53,8 @@ func Test_resourceToDbProcess(t *testing.T) {
 	resource := resourceSpans.Resource()
 	resource.Attributes().PutStr(conventions.AttributeServiceName, "service")
 	resource.Attributes().PutStr("foo", "bar")
-	process := resourceToDbProcess(resource)
+	toDb := NewToDBModel(false, nil, ".")
+	process := toDb.resourceToDbProcess(resource)
 	assert.Equal(t, "service", process.ServiceName)
 	expected := []dbmodel.KeyValue{
 		{
@@ -117,7 +70,8 @@ func Test_resourceToDbProcess_WhenOnlyServiceNameIsPresent(t *testing.T) {
 	traces := ptrace.NewTraces()
 	spans := traces.ResourceSpans().AppendEmpty()
 	spans.Resource().Attributes().PutStr(conventions.AttributeServiceName, "service")
-	process := resourceToDbProcess(spans.Resource())
+	toDb := NewToDBModel(false, nil, ".")
+	process := toDb.resourceToDbProcess(spans.Resource())
 	assert.Equal(t, "service", process.ServiceName)
 }
 
@@ -126,85 +80,6 @@ func Test_appendTagsFromResourceAttributes_empty_attrs(t *testing.T) {
 	emptyAttrs := traces.ResourceSpans().AppendEmpty().Resource().Attributes()
 	kv := appendTagsFromAttributes([]dbmodel.KeyValue{}, emptyAttrs)
 	assert.Empty(t, kv)
-}
-
-func TestGetTagFromSpanKind(t *testing.T) {
-	tests := []struct {
-		name string
-		kind ptrace.SpanKind
-		tag  dbmodel.KeyValue
-		ok   bool
-	}{
-		{
-			name: "unspecified",
-			kind: ptrace.SpanKindUnspecified,
-			tag:  dbmodel.KeyValue{},
-			ok:   false,
-		},
-
-		{
-			name: "client",
-			kind: ptrace.SpanKindClient,
-			tag: dbmodel.KeyValue{
-				Key:   model.SpanKindKey,
-				Type:  dbmodel.StringType,
-				Value: string(model.SpanKindClient),
-			},
-			ok: true,
-		},
-
-		{
-			name: "server",
-			kind: ptrace.SpanKindServer,
-			tag: dbmodel.KeyValue{
-				Key:   model.SpanKindKey,
-				Type:  dbmodel.StringType,
-				Value: string(model.SpanKindServer),
-			},
-			ok: true,
-		},
-
-		{
-			name: "producer",
-			kind: ptrace.SpanKindProducer,
-			tag: dbmodel.KeyValue{
-				Key:   model.SpanKindKey,
-				Type:  dbmodel.StringType,
-				Value: string(model.SpanKindProducer),
-			},
-			ok: true,
-		},
-
-		{
-			name: "consumer",
-			kind: ptrace.SpanKindConsumer,
-			tag: dbmodel.KeyValue{
-				Key:   model.SpanKindKey,
-				Type:  dbmodel.StringType,
-				Value: string(model.SpanKindConsumer),
-			},
-			ok: true,
-		},
-
-		{
-			name: "internal",
-			kind: ptrace.SpanKindInternal,
-			tag: dbmodel.KeyValue{
-				Key:   model.SpanKindKey,
-				Type:  dbmodel.StringType,
-				Value: string(model.SpanKindInternal),
-			},
-			ok: true,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			got, ok := getTagFromSpanKind(test.kind)
-			assert.Equal(t, test.ok, ok)
-			assert.Equal(t, test.tag, got)
-		})
-	}
 }
 
 func TestAttributesToDbSpanTags(t *testing.T) {
@@ -275,7 +150,8 @@ func TestToDbModel_Fixtures(t *testing.T) {
 	td, err := FromDBModel([]dbmodel.Span{span})
 	require.NoError(t, err)
 	testTraces(t, tracesStr, td)
-	spans := ToDBModel(td)
+	toDb := NewToDBModel(false, nil, ".")
+	spans := toDb.ConvertToDBModel(td)
 	assert.Len(t, spans, 1)
 	testSpans(t, spansStr, spans[0])
 }
@@ -333,7 +209,8 @@ func BenchmarkInternalTracesToDbSpans(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		batches := ToDBModel(td)
+		toDb := NewToDBModel(false, nil, ".")
+		batches := toDb.ConvertToDBModel(td)
 		assert.NotEmpty(b, batches)
 	}
 }

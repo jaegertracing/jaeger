@@ -7,8 +7,6 @@
 package tracestore
 
 import (
-	"encoding/hex"
-
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
@@ -27,9 +25,25 @@ const (
 	tagError         = "error"
 )
 
-// ToDBModel translates internal trace data into the DB Spans.
+// NewToDBModel creates FromDomain used to convert model span to db span
+func NewToDBModel(allTagsAsObject bool, tagKeysAsFields []string, tagDotReplacement string) ToDBModel {
+	tags := map[string]bool{}
+	for _, k := range tagKeysAsFields {
+		tags[k] = true
+	}
+	return ToDBModel{allTagsAsFields: allTagsAsObject, tagKeysAsFields: tags, tagDotReplacement: tagDotReplacement}
+}
+
+// ToDBModel is used to convert model span to db span
+type ToDBModel struct {
+	allTagsAsFields   bool
+	tagKeysAsFields   map[string]bool
+	tagDotReplacement string
+}
+
+// ConvertToDBModel translates internal trace data into the DB Spans.
 // Returns slice of translated DB Spans and error if translation failed.
-func ToDBModel(td ptrace.Traces) []dbmodel.Span {
+func (t ToDBModel) ConvertToDBModel(td ptrace.Traces) []dbmodel.Span {
 	resourceSpans := td.ResourceSpans()
 
 	if resourceSpans.Len() == 0 {
@@ -39,7 +53,7 @@ func ToDBModel(td ptrace.Traces) []dbmodel.Span {
 	batches := make([]dbmodel.Span, 0, resourceSpans.Len())
 	for i := 0; i < resourceSpans.Len(); i++ {
 		rs := resourceSpans.At(i)
-		batch := resourceSpansToDbSpans(rs)
+		batch := t.resourceSpansToDbSpans(rs)
 		if batch != nil {
 			batches = append(batches, batch...)
 		}
@@ -48,7 +62,7 @@ func ToDBModel(td ptrace.Traces) []dbmodel.Span {
 	return batches
 }
 
-func resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans) []dbmodel.Span {
+func (t ToDBModel) resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans) []dbmodel.Span {
 	resource := resourceSpans.Resource()
 	scopeSpans := resourceSpans.ScopeSpans()
 
@@ -56,7 +70,7 @@ func resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans) []dbmodel.Span {
 		return []dbmodel.Span{}
 	}
 
-	process := resourceToDbProcess(resource)
+	process := t.resourceToDbProcess(resource)
 
 	// Approximate the number of the spans as the number of the spans in the first
 	// instrumentation library info.
@@ -64,7 +78,7 @@ func resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans) []dbmodel.Span {
 
 	for _, scopeSpan := range scopeSpans.All() {
 		for _, span := range scopeSpan.Spans().All() {
-			dbSpan := spanToDbSpan(span, scopeSpan.Scope(), process)
+			dbSpan := t.spanToDbSpan(span, scopeSpan.Scope(), process)
 			dbSpans = append(dbSpans, dbSpan)
 		}
 	}
@@ -72,61 +86,43 @@ func resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans) []dbmodel.Span {
 	return dbSpans
 }
 
-func resourceToDbProcess(resource pcommon.Resource) dbmodel.Process {
+func (t ToDBModel) resourceToDbProcess(resource pcommon.Resource) dbmodel.Process {
 	process := dbmodel.Process{}
 	attrs := resource.Attributes()
 	if attrs.Len() == 0 {
 		process.ServiceName = noServiceName
 		return process
 	}
-	tags := make([]dbmodel.KeyValue, 0, attrs.Len())
+	appender := newTagAppender(t.allTagsAsFields, t.tagKeysAsFields, t.tagDotReplacement)
 	for key, attr := range attrs.All() {
 		if key == conventions.AttributeServiceName {
 			process.ServiceName = attr.AsString()
 			continue
 		}
-		tags = append(tags, attributeToDbTag(key, attr))
+		appender.appendTag(key, attr)
 	}
+	tags, tagMap := appender.getTags()
 	process.Tags = tags
+	process.Tag = tagMap
 	return process
 }
 
 func appendTagsFromAttributes(dest []dbmodel.KeyValue, attrs pcommon.Map) []dbmodel.KeyValue {
 	for key, attr := range attrs.All() {
-		dest = append(dest, attributeToDbTag(key, attr))
+		dest = append(dest, dbmodel.KeyValue{
+			Key:   key,
+			Type:  attributeToDbType(attr.Type()),
+			Value: attr.AsString(),
+		})
 	}
 	return dest
 }
 
-func attributeToDbTag(key string, attr pcommon.Value) dbmodel.KeyValue {
-	var tag dbmodel.KeyValue
-	if attr.Type() == pcommon.ValueTypeBytes {
-		tag = dbmodel.KeyValue{Key: key, Value: hex.EncodeToString(attr.Bytes().AsRaw())}
-	} else {
-		// TODO why are all values being converted to strings?
-		tag = dbmodel.KeyValue{Key: key, Value: attr.AsString()}
-	}
-	switch attr.Type() {
-	case pcommon.ValueTypeStr:
-		tag.Type = dbmodel.StringType
-	case pcommon.ValueTypeInt:
-		tag.Type = dbmodel.Int64Type
-	case pcommon.ValueTypeBool:
-		tag.Type = dbmodel.BoolType
-	case pcommon.ValueTypeDouble:
-		tag.Type = dbmodel.Float64Type
-	case pcommon.ValueTypeBytes:
-		tag.Type = dbmodel.BinaryType
-	case pcommon.ValueTypeMap, pcommon.ValueTypeSlice:
-		tag.Type = dbmodel.StringType
-	}
-	return tag
-}
-
-func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, process dbmodel.Process) dbmodel.Span {
+func (t ToDBModel) spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, process dbmodel.Process) dbmodel.Span {
 	traceID := dbmodel.TraceID(span.TraceID().String())
 	parentSpanID := dbmodel.SpanID(span.ParentSpanID().String())
 	startTime := span.StartTimestamp().AsTime()
+	tags, tagMap := t.getDbSpanTags(span, libraryTags)
 	return dbmodel.Span{
 		TraceID:         traceID,
 		SpanID:          dbmodel.SpanID(span.SpanID().String()),
@@ -135,63 +131,24 @@ func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, pr
 		StartTime:       model.TimeAsEpochMicroseconds(startTime),
 		StartTimeMillis: model.TimeAsEpochMicroseconds(startTime) / 1000,
 		Duration:        model.DurationAsMicroseconds(span.EndTimestamp().AsTime().Sub(startTime)),
-		Tags:            getDbSpanTags(span, libraryTags),
+		Tags:            tags,
+		Tag:             tagMap,
 		Logs:            spanEventsToDbSpanLogs(span.Events()),
 		Process:         process,
 		Flags:           span.Flags(),
 	}
 }
 
-func getDbSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmodel.KeyValue {
-	var spanKindTag, statusCodeTag, statusMsgTag dbmodel.KeyValue
-	var spanKindTagFound, statusCodeTagFound, statusMsgTagFound bool
-
-	libraryTags, libraryTagsFound := getTagsFromInstrumentationLibrary(scope)
-
-	tagsCount := span.Attributes().Len() + len(libraryTags)
-
-	spanKindTag, spanKindTagFound = getTagFromSpanKind(span.Kind())
-	if spanKindTagFound {
-		tagsCount++
-	}
+func (t ToDBModel) getDbSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope) ([]dbmodel.KeyValue, map[string]any) {
+	appender := newTagAppender(t.allTagsAsFields, t.tagKeysAsFields, t.tagDotReplacement)
+	appender.appendInstrumentationLibraryTags(scope)
+	appender.appendSpanKindTag(span.Kind())
 	status := span.Status()
-	statusCodeTag, statusCodeTagFound = getTagFromStatusCode(status.Code())
-	if statusCodeTagFound {
-		tagsCount++
-	}
-
-	statusMsgTag, statusMsgTagFound = getTagFromStatusMsg(status.Message())
-	if statusMsgTagFound {
-		tagsCount++
-	}
-
-	traceStateTags, traceStateTagsFound := getTagsFromTraceState(span.TraceState().AsRaw())
-	if traceStateTagsFound {
-		tagsCount += len(traceStateTags)
-	}
-
-	if tagsCount == 0 {
-		return nil
-	}
-
-	tags := make([]dbmodel.KeyValue, 0, tagsCount)
-	if libraryTagsFound {
-		tags = append(tags, libraryTags...)
-	}
-	tags = appendTagsFromAttributes(tags, span.Attributes())
-	if spanKindTagFound {
-		tags = append(tags, spanKindTag)
-	}
-	if statusCodeTagFound {
-		tags = append(tags, statusCodeTag)
-	}
-	if statusMsgTagFound {
-		tags = append(tags, statusMsgTag)
-	}
-	if traceStateTagsFound {
-		tags = append(tags, traceStateTags...)
-	}
-	return tags
+	appender.appendStatusCodeTag(status.Code())
+	appender.appendStatusMsgTag(status.Message())
+	appender.appendTraceStateTag(span.TraceState().AsRaw())
+	appender.appendTags(span.Attributes())
+	return appender.getTags()
 }
 
 // linksToDbSpanRefs constructs jaeger span references based on parent span ID and span links.
@@ -263,95 +220,6 @@ func spanEventsToDbSpanLogs(events ptrace.SpanEventSlice) []dbmodel.Log {
 	}
 
 	return logs
-}
-
-func getTagFromSpanKind(spanKind ptrace.SpanKind) (dbmodel.KeyValue, bool) {
-	var tagStr string
-	switch spanKind {
-	case ptrace.SpanKindClient:
-		tagStr = string(model.SpanKindClient)
-	case ptrace.SpanKindServer:
-		tagStr = string(model.SpanKindServer)
-	case ptrace.SpanKindProducer:
-		tagStr = string(model.SpanKindProducer)
-	case ptrace.SpanKindConsumer:
-		tagStr = string(model.SpanKindConsumer)
-	case ptrace.SpanKindInternal:
-		tagStr = string(model.SpanKindInternal)
-	default:
-		return dbmodel.KeyValue{}, false
-	}
-
-	return dbmodel.KeyValue{
-		Key:   model.SpanKindKey,
-		Type:  dbmodel.StringType,
-		Value: tagStr,
-	}, true
-}
-
-func getTagFromStatusCode(statusCode ptrace.StatusCode) (dbmodel.KeyValue, bool) {
-	if statusCode == ptrace.StatusCodeError {
-		return dbmodel.KeyValue{
-			Key:   tagError,
-			Type:  dbmodel.BoolType,
-			Value: "true",
-		}, true
-	} else if statusCode == ptrace.StatusCodeOk {
-		return dbmodel.KeyValue{
-			Key:   conventions.OtelStatusCode,
-			Type:  dbmodel.StringType,
-			Value: statusOk,
-		}, true
-	}
-	return dbmodel.KeyValue{}, false
-}
-
-func getTagFromStatusMsg(statusMsg string) (dbmodel.KeyValue, bool) {
-	if statusMsg == "" {
-		return dbmodel.KeyValue{}, false
-	}
-	return dbmodel.KeyValue{
-		Key:   conventions.OtelStatusDescription,
-		Value: statusMsg,
-		Type:  dbmodel.StringType,
-	}, true
-}
-
-func getTagsFromTraceState(traceState string) ([]dbmodel.KeyValue, bool) {
-	var keyValues []dbmodel.KeyValue
-	exists := traceState != ""
-	if exists {
-		// TODO Bring this inline with solution for jaegertracing/jaeger-client-java #702 once available
-		kv := dbmodel.KeyValue{
-			Key:   tagW3CTraceState,
-			Value: traceState,
-			Type:  dbmodel.StringType,
-		}
-		keyValues = append(keyValues, kv)
-	}
-	return keyValues, exists
-}
-
-func getTagsFromInstrumentationLibrary(il pcommon.InstrumentationScope) ([]dbmodel.KeyValue, bool) {
-	var keyValues []dbmodel.KeyValue
-	if ilName := il.Name(); ilName != "" {
-		kv := dbmodel.KeyValue{
-			Key:   conventions.AttributeOtelScopeName,
-			Value: ilName,
-			Type:  dbmodel.StringType,
-		}
-		keyValues = append(keyValues, kv)
-	}
-	if ilVersion := il.Version(); ilVersion != "" {
-		kv := dbmodel.KeyValue{
-			Key:   conventions.AttributeOtelScopeVersion,
-			Value: ilVersion,
-			Type:  dbmodel.StringType,
-		}
-		keyValues = append(keyValues, kv)
-	}
-
-	return keyValues, true
 }
 
 func refTypeFromLink(link ptrace.SpanLink) dbmodel.ReferenceType {
