@@ -4,6 +4,7 @@
 package tracestore
 
 import (
+	"encoding/hex"
 	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -14,6 +15,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 )
 
+// tagAppender append tags to dbmodel KeyValue slice and tagsMap by replacing dots with tagDotReplacement
 type tagAppender struct {
 	allTagsAsFields   bool
 	tagKeysAsFields   map[string]bool
@@ -22,6 +24,7 @@ type tagAppender struct {
 	tags              []dbmodel.KeyValue
 }
 
+// newTagAppender return an instance of tagAppender
 func newTagAppender(allTagsAsFields bool, tagKeysAsFields map[string]bool, tagDotReplacement string) *tagAppender {
 	return &tagAppender{
 		allTagsAsFields:   allTagsAsFields,
@@ -46,8 +49,15 @@ func (t *tagAppender) appendTag(key string, val pcommon.Value) {
 	if val.Type() != pcommon.ValueTypeBytes && (t.allTagsAsFields || t.tagKeysAsFields[key]) {
 		t.tagsMap[strings.ReplaceAll(key, ".", t.tagDotReplacement)] = attributeToDbValue(val)
 	} else {
-		t.tags = append(t.tags, t.attributeToDbTag(key, val.Type(), val.AsString()))
+		t.tags = append(t.tags, attributeToDbTag(key, val))
 	}
+}
+
+func getStringValue(val pcommon.Value) string {
+	if val.Type() == pcommon.ValueTypeBytes {
+		return hex.EncodeToString(val.Bytes().AsRaw())
+	}
+	return val.AsString()
 }
 
 func (t *tagAppender) appendSpanKindTag(spanKind ptrace.SpanKind) {
@@ -69,7 +79,7 @@ func (t *tagAppender) appendInstrumentationLibraryTags(il pcommon.Instrumentatio
 func (t *tagAppender) appendStatusCodeTag(statusCode ptrace.StatusCode) {
 	switch statusCode {
 	case ptrace.StatusCodeError:
-		t.appendTag(conventions.OtelStatusCode, pcommon.NewValueStr(statusError))
+		t.appendTag(tagError, pcommon.NewValueBool(true))
 	case ptrace.StatusCodeOk:
 		t.appendTag(conventions.OtelStatusCode, pcommon.NewValueStr(statusOk))
 	}
@@ -105,10 +115,11 @@ func getDbSpanKind(spanKind ptrace.SpanKind) string {
 	}
 }
 
-func (*tagAppender) attributeToDbTag(key string, tp pcommon.ValueType, value string) dbmodel.KeyValue {
+func attributeToDbTag(key string, value pcommon.Value) dbmodel.KeyValue {
+	val := getStringValue(value)
+	tp := attributeToDbType(value.Type())
 	// TODO why are all values being converted to strings?
-	tag := dbmodel.KeyValue{Key: key, Value: value}
-	tag.Type = attributeToDbType(tp)
+	tag := dbmodel.KeyValue{Key: key, Type: tp, Value: val}
 	return tag
 }
 

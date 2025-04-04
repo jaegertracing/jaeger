@@ -35,32 +35,32 @@ func TestAppendStatusCodeTag(t *testing.T) {
 			name: "error",
 			code: ptrace.StatusCodeError,
 			tag: dbmodel.KeyValue{
-				Key:   conventions.OtelStatusCode,
-				Type:  dbmodel.StringType,
-				Value: statusError,
+				Key:   tagError,
+				Type:  dbmodel.BoolType,
+				Value: "true",
 			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			tagAppender := newTagAppender(false, nil, "")
-			tagAppender.appendStatusCodeTag(test.code)
-			got, tagMap := tagAppender.getTags()
+			appender := newTagAppender(false, nil, "")
+			appender.appendStatusCodeTag(test.code)
+			got, tagMap := appender.getTags()
 			_, ok := tagMap[test.tag.Key]
 			assert.False(t, ok)
-			assert.EqualValues(t, test.tag, got[0])
+			assert.Equal(t, test.tag, got[0])
 		})
 	}
 }
 
 func TestAppendStatusMsgTag(t *testing.T) {
-	tagAppender := newTagAppender(true, nil, ".")
-	tagAppender.appendStatusMsgTag("")
-	got, tagMap := tagAppender.getTags()
+	appender := newTagAppender(true, nil, ".")
+	appender.appendStatusMsgTag("")
+	got, tagMap := appender.getTags()
 	assert.Empty(t, tagMap)
 	assert.Empty(t, got)
-	tagAppender.appendStatusMsgTag("test-error")
+	appender.appendStatusMsgTag("test-error")
 	assert.Empty(t, got)
 	tag, ok := tagMap[conventions.OtelStatusDescription]
 	assert.True(t, ok)
@@ -119,9 +119,9 @@ func TestAppendSpanKindTag(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			tagAppender := newTagAppender(true, nil, "#")
-			tagAppender.appendSpanKindTag(test.kind)
-			tags, tagMap := tagAppender.getTags()
+			appender := newTagAppender(true, nil, "#")
+			appender.appendSpanKindTag(test.kind)
+			tags, tagMap := appender.getTags()
 			assert.Empty(t, tags)
 			tag, ok := tagMap["span#kind"]
 			assert.Equal(t, test.ok, ok)
@@ -136,10 +136,10 @@ func TestAppendTagWhenTagKeysAsField(t *testing.T) {
 	tagKeysAsFields := map[string]bool{
 		"testing.key.1": true,
 	}
-	tagAppender := newTagAppender(false, tagKeysAsFields, "#")
-	tagAppender.appendTag("testing.key.1", pcommon.NewValueInt(1))
-	tagAppender.appendTag("testing.key.2", pcommon.NewValueInt(2))
-	tags, tagMap := tagAppender.getTags()
+	appender := newTagAppender(false, tagKeysAsFields, "#")
+	appender.appendTag("testing.key.1", pcommon.NewValueInt(1))
+	appender.appendTag("testing.key.2", pcommon.NewValueInt(2))
+	tags, tagMap := appender.getTags()
 	assert.Len(t, tags, 1)
 	assert.Len(t, tagMap, 1)
 	assert.Equal(t, int64(1), tagMap["testing#key#1"])
@@ -200,9 +200,9 @@ func testAppendTags(t *testing.T, allTagsAsFields bool) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			tagAppender := newTagAppender(allTagsAsFields, nil, ".")
-			tagAppender.appendTag(test.name, test.value)
-			tags, tagMap := tagAppender.getTags()
+			appender := newTagAppender(allTagsAsFields, nil, ".")
+			appender.appendTag(test.name, test.value)
+			tags, tagMap := appender.getTags()
 			if allTagsAsFields && test.dbType != dbmodel.BinaryType {
 				assert.Empty(t, tags)
 				assert.Len(t, tagMap, 1)

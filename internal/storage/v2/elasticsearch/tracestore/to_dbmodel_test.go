@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -156,6 +157,48 @@ func TestToDbModel_Fixtures(t *testing.T) {
 	testSpans(t, spansStr, spans[0])
 }
 
+func TestToDbModel_DotReplacement_TagKeysAsFields(t *testing.T) {
+	tests := []struct {
+		name            string
+		allTagsAsFields bool
+		tagKeysAsFields []string
+	}{
+		{
+			name:            "allTagsAsObject=true",
+			allTagsAsFields: true,
+		},
+		{
+			name:            "allTagsAsObject=false",
+			allTagsAsFields: false,
+			tagKeysAsFields: []string{
+				"blob",
+				"error",
+				"otel.scope.name",
+				"otel.scope.version",
+				"peer.ipv4",
+				"peer.service",
+				"temperature",
+				"sdk.version.1",
+				"sdk.version.2",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tracesData := loadTraces(t, 1)
+			unmarshaller := ptrace.JSONUnmarshaler{}
+			expectedTd, err := unmarshaller.UnmarshalTraces(tracesData)
+			require.NoError(t, err)
+			dotReplacement := "#"
+			toDb := NewToDBModel(tt.allTagsAsFields, tt.tagKeysAsFields, dotReplacement)
+			spans := toDb.ConvertToDBModel(expectedTd)
+			assert.Len(t, spans, 1)
+			spanData := loadSpans(t, 2)
+			testSpans(t, spanData, spans[0])
+		})
+	}
+}
+
 func writeActualData(t *testing.T, name string, data []byte) {
 	var prettyJson bytes.Buffer
 	err := json.Indent(&prettyJson, data, "", "  ")
@@ -168,14 +211,23 @@ func writeActualData(t *testing.T, name string, data []byte) {
 
 // Loads and returns domain model and JSON model fixtures with given number i.
 func loadFixtures(t *testing.T, i int) (tracesData []byte, spansData []byte) {
-	var err error
-	inTraces := fmt.Sprintf("fixtures/otel_traces_%02d.json", i)
-	tracesData, err = os.ReadFile(inTraces)
-	require.NoError(t, err)
-	inSpans := fmt.Sprintf("fixtures/es_%02d.json", i)
-	spansData, err = os.ReadFile(inSpans)
-	require.NoError(t, err)
+	tracesData = loadTraces(t, i)
+	spansData = loadSpans(t, i)
 	return tracesData, spansData
+}
+
+func loadTraces(t *testing.T, i int) []byte {
+	inTraces := fmt.Sprintf("fixtures/otel_traces_%02d.json", i)
+	tracesData, err := os.ReadFile(inTraces)
+	require.NoError(t, err)
+	return tracesData
+}
+
+func loadSpans(t *testing.T, i int) []byte {
+	inSpans := fmt.Sprintf("fixtures/es_%02d.json", i)
+	spansData, err := os.ReadFile(inSpans)
+	require.NoError(t, err)
+	return spansData
 }
 
 func testTraces(t *testing.T, expectedTraces []byte, actualTraces ptrace.Traces) {
@@ -191,6 +243,7 @@ func testTraces(t *testing.T, expectedTraces []byte, actualTraces ptrace.Traces)
 }
 
 func testSpans(t *testing.T, expectedSpan []byte, actualSpan dbmodel.Span) {
+	sortSpanTags(&actualSpan)
 	buf := &bytes.Buffer{}
 	enc := json.NewEncoder(buf)
 	enc.SetIndent("", "  ")
@@ -198,6 +251,12 @@ func testSpans(t *testing.T, expectedSpan []byte, actualSpan dbmodel.Span) {
 	if !assert.Equal(t, string(expectedSpan), buf.String()) {
 		writeActualData(t, "spans", buf.Bytes())
 	}
+}
+
+func sortSpanTags(span *dbmodel.Span) {
+	sort.Slice(span.Tags, func(i, j int) bool {
+		return span.Tags[i].Key < span.Tags[j].Key
+	})
 }
 
 func BenchmarkInternalTracesToDbSpans(b *testing.B) {

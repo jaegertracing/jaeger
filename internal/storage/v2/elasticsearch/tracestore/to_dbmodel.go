@@ -109,11 +109,7 @@ func (t ToDBModel) resourceToDbProcess(resource pcommon.Resource) dbmodel.Proces
 
 func appendTagsFromAttributes(dest []dbmodel.KeyValue, attrs pcommon.Map) []dbmodel.KeyValue {
 	for key, attr := range attrs.All() {
-		dest = append(dest, dbmodel.KeyValue{
-			Key:   key,
-			Type:  attributeToDbType(attr.Type()),
-			Value: attr.AsString(),
-		})
+		dest = append(dest, attributeToDbTag(key, attr))
 	}
 	return dest
 }
