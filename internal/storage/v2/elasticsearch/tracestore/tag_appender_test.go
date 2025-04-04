@@ -236,12 +236,3 @@ func TestAttributeToDbType_UnknownType(t *testing.T) {
 	dbType := attributeToDbType(pcommon.ValueType(13))
 	assert.Equal(t, dbmodel.ValueType(""), dbType)
 }
-
-func TestAttributeToDbValue_UnknownAndBinaryType(t *testing.T) {
-	val := pcommon.NewValueEmpty()
-	binaryVal := pcommon.NewValueBytes()
-	dbValue := attributeToDbValue(val)
-	dbBinaryVal := attributeToDbValue(binaryVal)
-	assert.Equal(t, val.AsString(), dbValue)
-	assert.Equal(t, binaryVal.Bytes(), dbBinaryVal)
-}

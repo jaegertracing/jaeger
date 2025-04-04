@@ -47,7 +47,7 @@ func (t *tagAppender) appendTags(attrs pcommon.Map) {
 
 func (t *tagAppender) appendTag(key string, val pcommon.Value) {
 	if val.Type() != pcommon.ValueTypeBytes && (t.allTagsAsFields || t.tagKeysAsFields[key]) {
-		t.tagsMap[strings.ReplaceAll(key, ".", t.tagDotReplacement)] = attributeToDbValue(val)
+		t.tagsMap[strings.ReplaceAll(key, ".", t.tagDotReplacement)] = val.AsRaw()
 	} else {
 		t.tags = append(t.tags, attributeToDbTag(key, val))
 	}
@@ -139,24 +139,5 @@ func attributeToDbType(tp pcommon.ValueType) dbmodel.ValueType {
 		return dbmodel.StringType
 	default:
 		return ""
-	}
-}
-
-func attributeToDbValue(attr pcommon.Value) any {
-	switch attr.Type() {
-	case pcommon.ValueTypeInt:
-		return attr.Int()
-	case pcommon.ValueTypeBool:
-		return attr.Bool()
-	case pcommon.ValueTypeDouble:
-		return attr.Double()
-	case pcommon.ValueTypeBytes:
-		return attr.Bytes()
-	case pcommon.ValueTypeStr:
-		return attr.Str()
-	case pcommon.ValueTypeMap, pcommon.ValueTypeSlice:
-		return attr.AsString()
-	default:
-		return attr.AsString()
 	}
 }
