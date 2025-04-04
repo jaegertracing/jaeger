@@ -25,7 +25,7 @@ const (
 	tagError         = "error"
 )
 
-// NewToDBModel creates FromDomain used to convert model span to db span
+// NewToDBModel creates ToDBModel used to convert OTLP Traces to db spans
 func NewToDBModel(allTagsAsObject bool, tagKeysAsFields []string, tagDotReplacement string) ToDBModel {
 	tags := map[string]bool{}
 	for _, k := range tagKeysAsFields {
@@ -34,7 +34,7 @@ func NewToDBModel(allTagsAsObject bool, tagKeysAsFields []string, tagDotReplacem
 	return ToDBModel{allTagsAsFields: allTagsAsObject, tagKeysAsFields: tags, tagDotReplacement: tagDotReplacement}
 }
 
-// ToDBModel is used to convert model span to db span
+// ToDBModel is used to convert OTLP traces to db spans
 type ToDBModel struct {
 	allTagsAsFields   bool
 	tagKeysAsFields   map[string]bool
