@@ -206,18 +206,7 @@ func testAppendTags(t *testing.T, allTagsAsFields bool) {
 			if allTagsAsFields && test.dbType != dbmodel.BinaryType {
 				assert.Empty(t, tags)
 				assert.Len(t, tagMap, 1)
-				switch test.dbType {
-				case dbmodel.StringType:
-					assert.Equal(t, test.value.AsString(), tagMap[test.name])
-				case dbmodel.Int64Type:
-					assert.Equal(t, test.value.Int(), tagMap[test.name])
-				case dbmodel.BoolType:
-					assert.Equal(t, test.value.Bool(), tagMap[test.name])
-				case dbmodel.Float64Type:
-					assert.InDelta(t, test.value.Double(), tagMap[test.name], 0.01)
-				default:
-					t.Errorf("unknown db type: %v", test.dbType)
-				}
+				assert.Equal(t, test.value.AsRaw(), tagMap[test.name])
 			} else {
 				assert.Len(t, tags, 1)
 				assert.Empty(t, tagMap)
