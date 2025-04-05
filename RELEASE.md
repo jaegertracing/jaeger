@@ -14,7 +14,7 @@ Create an issue with the checklist for the release by running `bash scripts/rele
 
 <!-- BEGIN_CHECKLIST -->
 
-1. Create a PR "Prepare release 1.x.x / 2.x.x" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/543/files)) by updating CHANGELOG.md to include:
+1. Create a PR "Prepare release 1.x.x / 2.x.x" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/6826)) by updating CHANGELOG.md to include:
     * A new section with the header `1.x.x / 2.x.x (YYYY-MM-DD)` (copy the template at the top)
     * A curated list of notable changes and links to PRs. Do not simply dump git log, select the changes that affect the users.
       To obtain the list of all changes run `make changelog`.
@@ -23,10 +23,11 @@ Create an issue with the checklist for the release by running `bash scripts/rele
         ```
         git submodule init
         git submodule update
-        cd jaeger-ui
+        pushd jaeger-ui
         git checkout main
         git pull
         git checkout {new_ui_version} # e.g. v1.5.0
+        popd
         ```
       * If there are only dependency bumps, indicate this with "Dependencies upgrades only" ([example](https://github.com/jaegertracing/jaeger-ui/pull/2431/files)).
       * If there are no changes, indicate this with "No changes" ([example](https://github.com/jaegertracing/jaeger/pull/4131/files)).
@@ -87,9 +88,9 @@ Here are the release managers for future versions with the tentative release dat
 
 | Version | Release Manager | Tentative release date |
 |---------|-----------------|------------------------|
-| 1.68.0  | @albertteoh     | 5 April  2025          |
-| 1.69.0  | @pavolloffay    | 7 May    2025          |
-| 1.70.0  | @joe-elliott    | 4 June   2025          |
-| 1.71.0  | @mahadzaryab1   | 2 July   2025          |
-| 1.72.0  | @jkowall        | 6 August 2025          |
-| 1.73.0  | @yurishkuro     | 5 Sep    2025          |
+| 1.69.0  | @pavolloffay    | 7 May       2025       |
+| 1.70.0  | @joe-elliott    | 4 June      2025       |
+| 1.71.0  | @mahadzaryab1   | 2 July      2025       |
+| 1.72.0  | @jkowall        | 6 August    2025       |
+| 1.73.0  | @yurishkuro     | 5 September 2025       |
+| 1.74.0  | @albertteoh     | 1 October   2025       |
