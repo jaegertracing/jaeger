@@ -44,3 +44,26 @@ func (h *Handler) GetServices(
 		Services: services,
 	}, nil
 }
+
+func (h *Handler) GetOperations(
+	ctx context.Context,
+	req *storage.GetOperationsRequest,
+) (*storage.GetOperationsResponse, error) {
+	operations, err := h.traceReader.GetOperations(ctx, tracestore.OperationQueryParams{
+		ServiceName: req.Service,
+		SpanKind:    req.SpanKind,
+	})
+	if err != nil {
+		return nil, err
+	}
+	grpcOperations := make([]*storage.Operation, len(operations))
+	for i, operation := range operations {
+		grpcOperations[i] = &storage.Operation{
+			Name:     operation.Name,
+			SpanKind: operation.SpanKind,
+		}
+	}
+	return &storage.GetOperationsResponse{
+		Operations: grpcOperations,
+	}, nil
+}
