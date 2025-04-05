@@ -25,25 +25,34 @@ const (
 	tagError         = "error"
 )
 
-// NewToDBModel creates ToDBModel used to convert OTLP Traces to db spans
-func NewToDBModel(allTagsAsObject bool, tagKeysAsFields []string, tagDotReplacement string) ToDBModel {
+// ToDBModel is used to convert OTLP Traces to db spans
+func ToDBModel(td ptrace.Traces, allTagsAsObject bool, tagKeysAsFields []string, tagDotReplacement string) []dbmodel.Span {
 	tags := map[string]bool{}
 	for _, k := range tagKeysAsFields {
 		tags[k] = true
 	}
-	return ToDBModel{allTagsAsFields: allTagsAsObject, tagKeysAsFields: tags, tagDotReplacement: tagDotReplacement}
+	toDb := newToDBModel(allTagsAsObject, tags, tagDotReplacement)
+	return toDb.convertToDBModel(td)
 }
 
-// ToDBModel is used to convert OTLP traces to db spans
-type ToDBModel struct {
+func newToDBModel(allTagsAsObject bool, tagKeysAsFields map[string]bool, tagDotReplacement string) toDBModel {
+	return toDBModel{
+		allTagsAsFields:   allTagsAsObject,
+		tagKeysAsFields:   tagKeysAsFields,
+		tagDotReplacement: tagDotReplacement,
+	}
+}
+
+// toDBModel is used to convert OTLP traces to db spans
+type toDBModel struct {
 	allTagsAsFields   bool
 	tagKeysAsFields   map[string]bool
 	tagDotReplacement string
 }
 
-// ConvertToDBModel translates internal trace data into the DB Spans.
+// convertToDBModel translates internal trace data into the DB Spans.
 // Returns slice of translated DB Spans and error if translation failed.
-func (t ToDBModel) ConvertToDBModel(td ptrace.Traces) []dbmodel.Span {
+func (t toDBModel) convertToDBModel(td ptrace.Traces) []dbmodel.Span {
 	resourceSpans := td.ResourceSpans()
 
 	if resourceSpans.Len() == 0 {
@@ -62,7 +71,7 @@ func (t ToDBModel) ConvertToDBModel(td ptrace.Traces) []dbmodel.Span {
 	return batches
 }
 
-func (t ToDBModel) resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans) []dbmodel.Span {
+func (t toDBModel) resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans) []dbmodel.Span {
 	resource := resourceSpans.Resource()
 	scopeSpans := resourceSpans.ScopeSpans()
 
@@ -86,7 +95,7 @@ func (t ToDBModel) resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans) []
 	return dbSpans
 }
 
-func (t ToDBModel) resourceToDbProcess(resource pcommon.Resource) dbmodel.Process {
+func (t toDBModel) resourceToDbProcess(resource pcommon.Resource) dbmodel.Process {
 	process := dbmodel.Process{}
 	attrs := resource.Attributes()
 	if attrs.Len() == 0 {
@@ -114,7 +123,7 @@ func appendTagsFromAttributes(dest []dbmodel.KeyValue, attrs pcommon.Map) []dbmo
 	return dest
 }
 
-func (t ToDBModel) spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, process dbmodel.Process) dbmodel.Span {
+func (t toDBModel) spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, process dbmodel.Process) dbmodel.Span {
 	traceID := dbmodel.TraceID(span.TraceID().String())
 	parentSpanID := dbmodel.SpanID(span.ParentSpanID().String())
 	startTime := span.StartTimestamp().AsTime()
@@ -135,7 +144,7 @@ func (t ToDBModel) spanToDbSpan(span ptrace.Span, libraryTags pcommon.Instrument
 	}
 }
 
-func (t ToDBModel) getDbSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope) ([]dbmodel.KeyValue, map[string]any) {
+func (t toDBModel) getDbSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope) ([]dbmodel.KeyValue, map[string]any) {
 	appender := newTagAppender(t.allTagsAsFields, t.tagKeysAsFields, t.tagDotReplacement)
 	appender.appendInstrumentationLibraryTags(scope)
 	appender.appendSpanKindTag(span.Kind())

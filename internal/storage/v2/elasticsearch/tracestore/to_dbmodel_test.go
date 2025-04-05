@@ -29,7 +29,7 @@ func TestEmptyAttributes(t *testing.T) {
 	scopeSpans := spans.ScopeSpans().AppendEmpty()
 	spanScope := scopeSpans.Scope()
 	span := scopeSpans.Spans().AppendEmpty()
-	toDb := NewToDBModel(false, nil, ".")
+	toDb := newToDBModel(false, nil, ".")
 	modelSpan := toDb.spanToDbSpan(span, spanScope, dbmodel.Process{})
 	assert.Empty(t, modelSpan.Tags)
 }
@@ -42,7 +42,7 @@ func TestEmptyLinkRefs(t *testing.T) {
 	span := scopeSpans.Spans().AppendEmpty()
 	spanLink := span.Links().AppendEmpty()
 	spanLink.Attributes().PutStr("testing-key", "testing-inputValue")
-	toDb := NewToDBModel(false, nil, ".")
+	toDb := newToDBModel(false, nil, ".")
 	modelSpan := toDb.spanToDbSpan(span, spanScope, dbmodel.Process{})
 	assert.Len(t, modelSpan.References, 1)
 	assert.Equal(t, dbmodel.FollowsFrom, modelSpan.References[0].RefType)
@@ -54,7 +54,7 @@ func Test_resourceToDbProcess(t *testing.T) {
 	resource := resourceSpans.Resource()
 	resource.Attributes().PutStr(conventions.AttributeServiceName, "service")
 	resource.Attributes().PutStr("foo", "bar")
-	toDb := NewToDBModel(false, nil, ".")
+	toDb := newToDBModel(false, nil, ".")
 	process := toDb.resourceToDbProcess(resource)
 	assert.Equal(t, "service", process.ServiceName)
 	expected := []dbmodel.KeyValue{
@@ -71,7 +71,7 @@ func Test_resourceToDbProcess_WhenOnlyServiceNameIsPresent(t *testing.T) {
 	traces := ptrace.NewTraces()
 	spans := traces.ResourceSpans().AppendEmpty()
 	spans.Resource().Attributes().PutStr(conventions.AttributeServiceName, "service")
-	toDb := NewToDBModel(false, nil, ".")
+	toDb := newToDBModel(false, nil, ".")
 	process := toDb.resourceToDbProcess(spans.Resource())
 	assert.Equal(t, "service", process.ServiceName)
 }
@@ -151,8 +151,7 @@ func TestToDbModel_Fixtures(t *testing.T) {
 	td, err := FromDBModel([]dbmodel.Span{span})
 	require.NoError(t, err)
 	testTraces(t, tracesStr, td)
-	toDb := NewToDBModel(false, nil, ".")
-	spans := toDb.ConvertToDBModel(td)
+	spans := ToDBModel(td, false, nil, ".")
 	assert.Len(t, spans, 1)
 	testSpans(t, spansStr, spans[0])
 }
@@ -191,8 +190,7 @@ func TestToDbModel_DotReplacement_TagKeysAsFields(t *testing.T) {
 			expectedTd, err := unmarshaller.UnmarshalTraces(tracesData)
 			require.NoError(t, err)
 			dotReplacement := "#"
-			toDb := NewToDBModel(tt.allTagsAsFields, tt.tagKeysAsFields, dotReplacement)
-			spans := toDb.ConvertToDBModel(expectedTd)
+			spans := ToDBModel(expectedTd, tt.allTagsAsFields, tt.tagKeysAsFields, dotReplacement)
 			assert.Len(t, spans, 1)
 			spanData := loadSpans(t, 2)
 			testSpans(t, spanData, spans[0])
@@ -269,8 +267,7 @@ func BenchmarkInternalTracesToDbSpans(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		toDb := NewToDBModel(false, nil, ".")
-		batches := toDb.ConvertToDBModel(td)
+		batches := ToDBModel(td, false, nil, ".")
 		assert.NotEmpty(b, batches)
 	}
 }

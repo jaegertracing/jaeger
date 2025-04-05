@@ -543,8 +543,7 @@ func TestFromDbModel_Fixtures(t *testing.T) {
 	unmarshaller := ptrace.JSONUnmarshaler{}
 	expectedTd, err := unmarshaller.UnmarshalTraces(tracesData)
 	require.NoError(t, err)
-	toDb := NewToDBModel(false, nil, ".")
-	spans := toDb.ConvertToDBModel(expectedTd)
+	spans := ToDBModel(expectedTd, false, nil, ".")
 	assert.Len(t, spans, 1)
 	testSpans(t, spansData, spans[0])
 	actualTd, err := FromDBModel(spans)
