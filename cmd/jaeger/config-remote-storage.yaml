@@ -32,7 +32,10 @@ extensions:
       traces_archive: another-storage
     ui:
       config_file: ./cmd/jaeger/config-ui.json
-
+    grpc:
+      endpoint: "localhost:${env:JAEGER_QUERY_GRPC_PORT:-16685}"
+    http:
+      endpoint: "localhost:${env:JAEGER_QUERY_HTTP_PORT:-16686}"
   jaeger_storage:
     backends:
       some-storage:
