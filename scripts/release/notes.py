@@ -172,7 +172,7 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
         print()
         print('### 📊 UI Changes')
         print()
-        main(token, 'jaeger-ui', 'main', None, exclude_dependabot, True)
+        main(token, 'jaeger-ui', 'main', None, exclude_dependabot, False)
 
     # Print pull requests in the 'UNCATTEGORIZED' category
     if other_results:
