@@ -52,6 +52,7 @@ categories = [
     {'title': '#### 🐞 Bug fixes, Minor Improvements', 'label': 'changelog:bugfix-or-minor-feature'},
     {'title': '#### 🚧 Experimental Features', 'label': 'changelog:exprimental'},
     {'title': '#### 👷 CI Improvements', 'label': 'changelog:ci'},
+    {'title': '#### ⚙️ Refactoring', 'label': 'changelog:refactoring'},
     {'title': None, 'label': 'changelog:test'},
     {'title': None, 'label': 'changelog:skip'},
     {'title': None, 'label': 'changelog:dependencies'},
