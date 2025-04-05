@@ -13,12 +13,12 @@ import (
 )
 
 var (
-	_ storage.TraceReaderServer      = (*Server)(nil)
-	_ storage.DependencyReaderServer = (*Server)(nil)
-	_ ptraceotlp.GRPCServer          = (*Server)(nil)
+	_ storage.TraceReaderServer      = (*Handler)(nil)
+	_ storage.DependencyReaderServer = (*Handler)(nil)
+	_ ptraceotlp.GRPCServer          = (*Handler)(nil)
 )
 
-type Server struct {
+type Handler struct {
 	storage.UnimplementedTraceReaderServer
 	storage.UnimplementedDependencyReaderServer
 	ptraceotlp.UnimplementedGRPCServer
@@ -26,13 +26,13 @@ type Server struct {
 	traceReader tracestore.Reader
 }
 
-func NewServer(traceReader tracestore.Reader) *Server {
-	return &Server{
+func NewHandler(traceReader tracestore.Reader) *Handler {
+	return &Handler{
 		traceReader: traceReader,
 	}
 }
 
-func (h *Server) GetServices(
+func (h *Handler) GetServices(
 	ctx context.Context,
 	_ *storage.GetServicesRequest,
 ) (*storage.GetServicesResponse, error) {

@@ -41,7 +41,7 @@ func TestServer_GetServices(t *testing.T) {
 			reader.On("GetServices", mock.Anything).
 				Return(test.services, test.err).Once()
 
-			server := NewServer(reader)
+			server := NewHandler(reader)
 			resp, err := server.GetServices(context.Background(), &storage.GetServicesRequest{})
 			if test.expectedErr == nil {
 				require.Equal(t, test.expectedServices, resp.Services)
