@@ -36,8 +36,10 @@ extensions:
   jaeger_storage:
     backends:
       query_storage:
-        memory:
-          max_traces: 100000
+        grpc:
+          endpoint: localhost:17271
+          tls:
+            insecure: true
 
 receivers:
   nop:
