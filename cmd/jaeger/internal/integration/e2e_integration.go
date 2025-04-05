@@ -101,22 +101,20 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		scrapeMetrics(t, s.metricsUrl(), storage)
+		s.scrapeMetrics(t, storage)
 		require.NoError(t, s.TraceReader.(io.Closer).Close())
 		require.NoError(t, s.TraceWriter.(io.Closer).Close())
 	})
 }
 
-func (s *E2EStorageIntegration) metricsUrl() string {
+func (s *E2EStorageIntegration) scrapeMetrics(t *testing.T, storage string) {
 	metricsPort := 8888
 	if s.MetricsPort != 0 {
 		metricsPort = s.MetricsPort
 	}
-	return fmt.Sprintf("http://localhost:%d/metrics", metricsPort)
-}
+	metricsUrl := fmt.Sprintf("http://localhost:%d/metrics", metricsPort)
 
-func scrapeMetrics(t *testing.T, metricUrl, storage string) {
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, metricUrl, nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, metricsUrl, nil)
 	require.NoError(t, err)
 
 	client := &http.Client{}
