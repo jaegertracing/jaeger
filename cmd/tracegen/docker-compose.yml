@@ -8,7 +8,7 @@ services:
         - '4318:4318'
 
     tracegen:
-      image: jaegertracing/jaeger-tracegen:latest@sha256:be7712c192fbf9fd5265dc3c3410e1500a117551c02f716871ff87e7d3f6d6a8
+      image: jaegertracing/jaeger-tracegen:latest@sha256:bb5ed9592a5963b783cd47e3623b47a24957ebf51b35e8fc4ef07ec635309d43
       environment:
         - OTEL_EXPORTER_JAEGER_ENDPOINT=http://jaeger:14268/api/traces
         - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=jaeger:4318
