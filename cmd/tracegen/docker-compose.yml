@@ -1,6 +1,6 @@
 services:
     jaeger:
-      image: jaegertracing/all-in-one:latest@sha256:34e3d18e0f2eeb9abd9bb53d0dc7abaf2a5b1c884fdca575093af3126811a9d3
+      image: jaegertracing/all-in-one:latest@sha256:6279882637ae03e70f519965d2ba5ca84cb785f4baf4f0d7237e827a37c33a42
       environment:
         - COLLECTOR_OTLP_ENABLED=true
       ports:
