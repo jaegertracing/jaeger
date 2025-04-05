@@ -34,8 +34,8 @@ func TestJaegerQueryService(t *testing.T) {
 			EnvVarOverrides: map[string]string{
 				// Run jaeger_query on different ports here to avoid conflict
 				// with jaeger_query instance of Jaeger above
-				"JAEGER_QUERY_GRPC_PORT": fmt.Sprintf("%d", ports.QueryGRPC+1000),
-				"JAEGER_QUERY_HTTP_PORT": fmt.Sprintf("%d", ports.QueryHTTP+1000),
+				"JAEGER_QUERY_GRPC_ENDPOINT": fmt.Sprintf("localhost:%d", ports.QueryGRPC+1000),
+				"JAEGER_QUERY_HTTP_ENDPOINT": fmt.Sprintf("localhost:%d", ports.QueryHTTP+1000),
 			},
 		},
 	}
