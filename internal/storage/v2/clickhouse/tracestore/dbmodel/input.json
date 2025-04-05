@@ -1,0 +1,664 @@
+[
+  {
+    "Name": "resourceAttributesBytesKey",
+    "Data": {
+      "Offsets": [
+        2,
+        4
+      ],
+      "Data": {
+        "Values": [
+          "int-value-with-bytes",
+          "string-value-with-bytes",
+          "int-value-with-bytes",
+          "string-value-with-bytes"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesSliceKey",
+    "Data": {
+      "Offsets": [
+        4,
+        8
+      ],
+      "Data": {
+        "Values": [
+          "bool-value-with-slice",
+          "double-value-with-slice",
+          "int-value-with-slice",
+          "string-value-with-slice",
+          "bool-value-with-slice",
+          "double-value-with-slice",
+          "int-value-with-slice",
+          "string-value-with-slice"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesMapKey",
+    "Data": {
+      "Offsets": [
+        4,
+        8
+      ],
+      "Data": {
+        "Values": [
+          "bool-value-with-map",
+          "double-value-with-map",
+          "int-value-with-map",
+          "string-value-with-map",
+          "bool-value-with-map",
+          "double-value-with-map",
+          "int-value-with-map",
+          "string-value-with-map"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesBytesValue",
+    "Data": {
+      "Offsets": [
+        2,
+        4
+      ],
+      "Data": {
+        "Values": [
+          "AQIDBA==",
+          "YXMgeW91IGNhbiBzZWUu",
+          "AQIDBA==",
+          "YXMgeW91IGNhbiBzZWUu"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesSliceValue",
+    "Data": {
+      "Offsets": [
+        4,
+        8
+      ],
+      "Data": {
+        "Values": [
+          "[true,false,true]",
+          "[3.14,2.7,3]",
+          "[1,2,3]",
+          "[\"hello\",\"ni hao\"]",
+          "[true,false,true]",
+          "[3.14,2.7,3]",
+          "[1,2,3]",
+          "[\"hello\",\"ni hao\"]"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesMapValue",
+    "Data": {
+      "Offsets": [
+        4,
+        8
+      ],
+      "Data": {
+        "Values": [
+          "{\"false\":false,\"true\":true}",
+          "{\"e\":2.7,\"pai\":3.14}",
+          "{\"one\":1,\"three\":3,\"two\":2}",
+          "{\"hello\":\"world\",\"ni hao\":\"shi jie\"}",
+          "{\"false\":false,\"true\":true}",
+          "{\"e\":2.7,\"pai\":3.14}",
+          "{\"one\":1,\"three\":3,\"two\":2}",
+          "{\"hello\":\"world\",\"ni hao\":\"shi jie\"}"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesBytesKey",
+    "Data": {
+      "Offsets": [
+        2,
+        4
+      ],
+      "Data": {
+        "Values": [
+          "string-value-with-bytes",
+          "int-value-with-bytes",
+          "string-value-with-bytes",
+          "int-value-with-bytes"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesSliceKey",
+    "Data": {
+      "Offsets": [
+        4,
+        8
+      ],
+      "Data": {
+        "Values": [
+          "double-value-with-slice",
+          "int-value-with-slice",
+          "string-value-with-slice",
+          "bool-value-with-slice",
+          "double-value-with-slice",
+          "int-value-with-slice",
+          "string-value-with-slice",
+          "bool-value-with-slice"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesMapKey",
+    "Data": {
+      "Offsets": [
+        4,
+        8
+      ],
+      "Data": {
+        "Values": [
+          "bool-value-with-map",
+          "double-value-with-map",
+          "int-value-with-map",
+          "string-value-with-map",
+          "bool-value-with-map",
+          "double-value-with-map",
+          "int-value-with-map",
+          "string-value-with-map"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesBytesValue",
+    "Data": {
+      "Offsets": [
+        2,
+        4
+      ],
+      "Data": {
+        "Values": [
+          "YXMgeW91IGNhbiBzZWUu",
+          "AQIDBA==",
+          "YXMgeW91IGNhbiBzZWUu",
+          "AQIDBA=="
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesSliceValue",
+    "Data": {
+      "Offsets": [
+        4,
+        8
+      ],
+      "Data": {
+        "Values": [
+          "[3.14,2.7,3]",
+          "[1,2,3]",
+          "[\"hello\",\"ni hao\"]",
+          "[true,false,true]",
+          "[3.14,2.7,3]",
+          "[1,2,3]",
+          "[\"hello\",\"ni hao\"]",
+          "[true,false,true]"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesMapValue",
+    "Data": {
+      "Offsets": [
+        4,
+        8
+      ],
+      "Data": {
+        "Values": [
+          "{\"false\":false,\"true\":true}",
+          "{\"e\":2.7,\"pai\":3.14}",
+          "{\"one\":1,\"three\":3,\"two\":2}",
+          "{\"hello\":\"world\",\"ni hao\":\"shi jie\"}",
+          "{\"false\":false,\"true\":true}",
+          "{\"e\":2.7,\"pai\":3.14}",
+          "{\"one\":1,\"three\":3,\"two\":2}",
+          "{\"hello\":\"world\",\"ni hao\":\"shi jie\"}"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesBytesKey",
+    "Data": {
+      "Offsets": [
+        2,
+        4
+      ],
+      "Data": {
+        "Values": [
+          "string-value-with-bytes",
+          "int-value-with-bytes",
+          "string-value-with-bytes",
+          "int-value-with-bytes"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesSliceKey",
+    "Data": {
+      "Offsets": [
+        4,
+        8
+      ],
+      "Data": {
+        "Values": [
+          "bool-value-with-slice",
+          "double-value-with-slice",
+          "int-value-with-slice",
+          "string-value-with-slice",
+          "bool-value-with-slice",
+          "double-value-with-slice",
+          "int-value-with-slice",
+          "string-value-with-slice"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesMapKey",
+    "Data": {
+      "Offsets": [
+        4,
+        8
+      ],
+      "Data": {
+        "Values": [
+          "bool-value-with-map",
+          "double-value-with-map",
+          "int-value-with-map",
+          "string-value-with-map",
+          "int-value-with-map",
+          "string-value-with-map",
+          "bool-value-with-map",
+          "double-value-with-map"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesBytesValue",
+    "Data": {
+      "Offsets": [
+        2,
+        4
+      ],
+      "Data": {
+        "Values": [
+          "YXMgeW91IGNhbiBzZWUu",
+          "AQIDBA==",
+          "YXMgeW91IGNhbiBzZWUu",
+          "AQIDBA=="
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesSliceValue",
+    "Data": {
+      "Offsets": [
+        4,
+        8
+      ],
+      "Data": {
+        "Values": [
+          "[true,false,true]",
+          "[3.14,2.7,3]",
+          "[1,2,3]",
+          "[\"hello\",\"ni hao\"]",
+          "[true,false,true]",
+          "[3.14,2.7,3]",
+          "[1,2,3]",
+          "[\"hello\",\"ni hao\"]"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesMapValue",
+    "Data": {
+      "Offsets": [
+        4,
+        8
+      ],
+      "Data": {
+        "Values": [
+          "{\"false\":false,\"true\":true}",
+          "{\"e\":2.7,\"pai\":3.14}",
+          "{\"one\":1,\"three\":3,\"two\":2}",
+          "{\"hello\":\"world\",\"ni hao\":\"shi jie\"}",
+          "{\"one\":1,\"three\":3,\"two\":2}",
+          "{\"hello\":\"world\",\"ni hao\":\"shi jie\"}",
+          "{\"false\":false,\"true\":true}",
+          "{\"e\":2.7,\"pai\":3.14}"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesBytesKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          2,
+          4
+        ],
+        "Data": {
+          "Values": [
+            "string-value-with-bytes",
+            "int-value-with-bytes",
+            "string-value-with-bytes",
+            "int-value-with-bytes"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesSliceKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          4,
+          8
+        ],
+        "Data": {
+          "Values": [
+            "bool-value-with-slice",
+            "double-value-with-slice",
+            "int-value-with-slice",
+            "string-value-with-slice",
+            "bool-value-with-slice",
+            "double-value-with-slice",
+            "int-value-with-slice",
+            "string-value-with-slice"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesMapKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          4,
+          8
+        ],
+        "Data": {
+          "Values": [
+            "int-value-with-map",
+            "string-value-with-map",
+            "bool-value-with-map",
+            "double-value-with-map",
+            "bool-value-with-map",
+            "double-value-with-map",
+            "int-value-with-map",
+            "string-value-with-map"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesBytesValues",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          2,
+          4
+        ],
+        "Data": {
+          "Values": [
+            "YXMgeW91IGNhbiBzZWUu",
+            "AQIDBA==",
+            "YXMgeW91IGNhbiBzZWUu",
+            "AQIDBA=="
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesSliceValues",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          4,
+          8
+        ],
+        "Data": {
+          "Values": [
+            "[true,false,true]",
+            "[3.14,2.7,3]",
+            "[1,2,3]",
+            "[\"hello\",\"ni hao\"]",
+            "[true,false,true]",
+            "[3.14,2.7,3]",
+            "[1,2,3]",
+            "[\"hello\",\"ni hao\"]"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesMapValues",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          4,
+          8
+        ],
+        "Data": {
+          "Values": [
+            "{\"one\":1,\"three\":3,\"two\":2}",
+            "{\"hello\":\"world\",\"ni hao\":\"shi jie\"}",
+            "{\"false\":false,\"true\":true}",
+            "{\"e\":2.7,\"pai\":3.14}",
+            "{\"false\":false,\"true\":true}",
+            "{\"e\":2.7,\"pai\":3.14}",
+            "{\"one\":1,\"three\":3,\"two\":2}",
+            "{\"hello\":\"world\",\"ni hao\":\"shi jie\"}"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesBytesKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          2,
+          4
+        ],
+        "Data": {
+          "Values": [
+            "string-value-with-bytes",
+            "int-value-with-bytes",
+            "string-value-with-bytes",
+            "int-value-with-bytes"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesSliceKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          4,
+          8
+        ],
+        "Data": {
+          "Values": [
+            "string-value-with-slice",
+            "bool-value-with-slice",
+            "double-value-with-slice",
+            "int-value-with-slice",
+            "int-value-with-slice",
+            "string-value-with-slice",
+            "bool-value-with-slice",
+            "double-value-with-slice"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesMapKeys",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          4,
+          8
+        ],
+        "Data": {
+          "Values": [
+            "int-value-with-map",
+            "string-value-with-map",
+            "bool-value-with-map",
+            "double-value-with-map",
+            "bool-value-with-map",
+            "double-value-with-map",
+            "int-value-with-map",
+            "string-value-with-map"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesBytesValues",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          2,
+          4
+        ],
+        "Data": {
+          "Values": [
+            "YXMgeW91IGNhbiBzZWUu",
+            "AQIDBA==",
+            "YXMgeW91IGNhbiBzZWUu",
+            "AQIDBA=="
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesSliceValues",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          4,
+          8
+        ],
+        "Data": {
+          "Values": [
+            "[\"hello\",\"ni hao\"]",
+            "[true,false,true]",
+            "[3.14,2.7,3]",
+            "[1,2,3]",
+            "[1,2,3]",
+            "[\"hello\",\"ni hao\"]",
+            "[true,false,true]",
+            "[3.14,2.7,3]"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesMapValues",
+    "Data": {
+      "Offsets": [
+        1,
+        2
+      ],
+      "Data": {
+        "Offsets": [
+          4,
+          8
+        ],
+        "Data": {
+          "Values": [
+            "{\"one\":1,\"three\":3,\"two\":2}",
+            "{\"hello\":\"world\",\"ni hao\":\"shi jie\"}",
+            "{\"false\":false,\"true\":true}",
+            "{\"e\":2.7,\"pai\":3.14}",
+            "{\"false\":false,\"true\":true}",
+            "{\"e\":2.7,\"pai\":3.14}",
+            "{\"one\":1,\"three\":3,\"two\":2}",
+            "{\"hello\":\"world\",\"ni hao\":\"shi jie\"}"
+          ]
+        }
+      }
+    }
+  }
+]

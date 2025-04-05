@@ -1,0 +1,1802 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "clickhouse"
+            }
+          },
+          {
+            "key": "true",
+            "value": {
+              "boolValue": true
+            }
+          },
+          {
+            "key": "false",
+            "value": {
+              "boolValue": false
+            }
+          },
+          {
+            "key": "6.824",
+            "value": {
+              "doubleValue": 6.824
+            }
+          },
+          {
+            "key": "0",
+            "value": {
+              "intValue": "0"
+            }
+          },
+          {
+            "key": "1",
+            "value": {
+              "intValue": "1"
+            }
+          },
+          {
+            "key": "2",
+            "value": {
+              "intValue": "2"
+            }
+          },
+          {
+            "key": "hello",
+            "value": {
+              "stringValue": "world"
+            }
+          },
+          {
+            "key": "bool-value-with-map",
+            "value": {
+              "kvlistValue": {
+                "values": [
+                  {
+                    "key": "true",
+                    "value": {
+                      "boolValue": true
+                    }
+                  },
+                  {
+                    "key": "false",
+                    "value": {
+                      "boolValue": false
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "key": "double-value-with-map",
+            "value": {
+              "kvlistValue": {
+                "values": [
+                  {
+                    "key": "pai",
+                    "value": {
+                      "doubleValue": 3.14
+                    }
+                  },
+                  {
+                    "key": "e",
+                    "value": {
+                      "doubleValue": 2.7
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "key": "int-value-with-map",
+            "value": {
+              "kvlistValue": {
+                "values": [
+                  {
+                    "key": "one",
+                    "value": {
+                      "intValue": "1"
+                    }
+                  },
+                  {
+                    "key": "two",
+                    "value": {
+                      "intValue": "2"
+                    }
+                  },
+                  {
+                    "key": "three",
+                    "value": {
+                      "intValue": "3"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "key": "string-value-with-map",
+            "value": {
+              "kvlistValue": {
+                "values": [
+                  {
+                    "key": "hello",
+                    "value": {
+                      "stringValue": "world"
+                    }
+                  },
+                  {
+                    "key": "ni hao",
+                    "value": {
+                      "stringValue": "shi jie"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "key": "string-value-with-bytes",
+            "value": {
+              "bytesValue": "YXMgeW91IGNhbiBzZWUu"
+            }
+          },
+          {
+            "key": "int-value-with-bytes",
+            "value": {
+              "bytesValue": "AQIDBA=="
+            }
+          },
+          {
+            "key": "bool-value-with-slice",
+            "value": {
+              "arrayValue": {
+                "values": [
+                  {
+                    "boolValue": true
+                  },
+                  {
+                    "boolValue": false
+                  },
+                  {
+                    "boolValue": true
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "key": "double-value-with-slice",
+            "value": {
+              "arrayValue": {
+                "values": [
+                  {
+                    "doubleValue": 3.14
+                  },
+                  {
+                    "doubleValue": 2.7
+                  },
+                  {
+                    "doubleValue": 3
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "key": "int-value-with-slice",
+            "value": {
+              "arrayValue": {
+                "values": [
+                  {
+                    "intValue": "1"
+                  },
+                  {
+                    "intValue": "2"
+                  },
+                  {
+                    "intValue": "3"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "key": "string-value-with-slice",
+            "value": {
+              "arrayValue": {
+                "values": [
+                  {
+                    "stringValue": "hello"
+                  },
+                  {
+                    "stringValue": "ni hao"
+                  }
+                ]
+              }
+            }
+          }
+        ],
+        "droppedAttributesCount": 10
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "io.opentelemetry.contrib.clickhouse",
+            "version": "1.0.0",
+            "attributes": [
+              {
+                "key": "true",
+                "value": {
+                  "boolValue": true
+                }
+              },
+              {
+                "key": "false",
+                "value": {
+                  "boolValue": false
+                }
+              },
+              {
+                "key": "6.824",
+                "value": {
+                  "doubleValue": 6.824
+                }
+              },
+              {
+                "key": "0",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "1",
+                "value": {
+                  "intValue": "1"
+                }
+              },
+              {
+                "key": "2",
+                "value": {
+                  "intValue": "2"
+                }
+              },
+              {
+                "key": "hello",
+                "value": {
+                  "stringValue": "world"
+                }
+              },
+              {
+                "key": "bool-value-with-map",
+                "value": {
+                  "kvlistValue": {
+                    "values": [
+                      {
+                        "key": "false",
+                        "value": {
+                          "boolValue": false
+                        }
+                      },
+                      {
+                        "key": "true",
+                        "value": {
+                          "boolValue": true
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "double-value-with-map",
+                "value": {
+                  "kvlistValue": {
+                    "values": [
+                      {
+                        "key": "pai",
+                        "value": {
+                          "doubleValue": 3.14
+                        }
+                      },
+                      {
+                        "key": "e",
+                        "value": {
+                          "doubleValue": 2.7
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "int-value-with-map",
+                "value": {
+                  "kvlistValue": {
+                    "values": [
+                      {
+                        "key": "two",
+                        "value": {
+                          "intValue": "2"
+                        }
+                      },
+                      {
+                        "key": "three",
+                        "value": {
+                          "intValue": "3"
+                        }
+                      },
+                      {
+                        "key": "one",
+                        "value": {
+                          "intValue": "1"
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "string-value-with-map",
+                "value": {
+                  "kvlistValue": {
+                    "values": [
+                      {
+                        "key": "hello",
+                        "value": {
+                          "stringValue": "world"
+                        }
+                      },
+                      {
+                        "key": "ni hao",
+                        "value": {
+                          "stringValue": "shi jie"
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "string-value-with-bytes",
+                "value": {
+                  "bytesValue": "YXMgeW91IGNhbiBzZWUu"
+                }
+              },
+              {
+                "key": "int-value-with-bytes",
+                "value": {
+                  "bytesValue": "AQIDBA=="
+                }
+              },
+              {
+                "key": "bool-value-with-slice",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "boolValue": true
+                      },
+                      {
+                        "boolValue": false
+                      },
+                      {
+                        "boolValue": true
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "double-value-with-slice",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "doubleValue": 3.14
+                      },
+                      {
+                        "doubleValue": 2.7
+                      },
+                      {
+                        "doubleValue": 3
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "int-value-with-slice",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "intValue": "1"
+                      },
+                      {
+                        "intValue": "2"
+                      },
+                      {
+                        "intValue": "3"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "string-value-with-slice",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "hello"
+                      },
+                      {
+                        "stringValue": "ni hao"
+                      }
+                    ]
+                  }
+                }
+              }
+            ],
+            "droppedAttributesCount": 20
+          },
+          "spans": [
+            {
+              "traceId": "01020300000000000000000000000000",
+              "spanId": "0102030000000000",
+              "traceState": "trace state",
+              "parentSpanId": "0102040000000000",
+              "name": "call db",
+              "kind": 1,
+              "startTimeUnixNano": "1703498029000000000",
+              "endTimeUnixNano": "1703498089000000000",
+              "attributes": [
+                {
+                  "key": "true",
+                  "value": {
+                    "boolValue": true
+                  }
+                },
+                {
+                  "key": "false",
+                  "value": {
+                    "boolValue": false
+                  }
+                },
+                {
+                  "key": "6.824",
+                  "value": {
+                    "doubleValue": 6.824
+                  }
+                },
+                {
+                  "key": "0",
+                  "value": {
+                    "intValue": "0"
+                  }
+                },
+                {
+                  "key": "1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "2",
+                  "value": {
+                    "intValue": "2"
+                  }
+                },
+                {
+                  "key": "hello",
+                  "value": {
+                    "stringValue": "world"
+                  }
+                },
+                {
+                  "key": "bool-value-with-map",
+                  "value": {
+                    "kvlistValue": {
+                      "values": [
+                        {
+                          "key": "false",
+                          "value": {
+                            "boolValue": false
+                          }
+                        },
+                        {
+                          "key": "true",
+                          "value": {
+                            "boolValue": true
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "key": "double-value-with-map",
+                  "value": {
+                    "kvlistValue": {
+                      "values": [
+                        {
+                          "key": "pai",
+                          "value": {
+                            "doubleValue": 3.14
+                          }
+                        },
+                        {
+                          "key": "e",
+                          "value": {
+                            "doubleValue": 2.7
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "key": "int-value-with-map",
+                  "value": {
+                    "kvlistValue": {
+                      "values": [
+                        {
+                          "key": "two",
+                          "value": {
+                            "intValue": "2"
+                          }
+                        },
+                        {
+                          "key": "three",
+                          "value": {
+                            "intValue": "3"
+                          }
+                        },
+                        {
+                          "key": "one",
+                          "value": {
+                            "intValue": "1"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "key": "string-value-with-map",
+                  "value": {
+                    "kvlistValue": {
+                      "values": [
+                        {
+                          "key": "hello",
+                          "value": {
+                            "stringValue": "world"
+                          }
+                        },
+                        {
+                          "key": "ni hao",
+                          "value": {
+                            "stringValue": "shi jie"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "key": "string-value-with-bytes",
+                  "value": {
+                    "bytesValue": "YXMgeW91IGNhbiBzZWUu"
+                  }
+                },
+                {
+                  "key": "int-value-with-bytes",
+                  "value": {
+                    "bytesValue": "AQIDBA=="
+                  }
+                },
+                {
+                  "key": "bool-value-with-slice",
+                  "value": {
+                    "arrayValue": {
+                      "values": [
+                        {
+                          "boolValue": true
+                        },
+                        {
+                          "boolValue": false
+                        },
+                        {
+                          "boolValue": true
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "key": "double-value-with-slice",
+                  "value": {
+                    "arrayValue": {
+                      "values": [
+                        {
+                          "doubleValue": 3.14
+                        },
+                        {
+                          "doubleValue": 2.7
+                        },
+                        {
+                          "doubleValue": 3
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "key": "int-value-with-slice",
+                  "value": {
+                    "arrayValue": {
+                      "values": [
+                        {
+                          "intValue": "1"
+                        },
+                        {
+                          "intValue": "2"
+                        },
+                        {
+                          "intValue": "3"
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "key": "string-value-with-slice",
+                  "value": {
+                    "arrayValue": {
+                      "values": [
+                        {
+                          "stringValue": "hello"
+                        },
+                        {
+                          "stringValue": "ni hao"
+                        }
+                      ]
+                    }
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1703498029000000000",
+                  "name": "event1",
+                  "attributes": [
+                    {
+                      "key": "true",
+                      "value": {
+                        "boolValue": true
+                      }
+                    },
+                    {
+                      "key": "false",
+                      "value": {
+                        "boolValue": false
+                      }
+                    },
+                    {
+                      "key": "6.824",
+                      "value": {
+                        "doubleValue": 6.824
+                      }
+                    },
+                    {
+                      "key": "0",
+                      "value": {
+                        "intValue": "0"
+                      }
+                    },
+                    {
+                      "key": "1",
+                      "value": {
+                        "intValue": "1"
+                      }
+                    },
+                    {
+                      "key": "2",
+                      "value": {
+                        "intValue": "2"
+                      }
+                    },
+                    {
+                      "key": "hello",
+                      "value": {
+                        "stringValue": "world"
+                      }
+                    },
+                    {
+                      "key": "bool-value-with-map",
+                      "value": {
+                        "kvlistValue": {
+                          "values": [
+                            {
+                              "key": "true",
+                              "value": {
+                                "boolValue": true
+                              }
+                            },
+                            {
+                              "key": "false",
+                              "value": {
+                                "boolValue": false
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "double-value-with-map",
+                      "value": {
+                        "kvlistValue": {
+                          "values": [
+                            {
+                              "key": "pai",
+                              "value": {
+                                "doubleValue": 3.14
+                              }
+                            },
+                            {
+                              "key": "e",
+                              "value": {
+                                "doubleValue": 2.7
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "int-value-with-map",
+                      "value": {
+                        "kvlistValue": {
+                          "values": [
+                            {
+                              "key": "one",
+                              "value": {
+                                "intValue": "1"
+                              }
+                            },
+                            {
+                              "key": "two",
+                              "value": {
+                                "intValue": "2"
+                              }
+                            },
+                            {
+                              "key": "three",
+                              "value": {
+                                "intValue": "3"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "string-value-with-map",
+                      "value": {
+                        "kvlistValue": {
+                          "values": [
+                            {
+                              "key": "hello",
+                              "value": {
+                                "stringValue": "world"
+                              }
+                            },
+                            {
+                              "key": "ni hao",
+                              "value": {
+                                "stringValue": "shi jie"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "string-value-with-bytes",
+                      "value": {
+                        "bytesValue": "YXMgeW91IGNhbiBzZWUu"
+                      }
+                    },
+                    {
+                      "key": "int-value-with-bytes",
+                      "value": {
+                        "bytesValue": "AQIDBA=="
+                      }
+                    },
+                    {
+                      "key": "bool-value-with-slice",
+                      "value": {
+                        "arrayValue": {
+                          "values": [
+                            {
+                              "boolValue": true
+                            },
+                            {
+                              "boolValue": false
+                            },
+                            {
+                              "boolValue": true
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "double-value-with-slice",
+                      "value": {
+                        "arrayValue": {
+                          "values": [
+                            {
+                              "doubleValue": 3.14
+                            },
+                            {
+                              "doubleValue": 2.7
+                            },
+                            {
+                              "doubleValue": 3
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "int-value-with-slice",
+                      "value": {
+                        "arrayValue": {
+                          "values": [
+                            {
+                              "intValue": "1"
+                            },
+                            {
+                              "intValue": "2"
+                            },
+                            {
+                              "intValue": "3"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "string-value-with-slice",
+                      "value": {
+                        "arrayValue": {
+                          "values": [
+                            {
+                              "stringValue": "hello"
+                            },
+                            {
+                              "stringValue": "ni hao"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              ],
+              "links": [
+                {
+                  "traceId": "01020500000000000000000000000000",
+                  "spanId": "0102050000000000",
+                  "traceState": "error",
+                  "attributes": [
+                    {
+                      "key": "true",
+                      "value": {
+                        "boolValue": true
+                      }
+                    },
+                    {
+                      "key": "false",
+                      "value": {
+                        "boolValue": false
+                      }
+                    },
+                    {
+                      "key": "6.824",
+                      "value": {
+                        "doubleValue": 6.824
+                      }
+                    },
+                    {
+                      "key": "0",
+                      "value": {
+                        "intValue": "0"
+                      }
+                    },
+                    {
+                      "key": "1",
+                      "value": {
+                        "intValue": "1"
+                      }
+                    },
+                    {
+                      "key": "2",
+                      "value": {
+                        "intValue": "2"
+                      }
+                    },
+                    {
+                      "key": "hello",
+                      "value": {
+                        "stringValue": "world"
+                      }
+                    },
+                    {
+                      "key": "bool-value-with-map",
+                      "value": {
+                        "kvlistValue": {
+                          "values": [
+                            {
+                              "key": "true",
+                              "value": {
+                                "boolValue": true
+                              }
+                            },
+                            {
+                              "key": "false",
+                              "value": {
+                                "boolValue": false
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "double-value-with-map",
+                      "value": {
+                        "kvlistValue": {
+                          "values": [
+                            {
+                              "key": "pai",
+                              "value": {
+                                "doubleValue": 3.14
+                              }
+                            },
+                            {
+                              "key": "e",
+                              "value": {
+                                "doubleValue": 2.7
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "int-value-with-map",
+                      "value": {
+                        "kvlistValue": {
+                          "values": [
+                            {
+                              "key": "one",
+                              "value": {
+                                "intValue": "1"
+                              }
+                            },
+                            {
+                              "key": "two",
+                              "value": {
+                                "intValue": "2"
+                              }
+                            },
+                            {
+                              "key": "three",
+                              "value": {
+                                "intValue": "3"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "string-value-with-map",
+                      "value": {
+                        "kvlistValue": {
+                          "values": [
+                            {
+                              "key": "hello",
+                              "value": {
+                                "stringValue": "world"
+                              }
+                            },
+                            {
+                              "key": "ni hao",
+                              "value": {
+                                "stringValue": "shi jie"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "string-value-with-bytes",
+                      "value": {
+                        "bytesValue": "YXMgeW91IGNhbiBzZWUu"
+                      }
+                    },
+                    {
+                      "key": "int-value-with-bytes",
+                      "value": {
+                        "bytesValue": "AQIDBA=="
+                      }
+                    },
+                    {
+                      "key": "bool-value-with-slice",
+                      "value": {
+                        "arrayValue": {
+                          "values": [
+                            {
+                              "boolValue": true
+                            },
+                            {
+                              "boolValue": false
+                            },
+                            {
+                              "boolValue": true
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "double-value-with-slice",
+                      "value": {
+                        "arrayValue": {
+                          "values": [
+                            {
+                              "doubleValue": 3.14
+                            },
+                            {
+                              "doubleValue": 2.7
+                            },
+                            {
+                              "doubleValue": 3
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "int-value-with-slice",
+                      "value": {
+                        "arrayValue": {
+                          "values": [
+                            {
+                              "intValue": "1"
+                            },
+                            {
+                              "intValue": "2"
+                            },
+                            {
+                              "intValue": "3"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "string-value-with-slice",
+                      "value": {
+                        "arrayValue": {
+                          "values": [
+                            {
+                              "stringValue": "hello"
+                            },
+                            {
+                              "stringValue": "ni hao"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {
+                "message": "error",
+                "code": 2
+              }
+            },
+            {
+              "traceId": "01020301000000000000000000000000",
+              "spanId": "0102030100000000",
+              "traceState": "trace state",
+              "parentSpanId": "0102040100000000",
+              "name": "call db",
+              "kind": 1,
+              "startTimeUnixNano": "1703498029000000000",
+              "endTimeUnixNano": "1703498089000000000",
+              "attributes": [
+                {
+                  "key": "true",
+                  "value": {
+                    "boolValue": true
+                  }
+                },
+                {
+                  "key": "false",
+                  "value": {
+                    "boolValue": false
+                  }
+                },
+                {
+                  "key": "6.824",
+                  "value": {
+                    "doubleValue": 6.824
+                  }
+                },
+                {
+                  "key": "0",
+                  "value": {
+                    "intValue": "0"
+                  }
+                },
+                {
+                  "key": "1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "2",
+                  "value": {
+                    "intValue": "2"
+                  }
+                },
+                {
+                  "key": "hello",
+                  "value": {
+                    "stringValue": "world"
+                  }
+                },
+                {
+                  "key": "bool-value-with-map",
+                  "value": {
+                    "kvlistValue": {
+                      "values": [
+                        {
+                          "key": "false",
+                          "value": {
+                            "boolValue": false
+                          }
+                        },
+                        {
+                          "key": "true",
+                          "value": {
+                            "boolValue": true
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "key": "double-value-with-map",
+                  "value": {
+                    "kvlistValue": {
+                      "values": [
+                        {
+                          "key": "e",
+                          "value": {
+                            "doubleValue": 2.7
+                          }
+                        },
+                        {
+                          "key": "pai",
+                          "value": {
+                            "doubleValue": 3.14
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "key": "int-value-with-map",
+                  "value": {
+                    "kvlistValue": {
+                      "values": [
+                        {
+                          "key": "one",
+                          "value": {
+                            "intValue": "1"
+                          }
+                        },
+                        {
+                          "key": "two",
+                          "value": {
+                            "intValue": "2"
+                          }
+                        },
+                        {
+                          "key": "three",
+                          "value": {
+                            "intValue": "3"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "key": "string-value-with-map",
+                  "value": {
+                    "kvlistValue": {
+                      "values": [
+                        {
+                          "key": "hello",
+                          "value": {
+                            "stringValue": "world"
+                          }
+                        },
+                        {
+                          "key": "ni hao",
+                          "value": {
+                            "stringValue": "shi jie"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "key": "string-value-with-bytes",
+                  "value": {
+                    "bytesValue": "YXMgeW91IGNhbiBzZWUu"
+                  }
+                },
+                {
+                  "key": "int-value-with-bytes",
+                  "value": {
+                    "bytesValue": "AQIDBA=="
+                  }
+                },
+                {
+                  "key": "bool-value-with-slice",
+                  "value": {
+                    "arrayValue": {
+                      "values": [
+                        {
+                          "boolValue": true
+                        },
+                        {
+                          "boolValue": false
+                        },
+                        {
+                          "boolValue": true
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "key": "double-value-with-slice",
+                  "value": {
+                    "arrayValue": {
+                      "values": [
+                        {
+                          "doubleValue": 3.14
+                        },
+                        {
+                          "doubleValue": 2.7
+                        },
+                        {
+                          "doubleValue": 3
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "key": "int-value-with-slice",
+                  "value": {
+                    "arrayValue": {
+                      "values": [
+                        {
+                          "intValue": "1"
+                        },
+                        {
+                          "intValue": "2"
+                        },
+                        {
+                          "intValue": "3"
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "key": "string-value-with-slice",
+                  "value": {
+                    "arrayValue": {
+                      "values": [
+                        {
+                          "stringValue": "hello"
+                        },
+                        {
+                          "stringValue": "ni hao"
+                        }
+                      ]
+                    }
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1703498029000000000",
+                  "name": "event1",
+                  "attributes": [
+                    {
+                      "key": "true",
+                      "value": {
+                        "boolValue": true
+                      }
+                    },
+                    {
+                      "key": "false",
+                      "value": {
+                        "boolValue": false
+                      }
+                    },
+                    {
+                      "key": "6.824",
+                      "value": {
+                        "doubleValue": 6.824
+                      }
+                    },
+                    {
+                      "key": "0",
+                      "value": {
+                        "intValue": "0"
+                      }
+                    },
+                    {
+                      "key": "1",
+                      "value": {
+                        "intValue": "1"
+                      }
+                    },
+                    {
+                      "key": "2",
+                      "value": {
+                        "intValue": "2"
+                      }
+                    },
+                    {
+                      "key": "hello",
+                      "value": {
+                        "stringValue": "world"
+                      }
+                    },
+                    {
+                      "key": "bool-value-with-map",
+                      "value": {
+                        "kvlistValue": {
+                          "values": [
+                            {
+                              "key": "true",
+                              "value": {
+                                "boolValue": true
+                              }
+                            },
+                            {
+                              "key": "false",
+                              "value": {
+                                "boolValue": false
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "double-value-with-map",
+                      "value": {
+                        "kvlistValue": {
+                          "values": [
+                            {
+                              "key": "pai",
+                              "value": {
+                                "doubleValue": 3.14
+                              }
+                            },
+                            {
+                              "key": "e",
+                              "value": {
+                                "doubleValue": 2.7
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "int-value-with-map",
+                      "value": {
+                        "kvlistValue": {
+                          "values": [
+                            {
+                              "key": "one",
+                              "value": {
+                                "intValue": "1"
+                              }
+                            },
+                            {
+                              "key": "two",
+                              "value": {
+                                "intValue": "2"
+                              }
+                            },
+                            {
+                              "key": "three",
+                              "value": {
+                                "intValue": "3"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "string-value-with-map",
+                      "value": {
+                        "kvlistValue": {
+                          "values": [
+                            {
+                              "key": "hello",
+                              "value": {
+                                "stringValue": "world"
+                              }
+                            },
+                            {
+                              "key": "ni hao",
+                              "value": {
+                                "stringValue": "shi jie"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "string-value-with-bytes",
+                      "value": {
+                        "bytesValue": "YXMgeW91IGNhbiBzZWUu"
+                      }
+                    },
+                    {
+                      "key": "int-value-with-bytes",
+                      "value": {
+                        "bytesValue": "AQIDBA=="
+                      }
+                    },
+                    {
+                      "key": "bool-value-with-slice",
+                      "value": {
+                        "arrayValue": {
+                          "values": [
+                            {
+                              "boolValue": true
+                            },
+                            {
+                              "boolValue": false
+                            },
+                            {
+                              "boolValue": true
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "double-value-with-slice",
+                      "value": {
+                        "arrayValue": {
+                          "values": [
+                            {
+                              "doubleValue": 3.14
+                            },
+                            {
+                              "doubleValue": 2.7
+                            },
+                            {
+                              "doubleValue": 3
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "int-value-with-slice",
+                      "value": {
+                        "arrayValue": {
+                          "values": [
+                            {
+                              "intValue": "1"
+                            },
+                            {
+                              "intValue": "2"
+                            },
+                            {
+                              "intValue": "3"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "string-value-with-slice",
+                      "value": {
+                        "arrayValue": {
+                          "values": [
+                            {
+                              "stringValue": "hello"
+                            },
+                            {
+                              "stringValue": "ni hao"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              ],
+              "links": [
+                {
+                  "traceId": "01020501000000000000000000000000",
+                  "spanId": "0102050100000000",
+                  "traceState": "error",
+                  "attributes": [
+                    {
+                      "key": "true",
+                      "value": {
+                        "boolValue": true
+                      }
+                    },
+                    {
+                      "key": "false",
+                      "value": {
+                        "boolValue": false
+                      }
+                    },
+                    {
+                      "key": "6.824",
+                      "value": {
+                        "doubleValue": 6.824
+                      }
+                    },
+                    {
+                      "key": "0",
+                      "value": {
+                        "intValue": "0"
+                      }
+                    },
+                    {
+                      "key": "1",
+                      "value": {
+                        "intValue": "1"
+                      }
+                    },
+                    {
+                      "key": "2",
+                      "value": {
+                        "intValue": "2"
+                      }
+                    },
+                    {
+                      "key": "hello",
+                      "value": {
+                        "stringValue": "world"
+                      }
+                    },
+                    {
+                      "key": "bool-value-with-map",
+                      "value": {
+                        "kvlistValue": {
+                          "values": [
+                            {
+                              "key": "false",
+                              "value": {
+                                "boolValue": false
+                              }
+                            },
+                            {
+                              "key": "true",
+                              "value": {
+                                "boolValue": true
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "double-value-with-map",
+                      "value": {
+                        "kvlistValue": {
+                          "values": [
+                            {
+                              "key": "pai",
+                              "value": {
+                                "doubleValue": 3.14
+                              }
+                            },
+                            {
+                              "key": "e",
+                              "value": {
+                                "doubleValue": 2.7
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "int-value-with-map",
+                      "value": {
+                        "kvlistValue": {
+                          "values": [
+                            {
+                              "key": "three",
+                              "value": {
+                                "intValue": "3"
+                              }
+                            },
+                            {
+                              "key": "one",
+                              "value": {
+                                "intValue": "1"
+                              }
+                            },
+                            {
+                              "key": "two",
+                              "value": {
+                                "intValue": "2"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "string-value-with-map",
+                      "value": {
+                        "kvlistValue": {
+                          "values": [
+                            {
+                              "key": "hello",
+                              "value": {
+                                "stringValue": "world"
+                              }
+                            },
+                            {
+                              "key": "ni hao",
+                              "value": {
+                                "stringValue": "shi jie"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "string-value-with-bytes",
+                      "value": {
+                        "bytesValue": "YXMgeW91IGNhbiBzZWUu"
+                      }
+                    },
+                    {
+                      "key": "int-value-with-bytes",
+                      "value": {
+                        "bytesValue": "AQIDBA=="
+                      }
+                    },
+                    {
+                      "key": "bool-value-with-slice",
+                      "value": {
+                        "arrayValue": {
+                          "values": [
+                            {
+                              "boolValue": true
+                            },
+                            {
+                              "boolValue": false
+                            },
+                            {
+                              "boolValue": true
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "double-value-with-slice",
+                      "value": {
+                        "arrayValue": {
+                          "values": [
+                            {
+                              "doubleValue": 3.14
+                            },
+                            {
+                              "doubleValue": 2.7
+                            },
+                            {
+                              "doubleValue": 3
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "int-value-with-slice",
+                      "value": {
+                        "arrayValue": {
+                          "values": [
+                            {
+                              "intValue": "1"
+                            },
+                            {
+                              "intValue": "2"
+                            },
+                            {
+                              "intValue": "3"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "key": "string-value-with-slice",
+                      "value": {
+                        "arrayValue": {
+                          "values": [
+                            {
+                              "stringValue": "hello"
+                            },
+                            {
+                              "stringValue": "ni hao"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {
+                "message": "error",
+                "code": 2
+              }
+            }
+          ],
+          "schemaUrl": "https://opentelemetry.io/schemas/1.7.0"
+        }
+      ],
+      "schemaUrl": "https://opentelemetry.io/schemas/1.4.0"
+    }
+  ]
+}
