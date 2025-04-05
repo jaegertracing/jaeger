@@ -30,6 +30,11 @@ func TestServer_GetServices(t *testing.T) {
 			expectedServices: []string{"service1", "service2"},
 		},
 		{
+			name:             "empty",
+			services:         []string{},
+			expectedServices: []string{},
+		},
+		{
 			name:        "error",
 			err:         assert.AnError,
 			expectedErr: assert.AnError,
@@ -79,6 +84,11 @@ func TestServer_GetOperations(t *testing.T) {
 				{Name: "operation1", SpanKind: "kind"},
 				{Name: "operation2", SpanKind: "kind"},
 			},
+		},
+		{
+			name:               "empty",
+			operations:         []tracestore.Operation{},
+			expectedOperations: []*storage.Operation{},
 		},
 		{
 			name:        "error",
