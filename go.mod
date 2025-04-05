@@ -13,7 +13,7 @@ require (
 	github.com/crossdock/crossdock-go v0.0.0-20160816171116-049aabb0122b
 	github.com/dgraph-io/badger/v4 v4.6.0
 	github.com/elastic/go-elasticsearch/v8 v8.17.1
-	github.com/fsnotify/fsnotify v1.8.0
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-logr/zapr v1.3.0
 	github.com/gocql/gocql v1.7.0
 	github.com/gogo/protobuf v1.3.2
