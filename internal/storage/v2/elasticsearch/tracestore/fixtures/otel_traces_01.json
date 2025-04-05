@@ -10,9 +10,15 @@
             }
           },
           {
-            "key": "sdk.version",
+            "key": "sdk.version.1",
             "value": {
               "stringValue": "1.2.1"
+            }
+          },
+          {
+            "key": "sdk.version.2",
+            "value": {
+              "bytesValue": "AAAwOQ=="
             }
           }
         ]
@@ -29,22 +35,11 @@
               "spanId": "0000000000000002",
               "parentSpanId": "0000000000000003",
               "flags": 1,
+              "traceState": "testing-state",
               "name": "test-general-conversion",
               "startTimeUnixNano": "1485467191639875000",
               "endTimeUnixNano": "1485467191639880000",
               "attributes": [
-                {
-                  "key": "peer.service",
-                  "value": {
-                    "stringValue": "service-y"
-                  }
-                },
-                {
-                  "key": "peer.ipv4",
-                  "value": {
-                    "intValue": "23456"
-                  }
-                },
                 {
                   "key": "blob",
                   "value": {
@@ -55,6 +50,18 @@
                   "key": "temperature",
                   "value": {
                     "doubleValue": 72.5
+                  }
+                },
+                {
+                  "key": "peer.ipv4",
+                  "value": {
+                    "intValue": "23456"
+                  }
+                },
+                {
+                  "key": "peer.service",
+                  "value": {
+                    "stringValue": "service-y"
                   }
                 }
               ],
