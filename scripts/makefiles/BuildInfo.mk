@@ -10,7 +10,7 @@ GIT_CLOSEST_TAG_V2 = $(eval GIT_CLOSEST_TAG_V2 := $(shell scripts/utils/compute-
 
 # args: (1) - name, (2) - value
 define buildinfo
-  $(JAEGER_IMPORT_PATH)/pkg/version.$(1)=$(2)
+  $(JAEGER_IMPORT_PATH)/internal/version.$(1)=$(2)
 endef
 # args (1) - V1|V2
 define buildinfoflags
