@@ -6,8 +6,10 @@ package grpc
 import (
 	"context"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -30,6 +32,35 @@ func NewHandler(traceReader tracestore.Reader) *Handler {
 	return &Handler{
 		traceReader: traceReader,
 	}
+}
+
+func (h *Handler) GetTraces(
+	req *storage.GetTracesRequest,
+	srv storage.TraceReader_GetTracesServer,
+) error {
+	traceIDs := make([]tracestore.GetTraceParams, len(req.Query))
+	for i, query := range req.Query {
+		var sizedTraceID [16]byte
+		copy(sizedTraceID[:], query.TraceId)
+
+		traceIDs[i] = tracestore.GetTraceParams{
+			TraceID: pcommon.TraceID(sizedTraceID),
+			Start:   query.StartTime,
+			End:     query.EndTime,
+		}
+	}
+	for traces, err := range h.traceReader.GetTraces(srv.Context(), traceIDs...) {
+		if err != nil {
+			return err
+		}
+		for _, trace := range traces {
+			td := jptrace.TracesData(trace)
+			if err = srv.Send(&td); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (h *Handler) GetServices(
