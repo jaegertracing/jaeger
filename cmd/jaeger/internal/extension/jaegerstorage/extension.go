@@ -18,9 +18,9 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	es "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
@@ -142,7 +142,7 @@ func newStorageExt(config *Config, telset component.TelemetrySettings) *storageE
 	}
 }
 
-func (s *storageExt) Start(_ context.Context, host component.Host) error {
+func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 	telset := telemetry.FromOtelComponent(s.telset, host)
 	telset.Metrics = telset.Metrics.Namespace(metrics.NSOptions{Name: "jaeger"})
 	scopedMetricsFactory := func(name, kind, role string) metrics.Factory {
@@ -175,8 +175,7 @@ func (s *storageExt) Start(_ context.Context, host component.Host) error {
 		case cfg.GRPC != nil:
 			grpcTelset := telset
 			grpcTelset.Metrics = scopedMetricsFactory(storageName, "grpc", "tracestore")
-			//nolint: contextcheck
-			v1Factory, err = grpc.NewFactoryWithConfig(*cfg.GRPC, grpcTelset)
+			factory, err = grpc.NewFactory(ctx, *cfg.GRPC, grpcTelset)
 		case cfg.Cassandra != nil:
 			v1Factory, err = cassandra.NewFactoryWithConfig(
 				*cfg.Cassandra,
