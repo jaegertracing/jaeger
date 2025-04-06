@@ -251,10 +251,7 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 					Value: nil,
 				},
 			},
-			expected: func() pcommon.Map {
-				m := pcommon.NewMap()
-				return m
-			}(),
+			expected: pcommon.NewMap(),
 		},
 		{
 			name: "primitive types",
