@@ -86,10 +86,10 @@ validate_service_metrics() {
 
     # Check that at least some values are non-zero after the threshold
     local non_zero_count
-    non_zero_count=$(echo "$response" | jq -r '[.metrics[0].metricPoints[].gaugeValue.doubleValue | select(. != 0)] | length')
+    non_zero_count=$(count_non_zero_metrics_point "$response")
     local expected_non_zero_count=4
     local zero_count
-    zero_count=$(echo "$response" | jq -r '[.metrics[0].metricPoints[].gaugeValue.doubleValue | select(. == 0)] | length')
+    zero_count=$(count_zero_metrics_point "$response")
     local expected_max_zero_count=4
     echo "⏳ Metrics data points found: ${zero_count} zero, ${non_zero_count} non-zero"
 
@@ -116,11 +116,26 @@ validate_service_metrics() {
       return 1
     fi
 
-    local url="http://localhost:16686/api/metrics/calls?service=${service}&groupByOperation=true&endTs=&lookback=${fiveMinutes}&step=${fifteenSec}&ratePer=${oneMinute}"
+    local url="http://localhost:16686/api/metrics/errors?service=${service}&groupByOperation=true&endTs=&lookback=${fiveMinutes}&step=${fifteenSec}&ratePer=${oneMinute}"
     response=$(curl -s "$url")
     if ! assert_labels_set_equals "$response" "operation service_name" ; then
       return 1
     fi
+
+    non_zero_count=$(count_non_zero_metrics_point "$response")
+    local services_with_error="driver frontend ui redis"
+    if [[ "$services_with_error" =~ "$service" ]]; then # the service is in the list
+      if [[ $non_zero_count == "0" ]]; then
+        echo "❌ ERROR: expect service $service to have positive errors rate"
+        return 1
+      fi
+    else
+      if [[ $non_zero_count != "0" ]]; then
+        echo "❌ ERROR: expect service $service to have 0 errors, but have $non_zero_count data points with positive errors"
+        return 1
+      fi
+    fi
+
 
     return 0
 }
@@ -146,6 +161,14 @@ assert_labels_set_equals() {
     echo "❌ ERROR: Obtained labels: '$labels' are not same as expected labels: '$expected'"
     return 1
   fi
+}
+
+count_zero_metrics_point() {
+  echo "$(echo "$1" | jq -r '[.metrics[0].metricPoints[].gaugeValue.doubleValue | select(. == 0)] | length')"
+}
+
+count_non_zero_metrics_point() {
+  echo "$(echo "$1" | jq -r '[.metrics[0].metricPoints[].gaugeValue.doubleValue | select(. != 0)] | length')"
 }
 
 check_spm() {
