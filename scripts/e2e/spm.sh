@@ -124,7 +124,7 @@ validate_service_metrics() {
 
     non_zero_count=$(count_non_zero_metrics_point "$response")
     local services_with_error="driver frontend ui redis"
-    if [[ "$services_with_error" =~ "$service" ]]; then # the service is in the list
+    if [[ "$services_with_error" =~ $service ]]; then # the service is in the list
       if [[ $non_zero_count == "0" ]]; then
         echo "❌ ERROR: expect service $service to have positive errors rate"
         return 1
@@ -161,14 +161,15 @@ assert_labels_set_equals() {
     echo "❌ ERROR: Obtained labels: '$labels' are not same as expected labels: '$expected'"
     return 1
   fi
+  return 0
 }
 
 count_zero_metrics_point() {
-  echo "$(echo "$1" | jq -r '[.metrics[0].metricPoints[].gaugeValue.doubleValue | select(. == 0)] | length')"
+  echo "$1" | jq -r '[.metrics[0].metricPoints[].gaugeValue.doubleValue | select(. == 0)] | length'
 }
 
 count_non_zero_metrics_point() {
-  echo "$(echo "$1" | jq -r '[.metrics[0].metricPoints[].gaugeValue.doubleValue | select(. != 0)] | length')"
+  echo "$1" | jq -r '[.metrics[0].metricPoints[].gaugeValue.doubleValue | select(. != 0)] | length'
 }
 
 check_spm() {
