@@ -226,3 +226,143 @@ func TestHandler_GetOperations(t *testing.T) {
 		})
 	}
 }
+
+func TestConvertKeyValueListToMap(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []*storage.KeyValue
+		expected pcommon.Map
+	}{
+		{
+			name:     "empty list",
+			input:    []*storage.KeyValue{},
+			expected: pcommon.NewMap(),
+		},
+		{
+			name:     "nil entry",
+			input:    []*storage.KeyValue{nil},
+			expected: pcommon.NewMap(),
+		},
+		{
+			name: "nil value",
+			input: []*storage.KeyValue{
+				{
+					Key:   "key1",
+					Value: nil,
+				},
+			},
+			expected: func() pcommon.Map {
+				m := pcommon.NewMap()
+				return m
+			}(),
+		},
+		{
+			name: "primitive types",
+			input: []*storage.KeyValue{
+				{
+					Key: "key1",
+					Value: &storage.AnyValue{
+						Value: &storage.AnyValue_StringValue{StringValue: "value1"},
+					},
+				},
+				{
+					Key: "key2",
+					Value: &storage.AnyValue{
+						Value: &storage.AnyValue_IntValue{IntValue: 42},
+					},
+				},
+				{
+					Key: "key3",
+					Value: &storage.AnyValue{
+						Value: &storage.AnyValue_DoubleValue{DoubleValue: 3.14},
+					},
+				},
+				{
+					Key: "key4",
+					Value: &storage.AnyValue{
+						Value: &storage.AnyValue_BoolValue{BoolValue: true},
+					},
+				},
+				{
+					Key: "key5",
+					Value: &storage.AnyValue{
+						Value: &storage.AnyValue_BytesValue{BytesValue: []byte{1, 2}},
+					},
+				},
+			},
+			expected: func() pcommon.Map {
+				m := pcommon.NewMap()
+				m.PutStr("key1", "value1")
+				m.PutInt("key2", 42)
+				m.PutDouble("key3", 3.14)
+				m.PutBool("key4", true)
+				m.PutEmptyBytes("key5").FromRaw([]byte{1, 2})
+				return m
+			}(),
+		},
+		{
+			name: "nested map",
+			input: []*storage.KeyValue{
+				{
+					Key: "key1",
+					Value: &storage.AnyValue{
+						Value: &storage.AnyValue_KvlistValue{
+							KvlistValue: &storage.KeyValueList{
+								Values: []*storage.KeyValue{
+									{
+										Key: "nestedKey",
+										Value: &storage.AnyValue{
+											Value: &storage.AnyValue_StringValue{StringValue: "nestedValue"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: func() pcommon.Map {
+				m := pcommon.NewMap()
+				nested := m.PutEmptyMap("key1")
+				nested.PutStr("nestedKey", "nestedValue")
+				return m
+			}(),
+		},
+		{
+			name: "array attribute",
+			input: []*storage.KeyValue{
+				{
+					Key: "key1",
+					Value: &storage.AnyValue{
+						Value: &storage.AnyValue_ArrayValue{
+							ArrayValue: &storage.ArrayValue{
+								Values: []*storage.AnyValue{
+									{
+										Value: &storage.AnyValue_StringValue{StringValue: "value1"},
+									},
+									{
+										Value: &storage.AnyValue_IntValue{IntValue: 42},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: func() pcommon.Map {
+				m := pcommon.NewMap()
+				slice := m.PutEmptySlice("key1")
+				slice.AppendEmpty().SetStr("value1")
+				slice.AppendEmpty().SetInt(42)
+				return m
+			}(),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := convertKeyValueListToMap(test.input)
+			assert.Equal(t, test.expected, result)
+		})
+	}
+}
