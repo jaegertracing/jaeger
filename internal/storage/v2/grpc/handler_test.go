@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
@@ -22,7 +23,7 @@ import (
 )
 
 type testStream struct {
-	storage.TraceReader_GetTracesServer
+	grpc.ServerStream
 	sent    []*jptrace.TracesData
 	sendErr error
 }
