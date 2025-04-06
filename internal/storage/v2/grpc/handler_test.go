@@ -315,6 +315,10 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 											Value: &storage.AnyValue_StringValue{StringValue: "nestedValue"},
 										},
 									},
+									{
+										Key:   "nilValueKey",
+										Value: nil, // should be skipped
+									},
 								},
 							},
 						},
@@ -343,6 +347,7 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 									{
 										Value: &storage.AnyValue_IntValue{IntValue: 42},
 									},
+									nil,
 								},
 							},
 						},
@@ -354,6 +359,7 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 				slice := m.PutEmptySlice("key1")
 				slice.AppendEmpty().SetStr("value1")
 				slice.AppendEmpty().SetInt(42)
+				slice.AppendEmpty() // for the nil entry
 				return m
 			}(),
 		},
