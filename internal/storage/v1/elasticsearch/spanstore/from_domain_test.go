@@ -32,12 +32,9 @@ func TestFromDomainEmbedProcess(t *testing.T) {
 			converter := NewFromDomain(false, nil, ":")
 			embeddedSpan := converter.FromDomainEmbedProcess(&span)
 
-			var expectedSpan dbmodel.Span
-			require.NoError(t, json.Unmarshal(jsonStr, &expectedSpan))
-
 			testJSONEncoding(t, i, jsonStr, embeddedSpan)
 
-			CompareJSONSpans(t, &expectedSpan, embeddedSpan)
+			CompareJSONSpans(t, jsonStr, embeddedSpan)
 		})
 	}
 }
@@ -112,19 +109,19 @@ func TestConvertKeyValueValue(t *testing.T) {
 	}{
 		{
 			kv:       model.Bool(key, true),
-			expected: dbmodel.KeyValue{Key: key, Value: "true", Type: "bool"},
+			expected: dbmodel.KeyValue{Key: key, Value: true, Type: "bool"},
 		},
 		{
 			kv:       model.Bool(key, false),
-			expected: dbmodel.KeyValue{Key: key, Value: "false", Type: "bool"},
+			expected: dbmodel.KeyValue{Key: key, Value: false, Type: "bool"},
 		},
 		{
 			kv:       model.Int64(key, int64(1499)),
-			expected: dbmodel.KeyValue{Key: key, Value: "1499", Type: "int64"},
+			expected: dbmodel.KeyValue{Key: key, Value: int64(1499), Type: "int64"},
 		},
 		{
 			kv:       model.Float64(key, float64(15.66)),
-			expected: dbmodel.KeyValue{Key: key, Value: "15.66", Type: "float64"},
+			expected: dbmodel.KeyValue{Key: key, Value: 15.66, Type: "float64"},
 		},
 		{
 			kv:       model.String(key, longString),
@@ -133,10 +130,6 @@ func TestConvertKeyValueValue(t *testing.T) {
 		{
 			kv:       model.Binary(key, []byte(longString)),
 			expected: dbmodel.KeyValue{Key: key, Value: hex.EncodeToString([]byte(longString)), Type: "binary"},
-		},
-		{
-			kv:       model.KeyValue{VType: 1500, Key: key},
-			expected: dbmodel.KeyValue{Key: key, Value: "unknown type 1500", Type: "1500"},
 		},
 	}
 

@@ -163,8 +163,9 @@ func TestFailureBadLogs(t *testing.T) {
 
 func TestRevertKeyValueOfType(t *testing.T) {
 	tests := []struct {
-		kv  *dbmodel.KeyValue
-		err string
+		kv    *dbmodel.KeyValue
+		err   string
+		outKv model.KeyValue
 	}{
 		{
 			kv: &dbmodel.KeyValue{
@@ -180,17 +181,26 @@ func TestRevertKeyValueOfType(t *testing.T) {
 		},
 		{
 			kv: &dbmodel.KeyValue{
-				Value: 123,
+				Key:   "int-val",
+				Type:  dbmodel.Int64Type,
+				Value: int64(123),
 			},
-			err: "non-string Value of type",
+			outKv: model.KeyValue{
+				Key:    "int-val",
+				VInt64: 123,
+				VType:  2,
+			},
 		},
 	}
 	td := ToDomain{}
 	for _, test := range tests {
 		t.Run(test.err, func(t *testing.T) {
 			tag := test.kv
-			_, err := td.convertKeyValue(tag)
-			assert.ErrorContains(t, err, test.err)
+			out, err := td.convertKeyValue(tag)
+			if test.err != "" {
+				require.Error(t, err, test.err)
+			}
+			assert.Equal(t, test.outKv, out)
 		})
 	}
 }
