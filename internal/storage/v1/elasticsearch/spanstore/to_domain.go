@@ -190,10 +190,10 @@ func (td ToDomain) convertKeyValue(tag *dbmodel.KeyValue) (model.KeyValue, error
 			if boolVal, ok := tag.Value.(bool); ok {
 				return model.Bool(tag.Key, boolVal), nil
 			}
-			return model.String("", ""), fmt.Errorf("invalid bool type in %+v", tag.Value)
+			return model.KeyValue{}, invalidValueErr(tag)
 		// string and binary values should always be of string type
 		default:
-			return model.KeyValue{}, fmt.Errorf("got non string value for type: %s", string(tag.Type))
+			return model.KeyValue{}, invalidValueErr(tag)
 		}
 	}
 	switch tag.Type {
@@ -241,7 +241,7 @@ func (ToDomain) fromDBNumber(kv *dbmodel.KeyValue) (model.KeyValue, error) {
 				return model.Int64(kv.Key, n), nil
 			}
 		default:
-			return model.KeyValue{}, fmt.Errorf("not a valid Int64Type %s", string(kv.Type))
+			return model.KeyValue{}, invalidValueErr(kv)
 		}
 	} else if kv.Type == dbmodel.Float64Type {
 		switch v := kv.Value.(type) {
@@ -253,10 +253,14 @@ func (ToDomain) fromDBNumber(kv *dbmodel.KeyValue) (model.KeyValue, error) {
 				return model.Float64(kv.Key, n), nil
 			}
 		default:
-			return model.KeyValue{}, fmt.Errorf("not a valid Float64Type %s", string(kv.Type))
+			return model.KeyValue{}, invalidValueErr(kv)
 		}
 	}
 	return model.KeyValue{}, fmt.Errorf("not a valid number ValueType %s", string(kv.Type))
+}
+
+func invalidValueErr(kv *dbmodel.KeyValue) error {
+	return fmt.Errorf("invalid %s type in %+v", string(kv.Type), kv.Value)
 }
 
 func (td ToDomain) convertLogs(logs []dbmodel.Log) ([]model.Log, error) {
