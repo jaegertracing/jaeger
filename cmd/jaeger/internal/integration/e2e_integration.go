@@ -44,7 +44,7 @@ type E2EStorageIntegration struct {
 	BinaryName         string
 
 	MetricsPort     int // overridable, default to 8888
-	HealthCheckPort int // overridable for tests (e.g. Kafka, query) which run two binaries and need different ports 
+	HealthCheckPort int // overridable for tests (e.g. Kafka, query) which run two binaries and need different ports
 
 	// EnvVarOverrides contains a map of environment variables to set.
 	// The key in the map is the environment variable to override and the value
