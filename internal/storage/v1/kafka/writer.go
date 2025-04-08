@@ -7,9 +7,10 @@ import (
 	"context"
 
 	"github.com/Shopify/sarama"
+	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 )
 
@@ -29,8 +30,8 @@ type SpanWriter struct {
 // NewSpanWriter initiates and returns a new kafka spanwriter
 func NewSpanWriter(
 	producer sarama.AsyncProducer,
-	marshaller Marshaller,
 	topic string,
+	marshaller Marshaller,
 	factory metrics.Factory,
 	logger *zap.Logger,
 ) *SpanWriter {
@@ -62,8 +63,9 @@ func NewSpanWriter(
 }
 
 // WriteSpan writes the span to kafka.
-func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
-	spanBytes, err := w.marshaller.Marshal(span)
+func (w *SpanWriter) WriteSpan(_ context.Context, traces ptrace.Traces) error {
+	exportRequest := ptraceotlp.NewExportRequestFromTraces(traces)
+	data, err := exportRequest.MarshalProto()
 	if err != nil {
 		w.metrics.SpansWrittenFailure.Inc(1)
 		return err
@@ -73,8 +75,8 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	// in the background as efficiently as possible
 	w.producer.Input() <- &sarama.ProducerMessage{
 		Topic: w.topic,
-		Key:   sarama.StringEncoder(span.TraceID.String()),
-		Value: sarama.ByteEncoder(spanBytes),
+		Key:   sarama.StringEncoder("otel"),
+		Value: sarama.ByteEncoder(data),
 	}
 	return nil
 }
