@@ -506,7 +506,7 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 				slice := m.PutEmptySlice("key1")
 				nestedSlice := slice.AppendEmpty().SetEmptySlice()
 				nestedSlice.AppendEmpty().SetStr("inner1")
-				nestedSlice.AppendEmpty() // for the nil entry
+				slice.AppendEmpty() // for the nil entry
 				return m
 			}(),
 		},
