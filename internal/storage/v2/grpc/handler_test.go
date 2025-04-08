@@ -405,6 +405,7 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 						},
 					},
 				},
+				nil, // should be skipped
 			},
 			expected: func() pcommon.Map {
 				m := pcommon.NewMap()
