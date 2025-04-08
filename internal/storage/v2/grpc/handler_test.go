@@ -441,6 +441,11 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 															Value: &storage.AnyValue_StringValue{StringValue: "nestedValue"},
 														},
 													},
+													{
+														Key:   "nilValueKey",
+														Value: nil, // should be skipped
+													},
+													nil, // should be skipped
 												},
 											},
 										},
@@ -461,6 +466,40 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 				nested := slice.AppendEmpty().SetEmptyMap()
 				nested.PutStr("nestedKey", "nestedValue")
 				slice.AppendEmpty() // for the nil entry
+				return m
+			}(),
+		},
+		{
+			name: "nested array",
+			input: []*storage.KeyValue{
+				{
+					Key: "key1",
+					Value: &storage.AnyValue{
+						Value: &storage.AnyValue_ArrayValue{
+							ArrayValue: &storage.ArrayValue{
+								Values: []*storage.AnyValue{
+									{
+										Value: &storage.AnyValue_ArrayValue{
+											ArrayValue: &storage.ArrayValue{
+												Values: []*storage.AnyValue{
+													{
+														Value: &storage.AnyValue_StringValue{StringValue: "inner1"},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: func() pcommon.Map {
+				m := pcommon.NewMap()
+				slice := m.PutEmptySlice("key1")
+				nestedSlice := slice.AppendEmpty().SetEmptySlice()
+				nestedSlice.AppendEmpty().SetStr("inner1")
 				return m
 			}(),
 		},
