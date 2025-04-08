@@ -494,6 +494,7 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 													{
 														Value: &storage.AnyValue_StringValue{StringValue: "inner1"},
 													},
+													nil,
 												},
 											},
 										},
@@ -510,7 +511,8 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 				slice := m.PutEmptySlice("key1")
 				nestedSlice := slice.AppendEmpty().SetEmptySlice()
 				nestedSlice.AppendEmpty().SetStr("inner1")
-				slice.AppendEmpty() // for the nil entry
+				nestedSlice.AppendEmpty() // for the nil entry
+				slice.AppendEmpty()       // for the nil entry
 				return m
 			}(),
 		},
