@@ -30,8 +30,8 @@ type SpanWriter struct {
 // NewSpanWriter initiates and returns a new kafka spanwriter
 func NewSpanWriter(
 	producer sarama.AsyncProducer,
-	topic string,
 	marshaller Marshaller,
+	topic string,
 	factory metrics.Factory,
 	logger *zap.Logger,
 ) *SpanWriter {
