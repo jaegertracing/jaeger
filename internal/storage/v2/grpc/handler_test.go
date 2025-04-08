@@ -228,6 +228,89 @@ func TestHandler_GetOperations(t *testing.T) {
 	}
 }
 
+func TestHandler_FindTraces(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	query := tracestore.TraceQueryParams{
+		ServiceName:   "service",
+		OperationName: "operation",
+		Attributes:    pcommon.NewMap(),
+	}
+	trace := makeTestTrace()
+	td := jptrace.TracesData(trace)
+
+	tests := []struct {
+		name         string
+		traces       [][]ptrace.Traces
+		expectedSent []*jptrace.TracesData
+		sendErr      error
+		getTraceErr  error
+		expectedErr  error
+	}{
+		{
+			name:   "single trace",
+			traces: [][]ptrace.Traces{{trace}},
+			expectedSent: []*jptrace.TracesData{
+				&td,
+			},
+		},
+		{
+			name:         "multiple traces",
+			traces:       [][]ptrace.Traces{{trace, trace}},
+			expectedSent: []*jptrace.TracesData{&td, &td},
+		},
+		{
+			name:         "multiple chunks",
+			traces:       [][]ptrace.Traces{{trace, trace}, {trace, trace}},
+			expectedSent: []*jptrace.TracesData{&td, &td, &td, &td},
+		},
+		{
+			name:        "storage error",
+			getTraceErr: assert.AnError,
+			expectedErr: assert.AnError,
+		},
+		{
+			name:        "send error",
+			traces:      [][]ptrace.Traces{{trace, trace}},
+			sendErr:     assert.AnError,
+			expectedErr: assert.AnError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			reader.On("FindTraces", mock.Anything, query).
+				Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+					if test.getTraceErr != nil {
+						yield(nil, test.getTraceErr)
+						return
+					}
+					for _, traces := range test.traces {
+						if !yield(traces, nil) {
+							return
+						}
+					}
+				})).Once()
+
+			server := NewHandler(reader)
+			stream := &testStream{
+				sendErr: test.sendErr,
+			}
+			err := server.FindTraces(&storage.FindTracesRequest{
+				Query: &storage.TraceQueryParameters{
+					ServiceName:   "service",
+					OperationName: "operation",
+				},
+			}, stream)
+			if test.expectedErr != nil {
+				require.ErrorIs(t, err, test.expectedErr)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.expectedSent, stream.sent)
+			}
+		})
+	}
+}
+
 func TestConvertKeyValueListToMap(t *testing.T) {
 	tests := []struct {
 		name     string
