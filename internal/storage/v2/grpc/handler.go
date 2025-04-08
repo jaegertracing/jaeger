@@ -98,3 +98,106 @@ func (h *Handler) GetOperations(
 		Operations: grpcOperations,
 	}, nil
 }
+
+func (h *Handler) FindTraces(
+	req *storage.FindTracesRequest,
+	srv storage.TraceReader_FindTracesServer,
+) error {
+	query := tracestore.TraceQueryParams{
+		ServiceName:   req.Query.ServiceName,
+		OperationName: req.Query.OperationName,
+		Attributes:    convertKeyValueListToMap(req.Query.Attributes),
+		StartTimeMin:  req.Query.StartTimeMin,
+		StartTimeMax:  req.Query.StartTimeMax,
+		DurationMin:   req.Query.DurationMin,
+		DurationMax:   req.Query.DurationMax,
+		SearchDepth:   int(req.Query.SearchDepth),
+	}
+	for traces, err := range h.traceReader.FindTraces(srv.Context(), query) {
+		if err != nil {
+			return err
+		}
+		for _, trace := range traces {
+			td := jptrace.TracesData(trace)
+			if err = srv.Send(&td); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func convertKeyValueListToMap(kvList []*storage.KeyValue) pcommon.Map {
+	m := pcommon.NewMap()
+	for _, kv := range kvList {
+		if kv == nil || kv.Value == nil {
+			continue
+		}
+		setValueToMap(m, kv.Key, kv.Value)
+	}
+	return m
+}
+
+func setValueToMap(m pcommon.Map, key string, av *storage.AnyValue) {
+	switch v := av.Value.(type) {
+	case *storage.AnyValue_StringValue:
+		m.PutStr(key, v.StringValue)
+	case *storage.AnyValue_BoolValue:
+		m.PutBool(key, v.BoolValue)
+	case *storage.AnyValue_IntValue:
+		m.PutInt(key, v.IntValue)
+	case *storage.AnyValue_DoubleValue:
+		m.PutDouble(key, v.DoubleValue)
+	case *storage.AnyValue_BytesValue:
+		m.PutEmptyBytes(key).FromRaw(v.BytesValue)
+	case *storage.AnyValue_ArrayValue:
+		sliceVal := m.PutEmptySlice(key)
+		for _, elem := range v.ArrayValue.Values {
+			if elem == nil {
+				sliceVal.AppendEmpty()
+				continue
+			}
+			setValueToSlice(sliceVal, elem)
+		}
+	case *storage.AnyValue_KvlistValue:
+		mapVal := m.PutEmptyMap(key)
+		for _, kv := range v.KvlistValue.Values {
+			if kv == nil || kv.Value == nil {
+				continue
+			}
+			setValueToMap(mapVal, kv.Key, kv.Value)
+		}
+	}
+}
+
+func setValueToSlice(slice pcommon.Slice, av *storage.AnyValue) {
+	switch v := av.Value.(type) {
+	case *storage.AnyValue_StringValue:
+		slice.AppendEmpty().SetStr(v.StringValue)
+	case *storage.AnyValue_BoolValue:
+		slice.AppendEmpty().SetBool(v.BoolValue)
+	case *storage.AnyValue_IntValue:
+		slice.AppendEmpty().SetInt(v.IntValue)
+	case *storage.AnyValue_DoubleValue:
+		slice.AppendEmpty().SetDouble(v.DoubleValue)
+	case *storage.AnyValue_BytesValue:
+		slice.AppendEmpty().SetEmptyBytes().FromRaw(v.BytesValue)
+	case *storage.AnyValue_ArrayValue:
+		newSlice := slice.AppendEmpty().SetEmptySlice()
+		for _, subElem := range v.ArrayValue.Values {
+			if subElem == nil {
+				newSlice.AppendEmpty()
+				continue
+			}
+			setValueToSlice(newSlice, subElem)
+		}
+	case *storage.AnyValue_KvlistValue:
+		newMap := slice.AppendEmpty().SetEmptyMap()
+		for _, kv := range v.KvlistValue.Values {
+			if kv == nil || kv.Value == nil {
+				continue
+			}
+			setValueToMap(newMap, kv.Key, kv.Value)
+		}
+	}
+}
