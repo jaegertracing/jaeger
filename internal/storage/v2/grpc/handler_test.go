@@ -414,7 +414,7 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 			}(),
 		},
 		{
-			name: "array attribute",
+			name: "array",
 			input: []*storage.KeyValue{
 				{
 					Key: "key1",
@@ -428,6 +428,23 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 									{
 										Value: &storage.AnyValue_IntValue{IntValue: 42},
 									},
+									{
+										Value: &storage.AnyValue_BoolValue{BoolValue: true},
+									},
+									{
+										Value: &storage.AnyValue_KvlistValue{
+											KvlistValue: &storage.KeyValueList{
+												Values: []*storage.KeyValue{
+													{
+														Key: "nestedKey",
+														Value: &storage.AnyValue{
+															Value: &storage.AnyValue_StringValue{StringValue: "nestedValue"},
+														},
+													},
+												},
+											},
+										},
+									},
 									nil,
 								},
 							},
@@ -440,6 +457,9 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 				slice := m.PutEmptySlice("key1")
 				slice.AppendEmpty().SetStr("value1")
 				slice.AppendEmpty().SetInt(42)
+				slice.AppendEmpty().SetBool(true)
+				nested := slice.AppendEmpty().SetEmptyMap()
+				nested.PutStr("nestedKey", "nestedValue")
 				slice.AppendEmpty() // for the nil entry
 				return m
 			}(),
