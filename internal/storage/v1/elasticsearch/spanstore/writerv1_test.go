@@ -21,7 +21,7 @@ func TestSpanWriterV1_WriteSpan(t *testing.T) {
 	}
 	converter := NewFromDomain(true, []string{}, "-")
 	writerV1 := &SpanWriterV1{spanWriter: coreWriter, spanConverter: converter}
-	coreWriter.On("WriteSpan", s.StartTime, converter.FromDomainEmbedProcess(s))
+	coreWriter.On("WriteSpan", s.StartTime, converter.FromDomainEmbedProcess(s)).Return(nil)
 	err := writerV1.WriteSpan(context.Background(), s)
 	require.NoError(t, err)
 }
