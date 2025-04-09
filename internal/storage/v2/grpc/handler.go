@@ -141,7 +141,7 @@ func (h *Handler) FindTraceIDs(
 		DurationMax:   req.Query.DurationMax,
 		SearchDepth:   int(req.Query.SearchDepth),
 	}
-	var foundTraceIDs []*storage.FoundTraceID
+	foundTraceIDs := []*storage.FoundTraceID{}
 	for traceIDs, err := range h.traceReader.FindTraceIDs(ctx, query) {
 		if err != nil {
 			return nil, err

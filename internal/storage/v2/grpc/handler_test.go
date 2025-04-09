@@ -311,6 +311,84 @@ func TestHandler_FindTraces(t *testing.T) {
 	}
 }
 
+func TestHandler_FindTraceIDs(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	query := tracestore.TraceQueryParams{
+		ServiceName:   "service",
+		OperationName: "operation",
+		Attributes:    pcommon.NewMap(),
+	}
+	now := time.Now()
+	traceIDA := [16]byte{1}
+	traceIDB := [16]byte{2}
+	tests := []struct {
+		name             string
+		traceIDs         []tracestore.FoundTraceID
+		expectedTraceIDs []*storage.FoundTraceID
+		findTraceIDsErr  error
+		expectedErr      error
+	}{
+		{
+			name: "success",
+			traceIDs: []tracestore.FoundTraceID{
+				{
+					TraceID: traceIDA,
+					Start:   now,
+					End:     now.Add(time.Minute),
+				},
+				{
+					TraceID: traceIDB,
+					Start:   now,
+					End:     now.Add(time.Hour),
+				},
+			},
+			expectedTraceIDs: []*storage.FoundTraceID{
+				{
+					TraceId: traceIDA[:],
+					Start:   now,
+					End:     now.Add(time.Minute),
+				},
+				{
+					TraceId: traceIDB[:],
+					Start:   now,
+					End:     now.Add(time.Hour),
+				},
+			},
+		},
+		{
+			name:             "empty",
+			traceIDs:         []tracestore.FoundTraceID{},
+			expectedTraceIDs: []*storage.FoundTraceID{},
+		},
+		{
+			name:            "error",
+			findTraceIDsErr: assert.AnError,
+			expectedErr:     assert.AnError,
+		},
+	}
+
+	for _, test := range tests {
+		reader.On("FindTraceIDs", mock.Anything, query).
+			Return(iter.Seq2[[]tracestore.FoundTraceID, error](func(yield func([]tracestore.FoundTraceID, error) bool) {
+				yield(test.traceIDs, test.findTraceIDsErr)
+			})).Once()
+		server := NewHandler(reader)
+
+		response, err := server.FindTraceIDs(context.Background(), &storage.FindTracesRequest{
+			Query: &storage.TraceQueryParameters{
+				ServiceName:   "service",
+				OperationName: "operation",
+			},
+		})
+		if test.expectedErr != nil {
+			require.ErrorIs(t, err, test.expectedErr)
+		} else {
+			require.NoError(t, err)
+			require.Equal(t, test.expectedTraceIDs, response.TraceIds)
+		}
+	}
+}
+
 func TestConvertKeyValueListToMap(t *testing.T) {
 	tests := []struct {
 		name     string
