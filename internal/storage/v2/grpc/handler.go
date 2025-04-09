@@ -127,6 +127,38 @@ func (h *Handler) FindTraces(
 	return nil
 }
 
+func (h *Handler) FindTraceIDs(
+	ctx context.Context,
+	req *storage.FindTracesRequest,
+) (*storage.FindTraceIDsResponse, error) {
+	query := tracestore.TraceQueryParams{
+		ServiceName:   req.Query.ServiceName,
+		OperationName: req.Query.OperationName,
+		Attributes:    convertKeyValueListToMap(req.Query.Attributes),
+		StartTimeMin:  req.Query.StartTimeMin,
+		StartTimeMax:  req.Query.StartTimeMax,
+		DurationMin:   req.Query.DurationMin,
+		DurationMax:   req.Query.DurationMax,
+		SearchDepth:   int(req.Query.SearchDepth),
+	}
+	var foundTraceIDs []*storage.FoundTraceID
+	for traceIDs, err := range h.traceReader.FindTraceIDs(ctx, query) {
+		if err != nil {
+			return nil, err
+		}
+		for _, traceID := range traceIDs {
+			foundTraceIDs = append(foundTraceIDs, &storage.FoundTraceID{
+				TraceId: traceID.TraceID[:],
+				Start:   traceID.Start,
+				End:     traceID.End,
+			})
+		}
+	}
+	return &storage.FindTraceIDsResponse{
+		TraceIds: foundTraceIDs,
+	}, nil
+}
+
 func convertKeyValueListToMap(kvList []*storage.KeyValue) pcommon.Map {
 	m := pcommon.NewMap()
 	for _, kv := range kvList {
