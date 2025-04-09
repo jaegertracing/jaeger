@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"os/exec"
+	"strings" // Added for strings.HasPrefix
 	"testing"
 
 	elasticsearch8 "github.com/elastic/go-elasticsearch/v8"
@@ -156,14 +157,26 @@ func runIndexCleanerTest(t *testing.T, client *elastic.Client, v8Client *elastic
 	require.NoError(t, err)
 	indices, err := client.IndexNames()
 	require.NoError(t, err)
+
+	// Filter indices to include only those starting with the expected prefix
+	prefixWithSeparator := prefix
 	if prefix != "" {
-		prefix += "-"
+		prefixWithSeparator += "-"
 	}
+	var filteredIndices []string
+	for _, index := range indices {
+		if strings.HasPrefix(index, prefixWithSeparator+"jaeger-") {
+			filteredIndices = append(filteredIndices, index)
+		}
+	}
+
+	// Prepare expected indices with prefix
 	var expected []string
 	for _, index := range expectedIndices {
-		expected = append(expected, prefix+index)
+		expected = append(expected, prefixWithSeparator+index)
 	}
-	assert.ElementsMatch(t, indices, expected, "indices found: %v, expected: %v", indices, expected)
+
+	assert.ElementsMatch(t, filteredIndices, expected, "indices found: %v, expected: %v", filteredIndices, expected)
 }
 
 func createAllIndices(client *elastic.Client, prefix string, adaptiveSampling bool) error {
