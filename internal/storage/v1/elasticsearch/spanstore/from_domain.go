@@ -119,9 +119,14 @@ func (fd FromDomain) convertProcess(process *model.Process) dbmodel.Process {
 }
 
 func convertKeyValue(kv model.KeyValue) dbmodel.KeyValue {
-	return dbmodel.KeyValue{
-		Key:   kv.Key,
-		Type:  dbmodel.ValueType(strings.ToLower(kv.VType.String())),
-		Value: kv.AsString(),
+	outKv := dbmodel.KeyValue{
+		Key:  kv.Key,
+		Type: dbmodel.ValueType(strings.ToLower(kv.VType.String())),
 	}
+	if kv.GetVType() == model.BinaryType {
+		outKv.Value = kv.AsString()
+	} else {
+		outKv.Value = kv.Value()
+	}
+	return outKv
 }
