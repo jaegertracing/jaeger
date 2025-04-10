@@ -32,17 +32,17 @@
     {
       "key": "peer.ipv4",
       "type": "int64",
-      "value": "23456"
+      "value": 23456
     },
     {
       "key": "error",
       "type": "bool",
-      "value": "true"
+      "value": true
     },
     {
       "key": "temperature",
       "type": "float64",
-      "value": "72.5"
+      "value": 72.5
     },
     {
       "key": "blob",
@@ -57,7 +57,7 @@
         {
           "key": "event",
           "type": "int64",
-          "value": "123415"
+          "value": 123415
         }
       ]
     },
@@ -78,12 +78,12 @@
       {
         "key": "peer.ipv4",
         "type": "int64",
-        "value": "23456"
+        "value": 23456
       },
       {
         "key": "error",
         "type": "bool",
-        "value": "true"
+        "value": true
       }
     ]
   }
