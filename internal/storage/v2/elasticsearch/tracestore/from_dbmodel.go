@@ -8,6 +8,7 @@ package tracestore
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -134,12 +135,19 @@ func dbTagsToAttributes(tags []dbmodel.KeyValue, attributes pcommon.Map) {
 	for _, tag := range tags {
 		tagValue, ok := tag.Value.(string)
 		if !ok {
-			// We have to do this as we are unsure that whether bool will be a string or a bool
-			tagBoolVal, boolOk := tag.Value.(bool)
-			if boolOk && tag.Type == dbmodel.BoolType {
-				attributes.PutBool(tag.Key, tagBoolVal)
-			} else {
-				attributes.PutStr(tag.Key, "Got non string inputValue for the key "+tag.Key)
+			switch tag.Type {
+			case dbmodel.Float64Type, dbmodel.Int64Type:
+				fromDBNumber(tag, attributes)
+			case dbmodel.BoolType:
+				v, ok := tag.Value.(bool)
+				if !ok {
+					recordTagInvalidTypeError(tag, attributes)
+				} else {
+					attributes.PutBool(tag.Key, v)
+				}
+			default:
+				// This means type is string/binary but value is of non string type, hence record the type error
+				recordTagInvalidTypeError(tag, attributes)
 			}
 			continue
 		}
@@ -178,6 +186,41 @@ func dbTagsToAttributes(tags []dbmodel.KeyValue, attributes pcommon.Map) {
 			attributes.PutStr(tag.Key, fmt.Sprintf("<Unknown Jaeger TagType %q>", tag.Type))
 		}
 	}
+}
+
+func fromDBNumber(kv dbmodel.KeyValue, dest pcommon.Map) {
+	if kv.Type == dbmodel.Int64Type {
+		switch v := kv.Value.(type) {
+		case int64:
+			dest.PutInt(kv.Key, v)
+		case float64:
+			// This case is possible as unmarshalling the JSON converts every int value to float64
+			dest.PutInt(kv.Key, int64(v))
+		case json.Number:
+			n, err := v.Int64()
+			if err == nil {
+				dest.PutInt(kv.Key, n)
+			}
+		default:
+			recordTagInvalidTypeError(kv, dest)
+		}
+	} else if kv.Type == dbmodel.Float64Type {
+		switch v := kv.Value.(type) {
+		case float64:
+			dest.PutDouble(kv.Key, v)
+		case json.Number:
+			n, err := v.Float64()
+			if err == nil {
+				dest.PutDouble(kv.Key, n)
+			}
+		default:
+			recordTagInvalidTypeError(kv, dest)
+		}
+	}
+}
+
+func recordTagInvalidTypeError(kv dbmodel.KeyValue, dest pcommon.Map) {
+	dest.PutStr(kv.Key, fmt.Sprintf("invalid %s type in %+v", string(kv.Type), kv.Value))
 }
 
 func recordTagConversionError(kv dbmodel.KeyValue, err error, dest pcommon.Map) {

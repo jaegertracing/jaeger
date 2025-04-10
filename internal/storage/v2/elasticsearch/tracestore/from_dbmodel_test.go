@@ -216,6 +216,17 @@ func TestSetAttributesFromDbTags(t *testing.T) {
 			},
 		},
 		{
+			name: "wrong non string int input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "bool-val",
+				Type:  dbmodel.BoolType,
+				Value: 12,
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutStr("bool-val", "invalid bool type in 12")
+			},
+		},
+		{
 			name: "wrong int input value",
 			keyModel: dbmodel.KeyValue{
 				Key:   "int-val",
@@ -235,6 +246,50 @@ func TestSetAttributesFromDbTags(t *testing.T) {
 			},
 			expectedValueFn: func(p pcommon.Map) {
 				p.PutInt("int-val", 123)
+			},
+		},
+		{
+			name: "right non string int input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "int-val",
+				Type:  dbmodel.Int64Type,
+				Value: int64(123),
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutInt("int-val", 123)
+			},
+		},
+		{
+			name: "right non string int float input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "int-val",
+				Type:  dbmodel.Int64Type,
+				Value: float64(123),
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutInt("int-val", 123)
+			},
+		},
+		{
+			name: "right non string json number int input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "int-val",
+				Type:  dbmodel.Int64Type,
+				Value: json.Number("123"),
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutInt("int-val", 123)
+			},
+		},
+		{
+			name: "wrong non string int input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "int-val",
+				Type:  dbmodel.Int64Type,
+				Value: true,
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutStr("int-val", "invalid int64 type in true")
 			},
 		},
 		{
@@ -260,6 +315,39 @@ func TestSetAttributesFromDbTags(t *testing.T) {
 			},
 		},
 		{
+			name: "right non string double input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "double-val",
+				Type:  dbmodel.Float64Type,
+				Value: 25.6,
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutDouble("double-val", 25.6)
+			},
+		},
+		{
+			name: "right non string json number double input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "double-val",
+				Type:  dbmodel.Float64Type,
+				Value: json.Number("123.56"),
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutDouble("double-val", 123.56)
+			},
+		},
+		{
+			name: "wrong non string float input value",
+			keyModel: dbmodel.KeyValue{
+				Key:   "double-val",
+				Type:  dbmodel.Float64Type,
+				Value: true,
+			},
+			expectedValueFn: func(p pcommon.Map) {
+				p.PutStr("double-val", "invalid float64 type in true")
+			},
+		},
+		{
 			name: "wrong binary input value",
 			keyModel: dbmodel.KeyValue{
 				Key:   "binary-val",
@@ -282,14 +370,14 @@ func TestSetAttributesFromDbTags(t *testing.T) {
 			},
 		},
 		{
-			name: "non-string input value",
+			name: "non-string input value with string type",
 			keyModel: dbmodel.KeyValue{
 				Key:   "bool-val",
-				Type:  dbmodel.Int64Type,
+				Type:  dbmodel.StringType,
 				Value: 123,
 			},
 			expectedValueFn: func(p pcommon.Map) {
-				p.PutStr("bool-val", "Got non string inputValue for the key bool-val")
+				p.PutStr("bool-val", "invalid string type in 123")
 			},
 		},
 		{
@@ -549,6 +637,17 @@ func TestFromDbModel_Fixtures(t *testing.T) {
 	actualTd, err := FromDBModel(spans)
 	require.NoError(t, err)
 	testTraces(t, tracesData, actualTd)
+}
+
+func TestToDbModel_Fixtures_StringTags(t *testing.T) {
+	spanData, err := os.ReadFile("fixtures/es_01_string_tags.json")
+	require.NoError(t, err)
+	var dbSpan dbmodel.Span
+	require.NoError(t, json.Unmarshal(spanData, &dbSpan))
+	td, err := FromDBModel([]dbmodel.Span{dbSpan})
+	require.NoError(t, err)
+	expectedTraces := loadTraces(t, 1)
+	testTraces(t, expectedTraces, td)
 }
 
 func getDbTraceIdFromByteArray(arr [16]byte) dbmodel.TraceID {
