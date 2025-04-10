@@ -45,7 +45,7 @@ func TestGetTagFromStatusCode(t *testing.T) {
 			tag: dbmodel.KeyValue{
 				Key:   tagError,
 				Type:  dbmodel.BoolType,
-				Value: "true",
+				Value: true,
 			},
 		},
 	}
@@ -220,12 +220,12 @@ func TestAttributesToDbSpanTags(t *testing.T) {
 		{
 			Key:   "bool-val",
 			Type:  dbmodel.BoolType,
-			Value: "true",
+			Value: true,
 		},
 		{
 			Key:   "int-val",
 			Type:  dbmodel.Int64Type,
-			Value: "123",
+			Value: int64(123),
 		},
 		{
 			Key:   "string-val",
@@ -235,7 +235,7 @@ func TestAttributesToDbSpanTags(t *testing.T) {
 		{
 			Key:   "double-val",
 			Type:  dbmodel.Float64Type,
-			Value: "1.23",
+			Value: 1.23,
 		},
 		{
 			Key:   "bytes-val",
@@ -292,14 +292,23 @@ func writeActualData(t *testing.T, name string, data []byte) {
 
 // Loads and returns domain model and JSON model fixtures with given number i.
 func loadFixtures(t *testing.T, i int) (tracesData []byte, spansData []byte) {
-	var err error
-	inTraces := fmt.Sprintf("fixtures/otel_traces_%02d.json", i)
-	tracesData, err = os.ReadFile(inTraces)
-	require.NoError(t, err)
-	inSpans := fmt.Sprintf("fixtures/es_%02d.json", i)
-	spansData, err = os.ReadFile(inSpans)
-	require.NoError(t, err)
+	tracesData = loadTraces(t, i)
+	spansData = loadSpans(t, i)
 	return tracesData, spansData
+}
+
+func loadTraces(t *testing.T, i int) []byte {
+	inTraces := fmt.Sprintf("fixtures/otel_traces_%02d.json", i)
+	tracesData, err := os.ReadFile(inTraces)
+	require.NoError(t, err)
+	return tracesData
+}
+
+func loadSpans(t *testing.T, i int) []byte {
+	inSpans := fmt.Sprintf("fixtures/es_%02d.json", i)
+	spansData, err := os.ReadFile(inSpans)
+	require.NoError(t, err)
+	return spansData
 }
 
 func testTraces(t *testing.T, expectedTraces []byte, actualTraces ptrace.Traces) {
