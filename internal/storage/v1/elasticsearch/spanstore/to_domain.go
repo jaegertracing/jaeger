@@ -173,13 +173,28 @@ func (td ToDomain) convertTagField(k string, v any) (model.KeyValue, error) {
 
 // convertKeyValue expects the Value field to be string, because it only works
 // as a reverse transformation after FromDomain() for ElasticSearch model.
-func (ToDomain) convertKeyValue(tag *dbmodel.KeyValue) (model.KeyValue, error) {
+func (td ToDomain) convertKeyValue(tag *dbmodel.KeyValue) (model.KeyValue, error) {
 	if tag.Value == nil {
 		return model.KeyValue{}, fmt.Errorf("invalid nil Value in %v", tag)
 	}
 	tagValue, ok := tag.Value.(string)
 	if !ok {
-		return model.KeyValue{}, fmt.Errorf("non-string Value of type %t in %v", tag.Value, tag)
+		switch tag.Type {
+		case dbmodel.Int64Type, dbmodel.Float64Type:
+			kv, err := td.fromDBNumber(tag)
+			if err != nil {
+				return model.KeyValue{}, err
+			}
+			return kv, nil
+		case dbmodel.BoolType:
+			if boolVal, ok := tag.Value.(bool); ok {
+				return model.Bool(tag.Key, boolVal), nil
+			}
+			return model.KeyValue{}, invalidValueErr(tag)
+		// string and binary values should always be of string type
+		default:
+			return model.KeyValue{}, invalidValueErr(tag)
+		}
 	}
 	switch tag.Type {
 	case dbmodel.StringType:
@@ -210,6 +225,42 @@ func (ToDomain) convertKeyValue(tag *dbmodel.KeyValue) (model.KeyValue, error) {
 		return model.Binary(tag.Key, value), nil
 	}
 	return model.KeyValue{}, fmt.Errorf("not a valid ValueType string %s", string(tag.Type))
+}
+
+func (ToDomain) fromDBNumber(kv *dbmodel.KeyValue) (model.KeyValue, error) {
+	if kv.Type == dbmodel.Int64Type {
+		switch v := kv.Value.(type) {
+		case int64:
+			return model.Int64(kv.Key, v), nil
+		// This case is very much possible as JSON converts every number to float64
+		case float64:
+			return model.Int64(kv.Key, int64(v)), nil
+		case json.Number:
+			n, err := v.Int64()
+			if err == nil {
+				return model.Int64(kv.Key, n), nil
+			}
+		default:
+			return model.KeyValue{}, invalidValueErr(kv)
+		}
+	} else if kv.Type == dbmodel.Float64Type {
+		switch v := kv.Value.(type) {
+		case float64:
+			return model.Float64(kv.Key, v), nil
+		case json.Number:
+			n, err := v.Float64()
+			if err == nil {
+				return model.Float64(kv.Key, n), nil
+			}
+		default:
+			return model.KeyValue{}, invalidValueErr(kv)
+		}
+	}
+	return model.KeyValue{}, fmt.Errorf("not a valid number ValueType %s", string(kv.Type))
+}
+
+func invalidValueErr(kv *dbmodel.KeyValue) error {
+	return fmt.Errorf("invalid %s type in %+v", string(kv.Type), kv.Value)
 }
 
 func (td ToDomain) convertLogs(logs []dbmodel.Log) ([]model.Log, error) {
