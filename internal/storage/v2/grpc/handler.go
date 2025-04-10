@@ -131,18 +131,8 @@ func (h *Handler) FindTraceIDs(
 	ctx context.Context,
 	req *storage.FindTracesRequest,
 ) (*storage.FindTraceIDsResponse, error) {
-	query := tracestore.TraceQueryParams{
-		ServiceName:   req.Query.ServiceName,
-		OperationName: req.Query.OperationName,
-		Attributes:    convertKeyValueListToMap(req.Query.Attributes),
-		StartTimeMin:  req.Query.StartTimeMin,
-		StartTimeMax:  req.Query.StartTimeMax,
-		DurationMin:   req.Query.DurationMin,
-		DurationMax:   req.Query.DurationMax,
-		SearchDepth:   int(req.Query.SearchDepth),
-	}
 	foundTraceIDs := []*storage.FoundTraceID{}
-	for traceIDs, err := range h.traceReader.FindTraceIDs(ctx, query) {
+	for traceIDs, err := range h.traceReader.FindTraceIDs(ctx, toTraceQueryParams(req.Query)) {
 		if err != nil {
 			return nil, err
 		}
@@ -157,6 +147,19 @@ func (h *Handler) FindTraceIDs(
 	return &storage.FindTraceIDsResponse{
 		TraceIds: foundTraceIDs,
 	}, nil
+}
+
+func toTraceQueryParams(t *storage.TraceQueryParameters) tracestore.TraceQueryParams {
+	return tracestore.TraceQueryParams{
+		ServiceName:   t.ServiceName,
+		OperationName: t.OperationName,
+		Attributes:    convertKeyValueListToMap(t.Attributes),
+		StartTimeMin:  t.StartTimeMin,
+		StartTimeMax:  t.StartTimeMax,
+		DurationMin:   t.DurationMin,
+		DurationMax:   t.DurationMax,
+		SearchDepth:   int(t.SearchDepth),
+	}
 }
 
 func convertKeyValueListToMap(kvList []*storage.KeyValue) pcommon.Map {
