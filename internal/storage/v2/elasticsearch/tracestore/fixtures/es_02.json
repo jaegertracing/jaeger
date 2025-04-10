@@ -28,43 +28,17 @@
       "key": "blob",
       "type": "binary",
       "value": "00003039"
-    },
-    {
-      "key": "error",
-      "type": "bool",
-      "value": "true"
-    },
-    {
-      "key": "otel.scope.name",
-      "type": "string",
-      "value": "testing-library"
-    },
-    {
-      "key": "otel.scope.version",
-      "type": "string",
-      "value": "1.1.1"
-    },
-    {
-      "key": "peer.ipv4",
-      "type": "int64",
-      "value": "23456"
-    },
-    {
-      "key": "peer.service",
-      "type": "string",
-      "value": "service-y"
-    },
-    {
-      "key": "temperature",
-      "type": "float64",
-      "value": "72.5"
-    },
-    {
-      "key": "w3c.tracestate",
-      "type": "string",
-      "value": "testing-state"
     }
   ],
+  "tag": {
+    "error": true,
+    "otel#scope#name": "testing-library",
+    "otel#scope#version": "1.1.1",
+    "peer#ipv4": 23456,
+    "peer#service": "service-y",
+    "temperature": 72.5,
+    "w3c#tracestate": "testing-state"
+  },
   "logs": [
     {
       "timestamp": 1485467191639875,
@@ -96,15 +70,13 @@
     "serviceName": "service-x",
     "tags": [
       {
-        "key": "sdk.version.1",
-        "type": "string",
-        "value": "1.2.1"
-      },
-      {
         "key": "sdk.version.2",
         "type": "binary",
         "value": "00003039"
       }
-    ]
+    ],
+    "tag": {
+      "sdk#version#1": "1.2.1"
+    }
   }
 }
