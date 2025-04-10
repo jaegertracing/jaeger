@@ -5,6 +5,7 @@ package spanstore
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
@@ -31,7 +32,10 @@ func (s *SpanWriterV1) CreateTemplates(spanTemplate, serviceTemplate string, ind
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 func (s *SpanWriterV1) WriteSpan(_ context.Context, span *model.Span) error {
 	jsonSpan := s.spanConverter.FromDomainEmbedProcess(span)
-	s.spanWriter.WriteSpan(span.StartTime, jsonSpan)
+	err := s.spanWriter.WriteSpan(span.StartTime, jsonSpan)
+	if err != nil {
+		return fmt.Errorf("failed to write span: %w", err)
+	}
 	return nil
 }
 

@@ -58,9 +58,21 @@ func (_m *CoreSpanWriter) CreateTemplates(spanTemplate string, serviceTemplate s
 }
 
 // WriteSpan provides a mock function with given fields: spanStartTime, span
-func (_m *CoreSpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) error{
-	_m.Called(spanStartTime, span)
-	return nil
+func (_m *CoreSpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) error {
+	ret := _m.Called(spanStartTime, span)
+
+	if len(ret) == 0 {
+		panic("no return value specified for WriteSpan")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(time.Time, *dbmodel.Span) error); ok {
+		r0 = rf(spanStartTime, span)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
 }
 
 // NewCoreSpanWriter creates a new instance of CoreSpanWriter. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
