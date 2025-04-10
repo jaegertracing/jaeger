@@ -103,17 +103,7 @@ func (h *Handler) FindTraces(
 	req *storage.FindTracesRequest,
 	srv storage.TraceReader_FindTracesServer,
 ) error {
-	query := tracestore.TraceQueryParams{
-		ServiceName:   req.Query.ServiceName,
-		OperationName: req.Query.OperationName,
-		Attributes:    convertKeyValueListToMap(req.Query.Attributes),
-		StartTimeMin:  req.Query.StartTimeMin,
-		StartTimeMax:  req.Query.StartTimeMax,
-		DurationMin:   req.Query.DurationMin,
-		DurationMax:   req.Query.DurationMax,
-		SearchDepth:   int(req.Query.SearchDepth),
-	}
-	for traces, err := range h.traceReader.FindTraces(srv.Context(), query) {
+	for traces, err := range h.traceReader.FindTraces(srv.Context(), toTraceQueryParams(req.Query)) {
 		if err != nil {
 			return err
 		}
