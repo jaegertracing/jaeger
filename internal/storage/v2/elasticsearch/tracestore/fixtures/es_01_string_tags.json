@@ -42,7 +42,7 @@
     {
       "key": "peer.ipv4",
       "type": "int64",
-      "value": 23456
+      "value": "23456"
     },
     {
       "key": "blob",
@@ -52,12 +52,12 @@
     {
       "key": "temperature",
       "type": "float64",
-      "value": 72.5
+      "value": "72.5"
     },
     {
       "key": "error",
       "type": "bool",
-      "value": true
+      "value": "true"
     }
   ],
   "logs": [
