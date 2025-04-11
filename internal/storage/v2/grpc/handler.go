@@ -26,11 +26,13 @@ type Handler struct {
 	ptraceotlp.UnimplementedGRPCServer
 
 	traceReader tracestore.Reader
+	traceWriter tracestore.Writer
 }
 
-func NewHandler(traceReader tracestore.Reader) *Handler {
+func NewHandler(traceReader tracestore.Reader, traceWriter tracestore.Writer) *Handler {
 	return &Handler{
 		traceReader: traceReader,
+		traceWriter: traceWriter,
 	}
 }
 
@@ -137,6 +139,17 @@ func (h *Handler) FindTraceIDs(
 	return &storage.FindTraceIDsResponse{
 		TraceIds: foundTraceIDs,
 	}, nil
+}
+
+func (h *Handler) Export(ctx context.Context, request ptraceotlp.ExportRequest) (
+	ptraceotlp.ExportResponse,
+	error,
+) {
+	err := h.traceWriter.WriteTraces(ctx, request.Traces())
+	if err != nil {
+		return ptraceotlp.NewExportResponse(), err
+	}
+	return ptraceotlp.NewExportResponse(), nil
 }
 
 func toTraceQueryParams(t *storage.TraceQueryParameters) tracestore.TraceQueryParams {
