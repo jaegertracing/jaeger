@@ -100,11 +100,13 @@ func appendTagsFromAttributes(dest []dbmodel.KeyValue, attrs pcommon.Map) []dbmo
 
 func attributeToDbTag(key string, attr pcommon.Value) dbmodel.KeyValue {
 	var tag dbmodel.KeyValue
-	if attr.Type() == pcommon.ValueTypeBytes {
+	switch attr.Type() {
+	case pcommon.ValueTypeBytes:
 		tag = dbmodel.KeyValue{Key: key, Value: hex.EncodeToString(attr.Bytes().AsRaw())}
-	} else {
-		// TODO why are all values being converted to strings?
+	case pcommon.ValueTypeMap:
 		tag = dbmodel.KeyValue{Key: key, Value: attr.AsString()}
+	default:
+		tag = dbmodel.KeyValue{Key: key, Value: attr.AsRaw()}
 	}
 	switch attr.Type() {
 	case pcommon.ValueTypeStr:
@@ -294,7 +296,7 @@ func getTagFromStatusCode(statusCode ptrace.StatusCode) (dbmodel.KeyValue, bool)
 		return dbmodel.KeyValue{
 			Key:   tagError,
 			Type:  dbmodel.BoolType,
-			Value: "true",
+			Value: true,
 		}, true
 	} else if statusCode == ptrace.StatusCodeOk {
 		return dbmodel.KeyValue{
