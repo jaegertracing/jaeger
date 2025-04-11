@@ -234,7 +234,7 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 		}).
 		After(func(id int64, requests []elastic.BulkableRequest, response *elastic.BulkResponse, err error) {
 			start, ok := m.Load(id)
-			if !ok {
+			if ok {
 				m.Delete(id)
 			} else {
 				start = time.Now()
