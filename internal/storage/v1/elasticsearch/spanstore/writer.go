@@ -27,7 +27,7 @@ const (
 )
 
 type spanWriterMetrics struct {
-	indexCreate *spanstoremetrics.WriteMetrics
+	spanWrite *spanstoremetrics.WriteMetrics
 }
 
 type serviceWriter func(string, *dbmodel.Span)
@@ -89,7 +89,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		client: p.Client,
 		logger: p.Logger,
 		writerMetrics: spanWriterMetrics{
-			indexCreate: spanstoremetrics.NewWriter(p.MetricsFactory, "index_create"),
+			spanWrite: spanstoremetrics.NewWriter(p.MetricsFactory, "span_write"),
 		},
 		serviceWriter:    serviceOperationStorage.Write,
 		spanServiceIndex: getSpanAndServiceIndexFn(p, writeAliasSuffix),
@@ -129,7 +129,7 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServ
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) error {
-	s.writerMetrics.indexCreate.Attempts.Inc(1)
+	s.writerMetrics.spanWrite.Attempts.Inc(1)
 
 	spanIndexName, serviceIndexName := s.spanServiceIndex(spanStartTime)
 	if serviceIndexName != "" {
