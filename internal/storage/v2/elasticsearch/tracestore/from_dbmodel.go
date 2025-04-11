@@ -25,22 +25,70 @@ import (
 var errType = errors.New("invalid type")
 
 // FromDBModel converts multiple ES DB Spans to internal traces
-func FromDBModel(spans []dbmodel.Span) (ptrace.Traces, error) {
+func FromDBModel(spans []dbmodel.Span, tagDotReplacement string) (ptrace.Traces, error) {
 	traceData := ptrace.NewTraces()
 	if len(spans) == 0 {
 		return traceData, nil
 	}
-
+	fromDb := &fromDBModel{tagDotReplacement: tagDotReplacement}
 	resourceSpans := traceData.ResourceSpans()
 	resourceSpans.EnsureCapacity(len(spans))
-	err := dbSpansToSpans(spans, resourceSpans)
+	err := fromDb.dbSpansToSpans(spans, resourceSpans)
 
 	return traceData, err
 }
 
-func dbProcessToResource(process dbmodel.Process, resource pcommon.Resource) {
+type fromDBModel struct {
+	tagDotReplacement string
+}
+
+func (f *fromDBModel) convertTagField(k string, v any) dbmodel.KeyValue {
+	dKey := strings.ReplaceAll(k, f.tagDotReplacement, ".")
+	dTag := dbmodel.KeyValue{Key: dKey, Value: v}
+	switch val := v.(type) {
+	case int64:
+		dTag.Type = dbmodel.Int64Type
+	case float64:
+		dTag.Type = dbmodel.Float64Type
+	case bool:
+		dTag.Type = dbmodel.BoolType
+	case string:
+		dTag.Type = dbmodel.StringType
+	case json.Number:
+		n, err := val.Int64()
+		if err == nil {
+			dTag.Type = dbmodel.Int64Type
+			dTag.Value = n
+		} else {
+			f, err := val.Float64()
+			if err == nil {
+				dTag.Type = dbmodel.Float64Type
+				dTag.Value = f
+			}
+		}
+	default:
+		dTag.Type = ""
+		dTag.Value = "invalid type"
+	}
+	return dTag
+}
+
+func (f *fromDBModel) mergeTagMapAndTagSlice(kvs []dbmodel.KeyValue, tagMap map[string]any) []dbmodel.KeyValue {
+	if tagMap == nil {
+		return kvs
+	}
+	convertedKvs := make([]dbmodel.KeyValue, len(kvs), len(kvs)+len(tagMap))
+	copy(convertedKvs, kvs)
+	for k, v := range tagMap {
+		convertedKvs = append(convertedKvs, f.convertTagField(k, v))
+	}
+	return convertedKvs
+}
+
+func (f *fromDBModel) dbProcessToResource(process dbmodel.Process, resource pcommon.Resource) {
 	serviceName := process.ServiceName
 	tags := process.Tags
+	tag := process.Tag
 	if serviceName == "" && tags == nil {
 		return
 	}
@@ -52,14 +100,18 @@ func dbProcessToResource(process dbmodel.Process, resource pcommon.Resource) {
 	} else {
 		attrs.EnsureCapacity(len(tags))
 	}
+	tags = f.mergeTagMapAndTagSlice(tags, tag)
 	dbTagsToAttributes(tags, attrs)
 }
 
-func dbSpansToSpans(dbSpans []dbmodel.Span, resourceSpans ptrace.ResourceSpansSlice) error {
+func (f *fromDBModel) dbSpansToSpans(dbSpans []dbmodel.Span, resourceSpans ptrace.ResourceSpansSlice) error {
 	for i := range dbSpans {
 		span := &dbSpans[i]
+		tags := f.mergeTagMapAndTagSlice(span.Tags, span.Tag)
+		span.Tag = nil
+		span.Tags = tags
 		resourceSpan := resourceSpans.AppendEmpty()
-		dbProcessToResource(span.Process, resourceSpan.Resource())
+		f.dbProcessToResource(span.Process, resourceSpan.Resource())
 
 		scopeSpans := resourceSpan.ScopeSpans()
 		scopeSpan := scopeSpans.AppendEmpty()

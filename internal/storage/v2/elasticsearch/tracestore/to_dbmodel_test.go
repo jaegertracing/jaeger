@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -61,25 +62,21 @@ func TestGetTagFromStatusCode(t *testing.T) {
 
 func TestEmptyAttributes(t *testing.T) {
 	traces := ptrace.NewTraces()
-	spans := traces.ResourceSpans().AppendEmpty()
-	scopeSpans := spans.ScopeSpans().AppendEmpty()
-	spanScope := scopeSpans.Scope()
-	span := scopeSpans.Spans().AppendEmpty()
-	modelSpan := spanToDbSpan(span, spanScope, dbmodel.Process{})
-	assert.Empty(t, modelSpan.Tags)
+	traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	modelSpan := ToDBModel(traces, false, nil, ".")
+	assert.Len(t, modelSpan, 1)
+	assert.Empty(t, modelSpan[0].Tags)
 }
 
 func TestEmptyLinkRefs(t *testing.T) {
 	traces := ptrace.NewTraces()
-	spans := traces.ResourceSpans().AppendEmpty()
-	scopeSpans := spans.ScopeSpans().AppendEmpty()
-	spanScope := scopeSpans.Scope()
-	span := scopeSpans.Spans().AppendEmpty()
+	span := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
 	spanLink := span.Links().AppendEmpty()
 	spanLink.Attributes().PutStr("testing-key", "testing-inputValue")
-	modelSpan := spanToDbSpan(span, spanScope, dbmodel.Process{})
-	assert.Len(t, modelSpan.References, 1)
-	assert.Equal(t, dbmodel.FollowsFrom, modelSpan.References[0].RefType)
+	modelSpan := ToDBModel(traces, false, nil, ".")
+	assert.Len(t, modelSpan, 1)
+	assert.Len(t, modelSpan[0].References, 1)
+	assert.Equal(t, dbmodel.FollowsFrom, modelSpan[0].References[0].RefType)
 }
 
 func TestGetTagFromStatusMsg(t *testing.T) {
@@ -93,32 +90,6 @@ func TestGetTagFromStatusMsg(t *testing.T) {
 		Value: "test-error",
 		Type:  dbmodel.StringType,
 	}, got)
-}
-
-func Test_resourceToDbProcess(t *testing.T) {
-	traces := ptrace.NewTraces()
-	resourceSpans := traces.ResourceSpans().AppendEmpty()
-	resource := resourceSpans.Resource()
-	resource.Attributes().PutStr(conventions.AttributeServiceName, "service")
-	resource.Attributes().PutStr("foo", "bar")
-	process := resourceToDbProcess(resource)
-	assert.Equal(t, "service", process.ServiceName)
-	expected := []dbmodel.KeyValue{
-		{
-			Key:   "foo",
-			Value: "bar",
-			Type:  dbmodel.StringType,
-		},
-	}
-	assert.Equal(t, expected, process.Tags)
-}
-
-func Test_resourceToDbProcess_WhenOnlyServiceNameIsPresent(t *testing.T) {
-	traces := ptrace.NewTraces()
-	spans := traces.ResourceSpans().AppendEmpty()
-	spans.Resource().Attributes().PutStr(conventions.AttributeServiceName, "service")
-	process := resourceToDbProcess(spans.Resource())
-	assert.Equal(t, "service", process.ServiceName)
 }
 
 func Test_appendTagsFromResourceAttributes_empty_attrs(t *testing.T) {
@@ -272,12 +243,91 @@ func TestToDbModel_Fixtures(t *testing.T) {
 	var span dbmodel.Span
 	err := json.Unmarshal(spansStr, &span)
 	require.NoError(t, err)
-	td, err := FromDBModel([]dbmodel.Span{span})
+	td, err := FromDBModel([]dbmodel.Span{span}, ".")
 	require.NoError(t, err)
 	testTraces(t, tracesStr, td)
-	spans := ToDBModel(td)
+	spans := ToDBModel(td, false, nil, ".")
 	assert.Len(t, spans, 1)
 	testSpans(t, spansStr, spans[0])
+}
+
+type tagDotReplacementTests struct {
+	name            string
+	allTagsAsObject bool
+	tagKeysAsField  []string
+}
+
+func getTagDotReplacementTests() []tagDotReplacementTests {
+	return []tagDotReplacementTests{
+		{
+			name:            "allTagsAsObject=false",
+			allTagsAsObject: false,
+			tagKeysAsField: []string{
+				"otel.scope.name",
+				"otel.scope.version",
+				"peer.service",
+				"peer.ipv4",
+				"temperature",
+				"error",
+				"sdk.version.1",
+			},
+		},
+		{
+			name:            "allTagsAsObject=true",
+			allTagsAsObject: true,
+		},
+	}
+}
+
+func TestToDbModel_Fixtures_TagDotReplacement(t *testing.T) {
+	for _, test := range getTagDotReplacementTests() {
+		t.Run(test.name, func(t *testing.T) {
+			traceStr, spanStr := loadFixtures(t, 2)
+			var span dbmodel.Span
+			err := json.Unmarshal(spanStr, &span)
+			require.NoError(t, err)
+			td, err := FromDBModel([]dbmodel.Span{span}, "#")
+			require.NoError(t, err)
+			resourceSpans := td.ResourceSpans().At(0)
+			resource := resourceSpans.Resource()
+			oSpan := resourceSpans.ScopeSpans().At(0).Spans().At(0)
+			// Map iteration is unordered, but for assertion we need trace in specific structure, therefore we need to sort the attributed
+			sortTracesAttributes(t, oSpan.Attributes())
+			sortTracesAttributes(t, resource.Attributes())
+			testTraces(t, traceStr, td)
+			spans := ToDBModel(td, test.allTagsAsObject, test.tagKeysAsField, "#")
+			testSpans(t, spanStr, spans[0])
+		})
+	}
+}
+
+func sortTracesAttributes(t *testing.T, p pcommon.Map) {
+	keys := make([]string, 0)
+	p.Range(func(k string, _ pcommon.Value) bool {
+		keys = append(keys, k)
+		return true
+	})
+	sort.Strings(keys)
+	sortedMap := pcommon.NewMap()
+	for _, k := range keys {
+		v, ok := p.Get(k)
+		require.True(t, ok)
+		switch v.Type() {
+		case pcommon.ValueTypeStr:
+			sortedMap.PutStr(k, v.Str())
+		case pcommon.ValueTypeInt:
+			sortedMap.PutInt(k, v.Int())
+		case pcommon.ValueTypeDouble:
+			sortedMap.PutDouble(k, v.Double())
+		case pcommon.ValueTypeBytes:
+			sortedMap.PutEmptyBytes(k).FromRaw(v.Bytes().AsRaw())
+		case pcommon.ValueTypeBool:
+			sortedMap.PutBool(k, v.Bool())
+		default:
+			sortedMap.PutEmpty(k)
+		}
+	}
+	sortedMap.CopyTo(p)
 }
 
 func writeActualData(t *testing.T, name string, data []byte) {
@@ -342,7 +392,7 @@ func BenchmarkInternalTracesToDbSpans(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		batches := ToDBModel(td)
+		batches := ToDBModel(td, false, nil, ".")
 		assert.NotEmpty(b, batches)
 	}
 }

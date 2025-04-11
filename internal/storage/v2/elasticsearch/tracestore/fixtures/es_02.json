@@ -1,0 +1,81 @@
+{
+  "traceID": "00000000000000010000000000000000",
+  "spanID": "0000000000000002",
+  "flags": 1,
+  "operationName": "test-general-conversion",
+  "references": [
+    {
+      "refType": "CHILD_OF",
+      "traceID": "00000000000000010000000000000000",
+      "spanID": "0000000000000003"
+    },
+    {
+      "refType": "FOLLOWS_FROM",
+      "traceID": "00000000000000010000000000000000",
+      "spanID": "0000000000000004"
+    },
+    {
+      "refType": "CHILD_OF",
+      "traceID": "00000000000000ff0000000000000000",
+      "spanID": "00000000000000ff"
+    }
+  ],
+  "startTime": 1485467191639875,
+  "startTimeMillis": 1485467191639,
+  "duration": 5,
+  "tags": [
+    {
+      "key": "blob",
+      "type": "binary",
+      "value": "00003039"
+    }
+  ],
+  "tag": {
+    "error": true,
+    "otel#scope#name": "testing-library",
+    "otel#scope#version": "1.1.1",
+    "peer#ipv4": 23456,
+    "peer#service": "service-y",
+    "temperature": 72.5
+  },
+  "logs": [
+    {
+      "timestamp": 1485467191639875,
+      "fields": [
+        {
+          "key": "event",
+          "type": "string",
+          "value": "testing-event"
+        },
+        {
+          "key": "event-x",
+          "type": "string",
+          "value": "event-y"
+        }
+      ]
+    },
+    {
+      "timestamp": 1485467191639875,
+      "fields": [
+        {
+          "key": "x",
+          "type": "string",
+          "value": "y"
+        }
+      ]
+    }
+  ],
+  "process": {
+    "serviceName": "service-x",
+    "tags": [
+      {
+        "key": "sdk.version",
+        "type": "binary",
+        "value": "00003039"
+      }
+    ],
+    "tag": {
+      "sdk#version#1": "1.2.2"
+    }
+  }
+}

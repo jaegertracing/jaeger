@@ -8,6 +8,7 @@ package tracestore
 
 import (
 	"encoding/hex"
+	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -29,7 +30,12 @@ const (
 
 // ToDBModel translates internal trace data into the DB Spans.
 // Returns slice of translated DB Spans and error if translation failed.
-func ToDBModel(td ptrace.Traces) []dbmodel.Span {
+func ToDBModel(td ptrace.Traces, allTagsAsObject bool, tagKeysAsFields []string, tagDotReplacement string) []dbmodel.Span {
+	tags := map[string]bool{}
+	for _, k := range tagKeysAsFields {
+		tags[k] = true
+	}
+	toDB := newToDBModel(allTagsAsObject, tags, tagDotReplacement)
 	resourceSpans := td.ResourceSpans()
 
 	if resourceSpans.Len() == 0 {
@@ -39,7 +45,7 @@ func ToDBModel(td ptrace.Traces) []dbmodel.Span {
 	batches := make([]dbmodel.Span, 0, resourceSpans.Len())
 	for i := 0; i < resourceSpans.Len(); i++ {
 		rs := resourceSpans.At(i)
-		batch := resourceSpansToDbSpans(rs)
+		batch := toDB.resourceSpansToDbSpans(rs)
 		if batch != nil {
 			batches = append(batches, batch...)
 		}
@@ -48,7 +54,40 @@ func ToDBModel(td ptrace.Traces) []dbmodel.Span {
 	return batches
 }
 
-func resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans) []dbmodel.Span {
+type toDBModel struct {
+	allTagsAsFields   bool
+	tagKeysAsFields   map[string]bool
+	tagDotReplacement string
+}
+
+func newToDBModel(allTagsAsFields bool, tagKeysAsFields map[string]bool, tagDotReplacement string) *toDBModel {
+	return &toDBModel{
+		allTagsAsFields:   allTagsAsFields,
+		tagKeysAsFields:   tagKeysAsFields,
+		tagDotReplacement: tagDotReplacement,
+	}
+}
+
+func (t *toDBModel) embedTagDotReplacement(keyValues []dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any) {
+	var tagsMap map[string]any
+	var kvs []dbmodel.KeyValue
+	for _, kv := range keyValues {
+		if kv.Type != dbmodel.BinaryType && (t.allTagsAsFields || t.tagKeysAsFields[kv.Key]) {
+			if tagsMap == nil {
+				tagsMap = map[string]any{}
+			}
+			tagsMap[strings.ReplaceAll(kv.Key, ".", t.tagDotReplacement)] = kv.Value
+		} else {
+			kvs = append(kvs, kv)
+		}
+	}
+	if kvs == nil {
+		kvs = make([]dbmodel.KeyValue, 0)
+	}
+	return kvs, tagsMap
+}
+
+func (t *toDBModel) resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans) []dbmodel.Span {
 	resource := resourceSpans.Resource()
 	scopeSpans := resourceSpans.ScopeSpans()
 
@@ -56,7 +95,7 @@ func resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans) []dbmodel.Span {
 		return []dbmodel.Span{}
 	}
 
-	process := resourceToDbProcess(resource)
+	process := t.resourceToDbProcess(resource)
 
 	// Approximate the number of the spans as the number of the spans in the first
 	// instrumentation library info.
@@ -64,7 +103,7 @@ func resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans) []dbmodel.Span {
 
 	for _, scopeSpan := range scopeSpans.All() {
 		for _, span := range scopeSpan.Spans().All() {
-			dbSpan := spanToDbSpan(span, scopeSpan.Scope(), process)
+			dbSpan := t.spanToDbSpan(span, scopeSpan.Scope(), process)
 			dbSpans = append(dbSpans, dbSpan)
 		}
 	}
@@ -72,7 +111,7 @@ func resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans) []dbmodel.Span {
 	return dbSpans
 }
 
-func resourceToDbProcess(resource pcommon.Resource) dbmodel.Process {
+func (t *toDBModel) resourceToDbProcess(resource pcommon.Resource) dbmodel.Process {
 	process := dbmodel.Process{}
 	attrs := resource.Attributes()
 	if attrs.Len() == 0 {
@@ -87,7 +126,9 @@ func resourceToDbProcess(resource pcommon.Resource) dbmodel.Process {
 		}
 		tags = append(tags, attributeToDbTag(key, attr))
 	}
+	tags, tagMap := t.embedTagDotReplacement(tags)
 	process.Tags = tags
+	process.Tag = tagMap
 	return process
 }
 
@@ -125,10 +166,12 @@ func attributeToDbTag(key string, attr pcommon.Value) dbmodel.KeyValue {
 	return tag
 }
 
-func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, process dbmodel.Process) dbmodel.Span {
+func (t *toDBModel) spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, process dbmodel.Process) dbmodel.Span {
 	traceID := dbmodel.TraceID(span.TraceID().String())
 	parentSpanID := dbmodel.SpanID(span.ParentSpanID().String())
 	startTime := span.StartTimestamp().AsTime()
+	tags := getDbSpanTags(span, libraryTags)
+	tags, tagMap := t.embedTagDotReplacement(tags)
 	return dbmodel.Span{
 		TraceID:         traceID,
 		SpanID:          dbmodel.SpanID(span.SpanID().String()),
@@ -137,7 +180,8 @@ func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, pr
 		StartTime:       model.TimeAsEpochMicroseconds(startTime),
 		StartTimeMillis: model.TimeAsEpochMicroseconds(startTime) / 1000,
 		Duration:        model.DurationAsMicroseconds(span.EndTimestamp().AsTime().Sub(startTime)),
-		Tags:            getDbSpanTags(span, libraryTags),
+		Tags:            tags,
+		Tag:             tagMap,
 		Logs:            spanEventsToDbSpanLogs(span.Events()),
 		Process:         process,
 		Flags:           span.Flags(),
