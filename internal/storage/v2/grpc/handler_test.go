@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
@@ -41,7 +42,6 @@ func (f *testStream) Send(td *jptrace.TracesData) error {
 }
 
 func TestHandler_GetTraces(t *testing.T) {
-	reader := new(tracestoremocks.Reader)
 	start := time.Now()
 	end := start.Add(time.Minute)
 	query := tracestore.GetTraceParams{
@@ -92,6 +92,8 @@ func TestHandler_GetTraces(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			reader := new(tracestoremocks.Reader)
+			writer := new(tracestoremocks.Writer)
 			reader.On("GetTraces", mock.Anything, query).
 				Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 					if test.getTraceErr != nil {
@@ -105,7 +107,7 @@ func TestHandler_GetTraces(t *testing.T) {
 					}
 				})).Once()
 
-			server := NewHandler(reader)
+			server := NewHandler(reader, writer)
 			stream := &testStream{
 				sendErr: test.sendErr,
 			}
@@ -156,10 +158,11 @@ func TestHandler_GetServices(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			reader := new(tracestoremocks.Reader)
+			writer := new(tracestoremocks.Writer)
 			reader.On("GetServices", mock.Anything).
 				Return(test.services, test.err).Once()
 
-			server := NewHandler(reader)
+			server := NewHandler(reader, writer)
 			resp, err := server.GetServices(context.Background(), &storage.GetServicesRequest{})
 			if test.expectedErr == nil {
 				require.NoError(t, err)
@@ -213,10 +216,11 @@ func TestHandler_GetOperations(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			reader := new(tracestoremocks.Reader)
+			writer := new(tracestoremocks.Writer)
 			reader.On("GetOperations", mock.Anything, params).
 				Return(test.operations, test.err).Once()
 
-			server := NewHandler(reader)
+			server := NewHandler(reader, writer)
 			resp, err := server.GetOperations(context.Background(), req)
 			if test.expectedErr == nil {
 				require.NoError(t, err)
@@ -229,7 +233,6 @@ func TestHandler_GetOperations(t *testing.T) {
 }
 
 func TestHandler_FindTraces(t *testing.T) {
-	reader := new(tracestoremocks.Reader)
 	query := tracestore.TraceQueryParams{
 		ServiceName:   "service",
 		OperationName: "operation",
@@ -278,6 +281,8 @@ func TestHandler_FindTraces(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			reader := new(tracestoremocks.Reader)
+			writer := new(tracestoremocks.Writer)
 			reader.On("FindTraces", mock.Anything, query).
 				Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 					if test.getTraceErr != nil {
@@ -291,7 +296,7 @@ func TestHandler_FindTraces(t *testing.T) {
 					}
 				})).Once()
 
-			server := NewHandler(reader)
+			server := NewHandler(reader, writer)
 			stream := &testStream{
 				sendErr: test.sendErr,
 			}
@@ -312,7 +317,6 @@ func TestHandler_FindTraces(t *testing.T) {
 }
 
 func TestHandler_FindTraceIDs(t *testing.T) {
-	reader := new(tracestoremocks.Reader)
 	query := tracestore.TraceQueryParams{
 		ServiceName:   "service",
 		OperationName: "operation",
@@ -368,11 +372,13 @@ func TestHandler_FindTraceIDs(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		reader := new(tracestoremocks.Reader)
+		writer := new(tracestoremocks.Writer)
 		reader.On("FindTraceIDs", mock.Anything, query).
 			Return(iter.Seq2[[]tracestore.FoundTraceID, error](func(yield func([]tracestore.FoundTraceID, error) bool) {
 				yield(test.traceIDs, test.findTraceIDsErr)
 			})).Once()
-		server := NewHandler(reader)
+		server := NewHandler(reader, writer)
 
 		response, err := server.FindTraceIDs(context.Background(), &storage.FindTracesRequest{
 			Query: &storage.TraceQueryParameters{
@@ -386,6 +392,39 @@ func TestHandler_FindTraceIDs(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, test.expectedTraceIDs, response.TraceIds)
 		}
+	}
+}
+
+func TestHandler_Export(t *testing.T) {
+	tests := []struct {
+		name           string
+		writeTracesErr error
+		expectedErr    error
+	}{
+		{
+			name: "success",
+		},
+		{
+			name:           "write error",
+			expectedErr:    assert.AnError,
+			writeTracesErr: assert.AnError,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			reader := new(tracestoremocks.Reader)
+			writer := new(tracestoremocks.Writer)
+			writer.On("WriteTraces", mock.Anything, makeTestTrace()).Return(test.writeTracesErr).Once()
+			server := NewHandler(reader, writer)
+
+			response, err := server.Export(context.Background(), ptraceotlp.NewExportRequestFromTraces(makeTestTrace()))
+			if test.expectedErr != nil {
+				require.ErrorIs(t, err, test.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, ptraceotlp.NewExportResponse(), response)
+		})
 	}
 }
 
