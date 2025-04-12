@@ -653,7 +653,9 @@ func TestToDbModel_Fixtures_StringTags(t *testing.T) {
 func TestFromDbModel_Fixtures_TagDotReplacement(t *testing.T) {
 	for _, test := range getTagDotReplacementTests() {
 		t.Run(test.name, func(t *testing.T) {
-			tracesData, spansData := loadFixtures(t, 2)
+			spansData, err := os.ReadFile("fixtures/es_01_tagDotReplacement.json")
+			require.NoError(t, err)
+			tracesData := loadTraces(t, 1)
 			unmarshaller := ptrace.JSONUnmarshaler{}
 			expectedTd, err := unmarshaller.UnmarshalTraces(tracesData)
 			require.NoError(t, err)

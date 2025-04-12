@@ -4,15 +4,21 @@
       "resource": {
         "attributes": [
           {
-            "key": "service.name",
+            "key": "sdk.version",
             "value": {
-              "stringValue": "service-x"
+              "bytesValue": "AAAwOQ=="
             }
           },
           {
-            "key": "sdk.version",
+            "key": "sdk.version.1",
             "value": {
-              "stringValue": "1.2.1"
+              "stringValue": "1.2.2"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "service-x"
             }
           }
         ]
@@ -34,9 +40,9 @@
               "endTimeUnixNano": "1485467191639880000",
               "attributes": [
                 {
-                  "key": "peer.service",
+                  "key": "blob",
                   "value": {
-                    "stringValue": "service-y"
+                    "bytesValue": "AAAwOQ=="
                   }
                 },
                 {
@@ -46,9 +52,9 @@
                   }
                 },
                 {
-                  "key": "blob",
+                  "key": "peer.service",
                   "value": {
-                    "bytesValue": "AAAwOQ=="
+                    "stringValue": "service-y"
                   }
                 },
                 {

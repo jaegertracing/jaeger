@@ -92,8 +92,13 @@
     "tags": [
       {
         "key": "sdk.version",
+        "type": "binary",
+        "value": "00003039"
+      },
+      {
+        "key": "sdk.version.1",
         "type": "string",
-        "value": "1.2.1"
+        "value": "1.2.2"
       }
     ]
   }

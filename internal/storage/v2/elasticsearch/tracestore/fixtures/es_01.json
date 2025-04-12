@@ -25,6 +25,16 @@
   "duration": 5,
   "tags": [
     {
+      "key": "blob",
+      "type": "binary",
+      "value": "00003039"
+    },
+    {
+      "key": "error",
+      "type": "bool",
+      "value": true
+    },
+    {
       "key": "otel.scope.name",
       "type": "string",
       "value": "testing-library"
@@ -35,29 +45,19 @@
       "value": "1.1.1"
     },
     {
-      "key": "peer.service",
-      "type": "string",
-      "value": "service-y"
-    },
-    {
       "key": "peer.ipv4",
       "type": "int64",
       "value": 23456
     },
     {
-      "key": "blob",
-      "type": "binary",
-      "value": "00003039"
+      "key": "peer.service",
+      "type": "string",
+      "value": "service-y"
     },
     {
       "key": "temperature",
       "type": "float64",
       "value": 72.5
-    },
-    {
-      "key": "error",
-      "type": "bool",
-      "value": true
     }
   ],
   "logs": [
@@ -92,8 +92,13 @@
     "tags": [
       {
         "key": "sdk.version",
+        "type": "binary",
+        "value": "00003039"
+      },
+      {
+        "key": "sdk.version.1",
         "type": "string",
-        "value": "1.2.1"
+        "value": "1.2.2"
       }
     ]
   }

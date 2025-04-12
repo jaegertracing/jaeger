@@ -282,23 +282,41 @@ func getTagDotReplacementTests() []tagDotReplacementTests {
 func TestToDbModel_Fixtures_TagDotReplacement(t *testing.T) {
 	for _, test := range getTagDotReplacementTests() {
 		t.Run(test.name, func(t *testing.T) {
-			traceStr, spanStr := loadFixtures(t, 2)
+			spanStr, err := os.ReadFile("fixtures/es_01_tagDotReplacement.json")
+			require.NoError(t, err)
+			traceStr := loadTraces(t, 1)
 			var span dbmodel.Span
-			err := json.Unmarshal(spanStr, &span)
+			d := json.NewDecoder(bytes.NewReader(spanStr))
+			d.UseNumber()
+			err = d.Decode(&span)
 			require.NoError(t, err)
 			td, err := FromDBModel([]dbmodel.Span{span}, "#")
 			require.NoError(t, err)
-			resourceSpans := td.ResourceSpans().At(0)
-			resource := resourceSpans.Resource()
-			oSpan := resourceSpans.ScopeSpans().At(0).Spans().At(0)
-			// Map iteration is unordered, but for assertion we need trace in specific structure, therefore we need to sort the attributed
-			sortTracesAttributes(t, oSpan.Attributes())
-			sortTracesAttributes(t, resource.Attributes())
 			testTraces(t, traceStr, td)
 			spans := ToDBModel(td, test.allTagsAsObject, test.tagKeysAsField, "#")
 			testSpans(t, spanStr, spans[0])
 		})
 	}
+}
+
+func sortTracesResourceAndSpanAttributes(t *testing.T, td ptrace.Traces) {
+	resourceSpans := td.ResourceSpans().At(0)
+	resource := resourceSpans.Resource()
+	oSpan := resourceSpans.ScopeSpans().At(0).Spans().At(0)
+	// Map iteration is unordered, but for assertion we need trace in specific structure, therefore we need to sort the attributed
+	sortTracesAttributes(t, oSpan.Attributes())
+	sortTracesAttributes(t, resource.Attributes())
+}
+
+func sortSpanTags(span *dbmodel.Span) {
+	sort.Slice(span.Tags, func(i, j int) bool {
+		return span.Tags[i].Key < span.Tags[j].Key
+	})
+	process := &span.Process
+	sort.Slice(process.Tags, func(i, j int) bool {
+		return process.Tags[i].Key < process.Tags[j].Key
+	})
+	span.Process = *process
 }
 
 func sortTracesAttributes(t *testing.T, p pcommon.Map) {
@@ -362,6 +380,7 @@ func loadSpans(t *testing.T, i int) []byte {
 }
 
 func testTraces(t *testing.T, expectedTraces []byte, actualTraces ptrace.Traces) {
+	sortTracesResourceAndSpanAttributes(t, actualTraces)
 	unmarshaller := ptrace.JSONUnmarshaler{}
 	expectedTd, err := unmarshaller.UnmarshalTraces(expectedTraces)
 	require.NoError(t, err)
@@ -374,6 +393,7 @@ func testTraces(t *testing.T, expectedTraces []byte, actualTraces ptrace.Traces)
 }
 
 func testSpans(t *testing.T, expectedSpan []byte, actualSpan dbmodel.Span) {
+	sortSpanTags(&actualSpan)
 	buf := &bytes.Buffer{}
 	enc := json.NewEncoder(buf)
 	enc.SetIndent("", "  ")
