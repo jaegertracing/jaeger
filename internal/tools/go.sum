@@ -260,8 +260,8 @@ github.com/golangci/go-printf-func-name v0.1.0 h1:dVokQP+NMTO7jwO4bwsRwLWeudOVUP
 github.com/golangci/go-printf-func-name v0.1.0/go.mod h1:wqhWFH5mUdJQhweRnldEywnR5021wTdZSNgwYceV14s=
 github.com/golangci/gofmt v0.0.0-20250106114630-d62b90e6713d h1:viFft9sS/dxoYY0aiOTsLKO2aZQAPT4nlQCsimGcSGE=
 github.com/golangci/gofmt v0.0.0-20250106114630-d62b90e6713d/go.mod h1:ivJ9QDg0XucIkmwhzCDsqcnxxlDStoTl89jDMIoNxKY=
-github.com/golangci/golangci-lint/v2 v2.1.0 h1:HPYqlW3/3/seCmQ/CIiFZVN270uzYsI5quclssTWXLQ=
-github.com/golangci/golangci-lint/v2 v2.1.0/go.mod h1:zJJo4g7aGiCv5cRYa+YUaWVazNBRzn4Kg7hdEKV0iXU=
+github.com/golangci/golangci-lint/v2 v2.1.1 h1:h0S97dn3HpK12QzzPjoPxgMUqweM7m34j/QNV6iVg5g=
+github.com/golangci/golangci-lint/v2 v2.1.1/go.mod h1:zJJo4g7aGiCv5cRYa+YUaWVazNBRzn4Kg7hdEKV0iXU=
 github.com/golangci/golines v0.0.0-20250217134842-442fd0091d95 h1:AkK+w9FZBXlU/xUmBtSJN1+tAI4FIvy5WtnUnY8e4p8=
 github.com/golangci/golines v0.0.0-20250217134842-442fd0091d95/go.mod h1:k9mmcyWKSTMcPPvQUCfRWWQ9VHJ1U9Dc0R7kaXAgtnQ=
 github.com/golangci/misspell v0.6.0 h1:JCle2HUTNWirNlDIAUO44hUsKhOFqGPoC4LZxlaSXDs=
