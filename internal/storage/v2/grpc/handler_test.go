@@ -17,8 +17,11 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	"google.golang.org/grpc"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
+	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
@@ -94,6 +97,7 @@ func TestHandler_GetTraces(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			reader := new(tracestoremocks.Reader)
 			writer := new(tracestoremocks.Writer)
+			depReader := new(depstoremocks.Reader)
 			reader.On("GetTraces", mock.Anything, query).
 				Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 					if test.getTraceErr != nil {
@@ -107,7 +111,7 @@ func TestHandler_GetTraces(t *testing.T) {
 					}
 				})).Once()
 
-			server := NewHandler(reader, writer)
+			server := NewHandler(reader, writer, depReader)
 			stream := &testStream{
 				sendErr: test.sendErr,
 			}
@@ -159,10 +163,11 @@ func TestHandler_GetServices(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			reader := new(tracestoremocks.Reader)
 			writer := new(tracestoremocks.Writer)
+			depReader := new(depstoremocks.Reader)
 			reader.On("GetServices", mock.Anything).
 				Return(test.services, test.err).Once()
 
-			server := NewHandler(reader, writer)
+			server := NewHandler(reader, writer, depReader)
 			resp, err := server.GetServices(context.Background(), &storage.GetServicesRequest{})
 			if test.expectedErr == nil {
 				require.NoError(t, err)
@@ -217,10 +222,11 @@ func TestHandler_GetOperations(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			reader := new(tracestoremocks.Reader)
 			writer := new(tracestoremocks.Writer)
+			depReader := new(depstoremocks.Reader)
 			reader.On("GetOperations", mock.Anything, params).
 				Return(test.operations, test.err).Once()
 
-			server := NewHandler(reader, writer)
+			server := NewHandler(reader, writer, depReader)
 			resp, err := server.GetOperations(context.Background(), req)
 			if test.expectedErr == nil {
 				require.NoError(t, err)
@@ -283,6 +289,7 @@ func TestHandler_FindTraces(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			reader := new(tracestoremocks.Reader)
 			writer := new(tracestoremocks.Writer)
+			depReader := new(depstoremocks.Reader)
 			reader.On("FindTraces", mock.Anything, query).
 				Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 					if test.getTraceErr != nil {
@@ -296,7 +303,7 @@ func TestHandler_FindTraces(t *testing.T) {
 					}
 				})).Once()
 
-			server := NewHandler(reader, writer)
+			server := NewHandler(reader, writer, depReader)
 			stream := &testStream{
 				sendErr: test.sendErr,
 			}
@@ -374,11 +381,12 @@ func TestHandler_FindTraceIDs(t *testing.T) {
 	for _, test := range tests {
 		reader := new(tracestoremocks.Reader)
 		writer := new(tracestoremocks.Writer)
+		depReader := new(depstoremocks.Reader)
 		reader.On("FindTraceIDs", mock.Anything, query).
 			Return(iter.Seq2[[]tracestore.FoundTraceID, error](func(yield func([]tracestore.FoundTraceID, error) bool) {
 				yield(test.traceIDs, test.findTraceIDsErr)
 			})).Once()
-		server := NewHandler(reader, writer)
+		server := NewHandler(reader, writer, depReader)
 
 		response, err := server.FindTraceIDs(context.Background(), &storage.FindTracesRequest{
 			Query: &storage.TraceQueryParameters{
@@ -414,8 +422,9 @@ func TestHandler_Export(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			reader := new(tracestoremocks.Reader)
 			writer := new(tracestoremocks.Writer)
+			depReader := new(depstoremocks.Reader)
 			writer.On("WriteTraces", mock.Anything, makeTestTrace()).Return(test.writeTracesErr).Once()
-			server := NewHandler(reader, writer)
+			server := NewHandler(reader, writer, depReader)
 
 			response, err := server.Export(context.Background(), ptraceotlp.NewExportRequestFromTraces(makeTestTrace()))
 			if test.expectedErr != nil {
@@ -424,6 +433,84 @@ func TestHandler_Export(t *testing.T) {
 				require.NoError(t, err)
 			}
 			require.Equal(t, ptraceotlp.NewExportResponse(), response)
+		})
+	}
+}
+
+func TestHandler_GetDependencies(t *testing.T) {
+	now := time.Now()
+	tests := []struct {
+		name                 string
+		dependencies         []model.DependencyLink
+		expectedDependencies []*storage.Dependency
+		err                  error
+		expectedError        error
+	}{
+		{
+			name: "success",
+			dependencies: []model.DependencyLink{
+				{
+					Parent:    "serviceA",
+					Child:     "serviceB",
+					CallCount: 10,
+					Source:    "sourceA",
+				},
+				{
+					Parent:    "serviceC",
+					Child:     "serviceD",
+					CallCount: 20,
+					Source:    "sourceB",
+				},
+			},
+			expectedDependencies: []*storage.Dependency{
+				{
+					Parent:    "serviceA",
+					Child:     "serviceB",
+					CallCount: 10,
+					Source:    "sourceA",
+				},
+				{
+					Parent:    "serviceC",
+					Child:     "serviceD",
+					CallCount: 20,
+					Source:    "sourceB",
+				},
+			},
+		},
+		{
+			name:                 "empty",
+			dependencies:         []model.DependencyLink{},
+			expectedDependencies: []*storage.Dependency{},
+		},
+		{
+			name:          "error",
+			err:           assert.AnError,
+			expectedError: assert.AnError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			reader := new(tracestoremocks.Reader)
+			writer := new(tracestoremocks.Writer)
+			depReader := new(depstoremocks.Reader)
+			depReader.On("GetDependencies", mock.Anything, depstore.QueryParameters{
+				StartTime: now,
+				EndTime:   now.Add(time.Minute),
+			}).
+				Return(test.dependencies, test.err).Once()
+
+			server := NewHandler(reader, writer, depReader)
+			response, err := server.GetDependencies(context.Background(), &storage.GetDependenciesRequest{
+				StartTime: now,
+				EndTime:   now.Add(time.Minute),
+			})
+			if test.expectedError != nil {
+				require.ErrorIs(t, err, test.expectedError)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.expectedDependencies, response.Dependencies)
+			}
 		})
 	}
 }

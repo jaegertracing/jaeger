@@ -11,6 +11,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
@@ -27,12 +28,18 @@ type Handler struct {
 
 	traceReader tracestore.Reader
 	traceWriter tracestore.Writer
+	depReader   depstore.Reader
 }
 
-func NewHandler(traceReader tracestore.Reader, traceWriter tracestore.Writer) *Handler {
+func NewHandler(
+	traceReader tracestore.Reader,
+	traceWriter tracestore.Writer,
+	depReader depstore.Reader,
+) *Handler {
 	return &Handler{
 		traceReader: traceReader,
 		traceWriter: traceWriter,
+		depReader:   depReader,
 	}
 }
 
@@ -150,6 +157,31 @@ func (h *Handler) Export(ctx context.Context, request ptraceotlp.ExportRequest) 
 		return ptraceotlp.NewExportResponse(), err
 	}
 	return ptraceotlp.NewExportResponse(), nil
+}
+
+func (h *Handler) GetDependencies(
+	ctx context.Context,
+	req *storage.GetDependenciesRequest,
+) (*storage.GetDependenciesResponse, error) {
+	dependencies, err := h.depReader.GetDependencies(ctx, depstore.QueryParameters{
+		StartTime: req.StartTime,
+		EndTime:   req.EndTime,
+	})
+	if err != nil {
+		return nil, err
+	}
+	grpcDependencies := make([]*storage.Dependency, len(dependencies))
+	for i, dependency := range dependencies {
+		grpcDependencies[i] = &storage.Dependency{
+			Parent:    dependency.Parent,
+			Child:     dependency.Child,
+			CallCount: dependency.CallCount,
+			Source:    dependency.Source,
+		}
+	}
+	return &storage.GetDependenciesResponse{
+		Dependencies: grpcDependencies,
+	}, nil
 }
 
 func toTraceQueryParams(t *storage.TraceQueryParameters) tracestore.TraceQueryParams {

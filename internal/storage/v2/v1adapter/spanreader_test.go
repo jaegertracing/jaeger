@@ -122,7 +122,9 @@ func TestSpanReader_GetTrace(t *testing.T) {
 				yield(test.traces, test.err)
 			})).Once()
 
-		sr := NewSpanReader(&tr)
+		sr := SpanReader{
+			traceReader: &tr,
+		}
 		trace, err := sr.GetTrace(context.Background(), test.query)
 		require.ErrorIs(t, err, test.expectedErr)
 		require.Equal(t, test.expectedTrace, trace)
@@ -159,7 +161,9 @@ func TestSpanReader_GetServices(t *testing.T) {
 		tr.On("GetServices", mock.Anything).
 			Return(test.services, test.err).Once()
 
-		sr := NewSpanReader(&tr)
+		sr := SpanReader{
+			traceReader: &tr,
+		}
 		services, err := sr.GetServices(context.Background())
 		require.ErrorIs(t, err, test.expectedErr)
 		require.Equal(t, test.expectedServices, services)
@@ -222,7 +226,9 @@ func TestSpanReader_GetOperations(t *testing.T) {
 		tr.On("GetOperations", mock.Anything, test.expectedQuery).
 			Return(test.operations, test.err).Once()
 
-		sr := NewSpanReader(&tr)
+		sr := SpanReader{
+			traceReader: &tr,
+		}
 		ops, err := sr.GetOperations(context.Background(), test.query)
 		require.ErrorIs(t, err, test.expectedErr)
 		require.Equal(t, test.expectedOperations, ops)
@@ -333,7 +339,9 @@ func TestSpanReader_FindTraces(t *testing.T) {
 				yield(test.traces, test.err)
 			})).Once()
 
-		sr := NewSpanReader(&tr)
+		sr := SpanReader{
+			traceReader: &tr,
+		}
 		traces, err := sr.FindTraces(context.Background(), test.query)
 		require.ErrorIs(t, err, test.expectedErr)
 		require.Equal(t, test.expectedTraces, traces)
@@ -405,7 +413,9 @@ func TestSpanReader_FindTraceIDs(t *testing.T) {
 				yield(test.traceIDs, test.err)
 			})).Once()
 
-		sr := NewSpanReader(&tr)
+		sr := SpanReader{
+			traceReader: &tr,
+		}
 		traceIDs, err := sr.FindTraceIDs(context.Background(), test.query)
 		require.ErrorIs(t, err, test.expectedErr)
 		require.Equal(t, test.expectedTraceIDs, traceIDs)

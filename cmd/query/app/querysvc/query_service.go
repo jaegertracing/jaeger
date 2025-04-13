@@ -55,12 +55,7 @@ type TraceQueryParameters struct {
 
 // NewQueryService returns a new QueryService.
 func NewQueryService(traceReader tracestore.Reader, dependencyReader depstore.Reader, options QueryServiceOptions) *QueryService {
-	spanReader, ok := v1adapter.GetV1Reader(traceReader)
-	if !ok {
-		// if the spanstore.Reader is not available, downgrade the native tracestore.Reader to
-		// a spanstore.Reader
-		spanReader = v1adapter.NewSpanReader(traceReader)
-	}
+	spanReader := v1adapter.GetV1Reader(traceReader)
 	qsvc := &QueryService{
 		spanReader:       spanReader,
 		dependencyReader: dependencyReader,
