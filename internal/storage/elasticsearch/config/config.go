@@ -240,7 +240,6 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 				start = time.Now()
 			}
 
-			duration := time.Since(start.(time.Time))
 			var successCount, failureCount int
 
 			// log individual errors, note that err might be false and these errors still present
@@ -262,14 +261,6 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 
 			sm.Inserts.Inc(int64(successCount))
 			sm.Errors.Inc(int64(failureCount))
-
-			if err != nil || failureCount > 0 {
-				sm.LatencyErr.Record(duration)
-			} else {
-				sm.LatencyOk.Record(duration)
-			}
-
-			sm.Emit(err, duration)
 
 			sm.Emit(err, time.Since(start.(time.Time)))
 			if err != nil {
