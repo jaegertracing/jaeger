@@ -185,11 +185,7 @@ func getV1Adapters(
 	reader tracestore.Reader,
 	writer tracestore.Writer,
 ) (spanstore.Reader, spanstore.Writer) {
-	v1Reader, ok := v1adapter.GetV1Reader(reader)
-	if !ok {
-		v1Reader = v1adapter.NewSpanReader(reader)
-	}
-
+	v1Reader := v1adapter.GetV1Reader(reader)
 	v1Writer, ok := v1adapter.GetV1Writer(writer)
 	if !ok {
 		v1Writer = v1adapter.NewSpanWriter(writer)

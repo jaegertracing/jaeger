@@ -26,20 +26,22 @@ import (
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
 
-func TestGetV1Reader_NoError(t *testing.T) {
-	memstore := memory.NewStore()
-	traceReader := &TraceReader{
-		spanReader: memstore,
-	}
-	v1Reader, ok := GetV1Reader(traceReader)
-	require.True(t, ok)
-	require.Equal(t, memstore, v1Reader)
-}
+func TestGetV1Reader(t *testing.T) {
+	t.Run("wrapped v1 reader", func(t *testing.T) {
+		memstore := memory.NewStore()
+		traceReader := &TraceReader{
+			spanReader: memstore,
+		}
+		v1Reader := GetV1Reader(traceReader)
+		require.Equal(t, memstore, v1Reader)
+	})
 
-func TestGetV1Reader_Error(t *testing.T) {
-	fr := new(tracestoremocks.Reader)
-	_, ok := GetV1Reader(fr)
-	require.False(t, ok)
+	t.Run("native v2 reader", func(t *testing.T) {
+		reader := new(tracestoremocks.Reader)
+		v1Reader := GetV1Reader(reader)
+		require.IsType(t, &SpanReader{}, v1Reader)
+		require.Equal(t, reader, v1Reader.(*SpanReader).traceReader)
+	})
 }
 
 func TestTraceReader_GetTracesDelegatesSuccessResponse(t *testing.T) {
