@@ -356,7 +356,7 @@ func TestGetV1Adapters(t *testing.T) {
 			name:           "native tracestore.Reader and tracestore.Writer",
 			reader:         &tracestoremocks.Reader{},
 			writer:         &tracestoremocks.Writer{},
-			expectedReader: v1adapter.NewSpanReader(&tracestoremocks.Reader{}),
+			expectedReader: &v1adapter.SpanReader{},
 			expectedWriter: v1adapter.NewSpanWriter(&tracestoremocks.Writer{}),
 		},
 		{
@@ -371,7 +371,7 @@ func TestGetV1Adapters(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			gotReader, gotWriter := getV1Adapters(test.reader, test.writer)
-			require.Equal(t, test.expectedReader, gotReader)
+			require.IsType(t, test.expectedReader, gotReader)
 			require.Equal(t, test.expectedWriter, gotWriter)
 		})
 	}

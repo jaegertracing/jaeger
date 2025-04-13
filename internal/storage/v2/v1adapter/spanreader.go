@@ -23,12 +23,6 @@ type SpanReader struct {
 	traceReader tracestore.Reader
 }
 
-func NewSpanReader(traceReader tracestore.Reader) *SpanReader {
-	return &SpanReader{
-		traceReader: traceReader,
-	}
-}
-
 func (sr *SpanReader) GetTrace(ctx context.Context, query spanstore.GetTraceParameters) (*model.Trace, error) {
 	getTracesIter := sr.traceReader.GetTraces(ctx, tracestore.GetTraceParams{
 		TraceID: FromV1TraceID(query.TraceID),

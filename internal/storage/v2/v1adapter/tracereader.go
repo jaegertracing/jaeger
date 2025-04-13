@@ -23,11 +23,13 @@ type TraceReader struct {
 	spanReader spanstore.Reader
 }
 
-func GetV1Reader(reader tracestore.Reader) (spanstore.Reader, bool) {
+func GetV1Reader(reader tracestore.Reader) spanstore.Reader {
 	if tr, ok := reader.(*TraceReader); ok {
-		return tr.spanReader, ok
+		return tr.spanReader
 	}
-	return nil, false
+	return &SpanReader{
+		traceReader: reader,
+	}
 }
 
 func NewTraceReader(spanReader spanstore.Reader) *TraceReader {
