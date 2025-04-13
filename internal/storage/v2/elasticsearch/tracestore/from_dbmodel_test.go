@@ -759,9 +759,17 @@ func Test_MergeTagMapAndTagSlice(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			fd := &fromDBModel{tagDotReplacement: "#"}
-			actual := fd.mergeTagMapAndTagSlice([]dbmodel.KeyValue{}, test.tagMap)
-			assert.Len(t, actual, 1)
-			assert.Equal(t, test.expectedKv, actual[0])
+			defaultTags := []dbmodel.KeyValue{
+				{
+					Key:   "testing-key",
+					Value: "testing-value",
+					Type:  dbmodel.StringType,
+				},
+			}
+			actual := fd.mergeNestedAndElevatedTags(defaultTags, test.tagMap)
+			assert.Len(t, actual, 2)
+			assert.Equal(t, defaultTags[0], actual[0])
+			assert.Equal(t, test.expectedKv, actual[1])
 		})
 	}
 }

@@ -31,16 +31,8 @@ const (
 // ToDBModel translates internal trace data into the DB Spans.
 // Returns slice of translated DB Spans and error if translation failed.
 func ToDBModel(td ptrace.Traces, allTagsAsObject bool, tagKeysAsFields []string, tagDotReplacement string) []dbmodel.Span {
-	tags := map[string]bool{}
-	for _, k := range tagKeysAsFields {
-		tags[k] = true
-	}
-	toDB := newToDBModel(allTagsAsObject, tags, tagDotReplacement)
+	toDB := newToDBModel(allTagsAsObject, tagKeysAsFields, tagDotReplacement)
 	resourceSpans := td.ResourceSpans()
-
-	if resourceSpans.Len() == 0 {
-		return nil
-	}
 
 	batches := make([]dbmodel.Span, 0, resourceSpans.Len())
 	for i := 0; i < resourceSpans.Len(); i++ {
@@ -60,17 +52,22 @@ type toDBModel struct {
 	tagDotReplacement string
 }
 
-func newToDBModel(allTagsAsFields bool, tagKeysAsFields map[string]bool, tagDotReplacement string) *toDBModel {
+func newToDBModel(allTagsAsFields bool, tagKeysAsFields []string, tagDotReplacement string) *toDBModel {
+	tags := map[string]bool{}
+	for _, k := range tagKeysAsFields {
+		tags[k] = true
+	}
 	return &toDBModel{
 		allTagsAsFields:   allTagsAsFields,
-		tagKeysAsFields:   tagKeysAsFields,
+		tagKeysAsFields:   tags,
 		tagDotReplacement: tagDotReplacement,
 	}
 }
 
-func (t *toDBModel) embedTagDotReplacement(keyValues []dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any) {
+// splitTagsToNestedAndElevatedTags split the tags into nested and elevated tags by replacing the dot in the keys of elevated tags by tagDotReplacement
+func (t *toDBModel) splitTagsToNestedAndElevatedTags(keyValues []dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any) {
 	var tagsMap map[string]any
-	var kvs []dbmodel.KeyValue
+	kvs := make([]dbmodel.KeyValue, 0)
 	for _, kv := range keyValues {
 		if kv.Type != dbmodel.BinaryType && (t.allTagsAsFields || t.tagKeysAsFields[kv.Key]) {
 			if tagsMap == nil {
@@ -80,9 +77,6 @@ func (t *toDBModel) embedTagDotReplacement(keyValues []dbmodel.KeyValue) ([]dbmo
 		} else {
 			kvs = append(kvs, kv)
 		}
-	}
-	if kvs == nil {
-		kvs = make([]dbmodel.KeyValue, 0)
 	}
 	return kvs, tagsMap
 }
@@ -126,7 +120,7 @@ func (t *toDBModel) resourceToDbProcess(resource pcommon.Resource) dbmodel.Proce
 		}
 		tags = append(tags, attributeToDbTag(key, attr))
 	}
-	tags, tagMap := t.embedTagDotReplacement(tags)
+	tags, tagMap := t.splitTagsToNestedAndElevatedTags(tags)
 	process.Tags = tags
 	process.Tag = tagMap
 	return process
@@ -166,12 +160,12 @@ func attributeToDbTag(key string, attr pcommon.Value) dbmodel.KeyValue {
 	return tag
 }
 
-func (t *toDBModel) spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, process dbmodel.Process) dbmodel.Span {
+func (t *toDBModel) spanToDbSpan(span ptrace.Span, scopeTags pcommon.InstrumentationScope, process dbmodel.Process) dbmodel.Span {
 	traceID := dbmodel.TraceID(span.TraceID().String())
 	parentSpanID := dbmodel.SpanID(span.ParentSpanID().String())
 	startTime := span.StartTimestamp().AsTime()
-	tags := getDbSpanTags(span, libraryTags)
-	tags, tagMap := t.embedTagDotReplacement(tags)
+	tags := getDbSpanTags(span, scopeTags)
+	tags, tagMap := t.splitTagsToNestedAndElevatedTags(tags)
 	return dbmodel.Span{
 		TraceID:         traceID,
 		SpanID:          dbmodel.SpanID(span.SpanID().String()),
