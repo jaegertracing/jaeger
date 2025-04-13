@@ -17,10 +17,9 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/jiter"
-	dependencyStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
+	dependencystoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	spanStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
+	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
@@ -28,12 +27,12 @@ import (
 
 func TestGetV1Reader(t *testing.T) {
 	t.Run("wrapped v1 reader", func(t *testing.T) {
-		memstore := memory.NewStore()
+		reader := new(spanstoremocks.Reader)
 		traceReader := &TraceReader{
-			spanReader: memstore,
+			spanReader: reader,
 		}
 		v1Reader := GetV1Reader(traceReader)
-		require.Equal(t, memstore, v1Reader)
+		require.Equal(t, reader, v1Reader)
 	})
 
 	t.Run("native v2 reader", func(t *testing.T) {
@@ -45,7 +44,7 @@ func TestGetV1Reader(t *testing.T) {
 }
 
 func TestTraceReader_GetTracesDelegatesSuccessResponse(t *testing.T) {
-	sr := new(spanStoreMocks.Reader)
+	sr := new(spanstoremocks.Reader)
 	modelTrace := &model.Trace{
 		Spans: []*model.Span{
 			{
@@ -116,7 +115,7 @@ func TestTraceReader_GetTracesErrorResponse(t *testing.T) {
 	}
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			sr := new(spanStoreMocks.Reader)
+			sr := new(spanstoremocks.Reader)
 			sr.On("GetTrace", mock.Anything, mock.Anything).Return(&model.Trace{}, test.firstErr).Once()
 			sr.On("GetTrace", mock.Anything, mock.Anything).Return(&model.Trace{}, nil).Once()
 			traceReader := &TraceReader{
@@ -132,7 +131,7 @@ func TestTraceReader_GetTracesErrorResponse(t *testing.T) {
 }
 
 func TestTraceReader_GetTracesEarlyStop(t *testing.T) {
-	sr := new(spanStoreMocks.Reader)
+	sr := new(spanstoremocks.Reader)
 	sr.On(
 		"GetTrace",
 		mock.Anything,
@@ -169,7 +168,7 @@ func TestTraceReader_GetTracesEarlyStop(t *testing.T) {
 }
 
 func TestTraceReader_GetServicesDelegatesToSpanReader(t *testing.T) {
-	sr := new(spanStoreMocks.Reader)
+	sr := new(spanstoremocks.Reader)
 	expectedServices := []string{"service-a", "service-b"}
 	sr.On("GetServices", mock.Anything).Return(expectedServices, nil)
 	traceReader := &TraceReader{
@@ -230,7 +229,7 @@ func TestTraceReader_GetOperationsDelegatesResponse(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			sr := new(spanStoreMocks.Reader)
+			sr := new(spanstoremocks.Reader)
 			sr.On("GetOperations",
 				mock.Anything,
 				spanstore.OperationQueryParameters{
@@ -278,7 +277,7 @@ func TestTraceReader_FindTracesDelegatesSuccessResponse(t *testing.T) {
 			},
 		},
 	}
-	sr := new(spanStoreMocks.Reader)
+	sr := new(spanstoremocks.Reader)
 	now := time.Now()
 	sr.On(
 		"FindTraces",
@@ -353,7 +352,7 @@ func TestTraceReader_FindTracesEdgeCases(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			sr := new(spanStoreMocks.Reader)
+			sr := new(spanstoremocks.Reader)
 			sr.On(
 				"FindTraces",
 				mock.Anything,
@@ -375,7 +374,7 @@ func TestTraceReader_FindTracesEdgeCases(t *testing.T) {
 }
 
 func TestTraceReader_FindTracesEarlyStop(t *testing.T) {
-	sr := new(spanStoreMocks.Reader)
+	sr := new(spanstoremocks.Reader)
 	sr.On(
 		"FindTraces",
 		mock.Anything,
@@ -451,7 +450,7 @@ func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			sr := new(spanStoreMocks.Reader)
+			sr := new(spanstoremocks.Reader)
 			now := time.Now()
 			sr.On(
 				"FindTraceIDs",
@@ -499,7 +498,7 @@ func TestDependencyReader_GetDependencies(t *testing.T) {
 		EndTime:   end,
 	}
 	expectedDeps := []model.DependencyLink{{Parent: "parent", Child: "child", CallCount: 12}}
-	mr := new(dependencyStoreMocks.Reader)
+	mr := new(dependencystoremocks.Reader)
 	mr.On("GetDependencies", mock.Anything, end, time.Minute).Return(expectedDeps, nil)
 	dr := NewDependencyReader(mr)
 	deps, err := dr.GetDependencies(context.Background(), query)
