@@ -21,7 +21,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
@@ -159,7 +158,8 @@ func (s *server) addArchiveStorage(
 	v2opts.ArchiveTraceReader = traceReader
 	v2opts.ArchiveTraceWriter = traceWriter
 
-	spanReader, spanWriter := getV1Adapters(traceReader, traceWriter)
+	spanReader := v1adapter.GetV1Reader(traceReader)
+	spanWriter := v1adapter.GetV1Writer(traceWriter)
 
 	opts.ArchiveSpanReader = spanReader
 	opts.ArchiveSpanWriter = spanWriter
@@ -179,19 +179,6 @@ func (s *server) initArchiveStorage(f tracestore.Factory) (tracestore.Reader, tr
 		return nil, nil
 	}
 	return reader, writer
-}
-
-func getV1Adapters(
-	reader tracestore.Reader,
-	writer tracestore.Writer,
-) (spanstore.Reader, spanstore.Writer) {
-	v1Reader := v1adapter.GetV1Reader(reader)
-	v1Writer, ok := v1adapter.GetV1Writer(writer)
-	if !ok {
-		v1Writer = v1adapter.NewSpanWriter(writer)
-	}
-
-	return v1Reader, v1Writer
 }
 
 func (s *server) createMetricReader(host component.Host) (metricstore.Reader, error) {
