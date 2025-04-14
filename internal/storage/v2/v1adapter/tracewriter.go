@@ -20,11 +20,13 @@ type TraceWriter struct {
 	spanWriter spanstore.Writer
 }
 
-func GetV1Writer(writer tracestore.Writer) (spanstore.Writer, bool) {
+func GetV1Writer(writer tracestore.Writer) spanstore.Writer {
 	if tr, ok := writer.(*TraceWriter); ok {
-		return tr.spanWriter, ok
+		return tr.spanWriter
 	}
-	return nil, false
+	return &SpanWriter{
+		traceWriter: writer,
+	}
 }
 
 func NewTraceWriter(spanWriter spanstore.Writer) *TraceWriter {
