@@ -21,6 +21,9 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc/shared"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
@@ -41,8 +44,13 @@ type storageFactory interface {
 }
 
 // NewServer creates and initializes Server.
-func NewServer(options *Options, storageFactory storageFactory, tm *tenancy.Manager, telset telemetry.Settings) (*Server, error) {
-	handler, err := createGRPCHandler(storageFactory)
+func NewServer(
+	options *Options,
+	ts tracestore.Factory,
+	ds depstore.Factory,
+	tm *tenancy.Manager,
+	telset telemetry.Settings) (*Server, error) {
+	handler, err := createGRPCHandler(ts, ds)
 	if err != nil {
 		return nil, err
 	}
@@ -59,24 +67,24 @@ func NewServer(options *Options, storageFactory storageFactory, tm *tenancy.Mana
 	}, nil
 }
 
-func createGRPCHandler(f storageFactory) (*shared.GRPCHandler, error) {
-	reader, err := f.CreateSpanReader()
+func createGRPCHandler(ts tracestore.Factory, ds depstore.Factory) (*shared.GRPCHandler, error) {
+	reader, err := ts.CreateTraceReader()
 	if err != nil {
 		return nil, err
 	}
-	writer, err := f.CreateSpanWriter()
+	writer, err := ts.CreateTraceWriter()
 	if err != nil {
 		return nil, err
 	}
-	depReader, err := f.CreateDependencyReader()
+	depReader, err := ds.CreateDependencyReader()
 	if err != nil {
 		return nil, err
 	}
 
 	impl := &shared.GRPCHandlerStorageImpl{
-		SpanReader:          func() spanstore.Reader { return reader },
-		SpanWriter:          func() spanstore.Writer { return writer },
-		DependencyReader:    func() dependencystore.Reader { return depReader },
+		SpanReader:          func() spanstore.Reader { return v1adapter.GetV1Reader(reader) },
+		SpanWriter:          func() spanstore.Writer { return v1adapter.GetV1Writer(writer) },
+		DependencyReader:    func() dependencystore.Reader { return v1adapter.GetV1DependencyReader(depReader) },
 		StreamingSpanWriter: func() spanstore.Writer { return nil },
 	}
 
