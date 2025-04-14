@@ -135,6 +135,13 @@ type DependencyReader struct {
 	reader dependencystore.Reader
 }
 
+func GetV1DependencyReader(reader depstore.Reader) dependencystore.Reader {
+	if dr, ok := reader.(*DependencyReader); ok {
+		return dr.reader
+	}
+	return nil // TODO: add reverse implementation
+}
+
 func NewDependencyReader(reader dependencystore.Reader) *DependencyReader {
 	return &DependencyReader{
 		reader: reader,
