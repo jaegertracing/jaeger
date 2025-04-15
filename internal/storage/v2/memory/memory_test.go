@@ -22,7 +22,7 @@ import (
 )
 
 func TestNewStore_DefaultConfig(t *testing.T) {
-	store := NewStore()
+	store := NewStore(v1.Configuration{})
 	td := loadInputTraces(t, 1)
 	err := store.WriteTraces(context.Background(), td)
 	require.NoError(t, err)
@@ -41,7 +41,7 @@ func TestNewStore_DefaultConfig(t *testing.T) {
 
 func TestNewStore_TracesLimit(t *testing.T) {
 	maxTraces := 5
-	store := WithConfiguration(v1.Configuration{
+	store := NewStore(v1.Configuration{
 		MaxTraces: maxTraces,
 	})
 	for i := 1; i < 10; i++ {
