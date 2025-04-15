@@ -37,19 +37,14 @@ type Server struct {
 	telset     telemetry.Settings
 }
 
-type storageFactory interface {
-	CreateSpanReader() (spanstore.Reader, error)
-	CreateSpanWriter() (spanstore.Writer, error)
-	CreateDependencyReader() (dependencystore.Reader, error)
-}
-
 // NewServer creates and initializes Server.
 func NewServer(
 	options *Options,
 	ts tracestore.Factory,
 	ds depstore.Factory,
 	tm *tenancy.Manager,
-	telset telemetry.Settings) (*Server, error) {
+	telset telemetry.Settings,
+) (*Server, error) {
 	handler, err := createGRPCHandler(ts, ds)
 	if err != nil {
 		return nil, err
