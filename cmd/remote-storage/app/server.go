@@ -100,7 +100,8 @@ func createGRPCServer(
 	tm *tenancy.Manager,
 	handler *shared.GRPCHandler,
 	v2Handler *grpcstorage.Handler,
-	telset telemetry.Settings) (*grpc.Server, error) {
+	telset telemetry.Settings,
+) (*grpc.Server, error) {
 	unaryInterceptors := []grpc.UnaryServerInterceptor{
 		bearertoken.NewUnaryServerInterceptor(),
 	}
