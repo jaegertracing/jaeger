@@ -4,186 +4,51 @@
       "resource": {
         "attributes": [
           {
+            "key": "service.name",
+            "value": {
+              "stringValue": "clickhouse"
+            }
+          },
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "627cc493-f310-47de-96bd-71410b7dec09"
+            }
+          },
+          {
+            "key": "process.parent.pid",
+            "value": {
+              "intValue": "111"
+            }
+          },
+          {
+            "key": "process.pid",
+            "value": {
+              "intValue": "1234"
+            }
+          },
+          {
+            "key": "faas.max_memory",
+            "value": {
+              "intValue": "134217728"
+            }
+          },
+          {
+            "key": "host.memory.swap",
+            "value": {
+              "doubleValue": 2048
+            }
+          },
+          {
+            "key": "browser.mobile",
+            "value": {
+              "boolValue": true
+            }
+          },
+          {
             "key": "oci.manifest.digest",
             "value": {
               "bytesValue": "c2hhMjU2OmU0Y2E2MmMwZDYyZjNlODg2ZTY4NDgwNmRmZTlkNGUwY2RhNjBkNTQ5ODY4OTgxNzNjMTA4Mzg1NmNmZGEwZjQ="
-            }
-          },
-          {
-            "key": "pod.containers.runtime",
-            "value": {
-              "kvlistValue": {
-                "values": [
-                  {
-                    "key": "container1",
-                    "value": {
-                      "stringValue": "docker"
-                    }
-                  },
-                  {
-                    "key": "container2",
-                    "value": {
-                      "stringValue": "containerd"
-                    }
-                  },
-                  {
-                    "key": "container3",
-                    "value": {
-                      "stringValue": "rkt"
-                    }
-                  }
-                ]
-              }
-            }
-          },
-          {
-            "key": "pod.containers.ready",
-            "value": {
-              "kvlistValue": {
-                "values": [
-                  {
-                    "key": "container1",
-                    "value": {
-                      "boolValue": true
-                    }
-                  },
-                  {
-                    "key": "container2",
-                    "value": {
-                      "boolValue": true
-                    }
-                  },
-                  {
-                    "key": "container3",
-                    "value": {
-                      "boolValue": false
-                    }
-                  }
-                ]
-              }
-            }
-          },
-          {
-            "key": "pod.initContainers.count",
-            "value": {
-              "kvlistValue": {
-                "values": [
-                  {
-                    "key": "container3",
-                    "value": {
-                      "intValue": "4"
-                    }
-                  },
-                  {
-                    "key": "container1",
-                    "value": {
-                      "intValue": "2"
-                    }
-                  },
-                  {
-                    "key": "container2",
-                    "value": {
-                      "intValue": "3"
-                    }
-                  }
-                ]
-              }
-            }
-          },
-          {
-            "key": "pod.containers.avg_restart",
-            "value": {
-              "kvlistValue": {
-                "values": [
-                  {
-                    "key": "container3",
-                    "value": {
-                      "doubleValue": 4.1
-                    }
-                  },
-                  {
-                    "key": "container1",
-                    "value": {
-                      "doubleValue": 2.1
-                    }
-                  },
-                  {
-                    "key": "container2",
-                    "value": {
-                      "doubleValue": 3.1
-                    }
-                  }
-                ]
-              }
-            }
-          },
-          {
-            "key": "container.image.tags",
-            "value": {
-              "arrayValue": {
-                "values": [
-                  {
-                    "stringValue": "v1.27.1"
-                  },
-                  {
-                    "stringValue": "v3.5.7"
-                  }
-                ]
-              }
-            }
-          },
-          {
-            "key": "container.args.values.double",
-            "value": {
-              "arrayValue": {
-                "values": [
-                  {
-                    "doubleValue": 2.7
-                  },
-                  {
-                    "doubleValue": 3.14
-                  },
-                  {
-                    "doubleValue": 15.926
-                  }
-                ]
-              }
-            }
-          },
-          {
-            "key": "container.args.values.int",
-            "value": {
-              "arrayValue": {
-                "values": [
-                  {
-                    "intValue": "1"
-                  },
-                  {
-                    "intValue": "2"
-                  },
-                  {
-                    "intValue": "3"
-                  }
-                ]
-              }
-            }
-          },
-          {
-            "key": "container.args.values.bool",
-            "value": {
-              "arrayValue": {
-                "values": [
-                  {
-                    "boolValue": true
-                  },
-                  {
-                    "boolValue": false
-                  },
-                  {
-                    "boolValue": true
-                  }
-                ]
-              }
             }
           }
         ]
@@ -193,45 +58,51 @@
           "scope": {
             "attributes": [
               {
+                "key": "library.language",
+                "value": {
+                  "stringValue": "go"
+                }
+              },
+              {
+                "key": "library.version",
+                "value": {
+                  "stringValue": "v2.2.2"
+                }
+              },
+              {
+                "key": "library.feature.async_processing_enabled",
+                "value": {
+                  "boolValue": true
+                }
+              },
+              {
+                "key": "library.security.data_masking_active",
+                "value": {
+                  "boolValue": false
+                }
+              },
+              {
+                "key": "component.config.sampling.ratio",
+                "value": {
+                  "doubleValue": 0.75
+                }
+              },
+              {
+                "key": "component.max_workers",
+                "value": {
+                  "intValue": "10"
+                }
+              },
+              {
+                "key": "component.min_workers",
+                "value": {
+                  "intValue": "2"
+                }
+              },
+              {
                 "key": "scope.test.bytes.value",
                 "value": {
                   "bytesValue": "AQIDBA=="
-                }
-              },
-              {
-                "key": "scope.test.map.value.string",
-                "value": {
-                  "kvlistValue": {
-                    "values": [
-                      {
-                        "key": "hello",
-                        "value": {
-                          "stringValue": "nihao"
-                        }
-                      },
-                      {
-                        "key": "world",
-                        "value": {
-                          "stringValue": "shijie"
-                        }
-                      }
-                    ]
-                  }
-                }
-              },
-              {
-                "key": "scope.test.slice.value.string",
-                "value": {
-                  "arrayValue": {
-                    "values": [
-                      {
-                        "stringValue": "foo1"
-                      },
-                      {
-                        "stringValue": "foo2"
-                      }
-                    ]
-                  }
                 }
               }
             ]
@@ -243,45 +114,39 @@
               "parentSpanId": "",
               "attributes": [
                 {
+                  "key": "app.payment.card_valid",
+                  "value": {
+                    "boolValue": true
+                  }
+                },
+                {
+                  "key": "app.payment.charged",
+                  "value": {
+                    "boolValue": true
+                  }
+                },
+                {
+                  "key": "app.payment.amount",
+                  "value": {
+                    "doubleValue": 99.99
+                  }
+                },
+                {
+                  "key": "app.payment.count",
+                  "value": {
+                    "intValue": "5"
+                  }
+                },
+                {
+                  "key": "app.payment.id",
+                  "value": {
+                    "stringValue": "123456789"
+                  }
+                },
+                {
                   "key": "span.test.bytes.value",
                   "value": {
                     "bytesValue": "AQIDBAUG"
-                  }
-                },
-                {
-                  "key": "span.test.map.value.string",
-                  "value": {
-                    "kvlistValue": {
-                      "values": [
-                        {
-                          "key": "hello",
-                          "value": {
-                            "stringValue": "nihao"
-                          }
-                        },
-                        {
-                          "key": "world",
-                          "value": {
-                            "stringValue": "shijie"
-                          }
-                        }
-                      ]
-                    }
-                  }
-                },
-                {
-                  "key": "span.test.slice.value.string",
-                  "value": {
-                    "arrayValue": {
-                      "values": [
-                        {
-                          "stringValue": "foo1"
-                        },
-                        {
-                          "stringValue": "foo2"
-                        }
-                      ]
-                    }
                   }
                 }
               ],
@@ -289,45 +154,51 @@
                 {
                   "attributes": [
                     {
+                      "key": "inventory.available",
+                      "value": {
+                        "boolValue": true
+                      }
+                    },
+                    {
+                      "key": "payment.successful",
+                      "value": {
+                        "boolValue": true
+                      }
+                    },
+                    {
+                      "key": "product.price",
+                      "value": {
+                        "doubleValue": 6.04
+                      }
+                    },
+                    {
+                      "key": "order.discount.rate",
+                      "value": {
+                        "doubleValue": 0.04
+                      }
+                    },
+                    {
+                      "key": "order.quantity",
+                      "value": {
+                        "intValue": "2"
+                      }
+                    },
+                    {
+                      "key": "order.id",
+                      "value": {
+                        "stringValue": "123456789"
+                      }
+                    },
+                    {
+                      "key": "product.id",
+                      "value": {
+                        "stringValue": "987654321"
+                      }
+                    },
+                    {
                       "key": "event.test.bytes.value",
                       "value": {
                         "bytesValue": "AQIDBAUG"
-                      }
-                    },
-                    {
-                      "key": "event.test.map.value.string",
-                      "value": {
-                        "kvlistValue": {
-                          "values": [
-                            {
-                              "key": "hello",
-                              "value": {
-                                "stringValue": "nihao"
-                              }
-                            },
-                            {
-                              "key": "world",
-                              "value": {
-                                "stringValue": "shijie"
-                              }
-                            }
-                          ]
-                        }
-                      }
-                    },
-                    {
-                      "key": "event.test.slice.value.string",
-                      "value": {
-                        "arrayValue": {
-                          "values": [
-                            {
-                              "stringValue": "foo1"
-                            },
-                            {
-                              "stringValue": "foo2"
-                            }
-                          ]
-                        }
                       }
                     }
                   ]
@@ -339,45 +210,33 @@
                   "spanId": "",
                   "attributes": [
                     {
+                      "key": "is.retry",
+                      "value": {
+                        "boolValue": true
+                      }
+                    },
+                    {
+                      "key": "similarity.score",
+                      "value": {
+                        "doubleValue": 0.85
+                      }
+                    },
+                    {
+                      "key": "correlation.id",
+                      "value": {
+                        "intValue": "1324141"
+                      }
+                    },
+                    {
+                      "key": "related.resource.id",
+                      "value": {
+                        "stringValue": "resource-123"
+                      }
+                    },
+                    {
                       "key": "link.test.bytes.value",
                       "value": {
                         "bytesValue": "AQIDBAUG"
-                      }
-                    },
-                    {
-                      "key": "link.test.map.value.string",
-                      "value": {
-                        "kvlistValue": {
-                          "values": [
-                            {
-                              "key": "hello",
-                              "value": {
-                                "stringValue": "nihao"
-                              }
-                            },
-                            {
-                              "key": "world",
-                              "value": {
-                                "stringValue": "shijie"
-                              }
-                            }
-                          ]
-                        }
-                      }
-                    },
-                    {
-                      "key": "link.test.slice.value.string",
-                      "value": {
-                        "arrayValue": {
-                          "values": [
-                            {
-                              "stringValue": "foo1"
-                            },
-                            {
-                              "stringValue": "foo2"
-                            }
-                          ]
-                        }
                       }
                     }
                   ]

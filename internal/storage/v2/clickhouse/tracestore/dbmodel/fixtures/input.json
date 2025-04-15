@@ -1,5 +1,109 @@
 [
   {
+    "Name": "resourceAttributesBoolKey",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "browser.mobile"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesBoolValue",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": [
+        true
+      ]
+    }
+  },
+  {
+    "Name": "resourceAttributesDoubleKey",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "host.memory.swap"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesDoubleValue",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": [
+        2048
+      ]
+    }
+  },
+  {
+    "Name": "resourceAttributesIntKey",
+    "Data": {
+      "Offsets": [
+        3
+      ],
+      "Data": {
+        "Values": [
+          "process.parent.pid",
+          "process.pid",
+          "faas.max_memory"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesIntValue",
+    "Data": {
+      "Offsets": [
+        3
+      ],
+      "Data": [
+        111,
+        1234,
+        134217728
+      ]
+    }
+  },
+  {
+    "Name": "resourceAttributesStrKey",
+    "Data": {
+      "Offsets": [
+        2
+      ],
+      "Data": {
+        "Values": [
+          "service.name",
+          "service.instance.id"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesStrValue",
+    "Data": {
+      "Offsets": [
+        2
+      ],
+      "Data": {
+        "Values": [
+          "clickhouse",
+          "627cc493-f310-47de-96bd-71410b7dec09"
+        ]
+      }
+    }
+  },
+  {
     "Name": "resourceAttributesBytesKey",
     "Data": {
       "Offsets": [
@@ -26,65 +130,105 @@
     }
   },
   {
-    "Name": "resourceAttributesMapKey",
+    "Name": "scopeAttributesBoolKey",
     "Data": {
       "Offsets": [
-        4
+        2
       ],
       "Data": {
         "Values": [
-          "pod.containers.runtime",
-          "pod.containers.ready",
-          "pod.initContainers.count",
-          "pod.containers.avg_restart"
+          "library.feature.async_processing_enabled",
+          "library.security.data_masking_active"
         ]
       }
     }
   },
   {
-    "Name": "resourceAttributesMapValue",
+    "Name": "scopeAttributesBoolValue",
     "Data": {
       "Offsets": [
-        4
+        2
+      ],
+      "Data": [
+        true,
+        false
+      ]
+    }
+  },
+  {
+    "Name": "scopeAttributesDoubleKey",
+    "Data": {
+      "Offsets": [
+        1
       ],
       "Data": {
         "Values": [
-          "{\"container1\":\"docker\",\"container2\":\"containerd\",\"container3\":\"rkt\"}",
-          "{\"container1\":true,\"container2\":true,\"container3\":false}",
-          "{\"container1\":2,\"container2\":3,\"container3\":4}",
-          "{\"container1\":2.1,\"container2\":3.1,\"container3\":4.1}"
+          "component.config.sampling.ratio"
         ]
       }
     }
   },
   {
-    "Name": "resourceAttributesSliceKey",
+    "Name": "scopeAttributesDoubleValue",
     "Data": {
       "Offsets": [
-        4
+        1
+      ],
+      "Data": [
+        0.75
+      ]
+    }
+  },
+  {
+    "Name": "scopeAttributesIntKey",
+    "Data": {
+      "Offsets": [
+        2
       ],
       "Data": {
         "Values": [
-          "container.args.values.bool",
-          "container.image.tags",
-          "container.args.values.double",
-          "container.args.values.int"
+          "component.min_workers",
+          "component.max_workers"
         ]
       }
     }
   },
   {
-    "Name": "resourceAttributesSliceValue",
+    "Name": "scopeAttributesIntValue",
     "Data": {
       "Offsets": [
-        4
+        2
+      ],
+      "Data": [
+        2,
+        10
+      ]
+    }
+  },
+  {
+    "Name": "scopeAttributesStrKey",
+    "Data": {
+      "Offsets": [
+        2
       ],
       "Data": {
         "Values": [
-          "[true,false,true]",
-          "[\"v1.27.1\",\"v3.5.7\"]",
-          "[2.7,3.14,15.926]",
-          "[1,2,3]"
+          "library.version",
+          "library.language"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesStrValue",
+    "Data": {
+      "Offsets": [
+        2
+      ],
+      "Data": {
+        "Values": [
+          "v2.2.2",
+          "go"
         ]
       }
     }
@@ -116,53 +260,101 @@
     }
   },
   {
-    "Name": "scopeAttributesMapKey",
+    "Name": "spanAttributesBoolKey",
     "Data": {
       "Offsets": [
-        1
+        2
       ],
       "Data": {
         "Values": [
-          "scope.test.map.value.string"
+          "app.payment.card_valid",
+          "app.payment.charged"
         ]
       }
     }
   },
   {
-    "Name": "scopeAttributesMapValue",
+    "Name": "spanAttributesBoolValue",
+    "Data": {
+      "Offsets": [
+        2
+      ],
+      "Data": [
+        true,
+        true
+      ]
+    }
+  },
+  {
+    "Name": "spanAttributesDoubleKey",
     "Data": {
       "Offsets": [
         1
       ],
       "Data": {
         "Values": [
-          "{\"hello\":\"nihao\",\"world\":\"shijie\"}"
+          "app.payment.amount"
         ]
       }
     }
   },
   {
-    "Name": "scopeAttributesSliceKey",
+    "Name": "spanAttributesDoubleValue",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": [
+        99.99
+      ]
+    }
+  },
+  {
+    "Name": "spanAttributesIntKey",
     "Data": {
       "Offsets": [
         1
       ],
       "Data": {
         "Values": [
-          "scope.test.slice.value.string"
+          "app.payment.count"
         ]
       }
     }
   },
   {
-    "Name": "scopeAttributesSliceValue",
+    "Name": "spanAttributesIntValue",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": [
+        5
+      ]
+    }
+  },
+  {
+    "Name": "spanAttributesStrKey",
     "Data": {
       "Offsets": [
         1
       ],
       "Data": {
         "Values": [
-          "[\"foo1\",\"foo2\"]"
+          "app.payment.id"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesStrValue",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "123456789"
         ]
       }
     }
@@ -194,54 +386,146 @@
     }
   },
   {
-    "Name": "spanAttributesMapKey",
+    "Name": "eventsAttributesBoolKeys",
     "Data": {
       "Offsets": [
         1
       ],
       "Data": {
-        "Values": [
-          "span.test.map.value.string"
+        "Offsets": [
+          2
+        ],
+        "Data": {
+          "Values": [
+            "inventory.available",
+            "payment.successful"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesBoolValues",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          2
+        ],
+        "Data": [
+          true,
+          true
         ]
       }
     }
   },
   {
-    "Name": "spanAttributesMapValue",
+    "Name": "eventsAttributesDoubleKeys",
     "Data": {
       "Offsets": [
         1
       ],
       "Data": {
-        "Values": [
-          "{\"hello\":\"nihao\",\"world\":\"shijie\"}"
+        "Offsets": [
+          2
+        ],
+        "Data": {
+          "Values": [
+            "product.price",
+            "order.discount.rate"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesDoubleValues",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          2
+        ],
+        "Data": [
+          6.04,
+          0.04
         ]
       }
     }
   },
   {
-    "Name": "spanAttributesSliceKey",
+    "Name": "eventsAttributesIntKeys",
     "Data": {
       "Offsets": [
         1
       ],
       "Data": {
-        "Values": [
-          "span.test.slice.value.string"
+        "Offsets": [
+          1
+        ],
+        "Data": {
+          "Values": [
+            "order.quantity"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesIntValues",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": [
+          2
         ]
       }
     }
   },
   {
-    "Name": "spanAttributesSliceValue",
+    "Name": "eventsAttributesStrKeys",
     "Data": {
       "Offsets": [
         1
       ],
       "Data": {
-        "Values": [
-          "[\"foo1\",\"foo2\"]"
-        ]
+        "Offsets": [
+          2
+        ],
+        "Data": {
+          "Values": [
+            "order.id",
+            "product.id"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesStrValues",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          2
+        ],
+        "Data": {
+          "Values": [
+            "123456789",
+            "987654321"
+          ]
+        }
       }
     }
   },
@@ -282,7 +566,7 @@
     }
   },
   {
-    "Name": "eventsAttributesMapKeys",
+    "Name": "linksAttributesBoolKeys",
     "Data": {
       "Offsets": [
         1
@@ -293,14 +577,30 @@
         ],
         "Data": {
           "Values": [
-            "event.test.map.value.string"
+            "is.retry"
           ]
         }
       }
     }
   },
   {
-    "Name": "eventsAttributesMapValues",
+    "Name": "linksAttributesBoolValues",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": [
+          true
+        ]
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesDoubleKeys",
     "Data": {
       "Offsets": [
         1
@@ -311,14 +611,30 @@
         ],
         "Data": {
           "Values": [
-            "{\"hello\":\"nihao\",\"world\":\"shijie\"}"
+            "similarity.score"
           ]
         }
       }
     }
   },
   {
-    "Name": "eventsAttributesSliceKeys",
+    "Name": "linksAttributesDoubleValues",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": [
+          0.85
+        ]
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesIntKeys",
     "Data": {
       "Offsets": [
         1
@@ -329,14 +645,30 @@
         ],
         "Data": {
           "Values": [
-            "event.test.slice.value.string"
+            "correlation.id"
           ]
         }
       }
     }
   },
   {
-    "Name": "eventsAttributesSliceValues",
+    "Name": "linksAttributesIntValues",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": [
+          1324141
+        ]
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesStrKeys",
     "Data": {
       "Offsets": [
         1
@@ -347,7 +679,25 @@
         ],
         "Data": {
           "Values": [
-            "[\"foo1\",\"foo2\"]"
+            "related.resource.id"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesStrValues",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": {
+          "Values": [
+            "resource-123"
           ]
         }
       }
@@ -384,78 +734,6 @@
         "Data": {
           "Values": [
             "AQIDBAUG"
-          ]
-        }
-      }
-    }
-  },
-  {
-    "Name": "linksAttributesMapKeys",
-    "Data": {
-      "Offsets": [
-        1
-      ],
-      "Data": {
-        "Offsets": [
-          1
-        ],
-        "Data": {
-          "Values": [
-            "link.test.map.value.string"
-          ]
-        }
-      }
-    }
-  },
-  {
-    "Name": "linksAttributesMapValues",
-    "Data": {
-      "Offsets": [
-        1
-      ],
-      "Data": {
-        "Offsets": [
-          1
-        ],
-        "Data": {
-          "Values": [
-            "{\"hello\":\"nihao\",\"world\":\"shijie\"}"
-          ]
-        }
-      }
-    }
-  },
-  {
-    "Name": "linksAttributesSliceKeys",
-    "Data": {
-      "Offsets": [
-        1
-      ],
-      "Data": {
-        "Offsets": [
-          1
-        ],
-        "Data": {
-          "Values": [
-            "link.test.slice.value.string"
-          ]
-        }
-      }
-    }
-  },
-  {
-    "Name": "linksAttributesSliceValues",
-    "Data": {
-      "Offsets": [
-        1
-      ],
-      "Data": {
-        "Offsets": [
-          1
-        ],
-        "Data": {
-          "Values": [
-            "[\"foo1\",\"foo2\"]"
           ]
         }
       }
