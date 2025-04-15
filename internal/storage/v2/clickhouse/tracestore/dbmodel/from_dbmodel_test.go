@@ -13,7 +13,7 @@ import (
 func TestToPtrace(t *testing.T) {
 	dbTrace := jsonToDbTrace(t, "./fixtures/dbtrace.json")
 	expected := jsonToTrace(t, "./fixtures/ptrace.json")
-	actual := ToPTrace(dbTrace)
+	actual := ToPtrace(dbTrace)
 
 	exceptedResourceSpans := expected.ResourceSpans().At(0)
 	expectedResourceAttr := exceptedResourceSpans.Resource().Attributes().AsRaw()
