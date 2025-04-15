@@ -16,7 +16,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	spanstoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
+	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
@@ -42,7 +42,7 @@ func TestWriteTraces(t *testing.T) {
 }
 
 func TestWriteTracesError(t *testing.T) {
-	mockstore := spanstoreMocks.NewWriter(t)
+	mockstore := spanstoremocks.NewWriter(t)
 	mockstore.On(
 		"WriteSpan",
 		mock.AnythingOfType("context.backgroundCtx"),
@@ -57,20 +57,22 @@ func TestWriteTracesError(t *testing.T) {
 	require.ErrorContains(t, err, "mocked error")
 }
 
-func TestGetV1Writer_NoError(t *testing.T) {
-	memstore := memory.NewStore()
-	traceWriter := &TraceWriter{
-		spanWriter: memstore,
-	}
-	v1Writer, ok := GetV1Writer(traceWriter)
-	require.True(t, ok)
-	require.Equal(t, memstore, v1Writer)
-}
+func TestGetV1Writer(t *testing.T) {
+	t.Run("wrapped v1 writer", func(t *testing.T) {
+		writer := new(spanstoremocks.Writer)
+		traceWriter := &TraceWriter{
+			spanWriter: writer,
+		}
+		v1Writer := GetV1Writer(traceWriter)
+		require.Equal(t, writer, v1Writer)
+	})
 
-func TestGetV1Writer_Error(t *testing.T) {
-	w := new(tracestoremocks.Writer)
-	_, ok := GetV1Writer(w)
-	require.False(t, ok)
+	t.Run("native v2 writer", func(t *testing.T) {
+		writer := new(tracestoremocks.Writer)
+		v1Writer := GetV1Writer(writer)
+		require.IsType(t, &SpanWriter{}, v1Writer)
+		require.Equal(t, writer, v1Writer.(*SpanWriter).traceWriter)
+	})
 }
 
 func makeTraces() ptrace.Traces {
