@@ -1,0 +1,742 @@
+[
+  {
+    "Name": "resourceAttributesBoolKey",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "browser.mobile"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesBoolValue",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": [
+        true
+      ]
+    }
+  },
+  {
+    "Name": "resourceAttributesDoubleKey",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "host.memory.swap"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesDoubleValue",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": [
+        2048
+      ]
+    }
+  },
+  {
+    "Name": "resourceAttributesIntKey",
+    "Data": {
+      "Offsets": [
+        3
+      ],
+      "Data": {
+        "Values": [
+          "process.parent.pid",
+          "process.pid",
+          "faas.max_memory"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesIntValue",
+    "Data": {
+      "Offsets": [
+        3
+      ],
+      "Data": [
+        111,
+        1234,
+        134217728
+      ]
+    }
+  },
+  {
+    "Name": "resourceAttributesStrKey",
+    "Data": {
+      "Offsets": [
+        2
+      ],
+      "Data": {
+        "Values": [
+          "service.name",
+          "service.instance.id"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesStrValue",
+    "Data": {
+      "Offsets": [
+        2
+      ],
+      "Data": {
+        "Values": [
+          "clickhouse",
+          "627cc493-f310-47de-96bd-71410b7dec09"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesBytesKey",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "oci.manifest.digest"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "resourceAttributesBytesValue",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "c2hhMjU2OmU0Y2E2MmMwZDYyZjNlODg2ZTY4NDgwNmRmZTlkNGUwY2RhNjBkNTQ5ODY4OTgxNzNjMTA4Mzg1NmNmZGEwZjQ="
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesBoolKey",
+    "Data": {
+      "Offsets": [
+        2
+      ],
+      "Data": {
+        "Values": [
+          "library.feature.async_processing_enabled",
+          "library.security.data_masking_active"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesBoolValue",
+    "Data": {
+      "Offsets": [
+        2
+      ],
+      "Data": [
+        true,
+        false
+      ]
+    }
+  },
+  {
+    "Name": "scopeAttributesDoubleKey",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "component.config.sampling.ratio"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesDoubleValue",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": [
+        0.75
+      ]
+    }
+  },
+  {
+    "Name": "scopeAttributesIntKey",
+    "Data": {
+      "Offsets": [
+        2
+      ],
+      "Data": {
+        "Values": [
+          "component.min_workers",
+          "component.max_workers"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesIntValue",
+    "Data": {
+      "Offsets": [
+        2
+      ],
+      "Data": [
+        2,
+        10
+      ]
+    }
+  },
+  {
+    "Name": "scopeAttributesStrKey",
+    "Data": {
+      "Offsets": [
+        2
+      ],
+      "Data": {
+        "Values": [
+          "library.version",
+          "library.language"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesStrValue",
+    "Data": {
+      "Offsets": [
+        2
+      ],
+      "Data": {
+        "Values": [
+          "v2.2.2",
+          "go"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesBytesKey",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "scope.test.bytes.value"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "scopeAttributesBytesValue",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "AQIDBA=="
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesBoolKey",
+    "Data": {
+      "Offsets": [
+        2
+      ],
+      "Data": {
+        "Values": [
+          "app.payment.card_valid",
+          "app.payment.charged"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesBoolValue",
+    "Data": {
+      "Offsets": [
+        2
+      ],
+      "Data": [
+        true,
+        true
+      ]
+    }
+  },
+  {
+    "Name": "spanAttributesDoubleKey",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "app.payment.amount"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesDoubleValue",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": [
+        99.99
+      ]
+    }
+  },
+  {
+    "Name": "spanAttributesIntKey",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "app.payment.count"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesIntValue",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": [
+        5
+      ]
+    }
+  },
+  {
+    "Name": "spanAttributesStrKey",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "app.payment.id"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesStrValue",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "123456789"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesBytesKey",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "span.test.bytes.value"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "spanAttributesBytesValue",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "AQIDBAUG"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesBoolKeys",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          2
+        ],
+        "Data": {
+          "Values": [
+            "inventory.available",
+            "payment.successful"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesBoolValues",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          2
+        ],
+        "Data": [
+          true,
+          true
+        ]
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesDoubleKeys",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          2
+        ],
+        "Data": {
+          "Values": [
+            "product.price",
+            "order.discount.rate"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesDoubleValues",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          2
+        ],
+        "Data": [
+          6.04,
+          0.04
+        ]
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesIntKeys",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": {
+          "Values": [
+            "order.quantity"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesIntValues",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": [
+          2
+        ]
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesStrKeys",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          2
+        ],
+        "Data": {
+          "Values": [
+            "order.id",
+            "product.id"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesStrValues",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          2
+        ],
+        "Data": {
+          "Values": [
+            "123456789",
+            "987654321"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesBytesKeys",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": {
+          "Values": [
+            "event.test.bytes.value"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "eventsAttributesBytesValues",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": {
+          "Values": [
+            "AQIDBAUG"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesBoolKeys",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": {
+          "Values": [
+            "is.retry"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesBoolValues",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": [
+          true
+        ]
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesDoubleKeys",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": {
+          "Values": [
+            "similarity.score"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesDoubleValues",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": [
+          0.85
+        ]
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesIntKeys",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": {
+          "Values": [
+            "correlation.id"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesIntValues",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": [
+          1324141
+        ]
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesStrKeys",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": {
+          "Values": [
+            "related.resource.id"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesStrValues",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": {
+          "Values": [
+            "resource-123"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesBytesKeys",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": {
+          "Values": [
+            "link.test.bytes.value"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "Name": "linksAttributesBytesValues",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Offsets": [
+          1
+        ],
+        "Data": {
+          "Values": [
+            "AQIDBAUG"
+          ]
+        }
+      }
+    }
+  }
+]
