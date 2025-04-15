@@ -88,13 +88,12 @@ func AttributesToMap(attrs pcommon.Map) map[pcommon.ValueType]map[string]pcommon
 		result[valueType] = make(map[string]pcommon.Value)
 	}
 	// Fill according to the data type of the value
-	attrs.Range(func(k string, v pcommon.Value) bool {
+	for k, v := range attrs.All() {
 		typ := v.Type()
 		// For basic data types (such as bool, uint64, and float64) we can make sure type safe.
 		// TODO: For non-basic types (such as Map, Slice), they should be serialized and stored as OTLP/JSON strings
 		result[typ][k] = v
-		return true
-	})
+	}
 	return result
 }
 
