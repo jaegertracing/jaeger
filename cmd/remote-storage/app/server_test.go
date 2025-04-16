@@ -158,13 +158,7 @@ func TestCreateGRPCHandler(t *testing.T) {
 	writer := new(tracestoremocks.Writer)
 	depReader := new(depstoremocks.Reader)
 
-	f := &fakeFactory{
-		reader:    reader,
-		writer:    writer,
-		depReader: depReader,
-	}
-
-	h, err := createGRPCHandler(f, f)
+	h, err := createGRPCHandler(reader, writer, depReader)
 	require.NoError(t, err)
 
 	writer.On("WriteTraces", mock.Anything, mock.Anything).Return(errors.New("writer error"))
