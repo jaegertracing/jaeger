@@ -8,6 +8,9 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
@@ -182,6 +185,18 @@ func (h *Handler) GetDependencies(
 	return &storage.GetDependenciesResponse{
 		Dependencies: grpcDependencies,
 	}, nil
+}
+
+func (h *Handler) Register(ss *grpc.Server, hs *health.Server) {
+	storage.RegisterTraceReaderServer(ss, h)
+	storage.RegisterDependencyReaderServer(ss, h)
+	ptraceotlp.RegisterGRPCServer(ss, h)
+
+	hs.SetServingStatus("jaeger.storage.v2.TraceReader", grpc_health_v1.HealthCheckResponse_SERVING)
+	hs.SetServingStatus("jaeger.storage.v2.DependencyReader", grpc_health_v1.HealthCheckResponse_SERVING)
+	hs.SetServingStatus("jaeger.storage.v2.TraceWriter", grpc_health_v1.HealthCheckResponse_SERVING)
+
+	grpc_health_v1.RegisterHealthServer(ss, hs)
 }
 
 func toTraceQueryParams(t *storage.TraceQueryParameters) tracestore.TraceQueryParams {

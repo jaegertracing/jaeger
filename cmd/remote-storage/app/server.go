@@ -18,7 +18,6 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	"github.com/jaegertracing/jaeger/internal/bearertoken"
-	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc/shared"
@@ -125,10 +124,9 @@ func createGRPCServer(
 	}
 	healthServer := health.NewServer()
 	reflection.Register(server)
-	handler.Register(server, healthServer)
 
-	storage.RegisterTraceReaderServer(server, v2Handler)
-	storage.RegisterDependencyReaderServer(server, v2Handler)
+	handler.Register(server, healthServer)
+	v2Handler.Register(server, healthServer)
 
 	return server, nil
 }
