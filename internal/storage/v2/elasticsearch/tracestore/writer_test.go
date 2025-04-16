@@ -26,7 +26,7 @@ func TestTraceWriter_WriteTraces(t *testing.T) {
 	span.SetName("op-1")
 	dbSpan := ToDBModel(td)
 	writer := TraceWriter{spanWriter: coreWriter}
-	coreWriter.On("WriteSpan", model.EpochMicrosecondsAsTime(dbSpan[0].StartTime), &dbSpan[0])
+	coreWriter.On("WriteSpan", model.EpochMicrosecondsAsTime(dbSpan[0].StartTime), &dbSpan[0]).Return(nil)
 	err := writer.WriteTraces(context.Background(), td)
 	require.NoError(t, err)
 }
