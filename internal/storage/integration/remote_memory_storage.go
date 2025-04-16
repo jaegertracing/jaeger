@@ -23,6 +23,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/healthcheck"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	storage "github.com/jaegertracing/jaeger/internal/storage/v1/factory"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
@@ -57,7 +59,11 @@ func StartNewRemoteMemoryStorage(t *testing.T, port int) *RemoteMemoryStorage {
 	telset := telemetry.NoopSettings()
 	telset.Logger = logger
 	telset.ReportStatus = telemetry.HCAdapter(healthcheck.New())
-	server, err := app.NewServer(opts, storageFactory, tm, telset)
+
+	traceFactory := v1adapter.NewFactory(storageFactory)
+	depFactory := traceFactory.(depstore.Factory)
+
+	server, err := app.NewServer(opts, traceFactory, depFactory, tm, telset)
 	require.NoError(t, err)
 	require.NoError(t, server.Start())
 
