@@ -11,9 +11,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
@@ -129,21 +127,4 @@ func (tr *TraceReader) FindTraceIDs(
 		}
 		yield(otelIDs, nil)
 	}
-}
-
-type DependencyReader struct {
-	reader dependencystore.Reader
-}
-
-func NewDependencyReader(reader dependencystore.Reader) *DependencyReader {
-	return &DependencyReader{
-		reader: reader,
-	}
-}
-
-func (dr *DependencyReader) GetDependencies(
-	ctx context.Context,
-	query depstore.QueryParameters,
-) ([]model.DependencyLink, error) {
-	return dr.reader.GetDependencies(ctx, query.EndTime, query.EndTime.Sub(query.StartTime))
 }
