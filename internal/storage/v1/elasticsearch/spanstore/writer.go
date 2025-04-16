@@ -156,7 +156,7 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
 	s.serviceWriter(indexName, jsonSpan)
 }
 
-func (s *SpanWriter) writeSpan(indexName string, jsonSpan *dbmodel.Span) error{
+func (s *SpanWriter) writeSpan(indexName string, jsonSpan *dbmodel.Span) error {
 	s.client().Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan).Add()
 	return nil
 }
