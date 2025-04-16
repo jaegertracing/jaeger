@@ -25,16 +25,6 @@
   "duration": 5,
   "tags": [
     {
-      "key": "otel.scope.name",
-      "type": "string",
-      "value": "testing-library"
-    },
-    {
-      "key": "otel.scope.version",
-      "type": "string",
-      "value": "1.1.1"
-    },
-    {
       "key": "peer.service",
       "type": "string",
       "value": "service-y"
@@ -94,6 +84,17 @@
         "key": "sdk.version",
         "type": "string",
         "value": "1.2.1"
+      }
+    ]
+  },
+  "scope": {
+    "name": "testing-library",
+    "version": "1.1.1",
+    "tags": [
+      {
+        "key": "testing-attribute",
+        "type": "string",
+        "value": "scope-x"
       }
     ]
   }

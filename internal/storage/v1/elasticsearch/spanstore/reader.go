@@ -40,9 +40,11 @@ const (
 	operationNameField     = "operationName"
 	objectTagsField        = "tag"
 	objectProcessTagsField = "process.tag"
+	objectScopeTagsField   = "scope.tag"
 	nestedTagsField        = "tags"
 	nestedProcessTagsField = "process.tags"
 	nestedLogFieldsField   = "logs.fields"
+	nestedScopeTagsField   = "scope.tags"
 	tagKeyField            = "key"
 	tagValueField          = "value"
 
@@ -72,9 +74,9 @@ var (
 
 	defaultMaxDuration = model.DurationAsMicroseconds(time.Hour * 24)
 
-	objectTagFieldList = []string{objectTagsField, objectProcessTagsField}
+	objectTagFieldList = []string{objectTagsField, objectProcessTagsField, objectScopeTagsField}
 
-	nestedTagFieldList = []string{nestedTagsField, nestedProcessTagsField, nestedLogFieldsField}
+	nestedTagFieldList = []string{nestedTagsField, nestedProcessTagsField, nestedLogFieldsField, nestedScopeTagsField}
 
 	_ CoreSpanReader = (*SpanReader)(nil) // check API conformance
 

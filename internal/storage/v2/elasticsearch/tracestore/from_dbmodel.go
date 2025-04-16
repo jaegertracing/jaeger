@@ -56,17 +56,16 @@ func dbProcessToResource(process dbmodel.Process, resource pcommon.Resource) {
 }
 
 func dbSpansToSpans(dbSpans []dbmodel.Span, resourceSpans ptrace.ResourceSpansSlice) error {
-	for i := range dbSpans {
-		span := &dbSpans[i]
+	for _, dbSpan := range dbSpans {
 		resourceSpan := resourceSpans.AppendEmpty()
-		dbProcessToResource(span.Process, resourceSpan.Resource())
-
+		dbProcessToResource(dbSpan.Process, resourceSpan.Resource())
 		scopeSpans := resourceSpan.ScopeSpans()
 		scopeSpan := scopeSpans.AppendEmpty()
-		dbSpanToScope(span, scopeSpan)
-
+		updatedTags := dbScopeToScope(dbSpan.Scope, dbSpan.Tags, scopeSpan.Scope())
+		span := scopeSpan.Spans().AppendEmpty()
+		fromDbTags(updatedTags, span)
 		// TODO there should be no errors returned from translation from db model
-		err := dbSpanToSpan(span, scopeSpan.Spans().AppendEmpty())
+		err := dbSpanToSpan(dbSpan, span)
 		if err != nil {
 			return err
 		}
@@ -74,7 +73,7 @@ func dbSpansToSpans(dbSpans []dbmodel.Span, resourceSpans ptrace.ResourceSpansSl
 	return nil
 }
 
-func dbSpanToSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
+func dbSpanToSpan(dbSpan dbmodel.Span, span ptrace.Span) error {
 	traceId, err := fromDbTraceId(dbSpan.TraceID)
 	if err != nil {
 		return err
@@ -101,12 +100,24 @@ func dbSpanToSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
 	duration := model.MicrosecondsAsDuration(dbSpan.Duration)
 	endTime := startTime.Add(duration)
 	span.SetEndTimestamp(pcommon.NewTimestampFromTime(endTime))
+	dbParentSpanId := getParentSpanId(dbSpan)
+	if dbParentSpanId != "" {
+		parentSpanId, err := fromDbSpanId(dbParentSpanId)
+		if err != nil {
+			return err
+		}
+		span.SetParentSpanID(parentSpanId)
+	}
+	dbSpanLogsToSpanEvents(dbSpan.Logs, span.Events())
+	return dbSpanRefsToSpanEvents(dbSpan.References, dbParentSpanId, span.Links())
+}
 
+func fromDbTags(tags []dbmodel.KeyValue, span ptrace.Span) {
 	// TODO rewrite this to use a single loop over tags
 	// and map special tag names to OTEL Span fields
 	attrs := span.Attributes()
-	attrs.EnsureCapacity(len(dbSpan.Tags))
-	dbTagsToAttributes(dbSpan.Tags, attrs)
+	attrs.EnsureCapacity(len(tags))
+	dbTagsToAttributes(tags, attrs)
 	if spanKindAttr, ok := attrs.Get(model.SpanKindKey); ok {
 		span.SetKind(dbSpanKindToOTELSpanKind(spanKindAttr.Str()))
 		attrs.Remove(model.SpanKindKey)
@@ -119,16 +130,6 @@ func dbSpanToSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
 	if attrs.Len() == 0 {
 		attrs.Clear()
 	}
-	dbParentSpanId := getParentSpanId(dbSpan)
-	if dbParentSpanId != "" {
-		parentSpanId, err := fromDbSpanId(dbParentSpanId)
-		if err != nil {
-			return err
-		}
-		span.SetParentSpanID(parentSpanId)
-	}
-	dbSpanLogsToSpanEvents(dbSpan.Logs, span.Events())
-	return dbSpanRefsToSpanEvents(dbSpan.References, dbParentSpanId, span.Links())
 }
 
 func dbTagsToAttributes(tags []dbmodel.KeyValue, attributes pcommon.Map) {
@@ -437,25 +438,35 @@ func getTraceStateFromAttrs(attrs pcommon.Map) string {
 	return traceState
 }
 
-func dbSpanToScope(span *dbmodel.Span, scopeSpan ptrace.ScopeSpans) {
-	if libraryName, ok := getAndDeleteTag(span, conventions.AttributeOtelScopeName); ok {
-		scopeSpan.Scope().SetName(libraryName)
-		if libraryVersion, ok := getAndDeleteTag(span, conventions.AttributeOtelScopeVersion); ok {
-			scopeSpan.Scope().SetVersion(libraryVersion)
+func dbScopeToScope(dbScope dbmodel.Scope, spanTags []dbmodel.KeyValue, scope pcommon.InstrumentationScope) []dbmodel.KeyValue {
+	// This is for backward compatibility, it might be possible that old data might contain scope name
+	// and version in the form of tags, so in order to preserve information we need to extract name and
+	// version from the tags.
+	if nameRemovedTags, libraryName, ok := getAndDeleteTag(spanTags, conventions.AttributeOtelScopeName); ok {
+		scope.SetName(libraryName)
+		spanTags = nameRemovedTags
+		if versionRemovedTags, libraryVersion, ok := getAndDeleteTag(spanTags, conventions.AttributeOtelScopeVersion); ok {
+			scope.SetVersion(libraryVersion)
+			spanTags = versionRemovedTags
 		}
+	} else {
+		scope.SetName(dbScope.Name)
+		scope.SetVersion(dbScope.Version)
+		dbTagsToAttributes(dbScope.Tags, scope.Attributes())
 	}
+	return spanTags
 }
 
-func getAndDeleteTag(span *dbmodel.Span, key string) (string, bool) {
-	for i := range span.Tags {
-		if span.Tags[i].Key == key {
-			if val, ok := span.Tags[i].Value.(string); ok {
-				span.Tags = append(span.Tags[:i], span.Tags[i+1:]...)
-				return val, true
+func getAndDeleteTag(spanTags []dbmodel.KeyValue, key string) ([]dbmodel.KeyValue, string, bool) {
+	for i := range spanTags {
+		if spanTags[i].Key == key {
+			if val, ok := spanTags[i].Value.(string); ok {
+				spanTags = append(spanTags[:i], spanTags[i+1:]...)
+				return spanTags, val, true
 			}
 		}
 	}
-	return "", false
+	return spanTags, "", false
 }
 
 func dbRefTypeToAttribute(ref dbmodel.ReferenceType) string {

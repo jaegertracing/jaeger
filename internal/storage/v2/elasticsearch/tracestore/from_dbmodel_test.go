@@ -650,6 +650,32 @@ func TestToDbModel_Fixtures_StringTags(t *testing.T) {
 	testTraces(t, expectedTraces, td)
 }
 
+func TestDBScopeToScope(t *testing.T) {
+	scopeTags := []dbmodel.KeyValue{
+		{
+			Key:   conventions.AttributeOtelScopeName,
+			Type:  dbmodel.StringType,
+			Value: "testing-name",
+		},
+		{
+			Key:   conventions.AttributeOtelScopeVersion,
+			Type:  dbmodel.StringType,
+			Value: "1.1.1",
+		},
+	}
+	// This is a hypothetical case! It can't be possible to a db span having both
+	// scope and scope tags. This test is to ensure that even if such case rises, it
+	// should give precedence to tags
+	dbScope := dbmodel.Scope{
+		Name:    "testing-name-1",
+		Version: "1.1.2",
+	}
+	scope := pcommon.NewInstrumentationScope()
+	dbScopeToScope(dbScope, scopeTags, scope)
+	assert.Equal(t, "testing-name", scope.Name())
+	assert.Equal(t, "1.1.1", scope.Version())
+}
+
 func getDbTraceIdFromByteArray(arr [16]byte) dbmodel.TraceID {
 	return dbmodel.TraceID(hex.EncodeToString(arr[:]))
 }

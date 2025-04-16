@@ -125,7 +125,7 @@ func attributeToDbTag(key string, attr pcommon.Value) dbmodel.KeyValue {
 	return tag
 }
 
-func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, process dbmodel.Process) dbmodel.Span {
+func spanToDbSpan(span ptrace.Span, scope pcommon.InstrumentationScope, process dbmodel.Process) dbmodel.Span {
 	traceID := dbmodel.TraceID(span.TraceID().String())
 	parentSpanID := dbmodel.SpanID(span.ParentSpanID().String())
 	startTime := span.StartTimestamp().AsTime()
@@ -137,20 +137,19 @@ func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, pr
 		StartTime:       model.TimeAsEpochMicroseconds(startTime),
 		StartTimeMillis: model.TimeAsEpochMicroseconds(startTime) / 1000,
 		Duration:        model.DurationAsMicroseconds(span.EndTimestamp().AsTime().Sub(startTime)),
-		Tags:            getDbSpanTags(span, libraryTags),
+		Tags:            getDbSpanTags(span),
 		Logs:            spanEventsToDbSpanLogs(span.Events()),
 		Process:         process,
 		Flags:           span.Flags(),
+		Scope:           toDbScope(scope),
 	}
 }
 
-func getDbSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmodel.KeyValue {
+func getDbSpanTags(span ptrace.Span) []dbmodel.KeyValue {
 	var spanKindTag, statusCodeTag, statusMsgTag dbmodel.KeyValue
 	var spanKindTagFound, statusCodeTagFound, statusMsgTagFound bool
 
-	libraryTags, libraryTagsFound := getTagsFromInstrumentationLibrary(scope)
-
-	tagsCount := span.Attributes().Len() + len(libraryTags)
+	tagsCount := span.Attributes().Len()
 
 	spanKindTag, spanKindTagFound = getTagFromSpanKind(span.Kind())
 	if spanKindTagFound {
@@ -177,9 +176,6 @@ func getDbSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmod
 	}
 
 	tags := make([]dbmodel.KeyValue, 0, tagsCount)
-	if libraryTagsFound {
-		tags = append(tags, libraryTags...)
-	}
 	tags = appendTagsFromAttributes(tags, span.Attributes())
 	if spanKindTagFound {
 		tags = append(tags, spanKindTag)
@@ -194,6 +190,16 @@ func getDbSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmod
 		tags = append(tags, traceStateTags...)
 	}
 	return tags
+}
+
+func toDbScope(scope pcommon.InstrumentationScope) dbmodel.Scope {
+	tags := make([]dbmodel.KeyValue, 0, scope.Attributes().Len())
+	tags = appendTagsFromAttributes(tags, scope.Attributes())
+	return dbmodel.Scope{
+		Name:    scope.Name(),
+		Version: scope.Version(),
+		Tags:    tags,
+	}
 }
 
 // linksToDbSpanRefs constructs jaeger span references based on parent span ID and span links.
@@ -332,28 +338,6 @@ func getTagsFromTraceState(traceState string) ([]dbmodel.KeyValue, bool) {
 		keyValues = append(keyValues, kv)
 	}
 	return keyValues, exists
-}
-
-func getTagsFromInstrumentationLibrary(il pcommon.InstrumentationScope) ([]dbmodel.KeyValue, bool) {
-	var keyValues []dbmodel.KeyValue
-	if ilName := il.Name(); ilName != "" {
-		kv := dbmodel.KeyValue{
-			Key:   conventions.AttributeOtelScopeName,
-			Value: ilName,
-			Type:  dbmodel.StringType,
-		}
-		keyValues = append(keyValues, kv)
-	}
-	if ilVersion := il.Version(); ilVersion != "" {
-		kv := dbmodel.KeyValue{
-			Key:   conventions.AttributeOtelScopeVersion,
-			Value: ilVersion,
-			Type:  dbmodel.StringType,
-		}
-		keyValues = append(keyValues, kv)
-	}
-
-	return keyValues, true
 }
 
 func refTypeFromLink(link ptrace.SpanLink) dbmodel.ReferenceType {

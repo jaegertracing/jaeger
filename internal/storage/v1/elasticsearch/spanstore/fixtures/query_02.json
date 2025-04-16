@@ -24,6 +24,17 @@
         }
       },
       {
+        "bool":{
+          "must":{
+            "regexp":{
+              "scope.tag.bat@foo":{
+                "value":"spo.*"
+              }
+            }
+          }
+        }
+      },
+      {
         "nested":{
           "path":"tags",
           "query":{
@@ -89,6 +100,31 @@
                 {
                   "regexp":{
                     "logs.fields.value":{
+                      "value":"spo.*"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "nested":{
+          "path":"scope.tags",
+          "query":{
+            "bool":{
+              "must":[
+                {
+                  "match":{
+                    "scope.tags.key":{
+                      "query":"bat.foo"
+                    }
+                  }
+                },
+                {
+                  "regexp":{
+                    "scope.tags.value":{
                       "value":"spo.*"
                     }
                   }
