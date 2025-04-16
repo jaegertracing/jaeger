@@ -39,6 +39,39 @@ func TestNewStore_DefaultConfig(t *testing.T) {
 	testTraces(t, expected2, traces2)
 }
 
+func TestWriteTraces_WriteTwoBatches(t *testing.T) {
+	store := NewStore(v1.Configuration{})
+	traceId := fromString(t, "00000000000000010000000000000000")
+	td1 := ptrace.NewTraces()
+	td1.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty().SetTraceID(traceId)
+	err := store.WriteTraces(context.Background(), td1)
+	require.NoError(t, err)
+	td2 := ptrace.NewTraces()
+	td2.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty().SetTraceID(traceId)
+	err = store.WriteTraces(context.Background(), td2)
+	require.NoError(t, err)
+	tenant := store.getTenant(tenancy.GetTenant(context.Background()))
+	assert.Equal(t, 2, tenant.traces[traceId].ResourceSpans().Len())
+}
+
+func TestWriteTraces_WriteTraceWithTwoResourceSpans(t *testing.T) {
+	store := NewStore(v1.Configuration{})
+	traceId := fromString(t, "00000000000000010000000000000000")
+	td := ptrace.NewTraces()
+	resourceSpans := td.ResourceSpans()
+	scopeSpan1 := resourceSpans.AppendEmpty().ScopeSpans().AppendEmpty()
+	scopeSpan1.Spans().AppendEmpty().SetTraceID(traceId)
+	scopeSpan1.Spans().AppendEmpty().SetTraceID(traceId)
+	scopeSpan2 := resourceSpans.AppendEmpty().ScopeSpans().AppendEmpty()
+	scopeSpan2.Spans().AppendEmpty().SetTraceID(traceId)
+	scopeSpan2.Spans().AppendEmpty().SetTraceID(traceId)
+	err := store.WriteTraces(context.Background(), td)
+	require.NoError(t, err)
+	tenant := store.getTenant(tenancy.GetTenant(context.Background()))
+	// All spans have same trace id, so output should be same as input (that is no reshuffling, effectively)
+	assert.Equal(t, td, tenant.traces[traceId])
+}
+
 func TestNewStore_TracesLimit(t *testing.T) {
 	maxTraces := 5
 	store := NewStore(v1.Configuration{
