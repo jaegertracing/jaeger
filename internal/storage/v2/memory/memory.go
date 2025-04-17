@@ -25,7 +25,7 @@ type Store struct {
 	perTenant     map[string]*Tenant
 }
 
-// NewStore creates an unbounded in-memory store
+// NewStore creates an in-memory store
 func NewStore(cfg v1.Configuration) *Store {
 	return &Store{
 		defaultConfig: cfg,
