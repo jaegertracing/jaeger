@@ -347,11 +347,8 @@ func TestDeepCopy(t *testing.T) {
 }
 
 func TestAutoUpdateStrategyWithFile(t *testing.T) {
-	tempFile, _ := os.CreateTemp("", "for_go_test_*.json")
+	tempFile, _ := os.Create(t.TempDir() + "for_go_test_*.json")
 	require.NoError(t, tempFile.Close())
-	defer func() {
-		require.NoError(t, os.Remove(tempFile.Name()))
-	}()
 
 	// copy known fixture content into temp file which we can later overwrite
 	srcFile, dstFile := "fixtures/strategies.json", tempFile.Name()
@@ -434,11 +431,8 @@ func TestAutoUpdateStrategyWithURL(t *testing.T) {
 }
 
 func TestAutoUpdateStrategyErrors(t *testing.T) {
-	tempFile, _ := os.CreateTemp("", "for_go_test_*.json")
+	tempFile, _ := os.Create(t.TempDir() + "for_go_test_*.json")
 	require.NoError(t, tempFile.Close())
-	defer func() {
-		_ = os.Remove(tempFile.Name())
-	}()
 
 	zapCore, logs := observer.New(zap.InfoLevel)
 	logger := zap.New(zapCore)

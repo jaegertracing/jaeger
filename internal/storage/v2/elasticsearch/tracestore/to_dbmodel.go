@@ -7,6 +7,8 @@
 package tracestore
 
 import (
+	"encoding/hex"
+
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
@@ -22,6 +24,7 @@ const (
 	statusOk         = "OK"
 	tagW3CTraceState = "w3c.tracestate"
 	tagHTTPStatusMsg = "http.status_message"
+	tagError         = "error"
 )
 
 // ToDBModel translates internal trace data into the DB Spans.
@@ -96,8 +99,15 @@ func appendTagsFromAttributes(dest []dbmodel.KeyValue, attrs pcommon.Map) []dbmo
 }
 
 func attributeToDbTag(key string, attr pcommon.Value) dbmodel.KeyValue {
-	// TODO why are all values being converted to strings?
-	tag := dbmodel.KeyValue{Key: key, Value: attr.AsString()}
+	var tag dbmodel.KeyValue
+	switch attr.Type() {
+	case pcommon.ValueTypeBytes:
+		tag = dbmodel.KeyValue{Key: key, Value: hex.EncodeToString(attr.Bytes().AsRaw())}
+	case pcommon.ValueTypeMap:
+		tag = dbmodel.KeyValue{Key: key, Value: attr.AsString()}
+	default:
+		tag = dbmodel.KeyValue{Key: key, Value: attr.AsRaw()}
+	}
 	switch attr.Type() {
 	case pcommon.ValueTypeStr:
 		tag.Type = dbmodel.StringType
@@ -120,15 +130,17 @@ func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, pr
 	parentSpanID := dbmodel.SpanID(span.ParentSpanID().String())
 	startTime := span.StartTimestamp().AsTime()
 	return dbmodel.Span{
-		TraceID:       traceID,
-		SpanID:        dbmodel.SpanID(span.SpanID().String()),
-		OperationName: span.Name(),
-		References:    linksToDbSpanRefs(span.Links(), parentSpanID, traceID),
-		StartTime:     model.TimeAsEpochMicroseconds(startTime),
-		Duration:      model.DurationAsMicroseconds(span.EndTimestamp().AsTime().Sub(startTime)),
-		Tags:          getDbSpanTags(span, libraryTags),
-		Logs:          spanEventsToDbSpanLogs(span.Events()),
-		Process:       process,
+		TraceID:         traceID,
+		SpanID:          dbmodel.SpanID(span.SpanID().String()),
+		OperationName:   span.Name(),
+		References:      linksToDbSpanRefs(span.Links(), parentSpanID, traceID),
+		StartTime:       model.TimeAsEpochMicroseconds(startTime),
+		StartTimeMillis: model.TimeAsEpochMicroseconds(startTime) / 1000,
+		Duration:        model.DurationAsMicroseconds(span.EndTimestamp().AsTime().Sub(startTime)),
+		Tags:            getDbSpanTags(span, libraryTags),
+		Logs:            spanEventsToDbSpanLogs(span.Events()),
+		Process:         process,
+		Flags:           span.Flags(),
 	}
 }
 
@@ -280,14 +292,13 @@ func getTagFromSpanKind(spanKind ptrace.SpanKind) (dbmodel.KeyValue, bool) {
 }
 
 func getTagFromStatusCode(statusCode ptrace.StatusCode) (dbmodel.KeyValue, bool) {
-	switch statusCode {
-	case ptrace.StatusCodeError:
+	if statusCode == ptrace.StatusCodeError {
 		return dbmodel.KeyValue{
-			Key:   conventions.OtelStatusCode,
-			Type:  dbmodel.StringType,
-			Value: statusError,
+			Key:   tagError,
+			Type:  dbmodel.BoolType,
+			Value: true,
 		}, true
-	case ptrace.StatusCodeOk:
+	} else if statusCode == ptrace.StatusCodeOk {
 		return dbmodel.KeyValue{
 			Key:   conventions.OtelStatusCode,
 			Type:  dbmodel.StringType,

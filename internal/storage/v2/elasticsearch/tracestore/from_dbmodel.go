@@ -8,6 +8,7 @@ package tracestore
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -92,6 +93,7 @@ func dbSpanToSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
 	span.SetTraceID(traceId)
 	span.SetSpanID(spanId)
 	span.SetName(dbSpan.OperationName)
+	span.SetFlags(dbSpan.Flags)
 
 	startTime := model.EpochMicrosecondsAsTime(dbSpan.StartTime)
 	span.SetStartTimestamp(pcommon.NewTimestampFromTime(startTime))
@@ -133,12 +135,19 @@ func dbTagsToAttributes(tags []dbmodel.KeyValue, attributes pcommon.Map) {
 	for _, tag := range tags {
 		tagValue, ok := tag.Value.(string)
 		if !ok {
-			// We have to do this as we are unsure that whether bool will be a string or a bool
-			tagBoolVal, boolOk := tag.Value.(bool)
-			if boolOk && tag.Type == dbmodel.BoolType {
-				attributes.PutBool(tag.Key, tagBoolVal)
-			} else {
-				attributes.PutStr(tag.Key, "Got non string inputValue for the key "+tag.Key)
+			switch tag.Type {
+			case dbmodel.Float64Type, dbmodel.Int64Type:
+				fromDBNumber(tag, attributes)
+			case dbmodel.BoolType:
+				v, ok := tag.Value.(bool)
+				if !ok {
+					recordTagInvalidTypeError(tag, attributes)
+				} else {
+					attributes.PutBool(tag.Key, v)
+				}
+			default:
+				// This means type is string/binary but value is of non string type, hence record the type error
+				recordTagInvalidTypeError(tag, attributes)
 			}
 			continue
 		}
@@ -179,6 +188,41 @@ func dbTagsToAttributes(tags []dbmodel.KeyValue, attributes pcommon.Map) {
 	}
 }
 
+func fromDBNumber(kv dbmodel.KeyValue, dest pcommon.Map) {
+	if kv.Type == dbmodel.Int64Type {
+		switch v := kv.Value.(type) {
+		case int64:
+			dest.PutInt(kv.Key, v)
+		case float64:
+			// This case is possible as unmarshalling the JSON converts every int value to float64
+			dest.PutInt(kv.Key, int64(v))
+		case json.Number:
+			n, err := v.Int64()
+			if err == nil {
+				dest.PutInt(kv.Key, n)
+			}
+		default:
+			recordTagInvalidTypeError(kv, dest)
+		}
+	} else if kv.Type == dbmodel.Float64Type {
+		switch v := kv.Value.(type) {
+		case float64:
+			dest.PutDouble(kv.Key, v)
+		case json.Number:
+			n, err := v.Float64()
+			if err == nil {
+				dest.PutDouble(kv.Key, n)
+			}
+		default:
+			recordTagInvalidTypeError(kv, dest)
+		}
+	}
+}
+
+func recordTagInvalidTypeError(kv dbmodel.KeyValue, dest pcommon.Map) {
+	dest.PutStr(kv.Key, fmt.Sprintf("invalid %s type in %+v", string(kv.Type), kv.Value))
+}
+
 func recordTagConversionError(kv dbmodel.KeyValue, err error, dest pcommon.Map) {
 	dest.PutStr(kv.Key, fmt.Sprintf("Can't convert the type %s for the key %s: %v", string(kv.Type), kv.Key, err))
 }
@@ -188,6 +232,19 @@ func setSpanStatus(attrs pcommon.Map, span ptrace.Span) {
 	statusCode := ptrace.StatusCodeUnset
 	statusMessage := ""
 	statusExists := false
+
+	if errorVal, ok := attrs.Get(tagError); ok && errorVal.Type() == pcommon.ValueTypeBool {
+		if errorVal.Bool() {
+			statusCode = ptrace.StatusCodeError
+			attrs.Remove(tagError)
+			statusExists = true
+			if desc, ok := extractStatusDescFromAttr(attrs); ok {
+				statusMessage = desc
+			} else if descAttr, ok := attrs.Get(tagHTTPStatusMsg); ok {
+				statusMessage = descAttr.Str()
+			}
+		}
+	}
 
 	if codeAttr, ok := attrs.Get(conventions.OtelStatusCode); ok {
 		if !statusExists {
@@ -335,7 +392,7 @@ func dbSpanLogsToSpanEvents(logs []dbmodel.Log, events ptrace.SpanEventSlice) {
 		attrs := event.Attributes()
 		attrs.EnsureCapacity(len(log.Fields))
 		dbTagsToAttributes(log.Fields, attrs)
-		if name, ok := attrs.Get(eventNameAttr); ok {
+		if name, ok := attrs.Get(eventNameAttr); ok && name.Type() == pcommon.ValueTypeStr {
 			event.SetName(name.Str())
 			attrs.Remove(eventNameAttr)
 		}

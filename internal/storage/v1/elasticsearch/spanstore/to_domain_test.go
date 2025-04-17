@@ -163,10 +163,13 @@ func TestFailureBadLogs(t *testing.T) {
 
 func TestRevertKeyValueOfType(t *testing.T) {
 	tests := []struct {
-		kv  *dbmodel.KeyValue
-		err string
+		name  string
+		kv    *dbmodel.KeyValue
+		err   string
+		outKv model.KeyValue
 	}{
 		{
+			name: "not a valid ValueType string",
 			kv: &dbmodel.KeyValue{
 				Key:   "sneh",
 				Type:  "badType",
@@ -175,22 +178,121 @@ func TestRevertKeyValueOfType(t *testing.T) {
 			err: "not a valid ValueType string",
 		},
 		{
-			kv:  &dbmodel.KeyValue{},
-			err: "invalid nil Value",
+			name: "invalid nil Value",
+			kv:   &dbmodel.KeyValue{},
+			err:  "invalid nil Value",
 		},
 		{
+			name: "right int value",
 			kv: &dbmodel.KeyValue{
+				Key:   "int-val",
+				Type:  dbmodel.Int64Type,
+				Value: int64(123),
+			},
+			outKv: model.KeyValue{
+				Key:    "int-val",
+				VInt64: 123,
+				VType:  2,
+			},
+		},
+		{
+			name: "right int float value",
+			kv: &dbmodel.KeyValue{
+				Key:   "int-val",
+				Type:  dbmodel.Int64Type,
+				Value: float64(123),
+			},
+			outKv: model.KeyValue{
+				Key:    "int-val",
+				VInt64: 123,
+				VType:  2,
+			},
+		},
+		{
+			name: "right int json number",
+			kv: &dbmodel.KeyValue{
+				Key:   "int-val",
+				Type:  dbmodel.Int64Type,
+				Value: json.Number("123"),
+			},
+			outKv: model.KeyValue{
+				Key:    "int-val",
+				VInt64: 123,
+				VType:  2,
+			},
+		},
+		{
+			name: "right float value",
+			kv: &dbmodel.KeyValue{
+				Key:   "float-val",
+				Type:  dbmodel.Float64Type,
+				Value: 123.4,
+			},
+			outKv: model.KeyValue{
+				Key:      "float-val",
+				VFloat64: 123.4,
+				VType:    3,
+			},
+		},
+		{
+			name: "right float json number",
+			kv: &dbmodel.KeyValue{
+				Key:   "float-val",
+				Type:  dbmodel.Float64Type,
+				Value: json.Number("123.4"),
+			},
+			outKv: model.KeyValue{
+				Key:      "float-val",
+				VFloat64: 123.4,
+				VType:    3,
+			},
+		},
+		{
+			name: "wrong int64 value",
+			kv: &dbmodel.KeyValue{
+				Key:   "int-val",
+				Type:  dbmodel.Int64Type,
+				Value: true,
+			},
+			err: "invalid int64 type in true",
+		},
+		{
+			name: "wrong float64 value",
+			kv: &dbmodel.KeyValue{
+				Key:   "float-val",
+				Type:  dbmodel.Float64Type,
+				Value: true,
+			},
+			err: "invalid float64 type in true",
+		},
+		{
+			name: "wrong bool value",
+			kv: &dbmodel.KeyValue{
+				Key:   "bool-val",
+				Type:  dbmodel.BoolType,
+				Value: 1.23,
+			},
+			err: "invalid bool type in 1.23",
+		},
+		{
+			name: "wrong string value",
+			kv: &dbmodel.KeyValue{
+				Key:   "string-val",
+				Type:  dbmodel.StringType,
 				Value: 123,
 			},
-			err: "non-string Value of type",
+			err: "invalid string type in 123",
 		},
 	}
 	td := ToDomain{}
 	for _, test := range tests {
-		t.Run(test.err, func(t *testing.T) {
+		t.Run(test.name, func(t *testing.T) {
 			tag := test.kv
-			_, err := td.convertKeyValue(tag)
-			assert.ErrorContains(t, err, test.err)
+			out, err := td.convertKeyValue(tag)
+			if test.err != "" {
+				require.ErrorContains(t, err, test.err)
+			}
+			assert.Equal(t, test.outKv, out)
 		})
 	}
 }

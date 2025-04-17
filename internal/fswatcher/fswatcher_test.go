@@ -76,11 +76,12 @@ func TestFSWatcherAddFiles(t *testing.T) {
 }
 
 func TestFSWatcherWithMultipleFiles(t *testing.T) {
-	testFile1, err := os.CreateTemp("", "")
+	tempDir := t.TempDir()
+	testFile1, err := os.Create(tempDir + "test-file-1")
 	require.NoError(t, err)
 	defer testFile1.Close()
 
-	testFile2, err := os.CreateTemp("", "")
+	testFile2, err := os.Create(tempDir + "test-file-2")
 	require.NoError(t, err)
 	defer testFile2.Close()
 

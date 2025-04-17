@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
-	p2json "github.com/jaegertracing/jaeger/internal/converter/json"
+	p2json "github.com/jaegertracing/jaeger/internal/uimodel/converter/v1/json"
 )
 
 var testResponse = &api_v2.SamplingStrategyResponse{

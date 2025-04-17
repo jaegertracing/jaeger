@@ -6,8 +6,6 @@ package v1adapter
 import (
 	"context"
 
-	jaegerTranslator "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
-
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -21,13 +19,7 @@ type SpanWriter struct {
 	traceWriter tracestore.Writer
 }
 
-func NewSpanWriter(traceWriter tracestore.Writer) *SpanWriter {
-	return &SpanWriter{
-		traceWriter: traceWriter,
-	}
-}
-
 func (sw *SpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
-	traces, _ := jaegerTranslator.ProtoToTraces([]*model.Batch{{Spans: []*model.Span{span}}})
+	traces := V1BatchesToTraces([]*model.Batch{{Spans: []*model.Span{span}}})
 	return sw.traceWriter.WriteTraces(ctx, traces)
 }
