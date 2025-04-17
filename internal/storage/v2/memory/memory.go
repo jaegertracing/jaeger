@@ -12,11 +12,9 @@ import (
 	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
 
 	v1 "github.com/jaegertracing/jaeger/internal/storage/v1/memory"
-	v2api "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
-
-const noServiceName = "OTLPResourceNoServiceName"
 
 // Store is an in-memory store of traces
 type Store struct {
@@ -27,74 +25,11 @@ type Store struct {
 	perTenant     map[string]*Tenant
 }
 
-// Tenant is an in-memory store of traces for a single tenant
-type Tenant struct {
-	sync.RWMutex
-	ids        []pcommon.TraceID // ring buffer used to evict oldest traces
-	traces     map[pcommon.TraceID]ptrace.Traces
-	services   map[string]struct{}
-	operations map[string]map[v2api.Operation]struct{}
-	config     *v1.Configuration
-	evict      int // position in ids[] of the last evicted trace
-}
-
-func (t *Tenant) storeService(serviceName string) {
-	t.Lock()
-	defer t.Unlock()
-	t.services[serviceName] = struct{}{}
-}
-
-func (t *Tenant) storeOperation(serviceName string, operation v2api.Operation) {
-	t.Lock()
-	defer t.Unlock()
-	if _, ok := t.operations[serviceName]; !ok {
-		t.operations[serviceName] = make(map[v2api.Operation]struct{})
-		t.operations[serviceName][operation] = struct{}{}
-	} else {
-		t.operations[serviceName][operation] = struct{}{}
-	}
-}
-
-func (t *Tenant) storeTraces(traceId pcommon.TraceID, resourceSpanSlice ptrace.ResourceSpansSlice) {
-	t.Lock()
-	defer t.Unlock()
-	if foundTraces, ok := t.traces[traceId]; !ok {
-		traces := ptrace.NewTraces()
-		resourceSpanSlice.MoveAndAppendTo(traces.ResourceSpans())
-		t.traces[traceId] = traces
-		// if we have a limit, let's cleanup the oldest traces
-		if t.config.MaxTraces > 0 {
-			// we only have to deal with this slice if we have a limit
-			t.evict = (t.evict + 1) % t.config.MaxTraces
-			// do we have an item already on this position? if so, we are overriding it,
-			// and we need to remove from the map
-			if !t.ids[t.evict].IsEmpty() {
-				delete(t.traces, t.ids[t.evict])
-			}
-			// update the ring with the trace id
-			t.ids[t.evict] = traceId
-		}
-	} else {
-		resourceSpanSlice.MoveAndAppendTo(foundTraces.ResourceSpans())
-	}
-}
-
 // NewStore creates an unbounded in-memory store
 func NewStore(cfg v1.Configuration) *Store {
 	return &Store{
 		defaultConfig: cfg,
 		perTenant:     make(map[string]*Tenant),
-	}
-}
-
-func newTenant(cfg *v1.Configuration) *Tenant {
-	return &Tenant{
-		ids:        make([]pcommon.TraceID, cfg.MaxTraces),
-		traces:     map[pcommon.TraceID]ptrace.Traces{},
-		services:   map[string]struct{}{},
-		operations: map[string]map[v2api.Operation]struct{}{},
-		config:     cfg,
-		evict:      -1,
 	}
 }
 
@@ -123,10 +58,13 @@ func (st *Store) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	for traceId, sameTraceIDResourceSpan := range resourceSpansByTraceId {
 		for _, resourceSpan := range sameTraceIDResourceSpan.All() {
 			serviceName := getServiceNameFromResource(resourceSpan.Resource())
+			if serviceName == "" {
+				continue
+			}
 			m.storeService(serviceName)
 			for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
 				for _, span := range scopeSpan.Spans().All() {
-					operation := v2api.Operation{
+					operation := tracestore.Operation{
 						Name:     span.Name(),
 						SpanKind: span.Kind().String(),
 					}
@@ -145,27 +83,26 @@ func (st *Store) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 // For TraceID1: [ResourceSpan1:[ScopeSpan1:[Span(TraceID1)],ScopeSpan2:[Span(TraceID1)], ResourceSpan2:[ScopeSpan1:[Span(TraceID1)],ScopeSpan2:[Span(TraceID1)]
 // A similar structure will be there for TraceID2
 func reshuffleResourceSpans(resourceSpanSlice ptrace.ResourceSpansSlice) map[pcommon.TraceID]ptrace.ResourceSpansSlice {
-	sameTraceIDResourceSpans := make(map[pcommon.TraceID]ptrace.ResourceSpansSlice)
+	resourceSpansByTraceId := make(map[pcommon.TraceID]ptrace.ResourceSpansSlice)
 	for _, resourceSpan := range resourceSpanSlice.All() {
-		sameTraceIDScopeSpans := reshuffleScopeSpans(resourceSpan.ScopeSpans())
+		scopeSpansByTraceId := reshuffleScopeSpans(resourceSpan.ScopeSpans())
 		// All the  scope spans here will have the same resource as of resourceSpan. Therefore:
 		// Copy the resource to an empty resourceSpan. After this, append the scope spans with same
 		// trace id to this empty resource span. Finally move this resource span to the resourceSpanSlice
 		// containing other resource spans and having same trace id.
-		for traceId, sameTraceIDsScopeSpansSlice := range sameTraceIDScopeSpans {
-			sameTraceIDResourceSpan := ptrace.NewResourceSpans()
-			resourceSpan.Resource().CopyTo(sameTraceIDResourceSpan.Resource())
-			sameTraceIDsScopeSpansSlice.MoveAndAppendTo(sameTraceIDResourceSpan.ScopeSpans())
-			if sameTraceIDResourceSpanSlice, ok := sameTraceIDResourceSpans[traceId]; ok {
-				sameTraceIDResourceSpan.MoveTo(sameTraceIDResourceSpanSlice.AppendEmpty())
-			} else {
-				resourceSpanSliceByTraceId := ptrace.NewResourceSpansSlice()
-				sameTraceIDResourceSpan.MoveTo(resourceSpanSliceByTraceId.AppendEmpty())
-				sameTraceIDResourceSpans[traceId] = resourceSpanSliceByTraceId
+		for traceId, scopeSpansSlice := range scopeSpansByTraceId {
+			resourceSpanByTraceId := ptrace.NewResourceSpans()
+			resourceSpan.Resource().CopyTo(resourceSpanByTraceId.Resource())
+			scopeSpansSlice.MoveAndAppendTo(resourceSpanByTraceId.ScopeSpans())
+			resourceSpansSlice, ok := resourceSpansByTraceId[traceId]
+			if !ok {
+				resourceSpansSlice = ptrace.NewResourceSpansSlice()
+				resourceSpansByTraceId[traceId] = resourceSpansSlice
 			}
+			resourceSpanByTraceId.MoveTo(resourceSpansSlice.AppendEmpty())
 		}
 	}
-	return sameTraceIDResourceSpans
+	return resourceSpansByTraceId
 }
 
 // reshuffleScopeSpans reshuffles all the scope spans of a resource span to group
@@ -174,48 +111,41 @@ func reshuffleResourceSpans(resourceSpanSlice ptrace.ResourceSpansSlice) map[pco
 // trace id to this empty scope span. Finally move this scope span to the scope span
 // slice containing other scope spans and having same trace id.
 func reshuffleScopeSpans(scopeSpanSlice ptrace.ScopeSpansSlice) map[pcommon.TraceID]ptrace.ScopeSpansSlice {
-	sameTraceIDScopeSpans := make(map[pcommon.TraceID]ptrace.ScopeSpansSlice)
+	scopeSpansByTraceId := make(map[pcommon.TraceID]ptrace.ScopeSpansSlice)
 	for _, scopeSpan := range scopeSpanSlice.All() {
-		sameTraceIDSpans := reshuffleSpans(scopeSpan.Spans())
-		for traceId, sameTraceIDSpanSlice := range sameTraceIDSpans {
-			sameTraceIDScopeSpan := ptrace.NewScopeSpans()
-			scopeSpan.Scope().CopyTo(sameTraceIDScopeSpan.Scope())
-			sameTraceIDSpanSlice.MoveAndAppendTo(sameTraceIDScopeSpan.Spans())
-			if sameTraceIDScopeSpanSlice, ok := sameTraceIDScopeSpans[traceId]; ok {
-				sameTraceIDScopeSpan.MoveTo(sameTraceIDScopeSpanSlice.AppendEmpty())
-			} else {
-				scopeSpansByTraceId := ptrace.NewScopeSpansSlice()
-				sameTraceIDScopeSpan.MoveTo(scopeSpansByTraceId.AppendEmpty())
-				sameTraceIDScopeSpans[traceId] = scopeSpansByTraceId
+		spansByTraceId := reshuffleSpans(scopeSpan.Spans())
+		for traceId, spansSlice := range spansByTraceId {
+			scopeSpanByTraceId := ptrace.NewScopeSpans()
+			scopeSpan.Scope().CopyTo(scopeSpanByTraceId.Scope())
+			spansSlice.MoveAndAppendTo(scopeSpanByTraceId.Spans())
+			scopeSpansSlice, ok := scopeSpansByTraceId[traceId]
+			if !ok {
+				scopeSpansSlice = ptrace.NewScopeSpansSlice()
+				scopeSpansByTraceId[traceId] = scopeSpansSlice
 			}
+			scopeSpanByTraceId.MoveTo(scopeSpansSlice.AppendEmpty())
 		}
 	}
-	return sameTraceIDScopeSpans
+	return scopeSpansByTraceId
 }
 
 func reshuffleSpans(spanSlice ptrace.SpanSlice) map[pcommon.TraceID]ptrace.SpanSlice {
-	sameTraceIDSpans := make(map[pcommon.TraceID]ptrace.SpanSlice)
+	spansByTraceId := make(map[pcommon.TraceID]ptrace.SpanSlice)
 	for _, span := range spanSlice.All() {
-		// Collect all the spans with same trace id within the same scope span sameTraceIDSpanSlice
-		if sameTraceIDSpanSlice, ok := sameTraceIDSpans[span.TraceID()]; ok {
-			span.CopyTo(sameTraceIDSpanSlice.AppendEmpty())
-		} else {
-			spanByTraceId := ptrace.NewSpanSlice()
-			span.CopyTo(spanByTraceId.AppendEmpty())
-			sameTraceIDSpans[span.TraceID()] = spanByTraceId
+		spansSlice, ok := spansByTraceId[span.TraceID()]
+		if !ok {
+			spansSlice = ptrace.NewSpanSlice()
+			spansByTraceId[span.TraceID()] = spansSlice
 		}
+		span.CopyTo(spansSlice.AppendEmpty())
 	}
-	return sameTraceIDSpans
+	return spansByTraceId
 }
 
 func getServiceNameFromResource(resource pcommon.Resource) string {
 	val, ok := resource.Attributes().Get(conventions.AttributeServiceName)
 	if !ok {
-		return noServiceName
+		return ""
 	}
-	serviceName := val.Str()
-	if serviceName == "" {
-		return noServiceName
-	}
-	return serviceName
+	return val.Str()
 }
