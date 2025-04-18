@@ -10,7 +10,7 @@ package mocks
 import (
 	context "context"
 
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	elasticsearch "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	elastic "github.com/olivere/elastic"
 
 	mock "github.com/stretchr/testify/mock"
@@ -22,19 +22,19 @@ type SearchService struct {
 }
 
 // Aggregation provides a mock function with given fields: name, aggregation
-func (_m *SearchService) Aggregation(name string, aggregation elastic.Aggregation) es.SearchService {
+func (_m *SearchService) Aggregation(name string, aggregation elastic.Aggregation) elasticsearch.SearchService {
 	ret := _m.Called(name, aggregation)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Aggregation")
 	}
 
-	var r0 es.SearchService
-	if rf, ok := ret.Get(0).(func(string, elastic.Aggregation) es.SearchService); ok {
+	var r0 elasticsearch.SearchService
+	if rf, ok := ret.Get(0).(func(string, elastic.Aggregation) elasticsearch.SearchService); ok {
 		r0 = rf(name, aggregation)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(es.SearchService)
+			r0 = ret.Get(0).(elasticsearch.SearchService)
 		}
 	}
 
@@ -72,19 +72,19 @@ func (_m *SearchService) Do(ctx context.Context) (*elastic.SearchResult, error) 
 }
 
 // IgnoreUnavailable provides a mock function with given fields: ignoreUnavailable
-func (_m *SearchService) IgnoreUnavailable(ignoreUnavailable bool) es.SearchService {
+func (_m *SearchService) IgnoreUnavailable(ignoreUnavailable bool) elasticsearch.SearchService {
 	ret := _m.Called(ignoreUnavailable)
 
 	if len(ret) == 0 {
 		panic("no return value specified for IgnoreUnavailable")
 	}
 
-	var r0 es.SearchService
-	if rf, ok := ret.Get(0).(func(bool) es.SearchService); ok {
+	var r0 elasticsearch.SearchService
+	if rf, ok := ret.Get(0).(func(bool) elasticsearch.SearchService); ok {
 		r0 = rf(ignoreUnavailable)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(es.SearchService)
+			r0 = ret.Get(0).(elasticsearch.SearchService)
 		}
 	}
 
@@ -92,19 +92,19 @@ func (_m *SearchService) IgnoreUnavailable(ignoreUnavailable bool) es.SearchServ
 }
 
 // Query provides a mock function with given fields: query
-func (_m *SearchService) Query(query elastic.Query) es.SearchService {
+func (_m *SearchService) Query(query elastic.Query) elasticsearch.SearchService {
 	ret := _m.Called(query)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Query")
 	}
 
-	var r0 es.SearchService
-	if rf, ok := ret.Get(0).(func(elastic.Query) es.SearchService); ok {
+	var r0 elasticsearch.SearchService
+	if rf, ok := ret.Get(0).(func(elastic.Query) elasticsearch.SearchService); ok {
 		r0 = rf(query)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(es.SearchService)
+			r0 = ret.Get(0).(elasticsearch.SearchService)
 		}
 	}
 
@@ -112,19 +112,19 @@ func (_m *SearchService) Query(query elastic.Query) es.SearchService {
 }
 
 // Size provides a mock function with given fields: size
-func (_m *SearchService) Size(size int) es.SearchService {
+func (_m *SearchService) Size(size int) elasticsearch.SearchService {
 	ret := _m.Called(size)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Size")
 	}
 
-	var r0 es.SearchService
-	if rf, ok := ret.Get(0).(func(int) es.SearchService); ok {
+	var r0 elasticsearch.SearchService
+	if rf, ok := ret.Get(0).(func(int) elasticsearch.SearchService); ok {
 		r0 = rf(size)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(es.SearchService)
+			r0 = ret.Get(0).(elasticsearch.SearchService)
 		}
 	}
 

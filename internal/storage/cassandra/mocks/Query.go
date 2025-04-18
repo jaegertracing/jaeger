@@ -8,7 +8,7 @@
 package mocks
 
 import (
-	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
+	cassandra "github.com/jaegertracing/jaeger/internal/storage/cassandra"
 	mock "github.com/stretchr/testify/mock"
 )
 
