@@ -132,9 +132,9 @@ func createGRPCServer(
 }
 
 // Start gRPC server concurrently
-func (s *Server) Start() error {
+func (s *Server) Start(ctx context.Context) error {
 	var err error
-	s.grpcConn, err = s.opts.NetAddr.Listen(context.Background())
+	s.grpcConn, err = s.opts.NetAddr.Listen(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to listen on gRPC port: %w", err)
 	}

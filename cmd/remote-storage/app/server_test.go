@@ -70,7 +70,7 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 	factory = &fakeFactory{}
 	s, err := createServer(factory)
 	require.NoError(t, err)
-	require.NoError(t, s.Start())
+	require.NoError(t, s.Start(context.Background()))
 	validateGRPCServer(t, s.grpcConn.Addr().String())
 	require.NoError(t, s.grpcConn.Close())
 }
@@ -85,7 +85,7 @@ func TestServerStart_BadPortErrors(t *testing.T) {
 			},
 		},
 	}
-	require.Error(t, srv.Start())
+	require.Error(t, srv.Start(context.Background()))
 }
 
 type fakeFactory struct {
@@ -376,7 +376,7 @@ func TestServerGRPCTLS(t *testing.T) {
 				telset,
 			)
 			require.NoError(t, err)
-			require.NoError(t, server.Start())
+			require.NoError(t, server.Start(context.Background()))
 
 			var clientError error
 			var client *grpcClient
@@ -428,7 +428,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	require.NoError(t, server.Start())
+	require.NoError(t, server.Start(context.Background()))
 
 	const line = "Starting GRPC server"
 	message := logs.FilterMessage(line)
