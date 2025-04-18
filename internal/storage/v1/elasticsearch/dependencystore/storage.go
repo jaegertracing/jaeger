@@ -14,7 +14,6 @@ import (
 	"github.com/olivere/elastic"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/dependencystore/dbmodel"
@@ -24,6 +23,16 @@ const (
 	dependencyType          = "dependencies"
 	dependencyIndexBaseName = "jaeger-dependencies-"
 )
+
+// CoreDependencyStore is a DB Level abstraction which directly read/write dependencies into ElasticSearch
+type CoreDependencyStore interface {
+	// WriteDependencies write dependencies to Elasticsearch
+	WriteDependencies(ts time.Time, dependencies []dbmodel.DependencyLink) error
+	// CreateTemplates creates index templates.
+	CreateTemplates(dependenciesTemplate string) error
+	// GetDependencies returns all interservice dependencies
+	GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]dbmodel.DependencyLink, error)
+}
 
 // DependencyStore handles all queries and insertions to ElasticSearch dependencies
 type DependencyStore struct {
@@ -57,8 +66,8 @@ func NewDependencyStore(p Params) *DependencyStore {
 	}
 }
 
-// WriteDependencies implements dependencystore.Writer#WriteDependencies.
-func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.DependencyLink) error {
+// WriteDependencies write dependencies to Elasticsearch
+func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []dbmodel.DependencyLink) error {
 	writeIndexName := s.getWriteIndex(ts)
 	s.writeDependencies(writeIndexName, ts, dependencies)
 	return nil
@@ -73,16 +82,16 @@ func (s *DependencyStore) CreateTemplates(dependenciesTemplate string) error {
 	return nil
 }
 
-func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, dependencies []model.DependencyLink) {
+func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, dependencies []dbmodel.DependencyLink) {
 	s.client().Index().Index(indexName).Type(dependencyType).
 		BodyJson(&dbmodel.TimeDependencies{
 			Timestamp:    ts,
-			Dependencies: dbmodel.FromDomainDependencies(dependencies),
+			Dependencies: dependencies,
 		}).Add()
 }
 
 // GetDependencies returns all interservice dependencies
-func (s *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+func (s *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]dbmodel.DependencyLink, error) {
 	indices := s.getReadIndices(endTs, lookback)
 	searchResult, err := s.client().Search(indices...).
 		Size(s.maxDocCount).
@@ -103,7 +112,7 @@ func (s *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, 
 		}
 		retDependencies = append(retDependencies, tToD.Dependencies...)
 	}
-	return dbmodel.ToDomainDependencies(retDependencies), nil
+	return retDependencies, nil
 }
 
 func buildTSQuery(endTs time.Time, lookback time.Duration) elastic.Query {
