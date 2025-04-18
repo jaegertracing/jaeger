@@ -21,6 +21,14 @@ type IndicesCreateService struct {
 	mock.Mock
 }
 
+type IndicesCreateService_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *IndicesCreateService) EXPECT() *IndicesCreateService_Expecter {
+	return &IndicesCreateService_Expecter{mock: &_m.Mock}
+}
+
 // Body provides a mock function with given fields: mapping
 func (_m *IndicesCreateService) Body(mapping string) elasticsearch.IndicesCreateService {
 	ret := _m.Called(mapping)
@@ -39,6 +47,34 @@ func (_m *IndicesCreateService) Body(mapping string) elasticsearch.IndicesCreate
 	}
 
 	return r0
+}
+
+// IndicesCreateService_Body_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Body'
+type IndicesCreateService_Body_Call struct {
+	*mock.Call
+}
+
+// Body is a helper method to define mock.On call
+//   - mapping string
+func (_e *IndicesCreateService_Expecter) Body(mapping interface{}) *IndicesCreateService_Body_Call {
+	return &IndicesCreateService_Body_Call{Call: _e.mock.On("Body", mapping)}
+}
+
+func (_c *IndicesCreateService_Body_Call) Run(run func(mapping string)) *IndicesCreateService_Body_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *IndicesCreateService_Body_Call) Return(_a0 elasticsearch.IndicesCreateService) *IndicesCreateService_Body_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *IndicesCreateService_Body_Call) RunAndReturn(run func(string) elasticsearch.IndicesCreateService) *IndicesCreateService_Body_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Do provides a mock function with given fields: ctx
@@ -69,6 +105,34 @@ func (_m *IndicesCreateService) Do(ctx context.Context) (*elastic.IndicesCreateR
 	}
 
 	return r0, r1
+}
+
+// IndicesCreateService_Do_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Do'
+type IndicesCreateService_Do_Call struct {
+	*mock.Call
+}
+
+// Do is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *IndicesCreateService_Expecter) Do(ctx interface{}) *IndicesCreateService_Do_Call {
+	return &IndicesCreateService_Do_Call{Call: _e.mock.On("Do", ctx)}
+}
+
+func (_c *IndicesCreateService_Do_Call) Run(run func(ctx context.Context)) *IndicesCreateService_Do_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context))
+	})
+	return _c
+}
+
+func (_c *IndicesCreateService_Do_Call) Return(_a0 *elastic.IndicesCreateResult, _a1 error) *IndicesCreateService_Do_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *IndicesCreateService_Do_Call) RunAndReturn(run func(context.Context) (*elastic.IndicesCreateResult, error)) *IndicesCreateService_Do_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewIndicesCreateService creates a new instance of IndicesCreateService. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

@@ -17,6 +17,14 @@ type SpanProcessor struct {
 	mock.Mock
 }
 
+type SpanProcessor_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *SpanProcessor) EXPECT() *SpanProcessor_Expecter {
+	return &SpanProcessor_Expecter{mock: &_m.Mock}
+}
+
 // Close provides a mock function with no fields
 func (_m *SpanProcessor) Close() error {
 	ret := _m.Called()
@@ -35,6 +43,33 @@ func (_m *SpanProcessor) Close() error {
 	return r0
 }
 
+// SpanProcessor_Close_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Close'
+type SpanProcessor_Close_Call struct {
+	*mock.Call
+}
+
+// Close is a helper method to define mock.On call
+func (_e *SpanProcessor_Expecter) Close() *SpanProcessor_Close_Call {
+	return &SpanProcessor_Close_Call{Call: _e.mock.On("Close")}
+}
+
+func (_c *SpanProcessor_Close_Call) Run(run func()) *SpanProcessor_Close_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *SpanProcessor_Close_Call) Return(_a0 error) *SpanProcessor_Close_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *SpanProcessor_Close_Call) RunAndReturn(run func() error) *SpanProcessor_Close_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Process provides a mock function with given fields: input
 func (_m *SpanProcessor) Process(input processor.Message) error {
 	ret := _m.Called(input)
@@ -51,6 +86,34 @@ func (_m *SpanProcessor) Process(input processor.Message) error {
 	}
 
 	return r0
+}
+
+// SpanProcessor_Process_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Process'
+type SpanProcessor_Process_Call struct {
+	*mock.Call
+}
+
+// Process is a helper method to define mock.On call
+//   - input processor.Message
+func (_e *SpanProcessor_Expecter) Process(input interface{}) *SpanProcessor_Process_Call {
+	return &SpanProcessor_Process_Call{Call: _e.mock.On("Process", input)}
+}
+
+func (_c *SpanProcessor_Process_Call) Run(run func(input processor.Message)) *SpanProcessor_Process_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(processor.Message))
+	})
+	return _c
+}
+
+func (_c *SpanProcessor_Process_Call) Return(_a0 error) *SpanProcessor_Process_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *SpanProcessor_Process_Call) RunAndReturn(run func(processor.Message) error) *SpanProcessor_Process_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewSpanProcessor creates a new instance of SpanProcessor. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

@@ -20,6 +20,14 @@ type IndicesDeleteService struct {
 	mock.Mock
 }
 
+type IndicesDeleteService_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *IndicesDeleteService) EXPECT() *IndicesDeleteService_Expecter {
+	return &IndicesDeleteService_Expecter{mock: &_m.Mock}
+}
+
 // Do provides a mock function with given fields: ctx
 func (_m *IndicesDeleteService) Do(ctx context.Context) (*elastic.IndicesDeleteResponse, error) {
 	ret := _m.Called(ctx)
@@ -48,6 +56,34 @@ func (_m *IndicesDeleteService) Do(ctx context.Context) (*elastic.IndicesDeleteR
 	}
 
 	return r0, r1
+}
+
+// IndicesDeleteService_Do_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Do'
+type IndicesDeleteService_Do_Call struct {
+	*mock.Call
+}
+
+// Do is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *IndicesDeleteService_Expecter) Do(ctx interface{}) *IndicesDeleteService_Do_Call {
+	return &IndicesDeleteService_Do_Call{Call: _e.mock.On("Do", ctx)}
+}
+
+func (_c *IndicesDeleteService_Do_Call) Run(run func(ctx context.Context)) *IndicesDeleteService_Do_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context))
+	})
+	return _c
+}
+
+func (_c *IndicesDeleteService_Do_Call) Return(_a0 *elastic.IndicesDeleteResponse, _a1 error) *IndicesDeleteService_Do_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *IndicesDeleteService_Do_Call) RunAndReturn(run func(context.Context) (*elastic.IndicesDeleteResponse, error)) *IndicesDeleteService_Do_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewIndicesDeleteService creates a new instance of IndicesDeleteService. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

@@ -1,4 +1,4 @@
-with-expecter: false
+with-expecter: true
 disable-version-string: true
 outpkg: "mocks"
 dir: "{{.InterfaceDir}}/mocks/"

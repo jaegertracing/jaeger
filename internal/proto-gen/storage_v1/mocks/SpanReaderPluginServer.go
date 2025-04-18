@@ -19,6 +19,14 @@ type SpanReaderPluginServer struct {
 	mock.Mock
 }
 
+type SpanReaderPluginServer_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *SpanReaderPluginServer) EXPECT() *SpanReaderPluginServer_Expecter {
+	return &SpanReaderPluginServer_Expecter{mock: &_m.Mock}
+}
+
 // FindTraceIDs provides a mock function with given fields: _a0, _a1
 func (_m *SpanReaderPluginServer) FindTraceIDs(_a0 context.Context, _a1 *storage_v1.FindTraceIDsRequest) (*storage_v1.FindTraceIDsResponse, error) {
 	ret := _m.Called(_a0, _a1)
@@ -49,6 +57,35 @@ func (_m *SpanReaderPluginServer) FindTraceIDs(_a0 context.Context, _a1 *storage
 	return r0, r1
 }
 
+// SpanReaderPluginServer_FindTraceIDs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindTraceIDs'
+type SpanReaderPluginServer_FindTraceIDs_Call struct {
+	*mock.Call
+}
+
+// FindTraceIDs is a helper method to define mock.On call
+//   - _a0 context.Context
+//   - _a1 *storage_v1.FindTraceIDsRequest
+func (_e *SpanReaderPluginServer_Expecter) FindTraceIDs(_a0 interface{}, _a1 interface{}) *SpanReaderPluginServer_FindTraceIDs_Call {
+	return &SpanReaderPluginServer_FindTraceIDs_Call{Call: _e.mock.On("FindTraceIDs", _a0, _a1)}
+}
+
+func (_c *SpanReaderPluginServer_FindTraceIDs_Call) Run(run func(_a0 context.Context, _a1 *storage_v1.FindTraceIDsRequest)) *SpanReaderPluginServer_FindTraceIDs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*storage_v1.FindTraceIDsRequest))
+	})
+	return _c
+}
+
+func (_c *SpanReaderPluginServer_FindTraceIDs_Call) Return(_a0 *storage_v1.FindTraceIDsResponse, _a1 error) *SpanReaderPluginServer_FindTraceIDs_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SpanReaderPluginServer_FindTraceIDs_Call) RunAndReturn(run func(context.Context, *storage_v1.FindTraceIDsRequest) (*storage_v1.FindTraceIDsResponse, error)) *SpanReaderPluginServer_FindTraceIDs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // FindTraces provides a mock function with given fields: _a0, _a1
 func (_m *SpanReaderPluginServer) FindTraces(_a0 *storage_v1.FindTracesRequest, _a1 storage_v1.SpanReaderPlugin_FindTracesServer) error {
 	ret := _m.Called(_a0, _a1)
@@ -65,6 +102,35 @@ func (_m *SpanReaderPluginServer) FindTraces(_a0 *storage_v1.FindTracesRequest, 
 	}
 
 	return r0
+}
+
+// SpanReaderPluginServer_FindTraces_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindTraces'
+type SpanReaderPluginServer_FindTraces_Call struct {
+	*mock.Call
+}
+
+// FindTraces is a helper method to define mock.On call
+//   - _a0 *storage_v1.FindTracesRequest
+//   - _a1 storage_v1.SpanReaderPlugin_FindTracesServer
+func (_e *SpanReaderPluginServer_Expecter) FindTraces(_a0 interface{}, _a1 interface{}) *SpanReaderPluginServer_FindTraces_Call {
+	return &SpanReaderPluginServer_FindTraces_Call{Call: _e.mock.On("FindTraces", _a0, _a1)}
+}
+
+func (_c *SpanReaderPluginServer_FindTraces_Call) Run(run func(_a0 *storage_v1.FindTracesRequest, _a1 storage_v1.SpanReaderPlugin_FindTracesServer)) *SpanReaderPluginServer_FindTraces_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(*storage_v1.FindTracesRequest), args[1].(storage_v1.SpanReaderPlugin_FindTracesServer))
+	})
+	return _c
+}
+
+func (_c *SpanReaderPluginServer_FindTraces_Call) Return(_a0 error) *SpanReaderPluginServer_FindTraces_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *SpanReaderPluginServer_FindTraces_Call) RunAndReturn(run func(*storage_v1.FindTracesRequest, storage_v1.SpanReaderPlugin_FindTracesServer) error) *SpanReaderPluginServer_FindTraces_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // GetOperations provides a mock function with given fields: _a0, _a1
@@ -97,6 +163,35 @@ func (_m *SpanReaderPluginServer) GetOperations(_a0 context.Context, _a1 *storag
 	return r0, r1
 }
 
+// SpanReaderPluginServer_GetOperations_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetOperations'
+type SpanReaderPluginServer_GetOperations_Call struct {
+	*mock.Call
+}
+
+// GetOperations is a helper method to define mock.On call
+//   - _a0 context.Context
+//   - _a1 *storage_v1.GetOperationsRequest
+func (_e *SpanReaderPluginServer_Expecter) GetOperations(_a0 interface{}, _a1 interface{}) *SpanReaderPluginServer_GetOperations_Call {
+	return &SpanReaderPluginServer_GetOperations_Call{Call: _e.mock.On("GetOperations", _a0, _a1)}
+}
+
+func (_c *SpanReaderPluginServer_GetOperations_Call) Run(run func(_a0 context.Context, _a1 *storage_v1.GetOperationsRequest)) *SpanReaderPluginServer_GetOperations_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*storage_v1.GetOperationsRequest))
+	})
+	return _c
+}
+
+func (_c *SpanReaderPluginServer_GetOperations_Call) Return(_a0 *storage_v1.GetOperationsResponse, _a1 error) *SpanReaderPluginServer_GetOperations_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SpanReaderPluginServer_GetOperations_Call) RunAndReturn(run func(context.Context, *storage_v1.GetOperationsRequest) (*storage_v1.GetOperationsResponse, error)) *SpanReaderPluginServer_GetOperations_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetServices provides a mock function with given fields: _a0, _a1
 func (_m *SpanReaderPluginServer) GetServices(_a0 context.Context, _a1 *storage_v1.GetServicesRequest) (*storage_v1.GetServicesResponse, error) {
 	ret := _m.Called(_a0, _a1)
@@ -127,6 +222,35 @@ func (_m *SpanReaderPluginServer) GetServices(_a0 context.Context, _a1 *storage_
 	return r0, r1
 }
 
+// SpanReaderPluginServer_GetServices_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetServices'
+type SpanReaderPluginServer_GetServices_Call struct {
+	*mock.Call
+}
+
+// GetServices is a helper method to define mock.On call
+//   - _a0 context.Context
+//   - _a1 *storage_v1.GetServicesRequest
+func (_e *SpanReaderPluginServer_Expecter) GetServices(_a0 interface{}, _a1 interface{}) *SpanReaderPluginServer_GetServices_Call {
+	return &SpanReaderPluginServer_GetServices_Call{Call: _e.mock.On("GetServices", _a0, _a1)}
+}
+
+func (_c *SpanReaderPluginServer_GetServices_Call) Run(run func(_a0 context.Context, _a1 *storage_v1.GetServicesRequest)) *SpanReaderPluginServer_GetServices_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*storage_v1.GetServicesRequest))
+	})
+	return _c
+}
+
+func (_c *SpanReaderPluginServer_GetServices_Call) Return(_a0 *storage_v1.GetServicesResponse, _a1 error) *SpanReaderPluginServer_GetServices_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SpanReaderPluginServer_GetServices_Call) RunAndReturn(run func(context.Context, *storage_v1.GetServicesRequest) (*storage_v1.GetServicesResponse, error)) *SpanReaderPluginServer_GetServices_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetTrace provides a mock function with given fields: _a0, _a1
 func (_m *SpanReaderPluginServer) GetTrace(_a0 *storage_v1.GetTraceRequest, _a1 storage_v1.SpanReaderPlugin_GetTraceServer) error {
 	ret := _m.Called(_a0, _a1)
@@ -143,6 +267,35 @@ func (_m *SpanReaderPluginServer) GetTrace(_a0 *storage_v1.GetTraceRequest, _a1 
 	}
 
 	return r0
+}
+
+// SpanReaderPluginServer_GetTrace_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetTrace'
+type SpanReaderPluginServer_GetTrace_Call struct {
+	*mock.Call
+}
+
+// GetTrace is a helper method to define mock.On call
+//   - _a0 *storage_v1.GetTraceRequest
+//   - _a1 storage_v1.SpanReaderPlugin_GetTraceServer
+func (_e *SpanReaderPluginServer_Expecter) GetTrace(_a0 interface{}, _a1 interface{}) *SpanReaderPluginServer_GetTrace_Call {
+	return &SpanReaderPluginServer_GetTrace_Call{Call: _e.mock.On("GetTrace", _a0, _a1)}
+}
+
+func (_c *SpanReaderPluginServer_GetTrace_Call) Run(run func(_a0 *storage_v1.GetTraceRequest, _a1 storage_v1.SpanReaderPlugin_GetTraceServer)) *SpanReaderPluginServer_GetTrace_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(*storage_v1.GetTraceRequest), args[1].(storage_v1.SpanReaderPlugin_GetTraceServer))
+	})
+	return _c
+}
+
+func (_c *SpanReaderPluginServer_GetTrace_Call) Return(_a0 error) *SpanReaderPluginServer_GetTrace_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *SpanReaderPluginServer_GetTrace_Call) RunAndReturn(run func(*storage_v1.GetTraceRequest, storage_v1.SpanReaderPlugin_GetTraceServer) error) *SpanReaderPluginServer_GetTrace_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewSpanReaderPluginServer creates a new instance of SpanReaderPluginServer. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

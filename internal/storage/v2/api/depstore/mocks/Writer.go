@@ -19,6 +19,14 @@ type Writer struct {
 	mock.Mock
 }
 
+type Writer_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *Writer) EXPECT() *Writer_Expecter {
+	return &Writer_Expecter{mock: &_m.Mock}
+}
+
 // WriteDependencies provides a mock function with given fields: ts, dependencies
 func (_m *Writer) WriteDependencies(ts time.Time, dependencies []model.DependencyLink) error {
 	ret := _m.Called(ts, dependencies)
@@ -35,6 +43,35 @@ func (_m *Writer) WriteDependencies(ts time.Time, dependencies []model.Dependenc
 	}
 
 	return r0
+}
+
+// Writer_WriteDependencies_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'WriteDependencies'
+type Writer_WriteDependencies_Call struct {
+	*mock.Call
+}
+
+// WriteDependencies is a helper method to define mock.On call
+//   - ts time.Time
+//   - dependencies []model.DependencyLink
+func (_e *Writer_Expecter) WriteDependencies(ts interface{}, dependencies interface{}) *Writer_WriteDependencies_Call {
+	return &Writer_WriteDependencies_Call{Call: _e.mock.On("WriteDependencies", ts, dependencies)}
+}
+
+func (_c *Writer_WriteDependencies_Call) Run(run func(ts time.Time, dependencies []model.DependencyLink)) *Writer_WriteDependencies_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(time.Time), args[1].([]model.DependencyLink))
+	})
+	return _c
+}
+
+func (_c *Writer_WriteDependencies_Call) Return(_a0 error) *Writer_WriteDependencies_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Writer_WriteDependencies_Call) RunAndReturn(run func(time.Time, []model.DependencyLink) error) *Writer_WriteDependencies_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewWriter creates a new instance of Writer. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

@@ -17,9 +17,23 @@ type Query struct {
 	mock.Mock
 }
 
+type Query_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *Query) EXPECT() *Query_Expecter {
+	return &Query_Expecter{mock: &_m.Mock}
+}
+
 // Bind provides a mock function with given fields: v
 func (_m *Query) Bind(v ...any) cassandra.Query {
-	ret := _m.Called(v)
+	var tmpRet mock.Arguments
+	if len(v) > 0 {
+		tmpRet = _m.Called(v)
+	} else {
+		tmpRet = _m.Called()
+	}
+	ret := tmpRet
 
 	if len(ret) == 0 {
 		panic("no return value specified for Bind")
@@ -35,6 +49,41 @@ func (_m *Query) Bind(v ...any) cassandra.Query {
 	}
 
 	return r0
+}
+
+// Query_Bind_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Bind'
+type Query_Bind_Call struct {
+	*mock.Call
+}
+
+// Bind is a helper method to define mock.On call
+//   - v ...any
+func (_e *Query_Expecter) Bind(v ...interface{}) *Query_Bind_Call {
+	return &Query_Bind_Call{Call: _e.mock.On("Bind",
+		append([]interface{}{}, v...)...)}
+}
+
+func (_c *Query_Bind_Call) Run(run func(v ...any)) *Query_Bind_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		variadicArgs := make([]any, len(args)-0)
+		for i, a := range args[0:] {
+			if a != nil {
+				variadicArgs[i] = a.(any)
+			}
+		}
+		run(variadicArgs...)
+	})
+	return _c
+}
+
+func (_c *Query_Bind_Call) Return(_a0 cassandra.Query) *Query_Bind_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Query_Bind_Call) RunAndReturn(run func(...any) cassandra.Query) *Query_Bind_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Consistency provides a mock function with given fields: level
@@ -57,6 +106,34 @@ func (_m *Query) Consistency(level cassandra.Consistency) cassandra.Query {
 	return r0
 }
 
+// Query_Consistency_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Consistency'
+type Query_Consistency_Call struct {
+	*mock.Call
+}
+
+// Consistency is a helper method to define mock.On call
+//   - level cassandra.Consistency
+func (_e *Query_Expecter) Consistency(level interface{}) *Query_Consistency_Call {
+	return &Query_Consistency_Call{Call: _e.mock.On("Consistency", level)}
+}
+
+func (_c *Query_Consistency_Call) Run(run func(level cassandra.Consistency)) *Query_Consistency_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(cassandra.Consistency))
+	})
+	return _c
+}
+
+func (_c *Query_Consistency_Call) Return(_a0 cassandra.Query) *Query_Consistency_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Query_Consistency_Call) RunAndReturn(run func(cassandra.Consistency) cassandra.Query) *Query_Consistency_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Exec provides a mock function with no fields
 func (_m *Query) Exec() error {
 	ret := _m.Called()
@@ -73,6 +150,33 @@ func (_m *Query) Exec() error {
 	}
 
 	return r0
+}
+
+// Query_Exec_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Exec'
+type Query_Exec_Call struct {
+	*mock.Call
+}
+
+// Exec is a helper method to define mock.On call
+func (_e *Query_Expecter) Exec() *Query_Exec_Call {
+	return &Query_Exec_Call{Call: _e.mock.On("Exec")}
+}
+
+func (_c *Query_Exec_Call) Run(run func()) *Query_Exec_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Query_Exec_Call) Return(_a0 error) *Query_Exec_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Query_Exec_Call) RunAndReturn(run func() error) *Query_Exec_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Iter provides a mock function with no fields
@@ -95,6 +199,33 @@ func (_m *Query) Iter() cassandra.Iterator {
 	return r0
 }
 
+// Query_Iter_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Iter'
+type Query_Iter_Call struct {
+	*mock.Call
+}
+
+// Iter is a helper method to define mock.On call
+func (_e *Query_Expecter) Iter() *Query_Iter_Call {
+	return &Query_Iter_Call{Call: _e.mock.On("Iter")}
+}
+
+func (_c *Query_Iter_Call) Run(run func()) *Query_Iter_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Query_Iter_Call) Return(_a0 cassandra.Iterator) *Query_Iter_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Query_Iter_Call) RunAndReturn(run func() cassandra.Iterator) *Query_Iter_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // PageSize provides a mock function with given fields: _a0
 func (_m *Query) PageSize(_a0 int) cassandra.Query {
 	ret := _m.Called(_a0)
@@ -115,9 +246,43 @@ func (_m *Query) PageSize(_a0 int) cassandra.Query {
 	return r0
 }
 
+// Query_PageSize_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'PageSize'
+type Query_PageSize_Call struct {
+	*mock.Call
+}
+
+// PageSize is a helper method to define mock.On call
+//   - _a0 int
+func (_e *Query_Expecter) PageSize(_a0 interface{}) *Query_PageSize_Call {
+	return &Query_PageSize_Call{Call: _e.mock.On("PageSize", _a0)}
+}
+
+func (_c *Query_PageSize_Call) Run(run func(_a0 int)) *Query_PageSize_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(int))
+	})
+	return _c
+}
+
+func (_c *Query_PageSize_Call) Return(_a0 cassandra.Query) *Query_PageSize_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Query_PageSize_Call) RunAndReturn(run func(int) cassandra.Query) *Query_PageSize_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ScanCAS provides a mock function with given fields: dest
 func (_m *Query) ScanCAS(dest ...any) (bool, error) {
-	ret := _m.Called(dest)
+	var tmpRet mock.Arguments
+	if len(dest) > 0 {
+		tmpRet = _m.Called(dest)
+	} else {
+		tmpRet = _m.Called()
+	}
+	ret := tmpRet
 
 	if len(ret) == 0 {
 		panic("no return value specified for ScanCAS")
@@ -143,6 +308,41 @@ func (_m *Query) ScanCAS(dest ...any) (bool, error) {
 	return r0, r1
 }
 
+// Query_ScanCAS_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ScanCAS'
+type Query_ScanCAS_Call struct {
+	*mock.Call
+}
+
+// ScanCAS is a helper method to define mock.On call
+//   - dest ...any
+func (_e *Query_Expecter) ScanCAS(dest ...interface{}) *Query_ScanCAS_Call {
+	return &Query_ScanCAS_Call{Call: _e.mock.On("ScanCAS",
+		append([]interface{}{}, dest...)...)}
+}
+
+func (_c *Query_ScanCAS_Call) Run(run func(dest ...any)) *Query_ScanCAS_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		variadicArgs := make([]any, len(args)-0)
+		for i, a := range args[0:] {
+			if a != nil {
+				variadicArgs[i] = a.(any)
+			}
+		}
+		run(variadicArgs...)
+	})
+	return _c
+}
+
+func (_c *Query_ScanCAS_Call) Return(_a0 bool, _a1 error) *Query_ScanCAS_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *Query_ScanCAS_Call) RunAndReturn(run func(...any) (bool, error)) *Query_ScanCAS_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // String provides a mock function with no fields
 func (_m *Query) String() string {
 	ret := _m.Called()
@@ -159,6 +359,33 @@ func (_m *Query) String() string {
 	}
 
 	return r0
+}
+
+// Query_String_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'String'
+type Query_String_Call struct {
+	*mock.Call
+}
+
+// String is a helper method to define mock.On call
+func (_e *Query_Expecter) String() *Query_String_Call {
+	return &Query_String_Call{Call: _e.mock.On("String")}
+}
+
+func (_c *Query_String_Call) Run(run func()) *Query_String_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Query_String_Call) Return(_a0 string) *Query_String_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Query_String_Call) RunAndReturn(run func() string) *Query_String_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewQuery creates a new instance of Query. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

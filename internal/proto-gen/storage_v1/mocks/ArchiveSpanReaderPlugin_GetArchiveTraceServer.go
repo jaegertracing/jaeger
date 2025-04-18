@@ -21,6 +21,14 @@ type ArchiveSpanReaderPlugin_GetArchiveTraceServer struct {
 	mock.Mock
 }
 
+type ArchiveSpanReaderPlugin_GetArchiveTraceServer_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *ArchiveSpanReaderPlugin_GetArchiveTraceServer) EXPECT() *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Expecter {
+	return &ArchiveSpanReaderPlugin_GetArchiveTraceServer_Expecter{mock: &_m.Mock}
+}
+
 // Context provides a mock function with no fields
 func (_m *ArchiveSpanReaderPlugin_GetArchiveTraceServer) Context() context.Context {
 	ret := _m.Called()
@@ -41,6 +49,33 @@ func (_m *ArchiveSpanReaderPlugin_GetArchiveTraceServer) Context() context.Conte
 	return r0
 }
 
+// ArchiveSpanReaderPlugin_GetArchiveTraceServer_Context_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Context'
+type ArchiveSpanReaderPlugin_GetArchiveTraceServer_Context_Call struct {
+	*mock.Call
+}
+
+// Context is a helper method to define mock.On call
+func (_e *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Expecter) Context() *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Context_Call {
+	return &ArchiveSpanReaderPlugin_GetArchiveTraceServer_Context_Call{Call: _e.mock.On("Context")}
+}
+
+func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Context_Call) Run(run func()) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Context_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Context_Call) Return(_a0 context.Context) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Context_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Context_Call) RunAndReturn(run func() context.Context) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Context_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // RecvMsg provides a mock function with given fields: m
 func (_m *ArchiveSpanReaderPlugin_GetArchiveTraceServer) RecvMsg(m any) error {
 	ret := _m.Called(m)
@@ -57,6 +92,34 @@ func (_m *ArchiveSpanReaderPlugin_GetArchiveTraceServer) RecvMsg(m any) error {
 	}
 
 	return r0
+}
+
+// ArchiveSpanReaderPlugin_GetArchiveTraceServer_RecvMsg_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RecvMsg'
+type ArchiveSpanReaderPlugin_GetArchiveTraceServer_RecvMsg_Call struct {
+	*mock.Call
+}
+
+// RecvMsg is a helper method to define mock.On call
+//   - m any
+func (_e *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Expecter) RecvMsg(m interface{}) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_RecvMsg_Call {
+	return &ArchiveSpanReaderPlugin_GetArchiveTraceServer_RecvMsg_Call{Call: _e.mock.On("RecvMsg", m)}
+}
+
+func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceServer_RecvMsg_Call) Run(run func(m any)) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_RecvMsg_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(any))
+	})
+	return _c
+}
+
+func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceServer_RecvMsg_Call) Return(_a0 error) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_RecvMsg_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceServer_RecvMsg_Call) RunAndReturn(run func(any) error) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_RecvMsg_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Send provides a mock function with given fields: _a0
@@ -77,6 +140,34 @@ func (_m *ArchiveSpanReaderPlugin_GetArchiveTraceServer) Send(_a0 *storage_v1.Sp
 	return r0
 }
 
+// ArchiveSpanReaderPlugin_GetArchiveTraceServer_Send_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Send'
+type ArchiveSpanReaderPlugin_GetArchiveTraceServer_Send_Call struct {
+	*mock.Call
+}
+
+// Send is a helper method to define mock.On call
+//   - _a0 *storage_v1.SpansResponseChunk
+func (_e *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Expecter) Send(_a0 interface{}) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Send_Call {
+	return &ArchiveSpanReaderPlugin_GetArchiveTraceServer_Send_Call{Call: _e.mock.On("Send", _a0)}
+}
+
+func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Send_Call) Run(run func(_a0 *storage_v1.SpansResponseChunk)) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Send_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(*storage_v1.SpansResponseChunk))
+	})
+	return _c
+}
+
+func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Send_Call) Return(_a0 error) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Send_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Send_Call) RunAndReturn(run func(*storage_v1.SpansResponseChunk) error) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Send_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // SendHeader provides a mock function with given fields: _a0
 func (_m *ArchiveSpanReaderPlugin_GetArchiveTraceServer) SendHeader(_a0 metadata.MD) error {
 	ret := _m.Called(_a0)
@@ -93,6 +184,34 @@ func (_m *ArchiveSpanReaderPlugin_GetArchiveTraceServer) SendHeader(_a0 metadata
 	}
 
 	return r0
+}
+
+// ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendHeader_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SendHeader'
+type ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendHeader_Call struct {
+	*mock.Call
+}
+
+// SendHeader is a helper method to define mock.On call
+//   - _a0 metadata.MD
+func (_e *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Expecter) SendHeader(_a0 interface{}) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendHeader_Call {
+	return &ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendHeader_Call{Call: _e.mock.On("SendHeader", _a0)}
+}
+
+func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendHeader_Call) Run(run func(_a0 metadata.MD)) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendHeader_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(metadata.MD))
+	})
+	return _c
+}
+
+func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendHeader_Call) Return(_a0 error) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendHeader_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendHeader_Call) RunAndReturn(run func(metadata.MD) error) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendHeader_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // SendMsg provides a mock function with given fields: m
@@ -113,6 +232,34 @@ func (_m *ArchiveSpanReaderPlugin_GetArchiveTraceServer) SendMsg(m any) error {
 	return r0
 }
 
+// ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendMsg_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SendMsg'
+type ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendMsg_Call struct {
+	*mock.Call
+}
+
+// SendMsg is a helper method to define mock.On call
+//   - m any
+func (_e *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Expecter) SendMsg(m interface{}) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendMsg_Call {
+	return &ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendMsg_Call{Call: _e.mock.On("SendMsg", m)}
+}
+
+func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendMsg_Call) Run(run func(m any)) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendMsg_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(any))
+	})
+	return _c
+}
+
+func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendMsg_Call) Return(_a0 error) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendMsg_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendMsg_Call) RunAndReturn(run func(any) error) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendMsg_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // SetHeader provides a mock function with given fields: _a0
 func (_m *ArchiveSpanReaderPlugin_GetArchiveTraceServer) SetHeader(_a0 metadata.MD) error {
 	ret := _m.Called(_a0)
@@ -131,9 +278,65 @@ func (_m *ArchiveSpanReaderPlugin_GetArchiveTraceServer) SetHeader(_a0 metadata.
 	return r0
 }
 
+// ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetHeader_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetHeader'
+type ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetHeader_Call struct {
+	*mock.Call
+}
+
+// SetHeader is a helper method to define mock.On call
+//   - _a0 metadata.MD
+func (_e *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Expecter) SetHeader(_a0 interface{}) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetHeader_Call {
+	return &ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetHeader_Call{Call: _e.mock.On("SetHeader", _a0)}
+}
+
+func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetHeader_Call) Run(run func(_a0 metadata.MD)) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetHeader_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(metadata.MD))
+	})
+	return _c
+}
+
+func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetHeader_Call) Return(_a0 error) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetHeader_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetHeader_Call) RunAndReturn(run func(metadata.MD) error) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetHeader_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // SetTrailer provides a mock function with given fields: _a0
 func (_m *ArchiveSpanReaderPlugin_GetArchiveTraceServer) SetTrailer(_a0 metadata.MD) {
 	_m.Called(_a0)
+}
+
+// ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetTrailer_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetTrailer'
+type ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetTrailer_Call struct {
+	*mock.Call
+}
+
+// SetTrailer is a helper method to define mock.On call
+//   - _a0 metadata.MD
+func (_e *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Expecter) SetTrailer(_a0 interface{}) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetTrailer_Call {
+	return &ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetTrailer_Call{Call: _e.mock.On("SetTrailer", _a0)}
+}
+
+func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetTrailer_Call) Run(run func(_a0 metadata.MD)) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetTrailer_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(metadata.MD))
+	})
+	return _c
+}
+
+func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetTrailer_Call) Return() *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetTrailer_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetTrailer_Call) RunAndReturn(run func(metadata.MD)) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetTrailer_Call {
+	_c.Run(run)
+	return _c
 }
 
 // NewArchiveSpanReaderPlugin_GetArchiveTraceServer creates a new instance of ArchiveSpanReaderPlugin_GetArchiveTraceServer. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
