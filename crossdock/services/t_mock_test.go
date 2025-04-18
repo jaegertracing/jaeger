@@ -49,22 +49,22 @@ func (_m *TMock) Tag(key string, value string) {
 }
 
 // Errorf provides a mock function with given fields: format, args
-func (_m *TMock) Errorf(format string, args ...interface{}) {
+func (_m *TMock) Errorf(format string, args ...any) {
 	_m.Called(format, args)
 }
 
 // Skipf provides a mock function with given fields: format, args
-func (_m *TMock) Skipf(format string, args ...interface{}) {
+func (_m *TMock) Skipf(format string, args ...any) {
 	_m.Called(format, args)
 }
 
 // Successf provides a mock function with given fields: format, args
-func (_m *TMock) Successf(format string, args ...interface{}) {
+func (_m *TMock) Successf(format string, args ...any) {
 	_m.Called(format, args)
 }
 
 // Fatalf provides a mock function with given fields: format, args
-func (_m *TMock) Fatalf(format string, args ...interface{}) {
+func (_m *TMock) Fatalf(format string, args ...any) {
 	_m.Called(format, args)
 }
 
