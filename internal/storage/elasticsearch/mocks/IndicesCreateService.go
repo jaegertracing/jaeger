@@ -10,7 +10,7 @@ package mocks
 import (
 	context "context"
 
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	elasticsearch "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	elastic "github.com/olivere/elastic"
 
 	mock "github.com/stretchr/testify/mock"
@@ -22,19 +22,19 @@ type IndicesCreateService struct {
 }
 
 // Body provides a mock function with given fields: mapping
-func (_m *IndicesCreateService) Body(mapping string) es.IndicesCreateService {
+func (_m *IndicesCreateService) Body(mapping string) elasticsearch.IndicesCreateService {
 	ret := _m.Called(mapping)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Body")
 	}
 
-	var r0 es.IndicesCreateService
-	if rf, ok := ret.Get(0).(func(string) es.IndicesCreateService); ok {
+	var r0 elasticsearch.IndicesCreateService
+	if rf, ok := ret.Get(0).(func(string) elasticsearch.IndicesCreateService); ok {
 		r0 = rf(mapping)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(es.IndicesCreateService)
+			r0 = ret.Get(0).(elasticsearch.IndicesCreateService)
 		}
 	}
 
