@@ -17,6 +17,14 @@ type Factory struct {
 	mock.Mock
 }
 
+type Factory_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *Factory) EXPECT() *Factory_Expecter {
+	return &Factory_Expecter{mock: &_m.Mock}
+}
+
 // CreateTraceReader provides a mock function with no fields
 func (_m *Factory) CreateTraceReader() (tracestore.Reader, error) {
 	ret := _m.Called()
@@ -47,6 +55,33 @@ func (_m *Factory) CreateTraceReader() (tracestore.Reader, error) {
 	return r0, r1
 }
 
+// Factory_CreateTraceReader_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateTraceReader'
+type Factory_CreateTraceReader_Call struct {
+	*mock.Call
+}
+
+// CreateTraceReader is a helper method to define mock.On call
+func (_e *Factory_Expecter) CreateTraceReader() *Factory_CreateTraceReader_Call {
+	return &Factory_CreateTraceReader_Call{Call: _e.mock.On("CreateTraceReader")}
+}
+
+func (_c *Factory_CreateTraceReader_Call) Run(run func()) *Factory_CreateTraceReader_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Factory_CreateTraceReader_Call) Return(_a0 tracestore.Reader, _a1 error) *Factory_CreateTraceReader_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *Factory_CreateTraceReader_Call) RunAndReturn(run func() (tracestore.Reader, error)) *Factory_CreateTraceReader_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateTraceWriter provides a mock function with no fields
 func (_m *Factory) CreateTraceWriter() (tracestore.Writer, error) {
 	ret := _m.Called()
@@ -75,6 +110,33 @@ func (_m *Factory) CreateTraceWriter() (tracestore.Writer, error) {
 	}
 
 	return r0, r1
+}
+
+// Factory_CreateTraceWriter_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateTraceWriter'
+type Factory_CreateTraceWriter_Call struct {
+	*mock.Call
+}
+
+// CreateTraceWriter is a helper method to define mock.On call
+func (_e *Factory_Expecter) CreateTraceWriter() *Factory_CreateTraceWriter_Call {
+	return &Factory_CreateTraceWriter_Call{Call: _e.mock.On("CreateTraceWriter")}
+}
+
+func (_c *Factory_CreateTraceWriter_Call) Run(run func()) *Factory_CreateTraceWriter_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Factory_CreateTraceWriter_Call) Return(_a0 tracestore.Writer, _a1 error) *Factory_CreateTraceWriter_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *Factory_CreateTraceWriter_Call) RunAndReturn(run func() (tracestore.Writer, error)) *Factory_CreateTraceWriter_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewFactory creates a new instance of Factory. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

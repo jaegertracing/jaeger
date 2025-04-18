@@ -19,6 +19,14 @@ type Store struct {
 	mock.Mock
 }
 
+type Store_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *Store) EXPECT() *Store_Expecter {
+	return &Store_Expecter{mock: &_m.Mock}
+}
+
 // GetLatestProbabilities provides a mock function with no fields
 func (_m *Store) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
 	ret := _m.Called()
@@ -47,6 +55,33 @@ func (_m *Store) GetLatestProbabilities() (model.ServiceOperationProbabilities, 
 	}
 
 	return r0, r1
+}
+
+// Store_GetLatestProbabilities_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetLatestProbabilities'
+type Store_GetLatestProbabilities_Call struct {
+	*mock.Call
+}
+
+// GetLatestProbabilities is a helper method to define mock.On call
+func (_e *Store_Expecter) GetLatestProbabilities() *Store_GetLatestProbabilities_Call {
+	return &Store_GetLatestProbabilities_Call{Call: _e.mock.On("GetLatestProbabilities")}
+}
+
+func (_c *Store_GetLatestProbabilities_Call) Run(run func()) *Store_GetLatestProbabilities_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Store_GetLatestProbabilities_Call) Return(_a0 model.ServiceOperationProbabilities, _a1 error) *Store_GetLatestProbabilities_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *Store_GetLatestProbabilities_Call) RunAndReturn(run func() (model.ServiceOperationProbabilities, error)) *Store_GetLatestProbabilities_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // GetThroughput provides a mock function with given fields: start, end
@@ -79,6 +114,35 @@ func (_m *Store) GetThroughput(start time.Time, end time.Time) ([]*model.Through
 	return r0, r1
 }
 
+// Store_GetThroughput_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetThroughput'
+type Store_GetThroughput_Call struct {
+	*mock.Call
+}
+
+// GetThroughput is a helper method to define mock.On call
+//   - start time.Time
+//   - end time.Time
+func (_e *Store_Expecter) GetThroughput(start interface{}, end interface{}) *Store_GetThroughput_Call {
+	return &Store_GetThroughput_Call{Call: _e.mock.On("GetThroughput", start, end)}
+}
+
+func (_c *Store_GetThroughput_Call) Run(run func(start time.Time, end time.Time)) *Store_GetThroughput_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(time.Time), args[1].(time.Time))
+	})
+	return _c
+}
+
+func (_c *Store_GetThroughput_Call) Return(_a0 []*model.Throughput, _a1 error) *Store_GetThroughput_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *Store_GetThroughput_Call) RunAndReturn(run func(time.Time, time.Time) ([]*model.Throughput, error)) *Store_GetThroughput_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // InsertProbabilitiesAndQPS provides a mock function with given fields: hostname, probabilities, qps
 func (_m *Store) InsertProbabilitiesAndQPS(hostname string, probabilities model.ServiceOperationProbabilities, qps model.ServiceOperationQPS) error {
 	ret := _m.Called(hostname, probabilities, qps)
@@ -97,6 +161,36 @@ func (_m *Store) InsertProbabilitiesAndQPS(hostname string, probabilities model.
 	return r0
 }
 
+// Store_InsertProbabilitiesAndQPS_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'InsertProbabilitiesAndQPS'
+type Store_InsertProbabilitiesAndQPS_Call struct {
+	*mock.Call
+}
+
+// InsertProbabilitiesAndQPS is a helper method to define mock.On call
+//   - hostname string
+//   - probabilities model.ServiceOperationProbabilities
+//   - qps model.ServiceOperationQPS
+func (_e *Store_Expecter) InsertProbabilitiesAndQPS(hostname interface{}, probabilities interface{}, qps interface{}) *Store_InsertProbabilitiesAndQPS_Call {
+	return &Store_InsertProbabilitiesAndQPS_Call{Call: _e.mock.On("InsertProbabilitiesAndQPS", hostname, probabilities, qps)}
+}
+
+func (_c *Store_InsertProbabilitiesAndQPS_Call) Run(run func(hostname string, probabilities model.ServiceOperationProbabilities, qps model.ServiceOperationQPS)) *Store_InsertProbabilitiesAndQPS_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string), args[1].(model.ServiceOperationProbabilities), args[2].(model.ServiceOperationQPS))
+	})
+	return _c
+}
+
+func (_c *Store_InsertProbabilitiesAndQPS_Call) Return(_a0 error) *Store_InsertProbabilitiesAndQPS_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Store_InsertProbabilitiesAndQPS_Call) RunAndReturn(run func(string, model.ServiceOperationProbabilities, model.ServiceOperationQPS) error) *Store_InsertProbabilitiesAndQPS_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // InsertThroughput provides a mock function with given fields: throughput
 func (_m *Store) InsertThroughput(throughput []*model.Throughput) error {
 	ret := _m.Called(throughput)
@@ -113,6 +207,34 @@ func (_m *Store) InsertThroughput(throughput []*model.Throughput) error {
 	}
 
 	return r0
+}
+
+// Store_InsertThroughput_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'InsertThroughput'
+type Store_InsertThroughput_Call struct {
+	*mock.Call
+}
+
+// InsertThroughput is a helper method to define mock.On call
+//   - throughput []*model.Throughput
+func (_e *Store_Expecter) InsertThroughput(throughput interface{}) *Store_InsertThroughput_Call {
+	return &Store_InsertThroughput_Call{Call: _e.mock.On("InsertThroughput", throughput)}
+}
+
+func (_c *Store_InsertThroughput_Call) Run(run func(throughput []*model.Throughput)) *Store_InsertThroughput_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].([]*model.Throughput))
+	})
+	return _c
+}
+
+func (_c *Store_InsertThroughput_Call) Return(_a0 error) *Store_InsertThroughput_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Store_InsertThroughput_Call) RunAndReturn(run func([]*model.Throughput) error) *Store_InsertThroughput_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewStore creates a new instance of Store. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

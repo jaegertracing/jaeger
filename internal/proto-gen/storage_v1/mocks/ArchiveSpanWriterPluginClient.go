@@ -22,6 +22,14 @@ type ArchiveSpanWriterPluginClient struct {
 	mock.Mock
 }
 
+type ArchiveSpanWriterPluginClient_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *ArchiveSpanWriterPluginClient) EXPECT() *ArchiveSpanWriterPluginClient_Expecter {
+	return &ArchiveSpanWriterPluginClient_Expecter{mock: &_m.Mock}
+}
+
 // WriteArchiveSpan provides a mock function with given fields: ctx, in, opts
 func (_m *ArchiveSpanWriterPluginClient) WriteArchiveSpan(ctx context.Context, in *storage_v1.WriteSpanRequest, opts ...grpc.CallOption) (*storage_v1.WriteSpanResponse, error) {
 	_va := make([]interface{}, len(opts))
@@ -57,6 +65,43 @@ func (_m *ArchiveSpanWriterPluginClient) WriteArchiveSpan(ctx context.Context, i
 	}
 
 	return r0, r1
+}
+
+// ArchiveSpanWriterPluginClient_WriteArchiveSpan_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'WriteArchiveSpan'
+type ArchiveSpanWriterPluginClient_WriteArchiveSpan_Call struct {
+	*mock.Call
+}
+
+// WriteArchiveSpan is a helper method to define mock.On call
+//   - ctx context.Context
+//   - in *storage_v1.WriteSpanRequest
+//   - opts ...grpc.CallOption
+func (_e *ArchiveSpanWriterPluginClient_Expecter) WriteArchiveSpan(ctx interface{}, in interface{}, opts ...interface{}) *ArchiveSpanWriterPluginClient_WriteArchiveSpan_Call {
+	return &ArchiveSpanWriterPluginClient_WriteArchiveSpan_Call{Call: _e.mock.On("WriteArchiveSpan",
+		append([]interface{}{ctx, in}, opts...)...)}
+}
+
+func (_c *ArchiveSpanWriterPluginClient_WriteArchiveSpan_Call) Run(run func(ctx context.Context, in *storage_v1.WriteSpanRequest, opts ...grpc.CallOption)) *ArchiveSpanWriterPluginClient_WriteArchiveSpan_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		variadicArgs := make([]grpc.CallOption, len(args)-2)
+		for i, a := range args[2:] {
+			if a != nil {
+				variadicArgs[i] = a.(grpc.CallOption)
+			}
+		}
+		run(args[0].(context.Context), args[1].(*storage_v1.WriteSpanRequest), variadicArgs...)
+	})
+	return _c
+}
+
+func (_c *ArchiveSpanWriterPluginClient_WriteArchiveSpan_Call) Return(_a0 *storage_v1.WriteSpanResponse, _a1 error) *ArchiveSpanWriterPluginClient_WriteArchiveSpan_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *ArchiveSpanWriterPluginClient_WriteArchiveSpan_Call) RunAndReturn(run func(context.Context, *storage_v1.WriteSpanRequest, ...grpc.CallOption) (*storage_v1.WriteSpanResponse, error)) *ArchiveSpanWriterPluginClient_WriteArchiveSpan_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewArchiveSpanWriterPluginClient creates a new instance of ArchiveSpanWriterPluginClient. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

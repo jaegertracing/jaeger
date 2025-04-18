@@ -17,6 +17,14 @@ type StreamingSpanWriterPluginServer struct {
 	mock.Mock
 }
 
+type StreamingSpanWriterPluginServer_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *StreamingSpanWriterPluginServer) EXPECT() *StreamingSpanWriterPluginServer_Expecter {
+	return &StreamingSpanWriterPluginServer_Expecter{mock: &_m.Mock}
+}
+
 // WriteSpanStream provides a mock function with given fields: _a0
 func (_m *StreamingSpanWriterPluginServer) WriteSpanStream(_a0 storage_v1.StreamingSpanWriterPlugin_WriteSpanStreamServer) error {
 	ret := _m.Called(_a0)
@@ -33,6 +41,34 @@ func (_m *StreamingSpanWriterPluginServer) WriteSpanStream(_a0 storage_v1.Stream
 	}
 
 	return r0
+}
+
+// StreamingSpanWriterPluginServer_WriteSpanStream_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'WriteSpanStream'
+type StreamingSpanWriterPluginServer_WriteSpanStream_Call struct {
+	*mock.Call
+}
+
+// WriteSpanStream is a helper method to define mock.On call
+//   - _a0 storage_v1.StreamingSpanWriterPlugin_WriteSpanStreamServer
+func (_e *StreamingSpanWriterPluginServer_Expecter) WriteSpanStream(_a0 interface{}) *StreamingSpanWriterPluginServer_WriteSpanStream_Call {
+	return &StreamingSpanWriterPluginServer_WriteSpanStream_Call{Call: _e.mock.On("WriteSpanStream", _a0)}
+}
+
+func (_c *StreamingSpanWriterPluginServer_WriteSpanStream_Call) Run(run func(_a0 storage_v1.StreamingSpanWriterPlugin_WriteSpanStreamServer)) *StreamingSpanWriterPluginServer_WriteSpanStream_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(storage_v1.StreamingSpanWriterPlugin_WriteSpanStreamServer))
+	})
+	return _c
+}
+
+func (_c *StreamingSpanWriterPluginServer_WriteSpanStream_Call) Return(_a0 error) *StreamingSpanWriterPluginServer_WriteSpanStream_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *StreamingSpanWriterPluginServer_WriteSpanStream_Call) RunAndReturn(run func(storage_v1.StreamingSpanWriterPlugin_WriteSpanStreamServer) error) *StreamingSpanWriterPluginServer_WriteSpanStream_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewStreamingSpanWriterPluginServer creates a new instance of StreamingSpanWriterPluginServer. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

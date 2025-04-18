@@ -19,6 +19,14 @@ type Writer struct {
 	mock.Mock
 }
 
+type Writer_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *Writer) EXPECT() *Writer_Expecter {
+	return &Writer_Expecter{mock: &_m.Mock}
+}
+
 // WriteTraces provides a mock function with given fields: ctx, td
 func (_m *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	ret := _m.Called(ctx, td)
@@ -35,6 +43,35 @@ func (_m *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	}
 
 	return r0
+}
+
+// Writer_WriteTraces_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'WriteTraces'
+type Writer_WriteTraces_Call struct {
+	*mock.Call
+}
+
+// WriteTraces is a helper method to define mock.On call
+//   - ctx context.Context
+//   - td ptrace.Traces
+func (_e *Writer_Expecter) WriteTraces(ctx interface{}, td interface{}) *Writer_WriteTraces_Call {
+	return &Writer_WriteTraces_Call{Call: _e.mock.On("WriteTraces", ctx, td)}
+}
+
+func (_c *Writer_WriteTraces_Call) Run(run func(ctx context.Context, td ptrace.Traces)) *Writer_WriteTraces_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(ptrace.Traces))
+	})
+	return _c
+}
+
+func (_c *Writer_WriteTraces_Call) Return(_a0 error) *Writer_WriteTraces_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Writer_WriteTraces_Call) RunAndReturn(run func(context.Context, ptrace.Traces) error) *Writer_WriteTraces_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewWriter creates a new instance of Writer. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

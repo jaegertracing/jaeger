@@ -19,6 +19,14 @@ type SamplingStoreFactory struct {
 	mock.Mock
 }
 
+type SamplingStoreFactory_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *SamplingStoreFactory) EXPECT() *SamplingStoreFactory_Expecter {
+	return &SamplingStoreFactory_Expecter{mock: &_m.Mock}
+}
+
 // CreateLock provides a mock function with no fields
 func (_m *SamplingStoreFactory) CreateLock() (distributedlock.Lock, error) {
 	ret := _m.Called()
@@ -49,6 +57,33 @@ func (_m *SamplingStoreFactory) CreateLock() (distributedlock.Lock, error) {
 	return r0, r1
 }
 
+// SamplingStoreFactory_CreateLock_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateLock'
+type SamplingStoreFactory_CreateLock_Call struct {
+	*mock.Call
+}
+
+// CreateLock is a helper method to define mock.On call
+func (_e *SamplingStoreFactory_Expecter) CreateLock() *SamplingStoreFactory_CreateLock_Call {
+	return &SamplingStoreFactory_CreateLock_Call{Call: _e.mock.On("CreateLock")}
+}
+
+func (_c *SamplingStoreFactory_CreateLock_Call) Run(run func()) *SamplingStoreFactory_CreateLock_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *SamplingStoreFactory_CreateLock_Call) Return(_a0 distributedlock.Lock, _a1 error) *SamplingStoreFactory_CreateLock_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SamplingStoreFactory_CreateLock_Call) RunAndReturn(run func() (distributedlock.Lock, error)) *SamplingStoreFactory_CreateLock_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateSamplingStore provides a mock function with given fields: maxBuckets
 func (_m *SamplingStoreFactory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
 	ret := _m.Called(maxBuckets)
@@ -77,6 +112,34 @@ func (_m *SamplingStoreFactory) CreateSamplingStore(maxBuckets int) (samplingsto
 	}
 
 	return r0, r1
+}
+
+// SamplingStoreFactory_CreateSamplingStore_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateSamplingStore'
+type SamplingStoreFactory_CreateSamplingStore_Call struct {
+	*mock.Call
+}
+
+// CreateSamplingStore is a helper method to define mock.On call
+//   - maxBuckets int
+func (_e *SamplingStoreFactory_Expecter) CreateSamplingStore(maxBuckets interface{}) *SamplingStoreFactory_CreateSamplingStore_Call {
+	return &SamplingStoreFactory_CreateSamplingStore_Call{Call: _e.mock.On("CreateSamplingStore", maxBuckets)}
+}
+
+func (_c *SamplingStoreFactory_CreateSamplingStore_Call) Run(run func(maxBuckets int)) *SamplingStoreFactory_CreateSamplingStore_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(int))
+	})
+	return _c
+}
+
+func (_c *SamplingStoreFactory_CreateSamplingStore_Call) Return(_a0 samplingstore.Store, _a1 error) *SamplingStoreFactory_CreateSamplingStore_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SamplingStoreFactory_CreateSamplingStore_Call) RunAndReturn(run func(int) (samplingstore.Store, error)) *SamplingStoreFactory_CreateSamplingStore_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewSamplingStoreFactory creates a new instance of SamplingStoreFactory. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

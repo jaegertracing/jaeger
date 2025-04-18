@@ -17,6 +17,14 @@ type Client struct {
 	mock.Mock
 }
 
+type Client_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *Client) EXPECT() *Client_Expecter {
+	return &Client_Expecter{mock: &_m.Mock}
+}
+
 // Close provides a mock function with no fields
 func (_m *Client) Close() error {
 	ret := _m.Called()
@@ -33,6 +41,33 @@ func (_m *Client) Close() error {
 	}
 
 	return r0
+}
+
+// Client_Close_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Close'
+type Client_Close_Call struct {
+	*mock.Call
+}
+
+// Close is a helper method to define mock.On call
+func (_e *Client_Expecter) Close() *Client_Close_Call {
+	return &Client_Close_Call{Call: _e.mock.On("Close")}
+}
+
+func (_c *Client_Close_Call) Run(run func()) *Client_Close_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Client_Close_Call) Return(_a0 error) *Client_Close_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Client_Close_Call) RunAndReturn(run func() error) *Client_Close_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // CreateIndex provides a mock function with given fields: index
@@ -55,6 +90,34 @@ func (_m *Client) CreateIndex(index string) elasticsearch.IndicesCreateService {
 	return r0
 }
 
+// Client_CreateIndex_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateIndex'
+type Client_CreateIndex_Call struct {
+	*mock.Call
+}
+
+// CreateIndex is a helper method to define mock.On call
+//   - index string
+func (_e *Client_Expecter) CreateIndex(index interface{}) *Client_CreateIndex_Call {
+	return &Client_CreateIndex_Call{Call: _e.mock.On("CreateIndex", index)}
+}
+
+func (_c *Client_CreateIndex_Call) Run(run func(index string)) *Client_CreateIndex_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *Client_CreateIndex_Call) Return(_a0 elasticsearch.IndicesCreateService) *Client_CreateIndex_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Client_CreateIndex_Call) RunAndReturn(run func(string) elasticsearch.IndicesCreateService) *Client_CreateIndex_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateTemplate provides a mock function with given fields: id
 func (_m *Client) CreateTemplate(id string) elasticsearch.TemplateCreateService {
 	ret := _m.Called(id)
@@ -73,6 +136,34 @@ func (_m *Client) CreateTemplate(id string) elasticsearch.TemplateCreateService 
 	}
 
 	return r0
+}
+
+// Client_CreateTemplate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateTemplate'
+type Client_CreateTemplate_Call struct {
+	*mock.Call
+}
+
+// CreateTemplate is a helper method to define mock.On call
+//   - id string
+func (_e *Client_Expecter) CreateTemplate(id interface{}) *Client_CreateTemplate_Call {
+	return &Client_CreateTemplate_Call{Call: _e.mock.On("CreateTemplate", id)}
+}
+
+func (_c *Client_CreateTemplate_Call) Run(run func(id string)) *Client_CreateTemplate_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *Client_CreateTemplate_Call) Return(_a0 elasticsearch.TemplateCreateService) *Client_CreateTemplate_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Client_CreateTemplate_Call) RunAndReturn(run func(string) elasticsearch.TemplateCreateService) *Client_CreateTemplate_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // DeleteIndex provides a mock function with given fields: index
@@ -95,6 +186,34 @@ func (_m *Client) DeleteIndex(index string) elasticsearch.IndicesDeleteService {
 	return r0
 }
 
+// Client_DeleteIndex_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteIndex'
+type Client_DeleteIndex_Call struct {
+	*mock.Call
+}
+
+// DeleteIndex is a helper method to define mock.On call
+//   - index string
+func (_e *Client_Expecter) DeleteIndex(index interface{}) *Client_DeleteIndex_Call {
+	return &Client_DeleteIndex_Call{Call: _e.mock.On("DeleteIndex", index)}
+}
+
+func (_c *Client_DeleteIndex_Call) Run(run func(index string)) *Client_DeleteIndex_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *Client_DeleteIndex_Call) Return(_a0 elasticsearch.IndicesDeleteService) *Client_DeleteIndex_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Client_DeleteIndex_Call) RunAndReturn(run func(string) elasticsearch.IndicesDeleteService) *Client_DeleteIndex_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetVersion provides a mock function with no fields
 func (_m *Client) GetVersion() uint {
 	ret := _m.Called()
@@ -111,6 +230,33 @@ func (_m *Client) GetVersion() uint {
 	}
 
 	return r0
+}
+
+// Client_GetVersion_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetVersion'
+type Client_GetVersion_Call struct {
+	*mock.Call
+}
+
+// GetVersion is a helper method to define mock.On call
+func (_e *Client_Expecter) GetVersion() *Client_GetVersion_Call {
+	return &Client_GetVersion_Call{Call: _e.mock.On("GetVersion")}
+}
+
+func (_c *Client_GetVersion_Call) Run(run func()) *Client_GetVersion_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Client_GetVersion_Call) Return(_a0 uint) *Client_GetVersion_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Client_GetVersion_Call) RunAndReturn(run func() uint) *Client_GetVersion_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Index provides a mock function with no fields
@@ -133,6 +279,33 @@ func (_m *Client) Index() elasticsearch.IndexService {
 	return r0
 }
 
+// Client_Index_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Index'
+type Client_Index_Call struct {
+	*mock.Call
+}
+
+// Index is a helper method to define mock.On call
+func (_e *Client_Expecter) Index() *Client_Index_Call {
+	return &Client_Index_Call{Call: _e.mock.On("Index")}
+}
+
+func (_c *Client_Index_Call) Run(run func()) *Client_Index_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Client_Index_Call) Return(_a0 elasticsearch.IndexService) *Client_Index_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Client_Index_Call) RunAndReturn(run func() elasticsearch.IndexService) *Client_Index_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // IndexExists provides a mock function with given fields: index
 func (_m *Client) IndexExists(index string) elasticsearch.IndicesExistsService {
 	ret := _m.Called(index)
@@ -153,6 +326,34 @@ func (_m *Client) IndexExists(index string) elasticsearch.IndicesExistsService {
 	return r0
 }
 
+// Client_IndexExists_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IndexExists'
+type Client_IndexExists_Call struct {
+	*mock.Call
+}
+
+// IndexExists is a helper method to define mock.On call
+//   - index string
+func (_e *Client_Expecter) IndexExists(index interface{}) *Client_IndexExists_Call {
+	return &Client_IndexExists_Call{Call: _e.mock.On("IndexExists", index)}
+}
+
+func (_c *Client_IndexExists_Call) Run(run func(index string)) *Client_IndexExists_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *Client_IndexExists_Call) Return(_a0 elasticsearch.IndicesExistsService) *Client_IndexExists_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Client_IndexExists_Call) RunAndReturn(run func(string) elasticsearch.IndicesExistsService) *Client_IndexExists_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // MultiSearch provides a mock function with no fields
 func (_m *Client) MultiSearch() elasticsearch.MultiSearchService {
 	ret := _m.Called()
@@ -171,6 +372,33 @@ func (_m *Client) MultiSearch() elasticsearch.MultiSearchService {
 	}
 
 	return r0
+}
+
+// Client_MultiSearch_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MultiSearch'
+type Client_MultiSearch_Call struct {
+	*mock.Call
+}
+
+// MultiSearch is a helper method to define mock.On call
+func (_e *Client_Expecter) MultiSearch() *Client_MultiSearch_Call {
+	return &Client_MultiSearch_Call{Call: _e.mock.On("MultiSearch")}
+}
+
+func (_c *Client_MultiSearch_Call) Run(run func()) *Client_MultiSearch_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Client_MultiSearch_Call) Return(_a0 elasticsearch.MultiSearchService) *Client_MultiSearch_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Client_MultiSearch_Call) RunAndReturn(run func() elasticsearch.MultiSearchService) *Client_MultiSearch_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Search provides a mock function with given fields: indices
@@ -197,6 +425,41 @@ func (_m *Client) Search(indices ...string) elasticsearch.SearchService {
 	}
 
 	return r0
+}
+
+// Client_Search_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Search'
+type Client_Search_Call struct {
+	*mock.Call
+}
+
+// Search is a helper method to define mock.On call
+//   - indices ...string
+func (_e *Client_Expecter) Search(indices ...interface{}) *Client_Search_Call {
+	return &Client_Search_Call{Call: _e.mock.On("Search",
+		append([]interface{}{}, indices...)...)}
+}
+
+func (_c *Client_Search_Call) Run(run func(indices ...string)) *Client_Search_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		variadicArgs := make([]string, len(args)-0)
+		for i, a := range args[0:] {
+			if a != nil {
+				variadicArgs[i] = a.(string)
+			}
+		}
+		run(variadicArgs...)
+	})
+	return _c
+}
+
+func (_c *Client_Search_Call) Return(_a0 elasticsearch.SearchService) *Client_Search_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Client_Search_Call) RunAndReturn(run func(...string) elasticsearch.SearchService) *Client_Search_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewClient creates a new instance of Client. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
