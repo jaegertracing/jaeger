@@ -27,7 +27,7 @@ var tlsGRPCFlagsConfig = tlscfg.ServerFlagsConfig{
 type Options struct {
 	configgrpc.ServerConfig
 	// Tenancy configuration
-	Tenancy tenancy.Options
+	Tenancy tenancy.Options `mapstructure:"multi_tenancy"`
 }
 
 // AddFlags adds flags to flag set.
