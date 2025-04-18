@@ -24,6 +24,7 @@ packages:
       SpanProcessor:
   github.com/jaegertracing/jaeger/crossdock/services:
     interfaces:
+      CollectorService:
       QueryService:
   github.com/jaegertracing/jaeger/internal/storage/cassandra:
     config:
