@@ -416,7 +416,7 @@ func TestAdaptiveSamplingTestInternal(t *testing.T) {
 	for i, test := range tests {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			query := &mocks.QueryService{}
-			agent := &mocks.AgentService{}
+			agent := &mocks.CollectorService{}
 
 			handler := &TraceHandler{
 				agent:  agent,
@@ -450,7 +450,7 @@ func TestAdaptiveSamplingTestInternal(t *testing.T) {
 
 func TestEndToEndTest(t *testing.T) {
 	query := &mocks.QueryService{}
-	agent := &mocks.AgentService{}
+	agent := &mocks.CollectorService{}
 	cT := &mocks.T{}
 	handler := NewTraceHandler(query, agent, zap.NewNop())
 	handler.getTracesSleepDuration = time.Millisecond
@@ -489,7 +489,7 @@ func TestAdaptiveSamplingTest(t *testing.T) {
 	defer server.Close()
 
 	query := &mocks.QueryService{}
-	agent := &mocks.AgentService{}
+	agent := &mocks.CollectorService{}
 	cT := &mocks.T{}
 	handler := &TraceHandler{
 		agent:  agent,
@@ -528,7 +528,7 @@ func TestAdaptiveSamplingTest(t *testing.T) {
 		},
 	}
 
-	agent = &mocks.AgentService{}
+	agent = &mocks.CollectorService{}
 	handler.agent = agent
 	agent.On("GetSamplingRate", "go", mock.AnythingOfType("string")).Return(0.222, nil)
 	// The query service returns an adaptive sampled trace

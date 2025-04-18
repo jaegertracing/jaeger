@@ -2,6 +2,7 @@ dir: '{{.InterfaceDir}}/mocks/'
 structname: '{{.InterfaceName}}'
 pkgname: mocks
 template: testify
+filename: mocks.go
 template-data:
   boilerplate-file: .mockery.header.txt
 packages:
@@ -62,18 +63,18 @@ packages:
       Iterator: {}
       Query: {}
       Session: {}
-  github.com/jaegertracing/jaeger/pkg/distributedlock:
+  github.com/jaegertracing/jaeger/internal/distributedlock:
     config:
       all: true
-  github.com/jaegertracing/jaeger/pkg/es:
+  github.com/jaegertracing/jaeger/internal/storage/elasticsearch:
     config:
       all: true
-  github.com/jaegertracing/jaeger/pkg/es/client:
+  github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client:
     config:
       all: true
   github.com/jaegertracing/jaeger/internal/storage/kafka/consumer:
     interfaces:
       Consumer: {}
-  github.com/jaegertracing/jaeger/plugin/sampling/leaderelection:
+  github.com/jaegertracing/jaeger/internal/leaderelection:
     config:
       all: true
