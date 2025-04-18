@@ -10,7 +10,7 @@ package mocks
 import (
 	context "context"
 
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	elasticsearch "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	elastic "github.com/olivere/elastic"
 
 	mock "github.com/stretchr/testify/mock"
@@ -22,19 +22,19 @@ type TemplateCreateService struct {
 }
 
 // Body provides a mock function with given fields: mapping
-func (_m *TemplateCreateService) Body(mapping string) es.TemplateCreateService {
+func (_m *TemplateCreateService) Body(mapping string) elasticsearch.TemplateCreateService {
 	ret := _m.Called(mapping)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Body")
 	}
 
-	var r0 es.TemplateCreateService
-	if rf, ok := ret.Get(0).(func(string) es.TemplateCreateService); ok {
+	var r0 elasticsearch.TemplateCreateService
+	if rf, ok := ret.Get(0).(func(string) elasticsearch.TemplateCreateService); ok {
 		r0 = rf(mapping)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(es.TemplateCreateService)
+			r0 = ret.Get(0).(elasticsearch.TemplateCreateService)
 		}
 	}
 
