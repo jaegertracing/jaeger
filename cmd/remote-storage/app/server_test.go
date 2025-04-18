@@ -21,14 +21,16 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/internal/healthcheck"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage_v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
-	depStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	spanStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
+	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
@@ -46,6 +48,7 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 					},
 				},
 			},
+			factory,
 			factory,
 			tenancy.NewManager(&tenancy.Options{}),
 			telemetry.NoopSettings(),
@@ -86,30 +89,30 @@ func TestServerStart_BadPortErrors(t *testing.T) {
 }
 
 type fakeFactory struct {
-	reader    spanstore.Reader
-	writer    spanstore.Writer
-	depReader dependencystore.Reader
+	reader    tracestore.Reader
+	writer    tracestore.Writer
+	depReader depstore.Reader
 
 	readerErr    error
 	writerErr    error
 	depReaderErr error
 }
 
-func (f *fakeFactory) CreateSpanReader() (spanstore.Reader, error) {
+func (f *fakeFactory) CreateTraceReader() (tracestore.Reader, error) {
 	if f.readerErr != nil {
 		return nil, f.readerErr
 	}
 	return f.reader, nil
 }
 
-func (f *fakeFactory) CreateSpanWriter() (spanstore.Writer, error) {
+func (f *fakeFactory) CreateTraceWriter() (tracestore.Writer, error) {
 	if f.writerErr != nil {
 		return nil, f.writerErr
 	}
 	return f.writer, nil
 }
 
-func (f *fakeFactory) CreateDependencyReader() (dependencystore.Reader, error) {
+func (f *fakeFactory) CreateDependencyReader() (depstore.Reader, error) {
 	if f.depReaderErr != nil {
 		return nil, f.depReaderErr
 	}
@@ -143,6 +146,7 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 			},
 		},
 		&fakeFactory{},
+		&fakeFactory{},
 		tenancy.NewManager(&tenancy.Options{}),
 		telset,
 	)
@@ -150,21 +154,23 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 }
 
 func TestCreateGRPCHandler(t *testing.T) {
-	reader := new(spanStoreMocks.Reader)
-	writer := new(spanStoreMocks.Writer)
-	depReader := new(depStoreMocks.Reader)
+	reader := new(tracestoremocks.Reader)
+	writer := new(tracestoremocks.Writer)
+	depReader := new(depstoremocks.Reader)
 
-	f := &fakeFactory{
-		reader:    reader,
-		writer:    writer,
-		depReader: depReader,
-	}
-
-	h, err := createGRPCHandler(f)
+	h, err := createGRPCHandler(reader, writer, depReader)
 	require.NoError(t, err)
 
-	writer.On("WriteSpan", mock.Anything, mock.Anything).Return(errors.New("writer error"))
-	_, err = h.WriteSpan(context.Background(), &storage_v1.WriteSpanRequest{})
+	writer.On("WriteTraces", mock.Anything, mock.Anything).Return(errors.New("writer error"))
+	_, err = h.WriteSpan(context.Background(), &storage_v1.WriteSpanRequest{
+		Span: &model.Span{
+			TraceID: model.NewTraceID(1, 1),
+			SpanID:  model.NewSpanID(1),
+			Process: &model.Process{
+				ServiceName: "test",
+			},
+		},
+	})
 	require.ErrorContains(t, err, "writer error")
 
 	depReader.On(
@@ -350,7 +356,7 @@ func TestServerGRPCTLS(t *testing.T) {
 			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 			flagsSvc.Logger = zap.NewNop()
 
-			reader := new(spanStoreMocks.Reader)
+			reader := new(tracestoremocks.Reader)
 			f := &fakeFactory{
 				reader: reader,
 			}
@@ -364,6 +370,7 @@ func TestServerGRPCTLS(t *testing.T) {
 			}
 			server, err := NewServer(
 				serverOptions,
+				f,
 				f,
 				tm,
 				telset,
@@ -414,6 +421,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 		&Options{ServerConfig: configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{Endpoint: ":0"},
 		}},
+		&fakeFactory{},
 		&fakeFactory{},
 		tenancy.NewManager(&tenancy.Options{}),
 		telset,
