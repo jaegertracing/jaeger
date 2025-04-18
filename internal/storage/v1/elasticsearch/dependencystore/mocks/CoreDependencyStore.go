@@ -22,6 +22,14 @@ type CoreDependencyStore struct {
 	mock.Mock
 }
 
+type CoreDependencyStore_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *CoreDependencyStore) EXPECT() *CoreDependencyStore_Expecter {
+	return &CoreDependencyStore_Expecter{mock: &_m.Mock}
+}
+
 // CreateTemplates provides a mock function with given fields: dependenciesTemplate
 func (_m *CoreDependencyStore) CreateTemplates(dependenciesTemplate string) error {
 	ret := _m.Called(dependenciesTemplate)
@@ -38,6 +46,34 @@ func (_m *CoreDependencyStore) CreateTemplates(dependenciesTemplate string) erro
 	}
 
 	return r0
+}
+
+// CoreDependencyStore_CreateTemplates_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateTemplates'
+type CoreDependencyStore_CreateTemplates_Call struct {
+	*mock.Call
+}
+
+// CreateTemplates is a helper method to define mock.On call
+//   - dependenciesTemplate string
+func (_e *CoreDependencyStore_Expecter) CreateTemplates(dependenciesTemplate interface{}) *CoreDependencyStore_CreateTemplates_Call {
+	return &CoreDependencyStore_CreateTemplates_Call{Call: _e.mock.On("CreateTemplates", dependenciesTemplate)}
+}
+
+func (_c *CoreDependencyStore_CreateTemplates_Call) Run(run func(dependenciesTemplate string)) *CoreDependencyStore_CreateTemplates_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *CoreDependencyStore_CreateTemplates_Call) Return(_a0 error) *CoreDependencyStore_CreateTemplates_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *CoreDependencyStore_CreateTemplates_Call) RunAndReturn(run func(string) error) *CoreDependencyStore_CreateTemplates_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // GetDependencies provides a mock function with given fields: ctx, endTs, lookback
@@ -70,6 +106,36 @@ func (_m *CoreDependencyStore) GetDependencies(ctx context.Context, endTs time.T
 	return r0, r1
 }
 
+// CoreDependencyStore_GetDependencies_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetDependencies'
+type CoreDependencyStore_GetDependencies_Call struct {
+	*mock.Call
+}
+
+// GetDependencies is a helper method to define mock.On call
+//   - ctx context.Context
+//   - endTs time.Time
+//   - lookback time.Duration
+func (_e *CoreDependencyStore_Expecter) GetDependencies(ctx interface{}, endTs interface{}, lookback interface{}) *CoreDependencyStore_GetDependencies_Call {
+	return &CoreDependencyStore_GetDependencies_Call{Call: _e.mock.On("GetDependencies", ctx, endTs, lookback)}
+}
+
+func (_c *CoreDependencyStore_GetDependencies_Call) Run(run func(ctx context.Context, endTs time.Time, lookback time.Duration)) *CoreDependencyStore_GetDependencies_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(time.Time), args[2].(time.Duration))
+	})
+	return _c
+}
+
+func (_c *CoreDependencyStore_GetDependencies_Call) Return(_a0 []dbmodel.DependencyLink, _a1 error) *CoreDependencyStore_GetDependencies_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *CoreDependencyStore_GetDependencies_Call) RunAndReturn(run func(context.Context, time.Time, time.Duration) ([]dbmodel.DependencyLink, error)) *CoreDependencyStore_GetDependencies_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // WriteDependencies provides a mock function with given fields: ts, dependencies
 func (_m *CoreDependencyStore) WriteDependencies(ts time.Time, dependencies []dbmodel.DependencyLink) error {
 	ret := _m.Called(ts, dependencies)
@@ -86,6 +152,35 @@ func (_m *CoreDependencyStore) WriteDependencies(ts time.Time, dependencies []db
 	}
 
 	return r0
+}
+
+// CoreDependencyStore_WriteDependencies_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'WriteDependencies'
+type CoreDependencyStore_WriteDependencies_Call struct {
+	*mock.Call
+}
+
+// WriteDependencies is a helper method to define mock.On call
+//   - ts time.Time
+//   - dependencies []dbmodel.DependencyLink
+func (_e *CoreDependencyStore_Expecter) WriteDependencies(ts interface{}, dependencies interface{}) *CoreDependencyStore_WriteDependencies_Call {
+	return &CoreDependencyStore_WriteDependencies_Call{Call: _e.mock.On("WriteDependencies", ts, dependencies)}
+}
+
+func (_c *CoreDependencyStore_WriteDependencies_Call) Run(run func(ts time.Time, dependencies []dbmodel.DependencyLink)) *CoreDependencyStore_WriteDependencies_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(time.Time), args[1].([]dbmodel.DependencyLink))
+	})
+	return _c
+}
+
+func (_c *CoreDependencyStore_WriteDependencies_Call) Return(_a0 error) *CoreDependencyStore_WriteDependencies_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *CoreDependencyStore_WriteDependencies_Call) RunAndReturn(run func(time.Time, []dbmodel.DependencyLink) error) *CoreDependencyStore_WriteDependencies_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewCoreDependencyStore creates a new instance of CoreDependencyStore. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
