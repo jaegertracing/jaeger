@@ -218,7 +218,7 @@ init-submodules:
 MOCKERY_FLAGS := --all --disable-version-string
 .PHONY: generate-mocks
 generate-mocks: $(MOCKERY)
-	grep github.com/jaegertracing/jaeger .mockery.yaml | sed 's|^.*github.com/jaegertracing/jaeger/\(.*\):.*$$|rm -f \1/mocks/*go|g' | sh
+	find . -path '*/mocks/*' -name '*.go' -type f -delete
 	$(MOCKERY) | tee .mockery.log
 
 .PHONY: certs
