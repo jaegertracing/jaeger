@@ -41,6 +41,7 @@ var testCertKeyLocation = "../../../internal/config/tlscfg/testdata"
 func TestNewServer_CreateStorageErrors(t *testing.T) {
 	createServer := func(factory *fakeFactory) (*Server, error) {
 		return NewServer(
+			context.Background(),
 			&Options{
 				ServerConfig: configgrpc.ServerConfig{
 					NetAddr: confignet.AddrConfig{
@@ -137,6 +138,7 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 	}
 
 	_, err := NewServer(
+		context.Background(),
 		&Options{
 			ServerConfig: configgrpc.ServerConfig{
 				NetAddr: confignet.AddrConfig{
@@ -369,6 +371,7 @@ func TestServerGRPCTLS(t *testing.T) {
 				ReportStatus: telemetry.HCAdapter(flagsSvc.HC()),
 			}
 			server, err := NewServer(
+				context.Background(),
 				serverOptions,
 				f,
 				f,
@@ -418,6 +421,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 		ReportStatus: telemetry.HCAdapter(flagsSvc.HC()),
 	}
 	server, err := NewServer(
+		context.Background(),
 		&Options{ServerConfig: configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{Endpoint: ":0"},
 		}},

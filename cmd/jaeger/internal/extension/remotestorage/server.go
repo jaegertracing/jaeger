@@ -71,7 +71,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	}
 
 	tm := tenancy.NewManager(&s.config.Tenancy)
-	s.server, err = app.NewServer(&s.config.Options, tf, df, tm, telset)
+	s.server, err = app.NewServer(ctx, &s.config.Options, tf, df, tm, telset)
 	if err != nil {
 		return fmt.Errorf("could not create remote storage server: %w", err)
 	}
