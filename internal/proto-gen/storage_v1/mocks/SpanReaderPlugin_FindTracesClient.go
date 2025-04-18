@@ -21,6 +21,14 @@ type SpanReaderPlugin_FindTracesClient struct {
 	mock.Mock
 }
 
+type SpanReaderPlugin_FindTracesClient_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *SpanReaderPlugin_FindTracesClient) EXPECT() *SpanReaderPlugin_FindTracesClient_Expecter {
+	return &SpanReaderPlugin_FindTracesClient_Expecter{mock: &_m.Mock}
+}
+
 // CloseSend provides a mock function with no fields
 func (_m *SpanReaderPlugin_FindTracesClient) CloseSend() error {
 	ret := _m.Called()
@@ -37,6 +45,33 @@ func (_m *SpanReaderPlugin_FindTracesClient) CloseSend() error {
 	}
 
 	return r0
+}
+
+// SpanReaderPlugin_FindTracesClient_CloseSend_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CloseSend'
+type SpanReaderPlugin_FindTracesClient_CloseSend_Call struct {
+	*mock.Call
+}
+
+// CloseSend is a helper method to define mock.On call
+func (_e *SpanReaderPlugin_FindTracesClient_Expecter) CloseSend() *SpanReaderPlugin_FindTracesClient_CloseSend_Call {
+	return &SpanReaderPlugin_FindTracesClient_CloseSend_Call{Call: _e.mock.On("CloseSend")}
+}
+
+func (_c *SpanReaderPlugin_FindTracesClient_CloseSend_Call) Run(run func()) *SpanReaderPlugin_FindTracesClient_CloseSend_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *SpanReaderPlugin_FindTracesClient_CloseSend_Call) Return(_a0 error) *SpanReaderPlugin_FindTracesClient_CloseSend_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *SpanReaderPlugin_FindTracesClient_CloseSend_Call) RunAndReturn(run func() error) *SpanReaderPlugin_FindTracesClient_CloseSend_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Context provides a mock function with no fields
@@ -57,6 +92,33 @@ func (_m *SpanReaderPlugin_FindTracesClient) Context() context.Context {
 	}
 
 	return r0
+}
+
+// SpanReaderPlugin_FindTracesClient_Context_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Context'
+type SpanReaderPlugin_FindTracesClient_Context_Call struct {
+	*mock.Call
+}
+
+// Context is a helper method to define mock.On call
+func (_e *SpanReaderPlugin_FindTracesClient_Expecter) Context() *SpanReaderPlugin_FindTracesClient_Context_Call {
+	return &SpanReaderPlugin_FindTracesClient_Context_Call{Call: _e.mock.On("Context")}
+}
+
+func (_c *SpanReaderPlugin_FindTracesClient_Context_Call) Run(run func()) *SpanReaderPlugin_FindTracesClient_Context_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *SpanReaderPlugin_FindTracesClient_Context_Call) Return(_a0 context.Context) *SpanReaderPlugin_FindTracesClient_Context_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *SpanReaderPlugin_FindTracesClient_Context_Call) RunAndReturn(run func() context.Context) *SpanReaderPlugin_FindTracesClient_Context_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Header provides a mock function with no fields
@@ -89,6 +151,33 @@ func (_m *SpanReaderPlugin_FindTracesClient) Header() (metadata.MD, error) {
 	return r0, r1
 }
 
+// SpanReaderPlugin_FindTracesClient_Header_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Header'
+type SpanReaderPlugin_FindTracesClient_Header_Call struct {
+	*mock.Call
+}
+
+// Header is a helper method to define mock.On call
+func (_e *SpanReaderPlugin_FindTracesClient_Expecter) Header() *SpanReaderPlugin_FindTracesClient_Header_Call {
+	return &SpanReaderPlugin_FindTracesClient_Header_Call{Call: _e.mock.On("Header")}
+}
+
+func (_c *SpanReaderPlugin_FindTracesClient_Header_Call) Run(run func()) *SpanReaderPlugin_FindTracesClient_Header_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *SpanReaderPlugin_FindTracesClient_Header_Call) Return(_a0 metadata.MD, _a1 error) *SpanReaderPlugin_FindTracesClient_Header_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SpanReaderPlugin_FindTracesClient_Header_Call) RunAndReturn(run func() (metadata.MD, error)) *SpanReaderPlugin_FindTracesClient_Header_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Recv provides a mock function with no fields
 func (_m *SpanReaderPlugin_FindTracesClient) Recv() (*storage_v1.SpansResponseChunk, error) {
 	ret := _m.Called()
@@ -119,6 +208,33 @@ func (_m *SpanReaderPlugin_FindTracesClient) Recv() (*storage_v1.SpansResponseCh
 	return r0, r1
 }
 
+// SpanReaderPlugin_FindTracesClient_Recv_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Recv'
+type SpanReaderPlugin_FindTracesClient_Recv_Call struct {
+	*mock.Call
+}
+
+// Recv is a helper method to define mock.On call
+func (_e *SpanReaderPlugin_FindTracesClient_Expecter) Recv() *SpanReaderPlugin_FindTracesClient_Recv_Call {
+	return &SpanReaderPlugin_FindTracesClient_Recv_Call{Call: _e.mock.On("Recv")}
+}
+
+func (_c *SpanReaderPlugin_FindTracesClient_Recv_Call) Run(run func()) *SpanReaderPlugin_FindTracesClient_Recv_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *SpanReaderPlugin_FindTracesClient_Recv_Call) Return(_a0 *storage_v1.SpansResponseChunk, _a1 error) *SpanReaderPlugin_FindTracesClient_Recv_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SpanReaderPlugin_FindTracesClient_Recv_Call) RunAndReturn(run func() (*storage_v1.SpansResponseChunk, error)) *SpanReaderPlugin_FindTracesClient_Recv_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // RecvMsg provides a mock function with given fields: m
 func (_m *SpanReaderPlugin_FindTracesClient) RecvMsg(m any) error {
 	ret := _m.Called(m)
@@ -135,6 +251,34 @@ func (_m *SpanReaderPlugin_FindTracesClient) RecvMsg(m any) error {
 	}
 
 	return r0
+}
+
+// SpanReaderPlugin_FindTracesClient_RecvMsg_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RecvMsg'
+type SpanReaderPlugin_FindTracesClient_RecvMsg_Call struct {
+	*mock.Call
+}
+
+// RecvMsg is a helper method to define mock.On call
+//   - m any
+func (_e *SpanReaderPlugin_FindTracesClient_Expecter) RecvMsg(m interface{}) *SpanReaderPlugin_FindTracesClient_RecvMsg_Call {
+	return &SpanReaderPlugin_FindTracesClient_RecvMsg_Call{Call: _e.mock.On("RecvMsg", m)}
+}
+
+func (_c *SpanReaderPlugin_FindTracesClient_RecvMsg_Call) Run(run func(m any)) *SpanReaderPlugin_FindTracesClient_RecvMsg_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(any))
+	})
+	return _c
+}
+
+func (_c *SpanReaderPlugin_FindTracesClient_RecvMsg_Call) Return(_a0 error) *SpanReaderPlugin_FindTracesClient_RecvMsg_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *SpanReaderPlugin_FindTracesClient_RecvMsg_Call) RunAndReturn(run func(any) error) *SpanReaderPlugin_FindTracesClient_RecvMsg_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // SendMsg provides a mock function with given fields: m
@@ -155,6 +299,34 @@ func (_m *SpanReaderPlugin_FindTracesClient) SendMsg(m any) error {
 	return r0
 }
 
+// SpanReaderPlugin_FindTracesClient_SendMsg_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SendMsg'
+type SpanReaderPlugin_FindTracesClient_SendMsg_Call struct {
+	*mock.Call
+}
+
+// SendMsg is a helper method to define mock.On call
+//   - m any
+func (_e *SpanReaderPlugin_FindTracesClient_Expecter) SendMsg(m interface{}) *SpanReaderPlugin_FindTracesClient_SendMsg_Call {
+	return &SpanReaderPlugin_FindTracesClient_SendMsg_Call{Call: _e.mock.On("SendMsg", m)}
+}
+
+func (_c *SpanReaderPlugin_FindTracesClient_SendMsg_Call) Run(run func(m any)) *SpanReaderPlugin_FindTracesClient_SendMsg_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(any))
+	})
+	return _c
+}
+
+func (_c *SpanReaderPlugin_FindTracesClient_SendMsg_Call) Return(_a0 error) *SpanReaderPlugin_FindTracesClient_SendMsg_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *SpanReaderPlugin_FindTracesClient_SendMsg_Call) RunAndReturn(run func(any) error) *SpanReaderPlugin_FindTracesClient_SendMsg_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Trailer provides a mock function with no fields
 func (_m *SpanReaderPlugin_FindTracesClient) Trailer() metadata.MD {
 	ret := _m.Called()
@@ -173,6 +345,33 @@ func (_m *SpanReaderPlugin_FindTracesClient) Trailer() metadata.MD {
 	}
 
 	return r0
+}
+
+// SpanReaderPlugin_FindTracesClient_Trailer_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Trailer'
+type SpanReaderPlugin_FindTracesClient_Trailer_Call struct {
+	*mock.Call
+}
+
+// Trailer is a helper method to define mock.On call
+func (_e *SpanReaderPlugin_FindTracesClient_Expecter) Trailer() *SpanReaderPlugin_FindTracesClient_Trailer_Call {
+	return &SpanReaderPlugin_FindTracesClient_Trailer_Call{Call: _e.mock.On("Trailer")}
+}
+
+func (_c *SpanReaderPlugin_FindTracesClient_Trailer_Call) Run(run func()) *SpanReaderPlugin_FindTracesClient_Trailer_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *SpanReaderPlugin_FindTracesClient_Trailer_Call) Return(_a0 metadata.MD) *SpanReaderPlugin_FindTracesClient_Trailer_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *SpanReaderPlugin_FindTracesClient_Trailer_Call) RunAndReturn(run func() metadata.MD) *SpanReaderPlugin_FindTracesClient_Trailer_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewSpanReaderPlugin_FindTracesClient creates a new instance of SpanReaderPlugin_FindTracesClient. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

@@ -1,4 +1,4 @@
-with-expecter: false
+with-expecter: true
 disable-version-string: true
 outpkg: "mocks"
 dir: "{{.InterfaceDir}}/mocks/"
@@ -29,6 +29,7 @@ packages:
   github.com/jaegertracing/jaeger/internal/storage/cassandra:
     config:
       unroll-variadic: false
+      with-expecter: false
     interfaces:
       Iterator:
       Query:

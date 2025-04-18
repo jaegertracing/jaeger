@@ -14,6 +14,14 @@ type ServiceAliasMappingStorage struct {
 	mock.Mock
 }
 
+type ServiceAliasMappingStorage_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *ServiceAliasMappingStorage) EXPECT() *ServiceAliasMappingStorage_Expecter {
+	return &ServiceAliasMappingStorage_Expecter{mock: &_m.Mock}
+}
+
 // Load provides a mock function with no fields
 func (_m *ServiceAliasMappingStorage) Load() (map[string]string, error) {
 	ret := _m.Called()
@@ -44,6 +52,33 @@ func (_m *ServiceAliasMappingStorage) Load() (map[string]string, error) {
 	return r0, r1
 }
 
+// ServiceAliasMappingStorage_Load_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Load'
+type ServiceAliasMappingStorage_Load_Call struct {
+	*mock.Call
+}
+
+// Load is a helper method to define mock.On call
+func (_e *ServiceAliasMappingStorage_Expecter) Load() *ServiceAliasMappingStorage_Load_Call {
+	return &ServiceAliasMappingStorage_Load_Call{Call: _e.mock.On("Load")}
+}
+
+func (_c *ServiceAliasMappingStorage_Load_Call) Run(run func()) *ServiceAliasMappingStorage_Load_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *ServiceAliasMappingStorage_Load_Call) Return(_a0 map[string]string, _a1 error) *ServiceAliasMappingStorage_Load_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *ServiceAliasMappingStorage_Load_Call) RunAndReturn(run func() (map[string]string, error)) *ServiceAliasMappingStorage_Load_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Save provides a mock function with given fields: data
 func (_m *ServiceAliasMappingStorage) Save(data map[string]string) error {
 	ret := _m.Called(data)
@@ -60,6 +95,34 @@ func (_m *ServiceAliasMappingStorage) Save(data map[string]string) error {
 	}
 
 	return r0
+}
+
+// ServiceAliasMappingStorage_Save_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Save'
+type ServiceAliasMappingStorage_Save_Call struct {
+	*mock.Call
+}
+
+// Save is a helper method to define mock.On call
+//   - data map[string]string
+func (_e *ServiceAliasMappingStorage_Expecter) Save(data interface{}) *ServiceAliasMappingStorage_Save_Call {
+	return &ServiceAliasMappingStorage_Save_Call{Call: _e.mock.On("Save", data)}
+}
+
+func (_c *ServiceAliasMappingStorage_Save_Call) Run(run func(data map[string]string)) *ServiceAliasMappingStorage_Save_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(map[string]string))
+	})
+	return _c
+}
+
+func (_c *ServiceAliasMappingStorage_Save_Call) Return(_a0 error) *ServiceAliasMappingStorage_Save_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *ServiceAliasMappingStorage_Save_Call) RunAndReturn(run func(map[string]string) error) *ServiceAliasMappingStorage_Save_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewServiceAliasMappingStorage creates a new instance of ServiceAliasMappingStorage. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

@@ -21,6 +21,14 @@ type SearchService struct {
 	mock.Mock
 }
 
+type SearchService_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *SearchService) EXPECT() *SearchService_Expecter {
+	return &SearchService_Expecter{mock: &_m.Mock}
+}
+
 // Aggregation provides a mock function with given fields: name, aggregation
 func (_m *SearchService) Aggregation(name string, aggregation elastic.Aggregation) elasticsearch.SearchService {
 	ret := _m.Called(name, aggregation)
@@ -39,6 +47,35 @@ func (_m *SearchService) Aggregation(name string, aggregation elastic.Aggregatio
 	}
 
 	return r0
+}
+
+// SearchService_Aggregation_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Aggregation'
+type SearchService_Aggregation_Call struct {
+	*mock.Call
+}
+
+// Aggregation is a helper method to define mock.On call
+//   - name string
+//   - aggregation elastic.Aggregation
+func (_e *SearchService_Expecter) Aggregation(name interface{}, aggregation interface{}) *SearchService_Aggregation_Call {
+	return &SearchService_Aggregation_Call{Call: _e.mock.On("Aggregation", name, aggregation)}
+}
+
+func (_c *SearchService_Aggregation_Call) Run(run func(name string, aggregation elastic.Aggregation)) *SearchService_Aggregation_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string), args[1].(elastic.Aggregation))
+	})
+	return _c
+}
+
+func (_c *SearchService_Aggregation_Call) Return(_a0 elasticsearch.SearchService) *SearchService_Aggregation_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *SearchService_Aggregation_Call) RunAndReturn(run func(string, elastic.Aggregation) elasticsearch.SearchService) *SearchService_Aggregation_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Do provides a mock function with given fields: ctx
@@ -71,6 +108,34 @@ func (_m *SearchService) Do(ctx context.Context) (*elastic.SearchResult, error) 
 	return r0, r1
 }
 
+// SearchService_Do_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Do'
+type SearchService_Do_Call struct {
+	*mock.Call
+}
+
+// Do is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *SearchService_Expecter) Do(ctx interface{}) *SearchService_Do_Call {
+	return &SearchService_Do_Call{Call: _e.mock.On("Do", ctx)}
+}
+
+func (_c *SearchService_Do_Call) Run(run func(ctx context.Context)) *SearchService_Do_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context))
+	})
+	return _c
+}
+
+func (_c *SearchService_Do_Call) Return(_a0 *elastic.SearchResult, _a1 error) *SearchService_Do_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SearchService_Do_Call) RunAndReturn(run func(context.Context) (*elastic.SearchResult, error)) *SearchService_Do_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // IgnoreUnavailable provides a mock function with given fields: ignoreUnavailable
 func (_m *SearchService) IgnoreUnavailable(ignoreUnavailable bool) elasticsearch.SearchService {
 	ret := _m.Called(ignoreUnavailable)
@@ -89,6 +154,34 @@ func (_m *SearchService) IgnoreUnavailable(ignoreUnavailable bool) elasticsearch
 	}
 
 	return r0
+}
+
+// SearchService_IgnoreUnavailable_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IgnoreUnavailable'
+type SearchService_IgnoreUnavailable_Call struct {
+	*mock.Call
+}
+
+// IgnoreUnavailable is a helper method to define mock.On call
+//   - ignoreUnavailable bool
+func (_e *SearchService_Expecter) IgnoreUnavailable(ignoreUnavailable interface{}) *SearchService_IgnoreUnavailable_Call {
+	return &SearchService_IgnoreUnavailable_Call{Call: _e.mock.On("IgnoreUnavailable", ignoreUnavailable)}
+}
+
+func (_c *SearchService_IgnoreUnavailable_Call) Run(run func(ignoreUnavailable bool)) *SearchService_IgnoreUnavailable_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(bool))
+	})
+	return _c
+}
+
+func (_c *SearchService_IgnoreUnavailable_Call) Return(_a0 elasticsearch.SearchService) *SearchService_IgnoreUnavailable_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *SearchService_IgnoreUnavailable_Call) RunAndReturn(run func(bool) elasticsearch.SearchService) *SearchService_IgnoreUnavailable_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Query provides a mock function with given fields: query
@@ -111,6 +204,34 @@ func (_m *SearchService) Query(query elastic.Query) elasticsearch.SearchService 
 	return r0
 }
 
+// SearchService_Query_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Query'
+type SearchService_Query_Call struct {
+	*mock.Call
+}
+
+// Query is a helper method to define mock.On call
+//   - query elastic.Query
+func (_e *SearchService_Expecter) Query(query interface{}) *SearchService_Query_Call {
+	return &SearchService_Query_Call{Call: _e.mock.On("Query", query)}
+}
+
+func (_c *SearchService_Query_Call) Run(run func(query elastic.Query)) *SearchService_Query_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(elastic.Query))
+	})
+	return _c
+}
+
+func (_c *SearchService_Query_Call) Return(_a0 elasticsearch.SearchService) *SearchService_Query_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *SearchService_Query_Call) RunAndReturn(run func(elastic.Query) elasticsearch.SearchService) *SearchService_Query_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Size provides a mock function with given fields: size
 func (_m *SearchService) Size(size int) elasticsearch.SearchService {
 	ret := _m.Called(size)
@@ -129,6 +250,34 @@ func (_m *SearchService) Size(size int) elasticsearch.SearchService {
 	}
 
 	return r0
+}
+
+// SearchService_Size_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Size'
+type SearchService_Size_Call struct {
+	*mock.Call
+}
+
+// Size is a helper method to define mock.On call
+//   - size int
+func (_e *SearchService_Expecter) Size(size interface{}) *SearchService_Size_Call {
+	return &SearchService_Size_Call{Call: _e.mock.On("Size", size)}
+}
+
+func (_c *SearchService_Size_Call) Run(run func(size int)) *SearchService_Size_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(int))
+	})
+	return _c
+}
+
+func (_c *SearchService_Size_Call) Return(_a0 elasticsearch.SearchService) *SearchService_Size_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *SearchService_Size_Call) RunAndReturn(run func(int) elasticsearch.SearchService) *SearchService_Size_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewSearchService creates a new instance of SearchService. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

@@ -19,6 +19,14 @@ type CoreSpanReader struct {
 	mock.Mock
 }
 
+type CoreSpanReader_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *CoreSpanReader) EXPECT() *CoreSpanReader_Expecter {
+	return &CoreSpanReader_Expecter{mock: &_m.Mock}
+}
+
 // FindTraceIDs provides a mock function with given fields: ctx, traceQuery
 func (_m *CoreSpanReader) FindTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error) {
 	ret := _m.Called(ctx, traceQuery)
@@ -47,6 +55,35 @@ func (_m *CoreSpanReader) FindTraceIDs(ctx context.Context, traceQuery dbmodel.T
 	}
 
 	return r0, r1
+}
+
+// CoreSpanReader_FindTraceIDs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindTraceIDs'
+type CoreSpanReader_FindTraceIDs_Call struct {
+	*mock.Call
+}
+
+// FindTraceIDs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - traceQuery dbmodel.TraceQueryParameters
+func (_e *CoreSpanReader_Expecter) FindTraceIDs(ctx interface{}, traceQuery interface{}) *CoreSpanReader_FindTraceIDs_Call {
+	return &CoreSpanReader_FindTraceIDs_Call{Call: _e.mock.On("FindTraceIDs", ctx, traceQuery)}
+}
+
+func (_c *CoreSpanReader_FindTraceIDs_Call) Run(run func(ctx context.Context, traceQuery dbmodel.TraceQueryParameters)) *CoreSpanReader_FindTraceIDs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(dbmodel.TraceQueryParameters))
+	})
+	return _c
+}
+
+func (_c *CoreSpanReader_FindTraceIDs_Call) Return(_a0 []dbmodel.TraceID, _a1 error) *CoreSpanReader_FindTraceIDs_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *CoreSpanReader_FindTraceIDs_Call) RunAndReturn(run func(context.Context, dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error)) *CoreSpanReader_FindTraceIDs_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // FindTraces provides a mock function with given fields: ctx, traceQuery
@@ -79,6 +116,35 @@ func (_m *CoreSpanReader) FindTraces(ctx context.Context, traceQuery dbmodel.Tra
 	return r0, r1
 }
 
+// CoreSpanReader_FindTraces_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindTraces'
+type CoreSpanReader_FindTraces_Call struct {
+	*mock.Call
+}
+
+// FindTraces is a helper method to define mock.On call
+//   - ctx context.Context
+//   - traceQuery dbmodel.TraceQueryParameters
+func (_e *CoreSpanReader_Expecter) FindTraces(ctx interface{}, traceQuery interface{}) *CoreSpanReader_FindTraces_Call {
+	return &CoreSpanReader_FindTraces_Call{Call: _e.mock.On("FindTraces", ctx, traceQuery)}
+}
+
+func (_c *CoreSpanReader_FindTraces_Call) Run(run func(ctx context.Context, traceQuery dbmodel.TraceQueryParameters)) *CoreSpanReader_FindTraces_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(dbmodel.TraceQueryParameters))
+	})
+	return _c
+}
+
+func (_c *CoreSpanReader_FindTraces_Call) Return(_a0 []dbmodel.Trace, _a1 error) *CoreSpanReader_FindTraces_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *CoreSpanReader_FindTraces_Call) RunAndReturn(run func(context.Context, dbmodel.TraceQueryParameters) ([]dbmodel.Trace, error)) *CoreSpanReader_FindTraces_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetOperations provides a mock function with given fields: ctx, query
 func (_m *CoreSpanReader) GetOperations(ctx context.Context, query dbmodel.OperationQueryParameters) ([]dbmodel.Operation, error) {
 	ret := _m.Called(ctx, query)
@@ -107,6 +173,35 @@ func (_m *CoreSpanReader) GetOperations(ctx context.Context, query dbmodel.Opera
 	}
 
 	return r0, r1
+}
+
+// CoreSpanReader_GetOperations_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetOperations'
+type CoreSpanReader_GetOperations_Call struct {
+	*mock.Call
+}
+
+// GetOperations is a helper method to define mock.On call
+//   - ctx context.Context
+//   - query dbmodel.OperationQueryParameters
+func (_e *CoreSpanReader_Expecter) GetOperations(ctx interface{}, query interface{}) *CoreSpanReader_GetOperations_Call {
+	return &CoreSpanReader_GetOperations_Call{Call: _e.mock.On("GetOperations", ctx, query)}
+}
+
+func (_c *CoreSpanReader_GetOperations_Call) Run(run func(ctx context.Context, query dbmodel.OperationQueryParameters)) *CoreSpanReader_GetOperations_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(dbmodel.OperationQueryParameters))
+	})
+	return _c
+}
+
+func (_c *CoreSpanReader_GetOperations_Call) Return(_a0 []dbmodel.Operation, _a1 error) *CoreSpanReader_GetOperations_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *CoreSpanReader_GetOperations_Call) RunAndReturn(run func(context.Context, dbmodel.OperationQueryParameters) ([]dbmodel.Operation, error)) *CoreSpanReader_GetOperations_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // GetServices provides a mock function with given fields: ctx
@@ -139,6 +234,34 @@ func (_m *CoreSpanReader) GetServices(ctx context.Context) ([]string, error) {
 	return r0, r1
 }
 
+// CoreSpanReader_GetServices_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetServices'
+type CoreSpanReader_GetServices_Call struct {
+	*mock.Call
+}
+
+// GetServices is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *CoreSpanReader_Expecter) GetServices(ctx interface{}) *CoreSpanReader_GetServices_Call {
+	return &CoreSpanReader_GetServices_Call{Call: _e.mock.On("GetServices", ctx)}
+}
+
+func (_c *CoreSpanReader_GetServices_Call) Run(run func(ctx context.Context)) *CoreSpanReader_GetServices_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context))
+	})
+	return _c
+}
+
+func (_c *CoreSpanReader_GetServices_Call) Return(_a0 []string, _a1 error) *CoreSpanReader_GetServices_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *CoreSpanReader_GetServices_Call) RunAndReturn(run func(context.Context) ([]string, error)) *CoreSpanReader_GetServices_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetTraces provides a mock function with given fields: ctx, query
 func (_m *CoreSpanReader) GetTraces(ctx context.Context, query []dbmodel.TraceID) ([]dbmodel.Trace, error) {
 	ret := _m.Called(ctx, query)
@@ -167,6 +290,35 @@ func (_m *CoreSpanReader) GetTraces(ctx context.Context, query []dbmodel.TraceID
 	}
 
 	return r0, r1
+}
+
+// CoreSpanReader_GetTraces_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetTraces'
+type CoreSpanReader_GetTraces_Call struct {
+	*mock.Call
+}
+
+// GetTraces is a helper method to define mock.On call
+//   - ctx context.Context
+//   - query []dbmodel.TraceID
+func (_e *CoreSpanReader_Expecter) GetTraces(ctx interface{}, query interface{}) *CoreSpanReader_GetTraces_Call {
+	return &CoreSpanReader_GetTraces_Call{Call: _e.mock.On("GetTraces", ctx, query)}
+}
+
+func (_c *CoreSpanReader_GetTraces_Call) Run(run func(ctx context.Context, query []dbmodel.TraceID)) *CoreSpanReader_GetTraces_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]dbmodel.TraceID))
+	})
+	return _c
+}
+
+func (_c *CoreSpanReader_GetTraces_Call) Return(_a0 []dbmodel.Trace, _a1 error) *CoreSpanReader_GetTraces_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *CoreSpanReader_GetTraces_Call) RunAndReturn(run func(context.Context, []dbmodel.TraceID) ([]dbmodel.Trace, error)) *CoreSpanReader_GetTraces_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewCoreSpanReader creates a new instance of CoreSpanReader. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

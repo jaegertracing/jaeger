@@ -17,9 +17,45 @@ type Inheritable struct {
 	mock.Mock
 }
 
+type Inheritable_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *Inheritable) EXPECT() *Inheritable_Expecter {
+	return &Inheritable_Expecter{mock: &_m.Mock}
+}
+
 // InheritSettingsFrom provides a mock function with given fields: other
 func (_m *Inheritable) InheritSettingsFrom(other storage.Factory) {
 	_m.Called(other)
+}
+
+// Inheritable_InheritSettingsFrom_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'InheritSettingsFrom'
+type Inheritable_InheritSettingsFrom_Call struct {
+	*mock.Call
+}
+
+// InheritSettingsFrom is a helper method to define mock.On call
+//   - other storage.Factory
+func (_e *Inheritable_Expecter) InheritSettingsFrom(other interface{}) *Inheritable_InheritSettingsFrom_Call {
+	return &Inheritable_InheritSettingsFrom_Call{Call: _e.mock.On("InheritSettingsFrom", other)}
+}
+
+func (_c *Inheritable_InheritSettingsFrom_Call) Run(run func(other storage.Factory)) *Inheritable_InheritSettingsFrom_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(storage.Factory))
+	})
+	return _c
+}
+
+func (_c *Inheritable_InheritSettingsFrom_Call) Return() *Inheritable_InheritSettingsFrom_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *Inheritable_InheritSettingsFrom_Call) RunAndReturn(run func(storage.Factory)) *Inheritable_InheritSettingsFrom_Call {
+	_c.Run(run)
+	return _c
 }
 
 // NewInheritable creates a new instance of Inheritable. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

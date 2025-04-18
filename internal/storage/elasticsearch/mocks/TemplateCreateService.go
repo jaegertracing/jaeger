@@ -21,6 +21,14 @@ type TemplateCreateService struct {
 	mock.Mock
 }
 
+type TemplateCreateService_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *TemplateCreateService) EXPECT() *TemplateCreateService_Expecter {
+	return &TemplateCreateService_Expecter{mock: &_m.Mock}
+}
+
 // Body provides a mock function with given fields: mapping
 func (_m *TemplateCreateService) Body(mapping string) elasticsearch.TemplateCreateService {
 	ret := _m.Called(mapping)
@@ -39,6 +47,34 @@ func (_m *TemplateCreateService) Body(mapping string) elasticsearch.TemplateCrea
 	}
 
 	return r0
+}
+
+// TemplateCreateService_Body_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Body'
+type TemplateCreateService_Body_Call struct {
+	*mock.Call
+}
+
+// Body is a helper method to define mock.On call
+//   - mapping string
+func (_e *TemplateCreateService_Expecter) Body(mapping interface{}) *TemplateCreateService_Body_Call {
+	return &TemplateCreateService_Body_Call{Call: _e.mock.On("Body", mapping)}
+}
+
+func (_c *TemplateCreateService_Body_Call) Run(run func(mapping string)) *TemplateCreateService_Body_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *TemplateCreateService_Body_Call) Return(_a0 elasticsearch.TemplateCreateService) *TemplateCreateService_Body_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *TemplateCreateService_Body_Call) RunAndReturn(run func(string) elasticsearch.TemplateCreateService) *TemplateCreateService_Body_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Do provides a mock function with given fields: ctx
@@ -69,6 +105,34 @@ func (_m *TemplateCreateService) Do(ctx context.Context) (*elastic.IndicesPutTem
 	}
 
 	return r0, r1
+}
+
+// TemplateCreateService_Do_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Do'
+type TemplateCreateService_Do_Call struct {
+	*mock.Call
+}
+
+// Do is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *TemplateCreateService_Expecter) Do(ctx interface{}) *TemplateCreateService_Do_Call {
+	return &TemplateCreateService_Do_Call{Call: _e.mock.On("Do", ctx)}
+}
+
+func (_c *TemplateCreateService_Do_Call) Run(run func(ctx context.Context)) *TemplateCreateService_Do_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context))
+	})
+	return _c
+}
+
+func (_c *TemplateCreateService_Do_Call) Return(_a0 *elastic.IndicesPutTemplateResponse, _a1 error) *TemplateCreateService_Do_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *TemplateCreateService_Do_Call) RunAndReturn(run func(context.Context) (*elastic.IndicesPutTemplateResponse, error)) *TemplateCreateService_Do_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewTemplateCreateService creates a new instance of TemplateCreateService. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

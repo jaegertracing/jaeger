@@ -18,6 +18,14 @@ type Purger struct {
 	mock.Mock
 }
 
+type Purger_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *Purger) EXPECT() *Purger_Expecter {
+	return &Purger_Expecter{mock: &_m.Mock}
+}
+
 // Purge provides a mock function with given fields: _a0
 func (_m *Purger) Purge(_a0 context.Context) error {
 	ret := _m.Called(_a0)
@@ -34,6 +42,34 @@ func (_m *Purger) Purge(_a0 context.Context) error {
 	}
 
 	return r0
+}
+
+// Purger_Purge_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Purge'
+type Purger_Purge_Call struct {
+	*mock.Call
+}
+
+// Purge is a helper method to define mock.On call
+//   - _a0 context.Context
+func (_e *Purger_Expecter) Purge(_a0 interface{}) *Purger_Purge_Call {
+	return &Purger_Purge_Call{Call: _e.mock.On("Purge", _a0)}
+}
+
+func (_c *Purger_Purge_Call) Run(run func(_a0 context.Context)) *Purger_Purge_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context))
+	})
+	return _c
+}
+
+func (_c *Purger_Purge_Call) Return(_a0 error) *Purger_Purge_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Purger_Purge_Call) RunAndReturn(run func(context.Context) error) *Purger_Purge_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewPurger creates a new instance of Purger. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
