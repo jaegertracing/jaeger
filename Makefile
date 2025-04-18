@@ -218,7 +218,8 @@ init-submodules:
 MOCKERY_FLAGS := --all --disable-version-string
 .PHONY: generate-mocks
 generate-mocks: $(MOCKERY)
-	$(MOCKERY)
+	find . -path '*/mocks/*' -name '*.go' -type f -delete
+	$(MOCKERY) | tee .mockery.log
 
 .PHONY: certs
 certs:

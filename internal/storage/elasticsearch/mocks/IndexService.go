@@ -8,7 +8,7 @@
 package mocks
 
 import (
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	elasticsearch "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -23,19 +23,19 @@ func (_m *IndexService) Add() {
 }
 
 // BodyJson provides a mock function with given fields: body
-func (_m *IndexService) BodyJson(body any) es.IndexService {
+func (_m *IndexService) BodyJson(body any) elasticsearch.IndexService {
 	ret := _m.Called(body)
 
 	if len(ret) == 0 {
 		panic("no return value specified for BodyJson")
 	}
 
-	var r0 es.IndexService
-	if rf, ok := ret.Get(0).(func(any) es.IndexService); ok {
+	var r0 elasticsearch.IndexService
+	if rf, ok := ret.Get(0).(func(any) elasticsearch.IndexService); ok {
 		r0 = rf(body)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(es.IndexService)
+			r0 = ret.Get(0).(elasticsearch.IndexService)
 		}
 	}
 
@@ -43,19 +43,19 @@ func (_m *IndexService) BodyJson(body any) es.IndexService {
 }
 
 // Id provides a mock function with given fields: id
-func (_m *IndexService) Id(id string) es.IndexService {
+func (_m *IndexService) Id(id string) elasticsearch.IndexService {
 	ret := _m.Called(id)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Id")
 	}
 
-	var r0 es.IndexService
-	if rf, ok := ret.Get(0).(func(string) es.IndexService); ok {
+	var r0 elasticsearch.IndexService
+	if rf, ok := ret.Get(0).(func(string) elasticsearch.IndexService); ok {
 		r0 = rf(id)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(es.IndexService)
+			r0 = ret.Get(0).(elasticsearch.IndexService)
 		}
 	}
 
@@ -63,19 +63,19 @@ func (_m *IndexService) Id(id string) es.IndexService {
 }
 
 // Index provides a mock function with given fields: index
-func (_m *IndexService) Index(index string) es.IndexService {
+func (_m *IndexService) Index(index string) elasticsearch.IndexService {
 	ret := _m.Called(index)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Index")
 	}
 
-	var r0 es.IndexService
-	if rf, ok := ret.Get(0).(func(string) es.IndexService); ok {
+	var r0 elasticsearch.IndexService
+	if rf, ok := ret.Get(0).(func(string) elasticsearch.IndexService); ok {
 		r0 = rf(index)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(es.IndexService)
+			r0 = ret.Get(0).(elasticsearch.IndexService)
 		}
 	}
 
@@ -83,19 +83,19 @@ func (_m *IndexService) Index(index string) es.IndexService {
 }
 
 // Type provides a mock function with given fields: typ
-func (_m *IndexService) Type(typ string) es.IndexService {
+func (_m *IndexService) Type(typ string) elasticsearch.IndexService {
 	ret := _m.Called(typ)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Type")
 	}
 
-	var r0 es.IndexService
-	if rf, ok := ret.Get(0).(func(string) es.IndexService); ok {
+	var r0 elasticsearch.IndexService
+	if rf, ok := ret.Get(0).(func(string) elasticsearch.IndexService); ok {
 		r0 = rf(typ)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(es.IndexService)
+			r0 = ret.Get(0).(elasticsearch.IndexService)
 		}
 	}
 
