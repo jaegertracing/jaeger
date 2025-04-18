@@ -14,14 +14,6 @@ type Iterator struct {
 	mock.Mock
 }
 
-type Iterator_Expecter struct {
-	mock *mock.Mock
-}
-
-func (_m *Iterator) EXPECT() *Iterator_Expecter {
-	return &Iterator_Expecter{mock: &_m.Mock}
-}
-
 // Close provides a mock function with no fields
 func (_m *Iterator) Close() error {
 	ret := _m.Called()
@@ -40,42 +32,9 @@ func (_m *Iterator) Close() error {
 	return r0
 }
 
-// Iterator_Close_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Close'
-type Iterator_Close_Call struct {
-	*mock.Call
-}
-
-// Close is a helper method to define mock.On call
-func (_e *Iterator_Expecter) Close() *Iterator_Close_Call {
-	return &Iterator_Close_Call{Call: _e.mock.On("Close")}
-}
-
-func (_c *Iterator_Close_Call) Run(run func()) *Iterator_Close_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run()
-	})
-	return _c
-}
-
-func (_c *Iterator_Close_Call) Return(_a0 error) *Iterator_Close_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *Iterator_Close_Call) RunAndReturn(run func() error) *Iterator_Close_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // Scan provides a mock function with given fields: dest
 func (_m *Iterator) Scan(dest ...any) bool {
-	var tmpRet mock.Arguments
-	if len(dest) > 0 {
-		tmpRet = _m.Called(dest)
-	} else {
-		tmpRet = _m.Called()
-	}
-	ret := tmpRet
+	ret := _m.Called(dest)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Scan")
@@ -89,41 +48,6 @@ func (_m *Iterator) Scan(dest ...any) bool {
 	}
 
 	return r0
-}
-
-// Iterator_Scan_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Scan'
-type Iterator_Scan_Call struct {
-	*mock.Call
-}
-
-// Scan is a helper method to define mock.On call
-//   - dest ...any
-func (_e *Iterator_Expecter) Scan(dest ...interface{}) *Iterator_Scan_Call {
-	return &Iterator_Scan_Call{Call: _e.mock.On("Scan",
-		append([]interface{}{}, dest...)...)}
-}
-
-func (_c *Iterator_Scan_Call) Run(run func(dest ...any)) *Iterator_Scan_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		variadicArgs := make([]any, len(args)-0)
-		for i, a := range args[0:] {
-			if a != nil {
-				variadicArgs[i] = a.(any)
-			}
-		}
-		run(variadicArgs...)
-	})
-	return _c
-}
-
-func (_c *Iterator_Scan_Call) Return(_a0 bool) *Iterator_Scan_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *Iterator_Scan_Call) RunAndReturn(run func(...any) bool) *Iterator_Scan_Call {
-	_c.Call.Return(run)
-	return _c
 }
 
 // NewIterator creates a new instance of Iterator. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

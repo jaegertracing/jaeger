@@ -29,6 +29,7 @@ packages:
   github.com/jaegertracing/jaeger/internal/storage/cassandra:
     config:
       unroll-variadic: false
+      with-expecter: false
     interfaces:
       Iterator:
       Query:
