@@ -11,7 +11,7 @@ import (
 
 type Config struct {
 	app.Options
-	Storage string `mapstructure:"storage"`
+	Storage string `mapstructure:"storage" valid:"required"`
 }
 
 func (cfg *Config) Validate() error {
