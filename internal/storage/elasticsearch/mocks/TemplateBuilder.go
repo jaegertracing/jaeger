@@ -8,7 +8,7 @@
 package mocks
 
 import (
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	elasticsearch "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -18,23 +18,23 @@ type TemplateBuilder struct {
 }
 
 // Parse provides a mock function with given fields: text
-func (_m *TemplateBuilder) Parse(text string) (es.TemplateApplier, error) {
+func (_m *TemplateBuilder) Parse(text string) (elasticsearch.TemplateApplier, error) {
 	ret := _m.Called(text)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Parse")
 	}
 
-	var r0 es.TemplateApplier
+	var r0 elasticsearch.TemplateApplier
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string) (es.TemplateApplier, error)); ok {
+	if rf, ok := ret.Get(0).(func(string) (elasticsearch.TemplateApplier, error)); ok {
 		return rf(text)
 	}
-	if rf, ok := ret.Get(0).(func(string) es.TemplateApplier); ok {
+	if rf, ok := ret.Get(0).(func(string) elasticsearch.TemplateApplier); ok {
 		r0 = rf(text)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(es.TemplateApplier)
+			r0 = ret.Get(0).(elasticsearch.TemplateApplier)
 		}
 	}
 

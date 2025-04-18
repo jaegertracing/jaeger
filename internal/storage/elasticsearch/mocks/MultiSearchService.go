@@ -10,7 +10,7 @@ package mocks
 import (
 	context "context"
 
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	elasticsearch "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	elastic "github.com/olivere/elastic"
 
 	mock "github.com/stretchr/testify/mock"
@@ -22,7 +22,7 @@ type MultiSearchService struct {
 }
 
 // Add provides a mock function with given fields: requests
-func (_m *MultiSearchService) Add(requests ...*elastic.SearchRequest) es.MultiSearchService {
+func (_m *MultiSearchService) Add(requests ...*elastic.SearchRequest) elasticsearch.MultiSearchService {
 	_va := make([]interface{}, len(requests))
 	for _i := range requests {
 		_va[_i] = requests[_i]
@@ -35,12 +35,12 @@ func (_m *MultiSearchService) Add(requests ...*elastic.SearchRequest) es.MultiSe
 		panic("no return value specified for Add")
 	}
 
-	var r0 es.MultiSearchService
-	if rf, ok := ret.Get(0).(func(...*elastic.SearchRequest) es.MultiSearchService); ok {
+	var r0 elasticsearch.MultiSearchService
+	if rf, ok := ret.Get(0).(func(...*elastic.SearchRequest) elasticsearch.MultiSearchService); ok {
 		r0 = rf(requests...)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(es.MultiSearchService)
+			r0 = ret.Get(0).(elasticsearch.MultiSearchService)
 		}
 	}
 
@@ -78,7 +78,7 @@ func (_m *MultiSearchService) Do(ctx context.Context) (*elastic.MultiSearchResul
 }
 
 // Index provides a mock function with given fields: indices
-func (_m *MultiSearchService) Index(indices ...string) es.MultiSearchService {
+func (_m *MultiSearchService) Index(indices ...string) elasticsearch.MultiSearchService {
 	_va := make([]interface{}, len(indices))
 	for _i := range indices {
 		_va[_i] = indices[_i]
@@ -91,12 +91,12 @@ func (_m *MultiSearchService) Index(indices ...string) es.MultiSearchService {
 		panic("no return value specified for Index")
 	}
 
-	var r0 es.MultiSearchService
-	if rf, ok := ret.Get(0).(func(...string) es.MultiSearchService); ok {
+	var r0 elasticsearch.MultiSearchService
+	if rf, ok := ret.Get(0).(func(...string) elasticsearch.MultiSearchService); ok {
 		r0 = rf(indices...)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(es.MultiSearchService)
+			r0 = ret.Get(0).(elasticsearch.MultiSearchService)
 		}
 	}
 

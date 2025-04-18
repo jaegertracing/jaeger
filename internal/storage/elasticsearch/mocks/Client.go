@@ -8,7 +8,7 @@
 package mocks
 
 import (
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	elasticsearch "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -36,19 +36,19 @@ func (_m *Client) Close() error {
 }
 
 // CreateIndex provides a mock function with given fields: index
-func (_m *Client) CreateIndex(index string) es.IndicesCreateService {
+func (_m *Client) CreateIndex(index string) elasticsearch.IndicesCreateService {
 	ret := _m.Called(index)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateIndex")
 	}
 
-	var r0 es.IndicesCreateService
-	if rf, ok := ret.Get(0).(func(string) es.IndicesCreateService); ok {
+	var r0 elasticsearch.IndicesCreateService
+	if rf, ok := ret.Get(0).(func(string) elasticsearch.IndicesCreateService); ok {
 		r0 = rf(index)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(es.IndicesCreateService)
+			r0 = ret.Get(0).(elasticsearch.IndicesCreateService)
 		}
 	}
 
@@ -56,19 +56,19 @@ func (_m *Client) CreateIndex(index string) es.IndicesCreateService {
 }
 
 // CreateTemplate provides a mock function with given fields: id
-func (_m *Client) CreateTemplate(id string) es.TemplateCreateService {
+func (_m *Client) CreateTemplate(id string) elasticsearch.TemplateCreateService {
 	ret := _m.Called(id)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateTemplate")
 	}
 
-	var r0 es.TemplateCreateService
-	if rf, ok := ret.Get(0).(func(string) es.TemplateCreateService); ok {
+	var r0 elasticsearch.TemplateCreateService
+	if rf, ok := ret.Get(0).(func(string) elasticsearch.TemplateCreateService); ok {
 		r0 = rf(id)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(es.TemplateCreateService)
+			r0 = ret.Get(0).(elasticsearch.TemplateCreateService)
 		}
 	}
 
@@ -76,19 +76,19 @@ func (_m *Client) CreateTemplate(id string) es.TemplateCreateService {
 }
 
 // DeleteIndex provides a mock function with given fields: index
-func (_m *Client) DeleteIndex(index string) es.IndicesDeleteService {
+func (_m *Client) DeleteIndex(index string) elasticsearch.IndicesDeleteService {
 	ret := _m.Called(index)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DeleteIndex")
 	}
 
-	var r0 es.IndicesDeleteService
-	if rf, ok := ret.Get(0).(func(string) es.IndicesDeleteService); ok {
+	var r0 elasticsearch.IndicesDeleteService
+	if rf, ok := ret.Get(0).(func(string) elasticsearch.IndicesDeleteService); ok {
 		r0 = rf(index)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(es.IndicesDeleteService)
+			r0 = ret.Get(0).(elasticsearch.IndicesDeleteService)
 		}
 	}
 
@@ -114,19 +114,19 @@ func (_m *Client) GetVersion() uint {
 }
 
 // Index provides a mock function with no fields
-func (_m *Client) Index() es.IndexService {
+func (_m *Client) Index() elasticsearch.IndexService {
 	ret := _m.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for Index")
 	}
 
-	var r0 es.IndexService
-	if rf, ok := ret.Get(0).(func() es.IndexService); ok {
+	var r0 elasticsearch.IndexService
+	if rf, ok := ret.Get(0).(func() elasticsearch.IndexService); ok {
 		r0 = rf()
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(es.IndexService)
+			r0 = ret.Get(0).(elasticsearch.IndexService)
 		}
 	}
 
@@ -134,19 +134,19 @@ func (_m *Client) Index() es.IndexService {
 }
 
 // IndexExists provides a mock function with given fields: index
-func (_m *Client) IndexExists(index string) es.IndicesExistsService {
+func (_m *Client) IndexExists(index string) elasticsearch.IndicesExistsService {
 	ret := _m.Called(index)
 
 	if len(ret) == 0 {
 		panic("no return value specified for IndexExists")
 	}
 
-	var r0 es.IndicesExistsService
-	if rf, ok := ret.Get(0).(func(string) es.IndicesExistsService); ok {
+	var r0 elasticsearch.IndicesExistsService
+	if rf, ok := ret.Get(0).(func(string) elasticsearch.IndicesExistsService); ok {
 		r0 = rf(index)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(es.IndicesExistsService)
+			r0 = ret.Get(0).(elasticsearch.IndicesExistsService)
 		}
 	}
 
@@ -154,19 +154,19 @@ func (_m *Client) IndexExists(index string) es.IndicesExistsService {
 }
 
 // MultiSearch provides a mock function with no fields
-func (_m *Client) MultiSearch() es.MultiSearchService {
+func (_m *Client) MultiSearch() elasticsearch.MultiSearchService {
 	ret := _m.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for MultiSearch")
 	}
 
-	var r0 es.MultiSearchService
-	if rf, ok := ret.Get(0).(func() es.MultiSearchService); ok {
+	var r0 elasticsearch.MultiSearchService
+	if rf, ok := ret.Get(0).(func() elasticsearch.MultiSearchService); ok {
 		r0 = rf()
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(es.MultiSearchService)
+			r0 = ret.Get(0).(elasticsearch.MultiSearchService)
 		}
 	}
 
@@ -174,7 +174,7 @@ func (_m *Client) MultiSearch() es.MultiSearchService {
 }
 
 // Search provides a mock function with given fields: indices
-func (_m *Client) Search(indices ...string) es.SearchService {
+func (_m *Client) Search(indices ...string) elasticsearch.SearchService {
 	_va := make([]interface{}, len(indices))
 	for _i := range indices {
 		_va[_i] = indices[_i]
@@ -187,12 +187,12 @@ func (_m *Client) Search(indices ...string) es.SearchService {
 		panic("no return value specified for Search")
 	}
 
-	var r0 es.SearchService
-	if rf, ok := ret.Get(0).(func(...string) es.SearchService); ok {
+	var r0 elasticsearch.SearchService
+	if rf, ok := ret.Get(0).(func(...string) elasticsearch.SearchService); ok {
 		r0 = rf(indices...)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(es.SearchService)
+			r0 = ret.Get(0).(elasticsearch.SearchService)
 		}
 	}
 
