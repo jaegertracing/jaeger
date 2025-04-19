@@ -47,10 +47,11 @@ func (f *testStream) Send(td *jptrace.TracesData) error {
 func TestHandler_GetTraces(t *testing.T) {
 	start := time.Now()
 	end := start.Add(time.Minute)
-	query := tracestore.GetTraceParams{
+	query := []tracestore.GetTraceParams{{
 		TraceID: pcommon.TraceID([16]byte{1}),
 		Start:   start,
 		End:     end,
+	},
 	}
 	trace := makeTestTrace()
 	td := jptrace.TracesData(trace)
@@ -98,7 +99,13 @@ func TestHandler_GetTraces(t *testing.T) {
 			reader := new(tracestoremocks.Reader)
 			writer := new(tracestoremocks.Writer)
 			depReader := new(depstoremocks.Reader)
-			reader.On("GetTraces", mock.Anything, query).
+			reader.On("GetTraces", mock.Anything, mock.MatchedBy(func(queries []tracestore.GetTraceParams) bool {
+				// Verify the slice contains exactly one element matching expectedQuery
+				return len(queries) == 1 &&
+					queries[0].TraceID == query[0].TraceID &&
+					queries[0].Start.Equal(query[0].Start) &&
+					queries[0].End.Equal(query[0].End)
+			})).
 				Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 					if test.getTraceErr != nil {
 						yield(nil, test.getTraceErr)

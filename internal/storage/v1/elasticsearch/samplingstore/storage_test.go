@@ -308,7 +308,7 @@ func TestGetThroughput(t *testing.T) {
 					test.indexPrefix += "-"
 				}
 				index := test.indexPrefix.Apply(test.index)
-				w.client.On("Search", index).Return(searchService)
+				w.client.On("Search", []string{index}).Return(searchService)
 				searchService.On("Size", mock.Anything).Return(searchService)
 				searchService.On("Query", mock.Anything).Return(searchService)
 				searchService.On("IgnoreUnavailable", true).Return(searchService)
@@ -404,7 +404,7 @@ func TestGetLatestProbabilities(t *testing.T) {
 			withEsSampling(test.indexPrefix, "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
 				searchService := &mocks.SearchService{}
 				index := test.indexPrefix.Apply(test.index)
-				w.client.On("Search", index).Return(searchService)
+				w.client.On("Search", []string{index}).Return(searchService)
 				searchService.On("Size", mock.Anything).Return(searchService)
 				searchService.On("IgnoreUnavailable", true).Return(searchService)
 				searchService.On("Do", mock.Anything).Return(test.searchResult, test.searchError)

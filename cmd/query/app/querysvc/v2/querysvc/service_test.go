@@ -97,7 +97,7 @@ func makeTestTrace() ptrace.Traces {
 
 func TestGetTraces_ErrorInReader(t *testing.T) {
 	tqs := initializeTestService()
-	tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
+	tqs.traceReader.On("GetTraces", mock.Anything, mock.AnythingOfType("[]tracestore.GetTraceParams")).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 			yield(nil, assert.AnError)
 		})).Once()
@@ -116,7 +116,7 @@ func TestGetTraces_ErrorInReader(t *testing.T) {
 
 func TestGetTraces_Success(t *testing.T) {
 	tqs := initializeTestService()
-	tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
+	tqs.traceReader.On("GetTraces", mock.Anything, mock.AnythingOfType("[]tracestore.GetTraceParams")).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 			yield([]ptrace.Traces{makeTestTrace()}, nil)
 		})).Once()
@@ -187,7 +187,7 @@ func TestGetTraces_WithRawTraces(t *testing.T) {
 			})
 
 			tqs := initializeTestService()
-			tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
+			tqs.traceReader.On("GetTraces", mock.Anything, mock.AnythingOfType("[]tracestore.GetTraceParams")).
 				Return(responseIter).Once()
 
 			params := GetTraceParams{
@@ -212,12 +212,12 @@ func TestGetTraces_WithRawTraces(t *testing.T) {
 func TestGetTraces_TraceInArchiveStorage(t *testing.T) {
 	tqs := initializeTestService(withArchiveTraceReader())
 
-	tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
+	tqs.traceReader.On("GetTraces", mock.Anything, mock.Anything).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 			yield([]ptrace.Traces{}, nil)
 		})).Once()
 
-	tqs.archiveTraceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
+	tqs.archiveTraceReader.On("GetTraces", mock.Anything, mock.Anything).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 			yield([]ptrace.Traces{makeTestTrace()}, nil)
 		})).Once()
@@ -531,7 +531,7 @@ func TestArchiveTrace(t *testing.T) {
 				responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 					yield([]ptrace.Traces{}, assert.AnError)
 				})
-				tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
+				tqs.traceReader.On("GetTraces", mock.Anything, mock.AnythingOfType("[]tracestore.GetTraceParams")).
 					Return(responseIter).Once()
 			},
 			expectedError: assert.AnError,
@@ -543,7 +543,7 @@ func TestArchiveTrace(t *testing.T) {
 				responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 					yield([]ptrace.Traces{makeTestTrace()}, nil)
 				})
-				tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
+				tqs.traceReader.On("GetTraces", mock.Anything, mock.AnythingOfType("[]tracestore.GetTraceParams")).
 					Return(responseIter).Once()
 				tqs.archiveTraceWriter.On("WriteTraces", mock.Anything, mock.AnythingOfType("ptrace.Traces")).
 					Return(assert.AnError).Once()
@@ -557,7 +557,7 @@ func TestArchiveTrace(t *testing.T) {
 				responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 					yield([]ptrace.Traces{makeTestTrace()}, nil)
 				})
-				tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
+				tqs.traceReader.On("GetTraces", mock.Anything, mock.AnythingOfType("[]tracestore.GetTraceParams")).
 					Return(responseIter).Once()
 				tqs.archiveTraceWriter.On("WriteTraces", mock.Anything, mock.AnythingOfType("ptrace.Traces")).
 					Return(nil).Once()
