@@ -56,6 +56,41 @@ func (*TraceReader) FindTraces(_ context.Context, _ v2api.TraceQueryParams) iter
 	panic("not implemented")
 }
 
-func (*TraceReader) FindTraceIDs(_ context.Context, _ v2api.TraceQueryParams) iter.Seq2[[]v2api.FoundTraceID, error] {
-	panic("not implemented")
+func (t *TraceReader) FindTraceIDs(ctx context.Context, query v2api.TraceQueryParams) iter.Seq2[[]v2api.FoundTraceID, error] {
+	return func(yield func([]v2api.FoundTraceID, error) bool) {
+		traceIds, err := t.spanReader.FindTraceIDs(ctx, toDBTraceQueryParams(query))
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		otelTraceIds := make([]v2api.FoundTraceID, 0, len(traceIds))
+		for _, traceId := range traceIds {
+			dbTraceId, err := fromDbTraceId(traceId)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+			otelTraceIds = append(otelTraceIds, v2api.FoundTraceID{
+				TraceID: dbTraceId,
+			})
+		}
+		yield(otelTraceIds, nil)
+	}
+}
+
+func toDBTraceQueryParams(query v2api.TraceQueryParams) dbmodel.TraceQueryParameters {
+	tags := make(map[string]string)
+	for key, val := range query.Attributes.All() {
+		tags[key] = val.AsString()
+	}
+	return dbmodel.TraceQueryParameters{
+		ServiceName:   query.ServiceName,
+		OperationName: query.OperationName,
+		StartTimeMin:  query.StartTimeMin,
+		StartTimeMax:  query.StartTimeMax,
+		Tags:          tags,
+		NumTraces:     query.SearchDepth,
+		DurationMin:   query.DurationMin,
+		DurationMax:   query.DurationMax,
+	}
 }
