@@ -78,6 +78,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	if err := s.server.Start(ctx); err != nil {
 		return fmt.Errorf("could not start jaeger remote storage server: %w", err)
 	}
+	success = true
 
 	return nil
 }
