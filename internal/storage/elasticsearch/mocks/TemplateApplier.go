@@ -18,6 +18,14 @@ type TemplateApplier struct {
 	mock.Mock
 }
 
+type TemplateApplier_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *TemplateApplier) EXPECT() *TemplateApplier_Expecter {
+	return &TemplateApplier_Expecter{mock: &_m.Mock}
+}
+
 // Execute provides a mock function with given fields: wr, data
 func (_m *TemplateApplier) Execute(wr io.Writer, data any) error {
 	ret := _m.Called(wr, data)
@@ -34,6 +42,35 @@ func (_m *TemplateApplier) Execute(wr io.Writer, data any) error {
 	}
 
 	return r0
+}
+
+// TemplateApplier_Execute_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Execute'
+type TemplateApplier_Execute_Call struct {
+	*mock.Call
+}
+
+// Execute is a helper method to define mock.On call
+//   - wr io.Writer
+//   - data any
+func (_e *TemplateApplier_Expecter) Execute(wr interface{}, data interface{}) *TemplateApplier_Execute_Call {
+	return &TemplateApplier_Execute_Call{Call: _e.mock.On("Execute", wr, data)}
+}
+
+func (_c *TemplateApplier_Execute_Call) Run(run func(wr io.Writer, data any)) *TemplateApplier_Execute_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(io.Writer), args[1].(any))
+	})
+	return _c
+}
+
+func (_c *TemplateApplier_Execute_Call) Return(_a0 error) *TemplateApplier_Execute_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *TemplateApplier_Execute_Call) RunAndReturn(run func(io.Writer, any) error) *TemplateApplier_Execute_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewTemplateApplier creates a new instance of TemplateApplier. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

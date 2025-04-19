@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	elasticsearch8 "github.com/elastic/go-elasticsearch/v8"
+	elasticsearch8 "github.com/elastic/go-elasticsearch/v9"
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

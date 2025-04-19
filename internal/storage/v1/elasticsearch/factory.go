@@ -298,7 +298,7 @@ func createDependencyReader(
 	cfg *config.Configuration,
 	logger *zap.Logger,
 ) (dependencystore.Reader, error) {
-	reader := esDepStore.NewDependencyStore(esDepStore.Params{
+	reader := esDepStore.NewDependencyStoreV1(esDepStore.Params{
 		Client:              clientFn,
 		Logger:              logger,
 		IndexPrefix:         cfg.Indices.IndexPrefix,

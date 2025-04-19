@@ -10,8 +10,8 @@ import (
 	"net/http"
 	"strings"
 
-	esV8 "github.com/elastic/go-elasticsearch/v8"
-	esV8api "github.com/elastic/go-elasticsearch/v8/esapi"
+	esV8 "github.com/elastic/go-elasticsearch/v9"
+	esV8api "github.com/elastic/go-elasticsearch/v9/esapi"
 	"github.com/olivere/elastic"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"

@@ -22,6 +22,14 @@ type StreamingSpanWriterPluginClient struct {
 	mock.Mock
 }
 
+type StreamingSpanWriterPluginClient_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *StreamingSpanWriterPluginClient) EXPECT() *StreamingSpanWriterPluginClient_Expecter {
+	return &StreamingSpanWriterPluginClient_Expecter{mock: &_m.Mock}
+}
+
 // WriteSpanStream provides a mock function with given fields: ctx, opts
 func (_m *StreamingSpanWriterPluginClient) WriteSpanStream(ctx context.Context, opts ...grpc.CallOption) (storage_v1.StreamingSpanWriterPlugin_WriteSpanStreamClient, error) {
 	_va := make([]interface{}, len(opts))
@@ -57,6 +65,42 @@ func (_m *StreamingSpanWriterPluginClient) WriteSpanStream(ctx context.Context, 
 	}
 
 	return r0, r1
+}
+
+// StreamingSpanWriterPluginClient_WriteSpanStream_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'WriteSpanStream'
+type StreamingSpanWriterPluginClient_WriteSpanStream_Call struct {
+	*mock.Call
+}
+
+// WriteSpanStream is a helper method to define mock.On call
+//   - ctx context.Context
+//   - opts ...grpc.CallOption
+func (_e *StreamingSpanWriterPluginClient_Expecter) WriteSpanStream(ctx interface{}, opts ...interface{}) *StreamingSpanWriterPluginClient_WriteSpanStream_Call {
+	return &StreamingSpanWriterPluginClient_WriteSpanStream_Call{Call: _e.mock.On("WriteSpanStream",
+		append([]interface{}{ctx}, opts...)...)}
+}
+
+func (_c *StreamingSpanWriterPluginClient_WriteSpanStream_Call) Run(run func(ctx context.Context, opts ...grpc.CallOption)) *StreamingSpanWriterPluginClient_WriteSpanStream_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		variadicArgs := make([]grpc.CallOption, len(args)-1)
+		for i, a := range args[1:] {
+			if a != nil {
+				variadicArgs[i] = a.(grpc.CallOption)
+			}
+		}
+		run(args[0].(context.Context), variadicArgs...)
+	})
+	return _c
+}
+
+func (_c *StreamingSpanWriterPluginClient_WriteSpanStream_Call) Return(_a0 storage_v1.StreamingSpanWriterPlugin_WriteSpanStreamClient, _a1 error) *StreamingSpanWriterPluginClient_WriteSpanStream_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *StreamingSpanWriterPluginClient_WriteSpanStream_Call) RunAndReturn(run func(context.Context, ...grpc.CallOption) (storage_v1.StreamingSpanWriterPlugin_WriteSpanStreamClient, error)) *StreamingSpanWriterPluginClient_WriteSpanStream_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewStreamingSpanWriterPluginClient creates a new instance of StreamingSpanWriterPluginClient. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

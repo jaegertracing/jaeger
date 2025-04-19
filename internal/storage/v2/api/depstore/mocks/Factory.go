@@ -17,6 +17,14 @@ type Factory struct {
 	mock.Mock
 }
 
+type Factory_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *Factory) EXPECT() *Factory_Expecter {
+	return &Factory_Expecter{mock: &_m.Mock}
+}
+
 // CreateDependencyReader provides a mock function with no fields
 func (_m *Factory) CreateDependencyReader() (depstore.Reader, error) {
 	ret := _m.Called()
@@ -45,6 +53,33 @@ func (_m *Factory) CreateDependencyReader() (depstore.Reader, error) {
 	}
 
 	return r0, r1
+}
+
+// Factory_CreateDependencyReader_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateDependencyReader'
+type Factory_CreateDependencyReader_Call struct {
+	*mock.Call
+}
+
+// CreateDependencyReader is a helper method to define mock.On call
+func (_e *Factory_Expecter) CreateDependencyReader() *Factory_CreateDependencyReader_Call {
+	return &Factory_CreateDependencyReader_Call{Call: _e.mock.On("CreateDependencyReader")}
+}
+
+func (_c *Factory_CreateDependencyReader_Call) Run(run func()) *Factory_CreateDependencyReader_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Factory_CreateDependencyReader_Call) Return(_a0 depstore.Reader, _a1 error) *Factory_CreateDependencyReader_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *Factory_CreateDependencyReader_Call) RunAndReturn(run func() (depstore.Reader, error)) *Factory_CreateDependencyReader_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewFactory creates a new instance of Factory. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

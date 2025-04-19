@@ -1,0 +1,212 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "service-x"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "testing-library",
+            "version": "1.1.1"
+          },
+          "spans": [
+            {
+              "traceId": "00000000000000020000000000000000",
+              "spanId": "0000000000000003",
+              "parentSpanId": "0000000000000010",
+              "flags": 1,
+              "name": "test-general-conversion",
+              "startTimeUnixNano": "1485467191639875000",
+              "endTimeUnixNano": "1485467191639880000",
+              "attributes": [
+                {
+                  "key": "peer.service",
+                  "value": {
+                    "stringValue": "service-y"
+                  }
+                },
+                {
+                  "key": "peer.ipv4",
+                  "value": {
+                    "intValue": "23456"
+                  }
+                },
+                {
+                  "key": "blob",
+                  "value": {
+                    "bytesValue": "AAAwOQ=="
+                  }
+                },
+                {
+                  "key": "temperature",
+                  "value": {
+                    "doubleValue": 72.5
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1485467191639875000",
+                  "name": "testing-event",
+                  "attributes": [
+                    {
+                      "key": "event-x",
+                      "value": {
+                        "stringValue": "event-y"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1485467191639875000",
+                  "attributes": [
+                    {
+                      "key": "x",
+                      "value": {
+                        "stringValue": "y"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "links": [
+                {
+                  "traceId": "00000000000000010000000000000000",
+                  "spanId": "0000000000000004",
+                  "attributes": [
+                    {
+                      "key": "opentracing.ref_type",
+                      "value": {
+                        "stringValue": "follows_from"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "traceId": "00000000000000ff0000000000000000",
+                  "spanId": "00000000000000ff",
+                  "attributes": [
+                    {
+                      "key": "opentracing.ref_type",
+                      "value": {
+                        "stringValue": "child_of"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {
+                "code": 2
+              }
+            }
+          ]
+        },
+        {
+          "scope": {
+            "name": "testing-library-1",
+            "version": "1.1.2"
+          },
+          "spans": [
+            {
+              "traceId": "00000000000000020000000000000000",
+              "spanId": "0000000000000005",
+              "parentSpanId": "0000000000000010",
+              "flags": 1,
+              "name": "test-general-conversion",
+              "startTimeUnixNano": "1485467191639875000",
+              "endTimeUnixNano": "1485467191639880000",
+              "attributes": [
+                {
+                  "key": "peer.service",
+                  "value": {
+                    "stringValue": "service-y"
+                  }
+                },
+                {
+                  "key": "peer.ipv4",
+                  "value": {
+                    "intValue": "23456"
+                  }
+                },
+                {
+                  "key": "blob",
+                  "value": {
+                    "bytesValue": "AAAwOQ=="
+                  }
+                },
+                {
+                  "key": "temperature",
+                  "value": {
+                    "doubleValue": 72.5
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1485467191639875000",
+                  "name": "testing-event",
+                  "attributes": [
+                    {
+                      "key": "event-x",
+                      "value": {
+                        "stringValue": "event-y"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1485467191639875000",
+                  "attributes": [
+                    {
+                      "key": "x",
+                      "value": {
+                        "stringValue": "y"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "links": [
+                {
+                  "traceId": "00000000000000010000000000000000",
+                  "spanId": "0000000000000004",
+                  "attributes": [
+                    {
+                      "key": "opentracing.ref_type",
+                      "value": {
+                        "stringValue": "follows_from"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "traceId": "00000000000000ff0000000000000000",
+                  "spanId": "00000000000000ff",
+                  "attributes": [
+                    {
+                      "key": "opentracing.ref_type",
+                      "value": {
+                        "stringValue": "child_of"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {
+                "code": 2
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -22,6 +22,14 @@ type DependenciesReaderPluginClient struct {
 	mock.Mock
 }
 
+type DependenciesReaderPluginClient_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *DependenciesReaderPluginClient) EXPECT() *DependenciesReaderPluginClient_Expecter {
+	return &DependenciesReaderPluginClient_Expecter{mock: &_m.Mock}
+}
+
 // GetDependencies provides a mock function with given fields: ctx, in, opts
 func (_m *DependenciesReaderPluginClient) GetDependencies(ctx context.Context, in *storage_v1.GetDependenciesRequest, opts ...grpc.CallOption) (*storage_v1.GetDependenciesResponse, error) {
 	_va := make([]interface{}, len(opts))
@@ -57,6 +65,43 @@ func (_m *DependenciesReaderPluginClient) GetDependencies(ctx context.Context, i
 	}
 
 	return r0, r1
+}
+
+// DependenciesReaderPluginClient_GetDependencies_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetDependencies'
+type DependenciesReaderPluginClient_GetDependencies_Call struct {
+	*mock.Call
+}
+
+// GetDependencies is a helper method to define mock.On call
+//   - ctx context.Context
+//   - in *storage_v1.GetDependenciesRequest
+//   - opts ...grpc.CallOption
+func (_e *DependenciesReaderPluginClient_Expecter) GetDependencies(ctx interface{}, in interface{}, opts ...interface{}) *DependenciesReaderPluginClient_GetDependencies_Call {
+	return &DependenciesReaderPluginClient_GetDependencies_Call{Call: _e.mock.On("GetDependencies",
+		append([]interface{}{ctx, in}, opts...)...)}
+}
+
+func (_c *DependenciesReaderPluginClient_GetDependencies_Call) Run(run func(ctx context.Context, in *storage_v1.GetDependenciesRequest, opts ...grpc.CallOption)) *DependenciesReaderPluginClient_GetDependencies_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		variadicArgs := make([]grpc.CallOption, len(args)-2)
+		for i, a := range args[2:] {
+			if a != nil {
+				variadicArgs[i] = a.(grpc.CallOption)
+			}
+		}
+		run(args[0].(context.Context), args[1].(*storage_v1.GetDependenciesRequest), variadicArgs...)
+	})
+	return _c
+}
+
+func (_c *DependenciesReaderPluginClient_GetDependencies_Call) Return(_a0 *storage_v1.GetDependenciesResponse, _a1 error) *DependenciesReaderPluginClient_GetDependencies_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *DependenciesReaderPluginClient_GetDependencies_Call) RunAndReturn(run func(context.Context, *storage_v1.GetDependenciesRequest, ...grpc.CallOption) (*storage_v1.GetDependenciesResponse, error)) *DependenciesReaderPluginClient_GetDependencies_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewDependenciesReaderPluginClient creates a new instance of DependenciesReaderPluginClient. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

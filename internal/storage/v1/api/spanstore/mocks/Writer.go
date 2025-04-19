@@ -19,6 +19,14 @@ type Writer struct {
 	mock.Mock
 }
 
+type Writer_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *Writer) EXPECT() *Writer_Expecter {
+	return &Writer_Expecter{mock: &_m.Mock}
+}
+
 // WriteSpan provides a mock function with given fields: ctx, span
 func (_m *Writer) WriteSpan(ctx context.Context, span *model.Span) error {
 	ret := _m.Called(ctx, span)
@@ -35,6 +43,35 @@ func (_m *Writer) WriteSpan(ctx context.Context, span *model.Span) error {
 	}
 
 	return r0
+}
+
+// Writer_WriteSpan_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'WriteSpan'
+type Writer_WriteSpan_Call struct {
+	*mock.Call
+}
+
+// WriteSpan is a helper method to define mock.On call
+//   - ctx context.Context
+//   - span *model.Span
+func (_e *Writer_Expecter) WriteSpan(ctx interface{}, span interface{}) *Writer_WriteSpan_Call {
+	return &Writer_WriteSpan_Call{Call: _e.mock.On("WriteSpan", ctx, span)}
+}
+
+func (_c *Writer_WriteSpan_Call) Run(run func(ctx context.Context, span *model.Span)) *Writer_WriteSpan_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*model.Span))
+	})
+	return _c
+}
+
+func (_c *Writer_WriteSpan_Call) Return(_a0 error) *Writer_WriteSpan_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Writer_WriteSpan_Call) RunAndReturn(run func(context.Context, *model.Span) error) *Writer_WriteSpan_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewWriter creates a new instance of Writer. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
