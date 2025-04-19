@@ -72,7 +72,7 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 	s, err := createServer(factory)
 	require.NoError(t, err)
 	require.NoError(t, s.Start(context.Background()))
-	validateGRPCServer(t, s.grpcConn.Addr().String())
+	validateGRPCServer(t, s.GRPCAddr())
 	require.NoError(t, s.grpcConn.Close())
 }
 
@@ -388,9 +388,9 @@ func TestServerGRPCTLS(t *testing.T) {
 				clientTLSCfg, err0 := test.clientTLS.LoadTLSConfig(context.Background())
 				require.NoError(t, err0)
 				creds := credentials.NewTLS(clientTLSCfg)
-				client = newGRPCClient(t, server.grpcConn.Addr().String(), creds, tm)
+				client = newGRPCClient(t, server.GRPCAddr(), creds, tm)
 			} else {
-				client = newGRPCClient(t, server.grpcConn.Addr().String(), nil, tm)
+				client = newGRPCClient(t, server.GRPCAddr(), nil, tm)
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
