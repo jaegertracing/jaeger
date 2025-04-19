@@ -74,13 +74,13 @@ func TestCodeFromAttr(t *testing.T) {
 }
 
 func TestZeroBatchLength(t *testing.T) {
-	trace, err := FromDBModel([]dbmodel.Span{})
+	trace, err := FromDBModel([]dbmodel.Span{}, ".")
 	require.NoError(t, err)
 	assert.Equal(t, 0, trace.ResourceSpans().Len())
 }
 
 func TestEmptySpansAndProcess(t *testing.T) {
-	trace, err := FromDBModel([]dbmodel.Span{})
+	trace, err := FromDBModel([]dbmodel.Span{}, ".")
 	require.NoError(t, err)
 	assert.Equal(t, 0, trace.ResourceSpans().Len())
 }
@@ -448,7 +448,7 @@ func TestFromDBModelErrors(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := FromDBModel(test.dbSpans)
+			_, err := FromDBModel(test.dbSpans, ".")
 			require.ErrorContains(t, err, test.err)
 		})
 	}
@@ -456,7 +456,7 @@ func TestFromDBModelErrors(t *testing.T) {
 
 func TestSetParentId(t *testing.T) {
 	parentSpanId := [8]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8}
-	trace, err := FromDBModel([]dbmodel.Span{{ParentSpanID: getDbSpanIdFromByteArray(parentSpanId)}})
+	trace, err := FromDBModel([]dbmodel.Span{{ParentSpanID: getDbSpanIdFromByteArray(parentSpanId)}}, ".")
 	require.NoError(t, err)
 	assert.Equal(t, pcommon.SpanID(parentSpanId), trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).ParentSpanID())
 }
@@ -464,7 +464,7 @@ func TestSetParentId(t *testing.T) {
 func TestParentIdWhenRefTraceIdIsDifferent(t *testing.T) {
 	traceId := getDbTraceIdFromByteArray([16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x80})
 	refTraceId := getDbTraceIdFromByteArray([16]byte{0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF, 0x81})
-	trace, err := FromDBModel([]dbmodel.Span{{TraceID: traceId, References: []dbmodel.Reference{{TraceID: refTraceId}}}})
+	trace, err := FromDBModel([]dbmodel.Span{{TraceID: traceId, References: []dbmodel.Reference{{TraceID: refTraceId}}}}, ".")
 	require.NoError(t, err)
 	assert.True(t, trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).ParentSpanID().IsEmpty())
 }
@@ -631,10 +631,10 @@ func TestFromDbModel_Fixtures(t *testing.T) {
 	unmarshaller := ptrace.JSONUnmarshaler{}
 	expectedTd, err := unmarshaller.UnmarshalTraces(tracesData)
 	require.NoError(t, err)
-	spans := ToDBModel(expectedTd)
+	spans := ToDBModel(expectedTd, false, nil, ".")
 	assert.Len(t, spans, 1)
 	testSpans(t, spansData, spans[0])
-	actualTd, err := FromDBModel(spans)
+	actualTd, err := FromDBModel(spans, ".")
 	require.NoError(t, err)
 	testTraces(t, tracesData, actualTd)
 }
@@ -644,10 +644,35 @@ func TestToDbModel_Fixtures_StringTags(t *testing.T) {
 	require.NoError(t, err)
 	var dbSpan dbmodel.Span
 	require.NoError(t, json.Unmarshal(spanData, &dbSpan))
-	td, err := FromDBModel([]dbmodel.Span{dbSpan})
+	td, err := FromDBModel([]dbmodel.Span{dbSpan}, ".")
 	require.NoError(t, err)
 	expectedTraces := loadTraces(t, 1)
 	testTraces(t, expectedTraces, td)
+}
+
+func TestFromDbModel_Fixtures_TagDotReplacement(t *testing.T) {
+	for _, test := range getTagDotReplacementTests() {
+		t.Run(test.name, func(t *testing.T) {
+			spansData, err := os.ReadFile("fixtures/es_01_tagDotReplacement.json")
+			require.NoError(t, err)
+			tracesData := loadTraces(t, 1)
+			unmarshaller := ptrace.JSONUnmarshaler{}
+			expectedTd, err := unmarshaller.UnmarshalTraces(tracesData)
+			require.NoError(t, err)
+			spans := ToDBModel(expectedTd, test.allTagsAsObject, test.tagKeysAsField, "#")
+			assert.Len(t, spans, 1)
+			testSpans(t, spansData, spans[0])
+			actualTd, err := FromDBModel(spans, "#")
+			require.NoError(t, err)
+			resourceSpans := actualTd.ResourceSpans().At(0)
+			resource := resourceSpans.Resource()
+			oSpan := resourceSpans.ScopeSpans().At(0).Spans().At(0)
+			// Map iteration is unordered, but for assertion we need trace in specific structure, therefore we need to sort the attributed
+			sortTracesAttributes(t, oSpan.Attributes())
+			sortTracesAttributes(t, resource.Attributes())
+			testTraces(t, tracesData, actualTd)
+		})
+	}
 }
 
 func getDbTraceIdFromByteArray(arr [16]byte) dbmodel.TraceID {
@@ -656,6 +681,97 @@ func getDbTraceIdFromByteArray(arr [16]byte) dbmodel.TraceID {
 
 func getDbSpanIdFromByteArray(arr [8]byte) dbmodel.SpanID {
 	return dbmodel.SpanID(hex.EncodeToString(arr[:]))
+}
+
+func Test_MergeTagMapAndTagSlice(t *testing.T) {
+	tests := []struct {
+		name       string
+		tagMap     map[string]any
+		expectedKv dbmodel.KeyValue
+	}{
+		{
+			name: "int64",
+			tagMap: map[string]any{
+				"int64": int64(1),
+			},
+			expectedKv: dbmodel.KeyValue{
+				Key:   "int64",
+				Type:  dbmodel.Int64Type,
+				Value: int64(1),
+			},
+		},
+		{
+			name: "float64",
+			tagMap: map[string]any{
+				"float64": float64(1),
+			},
+			expectedKv: dbmodel.KeyValue{
+				Key:   "float64",
+				Type:  dbmodel.Float64Type,
+				Value: float64(1),
+			},
+		},
+		{
+			name: "bool",
+			tagMap: map[string]any{
+				"bool": true,
+			},
+			expectedKv: dbmodel.KeyValue{
+				Key:   "bool",
+				Type:  dbmodel.BoolType,
+				Value: true,
+			},
+		},
+		{
+			name: "binary",
+			tagMap: map[string]any{
+				"binary": []byte{0x01, 0x02, 0x03},
+			},
+			expectedKv: dbmodel.KeyValue{
+				Key:   "binary",
+				Type:  "",
+				Value: "invalid type",
+			},
+		},
+		{
+			name: "jsonNumber/int",
+			tagMap: map[string]any{
+				"json#number#int": json.Number("1"),
+			},
+			expectedKv: dbmodel.KeyValue{
+				Key:   "json.number.int",
+				Type:  dbmodel.Int64Type,
+				Value: int64(1),
+			},
+		},
+		{
+			name: "jsonNumber/float",
+			tagMap: map[string]any{
+				"json#number#float": json.Number("1.23"),
+			},
+			expectedKv: dbmodel.KeyValue{
+				Key:   "json.number.float",
+				Type:  dbmodel.Float64Type,
+				Value: 1.23,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fd := &fromDBModel{tagDotReplacement: "#"}
+			defaultTags := []dbmodel.KeyValue{
+				{
+					Key:   "testing-key",
+					Value: "testing-value",
+					Type:  dbmodel.StringType,
+				},
+			}
+			actual := fd.mergeNestedAndElevatedTags(defaultTags, test.tagMap)
+			assert.Len(t, actual, 2)
+			assert.Equal(t, defaultTags[0], actual[0])
+			assert.Equal(t, test.expectedKv, actual[1])
+		})
+	}
 }
 
 func BenchmarkProtoBatchToInternalTraces(b *testing.B) {
@@ -668,7 +784,7 @@ func BenchmarkProtoBatchToInternalTraces(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		_, err := FromDBModel(jb)
+		_, err := FromDBModel(jb, ".")
 		assert.NoError(b, err)
 	}
 }

@@ -25,26 +25,27 @@ import (
 var errType = errors.New("invalid type")
 
 // FromDBModel converts multiple ES DB Spans to internal traces
-func FromDBModel(spans []dbmodel.Span) (ptrace.Traces, error) {
+func FromDBModel(spans []dbmodel.Span, tagDotReplacement string) (ptrace.Traces, error) {
 	traceData := ptrace.NewTraces()
 	if len(spans) == 0 {
 		return traceData, nil
 	}
-
+	fromDb := &fromDBModel{tagDotReplacement: tagDotReplacement}
 	resourceSpans := traceData.ResourceSpans()
 	resourceSpans.EnsureCapacity(len(spans))
-	err := dbSpansToSpans(spans, resourceSpans)
+	err := fromDb.dbSpansToSpans(spans, resourceSpans)
 
 	return traceData, err
 }
 
-func dbProcessToResource(process dbmodel.Process, resource pcommon.Resource) {
+type fromDBModel struct {
+	tagDotReplacement string
+}
+
+func (f *fromDBModel) dbProcessToResource(process dbmodel.Process, resource pcommon.Resource) {
 	serviceName := process.ServiceName
 	tags := process.Tags
-	if serviceName == "" && tags == nil {
-		return
-	}
-
+	tag := process.Tag
 	attrs := resource.Attributes()
 	if serviceName != "" && serviceName != noServiceName {
 		attrs.EnsureCapacity(len(tags) + 1)
@@ -52,21 +53,22 @@ func dbProcessToResource(process dbmodel.Process, resource pcommon.Resource) {
 	} else {
 		attrs.EnsureCapacity(len(tags))
 	}
+	tags = f.mergeNestedAndElevatedTags(tags, tag)
 	dbTagsToAttributes(tags, attrs)
 }
 
-func dbSpansToSpans(dbSpans []dbmodel.Span, resourceSpans ptrace.ResourceSpansSlice) error {
+func (f *fromDBModel) dbSpansToSpans(dbSpans []dbmodel.Span, resourceSpans ptrace.ResourceSpansSlice) error {
 	for i := range dbSpans {
 		span := &dbSpans[i]
+		tags := f.mergeNestedAndElevatedTags(span.Tags, span.Tag)
 		resourceSpan := resourceSpans.AppendEmpty()
-		dbProcessToResource(span.Process, resourceSpan.Resource())
+		f.dbProcessToResource(span.Process, resourceSpan.Resource())
 
-		scopeSpans := resourceSpan.ScopeSpans()
-		scopeSpan := scopeSpans.AppendEmpty()
-		dbSpanToScope(span, scopeSpan)
+		scopeSpan := resourceSpan.ScopeSpans().AppendEmpty()
+		tags = dbSpanToScope(tags, scopeSpan)
 
 		// TODO there should be no errors returned from translation from db model
-		err := dbSpanToSpan(span, scopeSpan.Spans().AppendEmpty())
+		err := dbSpanToSpan(span, tags, scopeSpan.Spans().AppendEmpty())
 		if err != nil {
 			return err
 		}
@@ -74,7 +76,50 @@ func dbSpansToSpans(dbSpans []dbmodel.Span, resourceSpans ptrace.ResourceSpansSl
 	return nil
 }
 
-func dbSpanToSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
+func (f *fromDBModel) convertTagField(k string, v any) dbmodel.KeyValue {
+	dKey := strings.ReplaceAll(k, f.tagDotReplacement, ".")
+	dTag := dbmodel.KeyValue{Key: dKey, Value: v}
+	switch val := v.(type) {
+	case int64:
+		dTag.Type = dbmodel.Int64Type
+	case float64:
+		dTag.Type = dbmodel.Float64Type
+	case bool:
+		dTag.Type = dbmodel.BoolType
+	case string:
+		dTag.Type = dbmodel.StringType
+	case json.Number:
+		n, err := val.Int64()
+		if err == nil {
+			dTag.Type = dbmodel.Int64Type
+			dTag.Value = n
+		} else {
+			f, err := val.Float64()
+			if err == nil {
+				dTag.Type = dbmodel.Float64Type
+				dTag.Value = f
+			}
+		}
+	default:
+		dTag.Type = ""
+		dTag.Value = "invalid type"
+	}
+	return dTag
+}
+
+func (f *fromDBModel) mergeNestedAndElevatedTags(kvs []dbmodel.KeyValue, tagMap map[string]any) []dbmodel.KeyValue {
+	if tagMap == nil || len(tagMap) == 0 {
+		return kvs
+	}
+	convertedKvs := make([]dbmodel.KeyValue, len(kvs), len(kvs)+len(tagMap))
+	copy(convertedKvs, kvs)
+	for k, v := range tagMap {
+		convertedKvs = append(convertedKvs, f.convertTagField(k, v))
+	}
+	return convertedKvs
+}
+
+func dbSpanToSpan(dbSpan *dbmodel.Span, tags []dbmodel.KeyValue, span ptrace.Span) error {
 	traceId, err := fromDbTraceId(dbSpan.TraceID)
 	if err != nil {
 		return err
@@ -105,8 +150,8 @@ func dbSpanToSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
 	// TODO rewrite this to use a single loop over tags
 	// and map special tag names to OTEL Span fields
 	attrs := span.Attributes()
-	attrs.EnsureCapacity(len(dbSpan.Tags))
-	dbTagsToAttributes(dbSpan.Tags, attrs)
+	attrs.EnsureCapacity(len(tags))
+	dbTagsToAttributes(tags, attrs)
 	if spanKindAttr, ok := attrs.Get(model.SpanKindKey); ok {
 		span.SetKind(dbSpanKindToOTELSpanKind(spanKindAttr.Str()))
 		attrs.Remove(model.SpanKindKey)
@@ -437,25 +482,30 @@ func getTraceStateFromAttrs(attrs pcommon.Map) string {
 	return traceState
 }
 
-func dbSpanToScope(span *dbmodel.Span, scopeSpan ptrace.ScopeSpans) {
-	if libraryName, ok := getAndDeleteTag(span, conventions.AttributeOtelScopeName); ok {
+func dbSpanToScope(tags []dbmodel.KeyValue, scopeSpan ptrace.ScopeSpans) []dbmodel.KeyValue {
+	updatedTags := tags
+	if tagsWithoutScopeName, libraryName, ok := getAndDeleteTag(tags, conventions.AttributeOtelScopeName); ok {
 		scopeSpan.Scope().SetName(libraryName)
-		if libraryVersion, ok := getAndDeleteTag(span, conventions.AttributeOtelScopeVersion); ok {
+		updatedTags = tagsWithoutScopeName
+		if tagsWithoutScopeVersion, libraryVersion, ok := getAndDeleteTag(tagsWithoutScopeName, conventions.AttributeOtelScopeVersion); ok {
 			scopeSpan.Scope().SetVersion(libraryVersion)
+			updatedTags = tagsWithoutScopeVersion
 		}
 	}
+	return updatedTags
 }
 
-func getAndDeleteTag(span *dbmodel.Span, key string) (string, bool) {
-	for i := range span.Tags {
-		if span.Tags[i].Key == key {
-			if val, ok := span.Tags[i].Value.(string); ok {
-				span.Tags = append(span.Tags[:i], span.Tags[i+1:]...)
-				return val, true
+func getAndDeleteTag(tags []dbmodel.KeyValue, key string) ([]dbmodel.KeyValue, string, bool) {
+	for i := range tags {
+		tag := tags[i]
+		if tag.Key == key {
+			if val, ok := tag.Value.(string); ok {
+				tags = append(tags[:i], tags[i+1:]...)
+				return tags, val, true
 			}
 		}
 	}
-	return "", false
+	return tags, "", false
 }
 
 func dbRefTypeToAttribute(ref dbmodel.ReferenceType) string {
