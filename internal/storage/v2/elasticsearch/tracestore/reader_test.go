@@ -5,6 +5,7 @@ package tracestore
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -70,12 +71,58 @@ func TestTraceReader_GetOperations_Error(t *testing.T) {
 }
 
 func TestTraceReader_GetTraces(t *testing.T) {
-	reader := NewTraceReader(spanstore.SpanReaderParams{
-		Logger: zap.NewNop(),
-	})
-	assert.Panics(t, func() {
-		reader.GetTraces(context.Background(), v2api.GetTraceParams{})
-	})
+	coreReader := &mocks.CoreSpanReader{}
+	reader := TraceReader{spanReader: coreReader}
+	tracesStr, spanStr := loadFixtures(t, 1)
+	var span dbmodel.Span
+	require.NoError(t, json.Unmarshal(spanStr, &span))
+	coreReader.On("GetTraces", mock.Anything, mock.Anything).Return([]dbmodel.Trace{{Spans: []dbmodel.Span{span}}}, nil)
+	traces := reader.GetTraces(context.Background(), v2api.GetTraceParams{})
+	for td, err := range traces {
+		require.NoError(t, err)
+		assert.Len(t, td, 1)
+		testTraces(t, tracesStr, td[0])
+	}
+}
+
+func TestTraceReader_GetTraces_Errors(t *testing.T) {
+	tests := []struct {
+		name            string
+		returningErr    error
+		returningTraces []dbmodel.Trace
+		expectedErr     string
+	}{
+		{
+			name:         "some error from db GetTraces",
+			returningErr: errors.New("some error"),
+			expectedErr:  "some error",
+		},
+		{
+			name: "conversion error",
+			returningTraces: []dbmodel.Trace{
+				{
+					Spans: []dbmodel.Span{
+						{
+							TraceID: "wrong-trace-id",
+						},
+					},
+				},
+			},
+			expectedErr: "encoding/hex: invalid byte: U+0077 'w'",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			coreReader := &mocks.CoreSpanReader{}
+			reader := TraceReader{spanReader: coreReader}
+			coreReader.On("GetTraces", mock.Anything, mock.Anything).Return(tt.returningTraces, tt.returningErr)
+			traces := reader.GetTraces(context.Background(), v2api.GetTraceParams{})
+			for trace, err := range traces {
+				require.Nil(t, trace)
+				require.ErrorContains(t, err, tt.expectedErr)
+			}
+		})
+	}
 }
 
 func TestTraceReader_FindTraces(t *testing.T) {
