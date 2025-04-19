@@ -124,8 +124,8 @@
           }
         }
       },
-      "scope":{
-          "properties":{
+       "scope":{
+        "properties":{
             "name":{
               "type":"keyword",
               "ignore_above":256
@@ -156,7 +156,7 @@
               }
             }
           }
-        },
+      },
       "references":{
         "type":"nested",
         "dynamic":false,

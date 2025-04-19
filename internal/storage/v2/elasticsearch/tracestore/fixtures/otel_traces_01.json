@@ -38,6 +38,7 @@
               "parentSpanId": "0000000000000003",
               "flags": 1,
               "name": "test-general-conversion",
+              "kind": 2,
               "startTimeUnixNano": "1485467191639875000",
               "endTimeUnixNano": "1485467191639880000",
               "attributes": [

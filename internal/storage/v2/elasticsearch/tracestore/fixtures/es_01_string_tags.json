@@ -45,6 +45,11 @@
       "value": "72.5"
     },
     {
+      "key": "span.kind",
+      "type": "string",
+      "value": "server"
+    },
+    {
       "key": "error",
       "type": "bool",
       "value": "true"

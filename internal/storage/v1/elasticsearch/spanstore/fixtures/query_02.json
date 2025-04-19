@@ -111,6 +111,7 @@
       },
       {
         "nested":{
+          "ignore_unmapped": true,
           "path":"scope.tags",
           "query":{
             "bool":{

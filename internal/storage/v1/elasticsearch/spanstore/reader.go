@@ -43,8 +43,8 @@ const (
 	objectScopeTagsField   = "scope.tag"
 	nestedTagsField        = "tags"
 	nestedProcessTagsField = "process.tags"
-	nestedLogFieldsField   = "logs.fields"
 	nestedScopeTagsField   = "scope.tags"
+	nestedLogFieldsField   = "logs.fields"
 	tagKeyField            = "key"
 	tagValueField          = "value"
 
@@ -670,7 +670,11 @@ func (*SpanReader) buildNestedQuery(field string, k string, v string) elastic.Qu
 	keyQuery := elastic.NewMatchQuery(keyField, k)
 	valueQuery := elastic.NewRegexpQuery(valueField, v)
 	tagBoolQuery := elastic.NewBoolQuery().Must(keyQuery, valueQuery)
-	return elastic.NewNestedQuery(field, tagBoolQuery)
+	query := elastic.NewNestedQuery(field, tagBoolQuery)
+	if field == nestedScopeTagsField {
+		return query.IgnoreUnmapped(true)
+	}
+	return query
 }
 
 func (*SpanReader) buildObjectQuery(field string, k string, v string) elastic.Query {
