@@ -35,15 +35,10 @@ func (s *GRPCStorageIntegration) cleanUp(t *testing.T) {
 func TestGRPCStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, "grpc")
 
-	s := &GRPCStorageIntegration{
-		E2EStorageIntegration: E2EStorageIntegration{
-			ConfigFile:         "../../config-remote-storage.yaml",
-			SkipStorageCleaner: true,
-		},
+	s := &E2EStorageIntegration{
+		ConfigFile:         "../../config-remote-storage.yaml",
+		SkipStorageCleaner: true,
 	}
-	s.CleanUp = s.cleanUp
-	s.initializeRemoteStorages(t)
 	s.e2eInitialize(t, "grpc")
-	t.Cleanup(func() { s.closeRemoteStorages(t) })
 	s.RunSpanStoreTests(t)
 }
