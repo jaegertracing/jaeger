@@ -51,7 +51,6 @@ func TestTraceWriter_CreateTemplates(t *testing.T) {
 }
 
 func Test_NewTraceWriter(t *testing.T) {
-
 	params := spanstore.SpanWriterParams{
 		Client:         func() elasticsearch.Client { return nil },
 		Logger:         zap.NewNop(),

@@ -249,6 +249,7 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 						if val.Error != nil {
 							logger.Error("Elasticsearch part of bulk request failed", zap.String("map-key", key),
 								zap.Reflect("response", val))
+							failureCount++
 						} else {
 							successCount++
 						}

@@ -26,10 +26,6 @@ const (
 	indexCacheTTLDefault   = 48 * time.Hour
 )
 
-type spanWriterMetrics struct {
-	spanWrite *spanstoremetrics.WriteMetrics
-}
-
 type serviceWriter func(string, *dbmodel.Span)
 
 // SpanWriter is a wrapper around elastic.Client
@@ -37,7 +33,7 @@ type SpanWriter struct {
 	client func() es.Client
 	logger *zap.Logger
 	// indexCache       cache.Cache
-	writerMetrics    spanWriterMetrics
+	writerMetrics    *spanstoremetrics.WriteMetrics
 	serviceWriter    serviceWriter
 	spanServiceIndex spanAndServiceIndexFn
 }
@@ -86,11 +82,9 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 
 	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheTTL)
 	return &SpanWriter{
-		client: p.Client,
-		logger: p.Logger,
-		writerMetrics: spanWriterMetrics{
-			spanWrite: spanstoremetrics.NewWriter(p.MetricsFactory, "span_write"),
-		},
+		client:           p.Client,
+		logger:           p.Logger,
+		writerMetrics:    spanstoremetrics.NewWriter(p.MetricsFactory, "span_write"),
 		serviceWriter:    serviceOperationStorage.Write,
 		spanServiceIndex: getSpanAndServiceIndexFn(p, writeAliasSuffix),
 	}
@@ -129,7 +123,7 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServ
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) error {
-	s.writerMetrics.spanWrite.Attempts.Inc(1)
+	s.writerMetrics.Attempts.Inc(1)
 
 	spanIndexName, serviceIndexName := s.spanServiceIndex(spanStartTime)
 	if serviceIndexName != "" {
