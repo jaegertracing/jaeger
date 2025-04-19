@@ -12,10 +12,21 @@ import (
 func TestGRPCStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, "grpc")
 
-	s := &E2EStorageIntegration{
+	remoteBackend := &E2EStorageIntegration{
+		ConfigFile:         "../../config-remote-storage-backend.yaml",
+		SkipStorageCleaner: true,
+		HealthCheckPort:    12133,
+		MetricsPort:        8887,
+	}
+	remoteBackend.e2eInitialize(t, "memory")
+	t.Log("Remote backend initialized")
+
+	collector := &E2EStorageIntegration{
 		ConfigFile:         "../../config-remote-storage.yaml",
 		SkipStorageCleaner: true,
 	}
-	s.e2eInitialize(t, "grpc")
-	s.RunSpanStoreTests(t)
+	collector.e2eInitialize(t, "grpc")
+	t.Log("Collector initialized")
+
+	collector.RunSpanStoreTests(t)
 }
