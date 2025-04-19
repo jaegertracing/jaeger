@@ -161,3 +161,7 @@ func (s *Server) Close() error {
 	s.telset.ReportStatus(componentstatus.NewEvent(componentstatus.StatusStopped))
 	return nil
 }
+
+func (s *Server) GRPCAddr() string {
+	return s.grpcConn.Addr().String()
+}
