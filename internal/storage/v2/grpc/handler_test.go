@@ -47,11 +47,12 @@ func (f *testStream) Send(td *jptrace.TracesData) error {
 func TestHandler_GetTraces(t *testing.T) {
 	start := time.Now()
 	end := start.Add(time.Minute)
-	query := []tracestore.GetTraceParams{{
-		TraceID: pcommon.TraceID([16]byte{1}),
-		Start:   start,
-		End:     end,
-	},
+	query := []tracestore.GetTraceParams{
+		{
+			TraceID: pcommon.TraceID([16]byte{1}),
+			Start:   start,
+			End:     end,
+		},
 	}
 	trace := makeTestTrace()
 	td := jptrace.TracesData(trace)

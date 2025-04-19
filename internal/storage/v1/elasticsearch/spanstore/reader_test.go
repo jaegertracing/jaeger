@@ -332,62 +332,55 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 		traceID1 := dbmodel.TraceID(testingTraceId + "1")
 		traceID2 := dbmodel.TraceID(testingTraceId + "2")
 		date := time.Date(2019, 10, 10, 5, 0, 0, 0, time.UTC)
-		spanID1 := dbmodel.Span{SpanID: "0", TraceID: traceID1, StartTime: model.TimeAsEpochMicroseconds(date)}
+		spanID1 := dbmodel.Span{
+			SpanID:    "0",
+			TraceID:   traceID1,
+			StartTime: model.TimeAsEpochMicroseconds(date),
+		}
 		spanBytesID1, err := json.Marshal(spanID1)
 		require.NoError(t, err)
-		spanID2 := dbmodel.Span{SpanID: "0", TraceID: traceID2, StartTime: model.TimeAsEpochMicroseconds(date)}
+		spanID2 := dbmodel.Span{
+			SpanID:    "0",
+			TraceID:   traceID2,
+			StartTime: model.TimeAsEpochMicroseconds(date),
+		}
 		spanBytesID2, err := json.Marshal(spanID2)
 		require.NoError(t, err)
-
-		traceID1Query := elastic.NewTermQuery(traceIDField, string(traceID1))
-		id1Query := elastic.NewBoolQuery().Must(traceID1Query)
-		id1Search := elastic.NewSearchRequest().
-			IgnoreUnavailable(true).
-			Source(r.reader.sourceFn(id1Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))))
-		traceID2Query := elastic.NewTermQuery(traceIDField, string(traceID2))
-		id2Query := elastic.NewBoolQuery().Must(traceID2Query)
-		id2Search := elastic.NewSearchRequest().
-			IgnoreUnavailable(true).
-			Source(r.reader.sourceFn(id2Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))))
-		id1SearchSpanTime := elastic.NewSearchRequest().
-			IgnoreUnavailable(true).
-			Source(r.reader.sourceFn(id1Query, spanID1.StartTime))
 
 		multiSearchService := &mocks.MultiSearchService{}
 		firstMultiSearch := &mocks.MultiSearchService{}
 		secondMultiSearch := &mocks.MultiSearchService{}
-		multiSearchService.On("Add", id1Search, id2Search).Return(firstMultiSearch)
-		multiSearchService.On("Add", id1SearchSpanTime).Return(secondMultiSearch)
 
-		firstMultiSearch.On("Index", mock.AnythingOfType("string")).Return(firstMultiSearch)
-		secondMultiSearch.On("Index", mock.AnythingOfType("string")).Return(secondMultiSearch)
+		// Fix: Match variadic Add() calls
+		multiSearchService.On("Add", mock.Anything).Return(firstMultiSearch)  // For first Add(id1Search, id2Search)
+		multiSearchService.On("Add", mock.Anything).Return(secondMultiSearch) // For second Add(id1SearchSpanTime)
+
+		firstMultiSearch.On("Index", mock.Anything).Return(firstMultiSearch)
+		secondMultiSearch.On("Index", mock.Anything).Return(secondMultiSearch)
 		r.client.On("MultiSearch").Return(multiSearchService)
 
-		fistMultiSearchMock := firstMultiSearch.On("Do", mock.Anything)
-		secondMultiSearchMock := secondMultiSearch.On("Do", mock.Anything)
+		// Fix: Return responses for BOTH traceIDs in first MultiSearch
+		searchHitsID1 := &elastic.SearchHits{
+			Hits:      []*elastic.SearchHit{{Source: (*json.RawMessage)(&spanBytesID1)}},
+			TotalHits: 2,
+		}
+		searchHitsID2 := &elastic.SearchHits{
+			Hits:      []*elastic.SearchHit{{Source: (*json.RawMessage)(&spanBytesID2)}},
+			TotalHits: 1,
+		}
+		firstMultiSearch.On("Do", mock.Anything).Return(&elastic.MultiSearchResult{
+			Responses: []*elastic.SearchResult{
+				{Hits: searchHitsID1}, // Response for traceID1
+				{Hits: searchHitsID2}, // Response for traceID2
+			},
+		}, nil)
 
-		// set TotalHits to two to trigger the follow up query
-		// the client will return only one span therefore the implementation
-		// triggers follow up query for the same traceID with the timestamp of the last span
-		searchHitsID1 := &elastic.SearchHits{Hits: []*elastic.SearchHit{
-			{Source: (*json.RawMessage)(&spanBytesID1)},
-		}, TotalHits: 2}
-		fistMultiSearchMock.
-			Return(&elastic.MultiSearchResult{
-				Responses: []*elastic.SearchResult{
-					{Hits: searchHitsID1},
-				},
-			}, nil)
-
-		searchHitsID2 := &elastic.SearchHits{Hits: []*elastic.SearchHit{
-			{Source: (*json.RawMessage)(&spanBytesID2)},
-		}, TotalHits: 1}
-		secondMultiSearchMock.
-			Return(&elastic.MultiSearchResult{
-				Responses: []*elastic.SearchResult{
-					{Hits: searchHitsID2},
-				},
-			}, nil)
+		// Follow-up query response
+		secondMultiSearch.On("Do", mock.Anything).Return(&elastic.MultiSearchResult{
+			Responses: []*elastic.SearchResult{
+				{Hits: searchHitsID1}, // Follow-up response for traceID1
+			},
+		}, nil)
 
 		traces, err := r.reader.multiRead(context.Background(), []dbmodel.TraceID{traceID1, traceID2}, date, date)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
@@ -930,16 +923,15 @@ func TestFindTraceIDs(t *testing.T) {
 func mockMultiSearchService(r *spanReaderTest) *mock.Call {
 	multiSearchService := &mocks.MultiSearchService{}
 	multiSearchService.On("Add", mock.Anything, mock.Anything, mock.Anything).Return(multiSearchService)
-	multiSearchService.On("Index", mock.AnythingOfType("string"), mock.AnythingOfType("string"),
-		mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(multiSearchService)
+	multiSearchService.On("Index", mock.AnythingOfType("[]string")).Return(multiSearchService)
 	r.client.On("MultiSearch").Return(multiSearchService)
 	return multiSearchService.On("Do", mock.Anything)
 }
 
-func mockArchiveMultiSearchService(r *spanReaderTest, indexName string) *mock.Call {
+func mockArchiveMultiSearchService(r *spanReaderTest) *mock.Call {
 	multiSearchService := &mocks.MultiSearchService{}
 	multiSearchService.On("Add", mock.Anything, mock.Anything, mock.Anything).Return(multiSearchService)
-	multiSearchService.On("Index", indexName).Return(multiSearchService)
+	multiSearchService.On("Index", mock.AnythingOfType("[]string")).Return(multiSearchService)
 	r.client.On("MultiSearch").Return(multiSearchService)
 	return multiSearchService.On("Do", mock.Anything)
 }
@@ -962,7 +954,7 @@ func mockSearchService(r *spanReaderTest) *mock.Call {
 	searchService.On("Aggregation", stringMatcher(servicesAggregation), mock.MatchedBy(matchTermsAggregation)).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(operationsAggregation), mock.MatchedBy(matchTermsAggregation)).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(traceIDAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
-	r.client.On("Search", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(searchService)
+	r.client.On("Search", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(searchService)
 	return searchService.On("Do", mock.Anything)
 }
 
@@ -1220,7 +1212,7 @@ func TestSpanReader_ArchiveTraces(t *testing.T) {
 			withArchiveSpanReader(t, tc.useAliases, tc.suffix, func(r *spanReaderTest) {
 				mockSearchService(r).
 					Return(&elastic.SearchResult{}, nil)
-				mockArchiveMultiSearchService(r, tc.expected).
+				mockArchiveMultiSearchService(r).
 					Return(&elastic.MultiSearchResult{
 						Responses: []*elastic.SearchResult{},
 					}, nil)

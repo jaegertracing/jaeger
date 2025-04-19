@@ -108,7 +108,7 @@ func TestGetTrace(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tsc := newTestServerClient(t)
-			tsc.reader.On("GetTraces", matchContext, tc.expectedQuery).
+			tsc.reader.On("GetTraces", matchContext, []tracestore.GetTraceParams{tc.expectedQuery}).
 				Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 					yield([]ptrace.Traces{makeTestTrace()}, nil)
 				})).Once()
@@ -127,7 +127,7 @@ func TestGetTrace(t *testing.T) {
 
 func TestGetTraceStorageError(t *testing.T) {
 	tsc := newTestServerClient(t)
-	tsc.reader.On("GetTraces", matchContext, tracestore.GetTraceParams{TraceID: traceID}).
+	tsc.reader.On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 			yield(nil, assert.AnError)
 		})).Once()

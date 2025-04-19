@@ -126,9 +126,8 @@ func TestHTTPGatewayGetTrace(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			gw := setupHTTPGatewayNoServer(t, "")
-
 			gw.reader.
-				On("GetTraces", matchContext, tc.expectedQuery).
+				On("GetTraces", matchContext, []tracestore.GetTraceParams{tc.expectedQuery}).
 				Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 					yield([]ptrace.Traces{makeTestTrace()}, nil)
 				})).Once()
@@ -146,14 +145,14 @@ func TestHTTPGatewayGetTrace(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 			gw.router.ServeHTTP(w, r)
-			gw.reader.AssertCalled(t, "GetTraces", matchContext, tc.expectedQuery)
+			gw.reader.AssertCalled(t, "GetTraces", matchContext, []tracestore.GetTraceParams{tc.expectedQuery})
 		})
 	}
 }
 
 func TestHTTPGatewayGetTraceEmptyResponse(t *testing.T) {
 	gw := setupHTTPGatewayNoServer(t, "")
-	gw.reader.On("GetTraces", matchContext, mock.AnythingOfType("tracestore.GetTraceParams")).
+	gw.reader.On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 			yield([]ptrace.Traces{}, nil)
 		})).Once()
@@ -231,7 +230,7 @@ func TestHTTPGatewayGetTraceMalformedInputErrors(t *testing.T) {
 
 func TestHTTPGatewayGetTraceInternalErrors(t *testing.T) {
 	gw := setupHTTPGatewayNoServer(t, "")
-	gw.reader.On("GetTraces", matchContext, mock.AnythingOfType("tracestore.GetTraceParams")).
+	gw.reader.On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 			yield([]ptrace.Traces{}, assert.AnError)
 		})).Once()
