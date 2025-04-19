@@ -77,6 +77,34 @@ func (st *Store) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	return nil
 }
 
+// GetOperations returns operations based on the service name and span kind
+func (st *Store) GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
+	m := st.getTenant(tenancy.GetTenant(ctx))
+	m.RLock()
+	defer m.RUnlock()
+	var retMe []tracestore.Operation
+	if operations, ok := m.operations[query.ServiceName]; ok {
+		for operation := range operations {
+			if query.SpanKind == "" || query.SpanKind == operation.SpanKind {
+				retMe = append(retMe, operation)
+			}
+		}
+	}
+	return retMe, nil
+}
+
+// GetServices returns a list of all known services
+func (st *Store) GetServices(ctx context.Context) ([]string, error) {
+	m := st.getTenant(tenancy.GetTenant(ctx))
+	m.RLock()
+	defer m.RUnlock()
+	var retMe []string
+	for k := range m.services {
+		retMe = append(retMe, k)
+	}
+	return retMe, nil
+}
+
 // reshuffleResourceSpans reshuffles the resource spans so as to group the spans from same traces together. To understand this reshuffling
 // take an example of 2 resource spans, then these two resource spans have 2 scope spans each.
 // Every scope span consists of 2 spans with trace ids: 1 and 2. Now the final structure should look like:
