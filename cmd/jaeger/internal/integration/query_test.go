@@ -25,22 +25,17 @@ func TestJaegerQueryService(t *testing.T) {
 	t.Log("Query initialized")
 
 	// Start another instance of Jaeger receiving traces and write traces to Remote Storage
-	collector := &GRPCStorageIntegration{
-		E2EStorageIntegration: E2EStorageIntegration{
-			ConfigFile:         "../../config-remote-storage.yaml",
-			SkipStorageCleaner: true,
-			EnvVarOverrides: map[string]string{
-				// Run jaeger_query on different ports here to avoid conflict
-				// with jaeger_query instance of Jaeger above
-				"JAEGER_QUERY_GRPC_ENDPOINT": "localhost:0",
-				"JAEGER_QUERY_HTTP_ENDPOINT": "localhost:0",
-			},
+	collector := &E2EStorageIntegration{
+		ConfigFile:         "../../config-remote-storage.yaml",
+		SkipStorageCleaner: true,
+		EnvVarOverrides: map[string]string{
+			// Run jaeger_query on different ports here to avoid conflict
+			// with jaeger_query instance of Jaeger above
+			"JAEGER_QUERY_GRPC_ENDPOINT": "localhost:0",
+			"JAEGER_QUERY_HTTP_ENDPOINT": "localhost:0",
 		},
 	}
-	collector.CleanUp = collector.cleanUp
-	collector.initializeRemoteStorages(t)
 	collector.e2eInitialize(t, "grpc")
-	t.Cleanup(func() { collector.closeRemoteStorages(t) })
 	t.Log("Collector initialized")
 
 	collector.RunSpanStoreTests(t)

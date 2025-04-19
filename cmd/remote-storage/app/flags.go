@@ -25,9 +25,9 @@ var tlsGRPCFlagsConfig = tlscfg.ServerFlagsConfig{
 
 // Options holds configuration for remote-storage service.
 type Options struct {
-	configgrpc.ServerConfig
+	configgrpc.ServerConfig `mapstructure:",squash"`
 	// Tenancy configuration
-	Tenancy tenancy.Options
+	Tenancy tenancy.Options `mapstructure:"multi_tenancy"`
 }
 
 // AddFlags adds flags to flag set.

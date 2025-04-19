@@ -1,5 +1,5 @@
 service:
-  extensions: [jaeger_storage, jaeger_query, healthcheckv2]
+  extensions: [jaeger_storage, jaeger_query, remote_storage, remote_storage/archive, healthcheckv2]
   pipelines:
     traces:
       receivers: [otlp]
@@ -48,6 +48,12 @@ extensions:
           endpoint: localhost:17272
           tls:
             insecure: true  
+  remote_storage:
+    storage: some-storage
+    endpoint: localhost:17271
+  remote_storage/archive:
+    storage: another-storage
+    endpoint: localhost:17272
 
 receivers:
   otlp:

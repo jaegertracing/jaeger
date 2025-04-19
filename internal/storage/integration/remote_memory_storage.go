@@ -63,9 +63,9 @@ func StartNewRemoteMemoryStorage(t *testing.T, port int) *RemoteMemoryStorage {
 	traceFactory := v1adapter.NewFactory(storageFactory)
 	depFactory := traceFactory.(depstore.Factory)
 
-	server, err := app.NewServer(opts, traceFactory, depFactory, tm, telset)
+	server, err := app.NewServer(context.Background(), opts, traceFactory, depFactory, tm, telset)
 	require.NoError(t, err)
-	require.NoError(t, server.Start())
+	require.NoError(t, server.Start(context.Background()))
 
 	conn, err := grpc.NewClient(
 		opts.NetAddr.Endpoint,
