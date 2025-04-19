@@ -36,6 +36,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/remotesampling"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/remotestorage"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/storagecleaner"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/processors/adaptivesampling"
 )
@@ -72,6 +73,7 @@ func (b builders) build() (otelcol.Factories, error) {
 		storagecleaner.NewFactory(),
 		remotesampling.NewFactory(),
 		expvar.NewFactory(),
+		remotestorage.NewFactory(),
 	)
 	if err != nil {
 		return otelcol.Factories{}, err
