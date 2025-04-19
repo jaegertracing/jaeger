@@ -72,9 +72,6 @@ type fakeStorageExt struct{}
 var _ jaegerstorage.Extension = (*fakeStorageExt)(nil)
 
 func (fakeStorageExt) TraceStorageFactory(name string) (tracestore.Factory, bool) {
-	if name == "need-factory-error" {
-		return nil, false
-	}
 	switch name {
 	case "need-factory-error":
 		return nil, false
@@ -97,7 +94,7 @@ func (fakeStorageExt) Shutdown(context.Context) error {
 	return nil
 }
 
-func TestServerDependencies(t *testing.T) {
+func TestServer_Dependencies(t *testing.T) {
 	expectedDependencies := []component.ID{jaegerstorage.ID}
 	telemetrySettings := component.TelemetrySettings{
 		Logger: zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())),
@@ -109,7 +106,7 @@ func TestServerDependencies(t *testing.T) {
 	require.Equal(t, expectedDependencies, dependencies)
 }
 
-func TestServerStart(t *testing.T) {
+func TestServer_Start(t *testing.T) {
 	host := storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, fakeStorageExt{})
 	tests := []struct {
 		name        string

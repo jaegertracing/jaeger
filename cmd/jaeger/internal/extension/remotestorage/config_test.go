@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_Validate(t *testing.T) {
+func TestValidate(t *testing.T) {
 	tests := []struct {
 		name        string
 		config      *Config

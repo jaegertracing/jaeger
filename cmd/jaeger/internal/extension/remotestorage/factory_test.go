@@ -11,13 +11,13 @@ import (
 	"go.opentelemetry.io/collector/extension"
 )
 
-func Test_NewFactory(t *testing.T) {
+func TestNewFactory(t *testing.T) {
 	factory := NewFactory()
 	require.Equal(t, componentType, factory.Type())
 	require.Equal(t, factory.CreateDefaultConfig(), createDefaultConfig())
 }
 
-func Test_CreateExtension(t *testing.T) {
+func TestCreateExtension(t *testing.T) {
 	set := extension.Settings{
 		ID: ID,
 	}
