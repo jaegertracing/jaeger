@@ -158,9 +158,7 @@ func TestServer_Start(t *testing.T) {
 			err := server.Start(context.Background(), host)
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
-				t.Cleanup(func() {
-					server.Shutdown(context.Background())
-				})
+				defer server.Shutdown(context.Background())
 				grpctest.ReflectionServiceValidator{
 					HostPort: server.server.GRPCAddr(),
 					ExpectedServices: []string{
