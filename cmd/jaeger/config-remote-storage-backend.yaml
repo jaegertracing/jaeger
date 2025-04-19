@@ -47,7 +47,8 @@ receivers:
   otlp:
     protocols:
       grpc:
-      http:
+        # use different port to avoid conflict with collector on 4317
+        endpoint: 0.0.0.0:4316
 
 processors:
   batch:
