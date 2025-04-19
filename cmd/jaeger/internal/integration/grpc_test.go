@@ -30,6 +30,9 @@ func TestGRPCStorage(t *testing.T) {
 			"JAEGER_QUERY_GRPC_ENDPOINT": "localhost:0",
 			"JAEGER_QUERY_HTTP_ENDPOINT": "localhost:0",
 		},
+		StorageIntegration: integration.StorageIntegration{
+			CleanUp: func(t *testing.T) {}, // TODO: what should we do here?
+		},
 	}
 	collector.e2eInitialize(t, "grpc")
 	t.Log("Collector initialized")
