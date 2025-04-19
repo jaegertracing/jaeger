@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -128,11 +129,32 @@ func TestTraceReader_FindTraceIDs_Error(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			coreReader := &mocks.CoreSpanReader{}
-			coreReader.On("FindTraceIDs", mock.Anything, mock.Anything).Return(test.traceIdsFromCoreReader, test.errFromCoreReader)
+			attrs := pcommon.NewMap()
+			attrs.PutStr("key1", "val1")
+			ts := time.Now()
+			traceQueryParams := v2api.TraceQueryParams{
+				Attributes:    attrs,
+				StartTimeMin:  ts,
+				ServiceName:   "testing-service-name",
+				OperationName: "testing-operation-name",
+				StartTimeMax:  ts,
+				DurationMin:   1 * time.Hour,
+				DurationMax:   1 * time.Hour,
+				SearchDepth:   10,
+			}
+			dbTraceQueryParams := dbmodel.TraceQueryParameters{
+				Tags:          map[string]string{"key1": "val1"},
+				StartTimeMin:  ts,
+				ServiceName:   "testing-service-name",
+				OperationName: "testing-operation-name",
+				StartTimeMax:  ts,
+				DurationMin:   1 * time.Hour,
+				DurationMax:   1 * time.Hour,
+				NumTraces:     10,
+			}
+			coreReader.On("FindTraceIDs", mock.Anything, dbTraceQueryParams).Return(test.traceIdsFromCoreReader, test.errFromCoreReader)
 			reader := TraceReader{spanReader: coreReader}
-			for traceIds, err := range reader.FindTraceIDs(context.Background(), v2api.TraceQueryParams{
-				Attributes: pcommon.NewMap(),
-			}) {
+			for traceIds, err := range reader.FindTraceIDs(context.Background(), traceQueryParams) {
 				require.ErrorContains(t, err, test.expectedErr)
 				require.Nil(t, traceIds)
 			}
