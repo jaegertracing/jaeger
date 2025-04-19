@@ -14,6 +14,14 @@ type ElectionParticipant struct {
 	mock.Mock
 }
 
+type ElectionParticipant_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *ElectionParticipant) EXPECT() *ElectionParticipant_Expecter {
+	return &ElectionParticipant_Expecter{mock: &_m.Mock}
+}
+
 // Close provides a mock function with no fields
 func (_m *ElectionParticipant) Close() error {
 	ret := _m.Called()
@@ -30,6 +38,33 @@ func (_m *ElectionParticipant) Close() error {
 	}
 
 	return r0
+}
+
+// ElectionParticipant_Close_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Close'
+type ElectionParticipant_Close_Call struct {
+	*mock.Call
+}
+
+// Close is a helper method to define mock.On call
+func (_e *ElectionParticipant_Expecter) Close() *ElectionParticipant_Close_Call {
+	return &ElectionParticipant_Close_Call{Call: _e.mock.On("Close")}
+}
+
+func (_c *ElectionParticipant_Close_Call) Run(run func()) *ElectionParticipant_Close_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *ElectionParticipant_Close_Call) Return(_a0 error) *ElectionParticipant_Close_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *ElectionParticipant_Close_Call) RunAndReturn(run func() error) *ElectionParticipant_Close_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // IsLeader provides a mock function with no fields
@@ -50,6 +85,33 @@ func (_m *ElectionParticipant) IsLeader() bool {
 	return r0
 }
 
+// ElectionParticipant_IsLeader_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IsLeader'
+type ElectionParticipant_IsLeader_Call struct {
+	*mock.Call
+}
+
+// IsLeader is a helper method to define mock.On call
+func (_e *ElectionParticipant_Expecter) IsLeader() *ElectionParticipant_IsLeader_Call {
+	return &ElectionParticipant_IsLeader_Call{Call: _e.mock.On("IsLeader")}
+}
+
+func (_c *ElectionParticipant_IsLeader_Call) Run(run func()) *ElectionParticipant_IsLeader_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *ElectionParticipant_IsLeader_Call) Return(_a0 bool) *ElectionParticipant_IsLeader_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *ElectionParticipant_IsLeader_Call) RunAndReturn(run func() bool) *ElectionParticipant_IsLeader_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Start provides a mock function with no fields
 func (_m *ElectionParticipant) Start() error {
 	ret := _m.Called()
@@ -66,6 +128,33 @@ func (_m *ElectionParticipant) Start() error {
 	}
 
 	return r0
+}
+
+// ElectionParticipant_Start_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Start'
+type ElectionParticipant_Start_Call struct {
+	*mock.Call
+}
+
+// Start is a helper method to define mock.On call
+func (_e *ElectionParticipant_Expecter) Start() *ElectionParticipant_Start_Call {
+	return &ElectionParticipant_Start_Call{Call: _e.mock.On("Start")}
+}
+
+func (_c *ElectionParticipant_Start_Call) Run(run func()) *ElectionParticipant_Start_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *ElectionParticipant_Start_Call) Return(_a0 error) *ElectionParticipant_Start_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *ElectionParticipant_Start_Call) RunAndReturn(run func() error) *ElectionParticipant_Start_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewElectionParticipant creates a new instance of ElectionParticipant. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

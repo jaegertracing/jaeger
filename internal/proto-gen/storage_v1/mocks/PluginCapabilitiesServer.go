@@ -19,6 +19,14 @@ type PluginCapabilitiesServer struct {
 	mock.Mock
 }
 
+type PluginCapabilitiesServer_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *PluginCapabilitiesServer) EXPECT() *PluginCapabilitiesServer_Expecter {
+	return &PluginCapabilitiesServer_Expecter{mock: &_m.Mock}
+}
+
 // Capabilities provides a mock function with given fields: _a0, _a1
 func (_m *PluginCapabilitiesServer) Capabilities(_a0 context.Context, _a1 *storage_v1.CapabilitiesRequest) (*storage_v1.CapabilitiesResponse, error) {
 	ret := _m.Called(_a0, _a1)
@@ -47,6 +55,35 @@ func (_m *PluginCapabilitiesServer) Capabilities(_a0 context.Context, _a1 *stora
 	}
 
 	return r0, r1
+}
+
+// PluginCapabilitiesServer_Capabilities_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Capabilities'
+type PluginCapabilitiesServer_Capabilities_Call struct {
+	*mock.Call
+}
+
+// Capabilities is a helper method to define mock.On call
+//   - _a0 context.Context
+//   - _a1 *storage_v1.CapabilitiesRequest
+func (_e *PluginCapabilitiesServer_Expecter) Capabilities(_a0 interface{}, _a1 interface{}) *PluginCapabilitiesServer_Capabilities_Call {
+	return &PluginCapabilitiesServer_Capabilities_Call{Call: _e.mock.On("Capabilities", _a0, _a1)}
+}
+
+func (_c *PluginCapabilitiesServer_Capabilities_Call) Run(run func(_a0 context.Context, _a1 *storage_v1.CapabilitiesRequest)) *PluginCapabilitiesServer_Capabilities_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*storage_v1.CapabilitiesRequest))
+	})
+	return _c
+}
+
+func (_c *PluginCapabilitiesServer_Capabilities_Call) Return(_a0 *storage_v1.CapabilitiesResponse, _a1 error) *PluginCapabilitiesServer_Capabilities_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *PluginCapabilitiesServer_Capabilities_Call) RunAndReturn(run func(context.Context, *storage_v1.CapabilitiesRequest) (*storage_v1.CapabilitiesResponse, error)) *PluginCapabilitiesServer_Capabilities_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewPluginCapabilitiesServer creates a new instance of PluginCapabilitiesServer. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

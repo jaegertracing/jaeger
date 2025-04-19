@@ -18,6 +18,14 @@ type Consumer struct {
 	mock.Mock
 }
 
+type Consumer_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *Consumer) EXPECT() *Consumer_Expecter {
+	return &Consumer_Expecter{mock: &_m.Mock}
+}
+
 // Close provides a mock function with no fields
 func (_m *Consumer) Close() error {
 	ret := _m.Called()
@@ -36,9 +44,67 @@ func (_m *Consumer) Close() error {
 	return r0
 }
 
+// Consumer_Close_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Close'
+type Consumer_Close_Call struct {
+	*mock.Call
+}
+
+// Close is a helper method to define mock.On call
+func (_e *Consumer_Expecter) Close() *Consumer_Close_Call {
+	return &Consumer_Close_Call{Call: _e.mock.On("Close")}
+}
+
+func (_c *Consumer_Close_Call) Run(run func()) *Consumer_Close_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Consumer_Close_Call) Return(_a0 error) *Consumer_Close_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Consumer_Close_Call) RunAndReturn(run func() error) *Consumer_Close_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // MarkPartitionOffset provides a mock function with given fields: topic, partition, offset, metadata
 func (_m *Consumer) MarkPartitionOffset(topic string, partition int32, offset int64, metadata string) {
 	_m.Called(topic, partition, offset, metadata)
+}
+
+// Consumer_MarkPartitionOffset_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MarkPartitionOffset'
+type Consumer_MarkPartitionOffset_Call struct {
+	*mock.Call
+}
+
+// MarkPartitionOffset is a helper method to define mock.On call
+//   - topic string
+//   - partition int32
+//   - offset int64
+//   - metadata string
+func (_e *Consumer_Expecter) MarkPartitionOffset(topic interface{}, partition interface{}, offset interface{}, metadata interface{}) *Consumer_MarkPartitionOffset_Call {
+	return &Consumer_MarkPartitionOffset_Call{Call: _e.mock.On("MarkPartitionOffset", topic, partition, offset, metadata)}
+}
+
+func (_c *Consumer_MarkPartitionOffset_Call) Run(run func(topic string, partition int32, offset int64, metadata string)) *Consumer_MarkPartitionOffset_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string), args[1].(int32), args[2].(int64), args[3].(string))
+	})
+	return _c
+}
+
+func (_c *Consumer_MarkPartitionOffset_Call) Return() *Consumer_MarkPartitionOffset_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *Consumer_MarkPartitionOffset_Call) RunAndReturn(run func(string, int32, int64, string)) *Consumer_MarkPartitionOffset_Call {
+	_c.Run(run)
+	return _c
 }
 
 // Partitions provides a mock function with no fields
@@ -59,6 +125,33 @@ func (_m *Consumer) Partitions() <-chan cluster.PartitionConsumer {
 	}
 
 	return r0
+}
+
+// Consumer_Partitions_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Partitions'
+type Consumer_Partitions_Call struct {
+	*mock.Call
+}
+
+// Partitions is a helper method to define mock.On call
+func (_e *Consumer_Expecter) Partitions() *Consumer_Partitions_Call {
+	return &Consumer_Partitions_Call{Call: _e.mock.On("Partitions")}
+}
+
+func (_c *Consumer_Partitions_Call) Run(run func()) *Consumer_Partitions_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Consumer_Partitions_Call) Return(_a0 <-chan cluster.PartitionConsumer) *Consumer_Partitions_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Consumer_Partitions_Call) RunAndReturn(run func() <-chan cluster.PartitionConsumer) *Consumer_Partitions_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewConsumer creates a new instance of Consumer. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

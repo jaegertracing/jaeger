@@ -14,6 +14,14 @@ type IndexManagementLifecycleAPI struct {
 	mock.Mock
 }
 
+type IndexManagementLifecycleAPI_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *IndexManagementLifecycleAPI) EXPECT() *IndexManagementLifecycleAPI_Expecter {
+	return &IndexManagementLifecycleAPI_Expecter{mock: &_m.Mock}
+}
+
 // Exists provides a mock function with given fields: name
 func (_m *IndexManagementLifecycleAPI) Exists(name string) (bool, error) {
 	ret := _m.Called(name)
@@ -40,6 +48,34 @@ func (_m *IndexManagementLifecycleAPI) Exists(name string) (bool, error) {
 	}
 
 	return r0, r1
+}
+
+// IndexManagementLifecycleAPI_Exists_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Exists'
+type IndexManagementLifecycleAPI_Exists_Call struct {
+	*mock.Call
+}
+
+// Exists is a helper method to define mock.On call
+//   - name string
+func (_e *IndexManagementLifecycleAPI_Expecter) Exists(name interface{}) *IndexManagementLifecycleAPI_Exists_Call {
+	return &IndexManagementLifecycleAPI_Exists_Call{Call: _e.mock.On("Exists", name)}
+}
+
+func (_c *IndexManagementLifecycleAPI_Exists_Call) Run(run func(name string)) *IndexManagementLifecycleAPI_Exists_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *IndexManagementLifecycleAPI_Exists_Call) Return(_a0 bool, _a1 error) *IndexManagementLifecycleAPI_Exists_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *IndexManagementLifecycleAPI_Exists_Call) RunAndReturn(run func(string) (bool, error)) *IndexManagementLifecycleAPI_Exists_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewIndexManagementLifecycleAPI creates a new instance of IndexManagementLifecycleAPI. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

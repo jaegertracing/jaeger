@@ -18,11 +18,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/dependencystore/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
@@ -53,10 +52,7 @@ func withDepStorage(indexPrefix config.IndexPrefix, indexDateLayout string, maxD
 	fn(r)
 }
 
-var (
-	_ dependencystore.Reader = &DependencyStore{} // check API conformance
-	_ dependencystore.Writer = &DependencyStore{} // check API conformance
-)
+var _ CoreDependencyStore = &DependencyStore{} // check API conformance
 
 func TestNewSpanReaderIndexPrefix(t *testing.T) {
 	testCases := []struct {
@@ -105,7 +101,7 @@ func TestWriteDependencies(t *testing.T) {
 			writeService.On("Type", stringMatcher(dependencyType)).Return(writeService)
 			writeService.On("BodyJson", mock.Anything).Return(writeService)
 			writeService.On("Add", mock.Anything).Return(nil, testCase.writeError)
-			err := r.storage.WriteDependencies(fixedTime, []model.DependencyLink{})
+			err := r.storage.WriteDependencies(fixedTime, []dbmodel.DependencyLink{})
 			if testCase.expectedError != "" {
 				require.EqualError(t, err, testCase.expectedError)
 			} else {
@@ -131,14 +127,14 @@ func TestGetDependencies(t *testing.T) {
 		searchResult   *elastic.SearchResult
 		searchError    error
 		expectedError  string
-		expectedOutput []model.DependencyLink
+		expectedOutput []dbmodel.DependencyLink
 		indexPrefix    config.IndexPrefix
 		maxDocCount    int
 		indices        []any
 	}{
 		{
 			searchResult: createSearchResult(goodDependencies),
-			expectedOutput: []model.DependencyLink{
+			expectedOutput: []dbmodel.DependencyLink{
 				{
 					Parent:    "hello",
 					Child:     "world",

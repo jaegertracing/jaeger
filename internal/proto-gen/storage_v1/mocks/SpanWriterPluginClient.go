@@ -22,6 +22,14 @@ type SpanWriterPluginClient struct {
 	mock.Mock
 }
 
+type SpanWriterPluginClient_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *SpanWriterPluginClient) EXPECT() *SpanWriterPluginClient_Expecter {
+	return &SpanWriterPluginClient_Expecter{mock: &_m.Mock}
+}
+
 // Close provides a mock function with given fields: ctx, in, opts
 func (_m *SpanWriterPluginClient) Close(ctx context.Context, in *storage_v1.CloseWriterRequest, opts ...grpc.CallOption) (*storage_v1.CloseWriterResponse, error) {
 	_va := make([]interface{}, len(opts))
@@ -59,6 +67,43 @@ func (_m *SpanWriterPluginClient) Close(ctx context.Context, in *storage_v1.Clos
 	return r0, r1
 }
 
+// SpanWriterPluginClient_Close_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Close'
+type SpanWriterPluginClient_Close_Call struct {
+	*mock.Call
+}
+
+// Close is a helper method to define mock.On call
+//   - ctx context.Context
+//   - in *storage_v1.CloseWriterRequest
+//   - opts ...grpc.CallOption
+func (_e *SpanWriterPluginClient_Expecter) Close(ctx interface{}, in interface{}, opts ...interface{}) *SpanWriterPluginClient_Close_Call {
+	return &SpanWriterPluginClient_Close_Call{Call: _e.mock.On("Close",
+		append([]interface{}{ctx, in}, opts...)...)}
+}
+
+func (_c *SpanWriterPluginClient_Close_Call) Run(run func(ctx context.Context, in *storage_v1.CloseWriterRequest, opts ...grpc.CallOption)) *SpanWriterPluginClient_Close_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		variadicArgs := make([]grpc.CallOption, len(args)-2)
+		for i, a := range args[2:] {
+			if a != nil {
+				variadicArgs[i] = a.(grpc.CallOption)
+			}
+		}
+		run(args[0].(context.Context), args[1].(*storage_v1.CloseWriterRequest), variadicArgs...)
+	})
+	return _c
+}
+
+func (_c *SpanWriterPluginClient_Close_Call) Return(_a0 *storage_v1.CloseWriterResponse, _a1 error) *SpanWriterPluginClient_Close_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SpanWriterPluginClient_Close_Call) RunAndReturn(run func(context.Context, *storage_v1.CloseWriterRequest, ...grpc.CallOption) (*storage_v1.CloseWriterResponse, error)) *SpanWriterPluginClient_Close_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // WriteSpan provides a mock function with given fields: ctx, in, opts
 func (_m *SpanWriterPluginClient) WriteSpan(ctx context.Context, in *storage_v1.WriteSpanRequest, opts ...grpc.CallOption) (*storage_v1.WriteSpanResponse, error) {
 	_va := make([]interface{}, len(opts))
@@ -94,6 +139,43 @@ func (_m *SpanWriterPluginClient) WriteSpan(ctx context.Context, in *storage_v1.
 	}
 
 	return r0, r1
+}
+
+// SpanWriterPluginClient_WriteSpan_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'WriteSpan'
+type SpanWriterPluginClient_WriteSpan_Call struct {
+	*mock.Call
+}
+
+// WriteSpan is a helper method to define mock.On call
+//   - ctx context.Context
+//   - in *storage_v1.WriteSpanRequest
+//   - opts ...grpc.CallOption
+func (_e *SpanWriterPluginClient_Expecter) WriteSpan(ctx interface{}, in interface{}, opts ...interface{}) *SpanWriterPluginClient_WriteSpan_Call {
+	return &SpanWriterPluginClient_WriteSpan_Call{Call: _e.mock.On("WriteSpan",
+		append([]interface{}{ctx, in}, opts...)...)}
+}
+
+func (_c *SpanWriterPluginClient_WriteSpan_Call) Run(run func(ctx context.Context, in *storage_v1.WriteSpanRequest, opts ...grpc.CallOption)) *SpanWriterPluginClient_WriteSpan_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		variadicArgs := make([]grpc.CallOption, len(args)-2)
+		for i, a := range args[2:] {
+			if a != nil {
+				variadicArgs[i] = a.(grpc.CallOption)
+			}
+		}
+		run(args[0].(context.Context), args[1].(*storage_v1.WriteSpanRequest), variadicArgs...)
+	})
+	return _c
+}
+
+func (_c *SpanWriterPluginClient_WriteSpan_Call) Return(_a0 *storage_v1.WriteSpanResponse, _a1 error) *SpanWriterPluginClient_WriteSpan_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SpanWriterPluginClient_WriteSpan_Call) RunAndReturn(run func(context.Context, *storage_v1.WriteSpanRequest, ...grpc.CallOption) (*storage_v1.WriteSpanResponse, error)) *SpanWriterPluginClient_WriteSpan_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewSpanWriterPluginClient creates a new instance of SpanWriterPluginClient. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

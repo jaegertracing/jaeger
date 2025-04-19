@@ -17,6 +17,14 @@ type Unmarshaller struct {
 	mock.Mock
 }
 
+type Unmarshaller_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *Unmarshaller) EXPECT() *Unmarshaller_Expecter {
+	return &Unmarshaller_Expecter{mock: &_m.Mock}
+}
+
 // Unmarshal provides a mock function with given fields: _a0
 func (_m *Unmarshaller) Unmarshal(_a0 []byte) (*model.Span, error) {
 	ret := _m.Called(_a0)
@@ -45,6 +53,34 @@ func (_m *Unmarshaller) Unmarshal(_a0 []byte) (*model.Span, error) {
 	}
 
 	return r0, r1
+}
+
+// Unmarshaller_Unmarshal_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Unmarshal'
+type Unmarshaller_Unmarshal_Call struct {
+	*mock.Call
+}
+
+// Unmarshal is a helper method to define mock.On call
+//   - _a0 []byte
+func (_e *Unmarshaller_Expecter) Unmarshal(_a0 interface{}) *Unmarshaller_Unmarshal_Call {
+	return &Unmarshaller_Unmarshal_Call{Call: _e.mock.On("Unmarshal", _a0)}
+}
+
+func (_c *Unmarshaller_Unmarshal_Call) Run(run func(_a0 []byte)) *Unmarshaller_Unmarshal_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].([]byte))
+	})
+	return _c
+}
+
+func (_c *Unmarshaller_Unmarshal_Call) Return(_a0 *model.Span, _a1 error) *Unmarshaller_Unmarshal_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *Unmarshaller_Unmarshal_Call) RunAndReturn(run func([]byte) (*model.Span, error)) *Unmarshaller_Unmarshal_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewUnmarshaller creates a new instance of Unmarshaller. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

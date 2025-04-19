@@ -21,6 +21,14 @@ type CoreSpanWriter struct {
 	mock.Mock
 }
 
+type CoreSpanWriter_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *CoreSpanWriter) EXPECT() *CoreSpanWriter_Expecter {
+	return &CoreSpanWriter_Expecter{mock: &_m.Mock}
+}
+
 // Close provides a mock function with no fields
 func (_m *CoreSpanWriter) Close() error {
 	ret := _m.Called()
@@ -37,6 +45,33 @@ func (_m *CoreSpanWriter) Close() error {
 	}
 
 	return r0
+}
+
+// CoreSpanWriter_Close_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Close'
+type CoreSpanWriter_Close_Call struct {
+	*mock.Call
+}
+
+// Close is a helper method to define mock.On call
+func (_e *CoreSpanWriter_Expecter) Close() *CoreSpanWriter_Close_Call {
+	return &CoreSpanWriter_Close_Call{Call: _e.mock.On("Close")}
+}
+
+func (_c *CoreSpanWriter_Close_Call) Run(run func()) *CoreSpanWriter_Close_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *CoreSpanWriter_Close_Call) Return(_a0 error) *CoreSpanWriter_Close_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *CoreSpanWriter_Close_Call) RunAndReturn(run func() error) *CoreSpanWriter_Close_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // CreateTemplates provides a mock function with given fields: spanTemplate, serviceTemplate, indexPrefix
@@ -57,9 +92,68 @@ func (_m *CoreSpanWriter) CreateTemplates(spanTemplate string, serviceTemplate s
 	return r0
 }
 
+// CoreSpanWriter_CreateTemplates_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateTemplates'
+type CoreSpanWriter_CreateTemplates_Call struct {
+	*mock.Call
+}
+
+// CreateTemplates is a helper method to define mock.On call
+//   - spanTemplate string
+//   - serviceTemplate string
+//   - indexPrefix config.IndexPrefix
+func (_e *CoreSpanWriter_Expecter) CreateTemplates(spanTemplate interface{}, serviceTemplate interface{}, indexPrefix interface{}) *CoreSpanWriter_CreateTemplates_Call {
+	return &CoreSpanWriter_CreateTemplates_Call{Call: _e.mock.On("CreateTemplates", spanTemplate, serviceTemplate, indexPrefix)}
+}
+
+func (_c *CoreSpanWriter_CreateTemplates_Call) Run(run func(spanTemplate string, serviceTemplate string, indexPrefix config.IndexPrefix)) *CoreSpanWriter_CreateTemplates_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string), args[1].(string), args[2].(config.IndexPrefix))
+	})
+	return _c
+}
+
+func (_c *CoreSpanWriter_CreateTemplates_Call) Return(_a0 error) *CoreSpanWriter_CreateTemplates_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *CoreSpanWriter_CreateTemplates_Call) RunAndReturn(run func(string, string, config.IndexPrefix) error) *CoreSpanWriter_CreateTemplates_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // WriteSpan provides a mock function with given fields: spanStartTime, span
 func (_m *CoreSpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 	_m.Called(spanStartTime, span)
+}
+
+// CoreSpanWriter_WriteSpan_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'WriteSpan'
+type CoreSpanWriter_WriteSpan_Call struct {
+	*mock.Call
+}
+
+// WriteSpan is a helper method to define mock.On call
+//   - spanStartTime time.Time
+//   - span *dbmodel.Span
+func (_e *CoreSpanWriter_Expecter) WriteSpan(spanStartTime interface{}, span interface{}) *CoreSpanWriter_WriteSpan_Call {
+	return &CoreSpanWriter_WriteSpan_Call{Call: _e.mock.On("WriteSpan", spanStartTime, span)}
+}
+
+func (_c *CoreSpanWriter_WriteSpan_Call) Run(run func(spanStartTime time.Time, span *dbmodel.Span)) *CoreSpanWriter_WriteSpan_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(time.Time), args[1].(*dbmodel.Span))
+	})
+	return _c
+}
+
+func (_c *CoreSpanWriter_WriteSpan_Call) Return() *CoreSpanWriter_WriteSpan_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *CoreSpanWriter_WriteSpan_Call) RunAndReturn(run func(time.Time, *dbmodel.Span)) *CoreSpanWriter_WriteSpan_Call {
+	_c.Run(run)
+	return _c
 }
 
 // NewCoreSpanWriter creates a new instance of CoreSpanWriter. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

@@ -14,6 +14,14 @@ type Message struct {
 	mock.Mock
 }
 
+type Message_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *Message) EXPECT() *Message_Expecter {
+	return &Message_Expecter{mock: &_m.Mock}
+}
+
 // Key provides a mock function with no fields
 func (_m *Message) Key() []byte {
 	ret := _m.Called()
@@ -34,6 +42,33 @@ func (_m *Message) Key() []byte {
 	return r0
 }
 
+// Message_Key_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Key'
+type Message_Key_Call struct {
+	*mock.Call
+}
+
+// Key is a helper method to define mock.On call
+func (_e *Message_Expecter) Key() *Message_Key_Call {
+	return &Message_Key_Call{Call: _e.mock.On("Key")}
+}
+
+func (_c *Message_Key_Call) Run(run func()) *Message_Key_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Message_Key_Call) Return(_a0 []byte) *Message_Key_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Message_Key_Call) RunAndReturn(run func() []byte) *Message_Key_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Offset provides a mock function with no fields
 func (_m *Message) Offset() int64 {
 	ret := _m.Called()
@@ -50,6 +85,33 @@ func (_m *Message) Offset() int64 {
 	}
 
 	return r0
+}
+
+// Message_Offset_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Offset'
+type Message_Offset_Call struct {
+	*mock.Call
+}
+
+// Offset is a helper method to define mock.On call
+func (_e *Message_Expecter) Offset() *Message_Offset_Call {
+	return &Message_Offset_Call{Call: _e.mock.On("Offset")}
+}
+
+func (_c *Message_Offset_Call) Run(run func()) *Message_Offset_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Message_Offset_Call) Return(_a0 int64) *Message_Offset_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Message_Offset_Call) RunAndReturn(run func() int64) *Message_Offset_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Partition provides a mock function with no fields
@@ -70,6 +132,33 @@ func (_m *Message) Partition() int32 {
 	return r0
 }
 
+// Message_Partition_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Partition'
+type Message_Partition_Call struct {
+	*mock.Call
+}
+
+// Partition is a helper method to define mock.On call
+func (_e *Message_Expecter) Partition() *Message_Partition_Call {
+	return &Message_Partition_Call{Call: _e.mock.On("Partition")}
+}
+
+func (_c *Message_Partition_Call) Run(run func()) *Message_Partition_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Message_Partition_Call) Return(_a0 int32) *Message_Partition_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Message_Partition_Call) RunAndReturn(run func() int32) *Message_Partition_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Topic provides a mock function with no fields
 func (_m *Message) Topic() string {
 	ret := _m.Called()
@@ -86,6 +175,33 @@ func (_m *Message) Topic() string {
 	}
 
 	return r0
+}
+
+// Message_Topic_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Topic'
+type Message_Topic_Call struct {
+	*mock.Call
+}
+
+// Topic is a helper method to define mock.On call
+func (_e *Message_Expecter) Topic() *Message_Topic_Call {
+	return &Message_Topic_Call{Call: _e.mock.On("Topic")}
+}
+
+func (_c *Message_Topic_Call) Run(run func()) *Message_Topic_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Message_Topic_Call) Return(_a0 string) *Message_Topic_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Message_Topic_Call) RunAndReturn(run func() string) *Message_Topic_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Value provides a mock function with no fields
@@ -106,6 +222,33 @@ func (_m *Message) Value() []byte {
 	}
 
 	return r0
+}
+
+// Message_Value_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Value'
+type Message_Value_Call struct {
+	*mock.Call
+}
+
+// Value is a helper method to define mock.On call
+func (_e *Message_Expecter) Value() *Message_Value_Call {
+	return &Message_Value_Call{Call: _e.mock.On("Value")}
+}
+
+func (_c *Message_Value_Call) Run(run func()) *Message_Value_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Message_Value_Call) Return(_a0 []byte) *Message_Value_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Message_Value_Call) RunAndReturn(run func() []byte) *Message_Value_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewMessage creates a new instance of Message. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
