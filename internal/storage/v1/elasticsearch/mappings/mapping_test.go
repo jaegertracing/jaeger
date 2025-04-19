@@ -75,7 +75,6 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 			wantbytes, err = FIXTURES.ReadFile("fixtures/" + templateName + fileSuffix + ".json")
 			require.NoError(t, err)
 			want := string(wantbytes)
-			require.NoError(t, err)
 			assert.Equal(t, want, got)
 		})
 	}
