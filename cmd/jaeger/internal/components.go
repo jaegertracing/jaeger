@@ -70,9 +70,10 @@ func (b builders) build() (otelcol.Factories, error) {
 		// add-ons
 		jaegerquery.NewFactory(),
 		jaegerstorage.NewFactory(),
-		storagecleaner.NewFactory(),
 		remotesampling.NewFactory(),
 		expvar.NewFactory(),
+		// only for e2e testing
+		storagecleaner.NewFactory(),
 		remotestorage.NewFactory(),
 	)
 	if err != nil {
