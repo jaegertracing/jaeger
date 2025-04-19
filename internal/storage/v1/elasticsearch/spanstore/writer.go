@@ -16,6 +16,7 @@ import (
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 )
 
 const (
@@ -25,6 +26,10 @@ const (
 	indexCacheTTLDefault   = 48 * time.Hour
 )
 
+type spanWriterMetrics struct {
+	spanWrite *spanstoremetrics.WriteMetrics
+}
+
 type serviceWriter func(string, *dbmodel.Span)
 
 // SpanWriter is a wrapper around elastic.Client
@@ -32,6 +37,7 @@ type SpanWriter struct {
 	client func() es.Client
 	logger *zap.Logger
 	// indexCache       cache.Cache
+	writerMetrics    spanWriterMetrics
 	serviceWriter    serviceWriter
 	spanServiceIndex spanAndServiceIndexFn
 }
@@ -41,7 +47,7 @@ type CoreSpanWriter interface {
 	// CreateTemplates creates index templates.
 	CreateTemplates(spanTemplate, serviceTemplate string, indexPrefix cfg.IndexPrefix) error
 	// WriteSpan writes a span and its corresponding service:operation in ElasticSearch
-	WriteSpan(spanStartTime time.Time, span *dbmodel.Span)
+	WriteSpan(spanStartTime time.Time, span *dbmodel.Span) error
 	// Close closes CoreSpanWriter
 	Close() error
 }
@@ -80,8 +86,11 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 
 	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheTTL)
 	return &SpanWriter{
-		client:           p.Client,
-		logger:           p.Logger,
+		client: p.Client,
+		logger: p.Logger,
+		writerMetrics: spanWriterMetrics{
+			spanWrite: spanstoremetrics.NewWriter(p.MetricsFactory, "span_write"),
+		},
 		serviceWriter:    serviceOperationStorage.Write,
 		spanServiceIndex: getSpanAndServiceIndexFn(p, writeAliasSuffix),
 	}
@@ -119,13 +128,15 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServ
 }
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
-func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
+func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) error {
+	s.writerMetrics.spanWrite.Attempts.Inc(1)
+
 	spanIndexName, serviceIndexName := s.spanServiceIndex(spanStartTime)
 	if serviceIndexName != "" {
 		s.writeService(serviceIndexName, span)
 	}
-	s.writeSpan(spanIndexName, span)
 	s.logger.Debug("Wrote span to ES index", zap.String("index", spanIndexName))
+	return s.writeSpan(spanIndexName, span)
 }
 
 // Close closes SpanWriter
@@ -145,6 +156,7 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
 	s.serviceWriter(indexName, jsonSpan)
 }
 
-func (s *SpanWriter) writeSpan(indexName string, jsonSpan *dbmodel.Span) {
+func (s *SpanWriter) writeSpan(indexName string, jsonSpan *dbmodel.Span) error {
 	s.client().Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan).Add()
+	return nil
 }

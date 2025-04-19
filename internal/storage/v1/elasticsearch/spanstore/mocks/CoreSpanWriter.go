@@ -123,8 +123,21 @@ func (_c *CoreSpanWriter_CreateTemplates_Call) RunAndReturn(run func(string, str
 }
 
 // WriteSpan provides a mock function with given fields: spanStartTime, span
-func (_m *CoreSpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
-	_m.Called(spanStartTime, span)
+func (_m *CoreSpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) error {
+	ret := _m.Called(spanStartTime, span)
+
+	if len(ret) == 0 {
+		panic("no return value specified for WriteSpan")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(time.Time, *dbmodel.Span) error); ok {
+		r0 = rf(spanStartTime, span)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
 }
 
 // CoreSpanWriter_WriteSpan_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'WriteSpan'

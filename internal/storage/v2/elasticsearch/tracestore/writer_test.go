@@ -10,8 +10,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/metrics"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/mocks"
@@ -26,7 +29,7 @@ func TestTraceWriter_WriteTraces(t *testing.T) {
 	span.SetName("op-1")
 	dbSpan := ToDBModel(td)
 	writer := TraceWriter{spanWriter: coreWriter}
-	coreWriter.On("WriteSpan", model.EpochMicrosecondsAsTime(dbSpan[0].StartTime), &dbSpan[0])
+	coreWriter.On("WriteSpan", model.EpochMicrosecondsAsTime(dbSpan[0].StartTime), &dbSpan[0]).Return(nil)
 	err := writer.WriteTraces(context.Background(), td)
 	require.NoError(t, err)
 }
@@ -48,7 +51,12 @@ func TestTraceWriter_CreateTemplates(t *testing.T) {
 }
 
 func Test_NewTraceWriter(t *testing.T) {
-	params := spanstore.SpanWriterParams{}
+
+	params := spanstore.SpanWriterParams{
+		Client:         func() elasticsearch.Client { return nil },
+		Logger:         zap.NewNop(),
+		MetricsFactory: metrics.NullFactory,
+	}
 	writer := NewTraceWriter(params)
 	assert.NotNil(t, writer)
 }
