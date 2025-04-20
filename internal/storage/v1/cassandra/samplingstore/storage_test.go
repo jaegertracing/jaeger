@@ -263,7 +263,7 @@ func TestGetLatestProbabilities(t *testing.T) {
 				query := &mocks.Query{}
 				query.On("Iter").Return(iter)
 
-				s.session.On("Query", mock.AnythingOfType("string"), matchEverything()).Return(query)
+				s.session.On("Query", mock.AnythingOfType("string")).Return(query)
 
 				probabilities, err := s.store.GetLatestProbabilities()
 

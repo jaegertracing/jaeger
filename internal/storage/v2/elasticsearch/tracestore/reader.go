@@ -11,7 +11,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
-	v2api "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 // TraceReader is a wrapper around spanstore.CoreSpanReader which return the output parallel to OTLP Models
@@ -26,15 +26,35 @@ func NewTraceReader(p spanstore.SpanReaderParams) *TraceReader {
 	}
 }
 
-func (*TraceReader) GetTraces(_ context.Context, _ ...v2api.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
-	panic("not implemented")
+func (t *TraceReader) GetTraces(ctx context.Context, params ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
+	return func(yield func([]ptrace.Traces, error) bool) {
+		dbTraceIds := make([]dbmodel.TraceID, 0, len(params))
+		for _, id := range params {
+			dbTraceIds = append(dbTraceIds, dbmodel.TraceID(id.TraceID.String()))
+		}
+		dbTraces, err := t.spanReader.GetTraces(ctx, dbTraceIds)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		for _, trace := range dbTraces {
+			td, err := FromDBModel(trace.Spans)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+			if !yield([]ptrace.Traces{td}, nil) {
+				return
+			}
+		}
+	}
 }
 
 func (t *TraceReader) GetServices(ctx context.Context) ([]string, error) {
 	return t.spanReader.GetServices(ctx)
 }
 
-func (t *TraceReader) GetOperations(ctx context.Context, query v2api.OperationQueryParams) ([]v2api.Operation, error) {
+func (t *TraceReader) GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
 	dbOperations, err := t.spanReader.GetOperations(ctx, dbmodel.OperationQueryParameters{
 		ServiceName: query.ServiceName,
 		SpanKind:    query.SpanKind,
@@ -42,9 +62,9 @@ func (t *TraceReader) GetOperations(ctx context.Context, query v2api.OperationQu
 	if err != nil {
 		return nil, err
 	}
-	operations := make([]v2api.Operation, 0, len(dbOperations))
+	operations := make([]tracestore.Operation, 0, len(dbOperations))
 	for _, op := range dbOperations {
-		operations = append(operations, v2api.Operation{
+		operations = append(operations, tracestore.Operation{
 			Name:     op.Name,
 			SpanKind: op.SpanKind,
 		})
@@ -52,10 +72,45 @@ func (t *TraceReader) GetOperations(ctx context.Context, query v2api.OperationQu
 	return operations, nil
 }
 
-func (*TraceReader) FindTraces(_ context.Context, _ v2api.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+func (*TraceReader) FindTraces(_ context.Context, _ tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
 	panic("not implemented")
 }
 
-func (*TraceReader) FindTraceIDs(_ context.Context, _ v2api.TraceQueryParams) iter.Seq2[[]v2api.FoundTraceID, error] {
-	panic("not implemented")
+func (t *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
+	return func(yield func([]tracestore.FoundTraceID, error) bool) {
+		traceIds, err := t.spanReader.FindTraceIDs(ctx, toDBTraceQueryParams(query))
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		otelTraceIds := make([]tracestore.FoundTraceID, 0, len(traceIds))
+		for _, traceId := range traceIds {
+			dbTraceId, err := fromDbTraceId(traceId)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+			otelTraceIds = append(otelTraceIds, tracestore.FoundTraceID{
+				TraceID: dbTraceId,
+			})
+		}
+		yield(otelTraceIds, nil)
+	}
+}
+
+func toDBTraceQueryParams(query tracestore.TraceQueryParams) dbmodel.TraceQueryParameters {
+	tags := make(map[string]string)
+	for key, val := range query.Attributes.All() {
+		tags[key] = val.AsString()
+	}
+	return dbmodel.TraceQueryParameters{
+		ServiceName:   query.ServiceName,
+		OperationName: query.OperationName,
+		StartTimeMin:  query.StartTimeMin,
+		StartTimeMax:  query.StartTimeMax,
+		Tags:          tags,
+		NumTraces:     query.SearchDepth,
+		DurationMin:   query.DurationMin,
+		DurationMax:   query.DurationMax,
+	}
 }

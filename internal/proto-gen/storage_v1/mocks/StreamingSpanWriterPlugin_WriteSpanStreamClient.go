@@ -21,6 +21,14 @@ type StreamingSpanWriterPlugin_WriteSpanStreamClient struct {
 	mock.Mock
 }
 
+type StreamingSpanWriterPlugin_WriteSpanStreamClient_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *StreamingSpanWriterPlugin_WriteSpanStreamClient) EXPECT() *StreamingSpanWriterPlugin_WriteSpanStreamClient_Expecter {
+	return &StreamingSpanWriterPlugin_WriteSpanStreamClient_Expecter{mock: &_m.Mock}
+}
+
 // CloseAndRecv provides a mock function with no fields
 func (_m *StreamingSpanWriterPlugin_WriteSpanStreamClient) CloseAndRecv() (*storage_v1.WriteSpanResponse, error) {
 	ret := _m.Called()
@@ -51,6 +59,33 @@ func (_m *StreamingSpanWriterPlugin_WriteSpanStreamClient) CloseAndRecv() (*stor
 	return r0, r1
 }
 
+// StreamingSpanWriterPlugin_WriteSpanStreamClient_CloseAndRecv_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CloseAndRecv'
+type StreamingSpanWriterPlugin_WriteSpanStreamClient_CloseAndRecv_Call struct {
+	*mock.Call
+}
+
+// CloseAndRecv is a helper method to define mock.On call
+func (_e *StreamingSpanWriterPlugin_WriteSpanStreamClient_Expecter) CloseAndRecv() *StreamingSpanWriterPlugin_WriteSpanStreamClient_CloseAndRecv_Call {
+	return &StreamingSpanWriterPlugin_WriteSpanStreamClient_CloseAndRecv_Call{Call: _e.mock.On("CloseAndRecv")}
+}
+
+func (_c *StreamingSpanWriterPlugin_WriteSpanStreamClient_CloseAndRecv_Call) Run(run func()) *StreamingSpanWriterPlugin_WriteSpanStreamClient_CloseAndRecv_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *StreamingSpanWriterPlugin_WriteSpanStreamClient_CloseAndRecv_Call) Return(_a0 *storage_v1.WriteSpanResponse, _a1 error) *StreamingSpanWriterPlugin_WriteSpanStreamClient_CloseAndRecv_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *StreamingSpanWriterPlugin_WriteSpanStreamClient_CloseAndRecv_Call) RunAndReturn(run func() (*storage_v1.WriteSpanResponse, error)) *StreamingSpanWriterPlugin_WriteSpanStreamClient_CloseAndRecv_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CloseSend provides a mock function with no fields
 func (_m *StreamingSpanWriterPlugin_WriteSpanStreamClient) CloseSend() error {
 	ret := _m.Called()
@@ -67,6 +102,33 @@ func (_m *StreamingSpanWriterPlugin_WriteSpanStreamClient) CloseSend() error {
 	}
 
 	return r0
+}
+
+// StreamingSpanWriterPlugin_WriteSpanStreamClient_CloseSend_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CloseSend'
+type StreamingSpanWriterPlugin_WriteSpanStreamClient_CloseSend_Call struct {
+	*mock.Call
+}
+
+// CloseSend is a helper method to define mock.On call
+func (_e *StreamingSpanWriterPlugin_WriteSpanStreamClient_Expecter) CloseSend() *StreamingSpanWriterPlugin_WriteSpanStreamClient_CloseSend_Call {
+	return &StreamingSpanWriterPlugin_WriteSpanStreamClient_CloseSend_Call{Call: _e.mock.On("CloseSend")}
+}
+
+func (_c *StreamingSpanWriterPlugin_WriteSpanStreamClient_CloseSend_Call) Run(run func()) *StreamingSpanWriterPlugin_WriteSpanStreamClient_CloseSend_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *StreamingSpanWriterPlugin_WriteSpanStreamClient_CloseSend_Call) Return(_a0 error) *StreamingSpanWriterPlugin_WriteSpanStreamClient_CloseSend_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *StreamingSpanWriterPlugin_WriteSpanStreamClient_CloseSend_Call) RunAndReturn(run func() error) *StreamingSpanWriterPlugin_WriteSpanStreamClient_CloseSend_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Context provides a mock function with no fields
@@ -87,6 +149,33 @@ func (_m *StreamingSpanWriterPlugin_WriteSpanStreamClient) Context() context.Con
 	}
 
 	return r0
+}
+
+// StreamingSpanWriterPlugin_WriteSpanStreamClient_Context_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Context'
+type StreamingSpanWriterPlugin_WriteSpanStreamClient_Context_Call struct {
+	*mock.Call
+}
+
+// Context is a helper method to define mock.On call
+func (_e *StreamingSpanWriterPlugin_WriteSpanStreamClient_Expecter) Context() *StreamingSpanWriterPlugin_WriteSpanStreamClient_Context_Call {
+	return &StreamingSpanWriterPlugin_WriteSpanStreamClient_Context_Call{Call: _e.mock.On("Context")}
+}
+
+func (_c *StreamingSpanWriterPlugin_WriteSpanStreamClient_Context_Call) Run(run func()) *StreamingSpanWriterPlugin_WriteSpanStreamClient_Context_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *StreamingSpanWriterPlugin_WriteSpanStreamClient_Context_Call) Return(_a0 context.Context) *StreamingSpanWriterPlugin_WriteSpanStreamClient_Context_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *StreamingSpanWriterPlugin_WriteSpanStreamClient_Context_Call) RunAndReturn(run func() context.Context) *StreamingSpanWriterPlugin_WriteSpanStreamClient_Context_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Header provides a mock function with no fields
@@ -119,6 +208,33 @@ func (_m *StreamingSpanWriterPlugin_WriteSpanStreamClient) Header() (metadata.MD
 	return r0, r1
 }
 
+// StreamingSpanWriterPlugin_WriteSpanStreamClient_Header_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Header'
+type StreamingSpanWriterPlugin_WriteSpanStreamClient_Header_Call struct {
+	*mock.Call
+}
+
+// Header is a helper method to define mock.On call
+func (_e *StreamingSpanWriterPlugin_WriteSpanStreamClient_Expecter) Header() *StreamingSpanWriterPlugin_WriteSpanStreamClient_Header_Call {
+	return &StreamingSpanWriterPlugin_WriteSpanStreamClient_Header_Call{Call: _e.mock.On("Header")}
+}
+
+func (_c *StreamingSpanWriterPlugin_WriteSpanStreamClient_Header_Call) Run(run func()) *StreamingSpanWriterPlugin_WriteSpanStreamClient_Header_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *StreamingSpanWriterPlugin_WriteSpanStreamClient_Header_Call) Return(_a0 metadata.MD, _a1 error) *StreamingSpanWriterPlugin_WriteSpanStreamClient_Header_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *StreamingSpanWriterPlugin_WriteSpanStreamClient_Header_Call) RunAndReturn(run func() (metadata.MD, error)) *StreamingSpanWriterPlugin_WriteSpanStreamClient_Header_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // RecvMsg provides a mock function with given fields: m
 func (_m *StreamingSpanWriterPlugin_WriteSpanStreamClient) RecvMsg(m any) error {
 	ret := _m.Called(m)
@@ -135,6 +251,34 @@ func (_m *StreamingSpanWriterPlugin_WriteSpanStreamClient) RecvMsg(m any) error 
 	}
 
 	return r0
+}
+
+// StreamingSpanWriterPlugin_WriteSpanStreamClient_RecvMsg_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RecvMsg'
+type StreamingSpanWriterPlugin_WriteSpanStreamClient_RecvMsg_Call struct {
+	*mock.Call
+}
+
+// RecvMsg is a helper method to define mock.On call
+//   - m any
+func (_e *StreamingSpanWriterPlugin_WriteSpanStreamClient_Expecter) RecvMsg(m interface{}) *StreamingSpanWriterPlugin_WriteSpanStreamClient_RecvMsg_Call {
+	return &StreamingSpanWriterPlugin_WriteSpanStreamClient_RecvMsg_Call{Call: _e.mock.On("RecvMsg", m)}
+}
+
+func (_c *StreamingSpanWriterPlugin_WriteSpanStreamClient_RecvMsg_Call) Run(run func(m any)) *StreamingSpanWriterPlugin_WriteSpanStreamClient_RecvMsg_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(any))
+	})
+	return _c
+}
+
+func (_c *StreamingSpanWriterPlugin_WriteSpanStreamClient_RecvMsg_Call) Return(_a0 error) *StreamingSpanWriterPlugin_WriteSpanStreamClient_RecvMsg_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *StreamingSpanWriterPlugin_WriteSpanStreamClient_RecvMsg_Call) RunAndReturn(run func(any) error) *StreamingSpanWriterPlugin_WriteSpanStreamClient_RecvMsg_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Send provides a mock function with given fields: _a0
@@ -155,6 +299,34 @@ func (_m *StreamingSpanWriterPlugin_WriteSpanStreamClient) Send(_a0 *storage_v1.
 	return r0
 }
 
+// StreamingSpanWriterPlugin_WriteSpanStreamClient_Send_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Send'
+type StreamingSpanWriterPlugin_WriteSpanStreamClient_Send_Call struct {
+	*mock.Call
+}
+
+// Send is a helper method to define mock.On call
+//   - _a0 *storage_v1.WriteSpanRequest
+func (_e *StreamingSpanWriterPlugin_WriteSpanStreamClient_Expecter) Send(_a0 interface{}) *StreamingSpanWriterPlugin_WriteSpanStreamClient_Send_Call {
+	return &StreamingSpanWriterPlugin_WriteSpanStreamClient_Send_Call{Call: _e.mock.On("Send", _a0)}
+}
+
+func (_c *StreamingSpanWriterPlugin_WriteSpanStreamClient_Send_Call) Run(run func(_a0 *storage_v1.WriteSpanRequest)) *StreamingSpanWriterPlugin_WriteSpanStreamClient_Send_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(*storage_v1.WriteSpanRequest))
+	})
+	return _c
+}
+
+func (_c *StreamingSpanWriterPlugin_WriteSpanStreamClient_Send_Call) Return(_a0 error) *StreamingSpanWriterPlugin_WriteSpanStreamClient_Send_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *StreamingSpanWriterPlugin_WriteSpanStreamClient_Send_Call) RunAndReturn(run func(*storage_v1.WriteSpanRequest) error) *StreamingSpanWriterPlugin_WriteSpanStreamClient_Send_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // SendMsg provides a mock function with given fields: m
 func (_m *StreamingSpanWriterPlugin_WriteSpanStreamClient) SendMsg(m any) error {
 	ret := _m.Called(m)
@@ -171,6 +343,34 @@ func (_m *StreamingSpanWriterPlugin_WriteSpanStreamClient) SendMsg(m any) error 
 	}
 
 	return r0
+}
+
+// StreamingSpanWriterPlugin_WriteSpanStreamClient_SendMsg_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SendMsg'
+type StreamingSpanWriterPlugin_WriteSpanStreamClient_SendMsg_Call struct {
+	*mock.Call
+}
+
+// SendMsg is a helper method to define mock.On call
+//   - m any
+func (_e *StreamingSpanWriterPlugin_WriteSpanStreamClient_Expecter) SendMsg(m interface{}) *StreamingSpanWriterPlugin_WriteSpanStreamClient_SendMsg_Call {
+	return &StreamingSpanWriterPlugin_WriteSpanStreamClient_SendMsg_Call{Call: _e.mock.On("SendMsg", m)}
+}
+
+func (_c *StreamingSpanWriterPlugin_WriteSpanStreamClient_SendMsg_Call) Run(run func(m any)) *StreamingSpanWriterPlugin_WriteSpanStreamClient_SendMsg_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(any))
+	})
+	return _c
+}
+
+func (_c *StreamingSpanWriterPlugin_WriteSpanStreamClient_SendMsg_Call) Return(_a0 error) *StreamingSpanWriterPlugin_WriteSpanStreamClient_SendMsg_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *StreamingSpanWriterPlugin_WriteSpanStreamClient_SendMsg_Call) RunAndReturn(run func(any) error) *StreamingSpanWriterPlugin_WriteSpanStreamClient_SendMsg_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Trailer provides a mock function with no fields
@@ -191,6 +391,33 @@ func (_m *StreamingSpanWriterPlugin_WriteSpanStreamClient) Trailer() metadata.MD
 	}
 
 	return r0
+}
+
+// StreamingSpanWriterPlugin_WriteSpanStreamClient_Trailer_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Trailer'
+type StreamingSpanWriterPlugin_WriteSpanStreamClient_Trailer_Call struct {
+	*mock.Call
+}
+
+// Trailer is a helper method to define mock.On call
+func (_e *StreamingSpanWriterPlugin_WriteSpanStreamClient_Expecter) Trailer() *StreamingSpanWriterPlugin_WriteSpanStreamClient_Trailer_Call {
+	return &StreamingSpanWriterPlugin_WriteSpanStreamClient_Trailer_Call{Call: _e.mock.On("Trailer")}
+}
+
+func (_c *StreamingSpanWriterPlugin_WriteSpanStreamClient_Trailer_Call) Run(run func()) *StreamingSpanWriterPlugin_WriteSpanStreamClient_Trailer_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *StreamingSpanWriterPlugin_WriteSpanStreamClient_Trailer_Call) Return(_a0 metadata.MD) *StreamingSpanWriterPlugin_WriteSpanStreamClient_Trailer_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *StreamingSpanWriterPlugin_WriteSpanStreamClient_Trailer_Call) RunAndReturn(run func() metadata.MD) *StreamingSpanWriterPlugin_WriteSpanStreamClient_Trailer_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewStreamingSpanWriterPlugin_WriteSpanStreamClient creates a new instance of StreamingSpanWriterPlugin_WriteSpanStreamClient. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

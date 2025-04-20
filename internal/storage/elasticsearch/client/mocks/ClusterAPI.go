@@ -14,6 +14,14 @@ type ClusterAPI struct {
 	mock.Mock
 }
 
+type ClusterAPI_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *ClusterAPI) EXPECT() *ClusterAPI_Expecter {
+	return &ClusterAPI_Expecter{mock: &_m.Mock}
+}
+
 // Version provides a mock function with no fields
 func (_m *ClusterAPI) Version() (uint, error) {
 	ret := _m.Called()
@@ -40,6 +48,33 @@ func (_m *ClusterAPI) Version() (uint, error) {
 	}
 
 	return r0, r1
+}
+
+// ClusterAPI_Version_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Version'
+type ClusterAPI_Version_Call struct {
+	*mock.Call
+}
+
+// Version is a helper method to define mock.On call
+func (_e *ClusterAPI_Expecter) Version() *ClusterAPI_Version_Call {
+	return &ClusterAPI_Version_Call{Call: _e.mock.On("Version")}
+}
+
+func (_c *ClusterAPI_Version_Call) Run(run func()) *ClusterAPI_Version_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *ClusterAPI_Version_Call) Return(_a0 uint, _a1 error) *ClusterAPI_Version_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *ClusterAPI_Version_Call) RunAndReturn(run func() (uint, error)) *ClusterAPI_Version_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewClusterAPI creates a new instance of ClusterAPI. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

@@ -18,6 +18,14 @@ type Lock struct {
 	mock.Mock
 }
 
+type Lock_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *Lock) EXPECT() *Lock_Expecter {
+	return &Lock_Expecter{mock: &_m.Mock}
+}
+
 // Acquire provides a mock function with given fields: resource, ttl
 func (_m *Lock) Acquire(resource string, ttl time.Duration) (bool, error) {
 	ret := _m.Called(resource, ttl)
@@ -46,6 +54,35 @@ func (_m *Lock) Acquire(resource string, ttl time.Duration) (bool, error) {
 	return r0, r1
 }
 
+// Lock_Acquire_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Acquire'
+type Lock_Acquire_Call struct {
+	*mock.Call
+}
+
+// Acquire is a helper method to define mock.On call
+//   - resource string
+//   - ttl time.Duration
+func (_e *Lock_Expecter) Acquire(resource interface{}, ttl interface{}) *Lock_Acquire_Call {
+	return &Lock_Acquire_Call{Call: _e.mock.On("Acquire", resource, ttl)}
+}
+
+func (_c *Lock_Acquire_Call) Run(run func(resource string, ttl time.Duration)) *Lock_Acquire_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string), args[1].(time.Duration))
+	})
+	return _c
+}
+
+func (_c *Lock_Acquire_Call) Return(acquired bool, err error) *Lock_Acquire_Call {
+	_c.Call.Return(acquired, err)
+	return _c
+}
+
+func (_c *Lock_Acquire_Call) RunAndReturn(run func(string, time.Duration) (bool, error)) *Lock_Acquire_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Forfeit provides a mock function with given fields: resource
 func (_m *Lock) Forfeit(resource string) (bool, error) {
 	ret := _m.Called(resource)
@@ -72,6 +109,34 @@ func (_m *Lock) Forfeit(resource string) (bool, error) {
 	}
 
 	return r0, r1
+}
+
+// Lock_Forfeit_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Forfeit'
+type Lock_Forfeit_Call struct {
+	*mock.Call
+}
+
+// Forfeit is a helper method to define mock.On call
+//   - resource string
+func (_e *Lock_Expecter) Forfeit(resource interface{}) *Lock_Forfeit_Call {
+	return &Lock_Forfeit_Call{Call: _e.mock.On("Forfeit", resource)}
+}
+
+func (_c *Lock_Forfeit_Call) Run(run func(resource string)) *Lock_Forfeit_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *Lock_Forfeit_Call) Return(forfeited bool, err error) *Lock_Forfeit_Call {
+	_c.Call.Return(forfeited, err)
+	return _c
+}
+
+func (_c *Lock_Forfeit_Call) RunAndReturn(run func(string) (bool, error)) *Lock_Forfeit_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewLock creates a new instance of Lock. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

@@ -22,6 +22,14 @@ type PluginCapabilitiesClient struct {
 	mock.Mock
 }
 
+type PluginCapabilitiesClient_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *PluginCapabilitiesClient) EXPECT() *PluginCapabilitiesClient_Expecter {
+	return &PluginCapabilitiesClient_Expecter{mock: &_m.Mock}
+}
+
 // Capabilities provides a mock function with given fields: ctx, in, opts
 func (_m *PluginCapabilitiesClient) Capabilities(ctx context.Context, in *storage_v1.CapabilitiesRequest, opts ...grpc.CallOption) (*storage_v1.CapabilitiesResponse, error) {
 	_va := make([]interface{}, len(opts))
@@ -57,6 +65,43 @@ func (_m *PluginCapabilitiesClient) Capabilities(ctx context.Context, in *storag
 	}
 
 	return r0, r1
+}
+
+// PluginCapabilitiesClient_Capabilities_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Capabilities'
+type PluginCapabilitiesClient_Capabilities_Call struct {
+	*mock.Call
+}
+
+// Capabilities is a helper method to define mock.On call
+//   - ctx context.Context
+//   - in *storage_v1.CapabilitiesRequest
+//   - opts ...grpc.CallOption
+func (_e *PluginCapabilitiesClient_Expecter) Capabilities(ctx interface{}, in interface{}, opts ...interface{}) *PluginCapabilitiesClient_Capabilities_Call {
+	return &PluginCapabilitiesClient_Capabilities_Call{Call: _e.mock.On("Capabilities",
+		append([]interface{}{ctx, in}, opts...)...)}
+}
+
+func (_c *PluginCapabilitiesClient_Capabilities_Call) Run(run func(ctx context.Context, in *storage_v1.CapabilitiesRequest, opts ...grpc.CallOption)) *PluginCapabilitiesClient_Capabilities_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		variadicArgs := make([]grpc.CallOption, len(args)-2)
+		for i, a := range args[2:] {
+			if a != nil {
+				variadicArgs[i] = a.(grpc.CallOption)
+			}
+		}
+		run(args[0].(context.Context), args[1].(*storage_v1.CapabilitiesRequest), variadicArgs...)
+	})
+	return _c
+}
+
+func (_c *PluginCapabilitiesClient_Capabilities_Call) Return(_a0 *storage_v1.CapabilitiesResponse, _a1 error) *PluginCapabilitiesClient_Capabilities_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *PluginCapabilitiesClient_Capabilities_Call) RunAndReturn(run func(context.Context, *storage_v1.CapabilitiesRequest, ...grpc.CallOption) (*storage_v1.CapabilitiesResponse, error)) *PluginCapabilitiesClient_Capabilities_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewPluginCapabilitiesClient creates a new instance of PluginCapabilitiesClient. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

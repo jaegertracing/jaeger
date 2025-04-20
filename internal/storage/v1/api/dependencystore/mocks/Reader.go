@@ -22,6 +22,14 @@ type Reader struct {
 	mock.Mock
 }
 
+type Reader_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *Reader) EXPECT() *Reader_Expecter {
+	return &Reader_Expecter{mock: &_m.Mock}
+}
+
 // GetDependencies provides a mock function with given fields: ctx, endTs, lookback
 func (_m *Reader) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 	ret := _m.Called(ctx, endTs, lookback)
@@ -50,6 +58,36 @@ func (_m *Reader) GetDependencies(ctx context.Context, endTs time.Time, lookback
 	}
 
 	return r0, r1
+}
+
+// Reader_GetDependencies_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetDependencies'
+type Reader_GetDependencies_Call struct {
+	*mock.Call
+}
+
+// GetDependencies is a helper method to define mock.On call
+//   - ctx context.Context
+//   - endTs time.Time
+//   - lookback time.Duration
+func (_e *Reader_Expecter) GetDependencies(ctx interface{}, endTs interface{}, lookback interface{}) *Reader_GetDependencies_Call {
+	return &Reader_GetDependencies_Call{Call: _e.mock.On("GetDependencies", ctx, endTs, lookback)}
+}
+
+func (_c *Reader_GetDependencies_Call) Run(run func(ctx context.Context, endTs time.Time, lookback time.Duration)) *Reader_GetDependencies_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(time.Time), args[2].(time.Duration))
+	})
+	return _c
+}
+
+func (_c *Reader_GetDependencies_Call) Return(_a0 []model.DependencyLink, _a1 error) *Reader_GetDependencies_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *Reader_GetDependencies_Call) RunAndReturn(run func(context.Context, time.Time, time.Duration) ([]model.DependencyLink, error)) *Reader_GetDependencies_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewReader creates a new instance of Reader. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

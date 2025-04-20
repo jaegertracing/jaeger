@@ -23,6 +23,14 @@ type Reader struct {
 	mock.Mock
 }
 
+type Reader_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *Reader) EXPECT() *Reader_Expecter {
+	return &Reader_Expecter{mock: &_m.Mock}
+}
+
 // FindTraceIDs provides a mock function with given fields: ctx, query
 func (_m *Reader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	ret := _m.Called(ctx, query)
@@ -43,6 +51,35 @@ func (_m *Reader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryP
 	return r0
 }
 
+// Reader_FindTraceIDs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindTraceIDs'
+type Reader_FindTraceIDs_Call struct {
+	*mock.Call
+}
+
+// FindTraceIDs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - query tracestore.TraceQueryParams
+func (_e *Reader_Expecter) FindTraceIDs(ctx interface{}, query interface{}) *Reader_FindTraceIDs_Call {
+	return &Reader_FindTraceIDs_Call{Call: _e.mock.On("FindTraceIDs", ctx, query)}
+}
+
+func (_c *Reader_FindTraceIDs_Call) Run(run func(ctx context.Context, query tracestore.TraceQueryParams)) *Reader_FindTraceIDs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(tracestore.TraceQueryParams))
+	})
+	return _c
+}
+
+func (_c *Reader_FindTraceIDs_Call) Return(_a0 iter.Seq2[[]tracestore.FoundTraceID, error]) *Reader_FindTraceIDs_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Reader_FindTraceIDs_Call) RunAndReturn(run func(context.Context, tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error]) *Reader_FindTraceIDs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // FindTraces provides a mock function with given fields: ctx, query
 func (_m *Reader) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
 	ret := _m.Called(ctx, query)
@@ -61,6 +98,35 @@ func (_m *Reader) FindTraces(ctx context.Context, query tracestore.TraceQueryPar
 	}
 
 	return r0
+}
+
+// Reader_FindTraces_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindTraces'
+type Reader_FindTraces_Call struct {
+	*mock.Call
+}
+
+// FindTraces is a helper method to define mock.On call
+//   - ctx context.Context
+//   - query tracestore.TraceQueryParams
+func (_e *Reader_Expecter) FindTraces(ctx interface{}, query interface{}) *Reader_FindTraces_Call {
+	return &Reader_FindTraces_Call{Call: _e.mock.On("FindTraces", ctx, query)}
+}
+
+func (_c *Reader_FindTraces_Call) Run(run func(ctx context.Context, query tracestore.TraceQueryParams)) *Reader_FindTraces_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(tracestore.TraceQueryParams))
+	})
+	return _c
+}
+
+func (_c *Reader_FindTraces_Call) Return(_a0 iter.Seq2[[]ptrace.Traces, error]) *Reader_FindTraces_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Reader_FindTraces_Call) RunAndReturn(run func(context.Context, tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error]) *Reader_FindTraces_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // GetOperations provides a mock function with given fields: ctx, query
@@ -93,6 +159,35 @@ func (_m *Reader) GetOperations(ctx context.Context, query tracestore.OperationQ
 	return r0, r1
 }
 
+// Reader_GetOperations_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetOperations'
+type Reader_GetOperations_Call struct {
+	*mock.Call
+}
+
+// GetOperations is a helper method to define mock.On call
+//   - ctx context.Context
+//   - query tracestore.OperationQueryParams
+func (_e *Reader_Expecter) GetOperations(ctx interface{}, query interface{}) *Reader_GetOperations_Call {
+	return &Reader_GetOperations_Call{Call: _e.mock.On("GetOperations", ctx, query)}
+}
+
+func (_c *Reader_GetOperations_Call) Run(run func(ctx context.Context, query tracestore.OperationQueryParams)) *Reader_GetOperations_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(tracestore.OperationQueryParams))
+	})
+	return _c
+}
+
+func (_c *Reader_GetOperations_Call) Return(_a0 []tracestore.Operation, _a1 error) *Reader_GetOperations_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *Reader_GetOperations_Call) RunAndReturn(run func(context.Context, tracestore.OperationQueryParams) ([]tracestore.Operation, error)) *Reader_GetOperations_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetServices provides a mock function with given fields: ctx
 func (_m *Reader) GetServices(ctx context.Context) ([]string, error) {
 	ret := _m.Called(ctx)
@@ -123,6 +218,34 @@ func (_m *Reader) GetServices(ctx context.Context) ([]string, error) {
 	return r0, r1
 }
 
+// Reader_GetServices_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetServices'
+type Reader_GetServices_Call struct {
+	*mock.Call
+}
+
+// GetServices is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *Reader_Expecter) GetServices(ctx interface{}) *Reader_GetServices_Call {
+	return &Reader_GetServices_Call{Call: _e.mock.On("GetServices", ctx)}
+}
+
+func (_c *Reader_GetServices_Call) Run(run func(ctx context.Context)) *Reader_GetServices_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context))
+	})
+	return _c
+}
+
+func (_c *Reader_GetServices_Call) Return(_a0 []string, _a1 error) *Reader_GetServices_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *Reader_GetServices_Call) RunAndReturn(run func(context.Context) ([]string, error)) *Reader_GetServices_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetTraces provides a mock function with given fields: ctx, traceIDs
 func (_m *Reader) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
 	_va := make([]interface{}, len(traceIDs))
@@ -148,6 +271,42 @@ func (_m *Reader) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTrace
 	}
 
 	return r0
+}
+
+// Reader_GetTraces_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetTraces'
+type Reader_GetTraces_Call struct {
+	*mock.Call
+}
+
+// GetTraces is a helper method to define mock.On call
+//   - ctx context.Context
+//   - traceIDs ...tracestore.GetTraceParams
+func (_e *Reader_Expecter) GetTraces(ctx interface{}, traceIDs ...interface{}) *Reader_GetTraces_Call {
+	return &Reader_GetTraces_Call{Call: _e.mock.On("GetTraces",
+		append([]interface{}{ctx}, traceIDs...)...)}
+}
+
+func (_c *Reader_GetTraces_Call) Run(run func(ctx context.Context, traceIDs ...tracestore.GetTraceParams)) *Reader_GetTraces_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		variadicArgs := make([]tracestore.GetTraceParams, len(args)-1)
+		for i, a := range args[1:] {
+			if a != nil {
+				variadicArgs[i] = a.(tracestore.GetTraceParams)
+			}
+		}
+		run(args[0].(context.Context), variadicArgs...)
+	})
+	return _c
+}
+
+func (_c *Reader_GetTraces_Call) Return(_a0 iter.Seq2[[]ptrace.Traces, error]) *Reader_GetTraces_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Reader_GetTraces_Call) RunAndReturn(run func(context.Context, ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error]) *Reader_GetTraces_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewReader creates a new instance of Reader. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

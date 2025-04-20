@@ -19,6 +19,14 @@ type BaseFactory struct {
 	mock.Mock
 }
 
+type BaseFactory_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *BaseFactory) EXPECT() *BaseFactory_Expecter {
+	return &BaseFactory_Expecter{mock: &_m.Mock}
+}
+
 // CreateDependencyReader provides a mock function with no fields
 func (_m *BaseFactory) CreateDependencyReader() (dependencystore.Reader, error) {
 	ret := _m.Called()
@@ -47,6 +55,33 @@ func (_m *BaseFactory) CreateDependencyReader() (dependencystore.Reader, error) 
 	}
 
 	return r0, r1
+}
+
+// BaseFactory_CreateDependencyReader_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateDependencyReader'
+type BaseFactory_CreateDependencyReader_Call struct {
+	*mock.Call
+}
+
+// CreateDependencyReader is a helper method to define mock.On call
+func (_e *BaseFactory_Expecter) CreateDependencyReader() *BaseFactory_CreateDependencyReader_Call {
+	return &BaseFactory_CreateDependencyReader_Call{Call: _e.mock.On("CreateDependencyReader")}
+}
+
+func (_c *BaseFactory_CreateDependencyReader_Call) Run(run func()) *BaseFactory_CreateDependencyReader_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *BaseFactory_CreateDependencyReader_Call) Return(_a0 dependencystore.Reader, _a1 error) *BaseFactory_CreateDependencyReader_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *BaseFactory_CreateDependencyReader_Call) RunAndReturn(run func() (dependencystore.Reader, error)) *BaseFactory_CreateDependencyReader_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // CreateSpanReader provides a mock function with no fields
@@ -79,6 +114,33 @@ func (_m *BaseFactory) CreateSpanReader() (spanstore.Reader, error) {
 	return r0, r1
 }
 
+// BaseFactory_CreateSpanReader_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateSpanReader'
+type BaseFactory_CreateSpanReader_Call struct {
+	*mock.Call
+}
+
+// CreateSpanReader is a helper method to define mock.On call
+func (_e *BaseFactory_Expecter) CreateSpanReader() *BaseFactory_CreateSpanReader_Call {
+	return &BaseFactory_CreateSpanReader_Call{Call: _e.mock.On("CreateSpanReader")}
+}
+
+func (_c *BaseFactory_CreateSpanReader_Call) Run(run func()) *BaseFactory_CreateSpanReader_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *BaseFactory_CreateSpanReader_Call) Return(_a0 spanstore.Reader, _a1 error) *BaseFactory_CreateSpanReader_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *BaseFactory_CreateSpanReader_Call) RunAndReturn(run func() (spanstore.Reader, error)) *BaseFactory_CreateSpanReader_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateSpanWriter provides a mock function with no fields
 func (_m *BaseFactory) CreateSpanWriter() (spanstore.Writer, error) {
 	ret := _m.Called()
@@ -107,6 +169,33 @@ func (_m *BaseFactory) CreateSpanWriter() (spanstore.Writer, error) {
 	}
 
 	return r0, r1
+}
+
+// BaseFactory_CreateSpanWriter_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateSpanWriter'
+type BaseFactory_CreateSpanWriter_Call struct {
+	*mock.Call
+}
+
+// CreateSpanWriter is a helper method to define mock.On call
+func (_e *BaseFactory_Expecter) CreateSpanWriter() *BaseFactory_CreateSpanWriter_Call {
+	return &BaseFactory_CreateSpanWriter_Call{Call: _e.mock.On("CreateSpanWriter")}
+}
+
+func (_c *BaseFactory_CreateSpanWriter_Call) Run(run func()) *BaseFactory_CreateSpanWriter_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *BaseFactory_CreateSpanWriter_Call) Return(_a0 spanstore.Writer, _a1 error) *BaseFactory_CreateSpanWriter_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *BaseFactory_CreateSpanWriter_Call) RunAndReturn(run func() (spanstore.Writer, error)) *BaseFactory_CreateSpanWriter_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewBaseFactory creates a new instance of BaseFactory. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

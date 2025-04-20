@@ -17,6 +17,14 @@ type IndexAPI struct {
 	mock.Mock
 }
 
+type IndexAPI_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *IndexAPI) EXPECT() *IndexAPI_Expecter {
+	return &IndexAPI_Expecter{mock: &_m.Mock}
+}
+
 // AliasExists provides a mock function with given fields: alias
 func (_m *IndexAPI) AliasExists(alias string) (bool, error) {
 	ret := _m.Called(alias)
@@ -45,6 +53,34 @@ func (_m *IndexAPI) AliasExists(alias string) (bool, error) {
 	return r0, r1
 }
 
+// IndexAPI_AliasExists_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AliasExists'
+type IndexAPI_AliasExists_Call struct {
+	*mock.Call
+}
+
+// AliasExists is a helper method to define mock.On call
+//   - alias string
+func (_e *IndexAPI_Expecter) AliasExists(alias interface{}) *IndexAPI_AliasExists_Call {
+	return &IndexAPI_AliasExists_Call{Call: _e.mock.On("AliasExists", alias)}
+}
+
+func (_c *IndexAPI_AliasExists_Call) Run(run func(alias string)) *IndexAPI_AliasExists_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *IndexAPI_AliasExists_Call) Return(_a0 bool, _a1 error) *IndexAPI_AliasExists_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *IndexAPI_AliasExists_Call) RunAndReturn(run func(string) (bool, error)) *IndexAPI_AliasExists_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateAlias provides a mock function with given fields: aliases
 func (_m *IndexAPI) CreateAlias(aliases []client.Alias) error {
 	ret := _m.Called(aliases)
@@ -61,6 +97,34 @@ func (_m *IndexAPI) CreateAlias(aliases []client.Alias) error {
 	}
 
 	return r0
+}
+
+// IndexAPI_CreateAlias_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateAlias'
+type IndexAPI_CreateAlias_Call struct {
+	*mock.Call
+}
+
+// CreateAlias is a helper method to define mock.On call
+//   - aliases []client.Alias
+func (_e *IndexAPI_Expecter) CreateAlias(aliases interface{}) *IndexAPI_CreateAlias_Call {
+	return &IndexAPI_CreateAlias_Call{Call: _e.mock.On("CreateAlias", aliases)}
+}
+
+func (_c *IndexAPI_CreateAlias_Call) Run(run func(aliases []client.Alias)) *IndexAPI_CreateAlias_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].([]client.Alias))
+	})
+	return _c
+}
+
+func (_c *IndexAPI_CreateAlias_Call) Return(_a0 error) *IndexAPI_CreateAlias_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *IndexAPI_CreateAlias_Call) RunAndReturn(run func([]client.Alias) error) *IndexAPI_CreateAlias_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // CreateIndex provides a mock function with given fields: index
@@ -81,6 +145,34 @@ func (_m *IndexAPI) CreateIndex(index string) error {
 	return r0
 }
 
+// IndexAPI_CreateIndex_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateIndex'
+type IndexAPI_CreateIndex_Call struct {
+	*mock.Call
+}
+
+// CreateIndex is a helper method to define mock.On call
+//   - index string
+func (_e *IndexAPI_Expecter) CreateIndex(index interface{}) *IndexAPI_CreateIndex_Call {
+	return &IndexAPI_CreateIndex_Call{Call: _e.mock.On("CreateIndex", index)}
+}
+
+func (_c *IndexAPI_CreateIndex_Call) Run(run func(index string)) *IndexAPI_CreateIndex_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *IndexAPI_CreateIndex_Call) Return(_a0 error) *IndexAPI_CreateIndex_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *IndexAPI_CreateIndex_Call) RunAndReturn(run func(string) error) *IndexAPI_CreateIndex_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateTemplate provides a mock function with given fields: template, name
 func (_m *IndexAPI) CreateTemplate(template string, name string) error {
 	ret := _m.Called(template, name)
@@ -97,6 +189,35 @@ func (_m *IndexAPI) CreateTemplate(template string, name string) error {
 	}
 
 	return r0
+}
+
+// IndexAPI_CreateTemplate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateTemplate'
+type IndexAPI_CreateTemplate_Call struct {
+	*mock.Call
+}
+
+// CreateTemplate is a helper method to define mock.On call
+//   - template string
+//   - name string
+func (_e *IndexAPI_Expecter) CreateTemplate(template interface{}, name interface{}) *IndexAPI_CreateTemplate_Call {
+	return &IndexAPI_CreateTemplate_Call{Call: _e.mock.On("CreateTemplate", template, name)}
+}
+
+func (_c *IndexAPI_CreateTemplate_Call) Run(run func(template string, name string)) *IndexAPI_CreateTemplate_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *IndexAPI_CreateTemplate_Call) Return(_a0 error) *IndexAPI_CreateTemplate_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *IndexAPI_CreateTemplate_Call) RunAndReturn(run func(string, string) error) *IndexAPI_CreateTemplate_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // DeleteAlias provides a mock function with given fields: aliases
@@ -117,6 +238,34 @@ func (_m *IndexAPI) DeleteAlias(aliases []client.Alias) error {
 	return r0
 }
 
+// IndexAPI_DeleteAlias_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteAlias'
+type IndexAPI_DeleteAlias_Call struct {
+	*mock.Call
+}
+
+// DeleteAlias is a helper method to define mock.On call
+//   - aliases []client.Alias
+func (_e *IndexAPI_Expecter) DeleteAlias(aliases interface{}) *IndexAPI_DeleteAlias_Call {
+	return &IndexAPI_DeleteAlias_Call{Call: _e.mock.On("DeleteAlias", aliases)}
+}
+
+func (_c *IndexAPI_DeleteAlias_Call) Run(run func(aliases []client.Alias)) *IndexAPI_DeleteAlias_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].([]client.Alias))
+	})
+	return _c
+}
+
+func (_c *IndexAPI_DeleteAlias_Call) Return(_a0 error) *IndexAPI_DeleteAlias_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *IndexAPI_DeleteAlias_Call) RunAndReturn(run func([]client.Alias) error) *IndexAPI_DeleteAlias_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // DeleteIndices provides a mock function with given fields: indices
 func (_m *IndexAPI) DeleteIndices(indices []client.Index) error {
 	ret := _m.Called(indices)
@@ -133,6 +282,34 @@ func (_m *IndexAPI) DeleteIndices(indices []client.Index) error {
 	}
 
 	return r0
+}
+
+// IndexAPI_DeleteIndices_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteIndices'
+type IndexAPI_DeleteIndices_Call struct {
+	*mock.Call
+}
+
+// DeleteIndices is a helper method to define mock.On call
+//   - indices []client.Index
+func (_e *IndexAPI_Expecter) DeleteIndices(indices interface{}) *IndexAPI_DeleteIndices_Call {
+	return &IndexAPI_DeleteIndices_Call{Call: _e.mock.On("DeleteIndices", indices)}
+}
+
+func (_c *IndexAPI_DeleteIndices_Call) Run(run func(indices []client.Index)) *IndexAPI_DeleteIndices_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].([]client.Index))
+	})
+	return _c
+}
+
+func (_c *IndexAPI_DeleteIndices_Call) Return(_a0 error) *IndexAPI_DeleteIndices_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *IndexAPI_DeleteIndices_Call) RunAndReturn(run func([]client.Index) error) *IndexAPI_DeleteIndices_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // GetJaegerIndices provides a mock function with given fields: prefix
@@ -165,6 +342,34 @@ func (_m *IndexAPI) GetJaegerIndices(prefix string) ([]client.Index, error) {
 	return r0, r1
 }
 
+// IndexAPI_GetJaegerIndices_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetJaegerIndices'
+type IndexAPI_GetJaegerIndices_Call struct {
+	*mock.Call
+}
+
+// GetJaegerIndices is a helper method to define mock.On call
+//   - prefix string
+func (_e *IndexAPI_Expecter) GetJaegerIndices(prefix interface{}) *IndexAPI_GetJaegerIndices_Call {
+	return &IndexAPI_GetJaegerIndices_Call{Call: _e.mock.On("GetJaegerIndices", prefix)}
+}
+
+func (_c *IndexAPI_GetJaegerIndices_Call) Run(run func(prefix string)) *IndexAPI_GetJaegerIndices_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *IndexAPI_GetJaegerIndices_Call) Return(_a0 []client.Index, _a1 error) *IndexAPI_GetJaegerIndices_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *IndexAPI_GetJaegerIndices_Call) RunAndReturn(run func(string) ([]client.Index, error)) *IndexAPI_GetJaegerIndices_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // IndexExists provides a mock function with given fields: index
 func (_m *IndexAPI) IndexExists(index string) (bool, error) {
 	ret := _m.Called(index)
@@ -193,6 +398,34 @@ func (_m *IndexAPI) IndexExists(index string) (bool, error) {
 	return r0, r1
 }
 
+// IndexAPI_IndexExists_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IndexExists'
+type IndexAPI_IndexExists_Call struct {
+	*mock.Call
+}
+
+// IndexExists is a helper method to define mock.On call
+//   - index string
+func (_e *IndexAPI_Expecter) IndexExists(index interface{}) *IndexAPI_IndexExists_Call {
+	return &IndexAPI_IndexExists_Call{Call: _e.mock.On("IndexExists", index)}
+}
+
+func (_c *IndexAPI_IndexExists_Call) Run(run func(index string)) *IndexAPI_IndexExists_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *IndexAPI_IndexExists_Call) Return(_a0 bool, _a1 error) *IndexAPI_IndexExists_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *IndexAPI_IndexExists_Call) RunAndReturn(run func(string) (bool, error)) *IndexAPI_IndexExists_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Rollover provides a mock function with given fields: rolloverTarget, conditions
 func (_m *IndexAPI) Rollover(rolloverTarget string, conditions map[string]any) error {
 	ret := _m.Called(rolloverTarget, conditions)
@@ -209,6 +442,35 @@ func (_m *IndexAPI) Rollover(rolloverTarget string, conditions map[string]any) e
 	}
 
 	return r0
+}
+
+// IndexAPI_Rollover_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Rollover'
+type IndexAPI_Rollover_Call struct {
+	*mock.Call
+}
+
+// Rollover is a helper method to define mock.On call
+//   - rolloverTarget string
+//   - conditions map[string]any
+func (_e *IndexAPI_Expecter) Rollover(rolloverTarget interface{}, conditions interface{}) *IndexAPI_Rollover_Call {
+	return &IndexAPI_Rollover_Call{Call: _e.mock.On("Rollover", rolloverTarget, conditions)}
+}
+
+func (_c *IndexAPI_Rollover_Call) Run(run func(rolloverTarget string, conditions map[string]any)) *IndexAPI_Rollover_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string), args[1].(map[string]any))
+	})
+	return _c
+}
+
+func (_c *IndexAPI_Rollover_Call) Return(_a0 error) *IndexAPI_Rollover_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *IndexAPI_Rollover_Call) RunAndReturn(run func(string, map[string]any) error) *IndexAPI_Rollover_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewIndexAPI creates a new instance of IndexAPI. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

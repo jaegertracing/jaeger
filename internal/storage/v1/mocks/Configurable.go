@@ -22,14 +22,79 @@ type Configurable struct {
 	mock.Mock
 }
 
+type Configurable_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *Configurable) EXPECT() *Configurable_Expecter {
+	return &Configurable_Expecter{mock: &_m.Mock}
+}
+
 // AddFlags provides a mock function with given fields: flagSet
 func (_m *Configurable) AddFlags(flagSet *flag.FlagSet) {
 	_m.Called(flagSet)
 }
 
+// Configurable_AddFlags_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AddFlags'
+type Configurable_AddFlags_Call struct {
+	*mock.Call
+}
+
+// AddFlags is a helper method to define mock.On call
+//   - flagSet *flag.FlagSet
+func (_e *Configurable_Expecter) AddFlags(flagSet interface{}) *Configurable_AddFlags_Call {
+	return &Configurable_AddFlags_Call{Call: _e.mock.On("AddFlags", flagSet)}
+}
+
+func (_c *Configurable_AddFlags_Call) Run(run func(flagSet *flag.FlagSet)) *Configurable_AddFlags_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(*flag.FlagSet))
+	})
+	return _c
+}
+
+func (_c *Configurable_AddFlags_Call) Return() *Configurable_AddFlags_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *Configurable_AddFlags_Call) RunAndReturn(run func(*flag.FlagSet)) *Configurable_AddFlags_Call {
+	_c.Run(run)
+	return _c
+}
+
 // InitFromViper provides a mock function with given fields: v, logger
 func (_m *Configurable) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	_m.Called(v, logger)
+}
+
+// Configurable_InitFromViper_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'InitFromViper'
+type Configurable_InitFromViper_Call struct {
+	*mock.Call
+}
+
+// InitFromViper is a helper method to define mock.On call
+//   - v *viper.Viper
+//   - logger *zap.Logger
+func (_e *Configurable_Expecter) InitFromViper(v interface{}, logger interface{}) *Configurable_InitFromViper_Call {
+	return &Configurable_InitFromViper_Call{Call: _e.mock.On("InitFromViper", v, logger)}
+}
+
+func (_c *Configurable_InitFromViper_Call) Run(run func(v *viper.Viper, logger *zap.Logger)) *Configurable_InitFromViper_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(*viper.Viper), args[1].(*zap.Logger))
+	})
+	return _c
+}
+
+func (_c *Configurable_InitFromViper_Call) Return() *Configurable_InitFromViper_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *Configurable_InitFromViper_Call) RunAndReturn(run func(*viper.Viper, *zap.Logger)) *Configurable_InitFromViper_Call {
+	_c.Run(run)
+	return _c
 }
 
 // NewConfigurable creates a new instance of Configurable. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
