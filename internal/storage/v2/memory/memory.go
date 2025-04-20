@@ -5,13 +5,8 @@ package memory
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"iter"
 	"sort"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -19,20 +14,13 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	v1 "github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
-const (
-	statusError      = "ERROR"
-	statusOk         = "OK"
-	tagW3CTraceState = "w3c.tracestate"
-	tagHTTPStatusMsg = "http.status_message"
-	tagError         = "error"
-)
-
-var errType = errors.New("invalid type")
+const tagW3CTraceState = "w3c.tracestate"
 
 // Store is an in-memory store of traces
 type Store struct {
@@ -61,7 +49,8 @@ type memoryTraceQueryParams struct {
 	DurationMax   time.Duration
 	SearchDepth   int
 	Kind          ptrace.SpanKind
-	Status        ptrace.Status
+	StatusCode    string
+	StatusMessage string
 	TraceState    string
 	ScopeName     string
 	ScopeVersion  string
@@ -181,7 +170,7 @@ func toMemoryTraceQueryParams(query tracestore.TraceQueryParams) memoryTraceQuer
 	query.Attributes.CopyTo(attrs)
 	traceState := getTraceStateFromAttrs(attrs)
 	kind := getSpanKindFromAttrs(attrs)
-	status := getSpanStatusFromAttrs(attrs, kind)
+	statusCode, statusMsg := getStatusCodeAndMessageFromAttrs(attrs)
 	scopeName, scopeVersion := getScopeNameAndVersionFromAttrs(attrs)
 	return memoryTraceQueryParams{
 		OperationName: query.OperationName,
@@ -194,7 +183,8 @@ func toMemoryTraceQueryParams(query tracestore.TraceQueryParams) memoryTraceQuer
 		ServiceName:   query.ServiceName,
 		TraceState:    traceState,
 		Kind:          kind,
-		Status:        status,
+		StatusCode:    statusCode,
+		StatusMessage: statusMsg,
 		ScopeName:     scopeName,
 		ScopeVersion:  scopeVersion,
 	}
@@ -247,131 +237,14 @@ func stringToOTELSpanKind(spanKind string) ptrace.SpanKind {
 	return ptrace.SpanKindUnspecified
 }
 
-func getSpanStatusFromAttrs(attrs pcommon.Map, kind ptrace.SpanKind) ptrace.Status {
-	dest := ptrace.NewStatus()
-	statusCode := ptrace.StatusCodeUnset
-	statusMessage := ""
-	statusExists := false
-
-	if errorVal, ok := attrs.Get(tagError); ok && errorVal.Type() == pcommon.ValueTypeBool {
-		if errorVal.Bool() {
-			statusCode = ptrace.StatusCodeError
-			attrs.Remove(tagError)
-			statusExists = true
-			if desc, ok := extractStatusDescFromAttr(attrs); ok {
-				statusMessage = desc
-			} else if descAttr, ok := attrs.Get(tagHTTPStatusMsg); ok {
-				statusMessage = descAttr.Str()
-			}
-		}
+func getStatusCodeAndMessageFromAttrs(attrs pcommon.Map) (code string, msg string) {
+	if val, found := attrs.Get(conventions.OtelStatusCode); found {
+		code = val.Str()
 	}
-
-	if codeAttr, ok := attrs.Get(conventions.OtelStatusCode); ok {
-		if !statusExists {
-			// The error tag is the ultimate truth for a Jaeger spans' error
-			// status. Only parse the otel.status_code tag if the error tag is
-			// not set to true.
-			statusExists = true
-			switch strings.ToUpper(codeAttr.Str()) {
-			case statusOk:
-				statusCode = ptrace.StatusCodeOk
-			case statusError:
-				statusCode = ptrace.StatusCodeError
-			}
-
-			if desc, ok := extractStatusDescFromAttr(attrs); ok {
-				statusMessage = desc
-			}
-		}
-		// Regardless of error tag inputValue, remove the otel.status_code tag. The
-		// otel.status_message tag will have already been removed if
-		// statusExists is true.
-		attrs.Remove(conventions.OtelStatusCode)
-	} else if httpCodeAttr, ok := attrs.Get(conventions.AttributeHTTPStatusCode); !statusExists && ok {
-		// Fallback to introspecting if this span represents a failed HTTP
-		// request or response, but again, only do so if the `error` tag was
-		// not set to true and no explicit status was sent.
-		if code, err := getStatusCodeFromHTTPStatusAttr(httpCodeAttr, kind); err == nil {
-			if code != ptrace.StatusCodeUnset {
-				statusExists = true
-				statusCode = code
-			}
-
-			if msgAttr, ok := attrs.Get(tagHTTPStatusMsg); ok {
-				statusMessage = msgAttr.Str()
-			}
-		}
+	if message, found := attrs.Get(conventions.OtelStatusDescription); found {
+		msg = message.Str()
 	}
-
-	if statusExists {
-		dest.SetCode(statusCode)
-		dest.SetMessage(statusMessage)
-	}
-	return dest
-}
-
-// extractStatusDescFromAttr returns the OTel status description from attrs
-// along with true if it is set. Otherwise, an empty string and false are
-// returned. The OTel status description attribute is deleted from attrs in
-// the process.
-func extractStatusDescFromAttr(attrs pcommon.Map) (string, bool) {
-	if msgAttr, ok := attrs.Get(conventions.OtelStatusDescription); ok {
-		msg := msgAttr.Str()
-		attrs.Remove(conventions.OtelStatusDescription)
-		return msg, true
-	}
-	return "", false
-}
-
-// codeFromAttr returns the integer code inputValue from attrVal. An error is
-// returned if the code is not represented by an integer or string inputValue in
-// the attrVal or the inputValue is outside the bounds of an int representation.
-func codeFromAttr(attrVal pcommon.Value) (int64, error) {
-	var val int64
-	switch attrVal.Type() {
-	case pcommon.ValueTypeInt:
-		val = attrVal.Int()
-	case pcommon.ValueTypeStr:
-		var err error
-		val, err = strconv.ParseInt(attrVal.Str(), 10, 0)
-		if err != nil {
-			return 0, err
-		}
-	default:
-		return 0, fmt.Errorf("%w: %s", errType, attrVal.Type().String())
-	}
-	return val, nil
-}
-
-func getStatusCodeFromHTTPStatusAttr(attrVal pcommon.Value, kind ptrace.SpanKind) (ptrace.StatusCode, error) {
-	statusCode, err := codeFromAttr(attrVal)
-	if err != nil {
-		return ptrace.StatusCodeUnset, err
-	}
-
-	// For HTTP status codes in the 4xx range span status MUST be left unset
-	// in case of SpanKind.SERVER and MUST be set to Error in case of SpanKind.CLIENT.
-	// For HTTP status codes in the 5xx range, as well as any other code the client
-	// failed to interpret, span status MUST be set to Error.
-	if statusCode >= 400 && statusCode < 500 {
-		switch kind {
-		case ptrace.SpanKindClient:
-			return ptrace.StatusCodeError, nil
-		case ptrace.SpanKindServer:
-			return ptrace.StatusCodeUnset, nil
-		}
-	}
-
-	return statusCodeFromHTTP(statusCode), nil
-}
-
-// StatusCodeFromHTTP takes an HTTP status code and return the appropriate OpenTelemetry status code
-// See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/http.md#status
-func statusCodeFromHTTP(httpStatusCode int64) ptrace.StatusCode {
-	if httpStatusCode >= 100 && httpStatusCode < 399 {
-		return ptrace.StatusCodeUnset
-	}
-	return ptrace.StatusCodeError
+	return code, msg
 }
 
 func validTrace(td ptrace.Traces, query memoryTraceQueryParams) (time.Time, bool) {
@@ -448,6 +321,12 @@ func validSpan(tags []keyValue, span ptrace.Span, query memoryTraceQueryParams) 
 		return false
 	}
 	if query.TraceState != "" && query.TraceState != span.TraceState().AsRaw() {
+		return false
+	}
+	if query.StatusCode != "" && query.StatusCode != span.Status().Code().String() {
+		return false
+	}
+	if query.StatusMessage != "" && query.StatusMessage != span.Status().Message() {
 		return false
 	}
 	return true
