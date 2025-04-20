@@ -155,8 +155,8 @@
         {
             "Attributes": {
                 "BoolKeys": [
-                    "inventory.available",
-                    "payment.successful"
+                    "payment.successful",
+                    "inventory.available"
                 ],
                 "BoolValues": [
                     true,

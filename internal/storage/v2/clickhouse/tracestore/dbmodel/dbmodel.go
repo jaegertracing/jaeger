@@ -3,7 +3,7 @@
 
 package dbmodel
 
-// Trace Domian model in Clickhouse.
+// Trace Domain model in Clickhouse.
 // This struct represents the schema for storing OTel pipeline Traces in Clickhouse.
 type Trace struct {
 	Resource Resource

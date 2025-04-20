@@ -1,6 +1,6 @@
 [
   {
-    "Name": "resourceAttributesBoolKey",
+    "Name": "ResourceAttributesBoolKey",
     "Data": {
       "Offsets": [
         1
@@ -13,7 +13,7 @@
     }
   },
   {
-    "Name": "resourceAttributesBoolValue",
+    "Name": "ResourceAttributesBoolValue",
     "Data": {
       "Offsets": [
         1
@@ -24,7 +24,7 @@
     }
   },
   {
-    "Name": "resourceAttributesDoubleKey",
+    "Name": "ResourceAttributesDoubleKey",
     "Data": {
       "Offsets": [
         1
@@ -37,18 +37,20 @@
     }
   },
   {
-    "Name": "resourceAttributesDoubleValue",
+    "Name": "ResourceAttributesDoubleValue",
     "Data": {
       "Offsets": [
         1
       ],
-      "Data": [
-        2048
-      ]
+      "Data": {
+        "Values": [
+          2048
+        ]
+      }
     }
   },
   {
-    "Name": "resourceAttributesIntKey",
+    "Name": "ResourceAttributesIntKey",
     "Data": {
       "Offsets": [
         3
@@ -63,20 +65,22 @@
     }
   },
   {
-    "Name": "resourceAttributesIntValue",
+    "Name": "ResourceAttributesIntValue",
     "Data": {
       "Offsets": [
         3
       ],
-      "Data": [
-        111,
-        1234,
-        134217728
-      ]
+      "Data": {
+        "Values": [
+          111,
+          1234,
+          134217728
+        ]
+      }
     }
   },
   {
-    "Name": "resourceAttributesStrKey",
+    "Name": "ResourceAttributesStrKey",
     "Data": {
       "Offsets": [
         2
@@ -90,7 +94,7 @@
     }
   },
   {
-    "Name": "resourceAttributesStrValue",
+    "Name": "ResourceAttributesStrValue",
     "Data": {
       "Offsets": [
         2
@@ -104,7 +108,7 @@
     }
   },
   {
-    "Name": "resourceAttributesBytesKey",
+    "Name": "ResourceAttributesBytesKey",
     "Data": {
       "Offsets": [
         1
@@ -117,7 +121,7 @@
     }
   },
   {
-    "Name": "resourceAttributesBytesValue",
+    "Name": "ResourceAttributesBytesValue",
     "Data": {
       "Offsets": [
         1
@@ -130,7 +134,61 @@
     }
   },
   {
-    "Name": "scopeAttributesBoolKey",
+    "Name": "ScopeAttributesStrKey",
+    "Data": {
+      "Offsets": [
+        2
+      ],
+      "Data": {
+        "Values": [
+          "library.language",
+          "library.version"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "ScopeAttributesStrValue",
+    "Data": {
+      "Offsets": [
+        2
+      ],
+      "Data": {
+        "Values": [
+          "go",
+          "v2.2.2"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "ScopeAttributesBytesKey",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "scope.test.bytes.value"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "ScopeAttributesBytesValue",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "AQIDBA=="
+        ]
+      }
+    }
+  },
+  {
+    "Name": "ScopeAttributesBoolKey",
     "Data": {
       "Offsets": [
         2
@@ -144,7 +202,7 @@
     }
   },
   {
-    "Name": "scopeAttributesBoolValue",
+    "Name": "ScopeAttributesBoolValue",
     "Data": {
       "Offsets": [
         2
@@ -156,7 +214,7 @@
     }
   },
   {
-    "Name": "scopeAttributesDoubleKey",
+    "Name": "ScopeAttributesDoubleKey",
     "Data": {
       "Offsets": [
         1
@@ -169,98 +227,48 @@
     }
   },
   {
-    "Name": "scopeAttributesDoubleValue",
-    "Data": {
-      "Offsets": [
-        1
-      ],
-      "Data": [
-        0.75
-      ]
-    }
-  },
-  {
-    "Name": "scopeAttributesIntKey",
-    "Data": {
-      "Offsets": [
-        2
-      ],
-      "Data": {
-        "Values": [
-          "component.min_workers",
-          "component.max_workers"
-        ]
-      }
-    }
-  },
-  {
-    "Name": "scopeAttributesIntValue",
-    "Data": {
-      "Offsets": [
-        2
-      ],
-      "Data": [
-        2,
-        10
-      ]
-    }
-  },
-  {
-    "Name": "scopeAttributesStrKey",
-    "Data": {
-      "Offsets": [
-        2
-      ],
-      "Data": {
-        "Values": [
-          "library.version",
-          "library.language"
-        ]
-      }
-    }
-  },
-  {
-    "Name": "scopeAttributesStrValue",
-    "Data": {
-      "Offsets": [
-        2
-      ],
-      "Data": {
-        "Values": [
-          "v2.2.2",
-          "go"
-        ]
-      }
-    }
-  },
-  {
-    "Name": "scopeAttributesBytesKey",
+    "Name": "ScopeAttributesDoubleValue",
     "Data": {
       "Offsets": [
         1
       ],
       "Data": {
         "Values": [
-          "scope.test.bytes.value"
+          0.75
         ]
       }
     }
   },
   {
-    "Name": "scopeAttributesBytesValue",
+    "Name": "ScopeAttributesIntKey",
     "Data": {
       "Offsets": [
-        1
+        2
       ],
       "Data": {
         "Values": [
-          "AQIDBA=="
+          "component.max_workers",
+          "component.min_workers"
         ]
       }
     }
   },
   {
-    "Name": "spanAttributesBoolKey",
+    "Name": "ScopeAttributesIntValue",
+    "Data": {
+      "Offsets": [
+        2
+      ],
+      "Data": {
+        "Values": [
+          10,
+          2
+        ]
+      }
+    }
+  },
+  {
+    "Name": "SpanAttributesBoolKey",
     "Data": {
       "Offsets": [
         2
@@ -274,7 +282,7 @@
     }
   },
   {
-    "Name": "spanAttributesBoolValue",
+    "Name": "SpanAttributesBoolValue",
     "Data": {
       "Offsets": [
         2
@@ -286,7 +294,7 @@
     }
   },
   {
-    "Name": "spanAttributesDoubleKey",
+    "Name": "SpanAttributesDoubleKey",
     "Data": {
       "Offsets": [
         1
@@ -299,18 +307,20 @@
     }
   },
   {
-    "Name": "spanAttributesDoubleValue",
+    "Name": "SpanAttributesDoubleValue",
     "Data": {
       "Offsets": [
         1
       ],
-      "Data": [
-        99.99
-      ]
+      "Data": {
+        "Values": [
+          99.99
+        ]
+      }
     }
   },
   {
-    "Name": "spanAttributesIntKey",
+    "Name": "SpanAttributesIntKey",
     "Data": {
       "Offsets": [
         1
@@ -323,18 +333,20 @@
     }
   },
   {
-    "Name": "spanAttributesIntValue",
+    "Name": "SpanAttributesIntValue",
     "Data": {
       "Offsets": [
         1
       ],
-      "Data": [
-        5
-      ]
+      "Data": {
+        "Values": [
+          5
+        ]
+      }
     }
   },
   {
-    "Name": "spanAttributesStrKey",
+    "Name": "SpanAttributesStrKey",
     "Data": {
       "Offsets": [
         1
@@ -347,7 +359,7 @@
     }
   },
   {
-    "Name": "spanAttributesStrValue",
+    "Name": "SpanAttributesStrValue",
     "Data": {
       "Offsets": [
         1
@@ -360,7 +372,7 @@
     }
   },
   {
-    "Name": "spanAttributesBytesKey",
+    "Name": "SpanAttributesBytesKey",
     "Data": {
       "Offsets": [
         1
@@ -373,7 +385,7 @@
     }
   },
   {
-    "Name": "spanAttributesBytesValue",
+    "Name": "SpanAttributesBytesValue",
     "Data": {
       "Offsets": [
         1
@@ -386,7 +398,7 @@
     }
   },
   {
-    "Name": "eventsAttributesBoolKeys",
+    "Name": "EventAttributesBoolKey",
     "Data": {
       "Offsets": [
         1
@@ -405,7 +417,7 @@
     }
   },
   {
-    "Name": "eventsAttributesBoolValues",
+    "Name": "EventAttributesBoolValue",
     "Data": {
       "Offsets": [
         1
@@ -422,7 +434,7 @@
     }
   },
   {
-    "Name": "eventsAttributesDoubleKeys",
+    "Name": "EventAttributesDoubleKey",
     "Data": {
       "Offsets": [
         1
@@ -441,7 +453,7 @@
     }
   },
   {
-    "Name": "eventsAttributesDoubleValues",
+    "Name": "EventAttributesDoubleValue",
     "Data": {
       "Offsets": [
         1
@@ -450,15 +462,17 @@
         "Offsets": [
           2
         ],
-        "Data": [
-          6.04,
-          0.04
-        ]
+        "Data": {
+          "Values": [
+            6.04,
+            0.04
+          ]
+        }
       }
     }
   },
   {
-    "Name": "eventsAttributesIntKeys",
+    "Name": "EventAttributesIntKey",
     "Data": {
       "Offsets": [
         1
@@ -476,7 +490,7 @@
     }
   },
   {
-    "Name": "eventsAttributesIntValues",
+    "Name": "EventAttributesIntValue",
     "Data": {
       "Offsets": [
         1
@@ -485,14 +499,16 @@
         "Offsets": [
           1
         ],
-        "Data": [
-          2
-        ]
+        "Data": {
+          "Values": [
+            2
+          ]
+        }
       }
     }
   },
   {
-    "Name": "eventsAttributesStrKeys",
+    "Name": "EventAttributesStrKey",
     "Data": {
       "Offsets": [
         1
@@ -511,7 +527,7 @@
     }
   },
   {
-    "Name": "eventsAttributesStrValues",
+    "Name": "EventAttributesStrValue",
     "Data": {
       "Offsets": [
         1
@@ -530,7 +546,7 @@
     }
   },
   {
-    "Name": "eventsAttributesBytesKeys",
+    "Name": "EventAttributesBytesKey",
     "Data": {
       "Offsets": [
         1
@@ -548,7 +564,7 @@
     }
   },
   {
-    "Name": "eventsAttributesBytesValues",
+    "Name": "EventAttributesBytesValue",
     "Data": {
       "Offsets": [
         1
@@ -566,7 +582,7 @@
     }
   },
   {
-    "Name": "linksAttributesBoolKeys",
+    "Name": "LinkAttributesBoolKey",
     "Data": {
       "Offsets": [
         1
@@ -584,7 +600,7 @@
     }
   },
   {
-    "Name": "linksAttributesBoolValues",
+    "Name": "LinkAttributesBoolValue",
     "Data": {
       "Offsets": [
         1
@@ -600,7 +616,7 @@
     }
   },
   {
-    "Name": "linksAttributesDoubleKeys",
+    "Name": "LinkAttributesDoubleKey",
     "Data": {
       "Offsets": [
         1
@@ -618,7 +634,7 @@
     }
   },
   {
-    "Name": "linksAttributesDoubleValues",
+    "Name": "LinkAttributesDoubleValue",
     "Data": {
       "Offsets": [
         1
@@ -627,14 +643,16 @@
         "Offsets": [
           1
         ],
-        "Data": [
-          0.85
-        ]
+        "Data": {
+          "Values": [
+            0.85
+          ]
+        }
       }
     }
   },
   {
-    "Name": "linksAttributesIntKeys",
+    "Name": "LinkAttributesIntKey",
     "Data": {
       "Offsets": [
         1
@@ -652,7 +670,7 @@
     }
   },
   {
-    "Name": "linksAttributesIntValues",
+    "Name": "LinkAttributesIntValue",
     "Data": {
       "Offsets": [
         1
@@ -661,14 +679,16 @@
         "Offsets": [
           1
         ],
-        "Data": [
-          1324141
-        ]
+        "Data": {
+          "Values": [
+            1324141
+          ]
+        }
       }
     }
   },
   {
-    "Name": "linksAttributesStrKeys",
+    "Name": "LinkAttributesStrKey",
     "Data": {
       "Offsets": [
         1
@@ -686,7 +706,7 @@
     }
   },
   {
-    "Name": "linksAttributesStrValues",
+    "Name": "LinkAttributesStrValue",
     "Data": {
       "Offsets": [
         1
@@ -704,7 +724,7 @@
     }
   },
   {
-    "Name": "linksAttributesBytesKeys",
+    "Name": "LinkAttributesBytesKey",
     "Data": {
       "Offsets": [
         1
@@ -722,7 +742,7 @@
     }
   },
   {
-    "Name": "linksAttributesBytesValues",
+    "Name": "LinkAttributesBytesValue",
     "Data": {
       "Offsets": [
         1

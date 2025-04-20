@@ -12,18 +12,19 @@ import (
 )
 
 // NestedAttributesGroup There is a one-to-many relationship between a NestedAttributesGroup and a pcommon.Map.
-// In the OTel Collector Contrib implementation, ptrace.SpanEventSlice and ptrace.SpanLinkSlice are stored in a Nested format in the database.
+// ptrace.SpanEventSlice and ptrace.SpanLinkSlice are stored in a Nested format in the database.
 // Since all arrays in Nested need to have the same length, AttributesGroup cannot be used directly.
 type NestedAttributesGroup struct {
 	AttributesGroups []AttributesGroup
 }
 
-// AttributesGroup There is a one-to-one relationship between an AttributesGroup and a pcommon.Map.
-// In the OTel Collector Contrib implementation, pcommon.Map is stored as a string Map in the database for both key and value,
-// which causes the loss of data types. See:
-// https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/4930224211ea876c71367cf04038e23359c0338a/exporter/clickhouseexporter/exporter_traces.go#L162
-// Therefore, splitting the key and value of pcommon.Map into arrays for storage ensures that 1. data types are not lost
-// and 2. it can be more conveniently used as query parameters.
+// AttributesGroup captures all data from a single pcommon.Map, except
+// complex attributes (like slice or map) which are currently not supported.
+// AttributesGroup consists of pairs of vectors for each of the supported primitive
+// types, e.g. (BoolKeys, BoolValues). Every attribute in the pcommon.Map is mapped
+// to one of the pairs depending on its type. The slices in each pair have identical
+// length, which may be different from length in another pair. For example, if the
+// pcommon.Map has no Boolean attributes then (BoolKeys=[], BoolValues=[]).
 type AttributesGroup struct {
 	BoolKeys     []string
 	BoolValues   []bool
@@ -97,125 +98,73 @@ func AttributesToMap(attrs pcommon.Map) map[pcommon.ValueType]map[string]pcommon
 	return result
 }
 
-var (
-	resourceAttributesBoolKey     = new(proto.ColStr).LowCardinality().Array()
-	resourceAttributesBoolValue   = new(proto.ColBool).Array()
-	resourceAttributesDoubleKey   = new(proto.ColStr).LowCardinality().Array()
-	resourceAttributesDoubleValue = new(proto.ColFloat64).Array()
-	resourceAttributesIntKey      = new(proto.ColStr).LowCardinality().Array()
-	resourceAttributesIntValue    = new(proto.ColInt64).Array()
-	resourceAttributesStrKey      = new(proto.ColStr).LowCardinality().Array()
-	resourceAttributesStrValue    = new(proto.ColStr).LowCardinality().Array()
-	resourceAttributesBytesKey    = new(proto.ColStr).LowCardinality().Array()
-	resourceAttributesBytesValue  = new(proto.ColStr).LowCardinality().Array()
+// AttributeColumnPair maps Attribute/Attributes to table columns. Instead of directly storing the entire Attribute/Attributes into a single independent Column,
+// it splits them based on the value type.
+// Assuming the value type here is string (since the key is always string, there's no need to consider it separately).
+// For resource/scope/span attributes, keyCol/valueCol respectively contain all string-typed keys and values from the attribute, which can be seen as array(string).
+// For events/links attributes, the situation is more complex because a span can have multiple events/links. Therefore, keyCol/valueCol will contain all key/value pairs from all events/links, which can be seen as array(array(string)).
+type AttributeColumnPair struct {
+	keyColName   string
+	keyCol       proto.Column
+	valueColName string
+	valueCol     proto.Column
+}
 
-	ColumnResourceAttributesBoolKey     = "resourceAttributesBoolKey"
-	ColumnResourceAttributesBoolValue   = "resourceAttributesBoolValue"
-	ColumnResourceAttributesDoubleKey   = "resourceAttributesDoubleKey"
-	ColumnResourceAttributesDoubleValue = "resourceAttributesDoubleValue"
-	ColumnResourceAttributesIntKey      = "resourceAttributesIntKey"
-	ColumnResourceAttributesIntValue    = "resourceAttributesIntValue"
-	ColumnResourceAttributesStrKey      = "resourceAttributesStrKey"
-	ColumnResourceAttributesStrValue    = "resourceAttributesStrValue"
-	ColumnResourceAttributesBytesKey    = "resourceAttributesBytesKey"
-	ColumnResourceAttributesBytesValue  = "resourceAttributesBytesValue"
-)
+type AttributeColumnsMap map[pcommon.ValueType]AttributeColumnPair
 
-var (
-	scopeAttributesBoolKey     = new(proto.ColStr).LowCardinality().Array()
-	scopeAttributesBoolValue   = new(proto.ColBool).Array()
-	scopeAttributesDoubleKey   = new(proto.ColStr).LowCardinality().Array()
-	scopeAttributesDoubleValue = new(proto.ColFloat64).Array()
-	scopeAttributesIntKey      = new(proto.ColStr).LowCardinality().Array()
-	scopeAttributesIntValue    = new(proto.ColInt64).Array()
-	scopeAttributesStrKey      = new(proto.ColStr).LowCardinality().Array()
-	scopeAttributesStrValue    = new(proto.ColStr).LowCardinality().Array()
-	scopeAttributesBytesKey    = new(proto.ColStr).LowCardinality().Array()
-	scopeAttributesBytesValue  = new(proto.ColStr).LowCardinality().Array()
+var AllAttributeColumns = make(map[AttributeType]AttributeColumnsMap)
 
-	ColumnScopeAttributesBoolKey     = "scopeAttributesBoolKey"
-	ColumnScopeAttributesBoolValue   = "scopeAttributesBoolValue"
-	ColumnScopeAttributesDoubleKey   = "scopeAttributesDoubleKey"
-	ColumnScopeAttributesDoubleValue = "scopeAttributesDoubleValue"
-	ColumnScopeAttributesIntKey      = "scopeAttributesIntKey"
-	ColumnScopeAttributesIntValue    = "scopeAttributesIntValue"
-	ColumnScopeAttributesStrKey      = "scopeAttributesStrKey"
-	ColumnScopeAttributesStrValue    = "scopeAttributesStrValue"
-	ColumnScopeAttributesBytesKey    = "scopeAttributesBytesKey"
-	ColumnScopeAttributesBytesValue  = "scopeAttributesBytesValue"
-)
+// init function is automatically executed during program startup to initialize global Attribute column information.
+func init() {
+	addAttributeTypeColumns := func(attributeType AttributeType, valueType pcommon.ValueType, keyCol proto.Column, valueCol proto.Column) {
+		if _, ok := AllAttributeColumns[attributeType]; !ok {
+			AllAttributeColumns[attributeType] = make(AttributeColumnsMap)
+		}
+		AllAttributeColumns[attributeType][valueType] = AttributeColumnPair{
+			keyColName:   attributeType.String() + "Attributes" + valueType.String() + "Key",
+			keyCol:       keyCol,
+			valueColName: attributeType.String() + "Attributes" + valueType.String() + "Value",
+			valueCol:     valueCol,
+		}
+	}
 
-var (
-	spanAttributesBoolKey     = new(proto.ColStr).LowCardinality().Array()
-	spanAttributesBoolValue   = new(proto.ColBool).Array()
-	spanAttributesDoubleKey   = new(proto.ColStr).LowCardinality().Array()
-	spanAttributesDoubleValue = new(proto.ColFloat64).Array()
-	spanAttributesIntKey      = new(proto.ColStr).LowCardinality().Array()
-	spanAttributesIntValue    = new(proto.ColInt64).Array()
-	spanAttributesStrKey      = new(proto.ColStr).LowCardinality().Array()
-	spanAttributesStrValue    = new(proto.ColStr).LowCardinality().Array()
-	spanAttributesBytesKey    = new(proto.ColStr).LowCardinality().Array()
-	spanAttributesBytesValue  = new(proto.ColStr).LowCardinality().Array()
+	buildColumnsForAttributeType := func(attributeType AttributeType) {
+		if attributeType == AttributeTypeEvent || attributeType == AttributeTypeLink {
+			addAttributeTypeColumns(attributeType, ValueTypeBool,
+				proto.NewArray(new(proto.ColStr).LowCardinality().Array()),
+				proto.NewArray(new(proto.ColBool).Array()))
+			addAttributeTypeColumns(attributeType, ValueTypeDouble,
+				proto.NewArray(new(proto.ColStr).LowCardinality().Array()),
+				proto.NewArray(new(proto.ColFloat64).LowCardinality().Array()))
+			addAttributeTypeColumns(attributeType, ValueTypeInt,
+				proto.NewArray(new(proto.ColStr).LowCardinality().Array()),
+				proto.NewArray(new(proto.ColInt64).LowCardinality().Array()))
+			addAttributeTypeColumns(attributeType, ValueTypeStr,
+				proto.NewArray(new(proto.ColStr).LowCardinality().Array()),
+				proto.NewArray(new(proto.ColStr).LowCardinality().Array()))
+			addAttributeTypeColumns(attributeType, ValueTypeBytes,
+				proto.NewArray(new(proto.ColStr).LowCardinality().Array()),
+				proto.NewArray(new(proto.ColStr).LowCardinality().Array()))
+		} else {
+			addAttributeTypeColumns(attributeType, ValueTypeBool, new(proto.ColStr).LowCardinality().Array(), new(proto.ColBool).Array())
+			addAttributeTypeColumns(attributeType, ValueTypeDouble, new(proto.ColStr).LowCardinality().Array(), new(proto.ColFloat64).LowCardinality().Array())
+			addAttributeTypeColumns(attributeType, ValueTypeInt, new(proto.ColStr).LowCardinality().Array(), new(proto.ColInt64).LowCardinality().Array())
+			addAttributeTypeColumns(attributeType, ValueTypeStr, new(proto.ColStr).LowCardinality().Array(), new(proto.ColStr).LowCardinality().Array())
+			addAttributeTypeColumns(attributeType, ValueTypeBytes, new(proto.ColStr).LowCardinality().Array(), new(proto.ColStr).LowCardinality().Array())
+		}
+	}
 
-	ColumnSpanAttributesBoolKey     = "spanAttributesBoolKey"
-	ColumnSpanAttributesBoolValue   = "spanAttributesBoolValue"
-	ColumnSpanAttributesDoubleKey   = "spanAttributesDoubleKey"
-	ColumnSpanAttributesDoubleValue = "spanAttributesDoubleValue"
-	ColumnSpanAttributesIntKey      = "spanAttributesIntKey"
-	ColumnSpanAttributesIntValue    = "spanAttributesIntValue"
-	ColumnSpanAttributesStrKey      = "spanAttributesStrKey"
-	ColumnSpanAttributesStrValue    = "spanAttributesStrValue"
-	ColumnSpanAttributesBytesKey    = "spanAttributesBytesKey"
-	ColumnSpanAttributesBytesValue  = "spanAttributesBytesValue"
-)
-
-var (
-	eventsAttributesBoolKeys     = proto.NewArray(new(proto.ColStr).LowCardinality().Array())
-	eventsAttributesBoolValues   = proto.NewArray(new(proto.ColBool).Array())
-	eventsAttributesDoubleKeys   = proto.NewArray(new(proto.ColStr).LowCardinality().Array())
-	eventsAttributesDoubleValues = proto.NewArray(new(proto.ColFloat64).Array())
-	eventsAttributesIntKeys      = proto.NewArray(new(proto.ColStr).LowCardinality().Array())
-	eventsAttributesIntValues    = proto.NewArray(new(proto.ColInt64).Array())
-	eventsAttributesStrKeys      = proto.NewArray(new(proto.ColStr).LowCardinality().Array())
-	eventsAttributesStrValues    = proto.NewArray(new(proto.ColStr).LowCardinality().Array())
-	eventsAttributesBytesKeys    = proto.NewArray(new(proto.ColStr).LowCardinality().Array())
-	eventsAttributesBytesValue   = proto.NewArray(new(proto.ColStr).LowCardinality().Array())
-
-	ColumnEventsAttributesBoolKeys     = "eventsAttributesBoolKeys"
-	ColumnEventsAttributesBoolValues   = "eventsAttributesBoolValues"
-	ColumnEventsAttributesDoubleKeys   = "eventsAttributesDoubleKeys"
-	ColumnEventsAttributesDoubleValues = "eventsAttributesDoubleValues"
-	ColumnEventsAttributesIntKeys      = "eventsAttributesIntKeys"
-	ColumnEventsAttributesIntValues    = "eventsAttributesIntValues"
-	ColumnEventsAttributesStrKeys      = "eventsAttributesStrKeys"
-	ColumnEventsAttributesStrValues    = "eventsAttributesStrValues"
-	ColumnEventsAttributesBytesKeys    = "eventsAttributesBytesKeys"
-	ColumnEventsAttributesBytesValues  = "eventsAttributesBytesValues"
-)
-
-var (
-	linksAttributesBoolKeys     = proto.NewArray(new(proto.ColStr).LowCardinality().Array())
-	linksAttributesBoolValues   = proto.NewArray(new(proto.ColBool).Array())
-	linksAttributesDoubleKeys   = proto.NewArray(new(proto.ColStr).LowCardinality().Array())
-	linksAttributesDoubleValues = proto.NewArray(new(proto.ColFloat64).Array())
-	linksAttributesIntKeys      = proto.NewArray(new(proto.ColStr).LowCardinality().Array())
-	linksAttributesIntValues    = proto.NewArray(new(proto.ColInt64).Array())
-	linksAttributesStrKeys      = proto.NewArray(new(proto.ColStr).LowCardinality().Array())
-	linksAttributesStrValues    = proto.NewArray(new(proto.ColStr).LowCardinality().Array())
-	linksAttributesBytesKeys    = proto.NewArray(new(proto.ColStr).LowCardinality().Array())
-	linksAttributesBytesValue   = proto.NewArray(new(proto.ColStr).LowCardinality().Array())
-
-	ColumnLinksAttributesBoolKeys     = "linksAttributesBoolKeys"
-	ColumnLinksAttributesBoolValues   = "linksAttributesBoolValues"
-	ColumnLinksAttributesDoubleKeys   = "linksAttributesDoubleKeys"
-	ColumnLinksAttributesDoubleValues = "linksAttributesDoubleValues"
-	ColumnLinksAttributesIntKeys      = "linksAttributesIntKeys"
-	ColumnLinksAttributesIntValues    = "linksAttributesIntValues"
-	ColumnLinksAttributesStrKeys      = "linksAttributesStrKeys"
-	ColumnLinksAttributesStrValues    = "linksAttributesStrValues"
-	ColumnLinksAttributesBytesKeys    = "linksAttributesBytesKeys"
-	ColumnLinksAttributesBytesValues  = "linksAttributesBytesValues"
-)
+	attributeTypes := []AttributeType{
+		AttributeTypeResource,
+		AttributeTypeScope,
+		AttributeTypeSpan,
+		AttributeTypeEvent,
+		AttributeTypeLink,
+	}
+	for _, attrType := range attributeTypes {
+		buildColumnsForAttributeType(attrType)
+	}
+}
 
 type AttributeType int32
 
@@ -227,101 +176,90 @@ const (
 	AttributeTypeLink
 )
 
-// FromPtrace Converts the OTel pipeline Traces into a ClickHouse-compatible format for batch insertion.
+func (at AttributeType) String() string {
+	switch at {
+	case AttributeTypeResource:
+		return "Resource"
+	case AttributeTypeScope:
+		return "Scope"
+	case AttributeTypeSpan:
+		return "Span"
+	case AttributeTypeEvent:
+		return "Event"
+	case AttributeTypeLink:
+		return "Link"
+	default:
+		return "Unknown"
+	}
+}
+
+// ToDBModel Converts the OTel pipeline Traces into a ClickHouse-compatible format for batch insertion.
 // It maps the trace attributes, spans, links and events from the OTel model to the appropriate ClickHouse column types
-func FromPtrace(td ptrace.Traces) proto.Input {
-	for i := 0; i < td.ResourceSpans().Len(); i++ {
+func ToDBModel(td ptrace.Traces) proto.Input {
+	for i := range td.ResourceSpans().Len() {
 		resourceSpans := td.ResourceSpans().At(i)
 		resourceGroup := AttributesToGroup(resourceSpans.Resource().Attributes())
 
-		for j := 0; j < resourceSpans.ScopeSpans().Len(); j++ {
+		for j := range resourceSpans.ScopeSpans().Len() {
 			scope := resourceSpans.ScopeSpans().At(j).Scope()
 			scopeGroup := AttributesToGroup(scope.Attributes())
 
 			spans := resourceSpans.ScopeSpans().At(j).Spans()
-			for k := 0; k < spans.Len(); k++ {
+			for k := range spans.Len() {
 				span := spans.At(k)
 				spanGroup := AttributesToGroup(span.Attributes())
-				AppendGroup(AttributeTypeResource, resourceGroup)
-				AppendGroup(AttributeTypeScope, scopeGroup)
-				AppendGroup(AttributeTypeSpan, spanGroup)
+				appendAttributeGroupToColumns(AttributeTypeResource, resourceGroup)
+				appendAttributeGroupToColumns(AttributeTypeScope, scopeGroup)
+				appendAttributeGroupToColumns(AttributeTypeSpan, spanGroup)
 
 				var eventNestedGroup NestedAttributesGroup
-				for l := 0; l < span.Events().Len(); l++ {
+				for l := range span.Events().Len() {
 					event := span.Events().At(l)
 					eventGroup := AttributesToGroup(event.Attributes())
 					eventNestedGroup.AttributesGroups = append(eventNestedGroup.AttributesGroups, eventGroup)
 				}
-				AppendGroups(AttributeTypeEvent, eventNestedGroup)
+				appendNestedAttributeGroupToColumns(AttributeTypeEvent, eventNestedGroup)
 
 				var linkNestedGroup NestedAttributesGroup
-				for l := 0; l < span.Links().Len(); l++ {
+				for l := range span.Links().Len() {
 					link := span.Links().At(l)
 					linkGroup := AttributesToGroup(link.Attributes())
 					linkNestedGroup.AttributesGroups = append(linkNestedGroup.AttributesGroups, linkGroup)
 				}
-				AppendGroups(AttributeTypeLink, linkNestedGroup)
+				appendNestedAttributeGroupToColumns(AttributeTypeLink, linkNestedGroup)
 			}
 		}
 	}
-
-	return proto.Input{
-		// Resource
-		{Name: ColumnResourceAttributesBoolKey, Data: resourceAttributesBoolKey},
-		{Name: ColumnResourceAttributesBoolValue, Data: resourceAttributesBoolValue},
-		{Name: ColumnResourceAttributesDoubleKey, Data: resourceAttributesDoubleKey},
-		{Name: ColumnResourceAttributesDoubleValue, Data: resourceAttributesDoubleValue},
-		{Name: ColumnResourceAttributesIntKey, Data: resourceAttributesIntKey},
-		{Name: ColumnResourceAttributesIntValue, Data: resourceAttributesIntValue},
-		{Name: ColumnResourceAttributesStrKey, Data: resourceAttributesStrKey},
-		{Name: ColumnResourceAttributesStrValue, Data: resourceAttributesStrValue},
-		{Name: ColumnResourceAttributesBytesKey, Data: resourceAttributesBytesKey},
-		{Name: ColumnResourceAttributesBytesValue, Data: resourceAttributesBytesValue},
-		// Scope
-		{Name: ColumnScopeAttributesBoolKey, Data: scopeAttributesBoolKey},
-		{Name: ColumnScopeAttributesBoolValue, Data: scopeAttributesBoolValue},
-		{Name: ColumnScopeAttributesDoubleKey, Data: scopeAttributesDoubleKey},
-		{Name: ColumnScopeAttributesDoubleValue, Data: scopeAttributesDoubleValue},
-		{Name: ColumnScopeAttributesIntKey, Data: scopeAttributesIntKey},
-		{Name: ColumnScopeAttributesIntValue, Data: scopeAttributesIntValue},
-		{Name: ColumnScopeAttributesStrKey, Data: scopeAttributesStrKey},
-		{Name: ColumnScopeAttributesStrValue, Data: scopeAttributesStrValue},
-		{Name: ColumnScopeAttributesBytesKey, Data: scopeAttributesBytesKey},
-		{Name: ColumnScopeAttributesBytesValue, Data: scopeAttributesBytesValue},
-		// Span
-		{Name: ColumnSpanAttributesBoolKey, Data: spanAttributesBoolKey},
-		{Name: ColumnSpanAttributesBoolValue, Data: spanAttributesBoolValue},
-		{Name: ColumnSpanAttributesDoubleKey, Data: spanAttributesDoubleKey},
-		{Name: ColumnSpanAttributesDoubleValue, Data: spanAttributesDoubleValue},
-		{Name: ColumnSpanAttributesIntKey, Data: spanAttributesIntKey},
-		{Name: ColumnSpanAttributesIntValue, Data: spanAttributesIntValue},
-		{Name: ColumnSpanAttributesStrKey, Data: spanAttributesStrKey},
-		{Name: ColumnSpanAttributesStrValue, Data: spanAttributesStrValue},
-		{Name: ColumnSpanAttributesBytesKey, Data: spanAttributesBytesKey},
-		{Name: ColumnSpanAttributesBytesValue, Data: spanAttributesBytesValue},
-		// Events
-		{Name: ColumnEventsAttributesBoolKeys, Data: eventsAttributesBoolKeys},
-		{Name: ColumnEventsAttributesBoolValues, Data: eventsAttributesBoolValues},
-		{Name: ColumnEventsAttributesDoubleKeys, Data: eventsAttributesDoubleKeys},
-		{Name: ColumnEventsAttributesDoubleValues, Data: eventsAttributesDoubleValues},
-		{Name: ColumnEventsAttributesIntKeys, Data: eventsAttributesIntKeys},
-		{Name: ColumnEventsAttributesIntValues, Data: eventsAttributesIntValues},
-		{Name: ColumnEventsAttributesStrKeys, Data: eventsAttributesStrKeys},
-		{Name: ColumnEventsAttributesStrValues, Data: eventsAttributesStrValues},
-		{Name: ColumnEventsAttributesBytesKeys, Data: eventsAttributesBytesKeys},
-		{Name: ColumnEventsAttributesBytesValues, Data: eventsAttributesBytesValue},
-		// Links
-		{Name: ColumnLinksAttributesBoolKeys, Data: linksAttributesBoolKeys},
-		{Name: ColumnLinksAttributesBoolValues, Data: linksAttributesBoolValues},
-		{Name: ColumnLinksAttributesDoubleKeys, Data: linksAttributesDoubleKeys},
-		{Name: ColumnLinksAttributesDoubleValues, Data: linksAttributesDoubleValues},
-		{Name: ColumnLinksAttributesIntKeys, Data: linksAttributesIntKeys},
-		{Name: ColumnLinksAttributesIntValues, Data: linksAttributesIntValues},
-		{Name: ColumnLinksAttributesStrKeys, Data: linksAttributesStrKeys},
-		{Name: ColumnLinksAttributesStrValues, Data: linksAttributesStrValues},
-		{Name: ColumnLinksAttributesBytesKeys, Data: linksAttributesBytesKeys},
-		{Name: ColumnLinksAttributesBytesValues, Data: linksAttributesBytesValue},
+	attributeTypes := []AttributeType{
+		AttributeTypeResource,
+		AttributeTypeScope,
+		AttributeTypeSpan,
+		AttributeTypeEvent,
+		AttributeTypeLink,
 	}
+
+	input := proto.Input{}
+	for _, attrType := range attributeTypes {
+		input = append(input, buildAttributesInput(attrType)...)
+	}
+
+	return input
+}
+
+func buildAttributesInput(attributeType AttributeType) proto.Input {
+	var result []proto.InputColumn
+	attrColumnsMap := AllAttributeColumns[attributeType]
+	for _, pair := range attrColumnsMap {
+		result = append(result, proto.InputColumn{
+			Name: pair.keyColName,
+			Data: pair.keyCol,
+		})
+		result = append(result, proto.InputColumn{
+			Name: pair.valueColName,
+			Data: pair.valueCol,
+		})
+	}
+	return result
 }
 
 const (
@@ -332,8 +270,8 @@ const (
 	ValueTypeBytes  = pcommon.ValueTypeBytes
 )
 
-// AppendGroups Writes a complete set of pcommon.Map to the database. NestedAttributesGroup and pcommon.Map have a one-to-many relationship.
-func AppendGroups(attributeType AttributeType, nestedGroup NestedAttributesGroup) {
+// AppendNestedAttributeGroupToColumns Writes a complete set of pcommon.Map to the database. NestedAttributesGroup and pcommon.Map have a one-to-many relationship.
+func appendNestedAttributeGroupToColumns(attributeType AttributeType, nestedGroup NestedAttributesGroup) {
 	var boolKeys [][]string
 	var boolValues [][]bool
 	var doubleKeys [][]string
@@ -342,7 +280,7 @@ func AppendGroups(attributeType AttributeType, nestedGroup NestedAttributesGroup
 	var intValues [][]int64
 	var strKeys [][]string
 	var strValues [][]string
-	var byteKeys [][]string
+	var bytesKeys [][]string
 	var bytesValues [][]string
 	for _, group := range nestedGroup.AttributesGroups {
 		boolKeys = append(boolKeys, group.BoolKeys)
@@ -353,70 +291,64 @@ func AppendGroups(attributeType AttributeType, nestedGroup NestedAttributesGroup
 		intValues = append(intValues, group.IntValues)
 		strKeys = append(strKeys, group.StrKeys)
 		strValues = append(strValues, group.StrValues)
-		byteKeys = append(byteKeys, group.BytesKeys)
+		bytesKeys = append(bytesKeys, group.BytesKeys)
 		bytesValues = append(bytesValues, group.BytesValues)
 	}
-	switch attributeType {
-	case AttributeTypeEvent:
-		eventsAttributesBoolKeys.Append(boolKeys)
-		eventsAttributesBoolValues.Append(boolValues)
-		eventsAttributesDoubleKeys.Append(doubleKeys)
-		eventsAttributesDoubleValues.Append(doubleValues)
-		eventsAttributesIntKeys.Append(intKeys)
-		eventsAttributesIntValues.Append(intValues)
-		eventsAttributesStrKeys.Append(strKeys)
-		eventsAttributesStrValues.Append(strValues)
-		eventsAttributesBytesKeys.Append(byteKeys)
-		eventsAttributesBytesValue.Append(bytesValues)
-	case AttributeTypeLink:
-		linksAttributesBoolKeys.Append(boolKeys)
-		linksAttributesBoolValues.Append(boolValues)
-		linksAttributesDoubleKeys.Append(doubleKeys)
-		linksAttributesDoubleValues.Append(doubleValues)
-		linksAttributesIntKeys.Append(intKeys)
-		linksAttributesIntValues.Append(intValues)
-		linksAttributesStrKeys.Append(strKeys)
-		linksAttributesStrValues.Append(strValues)
-		linksAttributesBytesKeys.Append(byteKeys)
-		linksAttributesBytesValue.Append(bytesValues)
-	}
+
+	attrsColumnsMap := AllAttributeColumns[attributeType]
+
+	boolKeyCol := attrsColumnsMap[ValueTypeBool].keyCol
+	boolKeyCol.(*proto.ColArr[[]string]).Append(boolKeys)
+	boolValueCol := attrsColumnsMap[ValueTypeBool].valueCol
+	boolValueCol.(*proto.ColArr[[]bool]).Append(boolValues)
+
+	doubleKeyCol := attrsColumnsMap[ValueTypeDouble].keyCol
+	doubleKeyCol.(*proto.ColArr[[]string]).Append(doubleKeys)
+	doubleValueCol := attrsColumnsMap[ValueTypeDouble].valueCol
+	doubleValueCol.(*proto.ColArr[[]float64]).Append(doubleValues)
+
+	intKeyCol := attrsColumnsMap[ValueTypeInt].keyCol
+	intKeyCol.(*proto.ColArr[[]string]).Append(intKeys)
+	intValueCol := attrsColumnsMap[ValueTypeInt].valueCol
+	intValueCol.(*proto.ColArr[[]int64]).Append(intValues)
+
+	strKeyCol := attrsColumnsMap[ValueTypeStr].keyCol
+	strKeyCol.(*proto.ColArr[[]string]).Append(strKeys)
+	strValueCol := attrsColumnsMap[ValueTypeStr].valueCol
+	strValueCol.(*proto.ColArr[[]string]).Append(strValues)
+
+	bytesKeyCol := attrsColumnsMap[ValueTypeBytes].keyCol
+	bytesKeyCol.(*proto.ColArr[[]string]).Append(bytesKeys)
+	bytesValueCol := attrsColumnsMap[ValueTypeBytes].valueCol
+	bytesValueCol.(*proto.ColArr[[]string]).Append(bytesValues)
 }
 
 // AppendGroup Writes a complete pcommon.Map to the database. AttributesGroup and pcommon.Map have a one-to-one relationship.
-func AppendGroup(attributeType AttributeType, group AttributesGroup) {
-	switch attributeType {
-	case AttributeTypeResource:
-		resourceAttributesBoolKey.Append(group.BoolKeys)
-		resourceAttributesBoolValue.Append(group.BoolValues)
-		resourceAttributesDoubleKey.Append(group.DoubleKeys)
-		resourceAttributesDoubleValue.Append(group.DoubleValues)
-		resourceAttributesIntKey.Append(group.IntKeys)
-		resourceAttributesIntValue.Append(group.IntValues)
-		resourceAttributesStrKey.Append(group.StrKeys)
-		resourceAttributesStrValue.Append(group.StrValues)
-		resourceAttributesBytesKey.Append(group.BytesKeys)
-		resourceAttributesBytesValue.Append(group.BytesValues)
-	case AttributeTypeScope:
-		scopeAttributesBoolKey.Append(group.BoolKeys)
-		scopeAttributesBoolValue.Append(group.BoolValues)
-		scopeAttributesDoubleKey.Append(group.DoubleKeys)
-		scopeAttributesDoubleValue.Append(group.DoubleValues)
-		scopeAttributesIntKey.Append(group.IntKeys)
-		scopeAttributesIntValue.Append(group.IntValues)
-		scopeAttributesStrKey.Append(group.StrKeys)
-		scopeAttributesStrValue.Append(group.StrValues)
-		scopeAttributesBytesKey.Append(group.BytesKeys)
-		scopeAttributesBytesValue.Append(group.BytesValues)
-	case AttributeTypeSpan:
-		spanAttributesBoolKey.Append(group.BoolKeys)
-		spanAttributesBoolValue.Append(group.BoolValues)
-		spanAttributesDoubleKey.Append(group.DoubleKeys)
-		spanAttributesDoubleValue.Append(group.DoubleValues)
-		spanAttributesIntKey.Append(group.IntKeys)
-		spanAttributesIntValue.Append(group.IntValues)
-		spanAttributesStrKey.Append(group.StrKeys)
-		spanAttributesStrValue.Append(group.StrValues)
-		spanAttributesBytesKey.Append(group.BytesKeys)
-		spanAttributesBytesValue.Append(group.BytesValues)
-	}
+func appendAttributeGroupToColumns(attributeType AttributeType, group AttributesGroup) {
+	attrColumnsMap := AllAttributeColumns[attributeType]
+
+	boolKeyCol := attrColumnsMap[ValueTypeBool].keyCol
+	boolKeyCol.(*proto.ColArr[string]).Append(group.BoolKeys)
+	boolValueCol := attrColumnsMap[ValueTypeBool].valueCol
+	boolValueCol.(*proto.ColArr[bool]).Append(group.BoolValues)
+
+	doubleKeyCol := attrColumnsMap[ValueTypeDouble].keyCol
+	doubleKeyCol.(*proto.ColArr[string]).Append(group.DoubleKeys)
+	doubleValueCol := attrColumnsMap[ValueTypeDouble].valueCol
+	doubleValueCol.(*proto.ColArr[float64]).Append(group.DoubleValues)
+
+	intKeyCol := attrColumnsMap[ValueTypeInt].keyCol
+	intKeyCol.(*proto.ColArr[string]).Append(group.IntKeys)
+	intValueCol := attrColumnsMap[ValueTypeInt].valueCol
+	intValueCol.(*proto.ColArr[int64]).Append(group.IntValues)
+
+	strKeyCol := attrColumnsMap[ValueTypeStr].keyCol
+	strKeyCol.(*proto.ColArr[string]).Append(group.StrKeys)
+	strValueCol := attrColumnsMap[ValueTypeStr].valueCol
+	strValueCol.(*proto.ColArr[string]).Append(group.StrValues)
+
+	bytesKeyCol := attrColumnsMap[ValueTypeBytes].keyCol
+	bytesKeyCol.(*proto.ColArr[string]).Append(group.BytesKeys)
+	bytesValueCol := attrColumnsMap[ValueTypeBytes].valueCol
+	bytesValueCol.(*proto.ColArr[string]).Append(group.BytesValues)
 }

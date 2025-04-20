@@ -10,55 +10,80 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestToPtrace(t *testing.T) {
-	dbTrace := jsonToDbTrace(t, "./fixtures/dbtrace.json")
-	expected := jsonToTrace(t, "./fixtures/ptrace.json")
-	actual := ToPtrace(dbTrace)
+func TestFromDBModel(t *testing.T) {
+	dbTrace := jsonToDBModel(t, "./fixtures/dbmodel.json")
+	expected := jsonToPtrace(t, "./fixtures/ptrace.json")
+	actual := FromDBModel(dbTrace)
 
-	exceptedResourceSpans := expected.ResourceSpans().At(0)
-	expectedResourceAttr := exceptedResourceSpans.Resource().Attributes().AsRaw()
+	require.Equal(t, expected.ResourceSpans().Len(), actual.ResourceSpans().Len(), "ResourceSpans count mismatch")
+	if actual.ResourceSpans().Len() == 0 {
+		t.Fatal("Actual trace contains no ResourceSpans")
+	}
+	expectedResourceSpans := expected.ResourceSpans().At(0)
 	actualResourceSpans := actual.ResourceSpans().At(0)
-	actualResourceAttr := actualResourceSpans.Resource().Attributes().AsRaw()
-	require.Equal(t, expectedResourceAttr, actualResourceAttr)
 
-	exceptedScopeSpans := exceptedResourceSpans.ScopeSpans().At(0)
-	exceptedScopeAttr := exceptedScopeSpans.Scope().Attributes().AsRaw()
+	require.Equal(t, expectedResourceSpans.ScopeSpans().Len(), actualResourceSpans.ScopeSpans().Len(), "ScopeSpans count mismatch")
+	if actualResourceSpans.ScopeSpans().Len() == 0 {
+		t.Fatal("Actual ResourceSpans contains no ScopeSpans")
+	}
+	exceptedScopeSpans := expectedResourceSpans.ScopeSpans().At(0)
 	actualScopeSpans := actualResourceSpans.ScopeSpans().At(0)
-	actualScopeAttr := actualScopeSpans.Scope().Attributes().AsRaw()
-	require.Equal(t, exceptedScopeAttr, actualScopeAttr)
 
+	require.Equal(t, exceptedScopeSpans.Spans().Len(), actualScopeSpans.Spans().Len(), "Spans count mismatch")
+	if actualScopeSpans.Spans().Len() == 0 {
+		t.Fatal("Actual ScopeSpans contains no Spans")
+	}
 	exceptedSpan := exceptedScopeSpans.Spans().At(0)
-	exceptedSpanAttr := exceptedSpan.Attributes().AsRaw()
 	actualSpan := actualScopeSpans.Spans().At(0)
-	actualSpanAttr := actualSpan.Attributes().AsRaw()
-	require.Equal(t, exceptedSpanAttr, actualSpanAttr)
 
-	exceptedEvents := exceptedSpan.Events()
-	actualEvents := actualSpan.Events()
-	require.Equal(t, exceptedEvents.Len(), actualEvents.Len())
-	for i := 0; i < exceptedEvents.Len(); i++ {
-		exceptedEvent := exceptedEvents.At(i)
-		exceptedEventAttr := exceptedEvent.Attributes().AsRaw()
-		actualEvent := actualEvents.At(i)
-		actualEventAttr := actualEvent.Attributes().AsRaw()
-		require.Equal(t, exceptedEventAttr, actualEventAttr)
-	}
+	t.Run("Resource Attributes", func(t *testing.T) {
+		expectedResourceAttr := expectedResourceSpans.Resource().Attributes().AsRaw()
+		actualResourceAttr := actualResourceSpans.Resource().Attributes().AsRaw()
+		require.Equal(t, expectedResourceAttr, actualResourceAttr, "Resource attributes mismatch")
+	})
 
-	exceptedLinks := exceptedSpan.Links()
-	actualLinks := actualSpan.Links()
-	require.Equal(t, exceptedLinks.Len(), actualLinks.Len())
-	for i := 0; i < exceptedEvents.Len(); i++ {
-		exceptedLink := exceptedEvents.At(i)
-		exceptedLinkAttr := exceptedLink.Attributes().AsRaw()
-		actualLink := actualEvents.At(i)
-		actualLinkAttr := actualLink.Attributes().AsRaw()
-		require.Equal(t, exceptedLinkAttr, actualLinkAttr)
-	}
+	t.Run("Scope Attributes", func(t *testing.T) {
+		exceptedScopeAttr := exceptedScopeSpans.Scope().Attributes().AsRaw()
+		actualScopeAttr := actualScopeSpans.Scope().Attributes().AsRaw()
+		require.Equal(t, exceptedScopeAttr, actualScopeAttr, "Scope attributes mismatch")
+	})
+
+	t.Run("Span Attributes", func(t *testing.T) {
+		exceptedSpanAttr := exceptedSpan.Attributes().AsRaw()
+		actualSpanAttr := actualSpan.Attributes().AsRaw()
+		require.Equal(t, exceptedSpanAttr, actualSpanAttr, "Span attributes mismatch")
+	})
+
+	t.Run("Events Attributes", func(t *testing.T) {
+		exceptedEvents := exceptedSpan.Events()
+		actualEvents := actualSpan.Events()
+		require.Equal(t, exceptedEvents.Len(), actualEvents.Len(), "Events count mismatch")
+		for i := 0; i < exceptedEvents.Len(); i++ {
+			exceptedEvent := exceptedEvents.At(i)
+			exceptedEventAttr := exceptedEvent.Attributes().AsRaw()
+			actualEvent := actualEvents.At(i)
+			actualEventAttr := actualEvent.Attributes().AsRaw()
+			require.Equal(t, exceptedEventAttr, actualEventAttr, "Event %d attributes mismatch", i)
+		}
+	})
+
+	t.Run("Links Attributes", func(t *testing.T) {
+		exceptedLinks := exceptedSpan.Links()
+		actualLinks := actualSpan.Links()
+		require.Equal(t, exceptedLinks.Len(), actualLinks.Len(), "Links count mismatch")
+		for i := 0; i < exceptedLinks.Len(); i++ {
+			exceptedLink := exceptedLinks.At(i)
+			exceptedLinkAttr := exceptedLink.Attributes().AsRaw()
+			actualLink := actualLinks.At(i)
+			actualLinkAttr := actualLink.Attributes().AsRaw()
+			require.Equal(t, exceptedLinkAttr, actualLinkAttr, "Link %d attributes mismatch", i)
+		}
+	})
 }
 
-func jsonToDbTrace(t *testing.T, filename string) (dbTrace Trace) {
+func jsonToDBModel(t *testing.T, filename string) (m Trace) {
 	traceBytes := readJSONBytes(t, filename)
-	err := json.Unmarshal(traceBytes, &dbTrace)
+	err := json.Unmarshal(traceBytes, &m)
 	require.NoError(t, err, "Failed to read file %s", filename)
-	return dbTrace
+	return m
 }
