@@ -249,8 +249,7 @@ func Test_NewTraceReader(t *testing.T) {
 	reader := NewTraceReader(spanstore.SpanReaderParams{
 		Logger: zap.NewNop(),
 	})
-	_, ok := reader.spanReader.(*spanstore.SpanReader)
-	assert.True(t, ok)
+	assert.IsType(t, &spanstore.SpanReader{}, reader.spanReader)
 }
 
 func fromDBTraceId(t *testing.T, traceID dbmodel.TraceID) tracestore.FoundTraceID {
