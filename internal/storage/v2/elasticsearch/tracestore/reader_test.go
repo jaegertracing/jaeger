@@ -76,12 +76,16 @@ func TestTraceReader_GetTraces(t *testing.T) {
 	tracesStr, spanStr := loadFixtures(t, 1)
 	var span dbmodel.Span
 	require.NoError(t, json.Unmarshal(spanStr, &span))
-	coreReader.On("GetTraces", mock.Anything, mock.Anything).Return([]dbmodel.Trace{{Spans: []dbmodel.Span{span}}}, nil)
+	dbTrace := dbmodel.Trace{Spans: []dbmodel.Span{span}}
+	span.TraceID = "00000000000000020000000000000000"
+	dbTrace2 := dbmodel.Trace{Spans: []dbmodel.Span{span}}
+	coreReader.On("GetTraces", mock.Anything, mock.Anything).Return([]dbmodel.Trace{dbTrace, dbTrace2}, nil)
 	traces := reader.GetTraces(context.Background(), v2api.GetTraceParams{})
 	for td, err := range traces {
 		require.NoError(t, err)
 		assert.Len(t, td, 1)
 		testTraces(t, tracesStr, td[0])
+		break
 	}
 }
 
