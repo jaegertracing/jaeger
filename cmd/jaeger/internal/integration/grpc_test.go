@@ -16,9 +16,6 @@ func TestGRPCStorage(t *testing.T) {
 		ConfigFile:      "../../config-remote-storage-backend.yaml",
 		HealthCheckPort: 12133,
 		MetricsPort:     8887,
-		StorageIntegration: integration.StorageIntegration{
-			CleanUp: purge,
-		},
 	}
 	remoteBackend.e2eInitialize(t, "memory")
 	t.Log("Remote backend initialized")
@@ -31,7 +28,7 @@ func TestGRPCStorage(t *testing.T) {
 			"JAEGER_QUERY_HTTP_ENDPOINT": "localhost:0",
 		},
 		StorageIntegration: integration.StorageIntegration{
-			CleanUp: func(t *testing.T) {}, // TODO: what should we do here?
+			CleanUp: purge,
 		},
 	}
 	collector.e2eInitialize(t, "grpc")
