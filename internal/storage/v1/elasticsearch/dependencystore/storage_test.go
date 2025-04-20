@@ -166,7 +166,7 @@ func TestGetDependencies(t *testing.T) {
 			fixedTime := time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC)
 
 			searchService := &mocks.SearchService{}
-			r.client.On("Search", testCase.indices...).Return(searchService)
+			r.client.On("Search", mock.AnythingOfType("[]string")).Return(searchService)
 
 			searchService.On("Size", mock.MatchedBy(func(size int) bool {
 				return size == testCase.maxDocCount
