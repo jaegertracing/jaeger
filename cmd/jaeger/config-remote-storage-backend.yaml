@@ -34,6 +34,10 @@ extensions:
       traces_archive: memory-storage-archive
     ui:
       config_file: ./cmd/jaeger/config-ui.json
+    grpc:
+      endpoint: "${env:JAEGER_QUERY_GRPC_ENDPOINT:-localhost:16685}"
+    http:
+      endpoint: "${env:JAEGER_QUERY_HTTP_ENDPOINT:-localhost:16686}"
 
   jaeger_storage:
     backends:
@@ -54,8 +58,6 @@ receivers:
   otlp:
     protocols:
       grpc:
-        # use different port to avoid conflict with collector on 4317
-        endpoint: 0.0.0.0:4316
 
 processors:
   batch:

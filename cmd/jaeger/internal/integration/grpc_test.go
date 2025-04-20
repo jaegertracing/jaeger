@@ -16,6 +16,10 @@ func TestGRPCStorage(t *testing.T) {
 		ConfigFile:      "../../config-remote-storage-backend.yaml",
 		HealthCheckPort: 12133,
 		MetricsPort:     8887,
+		EnvVarOverrides: map[string]string{
+			"JAEGER_QUERY_GRPC_ENDPOINT": "localhost:0",
+			"JAEGER_QUERY_HTTP_ENDPOINT": "localhost:0",
+		},
 	}
 	remoteBackend.e2eInitialize(t, "memory")
 	t.Log("Remote backend initialized")
@@ -23,10 +27,6 @@ func TestGRPCStorage(t *testing.T) {
 	collector := &E2EStorageIntegration{
 		ConfigFile:         "../../config-remote-storage.yaml",
 		SkipStorageCleaner: true,
-		EnvVarOverrides: map[string]string{
-			"JAEGER_QUERY_GRPC_ENDPOINT": "localhost:0",
-			"JAEGER_QUERY_HTTP_ENDPOINT": "localhost:0",
-		},
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp: purge,
 		},
