@@ -40,6 +40,7 @@ type Server struct {
 
 // NewServer creates and initializes Server.
 func NewServer(
+	ctx context.Context,
 	options *Options,
 	ts tracestore.Factory,
 	ds depstore.Factory,
@@ -66,7 +67,7 @@ func NewServer(
 
 	v2Handler := grpcstorage.NewHandler(reader, writer, depReader)
 
-	grpcServer, err := createGRPCServer(options, tm, handler, v2Handler, telset)
+	grpcServer, err := createGRPCServer(ctx, options, tm, handler, v2Handler, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -95,6 +96,7 @@ func createGRPCHandler(
 }
 
 func createGRPCServer(
+	ctx context.Context,
 	opts *Options,
 	tm *tenancy.Manager,
 	handler *shared.GRPCHandler,
@@ -107,13 +109,14 @@ func createGRPCServer(
 	streamInterceptors := []grpc.StreamServerInterceptor{
 		bearertoken.NewStreamServerInterceptor(),
 	}
+	//nolint:contextcheck
 	if tm.Enabled {
 		unaryInterceptors = append(unaryInterceptors, tenancy.NewGuardingUnaryInterceptor(tm))
 		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm))
 	}
 
 	opts.NetAddr.Transport = confignet.TransportTypeTCP
-	server, err := opts.ToServer(context.Background(),
+	server, err := opts.ToServer(ctx,
 		telset.Host,
 		telset.ToOtelComponent(),
 		configgrpc.WithGrpcServerOption(grpc.ChainUnaryInterceptor(unaryInterceptors...)),
@@ -132,9 +135,9 @@ func createGRPCServer(
 }
 
 // Start gRPC server concurrently
-func (s *Server) Start() error {
+func (s *Server) Start(ctx context.Context) error {
 	var err error
-	s.grpcConn, err = s.opts.NetAddr.Listen(context.Background())
+	s.grpcConn, err = s.opts.NetAddr.Listen(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to listen on gRPC port: %w", err)
 	}
@@ -157,4 +160,8 @@ func (s *Server) Close() error {
 	s.stopped.Wait()
 	s.telset.ReportStatus(componentstatus.NewEvent(componentstatus.StatusStopped))
 	return nil
+}
+
+func (s *Server) GRPCAddr() string {
+	return s.grpcConn.Addr().String()
 }
