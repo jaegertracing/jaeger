@@ -10,7 +10,7 @@ package mocks
 import (
 	context "context"
 
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	elasticsearch "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	elastic "github.com/olivere/elastic"
 
 	mock "github.com/stretchr/testify/mock"
@@ -21,8 +21,16 @@ type MultiSearchService struct {
 	mock.Mock
 }
 
+type MultiSearchService_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *MultiSearchService) EXPECT() *MultiSearchService_Expecter {
+	return &MultiSearchService_Expecter{mock: &_m.Mock}
+}
+
 // Add provides a mock function with given fields: requests
-func (_m *MultiSearchService) Add(requests ...*elastic.SearchRequest) es.MultiSearchService {
+func (_m *MultiSearchService) Add(requests ...*elastic.SearchRequest) elasticsearch.MultiSearchService {
 	_va := make([]interface{}, len(requests))
 	for _i := range requests {
 		_va[_i] = requests[_i]
@@ -35,16 +43,51 @@ func (_m *MultiSearchService) Add(requests ...*elastic.SearchRequest) es.MultiSe
 		panic("no return value specified for Add")
 	}
 
-	var r0 es.MultiSearchService
-	if rf, ok := ret.Get(0).(func(...*elastic.SearchRequest) es.MultiSearchService); ok {
+	var r0 elasticsearch.MultiSearchService
+	if rf, ok := ret.Get(0).(func(...*elastic.SearchRequest) elasticsearch.MultiSearchService); ok {
 		r0 = rf(requests...)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(es.MultiSearchService)
+			r0 = ret.Get(0).(elasticsearch.MultiSearchService)
 		}
 	}
 
 	return r0
+}
+
+// MultiSearchService_Add_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Add'
+type MultiSearchService_Add_Call struct {
+	*mock.Call
+}
+
+// Add is a helper method to define mock.On call
+//   - requests ...*elastic.SearchRequest
+func (_e *MultiSearchService_Expecter) Add(requests ...interface{}) *MultiSearchService_Add_Call {
+	return &MultiSearchService_Add_Call{Call: _e.mock.On("Add",
+		append([]interface{}{}, requests...)...)}
+}
+
+func (_c *MultiSearchService_Add_Call) Run(run func(requests ...*elastic.SearchRequest)) *MultiSearchService_Add_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		variadicArgs := make([]*elastic.SearchRequest, len(args)-0)
+		for i, a := range args[0:] {
+			if a != nil {
+				variadicArgs[i] = a.(*elastic.SearchRequest)
+			}
+		}
+		run(variadicArgs...)
+	})
+	return _c
+}
+
+func (_c *MultiSearchService_Add_Call) Return(_a0 elasticsearch.MultiSearchService) *MultiSearchService_Add_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MultiSearchService_Add_Call) RunAndReturn(run func(...*elastic.SearchRequest) elasticsearch.MultiSearchService) *MultiSearchService_Add_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Do provides a mock function with given fields: ctx
@@ -77,8 +120,36 @@ func (_m *MultiSearchService) Do(ctx context.Context) (*elastic.MultiSearchResul
 	return r0, r1
 }
 
+// MultiSearchService_Do_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Do'
+type MultiSearchService_Do_Call struct {
+	*mock.Call
+}
+
+// Do is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *MultiSearchService_Expecter) Do(ctx interface{}) *MultiSearchService_Do_Call {
+	return &MultiSearchService_Do_Call{Call: _e.mock.On("Do", ctx)}
+}
+
+func (_c *MultiSearchService_Do_Call) Run(run func(ctx context.Context)) *MultiSearchService_Do_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context))
+	})
+	return _c
+}
+
+func (_c *MultiSearchService_Do_Call) Return(_a0 *elastic.MultiSearchResult, _a1 error) *MultiSearchService_Do_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MultiSearchService_Do_Call) RunAndReturn(run func(context.Context) (*elastic.MultiSearchResult, error)) *MultiSearchService_Do_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Index provides a mock function with given fields: indices
-func (_m *MultiSearchService) Index(indices ...string) es.MultiSearchService {
+func (_m *MultiSearchService) Index(indices ...string) elasticsearch.MultiSearchService {
 	_va := make([]interface{}, len(indices))
 	for _i := range indices {
 		_va[_i] = indices[_i]
@@ -91,16 +162,51 @@ func (_m *MultiSearchService) Index(indices ...string) es.MultiSearchService {
 		panic("no return value specified for Index")
 	}
 
-	var r0 es.MultiSearchService
-	if rf, ok := ret.Get(0).(func(...string) es.MultiSearchService); ok {
+	var r0 elasticsearch.MultiSearchService
+	if rf, ok := ret.Get(0).(func(...string) elasticsearch.MultiSearchService); ok {
 		r0 = rf(indices...)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(es.MultiSearchService)
+			r0 = ret.Get(0).(elasticsearch.MultiSearchService)
 		}
 	}
 
 	return r0
+}
+
+// MultiSearchService_Index_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Index'
+type MultiSearchService_Index_Call struct {
+	*mock.Call
+}
+
+// Index is a helper method to define mock.On call
+//   - indices ...string
+func (_e *MultiSearchService_Expecter) Index(indices ...interface{}) *MultiSearchService_Index_Call {
+	return &MultiSearchService_Index_Call{Call: _e.mock.On("Index",
+		append([]interface{}{}, indices...)...)}
+}
+
+func (_c *MultiSearchService_Index_Call) Run(run func(indices ...string)) *MultiSearchService_Index_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		variadicArgs := make([]string, len(args)-0)
+		for i, a := range args[0:] {
+			if a != nil {
+				variadicArgs[i] = a.(string)
+			}
+		}
+		run(variadicArgs...)
+	})
+	return _c
+}
+
+func (_c *MultiSearchService_Index_Call) Return(_a0 elasticsearch.MultiSearchService) *MultiSearchService_Index_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MultiSearchService_Index_Call) RunAndReturn(run func(...string) elasticsearch.MultiSearchService) *MultiSearchService_Index_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewMultiSearchService creates a new instance of MultiSearchService. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

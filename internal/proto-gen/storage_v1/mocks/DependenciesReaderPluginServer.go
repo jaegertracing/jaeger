@@ -19,6 +19,14 @@ type DependenciesReaderPluginServer struct {
 	mock.Mock
 }
 
+type DependenciesReaderPluginServer_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *DependenciesReaderPluginServer) EXPECT() *DependenciesReaderPluginServer_Expecter {
+	return &DependenciesReaderPluginServer_Expecter{mock: &_m.Mock}
+}
+
 // GetDependencies provides a mock function with given fields: _a0, _a1
 func (_m *DependenciesReaderPluginServer) GetDependencies(_a0 context.Context, _a1 *storage_v1.GetDependenciesRequest) (*storage_v1.GetDependenciesResponse, error) {
 	ret := _m.Called(_a0, _a1)
@@ -47,6 +55,35 @@ func (_m *DependenciesReaderPluginServer) GetDependencies(_a0 context.Context, _
 	}
 
 	return r0, r1
+}
+
+// DependenciesReaderPluginServer_GetDependencies_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetDependencies'
+type DependenciesReaderPluginServer_GetDependencies_Call struct {
+	*mock.Call
+}
+
+// GetDependencies is a helper method to define mock.On call
+//   - _a0 context.Context
+//   - _a1 *storage_v1.GetDependenciesRequest
+func (_e *DependenciesReaderPluginServer_Expecter) GetDependencies(_a0 interface{}, _a1 interface{}) *DependenciesReaderPluginServer_GetDependencies_Call {
+	return &DependenciesReaderPluginServer_GetDependencies_Call{Call: _e.mock.On("GetDependencies", _a0, _a1)}
+}
+
+func (_c *DependenciesReaderPluginServer_GetDependencies_Call) Run(run func(_a0 context.Context, _a1 *storage_v1.GetDependenciesRequest)) *DependenciesReaderPluginServer_GetDependencies_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*storage_v1.GetDependenciesRequest))
+	})
+	return _c
+}
+
+func (_c *DependenciesReaderPluginServer_GetDependencies_Call) Return(_a0 *storage_v1.GetDependenciesResponse, _a1 error) *DependenciesReaderPluginServer_GetDependencies_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *DependenciesReaderPluginServer_GetDependencies_Call) RunAndReturn(run func(context.Context, *storage_v1.GetDependenciesRequest) (*storage_v1.GetDependenciesResponse, error)) *DependenciesReaderPluginServer_GetDependencies_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewDependenciesReaderPluginServer creates a new instance of DependenciesReaderPluginServer. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

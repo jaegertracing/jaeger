@@ -18,6 +18,14 @@ type IndicesExistsService struct {
 	mock.Mock
 }
 
+type IndicesExistsService_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *IndicesExistsService) EXPECT() *IndicesExistsService_Expecter {
+	return &IndicesExistsService_Expecter{mock: &_m.Mock}
+}
+
 // Do provides a mock function with given fields: ctx
 func (_m *IndicesExistsService) Do(ctx context.Context) (bool, error) {
 	ret := _m.Called(ctx)
@@ -44,6 +52,34 @@ func (_m *IndicesExistsService) Do(ctx context.Context) (bool, error) {
 	}
 
 	return r0, r1
+}
+
+// IndicesExistsService_Do_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Do'
+type IndicesExistsService_Do_Call struct {
+	*mock.Call
+}
+
+// Do is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *IndicesExistsService_Expecter) Do(ctx interface{}) *IndicesExistsService_Do_Call {
+	return &IndicesExistsService_Do_Call{Call: _e.mock.On("Do", ctx)}
+}
+
+func (_c *IndicesExistsService_Do_Call) Run(run func(ctx context.Context)) *IndicesExistsService_Do_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context))
+	})
+	return _c
+}
+
+func (_c *IndicesExistsService_Do_Call) Return(_a0 bool, _a1 error) *IndicesExistsService_Do_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *IndicesExistsService_Do_Call) RunAndReturn(run func(context.Context) (bool, error)) *IndicesExistsService_Do_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewIndicesExistsService creates a new instance of IndicesExistsService. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

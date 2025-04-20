@@ -23,6 +23,14 @@ type Factory struct {
 	mock.Mock
 }
 
+type Factory_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *Factory) EXPECT() *Factory_Expecter {
+	return &Factory_Expecter{mock: &_m.Mock}
+}
+
 // CreateDependencyReader provides a mock function with no fields
 func (_m *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	ret := _m.Called()
@@ -51,6 +59,33 @@ func (_m *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	}
 
 	return r0, r1
+}
+
+// Factory_CreateDependencyReader_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateDependencyReader'
+type Factory_CreateDependencyReader_Call struct {
+	*mock.Call
+}
+
+// CreateDependencyReader is a helper method to define mock.On call
+func (_e *Factory_Expecter) CreateDependencyReader() *Factory_CreateDependencyReader_Call {
+	return &Factory_CreateDependencyReader_Call{Call: _e.mock.On("CreateDependencyReader")}
+}
+
+func (_c *Factory_CreateDependencyReader_Call) Run(run func()) *Factory_CreateDependencyReader_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Factory_CreateDependencyReader_Call) Return(_a0 dependencystore.Reader, _a1 error) *Factory_CreateDependencyReader_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *Factory_CreateDependencyReader_Call) RunAndReturn(run func() (dependencystore.Reader, error)) *Factory_CreateDependencyReader_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // CreateSpanReader provides a mock function with no fields
@@ -83,6 +118,33 @@ func (_m *Factory) CreateSpanReader() (spanstore.Reader, error) {
 	return r0, r1
 }
 
+// Factory_CreateSpanReader_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateSpanReader'
+type Factory_CreateSpanReader_Call struct {
+	*mock.Call
+}
+
+// CreateSpanReader is a helper method to define mock.On call
+func (_e *Factory_Expecter) CreateSpanReader() *Factory_CreateSpanReader_Call {
+	return &Factory_CreateSpanReader_Call{Call: _e.mock.On("CreateSpanReader")}
+}
+
+func (_c *Factory_CreateSpanReader_Call) Run(run func()) *Factory_CreateSpanReader_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Factory_CreateSpanReader_Call) Return(_a0 spanstore.Reader, _a1 error) *Factory_CreateSpanReader_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *Factory_CreateSpanReader_Call) RunAndReturn(run func() (spanstore.Reader, error)) *Factory_CreateSpanReader_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateSpanWriter provides a mock function with no fields
 func (_m *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	ret := _m.Called()
@@ -113,6 +175,33 @@ func (_m *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	return r0, r1
 }
 
+// Factory_CreateSpanWriter_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateSpanWriter'
+type Factory_CreateSpanWriter_Call struct {
+	*mock.Call
+}
+
+// CreateSpanWriter is a helper method to define mock.On call
+func (_e *Factory_Expecter) CreateSpanWriter() *Factory_CreateSpanWriter_Call {
+	return &Factory_CreateSpanWriter_Call{Call: _e.mock.On("CreateSpanWriter")}
+}
+
+func (_c *Factory_CreateSpanWriter_Call) Run(run func()) *Factory_CreateSpanWriter_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Factory_CreateSpanWriter_Call) Return(_a0 spanstore.Writer, _a1 error) *Factory_CreateSpanWriter_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *Factory_CreateSpanWriter_Call) RunAndReturn(run func() (spanstore.Writer, error)) *Factory_CreateSpanWriter_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Initialize provides a mock function with given fields: metricsFactory, logger
 func (_m *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	ret := _m.Called(metricsFactory, logger)
@@ -129,6 +218,35 @@ func (_m *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger
 	}
 
 	return r0
+}
+
+// Factory_Initialize_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Initialize'
+type Factory_Initialize_Call struct {
+	*mock.Call
+}
+
+// Initialize is a helper method to define mock.On call
+//   - metricsFactory metrics.Factory
+//   - logger *zap.Logger
+func (_e *Factory_Expecter) Initialize(metricsFactory interface{}, logger interface{}) *Factory_Initialize_Call {
+	return &Factory_Initialize_Call{Call: _e.mock.On("Initialize", metricsFactory, logger)}
+}
+
+func (_c *Factory_Initialize_Call) Run(run func(metricsFactory metrics.Factory, logger *zap.Logger)) *Factory_Initialize_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(metrics.Factory), args[1].(*zap.Logger))
+	})
+	return _c
+}
+
+func (_c *Factory_Initialize_Call) Return(_a0 error) *Factory_Initialize_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Factory_Initialize_Call) RunAndReturn(run func(metrics.Factory, *zap.Logger) error) *Factory_Initialize_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewFactory creates a new instance of Factory. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

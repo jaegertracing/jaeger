@@ -22,6 +22,14 @@ type ArchiveSpanReaderPluginClient struct {
 	mock.Mock
 }
 
+type ArchiveSpanReaderPluginClient_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *ArchiveSpanReaderPluginClient) EXPECT() *ArchiveSpanReaderPluginClient_Expecter {
+	return &ArchiveSpanReaderPluginClient_Expecter{mock: &_m.Mock}
+}
+
 // GetArchiveTrace provides a mock function with given fields: ctx, in, opts
 func (_m *ArchiveSpanReaderPluginClient) GetArchiveTrace(ctx context.Context, in *storage_v1.GetTraceRequest, opts ...grpc.CallOption) (storage_v1.ArchiveSpanReaderPlugin_GetArchiveTraceClient, error) {
 	_va := make([]interface{}, len(opts))
@@ -57,6 +65,43 @@ func (_m *ArchiveSpanReaderPluginClient) GetArchiveTrace(ctx context.Context, in
 	}
 
 	return r0, r1
+}
+
+// ArchiveSpanReaderPluginClient_GetArchiveTrace_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetArchiveTrace'
+type ArchiveSpanReaderPluginClient_GetArchiveTrace_Call struct {
+	*mock.Call
+}
+
+// GetArchiveTrace is a helper method to define mock.On call
+//   - ctx context.Context
+//   - in *storage_v1.GetTraceRequest
+//   - opts ...grpc.CallOption
+func (_e *ArchiveSpanReaderPluginClient_Expecter) GetArchiveTrace(ctx interface{}, in interface{}, opts ...interface{}) *ArchiveSpanReaderPluginClient_GetArchiveTrace_Call {
+	return &ArchiveSpanReaderPluginClient_GetArchiveTrace_Call{Call: _e.mock.On("GetArchiveTrace",
+		append([]interface{}{ctx, in}, opts...)...)}
+}
+
+func (_c *ArchiveSpanReaderPluginClient_GetArchiveTrace_Call) Run(run func(ctx context.Context, in *storage_v1.GetTraceRequest, opts ...grpc.CallOption)) *ArchiveSpanReaderPluginClient_GetArchiveTrace_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		variadicArgs := make([]grpc.CallOption, len(args)-2)
+		for i, a := range args[2:] {
+			if a != nil {
+				variadicArgs[i] = a.(grpc.CallOption)
+			}
+		}
+		run(args[0].(context.Context), args[1].(*storage_v1.GetTraceRequest), variadicArgs...)
+	})
+	return _c
+}
+
+func (_c *ArchiveSpanReaderPluginClient_GetArchiveTrace_Call) Return(_a0 storage_v1.ArchiveSpanReaderPlugin_GetArchiveTraceClient, _a1 error) *ArchiveSpanReaderPluginClient_GetArchiveTrace_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *ArchiveSpanReaderPluginClient_GetArchiveTrace_Call) RunAndReturn(run func(context.Context, *storage_v1.GetTraceRequest, ...grpc.CallOption) (storage_v1.ArchiveSpanReaderPlugin_GetArchiveTraceClient, error)) *ArchiveSpanReaderPluginClient_GetArchiveTrace_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewArchiveSpanReaderPluginClient creates a new instance of ArchiveSpanReaderPluginClient. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

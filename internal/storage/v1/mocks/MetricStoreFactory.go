@@ -19,6 +19,14 @@ type MetricStoreFactory struct {
 	mock.Mock
 }
 
+type MetricStoreFactory_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *MetricStoreFactory) EXPECT() *MetricStoreFactory_Expecter {
+	return &MetricStoreFactory_Expecter{mock: &_m.Mock}
+}
+
 // CreateMetricsReader provides a mock function with no fields
 func (_m *MetricStoreFactory) CreateMetricsReader() (metricstore.Reader, error) {
 	ret := _m.Called()
@@ -49,6 +57,33 @@ func (_m *MetricStoreFactory) CreateMetricsReader() (metricstore.Reader, error) 
 	return r0, r1
 }
 
+// MetricStoreFactory_CreateMetricsReader_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateMetricsReader'
+type MetricStoreFactory_CreateMetricsReader_Call struct {
+	*mock.Call
+}
+
+// CreateMetricsReader is a helper method to define mock.On call
+func (_e *MetricStoreFactory_Expecter) CreateMetricsReader() *MetricStoreFactory_CreateMetricsReader_Call {
+	return &MetricStoreFactory_CreateMetricsReader_Call{Call: _e.mock.On("CreateMetricsReader")}
+}
+
+func (_c *MetricStoreFactory_CreateMetricsReader_Call) Run(run func()) *MetricStoreFactory_CreateMetricsReader_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MetricStoreFactory_CreateMetricsReader_Call) Return(_a0 metricstore.Reader, _a1 error) *MetricStoreFactory_CreateMetricsReader_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MetricStoreFactory_CreateMetricsReader_Call) RunAndReturn(run func() (metricstore.Reader, error)) *MetricStoreFactory_CreateMetricsReader_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Initialize provides a mock function with given fields: telset
 func (_m *MetricStoreFactory) Initialize(telset telemetry.Settings) error {
 	ret := _m.Called(telset)
@@ -65,6 +100,34 @@ func (_m *MetricStoreFactory) Initialize(telset telemetry.Settings) error {
 	}
 
 	return r0
+}
+
+// MetricStoreFactory_Initialize_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Initialize'
+type MetricStoreFactory_Initialize_Call struct {
+	*mock.Call
+}
+
+// Initialize is a helper method to define mock.On call
+//   - telset telemetry.Settings
+func (_e *MetricStoreFactory_Expecter) Initialize(telset interface{}) *MetricStoreFactory_Initialize_Call {
+	return &MetricStoreFactory_Initialize_Call{Call: _e.mock.On("Initialize", telset)}
+}
+
+func (_c *MetricStoreFactory_Initialize_Call) Run(run func(telset telemetry.Settings)) *MetricStoreFactory_Initialize_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(telemetry.Settings))
+	})
+	return _c
+}
+
+func (_c *MetricStoreFactory_Initialize_Call) Return(_a0 error) *MetricStoreFactory_Initialize_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MetricStoreFactory_Initialize_Call) RunAndReturn(run func(telemetry.Settings) error) *MetricStoreFactory_Initialize_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewMetricStoreFactory creates a new instance of MetricStoreFactory. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
