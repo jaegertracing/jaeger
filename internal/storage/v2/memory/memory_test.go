@@ -10,14 +10,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
 
 	v1 "github.com/jaegertracing/jaeger/internal/storage/v1/memory"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
@@ -37,6 +40,58 @@ func TestNewStore_DefaultConfig(t *testing.T) {
 	require.True(t, ok)
 	expected2 := loadOutputTraces(t, 2)
 	testTraces(t, expected2, traces2)
+	operations, err := store.GetOperations(context.Background(), tracestore.OperationQueryParams{ServiceName: "service-x"})
+	require.NoError(t, err)
+	expectedOperations := []tracestore.Operation{
+		{
+			Name:     "test-general-conversion-2",
+			SpanKind: "Unspecified",
+		},
+		{
+			Name:     "test-general-conversion-3",
+			SpanKind: "Unspecified",
+		},
+		{
+			Name:     "test-general-conversion-4",
+			SpanKind: "Unspecified",
+		},
+		{
+			Name:     "test-general-conversion-5",
+			SpanKind: "Unspecified",
+		},
+	}
+	sort.Slice(operations, func(i, j int) bool {
+		return operations[i].Name < operations[j].Name
+	})
+	assert.Equal(t, expectedOperations, operations)
+	expectedServices := []string{"service-x"}
+	services, err := store.GetServices(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, expectedServices, services)
+}
+
+func TestGetOperationsWithKind(t *testing.T) {
+	store := NewStore(v1.Configuration{})
+	td := ptrace.NewTraces()
+	resourceSpans := td.ResourceSpans().AppendEmpty()
+	attrs := resourceSpans.Resource().Attributes()
+	attrs.PutStr(conventions.AttributeServiceName, "service-x")
+	span1 := resourceSpans.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span1.SetTraceID(fromString(t, "00000000000000010000000000000000"))
+	span1.SetKind(ptrace.SpanKindConsumer)
+	span1.SetName("operation-with-kind")
+	span2 := resourceSpans.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span2.SetTraceID(fromString(t, "00000000000000010000000000000000"))
+	err := store.WriteTraces(context.Background(), td)
+	require.NoError(t, err)
+	operations, err := store.GetOperations(context.Background(), tracestore.OperationQueryParams{
+		ServiceName: "service-x",
+		SpanKind:    ptrace.SpanKindConsumer.String(),
+	})
+	assert.Len(t, operations, 1)
+	assert.Equal(t, "operation-with-kind", operations[0].Name)
+	assert.Equal(t, operations[0].SpanKind, ptrace.SpanKindConsumer.String())
+	require.NoError(t, err)
 }
 
 func TestWriteTraces_WriteTwoBatches(t *testing.T) {

@@ -23,7 +23,7 @@
               "spanId": "0000000000000002",
               "parentSpanId": "0000000000000003",
               "flags": 1,
-              "name": "test-general-conversion",
+              "name": "test-general-conversion-2",
               "startTimeUnixNano": "1485467191639875000",
               "endTimeUnixNano": "1485467191639880000",
               "attributes": [
@@ -112,7 +112,7 @@
               "spanId": "0000000000000003",
               "parentSpanId": "0000000000000010",
               "flags": 1,
-              "name": "test-general-conversion",
+              "name": "test-general-conversion-3",
               "startTimeUnixNano": "1485467191639875000",
               "endTimeUnixNano": "1485467191639880000",
               "attributes": [
@@ -209,7 +209,7 @@
               "spanId": "0000000000000004",
               "parentSpanId": "0000000000000011",
               "flags": 1,
-              "name": "test-general-conversion",
+              "name": "test-general-conversion-4",
               "startTimeUnixNano": "1485467191639875000",
               "endTimeUnixNano": "1485467191639880000",
               "attributes": [
@@ -298,7 +298,7 @@
               "spanId": "0000000000000005",
               "parentSpanId": "0000000000000010",
               "flags": 1,
-              "name": "test-general-conversion",
+              "name": "test-general-conversion-5",
               "startTimeUnixNano": "1485467191639875000",
               "endTimeUnixNano": "1485467191639880000",
               "attributes": [
