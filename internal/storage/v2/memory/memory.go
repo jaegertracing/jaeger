@@ -49,7 +49,7 @@ type memoryTraceQueryParams struct {
 	DurationMax   time.Duration
 	SearchDepth   int
 	Kind          ptrace.SpanKind
-	StatusCode    string
+	StatusCode    ptrace.StatusCode
 	StatusMessage string
 	TraceState    string
 	ScopeName     string
@@ -237,14 +237,27 @@ func stringToOTELSpanKind(spanKind string) ptrace.SpanKind {
 	return ptrace.SpanKindUnspecified
 }
 
-func getStatusCodeAndMessageFromAttrs(attrs pcommon.Map) (code string, msg string) {
+func getStatusCodeAndMessageFromAttrs(attrs pcommon.Map) (ptrace.StatusCode, string) {
+	code := ptrace.StatusCodeUnset
+	msg := ""
 	if val, found := attrs.Get(conventions.OtelStatusCode); found {
-		code = val.Str()
+		code = statusCodeFromInt(val.Int())
 	}
 	if message, found := attrs.Get(conventions.OtelStatusDescription); found {
 		msg = message.Str()
 	}
 	return code, msg
+}
+
+func statusCodeFromInt(cd int64) ptrace.StatusCode {
+	switch cd {
+	case 1:
+		return ptrace.StatusCodeOk
+	case 2:
+		return ptrace.StatusCodeError
+	default:
+		return ptrace.StatusCodeUnset
+	}
 }
 
 func validTrace(td ptrace.Traces, query memoryTraceQueryParams) (time.Time, bool) {
@@ -323,7 +336,7 @@ func validSpan(tags []keyValue, span ptrace.Span, query memoryTraceQueryParams) 
 	if query.TraceState != "" && query.TraceState != span.TraceState().AsRaw() {
 		return false
 	}
-	if query.StatusCode != "" && query.StatusCode != span.Status().Code().String() {
+	if query.StatusCode != ptrace.StatusCodeUnset && query.StatusCode != span.Status().Code() {
 		return false
 	}
 	if query.StatusMessage != "" && query.StatusMessage != span.Status().Message() {
