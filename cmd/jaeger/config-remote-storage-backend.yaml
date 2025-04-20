@@ -1,5 +1,5 @@
 service:
-  extensions: [jaeger_storage, jaeger_query, remote_storage, remote_storage/archive, healthcheckv2]
+  extensions: [jaeger_storage, remote_storage, remote_storage/archive, healthcheckv2]
   pipelines:
     traces:
       receivers: [otlp]
@@ -27,17 +27,6 @@ extensions:
     http:
       # use different port to avoid conflict with collector on 13133
       endpoint: 0.0.0.0:12133
-
-  jaeger_query:
-    storage:
-      traces: memory-storage
-      traces_archive: memory-storage-archive
-    ui:
-      config_file: ./cmd/jaeger/config-ui.json
-    grpc:
-      endpoint: "${env:JAEGER_QUERY_GRPC_ENDPOINT:-localhost:16685}"
-    http:
-      endpoint: "${env:JAEGER_QUERY_HTTP_ENDPOINT:-localhost:16686}"
 
   jaeger_storage:
     backends:
