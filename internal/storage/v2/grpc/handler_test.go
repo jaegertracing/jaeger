@@ -100,13 +100,7 @@ func TestHandler_GetTraces(t *testing.T) {
 			reader := new(tracestoremocks.Reader)
 			writer := new(tracestoremocks.Writer)
 			depReader := new(depstoremocks.Reader)
-			reader.On("GetTraces", mock.Anything, mock.MatchedBy(func(queries []tracestore.GetTraceParams) bool {
-				// Verify the slice contains exactly one element matching expectedQuery
-				return len(queries) == 1 &&
-					queries[0].TraceID == query[0].TraceID &&
-					queries[0].Start.Equal(query[0].Start) &&
-					queries[0].End.Equal(query[0].End)
-			})).
+			reader.On("GetTraces", mock.Anything, query).
 				Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 					if test.getTraceErr != nil {
 						yield(nil, test.getTraceErr)

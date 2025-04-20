@@ -18,7 +18,6 @@ import (
 	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -144,8 +143,9 @@ func (gw *testGateway) runGatewayGetOperations(t *testing.T) {
 }
 
 func (gw *testGateway) runGatewayGetTrace(t *testing.T) {
+	query := []tracestore.GetTraceParams{{TraceID: traceID}}
 	gw.reader.
-		On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+		On("GetTraces", matchContext, query).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 			yield([]ptrace.Traces{makeTestTrace()}, nil)
 		})).Once()

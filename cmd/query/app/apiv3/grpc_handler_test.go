@@ -127,7 +127,7 @@ func TestGetTrace(t *testing.T) {
 
 func TestGetTraceStorageError(t *testing.T) {
 	tsc := newTestServerClient(t)
-	tsc.reader.On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+	tsc.reader.On("GetTraces", matchContext, []tracestore.GetTraceParams{{TraceID: traceID}}).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 			yield(nil, assert.AnError)
 		})).Once()
