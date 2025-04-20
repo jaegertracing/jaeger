@@ -37,7 +37,7 @@ jobs:
             SPAN_STORAGE_TYPE=memory make grpc-storage-integration-test
             ;;
           v2)
-            STORAGE=grpc SPAN_STORAGE_TYPE=memory make jaeger-v2-storage-integration-test
+            STORAGE=grpc make jaeger-v2-storage-integration-test
             ;;
         esac
 

@@ -7,43 +7,32 @@ import (
 	"testing"
 
 	"github.com/jaegertracing/jaeger/internal/storage/integration"
-	"github.com/jaegertracing/jaeger/ports"
 )
-
-type GRPCStorageIntegration struct {
-	E2EStorageIntegration
-
-	remoteStorage        *integration.RemoteMemoryStorage
-	archiveRemoteStorage *integration.RemoteMemoryStorage
-}
-
-func (s *GRPCStorageIntegration) initializeRemoteStorages(t *testing.T) {
-	s.remoteStorage = integration.StartNewRemoteMemoryStorage(t, ports.RemoteStorageGRPC)
-	s.archiveRemoteStorage = integration.StartNewRemoteMemoryStorage(t, ports.RemoteStorageGRPC+1)
-}
-
-func (s *GRPCStorageIntegration) closeRemoteStorages(t *testing.T) {
-	s.remoteStorage.Close(t)
-	s.archiveRemoteStorage.Close(t)
-}
-
-func (s *GRPCStorageIntegration) cleanUp(t *testing.T) {
-	s.closeRemoteStorages(t)
-	s.initializeRemoteStorages(t)
-}
 
 func TestGRPCStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, "grpc")
 
-	s := &GRPCStorageIntegration{
-		E2EStorageIntegration: E2EStorageIntegration{
-			ConfigFile:         "../../config-remote-storage.yaml",
-			SkipStorageCleaner: true,
+	remoteBackend := &E2EStorageIntegration{
+		ConfigFile:      "../../config-remote-storage-backend.yaml",
+		HealthCheckPort: 12133,
+		MetricsPort:     8887,
+		EnvVarOverrides: map[string]string{
+			"JAEGER_QUERY_GRPC_ENDPOINT": "localhost:0",
+			"JAEGER_QUERY_HTTP_ENDPOINT": "localhost:0",
 		},
 	}
-	s.CleanUp = s.cleanUp
-	s.initializeRemoteStorages(t)
-	s.e2eInitialize(t, "grpc")
-	t.Cleanup(func() { s.closeRemoteStorages(t) })
-	s.RunSpanStoreTests(t)
+	remoteBackend.e2eInitialize(t, "memory")
+	t.Log("Remote backend initialized")
+
+	collector := &E2EStorageIntegration{
+		ConfigFile:         "../../config-remote-storage.yaml",
+		SkipStorageCleaner: true,
+		StorageIntegration: integration.StorageIntegration{
+			CleanUp: purge,
+		},
+	}
+	collector.e2eInitialize(t, "grpc")
+	t.Log("Collector initialized")
+
+	collector.RunSpanStoreTests(t)
 }
