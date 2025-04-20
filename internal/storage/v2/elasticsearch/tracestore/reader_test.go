@@ -16,8 +16,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -241,6 +243,14 @@ func TestTraceReader_FindTraceIDs_Error(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_NewTraceReader(t *testing.T) {
+	reader := NewTraceReader(spanstore.SpanReaderParams{
+		Logger: zap.NewNop(),
+	})
+	_, ok := reader.spanReader.(*spanstore.SpanReader)
+	assert.True(t, ok)
 }
 
 func fromDBTraceId(t *testing.T, traceID dbmodel.TraceID) tracestore.FoundTraceID {
