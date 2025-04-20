@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"iter"
 	"testing"
 	"time"
 
@@ -14,12 +15,13 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/mocks"
-	v2api "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 func TestTraceReader_GetServices(t *testing.T) {
@@ -46,7 +48,7 @@ func TestTraceReader_GetOperations(t *testing.T) {
 		},
 	}
 	coreReader.On("GetOperations", mock.Anything, mock.Anything).Return(operations, nil)
-	expected := []v2api.Operation{
+	expected := []tracestore.Operation{
 		{
 			Name:     "op-1",
 			SpanKind: "kind--1",
@@ -56,7 +58,7 @@ func TestTraceReader_GetOperations(t *testing.T) {
 			SpanKind: "kind--2",
 		},
 	}
-	actual, err := reader.GetOperations(context.Background(), v2api.OperationQueryParams{})
+	actual, err := reader.GetOperations(context.Background(), tracestore.OperationQueryParams{})
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
@@ -65,7 +67,7 @@ func TestTraceReader_GetOperations_Error(t *testing.T) {
 	coreReader := &mocks.CoreSpanReader{}
 	reader := TraceReader{spanReader: coreReader}
 	coreReader.On("GetOperations", mock.Anything, mock.Anything).Return(nil, errors.New("error"))
-	operations, err := reader.GetOperations(context.Background(), v2api.OperationQueryParams{})
+	operations, err := reader.GetOperations(context.Background(), tracestore.OperationQueryParams{})
 	require.EqualError(t, err, "error")
 	require.Nil(t, operations)
 }
@@ -80,7 +82,7 @@ func TestTraceReader_GetTraces(t *testing.T) {
 	span.TraceID = "00000000000000020000000000000000"
 	dbTrace2 := dbmodel.Trace{Spans: []dbmodel.Span{span}}
 	coreReader.On("GetTraces", mock.Anything, mock.Anything).Return([]dbmodel.Trace{dbTrace, dbTrace2}, nil)
-	traces := reader.GetTraces(context.Background(), v2api.GetTraceParams{})
+	traces := reader.GetTraces(context.Background(), tracestore.GetTraceParams{})
 	for td, err := range traces {
 		require.NoError(t, err)
 		assert.Len(t, td, 1)
@@ -89,28 +91,32 @@ func TestTraceReader_GetTraces(t *testing.T) {
 	}
 }
 
-func TestTraceReader_GetTraces_Errors(t *testing.T) {
+func testTraceReaderGetTracesAndFindTracesErrors(t *testing.T, fxnName string, actualTraces func(r TraceReader) iter.Seq2[[]ptrace.Traces, error]) {
 	tests := []struct {
-		name            string
-		returningErr    error
-		returningTraces []dbmodel.Trace
-		expectedErr     string
+		name        string
+		expectedErr string
+		mockFxn     func(m *mocks.CoreSpanReader)
 	}{
 		{
-			name:         "some error from db GetTraces",
-			returningErr: errors.New("some error"),
-			expectedErr:  "some error",
+			name:        "some error from core reader",
+			expectedErr: "some error",
+			mockFxn: func(m *mocks.CoreSpanReader) {
+				m.On(fxnName, mock.Anything, mock.Anything).Return(nil, errors.New("some error"))
+			},
 		},
 		{
 			name: "conversion error",
-			returningTraces: []dbmodel.Trace{
-				{
-					Spans: []dbmodel.Span{
-						{
-							TraceID: "wrong-trace-id",
+			mockFxn: func(m *mocks.CoreSpanReader) {
+				dbTraces := []dbmodel.Trace{
+					{
+						Spans: []dbmodel.Span{
+							{
+								TraceID: "wrong-trace-id",
+							},
 						},
 					},
-				},
+				}
+				m.On(fxnName, mock.Anything, mock.Anything).Return(dbTraces, nil)
 			},
 			expectedErr: "encoding/hex: invalid byte: U+0077 'w'",
 		},
@@ -119,8 +125,8 @@ func TestTraceReader_GetTraces_Errors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			coreReader := &mocks.CoreSpanReader{}
 			reader := TraceReader{spanReader: coreReader}
-			coreReader.On("GetTraces", mock.Anything, mock.Anything).Return(tt.returningTraces, tt.returningErr)
-			traces := reader.GetTraces(context.Background(), v2api.GetTraceParams{})
+			tt.mockFxn(coreReader)
+			traces := actualTraces(reader)
 			for trace, err := range traces {
 				require.Nil(t, trace)
 				require.ErrorContains(t, err, tt.expectedErr)
@@ -129,12 +135,38 @@ func TestTraceReader_GetTraces_Errors(t *testing.T) {
 	}
 }
 
-func TestTraceReader_FindTraces(t *testing.T) {
-	reader := NewTraceReader(spanstore.SpanReaderParams{
-		Logger: zap.NewNop(),
+func TestTraceReader_GetTraces_Errors(t *testing.T) {
+	testTraceReaderGetTracesAndFindTracesErrors(t, "GetTraces", func(r TraceReader) iter.Seq2[[]ptrace.Traces, error] {
+		return r.GetTraces(context.Background(), tracestore.GetTraceParams{})
 	})
-	assert.Panics(t, func() {
-		reader.FindTraces(context.Background(), v2api.TraceQueryParams{})
+}
+
+func TestTraceReader_FindTraces(t *testing.T) {
+	coreReader := &mocks.CoreSpanReader{}
+	reader := TraceReader{spanReader: coreReader}
+	tracesStr, spanStr := loadFixtures(t, 1)
+	var span dbmodel.Span
+	require.NoError(t, json.Unmarshal(spanStr, &span))
+	dbTrace := dbmodel.Trace{Spans: []dbmodel.Span{span}}
+	span.TraceID = "00000000000000020000000000000000"
+	dbTrace2 := dbmodel.Trace{Spans: []dbmodel.Span{span}}
+	coreReader.On("FindTraces", mock.Anything, mock.Anything).Return([]dbmodel.Trace{dbTrace, dbTrace2}, nil)
+	traces := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+	})
+	for td, err := range traces {
+		require.NoError(t, err)
+		assert.Len(t, td, 1)
+		testTraces(t, tracesStr, td[0])
+		break
+	}
+}
+
+func TestTraceReader_FindTraces_Errors(t *testing.T) {
+	testTraceReaderGetTracesAndFindTracesErrors(t, "FindTraces", func(r TraceReader) iter.Seq2[[]ptrace.Traces, error] {
+		return r.FindTraces(context.Background(), tracestore.TraceQueryParams{
+			Attributes: pcommon.NewMap(),
+		})
 	})
 }
 
@@ -146,12 +178,12 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 		"00000000000000020000000000000000",
 		"00000000000000030000000000000000",
 	}
-	expected := make([]v2api.FoundTraceID, 0, len(dbTraceIDs))
+	expected := make([]tracestore.FoundTraceID, 0, len(dbTraceIDs))
 	for _, dbTraceID := range dbTraceIDs {
 		expected = append(expected, fromDBTraceId(t, dbTraceID))
 	}
 	coreReader.On("FindTraceIDs", mock.Anything, mock.Anything).Return(dbTraceIDs, nil)
-	for traceIds, err := range reader.FindTraceIDs(context.Background(), v2api.TraceQueryParams{
+	for traceIds, err := range reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
 		Attributes: pcommon.NewMap(),
 	}) {
 		require.NoError(t, err)
@@ -183,7 +215,7 @@ func TestTraceReader_FindTraceIDs_Error(t *testing.T) {
 			attrs := pcommon.NewMap()
 			attrs.PutStr("key1", "val1")
 			ts := time.Now()
-			traceQueryParams := v2api.TraceQueryParams{
+			traceQueryParams := tracestore.TraceQueryParams{
 				Attributes:    attrs,
 				StartTimeMin:  ts,
 				ServiceName:   "testing-service-name",
@@ -213,10 +245,17 @@ func TestTraceReader_FindTraceIDs_Error(t *testing.T) {
 	}
 }
 
-func fromDBTraceId(t *testing.T, traceID dbmodel.TraceID) v2api.FoundTraceID {
+func Test_NewTraceReader(t *testing.T) {
+	reader := NewTraceReader(spanstore.SpanReaderParams{
+		Logger: zap.NewNop(),
+	})
+	assert.IsType(t, &spanstore.SpanReader{}, reader.spanReader)
+}
+
+func fromDBTraceId(t *testing.T, traceID dbmodel.TraceID) tracestore.FoundTraceID {
 	traceId, err := fromDbTraceId(traceID)
 	require.NoError(t, err)
-	return v2api.FoundTraceID{
+	return tracestore.FoundTraceID{
 		TraceID: traceId,
 	}
 }
