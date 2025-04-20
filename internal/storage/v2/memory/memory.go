@@ -455,7 +455,7 @@ func validSpan(tags []keyValue, span ptrace.Span, query memoryTraceQueryParams) 
 
 func findKeyValueMatch(kvs []keyValue, key string, value pcommon.Value) bool {
 	for _, kv := range kvs {
-		if kv.key == key && kv.value.Equal(value) {
+		if kv.key == key && kv.value.AsString() == value.AsString() {
 			return true
 		}
 	}
