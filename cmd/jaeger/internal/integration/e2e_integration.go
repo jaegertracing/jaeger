@@ -136,7 +136,6 @@ func (s *E2EStorageIntegration) scrapeMetrics(t *testing.T, storage string) {
 func createStorageCleanerConfig(t *testing.T, configFile string, storage string) string {
 	data, err := os.ReadFile(configFile)
 	require.NoError(t, err)
-
 	var config map[string]any
 	err = yaml.Unmarshal(data, &config)
 	require.NoError(t, err)
