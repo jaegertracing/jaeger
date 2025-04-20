@@ -241,7 +241,7 @@ func getStatusCodeAndMessageFromAttrs(attrs pcommon.Map) (ptrace.StatusCode, str
 	code := ptrace.StatusCodeUnset
 	msg := ""
 	if val, found := attrs.Get(conventions.OtelStatusCode); found {
-		code = statusCodeFromInt(val.Int())
+		code = statusCodeFromInt(val.Str())
 	}
 	if message, found := attrs.Get(conventions.OtelStatusDescription); found {
 		msg = message.Str()
@@ -249,11 +249,11 @@ func getStatusCodeAndMessageFromAttrs(attrs pcommon.Map) (ptrace.StatusCode, str
 	return code, msg
 }
 
-func statusCodeFromInt(cd int64) ptrace.StatusCode {
+func statusCodeFromInt(cd string) ptrace.StatusCode {
 	switch cd {
-	case 1:
+	case "Ok":
 		return ptrace.StatusCodeOk
-	case 2:
+	case "Error":
 		return ptrace.StatusCodeError
 	default:
 		return ptrace.StatusCodeUnset

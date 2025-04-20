@@ -68,6 +68,12 @@ func TestNewStore_DefaultConfig(t *testing.T) {
 	services, err := store.GetServices(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, expectedServices, services)
+	queryAttrs := pcommon.NewMap()
+	queryAttrs.PutStr(conventions.OtelStatusCode, "Error")
+	queryAttrs.PutStr(conventions.AttributeOtelScopeName, "testing-library")
+	queryAttrs.PutStr(conventions.AttributeOtelScopeVersion, "1.1.1")
+	queryAttrs.PutStr("peer.service", "service-y")
+	gotIter := store.FindTraces(context.Background(), tracestore.TraceQueryParams{})
 }
 
 func TestGetOperationsWithKind(t *testing.T) {
