@@ -10,4 +10,5 @@ func TestCreateStorageCleanerConfig(t *testing.T) {
 	// This is faster to run than the full integration test.
 	createStorageCleanerConfig(t, "../../config-elasticsearch.yaml", "elasticsearch")
 	createStorageCleanerConfig(t, "../../config-opensearch.yaml", "opensearch")
+	createStorageCleanerConfig(t, "../../config-remote-storage-backend.yaml", "memory")
 }

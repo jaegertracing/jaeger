@@ -72,8 +72,24 @@ func (t *TraceReader) GetOperations(ctx context.Context, query tracestore.Operat
 	return operations, nil
 }
 
-func (*TraceReader) FindTraces(_ context.Context, _ tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
-	panic("not implemented")
+func (t *TraceReader) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+	return func(yield func([]ptrace.Traces, error) bool) {
+		traces, err := t.spanReader.FindTraces(ctx, toDBTraceQueryParams(query))
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		for _, trace := range traces {
+			td, err := FromDBModel(trace.Spans)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+			if !yield([]ptrace.Traces{td}, nil) {
+				return
+			}
+		}
+	}
 }
 
 func (t *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {

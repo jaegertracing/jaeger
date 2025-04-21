@@ -41,6 +41,7 @@ var testCertKeyLocation = "../../../internal/config/tlscfg/testdata"
 func TestNewServer_CreateStorageErrors(t *testing.T) {
 	createServer := func(factory *fakeFactory) (*Server, error) {
 		return NewServer(
+			context.Background(),
 			&Options{
 				ServerConfig: configgrpc.ServerConfig{
 					NetAddr: confignet.AddrConfig{
@@ -70,8 +71,8 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 	factory = &fakeFactory{}
 	s, err := createServer(factory)
 	require.NoError(t, err)
-	require.NoError(t, s.Start())
-	validateGRPCServer(t, s.grpcConn.Addr().String())
+	require.NoError(t, s.Start(context.Background()))
+	validateGRPCServer(t, s.GRPCAddr())
 	require.NoError(t, s.grpcConn.Close())
 }
 
@@ -85,7 +86,7 @@ func TestServerStart_BadPortErrors(t *testing.T) {
 			},
 		},
 	}
-	require.Error(t, srv.Start())
+	require.Error(t, srv.Start(context.Background()))
 }
 
 type fakeFactory struct {
@@ -137,6 +138,7 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 	}
 
 	_, err := NewServer(
+		context.Background(),
 		&Options{
 			ServerConfig: configgrpc.ServerConfig{
 				NetAddr: confignet.AddrConfig{
@@ -369,6 +371,7 @@ func TestServerGRPCTLS(t *testing.T) {
 				ReportStatus: telemetry.HCAdapter(flagsSvc.HC()),
 			}
 			server, err := NewServer(
+				context.Background(),
 				serverOptions,
 				f,
 				f,
@@ -376,7 +379,7 @@ func TestServerGRPCTLS(t *testing.T) {
 				telset,
 			)
 			require.NoError(t, err)
-			require.NoError(t, server.Start())
+			require.NoError(t, server.Start(context.Background()))
 
 			var clientError error
 			var client *grpcClient
@@ -385,9 +388,9 @@ func TestServerGRPCTLS(t *testing.T) {
 				clientTLSCfg, err0 := test.clientTLS.LoadTLSConfig(context.Background())
 				require.NoError(t, err0)
 				creds := credentials.NewTLS(clientTLSCfg)
-				client = newGRPCClient(t, server.grpcConn.Addr().String(), creds, tm)
+				client = newGRPCClient(t, server.GRPCAddr(), creds, tm)
 			} else {
-				client = newGRPCClient(t, server.grpcConn.Addr().String(), nil, tm)
+				client = newGRPCClient(t, server.GRPCAddr(), nil, tm)
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -418,6 +421,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 		ReportStatus: telemetry.HCAdapter(flagsSvc.HC()),
 	}
 	server, err := NewServer(
+		context.Background(),
 		&Options{ServerConfig: configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{Endpoint: ":0"},
 		}},
@@ -428,7 +432,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	require.NoError(t, server.Start())
+	require.NoError(t, server.Start(context.Background()))
 
 	const line = "Starting GRPC server"
 	message := logs.FilterMessage(line)
