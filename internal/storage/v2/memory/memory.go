@@ -170,7 +170,7 @@ func toMemoryTraceQueryParams(query tracestore.TraceQueryParams) memoryTraceQuer
 	query.Attributes.CopyTo(attrs)
 	traceState := getAndDeleteTraceStateFromAttrs(attrs)
 	kind := getAndDeleteSpanKindFromAttrs(attrs)
-	statusCode, statusMsg := getStatusCodeAndMessageFromAttrs(attrs)
+	statusCode, statusMsg := getAndDeleteStatusCodeAndMessageFromAttrs(attrs)
 	scopeName, scopeVersion := getAndDeleteScopeNameAndVersionFromAttrs(attrs)
 	return memoryTraceQueryParams{
 		OperationName: query.OperationName,
@@ -238,7 +238,7 @@ func stringToOTELSpanKind(spanKind string) ptrace.SpanKind {
 	return ptrace.SpanKindUnspecified
 }
 
-func getStatusCodeAndMessageFromAttrs(attrs pcommon.Map) (ptrace.StatusCode, string) {
+func getAndDeleteStatusCodeAndMessageFromAttrs(attrs pcommon.Map) (ptrace.StatusCode, string) {
 	code := ptrace.StatusCodeUnset
 	msg := ""
 	if val, found := attrs.Get(conventions.AttributeOtelStatusCode); found {

@@ -13,6 +13,7 @@ import (
 	"os"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -100,6 +101,9 @@ func getQueryAttributes() pcommon.Map {
 
 func TestFindTraces_WrongQuery(t *testing.T) {
 	wrongStringValue := "wrongStringValue"
+	startTime := time.Unix(0, int64(1485467191639875000))
+	endTime := time.Unix(0, int64(1485467191639880000))
+	duration := endTime.Sub(startTime)
 	tests := []struct {
 		name           string
 		modifyQueryFxn func(query *tracestore.TraceQueryParams)
@@ -155,6 +159,36 @@ func TestFindTraces_WrongQuery(t *testing.T) {
 				query.Attributes.PutStr(conventions.AttributeOtelStatusDescription, wrongStringValue)
 			},
 		},
+		{
+			name: "wrong trace state",
+			modifyQueryFxn: func(query *tracestore.TraceQueryParams) {
+				query.Attributes.PutStr(tagW3CTraceState, wrongStringValue)
+			},
+		},
+		{
+			name: "wrong min start time",
+			modifyQueryFxn: func(query *tracestore.TraceQueryParams) {
+				query.StartTimeMin = startTime.Add(1 * time.Hour)
+			},
+		},
+		{
+			name: "wrong max start time",
+			modifyQueryFxn: func(query *tracestore.TraceQueryParams) {
+				query.StartTimeMax = startTime.Add(-1 * time.Hour)
+			},
+		},
+		{
+			name: "wrong min duration",
+			modifyQueryFxn: func(query *tracestore.TraceQueryParams) {
+				query.DurationMin = duration + 1*time.Hour
+			},
+		},
+		{
+			name: "wrong max duration",
+			modifyQueryFxn: func(query *tracestore.TraceQueryParams) {
+				query.DurationMax = duration - 1*time.Hour
+			},
+		},
 	}
 	store := NewStore(v1.Configuration{})
 	td := loadInputTraces(t, 1)
@@ -180,7 +214,7 @@ func TestFindTraces_WrongQuery(t *testing.T) {
 }
 
 func TestFindTraces_MaxTraces(t *testing.T) {
-	
+
 }
 
 func TestGetOperationsWithKind(t *testing.T) {
