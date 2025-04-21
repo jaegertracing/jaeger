@@ -1,0 +1,56 @@
+service:
+  extensions: [jaeger_storage, remote_storage, remote_storage/archive, healthcheckv2]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [jaeger_storage_exporter]
+  telemetry:
+    resource:
+      service.name: jaeger
+    metrics:
+      level: detailed
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8887
+    logs:
+      level: debug
+    # TODO Initialize telemetry tracer once OTEL released new feature.
+    # https://github.com/open-telemetry/opentelemetry-collector/issues/10663
+
+extensions:
+  healthcheckv2:
+    use_v2: true
+    http:
+      # use different port to avoid conflict with collector on 13133
+      endpoint: 0.0.0.0:12133
+
+  jaeger_storage:
+    backends:
+      memory-storage:
+        memory:
+          max_traces: 100000
+      memory-storage-archive:
+        memory:
+          max_traces: 100000
+  remote_storage:
+    endpoint: localhost:17271
+    storage: memory-storage
+  remote_storage/archive:
+    endpoint: localhost:17272
+    storage: memory-storage-archive
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+
+processors:
+  batch:
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: memory-storage

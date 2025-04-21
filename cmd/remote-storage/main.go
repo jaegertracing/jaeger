@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -22,11 +23,13 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/internal/status"
 	"github.com/jaegertracing/jaeger/cmd/remote-storage/app"
 	"github.com/jaegertracing/jaeger/internal/config"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	storage "github.com/jaegertracing/jaeger/internal/storage/v1/factory"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/internal/version"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -78,12 +81,15 @@ func main() {
 			tm := tenancy.NewManager(&opts.Tenancy)
 			telset := baseTelset // copy
 			telset.Metrics = metricsFactory
-			server, err := app.NewServer(opts, storageFactory, tm, telset)
+
+			traceFactory := v1adapter.NewFactory(storageFactory)
+			depFactory := traceFactory.(depstore.Factory)
+			server, err := app.NewServer(context.Background(), opts, v1adapter.NewFactory(storageFactory), depFactory, tm, telset)
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))
 			}
 
-			if err := server.Start(); err != nil {
+			if err := server.Start(context.Background()); err != nil {
 				logger.Fatal("Could not start servers", zap.Error(err))
 			}
 

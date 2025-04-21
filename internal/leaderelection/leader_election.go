@@ -11,7 +11,7 @@ import (
 
 	"go.uber.org/zap"
 
-	dl "github.com/jaegertracing/jaeger/pkg/distributedlock"
+	dl "github.com/jaegertracing/jaeger/internal/distributedlock"
 )
 
 const (

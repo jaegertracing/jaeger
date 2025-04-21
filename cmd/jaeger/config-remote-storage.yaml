@@ -32,7 +32,6 @@ extensions:
       traces_archive: another-storage
     ui:
       config_file: ./cmd/jaeger/config-ui.json
-
   jaeger_storage:
     backends:
       some-storage:
@@ -50,6 +49,8 @@ receivers:
   otlp:
     protocols:
       grpc:
+        # use different port to avoid conflict with remote storage backend on 4317
+        endpoint: 0.0.0.0:4316
       http:
 
 processors:

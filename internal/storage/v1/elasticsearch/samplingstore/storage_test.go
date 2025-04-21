@@ -16,12 +16,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	samplemodel "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/samplingstore/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	"github.com/jaegertracing/jaeger/pkg/es"
-	"github.com/jaegertracing/jaeger/pkg/es/config"
-	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 )
 
 const defaultMaxDocCount = 10_000
@@ -308,7 +308,7 @@ func TestGetThroughput(t *testing.T) {
 					test.indexPrefix += "-"
 				}
 				index := test.indexPrefix.Apply(test.index)
-				w.client.On("Search", index).Return(searchService)
+				w.client.On("Search", []string{index}).Return(searchService)
 				searchService.On("Size", mock.Anything).Return(searchService)
 				searchService.On("Query", mock.Anything).Return(searchService)
 				searchService.On("IgnoreUnavailable", true).Return(searchService)
@@ -320,7 +320,7 @@ func TestGetThroughput(t *testing.T) {
 					assert.Nil(t, actual)
 				} else {
 					require.NoError(t, err)
-					assert.EqualValues(t, test.expectedOutput, actual)
+					assert.Equal(t, test.expectedOutput, actual)
 				}
 			})
 		})
@@ -404,7 +404,7 @@ func TestGetLatestProbabilities(t *testing.T) {
 			withEsSampling(test.indexPrefix, "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
 				searchService := &mocks.SearchService{}
 				index := test.indexPrefix.Apply(test.index)
-				w.client.On("Search", index).Return(searchService)
+				w.client.On("Search", []string{index}).Return(searchService)
 				searchService.On("Size", mock.Anything).Return(searchService)
 				searchService.On("IgnoreUnavailable", true).Return(searchService)
 				searchService.On("Do", mock.Anything).Return(test.searchResult, test.searchError)
@@ -419,7 +419,7 @@ func TestGetLatestProbabilities(t *testing.T) {
 					assert.Nil(t, actual)
 				} else {
 					require.NoError(t, err)
-					assert.EqualValues(t, test.expectedOutput, actual)
+					assert.Equal(t, test.expectedOutput, actual)
 				}
 			})
 		})

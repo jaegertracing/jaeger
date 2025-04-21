@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/internal/adjuster"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
-	"github.com/jaegertracing/jaeger/model/adjuster"
 )
 
 var errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
@@ -55,12 +55,7 @@ type TraceQueryParameters struct {
 
 // NewQueryService returns a new QueryService.
 func NewQueryService(traceReader tracestore.Reader, dependencyReader depstore.Reader, options QueryServiceOptions) *QueryService {
-	spanReader, ok := v1adapter.GetV1Reader(traceReader)
-	if !ok {
-		// if the spanstore.Reader is not available, downgrade the native tracestore.Reader to
-		// a spanstore.Reader
-		spanReader = v1adapter.NewSpanReader(traceReader)
-	}
+	spanReader := v1adapter.GetV1Reader(traceReader)
 	qsvc := &QueryService{
 		spanReader:       spanReader,
 		dependencyReader: dependencyReader,

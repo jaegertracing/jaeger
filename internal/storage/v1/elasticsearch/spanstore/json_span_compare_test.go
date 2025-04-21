@@ -5,8 +5,8 @@
 package spanstore
 
 import (
+	"bytes"
 	"encoding/json"
-	"sort"
 	"testing"
 
 	"github.com/kr/pretty"
@@ -16,11 +16,12 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 )
 
-func CompareJSONSpans(t *testing.T, expected *dbmodel.Span, actual *dbmodel.Span) {
-	sortJSONSpan(expected)
-	sortJSONSpan(actual)
-
-	if !assert.EqualValues(t, expected, actual) {
+func CompareJSONSpans(t *testing.T, expected []byte, actual *dbmodel.Span) {
+	buf := &bytes.Buffer{}
+	enc := json.NewEncoder(buf)
+	enc.SetIndent("", "  ")
+	require.NoError(t, enc.Encode(actual))
+	if !assert.Equal(t, string(expected), buf.String()) {
 		for _, err := range pretty.Diff(expected, actual) {
 			t.Log(err)
 		}
@@ -28,37 +29,4 @@ func CompareJSONSpans(t *testing.T, expected *dbmodel.Span, actual *dbmodel.Span
 		require.NoError(t, err)
 		t.Logf("Actual trace: %s", string(out))
 	}
-}
-
-func sortJSONSpan(span *dbmodel.Span) {
-	sortJSONTags(span.Tags)
-	sortJSONLogs(span.Logs)
-	sortJSONProcess(span.Process)
-}
-
-type JSONTagByKey []dbmodel.KeyValue
-
-func (t JSONTagByKey) Len() int           { return len(t) }
-func (t JSONTagByKey) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
-func (t JSONTagByKey) Less(i, j int) bool { return t[i].Key < t[j].Key }
-
-func sortJSONTags(tags []dbmodel.KeyValue) {
-	sort.Sort(JSONTagByKey(tags))
-}
-
-type JSONLogByTimestamp []dbmodel.Log
-
-func (t JSONLogByTimestamp) Len() int           { return len(t) }
-func (t JSONLogByTimestamp) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
-func (t JSONLogByTimestamp) Less(i, j int) bool { return t[i].Timestamp < t[j].Timestamp }
-
-func sortJSONLogs(logs []dbmodel.Log) {
-	sort.Sort(JSONLogByTimestamp(logs))
-	for i := range logs {
-		sortJSONTags(logs[i].Fields)
-	}
-}
-
-func sortJSONProcess(process dbmodel.Process) {
-	sortJSONTags(process.Tags)
 }

@@ -14,16 +14,15 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/pkg/es/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 )
 
 func TestCommandExecute(t *testing.T) {
 	cmd := Command()
 
 	// TempFile to capture output
-	tempFile, err := os.CreateTemp("", "command-output-*.txt")
+	tempFile, err := os.Create(t.TempDir() + "command-output-*.txt")
 	require.NoError(t, err)
-	defer os.Remove(tempFile.Name())
 
 	// Redirect stdout to the TempFile
 	oldStdout := os.Stdout

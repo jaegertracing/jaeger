@@ -23,6 +23,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/internal/config"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
@@ -31,7 +32,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc/shared/mocks"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 type store struct {

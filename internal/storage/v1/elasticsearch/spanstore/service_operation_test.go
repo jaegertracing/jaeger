@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
-	"github.com/jaegertracing/jaeger/pkg/es/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 )
 
 func TestWriteService(t *testing.T) {
@@ -44,7 +44,7 @@ func TestWriteService(t *testing.T) {
 		w.writer.writeService(indexName, jsonSpan)
 
 		indexService.AssertNumberOfCalls(t, "Add", 1)
-		assert.Equal(t, "", w.logBuffer.String())
+		assert.Empty(t, w.logBuffer.String())
 
 		// test that cache works, will call the index service only once.
 		w.writer.writeService(indexName, jsonSpan)

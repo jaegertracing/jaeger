@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
-	ui "github.com/jaegertracing/jaeger/model/json"
+	ui "github.com/jaegertracing/jaeger/internal/uimodel"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -174,7 +174,7 @@ func getSamplingStrategy(t *testing.T) {
 
 	r, body := httpGet(t, samplingAddr+getSamplingStrategyURL)
 	t.Logf("Sampling strategy response: %s", string(body))
-	require.EqualValues(t, http.StatusOK, r.StatusCode)
+	require.Equal(t, http.StatusOK, r.StatusCode)
 
 	var queryResponse api_v2.SamplingStrategyResponse
 	require.NoError(t, jsonpb.Unmarshal(bytes.NewReader(body), &queryResponse))

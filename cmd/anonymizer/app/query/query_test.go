@@ -71,12 +71,15 @@ func newTestServer(t *testing.T) *testServer {
 	lis, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 
-	var exited sync.WaitGroup
+	var started, exited sync.WaitGroup
+	started.Add(1)
 	exited.Add(1)
 	go func() {
+		started.Done()
 		assert.NoError(t, server.Serve(lis))
 		exited.Done()
 	}()
+	started.Wait()
 	t.Cleanup(func() {
 		server.Stop()
 		exited.Wait() // don't allow test to finish before server exits
@@ -118,7 +121,7 @@ func TestQueryTrace(t *testing.T) {
 
 		spans, err := q.QueryTrace(mockTraceID.String(), startTime, endTime)
 		require.NoError(t, err)
-		assert.Equal(t, len(spans), len(mockTraceGRPC.Spans))
+		assert.Len(t, spans, len(mockTraceGRPC.Spans))
 	})
 
 	t.Run("Invalid TraceID", func(t *testing.T) {

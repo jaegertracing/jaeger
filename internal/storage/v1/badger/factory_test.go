@@ -15,8 +15,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/config"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 func TestInitializationErrors(t *testing.T) {
@@ -173,7 +173,7 @@ func TestBadgerMetrics(t *testing.T) {
 	vlogSize := waiter(0)
 	_, gs := mFactory.Snapshot()
 	assert.EqualValues(t, 0, vlogSize)
-	assert.EqualValues(t, int64(0), gs["badger_get_num_memtable"]) // IntVal metric
+	assert.Equal(t, int64(0), gs["badger_get_num_memtable"]) // IntVal metric
 
 	_, found = gs["badger_size_bytes_lsm"] // Map metric
 	assert.True(t, found)

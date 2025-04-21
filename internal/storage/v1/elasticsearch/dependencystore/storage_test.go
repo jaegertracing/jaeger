@@ -18,12 +18,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/dependencystore/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	"github.com/jaegertracing/jaeger/pkg/es"
-	"github.com/jaegertracing/jaeger/pkg/es/config"
-	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 )
 
 const defaultMaxDocCount = 10_000
@@ -53,10 +52,7 @@ func withDepStorage(indexPrefix config.IndexPrefix, indexDateLayout string, maxD
 	fn(r)
 }
 
-var (
-	_ dependencystore.Reader = &DependencyStore{} // check API conformance
-	_ dependencystore.Writer = &DependencyStore{} // check API conformance
-)
+var _ CoreDependencyStore = &DependencyStore{} // check API conformance
 
 func TestNewSpanReaderIndexPrefix(t *testing.T) {
 	testCases := []struct {
@@ -105,7 +101,7 @@ func TestWriteDependencies(t *testing.T) {
 			writeService.On("Type", stringMatcher(dependencyType)).Return(writeService)
 			writeService.On("BodyJson", mock.Anything).Return(writeService)
 			writeService.On("Add", mock.Anything).Return(nil, testCase.writeError)
-			err := r.storage.WriteDependencies(fixedTime, []model.DependencyLink{})
+			err := r.storage.WriteDependencies(fixedTime, []dbmodel.DependencyLink{})
 			if testCase.expectedError != "" {
 				require.EqualError(t, err, testCase.expectedError)
 			} else {
@@ -131,14 +127,14 @@ func TestGetDependencies(t *testing.T) {
 		searchResult   *elastic.SearchResult
 		searchError    error
 		expectedError  string
-		expectedOutput []model.DependencyLink
+		expectedOutput []dbmodel.DependencyLink
 		indexPrefix    config.IndexPrefix
 		maxDocCount    int
 		indices        []any
 	}{
 		{
 			searchResult: createSearchResult(goodDependencies),
-			expectedOutput: []model.DependencyLink{
+			expectedOutput: []dbmodel.DependencyLink{
 				{
 					Parent:    "hello",
 					Child:     "world",
@@ -170,7 +166,7 @@ func TestGetDependencies(t *testing.T) {
 			fixedTime := time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC)
 
 			searchService := &mocks.SearchService{}
-			r.client.On("Search", testCase.indices...).Return(searchService)
+			r.client.On("Search", mock.AnythingOfType("[]string")).Return(searchService)
 
 			searchService.On("Size", mock.MatchedBy(func(size int) bool {
 				return size == testCase.maxDocCount
@@ -185,7 +181,7 @@ func TestGetDependencies(t *testing.T) {
 				assert.Nil(t, actual)
 			} else {
 				require.NoError(t, err)
-				assert.EqualValues(t, testCase.expectedOutput, actual)
+				assert.Equal(t, testCase.expectedOutput, actual)
 			}
 		})
 	}
@@ -248,7 +244,7 @@ func TestGetReadIndices(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		s := NewDependencyStore(testCase.params)
-		assert.EqualValues(t, testCase.indices, s.getReadIndices(fixedTime, testCase.lookback))
+		assert.Equal(t, testCase.indices, s.getReadIndices(fixedTime, testCase.lookback))
 	}
 }
 
@@ -270,7 +266,7 @@ func TestGetWriteIndex(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		s := NewDependencyStore(testCase.params)
-		assert.EqualValues(t, testCase.writeIndex, s.getWriteIndex(fixedTime))
+		assert.Equal(t, testCase.writeIndex, s.getWriteIndex(fixedTime))
 	}
 }
 

@@ -16,12 +16,12 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
+	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
+	"github.com/jaegertracing/jaeger/internal/storage/cassandra/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	"github.com/jaegertracing/jaeger/pkg/cassandra"
-	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 type depStorageTest struct {
@@ -235,7 +235,7 @@ func TestDependencyStoreGetDependencies(t *testing.T) {
 					assert.Contains(t, s.logBuffer.String(), expectedLog, "Log must contain %s, but was %s", expectedLog, s.logBuffer.String())
 				}
 				if len(testCase.expectedLogs) == 0 {
-					assert.Equal(t, "", s.logBuffer.String())
+					assert.Empty(t, s.logBuffer.String())
 				}
 			})
 		})

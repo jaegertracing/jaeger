@@ -21,11 +21,11 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
+	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
+	"github.com/jaegertracing/jaeger/internal/storage/cassandra/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	"github.com/jaegertracing/jaeger/pkg/cassandra"
-	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
 )
 
 type spanReaderTest struct {
@@ -162,14 +162,14 @@ func TestSpanReaderGetTrace(t *testing.T) {
 			withSpanReader(t, func(r *spanReaderTest) {
 				iter := &mocks.Iterator{}
 				iter.On("Scan", testCase.scanner).Return(true)
-				iter.On("Scan", matchEverything()).Return(false)
+				iter.On("Scan", mock.Anything).Return(false)
 				iter.On("Close").Return(testCase.closeErr)
 
 				query := &mocks.Query{}
 				query.On("Consistency", cassandra.One).Return(query)
 				query.On("Iter").Return(iter)
 
-				r.session.On("Query", mock.AnythingOfType("string"), matchEverything()).Return(query)
+				r.session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
 
 				trace, err := r.reader.GetTrace(context.Background(), spanstore.GetTraceParameters{})
 				if testCase.expectedErr == "" {
@@ -188,14 +188,14 @@ func TestSpanReaderGetTrace(t *testing.T) {
 func TestSpanReaderGetTrace_TraceNotFound(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		iter := &mocks.Iterator{}
-		iter.On("Scan", matchEverything()).Return(false)
+		iter.On("Scan", mock.Anything).Return(false)
 		iter.On("Close").Return(nil)
 
 		query := &mocks.Query{}
 		query.On("Consistency", cassandra.One).Return(query)
 		query.On("Iter").Return(iter)
 
-		r.session.On("Query", mock.AnythingOfType("string"), matchEverything()).Return(query)
+		r.session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
 
 		trace, err := r.reader.GetTrace(context.Background(), spanstore.GetTraceParameters{})
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
@@ -352,11 +352,11 @@ func TestSpanReaderFindTraces(t *testing.T) {
 				mockQuery := func(queryErr error) *mocks.Query {
 					iter := &mocks.Iterator{}
 					iter.On("Scan", scanMatcher("queryIter")).Return(true)
-					iter.On("Scan", matchEverything()).Return(false)
+					iter.On("Scan", mock.Anything).Return(false)
 					iter.On("Close").Return(queryErr)
 
 					query := &mocks.Query{}
-					query.On("Bind", matchEverything()).Return(query)
+					query.On("Bind", mock.Anything).Return(query)
 					query.On("Consistency", cassandra.One).Return(query)
 					query.On("PageSize", 0).Return(query)
 					query.On("Iter").Return(iter)
@@ -373,34 +373,34 @@ func TestSpanReaderFindTraces(t *testing.T) {
 				makeLoadQuery := func() *mocks.Query {
 					loadQueryIter := &mocks.Iterator{}
 					loadQueryIter.On("Scan", scanMatcher("loadIter")).Return(true)
-					loadQueryIter.On("Scan", matchEverything()).Return(false)
+					loadQueryIter.On("Scan", mock.Anything).Return(false)
 					loadQueryIter.On("Close").Return(testCase.loadQueryError)
 
 					loadQuery := &mocks.Query{}
 					loadQuery.On("Consistency", cassandra.One).Return(loadQuery)
 					loadQuery.On("Iter").Return(loadQueryIter)
-					loadQuery.On("PageSize", matchEverything()).Return(loadQuery)
+					loadQuery.On("PageSize", mock.Anything).Return(loadQuery)
 					return loadQuery
 				}
 
 				r.session.On("Query",
-					stringMatcher(queryByServiceName),
-					matchEverything()).Return(mainQuery)
+					queryByServiceName,
+					mock.Anything).Return(mainQuery)
 				r.session.On("Query",
-					stringMatcher(queryByTag),
-					matchEverything()).Return(tagsQuery)
+					queryByTag,
+					mock.Anything).Return(tagsQuery)
 				r.session.On("Query",
-					stringMatcher(queryByServiceAndOperationName),
-					matchEverything()).Return(operationQuery)
+					queryByServiceAndOperationName,
+					mock.Anything).Return(operationQuery)
 				r.session.On("Query",
-					stringMatcher(queryByDuration),
-					matchEverything()).Return(durationQuery)
+					queryByDuration,
+					mock.Anything).Return(durationQuery)
 				r.session.On("Query",
 					stringMatcher("SELECT trace_id"),
 					matchOnce()).Return(makeLoadQuery())
 				r.session.On("Query",
 					stringMatcher("SELECT trace_id"),
-					matchEverything()).Return(makeLoadQuery())
+					mock.Anything).Return(makeLoadQuery())
 
 				queryParams := &spanstore.TraceQueryParameters{
 					ServiceName:  "service-a",
@@ -433,7 +433,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 					assert.Contains(t, r.logBuffer.String(), expectedLog)
 				}
 				if len(testCase.expectedLogs) == 0 {
-					assert.Equal(t, "", r.logBuffer.String())
+					assert.Empty(t, r.logBuffer.String())
 				}
 			})
 		})

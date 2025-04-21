@@ -19,7 +19,7 @@ runs:
   using: 'composite'
   steps:
     - name: Retry upload
-      uses: Wandalen/wretry.action@v3.8.0
+      uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
       with:
         attempt_limit: 6
         # sleep 10 seconds between retries

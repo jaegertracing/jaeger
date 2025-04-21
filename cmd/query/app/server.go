@@ -29,12 +29,11 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/apiv3"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
+	"github.com/jaegertracing/jaeger/internal/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/recoveryhandler"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
-	"github.com/jaegertracing/jaeger/pkg/bearertoken"
-	"github.com/jaegertracing/jaeger/pkg/netutils"
 )
 
 // Server runs HTTP, Mux and a grpc server
@@ -270,12 +269,12 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	var httpPort int
-	if port, err := netutils.GetPort(s.httpConn.Addr()); err == nil {
+	if port, err := getPortForAddr(s.httpConn.Addr()); err == nil {
 		httpPort = port
 	}
 
 	var grpcPort int
-	if port, err := netutils.GetPort(s.grpcConn.Addr()); err == nil {
+	if port, err := getPortForAddr(s.grpcConn.Addr()); err == nil {
 		grpcPort = port
 	}
 

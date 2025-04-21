@@ -1,196 +1,94 @@
-issues:
-  # Excluding configuration per-path, per-linter, per-text and per-source
-  exclude-rules:
-    # Exclude some linters from running on tests files.
-    - path: _test\.go
-      linters: [gosec, bodyclose, noctx]
-
-    - path: crossdock
-      linters: [noctx]
-
-    # See https://github.com/jaegertracing/jaeger/issues/4488
-    - path: internal/grpctest/
-      linters: [staticcheck]
-
-    - linters: [gocritic]
-      text: "dupArg"
-    - linters: [gocritic]
-      text: "exitAfterDefer"
-    - linters: [gocritic]
-      text: "appendAssign"
-  exclude-dirs-use-default: false
-  exclude-dirs:
-    - mocks
-    - thrift-0.9.2
-    - .*-gen
-  exclude-files:
-    - ".*.pb.go$"
-  max-issues-per-linter: 0
-  max-same-issues: 0
-
+version: "2"
+run:
+  go: "1.23"
 linters:
+  enable:
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - contextcheck
+    - copyloopvar
+    - decorder
+    - depguard
+    - durationcheck
+    - errname
+    - errorlint
+    - gocritic
+    - gosec
+    - misspell
+    - nakedret
+    - nilerr
+    - noctx
+    - nolintlint
+    - perfsprint
+    - revive
+    - testifylint
+    - usestdlibvars
+    - usetesting
   disable:
     - errcheck
-  enable:
-    # Plain ASCII identifiers.
-    - asciicheck
-
-    # Checks for dangerous unicode character sequences.
-    - bidichk
-
-    # Checks whether HTTP response body is closed successfully.
-    # TODO enable this but maybe find a way to disable in tests.
-    - bodyclose
-
-    # Check whether the function uses a non-inherited context.
-    - contextcheck
-
-    # Check declaration order of types, consts, vars and funcs.
-    - decorder
-
-    # Checks if package imports are in a list of acceptable packages (see cfg below).
-    - depguard
-
-    # Check for two durations multiplied together.
-    - durationcheck
-
-    # Checks `Err-` prefix for var and `-Error` suffix for error type.
-    - errname
-
-    # Suggests to use `%w` for error-wrapping.
-    - errorlint
-
-    # Checks for pointers to enclosing loop variables.
-    - copyloopvar
-
-    - gocritic
-    - gofmt
-    - gofumpt
-    - goimports
-
-    # Allow or ban replace directives in go.mod
-    # or force explanation for retract directives.
-    # Maybe enable once we get rid of old sarama.
-    # - gomoddirectives
-
-    - gosec
-
-    # Linter that specializes in simplifying code.
-    - gosimple
-    - govet
-
-    # Detects when assignments to existing variables are not used.
-    - ineffassign
-
-    - misspell
-
-    # Finds naked/bare returns and requires change them.
-    - nakedret
-
-    # Require a bit more explicit returns.
-    - nilerr
-
-    # Finds sending HTTP request without context.Context.
-    - noctx
-
-    # Reports ill-formed or insufficient nolint directives.
-    - nolintlint
-
-    # Checks that fmt.Sprintf can be replaced with a faster alternative.
-    - perfsprint
-
-    # Fast, configurable, extensible, flexible, and beautiful linter for Go. Drop-in replacement of golint.
-    - revive
-
-    # Checks usage of github.com/stretchr/testify.
-    - testifylint
-
-    # Detects the possibility to use variables/constants from the Go standard library.
-    - usestdlibvars
-
-    # TODO consider adding more linters, cf. https://olegk.dev/go-linters-configuration-the-right-version
-
-linters-settings:
-  depguard:
-    rules:
-      disallowed-deps:
-        deny:
-          - pkg: go.uber.org/atomic
-            desc: "Use 'sync/atomic' instead of go.uber.org/atomic"
-          - pkg: io/ioutil
-            desc: "Use os or io instead of io/ioutil"
-          - pkg: github.com/hashicorp/go-multierror
-            desc: "Use errors.Join instead of github.com/hashicorp/go-multierror"
-          - pkg: go.uber.org/multierr
-            desc: "Use errors.Join instead of github.com/hashicorp/go-multierror"
-          - pkg: "github.com/jaegertracing/jaeger/model$"
-            desc: "Use github.com/jaegertracing/jaeger-idl/model/v1"
-          - pkg: "github.com/jaegertracing/jaeger/proto-gen/api_v2$"
-            desc: "Use github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
-      # crossdock-go provides assert/require similar to stretchr/testify
-      # but we never want to use them outside of the crossdock tests.
-      disallow-crossdock:
-        deny:
-          - pkg: github.com/crossdock/crossdock-go
-            desc: "Do not refer to crossdock from other packages"
-        files:
-          - "!**/crossdock/**"
-
-      disallow-uber/goleak:
-        deny:
-         - pkg: go.uber.org/goleak
-           desc: "Use github.com/jaegertracing/jaeger/internal/testutils"
-        files:
-          - "**_test.go"
-
-      disallow-otel-contrib-translator:
-        deny:
-          - pkg: github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger
-            desc: "Use v1adapter package instead of opentelemetry-collector-contrib/pkg/translator/jaeger"
-        files:
-          - "!**/v1adapter/**"
-
-  goimports:
-    local-prefixes: github.com/jaegertracing/jaeger
-  gosec:
-    # To specify a set of rules to explicitly exclude.
-    # Available rules: https://github.com/securego/gosec#available-rules
-    excludes:
-      - G104
-      - G107
-      - G404
-      - G601
-  govet:
-    enable-all: true
-    disable:
-      # There is rarely performance differences due to padding,
-      # the most noticable impact is memory usage. However,
-      # the main trace data is Protobuf-generated and we ignore
-      # those files from linting, so this linter is not useful.
-      - fieldalignment
-      # Disable shadow
-      - shadow
-  perfsprint:
-    # Optimizes even if it requires an int or uint type cast.
-    int-conversion: true
-    # Optimizes into `err.Error()` even if it is only equivalent for non-nil errors.
-    err-error: true
-    # Optimizes `fmt.Errorf`.
-    errorf: true
-    # Optimizes `fmt.Sprintf` with only one argument.
-    sprintf1: true
-    # Optimizes into strings concatenation.
-    strconcat: true
-  revive:
-      ignore-generated-header: true
+    - staticcheck
+  settings:
+    depguard:
+      rules:
+        disallow-crossdock:
+          files:
+            - '!**/crossdock/**'
+          deny:
+            - pkg: github.com/crossdock/crossdock-go
+              desc: Do not refer to crossdock from other packages
+        disallow-otel-contrib-translator:
+          files:
+            - '!**/v1adapter/**'
+          deny:
+            - pkg: github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger
+              desc: Use v1adapter package instead of opentelemetry-collector-contrib/pkg/translator/jaeger
+        disallow-uber/goleak:
+          files:
+            - '**_test.go'
+          deny:
+            - pkg: go.uber.org/goleak
+              desc: Use github.com/jaegertracing/jaeger/internal/testutils
+        disallowed-deps:
+          deny:
+            - pkg: go.uber.org/atomic
+              desc: Use 'sync/atomic' instead of go.uber.org/atomic
+            - pkg: io/ioutil
+              desc: Use os or io instead of io/ioutil
+            - pkg: github.com/hashicorp/go-multierror
+              desc: Use errors.Join instead of github.com/hashicorp/go-multierror
+            - pkg: go.uber.org/multierr
+              desc: Use errors.Join instead of github.com/hashicorp/go-multierror
+            - pkg: github.com/jaegertracing/jaeger/model$
+              desc: Use github.com/jaegertracing/jaeger-idl/model/v1
+            - pkg: github.com/jaegertracing/jaeger/internal/proto-gen/api_v2$
+              desc: Use github.com/jaegertracing/jaeger-idl/proto-gen/api_v2
+    gosec:
+      excludes:
+        - G104
+        - G107
+        - G404
+        - G601
+    govet:
+      disable:
+        - fieldalignment
+        - shadow
+      enable-all: true
+    perfsprint:
+      int-conversion: true
+      err-error: true
+      errorf: true
+      sprintf1: true
+      strconcat: true
+    revive:
       severity: error
       enable-all-rules: true
-      # See https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md
       rules:
         # not a completely bad linter, but needs clean-up and sensible width (80 is too small)
         - name: line-length-limit
+          arguments:
+            - 80
           disabled: true
-          arguments: [80]
         # would be ok if we could exclude the test files, but otherwise too noisy
         - name: add-constant
           disabled: true
@@ -245,9 +143,57 @@ linters-settings:
         # this rule conflicts with nolintlint which does insist on no-space in //nolint
         - name: comment-spacings
           disabled: true
-  testifylint:
-    enable-all: true
-
-run:
-  go: "1.23"
-  timeout: 20m
+    testifylint:
+      enable-all: true
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - bodyclose
+          - gosec
+          - noctx
+        path: _test\.go
+      - linters:
+          - noctx
+        path: crossdock
+      - linters:
+          - staticcheck
+        path: internal/grpctest/
+      - linters:
+          - gocritic
+        text: dupArg
+      - linters:
+          - gocritic
+        text: exitAfterDefer
+      - linters:
+          - gocritic
+        text: appendAssign
+    paths:
+      - .*.pb.go$
+      - mocks
+      - thrift-0.9.2
+      - .*-gen
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+formatters:
+  enable:
+    - gofmt
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/jaegertracing/jaeger
+  exclusions:
+    generated: lax
+    paths:
+      - .*.pb.go$
+      - mocks
+      - thrift-0.9.2
+      - .*-gen

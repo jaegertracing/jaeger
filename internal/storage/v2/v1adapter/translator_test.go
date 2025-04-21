@@ -237,14 +237,14 @@ func TestV1TracesFromSeq2(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			actualTraces, err := V1TracesFromSeq2(tc.seqTrace)
 			require.Equal(t, tc.expectedErr, err)
-			require.Equal(t, len(tc.expectedModelTraces), len(actualTraces))
+			require.Len(t, actualTraces, len(tc.expectedModelTraces))
 			if len(tc.expectedModelTraces) < 1 {
 				return
 			}
 			for i, etrace := range tc.expectedModelTraces {
 				eSpans := etrace.Spans
 				aSpans := actualTraces[i].Spans
-				require.Equal(t, len(eSpans), len(aSpans))
+				require.Len(t, aSpans, len(eSpans))
 				for j, espan := range eSpans {
 					assert.Equal(t, espan.TraceID, aSpans[j].TraceID)
 					assert.Equal(t, espan.OperationName, aSpans[j].OperationName)

@@ -26,11 +26,11 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/bearertoken"
 	config "github.com/jaegertracing/jaeger/internal/config/promcfg"
+	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/testutils"
-	"github.com/jaegertracing/jaeger/pkg/bearertoken"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
 )
 
 type (
@@ -769,9 +769,8 @@ func TestGetRoundTripperTLSConfig(t *testing.T) {
 func TestGetRoundTripperTokenFile(t *testing.T) {
 	const wantBearer = "token from file"
 
-	file, err := os.CreateTemp("", "token_")
+	file, err := os.Create(t.TempDir() + "token_")
 	require.NoError(t, err)
-	defer func() { require.NoError(t, os.Remove(file.Name())) }()
 
 	_, err = file.Write([]byte(wantBearer))
 	require.NoError(t, err)
@@ -804,9 +803,9 @@ func TestGetRoundTripperTokenFile(t *testing.T) {
 }
 
 func TestGetRoundTripperTokenFromContext(t *testing.T) {
-	file, err := os.CreateTemp("", "token_")
+	file, err := os.Create(t.TempDir() + "token_")
 	require.NoError(t, err)
-	defer func() { require.NoError(t, os.Remove(file.Name())) }()
+
 	_, err = file.Write([]byte("token from file"))
 	require.NoError(t, err)
 	require.NoError(t, file.Close())
@@ -970,7 +969,7 @@ func assertMetrics(t *testing.T, gotMetrics *metrics.MetricFamily, wantLabels ma
 
 	// There is no guaranteed order of labels, so we need to take the approach of using a map of expected values.
 	labels := gotMetrics.Metrics[0].Labels
-	assert.Equal(t, len(wantLabels), len(labels))
+	assert.Len(t, labels, len(wantLabels))
 	for _, l := range labels {
 		assert.Contains(t, wantLabels, l.Name)
 		assert.Equal(t, wantLabels[l.Name], l.Value)

@@ -13,8 +13,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
-	grpcMocks "github.com/jaegertracing/jaeger/proto-gen/storage_v1/mocks"
+	"github.com/jaegertracing/jaeger/internal/proto-gen/storage_v1"
+	grpcMocks "github.com/jaegertracing/jaeger/internal/proto-gen/storage_v1/mocks"
 )
 
 type streamingSpanWriterTest struct {

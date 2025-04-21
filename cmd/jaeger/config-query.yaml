@@ -15,8 +15,7 @@ service:
             exporter:
               prometheus:
                 host: 0.0.0.0
-                # use different port to avoid conflict with collector on 8888
-                port: 8887
+                port: 8888
     logs:
       level: info
 
@@ -24,8 +23,6 @@ extensions:
   healthcheckv2:
     use_v2: true
     http:
-      # use different port to avoid conflict with collector on 13133
-      endpoint: 0.0.0.0:12133
 
   jaeger_query:
     storage:
@@ -36,8 +33,10 @@ extensions:
   jaeger_storage:
     backends:
       query_storage:
-        memory:
-          max_traces: 100000
+        grpc:
+          endpoint: localhost:17271
+          tls:
+            insecure: true
 
 receivers:
   nop:

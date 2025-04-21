@@ -22,7 +22,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/crossdock/services/mocks"
-	ui "github.com/jaegertracing/jaeger/model/json"
+	ui "github.com/jaegertracing/jaeger/internal/uimodel"
 )
 
 var testTrace = ui.Trace{
@@ -416,7 +416,7 @@ func TestAdaptiveSamplingTestInternal(t *testing.T) {
 	for i, test := range tests {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			query := &mocks.QueryService{}
-			agent := &mocks.AgentService{}
+			agent := &mocks.CollectorService{}
 
 			handler := &TraceHandler{
 				agent:  agent,
@@ -450,8 +450,8 @@ func TestAdaptiveSamplingTestInternal(t *testing.T) {
 
 func TestEndToEndTest(t *testing.T) {
 	query := &mocks.QueryService{}
-	agent := &mocks.AgentService{}
-	cT := &mocks.T{}
+	agent := &mocks.CollectorService{}
+	cT := &TMock{}
 	handler := NewTraceHandler(query, agent, zap.NewNop())
 	handler.getTracesSleepDuration = time.Millisecond
 
@@ -489,8 +489,8 @@ func TestAdaptiveSamplingTest(t *testing.T) {
 	defer server.Close()
 
 	query := &mocks.QueryService{}
-	agent := &mocks.AgentService{}
-	cT := &mocks.T{}
+	agent := &mocks.CollectorService{}
+	cT := &TMock{}
 	handler := &TraceHandler{
 		agent:  agent,
 		query:  query,
@@ -528,7 +528,7 @@ func TestAdaptiveSamplingTest(t *testing.T) {
 		},
 	}
 
-	agent = &mocks.AgentService{}
+	agent = &mocks.CollectorService{}
 	handler.agent = agent
 	agent.On("GetSamplingRate", "go", mock.AnythingOfType("string")).Return(0.222, nil)
 	// The query service returns an adaptive sampled trace

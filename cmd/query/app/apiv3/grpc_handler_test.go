@@ -18,12 +18,12 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
+	_ "github.com/jaegertracing/jaeger/internal/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
-	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
 )
 
 var matchContext = mock.AnythingOfType("*context.valueCtx")
@@ -108,7 +108,7 @@ func TestGetTrace(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tsc := newTestServerClient(t)
-			tsc.reader.On("GetTraces", matchContext, tc.expectedQuery).
+			tsc.reader.On("GetTraces", matchContext, []tracestore.GetTraceParams{tc.expectedQuery}).
 				Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 					yield([]ptrace.Traces{makeTestTrace()}, nil)
 				})).Once()
@@ -118,7 +118,7 @@ func TestGetTrace(t *testing.T) {
 			recv, err := getTraceStream.Recv()
 			require.NoError(t, err)
 			td := recv.ToTraces()
-			require.EqualValues(t, 1, td.SpanCount())
+			require.Equal(t, 1, td.SpanCount())
 			assert.Equal(t, "foobar",
 				td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Name())
 		})
@@ -127,7 +127,7 @@ func TestGetTrace(t *testing.T) {
 
 func TestGetTraceStorageError(t *testing.T) {
 	tsc := newTestServerClient(t)
-	tsc.reader.On("GetTraces", matchContext, tracestore.GetTraceParams{TraceID: traceID}).
+	tsc.reader.On("GetTraces", matchContext, []tracestore.GetTraceParams{{TraceID: traceID}}).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 			yield(nil, assert.AnError)
 		})).Once()
@@ -182,7 +182,7 @@ func TestFindTraces(t *testing.T) {
 	recv, err := responseStream.Recv()
 	require.NoError(t, err)
 	td := recv.ToTraces()
-	require.EqualValues(t, 1, td.SpanCount())
+	require.Equal(t, 1, td.SpanCount())
 }
 
 func TestFindTracesSendError(t *testing.T) {

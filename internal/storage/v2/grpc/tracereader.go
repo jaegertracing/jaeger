@@ -5,15 +5,17 @@ package grpc
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"iter"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc"
 
+	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	"github.com/jaegertracing/jaeger/proto-gen/storage/v2"
 )
 
 var _ tracestore.Reader = (*TraceReader)(nil)
@@ -31,17 +33,42 @@ func NewTraceReader(conn *grpc.ClientConn) *TraceReader {
 	}
 }
 
-func (*TraceReader) GetTraces(
-	context.Context,
-	...tracestore.GetTraceParams,
+func (tr *TraceReader) GetTraces(
+	ctx context.Context,
+	traceIDs ...tracestore.GetTraceParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
-	panic("not implemented")
+	return func(yield func([]ptrace.Traces, error) bool) {
+		query := []*storage.GetTraceParams{}
+		for _, traceID := range traceIDs {
+			query = append(query, &storage.GetTraceParams{
+				TraceId:   traceID.TraceID[:],
+				StartTime: traceID.Start,
+				EndTime:   traceID.End,
+			})
+		}
+		stream, err := tr.client.GetTraces(ctx, &storage.GetTracesRequest{
+			Query: query,
+		})
+		if err != nil {
+			yield(nil, fmt.Errorf("failed to execute GetTraces: %w", err))
+			return
+		}
+		for received, err := stream.Recv(); !errors.Is(err, io.EOF); received, err = stream.Recv() {
+			if err != nil {
+				yield(nil, fmt.Errorf("received error from grpc stream: %w", err))
+				return
+			}
+			if !yield([]ptrace.Traces{received.ToTraces()}, nil) {
+				return
+			}
+		}
+	}
 }
 
 func (tr *TraceReader) GetServices(ctx context.Context) ([]string, error) {
 	resp, err := tr.client.GetServices(ctx, &storage.GetServicesRequest{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get services: %w", err)
+		return nil, fmt.Errorf("failed to execute GetServices: %w", err)
 	}
 	return resp.Services, nil
 }
@@ -55,7 +82,7 @@ func (tr *TraceReader) GetOperations(
 		SpanKind: params.SpanKind,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get operations: %w", err)
+		return nil, fmt.Errorf("failed to execute GetOperations: %w", err)
 	}
 	operations := make([]tracestore.Operation, len(resp.Operations))
 	for i, op := range resp.Operations {
@@ -67,11 +94,28 @@ func (tr *TraceReader) GetOperations(
 	return operations, nil
 }
 
-func (*TraceReader) FindTraces(
-	context.Context,
-	tracestore.TraceQueryParams,
+func (tr *TraceReader) FindTraces(
+	ctx context.Context,
+	params tracestore.TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
-	panic("not implemented")
+	return func(yield func([]ptrace.Traces, error) bool) {
+		stream, err := tr.client.FindTraces(ctx, &storage.FindTracesRequest{
+			Query: toProtoQueryParameters(params),
+		})
+		if err != nil {
+			yield(nil, fmt.Errorf("failed to execute FindTraces: %w", err))
+			return
+		}
+		for received, err := stream.Recv(); !errors.Is(err, io.EOF); received, err = stream.Recv() {
+			if err != nil {
+				yield(nil, fmt.Errorf("received error from grpc stream: %w", err))
+				return
+			}
+			if !yield([]ptrace.Traces{received.ToTraces()}, nil) {
+				return
+			}
+		}
+	}
 }
 
 func (tr *TraceReader) FindTraceIDs(
