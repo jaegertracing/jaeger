@@ -14,14 +14,24 @@
       "scopeSpans": [
         {
           "scope": {
-            "name": "testing-library",
-            "version": "1.1.1"
+            "name": "testing-library-2",
+            "version": "1.1.1",
+            "attributes": [
+              {
+                "key": "scope.attributes.2",
+                "value": {
+                  "stringValue": "attribute-y"
+                }
+              }
+            ]
           },
           "spans": [
             {
               "traceId": "00000000000000020000000000000000",
               "spanId": "0000000000000003",
               "parentSpanId": "0000000000000010",
+              "kind": 3,
+              "traceState": "state.3",
               "flags": 1,
               "name": "test-general-conversion-3",
               "startTimeUnixNano": "1485467191639875000",
@@ -111,14 +121,24 @@
         },
         {
           "scope": {
-            "name": "testing-library-1",
-            "version": "1.1.2"
+            "name": "testing-library-3",
+            "version": "1.1.2",
+            "attributes": [
+              {
+                "key": "scope.attributes.3",
+                "value": {
+                  "stringValue": "attribute-y"
+                }
+              }
+            ]
           },
           "spans": [
             {
               "traceId": "00000000000000020000000000000000",
               "spanId": "0000000000000005",
               "parentSpanId": "0000000000000010",
+              "kind": 5,
+              "traceState": "state.5",
               "flags": 1,
               "name": "test-general-conversion-5",
               "startTimeUnixNano": "1485467191639875000",

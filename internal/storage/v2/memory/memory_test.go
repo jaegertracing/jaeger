@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"os"
 	"sort"
 	"testing"
@@ -45,19 +46,19 @@ func TestNewStore_DefaultConfig(t *testing.T) {
 	expectedOperations := []tracestore.Operation{
 		{
 			Name:     "test-general-conversion-2",
-			SpanKind: "Unspecified",
+			SpanKind: "Server",
 		},
 		{
 			Name:     "test-general-conversion-3",
-			SpanKind: "Unspecified",
+			SpanKind: "Client",
 		},
 		{
 			Name:     "test-general-conversion-4",
-			SpanKind: "Unspecified",
+			SpanKind: "Producer",
 		},
 		{
 			Name:     "test-general-conversion-5",
-			SpanKind: "Unspecified",
+			SpanKind: "Consumer",
 		},
 	}
 	sort.Slice(operations, func(i, j int) bool {
@@ -68,12 +69,118 @@ func TestNewStore_DefaultConfig(t *testing.T) {
 	services, err := store.GetServices(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, expectedServices, services)
+	queryAttrs := getQueryAttributes()
+	gotIter := store.FindTraces(context.Background(), tracestore.TraceQueryParams{
+		ServiceName:   "service-x",
+		OperationName: "test-general-conversion-2",
+		Attributes:    queryAttrs,
+	})
+	i := 0
+	for foundTraces, err := range gotIter {
+		i++
+		require.NoError(t, err)
+		assert.Len(t, foundTraces, 1)
+		testTraces(t, expected, foundTraces[0])
+	}
+	assert.Equal(t, 1, i)
+}
+
+func getQueryAttributes() pcommon.Map {
 	queryAttrs := pcommon.NewMap()
+	// These are overly constrained query attributes, typically they should match only one span
 	queryAttrs.PutStr(conventions.OtelStatusCode, "Error")
-	queryAttrs.PutStr(conventions.AttributeOtelScopeName, "testing-library")
+	queryAttrs.PutStr(conventions.AttributeOtelScopeName, "testing-library-2")
 	queryAttrs.PutStr(conventions.AttributeOtelScopeVersion, "1.1.1")
 	queryAttrs.PutStr("peer.service", "service-y")
-	gotIter := store.FindTraces(context.Background(), tracestore.TraceQueryParams{})
+	queryAttrs.PutStr(model.SpanKindKey, "server")
+	queryAttrs.PutDouble("temperature", 72.5)
+	queryAttrs.PutStr(tagW3CTraceState, "state.2")
+	return queryAttrs
+}
+
+func TestFindTraces_WrongQuery(t *testing.T) {
+	wrongStringValue := "wrongStringValue"
+	tests := []struct {
+		name           string
+		modifyQueryFxn func(query *tracestore.TraceQueryParams)
+		iterLength     int
+	}{
+		{
+			name: "wrong service-name",
+			modifyQueryFxn: func(query *tracestore.TraceQueryParams) {
+				query.Attributes.PutStr(conventions.AttributeServiceName, wrongStringValue)
+			},
+		},
+		{
+			name: "wrong scope name",
+			modifyQueryFxn: func(query *tracestore.TraceQueryParams) {
+				query.Attributes.PutStr(conventions.AttributeOtelScopeName, wrongStringValue)
+			},
+		},
+		{
+			name: "wrong scope-version",
+			modifyQueryFxn: func(query *tracestore.TraceQueryParams) {
+				query.Attributes.PutStr(conventions.AttributeOtelScopeVersion, wrongStringValue)
+			},
+		},
+		{
+			name: "wrong tag",
+			modifyQueryFxn: func(query *tracestore.TraceQueryParams) {
+				query.Attributes.PutStr(wrongStringValue, wrongStringValue)
+			},
+		},
+		{
+			name: "wrong kind",
+			modifyQueryFxn: func(query *tracestore.TraceQueryParams) {
+				query.Attributes.PutStr(model.SpanKindKey, wrongStringValue)
+			},
+			iterLength: 1,
+		},
+		{
+			name: "wrong operation name",
+			modifyQueryFxn: func(query *tracestore.TraceQueryParams) {
+				query.OperationName = wrongStringValue
+			},
+		},
+		{
+			name: "wrong status code",
+			modifyQueryFxn: func(query *tracestore.TraceQueryParams) {
+				query.Attributes.PutStr(conventions.AttributeOtelStatusCode, wrongStringValue)
+			},
+			iterLength: 1,
+		},
+		{
+			name: "wrong status message",
+			modifyQueryFxn: func(query *tracestore.TraceQueryParams) {
+				query.Attributes.PutStr(conventions.AttributeOtelStatusDescription, wrongStringValue)
+			},
+		},
+	}
+	store := NewStore(v1.Configuration{})
+	td := loadInputTraces(t, 1)
+	err := store.WriteTraces(context.Background(), td)
+	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			query := tracestore.TraceQueryParams{
+				ServiceName:   "service-x",
+				OperationName: "test-general-conversion-2",
+				Attributes:    getQueryAttributes(),
+			}
+			tt.modifyQueryFxn(&query)
+			gotIter := store.FindTraces(context.Background(), query)
+			iterLength := 0
+			for _, err := range gotIter {
+				require.NoError(t, err)
+				iterLength++
+			}
+			assert.Equal(t, tt.iterLength, iterLength)
+		})
+	}
+}
+
+func TestFindTraces_MaxTraces(t *testing.T) {
+	
 }
 
 func TestGetOperationsWithKind(t *testing.T) {

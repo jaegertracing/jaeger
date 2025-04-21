@@ -168,10 +168,10 @@ func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryPara
 func toMemoryTraceQueryParams(query tracestore.TraceQueryParams) memoryTraceQueryParams {
 	attrs := pcommon.NewMap()
 	query.Attributes.CopyTo(attrs)
-	traceState := getTraceStateFromAttrs(attrs)
-	kind := getSpanKindFromAttrs(attrs)
+	traceState := getAndDeleteTraceStateFromAttrs(attrs)
+	kind := getAndDeleteSpanKindFromAttrs(attrs)
 	statusCode, statusMsg := getStatusCodeAndMessageFromAttrs(attrs)
-	scopeName, scopeVersion := getScopeNameAndVersionFromAttrs(attrs)
+	scopeName, scopeVersion := getAndDeleteScopeNameAndVersionFromAttrs(attrs)
 	return memoryTraceQueryParams{
 		OperationName: query.OperationName,
 		StartTimeMin:  query.StartTimeMin,
@@ -190,19 +190,19 @@ func toMemoryTraceQueryParams(query tracestore.TraceQueryParams) memoryTraceQuer
 	}
 }
 
-func getScopeNameAndVersionFromAttrs(attrs pcommon.Map) (name string, version string) {
+func getAndDeleteScopeNameAndVersionFromAttrs(attrs pcommon.Map) (name string, version string) {
 	if nameVal, ok := attrs.Get(conventions.AttributeOtelScopeName); ok {
-		attrs.Remove(conventions.AttributeOtelScopeName)
 		name = nameVal.Str()
+		attrs.Remove(conventions.AttributeOtelScopeName)
 	}
 	if versionVal, ok := attrs.Get(conventions.AttributeOtelScopeVersion); ok {
-		attrs.Remove(conventions.AttributeOtelScopeVersion)
 		version = versionVal.Str()
+		attrs.Remove(conventions.AttributeOtelScopeVersion)
 	}
 	return name, version
 }
 
-func getTraceStateFromAttrs(attrs pcommon.Map) string {
+func getAndDeleteTraceStateFromAttrs(attrs pcommon.Map) string {
 	traceState := ""
 	// TODO Bring this inline with solution for jaegertracing/jaeger-client-java #702 once available
 	if attr, ok := attrs.Get(tagW3CTraceState); ok {
@@ -212,11 +212,12 @@ func getTraceStateFromAttrs(attrs pcommon.Map) string {
 	return traceState
 }
 
-func getSpanKindFromAttrs(attrs pcommon.Map) ptrace.SpanKind {
+func getAndDeleteSpanKindFromAttrs(attrs pcommon.Map) ptrace.SpanKind {
 	val, found := attrs.Get(model.SpanKindKey)
 	if found {
+		kind := stringToOTELSpanKind(val.Str())
 		attrs.Remove(model.SpanKindKey)
-		return stringToOTELSpanKind(val.Str())
+		return kind
 	}
 	return ptrace.SpanKindUnspecified
 }
@@ -240,11 +241,13 @@ func stringToOTELSpanKind(spanKind string) ptrace.SpanKind {
 func getStatusCodeAndMessageFromAttrs(attrs pcommon.Map) (ptrace.StatusCode, string) {
 	code := ptrace.StatusCodeUnset
 	msg := ""
-	if val, found := attrs.Get(conventions.OtelStatusCode); found {
+	if val, found := attrs.Get(conventions.AttributeOtelStatusCode); found {
 		code = statusCodeFromInt(val.Str())
+		attrs.Remove(conventions.AttributeOtelStatusCode)
 	}
-	if message, found := attrs.Get(conventions.OtelStatusDescription); found {
+	if message, found := attrs.Get(conventions.AttributeOtelStatusDescription); found {
 		msg = message.Str()
+		attrs.Remove(conventions.AttributeOtelStatusDescription)
 	}
 	return code, msg
 }
