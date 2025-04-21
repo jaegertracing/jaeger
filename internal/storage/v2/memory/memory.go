@@ -306,6 +306,9 @@ func validScope(scope pcommon.InstrumentationScope, query memoryTraceQueryParams
 	return true
 }
 
+// keyValue stores the key and value of OTLP maps. We need this because we can't directly
+// merge the attributes, but on we need the resource attributes, scope attributes
+// and span attributes as a whole, therefore they need to merged.
 type keyValue struct {
 	key   string
 	value pcommon.Value
