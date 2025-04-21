@@ -1,0 +1,24 @@
+{
+  "name": "configdocs",
+  "version": "0.0.1",
+  "description": "Generate MD doc for jaeger-v2 config",
+  "homepage": "https://github.com/jaegertracing/jaeger#readme",
+  "bugs": {
+    "url": "https://github.com/jaegertracing/jaeger/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jaegertracing/jaeger.git"
+  },
+  "license": "Apache-2.0",
+  "author": "Jaeger Authors",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "docs": "jsonschema2md -d ./ -o ../../../cmd/jaeger/docs/migration/configdocs.md"
+  },
+  "dependencies": {
+    "@adobe/jsonschema2md": "^8.0.2"
+  }
+}

@@ -14,7 +14,7 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-func GenerateDocs() error {
+func GenerateDocs(outputPath string) error {
 	factories, err := internal.Components()
 	if err != nil {
 		return fmt.Errorf("failed to get components: %w", err)
@@ -88,7 +88,7 @@ func GenerateDocs() error {
 	// Add defaults
 	addDefaults(&schema, configs)
 
-	return writeSchema(schema)
+	return writeSchema(schema, outputPath)
 }
 
 func buildSchemaStruct(s StructDoc, registry map[string]StructDoc) map[string]interface{} {
@@ -343,12 +343,12 @@ func getDefaults(cfg interface{}) map[string]interface{} {
 	return defaults
 }
 
-func writeSchema(schema JSONSchema) error {
+func writeSchema(schema JSONSchema, outputPath string) error {
 
 	schema.Schema = "http://json-schema.org/draft-07/schema#"
-	file, err := os.Create("jaeger-config-schema.json")
+	file, err := os.Create(outputPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create output file: %w", err)
 	}
 	defer file.Close()
 

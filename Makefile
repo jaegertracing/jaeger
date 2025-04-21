@@ -221,6 +221,11 @@ generate-mocks: $(MOCKERY)
 	find . -path '*/mocks/*' -name '*.go' -type f -delete
 	$(MOCKERY) | tee .mockery.log
 
+.PHONY: config-docs
+config-docs:
+	go run ./cmd/jaeger config-docs
+	cd scripts/utils/config-docs && npm ci && npm run docs
+
 .PHONY: certs
 certs:
 	cd internal/config/tlscfg/testdata && ./gen-certs.sh

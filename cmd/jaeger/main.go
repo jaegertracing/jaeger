@@ -22,7 +22,7 @@ func main() {
 	command.AddCommand(version.Command())
 	command.AddCommand(docs.Command(v))
 	command.AddCommand(mappings.Command())
-	command.AddCommand(configdocs.Command())
+	command.AddCommand(configdocs.Command(v))
 	config.AddFlags(
 		v,
 		command,
