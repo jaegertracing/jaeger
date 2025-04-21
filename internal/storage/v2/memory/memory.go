@@ -39,6 +39,10 @@ func NewStore(cfg v1.Configuration) *Store {
 	}
 }
 
+// memoryTraceQueryParams is an extension of tracestore.TraceQueryParams
+// There are some components which are stored in traces separately like SpanKind
+// status code etc but they are put in the query in the form of Attributes, so we need
+// to extract those parameters from tags and perform searching over the required parameters.
 type memoryTraceQueryParams struct {
 	ServiceName   string
 	OperationName string
@@ -128,6 +132,8 @@ func (st *Store) GetServices(ctx context.Context) ([]string, error) {
 	return retMe, nil
 }
 
+// tracesByTime stores traces with their time. It is needed because if found traces
+// are more than the search depth then we have to return the newest traces
 type tracesByTime struct {
 	ts     time.Time
 	traces ptrace.Traces
@@ -242,7 +248,7 @@ func getAndDeleteStatusCodeAndMessageFromAttrs(attrs pcommon.Map) (ptrace.Status
 	code := ptrace.StatusCodeUnset
 	msg := ""
 	if val, found := attrs.Get(conventions.AttributeOtelStatusCode); found {
-		code = statusCodeFromInt(val.Str())
+		code = statusCodeFromString(val.Str())
 		attrs.Remove(conventions.AttributeOtelStatusCode)
 	}
 	if message, found := attrs.Get(conventions.AttributeOtelStatusDescription); found {
@@ -252,7 +258,7 @@ func getAndDeleteStatusCodeAndMessageFromAttrs(attrs pcommon.Map) (ptrace.Status
 	return code, msg
 }
 
-func statusCodeFromInt(cd string) ptrace.StatusCode {
+func statusCodeFromString(cd string) ptrace.StatusCode {
 	switch cd {
 	case "Ok":
 		return ptrace.StatusCodeOk

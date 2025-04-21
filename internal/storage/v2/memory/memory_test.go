@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"os"
 	"sort"
 	"testing"
@@ -21,6 +20,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	v1 "github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
@@ -211,10 +211,6 @@ func TestFindTraces_WrongQuery(t *testing.T) {
 			assert.Equal(t, tt.iterLength, iterLength)
 		})
 	}
-}
-
-func TestFindTraces_MaxTraces(t *testing.T) {
-
 }
 
 func TestGetOperationsWithKind(t *testing.T) {
