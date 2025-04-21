@@ -4,7 +4,7 @@
       "resource": {
         "attributes": [
           {
-            "key": "service.name",
+            "key": "service.names",
             "value": {
               "stringValue": "clickhouse"
             }
@@ -56,6 +56,8 @@
       "scopeSpans": [
         {
           "scope": {
+            "name": "io.opentelemetry.contrib.clickhouse",
+            "version": "1.0.0",
             "attributes": [
               {
                 "key": "library.language",
@@ -109,9 +111,14 @@
           },
           "spans": [
             {
-              "traceId": "",
-              "spanId": "",
-              "parentSpanId": "",
+              "traceId": "01020300000000000000000000000000",
+              "spanId": "0102030000000000",
+              "traceState": "trace state",
+              "parentSpanId": "0102040000000000",
+              "name": "call db",
+              "kind": 1,
+              "startTimeUnixNano": "1703498029000000000",
+              "endTimeUnixNano": "1703498089000000000",
               "attributes": [
                 {
                   "key": "app.payment.card_valid",
@@ -152,6 +159,8 @@
               ],
               "events": [
                 {
+                  "timeUnixNano": "1703498029000000000",
+                  "name": "event1",
                   "attributes": [
                     {
                       "key": "inventory.available",
@@ -206,8 +215,9 @@
               ],
               "links": [
                 {
-                  "traceId": "",
-                  "spanId": "",
+                  "traceId": "01020500000000000000000000000000",
+                  "spanId": "0102050000000000",
+                  "traceState": "test",
                   "attributes": [
                     {
                       "key": "is.retry",
@@ -242,7 +252,10 @@
                   ]
                 }
               ],
-              "status": {}
+              "status": {
+                "message": "error",
+                "code": 2
+              }
             }
           ]
         }

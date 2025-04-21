@@ -5,6 +5,8 @@ package dbmodel
 
 import (
 	"encoding/base64"
+	"encoding/hex"
+	"time"
 
 	"github.com/ClickHouse/ch-go/proto"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -38,9 +40,9 @@ type AttributesGroup struct {
 	BytesValues  []string
 }
 
-// AttributesToGroup Categorizes and aggregates Attributes based on the data type of their values, and writes them in batches.
-func AttributesToGroup(attributes pcommon.Map) AttributesGroup {
-	attributesMap := AttributesToMap(attributes)
+// attributesToGroup Categorizes and aggregates Attributes based on the data type of their values, and writes them in batches.
+func attributesToGroup(attributes pcommon.Map) AttributesGroup {
+	attributesMap := attributesToMap(attributes)
 	var group AttributesGroup
 	for valueType := range attributesMap {
 		kvPairs := attributesMap[valueType]
@@ -77,11 +79,11 @@ func AttributesToGroup(attributes pcommon.Map) AttributesGroup {
 	return group
 }
 
-// AttributesToMap Groups a pcommon.Map by data type and splits the key-value pairs into arrays for storage.
+// attributesToMap Groups a pcommon.Map by data type and splits the key-value pairs into arrays for storage.
 // The values in the key-value pairs of a pcommon.Map instance may not all be of the same data type.
 // For example, a pcommon.Map can contain key-value pairs such as:
 // string-string, string-bool, string-int64, string-float64. Clearly, the key-value pairs need to be classified based on the data type.
-func AttributesToMap(attrs pcommon.Map) map[pcommon.ValueType]map[string]pcommon.Value {
+func attributesToMap(attrs pcommon.Map) map[pcommon.ValueType]map[string]pcommon.Value {
 	result := make(map[pcommon.ValueType]map[string]pcommon.Value)
 	for _, valueType := range []pcommon.ValueType{
 		ValueTypeBool, ValueTypeDouble, ValueTypeInt, ValueTypeStr, ValueTypeBytes,
@@ -98,7 +100,7 @@ func AttributesToMap(attrs pcommon.Map) map[pcommon.ValueType]map[string]pcommon
 	return result
 }
 
-// AttributeColumnPair maps Attribute/Attributes to table columns. Instead of directly storing the entire Attribute/Attributes into a single independent Column,
+// AttributeColumnPair maps Attribute/Attributes to table init. Instead of directly storing the entire Attribute/Attributes into a single independent Column,
 // it splits them based on the value type.
 // Assuming the value type here is string (since the key is always string, there's no need to consider it separately).
 // For resource/scope/span attributes, keyCol/valueCol respectively contain all string-typed keys and values from the attribute, which can be seen as array(string).
@@ -110,59 +112,161 @@ type AttributeColumnPair struct {
 	valueCol     proto.Column
 }
 
-type AttributeColumnsMap map[pcommon.ValueType]AttributeColumnPair
+type attributeColumnsMap map[pcommon.ValueType]AttributeColumnPair
 
-var AllAttributeColumns = make(map[AttributeType]AttributeColumnsMap)
+type TraceColumnPair struct {
+	ColName string
+	Col     proto.Column
+}
 
-// init function is automatically executed during program startup to initialize global Attribute column information.
-func init() {
-	addAttributeTypeColumns := func(attributeType AttributeType, valueType pcommon.ValueType, keyCol proto.Column, valueCol proto.Column) {
-		if _, ok := AllAttributeColumns[attributeType]; !ok {
-			AllAttributeColumns[attributeType] = make(AttributeColumnsMap)
-		}
-		AllAttributeColumns[attributeType][valueType] = AttributeColumnPair{
-			keyColName:   attributeType.String() + "Attributes" + valueType.String() + "Key",
-			keyCol:       keyCol,
-			valueColName: attributeType.String() + "Attributes" + valueType.String() + "Value",
-			valueCol:     valueCol,
-		}
+type TraceColumnSet struct {
+	resource ResourceColumnSet
+	scope    ScopeColumnSet
+	span     SpanColumnSet
+	events   EventColumnSet
+	links    LinkColumnSet
+}
+
+type ResourceColumnSet struct {
+	attributes attributeColumnsMap
+}
+
+type ScopeColumnSet struct {
+	name       TraceColumnPair
+	version    TraceColumnPair
+	attributes attributeColumnsMap
+}
+
+type SpanColumnSet struct {
+	timestamp     TraceColumnPair
+	traceID       TraceColumnPair
+	spanID        TraceColumnPair
+	parentSpanID  TraceColumnPair
+	traceState    TraceColumnPair
+	name          TraceColumnPair
+	kind          TraceColumnPair
+	duration      TraceColumnPair
+	statusCode    TraceColumnPair
+	statusMessage TraceColumnPair
+	attributes    attributeColumnsMap
+}
+
+type EventColumnSet struct {
+	names      TraceColumnPair
+	timestamps TraceColumnPair
+	attributes attributeColumnsMap
+}
+type LinkColumnSet struct {
+	traceID    TraceColumnPair
+	spanID     TraceColumnPair
+	traceState TraceColumnPair
+	attributes attributeColumnsMap
+}
+
+func (ts *TraceColumnSet) init() {
+	ts.resource = newResourceColumns()
+	ts.scope = newScopeColumns()
+	ts.span = newSpanColumns()
+	ts.events = newEventsColumns()
+	ts.links = newLinkColumns()
+}
+
+func newResourceColumns() ResourceColumnSet {
+	attributes := attributeColumnsMap{}
+	newAttributeColumns(&attributes, AttributeTypeResource)
+	return ResourceColumnSet{
+		attributes: attributes,
 	}
+}
 
-	buildColumnsForAttributeType := func(attributeType AttributeType) {
-		if attributeType == AttributeTypeEvent || attributeType == AttributeTypeLink {
-			addAttributeTypeColumns(attributeType, ValueTypeBool,
-				proto.NewArray(new(proto.ColStr).LowCardinality().Array()),
-				proto.NewArray(new(proto.ColBool).Array()))
-			addAttributeTypeColumns(attributeType, ValueTypeDouble,
-				proto.NewArray(new(proto.ColStr).LowCardinality().Array()),
-				proto.NewArray(new(proto.ColFloat64).LowCardinality().Array()))
-			addAttributeTypeColumns(attributeType, ValueTypeInt,
-				proto.NewArray(new(proto.ColStr).LowCardinality().Array()),
-				proto.NewArray(new(proto.ColInt64).LowCardinality().Array()))
-			addAttributeTypeColumns(attributeType, ValueTypeStr,
-				proto.NewArray(new(proto.ColStr).LowCardinality().Array()),
-				proto.NewArray(new(proto.ColStr).LowCardinality().Array()))
-			addAttributeTypeColumns(attributeType, ValueTypeBytes,
-				proto.NewArray(new(proto.ColStr).LowCardinality().Array()),
-				proto.NewArray(new(proto.ColStr).LowCardinality().Array()))
-		} else {
-			addAttributeTypeColumns(attributeType, ValueTypeBool, new(proto.ColStr).LowCardinality().Array(), new(proto.ColBool).Array())
-			addAttributeTypeColumns(attributeType, ValueTypeDouble, new(proto.ColStr).LowCardinality().Array(), new(proto.ColFloat64).LowCardinality().Array())
-			addAttributeTypeColumns(attributeType, ValueTypeInt, new(proto.ColStr).LowCardinality().Array(), new(proto.ColInt64).LowCardinality().Array())
-			addAttributeTypeColumns(attributeType, ValueTypeStr, new(proto.ColStr).LowCardinality().Array(), new(proto.ColStr).LowCardinality().Array())
-			addAttributeTypeColumns(attributeType, ValueTypeBytes, new(proto.ColStr).LowCardinality().Array(), new(proto.ColStr).LowCardinality().Array())
-		}
+func newScopeColumns() ScopeColumnSet {
+	attributes := attributeColumnsMap{}
+	newAttributeColumns(&attributes, AttributeTypeScope)
+	return ScopeColumnSet{
+		name:       newTraceColumnsPair("ScopeName", new(proto.ColStr).LowCardinality()),
+		version:    newTraceColumnsPair("ScopeVersion", new(proto.ColStr).LowCardinality()),
+		attributes: attributes,
 	}
+}
 
-	attributeTypes := []AttributeType{
-		AttributeTypeResource,
-		AttributeTypeScope,
-		AttributeTypeSpan,
-		AttributeTypeEvent,
-		AttributeTypeLink,
+func newSpanColumns() SpanColumnSet {
+	attributes := attributeColumnsMap{}
+	newAttributeColumns(&attributes, AttributeTypeSpan)
+	return SpanColumnSet{
+		timestamp:     newTraceColumnsPair("Timestamp", new(proto.ColDateTime64).WithPrecision(proto.PrecisionNano)),
+		traceID:       newTraceColumnsPair("TraceID", new(proto.ColStr).LowCardinality()),
+		spanID:        newTraceColumnsPair("SpanID", new(proto.ColStr).LowCardinality()),
+		traceState:    newTraceColumnsPair("TraceState", new(proto.ColStr).LowCardinality()),
+		parentSpanID:  newTraceColumnsPair("ParentSpanID", new(proto.ColStr).LowCardinality()),
+		name:          newTraceColumnsPair("SpanName", new(proto.ColStr).LowCardinality()),
+		kind:          newTraceColumnsPair("SpanKind", new(proto.ColStr).LowCardinality()),
+		duration:      newTraceColumnsPair("Duration", new(proto.ColDateTime64).WithPrecision(proto.PrecisionNano)),
+		statusCode:    newTraceColumnsPair("StatusCode", new(proto.ColStr).LowCardinality()),
+		statusMessage: newTraceColumnsPair("StatusMessage", new(proto.ColStr).LowCardinality()),
+		attributes:    attributes,
 	}
-	for _, attrType := range attributeTypes {
-		buildColumnsForAttributeType(attrType)
+}
+
+func newEventsColumns() EventColumnSet {
+	attributes := attributeColumnsMap{}
+	newAttributeColumns(&attributes, AttributeTypeEvent)
+	return EventColumnSet{
+		names:      newTraceColumnsPair("EventsName", new(proto.ColStr).LowCardinality().Array()),
+		timestamps: newTraceColumnsPair("EventsTimestamp", new(proto.ColDateTime64).WithPrecision(proto.PrecisionNano).Array()),
+		attributes: attributes,
+	}
+}
+
+func newLinkColumns() LinkColumnSet {
+	attributes := attributeColumnsMap{}
+	newAttributeColumns(&attributes, AttributeTypeLink)
+	return LinkColumnSet{
+		traceID:    newTraceColumnsPair("LinksTraceId", new(proto.ColStr).LowCardinality().Array()),
+		spanID:     newTraceColumnsPair("LinksSpanId", new(proto.ColStr).LowCardinality().Array()),
+		traceState: newTraceColumnsPair("LinksTraceStatus", new(proto.ColStr).LowCardinality().Array()),
+		attributes: attributes,
+	}
+}
+
+func newTraceColumnsPair(colName string, col proto.Column) TraceColumnPair {
+	return TraceColumnPair{
+		ColName: colName,
+		Col:     col,
+	}
+}
+
+func newAttributeColumns(acm *attributeColumnsMap, attributeType AttributeType) {
+	if attributeType == AttributeTypeEvent || attributeType == AttributeTypeLink {
+		acm.buildAttrColumns(attributeType, ValueTypeBool,
+			proto.NewArray(new(proto.ColStr).LowCardinality().Array()),
+			proto.NewArray(new(proto.ColBool).Array()))
+		acm.buildAttrColumns(attributeType, ValueTypeDouble,
+			proto.NewArray(new(proto.ColStr).LowCardinality().Array()),
+			proto.NewArray(new(proto.ColFloat64).Array()))
+		acm.buildAttrColumns(attributeType, ValueTypeInt,
+			proto.NewArray(new(proto.ColStr).LowCardinality().Array()),
+			proto.NewArray(new(proto.ColInt64).Array()))
+		acm.buildAttrColumns(attributeType, ValueTypeStr,
+			proto.NewArray(new(proto.ColStr).LowCardinality().Array()),
+			proto.NewArray(new(proto.ColStr).LowCardinality().Array()))
+		acm.buildAttrColumns(attributeType, ValueTypeBytes,
+			proto.NewArray(new(proto.ColStr).LowCardinality().Array()),
+			proto.NewArray(new(proto.ColStr).LowCardinality().Array()))
+	} else {
+		acm.buildAttrColumns(attributeType, ValueTypeBool, new(proto.ColStr).LowCardinality().Array(), new(proto.ColBool).Array())
+		acm.buildAttrColumns(attributeType, ValueTypeDouble, new(proto.ColStr).LowCardinality().Array(), new(proto.ColFloat64).Array())
+		acm.buildAttrColumns(attributeType, ValueTypeInt, new(proto.ColStr).LowCardinality().Array(), new(proto.ColInt64).Array())
+		acm.buildAttrColumns(attributeType, ValueTypeStr, new(proto.ColStr).LowCardinality().Array(), new(proto.ColStr).LowCardinality().Array())
+		acm.buildAttrColumns(attributeType, ValueTypeBytes, new(proto.ColStr).LowCardinality().Array(), new(proto.ColStr).LowCardinality().Array())
+	}
+}
+
+func (acm attributeColumnsMap) buildAttrColumns(attributeType AttributeType, valueType pcommon.ValueType, keyCol proto.Column, valueCol proto.Column) {
+	acm[valueType] = AttributeColumnPair{
+		keyColName:   attributeType.String() + "Attributes" + valueType.String() + "Key",
+		keyCol:       keyCol,
+		valueColName: attributeType.String() + "Attributes" + valueType.String() + "Value",
+		valueCol:     valueCol,
 	}
 }
 
@@ -196,70 +300,163 @@ func (at AttributeType) String() string {
 // ToDBModel Converts the OTel pipeline Traces into a ClickHouse-compatible format for batch insertion.
 // It maps the trace attributes, spans, links and events from the OTel model to the appropriate ClickHouse column types
 func ToDBModel(td ptrace.Traces) proto.Input {
+	traceColumnSet := TraceColumnSet{}
+	traceColumnSet.init()
 	for i := range td.ResourceSpans().Len() {
 		resourceSpans := td.ResourceSpans().At(i)
-		resourceGroup := AttributesToGroup(resourceSpans.Resource().Attributes())
+		resourceGroup := attributesToGroup(resourceSpans.Resource().Attributes())
 
 		for j := range resourceSpans.ScopeSpans().Len() {
 			scope := resourceSpans.ScopeSpans().At(j).Scope()
-			scopeGroup := AttributesToGroup(scope.Attributes())
+			scopeGroup := attributesToGroup(scope.Attributes())
 
 			spans := resourceSpans.ScopeSpans().At(j).Spans()
 			for k := range spans.Len() {
 				span := spans.At(k)
-				spanGroup := AttributesToGroup(span.Attributes())
-				appendAttributeGroupToColumns(AttributeTypeResource, resourceGroup)
-				appendAttributeGroupToColumns(AttributeTypeScope, scopeGroup)
-				appendAttributeGroupToColumns(AttributeTypeSpan, spanGroup)
+				spanGroup := attributesToGroup(span.Attributes())
 
+				timestampCol := traceColumnSet.span.timestamp.Col
+				timestampCol.(*proto.ColDateTime64).Append(span.StartTimestamp().AsTime())
+				traceIDCol := traceColumnSet.span.traceID.Col
+				traceIDCol.(*proto.ColLowCardinality[string]).Append(traceIDToHexString(span.TraceID()))
+				spanIDCol := traceColumnSet.span.spanID.Col
+				spanIDCol.(*proto.ColLowCardinality[string]).Append(spanIDToHexString(span.SpanID()))
+				parentSpanIDCol := traceColumnSet.span.parentSpanID.Col
+				parentSpanIDCol.(*proto.ColLowCardinality[string]).Append(spanIDToHexString(span.ParentSpanID()))
+				traceStateCol := traceColumnSet.span.traceState.Col
+				traceStateCol.(*proto.ColLowCardinality[string]).Append(span.TraceState().AsRaw())
+				spanNameCol := traceColumnSet.span.name.Col
+				spanNameCol.(*proto.ColLowCardinality[string]).Append(span.Name())
+				spanKindCol := traceColumnSet.span.kind.Col
+				spanKindCol.(*proto.ColLowCardinality[string]).Append(span.Kind().String())
+				scopeNameCol := traceColumnSet.scope.name.Col
+				scopeNameCol.(*proto.ColLowCardinality[string]).Append(scope.Name())
+				scopeVersion := traceColumnSet.scope.version.Col
+				scopeVersion.(*proto.ColLowCardinality[string]).Append(scope.Version())
+				durationCol := traceColumnSet.span.duration.Col
+				durationCol.(*proto.ColDateTime64).Append(span.EndTimestamp().AsTime())
+				statusCodeCol := traceColumnSet.span.statusCode.Col
+				statusCodeCol.(*proto.ColLowCardinality[string]).Append(span.Status().Code().String())
+				statusMessageCol := traceColumnSet.span.statusMessage.Col
+				statusMessageCol.(*proto.ColLowCardinality[string]).Append(span.Status().Message())
+
+				var eventsName []string
+				var eventsTimestamp []time.Time
 				var eventNestedGroup NestedAttributesGroup
 				for l := range span.Events().Len() {
 					event := span.Events().At(l)
-					eventGroup := AttributesToGroup(event.Attributes())
+					eventsName = append(eventsName, event.Name())
+					eventsTimestamp = append(eventsTimestamp, event.Timestamp().AsTime())
+					eventGroup := attributesToGroup(event.Attributes())
 					eventNestedGroup.AttributesGroups = append(eventNestedGroup.AttributesGroups, eventGroup)
 				}
-				appendNestedAttributeGroupToColumns(AttributeTypeEvent, eventNestedGroup)
+				eventsTimestampCol := traceColumnSet.events.timestamps.Col
+				eventsTimestampCol.(*proto.ColArr[time.Time]).Append(eventsTimestamp)
+				eventsNameCol := traceColumnSet.events.names.Col
+				eventsNameCol.(*proto.ColArr[string]).Append(eventsName)
 
+				var linksTraceId []string
+				var linksSpanId []string
+				var linksTracesState []string
 				var linkNestedGroup NestedAttributesGroup
 				for l := range span.Links().Len() {
 					link := span.Links().At(l)
-					linkGroup := AttributesToGroup(link.Attributes())
+					linksTraceId = append(linksTraceId, traceIDToHexString(link.TraceID()))
+					linksSpanId = append(linksSpanId, spanIDToHexString(link.SpanID()))
+					linksTracesState = append(linksTracesState, link.TraceState().AsRaw())
+					linkGroup := attributesToGroup(link.Attributes())
 					linkNestedGroup.AttributesGroups = append(linkNestedGroup.AttributesGroups, linkGroup)
 				}
-				appendNestedAttributeGroupToColumns(AttributeTypeLink, linkNestedGroup)
+				linksSpanIdCol := traceColumnSet.links.spanID.Col
+				linksSpanIdCol.(*proto.ColArr[string]).Append(linksSpanId)
+				linksTraceIdCol := traceColumnSet.links.traceID.Col
+				linksTraceIdCol.(*proto.ColArr[string]).Append(linksTraceId)
+				linksTraceStateCol := traceColumnSet.links.traceState.Col
+				linksTraceStateCol.(*proto.ColArr[string]).Append(linksTracesState)
+
+				traceColumnSet.resource.attributes.appendAttributeGroup(resourceGroup)
+				traceColumnSet.scope.attributes.appendAttributeGroup(scopeGroup)
+				traceColumnSet.span.attributes.appendAttributeGroup(spanGroup)
+				traceColumnSet.events.attributes.appendNestedAttributeGroup(eventNestedGroup)
+				traceColumnSet.links.attributes.appendNestedAttributeGroup(linkNestedGroup)
 			}
 		}
 	}
-	attributeTypes := []AttributeType{
-		AttributeTypeResource,
-		AttributeTypeScope,
-		AttributeTypeSpan,
-		AttributeTypeEvent,
-		AttributeTypeLink,
-	}
 
 	input := proto.Input{}
-	for _, attrType := range attributeTypes {
-		input = append(input, buildAttributesInput(attrType)...)
-	}
-
+	input = append(input, traceColumnSet.span.spanInput()...)
+	input = append(input, traceColumnSet.scope.scopeInput()...)
+	input = append(input, traceColumnSet.resource.resourceInput()...)
+	input = append(input, traceColumnSet.events.eventsInput()...)
+	input = append(input, traceColumnSet.links.linkInput()...)
 	return input
 }
 
-func buildAttributesInput(attributeType AttributeType) proto.Input {
+func (rs *ResourceColumnSet) resourceInput() proto.Input {
+	return rs.attributes.attributesInput()
+}
+
+func (sc *ScopeColumnSet) scopeInput() proto.Input {
+	result := proto.Input{
+		input(sc.name.ColName, sc.name.Col),
+		input(sc.version.ColName, sc.version.Col),
+	}
+
+	result = append(result, sc.attributes.attributesInput()...)
+	return result
+}
+
+func (s *SpanColumnSet) spanInput() proto.Input {
+	result := proto.Input{
+		input(s.timestamp.ColName, s.timestamp.Col),
+		input(s.traceID.ColName, s.traceID.Col),
+		input(s.spanID.ColName, s.spanID.Col),
+		input(s.parentSpanID.ColName, s.parentSpanID.Col),
+		input(s.traceState.ColName, s.traceState.Col),
+		input(s.name.ColName, s.name.Col),
+		input(s.kind.ColName, s.kind.Col),
+		input(s.duration.ColName, s.duration.Col),
+		input(s.statusCode.ColName, s.statusCode.Col),
+		input(s.statusMessage.ColName, s.statusMessage.Col),
+	}
+	result = append(result, s.attributes.attributesInput()...)
+	return result
+}
+
+func (event *EventColumnSet) eventsInput() proto.Input {
+	result := proto.Input{
+		input(event.names.ColName, event.names.Col),
+		input(event.timestamps.ColName, event.timestamps.Col),
+	}
+	result = append(result, event.attributes.attributesInput()...)
+	return result
+}
+
+func (link *LinkColumnSet) linkInput() proto.Input {
+	result := proto.Input{
+		input(link.traceID.ColName, link.traceID.Col),
+		input(link.spanID.ColName, link.spanID.Col),
+		input(link.traceState.ColName, link.traceState.Col),
+	}
+
+	result = append(result, link.attributes.attributesInput()...)
+	return result
+}
+
+func (acm attributeColumnsMap) attributesInput() proto.Input {
 	var result []proto.InputColumn
-	attrColumnsMap := AllAttributeColumns[attributeType]
-	for _, pair := range attrColumnsMap {
-		result = append(result, proto.InputColumn{
-			Name: pair.keyColName,
-			Data: pair.keyCol,
-		})
-		result = append(result, proto.InputColumn{
-			Name: pair.valueColName,
-			Data: pair.valueCol,
-		})
+	for _, pair := range acm {
+		result = append(result, input(pair.keyColName, pair.keyCol))
+		result = append(result, input(pair.valueColName, pair.valueCol))
 	}
 	return result
+}
+
+func input(name string, data proto.ColInput) proto.InputColumn {
+	return proto.InputColumn{
+		Name: name,
+		Data: data,
+	}
 }
 
 const (
@@ -270,8 +467,8 @@ const (
 	ValueTypeBytes  = pcommon.ValueTypeBytes
 )
 
-// AppendNestedAttributeGroupToColumns Writes a complete set of pcommon.Map to the database. NestedAttributesGroup and pcommon.Map have a one-to-many relationship.
-func appendNestedAttributeGroupToColumns(attributeType AttributeType, nestedGroup NestedAttributesGroup) {
+// appendNestedAttributeGroup Writes a complete set of pcommon.Map to the database. NestedAttributesGroup and pcommon.Map have a one-to-many relationship.
+func (acm attributeColumnsMap) appendNestedAttributeGroup(nestedGroup NestedAttributesGroup) {
 	var boolKeys [][]string
 	var boolValues [][]bool
 	var doubleKeys [][]string
@@ -295,60 +492,64 @@ func appendNestedAttributeGroupToColumns(attributeType AttributeType, nestedGrou
 		bytesValues = append(bytesValues, group.BytesValues)
 	}
 
-	attrsColumnsMap := AllAttributeColumns[attributeType]
-
-	boolKeyCol := attrsColumnsMap[ValueTypeBool].keyCol
+	boolKeyCol := acm[ValueTypeBool].keyCol
 	boolKeyCol.(*proto.ColArr[[]string]).Append(boolKeys)
-	boolValueCol := attrsColumnsMap[ValueTypeBool].valueCol
+	boolValueCol := acm[ValueTypeBool].valueCol
 	boolValueCol.(*proto.ColArr[[]bool]).Append(boolValues)
 
-	doubleKeyCol := attrsColumnsMap[ValueTypeDouble].keyCol
+	doubleKeyCol := acm[ValueTypeDouble].keyCol
 	doubleKeyCol.(*proto.ColArr[[]string]).Append(doubleKeys)
-	doubleValueCol := attrsColumnsMap[ValueTypeDouble].valueCol
+	doubleValueCol := acm[ValueTypeDouble].valueCol
 	doubleValueCol.(*proto.ColArr[[]float64]).Append(doubleValues)
 
-	intKeyCol := attrsColumnsMap[ValueTypeInt].keyCol
+	intKeyCol := acm[ValueTypeInt].keyCol
 	intKeyCol.(*proto.ColArr[[]string]).Append(intKeys)
-	intValueCol := attrsColumnsMap[ValueTypeInt].valueCol
+	intValueCol := acm[ValueTypeInt].valueCol
 	intValueCol.(*proto.ColArr[[]int64]).Append(intValues)
 
-	strKeyCol := attrsColumnsMap[ValueTypeStr].keyCol
+	strKeyCol := acm[ValueTypeStr].keyCol
 	strKeyCol.(*proto.ColArr[[]string]).Append(strKeys)
-	strValueCol := attrsColumnsMap[ValueTypeStr].valueCol
+	strValueCol := acm[ValueTypeStr].valueCol
 	strValueCol.(*proto.ColArr[[]string]).Append(strValues)
 
-	bytesKeyCol := attrsColumnsMap[ValueTypeBytes].keyCol
+	bytesKeyCol := acm[ValueTypeBytes].keyCol
 	bytesKeyCol.(*proto.ColArr[[]string]).Append(bytesKeys)
-	bytesValueCol := attrsColumnsMap[ValueTypeBytes].valueCol
+	bytesValueCol := acm[ValueTypeBytes].valueCol
 	bytesValueCol.(*proto.ColArr[[]string]).Append(bytesValues)
 }
 
-// AppendGroup Writes a complete pcommon.Map to the database. AttributesGroup and pcommon.Map have a one-to-one relationship.
-func appendAttributeGroupToColumns(attributeType AttributeType, group AttributesGroup) {
-	attrColumnsMap := AllAttributeColumns[attributeType]
-
-	boolKeyCol := attrColumnsMap[ValueTypeBool].keyCol
+// appendAttributeGroup Writes a complete pcommon.Map to the database. AttributesGroup and pcommon.Map have a one-to-one relationship.
+func (acm attributeColumnsMap) appendAttributeGroup(group AttributesGroup) {
+	boolKeyCol := acm[pcommon.ValueTypeBool].keyCol
 	boolKeyCol.(*proto.ColArr[string]).Append(group.BoolKeys)
-	boolValueCol := attrColumnsMap[ValueTypeBool].valueCol
+	boolValueCol := acm[ValueTypeBool].valueCol
 	boolValueCol.(*proto.ColArr[bool]).Append(group.BoolValues)
 
-	doubleKeyCol := attrColumnsMap[ValueTypeDouble].keyCol
+	doubleKeyCol := acm[ValueTypeDouble].keyCol
 	doubleKeyCol.(*proto.ColArr[string]).Append(group.DoubleKeys)
-	doubleValueCol := attrColumnsMap[ValueTypeDouble].valueCol
+	doubleValueCol := acm[ValueTypeDouble].valueCol
 	doubleValueCol.(*proto.ColArr[float64]).Append(group.DoubleValues)
 
-	intKeyCol := attrColumnsMap[ValueTypeInt].keyCol
+	intKeyCol := acm[ValueTypeInt].keyCol
 	intKeyCol.(*proto.ColArr[string]).Append(group.IntKeys)
-	intValueCol := attrColumnsMap[ValueTypeInt].valueCol
+	intValueCol := acm[ValueTypeInt].valueCol
 	intValueCol.(*proto.ColArr[int64]).Append(group.IntValues)
 
-	strKeyCol := attrColumnsMap[ValueTypeStr].keyCol
+	strKeyCol := acm[ValueTypeStr].keyCol
 	strKeyCol.(*proto.ColArr[string]).Append(group.StrKeys)
-	strValueCol := attrColumnsMap[ValueTypeStr].valueCol
+	strValueCol := acm[ValueTypeStr].valueCol
 	strValueCol.(*proto.ColArr[string]).Append(group.StrValues)
 
-	bytesKeyCol := attrColumnsMap[ValueTypeBytes].keyCol
+	bytesKeyCol := acm[ValueTypeBytes].keyCol
 	bytesKeyCol.(*proto.ColArr[string]).Append(group.BytesKeys)
-	bytesValueCol := attrColumnsMap[ValueTypeBytes].valueCol
+	bytesValueCol := acm[ValueTypeBytes].valueCol
 	bytesValueCol.(*proto.ColArr[string]).Append(group.BytesValues)
+}
+
+func traceIDToHexString(id pcommon.TraceID) string {
+	return hex.EncodeToString(id[:])
+}
+
+func spanIDToHexString(id pcommon.SpanID) string {
+	return hex.EncodeToString(id[:])
 }

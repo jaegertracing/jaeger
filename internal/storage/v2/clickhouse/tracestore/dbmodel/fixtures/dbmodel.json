@@ -24,7 +24,7 @@
                 134217728
             ],
             "StrKeys": [
-                "service.name",
+                "service.names",
                 "service.instance.id"
             ],
             "StrValues": [
@@ -40,6 +40,8 @@
         }
     },
     "Scope": {
+        "Name": "io.opentelemetry.contrib.clickhouse",
+        "Version": "1.0.0",
         "Attributes": {
             "BoolKeys": [
                 "library.feature.async_processing_enabled",
@@ -80,6 +82,16 @@
         }
     },
     "Span": {
+        "Timestamp": "2023-12-25T09:53:49Z",
+        "TraceId": "01020300000000000000000000000000",
+        "SpanId": "0102030000000000",
+        "ParentSpanId": "0102040000000000",
+        "TraceState": "trace state",
+        "Name": "call db",
+        "Kind": "Internal",
+        "Duration": "2023-12-25T09:54:49Z",
+        "StatusCode": "Error",
+        "StatusMessage": "error",
         "Attributes": {
             "BoolKeys": [
                 "app.payment.card_valid",
@@ -117,6 +129,9 @@
     },
     "Links": [
         {
+            "TraceId": "01020500000000000000000000000000",
+            "SpanId": "0102050000000000",
+            "TraceState": "test",
             "Attributes": {
                 "BoolKeys": [
                     "is.retry"
@@ -153,10 +168,12 @@
     ],
     "Events": [
         {
+            "Name": "event1",
+            "Timestamp": "2023-12-25T09:53:49Z",
             "Attributes": {
                 "BoolKeys": [
-                    "payment.successful",
-                    "inventory.available"
+                    "inventory.available",
+                    "payment.successful"
                 ],
                 "BoolValues": [
                     true,

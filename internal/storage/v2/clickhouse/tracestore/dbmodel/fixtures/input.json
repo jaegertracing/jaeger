@@ -1,136 +1,230 @@
 [
   {
-    "Name": "ResourceAttributesBoolKey",
+    "Name": "Timestamp",
+    "Data": {
+      "Data": [
+        1703498029000000000
+      ],
+      "Location": null,
+      "Precision": 9,
+      "PrecisionSet": true
+    }
+  },
+  {
+    "Name": "TraceID",
+    "Data": {
+      "Values": [
+        "01020300000000000000000000000000"
+      ]
+    }
+  },
+  {
+    "Name": "SpanID",
+    "Data": {
+      "Values": [
+        "0102030000000000"
+      ]
+    }
+  },
+  {
+    "Name": "ParentSpanID",
+    "Data": {
+      "Values": [
+        "0102040000000000"
+      ]
+    }
+  },
+  {
+    "Name": "TraceState",
+    "Data": {
+      "Values": [
+        "trace state"
+      ]
+    }
+  },
+  {
+    "Name": "SpanName",
+    "Data": {
+      "Values": [
+        "call db"
+      ]
+    }
+  },
+  {
+    "Name": "SpanKind",
+    "Data": {
+      "Values": [
+        "Internal"
+      ]
+    }
+  },
+  {
+    "Name": "Duration",
+    "Data": {
+      "Data": [
+        1703498089000000000
+      ],
+      "Location": null,
+      "Precision": 9,
+      "PrecisionSet": true
+    }
+  },
+  {
+    "Name": "StatusCode",
+    "Data": {
+      "Values": [
+        "Error"
+      ]
+    }
+  },
+  {
+    "Name": "StatusMessage",
+    "Data": {
+      "Values": [
+        "error"
+      ]
+    }
+  },
+  {
+    "Name": "SpanAttributesStrKey",
     "Data": {
       "Offsets": [
         1
       ],
       "Data": {
         "Values": [
-          "browser.mobile"
+          "app.payment.id"
         ]
       }
     }
   },
   {
-    "Name": "ResourceAttributesBoolValue",
+    "Name": "SpanAttributesStrValue",
     "Data": {
       "Offsets": [
         1
       ],
+      "Data": {
+        "Values": [
+          "123456789"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "SpanAttributesBytesKey",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "span.test.bytes.value"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "SpanAttributesBytesValue",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "AQIDBAUG"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "SpanAttributesBoolKey",
+    "Data": {
+      "Offsets": [
+        2
+      ],
+      "Data": {
+        "Values": [
+          "app.payment.card_valid",
+          "app.payment.charged"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "SpanAttributesBoolValue",
+    "Data": {
+      "Offsets": [
+        2
+      ],
       "Data": [
+        true,
         true
       ]
     }
   },
   {
-    "Name": "ResourceAttributesDoubleKey",
+    "Name": "SpanAttributesDoubleKey",
     "Data": {
       "Offsets": [
         1
       ],
       "Data": {
         "Values": [
-          "host.memory.swap"
+          "app.payment.amount"
         ]
       }
     }
   },
   {
-    "Name": "ResourceAttributesDoubleValue",
+    "Name": "SpanAttributesDoubleValue",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": [
+        99.99
+      ]
+    }
+  },
+  {
+    "Name": "SpanAttributesIntKey",
     "Data": {
       "Offsets": [
         1
       ],
       "Data": {
         "Values": [
-          2048
+          "app.payment.count"
         ]
       }
     }
   },
   {
-    "Name": "ResourceAttributesIntKey",
-    "Data": {
-      "Offsets": [
-        3
-      ],
-      "Data": {
-        "Values": [
-          "process.parent.pid",
-          "process.pid",
-          "faas.max_memory"
-        ]
-      }
-    }
-  },
-  {
-    "Name": "ResourceAttributesIntValue",
-    "Data": {
-      "Offsets": [
-        3
-      ],
-      "Data": {
-        "Values": [
-          111,
-          1234,
-          134217728
-        ]
-      }
-    }
-  },
-  {
-    "Name": "ResourceAttributesStrKey",
-    "Data": {
-      "Offsets": [
-        2
-      ],
-      "Data": {
-        "Values": [
-          "service.name",
-          "service.instance.id"
-        ]
-      }
-    }
-  },
-  {
-    "Name": "ResourceAttributesStrValue",
-    "Data": {
-      "Offsets": [
-        2
-      ],
-      "Data": {
-        "Values": [
-          "clickhouse",
-          "627cc493-f310-47de-96bd-71410b7dec09"
-        ]
-      }
-    }
-  },
-  {
-    "Name": "ResourceAttributesBytesKey",
+    "Name": "SpanAttributesIntValue",
     "Data": {
       "Offsets": [
         1
       ],
-      "Data": {
-        "Values": [
-          "oci.manifest.digest"
-        ]
-      }
+      "Data": [
+        5
+      ]
     }
   },
   {
-    "Name": "ResourceAttributesBytesValue",
+    "Name": "ScopeName",
     "Data": {
-      "Offsets": [
-        1
-      ],
-      "Data": {
-        "Values": [
-          "c2hhMjU2OmU0Y2E2MmMwZDYyZjNlODg2ZTY4NDgwNmRmZTlkNGUwY2RhNjBkNTQ5ODY4OTgxNzNjMTA4Mzg1NmNmZGEwZjQ="
-        ]
-      }
+      "Values": [
+        "io.opentelemetry.contrib.clickhouse"
+      ]
+    }
+  },
+  {
+    "Name": "ScopeVersion",
+    "Data": {
+      "Values": [
+        "1.0.0"
+      ]
     }
   },
   {
@@ -232,11 +326,9 @@
       "Offsets": [
         1
       ],
-      "Data": {
-        "Values": [
-          0.75
-        ]
-      }
+      "Data": [
+        0.75
+      ]
     }
   },
   {
@@ -259,141 +351,168 @@
       "Offsets": [
         2
       ],
-      "Data": {
-        "Values": [
-          10,
-          2
-        ]
-      }
+      "Data": [
+        10,
+        2
+      ]
     }
   },
   {
-    "Name": "SpanAttributesBoolKey",
+    "Name": "ResourceAttributesBoolKey",
     "Data": {
       "Offsets": [
-        2
+        1
       ],
       "Data": {
         "Values": [
-          "app.payment.card_valid",
-          "app.payment.charged"
+          "browser.mobile"
         ]
       }
     }
   },
   {
-    "Name": "SpanAttributesBoolValue",
+    "Name": "ResourceAttributesBoolValue",
     "Data": {
       "Offsets": [
-        2
+        1
       ],
       "Data": [
-        true,
         true
       ]
     }
   },
   {
-    "Name": "SpanAttributesDoubleKey",
+    "Name": "ResourceAttributesDoubleKey",
     "Data": {
       "Offsets": [
         1
       ],
       "Data": {
         "Values": [
-          "app.payment.amount"
+          "host.memory.swap"
         ]
       }
     }
   },
   {
-    "Name": "SpanAttributesDoubleValue",
+    "Name": "ResourceAttributesDoubleValue",
     "Data": {
       "Offsets": [
         1
       ],
+      "Data": [
+        2048
+      ]
+    }
+  },
+  {
+    "Name": "ResourceAttributesIntKey",
+    "Data": {
+      "Offsets": [
+        3
+      ],
       "Data": {
         "Values": [
-          99.99
+          "faas.max_memory",
+          "process.parent.pid",
+          "process.pid"
         ]
       }
     }
   },
   {
-    "Name": "SpanAttributesIntKey",
+    "Name": "ResourceAttributesIntValue",
     "Data": {
       "Offsets": [
-        1
+        3
+      ],
+      "Data": [
+        134217728,
+        111,
+        1234
+      ]
+    }
+  },
+  {
+    "Name": "ResourceAttributesStrKey",
+    "Data": {
+      "Offsets": [
+        2
       ],
       "Data": {
         "Values": [
-          "app.payment.count"
+          "service.names",
+          "service.instance.id"
         ]
       }
     }
   },
   {
-    "Name": "SpanAttributesIntValue",
+    "Name": "ResourceAttributesStrValue",
     "Data": {
       "Offsets": [
-        1
+        2
       ],
       "Data": {
         "Values": [
-          5
+          "clickhouse",
+          "627cc493-f310-47de-96bd-71410b7dec09"
         ]
       }
     }
   },
   {
-    "Name": "SpanAttributesStrKey",
+    "Name": "ResourceAttributesBytesKey",
     "Data": {
       "Offsets": [
         1
       ],
       "Data": {
         "Values": [
-          "app.payment.id"
+          "oci.manifest.digest"
         ]
       }
     }
   },
   {
-    "Name": "SpanAttributesStrValue",
+    "Name": "ResourceAttributesBytesValue",
     "Data": {
       "Offsets": [
         1
       ],
       "Data": {
         "Values": [
-          "123456789"
+          "c2hhMjU2OmU0Y2E2MmMwZDYyZjNlODg2ZTY4NDgwNmRmZTlkNGUwY2RhNjBkNTQ5ODY4OTgxNzNjMTA4Mzg1NmNmZGEwZjQ="
         ]
       }
     }
   },
   {
-    "Name": "SpanAttributesBytesKey",
+    "Name": "EventsName",
     "Data": {
       "Offsets": [
         1
       ],
       "Data": {
         "Values": [
-          "span.test.bytes.value"
+          "event1"
         ]
       }
     }
   },
   {
-    "Name": "SpanAttributesBytesValue",
+    "Name": "EventsTimestamp",
     "Data": {
       "Offsets": [
         1
       ],
       "Data": {
-        "Values": [
-          "AQIDBAUG"
-        ]
+        "Data": [
+          1703498029000000000
+        ],
+        "Location": null,
+        "Precision": 9,
+        "PrecisionSet": true
       }
     }
   },
@@ -462,12 +581,10 @@
         "Offsets": [
           2
         ],
-        "Data": {
-          "Values": [
-            6.04,
-            0.04
-          ]
-        }
+        "Data": [
+          6.04,
+          0.04
+        ]
       }
     }
   },
@@ -499,11 +616,9 @@
         "Offsets": [
           1
         ],
-        "Data": {
-          "Values": [
-            2
-          ]
-        }
+        "Data": [
+          2
+        ]
       }
     }
   },
@@ -582,6 +697,45 @@
     }
   },
   {
+    "Name": "LinksTraceId",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "01020500000000000000000000000000"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "LinksSpanId",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "0102050000000000"
+        ]
+      }
+    }
+  },
+  {
+    "Name": "LinksTraceStatus",
+    "Data": {
+      "Offsets": [
+        1
+      ],
+      "Data": {
+        "Values": [
+          "test"
+        ]
+      }
+    }
+  },
+  {
     "Name": "LinkAttributesBoolKey",
     "Data": {
       "Offsets": [
@@ -643,11 +797,9 @@
         "Offsets": [
           1
         ],
-        "Data": {
-          "Values": [
-            0.85
-          ]
-        }
+        "Data": [
+          0.85
+        ]
       }
     }
   },
@@ -679,11 +831,9 @@
         "Offsets": [
           1
         ],
-        "Data": {
-          "Values": [
-            1324141
-          ]
-        }
+        "Data": [
+          1324141
+        ]
       }
     }
   },

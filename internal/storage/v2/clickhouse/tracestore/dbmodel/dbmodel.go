@@ -3,6 +3,8 @@
 
 package dbmodel
 
+import "time"
+
 // Trace Domain model in Clickhouse.
 // This struct represents the schema for storing OTel pipeline Traces in Clickhouse.
 type Trace struct {
@@ -18,17 +20,34 @@ type Resource struct {
 }
 
 type Scope struct {
+	Name       string
+	Version    string
 	Attributes AttributesGroup
 }
 
 type Span struct {
-	Attributes AttributesGroup
+	Timestamp     time.Time
+	TraceId       string
+	SpanId        string
+	ParentSpanId  string
+	TraceState    string
+	Name          string
+	Kind          string
+	Duration      time.Time
+	StatusCode    string
+	StatusMessage string
+	Attributes    AttributesGroup
 }
 
 type Link struct {
+	TraceId    string
+	SpanId     string
+	TraceState string
 	Attributes AttributesGroup
 }
 
 type Event struct {
+	Name       string
+	Timestamp  time.Time
 	Attributes AttributesGroup
 }

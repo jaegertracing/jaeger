@@ -36,47 +36,58 @@ func TestFromDBModel(t *testing.T) {
 	exceptedSpan := exceptedScopeSpans.Spans().At(0)
 	actualSpan := actualScopeSpans.Spans().At(0)
 
-	t.Run("Resource Attributes", func(t *testing.T) {
-		expectedResourceAttr := expectedResourceSpans.Resource().Attributes().AsRaw()
-		actualResourceAttr := actualResourceSpans.Resource().Attributes().AsRaw()
-		require.Equal(t, expectedResourceAttr, actualResourceAttr, "Resource attributes mismatch")
+	t.Run("Resource", func(t *testing.T) {
+		actualResource := actualResourceSpans.Resource()
+		exceptedResource := expectedResourceSpans.Resource()
+		require.Equal(t, exceptedResource.Attributes().AsRaw(), actualResource.Attributes().AsRaw(), "Resource attributes mismatch")
 	})
 
-	t.Run("Scope Attributes", func(t *testing.T) {
-		exceptedScopeAttr := exceptedScopeSpans.Scope().Attributes().AsRaw()
-		actualScopeAttr := actualScopeSpans.Scope().Attributes().AsRaw()
-		require.Equal(t, exceptedScopeAttr, actualScopeAttr, "Scope attributes mismatch")
+	t.Run("Scope", func(t *testing.T) {
+		actualScope := actualScopeSpans.Scope()
+		expectedScope := exceptedScopeSpans.Scope()
+		require.Equal(t, expectedScope.Name(), actualScope.Name(), "Scope attributes mismatch")
+		require.Equal(t, expectedScope.Version(), actualScope.Version(), "Scope attributes mismatch")
+		require.Equal(t, expectedScope.Attributes().AsRaw(), actualScope.Attributes().AsRaw(), "Scope attributes mismatch")
 	})
 
-	t.Run("Span Attributes", func(t *testing.T) {
-		exceptedSpanAttr := exceptedSpan.Attributes().AsRaw()
-		actualSpanAttr := actualSpan.Attributes().AsRaw()
-		require.Equal(t, exceptedSpanAttr, actualSpanAttr, "Span attributes mismatch")
+	t.Run("Span", func(t *testing.T) {
+		require.Equal(t, exceptedSpan.StartTimestamp(), actualSpan.StartTimestamp(), "Span attributes mismatch")
+		require.Equal(t, exceptedSpan.TraceID(), actualSpan.TraceID(), "Span attributes mismatch")
+		require.Equal(t, exceptedSpan.SpanID(), actualSpan.SpanID(), "Span attributes mismatch")
+		require.Equal(t, exceptedSpan.ParentSpanID(), actualSpan.ParentSpanID(), "Span attributes mismatch")
+		require.Equal(t, exceptedSpan.TraceState(), actualSpan.TraceState(), "Span attributes mismatch")
+		require.Equal(t, exceptedSpan.Name(), actualSpan.Name(), "Span attributes mismatch")
+		require.Equal(t, exceptedSpan.Kind(), actualSpan.Kind(), "Span attributes mismatch")
+		require.Equal(t, exceptedSpan.EndTimestamp(), actualSpan.EndTimestamp(), "Span attributes mismatch")
+		require.Equal(t, exceptedSpan.Status().Code(), actualSpan.Status().Code(), "Span attributes mismatch")
+		require.Equal(t, exceptedSpan.Status().Message(), actualSpan.Status().Message(), "Span attributes mismatch")
+		require.Equal(t, exceptedSpan.Attributes().AsRaw(), actualSpan.Attributes().AsRaw(), "Span attributes mismatch")
 	})
 
-	t.Run("Events Attributes", func(t *testing.T) {
+	t.Run("Events", func(t *testing.T) {
 		exceptedEvents := exceptedSpan.Events()
 		actualEvents := actualSpan.Events()
 		require.Equal(t, exceptedEvents.Len(), actualEvents.Len(), "Events count mismatch")
 		for i := 0; i < exceptedEvents.Len(); i++ {
 			exceptedEvent := exceptedEvents.At(i)
-			exceptedEventAttr := exceptedEvent.Attributes().AsRaw()
 			actualEvent := actualEvents.At(i)
-			actualEventAttr := actualEvent.Attributes().AsRaw()
-			require.Equal(t, exceptedEventAttr, actualEventAttr, "Event %d attributes mismatch", i)
+			require.Equal(t, exceptedEvent.Name(), actualEvent.Name(), "Event attributes mismatch")
+			require.Equal(t, exceptedEvent.Timestamp(), actualEvent.Timestamp(), "Event attributes mismatch")
+			require.Equal(t, exceptedEvent.Attributes().AsRaw(), actualEvent.Attributes().AsRaw(), "Event %d attributes mismatch", i)
 		}
 	})
 
-	t.Run("Links Attributes", func(t *testing.T) {
+	t.Run("Links", func(t *testing.T) {
 		exceptedLinks := exceptedSpan.Links()
 		actualLinks := actualSpan.Links()
 		require.Equal(t, exceptedLinks.Len(), actualLinks.Len(), "Links count mismatch")
 		for i := 0; i < exceptedLinks.Len(); i++ {
 			exceptedLink := exceptedLinks.At(i)
-			exceptedLinkAttr := exceptedLink.Attributes().AsRaw()
 			actualLink := actualLinks.At(i)
-			actualLinkAttr := actualLink.Attributes().AsRaw()
-			require.Equal(t, exceptedLinkAttr, actualLinkAttr, "Link %d attributes mismatch", i)
+			require.Equal(t, exceptedLink.TraceID(), actualLink.TraceID(), "Link attributes mismatch")
+			require.Equal(t, exceptedLink.SpanID(), actualLink.SpanID(), "Link attributes mismatch")
+			require.Equal(t, exceptedLink.TraceState(), actualLink.TraceState(), "Link attributes mismatch")
+			require.Equal(t, exceptedLink.Attributes().AsRaw(), actualLink.Attributes().AsRaw(), "Link %d attributes mismatch", i)
 		}
 	})
 }
