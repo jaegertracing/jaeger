@@ -29,7 +29,8 @@ func TestFromDomainEmbedProcess(t *testing.T) {
 
 			var span model.Span
 			require.NoError(t, jsonpb.Unmarshal(bytes.NewReader(domainStr), &span))
-			embeddedSpan := FromDomainEmbedProcess(&span)
+			converter := NewFromDomain()
+			embeddedSpan := converter.FromDomainEmbedProcess(&span)
 
 			testJSONEncoding(t, i, jsonStr, embeddedSpan)
 
@@ -67,7 +68,8 @@ func testJSONEncoding(t *testing.T, i int, expectedStr []byte, object any) {
 func TestEmptyTags(t *testing.T) {
 	tags := make([]model.KeyValue, 0)
 	span := model.Span{Tags: tags, Process: &model.Process{Tags: tags}}
-	dbSpan := FromDomainEmbedProcess(&span)
+	converter := NewFromDomain()
+	dbSpan := converter.FromDomainEmbedProcess(&span)
 	assert.Empty(t, dbSpan.Tags)
 	assert.Empty(t, dbSpan.Tag)
 }
@@ -111,7 +113,8 @@ func TestConvertKeyValueValue(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%s:%s", test.expected.Type, test.expected.Key), func(t *testing.T) {
-			actual := convertKeyValue(test.kv)
+			converter := NewFromDomain()
+			actual := converter.convertKeyValue(test.kv)
 			assert.Equal(t, test.expected, actual)
 		})
 	}

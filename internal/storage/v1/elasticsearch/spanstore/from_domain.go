@@ -11,17 +11,25 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 )
 
+// NewFromDomain creates FromDomain used to convert model span to db span
+func NewFromDomain() FromDomain {
+	return FromDomain{}
+}
+
+// FromDomain is used to convert model span to db span
+type FromDomain struct{}
+
 // FromDomainEmbedProcess converts model.Span into json.Span format.
 // This format includes a ParentSpanID and an embedded Process.
-func FromDomainEmbedProcess(span *model.Span) *dbmodel.Span {
-	s := convertSpanInternal(span)
-	s.Process = convertProcess(span.Process)
-	s.References = convertReferences(span)
+func (fd FromDomain) FromDomainEmbedProcess(span *model.Span) *dbmodel.Span {
+	s := fd.convertSpanInternal(span)
+	s.Process = fd.convertProcess(span.Process)
+	s.References = fd.convertReferences(span)
 	return &s
 }
 
-func convertSpanInternal(span *model.Span) dbmodel.Span {
-	tags := convertKeyValues(span.Tags)
+func (fd FromDomain) convertSpanInternal(span *model.Span) dbmodel.Span {
+	tags := fd.convertKeyValues(span.Tags)
 	return dbmodel.Span{
 		TraceID:         dbmodel.TraceID(span.TraceID.String()),
 		SpanID:          dbmodel.SpanID(span.SpanID.String()),
@@ -31,15 +39,15 @@ func convertSpanInternal(span *model.Span) dbmodel.Span {
 		StartTimeMillis: model.TimeAsEpochMicroseconds(span.StartTime) / 1000,
 		Duration:        model.DurationAsMicroseconds(span.Duration),
 		Tags:            tags,
-		Logs:            convertLogs(span.Logs),
+		Logs:            fd.convertLogs(span.Logs),
 	}
 }
 
-func convertReferences(span *model.Span) []dbmodel.Reference {
+func (fd FromDomain) convertReferences(span *model.Span) []dbmodel.Reference {
 	out := make([]dbmodel.Reference, 0, len(span.References))
 	for _, ref := range span.References {
 		out = append(out, dbmodel.Reference{
-			RefType: convertRefType(ref.RefType),
+			RefType: fd.convertRefType(ref.RefType),
 			TraceID: dbmodel.TraceID(ref.TraceID.String()),
 			SpanID:  dbmodel.SpanID(ref.SpanID.String()),
 		})
@@ -47,17 +55,17 @@ func convertReferences(span *model.Span) []dbmodel.Reference {
 	return out
 }
 
-func convertRefType(refType model.SpanRefType) dbmodel.ReferenceType {
+func (FromDomain) convertRefType(refType model.SpanRefType) dbmodel.ReferenceType {
 	if refType == model.FollowsFrom {
 		return dbmodel.FollowsFrom
 	}
 	return dbmodel.ChildOf
 }
 
-func convertKeyValues(keyValues model.KeyValues) []dbmodel.KeyValue {
+func (fd FromDomain) convertKeyValues(keyValues model.KeyValues) []dbmodel.KeyValue {
 	var kvs []dbmodel.KeyValue
 	for _, kv := range keyValues {
-		kvs = append(kvs, convertKeyValue(kv))
+		kvs = append(kvs, fd.convertKeyValue(kv))
 	}
 	if kvs == nil {
 		kvs = make([]dbmodel.KeyValue, 0)
@@ -65,12 +73,12 @@ func convertKeyValues(keyValues model.KeyValues) []dbmodel.KeyValue {
 	return kvs
 }
 
-func convertLogs(logs []model.Log) []dbmodel.Log {
+func (fd FromDomain) convertLogs(logs []model.Log) []dbmodel.Log {
 	out := make([]dbmodel.Log, len(logs))
 	for i, log := range logs {
 		var kvs []dbmodel.KeyValue
 		for _, kv := range log.Fields {
-			kvs = append(kvs, convertKeyValue(kv))
+			kvs = append(kvs, fd.convertKeyValue(kv))
 		}
 		out[i] = dbmodel.Log{
 			Timestamp: model.TimeAsEpochMicroseconds(log.Timestamp),
@@ -80,15 +88,15 @@ func convertLogs(logs []model.Log) []dbmodel.Log {
 	return out
 }
 
-func convertProcess(process *model.Process) dbmodel.Process {
-	tags := convertKeyValues(process.Tags)
+func (fd FromDomain) convertProcess(process *model.Process) dbmodel.Process {
+	tags := fd.convertKeyValues(process.Tags)
 	return dbmodel.Process{
 		ServiceName: process.ServiceName,
 		Tags:        tags,
 	}
 }
 
-func convertKeyValue(kv model.KeyValue) dbmodel.KeyValue {
+func (FromDomain) convertKeyValue(kv model.KeyValue) dbmodel.KeyValue {
 	outKv := dbmodel.KeyValue{
 		Key:  kv.Key,
 		Type: dbmodel.ValueType(strings.ToLower(kv.VType.String())),

@@ -20,7 +20,8 @@ func TestSpanWriterV1_WriteSpan(t *testing.T) {
 		Process: &model.Process{Tags: []model.KeyValue{{Key: "bar", VStr: "baz"}}},
 	}
 	writerV1 := &SpanWriterV1{spanWriter: coreWriter}
-	coreWriter.On("WriteSpan", s.StartTime, FromDomainEmbedProcess(s))
+	converter := NewFromDomain()
+	coreWriter.On("WriteSpan", s.StartTime, converter.FromDomainEmbedProcess(s))
 	err := writerV1.WriteSpan(context.Background(), s)
 	require.NoError(t, err)
 }
