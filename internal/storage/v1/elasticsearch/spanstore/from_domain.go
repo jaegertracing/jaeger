@@ -14,7 +14,10 @@ import (
 // FromDomainEmbedProcess converts model.Span into json.Span format.
 // This format includes a ParentSpanID and an embedded Process.
 func FromDomainEmbedProcess(span *model.Span) *dbmodel.Span {
-	return convertSpanEmbedProcess(span)
+	s := convertSpanInternal(span)
+	s.Process = convertProcess(span.Process)
+	s.References = convertReferences(span)
+	return &s
 }
 
 func convertSpanInternal(span *model.Span) dbmodel.Span {
@@ -30,13 +33,6 @@ func convertSpanInternal(span *model.Span) dbmodel.Span {
 		Tags:            tags,
 		Logs:            convertLogs(span.Logs),
 	}
-}
-
-func convertSpanEmbedProcess(span *model.Span) *dbmodel.Span {
-	s := convertSpanInternal(span)
-	s.Process = convertProcess(span.Process)
-	s.References = convertReferences(span)
-	return &s
 }
 
 func convertReferences(span *model.Span) []dbmodel.Reference {
