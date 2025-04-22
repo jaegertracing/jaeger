@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
@@ -402,40 +401,6 @@ func TestHandler_FindTraceIDs(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, test.expectedTraceIDs, response.TraceIds)
 		}
-	}
-}
-
-func TestHandler_Export(t *testing.T) {
-	tests := []struct {
-		name           string
-		writeTracesErr error
-		expectedErr    error
-	}{
-		{
-			name: "success",
-		},
-		{
-			name:           "write error",
-			expectedErr:    assert.AnError,
-			writeTracesErr: assert.AnError,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			reader := new(tracestoremocks.Reader)
-			writer := new(tracestoremocks.Writer)
-			depReader := new(depstoremocks.Reader)
-			writer.On("WriteTraces", mock.Anything, makeTestTrace()).Return(test.writeTracesErr).Once()
-			server := NewHandler(reader, writer, depReader)
-
-			response, err := server.Export(context.Background(), ptraceotlp.NewExportRequestFromTraces(makeTestTrace()))
-			if test.expectedErr != nil {
-				require.ErrorIs(t, err, test.expectedErr)
-			} else {
-				require.NoError(t, err)
-			}
-			require.Equal(t, ptraceotlp.NewExportResponse(), response)
-		})
 	}
 }
 
