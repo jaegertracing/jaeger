@@ -14,7 +14,7 @@ import (
 
 // Command returns the config-docs command.
 func Command(v *viper.Viper) *cobra.Command {
-	const defaultOutput = "scripts/utils/config-docs/jaeger-config-schema.json"
+	const defaultOutput = "scripts/utils/config-docs/jaeger-config.schema.json"
 	var output string
 	cmd := &cobra.Command{
 		Use:   "config-docs",

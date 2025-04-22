@@ -16,7 +16,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "docs": "jsonschema2md -d ./ -o ../../../cmd/jaeger/docs/migration/configdocs.md"
+    "docs": "jsonschema2md -d ./ -o ../../../cmd/jaeger/docs/migration/configdocs"
   },
   "dependencies": {
     "@adobe/jsonschema2md": "^8.0.2"
