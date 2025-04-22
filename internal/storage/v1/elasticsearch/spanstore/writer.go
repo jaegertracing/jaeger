@@ -35,7 +35,9 @@ type SpanWriter struct {
 	// indexCache       cache.Cache
 	serviceWriter     serviceWriter
 	spanServiceIndex  spanAndServiceIndexFn
-	keyValueConverter keyValueConverter
+	allTagsAsFields   bool
+	tagDotReplacement string
+	tagKeysAsFields   map[string]bool
 }
 
 // CoreSpanWriter is a DB-Level abstraction which directly deals with database level operations
@@ -64,8 +66,6 @@ type SpanWriterParams struct {
 	ServiceCacheTTL     time.Duration
 }
 
-type keyValueConverter func([]dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any)
-
 // NewSpanWriter creates a new SpanWriter for use
 func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 	serviceCacheTTL := p.ServiceCacheTTL
@@ -93,7 +93,9 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		logger:            p.Logger,
 		serviceWriter:     serviceOperationStorage.Write,
 		spanServiceIndex:  getSpanAndServiceIndexFn(p, writeAliasSuffix),
-		keyValueConverter: getKeyValueConverter(p, tags),
+		tagKeysAsFields:   tags,
+		allTagsAsFields:   p.AllTagsAsFields,
+		tagDotReplacement: p.TagDotReplacement,
 	}
 }
 
@@ -140,10 +142,10 @@ func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 }
 
 func (s *SpanWriter) convertNestedTagsToFieldTags(span *dbmodel.Span) {
-	processNestedTags, processFieldTags := s.keyValueConverter(span.Process.Tags)
+	processNestedTags, processFieldTags := s.convertKeyValuesString(span.Process.Tags)
 	span.Process.Tags = processNestedTags
 	span.Process.Tag = processFieldTags
-	nestedTags, fieldTags := s.keyValueConverter(span.Tags)
+	nestedTags, fieldTags := s.convertKeyValuesString(span.Tags)
 	span.Tags = nestedTags
 	span.Tag = fieldTags
 }
@@ -169,15 +171,15 @@ func (s *SpanWriter) writeSpan(indexName string, jsonSpan *dbmodel.Span) {
 	s.client().Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan).Add()
 }
 
-func convertKeyValuesString(keyValues []dbmodel.KeyValue, allTagsAsFields bool, tagKeysAsFields map[string]bool, tagDotReplacement string) ([]dbmodel.KeyValue, map[string]any) {
+func (s *SpanWriter) convertKeyValuesString(keyValues []dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any) {
 	var tagsMap map[string]any
 	var kvs []dbmodel.KeyValue
 	for _, kv := range keyValues {
-		if kv.Type != dbmodel.BinaryType && (allTagsAsFields || tagKeysAsFields[kv.Key]) {
+		if kv.Type != dbmodel.BinaryType && (s.allTagsAsFields || s.tagKeysAsFields[kv.Key]) {
 			if tagsMap == nil {
 				tagsMap = map[string]any{}
 			}
-			tagsMap[strings.ReplaceAll(kv.Key, ".", tagDotReplacement)] = kv.Value
+			tagsMap[strings.ReplaceAll(kv.Key, ".", s.tagDotReplacement)] = kv.Value
 		} else {
 			kvs = append(kvs, kv)
 		}
@@ -186,10 +188,4 @@ func convertKeyValuesString(keyValues []dbmodel.KeyValue, allTagsAsFields bool, 
 		kvs = make([]dbmodel.KeyValue, 0)
 	}
 	return kvs, tagsMap
-}
-
-func getKeyValueConverter(p SpanWriterParams, tagKeysAsFields map[string]bool) keyValueConverter {
-	return func(values []dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any) {
-		return convertKeyValuesString(values, p.AllTagsAsFields, tagKeysAsFields, p.TagDotReplacement)
-	}
 }
