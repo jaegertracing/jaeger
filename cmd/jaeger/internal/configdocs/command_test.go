@@ -31,7 +31,7 @@ func TestCommand(t *testing.T) {
 	// Test that the output flag is set with the correct default value
 	outputFlag := cmd.Flag("output")
 	require.NotNil(t, outputFlag)
-	assert.Equal(t, "scripts/utils/config-docs/jaeger-config.schema.json", outputFlag.DefValue)
+	assert.Equal(t, defaultOutput, outputFlag.DefValue)
 	assert.Equal(t, "Output file", outputFlag.Usage)
 }
 
