@@ -14,8 +14,11 @@ import (
 
 type Config struct {
 	Tenancy                      tenancy.Options `mapstructure:"multi_tenancy"`
-	configgrpc.ClientConfig      `mapstructure:",squash"`
 	exporterhelper.TimeoutConfig `mapstructure:",squash"`
+
+	// TODO: add documentation
+	Writer                  configgrpc.ClientConfig `mapstructure:"writer"`
+	configgrpc.ClientConfig `mapstructure:",squash"`
 }
 
 func DefaultConfig() Config {
