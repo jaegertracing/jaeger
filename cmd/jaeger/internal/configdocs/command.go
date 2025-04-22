@@ -12,6 +12,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/config"
 )
 
+var genDocs = GenerateDocs
+
 // Command returns the config-docs command.
 func Command(v *viper.Viper) *cobra.Command {
 	const defaultOutput = "scripts/utils/config-docs/jaeger-config.schema.json"
@@ -19,8 +21,8 @@ func Command(v *viper.Viper) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config-docs",
 		Short: "Generates JSON schema for configuration documentation",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return GenerateDocs(output)
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return genDocs(output)
 		},
 	}
 	config.AddFlags(
