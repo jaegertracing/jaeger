@@ -142,10 +142,10 @@ func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 }
 
 func (s *SpanWriter) convertNestedTagsToFieldTags(span *dbmodel.Span) {
-	processNestedTags, processFieldTags := s.convertKeyValuesString(span.Process.Tags)
+	processNestedTags, processFieldTags := s.splitElevatedTags(span.Process.Tags)
 	span.Process.Tags = processNestedTags
 	span.Process.Tag = processFieldTags
-	nestedTags, fieldTags := s.convertKeyValuesString(span.Tags)
+	nestedTags, fieldTags := s.splitElevatedTags(span.Tags)
 	span.Tags = nestedTags
 	span.Tag = fieldTags
 }
@@ -171,7 +171,7 @@ func (s *SpanWriter) writeSpan(indexName string, jsonSpan *dbmodel.Span) {
 	s.client().Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan).Add()
 }
 
-func (s *SpanWriter) convertKeyValuesString(keyValues []dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any) {
+func (s *SpanWriter) splitElevatedTags(keyValues []dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any) {
 	var tagsMap map[string]any
 	var kvs []dbmodel.KeyValue
 	for _, kv := range keyValues {
