@@ -14,13 +14,12 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	v1 "github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
-const tagW3CTraceState = "w3c.tracestate"
+const errorAttribute = "error"
 
 // Store is an in-memory store of traces
 type Store struct {
@@ -37,27 +36,6 @@ func NewStore(cfg v1.Configuration) *Store {
 		defaultConfig: cfg,
 		perTenant:     make(map[string]*Tenant),
 	}
-}
-
-// memoryTraceQueryParams is an extension of tracestore.TraceQueryParams
-// There are some components which are stored in traces separately like SpanKind
-// status code etc but they are put in the query in the form of Attributes, so we need
-// to extract those parameters from tags and perform searching over the required parameters.
-type memoryTraceQueryParams struct {
-	ServiceName   string
-	OperationName string
-	Attributes    pcommon.Map
-	StartTimeMin  time.Time
-	StartTimeMax  time.Time
-	DurationMin   time.Duration
-	DurationMax   time.Duration
-	SearchDepth   int
-	Kind          ptrace.SpanKind
-	StatusCode    ptrace.StatusCode
-	StatusMessage string
-	TraceState    string
-	ScopeName     string
-	ScopeVersion  string
 }
 
 // getTenant returns the per-tenant storage.  Note that tenantID has already been checked for by the collector or query
@@ -142,11 +120,10 @@ type tracesByTime struct {
 func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		m := st.getTenant(tenancy.GetTenant(ctx))
-		memTraceQueryParams := toMemoryTraceQueryParams(query)
 		tracesByTm := make([]tracesByTime, 0)
 		m.RLock()
 		for _, trace := range m.traces {
-			if startTime, ok := validTrace(trace, memTraceQueryParams); ok {
+			if startTime, ok := validTrace(trace, query); ok {
 				tracesByTm = append(tracesByTm, tracesByTime{
 					ts:     startTime,
 					traces: trace,
@@ -171,116 +148,16 @@ func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryPara
 	}
 }
 
-func toMemoryTraceQueryParams(query tracestore.TraceQueryParams) memoryTraceQueryParams {
-	attrs := pcommon.NewMap()
-	query.Attributes.CopyTo(attrs)
-	traceState := getAndDeleteTraceStateFromAttrs(attrs)
-	kind := getAndDeleteSpanKindFromAttrs(attrs)
-	statusCode, statusMsg := getAndDeleteStatusCodeAndMessageFromAttrs(attrs)
-	scopeName, scopeVersion := getAndDeleteScopeNameAndVersionFromAttrs(attrs)
-	return memoryTraceQueryParams{
-		OperationName: query.OperationName,
-		StartTimeMin:  query.StartTimeMin,
-		StartTimeMax:  query.StartTimeMax,
-		DurationMin:   query.DurationMin,
-		DurationMax:   query.DurationMax,
-		SearchDepth:   query.SearchDepth,
-		Attributes:    attrs,
-		ServiceName:   query.ServiceName,
-		TraceState:    traceState,
-		Kind:          kind,
-		StatusCode:    statusCode,
-		StatusMessage: statusMsg,
-		ScopeName:     scopeName,
-		ScopeVersion:  scopeVersion,
-	}
-}
-
-func getAndDeleteScopeNameAndVersionFromAttrs(attrs pcommon.Map) (name string, version string) {
-	if nameVal, ok := attrs.Get(conventions.AttributeOtelScopeName); ok {
-		name = nameVal.Str()
-		attrs.Remove(conventions.AttributeOtelScopeName)
-	}
-	if versionVal, ok := attrs.Get(conventions.AttributeOtelScopeVersion); ok {
-		version = versionVal.Str()
-		attrs.Remove(conventions.AttributeOtelScopeVersion)
-	}
-	return name, version
-}
-
-func getAndDeleteTraceStateFromAttrs(attrs pcommon.Map) string {
-	traceState := ""
-	// TODO Bring this inline with solution for jaegertracing/jaeger-client-java #702 once available
-	if attr, ok := attrs.Get(tagW3CTraceState); ok {
-		traceState = attr.Str()
-		attrs.Remove(tagW3CTraceState)
-	}
-	return traceState
-}
-
-func getAndDeleteSpanKindFromAttrs(attrs pcommon.Map) ptrace.SpanKind {
-	val, found := attrs.Get(model.SpanKindKey)
-	if found {
-		kind := stringToOTELSpanKind(val.Str())
-		attrs.Remove(model.SpanKindKey)
-		return kind
-	}
-	return ptrace.SpanKindUnspecified
-}
-
-func stringToOTELSpanKind(spanKind string) ptrace.SpanKind {
-	switch spanKind {
-	case "client":
-		return ptrace.SpanKindClient
-	case "server":
-		return ptrace.SpanKindServer
-	case "producer":
-		return ptrace.SpanKindProducer
-	case "consumer":
-		return ptrace.SpanKindConsumer
-	case "internal":
-		return ptrace.SpanKindInternal
-	}
-	return ptrace.SpanKindUnspecified
-}
-
-func getAndDeleteStatusCodeAndMessageFromAttrs(attrs pcommon.Map) (ptrace.StatusCode, string) {
-	code := ptrace.StatusCodeUnset
-	msg := ""
-	if val, found := attrs.Get(conventions.AttributeOtelStatusCode); found {
-		code = statusCodeFromString(val.Str())
-		attrs.Remove(conventions.AttributeOtelStatusCode)
-	}
-	if message, found := attrs.Get(conventions.AttributeOtelStatusDescription); found {
-		msg = message.Str()
-		attrs.Remove(conventions.AttributeOtelStatusDescription)
-	}
-	return code, msg
-}
-
-func statusCodeFromString(cd string) ptrace.StatusCode {
-	switch cd {
-	case "Ok":
-		return ptrace.StatusCodeOk
-	case "Error":
-		return ptrace.StatusCodeError
-	default:
-		return ptrace.StatusCodeUnset
-	}
-}
-
-func validTrace(td ptrace.Traces, query memoryTraceQueryParams) (time.Time, bool) {
+func validTrace(td ptrace.Traces, query tracestore.TraceQueryParams) (time.Time, bool) {
 	for _, resourceSpan := range td.ResourceSpans().All() {
-		tags := make([]keyValue, 0)
 		if validResource(resourceSpan.Resource(), query) {
-			tags = insertTagsFromAttrs(tags, resourceSpan.Resource().Attributes())
+			resourceTags := getKeyValueFromAttributes(resourceSpan.Resource().Attributes())
 			for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
-				if validScope(scopeSpan.Scope(), query) {
-					tags = insertTagsFromAttrs(tags, scopeSpan.Scope().Attributes())
-					for _, span := range scopeSpan.Spans().All() {
-						if validSpan(tags, span, query) {
-							return span.StartTimestamp().AsTime(), true
-						}
+				scopeTags := getKeyValueFromAttributes(scopeSpan.Scope().Attributes())
+				resourceAndScopeTags := append(resourceTags, scopeTags...)
+				for _, span := range scopeSpan.Spans().All() {
+					if validSpan(resourceAndScopeTags, span, query) {
+						return span.StartTimestamp().AsTime(), true
 					}
 				}
 			}
@@ -289,18 +166,8 @@ func validTrace(td ptrace.Traces, query memoryTraceQueryParams) (time.Time, bool
 	return time.Time{}, false
 }
 
-func validResource(resource pcommon.Resource, query memoryTraceQueryParams) bool {
-	if query.ServiceName != getServiceNameFromResource(resource) {
-		return false
-	}
-	return true
-}
-
-func validScope(scope pcommon.InstrumentationScope, query memoryTraceQueryParams) bool {
-	if query.ScopeName != "" && query.ScopeName != scope.Name() {
-		return false
-	}
-	if query.ScopeVersion != "" && query.ScopeVersion != scope.Version() {
+func validResource(resource pcommon.Resource, query tracestore.TraceQueryParams) bool {
+	if query.ServiceName != "" && query.ServiceName != getServiceNameFromResource(resource) {
 		return false
 	}
 	return true
@@ -314,17 +181,26 @@ type keyValue struct {
 	value pcommon.Value
 }
 
-func validSpan(tags []keyValue, span ptrace.Span, query memoryTraceQueryParams) bool {
-	tags = insertTagsFromAttrs(tags, span.Attributes())
-	for _, val := range span.Events().All() {
-		tags = insertTagsFromAttrs(tags, val.Attributes())
+func validSpan(resourceAndScopeTags []keyValue, span ptrace.Span, query tracestore.TraceQueryParams) bool {
+	attrs := pcommon.NewMap()
+	query.Attributes.CopyTo(attrs)
+	errorAttributeFound := false
+	if errorAttr, ok := attrs.Get(errorAttribute); ok {
+		errorAttributeFound = errorAttr.Bool()
+		attrs.Remove(errorAttribute)
 	}
-	for queryK, queryV := range query.Attributes.All() {
+	spanTags := getKeyValueFromAttributes(span.Attributes())
+	tags := append(spanTags, resourceAndScopeTags...)
+	for _, val := range span.Events().All() {
+		eventTag := getKeyValueFromAttributes(val.Attributes())
+		tags = append(tags, eventTag...)
+	}
+	for queryK, queryV := range attrs.All() {
 		if ok := findKeyValueMatch(tags, queryK, queryV); !ok {
 			return false
 		}
 	}
-	if query.Kind != ptrace.SpanKindUnspecified && query.Kind != span.Kind() {
+	if errorAttributeFound && span.Status().Code() != ptrace.StatusCodeError {
 		return false
 	}
 	if query.OperationName != span.Name() {
@@ -345,15 +221,6 @@ func validSpan(tags []keyValue, span ptrace.Span, query memoryTraceQueryParams) 
 	if query.DurationMax != 0 && duration > query.DurationMax {
 		return false
 	}
-	if query.TraceState != "" && query.TraceState != span.TraceState().AsRaw() {
-		return false
-	}
-	if query.StatusCode != ptrace.StatusCodeUnset && query.StatusCode != span.Status().Code() {
-		return false
-	}
-	if query.StatusMessage != "" && query.StatusMessage != span.Status().Message() {
-		return false
-	}
 	return true
 }
 
@@ -366,7 +233,8 @@ func findKeyValueMatch(kvs []keyValue, key string, value pcommon.Value) bool {
 	return false
 }
 
-func insertTagsFromAttrs(kvs []keyValue, attrs pcommon.Map) []keyValue {
+func getKeyValueFromAttributes(attrs pcommon.Map) []keyValue {
+	kvs := make([]keyValue, 0, attrs.Len())
 	for key, val := range attrs.All() {
 		kvs = append(kvs, keyValue{
 			key:   key,

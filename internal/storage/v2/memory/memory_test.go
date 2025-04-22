@@ -20,7 +20,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	v1 "github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
@@ -88,14 +87,11 @@ func TestNewStore_DefaultConfig(t *testing.T) {
 
 func getQueryAttributes() pcommon.Map {
 	queryAttrs := pcommon.NewMap()
-	// These are overly constrained query attributes, typically they should match only one span
-	queryAttrs.PutStr(conventions.OtelStatusCode, "Error")
-	queryAttrs.PutStr(conventions.AttributeOtelScopeName, "testing-library-2")
-	queryAttrs.PutStr(conventions.AttributeOtelScopeVersion, "1.1.1")
 	queryAttrs.PutStr("peer.service", "service-y")
-	queryAttrs.PutStr(model.SpanKindKey, "server")
 	queryAttrs.PutDouble("temperature", 72.5)
-	queryAttrs.PutStr(tagW3CTraceState, "state.2")
+	queryAttrs.PutBool(errorAttribute, true)
+	queryAttrs.PutStr("event-x", "event-y")
+	queryAttrs.PutStr("scope.attributes.2", "attribute-y")
 	return queryAttrs
 }
 
@@ -116,29 +112,10 @@ func TestFindTraces_WrongQuery(t *testing.T) {
 			},
 		},
 		{
-			name: "wrong scope name",
-			modifyQueryFxn: func(query *tracestore.TraceQueryParams) {
-				query.Attributes.PutStr(conventions.AttributeOtelScopeName, wrongStringValue)
-			},
-		},
-		{
-			name: "wrong scope-version",
-			modifyQueryFxn: func(query *tracestore.TraceQueryParams) {
-				query.Attributes.PutStr(conventions.AttributeOtelScopeVersion, wrongStringValue)
-			},
-		},
-		{
 			name: "wrong tag",
 			modifyQueryFxn: func(query *tracestore.TraceQueryParams) {
 				query.Attributes.PutStr(wrongStringValue, wrongStringValue)
 			},
-		},
-		{
-			name: "wrong kind",
-			modifyQueryFxn: func(query *tracestore.TraceQueryParams) {
-				query.Attributes.PutStr(model.SpanKindKey, wrongStringValue)
-			},
-			iterLength: 1,
 		},
 		{
 			name: "wrong operation name",
@@ -149,21 +126,9 @@ func TestFindTraces_WrongQuery(t *testing.T) {
 		{
 			name: "wrong status code",
 			modifyQueryFxn: func(query *tracestore.TraceQueryParams) {
-				query.Attributes.PutStr(conventions.AttributeOtelStatusCode, wrongStringValue)
+				query.Attributes.PutStr(errorAttribute, wrongStringValue)
 			},
 			iterLength: 1,
-		},
-		{
-			name: "wrong status message",
-			modifyQueryFxn: func(query *tracestore.TraceQueryParams) {
-				query.Attributes.PutStr(conventions.AttributeOtelStatusDescription, wrongStringValue)
-			},
-		},
-		{
-			name: "wrong trace state",
-			modifyQueryFxn: func(query *tracestore.TraceQueryParams) {
-				query.Attributes.PutStr(tagW3CTraceState, wrongStringValue)
-			},
 		},
 		{
 			name: "wrong min start time",
@@ -211,6 +176,42 @@ func TestFindTraces_WrongQuery(t *testing.T) {
 			assert.Equal(t, tt.iterLength, iterLength)
 		})
 	}
+}
+
+func TestFindTraces_MaxTraces(t *testing.T) {
+	store := NewStore(v1.Configuration{})
+	for i := 1; i < 9; i++ {
+		td := ptrace.NewTraces()
+		span := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		span.SetTraceID(fromString(t, fmt.Sprintf("000000000000000%d0000000000000000", i)))
+		span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+		span.Attributes().PutBool("key", true)
+		err := store.WriteTraces(context.Background(), td)
+		require.NoError(t, err)
+	}
+	attrs := pcommon.NewMap()
+	attrs.PutBool("key", true)
+	params := tracestore.TraceQueryParams{
+		SearchDepth: 5,
+		Attributes:  attrs,
+	}
+	gotIter := store.FindTraces(context.Background(), params)
+	iterLength := 0
+	for _, err := range gotIter {
+		require.NoError(t, err)
+		iterLength++
+	}
+	assert.Equal(t, 5, iterLength)
+	newIter := store.FindTraces(context.Background(), params)
+	iterLength = 0
+	for _, err := range newIter {
+		require.NoError(t, err)
+		iterLength++
+		if iterLength > 3 {
+			break
+		}
+	}
+	assert.Equal(t, 4, iterLength)
 }
 
 func TestGetOperationsWithKind(t *testing.T) {
