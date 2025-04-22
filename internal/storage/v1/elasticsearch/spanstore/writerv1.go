@@ -11,15 +11,13 @@ import (
 )
 
 type SpanWriterV1 struct {
-	spanWriter    CoreSpanWriter
-	spanConverter FromDomain
+	spanWriter CoreSpanWriter
 }
 
 // NewSpanWriterV1 returns the SpanWriterV1 for use
 func NewSpanWriterV1(p SpanWriterParams) *SpanWriterV1 {
 	return &SpanWriterV1{
-		spanWriter:    NewSpanWriter(p),
-		spanConverter: NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
+		spanWriter: NewSpanWriter(p),
 	}
 }
 
@@ -30,7 +28,7 @@ func (s *SpanWriterV1) CreateTemplates(spanTemplate, serviceTemplate string, ind
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 func (s *SpanWriterV1) WriteSpan(_ context.Context, span *model.Span) error {
-	jsonSpan := s.spanConverter.FromDomainEmbedProcess(span)
+	jsonSpan := FromDomainEmbedProcess(span)
 	s.spanWriter.WriteSpan(span.StartTime, jsonSpan)
 	return nil
 }

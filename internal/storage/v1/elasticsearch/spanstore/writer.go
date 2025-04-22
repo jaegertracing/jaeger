@@ -7,6 +7,7 @@ package spanstore
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -32,8 +33,9 @@ type SpanWriter struct {
 	client func() es.Client
 	logger *zap.Logger
 	// indexCache       cache.Cache
-	serviceWriter    serviceWriter
-	spanServiceIndex spanAndServiceIndexFn
+	serviceWriter     serviceWriter
+	spanServiceIndex  spanAndServiceIndexFn
+	keyValueConverter keyValueConverter
 }
 
 // CoreSpanWriter is a DB-Level abstraction which directly deals with database level operations
@@ -62,6 +64,8 @@ type SpanWriterParams struct {
 	ServiceCacheTTL     time.Duration
 }
 
+type keyValueConverter func([]dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any)
+
 // NewSpanWriter creates a new SpanWriter for use
 func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 	serviceCacheTTL := p.ServiceCacheTTL
@@ -78,12 +82,18 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		}
 	}
 
+	tags := map[string]bool{}
+	for _, k := range p.TagKeysAsFields {
+		tags[k] = true
+	}
+
 	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheTTL)
 	return &SpanWriter{
-		client:           p.Client,
-		logger:           p.Logger,
-		serviceWriter:    serviceOperationStorage.Write,
-		spanServiceIndex: getSpanAndServiceIndexFn(p, writeAliasSuffix),
+		client:            p.Client,
+		logger:            p.Logger,
+		serviceWriter:     serviceOperationStorage.Write,
+		spanServiceIndex:  getSpanAndServiceIndexFn(p, writeAliasSuffix),
+		keyValueConverter: getKeyValueConverter(p, tags),
 	}
 }
 
@@ -120,12 +130,22 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServ
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
+	s.convertNestedTagsToFieldTags(span)
 	spanIndexName, serviceIndexName := s.spanServiceIndex(spanStartTime)
 	if serviceIndexName != "" {
 		s.writeService(serviceIndexName, span)
 	}
 	s.writeSpan(spanIndexName, span)
 	s.logger.Debug("Wrote span to ES index", zap.String("index", spanIndexName))
+}
+
+func (s *SpanWriter) convertNestedTagsToFieldTags(span *dbmodel.Span) {
+	processNestedTags, processFieldTags := s.keyValueConverter(span.Process.Tags)
+	span.Process.Tags = processNestedTags
+	span.Process.Tag = processFieldTags
+	nestedTags, fieldTags := s.keyValueConverter(span.Tags)
+	span.Tags = nestedTags
+	span.Tag = fieldTags
 }
 
 // Close closes SpanWriter
@@ -147,4 +167,29 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
 
 func (s *SpanWriter) writeSpan(indexName string, jsonSpan *dbmodel.Span) {
 	s.client().Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan).Add()
+}
+
+func convertKeyValuesString(keyValues []dbmodel.KeyValue, allTagsAsFields bool, tagKeysAsFields map[string]bool, tagDotReplacement string) ([]dbmodel.KeyValue, map[string]any) {
+	var tagsMap map[string]any
+	var kvs []dbmodel.KeyValue
+	for _, kv := range keyValues {
+		if kv.Type != dbmodel.BinaryType && (allTagsAsFields || tagKeysAsFields[kv.Key]) {
+			if tagsMap == nil {
+				tagsMap = map[string]any{}
+			}
+			tagsMap[strings.ReplaceAll(kv.Key, ".", tagDotReplacement)] = kv.Value
+		} else {
+			kvs = append(kvs, kv)
+		}
+	}
+	if kvs == nil {
+		kvs = make([]dbmodel.KeyValue, 0)
+	}
+	return kvs, tagsMap
+}
+
+func getKeyValueConverter(p SpanWriterParams, tagKeysAsFields map[string]bool) keyValueConverter {
+	return func(values []dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any) {
+		return convertKeyValuesString(values, p.AllTagsAsFields, tagKeysAsFields, p.TagDotReplacement)
+	}
 }

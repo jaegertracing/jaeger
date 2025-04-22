@@ -11,30 +11,14 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 )
 
-// NewFromDomain creates FromDomain used to convert model span to db span
-func NewFromDomain(allTagsAsObject bool, tagKeysAsFields []string, tagDotReplacement string) FromDomain {
-	tags := map[string]bool{}
-	for _, k := range tagKeysAsFields {
-		tags[k] = true
-	}
-	return FromDomain{allTagsAsFields: allTagsAsObject, tagKeysAsFields: tags, tagDotReplacement: tagDotReplacement}
-}
-
-// FromDomain is used to convert model span to db span
-type FromDomain struct {
-	allTagsAsFields   bool
-	tagKeysAsFields   map[string]bool
-	tagDotReplacement string
-}
-
 // FromDomainEmbedProcess converts model.Span into json.Span format.
 // This format includes a ParentSpanID and an embedded Process.
-func (fd FromDomain) FromDomainEmbedProcess(span *model.Span) *dbmodel.Span {
-	return fd.convertSpanEmbedProcess(span)
+func FromDomainEmbedProcess(span *model.Span) *dbmodel.Span {
+	return convertSpanEmbedProcess(span)
 }
 
-func (fd FromDomain) convertSpanInternal(span *model.Span) dbmodel.Span {
-	tags, tagsMap := fd.convertKeyValuesString(span.Tags)
+func convertSpanInternal(span *model.Span) dbmodel.Span {
+	tags := convertKeyValues(span.Tags)
 	return dbmodel.Span{
 		TraceID:         dbmodel.TraceID(span.TraceID.String()),
 		SpanID:          dbmodel.SpanID(span.SpanID.String()),
@@ -44,23 +28,22 @@ func (fd FromDomain) convertSpanInternal(span *model.Span) dbmodel.Span {
 		StartTimeMillis: model.TimeAsEpochMicroseconds(span.StartTime) / 1000,
 		Duration:        model.DurationAsMicroseconds(span.Duration),
 		Tags:            tags,
-		Tag:             tagsMap,
-		Logs:            fd.convertLogs(span.Logs),
+		Logs:            convertLogs(span.Logs),
 	}
 }
 
-func (fd FromDomain) convertSpanEmbedProcess(span *model.Span) *dbmodel.Span {
-	s := fd.convertSpanInternal(span)
-	s.Process = fd.convertProcess(span.Process)
-	s.References = fd.convertReferences(span)
+func convertSpanEmbedProcess(span *model.Span) *dbmodel.Span {
+	s := convertSpanInternal(span)
+	s.Process = convertProcess(span.Process)
+	s.References = convertReferences(span)
 	return &s
 }
 
-func (fd FromDomain) convertReferences(span *model.Span) []dbmodel.Reference {
+func convertReferences(span *model.Span) []dbmodel.Reference {
 	out := make([]dbmodel.Reference, 0, len(span.References))
 	for _, ref := range span.References {
 		out = append(out, dbmodel.Reference{
-			RefType: fd.convertRefType(ref.RefType),
+			RefType: convertRefType(ref.RefType),
 			TraceID: dbmodel.TraceID(ref.TraceID.String()),
 			SpanID:  dbmodel.SpanID(ref.SpanID.String()),
 		})
@@ -68,33 +51,25 @@ func (fd FromDomain) convertReferences(span *model.Span) []dbmodel.Reference {
 	return out
 }
 
-func (FromDomain) convertRefType(refType model.SpanRefType) dbmodel.ReferenceType {
+func convertRefType(refType model.SpanRefType) dbmodel.ReferenceType {
 	if refType == model.FollowsFrom {
 		return dbmodel.FollowsFrom
 	}
 	return dbmodel.ChildOf
 }
 
-func (fd FromDomain) convertKeyValuesString(keyValues model.KeyValues) ([]dbmodel.KeyValue, map[string]any) {
-	var tagsMap map[string]any
+func convertKeyValues(keyValues model.KeyValues) []dbmodel.KeyValue {
 	var kvs []dbmodel.KeyValue
 	for _, kv := range keyValues {
-		if kv.GetVType() != model.BinaryType && (fd.allTagsAsFields || fd.tagKeysAsFields[kv.Key]) {
-			if tagsMap == nil {
-				tagsMap = map[string]any{}
-			}
-			tagsMap[strings.ReplaceAll(kv.Key, ".", fd.tagDotReplacement)] = kv.Value()
-		} else {
-			kvs = append(kvs, convertKeyValue(kv))
-		}
+		kvs = append(kvs, convertKeyValue(kv))
 	}
 	if kvs == nil {
 		kvs = make([]dbmodel.KeyValue, 0)
 	}
-	return kvs, tagsMap
+	return kvs
 }
 
-func (FromDomain) convertLogs(logs []model.Log) []dbmodel.Log {
+func convertLogs(logs []model.Log) []dbmodel.Log {
 	out := make([]dbmodel.Log, len(logs))
 	for i, log := range logs {
 		var kvs []dbmodel.KeyValue
@@ -109,12 +84,11 @@ func (FromDomain) convertLogs(logs []model.Log) []dbmodel.Log {
 	return out
 }
 
-func (fd FromDomain) convertProcess(process *model.Process) dbmodel.Process {
-	tags, tagsMap := fd.convertKeyValuesString(process.Tags)
+func convertProcess(process *model.Process) dbmodel.Process {
+	tags := convertKeyValues(process.Tags)
 	return dbmodel.Process{
 		ServiceName: process.ServiceName,
 		Tags:        tags,
-		Tag:         tagsMap,
 	}
 }
 
