@@ -1,7 +1,7 @@
 // Copyright (c) 2025 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package configdocs
+package configschema
 
 import (
 	"flag"
@@ -20,7 +20,7 @@ var genDocs = GenerateDocs
 func Command(v *viper.Viper) *cobra.Command {
 	var output string
 	cmd := &cobra.Command{
-		Use:   "config-docs",
+		Use:   "config-schema",
 		Short: "Generates JSON schema for configuration documentation",
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return genDocs(output)

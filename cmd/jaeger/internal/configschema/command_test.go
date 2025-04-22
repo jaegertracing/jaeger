@@ -1,7 +1,7 @@
 // Copyright (c) 2025 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package configdocs
+package configschema
 
 import (
 	"os"
@@ -15,9 +15,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
-// mockGenerateDocs is a mock function for GenerateDocs
-type mockGenerateDocsFunc func(outputPath string) error
-
 // TestCommand tests the Command function
 func TestCommand(t *testing.T) {
 	// Create a viper instance
@@ -25,7 +22,7 @@ func TestCommand(t *testing.T) {
 
 	// Test that the command is created with the correct properties
 	cmd := Command(v)
-	assert.Equal(t, "config-docs", cmd.Use)
+	assert.Equal(t, "config-schema", cmd.Use)
 	assert.Equal(t, "Generates JSON schema for configuration documentation", cmd.Short)
 
 	// Test that the output flag is set with the correct default value
