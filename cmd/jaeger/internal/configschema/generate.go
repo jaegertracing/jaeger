@@ -21,7 +21,6 @@ func GenerateDocs(outputPath string) error {
 	}
 
 	configs := collectConfigs(factories)
-	configs = configs[:1]
 	packages := collectPackages(configs)
 
 	pkgs, err := loadPackages(packages)
@@ -249,8 +248,8 @@ func mapTypeToJSONSchema(goType string) string {
 	}
 }
 
-func collectConfigs(factories otelcol.Factories) []interface{} {
-	var configs []interface{}
+func collectConfigs(factories otelcol.Factories) []any {
+	var configs []any
 
 	for _, f := range factories.Extensions {
 		configs = append(configs, f.CreateDefaultConfig())
