@@ -52,11 +52,11 @@ func NewFactory(
 		config: cfg,
 	}
 
-	var writerConfig *configgrpc.ClientConfig
+	var writerConfig configgrpc.ClientConfig
 	if cfg.Writer.Endpoint != "" {
-		writerConfig = &cfg.Writer
+		writerConfig = cfg.Writer
 	} else {
-		writerConfig = &cfg.ClientConfig
+		writerConfig = cfg.ClientConfig
 	}
 
 	readerTelset := getTelset(f.telset, f.telset.TracerProvider)
@@ -69,7 +69,7 @@ func NewFactory(
 		return gcs.ToClientConn(ctx, f.telset.Host, telset, clientOpts...)
 	}
 
-	if err := f.initializeConnections(readerTelset, writerTelset, &cfg.ClientConfig, writerConfig, newClientFn); err != nil {
+	if err := f.initializeConnections(readerTelset, writerTelset, &cfg.ClientConfig, &writerConfig, newClientFn); err != nil {
 		return nil, err
 	}
 
