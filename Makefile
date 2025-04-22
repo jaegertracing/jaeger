@@ -223,7 +223,7 @@ generate-mocks: $(MOCKERY)
 
 .PHONY: config-docs
 config-docs:
-	go run ./cmd/jaeger config-docs
+	go run ./cmd/jaeger config-schema
 	cd scripts/utils/config-docs && npm ci && npm run docs
 
 .PHONY: certs

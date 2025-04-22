@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal"
@@ -303,6 +304,8 @@ func collectPackages(configs []interface{}) []string {
 	for pkg := range packages {
 		result = append(result, pkg)
 	}
+	slices.Sort(result)
+	fmt.Println("Discovered packages:\n- " + strings.Join(result, "\n- "))
 	return result
 }
 
