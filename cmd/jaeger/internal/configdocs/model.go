@@ -31,8 +31,8 @@ type JSONSchema struct {
 	Title       string                     `json:"title"`
 	Description string                     `json:"description"`
 	Type        string                     `json:"type"`
-	Definitions map[string]interface{}     `json:"definitions"`
-	Properties  map[string]interface{}     `json:"properties"`
+	Definitions map[string]any             `json:"definitions"`
+	Properties  map[string]any             `json:"properties"`
 	Required    []string                   `json:"required,omitempty"`
 	Extensions  map[string]json.RawMessage `json:"-"`
 }

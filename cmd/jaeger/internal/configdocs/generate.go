@@ -21,6 +21,7 @@ func GenerateDocs(outputPath string) error {
 	}
 
 	configs := collectConfigs(factories)
+	configs = configs[:1]
 	packages := collectPackages(configs)
 
 	pkgs, err := loadPackages(packages)
@@ -33,8 +34,8 @@ func GenerateDocs(outputPath string) error {
 		Title:       "Jaeger Configuration",
 		Description: "Jaeger component configuration schema",
 		Type:        "object",
-		Definitions: make(map[string]interface{}),
-		Properties:  make(map[string]interface{}),
+		Definitions: make(map[string]any),
+		Properties:  make(map[string]any),
 	}
 
 	structRegistry := make(map[string]StructDoc)
