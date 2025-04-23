@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -20,11 +21,13 @@ import (
 var (
 	_ storage.TraceReaderServer      = (*Handler)(nil)
 	_ storage.DependencyReaderServer = (*Handler)(nil)
+	_ ptraceotlp.GRPCServer          = (*Handler)(nil)
 )
 
 type Handler struct {
 	storage.UnimplementedTraceReaderServer
 	storage.UnimplementedDependencyReaderServer
+	ptraceotlp.UnimplementedGRPCServer
 
 	traceReader tracestore.Reader
 	traceWriter tracestore.Writer
@@ -148,6 +151,17 @@ func (h *Handler) FindTraceIDs(
 	}, nil
 }
 
+func (h *Handler) Export(ctx context.Context, request ptraceotlp.ExportRequest) (
+	ptraceotlp.ExportResponse,
+	error,
+) {
+	err := h.traceWriter.WriteTraces(ctx, request.Traces())
+	if err != nil {
+		return ptraceotlp.NewExportResponse(), err
+	}
+	return ptraceotlp.NewExportResponse(), nil
+}
+
 func (h *Handler) GetDependencies(
 	ctx context.Context,
 	req *storage.GetDependenciesRequest,
@@ -176,9 +190,11 @@ func (h *Handler) GetDependencies(
 func (h *Handler) Register(ss *grpc.Server, hs *health.Server) {
 	storage.RegisterTraceReaderServer(ss, h)
 	storage.RegisterDependencyReaderServer(ss, h)
+	ptraceotlp.RegisterGRPCServer(ss, h)
 
 	hs.SetServingStatus("jaeger.storage.v2.TraceReader", grpc_health_v1.HealthCheckResponse_SERVING)
 	hs.SetServingStatus("jaeger.storage.v2.DependencyReader", grpc_health_v1.HealthCheckResponse_SERVING)
+	hs.SetServingStatus("jaeger.storage.v2.TraceWriter", grpc_health_v1.HealthCheckResponse_SERVING)
 }
 
 func toTraceQueryParams(t *storage.TraceQueryParameters) tracestore.TraceQueryParams {
