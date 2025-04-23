@@ -15,14 +15,12 @@ import (
 )
 
 // NewToDomain creates ToDomain
-func NewToDomain(tagDotReplacement string) ToDomain {
-	return ToDomain{dotReplacer: dbmodel.NewDotReplacer(tagDotReplacement)}
+func NewToDomain() ToDomain {
+	return ToDomain{}
 }
 
 // ToDomain is used to convert Span to model.Span
-type ToDomain struct {
-	dotReplacer dbmodel.DotReplacer
-}
+type ToDomain struct{}
 
 // SpanToDomain converts db span into model Span
 func (td ToDomain) SpanToDomain(dbSpan *dbmodel.Span) (*model.Span, error) {
@@ -59,13 +57,6 @@ func (td ToDomain) SpanToDomain(dbSpan *dbmodel.Span) (*model.Span, error) {
 		}
 		refs = model.MaybeAddParentSpanID(traceID, parentSpanID, refs)
 	}
-
-	fieldTags, err := td.convertTagFields(dbSpan.Tag)
-	if err != nil {
-		return nil, err
-	}
-	tags = append(tags, fieldTags...)
-
 	span := &model.Span{
 		TraceID:       traceID,
 		SpanID:        model.NewSpanID(uint64(spanIDInt)),
@@ -124,51 +115,6 @@ func (td ToDomain) convertKeyValues(tags []dbmodel.KeyValue) ([]model.KeyValue, 
 		retMe[i] = kv
 	}
 	return retMe, nil
-}
-
-func (td ToDomain) convertTagFields(tagsMap map[string]any) ([]model.KeyValue, error) {
-	kvs := make([]model.KeyValue, len(tagsMap))
-	i := 0
-	for k, v := range tagsMap {
-		tag, err := td.convertTagField(k, v)
-		if err != nil {
-			return nil, err
-		}
-		kvs[i] = tag
-		i++
-	}
-	return kvs, nil
-}
-
-func (td ToDomain) convertTagField(k string, v any) (model.KeyValue, error) {
-	dKey := td.dotReplacer.ReplaceDotReplacement(k)
-	switch val := v.(type) {
-	case int64:
-		return model.Int64(dKey, val), nil
-	case float64:
-		return model.Float64(dKey, val), nil
-	case bool:
-		return model.Bool(dKey, val), nil
-	case string:
-		return model.String(dKey, val), nil
-	// the binary is never returned, ES returns it as string with base64 encoding
-	case []byte:
-		return model.Binary(dKey, val), nil
-	// in spans are decoded using json.UseNumber() to preserve the type
-	// however note that float(1) will be parsed as int as ES does not store decimal point
-	case json.Number:
-		n, err := val.Int64()
-		if err == nil {
-			return model.Int64(dKey, n), nil
-		}
-		f, err := val.Float64()
-		if err == nil {
-			return model.Float64(dKey, f), nil
-		}
-		return model.String("", ""), fmt.Errorf("invalid tag type in %+v: %w", v, err)
-	default:
-		return model.String("", ""), fmt.Errorf("invalid tag type in %+v", v)
-	}
 }
 
 // convertKeyValue expects the Value field to be string, because it only works
@@ -283,12 +229,6 @@ func (td ToDomain) convertProcess(process dbmodel.Process) (*model.Process, erro
 	if err != nil {
 		return nil, err
 	}
-	fieldTags, err := td.convertTagFields(process.Tag)
-	if err != nil {
-		return nil, err
-	}
-	tags = append(tags, fieldTags...)
-
 	return &model.Process{
 		Tags:        tags,
 		ServiceName: process.ServiceName,

@@ -253,6 +253,10 @@ func (s *SpanReader) collectSpans(esSpansRaw []*elastic.SearchHit) ([]dbmodel.Sp
 		if err != nil {
 			return nil, fmt.Errorf("marshalling JSON to span object failed: %w", err)
 		}
+		err = s.mergeAllNestedAndElevatedTagsOfSpan(&jsonSpan)
+		if err != nil {
+			return nil, err
+		}
 		spans[i] = jsonSpan
 	}
 	return spans, nil
@@ -675,6 +679,75 @@ func (*SpanReader) buildObjectQuery(field string, k string, v string) elastic.Qu
 	keyField := fmt.Sprintf("%s.%s", field, k)
 	keyQuery := elastic.NewRegexpQuery(keyField, v)
 	return elastic.NewBoolQuery().Must(keyQuery)
+}
+
+func (s *SpanReader) mergeAllNestedAndElevatedTagsOfSpan(span *dbmodel.Span) error {
+	processTags, err := s.mergeNestedAndElevatedTags(span.Process.Tags, span.Process.Tag)
+	if err != nil {
+		return err
+	}
+	span.Process.Tags = processTags
+	spanTags, err := s.mergeNestedAndElevatedTags(span.Tags, span.Tag)
+	if err != nil {
+		return err
+	}
+	span.Tags = spanTags
+	return nil
+}
+
+func (s *SpanReader) mergeNestedAndElevatedTags(nestedTags []dbmodel.KeyValue, elevatedTags map[string]any) ([]dbmodel.KeyValue, error) {
+	mergedTags := make([]dbmodel.KeyValue, len(nestedTags)+len(elevatedTags))
+	copy(mergedTags[:len(nestedTags)], nestedTags)
+	i := len(nestedTags)
+	for k, v := range elevatedTags {
+		kv, err := s.convertTagField(k, v)
+		if err != nil {
+			return nil, err
+		}
+		mergedTags[i] = kv
+		i++
+		delete(elevatedTags, k)
+	}
+	return mergedTags, nil
+}
+
+func (s *SpanReader) convertTagField(k string, v any) (dbmodel.KeyValue, error) {
+	dKey := s.dotReplacer.ReplaceDotReplacement(k)
+	kv := dbmodel.KeyValue{
+		Key:   dKey,
+		Value: v,
+	}
+	switch val := v.(type) {
+	case int64:
+		kv.Type = dbmodel.Int64Type
+	case float64:
+		kv.Type = dbmodel.Float64Type
+	case bool:
+		kv.Type = dbmodel.BoolType
+	case string:
+		kv.Type = dbmodel.StringType
+	// the binary is never returned, ES returns it as string with base64 encoding
+	case []byte:
+		kv.Type = dbmodel.BinaryType
+	// in spans are decoded using json.UseNumber() to preserve the type
+	// however note that float(1) will be parsed as int as ES does not store decimal point
+	case json.Number:
+		n, err := val.Int64()
+		if err == nil {
+			kv.Value = n
+			kv.Type = dbmodel.Int64Type
+		} else {
+			f, err := val.Float64()
+			if err != nil {
+				return dbmodel.KeyValue{}, fmt.Errorf("invalid tag type in %+v: %s", v, err.Error())
+			}
+			kv.Value = f
+			kv.Type = dbmodel.Float64Type
+		}
+	default:
+		return dbmodel.KeyValue{}, fmt.Errorf("invalid tag type in %+v", v)
+	}
+	return kv, nil
 }
 
 func logErrorToSpan(span trace.Span, err error) {

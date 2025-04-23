@@ -332,10 +332,26 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 		traceID1 := dbmodel.TraceID(testingTraceId + "1")
 		traceID2 := dbmodel.TraceID(testingTraceId + "2")
 		date := time.Date(2019, 10, 10, 5, 0, 0, 0, time.UTC)
-		spanID1 := dbmodel.Span{SpanID: "0", TraceID: traceID1, StartTime: model.TimeAsEpochMicroseconds(date)}
+		spanID1 := dbmodel.Span{
+			SpanID:    "0",
+			TraceID:   traceID1,
+			StartTime: model.TimeAsEpochMicroseconds(date),
+			Tags:      []dbmodel.KeyValue{},
+			Process: dbmodel.Process{
+				Tags: []dbmodel.KeyValue{},
+			},
+		}
 		spanBytesID1, err := json.Marshal(spanID1)
 		require.NoError(t, err)
-		spanID2 := dbmodel.Span{SpanID: "0", TraceID: traceID2, StartTime: model.TimeAsEpochMicroseconds(date)}
+		spanID2 := dbmodel.Span{
+			SpanID:    "0",
+			TraceID:   traceID2,
+			StartTime: model.TimeAsEpochMicroseconds(date),
+			Tags:      []dbmodel.KeyValue{},
+			Process: dbmodel.Process{
+				Tags: []dbmodel.KeyValue{},
+			},
+		}
 		spanBytesID2, err := json.Marshal(spanID2)
 		require.NoError(t, err)
 
@@ -395,9 +411,13 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 		require.NotNil(t, traces)
 		require.Len(t, traces, 2)
 
-		for _, s := range []dbmodel.Span{spanID1, spanID2} {
-			found := reflect.DeepEqual(traces[0].Spans[0], s) || reflect.DeepEqual(traces[1].Spans[0], s)
-			assert.True(t, found, "span was expected to be within one of the traces but was not: %v", s)
+		for i, s := range []dbmodel.Span{spanID1, spanID2} {
+			actual := traces[i].Spans[0]
+			actualData, err := json.Marshal(actual)
+			require.NoError(t, err)
+			expectedData, err := json.Marshal(s)
+			require.NoError(t, err)
+			assert.Equal(t, string(expectedData), string(actualData))
 		}
 	})
 }
@@ -1303,4 +1323,66 @@ func TestTerminateAfterNotSet(t *testing.T) {
 	size, ok := searchParams["size"]
 	require.True(t, ok)
 	assert.Equal(t, 99, size)
+}
+
+func TestTagsMap(t *testing.T) {
+	tests := []struct {
+		fieldTags map[string]any
+		expected  dbmodel.KeyValue
+		err       error
+	}{
+		{fieldTags: map[string]any{"bool:bool": true}, expected: dbmodel.KeyValue{Key: "bool.bool", Value: true, Type: dbmodel.BoolType}},
+		{fieldTags: map[string]any{"int.int": int64(1)}, expected: dbmodel.KeyValue{Key: "int.int", Value: int64(1), Type: dbmodel.Int64Type}},
+		{fieldTags: map[string]any{"int:int": int64(2)}, expected: dbmodel.KeyValue{Key: "int.int", Value: int64(2), Type: dbmodel.Int64Type}},
+		{fieldTags: map[string]any{"float": float64(1.1)}, expected: dbmodel.KeyValue{Key: "float", Value: float64(1.1), Type: dbmodel.Float64Type}},
+		{fieldTags: map[string]any{"float": float64(123)}, expected: dbmodel.KeyValue{Key: "float", Value: float64(123), Type: dbmodel.Float64Type}},
+		{fieldTags: map[string]any{"float": float64(123.0)}, expected: dbmodel.KeyValue{Key: "float", Value: float64(123.0), Type: dbmodel.Float64Type}},
+		{fieldTags: map[string]any{"float:float": float64(123)}, expected: dbmodel.KeyValue{Key: "float.float", Value: float64(123), Type: dbmodel.Float64Type}},
+		{fieldTags: map[string]any{"json_number:int": json.Number("123")}, expected: dbmodel.KeyValue{Key: "json_number.int", Value: int64(123), Type: dbmodel.Int64Type}},
+		{fieldTags: map[string]any{"json_number:float": json.Number("123.0")}, expected: dbmodel.KeyValue{Key: "json_number.float", Value: float64(123.0), Type: dbmodel.Float64Type}},
+		{fieldTags: map[string]any{"json_number:err": json.Number("foo")}, err: errors.New("invalid tag type in foo: strconv.ParseFloat: parsing \"foo\": invalid syntax")},
+		{fieldTags: map[string]any{"str": "foo"}, expected: dbmodel.KeyValue{Key: "str", Value: "foo", Type: dbmodel.StringType}},
+		{fieldTags: map[string]any{"str:str": "foo"}, expected: dbmodel.KeyValue{Key: "str.str", Value: "foo", Type: dbmodel.StringType}},
+		{fieldTags: map[string]any{"binary": []byte("foo")}, expected: dbmodel.KeyValue{Key: "binary", Value: []byte("foo"), Type: dbmodel.BinaryType}},
+		{fieldTags: map[string]any{"binary:binary": []byte("foo")}, expected: dbmodel.KeyValue{Key: "binary.binary", Value: []byte("foo"), Type: dbmodel.BinaryType}},
+		{fieldTags: map[string]any{"unsupported": struct{}{}}, err: fmt.Errorf("invalid tag type in %+v", struct{}{})},
+	}
+	reader := NewSpanReader(SpanReaderParams{
+		TagDotReplacement: ":",
+		Logger:            zap.NewNop(),
+	})
+	for i, test := range tests {
+		t.Run(fmt.Sprintf("%d, %s", i, test.fieldTags), func(t *testing.T) {
+			tags := []dbmodel.KeyValue{
+				{
+					Key:   "testing-key",
+					Type:  dbmodel.StringType,
+					Value: "testing-value",
+				},
+			}
+			spanTags := make(map[string]any)
+			for k, v := range test.fieldTags {
+				spanTags[k] = v
+			}
+			span := &dbmodel.Span{
+				Process: dbmodel.Process{
+					Tag:  test.fieldTags,
+					Tags: tags,
+				},
+				Tag:  spanTags,
+				Tags: tags,
+			}
+			err := reader.mergeAllNestedAndElevatedTagsOfSpan(span)
+			if test.err != nil {
+				assert.Equal(t, test.err.Error(), err.Error())
+			} else {
+				require.NoError(t, err)
+				tags = append(tags, test.expected)
+				assert.Empty(t, span.Tag)
+				assert.Empty(t, span.Process.Tag)
+			}
+			assert.Equal(t, tags, span.Tags)
+			assert.Equal(t, tags, span.Process.Tags)
+		})
+	}
 }
