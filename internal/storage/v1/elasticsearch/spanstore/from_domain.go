@@ -63,9 +63,9 @@ func (FromDomain) convertRefType(refType model.SpanRefType) dbmodel.ReferenceTyp
 }
 
 func (fd FromDomain) convertKeyValues(keyValues model.KeyValues) []dbmodel.KeyValue {
-	var kvs []dbmodel.KeyValue
-	for _, kv := range keyValues {
-		kvs = append(kvs, fd.convertKeyValue(kv))
+	kvs := make([]dbmodel.KeyValue, 0, len(keyValues))
+	for i := range keyValues {
+		kvs = append(kvs, fd.convertKeyValue(keyValues[i]))
 	}
 	if kvs == nil {
 		kvs = make([]dbmodel.KeyValue, 0)
