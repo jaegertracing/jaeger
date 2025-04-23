@@ -240,29 +240,25 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 				start = time.Now()
 			}
 
-			var successCount, failureCount int
-
 			// log individual errors, note that err might be false and these errors still present
-			if response != nil && response.Errors {
-				for _, it := range response.Items {
-					for key, val := range it {
-						if val.Error != nil {
-							logger.Error("Elasticsearch part of bulk request failed", zap.String("map-key", key),
-								zap.Reflect("response", val))
-							failureCount++
-						} else {
-							successCount++
+			if response != nil {
+				if response.Errors {
+					for _, it := range response.Items {
+						for key, val := range it {
+							if val.Error != nil {
+								logger.Error("Elasticsearch part of bulk request failed", zap.String("map-key", key),
+									zap.Reflect("response", val))
+							}
 						}
 					}
 				}
-			} else if response != nil {
-				// All succeeded
-				successCount = len(response.Items)
+
+				// Metrics: count total inserts and errors
+				failed := len(response.Failed())
+				total := len(response.Items)
+				sm.Inserts.Inc(int64(total - failed))
+				sm.Errors.Inc(int64(failed))
 			}
-
-			sm.Inserts.Inc(int64(successCount))
-			sm.Errors.Inc(int64(failureCount))
-
 			sm.Emit(err, time.Since(start.(time.Time)))
 			if err != nil {
 				var failed int
