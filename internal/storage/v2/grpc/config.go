@@ -13,8 +13,12 @@ import (
 )
 
 type Config struct {
+	configgrpc.ClientConfig `mapstructure:",squash"`
+	// Writer allows overriding the endpoint for writes, e.g. to an OTLP receiver.
+	// If not defined the main endpoint is used for reads and writes.
+	Writer configgrpc.ClientConfig `mapstructure:"writer"`
+
 	Tenancy                      tenancy.Options `mapstructure:"multi_tenancy"`
-	configgrpc.ClientConfig      `mapstructure:",squash"`
 	exporterhelper.TimeoutConfig `mapstructure:",squash"`
 }
 

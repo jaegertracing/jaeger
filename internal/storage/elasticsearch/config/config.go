@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/asaskevich/govalidator"
-	esV8 "github.com/elastic/go-elasticsearch/v8"
+	esV8 "github.com/elastic/go-elasticsearch/v9"
 	"github.com/olivere/elastic"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"

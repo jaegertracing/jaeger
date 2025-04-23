@@ -143,7 +143,7 @@ func (gw *testGateway) runGatewayGetOperations(t *testing.T) {
 }
 
 func (gw *testGateway) runGatewayGetTrace(t *testing.T) {
-	query := tracestore.GetTraceParams{TraceID: traceID}
+	query := []tracestore.GetTraceParams{{TraceID: traceID}}
 	gw.reader.
 		On("GetTraces", matchContext, query).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {

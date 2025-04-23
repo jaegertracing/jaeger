@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -83,12 +84,12 @@ func main() {
 
 			traceFactory := v1adapter.NewFactory(storageFactory)
 			depFactory := traceFactory.(depstore.Factory)
-			server, err := app.NewServer(opts, v1adapter.NewFactory(storageFactory), depFactory, tm, telset)
+			server, err := app.NewServer(context.Background(), opts, v1adapter.NewFactory(storageFactory), depFactory, tm, telset)
 			if err != nil {
 				logger.Fatal("Failed to create server", zap.Error(err))
 			}
 
-			if err := server.Start(); err != nil {
+			if err := server.Start(context.Background()); err != nil {
 				logger.Fatal("Could not start servers", zap.Error(err))
 			}
 
