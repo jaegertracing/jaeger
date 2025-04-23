@@ -120,5 +120,5 @@ All integration tests can be run locally.
 ### gRPC Integration Test
 
 ```shell
-STORAGE=grpc SPAN_STORAGE_TYPE=memory make jaeger-v2-storage-integration-test
+STORAGE=grpc jaeger-v2-storage-integration-test
 ```

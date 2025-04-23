@@ -372,11 +372,19 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 		multiSearchService := &mocks.MultiSearchService{}
 		firstMultiSearch := &mocks.MultiSearchService{}
 		secondMultiSearch := &mocks.MultiSearchService{}
-		multiSearchService.On("Add", id1Search, id2Search).Return(firstMultiSearch)
-		multiSearchService.On("Add", id1SearchSpanTime).Return(secondMultiSearch)
+		multiSearchService.On("Add", mock.MatchedBy(func(searches []*elastic.SearchRequest) bool {
+			return len(searches) == 2 &&
+				reflect.DeepEqual(searches[0], id1Search) &&
+				reflect.DeepEqual(searches[1], id2Search)
+		})).Return(firstMultiSearch).Once()
 
-		firstMultiSearch.On("Index", mock.AnythingOfType("string")).Return(firstMultiSearch)
-		secondMultiSearch.On("Index", mock.AnythingOfType("string")).Return(secondMultiSearch)
+		multiSearchService.On("Add", mock.MatchedBy(func(searches []*elastic.SearchRequest) bool {
+			return len(searches) == 1 &&
+				reflect.DeepEqual(searches[0], id1SearchSpanTime)
+		})).Return(secondMultiSearch).Once()
+
+		firstMultiSearch.On("Index", mock.AnythingOfType("[]string")).Return(firstMultiSearch)
+		secondMultiSearch.On("Index", mock.AnythingOfType("[]string")).Return(secondMultiSearch)
 		r.client.On("MultiSearch").Return(multiSearchService)
 
 		fistMultiSearchMock := firstMultiSearch.On("Do", mock.Anything)
@@ -950,13 +958,12 @@ func TestFindTraceIDs(t *testing.T) {
 func mockMultiSearchService(r *spanReaderTest) *mock.Call {
 	multiSearchService := &mocks.MultiSearchService{}
 	multiSearchService.On("Add", mock.Anything, mock.Anything, mock.Anything).Return(multiSearchService)
-	multiSearchService.On("Index", mock.AnythingOfType("string"), mock.AnythingOfType("string"),
-		mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(multiSearchService)
+	multiSearchService.On("Index", mock.AnythingOfType("[]string")).Return(multiSearchService)
 	r.client.On("MultiSearch").Return(multiSearchService)
 	return multiSearchService.On("Do", mock.Anything)
 }
 
-func mockArchiveMultiSearchService(r *spanReaderTest, indexName string) *mock.Call {
+func mockArchiveMultiSearchService(r *spanReaderTest, indexName []string) *mock.Call {
 	multiSearchService := &mocks.MultiSearchService{}
 	multiSearchService.On("Add", mock.Anything, mock.Anything, mock.Anything).Return(multiSearchService)
 	multiSearchService.On("Index", indexName).Return(multiSearchService)
@@ -982,7 +989,7 @@ func mockSearchService(r *spanReaderTest) *mock.Call {
 	searchService.On("Aggregation", stringMatcher(servicesAggregation), mock.MatchedBy(matchTermsAggregation)).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(operationsAggregation), mock.MatchedBy(matchTermsAggregation)).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(traceIDAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
-	r.client.On("Search", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(searchService)
+	r.client.On("Search", mock.AnythingOfType("[]string")).Return(searchService)
 	return searchService.On("Do", mock.Anything)
 }
 
@@ -1240,7 +1247,7 @@ func TestSpanReader_ArchiveTraces(t *testing.T) {
 			withArchiveSpanReader(t, tc.useAliases, tc.suffix, func(r *spanReaderTest) {
 				mockSearchService(r).
 					Return(&elastic.SearchResult{}, nil)
-				mockArchiveMultiSearchService(r, tc.expected).
+				mockArchiveMultiSearchService(r, []string{tc.expected}).
 					Return(&elastic.MultiSearchResult{
 						Responses: []*elastic.SearchResult{},
 					}, nil)
