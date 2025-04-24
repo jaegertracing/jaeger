@@ -79,6 +79,50 @@ var exampleESSpan = []byte(
 	   }
 	}`)
 
+var exampleSpanWithWrongTags = []byte(
+	`{
+	   "traceID": "1",
+	   "parentSpanID": "2",
+	   "spanID": "3",
+	   "flags": 0,
+	   "operationName": "op",
+	   "references": [],
+	   "startTime": 812965625,
+	   "duration": 3290114992,
+	   "tags": [
+	      {
+		 "key": "tag",
+		 "value": "1965806585",
+		 "type": "int64"
+	      }
+	   ],
+	   "logs": [
+	      {
+		 "timestamp": 812966073,
+		 "fields": [
+		    {
+		       "key": "logtag",
+		       "value": "helloworld",
+		       "type": "string"
+		    }
+		 ]
+	      }
+	   ],
+	   "process": {
+	      "serviceName": "serv",
+	      "tags": [
+		 {
+		    "key": "processtag",
+		    "value": "false",
+		    "type": "bool"
+		 }
+	      ],
+          "tag": {
+			"key": {}
+         }
+	   }
+	}`)
+
 type spanReaderTest struct {
 	client      *mocks.Client
 	logger      *zap.Logger
@@ -1392,4 +1436,23 @@ func TestTagsMap(t *testing.T) {
 			assert.Equal(t, tags, span.Process.Tags)
 		})
 	}
+}
+
+func TestCollectSpans_Error(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		_, err := r.reader.collectSpans([]*elastic.SearchHit{{Source: (*json.RawMessage)(&exampleSpanWithWrongTags)}})
+		assert.ErrorContains(t, err, "invalid tag type in map[]")
+	})
+}
+
+func TestMergeNestedAndElevatedTagsOfSpan_Error(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		span := &dbmodel.Span{
+			Tag: map[string]any{
+				"key": struct{}{},
+			},
+		}
+		err := r.reader.mergeAllNestedAndElevatedTagsOfSpan(span)
+		assert.ErrorContains(t, err, "invalid tag type in {}")
+	})
 }

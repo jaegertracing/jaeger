@@ -249,15 +249,15 @@ func (s *SpanReader) collectSpans(esSpansRaw []*elastic.SearchHit) ([]dbmodel.Sp
 	spans := make([]dbmodel.Span, len(esSpansRaw))
 
 	for i, esSpanRaw := range esSpansRaw {
-		jsonSpan, err := s.unmarshalJSONSpan(esSpanRaw)
+		dbSpan, err := s.unmarshalJSONSpan(esSpanRaw)
 		if err != nil {
 			return nil, fmt.Errorf("marshalling JSON to span object failed: %w", err)
 		}
-		err = s.mergeAllNestedAndElevatedTagsOfSpan(&jsonSpan)
+		err = s.mergeAllNestedAndElevatedTagsOfSpan(&dbSpan)
 		if err != nil {
 			return nil, err
 		}
-		spans[i] = jsonSpan
+		spans[i] = dbSpan
 	}
 	return spans, nil
 }
@@ -696,16 +696,14 @@ func (s *SpanReader) mergeAllNestedAndElevatedTagsOfSpan(span *dbmodel.Span) err
 }
 
 func (s *SpanReader) mergeNestedAndElevatedTags(nestedTags []dbmodel.KeyValue, elevatedTags map[string]any) ([]dbmodel.KeyValue, error) {
-	mergedTags := make([]dbmodel.KeyValue, len(nestedTags)+len(elevatedTags))
-	copy(mergedTags[:len(nestedTags)], nestedTags)
-	i := len(nestedTags)
+	mergedTags := make([]dbmodel.KeyValue, 0, len(nestedTags)+len(elevatedTags))
+	mergedTags = append(mergedTags, nestedTags...)
 	for k, v := range elevatedTags {
 		kv, err := s.convertTagField(k, v)
 		if err != nil {
 			return nil, err
 		}
-		mergedTags[i] = kv
-		i++
+		mergedTags = append(mergedTags, kv)
 		delete(elevatedTags, k)
 	}
 	return mergedTags, nil
