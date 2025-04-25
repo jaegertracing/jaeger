@@ -1,5 +1,5 @@
 service:
-  extensions: [jaeger_storage, jaeger_query, remote_sampling, healthcheckv2]
+  extensions: [jaeger_storage, jaeger_query, remote_sampling, healthcheckv2, pprof]
   pipelines:
     traces:
       receivers: [otlp, jaeger, zipkin]
@@ -26,8 +26,8 @@ extensions:
     use_v2: true
     http:
 
-  # pprof:
-  #   endpoint: 0.0.0.0:1777
+  pprof:
+    endpoint: 0.0.0.0:1777
   # zpages:
   #   endpoint: 0.0.0.0:55679
 
