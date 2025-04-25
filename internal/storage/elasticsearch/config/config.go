@@ -99,6 +99,8 @@ type Configuration struct {
 	SendGetBodyAs string `mapstructure:"send_get_body_as"`
 	// QueryTimeout contains the timeout used for queries. A timeout of zero means no timeout.
 	QueryTimeout time.Duration `mapstructure:"query_timeout"`
+	// HTTPCompression can be set to true to enable gzip compression for requests to ElasticSearch
+	HTTPCompression bool `mapstructure:"http_compression"`
 
 	// ---- elasticsearch client related configs ----
 	BulkProcessing BulkProcessing `mapstructure:"bulk_processing"`
@@ -319,6 +321,7 @@ func newElasticsearchV8(c *Configuration, logger *zap.Logger) (*esV8.Client, err
 	options.Username = c.Authentication.BasicAuthentication.Username
 	options.Password = c.Authentication.BasicAuthentication.Password
 	options.DiscoverNodesOnStart = c.Sniffing.Enabled
+	options.CompressRequestBody = c.HTTPCompression
 	transport, err := GetHTTPRoundTripper(c, logger)
 	if err != nil {
 		return nil, err
@@ -413,6 +416,9 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.SendGetBodyAs == "" {
 		c.SendGetBodyAs = source.SendGetBodyAs
 	}
+	if !c.HTTPCompression {
+		c.HTTPCompression = source.HTTPCompression
+	}
 }
 
 // RolloverFrequencyAsNegativeDuration returns the index rollover frequency duration for the given frequency string
@@ -486,6 +492,7 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 	if c.SendGetBodyAs != "" {
 		options = append(options, elastic.SetSendGetBodyAs(c.SendGetBodyAs))
 	}
+	options = append(options, elastic.SetGzip(c.HTTPCompression))
 
 	options, err := addLoggerOptions(options, c.LogLevel, logger)
 	if err != nil {

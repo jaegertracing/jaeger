@@ -57,6 +57,7 @@ const (
 	suffixMaxDocCount                    = ".max-doc-count"
 	suffixLogLevel                       = ".log-level"
 	suffixSendGetBodyAs                  = ".send-get-body-as"
+	suffixHTTPCompression                = ".http-compression"
 	// default number of documents to return from a query (elasticsearch allowed limit)
 	// see search.max_buckets and index.max_result_window
 	defaultMaxDocCount        = 10_000
@@ -268,6 +269,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixSendGetBodyAs,
 		nsConfig.SendGetBodyAs,
 		"HTTP verb for requests that contain a body [GET, POST].")
+	flagSet.Bool(
+		nsConfig.namespace+suffixHTTPCompression,
+		nsConfig.HTTPCompression,
+		"Use gzip compression for requests to ElasticSearch.")
 	flagSet.Duration(
 		nsConfig.namespace+suffixAdaptiveSamplingLookback,
 		nsConfig.AdaptiveSamplingLookback,
@@ -339,6 +344,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Version = v.GetUint(cfg.namespace + suffixVersion)
 	cfg.LogLevel = v.GetString(cfg.namespace + suffixLogLevel)
 	cfg.SendGetBodyAs = v.GetString(cfg.namespace + suffixSendGetBodyAs)
+	cfg.HTTPCompression = v.GetBool(cfg.namespace + suffixHTTPCompression)
 
 	cfg.MaxDocCount = v.GetInt(cfg.namespace + suffixMaxDocCount)
 	cfg.UseILM = v.GetBool(cfg.namespace + suffixUseILM)
@@ -421,6 +427,7 @@ func DefaultConfig() config.Configuration {
 		MaxDocCount:          defaultMaxDocCount,
 		LogLevel:             "error",
 		SendGetBodyAs:        defaultSendGetBodyAs,
+		HTTPCompression:      false,
 		Indices: config.Indices{
 			Spans:        defaultIndexOptions,
 			Services:     defaultIndexOptions,
