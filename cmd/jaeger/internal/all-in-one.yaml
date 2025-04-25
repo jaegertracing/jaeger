@@ -1,5 +1,5 @@
 service:
-  extensions: [jaeger_storage, jaeger_query, remote_sampling, healthcheckv2, expvar, zpages]
+  extensions: [jaeger_storage, jaeger_query, remote_sampling, healthcheckv2, expvar, pprof, zpages]
   pipelines:
     traces:
       receivers: [otlp, jaeger, zipkin]
@@ -54,6 +54,9 @@ extensions:
 
   expvar:
     endpoint: "${env:JAEGER_LISTEN_HOST:-localhost}:27777"
+
+  pprof:
+    endpoint: "${env:JAEGER_LISTEN_HOST:-localhost}:17777"
 
   zpages:
     # for some reason the official extension listens on ephemeral port 55679
