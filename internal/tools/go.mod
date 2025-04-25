@@ -3,7 +3,7 @@ module github.com/jaegertracing/jaeger/internal/tools
 go 1.24.0
 
 require (
-	github.com/golangci/golangci-lint/v2 v2.1.4
+	github.com/golangci/golangci-lint/v2 v2.1.5
 	github.com/josephspurrier/goversioninfo v1.5.0
 	github.com/vektra/mockery/v3 v3.2.2
 	mvdan.cc/gofumpt v0.8.0
