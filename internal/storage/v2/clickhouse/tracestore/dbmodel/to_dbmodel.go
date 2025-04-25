@@ -13,6 +13,96 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
+// ToDBModel Converts the OTel pipeline Traces into a ClickHouse-compatible format for batch insertion.
+// It maps the trace attributes, spans, links and events from the OTel model to the appropriate ClickHouse column types
+func ToDBModel(td ptrace.Traces) proto.Input {
+	traceColumnSet := TraceColumnSet{}
+	traceColumnSet.init()
+	for _, resourceSpan := range td.ResourceSpans().All() {
+		resourceGroup := attributesToGroup(resourceSpan.Resource().Attributes())
+
+		for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
+			scope := scopeSpan.Scope()
+			scopeGroup := attributesToGroup(scope.Attributes())
+
+			for _, span := range scopeSpan.Spans().All() {
+				spanGroup := attributesToGroup(span.Attributes())
+
+				timestampCol := traceColumnSet.span.timestamp.Col
+				timestampCol.(*proto.ColDateTime64).Append(span.StartTimestamp().AsTime())
+				traceIDCol := traceColumnSet.span.traceID.Col
+				traceIDCol.(*proto.ColLowCardinality[string]).Append(traceIDToHexString(span.TraceID()))
+				spanIDCol := traceColumnSet.span.spanID.Col
+				spanIDCol.(*proto.ColLowCardinality[string]).Append(spanIDToHexString(span.SpanID()))
+				parentSpanIDCol := traceColumnSet.span.parentSpanID.Col
+				parentSpanIDCol.(*proto.ColLowCardinality[string]).Append(spanIDToHexString(span.ParentSpanID()))
+				traceStateCol := traceColumnSet.span.traceState.Col
+				traceStateCol.(*proto.ColLowCardinality[string]).Append(span.TraceState().AsRaw())
+				spanNameCol := traceColumnSet.span.name.Col
+				spanNameCol.(*proto.ColLowCardinality[string]).Append(span.Name())
+				spanKindCol := traceColumnSet.span.kind.Col
+				spanKindCol.(*proto.ColLowCardinality[string]).Append(span.Kind().String())
+				scopeNameCol := traceColumnSet.scope.name.Col
+				scopeNameCol.(*proto.ColLowCardinality[string]).Append(scope.Name())
+				scopeVersion := traceColumnSet.scope.version.Col
+				scopeVersion.(*proto.ColLowCardinality[string]).Append(scope.Version())
+				durationCol := traceColumnSet.span.duration.Col
+				durationCol.(*proto.ColDateTime64).Append(span.EndTimestamp().AsTime())
+				statusCodeCol := traceColumnSet.span.statusCode.Col
+				statusCodeCol.(*proto.ColLowCardinality[string]).Append(span.Status().Code().String())
+				statusMessageCol := traceColumnSet.span.statusMessage.Col
+				statusMessageCol.(*proto.ColLowCardinality[string]).Append(span.Status().Message())
+
+				var eventsName []string
+				var eventsTimestamp []time.Time
+				var eventNestedGroup NestedAttributesGroup
+				for _, event := range span.Events().All() {
+					eventsName = append(eventsName, event.Name())
+					eventsTimestamp = append(eventsTimestamp, event.Timestamp().AsTime())
+					eventGroup := attributesToGroup(event.Attributes())
+					eventNestedGroup.AttributesGroups = append(eventNestedGroup.AttributesGroups, eventGroup)
+				}
+				eventsTimestampCol := traceColumnSet.events.timestamps.Col
+				eventsTimestampCol.(*proto.ColArr[time.Time]).Append(eventsTimestamp)
+				eventsNameCol := traceColumnSet.events.names.Col
+				eventsNameCol.(*proto.ColArr[string]).Append(eventsName)
+
+				var linksTraceId []string
+				var linksSpanId []string
+				var linksTracesState []string
+				var linkNestedGroup NestedAttributesGroup
+				for _, link := range span.Links().All() {
+					linksTraceId = append(linksTraceId, traceIDToHexString(link.TraceID()))
+					linksSpanId = append(linksSpanId, spanIDToHexString(link.SpanID()))
+					linksTracesState = append(linksTracesState, link.TraceState().AsRaw())
+					linkGroup := attributesToGroup(link.Attributes())
+					linkNestedGroup.AttributesGroups = append(linkNestedGroup.AttributesGroups, linkGroup)
+				}
+				linksSpanIdCol := traceColumnSet.links.spanID.Col
+				linksSpanIdCol.(*proto.ColArr[string]).Append(linksSpanId)
+				linksTraceIdCol := traceColumnSet.links.traceID.Col
+				linksTraceIdCol.(*proto.ColArr[string]).Append(linksTraceId)
+				linksTraceStateCol := traceColumnSet.links.traceState.Col
+				linksTraceStateCol.(*proto.ColArr[string]).Append(linksTracesState)
+
+				traceColumnSet.resource.attributes.appendAttributeGroup(resourceGroup)
+				traceColumnSet.scope.attributes.appendAttributeGroup(scopeGroup)
+				traceColumnSet.span.attributes.appendAttributeGroup(spanGroup)
+				traceColumnSet.events.attributes.appendNestedAttributeGroup(eventNestedGroup)
+				traceColumnSet.links.attributes.appendNestedAttributeGroup(linkNestedGroup)
+			}
+		}
+	}
+
+	input := proto.Input{}
+	input = append(input, traceColumnSet.span.spanInput()...)
+	input = append(input, traceColumnSet.scope.scopeInput()...)
+	input = append(input, traceColumnSet.resource.resourceInput()...)
+	input = append(input, traceColumnSet.events.eventsInput()...)
+	input = append(input, traceColumnSet.links.linkInput()...)
+	return input
+}
+
 // NestedAttributesGroup There is a one-to-many relationship between a NestedAttributesGroup and a pcommon.Map.
 // ptrace.SpanEventSlice and ptrace.SpanLinkSlice are stored in a Nested format in the database.
 // Since all arrays in Nested need to have the same length, AttributesGroup cannot be used directly.
@@ -295,101 +385,6 @@ func (at AttributeType) String() string {
 	default:
 		return "Unknown"
 	}
-}
-
-// ToDBModel Converts the OTel pipeline Traces into a ClickHouse-compatible format for batch insertion.
-// It maps the trace attributes, spans, links and events from the OTel model to the appropriate ClickHouse column types
-func ToDBModel(td ptrace.Traces) proto.Input {
-	traceColumnSet := TraceColumnSet{}
-	traceColumnSet.init()
-	for i := range td.ResourceSpans().Len() {
-		resourceSpans := td.ResourceSpans().At(i)
-		resourceGroup := attributesToGroup(resourceSpans.Resource().Attributes())
-
-		for j := range resourceSpans.ScopeSpans().Len() {
-			scope := resourceSpans.ScopeSpans().At(j).Scope()
-			scopeGroup := attributesToGroup(scope.Attributes())
-
-			spans := resourceSpans.ScopeSpans().At(j).Spans()
-			for k := range spans.Len() {
-				span := spans.At(k)
-				spanGroup := attributesToGroup(span.Attributes())
-
-				timestampCol := traceColumnSet.span.timestamp.Col
-				timestampCol.(*proto.ColDateTime64).Append(span.StartTimestamp().AsTime())
-				traceIDCol := traceColumnSet.span.traceID.Col
-				traceIDCol.(*proto.ColLowCardinality[string]).Append(traceIDToHexString(span.TraceID()))
-				spanIDCol := traceColumnSet.span.spanID.Col
-				spanIDCol.(*proto.ColLowCardinality[string]).Append(spanIDToHexString(span.SpanID()))
-				parentSpanIDCol := traceColumnSet.span.parentSpanID.Col
-				parentSpanIDCol.(*proto.ColLowCardinality[string]).Append(spanIDToHexString(span.ParentSpanID()))
-				traceStateCol := traceColumnSet.span.traceState.Col
-				traceStateCol.(*proto.ColLowCardinality[string]).Append(span.TraceState().AsRaw())
-				spanNameCol := traceColumnSet.span.name.Col
-				spanNameCol.(*proto.ColLowCardinality[string]).Append(span.Name())
-				spanKindCol := traceColumnSet.span.kind.Col
-				spanKindCol.(*proto.ColLowCardinality[string]).Append(span.Kind().String())
-				scopeNameCol := traceColumnSet.scope.name.Col
-				scopeNameCol.(*proto.ColLowCardinality[string]).Append(scope.Name())
-				scopeVersion := traceColumnSet.scope.version.Col
-				scopeVersion.(*proto.ColLowCardinality[string]).Append(scope.Version())
-				durationCol := traceColumnSet.span.duration.Col
-				durationCol.(*proto.ColDateTime64).Append(span.EndTimestamp().AsTime())
-				statusCodeCol := traceColumnSet.span.statusCode.Col
-				statusCodeCol.(*proto.ColLowCardinality[string]).Append(span.Status().Code().String())
-				statusMessageCol := traceColumnSet.span.statusMessage.Col
-				statusMessageCol.(*proto.ColLowCardinality[string]).Append(span.Status().Message())
-
-				var eventsName []string
-				var eventsTimestamp []time.Time
-				var eventNestedGroup NestedAttributesGroup
-				for l := range span.Events().Len() {
-					event := span.Events().At(l)
-					eventsName = append(eventsName, event.Name())
-					eventsTimestamp = append(eventsTimestamp, event.Timestamp().AsTime())
-					eventGroup := attributesToGroup(event.Attributes())
-					eventNestedGroup.AttributesGroups = append(eventNestedGroup.AttributesGroups, eventGroup)
-				}
-				eventsTimestampCol := traceColumnSet.events.timestamps.Col
-				eventsTimestampCol.(*proto.ColArr[time.Time]).Append(eventsTimestamp)
-				eventsNameCol := traceColumnSet.events.names.Col
-				eventsNameCol.(*proto.ColArr[string]).Append(eventsName)
-
-				var linksTraceId []string
-				var linksSpanId []string
-				var linksTracesState []string
-				var linkNestedGroup NestedAttributesGroup
-				for l := range span.Links().Len() {
-					link := span.Links().At(l)
-					linksTraceId = append(linksTraceId, traceIDToHexString(link.TraceID()))
-					linksSpanId = append(linksSpanId, spanIDToHexString(link.SpanID()))
-					linksTracesState = append(linksTracesState, link.TraceState().AsRaw())
-					linkGroup := attributesToGroup(link.Attributes())
-					linkNestedGroup.AttributesGroups = append(linkNestedGroup.AttributesGroups, linkGroup)
-				}
-				linksSpanIdCol := traceColumnSet.links.spanID.Col
-				linksSpanIdCol.(*proto.ColArr[string]).Append(linksSpanId)
-				linksTraceIdCol := traceColumnSet.links.traceID.Col
-				linksTraceIdCol.(*proto.ColArr[string]).Append(linksTraceId)
-				linksTraceStateCol := traceColumnSet.links.traceState.Col
-				linksTraceStateCol.(*proto.ColArr[string]).Append(linksTracesState)
-
-				traceColumnSet.resource.attributes.appendAttributeGroup(resourceGroup)
-				traceColumnSet.scope.attributes.appendAttributeGroup(scopeGroup)
-				traceColumnSet.span.attributes.appendAttributeGroup(spanGroup)
-				traceColumnSet.events.attributes.appendNestedAttributeGroup(eventNestedGroup)
-				traceColumnSet.links.attributes.appendNestedAttributeGroup(linkNestedGroup)
-			}
-		}
-	}
-
-	input := proto.Input{}
-	input = append(input, traceColumnSet.span.spanInput()...)
-	input = append(input, traceColumnSet.scope.scopeInput()...)
-	input = append(input, traceColumnSet.resource.resourceInput()...)
-	input = append(input, traceColumnSet.events.eventsInput()...)
-	input = append(input, traceColumnSet.links.linkInput()...)
-	return input
 }
 
 func (rs *ResourceColumnSet) resourceInput() proto.Input {

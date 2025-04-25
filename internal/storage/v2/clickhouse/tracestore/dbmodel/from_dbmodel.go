@@ -63,6 +63,9 @@ func FromDBScope(s Scope) (pcommon.InstrumentationScope, error) {
 	scope.SetName(s.Name)
 	scope.SetVersion(s.Version)
 	attributes, err := AttributesGroupToMap(s.Attributes)
+	if err != nil {
+		return scope, err
+	}
 	attributes.CopyTo(scope.Attributes())
 
 	return scope, err
@@ -73,17 +76,17 @@ func FromDBSpan(s Span) (ptrace.Span, error) {
 	span.SetStartTimestamp(pcommon.NewTimestampFromTime(s.Timestamp))
 	traceId, err := hex.DecodeString(s.TraceId)
 	if err != nil {
-		panic(err)
+		return span, err
 	}
 	span.SetTraceID(pcommon.TraceID(traceId))
 	spanId, err := hex.DecodeString(s.SpanId)
 	if err != nil {
-		panic(err)
+		return span, err
 	}
 	span.SetSpanID(pcommon.SpanID(spanId))
 	parentSpanId, err := hex.DecodeString(s.ParentSpanId)
 	if err != nil {
-		panic(err)
+		return span, err
 	}
 	span.SetParentSpanID(pcommon.SpanID(parentSpanId))
 	span.TraceState().FromRaw(s.TraceState)
@@ -93,6 +96,9 @@ func FromDBSpan(s Span) (ptrace.Span, error) {
 	span.Status().SetCode(FromDBStatusCode(s.StatusCode))
 	span.Status().SetMessage(s.StatusMessage)
 	spanAttributes, err := AttributesGroupToMap(s.Attributes)
+	if err != nil {
+		return span, err
+	}
 	spanAttributes.CopyTo(span.Attributes())
 
 	return span, err
@@ -104,6 +110,9 @@ func FromDBEvent(e Event) (ptrace.SpanEvent, error) {
 	event.SetTimestamp(pcommon.NewTimestampFromTime(e.Timestamp))
 
 	attributes, err := AttributesGroupToMap(e.Attributes)
+	if err != nil {
+		return event, err
+	}
 	attributes.CopyTo(event.Attributes())
 	return event, err
 }
@@ -112,16 +121,19 @@ func FromDBLink(l Link) (ptrace.SpanLink, error) {
 	link := ptrace.NewSpanLink()
 	traceId, err := hex.DecodeString(l.TraceId)
 	if err != nil {
-		panic(err)
+		return link, err
 	}
 	link.SetTraceID(pcommon.TraceID(traceId))
 	spanId, err := hex.DecodeString(l.SpanId)
 	if err != nil {
-		panic(err)
+		return link, err
 	}
 	link.SetSpanID(pcommon.SpanID(spanId))
 	link.TraceState().FromRaw(l.TraceState)
 	attributes, err := AttributesGroupToMap(l.Attributes)
+	if err != nil {
+		return link, err
+	}
 	attributes.CopyTo(link.Attributes())
 	return link, err
 }
