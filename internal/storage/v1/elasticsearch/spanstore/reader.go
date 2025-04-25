@@ -253,10 +253,7 @@ func (s *SpanReader) collectSpans(esSpansRaw []*elastic.SearchHit) ([]dbmodel.Sp
 		if err != nil {
 			return nil, fmt.Errorf("marshalling JSON to span object failed: %w", err)
 		}
-		err = s.mergeAllNestedAndElevatedTagsOfSpan(&dbSpan)
-		if err != nil {
-			return nil, err
-		}
+		s.mergeAllNestedAndElevatedTagsOfSpan(&dbSpan)
 		spans[i] = dbSpan
 	}
 	return spans, nil
@@ -681,35 +678,25 @@ func (*SpanReader) buildObjectQuery(field string, k string, v string) elastic.Qu
 	return elastic.NewBoolQuery().Must(keyQuery)
 }
 
-func (s *SpanReader) mergeAllNestedAndElevatedTagsOfSpan(span *dbmodel.Span) error {
-	processTags, err := s.mergeNestedAndElevatedTags(span.Process.Tags, span.Process.Tag)
-	if err != nil {
-		return err
-	}
+func (s *SpanReader) mergeAllNestedAndElevatedTagsOfSpan(span *dbmodel.Span) {
+	processTags := s.mergeNestedAndElevatedTags(span.Process.Tags, span.Process.Tag)
 	span.Process.Tags = processTags
-	spanTags, err := s.mergeNestedAndElevatedTags(span.Tags, span.Tag)
-	if err != nil {
-		return err
-	}
+	spanTags := s.mergeNestedAndElevatedTags(span.Tags, span.Tag)
 	span.Tags = spanTags
-	return nil
 }
 
-func (s *SpanReader) mergeNestedAndElevatedTags(nestedTags []dbmodel.KeyValue, elevatedTags map[string]any) ([]dbmodel.KeyValue, error) {
+func (s *SpanReader) mergeNestedAndElevatedTags(nestedTags []dbmodel.KeyValue, elevatedTags map[string]any) []dbmodel.KeyValue {
 	mergedTags := make([]dbmodel.KeyValue, 0, len(nestedTags)+len(elevatedTags))
 	mergedTags = append(mergedTags, nestedTags...)
 	for k, v := range elevatedTags {
-		kv, err := s.convertTagField(k, v)
-		if err != nil {
-			return nil, err
-		}
+		kv := s.convertTagField(k, v)
 		mergedTags = append(mergedTags, kv)
 		delete(elevatedTags, k)
 	}
-	return mergedTags, nil
+	return mergedTags
 }
 
-func (s *SpanReader) convertTagField(k string, v any) (dbmodel.KeyValue, error) {
+func (s *SpanReader) convertTagField(k string, v any) dbmodel.KeyValue {
 	dKey := s.dotReplacer.ReplaceDotReplacement(k)
 	kv := dbmodel.KeyValue{
 		Key:   dKey,
@@ -737,15 +724,23 @@ func (s *SpanReader) convertTagField(k string, v any) (dbmodel.KeyValue, error) 
 		} else {
 			f, err := val.Float64()
 			if err != nil {
-				return dbmodel.KeyValue{}, fmt.Errorf("invalid tag type in %+v: %s", v, err.Error())
+				return dbmodel.KeyValue{
+					Key:   dKey,
+					Value: fmt.Sprintf("invalid tag type in %+v: %s", v, err.Error()),
+					Type:  dbmodel.StringType,
+				}
 			}
 			kv.Value = f
 			kv.Type = dbmodel.Float64Type
 		}
 	default:
-		return dbmodel.KeyValue{}, fmt.Errorf("invalid tag type in %+v", v)
+		return dbmodel.KeyValue{
+			Key:   dKey,
+			Value: fmt.Sprintf("invalid tag type in %+v", v),
+			Type:  dbmodel.StringType,
+		}
 	}
-	return kv, nil
+	return kv
 }
 
 func logErrorToSpan(span trace.Span, err error) {

@@ -79,50 +79,6 @@ var exampleESSpan = []byte(
 	   }
 	}`)
 
-var exampleSpanWithWrongTags = []byte(
-	`{
-	   "traceID": "1",
-	   "parentSpanID": "2",
-	   "spanID": "3",
-	   "flags": 0,
-	   "operationName": "op",
-	   "references": [],
-	   "startTime": 812965625,
-	   "duration": 3290114992,
-	   "tags": [
-	      {
-		 "key": "tag",
-		 "value": "1965806585",
-		 "type": "int64"
-	      }
-	   ],
-	   "logs": [
-	      {
-		 "timestamp": 812966073,
-		 "fields": [
-		    {
-		       "key": "logtag",
-		       "value": "helloworld",
-		       "type": "string"
-		    }
-		 ]
-	      }
-	   ],
-	   "process": {
-	      "serviceName": "serv",
-	      "tags": [
-		 {
-		    "key": "processtag",
-		    "value": "false",
-		    "type": "bool"
-		 }
-	      ],
-          "tag": {
-			"key": {}
-         }
-	   }
-	}`)
-
 type spanReaderTest struct {
 	client      *mocks.Client
 	logger      *zap.Logger
@@ -1380,7 +1336,6 @@ func TestTagsMap(t *testing.T) {
 	tests := []struct {
 		fieldTags map[string]any
 		expected  dbmodel.KeyValue
-		err       error
 	}{
 		{fieldTags: map[string]any{"bool:bool": true}, expected: dbmodel.KeyValue{Key: "bool.bool", Value: true, Type: dbmodel.BoolType}},
 		{fieldTags: map[string]any{"int.int": int64(1)}, expected: dbmodel.KeyValue{Key: "int.int", Value: int64(1), Type: dbmodel.Int64Type}},
@@ -1391,12 +1346,12 @@ func TestTagsMap(t *testing.T) {
 		{fieldTags: map[string]any{"float:float": float64(123)}, expected: dbmodel.KeyValue{Key: "float.float", Value: float64(123), Type: dbmodel.Float64Type}},
 		{fieldTags: map[string]any{"json_number:int": json.Number("123")}, expected: dbmodel.KeyValue{Key: "json_number.int", Value: int64(123), Type: dbmodel.Int64Type}},
 		{fieldTags: map[string]any{"json_number:float": json.Number("123.0")}, expected: dbmodel.KeyValue{Key: "json_number.float", Value: float64(123.0), Type: dbmodel.Float64Type}},
-		{fieldTags: map[string]any{"json_number:err": json.Number("foo")}, err: errors.New("invalid tag type in foo: strconv.ParseFloat: parsing \"foo\": invalid syntax")},
+		{fieldTags: map[string]any{"json_number:err": json.Number("foo")}, expected: dbmodel.KeyValue{Key: "json_number.err", Value: "invalid tag type in foo: strconv.ParseFloat: parsing \"foo\": invalid syntax", Type: dbmodel.StringType}},
 		{fieldTags: map[string]any{"str": "foo"}, expected: dbmodel.KeyValue{Key: "str", Value: "foo", Type: dbmodel.StringType}},
 		{fieldTags: map[string]any{"str:str": "foo"}, expected: dbmodel.KeyValue{Key: "str.str", Value: "foo", Type: dbmodel.StringType}},
 		{fieldTags: map[string]any{"binary": []byte("foo")}, expected: dbmodel.KeyValue{Key: "binary", Value: []byte("foo"), Type: dbmodel.BinaryType}},
 		{fieldTags: map[string]any{"binary:binary": []byte("foo")}, expected: dbmodel.KeyValue{Key: "binary.binary", Value: []byte("foo"), Type: dbmodel.BinaryType}},
-		{fieldTags: map[string]any{"unsupported": struct{}{}}, err: fmt.Errorf("invalid tag type in %+v", struct{}{})},
+		{fieldTags: map[string]any{"unsupported": struct{}{}}, expected: dbmodel.KeyValue{Key: "unsupported", Value: fmt.Sprintf("invalid tag type in %+v", struct{}{}), Type: dbmodel.StringType}},
 	}
 	reader := NewSpanReader(SpanReaderParams{
 		TagDotReplacement: ":",
@@ -1423,36 +1378,12 @@ func TestTagsMap(t *testing.T) {
 				Tag:  spanTags,
 				Tags: tags,
 			}
-			err := reader.mergeAllNestedAndElevatedTagsOfSpan(span)
-			if test.err != nil {
-				assert.Equal(t, test.err.Error(), err.Error())
-			} else {
-				require.NoError(t, err)
-				tags = append(tags, test.expected)
-				assert.Empty(t, span.Tag)
-				assert.Empty(t, span.Process.Tag)
-			}
+			reader.mergeAllNestedAndElevatedTagsOfSpan(span)
+			tags = append(tags, test.expected)
+			assert.Empty(t, span.Tag)
+			assert.Empty(t, span.Process.Tag)
 			assert.Equal(t, tags, span.Tags)
 			assert.Equal(t, tags, span.Process.Tags)
 		})
 	}
-}
-
-func TestCollectSpans_Error(t *testing.T) {
-	withSpanReader(t, func(r *spanReaderTest) {
-		_, err := r.reader.collectSpans([]*elastic.SearchHit{{Source: (*json.RawMessage)(&exampleSpanWithWrongTags)}})
-		assert.ErrorContains(t, err, "invalid tag type in map[]")
-	})
-}
-
-func TestMergeNestedAndElevatedTagsOfSpan_Error(t *testing.T) {
-	withSpanReader(t, func(r *spanReaderTest) {
-		span := &dbmodel.Span{
-			Tag: map[string]any{
-				"key": struct{}{},
-			},
-		}
-		err := r.reader.mergeAllNestedAndElevatedTagsOfSpan(span)
-		assert.ErrorContains(t, err, "invalid tag type in {}")
-	})
 }
