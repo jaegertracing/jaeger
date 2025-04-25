@@ -172,6 +172,9 @@ func (s *SpanWriter) writeSpan(indexName string, jsonSpan *dbmodel.Span) {
 }
 
 func (s *SpanWriter) splitElevatedTags(keyValues []dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any) {
+	if !s.allTagsAsFields && len(s.tagKeysAsFields) == 0 {
+		return keyValues, nil
+	}
 	var tagsMap map[string]any
 	var kvs []dbmodel.KeyValue
 	for _, kv := range keyValues {
