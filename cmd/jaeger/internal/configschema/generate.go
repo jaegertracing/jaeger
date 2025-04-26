@@ -28,6 +28,18 @@ func GenerateDocs(outputPath string) error {
 		return err
 	}
 
+	schema, err := generateSchema(pkgs, configs)
+	if err != nil {
+		return err
+	}
+
+	// Add defaults
+	addDefaults(schema, configs)
+
+	return writeSchema(schema, outputPath)
+}
+
+func generateSchema(pkgs []*packages.Package, configs []any) (*JSONSchema, error) {
 	schema := JSONSchema{
 		Schema:      "https://json-schema.org/draft/2019-09/schema",
 		Title:       "Jaeger Configuration",
@@ -54,11 +66,11 @@ func GenerateDocs(outputPath string) error {
 	}
 
 	// Build root properties
-	rootProps := make(map[string]interface{})
+	rootProps := make(map[string]any)
 	// Inside GenerateDocs() function, after building rootProps:
 	for key := range rootProps {
 		if _, exists := schema.Definitions[getStructNameFromKey(key)]; !exists {
-			return fmt.Errorf("missing definition for component: %s", key)
+			return nil, fmt.Errorf("missing definition for component: %s", key)
 		}
 	}
 
@@ -79,16 +91,13 @@ func GenerateDocs(outputPath string) error {
 			continue
 		}
 
-		rootProps[getComponentKey(cfg)] = map[string]interface{}{
+		rootProps[getComponentKey(cfg)] = map[string]any{
 			"$ref": fmt.Sprintf("#/definitions/%s", structName),
 		}
 	}
 	schema.Properties = rootProps
 
-	// Add defaults
-	addDefaults(&schema, configs)
-
-	return writeSchema(schema, outputPath)
+	return &schema, nil
 }
 
 func buildSchemaStruct(s StructDoc, registry map[string]StructDoc) map[string]interface{} {
@@ -96,7 +105,7 @@ func buildSchemaStruct(s StructDoc, registry map[string]StructDoc) map[string]in
 	required := make([]string, 0)
 
 	for name, field := range s.Properties {
-		//skip invalid names processing
+		// skip invalid names processing
 		if name == "" {
 			continue
 		}
@@ -348,8 +357,7 @@ func getDefaults(cfg interface{}) map[string]interface{} {
 	return defaults
 }
 
-func writeSchema(schema JSONSchema, outputPath string) error {
-
+func writeSchema(schema *JSONSchema, outputPath string) error {
 	schema.Schema = "http://json-schema.org/draft-07/schema#"
 	file, err := os.Create(outputPath)
 	if err != nil {
