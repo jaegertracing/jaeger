@@ -427,7 +427,7 @@ func DefaultConfig() config.Configuration {
 		MaxDocCount:          defaultMaxDocCount,
 		LogLevel:             "error",
 		SendGetBodyAs:        defaultSendGetBodyAs,
-		HTTPCompression:      false,
+		HTTPCompression:      true,
 		Indices: config.Indices{
 			Spans:        defaultIndexOptions,
 			Services:     defaultIndexOptions,

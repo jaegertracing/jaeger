@@ -99,7 +99,7 @@ type Configuration struct {
 	SendGetBodyAs string `mapstructure:"send_get_body_as"`
 	// QueryTimeout contains the timeout used for queries. A timeout of zero means no timeout.
 	QueryTimeout time.Duration `mapstructure:"query_timeout"`
-	// HTTPCompression can be set to true to enable gzip compression for requests to ElasticSearch
+	// HTTPCompression can be set to false to disable gzip compression for requests to ElasticSearch
 	HTTPCompression bool `mapstructure:"http_compression"`
 
 	// ---- elasticsearch client related configs ----
