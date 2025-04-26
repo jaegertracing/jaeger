@@ -26,6 +26,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.124.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.124.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckv2extension v0.124.1
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.124.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage v0.124.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.124.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.124.1

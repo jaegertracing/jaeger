@@ -39,6 +39,10 @@ extensions:
           endpoint: localhost:17271
           tls:
             insecure: true
+          writer:
+            endpoint: 0.0.0.0:4316
+            tls:
+              insecure: true
       another-storage:
         grpc:
           endpoint: localhost:17272
@@ -49,8 +53,6 @@ receivers:
   otlp:
     protocols:
       grpc:
-        # use different port to avoid conflict with remote storage backend on 4317
-        endpoint: 0.0.0.0:4316
       http:
 
 processors:
