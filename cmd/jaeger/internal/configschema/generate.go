@@ -10,21 +10,20 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal"
-	"go.opentelemetry.io/collector/otelcol"
 	"golang.org/x/tools/go/packages"
+
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal"
 )
 
 func GenerateDocs(outputPath string) error {
-	factories, err := internal.Components()
+	configs, err := collectConfigs()
 	if err != nil {
-		return fmt.Errorf("failed to get components: %w", err)
+		return err
 	}
+	pkgNames := collectPackages(configs)
+	fmt.Println("Discovered packages:\n- " + strings.Join(pkgNames, "\n- "))
 
-	configs := collectConfigs(factories)
-	packages := collectPackages(configs)
-
-	pkgs, err := loadPackages(packages)
+	pkgs, err := loadPackages(pkgNames)
 	if err != nil {
 		return err
 	}
@@ -249,9 +248,12 @@ func mapTypeToJSONSchema(goType string) string {
 	}
 }
 
-func collectConfigs(factories otelcol.Factories) []any {
+func collectConfigs() ([]any, error) {
+	factories, err := internal.Components()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get components: %w", err)
+	}
 	var configs []any
-
 	for _, f := range factories.Extensions {
 		configs = append(configs, f.CreateDefaultConfig())
 	}
@@ -264,11 +266,10 @@ func collectConfigs(factories otelcol.Factories) []any {
 	for _, f := range factories.Exporters {
 		configs = append(configs, f.CreateDefaultConfig())
 	}
-
-	return configs
+	return configs, nil
 }
 
-func collectPackages(configs []interface{}) []string {
+func collectPackages(configs []any) []string {
 	packages := make(map[string]struct{})
 
 	for _, cfg := range configs {
@@ -283,7 +284,7 @@ func collectPackages(configs []interface{}) []string {
 		}
 
 		// Add packages from all nested fields
-		for i := 0; i < t.NumField(); i++ {
+		for i := range t.NumField() {
 			field := t.Field(i)
 			fieldType := field.Type
 
@@ -293,8 +294,10 @@ func collectPackages(configs []interface{}) []string {
 			}
 
 			if fieldType.Kind() == reflect.Struct {
-				if pkgPath := fieldType.PkgPath(); pkgPath != "" {
-					packages[pkgPath] = struct{}{}
+				fieldInstance := reflect.New(fieldType).Interface()
+				fieldPackages := collectPackages([]any{fieldInstance})
+				for _, pkg := range fieldPackages {
+					packages[pkg] = struct{}{}
 				}
 			}
 		}
@@ -305,7 +308,6 @@ func collectPackages(configs []interface{}) []string {
 		result = append(result, pkg)
 	}
 	slices.Sort(result)
-	fmt.Println("Discovered packages:\n- " + strings.Join(result, "\n- "))
 	return result
 }
 
