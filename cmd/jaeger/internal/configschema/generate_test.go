@@ -5,12 +5,22 @@ package configschema
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 )
+
+func TestGenerateDocs(t *testing.T) {
+	tempDir := t.TempDir()
+	err := GenerateSchema(filepath.Join(tempDir, "test-output.json"))
+	require.NoError(t, err)
+
+	err = writeSchema(&JSONSchema{}, filepath.Join(filepath.Join(tempDir, "badsubdir"), "test-output.json"))
+	require.ErrorContains(t, err, "failed to create output file")
+}
 
 func TestCollectPackages(t *testing.T) {
 	configs := []any{
@@ -29,14 +39,14 @@ func TestCollectPackages(t *testing.T) {
 	assert.Equal(t, expected, packages)
 }
 
-func TestGenerateSchema(t *testing.T) {
+func TestConstructSchema(t *testing.T) {
 	configs := []any{
 		&otlpreceiver.Config{},
 	}
 	packages := collectPackages(configs)
 	pkgs, err := loadPackages(packages)
 	require.NoError(t, err)
-	schema, err := generateSchema(pkgs, configs)
+	schema, err := constructSchema(pkgs, configs)
 	require.NoError(t, err)
 	assert.NotNil(t, schema)
 	str, err := json.MarshalIndent(schema, "", "  ")

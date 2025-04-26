@@ -15,7 +15,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal"
 )
 
-func GenerateDocs(outputPath string) error {
+func GenerateSchema(outputPath string) error {
 	configs, err := collectConfigs()
 	if err != nil {
 		return err
@@ -28,7 +28,7 @@ func GenerateDocs(outputPath string) error {
 		return err
 	}
 
-	schema, err := generateSchema(pkgs, configs)
+	schema, err := constructSchema(pkgs, configs)
 	if err != nil {
 		return err
 	}
@@ -114,7 +114,7 @@ func loadPackages(pkgPaths []string) ([]*packages.Package, error) {
 	return pkgs, nil
 }
 
-func generateSchema(pkgs []*packages.Package, configs []any) (*JSONSchema, error) {
+func constructSchema(pkgs []*packages.Package, configs []any) (*JSONSchema, error) {
 	schema := JSONSchema{
 		Schema:      "https://json-schema.org/draft/2019-09/schema",
 		Title:       "Jaeger Configuration",
@@ -309,12 +309,12 @@ func mapTypeToJSONSchema(goType string) string {
 
 	// Handle complex types
 	switch {
-	case goType == "time.Duration":
-		return "string"
+	// case goType == "time.Duration":
+	// 	return "string"
 	case strings.HasPrefix(goType, "[]"):
 		return "array"
-	case strings.HasPrefix(goType, "map["):
-		return "object"
+	// case strings.HasPrefix(goType, "map["):
+	// 	return "object"
 	case goType == "string":
 		return "string"
 	case goType == "bool":
@@ -325,9 +325,9 @@ func mapTypeToJSONSchema(goType string) string {
 		return "number"
 	default:
 		// Check if it's a known struct
-		if strings.Contains(goType, ".") {
-			return "object"
-		}
+		// if strings.Contains(goType, ".") {
+		// 	return "object"
+		// }
 		return "string"
 	}
 }

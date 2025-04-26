@@ -18,16 +18,17 @@ func parseASTWithImports(file *ast.File, pkg *packages.Package) []StructDoc {
 	structs := parseAST(file, pkg.PkgPath)
 
 	// Then recursively parse imported packages
-	for _, imp := range pkg.Imports {
-		for _, file := range imp.Syntax {
-			// Prevent infinite loops with a visited map
-			visited := make(map[string]bool)
-			if !visited[imp.PkgPath] {
-				visited[imp.PkgPath] = true
-				structs = append(structs, parseASTWithImports(file, imp)...)
-			}
-		}
-	}
+	// for _, imp := range pkg.Imports {
+
+	// 	for _, file := range imp.Syntax {
+	// 		// Prevent infinite loops with a visited map
+	// 		visited := make(map[string]bool)
+	// 		if !visited[imp.PkgPath] {
+	// 			visited[imp.PkgPath] = true
+	// 			structs = append(structs, parseASTWithImports(file, imp)...)
+	// 		}
+	// 	}
+	// }
 
 	return structs
 }

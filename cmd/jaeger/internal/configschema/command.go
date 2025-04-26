@@ -14,7 +14,7 @@ import (
 
 const defaultOutput = "scripts/utils/config-docs/jaeger-config.schema.json"
 
-var genDocs = GenerateDocs
+var genDocs = GenerateSchema
 
 // Command returns the config-docs command.
 func Command(v *viper.Viper) *cobra.Command {
