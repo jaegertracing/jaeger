@@ -113,12 +113,43 @@ flowchart LR
         end
 ```
 
+## gRPC Integration Test
+``` mermaid
+flowchart LR
+        
+        Test -->|writeSpan| SpanWriter
+        SpanWriter -->|0.0.0.0:4316| OTLP_Receiver[OTLP Receiver]
+        OTLP_Receiver -->|write| StorageBackend[(In-Memory Store)]
+        Test -->|readSpan| SpanReader
+        SpanReader --> |0.0.0.0:17271| RemoteStorageAPI[gRPC Backend]
+        RemoteStorageAPI --> |read|StorageBackend        
+
+        subgraph Integration_Test_Executable
+            Test
+            SpanWriter
+            SpanReader
+        end
+
+        subgraph Remote Storage Backend
+            OTLP_Receiver
+            RemoteStorageAPI
+            StorageBackend
+        end
+```
+
 ## Running tests locally
 
-All integration tests can be run locally.
+You can run integration tests locally with the following command:
 
-### gRPC Integration Test
-
-```shell
-STORAGE=grpc jaeger-v2-storage-integration-test
+```sh
+STORAGE={STORAGE_NAME} make jaeger-v2-storage-integration-test
 ```
+
+where the storage name can be one of the following:
+
+* badger
+* cassandra
+* grpc
+* kafka
+* memory_v2
+* query
