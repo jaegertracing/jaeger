@@ -4,9 +4,11 @@
 package configschema
 
 import (
+	"encoding/json"
 	"testing"
 
-	"github.com/crossdock/crossdock-go/assert"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 )
 
@@ -25,4 +27,19 @@ func TestCollectPackages(t *testing.T) {
 		"go.opentelemetry.io/collector/receiver/otlpreceiver",
 	}
 	assert.Equal(t, expected, packages)
+}
+
+func TestGenerateSchema(t *testing.T) {
+	configs := []any{
+		&otlpreceiver.Config{},
+	}
+	packages := collectPackages(configs)
+	pkgs, err := loadPackages(packages)
+	require.NoError(t, err)
+	schema, err := generateSchema(pkgs, configs)
+	require.NoError(t, err)
+	assert.NotNil(t, schema)
+	str, err := json.MarshalIndent(schema, "", "  ")
+	require.NoError(t, err)
+	t.Logf("Generated schema:\n%s", string(str))
 }

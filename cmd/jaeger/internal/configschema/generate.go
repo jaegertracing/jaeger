@@ -39,6 +39,81 @@ func GenerateDocs(outputPath string) error {
 	return writeSchema(schema, outputPath)
 }
 
+// Collect configs from all registered OTEL components via factories.
+func collectConfigs() ([]any, error) {
+	factories, err := internal.Components()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get components: %w", err)
+	}
+	var configs []any
+	for _, f := range factories.Extensions {
+		configs = append(configs, f.CreateDefaultConfig())
+	}
+	for _, f := range factories.Receivers {
+		configs = append(configs, f.CreateDefaultConfig())
+	}
+	for _, f := range factories.Processors {
+		configs = append(configs, f.CreateDefaultConfig())
+	}
+	for _, f := range factories.Exporters {
+		configs = append(configs, f.CreateDefaultConfig())
+	}
+	return configs, nil
+}
+
+func collectPackages(configs []any) []string {
+	packages := make(map[string]struct{})
+
+	for _, cfg := range configs {
+		t := reflect.TypeOf(cfg)
+		if t.Kind() == reflect.Ptr {
+			t = t.Elem()
+		}
+
+		// Add the config struct's own package
+		if pkgPath := t.PkgPath(); pkgPath != "" {
+			packages[pkgPath] = struct{}{}
+		}
+
+		// Add packages from all nested fields
+		for i := range t.NumField() {
+			field := t.Field(i)
+			fieldType := field.Type
+
+			// Dereference pointers/slices/maps
+			for fieldType.Kind() == reflect.Ptr || fieldType.Kind() == reflect.Slice || fieldType.Kind() == reflect.Map {
+				fieldType = fieldType.Elem()
+			}
+
+			if fieldType.Kind() == reflect.Struct {
+				fieldInstance := reflect.New(fieldType).Interface()
+				fieldPackages := collectPackages([]any{fieldInstance})
+				for _, pkg := range fieldPackages {
+					packages[pkg] = struct{}{}
+				}
+			}
+		}
+	}
+
+	result := make([]string, 0, len(packages))
+	for pkg := range packages {
+		result = append(result, pkg)
+	}
+	slices.Sort(result)
+	return result
+}
+
+func loadPackages(pkgPaths []string) ([]*packages.Package, error) {
+	cfg := &packages.Config{
+		Mode: packages.NeedSyntax | packages.NeedTypes | packages.NeedName,
+	}
+	pkgs, err := packages.Load(cfg, pkgPaths...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load packages: %w", err)
+	}
+	return pkgs, nil
+}
+
 func generateSchema(pkgs []*packages.Package, configs []any) (*JSONSchema, error) {
 	schema := JSONSchema{
 		Schema:      "https://json-schema.org/draft/2019-09/schema",
@@ -255,80 +330,6 @@ func mapTypeToJSONSchema(goType string) string {
 		}
 		return "string"
 	}
-}
-
-func collectConfigs() ([]any, error) {
-	factories, err := internal.Components()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get components: %w", err)
-	}
-	var configs []any
-	for _, f := range factories.Extensions {
-		configs = append(configs, f.CreateDefaultConfig())
-	}
-	for _, f := range factories.Receivers {
-		configs = append(configs, f.CreateDefaultConfig())
-	}
-	for _, f := range factories.Processors {
-		configs = append(configs, f.CreateDefaultConfig())
-	}
-	for _, f := range factories.Exporters {
-		configs = append(configs, f.CreateDefaultConfig())
-	}
-	return configs, nil
-}
-
-func collectPackages(configs []any) []string {
-	packages := make(map[string]struct{})
-
-	for _, cfg := range configs {
-		t := reflect.TypeOf(cfg)
-		if t.Kind() == reflect.Ptr {
-			t = t.Elem()
-		}
-
-		// Add the config struct's own package
-		if pkgPath := t.PkgPath(); pkgPath != "" {
-			packages[pkgPath] = struct{}{}
-		}
-
-		// Add packages from all nested fields
-		for i := range t.NumField() {
-			field := t.Field(i)
-			fieldType := field.Type
-
-			// Dereference pointers/slices/maps
-			for fieldType.Kind() == reflect.Ptr || fieldType.Kind() == reflect.Slice || fieldType.Kind() == reflect.Map {
-				fieldType = fieldType.Elem()
-			}
-
-			if fieldType.Kind() == reflect.Struct {
-				fieldInstance := reflect.New(fieldType).Interface()
-				fieldPackages := collectPackages([]any{fieldInstance})
-				for _, pkg := range fieldPackages {
-					packages[pkg] = struct{}{}
-				}
-			}
-		}
-	}
-
-	result := make([]string, 0, len(packages))
-	for pkg := range packages {
-		result = append(result, pkg)
-	}
-	slices.Sort(result)
-	return result
-}
-
-func loadPackages(pkgPaths []string) ([]*packages.Package, error) {
-	cfg := &packages.Config{
-		Mode: packages.NeedSyntax | packages.NeedTypes | packages.NeedName,
-	}
-	pkgs, err := packages.Load(cfg, pkgPaths...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load packages: %w", err)
-	}
-	return pkgs, nil
 }
 
 func getStructName(cfg interface{}) string {
