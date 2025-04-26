@@ -175,8 +175,8 @@ func constructSchema(pkgs []*packages.Package, configs []any) (*JSONSchema, erro
 	return &schema, nil
 }
 
-func buildSchemaStruct(s StructDoc, registry map[string]StructDoc) map[string]interface{} {
-	props := make(map[string]interface{})
+func buildSchemaStruct(s StructDoc, registry map[string]StructDoc) map[string]any {
+	props := make(map[string]any)
 	required := make([]string, 0)
 
 	for name, field := range s.Properties {
@@ -185,7 +185,7 @@ func buildSchemaStruct(s StructDoc, registry map[string]StructDoc) map[string]in
 			continue
 		}
 
-		prop := map[string]interface{}{
+		prop := map[string]any{
 			"description": field.Description,
 		}
 
@@ -197,7 +197,7 @@ func buildSchemaStruct(s StructDoc, registry map[string]StructDoc) map[string]in
 		case strings.HasPrefix(field.Type, "[]"):
 			elementType := strings.TrimPrefix(field.Type, "[]")
 			prop["type"] = "array"
-			prop["items"] = map[string]interface{}{
+			prop["items"] = map[string]any{
 				"type": mapTypeToJSONSchema(elementType),
 			}
 		default:
@@ -235,7 +235,7 @@ func buildSchemaStruct(s StructDoc, registry map[string]StructDoc) map[string]in
 		// Handle arrays
 		if strings.HasPrefix(field.Type, "[]") {
 			prop["type"] = "array"
-			prop["items"] = map[string]interface{}{
+			prop["items"] = map[string]any{
 				"type": mapTypeToJSONSchema(field.Type[2:]),
 			}
 		}
@@ -248,7 +248,7 @@ func buildSchemaStruct(s StructDoc, registry map[string]StructDoc) map[string]in
 		}
 	}
 
-	schema := map[string]interface{}{
+	schema := map[string]any{
 		"title":       s.Name,
 		"type":        "object",
 		"description": s.Description,
@@ -282,15 +282,15 @@ func isCrossPackageType(typeName, currentPkgPath string) bool {
 }
 
 // Function to ADd defaults
-func addDefaults(schema *JSONSchema, configs []interface{}) {
+func addDefaults(schema *JSONSchema, configs []any) {
 	for _, cfg := range configs {
 		structName := getStructName(cfg)
 		defaults := getDefaults(cfg)
 
-		if def, exists := schema.Definitions[structName].(map[string]interface{}); exists {
-			props := def["properties"].(map[string]interface{})
+		if def, exists := schema.Definitions[structName].(map[string]any); exists {
+			props := def["properties"].(map[string]any)
 			for name, value := range defaults {
-				if prop, ok := props[name].(map[string]interface{}); ok {
+				if prop, ok := props[name].(map[string]any); ok {
 					// Skip deprecated fields
 					if _, deprecated := prop["deprecated"]; !deprecated {
 						prop["default"] = value
@@ -332,7 +332,7 @@ func mapTypeToJSONSchema(goType string) string {
 	}
 }
 
-func getStructName(cfg interface{}) string {
+func getStructName(cfg any) string {
 	t := reflect.TypeOf(cfg)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
@@ -340,7 +340,7 @@ func getStructName(cfg interface{}) string {
 	return fmt.Sprintf("%s.%s", t.PkgPath(), t.Name())
 }
 
-func getComponentKey(cfg interface{}) string {
+func getComponentKey(cfg any) string {
 	t := reflect.TypeOf(cfg)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
@@ -348,8 +348,8 @@ func getComponentKey(cfg interface{}) string {
 	return fmt.Sprintf("%s/%s", t.PkgPath(), t.Name())
 }
 
-func getDefaults(cfg interface{}) map[string]interface{} {
-	defaults := make(map[string]interface{})
+func getDefaults(cfg any) map[string]any {
+	defaults := make(map[string]any)
 	data, err := json.Marshal(cfg)
 	if err != nil {
 		return defaults
