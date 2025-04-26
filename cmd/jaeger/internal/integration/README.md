@@ -116,25 +116,30 @@ flowchart LR
 ## gRPC Integration Test
 ``` mermaid
 flowchart LR
-        
-        Test -->|writeSpan| SpanWriter
-        SpanWriter -->|0.0.0.0:4316| OTLP_Receiver[OTLP Receiver]
-        OTLP_Receiver -->|write| StorageBackend[(In-Memory Store)]
-        Test -->|readSpan| SpanReader
-        SpanReader --> |0.0.0.0:17271| RemoteStorageAPI[gRPC Backend]
-        RemoteStorageAPI --> |read|StorageBackend        
 
-        subgraph Integration_Test_Executable
-            Test
-            SpanWriter
-            SpanReader
-        end
-
-        subgraph Remote Storage Backend
-            OTLP_Receiver
-            RemoteStorageAPI
-            StorageBackend
-        end
+Test --> |writeSpan| SpanWriter
+Test --> |HTTP/purge| PurgeEndpoint
+SpanWriter --> |0.0.0.0:4316| OTLP_Receiver
+OTLP_Receiver --> |write| Storage
+Test --> |readSpan| SpanReader
+SpanReader --> |0.0.0.0:17271| RemoteStorageAPI
+RemoteStorageAPI --> |read| Storage
+PurgeEndpoint --> |purge| Storage
+subgraph Integration Test Executable
+    Test
+    SpanWriter
+    SpanReader
+end
+subgraph Remote Storage Backend
+    OTLP_Receiver[OTLP Receiver]
+    Storage[(In-Memory Store)]
+    subgraph remote_storage extension
+        RemoteStorageAPI[gRPC Endpoint]
+    end
+    subgraph storage_cleaner extension
+        PurgeEndpoint[Purge Endpoint]
+    end
+end
 ```
 
 ## Running tests locally
