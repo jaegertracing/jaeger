@@ -9,7 +9,8 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/dependencystore/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore/dbmodel"
 )
 
 var (
@@ -18,13 +19,13 @@ var (
 )
 
 type StoreV1 struct {
-	depStore CoreDependencyStore
+	depStore depstore.CoreDependencyStore
 }
 
 // NewDependencyStoreV1 returns a StoreV1
-func NewDependencyStoreV1(p Params) *StoreV1 {
+func NewDependencyStoreV1(p depstore.Params) *StoreV1 {
 	return &StoreV1{
-		depStore: NewDependencyStore(p),
+		depStore: depstore.NewDependencyStore(p),
 	}
 }
 
