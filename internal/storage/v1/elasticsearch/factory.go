@@ -33,6 +33,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
 	esSampleStore "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/samplingstore"
 	esSpanStore "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
+	esDepStorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
 )
 
 const (
@@ -298,7 +299,7 @@ func createDependencyReader(
 	cfg *config.Configuration,
 	logger *zap.Logger,
 ) (dependencystore.Reader, error) {
-	reader := esDepStore.NewDependencyStoreV1(esDepStore.Params{
+	reader := esDepStore.NewDependencyStoreV1(esDepStorev2.Params{
 		Client:              clientFn,
 		Logger:              logger,
 		IndexPrefix:         cfg.Indices.IndexPrefix,
