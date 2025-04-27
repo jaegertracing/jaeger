@@ -34,7 +34,7 @@ type SpanWriter struct {
 	client func() es.Client
 	logger *zap.Logger
 	// indexCache       cache.Cache
-	writerMetrics    *spanstoremetrics.WriteMetrics
+	writerMetrics     *spanstoremetrics.WriteMetrics
 	serviceWriter     serviceWriter
 	spanServiceIndex  spanAndServiceIndexFn
 	allTagsAsFields   bool
@@ -91,9 +91,9 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 
 	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheTTL)
 	return &SpanWriter{
-		client:           p.Client,
-		logger:           p.Logger,
-		writerMetrics:    spanstoremetrics.NewWriter(p.MetricsFactory, "span_write"),
+		client:            p.Client,
+		logger:            p.Logger,
+		writerMetrics:     spanstoremetrics.NewWriter(p.MetricsFactory, "span_write"),
 		serviceWriter:     serviceOperationStorage.Write,
 		spanServiceIndex:  getSpanAndServiceIndexFn(p, writeAliasSuffix),
 		tagKeysAsFields:   tags,
