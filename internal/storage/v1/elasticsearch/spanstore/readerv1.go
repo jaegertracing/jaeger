@@ -24,7 +24,7 @@ type SpanReaderV1 struct {
 func NewSpanReaderV1(p SpanReaderParams) *SpanReaderV1 {
 	return &SpanReaderV1{
 		spanReader:    NewSpanReader(p),
-		spanConverter: NewToDomain(p.TagDotReplacement),
+		spanConverter: NewToDomain(),
 	}
 }
 
