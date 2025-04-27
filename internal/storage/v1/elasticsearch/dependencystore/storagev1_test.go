@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/dependencystore/dbmodel"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/dependencystore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore/mocks"
 )
 
 func TestV1WriteDependencies(t *testing.T) {

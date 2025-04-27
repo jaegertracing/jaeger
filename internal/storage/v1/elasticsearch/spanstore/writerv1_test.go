@@ -19,8 +19,8 @@ func TestSpanWriterV1_WriteSpan(t *testing.T) {
 		Tags:    []model.KeyValue{{Key: "foo", VStr: "bar"}},
 		Process: &model.Process{Tags: []model.KeyValue{{Key: "bar", VStr: "baz"}}},
 	}
-	converter := NewFromDomain(true, []string{}, "-")
-	writerV1 := &SpanWriterV1{spanWriter: coreWriter, spanConverter: converter}
+	writerV1 := &SpanWriterV1{spanWriter: coreWriter}
+	converter := NewFromDomain()
 	coreWriter.On("WriteSpan", s.StartTime, converter.FromDomainEmbedProcess(s)).Return(nil)
 	err := writerV1.WriteSpan(context.Background(), s)
 	require.NoError(t, err)

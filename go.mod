@@ -5,6 +5,7 @@ go 1.23.7
 toolchain go1.24.2
 
 require (
+	github.com/ClickHouse/ch-go v0.65.1
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/Shopify/sarama v1.37.2
 	github.com/apache/thrift v0.21.0
@@ -26,6 +27,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.124.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.124.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckv2extension v0.124.1
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.124.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage v0.124.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.124.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.124.1
@@ -106,6 +108,9 @@ require (
 require (
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.3 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.2 // indirect
+	github.com/go-faster/city v1.0.1 // indirect
+	github.com/go-faster/errors v0.7.1 // indirect
+	github.com/segmentio/asm v1.2.0 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	go.opentelemetry.io/collector/extension/extensionauth v1.30.0 // indirect
 	go.opentelemetry.io/collector/extension/extensiontest v0.124.0 // indirect
