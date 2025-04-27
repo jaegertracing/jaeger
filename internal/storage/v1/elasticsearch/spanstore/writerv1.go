@@ -30,7 +30,6 @@ func (s *SpanWriterV1) CreateTemplates(spanTemplate, serviceTemplate string, ind
 func (s *SpanWriterV1) WriteSpan(_ context.Context, span *model.Span) error {
 	converter := NewFromDomain()
 	jsonSpan := converter.FromDomainEmbedProcess(span)
-	jsonSpan := s.spanConverter.FromDomainEmbedProcess(span)
 	return s.spanWriter.WriteSpan(span.StartTime, jsonSpan)
 }
 
