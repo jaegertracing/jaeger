@@ -20,29 +20,31 @@ func FromDBModel(dbTrace Trace) ptrace.Traces {
 	scopeSpans := resourceSpans.ScopeSpans().AppendEmpty()
 	span := scopeSpans.Spans().AppendEmpty()
 
-	resourceAttributes, err := AttributesGroupToMap(dbTrace.Resource.Attributes)
+	sp, err := FromDBSpan(dbTrace.Span)
+	sp.CopyTo(span)
 	if err != nil {
-		jptrace.AddWarnings(span, fmt.Sprintf("failed to decode bytes value: %v", err))
+		jptrace.AddWarnings(span, err.Error())
 	}
-	resourceAttributes.CopyTo(resourceSpans.Resource().Attributes())
+
+	resource := resourceSpans.Resource()
+	rs, err := FromDBResource(dbTrace.Resource)
+	if err != nil {
+		jptrace.AddWarnings(span, err.Error())
+	}
+	rs.CopyTo(resource)
 
 	scope := scopeSpans.Scope()
 	sc, err := FromDBScope(dbTrace.Scope)
 	if err != nil {
-		jptrace.AddWarnings(span, fmt.Sprintf("failed to decode bytes value: %v", err))
+		jptrace.AddWarnings(span, err.Error())
 	}
 	sc.CopyTo(scope)
 
-	sp, err := FromDBSpan(dbTrace.Span)
-	if err != nil {
-		jptrace.AddWarnings(span, fmt.Sprintf("failed to decode bytes value: %v", err))
-	}
-	sp.CopyTo(span)
 	for i := range dbTrace.Events {
 		event := span.Events().AppendEmpty()
 		e, err := FromDBEvent(dbTrace.Events[i])
 		if err != nil {
-			jptrace.AddWarnings(span, fmt.Sprintf("failed to decode bytes value: %v", err))
+			jptrace.AddWarnings(span, err.Error())
 		}
 		e.CopyTo(event)
 	}
@@ -51,11 +53,21 @@ func FromDBModel(dbTrace Trace) ptrace.Traces {
 		link := span.Links().AppendEmpty()
 		l, err := FromDBLink(dbTrace.Links[i])
 		if err != nil {
-			jptrace.AddWarnings(span, fmt.Sprintf("failed to decode bytes value: %v", err))
+			jptrace.AddWarnings(span, err.Error())
 		}
 		l.CopyTo(link)
 	}
 	return trace
+}
+
+func FromDBResource(r Resource) (pcommon.Resource, error) {
+	resource := ptrace.NewResourceSpans().Resource()
+	resourceAttributes, err := AttributesGroupToMap(r.Attributes)
+	if err != nil {
+		return resource, fmt.Errorf("failed to decode resource attribute: %w", err)
+	}
+	resourceAttributes.CopyTo(resource.Attributes())
+	return resource, nil
 }
 
 func FromDBScope(s Scope) (pcommon.InstrumentationScope, error) {
@@ -64,11 +76,11 @@ func FromDBScope(s Scope) (pcommon.InstrumentationScope, error) {
 	scope.SetVersion(s.Version)
 	attributes, err := AttributesGroupToMap(s.Attributes)
 	if err != nil {
-		return scope, err
+		return scope, fmt.Errorf("failed to decode scope attribute: %w", err)
 	}
 	attributes.CopyTo(scope.Attributes())
 
-	return scope, err
+	return scope, nil
 }
 
 func FromDBSpan(s Span) (ptrace.Span, error) {
@@ -76,17 +88,17 @@ func FromDBSpan(s Span) (ptrace.Span, error) {
 	span.SetStartTimestamp(pcommon.NewTimestampFromTime(s.Timestamp))
 	traceId, err := hex.DecodeString(s.TraceId)
 	if err != nil {
-		return span, err
+		return span, fmt.Errorf("failed to decode trace Id: %w", err)
 	}
 	span.SetTraceID(pcommon.TraceID(traceId))
 	spanId, err := hex.DecodeString(s.SpanId)
 	if err != nil {
-		return span, err
+		return span, fmt.Errorf("failed to decode span Id: %w", err)
 	}
 	span.SetSpanID(pcommon.SpanID(spanId))
 	parentSpanId, err := hex.DecodeString(s.ParentSpanId)
 	if err != nil {
-		return span, err
+		return span, fmt.Errorf("failed to decode parent span Id: %w", err)
 	}
 	span.SetParentSpanID(pcommon.SpanID(parentSpanId))
 	span.TraceState().FromRaw(s.TraceState)
@@ -97,11 +109,11 @@ func FromDBSpan(s Span) (ptrace.Span, error) {
 	span.Status().SetMessage(s.StatusMessage)
 	spanAttributes, err := AttributesGroupToMap(s.Attributes)
 	if err != nil {
-		return span, err
+		return span, fmt.Errorf("failed to decode span attribute: %w", err)
 	}
 	spanAttributes.CopyTo(span.Attributes())
 
-	return span, err
+	return span, nil
 }
 
 func FromDBEvent(e Event) (ptrace.SpanEvent, error) {
@@ -111,31 +123,31 @@ func FromDBEvent(e Event) (ptrace.SpanEvent, error) {
 
 	attributes, err := AttributesGroupToMap(e.Attributes)
 	if err != nil {
-		return event, err
+		return event, fmt.Errorf("failed to decode event attribute: %w", err)
 	}
 	attributes.CopyTo(event.Attributes())
-	return event, err
+	return event, nil
 }
 
 func FromDBLink(l Link) (ptrace.SpanLink, error) {
 	link := ptrace.NewSpanLink()
 	traceId, err := hex.DecodeString(l.TraceId)
 	if err != nil {
-		return link, err
+		return link, fmt.Errorf("failed to decode link trace Id: %w", err)
 	}
 	link.SetTraceID(pcommon.TraceID(traceId))
 	spanId, err := hex.DecodeString(l.SpanId)
 	if err != nil {
-		return link, err
+		return link, fmt.Errorf("failed to decode link span Id: %w", err)
 	}
 	link.SetSpanID(pcommon.SpanID(spanId))
 	link.TraceState().FromRaw(l.TraceState)
 	attributes, err := AttributesGroupToMap(l.Attributes)
 	if err != nil {
-		return link, err
+		return link, fmt.Errorf("failed to decode link attribute: %w", err)
 	}
 	attributes.CopyTo(link.Attributes())
-	return link, err
+	return link, nil
 }
 
 func FromDBSpanKind(sk string) ptrace.SpanKind {
