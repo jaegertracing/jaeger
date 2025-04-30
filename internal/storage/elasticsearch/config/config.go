@@ -235,41 +235,7 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 			m.Store(id, time.Now())
 		}).
 		After(func(id int64, requests []elastic.BulkableRequest, response *elastic.BulkResponse, err error) {
-			start, ok := m.Load(id)
-			if ok {
-				m.Delete(id)
-			} else {
-				start = time.Now()
-			}
-
-			// log individual errors, note that err might be false and these errors still present
-			if response != nil && response.Errors {
-				for _, it := range response.Items {
-					for key, val := range it {
-						if val.Error != nil {
-							logger.Error("Elasticsearch part of bulk request failed", zap.String("map-key", key),
-								zap.Reflect("response", val))
-						}
-					}
-				}
-			}
-			sm.Emit(err, time.Since(start.(time.Time)))
-			if err != nil {
-				var failed int
-				if response == nil {
-					failed = 0
-				} else {
-					failed = len(response.Failed())
-				}
-				total := len(requests)
-				sm.Inserts.Inc(int64(total - failed))
-				sm.Errors.Inc(int64(failed))
-				logger.Error("Elasticsearch could not process bulk request",
-					zap.Int("request_count", total),
-					zap.Int("failed_count", failed),
-					zap.Error(err),
-					zap.Any("response", response))
-			}
+			handleBulkAfterCallback(id, requests, response, err, &m, sm, logger)
 		}).
 		BulkSize(c.BulkProcessing.MaxBytes).
 		Workers(c.BulkProcessing.Workers).
@@ -315,6 +281,44 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 	}
 
 	return eswrapper.WrapESClient(rawClient, bulkProc, c.Version, rawClientV8), nil
+}
+
+func handleBulkAfterCallback(id int64, requests []elastic.BulkableRequest, response *elastic.BulkResponse, err error, startTimes *sync.Map, sm *spanstoremetrics.WriteMetrics, logger *zap.Logger) {
+	start, ok := startTimes.Load(id)
+	if ok {
+		startTimes.Delete(id)
+	} else {
+		start = time.Now()
+	}
+
+	// Log individual errors
+	if response != nil && response.Errors {
+		for _, it := range response.Items {
+			for key, val := range it {
+				if val.Error != nil {
+					logger.Error("Elasticsearch part of bulk request failed",
+						zap.String("map-key", key), zap.Reflect("response", val))
+				}
+			}
+		}
+	}
+
+	sm.Emit(err, time.Since(start.(time.Time)))
+	if err != nil {
+		var failed int
+		if response != nil {
+			failed = len(response.Failed())
+		}
+		total := len(requests)
+		sm.Inserts.Inc(int64(total - failed))
+		sm.Errors.Inc(int64(failed))
+
+		logger.Error("Elasticsearch could not process bulk request",
+			zap.Int("request_count", total),
+			zap.Int("failed_count", failed),
+			zap.Error(err),
+			zap.Any("response", response))
+	}
 }
 
 func newElasticsearchV8(c *Configuration, logger *zap.Logger) (*esV8.Client, error) {

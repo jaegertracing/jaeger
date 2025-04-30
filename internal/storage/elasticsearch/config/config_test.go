@@ -8,15 +8,18 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
@@ -54,6 +57,54 @@ var mockEsServerResponseWithVersion8 = []byte(`
 	}
 }
 `)
+
+// mock collector implementation for testing
+type testCollector struct {
+	counterCalled map[string]int
+	timerCalled   int
+}
+
+func (t *testCollector) Counter(opts metrics.Options) metrics.Counter {
+	if t.counterCalled == nil {
+		t.counterCalled = make(map[string]int)
+	}
+	return &testCounter{collector: t, name: opts.Name}
+}
+
+func (t *testCollector) Timer(_ metrics.TimerOptions) metrics.Timer {
+	return &testTimer{collector: t}
+}
+
+func (*testCollector) Gauge(_ metrics.Options) metrics.Gauge {
+	return nil
+}
+
+func (*testCollector) Histogram(_ metrics.HistogramOptions) metrics.Histogram {
+	return nil
+}
+
+func (t *testCollector) Namespace(_ metrics.NSOptions) metrics.Factory {
+	return t
+}
+
+type testCounter struct {
+	collector *testCollector
+	name      string
+}
+
+func (c *testCounter) Inc(_ int64) {
+	c.collector.counterCalled[c.name]++
+}
+
+func (*testCounter) Dec(_ int64) {}
+
+type testTimer struct {
+	collector *testCollector
+}
+
+func (t *testTimer) Record(_ time.Duration) {
+	t.collector.timerCalled++
+}
 
 func copyToTempFile(t *testing.T, pattern string, filename string) (file *os.File) {
 	tempDir := t.TempDir()
@@ -794,6 +845,41 @@ func TestApplyForIndexPrefix(t *testing.T) {
 			require.Equal(t, test.expectedName, got)
 		})
 	}
+}
+
+func TestHandleBulkAfterCallback_ErrorMetricsEmitted(t *testing.T) {
+	collector := &testCollector{}
+	sm := spanstoremetrics.NewWriter(collector, "bulk_index")
+	logger := zap.NewNop()
+
+	var m sync.Map
+	batchID := int64(1)
+	start := time.Now().Add(-100 * time.Millisecond)
+	m.Store(batchID, start)
+
+	fakeRequests := []elastic.BulkableRequest{nil, nil}
+	response := &elastic.BulkResponse{
+		Errors: true,
+		Items: []map[string]*elastic.BulkResponseItem{
+			{
+				"index": {
+					Status: 500,
+					Error:  &elastic.ErrorDetails{Type: "server_error"},
+				},
+			},
+			{
+				"index": {
+					Status: 200,
+					Error:  nil,
+				},
+			},
+		},
+	}
+
+	handleBulkAfterCallback(batchID, fakeRequests, response, assert.AnError, &m, sm, logger)
+
+	require.Equal(t, 2, collector.counterCalled["errors"])
+	require.Equal(t, 1, collector.counterCalled["inserts"])
 }
 
 func TestMain(m *testing.M) {

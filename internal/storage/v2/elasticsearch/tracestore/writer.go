@@ -29,9 +29,7 @@ func (t *TraceWriter) WriteTraces(_ context.Context, td ptrace.Traces) error {
 	dbSpans := ToDBModel(td)
 	for i := 0; i < len(dbSpans); i++ {
 		span := &dbSpans[i]
-		if err := t.spanWriter.WriteSpan(model.EpochMicrosecondsAsTime(span.StartTime), span); err != nil {
-			return err
-		}
+		t.spanWriter.WriteSpan(model.EpochMicrosecondsAsTime(span.StartTime), span)
 	}
 	return nil
 }

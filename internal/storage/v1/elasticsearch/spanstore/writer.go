@@ -47,7 +47,7 @@ type CoreSpanWriter interface {
 	// CreateTemplates creates index templates.
 	CreateTemplates(spanTemplate, serviceTemplate string, indexPrefix cfg.IndexPrefix) error
 	// WriteSpan writes a span and its corresponding service:operation in ElasticSearch
-	WriteSpan(spanStartTime time.Time, span *dbmodel.Span) error
+	WriteSpan(spanStartTime time.Time, span *dbmodel.Span)
 	// Close closes CoreSpanWriter
 	Close() error
 }
@@ -93,7 +93,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 	return &SpanWriter{
 		client:            p.Client,
 		logger:            p.Logger,
-		writerMetrics:     spanstoremetrics.NewWriter(p.MetricsFactory, "span_write"),
+		writerMetrics:     spanstoremetrics.NewWriter(p.MetricsFactory, "spans"),
 		serviceWriter:     serviceOperationStorage.Write,
 		spanServiceIndex:  getSpanAndServiceIndexFn(p, writeAliasSuffix),
 		tagKeysAsFields:   tags,
@@ -134,15 +134,15 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServ
 }
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
-func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) error {
+func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 	s.writerMetrics.Attempts.Inc(1)
 	s.convertNestedTagsToFieldTags(span)
 	spanIndexName, serviceIndexName := s.spanServiceIndex(spanStartTime)
 	if serviceIndexName != "" {
 		s.writeService(serviceIndexName, span)
 	}
+	s.writeSpan(spanIndexName, span)
 	s.logger.Debug("Wrote span to ES index", zap.String("index", spanIndexName))
-	return s.writeSpan(spanIndexName, span)
 }
 
 func (s *SpanWriter) convertNestedTagsToFieldTags(span *dbmodel.Span) {
