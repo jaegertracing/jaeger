@@ -91,6 +91,21 @@ func TestArchiveFactory(t *testing.T) {
 	}
 }
 
+func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
+	f := NewFactory()
+	f.config = &escfg.Configuration{
+		Tags: escfg.TagsAsFields{
+			File: "fixtures/file-does-not-exist.txt",
+		},
+	}
+	f.newClientFn = (&mockClientBuilder{}).NewClient
+	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	defer f.Close()
+	r, err := f.GetSpanWriterParams()
+	require.ErrorContains(t, err, "open fixtures/file-does-not-exist.txt: no such file or directory")
+	assert.Empty(t, r)
+}
+
 func TestElasticsearchILMUsedWithoutReadWriteAliases(t *testing.T) {
 	f := NewFactory()
 	f.config = &escfg.Configuration{

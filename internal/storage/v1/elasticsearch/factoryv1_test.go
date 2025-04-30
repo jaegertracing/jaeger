@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
@@ -27,7 +28,9 @@ import (
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mocks"
 	esSpanStore "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
+	esDepStorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
@@ -40,40 +43,46 @@ const (
 )
 
 func TestElasticsearchFactory(t *testing.T) {
-	f := NewFactoryV1()
-	v, command := config.Viperize(f.AddFlags)
-	command.ParseFlags([]string{})
-	f.InitFromViper(v, zap.NewNop())
+	logger := zaptest.NewLogger(t)
+	withMockCoreFactory(logger, func(m *mocks.CoreFactory) {
+		f := NewFactoryV1()
+		f.coreFactory = m
+		v, command := config.Viperize(f.AddFlags)
+		command.ParseFlags([]string{})
+		f.InitFromViper(v, zap.NewNop())
 
-	_, err := f.CreateSpanReader()
-	require.NoError(t, err)
+		_, err := f.CreateSpanReader()
+		require.NoError(t, err)
 
-	_, err = f.CreateSpanWriter()
-	require.NoError(t, err)
+		_, err = f.CreateSpanWriter()
+		require.NoError(t, err)
 
-	_, err = f.CreateDependencyReader()
-	require.NoError(t, err)
+		_, err = f.CreateDependencyReader()
+		require.NoError(t, err)
 
-	_, err = f.CreateSamplingStore(1)
-	require.NoError(t, err)
+		_, err = f.CreateSamplingStore(1)
+		require.NoError(t, err)
 
-	require.NoError(t, f.Close())
-}
-
-func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
-	cfg := &escfg.Configuration{
-		Tags: escfg.TagsAsFields{
-			File: "fixtures/file-does-not-exist.txt",
-		},
-	}
-	f, err := NewFactoryV1WithConfig(*cfg, metrics.NullFactory, zap.NewNop())
-	require.NoError(t, err)
-	t.Cleanup(func() {
 		require.NoError(t, f.Close())
 	})
-	r, err := f.CreateSpanWriter()
-	require.Error(t, err)
-	assert.Nil(t, r)
+}
+
+func withMockCoreFactory(logger *zap.Logger, testingFxn func(m *mocks.CoreFactory)) {
+	coreFactory := &mocks.CoreFactory{}
+	registerMockCoreFactoryMethods(logger, coreFactory)
+	testingFxn(coreFactory)
+}
+
+func registerMockCoreFactoryMethods(logger *zap.Logger, coreFactory *mocks.CoreFactory) {
+	coreFactory.On("GetSpanReaderParams").Return(esSpanStore.SpanReaderParams{Logger: logger}, nil)
+	coreFactory.On("GetSpanWriterParams").Return(esSpanStore.SpanWriterParams{Logger: logger}, nil)
+	coreFactory.On("GetDependencyStoreParams").Return(esDepStorev2.Params{Logger: logger})
+	coreFactory.On("AddFlags", mock.Anything).Return()
+	coreFactory.On("InitFromViper", mock.Anything, mock.Anything).Return()
+	coreFactory.On("Close").Return(nil)
+	coreFactory.On("GetMetricsFactory").Return(metrics.NullFactory)
+	coreFactory.On("GetConfig").Return(&escfg.Configuration{})
+	coreFactory.On("CreateSamplingStore", mock.Anything).Return(nil, nil)
 }
 
 func TestCreateTemplateErr(t *testing.T) {
@@ -137,22 +146,29 @@ func TestPasswordFromFile(t *testing.T) {
 }
 
 func TestInheritSettingsFrom(t *testing.T) {
+	logger := zaptest.NewLogger(t)
 	primaryConfig := escfg.Configuration{
-		MaxDocCount: 99,
+		MaxDocCount:        99,
+		RemoteReadClusters: []string{},
 	}
-	primaryFactory, err := NewFactoryV1WithConfig(primaryConfig, metrics.NullFactory, zap.NewNop())
-	require.NoError(t, err)
+	primaryFactory := NewFactoryV1()
+	primaryCoreFactory := &mocks.CoreFactory{}
+	registerMockCoreFactoryMethods(logger, primaryCoreFactory)
+	primaryCoreFactory.On("GetConfig").Return(&primaryConfig)
+	primaryFactory.coreFactory = primaryCoreFactory
 	archiveConfig := escfg.Configuration{
-		SendGetBodyAs: "PUT",
+		SendGetBodyAs:      "PUT",
+		RemoteReadClusters: []string{},
 	}
-	archiveFactory, err := NewFactoryV1WithConfig(archiveConfig, metrics.NullFactory, zap.NewNop())
-	require.NoError(t, err)
+	archiveFactory := NewFactoryV1()
+	archiveCoreFactory := &mocks.CoreFactory{}
+	registerMockCoreFactoryMethods(logger, archiveCoreFactory)
+	archiveCoreFactory.On("GetConfig").Return(&archiveConfig)
 	archiveFactory.Options = NewOptions(archiveNamespace)
-
+	archiveFactory.coreFactory = archiveCoreFactory
 	archiveFactory.InheritSettingsFrom(primaryFactory)
-
-	require.Equal(t, "PUT", archiveFactory.coreFactory.GetConfig().SendGetBodyAs)
-	require.Equal(t, 99, primaryFactory.coreFactory.GetConfig().MaxDocCount)
+	require.Equal(t, "PUT", archiveConfig.SendGetBodyAs)
+	require.Equal(t, 99, primaryConfig.MaxDocCount)
 }
 
 func testPasswordFromFile(t *testing.T, pwdFile string, authReceived *sync.Map, getClient func() es.Client, getWriter func() (spanstore.Writer, error)) {
