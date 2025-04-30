@@ -72,7 +72,7 @@ func runQueryService(t *testing.T, esURL string) *Server {
 	telset.Logger = flagsSvc.Logger
 	telset.ReportStatus = telemetry.HCAdapter(flagsSvc.HC())
 
-	f := es.NewFactory()
+	f := es.NewFactoryV1()
 	v, command := config.Viperize(f.AddFlags)
 	require.NoError(t, command.ParseFlags([]string{
 		"--es.tls.enabled=false",
