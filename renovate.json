@@ -16,6 +16,9 @@
   ],
   "packageRules": [
     {
+      "matchManagers": [
+        "docker-compose"
+      ],
       "matchFileNames": [
         "docker-compose/cassandra/v4/docker-compose.yaml",
         "docker-compose/cassandra/v5/docker-compose.yaml",
@@ -26,6 +29,7 @@
         "docker-compose/kafka/v3/docker-compose.yml",
         "docker-compose/kafka/docker-compose.yml",
         "docker-compose/monitor/docker-compose.yml",
+        "docker-compose/monitor/docker-compose-v1.yml",
         "docker-compose/opensearch/v1/docker-compose.yml",
         "docker-compose/opensearch/v2/docker-compose.yml",
         "docker-compose/scylladb/docker-compose.yml"
