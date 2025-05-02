@@ -135,11 +135,11 @@ build-binaries-linux-ppc64le:
 # build all binaries for one specific platform GOOS/GOARCH
 .PHONY: _build-platform-binaries
 _build-platform-binaries: \
+		build-jaeger \
 		build-all-in-one \
 		build-collector \
 		build-query \
 		build-ingester \
-		build-jaeger \
 		build-remote-storage \
 		build-examples \
 		build-tracegen \
@@ -154,12 +154,12 @@ _build-platform-binaries: \
 .PHONY: _build-platform-binaries-debug
 _build-platform-binaries-debug:
 _build-platform-binaries-debug: \
+	build-jaeger \
 	build-collector \
 	build-query \
 	build-ingester \
 	build-remote-storage \
-	build-all-in-one \
-	build-jaeger
+	build-all-in-one
 
 .PHONY: build-all-platforms
 build-all-platforms:
