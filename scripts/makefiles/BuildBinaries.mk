@@ -72,6 +72,12 @@ _build-a-binary-%:
 build-jaeger: BIN_NAME = jaeger
 build-jaeger: BUILD_INFO = $(BUILD_INFO_V2)
 build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
+	want=$$($(MAKE) echo-v2) ; \
+	have=$$(./cmd/jaeger/jaeger-$(GOOS)-$(GOARCH) version 2>/dev/null | jq -r .gitVersion) ; \
+	if [ "$$want" != "$$have" ]; then \
+	  echo "❌ ERROR: version mismatch: want=$$want, have=$$have" ; \
+	  false; \
+	fi
 
 .PHONY: build-all-in-one
 build-all-in-one: BIN_NAME = all-in-one
