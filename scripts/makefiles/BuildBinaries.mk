@@ -74,8 +74,8 @@ build-jaeger: BUILD_INFO = $(BUILD_INFO_V2)
 build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
 	@ set -euf -o pipefail ; \
 	echo "Checking version of built binary" ; \
-	REAL_GOOS=$(shell GOOS= go env GOOS) ; \
-	REAL_GOARCH=$(shell GOARCH= go env GOARCH) ; \
+	REAL_GOOS=$(shell GOOS= $(GO) env GOOS) ; \
+	REAL_GOARCH=$(shell GOARCH= $(GO) env GOARCH) ; \
 	if [ "$(GOOS)" == "$$REAL_GOOS" ] && [ "$(GOARCH)" == "$$REAL_GOARCH" ]; then \
 		./cmd/jaeger/jaeger-$(GOOS)-$(GOARCH) version 2>/dev/null ; \
 		echo "" ; \
