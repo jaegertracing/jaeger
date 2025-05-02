@@ -72,18 +72,26 @@ _build-a-binary-%:
 build-jaeger: BIN_NAME = jaeger
 build-jaeger: BUILD_INFO = $(BUILD_INFO_V2)
 build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
-	# perform version check when not cross-compiling for a different platform
-	@ if [ "$(GOOS)" = "$(shell go env GOOS)" ] && [ "$(GOARCH)" = "$(shell go env GOARCH)" ]; then \
-		./cmd/jaeger/jaeger-$(GOOS)-$(GOARCH) version ; \
-		echo GIT_CLOSEST_TAG_V2 = $(GIT_CLOSEST_TAG_V2); \
+	@ set -euf -o pipefail ; \
+	echo "Checking version of built binary" ; \
+	REAL_GOOS=$(shell GOOS= go env GOOS) ; \
+	REAL_GOARCH=$(shell GOARCH= go env GOARCH) ; \
+	if [ "$(GOOS)" == "$$REAL_GOOS" ] && [ "$(GOARCH)" == "$$REAL_GOARCH" ]; then \
+		./cmd/jaeger/jaeger-$(GOOS)-$(GOARCH) version 2>/dev/null ; \
+		echo "" ; \
 		want=$(GIT_CLOSEST_TAG_V2) ; \
 		have=$$(./cmd/jaeger/jaeger-$(GOOS)-$(GOARCH) version 2>/dev/null | jq -r .gitVersion) ; \
-		echo want = $$want have = $$have; \
-		if [ "$$want" != "$$have" ]; then \
-		echo "❌ ERROR: version mismatch: want=$$want, have=$$have" ; \
-		false; \
+		if [ "$$want" == "$$have" ]; then \
+			echo "🟢 versions match: want=$$want, have=$$have" ; \
+		else \
+			echo "❌ ERROR: version mismatch: want=$$want, have=$$have" ; \
+			false; \
 		fi ; \
+	else \
+		echo ".. skipping version check for cross-compilation" ; \
+		echo ".. see build-binaries-$(GOOS)-$(GOARCH)" ; \
 	fi
+
 
 .PHONY: build-all-in-one
 build-all-in-one: BIN_NAME = all-in-one
