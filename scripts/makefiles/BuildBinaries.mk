@@ -72,10 +72,11 @@ _build-a-binary-%:
 build-jaeger: BIN_NAME = jaeger
 build-jaeger: BUILD_INFO = $(BUILD_INFO_V2)
 build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
+	./cmd/jaeger/jaeger-$(GOOS)-$(GOARCH) version
 	@ echo GIT_CLOSEST_TAG_V2 = $(GIT_CLOSEST_TAG_V2); \
 	want=$(GIT_CLOSEST_TAG_V2) ; \
-	echo want = $$want; \
 	have=$$(./cmd/jaeger/jaeger-$(GOOS)-$(GOARCH) version 2>/dev/null | jq -r .gitVersion) ; \
+	echo want = $$want have = $$have; \
 	if [ "$$want" != "$$have" ]; then \
 	  echo "❌ ERROR: version mismatch: want=$$want, have=$$have" ; \
 	  false; \
