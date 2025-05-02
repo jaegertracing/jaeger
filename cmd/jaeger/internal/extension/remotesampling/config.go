@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/xconfmap"
 	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
@@ -24,13 +25,13 @@ var (
 )
 
 var (
-	_ component.Config          = (*Config)(nil)
-	_ component.ConfigValidator = (*Config)(nil)
-	_ confmap.Unmarshaler       = (*Config)(nil)
+	_ component.Config    = (*Config)(nil)
+	_ xconfmap.Validator  = (*Config)(nil)
+	_ confmap.Unmarshaler = (*Config)(nil)
 
-	includeDefaultOpStrategies = featuregate.GlobalRegistry().MustRegister(
+	_ = featuregate.GlobalRegistry().MustRegister(
 		"jaeger.sampling.includeDefaultOpStrategies",
-		featuregate.StageBeta, // enabed by default
+		featuregate.StageStable, // can only be ON
 		featuregate.WithRegisterFromVersion("v2.2.0"),
 		featuregate.WithRegisterToVersion("v2.5.0"),
 		featuregate.WithRegisterDescription("Forces service strategy to be merged with default strategy, including per-operation overrides."),

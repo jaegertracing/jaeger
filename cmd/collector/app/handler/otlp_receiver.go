@@ -21,7 +21,12 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
+)
+
+var (
+	otlpComponentType = component.MustNewType("otlp")
+	otlpID            = component.NewID(otlpComponentType)
 )
 
 var _ component.Host = (*otelHost)(nil) // API check
@@ -57,12 +62,13 @@ func startOTLPReceiver(
 	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
 	otlpReceiverConfig.GRPC = &options.OTLP.GRPC
 	otlpReceiverConfig.GRPC.NetAddr.Transport = confignet.TransportTypeTCP
-	otlpReceiverConfig.HTTP.ServerConfig = &options.OTLP.HTTP
+	otlpReceiverConfig.HTTP.ServerConfig = options.OTLP.HTTP
 	statusReporter := func(ev *componentstatus.Event) {
 		// TODO this could be wired into changing healthcheck.HealthCheck
 		logger.Info("OTLP receiver status change", zap.Stringer("status", ev.Status()))
 	}
 	otlpReceiverSettings := receiver.Settings{
+		ID: otlpID,
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         logger,
 			TracerProvider: nooptrace.NewTracerProvider(),

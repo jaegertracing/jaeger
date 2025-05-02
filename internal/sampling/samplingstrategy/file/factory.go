@@ -9,13 +9,12 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/plugin"
 )
 
-var _ plugin.Configurable = (*Factory)(nil)
+var _ storage.Configurable = (*Factory)(nil)
 
 // Factory implements samplingstrategy.Factory for a static strategy store.
 type Factory struct {
@@ -31,12 +30,12 @@ func NewFactory() *Factory {
 	}
 }
 
-// AddFlags implements plugin.Configurable
+// AddFlags implements storage.Configurable
 func (*Factory) AddFlags(flagSet *flag.FlagSet) {
 	AddFlags(flagSet)
 }
 
-// InitFromViper implements plugin.Configurable
+// InitFromViper implements storage.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, _ *zap.Logger) {
 	f.options.InitFromViper(v)
 }

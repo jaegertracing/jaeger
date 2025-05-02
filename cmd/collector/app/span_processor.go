@@ -18,14 +18,14 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/queue"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
 	sanitizerv2 "github.com/jaegertracing/jaeger/cmd/jaeger/sanitizer"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
-	"github.com/jaegertracing/jaeger/pkg/queue"
-	"github.com/jaegertracing/jaeger/pkg/telemetry"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 const (
@@ -227,11 +227,8 @@ func (sp *spanProcessor) saveSpan(span *model.Span, tenant string) {
 }
 
 func (sp *spanProcessor) writeSpan(ctx context.Context, span *model.Span) error {
-	if spanWriter, ok := v1adapter.GetV1Writer(sp.traceWriter); ok {
-		return spanWriter.WriteSpan(ctx, span)
-	}
-	traces := v1adapter.V1BatchesToTraces([]*model.Batch{{Spans: []*model.Span{span}}})
-	return sp.traceWriter.WriteTraces(ctx, traces)
+	spanWriter := v1adapter.GetV1Writer(sp.traceWriter)
+	return spanWriter.WriteSpan(ctx, span)
 }
 
 func (sp *spanProcessor) countSpansInQueue(span *model.Span, _ string /* tenant */) {

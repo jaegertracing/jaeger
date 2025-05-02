@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 func TestPortToHostPort(t *testing.T) {
@@ -18,7 +18,7 @@ func TestPortToHostPort(t *testing.T) {
 func TestFormatHostPort(t *testing.T) {
 	assert.Equal(t, ":42", FormatHostPort("42"))
 	assert.Equal(t, ":831", FormatHostPort(":831"))
-	assert.Equal(t, "", FormatHostPort(""))
+	assert.Empty(t, FormatHostPort(""))
 	assert.Equal(t, "localhost:42", FormatHostPort("localhost:42"))
 }
 

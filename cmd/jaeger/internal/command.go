@@ -18,7 +18,7 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/otelcol"
 
-	"github.com/jaegertracing/jaeger/pkg/version"
+	"github.com/jaegertracing/jaeger/internal/version"
 )
 
 //go:embed all-in-one.yaml

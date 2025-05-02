@@ -1,6 +1,6 @@
 services:
   opensearch:
-    image: opensearchproject/opensearch:2.18.0
+    image: opensearchproject/opensearch:2.19.0@sha256:1f8b88245a6af61e7aa500afe0e87d43401e4b33140bb47230a919428ce3f7cb
     environment:
       - discovery.type=single-node
       - plugins.security.disabled=true

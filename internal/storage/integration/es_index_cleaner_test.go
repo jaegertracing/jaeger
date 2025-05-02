@@ -8,14 +8,15 @@ import (
 	"fmt"
 	"net/http"
 	"os/exec"
+	"strings"
 	"testing"
 
-	elasticsearch8 "github.com/elastic/go-elasticsearch/v8"
+	elasticsearch8 "github.com/elastic/go-elasticsearch/v9"
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 const (
@@ -154,16 +155,23 @@ func runIndexCleanerTest(t *testing.T, client *elastic.Client, v8Client *elastic
 	require.NoError(t, err)
 	err = runEsCleaner(0, envVars)
 	require.NoError(t, err)
-	indices, err := client.IndexNames()
+	foundIndices, err := client.IndexNames()
 	require.NoError(t, err)
 	if prefix != "" {
 		prefix += "-"
+	}
+	var actual []string
+	for _, index := range foundIndices {
+		// ignore system indices https://github.com/jaegertracing/jaeger/issues/7002
+		if strings.HasPrefix(index, prefix+"jaeger") {
+			actual = append(actual, index)
+		}
 	}
 	var expected []string
 	for _, index := range expectedIndices {
 		expected = append(expected, prefix+index)
 	}
-	assert.ElementsMatch(t, indices, expected, "indices found: %v, expected: %v", indices, expected)
+	assert.ElementsMatch(t, actual, expected, "indices found: %v, expected: %v", foundIndices, expected)
 }
 
 func createAllIndices(client *elastic.Client, prefix string, adaptiveSampling bool) error {

@@ -12,13 +12,14 @@ import (
 	"syscall"
 
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapgrpc"
 	"google.golang.org/grpc/grpclog"
 
+	"github.com/jaegertracing/jaeger/internal/healthcheck"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metrics/metricsbuilder"
-	"github.com/jaegertracing/jaeger/pkg/healthcheck"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -87,6 +88,7 @@ func (s *Service) AddFlags(flagSet *flag.FlagSet) {
 	}
 	metricsbuilder.AddFlags(flagSet)
 	s.Admin.AddFlags(flagSet)
+	featuregate.GlobalRegistry().RegisterFlags(flagSet)
 }
 
 // Start bootstraps the service and starts the admin server.

@@ -22,7 +22,7 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 const snapshotLocation = "./fixtures/"
@@ -108,22 +108,22 @@ func TestStrategyStoreWithFile(t *testing.T) {
 	assert.Contains(t, buf.String(), "No sampling strategies source provided, using defaults")
 	s, err := provider.GetSamplingStrategy(context.Background(), "foo")
 	require.NoError(t, err)
-	assert.EqualValues(t, makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.001), *s)
+	assert.Equal(t, makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.001), *s)
 
 	// Test reading strategies from a file
 	provider, err = NewProvider(Options{StrategiesFile: "fixtures/strategies.json"}, logger)
 	require.NoError(t, err)
 	s, err = provider.GetSamplingStrategy(context.Background(), "foo")
 	require.NoError(t, err)
-	assert.EqualValues(t, makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.8), *s)
+	assert.Equal(t, makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.8), *s)
 
 	s, err = provider.GetSamplingStrategy(context.Background(), "bar")
 	require.NoError(t, err)
-	assert.EqualValues(t, makeResponse(api_v2.SamplingStrategyType_RATE_LIMITING, 5), *s)
+	assert.Equal(t, makeResponse(api_v2.SamplingStrategyType_RATE_LIMITING, 5), *s)
 
 	s, err = provider.GetSamplingStrategy(context.Background(), "default")
 	require.NoError(t, err)
-	assert.EqualValues(t, makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.5), *s)
+	assert.Equal(t, makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.5), *s)
 }
 
 func TestStrategyStoreWithURL(t *testing.T) {
@@ -135,7 +135,7 @@ func TestStrategyStoreWithURL(t *testing.T) {
 	assert.Contains(t, buf.String(), "No sampling strategies found or URL is unavailable, using defaults")
 	s, err := provider.GetSamplingStrategy(context.Background(), "foo")
 	require.NoError(t, err)
-	assert.EqualValues(t, makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.001), *s)
+	assert.Equal(t, makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.001), *s)
 
 	// Test downloading strategies from a URL.
 	provider, err = NewProvider(Options{StrategiesFile: mockServer.URL}, logger)
@@ -143,21 +143,19 @@ func TestStrategyStoreWithURL(t *testing.T) {
 
 	s, err = provider.GetSamplingStrategy(context.Background(), "foo")
 	require.NoError(t, err)
-	assert.EqualValues(t, makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.8), *s)
+	assert.Equal(t, makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.8), *s)
 
 	s, err = provider.GetSamplingStrategy(context.Background(), "bar")
 	require.NoError(t, err)
-	assert.EqualValues(t, makeResponse(api_v2.SamplingStrategyType_RATE_LIMITING, 5), *s)
+	assert.Equal(t, makeResponse(api_v2.SamplingStrategyType_RATE_LIMITING, 5), *s)
 }
 
 func TestPerOperationSamplingStrategies(t *testing.T) {
 	tests := []struct {
 		options Options
 	}{
-		{Options{StrategiesFile: "fixtures/operation_strategies.json", DefaultSamplingProbability: DefaultSamplingProbability}},
 		{Options{
 			StrategiesFile:             "fixtures/operation_strategies.json",
-			IncludeDefaultOpStrategies: true,
 			DefaultSamplingProbability: DefaultSamplingProbability,
 		}},
 	}
@@ -240,7 +238,7 @@ func TestPerOperationSamplingStrategies(t *testing.T) {
 				},
 			},
 		}
-		assert.EqualValues(t, expectedRsp, *s)
+		assert.Equal(t, expectedRsp, *s)
 	}
 }
 
@@ -282,7 +280,7 @@ func TestMissingServiceSamplingStrategyTypes(t *testing.T) {
 
 	s, err = provider.GetSamplingStrategy(context.Background(), "default")
 	require.NoError(t, err)
-	assert.EqualValues(t, makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.5), *s)
+	assert.Equal(t, makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.5), *s)
 }
 
 func TestParseStrategy(t *testing.T) {
@@ -310,7 +308,7 @@ func TestParseStrategy(t *testing.T) {
 	for _, test := range tests {
 		tt := test
 		t.Run("", func(t *testing.T) {
-			assert.EqualValues(t, tt.expected, *provider.parseStrategy(&tt.strategy.strategy))
+			assert.Equal(t, tt.expected, *provider.parseStrategy(&tt.strategy.strategy))
 		})
 	}
 	assert.Empty(t, buf.String())
@@ -318,7 +316,7 @@ func TestParseStrategy(t *testing.T) {
 	// Test nonexistent strategy type
 	actual := *provider.parseStrategy(&strategy{Type: "blah", Param: 3.5})
 	expected := makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, provider.options.DefaultSamplingProbability)
-	assert.EqualValues(t, expected, actual)
+	assert.Equal(t, expected, actual)
 	assert.Contains(t, buf.String(), "Failed to parse sampling strategy")
 }
 
@@ -345,15 +343,12 @@ func TestDeepCopy(t *testing.T) {
 	}
 	cp := deepCopy(s)
 	assert.NotSame(t, cp, s)
-	assert.EqualValues(t, cp, s)
+	assert.Equal(t, cp, s)
 }
 
 func TestAutoUpdateStrategyWithFile(t *testing.T) {
-	tempFile, _ := os.CreateTemp("", "for_go_test_*.json")
+	tempFile, _ := os.Create(t.TempDir() + "for_go_test_*.json")
 	require.NoError(t, tempFile.Close())
-	defer func() {
-		require.NoError(t, os.Remove(tempFile.Name()))
-	}()
 
 	// copy known fixture content into temp file which we can later overwrite
 	srcFile, dstFile := "fixtures/strategies.json", tempFile.Name()
@@ -372,7 +367,7 @@ func TestAutoUpdateStrategyWithFile(t *testing.T) {
 	// confirm baseline value
 	s, err := provider.GetSamplingStrategy(context.Background(), "foo")
 	require.NoError(t, err)
-	assert.EqualValues(t, makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.8), *s)
+	assert.Equal(t, makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.8), *s)
 
 	// verify that reloading is a no-op
 	value := provider.reloadSamplingStrategy(provider.samplingStrategyLoader(dstFile), string(srcBytes))
@@ -391,7 +386,7 @@ func TestAutoUpdateStrategyWithFile(t *testing.T) {
 		}
 		time.Sleep(1 * time.Millisecond)
 	}
-	assert.EqualValues(t, makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.9), *s)
+	assert.Equal(t, makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.9), *s)
 }
 
 func TestAutoUpdateStrategyWithURL(t *testing.T) {
@@ -408,7 +403,7 @@ func TestAutoUpdateStrategyWithURL(t *testing.T) {
 	// confirm baseline value
 	s, err := provider.GetSamplingStrategy(context.Background(), "foo")
 	require.NoError(t, err)
-	assert.EqualValues(t, makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.8), *s)
+	assert.Equal(t, makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.8), *s)
 
 	// verify that reloading in no-op
 	value := provider.reloadSamplingStrategy(
@@ -432,15 +427,12 @@ func TestAutoUpdateStrategyWithURL(t *testing.T) {
 		}
 		time.Sleep(1 * time.Millisecond)
 	}
-	assert.EqualValues(t, makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.9), *s)
+	assert.Equal(t, makeResponse(api_v2.SamplingStrategyType_PROBABILISTIC, 0.9), *s)
 }
 
 func TestAutoUpdateStrategyErrors(t *testing.T) {
-	tempFile, _ := os.CreateTemp("", "for_go_test_*.json")
+	tempFile, _ := os.Create(t.TempDir() + "for_go_test_*.json")
 	require.NoError(t, tempFile.Close())
-	defer func() {
-		_ = os.Remove(tempFile.Name())
-	}()
 
 	zapCore, logs := observer.New(zap.InfoLevel)
 	logger := zap.New(zapCore)
@@ -479,39 +471,6 @@ func TestAutoUpdateStrategyErrors(t *testing.T) {
 func TestServiceNoPerOperationStrategies(t *testing.T) {
 	// given setup of strategy provider with no specific per operation sampling strategies
 	// and option "sampling.strategies.bugfix-5270=true"
-	provider, err := NewProvider(Options{
-		StrategiesFile:             "fixtures/service_no_per_operation.json",
-		IncludeDefaultOpStrategies: true,
-	}, zap.NewNop())
-	require.NoError(t, err)
-
-	for _, service := range []string{"ServiceA", "ServiceB"} {
-		t.Run(service, func(t *testing.T) {
-			strategy, err := provider.GetSamplingStrategy(context.Background(), service)
-			require.NoError(t, err)
-			strategyJson, err := json.MarshalIndent(strategy, "", "  ")
-			require.NoError(t, err)
-
-			testName := strings.ReplaceAll(t.Name(), "/", "_")
-			snapshotFile := filepath.Join(snapshotLocation, testName+".json")
-			expectedServiceResponse, err := os.ReadFile(snapshotFile)
-			require.NoError(t, err)
-
-			assert.JSONEq(t, string(expectedServiceResponse), string(strategyJson),
-				"comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.")
-
-			if regenerateSnapshots {
-				os.WriteFile(snapshotFile, strategyJson, 0o644)
-			}
-		})
-	}
-}
-
-func TestServiceNoPerOperationStrategiesDeprecatedBehavior(t *testing.T) {
-	// test case to be removed along with removal of strategy_store.parseStrategies_deprecated,
-	// see https://github.com/jaegertracing/jaeger/issues/5270 for more details
-
-	// given setup of strategy provider with no specific per operation sampling strategies
 	provider, err := NewProvider(Options{
 		StrategiesFile: "fixtures/service_no_per_operation.json",
 	}, zap.NewNop())

@@ -8,8 +8,9 @@ import (
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/featuregate"
 
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
+	"github.com/jaegertracing/jaeger/internal/config/tlscfg"
 )
 
 const (
@@ -47,6 +48,7 @@ func (*Config) AddFlags(flags *flag.FlagSet) {
 	flags.String(username, "", "The username required by storage")
 	flags.String(password, "", "The password required by storage")
 	tlsFlagsCfg.AddFlags(flags)
+	featuregate.GlobalRegistry().RegisterFlags(flags)
 }
 
 // InitFromViper initializes config from viper.Viper.

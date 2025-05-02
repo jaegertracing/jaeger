@@ -19,12 +19,14 @@ DOCKER_PROTOBUF_VERSION=0.5.0
 DOCKER_PROTOBUF=jaegertracing/protobuf:$(DOCKER_PROTOBUF_VERSION)
 PROTOC := ${DOCKER} run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${DOCKER_PROTOBUF} --proto_path=${PWD}
 
-PATCHED_OTEL_PROTO_DIR = proto-gen/.patched-otel-proto
+PROTO_GEN=internal/proto-gen
+PATCHED_OTEL_PROTO_DIR = $(PROTO_GEN)/.patched-otel-proto
 
 PROTO_INCLUDES := \
 	-Iidl/proto/api_v2 \
-	-Imodel/proto/metrics \
-	-I/usr/include/github.com/gogo/protobuf
+	-Iinternal/proto/metrics \
+	-I/usr/include/github.com/gogo/protobuf \
+	-Iidl/opentelemetry-proto
 
 # Remapping of std types to gogo types (must not contain spaces)
 PROTO_GOGO_MAPPINGS := $(shell echo \
@@ -36,7 +38,7 @@ PROTO_GOGO_MAPPINGS := $(shell echo \
 		Mmodel.proto=github.com/jaegertracing/jaeger-idl/model/v1 \
 	| $(SED) 's/  */,/g')
 
-OPENMETRICS_PROTO_FILES=$(wildcard model/proto/metrics/*.proto)
+OPENMETRICS_PROTO_FILES=$(wildcard internal/proto/metrics/*.proto)
 
 # The source directory for OTLP Protobufs from the sub-sub-module.
 OTEL_PROTO_SRC_DIR=idl/opentelemetry-proto/opentelemetry/proto
@@ -79,13 +81,14 @@ endef
 
 .PHONY: proto
 proto: proto-storage-v1 \
+	proto-storage-v2 \
 	proto-hotrod \
 	proto-zipkin \
 	proto-openmetrics \
 	proto-api-v3
 
 
-API_V2_PATCHED_DIR=proto-gen/.patched/api_v2
+API_V2_PATCHED_DIR=$(PROTO_GEN)/.patched/api_v2
 .PHONY: patch-api-v2
 patch-api-v2:
 	mkdir -p $(API_V2_PATCHED_DIR)
@@ -97,15 +100,39 @@ patch-api-v2:
 .PHONY: proto-openmetrics
 proto-openmetrics:
 	$(call print_caption, Processing OpenMetrics Protos)
-	$(foreach file,$(OPENMETRICS_PROTO_FILES),$(call proto_compile, proto-gen/api_v2/metrics, $(file)))
+	$(foreach file,$(OPENMETRICS_PROTO_FILES),$(call proto_compile, $(PROTO_GEN)/api_v2/metrics, $(file)))
 
 .PHONY: proto-storage-v1
 proto-storage-v1:
-	$(call proto_compile, proto-gen/storage_v1, internal/storage/v1/grpc/proto/storage.proto, -Iinternal/storage/v1/grpc/proto)
+	$(call proto_compile, $(PROTO_GEN)/storage_v1, internal/storage/v1/grpc/proto/storage.proto, -Iinternal/storage/v1/grpc/proto)
 	$(PROTOC) \
 		-Iinternal/storage/v1/grpc/proto \
 		--go_out=$(PWD)/internal/storage/v1/grpc/proto/ \
 		internal/storage/v1/grpc/proto/storage_test.proto
+
+STORAGE_V2_PATH=$(PROTO_GEN)/storage/v2
+STORAGE_V2_PATCHED_DIR=$(PROTO_GEN)/.patched/storage_v2
+STORAGE_V2_PATCHED_TRACE=$(STORAGE_V2_PATCHED_DIR)/trace_storage.proto
+STORAGE_V2_PATCHED_DEPENDENCY=$(STORAGE_V2_PATCHED_DIR)/dependency_storage.proto
+
+.PHONY: patch-storage-v2
+patch-storage-v2:
+	mkdir -p $(STORAGE_V2_PATCHED_DIR)
+	cat internal/storage/v2/grpc/trace_storage.proto | \
+		$(SED) -f ./$(PROTO_GEN)/patch.sed \
+		> $(STORAGE_V2_PATCHED_TRACE)
+	cat internal/storage/v2/grpc/dependency_storage.proto | \
+		$(SED) -f ./$(PROTO_GEN)/patch.sed \
+		> $(STORAGE_V2_PATCHED_DEPENDENCY)
+
+.PHONY: proto-storage-v2
+proto-storage-v2: patch-storage-v2
+	$(call proto_compile, $(STORAGE_V2_PATH), $(STORAGE_V2_PATCHED_TRACE), -I$(STORAGE_V2_PATCHED_DIR) -Iinternal/storage/v2/grpc/)
+	$(call proto_compile, $(STORAGE_V2_PATH), $(STORAGE_V2_PATCHED_DEPENDENCY), -I$(STORAGE_V2_PATCHED_DIR) -Iinternal/storage/v2/grpc/)
+	@echo "🏗️  replace first instance of OTEL import with internal type"
+	$(SED) -i '0,/go.opentelemetry.io\/proto\/otlp\/trace\/v1/s|go.opentelemetry.io/proto/otlp/trace/v1|github.com/jaegertracing/jaeger/internal/jptrace|' $(STORAGE_V2_PATH)/*.pb.go
+	@echo "🏗️  remove all remaining OTEL imports because we're not using any other OTLP types"
+	$(SED) -i 's+^.*v1 "go.opentelemetry.io/proto/otlp/trace/v1".*$$++' $(STORAGE_V2_PATH)/*.pb.go
 
 .PHONY: proto-hotrod
 proto-hotrod:
@@ -113,7 +140,7 @@ proto-hotrod:
 
 .PHONY: proto-zipkin
 proto-zipkin:
-	$(call proto_compile, proto-gen/zipkin, idl/proto/zipkin.proto, -Iidl/proto)
+	$(call proto_compile, $(PROTO_GEN)/zipkin, idl/proto/zipkin.proto, -Iidl/proto)
 
 # The API v3 service uses official OTEL type opentelemetry.proto.trace.v1.TracesData,
 # which at runtime is mapped to a custom type in cmd/query/app/internal/api_v3/traces.go
@@ -122,19 +149,19 @@ proto-zipkin:
 # Note that the .pb.go types must be generated into the same internal package $(API_V3_PATH)
 # where a manually defined traces.go file is located.
 API_V3_PATH=internal/proto/api_v3
-API_V3_PATCHED_DIR=proto-gen/.patched/api_v3
+API_V3_PATCHED_DIR=$(PROTO_GEN)/.patched/api_v3
 API_V3_PATCHED=$(API_V3_PATCHED_DIR)/query_service.proto
 .PHONY: patch-api-v3
 patch-api-v3:
 	mkdir -p $(API_V3_PATCHED_DIR)
 	cat idl/proto/api_v3/query_service.proto | \
-		$(SED) -f ./proto-gen/patch-api-v3.sed \
+		$(SED) -f ./$(PROTO_GEN)/patch.sed \
 		> $(API_V3_PATCHED)
 
 .PHONY: proto-api-v3
 proto-api-v3: patch-api-v3
 	$(call proto_compile, $(API_V3_PATH), $(API_V3_PATCHED), -I$(API_V3_PATCHED_DIR) -Iidl/opentelemetry-proto)
-	@echo "🏗️  replace TracesData with internal custom type"
-	$(SED) -i 's/v1.TracesData/TracesData/g' $(API_V3_PATH)/query_service.pb.go
-	@echo "🏗️  remove OTEL import because we're not using any other OTLP types"
+	@echo "🏗️  replace first instance of OTEL import with internal type"
+	$(SED) -i '0,/go.opentelemetry.io\/proto\/otlp\/trace\/v1/s|go.opentelemetry.io/proto/otlp/trace/v1|github.com/jaegertracing/jaeger/internal/jptrace|' $(API_V3_PATH)/query_service.pb.go
+	@echo "🏗️  remove all remaining OTEL imports because we're not using any other OTLP types"
 	$(SED) -i 's+^.*v1 "go.opentelemetry.io/proto/otlp/trace/v1".*$$++' $(API_V3_PATH)/query_service.pb.go

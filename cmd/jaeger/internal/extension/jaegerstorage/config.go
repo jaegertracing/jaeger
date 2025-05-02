@@ -9,24 +9,24 @@ import (
 	"reflect"
 	"time"
 
-	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/xconfmap"
 
+	promCfg "github.com/jaegertracing/jaeger/internal/config/promcfg"
+	casCfg "github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
+	esCfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	es "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
-	casCfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
-	esCfg "github.com/jaegertracing/jaeger/pkg/es/config"
-	promCfg "github.com/jaegertracing/jaeger/pkg/prometheus/config"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
 )
 
 var (
-	_ component.ConfigValidator = (*Config)(nil)
-	_ confmap.Unmarshaler       = (*TraceBackend)(nil)
-	_ confmap.Unmarshaler       = (*MetricBackend)(nil)
+	_ xconfmap.Validator  = (*Config)(nil)
+	_ confmap.Unmarshaler = (*TraceBackend)(nil)
+	_ confmap.Unmarshaler = (*MetricBackend)(nil)
 )
 
 // Config contains configuration(s) for jaeger trace storage.

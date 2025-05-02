@@ -12,18 +12,17 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics"
+	"github.com/jaegertracing/jaeger/internal/storage/kafka/producer"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	"github.com/jaegertracing/jaeger/pkg/kafka/producer"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/plugin"
 )
 
 var ( // interface comformance checks
-	_ storage.Factory     = (*Factory)(nil)
-	_ io.Closer           = (*Factory)(nil)
-	_ plugin.Configurable = (*Factory)(nil)
+	_ storage.Factory      = (*Factory)(nil)
+	_ io.Closer            = (*Factory)(nil)
+	_ storage.Configurable = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory and creates write-only storage components backed by kafka.
@@ -43,12 +42,12 @@ func NewFactory() *Factory {
 	return &Factory{}
 }
 
-// AddFlags implements plugin.Configurable
+// AddFlags implements storage.Configurable
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 	f.options.AddFlags(flagSet)
 }
 
-// InitFromViper implements plugin.Configurable
+// InitFromViper implements storage.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, _ *zap.Logger) {
 	f.options.InitFromViper(v)
 	f.configureFromOptions(f.options)

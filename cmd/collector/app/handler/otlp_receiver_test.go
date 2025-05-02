@@ -24,8 +24,8 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 func optionsWithPorts(port string) *flags.CollectorOptions {

@@ -18,12 +18,12 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/internal/dbmodel"
-	"github.com/jaegertracing/jaeger/pkg/es"
-	"github.com/jaegertracing/jaeger/pkg/es/config"
-	"github.com/jaegertracing/jaeger/pkg/es/mocks"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 type spanWriterTest struct {
@@ -51,7 +51,7 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 	fn(w)
 }
 
-var _ spanstore.Writer = &SpanWriter{} // check API conformance
+var _ spanstore.Writer = &SpanWriterV1{} // check API conformance
 
 func TestSpanWriterIndices(t *testing.T) {
 	client := &mocks.Client{}
@@ -160,14 +160,14 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				date, err := time.Parse(time.RFC3339, "1995-04-21T22:08:41+00:00")
 				require.NoError(t, err)
 
-				span := &model.Span{
-					TraceID:       model.NewTraceID(0, 1),
-					SpanID:        model.NewSpanID(0),
+				span := &dbmodel.Span{
+					TraceID:       "testing-traceid",
+					SpanID:        "testing-spanid",
 					OperationName: "operation",
-					Process: &model.Process{
+					Process: dbmodel.Process{
 						ServiceName: "service",
 					},
-					StartTime: date,
+					StartTime: model.TimeAsEpochMicroseconds(date),
 				}
 
 				spanIndexName := "jaeger-span-1995-04-21"
@@ -194,10 +194,9 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 
 				w.client.On("Index").Return(indexService)
 
-				err = w.writer.WriteSpan(context.Background(), span)
+				w.writer.WriteSpan(date, span)
 
 				if testCase.expectedError == "" {
-					require.NoError(t, err)
 					indexServicePut.AssertNumberOfCalls(t, "Add", 1)
 					indexSpanPut.AssertNumberOfCalls(t, "Add", 1)
 				} else {
@@ -208,7 +207,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 					assert.Contains(t, w.logBuffer.String(), expectedLog, "Log must contain %s, but was %s", expectedLog, w.logBuffer.String())
 				}
 				if len(testCase.expectedLogs) == 0 {
-					assert.Equal(t, "", w.logBuffer.String())
+					assert.Empty(t, w.logBuffer.String())
 				}
 			})
 		})
@@ -325,7 +324,7 @@ func TestWriteSpanInternal(t *testing.T) {
 
 		w.writer.writeSpan(indexName, jsonSpan)
 		indexService.AssertNumberOfCalls(t, "Add", 1)
-		assert.Equal(t, "", w.logBuffer.String())
+		assert.Empty(t, w.logBuffer.String())
 	})
 }
 
@@ -349,71 +348,6 @@ func TestWriteSpanInternalError(t *testing.T) {
 		w.writer.writeSpan(indexName, jsonSpan)
 		indexService.AssertNumberOfCalls(t, "Add", 1)
 	})
-}
-
-func TestNewSpanTags(t *testing.T) {
-	client := &mocks.Client{}
-	clientFn := func() es.Client { return client }
-	logger, _ := testutils.NewLogger()
-	metricsFactory := metricstest.NewFactory(0)
-	testCases := []struct {
-		writer   *SpanWriter
-		expected dbmodel.Span
-		name     string
-	}{
-		{
-			writer: NewSpanWriter(SpanWriterParams{
-				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				AllTagsAsFields: true,
-			}),
-			expected: dbmodel.Span{
-				Tag: map[string]any{"foo": "bar"}, Tags: []dbmodel.KeyValue{},
-				Process: dbmodel.Process{Tag: map[string]any{"bar": "baz"}, Tags: []dbmodel.KeyValue{}},
-			},
-			name: "allTagsAsFields",
-		},
-		{
-			writer: NewSpanWriter(SpanWriterParams{
-				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				TagKeysAsFields: []string{"foo", "bar", "rere"},
-			}),
-			expected: dbmodel.Span{
-				Tag: map[string]any{"foo": "bar"}, Tags: []dbmodel.KeyValue{},
-				Process: dbmodel.Process{Tag: map[string]any{"bar": "baz"}, Tags: []dbmodel.KeyValue{}},
-			},
-			name: "definedTagNames",
-		},
-		{
-			writer: NewSpanWriter(SpanWriterParams{Client: clientFn, Logger: logger, MetricsFactory: metricsFactory}),
-			expected: dbmodel.Span{
-				Tags: []dbmodel.KeyValue{{
-					Key:   "foo",
-					Type:  dbmodel.StringType,
-					Value: "bar",
-				}},
-				Process: dbmodel.Process{Tags: []dbmodel.KeyValue{{
-					Key:   "bar",
-					Type:  dbmodel.StringType,
-					Value: "baz",
-				}}},
-			},
-			name: "noAllTagsAsFields",
-		},
-	}
-
-	s := &model.Span{
-		Tags:    []model.KeyValue{{Key: "foo", VStr: "bar"}},
-		Process: &model.Process{Tags: []model.KeyValue{{Key: "bar", VStr: "baz"}}},
-	}
-	for _, test := range testCases {
-		t.Run(test.name, func(t *testing.T) {
-			mSpan := test.writer.spanConverter.FromDomainEmbedProcess(s)
-			assert.Equal(t, test.expected.Tag, mSpan.Tag)
-			assert.Equal(t, test.expected.Tags, mSpan.Tags)
-			assert.Equal(t, test.expected.Process.Tag, mSpan.Process.Tag)
-			assert.Equal(t, test.expected.Process.Tags, mSpan.Process.Tags)
-		})
-	}
 }
 
 func TestSpanWriterParamsTTL(t *testing.T) {
@@ -476,6 +410,111 @@ func TestSpanWriterParamsTTL(t *testing.T) {
 			time.Sleep(1 * time.Nanosecond)
 			w.writeService(serviceIndexName, jsonSpan)
 			indexService.AssertNumberOfCalls(t, "Add", test.expectedAddCalls)
+		})
+	}
+}
+
+func TestTagMap(t *testing.T) {
+	tags := []dbmodel.KeyValue{
+		{
+			Key:   "foo",
+			Value: "foo",
+			Type:  dbmodel.StringType,
+		},
+		{
+			Key:   "a",
+			Value: true,
+			Type:  dbmodel.BoolType,
+		},
+		{
+			Key:   "b.b",
+			Value: int64(1),
+			Type:  dbmodel.Int64Type,
+		},
+	}
+	dbSpan := dbmodel.Span{Tags: tags, Process: dbmodel.Process{Tags: tags}}
+	converter := NewSpanWriter(SpanWriterParams{
+		AllTagsAsFields:   false,
+		TagKeysAsFields:   []string{"a", "b.b", "b*"},
+		TagDotReplacement: ":",
+	})
+	converter.convertNestedTagsToFieldTags(&dbSpan)
+
+	assert.Len(t, dbSpan.Tags, 1)
+	assert.Equal(t, "foo", dbSpan.Tags[0].Key)
+	assert.Len(t, dbSpan.Process.Tags, 1)
+	assert.Equal(t, "foo", dbSpan.Process.Tags[0].Key)
+
+	tagsMap := map[string]any{}
+	tagsMap["a"] = true
+	tagsMap["b:b"] = int64(1)
+	assert.Equal(t, tagsMap, dbSpan.Tag)
+	assert.Equal(t, tagsMap, dbSpan.Process.Tag)
+}
+
+func TestNewSpanTags(t *testing.T) {
+	testCases := []struct {
+		params   SpanWriterParams
+		expected dbmodel.Span
+		name     string
+	}{
+		{
+			params: SpanWriterParams{
+				AllTagsAsFields:   true,
+				TagKeysAsFields:   []string{},
+				TagDotReplacement: "",
+			},
+			expected: dbmodel.Span{
+				Tag: map[string]any{"foo": "bar"}, Tags: []dbmodel.KeyValue{},
+				Process: dbmodel.Process{Tag: map[string]any{"bar": "baz"}, Tags: []dbmodel.KeyValue{}},
+			},
+			name: "allTagsAsFields",
+		},
+		{
+			params: SpanWriterParams{
+				AllTagsAsFields:   false,
+				TagKeysAsFields:   []string{"foo", "bar", "rere"},
+				TagDotReplacement: "",
+			},
+			expected: dbmodel.Span{
+				Tag: map[string]any{"foo": "bar"}, Tags: []dbmodel.KeyValue{},
+				Process: dbmodel.Process{Tag: map[string]any{"bar": "baz"}, Tags: []dbmodel.KeyValue{}},
+			},
+			name: "definedTagNames",
+		},
+		{
+			params: SpanWriterParams{
+				AllTagsAsFields:   false,
+				TagKeysAsFields:   []string{},
+				TagDotReplacement: "",
+			},
+			expected: dbmodel.Span{
+				Tags: []dbmodel.KeyValue{{
+					Key:   "foo",
+					Type:  dbmodel.StringType,
+					Value: "bar",
+				}},
+				Process: dbmodel.Process{Tags: []dbmodel.KeyValue{{
+					Key:   "bar",
+					Type:  dbmodel.StringType,
+					Value: "baz",
+				}}},
+			},
+			name: "noAllTagsAsFields",
+		},
+	}
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			mSpan := &dbmodel.Span{
+				Tags:    []dbmodel.KeyValue{{Key: "foo", Value: "bar", Type: dbmodel.StringType}},
+				Process: dbmodel.Process{Tags: []dbmodel.KeyValue{{Key: "bar", Value: "baz", Type: dbmodel.StringType}}},
+			}
+			writer := NewSpanWriter(test.params)
+			writer.convertNestedTagsToFieldTags(mSpan)
+			assert.Equal(t, test.expected.Tag, mSpan.Tag)
+			assert.Equal(t, test.expected.Tags, mSpan.Tags)
+			assert.Equal(t, test.expected.Process.Tag, mSpan.Process.Tag)
+			assert.Equal(t, test.expected.Process.Tags, mSpan.Process.Tags)
 		})
 	}
 }

@@ -15,12 +15,12 @@ import (
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/cassandra"
-	"github.com/jaegertracing/jaeger/pkg/cassandra/config"
-	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
-	viperize "github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
+	viperize "github.com/jaegertracing/jaeger/internal/config"
+	"github.com/jaegertracing/jaeger/internal/metrics"
+	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
+	"github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
+	"github.com/jaegertracing/jaeger/internal/storage/cassandra/mocks"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 type mockSessionBuilder struct {

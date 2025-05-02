@@ -15,9 +15,9 @@ import (
 	"github.com/olivere/elastic"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/internal/dbmodel"
-	"github.com/jaegertracing/jaeger/pkg/cache"
-	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/internal/cache"
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 )
 
 const (
@@ -87,7 +87,7 @@ func (s *ServiceOperationStorage) getServices(ctx context.Context, indices []str
 		return nil, errors.New("could not find aggregation of " + servicesAggregation)
 	}
 	serviceNamesBucket := bucket.Buckets
-	return bucketToStringArray(serviceNamesBucket)
+	return bucketToStringArray[string](serviceNamesBucket)
 }
 
 func getServicesAggregation(maxDocCount int) elastic.Query {
@@ -118,7 +118,7 @@ func (s *ServiceOperationStorage) getOperations(ctx context.Context, indices []s
 		return nil, errors.New("could not find aggregation of " + operationsAggregation)
 	}
 	operationNamesBucket := bucket.Buckets
-	return bucketToStringArray(operationNamesBucket)
+	return bucketToStringArray[string](operationNamesBucket)
 }
 
 func getOperationsAggregation(maxDocCount int) elastic.Query {

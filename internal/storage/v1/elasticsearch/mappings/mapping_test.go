@@ -16,10 +16,10 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/pkg/es"
-	"github.com/jaegertracing/jaeger/pkg/es/config"
-	"github.com/jaegertracing/jaeger/pkg/es/mocks"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 //go:embed fixtures/*.json

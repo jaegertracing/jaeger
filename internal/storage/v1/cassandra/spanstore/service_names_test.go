@@ -16,8 +16,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
-	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/internal/storage/cassandra/mocks"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 type serviceNameStorageTest struct {
@@ -60,8 +60,7 @@ func TestServiceNamesStorageWrite(t *testing.T) {
 				query2.On("Exec").Return(execError)
 				query2.On("String").Return("select from service_names")
 
-				var emptyArgs []any
-				s.session.On("Query", mock.AnythingOfType("string"), emptyArgs).Return(query)
+				s.session.On("Query", mock.AnythingOfType("string")).Return(query)
 
 				err := s.storage.Write("service-a")
 				require.NoError(t, err)
@@ -118,8 +117,7 @@ func TestServiceNamesStorageGetServices(t *testing.T) {
 			query := &mocks.Query{}
 			query.On("Iter").Return(iter)
 
-			var emptyArgs []any
-			s.session.On("Query", mock.AnythingOfType("string"), emptyArgs).Return(query)
+			s.session.On("Query", mock.AnythingOfType("string")).Return(query)
 
 			services, err := s.storage.GetServices()
 			if expErr == nil {

@@ -19,12 +19,14 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/jaegertracing/jaeger/cmd/remote-storage/app"
+	"github.com/jaegertracing/jaeger/internal/config"
+	"github.com/jaegertracing/jaeger/internal/healthcheck"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	storage "github.com/jaegertracing/jaeger/internal/storage/v1/factory"
-	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/healthcheck"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/telemetry"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -57,9 +59,13 @@ func StartNewRemoteMemoryStorage(t *testing.T, port int) *RemoteMemoryStorage {
 	telset := telemetry.NoopSettings()
 	telset.Logger = logger
 	telset.ReportStatus = telemetry.HCAdapter(healthcheck.New())
-	server, err := app.NewServer(opts, storageFactory, tm, telset)
+
+	traceFactory := v1adapter.NewFactory(storageFactory)
+	depFactory := traceFactory.(depstore.Factory)
+
+	server, err := app.NewServer(context.Background(), opts, traceFactory, depFactory, tm, telset)
 	require.NoError(t, err)
-	require.NoError(t, server.Start())
+	require.NoError(t, server.Start(context.Background()))
 
 	conn, err := grpc.NewClient(
 		opts.NetAddr.Endpoint,

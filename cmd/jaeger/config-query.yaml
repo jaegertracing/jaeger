@@ -1,0 +1,48 @@
+service:
+  extensions: [jaeger_storage, jaeger_query, healthcheckv2]
+  pipelines:
+    traces:
+      receivers: [nop]
+      processors: [batch]
+      exporters: [nop]
+  telemetry:
+    resource:
+      service.name: jaeger-query
+    metrics:
+      level: detailed
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888
+    logs:
+      level: info
+
+extensions:
+  healthcheckv2:
+    use_v2: true
+    http:
+
+  jaeger_query:
+    storage:
+      traces: query_storage
+    ui:
+      config_file: ./cmd/jaeger/config-ui.json
+
+  jaeger_storage:
+    backends:
+      query_storage:
+        grpc:
+          endpoint: localhost:17271
+          tls:
+            insecure: true
+
+receivers:
+  nop:
+
+processors:
+  batch:
+
+exporters:
+  nop:

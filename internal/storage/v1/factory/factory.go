@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/safeexpvar"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
@@ -24,8 +25,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/kafka"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/plugin"
 )
 
 const (
@@ -74,9 +73,9 @@ func AllSamplingStorageTypes() []string {
 }
 
 var ( // interface comformance checks
-	_ storage.Factory     = (*Factory)(nil)
-	_ io.Closer           = (*Factory)(nil)
-	_ plugin.Configurable = (*Factory)(nil)
+	_ storage.Factory      = (*Factory)(nil)
+	_ io.Closer            = (*Factory)(nil)
+	_ storage.Configurable = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory interface as a meta-factory for storage components.
@@ -263,11 +262,11 @@ func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	return factory.CreateDependencyReader()
 }
 
-// AddFlags implements plugin.Configurable
+// AddFlags implements storage.Configurable
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 	addFlags := func(factories map[string]storage.Factory) {
 		for _, factory := range factories {
-			if conf, ok := factory.(plugin.Configurable); ok {
+			if conf, ok := factory.(storage.Configurable); ok {
 				conf.AddFlags(flagSet)
 			}
 		}
@@ -299,10 +298,10 @@ func (f *Factory) addDownsamplingFlags(flagSet *flag.FlagSet) {
 	)
 }
 
-// InitFromViper implements plugin.Configurable
+// InitFromViper implements storage.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	initializeConfigurable := func(factory storage.Factory) {
-		if conf, ok := factory.(plugin.Configurable); ok {
+		if conf, ok := factory.(storage.Configurable); ok {
 			conf.InitFromViper(v, logger)
 		}
 	}

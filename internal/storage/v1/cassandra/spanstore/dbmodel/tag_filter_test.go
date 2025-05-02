@@ -60,7 +60,7 @@ func TestChainedTagFilter(t *testing.T) {
 }
 
 func compareTags(t *testing.T, expected, actual model.KeyValues) {
-	if !assert.EqualValues(t, expected, actual) {
+	if !assert.Equal(t, expected, actual) {
 		for _, diff := range pretty.Diff(expected, actual) {
 			t.Log(diff)
 		}

@@ -9,6 +9,7 @@ import (
 	"io"
 	"time"
 
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter"
@@ -39,15 +40,16 @@ func createTraceWriter(logger *zap.Logger, port int) (*traceWriter, error) {
 
 	factory := otlpexporter.NewFactory()
 	cfg := factory.CreateDefaultConfig().(*otlpexporter.Config)
-	cfg.Endpoint = fmt.Sprintf("localhost:%d", port)
-	cfg.Timeout = 30 * time.Second
+	cfg.ClientConfig.Endpoint = fmt.Sprintf("localhost:%d", port)
+	cfg.TimeoutConfig.Timeout = 30 * time.Second
 	cfg.RetryConfig.Enabled = false
 	cfg.QueueConfig.Enabled = false
-	cfg.TLSSetting = configtls.ClientConfig{
+	cfg.ClientConfig.TLSSetting = configtls.ClientConfig{
 		Insecure: true,
 	}
 
-	set := exportertest.NewNopSettings()
+	otlpComponentType := component.MustNewType("otlp")
+	set := exportertest.NewNopSettings(otlpComponentType)
 	set.Logger = logger
 
 	exp, err := factory.CreateTraces(context.Background(), set, cfg)

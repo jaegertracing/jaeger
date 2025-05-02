@@ -18,14 +18,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/config"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	depStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	spanStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/mocks"
-	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 func defaultCfg() Config {
@@ -284,12 +284,12 @@ type configurable struct {
 	logger  *zap.Logger
 }
 
-// AddFlags implements plugin.Configurable
+// AddFlags implements storage.Configurable
 func (f *configurable) AddFlags(flagSet *flag.FlagSet) {
 	f.flagSet = flagSet
 }
 
-// InitFromViper implements plugin.Configurable
+// InitFromViper implements storage.Configurable
 func (f *configurable) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	f.viper = v
 	f.logger = logger

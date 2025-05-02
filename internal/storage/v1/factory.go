@@ -9,13 +9,13 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/distributedlock"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	"github.com/jaegertracing/jaeger/pkg/distributedlock"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/telemetry"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
 // BaseFactory is the same as Factory, but without the Initialize method.
@@ -32,11 +32,11 @@ type BaseFactory interface {
 }
 
 // Factory defines an interface for a factory that can create implementations of different storage components.
-// Implementations are also encouraged to implement plugin.Configurable interface.
+// Implementations are also encouraged to implement storage.Configurable interface.
 //
 // # See also
 //
-// plugin.Configurable
+// storage.Configurable
 type Factory interface {
 	BaseFactory
 	// Initialize performs internal initialization of the factory, such as opening connections to the backend store.
@@ -61,11 +61,11 @@ type SamplingStoreFactory interface {
 }
 
 // MetricStoreFactory defines an interface for a factory that can create implementations of different metrics storage components.
-// Implementations are also encouraged to implement plugin.Configurable interface.
+// Implementations are also encouraged to implement storage.Configurable interface.
 //
 // # See also
 //
-// plugin.Configurable
+// storage.Configurable
 type MetricStoreFactory interface {
 	// Initialize performs internal initialization of the factory, such as opening connections to the backend store.
 	// It is called after all configuration of the factory itself has been done.

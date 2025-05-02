@@ -1,6 +1,7 @@
 name: CIT Hotrod
 
 on:
+  merge_group:
   push:
     branches: [main]
 
@@ -25,7 +26,7 @@ jobs:
         jaeger-version: [v1, v2]
           
     steps:
-    - uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+    - uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -37,15 +38,15 @@ jobs:
       run: |
         git fetch --prune --unshallow --tags
 
-    - uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5.3.0
+    - uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b # v5.4.0
       with:
-        go-version: 1.23.x
+        go-version: 1.24.x
 
     - uses: ./.github/actions/setup-node.js
 
     - uses: ./.github/actions/setup-branch
 
-    - uses: docker/setup-qemu-action@53851d14592bedcffcf25ea515637cff71ef929a # v3.3.0
+    - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
 
     - name: Define BUILD_FLAGS var if running on a Pull Request
       run: |
@@ -59,17 +60,17 @@ jobs:
         esac
     - name: Install kubectl
       if: matrix.runtime == 'k8s'
-      uses: azure/setup-kubectl@v4
+      uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4
       with:
         version: 'latest'
   
     - name: Install Kustomize
       if: matrix.runtime == 'k8s'
-      uses: imranismail/setup-kustomize@v2
+      uses: imranismail/setup-kustomize@2ba527d4d055ab63514ba50a99456fc35684947f # v2
 
     - name: Create k8s Kind Cluster
       if: matrix.runtime == 'k8s'
-      uses: helm/kind-action@v1
+      uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1
 
     - name: Build, test, and publish hotrod image
       run:  bash scripts/build/build-hotrod-image.sh ${{ env.BUILD_FLAGS }} -v ${{ matrix.jaeger-version }} -r ${{ matrix.runtime }}

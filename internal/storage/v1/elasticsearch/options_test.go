@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/pkg/config"
-	escfg "github.com/jaegertracing/jaeger/pkg/es/config"
+	"github.com/jaegertracing/jaeger/internal/config"
+	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
 func TestOptions(t *testing.T) {
@@ -63,6 +63,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--es.tags-as-fields.dot-replacement=!",
 		"--es.use-ilm=true",
 		"--es.send-get-body-as=POST",
+		"--es.http-compression=true",
 	})
 	require.NoError(t, err)
 	opts.InitFromViper(v)
@@ -86,6 +87,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "20060102", primary.Indices.Services.DateLayout)
 	assert.Equal(t, "2006010215", primary.Indices.Spans.DateLayout)
 	assert.True(t, primary.UseILM)
+	assert.True(t, primary.HTTPCompression)
 }
 
 func TestEmptyRemoteReadClusters(t *testing.T) {

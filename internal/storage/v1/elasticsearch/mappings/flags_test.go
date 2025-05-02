@@ -16,12 +16,12 @@ func TestOptionsWithDefaultFlags(t *testing.T) {
 	c := cobra.Command{}
 	o.AddFlags(&c)
 
-	assert.Equal(t, "", o.Mapping)
+	assert.Empty(t, o.Mapping)
 	assert.Equal(t, uint(7), o.EsVersion)
 	assert.EqualValues(t, 5, o.Shards)
 	assert.EqualValues(t, 1, o.Replicas)
 
-	assert.Equal(t, "", o.IndexPrefix)
+	assert.Empty(t, o.IndexPrefix)
 	assert.Equal(t, "false", o.UseILM)
 	assert.Equal(t, "jaeger-ilm-policy", o.ILMPolicyName)
 }

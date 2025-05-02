@@ -49,7 +49,7 @@ jobs:
         sudo rm -rf /usr/local/lib/android || true
         df -h /
 
-    - uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+    - uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -61,9 +61,9 @@ jobs:
       run: |
         git fetch --prune --unshallow --tags
 
-    - uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5.3.0
+    - uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b # v5.4.0
       with:
-        go-version: 1.23.x
+        go-version: 1.24.x
 
     - uses: ./.github/actions/setup-node.js
 
@@ -99,7 +99,7 @@ jobs:
 
     - name: Configure GPG Key
       if: ${{ inputs.dry_run != true }}
-      uses: crazy-max/ghaction-import-gpg@cb9bde2e2525e640591a934b1fd28eef1dcaf5e5 # v6.2.0
+      uses: crazy-max/ghaction-import-gpg@e89d40939c28e39f97cf32126055eeae86ba74ec # v6.3.0
       with:
         gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
         passphrase: ${{ secrets.GPG_PASSPHRASE }}
@@ -128,7 +128,7 @@ jobs:
         rm -rf deploy || true
         df -h /
 
-    - uses: docker/setup-qemu-action@53851d14592bedcffcf25ea515637cff71ef929a # v3.3.0
+    - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
 
     - name: Build and upload all container images
       # -B skips building the binaries since we already did that above
@@ -168,7 +168,7 @@ jobs:
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
     - name: Generate SBOM
-      uses: anchore/sbom-action@f325610c9f50a54015d37c8d16cb3b0e2c8f4de0 # v0.18.0
+      uses: anchore/sbom-action@9f7302141466aa6482940f15371237e9d9f4c34a # v0.19.0
       with:
         output-file: jaeger-SBOM.spdx.json
         upload-release-assets: false

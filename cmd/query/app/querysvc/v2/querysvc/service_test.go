@@ -6,6 +6,7 @@ package querysvc
 import (
 	"context"
 	"fmt"
+	"iter"
 	"testing"
 	"time"
 
@@ -17,11 +18,11 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/adjuster"
+	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
-	"github.com/jaegertracing/jaeger/pkg/iter"
 )
 
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
@@ -96,7 +97,7 @@ func makeTestTrace() ptrace.Traces {
 
 func TestGetTraces_ErrorInReader(t *testing.T) {
 	tqs := initializeTestService()
-	tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
+	tqs.traceReader.On("GetTraces", mock.Anything, []tracestore.GetTraceParams{{TraceID: testTraceID}}).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 			yield(nil, assert.AnError)
 		})).Once()
@@ -109,24 +110,22 @@ func TestGetTraces_ErrorInReader(t *testing.T) {
 		},
 	}
 	getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
-	_, err := iter.FlattenWithErrors(getTracesIter)
+	_, err := jiter.FlattenWithErrors(getTracesIter)
 	require.ErrorIs(t, err, assert.AnError)
 }
 
 func TestGetTraces_Success(t *testing.T) {
 	tqs := initializeTestService()
-	tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
+	params := GetTraceParams{
+		TraceIDs: []tracestore.GetTraceParams{{TraceID: testTraceID}},
+	}
+	tqs.traceReader.On("GetTraces", mock.Anything, params.TraceIDs).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 			yield([]ptrace.Traces{makeTestTrace()}, nil)
 		})).Once()
 
-	params := GetTraceParams{
-		TraceIDs: []tracestore.GetTraceParams{
-			{TraceID: testTraceID},
-		},
-	}
 	getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
-	gotTraces, err := iter.FlattenWithErrors(getTracesIter)
+	gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
 	require.NoError(t, err)
 	require.Len(t, gotTraces, 1)
 
@@ -186,19 +185,15 @@ func TestGetTraces_WithRawTraces(t *testing.T) {
 			})
 
 			tqs := initializeTestService()
-			tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
-				Return(responseIter).Once()
-
 			params := GetTraceParams{
-				TraceIDs: []tracestore.GetTraceParams{
-					{
-						TraceID: testTraceID,
-					},
-				},
+				TraceIDs:  []tracestore.GetTraceParams{{TraceID: testTraceID}},
 				RawTraces: test.rawTraces,
 			}
+			tqs.traceReader.On("GetTraces", mock.Anything, params.TraceIDs).
+				Return(responseIter).Once()
+
 			getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
-			gotTraces, err := iter.FlattenWithErrors(getTracesIter)
+			gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
 			require.NoError(t, err)
 
 			require.Len(t, gotTraces, 1)
@@ -211,23 +206,22 @@ func TestGetTraces_WithRawTraces(t *testing.T) {
 func TestGetTraces_TraceInArchiveStorage(t *testing.T) {
 	tqs := initializeTestService(withArchiveTraceReader())
 
-	tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
+	params := GetTraceParams{
+		TraceIDs: []tracestore.GetTraceParams{{TraceID: testTraceID}},
+	}
+
+	tqs.traceReader.On("GetTraces", mock.Anything, params.TraceIDs).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 			yield([]ptrace.Traces{}, nil)
 		})).Once()
 
-	tqs.archiveTraceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
+	tqs.archiveTraceReader.On("GetTraces", mock.Anything, params.TraceIDs).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 			yield([]ptrace.Traces{makeTestTrace()}, nil)
 		})).Once()
 
-	params := GetTraceParams{
-		TraceIDs: []tracestore.GetTraceParams{
-			{TraceID: testTraceID},
-		},
-	}
 	getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
-	gotTraces, err := iter.FlattenWithErrors(getTracesIter)
+	gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
 	require.NoError(t, err)
 	require.Len(t, gotTraces, 1)
 
@@ -277,13 +271,13 @@ func TestFindTraces_Success(t *testing.T) {
 		OperationName: "operation",
 		StartTimeMax:  now,
 		DurationMin:   duration,
-		NumTraces:     200,
+		SearchDepth:   200,
 	}
 	tqs.traceReader.On("FindTraces", mock.Anything, queryParams).Return(responseIter).Once()
 
 	query := TraceQueryParams{TraceQueryParams: queryParams}
 	getTracesIter := tqs.queryService.FindTraces(context.Background(), query)
-	gotTraces, err := iter.FlattenWithErrors(getTracesIter)
+	gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
 	require.NoError(t, err)
 	require.Len(t, gotTraces, 1)
 
@@ -351,7 +345,7 @@ func TestFindTraces_WithRawTraces_PerformsAdjustment(t *testing.T) {
 				OperationName: "operation",
 				StartTimeMax:  now,
 				DurationMin:   duration,
-				NumTraces:     200,
+				SearchDepth:   200,
 			}).
 				Return(responseIter).Once()
 
@@ -361,12 +355,12 @@ func TestFindTraces_WithRawTraces_PerformsAdjustment(t *testing.T) {
 					OperationName: "operation",
 					StartTimeMax:  now,
 					DurationMin:   duration,
-					NumTraces:     200,
+					SearchDepth:   200,
 				},
 				RawTraces: test.rawTraces,
 			}
 			getTracesIter := tqs.queryService.FindTraces(context.Background(), query)
-			gotTraces, err := iter.FlattenWithErrors(getTracesIter)
+			gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
 			require.NoError(t, err)
 
 			require.Len(t, gotTraces, 1)
@@ -487,7 +481,7 @@ func TestFindTraces_WithRawTraces_PerformsAggregation(t *testing.T) {
 				OperationName: "operation",
 				StartTimeMax:  now,
 				DurationMin:   duration,
-				NumTraces:     200,
+				SearchDepth:   200,
 			}).
 				Return(responseIter).Once()
 
@@ -497,12 +491,12 @@ func TestFindTraces_WithRawTraces_PerformsAggregation(t *testing.T) {
 					OperationName: "operation",
 					StartTimeMax:  now,
 					DurationMin:   duration,
-					NumTraces:     200,
+					SearchDepth:   200,
 				},
 				RawTraces: test.rawTraces,
 			}
 			getTracesIter := tqs.queryService.FindTraces(context.Background(), query)
-			gotTraces, err := iter.FlattenWithErrors(getTracesIter)
+			gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
 			require.NoError(t, err)
 			assert.Equal(t, test.expected, gotTraces)
 			assert.Equal(t, test.expectedAdjustCalls, adjustCalls)
@@ -511,6 +505,7 @@ func TestFindTraces_WithRawTraces_PerformsAggregation(t *testing.T) {
 }
 
 func TestArchiveTrace(t *testing.T) {
+	paramsTraceIDs := []tracestore.GetTraceParams{{TraceID: testTraceID}}
 	tests := []struct {
 		name          string
 		options       []testOption
@@ -530,7 +525,7 @@ func TestArchiveTrace(t *testing.T) {
 				responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 					yield([]ptrace.Traces{}, assert.AnError)
 				})
-				tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
+				tqs.traceReader.On("GetTraces", mock.Anything, paramsTraceIDs).
 					Return(responseIter).Once()
 			},
 			expectedError: assert.AnError,
@@ -542,7 +537,7 @@ func TestArchiveTrace(t *testing.T) {
 				responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 					yield([]ptrace.Traces{makeTestTrace()}, nil)
 				})
-				tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
+				tqs.traceReader.On("GetTraces", mock.Anything, paramsTraceIDs).
 					Return(responseIter).Once()
 				tqs.archiveTraceWriter.On("WriteTraces", mock.Anything, mock.AnythingOfType("ptrace.Traces")).
 					Return(assert.AnError).Once()
@@ -556,7 +551,7 @@ func TestArchiveTrace(t *testing.T) {
 				responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 					yield([]ptrace.Traces{makeTestTrace()}, nil)
 				})
-				tqs.traceReader.On("GetTraces", mock.Anything, tracestore.GetTraceParams{TraceID: testTraceID}).
+				tqs.traceReader.On("GetTraces", mock.Anything, paramsTraceIDs).
 					Return(responseIter).Once()
 				tqs.archiveTraceWriter.On("WriteTraces", mock.Anything, mock.AnythingOfType("ptrace.Traces")).
 					Return(nil).Once()

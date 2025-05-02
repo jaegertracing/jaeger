@@ -1,6 +1,7 @@
 name: E2E Tests
 
 on:
+  merge_group:
   push:
     branches: [main]
 
@@ -35,4 +36,7 @@ jobs:
 
   opensearch:
     uses: ./.github/workflows/ci-e2e-opensearch.yml
+
+  query:
+    uses: ./.github/workflows/ci-e2e-query.yml
 

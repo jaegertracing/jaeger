@@ -8,6 +8,7 @@ import (
 	"errors"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -20,12 +21,6 @@ var errTooManyTracesFound = errors.New("too many traces found")
 // the v1 spanstore.Reader interface.
 type SpanReader struct {
 	traceReader tracestore.Reader
-}
-
-func NewSpanReader(traceReader tracestore.Reader) *SpanReader {
-	return &SpanReader{
-		traceReader: traceReader,
-	}
 }
 
 func (sr *SpanReader) GetTrace(ctx context.Context, query spanstore.GetTraceParameters) (*model.Trace, error) {
@@ -78,12 +73,12 @@ func (sr *SpanReader) FindTraces(
 	getTracesIter := sr.traceReader.FindTraces(ctx, tracestore.TraceQueryParams{
 		ServiceName:   query.ServiceName,
 		OperationName: query.OperationName,
-		Tags:          query.Tags,
+		Attributes:    jptrace.PlainMapToPcommonMap(query.Tags),
 		StartTimeMin:  query.StartTimeMin,
 		StartTimeMax:  query.StartTimeMax,
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,
-		NumTraces:     query.NumTraces,
+		SearchDepth:   query.NumTraces,
 	})
 	return V1TracesFromSeq2(getTracesIter)
 }
@@ -95,12 +90,12 @@ func (sr *SpanReader) FindTraceIDs(
 	traceIDsIter := sr.traceReader.FindTraceIDs(ctx, tracestore.TraceQueryParams{
 		ServiceName:   query.ServiceName,
 		OperationName: query.OperationName,
-		Tags:          query.Tags,
+		Attributes:    jptrace.PlainMapToPcommonMap(query.Tags),
 		StartTimeMin:  query.StartTimeMin,
 		StartTimeMax:  query.StartTimeMax,
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,
-		NumTraces:     query.NumTraces,
+		SearchDepth:   query.NumTraces,
 	})
 	return V1TraceIDsFromSeq2(traceIDsIter)
 }

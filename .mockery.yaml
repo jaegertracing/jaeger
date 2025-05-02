@@ -1,69 +1,57 @@
-with-expecter: false
-disable-version-string: true
-outpkg: "mocks"
-dir: "{{.InterfaceDir}}/mocks/"
-mockname: "{{.InterfaceName}}"
-filename: "{{.InterfaceName}}.go"
-boilerplate-file: .mockery.header.txt
-
-# Flags for future v3 compatibility.
-# See https://github.com/vektra/mockery/issues/848
-issue-845-fix: true
-resolve-type-alias: false
-
+dir: '{{.InterfaceDir}}/mocks/'
+structname: '{{.InterfaceName}}'
+pkgname: mocks
+template: testify
+filename: mocks.go
+template-data:
+  boilerplate-file: .mockery.header.txt
 packages:
   github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/cache:
     interfaces:
-      ServiceAliasMappingExternalSource:
-      ServiceAliasMappingStorage:
+      ServiceAliasMappingExternalSource: {}
+      ServiceAliasMappingStorage: {}
   github.com/jaegertracing/jaeger/cmd/ingester/app/consumer:
     interfaces:
-      Message:
+      Message: {}
   github.com/jaegertracing/jaeger/cmd/ingester/app/processor:
     interfaces:
-      SpanProcessor:
+      SpanProcessor: {}
   github.com/jaegertracing/jaeger/crossdock/services:
     interfaces:
-      AgentService:
-      QueryService:
-  github.com/jaegertracing/jaeger/pkg/cassandra:
+      CollectorService: {}
+      QueryService: {}
+  github.com/jaegertracing/jaeger/internal/distributedlock:
     config:
-      unroll-variadic: false
+      all: true
+  github.com/jaegertracing/jaeger/internal/leaderelection:
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/internal/proto-gen/storage_v1:
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/internal/storage/cassandra:
+    config:
+      template-data:
+        unroll-variadic: false
     interfaces:
-      Iterator:
-      Query:
-      Session:
-  github.com/jaegertracing/jaeger/pkg/distributedlock:
+      Iterator: {}
+      Query: {}
+      Session: {}
+  github.com/jaegertracing/jaeger/internal/storage/elasticsearch:
     config:
       all: true
-  github.com/jaegertracing/jaeger/pkg/es:
+  github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client:
     config:
       all: true
-  github.com/jaegertracing/jaeger/pkg/es/client:
-    config:
-      all: true
-  github.com/jaegertracing/jaeger/pkg/kafka/consumer:
+  github.com/jaegertracing/jaeger/internal/storage/kafka/consumer:
     interfaces:
-      Consumer:
-  github.com/jaegertracing/jaeger/plugin/sampling/leaderelection:
-    config:
-      all: true
-  github.com/jaegertracing/jaeger/internal/storage/v1/grpc/shared:
-    interfaces:
-      PluginCapabilities:
-  github.com/jaegertracing/jaeger/internal/storage/v1/kafka:
-    interfaces:
-      Marshaller:
-      Unmarshaller:
-  github.com/jaegertracing/jaeger/proto-gen/storage_v1:
-    config:
-      all: true
+      Consumer: {}
   github.com/jaegertracing/jaeger/internal/storage/v1:
     config:
       all: true
   github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore:
     interfaces:
-      Reader:
+      Reader: {}
   github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore:
     config:
       all: true
@@ -73,9 +61,23 @@ packages:
   github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore:
     config:
       all: true
-  github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore:
+  github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore:
+    interfaces:
+      CoreDependencyStore: {}
+  github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore:
+    interfaces:
+      CoreSpanReader: {}
+      CoreSpanWriter: {}
+  github.com/jaegertracing/jaeger/internal/storage/v1/grpc/shared:
+    interfaces:
+      PluginCapabilities: {}
+  github.com/jaegertracing/jaeger/internal/storage/v1/kafka:
+    interfaces:
+      Marshaller: {}
+      Unmarshaller: {}
+  github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore:
     config:
       all: true
-  github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore:
+  github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore:
     config:
       all: true

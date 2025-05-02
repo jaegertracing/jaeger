@@ -21,12 +21,12 @@ import (
 	"go.uber.org/zap/zaptest"
 	"go.uber.org/zap/zaptest/observer"
 
-	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/healthcheck"
+	"github.com/jaegertracing/jaeger/internal/config"
+	"github.com/jaegertracing/jaeger/internal/healthcheck"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
-var testCertKeyLocation = "../../../pkg/config/tlscfg/testdata"
+var testCertKeyLocation = "../../../internal/config/tlscfg/testdata"
 
 func TestAdminServerHandlesPortZero(t *testing.T) {
 	adminServer := NewAdminServer(":0")

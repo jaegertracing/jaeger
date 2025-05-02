@@ -15,6 +15,12 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/distributedlock"
+	"github.com/jaegertracing/jaeger/internal/hostname"
+	"github.com/jaegertracing/jaeger/internal/metrics"
+	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
+	"github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
+	gocqlw "github.com/jaegertracing/jaeger/internal/storage/cassandra/gocql"
 	cLock "github.com/jaegertracing/jaeger/internal/storage/distributedlock/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
@@ -26,13 +32,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/schema"
 	cSpanStore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
-	"github.com/jaegertracing/jaeger/pkg/cassandra"
-	"github.com/jaegertracing/jaeger/pkg/cassandra/config"
-	gocqlw "github.com/jaegertracing/jaeger/pkg/cassandra/gocql"
-	"github.com/jaegertracing/jaeger/pkg/distributedlock"
-	"github.com/jaegertracing/jaeger/pkg/hostname"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/plugin"
 )
 
 const (
@@ -45,7 +44,7 @@ var ( // interface comformance checks
 	_ storage.Purger               = (*Factory)(nil)
 	_ storage.SamplingStoreFactory = (*Factory)(nil)
 	_ io.Closer                    = (*Factory)(nil)
-	_ plugin.Configurable          = (*Factory)(nil)
+	_ storage.Configurable         = (*Factory)(nil)
 	_ storage.Inheritable          = (*Factory)(nil)
 	_ storage.ArchiveCapable       = (*Factory)(nil)
 )
@@ -121,12 +120,12 @@ func (b *withConfigBuilder) build() (*Factory, error) {
 	return b.f, nil
 }
 
-// AddFlags implements plugin.Configurable
+// AddFlags implements storage.Configurable
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 	f.Options.AddFlags(flagSet)
 }
 
-// InitFromViper implements plugin.Configurable
+// InitFromViper implements storage.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, _ *zap.Logger) {
 	f.Options.InitFromViper(v)
 	f.configureFromOptions(f.Options)

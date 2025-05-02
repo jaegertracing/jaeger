@@ -20,6 +20,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/fswatcher"
+	"github.com/jaegertracing/jaeger/internal/metrics"
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
@@ -29,11 +33,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
 	esSampleStore "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/samplingstore"
 	esSpanStore "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
-	"github.com/jaegertracing/jaeger/pkg/es"
-	"github.com/jaegertracing/jaeger/pkg/es/config"
-	"github.com/jaegertracing/jaeger/pkg/fswatcher"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/plugin"
+	esDepStorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
 )
 
 const (
@@ -44,7 +44,7 @@ const (
 var ( // interface comformance checks
 	_ storage.Factory        = (*Factory)(nil)
 	_ io.Closer              = (*Factory)(nil)
-	_ plugin.Configurable    = (*Factory)(nil)
+	_ storage.Configurable   = (*Factory)(nil)
 	_ storage.Inheritable    = (*Factory)(nil)
 	_ storage.Purger         = (*Factory)(nil)
 	_ storage.ArchiveCapable = (*Factory)(nil)
@@ -108,12 +108,12 @@ func NewFactoryWithConfig(
 	return f, nil
 }
 
-// AddFlags implements plugin.Configurable
+// AddFlags implements storage.Configurable
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 	f.Options.AddFlags(flagSet)
 }
 
-// InitFromViper implements plugin.Configurable
+// InitFromViper implements storage.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, _ *zap.Logger) {
 	f.Options.InitFromViper(v)
 	f.configureFromOptions(f.Options)
@@ -196,7 +196,7 @@ func createSpanReader(
 	if cfg.UseILM && !cfg.UseReadWriteAliases {
 		return nil, errors.New("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
 	}
-	return esSpanStore.NewSpanReader(esSpanStore.SpanReaderParams{
+	return esSpanStore.NewSpanReaderV1(esSpanStore.SpanReaderParams{
 		Client:              clientFn,
 		MaxDocCount:         cfg.MaxDocCount,
 		MaxSpanAge:          cfg.MaxSpanAge,
@@ -230,7 +230,7 @@ func createSpanWriter(
 		return nil, err
 	}
 
-	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
+	writer := esSpanStore.NewSpanWriterV1(esSpanStore.SpanWriterParams{
 		Client:              clientFn,
 		IndexPrefix:         cfg.Indices.IndexPrefix,
 		SpanIndex:           cfg.Indices.Spans,
@@ -299,7 +299,7 @@ func createDependencyReader(
 	cfg *config.Configuration,
 	logger *zap.Logger,
 ) (dependencystore.Reader, error) {
-	reader := esDepStore.NewDependencyStore(esDepStore.Params{
+	reader := esDepStore.NewDependencyStoreV1(esDepStorev2.Params{
 		Client:              clientFn,
 		Logger:              logger,
 		IndexPrefix:         cfg.Indices.IndexPrefix,

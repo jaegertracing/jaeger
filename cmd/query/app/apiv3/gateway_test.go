@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"iter"
 	"net/http"
 	"os"
 	"path"
@@ -21,11 +22,10 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	_ "github.com/jaegertracing/jaeger/internal/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
-	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
-	"github.com/jaegertracing/jaeger/pkg/iter"
 )
 
 // Utility functions used from http_gateway_test.go.
@@ -143,7 +143,7 @@ func (gw *testGateway) runGatewayGetOperations(t *testing.T) {
 }
 
 func (gw *testGateway) runGatewayGetTrace(t *testing.T) {
-	query := tracestore.GetTraceParams{TraceID: traceID}
+	query := []tracestore.GetTraceParams{{TraceID: traceID}}
 	gw.reader.
 		On("GetTraces", matchContext, query).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
@@ -169,7 +169,7 @@ func (gw *testGateway) getTracesAndVerify(t *testing.T, url string, expectedTrac
 	var response api_v3.GRPCGatewayWrapper
 	parseResponse(t, body, &response)
 	td := response.Result.ToTraces()
-	assert.EqualValues(t, 1, td.SpanCount())
+	assert.Equal(t, 1, td.SpanCount())
 	traceID := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 	assert.Equal(t, expectedTraceID.String(), traceID.String())
 }

@@ -67,9 +67,6 @@ flowchart LR
 
 The primary difference between the Kafka integration tests and other integration tests lies in the flow of data. In the standard tests, spans are written by the SpanWriter, sent through an RPC_client directly to a receiver, then to an exporter, and written to a storage backend. Spans are read by the SpanReader, which queries the jaeger_query process accessing the storage backend. In contrast, the Kafka tests introduce Kafka as an intermediary. Spans go from the SpanWriter through an RPC_client to an OTLP receiver in the Jaeger Collector, exported to Kafka, received by the Jaeger Ingester, and then stored. For details, see the [Architecture](#KafkaArchitecture) section below.
 
-
-## Kafka Architecture
-
 ``` mermaid
 flowchart LR
         Test -->|writeSpan| SpanWriter
@@ -113,12 +110,48 @@ flowchart LR
         end
 ```
 
+## gRPC Integration Test
+``` mermaid
+flowchart LR
+
+Test --> |writeSpan| SpanWriter
+Test --> |HTTP/purge| PurgeEndpoint
+SpanWriter --> |0.0.0.0:4316| OTLP_Receiver
+OTLP_Receiver --> |write| Storage
+Test --> |readSpan| SpanReader
+SpanReader --> |0.0.0.0:17271| RemoteStorageAPI
+RemoteStorageAPI --> |read| Storage
+PurgeEndpoint --> |purge| Storage
+subgraph Integration Test Executable
+    Test
+    SpanWriter
+    SpanReader
+end
+subgraph Remote Storage Backend
+    OTLP_Receiver[OTLP Receiver]
+    Storage[(In-Memory Store)]
+    subgraph remote_storage extension
+        RemoteStorageAPI[gRPC Endpoint]
+    end
+    subgraph storage_cleaner extension
+        PurgeEndpoint[Purge Endpoint]
+    end
+end
+```
+
 ## Running tests locally
 
-All integration tests can be run locally.
+You can run integration tests locally with the following command:
 
-### gRPC Integration Test
-
-```shell
-STORAGE=grpc SPAN_STORAGE_TYPE=memory make jaeger-v2-storage-integration-test
+```sh
+STORAGE={STORAGE_NAME} make jaeger-v2-storage-integration-test
 ```
+
+where the storage name can be one of the following:
+
+* badger
+* cassandra
+* grpc
+* kafka
+* memory_v2
+* query

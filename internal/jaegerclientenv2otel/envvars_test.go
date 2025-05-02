@@ -9,13 +9,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 func TestMapJaegerToOtelEnvVars(t *testing.T) {
-	os.Setenv("JAEGER_TAGS", "tags")
-	os.Setenv("JAEGER_USER", "user")
-	os.Unsetenv("OTEL_EXPORTER_JAEGER_USER")
+	t.Setenv("JAEGER_TAGS", "tags")
+	t.Setenv("JAEGER_USER", "user")
 
 	logger, buffer := testutils.NewLogger()
 	MapJaegerToOtelEnvVars(logger)

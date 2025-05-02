@@ -15,8 +15,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	"github.com/jaegertracing/jaeger/model/adjuster"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 // Store is an in-memory store of traces
@@ -35,7 +34,6 @@ type Tenant struct {
 	traces     map[model.TraceID]*model.Trace
 	services   map[string]struct{}
 	operations map[string]map[spanstore.Operation]struct{}
-	deduper    adjuster.Adjuster
 	config     Configuration
 	index      int
 }
@@ -59,7 +57,6 @@ func newTenant(cfg Configuration) *Tenant {
 		traces:     map[model.TraceID]*model.Trace{},
 		services:   map[string]struct{}{},
 		operations: map[string]map[spanstore.Operation]struct{}{},
-		deduper:    adjuster.ZipkinSpanIDUniquifier(),
 		config:     cfg,
 	}
 }
@@ -90,7 +87,6 @@ func (st *Store) GetDependencies(ctx context.Context, endTs time.Time, lookback 
 	deps := map[string]*model.DependencyLink{}
 	startTs := endTs.Add(-1 * lookback)
 	for _, trace := range m.traces {
-		m.deduper.Adjust(trace)
 		if traceIsBetweenStartAndEnd(startTs, endTs, trace) {
 			for _, s := range trace.Spans {
 				parentSpan := findSpan(trace, s.ParentSpanID())

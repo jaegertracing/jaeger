@@ -24,10 +24,10 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
-//go:generate mockery -all -dir ../../../pkg/fswatcher
+//go:generate mockery -all -dir ../../../internal/fswatcher
 
 func TestNotExistingUiConfig(t *testing.T) {
 	handler, err := NewStaticAssetsHandler("/foo/bar", StaticAssetsHandlerOptions{
@@ -233,7 +233,7 @@ func TestLoadUIConfig(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
-			assert.EqualValues(t, testCase.expected, config)
+			assert.Equal(t, testCase.expected, config)
 		})
 	}
 

@@ -13,8 +13,8 @@ import (
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/services/config"
 	"github.com/jaegertracing/jaeger/internal/jaegerclientenv2otel"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metrics/prometheus"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 var (
@@ -71,6 +71,22 @@ func onInitialize() {
 	if config.RouteWorkerPoolSize != fixRouteWorkerPoolSize {
 		logger.Info("fix: overriding route worker pool size", zap.Int("old", config.RouteWorkerPoolSize), zap.Int("new", fixRouteWorkerPoolSize))
 		config.RouteWorkerPoolSize = fixRouteWorkerPoolSize
+	}
+
+	if customerHostname != "0.0.0.0" {
+		logger.Info("changing customer service hostname", zap.String("old", "0.0.0.0"), zap.String("new", customerHostname))
+	}
+
+	if driverHostname != "0.0.0.0" {
+		logger.Info("changing driver service hostname", zap.String("old", "0.0.0.0"), zap.String("new", driverHostname))
+	}
+
+	if frontendHostname != "0.0.0.0" {
+		logger.Info("changing frontend service hostname", zap.String("old", "0.0.0.0"), zap.String("new", frontendHostname))
+	}
+
+	if routeHostname != "0.0.0.0" {
+		logger.Info("changing route service hostname", zap.String("old", "0.0.0.0"), zap.String("new", routeHostname))
 	}
 
 	if customerPort != 8081 {

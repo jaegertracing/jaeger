@@ -5,6 +5,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,20 +15,23 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
-	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
-	p2json "github.com/jaegertracing/jaeger/model/converter/json"
-	t2p "github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	t2p "github.com/jaegertracing/jaeger/internal/converter/thrift/jaeger"
+	"github.com/jaegertracing/jaeger/internal/metrics"
+	p2json "github.com/jaegertracing/jaeger/internal/uimodel/converter/v1/json"
 )
 
 const mimeTypeApplicationJSON = "application/json"
 
 var errBadRequest = errors.New("bad request")
 
+type ClientConfigManager interface {
+	GetSamplingStrategy(ctx context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error)
+}
+
 // HandlerParams contains parameters that must be passed to NewHTTPHandler.
 type HandlerParams struct {
-	ConfigManager  configmanager.ClientConfigManager // required
-	MetricsFactory metrics.Factory                   // required
+	ConfigManager  ClientConfigManager // required
+	MetricsFactory metrics.Factory     // required
 
 	// BasePath will be used as a prefix for the endpoints, e.g. "/api"
 	BasePath string

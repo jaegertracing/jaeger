@@ -6,16 +6,13 @@ package v1adapter
 import (
 	"context"
 	"errors"
+	"iter"
 
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	"github.com/jaegertracing/jaeger/pkg/iter"
 )
 
 var _ tracestore.Reader = (*TraceReader)(nil)
@@ -24,11 +21,13 @@ type TraceReader struct {
 	spanReader spanstore.Reader
 }
 
-func GetV1Reader(reader tracestore.Reader) (spanstore.Reader, bool) {
+func GetV1Reader(reader tracestore.Reader) spanstore.Reader {
 	if tr, ok := reader.(*TraceReader); ok {
-		return tr.spanReader, ok
+		return tr.spanReader
 	}
-	return nil, false
+	return &SpanReader{
+		traceReader: reader,
+	}
 }
 
 func NewTraceReader(spanReader spanstore.Reader) *TraceReader {
@@ -113,34 +112,19 @@ func (tr *TraceReader) FindTraces(
 func (tr *TraceReader) FindTraceIDs(
 	ctx context.Context,
 	query tracestore.TraceQueryParams,
-) iter.Seq2[[]pcommon.TraceID, error] {
-	return func(yield func([]pcommon.TraceID, error) bool) {
+) iter.Seq2[[]tracestore.FoundTraceID, error] {
+	return func(yield func([]tracestore.FoundTraceID, error) bool) {
 		traceIDs, err := tr.spanReader.FindTraceIDs(ctx, query.ToSpanStoreQueryParameters())
 		if err != nil {
 			yield(nil, err)
 			return
 		}
-		otelIDs := make([]pcommon.TraceID, 0, len(traceIDs))
+		otelIDs := make([]tracestore.FoundTraceID, 0, len(traceIDs))
 		for _, traceID := range traceIDs {
-			otelIDs = append(otelIDs, FromV1TraceID(traceID))
+			otelIDs = append(otelIDs, tracestore.FoundTraceID{
+				TraceID: FromV1TraceID(traceID),
+			})
 		}
 		yield(otelIDs, nil)
 	}
-}
-
-type DependencyReader struct {
-	reader dependencystore.Reader
-}
-
-func NewDependencyReader(reader dependencystore.Reader) *DependencyReader {
-	return &DependencyReader{
-		reader: reader,
-	}
-}
-
-func (dr *DependencyReader) GetDependencies(
-	ctx context.Context,
-	query depstore.QueryParameters,
-) ([]model.DependencyLink, error) {
-	return dr.reader.GetDependencies(ctx, query.EndTime, query.EndTime.Sub(query.StartTime))
 }

@@ -15,6 +15,7 @@ import (
 
 	gogojsonpb "github.com/gogo/protobuf/jsonpb"
 	gogoproto "github.com/gogo/protobuf/proto"
+	zipkinthrift "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/zipkinthriftconverter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,10 +26,9 @@ import (
 	"github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
-	zipkinthrift "github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
-	zipkin_proto3 "github.com/jaegertracing/jaeger/proto-gen/zipkin"
+	zipkin_proto3 "github.com/jaegertracing/jaeger/internal/proto-gen/zipkin"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 func TestZipkinReceiver(t *testing.T) {
@@ -54,7 +54,9 @@ func TestZipkinReceiver(t *testing.T) {
 	makeThrift := func(data []byte) []byte {
 		var spans []*zipkincore.Span
 		require.NoError(t, json.Unmarshal(data, &spans))
-		return zipkinthrift.SerializeThrift(context.Background(), spans)
+		out, err := zipkinthrift.SerializeThrift(context.Background(), spans)
+		require.NoError(t, err)
+		return out
 	}
 
 	makeProto := func(data []byte) []byte {

@@ -1,5 +1,7 @@
 # Jaeger Overall Release Process
 
+Create an issue with the checklist for the release by running `bash scripts/release/start.sh`.
+
 1. Determine new version numbers for v1.x.x and v2.x.x
 2. Perform UI release according to https://github.com/jaegertracing/jaeger-ui/blob/main/RELEASE.md
 3. Perform Backend release (see below)
@@ -10,7 +12,9 @@
 
 # Jaeger Backend Release Process
 
-1. Create a PR "Prepare release 1.x.x / 2.x.x" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/543/files)) by updating CHANGELOG.md to include:
+<!-- BEGIN_CHECKLIST -->
+
+1. Create a PR "Prepare release 1.x.x / 2.x.x" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/6826)) by updating CHANGELOG.md to include:
     * A new section with the header `1.x.x / 2.x.x (YYYY-MM-DD)` (copy the template at the top)
     * A curated list of notable changes and links to PRs. Do not simply dump git log, select the changes that affect the users.
       To obtain the list of all changes run `make changelog`.
@@ -19,10 +23,11 @@
         ```
         git submodule init
         git submodule update
-        cd jaeger-ui
+        pushd jaeger-ui
         git checkout main
         git pull
         git checkout {new_ui_version} # e.g. v1.5.0
+        popd
         ```
       * If there are only dependency bumps, indicate this with "Dependencies upgrades only" ([example](https://github.com/jaegertracing/jaeger-ui/pull/2431/files)).
       * If there are no changes, indicate this with "No changes" ([example](https://github.com/jaegertracing/jaeger/pull/4131/files)).
@@ -39,6 +44,16 @@
 3. Create a release on Github:
     * Automated:
        * `make draft-release`
+4. Go to [Publish Release](https://github.com/jaegertracing/jaeger/actions/workflows/ci-release.yml) workflow on GitHub
+   and run it manually using Run Workflow button on the right.
+   1. For monitoring and troubleshooting, open the logs of the workflow run from above URL.
+   2. Check the images are available on [Docker Hub](https://hub.docker.com/r/jaegertracing/)
+      and binaries are uploaded [to the release]()https://github.com/jaegertracing/jaeger/releases.
+
+<!-- END_CHECKLIST -->
+
+## Manual release
+
     * Manual:
        * Title "Release 1.x.x / 2.x.x"
        * Tag `v1.x.x` (note the `v` prefix) and choose appropriate branch (usually `main`)
@@ -48,11 +63,6 @@
          Before doing the previous step, you can click that button and then remove everything
          except the New Contributors section. Change the header to `### 👏 New Contributors`,
          then copy the main changelog above it. [Example](https://github.com/jaegertracing/jaeger/releases/tag/v1.55.0).
-4. Go to [Publish Release](https://github.com/jaegertracing/jaeger/actions/workflows/ci-release.yml) workflow on GitHub
-   and run it manually using Run Workflow button on the right.
-   1. For monitoring and troubleshooting, open the logs of the workflow run from above URL.
-   2. Check the images are available on [Docker Hub](https://hub.docker.com/r/jaegertracing/)
-      and binaries are uploaded [to the release]()https://github.com/jaegertracing/jaeger/releases.
 
 ## Patch Release
 
@@ -78,9 +88,9 @@ Here are the release managers for future versions with the tentative release dat
 
 | Version | Release Manager | Tentative release date |
 |---------|-----------------|------------------------|
-| 1.67.0  | @yurishkuro     | 5 March  2025          |
-| 1.68.0  | @albertteoh     | 5 April  2025          |
-| 1.69.0  | @pavolloffay    | 7 May    2025          |
-| 1.70.0  | @joe-elliott    | 4 June   2025          |
-| 1.71.0  | @mahadzaryab1   | 2 July   2025          |
-| 1.72.0  | @jkowall        | 6 August 2025          |
+| 1.69.0  | @pavolloffay    | 7 May       2025       |
+| 1.70.0  | @joe-elliott    | 4 June      2025       |
+| 1.71.0  | @mahadzaryab1   | 2 July      2025       |
+| 1.72.0  | @jkowall        | 6 August    2025       |
+| 1.73.0  | @yurishkuro     | 5 September 2025       |
+| 1.74.0  | @albertteoh     | 1 October   2025       |

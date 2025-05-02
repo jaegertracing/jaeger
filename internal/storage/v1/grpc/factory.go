@@ -21,22 +21,21 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
+	"github.com/jaegertracing/jaeger/internal/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc/shared"
-	"github.com/jaegertracing/jaeger/pkg/bearertoken"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/telemetry"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/plugin"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 var ( // interface comformance checks
 	_ storage.Factory        = (*Factory)(nil)
 	_ io.Closer              = (*Factory)(nil)
-	_ plugin.Configurable    = (*Factory)(nil)
+	_ storage.Configurable   = (*Factory)(nil)
 	_ storage.ArchiveCapable = (*Factory)(nil)
 )
 
@@ -78,12 +77,12 @@ func NewFactoryWithConfig(
 	return f, nil
 }
 
-// AddFlags implements plugin.Configurable
+// AddFlags implements storage.Configurable
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 	f.options.addFlags(flagSet)
 }
 
-// InitFromViper implements plugin.Configurable
+// InitFromViper implements storage.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	if err := f.options.initFromViper(&f.options.Config, v); err != nil {
 		logger.Fatal("unable to initialize gRPC storage factory", zap.Error(err))

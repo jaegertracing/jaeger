@@ -24,13 +24,13 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/config"
+	"github.com/jaegertracing/jaeger/internal/metrics"
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/es"
-	escfg "github.com/jaegertracing/jaeger/pkg/es/config"
-	"github.com/jaegertracing/jaeger/pkg/es/mocks"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 var mockEsServerResponse = []byte(`
@@ -320,7 +320,7 @@ func TestPasswordFromFile(t *testing.T) {
 		file := filepath.Join(t.TempDir(), "does not exist")
 		token, err := loadTokenFromFile(file)
 		require.Error(t, err)
-		assert.Equal(t, "", token)
+		assert.Empty(t, token)
 	})
 }
 

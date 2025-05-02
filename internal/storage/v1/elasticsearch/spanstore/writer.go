@@ -7,17 +7,16 @@ package spanstore
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/internal/dbmodel"
-	"github.com/jaegertracing/jaeger/pkg/cache"
-	"github.com/jaegertracing/jaeger/pkg/es"
-	cfg "github.com/jaegertracing/jaeger/pkg/es/config"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/internal/cache"
+	"github.com/jaegertracing/jaeger/internal/metrics"
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 )
 
 const (
@@ -27,21 +26,28 @@ const (
 	indexCacheTTLDefault   = 48 * time.Hour
 )
 
-type spanWriterMetrics struct {
-	indexCreate *spanstoremetrics.WriteMetrics
-}
-
 type serviceWriter func(string, *dbmodel.Span)
 
 // SpanWriter is a wrapper around elastic.Client
 type SpanWriter struct {
-	client        func() es.Client
-	logger        *zap.Logger
-	writerMetrics spanWriterMetrics // TODO: build functions to wrap around each Do fn
+	client func() es.Client
+	logger *zap.Logger
 	// indexCache       cache.Cache
-	serviceWriter    serviceWriter
-	spanConverter    dbmodel.FromDomain
-	spanServiceIndex spanAndServiceIndexFn
+	serviceWriter     serviceWriter
+	spanServiceIndex  spanAndServiceIndexFn
+	allTagsAsFields   bool
+	tagDotReplacement string
+	tagKeysAsFields   map[string]bool
+}
+
+// CoreSpanWriter is a DB-Level abstraction which directly deals with database level operations
+type CoreSpanWriter interface {
+	// CreateTemplates creates index templates.
+	CreateTemplates(spanTemplate, serviceTemplate string, indexPrefix cfg.IndexPrefix) error
+	// WriteSpan writes a span and its corresponding service:operation in ElasticSearch
+	WriteSpan(spanStartTime time.Time, span *dbmodel.Span)
+	// Close closes CoreSpanWriter
+	Close() error
 }
 
 // SpanWriterParams holds constructor parameters for NewSpanWriter
@@ -76,16 +82,20 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		}
 	}
 
+	tags := map[string]bool{}
+	for _, k := range p.TagKeysAsFields {
+		tags[k] = true
+	}
+
 	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheTTL)
 	return &SpanWriter{
-		client: p.Client,
-		logger: p.Logger,
-		writerMetrics: spanWriterMetrics{
-			indexCreate: spanstoremetrics.NewWriter(p.MetricsFactory, "index_create"),
-		},
-		serviceWriter:    serviceOperationStorage.Write,
-		spanConverter:    dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
-		spanServiceIndex: getSpanAndServiceIndexFn(p, writeAliasSuffix),
+		client:            p.Client,
+		logger:            p.Logger,
+		serviceWriter:     serviceOperationStorage.Write,
+		spanServiceIndex:  getSpanAndServiceIndexFn(p, writeAliasSuffix),
+		tagKeysAsFields:   tags,
+		allTagsAsFields:   p.AllTagsAsFields,
+		tagDotReplacement: p.TagDotReplacement,
 	}
 }
 
@@ -121,15 +131,23 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServ
 }
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
-func (s *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
-	spanIndexName, serviceIndexName := s.spanServiceIndex(span.StartTime)
-	jsonSpan := s.spanConverter.FromDomainEmbedProcess(span)
+func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
+	s.convertNestedTagsToFieldTags(span)
+	spanIndexName, serviceIndexName := s.spanServiceIndex(spanStartTime)
 	if serviceIndexName != "" {
-		s.writeService(serviceIndexName, jsonSpan)
+		s.writeService(serviceIndexName, span)
 	}
-	s.writeSpan(spanIndexName, jsonSpan)
+	s.writeSpan(spanIndexName, span)
 	s.logger.Debug("Wrote span to ES index", zap.String("index", spanIndexName))
-	return nil
+}
+
+func (s *SpanWriter) convertNestedTagsToFieldTags(span *dbmodel.Span) {
+	processNestedTags, processFieldTags := s.splitElevatedTags(span.Process.Tags)
+	span.Process.Tags = processNestedTags
+	span.Process.Tag = processFieldTags
+	nestedTags, fieldTags := s.splitElevatedTags(span.Tags)
+	span.Tags = nestedTags
+	span.Tag = fieldTags
 }
 
 // Close closes SpanWriter
@@ -151,4 +169,26 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
 
 func (s *SpanWriter) writeSpan(indexName string, jsonSpan *dbmodel.Span) {
 	s.client().Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan).Add()
+}
+
+func (s *SpanWriter) splitElevatedTags(keyValues []dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any) {
+	if !s.allTagsAsFields && len(s.tagKeysAsFields) == 0 {
+		return keyValues, nil
+	}
+	var tagsMap map[string]any
+	var kvs []dbmodel.KeyValue
+	for _, kv := range keyValues {
+		if kv.Type != dbmodel.BinaryType && (s.allTagsAsFields || s.tagKeysAsFields[kv.Key]) {
+			if tagsMap == nil {
+				tagsMap = map[string]any{}
+			}
+			tagsMap[strings.ReplaceAll(kv.Key, ".", s.tagDotReplacement)] = kv.Value
+		} else {
+			kvs = append(kvs, kv)
+		}
+	}
+	if kvs == nil {
+		kvs = make([]dbmodel.KeyValue, 0)
+	}
+	return kvs, tagsMap
 }

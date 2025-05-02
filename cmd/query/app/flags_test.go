@@ -14,10 +14,10 @@ import (
 	"go.opentelemetry.io/collector/config/configopaque"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/config"
 	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	storage "github.com/jaegertracing/jaeger/internal/storage/v1/factory"
-	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -174,18 +174,6 @@ func TestQueryOptionsPortAllocationFromFlags(t *testing.T) {
 			expectedHTTPHostPort: "127.0.0.1:8081",
 			expectedGRPCHostPort: ports.PortToHostPort(ports.QueryGRPC), // fallback in viper
 		},
-		{
-			// Allows usage of common host-ports.  Flags allow this irrespective of TLS status
-			// The server with TLS enabled with equal HTTP & GRPC host-ports, is still an acceptable flag configuration, but will throw an error during initialisation
-			name: "Common equal host-port specified, TLS enabled in atleast one server",
-			flagsArray: []string{
-				"--query.grpc.tls.enabled=true",
-				"--query.http-server.host-port=127.0.0.1:8081",
-				"--query.grpc-server.host-port=127.0.0.1:8081",
-			},
-			expectedHTTPHostPort: "127.0.0.1:8081",
-			expectedGRPCHostPort: "127.0.0.1:8081",
-		},
 	}
 
 	for _, test := range flagPortCases {
@@ -217,21 +205,14 @@ func TestQueryOptions_FailedTLSFlags(t *testing.T) {
 	}
 }
 
-func TestQueryOptions_SamePortsLogsWarning(t *testing.T) {
-	logger, logBuf := testutils.NewLogger()
+func TestQueryOptions_SamePortsError(t *testing.T) {
 	v, command := config.Viperize(AddFlags)
 	command.ParseFlags([]string{
 		"--query.http-server.host-port=127.0.0.1:8081",
 		"--query.grpc-server.host-port=127.0.0.1:8081",
 	})
-	_, err := new(QueryOptions).InitFromViper(v, logger)
-	require.NoError(t, err)
-
-	require.Contains(
-		t,
-		logBuf.String(),
-		"using the same port for gRPC and HTTP is deprecated",
-	)
+	_, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
+	require.ErrorContains(t, err, "using the same port for gRPC and HTTP is not supported")
 }
 
 func TestDefaultQueryOptions(t *testing.T) {

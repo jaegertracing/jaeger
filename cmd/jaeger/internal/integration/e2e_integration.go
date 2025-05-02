@@ -42,7 +42,9 @@ type E2EStorageIntegration struct {
 	SkipStorageCleaner bool
 	ConfigFile         string
 	BinaryName         string
-	HealthCheckPort    int // overridable for Kafka tests which run two binaries and need different ports
+
+	MetricsPort     int // overridable, default to 8888
+	HealthCheckPort int // overridable for tests (e.g. Kafka, query) which run two binaries and need different ports
 
 	// EnvVarOverrides contains a map of environment variables to set.
 	// The key in the map is the environment variable to override and the value
@@ -99,14 +101,20 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		scrapeMetrics(t, storage)
+		s.scrapeMetrics(t, storage)
 		require.NoError(t, s.TraceReader.(io.Closer).Close())
 		require.NoError(t, s.TraceWriter.(io.Closer).Close())
 	})
 }
 
-func scrapeMetrics(t *testing.T, storage string) {
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://localhost:8888/metrics", nil)
+func (s *E2EStorageIntegration) scrapeMetrics(t *testing.T, storage string) {
+	metricsPort := 8888
+	if s.MetricsPort != 0 {
+		metricsPort = s.MetricsPort
+	}
+	metricsUrl := fmt.Sprintf("http://localhost:%d/metrics", metricsPort)
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, metricsUrl, nil)
 	require.NoError(t, err)
 
 	client := &http.Client{}
@@ -140,13 +148,29 @@ func createStorageCleanerConfig(t *testing.T, configFile string, storage string)
 	extensionsAny, ok := config["extensions"]
 	require.True(t, ok)
 	extensions := extensionsAny.(map[string]any)
-	queryAny, ok := extensions["jaeger_query"]
-	require.True(t, ok)
-	storageAny, ok := queryAny.(map[string]any)["storage"]
-	require.True(t, ok)
-	traceStorageAny, ok := storageAny.(map[string]any)["traces"]
-	require.True(t, ok)
-	traceStorage := traceStorageAny.(string)
+
+	var traceStorage string
+
+	// Try to get the storage from jaeger_query first
+	if queryAny, found := extensions["jaeger_query"]; found {
+		if storageAny, found := queryAny.(map[string]any)["storage"]; found {
+			if traceStorageAny, found := storageAny.(map[string]any)["traces"]; found {
+				traceStorage = traceStorageAny.(string)
+			}
+		}
+	}
+
+	// If jaeger_query not found or no storage, fallback to remote_storage
+	if traceStorage == "" {
+		if remoteAny, found := extensions["remote_storage"]; found {
+			if storageNameAny, found := remoteAny.(map[string]any)["storage"]; found {
+				traceStorage = storageNameAny.(string)
+			}
+		}
+	}
+
+	require.NotEmpty(t, traceStorage, "traceStorage must be set from either jaeger_query or remote_storage")
+
 	extensions["storage_cleaner"] = map[string]string{"trace_storage": traceStorage}
 
 	jaegerStorageAny, ok := extensions["jaeger_storage"]

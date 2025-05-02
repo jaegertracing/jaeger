@@ -31,17 +31,18 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/cmd/query/app/qualitymetrics"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/internal/jtracer"
+	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
 	metricsmocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	depsmocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
-	ui "github.com/jaegertracing/jaeger/model/json"
-	"github.com/jaegertracing/jaeger/pkg/jtracer"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
+	ui "github.com/jaegertracing/jaeger/internal/uimodel"
 )
 
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
@@ -665,7 +666,7 @@ func TestGetOperationsSuccess(t *testing.T) {
 
 	err := getJSON(ts.server.URL+"/api/operations?service=abc%2Ftrifle&spanKind=server", &response)
 	require.NoError(t, err)
-	assert.Equal(t, len(expectedOperations), len(response.Operations))
+	assert.Len(t, response.Operations, len(expectedOperations))
 	for i, op := range response.Operations {
 		assert.Equal(t, expectedOperations[i].Name, op.Name)
 		assert.Equal(t, expectedOperations[i].SpanKind, op.SpanKind)
@@ -861,6 +862,18 @@ func TestGetMetricsSuccess(t *testing.T) {
 			assert.Equal(t, expectedMetricsQueryResponse, &response)
 		})
 	}
+}
+
+func TestGetQualityMetrics(t *testing.T) {
+	handler := &APIHandler{}
+	req := httptest.NewRequest(http.MethodGet, "/quality-metrics", nil)
+	rr := httptest.NewRecorder()
+	handler.getQualityMetrics(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
+	var resp qualitymetrics.TQualityMetrics
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	require.Contains(t, resp.TraceQualityDocumentationLink, "github.com/jaegertracing")
 }
 
 func TestMetricsReaderError(t *testing.T) {

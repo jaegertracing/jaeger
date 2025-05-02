@@ -1,6 +1,6 @@
 services:
     crossdock:
-        image: crossdock/crossdock
+        image: crossdock/crossdock@sha256:94d2b74db407feef48daf43735f5fb390cd516f7f4b7d65f461679ce8a5e8c80
         links:
             - test_driver
             - zipkin-brave-thrift
@@ -20,21 +20,21 @@ services:
             - BEHAVIOR_ENDTOEND=client,services
 
     zipkin-brave-thrift:
-        image: jaegertracing/xdock-zipkin-brave
+        image: jaegertracing/xdock-zipkin-brave@sha256:23a5d04a6608e14451d11b52ac0af7064c35d15619a092ff7e5c39580bde6913
         ports:
             - "8080-8081"
         environment:
             - ENCODING=THRIFT
 
     zipkin-brave-json:
-        image: jaegertracing/xdock-zipkin-brave
+        image: jaegertracing/xdock-zipkin-brave@sha256:23a5d04a6608e14451d11b52ac0af7064c35d15619a092ff7e5c39580bde6913
         ports:
             - "8080-8081"
         environment:
             - ENCODING=JSON
 
     zipkin-brave-json-v2:
-        image: jaegertracing/xdock-zipkin-brave
+        image: jaegertracing/xdock-zipkin-brave@sha256:23a5d04a6608e14451d11b52ac0af7064c35d15619a092ff7e5c39580bde6913
         ports:
             - "8080-8081"
         environment:
@@ -42,7 +42,7 @@ services:
             - JSON_ENCODER=JSON_V2
 
     zipkin-brave-proto:
-        image: jaegertracing/xdock-zipkin-brave
+        image: jaegertracing/xdock-zipkin-brave@sha256:23a5d04a6608e14451d11b52ac0af7064c35d15619a092ff7e5c39580bde6913
         ports:
             - "8080-8081"
         environment:
@@ -50,7 +50,7 @@ services:
             - JSON_ENCODER=PROTO3
 
     test_driver:
-        image: jaegertracing/test-driver
+        image: jaegertracing/test-driver@sha256:c39037ff455b43545e5fd67199711b51c0a3d3d02786233d35e0c2ac85fa8785
         ports:
             - "8080"
         environment:

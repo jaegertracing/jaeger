@@ -17,7 +17,12 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
+)
+
+var (
+	zipkinComponentType = component.MustNewType("zipkin")
+	zipkinID            = component.NewID(zipkinComponentType)
 )
 
 // StartZipkinReceiver starts Zipkin receiver from OTEL Collector.
@@ -56,6 +61,7 @@ func startZipkinReceiver(
 	receiverConfig := zipkinFactory.CreateDefaultConfig().(*zipkinreceiver.Config)
 	receiverConfig.ServerConfig = options.Zipkin.ServerConfig
 	receiverSettings := receiver.Settings{
+		ID: zipkinID,
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         logger,
 			TracerProvider: nooptrace.NewTracerProvider(),

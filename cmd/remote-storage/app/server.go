@@ -17,12 +17,16 @@ import (
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/reflection"
 
+	"github.com/jaegertracing/jaeger/internal/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc/shared"
-	"github.com/jaegertracing/jaeger/pkg/bearertoken"
-	"github.com/jaegertracing/jaeger/pkg/telemetry"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	grpcstorage "github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 // Server runs a gRPC server
@@ -34,20 +38,36 @@ type Server struct {
 	telset     telemetry.Settings
 }
 
-type storageFactory interface {
-	CreateSpanReader() (spanstore.Reader, error)
-	CreateSpanWriter() (spanstore.Writer, error)
-	CreateDependencyReader() (dependencystore.Reader, error)
-}
-
 // NewServer creates and initializes Server.
-func NewServer(options *Options, storageFactory storageFactory, tm *tenancy.Manager, telset telemetry.Settings) (*Server, error) {
-	handler, err := createGRPCHandler(storageFactory)
+func NewServer(
+	ctx context.Context,
+	options *Options,
+	ts tracestore.Factory,
+	ds depstore.Factory,
+	tm *tenancy.Manager,
+	telset telemetry.Settings,
+) (*Server, error) {
+	reader, err := ts.CreateTraceReader()
+	if err != nil {
+		return nil, err
+	}
+	writer, err := ts.CreateTraceWriter()
+	if err != nil {
+		return nil, err
+	}
+	depReader, err := ds.CreateDependencyReader()
 	if err != nil {
 		return nil, err
 	}
 
-	grpcServer, err := createGRPCServer(options, tm, handler, telset)
+	handler, err := createGRPCHandler(reader, writer, depReader)
+	if err != nil {
+		return nil, err
+	}
+
+	v2Handler := grpcstorage.NewHandler(reader, writer, depReader)
+
+	grpcServer, err := createGRPCServer(ctx, options, tm, handler, v2Handler, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -59,24 +79,15 @@ func NewServer(options *Options, storageFactory storageFactory, tm *tenancy.Mana
 	}, nil
 }
 
-func createGRPCHandler(f storageFactory) (*shared.GRPCHandler, error) {
-	reader, err := f.CreateSpanReader()
-	if err != nil {
-		return nil, err
-	}
-	writer, err := f.CreateSpanWriter()
-	if err != nil {
-		return nil, err
-	}
-	depReader, err := f.CreateDependencyReader()
-	if err != nil {
-		return nil, err
-	}
-
+func createGRPCHandler(
+	reader tracestore.Reader,
+	writer tracestore.Writer,
+	depReader depstore.Reader,
+) (*shared.GRPCHandler, error) {
 	impl := &shared.GRPCHandlerStorageImpl{
-		SpanReader:          func() spanstore.Reader { return reader },
-		SpanWriter:          func() spanstore.Writer { return writer },
-		DependencyReader:    func() dependencystore.Reader { return depReader },
+		SpanReader:          func() spanstore.Reader { return v1adapter.GetV1Reader(reader) },
+		SpanWriter:          func() spanstore.Writer { return v1adapter.GetV1Writer(writer) },
+		DependencyReader:    func() dependencystore.Reader { return v1adapter.GetV1DependencyReader(depReader) },
 		StreamingSpanWriter: func() spanstore.Writer { return nil },
 	}
 
@@ -84,20 +95,28 @@ func createGRPCHandler(f storageFactory) (*shared.GRPCHandler, error) {
 	return handler, nil
 }
 
-func createGRPCServer(opts *Options, tm *tenancy.Manager, handler *shared.GRPCHandler, telset telemetry.Settings) (*grpc.Server, error) {
+func createGRPCServer(
+	ctx context.Context,
+	opts *Options,
+	tm *tenancy.Manager,
+	handler *shared.GRPCHandler,
+	v2Handler *grpcstorage.Handler,
+	telset telemetry.Settings,
+) (*grpc.Server, error) {
 	unaryInterceptors := []grpc.UnaryServerInterceptor{
 		bearertoken.NewUnaryServerInterceptor(),
 	}
 	streamInterceptors := []grpc.StreamServerInterceptor{
 		bearertoken.NewStreamServerInterceptor(),
 	}
+	//nolint:contextcheck
 	if tm.Enabled {
 		unaryInterceptors = append(unaryInterceptors, tenancy.NewGuardingUnaryInterceptor(tm))
 		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm))
 	}
 
 	opts.NetAddr.Transport = confignet.TransportTypeTCP
-	server, err := opts.ToServer(context.Background(),
+	server, err := opts.ToServer(ctx,
 		telset.Host,
 		telset.ToOtelComponent(),
 		configgrpc.WithGrpcServerOption(grpc.ChainUnaryInterceptor(unaryInterceptors...)),
@@ -108,15 +127,17 @@ func createGRPCServer(opts *Options, tm *tenancy.Manager, handler *shared.GRPCHa
 	}
 	healthServer := health.NewServer()
 	reflection.Register(server)
+
 	handler.Register(server, healthServer)
+	v2Handler.Register(server, healthServer)
 
 	return server, nil
 }
 
 // Start gRPC server concurrently
-func (s *Server) Start() error {
+func (s *Server) Start(ctx context.Context) error {
 	var err error
-	s.grpcConn, err = s.opts.NetAddr.Listen(context.Background())
+	s.grpcConn, err = s.opts.NetAddr.Listen(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to listen on gRPC port: %w", err)
 	}
@@ -139,4 +160,8 @@ func (s *Server) Close() error {
 	s.stopped.Wait()
 	s.telset.ReportStatus(componentstatus.NewEvent(componentstatus.StatusStopped))
 	return nil
+}
+
+func (s *Server) GRPCAddr() string {
+	return s.grpcConn.Addr().String()
 }

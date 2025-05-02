@@ -11,21 +11,20 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/distributedlock"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/safeexpvar"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
-	"github.com/jaegertracing/jaeger/pkg/distributedlock"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/plugin"
 )
 
 var ( // interface comformance checks
 	_ storage.Factory              = (*Factory)(nil)
 	_ storage.SamplingStoreFactory = (*Factory)(nil)
-	_ plugin.Configurable          = (*Factory)(nil)
+	_ storage.Configurable         = (*Factory)(nil)
 	_ storage.Purger               = (*Factory)(nil)
 )
 
@@ -54,12 +53,12 @@ func NewFactoryWithConfig(
 	return f
 }
 
-// AddFlags implements plugin.Configurable
+// AddFlags implements storage.Configurable
 func (*Factory) AddFlags(flagSet *flag.FlagSet) {
 	AddFlags(flagSet)
 }
 
-// InitFromViper implements plugin.Configurable
+// InitFromViper implements storage.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, _ *zap.Logger) {
 	f.options.InitFromViper(v)
 }

@@ -17,10 +17,10 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
+	"github.com/jaegertracing/jaeger/internal/storage/cassandra/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
-	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 var testTime = time.Date(2017, time.January, 24, 11, 15, 17, 12345, time.UTC)
@@ -263,7 +263,7 @@ func TestGetLatestProbabilities(t *testing.T) {
 				query := &mocks.Query{}
 				query.On("Iter").Return(iter)
 
-				s.session.On("Query", mock.AnythingOfType("string"), matchEverything()).Return(query)
+				s.session.On("Query", mock.AnythingOfType("string")).Return(query)
 
 				probabilities, err := s.store.GetLatestProbabilities()
 
@@ -379,7 +379,7 @@ func TestStringToProbabilities(t *testing.T) {
 func TestProbabilitiesSetToString(t *testing.T) {
 	s := probabilitiesSetToString(map[string]struct{}{"0.000001": {}, "0.000002": {}})
 	assert.True(t, s == "0.000001,0.000002" || s == "0.000002,0.000001")
-	assert.Equal(t, "", probabilitiesSetToString(nil))
+	assert.Empty(t, probabilitiesSetToString(nil))
 }
 
 func TestMain(m *testing.M) {

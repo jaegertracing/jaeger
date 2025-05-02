@@ -10,8 +10,8 @@ import (
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/config/configgrpc"
 
-	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
-	"github.com/jaegertracing/jaeger/pkg/tenancy"
+	"github.com/jaegertracing/jaeger/internal/config/tlscfg"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -25,9 +25,9 @@ var tlsGRPCFlagsConfig = tlscfg.ServerFlagsConfig{
 
 // Options holds configuration for remote-storage service.
 type Options struct {
-	configgrpc.ServerConfig
+	configgrpc.ServerConfig `mapstructure:",squash"`
 	// Tenancy configuration
-	Tenancy tenancy.Options
+	Tenancy tenancy.Options `mapstructure:"multi_tenancy"`
 }
 
 // AddFlags adds flags to flag set.

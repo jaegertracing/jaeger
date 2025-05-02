@@ -190,6 +190,11 @@ lint-goleak:
 lint-go: $(LINT)
 	$(LINT) -v run
 
+.PHONY: lint-jaeger-idl-versions
+lint-jaeger-idl-versions:
+	@echo "checking jaeger-idl version mismatch between git submodule and go.mod dependency"
+	@./scripts/lint/check-jaeger-idl-version.sh
+
 .PHONY: run-all-in-one
 run-all-in-one: build-ui
 	go run ./cmd/all-in-one --log-level debug
@@ -213,15 +218,16 @@ init-submodules:
 MOCKERY_FLAGS := --all --disable-version-string
 .PHONY: generate-mocks
 generate-mocks: $(MOCKERY)
-	$(MOCKERY)
+	find . -path '*/mocks/*' -name '*.go' -type f -delete
+	$(MOCKERY) | tee .mockery.log
 
 .PHONY: certs
 certs:
-	cd pkg/config/tlscfg/testdata && ./gen-certs.sh
+	cd internal/config/tlscfg/testdata && ./gen-certs.sh
 
 .PHONY: certs-dryrun
 certs-dryrun:
-	cd pkg/config/tlscfg/testdata && ./gen-certs.sh -d
+	cd internal/config/tlscfg/testdata && ./gen-certs.sh -d
 
 .PHONY: repro-check
 repro-check:

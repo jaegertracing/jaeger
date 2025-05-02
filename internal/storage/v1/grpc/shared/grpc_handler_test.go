@@ -17,12 +17,12 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/proto-gen/storage_v1"
+	grpcMocks "github.com/jaegertracing/jaeger/internal/proto-gen/storage_v1/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	dependencyStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	spanStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
-	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
-	grpcMocks "github.com/jaegertracing/jaeger/proto-gen/storage_v1/mocks"
 )
 
 type mockStoragePlugin struct {
@@ -118,7 +118,7 @@ func TestGRPCServerGetOperations(t *testing.T) {
 			Service: "service-a",
 		})
 		require.NoError(t, err)
-		assert.Equal(t, len(expOperations), len(resp.Operations))
+		assert.Len(t, resp.Operations, len(expOperations))
 		for i, operation := range resp.Operations {
 			assert.Equal(t, expOperations[i].Name, operation.Name)
 			assert.Equal(t, expOperations[i].SpanKind, operation.SpanKind)

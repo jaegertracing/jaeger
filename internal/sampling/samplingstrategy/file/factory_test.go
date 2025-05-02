@@ -9,15 +9,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/config"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
-	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/plugin"
+	"github.com/jaegertracing/jaeger/internal/storage/v1"
 )
 
 var (
 	_ samplingstrategy.Factory = new(Factory)
-	_ plugin.Configurable      = new(Factory)
+	_ storage.Configurable     = new(Factory)
 )
 
 func TestFactory(t *testing.T) {

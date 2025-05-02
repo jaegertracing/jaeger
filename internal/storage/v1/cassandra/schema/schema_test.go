@@ -35,7 +35,7 @@ query1-finished;
 	queries, err := sc.getQueriesFromBytes(queriesAsBytes)
 	require.NoError(t, err)
 
-	require.Equal(t, len(expGeneratedQueries), len(queries))
+	require.Len(t, queries, len(expGeneratedQueries))
 
 	for i := range len(expGeneratedQueries) {
 		require.Equal(t, expGeneratedQueries[i], queries[i])

@@ -1,6 +1,6 @@
 services:
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch-oss:6.8.23
+    image: docker.elastic.co/elasticsearch/elasticsearch-oss:6.8.23@sha256:740c3614289539e9782b8a3c4de5100599bbec669d6c56bc21a76eea661e80a5
     environment:
       - discovery.type=single-node
       - http.host=0.0.0.0

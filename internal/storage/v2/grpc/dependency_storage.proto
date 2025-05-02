@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package jaeger.storage.v2;
+
+import "gogoproto/gogo.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "storage";
+
+message GetDependenciesRequest {
+  // start_time is the start of the time interval to search for the dependencies.
+  google.protobuf.Timestamp start_time = 1;
+  // end_time is the end of the time interval to search for the dependencies.
+  google.protobuf.Timestamp end_time = 2;
+}
+
+// Dependency represents a relationship between two services.
+message Dependency {
+  // parent is the name of the caller service.
+  string parent = 1;
+
+  // child is the name of the service being called.
+  string child = 2;
+
+  // call_count is the number of times the parent service called the child service.
+  uint64 call_count = 3;
+
+  // source contains the origin from where the dependency was extracted.
+  string source = 4;
+}
+
+message GetDependenciesResponse {
+  repeated Dependency dependencies = 1;
+}
+
+service DependencyReader {
+  // GetDependencies loads service dependencies from storage.
+  rpc GetDependencies(GetDependenciesRequest) returns (GetDependenciesResponse);
+}

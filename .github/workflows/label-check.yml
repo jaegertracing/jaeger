@@ -1,6 +1,7 @@
 name: Verify PR Label
 
 on:
+  merge_group:
   pull_request:
     types:
       - opened
@@ -18,12 +19,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
         with:
           egress-policy: audit
 
       - name: Check PR label
-        if: github.event.pull_request.user.login != 'dependabot'
+        if: ${{ github.event.pull_request.user.login != 'dependabot' && github.event_name != 'merge_group' }}
         run: |
           LABEL_NAME="changelog:"
           if [[ $(curl -s "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" | jq -r '.labels[].name' | grep -c "^$LABEL_NAME") -eq 0 ]]; then

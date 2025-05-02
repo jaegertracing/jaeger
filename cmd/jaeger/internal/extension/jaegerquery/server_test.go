@@ -27,50 +27,39 @@ import (
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
-	depsmocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	metricstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/mocks"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
+	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/telemetry"
-	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 type fakeFactory struct {
 	name string
 }
 
-func (ff fakeFactory) CreateDependencyReader() (dependencystore.Reader, error) {
+func (ff fakeFactory) CreateDependencyReader() (depstore.Reader, error) {
 	if ff.name == "need-dependency-reader-error" {
 		return nil, errors.New("test-error")
 	}
-	return &depsmocks.Reader{}, nil
+	return &depstoremocks.Reader{}, nil
 }
 
-func (ff fakeFactory) CreateSpanReader() (spanstore.Reader, error) {
+func (ff fakeFactory) CreateTraceReader() (tracestore.Reader, error) {
 	if ff.name == "need-span-reader-error" {
 		return nil, errors.New("test-error")
 	}
-	return &spanstoremocks.Reader{}, nil
+	return &tracestoremocks.Reader{}, nil
 }
 
-func (ff fakeFactory) CreateSpanWriter() (spanstore.Writer, error) {
+func (ff fakeFactory) CreateTraceWriter() (tracestore.Writer, error) {
 	if ff.name == "need-span-writer-error" {
 		return nil, errors.New("test-error")
 	}
-	return &spanstoremocks.Writer{}, nil
-}
-
-func (ff fakeFactory) Initialize(metrics.Factory, *zap.Logger) error {
-	if ff.name == "need-initialize-error" {
-		return errors.New("test-error")
-	}
-	return nil
+	return &tracestoremocks.Writer{}, nil
 }
 
 type fakeMetricsFactory struct {
@@ -96,7 +85,7 @@ type fakeStorageExt struct{}
 
 var _ jaegerstorage.Extension = (*fakeStorageExt)(nil)
 
-func (fakeStorageExt) TraceStorageFactory(name string) (storage.Factory, bool) {
+func (fakeStorageExt) TraceStorageFactory(name string) (tracestore.Factory, bool) {
 	if name == "need-factory-error" {
 		return nil, false
 	}
@@ -348,39 +337,6 @@ func TestServerAddArchiveStorage(t *testing.T) {
 			}
 
 			assert.Contains(t, buf.String(), tt.expectedOutput)
-		})
-	}
-}
-
-func TestGetV1Adapters(t *testing.T) {
-	tests := []struct {
-		name           string
-		reader         tracestore.Reader
-		writer         tracestore.Writer
-		expectedReader spanstore.Reader
-		expectedWriter spanstore.Writer
-	}{
-		{
-			name:           "native tracestore.Reader and tracestore.Writer",
-			reader:         &tracestoremocks.Reader{},
-			writer:         &tracestoremocks.Writer{},
-			expectedReader: v1adapter.NewSpanReader(&tracestoremocks.Reader{}),
-			expectedWriter: v1adapter.NewSpanWriter(&tracestoremocks.Writer{}),
-		},
-		{
-			name:           "wrapped spanstore.Reader and spanstore.Writer",
-			reader:         v1adapter.NewTraceReader(&spanstoremocks.Reader{}),
-			writer:         v1adapter.NewTraceWriter(&spanstoremocks.Writer{}),
-			expectedReader: &spanstoremocks.Reader{},
-			expectedWriter: &spanstoremocks.Writer{},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			gotReader, gotWriter := getV1Adapters(test.reader, test.writer)
-			require.Equal(t, test.expectedReader, gotReader)
-			require.Equal(t, test.expectedWriter, gotWriter)
 		})
 	}
 }

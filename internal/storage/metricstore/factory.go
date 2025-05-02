@@ -10,13 +10,12 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/telemetry"
-	"github.com/jaegertracing/jaeger/plugin"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
 const (
@@ -29,7 +28,7 @@ const (
 // AllStorageTypes defines all available storage backends.
 var AllStorageTypes = []string{prometheusStorageType}
 
-var _ plugin.Configurable = (*Factory)(nil)
+var _ storage.Configurable = (*Factory)(nil)
 
 // Factory implements storage.Factory interface as a meta-factory for storage components.
 type Factory struct {
@@ -89,19 +88,19 @@ func (f *Factory) CreateMetricsReader() (metricstore.Reader, error) {
 	return factory.CreateMetricsReader()
 }
 
-// AddFlags implements plugin.Configurable.
+// AddFlags implements storage.Configurable.
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 	for _, factory := range f.factories {
-		if conf, ok := factory.(plugin.Configurable); ok {
+		if conf, ok := factory.(storage.Configurable); ok {
 			conf.AddFlags(flagSet)
 		}
 	}
 }
 
-// InitFromViper implements plugin.Configurable.
+// InitFromViper implements storage.Configurable.
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	for _, factory := range f.factories {
-		if conf, ok := factory.(plugin.Configurable); ok {
+		if conf, ok := factory.(storage.Configurable); ok {
 			conf.InitFromViper(v, logger)
 		}
 	}
