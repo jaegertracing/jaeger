@@ -110,23 +110,6 @@ func ToDBModel(td ptrace.Traces) []Trace {
 	return traces
 }
 
-func (at AttributeType) String() string {
-	switch at {
-	case AttributeTypeResource:
-		return "Resource"
-	case AttributeTypeScope:
-		return "Scope"
-	case AttributeTypeSpan:
-		return "Span"
-	case AttributeTypeEvent:
-		return "Event"
-	case AttributeTypeLink:
-		return "Link"
-	default:
-		return "Unknown"
-	}
-}
-
 // attributesToGroup Categorizes and aggregates Attributes based on the data type of their values, and writes them in batches.
 func attributesToGroup(attributes pcommon.Map) AttributesGroup {
 	attributesMap := attributesToMap(attributes)
