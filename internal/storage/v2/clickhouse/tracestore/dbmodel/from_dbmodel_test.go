@@ -4,7 +4,6 @@
 package dbmodel
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -93,13 +92,6 @@ func TestFromDBModel_Fixtures(t *testing.T) {
 			require.Equal(t, exceptedLink.Attributes().AsRaw(), actualLink.Attributes().AsRaw(), "Link %d attributes mismatch", i)
 		}
 	})
-}
-
-func jsonToDBModel(t *testing.T, filename string) (m Trace) {
-	traceBytes := readJSONBytes(t, filename)
-	err := json.Unmarshal(traceBytes, &m)
-	require.NoError(t, err, "Failed to read file %s", filename)
-	return m
 }
 
 func TestFromDBModel_DecodeAttributes(t *testing.T) {
