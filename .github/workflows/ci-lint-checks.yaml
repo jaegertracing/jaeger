@@ -171,17 +171,18 @@ jobs:
     - name: Compare jaeger binary sizes
       if: steps.cache-binary-size.outputs.cache-matched-key != ''
       run: |
+        set -euf -o pipefail
         OLD_BINARY_SIZE=$(cat ./jaeger_binary_size.txt)
         NEW_BINARY_SIZE=$(cat ./new_jaeger_binary_size.txt)
         printf "Previous binary size: %'d bytes\n" $OLD_BINARY_SIZE
         printf "New binary size:      %'d bytes\n" $NEW_BINARY_SIZE
 
-        PERCENTAGE_CHANGE=$(( ($NEW_BINARY_SIZE - $OLD_BINARY_SIZE) * 100.0 / $OLD_BINARY_SIZE ))
+        PERCENTAGE_CHANGE=$(echo "scale=2; ($NEW_BINARY_SIZE - $OLD_BINARY_SIZE) * 100 / $OLD_BINARY_SIZE" | bc)
         if [ $PERCENTAGE_CHANGE -gt 2.0 ]; then
-          printf "❌ binary size increased by more than 2% (%.2f%%)" $PERCENTAGE_CHANGE
+          echo "❌ binary size increased by more than 2% ($PERCENTAGE_CHANGE%)"
           exit 1
         else
-          printf "✅ binary size change is within acceptable range (%.2f%%)" $PERCENTAGE_CHANGE
+          echo "✅ binary size change is within acceptable range ($PERCENTAGE_CHANGE%)"
         fi
 
 
