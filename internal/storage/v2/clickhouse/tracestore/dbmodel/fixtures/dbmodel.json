@@ -1,213 +1,213 @@
 {
-    "Resource": {
-        "Attributes": {
-            "BoolKeys": [
-                "browser.mobile"
-            ],
-            "BoolValues": [
-                true
-            ],
-            "DoubleKeys": [
-                "host.memory.swap"
-            ],
-            "DoubleValues": [
-                2048
-            ],
-            "IntKeys": [
-                "process.parent.pid",
-                "process.pid",
-                "faas.max_memory"
-            ],
-            "IntValues": [
-                111,
-                1234,
-                134217728
-            ],
-            "StrKeys": [
-                "service.names",
-                "service.instance.id"
-            ],
-            "StrValues": [
-                "clickhouse",
-                "627cc493-f310-47de-96bd-71410b7dec09"
-            ],
-            "BytesKeys": [
-                "oci.manifest.digest"
-            ],
-            "BytesValues": [
-                "c2hhMjU2OmU0Y2E2MmMwZDYyZjNlODg2ZTY4NDgwNmRmZTlkNGUwY2RhNjBkNTQ5ODY4OTgxNzNjMTA4Mzg1NmNmZGEwZjQ="
-            ]
-        }
-    },
-    "Scope": {
-        "Name": "io.opentelemetry.contrib.clickhouse",
-        "Version": "1.0.0",
-        "Attributes": {
-            "BoolKeys": [
-                "library.feature.async_processing_enabled",
-                "library.security.data_masking_active"
-            ],
-            "BoolValues": [
-                true,
-                false
-            ],
-            "DoubleKeys": [
-                "component.config.sampling.ratio"
-            ],
-            "DoubleValues": [
-                0.75
-            ],
-            "IntKeys": [
-                "component.max_workers",
-                "component.min_workers"
-            ],
-            "IntValues": [
-                10,
-                2
-            ],
-            "StrKeys": [
-                "library.language",
-                "library.version"
-            ],
-            "StrValues": [
-                "go",
-                "v2.2.2"
-            ],
-            "BytesKeys": [
-                "scope.test.bytes.value"
-            ],
-            "BytesValues": [
-                "AQIDBA=="
-            ]
-        }
-    },
-    "Span": {
-        "Timestamp": "2023-12-25T09:53:49Z",
-        "TraceId": "01020300000000000000000000000000",
-        "SpanId": "0102030000000000",
-        "ParentSpanId": "0102040000000000",
-        "TraceState": "trace state",
-        "Name": "call db",
-        "Kind": "Internal",
-        "Duration": "2023-12-25T09:54:49Z",
-        "StatusCode": "Error",
-        "StatusMessage": "error",
-        "Attributes": {
-            "BoolKeys": [
-                "app.payment.card_valid",
-                "app.payment.charged"
-            ],
-            "BoolValues": [
-                true,
-                true
-            ],
-            "DoubleKeys": [
-                "app.payment.amount"
-            ],
-            "DoubleValues": [
-                99.99
-            ],
-            "IntKeys": [
-                "app.payment.count"
-            ],
-            "IntValues": [
-                5
-            ],
-            "StrKeys": [
-                "app.payment.id"
-            ],
-            "StrValues": [
-                "123456789"
-            ],
-            "BytesKeys": [
-                "span.test.bytes.value"
-            ],
-            "BytesValues": [
-                "AQIDBAUG"
-            ]
-        }
-    },
-    "Links": [
-        {
-            "TraceId": "01020500000000000000000000000000",
-            "SpanId": "0102050000000000",
-            "TraceState": "test",
-            "Attributes": {
-                "BoolKeys": [
-                    "is.retry"
-                ],
-                "BoolValues": [
-                    true
-                ],
-                "DoubleKeys": [
-                    "similarity.score"
-                ],
-                "DoubleValues": [
-                    0.85
-                ],
-                "IntKeys": [
-                    "correlation.id"
-                ],
-                "IntValues": [
-                    1324141
-                ],
-                "StrKeys": [
-                    "related.resource.id"
-                ],
-                "StrValues": [
-                    "resource-123"
-                ],
-                "BytesKeys": [
-                    "link.test.bytes.value"
-                ],
-                "BytesValues": [
-                    "AQIDBAUG"
-                ]
-            }
-        }
-    ],
-    "Events": [
-        {
-            "Name": "event1",
-            "Timestamp": "2023-12-25T09:53:49Z",
-            "Attributes": {
-                "BoolKeys": [
-                    "inventory.available",
-                    "payment.successful"
-                ],
-                "BoolValues": [
-                    true,
-                    true
-                ],
-                "DoubleKeys": [
-                    "product.price",
-                    "order.discount.rate"
-                ],
-                "DoubleValues": [
-                    6.04,
-                    0.04
-                ],
-                "IntKeys": [
-                    "order.quantity"
-                ],
-                "IntValues": [
-                    2
-                ],
-                "StrKeys": [
-                    "order.id",
-                    "product.id"
-                ],
-                "StrValues": [
-                    "123456789",
-                    "987654321"
-                ],
-                "BytesKeys": [
-                    "event.test.bytes.value"
-                ],
-                "BytesValues": [
-                    "AQIDBAUG"
-                ]
-            }
-        }
-    ]
+  "Resource": {
+    "Attributes": {
+      "BoolKeys": [
+        "browser.mobile"
+      ],
+      "BoolValues": [
+        true
+      ],
+      "DoubleKeys": [
+        "host.memory.swap"
+      ],
+      "DoubleValues": [
+        2048
+      ],
+      "IntKeys": [
+        "process.parent.pid",
+        "process.pid",
+        "faas.max_memory"
+      ],
+      "IntValues": [
+        111,
+        1234,
+        134217728
+      ],
+      "StrKeys": [
+        "service.Names",
+        "service.instance.id"
+      ],
+      "StrValues": [
+        "clickhouse",
+        "627cc493-f310-47de-96bd-71410b7dec09"
+      ],
+      "BytesKeys": [
+        "oci.manifest.digest"
+      ],
+      "BytesValues": [
+        "c2hhMjU2OmU0Y2E2MmMwZDYyZjNlODg2ZTY4NDgwNmRmZTlkNGUwY2RhNjBkNTQ5ODY4OTgxNzNjMTA4Mzg1NmNmZGEwZjQ="
+      ]
+    }
+  },
+  "Scope": {
+    "Name": "io.opentelemetry.contrib.clickhouse",
+    "Version": "1.0.0",
+    "Attributes": {
+      "BoolKeys": [
+        "library.feature.async_processing_enabled",
+        "library.security.data_masking_active"
+      ],
+      "BoolValues": [
+        true,
+        false
+      ],
+      "DoubleKeys": [
+        "component.config.sampling.ratio"
+      ],
+      "DoubleValues": [
+        0.75
+      ],
+      "IntKeys": [
+        "component.max_workers",
+        "component.min_workers"
+      ],
+      "IntValues": [
+        10,
+        2
+      ],
+      "StrKeys": [
+        "library.language",
+        "library.version"
+      ],
+      "StrValues": [
+        "go",
+        "v2.2.2"
+      ],
+      "BytesKeys": [
+        "scope.test.bytes.value"
+      ],
+      "BytesValues": [
+        "AQIDBA=="
+      ]
+    }
+  },
+  "Span": {
+    "Timestamp": "2023-12-25T09:53:49Z",
+    "TraceId": "AQIDAAAAAAAAAAAAAAAAAA==",
+    "SpanId": "AQIDAAAAAAA=",
+    "ParentSpanId": "AQIEAAAAAAA=",
+    "TraceState": "trace state",
+    "Name": "call db",
+    "Kind": "Internal",
+    "Duration": "2023-12-25T09:54:49Z",
+    "StatusCode": "Error",
+    "StatusMessage": "error",
+    "Attributes": {
+      "BoolKeys": [
+        "app.payment.card_valid",
+        "app.payment.charged"
+      ],
+      "BoolValues": [
+        true,
+        true
+      ],
+      "DoubleKeys": [
+        "app.payment.amount"
+      ],
+      "DoubleValues": [
+        99.99
+      ],
+      "IntKeys": [
+        "app.payment.count"
+      ],
+      "IntValues": [
+        5
+      ],
+      "StrKeys": [
+        "app.payment.id"
+      ],
+      "StrValues": [
+        "123456789"
+      ],
+      "BytesKeys": [
+        "span.test.bytes.value"
+      ],
+      "BytesValues": [
+        "AQIDBAUG"
+      ]
+    }
+  },
+  "Links": [
+    {
+      "TraceId": "AQIFAAAAAAAAAAAAAAAAAA==",
+      "SpanId": "AQIFAAAAAAA=",
+      "TraceState": "test",
+      "Attributes": {
+        "BoolKeys": [
+          "is.retry"
+        ],
+        "BoolValues": [
+          true
+        ],
+        "DoubleKeys": [
+          "similarity.score"
+        ],
+        "DoubleValues": [
+          0.85
+        ],
+        "IntKeys": [
+          "correlation.id"
+        ],
+        "IntValues": [
+          1324141
+        ],
+        "StrKeys": [
+          "related.resource.id"
+        ],
+        "StrValues": [
+          "resource-123"
+        ],
+        "BytesKeys": [
+          "link.test.bytes.value"
+        ],
+        "BytesValues": [
+          "AQIDBAUG"
+        ]
+      }
+    }
+  ],
+  "Events": [
+    {
+      "Name": "event1",
+      "Timestamp": "2023-12-25T09:53:49Z",
+      "Attributes": {
+        "BoolKeys": [
+          "inventory.available",
+          "payment.successful"
+        ],
+        "BoolValues": [
+          true,
+          true
+        ],
+        "DoubleKeys": [
+          "product.price",
+          "order.discount.rate"
+        ],
+        "DoubleValues": [
+          6.04,
+          0.04
+        ],
+        "IntKeys": [
+          "order.quantity"
+        ],
+        "IntValues": [
+          2
+        ],
+        "StrKeys": [
+          "product.id",
+          "order.id"
+        ],
+        "StrValues": [
+          "987654321",
+          "123456789"
+        ],
+        "BytesKeys": [
+          "event.test.bytes.value"
+        ],
+        "BytesValues": [
+          "AQIDBAUG"
+        ]
+      }
+    }
+  ]
 }
