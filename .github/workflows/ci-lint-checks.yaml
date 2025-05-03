@@ -173,17 +173,15 @@ jobs:
       run: |
         OLD_BINARY_SIZE=$(cat ./jaeger_binary_size.txt)
         NEW_BINARY_SIZE=$(cat ./new_jaeger_binary_size.txt)
-        echo "Previous binary size: $OLD_BINARY_SIZE bytes"
-        echo "New binary size: $NEW_BINARY_SIZE bytes"
+        printf "Previous binary size: %'d bytes\n" $OLD_BINARY_SIZE
+        printf "New binary size:      %'d bytes\n" $NEW_BINARY_SIZE
 
-        SIZE_CHANGE=$(( $NEW_BINARY_SIZE - $OLD_BINARY_SIZE ))
-        PERCENTAGE_CHANGE=$(( SIZE_CHANGE * 100 / $OLD_BINARY_SIZE ))
-        echo "Size change: $PERCENTAGE_CHANGE%"
-        if [ $PERCENTAGE_CHANGE -gt 2 ]; then
-          echo "❌ binary size increased by more than 2% ($PERCENTAGE_CHANGE%)"
+        PERCENTAGE_CHANGE=$(( ($NEW_BINARY_SIZE - $OLD_BINARY_SIZE) * 100.0 / $OLD_BINARY_SIZE ))
+        if [ $PERCENTAGE_CHANGE -gt 2.0 ]; then
+          printf "❌ binary size increased by more than 2% (%.2f%%)" $PERCENTAGE_CHANGE
           exit 1
         else
-          echo "✅ binary size change is within acceptable range ($PERCENTAGE_CHANGE%)"
+          printf "✅ binary size change is within acceptable range (%.2f%%)" $PERCENTAGE_CHANGE
         fi
 
 
