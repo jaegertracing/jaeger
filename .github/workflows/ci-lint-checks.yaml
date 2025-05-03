@@ -179,10 +179,10 @@ jobs:
 
         PERCENTAGE_CHANGE=$(echo "scale=2; ($NEW_BINARY_SIZE - $OLD_BINARY_SIZE) * 100 / $OLD_BINARY_SIZE" | bc)
         if echo "$PERCENTAGE_CHANGE > 2.0" | bc -q; then
-          printf "❌ binary size increased by more than 2% (%.2f%%)\n" $PERCENTAGE_CHANGE
+          echo "❌ binary size increased by more than 2% ($PERCENTAGE_CHANGE%)"
           exit 1
         else
-          printf "✅ binary size change is within acceptable range (%.2f%%)\n" $PERCENTAGE_CHANGE
+          echo "✅ binary size change is within acceptable range ($PERCENTAGE_CHANGE%)"
         fi
 
 
