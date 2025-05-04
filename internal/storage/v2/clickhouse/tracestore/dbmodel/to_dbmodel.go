@@ -4,7 +4,7 @@
 package dbmodel
 
 import (
-	"encoding/base64"
+	"encoding/hex"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -17,36 +17,6 @@ const (
 	ValueTypeStr    = pcommon.ValueTypeStr
 	ValueTypeBytes  = pcommon.ValueTypeBytes
 )
-
-type AttributeType int32
-
-const (
-	AttributeTypeResource AttributeType = iota
-	AttributeTypeScope
-	AttributeTypeSpan
-	AttributeTypeEvent
-	AttributeTypeLink
-)
-
-// AttributesGroup captures all data from a single pcommon.Map, except
-// complex attributes (like slice or map) which are currently not supported.
-// AttributesGroup consists of pairs of vectors for each of the supported primitive
-// types, e.g. (BoolKeys, BoolValues). Every attribute in the pcommon.Map is mapped
-// to one of the pairs depending on its type. The slices in each pair have identical
-// length, which may be different from length in another pair. For example, if the
-// pcommon.Map has no Boolean attributes then (BoolKeys=[], BoolValues=[]).
-type AttributesGroup struct {
-	BoolKeys     []string
-	BoolValues   []bool
-	DoubleKeys   []string
-	DoubleValues []float64
-	IntKeys      []string
-	IntValues    []int64
-	StrKeys      []string
-	StrValues    []string
-	BytesKeys    []string
-	BytesValues  []string
-}
 
 // ToDBModel Converts the OTel pipeline Traces into multi dbmodel.Trace for batch insertion.
 func ToDBModel(td ptrace.Traces) []Trace {
@@ -66,9 +36,9 @@ func ToDBModel(td ptrace.Traces) []Trace {
 			for _, sp := range scopeSpan.Spans().All() {
 				span := Span{
 					Timestamp:     sp.StartTimestamp().AsTime(),
-					TraceId:       sp.TraceID().String(),
-					SpanId:        sp.TraceID().String(),
-					ParentSpanId:  sp.ParentSpanID().String(),
+					TraceId:       encodeTraceID(sp.TraceID()),
+					SpanId:        encodeSpanID(sp.SpanID()),
+					ParentSpanId:  encodeSpanID(sp.ParentSpanID()),
 					TraceState:    sp.TraceState().AsRaw(),
 					Name:          sp.Name(),
 					Kind:          sp.Kind().String(),
@@ -81,26 +51,30 @@ func ToDBModel(td ptrace.Traces) []Trace {
 					Resource: resource,
 					Scope:    scope,
 					Span:     span,
-					Events:   []Event{},
-					Links:    []Link{},
+				}
+				if sp.Events().Len() > 0 {
+					trace.Events = make([]Event, sp.Events().Len())
+				}
+				if sp.Links().Len() > 0 {
+					trace.Links = make([]Link, sp.Links().Len())
 				}
 
-				for _, e := range sp.Events().All() {
+				for i, e := range sp.Events().All() {
 					event := Event{
 						Name:       e.Name(),
 						Timestamp:  e.Timestamp().AsTime(),
 						Attributes: attributesToGroup(e.Attributes()),
 					}
-					trace.Events = append(trace.Events, event)
+					trace.Events[i] = event
 				}
-				for _, l := range sp.Links().All() {
+				for i, l := range sp.Links().All() {
 					link := Link{
-						TraceId:    l.TraceID().String(),
-						SpanId:     l.SpanID().String(),
+						TraceId:    encodeTraceID(l.TraceID()),
+						SpanId:     encodeSpanID(l.SpanID()),
 						TraceState: l.TraceState().AsRaw(),
 						Attributes: attributesToGroup(l.Attributes()),
 					}
-					trace.Links = append(trace.Links, link)
+					trace.Links[i] = link
 				}
 				traces = append(traces, trace)
 			}
@@ -140,8 +114,7 @@ func attributesToGroup(attributes pcommon.Map) AttributesGroup {
 		case ValueTypeBytes:
 			for k, v := range kvPairs {
 				group.BytesKeys = append(group.BytesKeys, k)
-				byteStr := base64.StdEncoding.EncodeToString(v.Bytes().AsRaw())
-				group.BytesValues = append(group.BytesValues, byteStr)
+				group.BytesValues = append(group.BytesValues, v.Bytes().AsRaw())
 			}
 		default:
 		}
@@ -168,4 +141,22 @@ func attributesToMap(attrs pcommon.Map) map[pcommon.ValueType]map[string]pcommon
 		result[typ][k] = v
 	}
 	return result
+}
+
+// encodeTraceID convert pcommon.TraceID to [16]byte.
+func encodeTraceID(id pcommon.TraceID) []byte {
+	if id.IsEmpty() {
+		return nil
+	}
+	bytes, _ := hex.DecodeString(id.String())
+	return bytes
+}
+
+// encodeSpanID convert pcommon.SpanID to [8]byte.
+func encodeSpanID(id pcommon.SpanID) []byte {
+	if id.IsEmpty() {
+		return nil
+	}
+	bytes, _ := hex.DecodeString(id.String())
+	return bytes
 }

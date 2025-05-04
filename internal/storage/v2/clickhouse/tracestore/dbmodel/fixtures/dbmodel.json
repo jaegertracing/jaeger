@@ -83,9 +83,9 @@
   },
   "Span": {
     "Timestamp": "2023-12-25T09:53:49Z",
-    "TraceId": "01020300000000000000000000000000",
-    "SpanId": "01020300000000000000000000000000",
-    "ParentSpanId": "0102040000000000",
+    "TraceId": "AQIDAAAAAAAAAAAAAAAAAA==",
+    "SpanId": "AQIDAAAAAAA=",
+    "ParentSpanId": "AQIEAAAAAAA=",
     "TraceState": "trace state",
     "Name": "call db",
     "Kind": "Internal",
@@ -129,8 +129,8 @@
   },
   "Links": [
     {
-      "TraceId": "01020500000000000000000000000000",
-      "SpanId": "0102050000000000",
+      "TraceId": "AQIFAAAAAAAAAAAAAAAAAA==",
+      "SpanId": "AQIFAAAAAAA=",
       "TraceState": "test",
       "Attributes": {
         "BoolKeys": [
@@ -194,12 +194,12 @@
           2
         ],
         "StrKeys": [
-          "order.id",
-          "product.id"
+          "product.id",
+          "order.id"
         ],
         "StrValues": [
-          "123456789",
-          "987654321"
+          "987654321",
+          "123456789"
         ],
         "BytesKeys": [
           "event.test.bytes.value"

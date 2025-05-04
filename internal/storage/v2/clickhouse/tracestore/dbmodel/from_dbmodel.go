@@ -4,8 +4,6 @@
 package dbmodel
 
 import (
-	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -86,21 +84,9 @@ func FromDBScope(s Scope) (pcommon.InstrumentationScope, error) {
 func FromDBSpan(s Span) (ptrace.Span, error) {
 	span := ptrace.NewSpan()
 	span.SetStartTimestamp(pcommon.NewTimestampFromTime(s.Timestamp))
-	traceId, err := hex.DecodeString(s.TraceId)
-	if err != nil {
-		return span, fmt.Errorf("failed to decode trace Id: %w", err)
-	}
-	span.SetTraceID(pcommon.TraceID(traceId))
-	spanId, err := hex.DecodeString(s.SpanId)
-	if err != nil {
-		return span, fmt.Errorf("failed to decode span Id: %w", err)
-	}
-	span.SetSpanID(pcommon.SpanID(spanId))
-	parentSpanId, err := hex.DecodeString(s.ParentSpanId)
-	if err != nil {
-		return span, fmt.Errorf("failed to decode parent span Id: %w", err)
-	}
-	span.SetParentSpanID(pcommon.SpanID(parentSpanId))
+	span.SetTraceID(pcommon.TraceID(s.TraceId))
+	span.SetSpanID(pcommon.SpanID(s.SpanId))
+	span.SetParentSpanID(pcommon.SpanID(s.ParentSpanId))
 	span.TraceState().FromRaw(s.TraceState)
 	span.SetName(s.Name)
 	span.SetKind(FromDBSpanKind(s.Kind))
@@ -131,16 +117,9 @@ func FromDBEvent(e Event) (ptrace.SpanEvent, error) {
 
 func FromDBLink(l Link) (ptrace.SpanLink, error) {
 	link := ptrace.NewSpanLink()
-	traceId, err := hex.DecodeString(l.TraceId)
-	if err != nil {
-		return link, fmt.Errorf("failed to decode link trace Id: %w", err)
-	}
-	link.SetTraceID(pcommon.TraceID(traceId))
-	spanId, err := hex.DecodeString(l.SpanId)
-	if err != nil {
-		return link, fmt.Errorf("failed to decode link span Id: %w", err)
-	}
-	link.SetSpanID(pcommon.SpanID(spanId))
+
+	link.SetTraceID(pcommon.TraceID(l.TraceId))
+	link.SetSpanID(pcommon.SpanID(l.SpanId))
 	link.TraceState().FromRaw(l.TraceState)
 	attributes, err := AttributesGroupToMap(l.Attributes)
 	if err != nil {
@@ -205,11 +184,7 @@ func AttributesGroupToMap(group AttributesGroup) (pcommon.Map, error) {
 	for i := range group.BytesKeys {
 		key := group.BytesKeys[i]
 		value := group.BytesValues[i]
-		bts, err := base64.StdEncoding.DecodeString(value)
-		if err != nil {
-			return result, err
-		}
-		result.PutEmptyBytes(key).FromRaw(bts)
+		result.PutEmptyBytes(key).FromRaw(value)
 	}
 	return result, nil
 }
