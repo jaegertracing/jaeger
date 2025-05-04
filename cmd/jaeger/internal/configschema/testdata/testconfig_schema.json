@@ -3,77 +3,83 @@
   "title": "Jaeger Configuration",
   "description": "Jaeger component configuration schema",
   "type": "object",
-  "definitions": {
-    "github.com/jaegertracing/jaeger/cmd/jaeger/internal/configschema/testdata.NestedConfig": {
-      "title": "github.com/jaegertracing/jaeger/cmd/jaeger/internal/configschema/testdata.NestedConfig",
-      "type": "object",
-      "description": "NestedConfig is a nested configuration struct for testing",
-      "properties": {
-        "RetryCount": {
-          "description": "RetryCount is the number of retries",
-          "type": "integer"
+  "components": {
+    "schemas": {
+      "testdata_NestedConfig": {
+        "title": "github.com/jaegertracing/jaeger/cmd/jaeger/internal/configschema/testdata.NestedConfig",
+        "type": "object",
+        "description": "NestedConfig is a nested configuration struct for testing",
+        "properties": {
+          "RetryCount": {
+            "description": "RetryCount is the number of retries",
+            "type": "integer"
+          },
+          "Timeout": {
+            "description": "Timeout is the timeout in seconds",
+            "type": "integer"
+          }
         },
-        "Timeout": {
-          "description": "Timeout is the timeout in seconds",
-          "type": "integer"
-        }
+        "required": [
+          "Timeout",
+          "RetryCount"
+        ]
       },
-      "required": [
-        "Timeout",
-        "RetryCount"
-      ]
-    },
-    "github.com/jaegertracing/jaeger/cmd/jaeger/internal/configschema/testdata.TestConfig": {
-      "title": "github.com/jaegertracing/jaeger/cmd/jaeger/internal/configschema/testdata.TestConfig",
-      "type": "object",
-      "description": "TestConfig is a simple struct for testing schema generation",
-      "properties": {
-        "Addresses": {
-          "description": "Addresses is a list of addresses to connect to",
-          "items": {
+      "testdata_TestConfig": {
+        "title": "github.com/jaegertracing/jaeger/cmd/jaeger/internal/configschema/testdata.TestConfig",
+        "type": "object",
+        "description": "TestConfig is a simple struct for testing schema generation",
+        "properties": {
+          "Addresses": {
+            "description": "Addresses is a list of addresses to connect to",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "DeprecatedField": {
+            "deprecated": true,
+            "description": "[DEPRECATED] Deprecated: This field is deprecated",
             "type": "string"
           },
-          "type": "array"
+          "Enabled": {
+            "description": "Enabled determines if the service is enabled",
+            "type": "boolean"
+          },
+          "Name": {
+            "description": "Name is the name of the configuration",
+            "type": "string"
+          },
+          "NestedConfig": {
+            "description": "NestedConfig is a nested configuration",
+            "$ref": "#/components/schemas/testdata_NestedConfig"
+          },
+          "OptionalConfig": {
+            "description": "OptionalConfig is an optional nested configuration",
+            "type": "string"
+          },
+          "Port": {
+            "description": "Port is the port to listen on",
+            "type": "integer"
+          },
+          "Tags": {
+            "description": "Tags are key-value pairs for metadata",
+            "type": "string"
+          }
         },
-        "DeprecatedField": {
-          "deprecated": true,
-          "description": "[DEPRECATED] Deprecated: This field is deprecated",
-          "type": "string"
-        },
-        "Enabled": {
-          "description": "Enabled determines if the service is enabled",
-          "type": "boolean"
-        },
-        "Name": {
-          "description": "Name is the name of the configuration",
-          "type": "string"
-        },
-        "NestedConfig": {
-          "description": "NestedConfig is a nested configuration",
-          "type": "string"
-        },
-        "OptionalConfig": {
-          "description": "OptionalConfig is an optional nested configuration",
-          "type": "string"
-        },
-        "Port": {
-          "description": "Port is the port to listen on",
-          "type": "integer"
-        },
-        "Tags": {
-          "description": "Tags are key-value pairs for metadata",
-          "type": "string"
-        }
-      },
-      "required": [
-        "Enabled",
-        "Tags",
-        "Addresses",
-        "NestedConfig",
-        "Name",
-        "Port"
-      ]
+        "required": [
+          "Enabled",
+          "Tags",
+          "Addresses",
+          "NestedConfig",
+          "Name",
+          "Port"
+        ]
+      }
     }
   },
-  "properties": {}
+  "properties": {
+    "testdata_TestConfig": {
+      "$ref": "#/components/schemas/testdata_TestConfig"
+    }
+  }
 }

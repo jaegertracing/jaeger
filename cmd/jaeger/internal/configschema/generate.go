@@ -15,6 +15,10 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal"
 )
 
+type QualifiedName string
+
+type StructRegistry map[QualifiedName]StructDoc
+
 func GenerateSchema(outputPath string) error {
 	configs, err := collectConfigs()
 	if err != nil {
@@ -120,63 +124,42 @@ func constructSchema(pkgs []*packages.Package, configs []any) (*JSONSchema, erro
 		Title:       "Jaeger Configuration",
 		Description: "Jaeger component configuration schema",
 		Type:        "object",
-		Definitions: make(map[string]any),
-		Properties:  make(map[string]any),
+		Components: Components{
+			Schemas: make(map[string]any),
+		},
+		Properties: make(map[string]any),
 	}
 
-	structRegistry := make(map[string]StructDoc)
+	structRegistry := make(StructRegistry)
 
 	// First pass: Collect all structs
 	for _, pkg := range pkgs {
 		for _, syntax := range pkg.Syntax {
 			for _, s := range parseASTWithImports(syntax, pkg) {
-				structRegistry[s.Name] = s
+				structRegistry[QualifiedName(s.QualifiedName)] = s
 			}
 		}
 	}
 
 	// Second pass: Build schema with references
 	for _, s := range structRegistry {
-		schema.Definitions[s.Name] = buildSchemaStruct(s, structRegistry)
+		schema.Components.Schemas[s.ReadableName] = structRegistry.buildSchemaStruct(s)
 	}
 
-	// TODO why do we need root properties? We don't have a single top-level object
-	// // Build root properties
-	// rootProps := make(map[string]any)
-	// // Inside GenerateDocs() function, after building rootProps:
-	// for key := range rootProps {
-	// 	if _, exists := schema.Definitions[getStructNameFromKey(key)]; !exists {
-	// 		return nil, fmt.Errorf("missing definition for component: %s", key)
-	// 	}
-	// }
-
-	// for _, cfg := range configs {
-	// 	key := getComponentKey(cfg)
-	// 	if key == "/" {
-	// 		continue // Skip root entry
-	// 	}
-	// 	t := reflect.TypeOf(cfg)
-	// 	if t.Kind() == reflect.Ptr {
-	// 		t = t.Elem()
-	// 	}
-	// 	pkgPath := t.PkgPath()
-	// 	structName := fmt.Sprintf("%s.%s", pkgPath, t.Name())
-
-	// 	// Skip invalid entries like "/"
-	// 	if pkgPath == "" || t.Name() == "" {
-	// 		continue
-	// 	}
-
-	// 	rootProps[getComponentKey(cfg)] = map[string]any{
-	// 		"$ref": fmt.Sprintf("#/definitions/%s", structName),
-	// 	}
-	// }
-	// schema.Properties = rootProps
+	// Build root properties
+	rootProps := make(map[string]any)
+	for _, cfg := range configs {
+		structName := getStructName(cfg)
+		rootProps[structName] = map[string]any{
+			"$ref": fmt.Sprintf("#/components/schemas/%s", structName),
+		}
+	}
+	schema.Properties = rootProps
 
 	return &schema, nil
 }
 
-func buildSchemaStruct(s StructDoc, registry map[string]StructDoc) map[string]any {
+func (r StructRegistry) buildSchemaStruct(s StructDoc) map[string]any {
 	props := make(map[string]any)
 	required := make([]string, 0)
 
@@ -202,18 +185,10 @@ func buildSchemaStruct(s StructDoc, registry map[string]StructDoc) map[string]an
 				"type": mapTypeToJSONSchema(elementType),
 			}
 		default:
-			if nestedSchema, exists := registry[field.Type]; exists {
-				// Existing $ref logic
-				prop["$ref"] = fmt.Sprintf("#/definitions/%s", nestedSchema.Name)
+			if nestedSchema, exists := r[QualifiedName(field.Type)]; exists {
+				prop["$ref"] = fmt.Sprintf("#/components/schemas/%s", nestedSchema.ReadableName)
 			} else {
-				// Handle external types not in registry
-				if isCrossPackageType(field.Type, s.PackagePath) {
-					prop["type"] = "object"
-					prop["description"] = fmt.Sprintf("External type: %s", field.Type)
-				} else {
-					// Primitive type handling
-					prop["type"] = mapTypeToJSONSchema(field.Type)
-				}
+				prop["type"] = mapTypeToJSONSchema(field.Type)
 			}
 		}
 
@@ -227,20 +202,6 @@ func buildSchemaStruct(s StructDoc, registry map[string]StructDoc) map[string]an
 			prop["default"] = field.DefaultValue
 		}
 
-		if nestedSchema, exists := registry[field.Type]; exists {
-			prop["$ref"] = fmt.Sprintf("#/definitions/%s", nestedSchema.Name)
-		} else {
-			prop["type"] = mapTypeToJSONSchema(field.Type)
-		}
-
-		// Handle arrays
-		if strings.HasPrefix(field.Type, "[]") {
-			prop["type"] = "array"
-			prop["items"] = map[string]any{
-				"type": mapTypeToJSONSchema(field.Type[2:]),
-			}
-		}
-
 		props[name] = prop
 
 		// Only add to required if not deprecated
@@ -250,7 +211,7 @@ func buildSchemaStruct(s StructDoc, registry map[string]StructDoc) map[string]an
 	}
 
 	schema := map[string]any{
-		"title":       s.Name,
+		"title":       s.QualifiedName,
 		"type":        "object",
 		"description": s.Description,
 		"properties":  props,
@@ -263,24 +224,19 @@ func buildSchemaStruct(s StructDoc, registry map[string]StructDoc) map[string]an
 	return schema
 }
 
-func getStructNameFromKey(key string) string {
-	parts := strings.Split(key, "/")
-	return parts[len(parts)-1]
-}
+// func isCrossPackageType(typeName, currentPkgPath string) bool {
+// 	// Check if type is qualified with a package
+// 	if !strings.Contains(typeName, ".") {
+// 		return false
+// 	}
 
-func isCrossPackageType(typeName, currentPkgPath string) bool {
-	// Check if type is qualified with a package
-	if !strings.Contains(typeName, ".") {
-		return false
-	}
+// 	// Extract package from type name (e.g., "configgrpc" from "configgrpc.GRPCServerSettings")
+// 	parts := strings.Split(typeName, ".")
+// 	typePkg := strings.Join(parts[:len(parts)-1], ".")
 
-	// Extract package from type name (e.g., "configgrpc" from "configgrpc.GRPCServerSettings")
-	parts := strings.Split(typeName, ".")
-	typePkg := strings.Join(parts[:len(parts)-1], ".")
-
-	// Compare with current package
-	return typePkg != "" && typePkg != currentPkgPath
-}
+// 	// Compare with current package
+// 	return typePkg != "" && typePkg != currentPkgPath
+// }
 
 // Function to ADd defaults
 func addDefaults(schema *JSONSchema, configs []any) {
@@ -288,7 +244,7 @@ func addDefaults(schema *JSONSchema, configs []any) {
 		structName := getStructName(cfg)
 		defaults := getDefaults(cfg)
 
-		if def, exists := schema.Definitions[structName].(map[string]any); exists {
+		if def, exists := schema.Components.Schemas[structName].(map[string]any); exists {
 			props := def["properties"].(map[string]any)
 			for name, value := range defaults {
 				if prop, ok := props[name].(map[string]any); ok {
@@ -338,15 +294,9 @@ func getStructName(cfg any) string {
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
-	return fmt.Sprintf("%s.%s", t.PkgPath(), t.Name())
-}
-
-func getComponentKey(cfg any) string {
-	t := reflect.TypeOf(cfg)
-	if t.Kind() == reflect.Ptr {
-		t = t.Elem()
-	}
-	return fmt.Sprintf("%s/%s", t.PkgPath(), t.Name())
+	pkg := t.PkgPath()
+	tailElem := strings.Split(pkg, "/")[len(strings.Split(pkg, "/"))-1]
+	return fmt.Sprintf("%s_%s", tailElem, t.Name())
 }
 
 func getDefaults(cfg any) map[string]any {

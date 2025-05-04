@@ -17,32 +17,38 @@ import (
 )
 
 // normalizeRequiredFields sorts the required fields in a schema to ensure consistent ordering
-func normalizeRequiredFields(schema map[string]interface{}) {
-	// Sort required fields in the definitions
-	if definitions, ok := schema["definitions"].(map[string]interface{}); ok {
-		for _, def := range definitions {
-			if defMap, ok := def.(map[string]interface{}); ok {
-				if required, ok := defMap["required"].([]interface{}); ok {
-					// Convert to strings for sorting
-					requiredStrs := make([]string, len(required))
-					for i, r := range required {
-						requiredStrs[i] = r.(string)
-					}
-					// Sort the strings
-					sort.Strings(requiredStrs)
-					// Convert back to interface{}
-					sortedRequired := make([]interface{}, len(requiredStrs))
-					for i, r := range requiredStrs {
-						sortedRequired[i] = r
-					}
-					defMap["required"] = sortedRequired
+func normalizeRequiredFields(schema map[string]any) {
+	// Sort required fields in the components
+	components, ok := schema["components"].(map[string]any)
+	if !ok {
+		return
+	}
+	schemas, ok2 := components["schemas"].(map[string]any)
+	if !ok2 {
+		return
+	}
+	for _, def := range schemas {
+		if defMap, ok := def.(map[string]any); ok {
+			if required, ok := defMap["required"].([]any); ok {
+				// Convert to strings for sorting
+				requiredStrs := make([]string, len(required))
+				for i, r := range required {
+					requiredStrs[i] = r.(string)
 				}
+				// Sort the strings
+				sort.Strings(requiredStrs)
+				// Convert back to any
+				sortedRequired := make([]any, len(requiredStrs))
+				for i, r := range requiredStrs {
+					sortedRequired[i] = r
+				}
+				defMap["required"] = sortedRequired
 			}
 		}
 	}
 }
 
-func normalizeJSONSchema(t *testing.T, schemaBytes []byte) []byte {
+func normalizeJSONSchema(t *testing.T, schemaBytes []byte, fileName string) []byte {
 	var jsonMap map[string]any
 	require.NoError(t, json.Unmarshal(schemaBytes, &jsonMap))
 
@@ -52,6 +58,11 @@ func normalizeJSONSchema(t *testing.T, schemaBytes []byte) []byte {
 	// Convert back to JSON for comparison
 	outBytes, err := json.MarshalIndent(jsonMap, "", "  ")
 	require.NoError(t, err)
+
+	// Write the normalized schema to a file for debugging
+	err = os.WriteFile("testdata/normalized_"+fileName, outBytes, 0o644)
+	require.NoError(t, err)
+
 	return outBytes
 }
 
@@ -74,6 +85,7 @@ func TestConstructSchemaWithSimpleConfig(t *testing.T) {
 		DeprecatedField: "deprecated",
 	}}
 	pkgNames := collectPackages(configs)
+	// TODO use more complex structs referring to different packages
 	require.Equal(t, []string{
 		"github.com/jaegertracing/jaeger/cmd/jaeger/internal/configschema/testdata",
 	}, pkgNames)
@@ -91,8 +103,8 @@ func TestConstructSchemaWithSimpleConfig(t *testing.T) {
 
 	// Compare the schemas, but first normalize the required fields order
 	// TODO exporting schema as stable JSON should be in the prod functions
-	expectedSchemaBytes = normalizeJSONSchema(t, expectedSchemaBytes)
-	actualSchemaBytes = normalizeJSONSchema(t, actualSchemaBytes)
+	expectedSchemaBytes = normalizeJSONSchema(t, expectedSchemaBytes, "testconfig_schema.json")
+	actualSchemaBytes = normalizeJSONSchema(t, actualSchemaBytes, "actual_testconfig_schema.json")
 	if !assert.JSONEq(t, string(expectedSchemaBytes), string(actualSchemaBytes)) {
 		// write the actual schema to a file for debugging
 		err = os.WriteFile("testdata/actual_testconfig_schema.json", actualSchemaBytes, 0o644)

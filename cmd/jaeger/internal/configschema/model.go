@@ -6,24 +6,23 @@ import "encoding/json"
 
 // FieldDoc represents documentation for a struct field.
 type FieldDoc struct {
-	Name           string `json:"-"`
-	Type           string `json:"type"`
-	MapStructure   string `json:"mapstructure,omitempty"`
-	Description    string `json:"description,omitempty"`
-	DefaultValue   any    `json:"default,omitempty"`
-	Required       bool   `json:"required,omitempty"`
-	JSONSchemaType string `json:"-"`
-	NestedType     string `json:"$ref,omitempty"`
-	Deprecated     bool   `json:"deprecated,omitempty"`
+	Name         string `json:"-"`
+	Type         string `json:"type"`
+	MapStructure string `json:"mapstructure,omitempty"`
+	Description  string `json:"description,omitempty"`
+	DefaultValue any    `json:"default,omitempty"`
+	Required     bool   `json:"required,omitempty"`
+	Deprecated   bool   `json:"deprecated,omitempty"`
 }
 
 // StructDoc represents documentation for a struct.
 type StructDoc struct {
-	Name        string              `json:"-"`
-	PackagePath string              `json:"-"`
-	Description string              `json:"description,omitempty"`
-	Properties  map[string]FieldDoc `json:"properties"`
-	Required    []string            `json:"required,omitempty"`
+	QualifiedName string              `json:"-"`
+	ReadableName  string              `json:"-"`
+	PackagePath   string              `json:"-"`
+	Description   string              `json:"description,omitempty"`
+	Properties    map[string]FieldDoc `json:"properties"`
+	Required      []string            `json:"required,omitempty"`
 }
 
 type JSONSchema struct {
@@ -31,8 +30,12 @@ type JSONSchema struct {
 	Title       string                     `json:"title"`
 	Description string                     `json:"description"`
 	Type        string                     `json:"type"`
-	Definitions map[string]any             `json:"definitions"`
+	Components  Components                 `json:"components"`
 	Properties  map[string]any             `json:"properties"`
 	Required    []string                   `json:"required,omitempty"`
 	Extensions  map[string]json.RawMessage `json:"-"`
+}
+
+type Components struct {
+	Schemas map[string]any `json:"schemas"`
 }

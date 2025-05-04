@@ -54,12 +54,14 @@ func parseAST(file *ast.File, pkgPath string) []StructDoc {
 				continue
 			}
 
+			pkgAlias := strings.Split(pkgPath, "/")[len(strings.Split(pkgPath, "/"))-1]
 			structDoc := StructDoc{
-				Name:        fmt.Sprintf("%s.%s", pkgPath, typeSpec.Name.Name),
-				PackagePath: pkgPath,
-				Description: extractComment(genDecl.Doc),
-				Properties:  make(map[string]FieldDoc),
-				Required:    []string{},
+				QualifiedName: fmt.Sprintf("%s.%s", pkgPath, typeSpec.Name.Name),
+				ReadableName:  fmt.Sprintf("%s_%s", pkgAlias, typeSpec.Name.Name),
+				PackagePath:   pkgPath,
+				Description:   extractComment(genDecl.Doc),
+				Properties:    make(map[string]FieldDoc),
+				Required:      []string{},
 			}
 
 			for _, field := range structType.Fields.List {
@@ -125,15 +127,15 @@ func isValidJSONPropertyName(name string) bool {
 }
 
 func exprToString(expr ast.Expr, file *ast.File) string {
-	switch t := expr.(type) {
+	switch ft := expr.(type) {
 	case *ast.SelectorExpr:
-		return t.Sel.Name
+		return ft.Sel.Name
 	case *ast.Ident:
-		return t.Name
+		return ft.Name
 	case *ast.StarExpr:
-		return "*" + exprToString(t.X, file)
+		return "*" + exprToString(ft.X, file)
 	case *ast.ArrayType:
-		return "[]" + exprToString(t.Elt, file)
+		return "[]" + exprToString(ft.Elt, file)
 	default:
 		return "unknown"
 	}
