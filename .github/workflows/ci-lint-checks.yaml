@@ -168,8 +168,8 @@ jobs:
         restore-keys: |
           jaeger_binary_size
 
-    - name: Compare jaeger binary sizes
-      if: steps.cache-binary-size.outputs.cache-matched-key != ''
+    - name: Compare `jaeger` binary sizes
+      if: ${{ (steps.cache-binary-size.outputs.cache-matched-key != '') && ((github.event_name != 'push') || (github.ref != 'refs/heads/main')) }}
       run: |
         set -euf -o pipefail
         OLD_BINARY_SIZE=$(cat ./jaeger_binary_size.txt)
