@@ -6,15 +6,15 @@ import "encoding/json"
 
 // FieldDoc represents documentation for a struct field.
 type FieldDoc struct {
-	Name           string      `json:"-"`
-	Type           string      `json:"type"`
-	MapStructure   string      `json:"mapstructure,omitempty"`
-	Description    string      `json:"description,omitempty"`
-	DefaultValue   interface{} `json:"default,omitempty"`
-	Required       bool        `json:"required,omitempty"`
-	JSONSchemaType string      `json:"-"`
-	NestedType     string      `json:"$ref,omitempty"`
-	Deprecated     bool        `json:"deprecated,omitempty"`
+	Name           string `json:"-"`
+	Type           string `json:"type"`
+	MapStructure   string `json:"mapstructure,omitempty"`
+	Description    string `json:"description,omitempty"`
+	DefaultValue   any    `json:"default,omitempty"`
+	Required       bool   `json:"required,omitempty"`
+	JSONSchemaType string `json:"-"`
+	NestedType     string `json:"$ref,omitempty"`
+	Deprecated     bool   `json:"deprecated,omitempty"`
 }
 
 // StructDoc represents documentation for a struct.
