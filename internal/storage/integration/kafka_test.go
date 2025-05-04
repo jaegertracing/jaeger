@@ -31,7 +31,7 @@ import (
 
 const (
 	defaultLocalKafkaBroker                 = "127.0.0.1:9092"
-	defaultLocalKafkaBrokerSASLSSLPlaintext = "127.0.0.1:29093"
+	defaultLocalKafkaBrokerSASLSSLPlaintext = "127.0.0.1:9093"
 	defaultLocalKafkaBrokerSASLPlaintext    = "127.0.0.1:9095"
 )
 
@@ -157,7 +157,7 @@ func (s *KafkaIntegrationTestSuite) initializeWithSASLSSLPlaintext(t *testing.T)
 		"--kafka.producer.tls.enabled",
 		"true",
 		"--kafka.producer.tls.ca",
-		"/Users/amolverma/contri/jaeger/certs/ca.pem",
+		"../../../pkg/config/tlscfg/testdata/kafka-certs/ca.pem",
 	})
 	require.NoError(t, err)
 	f.InitFromViper(v, logger)
@@ -191,7 +191,7 @@ func (s *KafkaIntegrationTestSuite) initializeWithSASLSSLPlaintext(t *testing.T)
 		"--kafka.consumer.tls.enabled",
 		"true",
 		"--kafka.consumer.tls.ca",
-		"/Users/amolverma/contri/jaeger/certs/ca.pem",
+		"../../../pkg/config/tlscfg/testdata/kafka-certs/ca.pem",
 		"--ingester.parallelism",
 		"1000",
 	})

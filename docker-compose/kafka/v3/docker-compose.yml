@@ -1,42 +1,31 @@
 version: "3"
 services:
-  zookeeper:
-    image: bitnami/zookeeper:latest
-    ports:
-      - "2181:2181"
-    environment:
-      - ALLOW_ANONYMOUS_LOGIN=yes
-
   kafka:
     image: bitnami/kafka:3.9.0
+    user: "0:0" # Run as root to avoid permission issues
     ports:
-      - "9092:9092" #Internal PLAINTEXT
-      - "9094:9094" #External PLAINTEXT
-      - "29093:29093" #SASL_PLAINTEXT + SSL
-      - "9095:9095" #SASL_PLAINTEXT
+      - "9092:9092"
+      - "9093:9093"
+      - "9094:9094"
+      - "9095:9095"
+    volumes:
+      - ../../../pkg/config/tlscfg/testdata/kafka-certs:/bitnami/kafka/config/certs
+      - kafka-data:/bitnami
     environment:
-      - KAFKA_BROKER_ID=1
-      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
-      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
-
-      # Listeners configuration
-      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=INTERNAL:PLAINTEXT,OUTSIDE:PLAINTEXT,EXTERNAL:SASL_SSL,SASL_PLAIN:SASL_PLAINTEXT
-      - KAFKA_CFG_LISTENERS=INTERNAL://0.0.0.0:9092,OUTSIDE://0.0.0.0:9094,EXTERNAL://0.0.0.0:29093,SASL_PLAIN://0.0.0.0:9095
-      - KAFKA_CFG_ADVERTISED_LISTENERS=INTERNAL://kafka:9092,OUTSIDE://localhost:9094,EXTERNAL://localhost:29093,SASL_PLAIN://localhost:9095
-      - KAFKA_INTER_BROKER_LISTENER_NAME=INTERNAL
-      - KAFKA_CFG_OUTSIDE_SASL_ENABLED_MECHANISMS=
-      - ALLOW_PLAINTEXT_LISTENER=yes
-
+      # KRaft settings
+      - KAFKA_CFG_NODE_ID=1
+      - KAFKA_CFG_PROCESS_ROLES=broker,controller
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@localhost:9096
+      # Listeners
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9096,SASL_SSL://:9093,SASL_PLAINTEXT://:9095
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://127.0.0.1:9092,SASL_SSL://127.0.0.1:9093,SASL_PLAINTEXT://127.0.0.1:9095
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,SASL_SSL:SASL_SSL,SASL_PLAINTEXT:SASL_PLAINTEXT
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      # SASL Configuration
       - KAFKA_CFG_SASL_ENABLED_MECHANISMS=PLAIN
-      - KAFKA_CFG_SASL_MECHANISM_INTER_BROKER_PROTOCOL=PLAIN
-
-      # Message size configuration
-      - KAFKA_CFG_RECEIVE_MESSAGE_MAX_BYTES=1048576000
-      - KAFKA_CFG_SOCKET_RECEIVE_BUFFER_BYTES=1048576000
-      - KAFKA_CFG_MESSAGE_MAX_BYTES=1048576000
-      - KAFKA_CFG_REPLICA_FETCH_MAX_BYTES=1048576000
-      - KAFKA_CFG_FETCH_MESSAGE_MAX_BYTES=1048576000
-
+      - KAFKA_CLIENT_USERS=admin
+      - KAFKA_CLIENT_PASSWORDS=admin-secret
       # SSL Configuration
       - KAFKA_TLS_TYPE=JKS
       - KAFKA_CFG_SSL_KEYSTORE_LOCATION=/bitnami/kafka/config/certs/kafka.keystore.jks
@@ -44,24 +33,26 @@ services:
       - KAFKA_CFG_SSL_KEY_PASSWORD=kafkapass123
       - KAFKA_CFG_SSL_TRUSTSTORE_LOCATION=/bitnami/kafka/config/certs/kafka.truststore.jks
       - KAFKA_CFG_SSL_TRUSTSTORE_PASSWORD=kafkapass123
-
-      # SASL Configuration
-      - KAFKA_CFG_SASL_ENABLED_MECHANISMS=PLAIN
-      - KAFKA_CFG_SASL_MECHANISM_INTER_BROKER_PROTOCOL=PLAIN
-      - KAFKA_CLIENT_USERS=admin
-      - KAFKA_CLIENT_PASSWORDS=admin-secret
-    volumes:
-      - ../certs:/bitnami/kafka/config/certs
-    depends_on:
-      - zookeeper
-    links:
-      - zookeeper
+      # Allow plaintext listener for development
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      # Debug mode for more verbose logs
+      - BITNAMI_DEBUG=true
+      # Additional settings
+      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+      # Force skip KRaft initialization if already done
+      - KAFKA_SKIP_KRAFT_STORAGE_INITIALIZATION=yes
+      # KRaft cluster ID
+      - KAFKA_KRAFT_CLUSTER_ID=MkU3OEVBNTcwNTJENDM2Qg
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "kafka-topics.sh --list --bootstrap-server 127.0.0.1:9092",
+          "kafka-topics.sh --list --bootstrap-server localhost:9092",
         ]
-      interval: 10s
+      interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
+      start_period: 30s
+
+volumes:
+  kafka-data:
