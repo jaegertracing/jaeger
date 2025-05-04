@@ -1,12 +1,5 @@
 version: "3"
 services:
-  zookeeper:
-    image: bitnami/zookeeper:latest
-    ports:
-      - "2181:2181"
-    environment:
-      - ALLOW_ANONYMOUS_LOGIN=yes
-
   kafka:
     image: bitnami/kafka:3.9.0
     user: "0:0" # Run as root to avoid permission issues
