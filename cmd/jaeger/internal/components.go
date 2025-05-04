@@ -10,6 +10,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckv2extension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
@@ -118,6 +119,7 @@ func (b builders) build() (otelcol.Factories, error) {
 		memorylimiterprocessor.NewFactory(),
 		tailsamplingprocessor.NewFactory(),
 		attributesprocessor.NewFactory(),
+		filterprocessor.NewFactory(),
 		// add-ons
 		adaptivesampling.NewFactory(),
 	)
