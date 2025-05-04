@@ -154,6 +154,7 @@ jobs:
       run: make build-jaeger
 
     - name: Calculate jaeger binary size
+      id: compute-binary-size
       run: |
         TOTAL_SIZE=$(du -sb ./cmd/jaeger/jaeger-linux-amd64 | cut -f1)
         echo "$TOTAL_SIZE" > ./new_jaeger_binary_size.txt
@@ -188,12 +189,13 @@ jobs:
 
 
     - name: Remove previous *_binary_*.txt
+      if: steps.compute-binary-size.outputs.result == 'success'
       run: |
         rm -rf ./jaeger_binary_size.txt
         mv ./new_jaeger_binary_size.txt ./jaeger_binary_size.txt
 
     - name: Save new jaeger binary size
-      if: ${{ (github.event_name == 'push') && (github.ref == 'refs/heads/main') }}
+      if: ${{ (github.event_name == 'push') && (github.ref == 'refs/heads/main') && (steps.compute-binary-size.outputs.result == 'success')}}
       uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57     #v4.2.0
       with:
         path: ./jaeger_binary_size.txt
