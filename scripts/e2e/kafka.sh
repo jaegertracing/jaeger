@@ -6,7 +6,7 @@
 set -euf -o pipefail
 
 compose_file=""
-jaeger_version="v1"
+jaeger_version="v2"
 kafka_version="v3"
 manage_kafka="true"
 success="false"
