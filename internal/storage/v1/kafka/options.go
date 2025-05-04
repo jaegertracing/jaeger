@@ -104,6 +104,7 @@ type Options struct {
 	Config   producer.Configuration `mapstructure:",squash"`
 	Topic    string                 `mapstructure:"topic"`
 	Encoding string                 `mapstructure:"encoding"`
+	Brokers  []string               `mapstructure:"brokers"`
 }
 
 // AddFlags adds flags for Options

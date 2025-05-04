@@ -10,6 +10,7 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/component"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
@@ -88,7 +89,10 @@ func (*Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return NewSpanWriter(f.producer, f.marshaller, f.options.Topic, f.metricsFactory, f.logger), nil
+	telemetrySettings := component.TelemetrySettings{
+		Logger: f.logger,
+	}
+	return NewSpanWriter(f.options.Topic, f.metricsFactory, f.options.Brokers, f.marshaller, f.logger, telemetrySettings)
 }
 
 // CreateDependencyReader implements storage.Factory

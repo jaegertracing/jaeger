@@ -25,9 +25,10 @@ type spanWriterMetrics struct {
 
 // SpanWriter writes spans to kafka. Implements spanstore.Writer
 type SpanWriter struct {
-	metrics  spanWriterMetrics
-	exporter component.Component
-	pushFunc func(ctx context.Context, td ptrace.Traces) error
+	metrics    spanWriterMetrics
+	exporter   component.Component
+	marshaller Marshaller
+	pushFunc   func(ctx context.Context, td ptrace.Traces) error
 }
 
 // NewSpanWriter initiates and returns a new kafka spanwriter
@@ -35,7 +36,9 @@ func NewSpanWriter(
 	topic string,
 	factory metrics.Factory,
 	brokers []string,
+	marshaller Marshaller,
 	logger *zap.Logger,
+	telemetry component.TelemetrySettings,
 ) (*SpanWriter, error) {
 	writeMetrics := spanWriterMetrics{
 		SpansWrittenSuccess: factory.Counter(metrics.Options{Name: "kafka_spans_written", Tags: map[string]string{"status": "success"}}),
@@ -50,8 +53,8 @@ func NewSpanWriter(
 		ID: component.MustNewID("kafka"),
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         logger,
-			TracerProvider: nil,
-			MeterProvider:  nil,
+			TracerProvider: telemetry.TracerProvider,
+			MeterProvider:  telemetry.MeterProvider,
 		},
 		BuildInfo: component.NewDefaultBuildInfo(),
 	}
@@ -62,9 +65,10 @@ func NewSpanWriter(
 	}
 
 	return &SpanWriter{
-		metrics:  writeMetrics,
-		exporter: exp,
-		pushFunc: exp.ConsumeTraces,
+		metrics:    writeMetrics,
+		exporter:   exp,
+		marshaller: marshaller,
+		pushFunc:   exp.ConsumeTraces,
 	}, nil
 }
 
