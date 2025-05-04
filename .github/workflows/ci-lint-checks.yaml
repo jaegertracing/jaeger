@@ -169,6 +169,16 @@ jobs:
         restore-keys: |
           jaeger_binary_size
 
+    - name: Extact new and old Jaeger binary sizes
+      if: steps.cache-binary-size.outputs.cache-matched-key != ''
+      run: |
+        OLD_BINARY_SIZE=$(cat ./jaeger_binary_size.txt)
+        NEW_BINARY_SIZE=$(cat ./new_jaeger_binary_size.txt)
+        echo "Previous binary size: $OLD_BINARY_SIZE bytes"
+        echo "New binary size: $NEW_BINARY_SIZE bytes"
+        echo "MY_CUSTOM_VAR=my_custom_value" >> $GITHUB_ENV
+        echo "MY_CUSTOM_VAR=my_custom_value" >> $GITHUB_ENV
+
     - name: Compare jaeger binary sizes
       if: steps.cache-binary-size.outputs.cache-matched-key != ''
       run: |
