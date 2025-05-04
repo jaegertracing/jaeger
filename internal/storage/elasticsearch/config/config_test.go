@@ -19,6 +19,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
+	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
@@ -57,54 +58,6 @@ var mockEsServerResponseWithVersion8 = []byte(`
 	}
 }
 `)
-
-// mock collector implementation for testing
-type testCollector struct {
-	counterCalled map[string]int
-	timerCalled   int
-}
-
-func (t *testCollector) Counter(opts metrics.Options) metrics.Counter {
-	if t.counterCalled == nil {
-		t.counterCalled = make(map[string]int)
-	}
-	return &testCounter{collector: t, name: opts.Name}
-}
-
-func (t *testCollector) Timer(_ metrics.TimerOptions) metrics.Timer {
-	return &testTimer{collector: t}
-}
-
-func (*testCollector) Gauge(_ metrics.Options) metrics.Gauge {
-	return nil
-}
-
-func (*testCollector) Histogram(_ metrics.HistogramOptions) metrics.Histogram {
-	return nil
-}
-
-func (t *testCollector) Namespace(_ metrics.NSOptions) metrics.Factory {
-	return t
-}
-
-type testCounter struct {
-	collector *testCollector
-	name      string
-}
-
-func (c *testCounter) Inc(_ int64) {
-	c.collector.counterCalled[c.name]++
-}
-
-func (*testCounter) Dec(_ int64) {}
-
-type testTimer struct {
-	collector *testCollector
-}
-
-func (t *testTimer) Record(_ time.Duration) {
-	t.collector.timerCalled++
-}
 
 func copyToTempFile(t *testing.T, pattern string, filename string) (file *os.File) {
 	tempDir := t.TempDir()
@@ -848,9 +801,10 @@ func TestApplyForIndexPrefix(t *testing.T) {
 }
 
 func TestHandleBulkAfterCallback_ErrorMetricsEmitted(t *testing.T) {
-	collector := &testCollector{}
-	sm := spanstoremetrics.NewWriter(collector, "bulk_index")
+	mf := metricstest.NewFactory(time.Minute)
+	sm := spanstoremetrics.NewWriter(mf, "bulk_index")
 	logger := zap.NewNop()
+	defer mf.Stop()
 
 	var m sync.Map
 	batchID := int64(1)
@@ -878,8 +832,16 @@ func TestHandleBulkAfterCallback_ErrorMetricsEmitted(t *testing.T) {
 
 	handleBulkAfterCallback(batchID, fakeRequests, response, assert.AnError, &m, sm, logger)
 
-	require.Equal(t, 2, collector.counterCalled["errors"])
-	require.Equal(t, 1, collector.counterCalled["inserts"])
+	mf.AssertCounterMetrics(t,
+		metricstest.ExpectedMetric{
+			Name:  "bulk_index.errors",
+			Value: 2,
+		},
+		metricstest.ExpectedMetric{
+			Name:  "bulk_index.inserts",
+			Value: 1,
+		},
+	)
 }
 
 func TestMain(m *testing.M) {

@@ -306,7 +306,9 @@ func handleBulkAfterCallback(id int64, requests []elastic.BulkableRequest, respo
 	sm.Emit(err, time.Since(start.(time.Time)))
 	if err != nil {
 		var failed int
-		if response != nil {
+		if response == nil {
+			failed = 0
+		} else {
 			failed = len(response.Failed())
 		}
 		total := len(requests)
