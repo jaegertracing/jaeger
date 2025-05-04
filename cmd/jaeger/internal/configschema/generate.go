@@ -116,7 +116,7 @@ func loadPackages(pkgPaths []string) ([]*packages.Package, error) {
 
 func constructSchema(pkgs []*packages.Package, configs []any) (*JSONSchema, error) {
 	schema := JSONSchema{
-		Schema:      "https://json-schema.org/draft/2019-09/schema",
+		Schema:      "https://json-schema.org/draft/2020-12/schema",
 		Title:       "Jaeger Configuration",
 		Description: "Jaeger component configuration schema",
 		Type:        "object",
@@ -140,37 +140,38 @@ func constructSchema(pkgs []*packages.Package, configs []any) (*JSONSchema, erro
 		schema.Definitions[s.Name] = buildSchemaStruct(s, structRegistry)
 	}
 
-	// Build root properties
-	rootProps := make(map[string]any)
-	// Inside GenerateDocs() function, after building rootProps:
-	for key := range rootProps {
-		if _, exists := schema.Definitions[getStructNameFromKey(key)]; !exists {
-			return nil, fmt.Errorf("missing definition for component: %s", key)
-		}
-	}
+	// TODO why do we need root properties? We don't have a single top-level object
+	// // Build root properties
+	// rootProps := make(map[string]any)
+	// // Inside GenerateDocs() function, after building rootProps:
+	// for key := range rootProps {
+	// 	if _, exists := schema.Definitions[getStructNameFromKey(key)]; !exists {
+	// 		return nil, fmt.Errorf("missing definition for component: %s", key)
+	// 	}
+	// }
 
-	for _, cfg := range configs {
-		key := getComponentKey(cfg)
-		if key == "/" {
-			continue // Skip root entry
-		}
-		t := reflect.TypeOf(cfg)
-		if t.Kind() == reflect.Ptr {
-			t = t.Elem()
-		}
-		pkgPath := t.PkgPath()
-		structName := fmt.Sprintf("%s.%s", pkgPath, t.Name())
+	// for _, cfg := range configs {
+	// 	key := getComponentKey(cfg)
+	// 	if key == "/" {
+	// 		continue // Skip root entry
+	// 	}
+	// 	t := reflect.TypeOf(cfg)
+	// 	if t.Kind() == reflect.Ptr {
+	// 		t = t.Elem()
+	// 	}
+	// 	pkgPath := t.PkgPath()
+	// 	structName := fmt.Sprintf("%s.%s", pkgPath, t.Name())
 
-		// Skip invalid entries like "/"
-		if pkgPath == "" || t.Name() == "" {
-			continue
-		}
+	// 	// Skip invalid entries like "/"
+	// 	if pkgPath == "" || t.Name() == "" {
+	// 		continue
+	// 	}
 
-		rootProps[getComponentKey(cfg)] = map[string]any{
-			"$ref": fmt.Sprintf("#/definitions/%s", structName),
-		}
-	}
-	schema.Properties = rootProps
+	// 	rootProps[getComponentKey(cfg)] = map[string]any{
+	// 		"$ref": fmt.Sprintf("#/definitions/%s", structName),
+	// 	}
+	// }
+	// schema.Properties = rootProps
 
 	return &schema, nil
 }

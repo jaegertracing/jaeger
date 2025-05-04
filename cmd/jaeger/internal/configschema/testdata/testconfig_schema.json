@@ -1,5 +1,5 @@
 {
-  "$schema": "https://json-schema.org/draft/2019-09/schema",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Jaeger Configuration",
   "description": "Jaeger component configuration schema",
   "type": "object",
@@ -75,9 +75,5 @@
       ]
     }
   },
-  "properties": {
-    "github.com/jaegertracing/jaeger/cmd/jaeger/internal/configschema/testdata/TestConfig": {
-      "$ref": "#/definitions/github.com/jaegertracing/jaeger/cmd/jaeger/internal/configschema/testdata.TestConfig"
-    }
-  }
+  "properties": {}
 }

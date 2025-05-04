@@ -12,7 +12,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/tools/go/packages"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/configschema/testdata"
 )
@@ -60,8 +59,7 @@ func TestConstructSchemaWithSimpleConfig(t *testing.T) {
 	expectedSchemaBytes, err := os.ReadFile(filepath.Join("testdata", "testconfig_schema.json"))
 	require.NoError(t, err)
 
-	// Create a test config
-	testConfig := &testdata.TestConfig{
+	configs := []any{&testdata.TestConfig{
 		Name:    "test-service",
 		Port:    8080,
 		Enabled: true,
@@ -74,17 +72,17 @@ func TestConstructSchemaWithSimpleConfig(t *testing.T) {
 			RetryCount: 3,
 		},
 		DeprecatedField: "deprecated",
-	}
+	}}
+	pkgNames := collectPackages(configs)
+	require.Equal(t, []string{
+		"github.com/jaegertracing/jaeger/cmd/jaeger/internal/configschema/testdata",
+	}, pkgNames)
 
-	// Load the package containing our test structs
-	cfg := &packages.Config{
-		Mode: packages.NeedSyntax | packages.NeedTypes | packages.NeedName,
-	}
-	pkgs, err := packages.Load(cfg, "github.com/jaegertracing/jaeger/cmd/jaeger/internal/configschema/testdata")
+	pkgs, err := loadPackages(pkgNames)
 	require.NoError(t, err)
 
 	// Generate schema for our test config using the package's constructSchema function
-	schema, err := constructSchema(pkgs, []any{testConfig})
+	schema, err := constructSchema(pkgs, configs)
 	require.NoError(t, err)
 
 	// Convert actual schema to JSON for comparison
