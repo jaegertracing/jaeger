@@ -499,6 +499,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin 
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.125.0/go.mod h1:oyjIX9QOl1ucJpTyrWVIJcm5N1h2yXiEt6O0lxiWSJM=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.125.0 h1:TZz0jQv3smTyMHCiD3Z4jPBH5yU9/F8hdmhk0YZEDxY=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.125.0/go.mod h1:Q7lsheavA9C4L7Kd+N0/2dB96HJcB7tarvjIpqRAXnY=
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.125.0 h1:uwF96SJ/YDfo26zJwYljRrwot9XAMBiyTf0uPk1aEGM=
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.125.0/go.mod h1:2Nmo//97UbjpwULoIFWHQBJeS2Ymawu4wyhVeYQAY34=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.125.0 h1:ZsopjL3itxxpTFFz+GNzXjE5vuBCo42aAby6iQgaynI=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.125.0/go.mod h1:u5tkNGg8Y/kkC1lZVtRNnTaNvGEXSa0wFvWWrBFKycM=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.125.0 h1:BFWv2TJFr5JhdAPPtidE3hF5zShPrV1U98NzCV1hNTg=
