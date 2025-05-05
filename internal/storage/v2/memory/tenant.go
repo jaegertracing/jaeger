@@ -115,10 +115,7 @@ func validTrace(td ptrace.Traces, query tracestore.TraceQueryParams) bool {
 }
 
 func validResource(resource pcommon.Resource, query tracestore.TraceQueryParams) bool {
-	if query.ServiceName != "" && query.ServiceName != getServiceNameFromResource(resource) {
-		return false
-	}
-	return true
+	return query.ServiceName == "" || query.ServiceName == getServiceNameFromResource(resource)
 }
 
 func validSpan(resourceAttributes, scopeAttributes pcommon.Map, span ptrace.Span, query tracestore.TraceQueryParams) bool {
