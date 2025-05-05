@@ -6,9 +6,7 @@ package memory
 import (
 	"context"
 	"iter"
-	"sort"
 	"sync"
-	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -110,138 +108,9 @@ func (st *Store) GetServices(ctx context.Context) ([]string, error) {
 	return retMe, nil
 }
 
-// tracesByTime stores traces with their time. It is needed because if found traces
-// are more than the search depth then we have to return the newest traces
-type tracesByTime struct {
-	ts     time.Time
-	traces ptrace.Traces
-}
-
 func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
-	return func(yield func([]ptrace.Traces, error) bool) {
-		m := st.getTenant(tenancy.GetTenant(ctx))
-		tracesByTm := make([]tracesByTime, 0)
-		m.RLock()
-		for _, trace := range m.traces {
-			if startTime, ok := validTrace(trace, query); ok {
-				tracesByTm = append(tracesByTm, tracesByTime{
-					ts:     startTime,
-					traces: trace,
-				})
-			}
-		}
-		// No need of lock now as result is fetched!
-		m.RUnlock()
-		// Query result order doesn't matter, as the query frontend will sort them anyway.
-		// However, if query.NumTraces < results, then we should return the newest traces.
-		if query.SearchDepth > 0 && len(tracesByTm) > query.SearchDepth {
-			sort.Slice(tracesByTm, func(i, j int) bool {
-				return tracesByTm[i].ts.Before(tracesByTm[j].ts)
-			})
-			tracesByTm = tracesByTm[len(tracesByTm)-query.SearchDepth:]
-		}
-		for _, trace := range tracesByTm {
-			if !yield([]ptrace.Traces{trace.traces}, nil) {
-				return
-			}
-		}
-	}
-}
-
-func validTrace(td ptrace.Traces, query tracestore.TraceQueryParams) (time.Time, bool) {
-	for _, resourceSpan := range td.ResourceSpans().All() {
-		if validResource(resourceSpan.Resource(), query) {
-			resourceTags := getKeyValueFromAttributes(resourceSpan.Resource().Attributes())
-			for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
-				scopeTags := getKeyValueFromAttributes(scopeSpan.Scope().Attributes())
-				resourceAndScopeTags := append(resourceTags, scopeTags...)
-				for _, span := range scopeSpan.Spans().All() {
-					if validSpan(resourceAndScopeTags, span, query) {
-						return span.StartTimestamp().AsTime(), true
-					}
-				}
-			}
-		}
-	}
-	return time.Time{}, false
-}
-
-func validResource(resource pcommon.Resource, query tracestore.TraceQueryParams) bool {
-	if query.ServiceName != "" && query.ServiceName != getServiceNameFromResource(resource) {
-		return false
-	}
-	return true
-}
-
-// keyValue stores the key and value of OTLP maps. We need this because we can't directly
-// merge the attributes, but on we need the resource attributes, scope attributes
-// and span attributes as a whole, therefore they need to merged.
-type keyValue struct {
-	key   string
-	value pcommon.Value
-}
-
-func validSpan(resourceAndScopeTags []keyValue, span ptrace.Span, query tracestore.TraceQueryParams) bool {
-	attrs := pcommon.NewMap()
-	query.Attributes.CopyTo(attrs)
-	errorAttributeFound := false
-	if errorAttr, ok := attrs.Get(errorAttribute); ok {
-		errorAttributeFound = errorAttr.Bool()
-		attrs.Remove(errorAttribute)
-	}
-	spanTags := getKeyValueFromAttributes(span.Attributes())
-	tags := append(spanTags, resourceAndScopeTags...)
-	for _, val := range span.Events().All() {
-		eventTag := getKeyValueFromAttributes(val.Attributes())
-		tags = append(tags, eventTag...)
-	}
-	for queryK, queryV := range attrs.All() {
-		if ok := findKeyValueMatch(tags, queryK, queryV); !ok {
-			return false
-		}
-	}
-	if errorAttributeFound && span.Status().Code() != ptrace.StatusCodeError {
-		return false
-	}
-	if query.OperationName != span.Name() {
-		return false
-	}
-	startTime := span.StartTimestamp().AsTime()
-	endTime := span.EndTimestamp().AsTime()
-	if !query.StartTimeMin.IsZero() && startTime.Before(query.StartTimeMin) {
-		return false
-	}
-	if !query.StartTimeMax.IsZero() && startTime.After(query.StartTimeMax) {
-		return false
-	}
-	duration := endTime.Sub(span.StartTimestamp().AsTime())
-	if query.DurationMin != 0 && duration < query.DurationMin {
-		return false
-	}
-	if query.DurationMax != 0 && duration > query.DurationMax {
-		return false
-	}
-	return true
-}
-
-func findKeyValueMatch(kvs []keyValue, key string, value pcommon.Value) bool {
-	for _, kv := range kvs {
-		if kv.key == key && kv.value.AsString() == value.AsString() {
-			return true
-		}
-	}
-	return false
-}
-
-func getKeyValueFromAttributes(attrs pcommon.Map) []keyValue {
-	kvs := make([]keyValue, 0, attrs.Len())
-	for key, val := range attrs.All() {
-		kvs = append(kvs, keyValue{
-			key:   key,
-			value: val,
-		})
-	}
-	return kvs
+	m := st.getTenant(tenancy.GetTenant(ctx))
+	return m.findTraces(query)
 }
 
 // reshuffleResourceSpans reshuffles the resource spans so as to group the spans from same traces together. To understand this reshuffling

@@ -4,6 +4,7 @@
 package memory
 
 import (
+	"iter"
 	"sync"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -74,4 +75,112 @@ func (t *Tenant) storeTraces(traceId pcommon.TraceID, resourceSpanSlice ptrace.R
 		// update the ring with the trace id
 		t.ids[t.evict] = traceId
 	}
+}
+
+func (t *Tenant) findTraces(query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+	return func(yield func([]ptrace.Traces, error) bool) {
+		t.RLock()
+		tracesFound := 0
+		for _, traceId := range t.ids {
+			trace, ok := t.traces[traceId]
+			if ok {
+				if traceFound := validTrace(trace, query); traceFound {
+					tracesFound++
+					if query.SearchDepth != 0 && tracesFound > query.SearchDepth {
+						return
+					}
+					if !yield([]ptrace.Traces{trace}, nil) {
+						return
+					}
+				}
+			}
+		}
+		t.RUnlock()
+	}
+}
+
+func validTrace(td ptrace.Traces, query tracestore.TraceQueryParams) bool {
+	for _, resourceSpan := range td.ResourceSpans().All() {
+		if validResource(resourceSpan.Resource(), query) {
+			for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
+				for _, span := range scopeSpan.Spans().All() {
+					if validSpan(resourceSpan.Resource().Attributes(), scopeSpan.Scope().Attributes(), span, query) {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func validResource(resource pcommon.Resource, query tracestore.TraceQueryParams) bool {
+	if query.ServiceName != "" && query.ServiceName != getServiceNameFromResource(resource) {
+		return false
+	}
+	return true
+}
+
+func validSpan(resourceAttributes, scopeAttributes pcommon.Map, span ptrace.Span, query tracestore.TraceQueryParams) bool {
+	attrs := pcommon.NewMap()
+	query.Attributes.CopyTo(attrs)
+	errorAttributeFound := false
+	if errorAttr, ok := attrs.Get(errorAttribute); ok {
+		errorAttributeFound = errorAttr.Bool()
+		attrs.Remove(errorAttribute)
+	}
+	if attrs.Len() > 0 {
+		tagsMatched := false
+		for key, val := range attrs.All() {
+			tagsMatched = matchAttributes(key, val, span.Attributes()) || matchAttributes(key, val, scopeAttributes) || matchAttributes(key, val, resourceAttributes)
+			if tagsMatched {
+				break
+			}
+		}
+		if !tagsMatched {
+			for _, event := range span.Events().All() {
+				for key, val := range attrs.All() {
+					tagsMatched = matchAttributes(key, val, event.Attributes())
+					if tagsMatched {
+						break
+					}
+				}
+				if tagsMatched {
+					break
+				}
+			}
+		}
+		if !tagsMatched {
+			return false
+		}
+	}
+	if errorAttributeFound && span.Status().Code() != ptrace.StatusCodeError {
+		return false
+	}
+	if query.OperationName != span.Name() {
+		return false
+	}
+	startTime := span.StartTimestamp().AsTime()
+	endTime := span.EndTimestamp().AsTime()
+	if !query.StartTimeMin.IsZero() && startTime.Before(query.StartTimeMin) {
+		return false
+	}
+	if !query.StartTimeMax.IsZero() && startTime.After(query.StartTimeMax) {
+		return false
+	}
+	duration := endTime.Sub(span.StartTimestamp().AsTime())
+	if query.DurationMin != 0 && duration < query.DurationMin {
+		return false
+	}
+	if query.DurationMax != 0 && duration > query.DurationMax {
+		return false
+	}
+	return true
+}
+
+func matchAttributes(key string, val pcommon.Value, attrs pcommon.Map) bool {
+	if queryValue, ok := attrs.Get(key); ok {
+		return queryValue.AsString() == val.AsString()
+	}
+	return false
 }

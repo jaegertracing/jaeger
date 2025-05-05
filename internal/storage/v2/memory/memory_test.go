@@ -26,7 +26,9 @@ import (
 )
 
 func TestNewStore_DefaultConfig(t *testing.T) {
-	store := NewStore(v1.Configuration{})
+	store := NewStore(v1.Configuration{
+		MaxTraces: 10,
+	})
 	td := loadInputTraces(t, 1)
 	err := store.WriteTraces(context.Background(), td)
 	require.NoError(t, err)
@@ -108,13 +110,15 @@ func TestFindTraces_WrongQuery(t *testing.T) {
 		{
 			name: "wrong service-name",
 			modifyQueryFxn: func(query *tracestore.TraceQueryParams) {
-				query.Attributes.PutStr(conventions.AttributeServiceName, wrongStringValue)
+				query.ServiceName = wrongStringValue
 			},
 		},
 		{
 			name: "wrong tag",
 			modifyQueryFxn: func(query *tracestore.TraceQueryParams) {
-				query.Attributes.PutStr(wrongStringValue, wrongStringValue)
+				attrs := pcommon.NewMap()
+				attrs.PutStr(wrongStringValue, wrongStringValue)
+				attrs.MoveTo(query.Attributes)
 			},
 		},
 		{
@@ -155,7 +159,9 @@ func TestFindTraces_WrongQuery(t *testing.T) {
 			},
 		},
 	}
-	store := NewStore(v1.Configuration{})
+	store := NewStore(v1.Configuration{
+		MaxTraces: 10,
+	})
 	td := loadInputTraces(t, 1)
 	err := store.WriteTraces(context.Background(), td)
 	require.NoError(t, err)
@@ -179,7 +185,9 @@ func TestFindTraces_WrongQuery(t *testing.T) {
 }
 
 func TestFindTraces_MaxTraces(t *testing.T) {
-	store := NewStore(v1.Configuration{})
+	store := NewStore(v1.Configuration{
+		MaxTraces: 10,
+	})
 	for i := 1; i < 9; i++ {
 		td := ptrace.NewTraces()
 		span := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
@@ -197,8 +205,9 @@ func TestFindTraces_MaxTraces(t *testing.T) {
 	}
 	gotIter := store.FindTraces(context.Background(), params)
 	iterLength := 0
-	for _, err := range gotIter {
+	for traces, err := range gotIter {
 		require.NoError(t, err)
+		assert.Len(t, traces, 1)
 		iterLength++
 	}
 	assert.Equal(t, 5, iterLength)
