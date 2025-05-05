@@ -37,10 +37,6 @@ const (
 )
 
 type CoreFactory interface {
-	// AddFlags implements storage.Configurable
-	AddFlags(flagSet *flag.FlagSet)
-	// InitFromViper implements storage.Configurable
-	InitFromViper(v *viper.Viper)
 	// Initialize initializes the CoreFactory.
 	Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error
 	// CreateSamplingStore creates samplingstore.Store
@@ -61,6 +57,8 @@ type CoreFactory interface {
 	IsArchiveCapable() bool
 	// GetConfig returns the config related to CoreFactory
 	GetConfig() *config.Configuration
+	// SetConfig sets the config related to CoreFactory
+	SetConfig(config *config.Configuration)
 }
 
 // Factory implements storage.Factory for Elasticsearch backend.
@@ -179,6 +177,63 @@ func (f *Factory) getClient() es.Client {
 	return nil
 }
 
+func (f *Factory) GetSpanReaderParams() (esSpanStore.SpanReaderParams, error) {
+	if f.config.UseILM && !f.config.UseReadWriteAliases {
+		return esSpanStore.SpanReaderParams{}, errors.New("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
+	}
+	return esSpanStore.SpanReaderParams{
+		Client:              f.getClient,
+		MaxDocCount:         f.config.MaxDocCount,
+		MaxSpanAge:          f.config.MaxSpanAge,
+		IndexPrefix:         f.config.Indices.IndexPrefix,
+		SpanIndex:           f.config.Indices.Spans,
+		ServiceIndex:        f.config.Indices.Services,
+		TagDotReplacement:   f.config.Tags.DotReplacement,
+		UseReadWriteAliases: f.config.UseReadWriteAliases,
+		ReadAliasSuffix:     f.config.ReadAliasSuffix,
+		RemoteReadClusters:  f.config.RemoteReadClusters,
+		Logger:              f.logger,
+		Tracer:              f.tracer.Tracer("esSpanStore.SpanReader"),
+	}, nil
+}
+
+func (f *Factory) GetSpanWriterParams() (esSpanStore.SpanWriterParams, error) {
+	if f.config.UseILM && !f.config.UseReadWriteAliases {
+		return esSpanStore.SpanWriterParams{}, errors.New("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
+	}
+	var err error
+	var tags []string
+	if tags, err = f.config.TagKeysAsFields(); err != nil {
+		f.logger.Error("failed to get tag keys", zap.Error(err))
+		return esSpanStore.SpanWriterParams{}, err
+	}
+	return esSpanStore.SpanWriterParams{
+		Client:              f.getClient,
+		IndexPrefix:         f.config.Indices.IndexPrefix,
+		SpanIndex:           f.config.Indices.Spans,
+		ServiceIndex:        f.config.Indices.Services,
+		AllTagsAsFields:     f.config.Tags.AllAsFields,
+		TagKeysAsFields:     tags,
+		TagDotReplacement:   f.config.Tags.DotReplacement,
+		UseReadWriteAliases: f.config.UseReadWriteAliases,
+		WriteAliasSuffix:    f.config.WriteAliasSuffix,
+		Logger:              f.logger,
+		MetricsFactory:      f.metricsFactory,
+		ServiceCacheTTL:     f.config.ServiceCacheTTL,
+	}, nil
+}
+
+func (f *Factory) GetDependencyStoreParams() esDepStorev2.Params {
+	return esDepStorev2.Params{
+		Client:              f.getClient,
+		Logger:              f.logger,
+		IndexPrefix:         f.config.Indices.IndexPrefix,
+		IndexDateLayout:     f.config.Indices.Dependencies.DateLayout,
+		MaxDocCount:         f.config.MaxDocCount,
+		UseReadWriteAliases: f.config.UseReadWriteAliases,
+	}
+}
+
 func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
 	params := esSampleStore.Params{
 		Client:                 f.getClient,
@@ -273,67 +328,14 @@ func (f *Factory) IsArchiveCapable() bool {
 	return f.Options.Config.namespace == archiveNamespace && f.Options.Config.Enabled
 }
 
-func (f *Factory) GetSpanWriterParams() (esSpanStore.SpanWriterParams, error) {
-	if f.config.UseILM && !f.config.UseReadWriteAliases {
-		return esSpanStore.SpanWriterParams{}, errors.New("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
-	}
-	var err error
-	var tags []string
-	if tags, err = f.config.TagKeysAsFields(); err != nil {
-		f.logger.Error("failed to get tag keys", zap.Error(err))
-		return esSpanStore.SpanWriterParams{}, err
-	}
-	return esSpanStore.SpanWriterParams{
-		Client:              f.getClient,
-		IndexPrefix:         f.config.Indices.IndexPrefix,
-		SpanIndex:           f.config.Indices.Spans,
-		ServiceIndex:        f.config.Indices.Services,
-		AllTagsAsFields:     f.config.Tags.AllAsFields,
-		TagKeysAsFields:     tags,
-		TagDotReplacement:   f.config.Tags.DotReplacement,
-		UseReadWriteAliases: f.config.UseReadWriteAliases,
-		WriteAliasSuffix:    f.config.WriteAliasSuffix,
-		Logger:              f.logger,
-		MetricsFactory:      f.metricsFactory,
-		ServiceCacheTTL:     f.config.ServiceCacheTTL,
-	}, nil
-}
-
-func (f *Factory) GetSpanReaderParams() (esSpanStore.SpanReaderParams, error) {
-	if f.config.UseILM && !f.config.UseReadWriteAliases {
-		return esSpanStore.SpanReaderParams{}, errors.New("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
-	}
-	return esSpanStore.SpanReaderParams{
-		Client:              f.getClient,
-		MaxDocCount:         f.config.MaxDocCount,
-		MaxSpanAge:          f.config.MaxSpanAge,
-		IndexPrefix:         f.config.Indices.IndexPrefix,
-		SpanIndex:           f.config.Indices.Spans,
-		ServiceIndex:        f.config.Indices.Services,
-		TagDotReplacement:   f.config.Tags.DotReplacement,
-		UseReadWriteAliases: f.config.UseReadWriteAliases,
-		ReadAliasSuffix:     f.config.ReadAliasSuffix,
-		RemoteReadClusters:  f.config.RemoteReadClusters,
-		Logger:              f.logger,
-		Tracer:              f.tracer.Tracer("esSpanStore.SpanReader"),
-	}, nil
-}
-
-func (f *Factory) GetDependencyStoreParams() esDepStorev2.Params {
-	return esDepStorev2.Params{
-		Client:              f.getClient,
-		Logger:              f.logger,
-		IndexPrefix:         f.config.Indices.IndexPrefix,
-		IndexDateLayout:     f.config.Indices.Dependencies.DateLayout,
-		MaxDocCount:         f.config.MaxDocCount,
-		UseReadWriteAliases: f.config.UseReadWriteAliases,
-	}
-}
-
 func (f *Factory) GetMetricsFactory() metrics.Factory {
 	return f.metricsFactory
 }
 
 func (f *Factory) GetConfig() *config.Configuration {
 	return f.config
+}
+
+func (f *Factory) SetConfig(config *config.Configuration) {
+	f.config = config
 }

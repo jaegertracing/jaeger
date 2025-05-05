@@ -68,11 +68,18 @@ func NewFactoryV1WithConfig(
 }
 
 func (f *FactoryV1) AddFlags(flagSet *flag.FlagSet) {
-	f.coreFactory.AddFlags(flagSet)
+	f.Options.AddFlags(flagSet)
 }
 
 func (f *FactoryV1) InitFromViper(v *viper.Viper, _ *zap.Logger) {
-	f.coreFactory.InitFromViper(v)
+	f.Options.InitFromViper(v)
+	f.configureFromOptions(f.Options)
+}
+
+// configureFromOptions configures factory from Options struct.
+func (f *FactoryV1) configureFromOptions(o *Options) {
+	f.Options = o
+	f.coreFactory.SetConfig(f.Options.GetConfig())
 }
 
 func (f *FactoryV1) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {

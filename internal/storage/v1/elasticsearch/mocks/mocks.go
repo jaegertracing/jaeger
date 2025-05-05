@@ -10,14 +10,12 @@ package mocks
 
 import (
 	"context"
-	"flag"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
-	"github.com/spf13/viper"
 	mock "github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
 )
@@ -47,40 +45,6 @@ type CoreFactory_Expecter struct {
 
 func (_m *CoreFactory) EXPECT() *CoreFactory_Expecter {
 	return &CoreFactory_Expecter{mock: &_m.Mock}
-}
-
-// AddFlags provides a mock function for the type CoreFactory
-func (_mock *CoreFactory) AddFlags(flagSet *flag.FlagSet) {
-	_mock.Called(flagSet)
-	return
-}
-
-// CoreFactory_AddFlags_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AddFlags'
-type CoreFactory_AddFlags_Call struct {
-	*mock.Call
-}
-
-// AddFlags is a helper method to define mock.On call
-//   - flagSet
-func (_e *CoreFactory_Expecter) AddFlags(flagSet interface{}) *CoreFactory_AddFlags_Call {
-	return &CoreFactory_AddFlags_Call{Call: _e.mock.On("AddFlags", flagSet)}
-}
-
-func (_c *CoreFactory_AddFlags_Call) Run(run func(flagSet *flag.FlagSet)) *CoreFactory_AddFlags_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(*flag.FlagSet))
-	})
-	return _c
-}
-
-func (_c *CoreFactory_AddFlags_Call) Return() *CoreFactory_AddFlags_Call {
-	_c.Call.Return()
-	return _c
-}
-
-func (_c *CoreFactory_AddFlags_Call) RunAndReturn(run func(flagSet *flag.FlagSet)) *CoreFactory_AddFlags_Call {
-	_c.Run(run)
-	return _c
 }
 
 // Close provides a mock function for the type CoreFactory
@@ -425,40 +389,6 @@ func (_c *CoreFactory_GetSpanWriterParams_Call) RunAndReturn(run func() (spansto
 	return _c
 }
 
-// InitFromViper provides a mock function for the type CoreFactory
-func (_mock *CoreFactory) InitFromViper(v *viper.Viper) {
-	_mock.Called(v)
-	return
-}
-
-// CoreFactory_InitFromViper_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'InitFromViper'
-type CoreFactory_InitFromViper_Call struct {
-	*mock.Call
-}
-
-// InitFromViper is a helper method to define mock.On call
-//   - v
-func (_e *CoreFactory_Expecter) InitFromViper(v interface{}) *CoreFactory_InitFromViper_Call {
-	return &CoreFactory_InitFromViper_Call{Call: _e.mock.On("InitFromViper", v)}
-}
-
-func (_c *CoreFactory_InitFromViper_Call) Run(run func(v *viper.Viper)) *CoreFactory_InitFromViper_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(*viper.Viper))
-	})
-	return _c
-}
-
-func (_c *CoreFactory_InitFromViper_Call) Return() *CoreFactory_InitFromViper_Call {
-	_c.Call.Return()
-	return _c
-}
-
-func (_c *CoreFactory_InitFromViper_Call) RunAndReturn(run func(v *viper.Viper)) *CoreFactory_InitFromViper_Call {
-	_c.Run(run)
-	return _c
-}
-
 // Initialize provides a mock function for the type CoreFactory
 func (_mock *CoreFactory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	ret := _mock.Called(metricsFactory, logger)
@@ -591,5 +521,39 @@ func (_c *CoreFactory_Purge_Call) Return(err error) *CoreFactory_Purge_Call {
 
 func (_c *CoreFactory_Purge_Call) RunAndReturn(run func(ctx context.Context) error) *CoreFactory_Purge_Call {
 	_c.Call.Return(run)
+	return _c
+}
+
+// SetConfig provides a mock function for the type CoreFactory
+func (_mock *CoreFactory) SetConfig(config1 *config.Configuration) {
+	_mock.Called(config1)
+	return
+}
+
+// CoreFactory_SetConfig_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetConfig'
+type CoreFactory_SetConfig_Call struct {
+	*mock.Call
+}
+
+// SetConfig is a helper method to define mock.On call
+//   - config1
+func (_e *CoreFactory_Expecter) SetConfig(config1 interface{}) *CoreFactory_SetConfig_Call {
+	return &CoreFactory_SetConfig_Call{Call: _e.mock.On("SetConfig", config1)}
+}
+
+func (_c *CoreFactory_SetConfig_Call) Run(run func(config1 *config.Configuration)) *CoreFactory_SetConfig_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(*config.Configuration))
+	})
+	return _c
+}
+
+func (_c *CoreFactory_SetConfig_Call) Return() *CoreFactory_SetConfig_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *CoreFactory_SetConfig_Call) RunAndReturn(run func(config1 *config.Configuration)) *CoreFactory_SetConfig_Call {
+	_c.Run(run)
 	return _c
 }
