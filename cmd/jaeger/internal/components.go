@@ -8,7 +8,9 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckv2extension"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
@@ -65,8 +67,10 @@ func (b builders) build() (otelcol.Factories, error) {
 
 	factories.Extensions, err = b.extension(
 		// standard
-		zpagesextension.NewFactory(),
 		healthcheckv2extension.NewFactory(),
+		pprofextension.NewFactory(),
+		zpagesextension.NewFactory(),
+
 		// add-ons
 		jaegerquery.NewFactory(),
 		jaegerstorage.NewFactory(),
@@ -115,6 +119,7 @@ func (b builders) build() (otelcol.Factories, error) {
 		memorylimiterprocessor.NewFactory(),
 		tailsamplingprocessor.NewFactory(),
 		attributesprocessor.NewFactory(),
+		filterprocessor.NewFactory(),
 		// add-ons
 		adaptivesampling.NewFactory(),
 	)

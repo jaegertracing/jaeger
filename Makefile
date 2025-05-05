@@ -59,8 +59,9 @@ else
 	RACE=-race
 endif
 # sed on Mac does not support the same syntax for in-place updates as sed on Linux
-# When running on MacOS it's best to install gsed and run Makefile with SED=gsed
-ifeq ($(GOOS),darwin)
+# When running on MacOS it's best to install gsed and run Makefile with SED=gsed.
+# We want the actual OS here, not what GOOS may have been set to by recursive make calls.
+ifeq ($(shell GOOS= $(GO) env GOOS),darwin)
 	SED=gsed
 else
 	SED=sed

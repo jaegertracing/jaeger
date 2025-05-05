@@ -47,6 +47,7 @@ receivers:
   otlp:
     protocols:
       grpc:
+        endpoint: "${env:REMOTE_STORAGE_BACKEND_GRPC_ENDPOINT:-0.0.0.0:4317}"
 
 processors:
   batch:

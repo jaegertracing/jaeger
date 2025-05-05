@@ -72,6 +72,26 @@ _build-a-binary-%:
 build-jaeger: BIN_NAME = jaeger
 build-jaeger: BUILD_INFO = $(BUILD_INFO_V2)
 build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
+	@ set -euf -o pipefail ; \
+	echo "Checking version of built binary" ; \
+	REAL_GOOS=$(shell GOOS= $(GO) env GOOS) ; \
+	REAL_GOARCH=$(shell GOARCH= $(GO) env GOARCH) ; \
+	if [ "$(GOOS)" == "$$REAL_GOOS" ] && [ "$(GOARCH)" == "$$REAL_GOARCH" ]; then \
+		./cmd/jaeger/jaeger-$(GOOS)-$(GOARCH) version 2>/dev/null ; \
+		echo "" ; \
+		want=$(GIT_CLOSEST_TAG_V2) ; \
+		have=$$(./cmd/jaeger/jaeger-$(GOOS)-$(GOARCH) version 2>/dev/null | jq -r .gitVersion) ; \
+		if [ "$$want" == "$$have" ]; then \
+			echo "🟢 versions match: want=$$want, have=$$have" ; \
+		else \
+			echo "❌ ERROR: version mismatch: want=$$want, have=$$have" ; \
+			false; \
+		fi ; \
+	else \
+		echo ".. skipping version check for cross-compilation" ; \
+		echo ".. see build-binaries-$(GOOS)-$(GOARCH)" ; \
+	fi
+
 
 .PHONY: build-all-in-one
 build-all-in-one: BIN_NAME = all-in-one
@@ -127,11 +147,11 @@ build-binaries-linux-ppc64le:
 # build all binaries for one specific platform GOOS/GOARCH
 .PHONY: _build-platform-binaries
 _build-platform-binaries: \
+		build-jaeger \
 		build-all-in-one \
 		build-collector \
 		build-query \
 		build-ingester \
-		build-jaeger \
 		build-remote-storage \
 		build-examples \
 		build-tracegen \
@@ -146,12 +166,12 @@ _build-platform-binaries: \
 .PHONY: _build-platform-binaries-debug
 _build-platform-binaries-debug:
 _build-platform-binaries-debug: \
+	build-jaeger \
 	build-collector \
 	build-query \
 	build-ingester \
 	build-remote-storage \
-	build-all-in-one \
-	build-jaeger
+	build-all-in-one
 
 .PHONY: build-all-platforms
 build-all-platforms:
