@@ -3,7 +3,7 @@ gRPC Remote Storage Plugins
 
 > ⚠️ **Deprecation Notice (May 2025)**  
 > This documentation refers to the **v1 gRPC Remote Storage API**, which has now been deprecated.  
-> Users are encouraged to migrate to the [v2 gRPC Remote Storage API](/internal/storage/v2/grpc/README.md).
+> Users are encouraged to migrate to the [v2 gRPC Remote Storage API](../../v2/grpc/README.md).
 ---
 
 Update (May 2024): as of v1.58, Jaeger will no longer support grpc-sidecar plugin model. Only gRPC Remote Storage API is suppored.
