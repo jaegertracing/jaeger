@@ -844,6 +844,42 @@ func TestHandleBulkAfterCallback_ErrorMetricsEmitted(t *testing.T) {
 	)
 }
 
+func TestHandleBulkAfterCallback_MissingStartTime(t *testing.T) {
+	mf := metricstest.NewFactory(time.Minute)
+	sm := spanstoremetrics.NewWriter(mf, "bulk_index")
+	logger := zap.NewNop()
+	defer mf.Stop()
+
+	var m sync.Map
+	batchID := int64(42)//any value which is not stored in the map
+
+	fakeRequests := []elastic.BulkableRequest{nil}
+	response := &elastic.BulkResponse{
+		Errors: true,
+		Items: []map[string]*elastic.BulkResponseItem{
+			{
+				"index": {
+					Status: 500,
+					Error:  &elastic.ErrorDetails{Type: "mock_error"},
+				},
+			},
+		},
+	}
+
+	handleBulkAfterCallback(batchID, fakeRequests, response, assert.AnError, &m, sm, logger)
+
+	mf.AssertCounterMetrics(t,
+		metricstest.ExpectedMetric{
+			Name:  "bulk_index.errors",
+			Value: 2,
+		},
+		metricstest.ExpectedMetric{
+			Name:  "bulk_index.inserts",
+			Value: 0,
+		},
+	)
+}
+
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
 }
