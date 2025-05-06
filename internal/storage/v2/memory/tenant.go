@@ -78,13 +78,14 @@ func (t *Tenant) storeTraces(traceId pcommon.TraceID, resourceSpanSlice ptrace.R
 }
 
 func (t *Tenant) findTraces(query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+	t.RLock()
+	defer t.RUnlock()
 	return func(yield func([]ptrace.Traces, error) bool) {
-		t.RLock()
 		tracesFound := 0
 		for _, traceId := range t.ids {
 			trace, ok := t.traces[traceId]
 			if ok {
-				if traceFound := validTrace(trace, query); traceFound {
+				if validTrace(trace, query) {
 					tracesFound++
 					if query.SearchDepth != 0 && tracesFound > query.SearchDepth {
 						return
@@ -95,7 +96,6 @@ func (t *Tenant) findTraces(query tracestore.TraceQueryParams) iter.Seq2[[]ptrac
 				}
 			}
 		}
-		t.RUnlock()
 	}
 }
 

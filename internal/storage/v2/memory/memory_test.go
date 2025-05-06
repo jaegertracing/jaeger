@@ -223,6 +223,58 @@ func TestFindTraces_MaxTraces(t *testing.T) {
 	assert.Equal(t, 4, iterLength)
 }
 
+func TestFindTraces_AttributesFoundInEvents(t *testing.T) {
+	store := NewStore(v1.Configuration{
+		MaxTraces: 10,
+	})
+	td := ptrace.NewTraces()
+	span := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetTraceID(fromString(t, "00000000000000010000000000000000"))
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+	span.Events().AppendEmpty().Attributes().PutBool("key", true)
+	err := store.WriteTraces(context.Background(), td)
+	require.NoError(t, err)
+	queryAttributes := pcommon.NewMap()
+	queryAttributes.PutBool("key", true)
+	params := tracestore.TraceQueryParams{
+		Attributes: queryAttributes,
+	}
+	gotIter := store.FindTraces(context.Background(), params)
+	iterLength := 0
+	for traces, err := range gotIter {
+		iterLength++
+		require.NoError(t, err)
+		assert.Len(t, traces, 1)
+		assert.Equal(t, td, traces[0])
+	}
+	assert.Equal(t, 1, iterLength)
+}
+
+func TestFindTraces_ErrorStatusNotMatched(t *testing.T) {
+	store := NewStore(v1.Configuration{
+		MaxTraces: 10,
+	})
+	td := ptrace.NewTraces()
+	span := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetTraceID(fromString(t, "00000000000000010000000000000000"))
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+	span.Status().SetCode(ptrace.StatusCodeOk)
+	err := store.WriteTraces(context.Background(), td)
+	require.NoError(t, err)
+	queryAttributes := pcommon.NewMap()
+	queryAttributes.PutBool(errorAttribute, true)
+	params := tracestore.TraceQueryParams{
+		Attributes: queryAttributes,
+	}
+	gotIter := store.FindTraces(context.Background(), params)
+	iterLength := 0
+	for _, err := range gotIter {
+		require.NoError(t, err)
+		iterLength++
+	}
+	assert.Equal(t, 0, iterLength)
+}
+
 func TestGetOperationsWithKind(t *testing.T) {
 	store := NewStore(v1.Configuration{})
 	td := ptrace.NewTraces()
