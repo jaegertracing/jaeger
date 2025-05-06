@@ -6,6 +6,8 @@ package dbmodel
 import (
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/ClickHouse/ch-go/proto"
@@ -180,14 +182,87 @@ func attributesToMap(attrs pcommon.Map) map[pcommon.ValueType]map[string]pcommon
 	} {
 		result[valueType] = make(map[string]pcommon.Value)
 	}
-	// Fill according to the data type of the value
-	for k, v := range attrs.All() {
-		typ := v.Type()
-		// For basic data types (such as bool, uint64, and float64) we can make sure type safe.
-		// TODO: For non-basic types (such as Map, Slice), they should be serialized and stored as OTLP/JSON strings
-		result[typ][k] = v
-	}
+
+	attrs.Range(func(k string, v pcommon.Value) bool {
+		switch v.Type() {
+		case pcommon.ValueTypeMap:
+			jsonStr, err := marshalValueToJSON(v)
+			if err == nil {
+				result[ValueTypeStr][k] = pcommon.NewValueStr(jsonStr)
+			}
+		case pcommon.ValueTypeSlice:
+			jsonStr, err := marshalValueToJSON(v)
+			if err == nil {
+				result[ValueTypeStr][k] = pcommon.NewValueStr(jsonStr)
+			}
+		default:
+			typ := v.Type()
+			if _, exists := result[typ]; exists {
+				result[typ][k] = v
+			}
+		}
+		return true
+	})
 	return result
+}
+
+func marshalValueToJSON(v pcommon.Value) (string, error) {
+	var val interface{}
+	switch v.Type() {
+	case pcommon.ValueTypeMap:
+		val = valueToInterface(v.Map())
+	case pcommon.ValueTypeSlice:
+		val = valueToInterface(v.Slice())
+	default:
+		return "", fmt.Errorf("unsupported type for JSON serialization: %s", v.Type())
+	}
+
+	jsonBytes, err := json.Marshal(val)
+	if err != nil {
+		return "", err
+	}
+	return string(jsonBytes), nil
+}
+
+func valueToInterface(val interface{}) interface{} {
+	switch v := val.(type) {
+	case pcommon.Map:
+		m := make(map[string]interface{})
+		v.Range(func(k string, val pcommon.Value) bool {
+			m[k] = pcommonValueToInterface(val)
+			return true
+		})
+		return m
+	case pcommon.Slice:
+		s := make([]interface{}, v.Len())
+		for i := 0; i < v.Len(); i++ {
+			s[i] = pcommonValueToInterface(v.At(i))
+		}
+		return s
+	default:
+		return val
+	}
+}
+
+func pcommonValueToInterface(v pcommon.Value) interface{} {
+	switch v.Type() {
+	case pcommon.ValueTypeBool:
+		return v.Bool()
+	case pcommon.ValueTypeDouble:
+		return v.Double()
+	case pcommon.ValueTypeInt:
+		return v.Int()
+	case pcommon.ValueTypeStr:
+		return v.Str()
+	case pcommon.ValueTypeBytes:
+		return v.Bytes().AsRaw()
+	case pcommon.ValueTypeMap:
+		return valueToInterface(v.Map())
+	case pcommon.ValueTypeSlice:
+		return valueToInterface(v.Slice())
+	default:
+		return nil
+	}
 }
 
 // AttributeColumnPair maps Attribute/Attributes to table init. Instead of directly storing the entire Attribute/Attributes into a single independent Column,
