@@ -122,7 +122,6 @@ func FromNestedAttrRow(nestedAttr NestedAttributesRow) AttributesGroup {
 		boolVal := attrPair[1].(bool)
 		attributesGroup.BoolKeys = append(attributesGroup.BoolKeys, boolKey)
 		attributesGroup.BoolValues = append(attributesGroup.BoolValues, boolVal)
-
 	}
 	for _, attrPair := range nestedAttr.DoubleAttrs {
 		doubleKey := attrPair[0].(string)
