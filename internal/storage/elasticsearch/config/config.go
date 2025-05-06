@@ -304,17 +304,16 @@ func handleBulkAfterCallback(id int64, requests []elastic.BulkableRequest, respo
 	}
 
 	sm.Emit(err, time.Since(start.(time.Time)))
-	if err != nil {
-		var failed int
-		if response == nil {
-			failed = 0
-		} else {
-			failed = len(response.Failed())
-		}
-		total := len(requests)
-		sm.Inserts.Inc(int64(total - failed))
-		sm.Errors.Inc(int64(failed))
+	var failed int
+	if response != nil {
+		failed = len(response.Failed())
+	}
 
+	total := len(requests)
+	sm.Inserts.Inc(int64(total - failed))
+	sm.Errors.Inc(int64(failed))
+
+	if err != nil {
 		logger.Error("Elasticsearch could not process bulk request",
 			zap.Int("request_count", total),
 			zap.Int("failed_count", failed),
