@@ -69,6 +69,12 @@ type Indices struct {
 	Sampling     IndexOptions `mapstructure:"sampling"`
 }
 
+type bulkCallback struct {
+	startTimes *sync.Map
+	sm         *spanstoremetrics.WriteMetrics
+	logger     *zap.Logger
+}
+
 type IndexPrefix string
 
 func (p IndexPrefix) Apply(indexName string) string {
@@ -228,15 +234,19 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 	}
 
 	sm := spanstoremetrics.NewWriter(metricsFactory, "bulk_index")
-	m := sync.Map{}
+	startTimes := sync.Map{}
+
+	bcb := &bulkCallback{
+		startTimes: &startTimes,
+		sm:         sm,
+		logger:     logger,
+	}
 
 	bulkProc, err := rawClient.BulkProcessor().
 		Before(func(id int64, _ /* requests */ []elastic.BulkableRequest) {
-			m.Store(id, time.Now())
+			bcb.startTimes.Store(id, time.Now())
 		}).
-		After(func(id int64, requests []elastic.BulkableRequest, response *elastic.BulkResponse, err error) {
-			handleBulkAfterCallback(id, requests, response, err, &m, sm, logger)
-		}).
+		After(bcb.invoke).
 		BulkSize(c.BulkProcessing.MaxBytes).
 		Workers(c.BulkProcessing.Workers).
 		BulkActions(c.BulkProcessing.MaxActions).
@@ -283,10 +293,10 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 	return eswrapper.WrapESClient(rawClient, bulkProc, c.Version, rawClientV8), nil
 }
 
-func handleBulkAfterCallback(id int64, requests []elastic.BulkableRequest, response *elastic.BulkResponse, err error, startTimes *sync.Map, sm *spanstoremetrics.WriteMetrics, logger *zap.Logger) {
-	start, ok := startTimes.Load(id)
+func (bcb *bulkCallback) invoke(id int64, requests []elastic.BulkableRequest, response *elastic.BulkResponse, err error) {
+	start, ok := bcb.startTimes.Load(id)
 	if ok {
-		startTimes.Delete(id)
+		bcb.startTimes.Delete(id)
 	} else {
 		start = time.Now()
 	}
@@ -296,25 +306,26 @@ func handleBulkAfterCallback(id int64, requests []elastic.BulkableRequest, respo
 		for _, it := range response.Items {
 			for key, val := range it {
 				if val.Error != nil {
-					logger.Error("Elasticsearch part of bulk request failed",
+					bcb.logger.Error("Elasticsearch part of bulk request failed",
 						zap.String("map-key", key), zap.Reflect("response", val))
 				}
 			}
 		}
 	}
 
-	sm.Emit(err, time.Since(start.(time.Time)))
+	bcb.sm.Emit(err, time.Since(start.(time.Time)))
+
 	var failed int
 	if response != nil {
 		failed = len(response.Failed())
 	}
 
 	total := len(requests)
-	sm.Inserts.Inc(int64(total - failed))
-	sm.Errors.Inc(int64(failed))
+	bcb.sm.Inserts.Inc(int64(total - failed))
+	bcb.sm.Errors.Inc(int64(failed))
 
 	if err != nil {
-		logger.Error("Elasticsearch could not process bulk request",
+		bcb.logger.Error("Elasticsearch could not process bulk request",
 			zap.Int("request_count", total),
 			zap.Int("failed_count", failed),
 			zap.Error(err),

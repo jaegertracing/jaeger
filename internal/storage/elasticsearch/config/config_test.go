@@ -830,7 +830,13 @@ func TestHandleBulkAfterCallback_ErrorMetricsEmitted(t *testing.T) {
 		},
 	}
 
-	handleBulkAfterCallback(batchID, fakeRequests, response, assert.AnError, &m, sm, logger)
+	bcb := &bulkCallback{
+		startTimes: &m,
+		sm:         sm,
+		logger:     logger,
+	}
+
+	bcb.invoke(batchID, fakeRequests, response, assert.AnError)
 
 	mf.AssertCounterMetrics(t,
 		metricstest.ExpectedMetric{
@@ -851,7 +857,7 @@ func TestHandleBulkAfterCallback_MissingStartTime(t *testing.T) {
 	defer mf.Stop()
 
 	var m sync.Map
-	batchID := int64(42)//any value which is not stored in the map
+	batchID := int64(42) // assign any value which is not stored in the map
 
 	fakeRequests := []elastic.BulkableRequest{nil}
 	response := &elastic.BulkResponse{
@@ -866,7 +872,13 @@ func TestHandleBulkAfterCallback_MissingStartTime(t *testing.T) {
 		},
 	}
 
-	handleBulkAfterCallback(batchID, fakeRequests, response, assert.AnError, &m, sm, logger)
+	bcb := &bulkCallback{
+		startTimes: &m,
+		sm:         sm,
+		logger:     logger,
+	}
+
+	bcb.invoke(batchID, fakeRequests, response, assert.AnError)
 
 	mf.AssertCounterMetrics(t,
 		metricstest.ExpectedMetric{
