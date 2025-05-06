@@ -154,7 +154,7 @@ func validSpan(resourceAttributes, scopeAttributes pcommon.Map, span ptrace.Span
 	if errorAttributeFound && span.Status().Code() != ptrace.StatusCodeError {
 		return false
 	}
-	if query.OperationName != span.Name() {
+	if query.OperationName != "" && query.OperationName != span.Name() {
 		return false
 	}
 	startTime := span.StartTimestamp().AsTime()
