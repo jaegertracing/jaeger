@@ -213,6 +213,5 @@ jobs:
       run: |
         docker run \
           -v $PWD/renovate.json:/usr/src/app/renovate.json \
-          -it \
           ghcr.io/renovatebot/renovate:latest \
           renovate-config-validator
