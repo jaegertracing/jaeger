@@ -27,8 +27,8 @@ type LinksRow struct {
 }
 
 // NestedAttributesRow is the actual storage form of AttributesGroup in Event and Link.
-// AttributesGroup.IntKeys and AttributesGroup.IntValues are represented by their corresponding attribute slices here
-// (e.g, IntAttrs holds IntKey/IntValue pairs). For example:
+// AttributesGroup.StrKeys and AttributesGroup.StrValues are represented by their corresponding attribute slices here
+// (e.g,StrAttrs holds StrKey/StrValue pairs). For example:
 // AttributesGroup.StrKeys {"container.id", "container.name"},
 // AttributesGroup.StrValues {"a3bf90e006b2", "jaeger"}
 // will result in NestedAttributesRow.StrAttrs {{"container.id", "a3bf90e006b2"}, {"container.name", "jaeger"}}
@@ -60,7 +60,7 @@ func ToEventsRow(events []Event) EventsRow {
 	for _, event := range events {
 		eventsRow.Names = append(eventsRow.Names, event.Name)
 		eventsRow.Timestamps = append(eventsRow.Timestamps, event.Timestamp)
-		eventsRow.NestedAttrRow = append(eventsRow.NestedAttrRow, toNestedAttrRow(event.Attributes))
+		eventsRow.NestedAttrRow = append(eventsRow.NestedAttrRow, ToNestedAttrRow(event.Attributes))
 	}
 
 	return eventsRow
@@ -74,14 +74,14 @@ func ToLinksRow(links []Link) LinksRow {
 		linksRow.TraceIds = append(linksRow.TraceIds, link.TraceId)
 		linksRow.SpanIds = append(linksRow.SpanIds, link.SpanId)
 		linksRow.TraceStates = append(linksRow.TraceStates, link.TraceState)
-		linksRow.NestedAttrRow = append(linksRow.NestedAttrRow, toNestedAttrRow(link.Attributes))
+		linksRow.NestedAttrRow = append(linksRow.NestedAttrRow, ToNestedAttrRow(link.Attributes))
 	}
 
 	return linksRow
 }
 
-// toNestedAttrRow converts Event.Attributes or Link.Attributes to NestedAttributesRow.
-func toNestedAttrRow(attrs AttributesGroup) NestedAttributesRow {
+// ToNestedAttrRow converts Event.Attributes or Link.Attributes to NestedAttributesRow.
+func ToNestedAttrRow(attrs AttributesGroup) NestedAttributesRow {
 	var nestedAttrRow NestedAttributesRow
 
 	// For each attribute type, collect key-value pairs into slices of []any
