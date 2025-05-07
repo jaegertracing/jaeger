@@ -1,0 +1,54 @@
+{
+  "Names": [
+    "event1"
+  ],
+  "Timestamps": [
+    "2023-12-25T09:53:49Z"
+  ],
+  "NestedAttrs": [
+    {
+      "BoolAttrs": [
+        [
+          "inventory.available",
+          true
+        ],
+        [
+          "payment.successful",
+          true
+        ]
+      ],
+      "DoubleAttrs": [
+        [
+          "product.price",
+          6.04
+        ],
+        [
+          "order.discount.rate",
+          0.04
+        ]
+      ],
+      "IntAttrs": [
+        [
+          "order.quantity",
+          2
+        ]
+      ],
+      "StrAttrs": [
+        [
+          "order.id",
+          "123456789"
+        ],
+        [
+          "product.id",
+          "987654321"
+        ]
+      ],
+      "BytesAttrs": [
+        [
+          "event.test.bytes.value",
+          "AQIDBAUG"
+        ]
+      ]
+    }
+  ]
+}

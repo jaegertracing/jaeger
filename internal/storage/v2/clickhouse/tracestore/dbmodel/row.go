@@ -11,19 +11,19 @@ import (
 // When writing Trace.Events data, it needs to be first converted to the corresponding EventsRow. When reading, it's first mapped to EventsRow
 // and then converted back to a collection of Trace.Events.
 type EventsRow struct {
-	Names         []string
-	Timestamps    []time.Time
-	NestedAttrRow []NestedAttributesRow
+	Names       []string
+	Timestamps  []time.Time
+	NestedAttrs []NestedAttributesRow
 }
 
 // LinksRow is a collection of Trace.Links fields. It maps one-to-one with the fields in the table structure.
 // When writing Trace.Links data, it needs to be first converted to the corresponding LinksRow. When reading, it's first mapped to LinksRow
 // and then converted back to Trace.Links.
 type LinksRow struct {
-	TraceIds      [][]byte
-	SpanIds       [][]byte
-	TraceStates   []string
-	NestedAttrRow []NestedAttributesRow
+	TraceIds    [][]byte
+	SpanIds     [][]byte
+	TraceStates []string
+	NestedAttrs []NestedAttributesRow
 }
 
 // NestedAttributesRow is the actual storage form of AttributesGroup in Event and Link.
@@ -40,7 +40,7 @@ type NestedAttributesRow struct {
 	BytesAttrs  [][]any
 }
 
-// AllNestedAttrRow is a representation form for collections of NestedAttributesRow (like from EventsRow.NestedAttrRow or LinksRow.NestedAttrRow).
+// AllNestedAttrRow is a representation form for collections of NestedAttributesRow (like from EventsRow.NestedAttrs or LinksRow.NestedAttrs).
 // Since we cannot access specific fields like NestedAttributesRow.StrAttrs directly when NestedAttributesRow is part of a slice (e.g []NestedAttributesRow),
 // each attribute slice field within the collection of NestedAttributesRow is collected into independent arrays.
 // For example, AllNestedAttrRow.StrAttrs will be an array of all StrAttrs slices from the input collection,
@@ -60,7 +60,7 @@ func ToEventsRow(events []Event) EventsRow {
 	for _, event := range events {
 		eventsRow.Names = append(eventsRow.Names, event.Name)
 		eventsRow.Timestamps = append(eventsRow.Timestamps, event.Timestamp)
-		eventsRow.NestedAttrRow = append(eventsRow.NestedAttrRow, ToNestedAttrRow(event.Attributes))
+		eventsRow.NestedAttrs = append(eventsRow.NestedAttrs, ToNestedAttrRow(event.Attributes))
 	}
 
 	return eventsRow
@@ -74,7 +74,7 @@ func ToLinksRow(links []Link) LinksRow {
 		linksRow.TraceIds = append(linksRow.TraceIds, link.TraceId)
 		linksRow.SpanIds = append(linksRow.SpanIds, link.SpanId)
 		linksRow.TraceStates = append(linksRow.TraceStates, link.TraceState)
-		linksRow.NestedAttrRow = append(linksRow.NestedAttrRow, ToNestedAttrRow(link.Attributes))
+		linksRow.NestedAttrs = append(linksRow.NestedAttrs, ToNestedAttrRow(link.Attributes))
 	}
 
 	return linksRow
@@ -150,7 +150,7 @@ func FromNestedAttrRow(nestedAttr NestedAttributesRow) AttributesGroup {
 	return attributesGroup
 }
 
-// ToAllNestedAttrRow converts a slice of NestedAttributesRow (like from EventsRow.NestedAttrRow or LinksRow.NestedAttrRow) to AllNestedAttrRow.
+// ToAllNestedAttrRow converts a slice of NestedAttributesRow (like from EventsRow.NestedAttrs or LinksRow.NestedAttrs) to AllNestedAttrRow.
 func ToAllNestedAttrRow(attrs []NestedAttributesRow) AllNestedAttrRow {
 	var result AllNestedAttrRow
 	// Collect each attribute slice from the input NestedAttributesRow instances into separate slices in AllNestedAttrRow
