@@ -64,10 +64,8 @@ The table structure is defined: [internal/storage/v2/clickhouse/schema/schema.tm
 For `Attributes`, the key-value pairs are split into separate Key and Value columns based on their data type.
 
 For example, `SpanAttrBoolKey` stores the keys of boolean type attributes, and `SpanAttrBoolValue` stores their corresponding values.
-more content, see: [internal/storage/v2/clickhouse/tracestore/dbmodel/dbmodel.go](./tracestore/dbmodel/dbmodel.go)
-
 As for `Events` and `Links`, logically, they should be one-to-many `Nested` structures.
-Similarly, we use `Nested` to store their Attributes. For more details, see: [internal/storage/v2/clickhouse/tracestore/dbmodel/row.go](./tracestore/dbmodel/row.go)
-### TraceID, SpanID
+Similarly, we use `Nested` to store their Attributes.
 
+### TraceID,SpanID
 `TraceID` is actually a fixed-length `[16]byte`, and `SpanID` is a fixed-length `[8]byte`. They are represented as `byte` slices in Go but stored using the column `Array(UInt8)` in the database. Note that the way they represent bytes is different: Clickhouse uses [int8](https://clickhouse.com/docs/sql-reference/data-types/int-uint#integer-aliases), while Go uses uint8.
