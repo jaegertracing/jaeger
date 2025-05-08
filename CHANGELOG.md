@@ -89,7 +89,6 @@ v1.69.0 / v2.6.0 (2025-05-08)
 * [refactor] consolidate v1/v2 writer factory adapter functionality ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7022](https://github.com/jaegertracing/jaeger/pull/7022))
 * [refactor] consolidate v1/v2 reader factory adapter functionality ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7019](https://github.com/jaegertracing/jaeger/pull/7019))
 
-
 ### 📊 UI Changes
 
 #### 🐞 Bug fixes, Minor Improvements
@@ -111,13 +110,10 @@ v1.69.0 / v2.6.0 (2025-05-08)
 
 #### ⚙️ Refactoring
 
-* Migrate traceidinput test ([@nojaf](https://github.com/nojaf) in [#2735](https://github.com/jaegertracing/jaeger-ui/pull/2735))
-
-### 💩💩💩 The following commits cannot be categorized (missing "changelog:*" labels):
-* [docs] add documentation for new remote storage backend extension ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7077](https://github.com/jaegertracing/jaeger/pull/7077))
-### 💩💩💩 Please attach labels to these ^^^ PRs and rerun the script.
-### 💩💩💩 Do not include this section in the changelog.
-
+* [es] make `nestedtags` and `fieldtags` distinction at `corespanwriter` level ([@Manik2708](https://github.com/Manik2708) in [#6946](https://github.com/jaegertracing/jaeger/pull/6946))
+* [refactor] change remote storage server to accept v2 factories ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7024](https://github.com/jaegertracing/jaeger/pull/7024))
+* [refactor] consolidate v1/v2 writer factory adapter functionality ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7022](https://github.com/jaegertracing/jaeger/pull/7022))
+* [refactor] consolidate v1/v2 reader factory adapter functionality ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7019](https://github.com/jaegertracing/jaeger/pull/7019))
 
 v1.68.0 / v2.5.0 (2025-04-05)
 -------------------------------
