@@ -5,108 +5,62 @@ package wrapper
 
 import (
 	"context"
+	"crypto/tls"
 
-	"github.com/ClickHouse/ch-go"
-	"github.com/ClickHouse/ch-go/chpool"
-	v2Client "github.com/ClickHouse/clickhouse-go/v2"
-	"go.opentelemetry.io/collector/pdata/ptrace"
-	"go.uber.org/zap"
+	"github.com/ClickHouse/clickhouse-go/v2"
+	"go.opentelemetry.io/collector/config/configtls"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/client"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/config"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
+	ck "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/config"
 )
 
-// PoolWrapper is a wrapper around ch-go used by write path.
-type PoolWrapper struct {
-	Pool *chpool.Pool
-}
-
-func (c PoolWrapper) Do(ctx context.Context, query string, td ptrace.Traces) error {
-	q := ch.Query{Body: query, Input: dbmodel.ToDBModel(td)}
-	return c.wrapDo(ctx, q)
-}
-
-func (c PoolWrapper) Close() error {
-	if c.Pool != nil {
-		c.Pool.Close()
-	}
-	return nil
-}
-
-func (c PoolWrapper) wrapDo(ctx context.Context, query ch.Query) error {
-	return c.Pool.Do(ctx, query)
-}
-
-// WrapDial wrap chpool.Dial return an abstraction connection pool.
-func WrapDial(cfg config.ChPoolConfig, log *zap.Logger) (client.ChPool, error) {
-	option := chpool.Options{
-		ClientOptions: ch.Options{
-			Logger:   log,
-			Address:  cfg.ClientConfig.Address,
-			Database: cfg.ClientConfig.Database,
-			User:     cfg.ClientConfig.Username,
-			Password: cfg.ClientConfig.Password,
-		},
-		MaxConnLifetime:   cfg.PoolConfig.MaxConnLifetime,
-		MaxConnIdleTime:   cfg.PoolConfig.MaxConnIdleTime,
-		MinConns:          cfg.PoolConfig.MinConns,
-		MaxConns:          cfg.PoolConfig.MaxConns,
-		HealthCheckPeriod: cfg.PoolConfig.HealthCheckPeriod,
-	}
-
-	ackPool, err := chpool.Dial(context.Background(), option)
-	if err != nil {
-		return nil, err
-	}
-	return wrapPool(ackPool), err
-}
-
-func wrapPool(p *chpool.Pool) PoolWrapper {
-	return PoolWrapper{Pool: p}
-}
-
-// ConnWrapper is a wrapper around clickhouse-go used by read path.
+// ConnWrapper holds a clickhouse.Conn instance to be used to get traces from ClickHouse.
 type ConnWrapper struct {
-	Conn v2Client.Conn
+	conn clickhouse.Conn
 }
 
-func (c ConnWrapper) Query(ctx context.Context, query string, args ...any) (client.Rows, error) {
-	return c.wrapQuery(ctx, query, args...)
+// PrepareBatch is used to write traces with batch mode.
+func (cw *ConnWrapper) PrepareBatch(ctx context.Context, query string) (client.Batch, error) {
+	return cw.conn.PrepareBatch(ctx, query)
 }
 
-func (c ConnWrapper) Close() error {
-	if c.Conn != nil {
-		err := c.Conn.Close()
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+// Query is used to get traces by taking many query parameters.
+func (cw *ConnWrapper) Query(ctx context.Context, query string, args ...any) (client.Rows, error) {
+	return cw.conn.Query(ctx, query, args...)
 }
 
-func (c ConnWrapper) wrapQuery(ctx context.Context, query string, args ...any) (client.Rows, error) {
-	return c.Conn.Query(ctx, query, args...)
+// Close the connection.
+func (cw *ConnWrapper) Close() error {
+	return cw.conn.Close()
 }
 
-// WrapOpen wrap clickhouse.Open return an abstraction connection.
-func WrapOpen(cfg config.ClickhouseConfig) (client.Clickhouse, error) {
-	option := v2Client.Options{
-		Addr: cfg.Address,
-		Auth: v2Client.Auth{
-			Database: cfg.Database,
-			Username: cfg.Username,
-			Password: cfg.Password,
-		},
-	}
-
-	ackConn, err := v2Client.Open(&option)
+// WrapOpen takes a given config and returns an abstraction client of clickhouse.Conn.
+func WrapOpen(ctx context.Context, cfg ck.Config) (client.Conn, error) {
+	tlsConfig, err := toTlsConfig(ctx, cfg.TLS)
 	if err != nil {
 		return nil, err
 	}
-	return wrapConn(ackConn), nil
+	option := clickhouse.Options{
+		Addr: cfg.Servers,
+		Auth: clickhouse.Auth{
+			Database: cfg.Database,
+			Username: cfg.Auth.Username,
+			Password: cfg.Auth.Password,
+		},
+		TLS: tlsConfig,
+	}
+
+	ackConn, err := clickhouse.Open(&option)
+	if err != nil {
+		return nil, err
+	}
+	return &ConnWrapper{conn: ackConn}, nil
 }
 
-func wrapConn(c v2Client.Conn) ConnWrapper {
-	return ConnWrapper{Conn: c}
+// toTlsConfig converts OTel TLS configuration to a tls.Config.
+func toTlsConfig(ctx context.Context, config configtls.ClientConfig) (*tls.Config, error) {
+	if config.Insecure {
+		return config.LoadTLSConfig(ctx)
+	}
+	return nil, nil
 }
