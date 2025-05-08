@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
@@ -28,9 +27,7 @@ import (
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mocks"
 	esSpanStore "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
-	esDepStorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
@@ -43,46 +40,25 @@ const (
 )
 
 func TestElasticsearchFactory(t *testing.T) {
-	logger := zaptest.NewLogger(t)
-	withMockCoreFactory(logger, func(m *mocks.CoreFactory) {
-		f := NewFactoryV1()
-		f.coreFactory = m
-		v, command := config.Viperize(f.AddFlags)
-		command.ParseFlags([]string{})
-		f.InitFromViper(v, zap.NewNop())
+	f := NewFactoryV1()
+	f.coreFactory = getTestingFactoryBase(t)
+	v, command := config.Viperize(f.AddFlags)
+	command.ParseFlags([]string{})
+	f.InitFromViper(v, zap.NewNop())
+	require.NoError(t, f.Initialize(metrics.NullFactory, zaptest.NewLogger(t)))
+	_, err := f.CreateSpanReader()
+	require.NoError(t, err)
 
-		_, err := f.CreateSpanReader()
-		require.NoError(t, err)
+	_, err = f.CreateSpanWriter()
+	require.NoError(t, err)
 
-		_, err = f.CreateSpanWriter()
-		require.NoError(t, err)
+	_, err = f.CreateDependencyReader()
+	require.NoError(t, err)
 
-		_, err = f.CreateDependencyReader()
-		require.NoError(t, err)
+	_, err = f.CreateSamplingStore(1)
+	require.NoError(t, err)
 
-		_, err = f.CreateSamplingStore(1)
-		require.NoError(t, err)
-
-		require.NoError(t, f.Close())
-	})
-}
-
-func withMockCoreFactory(logger *zap.Logger, testingFxn func(m *mocks.CoreFactory)) {
-	coreFactory := &mocks.CoreFactory{}
-	registerMockCoreFactoryMethods(logger, coreFactory)
-	testingFxn(coreFactory)
-}
-
-func registerMockCoreFactoryMethods(logger *zap.Logger, coreFactory *mocks.CoreFactory) {
-	coreFactory.On("GetSpanReaderParams").Return(esSpanStore.SpanReaderParams{Logger: logger}, nil)
-	coreFactory.On("GetSpanWriterParams").Return(esSpanStore.SpanWriterParams{Logger: logger}, nil)
-	coreFactory.On("GetDependencyStoreParams").Return(esDepStorev2.Params{Logger: logger})
-	coreFactory.On("AddFlags", mock.Anything).Return()
-	coreFactory.On("InitFromViper", mock.Anything, mock.Anything).Return()
-	coreFactory.On("Close").Return(nil)
-	coreFactory.On("GetMetricsFactory").Return(metrics.NullFactory)
-	coreFactory.On("GetConfig").Return(&escfg.Configuration{})
-	coreFactory.On("CreateSamplingStore", mock.Anything).Return(nil, nil)
+	require.NoError(t, f.Close())
 }
 
 func TestCreateTemplateErr(t *testing.T) {
@@ -133,9 +109,7 @@ func TestPasswordFromFile(t *testing.T) {
 		pwdFile := filepath.Join(t.TempDir(), "pwd")
 		server, authReceived := getTestingServer(t)
 		f := getTestingFactory(t, pwdFile, server)
-		coreFactory, ok := f.coreFactory.(*Factory)
-		require.True(t, ok)
-		testPasswordFromFile(t, pwdFile, authReceived, coreFactory.getClient, f.CreateSpanWriter)
+		testPasswordFromFile(t, pwdFile, authReceived, f.coreFactory.getClient, f.CreateSpanWriter)
 	})
 	t.Run("load token error", func(t *testing.T) {
 		file := filepath.Join(t.TempDir(), "does not exist")
@@ -146,29 +120,61 @@ func TestPasswordFromFile(t *testing.T) {
 }
 
 func TestInheritSettingsFrom(t *testing.T) {
-	logger := zaptest.NewLogger(t)
-	primaryConfig := escfg.Configuration{
-		MaxDocCount:        99,
-		RemoteReadClusters: []string{},
+	primaryConfig := &escfg.Configuration{
+		MaxDocCount: 99,
 	}
 	primaryFactory := NewFactoryV1()
-	primaryCoreFactory := &mocks.CoreFactory{}
-	registerMockCoreFactoryMethods(logger, primaryCoreFactory)
-	primaryCoreFactory.On("GetConfig").Return(&primaryConfig)
-	primaryFactory.coreFactory = primaryCoreFactory
-	archiveConfig := escfg.Configuration{
-		SendGetBodyAs:      "PUT",
-		RemoteReadClusters: []string{},
+	primaryFactory.coreFactory = getTestingFactoryBase(t)
+	primaryFactory.coreFactory.SetConfig(primaryConfig)
+	archiveConfig := &escfg.Configuration{
+		SendGetBodyAs: "PUT",
 	}
 	archiveFactory := NewFactoryV1()
-	archiveCoreFactory := &mocks.CoreFactory{}
-	registerMockCoreFactoryMethods(logger, archiveCoreFactory)
-	archiveCoreFactory.On("GetConfig").Return(&archiveConfig)
 	archiveFactory.Options = NewOptions(archiveNamespace)
-	archiveFactory.coreFactory = archiveCoreFactory
+	archiveFactory.coreFactory = getTestingFactoryBase(t)
+	archiveFactory.coreFactory.SetConfig(archiveConfig)
 	archiveFactory.InheritSettingsFrom(primaryFactory)
-	require.Equal(t, "PUT", archiveConfig.SendGetBodyAs)
-	require.Equal(t, 99, primaryConfig.MaxDocCount)
+	require.Equal(t, "PUT", archiveFactory.coreFactory.GetConfig().SendGetBodyAs)
+	require.Equal(t, 99, archiveFactory.coreFactory.GetConfig().MaxDocCount)
+}
+
+func TestArchiveFactory(t *testing.T) {
+	tests := []struct {
+		name               string
+		args               []string
+		expectedReadAlias  string
+		expectedWriteAlias string
+	}{
+		{
+			name:               "default settings",
+			args:               []string{},
+			expectedReadAlias:  "archive",
+			expectedWriteAlias: "archive",
+		},
+		{
+			name:               "use read write aliases",
+			args:               []string{"--es-archive.use-aliases=true"},
+			expectedReadAlias:  "archive-read",
+			expectedWriteAlias: "archive-write",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			coreFactory := NewArchiveFactoryBase()
+			coreFactory.newClientFn = (&mockClientBuilder{}).NewClient
+			f := FactoryV1{coreFactory: coreFactory, Options: coreFactory.Options}
+			v, command := config.Viperize(f.AddFlags)
+			command.ParseFlags(test.args)
+			f.InitFromViper(v, zap.NewNop())
+
+			require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+
+			require.Equal(t, test.expectedReadAlias, f.coreFactory.GetConfig().ReadAliasSuffix)
+			require.Equal(t, test.expectedWriteAlias, f.coreFactory.GetConfig().WriteAliasSuffix)
+			require.True(t, f.coreFactory.GetConfig().UseReadWriteAliases)
+		})
+	}
 }
 
 func testPasswordFromFile(t *testing.T, pwdFile string, authReceived *sync.Map, getClient func() es.Client, getWriter func() (spanstore.Writer, error)) {
@@ -213,6 +219,15 @@ func testPasswordFromFile(t *testing.T, pwdFile string, authReceived *sync.Map, 
 	)
 }
 
+func TestConfigureFromOptions(t *testing.T) {
+	f := NewFactoryV1()
+	o := &Options{
+		Config: namespaceConfig{Configuration: escfg.Configuration{Servers: []string{"server"}}},
+	}
+	f.configureFromOptions(o)
+	assert.Equal(t, o.GetConfig(), f.coreFactory.GetConfig())
+}
+
 func getTestingFactory(t *testing.T, pwdFile string, server *httptest.Server) *FactoryV1 {
 	require.NoError(t, os.WriteFile(pwdFile, []byte(pwd1), 0o600))
 	cfg := &escfg.Configuration{
@@ -228,8 +243,11 @@ func getTestingFactory(t *testing.T, pwdFile string, server *httptest.Server) *F
 			MaxBytes: -1, // disable bulk; we want immediate flush
 		},
 	}
-	f, err := NewFactoryV1WithConfig(*cfg, metrics.NullFactory, zaptest.NewLogger(t))
-	require.NoError(t, err)
+	coreFactory := NewFactoryBase()
+	coreFactory.SetConfig(cfg)
+	f := NewArchiveFactoryV1()
+	f.coreFactory = coreFactory
+	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 	t.Cleanup(func() {
 		require.NoError(t, f.Close())
 	})

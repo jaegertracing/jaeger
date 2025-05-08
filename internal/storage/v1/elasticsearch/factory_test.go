@@ -17,8 +17,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 
-	"github.com/jaegertracing/jaeger/internal/config"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
@@ -53,46 +53,8 @@ func (m *mockClientBuilder) NewClient(*escfg.Configuration, *zap.Logger, metrics
 	return nil, m.err
 }
 
-func TestArchiveFactory(t *testing.T) {
-	tests := []struct {
-		name               string
-		args               []string
-		expectedReadAlias  string
-		expectedWriteAlias string
-	}{
-		{
-			name:               "default settings",
-			args:               []string{},
-			expectedReadAlias:  "archive",
-			expectedWriteAlias: "archive",
-		},
-		{
-			name:               "use read write aliases",
-			args:               []string{"--es-archive.use-aliases=true"},
-			expectedReadAlias:  "archive-read",
-			expectedWriteAlias: "archive-write",
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			f := NewArchiveFactory()
-			v, command := config.Viperize(f.AddFlags)
-			command.ParseFlags(test.args)
-			f.InitFromViper(v)
-
-			f.newClientFn = (&mockClientBuilder{}).NewClient
-			require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-
-			require.Equal(t, test.expectedReadAlias, f.config.ReadAliasSuffix)
-			require.Equal(t, test.expectedWriteAlias, f.config.WriteAliasSuffix)
-			require.True(t, f.config.UseReadWriteAliases)
-		})
-	}
-}
-
 func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
-	f := NewFactory()
+	f := NewFactoryBase()
 	f.config = &escfg.Configuration{
 		Tags: escfg.TagsAsFields{
 			File: "fixtures/file-does-not-exist.txt",
@@ -107,7 +69,7 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 }
 
 func TestElasticsearchILMUsedWithoutReadWriteAliases(t *testing.T) {
-	f := NewFactory()
+	f := NewFactoryBase()
 	f.config = &escfg.Configuration{
 		UseILM: true,
 	}
@@ -181,7 +143,7 @@ func TestTagKeysAsFields(t *testing.T) {
 }
 
 func TestCreateTemplateError(t *testing.T) {
-	f := NewFactory()
+	f := NewFactoryBase()
 	f.config = &escfg.Configuration{CreateIndexTemplates: true}
 	f.newClientFn = (&mockClientBuilder{createTemplateError: errors.New("template-error")}).NewClient
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
@@ -193,15 +155,6 @@ func TestCreateTemplateError(t *testing.T) {
 	require.Error(t, err, "template-error")
 }
 
-func TestConfigureFromOptions(t *testing.T) {
-	f := NewFactory()
-	o := &Options{
-		Config: namespaceConfig{Configuration: escfg.Configuration{Servers: []string{"server"}}},
-	}
-	f.configureFromOptions(o)
-	assert.Equal(t, o.GetConfig(), f.config)
-}
-
 func TestESStorageFactoryWithConfig(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write(mockEsServerResponse)
@@ -211,7 +164,7 @@ func TestESStorageFactoryWithConfig(t *testing.T) {
 		Servers:  []string{server.URL},
 		LogLevel: "error",
 	}
-	factory, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	factory, err := NewFactoryBaseWithConfig(cfg, metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
 	defer factory.Close()
 }
@@ -240,7 +193,7 @@ func TestConfigurationValidation(t *testing.T) {
 			err := test.cfg.Validate()
 			if test.wantErr {
 				require.Error(t, err)
-				_, err = NewFactoryWithConfig(test.cfg, metrics.NullFactory, zap.NewNop())
+				_, err = NewFactoryBaseWithConfig(test.cfg, metrics.NullFactory, zap.NewNop())
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
@@ -256,12 +209,12 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 		Servers:  []string{"http://127.0.0.1:65535"},
 		LogLevel: "error",
 	}
-	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	_, err := NewFactoryBaseWithConfig(cfg, metrics.NullFactory, zap.NewNop())
 	require.ErrorContains(t, err, "failed to create Elasticsearch client")
 }
 
 func TestFactoryESClientsAreNil(t *testing.T) {
-	f := &Factory{}
+	f := &FactoryBase{}
 	assert.Nil(t, f.getClient())
 }
 
@@ -275,7 +228,7 @@ func TestPasswordFromFileErrors(t *testing.T) {
 	pwdFile := filepath.Join(t.TempDir(), "pwd")
 	require.NoError(t, os.WriteFile(pwdFile, []byte("first password"), 0o600))
 
-	f := NewFactory()
+	f := NewFactoryBase()
 	f.config = &escfg.Configuration{
 		Servers:  []string{server.URL},
 		LogLevel: "debug",
@@ -327,7 +280,7 @@ func TestIsArchiveCapable(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			factory := &Factory{
+			factory := &FactoryBase{
 				Options: &Options{
 					Config: namespaceConfig{
 						namespace: test.namespace,
@@ -341,4 +294,13 @@ func TestIsArchiveCapable(t *testing.T) {
 			require.Equal(t, test.expected, result)
 		})
 	}
+}
+
+func getTestingFactoryBase(t *testing.T) *FactoryBase {
+	f := NewFactoryBase()
+	f.newClientFn = (&mockClientBuilder{}).NewClient
+	f.logger = zaptest.NewLogger(t)
+	f.metricsFactory = metrics.NullFactory
+	f.config = &escfg.Configuration{}
+	return f
 }

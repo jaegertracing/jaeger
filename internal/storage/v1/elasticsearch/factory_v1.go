@@ -33,11 +33,11 @@ var ( // interface comformance checks
 
 type FactoryV1 struct {
 	Options     *Options
-	coreFactory CoreFactory
+	coreFactory *FactoryBase
 }
 
 func NewFactoryV1() *FactoryV1 {
-	coreFactory := NewFactory()
+	coreFactory := NewFactoryBase()
 	return &FactoryV1{
 		coreFactory: coreFactory,
 		Options:     coreFactory.Options,
@@ -45,7 +45,7 @@ func NewFactoryV1() *FactoryV1 {
 }
 
 func NewArchiveFactoryV1() *FactoryV1 {
-	coreFactory := NewArchiveFactory()
+	coreFactory := NewArchiveFactoryBase()
 	return &FactoryV1{
 		coreFactory: coreFactory,
 		Options:     coreFactory.Options,
@@ -57,7 +57,7 @@ func NewFactoryV1WithConfig(
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) (*FactoryV1, error) {
-	coreFactory, err := NewFactoryWithConfig(cfg, metricsFactory, logger)
+	coreFactory, err := NewFactoryBaseWithConfig(cfg, metricsFactory, logger)
 	if err != nil {
 		return nil, err
 	}
