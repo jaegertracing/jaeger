@@ -80,8 +80,9 @@ func (t *Tenant) findTraces(query tracestore.TraceQueryParams) []ptrace.Traces {
 	t.RLock()
 	defer t.RUnlock()
 	traces := make([]ptrace.Traces, 0, query.SearchDepth)
-	for _, traceId := range t.ids {
-		trace, ok := t.traces[traceId]
+	lengthOfIds := len(t.ids)
+	for index := range t.ids {
+		trace, ok := t.traces[t.ids[lengthOfIds-index]]
 		if ok {
 			if validTrace(trace, query) {
 				if query.SearchDepth != 0 && len(traces) == query.SearchDepth {

@@ -113,7 +113,7 @@ func (st *Store) GetServices(ctx context.Context) ([]string, error) {
 
 func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
 	m := st.getTenant(tenancy.GetTenant(ctx))
-	if query.SearchDepth < 0 {
+	if query.SearchDepth <= 0 {
 		return func(yield func([]ptrace.Traces, error) bool) {
 			yield(nil, errNegativeSearchDepth)
 		}

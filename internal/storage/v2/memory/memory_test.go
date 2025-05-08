@@ -276,20 +276,37 @@ func TestFindTraces_ErrorStatusNotMatched(t *testing.T) {
 }
 
 func TestFindTraces_NegativeSearchDepthErr(t *testing.T) {
-	store := NewStore(v1.Configuration{
-		MaxTraces: 10,
-	})
-	params := tracestore.TraceQueryParams{
-		SearchDepth: -1,
+	tests := []struct {
+		name        string
+		searchDepth int
+	}{
+		{
+			name:        "negative search depth",
+			searchDepth: -1,
+		},
+		{
+			name:        "zero search depth",
+			searchDepth: 0,
+		},
 	}
-	gotIter := store.FindTraces(context.Background(), params)
-	iterLength := 0
-	for traces, err := range gotIter {
-		iterLength++
-		require.ErrorContains(t, err, "negative search depth is not allowed. please provide a valid search depth")
-		assert.Nil(t, traces)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			store := NewStore(v1.Configuration{
+				MaxTraces: 10,
+			})
+			params := tracestore.TraceQueryParams{
+				SearchDepth: test.searchDepth,
+			}
+			gotIter := store.FindTraces(context.Background(), params)
+			iterLength := 0
+			for traces, err := range gotIter {
+				iterLength++
+				require.ErrorContains(t, err, "negative search depth is not allowed. please provide a valid search depth")
+				assert.Nil(t, traces)
+			}
+			assert.Equal(t, 1, iterLength)
+		})
 	}
-	assert.Equal(t, 1, iterLength)
 }
 
 func TestGetOperationsWithKind(t *testing.T) {
