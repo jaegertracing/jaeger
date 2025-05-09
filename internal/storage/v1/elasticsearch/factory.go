@@ -133,6 +133,7 @@ func (f *FactoryBase) getClient() es.Client {
 	return nil
 }
 
+// GetSpanReaderParams returns the SpanReaderParams which can be used to initialize the v1 and v2 readers.
 func (f *FactoryBase) GetSpanReaderParams() (esSpanStore.SpanReaderParams, error) {
 	if f.config.UseILM && !f.config.UseReadWriteAliases {
 		return esSpanStore.SpanReaderParams{}, errors.New("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
@@ -153,6 +154,7 @@ func (f *FactoryBase) GetSpanReaderParams() (esSpanStore.SpanReaderParams, error
 	}, nil
 }
 
+// GetSpanWriterParams returns the SpanWriterParams which can be used to initialize the v1 and v2 writers.
 func (f *FactoryBase) GetSpanWriterParams() (esSpanStore.SpanWriterParams, error) {
 	if f.config.UseILM && !f.config.UseReadWriteAliases {
 		return esSpanStore.SpanWriterParams{}, errors.New("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
@@ -179,6 +181,7 @@ func (f *FactoryBase) GetSpanWriterParams() (esSpanStore.SpanWriterParams, error
 	}, nil
 }
 
+// GetDependencyStoreParams returns the esDepStorev2.Params which can be used to initialize the v1 and v2 dependency stores.
 func (f *FactoryBase) GetDependencyStoreParams() esDepStorev2.Params {
 	return esDepStorev2.Params{
 		Client:              f.getClient,
