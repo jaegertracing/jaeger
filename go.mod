@@ -299,4 +299,4 @@ require (
 
 replace github.com/Shopify/sarama => github.com/Shopify/sarama v1.33.0
 
-replace github.com/ebitengine/purego => github.com/ebitengine/purego v0.9.0-alpha.3.0.20250507171635-5047c08daa38
+replace github.com/ebitengine/purego => github.com/ebitengine/purego v0.8.3-0.20250507171810-1638563e3615
