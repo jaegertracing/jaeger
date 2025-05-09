@@ -21,6 +21,100 @@ copy from UI changelog
 
 </details>
 
+v1.69.0 / v2.6.0 (2025-05-08)
+-------------------------------
+
+### Backend Changes
+
+#### ⛔ Breaking Changes
+
+* Feat(elasticsearch): add flag to enable gzip compression ([@timonegk](https://github.com/timonegk) in [#7072](https://github.com/jaegertracing/jaeger/pull/7072))
+
+#### ✨ New Features
+
+* Add filterprocessor ([@yurishkuro](https://github.com/yurishkuro) in [#7094](https://github.com/jaegertracing/jaeger/pull/7094))
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Upgrade reverse-proxy example to jaeger-v2 ([@yurishkuro](https://github.com/yurishkuro) in [#7076](https://github.com/jaegertracing/jaeger/pull/7076))
+* Add pprof extension ([@denysvitali](https://github.com/denysvitali) in [#7073](https://github.com/jaegertracing/jaeger/pull/7073))
+* [es][v1] change the db tag value from `string` to `any` type ([@Manik2708](https://github.com/Manik2708) in [#6998](https://github.com/jaegertracing/jaeger/pull/6998))
+* Remove outdated info related to jaeger exporter ([@DamianMaslanka5](https://github.com/DamianMaslanka5) in [#6987](https://github.com/jaegertracing/jaeger/pull/6987))
+* [bug] fix the version module path in ldflags ([@developer-guy](https://github.com/developer-guy) in [#6990](https://github.com/jaegertracing/jaeger/pull/6990))
+
+#### 🚧 Experimental Features
+
+* [es][v2] implement `getdependenies` and `writedependencies` ([@Manik2708](https://github.com/Manik2708) in [#7085](https://github.com/jaegertracing/jaeger/pull/7085))
+* [clickhouse] convert otel traces model to  native format ([@zhengkezhou1](https://github.com/zhengkezhou1) in [#6935](https://github.com/jaegertracing/jaeger/pull/6935))
+* [es] make `nestedtags` and `elevatedtags` distinction at `corespanreader` level ([@Manik2708](https://github.com/Manik2708) in [#7067](https://github.com/jaegertracing/jaeger/pull/7067))
+* [es][v2] move `coredependencystore` and `dbmodel` from v1 to v2 ([@Manik2708](https://github.com/Manik2708) in [#7079](https://github.com/jaegertracing/jaeger/pull/7079))
+* [grpc][v2] use standard otlp receiver for grpc storage write path ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7065](https://github.com/jaegertracing/jaeger/pull/7065))
+* [es][v2] implement `findtraces` for es/os for v2 ([@Manik2708](https://github.com/Manik2708) in [#7021](https://github.com/jaegertracing/jaeger/pull/7021))
+* [refactor] remove `jaeger_query` extension from remote storage backend config ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7059](https://github.com/jaegertracing/jaeger/pull/7059))
+* [v2][remote-storage] implement remote storage extension ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7043](https://github.com/jaegertracing/jaeger/pull/7043))
+* [es][v2] implement `gettraces` for es/os ([@Manik2708](https://github.com/Manik2708) in [#7054](https://github.com/jaegertracing/jaeger/pull/7054))
+* [v2] implement `getoperations` and `getservices` for memory backend ([@Manik2708](https://github.com/Manik2708) in [#7053](https://github.com/jaegertracing/jaeger/pull/7053))
+* [v2] implement `findtraceids` for es/os ([@Manik2708](https://github.com/Manik2708) in [#7035](https://github.com/jaegertracing/jaeger/pull/7035))
+* [v2] implement `writetraces` for memory backend ([@Manik2708](https://github.com/Manik2708) in [#7027](https://github.com/jaegertracing/jaeger/pull/7027))
+* [es] refactor `dependencystore` to make it reusable for v2 apis ([@Manik2708](https://github.com/Manik2708) in [#7044](https://github.com/jaegertracing/jaeger/pull/7044))
+* [grpc][v2] use v2 grpc factory in storage extension ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6969](https://github.com/jaegertracing/jaeger/pull/6969))
+* [grpc][v2] register grpc v2 handler in remote-storage server ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7037](https://github.com/jaegertracing/jaeger/pull/7037))
+* [es][v2] implement `getoperations` and `getservices` for v2 ([@Manik2708](https://github.com/Manik2708) in [#7025](https://github.com/jaegertracing/jaeger/pull/7025))
+* [es][v2] implement `writetraces` for v2 ([@Manik2708](https://github.com/Manik2708) in [#7020](https://github.com/jaegertracing/jaeger/pull/7020))
+* [grpc][v2] implement `getdependencies` in grpc v2 server ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7016](https://github.com/jaegertracing/jaeger/pull/7016))
+* [grpc][v2] implement otlp exporter api in grpc v2 handler ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7012](https://github.com/jaegertracing/jaeger/pull/7012))
+* [es][v2] change the db tag value from `string` to `any` type ([@Manik2708](https://github.com/Manik2708) in [#6994](https://github.com/jaegertracing/jaeger/pull/6994))
+* [grpc][v2] implement findtraceids in grpc v2 handler ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7003](https://github.com/jaegertracing/jaeger/pull/7003))
+* [grpc][v2] implement `findtraces` in grpc v2 handler ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6992](https://github.com/jaegertracing/jaeger/pull/6992))
+* [grpc][v2] implement `gettraces` in grpc v2 handler ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6985](https://github.com/jaegertracing/jaeger/pull/6985))
+* [grpc][v2] implement getservices in grpc v2 handler ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6984](https://github.com/jaegertracing/jaeger/pull/6984))
+* [grpc][v2] implement `getservices` in grpc v2 handler ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6980](https://github.com/jaegertracing/jaeger/pull/6980))
+
+#### 👷 CI Improvements
+
+* Do not run binary size check on push to main ([@yurishkuro](https://github.com/yurishkuro) in [#7096](https://github.com/jaegertracing/jaeger/pull/7096))
+* Check that version number is corectly embedded in the binary ([@yurishkuro](https://github.com/yurishkuro) in [#7092](https://github.com/jaegertracing/jaeger/pull/7092))
+* Update module github.com/vektra/mockery/v2 to v3 ([@AnmolxSingh](https://github.com/AnmolxSingh) in [#7051](https://github.com/jaegertracing/jaeger/pull/7051))
+* [fix] add query integration test to workflows file ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7056](https://github.com/jaegertracing/jaeger/pull/7056))
+* Enable mockery/with-expecter ([@yurishkuro](https://github.com/yurishkuro) in [#7046](https://github.com/jaegertracing/jaeger/pull/7046))
+* Fix paths in mockery config ([@yurishkuro](https://github.com/yurishkuro) in [#7045](https://github.com/jaegertracing/jaeger/pull/7045))
+* Fix flakiness in runindexcleanertest by filtering jaeger indices ([@0xShubhamSolanki](https://github.com/0xShubhamSolanki) in [#7004](https://github.com/jaegertracing/jaeger/pull/7004))
+* Add e2e integration test for query service ([@pipiland2612](https://github.com/pipiland2612) in [#6966](https://github.com/jaegertracing/jaeger/pull/6966))
+* #5608 improve spm e2e test with test for error rate ([@pipiland2612](https://github.com/pipiland2612) in [#6991](https://github.com/jaegertracing/jaeger/pull/6991))
+
+#### ⚙️ Refactoring
+
+* [es] make `nestedtags` and `fieldtags` distinction at `corespanwriter` level ([@Manik2708](https://github.com/Manik2708) in [#6946](https://github.com/jaegertracing/jaeger/pull/6946))
+* [refactor] change remote storage server to accept v2 factories ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7024](https://github.com/jaegertracing/jaeger/pull/7024))
+* [refactor] consolidate v1/v2 writer factory adapter functionality ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7022](https://github.com/jaegertracing/jaeger/pull/7022))
+* [refactor] consolidate v1/v2 reader factory adapter functionality ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7019](https://github.com/jaegertracing/jaeger/pull/7019))
+
+### 📊 UI Changes
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Reduce load time of trace page by deferring critical path tooltip ([@DamianMaslanka5](https://github.com/DamianMaslanka5) in [#2718](https://github.com/jaegertracing/jaeger-ui/pull/2718))
+* Migrate copyicon tests ([@nojaf](https://github.com/nojaf) in [#2727](https://github.com/jaegertracing/jaeger-ui/pull/2727))
+* [fix]: make reset icon in sdg more intuitive ([@hari45678](https://github.com/hari45678) in [#2723](https://github.com/jaegertracing/jaeger-ui/pull/2723))
+* Migrate from enzyme to @testing-library/react in keyboardshortshelp ([@nojaf](https://github.com/nojaf) in [#2725](https://github.com/jaegertracing/jaeger-ui/pull/2725))
+* Improve performance of trace statistics page when grouping by tag ([@DamianMaslanka5](https://github.com/DamianMaslanka5) in [#2724](https://github.com/jaegertracing/jaeger-ui/pull/2724))
+* Improve performance of expanding and collapsing spans ([@DamianMaslanka5](https://github.com/DamianMaslanka5) in [#2722](https://github.com/jaegertracing/jaeger-ui/pull/2722))
+* Improve performance of trace statistics ([@DamianMaslanka5](https://github.com/DamianMaslanka5) in [#2721](https://github.com/jaegertracing/jaeger-ui/pull/2721))
+* [feat]: add context menu on node to dag ([@hari45678](https://github.com/hari45678) in [#2719](https://github.com/jaegertracing/jaeger-ui/pull/2719))
+* Fix grouping on trace statistics page for tags ([@DamianMaslanka5](https://github.com/DamianMaslanka5) in [#2717](https://github.com/jaegertracing/jaeger-ui/pull/2717))
+* Improve performance when expanding/collapsing span details ([@DamianMaslanka5](https://github.com/DamianMaslanka5) in [#2716](https://github.com/jaegertracing/jaeger-ui/pull/2716))
+
+#### 👷 CI Improvements
+
+* Add ability to use typescript in tests ([@DamianMaslanka5](https://github.com/DamianMaslanka5) in [#2731](https://github.com/jaegertracing/jaeger-ui/pull/2731))
+
+#### ⚙️ Refactoring
+
+* [es] make `nestedtags` and `fieldtags` distinction at `corespanwriter` level ([@Manik2708](https://github.com/Manik2708) in [#6946](https://github.com/jaegertracing/jaeger/pull/6946))
+* [refactor] change remote storage server to accept v2 factories ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7024](https://github.com/jaegertracing/jaeger/pull/7024))
+* [refactor] consolidate v1/v2 writer factory adapter functionality ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7022](https://github.com/jaegertracing/jaeger/pull/7022))
+* [refactor] consolidate v1/v2 reader factory adapter functionality ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7019](https://github.com/jaegertracing/jaeger/pull/7019))
+
 v1.68.0 / v2.5.0 (2025-04-05)
 -------------------------------
 

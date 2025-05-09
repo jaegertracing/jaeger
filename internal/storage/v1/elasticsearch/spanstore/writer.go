@@ -7,6 +7,7 @@ package spanstore
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -32,8 +33,11 @@ type SpanWriter struct {
 	client func() es.Client
 	logger *zap.Logger
 	// indexCache       cache.Cache
-	serviceWriter    serviceWriter
-	spanServiceIndex spanAndServiceIndexFn
+	serviceWriter     serviceWriter
+	spanServiceIndex  spanAndServiceIndexFn
+	allTagsAsFields   bool
+	tagDotReplacement string
+	tagKeysAsFields   map[string]bool
 }
 
 // CoreSpanWriter is a DB-Level abstraction which directly deals with database level operations
@@ -78,12 +82,20 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		}
 	}
 
+	tags := map[string]bool{}
+	for _, k := range p.TagKeysAsFields {
+		tags[k] = true
+	}
+
 	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheTTL)
 	return &SpanWriter{
-		client:           p.Client,
-		logger:           p.Logger,
-		serviceWriter:    serviceOperationStorage.Write,
-		spanServiceIndex: getSpanAndServiceIndexFn(p, writeAliasSuffix),
+		client:            p.Client,
+		logger:            p.Logger,
+		serviceWriter:     serviceOperationStorage.Write,
+		spanServiceIndex:  getSpanAndServiceIndexFn(p, writeAliasSuffix),
+		tagKeysAsFields:   tags,
+		allTagsAsFields:   p.AllTagsAsFields,
+		tagDotReplacement: p.TagDotReplacement,
 	}
 }
 
@@ -120,12 +132,22 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServ
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
+	s.convertNestedTagsToFieldTags(span)
 	spanIndexName, serviceIndexName := s.spanServiceIndex(spanStartTime)
 	if serviceIndexName != "" {
 		s.writeService(serviceIndexName, span)
 	}
 	s.writeSpan(spanIndexName, span)
 	s.logger.Debug("Wrote span to ES index", zap.String("index", spanIndexName))
+}
+
+func (s *SpanWriter) convertNestedTagsToFieldTags(span *dbmodel.Span) {
+	processNestedTags, processFieldTags := s.splitElevatedTags(span.Process.Tags)
+	span.Process.Tags = processNestedTags
+	span.Process.Tag = processFieldTags
+	nestedTags, fieldTags := s.splitElevatedTags(span.Tags)
+	span.Tags = nestedTags
+	span.Tag = fieldTags
 }
 
 // Close closes SpanWriter
@@ -147,4 +169,26 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
 
 func (s *SpanWriter) writeSpan(indexName string, jsonSpan *dbmodel.Span) {
 	s.client().Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan).Add()
+}
+
+func (s *SpanWriter) splitElevatedTags(keyValues []dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any) {
+	if !s.allTagsAsFields && len(s.tagKeysAsFields) == 0 {
+		return keyValues, nil
+	}
+	var tagsMap map[string]any
+	var kvs []dbmodel.KeyValue
+	for _, kv := range keyValues {
+		if kv.Type != dbmodel.BinaryType && (s.allTagsAsFields || s.tagKeysAsFields[kv.Key]) {
+			if tagsMap == nil {
+				tagsMap = map[string]any{}
+			}
+			tagsMap[strings.ReplaceAll(kv.Key, ".", s.tagDotReplacement)] = kv.Value
+		} else {
+			kvs = append(kvs, kv)
+		}
+	}
+	if kvs == nil {
+		kvs = make([]dbmodel.KeyValue, 0)
+	}
+	return kvs, tagsMap
 }

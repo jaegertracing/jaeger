@@ -7,7 +7,6 @@ package spanstore
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -37,7 +36,7 @@ func testToDomain(t *testing.T, testParentSpanID bool) {
 			span.ParentSpanID = "3"
 		}
 
-		actualSpan, err := NewToDomain(":").SpanToDomain(&span)
+		actualSpan, err := NewToDomain().SpanToDomain(&span)
 		require.NoError(t, err)
 
 		out := fmt.Sprintf("fixtures/domain_%02d.json", i)
@@ -62,13 +61,13 @@ func loadESSpanFixture(i int) (dbmodel.Span, error) {
 }
 
 func failingSpanTransform(t *testing.T, embeddedSpan *dbmodel.Span, errMsg string) {
-	domainSpan, err := NewToDomain(":").SpanToDomain(embeddedSpan)
+	domainSpan, err := NewToDomain().SpanToDomain(embeddedSpan)
 	assert.Nil(t, domainSpan)
 	require.EqualError(t, err, errMsg)
 }
 
 func failingSpanTransformAnyMsg(t *testing.T, embeddedSpan *dbmodel.Span) {
-	domainSpan, err := NewToDomain(":").SpanToDomain(embeddedSpan)
+	domainSpan, err := NewToDomain().SpanToDomain(embeddedSpan)
 	assert.Nil(t, domainSpan)
 	require.Error(t, err)
 }
@@ -374,20 +373,6 @@ func TestFailureBadParentSpanID(t *testing.T) {
 	failingSpanTransformAnyMsg(t, &badParentSpanIDESSpan)
 }
 
-func TestFailureBadSpanFieldTag(t *testing.T) {
-	badParentSpanIDESSpan, err := loadESSpanFixture(1)
-	require.NoError(t, err)
-	badParentSpanIDESSpan.Tag = map[string]any{"foo": struct{}{}}
-	failingSpanTransformAnyMsg(t, &badParentSpanIDESSpan)
-}
-
-func TestFailureBadProcessFieldTag(t *testing.T) {
-	badParentSpanIDESSpan, err := loadESSpanFixture(1)
-	require.NoError(t, err)
-	badParentSpanIDESSpan.Process.Tag = map[string]any{"foo": struct{}{}}
-	failingSpanTransformAnyMsg(t, &badParentSpanIDESSpan)
-}
-
 func CompareModelSpans(t *testing.T, expected *model.Span, actual *model.Span) {
 	model.SortSpan(expected)
 	model.SortSpan(actual)
@@ -399,45 +384,5 @@ func CompareModelSpans(t *testing.T, expected *model.Span, actual *model.Span) {
 		out, err := json.Marshal(actual)
 		require.NoError(t, err)
 		t.Logf("Actual trace: %s", string(out))
-	}
-}
-
-func TestTagsMap(t *testing.T) {
-	tests := []struct {
-		fieldTags map[string]any
-		expected  []model.KeyValue
-		err       error
-	}{
-		{fieldTags: map[string]any{"bool:bool": true}, expected: []model.KeyValue{model.Bool("bool.bool", true)}},
-		{fieldTags: map[string]any{"int.int": int64(1)}, expected: []model.KeyValue{model.Int64("int.int", 1)}},
-		{fieldTags: map[string]any{"int:int": int64(2)}, expected: []model.KeyValue{model.Int64("int.int", 2)}},
-		{fieldTags: map[string]any{"float": float64(1.1)}, expected: []model.KeyValue{model.Float64("float", 1.1)}},
-		{fieldTags: map[string]any{"float": float64(123)}, expected: []model.KeyValue{model.Float64("float", float64(123))}},
-		{fieldTags: map[string]any{"float": float64(123.0)}, expected: []model.KeyValue{model.Float64("float", float64(123.0))}},
-		{fieldTags: map[string]any{"float:float": float64(123)}, expected: []model.KeyValue{model.Float64("float.float", float64(123))}},
-		{fieldTags: map[string]any{"json_number:int": json.Number("123")}, expected: []model.KeyValue{model.Int64("json_number.int", 123)}},
-		{fieldTags: map[string]any{"json_number:float": json.Number("123.0")}, expected: []model.KeyValue{model.Float64("json_number.float", float64(123.0))}},
-		{fieldTags: map[string]any{"json_number:err": json.Number("foo")}, err: errors.New("invalid tag type in foo: strconv.ParseFloat: parsing \"foo\": invalid syntax")},
-		{fieldTags: map[string]any{"str": "foo"}, expected: []model.KeyValue{model.String("str", "foo")}},
-		{fieldTags: map[string]any{"str:str": "foo"}, expected: []model.KeyValue{model.String("str.str", "foo")}},
-		{fieldTags: map[string]any{"binary": []byte("foo")}, expected: []model.KeyValue{model.Binary("binary", []byte("foo"))}},
-		{fieldTags: map[string]any{"binary:binary": []byte("foo")}, expected: []model.KeyValue{model.Binary("binary.binary", []byte("foo"))}},
-		{fieldTags: map[string]any{"unsupported": struct{}{}}, err: fmt.Errorf("invalid tag type in %+v", struct{}{})},
-	}
-	converter := NewToDomain(":")
-	for i, test := range tests {
-		t.Run(fmt.Sprintf("%d, %s", i, test.fieldTags), func(t *testing.T) {
-			tags, err := converter.convertTagFields(test.fieldTags)
-			if err != nil {
-				fmt.Println(err.Error())
-			}
-			if test.err != nil {
-				assert.Equal(t, test.err.Error(), err.Error())
-				require.Nil(t, tags)
-			} else {
-				require.NoError(t, err)
-				assert.Equal(t, test.expected, tags)
-			}
-		})
 	}
 }

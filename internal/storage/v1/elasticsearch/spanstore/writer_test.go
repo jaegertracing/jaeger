@@ -414,6 +414,111 @@ func TestSpanWriterParamsTTL(t *testing.T) {
 	}
 }
 
+func TestTagMap(t *testing.T) {
+	tags := []dbmodel.KeyValue{
+		{
+			Key:   "foo",
+			Value: "foo",
+			Type:  dbmodel.StringType,
+		},
+		{
+			Key:   "a",
+			Value: true,
+			Type:  dbmodel.BoolType,
+		},
+		{
+			Key:   "b.b",
+			Value: int64(1),
+			Type:  dbmodel.Int64Type,
+		},
+	}
+	dbSpan := dbmodel.Span{Tags: tags, Process: dbmodel.Process{Tags: tags}}
+	converter := NewSpanWriter(SpanWriterParams{
+		AllTagsAsFields:   false,
+		TagKeysAsFields:   []string{"a", "b.b", "b*"},
+		TagDotReplacement: ":",
+	})
+	converter.convertNestedTagsToFieldTags(&dbSpan)
+
+	assert.Len(t, dbSpan.Tags, 1)
+	assert.Equal(t, "foo", dbSpan.Tags[0].Key)
+	assert.Len(t, dbSpan.Process.Tags, 1)
+	assert.Equal(t, "foo", dbSpan.Process.Tags[0].Key)
+
+	tagsMap := map[string]any{}
+	tagsMap["a"] = true
+	tagsMap["b:b"] = int64(1)
+	assert.Equal(t, tagsMap, dbSpan.Tag)
+	assert.Equal(t, tagsMap, dbSpan.Process.Tag)
+}
+
+func TestNewSpanTags(t *testing.T) {
+	testCases := []struct {
+		params   SpanWriterParams
+		expected dbmodel.Span
+		name     string
+	}{
+		{
+			params: SpanWriterParams{
+				AllTagsAsFields:   true,
+				TagKeysAsFields:   []string{},
+				TagDotReplacement: "",
+			},
+			expected: dbmodel.Span{
+				Tag: map[string]any{"foo": "bar"}, Tags: []dbmodel.KeyValue{},
+				Process: dbmodel.Process{Tag: map[string]any{"bar": "baz"}, Tags: []dbmodel.KeyValue{}},
+			},
+			name: "allTagsAsFields",
+		},
+		{
+			params: SpanWriterParams{
+				AllTagsAsFields:   false,
+				TagKeysAsFields:   []string{"foo", "bar", "rere"},
+				TagDotReplacement: "",
+			},
+			expected: dbmodel.Span{
+				Tag: map[string]any{"foo": "bar"}, Tags: []dbmodel.KeyValue{},
+				Process: dbmodel.Process{Tag: map[string]any{"bar": "baz"}, Tags: []dbmodel.KeyValue{}},
+			},
+			name: "definedTagNames",
+		},
+		{
+			params: SpanWriterParams{
+				AllTagsAsFields:   false,
+				TagKeysAsFields:   []string{},
+				TagDotReplacement: "",
+			},
+			expected: dbmodel.Span{
+				Tags: []dbmodel.KeyValue{{
+					Key:   "foo",
+					Type:  dbmodel.StringType,
+					Value: "bar",
+				}},
+				Process: dbmodel.Process{Tags: []dbmodel.KeyValue{{
+					Key:   "bar",
+					Type:  dbmodel.StringType,
+					Value: "baz",
+				}}},
+			},
+			name: "noAllTagsAsFields",
+		},
+	}
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			mSpan := &dbmodel.Span{
+				Tags:    []dbmodel.KeyValue{{Key: "foo", Value: "bar", Type: dbmodel.StringType}},
+				Process: dbmodel.Process{Tags: []dbmodel.KeyValue{{Key: "bar", Value: "baz", Type: dbmodel.StringType}}},
+			}
+			writer := NewSpanWriter(test.params)
+			writer.convertNestedTagsToFieldTags(mSpan)
+			assert.Equal(t, test.expected.Tag, mSpan.Tag)
+			assert.Equal(t, test.expected.Tags, mSpan.Tags)
+			assert.Equal(t, test.expected.Process.Tag, mSpan.Process.Tag)
+			assert.Equal(t, test.expected.Process.Tags, mSpan.Process.Tags)
+		})
+	}
+}
+
 // stringMatcher can match a string argument when it contains a specific substring q
 func stringMatcher(q string) any {
 	matchFunc := func(s string) bool {

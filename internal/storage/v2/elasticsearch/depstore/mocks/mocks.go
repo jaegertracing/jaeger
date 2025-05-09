@@ -12,7 +12,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/dependencystore/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore/dbmodel"
 	mock "github.com/stretchr/testify/mock"
 )
 
