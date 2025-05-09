@@ -45,7 +45,7 @@ extensions:
               insecure: true
       another-storage:
         grpc:
-          endpoint: localhost:17272
+          endpoint:  "${env:ARCHIVE_REMOTE_STORAGE_ENDPOINT:-localhost:17272}"
           tls:
             insecure: true  
 
