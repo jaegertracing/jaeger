@@ -52,21 +52,6 @@ func NewArchiveFactoryV1() *FactoryV1 {
 	}
 }
 
-func NewFactoryV1WithConfig(
-	cfg config.Configuration,
-	metricsFactory metrics.Factory,
-	logger *zap.Logger,
-) (*FactoryV1, error) {
-	coreFactory, err := NewFactoryBaseWithConfig(cfg, metricsFactory, logger)
-	if err != nil {
-		return nil, err
-	}
-	return &FactoryV1{
-		coreFactory: coreFactory,
-		Options:     coreFactory.Options,
-	}, nil
-}
-
 func (f *FactoryV1) AddFlags(flagSet *flag.FlagSet) {
 	f.Options.AddFlags(flagSet)
 }
@@ -103,7 +88,7 @@ func (f *FactoryV1) CreateSpanWriter() (spanstore.Writer, error) {
 		return nil, err
 	}
 	wr := esSpanStore.NewSpanWriterV1(params)
-	err = createTemplates(wr, f.coreFactory.GetConfig())
+	err = f.createTemplates(wr, f.coreFactory.GetConfig())
 	if err != nil {
 		return nil, err
 	}
@@ -134,14 +119,13 @@ func (f *FactoryV1) InheritSettingsFrom(other storage.Factory) {
 }
 
 func (f *FactoryV1) IsArchiveCapable() bool {
-	return f.coreFactory.IsArchiveCapable()
+	return f.Options.Config.namespace == archiveNamespace && f.Options.Config.Enabled
 }
 
-func createTemplates(writer *esSpanStore.SpanWriterV1, cfg *config.Configuration) error {
+func (f *FactoryV1) createTemplates(writer *esSpanStore.SpanWriterV1, cfg *config.Configuration) error {
 	// Creating a template here would conflict with the one created for ILM resulting to no index rollover
 	if cfg.CreateIndexTemplates && !cfg.UseILM {
-		mappingBuilder := mappingBuilderFromConfig(cfg)
-		spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
+		spanMapping, serviceMapping, err := f.coreFactory.GetSpanServiceMapping()
 		if err != nil {
 			return err
 		}

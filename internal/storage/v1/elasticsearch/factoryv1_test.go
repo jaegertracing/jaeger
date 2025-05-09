@@ -27,7 +27,6 @@ import (
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	esSpanStore "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
@@ -41,7 +40,7 @@ const (
 
 func TestElasticsearchFactory(t *testing.T) {
 	f := NewFactoryV1()
-	f.coreFactory = getTestingFactoryBase(t)
+	f.coreFactory = GetTestingFactoryBase(t)
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{})
 	f.InitFromViper(v, zap.NewNop())
@@ -79,26 +78,29 @@ func TestCreateTemplateErr(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			logger := zap.NewNop()
-			metricsFactory := metrics.NullFactory
-			w := esSpanStore.NewSpanWriterV1(esSpanStore.SpanWriterParams{
-				Client: func() es.Client {
-					clFxn := (&mockClientBuilder{createTemplateError: errors.New("template-error")}).NewClient
-					client, err := clFxn(tt.cfg, logger, metricsFactory)
-					require.NoError(t, err)
-					return client
-				},
-				Logger:         logger,
-				MetricsFactory: metricsFactory,
-			})
-			err := createTemplates(w, tt.cfg)
+			f := NewFactoryV1()
+			f.coreFactory = GetTestingFactoryBaseWithCreateTemplateError(t, errors.New("template-error"))
+			f.coreFactory.SetConfig(tt.cfg)
+			require.NoError(t, f.Initialize(metrics.NullFactory, zaptest.NewLogger(t)))
+			wr, err := f.CreateSpanWriter()
 			if tt.expectErr {
 				require.ErrorContains(t, err, "template-error")
+				assert.Nil(t, wr)
 			} else {
 				require.NoError(t, err)
 			}
 		})
 	}
+}
+
+func TestSpanReaderErr(t *testing.T) {
+	f := NewFactoryV1()
+	f.coreFactory = GetTestingFactoryBaseWithCreateTemplateError(t, errors.New("template-error"))
+	f.coreFactory.SetConfig(&escfg.Configuration{UseILM: true, UseReadWriteAliases: false})
+	require.NoError(t, f.Initialize(metrics.NullFactory, zaptest.NewLogger(t)))
+	r, err := f.CreateSpanReader()
+	require.ErrorContains(t, err, "--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
+	assert.Nil(t, r)
 }
 
 func TestPasswordFromFile(t *testing.T) {
@@ -124,14 +126,14 @@ func TestInheritSettingsFrom(t *testing.T) {
 		MaxDocCount: 99,
 	}
 	primaryFactory := NewFactoryV1()
-	primaryFactory.coreFactory = getTestingFactoryBase(t)
+	primaryFactory.coreFactory = GetTestingFactoryBase(t)
 	primaryFactory.coreFactory.SetConfig(primaryConfig)
 	archiveConfig := &escfg.Configuration{
 		SendGetBodyAs: "PUT",
 	}
 	archiveFactory := NewFactoryV1()
 	archiveFactory.Options = NewOptions(archiveNamespace)
-	archiveFactory.coreFactory = getTestingFactoryBase(t)
+	archiveFactory.coreFactory = GetTestingFactoryBase(t)
 	archiveFactory.coreFactory.SetConfig(archiveConfig)
 	archiveFactory.InheritSettingsFrom(primaryFactory)
 	require.Equal(t, "PUT", archiveFactory.coreFactory.GetConfig().SendGetBodyAs)
@@ -226,6 +228,51 @@ func TestConfigureFromOptions(t *testing.T) {
 	}
 	f.configureFromOptions(o)
 	assert.Equal(t, o.GetConfig(), f.coreFactory.GetConfig())
+}
+
+func TestIsArchiveCapable(t *testing.T) {
+	tests := []struct {
+		name      string
+		namespace string
+		enabled   bool
+		expected  bool
+	}{
+		{
+			name:      "archive capable",
+			namespace: "es-archive",
+			enabled:   true,
+			expected:  true,
+		},
+		{
+			name:      "not capable",
+			namespace: "es-archive",
+			enabled:   false,
+			expected:  false,
+		},
+		{
+			name:      "capable + wrong namespace",
+			namespace: "es",
+			enabled:   true,
+			expected:  false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			factory := &FactoryV1{
+				Options: &Options{
+					Config: namespaceConfig{
+						namespace: test.namespace,
+						Configuration: escfg.Configuration{
+							Enabled: test.enabled,
+						},
+					},
+				},
+			}
+			result := factory.IsArchiveCapable()
+			require.Equal(t, test.expected, result)
+		})
+	}
 }
 
 func getTestingFactory(t *testing.T, pwdFile string, server *httptest.Server) *FactoryV1 {

@@ -5,7 +5,6 @@
 package elasticsearch
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -14,15 +13,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
@@ -33,25 +28,6 @@ var mockEsServerResponse = []byte(`
 	}
 }
 `)
-
-type mockClientBuilder struct {
-	err                 error
-	createTemplateError error
-}
-
-func (m *mockClientBuilder) NewClient(*escfg.Configuration, *zap.Logger, metrics.Factory) (es.Client, error) {
-	if m.err == nil {
-		c := &mocks.Client{}
-		tService := &mocks.TemplateCreateService{}
-		tService.On("Body", mock.Anything).Return(tService)
-		tService.On("Do", context.Background()).Return(nil, m.createTemplateError)
-		c.On("CreateTemplate", mock.Anything).Return(tService)
-		c.On("GetVersion").Return(uint(6))
-		c.On("Close").Return(nil)
-		return c, nil
-	}
-	return nil, m.err
-}
 
 func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 	f := NewFactoryBase()
@@ -249,58 +225,4 @@ func TestPasswordFromFileErrors(t *testing.T) {
 
 	require.NoError(t, os.Remove(pwdFile))
 	f.onPasswordChange()
-}
-
-func TestIsArchiveCapable(t *testing.T) {
-	tests := []struct {
-		name      string
-		namespace string
-		enabled   bool
-		expected  bool
-	}{
-		{
-			name:      "archive capable",
-			namespace: "es-archive",
-			enabled:   true,
-			expected:  true,
-		},
-		{
-			name:      "not capable",
-			namespace: "es-archive",
-			enabled:   false,
-			expected:  false,
-		},
-		{
-			name:      "capable + wrong namespace",
-			namespace: "es",
-			enabled:   true,
-			expected:  false,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			factory := &FactoryBase{
-				Options: &Options{
-					Config: namespaceConfig{
-						namespace: test.namespace,
-						Configuration: escfg.Configuration{
-							Enabled: test.enabled,
-						},
-					},
-				},
-			}
-			result := factory.IsArchiveCapable()
-			require.Equal(t, test.expected, result)
-		})
-	}
-}
-
-func getTestingFactoryBase(t *testing.T) *FactoryBase {
-	f := NewFactoryBase()
-	f.newClientFn = (&mockClientBuilder{}).NewClient
-	f.logger = zaptest.NewLogger(t)
-	f.metricsFactory = metrics.NullFactory
-	f.config = &escfg.Configuration{}
-	return f
 }

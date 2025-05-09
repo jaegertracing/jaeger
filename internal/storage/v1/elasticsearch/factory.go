@@ -280,10 +280,6 @@ func loadTokenFromFile(path string) (string, error) {
 	return strings.TrimRight(string(b), "\r\n"), nil
 }
 
-func (f *FactoryBase) IsArchiveCapable() bool {
-	return f.Options.Config.namespace == archiveNamespace && f.Options.Config.Enabled
-}
-
 func (f *FactoryBase) GetMetricsFactory() metrics.Factory {
 	return f.metricsFactory
 }
@@ -294,4 +290,13 @@ func (f *FactoryBase) GetConfig() *config.Configuration {
 
 func (f *FactoryBase) SetConfig(cfg *config.Configuration) {
 	f.config = cfg
+}
+
+func (f *FactoryBase) GetSpanServiceMapping() (serviceMapping string, spanMapping string, err error) {
+	mappingBuilder := mappingBuilderFromConfig(f.config)
+	spanMapping, serviceMapping, err = mappingBuilder.GetSpanServiceMappings()
+	if err != nil {
+		return "", "", err
+	}
+	return spanMapping, serviceMapping, nil
 }
