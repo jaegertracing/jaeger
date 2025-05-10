@@ -1,0 +1,133 @@
+CREATE TABLE IF NOT EXISTS test
+(
+    Timestamp DateTime64(9) CODEC(Delta, ZSTD(1)),
+    TraceID Array(UInt8) CODEC(ZSTD(1)),
+    SpanID Array(UInt8) CODEC(ZSTD(1)),
+    ParentSpanID Array(UInt8) CODEC(ZSTD(1)),
+    TraceState String CODEC(ZSTD(1)),
+    SpanName String CODEC(ZSTD(1)),
+    SpanKind String CODEC(ZSTD(1)),
+    Duration DateTime64(9) CODEC(Delta, ZSTD(1)),
+    StatusCode String CODEC(ZSTD(1)),
+    StatusMessage String CODEC(ZSTD(1)),
+
+    SpanBoolAttrs Nested (
+        key String,
+        value Bool
+	),
+	SpanDoubleAttrs Nested (
+	    key String,
+	    value Float64
+	),
+	SpanIntAttrs Nested (
+		key String,
+		value Int64
+	),
+	SpanStrAttrs Nested (
+		key String,
+		value String
+	),
+	SpanBytesAttrs Nested (
+		key String,
+		value Array(UInt8)
+	),
+
+	ScopeName String CODEC(ZSTD(1)),
+    ScopeVersion String CODEC(ZSTD(1)),
+    ScopeBoolAttrs Nested (
+        key String,
+        value Bool
+	),
+	ScopeDoubleAttrs Nested (
+	    key String,
+	    value Float64
+	),
+	ScopeIntAttrs Nested (
+		key String,
+		value Int64
+	),
+	ScopeStrAttrs Nested (
+		key String,
+		value String
+	),
+	ScopeBytesAttrs Nested (
+		key String,
+		value Array(UInt8)
+	),
+
+    ResourceBoolAttrs Nested (
+        key String,
+        value Bool
+	),
+	ResourceDoubleAttrs Nested (
+	    key String,
+	    value Float64
+	),
+	ResourceIntAttrs Nested (
+		key String,
+		value Int64
+	),
+	ResourceStrAttrs Nested (
+		key String,
+		value String
+	),
+	ResourceBytesAttrs Nested (
+		key String,
+		value Array(UInt8)
+	),
+
+    Events Nested(
+        Name String,
+        Timestamp DateTime64(9),
+        BoolAttrs Nested (
+            key String,
+            value Bool
+        ),
+        DoubleAttrs Nested (
+            key String,
+            value Float64
+        ),
+        IntAttrs Nested (
+            key String,
+            value Int64
+        ),
+        StrAttrs Nested (
+            key String,
+            value String
+        ),
+        BytesAttrs Nested (
+            key String,
+            value Array(UInt8)
+        )
+    ),
+
+    Links Nested(
+        TraceID Array(UInt8),
+        SpanID Array(UInt8),
+        TraceState String,
+        BoolAttrs Nested (
+            key String,
+            value Bool
+        ),
+        DoubleAttrs Nested (
+           key String,
+           value Float64
+        ),
+        IntAttrs Nested (
+            key String,
+            value Int64
+        ),
+        StrAttrs Nested (
+            key String,
+            value String
+        ),
+        BytesAttrs Nested (
+            key String,
+            value Array(UInt8)
+        )
+    ),
+)
+ENGINE = MergeTree()
+PARTITION BY toDate(Timestamp)
+ORDER BY (SpanName, toUnixTimestamp(Timestamp), Duration, TraceID)
+SETTINGS index_granularity=8192, ttl_only_drop_parts = 1;
