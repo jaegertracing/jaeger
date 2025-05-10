@@ -1,11 +1,13 @@
-s|import "google/protobuf/duration.proto";|import "google/protobuf/duration.proto";\
+0,/import "google\/protobuf\/.*.proto";/{
+s|import "google/protobuf/.*.proto";|&\
 \
 import "gogoproto/gogo.proto";\
 \
 option (gogoproto.marshaler_all) = true;\
 option (gogoproto.unmarshaler_all) = true;\
 option (gogoproto.sizer_all) = true;\
-|g
+|
+}
 
 s|google.protobuf.Timestamp \(.*\);|google.protobuf.Timestamp \1 \
   [\
