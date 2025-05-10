@@ -89,7 +89,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 			// since the binary config file jaeger_query's ui.config_file points to
 			// "./cmd/jaeger/config-ui.json"
 			Dir: "../../../..",
-			Env: envVars,
+			Env: append(os.Environ(), envVars...),
 		},
 	}
 	cmd.Start(t)
