@@ -36,7 +36,7 @@ extensions:
     backends:
       some-storage:
         grpc:
-          endpoint: localhost:17271
+          endpoint: "${env:REMOTE_STORAGE_ENDPOINT:-localhost:17271}"
           tls:
             insecure: true
           writer:
@@ -45,7 +45,7 @@ extensions:
               insecure: true
       another-storage:
         grpc:
-          endpoint: localhost:17272
+          endpoint:  "${env:ARCHIVE_REMOTE_STORAGE_ENDPOINT:-localhost:17272}"
           tls:
             insecure: true  
 
