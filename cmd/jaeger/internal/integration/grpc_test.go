@@ -31,6 +31,7 @@ func TestGRPCStorage(t *testing.T) {
 		},
 		PropagateEnvVars: []string{
 			"REMOTE_STORAGE_ENDPOINT",
+			"REMOTE_STORAGE_WRITER_ENDPOINT",
 			"ARCHIVE_REMOTE_STORAGE_ENDPOINT",
 		},
 	}

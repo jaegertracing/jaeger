@@ -40,7 +40,7 @@ extensions:
           tls:
             insecure: true
           writer:
-            endpoint: 0.0.0.0:4316
+            endpoint: ${env:REMOTE_STORAGE_WRITER_ENDPOINT:-0.0.0.0:4316}
             tls:
               insecure: true
       another-storage:
