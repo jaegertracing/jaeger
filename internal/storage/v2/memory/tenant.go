@@ -16,18 +16,23 @@ import (
 // Tenant is an in-memory store of traces for a single tenant
 type Tenant struct {
 	sync.RWMutex
-	ids        []pcommon.TraceID // ring buffer used to evict oldest traces
-	traces     map[pcommon.TraceID]ptrace.Traces
+	ids        map[pcommon.TraceID]int
+	traces     []*tracesById // ring buffer used to store traces
 	services   map[string]struct{}
 	operations map[string]map[tracestore.Operation]struct{}
 	config     *v1.Configuration
-	evict      int // position in ids[] of the last evicted trace
+	evict      int // position in traces[] of the last evicted trace
+}
+
+type tracesById struct {
+	id    pcommon.TraceID
+	trace ptrace.Traces
 }
 
 func newTenant(cfg *v1.Configuration) *Tenant {
 	return &Tenant{
-		ids:        make([]pcommon.TraceID, cfg.MaxTraces),
-		traces:     map[pcommon.TraceID]ptrace.Traces{},
+		ids:        make(map[pcommon.TraceID]int),
+		traces:     make([]*tracesById, cfg.MaxTraces),
 		services:   map[string]struct{}{},
 		operations: map[string]map[tracestore.Operation]struct{}{},
 		config:     cfg,
@@ -55,23 +60,121 @@ func (t *Tenant) storeOperation(serviceName string, operation tracestore.Operati
 func (t *Tenant) storeTraces(traceId pcommon.TraceID, resourceSpanSlice ptrace.ResourceSpansSlice) {
 	t.Lock()
 	defer t.Unlock()
-	if foundTraces, ok := t.traces[traceId]; ok {
-		resourceSpanSlice.MoveAndAppendTo(foundTraces.ResourceSpans())
+	if tracesIndex, ok := t.ids[traceId]; ok {
+		resourceSpanSlice.MoveAndAppendTo(t.traces[tracesIndex].trace.ResourceSpans())
 		return
 	}
 	traces := ptrace.NewTraces()
 	resourceSpanSlice.MoveAndAppendTo(traces.ResourceSpans())
-	t.traces[traceId] = traces
 	// if we have a limit, let's cleanup the oldest traces
 	if t.config.MaxTraces > 0 {
 		// we only have to deal with this slice if we have a limit
 		t.evict = (t.evict + 1) % t.config.MaxTraces
 		// do we have an item already on this position? if so, we are overriding it,
 		// and we need to remove from the map
-		if !t.ids[t.evict].IsEmpty() {
-			delete(t.traces, t.ids[t.evict])
+		if t.traces[t.evict] != nil {
+			delete(t.ids, t.traces[t.evict].id)
 		}
 		// update the ring with the trace id
-		t.ids[t.evict] = traceId
+		t.ids[traceId] = t.evict
+		t.traces[t.evict] = &tracesById{
+			id:    traceId,
+			trace: traces,
+		}
 	}
+}
+
+func (t *Tenant) findTraces(query tracestore.TraceQueryParams) []ptrace.Traces {
+	t.RLock()
+	defer t.RUnlock()
+	traces := make([]ptrace.Traces, 0, query.SearchDepth)
+	for traceId, index := range t.ids {
+		if !traceId.IsEmpty() {
+			traceById := t.traces[index]
+			if traceById != nil {
+				if validTrace(traceById.trace, query) {
+					if query.SearchDepth != 0 && len(traces) == query.SearchDepth {
+						return traces
+					}
+					traces = append(traces, traceById.trace)
+				}
+			}
+		}
+	}
+	return traces
+}
+
+func validTrace(td ptrace.Traces, query tracestore.TraceQueryParams) bool {
+	for _, resourceSpan := range td.ResourceSpans().All() {
+		if validResource(resourceSpan.Resource(), query) {
+			for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
+				for _, span := range scopeSpan.Spans().All() {
+					if validSpan(resourceSpan.Resource().Attributes(), scopeSpan.Scope().Attributes(), span, query) {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func validResource(resource pcommon.Resource, query tracestore.TraceQueryParams) bool {
+	return query.ServiceName == "" || query.ServiceName == getServiceNameFromResource(resource)
+}
+
+func validSpan(resourceAttributes, scopeAttributes pcommon.Map, span ptrace.Span, query tracestore.TraceQueryParams) bool {
+	errorAttributeFound := false
+	if errorAttr, ok := query.Attributes.Get(errorAttribute); ok {
+		errorAttributeFound = errorAttr.Bool()
+		query.Attributes.Remove(errorAttribute)
+	}
+	if query.Attributes.Len() > 0 {
+		for key, val := range query.Attributes.All() {
+			if !findKeyValInTrace(key, val, resourceAttributes, scopeAttributes, span) {
+				return false
+			}
+		}
+	}
+	if errorAttributeFound && span.Status().Code() != ptrace.StatusCodeError {
+		return false
+	}
+	if query.OperationName != "" && query.OperationName != span.Name() {
+		return false
+	}
+	startTime := span.StartTimestamp().AsTime()
+	endTime := span.EndTimestamp().AsTime()
+	if !query.StartTimeMin.IsZero() && startTime.Before(query.StartTimeMin) {
+		return false
+	}
+	if !query.StartTimeMax.IsZero() && startTime.After(query.StartTimeMax) {
+		return false
+	}
+	duration := endTime.Sub(span.StartTimestamp().AsTime())
+	if query.DurationMin != 0 && duration < query.DurationMin {
+		return false
+	}
+	if query.DurationMax != 0 && duration > query.DurationMax {
+		return false
+	}
+	return true
+}
+
+func matchAttributes(key string, val pcommon.Value, attrs pcommon.Map) bool {
+	if queryValue, ok := attrs.Get(key); ok {
+		return queryValue.AsString() == val.AsString()
+	}
+	return false
+}
+
+func findKeyValInTrace(key string, val pcommon.Value, resourceAttributes pcommon.Map, scopeAttributes pcommon.Map, span ptrace.Span) bool {
+	tagsMatched := matchAttributes(key, val, span.Attributes()) || matchAttributes(key, val, scopeAttributes) || matchAttributes(key, val, resourceAttributes)
+	if !tagsMatched {
+		for _, event := range span.Events().All() {
+			if matchAttributes(key, val, event.Attributes()) {
+				return true
+			}
+		}
+	}
+	return tagsMatched
 }

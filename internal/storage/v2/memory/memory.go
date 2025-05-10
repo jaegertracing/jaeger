@@ -5,6 +5,8 @@ package memory
 
 import (
 	"context"
+	"errors"
+	"iter"
 	"sync"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -15,6 +17,10 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
+
+const errorAttribute = "error"
+
+var errNegativeSearchDepth = errors.New("negative search depth is not allowed. please provide a valid search depth")
 
 // Store is an in-memory store of traces
 type Store struct {
@@ -103,6 +109,23 @@ func (st *Store) GetServices(ctx context.Context) ([]string, error) {
 		retMe = append(retMe, k)
 	}
 	return retMe, nil
+}
+
+func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+	m := st.getTenant(tenancy.GetTenant(ctx))
+	if query.SearchDepth <= 0 {
+		return func(yield func([]ptrace.Traces, error) bool) {
+			yield(nil, errNegativeSearchDepth)
+		}
+	}
+	traces := m.findTraces(query)
+	return func(yield func([]ptrace.Traces, error) bool) {
+		for _, trace := range traces {
+			if !yield([]ptrace.Traces{trace}, nil) {
+				return
+			}
+		}
+	}
 }
 
 // reshuffleResourceSpans reshuffles the resource spans so as to group the spans from same traces together. To understand this reshuffling
