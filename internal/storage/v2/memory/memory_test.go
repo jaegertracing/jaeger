@@ -76,6 +76,7 @@ func TestNewStore_DefaultConfig(t *testing.T) {
 		ServiceName:   "service-x",
 		OperationName: "test-general-conversion-2",
 		Attributes:    queryAttrs,
+		SearchDepth:   5,
 	})
 	i := 0
 	for foundTraces, err := range gotIter {
@@ -171,6 +172,7 @@ func TestFindTraces_WrongQuery(t *testing.T) {
 				ServiceName:   "service-x",
 				OperationName: "test-general-conversion-2",
 				Attributes:    getQueryAttributes(),
+				SearchDepth:   10,
 			}
 			tt.modifyQueryFxn(&query)
 			gotIter := store.FindTraces(context.Background(), query)
@@ -180,6 +182,64 @@ func TestFindTraces_WrongQuery(t *testing.T) {
 				iterLength++
 			}
 			assert.Equal(t, tt.iterLength, iterLength)
+		})
+	}
+}
+
+func TestFindTracesAttributesMatching(t *testing.T) {
+	stringVal := "val"
+	tests := []struct {
+		name       string
+		attributes func(td ptrace.Traces) pcommon.Map
+	}{
+		{
+			name: "resource-attributes",
+			attributes: func(td ptrace.Traces) pcommon.Map {
+				return td.ResourceSpans().At(0).Resource().Attributes()
+			},
+		},
+		{
+			name: "scope-attributes",
+			attributes: func(td ptrace.Traces) pcommon.Map {
+				return td.ResourceSpans().At(0).ScopeSpans().At(0).Scope().Attributes()
+			},
+		},
+		{
+			name: "span-attributes",
+			attributes: func(td ptrace.Traces) pcommon.Map {
+				return td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()
+			},
+		},
+		{
+			name: "event-attributes",
+			attributes: func(td ptrace.Traces) pcommon.Map {
+				return td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Events().AppendEmpty().Attributes()
+			},
+		},
+	}
+	store := NewStore(v1.Configuration{
+		MaxTraces: 10,
+	})
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			td := ptrace.NewTraces()
+			td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty().SetTraceID(fromString(t, fmt.Sprintf("000000000000000%d0000000000000000", i+1)))
+			attrs := tt.attributes(td)
+			attrs.PutStr(tt.name, stringVal)
+			err := store.WriteTraces(context.Background(), td)
+			require.NoError(t, err)
+			iter := store.FindTraces(context.Background(), tracestore.TraceQueryParams{
+				Attributes:  attrs,
+				SearchDepth: 10,
+			})
+			iterLength := 0
+			for traces, err := range iter {
+				require.NoError(t, err)
+				iterLength++
+				assert.Len(t, traces, 1)
+				assert.Equal(t, traces[0], td)
+			}
+			assert.Equal(t, 1, iterLength)
 		})
 	}
 }
@@ -237,7 +297,8 @@ func TestFindTraces_AttributesFoundInEvents(t *testing.T) {
 	queryAttributes := pcommon.NewMap()
 	queryAttributes.PutBool("key", true)
 	params := tracestore.TraceQueryParams{
-		Attributes: queryAttributes,
+		Attributes:  queryAttributes,
+		SearchDepth: 10,
 	}
 	gotIter := store.FindTraces(context.Background(), params)
 	iterLength := 0
@@ -264,7 +325,8 @@ func TestFindTraces_ErrorStatusNotMatched(t *testing.T) {
 	queryAttributes := pcommon.NewMap()
 	queryAttributes.PutBool(errorAttribute, true)
 	params := tracestore.TraceQueryParams{
-		Attributes: queryAttributes,
+		Attributes:  queryAttributes,
+		SearchDepth: 10,
 	}
 	gotIter := store.FindTraces(context.Background(), params)
 	iterLength := 0

@@ -82,13 +82,16 @@ func (t *Tenant) findTraces(query tracestore.TraceQueryParams) []ptrace.Traces {
 	traces := make([]ptrace.Traces, 0, query.SearchDepth)
 	lengthOfIds := len(t.ids)
 	for index := range t.ids {
-		trace, ok := t.traces[t.ids[lengthOfIds-index]]
-		if ok {
-			if validTrace(trace, query) {
-				if query.SearchDepth != 0 && len(traces) == query.SearchDepth {
-					return traces
+		traceId := t.ids[lengthOfIds-1-index]
+		if !traceId.IsEmpty() {
+			trace, ok := t.traces[traceId]
+			if ok {
+				if validTrace(trace, query) {
+					if query.SearchDepth != 0 && len(traces) == query.SearchDepth {
+						return traces
+					}
+					traces = append(traces, trace)
 				}
-				traces = append(traces, trace)
 			}
 		}
 	}
@@ -121,28 +124,10 @@ func validSpan(resourceAttributes, scopeAttributes pcommon.Map, span ptrace.Span
 		query.Attributes.Remove(errorAttribute)
 	}
 	if query.Attributes.Len() > 0 {
-		tagsMatched := false
 		for key, val := range query.Attributes.All() {
-			tagsMatched = matchAttributes(key, val, span.Attributes()) || matchAttributes(key, val, scopeAttributes) || matchAttributes(key, val, resourceAttributes)
-			if tagsMatched {
-				break
+			if !findKeyValInTrace(key, val, resourceAttributes, scopeAttributes, span) {
+				return false
 			}
-		}
-		if !tagsMatched {
-			for _, event := range span.Events().All() {
-				for key, val := range query.Attributes.All() {
-					tagsMatched = matchAttributes(key, val, event.Attributes())
-					if tagsMatched {
-						break
-					}
-				}
-				if tagsMatched {
-					break
-				}
-			}
-		}
-		if !tagsMatched {
-			return false
 		}
 	}
 	if errorAttributeFound && span.Status().Code() != ptrace.StatusCodeError {
@@ -174,4 +159,16 @@ func matchAttributes(key string, val pcommon.Value, attrs pcommon.Map) bool {
 		return queryValue.AsString() == val.AsString()
 	}
 	return false
+}
+
+func findKeyValInTrace(key string, val pcommon.Value, resourceAttributes pcommon.Map, scopeAttributes pcommon.Map, span ptrace.Span) bool {
+	tagsMatched := matchAttributes(key, val, span.Attributes()) || matchAttributes(key, val, scopeAttributes) || matchAttributes(key, val, resourceAttributes)
+	if !tagsMatched {
+		for _, event := range span.Events().All() {
+			if matchAttributes(key, val, event.Attributes()) {
+				return true
+			}
+		}
+	}
+	return tagsMatched
 }
