@@ -5,12 +5,15 @@ Jaeger supports a gRPC-based Remote Storage API that enables integration with cu
 To use a remote storage backend, you must deploy a gRPC server that implements
 the following services:
 
-* [TraceReader](https://github.com/jaegertracing/jaeger-idl/tree/main/proto/storage/v2/trace_storage.proto)
-* [DependendencyReader](https://github.com/jaegertracing/jaeger-idl/tree/main/proto/storage/v2/dependency_storage.proto)
-* [TraceService](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/collector/trace/v1/trace_service.proto). This service can be deployed at a different port.
+- **[TraceReader](https://github.com/jaegertracing/jaeger-idl/tree/main/proto/storage/v2/trace_storage.proto)**  
+  Enables Jaeger to read traces from the storage backend.
+- **[DependencyReader](https://github.com/jaegertracing/jaeger-idl/tree/main/proto/storage/v2/dependency_storage.proto)**  
+  Used to load service dependency graphs from storage.
+- **[TraceService](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/collector/trace/v1/trace_service.proto)**  
+  Allows trace data to be pushed to the storage. This service can run on a separate port if needed.
 
 An example configuration for setting up a remote storage backend is available
-[here](https://github.com/jaegertracing/jaeger/blob/main/cmd/jaeger/config-remote-storage.yaml).
+[here](../../../../cmd/jaeger/config-remote-storage.yaml).
 Note: In this example, the `TraceService` is configured to run on a different port (0.0.0.0:4316), which is overridden in the config file.
 
 ## Testing
