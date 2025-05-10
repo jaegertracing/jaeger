@@ -51,6 +51,9 @@ type E2EStorageIntegration struct {
 	// is the value of the environment variable to set.
 	// These variables are set upon initialization and are unset upon cleanup.
 	EnvVarOverrides map[string]string
+	// PropagateEnvVars contains a list of environment variables to propagate
+	// from the test process to the jaeger binary.
+	PropagateEnvVars []string
 }
 
 // e2eInitialize starts the Jaeger-v2 collector with the provided config file,
@@ -78,6 +81,11 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	for key, value := range s.EnvVarOverrides {
 		envVars = append(envVars, fmt.Sprintf("%s=%s", key, value))
 	}
+	for _, key := range s.PropagateEnvVars {
+		if value, ok := os.LookupEnv(key); ok {
+			envVars = append(envVars, fmt.Sprintf("%s=%s", key, value))
+		}
+	}
 
 	cmd := Binary{
 		Name:            s.BinaryName,
@@ -89,7 +97,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 			// since the binary config file jaeger_query's ui.config_file points to
 			// "./cmd/jaeger/config-ui.json"
 			Dir: "../../../..",
-			Env: append(os.Environ(), envVars...),
+			Env: envVars,
 		},
 	}
 	cmd.Start(t)
