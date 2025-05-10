@@ -20,7 +20,7 @@ require (
 	github.com/gogo/protobuf v1.3.2
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/mux v1.8.1
-	github.com/jaegertracing/jaeger-idl v0.5.0
+	github.com/jaegertracing/jaeger-idl v0.6.0
 	github.com/kr/pretty v0.3.1
 	github.com/olivere/elastic v6.2.37+incompatible
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.125.0
@@ -298,3 +298,5 @@ require (
 )
 
 replace github.com/Shopify/sarama => github.com/Shopify/sarama v1.33.0
+
+replace github.com/ebitengine/purego => github.com/ebitengine/purego v0.8.3-0.20250507171810-1638563e3615
