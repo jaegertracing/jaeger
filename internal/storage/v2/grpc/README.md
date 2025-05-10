@@ -34,18 +34,9 @@ cd jaeger
 Run the integration tests for the gRPC storage backend using the following command:
 
 ```bash
-STORAGE=grpc REMOTE_STORAGE_ENDPOINT=${MY_REMOTE_STORAGE_ENDPOINT} make jaeger-v2-storage-integration-test
-```
-
-Be sure to replace `${MY_REMOTE_STORAGE_ENDPOINT}` with the actual address of your remote storage backend.
-
-If you are using a second server for archive storage, run:
-
-```bash
 STORAGE=grpc \
 REMOTE_STORAGE_ENDPOINT=${MY_REMOTE_STORAGE_ENDPOINT} \
 ARCHIVE_REMOTE_STORAGE_ENDPOINT=${MY_ARCHIVE_REMOTE_STORAGE_ENDPOINT} \
+REMOTE_STORAGE_WRITER_ENDPOINT=${MY_REMOTE_STORAGE_WRITER_ENDPOINT} \
 make jaeger-v2-storage-integration-test
 ```
-
-Replace `${MY_ARCHIVE_REMOTE_STORAGE_ENDPOINT}` with the endpoint of your archive backend.
