@@ -3,8 +3,8 @@
 The Remote Storage Backend Extension exposes any Jaeger-supported storage backend through a gRPC API by
 implementing the gRPC Storage API. The gRPC API currently consists of the following services:
 
-* [TraceReader](https://github.com/jaegertracing/jaeger/blob/main/internal/storage/v2/grpc/trace_storage.proto)
-* [DependencyReader](https://github.com/jaegertracing/jaeger/blob/main/internal/storage/v2/grpc/dependency_storage.proto)
+* [TraceReader](https://github.com/jaegertracing/jaeger-idl/blob/main/proto/storage/v2/trace_storage.proto)
+* [DependencyReader](https://github.com/jaegertracing/jaeger-idl/blob/main/proto/storage/v2/dependency_storage.proto)
 
 ## Overview
 

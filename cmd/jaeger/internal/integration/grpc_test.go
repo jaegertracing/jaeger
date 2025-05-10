@@ -29,6 +29,11 @@ func TestGRPCStorage(t *testing.T) {
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp: purge,
 		},
+		PropagateEnvVars: []string{
+			"REMOTE_STORAGE_ENDPOINT",
+			"REMOTE_STORAGE_WRITER_ENDPOINT",
+			"ARCHIVE_REMOTE_STORAGE_ENDPOINT",
+		},
 	}
 	collector.e2eInitialize(t, "grpc")
 	t.Log("Collector initialized")
