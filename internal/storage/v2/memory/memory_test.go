@@ -34,15 +34,17 @@ func TestNewStore_DefaultConfig(t *testing.T) {
 	require.NoError(t, err)
 	tenant := store.getTenant(tenancy.GetTenant(context.Background()))
 	traceID1 := fromString(t, "00000000000000010000000000000000")
-	traces, ok := tenant.traces[traceID1]
+	traceIndex, ok := tenant.ids[traceID1]
 	require.True(t, ok)
+	traces := tenant.traces[traceIndex]
 	expected := loadOutputTraces(t, 1)
-	testTraces(t, expected, traces)
+	testTraces(t, expected, traces.trace)
 	traceID2 := fromString(t, "00000000000000020000000000000000")
-	traces2, ok := tenant.traces[traceID2]
+	traces2Index, ok := tenant.ids[traceID2]
 	require.True(t, ok)
+	traces2 := tenant.traces[traces2Index]
 	expected2 := loadOutputTraces(t, 2)
-	testTraces(t, expected2, traces2)
+	testTraces(t, expected2, traces2.trace)
 	operations, err := store.GetOperations(context.Background(), tracestore.OperationQueryParams{ServiceName: "service-x"})
 	require.NoError(t, err)
 	expectedOperations := []tracestore.Operation{
@@ -396,7 +398,9 @@ func TestGetOperationsWithKind(t *testing.T) {
 }
 
 func TestWriteTraces_WriteTwoBatches(t *testing.T) {
-	store := NewStore(v1.Configuration{})
+	store := NewStore(v1.Configuration{
+		MaxTraces: 10,
+	})
 	traceId := fromString(t, "00000000000000010000000000000000")
 	td1 := ptrace.NewTraces()
 	td1.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty().SetTraceID(traceId)
@@ -407,11 +411,14 @@ func TestWriteTraces_WriteTwoBatches(t *testing.T) {
 	err = store.WriteTraces(context.Background(), td2)
 	require.NoError(t, err)
 	tenant := store.getTenant(tenancy.GetTenant(context.Background()))
-	assert.Equal(t, 2, tenant.traces[traceId].ResourceSpans().Len())
+	traceIndex := tenant.ids[traceId]
+	assert.Equal(t, 2, tenant.traces[traceIndex].trace.ResourceSpans().Len())
 }
 
 func TestWriteTraces_WriteTraceWithTwoResourceSpans(t *testing.T) {
-	store := NewStore(v1.Configuration{})
+	store := NewStore(v1.Configuration{
+		MaxTraces: 10,
+	})
 	traceId := fromString(t, "00000000000000010000000000000000")
 	td := ptrace.NewTraces()
 	resourceSpans := td.ResourceSpans()
@@ -424,8 +431,9 @@ func TestWriteTraces_WriteTraceWithTwoResourceSpans(t *testing.T) {
 	err := store.WriteTraces(context.Background(), td)
 	require.NoError(t, err)
 	tenant := store.getTenant(tenancy.GetTenant(context.Background()))
+	traceIndex := tenant.ids[traceId]
 	// All spans have same trace id, so output should be same as input (that is no reshuffling, effectively)
-	assert.Equal(t, td, tenant.traces[traceId])
+	assert.Equal(t, td, tenant.traces[traceIndex].trace)
 }
 
 func TestNewStore_TracesLimit(t *testing.T) {

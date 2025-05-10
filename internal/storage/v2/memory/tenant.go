@@ -16,18 +16,23 @@ import (
 // Tenant is an in-memory store of traces for a single tenant
 type Tenant struct {
 	sync.RWMutex
-	ids        []pcommon.TraceID // ring buffer used to evict oldest traces
-	traces     map[pcommon.TraceID]ptrace.Traces
+	ids        map[pcommon.TraceID]int
+	traces     []*tracesById // ring buffer used to store traces
 	services   map[string]struct{}
 	operations map[string]map[tracestore.Operation]struct{}
 	config     *v1.Configuration
-	evict      int // position in ids[] of the last evicted trace
+	evict      int // position in traces[] of the last evicted trace
+}
+
+type tracesById struct {
+	id    pcommon.TraceID
+	trace ptrace.Traces
 }
 
 func newTenant(cfg *v1.Configuration) *Tenant {
 	return &Tenant{
-		ids:        make([]pcommon.TraceID, cfg.MaxTraces),
-		traces:     map[pcommon.TraceID]ptrace.Traces{},
+		ids:        make(map[pcommon.TraceID]int),
+		traces:     make([]*tracesById, cfg.MaxTraces),
 		services:   map[string]struct{}{},
 		operations: map[string]map[tracestore.Operation]struct{}{},
 		config:     cfg,
@@ -55,24 +60,27 @@ func (t *Tenant) storeOperation(serviceName string, operation tracestore.Operati
 func (t *Tenant) storeTraces(traceId pcommon.TraceID, resourceSpanSlice ptrace.ResourceSpansSlice) {
 	t.Lock()
 	defer t.Unlock()
-	if foundTraces, ok := t.traces[traceId]; ok {
-		resourceSpanSlice.MoveAndAppendTo(foundTraces.ResourceSpans())
+	if tracesIndex, ok := t.ids[traceId]; ok {
+		resourceSpanSlice.MoveAndAppendTo(t.traces[tracesIndex].trace.ResourceSpans())
 		return
 	}
 	traces := ptrace.NewTraces()
 	resourceSpanSlice.MoveAndAppendTo(traces.ResourceSpans())
-	t.traces[traceId] = traces
 	// if we have a limit, let's cleanup the oldest traces
 	if t.config.MaxTraces > 0 {
 		// we only have to deal with this slice if we have a limit
 		t.evict = (t.evict + 1) % t.config.MaxTraces
 		// do we have an item already on this position? if so, we are overriding it,
 		// and we need to remove from the map
-		if !t.ids[t.evict].IsEmpty() {
-			delete(t.traces, t.ids[t.evict])
+		if t.traces[t.evict] != nil {
+			delete(t.ids, t.traces[t.evict].id)
 		}
 		// update the ring with the trace id
-		t.ids[t.evict] = traceId
+		t.ids[traceId] = t.evict
+		t.traces[t.evict] = &tracesById{
+			id:    traceId,
+			trace: traces,
+		}
 	}
 }
 
@@ -80,17 +88,15 @@ func (t *Tenant) findTraces(query tracestore.TraceQueryParams) []ptrace.Traces {
 	t.RLock()
 	defer t.RUnlock()
 	traces := make([]ptrace.Traces, 0, query.SearchDepth)
-	lengthOfIds := len(t.ids)
-	for index := range t.ids {
-		traceId := t.ids[lengthOfIds-1-index]
+	for traceId, index := range t.ids {
 		if !traceId.IsEmpty() {
-			trace, ok := t.traces[traceId]
-			if ok {
-				if validTrace(trace, query) {
+			traceById := t.traces[index]
+			if traceById != nil {
+				if validTrace(traceById.trace, query) {
 					if query.SearchDepth != 0 && len(traces) == query.SearchDepth {
 						return traces
 					}
-					traces = append(traces, trace)
+					traces = append(traces, traceById.trace)
 				}
 			}
 		}
