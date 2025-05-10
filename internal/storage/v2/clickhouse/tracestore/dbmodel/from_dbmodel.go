@@ -8,19 +8,23 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
+// FromDBModel convert Clickhouse domain model to OTLP Trace model.
 func FromDBModel(dbTrace Trace) ptrace.Traces {
 	trace := ptrace.NewTraces()
+
 	resourceSpans := trace.ResourceSpans().AppendEmpty()
-	scopeSpans := resourceSpans.ScopeSpans().AppendEmpty()
-	span := scopeSpans.Spans().AppendEmpty()
-	sp := FromDBSpan(dbTrace.Span)
-	sp.CopyTo(span)
 	resource := resourceSpans.Resource()
 	rs := FromDBResource(dbTrace.Resource)
 	rs.CopyTo(resource)
+
+	scopeSpans := resourceSpans.ScopeSpans().AppendEmpty()
 	scope := scopeSpans.Scope()
 	sc := FromDBScope(dbTrace.Scope)
 	sc.CopyTo(scope)
+
+	span := scopeSpans.Spans().AppendEmpty()
+	sp := FromDBSpan(dbTrace.Span)
+	sp.CopyTo(span)
 
 	for i := range dbTrace.Events {
 		event := span.Events().AppendEmpty()

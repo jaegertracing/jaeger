@@ -18,7 +18,7 @@ const (
 	ValueTypeBytes  = pcommon.ValueTypeBytes
 )
 
-// ToDBModel Converts the OTel pipeline Traces into multi dbmodel.Trace for batch insertion.
+// ToDBModel Converts the OTel pipeline Traces into a slice of Clickhouse domain model for batch insertion.
 func ToDBModel(td ptrace.Traces) []Trace {
 	var traces []Trace
 	for _, resourceSpan := range td.ResourceSpans().All() {

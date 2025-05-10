@@ -68,4 +68,12 @@ As for `Events` and `Links`, logically, they should be one-to-many `Nested` stru
 Similarly, we use `Nested` to store their Attributes.
 
 ### TraceID,SpanID
-`TraceID` is actually a fixed-length `[16]byte`, and `SpanID` is a fixed-length `[8]byte`. They are represented as `byte` slices in Go but stored using the column `Array(UInt8)` in the database. Note that the way they represent bytes is different: Clickhouse uses [int8](https://clickhouse.com/docs/sql-reference/data-types/int-uint#integer-aliases), while Go uses uint8.
+`TraceID` is actually a fixed-length `[16]byte`, and `SpanID` is a fixed-length `[8]byte`. 
+They are represented as `byte` slices in Go but stored using the column `Array(UInt8)` in the database. 
+Note that the way they represent bytes is different: Clickhouse uses [int8](https://clickhouse.com/docs/sql-reference/data-types/int-uint#integer-aliases), while Go uses uint8.
+
+### StartTime, Duration
+A Span consists of two fields: StartTime and EndTime. Our primary focus is on when a Span is generated and its duration, rather than its endpoint. 
+Additionally, we frequently use Duration as a query condition, such as finding all traces where the maximum duration is less than or equal to 10 milliseconds. 
+Consequently, we should utilize `UnixMicro` to represent both StartTime and Duration. 
+If both StartTime and Duration are of the same type (int64), there will be no precision issues.
