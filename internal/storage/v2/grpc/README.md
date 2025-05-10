@@ -12,3 +12,37 @@ the following services:
 An example configuration for setting up a remote storage backend is available
 [here](https://github.com/jaegertracing/jaeger/blob/main/cmd/jaeger/config-remote-storage.yaml).
 Note: In this example, the `TraceService` is configured to run on a different port (0.0.0.0:4316), which is overridden in the config file.
+
+## Testing
+
+To verify that your remote storage backend works correctly with Jaeger, you can run the integration tests provided by the Jaeger project.
+
+### Step 1: Clone the Jaeger Repository
+
+Begin by cloning the Jaeger repository to your local machine:
+
+```bash
+git clone https://github.com/jaegertracing/jaeger.git
+cd jaeger
+```
+
+### Step 2: Run the Integration Tests
+
+Run the integration tests for the gRPC storage backend using the following command:
+
+```bash
+STORAGE=grpc REMOTE_STORAGE_ENDPOINT=${MY_REMOTE_STORAGE_ENDPOINT} make jaeger-v2-storage-integration-test
+```
+
+Be sure to replace `${MY_REMOTE_STORAGE_ENDPOINT}` with the actual address of your remote storage backend.
+
+If you are using a second server for archive storage, run:
+
+```bash
+STORAGE=grpc \
+REMOTE_STORAGE_ENDPOINT=${MY_REMOTE_STORAGE_ENDPOINT} \
+ARCHIVE_REMOTE_STORAGE_ENDPOINT=${MY_ARCHIVE_REMOTE_STORAGE_ENDPOINT} \
+make jaeger-v2-storage-integration-test
+```
+
+Replace `${MY_ARCHIVE_REMOTE_STORAGE_ENDPOINT}` with the endpoint of your archive backend.
