@@ -6,9 +6,12 @@ package elasticsearch
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
@@ -16,10 +19,17 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 )
 
+var mockEsServerResponse = []byte(`
+{
+	"Version": {
+		"Number": "6"
+	}
+}
+`)
+
 func TestNewFactory(t *testing.T) {
-	coreFactory := elasticsearch.GetTestingFactoryBase(t)
-	f := NewFactory()
-	f.coreFactory = coreFactory
+	coreFactory := getTestingFactoryBase(t)
+	f := &Factory{coreFactory: coreFactory}
 	require.NoError(t, f.coreFactory.Initialize(metrics.NullFactory, zaptest.NewLogger(t)))
 	_, err := f.CreateTraceReader()
 	require.NoError(t, err)
@@ -34,9 +44,8 @@ func TestNewFactory(t *testing.T) {
 }
 
 func TestTraceReaderErr(t *testing.T) {
-	coreFactory := elasticsearch.GetTestingFactoryBase(t)
-	f := NewFactory()
-	f.coreFactory = coreFactory
+	coreFactory := getTestingFactoryBase(t)
+	f := &Factory{coreFactory: coreFactory}
 	f.coreFactory.SetConfig(&escfg.Configuration{
 		UseILM:              true,
 		UseReadWriteAliases: false,
@@ -47,9 +56,8 @@ func TestTraceReaderErr(t *testing.T) {
 }
 
 func TestTraceWriterErr(t *testing.T) {
-	coreFactory := elasticsearch.GetTestingFactoryBase(t)
-	f := NewFactory()
-	f.coreFactory = coreFactory
+	coreFactory := getTestingFactoryBase(t)
+	f := &Factory{coreFactory: coreFactory}
 	f.coreFactory.SetConfig(&escfg.Configuration{
 		UseILM:              true,
 		UseReadWriteAliases: false,
@@ -60,9 +68,8 @@ func TestTraceWriterErr(t *testing.T) {
 }
 
 func TestCreateTemplatesErr(t *testing.T) {
-	coreFactory := elasticsearch.GetTestingFactoryBaseWithCreateTemplateError(t, errors.New("template error"))
-	f := NewFactory()
-	f.coreFactory = coreFactory
+	coreFactory := getTestingFactoryBaseWithCreateTemplateError(t, errors.New("template error"))
+	f := &Factory{coreFactory: coreFactory}
 	f.coreFactory.SetConfig(&escfg.Configuration{
 		UseILM:               false,
 		CreateIndexTemplates: true,
@@ -70,4 +77,47 @@ func TestCreateTemplatesErr(t *testing.T) {
 	require.NoError(t, f.coreFactory.Initialize(metrics.NullFactory, zaptest.NewLogger(t)))
 	_, err := f.CreateTraceWriter()
 	require.ErrorContains(t, err, "template error")
+}
+
+func TestESStorageFactoryWithConfig(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write(mockEsServerResponse)
+	}))
+	defer server.Close()
+	cfg := escfg.Configuration{
+		Servers:  []string{server.URL},
+		LogLevel: "error",
+	}
+	factory, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	require.NoError(t, err)
+	defer factory.Close()
+}
+
+func TestESStorageFactoryWithConfigError(t *testing.T) {
+	f, err := NewFactoryWithConfig(escfg.Configuration{}, metrics.NullFactory, zap.NewNop())
+	require.ErrorContains(t, err, "Servers: non zero value required")
+	require.Nil(t, f)
+}
+
+func TestTraceWriterMappingBuilderErr(t *testing.T) {
+	coreFactory := elasticsearch.NewFactoryBase()
+	elasticsearch.SetFactoryForTestWithMappingErr(coreFactory, zaptest.NewLogger(t), metrics.NullFactory, errors.New("template-error"))
+	coreFactory.SetConfig(&escfg.Configuration{CreateIndexTemplates: true})
+	f := &Factory{coreFactory: coreFactory}
+	_, err := f.CreateTraceWriter()
+	require.ErrorContains(t, err, "template-error")
+}
+
+func getTestingFactoryBase(t *testing.T) *elasticsearch.FactoryBase {
+	f := elasticsearch.NewFactoryBase()
+	elasticsearch.SetFactoryForTest(f, zaptest.NewLogger(t), metrics.NullFactory)
+	f.SetConfig(&escfg.Configuration{})
+	return f
+}
+
+func getTestingFactoryBaseWithCreateTemplateError(t *testing.T, err error) *elasticsearch.FactoryBase {
+	f := elasticsearch.NewFactoryBase()
+	elasticsearch.SetFactoryForTestWithCreateTemplateErr(f, zaptest.NewLogger(t), metrics.NullFactory, err)
+	f.SetConfig(&escfg.Configuration{})
+	return f
 }

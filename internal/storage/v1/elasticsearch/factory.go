@@ -49,6 +49,8 @@ type FactoryBase struct {
 	client atomic.Pointer[es.Client]
 
 	pwdFileWatcher *fswatcher.FSWatcher
+
+	templateBuilder es.TemplateBuilder
 }
 
 // NewFactoryBase creates a new FactoryBase.
@@ -96,6 +98,7 @@ func NewFactoryBaseWithConfig(
 func (f *FactoryBase) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory = metricsFactory
 	f.logger = logger
+	f.templateBuilder = es.TextTemplateBuilder{}
 
 	client, err := f.newClientFn(f.config, logger, metricsFactory)
 	if err != nil {
@@ -206,7 +209,7 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 	store := esSampleStore.NewSamplingStore(params)
 
 	if f.config.CreateIndexTemplates && !f.config.UseILM {
-		mappingBuilder := mappingBuilderFromConfig(f.config)
+		mappingBuilder := f.mappingBuilderFromConfig(f.config)
 		samplingMapping, err := mappingBuilder.GetSamplingMappings()
 		if err != nil {
 			return nil, err
@@ -219,9 +222,9 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 	return store, nil
 }
 
-func mappingBuilderFromConfig(cfg *config.Configuration) mappings.MappingBuilder {
+func (f *FactoryBase) mappingBuilderFromConfig(cfg *config.Configuration) mappings.MappingBuilder {
 	return mappings.MappingBuilder{
-		TemplateBuilder: es.TextTemplateBuilder{},
+		TemplateBuilder: f.templateBuilder,
 		Indices:         cfg.Indices,
 		EsVersion:       cfg.Version,
 		UseILM:          cfg.UseILM,
@@ -296,7 +299,7 @@ func (f *FactoryBase) SetConfig(cfg *config.Configuration) {
 }
 
 func (f *FactoryBase) GetSpanServiceMapping() (serviceMapping string, spanMapping string, err error) {
-	mappingBuilder := mappingBuilderFromConfig(f.config)
+	mappingBuilder := f.mappingBuilderFromConfig(f.config)
 	spanMapping, serviceMapping, err = mappingBuilder.GetSpanServiceMappings()
 	if err != nil {
 		return "", "", err

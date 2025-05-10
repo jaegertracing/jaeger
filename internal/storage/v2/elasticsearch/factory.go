@@ -28,12 +28,6 @@ type Factory struct {
 	coreFactory *elasticsearch.FactoryBase
 }
 
-func NewFactory() *Factory {
-	return &Factory{
-		coreFactory: elasticsearch.NewFactoryBase(),
-	}
-}
-
 func NewFactoryWithConfig(cfg escfg.Configuration, metricsFactory metrics.Factory, logger *zap.Logger) (*Factory, error) {
 	coreFactory, err := elasticsearch.NewFactoryBaseWithConfig(cfg, metricsFactory, logger)
 	if err != nil {

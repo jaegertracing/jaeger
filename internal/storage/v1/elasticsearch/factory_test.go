@@ -13,11 +13,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
@@ -225,4 +227,16 @@ func TestPasswordFromFileErrors(t *testing.T) {
 
 	require.NoError(t, os.Remove(pwdFile))
 	f.onPasswordChange()
+}
+
+func TestGetSpanServiceMappingErr(t *testing.T) {
+	f := NewFactoryBase()
+	f.SetConfig(&escfg.Configuration{})
+	tmpBuilder := &mocks.TemplateBuilder{}
+	tmpBuilder.On("Parse", mock.Anything).Return(nil, errors.New("mapping-error"))
+	f.templateBuilder = tmpBuilder
+	serviceMapping, spanMapping, err := f.GetSpanServiceMapping()
+	require.ErrorContains(t, err, "mapping-error")
+	assert.Empty(t, serviceMapping)
+	assert.Empty(t, spanMapping)
 }

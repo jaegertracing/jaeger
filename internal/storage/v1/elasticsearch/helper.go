@@ -5,11 +5,9 @@ package elasticsearch
 
 import (
 	"context"
-	"testing"
 
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
@@ -39,20 +37,21 @@ func (m *mockClientBuilder) NewClient(*escfg.Configuration, *zap.Logger, metrics
 	return nil, m.err
 }
 
-func GetTestingFactoryBase(t *testing.T) *FactoryBase {
-	f := NewFactoryBase()
-	f.newClientFn = (&mockClientBuilder{}).NewClient
-	f.logger = zaptest.NewLogger(t)
-	f.metricsFactory = metrics.NullFactory
-	f.config = &escfg.Configuration{}
-	return f
+func SetFactoryForTest(f *FactoryBase, logger *zap.Logger, metricsFactory metrics.Factory) {
+	SetFactoryForTestWithCreateTemplateErr(f, logger, metricsFactory, nil)
 }
 
-func GetTestingFactoryBaseWithCreateTemplateError(t *testing.T, err error) *FactoryBase {
-	f := NewFactoryBase()
+func SetFactoryForTestWithCreateTemplateErr(f *FactoryBase, logger *zap.Logger, metricsFactory metrics.Factory, err error) {
 	f.newClientFn = (&mockClientBuilder{createTemplateError: err}).NewClient
-	f.logger = zaptest.NewLogger(t)
-	f.metricsFactory = metrics.NullFactory
-	f.config = &escfg.Configuration{}
-	return f
+	f.logger = logger
+	f.metricsFactory = metricsFactory
+}
+
+func SetFactoryForTestWithMappingErr(f *FactoryBase, logger *zap.Logger, metricsFactory metrics.Factory, err error) {
+	f.newClientFn = (&mockClientBuilder{}).NewClient
+	tmplBuilder := &mocks.TemplateBuilder{}
+	tmplBuilder.On("Parse", mock.Anything).Return(nil, err)
+	f.templateBuilder = tmplBuilder
+	f.logger = logger
+	f.metricsFactory = metricsFactory
 }

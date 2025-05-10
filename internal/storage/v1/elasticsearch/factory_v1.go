@@ -23,56 +23,56 @@ import (
 )
 
 var ( // interface comformance checks
-	_ storage.Factory        = (*FactoryV1)(nil)
-	_ io.Closer              = (*FactoryV1)(nil)
-	_ storage.Configurable   = (*FactoryV1)(nil)
-	_ storage.Inheritable    = (*FactoryV1)(nil)
-	_ storage.Purger         = (*FactoryV1)(nil)
-	_ storage.ArchiveCapable = (*FactoryV1)(nil)
+	_ storage.Factory        = (*Factory)(nil)
+	_ io.Closer              = (*Factory)(nil)
+	_ storage.Configurable   = (*Factory)(nil)
+	_ storage.Inheritable    = (*Factory)(nil)
+	_ storage.Purger         = (*Factory)(nil)
+	_ storage.ArchiveCapable = (*Factory)(nil)
 )
 
-type FactoryV1 struct {
+type Factory struct {
 	Options     *Options
 	coreFactory *FactoryBase
 }
 
-func NewFactoryV1() *FactoryV1 {
+func NewFactory() *Factory {
 	coreFactory := NewFactoryBase()
-	return &FactoryV1{
+	return &Factory{
 		coreFactory: coreFactory,
 		Options:     coreFactory.Options,
 	}
 }
 
-func NewArchiveFactoryV1() *FactoryV1 {
+func NewArchiveFactory() *Factory {
 	coreFactory := NewArchiveFactoryBase()
-	return &FactoryV1{
+	return &Factory{
 		coreFactory: coreFactory,
 		Options:     coreFactory.Options,
 	}
 }
 
-func (f *FactoryV1) AddFlags(flagSet *flag.FlagSet) {
+func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 	f.Options.AddFlags(flagSet)
 }
 
-func (f *FactoryV1) InitFromViper(v *viper.Viper, _ *zap.Logger) {
+func (f *Factory) InitFromViper(v *viper.Viper, _ *zap.Logger) {
 	f.Options.InitFromViper(v)
 	f.configureFromOptions(f.Options)
 }
 
 // configureFromOptions configures factory from Options struct.
-func (f *FactoryV1) configureFromOptions(o *Options) {
+func (f *Factory) configureFromOptions(o *Options) {
 	f.Options = o
 	f.coreFactory.SetConfig(f.Options.GetConfig())
 }
 
-func (f *FactoryV1) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	return f.coreFactory.Initialize(metricsFactory, logger)
 }
 
 // CreateSpanReader implements storage.Factory
-func (f *FactoryV1) CreateSpanReader() (spanstore.Reader, error) {
+func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 	params, err := f.coreFactory.GetSpanReaderParams()
 	if err != nil {
 		return nil, err
@@ -82,7 +82,7 @@ func (f *FactoryV1) CreateSpanReader() (spanstore.Reader, error) {
 }
 
 // CreateSpanWriter implements storage.Factory
-func (f *FactoryV1) CreateSpanWriter() (spanstore.Writer, error) {
+func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	params, err := f.coreFactory.GetSpanWriterParams()
 	if err != nil {
 		return nil, err
@@ -95,34 +95,34 @@ func (f *FactoryV1) CreateSpanWriter() (spanstore.Writer, error) {
 	return wr, nil
 }
 
-func (f *FactoryV1) CreateDependencyReader() (dependencystore.Reader, error) {
+func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	params := f.coreFactory.GetDependencyStoreParams()
 	return esDepStorev1.NewDependencyStoreV1(params), nil
 }
 
-func (f *FactoryV1) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
+func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
 	return f.coreFactory.CreateSamplingStore(maxBuckets)
 }
 
-func (f *FactoryV1) Close() error {
+func (f *Factory) Close() error {
 	return f.coreFactory.Close()
 }
 
-func (f *FactoryV1) Purge(ctx context.Context) error {
+func (f *Factory) Purge(ctx context.Context) error {
 	return f.coreFactory.Purge(ctx)
 }
 
-func (f *FactoryV1) InheritSettingsFrom(other storage.Factory) {
-	if otherFactory, ok := other.(*FactoryV1); ok {
+func (f *Factory) InheritSettingsFrom(other storage.Factory) {
+	if otherFactory, ok := other.(*Factory); ok {
 		f.coreFactory.GetConfig().ApplyDefaults(otherFactory.coreFactory.GetConfig())
 	}
 }
 
-func (f *FactoryV1) IsArchiveCapable() bool {
+func (f *Factory) IsArchiveCapable() bool {
 	return f.Options.Config.namespace == archiveNamespace && f.Options.Config.Enabled
 }
 
-func (f *FactoryV1) createTemplates(writer *esSpanStore.SpanWriterV1, cfg *config.Configuration) error {
+func (f *Factory) createTemplates(writer *esSpanStore.SpanWriterV1, cfg *config.Configuration) error {
 	// Creating a template here would conflict with the one created for ILM resulting to no index rollover
 	if cfg.CreateIndexTemplates && !cfg.UseILM {
 		spanMapping, serviceMapping, err := f.coreFactory.GetSpanServiceMapping()

@@ -39,8 +39,8 @@ const (
 )
 
 func TestElasticsearchFactory(t *testing.T) {
-	f := NewFactoryV1()
-	f.coreFactory = GetTestingFactoryBase(t)
+	f := NewFactory()
+	f.coreFactory = getTestingFactoryBase(t)
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{})
 	f.InitFromViper(v, zap.NewNop())
@@ -78,8 +78,8 @@ func TestCreateTemplateErr(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := NewFactoryV1()
-			f.coreFactory = GetTestingFactoryBaseWithCreateTemplateError(t, errors.New("template-error"))
+			f := NewFactory()
+			f.coreFactory = getTestingFactoryBaseWithCreateTemplateError(t, errors.New("template-error"))
 			f.coreFactory.SetConfig(tt.cfg)
 			require.NoError(t, f.Initialize(metrics.NullFactory, zaptest.NewLogger(t)))
 			wr, err := f.CreateSpanWriter()
@@ -93,9 +93,19 @@ func TestCreateTemplateErr(t *testing.T) {
 	}
 }
 
+func TestSpanWriterMappingBuilderErr(t *testing.T) {
+	coreFactory := NewFactoryBase()
+	SetFactoryForTestWithMappingErr(coreFactory, zaptest.NewLogger(t), metrics.NullFactory, errors.New("template-error"))
+	f := NewFactory()
+	coreFactory.SetConfig(&escfg.Configuration{CreateIndexTemplates: true})
+	f.coreFactory = coreFactory
+	_, err := f.CreateSpanWriter()
+	require.ErrorContains(t, err, "template-error")
+}
+
 func TestSpanReaderErr(t *testing.T) {
-	f := NewFactoryV1()
-	f.coreFactory = GetTestingFactoryBaseWithCreateTemplateError(t, errors.New("template-error"))
+	f := NewFactory()
+	f.coreFactory = getTestingFactoryBaseWithCreateTemplateError(t, errors.New("template-error"))
 	f.coreFactory.SetConfig(&escfg.Configuration{UseILM: true, UseReadWriteAliases: false})
 	require.NoError(t, f.Initialize(metrics.NullFactory, zaptest.NewLogger(t)))
 	r, err := f.CreateSpanReader()
@@ -125,15 +135,15 @@ func TestInheritSettingsFrom(t *testing.T) {
 	primaryConfig := &escfg.Configuration{
 		MaxDocCount: 99,
 	}
-	primaryFactory := NewFactoryV1()
-	primaryFactory.coreFactory = GetTestingFactoryBase(t)
+	primaryFactory := NewFactory()
+	primaryFactory.coreFactory = getTestingFactoryBase(t)
 	primaryFactory.coreFactory.SetConfig(primaryConfig)
 	archiveConfig := &escfg.Configuration{
 		SendGetBodyAs: "PUT",
 	}
-	archiveFactory := NewFactoryV1()
+	archiveFactory := NewFactory()
 	archiveFactory.Options = NewOptions(archiveNamespace)
-	archiveFactory.coreFactory = GetTestingFactoryBase(t)
+	archiveFactory.coreFactory = getTestingFactoryBase(t)
 	archiveFactory.coreFactory.SetConfig(archiveConfig)
 	archiveFactory.InheritSettingsFrom(primaryFactory)
 	require.Equal(t, "PUT", archiveFactory.coreFactory.GetConfig().SendGetBodyAs)
@@ -165,7 +175,7 @@ func TestArchiveFactory(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			coreFactory := NewArchiveFactoryBase()
 			coreFactory.newClientFn = (&mockClientBuilder{}).NewClient
-			f := FactoryV1{coreFactory: coreFactory, Options: coreFactory.Options}
+			f := Factory{coreFactory: coreFactory, Options: coreFactory.Options}
 			v, command := config.Viperize(f.AddFlags)
 			command.ParseFlags(test.args)
 			f.InitFromViper(v, zap.NewNop())
@@ -222,7 +232,7 @@ func testPasswordFromFile(t *testing.T, pwdFile string, authReceived *sync.Map, 
 }
 
 func TestConfigureFromOptions(t *testing.T) {
-	f := NewFactoryV1()
+	f := NewFactory()
 	o := &Options{
 		Config: namespaceConfig{Configuration: escfg.Configuration{Servers: []string{"server"}}},
 	}
@@ -259,7 +269,7 @@ func TestIsArchiveCapable(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			factory := &FactoryV1{
+			factory := &Factory{
 				Options: &Options{
 					Config: namespaceConfig{
 						namespace: test.namespace,
@@ -275,7 +285,7 @@ func TestIsArchiveCapable(t *testing.T) {
 	}
 }
 
-func getTestingFactory(t *testing.T, pwdFile string, server *httptest.Server) *FactoryV1 {
+func getTestingFactory(t *testing.T, pwdFile string, server *httptest.Server) *Factory {
 	require.NoError(t, os.WriteFile(pwdFile, []byte(pwd1), 0o600))
 	cfg := &escfg.Configuration{
 		Servers:  []string{server.URL},
@@ -292,7 +302,7 @@ func getTestingFactory(t *testing.T, pwdFile string, server *httptest.Server) *F
 	}
 	coreFactory := NewFactoryBase()
 	coreFactory.SetConfig(cfg)
-	f := NewArchiveFactoryV1()
+	f := NewArchiveFactory()
 	f.coreFactory = coreFactory
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 	t.Cleanup(func() {
@@ -322,4 +332,18 @@ func getTestingServer(t *testing.T) (*httptest.Server, *sync.Map) {
 		server.Close()
 	})
 	return server, authReceived
+}
+
+func getTestingFactoryBase(t *testing.T) *FactoryBase {
+	f := NewFactoryBase()
+	SetFactoryForTest(f, zaptest.NewLogger(t), metrics.NullFactory)
+	f.SetConfig(&escfg.Configuration{})
+	return f
+}
+
+func getTestingFactoryBaseWithCreateTemplateError(t *testing.T, err error) *FactoryBase {
+	f := NewFactoryBase()
+	SetFactoryForTestWithCreateTemplateErr(f, zaptest.NewLogger(t), metrics.NullFactory, err)
+	f.SetConfig(&escfg.Configuration{})
+	return f
 }
