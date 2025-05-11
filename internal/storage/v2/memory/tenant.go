@@ -4,6 +4,7 @@
 package memory
 
 import (
+	"errors"
 	"sync"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -13,31 +14,36 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
+var errInvalidMaxTraces = errors.New("max traces must be greater than zero")
+
 // Tenant is an in-memory store of traces for a single tenant
 type Tenant struct {
 	sync.RWMutex
-	ids        map[pcommon.TraceID]int
-	traces     []*tracesById // ring buffer used to store traces
-	services   map[string]struct{}
-	operations map[string]map[tracestore.Operation]struct{}
-	config     *v1.Configuration
-	evict      int // position in traces[] of the last evicted trace
+	ids         map[pcommon.TraceID]int
+	traces      []tracesAndId // ring buffer used to store traces
+	services    map[string]struct{}
+	operations  map[string]map[tracestore.Operation]struct{}
+	config      *v1.Configuration
+	lastEvicted int // position in traces[] of the last evicted trace
 }
 
-type tracesById struct {
+type tracesAndId struct {
 	id    pcommon.TraceID
 	trace ptrace.Traces
 }
 
-func newTenant(cfg *v1.Configuration) *Tenant {
-	return &Tenant{
-		ids:        make(map[pcommon.TraceID]int),
-		traces:     make([]*tracesById, cfg.MaxTraces),
-		services:   map[string]struct{}{},
-		operations: map[string]map[tracestore.Operation]struct{}{},
-		config:     cfg,
-		evict:      -1,
+func newTenant(cfg *v1.Configuration) (*Tenant, error) {
+	if cfg.MaxTraces <= 0 {
+		return nil, errInvalidMaxTraces
 	}
+	return &Tenant{
+		ids:         make(map[pcommon.TraceID]int),
+		traces:      make([]tracesAndId, cfg.MaxTraces),
+		services:    map[string]struct{}{},
+		operations:  map[string]map[tracestore.Operation]struct{}{},
+		config:      cfg,
+		lastEvicted: -1,
+	}, nil
 }
 
 func (t *Tenant) storeService(serviceName string) {
@@ -60,27 +66,23 @@ func (t *Tenant) storeOperation(serviceName string, operation tracestore.Operati
 func (t *Tenant) storeTraces(traceId pcommon.TraceID, resourceSpanSlice ptrace.ResourceSpansSlice) {
 	t.Lock()
 	defer t.Unlock()
-	if tracesIndex, ok := t.ids[traceId]; ok {
-		resourceSpanSlice.MoveAndAppendTo(t.traces[tracesIndex].trace.ResourceSpans())
+	if index, ok := t.ids[traceId]; ok {
+		resourceSpanSlice.MoveAndAppendTo(t.traces[index].trace.ResourceSpans())
 		return
 	}
 	traces := ptrace.NewTraces()
 	resourceSpanSlice.MoveAndAppendTo(traces.ResourceSpans())
-	// if we have a limit, let's cleanup the oldest traces
-	if t.config.MaxTraces > 0 {
-		// we only have to deal with this slice if we have a limit
-		t.evict = (t.evict + 1) % t.config.MaxTraces
-		// do we have an item already on this position? if so, we are overriding it,
-		// and we need to remove from the map
-		if t.traces[t.evict] != nil {
-			delete(t.ids, t.traces[t.evict].id)
-		}
-		// update the ring with the trace id
-		t.ids[traceId] = t.evict
-		t.traces[t.evict] = &tracesById{
-			id:    traceId,
-			trace: traces,
-		}
+	t.lastEvicted = (t.lastEvicted + 1) % t.config.MaxTraces
+	// do we have an item already on this position? if so, we are overriding it,
+	// and we need to remove from the map
+	if !t.traces[t.lastEvicted].id.IsEmpty() {
+		delete(t.ids, t.traces[t.lastEvicted].id)
+	}
+	// update the ring with the trace id
+	t.ids[traceId] = t.lastEvicted
+	t.traces[t.lastEvicted] = tracesAndId{
+		id:    traceId,
+		trace: traces,
 	}
 }
 
@@ -88,17 +90,18 @@ func (t *Tenant) findTraces(query tracestore.TraceQueryParams) []ptrace.Traces {
 	t.RLock()
 	defer t.RUnlock()
 	traces := make([]ptrace.Traces, 0, query.SearchDepth)
-	for traceId, index := range t.ids {
-		if !traceId.IsEmpty() {
-			traceById := t.traces[index]
-			if traceById != nil {
-				if validTrace(traceById.trace, query) {
-					if query.SearchDepth != 0 && len(traces) == query.SearchDepth {
-						return traces
-					}
-					traces = append(traces, traceById.trace)
-				}
-			}
+	n := len(t.traces)
+	for i := range t.traces {
+		if len(traces) == query.SearchDepth {
+			return traces
+		}
+		index := (t.lastEvicted - i + n) % n
+		traceById := t.traces[index]
+		if traceById.id.IsEmpty() {
+			break
+		}
+		if validTrace(traceById.trace, query) {
+			traces = append(traces, traceById.trace)
 		}
 	}
 	return traces
@@ -106,12 +109,13 @@ func (t *Tenant) findTraces(query tracestore.TraceQueryParams) []ptrace.Traces {
 
 func validTrace(td ptrace.Traces, query tracestore.TraceQueryParams) bool {
 	for _, resourceSpan := range td.ResourceSpans().All() {
-		if validResource(resourceSpan.Resource(), query) {
-			for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
-				for _, span := range scopeSpan.Spans().All() {
-					if validSpan(resourceSpan.Resource().Attributes(), scopeSpan.Scope().Attributes(), span, query) {
-						return true
-					}
+		if !validResource(resourceSpan.Resource(), query) {
+			continue
+		}
+		for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
+			for _, span := range scopeSpan.Spans().All() {
+				if validSpan(resourceSpan.Resource().Attributes(), scopeSpan.Scope().Attributes(), span, query) {
+					return true
 				}
 			}
 		}
@@ -124,19 +128,8 @@ func validResource(resource pcommon.Resource, query tracestore.TraceQueryParams)
 }
 
 func validSpan(resourceAttributes, scopeAttributes pcommon.Map, span ptrace.Span, query tracestore.TraceQueryParams) bool {
-	errorAttributeFound := false
-	if errorAttr, ok := query.Attributes.Get(errorAttribute); ok {
-		errorAttributeFound = errorAttr.Bool()
-		query.Attributes.Remove(errorAttribute)
-	}
-	if query.Attributes.Len() > 0 {
-		for key, val := range query.Attributes.All() {
-			if !findKeyValInTrace(key, val, resourceAttributes, scopeAttributes, span) {
-				return false
-			}
-		}
-	}
-	if errorAttributeFound && span.Status().Code() != ptrace.StatusCodeError {
+	_, errAttributeFound := query.Attributes.Get(errorAttribute)
+	if errAttributeFound && span.Status().Code() != ptrace.StatusCodeError {
 		return false
 	}
 	if query.OperationName != "" && query.OperationName != span.Name() {
@@ -157,6 +150,13 @@ func validSpan(resourceAttributes, scopeAttributes pcommon.Map, span ptrace.Span
 	if query.DurationMax != 0 && duration > query.DurationMax {
 		return false
 	}
+	if query.Attributes.Len() > 0 {
+		for key, val := range query.Attributes.All() {
+			if key != errorAttribute && !findKeyValInTrace(key, val, resourceAttributes, scopeAttributes, span) {
+				return false
+			}
+		}
+	}
 	return true
 }
 
@@ -169,11 +169,12 @@ func matchAttributes(key string, val pcommon.Value, attrs pcommon.Map) bool {
 
 func findKeyValInTrace(key string, val pcommon.Value, resourceAttributes pcommon.Map, scopeAttributes pcommon.Map, span ptrace.Span) bool {
 	tagsMatched := matchAttributes(key, val, span.Attributes()) || matchAttributes(key, val, scopeAttributes) || matchAttributes(key, val, resourceAttributes)
-	if !tagsMatched {
-		for _, event := range span.Events().All() {
-			if matchAttributes(key, val, event.Attributes()) {
-				return true
-			}
+	if tagsMatched {
+		return true
+	}
+	for _, event := range span.Events().All() {
+		if matchAttributes(key, val, event.Attributes()) {
+			return true
 		}
 	}
 	return tagsMatched

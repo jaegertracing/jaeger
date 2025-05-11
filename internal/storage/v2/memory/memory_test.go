@@ -32,7 +32,8 @@ func TestNewStore_DefaultConfig(t *testing.T) {
 	td := loadInputTraces(t, 1)
 	err := store.WriteTraces(context.Background(), td)
 	require.NoError(t, err)
-	tenant := store.getTenant(tenancy.GetTenant(context.Background()))
+	tenant, err := store.getTenant(tenancy.GetTenant(context.Background()))
+	require.NoError(t, err)
 	traceID1 := fromString(t, "00000000000000010000000000000000")
 	traceIndex, ok := tenant.ids[traceID1]
 	require.True(t, ok)
@@ -365,7 +366,7 @@ func TestFindTraces_NegativeSearchDepthErr(t *testing.T) {
 			iterLength := 0
 			for traces, err := range gotIter {
 				iterLength++
-				require.ErrorContains(t, err, "negative search depth is not allowed. please provide a valid search depth")
+				require.ErrorContains(t, err, errInvalidSearchDepth.Error())
 				assert.Nil(t, traces)
 			}
 			assert.Equal(t, 1, iterLength)
@@ -374,7 +375,9 @@ func TestFindTraces_NegativeSearchDepthErr(t *testing.T) {
 }
 
 func TestGetOperationsWithKind(t *testing.T) {
-	store := NewStore(v1.Configuration{})
+	store := NewStore(v1.Configuration{
+		MaxTraces: 10,
+	})
 	td := ptrace.NewTraces()
 	resourceSpans := td.ResourceSpans().AppendEmpty()
 	attrs := resourceSpans.Resource().Attributes()
@@ -410,7 +413,8 @@ func TestWriteTraces_WriteTwoBatches(t *testing.T) {
 	td2.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty().SetTraceID(traceId)
 	err = store.WriteTraces(context.Background(), td2)
 	require.NoError(t, err)
-	tenant := store.getTenant(tenancy.GetTenant(context.Background()))
+	tenant, err := store.getTenant(tenancy.GetTenant(context.Background()))
+	require.NoError(t, err)
 	traceIndex := tenant.ids[traceId]
 	assert.Equal(t, 2, tenant.traces[traceIndex].trace.ResourceSpans().Len())
 }
@@ -430,17 +434,93 @@ func TestWriteTraces_WriteTraceWithTwoResourceSpans(t *testing.T) {
 	scopeSpan2.Spans().AppendEmpty().SetTraceID(traceId)
 	err := store.WriteTraces(context.Background(), td)
 	require.NoError(t, err)
-	tenant := store.getTenant(tenancy.GetTenant(context.Background()))
+	tenant, err := store.getTenant(tenancy.GetTenant(context.Background()))
+	require.NoError(t, err)
 	traceIndex := tenant.ids[traceId]
 	// All spans have same trace id, so output should be same as input (that is no reshuffling, effectively)
 	assert.Equal(t, td, tenant.traces[traceIndex].trace)
 }
 
 func TestNewStore_TracesLimit(t *testing.T) {
-	maxTraces := 5
+	maxTraces := 8
 	store := NewStore(v1.Configuration{
 		MaxTraces: maxTraces,
 	})
+	writeTenTraces(t, store)
+	tenant, err := store.getTenant(tenancy.GetTenant(context.Background()))
+	require.NoError(t, err)
+	assert.Len(t, tenant.traces, maxTraces)
+	assert.Len(t, tenant.ids, maxTraces)
+}
+
+func TestNewStore_ReverseChronologicalOrder(t *testing.T) {
+	maxTraces := 8
+	store := NewStore(v1.Configuration{
+		MaxTraces: maxTraces,
+	})
+	writeTenTraces(t, store)
+	iter := store.FindTraces(context.Background(), tracestore.TraceQueryParams{
+		SearchDepth: 5,
+		Attributes:  pcommon.NewMap(),
+	})
+	// This test whether the traces are fetched in Reverse Chronological Order
+	iterLength := 0
+	for traces, err := range iter {
+		require.NoError(t, err)
+		assert.Len(t, traces, 1)
+		actualTraceId := traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
+		assert.Equal(t, fromString(t, fmt.Sprintf("000000000000000%d0000000000000000", 9-iterLength)), actualTraceId)
+		iterLength++
+	}
+	assert.Equal(t, 5, iterLength)
+}
+
+func TestInvalidMaxTracesErr(t *testing.T) {
+	tests := []struct {
+		name   string
+		errFxn func(store *Store) (any, error)
+	}{
+		{
+			name: "GetOperations",
+			errFxn: func(store *Store) (any, error) {
+				return store.GetOperations(context.Background(), tracestore.OperationQueryParams{})
+			},
+		},
+		{
+			name: "GetServices",
+			errFxn: func(store *Store) (any, error) {
+				return store.GetServices(context.Background())
+			},
+		},
+		{
+			name: "FindTraces",
+			errFxn: func(store *Store) (any, error) {
+				iter := store.FindTraces(context.Background(), tracestore.TraceQueryParams{})
+				for traces, err := range iter {
+					return traces, err
+				}
+				return nil, nil
+			},
+		},
+		{
+			name: "WriteTraces",
+			errFxn: func(store *Store) (any, error) {
+				err := store.WriteTraces(context.Background(), ptrace.NewTraces())
+				return nil, err
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			store := NewStore(v1.Configuration{})
+			actual, err := test.errFxn(store)
+			require.ErrorContains(t, err, errInvalidMaxTraces.Error())
+			assert.Nil(t, actual)
+		})
+	}
+}
+
+func writeTenTraces(t *testing.T, store *Store) {
 	for i := 1; i < 10; i++ {
 		traceID := fromString(t, fmt.Sprintf("000000000000000%d0000000000000000", i))
 		traces := ptrace.NewTraces()
@@ -448,8 +528,6 @@ func TestNewStore_TracesLimit(t *testing.T) {
 		err := store.WriteTraces(context.Background(), traces)
 		require.NoError(t, err)
 	}
-	assert.Len(t, store.getTenant(tenancy.GetTenant(context.Background())).traces, maxTraces)
-	assert.Len(t, store.getTenant(tenancy.GetTenant(context.Background())).ids, maxTraces)
 }
 
 func fromString(t *testing.T, dbTraceId string) pcommon.TraceID {
