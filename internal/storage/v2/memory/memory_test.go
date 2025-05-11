@@ -353,6 +353,10 @@ func TestFindTraces_NegativeSearchDepthErr(t *testing.T) {
 			name:        "zero search depth",
 			searchDepth: 0,
 		},
+		{
+			name:        "search depth greater than max traces",
+			searchDepth: 11,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

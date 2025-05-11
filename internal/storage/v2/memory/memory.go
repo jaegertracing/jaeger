@@ -20,7 +20,7 @@ import (
 
 const errorAttribute = "error"
 
-var errInvalidSearchDepth = errors.New("search depth must be greater than 0")
+var errInvalidSearchDepth = errors.New("search depth must be greater than 0 and less than max traces")
 
 // Store is an in-memory store of traces
 type Store struct {
@@ -131,7 +131,7 @@ func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryPara
 			yield(nil, err)
 		}
 	}
-	if query.SearchDepth <= 0 {
+	if query.SearchDepth <= 0 || query.SearchDepth > st.defaultConfig.MaxTraces {
 		return func(yield func([]ptrace.Traces, error) bool) {
 			yield(nil, errInvalidSearchDepth)
 		}
