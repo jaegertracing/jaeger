@@ -70,7 +70,7 @@ type Indices struct {
 }
 
 type bulkCallback struct {
-	startTimes *sync.Map
+	startTimes sync.Map
 	sm         *spanstoremetrics.WriteMetrics
 	logger     *zap.Logger
 }
@@ -233,13 +233,9 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 		return nil, err
 	}
 
-	sm := spanstoremetrics.NewWriter(metricsFactory, "bulk_index")
-	startTimes := sync.Map{}
-
-	bcb := &bulkCallback{
-		startTimes: &startTimes,
-		sm:         sm,
-		logger:     logger,
+	bcb := bulkCallback{
+		sm:     spanstoremetrics.NewWriter(metricsFactory, "bulk_index"),
+		logger: logger,
 	}
 
 	bulkProc, err := rawClient.BulkProcessor().

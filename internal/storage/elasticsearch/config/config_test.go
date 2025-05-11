@@ -830,10 +830,9 @@ func TestHandleBulkAfterCallback_ErrorMetricsEmitted(t *testing.T) {
 		},
 	}
 
-	bcb := &bulkCallback{
-		startTimes: &m,
-		sm:         sm,
-		logger:     logger,
+	bcb := bulkCallback{
+		sm:     sm,
+		logger: logger,
 	}
 
 	bcb.invoke(batchID, fakeRequests, response, assert.AnError)
@@ -856,7 +855,6 @@ func TestHandleBulkAfterCallback_MissingStartTime(t *testing.T) {
 	logger := zap.NewNop()
 	defer mf.Stop()
 
-	var m sync.Map
 	batchID := int64(42) // assign any value which is not stored in the map
 
 	fakeRequests := []elastic.BulkableRequest{nil}
@@ -872,10 +870,9 @@ func TestHandleBulkAfterCallback_MissingStartTime(t *testing.T) {
 		},
 	}
 
-	bcb := &bulkCallback{
-		startTimes: &m,
-		sm:         sm,
-		logger:     logger,
+	bcb := bulkCallback{
+		sm:     sm,
+		logger: logger,
 	}
 
 	bcb.invoke(batchID, fakeRequests, response, assert.AnError)
