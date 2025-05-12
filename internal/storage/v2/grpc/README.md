@@ -37,7 +37,6 @@ Run the integration tests for the gRPC storage backend using the following comma
 STORAGE=grpc \
 CUSTOM_STORAGE=true \
 REMOTE_STORAGE_ENDPOINT=${MY_REMOTE_STORAGE_ENDPOINT} \
-ARCHIVE_REMOTE_STORAGE_ENDPOINT=${MY_ARCHIVE_REMOTE_STORAGE_ENDPOINT} \
 REMOTE_STORAGE_WRITER_ENDPOINT=${MY_REMOTE_STORAGE_WRITER_ENDPOINT} \
 make jaeger-v2-storage-integration-test
 ```
