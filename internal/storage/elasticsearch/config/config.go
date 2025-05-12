@@ -309,7 +309,12 @@ func (bcb *bulkCallback) invoke(id int64, requests []elastic.BulkableRequest, re
 		}
 	}
 
-	bcb.sm.Emit(err, time.Since(start.(time.Time)))
+	latency := time.Since(start.(time.Time))
+	if err != nil {
+		bcb.sm.LatencyErr.Record(latency)
+	} else {
+		bcb.sm.LatencyOk.Record(latency)
+	}
 
 	var failed int
 	if response != nil {
@@ -317,6 +322,7 @@ func (bcb *bulkCallback) invoke(id int64, requests []elastic.BulkableRequest, re
 	}
 
 	total := len(requests)
+	bcb.sm.Attempts.Inc(int64(total))
 	bcb.sm.Inserts.Inc(int64(total - failed))
 	bcb.sm.Errors.Inc(int64(failed))
 

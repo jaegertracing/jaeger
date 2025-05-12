@@ -840,11 +840,15 @@ func TestHandleBulkAfterCallback_ErrorMetricsEmitted(t *testing.T) {
 	mf.AssertCounterMetrics(t,
 		metricstest.ExpectedMetric{
 			Name:  "bulk_index.errors",
-			Value: 2,
+			Value: 1,
 		},
 		metricstest.ExpectedMetric{
 			Name:  "bulk_index.inserts",
 			Value: 1,
+		},
+		metricstest.ExpectedMetric{
+			Name:  "bulk_index.attempts",
+			Value: 2,
 		},
 	)
 }
@@ -880,11 +884,15 @@ func TestHandleBulkAfterCallback_MissingStartTime(t *testing.T) {
 	mf.AssertCounterMetrics(t,
 		metricstest.ExpectedMetric{
 			Name:  "bulk_index.errors",
-			Value: 2,
+			Value: 1,
 		},
 		metricstest.ExpectedMetric{
 			Name:  "bulk_index.inserts",
 			Value: 0,
+		},
+		metricstest.ExpectedMetric{
+			Name:  "bulk_index.attempts",
+			Value: 1,
 		},
 	)
 }
