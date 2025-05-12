@@ -16,6 +16,9 @@ An example configuration for setting up a remote storage backend is available
 [here](../../../../cmd/jaeger/config-remote-storage.yaml).
 Note: In this example, the `TraceService` is configured to run on a different port (0.0.0.0:4316), which is overridden in the config file.
 
+The integration tests also require a POST HTTP endpoint that can be called to purge the storage backend,
+ensuring a clean state before each test run.
+
 ## Testing
 
 To verify that your remote storage backend works correctly with Jaeger, you can run the integration tests provided by the Jaeger project.
@@ -38,5 +41,6 @@ STORAGE=grpc \
 CUSTOM_STORAGE=true \
 REMOTE_STORAGE_ENDPOINT=${MY_REMOTE_STORAGE_ENDPOINT} \
 REMOTE_STORAGE_WRITER_ENDPOINT=${MY_REMOTE_STORAGE_WRITER_ENDPOINT} \
+PURGER_ADDRESS=${MY_PURGER_ENDPOINT} \
 make jaeger-v2-storage-integration-test
 ```
