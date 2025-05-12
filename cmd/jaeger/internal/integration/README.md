@@ -124,6 +124,8 @@ RemoteStorageAPI --> |read| Storage
 PurgeEndpoint --> |purge| Storage
 subgraph Integration Test Executable
     Test
+end
+subgraph Collector
     SpanWriter
     SpanReader
 end
