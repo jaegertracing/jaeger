@@ -51,6 +51,9 @@ type E2EStorageIntegration struct {
 	// is the value of the environment variable to set.
 	// These variables are set upon initialization and are unset upon cleanup.
 	EnvVarOverrides map[string]string
+	// PropagateEnvVars contains a list of environment variables to propagate
+	// from the test process to the jaeger binary.
+	PropagateEnvVars []string
 }
 
 // e2eInitialize starts the Jaeger-v2 collector with the provided config file,
@@ -77,6 +80,11 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	envVars := []string{"OTEL_TRACES_SAMPLER=always_off"}
 	for key, value := range s.EnvVarOverrides {
 		envVars = append(envVars, fmt.Sprintf("%s=%s", key, value))
+	}
+	for _, key := range s.PropagateEnvVars {
+		if value, ok := os.LookupEnv(key); ok {
+			envVars = append(envVars, fmt.Sprintf("%s=%s", key, value))
+		}
 	}
 
 	cmd := Binary{
@@ -207,6 +215,9 @@ func createStorageCleanerConfig(t *testing.T, configFile string, storage string)
 
 func purge(t *testing.T) {
 	addr := fmt.Sprintf("http://0.0.0.0:%s%s", storagecleaner.Port, storagecleaner.URL)
+	if purgerAddr, ok := os.LookupEnv("PURGER_ENDPOINT"); ok {
+		addr = purgerAddr
+	}
 	t.Logf("Purging storage via %s", addr)
 	r, err := http.NewRequestWithContext(context.Background(), http.MethodPost, addr, nil)
 	require.NoError(t, err)

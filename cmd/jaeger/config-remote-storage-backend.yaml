@@ -1,5 +1,5 @@
 service:
-  extensions: [jaeger_storage, remote_storage, remote_storage/archive, healthcheckv2]
+  extensions: [jaeger_storage, remote_storage, healthcheckv2]
   pipelines:
     traces:
       receivers: [otlp]
@@ -33,15 +33,9 @@ extensions:
       memory-storage:
         memory:
           max_traces: 100000
-      memory-storage-archive:
-        memory:
-          max_traces: 100000
   remote_storage:
     endpoint: localhost:17271
     storage: memory-storage
-  remote_storage/archive:
-    endpoint: localhost:17272
-    storage: memory-storage-archive
 
 receivers:
   otlp:
