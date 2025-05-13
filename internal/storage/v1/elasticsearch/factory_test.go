@@ -32,14 +32,14 @@ var mockEsServerResponse = []byte(`
 `)
 
 func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
-	f := NewFactoryBase()
+	f := &FactoryBase{}
 	f.config = &escfg.Configuration{
 		Tags: escfg.TagsAsFields{
 			File: "fixtures/file-does-not-exist.txt",
 		},
 	}
 	f.newClientFn = (&mockClientBuilder{}).NewClient
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.NoError(t, f.initialize(metrics.NullFactory, zap.NewNop()))
 	defer f.Close()
 	r, err := f.GetSpanWriterParams()
 	require.ErrorContains(t, err, "open fixtures/file-does-not-exist.txt: no such file or directory")
@@ -47,12 +47,12 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 }
 
 func TestElasticsearchILMUsedWithoutReadWriteAliases(t *testing.T) {
-	f := NewFactoryBase()
+	f := &FactoryBase{}
 	f.config = &escfg.Configuration{
 		UseILM: true,
 	}
 	f.newClientFn = (&mockClientBuilder{}).NewClient
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.NoError(t, f.initialize(metrics.NullFactory, zap.NewNop()))
 	defer f.Close()
 	w, err := f.GetSpanWriterParams()
 	require.EqualError(t, err, "--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
@@ -121,10 +121,10 @@ func TestTagKeysAsFields(t *testing.T) {
 }
 
 func TestCreateTemplateError(t *testing.T) {
-	f := NewFactoryBase()
+	f := &FactoryBase{}
 	f.config = &escfg.Configuration{CreateIndexTemplates: true}
 	f.newClientFn = (&mockClientBuilder{createTemplateError: errors.New("template-error")}).NewClient
-	err := f.Initialize(metrics.NullFactory, zap.NewNop())
+	err := f.initialize(metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
 	defer f.Close()
 
@@ -206,8 +206,7 @@ func TestPasswordFromFileErrors(t *testing.T) {
 	pwdFile := filepath.Join(t.TempDir(), "pwd")
 	require.NoError(t, os.WriteFile(pwdFile, []byte("first password"), 0o600))
 
-	f := NewFactoryBase()
-	f.config = &escfg.Configuration{
+	cfg := escfg.Configuration{
 		Servers:  []string{server.URL},
 		LogLevel: "debug",
 		Authentication: escfg.Authentication{
@@ -218,7 +217,8 @@ func TestPasswordFromFileErrors(t *testing.T) {
 	}
 
 	logger, buf := testutils.NewEchoLogger(t)
-	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
+	f, err := NewFactoryBaseWithConfig(cfg, metrics.NullFactory, logger)
+	require.NoError(t, err)
 	defer f.Close()
 
 	f.config.Servers = []string{}
@@ -230,7 +230,7 @@ func TestPasswordFromFileErrors(t *testing.T) {
 }
 
 func TestGetSpanServiceMappingErr(t *testing.T) {
-	f := NewFactoryBase()
+	f := &FactoryBase{}
 	f.SetConfig(&escfg.Configuration{})
 	tmpBuilder := &mocks.TemplateBuilder{}
 	tmpBuilder.On("Parse", mock.Anything).Return(nil, errors.New("mapping-error"))

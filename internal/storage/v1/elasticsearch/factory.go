@@ -36,8 +36,6 @@ const (
 
 // FactoryBase implements storage.Factory for Elasticsearch backend.
 type FactoryBase struct {
-	Options *Options
-
 	metricsFactory metrics.Factory
 	logger         *zap.Logger
 	tracer         trace.TracerProvider
@@ -53,23 +51,6 @@ type FactoryBase struct {
 	templateBuilder es.TemplateBuilder
 }
 
-// NewFactoryBase creates a new FactoryBase.
-func NewFactoryBase() *FactoryBase {
-	return &FactoryBase{
-		Options:     NewOptions(primaryNamespace),
-		newClientFn: config.NewClient,
-		tracer:      otel.GetTracerProvider(),
-	}
-}
-
-func NewArchiveFactoryBase() *FactoryBase {
-	return &FactoryBase{
-		Options:     NewOptions(archiveNamespace),
-		newClientFn: config.NewClient,
-		tracer:      otel.GetTracerProvider(),
-	}
-}
-
 func NewFactoryBaseWithConfig(
 	cfg config.Configuration,
 	metricsFactory metrics.Factory,
@@ -78,16 +59,12 @@ func NewFactoryBaseWithConfig(
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-
-	defaultConfig := DefaultConfig()
-	cfg.ApplyDefaults(&defaultConfig)
-
 	f := &FactoryBase{
 		config:      &cfg,
 		newClientFn: config.NewClient,
 		tracer:      otel.GetTracerProvider(),
 	}
-	err := f.Initialize(metricsFactory, logger)
+	err := f.initialize(metricsFactory, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +72,7 @@ func NewFactoryBaseWithConfig(
 }
 
 // Initialize implements storage.Factory.
-func (f *FactoryBase) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *FactoryBase) initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory = metricsFactory
 	f.logger = logger
 	f.templateBuilder = es.TextTemplateBuilder{}
@@ -112,18 +89,6 @@ func (f *FactoryBase) Initialize(metricsFactory metrics.Factory, logger *zap.Log
 			return fmt.Errorf("failed to create watcher for ES client's password: %w", err)
 		}
 		f.pwdFileWatcher = watcher
-	}
-
-	if f.Options != nil && f.Options.Config.namespace == archiveNamespace {
-		aliasSuffix := "archive"
-		if f.config.UseReadWriteAliases {
-			f.config.ReadAliasSuffix = aliasSuffix + "-read"
-			f.config.WriteAliasSuffix = aliasSuffix + "-write"
-		} else {
-			f.config.ReadAliasSuffix = aliasSuffix
-			f.config.WriteAliasSuffix = aliasSuffix
-		}
-		f.config.UseReadWriteAliases = true
 	}
 
 	return nil

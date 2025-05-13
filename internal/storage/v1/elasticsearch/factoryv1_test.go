@@ -44,7 +44,6 @@ func TestElasticsearchFactory(t *testing.T) {
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{})
 	f.InitFromViper(v, zap.NewNop())
-	require.NoError(t, f.Initialize(metrics.NullFactory, zaptest.NewLogger(t)))
 	_, err := f.CreateSpanReader()
 	require.NoError(t, err)
 
@@ -79,9 +78,7 @@ func TestCreateTemplateErr(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := NewFactory()
-			f.coreFactory = getTestingFactoryBaseWithCreateTemplateError(t, errors.New("template-error"))
-			f.coreFactory.SetConfig(tt.cfg)
-			require.NoError(t, f.Initialize(metrics.NullFactory, zaptest.NewLogger(t)))
+			f.coreFactory = getTestingFactoryBaseWithCreateTemplateError(t, tt.cfg, errors.New("template-error"))
 			wr, err := f.CreateSpanWriter()
 			if tt.expectErr {
 				require.ErrorContains(t, err, "template-error")
@@ -94,20 +91,18 @@ func TestCreateTemplateErr(t *testing.T) {
 }
 
 func TestSpanWriterMappingBuilderErr(t *testing.T) {
-	coreFactory := NewFactoryBase()
-	SetFactoryForTestWithMappingErr(coreFactory, zaptest.NewLogger(t), metrics.NullFactory, errors.New("template-error"))
+	coreFactory := &FactoryBase{}
+	err := SetFactoryForTestWithMappingErr(coreFactory, zaptest.NewLogger(t), metrics.NullFactory, &escfg.Configuration{CreateIndexTemplates: true}, errors.New("template-error"))
+	require.NoError(t, err)
 	f := NewFactory()
-	coreFactory.SetConfig(&escfg.Configuration{CreateIndexTemplates: true})
 	f.coreFactory = coreFactory
-	_, err := f.CreateSpanWriter()
+	_, err = f.CreateSpanWriter()
 	require.ErrorContains(t, err, "template-error")
 }
 
 func TestSpanReaderErr(t *testing.T) {
 	f := NewFactory()
-	f.coreFactory = getTestingFactoryBaseWithCreateTemplateError(t, errors.New("template-error"))
-	f.coreFactory.SetConfig(&escfg.Configuration{UseILM: true, UseReadWriteAliases: false})
-	require.NoError(t, f.Initialize(metrics.NullFactory, zaptest.NewLogger(t)))
+	f.coreFactory = getTestingFactoryBaseWithCreateTemplateError(t, &escfg.Configuration{UseILM: true, UseReadWriteAliases: false}, errors.New("template-error"))
 	r, err := f.CreateSpanReader()
 	require.ErrorContains(t, err, "--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
 	assert.Nil(t, r)
@@ -170,21 +165,52 @@ func TestArchiveFactory(t *testing.T) {
 			expectedWriteAlias: "archive-write",
 		},
 	}
-
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			coreFactory := NewArchiveFactoryBase()
-			coreFactory.newClientFn = (&mockClientBuilder{}).NewClient
-			f := Factory{coreFactory: coreFactory, Options: coreFactory.Options}
+			f := NewArchiveFactory()
 			v, command := config.Viperize(f.AddFlags)
-			command.ParseFlags(test.args)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Write(mockEsServerResponse)
+			}))
+			t.Cleanup(server.Close)
+			serverArg := "--es-archive.server-urls=" + server.URL
+			testArgs := append(test.args, serverArg)
+			command.ParseFlags(testArgs)
 			f.InitFromViper(v, zap.NewNop())
+			err := f.Initialize(metrics.NullFactory, zaptest.NewLogger(t))
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, f.Close())
+			})
+			require.Equal(t, test.expectedReadAlias, f.Options.GetConfig().ReadAliasSuffix)
+			require.Equal(t, test.expectedWriteAlias, f.Options.GetConfig().WriteAliasSuffix)
+			require.True(t, f.Options.Config.UseReadWriteAliases)
+			require.Equal(t, DefaultConfig().BulkProcessing, f.Options.GetConfig().BulkProcessing)
+		})
+	}
+}
 
-			require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-
-			require.Equal(t, test.expectedReadAlias, f.coreFactory.GetConfig().ReadAliasSuffix)
-			require.Equal(t, test.expectedWriteAlias, f.coreFactory.GetConfig().WriteAliasSuffix)
-			require.True(t, f.coreFactory.GetConfig().UseReadWriteAliases)
+func TestFactoryInitializeErr(t *testing.T) {
+	tests := []struct {
+		name        string
+		factory     *Factory
+		expectedErr string
+	}{
+		{
+			name:        "cfg validation err",
+			factory:     &Factory{Options: &Options{Config: namespaceConfig{Configuration: escfg.Configuration{}}}},
+			expectedErr: "Servers: non zero value required",
+		},
+		{
+			name:        "server error",
+			factory:     NewFactory(),
+			expectedErr: "failed to create Elasticsearch client: health check timeout: Head \"http://127.0.0.1:9200\": dial tcp 127.0.0.1:9200: connect: connection refused: no Elasticsearch node available",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.factory.Initialize(metrics.NullFactory, zaptest.NewLogger(t))
+			require.EqualError(t, err, test.expectedErr)
 		})
 	}
 }
@@ -229,15 +255,6 @@ func testPasswordFromFile(t *testing.T, pwdFile string, authReceived *sync.Map, 
 		5*time.Second, time.Millisecond,
 		"expecting es.Client to send the new password",
 	)
-}
-
-func TestConfigureFromOptions(t *testing.T) {
-	f := NewFactory()
-	o := &Options{
-		Config: namespaceConfig{Configuration: escfg.Configuration{Servers: []string{"server"}}},
-	}
-	f.configureFromOptions(o)
-	assert.Equal(t, o.GetConfig(), f.coreFactory.GetConfig())
 }
 
 func TestIsArchiveCapable(t *testing.T) {
@@ -287,7 +304,7 @@ func TestIsArchiveCapable(t *testing.T) {
 
 func getTestingFactory(t *testing.T, pwdFile string, server *httptest.Server) *Factory {
 	require.NoError(t, os.WriteFile(pwdFile, []byte(pwd1), 0o600))
-	cfg := &escfg.Configuration{
+	cfg := escfg.Configuration{
 		Servers:  []string{server.URL},
 		LogLevel: "debug",
 		Authentication: escfg.Authentication{
@@ -300,10 +317,12 @@ func getTestingFactory(t *testing.T, pwdFile string, server *httptest.Server) *F
 			MaxBytes: -1, // disable bulk; we want immediate flush
 		},
 	}
-	coreFactory := NewFactoryBase()
-	coreFactory.SetConfig(cfg)
+	coreFactory := &FactoryBase{}
 	f := NewArchiveFactory()
 	f.coreFactory = coreFactory
+	options := &Options{}
+	options.Config = namespaceConfig{Configuration: cfg}
+	f.Options = options
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 	t.Cleanup(func() {
 		require.NoError(t, f.Close())
@@ -335,15 +354,15 @@ func getTestingServer(t *testing.T) (*httptest.Server, *sync.Map) {
 }
 
 func getTestingFactoryBase(t *testing.T) *FactoryBase {
-	f := NewFactoryBase()
-	SetFactoryForTest(f, zaptest.NewLogger(t), metrics.NullFactory)
-	f.SetConfig(&escfg.Configuration{})
+	f := &FactoryBase{}
+	err := SetFactoryForTest(f, zaptest.NewLogger(t), metrics.NullFactory, &escfg.Configuration{})
+	require.NoError(t, err)
 	return f
 }
 
-func getTestingFactoryBaseWithCreateTemplateError(t *testing.T, err error) *FactoryBase {
-	f := NewFactoryBase()
-	SetFactoryForTestWithCreateTemplateErr(f, zaptest.NewLogger(t), metrics.NullFactory, err)
-	f.SetConfig(&escfg.Configuration{})
+func getTestingFactoryBaseWithCreateTemplateError(t *testing.T, cfg *escfg.Configuration, templateErr error) *FactoryBase {
+	f := &FactoryBase{}
+	err := SetFactoryForTestWithCreateTemplateErr(f, zaptest.NewLogger(t), metrics.NullFactory, cfg, templateErr)
+	require.NoError(t, err)
 	return f
 }

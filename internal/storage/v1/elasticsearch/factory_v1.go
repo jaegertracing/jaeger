@@ -37,18 +37,14 @@ type Factory struct {
 }
 
 func NewFactory() *Factory {
-	coreFactory := NewFactoryBase()
 	return &Factory{
-		coreFactory: coreFactory,
-		Options:     coreFactory.Options,
+		Options: NewOptions(primaryNamespace),
 	}
 }
 
 func NewArchiveFactory() *Factory {
-	coreFactory := NewArchiveFactoryBase()
 	return &Factory{
-		coreFactory: coreFactory,
-		Options:     coreFactory.Options,
+		Options: NewOptions(archiveNamespace),
 	}
 }
 
@@ -58,17 +54,32 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 
 func (f *Factory) InitFromViper(v *viper.Viper, _ *zap.Logger) {
 	f.Options.InitFromViper(v)
-	f.configureFromOptions(f.Options)
-}
-
-// configureFromOptions configures factory from Options struct.
-func (f *Factory) configureFromOptions(o *Options) {
-	f.Options = o
-	f.coreFactory.SetConfig(f.Options.GetConfig())
 }
 
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
-	return f.coreFactory.Initialize(metricsFactory, logger)
+	cfg := f.Options.GetConfig()
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+	defaultConfig := DefaultConfig()
+	cfg.ApplyDefaults(&defaultConfig)
+	if f.Options.Config.namespace == archiveNamespace {
+		aliasSuffix := "archive"
+		if cfg.UseReadWriteAliases {
+			cfg.ReadAliasSuffix = aliasSuffix + "-read"
+			cfg.WriteAliasSuffix = aliasSuffix + "-write"
+		} else {
+			cfg.ReadAliasSuffix = aliasSuffix
+			cfg.WriteAliasSuffix = aliasSuffix
+		}
+		cfg.UseReadWriteAliases = true
+	}
+	coreFactory, err := NewFactoryBaseWithConfig(*cfg, metricsFactory, logger)
+	if err != nil {
+		return err
+	}
+	f.coreFactory = coreFactory
+	return nil
 }
 
 // CreateSpanReader implements storage.Factory

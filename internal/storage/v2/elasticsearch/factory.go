@@ -7,15 +7,13 @@ import (
 	"context"
 	"io"
 
-	"go.uber.org/zap"
-
-	"github.com/jaegertracing/jaeger/internal/metrics"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	v2depstore "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
 	v2tracestore "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
 var (
@@ -28,8 +26,8 @@ type Factory struct {
 	coreFactory *elasticsearch.FactoryBase
 }
 
-func NewFactoryWithConfig(cfg escfg.Configuration, metricsFactory metrics.Factory, logger *zap.Logger) (*Factory, error) {
-	coreFactory, err := elasticsearch.NewFactoryBaseWithConfig(cfg, metricsFactory, logger)
+func NewFactoryWithConfig(cfg escfg.Configuration, telset telemetry.Settings) (*Factory, error) {
+	coreFactory, err := elasticsearch.NewFactoryBaseWithConfig(cfg, telset.Metrics, telset.Logger)
 	if err != nil {
 		return nil, err
 	}

@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/stretchr/testify/mock"
+	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
@@ -37,21 +38,30 @@ func (m *mockClientBuilder) NewClient(*escfg.Configuration, *zap.Logger, metrics
 	return nil, m.err
 }
 
-func SetFactoryForTest(f *FactoryBase, logger *zap.Logger, metricsFactory metrics.Factory) {
-	SetFactoryForTestWithCreateTemplateErr(f, logger, metricsFactory, nil)
+func SetFactoryForTest(f *FactoryBase, logger *zap.Logger, metricsFactory metrics.Factory, cfg *escfg.Configuration) error {
+	return SetFactoryForTestWithCreateTemplateErr(f, logger, metricsFactory, cfg, nil)
 }
 
-func SetFactoryForTestWithCreateTemplateErr(f *FactoryBase, logger *zap.Logger, metricsFactory metrics.Factory, err error) {
-	f.newClientFn = (&mockClientBuilder{createTemplateError: err}).NewClient
+func SetFactoryForTestWithCreateTemplateErr(f *FactoryBase, logger *zap.Logger, metricsFactory metrics.Factory, cfg *escfg.Configuration, templateErr error) error {
+	f.newClientFn = (&mockClientBuilder{createTemplateError: templateErr}).NewClient
 	f.logger = logger
 	f.metricsFactory = metricsFactory
+	f.config = cfg
+	f.tracer = otel.GetTracerProvider()
+	return f.initialize(metrics.NullFactory, logger)
 }
 
-func SetFactoryForTestWithMappingErr(f *FactoryBase, logger *zap.Logger, metricsFactory metrics.Factory, err error) {
+func SetFactoryForTestWithMappingErr(f *FactoryBase, logger *zap.Logger, metricsFactory metrics.Factory, cfg *escfg.Configuration, templateBuilderErr error) error {
 	f.newClientFn = (&mockClientBuilder{}).NewClient
 	tmplBuilder := &mocks.TemplateBuilder{}
-	tmplBuilder.On("Parse", mock.Anything).Return(nil, err)
-	f.templateBuilder = tmplBuilder
+	tmplBuilder.On("Parse", mock.Anything).Return(nil, templateBuilderErr)
 	f.logger = logger
 	f.metricsFactory = metricsFactory
+	f.config = cfg
+	err := f.initialize(metrics.NullFactory, logger)
+	if err != nil {
+		return err
+	}
+	f.templateBuilder = tmplBuilder
+	return nil
 }
