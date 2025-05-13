@@ -48,7 +48,13 @@ func SetFactoryForTestWithCreateTemplateErr(f *FactoryBase, logger *zap.Logger, 
 	f.metricsFactory = metricsFactory
 	f.config = cfg
 	f.tracer = otel.GetTracerProvider()
-	return f.initialize(metrics.NullFactory, logger)
+	client, err := f.newClientFn(cfg, logger, metricsFactory)
+	if err != nil {
+		return err
+	}
+	f.client.Store(&client)
+	f.templateBuilder = es.TextTemplateBuilder{}
+	return nil
 }
 
 func SetFactoryForTestWithMappingErr(f *FactoryBase, logger *zap.Logger, metricsFactory metrics.Factory, cfg *escfg.Configuration, templateBuilderErr error) error {
@@ -58,10 +64,11 @@ func SetFactoryForTestWithMappingErr(f *FactoryBase, logger *zap.Logger, metrics
 	f.logger = logger
 	f.metricsFactory = metricsFactory
 	f.config = cfg
-	err := f.initialize(metrics.NullFactory, logger)
+	client, err := f.newClientFn(cfg, logger, metricsFactory)
 	if err != nil {
 		return err
 	}
+	f.client.Store(&client)
 	f.templateBuilder = tmplBuilder
 	return nil
 }

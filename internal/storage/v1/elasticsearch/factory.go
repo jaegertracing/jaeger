@@ -51,7 +51,7 @@ type FactoryBase struct {
 	templateBuilder es.TemplateBuilder
 }
 
-func NewFactoryBaseWithConfig(
+func NewFactoryBase(
 	cfg config.Configuration,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
@@ -64,34 +64,25 @@ func NewFactoryBaseWithConfig(
 		newClientFn: config.NewClient,
 		tracer:      otel.GetTracerProvider(),
 	}
-	err := f.initialize(metricsFactory, logger)
-	if err != nil {
-		return nil, err
-	}
-	return f, nil
-}
-
-// Initialize implements storage.Factory.
-func (f *FactoryBase) initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory = metricsFactory
 	f.logger = logger
 	f.templateBuilder = es.TextTemplateBuilder{}
 
 	client, err := f.newClientFn(f.config, logger, metricsFactory)
 	if err != nil {
-		return fmt.Errorf("failed to create Elasticsearch client: %w", err)
+		return nil, fmt.Errorf("failed to create Elasticsearch client: %w", err)
 	}
 	f.client.Store(&client)
 
 	if f.config.Authentication.BasicAuthentication.PasswordFilePath != "" {
 		watcher, err := fswatcher.New([]string{f.config.Authentication.BasicAuthentication.PasswordFilePath}, f.onPasswordChange, f.logger)
 		if err != nil {
-			return fmt.Errorf("failed to create watcher for ES client's password: %w", err)
+			return nil, fmt.Errorf("failed to create watcher for ES client's password: %w", err)
 		}
 		f.pwdFileWatcher = watcher
 	}
 
-	return nil
+	return f, nil
 }
 
 func (f *FactoryBase) getClient() es.Client {

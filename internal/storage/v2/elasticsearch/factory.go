@@ -26,8 +26,8 @@ type Factory struct {
 	coreFactory *elasticsearch.FactoryBase
 }
 
-func NewFactoryWithConfig(cfg escfg.Configuration, telset telemetry.Settings) (*Factory, error) {
-	coreFactory, err := elasticsearch.NewFactoryBaseWithConfig(cfg, telset.Metrics, telset.Logger)
+func NewFactory(cfg escfg.Configuration, telset telemetry.Settings) (*Factory, error) {
+	coreFactory, err := elasticsearch.NewFactoryBase(cfg, telset.Metrics, telset.Logger)
 	if err != nil {
 		return nil, err
 	}

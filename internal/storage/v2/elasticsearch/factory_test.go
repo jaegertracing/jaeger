@@ -82,13 +82,13 @@ func TestESStorageFactoryWithConfig(t *testing.T) {
 		Servers:  []string{server.URL},
 		LogLevel: "error",
 	}
-	factory, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings())
+	factory, err := NewFactory(cfg, telemetry.NoopSettings())
 	require.NoError(t, err)
 	defer factory.Close()
 }
 
 func TestESStorageFactoryWithConfigError(t *testing.T) {
-	f, err := NewFactoryWithConfig(escfg.Configuration{}, telemetry.NoopSettings())
+	f, err := NewFactory(escfg.Configuration{}, telemetry.NoopSettings())
 	require.ErrorContains(t, err, "Servers: non zero value required")
 	require.Nil(t, f)
 }
