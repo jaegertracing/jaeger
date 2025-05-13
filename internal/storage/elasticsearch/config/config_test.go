@@ -731,27 +731,31 @@ func TestValidate(t *testing.T) {
 	tests := []struct {
 		name          string
 		config        *Configuration
-		expectedError bool
+		expectedError string
 	}{
 		{
 			name: "All valid input are set",
 			config: &Configuration{
 				Servers: []string{"localhost:8000/dummyserver"},
 			},
-			expectedError: false,
 		},
 		{
 			name:          "no valid input are set",
 			config:        &Configuration{},
-			expectedError: true,
+			expectedError: "Servers: non zero value required",
+		},
+		{
+			name:          "ilm disabled and read-write aliases enabled error",
+			config:        &Configuration{UseILM: true},
+			expectedError: "UseILM must always be used in conjunction with UseReadWriteAliases to ensure ES writers and readers refer to the single index mapping",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			got := test.config.Validate()
-			if test.expectedError {
-				require.Error(t, got)
+			if test.expectedError != "" {
+				require.ErrorContains(t, got, test.expectedError)
 			} else {
 				require.NoError(t, got)
 			}

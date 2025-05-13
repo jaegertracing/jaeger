@@ -32,38 +32,6 @@ var mockEsServerResponse = []byte(`
 }
 `)
 
-func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
-	f := &FactoryBase{}
-	cfg := &escfg.Configuration{
-		Tags: escfg.TagsAsFields{
-			File: "fixtures/file-does-not-exist.txt",
-		},
-	}
-	err := SetFactoryForTest(f, zaptest.NewLogger(t), metrics.NullFactory, cfg)
-	require.NoError(t, err)
-	defer f.Close()
-	r, err := f.GetSpanWriterParams()
-	require.ErrorContains(t, err, "open fixtures/file-does-not-exist.txt: no such file or directory")
-	assert.Empty(t, r)
-}
-
-func TestElasticsearchILMUsedWithoutReadWriteAliases(t *testing.T) {
-	f := &FactoryBase{}
-	cfg := &escfg.Configuration{
-		UseILM: true,
-	}
-	err := SetFactoryForTest(f, zaptest.NewLogger(t), metrics.NullFactory, cfg)
-	require.NoError(t, err)
-	defer f.Close()
-	w, err := f.GetSpanWriterParams()
-	require.EqualError(t, err, "--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
-	assert.Empty(t, w)
-
-	r, err := f.GetSpanReaderParams()
-	require.EqualError(t, err, "--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
-	assert.Empty(t, r)
-}
-
 func TestTagKeysAsFields(t *testing.T) {
 	tests := []struct {
 		path          string
@@ -230,7 +198,7 @@ func TestPasswordFromFileErrors(t *testing.T) {
 
 func TestGetSpanServiceMappingErr(t *testing.T) {
 	f := &FactoryBase{}
-	f.SetConfig(&escfg.Configuration{})
+	f.config = &escfg.Configuration{}
 	tmpBuilder := &mocks.TemplateBuilder{}
 	tmpBuilder.On("Parse", mock.Anything).Return(nil, errors.New("mapping-error"))
 	f.templateBuilder = tmpBuilder

@@ -32,8 +32,9 @@ var ( // interface comformance checks
 )
 
 type Factory struct {
-	Options     *Options
-	coreFactory *FactoryBase
+	Options        *Options
+	coreFactory    *FactoryBase
+	metricsFactory metrics.Factory
 }
 
 func NewFactory() *Factory {
@@ -79,27 +80,26 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		return err
 	}
 	f.coreFactory = coreFactory
+	f.metricsFactory = metricsFactory
 	return nil
 }
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	params, err := f.coreFactory.GetSpanReaderParams()
-	if err != nil {
-		return nil, err
-	}
+	params := f.coreFactory.GetSpanReaderParams()
 	sr := esSpanStore.NewSpanReaderV1(params)
-	return spanstoremetrics.NewReaderDecorator(sr, f.coreFactory.GetMetricsFactory()), nil
+	return spanstoremetrics.NewReaderDecorator(sr, f.metricsFactory), nil
 }
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	params, err := f.coreFactory.GetSpanWriterParams()
+	tags, err := f.getConfig().TagKeysAsFields()
 	if err != nil {
 		return nil, err
 	}
+	params := f.coreFactory.GetSpanWriterParams(tags)
 	wr := esSpanStore.NewSpanWriterV1(params)
-	err = f.createTemplates(wr, f.coreFactory.GetConfig())
+	err = f.createTemplates(wr)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +125,7 @@ func (f *Factory) Purge(ctx context.Context) error {
 
 func (f *Factory) InheritSettingsFrom(other storage.Factory) {
 	if otherFactory, ok := other.(*Factory); ok {
-		f.coreFactory.GetConfig().ApplyDefaults(otherFactory.coreFactory.GetConfig())
+		f.getConfig().ApplyDefaults(otherFactory.getConfig())
 	}
 }
 
@@ -133,7 +133,8 @@ func (f *Factory) IsArchiveCapable() bool {
 	return f.Options.Config.namespace == archiveNamespace && f.Options.Config.Enabled
 }
 
-func (f *Factory) createTemplates(writer *esSpanStore.SpanWriterV1, cfg *config.Configuration) error {
+func (f *Factory) createTemplates(writer *esSpanStore.SpanWriterV1) error {
+	cfg := f.getConfig()
 	// Creating a template here would conflict with the one created for ILM resulting to no index rollover
 	if cfg.CreateIndexTemplates && !cfg.UseILM {
 		spanMapping, serviceMapping, err := f.coreFactory.GetSpanServiceMapping()
@@ -145,4 +146,8 @@ func (f *Factory) createTemplates(writer *esSpanStore.SpanWriterV1, cfg *config.
 		}
 	}
 	return nil
+}
+
+func (f *Factory) getConfig() *config.Configuration {
+	return f.Options.GetConfig()
 }

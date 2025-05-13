@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 
@@ -28,8 +29,9 @@ var mockEsServerResponse = []byte(`
 `)
 
 func TestNewFactory(t *testing.T) {
-	coreFactory := getTestingFactoryBase(t, &escfg.Configuration{})
-	f := &Factory{coreFactory: coreFactory}
+	cfg := &escfg.Configuration{}
+	coreFactory := getTestingFactoryBase(t, cfg)
+	f := &Factory{coreFactory: coreFactory, config: cfg}
 	_, err := f.CreateTraceReader()
 	require.NoError(t, err)
 	_, err = f.CreateTraceWriter()
@@ -42,24 +44,20 @@ func TestNewFactory(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestTraceReaderErr(t *testing.T) {
-	coreFactory := getTestingFactoryBase(t, &escfg.Configuration{
-		UseILM:              true,
-		UseReadWriteAliases: false,
-	})
-	f := &Factory{coreFactory: coreFactory}
-	_, err := f.CreateTraceReader()
-	require.ErrorContains(t, err, "--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
-}
-
 func TestTraceWriterErr(t *testing.T) {
-	coreFactory := getTestingFactoryBase(t, &escfg.Configuration{
-		UseILM:              true,
-		UseReadWriteAliases: false,
+	cfg := escfg.Configuration{
+		Tags: escfg.TagsAsFields{
+			File: "fixtures/file-does-not-exist.txt",
+		},
+	}
+	coreFactory := getTestingFactoryBase(t, &cfg)
+	f := &Factory{coreFactory: coreFactory, config: &cfg}
+	t.Cleanup(func() {
+		require.NoError(t, f.Close())
 	})
-	f := &Factory{coreFactory: coreFactory}
-	_, err := f.CreateTraceWriter()
-	require.ErrorContains(t, err, "--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
+	r, err := f.CreateTraceWriter()
+	require.ErrorContains(t, err, "open fixtures/file-does-not-exist.txt: no such file or directory")
+	assert.Nil(t, r)
 }
 
 func TestCreateTemplatesErr(t *testing.T) {
@@ -68,7 +66,7 @@ func TestCreateTemplatesErr(t *testing.T) {
 		CreateIndexTemplates: true,
 	}
 	coreFactory := getTestingFactoryBaseWithCreateTemplateError(t, cfg, errors.New("template error"))
-	f := &Factory{coreFactory: coreFactory}
+	f := &Factory{coreFactory: coreFactory, config: cfg}
 	_, err := f.CreateTraceWriter()
 	require.ErrorContains(t, err, "template error")
 }
@@ -95,9 +93,10 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 
 func TestTraceWriterMappingBuilderErr(t *testing.T) {
 	coreFactory := &elasticsearch.FactoryBase{}
-	err := elasticsearch.SetFactoryForTestWithMappingErr(coreFactory, zaptest.NewLogger(t), metrics.NullFactory, &escfg.Configuration{CreateIndexTemplates: true}, errors.New("template-error"))
+	cfg := &escfg.Configuration{CreateIndexTemplates: true}
+	err := elasticsearch.SetFactoryForTestWithMappingErr(coreFactory, zaptest.NewLogger(t), metrics.NullFactory, cfg, errors.New("template-error"))
 	require.NoError(t, err)
-	f := &Factory{coreFactory: coreFactory}
+	f := &Factory{coreFactory: coreFactory, config: cfg}
 	_, err = f.CreateTraceWriter()
 	require.ErrorContains(t, err, "template-error")
 }

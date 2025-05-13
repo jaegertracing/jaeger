@@ -618,5 +618,8 @@ func loadTokenFromFile(path string) (string, error) {
 
 func (c *Configuration) Validate() error {
 	_, err := govalidator.ValidateStruct(c)
+	if c.UseILM && !c.UseReadWriteAliases {
+		return errors.New("UseILM must always be used in conjunction with UseReadWriteAliases to ensure ES writers and readers refer to the single index mapping")
+	}
 	return err
 }

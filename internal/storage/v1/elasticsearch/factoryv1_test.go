@@ -40,7 +40,8 @@ const (
 
 func TestElasticsearchFactory(t *testing.T) {
 	f := NewFactory()
-	f.coreFactory = getTestingFactoryBase(t)
+	f.coreFactory = getTestingFactoryBase(t, &escfg.Configuration{})
+	f.metricsFactory = metrics.NullFactory
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{})
 	f.InitFromViper(v, zap.NewNop())
@@ -78,6 +79,7 @@ func TestCreateTemplateErr(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := NewFactory()
+			f.Options = &Options{Config: namespaceConfig{Configuration: *tt.cfg}}
 			f.coreFactory = getTestingFactoryBaseWithCreateTemplateError(t, tt.cfg, errors.New("template-error"))
 			wr, err := f.CreateSpanWriter()
 			if tt.expectErr {
@@ -100,14 +102,6 @@ func TestSpanWriterMappingBuilderErr(t *testing.T) {
 	require.ErrorContains(t, err, "template-error")
 }
 
-func TestSpanReaderErr(t *testing.T) {
-	f := NewFactory()
-	f.coreFactory = getTestingFactoryBaseWithCreateTemplateError(t, &escfg.Configuration{UseILM: true, UseReadWriteAliases: false}, errors.New("template-error"))
-	r, err := f.CreateSpanReader()
-	require.ErrorContains(t, err, "--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
-	assert.Nil(t, r)
-}
-
 func TestPasswordFromFile(t *testing.T) {
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnce(t)
@@ -127,22 +121,20 @@ func TestPasswordFromFile(t *testing.T) {
 }
 
 func TestInheritSettingsFrom(t *testing.T) {
-	primaryConfig := &escfg.Configuration{
+	primaryConfig := escfg.Configuration{
 		MaxDocCount: 99,
 	}
 	primaryFactory := NewFactory()
-	primaryFactory.coreFactory = getTestingFactoryBase(t)
-	primaryFactory.coreFactory.SetConfig(primaryConfig)
-	archiveConfig := &escfg.Configuration{
+	primaryFactory.Options.Config.Configuration = primaryConfig
+	archiveConfig := escfg.Configuration{
 		SendGetBodyAs: "PUT",
 	}
 	archiveFactory := NewFactory()
 	archiveFactory.Options = NewOptions(archiveNamespace)
-	archiveFactory.coreFactory = getTestingFactoryBase(t)
-	archiveFactory.coreFactory.SetConfig(archiveConfig)
+	archiveFactory.Options.Config.Configuration = archiveConfig
 	archiveFactory.InheritSettingsFrom(primaryFactory)
-	require.Equal(t, "PUT", archiveFactory.coreFactory.GetConfig().SendGetBodyAs)
-	require.Equal(t, 99, archiveFactory.coreFactory.GetConfig().MaxDocCount)
+	require.Equal(t, "PUT", archiveFactory.getConfig().SendGetBodyAs)
+	require.Equal(t, 99, archiveFactory.getConfig().MaxDocCount)
 }
 
 func TestArchiveFactory(t *testing.T) {
@@ -302,6 +294,28 @@ func TestIsArchiveCapable(t *testing.T) {
 	}
 }
 
+func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write(mockEsServerResponse)
+	}))
+	t.Cleanup(server.Close)
+	cfg := escfg.Configuration{
+		Servers: []string{server.URL},
+		Tags: escfg.TagsAsFields{
+			File: "fixtures/file-does-not-exist.txt",
+		},
+	}
+	f := NewFactory()
+	f.Options = &Options{Config: namespaceConfig{Configuration: cfg}}
+	require.NoError(t, f.Initialize(metrics.NullFactory, zaptest.NewLogger(t)))
+	t.Cleanup(func() {
+		require.NoError(t, f.Close())
+	})
+	r, err := f.CreateSpanWriter()
+	require.ErrorContains(t, err, "open fixtures/file-does-not-exist.txt: no such file or directory")
+	assert.Nil(t, r)
+}
+
 func getTestingFactory(t *testing.T, pwdFile string, server *httptest.Server) *Factory {
 	require.NoError(t, os.WriteFile(pwdFile, []byte(pwd1), 0o600))
 	cfg := escfg.Configuration{
@@ -353,9 +367,9 @@ func getTestingServer(t *testing.T) (*httptest.Server, *sync.Map) {
 	return server, authReceived
 }
 
-func getTestingFactoryBase(t *testing.T) *FactoryBase {
+func getTestingFactoryBase(t *testing.T, cfg *escfg.Configuration) *FactoryBase {
 	f := &FactoryBase{}
-	err := SetFactoryForTest(f, zaptest.NewLogger(t), metrics.NullFactory, &escfg.Configuration{})
+	err := SetFactoryForTest(f, zaptest.NewLogger(t), metrics.NullFactory, cfg)
 	require.NoError(t, err)
 	return f
 }

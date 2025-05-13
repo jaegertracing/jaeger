@@ -93,10 +93,7 @@ func (f *FactoryBase) getClient() es.Client {
 }
 
 // GetSpanReaderParams returns the SpanReaderParams which can be used to initialize the v1 and v2 readers.
-func (f *FactoryBase) GetSpanReaderParams() (esSpanStore.SpanReaderParams, error) {
-	if f.config.UseILM && !f.config.UseReadWriteAliases {
-		return esSpanStore.SpanReaderParams{}, errors.New("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
-	}
+func (f *FactoryBase) GetSpanReaderParams() esSpanStore.SpanReaderParams {
 	return esSpanStore.SpanReaderParams{
 		Client:              f.getClient,
 		MaxDocCount:         f.config.MaxDocCount,
@@ -110,20 +107,11 @@ func (f *FactoryBase) GetSpanReaderParams() (esSpanStore.SpanReaderParams, error
 		RemoteReadClusters:  f.config.RemoteReadClusters,
 		Logger:              f.logger,
 		Tracer:              f.tracer.Tracer("esSpanStore.SpanReader"),
-	}, nil
+	}
 }
 
 // GetSpanWriterParams returns the SpanWriterParams which can be used to initialize the v1 and v2 writers.
-func (f *FactoryBase) GetSpanWriterParams() (esSpanStore.SpanWriterParams, error) {
-	if f.config.UseILM && !f.config.UseReadWriteAliases {
-		return esSpanStore.SpanWriterParams{}, errors.New("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
-	}
-	var err error
-	var tags []string
-	if tags, err = f.config.TagKeysAsFields(); err != nil {
-		f.logger.Error("failed to get tag keys", zap.Error(err))
-		return esSpanStore.SpanWriterParams{}, err
-	}
+func (f *FactoryBase) GetSpanWriterParams(tags []string) esSpanStore.SpanWriterParams {
 	return esSpanStore.SpanWriterParams{
 		Client:              f.getClient,
 		IndexPrefix:         f.config.Indices.IndexPrefix,
@@ -137,7 +125,7 @@ func (f *FactoryBase) GetSpanWriterParams() (esSpanStore.SpanWriterParams, error
 		Logger:              f.logger,
 		MetricsFactory:      f.metricsFactory,
 		ServiceCacheTTL:     f.config.ServiceCacheTTL,
-	}, nil
+	}
 }
 
 // GetDependencyStoreParams returns the esDepStorev2.Params which can be used to initialize the v1 and v2 dependency stores.
@@ -240,18 +228,6 @@ func loadTokenFromFile(path string) (string, error) {
 		return "", err
 	}
 	return strings.TrimRight(string(b), "\r\n"), nil
-}
-
-func (f *FactoryBase) GetMetricsFactory() metrics.Factory {
-	return f.metricsFactory
-}
-
-func (f *FactoryBase) GetConfig() *config.Configuration {
-	return f.config
-}
-
-func (f *FactoryBase) SetConfig(cfg *config.Configuration) {
-	f.config = cfg
 }
 
 func (f *FactoryBase) GetSpanServiceMapping() (serviceMapping string, spanMapping string, err error) {
