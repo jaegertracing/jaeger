@@ -183,14 +183,18 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 				s.telset.Logger,
 			)
 		case cfg.Elasticsearch != nil:
+			esTelset := telset
+			esTelset.Metrics = scopedMetricsFactory(storageName, "elasticsearch", "tracestore")
 			factory, err = es.NewFactoryWithConfig(
 				*cfg.Elasticsearch,
-				telset,
+				esTelset,
 			)
 		case cfg.Opensearch != nil:
+			osTelset := telset
+			osTelset.Metrics = scopedMetricsFactory(storageName, "opensearch", "tracestore")
 			factory, err = es.NewFactoryWithConfig(
 				*cfg.Opensearch,
-				telset,
+				osTelset,
 			)
 		}
 		if err != nil {
