@@ -32,42 +32,38 @@ type Store struct {
 }
 
 // NewStore creates an in-memory store
-func NewStore(cfg v1.Configuration) *Store {
+func NewStore(cfg v1.Configuration) (*Store, error) {
+	if cfg.MaxTraces <= 0 {
+		return nil, errInvalidMaxTraces
+	}
 	return &Store{
 		defaultConfig: cfg,
 		perTenant:     make(map[string]*Tenant),
-	}
+	}, nil
 }
 
 // getTenant returns the per-tenant storage.  Note that tenantID has already been checked for by the collector or query
-func (st *Store) getTenant(tenantID string) (*Tenant, error) {
+func (st *Store) getTenant(tenantID string) *Tenant {
 	st.RLock()
 	tenant, ok := st.perTenant[tenantID]
 	st.RUnlock()
 	if !ok {
 		st.Lock()
 		defer st.Unlock()
-		var err error
 		tenant, ok = st.perTenant[tenantID]
 		if !ok {
-			tenant, err = newTenant(&st.defaultConfig)
-			if err != nil {
-				return nil, err
-			}
+			tenant = newTenant(&st.defaultConfig)
 			st.perTenant[tenantID] = tenant
 		}
 	}
-	return tenant, nil
+	return tenant
 }
 
 // WriteTraces write the traces into the tenant by grouping all the spans with same trace id together.
 // The traces will not be saved as they are coming, rather they would be reshuffled.
 func (st *Store) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	resourceSpansByTraceId := reshuffleResourceSpans(td.ResourceSpans())
-	m, err := st.getTenant(tenancy.GetTenant(ctx))
-	if err != nil {
-		return err
-	}
+	m := st.getTenant(tenancy.GetTenant(ctx))
 	for traceId, sameTraceIDResourceSpan := range resourceSpansByTraceId {
 		for _, resourceSpan := range sameTraceIDResourceSpan.All() {
 			serviceName := getServiceNameFromResource(resourceSpan.Resource())
@@ -92,10 +88,7 @@ func (st *Store) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 
 // GetOperations returns operations based on the service name and span kind
 func (st *Store) GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
-	m, err := st.getTenant(tenancy.GetTenant(ctx))
-	if err != nil {
-		return nil, err
-	}
+	m := st.getTenant(tenancy.GetTenant(ctx))
 	m.RLock()
 	defer m.RUnlock()
 	var retMe []tracestore.Operation
@@ -111,10 +104,7 @@ func (st *Store) GetOperations(ctx context.Context, query tracestore.OperationQu
 
 // GetServices returns a list of all known services
 func (st *Store) GetServices(ctx context.Context) ([]string, error) {
-	m, err := st.getTenant(tenancy.GetTenant(ctx))
-	if err != nil {
-		return nil, err
-	}
+	m := st.getTenant(tenancy.GetTenant(ctx))
 	m.RLock()
 	defer m.RUnlock()
 	var retMe []string
@@ -125,12 +115,7 @@ func (st *Store) GetServices(ctx context.Context) ([]string, error) {
 }
 
 func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
-	m, err := st.getTenant(tenancy.GetTenant(ctx))
-	if err != nil {
-		return func(yield func([]ptrace.Traces, error) bool) {
-			yield(nil, err)
-		}
-	}
+	m := st.getTenant(tenancy.GetTenant(ctx))
 	if query.SearchDepth <= 0 || query.SearchDepth > st.defaultConfig.MaxTraces {
 		return func(yield func([]ptrace.Traces, error) bool) {
 			yield(nil, errInvalidSearchDepth)

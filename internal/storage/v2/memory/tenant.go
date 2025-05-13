@@ -20,30 +20,27 @@ var errInvalidMaxTraces = errors.New("max traces must be greater than zero")
 type Tenant struct {
 	sync.RWMutex
 	ids         map[pcommon.TraceID]int
-	traces      []tracesAndId // ring buffer used to store traces
+	traces      []traceAndId // ring buffer used to store traces
 	services    map[string]struct{}
 	operations  map[string]map[tracestore.Operation]struct{}
 	config      *v1.Configuration
 	lastEvicted int // position in traces[] of the last evicted trace
 }
 
-type tracesAndId struct {
+type traceAndId struct {
 	id    pcommon.TraceID
 	trace ptrace.Traces
 }
 
-func newTenant(cfg *v1.Configuration) (*Tenant, error) {
-	if cfg.MaxTraces <= 0 {
-		return nil, errInvalidMaxTraces
-	}
+func newTenant(cfg *v1.Configuration) *Tenant {
 	return &Tenant{
 		ids:         make(map[pcommon.TraceID]int),
-		traces:      make([]tracesAndId, cfg.MaxTraces),
+		traces:      make([]traceAndId, cfg.MaxTraces),
 		services:    map[string]struct{}{},
 		operations:  map[string]map[tracestore.Operation]struct{}{},
 		config:      cfg,
 		lastEvicted: -1,
-	}, nil
+	}
 }
 
 func (t *Tenant) storeService(serviceName string) {
@@ -80,7 +77,7 @@ func (t *Tenant) storeTraces(traceId pcommon.TraceID, resourceSpanSlice ptrace.R
 	}
 	// update the ring with the trace id
 	t.ids[traceId] = t.lastEvicted
-	t.traces[t.lastEvicted] = tracesAndId{
+	t.traces[t.lastEvicted] = traceAndId{
 		id:    traceId,
 		trace: traces,
 	}
@@ -93,10 +90,12 @@ func (t *Tenant) findTraces(query tracestore.TraceQueryParams) []ptrace.Traces {
 	n := len(t.traces)
 	for i := range t.traces {
 		if len(traces) == query.SearchDepth {
-			return traces
+			break
 		}
 		index := (t.lastEvicted - i + n) % n
 		traceById := t.traces[index]
+		// This means we have reached a point where empty ids are starting. This is possible
+		// because the trace array is initiated with a length of max traces.
 		if traceById.id.IsEmpty() {
 			break
 		}
@@ -128,9 +127,14 @@ func validResource(resource pcommon.Resource, query tracestore.TraceQueryParams)
 }
 
 func validSpan(resourceAttributes, scopeAttributes pcommon.Map, span ptrace.Span, query tracestore.TraceQueryParams) bool {
-	_, errAttributeFound := query.Attributes.Get(errorAttribute)
-	if errAttributeFound && span.Status().Code() != ptrace.StatusCodeError {
-		return false
+	errAttribute, errAttributeFound := query.Attributes.Get(errorAttribute)
+	if errAttributeFound {
+		if errAttribute.Bool() && span.Status().Code() != ptrace.StatusCodeError {
+			return false
+		}
+		if !errAttribute.Bool() && span.Status().Code() != ptrace.StatusCodeOk {
+			return false
+		}
 	}
 	if query.OperationName != "" && query.OperationName != span.Name() {
 		return false
