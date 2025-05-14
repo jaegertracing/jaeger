@@ -118,10 +118,10 @@ STORAGE_V2_PATCHED_DEPENDENCY=$(STORAGE_V2_PATCHED_DIR)/dependency_storage.proto
 .PHONY: patch-storage-v2
 patch-storage-v2:
 	mkdir -p $(STORAGE_V2_PATCHED_DIR)
-	cat internal/storage/v2/grpc/trace_storage.proto | \
+	cat idl/proto/storage/v2/trace_storage.proto | \
 		$(SED) -f ./$(PROTO_GEN)/patch.sed \
 		> $(STORAGE_V2_PATCHED_TRACE)
-	cat internal/storage/v2/grpc/dependency_storage.proto | \
+	cat idl/proto/storage/v2/dependency_storage.proto | \
 		$(SED) -f ./$(PROTO_GEN)/patch.sed \
 		> $(STORAGE_V2_PATCHED_DEPENDENCY)
 
