@@ -56,9 +56,6 @@ func NewFactoryBase(
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) (*FactoryBase, error) {
-	if err := cfg.Validate(); err != nil {
-		return nil, err
-	}
 	f := &FactoryBase{
 		config:      &cfg,
 		newClientFn: config.NewClient,
