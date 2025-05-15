@@ -5,6 +5,8 @@ package memory
 
 import (
 	"context"
+	"errors"
+	"iter"
 	"sync"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -15,6 +17,10 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
+
+const errorAttribute = "error"
+
+var errInvalidSearchDepth = errors.New("search depth must be greater than 0 and less than max traces")
 
 // Store is an in-memory store of traces
 type Store struct {
@@ -34,27 +40,34 @@ func NewStore(cfg v1.Configuration) *Store {
 }
 
 // getTenant returns the per-tenant storage.  Note that tenantID has already been checked for by the collector or query
-func (st *Store) getTenant(tenantID string) *Tenant {
+func (st *Store) getTenant(tenantID string) (*Tenant, error) {
 	st.RLock()
 	tenant, ok := st.perTenant[tenantID]
 	st.RUnlock()
 	if !ok {
 		st.Lock()
 		defer st.Unlock()
+		var err error
 		tenant, ok = st.perTenant[tenantID]
 		if !ok {
-			tenant = newTenant(&st.defaultConfig)
+			tenant, err = newTenant(&st.defaultConfig)
+			if err != nil {
+				return nil, err
+			}
 			st.perTenant[tenantID] = tenant
 		}
 	}
-	return tenant
+	return tenant, nil
 }
 
 // WriteTraces write the traces into the tenant by grouping all the spans with same trace id together.
 // The traces will not be saved as they are coming, rather they would be reshuffled.
 func (st *Store) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	resourceSpansByTraceId := reshuffleResourceSpans(td.ResourceSpans())
-	m := st.getTenant(tenancy.GetTenant(ctx))
+	m, err := st.getTenant(tenancy.GetTenant(ctx))
+	if err != nil {
+		return err
+	}
 	for traceId, sameTraceIDResourceSpan := range resourceSpansByTraceId {
 		for _, resourceSpan := range sameTraceIDResourceSpan.All() {
 			serviceName := getServiceNameFromResource(resourceSpan.Resource())
@@ -79,7 +92,10 @@ func (st *Store) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 
 // GetOperations returns operations based on the service name and span kind
 func (st *Store) GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
-	m := st.getTenant(tenancy.GetTenant(ctx))
+	m, err := st.getTenant(tenancy.GetTenant(ctx))
+	if err != nil {
+		return nil, err
+	}
 	m.RLock()
 	defer m.RUnlock()
 	var retMe []tracestore.Operation
@@ -95,7 +111,10 @@ func (st *Store) GetOperations(ctx context.Context, query tracestore.OperationQu
 
 // GetServices returns a list of all known services
 func (st *Store) GetServices(ctx context.Context) ([]string, error) {
-	m := st.getTenant(tenancy.GetTenant(ctx))
+	m, err := st.getTenant(tenancy.GetTenant(ctx))
+	if err != nil {
+		return nil, err
+	}
 	m.RLock()
 	defer m.RUnlock()
 	var retMe []string
@@ -103,6 +122,28 @@ func (st *Store) GetServices(ctx context.Context) ([]string, error) {
 		retMe = append(retMe, k)
 	}
 	return retMe, nil
+}
+
+func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+	m, err := st.getTenant(tenancy.GetTenant(ctx))
+	if err != nil {
+		return func(yield func([]ptrace.Traces, error) bool) {
+			yield(nil, err)
+		}
+	}
+	if query.SearchDepth <= 0 || query.SearchDepth > st.defaultConfig.MaxTraces {
+		return func(yield func([]ptrace.Traces, error) bool) {
+			yield(nil, errInvalidSearchDepth)
+		}
+	}
+	traces := m.findTraces(query)
+	return func(yield func([]ptrace.Traces, error) bool) {
+		for _, trace := range traces {
+			if !yield([]ptrace.Traces{trace}, nil) {
+				return
+			}
+		}
+	}
 }
 
 // reshuffleResourceSpans reshuffles the resource spans so as to group the spans from same traces together. To understand this reshuffling
