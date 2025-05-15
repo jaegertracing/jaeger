@@ -116,16 +116,25 @@ flowchart LR
 
 Test --> |writeSpan| SpanWriter
 Test --> |HTTP/purge| PurgeEndpoint
-SpanWriter --> |0.0.0.0:4316| OTLP_Receiver
+SpanWriter --> |0.0.0.0:4317| OTLP_Receiver1
+OTLP_Receiver1 --> GRPCStorage
+GRPCStorage --> |0.0.0.0:4316| OTLP_Receiver
 OTLP_Receiver --> |write| Storage
 Test --> |readSpan| SpanReader
-SpanReader --> |0.0.0.0:17271| RemoteStorageAPI
+SpanReader --> |0.0.0.0:16685| QueryExtension
+QueryExtension --> GRPCStorage
+GRPCStorage --> |0.0.0.0:17271| RemoteStorageAPI
 RemoteStorageAPI --> |read| Storage
 PurgeEndpoint --> |purge| Storage
 subgraph Integration Test Executable
     Test
     SpanWriter
     SpanReader
+end
+subgraph Collector
+    OTLP_Receiver1[OTLP Receiver]
+    QueryExtension[Query Extension]
+    GRPCStorage[gRPC Storage]
 end
 subgraph Remote Storage Backend
     OTLP_Receiver[OTLP Receiver]
