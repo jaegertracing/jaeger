@@ -72,8 +72,8 @@ func WithSeparator(separator Separator) Option {
 	}
 }
 
-// Logger creates a Option that initializes the logger
-func Logger(logger *zap.Logger) Option {
+// WithLogger creates a Option that initializes the logger
+func WithLogger(logger *zap.Logger) Option {
 	return func(opts *options) {
 		opts.logger = logger
 	}
@@ -117,6 +117,7 @@ func New(opts ...Option) *Factory {
 
 func newFactory(parent *Factory, scope string, tags map[string]string) *Factory {
 	return &Factory{
+		logger:     parent.logger,
 		cache:      parent.cache,
 		buckets:    parent.buckets,
 		normalizer: parent.normalizer,
@@ -147,9 +148,7 @@ func (f *Factory) Counter(options metrics.Options) metrics.Counter {
 			zap.String("label_names", strings.Join(f.tagsAsLabelValues(labelNames, tags), ", ")),
 			zap.Error(err),
 		)
-		return &counter{
-			counter: nil,
-		}
+		return metrics.NullCounter
 	}
 
 	return &counter{
@@ -178,9 +177,7 @@ func (f *Factory) Gauge(options metrics.Options) metrics.Gauge {
 			zap.String("label_names", strings.Join(f.tagsAsLabelValues(labelNames, tags), ", ")),
 			zap.Error(err),
 		)
-		return &gauge{
-			gauge: nil,
-		}
+		return metrics.NullGauge
 	}
 	return &gauge{
 		gauge: metric,
@@ -210,9 +207,7 @@ func (f *Factory) Timer(options metrics.TimerOptions) metrics.Timer {
 			zap.String("label_names", strings.Join(f.tagsAsLabelValues(labelNames, tags), ", ")),
 			zap.Error(err),
 		)
-		return &timer{
-			histogram: nil,
-		}
+		return metrics.NullTimer
 	}
 	return &timer{
 		histogram: metric,
@@ -251,9 +246,7 @@ func (f *Factory) Histogram(options metrics.HistogramOptions) metrics.Histogram 
 			zap.Error(err),
 		)
 
-		return &histogram{
-			histogram: nil,
-		}
+		return metrics.NullHistogram
 	}
 	return &histogram{
 		histogram: metric,
