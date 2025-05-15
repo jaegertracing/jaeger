@@ -85,9 +85,9 @@ func TestESStorageFactoryWithConfig(t *testing.T) {
 	defer factory.Close()
 }
 
-func TestESStorageFactoryWithConfigError(t *testing.T) {
+func TestESStorageFactoryErr(t *testing.T) {
 	f, err := NewFactory(escfg.Configuration{}, telemetry.NoopSettings())
-	require.ErrorContains(t, err, "Servers: non zero value required")
+	require.ErrorContains(t, err, "failed to create Elasticsearch client: no servers specified")
 	require.Nil(t, f)
 }
 
