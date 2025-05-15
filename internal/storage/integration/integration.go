@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -125,10 +126,8 @@ func (s *StorageIntegration) cleanUp(t *testing.T) {
 
 func SkipUnlessEnv(t *testing.T, storage ...string) {
 	env := os.Getenv("STORAGE")
-	for _, s := range storage {
-		if env == s {
-			return
-		}
+	if slices.Contains(storage, env) {
+		return
 	}
 	t.Skipf("This test requires environment variable STORAGE=%s", strings.Join(storage, "|"))
 }
