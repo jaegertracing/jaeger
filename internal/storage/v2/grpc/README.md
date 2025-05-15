@@ -44,3 +44,36 @@ REMOTE_STORAGE_WRITER_ENDPOINT=${MY_REMOTE_STORAGE_WRITER_ENDPOINT} \
 PURGER_ENDPOINT=${MY_PURGER_ENDPOINT} \
 make jaeger-v2-storage-integration-test
 ```
+
+The diagram below demonstrates the architecture of the gRPC storage integration test.
+
+``` mermaid
+flowchart LR
+
+Test --> |writeSpan| SpanWriter
+Test --> |$PURGER_ENDPOINT| Purger
+SpanWriter --> |0.0.0.0:4317| OTLP_Receiver1
+OTLP_Receiver1 --> GRPCStorage
+GRPCStorage --> |$REMOTE_STORAGE_WRITER_ENDPOINT| TraceService
+Test --> |readSpan| SpanReader
+SpanReader --> |0.0.0.0:16685| QueryExtension
+QueryExtension --> GRPCStorage
+GRPCStorage --> |$REMOTE_STORAGE_ENDPOINT| TraceReader
+GRPCStorage --> |$REMOTE_STORAGE_ENDPOINT| DependencyReader
+subgraph Integration Test Executable
+    Test
+    SpanWriter
+    SpanReader
+end
+subgraph Collector
+    OTLP_Receiver1[OTLP Receiver]
+    QueryExtension[Query Extension]
+    GRPCStorage[gRPC Storage]
+end
+subgraph Custom Storage Backend
+    TraceService
+    TraceReader
+    DependencyReader
+    Purger[HTTP/Purger]
+end
+```
