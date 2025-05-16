@@ -141,11 +141,12 @@ func (f *Factory) Counter(options metrics.Options) metrics.Counter {
 		Help: help,
 	}
 	cv := f.cache.getOrMakeCounterVec(opts, labelNames)
-	metric, err := cv.GetMetricWithLabelValues(f.tagsAsLabelValues(labelNames, tags)...)
+	labelValues := f.tagsAsLabelValues(labelNames, tags)
+	metric, err := cv.GetMetricWithLabelValues(labelValues...)
 	if err != nil {
 		f.logger.Warn(
 			"Failed to get metric for counter with label values",
-			zap.String("label_names", strings.Join(f.tagsAsLabelValues(labelNames, tags), ", ")),
+			zap.String("label_names", strings.Join(labelValues, ", ")),
 			zap.Error(err),
 		)
 		return metrics.NullCounter
@@ -170,11 +171,12 @@ func (f *Factory) Gauge(options metrics.Options) metrics.Gauge {
 		Help: help,
 	}
 	gv := f.cache.getOrMakeGaugeVec(opts, labelNames)
-	metric, err := gv.GetMetricWithLabelValues(f.tagsAsLabelValues(labelNames, tags)...)
+	labelValues := f.tagsAsLabelValues(labelNames, tags)
+	metric, err := gv.GetMetricWithLabelValues(labelValues...)
 	if err != nil {
 		f.logger.Warn(
 			"Failed to get metric for gauge with label values",
-			zap.String("label_names", strings.Join(f.tagsAsLabelValues(labelNames, tags), ", ")),
+			zap.String("label_names", strings.Join(labelValues, ", ")),
 			zap.Error(err),
 		)
 		return metrics.NullGauge
@@ -200,11 +202,12 @@ func (f *Factory) Timer(options metrics.TimerOptions) metrics.Timer {
 		Buckets: buckets,
 	}
 	hv := f.cache.getOrMakeHistogramVec(opts, labelNames)
-	metric, err := hv.GetMetricWithLabelValues(f.tagsAsLabelValues(labelNames, tags)...)
+	labelValues := f.tagsAsLabelValues(labelNames, tags)
+	metric, err := hv.GetMetricWithLabelValues(labelValues...)
 	if err != nil {
 		f.logger.Warn(
 			"Failed to get metric for timer with label values",
-			zap.String("label_names", strings.Join(f.tagsAsLabelValues(labelNames, tags), ", ")),
+			zap.String("label_names", strings.Join(labelValues, ", ")),
 			zap.Error(err),
 		)
 		return metrics.NullTimer
@@ -238,11 +241,12 @@ func (f *Factory) Histogram(options metrics.HistogramOptions) metrics.Histogram 
 		Buckets: buckets,
 	}
 	hv := f.cache.getOrMakeHistogramVec(opts, labelNames)
-	metric, err := hv.GetMetricWithLabelValues(f.tagsAsLabelValues(labelNames, tags)...)
+	labelValues := f.tagsAsLabelValues(labelNames, tags)
+	metric, err := hv.GetMetricWithLabelValues(labelValues...)
 	if err != nil {
 		f.logger.Warn(
 			"Failed to get metric for histogram with label values",
-			zap.String("label_names", strings.Join(f.tagsAsLabelValues(labelNames, tags), ", ")),
+			zap.String("label_names", strings.Join(labelValues, ", ")),
 			zap.Error(err),
 		)
 
