@@ -27,9 +27,9 @@ type Scope struct {
 
 type Span struct {
 	Timestamp     time.Time
-	TraceId       string
-	SpanId        string
-	ParentSpanId  string
+	TraceId       []byte
+	SpanId        []byte
+	ParentSpanId  []byte
 	TraceState    string
 	Name          string
 	Kind          string
@@ -40,8 +40,8 @@ type Span struct {
 }
 
 type Link struct {
-	TraceId    string
-	SpanId     string
+	TraceId    []byte
+	SpanId     []byte
 	TraceState string
 	Attributes AttributesGroup
 }
@@ -50,4 +50,24 @@ type Event struct {
 	Name       string
 	Timestamp  time.Time
 	Attributes AttributesGroup
+}
+
+// AttributesGroup captures all data from a single pcommon.Map, except
+// complex attributes (like slice or map) which are currently not supported.
+// AttributesGroup consists of pairs of vectors for each of the supported primitive
+// types, e.g. (BoolKeys, BoolValues). Every attribute in the pcommon.Map is mapped
+// to one of the pairs depending on its type. The slices in each pair have identical
+// length, which may be different from length in another pair. For example, if the
+// pcommon.Map has no Boolean attributes then (BoolKeys=[], BoolValues=[]).
+type AttributesGroup struct {
+	BoolKeys     []string
+	BoolValues   []bool
+	DoubleKeys   []string
+	DoubleValues []float64
+	IntKeys      []string
+	IntValues    []int64
+	StrKeys      []string
+	StrValues    []string
+	BytesKeys    []string
+	BytesValues  [][]byte
 }

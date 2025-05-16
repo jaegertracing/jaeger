@@ -5,7 +5,6 @@ go 1.23.7
 toolchain go1.24.2
 
 require (
-	github.com/ClickHouse/ch-go v0.65.1
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/Shopify/sarama v1.37.2
 	github.com/apache/thrift v0.21.0
@@ -106,6 +105,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
+require golang.org/x/tools v0.30.0 // indirect
+
 require (
 	github.com/IBM/sarama v1.45.1 // indirect
 	github.com/alecthomas/participle/v2 v2.1.4 // indirect
@@ -142,8 +143,6 @@ require (
 	github.com/elastic/lunes v0.1.0 // indirect
 	github.com/expr-lang/expr v1.17.2 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/go-faster/city v1.0.1 // indirect
-	github.com/go-faster/errors v0.7.1 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
@@ -219,7 +218,6 @@ require (
 	github.com/rs/cors v1.11.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
-	github.com/segmentio/asm v1.2.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.25.3 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.12.0 // indirect
