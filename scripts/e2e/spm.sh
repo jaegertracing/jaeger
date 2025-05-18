@@ -6,43 +6,63 @@
 set -euf -o pipefail
 
 print_help() {
-  echo "Usage: $0 [-b binary]"
-  echo "-b: Which binary to build: 'all-in-one', 'jaeger' (v2, default), or 'elasticsearch'"
+  echo "Usage: $0 [-b binary] [-d database]"
+  echo "-b: Which binary to build: 'all-in-one' or 'jaeger' (v2, default)"
+  echo "-d: Which database to use: 'none' (default) or 'elasticsearch'"
   echo "-h: Print help"
   exit 1
 }
 
 BINARY='jaeger'
+DATABASE='memory'
 compose_file=docker-compose/monitor/docker-compose.yml
 
-while getopts "b:h" opt; do
+while getopts "b:d:h" opt; do
   case "${opt}" in
   b)
-   BINARY=${OPTARG}
-   ;;
+    BINARY=${OPTARG}
+    ;;
+  d)
+    DATABASE=${OPTARG}
+    ;;
   *)
-   print_help
-   ;;
+    print_help
+    ;;
   esac
 done
 
 set -x
 
+# Validate binary option
 case "$BINARY" in
-  "all-in-one")
-    compose_file=docker-compose/monitor/docker-compose-v1.yml
-    ;;
-  "elasticsearch")
-    compose_file=docker-compose/monitor/docker-compose-elasticsearch.yml
-    ;;
-  "jaeger")
-    # Default case, already set
+  "all-in-one"|"jaeger")
+    # Valid options
     ;;
   *)
     echo "❌ ERROR: Invalid binary option: $BINARY"
     print_help
     ;;
 esac
+
+# Validate database option
+case "$DATABASE" in
+  "memory"|"elasticsearch")
+    # Valid options
+    ;;
+  *)
+    echo "❌ ERROR: Invalid database option: $DATABASE"
+    print_help
+    ;;
+esac
+
+# Set compose file based on binary and database
+if [ "$BINARY" == "all-in-one" ]; then
+  compose_file=docker-compose/monitor/docker-compose-v1.yml
+fi
+
+if [ "$DATABASE" == "elasticsearch" ]; then
+  compose_file=docker-compose/monitor/docker-compose-elasticsearch.yml
+fi
 
 timeout=600
 end_time=$((SECONDS + timeout))
@@ -77,7 +97,7 @@ check_service_health() {
 # Function to check if all services are healthy
 wait_for_services() {
   echo "Waiting for services to be up and running..."
-  if [ "$BINARY" == "elasticsearch" ]; then
+  if [ "$DATABASE" == "elasticsearch" ]; then
     check_service_health "Elasticsearch" "http://localhost:9200"
   fi
   check_service_health "Jaeger" "http://localhost:16686"
@@ -231,10 +251,12 @@ main() {
     "all-in-one")
       (cd docker-compose/monitor && make build BINARY="$BINARY" && make dev-v1 DOCKER_COMPOSE_ARGS="-d")
       ;;
-    "elasticsearch")
-      (cd docker-compose/monitor && make build BINARY="jaeger" && make elasticsearch DOCKER_COMPOSE_ARGS="-d")
-      ;;
   esac
+
+  if [ "$DATABASE" == "elasticsearch" ]; then
+    (cd docker-compose/monitor && make elasticsearch DOCKER_COMPOSE_ARGS="-d")
+  fi
+
   wait_for_services
   check_spm
   success="true"
@@ -242,5 +264,4 @@ main() {
 
 trap teardown_services EXIT INT
 
-# Run the main function
 main
