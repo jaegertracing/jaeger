@@ -128,8 +128,7 @@ func validResource(resource pcommon.Resource, query tracestore.TraceQueryParams)
 }
 
 func validSpan(resourceAttributes, scopeAttributes pcommon.Map, span ptrace.Span, query tracestore.TraceQueryParams) bool {
-	errAttribute, errAttributeFound := query.Attributes.Get(errorAttribute)
-	if errAttributeFound {
+	if errAttribute, ok := query.Attributes.Get(errorAttribute); ok {
 		if errAttribute.Bool() && span.Status().Code() != ptrace.StatusCodeError {
 			return false
 		}
@@ -141,14 +140,13 @@ func validSpan(resourceAttributes, scopeAttributes pcommon.Map, span ptrace.Span
 		return false
 	}
 	startTime := span.StartTimestamp().AsTime()
-	endTime := span.EndTimestamp().AsTime()
 	if !query.StartTimeMin.IsZero() && startTime.Before(query.StartTimeMin) {
 		return false
 	}
 	if !query.StartTimeMax.IsZero() && startTime.After(query.StartTimeMax) {
 		return false
 	}
-	duration := endTime.Sub(span.StartTimestamp().AsTime())
+	duration := span.EndTimestamp().AsTime().Sub(startTime)
 	if query.DurationMin != 0 && duration < query.DurationMin {
 		return false
 	}
