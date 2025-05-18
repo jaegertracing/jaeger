@@ -35,7 +35,7 @@ func TestTODBModel(t *testing.T) {
 		expectedSpan := expected.Span
 		actualSpan := actual.Span
 
-		require.Equal(t, expectedSpan.Timestamp, actualSpan.Timestamp)
+		require.Equal(t, expectedSpan.StartTime, actualSpan.StartTime)
 		require.Equal(t, expectedSpan.TraceId, actualSpan.TraceId)
 		require.Equal(t, expectedSpan.SpanId, actualSpan.SpanId)
 		require.Equal(t, expectedSpan.ParentSpanId, actualSpan.ParentSpanId)
@@ -43,6 +43,7 @@ func TestTODBModel(t *testing.T) {
 		require.Equal(t, expectedSpan.Kind, actualSpan.Kind)
 		require.Equal(t, expectedSpan.Duration, actualSpan.Duration)
 		require.Equal(t, expectedSpan.StatusCode, actualSpan.StatusCode)
+		require.Equal(t, expectedSpan.ServiceName, actualSpan.ServiceName)
 		require.Equal(t, expectedSpan.StatusMessage, actualSpan.StatusMessage)
 		CompareAttributes(t, expected.Span.Attributes, actual.Span.Attributes)
 	})

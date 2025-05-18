@@ -1,13 +1,14 @@
-CREATE TABLE IF NOT EXISTS test
+CREATE TABLE IF NOT EXISTS otel_traces
 (
-    Timestamp DateTime64(9) CODEC(Delta, ZSTD(1)),
+    StartTime DateTime64(9) CODEC(Delta, ZSTD(1)),
     TraceID Array(UInt8) CODEC(ZSTD(1)),
     SpanID Array(UInt8) CODEC(ZSTD(1)),
     ParentSpanID Array(UInt8) CODEC(ZSTD(1)),
     TraceState String CODEC(ZSTD(1)),
+    ServiceName String CODEC(ZSTD(1)),
     SpanName String CODEC(ZSTD(1)),
     SpanKind String CODEC(ZSTD(1)),
-    Duration DateTime64(9) CODEC(Delta, ZSTD(1)),
+    Duration Int64,
     StatusCode String CODEC(ZSTD(1)),
     StatusMessage String CODEC(ZSTD(1)),
 
@@ -128,6 +129,6 @@ CREATE TABLE IF NOT EXISTS test
     ),
 )
 ENGINE = MergeTree()
-PARTITION BY toDate(Timestamp)
-ORDER BY (SpanName, toUnixTimestamp(Timestamp), Duration, TraceID)
+PARTITION BY toDate(StartTime)
+ORDER BY (SpanName, toUnixTimestamp(StartTime), TraceID)
 SETTINGS index_granularity=8192, ttl_only_drop_parts = 1;

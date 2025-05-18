@@ -74,6 +74,5 @@ Note that the way they represent bytes is different: Clickhouse uses [int8](http
 
 ### StartTime, Duration
 A Span consists of two fields: StartTime and EndTime. Our primary focus is on when a Span is generated and its duration, rather than its endpoint. 
-Additionally, we frequently use Duration as a query condition, such as finding all traces where the maximum duration is less than or equal to 10 milliseconds. 
-Consequently, we should utilize `UnixMicro` to represent both StartTime and Duration. 
-If both StartTime and Duration are of the same type (int64), there will be no precision issues.
+Additionally, we frequently use Duration as a query condition, such as finding all traces where the maximum duration is less than or equal to 10 milliseconds.
+Consequently, `UnixNanoseconds` is used to represent the duration. Therefore, the duration can be converted to different time units (days, hours, minutes, seconds, etc.).

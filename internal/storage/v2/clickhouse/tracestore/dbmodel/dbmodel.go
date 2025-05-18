@@ -3,49 +3,65 @@
 
 package dbmodel
 
-import "time"
+import (
+	"time"
+
+	"go.opentelemetry.io/collector/pdata/ptrace"
+)
 
 // Trace Domain model in Clickhouse.
-// This struct represents the schema for storing OTel pipeline Traces in Clickhouse.
+// This struct represents the schema for storing ptrace.Traces in Clickhouse.
 type Trace struct {
 	Resource Resource
 	Scope    Scope
 	Span     Span
-	Links    []Link
 	Events   []Event
+	Links    []Link
 }
 
+// Resource Domain model in Clickhouse.
+// This struct represents the schema for storing pcommon.Resource in Clickhouse.
 type Resource struct {
 	Attributes AttributesGroup
 }
 
+// Scope Domain model in Clickhouse.
+// This struct represents the schema for storing pcommon.InstrumentationScope in Clickhouse.
 type Scope struct {
 	Name       string
 	Version    string
 	Attributes AttributesGroup
 }
 
+// Span Domain model in Clickhouse.
+// This struct represents the schema for storing ptrace.Span in Clickhouse.
 type Span struct {
-	Timestamp     time.Time
+	StartTime     time.Time
 	TraceId       []byte
 	SpanId        []byte
 	ParentSpanId  []byte
 	TraceState    string
+	ServiceName   string
 	Name          string
 	Kind          string
-	Duration      time.Time
+	Duration      int64
 	StatusCode    string
 	StatusMessage string
 	Attributes    AttributesGroup
 }
 
+// Link Domain model in Clickhouse.
+// This struct represents the schema for storing ptrace.SpanLink in Clickhouse.
 type Link struct {
+	ptrace.SpanEvent
 	TraceId    []byte
 	SpanId     []byte
 	TraceState string
 	Attributes AttributesGroup
 }
 
+// Event Domain model in Clickhouse.
+// This struct represents the schema for storing ptrace.SpanLink in Clickhouse.
 type Event struct {
 	Name       string
 	Timestamp  time.Time

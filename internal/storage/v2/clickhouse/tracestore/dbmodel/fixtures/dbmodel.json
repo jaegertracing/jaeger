@@ -24,7 +24,7 @@
         134217728
       ],
       "StrKeys": [
-        "service.Names",
+        "service.name",
         "service.instance.id"
       ],
       "StrValues": [
@@ -82,14 +82,15 @@
     }
   },
   "Span": {
-    "Timestamp": "2023-12-25T09:53:49Z",
+    "StartTime": "2023-12-25T09:53:49Z",
     "TraceId": "AQIDAAAAAAAAAAAAAAAAAA==",
     "SpanId": "AQIDAAAAAAA=",
     "ParentSpanId": "AQIEAAAAAAA=",
     "TraceState": "trace state",
+    "ServiceName": "clickhouse",
     "Name": "call db",
     "Kind": "Internal",
-    "Duration": "2023-12-25T09:54:49Z",
+    "Duration": 60000000000,
     "StatusCode": "Error",
     "StatusMessage": "error",
     "Attributes": {
@@ -127,45 +128,6 @@
       ]
     }
   },
-  "Links": [
-    {
-      "TraceId": "AQIFAAAAAAAAAAAAAAAAAA==",
-      "SpanId": "AQIFAAAAAAA=",
-      "TraceState": "test",
-      "Attributes": {
-        "BoolKeys": [
-          "is.retry"
-        ],
-        "BoolValues": [
-          true
-        ],
-        "DoubleKeys": [
-          "similarity.score"
-        ],
-        "DoubleValues": [
-          0.85
-        ],
-        "IntKeys": [
-          "correlation.id"
-        ],
-        "IntValues": [
-          1324141
-        ],
-        "StrKeys": [
-          "related.resource.id"
-        ],
-        "StrValues": [
-          "resource-123"
-        ],
-        "BytesKeys": [
-          "link.test.bytes.value"
-        ],
-        "BytesValues": [
-          "AQIDBAUG"
-        ]
-      }
-    }
-  ],
   "Events": [
     {
       "Name": "event1",
@@ -203,6 +165,45 @@
         ],
         "BytesKeys": [
           "event.test.bytes.value"
+        ],
+        "BytesValues": [
+          "AQIDBAUG"
+        ]
+      }
+    }
+  ],
+  "Links": [
+    {
+      "TraceId": "AQIFAAAAAAAAAAAAAAAAAA==",
+      "SpanId": "AQIFAAAAAAA=",
+      "TraceState": "test",
+      "Attributes": {
+        "BoolKeys": [
+          "is.retry"
+        ],
+        "BoolValues": [
+          true
+        ],
+        "DoubleKeys": [
+          "similarity.score"
+        ],
+        "DoubleValues": [
+          0.85
+        ],
+        "IntKeys": [
+          "correlation.id"
+        ],
+        "IntValues": [
+          1324141
+        ],
+        "StrKeys": [
+          "related.resource.id"
+        ],
+        "StrValues": [
+          "resource-123"
+        ],
+        "BytesKeys": [
+          "link.test.bytes.value"
         ],
         "BytesValues": [
           "AQIDBAUG"

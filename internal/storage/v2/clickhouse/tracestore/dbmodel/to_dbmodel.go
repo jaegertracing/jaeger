@@ -18,7 +18,7 @@ const (
 	ValueTypeBytes  = pcommon.ValueTypeBytes
 )
 
-// ToDBModel Converts the OTel pipeline Traces into a slice of Clickhouse domain model for batch insertion.
+// ToDBModel Converts the ptrace.Traces into a slice of Clickhouse domain model for batch insertion.
 func ToDBModel(td ptrace.Traces) []Trace {
 	var traces []Trace
 	for _, resourceSpan := range td.ResourceSpans().All() {
@@ -35,14 +35,15 @@ func ToDBModel(td ptrace.Traces) []Trace {
 			}
 			for _, sp := range scopeSpan.Spans().All() {
 				span := Span{
-					Timestamp:     sp.StartTimestamp().AsTime(),
+					StartTime:     sp.StartTimestamp().AsTime(),
 					TraceId:       encodeTraceID(sp.TraceID()),
 					SpanId:        encodeSpanID(sp.SpanID()),
 					ParentSpanId:  encodeSpanID(sp.ParentSpanID()),
 					TraceState:    sp.TraceState().AsRaw(),
+					ServiceName:   getServiceName(rs.Attributes()),
 					Name:          sp.Name(),
 					Kind:          sp.Kind().String(),
-					Duration:      sp.EndTimestamp().AsTime(),
+					Duration:      duration(sp.StartTimestamp(), sp.EndTimestamp()),
 					StatusCode:    sp.Status().Code().String(),
 					StatusMessage: sp.Status().Message(),
 					Attributes:    attributesToGroup(sp.Attributes()),
@@ -159,4 +160,19 @@ func encodeSpanID(id pcommon.SpanID) []byte {
 	}
 	bytes, _ := hex.DecodeString(id.String())
 	return bytes
+}
+
+// duration calculate duration using span start and end time.
+func duration(startTime pcommon.Timestamp, endTime pcommon.Timestamp) int64 {
+	return endTime.AsTime().Sub(startTime.AsTime()).Nanoseconds()
+}
+
+// getServiceName find service name in resource attributes if existed.
+func getServiceName(attributes pcommon.Map) string {
+	serviceName, exists := attributes.Get("service.name")
+	if !exists {
+		return ""
+	}
+
+	return serviceName.Str()
 }
