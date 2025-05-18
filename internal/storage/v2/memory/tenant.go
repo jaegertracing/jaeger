@@ -19,12 +19,14 @@ var errInvalidMaxTraces = errors.New("max traces must be greater than zero")
 // Tenant is an in-memory store of traces for a single tenant
 type Tenant struct {
 	sync.RWMutex
-	ids         map[pcommon.TraceID]int
-	traces      []traceAndId // ring buffer used to store traces
-	services    map[string]struct{}
-	operations  map[string]map[tracestore.Operation]struct{}
-	config      *v1.Configuration
-	lastEvicted int // position in traces[] of the last evicted trace
+	config *v1.Configuration
+
+	ids         map[pcommon.TraceID]int // maps trace id to index in traces[]
+	traces      []traceAndId            // ring buffer to store traces
+	lastEvicted int                     // position in traces[] of the last evicted trace
+
+	services   map[string]struct{}
+	operations map[string]map[tracestore.Operation]struct{}
 }
 
 type traceAndId struct {
@@ -34,12 +36,12 @@ type traceAndId struct {
 
 func newTenant(cfg *v1.Configuration) *Tenant {
 	return &Tenant{
+		config:      cfg,
 		ids:         make(map[pcommon.TraceID]int),
 		traces:      make([]traceAndId, cfg.MaxTraces),
+		lastEvicted: -1,
 		services:    map[string]struct{}{},
 		operations:  map[string]map[tracestore.Operation]struct{}{},
-		config:      cfg,
-		lastEvicted: -1,
 	}
 }
 
@@ -70,8 +72,7 @@ func (t *Tenant) storeTraces(traceId pcommon.TraceID, resourceSpanSlice ptrace.R
 	traces := ptrace.NewTraces()
 	resourceSpanSlice.MoveAndAppendTo(traces.ResourceSpans())
 	t.lastEvicted = (t.lastEvicted + 1) % t.config.MaxTraces
-	// do we have an item already on this position? if so, we are overriding it,
-	// and we need to remove from the map
+	// if there is already a trace in lastEvicted position, remove its ID from ids map
 	if !t.traces[t.lastEvicted].id.IsEmpty() {
 		delete(t.ids, t.traces[t.lastEvicted].id)
 	}
