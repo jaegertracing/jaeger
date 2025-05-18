@@ -21,8 +21,6 @@ services:
       interval: 10s
       timeout: 10s
       retries: 30
-    volumes:
-      - esdata:/usr/share/elasticsearch/data
 
   jaeger:
     networks:

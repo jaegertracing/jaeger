@@ -33,28 +33,6 @@ extensions:
         elasticsearch:
           server_urls:
             - http://elasticsearch:9200
-          indices:
-            index_prefix: "jaeger-main"
-            spans:
-              date_layout: "2006-01-02"
-              rollover_frequency: "day"
-              shards: 2
-              replicas: 1
-            services:
-              date_layout: "2006-01-02"
-              rollover_frequency: "day"
-              shards: 2
-              replicas: 1
-            dependencies:
-              date_layout: "2006-01-02"
-              rollover_frequency: "day"
-              shards: 2
-              replicas: 1
-            sampling:
-              date_layout: "2006-01-02"
-              rollover_frequency: "day"
-              shards: 2
-              replicas: 1
     metric_backends:
       some_metrics_storage:
         prometheus:
