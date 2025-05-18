@@ -95,9 +95,9 @@ func (t *Tenant) findTraces(query tracestore.TraceQueryParams) []ptrace.Traces {
 		}
 		index := (t.mostRecent - i + n) % n
 		traceById := t.traces[index]
-		// This means we have reached a point where empty ids are starting. This is possible
-		// because the trace array is initiated with a length of max traces.
 		if traceById.id.IsEmpty() {
+			// Finding an empty ID means we reached a gap in the ring buffer
+			// that has not yet been filled with traces.
 			break
 		}
 		if validTrace(traceById.trace, query) {
