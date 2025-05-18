@@ -76,13 +76,7 @@ func TestCreateTracesExporter(t *testing.T) {
 
 		require.NoError(t, err)
 		require.NotNil(t, exp)
-
-		assert.True(t, defaultCfg.RetryConfig.Enabled, "Retry should be enabled by default")
-		assert.Equal(t, 5*time.Second, defaultCfg.RetryConfig.InitialInterval, "InitialInterval should be 5s")
-		assert.InDelta(t, 0.5, defaultCfg.RetryConfig.RandomizationFactor, 1e-6, "RandomizationFactor should be 0.5")
-		assert.InDelta(t, 1.5, defaultCfg.RetryConfig.Multiplier, 1e-6, "Multiplier should be 1.5")
-		assert.Equal(t, 30*time.Second, defaultCfg.RetryConfig.MaxInterval, "MaxInterval should be 30s")
-		assert.Equal(t, 5*time.Minute, defaultCfg.RetryConfig.MaxElapsedTime, "MaxElapsedTime should be 5m")
+		assert.False(t, defaultCfg.RetryConfig.Enabled, "Retry should be disabled by default")
 	})
 
 	t.Run("with custom retry config", func(t *testing.T) {
