@@ -1,0 +1,73 @@
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0@sha256:2f602552550869fb29b6fd5848c5118d3ef3a2e1d5d45802e3ab9088cb2de8e2
+    networks:
+      - backend
+    environment:
+      - discovery.type=single-node
+      - http.host=0.0.0.0
+      - transport.host=127.0.0.1
+      - xpack.security.enabled=false  # Disable security features
+      - xpack.security.http.ssl.enabled=false  # Disable HTTPS
+      - action.destructive_requires_name=false
+      - xpack.monitoring.collection.enabled=false  # Disable monitoring features
+      - ES_LOG_LEVEL=trace  # Set log level to capture all queries
+      - logger.org.elasticsearch.index.search.slowlog=TRACE  # Log all slow queries
+
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:9200 || exit 1" ]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+
+  jaeger:
+    networks:
+      backend:
+        # This is the host name used in Prometheus scrape configuration.
+        aliases: [ spm_metrics_source ]
+    image: jaegertracing/jaeger:${JAEGER_VERSION:-latest}
+    volumes:
+      - "./jaeger-ui.json:/etc/jaeger/jaeger-ui.json" # Do we need this for v2 ? Seems to be running without this.
+      - "../../cmd/jaeger/config-spm-elasticsearch.yaml:/etc/jaeger/config.yml"
+    command: ["--config", "/etc/jaeger/config.yml"]
+    ports:
+      - "16686:16686" # Jaeger UI http://localhost:16686
+      - "8888:8888"
+      - "8889:8889"
+      - "4317:4317"
+      - "4318:4318"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  microsim:
+    networks:
+      - backend
+    image: yurishkuro/microsim:v0.5.0@sha256:b7ee2dee51d2c9fd94de08a80278cfbf5a144ad0f22efce50f3d3be15cbfa2c7
+    command: "-d 24h -s 500ms"
+    environment:
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
+    depends_on:
+      - jaeger
+
+  prometheus:
+    networks:
+      - backend
+    image: prom/prometheus:v3.2.0@sha256:5888c188cf09e3f7eebc97369c3b2ce713e844cdbd88ccf36f5047c958aea120
+    volumes:
+      - "./prometheus.yml:/etc/prometheus/prometheus.yml"
+    ports:
+      - "9090:9090"
+    depends_on:
+      - jaeger
+
+networks:
+  backend:
+
+volumes:
+  esdata:
+    driver: local
