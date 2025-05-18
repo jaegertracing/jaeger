@@ -29,7 +29,6 @@ extensions:
   jaeger_query:
     storage:
       traces: some-storage
-      traces_archive: another-storage
     ui:
       config_file: ./cmd/jaeger/config-ui.json
   jaeger_storage:
@@ -43,11 +42,6 @@ extensions:
             endpoint: ${env:REMOTE_STORAGE_WRITER_ENDPOINT:-0.0.0.0:4316}
             tls:
               insecure: true
-      another-storage:
-        grpc:
-          endpoint: "${env:ARCHIVE_REMOTE_STORAGE_ENDPOINT:-localhost:17272}"
-          tls:
-            insecure: true  
 
 receivers:
   otlp:

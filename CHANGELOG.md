@@ -28,7 +28,9 @@ v1.69.0 / v2.6.0 (2025-05-08)
 
 #### ⛔ Breaking Changes
 
-* Feat(elasticsearch): add flag to enable gzip compression ([@timonegk](https://github.com/timonegk) in [#7072](https://github.com/jaegertracing/jaeger/pull/7072))
+* Feat(elasticsearch): Add flag to enable gzip compression by default ([@timonegk](https://github.com/timonegk) in [#7072](https://github.com/jaegertracing/jaeger/pull/7072))
+* Only Remote Storage API v2 is supported in Jaeger v2 ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#6969](https://github.com/jaegertracing/jaeger/pull/6969))
+
 
 #### ✨ New Features
 
