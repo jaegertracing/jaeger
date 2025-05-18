@@ -24,15 +24,16 @@ import (
 */
 
 const (
-	spanKeyPrefix         byte = 0x80 // All span keys should have first bit set to 1
-	indexKeyRange         byte = 0x0F // Secondary indexes use last 4 bits
-	serviceNameIndexKey   byte = 0x81
-	operationNameIndexKey byte = 0x82
-	tagIndexKey           byte = 0x83
-	durationIndexKey      byte = 0x84
-	jsonEncoding          byte = 0x01 // Last 4 bits of the meta byte are for encoding type
-	protoEncoding         byte = 0x02 // Last 4 bits of the meta byte are for encoding type
-	defaultEncoding       byte = protoEncoding
+	spanKeyPrefix                 byte = 0x80 // All span keys should have first bit set to 1
+	indexKeyRange                 byte = 0x0F // Secondary indexes use last 4 bits
+	serviceNameIndexKey           byte = 0x81
+	operationNameIndexKey         byte = 0x82
+	tagIndexKey                   byte = 0x83
+	durationIndexKey              byte = 0x84
+	operationNameWithKindIndexKey byte = 0x85
+	jsonEncoding                  byte = 0x01 // Last 4 bits of the meta byte are for encoding type
+	protoEncoding                 byte = 0x02 // Last 4 bits of the meta byte are for encoding type
+	defaultEncoding               byte = protoEncoding
 )
 
 // SpanWriter for writing spans to badger
@@ -55,6 +56,11 @@ func NewSpanWriter(db *badger.DB, c *CacheStore, ttl time.Duration) *SpanWriter 
 
 // WriteSpan writes the encoded span as well as creates indexes with defined TTL
 func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
+	return w.writeSpan(span, false)
+}
+
+// This method is to test backward compatibility for old index key
+func (w *SpanWriter) writeSpan(span *model.Span, writeOldIndex bool) error {
 	//nolint: gosec // G115
 	expireTime := uint64(time.Now().Add(w.ttl).Unix())
 	startTime := model.TimeAsEpochMicroseconds(span.StartTime)
@@ -67,9 +73,32 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 		return err
 	}
 
+	kind, _ := span.GetSpanKind()
+
 	entriesToStore = append(entriesToStore, trace)
 	entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(serviceNameIndexKey, []byte(span.Process.ServiceName), startTime, span.TraceID), nil, expireTime))
-	entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(operationNameIndexKey, []byte(span.Process.ServiceName+span.OperationName), startTime, span.TraceID), nil, expireTime))
+	if writeOldIndex {
+		entriesToStore = append(
+			entriesToStore,
+			w.createBadgerEntry(
+				createIndexKey(
+					operationNameIndexKey,
+					[]byte(span.Process.ServiceName+span.OperationName),
+					startTime,
+					span.TraceID,
+				),
+				nil,
+				expireTime),
+		)
+	} else {
+		entriesToStore = append(
+			entriesToStore,
+			w.createBadgerEntry(
+				createOperationWithKindIndexKey(span, kind, startTime),
+				nil,
+				expireTime),
+		)
+	}
 
 	// It doesn't matter if we overwrite Duration index keys, everything is read at Trace level in any case
 	durationValue := make([]byte, 8)
@@ -109,7 +138,7 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	})
 
 	// Do cache refresh here to release the transaction earlier
-	w.cache.Update(span.Process.ServiceName, span.OperationName, expireTime)
+	w.cache.Update(span.Process.ServiceName, span.OperationName, kind, expireTime)
 
 	return err
 }
@@ -122,6 +151,24 @@ func createIndexKey(indexPrefixKey byte, value []byte, startTime uint64, traceID
 	copy(key[1:pos], value)
 	binary.BigEndian.PutUint64(key[pos:], startTime)
 	pos += 8 // sizeOfTraceID / 2
+	binary.BigEndian.PutUint64(key[pos:], traceID.High)
+	pos += 8 // sizeOfTraceID / 2
+	binary.BigEndian.PutUint64(key[pos:], traceID.Low)
+	return key
+}
+
+func createOperationWithKindIndexKey(span *model.Span, kind model.SpanKind, startTime uint64) []byte {
+	// KEY: indexKey<serviceName+operationName><startTime><spanKind><traceId> (traceId is last 16 bytes of the key)
+	value := []byte(span.Process.ServiceName + span.OperationName)
+	traceID := span.TraceID
+	key := make([]byte, 1+len(value)+8+1+sizeOfTraceID)
+	key[0] = operationNameWithKindIndexKey
+	pos := len(value) + 1
+	copy(key[1:pos], value)
+	binary.BigEndian.PutUint64(key[pos:], startTime)
+	pos += 8
+	key[pos] = byte(getBadgerSpanKind(kind))
+	pos++
 	binary.BigEndian.PutUint64(key[pos:], traceID.High)
 	pos += 8 // sizeOfTraceID / 2
 	binary.BigEndian.PutUint64(key[pos:], traceID.Low)
