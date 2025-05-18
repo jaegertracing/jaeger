@@ -27,6 +27,8 @@ jobs:
           binary: all-in-one
         - name: v2
           binary: jaeger
+        - name: es
+          binary: elasticsearch
 
     steps:
     - name: Harden Runner

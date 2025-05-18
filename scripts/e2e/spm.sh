@@ -7,7 +7,7 @@ set -euf -o pipefail
 
 print_help() {
   echo "Usage: $0 [-b binary]"
-  echo "-b: Which binary to build: 'all-in-one' or 'jaeger' (v2) (default)"
+  echo "-b: Which binary to build: 'all-in-one', 'jaeger' (v2, default), or 'elasticsearch'"
   echo "-h: Print help"
   exit 1
 }
@@ -16,21 +16,33 @@ BINARY='jaeger'
 compose_file=docker-compose/monitor/docker-compose.yml
 
 while getopts "b:h" opt; do
-	case "${opt}" in
-	b)
-		BINARY=${OPTARG}
-		;;
-	*)
-		print_help
-		;;
-	esac
+  case "${opt}" in
+  b)
+   BINARY=${OPTARG}
+   ;;
+  *)
+   print_help
+   ;;
+  esac
 done
 
 set -x
 
-if [ "$BINARY" == "all-in-one" ]; then
-  compose_file=docker-compose/monitor/docker-compose-v1.yml
-fi
+case "$BINARY" in
+  "all-in-one")
+    compose_file=docker-compose/monitor/docker-compose-v1.yml
+    ;;
+  "elasticsearch")
+    compose_file=docker-compose/monitor/docker-compose-elasticsearch.yml
+    ;;
+  "jaeger")
+    # Default case, already set
+    ;;
+  *)
+    echo "❌ ERROR: Invalid binary option: $BINARY"
+    print_help
+    ;;
+esac
 
 timeout=600
 end_time=$((SECONDS + timeout))
@@ -65,6 +77,9 @@ check_service_health() {
 # Function to check if all services are healthy
 wait_for_services() {
   echo "Waiting for services to be up and running..."
+  if [ "$BINARY" == "elasticsearch" ]; then
+    check_service_health "Elasticsearch" "http://localhost:9200"
+  fi
   check_service_health "Jaeger" "http://localhost:16686"
   check_service_health "Prometheus" "http://localhost:9090/query"
 }
@@ -209,11 +224,17 @@ teardown_services() {
 }
 
 main() {
-  if [ "$BINARY" == "jaeger" ]; then
-    (cd docker-compose/monitor && make build BINARY="$BINARY" && make dev DOCKER_COMPOSE_ARGS="-d")
-  else
-    (cd docker-compose/monitor && make build BINARY="$BINARY" && make dev-v1 DOCKER_COMPOSE_ARGS="-d")
-  fi
+  case "$BINARY" in
+    "jaeger")
+      (cd docker-compose/monitor && make build BINARY="$BINARY" && make dev DOCKER_COMPOSE_ARGS="-d")
+      ;;
+    "all-in-one")
+      (cd docker-compose/monitor && make build BINARY="$BINARY" && make dev-v1 DOCKER_COMPOSE_ARGS="-d")
+      ;;
+    "elasticsearch")
+      (cd docker-compose/monitor && make build BINARY="jaeger" && make elasticsearch DOCKER_COMPOSE_ARGS="-d")
+      ;;
+  esac
   wait_for_services
   check_spm
   success="true"
