@@ -21,9 +21,9 @@ type Tenant struct {
 	sync.RWMutex
 	config *v1.Configuration
 
-	ids         map[pcommon.TraceID]int // maps trace id to index in traces[]
-	traces      []traceAndId            // ring buffer to store traces
-	lastEvicted int                     // position in traces[] of the last evicted trace
+	ids        map[pcommon.TraceID]int // maps trace id to index in traces[]
+	traces     []traceAndId            // ring buffer to store traces
+	mostRecent int                     // position in traces[] of the most recently added trace
 
 	services   map[string]struct{}
 	operations map[string]map[tracestore.Operation]struct{}
@@ -36,12 +36,12 @@ type traceAndId struct {
 
 func newTenant(cfg *v1.Configuration) *Tenant {
 	return &Tenant{
-		config:      cfg,
-		ids:         make(map[pcommon.TraceID]int),
-		traces:      make([]traceAndId, cfg.MaxTraces),
-		lastEvicted: -1,
-		services:    map[string]struct{}{},
-		operations:  map[string]map[tracestore.Operation]struct{}{},
+		config:     cfg,
+		ids:        make(map[pcommon.TraceID]int),
+		traces:     make([]traceAndId, cfg.MaxTraces),
+		mostRecent: -1,
+		services:   map[string]struct{}{},
+		operations: map[string]map[tracestore.Operation]struct{}{},
 	}
 }
 
@@ -71,14 +71,14 @@ func (t *Tenant) storeTraces(traceId pcommon.TraceID, resourceSpanSlice ptrace.R
 	}
 	traces := ptrace.NewTraces()
 	resourceSpanSlice.MoveAndAppendTo(traces.ResourceSpans())
-	t.lastEvicted = (t.lastEvicted + 1) % t.config.MaxTraces
+	t.mostRecent = (t.mostRecent + 1) % t.config.MaxTraces
 	// if there is already a trace in lastEvicted position, remove its ID from ids map
-	if !t.traces[t.lastEvicted].id.IsEmpty() {
-		delete(t.ids, t.traces[t.lastEvicted].id)
+	if !t.traces[t.mostRecent].id.IsEmpty() {
+		delete(t.ids, t.traces[t.mostRecent].id)
 	}
 	// update the ring with the trace id
-	t.ids[traceId] = t.lastEvicted
-	t.traces[t.lastEvicted] = traceAndId{
+	t.ids[traceId] = t.mostRecent
+	t.traces[t.mostRecent] = traceAndId{
 		id:    traceId,
 		trace: traces,
 	}
@@ -93,7 +93,7 @@ func (t *Tenant) findTraces(query tracestore.TraceQueryParams) []ptrace.Traces {
 		if len(traces) == query.SearchDepth {
 			break
 		}
-		index := (t.lastEvicted - i + n) % n
+		index := (t.mostRecent - i + n) % n
 		traceById := t.traces[index]
 		// This means we have reached a point where empty ids are starting. This is possible
 		// because the trace array is initiated with a length of max traces.
