@@ -5,6 +5,7 @@
 package elasticsearch
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -15,10 +16,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	"github.com/jaegertracing/jaeger/internal/testutils"
@@ -89,15 +92,97 @@ func TestTagKeysAsFields(t *testing.T) {
 	}
 }
 
-func TestCreateTemplateError(t *testing.T) {
-	f := &FactoryBase{}
-	err := SetFactoryForTestWithCreateTemplateErr(f, zaptest.NewLogger(t), metrics.NullFactory, &escfg.Configuration{CreateIndexTemplates: true}, errors.New("template-error"))
-	require.NoError(t, err)
-	defer f.Close()
+func TestCreateTemplates(t *testing.T) {
+	tests := []struct {
+		err                    string
+		spanTemplateService    func() *mocks.TemplateCreateService
+		serviceTemplateService func() *mocks.TemplateCreateService
+		indexPrefix            escfg.IndexPrefix
+	}{
+		{
+			spanTemplateService: func() *mocks.TemplateCreateService {
+				tService := &mocks.TemplateCreateService{}
+				tService.On("Body", mock.Anything).Return(tService)
+				tService.On("Do", context.Background()).Return(nil, nil)
+				return tService
+			},
+			serviceTemplateService: func() *mocks.TemplateCreateService {
+				tService := &mocks.TemplateCreateService{}
+				tService.On("Body", mock.Anything).Return(tService)
+				tService.On("Do", context.Background()).Return(nil, nil)
+				return tService
+			},
+		},
+		{
+			spanTemplateService: func() *mocks.TemplateCreateService {
+				tService := &mocks.TemplateCreateService{}
+				tService.On("Body", mock.Anything).Return(tService)
+				tService.On("Do", context.Background()).Return(nil, nil)
+				return tService
+			},
+			serviceTemplateService: func() *mocks.TemplateCreateService {
+				tService := &mocks.TemplateCreateService{}
+				tService.On("Body", mock.Anything).Return(tService)
+				tService.On("Do", context.Background()).Return(nil, nil)
+				return tService
+			},
+			indexPrefix: "test",
+		},
+		{
+			err: "span-template-error",
+			spanTemplateService: func() *mocks.TemplateCreateService {
+				tService := new(mocks.TemplateCreateService)
+				tService.On("Body", mock.Anything).Return(tService)
+				tService.On("Do", context.Background()).Return(nil, errors.New("span-template-error"))
+				return tService
+			},
+			serviceTemplateService: func() *mocks.TemplateCreateService {
+				tService := new(mocks.TemplateCreateService)
+				tService.On("Body", mock.Anything).Return(tService)
+				tService.On("Do", context.Background()).Return(nil, nil)
+				return tService
+			},
+		},
+		{
+			err: "service-template-error",
+			spanTemplateService: func() *mocks.TemplateCreateService {
+				tService := new(mocks.TemplateCreateService)
+				tService.On("Body", mock.Anything).Return(tService)
+				tService.On("Do", context.Background()).Return(nil, nil)
+				return tService
+			},
+			serviceTemplateService: func() *mocks.TemplateCreateService {
+				tService := new(mocks.TemplateCreateService)
+				tService.On("Body", mock.Anything).Return(tService)
+				tService.On("Do", context.Background()).Return(nil, errors.New("service-template-error"))
+				return tService
+			},
+		},
+	}
 
-	s, err := f.CreateSamplingStore(1)
-	assert.Nil(t, s)
-	require.Error(t, err, "template-error")
+	for _, test := range tests {
+		f := FactoryBase{}
+		mockClient := &mocks.Client{}
+		f.newClientFn = func(_ *escfg.Configuration, _ *zap.Logger, _ metrics.Factory) (es.Client, error) {
+			return mockClient, nil
+		}
+		f.logger = zaptest.NewLogger(t)
+		f.metricsFactory = metrics.NullFactory
+		f.config = &escfg.Configuration{CreateIndexTemplates: true, Indices: escfg.Indices{IndexPrefix: test.indexPrefix}}
+		f.tracer = otel.GetTracerProvider()
+		client, err := f.newClientFn(&escfg.Configuration{}, zaptest.NewLogger(t), metrics.NullFactory)
+		require.NoError(t, err)
+		f.client.Store(&client)
+		f.templateBuilder = es.TextTemplateBuilder{}
+		jaegerSpanId := test.indexPrefix.Apply("jaeger-span")
+		jaegerServiceId := test.indexPrefix.Apply("jaeger-service")
+		mockClient.On("CreateTemplate", jaegerSpanId).Return(test.spanTemplateService())
+		mockClient.On("CreateTemplate", jaegerServiceId).Return(test.serviceTemplateService())
+		err = f.createTemplates(context.Background())
+		if test.err != "" {
+			require.Error(t, err, test.err)
+		}
+	}
 }
 
 func TestESStorageFactoryWithConfig(t *testing.T) {
@@ -109,7 +194,7 @@ func TestESStorageFactoryWithConfig(t *testing.T) {
 		Servers:  []string{server.URL},
 		LogLevel: "error",
 	}
-	factory, err := NewFactoryBase(cfg, metrics.NullFactory, zap.NewNop())
+	factory, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
 	defer factory.Close()
 }
@@ -121,7 +206,7 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 		Servers:  []string{"http://127.0.0.1:65535"},
 		LogLevel: "error",
 	}
-	_, err := NewFactoryBase(cfg, metrics.NullFactory, zap.NewNop())
+	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop())
 	require.ErrorContains(t, err, "failed to create Elasticsearch client")
 }
 
@@ -151,7 +236,7 @@ func TestPasswordFromFileErrors(t *testing.T) {
 	}
 
 	logger, buf := testutils.NewEchoLogger(t)
-	f, err := NewFactoryBase(cfg, metrics.NullFactory, logger)
+	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, logger)
 	require.NoError(t, err)
 	defer f.Close()
 
@@ -161,16 +246,4 @@ func TestPasswordFromFileErrors(t *testing.T) {
 
 	require.NoError(t, os.Remove(pwdFile))
 	f.onPasswordChange()
-}
-
-func TestGetSpanServiceMappingErr(t *testing.T) {
-	f := &FactoryBase{}
-	f.config = &escfg.Configuration{}
-	tmpBuilder := &mocks.TemplateBuilder{}
-	tmpBuilder.On("Parse", mock.Anything).Return(nil, errors.New("mapping-error"))
-	f.templateBuilder = tmpBuilder
-	serviceMapping, spanMapping, err := f.GetSpanServiceMapping()
-	require.ErrorContains(t, err, "mapping-error")
-	assert.Empty(t, serviceMapping)
-	assert.Empty(t, spanMapping)
 }

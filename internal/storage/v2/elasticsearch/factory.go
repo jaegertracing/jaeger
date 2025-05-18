@@ -27,8 +27,8 @@ type Factory struct {
 	config      *escfg.Configuration
 }
 
-func NewFactory(cfg escfg.Configuration, telset telemetry.Settings) (*Factory, error) {
-	coreFactory, err := elasticsearch.NewFactoryBase(cfg, telset.Metrics, telset.Logger)
+func NewFactory(ctx context.Context, cfg escfg.Configuration, telset telemetry.Settings) (*Factory, error) {
+	coreFactory, err := elasticsearch.NewFactoryBase(ctx, cfg, telset.Metrics, telset.Logger)
 	if err != nil {
 		return nil, err
 	}
@@ -51,9 +51,6 @@ func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
 	}
 	params := f.coreFactory.GetSpanWriterParams(tags)
 	wr := v2tracestore.NewTraceWriter(params)
-	if err := f.createTemplates(wr); err != nil {
-		return nil, err
-	}
 	return wr, nil
 }
 
@@ -68,18 +65,4 @@ func (f *Factory) Close() error {
 
 func (f *Factory) Purge(ctx context.Context) error {
 	return f.coreFactory.Purge(ctx)
-}
-
-func (f *Factory) createTemplates(writer *v2tracestore.TraceWriter) error {
-	// Creating a template here would conflict with the one created for ILM resulting to no index rollover
-	if f.config.CreateIndexTemplates && !f.config.UseILM {
-		spanMapping, serviceMapping, err := f.coreFactory.GetSpanServiceMapping()
-		if err != nil {
-			return err
-		}
-		if err := writer.CreateTemplates(spanMapping, serviceMapping, f.config.Indices.IndexPrefix); err != nil {
-			return err
-		}
-	}
-	return nil
 }

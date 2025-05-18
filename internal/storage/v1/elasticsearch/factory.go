@@ -52,6 +52,7 @@ type FactoryBase struct {
 }
 
 func NewFactoryBase(
+	ctx context.Context,
 	cfg config.Configuration,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
@@ -77,6 +78,11 @@ func NewFactoryBase(
 			return nil, fmt.Errorf("failed to create watcher for ES client's password: %w", err)
 		}
 		f.pwdFileWatcher = watcher
+	}
+
+	err = f.createTemplates(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	return f, nil
@@ -227,11 +233,24 @@ func loadTokenFromFile(path string) (string, error) {
 	return strings.TrimRight(string(b), "\r\n"), nil
 }
 
-func (f *FactoryBase) GetSpanServiceMapping() (serviceMapping string, spanMapping string, err error) {
-	mappingBuilder := f.mappingBuilderFromConfig(f.config)
-	spanMapping, serviceMapping, err = mappingBuilder.GetSpanServiceMappings()
-	if err != nil {
-		return "", "", err
+func (f *FactoryBase) createTemplates(ctx context.Context) error {
+	// Creating a template here would conflict with the one created for ILM resulting to no index rollover
+	if f.config.CreateIndexTemplates && !f.config.UseILM {
+		mappingBuilder := f.mappingBuilderFromConfig(f.config)
+		spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
+		if err != nil {
+			return err
+		}
+		jaegerSpanIdx := f.config.Indices.IndexPrefix.Apply("jaeger-span")
+		jaegerServiceIdx := f.config.Indices.IndexPrefix.Apply("jaeger-service")
+		_, err = f.getClient().CreateTemplate(jaegerSpanIdx).Body(spanMapping).Do(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to create template %q: %w", jaegerSpanIdx, err)
+		}
+		_, err = f.getClient().CreateTemplate(jaegerServiceIdx).Body(serviceMapping).Do(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to create template %q: %w", jaegerServiceIdx, err)
+		}
 	}
-	return spanMapping, serviceMapping, nil
+	return nil
 }

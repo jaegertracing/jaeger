@@ -56,19 +56,3 @@ func SetFactoryForTestWithCreateTemplateErr(f *FactoryBase, logger *zap.Logger, 
 	f.templateBuilder = es.TextTemplateBuilder{}
 	return nil
 }
-
-func SetFactoryForTestWithMappingErr(f *FactoryBase, logger *zap.Logger, metricsFactory metrics.Factory, cfg *escfg.Configuration, templateBuilderErr error) error {
-	f.newClientFn = (&mockClientBuilder{}).NewClient
-	tmplBuilder := &mocks.TemplateBuilder{}
-	tmplBuilder.On("Parse", mock.Anything).Return(nil, templateBuilderErr)
-	f.logger = logger
-	f.metricsFactory = metricsFactory
-	f.config = cfg
-	client, err := f.newClientFn(cfg, logger, metricsFactory)
-	if err != nil {
-		return err
-	}
-	f.client.Store(&client)
-	f.templateBuilder = tmplBuilder
-	return nil
-}

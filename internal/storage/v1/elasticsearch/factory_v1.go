@@ -75,7 +75,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		}
 		cfg.UseReadWriteAliases = true
 	}
-	coreFactory, err := NewFactoryBase(*cfg, metricsFactory, logger)
+	coreFactory, err := NewFactoryBase(context.Background(), *cfg, metricsFactory, logger)
 	if err != nil {
 		return err
 	}
@@ -99,10 +99,6 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	}
 	params := f.coreFactory.GetSpanWriterParams(tags)
 	wr := esSpanStore.NewSpanWriterV1(params)
-	err = f.createTemplates(wr)
-	if err != nil {
-		return nil, err
-	}
 	return wr, nil
 }
 
@@ -131,21 +127,6 @@ func (f *Factory) InheritSettingsFrom(other storage.Factory) {
 
 func (f *Factory) IsArchiveCapable() bool {
 	return f.Options.Config.namespace == archiveNamespace && f.Options.Config.Enabled
-}
-
-func (f *Factory) createTemplates(writer *esSpanStore.SpanWriterV1) error {
-	cfg := f.getConfig()
-	// Creating a template here would conflict with the one created for ILM resulting to no index rollover
-	if cfg.CreateIndexTemplates && !cfg.UseILM {
-		spanMapping, serviceMapping, err := f.coreFactory.GetSpanServiceMapping()
-		if err != nil {
-			return err
-		}
-		if err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.Indices.IndexPrefix); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (f *Factory) getConfig() *config.Configuration {

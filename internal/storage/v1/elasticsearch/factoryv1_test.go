@@ -6,7 +6,6 @@ package elasticsearch
 import (
 	"context"
 	"encoding/base64"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -58,48 +57,6 @@ func TestElasticsearchFactory(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, f.Close())
-}
-
-func TestCreateTemplateErr(t *testing.T) {
-	tests := []struct {
-		name      string
-		cfg       *escfg.Configuration
-		expectErr bool
-	}{
-		{
-			name:      "error",
-			cfg:       &escfg.Configuration{CreateIndexTemplates: true},
-			expectErr: true,
-		},
-		{
-			name: "ILMDisableTemplateCreation",
-			cfg:  &escfg.Configuration{UseILM: true, UseReadWriteAliases: true, CreateIndexTemplates: true},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			f := NewFactory()
-			f.Options = &Options{Config: namespaceConfig{Configuration: *tt.cfg}}
-			f.coreFactory = getTestingFactoryBaseWithCreateTemplateError(t, tt.cfg, errors.New("template-error"))
-			wr, err := f.CreateSpanWriter()
-			if tt.expectErr {
-				require.ErrorContains(t, err, "template-error")
-				assert.Nil(t, wr)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestSpanWriterMappingBuilderErr(t *testing.T) {
-	coreFactory := &FactoryBase{}
-	err := SetFactoryForTestWithMappingErr(coreFactory, zaptest.NewLogger(t), metrics.NullFactory, &escfg.Configuration{CreateIndexTemplates: true}, errors.New("template-error"))
-	require.NoError(t, err)
-	f := NewFactory()
-	f.coreFactory = coreFactory
-	_, err = f.CreateSpanWriter()
-	require.ErrorContains(t, err, "template-error")
 }
 
 func TestPasswordFromFile(t *testing.T) {
@@ -370,13 +327,6 @@ func getTestingServer(t *testing.T) (*httptest.Server, *sync.Map) {
 func getTestingFactoryBase(t *testing.T, cfg *escfg.Configuration) *FactoryBase {
 	f := &FactoryBase{}
 	err := SetFactoryForTest(f, zaptest.NewLogger(t), metrics.NullFactory, cfg)
-	require.NoError(t, err)
-	return f
-}
-
-func getTestingFactoryBaseWithCreateTemplateError(t *testing.T, cfg *escfg.Configuration, templateErr error) *FactoryBase {
-	f := &FactoryBase{}
-	err := SetFactoryForTestWithCreateTemplateErr(f, zaptest.NewLogger(t), metrics.NullFactory, cfg, templateErr)
 	require.NoError(t, err)
 	return f
 }
