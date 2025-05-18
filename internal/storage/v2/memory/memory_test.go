@@ -75,13 +75,23 @@ func TestNewStore_DefaultConfig(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, expectedServices, services)
 	queryAttrs := getQueryAttributes()
-	gotIter := store.FindTraces(context.Background(), tracestore.TraceQueryParams{
+	findTracesParams := tracestore.TraceQueryParams{
 		ServiceName:   "service-x",
 		OperationName: "test-general-conversion-2",
 		Attributes:    queryAttrs,
 		SearchDepth:   5,
-	})
+	}
+	idsIter := store.FindTraceIDs(context.Background(), findTracesParams)
 	i := 0
+	for foundTraceIds, err := range idsIter {
+		i++
+		require.NoError(t, err)
+		assert.Len(t, foundTraceIds, 1)
+		assert.Equal(t, traceID1, foundTraceIds[0].TraceID)
+	}
+	assert.Equal(t, 1, i)
+	gotIter := store.FindTraces(context.Background(), findTracesParams)
+	i = 0
 	for foundTraces, err := range gotIter {
 		i++
 		require.NoError(t, err)

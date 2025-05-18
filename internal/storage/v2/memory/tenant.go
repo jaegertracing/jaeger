@@ -84,25 +84,36 @@ func (t *Tenant) storeTraces(traceId pcommon.TraceID, resourceSpanSlice ptrace.R
 	}
 }
 
-func (t *Tenant) findTraces(query tracestore.TraceQueryParams) []ptrace.Traces {
+func (t *Tenant) findTraceIds(query tracestore.TraceQueryParams) []tracestore.FoundTraceID {
 	t.RLock()
 	defer t.RUnlock()
-	traces := make([]ptrace.Traces, 0, query.SearchDepth)
+	ids := make([]tracestore.FoundTraceID, 0, query.SearchDepth)
 	n := len(t.traces)
 	for i := range t.traces {
-		if len(traces) == query.SearchDepth {
+		if len(ids) == query.SearchDepth {
 			break
 		}
 		index := (t.mostRecent - i + n) % n
 		traceById := t.traces[index]
 		if traceById.id.IsEmpty() {
 			// Finding an empty ID means we reached a gap in the ring buffer
-			// that has not yet been filled with traces.
+			// that has not yet been filled with ids.
 			break
 		}
 		if validTrace(traceById.trace, query) {
-			traces = append(traces, traceById.trace)
+			ids = append(ids, tracestore.FoundTraceID{TraceID: traceById.id})
 		}
+	}
+	return ids
+}
+
+func (t *Tenant) findTraces(traceIds []tracestore.FoundTraceID) []ptrace.Traces {
+	t.RLock()
+	defer t.RUnlock()
+	traces := make([]ptrace.Traces, len(traceIds))
+	for i := range traceIds {
+		index := t.ids[traceIds[i].TraceID]
+		traces[i] = t.traces[index].trace
 	}
 	return traces
 }
