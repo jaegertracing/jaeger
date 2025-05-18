@@ -154,11 +154,9 @@ func validSpan(resourceAttributes, scopeAttributes pcommon.Map, span ptrace.Span
 	if query.DurationMax != 0 && duration > query.DurationMax {
 		return false
 	}
-	if query.Attributes.Len() > 0 {
-		for key, val := range query.Attributes.All() {
-			if key != errorAttribute && !findKeyValInTrace(key, val, resourceAttributes, scopeAttributes, span) {
-				return false
-			}
+	for key, val := range query.Attributes.All() {
+		if key != errorAttribute && !findKeyValInTrace(key, val, resourceAttributes, scopeAttributes, span) {
+			return false
 		}
 	}
 	return true

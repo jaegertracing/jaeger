@@ -109,7 +109,6 @@ func TestFindTraces_WrongQuery(t *testing.T) {
 	tests := []struct {
 		name           string
 		modifyQueryFxn func(query *tracestore.TraceQueryParams)
-		iterLength     int
 	}{
 		{
 			name: "wrong service-name",
@@ -136,7 +135,6 @@ func TestFindTraces_WrongQuery(t *testing.T) {
 			modifyQueryFxn: func(query *tracestore.TraceQueryParams) {
 				query.Attributes.PutStr(errorAttribute, wrongStringValue)
 			},
-			iterLength: 1,
 		},
 		{
 			name: "wrong min start time",
@@ -185,7 +183,7 @@ func TestFindTraces_WrongQuery(t *testing.T) {
 				require.NoError(t, err)
 				iterLength++
 			}
-			assert.Equal(t, tt.iterLength, iterLength)
+			assert.Equal(t, 0, iterLength)
 		})
 	}
 }
@@ -382,6 +380,52 @@ func TestFindTraces_NegativeSearchDepthErr(t *testing.T) {
 			assert.Equal(t, 1, iterLength)
 		})
 	}
+}
+
+func TestFindTraces_StatusCode(t *testing.T) {
+	store, err := NewStore(v1.Configuration{
+		MaxTraces: 10,
+	})
+	traceId1 := fromString(t, "00000000000000010000000000000000")
+	traceId2 := fromString(t, "00000000000000020000000000000000")
+	require.NoError(t, err)
+	td := ptrace.NewTraces()
+	spans := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+	span1 := spans.AppendEmpty()
+	span2 := spans.AppendEmpty()
+	span1.SetTraceID(traceId1)
+	span1.Status().SetCode(ptrace.StatusCodeOk)
+	span2.SetTraceID(traceId2)
+	span2.Status().SetCode(ptrace.StatusCodeError)
+	err = store.WriteTraces(context.Background(), td)
+	require.NoError(t, err)
+	queryAttributes := pcommon.NewMap()
+	queryAttributes.PutBool(errorAttribute, true)
+	iter1 := store.FindTraces(context.Background(), tracestore.TraceQueryParams{
+		Attributes:  queryAttributes,
+		SearchDepth: 10,
+	})
+	iterLength := 0
+	for traces, err := range iter1 {
+		require.NoError(t, err)
+		iterLength++
+		assert.Len(t, traces, 1)
+		assert.Equal(t, traceId2, traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID())
+	}
+	assert.Equal(t, 1, iterLength)
+	iterLength = 0
+	queryAttributes.PutBool(errorAttribute, false)
+	iter2 := store.FindTraces(context.Background(), tracestore.TraceQueryParams{
+		Attributes:  queryAttributes,
+		SearchDepth: 10,
+	})
+	for traces, err := range iter2 {
+		require.NoError(t, err)
+		iterLength++
+		assert.Len(t, traces, 1)
+		assert.Equal(t, traceId1, traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID())
+	}
+	assert.Equal(t, 1, iterLength)
 }
 
 func TestGetOperationsWithKind(t *testing.T) {
