@@ -354,6 +354,32 @@ func TestFindTraces_ErrorStatusNotMatched(t *testing.T) {
 }
 
 func TestFindTraces_NegativeSearchDepthErr(t *testing.T) {
+	testInvalidSearchDepth(t, func(store *Store, params tracestore.TraceQueryParams) {
+		gotIter := store.FindTraces(context.Background(), params)
+		iterLength := 0
+		for traces, err := range gotIter {
+			iterLength++
+			require.ErrorContains(t, err, errInvalidSearchDepth.Error())
+			assert.Nil(t, traces)
+		}
+		assert.Equal(t, 1, iterLength)
+	})
+}
+
+func TestFindTraceIds_NegativeSearchDepth(t *testing.T) {
+	testInvalidSearchDepth(t, func(store *Store, params tracestore.TraceQueryParams) {
+		gotIter := store.FindTraceIDs(context.Background(), params)
+		iterLength := 0
+		for traces, err := range gotIter {
+			iterLength++
+			require.ErrorContains(t, err, errInvalidSearchDepth.Error())
+			assert.Nil(t, traces)
+		}
+		assert.Equal(t, 1, iterLength)
+	})
+}
+
+func testInvalidSearchDepth(t *testing.T, fxn func(store *Store, params tracestore.TraceQueryParams)) {
 	tests := []struct {
 		name        string
 		searchDepth int
@@ -380,14 +406,7 @@ func TestFindTraces_NegativeSearchDepthErr(t *testing.T) {
 			params := tracestore.TraceQueryParams{
 				SearchDepth: test.searchDepth,
 			}
-			gotIter := store.FindTraces(context.Background(), params)
-			iterLength := 0
-			for traces, err := range gotIter {
-				iterLength++
-				require.ErrorContains(t, err, errInvalidSearchDepth.Error())
-				assert.Nil(t, traces)
-			}
-			assert.Equal(t, 1, iterLength)
+			fxn(store, params)
 		})
 	}
 }
