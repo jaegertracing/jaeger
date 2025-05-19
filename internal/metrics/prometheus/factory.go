@@ -144,11 +144,13 @@ func (f *Factory) Counter(options metrics.Options) metrics.Counter {
 	labelValues := f.tagsAsLabelValues(labelNames, tags)
 	metric, err := cv.GetMetricWithLabelValues(labelValues...)
 	if err != nil {
-		f.logger.Warn(
-			"Failed to get metric for counter with label values",
-			zap.String("label_names", strings.Join(labelValues, ", ")),
-			zap.Error(err),
-		)
+		if f.logger != nil {
+			f.logger.Warn(
+				"Failed to get metric for counter with label values",
+				zap.String("label_names", strings.Join(labelValues, ", ")),
+				zap.Error(err),
+			)
+		}
 		return metrics.NullCounter
 	}
 
@@ -174,11 +176,13 @@ func (f *Factory) Gauge(options metrics.Options) metrics.Gauge {
 	labelValues := f.tagsAsLabelValues(labelNames, tags)
 	metric, err := gv.GetMetricWithLabelValues(labelValues...)
 	if err != nil {
-		f.logger.Warn(
-			"Failed to get metric for gauge with label values",
-			zap.String("label_names", strings.Join(labelValues, ", ")),
-			zap.Error(err),
-		)
+		if f.logger != nil {
+			f.logger.Warn(
+				"Failed to get metric for gauge with label values",
+				zap.String("label_names", strings.Join(labelValues, ", ")),
+				zap.Error(err),
+			)
+		}
 		return metrics.NullGauge
 	}
 	return &gauge{
@@ -205,11 +209,13 @@ func (f *Factory) Timer(options metrics.TimerOptions) metrics.Timer {
 	labelValues := f.tagsAsLabelValues(labelNames, tags)
 	metric, err := hv.GetMetricWithLabelValues(labelValues...)
 	if err != nil {
-		f.logger.Warn(
-			"Failed to get metric for timer with label values",
-			zap.String("label_names", strings.Join(labelValues, ", ")),
-			zap.Error(err),
-		)
+		if f.logger != nil {
+			f.logger.Warn(
+				"Failed to get metric for timer with label values",
+				zap.String("label_names", strings.Join(labelValues, ", ")),
+				zap.Error(err),
+			)
+		}
 		return metrics.NullTimer
 	}
 	return &timer{
@@ -244,11 +250,13 @@ func (f *Factory) Histogram(options metrics.HistogramOptions) metrics.Histogram 
 	labelValues := f.tagsAsLabelValues(labelNames, tags)
 	metric, err := hv.GetMetricWithLabelValues(labelValues...)
 	if err != nil {
-		f.logger.Warn(
-			"Failed to get metric for histogram with label values",
-			zap.String("label_names", strings.Join(labelValues, ", ")),
-			zap.Error(err),
-		)
+		if f.logger != nil {
+			f.logger.Warn(
+				"Failed to get metric for histogram with label values",
+				zap.String("label_names", strings.Join(labelValues, ", ")),
+				zap.Error(err),
+			)
+		}
 
 		return metrics.NullHistogram
 	}
