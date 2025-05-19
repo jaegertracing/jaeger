@@ -8,7 +8,7 @@ set -euf -o pipefail
 print_help() {
   echo "Usage: $0 [-b binary] [-d database]"
   echo "-b: Which binary to build: 'all-in-one' or 'jaeger' (v2, default)"
-  echo "-d: Which database to use: 'none' (default) or 'elasticsearch'"
+  echo "-d: Which database to use: 'memory' (default) or 'elasticsearch'"
   echo "-h: Print help"
   exit 1
 }
@@ -244,17 +244,15 @@ teardown_services() {
 }
 
 main() {
-  case "$BINARY" in
-    "jaeger")
-      (cd docker-compose/monitor && make build BINARY="$BINARY" && make dev DOCKER_COMPOSE_ARGS="-d")
-      ;;
-    "all-in-one")
-      (cd docker-compose/monitor && make build BINARY="$BINARY" && make dev-v1 DOCKER_COMPOSE_ARGS="-d")
-      ;;
-  esac
+  make_target="dev"
+  if [ "$BINARY" == "all-in-one" ]; then
+      make_target="dev-v1"
+  fi
+
+  (cd docker-compose/monitor && make build BINARY="$BINARY" && make $make_target DOCKER_COMPOSE_ARGS="-d")
 
   if [ "$DATABASE" == "elasticsearch" ]; then
-    (cd docker-compose/monitor && make elasticsearch DOCKER_COMPOSE_ARGS="-d")
+      (cd docker-compose/monitor && make elasticsearch DOCKER_COMPOSE_ARGS="-d")
   fi
 
   wait_for_services
