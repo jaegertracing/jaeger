@@ -93,11 +93,7 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	tags, err := f.getConfig().TagKeysAsFields()
-	if err != nil {
-		return nil, err
-	}
-	params := f.coreFactory.GetSpanWriterParams(tags)
+	params := f.coreFactory.GetSpanWriterParams()
 	wr := esSpanStore.NewSpanWriterV1(params)
 	return wr, nil
 }

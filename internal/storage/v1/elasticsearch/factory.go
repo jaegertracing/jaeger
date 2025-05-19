@@ -49,6 +49,8 @@ type FactoryBase struct {
 	pwdFileWatcher *fswatcher.FSWatcher
 
 	templateBuilder es.TemplateBuilder
+
+	tags []string
 }
 
 func NewFactoryBase(
@@ -65,6 +67,11 @@ func NewFactoryBase(
 	f.metricsFactory = metricsFactory
 	f.logger = logger
 	f.templateBuilder = es.TextTemplateBuilder{}
+	tags, err := f.config.TagKeysAsFields()
+	if err != nil {
+		return nil, err
+	}
+	f.tags = tags
 
 	client, err := f.newClientFn(f.config, logger, metricsFactory)
 	if err != nil {
@@ -114,14 +121,14 @@ func (f *FactoryBase) GetSpanReaderParams() esSpanStore.SpanReaderParams {
 }
 
 // GetSpanWriterParams returns the SpanWriterParams which can be used to initialize the v1 and v2 writers.
-func (f *FactoryBase) GetSpanWriterParams(tags []string) esSpanStore.SpanWriterParams {
+func (f *FactoryBase) GetSpanWriterParams() esSpanStore.SpanWriterParams {
 	return esSpanStore.SpanWriterParams{
 		Client:              f.getClient,
 		IndexPrefix:         f.config.Indices.IndexPrefix,
 		SpanIndex:           f.config.Indices.Spans,
 		ServiceIndex:        f.config.Indices.Services,
 		AllTagsAsFields:     f.config.Tags.AllAsFields,
-		TagKeysAsFields:     tags,
+		TagKeysAsFields:     f.tags,
 		TagDotReplacement:   f.config.Tags.DotReplacement,
 		UseReadWriteAliases: f.config.UseReadWriteAliases,
 		WriteAliasSuffix:    f.config.WriteAliasSuffix,

@@ -251,28 +251,6 @@ func TestIsArchiveCapable(t *testing.T) {
 	}
 }
 
-func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(mockEsServerResponse)
-	}))
-	t.Cleanup(server.Close)
-	cfg := escfg.Configuration{
-		Servers: []string{server.URL},
-		Tags: escfg.TagsAsFields{
-			File: "fixtures/file-does-not-exist.txt",
-		},
-	}
-	f := NewFactory()
-	f.Options = &Options{Config: namespaceConfig{Configuration: cfg}}
-	require.NoError(t, f.Initialize(metrics.NullFactory, zaptest.NewLogger(t)))
-	t.Cleanup(func() {
-		require.NoError(t, f.Close())
-	})
-	r, err := f.CreateSpanWriter()
-	require.ErrorContains(t, err, "open fixtures/file-does-not-exist.txt: no such file or directory")
-	assert.Nil(t, r)
-}
-
 func getTestingFactory(t *testing.T, pwdFile string, server *httptest.Server) *Factory {
 	require.NoError(t, os.WriteFile(pwdFile, []byte(pwd1), 0o600))
 	cfg := escfg.Configuration{

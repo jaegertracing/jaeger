@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 
@@ -41,22 +40,6 @@ func TestNewFactory(t *testing.T) {
 	require.NoError(t, err)
 	err = f.Purge(context.Background())
 	require.NoError(t, err)
-}
-
-func TestTraceWriterErr(t *testing.T) {
-	cfg := escfg.Configuration{
-		Tags: escfg.TagsAsFields{
-			File: "fixtures/file-does-not-exist.txt",
-		},
-	}
-	coreFactory := getTestingFactoryBase(t, &cfg)
-	f := &Factory{coreFactory: coreFactory, config: &cfg}
-	t.Cleanup(func() {
-		require.NoError(t, f.Close())
-	})
-	r, err := f.CreateTraceWriter()
-	require.ErrorContains(t, err, "open fixtures/file-does-not-exist.txt: no such file or directory")
-	assert.Nil(t, r)
 }
 
 func TestESStorageFactoryWithConfig(t *testing.T) {

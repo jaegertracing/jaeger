@@ -45,11 +45,7 @@ func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
 }
 
 func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
-	tags, err := f.config.TagKeysAsFields()
-	if err != nil {
-		return nil, err
-	}
-	params := f.coreFactory.GetSpanWriterParams(tags)
+	params := f.coreFactory.GetSpanWriterParams()
 	wr := v2tracestore.NewTraceWriter(params)
 	return wr, nil
 }
