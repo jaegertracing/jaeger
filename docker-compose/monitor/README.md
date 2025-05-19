@@ -17,6 +17,7 @@ This environment consists the following backend components:
 - [Jaeger All-in-one](https://www.jaegertracing.io/docs/1.24/getting-started/#all-in-one): the full Jaeger stack in a single container image.
 - [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/): vendor agnostic integration layer for traces and metrics. Its main role in this particular development environment is to receive Jaeger spans, forward these spans untouched to Jaeger All-in-one while simultaneously aggregating metrics out of this span data. To learn more about span metrics aggregation, please refer to the [spanmetrics connector documentation][spanmetricsconnectorreadme].
 - [Prometheus](https://prometheus.io/): a metrics collection and query engine, used to scrape metrics computed by OpenTelemetry Collector, and presents an API for Jaeger All-in-one to query these metrics.
+- [Elasticsearch](https://www.elastic.co/elasticsearch): is a trace storage that helps Jaeger store and retrieve span data for searching and visualizing traces in the UI.
 
 The following diagram illustrates the relationship between these components:
 
@@ -76,6 +77,12 @@ docker compose up
 
 ```shell
 docker compose -f docker-compose-v1.yml up
+```
+
+**Jaeger with Elasticsearch as Trace Storage**
+
+```shell
+docker compose -f docker-compose-elasticsearch.yml up
 ```
 
 **Tips:**
