@@ -1,8 +1,9 @@
 gRPC Remote Storage Plugins
 ===========================
 
-> ⚠️ **Deprecation Notice (May 2025)**  
-> This documentation refers to the **v1 gRPC Remote Storage API**, which has now been deprecated.  
+> ⚠️ **Deprecation Notice (May 2025)**
+> This documentation refers to the **v1 gRPC Remote Storage API**, which is deprecated
+> and as of v2.6 no longer supported in Jaeger V2.
 > Users are encouraged to migrate to the [v2 gRPC Remote Storage API](../../v2/grpc/README.md).
 ---
 
