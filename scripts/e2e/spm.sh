@@ -16,6 +16,7 @@ print_help() {
 BINARY='jaeger'
 DATABASE='memory'
 compose_file=docker-compose/monitor/docker-compose.yml
+make_target="dev"
 
 while getopts "b:d:h" opt; do
   case "${opt}" in
@@ -58,10 +59,12 @@ esac
 # Set compose file based on binary and database
 if [ "$BINARY" == "all-in-one" ]; then
   compose_file=docker-compose/monitor/docker-compose-v1.yml
+  make_target="dev-v1"
 fi
 
 if [ "$DATABASE" == "elasticsearch" ]; then
   compose_file=docker-compose/monitor/docker-compose-elasticsearch.yml
+  make_target="elasticsearch"
 fi
 
 timeout=600
@@ -244,16 +247,7 @@ teardown_services() {
 }
 
 main() {
-  make_target="dev"
-  if [ "$BINARY" == "all-in-one" ]; then
-      make_target="dev-v1"
-  fi
-
   (cd docker-compose/monitor && make build BINARY="$BINARY" && make $make_target DOCKER_COMPOSE_ARGS="-d")
-
-  if [ "$DATABASE" == "elasticsearch" ]; then
-      (cd docker-compose/monitor && make elasticsearch DOCKER_COMPOSE_ARGS="-d")
-  fi
 
   wait_for_services
   check_spm
