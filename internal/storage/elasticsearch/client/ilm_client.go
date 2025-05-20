@@ -61,6 +61,5 @@ func (i ILMClient) Exists(ctx context.Context, name string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("failed to get ILM policy: %s, %w", name, err)
 	}
-
 	return true, nil
 }
