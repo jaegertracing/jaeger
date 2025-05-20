@@ -84,7 +84,10 @@ func (t *Tenant) storeTraces(traceId pcommon.TraceID, resourceSpanSlice ptrace.R
 	}
 }
 
-func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) []traceAndId {
+func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndId, error) {
+	if query.SearchDepth <= 0 || query.SearchDepth > t.config.MaxTraces {
+		return nil, errInvalidSearchDepth
+	}
 	t.RLock()
 	defer t.RUnlock()
 	traceAndIds := make([]traceAndId, 0, query.SearchDepth)
@@ -104,7 +107,7 @@ func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) []traceAndId
 			traceAndIds = append(traceAndIds, traceById)
 		}
 	}
-	return traceAndIds
+	return traceAndIds, nil
 }
 
 func validTrace(td ptrace.Traces, query tracestore.TraceQueryParams) bool {
