@@ -3,6 +3,8 @@
 
 package client
 
+import "context"
+
 type IndexAPI interface {
 	GetJaegerIndices(prefix string) ([]Index, error)
 	IndexExists(index string) (bool, error)
@@ -20,5 +22,5 @@ type ClusterAPI interface {
 }
 
 type IndexManagementLifecycleAPI interface {
-	Exists(name string) (bool, error)
+	Exists(ctx context.Context, name string) (bool, error)
 }

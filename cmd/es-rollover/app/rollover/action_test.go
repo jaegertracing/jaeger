@@ -4,6 +4,7 @@
 package rollover
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -123,7 +124,7 @@ func TestRolloverAction(t *testing.T) {
 				IndicesClient: indexClient,
 			}
 			test.setupCallExpectations(indexClient, &test)
-			err := rolloverAction.Do()
+			err := rolloverAction.Do(context.TODO())
 			if test.expectedError || test.unmarshalErrExpected {
 				require.Error(t, err)
 			} else {
