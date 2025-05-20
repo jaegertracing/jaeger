@@ -4,154 +4,88 @@
 package dbmodel
 
 import (
-	"encoding/base64"
-	"encoding/hex"
-	"fmt"
+	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-
-	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
 
-// Deprecated: Use internal.FromDBModel instead.
+// FromDBModel convert the Trace to ptrace.Traces
 func FromDBModel(dbTrace Trace) ptrace.Traces {
 	trace := ptrace.NewTraces()
 	resourceSpans := trace.ResourceSpans().AppendEmpty()
+
+	resourceAttributes := attributesGroupToMap(dbTrace.Resource.Attributes)
+	resourceAttributes.CopyTo(resourceSpans.Resource().Attributes())
+
 	scopeSpans := resourceSpans.ScopeSpans().AppendEmpty()
-	span := scopeSpans.Spans().AppendEmpty()
-
-	sp, err := FromDBSpan(dbTrace.Span)
-	sp.CopyTo(span)
-	if err != nil {
-		jptrace.AddWarnings(span, err.Error())
-	}
-
-	resource := resourceSpans.Resource()
-	rs, err := FromDBResource(dbTrace.Resource)
-	if err != nil {
-		jptrace.AddWarnings(span, err.Error())
-	}
-	rs.CopyTo(resource)
-
 	scope := scopeSpans.Scope()
-	sc, err := FromDBScope(dbTrace.Scope)
-	if err != nil {
-		jptrace.AddWarnings(span, err.Error())
-	}
-	sc.CopyTo(scope)
+	FromDBScope(dbTrace.Scope).CopyTo(scope)
 
+	span := scopeSpans.Spans().AppendEmpty()
+	FromDBSpan(dbTrace.Span).CopyTo(span)
 	for i := range dbTrace.Events {
 		event := span.Events().AppendEmpty()
-		e, err := FromDBEvent(dbTrace.Events[i])
-		if err != nil {
-			jptrace.AddWarnings(span, err.Error())
-		}
-		e.CopyTo(event)
+		fromDBEvent(dbTrace.Events[i]).CopyTo(event)
 	}
 
 	for i := range dbTrace.Links {
 		link := span.Links().AppendEmpty()
-		l, err := FromDBLink(dbTrace.Links[i])
-		if err != nil {
-			jptrace.AddWarnings(span, err.Error())
-		}
-		l.CopyTo(link)
+		fromDBLink(dbTrace.Links[i]).CopyTo(link)
 	}
 	return trace
 }
 
-func FromDBResource(r Resource) (pcommon.Resource, error) {
-	resource := ptrace.NewResourceSpans().Resource()
-	resourceAttributes, err := AttributesGroupToMap(r.Attributes)
-	if err != nil {
-		return resource, fmt.Errorf("failed to decode resource attribute: %w", err)
-	}
-	resourceAttributes.CopyTo(resource.Attributes())
-	return resource, nil
-}
-
-func FromDBScope(s Scope) (pcommon.InstrumentationScope, error) {
+func FromDBScope(s Scope) pcommon.InstrumentationScope {
 	scope := ptrace.NewScopeSpans().Scope()
 	scope.SetName(s.Name)
 	scope.SetVersion(s.Version)
-	attributes, err := AttributesGroupToMap(s.Attributes)
-	if err != nil {
-		return scope, fmt.Errorf("failed to decode scope attribute: %w", err)
-	}
+	attributes := attributesGroupToMap(s.Attributes)
 	attributes.CopyTo(scope.Attributes())
 
-	return scope, nil
+	return scope
 }
 
-func FromDBSpan(s Span) (ptrace.Span, error) {
+func FromDBSpan(s Span) ptrace.Span {
 	span := ptrace.NewSpan()
-	span.SetStartTimestamp(pcommon.NewTimestampFromTime(s.Timestamp))
-	traceId, err := hex.DecodeString(s.TraceId)
-	if err != nil {
-		return span, fmt.Errorf("failed to decode trace Id: %w", err)
-	}
-	span.SetTraceID(pcommon.TraceID(traceId))
-	spanId, err := hex.DecodeString(s.SpanId)
-	if err != nil {
-		return span, fmt.Errorf("failed to decode span Id: %w", err)
-	}
-	span.SetSpanID(pcommon.SpanID(spanId))
-	parentSpanId, err := hex.DecodeString(s.ParentSpanId)
-	if err != nil {
-		return span, fmt.Errorf("failed to decode parent span Id: %w", err)
-	}
-	span.SetParentSpanID(pcommon.SpanID(parentSpanId))
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(s.StartTime))
+	span.SetTraceID(pcommon.TraceID(s.TraceId))
+	span.SetSpanID(pcommon.SpanID(s.SpanId))
+	span.SetParentSpanID(pcommon.SpanID(s.ParentSpanId))
 	span.TraceState().FromRaw(s.TraceState)
 	span.SetName(s.Name)
-	span.SetKind(FromDBSpanKind(s.Kind))
-	span.SetEndTimestamp(pcommon.NewTimestampFromTime(s.Duration))
-	span.Status().SetCode(FromDBStatusCode(s.StatusCode))
+	span.SetKind(fromDBSpanKind(s.Kind))
+	span.SetEndTimestamp(pcommon.NewTimestampFromTime(s.StartTime.Add(time.Duration(s.Duration))))
+	span.Status().SetCode(fromDBStatusCode(s.StatusCode))
 	span.Status().SetMessage(s.StatusMessage)
-	spanAttributes, err := AttributesGroupToMap(s.Attributes)
-	if err != nil {
-		return span, fmt.Errorf("failed to decode span attribute: %w", err)
-	}
+	spanAttributes := attributesGroupToMap(s.Attributes)
 	spanAttributes.CopyTo(span.Attributes())
 
-	return span, nil
+	return span
 }
 
-func FromDBEvent(e Event) (ptrace.SpanEvent, error) {
+func fromDBEvent(e Event) ptrace.SpanEvent {
 	event := ptrace.NewSpanEvent()
 	event.SetName(e.Name)
 	event.SetTimestamp(pcommon.NewTimestampFromTime(e.Timestamp))
 
-	attributes, err := AttributesGroupToMap(e.Attributes)
-	if err != nil {
-		return event, fmt.Errorf("failed to decode event attribute: %w", err)
-	}
+	attributes := attributesGroupToMap(e.Attributes)
 	attributes.CopyTo(event.Attributes())
-	return event, nil
+	return event
 }
 
-func FromDBLink(l Link) (ptrace.SpanLink, error) {
+func fromDBLink(l Link) ptrace.SpanLink {
 	link := ptrace.NewSpanLink()
-	traceId, err := hex.DecodeString(l.TraceId)
-	if err != nil {
-		return link, fmt.Errorf("failed to decode link trace Id: %w", err)
-	}
-	link.SetTraceID(pcommon.TraceID(traceId))
-	spanId, err := hex.DecodeString(l.SpanId)
-	if err != nil {
-		return link, fmt.Errorf("failed to decode link span Id: %w", err)
-	}
-	link.SetSpanID(pcommon.SpanID(spanId))
+
+	link.SetTraceID(pcommon.TraceID(l.TraceId))
+	link.SetSpanID(pcommon.SpanID(l.SpanId))
 	link.TraceState().FromRaw(l.TraceState)
-	attributes, err := AttributesGroupToMap(l.Attributes)
-	if err != nil {
-		return link, fmt.Errorf("failed to decode link attribute: %w", err)
-	}
+	attributes := attributesGroupToMap(l.Attributes)
 	attributes.CopyTo(link.Attributes())
-	return link, nil
+	return link
 }
 
-func FromDBSpanKind(sk string) ptrace.SpanKind {
+func fromDBSpanKind(sk string) ptrace.SpanKind {
 	switch sk {
 	case "Unspecified":
 		return ptrace.SpanKindUnspecified
@@ -169,7 +103,7 @@ func FromDBSpanKind(sk string) ptrace.SpanKind {
 	return ptrace.SpanKindUnspecified
 }
 
-func FromDBStatusCode(sc string) ptrace.StatusCode {
+func fromDBStatusCode(sc string) ptrace.StatusCode {
 	switch sc {
 	case "OK":
 		return ptrace.StatusCodeOk
@@ -181,7 +115,7 @@ func FromDBStatusCode(sc string) ptrace.StatusCode {
 	return ptrace.StatusCodeUnset
 }
 
-func AttributesGroupToMap(group AttributesGroup) (pcommon.Map, error) {
+func attributesGroupToMap(group AttributesGroup) pcommon.Map {
 	result := pcommon.NewMap()
 	for i := range group.BoolKeys {
 		key := group.BoolKeys[i]
@@ -206,11 +140,7 @@ func AttributesGroupToMap(group AttributesGroup) (pcommon.Map, error) {
 	for i := range group.BytesKeys {
 		key := group.BytesKeys[i]
 		value := group.BytesValues[i]
-		bts, err := base64.StdEncoding.DecodeString(value)
-		if err != nil {
-			return result, err
-		}
-		result.PutEmptyBytes(key).FromRaw(bts)
+		result.PutEmptyBytes(key).FromRaw(value)
 	}
-	return result, nil
+	return result
 }
