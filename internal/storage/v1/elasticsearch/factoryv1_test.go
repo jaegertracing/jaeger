@@ -4,15 +4,10 @@
 package elasticsearch
 
 import (
-	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"strings"
-	"sync"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
@@ -20,14 +15,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/config"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
-)
-
-const (
-	pwd1 = "first password"
-	pwd2 = "second password"
-	// and with user name
-	upwd1 = "user:" + pwd1
-	upwd2 = "user:" + pwd2
 )
 
 func TestElasticsearchFactory(t *testing.T) {
@@ -182,57 +169,6 @@ func TestIsArchiveCapable(t *testing.T) {
 			require.Equal(t, test.expected, result)
 		})
 	}
-}
-
-func getTestingFactory(t *testing.T, pwdFile string, server *httptest.Server) *Factory {
-	require.NoError(t, os.WriteFile(pwdFile, []byte(pwd1), 0o600))
-	cfg := escfg.Configuration{
-		Servers:  []string{server.URL},
-		LogLevel: "debug",
-		Authentication: escfg.Authentication{
-			BasicAuthentication: escfg.BasicAuthentication{
-				Username:         "user",
-				PasswordFilePath: pwdFile,
-			},
-		},
-		BulkProcessing: escfg.BulkProcessing{
-			MaxBytes: -1, // disable bulk; we want immediate flush
-		},
-	}
-	coreFactory := &FactoryBase{}
-	f := NewArchiveFactory()
-	f.coreFactory = coreFactory
-	options := &Options{}
-	options.Config = namespaceConfig{Configuration: cfg}
-	f.Options = options
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-	t.Cleanup(func() {
-		require.NoError(t, f.Close())
-	})
-	return f
-}
-
-func getTestingServer(t *testing.T) (*httptest.Server, *sync.Map) {
-	authReceived := &sync.Map{}
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Logf("request to fake ES server: %v", r)
-		// epecting header in the form Authorization:[Basic OmZpcnN0IHBhc3N3b3Jk]
-		h := strings.Split(r.Header.Get("Authorization"), " ")
-		if !assert.Len(t, h, 2) {
-			return
-		}
-		assert.Equal(t, "Basic", h[0])
-		authBytes, err := base64.StdEncoding.DecodeString(h[1])
-		assert.NoError(t, err, "header: %s", h)
-		auth := string(authBytes)
-		authReceived.Store(auth, auth)
-		t.Logf("request to fake ES server contained auth=%s", auth)
-		w.Write(mockEsServerResponse)
-	}))
-	t.Cleanup(func() {
-		server.Close()
-	})
-	return server, authReceived
 }
 
 func getTestingFactoryBase(t *testing.T, cfg *escfg.Configuration) *FactoryBase {
