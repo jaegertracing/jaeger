@@ -14,6 +14,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
 
+// Deprecated: Use internal.FromDBModel instead.
 func FromDBModel(dbTrace Trace) ptrace.Traces {
 	trace := ptrace.NewTraces()
 	resourceSpans := trace.ResourceSpans().AppendEmpty()

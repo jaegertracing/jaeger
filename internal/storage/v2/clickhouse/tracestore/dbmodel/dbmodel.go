@@ -5,6 +5,7 @@ package dbmodel
 
 import "time"
 
+// Deprecated: Use internal.Trace instead.
 // Trace Domain model in Clickhouse.
 // This struct represents the schema for storing OTel pipeline Traces in Clickhouse.
 type Trace struct {
@@ -15,16 +16,19 @@ type Trace struct {
 	Events   []Event
 }
 
+// Deprecated: Use internal.Resource instead.
 type Resource struct {
 	Attributes AttributesGroup
 }
 
+// Deprecated: Use internal.Scope instead.
 type Scope struct {
 	Name       string
 	Version    string
 	Attributes AttributesGroup
 }
 
+// Deprecated: Use internal.Trace instead.
 type Span struct {
 	Timestamp     time.Time
 	TraceId       string
@@ -39,6 +43,7 @@ type Span struct {
 	Attributes    AttributesGroup
 }
 
+// Deprecated: Use internal.Link instead.
 type Link struct {
 	TraceId    string
 	SpanId     string
@@ -46,6 +51,7 @@ type Link struct {
 	Attributes AttributesGroup
 }
 
+// Deprecated: Use internal.Event instead.
 type Event struct {
 	Name       string
 	Timestamp  time.Time

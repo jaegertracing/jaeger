@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
+// Deprecated: Use internal.ToDBModel instead.
 // ToDBModel Converts the OTel pipeline Traces into a ClickHouse-compatible format for batch insertion.
 // It maps the trace attributes, spans, links and events from the OTel model to the appropriate ClickHouse column types
 func ToDBModel(td ptrace.Traces) proto.Input {
