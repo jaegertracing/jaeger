@@ -6,12 +6,16 @@ package elasticsearch
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -23,6 +27,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 	esDepStorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
@@ -221,7 +226,9 @@ func TestCreateTemplates(t *testing.T) {
 		mockClient.On("CreateTemplate", jaegerServiceId).Return(test.serviceTemplateService())
 		err = f.createTemplates(context.Background())
 		if test.err != "" {
-			require.Error(t, err, test.err)
+			require.ErrorContains(t, err, test.err)
+		} else {
+			require.NoError(t, err)
 		}
 	}
 }
@@ -249,6 +256,110 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 	}
 	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop())
 	require.ErrorContains(t, err, "failed to create Elasticsearch client")
+}
+
+func TestPasswordFromFile(t *testing.T) {
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnce(t)
+	})
+	t.Run("primary client", func(t *testing.T) {
+		testPasswordFromFile(t)
+	})
+
+	t.Run("load token error", func(t *testing.T) {
+		file := filepath.Join(t.TempDir(), "does not exist")
+		token, err := loadTokenFromFile(file)
+		require.Error(t, err)
+		assert.Empty(t, token)
+	})
+}
+
+func testPasswordFromFile(t *testing.T) {
+	const (
+		pwd1 = "first password"
+		pwd2 = "second password"
+		// and with user name
+		upwd1 = "user:" + pwd1
+		upwd2 = "user:" + pwd2
+	)
+	var authReceived sync.Map
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Logf("request to fake ES server: %v", r)
+		// epecting header in the form Authorization:[Basic OmZpcnN0IHBhc3N3b3Jk]
+		h := strings.Split(r.Header.Get("Authorization"), " ")
+		if !assert.Len(t, h, 2) {
+			return
+		}
+		assert.Equal(t, "Basic", h[0])
+		authBytes, err := base64.StdEncoding.DecodeString(h[1])
+		assert.NoError(t, err, "header: %s", h)
+		auth := string(authBytes)
+		authReceived.Store(auth, auth)
+		t.Logf("request to fake ES server contained auth=%s", auth)
+		w.Write(mockEsServerResponse)
+	}))
+	t.Cleanup(server.Close)
+
+	pwdFile := filepath.Join(t.TempDir(), "pwd")
+	require.NoError(t, os.WriteFile(pwdFile, []byte(pwd1), 0o600))
+
+	cfg := escfg.Configuration{
+		Servers:  []string{server.URL},
+		LogLevel: "debug",
+		Authentication: escfg.Authentication{
+			BasicAuthentication: escfg.BasicAuthentication{
+				Username:         "user",
+				PasswordFilePath: pwdFile,
+			},
+		},
+		BulkProcessing: escfg.BulkProcessing{
+			MaxBytes: -1, // disable bulk; we want immediate flush
+		},
+	}
+	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, f.Close())
+	})
+
+	writer := spanstore.NewSpanWriter(f.GetSpanWriterParams())
+	span := &dbmodel.Span{
+		Process: dbmodel.Process{ServiceName: "foo"},
+	}
+	writer.WriteSpan(time.Now(), span)
+	assert.Eventually(t,
+		func() bool {
+			pwd, ok := authReceived.Load(upwd1)
+			return ok && pwd == upwd1
+		},
+		5*time.Second, time.Millisecond,
+		"expecting es.Client to send the first password",
+	)
+
+	t.Log("replace password in the file")
+	client1 := f.getClient()
+	newPwdFile := filepath.Join(t.TempDir(), "pwd2")
+	require.NoError(t, os.WriteFile(newPwdFile, []byte(pwd2), 0o600))
+	require.NoError(t, os.Rename(newPwdFile, pwdFile))
+
+	assert.Eventually(t,
+		func() bool {
+			client2 := f.getClient()
+			return client1 != client2
+		},
+		5*time.Second, time.Millisecond,
+		"expecting es.Client to change for the new password",
+	)
+
+	writer.WriteSpan(time.Now(), span)
+	assert.Eventually(t,
+		func() bool {
+			pwd, ok := authReceived.Load(upwd2)
+			return ok && pwd == upwd2
+		},
+		5*time.Second, time.Millisecond,
+		"expecting es.Client to send the new password",
+	)
 }
 
 func TestFactoryESClientsAreNil(t *testing.T) {

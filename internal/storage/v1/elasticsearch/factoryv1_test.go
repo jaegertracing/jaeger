@@ -4,29 +4,22 @@
 package elasticsearch
 
 import (
-	"context"
 	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/config"
 	"github.com/jaegertracing/jaeger/internal/metrics"
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 const (
@@ -57,24 +50,6 @@ func TestElasticsearchFactory(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, f.Close())
-}
-
-func TestPasswordFromFile(t *testing.T) {
-	t.Cleanup(func() {
-		testutils.VerifyGoLeaksOnce(t)
-	})
-	t.Run("primary client", func(t *testing.T) {
-		pwdFile := filepath.Join(t.TempDir(), "pwd")
-		server, authReceived := getTestingServer(t)
-		f := getTestingFactory(t, pwdFile, server)
-		testPasswordFromFile(t, pwdFile, authReceived, f.coreFactory.getClient, f.CreateSpanWriter)
-	})
-	t.Run("load token error", func(t *testing.T) {
-		file := filepath.Join(t.TempDir(), "does not exist")
-		token, err := loadTokenFromFile(file)
-		require.Error(t, err)
-		assert.Empty(t, token)
-	})
 }
 
 func TestInheritSettingsFrom(t *testing.T) {
@@ -162,48 +137,6 @@ func TestFactoryInitializeErr(t *testing.T) {
 			require.EqualError(t, err, test.expectedErr)
 		})
 	}
-}
-
-func testPasswordFromFile(t *testing.T, pwdFile string, authReceived *sync.Map, getClient func() es.Client, getWriter func() (spanstore.Writer, error)) {
-	writer, err := getWriter()
-	require.NoError(t, err)
-	span := &model.Span{
-		Process: &model.Process{ServiceName: "foo"},
-	}
-	require.NoError(t, writer.WriteSpan(context.Background(), span))
-	assert.Eventually(t,
-		func() bool {
-			pwd, ok := authReceived.Load(upwd1)
-			return ok && pwd == upwd1
-		},
-		5*time.Second, time.Millisecond,
-		"expecting es.Client to send the first password",
-	)
-
-	t.Log("replace password in the file")
-	client1 := getClient()
-	newPwdFile := filepath.Join(t.TempDir(), "pwd2")
-	require.NoError(t, os.WriteFile(newPwdFile, []byte(pwd2), 0o600))
-	require.NoError(t, os.Rename(newPwdFile, pwdFile))
-
-	assert.Eventually(t,
-		func() bool {
-			client2 := getClient()
-			return client1 != client2
-		},
-		5*time.Second, time.Millisecond,
-		"expecting es.Client to change for the new password",
-	)
-
-	require.NoError(t, writer.WriteSpan(context.Background(), span))
-	assert.Eventually(t,
-		func() bool {
-			pwd, ok := authReceived.Load(upwd2)
-			return ok && pwd == upwd2
-		},
-		5*time.Second, time.Millisecond,
-		"expecting es.Client to send the new password",
-	)
 }
 
 func TestIsArchiveCapable(t *testing.T) {
