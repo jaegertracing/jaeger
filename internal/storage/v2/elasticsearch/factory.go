@@ -24,7 +24,7 @@ var (
 
 type Factory struct {
 	coreFactory *elasticsearch.FactoryBase
-	config      *escfg.Configuration
+	config      escfg.Configuration
 }
 
 func NewFactory(ctx context.Context, cfg escfg.Configuration, telset telemetry.Settings) (*Factory, error) {
@@ -34,7 +34,7 @@ func NewFactory(ctx context.Context, cfg escfg.Configuration, telset telemetry.S
 	}
 	f := &Factory{
 		coreFactory: coreFactory,
-		config:      &cfg,
+		config:      cfg,
 	}
 	return f, nil
 }

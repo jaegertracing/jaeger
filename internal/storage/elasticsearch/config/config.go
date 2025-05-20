@@ -624,5 +624,8 @@ func (c *Configuration) Validate() error {
 	if c.UseILM && !c.UseReadWriteAliases {
 		return errors.New("UseILM must always be used in conjunction with UseReadWriteAliases to ensure ES writers and readers refer to the single index mapping")
 	}
+	if c.CreateIndexTemplates && c.UseILM {
+		return errors.New("when UseILM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app")
+	}
 	return nil
 }

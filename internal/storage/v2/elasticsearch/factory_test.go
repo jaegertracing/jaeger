@@ -27,8 +27,8 @@ var mockEsServerResponse = []byte(`
 `)
 
 func TestNewFactory(t *testing.T) {
-	cfg := &escfg.Configuration{}
-	coreFactory := getTestingFactoryBase(t, cfg)
+	cfg := escfg.Configuration{}
+	coreFactory := getTestingFactoryBase(t, &cfg)
 	f := &Factory{coreFactory: coreFactory, config: cfg}
 	_, err := f.CreateTraceReader()
 	require.NoError(t, err)

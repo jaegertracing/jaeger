@@ -24,6 +24,8 @@ import (
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
+	esDepStorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
@@ -34,6 +36,45 @@ var mockEsServerResponse = []byte(`
 	}
 }
 `)
+
+func TestElasticsearchFactoryBase(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write(mockEsServerResponse)
+	}))
+	t.Cleanup(server.Close)
+	cfg := escfg.Configuration{
+		Servers:  []string{server.URL},
+		LogLevel: "debug",
+	}
+	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t))
+	require.NoError(t, err)
+	readerParams := f.GetSpanReaderParams()
+	assert.IsType(t, spanstore.SpanReaderParams{}, readerParams)
+	writerParams := f.GetSpanWriterParams()
+	assert.IsType(t, spanstore.SpanWriterParams{}, writerParams)
+	depParams := f.GetDependencyStoreParams()
+	assert.IsType(t, esDepStorev2.Params{}, depParams)
+	_, err = f.CreateSamplingStore(1)
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+}
+
+func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write(mockEsServerResponse)
+	}))
+	t.Cleanup(server.Close)
+	cfg := escfg.Configuration{
+		Servers: []string{server.URL},
+		Tags: escfg.TagsAsFields{
+			File: "fixtures/file-does-not-exist.txt",
+		},
+		LogLevel: "debug",
+	}
+	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t))
+	require.ErrorContains(t, err, "open fixtures/file-does-not-exist.txt: no such file or directory")
+	assert.Nil(t, f)
+}
 
 func TestTagKeysAsFields(t *testing.T) {
 	tests := []struct {
@@ -183,23 +224,6 @@ func TestCreateTemplates(t *testing.T) {
 			require.Error(t, err, test.err)
 		}
 	}
-}
-
-func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(mockEsServerResponse)
-	}))
-	t.Cleanup(server.Close)
-	cfg := escfg.Configuration{
-		Servers: []string{server.URL},
-		Tags: escfg.TagsAsFields{
-			File: "fixtures/file-does-not-exist.txt",
-		},
-		LogLevel: "debug",
-	}
-	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t))
-	require.ErrorContains(t, err, "open fixtures/file-does-not-exist.txt: no such file or directory")
-	assert.Nil(t, f)
 }
 
 func TestESStorageFactoryWithConfig(t *testing.T) {

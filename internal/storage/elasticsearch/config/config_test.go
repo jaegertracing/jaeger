@@ -749,6 +749,11 @@ func TestValidate(t *testing.T) {
 			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, UseILM: true},
 			expectedError: "UseILM must always be used in conjunction with UseReadWriteAliases to ensure ES writers and readers refer to the single index mapping",
 		},
+		{
+			name:          "ilm and create templates enabled",
+			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, UseILM: true, CreateIndexTemplates: true, UseReadWriteAliases: true},
+			expectedError: "when UseILM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app",
+		},
 	}
 
 	for _, test := range tests {

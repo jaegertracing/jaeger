@@ -29,6 +29,8 @@ import (
 	esDepStorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
 )
 
+var _ io.Closer = (*FactoryBase)(nil)
+
 const (
 	primaryNamespace = "es"
 	archiveNamespace = "es-archive"
@@ -87,8 +89,7 @@ func NewFactoryBase(
 		f.pwdFileWatcher = watcher
 	}
 
-	err = f.createTemplates(ctx)
-	if err != nil {
+	if err = f.createTemplates(ctx); err != nil {
 		return nil, err
 	}
 
@@ -185,8 +186,6 @@ func (f *FactoryBase) mappingBuilderFromConfig(cfg *config.Configuration) mappin
 	}
 }
 
-var _ io.Closer = (*FactoryBase)(nil)
-
 // Close closes the resources held by the factory
 func (f *FactoryBase) Close() error {
 	var errs []error
@@ -242,7 +241,7 @@ func loadTokenFromFile(path string) (string, error) {
 
 func (f *FactoryBase) createTemplates(ctx context.Context) error {
 	// Creating a template here would conflict with the one created for ILM resulting to no index rollover
-	if f.config.CreateIndexTemplates && !f.config.UseILM {
+	if f.config.CreateIndexTemplates {
 		mappingBuilder := f.mappingBuilderFromConfig(f.config)
 		spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
 		if err != nil {
