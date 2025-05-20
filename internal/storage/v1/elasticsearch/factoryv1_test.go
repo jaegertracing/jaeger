@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
@@ -37,6 +38,27 @@ func TestElasticsearchFactory(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, f.Close())
+}
+
+func TestNewFactoryWithConfig(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write(mockEsServerResponse)
+	}))
+	t.Cleanup(server.Close)
+	cfg := escfg.Configuration{
+		Servers: []string{server.URL},
+	}
+	f, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, f.Close())
+	})
+}
+
+func TestNewFactoryWithConfig_Error(t *testing.T) {
+	f, err := NewFactoryWithConfig(escfg.Configuration{}, metrics.NullFactory, zap.NewNop())
+	assert.Nil(t, f)
+	require.ErrorContains(t, err, "Servers: non zero value required")
 }
 
 func TestInheritSettingsFrom(t *testing.T) {
