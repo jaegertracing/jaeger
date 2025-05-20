@@ -13,7 +13,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
-const insertTrace = "INSERT INTO otel_traces"
+const insertTrace = "INSERT INTO traces"
 
 type Writer struct {
 	client clickhouse.Conn
@@ -26,8 +26,9 @@ func (tw *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 		return fmt.Errorf("error closing ClickHouse batch: %w", err)
 	}
 
-	// traces now using the proto.Input to write, it should be replaced once chpool has been dropped.
-	// see https://github.com/jaegertracing/jaeger/pull/7093
+	// The dbmodel.ToDBModel is now based on the ch-go library.
+	// It will be deprecated in favor of a new function based on the clickhouse-go library.
+	// For more information, see https://github.com/jaegertracing/jaeger/pull/7149.
 	traces := dbmodel.ToDBModel(td)
 
 	for range traces {
