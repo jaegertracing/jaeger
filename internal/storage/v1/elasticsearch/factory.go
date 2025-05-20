@@ -7,7 +7,6 @@ package elasticsearch
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -15,7 +14,6 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -24,36 +22,22 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
-	"github.com/jaegertracing/jaeger/internal/storage/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
-	esDepStore "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
 	esSampleStore "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/samplingstore"
 	esSpanStore "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 	esDepStorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
 )
 
+var _ io.Closer = (*FactoryBase)(nil)
+
 const (
 	primaryNamespace = "es"
 	archiveNamespace = "es-archive"
 )
 
-var ( // interface comformance checks
-	_ storage.Factory        = (*Factory)(nil)
-	_ io.Closer              = (*Factory)(nil)
-	_ storage.Configurable   = (*Factory)(nil)
-	_ storage.Inheritable    = (*Factory)(nil)
-	_ storage.Purger         = (*Factory)(nil)
-	_ storage.ArchiveCapable = (*Factory)(nil)
-)
-
-// Factory implements storage.Factory for Elasticsearch backend.
-type Factory struct {
-	Options *Options
-
+// FactoryBase implements storage.Factory for Elasticsearch backend.
+type FactoryBase struct {
 	metricsFactory metrics.Factory
 	logger         *zap.Logger
 	tracer         trace.TracerProvider
@@ -65,201 +49,109 @@ type Factory struct {
 	client atomic.Pointer[es.Client]
 
 	pwdFileWatcher *fswatcher.FSWatcher
+
+	templateBuilder es.TemplateBuilder
+
+	tags []string
 }
 
-// NewFactory creates a new Factory.
-func NewFactory() *Factory {
-	return &Factory{
-		Options:     NewOptions(primaryNamespace),
-		newClientFn: config.NewClient,
-		tracer:      otel.GetTracerProvider(),
-	}
-}
-
-func NewArchiveFactory() *Factory {
-	return &Factory{
-		Options:     NewOptions(archiveNamespace),
-		newClientFn: config.NewClient,
-		tracer:      otel.GetTracerProvider(),
-	}
-}
-
-func NewFactoryWithConfig(
+func NewFactoryBase(
+	ctx context.Context,
 	cfg config.Configuration,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
-) (*Factory, error) {
-	if err := cfg.Validate(); err != nil {
-		return nil, err
-	}
-
-	defaultConfig := DefaultConfig()
-	cfg.ApplyDefaults(&defaultConfig)
-
-	f := &Factory{
+) (*FactoryBase, error) {
+	f := &FactoryBase{
 		config:      &cfg,
 		newClientFn: config.NewClient,
 		tracer:      otel.GetTracerProvider(),
 	}
-	err := f.Initialize(metricsFactory, logger)
+	f.metricsFactory = metricsFactory
+	f.logger = logger
+	f.templateBuilder = es.TextTemplateBuilder{}
+	tags, err := f.config.TagKeysAsFields()
 	if err != nil {
 		return nil, err
 	}
-	return f, nil
-}
-
-// AddFlags implements storage.Configurable
-func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
-	f.Options.AddFlags(flagSet)
-}
-
-// InitFromViper implements storage.Configurable
-func (f *Factory) InitFromViper(v *viper.Viper, _ *zap.Logger) {
-	f.Options.InitFromViper(v)
-	f.configureFromOptions(f.Options)
-}
-
-// configureFromOptions configures factory from Options struct.
-func (f *Factory) configureFromOptions(o *Options) {
-	f.Options = o
-	f.config = f.Options.GetConfig()
-}
-
-// Initialize implements storage.Factory.
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
-	f.metricsFactory = metricsFactory
-	f.logger = logger
+	f.tags = tags
 
 	client, err := f.newClientFn(f.config, logger, metricsFactory)
 	if err != nil {
-		return fmt.Errorf("failed to create Elasticsearch client: %w", err)
+		return nil, fmt.Errorf("failed to create Elasticsearch client: %w", err)
 	}
 	f.client.Store(&client)
 
 	if f.config.Authentication.BasicAuthentication.PasswordFilePath != "" {
 		watcher, err := fswatcher.New([]string{f.config.Authentication.BasicAuthentication.PasswordFilePath}, f.onPasswordChange, f.logger)
 		if err != nil {
-			return fmt.Errorf("failed to create watcher for ES client's password: %w", err)
+			return nil, fmt.Errorf("failed to create watcher for ES client's password: %w", err)
 		}
 		f.pwdFileWatcher = watcher
 	}
 
-	if f.Options != nil && f.Options.Config.namespace == archiveNamespace {
-		aliasSuffix := "archive"
-		if f.config.UseReadWriteAliases {
-			f.config.ReadAliasSuffix = aliasSuffix + "-read"
-			f.config.WriteAliasSuffix = aliasSuffix + "-write"
-		} else {
-			f.config.ReadAliasSuffix = aliasSuffix
-			f.config.WriteAliasSuffix = aliasSuffix
-		}
-		f.config.UseReadWriteAliases = true
+	if err = f.createTemplates(ctx); err != nil {
+		return nil, err
 	}
 
-	return nil
+	return f, nil
 }
 
-func (f *Factory) getClient() es.Client {
+func (f *FactoryBase) getClient() es.Client {
 	if c := f.client.Load(); c != nil {
 		return *c
 	}
 	return nil
 }
 
-// CreateSpanReader implements storage.Factory
-func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	sr, err := createSpanReader(f.getClient, f.config, f.logger, f.tracer, f.config.ReadAliasSuffix, f.config.UseReadWriteAliases)
-	if err != nil {
-		return nil, err
+// GetSpanReaderParams returns the SpanReaderParams which can be used to initialize the v1 and v2 readers.
+func (f *FactoryBase) GetSpanReaderParams() esSpanStore.SpanReaderParams {
+	return esSpanStore.SpanReaderParams{
+		Client:              f.getClient,
+		MaxDocCount:         f.config.MaxDocCount,
+		MaxSpanAge:          f.config.MaxSpanAge,
+		IndexPrefix:         f.config.Indices.IndexPrefix,
+		SpanIndex:           f.config.Indices.Spans,
+		ServiceIndex:        f.config.Indices.Services,
+		TagDotReplacement:   f.config.Tags.DotReplacement,
+		UseReadWriteAliases: f.config.UseReadWriteAliases,
+		ReadAliasSuffix:     f.config.ReadAliasSuffix,
+		RemoteReadClusters:  f.config.RemoteReadClusters,
+		Logger:              f.logger,
+		Tracer:              f.tracer.Tracer("esSpanStore.SpanReader"),
 	}
-	return spanstoremetrics.NewReaderDecorator(sr, f.metricsFactory), nil
 }
 
-// CreateSpanWriter implements storage.Factory
-func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return createSpanWriter(f.getClient, f.config, f.metricsFactory, f.logger, f.config.WriteAliasSuffix, f.config.UseReadWriteAliases)
+// GetSpanWriterParams returns the SpanWriterParams which can be used to initialize the v1 and v2 writers.
+func (f *FactoryBase) GetSpanWriterParams() esSpanStore.SpanWriterParams {
+	return esSpanStore.SpanWriterParams{
+		Client:              f.getClient,
+		IndexPrefix:         f.config.Indices.IndexPrefix,
+		SpanIndex:           f.config.Indices.Spans,
+		ServiceIndex:        f.config.Indices.Services,
+		AllTagsAsFields:     f.config.Tags.AllAsFields,
+		TagKeysAsFields:     f.tags,
+		TagDotReplacement:   f.config.Tags.DotReplacement,
+		UseReadWriteAliases: f.config.UseReadWriteAliases,
+		WriteAliasSuffix:    f.config.WriteAliasSuffix,
+		Logger:              f.logger,
+		MetricsFactory:      f.metricsFactory,
+		ServiceCacheTTL:     f.config.ServiceCacheTTL,
+	}
 }
 
-// CreateDependencyReader implements storage.Factory
-func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	return createDependencyReader(f.getClient, f.config, f.logger)
+// GetDependencyStoreParams returns the esDepStorev2.Params which can be used to initialize the v1 and v2 dependency stores.
+func (f *FactoryBase) GetDependencyStoreParams() esDepStorev2.Params {
+	return esDepStorev2.Params{
+		Client:              f.getClient,
+		Logger:              f.logger,
+		IndexPrefix:         f.config.Indices.IndexPrefix,
+		IndexDateLayout:     f.config.Indices.Dependencies.DateLayout,
+		MaxDocCount:         f.config.MaxDocCount,
+		UseReadWriteAliases: f.config.UseReadWriteAliases,
+	}
 }
 
-func createSpanReader(
-	clientFn func() es.Client,
-	cfg *config.Configuration,
-	logger *zap.Logger,
-	tp trace.TracerProvider,
-	readAliasSuffix string,
-	useReadWriteAliases bool,
-) (spanstore.Reader, error) {
-	if cfg.UseILM && !cfg.UseReadWriteAliases {
-		return nil, errors.New("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
-	}
-	return esSpanStore.NewSpanReaderV1(esSpanStore.SpanReaderParams{
-		Client:              clientFn,
-		MaxDocCount:         cfg.MaxDocCount,
-		MaxSpanAge:          cfg.MaxSpanAge,
-		IndexPrefix:         cfg.Indices.IndexPrefix,
-		SpanIndex:           cfg.Indices.Spans,
-		ServiceIndex:        cfg.Indices.Services,
-		TagDotReplacement:   cfg.Tags.DotReplacement,
-		UseReadWriteAliases: useReadWriteAliases,
-		ReadAliasSuffix:     readAliasSuffix,
-		RemoteReadClusters:  cfg.RemoteReadClusters,
-		Logger:              logger,
-		Tracer:              tp.Tracer("esSpanStore.SpanReader"),
-	}), nil
-}
-
-func createSpanWriter(
-	clientFn func() es.Client,
-	cfg *config.Configuration,
-	mFactory metrics.Factory,
-	logger *zap.Logger,
-	writeAliasSuffix string,
-	useReadWriteAliases bool,
-) (spanstore.Writer, error) {
-	var tags []string
-	var err error
-	if cfg.UseILM && !cfg.UseReadWriteAliases {
-		return nil, errors.New("--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
-	}
-	if tags, err = cfg.TagKeysAsFields(); err != nil {
-		logger.Error("failed to get tag keys", zap.Error(err))
-		return nil, err
-	}
-
-	writer := esSpanStore.NewSpanWriterV1(esSpanStore.SpanWriterParams{
-		Client:              clientFn,
-		IndexPrefix:         cfg.Indices.IndexPrefix,
-		SpanIndex:           cfg.Indices.Spans,
-		ServiceIndex:        cfg.Indices.Services,
-		AllTagsAsFields:     cfg.Tags.AllAsFields,
-		TagKeysAsFields:     tags,
-		TagDotReplacement:   cfg.Tags.DotReplacement,
-		UseReadWriteAliases: useReadWriteAliases,
-		WriteAliasSuffix:    writeAliasSuffix,
-		Logger:              logger,
-		MetricsFactory:      mFactory,
-		ServiceCacheTTL:     cfg.ServiceCacheTTL,
-	})
-
-	// Creating a template here would conflict with the one created for ILM resulting to no index rollover
-	if cfg.CreateIndexTemplates && !cfg.UseILM {
-		mappingBuilder := mappingBuilderFromConfig(cfg)
-		spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
-		if err != nil {
-			return nil, err
-		}
-		if err := writer.CreateTemplates(spanMapping, serviceMapping, cfg.Indices.IndexPrefix); err != nil {
-			return nil, err
-		}
-	}
-	return writer, nil
-}
-
-func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
+func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
 	params := esSampleStore.Params{
 		Client:                 f.getClient,
 		Logger:                 f.logger,
@@ -271,8 +163,8 @@ func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store
 	}
 	store := esSampleStore.NewSamplingStore(params)
 
-	if f.config.CreateIndexTemplates && !f.config.UseILM {
-		mappingBuilder := mappingBuilderFromConfig(f.config)
+	if f.config.CreateIndexTemplates {
+		mappingBuilder := f.mappingBuilderFromConfig(f.config)
 		samplingMapping, err := mappingBuilder.GetSamplingMappings()
 		if err != nil {
 			return nil, err
@@ -285,35 +177,17 @@ func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store
 	return store, nil
 }
 
-func mappingBuilderFromConfig(cfg *config.Configuration) mappings.MappingBuilder {
+func (f *FactoryBase) mappingBuilderFromConfig(cfg *config.Configuration) mappings.MappingBuilder {
 	return mappings.MappingBuilder{
-		TemplateBuilder: es.TextTemplateBuilder{},
+		TemplateBuilder: f.templateBuilder,
 		Indices:         cfg.Indices,
 		EsVersion:       cfg.Version,
 		UseILM:          cfg.UseILM,
 	}
 }
 
-func createDependencyReader(
-	clientFn func() es.Client,
-	cfg *config.Configuration,
-	logger *zap.Logger,
-) (dependencystore.Reader, error) {
-	reader := esDepStore.NewDependencyStoreV1(esDepStorev2.Params{
-		Client:              clientFn,
-		Logger:              logger,
-		IndexPrefix:         cfg.Indices.IndexPrefix,
-		IndexDateLayout:     cfg.Indices.Dependencies.DateLayout,
-		MaxDocCount:         cfg.MaxDocCount,
-		UseReadWriteAliases: cfg.UseReadWriteAliases,
-	})
-	return reader, nil
-}
-
-var _ io.Closer = (*Factory)(nil)
-
 // Close closes the resources held by the factory
-func (f *Factory) Close() error {
+func (f *FactoryBase) Close() error {
 	var errs []error
 
 	if f.pwdFileWatcher != nil {
@@ -324,11 +198,11 @@ func (f *Factory) Close() error {
 	return errors.Join(errs...)
 }
 
-func (f *Factory) onPasswordChange() {
+func (f *FactoryBase) onPasswordChange() {
 	f.onClientPasswordChange(f.config, &f.client, f.metricsFactory)
 }
 
-func (f *Factory) onClientPasswordChange(cfg *config.Configuration, client *atomic.Pointer[es.Client], mf metrics.Factory) {
+func (f *FactoryBase) onClientPasswordChange(cfg *config.Configuration, client *atomic.Pointer[es.Client], mf metrics.Factory) {
 	newPassword, err := loadTokenFromFile(cfg.Authentication.BasicAuthentication.PasswordFilePath)
 	if err != nil {
 		f.logger.Error("failed to reload password for Elasticsearch client", zap.Error(err))
@@ -351,7 +225,7 @@ func (f *Factory) onClientPasswordChange(cfg *config.Configuration, client *atom
 	}
 }
 
-func (f *Factory) Purge(ctx context.Context) error {
+func (f *FactoryBase) Purge(ctx context.Context) error {
 	esClient := f.getClient()
 	_, err := esClient.DeleteIndex("*").Do(ctx)
 	return err
@@ -365,12 +239,23 @@ func loadTokenFromFile(path string) (string, error) {
 	return strings.TrimRight(string(b), "\r\n"), nil
 }
 
-func (f *Factory) InheritSettingsFrom(other storage.Factory) {
-	if otherFactory, ok := other.(*Factory); ok {
-		f.config.ApplyDefaults(otherFactory.config)
+func (f *FactoryBase) createTemplates(ctx context.Context) error {
+	if f.config.CreateIndexTemplates {
+		mappingBuilder := f.mappingBuilderFromConfig(f.config)
+		spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
+		if err != nil {
+			return err
+		}
+		jaegerSpanIdx := f.config.Indices.IndexPrefix.Apply("jaeger-span")
+		jaegerServiceIdx := f.config.Indices.IndexPrefix.Apply("jaeger-service")
+		_, err = f.getClient().CreateTemplate(jaegerSpanIdx).Body(spanMapping).Do(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to create template %q: %w", jaegerSpanIdx, err)
+		}
+		_, err = f.getClient().CreateTemplate(jaegerServiceIdx).Body(serviceMapping).Do(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to create template %q: %w", jaegerServiceIdx, err)
+		}
 	}
-}
-
-func (f *Factory) IsArchiveCapable() bool {
-	return f.Options.Config.namespace == archiveNamespace && f.Options.Config.Enabled
+	return nil
 }

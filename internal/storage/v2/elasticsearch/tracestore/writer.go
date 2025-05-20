@@ -9,7 +9,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 )
 
@@ -32,10 +31,6 @@ func (t *TraceWriter) WriteTraces(_ context.Context, td ptrace.Traces) error {
 		t.spanWriter.WriteSpan(model.EpochMicrosecondsAsTime(span.StartTime), span)
 	}
 	return nil
-}
-
-func (t *TraceWriter) CreateTemplates(spanTemplate, serviceTemplate string, indexPrefix cfg.IndexPrefix) error {
-	return t.spanWriter.CreateTemplates(spanTemplate, serviceTemplate, indexPrefix)
 }
 
 func (t *TraceWriter) Close() error {

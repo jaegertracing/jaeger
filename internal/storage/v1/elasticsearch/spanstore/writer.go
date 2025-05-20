@@ -5,8 +5,6 @@
 package spanstore
 
 import (
-	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -44,8 +42,6 @@ type SpanWriter struct {
 
 // CoreSpanWriter is a DB-Level abstraction which directly deals with database level operations
 type CoreSpanWriter interface {
-	// CreateTemplates creates index templates.
-	CreateTemplates(spanTemplate, serviceTemplate string, indexPrefix cfg.IndexPrefix) error
 	// WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 	WriteSpan(spanStartTime time.Time, span *dbmodel.Span)
 	// Close closes CoreSpanWriter
@@ -100,21 +96,6 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		allTagsAsFields:   p.AllTagsAsFields,
 		tagDotReplacement: p.TagDotReplacement,
 	}
-}
-
-// CreateTemplates creates index templates.
-func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate string, indexPrefix cfg.IndexPrefix) error {
-	jaegerSpanIdx := indexPrefix.Apply("jaeger-span")
-	jaegerServiceIdx := indexPrefix.Apply("jaeger-service")
-	_, err := s.client().CreateTemplate(jaegerSpanIdx).Body(spanTemplate).Do(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to create template %q: %w", jaegerSpanIdx, err)
-	}
-	_, err = s.client().CreateTemplate(jaegerServiceIdx).Body(serviceTemplate).Do(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to create template %q: %w", jaegerServiceIdx, err)
-	}
-	return nil
 }
 
 // spanAndServiceIndexFn returns names of span and service indices

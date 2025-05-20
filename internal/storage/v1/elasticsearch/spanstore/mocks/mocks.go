@@ -12,7 +12,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -395,53 +394,6 @@ func (_c *CoreSpanWriter_Close_Call) Return(err error) *CoreSpanWriter_Close_Cal
 }
 
 func (_c *CoreSpanWriter_Close_Call) RunAndReturn(run func() error) *CoreSpanWriter_Close_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// CreateTemplates provides a mock function for the type CoreSpanWriter
-func (_mock *CoreSpanWriter) CreateTemplates(spanTemplate string, serviceTemplate string, indexPrefix config.IndexPrefix) error {
-	ret := _mock.Called(spanTemplate, serviceTemplate, indexPrefix)
-
-	if len(ret) == 0 {
-		panic("no return value specified for CreateTemplates")
-	}
-
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(string, string, config.IndexPrefix) error); ok {
-		r0 = returnFunc(spanTemplate, serviceTemplate, indexPrefix)
-	} else {
-		r0 = ret.Error(0)
-	}
-	return r0
-}
-
-// CoreSpanWriter_CreateTemplates_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateTemplates'
-type CoreSpanWriter_CreateTemplates_Call struct {
-	*mock.Call
-}
-
-// CreateTemplates is a helper method to define mock.On call
-//   - spanTemplate
-//   - serviceTemplate
-//   - indexPrefix
-func (_e *CoreSpanWriter_Expecter) CreateTemplates(spanTemplate interface{}, serviceTemplate interface{}, indexPrefix interface{}) *CoreSpanWriter_CreateTemplates_Call {
-	return &CoreSpanWriter_CreateTemplates_Call{Call: _e.mock.On("CreateTemplates", spanTemplate, serviceTemplate, indexPrefix)}
-}
-
-func (_c *CoreSpanWriter_CreateTemplates_Call) Run(run func(spanTemplate string, serviceTemplate string, indexPrefix config.IndexPrefix)) *CoreSpanWriter_CreateTemplates_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(config.IndexPrefix))
-	})
-	return _c
-}
-
-func (_c *CoreSpanWriter_CreateTemplates_Call) Return(err error) *CoreSpanWriter_CreateTemplates_Call {
-	_c.Call.Return(err)
-	return _c
-}
-
-func (_c *CoreSpanWriter_CreateTemplates_Call) RunAndReturn(run func(spanTemplate string, serviceTemplate string, indexPrefix config.IndexPrefix) error) *CoreSpanWriter_CreateTemplates_Call {
 	_c.Call.Return(run)
 	return _c
 }
