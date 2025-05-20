@@ -116,18 +116,33 @@ func (st *Store) GetServices(ctx context.Context) ([]string, error) {
 
 func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
 	m := st.getTenant(tenancy.GetTenant(ctx))
-	if query.SearchDepth <= 0 || query.SearchDepth > st.defaultConfig.MaxTraces {
-		return func(yield func([]ptrace.Traces, error) bool) {
-			yield(nil, errInvalidSearchDepth)
-		}
-	}
-	traces := m.findTraces(query)
 	return func(yield func([]ptrace.Traces, error) bool) {
-		for _, trace := range traces {
-			if !yield([]ptrace.Traces{trace}, nil) {
+		traceAndIds, err := m.findTraceAndIds(query)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		for i := range traceAndIds {
+			if !yield([]ptrace.Traces{traceAndIds[i].trace}, nil) {
 				return
 			}
 		}
+	}
+}
+
+func (st *Store) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
+	m := st.getTenant(tenancy.GetTenant(ctx))
+	return func(yield func([]tracestore.FoundTraceID, error) bool) {
+		traceAndIds, err := m.findTraceAndIds(query)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		ids := make([]tracestore.FoundTraceID, len(traceAndIds))
+		for i := range traceAndIds {
+			ids[i] = tracestore.FoundTraceID{TraceID: traceAndIds[i].id}
+		}
+		yield(ids, nil)
 	}
 }
 
