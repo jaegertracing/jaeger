@@ -163,7 +163,7 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 	}
 	store := esSampleStore.NewSamplingStore(params)
 
-	if f.config.CreateIndexTemplates && !f.config.UseILM {
+	if f.config.CreateIndexTemplates {
 		mappingBuilder := f.mappingBuilderFromConfig(f.config)
 		samplingMapping, err := mappingBuilder.GetSamplingMappings()
 		if err != nil {
@@ -240,7 +240,6 @@ func loadTokenFromFile(path string) (string, error) {
 }
 
 func (f *FactoryBase) createTemplates(ctx context.Context) error {
-	// Creating a template here would conflict with the one created for ILM resulting to no index rollover
 	if f.config.CreateIndexTemplates {
 		mappingBuilder := f.mappingBuilderFromConfig(f.config)
 		spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
