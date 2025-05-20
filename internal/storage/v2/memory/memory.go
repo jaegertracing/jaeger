@@ -138,11 +138,11 @@ func (st *Store) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryPa
 			yield(nil, err)
 			return
 		}
+		ids := make([]tracestore.FoundTraceID, len(traceAndIds))
 		for i := range traceAndIds {
-			if !yield([]tracestore.FoundTraceID{{TraceID: traceAndIds[i].id}}, nil) {
-				return
-			}
+			ids[i] = tracestore.FoundTraceID{TraceID: traceAndIds[i].id}
 		}
+		yield(ids, nil)
 	}
 }
 
