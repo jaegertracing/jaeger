@@ -4,7 +4,7 @@
       "resource": {
         "attributes": [
           {
-            "key": "service.names",
+            "key": "service.name",
             "value": {
               "stringValue": "clickhouse"
             }
