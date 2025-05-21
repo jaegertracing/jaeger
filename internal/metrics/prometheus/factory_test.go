@@ -98,10 +98,8 @@ func TestCounterDefaultHelp(t *testing.T) {
 
 func TestCounterNotValidLabel(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
-	log, _ := testutils.NewLogger()
 	f1 := promMetrics.New(
 		promMetrics.WithRegisterer(registry),
-		promMetrics.WithLogger(log),
 	)
 	c1 := f1.Counter(metrics.Options{
 		Name: "ilia",
@@ -169,10 +167,8 @@ func TestGaugeDefaultHelp(t *testing.T) {
 
 func TestGaugeNotValidLabel(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
-	log, _ := testutils.NewLogger()
 	f1 := promMetrics.New(
 		promMetrics.WithRegisterer(registry),
-		promMetrics.WithLogger(log),
 	)
 	c1 := f1.Gauge(metrics.Options{
 		Name: "ilia",
@@ -262,10 +258,8 @@ func TestTimerDefaultHelp(t *testing.T) {
 
 func TestTimerNotValidLabel(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
-	log, _ := testutils.NewLogger()
 	f1 := promMetrics.New(
 		promMetrics.WithRegisterer(registry),
-		promMetrics.WithLogger(log),
 	)
 	c1 := f1.Timer(metrics.TimerOptions{
 		Name: "ilia",
@@ -418,10 +412,8 @@ func TestHistogramCustomBuckets(t *testing.T) {
 
 func TestHistogramNotValidLabel(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
-	log, _ := testutils.NewLogger()
 	f1 := promMetrics.New(
 		promMetrics.WithRegisterer(registry),
-		promMetrics.WithLogger(log),
 	)
 	c1 := f1.Histogram(metrics.HistogramOptions{
 		Name: "ilia",
