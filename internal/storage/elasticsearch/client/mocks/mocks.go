@@ -9,6 +9,8 @@
 package mocks
 
 import (
+	"context"
+
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -584,7 +586,7 @@ func (_m *IndexManagementLifecycleAPI) EXPECT() *IndexManagementLifecycleAPI_Exp
 }
 
 // Exists provides a mock function for the type IndexManagementLifecycleAPI
-func (_mock *IndexManagementLifecycleAPI) Exists(name string) (bool, error) {
+func (_mock *IndexManagementLifecycleAPI) Exists(ctx context.Context, name string) (bool, error) {
 	ret := _mock.Called(name)
 
 	if len(ret) == 0 {

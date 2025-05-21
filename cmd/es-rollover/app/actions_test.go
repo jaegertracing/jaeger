@@ -4,6 +4,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"testing"
@@ -22,7 +23,7 @@ type dummyAction struct {
 	TestFn func() error
 }
 
-func (a *dummyAction) Do() error {
+func (a *dummyAction) Do(ctx context.Context) error {
 	return a.TestFn()
 }
 
