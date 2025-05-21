@@ -150,8 +150,8 @@ func (st *Store) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTraceP
 	m := st.getTenant(tenancy.GetTenant(ctx))
 	return func(yield func([]ptrace.Traces, error) bool) {
 		traces := m.getTraces(traceIDs...)
-		for _, trace := range traces {
-			if !yield([]ptrace.Traces{trace}, nil) {
+		for i := range traces {
+			if !yield([]ptrace.Traces{traces[i]}, nil) {
 				return
 			}
 		}
