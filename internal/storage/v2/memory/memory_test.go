@@ -33,19 +33,19 @@ func TestNewStore_DefaultConfig(t *testing.T) {
 	td := loadInputTraces(t, 1)
 	err = store.WriteTraces(context.Background(), td)
 	require.NoError(t, err)
-	tenant := store.getTenant(tenancy.GetTenant(context.Background()))
 	traceID1 := fromString(t, "00000000000000010000000000000000")
-	traceIndex, ok := tenant.ids[traceID1]
-	require.True(t, ok)
-	traces := tenant.traces[traceIndex]
-	expected := loadOutputTraces(t, 1)
-	testTraces(t, expected, traces.trace)
 	traceID2 := fromString(t, "00000000000000020000000000000000")
-	traces2Index, ok := tenant.ids[traceID2]
-	require.True(t, ok)
-	traces2 := tenant.traces[traces2Index]
+	getTracesIter := store.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: traceID1}, tracestore.GetTraceParams{TraceID: traceID2})
+	var traces []ptrace.Traces
+	for gottd, err := range getTracesIter {
+		require.NoError(t, err)
+		assert.Len(t, gottd, 1)
+		traces = append(traces, gottd[0])
+	}
+	expected := loadOutputTraces(t, 1)
+	testTraces(t, expected, traces[0])
 	expected2 := loadOutputTraces(t, 2)
-	testTraces(t, expected2, traces2.trace)
+	testTraces(t, expected2, traces[1])
 	operations, err := store.GetOperations(context.Background(), tracestore.OperationQueryParams{ServiceName: "service-x"})
 	require.NoError(t, err)
 	expectedOperations := []tracestore.Operation{
@@ -75,13 +75,23 @@ func TestNewStore_DefaultConfig(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, expectedServices, services)
 	queryAttrs := getQueryAttributes()
-	gotIter := store.FindTraces(context.Background(), tracestore.TraceQueryParams{
+	findTracesParams := tracestore.TraceQueryParams{
 		ServiceName:   "service-x",
 		OperationName: "test-general-conversion-2",
 		Attributes:    queryAttrs,
 		SearchDepth:   5,
-	})
+	}
+	idsIter := store.FindTraceIDs(context.Background(), findTracesParams)
 	i := 0
+	for foundTraceIds, err := range idsIter {
+		i++
+		require.NoError(t, err)
+		assert.Len(t, foundTraceIds, 1)
+		assert.Equal(t, traceID1, foundTraceIds[0].TraceID)
+	}
+	assert.Equal(t, 1, i)
+	gotIter := store.FindTraces(context.Background(), findTracesParams)
+	i = 0
 	for foundTraces, err := range gotIter {
 		i++
 		require.NoError(t, err)
@@ -344,6 +354,32 @@ func TestFindTraces_ErrorStatusNotMatched(t *testing.T) {
 }
 
 func TestFindTraces_NegativeSearchDepthErr(t *testing.T) {
+	testInvalidSearchDepth(t, func(store *Store, params tracestore.TraceQueryParams) {
+		gotIter := store.FindTraces(context.Background(), params)
+		iterLength := 0
+		for traces, err := range gotIter {
+			iterLength++
+			require.ErrorContains(t, err, errInvalidSearchDepth.Error())
+			assert.Nil(t, traces)
+		}
+		assert.Equal(t, 1, iterLength)
+	})
+}
+
+func TestFindTraceIds_NegativeSearchDepth(t *testing.T) {
+	testInvalidSearchDepth(t, func(store *Store, params tracestore.TraceQueryParams) {
+		gotIter := store.FindTraceIDs(context.Background(), params)
+		iterLength := 0
+		for traces, err := range gotIter {
+			iterLength++
+			require.ErrorContains(t, err, errInvalidSearchDepth.Error())
+			assert.Nil(t, traces)
+		}
+		assert.Equal(t, 1, iterLength)
+	})
+}
+
+func testInvalidSearchDepth(t *testing.T, fxn func(store *Store, params tracestore.TraceQueryParams)) {
 	tests := []struct {
 		name        string
 		searchDepth int
@@ -370,14 +406,7 @@ func TestFindTraces_NegativeSearchDepthErr(t *testing.T) {
 			params := tracestore.TraceQueryParams{
 				SearchDepth: test.searchDepth,
 			}
-			gotIter := store.FindTraces(context.Background(), params)
-			iterLength := 0
-			for traces, err := range gotIter {
-				iterLength++
-				require.ErrorContains(t, err, errInvalidSearchDepth.Error())
-				assert.Nil(t, traces)
-			}
-			assert.Equal(t, 1, iterLength)
+			fxn(store, params)
 		})
 	}
 }
@@ -453,6 +482,28 @@ func TestGetOperationsWithKind(t *testing.T) {
 	assert.Equal(t, "operation-with-kind", operations[0].Name)
 	assert.Equal(t, operations[0].SpanKind, ptrace.SpanKindConsumer.String())
 	require.NoError(t, err)
+}
+
+func TestGetTraces_IterBreak(t *testing.T) {
+	store, err := NewStore(v1.Configuration{
+		MaxTraces: 10,
+	})
+	require.NoError(t, err)
+	td := loadInputTraces(t, 1)
+	err = store.WriteTraces(context.Background(), td)
+	require.NoError(t, err)
+	traceID1 := fromString(t, "00000000000000010000000000000000")
+	traceID2 := fromString(t, "00000000000000020000000000000000")
+	iter := store.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: traceID1}, tracestore.GetTraceParams{TraceID: traceID2})
+	expected := loadOutputTraces(t, 1)
+	iterLength := 1
+	for traces, err := range iter {
+		require.NoError(t, err)
+		assert.Len(t, traces, 1)
+		assert.Equal(t, expected, traces[0])
+		break
+	}
+	assert.Equal(t, 1, iterLength)
 }
 
 func TestWriteTraces_WriteTwoBatches(t *testing.T) {

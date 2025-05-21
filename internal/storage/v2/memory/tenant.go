@@ -84,13 +84,16 @@ func (t *Tenant) storeTraces(traceId pcommon.TraceID, resourceSpanSlice ptrace.R
 	}
 }
 
-func (t *Tenant) findTraces(query tracestore.TraceQueryParams) []ptrace.Traces {
+func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndId, error) {
+	if query.SearchDepth <= 0 || query.SearchDepth > t.config.MaxTraces {
+		return nil, errInvalidSearchDepth
+	}
 	t.RLock()
 	defer t.RUnlock()
-	traces := make([]ptrace.Traces, 0, query.SearchDepth)
+	traceAndIds := make([]traceAndId, 0, query.SearchDepth)
 	n := len(t.traces)
 	for i := range t.traces {
-		if len(traces) == query.SearchDepth {
+		if len(traceAndIds) == query.SearchDepth {
 			break
 		}
 		index := (t.mostRecent - i + n) % n
@@ -101,7 +104,20 @@ func (t *Tenant) findTraces(query tracestore.TraceQueryParams) []ptrace.Traces {
 			break
 		}
 		if validTrace(traceById.trace, query) {
-			traces = append(traces, traceById.trace)
+			traceAndIds = append(traceAndIds, traceById)
+		}
+	}
+	return traceAndIds, nil
+}
+
+func (t *Tenant) getTraces(traceIds ...tracestore.GetTraceParams) []ptrace.Traces {
+	t.RLock()
+	defer t.RUnlock()
+	traces := make([]ptrace.Traces, 0)
+	for i := range traceIds {
+		index, ok := t.ids[traceIds[i].TraceID]
+		if ok {
+			traces = append(traces, t.traces[index].trace)
 		}
 	}
 	return traces
