@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
 )
@@ -22,13 +21,11 @@ type Factory struct {
 	buckets    []float64
 	normalizer *strings.Replacer
 	separator  Separator
-	logger     *zap.Logger
 }
 
 var _ metrics.Factory = (*Factory)(nil)
 
 type options struct {
-	logger     *zap.Logger
 	registerer prometheus.Registerer
 	buckets    []float64
 	separator  Separator
@@ -72,13 +69,6 @@ func WithSeparator(separator Separator) Option {
 	}
 }
 
-// WithLogger creates a Option that initializes the logger
-func WithLogger(logger *zap.Logger) Option {
-	return func(opts *options) {
-		opts.logger = logger
-	}
-}
-
 func applyOptions(opts []Option) *options {
 	options := new(options)
 	for _, o := range opts {
@@ -109,7 +99,6 @@ func New(opts ...Option) *Factory {
 			buckets:    options.buckets,
 			normalizer: strings.NewReplacer(".", "_", "-", "_"),
 			separator:  options.separator,
-			logger:     options.logger,
 		},
 		"",  // scope
 		nil) // tags
@@ -117,7 +106,6 @@ func New(opts ...Option) *Factory {
 
 func newFactory(parent *Factory, scope string, tags map[string]string) *Factory {
 	return &Factory{
-		logger:     parent.logger,
 		cache:      parent.cache,
 		buckets:    parent.buckets,
 		normalizer: parent.normalizer,
@@ -144,13 +132,6 @@ func (f *Factory) Counter(options metrics.Options) metrics.Counter {
 	labelValues := f.tagsAsLabelValues(labelNames, tags)
 	metric, err := cv.GetMetricWithLabelValues(labelValues...)
 	if err != nil {
-		if f.logger != nil {
-			f.logger.Warn(
-				"Failed to get metric for counter with label values",
-				zap.String("label_names", strings.Join(labelValues, ", ")),
-				zap.Error(err),
-			)
-		}
 		return metrics.NullCounter
 	}
 
@@ -176,13 +157,6 @@ func (f *Factory) Gauge(options metrics.Options) metrics.Gauge {
 	labelValues := f.tagsAsLabelValues(labelNames, tags)
 	metric, err := gv.GetMetricWithLabelValues(labelValues...)
 	if err != nil {
-		if f.logger != nil {
-			f.logger.Warn(
-				"Failed to get metric for gauge with label values",
-				zap.String("label_names", strings.Join(labelValues, ", ")),
-				zap.Error(err),
-			)
-		}
 		return metrics.NullGauge
 	}
 	return &gauge{
@@ -209,13 +183,6 @@ func (f *Factory) Timer(options metrics.TimerOptions) metrics.Timer {
 	labelValues := f.tagsAsLabelValues(labelNames, tags)
 	metric, err := hv.GetMetricWithLabelValues(labelValues...)
 	if err != nil {
-		if f.logger != nil {
-			f.logger.Warn(
-				"Failed to get metric for timer with label values",
-				zap.String("label_names", strings.Join(labelValues, ", ")),
-				zap.Error(err),
-			)
-		}
 		return metrics.NullTimer
 	}
 	return &timer{
@@ -250,16 +217,9 @@ func (f *Factory) Histogram(options metrics.HistogramOptions) metrics.Histogram 
 	labelValues := f.tagsAsLabelValues(labelNames, tags)
 	metric, err := hv.GetMetricWithLabelValues(labelValues...)
 	if err != nil {
-		if f.logger != nil {
-			f.logger.Warn(
-				"Failed to get metric for histogram with label values",
-				zap.String("label_names", strings.Join(labelValues, ", ")),
-				zap.Error(err),
-			)
-		}
-
 		return metrics.NullHistogram
 	}
+
 	return &histogram{
 		histogram: metric,
 	}
