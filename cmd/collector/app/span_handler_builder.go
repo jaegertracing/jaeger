@@ -5,7 +5,6 @@
 package app
 
 import (
-	"fmt"
 	"os"
 
 	"go.uber.org/zap"
@@ -56,7 +55,6 @@ func (b *SpanHandlerBuilder) BuildSpanProcessor(additional ...ProcessSpan) (proc
 		Options.DynQueueSizeWarmup(b.CollectorOpts.QueueSize), // same as queue size for now
 		Options.DynQueueSizeMemory(b.CollectorOpts.DynQueueSizeMemory),
 		Options.SpanSizeMetricsEnabled(b.CollectorOpts.SpanSizeMetricsEnabled),
-		Options.Sanitizer(b.NegativeDurationSpanSanitizer),
 	)
 }
 
@@ -89,35 +87,4 @@ func (b *SpanHandlerBuilder) metricsFactory() metrics.Factory {
 		return metrics.NullFactory
 	}
 	return b.MetricsFactory
-}
-
-func (b *SpanHandlerBuilder) NegativeDurationSpanSanitizer(span *model.Span) *model.Span {
-	if span == nil {
-		return nil
-	}
-
-	if span.Duration >= 0 {
-		return span
-	}
-
-	b.Logger.Debug(
-		"Negative duration is corrected",
-		zap.Stringer("trace_id", span.TraceID),
-		zap.Stringer("span_id", span.SpanID),
-		zap.Int64("duration", int64(span.Duration)),
-	)
-	span.Duration = 1
-	span.Warnings = append(
-		span.Warnings,
-		fmt.Sprintf("Negative duration %d corrected to 1", span.Duration),
-	)
-	span.Tags = append(
-		span.Tags,
-		model.Int64(
-			"duration-adjusted",
-			int64(span.Duration),
-		),
-	)
-
-	return span
 }
