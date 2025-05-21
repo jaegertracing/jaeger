@@ -146,6 +146,18 @@ func (st *Store) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryPa
 	}
 }
 
+func (st *Store) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
+	m := st.getTenant(tenancy.GetTenant(ctx))
+	return func(yield func([]ptrace.Traces, error) bool) {
+		traces := m.getTraces(traceIDs...)
+		for i := range traces {
+			if !yield([]ptrace.Traces{traces[i]}, nil) {
+				return
+			}
+		}
+	}
+}
+
 // reshuffleResourceSpans reshuffles the resource spans so as to group the spans from same traces together. To understand this reshuffling
 // take an example of 2 resource spans, then these two resource spans have 2 scope spans each.
 // Every scope span consists of 2 spans with trace ids: 1 and 2. Now the final structure should look like:
