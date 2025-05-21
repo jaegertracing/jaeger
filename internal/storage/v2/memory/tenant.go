@@ -110,6 +110,19 @@ func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndI
 	return traceAndIds, nil
 }
 
+func (t *Tenant) getTraces(traceIds ...tracestore.GetTraceParams) []ptrace.Traces {
+	t.RLock()
+	defer t.RUnlock()
+	traces := make([]ptrace.Traces, 0)
+	for i := range traceIds {
+		index, ok := t.ids[traceIds[i].TraceID]
+		if ok {
+			traces = append(traces, t.traces[index].trace)
+		}
+	}
+	return traces
+}
+
 func validTrace(td ptrace.Traces, query tracestore.TraceQueryParams) bool {
 	for _, resourceSpan := range td.ResourceSpans().All() {
 		if !validResource(resourceSpan.Resource(), query) {
