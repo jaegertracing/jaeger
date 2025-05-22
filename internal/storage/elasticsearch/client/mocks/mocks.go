@@ -587,7 +587,7 @@ func (_m *IndexManagementLifecycleAPI) EXPECT() *IndexManagementLifecycleAPI_Exp
 
 // Exists provides a mock function for the type IndexManagementLifecycleAPI
 func (_mock *IndexManagementLifecycleAPI) Exists(ctx context.Context, name string) (bool, error) {
-	ret := _mock.Called(name)
+	ret := _mock.Called(ctx, name)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Exists")
@@ -595,16 +595,16 @@ func (_mock *IndexManagementLifecycleAPI) Exists(ctx context.Context, name strin
 
 	var r0 bool
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(string) (bool, error)); ok {
-		return returnFunc(name)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) (bool, error)); ok {
+		return returnFunc(ctx, name)
 	}
-	if returnFunc, ok := ret.Get(0).(func(string) bool); ok {
-		r0 = returnFunc(name)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) bool); ok {
+		r0 = returnFunc(ctx, name)
 	} else {
 		r0 = ret.Get(0).(bool)
 	}
-	if returnFunc, ok := ret.Get(1).(func(string) error); ok {
-		r1 = returnFunc(name)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = returnFunc(ctx, name)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -617,14 +617,15 @@ type IndexManagementLifecycleAPI_Exists_Call struct {
 }
 
 // Exists is a helper method to define mock.On call
+//   - ctx
 //   - name
-func (_e *IndexManagementLifecycleAPI_Expecter) Exists(name interface{}) *IndexManagementLifecycleAPI_Exists_Call {
-	return &IndexManagementLifecycleAPI_Exists_Call{Call: _e.mock.On("Exists", name)}
+func (_e *IndexManagementLifecycleAPI_Expecter) Exists(ctx interface{}, name interface{}) *IndexManagementLifecycleAPI_Exists_Call {
+	return &IndexManagementLifecycleAPI_Exists_Call{Call: _e.mock.On("Exists", ctx, name)}
 }
 
-func (_c *IndexManagementLifecycleAPI_Exists_Call) Run(run func(name string)) *IndexManagementLifecycleAPI_Exists_Call {
+func (_c *IndexManagementLifecycleAPI_Exists_Call) Run(run func(ctx context.Context, name string)) *IndexManagementLifecycleAPI_Exists_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string))
+		run(args[0].(context.Context), args[1].(string))
 	})
 	return _c
 }
@@ -634,7 +635,7 @@ func (_c *IndexManagementLifecycleAPI_Exists_Call) Return(b bool, err error) *In
 	return _c
 }
 
-func (_c *IndexManagementLifecycleAPI_Exists_Call) RunAndReturn(run func(name string) (bool, error)) *IndexManagementLifecycleAPI_Exists_Call {
+func (_c *IndexManagementLifecycleAPI_Exists_Call) RunAndReturn(run func(ctx context.Context, name string) (bool, error)) *IndexManagementLifecycleAPI_Exists_Call {
 	_c.Call.Return(run)
 	return _c
 }

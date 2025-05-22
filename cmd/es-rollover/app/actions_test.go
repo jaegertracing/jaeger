@@ -23,7 +23,7 @@ type dummyAction struct {
 	TestFn func() error
 }
 
-func (a *dummyAction) Do(ctx context.Context) error {
+func (a *dummyAction) Do(context.Context) error {
 	return a.TestFn()
 }
 
