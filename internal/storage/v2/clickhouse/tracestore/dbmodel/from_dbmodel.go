@@ -20,10 +20,10 @@ func FromDBModel(dbTrace Trace) ptrace.Traces {
 
 	scopeSpans := resourceSpans.ScopeSpans().AppendEmpty()
 	scope := scopeSpans.Scope()
-	FromDBScope(dbTrace.Scope).CopyTo(scope)
+	fromDBScope(dbTrace.Scope).CopyTo(scope)
 
 	span := scopeSpans.Spans().AppendEmpty()
-	FromDBSpan(dbTrace.Span).CopyTo(span)
+	fromDBSpan(dbTrace.Span).CopyTo(span)
 	for i := range dbTrace.Events {
 		event := span.Events().AppendEmpty()
 		fromDBEvent(dbTrace.Events[i]).CopyTo(event)
@@ -36,7 +36,7 @@ func FromDBModel(dbTrace Trace) ptrace.Traces {
 	return trace
 }
 
-func FromDBScope(s Scope) pcommon.InstrumentationScope {
+func fromDBScope(s Scope) pcommon.InstrumentationScope {
 	scope := ptrace.NewScopeSpans().Scope()
 	scope.SetName(s.Name)
 	scope.SetVersion(s.Version)
@@ -46,7 +46,7 @@ func FromDBScope(s Scope) pcommon.InstrumentationScope {
 	return scope
 }
 
-func FromDBSpan(s Span) ptrace.Span {
+func fromDBSpan(s Span) ptrace.Span {
 	span := ptrace.NewSpan()
 	span.SetStartTimestamp(pcommon.NewTimestampFromTime(s.StartTime))
 	span.SetTraceID(pcommon.TraceID(s.TraceId))

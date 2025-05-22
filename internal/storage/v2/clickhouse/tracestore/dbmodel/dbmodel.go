@@ -5,8 +5,6 @@ package dbmodel
 
 import (
 	"time"
-
-	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 // Trace Domain model in Clickhouse.
@@ -53,7 +51,6 @@ type Span struct {
 // Link Domain model in Clickhouse.
 // This struct represents the schema for storing ptrace.SpanLink in Clickhouse.
 type Link struct {
-	ptrace.SpanEvent
 	TraceId    []byte
 	SpanId     []byte
 	TraceState string
