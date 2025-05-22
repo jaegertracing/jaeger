@@ -33,7 +33,7 @@ func newESClient(endpoint string, cfg *Config, tlsCfg *tls.Config) client.Client
 
 // Action is an interface that each action (init, rollover and lookback) of the es-rollover should implement
 type Action interface {
-	Do() error
+	Do(ctx context.Context) error
 }
 
 // ActionExecuteOptions are the options passed to the execute action function
@@ -59,5 +59,5 @@ func ExecuteAction(opts ActionExecuteOptions, createAction ActionCreatorFunction
 
 	esClient := newESClient(opts.Args[0], &cfg, tlsCfg)
 	action := createAction(esClient, cfg)
-	return action.Do()
+	return action.Do(ctx)
 }

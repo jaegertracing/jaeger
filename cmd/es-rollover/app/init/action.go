@@ -4,6 +4,7 @@
 package init
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -39,7 +40,7 @@ func (c Action) getMapping(version uint, mappingType mappings.MappingType) (stri
 }
 
 // Do the init action
-func (c Action) Do() error {
+func (c Action) Do(ctx context.Context) error {
 	version, err := c.ClusterClient.Version()
 	if err != nil {
 		return err
@@ -48,7 +49,7 @@ func (c Action) Do() error {
 		if version < ilmVersionSupport {
 			return errors.New("ILM is supported only for ES version 7+")
 		}
-		policyExist, err := c.ILMClient.Exists(c.Config.ILMPolicyName)
+		policyExist, err := c.ILMClient.Exists(ctx, c.Config.ILMPolicyName)
 		if err != nil {
 			return err
 		}
