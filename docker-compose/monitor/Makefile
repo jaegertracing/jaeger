@@ -28,6 +28,11 @@ dev-v1: export BINARY = all-in-one
 dev-v1: build
 	docker compose -f docker-compose-v1.yml up $(DOCKER_COMPOSE_ARGS)
 
+.PHONY: elasticsearch
+elasticsearch: export JAEGER_VERSION = dev
+elasticsearch:
+	docker compose -f docker-compose-elasticsearch.yml up $(DOCKER_COMPOSE_ARGS)
+
 .PHONY: clean-jaeger
 clean-jaeger:
 	# Also cleans up intermediate cached containers.

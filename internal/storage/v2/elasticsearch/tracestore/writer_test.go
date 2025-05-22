@@ -14,7 +14,6 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metrics"
-	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/mocks"
 )
@@ -38,14 +37,6 @@ func TestTraceWriter_Close(t *testing.T) {
 	coreWriter.On("Close").Return(nil)
 	writer := TraceWriter{spanWriter: coreWriter}
 	err := writer.Close()
-	require.NoError(t, err)
-}
-
-func TestTraceWriter_CreateTemplates(t *testing.T) {
-	coreWriter := &mocks.CoreSpanWriter{}
-	coreWriter.On("CreateTemplates", "testing-template", "testing-template", cfg.IndexPrefix("testing")).Return(nil)
-	writer := TraceWriter{spanWriter: coreWriter}
-	err := writer.CreateTemplates("testing-template", "testing-template", "testing")
 	require.NoError(t, err)
 }
 

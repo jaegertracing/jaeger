@@ -17,9 +17,9 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
-	es "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	es "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
@@ -183,16 +183,20 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 				s.telset.Logger,
 			)
 		case cfg.Elasticsearch != nil:
-			v1Factory, err = es.NewFactoryWithConfig(
+			esTelset := telset
+			esTelset.Metrics = scopedMetricsFactory(storageName, "elasticsearch", "tracestore")
+			factory, err = es.NewFactory(
+				ctx,
 				*cfg.Elasticsearch,
-				scopedMetricsFactory(storageName, "elasticsearch", "tracestore"),
-				s.telset.Logger,
+				esTelset,
 			)
 		case cfg.Opensearch != nil:
-			v1Factory, err = es.NewFactoryWithConfig(
+			osTelset := telset
+			osTelset.Metrics = scopedMetricsFactory(storageName, "opensearch", "tracestore")
+			factory, err = es.NewFactory(
+				ctx,
 				*cfg.Opensearch,
-				scopedMetricsFactory(storageName, "opensearch", "tracestore"),
-				s.telset.Logger,
+				osTelset,
 			)
 		}
 		if err != nil {

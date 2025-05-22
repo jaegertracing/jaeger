@@ -78,6 +78,7 @@ func runQueryService(t *testing.T, esURL string) *Server {
 		"--es.tls.enabled=false",
 		"--es.version=7",
 		"--es.server-urls=" + esURL,
+		"--es.create-index-templates=false",
 	}))
 	f.InitFromViper(v, flagsSvc.Logger)
 	// set AllowTokenFromContext manually because we don't register the respective CLI flag from query svc

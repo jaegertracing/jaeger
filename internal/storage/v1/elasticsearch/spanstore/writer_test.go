@@ -5,8 +5,6 @@
 package spanstore
 
 import (
-	"context"
-	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -211,88 +209,6 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 					assert.Empty(t, w.logBuffer.String())
 				}
 			})
-		})
-	}
-}
-
-func TestCreateTemplates(t *testing.T) {
-	tests := []struct {
-		err                    string
-		spanTemplateService    func() *mocks.TemplateCreateService
-		serviceTemplateService func() *mocks.TemplateCreateService
-		indexPrefix            config.IndexPrefix
-	}{
-		{
-			spanTemplateService: func() *mocks.TemplateCreateService {
-				tService := &mocks.TemplateCreateService{}
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
-			serviceTemplateService: func() *mocks.TemplateCreateService {
-				tService := &mocks.TemplateCreateService{}
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
-		},
-		{
-			spanTemplateService: func() *mocks.TemplateCreateService {
-				tService := &mocks.TemplateCreateService{}
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
-			serviceTemplateService: func() *mocks.TemplateCreateService {
-				tService := &mocks.TemplateCreateService{}
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
-			indexPrefix: "test",
-		},
-		{
-			err: "span-template-error",
-			spanTemplateService: func() *mocks.TemplateCreateService {
-				tService := new(mocks.TemplateCreateService)
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, errors.New("span-template-error"))
-				return tService
-			},
-			serviceTemplateService: func() *mocks.TemplateCreateService {
-				tService := new(mocks.TemplateCreateService)
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
-		},
-		{
-			err: "service-template-error",
-			spanTemplateService: func() *mocks.TemplateCreateService {
-				tService := new(mocks.TemplateCreateService)
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
-			serviceTemplateService: func() *mocks.TemplateCreateService {
-				tService := new(mocks.TemplateCreateService)
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, errors.New("service-template-error"))
-				return tService
-			},
-		},
-	}
-
-	for _, test := range tests {
-		withSpanWriter(func(w *spanWriterTest) {
-			jaegerSpanId := test.indexPrefix.Apply("jaeger-span")
-			jaegerServiceId := test.indexPrefix.Apply("jaeger-service")
-			w.client.On("CreateTemplate", jaegerSpanId).Return(test.spanTemplateService())
-			w.client.On("CreateTemplate", jaegerServiceId).Return(test.serviceTemplateService())
-			err := w.writer.CreateTemplates(mock.Anything, mock.Anything, test.indexPrefix)
-			if test.err != "" {
-				require.Error(t, err, test.err)
-			}
 		})
 	}
 }
