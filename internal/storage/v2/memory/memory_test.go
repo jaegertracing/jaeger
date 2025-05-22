@@ -20,7 +20,9 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	v1 "github.com/jaegertracing/jaeger/internal/storage/v1/memory"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
@@ -33,19 +35,19 @@ func TestNewStore_DefaultConfig(t *testing.T) {
 	td := loadInputTraces(t, 1)
 	err = store.WriteTraces(context.Background(), td)
 	require.NoError(t, err)
-	tenant := store.getTenant(tenancy.GetTenant(context.Background()))
 	traceID1 := fromString(t, "00000000000000010000000000000000")
-	traceIndex, ok := tenant.ids[traceID1]
-	require.True(t, ok)
-	traces := tenant.traces[traceIndex]
-	expected := loadOutputTraces(t, 1)
-	testTraces(t, expected, traces.trace)
 	traceID2 := fromString(t, "00000000000000020000000000000000")
-	traces2Index, ok := tenant.ids[traceID2]
-	require.True(t, ok)
-	traces2 := tenant.traces[traces2Index]
+	getTracesIter := store.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: traceID1}, tracestore.GetTraceParams{TraceID: traceID2})
+	var traces []ptrace.Traces
+	for gottd, err := range getTracesIter {
+		require.NoError(t, err)
+		assert.Len(t, gottd, 1)
+		traces = append(traces, gottd[0])
+	}
+	expected := loadOutputTraces(t, 1)
+	testTraces(t, expected, traces[0])
 	expected2 := loadOutputTraces(t, 2)
-	testTraces(t, expected2, traces2.trace)
+	testTraces(t, expected2, traces[1])
 	operations, err := store.GetOperations(context.Background(), tracestore.OperationQueryParams{ServiceName: "service-x"})
 	require.NoError(t, err)
 	expectedOperations := []tracestore.Operation{
@@ -484,6 +486,28 @@ func TestGetOperationsWithKind(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestGetTraces_IterBreak(t *testing.T) {
+	store, err := NewStore(v1.Configuration{
+		MaxTraces: 10,
+	})
+	require.NoError(t, err)
+	td := loadInputTraces(t, 1)
+	err = store.WriteTraces(context.Background(), td)
+	require.NoError(t, err)
+	traceID1 := fromString(t, "00000000000000010000000000000000")
+	traceID2 := fromString(t, "00000000000000020000000000000000")
+	iter := store.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: traceID1}, tracestore.GetTraceParams{TraceID: traceID2})
+	expected := loadOutputTraces(t, 1)
+	iterLength := 1
+	for traces, err := range iter {
+		require.NoError(t, err)
+		assert.Len(t, traces, 1)
+		assert.Equal(t, expected, traces[0])
+		break
+	}
+	assert.Equal(t, 1, iterLength)
+}
+
 func TestWriteTraces_WriteTwoBatches(t *testing.T) {
 	store, err := NewStore(v1.Configuration{
 		MaxTraces: 10,
@@ -569,6 +593,138 @@ func TestInvalidMaxTracesErr(t *testing.T) {
 	assert.Nil(t, store)
 }
 
+func TestGetDependencies(t *testing.T) {
+	store, err := NewStore(v1.Configuration{
+		MaxTraces: 10,
+	})
+	require.NoError(t, err)
+	traceId := fromString(t, "00000000000000010000000000000000")
+	td := ptrace.NewTraces()
+	resourceSpans := td.ResourceSpans().AppendEmpty()
+	resourceSpans.Resource().Attributes().PutStr(conventions.AttributeServiceName, "service-x")
+	span1StartTime := time.Now()
+	span1 := resourceSpans.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span1.SetTraceID(traceId)
+	span1.SetSpanID(spanIdFromString(t, "0000000000000001"))
+	span1.SetParentSpanID(spanIdFromString(t, "0000000000000003"))
+	span1.SetStartTimestamp(pcommon.NewTimestampFromTime(span1StartTime))
+	span1.SetEndTimestamp(pcommon.NewTimestampFromTime(span1StartTime.Add(1 * time.Second)))
+	span2 := resourceSpans.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span2.SetTraceID(traceId)
+	span2.SetSpanID(spanIdFromString(t, "0000000000000002"))
+	span2.SetParentSpanID(spanIdFromString(t, "0000000000000003"))
+	span2.SetStartTimestamp(pcommon.NewTimestampFromTime(span1StartTime.Add(1 * time.Second)))
+	span2.SetEndTimestamp(pcommon.NewTimestampFromTime(span1StartTime.Add(2 * time.Second)))
+	newResourceSpan := td.ResourceSpans().AppendEmpty()
+	newResourceSpan.Resource().Attributes().PutStr(conventions.AttributeServiceName, "service-y")
+	span3 := newResourceSpan.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span3.SetTraceID(traceId)
+	span3.SetSpanID(spanIdFromString(t, "0000000000000003"))
+	span3.SetStartTimestamp(pcommon.NewTimestampFromTime(span1StartTime.Add(-2 * time.Second)))
+	span3.SetEndTimestamp(pcommon.NewTimestampFromTime(span1StartTime.Add(3 * time.Second)))
+	span3.SetParentSpanID(spanIdFromString(t, "0000000000000004"))
+	err = store.WriteTraces(context.Background(), td)
+	require.NoError(t, err)
+	deps, err := store.GetDependencies(context.Background(), depstore.QueryParameters{
+		StartTime: span1StartTime.Add(-4 * time.Second),
+		EndTime:   span1StartTime.Add(5 * time.Second),
+	})
+	require.NoError(t, err)
+	assert.Len(t, deps, 1)
+	assert.Equal(t, model.DependencyLink{
+		Parent:    "service-y",
+		Child:     "service-x",
+		CallCount: 2,
+	}, deps[0])
+	td2 := ptrace.NewTraces()
+	resourceSpan2 := td2.ResourceSpans().AppendEmpty()
+	resourceSpan2.Resource().Attributes().PutStr(conventions.AttributeServiceName, "service-z")
+	span4 := resourceSpan2.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span4.SetTraceID(traceId)
+	span4.SetSpanID(spanIdFromString(t, "0000000000000004"))
+	span4.SetStartTimestamp(pcommon.NewTimestampFromTime(span1StartTime.Add(-4 * time.Second)))
+	span4.SetEndTimestamp(pcommon.NewTimestampFromTime(span1StartTime.Add(5 * time.Second)))
+	err = store.WriteTraces(context.Background(), td2)
+	require.NoError(t, err)
+	newDeps, err := store.GetDependencies(context.Background(), depstore.QueryParameters{
+		StartTime: span1StartTime.Add(-5 * time.Second),
+		EndTime:   span1StartTime.Add(6 * time.Second),
+	})
+	require.NoError(t, err)
+	assert.Len(t, newDeps, 2)
+	newDeps2, err := store.GetDependencies(context.Background(), depstore.QueryParameters{
+		StartTime: span1StartTime.Add(-5 * time.Second),
+	})
+	require.NoError(t, err)
+	assert.Len(t, newDeps2, 2)
+	emptyDeps, err := store.GetDependencies(context.Background(), depstore.QueryParameters{
+		StartTime: span1StartTime.Add(-4 * time.Second),
+		EndTime:   span1StartTime.Add(5 * time.Second),
+	})
+	require.NoError(t, err)
+	assert.Empty(t, emptyDeps)
+}
+
+func TestGetDependencies_Err(t *testing.T) {
+	store, err := NewStore(v1.Configuration{
+		MaxTraces: 10,
+	})
+	require.NoError(t, err)
+	startTime := time.Now()
+	deps, err := store.GetDependencies(context.Background(), depstore.QueryParameters{
+		StartTime: startTime,
+		EndTime:   startTime.Add(-1 * time.Second),
+	})
+	require.ErrorContains(t, err, "end time must be greater than start time")
+	assert.Nil(t, deps)
+	deps, err = store.GetDependencies(context.Background(), depstore.QueryParameters{})
+	require.ErrorContains(t, err, "start time is required")
+	assert.Nil(t, deps)
+}
+
+func TestGetDependencies_EmptyParentSpanId(t *testing.T) {
+	store, err := NewStore(v1.Configuration{
+		MaxTraces: 10,
+	})
+	require.NoError(t, err)
+	td := ptrace.NewTraces()
+	span := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetTraceID(fromString(t, "00000000000000010000000000000000"))
+	startTime := time.Now()
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(startTime))
+	span.SetEndTimestamp(pcommon.NewTimestampFromTime(startTime.Add(1 * time.Second)))
+	err = store.WriteTraces(context.Background(), td)
+	require.NoError(t, err)
+	deps, err := store.GetDependencies(context.Background(), depstore.QueryParameters{
+		StartTime: startTime.Add(-1 * time.Second),
+		EndTime:   startTime.Add(2 * time.Second),
+	})
+	require.NoError(t, err)
+	assert.Empty(t, deps)
+}
+
+func TestGetDependencies_WrongSpanId(t *testing.T) {
+	store, err := NewStore(v1.Configuration{
+		MaxTraces: 10,
+	})
+	require.NoError(t, err)
+	td := ptrace.NewTraces()
+	span := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetTraceID(fromString(t, "00000000000000010000000000000000"))
+	startTime := time.Now()
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(startTime))
+	span.SetEndTimestamp(pcommon.NewTimestampFromTime(startTime.Add(1 * time.Second)))
+	span.SetSpanID(spanIdFromString(t, "0000000000000002"))
+	err = store.WriteTraces(context.Background(), td)
+	require.NoError(t, err)
+	deps, err := store.GetDependencies(context.Background(), depstore.QueryParameters{
+		StartTime: startTime.Add(-1 * time.Second),
+		EndTime:   startTime.Add(2 * time.Second),
+	})
+	require.NoError(t, err)
+	assert.Empty(t, deps)
+}
+
 func writeTenTraces(t *testing.T, store *Store) {
 	for i := 1; i < 10; i++ {
 		traceID := fromString(t, fmt.Sprintf("000000000000000%d0000000000000000", i))
@@ -585,6 +741,14 @@ func fromString(t *testing.T, dbTraceId string) pcommon.TraceID {
 	require.NoError(t, err)
 	copy(traceId[:], traceBytes)
 	return traceId
+}
+
+func spanIdFromString(t *testing.T, dbTraceId string) pcommon.SpanID {
+	var spanId [8]byte
+	spanIdBytes, err := hex.DecodeString(dbTraceId)
+	require.NoError(t, err)
+	copy(spanId[:], spanIdBytes)
+	return spanId
 }
 
 func testTraces(t *testing.T, expectedTraces ptrace.Traces, actualTraces ptrace.Traces) {

@@ -49,21 +49,6 @@ func NewArchiveFactory() *Factory {
 	}
 }
 
-//nolint:nolintlint
-//nolint:contextcheck
-func NewFactoryWithConfig(
-	cfg config.Configuration,
-	metricsFactory metrics.Factory,
-	logger *zap.Logger,
-) (*Factory, error) {
-	f := &Factory{Options: &Options{Config: namespaceConfig{Configuration: cfg}}}
-	err := f.Initialize(metricsFactory, logger)
-	if err != nil {
-		return nil, err
-	}
-	return f, nil
-}
-
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 	f.Options.AddFlags(flagSet)
 }
