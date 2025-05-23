@@ -83,18 +83,11 @@ func (st *Store) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 						SpanKind: span.Kind().String(),
 					}
 					m.storeOperation(serviceName, operation)
-					if startTime.IsZero() || endTime.IsZero() {
+					if startTime.IsZero() || span.StartTimestamp().AsTime().Before(startTime) {
 						startTime = span.StartTimestamp().AsTime()
+					}
+					if endTime.IsZero() || span.EndTimestamp().AsTime().After(endTime) {
 						endTime = span.EndTimestamp().AsTime()
-					} else {
-						spanStartTime := span.StartTimestamp().AsTime()
-						if spanStartTime.Before(startTime) {
-							startTime = spanStartTime
-						}
-						spanEndTime := span.EndTimestamp().AsTime()
-						if spanEndTime.After(endTime) {
-							endTime = spanEndTime
-						}
 					}
 				}
 			}

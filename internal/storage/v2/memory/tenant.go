@@ -39,6 +39,13 @@ type traceAndId struct {
 	endTime   time.Time
 }
 
+func (t traceAndId) traceIsBetweenStartAndEnd(startTime time.Time, endTime time.Time) bool {
+	if endTime.IsZero() {
+		return t.startTime.After(startTime)
+	}
+	return t.startTime.After(startTime) && t.endTime.Before(endTime)
+}
+
 func newTenant(cfg *v1.Configuration) *Tenant {
 	return &Tenant{
 		config:     cfg,
@@ -148,7 +155,7 @@ func (t *Tenant) getDependencies(query depstore.QueryParameters) ([]model.Depend
 	deps := map[string]*model.DependencyLink{}
 	for _, index := range t.ids {
 		traceWithTime := t.traces[index]
-		if traceIsBetweenStartAndEnd(traceWithTime, query.StartTime, query.EndTime) {
+		if traceWithTime.traceIsBetweenStartAndEnd(query.StartTime, query.EndTime) {
 			for _, resourceSpan := range traceWithTime.trace.ResourceSpans().All() {
 				for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
 					for _, span := range scopeSpan.Spans().All() {
@@ -191,16 +198,6 @@ func findServiceNameWithSpanId(trace ptrace.Traces, spanId pcommon.SpanID) (stri
 		}
 	}
 	return "", false
-}
-
-func traceIsBetweenStartAndEnd(traceWithTime traceAndId, startTime time.Time, endTime time.Time) bool {
-	if endTime.IsZero() && traceWithTime.startTime.After(startTime) {
-		return true
-	}
-	if traceWithTime.startTime.After(startTime) && traceWithTime.endTime.Before(endTime) {
-		return true
-	}
-	return false
 }
 
 func validTrace(td ptrace.Traces, query tracestore.TraceQueryParams) bool {
