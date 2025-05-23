@@ -6,11 +6,14 @@ package memory
 import (
 	"errors"
 	"sync"
+	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	v1 "github.com/jaegertracing/jaeger/internal/storage/v1/memory"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
@@ -30,8 +33,10 @@ type Tenant struct {
 }
 
 type traceAndId struct {
-	id    pcommon.TraceID
-	trace ptrace.Traces
+	id        pcommon.TraceID
+	trace     ptrace.Traces
+	startTime time.Time
+	endTime   time.Time
 }
 
 func newTenant(cfg *v1.Configuration) *Tenant {
@@ -62,11 +67,17 @@ func (t *Tenant) storeOperation(serviceName string, operation tracestore.Operati
 	t.operations[serviceName][operation] = struct{}{}
 }
 
-func (t *Tenant) storeTraces(traceId pcommon.TraceID, resourceSpanSlice ptrace.ResourceSpansSlice) {
+func (t *Tenant) storeTraces(traceId pcommon.TraceID, startTime, endTime time.Time, resourceSpanSlice ptrace.ResourceSpansSlice) {
 	t.Lock()
 	defer t.Unlock()
 	if index, ok := t.ids[traceId]; ok {
 		resourceSpanSlice.MoveAndAppendTo(t.traces[index].trace.ResourceSpans())
+		if startTime.Before(t.traces[index].startTime) {
+			t.traces[index].startTime = startTime
+		}
+		if endTime.After(t.traces[index].endTime) {
+			t.traces[index].endTime = endTime
+		}
 		return
 	}
 	traces := ptrace.NewTraces()
@@ -79,8 +90,10 @@ func (t *Tenant) storeTraces(traceId pcommon.TraceID, resourceSpanSlice ptrace.R
 	// update the ring with the trace id
 	t.ids[traceId] = t.mostRecent
 	t.traces[t.mostRecent] = traceAndId{
-		id:    traceId,
-		trace: traces,
+		id:        traceId,
+		trace:     traces,
+		startTime: startTime,
+		endTime:   endTime,
 	}
 }
 
@@ -121,6 +134,73 @@ func (t *Tenant) getTraces(traceIds ...tracestore.GetTraceParams) []ptrace.Trace
 		}
 	}
 	return traces
+}
+
+func (t *Tenant) getDependencies(query depstore.QueryParameters) ([]model.DependencyLink, error) {
+	if query.StartTime.IsZero() {
+		return nil, errors.New("start time is required")
+	}
+	if !query.EndTime.IsZero() && query.EndTime.Before(query.StartTime) {
+		return nil, errors.New("end time must be greater than start time")
+	}
+	t.RLock()
+	defer t.RUnlock()
+	deps := map[string]*model.DependencyLink{}
+	for _, index := range t.ids {
+		traceWithTime := t.traces[index]
+		if traceIsBetweenStartAndEnd(traceWithTime, query.StartTime, query.EndTime) {
+			for _, resourceSpan := range traceWithTime.trace.ResourceSpans().All() {
+				for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
+					for _, span := range scopeSpan.Spans().All() {
+						if !span.ParentSpanID().IsEmpty() {
+							spanServiceName := getServiceNameFromResource(resourceSpan.Resource())
+							parentSpanServiceName, found := findServiceNameWithSpanId(traceWithTime.trace, span.ParentSpanID())
+							if found {
+								depKey := parentSpanServiceName + "&&&" + spanServiceName
+								if _, ok := deps[depKey]; !ok {
+									deps[depKey] = &model.DependencyLink{
+										Parent:    parentSpanServiceName,
+										Child:     spanServiceName,
+										CallCount: 1,
+									}
+								} else {
+									deps[depKey].CallCount++
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	retMe := make([]model.DependencyLink, 0, len(deps))
+	for _, dep := range deps {
+		retMe = append(retMe, *dep)
+	}
+	return retMe, nil
+}
+
+func findServiceNameWithSpanId(trace ptrace.Traces, spanId pcommon.SpanID) (string, bool) {
+	for _, resourceSpan := range trace.ResourceSpans().All() {
+		for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
+			for _, span := range scopeSpan.Spans().All() {
+				if span.SpanID() == spanId {
+					return getServiceNameFromResource(resourceSpan.Resource()), true
+				}
+			}
+		}
+	}
+	return "", false
+}
+
+func traceIsBetweenStartAndEnd(traceWithTime traceAndId, startTime time.Time, endTime time.Time) bool {
+	if endTime.IsZero() && traceWithTime.startTime.After(startTime) {
+		return true
+	}
+	if traceWithTime.startTime.After(startTime) && traceWithTime.endTime.Before(endTime) {
+		return true
+	}
+	return false
 }
 
 func validTrace(td ptrace.Traces, query tracestore.TraceQueryParams) bool {

@@ -8,12 +8,15 @@ import (
 	"errors"
 	"iter"
 	"sync"
+	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	v1 "github.com/jaegertracing/jaeger/internal/storage/v1/memory"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
@@ -65,6 +68,8 @@ func (st *Store) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	resourceSpansByTraceId := reshuffleResourceSpans(td.ResourceSpans())
 	m := st.getTenant(tenancy.GetTenant(ctx))
 	for traceId, sameTraceIDResourceSpan := range resourceSpansByTraceId {
+		var startTime time.Time
+		var endTime time.Time
 		for _, resourceSpan := range sameTraceIDResourceSpan.All() {
 			serviceName := getServiceNameFromResource(resourceSpan.Resource())
 			if serviceName == "" {
@@ -78,10 +83,23 @@ func (st *Store) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 						SpanKind: span.Kind().String(),
 					}
 					m.storeOperation(serviceName, operation)
+					if startTime.IsZero() || endTime.IsZero() {
+						startTime = span.StartTimestamp().AsTime()
+						endTime = span.EndTimestamp().AsTime()
+					} else {
+						spanStartTime := span.StartTimestamp().AsTime()
+						if spanStartTime.Before(startTime) {
+							startTime = spanStartTime
+						}
+						spanEndTime := span.EndTimestamp().AsTime()
+						if spanEndTime.After(endTime) {
+							endTime = spanEndTime
+						}
+					}
 				}
 			}
 		}
-		m.storeTraces(traceId, sameTraceIDResourceSpan)
+		m.storeTraces(traceId, startTime, endTime, sameTraceIDResourceSpan)
 	}
 	return nil
 }
@@ -156,6 +174,11 @@ func (st *Store) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTraceP
 			}
 		}
 	}
+}
+
+func (st *Store) GetDependencies(ctx context.Context, query depstore.QueryParameters) ([]model.DependencyLink, error) {
+	m := st.getTenant(tenancy.GetTenant(ctx))
+	return m.getDependencies(query)
 }
 
 // reshuffleResourceSpans reshuffles the resource spans so as to group the spans from same traces together. To understand this reshuffling
