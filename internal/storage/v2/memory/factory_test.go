@@ -9,15 +9,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap/zaptest"
 
 	v1 "github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 )
 
 func TestNewFactory(t *testing.T) {
-	f, err := NewFactory(v1.Configuration{
-		MaxTraces: 10,
-	}, zaptest.NewLogger(t))
+	f, err := NewFactory(v1.Configuration{MaxTraces: 10})
 	require.NoError(t, err)
 	_, err = f.CreateTraceWriter()
 	require.NoError(t, err)
@@ -33,7 +30,7 @@ func TestNewFactory(t *testing.T) {
 }
 
 func TestNewFactoryErr(t *testing.T) {
-	f, err := NewFactory(v1.Configuration{}, zaptest.NewLogger(t))
+	f, err := NewFactory(v1.Configuration{})
 	require.ErrorContains(t, err, "max traces must be greater than zero")
 	assert.Nil(t, f)
 }
