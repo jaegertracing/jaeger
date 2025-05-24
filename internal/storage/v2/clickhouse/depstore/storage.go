@@ -19,6 +19,14 @@ type Storage struct {
 	conn driver.Conn
 }
 
+// NewStorage initializes a new Storage instance for interacting with the ClickHouse database
+// for querying dependency data.
+func NewStorage(conn driver.Conn) *Storage {
+	return &Storage{
+		conn: conn,
+	}
+}
+
 func (s *Storage) GetDependencies(
 	ctx context.Context,
 	query depstore.QueryParameters,
