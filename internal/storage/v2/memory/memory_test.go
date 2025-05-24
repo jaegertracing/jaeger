@@ -682,6 +682,49 @@ func TestGetDependencies_Err(t *testing.T) {
 	assert.Nil(t, deps)
 }
 
+func TestGetDependencies_EmptyParentSpanId(t *testing.T) {
+	store, err := NewStore(v1.Configuration{
+		MaxTraces: 10,
+	})
+	require.NoError(t, err)
+	td := ptrace.NewTraces()
+	span := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetTraceID(fromString(t, "00000000000000010000000000000000"))
+	startTime := time.Now()
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(startTime))
+	span.SetEndTimestamp(pcommon.NewTimestampFromTime(startTime.Add(1 * time.Second)))
+	err = store.WriteTraces(context.Background(), td)
+	require.NoError(t, err)
+	deps, err := store.GetDependencies(context.Background(), depstore.QueryParameters{
+		StartTime: startTime.Add(-1 * time.Second),
+		EndTime:   startTime.Add(2 * time.Second),
+	})
+	require.NoError(t, err)
+	assert.Empty(t, deps)
+}
+
+func TestGetDependencies_WrongSpanId(t *testing.T) {
+	store, err := NewStore(v1.Configuration{
+		MaxTraces: 10,
+	})
+	require.NoError(t, err)
+	td := ptrace.NewTraces()
+	span := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetTraceID(fromString(t, "00000000000000010000000000000000"))
+	startTime := time.Now()
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(startTime))
+	span.SetEndTimestamp(pcommon.NewTimestampFromTime(startTime.Add(1 * time.Second)))
+	span.SetSpanID(spanIdFromString(t, "0000000000000002"))
+	err = store.WriteTraces(context.Background(), td)
+	require.NoError(t, err)
+	deps, err := store.GetDependencies(context.Background(), depstore.QueryParameters{
+		StartTime: startTime.Add(-1 * time.Second),
+		EndTime:   startTime.Add(2 * time.Second),
+	})
+	require.NoError(t, err)
+	assert.Empty(t, deps)
+}
+
 func writeTenTraces(t *testing.T, store *Store) {
 	for i := 1; i < 10; i++ {
 		traceID := fromString(t, fmt.Sprintf("000000000000000%d0000000000000000", i))

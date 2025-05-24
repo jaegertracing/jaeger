@@ -8,7 +8,6 @@ import (
 	"errors"
 	"iter"
 	"sync"
-	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -67,33 +66,7 @@ func (st *Store) getTenant(tenantID string) *Tenant {
 func (st *Store) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	resourceSpansByTraceId := reshuffleResourceSpans(td.ResourceSpans())
 	m := st.getTenant(tenancy.GetTenant(ctx))
-	for traceId, sameTraceIDResourceSpan := range resourceSpansByTraceId {
-		var startTime time.Time
-		var endTime time.Time
-		for _, resourceSpan := range sameTraceIDResourceSpan.All() {
-			serviceName := getServiceNameFromResource(resourceSpan.Resource())
-			if serviceName == "" {
-				continue
-			}
-			m.storeService(serviceName)
-			for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
-				for _, span := range scopeSpan.Spans().All() {
-					operation := tracestore.Operation{
-						Name:     span.Name(),
-						SpanKind: span.Kind().String(),
-					}
-					m.storeOperation(serviceName, operation)
-					if startTime.IsZero() || span.StartTimestamp().AsTime().Before(startTime) {
-						startTime = span.StartTimestamp().AsTime()
-					}
-					if endTime.IsZero() || span.EndTimestamp().AsTime().After(endTime) {
-						endTime = span.EndTimestamp().AsTime()
-					}
-				}
-			}
-		}
-		m.storeTraces(traceId, startTime, endTime, sameTraceIDResourceSpan)
-	}
+	m.storeTraces(resourceSpansByTraceId)
 	return nil
 }
 
