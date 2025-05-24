@@ -6,8 +6,6 @@ package memory
 import (
 	"context"
 
-	"go.uber.org/zap"
-
 	"github.com/jaegertracing/jaeger/internal/distributedlock"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
@@ -23,18 +21,16 @@ var (
 )
 
 type Factory struct {
-	logger *zap.Logger
-	store  *Store
+	store *Store
 }
 
-func NewFactory(cfg v1.Configuration, logger *zap.Logger) (*Factory, error) {
+func NewFactory(cfg v1.Configuration) (*Factory, error) {
 	store, err := NewStore(cfg)
 	if err != nil {
 		return nil, err
 	}
 	return &Factory{
-		store:  store,
-		logger: logger,
+		store: store,
 	}, nil
 }
 
