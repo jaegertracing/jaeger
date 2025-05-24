@@ -1,3 +1,6 @@
+// Copyright (c) 2025 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package depstore
 
 import (
@@ -6,6 +9,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
+// Dependency represents a row in the ClickHouse 'dependencies' table.
 type Dependency struct {
 	Parent    string    `ch:"parent"`
 	Child     string    `ch:"child"`
@@ -14,7 +18,8 @@ type Dependency struct {
 	Timestamp time.Time `ch:"timestamp"`
 }
 
-func (d *Dependency) ToModel() model.DependencyLink {
+// toModel maps a Dependency (DB representation) to the model.DependencyLink used in the API layer.
+func (d *Dependency) toModel() model.DependencyLink {
 	return model.DependencyLink{
 		Parent:    d.Parent,
 		Child:     d.Child,
