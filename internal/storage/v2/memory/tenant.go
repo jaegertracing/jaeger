@@ -73,7 +73,7 @@ func (t *Tenant) storeTraces(tracesById map[pcommon.TraceID]ptrace.ResourceSpans
 					if serviceName != "" {
 						operation := tracestore.Operation{
 							Name:     span.Name(),
-							SpanKind: span.Kind().String(),
+							SpanKind: string(fromOTELSpanKind(span.Kind())),
 						}
 						if _, ok := t.operations[serviceName]; !ok {
 							t.operations[serviceName] = make(map[tracestore.Operation]struct{})
@@ -288,4 +288,21 @@ func findKeyValInTrace(key string, val pcommon.Value, resourceAttributes pcommon
 		}
 	}
 	return tagsMatched
+}
+
+func fromOTELSpanKind(kind ptrace.SpanKind) model.SpanKind {
+	switch kind {
+	case ptrace.SpanKindServer:
+		return model.SpanKindServer
+	case ptrace.SpanKindInternal:
+		return model.SpanKindInternal
+	case ptrace.SpanKindClient:
+		return model.SpanKindClient
+	case ptrace.SpanKindProducer:
+		return model.SpanKindProducer
+	case ptrace.SpanKindConsumer:
+		return model.SpanKindConsumer
+	default:
+		return model.SpanKindUnspecified
+	}
 }
