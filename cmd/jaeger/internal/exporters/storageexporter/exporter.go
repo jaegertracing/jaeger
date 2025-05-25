@@ -25,11 +25,9 @@ type storageExporter struct {
 
 func newExporter(config *Config, otel component.TelemetrySettings) *storageExporter {
 	return &storageExporter{
-		config: config,
-		logger: otel.Logger,
-		sanitizer: sanitizer.NewChainedSanitizer(
-			sanitizer.NewStandardSanitizers()...,
-		),
+		config:    config,
+		logger:    otel.Logger,
+		sanitizer: sanitizer.Sanitize,
 	}
 }
 
