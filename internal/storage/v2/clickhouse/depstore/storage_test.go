@@ -23,7 +23,7 @@ type testDriver struct {
 	err  error
 }
 
-func (t *testDriver) Query(ctx context.Context, query string, args ...any) (driver.Rows, error) {
+func (t *testDriver) Query(_ context.Context, query string, args ...any) (driver.Rows, error) {
 	return t.rows, t.err
 }
 
@@ -35,7 +35,7 @@ type testRows struct {
 	scanErr error
 }
 
-func (f *testRows) Close() error {
+func (*testRows) Close() error {
 	return nil
 }
 
