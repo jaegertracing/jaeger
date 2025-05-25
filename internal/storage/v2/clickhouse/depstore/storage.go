@@ -47,7 +47,7 @@ func (s *Storage) GetDependencies(
 	var dependencies []model.DependencyLink
 	for rows.Next() {
 		var dependency Dependency
-		if err := rows.ScanStruct(dependency); err != nil {
+		if err := rows.ScanStruct(&dependency); err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 		dependencies = append(dependencies, dependency.toModel())
