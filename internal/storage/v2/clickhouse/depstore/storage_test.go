@@ -23,7 +23,7 @@ type testDriver struct {
 	err  error
 }
 
-func (t *testDriver) Query(_ context.Context, query string, args ...any) (driver.Rows, error) {
+func (t *testDriver) Query(_ context.Context, _ string, args ...any) (driver.Rows, error) {
 	return t.rows, t.err
 }
 
