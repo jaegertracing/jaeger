@@ -16,6 +16,11 @@ type Reader struct {
 	conn driver.Conn
 }
 
+// NewReader returns a new Reader instance that uses the given ClickHouse connection
+// to read trace data.
+//
+// The provided connection is used exclusively for reading traces, meaning it is safe
+// to enable instrumentation on the connection without risk of recursively generating traces.
 func NewReader(conn driver.Conn) *Reader {
 	return &Reader{conn: conn}
 }
