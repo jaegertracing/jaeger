@@ -5,7 +5,8 @@ go 1.23.7
 toolchain go1.24.2
 
 require (
-	github.com/ClickHouse/ch-go v0.65.1
+	github.com/ClickHouse/ch-go v0.66.0
+	github.com/ClickHouse/clickhouse-go/v2 v2.35.0
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/Shopify/sarama v1.37.2
 	github.com/apache/thrift v0.21.0
@@ -104,6 +105,11 @@ require (
 	google.golang.org/grpc v1.72.0
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/yaml.v3 v3.0.1
+)
+
+require (
+	github.com/paulmach/orb v0.11.1 // indirect
+	github.com/shopspring/decimal v1.4.0 // indirect
 )
 
 require (
