@@ -13,7 +13,9 @@ import (
 )
 
 const (
-	selectAllServices = `SELECT name FROM services`
+	// TODO: revisit query after materialized views are implemented
+	// to see if the DISTINCT is still required
+	sqlSelectAllServices = `SELECT DISTINCT name FROM services`
 )
 
 type Reader struct {
@@ -30,7 +32,7 @@ func NewReader(conn driver.Conn) *Reader {
 }
 
 func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
-	rows, err := r.conn.Query(ctx, selectAllServices)
+	rows, err := r.conn.Query(ctx, sqlSelectAllServices)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query services: %w", err)
 	}
