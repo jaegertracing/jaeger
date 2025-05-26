@@ -61,7 +61,7 @@ func TestExpvarExtension_StartError(t *testing.T) {
 		ServerConfig: confighttp.ServerConfig{
 			Endpoint: "0.0.0.0:27777",
 			Auth: &confighttp.AuthConfig{
-				Authentication: configauth.Authentication{
+				Config: configauth.Config{
 					AuthenticatorID: component.MustNewID("invalid_auth"),
 				},
 			},
