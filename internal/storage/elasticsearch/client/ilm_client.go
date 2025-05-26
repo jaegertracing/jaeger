@@ -29,7 +29,7 @@ type ILMClient struct {
 }
 
 // Exists verify if a ILM policy exists
-func (i ILMClient) Exists(ctx context.Context, name string) (bool, error) {
+func (i ILMClient) Exists(name string) (bool, error) {
 	operation := func() ([]byte, error) {
 		bytes, err := i.request(elasticRequest{
 			endpoint: "_ilm/policy/" + name,
@@ -46,7 +46,7 @@ func (i ILMClient) Exists(ctx context.Context, name string) (bool, error) {
 	}
 
 	_, err := backoff.Retry(
-		ctx,
+		context.TODO(),
 		operation,
 		backoff.WithMaxTries(maxTries),
 		backoff.WithMaxElapsedTime(maxElapsedTime),

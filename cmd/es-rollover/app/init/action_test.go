@@ -4,7 +4,6 @@
 package init
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -248,7 +247,7 @@ func TestRolloverAction(t *testing.T) {
 
 			test.setupCallExpectations(indexClient, clusterClient, ilmClient)
 
-			err := initAction.Do(context.TODO())
+			err := initAction.Do()
 			if test.expectedErr != nil {
 				require.Error(t, err)
 				assert.Equal(t, test.expectedErr, err)
