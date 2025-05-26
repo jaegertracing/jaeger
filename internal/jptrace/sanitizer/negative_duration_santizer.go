@@ -3,8 +3,10 @@
 package sanitizer
 
 import (
+	"fmt"
 	"time"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
@@ -43,9 +45,19 @@ func sanitizeNegativeDuration(traces ptrace.Traces) ptrace.Traces {
 func sanitizeDuration(span *ptrace.Span) {
 	start := span.StartTimestamp().AsTime()
 	end := span.EndTimestamp().AsTime()
-	if start.Compare(end) == -1 {
+	if start.Before(end) {
 		return
 	}
 
-	span.SetEndTimestamp(pcommon.NewTimestampFromTime(start.Add(minDuration)))
+	newEnd := start.Add(minDuration)
+	jptrace.AddWarnings(
+		*span,
+		"Negative duration detected, sanitizing end timestamp",
+		fmt.Sprintf(
+			"Original end timestamp: %s, adjusted to: %s",
+			end.String(), newEnd.String(),
+		),
+	)
+
+	span.SetEndTimestamp(pcommon.NewTimestampFromTime(newEnd))
 }
