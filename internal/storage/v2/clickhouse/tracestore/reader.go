@@ -12,6 +12,10 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
+const (
+	selectAllServices = `SELECT name FROM services`
+)
+
 type Reader struct {
 	conn driver.Conn
 }
@@ -26,7 +30,7 @@ func NewReader(conn driver.Conn) *Reader {
 }
 
 func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
-	rows, err := r.conn.Query(ctx, `SELECT name FROM services`)
+	rows, err := r.conn.Query(ctx, selectAllServices)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query services: %w", err)
 	}

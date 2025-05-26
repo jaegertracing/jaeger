@@ -6,7 +6,6 @@ package tracestore
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
@@ -78,7 +77,7 @@ func TestGetServices(t *testing.T) {
 					scanFn: func(dest any, src dbmodel.Service) error {
 						svc, ok := dest.(*dbmodel.Service)
 						if !ok {
-							return errors.new(type)("dest is not *dbmodel.Service")
+							return errors.New("dest is not *dbmodel.Service")
 						}
 						*svc = src
 						return nil
