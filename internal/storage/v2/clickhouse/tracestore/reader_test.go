@@ -78,7 +78,7 @@ func TestGetServices(t *testing.T) {
 					scanFn: func(dest any, src dbmodel.Service) error {
 						svc, ok := dest.(*dbmodel.Service)
 						if !ok {
-							return fmt.Errorf("dest is not *dbmodel.Service")
+							return errors.new(type)("dest is not *dbmodel.Service")
 						}
 						*svc = src
 						return nil
@@ -104,7 +104,7 @@ func TestGetServices(t *testing.T) {
 					scanFn: func(dest any, src dbmodel.Service) error {
 						svc, ok := dest.(*dbmodel.Service)
 						if !ok {
-							return fmt.Errorf("dest is not *dbmodel.Service")
+							return errors.New("dest is not *dbmodel.Service")
 						}
 						*svc = src
 						return nil
