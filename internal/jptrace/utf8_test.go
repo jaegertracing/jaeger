@@ -1,4 +1,4 @@
-package utils
+package jptrace
 
 import (
 	"testing"
