@@ -52,7 +52,7 @@ func TestNegativeDurationSanitizer(t *testing.T) {
 			assert.Equal(t, test.expected, actual.Duration)
 
 			if test.expectWarning {
-				assert.Equal(t, 1, len(actual.Tags))
+				assert.Len(t, actual.Tags, 1)
 				assert.Equal(t, invalidDuration, actual.Tags[0].Key)
 				assert.Equal(t, []byte("Duration can't be negative, so it is changed to default value"), actual.Tags[0].VBinary)
 			}

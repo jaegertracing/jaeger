@@ -23,7 +23,7 @@ func NewNegativeDurationSanitizer() SanitizeSpan {
 }
 
 // Sanitize sanitizes the spans with negative durations.
-func (s *negativeDurationSanitizer) Sanitize(span *model.Span) *model.Span {
+func (*negativeDurationSanitizer) Sanitize(span *model.Span) *model.Span {
 	if span.Duration < minDuration {
 		span.Tags = append(
 			span.Tags,
