@@ -24,7 +24,7 @@ import (
 func TestNewFactory_NonEmptyAuthenticator(t *testing.T) {
 	cfg := &Config{
 		ClientConfig: configgrpc.ClientConfig{
-			Auth: &configauth.Authentication{},
+			Auth: &configauth.Config{},
 		},
 	}
 	_, err := NewFactory(context.Background(), *cfg, telemetry.NoopSettings())

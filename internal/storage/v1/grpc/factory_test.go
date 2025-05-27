@@ -98,7 +98,7 @@ func TestNewFactoryError(t *testing.T) {
 	cfg := &Config{
 		ClientConfig: configgrpc.ClientConfig{
 			// non-empty Auth is currently not supported
-			Auth: &configauth.Authentication{},
+			Auth: &configauth.Config{},
 		},
 	}
 	telset := telemetry.NoopSettings()

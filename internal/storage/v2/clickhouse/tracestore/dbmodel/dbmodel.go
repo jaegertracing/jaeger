@@ -51,3 +51,7 @@ type Event struct {
 	Timestamp  time.Time
 	Attributes AttributesGroup
 }
+
+type Service struct {
+	Name string `ch:"name"`
+}
