@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
 
 const (
@@ -52,9 +53,8 @@ func sanitizeDuration(span *ptrace.Span) {
 	newEnd := start.Add(minDuration)
 	jptrace.AddWarnings(
 		*span,
-		"Negative duration detected, sanitizing end timestamp",
 		fmt.Sprintf(
-			"Original end timestamp: %s, adjusted to: %s",
+			"Negative duration detected, sanitizing end timestamp. Original end timestamp: %s, adjusted to: %s",
 			end.String(), newEnd.String(),
 		),
 	)

@@ -8,10 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
 
 func TestNegativeDurationSanitizer(t *testing.T) {
@@ -76,17 +77,12 @@ func TestNegativeDurationSanitizer(t *testing.T) {
 				warnings := jptrace.GetWarnings(sanitizedSpan)
 				require.Equal(
 					t,
-					"Negative duration detected, sanitizing end timestamp",
-					warnings[0],
-				)
-				require.Equal(
-					t,
 					fmt.Sprintf(
-						"Original end timestamp: %s, adjusted to: %s",
+						"Negative duration detected, sanitizing end timestamp. Original end timestamp: %s, adjusted to: %s",
 						test.end.String(),
 						gotEnd.String(),
 					),
-					warnings[1],
+					warnings[0],
 				)
 			}
 		})
