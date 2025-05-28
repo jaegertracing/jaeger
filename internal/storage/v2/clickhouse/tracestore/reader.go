@@ -9,13 +9,15 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
 const (
-	// TODO: revisit query after materialized views are implemented
-	// to see if the DISTINCT is still required
 	sqlSelectAllServices = `SELECT DISTINCT name FROM services`
+	sqlSelectOperations  = `SELECT name, span_kind
+	FROM operations
+	WHERE service_name = ? AND span_kind = ?`
 )
 
 type Reader struct {
@@ -47,4 +49,28 @@ func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
 		services = append(services, service.Name)
 	}
 	return services, nil
+}
+
+func (r *Reader) GetOperations(
+	ctx context.Context,
+	query tracestore.OperationQueryParams,
+) ([]tracestore.Operation, error) {
+	rows, err := r.conn.Query(ctx, sqlSelectOperations, query.ServiceName, query.SpanKind)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query operations: %w", err)
+	}
+	defer rows.Close()
+
+	var operations []tracestore.Operation
+	for rows.Next() {
+		var operation dbmodel.Operation
+		if err := rows.ScanStruct(&operation); err != nil {
+			return nil, fmt.Errorf("failed to scan row: %w", err)
+		}
+		operations = append(operations, tracestore.Operation{
+			Name:     operation.Name,
+			SpanKind: operation.SpanKind,
+		})
+	}
+	return operations, nil
 }
