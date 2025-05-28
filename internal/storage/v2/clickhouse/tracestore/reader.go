@@ -14,8 +14,11 @@ import (
 )
 
 const (
-	sqlSelectAllServices = `SELECT DISTINCT name FROM services`
-	sqlSelectOperations  = `SELECT name, span_kind
+	sqlSelectAllServices        = `SELECT DISTINCT name FROM services`
+	sqlSelectOperationsAllKinds = `SELECT name, span_kind
+	FROM operations
+	WHERE service_name = ?`
+	sqlSelectOperationsByKind = `SELECT name, span_kind
 	FROM operations
 	WHERE service_name = ? AND span_kind = ?`
 )
@@ -55,7 +58,13 @@ func (r *Reader) GetOperations(
 	ctx context.Context,
 	query tracestore.OperationQueryParams,
 ) ([]tracestore.Operation, error) {
-	rows, err := r.conn.Query(ctx, sqlSelectOperations, query.ServiceName, query.SpanKind)
+	var rows driver.Rows
+	var err error
+	if query.SpanKind == "" {
+		rows, err = r.conn.Query(ctx, sqlSelectOperationsAllKinds, query.ServiceName)
+	} else {
+		rows, err = r.conn.Query(ctx, sqlSelectOperationsByKind, query.ServiceName, query.SpanKind)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to query operations: %w", err)
 	}
