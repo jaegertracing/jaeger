@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
@@ -22,7 +23,7 @@ type testDriver struct {
 	err  error
 }
 
-func (t *testDriver) Query(_ context.Context, _ string, _ ...any) (driver.Rows, error) {
+func (t *testDriver) Query(_ context.Context, query string, _ ...any) (driver.Rows, error) {
 	return t.rows, t.err
 }
 
@@ -120,6 +121,132 @@ func TestGetServices(t *testing.T) {
 			reader := NewReader(test.conn)
 
 			result, err := reader.GetServices(context.Background())
+
+			if test.expectError != "" {
+				require.ErrorContains(t, err, test.expectError)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.expected, result)
+			}
+		})
+	}
+}
+
+func TestGetOperations(t *testing.T) {
+	// TODO: add query verification check
+	tests := []struct {
+		name        string
+		conn        *testDriver
+		query       tracestore.OperationQueryParams
+		expected    []tracestore.Operation
+		expectError string
+	}{
+		{
+			name: "successfully returns operations for all kinds",
+			conn: &testDriver{
+				rows: &testRows[dbmodel.Operation]{
+					data: []dbmodel.Operation{
+						{Name: "operationA"},
+						{Name: "operationB"},
+						{Name: "operationC"},
+					},
+					scanFn: func(dest any, src dbmodel.Operation) error {
+						svc, ok := dest.(*dbmodel.Operation)
+						if !ok {
+							return errors.New("dest is not *dbmodel.Operation")
+						}
+						*svc = src
+						return nil
+					},
+				},
+			},
+			query: tracestore.OperationQueryParams{
+				ServiceName: "serviceA",
+			},
+			expected: []tracestore.Operation{
+				{
+					Name: "operationA",
+				},
+				{
+					Name: "operationB",
+				},
+				{
+					Name: "operationC",
+				},
+			},
+		},
+		{
+			name: "successfully returns operations by kind",
+			conn: &testDriver{
+				rows: &testRows[dbmodel.Operation]{
+					data: []dbmodel.Operation{
+						{Name: "operationA", SpanKind: "server"},
+						{Name: "operationB", SpanKind: "server"},
+						{Name: "operationC", SpanKind: "server"},
+					},
+					scanFn: func(dest any, src dbmodel.Operation) error {
+						svc, ok := dest.(*dbmodel.Operation)
+						if !ok {
+							return errors.New("dest is not *dbmodel.Operation")
+						}
+						*svc = src
+						return nil
+					},
+				},
+			},
+			query: tracestore.OperationQueryParams{
+				ServiceName: "serviceA",
+				SpanKind:    "server",
+			},
+			expected: []tracestore.Operation{
+				{
+					Name:     "operationA",
+					SpanKind: "server",
+				},
+				{
+					Name:     "operationB",
+					SpanKind: "server",
+				},
+				{
+					Name:     "operationC",
+					SpanKind: "server",
+				},
+			},
+		},
+		{
+			name:        "query error",
+			conn:        &testDriver{err: assert.AnError},
+			expectError: "failed to query operations",
+		},
+		{
+			name: "scan error",
+			conn: &testDriver{
+				rows: &testRows[dbmodel.Operation]{
+					data: []dbmodel.Operation{
+						{Name: "operationA"},
+						{Name: "operationB"},
+						{Name: "operationC"},
+					},
+					scanFn: func(dest any, src dbmodel.Operation) error {
+						svc, ok := dest.(*dbmodel.Operation)
+						if !ok {
+							return errors.New("dest is not *dbmodel.Operation")
+						}
+						*svc = src
+						return nil
+					},
+					scanErr: assert.AnError,
+				},
+			},
+			expectError: "failed to scan row",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			reader := NewReader(test.conn)
+
+			result, err := reader.GetOperations(context.Background(), test.query)
 
 			if test.expectError != "" {
 				require.ErrorContains(t, err, test.expectError)
