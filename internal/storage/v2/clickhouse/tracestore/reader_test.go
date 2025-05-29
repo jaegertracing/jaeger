@@ -19,11 +19,14 @@ import (
 type testDriver struct {
 	driver.Conn
 
-	rows driver.Rows
-	err  error
+	t             *testing.T
+	rows          driver.Rows
+	expectedQuery string
+	err           error
 }
 
-func (t *testDriver) Query(_ context.Context, _ string, _ ...any) (driver.Rows, error) {
+func (t *testDriver) Query(_ context.Context, query string, _ ...any) (driver.Rows, error) {
+	require.Equal(t.t, t.expectedQuery, query)
 	return t.rows, t.err
 }
 
@@ -69,6 +72,8 @@ func TestGetServices(t *testing.T) {
 		{
 			name: "successfully returns services",
 			conn: &testDriver{
+				t:             t,
+				expectedQuery: sqlSelectAllServices,
 				rows: &testRows[dbmodel.Service]{
 					data: []dbmodel.Service{
 						{Name: "serviceA"},
@@ -88,13 +93,19 @@ func TestGetServices(t *testing.T) {
 			expected: []string{"serviceA", "serviceB", "serviceC"},
 		},
 		{
-			name:        "query error",
-			conn:        &testDriver{err: assert.AnError},
+			name: "query error",
+			conn: &testDriver{
+				t:             t,
+				expectedQuery: sqlSelectAllServices,
+				err:           assert.AnError,
+			},
 			expectError: "failed to query services",
 		},
 		{
 			name: "scan error",
 			conn: &testDriver{
+				t:             t,
+				expectedQuery: sqlSelectAllServices,
 				rows: &testRows[dbmodel.Service]{
 					data: []dbmodel.Service{
 						{Name: "serviceA"},
@@ -133,7 +144,6 @@ func TestGetServices(t *testing.T) {
 }
 
 func TestGetOperations(t *testing.T) {
-	// TODO: add query verification check
 	tests := []struct {
 		name        string
 		conn        *testDriver
@@ -144,6 +154,8 @@ func TestGetOperations(t *testing.T) {
 		{
 			name: "successfully returns operations for all kinds",
 			conn: &testDriver{
+				t:             t,
+				expectedQuery: sqlSelectOperationsAllKinds,
 				rows: &testRows[dbmodel.Operation]{
 					data: []dbmodel.Operation{
 						{Name: "operationA"},
@@ -178,6 +190,8 @@ func TestGetOperations(t *testing.T) {
 		{
 			name: "successfully returns operations by kind",
 			conn: &testDriver{
+				t:             t,
+				expectedQuery: sqlSelectOperationsByKind,
 				rows: &testRows[dbmodel.Operation]{
 					data: []dbmodel.Operation{
 						{Name: "operationA", SpanKind: "server"},
@@ -214,13 +228,19 @@ func TestGetOperations(t *testing.T) {
 			},
 		},
 		{
-			name:        "query error",
-			conn:        &testDriver{err: assert.AnError},
+			name: "query error",
+			conn: &testDriver{
+				t:             t,
+				expectedQuery: sqlSelectOperationsAllKinds,
+				err:           assert.AnError,
+			},
 			expectError: "failed to query operations",
 		},
 		{
 			name: "scan error",
 			conn: &testDriver{
+				t:             t,
+				expectedQuery: sqlSelectOperationsAllKinds,
 				rows: &testRows[dbmodel.Operation]{
 					data: []dbmodel.Operation{
 						{Name: "operationA"},
