@@ -55,3 +55,8 @@ type Event struct {
 type Service struct {
 	Name string `ch:"name"`
 }
+
+type Operation struct {
+	Name     string `ch:"name"`
+	SpanKind string `ch:"span_kind"`
+}
