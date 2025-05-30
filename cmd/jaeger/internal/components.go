@@ -41,6 +41,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/remotestorage"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/storagecleaner"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/processors/adaptivesampling"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/processors/dependencyprocessor"
 )
 
 type builders struct {
@@ -122,6 +123,7 @@ func (b builders) build() (otelcol.Factories, error) {
 		filterprocessor.NewFactory(),
 		// add-ons
 		adaptivesampling.NewFactory(),
+		dependencyprocessor.NewFactory(),
 	)
 	if err != nil {
 		return otelcol.Factories{}, err
