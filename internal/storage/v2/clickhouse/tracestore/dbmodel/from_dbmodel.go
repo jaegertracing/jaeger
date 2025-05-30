@@ -4,8 +4,10 @@
 package dbmodel
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -200,7 +202,29 @@ func AttributesGroupToMap(group AttributesGroup) (pcommon.Map, error) {
 	for i := range group.StrKeys {
 		key := group.StrKeys[i]
 		value := group.StrValues[i]
-		result.PutStr(key, value)
+
+		var parsed interface{}
+		decoder := json.NewDecoder(bytes.NewReader([]byte(value)))
+		decoder.UseNumber()
+		
+		if err := decoder.Decode(&parsed); err == nil {
+			switch v := parsed.(type) {
+			case map[string]interface{}:
+				m := result.PutEmptyMap(key)
+				if err := interfaceToPcommonMap(v, m); err != nil {
+					return result, err
+				}
+			case []interface{}:
+				s := result.PutEmptySlice(key)
+				if err := interfaceToPcommonSlice(v, s); err != nil {
+					return result, err
+				}
+			default:
+				result.PutStr(key, value)
+			}
+		} else {
+			result.PutStr(key, value)
+		}
 	}
 	for i := range group.BytesKeys {
 		key := group.BytesKeys[i]
@@ -212,4 +236,51 @@ func AttributesGroupToMap(group AttributesGroup) (pcommon.Map, error) {
 		result.PutEmptyBytes(key).FromRaw(bts)
 	}
 	return result, nil
+}
+
+func interfaceToPcommonMap(data map[string]interface{}, m pcommon.Map) error {
+	for k, v := range data {
+		val := m.PutEmpty(k)
+		if err := interfaceToPcommonValue(v, val); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func interfaceToPcommonSlice(data []interface{}, s pcommon.Slice) error {
+	s.EnsureCapacity(len(data))
+	for _, item := range data {
+		val := s.AppendEmpty()
+		if err := interfaceToPcommonValue(item, val); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func interfaceToPcommonValue(data interface{}, val pcommon.Value) error {
+	switch v := data.(type) {
+	case bool:
+		val.SetBool(v)
+	case json.Number:
+		if i, err := v.Int64(); err == nil {
+			val.SetInt(i)
+		} else if f, err := v.Float64(); err == nil {
+			val.SetDouble(f)
+		}
+	case float64:
+		val.SetDouble(v)
+	case string:
+		val.SetStr(v)
+	case []byte:
+		val.SetEmptyBytes().FromRaw(v)
+	case map[string]interface{}:
+		m := val.SetEmptyMap()
+		return interfaceToPcommonMap(v, m)
+	case []interface{}:
+		s := val.SetEmptySlice()
+		return interfaceToPcommonSlice(v, s)
+	}
+	return nil
 }
