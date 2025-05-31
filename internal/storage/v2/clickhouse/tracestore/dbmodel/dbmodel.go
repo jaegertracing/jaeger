@@ -5,45 +5,37 @@ package dbmodel
 
 import "time"
 
-// Trace Domain model in Clickhouse.
-// This struct represents the schema for storing OTel pipeline Traces in Clickhouse.
-type Trace struct {
-	Resource Resource
-	Scope    Scope
-	Span     Span
-	Links    []Link
-	Events   []Event
-}
-
-type Resource struct {
-	Attributes AttributesGroup
-}
-
-type Scope struct {
-	Name       string
-	Version    string
-	Attributes AttributesGroup
-}
-
+// Span represents a single row in the ClickHouse `spans` table.
 type Span struct {
-	Timestamp     time.Time
-	TraceId       string
-	SpanId        string
-	ParentSpanId  string
-	TraceState    string
-	Name          string
-	Kind          string
-	Duration      time.Time
-	StatusCode    string
-	StatusMessage string
-	Attributes    AttributesGroup
+	// --- Span ---
+	Id            string        `ch:"id"`
+	TraceID       string        `ch:"trace_id"`
+	TraceState    string        `ch:"trace_state"`
+	ParentSpanID  string        `ch:"parent_span_id"`
+	Name          string        `ch:"name"`
+	Kind          string        `ch:"kind"`
+	StartTime     time.Time     `ch:"start_time"`
+	Duration      time.Duration `ch:"duration"`
+	Events        []Event
+	Links         []Link
+	StatusCode    string `ch:"status_code"`
+	StatusMessage string `ch:"status_message"`
+
+	// --- Resource ---
+	// TODO: add attributes
+	ServiceName string `ch:"service_name"`
+
+	// --- Scope ---
+	// TODO: add attributes
+	ScopeName    string `ch:"scope_name"`
+	ScopeVersion string `ch:"scope_version"`
 }
 
 type Link struct {
+	// TODO: add attributes
 	TraceId    string
 	SpanId     string
 	TraceState string
-	Attributes AttributesGroup
 }
 
 type Event struct {
