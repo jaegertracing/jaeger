@@ -39,9 +39,9 @@ type Link struct {
 }
 
 type Event struct {
-	Name       string
-	Timestamp  time.Time
-	Attributes AttributesGroup
+	// TODO: add attributes
+	Name      string
+	Timestamp time.Time
 }
 
 type Service struct {
