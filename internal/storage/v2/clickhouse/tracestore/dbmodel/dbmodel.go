@@ -11,16 +11,19 @@ import (
 type Span struct {
 	// --- Span ---
 	// TODO: add attributes
-	ID            string        `ch:"id"`
-	TraceID       string        `ch:"trace_id"`
-	TraceState    string        `ch:"trace_state"`
-	ParentSpanID  string        `ch:"parent_span_id"`
-	Name          string        `ch:"name"`
-	Kind          string        `ch:"kind"`
-	StartTime     time.Time     `ch:"start_time"`
-	Duration      time.Duration `ch:"duration"`
-	StatusCode    string        `ch:"status_code"`
-	StatusMessage string        `ch:"status_message"`
+	ID            string    `ch:"id"`
+	TraceID       string    `ch:"trace_id"`
+	TraceState    string    `ch:"trace_state"`
+	ParentSpanID  string    `ch:"parent_span_id"`
+	Name          string    `ch:"name"`
+	Kind          string    `ch:"kind"`
+	StartTime     time.Time `ch:"start_time"`
+	StatusCode    string    `ch:"status_code"`
+	StatusMessage string    `ch:"status_message"`
+
+	// Duration is stored in ClickHouse as a UInt64 representing the number of nanoseconds.
+	// In Go, it is manually converted to and from time.Duration for convenience.
+	Duration time.Duration
 
 	// --- Nested Types ---
 	// The fields below correspond to ClickHouse Nested columns, which act
