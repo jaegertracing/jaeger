@@ -131,15 +131,26 @@ type Store_GetThroughput_Call struct {
 }
 
 // GetThroughput is a helper method to define mock.On call
-//   - start
-//   - end
+//   - start time.Time
+//   - end time.Time
 func (_e *Store_Expecter) GetThroughput(start interface{}, end interface{}) *Store_GetThroughput_Call {
 	return &Store_GetThroughput_Call{Call: _e.mock.On("GetThroughput", start, end)}
 }
 
 func (_c *Store_GetThroughput_Call) Run(run func(start time.Time, end time.Time)) *Store_GetThroughput_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(time.Time), args[1].(time.Time))
+		var arg0 time.Time
+		if args[0] != nil {
+			arg0 = args[0].(time.Time)
+		}
+		var arg1 time.Time
+		if args[1] != nil {
+			arg1 = args[1].(time.Time)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -177,16 +188,32 @@ type Store_InsertProbabilitiesAndQPS_Call struct {
 }
 
 // InsertProbabilitiesAndQPS is a helper method to define mock.On call
-//   - hostname
-//   - probabilities
-//   - qps
+//   - hostname string
+//   - probabilities model.ServiceOperationProbabilities
+//   - qps model.ServiceOperationQPS
 func (_e *Store_Expecter) InsertProbabilitiesAndQPS(hostname interface{}, probabilities interface{}, qps interface{}) *Store_InsertProbabilitiesAndQPS_Call {
 	return &Store_InsertProbabilitiesAndQPS_Call{Call: _e.mock.On("InsertProbabilitiesAndQPS", hostname, probabilities, qps)}
 }
 
 func (_c *Store_InsertProbabilitiesAndQPS_Call) Run(run func(hostname string, probabilities model.ServiceOperationProbabilities, qps model.ServiceOperationQPS)) *Store_InsertProbabilitiesAndQPS_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(model.ServiceOperationProbabilities), args[2].(model.ServiceOperationQPS))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		var arg1 model.ServiceOperationProbabilities
+		if args[1] != nil {
+			arg1 = args[1].(model.ServiceOperationProbabilities)
+		}
+		var arg2 model.ServiceOperationQPS
+		if args[2] != nil {
+			arg2 = args[2].(model.ServiceOperationQPS)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
 	})
 	return _c
 }
@@ -224,14 +251,20 @@ type Store_InsertThroughput_Call struct {
 }
 
 // InsertThroughput is a helper method to define mock.On call
-//   - throughput
+//   - throughput []*model.Throughput
 func (_e *Store_Expecter) InsertThroughput(throughput interface{}) *Store_InsertThroughput_Call {
 	return &Store_InsertThroughput_Call{Call: _e.mock.On("InsertThroughput", throughput)}
 }
 
 func (_c *Store_InsertThroughput_Call) Run(run func(throughput []*model.Throughput)) *Store_InsertThroughput_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].([]*model.Throughput))
+		var arg0 []*model.Throughput
+		if args[0] != nil {
+			arg0 = args[0].([]*model.Throughput)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }

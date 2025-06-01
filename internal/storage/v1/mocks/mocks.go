@@ -64,14 +64,20 @@ type Configurable_AddFlags_Call struct {
 }
 
 // AddFlags is a helper method to define mock.On call
-//   - flagSet
+//   - flagSet *flag.FlagSet
 func (_e *Configurable_Expecter) AddFlags(flagSet interface{}) *Configurable_AddFlags_Call {
 	return &Configurable_AddFlags_Call{Call: _e.mock.On("AddFlags", flagSet)}
 }
 
 func (_c *Configurable_AddFlags_Call) Run(run func(flagSet *flag.FlagSet)) *Configurable_AddFlags_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(*flag.FlagSet))
+		var arg0 *flag.FlagSet
+		if args[0] != nil {
+			arg0 = args[0].(*flag.FlagSet)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -98,15 +104,26 @@ type Configurable_InitFromViper_Call struct {
 }
 
 // InitFromViper is a helper method to define mock.On call
-//   - v
-//   - logger
+//   - v *viper.Viper
+//   - logger *zap.Logger
 func (_e *Configurable_Expecter) InitFromViper(v interface{}, logger interface{}) *Configurable_InitFromViper_Call {
 	return &Configurable_InitFromViper_Call{Call: _e.mock.On("InitFromViper", v, logger)}
 }
 
 func (_c *Configurable_InitFromViper_Call) Run(run func(v *viper.Viper, logger *zap.Logger)) *Configurable_InitFromViper_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(*viper.Viper), args[1].(*zap.Logger))
+		var arg0 *viper.Viper
+		if args[0] != nil {
+			arg0 = args[0].(*viper.Viper)
+		}
+		var arg1 *zap.Logger
+		if args[1] != nil {
+			arg1 = args[1].(*zap.Logger)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -528,15 +545,26 @@ type Factory_Initialize_Call struct {
 }
 
 // Initialize is a helper method to define mock.On call
-//   - metricsFactory
-//   - logger
+//   - metricsFactory metrics.Factory
+//   - logger *zap.Logger
 func (_e *Factory_Expecter) Initialize(metricsFactory interface{}, logger interface{}) *Factory_Initialize_Call {
 	return &Factory_Initialize_Call{Call: _e.mock.On("Initialize", metricsFactory, logger)}
 }
 
 func (_c *Factory_Initialize_Call) Run(run func(metricsFactory metrics.Factory, logger *zap.Logger)) *Factory_Initialize_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(metrics.Factory), args[1].(*zap.Logger))
+		var arg0 metrics.Factory
+		if args[0] != nil {
+			arg0 = args[0].(metrics.Factory)
+		}
+		var arg1 *zap.Logger
+		if args[1] != nil {
+			arg1 = args[1].(*zap.Logger)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -601,14 +629,20 @@ type Purger_Purge_Call struct {
 }
 
 // Purge is a helper method to define mock.On call
-//   - context1
+//   - context1 context.Context
 func (_e *Purger_Expecter) Purge(context1 interface{}) *Purger_Purge_Call {
 	return &Purger_Purge_Call{Call: _e.mock.On("Purge", context1)}
 }
 
 func (_c *Purger_Purge_Call) Run(run func(context1 context.Context)) *Purger_Purge_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -739,14 +773,20 @@ type SamplingStoreFactory_CreateSamplingStore_Call struct {
 }
 
 // CreateSamplingStore is a helper method to define mock.On call
-//   - maxBuckets
+//   - maxBuckets int
 func (_e *SamplingStoreFactory_Expecter) CreateSamplingStore(maxBuckets interface{}) *SamplingStoreFactory_CreateSamplingStore_Call {
 	return &SamplingStoreFactory_CreateSamplingStore_Call{Call: _e.mock.On("CreateSamplingStore", maxBuckets)}
 }
 
 func (_c *SamplingStoreFactory_CreateSamplingStore_Call) Run(run func(maxBuckets int)) *SamplingStoreFactory_CreateSamplingStore_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(int))
+		var arg0 int
+		if args[0] != nil {
+			arg0 = args[0].(int)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -866,14 +906,20 @@ type MetricStoreFactory_Initialize_Call struct {
 }
 
 // Initialize is a helper method to define mock.On call
-//   - telset
+//   - telset telemetry.Settings
 func (_e *MetricStoreFactory_Expecter) Initialize(telset interface{}) *MetricStoreFactory_Initialize_Call {
 	return &MetricStoreFactory_Initialize_Call{Call: _e.mock.On("Initialize", telset)}
 }
 
 func (_c *MetricStoreFactory_Initialize_Call) Run(run func(telset telemetry.Settings)) *MetricStoreFactory_Initialize_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(telemetry.Settings))
+		var arg0 telemetry.Settings
+		if args[0] != nil {
+			arg0 = args[0].(telemetry.Settings)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -927,14 +973,20 @@ type Inheritable_InheritSettingsFrom_Call struct {
 }
 
 // InheritSettingsFrom is a helper method to define mock.On call
-//   - other
+//   - other storage.Factory
 func (_e *Inheritable_Expecter) InheritSettingsFrom(other interface{}) *Inheritable_InheritSettingsFrom_Call {
 	return &Inheritable_InheritSettingsFrom_Call{Call: _e.mock.On("InheritSettingsFrom", other)}
 }
 
 func (_c *Inheritable_InheritSettingsFrom_Call) Run(run func(other storage.Factory)) *Inheritable_InheritSettingsFrom_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(storage.Factory))
+		var arg0 storage.Factory
+		if args[0] != nil {
+			arg0 = args[0].(storage.Factory)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }

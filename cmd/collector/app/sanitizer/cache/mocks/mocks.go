@@ -117,14 +117,20 @@ type ServiceAliasMappingStorage_Save_Call struct {
 }
 
 // Save is a helper method to define mock.On call
-//   - data
+//   - data map[string]string
 func (_e *ServiceAliasMappingStorage_Expecter) Save(data interface{}) *ServiceAliasMappingStorage_Save_Call {
 	return &ServiceAliasMappingStorage_Save_Call{Call: _e.mock.On("Save", data)}
 }
 
 func (_c *ServiceAliasMappingStorage_Save_Call) Run(run func(data map[string]string)) *ServiceAliasMappingStorage_Save_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(map[string]string))
+		var arg0 map[string]string
+		if args[0] != nil {
+			arg0 = args[0].(map[string]string)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }

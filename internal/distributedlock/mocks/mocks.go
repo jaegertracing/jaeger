@@ -73,15 +73,26 @@ type Lock_Acquire_Call struct {
 }
 
 // Acquire is a helper method to define mock.On call
-//   - resource
-//   - ttl
+//   - resource string
+//   - ttl time.Duration
 func (_e *Lock_Expecter) Acquire(resource interface{}, ttl interface{}) *Lock_Acquire_Call {
 	return &Lock_Acquire_Call{Call: _e.mock.On("Acquire", resource, ttl)}
 }
 
 func (_c *Lock_Acquire_Call) Run(run func(resource string, ttl time.Duration)) *Lock_Acquire_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(time.Duration))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		var arg1 time.Duration
+		if args[1] != nil {
+			arg1 = args[1].(time.Duration)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -128,14 +139,20 @@ type Lock_Forfeit_Call struct {
 }
 
 // Forfeit is a helper method to define mock.On call
-//   - resource
+//   - resource string
 func (_e *Lock_Expecter) Forfeit(resource interface{}) *Lock_Forfeit_Call {
 	return &Lock_Forfeit_Call{Call: _e.mock.On("Forfeit", resource)}
 }
 
 func (_c *Lock_Forfeit_Call) Run(run func(resource string)) *Lock_Forfeit_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
