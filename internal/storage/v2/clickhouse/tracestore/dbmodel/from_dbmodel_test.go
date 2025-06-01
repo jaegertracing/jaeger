@@ -42,9 +42,7 @@ func TestFromDBModel_Fixtures(t *testing.T) {
 	actualSpan := actualScopeSpans.Spans().At(0)
 
 	t.Run("Resource", func(t *testing.T) {
-		// actualResource := actualResourceSpans.Resource()
-		// exceptedResource := expectedResourceSpans.Resource()
-		// require.Equal(t, exceptedResource.Attributes().AsRaw(), actualResource.Attributes().AsRaw(), "Resource attributes mismatch")
+		// TODO: add resource attributes comparison
 	})
 
 	t.Run("Scope", func(t *testing.T) {

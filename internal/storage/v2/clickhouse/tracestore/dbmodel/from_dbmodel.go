@@ -59,7 +59,7 @@ func FromDBModel(storedSpan Span) ptrace.Traces {
 	return trace
 }
 
-func convertResource(s Span) (pcommon.Resource, error) {
+func convertResource(Span) (pcommon.Resource, error) {
 	resource := ptrace.NewResourceSpans().Resource()
 	// TODO: populate attributes
 	// TODO: do we populate the service name from the span?
