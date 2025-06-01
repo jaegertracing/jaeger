@@ -113,14 +113,20 @@ type Client_CreateIndex_Call struct {
 }
 
 // CreateIndex is a helper method to define mock.On call
-//   - index
+//   - index string
 func (_e *Client_Expecter) CreateIndex(index interface{}) *Client_CreateIndex_Call {
 	return &Client_CreateIndex_Call{Call: _e.mock.On("CreateIndex", index)}
 }
 
 func (_c *Client_CreateIndex_Call) Run(run func(index string)) *Client_CreateIndex_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -160,14 +166,20 @@ type Client_CreateTemplate_Call struct {
 }
 
 // CreateTemplate is a helper method to define mock.On call
-//   - id
+//   - id string
 func (_e *Client_Expecter) CreateTemplate(id interface{}) *Client_CreateTemplate_Call {
 	return &Client_CreateTemplate_Call{Call: _e.mock.On("CreateTemplate", id)}
 }
 
 func (_c *Client_CreateTemplate_Call) Run(run func(id string)) *Client_CreateTemplate_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -207,14 +219,20 @@ type Client_DeleteIndex_Call struct {
 }
 
 // DeleteIndex is a helper method to define mock.On call
-//   - index
+//   - index string
 func (_e *Client_Expecter) DeleteIndex(index interface{}) *Client_DeleteIndex_Call {
 	return &Client_DeleteIndex_Call{Call: _e.mock.On("DeleteIndex", index)}
 }
 
 func (_c *Client_DeleteIndex_Call) Run(run func(index string)) *Client_DeleteIndex_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -344,14 +362,20 @@ type Client_IndexExists_Call struct {
 }
 
 // IndexExists is a helper method to define mock.On call
-//   - index
+//   - index string
 func (_e *Client_Expecter) IndexExists(index interface{}) *Client_IndexExists_Call {
 	return &Client_IndexExists_Call{Call: _e.mock.On("IndexExists", index)}
 }
 
 func (_c *Client_IndexExists_Call) Run(run func(index string)) *Client_IndexExists_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -443,7 +467,7 @@ type Client_Search_Call struct {
 }
 
 // Search is a helper method to define mock.On call
-//   - indices
+//   - indices ...string
 func (_e *Client_Expecter) Search(indices ...interface{}) *Client_Search_Call {
 	return &Client_Search_Call{Call: _e.mock.On("Search",
 		append([]interface{}{}, indices...)...)}
@@ -451,13 +475,15 @@ func (_e *Client_Expecter) Search(indices ...interface{}) *Client_Search_Call {
 
 func (_c *Client_Search_Call) Run(run func(indices ...string)) *Client_Search_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		variadicArgs := make([]string, len(args)-0)
-		for i, a := range args[0:] {
-			if a != nil {
-				variadicArgs[i] = a.(string)
-			}
+		var arg0 []string
+		var variadicArgs []string
+		if len(args) > 0 {
+			variadicArgs = args[0].([]string)
 		}
-		run(variadicArgs...)
+		arg0 = variadicArgs
+		run(
+			arg0...,
+		)
 	})
 	return _c
 }
@@ -531,14 +557,20 @@ type IndicesExistsService_Do_Call struct {
 }
 
 // Do is a helper method to define mock.On call
-//   - ctx
+//   - ctx context.Context
 func (_e *IndicesExistsService_Expecter) Do(ctx interface{}) *IndicesExistsService_Do_Call {
 	return &IndicesExistsService_Do_Call{Call: _e.mock.On("Do", ctx)}
 }
 
 func (_c *IndicesExistsService_Do_Call) Run(run func(ctx context.Context)) *IndicesExistsService_Do_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -605,14 +637,20 @@ type IndicesCreateService_Body_Call struct {
 }
 
 // Body is a helper method to define mock.On call
-//   - mapping
+//   - mapping string
 func (_e *IndicesCreateService_Expecter) Body(mapping interface{}) *IndicesCreateService_Body_Call {
 	return &IndicesCreateService_Body_Call{Call: _e.mock.On("Body", mapping)}
 }
 
 func (_c *IndicesCreateService_Body_Call) Run(run func(mapping string)) *IndicesCreateService_Body_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -661,14 +699,20 @@ type IndicesCreateService_Do_Call struct {
 }
 
 // Do is a helper method to define mock.On call
-//   - ctx
+//   - ctx context.Context
 func (_e *IndicesCreateService_Expecter) Do(ctx interface{}) *IndicesCreateService_Do_Call {
 	return &IndicesCreateService_Do_Call{Call: _e.mock.On("Do", ctx)}
 }
 
 func (_c *IndicesCreateService_Do_Call) Run(run func(ctx context.Context)) *IndicesCreateService_Do_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -744,14 +788,20 @@ type IndicesDeleteService_Do_Call struct {
 }
 
 // Do is a helper method to define mock.On call
-//   - ctx
+//   - ctx context.Context
 func (_e *IndicesDeleteService_Expecter) Do(ctx interface{}) *IndicesDeleteService_Do_Call {
 	return &IndicesDeleteService_Do_Call{Call: _e.mock.On("Do", ctx)}
 }
 
 func (_c *IndicesDeleteService_Do_Call) Run(run func(ctx context.Context)) *IndicesDeleteService_Do_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -818,14 +868,20 @@ type TemplateCreateService_Body_Call struct {
 }
 
 // Body is a helper method to define mock.On call
-//   - mapping
+//   - mapping string
 func (_e *TemplateCreateService_Expecter) Body(mapping interface{}) *TemplateCreateService_Body_Call {
 	return &TemplateCreateService_Body_Call{Call: _e.mock.On("Body", mapping)}
 }
 
 func (_c *TemplateCreateService_Body_Call) Run(run func(mapping string)) *TemplateCreateService_Body_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -874,14 +930,20 @@ type TemplateCreateService_Do_Call struct {
 }
 
 // Do is a helper method to define mock.On call
-//   - ctx
+//   - ctx context.Context
 func (_e *TemplateCreateService_Expecter) Do(ctx interface{}) *TemplateCreateService_Do_Call {
 	return &TemplateCreateService_Do_Call{Call: _e.mock.On("Do", ctx)}
 }
 
 func (_c *TemplateCreateService_Do_Call) Run(run func(ctx context.Context)) *TemplateCreateService_Do_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -981,14 +1043,20 @@ type IndexService_BodyJson_Call struct {
 }
 
 // BodyJson is a helper method to define mock.On call
-//   - body
+//   - body any
 func (_e *IndexService_Expecter) BodyJson(body interface{}) *IndexService_BodyJson_Call {
 	return &IndexService_BodyJson_Call{Call: _e.mock.On("BodyJson", body)}
 }
 
 func (_c *IndexService_BodyJson_Call) Run(run func(body any)) *IndexService_BodyJson_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(any))
+		var arg0 any
+		if args[0] != nil {
+			arg0 = args[0].(any)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -1028,14 +1096,20 @@ type IndexService_Id_Call struct {
 }
 
 // Id is a helper method to define mock.On call
-//   - id
+//   - id string
 func (_e *IndexService_Expecter) Id(id interface{}) *IndexService_Id_Call {
 	return &IndexService_Id_Call{Call: _e.mock.On("Id", id)}
 }
 
 func (_c *IndexService_Id_Call) Run(run func(id string)) *IndexService_Id_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -1075,14 +1149,20 @@ type IndexService_Index_Call struct {
 }
 
 // Index is a helper method to define mock.On call
-//   - index
+//   - index string
 func (_e *IndexService_Expecter) Index(index interface{}) *IndexService_Index_Call {
 	return &IndexService_Index_Call{Call: _e.mock.On("Index", index)}
 }
 
 func (_c *IndexService_Index_Call) Run(run func(index string)) *IndexService_Index_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -1122,14 +1202,20 @@ type IndexService_Type_Call struct {
 }
 
 // Type is a helper method to define mock.On call
-//   - typ
+//   - typ string
 func (_e *IndexService_Expecter) Type(typ interface{}) *IndexService_Type_Call {
 	return &IndexService_Type_Call{Call: _e.mock.On("Type", typ)}
 }
 
 func (_c *IndexService_Type_Call) Run(run func(typ string)) *IndexService_Type_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -1196,15 +1282,26 @@ type SearchService_Aggregation_Call struct {
 }
 
 // Aggregation is a helper method to define mock.On call
-//   - name
-//   - aggregation
+//   - name string
+//   - aggregation elastic.Aggregation
 func (_e *SearchService_Expecter) Aggregation(name interface{}, aggregation interface{}) *SearchService_Aggregation_Call {
 	return &SearchService_Aggregation_Call{Call: _e.mock.On("Aggregation", name, aggregation)}
 }
 
 func (_c *SearchService_Aggregation_Call) Run(run func(name string, aggregation elastic.Aggregation)) *SearchService_Aggregation_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(elastic.Aggregation))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		var arg1 elastic.Aggregation
+		if args[1] != nil {
+			arg1 = args[1].(elastic.Aggregation)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -1253,14 +1350,20 @@ type SearchService_Do_Call struct {
 }
 
 // Do is a helper method to define mock.On call
-//   - ctx
+//   - ctx context.Context
 func (_e *SearchService_Expecter) Do(ctx interface{}) *SearchService_Do_Call {
 	return &SearchService_Do_Call{Call: _e.mock.On("Do", ctx)}
 }
 
 func (_c *SearchService_Do_Call) Run(run func(ctx context.Context)) *SearchService_Do_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -1300,14 +1403,20 @@ type SearchService_IgnoreUnavailable_Call struct {
 }
 
 // IgnoreUnavailable is a helper method to define mock.On call
-//   - ignoreUnavailable
+//   - ignoreUnavailable bool
 func (_e *SearchService_Expecter) IgnoreUnavailable(ignoreUnavailable interface{}) *SearchService_IgnoreUnavailable_Call {
 	return &SearchService_IgnoreUnavailable_Call{Call: _e.mock.On("IgnoreUnavailable", ignoreUnavailable)}
 }
 
 func (_c *SearchService_IgnoreUnavailable_Call) Run(run func(ignoreUnavailable bool)) *SearchService_IgnoreUnavailable_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(bool))
+		var arg0 bool
+		if args[0] != nil {
+			arg0 = args[0].(bool)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -1347,14 +1456,20 @@ type SearchService_Query_Call struct {
 }
 
 // Query is a helper method to define mock.On call
-//   - query
+//   - query elastic.Query
 func (_e *SearchService_Expecter) Query(query interface{}) *SearchService_Query_Call {
 	return &SearchService_Query_Call{Call: _e.mock.On("Query", query)}
 }
 
 func (_c *SearchService_Query_Call) Run(run func(query elastic.Query)) *SearchService_Query_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(elastic.Query))
+		var arg0 elastic.Query
+		if args[0] != nil {
+			arg0 = args[0].(elastic.Query)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -1394,14 +1509,20 @@ type SearchService_Size_Call struct {
 }
 
 // Size is a helper method to define mock.On call
-//   - size
+//   - size int
 func (_e *SearchService_Expecter) Size(size interface{}) *SearchService_Size_Call {
 	return &SearchService_Size_Call{Call: _e.mock.On("Size", size)}
 }
 
 func (_c *SearchService_Size_Call) Run(run func(size int)) *SearchService_Size_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(int))
+		var arg0 int
+		if args[0] != nil {
+			arg0 = args[0].(int)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -1474,7 +1595,7 @@ type MultiSearchService_Add_Call struct {
 }
 
 // Add is a helper method to define mock.On call
-//   - requests
+//   - requests ...*elastic.SearchRequest
 func (_e *MultiSearchService_Expecter) Add(requests ...interface{}) *MultiSearchService_Add_Call {
 	return &MultiSearchService_Add_Call{Call: _e.mock.On("Add",
 		append([]interface{}{}, requests...)...)}
@@ -1482,13 +1603,15 @@ func (_e *MultiSearchService_Expecter) Add(requests ...interface{}) *MultiSearch
 
 func (_c *MultiSearchService_Add_Call) Run(run func(requests ...*elastic.SearchRequest)) *MultiSearchService_Add_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		variadicArgs := make([]*elastic.SearchRequest, len(args)-0)
-		for i, a := range args[0:] {
-			if a != nil {
-				variadicArgs[i] = a.(*elastic.SearchRequest)
-			}
+		var arg0 []*elastic.SearchRequest
+		var variadicArgs []*elastic.SearchRequest
+		if len(args) > 0 {
+			variadicArgs = args[0].([]*elastic.SearchRequest)
 		}
-		run(variadicArgs...)
+		arg0 = variadicArgs
+		run(
+			arg0...,
+		)
 	})
 	return _c
 }
@@ -1537,14 +1660,20 @@ type MultiSearchService_Do_Call struct {
 }
 
 // Do is a helper method to define mock.On call
-//   - ctx
+//   - ctx context.Context
 func (_e *MultiSearchService_Expecter) Do(ctx interface{}) *MultiSearchService_Do_Call {
 	return &MultiSearchService_Do_Call{Call: _e.mock.On("Do", ctx)}
 }
 
 func (_c *MultiSearchService_Do_Call) Run(run func(ctx context.Context)) *MultiSearchService_Do_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -1590,7 +1719,7 @@ type MultiSearchService_Index_Call struct {
 }
 
 // Index is a helper method to define mock.On call
-//   - indices
+//   - indices ...string
 func (_e *MultiSearchService_Expecter) Index(indices ...interface{}) *MultiSearchService_Index_Call {
 	return &MultiSearchService_Index_Call{Call: _e.mock.On("Index",
 		append([]interface{}{}, indices...)...)}
@@ -1598,13 +1727,15 @@ func (_e *MultiSearchService_Expecter) Index(indices ...interface{}) *MultiSearc
 
 func (_c *MultiSearchService_Index_Call) Run(run func(indices ...string)) *MultiSearchService_Index_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		variadicArgs := make([]string, len(args)-0)
-		for i, a := range args[0:] {
-			if a != nil {
-				variadicArgs[i] = a.(string)
-			}
+		var arg0 []string
+		var variadicArgs []string
+		if len(args) > 0 {
+			variadicArgs = args[0].([]string)
 		}
-		run(variadicArgs...)
+		arg0 = variadicArgs
+		run(
+			arg0...,
+		)
 	})
 	return _c
 }
@@ -1669,15 +1800,26 @@ type TemplateApplier_Execute_Call struct {
 }
 
 // Execute is a helper method to define mock.On call
-//   - wr
-//   - data
+//   - wr io.Writer
+//   - data any
 func (_e *TemplateApplier_Expecter) Execute(wr interface{}, data interface{}) *TemplateApplier_Execute_Call {
 	return &TemplateApplier_Execute_Call{Call: _e.mock.On("Execute", wr, data)}
 }
 
 func (_c *TemplateApplier_Execute_Call) Run(run func(wr io.Writer, data any)) *TemplateApplier_Execute_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(io.Writer), args[1].(any))
+		var arg0 io.Writer
+		if args[0] != nil {
+			arg0 = args[0].(io.Writer)
+		}
+		var arg1 any
+		if args[1] != nil {
+			arg1 = args[1].(any)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -1753,14 +1895,20 @@ type TemplateBuilder_Parse_Call struct {
 }
 
 // Parse is a helper method to define mock.On call
-//   - text
+//   - text string
 func (_e *TemplateBuilder_Expecter) Parse(text interface{}) *TemplateBuilder_Parse_Call {
 	return &TemplateBuilder_Parse_Call{Call: _e.mock.On("Parse", text)}
 }
 
 func (_c *TemplateBuilder_Parse_Call) Run(run func(text string)) *TemplateBuilder_Parse_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }

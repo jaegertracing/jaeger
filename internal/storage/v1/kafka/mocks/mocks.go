@@ -74,14 +74,20 @@ type Marshaller_Marshal_Call struct {
 }
 
 // Marshal is a helper method to define mock.On call
-//   - span
+//   - span *model.Span
 func (_e *Marshaller_Expecter) Marshal(span interface{}) *Marshaller_Marshal_Call {
 	return &Marshaller_Marshal_Call{Call: _e.mock.On("Marshal", span)}
 }
 
 func (_c *Marshaller_Marshal_Call) Run(run func(span *model.Span)) *Marshaller_Marshal_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(*model.Span))
+		var arg0 *model.Span
+		if args[0] != nil {
+			arg0 = args[0].(*model.Span)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -157,14 +163,20 @@ type Unmarshaller_Unmarshal_Call struct {
 }
 
 // Unmarshal is a helper method to define mock.On call
-//   - bytes
+//   - bytes []byte
 func (_e *Unmarshaller_Expecter) Unmarshal(bytes interface{}) *Unmarshaller_Unmarshal_Call {
 	return &Unmarshaller_Unmarshal_Call{Call: _e.mock.On("Unmarshal", bytes)}
 }
 
 func (_c *Unmarshaller_Unmarshal_Call) Run(run func(bytes []byte)) *Unmarshaller_Unmarshal_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].([]byte))
+		var arg0 []byte
+		if args[0] != nil {
+			arg0 = args[0].([]byte)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }

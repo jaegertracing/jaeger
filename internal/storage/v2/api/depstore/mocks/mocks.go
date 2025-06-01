@@ -160,15 +160,26 @@ type Reader_GetDependencies_Call struct {
 }
 
 // GetDependencies is a helper method to define mock.On call
-//   - ctx
-//   - query
+//   - ctx context.Context
+//   - query depstore.QueryParameters
 func (_e *Reader_Expecter) GetDependencies(ctx interface{}, query interface{}) *Reader_GetDependencies_Call {
 	return &Reader_GetDependencies_Call{Call: _e.mock.On("GetDependencies", ctx, query)}
 }
 
 func (_c *Reader_GetDependencies_Call) Run(run func(ctx context.Context, query depstore.QueryParameters)) *Reader_GetDependencies_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(depstore.QueryParameters))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 depstore.QueryParameters
+		if args[1] != nil {
+			arg1 = args[1].(depstore.QueryParameters)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -233,15 +244,26 @@ type Writer_WriteDependencies_Call struct {
 }
 
 // WriteDependencies is a helper method to define mock.On call
-//   - ts
-//   - dependencies
+//   - ts time.Time
+//   - dependencies []model.DependencyLink
 func (_e *Writer_Expecter) WriteDependencies(ts interface{}, dependencies interface{}) *Writer_WriteDependencies_Call {
 	return &Writer_WriteDependencies_Call{Call: _e.mock.On("WriteDependencies", ts, dependencies)}
 }
 
 func (_c *Writer_WriteDependencies_Call) Run(run func(ts time.Time, dependencies []model.DependencyLink)) *Writer_WriteDependencies_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(time.Time), args[1].([]model.DependencyLink))
+		var arg0 time.Time
+		if args[0] != nil {
+			arg0 = args[0].(time.Time)
+		}
+		var arg1 []model.DependencyLink
+		if args[1] != nil {
+			arg1 = args[1].([]model.DependencyLink)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
