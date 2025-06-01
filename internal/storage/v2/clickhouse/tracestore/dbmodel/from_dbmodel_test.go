@@ -5,7 +5,6 @@ package dbmodel
 
 import (
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -17,7 +16,6 @@ import (
 func TestFromDBModel_Fixtures(t *testing.T) {
 	dbTrace := jsonToDBModel(t, "./fixtures/dbmodel.json")
 	expected := jsonToPtrace(t, "./fixtures/ptrace.json")
-	fmt.Println(dbTrace)
 	actual := FromDBModel(dbTrace)
 
 	require.Equal(t, expected.ResourceSpans().Len(), actual.ResourceSpans().Len(), "ResourceSpans count mismatch")
