@@ -25,6 +25,10 @@ import (
 //go:embed fixtures/*.json
 var FIXTURES embed.FS
 
+func ptr[T any](v T) *T {
+	return &v
+}
+
 func TestMappingBuilderGetMapping(t *testing.T) {
 	tests := []struct {
 		mapping   MappingType
@@ -47,7 +51,7 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 			defaultOpts := func(p int64) config.IndexOptions {
 				return config.IndexOptions{
 					Shards:   3,
-					Replicas: 3,
+					Replicas: ptr(int64(3)),
 					Priority: p,
 				}
 			}
@@ -176,7 +180,7 @@ func TestMappingBuilderFixMapping(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			indexTemOps := config.IndexOptions{
 				Shards:   3,
-				Replicas: 5,
+				Replicas: ptr(int64(5)),
 				Priority: 500,
 			}
 			mappingBuilder := MappingBuilder{
@@ -324,7 +328,7 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			indexTemOps := config.IndexOptions{
 				Shards:   3,
-				Replicas: 3,
+				Replicas: ptr(int64(3)),
 			}
 
 			mappingBuilder := MappingBuilder{
