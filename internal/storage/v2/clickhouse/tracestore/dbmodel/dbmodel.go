@@ -8,7 +8,7 @@ import "time"
 // Span represents a single row in the ClickHouse `spans` table.
 type Span struct {
 	// --- Span ---
-	Id            string        `ch:"id"`
+	ID            string        `ch:"id"`
 	TraceID       string        `ch:"trace_id"`
 	TraceState    string        `ch:"trace_state"`
 	ParentSpanID  string        `ch:"parent_span_id"`
@@ -33,8 +33,8 @@ type Span struct {
 
 type Link struct {
 	// TODO: add attributes
-	TraceId    string
-	SpanId     string
+	TraceID    string
+	SpanID     string
 	TraceState string
 }
 
