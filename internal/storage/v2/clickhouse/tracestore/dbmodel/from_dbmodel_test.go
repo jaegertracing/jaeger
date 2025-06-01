@@ -41,7 +41,7 @@ func TestFromDBModel_Fixtures(t *testing.T) {
 	exceptedSpan := exceptedScopeSpans.Spans().At(0)
 	actualSpan := actualScopeSpans.Spans().At(0)
 
-	t.Run("Resource", func(t *testing.T) {
+	t.Run("Resource", func(*testing.T) {
 		// TODO: add resource attributes comparison
 	})
 
