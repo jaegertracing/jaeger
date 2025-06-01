@@ -1,6 +1,6 @@
 services:
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0@sha256:2f602552550869fb29b6fd5848c5118d3ef3a2e1d5d45802e3ab9088cb2de8e2
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.0.1@sha256:9244a573c48bc120c8ac4daf61d48dcda48db2b25fd1b3c4cbeb01aa175a8495
     networks:
       - backend
     environment:
