@@ -3,7 +3,9 @@
 
 package dbmodel
 
-import "time"
+import (
+	"time"
+)
 
 // Span represents a single row in the ClickHouse `spans` table.
 type Span struct {
