@@ -98,13 +98,6 @@ func jsonToDBModel(t *testing.T, filename string) (m Span) {
 	return m
 }
 
-func jsonToPtrace(t *testing.T, filename string) (trace ptrace.Traces) {
-	unMarshaler := ptrace.JSONUnmarshaler{}
-	trace, err := unMarshaler.UnmarshalTraces(readJSONBytes(t, filename))
-	require.NoError(t, err, "Failed to unmarshal trace with %s", filename)
-	return trace
-}
-
 func TestFromDBModel_DecodeID(t *testing.T) {
 	tests := []struct {
 		name string
