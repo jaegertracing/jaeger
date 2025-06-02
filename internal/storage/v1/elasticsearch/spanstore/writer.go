@@ -133,7 +133,9 @@ func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 	s.writerMetrics.Attempts.Inc(1)
 	spanCopy, err := s.deepCopySpan(span)
 	if err != nil {
-		spanCopy = span
+		s.logger.Error("Failed to copy span", zap.Error(err))
+		s.writerMetrics.Errors.Inc(1)
+		return
 	}
 
 	s.convertNestedTagsToFieldTags(spanCopy)
