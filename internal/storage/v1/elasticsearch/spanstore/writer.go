@@ -5,6 +5,7 @@
 package spanstore
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -114,15 +115,34 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServ
 	}
 }
 
+func (s *SpanWriter) deepCopySpan(span *dbmodel.Span) (*dbmodel.Span, error) {
+	data, err := json.Marshal(span)
+	if err != nil {
+		return nil, err
+	}
+
+	var spanCopy dbmodel.Span
+	if err := json.Unmarshal(data, &spanCopy); err != nil {
+		return nil, err
+	}
+
+	return &spanCopy, nil
+}
+
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 	s.writerMetrics.Attempts.Inc(1)
-	s.convertNestedTagsToFieldTags(span)
+	spanCopy, err := s.deepCopySpan(span)
+	if err != nil {
+		spanCopy = span
+	}
+
+	s.convertNestedTagsToFieldTags(spanCopy)
 	spanIndexName, serviceIndexName := s.spanServiceIndex(spanStartTime)
 	if serviceIndexName != "" {
-		s.writeService(serviceIndexName, span)
+		s.writeService(serviceIndexName, spanCopy)
 	}
-	s.writeSpan(spanIndexName, span)
+	s.writeSpan(spanIndexName, spanCopy)
 	s.logger.Debug("Wrote span to ES index", zap.String("index", spanIndexName))
 }
 
