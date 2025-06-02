@@ -125,7 +125,6 @@ func (s *SpanWriter) deepCopySpan(span *dbmodel.Span) (*dbmodel.Span, error) {
 	if err := json.Unmarshal(data, &spanCopy); err != nil {
 		return nil, err
 	}
-
 	return &spanCopy, nil
 }
 
