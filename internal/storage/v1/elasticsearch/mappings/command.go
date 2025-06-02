@@ -52,10 +52,9 @@ func getMappingAsString(builder es.TemplateBuilder, opt Options) (string, error)
 	if err != nil {
 		return "", err
 	}
-
 	indexOpts := config.IndexOptions{
 		Shards:   opt.Shards,
-		Replicas: &opt.Replicas,
+		Replicas: opt.Replicas,
 	}
 	mappingBuilder := MappingBuilder{
 		TemplateBuilder: builder,

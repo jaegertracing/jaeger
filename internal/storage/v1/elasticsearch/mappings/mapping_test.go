@@ -361,6 +361,13 @@ func TestMappingBuilderGetDependenciesMappings(t *testing.T) {
 
 	mappingBuilder := MappingBuilder{
 		TemplateBuilder: &tb,
+		Indices: config.Indices{
+			Dependencies: config.IndexOptions{
+				Replicas: ptr(int64(1)),
+				Shards:   3,
+				Priority: 10,
+			},
+		},
 	}
 	_, err := mappingBuilder.GetDependenciesMappings()
 	require.EqualError(t, err, "template load error")
@@ -374,6 +381,13 @@ func TestMappingBuilderGetSamplingMappings(t *testing.T) {
 
 	mappingBuilder := MappingBuilder{
 		TemplateBuilder: &tb,
+		Indices: config.Indices{
+			Sampling: config.IndexOptions{
+				Replicas: ptr(int64(1)),
+				Shards:   3,
+				Priority: 10,
+			},
+		},
 	}
 	_, err := mappingBuilder.GetSamplingMappings()
 	require.EqualError(t, err, "template load error")

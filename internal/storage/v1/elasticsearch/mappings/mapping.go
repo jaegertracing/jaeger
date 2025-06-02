@@ -46,20 +46,6 @@ type templateParams struct {
 	Priority      int64
 }
 
-// derefInt64 returns the value pointed to by ptr if it is not nil,
-// otherwise it returns the provided fallback value.
-//
-// This is used to correctly handle *int64 fields where:
-// - nil means "unset", and fallback should apply (default value)
-// - 0 is a valid configured value and must be preserved
-// - any other value is used as configured.
-func derefInt64(ptr *int64, fallback int64) int64 {
-	if ptr != nil {
-		return *ptr
-	}
-	return fallback
-}
-
 func (mb MappingBuilder) getMappingTemplateOptions(mappingType MappingType) templateParams {
 	mappingOpts := templateParams{}
 	mappingOpts.UseILM = mb.UseILM
@@ -68,19 +54,19 @@ func (mb MappingBuilder) getMappingTemplateOptions(mappingType MappingType) temp
 	switch mappingType {
 	case SpanMapping:
 		mappingOpts.Shards = mb.Indices.Spans.Shards
-		mappingOpts.Replicas = derefInt64(mb.Indices.Spans.Replicas, 1)
+		mappingOpts.Replicas = *mb.Indices.Spans.Replicas
 		mappingOpts.Priority = mb.Indices.Spans.Priority
 	case ServiceMapping:
 		mappingOpts.Shards = mb.Indices.Services.Shards
-		mappingOpts.Replicas = derefInt64(mb.Indices.Services.Replicas, 1)
+		mappingOpts.Replicas = *mb.Indices.Services.Replicas
 		mappingOpts.Priority = mb.Indices.Services.Priority
 	case DependenciesMapping:
 		mappingOpts.Shards = mb.Indices.Dependencies.Shards
-		mappingOpts.Replicas = derefInt64(mb.Indices.Dependencies.Replicas, 1)
+		mappingOpts.Replicas = *mb.Indices.Dependencies.Replicas
 		mappingOpts.Priority = mb.Indices.Dependencies.Priority
 	case SamplingMapping:
 		mappingOpts.Shards = mb.Indices.Sampling.Shards
-		mappingOpts.Replicas = derefInt64(mb.Indices.Sampling.Replicas, 1)
+		mappingOpts.Replicas = *mb.Indices.Sampling.Replicas
 		mappingOpts.Priority = mb.Indices.Sampling.Priority
 	}
 

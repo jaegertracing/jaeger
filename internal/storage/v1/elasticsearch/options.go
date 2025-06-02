@@ -119,6 +119,15 @@ func ptr[T any](v T) *T {
 	return &v
 }
 
+// safeDerefInt64 safely dereferences a *int64 for use in flagSet.Int64.
+// If the pointer is nil (meaning no config was set), returns 0 as neutral default.
+func safeDerefInt64(ptr *int64) int64 {
+	if ptr != nil {
+		return *ptr
+	}
+	return 0
+}
+
 // AddFlags adds flags for Options
 func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	addFlags(flagSet, &opt.Config)
@@ -169,7 +178,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	)
 	flagSet.Int64(
 		nsConfig.namespace+suffixNumReplicas,
-		*nsConfig.Indices.Spans.Replicas,
+		safeDerefInt64(nsConfig.Indices.Spans.Replicas),
 		"The number of replicas per index in Elasticsearch")
 	flagSet.Int64(
 		nsConfig.namespace+suffixPrioritySpanTemplate,
