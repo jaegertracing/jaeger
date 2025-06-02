@@ -131,6 +131,7 @@ func (s *SpanWriter) deepCopySpan(span *dbmodel.Span) (*dbmodel.Span, error) {
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 	s.writerMetrics.Attempts.Inc(1)
+
 	spanCopy, err := s.deepCopySpan(span)
 	if err != nil {
 		s.logger.Error("Failed to copy span", zap.Error(err))
@@ -138,7 +139,9 @@ func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 		return
 	}
 
+	// modify the copy
 	s.convertNestedTagsToFieldTags(spanCopy)
+
 	spanIndexName, serviceIndexName := s.spanServiceIndex(spanStartTime)
 	if serviceIndexName != "" {
 		s.writeService(serviceIndexName, spanCopy)
