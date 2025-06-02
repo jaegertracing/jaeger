@@ -250,12 +250,18 @@ func TestESStorageFactoryWithConfig(t *testing.T) {
 func TestESStorageFactoryWithConfigError(t *testing.T) {
 	defer testutils.VerifyGoLeaksOnce(t)
 
+	mockErr := errors.New("simulated connection error")
+	originalNewClientFn := escfg.NewClient
+	escfg.NewClient = (&mockClientBuilder{err: mockErr}).NewClient
+	t.Cleanup(func() {
+		escfg.NewClient = originalNewClientFn
+	})
+
 	cfg := escfg.Configuration{
-		Servers:  []string{"http://127.0.0.1:65535"},
-		LogLevel: "error",
+		Servers: []string{"http://127.0.0.1:65535"},
 	}
-	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop())
-	require.ErrorContains(t, err, "failed to create Elasticsearch client")
+	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop()) // This will now call the mocked NewClient
+	require.ErrorContains(t, err, "failed to create Elasticsearch client: simulated connection error")
 }
 
 func TestPasswordFromFile(t *testing.T) {
@@ -332,7 +338,7 @@ func testPasswordFromFile(t *testing.T) {
 			pwd, ok := authReceived.Load(upwd1)
 			return ok && pwd == upwd1
 		},
-		5*time.Second, time.Millisecond,
+		1*time.Second, time.Millisecond,
 		"expecting es.Client to send the first password",
 	)
 
@@ -347,7 +353,7 @@ func testPasswordFromFile(t *testing.T) {
 			client2 := f.getClient()
 			return client1 != client2
 		},
-		5*time.Second, time.Millisecond,
+		1*time.Second, time.Millisecond,
 		"expecting es.Client to change for the new password",
 	)
 
@@ -357,7 +363,7 @@ func testPasswordFromFile(t *testing.T) {
 			pwd, ok := authReceived.Load(upwd2)
 			return ok && pwd == upwd2
 		},
-		5*time.Second, time.Millisecond,
+		1*time.Second, time.Millisecond,
 		"expecting es.Client to send the new password",
 	)
 }

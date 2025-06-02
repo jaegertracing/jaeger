@@ -218,8 +218,8 @@ type BearerTokenAuthentication struct {
 	AllowFromContext bool `mapstructure:"from_context"`
 }
 
-// NewClient creates a new ElasticSearch client
-func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
+// NewClient creates a new ElasticSearch client. This is a variable to allow mocking in tests.
+var NewClient = func(c *Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
 	if len(c.Servers) < 1 {
 		return nil, errors.New("no servers specified")
 	}
@@ -274,7 +274,6 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 			}
 		}
 		logger.Info("Elasticsearch detected", zap.Int("version", esVersion))
-		//nolint: gosec // G115
 		c.Version = uint(esVersion)
 	}
 
