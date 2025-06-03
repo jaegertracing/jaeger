@@ -162,7 +162,9 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		var err error = errors.New("empty configuration")
 		switch {
 		case cfg.Memory != nil:
-			factory, err = memory.NewFactory(*cfg.Memory)
+			memTelset := telset
+			memTelset.Metrics = scopedMetricsFactory(storageName, "memory", "tracestore")
+			factory, err = memory.NewFactory(*cfg.Memory, memTelset)
 		case cfg.Badger != nil:
 			v1Factory, err = badger.NewFactoryWithConfig(
 				*cfg.Badger,

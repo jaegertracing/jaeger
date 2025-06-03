@@ -11,10 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	v1 "github.com/jaegertracing/jaeger/internal/storage/v1/memory"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
 func TestNewFactory(t *testing.T) {
-	f, err := NewFactory(v1.Configuration{MaxTraces: 10})
+	f, err := NewFactory(v1.Configuration{MaxTraces: 10}, telemetry.NoopSettings())
 	require.NoError(t, err)
 	_, err = f.CreateTraceWriter()
 	require.NoError(t, err)
@@ -30,7 +31,7 @@ func TestNewFactory(t *testing.T) {
 }
 
 func TestNewFactoryErr(t *testing.T) {
-	f, err := NewFactory(v1.Configuration{})
+	f, err := NewFactory(v1.Configuration{}, telemetry.NoopSettings())
 	require.ErrorContains(t, err, "max traces must be greater than zero")
 	assert.Nil(t, f)
 }

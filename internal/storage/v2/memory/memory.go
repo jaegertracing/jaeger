@@ -14,9 +14,11 @@ import (
 	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	v1 "github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/tracestoremetrics"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
@@ -29,18 +31,20 @@ type Store struct {
 	sync.RWMutex
 	// Each tenant gets a copy of default config.
 	// In the future this can be extended to contain per-tenant configuration.
-	defaultConfig v1.Configuration
-	perTenant     map[string]*Tenant
+	defaultConfig    v1.Configuration
+	perTenant        map[string]*Tenant
+	metricsDecorator *tracestoremetrics.ReadMetricsDecorator
 }
 
 // NewStore creates an in-memory store
-func NewStore(cfg v1.Configuration) (*Store, error) {
+func NewStore(cfg v1.Configuration, metricsFactory metrics.Factory) (*Store, error) {
 	if cfg.MaxTraces <= 0 {
 		return nil, errInvalidMaxTraces
 	}
 	return &Store{
-		defaultConfig: cfg,
-		perTenant:     make(map[string]*Tenant),
+		defaultConfig:    cfg,
+		perTenant:        make(map[string]*Tenant),
+		metricsDecorator: tracestoremetrics.NewReaderDecorator(metricsFactory),
 	}, nil
 }
 
@@ -83,6 +87,7 @@ func (st *Store) GetOperations(ctx context.Context, query tracestore.OperationQu
 			}
 		}
 	}
+	st.metricsDecorator.MetricsGetOperations(len(retMe), nil)
 	return retMe, nil
 }
 
@@ -95,6 +100,7 @@ func (st *Store) GetServices(ctx context.Context) ([]string, error) {
 	for k := range m.services {
 		retMe = append(retMe, k)
 	}
+	st.metricsDecorator.MetricsGetServices(len(retMe), nil)
 	return retMe, nil
 }
 
@@ -102,6 +108,7 @@ func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryPara
 	m := st.getTenant(tenancy.GetTenant(ctx))
 	return func(yield func([]ptrace.Traces, error) bool) {
 		traceAndIds, err := m.findTraceAndIds(query)
+		st.metricsDecorator.MetricsFindTraces(len(traceAndIds), err)
 		if err != nil {
 			yield(nil, err)
 			return
@@ -118,6 +125,7 @@ func (st *Store) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryPa
 	m := st.getTenant(tenancy.GetTenant(ctx))
 	return func(yield func([]tracestore.FoundTraceID, error) bool) {
 		traceAndIds, err := m.findTraceAndIds(query)
+		st.metricsDecorator.MetricsFindTraceID(len(traceAndIds), err)
 		if err != nil {
 			yield(nil, err)
 			return
@@ -134,6 +142,7 @@ func (st *Store) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTraceP
 	m := st.getTenant(tenancy.GetTenant(ctx))
 	return func(yield func([]ptrace.Traces, error) bool) {
 		traces := m.getTraces(traceIDs...)
+		st.metricsDecorator.MetricsGetTraces(len(traces), nil)
 		for i := range traces {
 			if !yield([]ptrace.Traces{traces[i]}, nil) {
 				return

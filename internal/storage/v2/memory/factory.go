@@ -12,6 +12,7 @@ import (
 	v1 "github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
 var (
@@ -24,8 +25,8 @@ type Factory struct {
 	store *Store
 }
 
-func NewFactory(cfg v1.Configuration) (*Factory, error) {
-	store, err := NewStore(cfg)
+func NewFactory(cfg v1.Configuration, settings telemetry.Settings) (*Factory, error) {
+	store, err := NewStore(cfg, settings.Metrics)
 	if err != nil {
 		return nil, err
 	}
