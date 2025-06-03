@@ -13,21 +13,21 @@ create-baseimg: prepare-docker-buildx
 	@echo "::group:: create-baseimg"
 	docker buildx build -t $(BASE_IMAGE) --push \
 		--platform=$(LINUX_PLATFORMS) \
-		docker/base
+		scripts/build/docker/base
 	@echo "::endgroup::"
 
 create-debugimg: prepare-docker-buildx
 	@echo "::group:: create-debugimg"
 	docker buildx build -t $(DEBUG_IMAGE) --push \
 		--platform=$(LINUX_PLATFORMS) \
-		docker/debug
+		scripts/build/docker/debug
 	@echo "::endgroup::"
 
 create-fake-debugimg: prepare-docker-buildx
 	@echo "::group:: create-fake-debugimg"
 	docker buildx build -t $(DEBUG_IMAGE) --push \
 		--platform=$(LINUX_PLATFORMS) \
-		docker/base
+		scripts/build/docker/base
 	@echo "::endgroup::"
 
 .PHONY: prepare-docker-buildx

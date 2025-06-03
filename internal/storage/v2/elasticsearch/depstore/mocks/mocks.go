@@ -66,14 +66,20 @@ type CoreDependencyStore_CreateTemplates_Call struct {
 }
 
 // CreateTemplates is a helper method to define mock.On call
-//   - dependenciesTemplate
+//   - dependenciesTemplate string
 func (_e *CoreDependencyStore_Expecter) CreateTemplates(dependenciesTemplate interface{}) *CoreDependencyStore_CreateTemplates_Call {
 	return &CoreDependencyStore_CreateTemplates_Call{Call: _e.mock.On("CreateTemplates", dependenciesTemplate)}
 }
 
 func (_c *CoreDependencyStore_CreateTemplates_Call) Run(run func(dependenciesTemplate string)) *CoreDependencyStore_CreateTemplates_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -122,16 +128,32 @@ type CoreDependencyStore_GetDependencies_Call struct {
 }
 
 // GetDependencies is a helper method to define mock.On call
-//   - ctx
-//   - endTs
-//   - lookback
+//   - ctx context.Context
+//   - endTs time.Time
+//   - lookback time.Duration
 func (_e *CoreDependencyStore_Expecter) GetDependencies(ctx interface{}, endTs interface{}, lookback interface{}) *CoreDependencyStore_GetDependencies_Call {
 	return &CoreDependencyStore_GetDependencies_Call{Call: _e.mock.On("GetDependencies", ctx, endTs, lookback)}
 }
 
 func (_c *CoreDependencyStore_GetDependencies_Call) Run(run func(ctx context.Context, endTs time.Time, lookback time.Duration)) *CoreDependencyStore_GetDependencies_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(time.Time), args[2].(time.Duration))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 time.Time
+		if args[1] != nil {
+			arg1 = args[1].(time.Time)
+		}
+		var arg2 time.Duration
+		if args[2] != nil {
+			arg2 = args[2].(time.Duration)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
 	})
 	return _c
 }
@@ -169,15 +191,26 @@ type CoreDependencyStore_WriteDependencies_Call struct {
 }
 
 // WriteDependencies is a helper method to define mock.On call
-//   - ts
-//   - dependencies
+//   - ts time.Time
+//   - dependencies []dbmodel.DependencyLink
 func (_e *CoreDependencyStore_Expecter) WriteDependencies(ts interface{}, dependencies interface{}) *CoreDependencyStore_WriteDependencies_Call {
 	return &CoreDependencyStore_WriteDependencies_Call{Call: _e.mock.On("WriteDependencies", ts, dependencies)}
 }
 
 func (_c *CoreDependencyStore_WriteDependencies_Call) Run(run func(ts time.Time, dependencies []dbmodel.DependencyLink)) *CoreDependencyStore_WriteDependencies_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(time.Time), args[1].([]dbmodel.DependencyLink))
+		var arg0 time.Time
+		if args[0] != nil {
+			arg0 = args[0].(time.Time)
+		}
+		var arg1 []dbmodel.DependencyLink
+		if args[1] != nil {
+			arg1 = args[1].([]dbmodel.DependencyLink)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }

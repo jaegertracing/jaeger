@@ -96,6 +96,18 @@ func TestCounterDefaultHelp(t *testing.T) {
 	assert.Equal(t, "rodriguez", snapshot[0].GetHelp())
 }
 
+func TestCounterNotValidLabel(t *testing.T) {
+	registry := prometheus.NewPedanticRegistry()
+	f1 := promMetrics.New(
+		promMetrics.WithRegisterer(registry),
+	)
+	c1 := f1.Counter(metrics.Options{
+		Name: "ilia",
+		Tags: map[string]string{"x": "label__3d\x85_this_will_panic-repro"},
+	})
+	assert.Equal(t, c1, metrics.NullCounter, "Expected NullCounter, got %v", c1)
+}
+
 func TestGauge(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
 	f1 := promMetrics.New(promMetrics.WithRegisterer(registry))
@@ -151,6 +163,18 @@ func TestGaugeDefaultHelp(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "rodriguez", snapshot[0].GetHelp())
+}
+
+func TestGaugeNotValidLabel(t *testing.T) {
+	registry := prometheus.NewPedanticRegistry()
+	f1 := promMetrics.New(
+		promMetrics.WithRegisterer(registry),
+	)
+	c1 := f1.Gauge(metrics.Options{
+		Name: "ilia",
+		Tags: map[string]string{"x": "label__3d\x85_this_will_panic-repro"},
+	})
+	assert.Equal(t, c1, metrics.NullGauge, "Expected NullGauge, got %v", c1)
 }
 
 func TestTimer(t *testing.T) {
@@ -230,6 +254,18 @@ func TestTimerDefaultHelp(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "rodriguez", snapshot[0].GetHelp())
+}
+
+func TestTimerNotValidLabel(t *testing.T) {
+	registry := prometheus.NewPedanticRegistry()
+	f1 := promMetrics.New(
+		promMetrics.WithRegisterer(registry),
+	)
+	c1 := f1.Timer(metrics.TimerOptions{
+		Name: "ilia",
+		Tags: map[string]string{"x": "label__3d\x85_this_will_panic-repro"},
+	})
+	assert.Equal(t, c1, metrics.NullTimer, "Expected NullTimer, got %v", c1)
 }
 
 func TestTimerCustomBuckets(t *testing.T) {
@@ -372,6 +408,18 @@ func TestHistogramCustomBuckets(t *testing.T) {
 	assert.EqualValues(t, 2, m1.GetHistogram().GetSampleCount(), "%+v", m1)
 	assert.InDelta(t, 3.0, m1.GetHistogram().GetSampleSum(), 0.01, "%+v", m1)
 	assert.Len(t, m1.GetHistogram().GetBucket(), 1)
+}
+
+func TestHistogramNotValidLabel(t *testing.T) {
+	registry := prometheus.NewPedanticRegistry()
+	f1 := promMetrics.New(
+		promMetrics.WithRegisterer(registry),
+	)
+	c1 := f1.Histogram(metrics.HistogramOptions{
+		Name: "ilia",
+		Tags: map[string]string{"x": "label__3d\x85_this_will_panic-repro"},
+	})
+	assert.Equal(t, c1, metrics.NullHistogram, "Expected NullHistogram, got %v", c1)
 }
 
 func TestHistogramDefaultBuckets(t *testing.T) {

@@ -9,7 +9,7 @@
 package mocks
 
 import (
-	cluster "github.com/bsm/sarama-cluster"
+	"github.com/bsm/sarama-cluster"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -96,17 +96,38 @@ type Consumer_MarkPartitionOffset_Call struct {
 }
 
 // MarkPartitionOffset is a helper method to define mock.On call
-//   - topic
-//   - partition
-//   - offset
-//   - metadata
+//   - topic string
+//   - partition int32
+//   - offset int64
+//   - metadata string
 func (_e *Consumer_Expecter) MarkPartitionOffset(topic interface{}, partition interface{}, offset interface{}, metadata interface{}) *Consumer_MarkPartitionOffset_Call {
 	return &Consumer_MarkPartitionOffset_Call{Call: _e.mock.On("MarkPartitionOffset", topic, partition, offset, metadata)}
 }
 
 func (_c *Consumer_MarkPartitionOffset_Call) Run(run func(topic string, partition int32, offset int64, metadata string)) *Consumer_MarkPartitionOffset_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(int32), args[2].(int64), args[3].(string))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		var arg1 int32
+		if args[1] != nil {
+			arg1 = args[1].(int32)
+		}
+		var arg2 int64
+		if args[2] != nil {
+			arg2 = args[2].(int64)
+		}
+		var arg3 string
+		if args[3] != nil {
+			arg3 = args[3].(string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
 	})
 	return _c
 }
