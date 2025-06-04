@@ -100,7 +100,7 @@ func (*Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error)
 
 // CreateLock implements storage.SamplingStoreFactory
 func (*Factory) CreateLock() (distributedlock.Lock, error) {
-	return &Lock{}, nil
+	return &lock{}, nil
 }
 
 func (f *Factory) publishOpts() {

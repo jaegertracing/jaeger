@@ -147,13 +147,6 @@ func (st *Store) GetDependencies(ctx context.Context, query depstore.QueryParame
 	return m.getDependencies(query)
 }
 
-func (st *Store) Purge() error {
-	st.Lock()
-	st.perTenant = make(map[string]*Tenant)
-	st.Unlock()
-	return nil
-}
-
 // reshuffleResourceSpans reshuffles the resource spans so as to group the spans from same traces together. To understand this reshuffling
 // take an example of 2 resource spans, then these two resource spans have 2 scope spans each.
 // Every scope span consists of 2 spans with trace ids: 1 and 2. Now the final structure should look like:

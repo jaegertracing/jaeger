@@ -12,14 +12,14 @@ import (
 )
 
 func TestAcquire(t *testing.T) {
-	l := &Lock{}
+	l := &lock{}
 	ok, err := l.Acquire("resource", time.Duration(1))
 	assert.True(t, ok)
 	require.NoError(t, err)
 }
 
 func TestForfeit(t *testing.T) {
-	l := &Lock{}
+	l := &lock{}
 	ok, err := l.Forfeit("resource")
 	assert.True(t, ok)
 	require.NoError(t, err)

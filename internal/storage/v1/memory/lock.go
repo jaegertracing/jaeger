@@ -5,14 +5,14 @@ package memory
 
 import "time"
 
-type Lock struct{}
+type lock struct{}
 
 // Acquire always returns true for memory storage because it's a single-node
-func (*Lock) Acquire(string /* resource */, time.Duration /* ttl */) (bool, error) {
+func (*lock) Acquire(string /* resource */, time.Duration /* ttl */) (bool, error) {
 	return true, nil
 }
 
 // Forfeit always returns true for memory storage
-func (*Lock) Forfeit(string /* resource */) (bool, error) {
+func (*lock) Forfeit(string /* resource */) (bool, error) {
 	return true, nil
 }

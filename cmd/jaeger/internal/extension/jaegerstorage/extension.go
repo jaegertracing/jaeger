@@ -17,10 +17,10 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	es "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
@@ -162,10 +162,11 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		var err error = errors.New("empty configuration")
 		switch {
 		case cfg.Memory != nil:
-			factory, err = memory.NewFactory(
+			v1Factory, err = memory.NewFactoryWithConfig(
 				*cfg.Memory,
+				scopedMetricsFactory(storageName, "memory", "tracestore"),
 				s.telset.Logger,
-			)
+			), nil
 		case cfg.Badger != nil:
 			v1Factory, err = badger.NewFactoryWithConfig(
 				*cfg.Badger,

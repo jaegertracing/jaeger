@@ -81,7 +81,7 @@ func (st *Store) getTenant(tenantID string) *Tenant {
 // GetDependencies returns dependencies between services
 func (st *Store) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 	m := st.getTenant(tenancy.GetTenant(ctx))
-	// deduper used below can modify the spans, so we take an exclusive Lock
+	// deduper used below can modify the spans, so we take an exclusive lock
 	m.Lock()
 	defer m.Unlock()
 	deps := map[string]*model.DependencyLink{}
