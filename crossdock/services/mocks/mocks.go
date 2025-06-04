@@ -72,15 +72,26 @@ type CollectorService_GetSamplingRate_Call struct {
 }
 
 // GetSamplingRate is a helper method to define mock.On call
-//   - service
-//   - operation
+//   - service string
+//   - operation string
 func (_e *CollectorService_Expecter) GetSamplingRate(service interface{}, operation interface{}) *CollectorService_GetSamplingRate_Call {
 	return &CollectorService_GetSamplingRate_Call{Call: _e.mock.On("GetSamplingRate", service, operation)}
 }
 
 func (_c *CollectorService_GetSamplingRate_Call) Run(run func(service string, operation string)) *CollectorService_GetSamplingRate_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -156,16 +167,32 @@ type QueryService_GetTraces_Call struct {
 }
 
 // GetTraces is a helper method to define mock.On call
-//   - serviceName
-//   - operation
-//   - tags
+//   - serviceName string
+//   - operation string
+//   - tags map[string]string
 func (_e *QueryService_Expecter) GetTraces(serviceName interface{}, operation interface{}, tags interface{}) *QueryService_GetTraces_Call {
 	return &QueryService_GetTraces_Call{Call: _e.mock.On("GetTraces", serviceName, operation, tags)}
 }
 
 func (_c *QueryService_GetTraces_Call) Run(run func(serviceName string, operation string, tags map[string]string)) *QueryService_GetTraces_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(map[string]string))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		var arg2 map[string]string
+		if args[2] != nil {
+			arg2 = args[2].(map[string]string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
 	})
 	return _c
 }

@@ -78,15 +78,26 @@ type Reader_GetCallRates_Call struct {
 }
 
 // GetCallRates is a helper method to define mock.On call
-//   - ctx
-//   - params
+//   - ctx context.Context
+//   - params *metricstore.CallRateQueryParameters
 func (_e *Reader_Expecter) GetCallRates(ctx interface{}, params interface{}) *Reader_GetCallRates_Call {
 	return &Reader_GetCallRates_Call{Call: _e.mock.On("GetCallRates", ctx, params)}
 }
 
 func (_c *Reader_GetCallRates_Call) Run(run func(ctx context.Context, params *metricstore.CallRateQueryParameters)) *Reader_GetCallRates_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*metricstore.CallRateQueryParameters))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *metricstore.CallRateQueryParameters
+		if args[1] != nil {
+			arg1 = args[1].(*metricstore.CallRateQueryParameters)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -135,15 +146,26 @@ type Reader_GetErrorRates_Call struct {
 }
 
 // GetErrorRates is a helper method to define mock.On call
-//   - ctx
-//   - params
+//   - ctx context.Context
+//   - params *metricstore.ErrorRateQueryParameters
 func (_e *Reader_Expecter) GetErrorRates(ctx interface{}, params interface{}) *Reader_GetErrorRates_Call {
 	return &Reader_GetErrorRates_Call{Call: _e.mock.On("GetErrorRates", ctx, params)}
 }
 
 func (_c *Reader_GetErrorRates_Call) Run(run func(ctx context.Context, params *metricstore.ErrorRateQueryParameters)) *Reader_GetErrorRates_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*metricstore.ErrorRateQueryParameters))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *metricstore.ErrorRateQueryParameters
+		if args[1] != nil {
+			arg1 = args[1].(*metricstore.ErrorRateQueryParameters)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -192,15 +214,26 @@ type Reader_GetLatencies_Call struct {
 }
 
 // GetLatencies is a helper method to define mock.On call
-//   - ctx
-//   - params
+//   - ctx context.Context
+//   - params *metricstore.LatenciesQueryParameters
 func (_e *Reader_Expecter) GetLatencies(ctx interface{}, params interface{}) *Reader_GetLatencies_Call {
 	return &Reader_GetLatencies_Call{Call: _e.mock.On("GetLatencies", ctx, params)}
 }
 
 func (_c *Reader_GetLatencies_Call) Run(run func(ctx context.Context, params *metricstore.LatenciesQueryParameters)) *Reader_GetLatencies_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*metricstore.LatenciesQueryParameters))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *metricstore.LatenciesQueryParameters
+		if args[1] != nil {
+			arg1 = args[1].(*metricstore.LatenciesQueryParameters)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -247,15 +280,26 @@ type Reader_GetMinStepDuration_Call struct {
 }
 
 // GetMinStepDuration is a helper method to define mock.On call
-//   - ctx
-//   - params
+//   - ctx context.Context
+//   - params *metricstore.MinStepDurationQueryParameters
 func (_e *Reader_Expecter) GetMinStepDuration(ctx interface{}, params interface{}) *Reader_GetMinStepDuration_Call {
 	return &Reader_GetMinStepDuration_Call{Call: _e.mock.On("GetMinStepDuration", ctx, params)}
 }
 
 func (_c *Reader_GetMinStepDuration_Call) Run(run func(ctx context.Context, params *metricstore.MinStepDurationQueryParameters)) *Reader_GetMinStepDuration_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*metricstore.MinStepDurationQueryParameters))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *metricstore.MinStepDurationQueryParameters
+		if args[1] != nil {
+			arg1 = args[1].(*metricstore.MinStepDurationQueryParameters)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }

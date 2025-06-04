@@ -4,9 +4,19 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
+
+	"github.com/cenkalti/backoff/v5"
+	"go.uber.org/zap"
+)
+
+const (
+	maxTries       = 3
+	maxElapsedTime = 5 * time.Second
 )
 
 var _ IndexManagementLifecycleAPI = (*ILMClient)(nil)
@@ -15,14 +25,32 @@ var _ IndexManagementLifecycleAPI = (*ILMClient)(nil)
 type ILMClient struct {
 	Client
 	MasterTimeoutSeconds int
+	Logger               *zap.Logger
 }
 
 // Exists verify if a ILM policy exists
 func (i ILMClient) Exists(name string) (bool, error) {
-	_, err := i.request(elasticRequest{
-		endpoint: "_ilm/policy/" + name,
-		method:   http.MethodGet,
-	})
+	operation := func() ([]byte, error) {
+		bytes, err := i.request(elasticRequest{
+			endpoint: "_ilm/policy/" + name,
+			method:   http.MethodGet,
+		})
+		if err != nil {
+			i.Logger.Warn("Retryable error while getting ILM policy",
+				zap.String("name", name),
+				zap.Error(err),
+			)
+			return bytes, err
+		}
+		return bytes, nil
+	}
+
+	_, err := backoff.Retry(
+		context.TODO(),
+		operation,
+		backoff.WithMaxTries(maxTries),
+		backoff.WithMaxElapsedTime(maxElapsedTime),
+	)
 
 	var respError ResponseError
 	if errors.As(err, &respError) {
@@ -30,7 +58,6 @@ func (i ILMClient) Exists(name string) (bool, error) {
 			return false, nil
 		}
 	}
-
 	if err != nil {
 		return false, fmt.Errorf("failed to get ILM policy: %s, %w", name, err)
 	}

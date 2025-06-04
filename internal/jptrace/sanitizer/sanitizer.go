@@ -10,12 +10,16 @@ import (
 // Func is a function that performs enrichment, clean-up, or normalization of trace data.
 type Func func(traces ptrace.Traces) ptrace.Traces
 
+// Sanitize is a function that applies all sanitizers to the given trace data.
+var Sanitize = NewChainedSanitizer(NewStandardSanitizers()...)
+
 // NewStandardSanitizers returns a list of all the sanitizers that are used by the
 // storage exporter.
 func NewStandardSanitizers() []Func {
 	return []Func{
 		NewEmptyServiceNameSanitizer(),
 		NewUTF8Sanitizer(),
+		NewNegativeDurationSanitizer(),
 	}
 }
 

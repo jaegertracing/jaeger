@@ -129,8 +129,14 @@ func (f *Factory) Counter(options metrics.Options) metrics.Counter {
 		Help: help,
 	}
 	cv := f.cache.getOrMakeCounterVec(opts, labelNames)
+	labelValues := f.tagsAsLabelValues(labelNames, tags)
+	metric, err := cv.GetMetricWithLabelValues(labelValues...)
+	if err != nil {
+		return metrics.NullCounter
+	}
+
 	return &counter{
-		counter: cv.WithLabelValues(f.tagsAsLabelValues(labelNames, tags)...),
+		counter: metric,
 	}
 }
 
@@ -148,8 +154,13 @@ func (f *Factory) Gauge(options metrics.Options) metrics.Gauge {
 		Help: help,
 	}
 	gv := f.cache.getOrMakeGaugeVec(opts, labelNames)
+	labelValues := f.tagsAsLabelValues(labelNames, tags)
+	metric, err := gv.GetMetricWithLabelValues(labelValues...)
+	if err != nil {
+		return metrics.NullGauge
+	}
 	return &gauge{
-		gauge: gv.WithLabelValues(f.tagsAsLabelValues(labelNames, tags)...),
+		gauge: metric,
 	}
 }
 
@@ -169,8 +180,13 @@ func (f *Factory) Timer(options metrics.TimerOptions) metrics.Timer {
 		Buckets: buckets,
 	}
 	hv := f.cache.getOrMakeHistogramVec(opts, labelNames)
+	labelValues := f.tagsAsLabelValues(labelNames, tags)
+	metric, err := hv.GetMetricWithLabelValues(labelValues...)
+	if err != nil {
+		return metrics.NullTimer
+	}
 	return &timer{
-		histogram: hv.WithLabelValues(f.tagsAsLabelValues(labelNames, tags)...),
+		histogram: metric,
 	}
 }
 
@@ -198,8 +214,14 @@ func (f *Factory) Histogram(options metrics.HistogramOptions) metrics.Histogram 
 		Buckets: buckets,
 	}
 	hv := f.cache.getOrMakeHistogramVec(opts, labelNames)
+	labelValues := f.tagsAsLabelValues(labelNames, tags)
+	metric, err := hv.GetMetricWithLabelValues(labelValues...)
+	if err != nil {
+		return metrics.NullHistogram
+	}
+
 	return &histogram{
-		histogram: hv.WithLabelValues(f.tagsAsLabelValues(labelNames, tags)...),
+		histogram: metric,
 	}
 }
 

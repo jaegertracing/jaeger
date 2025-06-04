@@ -107,14 +107,20 @@ type SpanProcessor_Process_Call struct {
 }
 
 // Process is a helper method to define mock.On call
-//   - input
+//   - input processor.Message
 func (_e *SpanProcessor_Expecter) Process(input interface{}) *SpanProcessor_Process_Call {
 	return &SpanProcessor_Process_Call{Call: _e.mock.On("Process", input)}
 }
 
 func (_c *SpanProcessor_Process_Call) Run(run func(input processor.Message)) *SpanProcessor_Process_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(processor.Message))
+		var arg0 processor.Message
+		if args[0] != nil {
+			arg0 = args[0].(processor.Message)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
