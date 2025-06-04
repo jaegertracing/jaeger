@@ -5,7 +5,6 @@
 package spanstore
 
 import (
-	"encoding/json"
 	"strings"
 	"time"
 
@@ -115,31 +114,11 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServ
 	}
 }
 
-func (s *SpanWriter) deepCopySpan(span *dbmodel.Span) (*dbmodel.Span, error) {
-	data, err := json.Marshal(span)
-	if err != nil {
-		return nil, err
-	}
-
-	var spanCopy dbmodel.Span
-	if err := json.Unmarshal(data, &spanCopy); err != nil {
-		return nil, err
-	}
-	return &spanCopy, nil
-}
-
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 	s.writerMetrics.Attempts.Inc(1)
 
-	spanCopy, err := s.deepCopySpan(span)
-	if err != nil {
-		s.logger.Error("Failed to copy span", zap.Error(err))
-		s.writerMetrics.Errors.Inc(1)
-		return
-	}
-
-	// modify the copy
+	spanCopy := s.copySpanForConversion(span)
 	s.convertNestedTagsToFieldTags(spanCopy)
 
 	spanIndexName, serviceIndexName := s.spanServiceIndex(spanStartTime)
@@ -157,6 +136,25 @@ func (s *SpanWriter) convertNestedTagsToFieldTags(span *dbmodel.Span) {
 	nestedTags, fieldTags := s.splitElevatedTags(span.Tags)
 	span.Tags = nestedTags
 	span.Tag = fieldTags
+}
+
+// Helper method to create a safe copy for conversion
+func (s *SpanWriter) copySpanForConversion(span *dbmodel.Span) *dbmodel.Span {
+	spanCopy := *span
+
+	spanCopy.Process = span.Process
+
+	if span.Process.Tags != nil {
+		spanCopy.Process.Tags = make([]dbmodel.KeyValue, len(span.Process.Tags))
+		copy(spanCopy.Process.Tags, span.Process.Tags)
+	}
+
+	if span.Tags != nil {
+		spanCopy.Tags = make([]dbmodel.KeyValue, len(span.Tags))
+		copy(spanCopy.Tags, span.Tags)
+	}
+
+	return &spanCopy
 }
 
 // Close closes SpanWriter
