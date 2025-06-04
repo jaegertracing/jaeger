@@ -7,10 +7,12 @@ import (
 	"context"
 	"io"
 
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/tracestoremetrics"
 	v2depstore "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
 	v2tracestore "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
@@ -23,8 +25,9 @@ var (
 )
 
 type Factory struct {
-	coreFactory *elasticsearch.FactoryBase
-	config      escfg.Configuration
+	coreFactory    *elasticsearch.FactoryBase
+	config         escfg.Configuration
+	metricsFactory metrics.Factory
 }
 
 func NewFactory(ctx context.Context, cfg escfg.Configuration, telset telemetry.Settings) (*Factory, error) {
@@ -33,15 +36,16 @@ func NewFactory(ctx context.Context, cfg escfg.Configuration, telset telemetry.S
 		return nil, err
 	}
 	f := &Factory{
-		coreFactory: coreFactory,
-		config:      cfg,
+		coreFactory:    coreFactory,
+		config:         cfg,
+		metricsFactory: telset.Metrics,
 	}
 	return f, nil
 }
 
 func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
 	params := f.coreFactory.GetSpanReaderParams()
-	return v2tracestore.NewTraceReader(params), nil
+	return tracestoremetrics.NewReaderDecorator(v2tracestore.NewTraceReader(params), f.metricsFactory), nil
 }
 
 func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
