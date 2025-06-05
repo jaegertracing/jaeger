@@ -29,7 +29,7 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 	mockReader.On("GetOperations", context.Background(), operationQuery).
 		Return([]tracestore.Operation{}, nil)
 	mrs.GetOperations(context.Background(), operationQuery)
-	mockReader.On("GetTraces", context.Background(), []tracestore.GetTraceParams{{}}).Return(emptyTracesIter(traces, nil))
+	mockReader.On("GetTraces", context.Background(), []tracestore.GetTraceParams{{}}).Return(emptyIter[ptrace.Traces](traces, nil))
 	count := 0
 	for range mrs.GetTraces(context.Background(), tracestore.GetTraceParams{}) {
 		if count != 0 {
@@ -38,7 +38,7 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 		count++
 	}
 	mockReader.On("FindTraces", context.Background(), tracestore.TraceQueryParams{}).
-		Return(emptyTracesIter(traces, nil))
+		Return(emptyIter[ptrace.Traces](traces, nil))
 	count = 0
 	for range mrs.FindTraces(context.Background(), tracestore.TraceQueryParams{}) {
 		if count != 0 {
@@ -47,7 +47,7 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 		count++
 	}
 	mockReader.On("FindTraceIDs", context.Background(), tracestore.TraceQueryParams{}).
-		Return(emptyTraceIdIter([]tracestore.FoundTraceID{{TraceID: [16]byte{}}, {TraceID: [16]byte{}}}, nil))
+		Return(emptyIter[tracestore.FoundTraceID]([]tracestore.FoundTraceID{{TraceID: [16]byte{}}, {TraceID: [16]byte{}}}, nil))
 	count = 0
 	for range mrs.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{}) {
 		if count != 0 {
@@ -117,18 +117,18 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 		Return(nil, errors.New("Failure"))
 	mrs.GetOperations(context.Background(), operationQuery)
 	mockReader.On("GetTraces", context.Background(), []tracestore.GetTraceParams{{}}).
-		Return(emptyTracesIter(nil, returningErr))
+		Return(emptyIter[ptrace.Traces](nil, returningErr))
 	//nolint:revive
 	for range mrs.GetTraces(context.Background(), tracestore.GetTraceParams{}) {
 		// It is necessary to range the iter to emit metrics, therefore this empty loop is present
 	}
 	mockReader.On("FindTraces", context.Background(), tracestore.TraceQueryParams{}).
-		Return(emptyTracesIter(nil, returningErr))
+		Return(emptyIter[ptrace.Traces](nil, returningErr))
 	//nolint:revive
 	for range mrs.FindTraces(context.Background(), tracestore.TraceQueryParams{}) {
 	}
 	mockReader.On("FindTraceIDs", context.Background(), tracestore.TraceQueryParams{}).
-		Return(emptyTraceIdIter(nil, returningErr))
+		Return(emptyIter[tracestore.FoundTraceID](nil, returningErr))
 	//nolint:revive
 	for range mrs.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{}) {
 	}
@@ -159,18 +159,16 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 	checkExpectedExistingAndNonExistentCounters(t, counters, expecteds, gauges, existingKeys, nonExistentKeys)
 }
 
-func emptyTracesIter(td []ptrace.Traces, err error) iter.Seq2[[]ptrace.Traces, error] {
-	return func(yield func([]ptrace.Traces, error) bool) {
-		if !yield(td, err) {
-			return
-		}
-	}
-}
-
-func emptyTraceIdIter(ids []tracestore.FoundTraceID, err error) iter.Seq2[[]tracestore.FoundTraceID, error] {
-	return func(yield func([]tracestore.FoundTraceID, error) bool) {
-		if !yield(ids, err) {
-			return
+func emptyIter[T any](td []T, err error) iter.Seq2[[]T, error] {
+	return func(yield func([]T, error) bool) {
+		if err == nil {
+			for _, t := range td {
+				if !yield([]T{t}, nil) {
+					return
+				}
+			}
+		} else {
+			yield(nil, err)
 		}
 	}
 }

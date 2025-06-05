@@ -68,10 +68,16 @@ func buildQueryMetrics(operation string, metricsFactory metrics.Factory) *queryM
 func (m *ReadMetricsDecorator) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		start := time.Now()
+		var err error
+		length := 0
+		defer func() {
+			m.findTracesMetrics.emit(err, time.Since(start), length)
+		}()
 		findTracesIter := m.traceReader.FindTraces(ctx, query)
-		for traces, err := range findTracesIter {
-			m.findTracesMetrics.emit(err, time.Since(start), len(traces))
-			if !yield(traces, err) {
+		for traces, iterErr := range findTracesIter {
+			err = iterErr
+			length += len(traces)
+			if !yield(traces, iterErr) {
 				return
 			}
 		}
@@ -82,10 +88,16 @@ func (m *ReadMetricsDecorator) FindTraces(ctx context.Context, query tracestore.
 func (m *ReadMetricsDecorator) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	return func(yield func([]tracestore.FoundTraceID, error) bool) {
 		start := time.Now()
+		var err error
+		length := 0
+		defer func() {
+			m.findTraceIDsMetrics.emit(err, time.Since(start), length)
+		}()
 		findTraceIDsIter := m.traceReader.FindTraceIDs(ctx, query)
-		for traceIds, err := range findTraceIDsIter {
-			m.findTraceIDsMetrics.emit(err, time.Since(start), len(traceIds))
-			if !yield(traceIds, err) {
+		for traceIds, iterErr := range findTraceIDsIter {
+			err = iterErr
+			length += len(traceIds)
+			if !yield(traceIds, iterErr) {
 				return
 			}
 		}
@@ -96,10 +108,16 @@ func (m *ReadMetricsDecorator) FindTraceIDs(ctx context.Context, query tracestor
 func (m *ReadMetricsDecorator) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		start := time.Now()
+		var err error
+		length := 0
+		defer func() {
+			m.getTraceMetrics.emit(err, time.Since(start), length)
+		}()
 		getTraceIter := m.traceReader.GetTraces(ctx, traceIDs...)
-		for traces, err := range getTraceIter {
-			m.getTraceMetrics.emit(err, time.Since(start), len(traces))
-			if !yield(traces, err) {
+		for traces, iterErr := range getTraceIter {
+			err = iterErr
+			length += len(traces)
+			if !yield(traces, iterErr) {
 				return
 			}
 		}
