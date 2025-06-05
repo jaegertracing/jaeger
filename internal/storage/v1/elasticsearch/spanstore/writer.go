@@ -117,15 +117,12 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServ
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 	s.writerMetrics.Attempts.Inc(1)
-
-	spanCopy := s.copySpanForConversion(span)
-	s.convertNestedTagsToFieldTags(spanCopy)
-
+	s.convertNestedTagsToFieldTags(span)
 	spanIndexName, serviceIndexName := s.spanServiceIndex(spanStartTime)
 	if serviceIndexName != "" {
-		s.writeService(serviceIndexName, spanCopy)
+		s.writeService(serviceIndexName, span)
 	}
-	s.writeSpan(spanIndexName, spanCopy)
+	s.writeSpan(spanIndexName, span)
 	s.logger.Debug("Wrote span to ES index", zap.String("index", spanIndexName))
 }
 
@@ -136,25 +133,6 @@ func (s *SpanWriter) convertNestedTagsToFieldTags(span *dbmodel.Span) {
 	nestedTags, fieldTags := s.splitElevatedTags(span.Tags)
 	span.Tags = nestedTags
 	span.Tag = fieldTags
-}
-
-// Helper method to create a safe copy for conversion
-func (s *SpanWriter) copySpanForConversion(span *dbmodel.Span) *dbmodel.Span {
-	spanCopy := *span
-
-	spanCopy.Process = span.Process
-
-	if span.Process.Tags != nil {
-		spanCopy.Process.Tags = make([]dbmodel.KeyValue, len(span.Process.Tags))
-		copy(spanCopy.Process.Tags, span.Process.Tags)
-	}
-
-	if span.Tags != nil {
-		spanCopy.Tags = make([]dbmodel.KeyValue, len(span.Tags))
-		copy(spanCopy.Tags, span.Tags)
-	}
-
-	return &spanCopy
 }
 
 // Close closes SpanWriter
