@@ -85,19 +85,19 @@ func Test_getMappingAsString(t *testing.T) {
 		wantErr error
 	}{
 		{
-			name: "ES version 7", args: Options{Mapping: "jaeger-span", EsVersion: 7, Shards: 5, Replicas: 1, IndexPrefix: "test", UseILM: "true", ILMPolicyName: "jaeger-test-policy"},
+			name: "ES version 7", args: Options{Mapping: "jaeger-span", EsVersion: 7, Shards: 5, Replicas: ptr(int64(1)), IndexPrefix: "test", UseILM: "true", ILMPolicyName: "jaeger-test-policy"},
 			want: "ES version 7",
 		},
 		{
-			name: "Parse Error version 7", args: Options{Mapping: "jaeger-span", EsVersion: 7, Shards: 5, Replicas: 1, IndexPrefix: "test", UseILM: "true", ILMPolicyName: "jaeger-test-policy"},
+			name: "Parse Error version 7", args: Options{Mapping: "jaeger-span", EsVersion: 7, Shards: 5, Replicas: ptr(int64(1)), IndexPrefix: "test", UseILM: "true", ILMPolicyName: "jaeger-test-policy"},
 			wantErr: errors.New("parse error"),
 		},
 		{
-			name: "Parse bool error", args: Options{Mapping: "jaeger-span", EsVersion: 7, Shards: 5, Replicas: 1, IndexPrefix: "test", UseILM: "foo", ILMPolicyName: "jaeger-test-policy"},
+			name: "Parse bool error", args: Options{Mapping: "jaeger-span", EsVersion: 7, Shards: 5, Replicas: ptr(int64(1)), IndexPrefix: "test", UseILM: "foo", ILMPolicyName: "jaeger-test-policy"},
 			wantErr: errors.New("strconv.ParseBool: parsing \"foo\": invalid syntax"),
 		},
 		{
-			name: "Invalid Mapping type", args: Options{Mapping: "invalid-mapping", EsVersion: 7, Shards: 5, Replicas: 1, IndexPrefix: "test", UseILM: "true", ILMPolicyName: "jaeger-test-policy"},
+			name: "Invalid Mapping type", args: Options{Mapping: "invalid-mapping", EsVersion: 7, Shards: 5, Replicas: ptr(int64(1)), IndexPrefix: "test", UseILM: "true", ILMPolicyName: "jaeger-test-policy"},
 			wantErr: errors.New("invalid mapping type: invalid-mapping"),
 		},
 	}
@@ -148,7 +148,7 @@ func TestGenerateMappings(t *testing.T) {
 				Mapping:       "jaeger-span",
 				EsVersion:     7,
 				Shards:        5,
-				Replicas:      1,
+				Replicas:      ptr(int64(1)),
 				IndexPrefix:   "jaeger-index",
 				UseILM:        "false",
 				ILMPolicyName: "jaeger-ilm-policy",
@@ -161,7 +161,7 @@ func TestGenerateMappings(t *testing.T) {
 				Mapping:       "jaeger-service",
 				EsVersion:     7,
 				Shards:        5,
-				Replicas:      1,
+				Replicas:      ptr(int64(1)),
 				IndexPrefix:   "jaeger-service-index",
 				UseILM:        "true",
 				ILMPolicyName: "service-ilm-policy",

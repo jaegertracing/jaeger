@@ -54,19 +54,19 @@ func (mb MappingBuilder) getMappingTemplateOptions(mappingType MappingType) temp
 	switch mappingType {
 	case SpanMapping:
 		mappingOpts.Shards = mb.Indices.Spans.Shards
-		mappingOpts.Replicas = mb.Indices.Spans.Replicas
+		mappingOpts.Replicas = *mb.Indices.Spans.Replicas
 		mappingOpts.Priority = mb.Indices.Spans.Priority
 	case ServiceMapping:
 		mappingOpts.Shards = mb.Indices.Services.Shards
-		mappingOpts.Replicas = mb.Indices.Services.Replicas
+		mappingOpts.Replicas = *mb.Indices.Services.Replicas
 		mappingOpts.Priority = mb.Indices.Services.Priority
 	case DependenciesMapping:
 		mappingOpts.Shards = mb.Indices.Dependencies.Shards
-		mappingOpts.Replicas = mb.Indices.Dependencies.Replicas
+		mappingOpts.Replicas = *mb.Indices.Dependencies.Replicas
 		mappingOpts.Priority = mb.Indices.Dependencies.Priority
 	case SamplingMapping:
 		mappingOpts.Shards = mb.Indices.Sampling.Shards
-		mappingOpts.Replicas = mb.Indices.Sampling.Replicas
+		mappingOpts.Replicas = *mb.Indices.Sampling.Replicas
 		mappingOpts.Priority = mb.Indices.Sampling.Priority
 	}
 

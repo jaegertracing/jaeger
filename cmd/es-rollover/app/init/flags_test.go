@@ -34,7 +34,8 @@ func TestBindFlags(t *testing.T) {
 
 	c.InitFromViper(v)
 	assert.EqualValues(t, 8, c.Indices.Spans.Shards)
-	assert.EqualValues(t, 16, c.Indices.Spans.Replicas)
+	require.NotNil(t, c.Indices.Spans.Replicas)
+	assert.EqualValues(t, 16, *c.Indices.Spans.Replicas)
 	assert.EqualValues(t, 300, c.Indices.Spans.Priority)
 	assert.EqualValues(t, 301, c.Indices.Services.Priority)
 	assert.EqualValues(t, 302, c.Indices.Dependencies.Priority)

@@ -14,6 +14,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
 func TestIndexCreateIfNotExist(t *testing.T) {
@@ -85,6 +86,13 @@ func TestRolloverAction(t *testing.T) {
 					Archive: true,
 					UseILM:  true,
 				},
+				Indices: config.Indices{
+					Spans: config.IndexOptions{
+						Shards:   3,
+						Replicas: ptr(int64(1)),
+						Priority: 10,
+					},
+				},
 			},
 			expectedErr: errors.New("ILM is supported only for ES version 7+"),
 		},
@@ -143,6 +151,13 @@ func TestRolloverAction(t *testing.T) {
 					Archive: true,
 					UseILM:  false,
 				},
+				Indices: config.Indices{
+					Spans: config.IndexOptions{
+						Shards:   3,
+						Replicas: ptr(int64(1)),
+						Priority: 10,
+					},
+				},
 			},
 		},
 		{
@@ -160,6 +175,13 @@ func TestRolloverAction(t *testing.T) {
 				Config: app.Config{
 					Archive: true,
 					UseILM:  false,
+				},
+				Indices: config.Indices{
+					Spans: config.IndexOptions{
+						Shards:   3,
+						Replicas: ptr(int64(1)),
+						Priority: 10,
+					},
 				},
 			},
 		},
@@ -183,6 +205,13 @@ func TestRolloverAction(t *testing.T) {
 					Archive: true,
 					UseILM:  false,
 				},
+				Indices: config.Indices{
+					Spans: config.IndexOptions{
+						Shards:   3,
+						Replicas: ptr(int64(1)),
+						Priority: 10,
+					},
+				},
 			},
 		},
 		{
@@ -204,6 +233,13 @@ func TestRolloverAction(t *testing.T) {
 				Config: app.Config{
 					Archive: true,
 					UseILM:  false,
+				},
+				Indices: config.Indices{
+					Spans: config.IndexOptions{
+						Shards:   3,
+						Replicas: ptr(int64(1)),
+						Priority: 10,
+					},
 				},
 			},
 		},
@@ -228,6 +264,13 @@ func TestRolloverAction(t *testing.T) {
 					Archive:       true,
 					UseILM:        true,
 					ILMPolicyName: "jaeger-ilm",
+				},
+				Indices: config.Indices{
+					Spans: config.IndexOptions{
+						Shards:   3,
+						Replicas: ptr(int64(1)),
+						Priority: 10,
+					},
 				},
 			},
 		},

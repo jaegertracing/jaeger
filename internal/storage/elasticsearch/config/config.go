@@ -49,7 +49,7 @@ type IndexOptions struct {
 	// Shards is the number of shards per index in Elasticsearch.
 	Shards int64 `mapstructure:"shards"`
 	// Replicas is the number of replicas per index in Elasticsearch.
-	Replicas int64 `mapstructure:"replicas"`
+	Replicas *int64 `mapstructure:"replicas"`
 	// RolloverFrequency contains the rollover frequency setting used to fetch
 	// indices from elasticsearch.
 	// Valid configuration options are: [hour, day].
@@ -355,7 +355,7 @@ func setDefaultIndexOptions(target, source *IndexOptions) {
 		target.Shards = source.Shards
 	}
 
-	if target.Replicas == 0 {
+	if target.Replicas == nil {
 		target.Replicas = source.Replicas
 	}
 
