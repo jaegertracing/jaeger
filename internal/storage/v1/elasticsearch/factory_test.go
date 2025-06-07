@@ -323,10 +323,10 @@ func testPasswordFromFile(t *testing.T) {
 	})
 
 	writer := spanstore.NewSpanWriter(f.GetSpanWriterParams())
-	span := &dbmodel.Span{
+	span1 := &dbmodel.Span{
 		Process: dbmodel.Process{ServiceName: "foo"},
 	}
-	writer.WriteSpan(time.Now(), span)
+	writer.WriteSpan(time.Now(), span1)
 	assert.Eventually(t,
 		func() bool {
 			pwd, ok := authReceived.Load(upwd1)
@@ -351,7 +351,10 @@ func testPasswordFromFile(t *testing.T) {
 		"expecting es.Client to change for the new password",
 	)
 
-	writer.WriteSpan(time.Now(), span)
+	span2 := &dbmodel.Span{
+		Process: dbmodel.Process{ServiceName: "foo"},
+	}
+	writer.WriteSpan(time.Now(), span2)
 	assert.Eventually(t,
 		func() bool {
 			pwd, ok := authReceived.Load(upwd2)
