@@ -103,7 +103,7 @@ func TestLowerboundThroughput(t *testing.T) {
 	a, err := NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
 	require.NoError(t, err)
 	a.RecordThroughput("A", http.MethodGet, model.SamplerTypeLowerBound, 0.001)
-	assert.EqualValues(t, 0, a.(*aggregator).currentThroughput["A"][http.MethodGet].Count)
+	assert.EqualValues(t, 1, a.(*aggregator).currentThroughput["A"][http.MethodGet].Count)
 	assert.Empty(t, a.(*aggregator).currentThroughput["A"][http.MethodGet].Probabilities["0.001000"])
 }
 
@@ -116,14 +116,14 @@ func TestRecordThroughput(t *testing.T) {
 		AggregationBuckets:    1,
 		BucketsForCalculation: 1,
 	}
-	logger := zap.NewNop()
-	a, err := NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
+	agg, err := NewAggregator(testOpts, zap.NewNop(), metricsFactory, mockEP, mockStorage)
 	require.NoError(t, err)
+	a := agg.(*aggregator)
 
 	// Testing non-root span
 	span := &model.Span{References: []model.SpanRef{{SpanID: model.NewSpanID(1), RefType: model.ChildOf}}}
 	a.HandleRootSpan(span)
-	require.Empty(t, a.(*aggregator).currentThroughput)
+	require.Empty(t, a.currentThroughput)
 
 	// Testing span with service name but no operation
 	span.References = []model.SpanRef{}
@@ -131,12 +131,13 @@ func TestRecordThroughput(t *testing.T) {
 		ServiceName: "A",
 	}
 	a.HandleRootSpan(span)
-	require.Empty(t, a.(*aggregator).currentThroughput)
+	require.Empty(t, a.currentThroughput)
 
 	// Testing span with service name and operation but no probabilistic sampling tags
 	span.OperationName = http.MethodGet
 	a.HandleRootSpan(span)
-	require.Empty(t, a.(*aggregator).currentThroughput)
+	assert.EqualValues(t, 1, a.currentThroughput["A"][http.MethodGet].Count)
+	delete(a.currentThroughput, "A")
 
 	// Testing span with service name, operation, and probabilistic sampling tags
 	span.Tags = model.KeyValues{
@@ -144,48 +145,7 @@ func TestRecordThroughput(t *testing.T) {
 		model.String("sampler.param", "0.001"),
 	}
 	a.HandleRootSpan(span)
-	assert.EqualValues(t, 1, a.(*aggregator).currentThroughput["A"][http.MethodGet].Count)
-}
-
-func TestRecordThroughputFunc(t *testing.T) {
-	metricsFactory := metricstest.NewFactory(0)
-	mockStorage := &mocks.Store{}
-	mockEP := &epmocks.ElectionParticipant{}
-	logger := zap.NewNop()
-	testOpts := Options{
-		CalculationInterval:   1 * time.Second,
-		AggregationBuckets:    1,
-		BucketsForCalculation: 1,
-	}
-
-	a, err := NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
-	require.NoError(t, err)
-
-	// Testing non-root span
-	span := &model.Span{References: []model.SpanRef{{SpanID: model.NewSpanID(1), RefType: model.ChildOf}}}
-	a.HandleRootSpan(span)
-	require.Empty(t, a.(*aggregator).currentThroughput)
-
-	// Testing span with service name but no operation
-	span.References = []model.SpanRef{}
-	span.Process = &model.Process{
-		ServiceName: "A",
-	}
-	a.HandleRootSpan(span)
-	require.Empty(t, a.(*aggregator).currentThroughput)
-
-	// Testing span with service name and operation but no probabilistic sampling tags
-	span.OperationName = http.MethodGet
-	a.HandleRootSpan(span)
-	require.Empty(t, a.(*aggregator).currentThroughput)
-
-	// Testing span with service name, operation, and probabilistic sampling tags
-	span.Tags = model.KeyValues{
-		model.String("sampler.type", "probabilistic"),
-		model.String("sampler.param", "0.001"),
-	}
-	a.HandleRootSpan(span)
-	assert.EqualValues(t, 1, a.(*aggregator).currentThroughput["A"][http.MethodGet].Count)
+	assert.EqualValues(t, 1, a.currentThroughput["A"][http.MethodGet].Count)
 }
 
 func TestGetSamplerParams(t *testing.T) {
