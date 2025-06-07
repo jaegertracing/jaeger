@@ -28,13 +28,11 @@ CREATE TABLE IF NOT EXISTS spans (
     scope_version String
 )
 ENGINE = MergeTree
-ORDER BY (start_time, trace_id, id);
 
 
 CREATE TABLE IF NOT EXISTS services (
     name String
 ) ENGINE = AggregatingMergeTree
-ORDER BY name;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS services_mv
 TO services
@@ -47,7 +45,6 @@ CREATE TABLE IF NOT EXISTS operations (
     name String,
     span_kind String
 ) ENGINE = AggregatingMergeTree
-ORDER BY (name, span_kind);
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS operations_mv
 TO operations
