@@ -6,14 +6,20 @@ package tracestore
 import (
 	"context"
 	"fmt"
+	"iter"
+	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
 const (
+	sqlSelectSpansByTraceID = `SELECT *
+	FROM spans
+	WHERE trace_id = ?`
 	sqlSelectAllServices        = `SELECT DISTINCT name FROM services`
 	sqlSelectOperationsAllKinds = `SELECT name, span_kind
 	FROM operations
@@ -34,6 +40,46 @@ type Reader struct {
 // to enable instrumentation on the connection without risk of recursively generating traces.
 func NewReader(conn driver.Conn) *Reader {
 	return &Reader{conn: conn}
+}
+
+func (r *Reader) GetTraces(
+	ctx context.Context,
+	traceIDs ...tracestore.GetTraceParams,
+) iter.Seq2[[]ptrace.Traces, error] {
+	return func(yield func([]ptrace.Traces, error) bool) {
+		for _, traceID := range traceIDs {
+			rows, err := r.conn.Query(ctx, sqlSelectSpansByTraceID, traceID.TraceID)
+			if err != nil {
+				yield(nil, fmt.Errorf("failed to query trace: %w", err))
+			}
+			defer rows.Close()
+
+			var traces []ptrace.Traces
+			for rows.Next() {
+				var (
+					span        dbmodel.Span
+					rawDuration uint64
+				)
+
+				if err := rows.ScanStruct(&span); err != nil {
+					yield(nil, fmt.Errorf("failed to scan row: %w", err))
+					continue
+				}
+
+				if err := rows.Scan(&rawDuration); err != nil {
+					yield(nil, fmt.Errorf("failed to scan duration: %w", err))
+					continue
+				}
+
+				span.Duration = time.Duration(rawDuration)
+
+				traces = append(traces, dbmodel.FromDBModel(span))
+				if !yield(traces, nil) {
+					return
+				}
+			}
+		}
+	}
 }
 
 func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
