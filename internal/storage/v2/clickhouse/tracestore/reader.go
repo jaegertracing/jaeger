@@ -17,7 +17,8 @@ import (
 )
 
 const (
-	sqlSelectSpansByTraceID = `SELECT *
+	sqlSelectSpansByTraceID = `SELECT id, trace_id, trace_state, parent_span_id, name, kind, start_time, status_code, status_message,
+	duration, service_name, scope_name, scope_version
 	FROM spans
 	WHERE trace_id = ?`
 	sqlSelectAllServices        = `SELECT DISTINCT name FROM services`
@@ -61,13 +62,22 @@ func (r *Reader) GetTraces(
 					rawDuration uint64
 				)
 
-				if err := rows.ScanStruct(&span); err != nil {
+				if err := rows.Scan(
+					&span.ID,
+					&span.TraceID,
+					&span.TraceState,
+					&span.ParentSpanID,
+					&span.Name,
+					&span.Kind,
+					&span.StartTime,
+					&span.StatusCode,
+					&span.StatusMessage,
+					&rawDuration,
+					&span.ServiceName,
+					&span.ScopeName,
+					&span.ScopeVersion,
+				); err != nil {
 					yield(nil, fmt.Errorf("failed to scan row: %w", err))
-					continue
-				}
-
-				if err := rows.Scan(&rawDuration); err != nil {
-					yield(nil, fmt.Errorf("failed to scan duration: %w", err))
 					continue
 				}
 

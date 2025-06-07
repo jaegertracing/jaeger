@@ -92,7 +92,9 @@ func convertSpan(s Span) (ptrace.Span, error) {
 	if err != nil {
 		return span, fmt.Errorf("failed to decode parent span ID: %w", err)
 	}
-	span.SetParentSpanID(pcommon.SpanID(parentSpanId))
+	if len(parentSpanId) != 0 {
+		span.SetParentSpanID(pcommon.SpanID(parentSpanId))
+	}
 	span.TraceState().FromRaw(s.TraceState)
 	span.SetName(s.Name)
 	span.SetKind(convertSpanKind(s.Kind))
