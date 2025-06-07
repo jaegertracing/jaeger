@@ -42,3 +42,20 @@ AS
 SELECT service_name AS name
 FROM spans
 GROUP BY service_name;
+
+CREATE TABLE IF NOT EXISTS operations (
+    name String,
+    span_kind String
+) ENGINE = AggregatingMergeTree
+ORDER BY (name, span_kind);
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS operations_mv
+TO operations
+AS
+SELECT
+    name,
+    kind AS span_kind
+FROM spans
+GROUP BY
+    name,
+    span_kind;
