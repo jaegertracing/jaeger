@@ -4,6 +4,7 @@
 package elasticsearch
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -106,6 +107,8 @@ func TestFactoryInitializeErr(t *testing.T) {
 		name        string
 		factory     *Factory
 		expectedErr string
+
+		setup func(t_param *testing.T, f *Factory)
 	}{
 		{
 			name:        "cfg validation err",
@@ -113,13 +116,25 @@ func TestFactoryInitializeErr(t *testing.T) {
 			expectedErr: "Servers: non zero value required",
 		},
 		{
-			name:        "server error",
+			name: "server error",
+			setup: func(t_param *testing.T, _ *Factory) {
+				mockErr := errors.New("simulated connection error")
+				originalNewClientFn := escfg.NewClient
+				escfg.NewClient = (&mockClientBuilder{err: mockErr}).NewClient
+				t_param.Cleanup(func() {
+					escfg.NewClient = originalNewClientFn
+				})
+			},
 			factory:     NewFactory(),
 			expectedErr: "failed to create Elasticsearch client: health check timeout: Head \"http://127.0.0.1:9200\": dial tcp 127.0.0.1:9200: connect: connection refused: no Elasticsearch node available",
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			if test.setup != nil {
+				test.setup(t, test.factory)
+				test.expectedErr = "failed to create Elasticsearch client: simulated connection error"
+			}
 			err := test.factory.Initialize(metrics.NullFactory, zaptest.NewLogger(t))
 			require.EqualError(t, err, test.expectedErr)
 		})
