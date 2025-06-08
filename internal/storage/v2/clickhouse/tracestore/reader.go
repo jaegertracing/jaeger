@@ -55,66 +55,18 @@ func (r *Reader) GetTraces(
 			rows, err := r.conn.Query(ctx, sqlSelectSpansByTraceID, traceID.TraceID)
 			if err != nil {
 				yield(nil, fmt.Errorf("failed to query trace: %w", err))
+				return
 			}
 			defer rows.Close()
 
 			var traces []ptrace.Traces
 			for rows.Next() {
-				var (
-					span            dbmodel.Span
-					rawDuration     uint64
-					eventNames      []string
-					eventTimestamps []time.Time
-					linkTraceIDs    []string
-					linkSpanIDs     []string
-					linkTraceStates []string
-				)
-
-				if err := rows.Scan(
-					&span.ID,
-					&span.TraceID,
-					&span.TraceState,
-					&span.ParentSpanID,
-					&span.Name,
-					&span.Kind,
-					&span.StartTime,
-					&span.StatusCode,
-					&span.StatusMessage,
-					&rawDuration,
-					&eventNames,
-					&eventTimestamps,
-					&linkTraceIDs,
-					&linkSpanIDs,
-					&linkTraceStates,
-					&span.ServiceName,
-					&span.ScopeName,
-					&span.ScopeVersion,
-				); err != nil {
-					yield(nil, fmt.Errorf("failed to scan row: %w", err))
+				span, err := scanSpanRow(rows)
+				if err != nil {
+					if !yield(nil, fmt.Errorf("failed to scan span row: %w", err)) {
+						return
+					}
 					continue
-				}
-
-				span.Duration = time.Duration(rawDuration)
-
-				for i, eventName := range eventNames {
-					if i >= len(eventTimestamps) {
-						break
-					}
-					span.Events = append(span.Events, dbmodel.Event{
-						Name:      eventName,
-						Timestamp: eventTimestamps[i],
-					})
-				}
-
-				for i, linkTraceID := range linkTraceIDs {
-					if i >= len(linkSpanIDs) || i >= len(linkTraceStates) {
-						break
-					}
-					span.Links = append(span.Links, dbmodel.Link{
-						TraceID:    linkTraceID,
-						SpanID:     linkSpanIDs[i],
-						TraceState: linkTraceStates[i],
-					})
 				}
 
 				traces = append(traces, dbmodel.FromDBModel(span))
@@ -124,6 +76,70 @@ func (r *Reader) GetTraces(
 			}
 		}
 	}
+}
+
+func scanSpanRow(rows driver.Rows) (dbmodel.Span, error) {
+	var (
+		span            dbmodel.Span
+		rawDuration     uint64
+		eventNames      []string
+		eventTimestamps []time.Time
+		linkTraceIDs    []string
+		linkSpanIDs     []string
+		linkTraceStates []string
+	)
+
+	err := rows.Scan(
+		&span.ID,
+		&span.TraceID,
+		&span.TraceState,
+		&span.ParentSpanID,
+		&span.Name,
+		&span.Kind,
+		&span.StartTime,
+		&span.StatusCode,
+		&span.StatusMessage,
+		&rawDuration,
+		&eventNames,
+		&eventTimestamps,
+		&linkTraceIDs,
+		&linkSpanIDs,
+		&linkTraceStates,
+		&span.ServiceName,
+		&span.ScopeName,
+		&span.ScopeVersion,
+	)
+	if err != nil {
+		return span, err
+	}
+
+	span.Duration = time.Duration(rawDuration)
+	span.Events = buildEvents(eventNames, eventTimestamps)
+	span.Links = buildLinks(linkTraceIDs, linkSpanIDs, linkTraceStates)
+	return span, nil
+}
+
+func buildEvents(names []string, timestamps []time.Time) []dbmodel.Event {
+	var events []dbmodel.Event
+	for i := 0; i < len(names) && i < len(timestamps); i++ {
+		events = append(events, dbmodel.Event{
+			Name:      names[i],
+			Timestamp: timestamps[i],
+		})
+	}
+	return events
+}
+
+func buildLinks(traceIDs, spanIDs, states []string) []dbmodel.Link {
+	var links []dbmodel.Link
+	for i := 0; i < len(traceIDs) && i < len(spanIDs) && i < len(states); i++ {
+		links = append(links, dbmodel.Link{
+			TraceID:    traceIDs[i],
+			SpanID:     spanIDs[i],
+			TraceState: states[i],
+		})
+	}
+	return links
 }
 
 func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
