@@ -81,7 +81,7 @@ func (r *Reader) GetTraces(
 func scanSpanRow(rows driver.Rows) (dbmodel.Span, error) {
 	var (
 		span            dbmodel.Span
-		rawDuration     uint64
+		rawDuration     int64
 		eventNames      []string
 		eventTimestamps []time.Time
 		linkTraceIDs    []string

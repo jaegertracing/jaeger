@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS spans (
     start_time DateTime64(9),
     status_code String,
     status_message String,
-    duration UInt64,
+    duration Int64,
 
     events Nested (
         name String,
