@@ -17,8 +17,11 @@ import (
 )
 
 const (
-	sqlSelectSpansByTraceID = `SELECT id, trace_id, trace_state, parent_span_id, name, kind, start_time, status_code, status_message,
-	duration, service_name, scope_name, scope_version
+	sqlSelectSpansByTraceID = `SELECT id, trace_id, trace_state, parent_span_id, 
+	name, kind, start_time, status_code, status_message,
+	duration, events.name, events.timestamp,
+    links.trace_id, links.span_id, links.trace_state,
+	service_name, scope_name, scope_version
 	FROM spans
 	WHERE trace_id = ?`
 	sqlSelectAllServices        = `SELECT DISTINCT name FROM services`
@@ -58,8 +61,13 @@ func (r *Reader) GetTraces(
 			var traces []ptrace.Traces
 			for rows.Next() {
 				var (
-					span        dbmodel.Span
-					rawDuration uint64
+					span            dbmodel.Span
+					rawDuration     uint64
+					eventNames      []string
+					eventTimestamps []time.Time
+					linkTraceIDs    []string
+					linkSpanIDs     []string
+					linkTraceStates []string
 				)
 
 				if err := rows.Scan(
@@ -73,6 +81,11 @@ func (r *Reader) GetTraces(
 					&span.StatusCode,
 					&span.StatusMessage,
 					&rawDuration,
+					&eventNames,
+					&eventTimestamps,
+					&linkTraceIDs,
+					&linkSpanIDs,
+					&linkTraceStates,
 					&span.ServiceName,
 					&span.ScopeName,
 					&span.ScopeVersion,
@@ -82,6 +95,27 @@ func (r *Reader) GetTraces(
 				}
 
 				span.Duration = time.Duration(rawDuration)
+
+				for i, eventName := range eventNames {
+					if i >= len(eventTimestamps) {
+						break
+					}
+					span.Events = append(span.Events, dbmodel.Event{
+						Name:      eventName,
+						Timestamp: eventTimestamps[i],
+					})
+				}
+
+				for i, linkTraceID := range linkTraceIDs {
+					if i >= len(linkSpanIDs) || i >= len(linkTraceStates) {
+						break
+					}
+					span.Links = append(span.Links, dbmodel.Link{
+						TraceID:    linkTraceID,
+						SpanID:     linkSpanIDs[i],
+						TraceState: linkTraceStates[i],
+					})
+				}
 
 				traces = append(traces, dbmodel.FromDBModel(span))
 				if !yield(traces, nil) {
