@@ -18,7 +18,6 @@ import (
 
 var _ storage.Configurable = (*Factory)(nil)
 
-// Factory implements storage.Factory and creates storage components backed by memory store.
 type Factory struct {
 	config config.Configuration
 	telset telemetry.Settings
