@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	sqlSelectSpansByTraceID = `SELECT id, trace_id, trace_state, parent_span_id, 
+	sqlSelectSpansByTraceID = `SELECT id, trace_id, trace_state, parent_span_id,
 	name, kind, start_time, status_code, status_message,
 	duration, events.name, events.timestamp,
     links.trace_id, links.span_id, links.trace_state,
