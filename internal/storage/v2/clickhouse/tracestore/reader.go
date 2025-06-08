@@ -57,22 +57,33 @@ func (r *Reader) GetTraces(
 				yield(nil, fmt.Errorf("failed to query trace: %w", err))
 				return
 			}
-			defer rows.Close()
 
 			var traces []ptrace.Traces
+			done := false
 			for rows.Next() {
 				span, err := scanSpanRow(rows)
 				if err != nil {
 					if !yield(nil, fmt.Errorf("failed to scan span row: %w", err)) {
-						return
+						done = true
+						break
 					}
 					continue
 				}
 
 				traces = append(traces, dbmodel.FromDBModel(span))
 				if !yield(traces, nil) {
-					return
+					done = true
+					break
 				}
+			}
+
+			if err := rows.Close(); err != nil {
+				yield(nil, fmt.Errorf("failed to close rows: %w", err))
+				return
+			}
+
+			if done {
+				return
 			}
 		}
 	}
