@@ -7,11 +7,14 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 
+	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
@@ -60,6 +63,98 @@ func (f *testRows[T]) ScanStruct(dest any) error {
 	err := f.scanFn(dest, f.data[f.index])
 	f.index++
 	return err
+}
+
+func (f *testRows[T]) Scan(dest ...any) error {
+	if f.scanErr != nil {
+		return f.scanErr
+	}
+	if f.index >= len(f.data) {
+		return errors.New("no more rows")
+	}
+	if f.scanFn == nil {
+		return errors.New("scanFn is not provided")
+	}
+	err := f.scanFn(dest, f.data[f.index])
+	f.index++
+	return err
+}
+
+type spanRow struct {
+	ID              string
+	TraceID         string
+	TraceState      string
+	ParentSpanID    string
+	Name            string
+	Kind            string
+	StartTime       time.Time
+	StatusCode      string
+	StatusMessage   string
+	RawDuration     int64
+	EventNames      []string
+	EventTimestamps []time.Time
+	LinkTraceIDs    []string
+	LinkSpanIDs     []string
+	LinkTraceStates []string
+	ServiceName     string
+	ScopeName       string
+	ScopeVersion    string
+}
+
+func TestGetTraces_QueryError(t *testing.T) {
+	conn := &testDriver{
+		t:             t,
+		expectedQuery: sqlSelectSpansByTraceID,
+		err:           assert.AnError,
+	}
+
+	reader := NewReader(conn)
+	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
+		TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}),
+	})
+	_, err := jiter.FlattenWithErrors(getTracesIter)
+	require.ErrorContains(t, err, "failed to query trace")
+	require.ErrorIs(t, err, assert.AnError)
+}
+
+func TestGetTraces_ScanError(t *testing.T) {
+	now := time.Now()
+	conn := &testDriver{
+		t:             t,
+		expectedQuery: sqlSelectSpansByTraceID,
+		rows: &testRows[spanRow]{
+			data: []spanRow{
+				{
+					ID:              "0000000000000001",
+					TraceID:         "00000000000000000000000000000001",
+					TraceState:      "state1",
+					Name:            "GET /api/user",
+					Kind:            "server",
+					StartTime:       now,
+					StatusCode:      "OK",
+					StatusMessage:   "success",
+					RawDuration:     1000000000,
+					EventNames:      []string{"login"},
+					EventTimestamps: []time.Time{now},
+					LinkTraceIDs:    []string{"00000000000000000000000000000002"},
+					LinkSpanIDs:     []string{"0000000000000002"},
+					LinkTraceStates: []string{"state2"},
+					ServiceName:     "user-service",
+					ScopeName:       "auth-scope",
+					ScopeVersion:    "v1.0.0",
+				},
+			},
+			scanErr: assert.AnError,
+		},
+	}
+
+	reader := NewReader(conn)
+	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
+		TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}),
+	})
+	_, err := jiter.FlattenWithErrors(getTracesIter)
+	require.ErrorContains(t, err, "failed to scan span row")
+	require.ErrorIs(t, err, assert.AnError)
 }
 
 func TestGetServices(t *testing.T) {
