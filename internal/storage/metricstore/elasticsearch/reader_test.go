@@ -5,17 +5,18 @@ package elasticsearch
 
 import (
 	"context"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"net"
+	"testing"
+	"time"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
-	"net"
-	"testing"
-	"time"
 
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
 
@@ -35,9 +36,13 @@ func TestGetLatencies(t *testing.T) {
 	logger := zap.NewNop()
 	tracer, _, closer := tracerProvider(t)
 	defer closer()
+
+	listener, err := net.Listen("tcp", "localhost:")
+	require.NoError(t, err)
+	assert.NotNil(t, listener)
+
 	reader, err := NewMetricsReader(config.Configuration{
-		Servers:  []string{""},
-		LogLevel: "error",
+		Servers: []string{"http://" + listener.Addr().String()},
 	}, logger, tracer)
 	require.NoError(t, err)
 	require.NotNil(t, reader)
@@ -53,10 +58,14 @@ func TestGetCallRates(t *testing.T) {
 	logger := zap.NewNop()
 	tracer, _, closer := tracerProvider(t)
 	defer closer()
+	listener, err := net.Listen("tcp", "localhost:")
+	require.NoError(t, err)
+	assert.NotNil(t, listener)
+
 	reader, err := NewMetricsReader(config.Configuration{
-		Servers:  []string{""},
-		LogLevel: "error",
+		Servers: []string{"http://" + listener.Addr().String()},
 	}, logger, tracer)
+
 	require.NoError(t, err)
 	require.NotNil(t, reader)
 
@@ -71,10 +80,15 @@ func TestGetErrorRates(t *testing.T) {
 	logger := zap.NewNop()
 	tracer, _, closer := tracerProvider(t)
 	defer closer()
+
+	listener, err := net.Listen("tcp", "localhost:")
+	require.NoError(t, err)
+	assert.NotNil(t, listener)
+
 	reader, err := NewMetricsReader(config.Configuration{
-		Servers:  []string{""},
-		LogLevel: "error",
+		Servers: []string{"http://" + listener.Addr().String()},
 	}, logger, tracer)
+
 	require.NoError(t, err)
 	require.NotNil(t, reader)
 
@@ -90,15 +104,16 @@ func TestGetMinStepDuration(t *testing.T) {
 	logger := zap.NewNop()
 	tracer, _, closer := tracerProvider(t)
 	defer closer()
+
 	listener, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)
 	assert.NotNil(t, listener)
 
 	reader, err := NewMetricsReader(config.Configuration{
-		Servers:  []string{""},
-		LogLevel: "error",
+		Servers: []string{"http://" + listener.Addr().String()},
 	}, logger, tracer)
 	require.NoError(t, err)
+	require.NotNil(t, reader)
 
 	minStep, err := reader.GetMinStepDuration(context.Background(), &params)
 	require.NoError(t, err)
