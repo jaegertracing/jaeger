@@ -6,6 +6,8 @@ package tracestore
 import (
 	"context"
 	"errors"
+	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -155,6 +157,81 @@ func TestGetTraces_ScanError(t *testing.T) {
 	_, err := jiter.FlattenWithErrors(getTracesIter)
 	require.ErrorContains(t, err, "failed to scan span row")
 	require.ErrorIs(t, err, assert.AnError)
+}
+
+func TestGetTraces_SingleTrace(t *testing.T) {
+	now := time.Now()
+	conn := &testDriver{
+		t:             t,
+		expectedQuery: sqlSelectSpansByTraceID,
+		rows: &testRows[spanRow]{
+			data: []spanRow{
+				{
+					ID:              "0000000000000001",
+					TraceID:         "00000000000000000000000000000001",
+					TraceState:      "state1",
+					Name:            "GET /api/user",
+					Kind:            "server",
+					StartTime:       now,
+					StatusCode:      "OK",
+					StatusMessage:   "success",
+					RawDuration:     1000000000,
+					EventNames:      []string{"login"},
+					EventTimestamps: []time.Time{now},
+					LinkTraceIDs:    []string{"00000000000000000000000000000002"},
+					LinkSpanIDs:     []string{"0000000000000002"},
+					LinkTraceStates: []string{"state2"},
+					ServiceName:     "user-service",
+					ScopeName:       "auth-scope",
+					ScopeVersion:    "v1.0.0",
+				},
+			},
+			scanFn: func(dest any, src spanRow) error {
+				ptrs, ok := dest.([]any)
+				if !ok {
+					return fmt.Errorf("expected []any for dest, got %T", dest)
+				}
+				if len(ptrs) != 18 {
+					return fmt.Errorf("expected 18 destination arguments, got %d", len(ptrs))
+				}
+
+				values := []any{
+					&src.ID,
+					&src.TraceID,
+					&src.TraceState,
+					&src.ParentSpanID,
+					&src.Name,
+					&src.Kind,
+					&src.StartTime,
+					&src.StatusCode,
+					&src.StatusMessage,
+					&src.RawDuration,
+					&src.EventNames,
+					&src.EventTimestamps,
+					&src.LinkTraceIDs,
+					&src.LinkSpanIDs,
+					&src.LinkTraceStates,
+					&src.ServiceName,
+					&src.ScopeName,
+					&src.ScopeVersion,
+				}
+
+				for i := range ptrs {
+					reflect.ValueOf(ptrs[i]).Elem().Set(reflect.ValueOf(values[i]).Elem())
+				}
+				return nil
+			},
+		},
+	}
+
+	reader := NewReader(conn)
+	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
+		TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}),
+	})
+	traces, err := jiter.FlattenWithErrors(getTracesIter)
+	require.NoError(t, err)
+	require.Len(t, traces, 1)
+	//TODO: assert on the full trace
 }
 
 func TestGetServices(t *testing.T) {
