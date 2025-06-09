@@ -160,6 +160,7 @@ func TestGetTraces_ScanError(t *testing.T) {
 }
 
 func TestGetTraces_SingleTrace(t *testing.T) {
+	//TODO: move data to fixture?
 	now := time.Now()
 	conn := &testDriver{
 		t:             t,
