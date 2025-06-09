@@ -4,38 +4,27 @@
 package elasticsearch
 
 import (
-	"flag"
-
-	"github.com/spf13/viper"
-	"go.uber.org/zap"
-
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
-	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/metricstoremetrics"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
-
-var _ storage.Configurable = (*Factory)(nil)
 
 type Factory struct {
 	config config.Configuration
 	telset telemetry.Settings
 }
 
-// NewFactory creates a new Factory.
-func NewFactory() *Factory {
-	telset := telemetry.NoopSettings()
-	return &Factory{
-		telset: telset,
+// NewFactory creates a new Factory with the given configuration and telemetry settings.
+func NewFactory(cfg config.Configuration, telset telemetry.Settings) (*Factory, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, err
 	}
+	return &Factory{
+		config: cfg,
+		telset: telset,
+	}, nil
 }
-
-// AddFlags implements storage.Configurable.
-func (*Factory) AddFlags(_ *flag.FlagSet) {}
-
-// InitFromViper implements storage.Configurable.
-func (*Factory) InitFromViper(_ *viper.Viper, _ *zap.Logger) {}
 
 // Initialize implements storage.MetricsFactory.
 func (f *Factory) Initialize(telset telemetry.Settings) error {
@@ -50,17 +39,4 @@ func (f *Factory) CreateMetricsReader() (metricstore.Reader, error) {
 		return nil, err
 	}
 	return metricstoremetrics.NewReaderDecorator(mr, f.telset.Metrics), nil
-}
-
-func NewFactoryWithConfig(
-	cfg config.Configuration,
-	telset telemetry.Settings,
-) (*Factory, error) {
-	if err := cfg.Validate(); err != nil {
-		return nil, err
-	}
-	f := NewFactory()
-	f.config = cfg
-	f.Initialize(telset)
-	return f, nil
 }
