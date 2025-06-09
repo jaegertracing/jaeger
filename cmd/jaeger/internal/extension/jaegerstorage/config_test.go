@@ -118,3 +118,14 @@ metric_backends:
 	require.NoError(t, conf.Unmarshal(cfg))
 	assert.NotEmpty(t, cfg.MetricBackends["some_metrics_storage"].Prometheus.ServerURL)
 }
+
+func TestConfigDefaultElasticsearchAsMetricsBackend(t *testing.T) {
+	conf := loadConf(t, `
+metric_backends:
+  some_metrics_storage:
+    elasticsearch:
+`)
+	cfg := createDefaultConfig().(*Config)
+	require.NoError(t, conf.Unmarshal(cfg))
+	assert.NotEmpty(t, cfg.MetricBackends["some_metrics_storage"].Elasticsearch.Servers)
+}
