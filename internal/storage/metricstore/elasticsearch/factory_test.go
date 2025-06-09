@@ -18,53 +18,47 @@ import (
 
 var _ storage.MetricStoreFactory = new(Factory)
 
-func TestNewFactory(t *testing.T) {
-	f := NewFactory()
-	assert.NotNil(t, f)
-	assert.NotNil(t, f.telset)
-}
-
 func TestFactory_Initialize(t *testing.T) {
-	f := NewFactory()
-	settings := telemetry.Settings{
-		Logger: zap.NewNop(),
-	}
-	err := f.Initialize(settings)
-	require.NoError(t, err)
-	assert.Equal(t, settings, f.telset)
-}
-
-func TestCreateMetricsReader(t *testing.T) {
-	f := NewFactory()
-	require.NoError(t, f.Initialize(telemetry.NoopSettings()))
-	assert.NotNil(t, f.telset)
-
 	listener, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)
 	assert.NotNil(t, listener)
 	defer listener.Close()
 
-	f.config = config.Configuration{
+	cfg := config.Configuration{
 		Servers: []string{"http://" + listener.Addr().String()},
 	}
+	f, err := NewFactory(cfg, telemetry.NoopSettings())
+	require.NoError(t, err)
+	require.NotNil(t, f)
+
+	settings := telemetry.Settings{
+		Logger: zap.NewNop(),
+	}
+	e := f.Initialize(settings)
+	require.NoError(t, e)
+	assert.Equal(t, settings, f.telset)
+}
+
+func TestCreateMetricsReader(t *testing.T) {
+	listener, err := net.Listen("tcp", "localhost:")
+	require.NoError(t, err)
+	assert.NotNil(t, listener)
+	defer listener.Close()
+
+	cfg := config.Configuration{
+		Servers: []string{"http://" + listener.Addr().String()},
+	}
+	f, err := NewFactory(cfg, telemetry.NoopSettings())
+	require.NoError(t, err)
+	require.NotNil(t, f)
+
 	reader, err := f.CreateMetricsReader()
 
 	require.NoError(t, err)
 	assert.NotNil(t, reader)
 }
 
-func TestCreateMetricsReaderError(t *testing.T) {
-	f := NewFactory()
-	f.config = config.Configuration{
-		Servers: []string{"invalid-url"},
-	}
-	require.NoError(t, f.Initialize(telemetry.NoopSettings()))
-	reader, err := f.CreateMetricsReader()
-	require.Error(t, err)
-	require.Nil(t, reader)
-}
-
-func TestNewFactoryWithConfig(t *testing.T) {
+func TestNewFactory(t *testing.T) {
 	tests := []struct {
 		name        string
 		cfg         config.Configuration
@@ -89,7 +83,7 @@ func TestNewFactoryWithConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			telset := telemetry.NoopSettings()
-			_, err := NewFactoryWithConfig(tt.cfg, telset)
+			_, err := NewFactory(tt.cfg, telset)
 
 			if tt.expectedErr {
 				require.Error(t, err)

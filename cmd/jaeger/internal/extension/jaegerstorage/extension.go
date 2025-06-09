@@ -226,7 +226,7 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		case cfg.Elasticsearch != nil:
 			esTelset := telset
 			esTelset.Metrics = scopedMetricsFactory(metricStorageName, "elasticsearch", "metricstore")
-			metricsFactory, err = esmetrics.NewFactoryWithConfig(
+			metricsFactory, err = esmetrics.NewFactory(
 				*cfg.Elasticsearch,
 				esTelset,
 			)

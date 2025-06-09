@@ -34,10 +34,7 @@ func (*errMetricsQueryNotImplementedError) Error() string {
 	return "metrics querying is currently not implemented yet"
 }
 
-func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace.TracerProvider) (*MetricsReader, error) {
-	if err := cfg.Validate(); err != nil {
-		return nil, err
-	}
+func NewMetricsReader(_ config.Configuration, logger *zap.Logger, tracer trace.TracerProvider) (*MetricsReader, error) {
 	return &MetricsReader{
 		logger: logger,
 		tracer: tracer.Tracer("jaeger-elasticsearch-metrics"),
