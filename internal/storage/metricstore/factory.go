@@ -33,7 +33,7 @@ var _ storage.Configurable = (*Factory)(nil)
 // Factory implements storage.Factory interface as a meta-factory for storage components.
 type Factory struct {
 	FactoryConfig
-	factories map[string]storage.MetricStoreFactory
+	factories map[string]storage.V1MetricStoreFactory
 }
 
 // NewFactory creates the meta-factory.
@@ -42,7 +42,7 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 	uniqueTypes := map[string]struct{}{
 		f.MetricsStorageType: {},
 	}
-	f.factories = make(map[string]storage.MetricStoreFactory)
+	f.factories = make(map[string]storage.V1MetricStoreFactory)
 	for t := range uniqueTypes {
 		ff, err := f.getFactoryOfType(t)
 		if err != nil {
@@ -53,7 +53,7 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 	return f, nil
 }
 
-func (*Factory) getFactoryOfType(factoryType string) (storage.MetricStoreFactory, error) {
+func (*Factory) getFactoryOfType(factoryType string) (storage.V1MetricStoreFactory, error) {
 	switch factoryType {
 	case prometheusStorageType:
 		return prometheus.NewFactory(), nil
@@ -63,7 +63,7 @@ func (*Factory) getFactoryOfType(factoryType string) (storage.MetricStoreFactory
 	return nil, fmt.Errorf("unknown metrics type %q. Valid types are %v", factoryType, AllStorageTypes)
 }
 
-// Initialize implements storage.MetricsFactory.
+// Initialize implements storage.V1MetricStoreFactory.
 func (f *Factory) Initialize(telset telemetry.Settings) error {
 	for kind, factory := range f.factories {
 		scopedTelset := telset
@@ -79,7 +79,7 @@ func (f *Factory) Initialize(telset telemetry.Settings) error {
 	return nil
 }
 
-// CreateMetricsReader implements storage.MetricsFactory.
+// CreateMetricsReader implements storage.MetricStoreFactory.
 func (f *Factory) CreateMetricsReader() (metricstore.Reader, error) {
 	factory, ok := f.factories[f.MetricsStorageType]
 	if !ok {

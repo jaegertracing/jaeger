@@ -15,7 +15,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
-var _ storage.BaseMetricStoreFactory = new(Factory)
+var _ storage.MetricStoreFactory = new(Factory)
 
 func TestCreateMetricsReader(t *testing.T) {
 	listener, err := net.Listen("tcp", "localhost:")

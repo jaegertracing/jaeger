@@ -82,7 +82,7 @@ func (fakeStorageExt) TraceStorageFactory(name string) (tracestore.Factory, bool
 	return newFakeFactory(name), true
 }
 
-func (fakeStorageExt) MetricStorageFactory(string) (storage.BaseMetricStoreFactory, bool) {
+func (fakeStorageExt) MetricStorageFactory(string) (storage.MetricStoreFactory, bool) {
 	return nil, false
 }
 
