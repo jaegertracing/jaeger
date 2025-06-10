@@ -16,6 +16,19 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client/mocks"
 )
 
+func applyTestDefaults(cfg *Config) {
+	// Set defaults only if missing
+	if cfg.Indices.Spans.Shards == 0 {
+		cfg.Indices.Spans.Shards = 3
+	}
+	if cfg.Indices.Spans.Replicas == nil {
+		cfg.Indices.Spans.Replicas = ptr(int64(1))
+	}
+	if cfg.Indices.Spans.Priority == 0 {
+		cfg.Indices.Spans.Priority = 10
+	}
+}
+
 func TestIndexCreateIfNotExist(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -235,6 +248,8 @@ func TestRolloverAction(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			// Apply local test defaults
+			applyTestDefaults(&test.config)
 			indexClient := &mocks.IndexAPI{}
 			clusterClient := &mocks.ClusterAPI{}
 			ilmClient := &mocks.IndexManagementLifecycleAPI{}

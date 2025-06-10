@@ -75,7 +75,7 @@ var defaultIndexOptions = config.IndexOptions{
 	DateLayout:        initDateLayout(defaultIndexRolloverFrequency, defaultIndexDateSeparator),
 	RolloverFrequency: defaultIndexRolloverFrequency,
 	Shards:            5,
-	Replicas:          1,
+	Replicas:          ptr(int64(1)),
 	Priority:          0,
 }
 
@@ -112,6 +112,20 @@ func (cfg *namespaceConfig) getTLSFlagsConfig() tlscfg.ClientFlagsConfig {
 	return tlscfg.ClientFlagsConfig{
 		Prefix: cfg.namespace,
 	}
+}
+
+// ptr returns a pointer to the given value.
+func ptr[T any](v T) *T {
+	return &v
+}
+
+// safeDerefInt64 safely dereferences a *int64 for use in flagSet.Int64.
+// If the pointer is nil (meaning no config was set), returns 0 as neutral default.
+func safeDerefInt64(ptr *int64) int64 {
+	if ptr != nil {
+		return *ptr
+	}
+	return 0
 }
 
 // AddFlags adds flags for Options
@@ -164,7 +178,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	)
 	flagSet.Int64(
 		nsConfig.namespace+suffixNumReplicas,
-		nsConfig.Indices.Spans.Replicas,
+		safeDerefInt64(nsConfig.Indices.Spans.Replicas),
 		"The number of replicas per index in Elasticsearch")
 	flagSet.Int64(
 		nsConfig.namespace+suffixPrioritySpanTemplate,
@@ -314,10 +328,13 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Indices.Sampling.Shards = v.GetInt64(cfg.namespace + suffixNumShards)
 	cfg.Indices.Dependencies.Shards = v.GetInt64(cfg.namespace + suffixNumShards)
 
-	cfg.Indices.Spans.Replicas = v.GetInt64(cfg.namespace + suffixNumReplicas)
-	cfg.Indices.Services.Replicas = v.GetInt64(cfg.namespace + suffixNumReplicas)
-	cfg.Indices.Sampling.Replicas = v.GetInt64(cfg.namespace + suffixNumReplicas)
-	cfg.Indices.Dependencies.Replicas = v.GetInt64(cfg.namespace + suffixNumReplicas)
+	// Note: We use a pointer type for Replicas to distinguish between "unset" and "explicit 0".
+	// Each field receives its own pointer to avoid accidental shared state.
+	replicas := v.GetInt64(cfg.namespace + suffixNumReplicas)
+	cfg.Indices.Spans.Replicas = ptr(replicas)
+	cfg.Indices.Services.Replicas = ptr(replicas)
+	cfg.Indices.Sampling.Replicas = ptr(replicas)
+	cfg.Indices.Dependencies.Replicas = ptr(replicas)
 
 	cfg.Indices.Spans.Priority = v.GetInt64(cfg.namespace + suffixPrioritySpanTemplate)
 	cfg.Indices.Services.Priority = v.GetInt64(cfg.namespace + suffixPriorityServiceTemplate)
