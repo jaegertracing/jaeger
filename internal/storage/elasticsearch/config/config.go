@@ -101,6 +101,8 @@ type Configuration struct {
 	// TLS contains the TLS configuration for the connection to the ElasticSearch clusters.
 	TLS      configtls.ClientConfig `mapstructure:"tls"`
 	Sniffing Sniffing               `mapstructure:"sniffing"`
+	// Disable the Elasticsearch health check
+	DisableHealthCheck bool `mapstructure:"disable_health_check"`
 	// SendGetBodyAs is the HTTP verb to use for requests that contain a body.
 	SendGetBodyAs string `mapstructure:"send_get_body_as"`
 	// QueryTimeout contains the timeout used for queries. A timeout of zero means no timeout.
@@ -482,12 +484,14 @@ func (c *Configuration) TagKeysAsFields() ([]string, error) {
 
 // getConfigOptions wraps the configs to feed to the ElasticSearch client init
 func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
+	// Disable health check when token from context is allowed, this is because at this time
+	// we don'r have a valid token to do the check ad if we don't disable the check the service that
+	// uses this won't start.
+	// Also disable health check when it was requested (health check has problems on AWS OpenSearch)
+	disableHealthCheck := c.Authentication.BearerTokenAuthentication.AllowFromContext || c.DisableHealthCheck
 	options := []elastic.ClientOptionFunc{
 		elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffing.Enabled),
-		// Disable health check when token from context is allowed, this is because at this time
-		// we don'r have a valid token to do the check ad if we don't disable the check the service that
-		// uses this won't start.
-		elastic.SetHealthcheck(!c.Authentication.BearerTokenAuthentication.AllowFromContext),
+		elastic.SetHealthcheck(!disableHealthCheck),
 	}
 	if c.Sniffing.UseHTTPS {
 		options = append(options, elastic.SetScheme("https"))
