@@ -26,7 +26,7 @@ func NewFactory(cfg config.Configuration, telset telemetry.Settings) (*Factory, 
 	}, nil
 }
 
-// CreateMetricsReader implements storage.MetricsFactory.
+// CreateMetricsReader implements storage.BaseMetricsFactory.
 func (f *Factory) CreateMetricsReader() (metricstore.Reader, error) {
 	mr, err := NewMetricsReader(f.config, f.telset.Logger, f.telset.TracerProvider)
 	if err != nil {
