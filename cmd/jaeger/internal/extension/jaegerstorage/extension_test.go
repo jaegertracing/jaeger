@@ -300,6 +300,22 @@ func TestPrometheus(t *testing.T) {
 	require.NoError(t, ext.Shutdown(ctx))
 }
 
+func TestElasticsearchAsMetricsBackend(t *testing.T) {
+	ext := makeStorageExtension(t, &Config{
+		MetricBackends: map[string]MetricBackend{
+			"foo": {
+				Elasticsearch: &esCfg.Configuration{
+					Servers: []string{"localhost:9200"},
+				},
+			},
+		},
+	})
+	ctx := context.Background()
+	err := ext.Start(ctx, componenttest.NewNopHost())
+	require.NoError(t, err)
+	require.NoError(t, ext.Shutdown(ctx))
+}
+
 func TestStartError(t *testing.T) {
 	ext := makeStorageExtension(t, &Config{
 		TraceBackends: map[string]TraceBackend{

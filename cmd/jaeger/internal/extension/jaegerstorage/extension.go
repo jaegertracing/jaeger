@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/collector/extension"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
+	esmetrics "github.com/jaegertracing/jaeger/internal/storage/metricstore/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
@@ -212,19 +213,28 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 
 	for metricStorageName, cfg := range s.config.MetricBackends {
 		s.telset.Logger.Sugar().Infof("Initializing metrics storage '%s'", metricStorageName)
-		var metricsFactory storage.MetricStoreFactory
+		var metricStoreFactory storage.MetricStoreFactory
 		var err error
-		if cfg.Prometheus != nil {
+		switch {
+		case cfg.Prometheus != nil:
 			promTelset := telset
 			promTelset.Metrics = scopedMetricsFactory(metricStorageName, "prometheus", "metricstore")
-			metricsFactory, err = prometheus.NewFactoryWithConfig(
+			metricStoreFactory, err = prometheus.NewFactoryWithConfig(
 				*cfg.Prometheus,
 				promTelset)
+
+		case cfg.Elasticsearch != nil:
+			esTelset := telset
+			esTelset.Metrics = scopedMetricsFactory(metricStorageName, "elasticsearch", "metricstore")
+			metricStoreFactory, err = esmetrics.NewFactory(
+				*cfg.Elasticsearch,
+				esTelset,
+			)
 		}
 		if err != nil {
 			return fmt.Errorf("failed to initialize metrics storage '%s': %w", metricStorageName, err)
 		}
-		s.metricsFactories[metricStorageName] = metricsFactory
+		s.metricsFactories[metricStorageName] = metricStoreFactory
 	}
 
 	return nil
