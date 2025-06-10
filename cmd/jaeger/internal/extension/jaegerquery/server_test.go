@@ -93,7 +93,7 @@ func (fakeStorageExt) TraceStorageFactory(name string) (tracestore.Factory, bool
 	return fakeFactory{name: name}, true
 }
 
-func (fakeStorageExt) MetricStorageFactory(name string) (storage.MetricStoreFactory, bool) {
+func (fakeStorageExt) MetricStorageFactory(name string) (storage.BaseMetricStoreFactory, bool) {
 	if name == "need-factory-error" {
 		return nil, false
 	}

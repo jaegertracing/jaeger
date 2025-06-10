@@ -9,35 +9,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
-var _ storage.MetricStoreFactory = new(Factory)
-
-func TestFactory_Initialize(t *testing.T) {
-	listener, err := net.Listen("tcp", "localhost:")
-	require.NoError(t, err)
-	assert.NotNil(t, listener)
-	defer listener.Close()
-
-	cfg := config.Configuration{
-		Servers: []string{"http://" + listener.Addr().String()},
-	}
-	f, err := NewFactory(cfg, telemetry.NoopSettings())
-	require.NoError(t, err)
-	require.NotNil(t, f)
-
-	settings := telemetry.Settings{
-		Logger: zap.NewNop(),
-	}
-	e := f.Initialize(settings)
-	require.NoError(t, e)
-	assert.Equal(t, settings, f.telset)
-}
+var _ storage.BaseMetricStoreFactory = new(Factory)
 
 func TestCreateMetricsReader(t *testing.T) {
 	listener, err := net.Listen("tcp", "localhost:")

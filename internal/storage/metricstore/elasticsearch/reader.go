@@ -5,6 +5,7 @@ package elasticsearch
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
@@ -21,18 +22,13 @@ type (
 		logger *zap.Logger
 		tracer trace.Tracer
 	}
-	errMetricsQueryNotImplementedError struct{}
 )
 
 const (
 	minStep = time.Millisecond
 )
 
-var ErrNotImplemented = &errMetricsQueryNotImplementedError{}
-
-func (*errMetricsQueryNotImplementedError) Error() string {
-	return "metrics querying is currently not implemented yet"
-}
+var ErrNotImplemented = errors.New("metrics querying is currently not implemented yet")
 
 func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace.TracerProvider) (*MetricsReader, error) {
 	if err := cfg.Validate(); err != nil {
@@ -40,7 +36,7 @@ func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace
 	}
 	return &MetricsReader{
 		logger: logger,
-		tracer: tracer.Tracer("jaeger-elasticsearch-metrics"),
+		tracer: tracer.Tracer("elasticsearch-metricstore"),
 	}, nil
 }
 

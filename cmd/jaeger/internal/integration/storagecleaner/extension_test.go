@@ -42,7 +42,7 @@ func (f *PurgerFactory) Purge(_ context.Context) error {
 type mockStorageExt struct {
 	name           string
 	factory        tracestore.Factory
-	metricsFactory storage.MetricStoreFactory
+	metricsFactory storage.BaseMetricStoreFactory
 }
 
 func (*mockStorageExt) Start(context.Context, component.Host) error {
@@ -60,7 +60,7 @@ func (m *mockStorageExt) TraceStorageFactory(name string) (tracestore.Factory, b
 	return nil, false
 }
 
-func (m *mockStorageExt) MetricStorageFactory(name string) (storage.MetricStoreFactory, bool) {
+func (m *mockStorageExt) MetricStorageFactory(name string) (storage.BaseMetricStoreFactory, bool) {
 	if m.name == name {
 		return m.metricsFactory, true
 	}

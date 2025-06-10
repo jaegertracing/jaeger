@@ -52,7 +52,7 @@ func (m *mockStorageExt) TraceStorageFactory(name string) (tracestore.Factory, b
 	return nil, false
 }
 
-func (m *mockStorageExt) MetricStorageFactory(name string) (storage.MetricStoreFactory, bool) {
+func (m *mockStorageExt) MetricStorageFactory(name string) (storage.BaseMetricStoreFactory, bool) {
 	if m.name == name {
 		return m.metricsFactory, true
 	}
