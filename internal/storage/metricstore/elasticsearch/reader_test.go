@@ -40,6 +40,7 @@ func TestGetLatencies(t *testing.T) {
 	listener, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)
 	assert.NotNil(t, listener)
+	defer listener.Close()
 
 	reader, err := NewMetricsReader(config.Configuration{
 		Servers: []string{"http://" + listener.Addr().String()},
@@ -61,6 +62,7 @@ func TestGetCallRates(t *testing.T) {
 	listener, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)
 	assert.NotNil(t, listener)
+	defer listener.Close()
 
 	reader, err := NewMetricsReader(config.Configuration{
 		Servers: []string{"http://" + listener.Addr().String()},
@@ -84,6 +86,7 @@ func TestGetErrorRates(t *testing.T) {
 	listener, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)
 	assert.NotNil(t, listener)
+	defer listener.Close()
 
 	reader, err := NewMetricsReader(config.Configuration{
 		Servers: []string{"http://" + listener.Addr().String()},
@@ -108,6 +111,7 @@ func TestGetMinStepDuration(t *testing.T) {
 	listener, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)
 	assert.NotNil(t, listener)
+	defer listener.Close()
 
 	reader, err := NewMetricsReader(config.Configuration{
 		Servers: []string{"http://" + listener.Addr().String()},
