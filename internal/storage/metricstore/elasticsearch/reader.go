@@ -16,24 +16,17 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
 
-type (
-	// MetricsReader is a Elasticsearch metrics reader.
-	MetricsReader struct {
-		logger *zap.Logger
-		tracer trace.Tracer
-	}
-)
-
-const (
-	minStep = time.Millisecond
-)
-
 var ErrNotImplemented = errors.New("metrics querying is currently not implemented yet")
 
-func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace.TracerProvider) (*MetricsReader, error) {
-	if err := cfg.Validate(); err != nil {
-		return nil, err
-	}
+const minStep = time.Millisecond
+
+// MetricsReader is a Elasticsearch metrics reader.
+type MetricsReader struct {
+	logger *zap.Logger
+	tracer trace.Tracer
+}
+
+func NewMetricsReader(_ config.Configuration, logger *zap.Logger, tracer trace.TracerProvider) (*MetricsReader, error) {
 	return &MetricsReader{
 		logger: logger,
 		tracer: tracer.Tracer("elasticsearch-metricstore"),

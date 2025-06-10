@@ -36,22 +36,6 @@ func TestCreateMetricsReader(t *testing.T) {
 	assert.NotNil(t, reader)
 }
 
-func TestCreateMetricsReaderError(t *testing.T) {
-	cfg := config.Configuration{
-		Servers: []string{""},
-	}
-	f := Factory{
-		config: cfg,
-		telset: telemetry.NoopSettings(),
-	}
-	require.NotNil(t, f)
-
-	reader, err := f.CreateMetricsReader()
-
-	require.Error(t, err)
-	assert.Nil(t, reader)
-}
-
 func TestNewFactory(t *testing.T) {
 	tests := []struct {
 		name        string
