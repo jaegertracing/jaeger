@@ -17,13 +17,29 @@ import (
 )
 
 const (
-	sqlSelectSpansByTraceID = `SELECT id, trace_id, trace_state, parent_span_id,
-	name, kind, start_time, status_code, status_message,
-	duration, events.name, events.timestamp,
-    links.trace_id, links.span_id, links.trace_state,
-	service_name, scope_name, scope_version
+	sqlSelectSpansByTraceID = `
+	SELECT
+		id,
+		trace_id,
+		trace_state,
+		parent_span_id,
+		name,
+		kind,
+		start_time,
+		status_code,
+		status_message,
+		duration,
+		events.name,
+		events.timestamp,
+		links.trace_id,
+		links.span_id,
+		links.trace_state,
+		service_name,
+		scope_name,
+		scope_version
 	FROM spans
-	WHERE trace_id = ?`
+	WHERE
+		trace_id = ?`
 	sqlSelectAllServices        = `SELECT DISTINCT name FROM services`
 	sqlSelectOperationsAllKinds = `SELECT name, span_kind
 	FROM operations
