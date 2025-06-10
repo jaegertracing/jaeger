@@ -21,6 +21,7 @@ const (
 	suffixUsername                       = ".username"
 	suffixPassword                       = ".password"
 	suffixSniffer                        = ".sniffer"
+	suffixDisableHealthCheck             = ".disable-health-check"
 	suffixSnifferTLSEnabled              = ".sniffer-tls-enabled"
 	suffixTokenPath                      = ".token-file"
 	suffixPasswordPath                   = ".password-file"
@@ -154,6 +155,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixSniffer,
 		nsConfig.Sniffing.Enabled,
 		"The sniffer config for Elasticsearch; client uses sniffing process to find all nodes automatically, disable if not required")
+	flagSet.Bool(
+		nsConfig.namespace+suffixDisableHealthCheck,
+		nsConfig.DisableHealthCheck,
+		"Disable the Elasticsearch health check.")
 	flagSet.String(
 		nsConfig.namespace+suffixServerURLs,
 		defaultServerURL,
@@ -319,6 +324,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Authentication.BasicAuthentication.PasswordFilePath = v.GetString(cfg.namespace + suffixPasswordPath)
 	cfg.Sniffing.Enabled = v.GetBool(cfg.namespace + suffixSniffer)
 	cfg.Sniffing.UseHTTPS = v.GetBool(cfg.namespace + suffixSnifferTLSEnabled)
+	cfg.DisableHealthCheck = v.GetBool(cfg.namespace + suffixDisableHealthCheck)
 	cfg.Servers = strings.Split(stripWhiteSpace(v.GetString(cfg.namespace+suffixServerURLs)), ",")
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
 	cfg.AdaptiveSamplingLookback = v.GetDuration(cfg.namespace + suffixAdaptiveSamplingLookback)
@@ -423,6 +429,7 @@ func DefaultConfig() config.Configuration {
 		Sniffing: config.Sniffing{
 			Enabled: false,
 		},
+		DisableHealthCheck:       false,
 		MaxSpanAge:               72 * time.Hour,
 		AdaptiveSamplingLookback: 72 * time.Hour,
 		BulkProcessing: config.BulkProcessing{
