@@ -38,6 +38,8 @@ Upon approval, the following steps should be taken to onboard the new maintainer
     *   **Signing Keys:**
         *   Jaeger uses a GPG key for encrypted emails sent to the maintainers for security reports along with access to the `maintainers-only` GitHub repository. This key is stored in our 1password repository. 
     *   **1Password:** Connect with an existing maintainer to be added to our jaegertracing 1Password team.
+    *   **Netlify:** Is where our website is served from, an existing maintainer can add you to our team.
+    *   We use two analytics tools, one is **Scarf** and the other is **Google Analytics** for the projects public facing sites and downloads. 
 *   **3. Announcement**
     *   Announce the new maintainer to the Jaeger community through the mailing list, blog, or other appropriate channels.
 
