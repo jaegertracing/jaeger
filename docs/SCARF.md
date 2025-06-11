@@ -5,9 +5,9 @@ This document outlines our implementation details for [Scarf](https://scarf.sh) 
 ## DNS Configuration
 The following CNAMES were setup in Netlify for us to utilize the services:
 
-scarf.jaegertracing.io -> static.scarf.sh (used for tracking pixel on webpages)
-cr.jaegertracing.io -> gateway.scarf.sh (used for container registries)
-download.jaegertracing.io -> gateway.scarf.sh (used for file downloads of Jaeger artifacts)
+  * `scarf.jaegertracing.io` -> `static.scarf.sh` (used for tracking pixel on webpages)
+  * `cr.jaegertracing.io` -> `gateway.scarf.sh` (used for container registries)
+  * `download.jaegertracing.io` -> `gateway.scarf.sh` (used for file downloads of Jaeger artifacts)
 
 We also had to add the following TXT verification records:
 1. _scarf-sh-challenge-jaeger.cr.jaegertracing.io - ZN4RLVE3CENVUIXDBNYCa
