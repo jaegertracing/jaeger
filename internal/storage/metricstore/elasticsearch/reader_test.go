@@ -5,7 +5,8 @@ package elasticsearch
 
 import (
 	"context"
-	"net"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -16,11 +17,24 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics"
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
-func tracerProvider(t *testing.T) (trace.TracerProvider, *tracetest.InMemoryExporter, func()) {
+// mockServerResponse simulates a basic Elasticsearch version response.
+var mockServerResponse = []byte(`
+{
+    "version": {
+       "number": "6.8.0"
+    }
+}
+`)
+
+// tracerProvider creates a new OpenTelemetry TracerProvider for testing.
+func tracerProvider(t *testing.T) (trace.TracerProvider, func()) {
 	exporter := tracetest.NewInMemoryExporter()
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithSampler(sdktrace.AlwaysSample()),
@@ -29,24 +43,55 @@ func tracerProvider(t *testing.T) (trace.TracerProvider, *tracetest.InMemoryExpo
 	closer := func() {
 		require.NoError(t, tp.Shutdown(context.Background()))
 	}
-	return tp, exporter, closer
+	return tp, closer
+}
+
+func clientProvider(t *testing.T, c *config.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, func()) {
+	client, err := config.NewClient(c, logger, metricsFactory)
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	closer := func() {
+		require.NoError(t, client.Close())
+	}
+	return client, closer
+}
+
+// setupMetricsReader provides a common setup for tests requiring a MetricsReader.
+// It initializes a mock HTTP server and configures the reader to use it.
+func setupMetricsReader(t *testing.T) (*MetricsReader, func()) {
+	logger := zap.NewNop()
+	tracer, closer := tracerProvider(t)
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(mockServerResponse)
+	}))
+	t.Cleanup(mockServer.Close)
+	cfg := config.Configuration{
+		Servers:  []string{mockServer.URL},
+		LogLevel: "debug",
+	}
+
+	client, clientCloser := clientProvider(t, &cfg, logger, telemetry.NoopSettings().Metrics)
+	reader, err := NewMetricsReader(cfg, logger, tracer, client)
+
+	require.NoError(t, err)
+	require.NotNil(t, reader)
+
+	// Return a cleanup function that combines the tracer shutdown and any other necessary cleanup.
+	combinedCloser := func() {
+		closer() // Shut down the tracer
+		clientCloser()
+		// Add any other specific cleanup if needed in the future
+	}
+
+	return reader, combinedCloser
 }
 
 func TestGetLatencies(t *testing.T) {
-	logger := zap.NewNop()
-	tracer, _, closer := tracerProvider(t)
+	reader, closer := setupMetricsReader(t)
 	defer closer()
-
-	listener, err := net.Listen("tcp", "localhost:")
-	require.NoError(t, err)
-	assert.NotNil(t, listener)
-	defer listener.Close()
-
-	reader, err := NewMetricsReader(config.Configuration{
-		Servers: []string{"http://" + listener.Addr().String()},
-	}, logger, tracer)
-	require.NoError(t, err)
-	require.NotNil(t, reader)
 
 	qParams := &metricstore.LatenciesQueryParameters{}
 	r, err := reader.GetLatencies(context.Background(), qParams)
@@ -56,20 +101,8 @@ func TestGetLatencies(t *testing.T) {
 }
 
 func TestGetCallRates(t *testing.T) {
-	logger := zap.NewNop()
-	tracer, _, closer := tracerProvider(t)
+	reader, closer := setupMetricsReader(t)
 	defer closer()
-	listener, err := net.Listen("tcp", "localhost:")
-	require.NoError(t, err)
-	assert.NotNil(t, listener)
-	defer listener.Close()
-
-	reader, err := NewMetricsReader(config.Configuration{
-		Servers: []string{"http://" + listener.Addr().String()},
-	}, logger, tracer)
-
-	require.NoError(t, err)
-	require.NotNil(t, reader)
 
 	qParams := &metricstore.CallRateQueryParameters{}
 	r, err := reader.GetCallRates(context.Background(), qParams)
@@ -79,21 +112,8 @@ func TestGetCallRates(t *testing.T) {
 }
 
 func TestGetErrorRates(t *testing.T) {
-	logger := zap.NewNop()
-	tracer, _, closer := tracerProvider(t)
+	reader, closer := setupMetricsReader(t)
 	defer closer()
-
-	listener, err := net.Listen("tcp", "localhost:")
-	require.NoError(t, err)
-	assert.NotNil(t, listener)
-	defer listener.Close()
-
-	reader, err := NewMetricsReader(config.Configuration{
-		Servers: []string{"http://" + listener.Addr().String()},
-	}, logger, tracer)
-
-	require.NoError(t, err)
-	require.NotNil(t, reader)
 
 	qParams := &metricstore.ErrorRateQueryParameters{}
 	r, err := reader.GetErrorRates(context.Background(), qParams)
@@ -103,22 +123,10 @@ func TestGetErrorRates(t *testing.T) {
 }
 
 func TestGetMinStepDuration(t *testing.T) {
-	params := metricstore.MinStepDurationQueryParameters{}
-	logger := zap.NewNop()
-	tracer, _, closer := tracerProvider(t)
+	reader, closer := setupMetricsReader(t)
 	defer closer()
 
-	listener, err := net.Listen("tcp", "localhost:")
-	require.NoError(t, err)
-	assert.NotNil(t, listener)
-	defer listener.Close()
-
-	reader, err := NewMetricsReader(config.Configuration{
-		Servers: []string{"http://" + listener.Addr().String()},
-	}, logger, tracer)
-	require.NoError(t, err)
-	require.NotNil(t, reader)
-
+	params := metricstore.MinStepDurationQueryParameters{}
 	minStep, err := reader.GetMinStepDuration(context.Background(), &params)
 	require.NoError(t, err)
 	assert.Equal(t, time.Millisecond, minStep)

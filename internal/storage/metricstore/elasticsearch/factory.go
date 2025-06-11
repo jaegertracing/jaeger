@@ -4,6 +4,7 @@
 package elasticsearch
 
 import (
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/metricstoremetrics"
@@ -13,6 +14,7 @@ import (
 type Factory struct {
 	config config.Configuration
 	telset telemetry.Settings
+	client es.Client
 }
 
 // NewFactory creates a new Factory with the given configuration and telemetry settings.
@@ -28,10 +30,23 @@ func NewFactory(cfg config.Configuration, telset telemetry.Settings) (*Factory, 
 
 // CreateMetricsReader implements storage.MetricStoreFactory.
 func (f *Factory) CreateMetricsReader() (metricstore.Reader, error) {
-	mr, _ := NewMetricsReader(f.config, f.telset.Logger, f.telset.TracerProvider)
+	client, err := config.NewClient(&f.config, f.telset.Logger, f.telset.Metrics)
+	if err != nil {
+		return nil, err
+	}
+	f.client = client
+
+	mr, _ := NewMetricsReader(f.config, f.telset.Logger, f.telset.TracerProvider, f.client)
 	// Currently, the NewMetricsReader function does not return an error.
 	// if err != nil {
 	//	 return nil, err
 	// }
 	return metricstoremetrics.NewReaderDecorator(mr, f.telset.Metrics), nil
+}
+
+func (f *Factory) Close() error {
+	if f.client != nil {
+		return f.client.Close()
+	}
+	return nil
 }
