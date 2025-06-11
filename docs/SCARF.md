@@ -1,6 +1,6 @@
 # Setup for Scarf
 
-This document outlines our implementaton details for [Scarf](https://scarf.sh) which provides usage and download analytics for the Jaeger project. 
+This document outlines our implementation details for [Scarf](https://scarf.sh) which provides usage and download analytics for the Jaeger project. 
 
 ## DNS Configuration
 The following CNAMES were setup in Netlify for us to utilize the services:
@@ -15,32 +15,13 @@ We also had to add the following TXT verification records:
 3. _scarf-sh-challenge-jaeger.scarf.jaegertracing.io - AKB26262A53WP55R4EXR
 
 ## Download and Docker Configuration
-The following setup has been done on Scarf. Previously what was the download link for example https://github.com/jaegertracing/jaeger/releases/download/v1.69.0/jaeger-2.6.0-darwin-amd64.tar.gz should now be https://download.jaegertracing.io/v1.69.0/jaeger-2.6.0-darwin-arm64.tar.gz for us to get analytics.
+The following setup has been done on Scarf. Previously what was the download link for example https://github.com/jaegertracing/jaeger/releases/download/v1.69.0/jaeger-2.6.0-darwin-amd64.tar.gz should now be https://download.jaegertracing.io/v1.69.0/jaeger-2.6.0-darwin-amd64.tar.gz for us to get analytics.
 
 For Docker containers the previous command : docker pull jaegertracing/all-in-one should now be docker pull cr.jaegertracing.io/jaegertracing/all-in-one
 
-# Integrating Scarf Analytics with Netlify
-
-We also have setup a tracking pixel to be used. This was added into the Netlify configuration. We'll use Netlify's **Snippet Injection** feature for this.
-
-## Steps to Add the Scarf Pixel
-
-My apologies for the confusion regarding "Jaeger configuration." I understand now that "Jaeger" in your context refers to the **`www.jaegertracing.io` website hosted on Netlify**, and not the Jaeger tracing system itself. This makes perfect sense\!
-
-I will update the documentation with the corrected steps, incorporating your provided additions and making sure the language is precise for the `www.jaegertracing.io` site.
-
------
-
 # Integrating Scarf Analytics with `www.jaegertracing.io` on Netlify
 
-This guide shows you how to add a Scarf analytics tracking pixel to the `www.jaegertracing.io` website hosted on Netlify, without directly changing the site's codebase. We'll use Netlify's **Snippet Injection** feature for this.
-
-## Prerequisites
-
-  * A **Netlify account** with access to the `www.jaegertracing.io` site.
-  * Your **Scarf Pixel ID** (e.g., `cf7517a5-bfa0-4796-b760-1bb4e302e541`).
-
------
+Injecting the Scarf analytics tracking pixel to the `www.jaegertracing.io` website hosted on Netlify is done using Netlify's **Snippet Injection** feature.
 
 ## Steps to Add the Scarf Pixel
 
@@ -75,7 +56,7 @@ This guide shows you how to add a Scarf analytics tracking pixel to the `www.jae
           * **Snippet Body:** Paste the following HTML code block into this text area. **The pixel ID `cf7517a5-bfa0-4796-b760-1bb4e302e541` is already included.**
 
             ```html
-            <img referrerpolicy="no-referrer-when-downgrade" src="https://scarf.jaegertracing.io/a.png?x-pxid=cf7517a5-bfa0-4796-b760-1bb4e302e541" />
+            <img referrerpolicy="no-referrer-when-downgrade" src="https://scarf.jaegertracing.io/a.png?x-pxid=cf7517a5-bfa0-4796-b760-1bb4e302e541" alt="" style="position: absolute; width: 0; height: 0; border: 0;" />
             ```
 
 7.  **Save the Snippet:**
@@ -92,5 +73,5 @@ To verify the pixel is loading correctly:
 
   * Visit `www.jaegertracing.io` in a browser.
   * Open your browser's **developer tools** (usually by pressing F12 or right-clicking and selecting "Inspect").
-  * Go to the **"Network"** tab and filter by "a.png" or "scarf.sh". You should see requests being made to `https://static.scarf.sh/a.png`.
-  * Alternatively, check the **"Elements"** tab and search for the `<img>` tag containing "scarf.sh" or your pixel ID, typically near the end of the `<body>` section of the page's HTML.
+  * Go to the **"Network"** tab and filter by "a.png". You should see requests being made to `https://scarf.jaegertracing.io/a.png`.
+  
