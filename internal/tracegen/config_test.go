@@ -77,7 +77,7 @@ func Test_Flags(t *testing.T) {
 		Services:        1,
 		TraceExporter:   "otlp-http",
 		Static:          false,
-		StaticTimeStart: "2025-01-01T00:00:00.000000000+0000",
+		StaticTimeStart: "2025-01-01T00:00:00.000000000+00:00",
 	}
 
 	config.Flags(fs)

@@ -54,7 +54,7 @@ func (c *Config) Flags(fs *flag.FlagSet) {
 	fs.IntVar(&c.Services, "services", 1, "Number of unique suffixes to add to service name when generating traces, e.g. tracegen-01 (but only one service per trace)")
 	fs.StringVar(&c.TraceExporter, "trace-exporter", "otlp-http", "Trace exporter (otlp/otlp-http|otlp-grpc|stdout). Exporters can be additionally configured via environment variables, see https://github.com/jaegertracing/jaeger/blob/main/cmd/tracegen/README.md")
 	fs.BoolVar(&c.Static, "static", false, "For generated static data to suit some Trace Bench, default: false")
-	fs.StringVar(&c.StaticTimeStart, "static-timestart", "2025-01-01T00:00:00.000000+0000", "For support generated static data from this time point. default&eg. 2025-01-01T00:00:00.000000+0000")
+	fs.StringVar(&c.StaticTimeStart, "static-timestart", "2025-01-01T00:00:00.000000000+00:00", "For support generated static data from this time point. default&eg. 2025-01-01T00:00:00.000000000+00:00")
 }
 
 // Run executes the test scenario.
@@ -91,11 +91,11 @@ func Run(c *Config, tracers []trace.Tracer, logger *zap.Logger) error {
 				wg:      &wg,
 				logger:  logger.With(zap.Int("worker", i)),
 			}
-			// 使用标准 layout 解析
-			layout := "2006-01-02T15:04:05.000000000+0000"
+
+			layout := "2006-01-02T15:04:05.000000000+00:00"
 			t, err := time.Parse(layout, c.StaticTimeStart)
 			if err != nil {
-				panic("Static time start is not valid: " + err.Error() + "  check this flag format, default&eg.: 2025-01-01T00:00:00.000000+00:00")
+				panic("Static time start is not valid: " + err.Error() + "  check this flag format, default&eg.: 2025-01-01T00:00:00.000000000+00:00")
 			}
 			// mark
 			startTime := t.Add(time.Microsecond)
@@ -139,18 +139,12 @@ func (g *PseudoRandomIDGenerator) NewIDs(ctx context.Context) (trace.TraceID, tr
 			break
 		}
 	}
-	if !tid.IsValid() {
-		tid[0] = 1
-	}
 
 	for {
 		binary.NativeEndian.PutUint64(sid[:], g.rng.Uint64())
 		if sid.IsValid() {
 			break
 		}
-	}
-	if !sid.IsValid() {
-		sid[0] = 1
 	}
 
 	return tid, sid
@@ -166,9 +160,6 @@ func (g *PseudoRandomIDGenerator) NewSpanID(ctx context.Context, traceID trace.T
 		if sid.IsValid() {
 			break
 		}
-	}
-	if !sid.IsValid() {
-		sid[0] = 1
 	}
 	return sid
 }

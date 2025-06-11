@@ -63,7 +63,7 @@ func main() {
 
 	err = tracegen.Run(cfg, tracers, logger)
 	if err != nil {
-		panic(err)
+		logger.Sugar().Fatalf("Failed to run tracegen: %v", err)
 	}
 }
 
