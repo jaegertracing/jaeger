@@ -3,7 +3,7 @@ The current Maintainers Group for the Jaeger Project consists of:
 | Name | Employer | Responsibilities |
 | ---- | -------- | ---------------- |
 | [@albertteoh](https://github.com/albertteoh) | PackSmith | ALL | 
-| [@jkowall](https://github.com/jkowall) | Aiven | ALL |
+| [@jkowall](https://github.com/jkowall) | Paessler | ALL |
 | [@joe-elliott](https://github.com/joe-elliott) | Grafana Labs | ALL |
 | [@mahadzaryab1](https://github.com/mahadzaryab1) | Bloomberg | ALL |
 | [@pavolloffay](https://github.com/pavolloffay) | RedHat | ALL |
@@ -38,6 +38,8 @@ Upon approval, the following steps should be taken to onboard the new maintainer
     *   **Signing Keys:**
         *   Jaeger uses a GPG key for encrypted emails sent to the maintainers for security reports along with access to the `maintainers-only` GitHub repository. This key is stored in our 1password repository. 
     *   **1Password:** Connect with an existing maintainer to be added to our jaegertracing 1Password team.
+    *   **Netlify:** Is where our website is served from, an existing maintainer can add you to our team.
+    *   We use two analytics tools, one is **Scarf** and the other is **Google Analytics** for the projects public facing sites and downloads. 
 *   **3. Announcement**
     *   Announce the new maintainer to the Jaeger community through the mailing list, blog, or other appropriate channels.
 

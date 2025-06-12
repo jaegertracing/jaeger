@@ -50,6 +50,15 @@ var mockEsServerResponseWithVersion2 = []byte(`
 }
 `)
 
+var mockEsServerResponseWithVersion3 = []byte(`
+{
+	"tagline": "OpenSearch",
+	"Version": {
+		"Number": "3"
+	}
+}
+`)
+
 var mockEsServerResponseWithVersion8 = []byte(`
 {
 	"tagline": "OpenSearch",
@@ -73,6 +82,10 @@ func copyToTempFile(t *testing.T, pattern string, filename string) (file *os.Fil
 	require.NoError(t, tempFile.Close())
 
 	return tempFile
+}
+
+func int64Ptr(v int64) *int64 {
+	return &v
 }
 
 func TestNewClient(t *testing.T) {
@@ -445,17 +458,17 @@ func TestApplyDefaults(t *testing.T) {
 			IndexPrefix: "hello",
 			Spans: IndexOptions{
 				Shards:   5,
-				Replicas: 1,
+				Replicas: int64Ptr(1),
 				Priority: 10,
 			},
 			Services: IndexOptions{
 				Shards:   5,
-				Replicas: 1,
+				Replicas: int64Ptr(1),
 				Priority: 20,
 			},
 			Dependencies: IndexOptions{
 				Shards:   5,
-				Replicas: 1,
+				Replicas: int64Ptr(1),
 				Priority: 30,
 			},
 			Sampling: IndexOptions{},
@@ -528,17 +541,17 @@ func TestApplyDefaults(t *testing.T) {
 					IndexPrefix: "hello",
 					Spans: IndexOptions{
 						Shards:   5,
-						Replicas: 1,
+						Replicas: int64Ptr(1),
 						Priority: 10,
 					},
 					Services: IndexOptions{
 						Shards:   5,
-						Replicas: 1,
+						Replicas: int64Ptr(1),
 						Priority: 20,
 					},
 					Dependencies: IndexOptions{
 						Shards:   5,
-						Replicas: 1,
+						Replicas: int64Ptr(1),
 						Priority: 30,
 					},
 				},
@@ -574,17 +587,17 @@ func TestApplyDefaults(t *testing.T) {
 					IndexPrefix: "hello",
 					Spans: IndexOptions{
 						Shards:   5,
-						Replicas: 1,
+						Replicas: int64Ptr(1),
 						Priority: 10,
 					},
 					Services: IndexOptions{
 						Shards:   5,
-						Replicas: 1,
+						Replicas: int64Ptr(1),
 						Priority: 20,
 					},
 					Dependencies: IndexOptions{
 						Shards:   5,
-						Replicas: 1,
+						Replicas: int64Ptr(1),
 						Priority: 30,
 					},
 				},
