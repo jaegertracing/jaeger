@@ -26,7 +26,10 @@ func NewNegativeDurationSanitizer() Func {
 }
 
 func sanitizeNegativeDuration(traces ptrace.Traces) ptrace.Traces {
-	resourceSpans := traces.ResourceSpans()
+	newTraces := ptrace.NewTraces()
+	traces.CopyTo(newTraces)
+
+	resourceSpans := newTraces.ResourceSpans()
 	for i := 0; i < resourceSpans.Len(); i++ {
 		resourceSpan := resourceSpans.At(i)
 		scopeSpans := resourceSpan.ScopeSpans()

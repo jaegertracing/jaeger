@@ -24,9 +24,28 @@ func NewEmptyServiceNameSanitizer() Func {
 
 func sanitizeEmptyServiceName(traces ptrace.Traces) ptrace.Traces {
 	resourceSpans := traces.ResourceSpans()
+
+	var index []int
 	for i := 0; i < resourceSpans.Len(); i++ {
 		resourceSpan := resourceSpans.At(i)
 		attributes := resourceSpan.Resource().Attributes()
+		serviceName, ok := attributes.Get(string(otelsemconv.ServiceNameKey))
+		if !ok || serviceName.Str() == "" || serviceName.Type() != pcommon.ValueTypeStr {
+			index = append(index, i)
+		}
+	}
+
+	if len(index) == 0 {
+		return traces
+	}
+
+	// Make sure exp.sanitizer func work when multiple exporters are defined in pipeline
+	// More info see: https://github.com/open-telemetry/opentelemetry-collector/blob/main/internal/fanoutconsumer/traces.go#L66-L75
+	newTraces := ptrace.NewTraces()
+	traces.CopyTo(newTraces)
+	rss := newTraces.ResourceSpans()
+	for _, v := range index {
+		attributes := rss.At(v).Resource().Attributes()
 		serviceName, ok := attributes.Get(string(otelsemconv.ServiceNameKey))
 		switch {
 		case !ok:
@@ -37,5 +56,6 @@ func sanitizeEmptyServiceName(traces ptrace.Traces) ptrace.Traces {
 			attributes.PutStr(string(otelsemconv.ServiceNameKey), emptyServiceName)
 		}
 	}
-	return traces
+
+	return newTraces
 }

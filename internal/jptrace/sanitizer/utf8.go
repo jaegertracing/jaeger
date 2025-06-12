@@ -28,7 +28,10 @@ func NewUTF8Sanitizer() Func {
 }
 
 func sanitizeUTF8(traces ptrace.Traces) ptrace.Traces {
-	resourceSpans := traces.ResourceSpans()
+	newTraces := ptrace.NewTraces()
+	traces.CopyTo(newTraces)
+
+	resourceSpans := newTraces.ResourceSpans()
 	for i := 0; i < resourceSpans.Len(); i++ {
 		resourceSpan := resourceSpans.At(i)
 		sanitizeAttributes(resourceSpan.Resource().Attributes())

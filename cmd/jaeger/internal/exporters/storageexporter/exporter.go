@@ -50,10 +50,5 @@ func (*storageExporter) close(_ context.Context) error {
 }
 
 func (exp *storageExporter) pushTraces(ctx context.Context, td ptrace.Traces) error {
-	// Make sure exp.sanitizer func work when multiple exporters are defined in pipeline
-	// More info see: https://github.com/open-telemetry/opentelemetry-collector/blob/main/internal/fanoutconsumer/traces.go#L66-L75
-	newTraces := ptrace.NewTraces()
-	td.CopyTo(newTraces)
-
-	return exp.traceWriter.WriteTraces(ctx, exp.sanitizer(newTraces))
+	return exp.traceWriter.WriteTraces(ctx, exp.sanitizer(td))
 }
