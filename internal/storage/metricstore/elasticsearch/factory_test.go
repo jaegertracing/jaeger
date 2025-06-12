@@ -110,8 +110,10 @@ func TestNewFactory(t *testing.T) {
 
 			if tt.expectedErr {
 				require.Error(t, err)
+				require.Nil(t, f)
 			} else {
 				require.NoError(t, err)
+				require.NotNil(t, f)
 				require.NoError(t, f.Close())
 			}
 		})
