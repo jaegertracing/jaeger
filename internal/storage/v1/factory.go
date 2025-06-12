@@ -61,18 +61,21 @@ type SamplingStoreFactory interface {
 }
 
 // MetricStoreFactory defines an interface for a factory that can create implementations of different metrics storage components.
-// Implementations are also encouraged to implement storage.Configurable interface.
+type MetricStoreFactory interface {
+	CreateMetricsReader() (metricstore.Reader, error)
+}
+
+// V1MetricStoreFactory is a v1 version of MetricStoreFactory.
+// Implementations are encouraged to implement storage.Configurable interface.
 //
 // # See also
 //
 // storage.Configurable
-type MetricStoreFactory interface {
+type V1MetricStoreFactory interface {
+	MetricStoreFactory
 	// Initialize performs internal initialization of the factory, such as opening connections to the backend store.
 	// It is called after all configuration of the factory itself has been done.
 	Initialize(telset telemetry.Settings) error
-
-	// CreateMetricsReader creates a metricstore.Reader.
-	CreateMetricsReader() (metricstore.Reader, error)
 }
 
 // Inheritable is an interface that can be implement by some storage implementations
