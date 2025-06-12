@@ -23,11 +23,11 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 	mockReader := mocks.Reader{}
 	mrs := NewReaderDecorator(&mockReader, mf)
 	traces := []ptrace.Traces{ptrace.NewTraces(), ptrace.NewTraces()}
-	mockReader.On("GetServices", context.Background()).Return([]string{}, nil)
+	mockReader.On("GetServices", context.Background()).Return([]string{"service-x"}, nil)
 	mrs.GetServices(context.Background())
 	operationQuery := tracestore.OperationQueryParams{ServiceName: "something"}
 	mockReader.On("GetOperations", context.Background(), operationQuery).
-		Return([]tracestore.Operation{}, nil)
+		Return([]tracestore.Operation{{}}, nil)
 	mrs.GetOperations(context.Background(), operationQuery)
 	mockReader.On("GetTraces", context.Background(), []tracestore.GetTraceParams{{}}).Return(emptyIter[ptrace.Traces](traces, nil))
 	count := 0
@@ -67,11 +67,15 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 		"requests|operation=find_trace_ids|result=err": 0,
 		"requests|operation=get_services|result=ok":    1,
 		"requests|operation=get_services|result=err":   0,
+		"responses|operation=get_trace":                2,
+		"responses|operation=find_traces":              2,
+		"responses|operation=find_trace_ids":           2,
+		"responses|operation=get_operations":           1,
+		"responses|operation=get_services":             1,
 	}
 
 	existingKeys := []string{
 		"latency|operation=get_operations|result=ok.P50",
-		"responses|operation=get_trace.P50",
 		"latency|operation=find_traces|result=ok.P50", // this is not exhaustive
 	}
 	nonExistentKeys := []string{
@@ -152,7 +156,6 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 
 	nonExistentKeys := []string{
 		"latency|operation=get_operations|result=ok.P50",
-		"responses|operation=get_trace.P50",
 		"latency|operation=query|result=ok.P50", // this is not exhaustive
 	}
 
