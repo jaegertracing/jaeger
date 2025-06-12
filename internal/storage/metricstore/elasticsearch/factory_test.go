@@ -27,19 +27,19 @@ var mockESServerResponse = []byte(`
 }
 `)
 
-func setupMockServer(t *testing.T) (*httptest.Server, func()) {
+func setupMockServer(t *testing.T) *httptest.Server {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(mockESServerResponse)
 	}))
 	require.NotNil(t, mockServer)
+	t.Cleanup(mockServer.Close)
 
-	return mockServer, mockServer.Close
+	return mockServer
 }
 
 func TestCreateMetricsReader(t *testing.T) {
-	mockServer, closeServer := setupMockServer(t)
-	defer closeServer()
+	mockServer := setupMockServer(t)
 	cfg := config.Configuration{
 		Servers:  []string{mockServer.URL},
 		LogLevel: "debug",
@@ -49,9 +49,10 @@ func TestCreateMetricsReader(t *testing.T) {
 	require.NotNil(t, f)
 
 	reader, err := f.CreateMetricsReader()
+	defer require.NoError(t, f.Close())
+
 	require.NoError(t, err)
 	assert.NotNil(t, reader)
-	require.NoError(t, f.Close())
 }
 
 func TestCreateMetricsReaderError(t *testing.T) {
@@ -65,15 +66,14 @@ func TestCreateMetricsReaderError(t *testing.T) {
 	require.NotNil(t, f)
 
 	reader, err := f.CreateMetricsReader()
+	defer require.NoError(t, f.Close())
 
 	require.Error(t, err)
 	assert.Nil(t, reader)
-	require.NoError(t, f.Close())
 }
 
 func TestNewFactory(t *testing.T) {
-	mockServer, closeServer := setupMockServer(t)
-	defer closeServer()
+	mockServer := setupMockServer(t)
 	tests := []struct {
 		name        string
 		cfg         config.Configuration

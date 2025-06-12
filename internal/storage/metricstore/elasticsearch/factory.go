@@ -36,11 +36,7 @@ func (f *Factory) CreateMetricsReader() (metricstore.Reader, error) {
 	}
 	f.client = client
 
-	mr, _ := NewMetricsReader(f.config, f.telset.Logger, f.telset.TracerProvider, f.client)
-	// Currently, the NewMetricsReader function does not return an error.
-	// if err != nil {
-	//	 return nil, err
-	// }
+	mr := NewMetricsReader(f.config, f.telset.Logger, f.telset.TracerProvider, f.client)
 	return metricstoremetrics.NewReaderDecorator(mr, f.telset.Metrics), nil
 }
 

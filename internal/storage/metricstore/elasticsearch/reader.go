@@ -28,12 +28,12 @@ type MetricsReader struct {
 	tracer trace.Tracer
 }
 
-func NewMetricsReader(_ config.Configuration, logger *zap.Logger, tracer trace.TracerProvider, client es.Client) (*MetricsReader, error) {
+func NewMetricsReader(_ config.Configuration, logger *zap.Logger, tracer trace.TracerProvider, client es.Client) *MetricsReader {
 	return &MetricsReader{
 		client: client,
 		logger: logger,
 		tracer: tracer.Tracer("elasticsearch-metricstore"),
-	}, nil
+	}
 }
 
 func (MetricsReader) GetLatencies(_ context.Context, _ *metricstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {

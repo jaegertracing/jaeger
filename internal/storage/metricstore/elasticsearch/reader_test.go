@@ -74,9 +74,8 @@ func setupMetricsReader(t *testing.T) (*MetricsReader, func()) {
 	}
 
 	client, clientCloser := clientProvider(t, &cfg, logger, telemetry.NoopSettings().Metrics)
-	reader, err := NewMetricsReader(cfg, logger, tracer, client)
+	reader := NewMetricsReader(cfg, logger, tracer, client)
 
-	require.NoError(t, err)
 	require.NotNil(t, reader)
 
 	// Return a cleanup function that combines the tracer shutdown and any other necessary cleanup.
