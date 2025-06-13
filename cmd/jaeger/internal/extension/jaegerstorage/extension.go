@@ -227,6 +227,7 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 			esTelset := telset
 			esTelset.Metrics = scopedMetricsFactory(metricStorageName, "elasticsearch", "metricstore")
 			metricStoreFactory, err = esmetrics.NewFactory(
+				ctx,
 				*cfg.Elasticsearch,
 				esTelset,
 			)
@@ -246,6 +247,13 @@ func (s *storageExt) Shutdown(context.Context) error {
 		if closer, ok := factory.(io.Closer); ok {
 			err := closer.Close()
 			if err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
+	for _, metricfactory := range s.metricsFactories {
+		if closer, ok := metricfactory.(io.Closer); ok {
+			if err := closer.Close(); err != nil {
 				errs = append(errs, err)
 			}
 		}

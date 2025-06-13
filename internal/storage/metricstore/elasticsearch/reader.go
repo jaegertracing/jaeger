@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
 
@@ -22,15 +22,17 @@ const minStep = time.Millisecond
 
 // MetricsReader is a Elasticsearch metrics reader.
 type MetricsReader struct {
+	client es.Client
 	logger *zap.Logger
 	tracer trace.Tracer
 }
 
-func NewMetricsReader(_ config.Configuration, logger *zap.Logger, tracer trace.TracerProvider) (*MetricsReader, error) {
+func NewMetricsReader(client es.Client, logger *zap.Logger, tracer trace.TracerProvider) *MetricsReader {
 	return &MetricsReader{
+		client: client,
 		logger: logger,
 		tracer: tracer.Tracer("elasticsearch-metricstore"),
-	}, nil
+	}
 }
 
 func (MetricsReader) GetLatencies(_ context.Context, _ *metricstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
