@@ -18,7 +18,7 @@ import (
 
 var _ storage.MetricStoreFactory = new(Factory)
 
-// mockESServerResponse simulates a basic Elasticsearch version response.
+// mockESServerResponse simulates a successful Elasticsearch version response.
 var mockESServerResponse = []byte(`
 {
     "version": {
@@ -27,10 +27,12 @@ var mockESServerResponse = []byte(`
 }
 `)
 
-func setupMockServer(t *testing.T) *httptest.Server {
+// setupMockServer creates a mock HTTP server with the specified response and status code.
+func setupMockServer(t *testing.T, response []byte, statusCode int) *httptest.Server {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(mockESServerResponse)
+		w.WriteHeader(statusCode)
+		w.Write(response)
 	}))
 	require.NotNil(t, mockServer)
 	t.Cleanup(mockServer.Close)
@@ -38,12 +40,17 @@ func setupMockServer(t *testing.T) *httptest.Server {
 	return mockServer
 }
 
-func TestCreateMetricsReader(t *testing.T) {
-	mockServer := setupMockServer(t)
-	cfg := config.Configuration{
-		Servers:  []string{mockServer.URL},
+// newTestFactoryConfig creates a default configuration for testing.
+func newTestFactoryConfig(serverURL string) config.Configuration {
+	return config.Configuration{
+		Servers:  []string{serverURL},
 		LogLevel: "debug",
 	}
+}
+
+func TestCreateMetricsReader(t *testing.T) {
+	server := setupMockServer(t, mockESServerResponse, http.StatusOK)
+	cfg := newTestFactoryConfig(server.URL)
 	f, err := NewFactory(cfg, telemetry.NoopSettings())
 	require.NoError(t, err)
 	require.NotNil(t, f)
@@ -55,36 +62,18 @@ func TestCreateMetricsReader(t *testing.T) {
 	assert.NotNil(t, reader)
 }
 
-func TestCreateMetricsReaderError(t *testing.T) {
-	cfg := config.Configuration{
-		Servers: []string{""},
-	}
-	f := Factory{
-		config: cfg,
-		telset: telemetry.NoopSettings(),
-	}
-	require.NotNil(t, f)
-
-	reader, err := f.CreateMetricsReader()
-	defer require.NoError(t, f.Close())
-
-	require.Error(t, err)
-	assert.Nil(t, reader)
-}
-
 func TestNewFactory(t *testing.T) {
-	mockServer := setupMockServer(t)
+	mockServer := setupMockServer(t, mockESServerResponse, http.StatusOK)
 	tests := []struct {
 		name        string
 		cfg         config.Configuration
+		response    []byte
+		statusCode  int
 		expectedErr bool
 	}{
 		{
-			name: "valid config",
-			cfg: config.Configuration{
-				Servers:  []string{mockServer.URL},
-				LogLevel: "debug",
-			},
+			name:        "valid config",
+			cfg:         newTestFactoryConfig(mockServer.URL),
 			expectedErr: false,
 		},
 		{
@@ -95,18 +84,26 @@ func TestNewFactory(t *testing.T) {
 			expectedErr: true,
 		},
 		{
-			name: "invalid config - malformed server URL",
-			cfg: config.Configuration{
-				Servers: []string{"://malformed-url"}, // Malformed URL
-			},
+			name:        "invalid config - malformed server URL",
+			cfg:         newTestFactoryConfig("://malformed-url"),
+			expectedErr: true,
+		},
+		{
+			name:        "ping failure for version detection",          // New situation to test error from create es client
+			cfg:         newTestFactoryConfig("http://localhost:9090"), // Overridden by mock server
+			response:    []byte(`{"error": "internal server error"}`),
+			statusCode:  http.StatusInternalServerError,
 			expectedErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			telset := telemetry.NoopSettings()
-			f, err := NewFactory(tt.cfg, telset)
+			if tt.response != nil && tt.statusCode != 0 {
+				server := setupMockServer(t, tt.response, tt.statusCode)
+				tt.cfg.Servers = []string{server.URL}
+			}
+			f, err := NewFactory(tt.cfg, telemetry.NoopSettings())
 
 			if tt.expectedErr {
 				require.Error(t, err)

@@ -34,34 +34,33 @@ var mockServerResponse = []byte(`
 `)
 
 // tracerProvider creates a new OpenTelemetry TracerProvider for testing.
-func tracerProvider(t *testing.T) (trace.TracerProvider, func()) {
+func tracerProvider(t *testing.T) trace.TracerProvider {
 	exporter := tracetest.NewInMemoryExporter()
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithSampler(sdktrace.AlwaysSample()),
 		sdktrace.WithSyncer(exporter),
 	)
-	closer := func() {
+	t.Cleanup(func() {
 		require.NoError(t, tp.Shutdown(context.Background()))
-	}
-	return tp, closer
+	})
+	return tp
 }
 
-func clientProvider(t *testing.T, c *config.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, func()) {
+func clientProvider(t *testing.T, c *config.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) es.Client {
 	client, err := config.NewClient(c, logger, metricsFactory)
 	require.NoError(t, err)
 	require.NotNil(t, client)
 
-	closer := func() {
+	t.Cleanup(func() {
 		require.NoError(t, client.Close())
-	}
-	return client, closer
+	})
+	return client
 }
 
 // setupMetricsReader provides a common setup for tests requiring a MetricsReader.
-// It initializes a mock HTTP server and configures the reader to use it.
-func setupMetricsReader(t *testing.T) (*MetricsReader, func()) {
+func setupMetricsReader(t *testing.T) *MetricsReader {
 	logger := zap.NewNop()
-	tracer, closer := tracerProvider(t)
+	tracer := tracerProvider(t)
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -73,24 +72,15 @@ func setupMetricsReader(t *testing.T) (*MetricsReader, func()) {
 		LogLevel: "debug",
 	}
 
-	client, clientCloser := clientProvider(t, &cfg, logger, telemetry.NoopSettings().Metrics)
-	reader := NewMetricsReader(cfg, logger, tracer, client)
+	client := clientProvider(t, &cfg, logger, telemetry.NoopSettings().Metrics)
+	reader := NewMetricsReader(client, logger, tracer)
 
 	require.NotNil(t, reader)
-
-	// Return a cleanup function that combines the tracer shutdown and any other necessary cleanup.
-	combinedCloser := func() {
-		closer() // Shut down the tracer
-		clientCloser()
-		// Add any other specific cleanup if needed in the future
-	}
-
-	return reader, combinedCloser
+	return reader
 }
 
 func TestGetLatencies(t *testing.T) {
-	reader, closer := setupMetricsReader(t)
-	defer closer()
+	reader := setupMetricsReader(t)
 
 	qParams := &metricstore.LatenciesQueryParameters{}
 	r, err := reader.GetLatencies(context.Background(), qParams)
@@ -100,8 +90,7 @@ func TestGetLatencies(t *testing.T) {
 }
 
 func TestGetCallRates(t *testing.T) {
-	reader, closer := setupMetricsReader(t)
-	defer closer()
+	reader := setupMetricsReader(t)
 
 	qParams := &metricstore.CallRateQueryParameters{}
 	r, err := reader.GetCallRates(context.Background(), qParams)
@@ -111,8 +100,7 @@ func TestGetCallRates(t *testing.T) {
 }
 
 func TestGetErrorRates(t *testing.T) {
-	reader, closer := setupMetricsReader(t)
-	defer closer()
+	reader := setupMetricsReader(t)
 
 	qParams := &metricstore.ErrorRateQueryParameters{}
 	r, err := reader.GetErrorRates(context.Background(), qParams)
@@ -122,8 +110,7 @@ func TestGetErrorRates(t *testing.T) {
 }
 
 func TestGetMinStepDuration(t *testing.T) {
-	reader, closer := setupMetricsReader(t)
-	defer closer()
+	reader := setupMetricsReader(t)
 
 	params := metricstore.MinStepDurationQueryParameters{}
 	minStep, err := reader.GetMinStepDuration(context.Background(), &params)

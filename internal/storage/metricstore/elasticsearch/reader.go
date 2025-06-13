@@ -13,7 +13,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
 
@@ -28,7 +27,7 @@ type MetricsReader struct {
 	tracer trace.Tracer
 }
 
-func NewMetricsReader(_ config.Configuration, logger *zap.Logger, tracer trace.TracerProvider, client es.Client) *MetricsReader {
+func NewMetricsReader(client es.Client, logger *zap.Logger, tracer trace.TracerProvider) *MetricsReader {
 	return &MetricsReader{
 		client: client,
 		logger: logger,

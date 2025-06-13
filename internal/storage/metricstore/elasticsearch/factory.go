@@ -22,21 +22,22 @@ func NewFactory(cfg config.Configuration, telset telemetry.Settings) (*Factory, 
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
+
+	client, err := config.NewClient(&cfg, telset.Logger, telset.Metrics)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Factory{
 		config: cfg,
 		telset: telset,
+		client: client,
 	}, nil
 }
 
 // CreateMetricsReader implements storage.MetricStoreFactory.
 func (f *Factory) CreateMetricsReader() (metricstore.Reader, error) {
-	client, err := config.NewClient(&f.config, f.telset.Logger, f.telset.Metrics)
-	if err != nil {
-		return nil, err
-	}
-	f.client = client
-
-	mr := NewMetricsReader(f.config, f.telset.Logger, f.telset.TracerProvider, f.client)
+	mr := NewMetricsReader(f.client, f.telset.Logger, f.telset.TracerProvider)
 	return metricstoremetrics.NewReaderDecorator(mr, f.telset.Metrics), nil
 }
 
