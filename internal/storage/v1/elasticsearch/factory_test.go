@@ -209,7 +209,7 @@ func TestCreateTemplates(t *testing.T) {
 	for _, test := range tests {
 		f := FactoryBase{}
 		mockClient := &mocks.Client{}
-		f.newClientFn = func(_ *escfg.Configuration, _ *zap.Logger, _ metrics.Factory) (es.Client, error) {
+		f.newClientFn = func(_ context.Context, _ *escfg.Configuration, _ *zap.Logger, _ metrics.Factory) (es.Client, error) {
 			return mockClient, nil
 		}
 		f.logger = zaptest.NewLogger(t)
@@ -228,7 +228,7 @@ func TestCreateTemplates(t *testing.T) {
 			},
 		}}
 		f.tracer = otel.GetTracerProvider()
-		client, err := f.newClientFn(&escfg.Configuration{}, zaptest.NewLogger(t), metrics.NullFactory)
+		client, err := f.newClientFn(context.Background(), &escfg.Configuration{}, zaptest.NewLogger(t), metrics.NullFactory)
 		require.NoError(t, err)
 		f.client.Store(&client)
 		f.templateBuilder = es.TextTemplateBuilder{}

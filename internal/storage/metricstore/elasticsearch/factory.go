@@ -4,6 +4,8 @@
 package elasticsearch
 
 import (
+	"context"
+
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
@@ -18,12 +20,12 @@ type Factory struct {
 }
 
 // NewFactory creates a new Factory with the given configuration and telemetry settings.
-func NewFactory(cfg config.Configuration, telset telemetry.Settings) (*Factory, error) {
+func NewFactory(ctx context.Context, cfg config.Configuration, telset telemetry.Settings) (*Factory, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	client, err := config.NewClient(&cfg, telset.Logger, telset.Metrics)
+	client, err := config.NewClient(ctx, &cfg, telset.Logger, telset.Metrics)
 	if err != nil {
 		return nil, err
 	}

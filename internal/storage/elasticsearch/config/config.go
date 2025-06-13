@@ -221,7 +221,7 @@ type BearerTokenAuthentication struct {
 }
 
 // NewClient creates a new ElasticSearch client
-func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
+func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
 	if len(c.Servers) < 1 {
 		return nil, errors.New("no servers specified")
 	}
@@ -249,14 +249,14 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 		Workers(c.BulkProcessing.Workers).
 		BulkActions(c.BulkProcessing.MaxActions).
 		FlushInterval(c.BulkProcessing.FlushInterval).
-		Do(context.Background())
+		Do(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	if c.Version == 0 {
 		// Determine ElasticSearch Version
-		pingResult, _, err := rawClient.Ping(c.Servers[0]).Do(context.Background())
+		pingResult, _, err := rawClient.Ping(c.Servers[0]).Do(ctx)
 		if err != nil {
 			return nil, err
 		}

@@ -4,6 +4,7 @@
 package config
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -416,7 +417,7 @@ func TestNewClient(t *testing.T) {
 			logger := zap.NewNop()
 			metricsFactory := metrics.NullFactory
 			config := test.config
-			client, err := NewClient(config, logger, metricsFactory)
+			client, err := NewClient(context.Background(), config, logger, metricsFactory)
 			if test.expectedError {
 				require.Error(t, err)
 				require.Nil(t, client)

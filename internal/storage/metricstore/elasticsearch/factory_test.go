@@ -4,6 +4,7 @@
 package elasticsearch
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -51,7 +52,7 @@ func newTestFactoryConfig(serverURL string) config.Configuration {
 func TestCreateMetricsReader(t *testing.T) {
 	server := setupMockServer(t, mockESServerResponse, http.StatusOK)
 	cfg := newTestFactoryConfig(server.URL)
-	f, err := NewFactory(cfg, telemetry.NoopSettings())
+	f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 	require.NoError(t, err)
 	require.NotNil(t, f)
 
@@ -103,7 +104,7 @@ func TestNewFactory(t *testing.T) {
 				server := setupMockServer(t, tt.response, tt.statusCode)
 				tt.cfg.Servers = []string{server.URL}
 			}
-			f, err := NewFactory(tt.cfg, telemetry.NoopSettings())
+			f, err := NewFactory(context.Background(), tt.cfg, telemetry.NoopSettings())
 
 			if tt.expectedErr {
 				require.Error(t, err)

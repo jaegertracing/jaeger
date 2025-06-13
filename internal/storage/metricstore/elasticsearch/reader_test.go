@@ -47,7 +47,7 @@ func tracerProvider(t *testing.T) trace.TracerProvider {
 }
 
 func clientProvider(t *testing.T, c *config.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) es.Client {
-	client, err := config.NewClient(c, logger, metricsFactory)
+	client, err := config.NewClient(context.Background(), c, logger, metricsFactory)
 	require.NoError(t, err)
 	require.NotNil(t, client)
 
