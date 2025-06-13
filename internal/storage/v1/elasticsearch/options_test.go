@@ -27,13 +27,18 @@ func TestOptions(t *testing.T) {
 	assert.EqualValues(t, 5, primary.Indices.Services.Shards)
 	assert.EqualValues(t, 5, primary.Indices.Sampling.Shards)
 	assert.EqualValues(t, 5, primary.Indices.Dependencies.Shards)
-	assert.EqualValues(t, 1, primary.Indices.Spans.Replicas)
-	assert.EqualValues(t, 1, primary.Indices.Services.Replicas)
-	assert.EqualValues(t, 1, primary.Indices.Sampling.Replicas)
-	assert.EqualValues(t, 1, primary.Indices.Dependencies.Replicas)
+	require.NotNil(t, primary.Indices.Spans.Replicas)
+	assert.EqualValues(t, 1, *primary.Indices.Spans.Replicas)
+	require.NotNil(t, primary.Indices.Services.Replicas)
+	assert.EqualValues(t, 1, *primary.Indices.Services.Replicas)
+	require.NotNil(t, primary.Indices.Sampling.Replicas)
+	assert.EqualValues(t, 1, *primary.Indices.Sampling.Replicas)
+	require.NotNil(t, primary.Indices.Dependencies.Replicas)
+	assert.EqualValues(t, 1, *primary.Indices.Dependencies.Replicas)
 	assert.Equal(t, 72*time.Hour, primary.MaxSpanAge)
 	assert.False(t, primary.Sniffing.Enabled)
 	assert.False(t, primary.Sniffing.UseHTTPS)
+	assert.False(t, primary.DisableHealthCheck)
 }
 
 func TestOptionsWithFlags(t *testing.T) {
@@ -47,6 +52,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--es.password-file=/foo/bar/baz",
 		"--es.sniffer=true",
 		"--es.sniffer-tls-enabled=true",
+		"--es.disable-health-check=true",
 		"--es.max-span-age=48h",
 		"--es.num-shards=20",
 		"--es.num-replicas=10",
@@ -78,6 +84,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, 48*time.Hour, primary.MaxSpanAge)
 	assert.True(t, primary.Sniffing.Enabled)
 	assert.True(t, primary.Sniffing.UseHTTPS)
+	assert.True(t, primary.DisableHealthCheck)
 	assert.False(t, primary.TLS.Insecure)
 	assert.True(t, primary.TLS.InsecureSkipVerify)
 	assert.True(t, primary.Tags.AllAsFields)

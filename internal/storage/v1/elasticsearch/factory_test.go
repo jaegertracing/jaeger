@@ -209,14 +209,26 @@ func TestCreateTemplates(t *testing.T) {
 	for _, test := range tests {
 		f := FactoryBase{}
 		mockClient := &mocks.Client{}
-		f.newClientFn = func(_ *escfg.Configuration, _ *zap.Logger, _ metrics.Factory) (es.Client, error) {
+		f.newClientFn = func(_ context.Context, _ *escfg.Configuration, _ *zap.Logger, _ metrics.Factory) (es.Client, error) {
 			return mockClient, nil
 		}
 		f.logger = zaptest.NewLogger(t)
 		f.metricsFactory = metrics.NullFactory
-		f.config = &escfg.Configuration{CreateIndexTemplates: true, Indices: escfg.Indices{IndexPrefix: test.indexPrefix}}
+		f.config = &escfg.Configuration{CreateIndexTemplates: true, Indices: escfg.Indices{
+			IndexPrefix: test.indexPrefix,
+			Spans: escfg.IndexOptions{
+				Shards:   3,
+				Replicas: ptr(int64(1)),
+				Priority: 10,
+			},
+			Services: escfg.IndexOptions{
+				Shards:   3,
+				Replicas: ptr(int64(1)),
+				Priority: 10,
+			},
+		}}
 		f.tracer = otel.GetTracerProvider()
-		client, err := f.newClientFn(&escfg.Configuration{}, zaptest.NewLogger(t), metrics.NullFactory)
+		client, err := f.newClientFn(context.Background(), &escfg.Configuration{}, zaptest.NewLogger(t), metrics.NullFactory)
 		require.NoError(t, err)
 		f.client.Store(&client)
 		f.templateBuilder = es.TextTemplateBuilder{}
@@ -323,10 +335,10 @@ func testPasswordFromFile(t *testing.T) {
 	})
 
 	writer := spanstore.NewSpanWriter(f.GetSpanWriterParams())
-	span := &dbmodel.Span{
+	span1 := &dbmodel.Span{
 		Process: dbmodel.Process{ServiceName: "foo"},
 	}
-	writer.WriteSpan(time.Now(), span)
+	writer.WriteSpan(time.Now(), span1)
 	assert.Eventually(t,
 		func() bool {
 			pwd, ok := authReceived.Load(upwd1)
@@ -351,7 +363,10 @@ func testPasswordFromFile(t *testing.T) {
 		"expecting es.Client to change for the new password",
 	)
 
-	writer.WriteSpan(time.Now(), span)
+	span2 := &dbmodel.Span{
+		Process: dbmodel.Process{ServiceName: "foo"},
+	}
+	writer.WriteSpan(time.Now(), span2)
 	assert.Eventually(t,
 		func() bool {
 			pwd, ok := authReceived.Load(upwd2)

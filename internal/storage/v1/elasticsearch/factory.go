@@ -42,7 +42,7 @@ type FactoryBase struct {
 	logger         *zap.Logger
 	tracer         trace.TracerProvider
 
-	newClientFn func(c *config.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error)
+	newClientFn func(ctx context.Context, c *config.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error)
 
 	config *config.Configuration
 
@@ -75,7 +75,7 @@ func NewFactoryBase(
 	}
 	f.tags = tags
 
-	client, err := f.newClientFn(f.config, logger, metricsFactory)
+	client, err := f.newClientFn(ctx, f.config, logger, metricsFactory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Elasticsearch client: %w", err)
 	}
@@ -213,7 +213,7 @@ func (f *FactoryBase) onClientPasswordChange(cfg *config.Configuration, client *
 	newCfg.Authentication.BasicAuthentication.Password = newPassword
 	newCfg.Authentication.BasicAuthentication.PasswordFilePath = "" // avoid error that both are set
 
-	newClient, err := f.newClientFn(&newCfg, f.logger, mf)
+	newClient, err := f.newClientFn(context.Background(), &newCfg, f.logger, mf)
 	if err != nil {
 		f.logger.Error("failed to recreate Elasticsearch client with new password", zap.Error(err))
 		return

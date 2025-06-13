@@ -51,7 +51,8 @@ type TraceBackend struct {
 
 // MetricBackend contains configuration for a single metric storage backend.
 type MetricBackend struct {
-	Prometheus *promCfg.Configuration `mapstructure:"prometheus"`
+	Prometheus    *promCfg.Configuration `mapstructure:"prometheus"`
+	Elasticsearch *esCfg.Configuration   `mapstructure:"elasticsearch"`
 }
 
 // Unmarshal implements confmap.Unmarshaler. This allows us to provide
@@ -115,6 +116,11 @@ func (cfg *MetricBackend) Unmarshal(conf *confmap.Conf) error {
 	if conf.IsSet("prometheus") {
 		v := prometheus.DefaultConfig()
 		cfg.Prometheus = &v
+	}
+
+	if conf.IsSet("elasticsearch") {
+		v := es.DefaultConfig()
+		cfg.Elasticsearch = &v
 	}
 	return conf.Unmarshal(cfg)
 }
