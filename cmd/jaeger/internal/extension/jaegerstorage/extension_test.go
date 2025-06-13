@@ -367,7 +367,7 @@ func TestStartError(t *testing.T) {
 	require.ErrorContains(t, err, "empty configuration")
 }
 
-func TestMetricsMetricBackendStorageStartError(t *testing.T) {
+func TestMetricStorageStartError(t *testing.T) {
 	expectedError := "failed to initialize metrics storage 'foo'"
 	tests := []struct {
 		name   string
