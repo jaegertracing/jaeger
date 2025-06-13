@@ -20,22 +20,22 @@ import (
 
 // Config describes the test scenario.
 type Config struct {
-	Workers         int
-	Services        int
-	Traces          int
-	ChildSpans      int
-	Attributes      int
-	AttrKeys        int
-	AttrValues      int
-	Marshal         bool
-	Debug           bool
-	Firehose        bool
-	Pause           time.Duration
-	Duration        time.Duration
-	Service         string
-	TraceExporter   string
-	Static          bool
-	StaticTimeStart string
+	Workers             int
+	Services            int
+	Traces              int
+	ChildSpans          int
+	Attributes          int
+	AttrKeys            int
+	AttrValues          int
+	Marshal             bool
+	Debug               bool
+	Firehose            bool
+	Pause               time.Duration
+	Duration            time.Duration
+	Service             string
+	TraceExporter       string
+	Repeatable          bool
+	RepeatableTimeStart string
 }
 
 // Flags registers config flags.
@@ -53,8 +53,8 @@ func (c *Config) Flags(fs *flag.FlagSet) {
 	fs.StringVar(&c.Service, "service", "tracegen", "Service name prefix to use")
 	fs.IntVar(&c.Services, "services", 1, "Number of unique suffixes to add to service name when generating traces, e.g. tracegen-01 (but only one service per trace)")
 	fs.StringVar(&c.TraceExporter, "trace-exporter", "otlp-http", "Trace exporter (otlp/otlp-http|otlp-grpc|stdout). Exporters can be additionally configured via environment variables, see https://github.com/jaegertracing/jaeger/blob/main/cmd/tracegen/README.md")
-	fs.BoolVar(&c.Static, "static", false, "For generated static data to suit some Trace Bench, default: false")
-	fs.StringVar(&c.StaticTimeStart, "static-timestart", "2025-01-01T00:00:00.000000000+00:00", "For support generated static data from this time point. default&eg. 2025-01-01T00:00:00.000000000+00:00")
+	fs.BoolVar(&c.Repeatable, "repeatable", false, "For generated repeatable data to suit some Trace Bench, default: false")
+	fs.StringVar(&c.RepeatableTimeStart, "repeatable-timestart", "2025-01-01T00:00:00.000000000+00:00", "For support generated repeatable data from this time point. default&eg. 2025-01-01T00:00:00.000000000+00:00")
 }
 
 // Run executes the test scenario.
@@ -67,7 +67,7 @@ func Run(c *Config, tracers []trace.Tracer, logger *zap.Logger) error {
 
 	wg := sync.WaitGroup{}
 	var running uint32 = 1
-	if !c.Static {
+	if !c.Repeatable {
 		for i := 0; i < c.Workers; i++ {
 			wg.Add(1)
 			w := worker{
@@ -93,13 +93,13 @@ func Run(c *Config, tracers []trace.Tracer, logger *zap.Logger) error {
 			}
 
 			layout := "2006-01-02T15:04:05.000000000+00:00"
-			t, err := time.Parse(layout, c.StaticTimeStart)
+			t, err := time.Parse(layout, c.RepeatableTimeStart)
 			if err != nil {
-				panic("Static time start is not valid: " + err.Error() + "  check this flag format, default&eg.: 2025-01-01T00:00:00.000000000+00:00")
+				panic("Repeatable data time start is not valid: " + err.Error() + "  check this flag format, default&eg.: 2025-01-01T00:00:00.000000000+00:00")
 			}
 			// mark
 			startTime := t.Add(time.Microsecond)
-			go w.simulateStaticTraces(startTime)
+			go w.simulateRepeatableTraces(startTime)
 		}
 	}
 
@@ -111,7 +111,7 @@ func Run(c *Config, tracers []trace.Tracer, logger *zap.Logger) error {
 	return nil
 }
 
-// PseudoRandomIDGenerator For static data generation
+// PseudoRandomIDGenerator For Repeatable data generation
 type PseudoRandomIDGenerator struct {
 	mu  sync.Mutex
 	rng *rand.Rand

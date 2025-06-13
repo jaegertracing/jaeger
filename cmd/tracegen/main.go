@@ -101,7 +101,7 @@ func createTracers(cfg *tracegen.Config, logger *zap.Logger) ([]trace.Tracer, fu
 			sdktrace.WithBatcher(exp, sdktrace.WithBlocking()),
 			sdktrace.WithResource(res),
 		}
-		if cfg.Static {
+		if cfg.Repeatable {
 			opts = append(opts, sdktrace.WithIDGenerator(tracegen.NewPseudoRandomIDGenerator(s+1)))
 		}
 		if flagAdaptiveSamplingEndpoint != "" {

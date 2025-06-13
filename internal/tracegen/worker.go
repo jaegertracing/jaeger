@@ -28,7 +28,7 @@ type worker struct {
 	attrKeyNo int
 	attrValNo int
 
-	// for trace&span static time
+	// for trace&span repeatable data time generation
 	spanInterval int
 }
 
@@ -117,15 +117,15 @@ func (w *worker) simulateChildSpans(ctx context.Context, start time.Time, tracer
 	}
 }
 
-// For static simulate
-func (w *worker) simulateStaticTraces(startTime time.Time) {
+// For repeatable simulate
+func (w *worker) simulateRepeatableTraces(startTime time.Time) {
 	// reset
 	w.spanInterval = 1
 	w.traceNo = 0
 
 	for atomic.LoadUint32(w.running) == 1 {
 		svcNo := w.traceNo % len(w.tracers)
-		w.simulateStaticOneTrace(w.tracers[svcNo], startTime)
+		w.simulateRepeatableOneTrace(w.tracers[svcNo], startTime)
 		w.traceNo++
 		if w.Traces != 0 && w.traceNo >= w.Traces {
 			break
@@ -135,7 +135,7 @@ func (w *worker) simulateStaticTraces(startTime time.Time) {
 	w.wg.Done()
 }
 
-func (w *worker) simulateStaticOneTrace(tracer trace.Tracer, baseStartTime time.Time) {
+func (w *worker) simulateRepeatableOneTrace(tracer trace.Tracer, baseStartTime time.Time) {
 	ctx := context.Background()
 	attrs := []attribute.KeyValue{
 		attribute.String("peer.service", "tracegen-server"),
@@ -157,12 +157,12 @@ func (w *worker) simulateStaticOneTrace(tracer trace.Tracer, baseStartTime time.
 		trace.WithTimestamp(start),
 	)
 
-	lastEnd := w.simulateStaticChildSpans(ctx, start, tracer)
+	lastEnd := w.simulateRepeatableChildSpans(ctx, start, tracer)
 
 	parent.End(trace.WithTimestamp(lastEnd))
 }
 
-func (w *worker) simulateStaticChildSpans(ctx context.Context, baseStart time.Time, tracer trace.Tracer) time.Time {
+func (w *worker) simulateRepeatableChildSpans(ctx context.Context, baseStart time.Time, tracer trace.Tracer) time.Time {
 	lastEnd := baseStart
 
 	for c := 0; c < w.ChildSpans; c++ {

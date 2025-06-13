@@ -61,7 +61,7 @@ func Test_SimulateTraces(t *testing.T) {
 	}
 }
 
-func Test_SimulateStaticTraces(t *testing.T) {
+func Test_SimulateRepeatableTraces(t *testing.T) {
 	tests := []struct {
 		name  string
 		pause time.Duration
@@ -107,7 +107,7 @@ func Test_SimulateStaticTraces(t *testing.T) {
 			expectedOutput := `{"level":"info","msg":"Worker 7 generated 7 traces"}` + "\n"
 			layout := "2006-01-02T15:04:05.000000000+00:00"
 			start, _ := time.Parse(layout, "2025-01-01T00:00:00.000000000+00:00")
-			worker.simulateStaticTraces(start)
+			worker.simulateRepeatableTraces(start)
 			assert.Equal(t, expectedOutput, buf.String())
 		})
 	}
