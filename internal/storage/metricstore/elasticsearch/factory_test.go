@@ -55,10 +55,9 @@ func TestCreateMetricsReader(t *testing.T) {
 	f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 	require.NoError(t, err)
 	require.NotNil(t, f)
-
-	reader, err := f.CreateMetricsReader()
 	defer require.NoError(t, f.Close())
 
+	reader, err := f.CreateMetricsReader()
 	require.NoError(t, err)
 	assert.NotNil(t, reader)
 }
