@@ -44,8 +44,5 @@ func (f *Factory) CreateMetricsReader() (metricstore.Reader, error) {
 }
 
 func (f *Factory) Close() error {
-	if f.client != nil {
-		return f.client.Close()
-	}
-	return nil
+	return f.client.Close()
 }
