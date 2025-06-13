@@ -5,7 +5,6 @@ package tracestoremetrics
 
 import (
 	"context"
-	"errors"
 	"iter"
 	"testing"
 
@@ -56,7 +55,7 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 		count++
 	}
 	counters, gauges := mf.Snapshot()
-	expecteds := map[string]int64{
+	expected := map[string]int64{
 		"requests|operation=get_operations|result=ok":  1,
 		"requests|operation=get_operations|result=err": 0,
 		"requests|operation=get_trace|result=ok":       1,
@@ -82,7 +81,7 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 		"latency|operation=get_operations|result=err.P50",
 	}
 
-	checkExpectedExistingAndNonExistentCounters(t, counters, expecteds, gauges, existingKeys, nonExistentKeys)
+	checkExpectedExistingAndNonExistentCounters(t, counters, expected, gauges, existingKeys, nonExistentKeys)
 }
 
 func checkExpectedExistingAndNonExistentCounters(t *testing.T,
@@ -98,12 +97,12 @@ func checkExpectedExistingAndNonExistentCounters(t *testing.T,
 
 	for _, k := range existingKeys {
 		_, ok := actualGauges[k]
-		assert.True(t, ok)
+		assert.True(t, ok, k)
 	}
 
 	for _, k := range nonExistentKeys {
 		_, ok := actualGauges[k]
-		assert.False(t, ok)
+		assert.False(t, ok, k)
 	}
 }
 
@@ -112,13 +111,13 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 
 	mockReader := mocks.Reader{}
 	mrs := NewReaderDecorator(&mockReader, mf)
-	returningErr := errors.New("Failure")
+	returningErr := assert.AnError
 	mockReader.On("GetServices", context.Background()).
 		Return(nil, returningErr)
 	mrs.GetServices(context.Background())
 	operationQuery := tracestore.OperationQueryParams{ServiceName: "something"}
 	mockReader.On("GetOperations", context.Background(), operationQuery).
-		Return(nil, errors.New("Failure"))
+		Return(nil, returningErr)
 	mrs.GetOperations(context.Background(), operationQuery)
 	mockReader.On("GetTraces", context.Background(), []tracestore.GetTraceParams{{}}).
 		Return(emptyIter[ptrace.Traces](nil, returningErr))
@@ -164,14 +163,14 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 
 func emptyIter[T any](td []T, err error) iter.Seq2[[]T, error] {
 	return func(yield func([]T, error) bool) {
-		if err == nil {
-			for _, t := range td {
-				if !yield([]T{t}, nil) {
-					return
-				}
-			}
-		} else {
+		if err != nil {
 			yield(nil, err)
+			return
+		}
+		for _, t := range td {
+			if !yield([]T{t}, nil) {
+				return
+			}
 		}
 	}
 }
