@@ -251,6 +251,14 @@ func (s *storageExt) Shutdown(context.Context) error {
 			}
 		}
 	}
+	for _, metricfactory := range s.metricsFactories {
+		if closer, ok := metricfactory.(io.Closer); ok {
+			err := closer.Close()
+			if err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
 	return errors.Join(errs...)
 }
 

@@ -301,11 +301,25 @@ func TestPrometheus(t *testing.T) {
 }
 
 func TestElasticsearchAsMetricsBackend(t *testing.T) {
+	versionResponse, e := json.Marshal(map[string]any{
+		"Version": map[string]any{
+			"Number": "7",
+		},
+	})
+	require.NoError(t, e)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write(versionResponse)
+	}))
+	defer server.Close()
+
 	ext := makeStorageExtension(t, &Config{
 		MetricBackends: map[string]MetricBackend{
 			"foo": {
 				Elasticsearch: &esCfg.Configuration{
-					Servers: []string{"localhost:9200"},
+					Servers:  []string{server.URL},
+					LogLevel: "info",
 				},
 			},
 		},
