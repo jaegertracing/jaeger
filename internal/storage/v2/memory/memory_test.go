@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -462,31 +463,31 @@ func TestFindTraces_StatusCode(t *testing.T) {
 func TestGetOperationsWithKind(t *testing.T) {
 	tests := []struct {
 		spanKind     ptrace.SpanKind
-		expectedKind model.SpanKind
+		expectedKind string
 	}{
 		{
 			spanKind:     ptrace.SpanKindClient,
-			expectedKind: model.SpanKindClient,
+			expectedKind: strings.ToLower(ptrace.SpanKindClient.String()),
 		},
 		{
 			spanKind:     ptrace.SpanKindServer,
-			expectedKind: model.SpanKindServer,
+			expectedKind: strings.ToLower(ptrace.SpanKindServer.String()),
 		},
 		{
 			spanKind:     ptrace.SpanKindProducer,
-			expectedKind: model.SpanKindProducer,
+			expectedKind: strings.ToLower(ptrace.SpanKindProducer.String()),
 		},
 		{
 			spanKind:     ptrace.SpanKindUnspecified,
-			expectedKind: model.SpanKindUnspecified,
+			expectedKind: "",
 		},
 		{
 			spanKind:     ptrace.SpanKindInternal,
-			expectedKind: model.SpanKindInternal,
+			expectedKind: strings.ToLower(ptrace.SpanKindInternal.String()),
 		},
 		{
 			spanKind:     ptrace.SpanKindConsumer,
-			expectedKind: model.SpanKindConsumer,
+			expectedKind: strings.ToLower(ptrace.SpanKindConsumer.String()),
 		},
 	}
 	for _, test := range tests {
@@ -506,7 +507,7 @@ func TestGetOperationsWithKind(t *testing.T) {
 			require.NoError(t, err)
 			operations, err := store.GetOperations(context.Background(), tracestore.OperationQueryParams{
 				ServiceName: "service-z",
-				SpanKind:    string(test.expectedKind),
+				SpanKind:    test.expectedKind,
 			})
 			require.NoError(t, err)
 			assert.Len(t, operations, 1)
