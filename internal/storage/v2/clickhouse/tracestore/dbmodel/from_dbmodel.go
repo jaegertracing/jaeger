@@ -152,7 +152,7 @@ func convertSpanKind(sk string) ptrace.SpanKind {
 
 func convertStatusCode(sc string) ptrace.StatusCode {
 	switch sc {
-	case "OK":
+	case "Ok":
 		return ptrace.StatusCodeOk
 	case "Unset":
 		return ptrace.StatusCodeUnset

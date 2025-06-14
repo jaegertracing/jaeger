@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/stretchr/testify/assert"
@@ -19,6 +18,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/testdata"
 )
 
 type testDriver struct {
@@ -82,27 +82,6 @@ func (f *testRows[T]) Scan(dest ...any) error {
 	return err
 }
 
-type spanRow struct {
-	ID              string
-	TraceID         string
-	TraceState      string
-	ParentSpanID    string
-	Name            string
-	Kind            string
-	StartTime       time.Time
-	StatusCode      string
-	StatusMessage   string
-	RawDuration     int64
-	EventNames      []string
-	EventTimestamps []time.Time
-	LinkTraceIDs    []string
-	LinkSpanIDs     []string
-	LinkTraceStates []string
-	ServiceName     string
-	ScopeName       string
-	ScopeVersion    string
-}
-
 func TestGetTraces_QueryError(t *testing.T) {
 	conn := &testDriver{
 		t:             t,
@@ -120,32 +99,11 @@ func TestGetTraces_QueryError(t *testing.T) {
 }
 
 func TestGetTraces_ScanError(t *testing.T) {
-	now := time.Now()
 	conn := &testDriver{
 		t:             t,
 		expectedQuery: sqlSelectSpansByTraceID,
-		rows: &testRows[spanRow]{
-			data: []spanRow{
-				{
-					ID:              "0000000000000001",
-					TraceID:         "00000000000000000000000000000001",
-					TraceState:      "state1",
-					Name:            "GET /api/user",
-					Kind:            "server",
-					StartTime:       now,
-					StatusCode:      "OK",
-					StatusMessage:   "success",
-					RawDuration:     1000000000,
-					EventNames:      []string{"login"},
-					EventTimestamps: []time.Time{now},
-					LinkTraceIDs:    []string{"00000000000000000000000000000002"},
-					LinkSpanIDs:     []string{"0000000000000002"},
-					LinkTraceStates: []string{"state2"},
-					ServiceName:     "user-service",
-					ScopeName:       "auth-scope",
-					ScopeVersion:    "v1.0.0",
-				},
-			},
+		rows: &testRows[testdata.SpanRow]{
+			data:    []testdata.SpanRow{testdata.SingleSpan},
 			scanErr: assert.AnError,
 		},
 	}
@@ -160,34 +118,12 @@ func TestGetTraces_ScanError(t *testing.T) {
 }
 
 func TestGetTraces_SingleTrace(t *testing.T) {
-	//TODO: move data to fixture?
-	now := time.Now()
 	conn := &testDriver{
 		t:             t,
 		expectedQuery: sqlSelectSpansByTraceID,
-		rows: &testRows[spanRow]{
-			data: []spanRow{
-				{
-					ID:              "0000000000000001",
-					TraceID:         "00000000000000000000000000000001",
-					TraceState:      "state1",
-					Name:            "GET /api/user",
-					Kind:            "server",
-					StartTime:       now,
-					StatusCode:      "OK",
-					StatusMessage:   "success",
-					RawDuration:     1000000000,
-					EventNames:      []string{"login"},
-					EventTimestamps: []time.Time{now},
-					LinkTraceIDs:    []string{"00000000000000000000000000000002"},
-					LinkSpanIDs:     []string{"0000000000000002"},
-					LinkTraceStates: []string{"state2"},
-					ServiceName:     "user-service",
-					ScopeName:       "auth-scope",
-					ScopeVersion:    "v1.0.0",
-				},
-			},
-			scanFn: func(dest any, src spanRow) error {
+		rows: &testRows[testdata.SpanRow]{
+			data: []testdata.SpanRow{testdata.SingleSpan},
+			scanFn: func(dest any, src testdata.SpanRow) error {
 				ptrs, ok := dest.([]any)
 				if !ok {
 					return fmt.Errorf("expected []any for dest, got %T", dest)
@@ -230,9 +166,21 @@ func TestGetTraces_SingleTrace(t *testing.T) {
 		TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}),
 	})
 	traces, err := jiter.FlattenWithErrors(getTracesIter)
+
 	require.NoError(t, err)
 	require.Len(t, traces, 1)
-	//TODO: assert on the full trace
+
+	resourceSpans := traces[0].ResourceSpans()
+	require.Equal(t, 1, resourceSpans.Len())
+
+	scopeSpans := resourceSpans.At(0).ScopeSpans()
+	require.Equal(t, 1, scopeSpans.Len())
+	testdata.RequireScopeEqual(t, testdata.SingleSpan, scopeSpans.At(0).Scope())
+
+	spans := scopeSpans.At(0).Spans()
+	require.Equal(t, 1, spans.Len())
+
+	testdata.RequireSpanEqual(t, testdata.SingleSpan, spans.At(0))
 }
 
 func TestGetServices(t *testing.T) {
