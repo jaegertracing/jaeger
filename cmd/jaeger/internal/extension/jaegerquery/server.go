@@ -11,6 +11,8 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
+	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
@@ -54,25 +56,30 @@ func (*server) Dependencies() []component.ID {
 }
 
 func (s *server) Start(ctx context.Context, host component.Host) error {
-	// TODO OTel-collector does not initialize the tracer currently
-	// https://github.com/open-telemetry/opentelemetry-collector/issues/7532
-	//nolint
-	tracerProvider, err := jtracer.New("jaeger")
-	if err != nil {
-		return fmt.Errorf("could not initialize a tracer: %w", err)
-	}
-	// make sure to close the tracer if subsequent code exists with error
+	var tp trace.TracerProvider
 	success := false
-	defer func(ctx context.Context) {
-		if success {
-			s.closeTracer = tracerProvider.Close
-		} else {
-			tracerProvider.Close(ctx)
+	tp = noop.NewTracerProvider()
+	if s.config.EnableTracing {
+		// TODO OTel-collector does not initialize the tracer currently
+		// https://github.com/open-telemetry/opentelemetry-collector/issues/7532
+		//nolint
+		tracerProvider, err := jtracer.New("jaeger")
+		if err != nil {
+			return fmt.Errorf("could not initialize a tracer: %w", err)
 		}
-	}(ctx)
+		tp = tracerProvider.OTEL
+		// make sure to close the tracer if subsequent code exists with error
+		defer func(ctx context.Context) {
+			if success {
+				s.closeTracer = tracerProvider.Close
+			} else {
+				tracerProvider.Close(ctx)
+			}
+		}(ctx)
+	}
 
 	telset := telemetry.FromOtelComponent(s.telset, host)
-	telset.TracerProvider = tracerProvider.OTEL
+	telset.TracerProvider = tp
 	telset.Metrics = telset.Metrics.
 		Namespace(metrics.NSOptions{Name: "jaeger"}).
 		Namespace(metrics.NSOptions{Name: "query"})
