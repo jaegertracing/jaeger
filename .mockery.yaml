@@ -81,3 +81,7 @@ packages:
   github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore:
     config:
       all: true
+  github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse:
+    interfaces:
+      Conn: {}
+      Batch: {}
