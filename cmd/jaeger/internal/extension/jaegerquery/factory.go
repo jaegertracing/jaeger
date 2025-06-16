@@ -23,8 +23,10 @@ func NewFactory() extension.Factory {
 }
 
 func createDefaultConfig() component.Config {
+	queryOptions := app.DefaultQueryOptions()
+	queryOptions.EnableTracing = true
 	return &Config{
-		QueryOptions: app.DefaultQueryOptions(),
+		QueryOptions: queryOptions,
 	}
 }
 
