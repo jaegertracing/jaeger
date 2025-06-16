@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strings"
 	"testing"
 	"time"
 
@@ -467,15 +466,15 @@ func TestGetOperationsWithKind(t *testing.T) {
 	}{
 		{
 			spanKind:     ptrace.SpanKindClient,
-			expectedKind: strings.ToLower(ptrace.SpanKindClient.String()),
+			expectedKind: "client",
 		},
 		{
 			spanKind:     ptrace.SpanKindServer,
-			expectedKind: strings.ToLower(ptrace.SpanKindServer.String()),
+			expectedKind: "server",
 		},
 		{
 			spanKind:     ptrace.SpanKindProducer,
-			expectedKind: strings.ToLower(ptrace.SpanKindProducer.String()),
+			expectedKind: "producer",
 		},
 		{
 			spanKind:     ptrace.SpanKindUnspecified,
@@ -483,11 +482,11 @@ func TestGetOperationsWithKind(t *testing.T) {
 		},
 		{
 			spanKind:     ptrace.SpanKindInternal,
-			expectedKind: strings.ToLower(ptrace.SpanKindInternal.String()),
+			expectedKind: "internal",
 		},
 		{
 			spanKind:     ptrace.SpanKindConsumer,
-			expectedKind: strings.ToLower(ptrace.SpanKindConsumer.String()),
+			expectedKind: "consumer",
 		},
 	}
 	for _, test := range tests {
