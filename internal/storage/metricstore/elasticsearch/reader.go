@@ -67,13 +67,13 @@ func NewMetricsReader(client es.Client, logger *zap.Logger, tracer trace.TracerP
 }
 
 // GetLatencies retrieves latency metrics by delegating to GetCallRates.
-func (r MetricsReader) GetLatencies(_ context.Context, _ *metricstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
+func (MetricsReader) GetLatencies(_ context.Context, _ *metricstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
 	return nil, ErrNotImplemented
 }
 
 // GetCallRates retrieves call rate metrics from Elasticsearch.
 func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
-	timeRange, err := r.calculateTimeRange(&params.BaseQueryParameters)
+	timeRange, err := calculateTimeRange(&params.BaseQueryParameters)
 	if err != nil {
 		return nil, err
 	}
@@ -93,23 +93,23 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 
 	// Trim results to original time range
 	if metricFamily != nil {
-		metricFamily = r.trimMetricPointsBefore(metricFamily, timeRange.startTimeMillis)
+		metricFamily = trimMetricPointsBefore(metricFamily, timeRange.startTimeMillis)
 	}
 	return metricFamily, nil
 }
 
 // GetErrorRates retrieves error rate metrics by delegating to GetCallRates.
-func (r MetricsReader) GetErrorRates(_ context.Context, _ *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
+func (MetricsReader) GetErrorRates(_ context.Context, _ *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
 	return nil, ErrNotImplemented
 }
 
 // GetMinStepDuration returns the minimum step duration.
-func (r MetricsReader) GetMinStepDuration(_ context.Context, _ *metricstore.MinStepDurationQueryParameters) (time.Duration, error) {
+func (MetricsReader) GetMinStepDuration(_ context.Context, _ *metricstore.MinStepDurationQueryParameters) (time.Duration, error) {
 	return minStep, nil
 }
 
 // Add this helper method
-func (r MetricsReader) trimMetricPointsBefore(mf *metrics.MetricFamily, startMillis int64) *metrics.MetricFamily {
+func trimMetricPointsBefore(mf *metrics.MetricFamily, startMillis int64) *metrics.MetricFamily {
 	for _, metric := range mf.Metrics {
 		points := metric.MetricPoints
 		// Find first index where point >= startMillis
@@ -128,14 +128,14 @@ func (r MetricsReader) trimMetricPointsBefore(mf *metrics.MetricFamily, startMil
 }
 
 // buildQuery constructs the Elasticsearch bool query.
-func (r MetricsReader) buildQuery(params *metricstore.BaseQueryParameters, timeRange TimeRange) *elasticv7.BoolQuery {
+func (MetricsReader) buildQuery(params *metricstore.BaseQueryParameters, timeRange TimeRange) *elasticv7.BoolQuery {
 	boolQuery := elasticv7.NewBoolQuery()
 
 	serviceNameQuery := elasticv7.NewTermsQuery("process.serviceName", buildInterfaceSlice(params.ServiceNames)...)
 	boolQuery.Filter(serviceNameQuery)
 
 	// Span kind filter
-	spanKindQuery := r.buildSpanKindQuery(params.SpanKinds)
+	spanKindQuery := buildSpanKindQuery(params.SpanKinds)
 	nestedTagsQuery := elasticv7.NewNestedQuery("tags",
 		elasticv7.NewBoolQuery().
 			Must(
@@ -151,9 +151,9 @@ func (r MetricsReader) buildQuery(params *metricstore.BaseQueryParameters, timeR
 		Format("epoch_millis")
 	boolQuery.Filter(rangeQuery)
 
-	//// Corresponding ES query:
-	//{
-	//"query": {
+	// Corresponding ES query:
+	// {
+	// "query": {
 	//	"bool": {
 	//		"filter": [
 	//			{"terms": {"process.serviceName": ["name1"] }},
@@ -171,13 +171,13 @@ func (r MetricsReader) buildQuery(params *metricstore.BaseQueryParameters, timeR
 	//				"gte": "now-'lookback'-5m",
 	//				"lte": "now",
 	//				"format": "epoch_millis"}}}]}
-	//},
+	// },
 
 	return boolQuery
 }
 
 // buildSpanKindQuery constructs the query for span kinds.
-func (r MetricsReader) buildSpanKindQuery(spanKinds []string) elasticv7.Query {
+func buildSpanKindQuery(spanKinds []string) elasticv7.Query {
 	querySpanKinds := normalizeSpanKinds(spanKinds)
 	if len(querySpanKinds) == 1 {
 		return elasticv7.NewTermQuery("tags.value", querySpanKinds[0])
@@ -191,7 +191,7 @@ func (r MetricsReader) buildSpanKindQuery(spanKinds []string) elasticv7.Query {
 }
 
 // buildAggregations constructs the GetCallRate aggregations.
-func (r MetricsReader) buildCallRateAggregations(params *metricstore.CallRateQueryParameters, timeRange TimeRange) elasticv7.Aggregation {
+func (MetricsReader) buildCallRateAggregations(params *metricstore.CallRateQueryParameters, timeRange TimeRange) elasticv7.Aggregation {
 	fixedIntervalString := strconv.FormatInt(params.Step.Milliseconds(), 10) + "ms"
 	dateHistoAgg := elasticv7.NewDateHistogramAggregation().
 		Field("startTimeMillis").
@@ -224,7 +224,7 @@ func (r MetricsReader) buildCallRateAggregations(params *metricstore.CallRateQue
 		double intervalSeconds = params.interval_ms / 1000.0;
 		return slopePerBucket / intervalSeconds;
     `
-	scriptParams := map[string]interface{}{
+	scriptParams := map[string]any{
 		"window":      10,
 		"interval_ms": params.Step.Milliseconds(),
 	}
@@ -233,8 +233,8 @@ func (r MetricsReader) buildCallRateAggregations(params *metricstore.CallRateQue
 		Script(elasticv7.NewScript(painlessScriptSource).Lang("painless").Params(scriptParams)).
 		Window(10)
 
-	//Corresponding AGG ES query:
-	//"aggs": {
+	// Corresponding AGG ES query:
+	// "aggs": {
 	//	"results_buckets": {
 	//		"date_histogram": {
 	//			"field": "startTimeMillis",
@@ -336,8 +336,8 @@ func normalizeSpanKind(kind string) string {
 }
 
 // buildInterfaceSlice converts []string to []interface{} for elastic terms query.
-func buildInterfaceSlice(s []string) []interface{} {
-	ifaceSlice := make([]interface{}, len(s))
+func buildInterfaceSlice(s []string) []any {
+	ifaceSlice := make([]any, len(s))
 	for i, v := range s {
 		ifaceSlice[i] = v
 	}
@@ -345,7 +345,7 @@ func buildInterfaceSlice(s []string) []interface{} {
 }
 
 // calculateTimeRange computes the time range for the query.
-func (r MetricsReader) calculateTimeRange(params *metricstore.BaseQueryParameters) (TimeRange, error) {
+func calculateTimeRange(params *metricstore.BaseQueryParameters) (TimeRange, error) {
 	endTime := *params.EndTime
 	startTime := endTime.Add(-*params.Lookback)
 	extendedStartTime := startTime.Add(-5 * time.Minute)
@@ -357,7 +357,7 @@ func (r MetricsReader) calculateTimeRange(params *metricstore.BaseQueryParameter
 	}, nil
 }
 
-func (r MetricsReader) buildQueryJSON(boolQuery *elasticv7.BoolQuery, aggQuery elasticv7.Aggregation) (string, error) {
+func (MetricsReader) buildQueryJSON(boolQuery *elasticv7.BoolQuery, aggQuery elasticv7.Aggregation) (string, error) {
 	// Combine query and aggregations into a search source
 	searchSource := elasticv7.NewSearchSource().
 		Query(boolQuery).

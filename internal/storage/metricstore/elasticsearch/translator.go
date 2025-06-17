@@ -103,7 +103,7 @@ func (d Translator) processOperationBucket(bucket *elastic.AggregationBucketKeyI
 }
 
 // toDomainLabels converts the bucket key to Jaeger metric labels.
-func (d Translator) toDomainLabels(key string) []*metrics.Label {
+func (Translator) toDomainLabels(key string) []*metrics.Label {
 	return []*metrics.Label{
 		{
 			Name:  "operation",
@@ -113,7 +113,7 @@ func (d Translator) toDomainLabels(key string) []*metrics.Label {
 }
 
 // extractBuckets retrieves date histogram buckets from Elasticsearch results.
-func (d Translator) extractBuckets(result *elastic.SearchResult) ([]*elastic.AggregationBucketHistogramItem, error) {
+func (Translator) extractBuckets(result *elastic.SearchResult) ([]*elastic.AggregationBucketHistogramItem, error) {
 	agg, found := result.Aggregations.DateHistogram(aggName)
 	if !found {
 		return nil, errors.New("results_buckets aggregation not found")
@@ -153,7 +153,7 @@ func (d Translator) toDomainMetricPoint(bucket *elastic.AggregationBucketHistogr
 }
 
 // toDomainTimestamp converts milliseconds since epoch to protobuf Timestamp.
-func (d Translator) toDomainTimestamp(millis int64) *types.Timestamp {
+func (Translator) toDomainTimestamp(millis int64) *types.Timestamp {
 	timestamp := time.Unix(0, millis*int64(time.Millisecond))
 	protoTimestamp, err := types.TimestampProto(timestamp)
 	if err != nil {
@@ -163,7 +163,7 @@ func (d Translator) toDomainTimestamp(millis int64) *types.Timestamp {
 }
 
 // toDomainMetricPointValue converts a float64 value to Jaeger's gauge metric point.
-func (d Translator) toDomainMetricPointValue(value float64) *metrics.MetricPoint_GaugeValue {
+func (Translator) toDomainMetricPointValue(value float64) *metrics.MetricPoint_GaugeValue {
 	// Round to 2 decimal places
 	roundedValue := math.Round(value*100) / 100
 	return &metrics.MetricPoint_GaugeValue{

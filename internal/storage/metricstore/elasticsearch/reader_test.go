@@ -312,7 +312,7 @@ func startMockEsServer(t *testing.T, wantEsQuery string, responseFile string) *h
 		w.WriteHeader(http.StatusOK)
 
 		// Handle initial ping request
-		if r.Method == "HEAD" || r.URL.Path == "/" {
+		if r.Method == http.MethodHead || r.URL.Path == "/" {
 			sendResponse(t, w, mockEsValidResponse)
 			return
 		}
@@ -320,14 +320,14 @@ func startMockEsServer(t *testing.T, wantEsQuery string, responseFile string) *h
 		// Read request body
 		body, err := io.ReadAll(r.Body)
 		t.Logf("Body: %s", string(body))
-		require.NoError(t, err, "Failed to read request body")
+		assert.NoError(t, err, "Failed to read request body")
 		defer r.Body.Close()
 
 		// Validate query if provided
 		if wantEsQuery != "" {
-			var expected, actual map[string]interface{}
-			require.NoError(t, json.Unmarshal([]byte(wantEsQuery), &expected))
-			require.NoError(t, json.Unmarshal(body, &actual))
+			var expected, actual map[string]any
+			assert.NoError(t, json.Unmarshal([]byte(wantEsQuery), &expected))
+			assert.NoError(t, json.Unmarshal(body, &actual))
 			normalizeScripts(expected)
 			normalizeScripts(actual)
 
@@ -338,9 +338,9 @@ func startMockEsServer(t *testing.T, wantEsQuery string, responseFile string) *h
 	}))
 }
 
-func normalizeScripts(m interface{}) {
-	if m, ok := m.(map[string]interface{}); ok {
-		if script, ok := m["script"].(map[string]interface{}); ok {
+func normalizeScripts(m any) {
+	if m, ok := m.(map[string]any); ok {
+		if script, ok := m["script"].(map[string]any); ok {
 			if source, ok := script["source"].(string); ok {
 				// Remove whitespace and newlines for comparison
 				script["source"] = strings.Join(strings.Fields(source), " ")
@@ -352,16 +352,16 @@ func normalizeScripts(m interface{}) {
 	}
 }
 
-func compareQueryStructure(t *testing.T, expected, actual map[string]interface{}) {
+func compareQueryStructure(t *testing.T, expected, actual map[string]any) {
 	// Compare the bool query structure (without time ranges)
-	if expectedQuery, ok := expected["query"].(map[string]interface{}); ok {
-		actualQuery := actual["query"].(map[string]interface{})
+	if expectedQuery, ok := expected["query"].(map[string]any); ok {
+		actualQuery := actual["query"].(map[string]any)
 		compareBoolQuery(t, expectedQuery, actualQuery)
 	}
 
 	// Compare aggregations
-	if expectedAggs, ok := expected["aggregations"].(map[string]interface{}); ok {
-		actualAggs := actual["aggregations"].(map[string]interface{})
+	if expectedAggs, ok := expected["aggregations"].(map[string]any); ok {
+		actualAggs := actual["aggregations"].(map[string]any)
 		// For convenience, we remove date_histogram for easier comparison here because date_histogram includes time bounds which can vary by a few milliseconds
 		removeHistogramBounds(expectedAggs)
 		removeHistogramBounds(actualAggs)
@@ -371,47 +371,47 @@ func compareQueryStructure(t *testing.T, expected, actual map[string]interface{}
 }
 
 // Simple helper to remove extended_bounds from any date_histogram
-func removeHistogramBounds(aggs map[string]interface{}) {
+func removeHistogramBounds(aggs map[string]any) {
 	for _, agg := range aggs {
-		aggMap, ok := agg.(map[string]interface{})
+		aggMap, ok := agg.(map[string]any)
 		if !ok {
 			continue
 		}
 
 		// Remove from date_histogram if present
-		if histo, ok := aggMap["date_histogram"].(map[string]interface{}); ok {
+		if histo, ok := aggMap["date_histogram"].(map[string]any); ok {
 			delete(histo, "extended_bounds")
 		}
 
 		// Handle nested aggregations
-		if nested, ok := aggMap["aggregations"].(map[string]interface{}); ok {
+		if nested, ok := aggMap["aggregations"].(map[string]any); ok {
 			removeHistogramBounds(nested)
 		}
 	}
 }
 
-func compareBoolQuery(t *testing.T, expected, actual map[string]interface{}) {
-	expectedBool, eok := expected["bool"].(map[string]interface{})
-	actualBool, aok := actual["bool"].(map[string]interface{})
+func compareBoolQuery(t *testing.T, expected, actual map[string]any) {
+	expectedBool, eok := expected["bool"].(map[string]any)
+	actualBool, aok := actual["bool"].(map[string]any)
 
 	if !eok || !aok {
 		return
 	}
 
 	// Compare filters (excluding time ranges)
-	if expectedFilters, ok := expectedBool["filter"].([]interface{}); ok {
-		actualFilters := actualBool["filter"].([]interface{})
+	if expectedFilters, ok := expectedBool["filter"].([]any); ok {
+		actualFilters := actualBool["filter"].([]any)
 		compareFilters(t, expectedFilters, actualFilters)
 	}
 }
 
-func compareFilters(t *testing.T, expected, actual []interface{}) {
+func compareFilters(t *testing.T, expected, actual []any) {
 	// We'll compare the same number of filters, but skip time ranges
 	assert.Len(t, actual, len(expected), "Different number of filters")
 
 	for i := range expected {
-		expectedFilter := expected[i].(map[string]interface{})
-		actualFilter := actual[i].(map[string]interface{})
+		expectedFilter := expected[i].(map[string]any)
+		actualFilter := actual[i].(map[string]any)
 
 		// Skip range queries entirely
 		if _, isRange := expectedFilter["range"]; isRange {

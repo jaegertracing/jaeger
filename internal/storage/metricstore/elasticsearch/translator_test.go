@@ -10,7 +10,7 @@ import (
 
 	"github.com/gogo/protobuf/types"
 	"github.com/olivere/elastic"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
@@ -18,7 +18,7 @@ import (
 
 func TestNewTranslator(t *testing.T) {
 	translator := NewTranslator()
-	assert.NotNil(t, translator)
+	require.NotNil(t, translator)
 }
 
 func TestToMetricsFamily(t *testing.T) {
@@ -79,11 +79,11 @@ func TestToMetricsFamily(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := translator.ToMetricsFamily(tt.params, tt.result)
 			if tt.err != "" {
-				assert.ErrorContains(t, err, tt.err)
+				require.ErrorContains(t, err, tt.err)
 				return
 			}
-			assert.NoError(t, err)
-			assert.Equal(t, tt.expected, got)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, got)
 		})
 	}
 }
@@ -157,11 +157,11 @@ func TestToDomainMetrics(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := translator.toDomainMetrics(tt.params, tt.result)
 			if tt.err != "" {
-				assert.ErrorContains(t, err, tt.err)
+				require.ErrorContains(t, err, tt.err)
 				return
 			}
-			assert.NoError(t, err)
-			assert.Equal(t, tt.expected, got)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, got)
 		})
 	}
 }
