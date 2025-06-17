@@ -294,11 +294,20 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) 
 		Size(0).
 		Aggregation(aggName, p.aggQuery).
 		Do(ctx)
+
 	if err != nil {
 		err = fmt.Errorf("failed executing metrics query: %w", err)
 		logErrorToSpan(span, err)
 		return &metrics.MetricFamily{}, err
 	}
+
+	result, err := json.MarshalIndent(searchResult, "", "  ")
+
+	if err != nil {
+		return &metrics.MetricFamily{}, fmt.Errorf("failed to marshal query to JSON: %w", err)
+	}
+
+	r.logger.Debug("Elasticsearch metricsreader query results", zap.String("results", string(result)), zap.String("query", queryString))
 
 	return r.metricsTranslator.ToMetricsFamily(
 		p,
