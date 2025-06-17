@@ -1,8 +1,10 @@
+// Copyright (c) 2025 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package elasticsearch
 
 import (
 	"encoding/json"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"testing"
 	"time"
 
@@ -11,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
 
 func TestNewTranslator(t *testing.T) {

@@ -362,7 +362,7 @@ func compareQueryStructure(t *testing.T, expected, actual map[string]interface{}
 	// Compare aggregations
 	if expectedAggs, ok := expected["aggregations"].(map[string]interface{}); ok {
 		actualAggs := actual["aggregations"].(map[string]interface{})
-		//For convenience, we remove date_histogram for easier comparison here because date_histogram includes time bounds which can vary by a few milliseconds
+		// For convenience, we remove date_histogram for easier comparison here because date_histogram includes time bounds which can vary by a few milliseconds
 		removeHistogramBounds(expectedAggs)
 		removeHistogramBounds(actualAggs)
 
