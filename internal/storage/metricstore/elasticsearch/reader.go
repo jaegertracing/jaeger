@@ -6,17 +6,17 @@ package elasticsearch
 import (
 	"context"
 	"errors"
-	"github.com/jaegertracing/jaeger/internal/storage/metricstore/elasticsearch/translator"
 	"strconv"
 	"strings"
 	"time"
 
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	elasticv7 "github.com/olivere/elastic/v7"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/metricstore/elasticsearch/translator"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
 
@@ -92,7 +92,6 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 		metricFamily = r.trimMetricPointsBefore(metricFamily, timeRange.startTimeMillis)
 	}
 	return metricFamily, nil
-
 }
 
 // GetErrorRates retrieves error rate metrics by delegating to GetCallRates.
@@ -148,6 +147,28 @@ func (r MetricsReader) buildQuery(params *metricstore.BaseQueryParameters, timeR
 		Format("epoch_millis")
 	boolQuery.Filter(rangeQuery)
 
+	//// Corresponding ES query:
+	//{
+	//"query": {
+	//	"bool": {
+	//		"filter": [
+	//			{"terms": {"process.serviceName": ["name1"] }},
+	//			{
+	//			"nested": {
+	//				"path": "tags",
+	//				"query": {
+	//					"bool": {
+	//						"must": [
+	//						{"term": {"tags.key": "span.kind"}},
+	//						{"term": {"tags.value": "server"}}]}}}},
+	//			{
+	//			"range": {
+	//			"startTimeMillis": {
+	//				"gte": "now-'lookback'-5m",
+	//				"lte": "now",
+	//				"format": "epoch_millis"}}}]}
+	//},
+
 	return boolQuery
 }
 
@@ -179,23 +200,23 @@ func (r MetricsReader) buildCallRateAggregations(params *metricstore.CallRateQue
 	// Painless script to calculate the rate per second using linear regression.
 	painlessScriptSource := `
 		if (values == null || values.length < 2) return 0.0;
-		double n = values.length; 
+		double n = values.length;
 		double sumX = 0.0;
 		double sumY = 0.0;
 		double sumXY = 0.0;
 		double sumX2 = 0.0;
-		for (int i = 0; i < n; i++) { 
+		for (int i = 0; i < n; i++) {
 			double x = i;
 			double y = values[i];
 			sumX += x;
 			sumY += y;
 			sumXY += x * y;
 			sumX2 += x * x;
-		} 
+		}
 		double numerator = n * sumXY - sumX * sumY;
 		double denominator = n * sumX2 - sumX * sumX;
 		if (Math.abs(denominator) < 1e-10) return 0.0;
-		double slopePerBucket = numerator / denominator; 
+		double slopePerBucket = numerator / denominator;
 		double intervalSeconds = params.interval_ms / 1000.0;
 		return slopePerBucket / intervalSeconds;
     `

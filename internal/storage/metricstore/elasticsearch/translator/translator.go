@@ -1,3 +1,6 @@
+// Copyright (c) 2025 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package translator
 
 import (
@@ -7,8 +10,9 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/types"
-	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/olivere/elastic"
+
+	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 )
 
 const (
