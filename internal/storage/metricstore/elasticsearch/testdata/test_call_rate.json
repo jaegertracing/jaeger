@@ -1,0 +1,43 @@
+{
+  "took": 5,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": 100,
+    "max_score": 0.0,
+    "hits": []
+  },
+  "aggregations": {
+    "results_buckets": {
+      "buckets": [
+        {
+          "key_as_string": "1749894900000",
+          "key": 1749894900000,
+          "doc_count": 50,
+          "cumulative_requests": {
+            "value": 50
+          },
+          "results": {
+            "value": 5.0
+          }
+        },
+        {
+          "key_as_string": "1749894960000",
+          "key": 1749894960000,
+          "doc_count": 60,
+          "cumulative_requests": {
+            "value": 110
+          },
+          "results": {
+            "value": 6.0
+          }
+        }
+      ]
+    }
+  }
+}

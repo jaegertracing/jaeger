@@ -1,0 +1,46 @@
+{
+  "took": 5,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": 100,
+    "max_score": 0.0,
+    "hits": []
+  },
+  "aggregations": {
+    "by_service": {
+      "buckets": [
+        {
+          "key": "driver",
+          "by_operation": {
+            "buckets": [
+              {
+                "key": "/FindNearest",
+                "results_buckets": {
+                  "buckets": [
+                    {
+                      "key_as_string": "2025-06-13T11:15:00.000Z",
+                      "key": 1749894900000,
+                      "doc_count": 30,
+                      "cumulative_requests": {
+                        "value": 30
+                      },
+                      "results": {
+                        "value": 3.0
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

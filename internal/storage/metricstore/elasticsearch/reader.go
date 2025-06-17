@@ -6,6 +6,9 @@ package elasticsearch
 import (
 	"context"
 	"errors"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"strconv"
 	"strings"
 	"time"
@@ -281,6 +284,7 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) 
 		Size(0).
 		Aggregation(dateHistAggName, p.aggQuery).
 		Do(ctx)
+
 	if err != nil {
 		return nil, err
 	}
@@ -328,4 +332,19 @@ func (r MetricsReader) calculateTimeRange(params *metricstore.BaseQueryParameter
 		endTimeMillis:           endTime.UnixMilli(),
 		extendedStartTimeMillis: extendedStartTime.UnixMilli(),
 	}, nil
+}
+
+func startSpanForQuery(ctx context.Context, metricName, query string, tp trace.Tracer) (context.Context, trace.Span) {
+	ctx, span := tp.Start(ctx, metricName)
+	span.SetAttributes(
+		otelsemconv.DBQueryTextKey.String(query),
+		otelsemconv.DBSystemKey.String("elasticsearch"),
+		attribute.Key("component").String("es-metricstore"),
+	)
+	return ctx, span
+}
+
+func logErrorToSpan(span trace.Span, err error) {
+	span.RecordError(err)
+	span.SetStatus(codes.Error, err.Error())
 }

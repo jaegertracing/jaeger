@@ -96,7 +96,6 @@ const (
 	mockEsValidResponse           = TestPrefix + "/test_valid_es.json"
 	mockCallRateResponse          = TestPrefix + "/test_call_rate.json"
 	mockCallRateOperationResponse = TestPrefix + "/test_call_rate_operation.json"
-	mockLatencyResponse           = TestPrefix + "/test_latencies.json"
 	mockEmptyResponse             = TestPrefix + "/test_empty.json"
 	mockErrorResponse             = TestPrefix + "/test_error_es.json"
 )
