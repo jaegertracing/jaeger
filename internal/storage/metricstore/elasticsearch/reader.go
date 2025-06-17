@@ -19,7 +19,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
 
@@ -61,8 +60,8 @@ func NewMetricsReader(client es.Client, logger *zap.Logger, tracer trace.TracerP
 		client:            client,
 		logger:            logger,
 		tracer:            tracer.Tracer("elasticsearch-metricstore"),
-		metricsTranslator: translator.New("span_name"),
-	}, nil
+		metricsTranslator: translator.New(),
+	}
 }
 
 // GetLatencies retrieves latency metrics by delegating to GetCallRates.
@@ -85,7 +84,7 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 		dateHistoAgg:        r.buildCallRateAggregations(params, timeRange),
 	}
 
-	metricFamily, err := r.executeSearch(ctx, metricsParams, false)
+	metricFamily, err := r.executeSearch(ctx, metricsParams)
 	if err != nil {
 		return nil, err
 	}
