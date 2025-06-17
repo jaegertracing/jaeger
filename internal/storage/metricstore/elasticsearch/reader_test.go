@@ -323,7 +323,7 @@ func startMockEsServer(t *testing.T, wantEsQuery string, responseFile string) *h
 		require.NoError(t, err, "Failed to read request body")
 		defer r.Body.Close()
 
-		//Validate query if provided
+		// Validate query if provided
 		if wantEsQuery != "" {
 			var expected, actual map[string]interface{}
 			require.NoError(t, json.Unmarshal([]byte(wantEsQuery), &expected))
@@ -362,6 +362,7 @@ func compareQueryStructure(t *testing.T, expected, actual map[string]interface{}
 	// Compare aggregations
 	if expectedAggs, ok := expected["aggregations"].(map[string]interface{}); ok {
 		actualAggs := actual["aggregations"].(map[string]interface{})
+		//For convenience, we remove date_histogram for easier comparison here because date_histogram includes time bounds which can vary by a few milliseconds
 		removeHistogramBounds(expectedAggs)
 		removeHistogramBounds(actualAggs)
 

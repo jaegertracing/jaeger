@@ -8,20 +8,20 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	"strconv"
 	"strings"
 	"time"
 
 	elasticv7 "github.com/olivere/elastic/v7"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 var ErrNotImplemented = errors.New("metrics querying is currently not implemented yet")
@@ -299,7 +299,6 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) 
 		Size(0).
 		Aggregation(aggName, p.aggQuery).
 		Do(ctx)
-
 	if err != nil {
 		err = fmt.Errorf("failed executing metrics query: %w", err)
 		logErrorToSpan(span, err)
@@ -307,7 +306,6 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) 
 	}
 
 	result, err := json.MarshalIndent(searchResult, "", "  ")
-
 	if err != nil {
 		return &metrics.MetricFamily{}, fmt.Errorf("failed to marshal query to JSON: %w", err)
 	}
