@@ -25,6 +25,8 @@ const (
 	suffixSnifferTLSEnabled              = ".sniffer-tls-enabled"
 	suffixTokenPath                      = ".token-file"
 	suffixPasswordPath                   = ".password-file"
+	suffixAPIKey                         = ".api-key"
+	suffixAPIKeyFile                     = ".api-key-file" // #nosec G101
 	suffixServerURLs                     = ".server-urls"
 	suffixRemoteReadClusters             = ".remote-read-clusters"
 	suffixMaxSpanAge                     = ".max-span-age"
@@ -151,6 +153,14 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixPasswordPath,
 		nsConfig.Authentication.BasicAuthentication.PasswordFilePath,
 		"Path to a file containing password. This file is watched for changes.")
+	flagSet.String(
+		nsConfig.namespace+suffixAPIKey,
+		nsConfig.Authentication.APIKeyAuthentication.APIKey,
+		"The API key required by Elasticsearch")
+	flagSet.String(
+		nsConfig.namespace+suffixAPIKeyFile,
+		nsConfig.Authentication.APIKeyAuthentication.FilePath,
+		"Path to a file containing API key. This file is watched for changes.")
 	flagSet.Bool(
 		nsConfig.namespace+suffixSniffer,
 		nsConfig.Sniffing.Enabled,
@@ -322,6 +332,8 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Authentication.BasicAuthentication.Password = v.GetString(cfg.namespace + suffixPassword)
 	cfg.Authentication.BearerTokenAuthentication.FilePath = v.GetString(cfg.namespace + suffixTokenPath)
 	cfg.Authentication.BasicAuthentication.PasswordFilePath = v.GetString(cfg.namespace + suffixPasswordPath)
+	cfg.Authentication.APIKeyAuthentication.APIKey = v.GetString(cfg.namespace + suffixAPIKey)
+	cfg.Authentication.APIKeyAuthentication.FilePath = v.GetString(cfg.namespace + suffixAPIKeyFile)
 	cfg.Sniffing.Enabled = v.GetBool(cfg.namespace + suffixSniffer)
 	cfg.Sniffing.UseHTTPS = v.GetBool(cfg.namespace + suffixSnifferTLSEnabled)
 	cfg.DisableHealthCheck = v.GetBool(cfg.namespace + suffixDisableHealthCheck)
@@ -424,6 +436,15 @@ func DefaultConfig() config.Configuration {
 			BasicAuthentication: config.BasicAuthentication{
 				Username: "",
 				Password: "",
+			},
+			APIKeyAuthentication: config.APIKeyAuthentication{
+				APIKey:           "",
+				FilePath:         "",
+				AllowFromContext: false,
+			},
+			BearerTokenAuthentication: config.BearerTokenAuthentication{
+				FilePath:         "",
+				AllowFromContext: false,
 			},
 		},
 		Sniffing: config.Sniffing{

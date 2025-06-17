@@ -2,6 +2,60 @@
 
 This provides a storage backend for Jaeger using [Elasticsearch](https://www.elastic.co). More information is available on the [Jaeger documentation website](https://www.jaegertracing.io/docs/latest/deployment/#elasticsearch).
 
+## Authentication
+
+### Basic Authentication
+Basic username/password authentication is supported by setting the appropriate flags or environment variables:
+```
+--es.username=elastic
+--es.password=changeme
+```
+
+### API Key Authentication
+API key authentication is supported as an alternative to basic authentication. This enables seamless key rotation without restarting Jaeger:
+```
+--es.api-key=<base64-encoded-api-key>
+```
+
+You can also load the API key from a file, which will be watched for changes to support rotation:
+```
+--es.api-key-file=/path/to/api-key-file
+```
+
+To generate an API key in Elasticsearch:
+```
+curl -X POST -u elastic:<elastic-password> -H "Content-Type: application/json" -d '{
+  "name": "my-api-key",
+  "expiration": "10d",
+  "role_descriptors": {
+    "my-role": {
+      "cluster": ["all"],
+      "indices": [
+        {
+          "names": ["jaeger-*"],
+          "privileges": ["read", "write"]
+        }
+      ]
+    }
+  }
+}' "<elasticsearch-url>/_security/api_key"
+
+```
+
+The response will include the API key in the format:
+```json
+{
+  "id": "VuaCfGcBCdbkQm-e5aOx",
+  "name": "jaeger-api-key",
+  "expiration": 1623940473549,
+  "api_key": "ui2lp2axTNmsyakw9tvNnw"
+}
+```
+
+You'll need to Base64 encode the `id:api_key` value before using it with Jaeger
+
+
+
 ## Indices
 Indices will be created depending on the spans timestamp. i.e., a span with
 a timestamp on 2017/04/21 will be stored in an index named `jaeger-2017-04-21`.

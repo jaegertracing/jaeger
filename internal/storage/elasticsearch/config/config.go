@@ -195,6 +195,7 @@ type BulkProcessing struct {
 type Authentication struct {
 	BasicAuthentication       BasicAuthentication       `mapstructure:"basic"`
 	BearerTokenAuthentication BearerTokenAuthentication `mapstructure:"bearer_token"`
+	APIKeyAuthentication      APIKeyAuthentication      `mapstructure:"api_key"`
 }
 
 type BasicAuthentication struct {
@@ -217,6 +218,15 @@ type BearerTokenAuthentication struct {
 	// FilePath contains the path to a file containing a bearer token.
 	FilePath string `mapstructure:"file_path"`
 	// AllowTokenFromContext, if set to true, enables reading bearer token from the context.
+	AllowFromContext bool `mapstructure:"from_context"`
+}
+
+type APIKeyAuthentication struct {
+	// APIKey is the base64 encoded API key (in the format of "id:api_key")
+	APIKey string `mapstructure:"api_key" json:"-"`
+	// FilePath contains the path to a file containing an API key.
+	FilePath string `mapstructure:"file_path"`
+	// AllowFromContext, if set to true, enables reading API key from the context.
 	AllowFromContext bool `mapstructure:"from_context"`
 }
 
@@ -484,11 +494,13 @@ func (c *Configuration) TagKeysAsFields() ([]string, error) {
 
 // getConfigOptions wraps the configs to feed to the ElasticSearch client init
 func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
-	// Disable health check when token from context is allowed, this is because at this time
-	// we don'r have a valid token to do the check ad if we don't disable the check the service that
+	// Disable health check when token/API key from context is allowed, this is because at this time
+	// we don't have a valid token/API key to do the check and if we don't disable the check the service that
 	// uses this won't start.
 	// Also disable health check when it was requested (health check has problems on AWS OpenSearch)
-	disableHealthCheck := c.Authentication.BearerTokenAuthentication.AllowFromContext || c.DisableHealthCheck
+	disableHealthCheck := c.Authentication.BearerTokenAuthentication.AllowFromContext ||
+		c.Authentication.APIKeyAuthentication.AllowFromContext ||
+		c.DisableHealthCheck
 	options := []elastic.ClientOptionFunc{
 		elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffing.Enabled),
 		elastic.SetHealthcheck(!disableHealthCheck),
@@ -501,6 +513,30 @@ func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger
 	}
 	options = append(options, elastic.SetHttpClient(httpClient))
 
+	// API Key authentication
+	if c.Authentication.APIKeyAuthentication.APIKey != "" && c.Authentication.APIKeyAuthentication.FilePath != "" {
+		return nil, errors.New("both APIKey and FilePath are set for API Key authentication")
+	}
+
+	if c.Authentication.APIKeyAuthentication.FilePath != "" {
+		apiKeyFromFile, err := loadTokenFromFile(c.Authentication.APIKeyAuthentication.FilePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load API key from file: %w", err)
+		}
+		c.Authentication.APIKeyAuthentication.APIKey = apiKeyFromFile
+	}
+
+	if c.Authentication.APIKeyAuthentication.APIKey != "" {
+		options = append(options, elastic.SetHeaders(http.Header{"Authorization": []string{"ApiKey " + c.Authentication.APIKeyAuthentication.APIKey}}))
+		transport, err := GetHTTPRoundTripper(ctx, c, logger)
+		if err != nil {
+			return nil, err
+		}
+		httpClient.Transport = transport
+		return options, nil
+	}
+
+	// Basic authentication
 	if c.Authentication.BasicAuthentication.Password != "" && c.Authentication.BasicAuthentication.PasswordFilePath != "" {
 		return nil, errors.New("both Password and PasswordFilePath are set")
 	}
@@ -591,6 +627,27 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 		transport = httpTransport
 	}
 
+	apiKey := c.Authentication.APIKeyAuthentication.APIKey
+	if c.Authentication.APIKeyAuthentication.FilePath != "" {
+		if c.Authentication.APIKeyAuthentication.AllowFromContext {
+			logger.Warn("API key file and API key propagation are both enabled, API key from file won't be used")
+		}
+		apiKeyFromFile, err := loadTokenFromFile(c.Authentication.APIKeyAuthentication.FilePath)
+		if err != nil {
+			return nil, err
+		}
+		apiKey = apiKeyFromFile
+	}
+
+	if apiKey != "" || c.Authentication.APIKeyAuthentication.AllowFromContext {
+		transport = &apiKeyRoundTripper{
+			Transport:       httpTransport,
+			OverrideFromCtx: c.Authentication.APIKeyAuthentication.AllowFromContext,
+			StaticAPIKey:    apiKey,
+		}
+		return transport, nil
+	}
+
 	token := ""
 	if c.Authentication.BearerTokenAuthentication.FilePath != "" {
 		if c.Authentication.BearerTokenAuthentication.AllowFromContext {
@@ -610,6 +667,59 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 		}
 	}
 	return transport, nil
+}
+
+// apiKeyRoundTripper is a http.RoundTripper that injects an ApiKey into outgoing requests.
+type apiKeyRoundTripper struct {
+	Transport       http.RoundTripper
+	StaticAPIKey    string
+	OverrideFromCtx bool
+}
+
+// RoundTrip implements the http.RoundTripper interface
+func (rt *apiKeyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	req = cloneRequest(req)
+	apiKey := rt.StaticAPIKey
+	if rt.OverrideFromCtx {
+		if apiKeyFromCtx, ok := apiKeyFromContext(req.Context()); ok {
+			apiKey = apiKeyFromCtx
+		}
+	}
+
+	if apiKey != "" {
+		// Set the Authorization header with the ApiKey prefix
+		req.Header.Set("Authorization", "ApiKey "+apiKey)
+	}
+
+	return rt.Transport.RoundTrip(req)
+}
+
+// cloneRequest returns a clone of the provided request. The clone is a shallow copy
+// of the struct and its Header map.
+func cloneRequest(r *http.Request) *http.Request {
+	// Shallow copy of the struct
+	clone := new(http.Request)
+	*clone = *r
+	// Deep copy of the Header
+	clone.Header = make(http.Header, len(r.Header))
+	for k, s := range r.Header {
+		clone.Header[k] = append([]string(nil), s...)
+	}
+	return clone
+}
+
+// apiKeyFromContext retrieves the API key from the context.
+// This allows API keys to be dynamically reloaded without restarting the service.
+func apiKeyFromContext(ctx context.Context) (string, bool) {
+	type apiKeyContextKey struct{}
+	val := ctx.Value(apiKeyContextKey{})
+	if val == nil {
+		return "", false
+	}
+	if apiKey, ok := val.(string); ok {
+		return apiKey, true
+	}
+	return "", false
 }
 
 func loadTokenFromFile(path string) (string, error) {
