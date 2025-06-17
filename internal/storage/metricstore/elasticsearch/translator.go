@@ -62,12 +62,12 @@ func (d Translator) toDomainMetrics(m MetricsQueryParams, result *elastic.Search
 	}
 
 	var metricsData []*metrics.Metric
-	for i, bucket := range agg.Buckets {
+	for _, bucket := range agg.Buckets {
 		metric, err := d.processOperationBucket(bucket, labels)
 		if err != nil {
 			return nil, fmt.Errorf("failed to process bucket: %w", err)
 		}
-		metricsData[i] = metric
+		metricsData = append(metricsData, metric)
 	}
 
 	return metricsData, nil
