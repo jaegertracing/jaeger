@@ -281,6 +281,11 @@ func (r MetricsReader) buildCallRateAggregations(params *metricstore.CallRateQue
 
 // executeSearch performs the Elasticsearch search.
 func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) (*metrics.MetricFamily, error) {
+	if p.GroupByOperation {
+		p.metricName = strings.Replace(p.metricName, "service", "service_operation", 1)
+		p.metricDesc += " & operation"
+	}
+
 	queryString, err := r.buildQueryJSON(p.boolQuery, p.aggQuery)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build query JSON: %w", err)

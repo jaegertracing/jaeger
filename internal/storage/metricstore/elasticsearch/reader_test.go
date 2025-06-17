@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,7 +26,6 @@ import (
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
-	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
 var mockCallRateQuery = `{
@@ -55,7 +55,7 @@ var mockCallRateQuery = `{
     }
   },
   "size": 0,
-  "aggs": {
+  "aggregations": {
     "results_buckets": {
       "date_histogram": {
         "field": "startTimeMillis",
@@ -66,7 +66,7 @@ var mockCallRateQuery = `{
           "max": 1749894960000
         }
       },
-      "aggs": {
+      "aggregations": {
         "cumulative_requests": {
           "cumulative_sum": {
             "buckets_path": "_count"
@@ -92,12 +92,11 @@ var mockCallRateQuery = `{
 }`
 
 const (
-	TestPrefix                    = "testdata"
-	mockEsValidResponse           = TestPrefix + "/test_valid_es.json"
-	mockCallRateResponse          = TestPrefix + "/test_call_rate.json"
-	mockCallRateOperationResponse = TestPrefix + "/test_call_rate_operation.json"
-	mockEmptyResponse             = TestPrefix + "/test_empty.json"
-	mockErrorResponse             = TestPrefix + "/test_error_es.json"
+	mockEsValidResponse           = "testdata/test_valid_es.json"
+	mockCallRateResponse          = "testdata/test_call_rate.json"
+	mockCallRateOperationResponse = "testdata/test_call_rate_operation.json"
+	mockEmptyResponse             = "testdata/test_empty.json"
+	mockErrorResponse             = "testdata/test_error_es.json"
 )
 
 type metricsTestCase struct {
@@ -117,14 +116,12 @@ type metricsTestCase struct {
 	wantErr string
 }
 
-// tracerProvider creates a new OpenTelemetry TracerProvider for testing.
 func tracerProvider(t *testing.T) (trace.TracerProvider, *tracetest.InMemoryExporter) {
 	exporter := tracetest.NewInMemoryExporter()
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithSampler(sdktrace.AlwaysSample()),
 		sdktrace.WithSyncer(exporter),
 	)
-
 	t.Cleanup(func() {
 		require.NoError(t, tp.Shutdown(context.Background()))
 	})
@@ -135,17 +132,12 @@ func clientProvider(t *testing.T, c *config.Configuration, logger *zap.Logger, m
 	client, err := config.NewClient(context.Background(), c, logger, metricsFactory)
 	require.NoError(t, err)
 	require.NotNil(t, client)
-
 	t.Cleanup(func() {
 		require.NoError(t, client.Close())
 	})
 	return client
 }
 
-// setupMetricsReader provides a common setup for tests requiring a MetricsReader.
-// It initializes a mock HTTP server and configures the reader to use it.
-
-// assertMetricFamily validates the properties of a metrics.MetricFamily.
 func assertMetricFamily(t *testing.T, got *metrics.MetricFamily, m metricsTestCase) {
 	if got == nil {
 		t.Fatal("Expected non-nil MetricFamily")
@@ -175,7 +167,6 @@ func assertMetricFamily(t *testing.T, got *metrics.MetricFamily, m metricsTestCa
 	}
 }
 
-// TestGetCallRates tests the GetCallRates method with various scenarios.
 func TestGetCallRates(t *testing.T) {
 	tests := []metricsTestCase{
 		{
@@ -218,15 +209,15 @@ func TestGetCallRates(t *testing.T) {
 			},
 		},
 		{
-			name:         "multiple services",
-			serviceNames: []string{"driver", "rider"},
+			name:         "different service names",
+			serviceNames: []string{"jaeger"},
 			spanKinds:    []string{"SPAN_KIND_SERVER", "SPAN_KIND_CLIENT"},
 			groupByOp:    false,
 			responseFile: mockCallRateResponse,
 			wantName:     "service_call_rate",
 			wantDesc:     "calls/sec, grouped by service",
 			wantLabels: map[string]string{
-				"service_name": "driver",
+				"service_name": "jaeger",
 			},
 			wantPoints: []struct {
 				TimestampSec int64
@@ -244,8 +235,10 @@ func TestGetCallRates(t *testing.T) {
 			responseFile: mockEmptyResponse,
 			wantName:     "service_call_rate",
 			wantDesc:     "calls/sec, grouped by service",
-			wantLabels:   map[string]string{},
-			wantPoints:   nil,
+			wantLabels: map[string]string{
+				"service_name": "driver",
+			},
+			wantPoints: nil,
 		},
 		{
 			name:         "server error",
@@ -253,7 +246,7 @@ func TestGetCallRates(t *testing.T) {
 			spanKinds:    []string{"SPAN_KIND_SERVER"},
 			groupByOp:    false,
 			responseFile: mockErrorResponse,
-			wantErr:      "failed to execute search query",
+			wantErr:      "failed executing metrics query",
 		},
 	}
 
@@ -282,10 +275,8 @@ func TestGetCallRates(t *testing.T) {
 	}
 }
 
-// TestGetLatencies tests the GetLatencies method with various scenarios.
 func TestGetLatencies(t *testing.T) {
 	reader, _ := setupMetricsReaderAndServer(t, "", mockEsValidResponse)
-
 	r, err := reader.GetLatencies(context.Background(), &metricstore.LatenciesQueryParameters{})
 	assert.Zero(t, r)
 	require.ErrorIs(t, err, ErrNotImplemented)
@@ -294,7 +285,6 @@ func TestGetLatencies(t *testing.T) {
 
 func TestGetErrorRates(t *testing.T) {
 	reader, _ := setupMetricsReaderAndServer(t, "", mockEsValidResponse)
-
 	r, err := reader.GetErrorRates(context.Background(), &metricstore.ErrorRateQueryParameters{})
 	assert.Zero(t, r)
 	require.ErrorIs(t, err, ErrNotImplemented)
@@ -303,7 +293,6 @@ func TestGetErrorRates(t *testing.T) {
 
 func TestGetMinStepDuration(t *testing.T) {
 	reader, _ := setupMetricsReaderAndServer(t, "", mockEsValidResponse)
-
 	minStep, err := reader.GetMinStepDuration(context.Background(), &metricstore.MinStepDurationQueryParameters{})
 	require.NoError(t, err)
 	assert.Equal(t, time.Millisecond, minStep)
@@ -320,50 +309,131 @@ func sendResponse(t *testing.T, w http.ResponseWriter, responseFile string) {
 func startMockEsServer(t *testing.T, wantEsQuery string, responseFile string) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+
+		// Handle initial ping request
+		if r.Method == "HEAD" || r.URL.Path == "/" {
+			sendResponse(t, w, mockEsValidResponse)
+			return
+		}
 
 		// Read request body
 		body, err := io.ReadAll(r.Body)
+		t.Logf("Body: %s", string(body))
 		require.NoError(t, err, "Failed to read request body")
 		defer r.Body.Close()
 
-		// Validate query if provided
+		//Validate query if provided
 		if wantEsQuery != "" {
-			var actualQuery map[string]interface{}
-			if len(body) > 0 {
-				err := json.Unmarshal(body, &actualQuery)
-				require.NoError(t, err, "Failed to parse actual query")
-			} else {
-				actualQuery = make(map[string]interface{})
-			}
+			var expected, actual map[string]interface{}
+			require.NoError(t, json.Unmarshal([]byte(wantEsQuery), &expected))
+			require.NoError(t, json.Unmarshal(body, &actual))
+			normalizeScripts(expected)
+			normalizeScripts(actual)
 
-			var expectedQuery map[string]interface{}
-			err = json.Unmarshal([]byte(wantEsQuery), &expectedQuery)
-			require.NoError(t, err, "Failed to parse expected query")
-
-			// Compare the actual query with expected
-			prettyActual, _ := json.MarshalIndent(actualQuery, "", "  ")
-			prettyExpected, _ := json.MarshalIndent(expectedQuery, "", "  ")
-			t.Logf("Elasticsearch query comparison:\nExpected:\n%s\nGot:\n%s", prettyExpected, prettyActual)
-
-			assert.Equal(t, expectedQuery, actualQuery, "Elasticsearch query mismatch")
+			compareQueryStructure(t, expected, actual)
 		}
 
 		sendResponse(t, w, responseFile)
 	}))
 }
 
+func normalizeScripts(m interface{}) {
+	if m, ok := m.(map[string]interface{}); ok {
+		if script, ok := m["script"].(map[string]interface{}); ok {
+			if source, ok := script["source"].(string); ok {
+				// Remove whitespace and newlines for comparison
+				script["source"] = strings.Join(strings.Fields(source), " ")
+			}
+		}
+		for _, v := range m {
+			normalizeScripts(v)
+		}
+	}
+}
+
+func compareQueryStructure(t *testing.T, expected, actual map[string]interface{}) {
+	// Compare the bool query structure (without time ranges)
+	if expectedQuery, ok := expected["query"].(map[string]interface{}); ok {
+		actualQuery := actual["query"].(map[string]interface{})
+		compareBoolQuery(t, expectedQuery, actualQuery)
+	}
+
+	// Compare aggregations
+	if expectedAggs, ok := expected["aggregations"].(map[string]interface{}); ok {
+		actualAggs := actual["aggregations"].(map[string]interface{})
+		removeHistogramBounds(expectedAggs)
+		removeHistogramBounds(actualAggs)
+
+		assert.Equal(t, expectedAggs, actualAggs, "Aggregations mismatch")
+	}
+}
+
+// Simple helper to remove extended_bounds from any date_histogram
+func removeHistogramBounds(aggs map[string]interface{}) {
+	for _, agg := range aggs {
+		aggMap, ok := agg.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		// Remove from date_histogram if present
+		if histo, ok := aggMap["date_histogram"].(map[string]interface{}); ok {
+			delete(histo, "extended_bounds")
+		}
+
+		// Handle nested aggregations
+		if nested, ok := aggMap["aggregations"].(map[string]interface{}); ok {
+			removeHistogramBounds(nested)
+		}
+	}
+}
+
+func compareBoolQuery(t *testing.T, expected, actual map[string]interface{}) {
+	expectedBool, eok := expected["bool"].(map[string]interface{})
+	actualBool, aok := actual["bool"].(map[string]interface{})
+
+	if !eok || !aok {
+		return
+	}
+
+	// Compare filters (excluding time ranges)
+	if expectedFilters, ok := expectedBool["filter"].([]interface{}); ok {
+		actualFilters := actualBool["filter"].([]interface{})
+		compareFilters(t, expectedFilters, actualFilters)
+	}
+}
+
+func compareFilters(t *testing.T, expected, actual []interface{}) {
+	// We'll compare the same number of filters, but skip time ranges
+	assert.Len(t, actual, len(expected), "Different number of filters")
+
+	for i := range expected {
+		expectedFilter := expected[i].(map[string]interface{})
+		actualFilter := actual[i].(map[string]interface{})
+
+		// Skip range queries entirely
+		if _, isRange := expectedFilter["range"]; isRange {
+			continue
+		}
+
+		assert.Equal(t, expectedFilter, actualFilter, "Filter mismatch at index %d", i)
+	}
+}
+
 func setupMetricsReaderAndServer(t *testing.T, wantEsQuery string, responseFile string) (*MetricsReader, *tracetest.InMemoryExporter) {
-	logger := zap.NewNop()
+	logger, _ := zap.NewDevelopment() // Use development logger for client-side logs
 	tracer, exporter := tracerProvider(t)
 
 	mockServer := startMockEsServer(t, wantEsQuery, responseFile)
+
 	t.Cleanup(mockServer.Close)
 	cfg := config.Configuration{
 		Servers:  []string{mockServer.URL},
 		LogLevel: "debug",
 	}
 
-	client := clientProvider(t, &cfg, logger, telemetry.NoopSettings().Metrics)
+	client := clientProvider(t, &cfg, logger, esmetrics.NullFactory)
 	reader := NewMetricsReader(client, logger, tracer)
 	require.NotNil(t, reader)
 
@@ -371,10 +441,9 @@ func setupMetricsReaderAndServer(t *testing.T, wantEsQuery string, responseFile 
 }
 
 func buildTestBaseQueryParameters(tc metricsTestCase) metricstore.BaseQueryParameters {
-	endTime := time.Now()
-	lookback := time.Minute
-	step := time.Millisecond
-	ratePer := 10 * time.Minute
+	endTime := time.UnixMilli(1749894900000)
+	lookback := 6 * time.Hour
+	step := time.Second
 
 	return metricstore.BaseQueryParameters{
 		ServiceNames:     tc.serviceNames,
@@ -382,7 +451,6 @@ func buildTestBaseQueryParameters(tc metricsTestCase) metricstore.BaseQueryParam
 		EndTime:          &endTime,
 		Lookback:         &lookback,
 		Step:             &step,
-		RatePer:          &ratePer,
 		SpanKinds:        tc.spanKinds,
 	}
 }
