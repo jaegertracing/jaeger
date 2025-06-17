@@ -6,7 +6,7 @@
 set -euf -o pipefail
 
 compose_file=""
-jaeger_version="v2"
+jaeger_version="v1"
 kafka_version="v3"
 manage_kafka="true"
 success="false"
@@ -52,6 +52,62 @@ parse_args() {
     usage
   fi
   compose_file="docker-compose/kafka/${kafka_version}/docker-compose.yml"
+}
+
+generate_jks_files() {
+  local cert_dir="internal/config/tlscfg/testdata"
+  local password="kafkapass123"
+  
+  echo "Generating Kafka JKS files..."
+  
+  # Check if PEM files exist
+  if [[ ! -f "${cert_dir}/example-CA-cert.pem" || ! -f "${cert_dir}/example-server-cert.pem" || ! -f "${cert_dir}/example-server-key.pem" ]]; then
+    echo "PEM certificate files not found. Generating certificates first..."
+    cd "${cert_dir}"
+    ./gen-certs.sh
+    cd - > /dev/null
+  fi
+  
+  # Remove existing JKS files if they exist
+  rm -f "${cert_dir}/kafka.keystore.jks"
+  rm -f "${cert_dir}/kafka.truststore.jks"
+  
+  # Create temporary PKCS12 file from server certificate and key
+  local temp_p12="${cert_dir}/temp-server.p12"
+  
+  # Generate PKCS12 keystore from server certificate and private key
+  openssl pkcs12 -export \
+    -in "${cert_dir}/example-server-cert.pem" \
+    -inkey "${cert_dir}/example-server-key.pem" \
+    -out "${temp_p12}" \
+    -name kafka \
+    -passout pass:${password}
+  
+  # Convert PKCS12 to JKS keystore
+  keytool -importkeystore \
+    -deststorepass ${password} \
+    -destkeypass ${password} \
+    -destkeystore "${cert_dir}/kafka.keystore.jks" \
+    -srckeystore "${temp_p12}" \
+    -srcstoretype PKCS12 \
+    -srcstorepass ${password} \
+    -alias kafka \
+    -noprompt
+  
+  # Create truststore with CA certificate
+  keytool -import \
+    -alias caroot \
+    -file "${cert_dir}/example-CA-cert.pem" \
+    -keystore "${cert_dir}/kafka.truststore.jks" \
+    -storepass ${password} \
+    -noprompt
+  
+  # Clean up temporary file
+  rm -f "${temp_p12}"
+  
+  echo "JKS files generated successfully:"
+  echo "  - ${cert_dir}/kafka.keystore.jks"
+  echo "  - ${cert_dir}/kafka.truststore.jks"
 }
 
 setup_kafka() {
@@ -119,6 +175,7 @@ main() {
   set -x
 
   if [[ "$manage_kafka" == "true" ]]; then
+    generate_jks_files
     setup_kafka
     trap 'teardown_kafka' EXIT
   fi

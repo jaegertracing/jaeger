@@ -24,4 +24,3 @@ func setTLSConfiguration(config *configtls.ClientConfig, saramaConfig *sarama.Co
 	}
 	return nil
 }
-
