@@ -66,12 +66,12 @@ func NewMetricsReader(client es.Client, logger *zap.Logger, tracer trace.TracerP
 	}
 }
 
-// GetLatencies retrieves latency metrics by delegating to GetCallRates.
+// GetLatencies retrieves latency metrics
 func (MetricsReader) GetLatencies(_ context.Context, _ *metricstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
 	return nil, ErrNotImplemented
 }
 
-// GetCallRates retrieves call rate metrics from Elasticsearch.
+// GetCallRates retrieves call rate metrics
 func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
 	timeRange, err := calculateTimeRange(&params.BaseQueryParameters)
 	if err != nil {
@@ -98,7 +98,7 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 	return metricFamily, nil
 }
 
-// GetErrorRates retrieves error rate metrics by delegating to GetCallRates.
+// GetErrorRates retrieves error rate metrics
 func (MetricsReader) GetErrorRates(_ context.Context, _ *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
 	return nil, ErrNotImplemented
 }
