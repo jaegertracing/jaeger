@@ -1,7 +1,7 @@
 // Copyright (c) 2025 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package translator
+package elasticsearch
 
 import (
 	"errors"
@@ -15,47 +15,101 @@ import (
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 )
 
-const (
-	movFnAggName    = "results" // movFnAggName is the name of the moving function aggregation in Elasticsearch, same as in reader.go
-	dateHistAggName = "results_buckets"
-)
-
 // Translator converts Elasticsearch aggregations to Jaeger's metrics model.
 type Translator struct{}
 
-// New returns a new Translator.
-func New() Translator {
+// NewTranslator returns a new Translator.
+func NewTranslator() Translator {
 	return Translator{}
 }
 
 // ToMetricsFamily converts Elasticsearch aggregations to Jaeger's MetricFamily.
-func (d Translator) ToMetricsFamily(name, description string, labels []*metrics.Label, result *elastic.SearchResult) (*metrics.MetricFamily, error) {
-	domainMetrics, err := d.toDomainMetrics(labels, result)
+func (d Translator) ToMetricsFamily(m MetricsQueryParams, result *elastic.SearchResult) (*metrics.MetricFamily, error) {
+	domainMetrics, err := d.toDomainMetrics(m, result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert aggregations to metrics: %w", err)
 	}
 
 	return &metrics.MetricFamily{
-		Name:    name,
+		Name:    m.metricName,
 		Type:    metrics.MetricType_GAUGE,
-		Help:    description,
+		Help:    m.metricDesc,
 		Metrics: domainMetrics,
 	}, nil
 }
 
 // toDomainMetrics converts Elasticsearch aggregations to Jaeger metrics.
-func (d Translator) toDomainMetrics(labels []*metrics.Label, result *elastic.SearchResult) ([]*metrics.Metric, error) {
-	buckets, err := d.extractBuckets(result)
-	if err != nil {
-		return nil, err
+func (d Translator) toDomainMetrics(m MetricsQueryParams, result *elastic.SearchResult) ([]*metrics.Metric, error) {
+	labels := buildServiceLabels(m.ServiceNames)
+
+	if !m.GroupByOperation {
+		buckets, err := d.extractBuckets(result)
+		if err != nil {
+			return nil, err
+		}
+		return []*metrics.Metric{
+			{
+				Labels:       labels,
+				MetricPoints: d.toDomainMetricPoints(buckets),
+			},
+		}, nil
 	}
 
-	return []*metrics.Metric{
-		{
-			Labels:       labels,
-			MetricPoints: d.toDomainMetricPoints(buckets),
-		},
+	// Handle grouped results when groupByOp is true
+	agg, found := result.Aggregations.Terms(dateHistAggName)
+	if !found {
+		return nil, fmt.Errorf("%s aggregation not found", dateHistAggName)
+	}
+
+	var metricsData []*metrics.Metric
+	for i, bucket := range agg.Buckets {
+		metric, err := d.processOperationBucket(bucket, labels)
+		if err != nil {
+			return nil, fmt.Errorf("failed to process bucket: %w", err)
+		}
+		metricsData[i] = metric
+	}
+
+	return metricsData, nil
+}
+
+func buildServiceLabels(serviceNames []string) []*metrics.Label {
+	labels := make([]*metrics.Label, len(serviceNames))
+	for i, name := range serviceNames {
+		labels[i] = &metrics.Label{Name: "service_name", Value: name}
+	}
+	return labels
+}
+
+func (d Translator) processOperationBucket(bucket *elastic.AggregationBucketKeyItem, baseLabels []*metrics.Label) (*metrics.Metric, error) {
+	key, ok := bucket.Key.(string)
+	if !ok {
+		return nil, fmt.Errorf("bucket key is not a string: %v", bucket.Key)
+	}
+
+	// Extract nested date_histogram buckets
+	dateHistAgg, found := bucket.Aggregations.DateHistogram("date_histogram")
+	if !found {
+		return nil, fmt.Errorf("date_histogram aggregation not found in bucket %q", key)
+	}
+
+	// Combine base labels with operation label
+	labels := append(baseLabels, d.toDomainLabels(key)...)
+
+	return &metrics.Metric{
+		Labels:       labels,
+		MetricPoints: d.toDomainMetricPoints(dateHistAgg.Buckets),
 	}, nil
+}
+
+// toDomainLabels converts the bucket key to Jaeger metric labels.
+func (d Translator) toDomainLabels(key string) []*metrics.Label {
+	return []*metrics.Label{
+		{
+			Name:  "operation",
+			Value: key,
+		},
+	}
 }
 
 // extractBuckets retrieves date histogram buckets from Elasticsearch results.

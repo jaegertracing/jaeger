@@ -16,7 +16,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/metricstore/elasticsearch/translator"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
 
@@ -35,7 +34,7 @@ type (
 		client            es.Client
 		logger            *zap.Logger
 		tracer            trace.Tracer
-		metricsTranslator translator.Translator
+		metricsTranslator Translator
 	}
 	TimeRange struct {
 		startTimeMillis         int64
@@ -58,7 +57,7 @@ func NewMetricsReader(client es.Client, logger *zap.Logger, tracer trace.TracerP
 		client:            client,
 		logger:            logger,
 		tracer:            tracer.Tracer("elasticsearch-metricstore"),
-		metricsTranslator: translator.New(),
+		metricsTranslator: NewTranslator(),
 	}
 }
 
@@ -277,13 +276,6 @@ func (r MetricsReader) buildCallRateAggregations(params *metricstore.CallRateQue
 
 // executeSearch performs the Elasticsearch search.
 func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) (*metrics.MetricFamily, error) {
-	labels := []*metrics.Label{{Name: "service_name", Value: "driver"}}
-	if p.GroupByOperation {
-		p.metricName = strings.Replace(p.metricName, "service", "service_operation", 1)
-		p.metricDesc += " & operation"
-		labels = append(labels, &metrics.Label{Name: "operation", Value: "/FindNearest"})
-	}
-
 	searchResult, err := r.client.Search(searchIndex).
 		Query(p.boolQuery).
 		Size(0).
@@ -294,18 +286,13 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) 
 	}
 
 	return r.metricsTranslator.ToMetricsFamily(
-		p.metricName,
-		p.metricDesc,
-		labels,
+		p,
 		searchResult,
 	)
 }
 
 // normalizeSpanKinds normalizes a slice of span kinds.
 func normalizeSpanKinds(spanKinds []string) []string {
-	if len(spanKinds) == 0 {
-		return []string{"server"}
-	}
 	normalized := make([]string, len(spanKinds))
 	for i, kind := range spanKinds {
 		normalized[i] = normalizeSpanKind(kind)
