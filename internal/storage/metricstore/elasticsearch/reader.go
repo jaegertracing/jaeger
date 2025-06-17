@@ -45,10 +45,10 @@ type (
 
 	MetricsQueryParams struct {
 		metricstore.BaseQueryParameters
-		metricName   string
-		metricDesc   string
-		boolQuery    *elasticv7.BoolQuery
-		dateHistoAgg *elasticv7.DateHistogramAggregation
+		metricName string
+		metricDesc string
+		boolQuery  *elasticv7.BoolQuery
+		aggQuery   elasticv7.Aggregation
 	}
 )
 
@@ -79,7 +79,7 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 		metricName:          "service_call_rate",
 		metricDesc:          "calls/sec, grouped by service",
 		boolQuery:           r.buildQuery(&params.BaseQueryParameters, timeRange),
-		dateHistoAgg:        r.buildCallRateAggregations(params, timeRange),
+		aggQuery:            r.buildCallRateAggregations(params, timeRange),
 	}
 
 	metricFamily, err := r.executeSearch(ctx, metricsParams)
@@ -187,7 +187,7 @@ func (r MetricsReader) buildSpanKindQuery(spanKinds []string) elasticv7.Query {
 }
 
 // buildAggregations constructs the GetCallRate aggregations.
-func (r MetricsReader) buildCallRateAggregations(params *metricstore.CallRateQueryParameters, timeRange TimeRange) *elasticv7.DateHistogramAggregation {
+func (r MetricsReader) buildCallRateAggregations(params *metricstore.CallRateQueryParameters, timeRange TimeRange) elasticv7.Aggregation {
 	fixedIntervalString := strconv.FormatInt(params.Step.Milliseconds(), 10) + "ms"
 	dateHistoAgg := elasticv7.NewDateHistogramAggregation().
 		Field("startTimeMillis").
@@ -259,9 +259,20 @@ func (r MetricsReader) buildCallRateAggregations(params *metricstore.CallRateQue
 	//					},
 	//					"buckets_path": "cumulative_requests",
 	//						"window": 10}}}}}
-	return dateHistoAgg.
+
+	dateHistoAgg = dateHistoAgg.
 		SubAggregation("cumulative_requests", cumulativeSumAgg).
 		SubAggregation(movFnAggName, movingFnAgg)
+
+	if params.GroupByOperation {
+		operationsAgg := elasticv7.NewTermsAggregation().
+			Field("operationName").
+			Size(10).
+			SubAggregation("date_histogram", dateHistoAgg) // Nest the dateHistoAgg inside operationsAgg
+		return operationsAgg
+	}
+
+	return dateHistoAgg
 }
 
 // executeSearch performs the Elasticsearch search.
@@ -276,7 +287,7 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) 
 	searchResult, err := r.client.Search(searchIndex).
 		Query(p.boolQuery).
 		Size(0).
-		Aggregation(dateHistAggName, p.dateHistoAgg).
+		Aggregation(dateHistAggName, p.aggQuery).
 		Do(ctx)
 	if err != nil {
 		return nil, err
