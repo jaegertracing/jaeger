@@ -229,6 +229,36 @@ func (r MetricsReader) buildCallRateAggregations(params *metricstore.CallRateQue
 		Script(elasticv7.NewScript(painlessScriptSource).Lang("painless").Params(scriptParams)).
 		Window(10)
 
+	//Corresponding AGG ES query:
+	//"aggs": {
+	//	"results_buckets": {
+	//		"date_histogram": {
+	//			"field": "startTimeMillis",
+	//				"fixed_interval": "60s",
+	//				"min_doc_count": 0,
+	//				"extended_bounds": {
+	//				"min": "now-lookback-5m",
+	//				"max": "now"
+	//			}
+	//		},
+	//		"aggs": {
+	//			"cumulative_requests": {
+	//				"cumulative_sum": {
+	//					"buckets_path": "_count"
+	//				}
+	//			},
+	//			"rate_per_second": {
+	//				"moving_fn": {
+	//					"script": {
+	//						"source": scriptSource,
+	//							"lang": "painless",
+	//							"params": {
+	//							"window": 10,
+	//								"interval_ms": 60000
+	//						}
+	//					},
+	//					"buckets_path": "cumulative_requests",
+	//						"window": 10}}}}}
 	return dateHistoAgg.
 		SubAggregation("cumulative_requests", cumulativeSumAgg).
 		SubAggregation(movFnAggName, movingFnAgg)
