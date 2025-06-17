@@ -5,9 +5,7 @@ package elasticsearch
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/elasticsearch/translator"
 	"strconv"
 	"strings"
@@ -167,7 +165,7 @@ func (r MetricsReader) buildSpanKindQuery(spanKinds []string) elasticv7.Query {
 	return shouldQuery
 }
 
-// buildAggregations constructs the getcallrate aggregations.
+// buildAggregations constructs the GetCallRate aggregations.
 func (r MetricsReader) buildCallRateAggregations(params *metricstore.CallRateQueryParameters, timeRange TimeRange) *elasticv7.DateHistogramAggregation {
 	fixedIntervalString := strconv.FormatInt(params.Step.Milliseconds(), 10) + "ms"
 	dateHistoAgg := elasticv7.NewDateHistogramAggregation().
@@ -175,11 +173,10 @@ func (r MetricsReader) buildCallRateAggregations(params *metricstore.CallRateQue
 		FixedInterval(fixedIntervalString).
 		MinDocCount(0).
 		ExtendedBounds(timeRange.startTimeMillis, timeRange.endTimeMillis)
-	r.logger.Info("Date histogram aggregation built", zap.String("fixedInterval", fixedIntervalString))
 
 	cumulativeSumAgg := elasticv7.NewCumulativeSumAggregation().BucketsPath("_count")
-	r.logger.Info("Cumulative sum aggregation built")
 
+	// Painless script to calculate the rate per second using linear regression.
 	painlessScriptSource := `
 		if (values == null || values.length < 2) return 0.0;
 		double n = values.length; 
@@ -210,7 +207,6 @@ func (r MetricsReader) buildCallRateAggregations(params *metricstore.CallRateQue
 		BucketsPath("cumulative_requests").
 		Script(elasticv7.NewScript(painlessScriptSource).Lang("painless").Params(scriptParams)).
 		Window(10)
-	r.logger.Info("Moving function aggregation built", zap.Any("scriptParams", scriptParams))
 
 	return dateHistoAgg.
 		SubAggregation("cumulative_requests", cumulativeSumAgg).
@@ -234,13 +230,6 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) 
 	if err != nil {
 		return nil, err
 	}
-
-	rawJSON, err := json.MarshalIndent(searchResult, "", "  ")
-	if err != nil {
-		r.logger.Error("Failed to marshal search result to JSON", zap.Error(err))
-		return nil, fmt.Errorf("failed to marshal search result to JSON: %w", err)
-	}
-	r.logger.Info("Elasticsearch search result", zap.String("result", string(rawJSON)))
 
 	return r.metricsTranslator.ToMetricsFamily(
 		p.metricName,
