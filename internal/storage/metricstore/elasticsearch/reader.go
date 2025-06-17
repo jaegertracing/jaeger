@@ -5,7 +5,9 @@ package elasticsearch
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -25,10 +27,10 @@ import (
 var ErrNotImplemented = errors.New("metrics querying is currently not implemented yet")
 
 const (
-	minStep         = time.Millisecond
-	movFnAggName    = "results"
-	dateHistAggName = "results_buckets"
-	searchIndex     = "jaeger-span-*"
+	minStep      = time.Millisecond
+	movFnAggName = "results"
+	aggName      = "results_buckets"
+	searchIndex  = "jaeger-span-*"
 )
 
 // MetricsReader is an Elasticsearch metrics reader.
@@ -279,14 +281,23 @@ func (r MetricsReader) buildCallRateAggregations(params *metricstore.CallRateQue
 
 // executeSearch performs the Elasticsearch search.
 func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) (*metrics.MetricFamily, error) {
+	queryString, err := r.buildQueryJSON(p.boolQuery, p.aggQuery)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build query JSON: %w", err)
+	}
+
+	span := startSpanForQuery(ctx, p.metricName, queryString, r.tracer)
+	defer span.End()
+
 	searchResult, err := r.client.Search(searchIndex).
 		Query(p.boolQuery).
 		Size(0).
-		Aggregation(dateHistAggName, p.aggQuery).
+		Aggregation(aggName, p.aggQuery).
 		Do(ctx)
-
 	if err != nil {
-		return nil, err
+		err = fmt.Errorf("failed executing metrics query: %w", err)
+		logErrorToSpan(span, err)
+		return &metrics.MetricFamily{}, err
 	}
 
 	return r.metricsTranslator.ToMetricsFamily(
@@ -334,14 +345,34 @@ func (r MetricsReader) calculateTimeRange(params *metricstore.BaseQueryParameter
 	}, nil
 }
 
-func startSpanForQuery(ctx context.Context, metricName, query string, tp trace.Tracer) (context.Context, trace.Span) {
-	ctx, span := tp.Start(ctx, metricName)
+func (r MetricsReader) buildQueryJSON(boolQuery *elasticv7.BoolQuery, aggQuery elasticv7.Aggregation) (string, error) {
+	// Combine query and aggregations into a search source
+	searchSource := elasticv7.NewSearchSource().
+		Query(boolQuery).
+		Aggregation(aggName, aggQuery).
+		Size(0)
+
+	source, err := searchSource.Source()
+	if err != nil {
+		return "", fmt.Errorf("failed to get query source: %w", err)
+	}
+
+	queryJSON, err := json.MarshalIndent(source, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal query to JSON: %w", err)
+	}
+
+	return string(queryJSON), nil
+}
+
+func startSpanForQuery(ctx context.Context, metricName, query string, tp trace.Tracer) trace.Span {
+	_, span := tp.Start(ctx, metricName)
 	span.SetAttributes(
 		otelsemconv.DBQueryTextKey.String(query),
 		otelsemconv.DBSystemKey.String("elasticsearch"),
-		attribute.Key("component").String("es-metricstore"),
+		attribute.Key("component").String("es-metricsreader"),
 	)
-	return ctx, span
+	return span
 }
 
 func logErrorToSpan(span trace.Span, err error) {
