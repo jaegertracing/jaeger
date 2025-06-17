@@ -56,9 +56,9 @@ func (d Translator) toDomainMetrics(m MetricsQueryParams, result *elastic.Search
 	}
 
 	// Handle grouped results when groupByOp is true
-	agg, found := result.Aggregations.Terms(dateHistAggName)
+	agg, found := result.Aggregations.Terms(aggName)
 	if !found {
-		return nil, fmt.Errorf("%s aggregation not found", dateHistAggName)
+		return nil, fmt.Errorf("%s aggregation not found", aggName)
 	}
 
 	var metricsData []*metrics.Metric
@@ -114,7 +114,7 @@ func (d Translator) toDomainLabels(key string) []*metrics.Label {
 
 // extractBuckets retrieves date histogram buckets from Elasticsearch results.
 func (d Translator) extractBuckets(result *elastic.SearchResult) ([]*elastic.AggregationBucketHistogramItem, error) {
-	agg, found := result.Aggregations.DateHistogram(dateHistAggName)
+	agg, found := result.Aggregations.DateHistogram(aggName)
 	if !found {
 		return nil, errors.New("results_buckets aggregation not found")
 	}
