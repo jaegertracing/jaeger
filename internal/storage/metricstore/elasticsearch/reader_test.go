@@ -79,7 +79,7 @@ var mockCallRateQuery = `{
             "buckets_path": "cumulative_requests",
             "window": 10,
             "script": {
-              "source": "if (values == null || values.length < 2) return 0.0; double n = values.length; double sumX = 0.0; double sumY = 0.0; double sumXY = 0.0; double sumX2 = 0.0; for (int i = 0; i < n; i++) { double x = i; double y = values[i]; sumX += x; sumY += y; sumXY += x * y; sumX2 += x * x; } double numerator = n * sumXY - sumX * sumY; double denominator = n * sumX2 - sumX * sumX; if (Math.abs(denominator) < 1e-10) return 0.0; double slopePerBucket = numerator / denominator; double intervalSeconds = params.interval_ms / 1000.0; return slopePerBucket / intervalSeconds;",
+              "source": "if (values == null || values.length == 0) return 0.0; if (values.length < 2) return 0.0; double n = values.length; double sumX = 0.0; double sumY = 0.0; double sumXY = 0.0; double sumX2 = 0.0; for (int i = 0; i < n; i++) { double x = i; double y = values[i]; sumX += x; sumY += y; sumXY += x * y; sumX2 += x * x; } double numerator = n * sumXY - sumX * sumY; double denominator = n * sumX2 - sumX * sumX; if (Math.abs(denominator) < 1e-10) return 0.0; double slopePerBucket = numerator / denominator; double intervalSeconds = params.interval_ms / 1000.0; return slopePerBucket / intervalSeconds;",
               "lang": "painless",
               "params": {
                 "window": 10,
