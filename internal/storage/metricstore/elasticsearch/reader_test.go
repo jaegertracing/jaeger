@@ -6,6 +6,8 @@ package elasticsearch
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	elasticv7 "github.com/olivere/elastic/v7"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -114,6 +116,13 @@ type metricsTestCase struct {
 		Value        float64
 	}
 	wantErr string
+}
+
+// failingAggregation is a mock aggregation that fails when Source() is called
+type failingAggregation struct{}
+
+func (a *failingAggregation) Source() (interface{}, error) {
+	return nil, errors.New("forced aggregation source error")
 }
 
 func tracerProvider(t *testing.T) (trace.TracerProvider, *tracetest.InMemoryExporter) {
@@ -296,6 +305,30 @@ func TestGetMinStepDuration(t *testing.T) {
 	minStep, err := reader.GetMinStepDuration(context.Background(), &metricstore.MinStepDurationQueryParameters{})
 	require.NoError(t, err)
 	assert.Equal(t, time.Millisecond, minStep)
+}
+
+func TestBuildQueryJSON_ErrorCases(t *testing.T) {
+	t.Run("failed to get query source", func(t *testing.T) {
+		reader := MetricsReader{}
+
+		_, err := reader.buildQueryJSON(elasticv7.NewBoolQuery(), &failingAggregation{})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to get query source")
+	})
+}
+
+func TestExecuteSearchError(t *testing.T) {
+	t.Run("failed to execute search", func(t *testing.T) {
+		reader := MetricsReader{}
+		metricParams := MetricsQueryParams{
+			boolQuery: elasticv7.NewBoolQuery(),
+			aggQuery:  &failingAggregation{},
+		}
+
+		_, err := reader.executeSearch(context.Background(), metricParams)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to build query JSON")
+	})
 }
 
 func sendResponse(t *testing.T, w http.ResponseWriter, responseFile string) {

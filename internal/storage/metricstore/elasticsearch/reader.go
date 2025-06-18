@@ -302,10 +302,7 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) 
 		return &metrics.MetricFamily{}, err
 	}
 
-	result, err := json.MarshalIndent(searchResult, "", "  ")
-	if err != nil {
-		return &metrics.MetricFamily{}, fmt.Errorf("failed to marshal query to JSON: %w", err)
-	}
+	result, _ := json.MarshalIndent(searchResult, "", "  ")
 
 	r.logger.Debug("Elasticsearch metricsreader query results", zap.String("results", string(result)), zap.String("query", queryString))
 
@@ -319,17 +316,9 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) 
 func normalizeSpanKinds(spanKinds []string) []string {
 	normalized := make([]string, len(spanKinds))
 	for i, kind := range spanKinds {
-		normalized[i] = normalizeSpanKind(kind)
+		normalized[i] = strings.ToLower(strings.TrimPrefix(kind, "SPAN_KIND_"))
 	}
 	return normalized
-}
-
-// normalizeSpanKind normalizes a single span kind.
-func normalizeSpanKind(kind string) string {
-	if strings.HasPrefix(kind, "SPAN_KIND_") {
-		return strings.ToLower(strings.TrimPrefix(kind, "SPAN_KIND_"))
-	}
-	return strings.ToLower(kind)
 }
 
 // buildInterfaceSlice converts []string to []interface{} for elastic terms query.
@@ -366,10 +355,7 @@ func (MetricsReader) buildQueryJSON(boolQuery *elasticv7.BoolQuery, aggQuery ela
 		return "", fmt.Errorf("failed to get query source: %w", err)
 	}
 
-	queryJSON, err := json.MarshalIndent(source, "", "  ")
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal query to JSON: %w", err)
-	}
+	queryJSON, _ := json.MarshalIndent(source, "", "  ")
 
 	return string(queryJSON), nil
 }
