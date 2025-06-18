@@ -143,6 +143,7 @@ func (MetricsReader) buildQuery(params *metricstore.BaseQueryParameters, timeRan
 	boolQuery.Filter(nestedTagsQuery)
 
 	rangeQuery := elasticv7.NewRangeQuery("startTimeMillis").
+		// Use extendedStartTimeMillis to allow for a 5-minute lookback.
 		Gte(timeRange.extendedStartTimeMillis).
 		Lte(timeRange.endTimeMillis).
 		Format("epoch_millis")
