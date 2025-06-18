@@ -637,7 +637,7 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 	apiKey := c.Authentication.APIKeyAuthentication.APIKey
 	if c.Authentication.APIKeyAuthentication.FilePath != "" {
 		if c.Authentication.APIKeyAuthentication.AllowFromContext {
-			logger.Warn("API key file and API key propagation are both enabled, API key from file won't be used")
+			logger.Warn("Both API key file and context propagation are enabled - context token will take precedence over file-based token")
 		}
 		apiKeyFromFile, err := loadTokenFromFile(c.Authentication.APIKeyAuthentication.FilePath)
 		if err != nil {
