@@ -188,7 +188,7 @@ func buildSpanKindQuery(spanKinds []string) elasticv7.Query {
 	return shouldQuery
 }
 
-// buildAggregations constructs the GetCallRate aggregations.
+// buildCallRateAggregations constructs the GetCallRate aggregations.
 func (MetricsReader) buildCallRateAggregations(params *metricstore.CallRateQueryParameters, timeRange TimeRange) elasticv7.Aggregation {
 	fixedIntervalString := strconv.FormatInt(params.Step.Milliseconds(), 10) + "ms"
 	dateHistoAgg := elasticv7.NewDateHistogramAggregation().
@@ -201,7 +201,8 @@ func (MetricsReader) buildCallRateAggregations(params *metricstore.CallRateQuery
 
 	// Painless script to calculate the rate per second using linear regression.
 	painlessScriptSource := `
-		if (values == null || values.length < 2) return 0.0;
+		if (values == null || values.length == 0) return 0.0;
+		if (values.length < 2) return 0.0;
 		double n = values.length;
 		double sumX = 0.0;
 		double sumY = 0.0;
