@@ -494,17 +494,23 @@ func (c *Configuration) TagKeysAsFields() ([]string, error) {
 
 // getConfigOptions wraps the configs to feed to the ElasticSearch client init
 func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
-	// Disable health check when token/API key from context is allowed, this is because at this time
-	// we don't have a valid token/API key to do the check and if we don't disable the check the service that
-	// uses this won't start.
-	// Also disable health check when it was requested (health check has problems on AWS OpenSearch)
-	disableHealthCheck := c.Authentication.BearerTokenAuthentication.AllowFromContext ||
-		c.Authentication.APIKeyAuthentication.AllowFromContext ||
-		c.DisableHealthCheck
+	// Disable health check only in the following cases:
+	// 1. When health check is explicitly disabled (has problems on AWS OpenSearch)
+	// 2. When tokens are EXCLUSIVELY available from context (not from config or file)
+	//    because at startup we don't have a valid token to do the health check
+	disableHealthCheck := c.DisableHealthCheck ||
+		(c.Authentication.BearerTokenAuthentication.AllowFromContext &&
+			c.Authentication.BearerTokenAuthentication.FilePath == "") ||
+		(c.Authentication.APIKeyAuthentication.AllowFromContext &&
+			c.Authentication.APIKeyAuthentication.APIKey == "" &&
+			c.Authentication.APIKeyAuthentication.FilePath == "")
+
 	options := []elastic.ClientOptionFunc{
-		elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffing.Enabled),
+		elastic.SetURL(c.Servers...),
+		elastic.SetSniff(c.Sniffing.Enabled),
 		elastic.SetHealthcheck(!disableHealthCheck),
 	}
+
 	if c.Sniffing.UseHTTPS {
 		options = append(options, elastic.SetScheme("https"))
 	}
@@ -627,6 +633,7 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 		transport = httpTransport
 	}
 
+	// Check for API key authentication first
 	apiKey := c.Authentication.APIKeyAuthentication.APIKey
 	if c.Authentication.APIKeyAuthentication.FilePath != "" {
 		if c.Authentication.APIKeyAuthentication.AllowFromContext {
@@ -640,14 +647,18 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 	}
 
 	if apiKey != "" || c.Authentication.APIKeyAuthentication.AllowFromContext {
-		transport = &apiKeyRoundTripper{
-			Transport:       httpTransport,
-			OverrideFromCtx: c.Authentication.APIKeyAuthentication.AllowFromContext,
-			StaticAPIKey:    apiKey,
+		// Use the unified bearertoken.RoundTripper with ApiKey scheme
+		transport = bearertoken.RoundTripper{
+			Transport:        httpTransport,
+			StaticToken:      apiKey,
+			AuthScheme:       "ApiKey",
+			OverrideFromCtx:  c.Authentication.APIKeyAuthentication.AllowFromContext,
+			TokenFromContext: apiKeyFromContext,
 		}
 		return transport, nil
 	}
 
+	// Check for Bearer token authentication if API key is not configured
 	token := ""
 	if c.Authentication.BearerTokenAuthentication.FilePath != "" {
 		if c.Authentication.BearerTokenAuthentication.AllowFromContext {
@@ -659,60 +670,27 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 		}
 		token = tokenFromFile
 	}
+
 	if token != "" || c.Authentication.BearerTokenAuthentication.AllowFromContext {
+		// Use the unified bearertoken.RoundTripper with the default Bearer scheme
 		transport = bearertoken.RoundTripper{
 			Transport:       httpTransport,
-			OverrideFromCtx: c.Authentication.BearerTokenAuthentication.AllowFromContext,
 			StaticToken:     token,
+			OverrideFromCtx: c.Authentication.BearerTokenAuthentication.AllowFromContext,
+			// No need to specify AuthScheme as "Bearer" is the default
+			// No need to specify TokenFromContext as GetBearerToken is the default if nil
 		}
 	}
 	return transport, nil
 }
 
-// apiKeyRoundTripper is a http.RoundTripper that injects an ApiKey into outgoing requests.
-type apiKeyRoundTripper struct {
-	Transport       http.RoundTripper
-	StaticAPIKey    string
-	OverrideFromCtx bool
-}
-
-// RoundTrip implements the http.RoundTripper interface
-func (rt *apiKeyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	req = cloneRequest(req)
-	apiKey := rt.StaticAPIKey
-	if rt.OverrideFromCtx {
-		if apiKeyFromCtx, ok := apiKeyFromContext(req.Context()); ok {
-			apiKey = apiKeyFromCtx
-		}
-	}
-
-	if apiKey != "" {
-		// Set the Authorization header with the ApiKey prefix
-		req.Header.Set("Authorization", "ApiKey "+apiKey)
-	}
-
-	return rt.Transport.RoundTrip(req)
-}
-
-// cloneRequest returns a clone of the provided request. The clone is a shallow copy
-// of the struct and its Header map.
-func cloneRequest(r *http.Request) *http.Request {
-	// Shallow copy of the struct
-	clone := new(http.Request)
-	*clone = *r
-	// Deep copy of the Header
-	clone.Header = make(http.Header, len(r.Header))
-	for k, s := range r.Header {
-		clone.Header[k] = append([]string(nil), s...)
-	}
-	return clone
-}
+// APIKeyContextKey is the type used as a key for storing API keys in context
+type APIKeyContextKey struct{}
 
 // apiKeyFromContext retrieves the API key from the context.
 // This allows API keys to be dynamically reloaded without restarting the service.
 func apiKeyFromContext(ctx context.Context) (string, bool) {
-	type apiKeyContextKey struct{}
-	val := ctx.Value(apiKeyContextKey{})
+	val := ctx.Value(APIKeyContextKey{})
 	if val == nil {
 		return "", false
 	}

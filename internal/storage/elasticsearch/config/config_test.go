@@ -95,25 +95,29 @@ func TestNewClient(t *testing.T) {
 	defer certFilePath.Close()
 
 	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-		assert.Equal(t, http.MethodGet, req.Method)
+		// Accept both GET (for version check) and HEAD (for health check)
+		assert.Contains(t, []string{http.MethodGet, http.MethodHead}, req.Method)
 		res.WriteHeader(http.StatusOK)
 		res.Write(mockEsServerResponseWithVersion0)
 	}))
 	defer testServer.Close()
 	testServer1 := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-		assert.Equal(t, http.MethodGet, req.Method)
+		// Accept both GET (for version check) and HEAD (for health check)
+		assert.Contains(t, []string{http.MethodGet, http.MethodHead}, req.Method)
 		res.WriteHeader(http.StatusOK)
 		res.Write(mockEsServerResponseWithVersion1)
 	}))
 	defer testServer1.Close()
 	testServer2 := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-		assert.Equal(t, http.MethodGet, req.Method)
+		// Accept both GET (for version check) and HEAD (for health check)
+		assert.Contains(t, []string{http.MethodGet, http.MethodHead}, req.Method)
 		res.WriteHeader(http.StatusOK)
 		res.Write(mockEsServerResponseWithVersion2)
 	}))
 	defer testServer2.Close()
 	testServer8 := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-		assert.Equal(t, http.MethodGet, req.Method)
+		// Accept both GET (for version check) and HEAD (for health check)
+		assert.Contains(t, []string{http.MethodGet, http.MethodHead}, req.Method)
 		res.WriteHeader(http.StatusOK)
 		res.Write(mockEsServerResponseWithVersion8)
 	}))
@@ -909,6 +913,34 @@ func TestHandleBulkAfterCallback_MissingStartTime(t *testing.T) {
 			Value: 1,
 		},
 	)
+}
+
+// Helper function to create a context with API key
+// This mimics how the context would be set up in production code
+func contextWithAPIKey(ctx context.Context, apiKey any) context.Context {
+	// Use the exported APIKeyContextKey type
+	return context.WithValue(ctx, APIKeyContextKey{}, apiKey)
+}
+
+func TestApiKeyFromContext(t *testing.T) {
+	// Test with no value in context
+	emptyCtx := context.Background()
+	apiKey, ok := apiKeyFromContext(emptyCtx)
+	assert.Empty(t, apiKey)
+	assert.False(t, ok)
+
+	// Test with string value in context
+	expectedApiKey := "test-api-key"
+	ctxWithApiKey := contextWithAPIKey(context.Background(), expectedApiKey)
+	apiKey, ok = apiKeyFromContext(ctxWithApiKey)
+	assert.Equal(t, expectedApiKey, apiKey)
+	assert.True(t, ok)
+
+	// Test with non-string value in context
+	ctxWithNonString := contextWithAPIKey(context.Background(), 123)
+	apiKey, ok = apiKeyFromContext(ctxWithNonString)
+	assert.Empty(t, apiKey)
+	assert.False(t, ok)
 }
 
 func TestMain(m *testing.M) {
