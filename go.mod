@@ -6,7 +6,7 @@ toolchain go1.24.3
 
 require (
 	github.com/ClickHouse/ch-go v0.66.0
-	github.com/ClickHouse/clickhouse-go/v2 v2.35.0
+	github.com/ClickHouse/clickhouse-go/v2 v2.37.1
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/Shopify/sarama v1.37.2
 	github.com/apache/thrift v0.22.0
@@ -100,7 +100,7 @@ require (
 	go.uber.org/automaxprocs v1.6.0
 	go.uber.org/goleak v1.3.0
 	go.uber.org/zap v1.27.0
-	golang.org/x/net v0.40.0
+	golang.org/x/net v0.41.0
 	golang.org/x/sys v0.33.0
 	google.golang.org/grpc v1.72.2
 	google.golang.org/protobuf v1.36.6
@@ -295,9 +295,9 @@ require (
 	go.opentelemetry.io/proto/otlp v1.7.0
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.38.0 // indirect
+	golang.org/x/crypto v0.39.0 // indirect
 	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842 // indirect
-	golang.org/x/text v0.25.0
+	golang.org/x/text v0.26.0
 	gonum.org/v1/gonum v0.16.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250528174236-200df99c418a // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250528174236-200df99c418a // indirect
