@@ -77,8 +77,8 @@ func TestCreateTLSServerSinglePortError(t *testing.T) {
 	telset := initTelSet(zaptest.NewLogger(t), jtracer.NoOp(), healthcheck.New())
 	_, err := NewServer(context.Background(), &querysvc.QueryService{}, &v2querysvc.QueryService{}, nil,
 		&QueryOptions{
-			HTTP: confighttp.ServerConfig{Endpoint: ":8080", TLSSetting: &tlsCfg},
-			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8080", Transport: confignet.TransportTypeTCP}, TLSSetting: &tlsCfg},
+			HTTP: confighttp.ServerConfig{Endpoint: ":8080", TLS: &tlsCfg},
+			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8080", Transport: confignet.TransportTypeTCP}, TLS: &tlsCfg},
 		},
 		tenancy.NewManager(&tenancy.Options{}), telset)
 	require.Error(t, err)
@@ -96,7 +96,7 @@ func TestCreateTLSGrpcServerError(t *testing.T) {
 	_, err := NewServer(context.Background(), &querysvc.QueryService{}, &v2querysvc.QueryService{}, nil,
 		&QueryOptions{
 			HTTP: confighttp.ServerConfig{Endpoint: ":8080"},
-			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8081", Transport: confignet.TransportTypeTCP}, TLSSetting: &tlsCfg},
+			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8081", Transport: confignet.TransportTypeTCP}, TLS: &tlsCfg},
 		},
 		tenancy.NewManager(&tenancy.Options{}), telset)
 	require.Error(t, err)
@@ -113,7 +113,7 @@ func TestStartTLSHttpServerError(t *testing.T) {
 	telset := initTelSet(zaptest.NewLogger(t), jtracer.NoOp(), healthcheck.New())
 	s, err := NewServer(context.Background(), &querysvc.QueryService{}, &v2querysvc.QueryService{}, nil,
 		&QueryOptions{
-			HTTP: confighttp.ServerConfig{Endpoint: ":8080", TLSSetting: &tlsCfg},
+			HTTP: confighttp.ServerConfig{Endpoint: ":8080", TLS: &tlsCfg},
 			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8081", Transport: confignet.TransportTypeTCP}},
 		}, tenancy.NewManager(&tenancy.Options{}), telset)
 	require.NoError(t, err)
@@ -375,15 +375,15 @@ func TestServerHTTPTLS(t *testing.T) {
 			serverOptions := &QueryOptions{
 				BearerTokenPropagation: true,
 				HTTP: confighttp.ServerConfig{
-					Endpoint:   ":0",
-					TLSSetting: test.TLS,
+					Endpoint: ":0",
+					TLS:      test.TLS,
 				},
 				GRPC: configgrpc.ServerConfig{
 					NetAddr: confignet.AddrConfig{
 						Endpoint:  ":0",
 						Transport: confignet.TransportTypeTCP,
 					},
-					TLSSetting: tlsGrpc,
+					TLS: tlsGrpc,
 				},
 			}
 			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
@@ -483,15 +483,15 @@ func TestServerGRPCTLS(t *testing.T) {
 			serverOptions := &QueryOptions{
 				BearerTokenPropagation: true,
 				HTTP: confighttp.ServerConfig{
-					Endpoint:   ":0",
-					TLSSetting: tlsHttp,
+					Endpoint: ":0",
+					TLS:      tlsHttp,
 				},
 				GRPC: configgrpc.ServerConfig{
 					NetAddr: confignet.AddrConfig{
 						Endpoint:  ":0",
 						Transport: confignet.TransportTypeTCP,
 					},
-					TLSSetting: test.TLS,
+					TLS: test.TLS,
 				},
 			}
 			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
@@ -509,7 +509,7 @@ func TestServerGRPCTLS(t *testing.T) {
 			})
 
 			var client *grpcClient
-			if serverOptions.GRPC.TLSSetting != nil {
+			if serverOptions.GRPC.TLS != nil {
 				clientTLSCfg, err0 := test.clientTLS.LoadTLSConfig(context.Background())
 				require.NoError(t, err0)
 				creds := credentials.NewTLS(clientTLSCfg)

@@ -44,7 +44,7 @@ func (o *Options) InitFromViper(v *viper.Viper) (*Options, error) {
 	if err != nil {
 		return o, fmt.Errorf("failed to process gRPC TLS options: %w", err)
 	}
-	o.TLSSetting = tlsGRPC
+	o.TLS = tlsGRPC
 	o.Tenancy = tenancy.InitFromViper(v)
 	return o, nil
 }

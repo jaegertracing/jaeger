@@ -114,7 +114,7 @@ func TestCollectorStartWithTLS(t *testing.T) {
 			NetAddr: confignet.AddrConfig{
 				Transport: confignet.TransportTypeTCP,
 			},
-			TLSSetting: tlsCfg,
+			TLS: tlsCfg,
 		},
 	}
 	server, err := StartGRPCServer(params)

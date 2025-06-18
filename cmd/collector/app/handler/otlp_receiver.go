@@ -9,7 +9,8 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
-	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pipeline"
@@ -45,6 +46,16 @@ func StartOTLPReceiver(options *flags.CollectorOptions, logger *zap.Logger, span
 	)
 }
 
+func ensureOptionalHasValue[T any](opt *configoptional.Optional[T]) (*T, error) {
+	if opt.HasValue() {
+		return opt.Get(), nil
+	}
+	if err := confmap.NewFromStringMap(map[string]any{}).Unmarshal(opt); err != nil {
+		return nil, err
+	}
+	return opt.Get(), nil
+}
+
 // Some of OTELCOL constructor functions return errors when passed nil arguments,
 // which is a situation we cannot reproduce. To test our own error handling, this
 // function allows to mock those constructors.
@@ -60,9 +71,17 @@ func startOTLPReceiver(
 		cfg component.Config, nextConsumer consumer.Traces) (receiver.Traces, error),
 ) (receiver.Traces, error) {
 	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
-	otlpReceiverConfig.GRPC = &options.OTLP.GRPC
-	otlpReceiverConfig.GRPC.NetAddr.Transport = confignet.TransportTypeTCP
-	otlpReceiverConfig.HTTP.ServerConfig = options.OTLP.HTTP
+	grpcConf, err := ensureOptionalHasValue(&otlpReceiverConfig.GRPC)
+	if err != nil {
+		return nil, fmt.Errorf("could not create the OTLP receiver: %w", err)
+	}
+	*grpcConf = options.OTLP.GRPC
+	httpConf, err := ensureOptionalHasValue(&otlpReceiverConfig.HTTP)
+	if err != nil {
+		return nil, fmt.Errorf("could not create the OTLP receiver: %w", err)
+	}
+	httpConf.ServerConfig = options.OTLP.HTTP
+
 	statusReporter := func(ev *componentstatus.Event) {
 		// TODO this could be wired into changing healthcheck.HealthCheck
 		logger.Info("OTLP receiver status change", zap.Stringer("status", ev.Status()))
