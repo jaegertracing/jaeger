@@ -4,7 +4,6 @@
 package elasticsearch
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -116,7 +115,7 @@ func (Translator) toDomainLabels(key string) []*metrics.Label {
 func (Translator) extractBuckets(result *elastic.SearchResult) ([]*elastic.AggregationBucketHistogramItem, error) {
 	agg, found := result.Aggregations.DateHistogram(aggName)
 	if !found {
-		return nil, errors.New("results_buckets aggregation not found")
+		return nil, fmt.Errorf("%s aggregation not found", aggName)
 	}
 	return agg.Buckets, nil
 }
@@ -142,9 +141,6 @@ func (d Translator) toDomainMetricPoint(bucket *elastic.AggregationBucketHistogr
 	}
 
 	timestamp := d.toDomainTimestamp(int64(bucket.Key))
-	if timestamp == nil {
-		return nil
-	}
 
 	return &metrics.MetricPoint{
 		Value:     d.toDomainMetricPointValue(*rateAgg.Value),
@@ -155,10 +151,7 @@ func (d Translator) toDomainMetricPoint(bucket *elastic.AggregationBucketHistogr
 // toDomainTimestamp converts milliseconds since epoch to protobuf Timestamp.
 func (Translator) toDomainTimestamp(millis int64) *types.Timestamp {
 	timestamp := time.Unix(0, millis*int64(time.Millisecond))
-	protoTimestamp, err := types.TimestampProto(timestamp)
-	if err != nil {
-		return nil
-	}
+	protoTimestamp, _ := types.TimestampProto(timestamp)
 	return protoTimestamp
 }
 

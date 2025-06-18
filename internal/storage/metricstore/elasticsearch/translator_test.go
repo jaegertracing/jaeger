@@ -10,6 +10,7 @@ import (
 
 	"github.com/gogo/protobuf/types"
 	"github.com/olivere/elastic"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
@@ -163,6 +164,122 @@ func TestToDomainMetrics(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, got)
 		})
+	}
+}
+
+func TestToDomainMetrics_ErrorCases(t *testing.T) {
+	tests := []struct {
+		name   string
+		params MetricsQueryParams
+		result *elastic.SearchResult
+		errMsg string
+	}{
+		{
+			name: "missing terms aggregation when group by operation",
+			params: MetricsQueryParams{
+				BaseQueryParameters: metricstore.BaseQueryParameters{
+					ServiceNames:     []string{"service1"},
+					GroupByOperation: true,
+				},
+			},
+			result: &elastic.SearchResult{
+				Aggregations: make(elastic.Aggregations), // Empty aggregations
+			},
+			errMsg: "results_buckets aggregation not found",
+		},
+		{
+			name: "bucket key not string",
+			params: MetricsQueryParams{
+				BaseQueryParameters: metricstore.BaseQueryParameters{
+					ServiceNames:     []string{"service1"},
+					GroupByOperation: true,
+				},
+			},
+			result: createTestSearchResultWithNonStringKey(),
+			errMsg: "bucket key is not a string",
+		},
+		{
+			name: "missing date histogram in operation bucket",
+			params: MetricsQueryParams{
+				BaseQueryParameters: metricstore.BaseQueryParameters{
+					ServiceNames:     []string{"service1"},
+					GroupByOperation: true,
+				},
+			},
+			result: createTestSearchResultMissingDateHistogram(),
+			errMsg: "date_histogram aggregation not found in bucket",
+		},
+	}
+
+	translator := NewTranslator()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := translator.toDomainMetrics(tt.params, tt.result)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.errMsg)
+		})
+	}
+}
+
+func TestToDomainMetricPoint_ErrorCases(t *testing.T) {
+	tests := []struct {
+		name   string
+		bucket *elastic.AggregationBucketHistogramItem
+	}{
+		{
+			name: "missing moving function aggregation",
+			bucket: &elastic.AggregationBucketHistogramItem{
+				Aggregations: make(elastic.Aggregations),
+			},
+		},
+	}
+
+	translator := NewTranslator()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mp := translator.toDomainMetricPoint(tt.bucket)
+			assert.Nil(t, mp)
+		})
+	}
+}
+
+// Helper functions for test data creation
+func createTestSearchResultWithNonStringKey() *elastic.SearchResult {
+	rawAggregation := json.RawMessage(`{
+		"buckets": [{
+			"key": 12345,
+			"doc_count": 10,
+			"date_histogram": {
+				"buckets": [{
+					"key": 123456,
+					"doc_count": 5,
+					"results": {"value": 1.23}
+				}]
+			}
+		}]
+	}`)
+
+	aggs := make(elastic.Aggregations)
+	aggs["results_buckets"] = &rawAggregation
+
+	return &elastic.SearchResult{
+		Aggregations: aggs,
+	}
+}
+
+func createTestSearchResultMissingDateHistogram() *elastic.SearchResult {
+	rawAggregation := json.RawMessage(`{
+		"buckets": [{
+			"key": "op1",
+			"doc_count": 10
+		}]
+	}`)
+
+	aggs := make(elastic.Aggregations)
+	aggs["results_buckets"] = &rawAggregation
+
+	return &elastic.SearchResult{
+		Aggregations: aggs,
 	}
 }
 

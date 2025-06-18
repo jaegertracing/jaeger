@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	elasticv7 "github.com/olivere/elastic/v7"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	elasticv7 "github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -121,7 +121,7 @@ type metricsTestCase struct {
 // failingAggregation is a mock aggregation that fails when Source() is called
 type failingAggregation struct{}
 
-func (a *failingAggregation) Source() (interface{}, error) {
+func (*failingAggregation) Source() (any, error) {
 	return nil, errors.New("forced aggregation source error")
 }
 
