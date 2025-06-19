@@ -61,7 +61,7 @@ var mockCallRateQuery = `{
     "results_buckets": {
       "date_histogram": {
         "field": "startTimeMillis",
-        "fixed_interval": "1000ms",
+        "fixed_interval": "60000ms",
         "min_doc_count": 0,
         "extended_bounds": {
           "min": 1749894900000,
@@ -72,20 +72,6 @@ var mockCallRateQuery = `{
         "cumulative_requests": {
           "cumulative_sum": {
             "buckets_path": "_count"
-          }
-        },
-        "results": {
-          "moving_fn": {
-            "buckets_path": "cumulative_requests",
-            "window": 10,
-            "script": {
-              "source": "if (values == null || values.length == 0) return 0.0; if (values.length < 2) return 0.0; double n = values.length; double sumX = 0.0; double sumY = 0.0; double sumXY = 0.0; double sumX2 = 0.0; for (int i = 0; i < n; i++) { double x = i; double y = values[i]; sumX += x; sumY += y; sumXY += x * y; sumX2 += x * x; } double numerator = n * sumXY - sumX * sumY; double denominator = n * sumX2 - sumX * sumX; if (Math.abs(denominator) < 1e-10) return 0.0; double slopePerBucket = numerator / denominator; double intervalSeconds = params.interval_ms / 1000.0; return slopePerBucket / intervalSeconds;",
-              "lang": "painless",
-              "params": {
-                "window": 10,
-                "interval_ms": 1000
-              }
-            }
           }
         }
       }
@@ -177,6 +163,21 @@ func assertMetricFamily(t *testing.T, got *metrics.MetricFamily, m metricsTestCa
 }
 
 func TestGetCallRates(t *testing.T) {
+	expectedPoints := []struct {
+		TimestampSec int64
+		Value        float64
+	}{
+		{1749894900, 0.0},
+		{1749894960, 0.0},
+		{1749895020, 0.0},
+		{1749895080, 0.0},
+		{1749895140, 0.0},
+		{1749895200, 0.0},
+		{1749895260, 0.0},
+		{1749895320, 0.0},
+		{1749895380, 0.0},
+		{1749895440, 0.9},
+	}
 	tests := []metricsTestCase{
 		{
 			name:         "group by service only",
@@ -190,13 +191,7 @@ func TestGetCallRates(t *testing.T) {
 			wantLabels: map[string]string{
 				"service_name": "driver",
 			},
-			wantPoints: []struct {
-				TimestampSec int64
-				Value        float64
-			}{
-				{1749894900, 5.0},
-				{1749894960, 6.0},
-			},
+			wantPoints: expectedPoints,
 		},
 		{
 			name:         "group by service and operation",
@@ -210,12 +205,7 @@ func TestGetCallRates(t *testing.T) {
 				"service_name": "driver",
 				"operation":    "/FindNearest",
 			},
-			wantPoints: []struct {
-				TimestampSec int64
-				Value        float64
-			}{
-				{1749894900, 3.0},
-			},
+			wantPoints: expectedPoints,
 		},
 		{
 			name:         "different service names",
@@ -228,13 +218,7 @@ func TestGetCallRates(t *testing.T) {
 			wantLabels: map[string]string{
 				"service_name": "jaeger",
 			},
-			wantPoints: []struct {
-				TimestampSec int64
-				Value        float64
-			}{
-				{1749894900, 5.0},
-				{1749894960, 6.0},
-			},
+			wantPoints: expectedPoints,
 		},
 		{
 			name:         "empty response",
@@ -352,7 +336,6 @@ func startMockEsServer(t *testing.T, wantEsQuery string, responseFile string) *h
 
 		// Read request body
 		body, err := io.ReadAll(r.Body)
-		t.Logf("Body: %s", string(body))
 		assert.NoError(t, err, "Failed to read request body")
 		defer r.Body.Close()
 
@@ -477,7 +460,7 @@ func setupMetricsReaderAndServer(t *testing.T, wantEsQuery string, responseFile 
 func buildTestBaseQueryParameters(tc metricsTestCase) metricstore.BaseQueryParameters {
 	endTime := time.UnixMilli(1749894900000)
 	lookback := 6 * time.Hour
-	step := time.Second
+	step := time.Minute
 
 	return metricstore.BaseQueryParameters{
 		ServiceNames:     tc.serviceNames,

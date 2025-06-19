@@ -221,28 +221,6 @@ func TestToDomainMetrics_ErrorCases(t *testing.T) {
 	}
 }
 
-func TestToDomainMetricPoint_ErrorCases(t *testing.T) {
-	tests := []struct {
-		name   string
-		bucket *elastic.AggregationBucketHistogramItem
-	}{
-		{
-			name: "missing moving function aggregation",
-			bucket: &elastic.AggregationBucketHistogramItem{
-				Aggregations: make(elastic.Aggregations),
-			},
-		},
-	}
-
-	translator := NewTranslator()
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mp := translator.toDomainMetricPoint(tt.bucket)
-			assert.Nil(t, mp)
-		})
-	}
-}
-
 // Helper functions for test data creation
 func createTestSearchResultWithNonStringKey() *elastic.SearchResult {
 	rawAggregation := json.RawMessage(`{

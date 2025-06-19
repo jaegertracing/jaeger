@@ -123,7 +123,7 @@ func (Translator) extractBuckets(result *elastic.SearchResult) ([]*elastic.Aggre
 // toDomainMetricPoints converts Elasticsearch buckets to Jaeger metric points.
 func (d Translator) toDomainMetricPoints(m MetricsQueryParams, buckets []*elastic.AggregationBucketHistogramItem) []*metrics.MetricPoint {
 	result := translateBucketsToPointsArray(buckets)
-	processOutput := m.processMetricsFunc(m, result)
+	processOutput := m.processMetricsFunc(result)
 
 	metricPoints := make([]*metrics.MetricPoint, 0, len(processOutput))
 	for _, pair := range processOutput {
@@ -140,21 +140,20 @@ func translateBucketsToPointsArray(buckets []*elastic.AggregationBucketHistogram
 	var points []*Pair
 
 	for _, bucket := range buckets {
-		if aggMap, ok := bucket.Aggregations.CumulativeSum("cumulative_requests"); ok {
-			value := math.NaN()
-			if aggMap != nil && aggMap.Value != nil {
-				value = *aggMap.Value
-			}
-			points = append(points, &Pair{
-				TimeStamp: int64(bucket.Key),
-				Value:     value,
-			})
-		} else {
+		aggMap, ok := bucket.Aggregations.CumulativeSum(culmuAggName)
+		if !ok {
 			return nil
 		}
+		value := math.NaN()
+		if aggMap != nil && aggMap.Value != nil {
+			value = *aggMap.Value
+		}
+		points = append(points, &Pair{
+			TimeStamp: int64(bucket.Key),
+			Value:     value,
+		})
 	}
 	return points
-
 }
 
 // toDomainMetricPoint converts a single Pair to a Jaeger metric point.

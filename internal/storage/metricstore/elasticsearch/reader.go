@@ -29,9 +29,9 @@ var ErrNotImplemented = errors.New("metrics querying is currently not implemente
 
 const (
 	minStep      = time.Millisecond
-	movFnAggName = "results"
 	aggName      = "results_buckets"
 	searchIndex  = "jaeger-span-*"
+	culmuAggName = "cumulative_requests"
 )
 
 // MetricsReader is an Elasticsearch metrics reader.
@@ -54,7 +54,7 @@ type (
 		metricDesc         string
 		boolQuery          *elasticv7.BoolQuery
 		aggQuery           elasticv7.Aggregation
-		processMetricsFunc func(metricParams MetricsQueryParams, pair []*Pair) []*Pair
+		processMetricsFunc func(pair []*Pair) []*Pair
 	}
 
 	Pair struct {
@@ -88,8 +88,44 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 		metricDesc:          "calls/sec, grouped by service",
 		boolQuery:           r.buildQuery(&params.BaseQueryParameters, timeRange),
 		aggQuery:            r.buildCallRateAggregations(params, timeRange),
-		processMetricsFunc: func(metricParams MetricsQueryParams, pair []*Pair) []*Pair {
-			return getCallRateProcessFunc(metricParams, pair)
+		processMetricsFunc: func(pairs []*Pair) []*Pair {
+			lookback := 10
+			n := len(pairs)
+			results := make([]*Pair, 0, n)
+
+			for i := range pairs {
+				if pairs[i].Value == 0.0 {
+					results = append(results, &Pair{
+						TimeStamp: pairs[i].TimeStamp,
+						Value:     math.NaN(),
+					})
+					continue
+				}
+				// Skip if we don't have enough data points for lookback
+				if i < lookback-1 {
+					results = append(results, &Pair{
+						TimeStamp: pairs[i].TimeStamp,
+						Value:     0.0,
+					})
+					continue
+				}
+
+				// Get first and last values in the window
+				firstVal := pairs[i-lookback+1].Value
+				lastVal := pairs[i].Value
+
+				// Calculate window size in seconds (assuming params.IntervalMs is in milliseconds)
+				windowSizeSeconds := float64(lookback) * (params.Step.Seconds())
+				// Calculate rate
+				rate := (lastVal - firstVal) / windowSizeSeconds
+
+				results = append(results, &Pair{
+					TimeStamp: pairs[i].TimeStamp,
+					Value:     rate,
+				})
+			}
+
+			return results
 		},
 	}
 
@@ -230,7 +266,7 @@ func (MetricsReader) buildCallRateAggregations(params *metricstore.CallRateQuery
 	//
 
 	dateHistoAgg = dateHistoAgg.
-		SubAggregation("cumulative_requests", cumulativeSumAgg)
+		SubAggregation(culmuAggName, cumulativeSumAgg)
 
 	if params.GroupByOperation {
 		operationsAgg := elasticv7.NewTermsAggregation().
@@ -277,46 +313,6 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) 
 		p,
 		searchResult,
 	)
-}
-
-func getCallRateProcessFunc(params MetricsQueryParams, pairs []*Pair) []*Pair {
-	lookback := 10
-	n := len(pairs)
-	results := make([]*Pair, 0, n)
-
-	for i := range pairs {
-		if pairs[i].Value == 0.0 {
-			results = append(results, &Pair{
-				TimeStamp: pairs[i].TimeStamp,
-				Value:     math.NaN(),
-			})
-			continue
-		}
-		// Skip if we don't have enough data points for lookback
-		if i < lookback-1 {
-			results = append(results, &Pair{
-				TimeStamp: pairs[i].TimeStamp,
-				Value:     0.0,
-			})
-			continue
-		}
-
-		// Get first and last values in the window
-		firstVal := pairs[i-lookback+1].Value
-		lastVal := pairs[i].Value
-
-		// Calculate window size in seconds (assuming params.IntervalMs is in milliseconds)
-		windowSizeSeconds := float64(lookback) * params.Step.Seconds()
-		// Calculate rate
-		rate := (lastVal - firstVal) / windowSizeSeconds
-
-		results = append(results, &Pair{
-			TimeStamp: pairs[i].TimeStamp,
-			Value:     rate,
-		})
-	}
-
-	return results
 }
 
 // normalizeSpanKinds normalizes a slice of span kinds.
