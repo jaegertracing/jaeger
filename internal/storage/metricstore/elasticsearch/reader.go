@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -49,10 +50,16 @@ type (
 
 	MetricsQueryParams struct {
 		metricstore.BaseQueryParameters
-		metricName string
-		metricDesc string
-		boolQuery  *elasticv7.BoolQuery
-		aggQuery   elasticv7.Aggregation
+		metricName         string
+		metricDesc         string
+		boolQuery          *elasticv7.BoolQuery
+		aggQuery           elasticv7.Aggregation
+		processMetricsFunc func(metricParams MetricsQueryParams, pair []*Pair) []*Pair
+	}
+
+	Pair struct {
+		TimeStamp int64
+		Value     float64
 	}
 )
 
@@ -81,6 +88,9 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 		metricDesc:          "calls/sec, grouped by service",
 		boolQuery:           r.buildQuery(&params.BaseQueryParameters, timeRange),
 		aggQuery:            r.buildCallRateAggregations(params, timeRange),
+		processMetricsFunc: func(metricParams MetricsQueryParams, pair []*Pair) []*Pair {
+			return getCallRateProcessFunc(metricParams, pair)
+		},
 	}
 
 	metricFamily, err := r.executeSearch(ctx, metricsParams)
@@ -199,39 +209,6 @@ func (MetricsReader) buildCallRateAggregations(params *metricstore.CallRateQuery
 
 	cumulativeSumAgg := elasticv7.NewCumulativeSumAggregation().BucketsPath("_count")
 
-	// Painless script to calculate the rate per second using linear regression.
-	painlessScriptSource := `
-		if (values == null || values.length == 0) return 0.0;
-		if (values.length < 2) return 0.0;
-		double n = values.length;
-		double sumX = 0.0;
-		double sumY = 0.0;
-		double sumXY = 0.0;
-		double sumX2 = 0.0;
-		for (int i = 0; i < n; i++) {
-			double x = i;
-			double y = values[i];
-			sumX += x;
-			sumY += y;
-			sumXY += x * y;
-			sumX2 += x * x;
-		}
-		double numerator = n * sumXY - sumX * sumY;
-		double denominator = n * sumX2 - sumX * sumX;
-		if (Math.abs(denominator) < 1e-10) return 0.0;
-		double slopePerBucket = numerator / denominator;
-		double intervalSeconds = params.interval_ms / 1000.0;
-		return slopePerBucket / intervalSeconds;
-    `
-	scriptParams := map[string]any{
-		"window":      10,
-		"interval_ms": params.Step.Milliseconds(),
-	}
-	movingFnAgg := (&elasticv7.MovFnAggregation{}).
-		BucketsPath("cumulative_requests").
-		Script(elasticv7.NewScript(painlessScriptSource).Lang("painless").Params(scriptParams)).
-		Window(10)
-
 	// Corresponding AGG ES query:
 	// "aggs": {
 	//	"results_buckets": {
@@ -249,23 +226,11 @@ func (MetricsReader) buildCallRateAggregations(params *metricstore.CallRateQuery
 	//				"cumulative_sum": {
 	//					"buckets_path": "_count"
 	//				}
-	//			},
-	//			"rate_per_second": {
-	//				"moving_fn": {
-	//					"script": {
-	//						"source": scriptSource,
-	//							"lang": "painless",
-	//							"params": {
-	//							"window": 10,
-	//								"interval_ms": 60000
-	//						}
-	//					},
-	//					"buckets_path": "cumulative_requests",
-	//						"window": 10}}}}}
+	//			}
+	//
 
 	dateHistoAgg = dateHistoAgg.
-		SubAggregation("cumulative_requests", cumulativeSumAgg).
-		SubAggregation(movFnAggName, movingFnAgg)
+		SubAggregation("cumulative_requests", cumulativeSumAgg)
 
 	if params.GroupByOperation {
 		operationsAgg := elasticv7.NewTermsAggregation().
@@ -312,6 +277,46 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) 
 		p,
 		searchResult,
 	)
+}
+
+func getCallRateProcessFunc(params MetricsQueryParams, pairs []*Pair) []*Pair {
+	lookback := 10
+	n := len(pairs)
+	results := make([]*Pair, 0, n)
+
+	for i := range pairs {
+		if pairs[i].Value == 0.0 {
+			results = append(results, &Pair{
+				TimeStamp: pairs[i].TimeStamp,
+				Value:     math.NaN(),
+			})
+			continue
+		}
+		// Skip if we don't have enough data points for lookback
+		if i < lookback-1 {
+			results = append(results, &Pair{
+				TimeStamp: pairs[i].TimeStamp,
+				Value:     0.0,
+			})
+			continue
+		}
+
+		// Get first and last values in the window
+		firstVal := pairs[i-lookback+1].Value
+		lastVal := pairs[i].Value
+
+		// Calculate window size in seconds (assuming params.IntervalMs is in milliseconds)
+		windowSizeSeconds := float64(lookback) * params.Step.Seconds()
+		// Calculate rate
+		rate := (lastVal - firstVal) / windowSizeSeconds
+
+		results = append(results, &Pair{
+			TimeStamp: pairs[i].TimeStamp,
+			Value:     rate,
+		})
+	}
+
+	return results
 }
 
 // normalizeSpanKinds normalizes a slice of span kinds.
