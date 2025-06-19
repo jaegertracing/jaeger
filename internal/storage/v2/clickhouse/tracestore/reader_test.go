@@ -121,6 +121,45 @@ func scanSpanRowFn() func(dest any, src testdata.SpanRow) error {
 	}
 }
 
+func TestGetTraces_Success(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     []testdata.SpanRow
+		expected []ptrace.Traces
+	}{
+		{
+			name: "single span",
+			data: testdata.SingleSpan,
+		},
+		{
+			name: "multiple spans",
+			data: testdata.MultipleSpans,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conn := &testDriver{
+				t:             t,
+				expectedQuery: sqlSelectSpansByTraceID,
+				rows: &testRows[testdata.SpanRow]{
+					data:   tt.data,
+					scanFn: scanSpanRowFn(),
+				},
+			}
+
+			reader := NewReader(conn)
+			getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
+				TraceID: testdata.TraceID,
+			})
+			traces, err := jiter.FlattenWithErrors(getTracesIter)
+
+			require.NoError(t, err)
+			testdata.RequireTracesEqual(t, tt.data, traces)
+		})
+	}
+}
+
 func TestGetTraces_ErrorCases(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -173,46 +212,6 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 			require.ErrorContains(t, err, test.expectedErr)
 		})
 	}
-}
-
-func TestGetTraces_SingleSpan(t *testing.T) {
-	conn := &testDriver{
-		t:             t,
-		expectedQuery: sqlSelectSpansByTraceID,
-		rows: &testRows[testdata.SpanRow]{
-			data:   testdata.SingleSpan,
-			scanFn: scanSpanRowFn(),
-		},
-	}
-
-	reader := NewReader(conn)
-	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
-		TraceID: testdata.TraceID,
-	})
-	traces, err := jiter.FlattenWithErrors(getTracesIter)
-
-	require.NoError(t, err)
-	testdata.RequireTracesEqual(t, testdata.SingleSpan, traces)
-}
-
-func TestGetTraces_MultipleSpans(t *testing.T) {
-	conn := &testDriver{
-		t:             t,
-		expectedQuery: sqlSelectSpansByTraceID,
-		rows: &testRows[testdata.SpanRow]{
-			data:   testdata.MultipleSpans,
-			scanFn: scanSpanRowFn(),
-		},
-	}
-
-	reader := NewReader(conn)
-	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
-		TraceID: testdata.TraceID,
-	})
-	traces, err := jiter.FlattenWithErrors(getTracesIter)
-
-	require.NoError(t, err)
-	testdata.RequireTracesEqual(t, testdata.MultipleSpans, traces)
 }
 
 func TestGetTraces_ScanErrorContinues(t *testing.T) {
