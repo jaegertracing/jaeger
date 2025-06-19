@@ -31,7 +31,7 @@ services:
       start_period: 5s
 
   jaeger-remote-storage:
-    image: jaegertracing/jaeger-remote-storage@sha256:e78c6093ac38f7cdccf0877750bb21f2cbcc08c2fd3e578966b5796a31f26643
+    image: cr.jaegertracing.io/jaegertracing/jaeger-remote-storage@sha256:e78c6093ac38f7cdccf0877750bb21f2cbcc08c2fd3e578966b5796a31f26643
     ports:
       - 17271:17271
     environment:
@@ -43,7 +43,7 @@ services:
       retries: 3
 
   jaeger-collector:
-    image: jaegertracing/jaeger-collector@sha256:7c94da406b6e186c756e257bca9954fca3c8be1b5e0b05f377f4dacdf0bcce06
+    image: cr.jaegertracing.io/jaegertracing/jaeger-collector@sha256:7c94da406b6e186c756e257bca9954fca3c8be1b5e0b05f377f4dacdf0bcce06
     command:
       - "--log-level=debug"
     ports:
@@ -64,7 +64,7 @@ services:
       - kafka
 
   jaeger-ingester:
-    image: jaegertracing/jaeger-ingester@sha256:351bd49e53490a43dcde1639c549c420cca44c522d24f493d17ef75d133170df
+    image: cr.jaegertracing.io/jaegertracing/jaeger-ingester@sha256:351bd49e53490a43dcde1639c549c420cca44c522d24f493d17ef75d133170df
     command:
       - "--grpc-storage.server=jaeger-remote-storage:17271"
       - "--log-level=debug"
@@ -88,7 +88,7 @@ services:
       - jaeger-remote-storage
 
   jaeger-query:
-    image: jaegertracing/jaeger-query@sha256:e3dd18391fc04065d8edf5efbbefe33f3e865b7f6175e81a2ee284085a73f63d
+    image: cr.jaegertracing.io/jaegertracing/jaeger-query@sha256:e3dd18391fc04065d8edf5efbbefe33f3e865b7f6175e81a2ee284085a73f63d
     command:
       - "--grpc-storage.server=jaeger-remote-storage:17271"
       - "--log-level=debug"

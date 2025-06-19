@@ -27,7 +27,7 @@ services:
       backend:
         # This is the host name used in Prometheus scrape configuration.
         aliases: [ spm_metrics_source ]
-    image: jaegertracing/jaeger:${JAEGER_VERSION:-latest}
+    image: cr.jaegertracing.io/jaegertracing/jaeger:${JAEGER_VERSION:-latest}
     volumes:
       - "./jaeger-ui.json:/etc/jaeger/jaeger-ui.json" # Do we need this for v2 ? Seems to be running without this.
       - "../../cmd/jaeger/config-spm-elasticsearch.yaml:/etc/jaeger/config.yml"

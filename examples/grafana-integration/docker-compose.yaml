@@ -34,7 +34,7 @@ services:
         loki-retries: 1
 
   jaeger:
-    image: jaegertracing/all-in-one:1.51
+    image: cr.jaegertracing.iojaegertracing/all-in-one:1.51
     ports:
       - '6831:6831'
       - '16686:16686'
@@ -44,7 +44,9 @@ services:
         loki-url: 'http://localhost:3100/api/prom/push'
 
   hotrod:
-    image: jaegertracing/example-hotrod:1.51
+    image: cr.jaegertracing.io/jaegertracing/example-hotrod:1.51
+    depends_on:
+      - jaeger
     ports:
       - '8080:8080'
       - '8083:8083'
