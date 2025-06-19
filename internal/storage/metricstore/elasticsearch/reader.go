@@ -241,7 +241,7 @@ func (MetricsReader) buildCallRateAggregations(params *metricstore.CallRateQuery
 		Field("startTimeMillis").
 		FixedInterval(fixedIntervalString).
 		MinDocCount(0).
-		ExtendedBounds(timeRange.startTimeMillis, timeRange.endTimeMillis)
+		ExtendedBounds(timeRange.extendedStartTimeMillis, timeRange.endTimeMillis)
 
 	cumulativeSumAgg := elasticv7.NewCumulativeSumAggregation().BucketsPath("_count")
 
@@ -337,7 +337,7 @@ func buildInterfaceSlice(s []string) []any {
 func calculateTimeRange(params *metricstore.BaseQueryParameters) TimeRange {
 	endTime := *params.EndTime
 	startTime := endTime.Add(-*params.Lookback)
-	extendedStartTime := startTime.Add(-5 * time.Minute)
+	extendedStartTime := startTime.Add(-10 * time.Minute)
 
 	return TimeRange{
 		startTimeMillis:         startTime.UnixMilli(),
