@@ -89,11 +89,13 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 		boolQuery:           r.buildQuery(&params.BaseQueryParameters, timeRange),
 		aggQuery:            r.buildCallRateAggregations(params, timeRange),
 		processMetricsFunc: func(pairs []*Pair) []*Pair {
+			// Configuration - lookback window size (10 data points)
 			lookback := 10
 			n := len(pairs)
-			results := make([]*Pair, 0, n)
+			results := make([]*Pair, 0, n) // Pre-allocate result slice for efficiency
 
 			for i := range pairs {
+				// Special case: if current value is 0.0, treat as NaN
 				if pairs[i].Value == 0.0 {
 					results = append(results, &Pair{
 						TimeStamp: pairs[i].TimeStamp,
@@ -101,24 +103,31 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 					})
 					continue
 				}
-				// Skip if we don't have enough data points for lookback
+
+				// For first (lookback-1) points, we don't have enough history
 				if i < lookback-1 {
 					results = append(results, &Pair{
 						TimeStamp: pairs[i].TimeStamp,
-						Value:     0.0,
+						Value:     0.0, // Return 0 when insufficient data
 					})
 					continue
 				}
 
-				// Get first and last values in the window
+				// Get boundary values for our lookback window:
+				// First value in window (oldest)
 				firstVal := pairs[i-lookback+1].Value
+				// Last value in window (current value)
 				lastVal := pairs[i].Value
 
-				// Calculate window size in seconds (assuming params.IntervalMs is in milliseconds)
+				// Calculate time window duration in seconds
+				// params.Step.Seconds() gives the interval between data points
 				windowSizeSeconds := float64(lookback) * (params.Step.Seconds())
-				// Calculate rate
+
+				// Calculate rate of change per second
+				// Formula: (current_value - starting_value) / time_window
 				rate := (lastVal - firstVal) / windowSizeSeconds
 
+				// Store the result with original timestamp
 				results = append(results, &Pair{
 					TimeStamp: pairs[i].TimeStamp,
 					Value:     rate,
