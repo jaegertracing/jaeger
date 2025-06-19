@@ -121,39 +121,58 @@ func scanSpanRowFn() func(dest any, src testdata.SpanRow) error {
 	}
 }
 
-func TestGetTraces_QueryError(t *testing.T) {
-	conn := &testDriver{
-		t:             t,
-		expectedQuery: sqlSelectSpansByTraceID,
-		err:           assert.AnError,
-	}
-
-	reader := NewReader(conn)
-	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
-		TraceID: testdata.TraceID,
-	})
-	_, err := jiter.FlattenWithErrors(getTracesIter)
-	require.ErrorContains(t, err, "failed to query trace")
-	require.ErrorIs(t, err, assert.AnError)
-}
-
-func TestGetTraces_ScanError(t *testing.T) {
-	conn := &testDriver{
-		t:             t,
-		expectedQuery: sqlSelectSpansByTraceID,
-		rows: &testRows[testdata.SpanRow]{
-			data:    testdata.SingleSpan,
-			scanErr: assert.AnError,
+func TestGetTraces_ErrorCases(t *testing.T) {
+	tests := []struct {
+		name        string
+		driver      *testDriver
+		expectedErr string
+	}{
+		{
+			name: "QueryError",
+			driver: &testDriver{
+				t:             t,
+				expectedQuery: sqlSelectSpansByTraceID,
+				err:           assert.AnError,
+			},
+			expectedErr: "failed to query trace",
+		},
+		{
+			name: "ScanError",
+			driver: &testDriver{
+				t:             t,
+				expectedQuery: sqlSelectSpansByTraceID,
+				rows: &testRows[testdata.SpanRow]{
+					data:    testdata.SingleSpan,
+					scanErr: assert.AnError,
+				},
+			},
+			expectedErr: "failed to scan span row",
+		},
+		{
+			name: "CloseError",
+			driver: &testDriver{
+				t:             t,
+				expectedQuery: sqlSelectSpansByTraceID,
+				rows: &testRows[testdata.SpanRow]{
+					data:     testdata.SingleSpan,
+					scanFn:   scanSpanRowFn(),
+					closeErr: assert.AnError,
+				},
+			},
+			expectedErr: "failed to close rows",
 		},
 	}
 
-	reader := NewReader(conn)
-	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
-		TraceID: testdata.TraceID,
-	})
-	_, err := jiter.FlattenWithErrors(getTracesIter)
-	require.ErrorContains(t, err, "failed to scan span row")
-	require.ErrorIs(t, err, assert.AnError)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			reader := NewReader(test.driver)
+			iter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
+				TraceID: testdata.TraceID,
+			})
+			_, err := jiter.FlattenWithErrors(iter)
+			require.ErrorContains(t, err, test.expectedErr)
+		})
+	}
 }
 
 func TestGetTraces_SingleSpan(t *testing.T) {
@@ -285,26 +304,6 @@ func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 
 	require.Len(t, gotTraces, 1)
 	testdata.RequireTracesEqual(t, testdata.MultipleSpans[0:1], gotTraces)
-}
-
-func TestGetTraces_CloseError(t *testing.T) {
-	conn := &testDriver{
-		t:             t,
-		expectedQuery: sqlSelectSpansByTraceID,
-		rows: &testRows[testdata.SpanRow]{
-			data:     testdata.SingleSpan,
-			scanFn:   scanSpanRowFn(),
-			closeErr: assert.AnError, // simulate close error
-		},
-	}
-
-	reader := NewReader(conn)
-	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
-		TraceID: testdata.TraceID,
-	})
-	_, err := jiter.FlattenWithErrors(getTracesIter)
-
-	require.ErrorContains(t, err, "failed to close rows")
 }
 
 func TestGetServices(t *testing.T) {
