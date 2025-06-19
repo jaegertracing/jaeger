@@ -74,7 +74,6 @@ func (r *Reader) GetTraces(
 				return
 			}
 
-			var traces []ptrace.Traces
 			done := false
 			for rows.Next() {
 				span, err := scanSpanRow(rows)
@@ -86,8 +85,8 @@ func (r *Reader) GetTraces(
 					continue
 				}
 
-				traces = append(traces, dbmodel.FromDBModel(span))
-				if !yield(traces, nil) {
+				trace := dbmodel.FromDBModel(span)
+				if !yield([]ptrace.Traces{trace}, nil) {
 					done = true
 					break
 				}
