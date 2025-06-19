@@ -38,48 +38,87 @@ func (t *testDriver) Query(_ context.Context, query string, _ ...any) (driver.Ro
 type testRows[T any] struct {
 	driver.Rows
 
-	data    []T
-	index   int
-	scanErr error
-	scanFn  func(dest any, src T) error
+	data     []T
+	index    int
+	scanErr  error
+	scanFn   func(dest any, src T) error
+	closeErr error
 }
 
-func (*testRows[T]) Close() error {
-	return nil
+func (tr *testRows[T]) Close() error {
+	return tr.closeErr
 }
 
-func (f *testRows[T]) Next() bool {
-	return f.index < len(f.data)
+func (tr *testRows[T]) Next() bool {
+	return tr.index < len(tr.data)
 }
 
-func (f *testRows[T]) ScanStruct(dest any) error {
-	if f.scanErr != nil {
-		return f.scanErr
+func (tr *testRows[T]) ScanStruct(dest any) error {
+	if tr.scanErr != nil {
+		return tr.scanErr
 	}
-	if f.index >= len(f.data) {
+	if tr.index >= len(tr.data) {
 		return errors.New("no more rows")
 	}
-	if f.scanFn == nil {
+	if tr.scanFn == nil {
 		return errors.New("scanFn is not provided")
 	}
-	err := f.scanFn(dest, f.data[f.index])
-	f.index++
+	err := tr.scanFn(dest, tr.data[tr.index])
+	tr.index++
 	return err
 }
 
-func (f *testRows[T]) Scan(dest ...any) error {
-	if f.scanErr != nil {
-		return f.scanErr
+func (tr *testRows[T]) Scan(dest ...any) error {
+	if tr.scanErr != nil {
+		return tr.scanErr
 	}
-	if f.index >= len(f.data) {
+	if tr.index >= len(tr.data) {
 		return errors.New("no more rows")
 	}
-	if f.scanFn == nil {
+	if tr.scanFn == nil {
 		return errors.New("scanFn is not provided")
 	}
-	err := f.scanFn(dest, f.data[f.index])
-	f.index++
+	err := tr.scanFn(dest, tr.data[tr.index])
+	tr.index++
 	return err
+}
+
+func scanSpanRowFn() func(dest any, src testdata.SpanRow) error {
+	return func(dest any, src testdata.SpanRow) error {
+		ptrs, ok := dest.([]any)
+		if !ok {
+			return fmt.Errorf("expected []any for dest, got %T", dest)
+		}
+		if len(ptrs) != 18 {
+			return fmt.Errorf("expected 18 destination arguments, got %d", len(ptrs))
+		}
+
+		values := []any{
+			&src.ID,
+			&src.TraceID,
+			&src.TraceState,
+			&src.ParentSpanID,
+			&src.Name,
+			&src.Kind,
+			&src.StartTime,
+			&src.StatusCode,
+			&src.StatusMessage,
+			&src.RawDuration,
+			&src.EventNames,
+			&src.EventTimestamps,
+			&src.LinkTraceIDs,
+			&src.LinkSpanIDs,
+			&src.LinkTraceStates,
+			&src.ServiceName,
+			&src.ScopeName,
+			&src.ScopeVersion,
+		}
+
+		for i := range ptrs {
+			reflect.ValueOf(ptrs[i]).Elem().Set(reflect.ValueOf(values[i]).Elem())
+		}
+		return nil
+	}
 }
 
 func TestGetTraces_QueryError(t *testing.T) {
@@ -122,42 +161,8 @@ func TestGetTraces_SingleSpan(t *testing.T) {
 		t:             t,
 		expectedQuery: sqlSelectSpansByTraceID,
 		rows: &testRows[testdata.SpanRow]{
-			data: testdata.SingleSpan,
-			scanFn: func(dest any, src testdata.SpanRow) error {
-				ptrs, ok := dest.([]any)
-				if !ok {
-					return fmt.Errorf("expected []any for dest, got %T", dest)
-				}
-				if len(ptrs) != 18 {
-					return fmt.Errorf("expected 18 destination arguments, got %d", len(ptrs))
-				}
-
-				values := []any{
-					&src.ID,
-					&src.TraceID,
-					&src.TraceState,
-					&src.ParentSpanID,
-					&src.Name,
-					&src.Kind,
-					&src.StartTime,
-					&src.StatusCode,
-					&src.StatusMessage,
-					&src.RawDuration,
-					&src.EventNames,
-					&src.EventTimestamps,
-					&src.LinkTraceIDs,
-					&src.LinkSpanIDs,
-					&src.LinkTraceStates,
-					&src.ServiceName,
-					&src.ScopeName,
-					&src.ScopeVersion,
-				}
-
-				for i := range ptrs {
-					reflect.ValueOf(ptrs[i]).Elem().Set(reflect.ValueOf(values[i]).Elem())
-				}
-				return nil
-			},
+			data:   testdata.SingleSpan,
+			scanFn: scanSpanRowFn(),
 		},
 	}
 
@@ -176,42 +181,8 @@ func TestGetTraces_MultipleSpans(t *testing.T) {
 		t:             t,
 		expectedQuery: sqlSelectSpansByTraceID,
 		rows: &testRows[testdata.SpanRow]{
-			data: testdata.MultipleSpans,
-			scanFn: func(dest any, src testdata.SpanRow) error {
-				ptrs, ok := dest.([]any)
-				if !ok {
-					return fmt.Errorf("expected []any for dest, got %T", dest)
-				}
-				if len(ptrs) != 18 {
-					return fmt.Errorf("expected 18 destination arguments, got %d", len(ptrs))
-				}
-
-				values := []any{
-					&src.ID,
-					&src.TraceID,
-					&src.TraceState,
-					&src.ParentSpanID,
-					&src.Name,
-					&src.Kind,
-					&src.StartTime,
-					&src.StatusCode,
-					&src.StatusMessage,
-					&src.RawDuration,
-					&src.EventNames,
-					&src.EventTimestamps,
-					&src.LinkTraceIDs,
-					&src.LinkSpanIDs,
-					&src.LinkTraceStates,
-					&src.ServiceName,
-					&src.ScopeName,
-					&src.ScopeVersion,
-				}
-
-				for i := range ptrs {
-					reflect.ValueOf(ptrs[i]).Elem().Set(reflect.ValueOf(values[i]).Elem())
-				}
-				return nil
-			},
+			data:   testdata.MultipleSpans,
+			scanFn: scanSpanRowFn(),
 		},
 	}
 
@@ -295,42 +266,8 @@ func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 		t:             t,
 		expectedQuery: sqlSelectSpansByTraceID,
 		rows: &testRows[testdata.SpanRow]{
-			data: testdata.MultipleSpans,
-			scanFn: func(dest any, src testdata.SpanRow) error {
-				ptrs, ok := dest.([]any)
-				if !ok {
-					return fmt.Errorf("expected []any for dest, got %T", dest)
-				}
-				if len(ptrs) != 18 {
-					return fmt.Errorf("expected 18 destination arguments, got %d", len(ptrs))
-				}
-
-				values := []any{
-					&src.ID,
-					&src.TraceID,
-					&src.TraceState,
-					&src.ParentSpanID,
-					&src.Name,
-					&src.Kind,
-					&src.StartTime,
-					&src.StatusCode,
-					&src.StatusMessage,
-					&src.RawDuration,
-					&src.EventNames,
-					&src.EventTimestamps,
-					&src.LinkTraceIDs,
-					&src.LinkSpanIDs,
-					&src.LinkTraceStates,
-					&src.ServiceName,
-					&src.ScopeName,
-					&src.ScopeVersion,
-				}
-
-				for i := range ptrs {
-					reflect.ValueOf(ptrs[i]).Elem().Set(reflect.ValueOf(values[i]).Elem())
-				}
-				return nil
-			},
+			data:   testdata.MultipleSpans,
+			scanFn: scanSpanRowFn(),
 		},
 	}
 
@@ -348,6 +285,26 @@ func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 
 	require.Len(t, gotTraces, 1)
 	testdata.RequireTracesEqual(t, testdata.MultipleSpans[0:1], gotTraces)
+}
+
+func TestGetTraces_CloseError(t *testing.T) {
+	conn := &testDriver{
+		t:             t,
+		expectedQuery: sqlSelectSpansByTraceID,
+		rows: &testRows[testdata.SpanRow]{
+			data:     testdata.SingleSpan,
+			scanFn:   scanSpanRowFn(),
+			closeErr: assert.AnError, // simulate close error
+		},
+	}
+
+	reader := NewReader(conn)
+	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
+		TraceID: testdata.TraceID,
+	})
+	_, err := jiter.FlattenWithErrors(getTracesIter)
+
+	require.ErrorContains(t, err, "failed to close rows")
 }
 
 func TestGetServices(t *testing.T) {
