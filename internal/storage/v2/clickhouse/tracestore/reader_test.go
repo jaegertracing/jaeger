@@ -218,50 +218,20 @@ func TestGetTraces_MultipleSpans(t *testing.T) {
 func TestGetTraces_ScanErrorContinues(t *testing.T) {
 	scanCalled := 0
 
+	scanFn := func(dest any, src testdata.SpanRow) error {
+		scanCalled++
+		if scanCalled == 1 {
+			return assert.AnError // simulate scan error on the first row
+		}
+		return scanSpanRowFn()(dest, src)
+	}
+
 	conn := &testDriver{
 		t:             t,
 		expectedQuery: sqlSelectSpansByTraceID,
 		rows: &testRows[testdata.SpanRow]{
-			data: testdata.MultipleSpans,
-			scanFn: func(dest any, src testdata.SpanRow) error {
-				scanCalled++
-				if scanCalled == 1 {
-					return assert.AnError // simulate scan error on the first row
-				}
-				ptrs, ok := dest.([]any)
-				if !ok {
-					return fmt.Errorf("expected []any for dest, got %T", dest)
-				}
-				if len(ptrs) != 18 {
-					return fmt.Errorf("expected 18 destination arguments, got %d", len(ptrs))
-				}
-
-				values := []any{
-					&src.ID,
-					&src.TraceID,
-					&src.TraceState,
-					&src.ParentSpanID,
-					&src.Name,
-					&src.Kind,
-					&src.StartTime,
-					&src.StatusCode,
-					&src.StatusMessage,
-					&src.RawDuration,
-					&src.EventNames,
-					&src.EventTimestamps,
-					&src.LinkTraceIDs,
-					&src.LinkSpanIDs,
-					&src.LinkTraceStates,
-					&src.ServiceName,
-					&src.ScopeName,
-					&src.ScopeVersion,
-				}
-
-				for i := range ptrs {
-					reflect.ValueOf(ptrs[i]).Elem().Set(reflect.ValueOf(values[i]).Elem())
-				}
-				return nil
-			},
+			data:   testdata.MultipleSpans,
+			scanFn: scanFn,
 		},
 	}
 
