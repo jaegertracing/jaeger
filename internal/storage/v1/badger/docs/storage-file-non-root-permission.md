@@ -8,11 +8,21 @@ A possible workaround for this ([proposed here](https://github.com/jaegertracing
 version: "3.9"
 
 services:
+[...]
   jaeger:
+    image: jaegertracing/all-in-one:latest
     command:
-      - "/badrger-linux-amd64"
-      - "all-in-one"
-    image: cr.jaegertracing.io/jaegertracing/all-in-one:latest
+      - "--badger.ephemeral=false"
+      - "--badger.directory-key=/badger/data/keys"
+      - "--badger.directory-value=/badger/data/values"
+      - "--badger.span-store-ttl=72h0m0s" # limit storage to 72hrs
+    environment:
+      - SPAN_STORAGE_TYPE=badger
+    # Mount host directory "jaeger_badger_data" as "/badger" inside the container.
+    # The actual data directory will be "/badger/data", 
+    # since we cannot change permissions on the mount.
+    volumes:
+      - jaeger_badger_data:/badger
     ports:
       - "16686:16686"
       - "14250"
