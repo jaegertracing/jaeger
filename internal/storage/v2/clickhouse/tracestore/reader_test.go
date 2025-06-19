@@ -116,7 +116,7 @@ func TestGetTraces_ScanError(t *testing.T) {
 	require.ErrorIs(t, err, assert.AnError)
 }
 
-func TestGetTraces_SingleTrace(t *testing.T) {
+func TestGetTraces_SingleSpan(t *testing.T) {
 	conn := &testDriver{
 		t:             t,
 		expectedQuery: sqlSelectSpansByTraceID,
@@ -222,6 +222,71 @@ func TestGetTraces_MultipleSpans(t *testing.T) {
 
 	require.NoError(t, err)
 	testdata.RequireTracesEqual(t, testdata.MultipleSpans, traces)
+}
+
+func TestGetTraces_ScanErrorContinues(t *testing.T) {
+	scanCalled := 0
+
+	conn := &testDriver{
+		t:             t,
+		expectedQuery: sqlSelectSpansByTraceID,
+		rows: &testRows[testdata.SpanRow]{
+			data: testdata.MultipleSpans,
+			scanFn: func(dest any, src testdata.SpanRow) error {
+				scanCalled++
+				if scanCalled == 1 {
+					return assert.AnError // simulate scan error on the first row
+				}
+				ptrs, ok := dest.([]any)
+				if !ok {
+					return fmt.Errorf("expected []any for dest, got %T", dest)
+				}
+				if len(ptrs) != 18 {
+					return fmt.Errorf("expected 18 destination arguments, got %d", len(ptrs))
+				}
+
+				values := []any{
+					&src.ID,
+					&src.TraceID,
+					&src.TraceState,
+					&src.ParentSpanID,
+					&src.Name,
+					&src.Kind,
+					&src.StartTime,
+					&src.StatusCode,
+					&src.StatusMessage,
+					&src.RawDuration,
+					&src.EventNames,
+					&src.EventTimestamps,
+					&src.LinkTraceIDs,
+					&src.LinkSpanIDs,
+					&src.LinkTraceStates,
+					&src.ServiceName,
+					&src.ScopeName,
+					&src.ScopeVersion,
+				}
+
+				for i := range ptrs {
+					reflect.ValueOf(ptrs[i]).Elem().Set(reflect.ValueOf(values[i]).Elem())
+				}
+				return nil
+			},
+		},
+	}
+
+	reader := NewReader(conn)
+	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
+		TraceID: testdata.TraceID,
+	})
+
+	expected := testdata.MultipleSpans[1:] // skip the first span which caused the error
+	for trace, err := range getTracesIter {
+		if err != nil {
+			require.ErrorIs(t, err, assert.AnError)
+			continue
+		}
+		testdata.RequireTracesEqual(t, expected, trace)
+	}
 }
 
 func TestGetServices(t *testing.T) {
