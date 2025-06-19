@@ -34,7 +34,7 @@ services:
         loki-retries: 1
 
   jaeger:
-    image: cr.jaegertracing.iojaegertracing/all-in-one:1.51
+    image: cr.jaegertracing.io/jaegertracing/all-in-one:1.51
     ports:
       - '6831:6831'
       - '16686:16686'
