@@ -38,6 +38,9 @@ func TestToMetricsFamily(t *testing.T) {
 				BaseQueryParameters: metricstore.BaseQueryParameters{
 					ServiceNames: []string{"service1"},
 				},
+				processMetricsFunc: func(pair []*Pair) []*Pair {
+					return pair
+				},
 			},
 			result: createTestSearchResult(false),
 			expected: &metrics.MetricFamily{
@@ -98,12 +101,8 @@ func TestToDomainMetrics(t *testing.T) {
 		err      string
 	}{
 		{
-			name: "simple metrics",
-			params: MetricsQueryParams{
-				BaseQueryParameters: metricstore.BaseQueryParameters{
-					ServiceNames: []string{"service1"},
-				},
-			},
+			name:   "simple metrics",
+			params: mockMetricsQueryParams([]string{"service1"}, false),
 			result: createTestSearchResult(false),
 			expected: []*metrics.Metric{
 				{
@@ -124,13 +123,8 @@ func TestToDomainMetrics(t *testing.T) {
 			},
 		},
 		{
-			name: "grouped by operation",
-			params: MetricsQueryParams{
-				BaseQueryParameters: metricstore.BaseQueryParameters{
-					ServiceNames:     []string{"service1"},
-					GroupByOperation: true,
-				},
-			},
+			name:   "grouped by operation",
+			params: mockMetricsQueryParams([]string{"service1"}, true),
 			result: createTestSearchResult(true),
 			expected: []*metrics.Metric{
 				{
@@ -175,37 +169,22 @@ func TestToDomainMetrics_ErrorCases(t *testing.T) {
 		errMsg string
 	}{
 		{
-			name: "missing terms aggregation when group by operation",
-			params: MetricsQueryParams{
-				BaseQueryParameters: metricstore.BaseQueryParameters{
-					ServiceNames:     []string{"service1"},
-					GroupByOperation: true,
-				},
-			},
+			name:   "missing terms aggregation when group by operation",
+			params: mockMetricsQueryParams([]string{"service1"}, true),
 			result: &elastic.SearchResult{
 				Aggregations: make(elastic.Aggregations), // Empty aggregations
 			},
 			errMsg: "results_buckets aggregation not found",
 		},
 		{
-			name: "bucket key not string",
-			params: MetricsQueryParams{
-				BaseQueryParameters: metricstore.BaseQueryParameters{
-					ServiceNames:     []string{"service1"},
-					GroupByOperation: true,
-				},
-			},
+			name:   "bucket key not string",
+			params: mockMetricsQueryParams([]string{"service1"}, true),
 			result: createTestSearchResultWithNonStringKey(),
 			errMsg: "bucket key is not a string",
 		},
 		{
-			name: "missing date histogram in operation bucket",
-			params: MetricsQueryParams{
-				BaseQueryParameters: metricstore.BaseQueryParameters{
-					ServiceNames:     []string{"service1"},
-					GroupByOperation: true,
-				},
-			},
+			name:   "missing date histogram in operation bucket",
+			params: mockMetricsQueryParams([]string{"service1"}, true),
 			result: createTestSearchResultMissingDateHistogram(),
 			errMsg: "date_histogram aggregation not found in bucket",
 		},
@@ -218,6 +197,18 @@ func TestToDomainMetrics_ErrorCases(t *testing.T) {
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.errMsg)
 		})
+	}
+}
+
+func mockMetricsQueryParams(serviceNames []string, groupByOp bool) MetricsQueryParams {
+	return MetricsQueryParams{
+		BaseQueryParameters: metricstore.BaseQueryParameters{
+			ServiceNames:     serviceNames,
+			GroupByOperation: groupByOp,
+		},
+		processMetricsFunc: func(pair []*Pair) []*Pair {
+			return pair
+		},
 	}
 }
 
@@ -238,7 +229,7 @@ func createTestSearchResultWithNonStringKey() *elastic.SearchResult {
 	}`)
 
 	aggs := make(elastic.Aggregations)
-	aggs["results_buckets"] = &rawAggregation
+	aggs[aggName] = &rawAggregation
 
 	return &elastic.SearchResult{
 		Aggregations: aggs,
@@ -254,7 +245,7 @@ func createTestSearchResultMissingDateHistogram() *elastic.SearchResult {
 	}`)
 
 	aggs := make(elastic.Aggregations)
-	aggs["results_buckets"] = &rawAggregation
+	aggs[aggName] = &rawAggregation
 
 	return &elastic.SearchResult{
 		Aggregations: aggs,
@@ -277,7 +268,7 @@ func createTestSearchResult(groupByOperation bool) *elastic.SearchResult {
 						"key_as_string": "123456",
 						"key": 123456,
 						"doc_count": 5,
-						"results": {
+						"cumulative_requests": {
 							"value": 1.23
 						}
 					}]
@@ -290,7 +281,7 @@ func createTestSearchResult(groupByOperation bool) *elastic.SearchResult {
 				"key_as_string": "123456",
 				"key": 123456,
 				"doc_count": 5,
-				"results": {
+				"cumulative_requests": {
 					"value": 1.23
 				}
 			}]
@@ -298,7 +289,7 @@ func createTestSearchResult(groupByOperation bool) *elastic.SearchResult {
 	}
 
 	aggs := make(elastic.Aggregations)
-	aggs["results_buckets"] = &rawAggregation
+	aggs[aggName] = &rawAggregation
 
 	return &elastic.SearchResult{
 		Aggregations: aggs,
