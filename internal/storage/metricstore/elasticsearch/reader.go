@@ -95,7 +95,9 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 			results := make([]*Pair, 0, n) // Pre-allocate result slice for efficiency
 
 			for i := range pairs {
-				// Special case: if current value is 0.0, treat as NaN
+				// Elasticsearch's percentiles aggregation returns 0.0 for time buckets with no documents
+				// These aren't true zero values but represent missing data points in sparse time series
+				// We convert them to NaN to distinguish from actual measured zero values (slope of 0)
 				if pairs[i].Value == 0.0 {
 					results = append(results, &Pair{
 						TimeStamp: pairs[i].TimeStamp,
