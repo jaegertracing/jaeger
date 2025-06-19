@@ -13,6 +13,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -287,6 +288,66 @@ func TestGetTraces_ScanErrorContinues(t *testing.T) {
 		}
 		testdata.RequireTracesEqual(t, expected, trace)
 	}
+}
+
+func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
+	conn := &testDriver{
+		t:             t,
+		expectedQuery: sqlSelectSpansByTraceID,
+		rows: &testRows[testdata.SpanRow]{
+			data: testdata.MultipleSpans,
+			scanFn: func(dest any, src testdata.SpanRow) error {
+				ptrs, ok := dest.([]any)
+				if !ok {
+					return fmt.Errorf("expected []any for dest, got %T", dest)
+				}
+				if len(ptrs) != 18 {
+					return fmt.Errorf("expected 18 destination arguments, got %d", len(ptrs))
+				}
+
+				values := []any{
+					&src.ID,
+					&src.TraceID,
+					&src.TraceState,
+					&src.ParentSpanID,
+					&src.Name,
+					&src.Kind,
+					&src.StartTime,
+					&src.StatusCode,
+					&src.StatusMessage,
+					&src.RawDuration,
+					&src.EventNames,
+					&src.EventTimestamps,
+					&src.LinkTraceIDs,
+					&src.LinkSpanIDs,
+					&src.LinkTraceStates,
+					&src.ServiceName,
+					&src.ScopeName,
+					&src.ScopeVersion,
+				}
+
+				for i := range ptrs {
+					reflect.ValueOf(ptrs[i]).Elem().Set(reflect.ValueOf(values[i]).Elem())
+				}
+				return nil
+			},
+		},
+	}
+
+	reader := NewReader(conn)
+	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
+		TraceID: testdata.TraceID,
+	})
+
+	var gotTraces []ptrace.Traces
+	getTracesIter(func(traces []ptrace.Traces, err error) bool {
+		require.NoError(t, err)
+		gotTraces = append(gotTraces, traces...)
+		return false // stop iteration after the first span
+	})
+
+	require.Len(t, gotTraces, 1)
+	testdata.RequireTracesEqual(t, testdata.MultipleSpans[0:1], gotTraces)
 }
 
 func TestGetServices(t *testing.T) {
