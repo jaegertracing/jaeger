@@ -672,13 +672,12 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 	}
 
 	if token != "" || c.Authentication.BearerTokenAuthentication.AllowFromContext {
-		// Use the unified bearertoken.RoundTripper with the default Bearer scheme
+		// Use the unified bearertoken.RoundTripper with the Bearer scheme
 		transport = bearertoken.RoundTripper{
 			Transport:       httpTransport,
 			StaticToken:     token,
+			AuthScheme:      "Bearer",
 			OverrideFromCtx: c.Authentication.BearerTokenAuthentication.AllowFromContext,
-			// No need to specify AuthScheme as "Bearer" is the default
-			// No need to specify TokenFromContext as GetBearerToken is the default if nil
 		}
 	}
 	return transport, nil

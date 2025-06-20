@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -84,12 +85,15 @@ func TestNewClient(t *testing.T) {
 	const (
 		pwd1       = "password"
 		token      = "token"
+		apiKey     = "api-key"
 		serverCert = "../../../../internal/config/tlscfg/testdata/example-server-cert.pem"
 	)
 	pwdFile := filepath.Join(t.TempDir(), "pwd")
 	require.NoError(t, os.WriteFile(pwdFile, []byte(pwd1), 0o600))
 	pwdtokenFile := filepath.Join(t.TempDir(), "token")
 	require.NoError(t, os.WriteFile(pwdtokenFile, []byte(token), 0o600))
+	apiKeyFile := filepath.Join(t.TempDir(), "apikey")
+	require.NoError(t, os.WriteFile(apiKeyFile, []byte(apiKey), 0o600))
 	// copy certs to temp so we can modify them
 	certFilePath := copyToTempFile(t, "cert.crt", serverCert)
 	defer certFilePath.Close()
@@ -372,6 +376,87 @@ func TestNewClient(t *testing.T) {
 			expectedError: true,
 		},
 		{
+			name: "success with API key authentication",
+			config: &Configuration{
+				Servers: []string{testServer.URL},
+				Authentication: Authentication{
+					APIKeyAuthentication: APIKeyAuthentication{
+						APIKey: apiKey,
+					},
+				},
+				LogLevel: "debug",
+				BulkProcessing: BulkProcessing{
+					MaxBytes: -1, // disable bulk; we want immediate flush
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "success with API key authentication from file",
+			config: &Configuration{
+				Servers: []string{testServer.URL},
+				Authentication: Authentication{
+					APIKeyAuthentication: APIKeyAuthentication{
+						FilePath: apiKeyFile,
+					},
+				},
+				LogLevel: "debug",
+				BulkProcessing: BulkProcessing{
+					MaxBytes: -1, // disable bulk; we want immediate flush
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "success with API key authentication from context",
+			config: &Configuration{
+				Servers: []string{testServer.URL},
+				Authentication: Authentication{
+					APIKeyAuthentication: APIKeyAuthentication{
+						AllowFromContext: true,
+					},
+				},
+				LogLevel: "debug",
+				BulkProcessing: BulkProcessing{
+					MaxBytes: -1, // disable bulk; we want immediate flush
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "fail with API key authentication from non-existent file",
+			config: &Configuration{
+				Servers: []string{testServer.URL},
+				Authentication: Authentication{
+					APIKeyAuthentication: APIKeyAuthentication{
+						FilePath: "non-existent-file",
+					},
+				},
+				LogLevel: "debug",
+				BulkProcessing: BulkProcessing{
+					MaxBytes: -1, // disable bulk; we want immediate flush
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "success with API key authentication from file with context override",
+			config: &Configuration{
+				Servers: []string{testServer.URL},
+				Authentication: Authentication{
+					APIKeyAuthentication: APIKeyAuthentication{
+						FilePath:         apiKeyFile,
+						AllowFromContext: true,
+					},
+				},
+				LogLevel: "debug",
+				BulkProcessing: BulkProcessing{
+					MaxBytes: -1, // disable bulk; we want immediate flush
+				},
+			},
+			expectedError: false,
+		},
+		{
 			name: "success with valid configuration and info log level",
 			config: &Configuration{
 				Servers: []string{testServer.URL},
@@ -421,7 +506,11 @@ func TestNewClient(t *testing.T) {
 			logger := zap.NewNop()
 			metricsFactory := metrics.NullFactory
 			config := test.config
-			client, err := NewClient(context.Background(), config, logger, metricsFactory)
+			ctx := context.Background()
+			if strings.Contains(test.name, "from context") {
+				ctx = context.WithValue(ctx, APIKeyContextKey{}, "context-api-key")
+			}
+			client, err := NewClient(ctx, config, logger, metricsFactory)
 			if test.expectedError {
 				require.Error(t, err)
 				require.Nil(t, client)
