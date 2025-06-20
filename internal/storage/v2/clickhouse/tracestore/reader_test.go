@@ -6,14 +6,19 @@ package tracestore
 import (
 	"context"
 	"errors"
+	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/testdata"
 )
 
 type testDriver struct {
@@ -33,33 +38,241 @@ func (t *testDriver) Query(_ context.Context, query string, _ ...any) (driver.Ro
 type testRows[T any] struct {
 	driver.Rows
 
-	data    []T
-	index   int
-	scanErr error
-	scanFn  func(dest any, src T) error
+	data     []T
+	index    int
+	scanErr  error
+	scanFn   func(dest any, src T) error
+	closeErr error
 }
 
-func (*testRows[T]) Close() error {
-	return nil
+func (tr *testRows[T]) Close() error {
+	return tr.closeErr
 }
 
-func (f *testRows[T]) Next() bool {
-	return f.index < len(f.data)
+func (tr *testRows[T]) Next() bool {
+	return tr.index < len(tr.data)
 }
 
-func (f *testRows[T]) ScanStruct(dest any) error {
-	if f.scanErr != nil {
-		return f.scanErr
+func (tr *testRows[T]) ScanStruct(dest any) error {
+	if tr.scanErr != nil {
+		return tr.scanErr
 	}
-	if f.index >= len(f.data) {
+	if tr.index >= len(tr.data) {
 		return errors.New("no more rows")
 	}
-	if f.scanFn == nil {
+	if tr.scanFn == nil {
 		return errors.New("scanFn is not provided")
 	}
-	err := f.scanFn(dest, f.data[f.index])
-	f.index++
+	err := tr.scanFn(dest, tr.data[tr.index])
+	tr.index++
 	return err
+}
+
+func (tr *testRows[T]) Scan(dest ...any) error {
+	if tr.scanErr != nil {
+		return tr.scanErr
+	}
+	if tr.index >= len(tr.data) {
+		return errors.New("no more rows")
+	}
+	if tr.scanFn == nil {
+		return errors.New("scanFn is not provided")
+	}
+	err := tr.scanFn(dest, tr.data[tr.index])
+	tr.index++
+	return err
+}
+
+func scanSpanRowFn() func(dest any, src testdata.SpanRow) error {
+	return func(dest any, src testdata.SpanRow) error {
+		ptrs, ok := dest.([]any)
+		if !ok {
+			return fmt.Errorf("expected []any for dest, got %T", dest)
+		}
+		if len(ptrs) != 18 {
+			return fmt.Errorf("expected 18 destination arguments, got %d", len(ptrs))
+		}
+
+		values := []any{
+			&src.ID,
+			&src.TraceID,
+			&src.TraceState,
+			&src.ParentSpanID,
+			&src.Name,
+			&src.Kind,
+			&src.StartTime,
+			&src.StatusCode,
+			&src.StatusMessage,
+			&src.RawDuration,
+			&src.EventNames,
+			&src.EventTimestamps,
+			&src.LinkTraceIDs,
+			&src.LinkSpanIDs,
+			&src.LinkTraceStates,
+			&src.ServiceName,
+			&src.ScopeName,
+			&src.ScopeVersion,
+		}
+
+		for i := range ptrs {
+			reflect.ValueOf(ptrs[i]).Elem().Set(reflect.ValueOf(values[i]).Elem())
+		}
+		return nil
+	}
+}
+
+func TestGetTraces_Success(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     []testdata.SpanRow
+		expected []ptrace.Traces
+	}{
+		{
+			name: "single span",
+			data: testdata.SingleSpan,
+		},
+		{
+			name: "multiple spans",
+			data: testdata.MultipleSpans,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conn := &testDriver{
+				t:             t,
+				expectedQuery: sqlSelectSpansByTraceID,
+				rows: &testRows[testdata.SpanRow]{
+					data:   tt.data,
+					scanFn: scanSpanRowFn(),
+				},
+			}
+
+			reader := NewReader(conn)
+			getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
+				TraceID: testdata.TraceID,
+			})
+			traces, err := jiter.FlattenWithErrors(getTracesIter)
+
+			require.NoError(t, err)
+			testdata.RequireTracesEqual(t, tt.data, traces)
+		})
+	}
+}
+
+func TestGetTraces_ErrorCases(t *testing.T) {
+	tests := []struct {
+		name        string
+		driver      *testDriver
+		expectedErr string
+	}{
+		{
+			name: "QueryError",
+			driver: &testDriver{
+				t:             t,
+				expectedQuery: sqlSelectSpansByTraceID,
+				err:           assert.AnError,
+			},
+			expectedErr: "failed to query trace",
+		},
+		{
+			name: "ScanError",
+			driver: &testDriver{
+				t:             t,
+				expectedQuery: sqlSelectSpansByTraceID,
+				rows: &testRows[testdata.SpanRow]{
+					data:    testdata.SingleSpan,
+					scanErr: assert.AnError,
+				},
+			},
+			expectedErr: "failed to scan span row",
+		},
+		{
+			name: "CloseError",
+			driver: &testDriver{
+				t:             t,
+				expectedQuery: sqlSelectSpansByTraceID,
+				rows: &testRows[testdata.SpanRow]{
+					data:     testdata.SingleSpan,
+					scanFn:   scanSpanRowFn(),
+					closeErr: assert.AnError,
+				},
+			},
+			expectedErr: "failed to close rows",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			reader := NewReader(test.driver)
+			iter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
+				TraceID: testdata.TraceID,
+			})
+			_, err := jiter.FlattenWithErrors(iter)
+			require.ErrorContains(t, err, test.expectedErr)
+		})
+	}
+}
+
+func TestGetTraces_ScanErrorContinues(t *testing.T) {
+	scanCalled := 0
+
+	scanFn := func(dest any, src testdata.SpanRow) error {
+		scanCalled++
+		if scanCalled == 1 {
+			return assert.AnError // simulate scan error on the first row
+		}
+		return scanSpanRowFn()(dest, src)
+	}
+
+	conn := &testDriver{
+		t:             t,
+		expectedQuery: sqlSelectSpansByTraceID,
+		rows: &testRows[testdata.SpanRow]{
+			data:   testdata.MultipleSpans,
+			scanFn: scanFn,
+		},
+	}
+
+	reader := NewReader(conn)
+	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
+		TraceID: testdata.TraceID,
+	})
+
+	expected := testdata.MultipleSpans[1:] // skip the first span which caused the error
+	for trace, err := range getTracesIter {
+		if err != nil {
+			require.ErrorIs(t, err, assert.AnError)
+			continue
+		}
+		testdata.RequireTracesEqual(t, expected, trace)
+	}
+}
+
+func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
+	conn := &testDriver{
+		t:             t,
+		expectedQuery: sqlSelectSpansByTraceID,
+		rows: &testRows[testdata.SpanRow]{
+			data:   testdata.MultipleSpans,
+			scanFn: scanSpanRowFn(),
+		},
+	}
+
+	reader := NewReader(conn)
+	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
+		TraceID: testdata.TraceID,
+	})
+
+	var gotTraces []ptrace.Traces
+	getTracesIter(func(traces []ptrace.Traces, err error) bool {
+		require.NoError(t, err)
+		gotTraces = append(gotTraces, traces...)
+		return false // stop iteration after the first span
+	})
+
+	require.Len(t, gotTraces, 1)
+	testdata.RequireTracesEqual(t, testdata.MultipleSpans[0:1], gotTraces)
 }
 
 func TestGetServices(t *testing.T) {
