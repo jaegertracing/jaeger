@@ -196,6 +196,30 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "bearer token file and context with warning",
+			setup: func(_ *testing.T) *Configuration {
+				tempFile := filepath.Join(t.TempDir(), "token")
+				require.NoError(t, os.WriteFile(tempFile, []byte("test-token"), 0o600))
+				return &Configuration{
+					TLS: configtls.ClientConfig{Insecure: true},
+					Authentication: Authentication{
+						BearerTokenAuthentication: BearerTokenAuthentication{
+							FilePath:         tempFile,
+							AllowFromContext: true,
+						},
+					},
+				}
+			},
+			setupCtx: func(ctx context.Context) context.Context {
+				return bearertoken.ContextWithBearerToken(ctx, "context-bearer-token")
+			},
+			wantLogMsgs: []string{
+				"Token file and token propagation are both enabled, token from file won't be used",
+			},
+			expectedType:   "bearertoken.RoundTripper",
+			expectedScheme: "Bearer",
+		},
 	}
 
 	for _, tt := range tests {

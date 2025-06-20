@@ -533,7 +533,6 @@ func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger
 	}
 
 	if c.Authentication.APIKeyAuthentication.APIKey != "" {
-		options = append(options, elastic.SetHeaders(http.Header{"Authorization": []string{"ApiKey " + c.Authentication.APIKeyAuthentication.APIKey}}))
 		transport, err := GetHTTPRoundTripper(ctx, c, logger)
 		if err != nil {
 			return nil, err
