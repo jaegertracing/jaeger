@@ -13,9 +13,9 @@ services:
       - kafka-data:/bitnami
     environment:
       # KRaft settings
-      - KAFKA_CFG_NODE_ID=1
-      - KAFKA_CFG_PROCESS_ROLES=broker,controller
-      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@localhost:9096
+      - KAFKA_CFG_NODE_ID=0
+      - KAFKA_CFG_PROCESS_ROLES=controller,broker
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@localhost:9096
       # Listeners
       - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9096,SASL_SSL://:9093,SASL_PLAINTEXT://:9095
       - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://127.0.0.1:9092,SASL_SSL://127.0.0.1:9093,SASL_PLAINTEXT://127.0.0.1:9095
