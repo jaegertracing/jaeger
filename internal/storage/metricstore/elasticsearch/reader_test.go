@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -162,11 +163,53 @@ func assertMetricFamily(t *testing.T, got *metrics.MetricFamily, m metricsTestCa
 	}
 }
 
+func TestGetCallRates_ErrorCases(t *testing.T) {
+	endTime := time.UnixMilli(0)
+	tests := []struct {
+		name    string
+		params  *metricstore.CallRateQueryParameters
+		wantErr string
+	}{
+		{
+			name:    "nil base params",
+			params:  &metricstore.CallRateQueryParameters{},
+			wantErr: "invalid parameters",
+		},
+		{
+			name: "nil end time params",
+			params: &metricstore.CallRateQueryParameters{
+				BaseQueryParameters: metricstore.BaseQueryParameters{},
+			},
+			wantErr: "invalid parameters",
+		},
+		{
+			name: "nil step params",
+			params: &metricstore.CallRateQueryParameters{
+				BaseQueryParameters: metricstore.BaseQueryParameters{
+					EndTime: &(endTime),
+				},
+			},
+			wantErr: "invalid parameters",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			reader, _ := setupMetricsReaderAndServer(t, "", mockEmptyResponse)
+			metricFamily, err := reader.GetCallRates(context.Background(), tc.params)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantErr)
+			assert.Empty(t, metricFamily)
+		})
+	}
+}
+
 func TestGetCallRates(t *testing.T) {
 	expectedPoints := []struct {
 		TimestampSec int64
 		Value        float64
 	}{
+		{1749894960, math.NaN()},
 		{1749894900, 0.0},
 		{1749894960, 0.0},
 		{1749895020, 0.0},
@@ -175,7 +218,7 @@ func TestGetCallRates(t *testing.T) {
 		{1749895200, 0.0},
 		{1749895260, 0.0},
 		{1749895320, 0.0},
-		{1749895380, 0.0},
+		{1749895380, 0.75},
 		{1749895440, 0.9},
 	}
 	tests := []metricsTestCase{
