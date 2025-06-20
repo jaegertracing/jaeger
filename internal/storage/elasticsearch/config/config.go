@@ -266,6 +266,10 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 		}
 		// OpenSearch is based on ES 7.x
 		if strings.Contains(pingResult.TagLine, "OpenSearch") {
+			if c.HTTPCompression && c.CreateIndexTemplates {
+				logger.Warn("OpenSearch detected and index creation is enabled - disabling HTTP compression prevent compatibility issues")
+				c.HTTPCompression = false
+			}
 			if pingResult.Version.Number[0] == '1' {
 				logger.Info("OpenSearch 1.x detected, using ES 7.x index mappings")
 				esVersion = 7
