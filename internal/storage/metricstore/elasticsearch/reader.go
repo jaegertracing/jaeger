@@ -80,7 +80,10 @@ func (MetricsReader) GetLatencies(_ context.Context, _ *metricstore.LatenciesQue
 
 // GetCallRates retrieves call rate metrics
 func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
-	timeRange := calculateTimeRange(&params.BaseQueryParameters)
+	timeRange, err := calculateTimeRange(&params.BaseQueryParameters)
+	if err != nil {
+		return &metrics.MetricFamily{}, err
+	}
 
 	metricsParams := MetricsQueryParams{
 		BaseQueryParameters: params.BaseQueryParameters,
@@ -345,7 +348,10 @@ func buildInterfaceSlice(s []string) []any {
 }
 
 // calculateTimeRange computes the time range for the query.
-func calculateTimeRange(params *metricstore.BaseQueryParameters) TimeRange {
+func calculateTimeRange(params *metricstore.BaseQueryParameters) (TimeRange, error) {
+	if params == nil || params.EndTime == nil || params.Lookback == nil {
+		return TimeRange{}, errors.New("invalid parameters")
+	}
 	endTime := *params.EndTime
 	startTime := endTime.Add(-*params.Lookback)
 	extendedStartTime := startTime.Add(-10 * time.Minute)
@@ -354,7 +360,7 @@ func calculateTimeRange(params *metricstore.BaseQueryParameters) TimeRange {
 		startTimeMillis:         startTime.UnixMilli(),
 		endTimeMillis:           endTime.UnixMilli(),
 		extendedStartTimeMillis: extendedStartTime.UnixMilli(),
-	}
+	}, nil
 }
 
 func (MetricsReader) buildQueryJSON(boolQuery *elasticv7.BoolQuery, aggQuery elasticv7.Aggregation) (string, error) {
