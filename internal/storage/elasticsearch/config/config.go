@@ -49,7 +49,7 @@ type IndexOptions struct {
 	// Shards is the number of shards per index in Elasticsearch.
 	Shards int64 `mapstructure:"shards"`
 	// Replicas is the number of replicas per index in Elasticsearch.
-	Replicas int64 `mapstructure:"replicas"`
+	Replicas *int64 `mapstructure:"replicas"`
 	// RolloverFrequency contains the rollover frequency setting used to fetch
 	// indices from elasticsearch.
 	// Valid configuration options are: [hour, day].
@@ -67,6 +67,12 @@ type Indices struct {
 	Services     IndexOptions `mapstructure:"services"`
 	Dependencies IndexOptions `mapstructure:"dependencies"`
 	Sampling     IndexOptions `mapstructure:"sampling"`
+}
+
+type bulkCallback struct {
+	startTimes sync.Map
+	sm         *spanstoremetrics.WriteMetrics
+	logger     *zap.Logger
 }
 
 type IndexPrefix string
@@ -95,6 +101,8 @@ type Configuration struct {
 	// TLS contains the TLS configuration for the connection to the ElasticSearch clusters.
 	TLS      configtls.ClientConfig `mapstructure:"tls"`
 	Sniffing Sniffing               `mapstructure:"sniffing"`
+	// Disable the Elasticsearch health check
+	DisableHealthCheck bool `mapstructure:"disable_health_check"`
 	// SendGetBodyAs is the HTTP verb to use for requests that contain a body.
 	SendGetBodyAs string `mapstructure:"send_get_body_as"`
 	// QueryTimeout contains the timeout used for queries. A timeout of zero means no timeout.
@@ -213,11 +221,11 @@ type BearerTokenAuthentication struct {
 }
 
 // NewClient creates a new ElasticSearch client
-func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
+func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
 	if len(c.Servers) < 1 {
 		return nil, errors.New("no servers specified")
 	}
-	options, err := c.getConfigOptions(logger)
+	options, err := c.getConfigOptions(ctx, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -227,60 +235,28 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 		return nil, err
 	}
 
-	sm := spanstoremetrics.NewWriter(metricsFactory, "bulk_index")
-	m := sync.Map{}
+	bcb := bulkCallback{
+		sm:     spanstoremetrics.NewWriter(metricsFactory, "bulk_index"),
+		logger: logger,
+	}
 
 	bulkProc, err := rawClient.BulkProcessor().
 		Before(func(id int64, _ /* requests */ []elastic.BulkableRequest) {
-			m.Store(id, time.Now())
+			bcb.startTimes.Store(id, time.Now())
 		}).
-		After(func(id int64, requests []elastic.BulkableRequest, response *elastic.BulkResponse, err error) {
-			start, ok := m.Load(id)
-			if !ok {
-				return
-			}
-			m.Delete(id)
-
-			// log individual errors, note that err might be false and these errors still present
-			if response != nil && response.Errors {
-				for _, it := range response.Items {
-					for key, val := range it {
-						if val.Error != nil {
-							logger.Error("Elasticsearch part of bulk request failed", zap.String("map-key", key),
-								zap.Reflect("response", val))
-						}
-					}
-				}
-			}
-
-			sm.Emit(err, time.Since(start.(time.Time)))
-			if err != nil {
-				var failed int
-				if response == nil {
-					failed = 0
-				} else {
-					failed = len(response.Failed())
-				}
-				total := len(requests)
-				logger.Error("Elasticsearch could not process bulk request",
-					zap.Int("request_count", total),
-					zap.Int("failed_count", failed),
-					zap.Error(err),
-					zap.Any("response", response))
-			}
-		}).
+		After(bcb.invoke).
 		BulkSize(c.BulkProcessing.MaxBytes).
 		Workers(c.BulkProcessing.Workers).
 		BulkActions(c.BulkProcessing.MaxActions).
 		FlushInterval(c.BulkProcessing.FlushInterval).
-		Do(context.Background())
+		Do(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	if c.Version == 0 {
 		// Determine ElasticSearch Version
-		pingResult, _, err := rawClient.Ping(c.Servers[0]).Do(context.Background())
+		pingResult, _, err := rawClient.Ping(c.Servers[0]).Do(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -306,7 +282,7 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 
 	var rawClientV8 *esV8.Client
 	if c.Version >= 8 {
-		rawClientV8, err = newElasticsearchV8(c, logger)
+		rawClientV8, err = newElasticsearchV8(ctx, c, logger)
 		if err != nil {
 			return nil, fmt.Errorf("error creating v8 client: %w", err)
 		}
@@ -315,14 +291,60 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 	return eswrapper.WrapESClient(rawClient, bulkProc, c.Version, rawClientV8), nil
 }
 
-func newElasticsearchV8(c *Configuration, logger *zap.Logger) (*esV8.Client, error) {
+func (bcb *bulkCallback) invoke(id int64, requests []elastic.BulkableRequest, response *elastic.BulkResponse, err error) {
+	start, ok := bcb.startTimes.Load(id)
+	if ok {
+		bcb.startTimes.Delete(id)
+	} else {
+		start = time.Now()
+	}
+
+	// Log individual errors
+	if response != nil && response.Errors {
+		for _, it := range response.Items {
+			for key, val := range it {
+				if val.Error != nil {
+					bcb.logger.Error("Elasticsearch part of bulk request failed",
+						zap.String("map-key", key), zap.Reflect("response", val))
+				}
+			}
+		}
+	}
+
+	latency := time.Since(start.(time.Time))
+	if err != nil {
+		bcb.sm.LatencyErr.Record(latency)
+	} else {
+		bcb.sm.LatencyOk.Record(latency)
+	}
+
+	var failed int
+	if response != nil {
+		failed = len(response.Failed())
+	}
+
+	total := len(requests)
+	bcb.sm.Attempts.Inc(int64(total))
+	bcb.sm.Inserts.Inc(int64(total - failed))
+	bcb.sm.Errors.Inc(int64(failed))
+
+	if err != nil {
+		bcb.logger.Error("Elasticsearch could not process bulk request",
+			zap.Int("request_count", total),
+			zap.Int("failed_count", failed),
+			zap.Error(err),
+			zap.Any("response", response))
+	}
+}
+
+func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logger) (*esV8.Client, error) {
 	var options esV8.Config
 	options.Addresses = c.Servers
 	options.Username = c.Authentication.BasicAuthentication.Username
 	options.Password = c.Authentication.BasicAuthentication.Password
 	options.DiscoverNodesOnStart = c.Sniffing.Enabled
 	options.CompressRequestBody = c.HTTPCompression
-	transport, err := GetHTTPRoundTripper(c, logger)
+	transport, err := GetHTTPRoundTripper(ctx, c, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -335,7 +357,7 @@ func setDefaultIndexOptions(target, source *IndexOptions) {
 		target.Shards = source.Shards
 	}
 
-	if target.Replicas == 0 {
+	if target.Replicas == nil {
 		target.Replicas = source.Replicas
 	}
 
@@ -461,13 +483,15 @@ func (c *Configuration) TagKeysAsFields() ([]string, error) {
 }
 
 // getConfigOptions wraps the configs to feed to the ElasticSearch client init
-func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
+func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
+	// Disable health check when token from context is allowed, this is because at this time
+	// we don'r have a valid token to do the check ad if we don't disable the check the service that
+	// uses this won't start.
+	// Also disable health check when it was requested (health check has problems on AWS OpenSearch)
+	disableHealthCheck := c.Authentication.BearerTokenAuthentication.AllowFromContext || c.DisableHealthCheck
 	options := []elastic.ClientOptionFunc{
 		elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffing.Enabled),
-		// Disable health check when token from context is allowed, this is because at this time
-		// we don'r have a valid token to do the check ad if we don't disable the check the service that
-		// uses this won't start.
-		elastic.SetHealthcheck(!c.Authentication.BearerTokenAuthentication.AllowFromContext),
+		elastic.SetHealthcheck(!disableHealthCheck),
 	}
 	if c.Sniffing.UseHTTPS {
 		options = append(options, elastic.SetScheme("https"))
@@ -499,7 +523,7 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 		return options, err
 	}
 
-	transport, err := GetHTTPRoundTripper(c, logger)
+	transport, err := GetHTTPRoundTripper(ctx, c, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -541,9 +565,9 @@ func addLoggerOptions(options []elastic.ClientOptionFunc, logLevel string, logge
 }
 
 // GetHTTPRoundTripper returns configured http.RoundTripper
-func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTripper, error) {
+func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logger) (http.RoundTripper, error) {
 	if !c.TLS.Insecure {
-		ctlsConfig, err := c.TLS.LoadTLSConfig(context.Background())
+		ctlsConfig, err := c.TLS.LoadTLSConfig(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -559,7 +583,7 @@ func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTrippe
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: c.TLS.InsecureSkipVerify},
 	}
 	if c.TLS.CAFile != "" {
-		ctlsConfig, err := c.TLS.LoadTLSConfig(context.Background())
+		ctlsConfig, err := c.TLS.LoadTLSConfig(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -598,5 +622,14 @@ func loadTokenFromFile(path string) (string, error) {
 
 func (c *Configuration) Validate() error {
 	_, err := govalidator.ValidateStruct(c)
-	return err
+	if err != nil {
+		return err
+	}
+	if c.UseILM && !c.UseReadWriteAliases {
+		return errors.New("UseILM must always be used in conjunction with UseReadWriteAliases to ensure ES writers and readers refer to the single index mapping")
+	}
+	if c.CreateIndexTemplates && c.UseILM {
+		return errors.New("when UseILM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app")
+	}
+	return nil
 }

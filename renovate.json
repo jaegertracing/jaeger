@@ -14,25 +14,13 @@
   "suppressNotifications": [
     "prEditedNotification"
   ],
+  "schedule": [
+    "on the first day of the month"
+  ],
   "packageRules": [
     {
-      "matchManagers": [
-        "docker-compose"
-      ],
       "matchFileNames": [
-        "docker-compose/cassandra/v4/docker-compose.yaml",
-        "docker-compose/cassandra/v5/docker-compose.yaml",
-        "docker-compose/elasticsearch/v6/docker-compose.yml",
-        "docker-compose/elasticsearch/v7/docker-compose.yml",
-        "docker-compose/elasticsearch/v8/docker-compose.yml",
-        "docker-compose/kafka/v2/docker-compose.yml",
-        "docker-compose/kafka/v3/docker-compose.yml",
-        "docker-compose/kafka/docker-compose.yml",
-        "docker-compose/monitor/docker-compose.yml",
-        "docker-compose/monitor/docker-compose-v1.yml",
-        "docker-compose/opensearch/v1/docker-compose.yml",
-        "docker-compose/opensearch/v2/docker-compose.yml",
-        "docker-compose/scylladb/docker-compose.yml"
+        "docker-compose/**/docker-compose.y*ml"
       ],
       "matchUpdateTypes": [
         "major",
@@ -45,10 +33,7 @@
       "matchManagers": [
         "github-actions"
       ],
-      "groupName": "github-actions deps",
-      "schedule": [
-        "on the first day of the month"
-      ]
+      "groupName": "github-actions deps"
     },
     {
       "matchManagers": [

@@ -23,6 +23,8 @@ import (
 
 	promCfg "github.com/jaegertracing/jaeger/internal/config/promcfg"
 	esCfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
@@ -42,8 +44,32 @@ func (errorFactory) CreateTraceWriter() (tracestore.Writer, error) {
 	panic("not implemented")
 }
 
+func (errorFactory) CreateMetricsReader() (metricstore.Reader, error) { panic("not implemented") }
+
 func (e errorFactory) Close() error {
 	return e.closeErr
+}
+
+func setupMockServer(t *testing.T, response []byte, statusCode int) *httptest.Server {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(statusCode)
+		w.Write(response)
+	}))
+	require.NotNil(t, mockServer)
+	t.Cleanup(mockServer.Close)
+
+	return mockServer
+}
+
+func getVersionResponse(t *testing.T) []byte {
+	versionResponse, e := json.Marshal(map[string]any{
+		"Version": map[string]any{
+			"Number": "7",
+		},
+	})
+	require.NoError(t, e)
+	return versionResponse
 }
 
 func TestStorageFactoryBadHostError(t *testing.T) {
@@ -300,6 +326,36 @@ func TestPrometheus(t *testing.T) {
 	require.NoError(t, ext.Shutdown(ctx))
 }
 
+func TestElasticsearchAsMetricsBackend(t *testing.T) {
+	server := setupMockServer(t, getVersionResponse(t), http.StatusOK)
+
+	ext := makeStorageExtension(t, &Config{
+		MetricBackends: map[string]MetricBackend{
+			"foo": {
+				Elasticsearch: &esCfg.Configuration{
+					Servers:  []string{server.URL},
+					LogLevel: "info",
+				},
+			},
+		},
+	})
+	ctx := context.Background()
+	err := ext.Start(ctx, componenttest.NewNopHost())
+	require.NoError(t, err)
+	require.NoError(t, ext.Shutdown(ctx))
+}
+
+func TestMetricsBackendCloseError(t *testing.T) {
+	shutdownError := errors.New("shutdown error")
+	ext := storageExt{
+		metricsFactories: map[string]storage.MetricStoreFactory{
+			"foo": errorFactory{closeErr: shutdownError},
+		},
+	}
+	err := ext.Shutdown(context.Background())
+	require.ErrorIs(t, err, shutdownError)
+}
+
 func TestStartError(t *testing.T) {
 	ext := makeStorageExtension(t, &Config{
 		TraceBackends: map[string]TraceBackend{
@@ -311,16 +367,41 @@ func TestStartError(t *testing.T) {
 	require.ErrorContains(t, err, "empty configuration")
 }
 
-func TestMetricsStorageStartError(t *testing.T) {
-	ext := makeStorageExtension(t, &Config{
-		MetricBackends: map[string]MetricBackend{
-			"foo": {
-				Prometheus: &promCfg.Configuration{},
+func TestMetricStorageStartError(t *testing.T) {
+	expectedError := "failed to initialize metrics storage 'foo'"
+	tests := []struct {
+		name   string
+		config *Config
+	}{
+		{
+			name: "Prometheus backend initialization error",
+			config: &Config{
+				MetricBackends: map[string]MetricBackend{
+					"foo": {
+						Prometheus: &promCfg.Configuration{},
+					},
+				},
 			},
 		},
-	})
-	err := ext.Start(context.Background(), componenttest.NewNopHost())
-	require.ErrorContains(t, err, "failed to initialize metrics storage 'foo'")
+		{
+			name: "Elasticsearch backend initialization error",
+			config: &Config{
+				MetricBackends: map[string]MetricBackend{
+					"foo": {
+						Elasticsearch: &esCfg.Configuration{},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ext := makeStorageExtension(t, tt.config)
+			err := ext.Start(context.Background(), componenttest.NewNopHost())
+			require.ErrorContains(t, err, expectedError)
+		})
+	}
 }
 
 func testElasticsearchOrOpensearch(t *testing.T, cfg TraceBackend) {
@@ -336,16 +417,7 @@ func testElasticsearchOrOpensearch(t *testing.T, cfg TraceBackend) {
 }
 
 func TestXYZsearch(t *testing.T) {
-	versionResponse, err := json.Marshal(map[string]any{
-		"Version": map[string]any{
-			"Number": "7",
-		},
-	})
-	require.NoError(t, err)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(versionResponse)
-	}))
-	defer server.Close()
+	server := setupMockServer(t, getVersionResponse(t), http.StatusOK)
 	t.Run("Elasticsearch", func(t *testing.T) {
 		testElasticsearchOrOpensearch(t, TraceBackend{
 			Elasticsearch: &esCfg.Configuration{

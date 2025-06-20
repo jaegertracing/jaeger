@@ -10,9 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/mocks"
 )
@@ -39,16 +40,11 @@ func TestTraceWriter_Close(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestTraceWriter_CreateTemplates(t *testing.T) {
-	coreWriter := &mocks.CoreSpanWriter{}
-	coreWriter.On("CreateTemplates", "testing-template", "testing-template", cfg.IndexPrefix("testing")).Return(nil)
-	writer := TraceWriter{spanWriter: coreWriter}
-	err := writer.CreateTemplates("testing-template", "testing-template", "testing")
-	require.NoError(t, err)
-}
-
 func Test_NewTraceWriter(t *testing.T) {
-	params := spanstore.SpanWriterParams{}
+	params := spanstore.SpanWriterParams{
+		Logger:         zap.NewNop(),
+		MetricsFactory: metrics.NullFactory,
+	}
 	writer := NewTraceWriter(params)
 	assert.NotNil(t, writer)
 }

@@ -46,13 +46,13 @@ func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	}
 }
 
-// Initialize implements storage.MetricsFactory.
+// Initialize implements storage.V1MetricStoreFactory.
 func (f *Factory) Initialize(telset telemetry.Settings) error {
 	f.telset = telset
 	return nil
 }
 
-// CreateMetricsReader implements storage.MetricsFactory.
+// CreateMetricsReader implements storage.V1MetricStoreFactory.
 func (f *Factory) CreateMetricsReader() (metricstore.Reader, error) {
 	mr, err := prometheusstore.NewMetricsReader(f.options.Configuration, f.telset.Logger, f.telset.TracerProvider)
 	if err != nil {

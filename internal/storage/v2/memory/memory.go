@@ -5,16 +5,24 @@ package memory
 
 import (
 	"context"
+	"errors"
+	"iter"
 	"sync"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	v1 "github.com/jaegertracing/jaeger/internal/storage/v1/memory"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
+
+const errorAttribute = "error"
+
+var errInvalidSearchDepth = errors.New("search depth must be greater than 0 and less than max traces")
 
 // Store is an in-memory store of traces
 type Store struct {
@@ -26,11 +34,14 @@ type Store struct {
 }
 
 // NewStore creates an in-memory store
-func NewStore(cfg v1.Configuration) *Store {
+func NewStore(cfg v1.Configuration) (*Store, error) {
+	if cfg.MaxTraces <= 0 {
+		return nil, errInvalidMaxTraces
+	}
 	return &Store{
 		defaultConfig: cfg,
 		perTenant:     make(map[string]*Tenant),
-	}
+	}, nil
 }
 
 // getTenant returns the per-tenant storage.  Note that tenantID has already been checked for by the collector or query
@@ -55,25 +66,7 @@ func (st *Store) getTenant(tenantID string) *Tenant {
 func (st *Store) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	resourceSpansByTraceId := reshuffleResourceSpans(td.ResourceSpans())
 	m := st.getTenant(tenancy.GetTenant(ctx))
-	for traceId, sameTraceIDResourceSpan := range resourceSpansByTraceId {
-		for _, resourceSpan := range sameTraceIDResourceSpan.All() {
-			serviceName := getServiceNameFromResource(resourceSpan.Resource())
-			if serviceName == "" {
-				continue
-			}
-			m.storeService(serviceName)
-			for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
-				for _, span := range scopeSpan.Spans().All() {
-					operation := tracestore.Operation{
-						Name:     span.Name(),
-						SpanKind: span.Kind().String(),
-					}
-					m.storeOperation(serviceName, operation)
-				}
-			}
-		}
-		m.storeTraces(traceId, sameTraceIDResourceSpan)
-	}
+	m.storeTraces(resourceSpansByTraceId)
 	return nil
 }
 
@@ -103,6 +96,55 @@ func (st *Store) GetServices(ctx context.Context) ([]string, error) {
 		retMe = append(retMe, k)
 	}
 	return retMe, nil
+}
+
+func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+	m := st.getTenant(tenancy.GetTenant(ctx))
+	return func(yield func([]ptrace.Traces, error) bool) {
+		traceAndIds, err := m.findTraceAndIds(query)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		for i := range traceAndIds {
+			if !yield([]ptrace.Traces{traceAndIds[i].trace}, nil) {
+				return
+			}
+		}
+	}
+}
+
+func (st *Store) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
+	m := st.getTenant(tenancy.GetTenant(ctx))
+	return func(yield func([]tracestore.FoundTraceID, error) bool) {
+		traceAndIds, err := m.findTraceAndIds(query)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		ids := make([]tracestore.FoundTraceID, len(traceAndIds))
+		for i := range traceAndIds {
+			ids[i] = tracestore.FoundTraceID{TraceID: traceAndIds[i].id}
+		}
+		yield(ids, nil)
+	}
+}
+
+func (st *Store) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
+	m := st.getTenant(tenancy.GetTenant(ctx))
+	return func(yield func([]ptrace.Traces, error) bool) {
+		traces := m.getTraces(traceIDs...)
+		for i := range traces {
+			if !yield([]ptrace.Traces{traces[i]}, nil) {
+				return
+			}
+		}
+	}
+}
+
+func (st *Store) GetDependencies(ctx context.Context, query depstore.QueryParameters) ([]model.DependencyLink, error) {
+	m := st.getTenant(tenancy.GetTenant(ctx))
+	return m.getDependencies(query)
 }
 
 // reshuffleResourceSpans reshuffles the resource spans so as to group the spans from same traces together. To understand this reshuffling

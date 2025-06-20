@@ -20,16 +20,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/config"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
+	esDepStorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
@@ -41,120 +42,43 @@ var mockEsServerResponse = []byte(`
 }
 `)
 
-type mockClientBuilder struct {
-	err                 error
-	createTemplateError error
-}
-
-func (m *mockClientBuilder) NewClient(*escfg.Configuration, *zap.Logger, metrics.Factory) (es.Client, error) {
-	if m.err == nil {
-		c := &mocks.Client{}
-		tService := &mocks.TemplateCreateService{}
-		tService.On("Body", mock.Anything).Return(tService)
-		tService.On("Do", context.Background()).Return(nil, m.createTemplateError)
-		c.On("CreateTemplate", mock.Anything).Return(tService)
-		c.On("GetVersion").Return(uint(6))
-		c.On("Close").Return(nil)
-		return c, nil
+func TestElasticsearchFactoryBase(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write(mockEsServerResponse)
+	}))
+	t.Cleanup(server.Close)
+	cfg := escfg.Configuration{
+		Servers:  []string{server.URL},
+		LogLevel: "debug",
 	}
-	return nil, m.err
-}
-
-func TestElasticsearchFactory(t *testing.T) {
-	f := NewFactory()
-	v, command := config.Viperize(f.AddFlags)
-	command.ParseFlags([]string{})
-	f.InitFromViper(v, zap.NewNop())
-
-	f.newClientFn = (&mockClientBuilder{err: errors.New("made-up error")}).NewClient
-	require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "failed to create Elasticsearch client: made-up error")
-
-	f.newClientFn = (&mockClientBuilder{}).NewClient
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-
-	_, err := f.CreateSpanReader()
+	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t))
 	require.NoError(t, err)
-
-	_, err = f.CreateSpanWriter()
-	require.NoError(t, err)
-
-	_, err = f.CreateDependencyReader()
-	require.NoError(t, err)
-
+	readerParams := f.GetSpanReaderParams()
+	assert.IsType(t, spanstore.SpanReaderParams{}, readerParams)
+	writerParams := f.GetSpanWriterParams()
+	assert.IsType(t, spanstore.SpanWriterParams{}, writerParams)
+	depParams := f.GetDependencyStoreParams()
+	assert.IsType(t, esDepStorev2.Params{}, depParams)
 	_, err = f.CreateSamplingStore(1)
 	require.NoError(t, err)
-
 	require.NoError(t, f.Close())
 }
 
-func TestArchiveFactory(t *testing.T) {
-	tests := []struct {
-		name               string
-		args               []string
-		expectedReadAlias  string
-		expectedWriteAlias string
-	}{
-		{
-			name:               "default settings",
-			args:               []string{},
-			expectedReadAlias:  "archive",
-			expectedWriteAlias: "archive",
-		},
-		{
-			name:               "use read write aliases",
-			args:               []string{"--es-archive.use-aliases=true"},
-			expectedReadAlias:  "archive-read",
-			expectedWriteAlias: "archive-write",
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			f := NewArchiveFactory()
-			v, command := config.Viperize(f.AddFlags)
-			command.ParseFlags(test.args)
-			f.InitFromViper(v, zap.NewNop())
-
-			f.newClientFn = (&mockClientBuilder{}).NewClient
-			require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-
-			require.Equal(t, test.expectedReadAlias, f.config.ReadAliasSuffix)
-			require.Equal(t, test.expectedWriteAlias, f.config.WriteAliasSuffix)
-			require.True(t, f.config.UseReadWriteAliases)
-		})
-	}
-}
-
 func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
-	f := NewFactory()
-	f.config = &escfg.Configuration{
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write(mockEsServerResponse)
+	}))
+	t.Cleanup(server.Close)
+	cfg := escfg.Configuration{
+		Servers: []string{server.URL},
 		Tags: escfg.TagsAsFields{
 			File: "fixtures/file-does-not-exist.txt",
 		},
+		LogLevel: "debug",
 	}
-	f.newClientFn = (&mockClientBuilder{}).NewClient
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-	defer f.Close()
-	r, err := f.CreateSpanWriter()
-	require.Error(t, err)
-	assert.Nil(t, r)
-}
-
-func TestElasticsearchILMUsedWithoutReadWriteAliases(t *testing.T) {
-	f := NewFactory()
-	f.config = &escfg.Configuration{
-		UseILM: true,
-	}
-	f.newClientFn = (&mockClientBuilder{}).NewClient
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-	defer f.Close()
-	w, err := f.CreateSpanWriter()
-	require.EqualError(t, err, "--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
-	assert.Nil(t, w)
-
-	r, err := f.CreateSpanReader()
-	require.EqualError(t, err, "--es.use-ilm must always be used in conjunction with --es.use-aliases to ensure ES writers and readers refer to the single index mapping")
-	assert.Nil(t, r)
+	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t))
+	require.ErrorContains(t, err, "open fixtures/file-does-not-exist.txt: no such file or directory")
+	assert.Nil(t, f)
 }
 
 func TestTagKeysAsFields(t *testing.T) {
@@ -214,41 +138,111 @@ func TestTagKeysAsFields(t *testing.T) {
 	}
 }
 
-func TestCreateTemplateError(t *testing.T) {
-	f := NewFactory()
-	f.config = &escfg.Configuration{CreateIndexTemplates: true}
-	f.newClientFn = (&mockClientBuilder{createTemplateError: errors.New("template-error")}).NewClient
-	err := f.Initialize(metrics.NullFactory, zap.NewNop())
-	require.NoError(t, err)
-	defer f.Close()
-
-	w, err := f.CreateSpanWriter()
-	assert.Nil(t, w)
-	require.Error(t, err, "template-error")
-
-	s, err := f.CreateSamplingStore(1)
-	assert.Nil(t, s)
-	require.Error(t, err, "template-error")
-}
-
-func TestILMDisableTemplateCreation(t *testing.T) {
-	f := NewFactory()
-	f.config = &escfg.Configuration{UseILM: true, UseReadWriteAliases: true, CreateIndexTemplates: true}
-	f.newClientFn = (&mockClientBuilder{createTemplateError: errors.New("template-error")}).NewClient
-	err := f.Initialize(metrics.NullFactory, zap.NewNop())
-	defer f.Close()
-	require.NoError(t, err)
-	_, err = f.CreateSpanWriter()
-	require.NoError(t, err) // as the createTemplate is not called, CreateSpanWriter should not return an error
-}
-
-func TestConfigureFromOptions(t *testing.T) {
-	f := NewFactory()
-	o := &Options{
-		Config: namespaceConfig{Configuration: escfg.Configuration{Servers: []string{"server"}}},
+func TestCreateTemplates(t *testing.T) {
+	tests := []struct {
+		err                    string
+		spanTemplateService    func() *mocks.TemplateCreateService
+		serviceTemplateService func() *mocks.TemplateCreateService
+		indexPrefix            escfg.IndexPrefix
+	}{
+		{
+			spanTemplateService: func() *mocks.TemplateCreateService {
+				tService := &mocks.TemplateCreateService{}
+				tService.On("Body", mock.Anything).Return(tService)
+				tService.On("Do", context.Background()).Return(nil, nil)
+				return tService
+			},
+			serviceTemplateService: func() *mocks.TemplateCreateService {
+				tService := &mocks.TemplateCreateService{}
+				tService.On("Body", mock.Anything).Return(tService)
+				tService.On("Do", context.Background()).Return(nil, nil)
+				return tService
+			},
+		},
+		{
+			spanTemplateService: func() *mocks.TemplateCreateService {
+				tService := &mocks.TemplateCreateService{}
+				tService.On("Body", mock.Anything).Return(tService)
+				tService.On("Do", context.Background()).Return(nil, nil)
+				return tService
+			},
+			serviceTemplateService: func() *mocks.TemplateCreateService {
+				tService := &mocks.TemplateCreateService{}
+				tService.On("Body", mock.Anything).Return(tService)
+				tService.On("Do", context.Background()).Return(nil, nil)
+				return tService
+			},
+			indexPrefix: "test",
+		},
+		{
+			err: "span-template-error",
+			spanTemplateService: func() *mocks.TemplateCreateService {
+				tService := new(mocks.TemplateCreateService)
+				tService.On("Body", mock.Anything).Return(tService)
+				tService.On("Do", context.Background()).Return(nil, errors.New("span-template-error"))
+				return tService
+			},
+			serviceTemplateService: func() *mocks.TemplateCreateService {
+				tService := new(mocks.TemplateCreateService)
+				tService.On("Body", mock.Anything).Return(tService)
+				tService.On("Do", context.Background()).Return(nil, nil)
+				return tService
+			},
+		},
+		{
+			err: "service-template-error",
+			spanTemplateService: func() *mocks.TemplateCreateService {
+				tService := new(mocks.TemplateCreateService)
+				tService.On("Body", mock.Anything).Return(tService)
+				tService.On("Do", context.Background()).Return(nil, nil)
+				return tService
+			},
+			serviceTemplateService: func() *mocks.TemplateCreateService {
+				tService := new(mocks.TemplateCreateService)
+				tService.On("Body", mock.Anything).Return(tService)
+				tService.On("Do", context.Background()).Return(nil, errors.New("service-template-error"))
+				return tService
+			},
+		},
 	}
-	f.configureFromOptions(o)
-	assert.Equal(t, o.GetConfig(), f.config)
+
+	for _, test := range tests {
+		f := FactoryBase{}
+		mockClient := &mocks.Client{}
+		f.newClientFn = func(_ context.Context, _ *escfg.Configuration, _ *zap.Logger, _ metrics.Factory) (es.Client, error) {
+			return mockClient, nil
+		}
+		f.logger = zaptest.NewLogger(t)
+		f.metricsFactory = metrics.NullFactory
+		f.config = &escfg.Configuration{CreateIndexTemplates: true, Indices: escfg.Indices{
+			IndexPrefix: test.indexPrefix,
+			Spans: escfg.IndexOptions{
+				Shards:   3,
+				Replicas: ptr(int64(1)),
+				Priority: 10,
+			},
+			Services: escfg.IndexOptions{
+				Shards:   3,
+				Replicas: ptr(int64(1)),
+				Priority: 10,
+			},
+		}}
+		f.tracer = otel.GetTracerProvider()
+		client, err := f.newClientFn(context.Background(), &escfg.Configuration{}, zaptest.NewLogger(t), metrics.NullFactory)
+		require.NoError(t, err)
+		f.client.Store(&client)
+		f.templateBuilder = es.TextTemplateBuilder{}
+		jaegerSpanId := test.indexPrefix.Apply("jaeger-span")
+		jaegerServiceId := test.indexPrefix.Apply("jaeger-service")
+		mockClient.On("CreateTemplate", jaegerSpanId).Return(test.spanTemplateService())
+		mockClient.On("CreateTemplate", jaegerServiceId).Return(test.serviceTemplateService())
+		err = f.createTemplates(context.Background())
+		if test.err != "" {
+			require.ErrorContains(t, err, test.err)
+		} else {
+			require.NoError(t, err)
+		}
+	}
 }
 
 func TestESStorageFactoryWithConfig(t *testing.T) {
@@ -260,42 +254,9 @@ func TestESStorageFactoryWithConfig(t *testing.T) {
 		Servers:  []string{server.URL},
 		LogLevel: "error",
 	}
-	factory, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	factory, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
 	defer factory.Close()
-}
-
-func TestConfigurationValidation(t *testing.T) {
-	testCases := []struct {
-		name    string
-		cfg     escfg.Configuration
-		wantErr bool
-	}{
-		{
-			name: "valid configuration",
-			cfg: escfg.Configuration{
-				Servers: []string{"http://localhost:9200"},
-			},
-			wantErr: false,
-		},
-		{
-			name:    "missing servers",
-			cfg:     escfg.Configuration{},
-			wantErr: true,
-		},
-	}
-	for _, test := range testCases {
-		t.Run(test.name, func(t *testing.T) {
-			err := test.cfg.Validate()
-			if test.wantErr {
-				require.Error(t, err)
-				_, err = NewFactoryWithConfig(test.cfg, metrics.NullFactory, zap.NewNop())
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
 }
 
 func TestESStorageFactoryWithConfigError(t *testing.T) {
@@ -305,15 +266,16 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 		Servers:  []string{"http://127.0.0.1:65535"},
 		LogLevel: "error",
 	}
-	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
+	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop())
 	require.ErrorContains(t, err, "failed to create Elasticsearch client")
 }
 
 func TestPasswordFromFile(t *testing.T) {
-	defer testutils.VerifyGoLeaksOnce(t)
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnce(t)
+	})
 	t.Run("primary client", func(t *testing.T) {
-		f := NewFactory()
-		testPasswordFromFile(t, f, f.getClient, f.CreateSpanWriter)
+		testPasswordFromFile(t)
 	})
 
 	t.Run("load token error", func(t *testing.T) {
@@ -324,7 +286,7 @@ func TestPasswordFromFile(t *testing.T) {
 	})
 }
 
-func testPasswordFromFile(t *testing.T, f *Factory, getClient func() es.Client, getWriter func() (spanstore.Writer, error)) {
+func testPasswordFromFile(t *testing.T) {
 	const (
 		pwd1 = "first password"
 		pwd2 = "second password"
@@ -348,12 +310,12 @@ func testPasswordFromFile(t *testing.T, f *Factory, getClient func() es.Client, 
 		t.Logf("request to fake ES server contained auth=%s", auth)
 		w.Write(mockEsServerResponse)
 	}))
-	defer server.Close()
+	t.Cleanup(server.Close)
 
 	pwdFile := filepath.Join(t.TempDir(), "pwd")
 	require.NoError(t, os.WriteFile(pwdFile, []byte(pwd1), 0o600))
 
-	f.config = &escfg.Configuration{
+	cfg := escfg.Configuration{
 		Servers:  []string{server.URL},
 		LogLevel: "debug",
 		Authentication: escfg.Authentication{
@@ -366,15 +328,17 @@ func testPasswordFromFile(t *testing.T, f *Factory, getClient func() es.Client, 
 			MaxBytes: -1, // disable bulk; we want immediate flush
 		},
 	}
-	require.NoError(t, f.Initialize(metrics.NullFactory, zaptest.NewLogger(t)))
-	defer f.Close()
-
-	writer, err := getWriter()
+	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
-	span := &model.Span{
-		Process: &model.Process{ServiceName: "foo"},
+	t.Cleanup(func() {
+		require.NoError(t, f.Close())
+	})
+
+	writer := spanstore.NewSpanWriter(f.GetSpanWriterParams())
+	span1 := &dbmodel.Span{
+		Process: dbmodel.Process{ServiceName: "foo"},
 	}
-	require.NoError(t, writer.WriteSpan(context.Background(), span))
+	writer.WriteSpan(time.Now(), span1)
 	assert.Eventually(t,
 		func() bool {
 			pwd, ok := authReceived.Load(upwd1)
@@ -385,21 +349,24 @@ func testPasswordFromFile(t *testing.T, f *Factory, getClient func() es.Client, 
 	)
 
 	t.Log("replace password in the file")
-	client1 := getClient()
+	client1 := f.getClient()
 	newPwdFile := filepath.Join(t.TempDir(), "pwd2")
 	require.NoError(t, os.WriteFile(newPwdFile, []byte(pwd2), 0o600))
 	require.NoError(t, os.Rename(newPwdFile, pwdFile))
 
 	assert.Eventually(t,
 		func() bool {
-			client2 := getClient()
+			client2 := f.getClient()
 			return client1 != client2
 		},
 		5*time.Second, time.Millisecond,
 		"expecting es.Client to change for the new password",
 	)
 
-	require.NoError(t, writer.WriteSpan(context.Background(), span))
+	span2 := &dbmodel.Span{
+		Process: dbmodel.Process{ServiceName: "foo"},
+	}
+	writer.WriteSpan(time.Now(), span2)
 	assert.Eventually(t,
 		func() bool {
 			pwd, ok := authReceived.Load(upwd2)
@@ -411,7 +378,7 @@ func testPasswordFromFile(t *testing.T, f *Factory, getClient func() es.Client, 
 }
 
 func TestFactoryESClientsAreNil(t *testing.T) {
-	f := &Factory{}
+	f := &FactoryBase{}
 	assert.Nil(t, f.getClient())
 }
 
@@ -425,8 +392,7 @@ func TestPasswordFromFileErrors(t *testing.T) {
 	pwdFile := filepath.Join(t.TempDir(), "pwd")
 	require.NoError(t, os.WriteFile(pwdFile, []byte("first password"), 0o600))
 
-	f := NewFactory()
-	f.config = &escfg.Configuration{
+	cfg := escfg.Configuration{
 		Servers:  []string{server.URL},
 		LogLevel: "debug",
 		Authentication: escfg.Authentication{
@@ -437,7 +403,8 @@ func TestPasswordFromFileErrors(t *testing.T) {
 	}
 
 	logger, buf := testutils.NewEchoLogger(t)
-	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
+	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, logger)
+	require.NoError(t, err)
 	defer f.Close()
 
 	f.config.Servers = []string{}
@@ -446,66 +413,4 @@ func TestPasswordFromFileErrors(t *testing.T) {
 
 	require.NoError(t, os.Remove(pwdFile))
 	f.onPasswordChange()
-}
-
-func TestInheritSettingsFrom(t *testing.T) {
-	primaryFactory := NewFactory()
-	primaryFactory.config = &escfg.Configuration{
-		MaxDocCount: 99,
-	}
-
-	archiveFactory := NewArchiveFactory()
-	archiveFactory.config = &escfg.Configuration{
-		SendGetBodyAs: "PUT",
-	}
-
-	archiveFactory.InheritSettingsFrom(primaryFactory)
-
-	require.Equal(t, "PUT", archiveFactory.config.SendGetBodyAs)
-	require.Equal(t, 99, primaryFactory.config.MaxDocCount)
-}
-
-func TestIsArchiveCapable(t *testing.T) {
-	tests := []struct {
-		name      string
-		namespace string
-		enabled   bool
-		expected  bool
-	}{
-		{
-			name:      "archive capable",
-			namespace: "es-archive",
-			enabled:   true,
-			expected:  true,
-		},
-		{
-			name:      "not capable",
-			namespace: "es-archive",
-			enabled:   false,
-			expected:  false,
-		},
-		{
-			name:      "capable + wrong namespace",
-			namespace: "es",
-			enabled:   true,
-			expected:  false,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			factory := &Factory{
-				Options: &Options{
-					Config: namespaceConfig{
-						namespace: test.namespace,
-						Configuration: escfg.Configuration{
-							Enabled: test.enabled,
-						},
-					},
-				},
-			}
-			result := factory.IsArchiveCapable()
-			require.Equal(t, test.expected, result)
-		})
-	}
 }

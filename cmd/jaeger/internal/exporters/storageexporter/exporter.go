@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/sanitizer"
+	"github.com/jaegertracing/jaeger/internal/jptrace/sanitizer"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
@@ -25,11 +25,9 @@ type storageExporter struct {
 
 func newExporter(config *Config, otel component.TelemetrySettings) *storageExporter {
 	return &storageExporter{
-		config: config,
-		logger: otel.Logger,
-		sanitizer: sanitizer.NewChainedSanitizer(
-			sanitizer.NewStandardSanitizers()...,
-		),
+		config:    config,
+		logger:    otel.Logger,
+		sanitizer: sanitizer.Sanitize,
 	}
 }
 

@@ -12,7 +12,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -78,15 +77,26 @@ type CoreSpanReader_FindTraceIDs_Call struct {
 }
 
 // FindTraceIDs is a helper method to define mock.On call
-//   - ctx
-//   - traceQuery
+//   - ctx context.Context
+//   - traceQuery dbmodel.TraceQueryParameters
 func (_e *CoreSpanReader_Expecter) FindTraceIDs(ctx interface{}, traceQuery interface{}) *CoreSpanReader_FindTraceIDs_Call {
 	return &CoreSpanReader_FindTraceIDs_Call{Call: _e.mock.On("FindTraceIDs", ctx, traceQuery)}
 }
 
 func (_c *CoreSpanReader_FindTraceIDs_Call) Run(run func(ctx context.Context, traceQuery dbmodel.TraceQueryParameters)) *CoreSpanReader_FindTraceIDs_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(dbmodel.TraceQueryParameters))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 dbmodel.TraceQueryParameters
+		if args[1] != nil {
+			arg1 = args[1].(dbmodel.TraceQueryParameters)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -135,15 +145,26 @@ type CoreSpanReader_FindTraces_Call struct {
 }
 
 // FindTraces is a helper method to define mock.On call
-//   - ctx
-//   - traceQuery
+//   - ctx context.Context
+//   - traceQuery dbmodel.TraceQueryParameters
 func (_e *CoreSpanReader_Expecter) FindTraces(ctx interface{}, traceQuery interface{}) *CoreSpanReader_FindTraces_Call {
 	return &CoreSpanReader_FindTraces_Call{Call: _e.mock.On("FindTraces", ctx, traceQuery)}
 }
 
 func (_c *CoreSpanReader_FindTraces_Call) Run(run func(ctx context.Context, traceQuery dbmodel.TraceQueryParameters)) *CoreSpanReader_FindTraces_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(dbmodel.TraceQueryParameters))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 dbmodel.TraceQueryParameters
+		if args[1] != nil {
+			arg1 = args[1].(dbmodel.TraceQueryParameters)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -192,15 +213,26 @@ type CoreSpanReader_GetOperations_Call struct {
 }
 
 // GetOperations is a helper method to define mock.On call
-//   - ctx
-//   - query
+//   - ctx context.Context
+//   - query dbmodel.OperationQueryParameters
 func (_e *CoreSpanReader_Expecter) GetOperations(ctx interface{}, query interface{}) *CoreSpanReader_GetOperations_Call {
 	return &CoreSpanReader_GetOperations_Call{Call: _e.mock.On("GetOperations", ctx, query)}
 }
 
 func (_c *CoreSpanReader_GetOperations_Call) Run(run func(ctx context.Context, query dbmodel.OperationQueryParameters)) *CoreSpanReader_GetOperations_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(dbmodel.OperationQueryParameters))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 dbmodel.OperationQueryParameters
+		if args[1] != nil {
+			arg1 = args[1].(dbmodel.OperationQueryParameters)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -249,14 +281,20 @@ type CoreSpanReader_GetServices_Call struct {
 }
 
 // GetServices is a helper method to define mock.On call
-//   - ctx
+//   - ctx context.Context
 func (_e *CoreSpanReader_Expecter) GetServices(ctx interface{}) *CoreSpanReader_GetServices_Call {
 	return &CoreSpanReader_GetServices_Call{Call: _e.mock.On("GetServices", ctx)}
 }
 
 func (_c *CoreSpanReader_GetServices_Call) Run(run func(ctx context.Context)) *CoreSpanReader_GetServices_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -305,15 +343,26 @@ type CoreSpanReader_GetTraces_Call struct {
 }
 
 // GetTraces is a helper method to define mock.On call
-//   - ctx
-//   - query
+//   - ctx context.Context
+//   - query []dbmodel.TraceID
 func (_e *CoreSpanReader_Expecter) GetTraces(ctx interface{}, query interface{}) *CoreSpanReader_GetTraces_Call {
 	return &CoreSpanReader_GetTraces_Call{Call: _e.mock.On("GetTraces", ctx, query)}
 }
 
 func (_c *CoreSpanReader_GetTraces_Call) Run(run func(ctx context.Context, query []dbmodel.TraceID)) *CoreSpanReader_GetTraces_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].([]dbmodel.TraceID))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 []dbmodel.TraceID
+		if args[1] != nil {
+			arg1 = args[1].([]dbmodel.TraceID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -399,53 +448,6 @@ func (_c *CoreSpanWriter_Close_Call) RunAndReturn(run func() error) *CoreSpanWri
 	return _c
 }
 
-// CreateTemplates provides a mock function for the type CoreSpanWriter
-func (_mock *CoreSpanWriter) CreateTemplates(spanTemplate string, serviceTemplate string, indexPrefix config.IndexPrefix) error {
-	ret := _mock.Called(spanTemplate, serviceTemplate, indexPrefix)
-
-	if len(ret) == 0 {
-		panic("no return value specified for CreateTemplates")
-	}
-
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(string, string, config.IndexPrefix) error); ok {
-		r0 = returnFunc(spanTemplate, serviceTemplate, indexPrefix)
-	} else {
-		r0 = ret.Error(0)
-	}
-	return r0
-}
-
-// CoreSpanWriter_CreateTemplates_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateTemplates'
-type CoreSpanWriter_CreateTemplates_Call struct {
-	*mock.Call
-}
-
-// CreateTemplates is a helper method to define mock.On call
-//   - spanTemplate
-//   - serviceTemplate
-//   - indexPrefix
-func (_e *CoreSpanWriter_Expecter) CreateTemplates(spanTemplate interface{}, serviceTemplate interface{}, indexPrefix interface{}) *CoreSpanWriter_CreateTemplates_Call {
-	return &CoreSpanWriter_CreateTemplates_Call{Call: _e.mock.On("CreateTemplates", spanTemplate, serviceTemplate, indexPrefix)}
-}
-
-func (_c *CoreSpanWriter_CreateTemplates_Call) Run(run func(spanTemplate string, serviceTemplate string, indexPrefix config.IndexPrefix)) *CoreSpanWriter_CreateTemplates_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(config.IndexPrefix))
-	})
-	return _c
-}
-
-func (_c *CoreSpanWriter_CreateTemplates_Call) Return(err error) *CoreSpanWriter_CreateTemplates_Call {
-	_c.Call.Return(err)
-	return _c
-}
-
-func (_c *CoreSpanWriter_CreateTemplates_Call) RunAndReturn(run func(spanTemplate string, serviceTemplate string, indexPrefix config.IndexPrefix) error) *CoreSpanWriter_CreateTemplates_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // WriteSpan provides a mock function for the type CoreSpanWriter
 func (_mock *CoreSpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 	_mock.Called(spanStartTime, span)
@@ -458,15 +460,26 @@ type CoreSpanWriter_WriteSpan_Call struct {
 }
 
 // WriteSpan is a helper method to define mock.On call
-//   - spanStartTime
-//   - span
+//   - spanStartTime time.Time
+//   - span *dbmodel.Span
 func (_e *CoreSpanWriter_Expecter) WriteSpan(spanStartTime interface{}, span interface{}) *CoreSpanWriter_WriteSpan_Call {
 	return &CoreSpanWriter_WriteSpan_Call{Call: _e.mock.On("WriteSpan", spanStartTime, span)}
 }
 
 func (_c *CoreSpanWriter_WriteSpan_Call) Run(run func(spanStartTime time.Time, span *dbmodel.Span)) *CoreSpanWriter_WriteSpan_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(time.Time), args[1].(*dbmodel.Span))
+		var arg0 time.Time
+		if args[0] != nil {
+			arg0 = args[0].(time.Time)
+		}
+		var arg1 *dbmodel.Span
+		if args[1] != nil {
+			arg1 = args[1].(*dbmodel.Span)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }

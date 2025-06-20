@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
 type SpanWriterV1 struct {
@@ -19,11 +18,6 @@ func NewSpanWriterV1(p SpanWriterParams) *SpanWriterV1 {
 	return &SpanWriterV1{
 		spanWriter: NewSpanWriter(p),
 	}
-}
-
-// CreateTemplates creates index templates.
-func (s *SpanWriterV1) CreateTemplates(spanTemplate, serviceTemplate string, indexPrefix cfg.IndexPrefix) error {
-	return s.spanWriter.CreateTemplates(spanTemplate, serviceTemplate, indexPrefix)
 }
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch

@@ -5,8 +5,6 @@
 package spanstore
 
 import (
-	"context"
-	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +15,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
@@ -214,88 +213,6 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 	}
 }
 
-func TestCreateTemplates(t *testing.T) {
-	tests := []struct {
-		err                    string
-		spanTemplateService    func() *mocks.TemplateCreateService
-		serviceTemplateService func() *mocks.TemplateCreateService
-		indexPrefix            config.IndexPrefix
-	}{
-		{
-			spanTemplateService: func() *mocks.TemplateCreateService {
-				tService := &mocks.TemplateCreateService{}
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
-			serviceTemplateService: func() *mocks.TemplateCreateService {
-				tService := &mocks.TemplateCreateService{}
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
-		},
-		{
-			spanTemplateService: func() *mocks.TemplateCreateService {
-				tService := &mocks.TemplateCreateService{}
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
-			serviceTemplateService: func() *mocks.TemplateCreateService {
-				tService := &mocks.TemplateCreateService{}
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
-			indexPrefix: "test",
-		},
-		{
-			err: "span-template-error",
-			spanTemplateService: func() *mocks.TemplateCreateService {
-				tService := new(mocks.TemplateCreateService)
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, errors.New("span-template-error"))
-				return tService
-			},
-			serviceTemplateService: func() *mocks.TemplateCreateService {
-				tService := new(mocks.TemplateCreateService)
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
-		},
-		{
-			err: "service-template-error",
-			spanTemplateService: func() *mocks.TemplateCreateService {
-				tService := new(mocks.TemplateCreateService)
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
-			serviceTemplateService: func() *mocks.TemplateCreateService {
-				tService := new(mocks.TemplateCreateService)
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, errors.New("service-template-error"))
-				return tService
-			},
-		},
-	}
-
-	for _, test := range tests {
-		withSpanWriter(func(w *spanWriterTest) {
-			jaegerSpanId := test.indexPrefix.Apply("jaeger-span")
-			jaegerServiceId := test.indexPrefix.Apply("jaeger-service")
-			w.client.On("CreateTemplate", jaegerSpanId).Return(test.spanTemplateService())
-			w.client.On("CreateTemplate", jaegerServiceId).Return(test.serviceTemplateService())
-			err := w.writer.CreateTemplates(mock.Anything, mock.Anything, test.indexPrefix)
-			if test.err != "" {
-				require.Error(t, err, test.err)
-			}
-		})
-	}
-}
-
 func TestSpanIndexName(t *testing.T) {
 	date, err := time.Parse(time.RFC3339, "1995-04-21T22:08:41+00:00")
 	require.NoError(t, err)
@@ -434,6 +351,8 @@ func TestTagMap(t *testing.T) {
 	}
 	dbSpan := dbmodel.Span{Tags: tags, Process: dbmodel.Process{Tags: tags}}
 	converter := NewSpanWriter(SpanWriterParams{
+		Logger:            zap.NewNop(),
+		MetricsFactory:    metrics.NullFactory,
 		AllTagsAsFields:   false,
 		TagKeysAsFields:   []string{"a", "b.b", "b*"},
 		TagDotReplacement: ":",
@@ -509,7 +428,10 @@ func TestNewSpanTags(t *testing.T) {
 				Tags:    []dbmodel.KeyValue{{Key: "foo", Value: "bar", Type: dbmodel.StringType}},
 				Process: dbmodel.Process{Tags: []dbmodel.KeyValue{{Key: "bar", Value: "baz", Type: dbmodel.StringType}}},
 			}
-			writer := NewSpanWriter(test.params)
+			params := test.params
+			params.Logger = zap.NewNop()
+			params.MetricsFactory = metrics.NullFactory
+			writer := NewSpanWriter(params)
 			writer.convertNestedTagsToFieldTags(mSpan)
 			assert.Equal(t, test.expected.Tag, mSpan.Tag)
 			assert.Equal(t, test.expected.Tags, mSpan.Tags)

@@ -5,8 +5,6 @@
 package spanstore
 
 import (
-	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -17,6 +15,7 @@ import (
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 )
 
 const (
@@ -33,6 +32,7 @@ type SpanWriter struct {
 	client func() es.Client
 	logger *zap.Logger
 	// indexCache       cache.Cache
+	writerMetrics     *spanstoremetrics.WriteMetrics
 	serviceWriter     serviceWriter
 	spanServiceIndex  spanAndServiceIndexFn
 	allTagsAsFields   bool
@@ -42,8 +42,6 @@ type SpanWriter struct {
 
 // CoreSpanWriter is a DB-Level abstraction which directly deals with database level operations
 type CoreSpanWriter interface {
-	// CreateTemplates creates index templates.
-	CreateTemplates(spanTemplate, serviceTemplate string, indexPrefix cfg.IndexPrefix) error
 	// WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 	WriteSpan(spanStartTime time.Time, span *dbmodel.Span)
 	// Close closes CoreSpanWriter
@@ -91,27 +89,13 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 	return &SpanWriter{
 		client:            p.Client,
 		logger:            p.Logger,
+		writerMetrics:     spanstoremetrics.NewWriter(p.MetricsFactory, "spans"),
 		serviceWriter:     serviceOperationStorage.Write,
 		spanServiceIndex:  getSpanAndServiceIndexFn(p, writeAliasSuffix),
 		tagKeysAsFields:   tags,
 		allTagsAsFields:   p.AllTagsAsFields,
 		tagDotReplacement: p.TagDotReplacement,
 	}
-}
-
-// CreateTemplates creates index templates.
-func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate string, indexPrefix cfg.IndexPrefix) error {
-	jaegerSpanIdx := indexPrefix.Apply("jaeger-span")
-	jaegerServiceIdx := indexPrefix.Apply("jaeger-service")
-	_, err := s.client().CreateTemplate(jaegerSpanIdx).Body(spanTemplate).Do(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to create template %q: %w", jaegerSpanIdx, err)
-	}
-	_, err = s.client().CreateTemplate(jaegerServiceIdx).Body(serviceTemplate).Do(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to create template %q: %w", jaegerServiceIdx, err)
-	}
-	return nil
 }
 
 // spanAndServiceIndexFn returns names of span and service indices
@@ -132,6 +116,7 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServ
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
+	s.writerMetrics.Attempts.Inc(1)
 	s.convertNestedTagsToFieldTags(span)
 	spanIndexName, serviceIndexName := s.spanServiceIndex(spanStartTime)
 	if serviceIndexName != "" {

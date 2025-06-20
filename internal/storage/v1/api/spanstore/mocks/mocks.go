@@ -66,15 +66,26 @@ type Writer_WriteSpan_Call struct {
 }
 
 // WriteSpan is a helper method to define mock.On call
-//   - ctx
-//   - span
+//   - ctx context.Context
+//   - span *model.Span
 func (_e *Writer_Expecter) WriteSpan(ctx interface{}, span interface{}) *Writer_WriteSpan_Call {
 	return &Writer_WriteSpan_Call{Call: _e.mock.On("WriteSpan", ctx, span)}
 }
 
 func (_c *Writer_WriteSpan_Call) Run(run func(ctx context.Context, span *model.Span)) *Writer_WriteSpan_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*model.Span))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *model.Span
+		if args[1] != nil {
+			arg1 = args[1].(*model.Span)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -150,15 +161,26 @@ type Reader_FindTraceIDs_Call struct {
 }
 
 // FindTraceIDs is a helper method to define mock.On call
-//   - ctx
-//   - query
+//   - ctx context.Context
+//   - query *spanstore.TraceQueryParameters
 func (_e *Reader_Expecter) FindTraceIDs(ctx interface{}, query interface{}) *Reader_FindTraceIDs_Call {
 	return &Reader_FindTraceIDs_Call{Call: _e.mock.On("FindTraceIDs", ctx, query)}
 }
 
 func (_c *Reader_FindTraceIDs_Call) Run(run func(ctx context.Context, query *spanstore.TraceQueryParameters)) *Reader_FindTraceIDs_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*spanstore.TraceQueryParameters))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *spanstore.TraceQueryParameters
+		if args[1] != nil {
+			arg1 = args[1].(*spanstore.TraceQueryParameters)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -207,15 +229,26 @@ type Reader_FindTraces_Call struct {
 }
 
 // FindTraces is a helper method to define mock.On call
-//   - ctx
-//   - query
+//   - ctx context.Context
+//   - query *spanstore.TraceQueryParameters
 func (_e *Reader_Expecter) FindTraces(ctx interface{}, query interface{}) *Reader_FindTraces_Call {
 	return &Reader_FindTraces_Call{Call: _e.mock.On("FindTraces", ctx, query)}
 }
 
 func (_c *Reader_FindTraces_Call) Run(run func(ctx context.Context, query *spanstore.TraceQueryParameters)) *Reader_FindTraces_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*spanstore.TraceQueryParameters))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *spanstore.TraceQueryParameters
+		if args[1] != nil {
+			arg1 = args[1].(*spanstore.TraceQueryParameters)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -264,15 +297,26 @@ type Reader_GetOperations_Call struct {
 }
 
 // GetOperations is a helper method to define mock.On call
-//   - ctx
-//   - query
+//   - ctx context.Context
+//   - query spanstore.OperationQueryParameters
 func (_e *Reader_Expecter) GetOperations(ctx interface{}, query interface{}) *Reader_GetOperations_Call {
 	return &Reader_GetOperations_Call{Call: _e.mock.On("GetOperations", ctx, query)}
 }
 
 func (_c *Reader_GetOperations_Call) Run(run func(ctx context.Context, query spanstore.OperationQueryParameters)) *Reader_GetOperations_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(spanstore.OperationQueryParameters))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 spanstore.OperationQueryParameters
+		if args[1] != nil {
+			arg1 = args[1].(spanstore.OperationQueryParameters)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -321,14 +365,20 @@ type Reader_GetServices_Call struct {
 }
 
 // GetServices is a helper method to define mock.On call
-//   - ctx
+//   - ctx context.Context
 func (_e *Reader_Expecter) GetServices(ctx interface{}) *Reader_GetServices_Call {
 	return &Reader_GetServices_Call{Call: _e.mock.On("GetServices", ctx)}
 }
 
 func (_c *Reader_GetServices_Call) Run(run func(ctx context.Context)) *Reader_GetServices_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -377,15 +427,26 @@ type Reader_GetTrace_Call struct {
 }
 
 // GetTrace is a helper method to define mock.On call
-//   - ctx
-//   - query
+//   - ctx context.Context
+//   - query spanstore.GetTraceParameters
 func (_e *Reader_Expecter) GetTrace(ctx interface{}, query interface{}) *Reader_GetTrace_Call {
 	return &Reader_GetTrace_Call{Call: _e.mock.On("GetTrace", ctx, query)}
 }
 
 func (_c *Reader_GetTrace_Call) Run(run func(ctx context.Context, query spanstore.GetTraceParameters)) *Reader_GetTrace_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(spanstore.GetTraceParameters))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 spanstore.GetTraceParameters
+		if args[1] != nil {
+			arg1 = args[1].(spanstore.GetTraceParameters)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }

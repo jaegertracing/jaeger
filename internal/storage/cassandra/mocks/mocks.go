@@ -104,8 +104,8 @@ type Session_Query_Call struct {
 }
 
 // Query is a helper method to define mock.On call
-//   - stmt
-//   - values
+//   - stmt string
+//   - values ...any
 func (_e *Session_Expecter) Query(stmt interface{}, values ...interface{}) *Session_Query_Call {
 	return &Session_Query_Call{Call: _e.mock.On("Query",
 		append([]interface{}{stmt}, values...)...)}
@@ -113,13 +113,20 @@ func (_e *Session_Expecter) Query(stmt interface{}, values ...interface{}) *Sess
 
 func (_c *Session_Query_Call) Run(run func(stmt string, values ...any)) *Session_Query_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		variadicArgs := make([]any, len(args)-1)
-		for i, a := range args[1:] {
-			if a != nil {
-				variadicArgs[i] = a.(any)
-			}
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
 		}
-		run(args[0].(string), variadicArgs...)
+		var arg1 []any
+		var variadicArgs []any
+		if len(args) > 1 {
+			variadicArgs = args[1].([]any)
+		}
+		arg1 = variadicArgs
+		run(
+			arg0,
+			arg1...,
+		)
 	})
 	return _c
 }
@@ -192,7 +199,7 @@ type Query_Bind_Call struct {
 }
 
 // Bind is a helper method to define mock.On call
-//   - v
+//   - v ...any
 func (_e *Query_Expecter) Bind(v ...interface{}) *Query_Bind_Call {
 	return &Query_Bind_Call{Call: _e.mock.On("Bind",
 		append([]interface{}{}, v...)...)}
@@ -200,13 +207,15 @@ func (_e *Query_Expecter) Bind(v ...interface{}) *Query_Bind_Call {
 
 func (_c *Query_Bind_Call) Run(run func(v ...any)) *Query_Bind_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		variadicArgs := make([]any, len(args)-0)
-		for i, a := range args[0:] {
-			if a != nil {
-				variadicArgs[i] = a.(any)
-			}
+		var arg0 []any
+		var variadicArgs []any
+		if len(args) > 0 {
+			variadicArgs = args[0].([]any)
 		}
-		run(variadicArgs...)
+		arg0 = variadicArgs
+		run(
+			arg0...,
+		)
 	})
 	return _c
 }
@@ -246,14 +255,20 @@ type Query_Consistency_Call struct {
 }
 
 // Consistency is a helper method to define mock.On call
-//   - level
+//   - level cassandra.Consistency
 func (_e *Query_Expecter) Consistency(level interface{}) *Query_Consistency_Call {
 	return &Query_Consistency_Call{Call: _e.mock.On("Consistency", level)}
 }
 
 func (_c *Query_Consistency_Call) Run(run func(level cassandra.Consistency)) *Query_Consistency_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(cassandra.Consistency))
+		var arg0 cassandra.Consistency
+		if args[0] != nil {
+			arg0 = args[0].(cassandra.Consistency)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -383,14 +398,20 @@ type Query_PageSize_Call struct {
 }
 
 // PageSize is a helper method to define mock.On call
-//   - n
+//   - n int
 func (_e *Query_Expecter) PageSize(n interface{}) *Query_PageSize_Call {
 	return &Query_PageSize_Call{Call: _e.mock.On("PageSize", n)}
 }
 
 func (_c *Query_PageSize_Call) Run(run func(n int)) *Query_PageSize_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(int))
+		var arg0 int
+		if args[0] != nil {
+			arg0 = args[0].(int)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -443,7 +464,7 @@ type Query_ScanCAS_Call struct {
 }
 
 // ScanCAS is a helper method to define mock.On call
-//   - dest
+//   - dest ...any
 func (_e *Query_Expecter) ScanCAS(dest ...interface{}) *Query_ScanCAS_Call {
 	return &Query_ScanCAS_Call{Call: _e.mock.On("ScanCAS",
 		append([]interface{}{}, dest...)...)}
@@ -451,13 +472,15 @@ func (_e *Query_Expecter) ScanCAS(dest ...interface{}) *Query_ScanCAS_Call {
 
 func (_c *Query_ScanCAS_Call) Run(run func(dest ...any)) *Query_ScanCAS_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		variadicArgs := make([]any, len(args)-0)
-		for i, a := range args[0:] {
-			if a != nil {
-				variadicArgs[i] = a.(any)
-			}
+		var arg0 []any
+		var variadicArgs []any
+		if len(args) > 0 {
+			variadicArgs = args[0].([]any)
 		}
-		run(variadicArgs...)
+		arg0 = variadicArgs
+		run(
+			arg0...,
+		)
 	})
 	return _c
 }
@@ -616,7 +639,7 @@ type Iterator_Scan_Call struct {
 }
 
 // Scan is a helper method to define mock.On call
-//   - dest
+//   - dest ...any
 func (_e *Iterator_Expecter) Scan(dest ...interface{}) *Iterator_Scan_Call {
 	return &Iterator_Scan_Call{Call: _e.mock.On("Scan",
 		append([]interface{}{}, dest...)...)}
@@ -624,13 +647,15 @@ func (_e *Iterator_Expecter) Scan(dest ...interface{}) *Iterator_Scan_Call {
 
 func (_c *Iterator_Scan_Call) Run(run func(dest ...any)) *Iterator_Scan_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		variadicArgs := make([]any, len(args)-0)
-		for i, a := range args[0:] {
-			if a != nil {
-				variadicArgs[i] = a.(any)
-			}
+		var arg0 []any
+		var variadicArgs []any
+		if len(args) > 0 {
+			variadicArgs = args[0].([]any)
 		}
-		run(variadicArgs...)
+		arg0 = variadicArgs
+		run(
+			arg0...,
+		)
 	})
 	return _c
 }

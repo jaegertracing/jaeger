@@ -72,14 +72,20 @@ type IndexAPI_AliasExists_Call struct {
 }
 
 // AliasExists is a helper method to define mock.On call
-//   - alias
+//   - alias string
 func (_e *IndexAPI_Expecter) AliasExists(alias interface{}) *IndexAPI_AliasExists_Call {
 	return &IndexAPI_AliasExists_Call{Call: _e.mock.On("AliasExists", alias)}
 }
 
 func (_c *IndexAPI_AliasExists_Call) Run(run func(alias string)) *IndexAPI_AliasExists_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -117,14 +123,20 @@ type IndexAPI_CreateAlias_Call struct {
 }
 
 // CreateAlias is a helper method to define mock.On call
-//   - aliases
+//   - aliases []client.Alias
 func (_e *IndexAPI_Expecter) CreateAlias(aliases interface{}) *IndexAPI_CreateAlias_Call {
 	return &IndexAPI_CreateAlias_Call{Call: _e.mock.On("CreateAlias", aliases)}
 }
 
 func (_c *IndexAPI_CreateAlias_Call) Run(run func(aliases []client.Alias)) *IndexAPI_CreateAlias_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].([]client.Alias))
+		var arg0 []client.Alias
+		if args[0] != nil {
+			arg0 = args[0].([]client.Alias)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -162,14 +174,20 @@ type IndexAPI_CreateIndex_Call struct {
 }
 
 // CreateIndex is a helper method to define mock.On call
-//   - index
+//   - index string
 func (_e *IndexAPI_Expecter) CreateIndex(index interface{}) *IndexAPI_CreateIndex_Call {
 	return &IndexAPI_CreateIndex_Call{Call: _e.mock.On("CreateIndex", index)}
 }
 
 func (_c *IndexAPI_CreateIndex_Call) Run(run func(index string)) *IndexAPI_CreateIndex_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -207,15 +225,26 @@ type IndexAPI_CreateTemplate_Call struct {
 }
 
 // CreateTemplate is a helper method to define mock.On call
-//   - template
-//   - name
+//   - template string
+//   - name string
 func (_e *IndexAPI_Expecter) CreateTemplate(template interface{}, name interface{}) *IndexAPI_CreateTemplate_Call {
 	return &IndexAPI_CreateTemplate_Call{Call: _e.mock.On("CreateTemplate", template, name)}
 }
 
 func (_c *IndexAPI_CreateTemplate_Call) Run(run func(template string, name string)) *IndexAPI_CreateTemplate_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -253,14 +282,20 @@ type IndexAPI_DeleteAlias_Call struct {
 }
 
 // DeleteAlias is a helper method to define mock.On call
-//   - aliases
+//   - aliases []client.Alias
 func (_e *IndexAPI_Expecter) DeleteAlias(aliases interface{}) *IndexAPI_DeleteAlias_Call {
 	return &IndexAPI_DeleteAlias_Call{Call: _e.mock.On("DeleteAlias", aliases)}
 }
 
 func (_c *IndexAPI_DeleteAlias_Call) Run(run func(aliases []client.Alias)) *IndexAPI_DeleteAlias_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].([]client.Alias))
+		var arg0 []client.Alias
+		if args[0] != nil {
+			arg0 = args[0].([]client.Alias)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -298,14 +333,20 @@ type IndexAPI_DeleteIndices_Call struct {
 }
 
 // DeleteIndices is a helper method to define mock.On call
-//   - indices
+//   - indices []client.Index
 func (_e *IndexAPI_Expecter) DeleteIndices(indices interface{}) *IndexAPI_DeleteIndices_Call {
 	return &IndexAPI_DeleteIndices_Call{Call: _e.mock.On("DeleteIndices", indices)}
 }
 
 func (_c *IndexAPI_DeleteIndices_Call) Run(run func(indices []client.Index)) *IndexAPI_DeleteIndices_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].([]client.Index))
+		var arg0 []client.Index
+		if args[0] != nil {
+			arg0 = args[0].([]client.Index)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -354,14 +395,20 @@ type IndexAPI_GetJaegerIndices_Call struct {
 }
 
 // GetJaegerIndices is a helper method to define mock.On call
-//   - prefix
+//   - prefix string
 func (_e *IndexAPI_Expecter) GetJaegerIndices(prefix interface{}) *IndexAPI_GetJaegerIndices_Call {
 	return &IndexAPI_GetJaegerIndices_Call{Call: _e.mock.On("GetJaegerIndices", prefix)}
 }
 
 func (_c *IndexAPI_GetJaegerIndices_Call) Run(run func(prefix string)) *IndexAPI_GetJaegerIndices_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -408,14 +455,20 @@ type IndexAPI_IndexExists_Call struct {
 }
 
 // IndexExists is a helper method to define mock.On call
-//   - index
+//   - index string
 func (_e *IndexAPI_Expecter) IndexExists(index interface{}) *IndexAPI_IndexExists_Call {
 	return &IndexAPI_IndexExists_Call{Call: _e.mock.On("IndexExists", index)}
 }
 
 func (_c *IndexAPI_IndexExists_Call) Run(run func(index string)) *IndexAPI_IndexExists_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -453,15 +506,26 @@ type IndexAPI_Rollover_Call struct {
 }
 
 // Rollover is a helper method to define mock.On call
-//   - rolloverTarget
-//   - conditions
+//   - rolloverTarget string
+//   - conditions map[string]any
 func (_e *IndexAPI_Expecter) Rollover(rolloverTarget interface{}, conditions interface{}) *IndexAPI_Rollover_Call {
 	return &IndexAPI_Rollover_Call{Call: _e.mock.On("Rollover", rolloverTarget, conditions)}
 }
 
 func (_c *IndexAPI_Rollover_Call) Run(run func(rolloverTarget string, conditions map[string]any)) *IndexAPI_Rollover_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(map[string]any))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		var arg1 map[string]any
+		if args[1] != nil {
+			arg1 = args[1].(map[string]any)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -615,14 +679,20 @@ type IndexManagementLifecycleAPI_Exists_Call struct {
 }
 
 // Exists is a helper method to define mock.On call
-//   - name
+//   - name string
 func (_e *IndexManagementLifecycleAPI_Expecter) Exists(name interface{}) *IndexManagementLifecycleAPI_Exists_Call {
 	return &IndexManagementLifecycleAPI_Exists_Call{Call: _e.mock.On("Exists", name)}
 }
 
 func (_c *IndexManagementLifecycleAPI_Exists_Call) Run(run func(name string)) *IndexManagementLifecycleAPI_Exists_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string))
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }

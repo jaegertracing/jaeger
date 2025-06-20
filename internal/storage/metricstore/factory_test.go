@@ -18,7 +18,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
-var _ storage.MetricStoreFactory = new(Factory)
+var _ storage.V1MetricStoreFactory = new(Factory)
 
 func withConfig(storageType string) FactoryConfig {
 	return FactoryConfig{
@@ -69,7 +69,7 @@ func TestCreateMetricsReader(t *testing.T) {
 }
 
 type configurable struct {
-	mocks.MetricStoreFactory
+	mocks.V1MetricStoreFactory
 	flagSet *flag.FlagSet
 	viper   *viper.Viper
 	logger  *zap.Logger

@@ -84,9 +84,9 @@ type SpanWriterPluginClient_Close_Call struct {
 }
 
 // Close is a helper method to define mock.On call
-//   - ctx
-//   - in
-//   - opts
+//   - ctx context.Context
+//   - in *storage_v1.CloseWriterRequest
+//   - opts ...grpc.CallOption
 func (_e *SpanWriterPluginClient_Expecter) Close(ctx interface{}, in interface{}, opts ...interface{}) *SpanWriterPluginClient_Close_Call {
 	return &SpanWriterPluginClient_Close_Call{Call: _e.mock.On("Close",
 		append([]interface{}{ctx, in}, opts...)...)}
@@ -94,13 +94,25 @@ func (_e *SpanWriterPluginClient_Expecter) Close(ctx interface{}, in interface{}
 
 func (_c *SpanWriterPluginClient_Close_Call) Run(run func(ctx context.Context, in *storage_v1.CloseWriterRequest, opts ...grpc.CallOption)) *SpanWriterPluginClient_Close_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		variadicArgs := make([]grpc.CallOption, len(args)-2)
-		for i, a := range args[2:] {
-			if a != nil {
-				variadicArgs[i] = a.(grpc.CallOption)
-			}
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
 		}
-		run(args[0].(context.Context), args[1].(*storage_v1.CloseWriterRequest), variadicArgs...)
+		var arg1 *storage_v1.CloseWriterRequest
+		if args[1] != nil {
+			arg1 = args[1].(*storage_v1.CloseWriterRequest)
+		}
+		var arg2 []grpc.CallOption
+		var variadicArgs []grpc.CallOption
+		if len(args) > 2 {
+			variadicArgs = args[2].([]grpc.CallOption)
+		}
+		arg2 = variadicArgs
+		run(
+			arg0,
+			arg1,
+			arg2...,
+		)
 	})
 	return _c
 }
@@ -155,9 +167,9 @@ type SpanWriterPluginClient_WriteSpan_Call struct {
 }
 
 // WriteSpan is a helper method to define mock.On call
-//   - ctx
-//   - in
-//   - opts
+//   - ctx context.Context
+//   - in *storage_v1.WriteSpanRequest
+//   - opts ...grpc.CallOption
 func (_e *SpanWriterPluginClient_Expecter) WriteSpan(ctx interface{}, in interface{}, opts ...interface{}) *SpanWriterPluginClient_WriteSpan_Call {
 	return &SpanWriterPluginClient_WriteSpan_Call{Call: _e.mock.On("WriteSpan",
 		append([]interface{}{ctx, in}, opts...)...)}
@@ -165,13 +177,25 @@ func (_e *SpanWriterPluginClient_Expecter) WriteSpan(ctx interface{}, in interfa
 
 func (_c *SpanWriterPluginClient_WriteSpan_Call) Run(run func(ctx context.Context, in *storage_v1.WriteSpanRequest, opts ...grpc.CallOption)) *SpanWriterPluginClient_WriteSpan_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		variadicArgs := make([]grpc.CallOption, len(args)-2)
-		for i, a := range args[2:] {
-			if a != nil {
-				variadicArgs[i] = a.(grpc.CallOption)
-			}
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
 		}
-		run(args[0].(context.Context), args[1].(*storage_v1.WriteSpanRequest), variadicArgs...)
+		var arg1 *storage_v1.WriteSpanRequest
+		if args[1] != nil {
+			arg1 = args[1].(*storage_v1.WriteSpanRequest)
+		}
+		var arg2 []grpc.CallOption
+		var variadicArgs []grpc.CallOption
+		if len(args) > 2 {
+			variadicArgs = args[2].([]grpc.CallOption)
+		}
+		arg2 = variadicArgs
+		run(
+			arg0,
+			arg1,
+			arg2...,
+		)
 	})
 	return _c
 }
@@ -247,15 +271,26 @@ type SpanWriterPluginServer_Close_Call struct {
 }
 
 // Close is a helper method to define mock.On call
-//   - context1
-//   - closeWriterRequest
+//   - context1 context.Context
+//   - closeWriterRequest *storage_v1.CloseWriterRequest
 func (_e *SpanWriterPluginServer_Expecter) Close(context1 interface{}, closeWriterRequest interface{}) *SpanWriterPluginServer_Close_Call {
 	return &SpanWriterPluginServer_Close_Call{Call: _e.mock.On("Close", context1, closeWriterRequest)}
 }
 
 func (_c *SpanWriterPluginServer_Close_Call) Run(run func(context1 context.Context, closeWriterRequest *storage_v1.CloseWriterRequest)) *SpanWriterPluginServer_Close_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*storage_v1.CloseWriterRequest))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *storage_v1.CloseWriterRequest
+		if args[1] != nil {
+			arg1 = args[1].(*storage_v1.CloseWriterRequest)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -304,15 +339,26 @@ type SpanWriterPluginServer_WriteSpan_Call struct {
 }
 
 // WriteSpan is a helper method to define mock.On call
-//   - context1
-//   - writeSpanRequest
+//   - context1 context.Context
+//   - writeSpanRequest *storage_v1.WriteSpanRequest
 func (_e *SpanWriterPluginServer_Expecter) WriteSpan(context1 interface{}, writeSpanRequest interface{}) *SpanWriterPluginServer_WriteSpan_Call {
 	return &SpanWriterPluginServer_WriteSpan_Call{Call: _e.mock.On("WriteSpan", context1, writeSpanRequest)}
 }
 
 func (_c *SpanWriterPluginServer_WriteSpan_Call) Run(run func(context1 context.Context, writeSpanRequest *storage_v1.WriteSpanRequest)) *SpanWriterPluginServer_WriteSpan_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*storage_v1.WriteSpanRequest))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *storage_v1.WriteSpanRequest
+		if args[1] != nil {
+			arg1 = args[1].(*storage_v1.WriteSpanRequest)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -394,8 +440,8 @@ type StreamingSpanWriterPluginClient_WriteSpanStream_Call struct {
 }
 
 // WriteSpanStream is a helper method to define mock.On call
-//   - ctx
-//   - opts
+//   - ctx context.Context
+//   - opts ...grpc.CallOption
 func (_e *StreamingSpanWriterPluginClient_Expecter) WriteSpanStream(ctx interface{}, opts ...interface{}) *StreamingSpanWriterPluginClient_WriteSpanStream_Call {
 	return &StreamingSpanWriterPluginClient_WriteSpanStream_Call{Call: _e.mock.On("WriteSpanStream",
 		append([]interface{}{ctx}, opts...)...)}
@@ -403,13 +449,20 @@ func (_e *StreamingSpanWriterPluginClient_Expecter) WriteSpanStream(ctx interfac
 
 func (_c *StreamingSpanWriterPluginClient_WriteSpanStream_Call) Run(run func(ctx context.Context, opts ...grpc.CallOption)) *StreamingSpanWriterPluginClient_WriteSpanStream_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		variadicArgs := make([]grpc.CallOption, len(args)-1)
-		for i, a := range args[1:] {
-			if a != nil {
-				variadicArgs[i] = a.(grpc.CallOption)
-			}
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
 		}
-		run(args[0].(context.Context), variadicArgs...)
+		var arg1 []grpc.CallOption
+		var variadicArgs []grpc.CallOption
+		if len(args) > 1 {
+			variadicArgs = args[1].([]grpc.CallOption)
+		}
+		arg1 = variadicArgs
+		run(
+			arg0,
+			arg1...,
+		)
 	})
 	return _c
 }
@@ -674,14 +727,20 @@ type StreamingSpanWriterPlugin_WriteSpanStreamClient_RecvMsg_Call struct {
 }
 
 // RecvMsg is a helper method to define mock.On call
-//   - m
+//   - m any
 func (_e *StreamingSpanWriterPlugin_WriteSpanStreamClient_Expecter) RecvMsg(m interface{}) *StreamingSpanWriterPlugin_WriteSpanStreamClient_RecvMsg_Call {
 	return &StreamingSpanWriterPlugin_WriteSpanStreamClient_RecvMsg_Call{Call: _e.mock.On("RecvMsg", m)}
 }
 
 func (_c *StreamingSpanWriterPlugin_WriteSpanStreamClient_RecvMsg_Call) Run(run func(m any)) *StreamingSpanWriterPlugin_WriteSpanStreamClient_RecvMsg_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(any))
+		var arg0 any
+		if args[0] != nil {
+			arg0 = args[0].(any)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -719,14 +778,20 @@ type StreamingSpanWriterPlugin_WriteSpanStreamClient_Send_Call struct {
 }
 
 // Send is a helper method to define mock.On call
-//   - writeSpanRequest
+//   - writeSpanRequest *storage_v1.WriteSpanRequest
 func (_e *StreamingSpanWriterPlugin_WriteSpanStreamClient_Expecter) Send(writeSpanRequest interface{}) *StreamingSpanWriterPlugin_WriteSpanStreamClient_Send_Call {
 	return &StreamingSpanWriterPlugin_WriteSpanStreamClient_Send_Call{Call: _e.mock.On("Send", writeSpanRequest)}
 }
 
 func (_c *StreamingSpanWriterPlugin_WriteSpanStreamClient_Send_Call) Run(run func(writeSpanRequest *storage_v1.WriteSpanRequest)) *StreamingSpanWriterPlugin_WriteSpanStreamClient_Send_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(*storage_v1.WriteSpanRequest))
+		var arg0 *storage_v1.WriteSpanRequest
+		if args[0] != nil {
+			arg0 = args[0].(*storage_v1.WriteSpanRequest)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -764,14 +829,20 @@ type StreamingSpanWriterPlugin_WriteSpanStreamClient_SendMsg_Call struct {
 }
 
 // SendMsg is a helper method to define mock.On call
-//   - m
+//   - m any
 func (_e *StreamingSpanWriterPlugin_WriteSpanStreamClient_Expecter) SendMsg(m interface{}) *StreamingSpanWriterPlugin_WriteSpanStreamClient_SendMsg_Call {
 	return &StreamingSpanWriterPlugin_WriteSpanStreamClient_SendMsg_Call{Call: _e.mock.On("SendMsg", m)}
 }
 
 func (_c *StreamingSpanWriterPlugin_WriteSpanStreamClient_SendMsg_Call) Run(run func(m any)) *StreamingSpanWriterPlugin_WriteSpanStreamClient_SendMsg_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(any))
+		var arg0 any
+		if args[0] != nil {
+			arg0 = args[0].(any)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -882,14 +953,20 @@ type StreamingSpanWriterPluginServer_WriteSpanStream_Call struct {
 }
 
 // WriteSpanStream is a helper method to define mock.On call
-//   - streamingSpanWriterPlugin_WriteSpanStreamServer
+//   - streamingSpanWriterPlugin_WriteSpanStreamServer storage_v1.StreamingSpanWriterPlugin_WriteSpanStreamServer
 func (_e *StreamingSpanWriterPluginServer_Expecter) WriteSpanStream(streamingSpanWriterPlugin_WriteSpanStreamServer interface{}) *StreamingSpanWriterPluginServer_WriteSpanStream_Call {
 	return &StreamingSpanWriterPluginServer_WriteSpanStream_Call{Call: _e.mock.On("WriteSpanStream", streamingSpanWriterPlugin_WriteSpanStreamServer)}
 }
 
 func (_c *StreamingSpanWriterPluginServer_WriteSpanStream_Call) Run(run func(streamingSpanWriterPlugin_WriteSpanStreamServer storage_v1.StreamingSpanWriterPlugin_WriteSpanStreamServer)) *StreamingSpanWriterPluginServer_WriteSpanStream_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(storage_v1.StreamingSpanWriterPlugin_WriteSpanStreamServer))
+		var arg0 storage_v1.StreamingSpanWriterPlugin_WriteSpanStreamServer
+		if args[0] != nil {
+			arg0 = args[0].(storage_v1.StreamingSpanWriterPlugin_WriteSpanStreamServer)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -1055,14 +1132,20 @@ type StreamingSpanWriterPlugin_WriteSpanStreamServer_RecvMsg_Call struct {
 }
 
 // RecvMsg is a helper method to define mock.On call
-//   - m
+//   - m any
 func (_e *StreamingSpanWriterPlugin_WriteSpanStreamServer_Expecter) RecvMsg(m interface{}) *StreamingSpanWriterPlugin_WriteSpanStreamServer_RecvMsg_Call {
 	return &StreamingSpanWriterPlugin_WriteSpanStreamServer_RecvMsg_Call{Call: _e.mock.On("RecvMsg", m)}
 }
 
 func (_c *StreamingSpanWriterPlugin_WriteSpanStreamServer_RecvMsg_Call) Run(run func(m any)) *StreamingSpanWriterPlugin_WriteSpanStreamServer_RecvMsg_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(any))
+		var arg0 any
+		if args[0] != nil {
+			arg0 = args[0].(any)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -1100,14 +1183,20 @@ type StreamingSpanWriterPlugin_WriteSpanStreamServer_SendAndClose_Call struct {
 }
 
 // SendAndClose is a helper method to define mock.On call
-//   - writeSpanResponse
+//   - writeSpanResponse *storage_v1.WriteSpanResponse
 func (_e *StreamingSpanWriterPlugin_WriteSpanStreamServer_Expecter) SendAndClose(writeSpanResponse interface{}) *StreamingSpanWriterPlugin_WriteSpanStreamServer_SendAndClose_Call {
 	return &StreamingSpanWriterPlugin_WriteSpanStreamServer_SendAndClose_Call{Call: _e.mock.On("SendAndClose", writeSpanResponse)}
 }
 
 func (_c *StreamingSpanWriterPlugin_WriteSpanStreamServer_SendAndClose_Call) Run(run func(writeSpanResponse *storage_v1.WriteSpanResponse)) *StreamingSpanWriterPlugin_WriteSpanStreamServer_SendAndClose_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(*storage_v1.WriteSpanResponse))
+		var arg0 *storage_v1.WriteSpanResponse
+		if args[0] != nil {
+			arg0 = args[0].(*storage_v1.WriteSpanResponse)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -1145,14 +1234,20 @@ type StreamingSpanWriterPlugin_WriteSpanStreamServer_SendHeader_Call struct {
 }
 
 // SendHeader is a helper method to define mock.On call
-//   - mD
+//   - mD metadata.MD
 func (_e *StreamingSpanWriterPlugin_WriteSpanStreamServer_Expecter) SendHeader(mD interface{}) *StreamingSpanWriterPlugin_WriteSpanStreamServer_SendHeader_Call {
 	return &StreamingSpanWriterPlugin_WriteSpanStreamServer_SendHeader_Call{Call: _e.mock.On("SendHeader", mD)}
 }
 
 func (_c *StreamingSpanWriterPlugin_WriteSpanStreamServer_SendHeader_Call) Run(run func(mD metadata.MD)) *StreamingSpanWriterPlugin_WriteSpanStreamServer_SendHeader_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(metadata.MD))
+		var arg0 metadata.MD
+		if args[0] != nil {
+			arg0 = args[0].(metadata.MD)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -1190,14 +1285,20 @@ type StreamingSpanWriterPlugin_WriteSpanStreamServer_SendMsg_Call struct {
 }
 
 // SendMsg is a helper method to define mock.On call
-//   - m
+//   - m any
 func (_e *StreamingSpanWriterPlugin_WriteSpanStreamServer_Expecter) SendMsg(m interface{}) *StreamingSpanWriterPlugin_WriteSpanStreamServer_SendMsg_Call {
 	return &StreamingSpanWriterPlugin_WriteSpanStreamServer_SendMsg_Call{Call: _e.mock.On("SendMsg", m)}
 }
 
 func (_c *StreamingSpanWriterPlugin_WriteSpanStreamServer_SendMsg_Call) Run(run func(m any)) *StreamingSpanWriterPlugin_WriteSpanStreamServer_SendMsg_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(any))
+		var arg0 any
+		if args[0] != nil {
+			arg0 = args[0].(any)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -1235,14 +1336,20 @@ type StreamingSpanWriterPlugin_WriteSpanStreamServer_SetHeader_Call struct {
 }
 
 // SetHeader is a helper method to define mock.On call
-//   - mD
+//   - mD metadata.MD
 func (_e *StreamingSpanWriterPlugin_WriteSpanStreamServer_Expecter) SetHeader(mD interface{}) *StreamingSpanWriterPlugin_WriteSpanStreamServer_SetHeader_Call {
 	return &StreamingSpanWriterPlugin_WriteSpanStreamServer_SetHeader_Call{Call: _e.mock.On("SetHeader", mD)}
 }
 
 func (_c *StreamingSpanWriterPlugin_WriteSpanStreamServer_SetHeader_Call) Run(run func(mD metadata.MD)) *StreamingSpanWriterPlugin_WriteSpanStreamServer_SetHeader_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(metadata.MD))
+		var arg0 metadata.MD
+		if args[0] != nil {
+			arg0 = args[0].(metadata.MD)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -1269,14 +1376,20 @@ type StreamingSpanWriterPlugin_WriteSpanStreamServer_SetTrailer_Call struct {
 }
 
 // SetTrailer is a helper method to define mock.On call
-//   - mD
+//   - mD metadata.MD
 func (_e *StreamingSpanWriterPlugin_WriteSpanStreamServer_Expecter) SetTrailer(mD interface{}) *StreamingSpanWriterPlugin_WriteSpanStreamServer_SetTrailer_Call {
 	return &StreamingSpanWriterPlugin_WriteSpanStreamServer_SetTrailer_Call{Call: _e.mock.On("SetTrailer", mD)}
 }
 
 func (_c *StreamingSpanWriterPlugin_WriteSpanStreamServer_SetTrailer_Call) Run(run func(mD metadata.MD)) *StreamingSpanWriterPlugin_WriteSpanStreamServer_SetTrailer_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(metadata.MD))
+		var arg0 metadata.MD
+		if args[0] != nil {
+			arg0 = args[0].(metadata.MD)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -1358,9 +1471,9 @@ type SpanReaderPluginClient_FindTraceIDs_Call struct {
 }
 
 // FindTraceIDs is a helper method to define mock.On call
-//   - ctx
-//   - in
-//   - opts
+//   - ctx context.Context
+//   - in *storage_v1.FindTraceIDsRequest
+//   - opts ...grpc.CallOption
 func (_e *SpanReaderPluginClient_Expecter) FindTraceIDs(ctx interface{}, in interface{}, opts ...interface{}) *SpanReaderPluginClient_FindTraceIDs_Call {
 	return &SpanReaderPluginClient_FindTraceIDs_Call{Call: _e.mock.On("FindTraceIDs",
 		append([]interface{}{ctx, in}, opts...)...)}
@@ -1368,13 +1481,25 @@ func (_e *SpanReaderPluginClient_Expecter) FindTraceIDs(ctx interface{}, in inte
 
 func (_c *SpanReaderPluginClient_FindTraceIDs_Call) Run(run func(ctx context.Context, in *storage_v1.FindTraceIDsRequest, opts ...grpc.CallOption)) *SpanReaderPluginClient_FindTraceIDs_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		variadicArgs := make([]grpc.CallOption, len(args)-2)
-		for i, a := range args[2:] {
-			if a != nil {
-				variadicArgs[i] = a.(grpc.CallOption)
-			}
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
 		}
-		run(args[0].(context.Context), args[1].(*storage_v1.FindTraceIDsRequest), variadicArgs...)
+		var arg1 *storage_v1.FindTraceIDsRequest
+		if args[1] != nil {
+			arg1 = args[1].(*storage_v1.FindTraceIDsRequest)
+		}
+		var arg2 []grpc.CallOption
+		var variadicArgs []grpc.CallOption
+		if len(args) > 2 {
+			variadicArgs = args[2].([]grpc.CallOption)
+		}
+		arg2 = variadicArgs
+		run(
+			arg0,
+			arg1,
+			arg2...,
+		)
 	})
 	return _c
 }
@@ -1429,9 +1554,9 @@ type SpanReaderPluginClient_FindTraces_Call struct {
 }
 
 // FindTraces is a helper method to define mock.On call
-//   - ctx
-//   - in
-//   - opts
+//   - ctx context.Context
+//   - in *storage_v1.FindTracesRequest
+//   - opts ...grpc.CallOption
 func (_e *SpanReaderPluginClient_Expecter) FindTraces(ctx interface{}, in interface{}, opts ...interface{}) *SpanReaderPluginClient_FindTraces_Call {
 	return &SpanReaderPluginClient_FindTraces_Call{Call: _e.mock.On("FindTraces",
 		append([]interface{}{ctx, in}, opts...)...)}
@@ -1439,13 +1564,25 @@ func (_e *SpanReaderPluginClient_Expecter) FindTraces(ctx interface{}, in interf
 
 func (_c *SpanReaderPluginClient_FindTraces_Call) Run(run func(ctx context.Context, in *storage_v1.FindTracesRequest, opts ...grpc.CallOption)) *SpanReaderPluginClient_FindTraces_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		variadicArgs := make([]grpc.CallOption, len(args)-2)
-		for i, a := range args[2:] {
-			if a != nil {
-				variadicArgs[i] = a.(grpc.CallOption)
-			}
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
 		}
-		run(args[0].(context.Context), args[1].(*storage_v1.FindTracesRequest), variadicArgs...)
+		var arg1 *storage_v1.FindTracesRequest
+		if args[1] != nil {
+			arg1 = args[1].(*storage_v1.FindTracesRequest)
+		}
+		var arg2 []grpc.CallOption
+		var variadicArgs []grpc.CallOption
+		if len(args) > 2 {
+			variadicArgs = args[2].([]grpc.CallOption)
+		}
+		arg2 = variadicArgs
+		run(
+			arg0,
+			arg1,
+			arg2...,
+		)
 	})
 	return _c
 }
@@ -1500,9 +1637,9 @@ type SpanReaderPluginClient_GetOperations_Call struct {
 }
 
 // GetOperations is a helper method to define mock.On call
-//   - ctx
-//   - in
-//   - opts
+//   - ctx context.Context
+//   - in *storage_v1.GetOperationsRequest
+//   - opts ...grpc.CallOption
 func (_e *SpanReaderPluginClient_Expecter) GetOperations(ctx interface{}, in interface{}, opts ...interface{}) *SpanReaderPluginClient_GetOperations_Call {
 	return &SpanReaderPluginClient_GetOperations_Call{Call: _e.mock.On("GetOperations",
 		append([]interface{}{ctx, in}, opts...)...)}
@@ -1510,13 +1647,25 @@ func (_e *SpanReaderPluginClient_Expecter) GetOperations(ctx interface{}, in int
 
 func (_c *SpanReaderPluginClient_GetOperations_Call) Run(run func(ctx context.Context, in *storage_v1.GetOperationsRequest, opts ...grpc.CallOption)) *SpanReaderPluginClient_GetOperations_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		variadicArgs := make([]grpc.CallOption, len(args)-2)
-		for i, a := range args[2:] {
-			if a != nil {
-				variadicArgs[i] = a.(grpc.CallOption)
-			}
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
 		}
-		run(args[0].(context.Context), args[1].(*storage_v1.GetOperationsRequest), variadicArgs...)
+		var arg1 *storage_v1.GetOperationsRequest
+		if args[1] != nil {
+			arg1 = args[1].(*storage_v1.GetOperationsRequest)
+		}
+		var arg2 []grpc.CallOption
+		var variadicArgs []grpc.CallOption
+		if len(args) > 2 {
+			variadicArgs = args[2].([]grpc.CallOption)
+		}
+		arg2 = variadicArgs
+		run(
+			arg0,
+			arg1,
+			arg2...,
+		)
 	})
 	return _c
 }
@@ -1571,9 +1720,9 @@ type SpanReaderPluginClient_GetServices_Call struct {
 }
 
 // GetServices is a helper method to define mock.On call
-//   - ctx
-//   - in
-//   - opts
+//   - ctx context.Context
+//   - in *storage_v1.GetServicesRequest
+//   - opts ...grpc.CallOption
 func (_e *SpanReaderPluginClient_Expecter) GetServices(ctx interface{}, in interface{}, opts ...interface{}) *SpanReaderPluginClient_GetServices_Call {
 	return &SpanReaderPluginClient_GetServices_Call{Call: _e.mock.On("GetServices",
 		append([]interface{}{ctx, in}, opts...)...)}
@@ -1581,13 +1730,25 @@ func (_e *SpanReaderPluginClient_Expecter) GetServices(ctx interface{}, in inter
 
 func (_c *SpanReaderPluginClient_GetServices_Call) Run(run func(ctx context.Context, in *storage_v1.GetServicesRequest, opts ...grpc.CallOption)) *SpanReaderPluginClient_GetServices_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		variadicArgs := make([]grpc.CallOption, len(args)-2)
-		for i, a := range args[2:] {
-			if a != nil {
-				variadicArgs[i] = a.(grpc.CallOption)
-			}
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
 		}
-		run(args[0].(context.Context), args[1].(*storage_v1.GetServicesRequest), variadicArgs...)
+		var arg1 *storage_v1.GetServicesRequest
+		if args[1] != nil {
+			arg1 = args[1].(*storage_v1.GetServicesRequest)
+		}
+		var arg2 []grpc.CallOption
+		var variadicArgs []grpc.CallOption
+		if len(args) > 2 {
+			variadicArgs = args[2].([]grpc.CallOption)
+		}
+		arg2 = variadicArgs
+		run(
+			arg0,
+			arg1,
+			arg2...,
+		)
 	})
 	return _c
 }
@@ -1642,9 +1803,9 @@ type SpanReaderPluginClient_GetTrace_Call struct {
 }
 
 // GetTrace is a helper method to define mock.On call
-//   - ctx
-//   - in
-//   - opts
+//   - ctx context.Context
+//   - in *storage_v1.GetTraceRequest
+//   - opts ...grpc.CallOption
 func (_e *SpanReaderPluginClient_Expecter) GetTrace(ctx interface{}, in interface{}, opts ...interface{}) *SpanReaderPluginClient_GetTrace_Call {
 	return &SpanReaderPluginClient_GetTrace_Call{Call: _e.mock.On("GetTrace",
 		append([]interface{}{ctx, in}, opts...)...)}
@@ -1652,13 +1813,25 @@ func (_e *SpanReaderPluginClient_Expecter) GetTrace(ctx interface{}, in interfac
 
 func (_c *SpanReaderPluginClient_GetTrace_Call) Run(run func(ctx context.Context, in *storage_v1.GetTraceRequest, opts ...grpc.CallOption)) *SpanReaderPluginClient_GetTrace_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		variadicArgs := make([]grpc.CallOption, len(args)-2)
-		for i, a := range args[2:] {
-			if a != nil {
-				variadicArgs[i] = a.(grpc.CallOption)
-			}
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
 		}
-		run(args[0].(context.Context), args[1].(*storage_v1.GetTraceRequest), variadicArgs...)
+		var arg1 *storage_v1.GetTraceRequest
+		if args[1] != nil {
+			arg1 = args[1].(*storage_v1.GetTraceRequest)
+		}
+		var arg2 []grpc.CallOption
+		var variadicArgs []grpc.CallOption
+		if len(args) > 2 {
+			variadicArgs = args[2].([]grpc.CallOption)
+		}
+		arg2 = variadicArgs
+		run(
+			arg0,
+			arg1,
+			arg2...,
+		)
 	})
 	return _c
 }
@@ -1923,14 +2096,20 @@ type SpanReaderPlugin_GetTraceClient_RecvMsg_Call struct {
 }
 
 // RecvMsg is a helper method to define mock.On call
-//   - m
+//   - m any
 func (_e *SpanReaderPlugin_GetTraceClient_Expecter) RecvMsg(m interface{}) *SpanReaderPlugin_GetTraceClient_RecvMsg_Call {
 	return &SpanReaderPlugin_GetTraceClient_RecvMsg_Call{Call: _e.mock.On("RecvMsg", m)}
 }
 
 func (_c *SpanReaderPlugin_GetTraceClient_RecvMsg_Call) Run(run func(m any)) *SpanReaderPlugin_GetTraceClient_RecvMsg_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(any))
+		var arg0 any
+		if args[0] != nil {
+			arg0 = args[0].(any)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -1968,14 +2147,20 @@ type SpanReaderPlugin_GetTraceClient_SendMsg_Call struct {
 }
 
 // SendMsg is a helper method to define mock.On call
-//   - m
+//   - m any
 func (_e *SpanReaderPlugin_GetTraceClient_Expecter) SendMsg(m interface{}) *SpanReaderPlugin_GetTraceClient_SendMsg_Call {
 	return &SpanReaderPlugin_GetTraceClient_SendMsg_Call{Call: _e.mock.On("SendMsg", m)}
 }
 
 func (_c *SpanReaderPlugin_GetTraceClient_SendMsg_Call) Run(run func(m any)) *SpanReaderPlugin_GetTraceClient_SendMsg_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(any))
+		var arg0 any
+		if args[0] != nil {
+			arg0 = args[0].(any)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -2286,14 +2471,20 @@ type SpanReaderPlugin_FindTracesClient_RecvMsg_Call struct {
 }
 
 // RecvMsg is a helper method to define mock.On call
-//   - m
+//   - m any
 func (_e *SpanReaderPlugin_FindTracesClient_Expecter) RecvMsg(m interface{}) *SpanReaderPlugin_FindTracesClient_RecvMsg_Call {
 	return &SpanReaderPlugin_FindTracesClient_RecvMsg_Call{Call: _e.mock.On("RecvMsg", m)}
 }
 
 func (_c *SpanReaderPlugin_FindTracesClient_RecvMsg_Call) Run(run func(m any)) *SpanReaderPlugin_FindTracesClient_RecvMsg_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(any))
+		var arg0 any
+		if args[0] != nil {
+			arg0 = args[0].(any)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -2331,14 +2522,20 @@ type SpanReaderPlugin_FindTracesClient_SendMsg_Call struct {
 }
 
 // SendMsg is a helper method to define mock.On call
-//   - m
+//   - m any
 func (_e *SpanReaderPlugin_FindTracesClient_Expecter) SendMsg(m interface{}) *SpanReaderPlugin_FindTracesClient_SendMsg_Call {
 	return &SpanReaderPlugin_FindTracesClient_SendMsg_Call{Call: _e.mock.On("SendMsg", m)}
 }
 
 func (_c *SpanReaderPlugin_FindTracesClient_SendMsg_Call) Run(run func(m any)) *SpanReaderPlugin_FindTracesClient_SendMsg_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(any))
+		var arg0 any
+		if args[0] != nil {
+			arg0 = args[0].(any)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -2460,15 +2657,26 @@ type SpanReaderPluginServer_FindTraceIDs_Call struct {
 }
 
 // FindTraceIDs is a helper method to define mock.On call
-//   - context1
-//   - findTraceIDsRequest
+//   - context1 context.Context
+//   - findTraceIDsRequest *storage_v1.FindTraceIDsRequest
 func (_e *SpanReaderPluginServer_Expecter) FindTraceIDs(context1 interface{}, findTraceIDsRequest interface{}) *SpanReaderPluginServer_FindTraceIDs_Call {
 	return &SpanReaderPluginServer_FindTraceIDs_Call{Call: _e.mock.On("FindTraceIDs", context1, findTraceIDsRequest)}
 }
 
 func (_c *SpanReaderPluginServer_FindTraceIDs_Call) Run(run func(context1 context.Context, findTraceIDsRequest *storage_v1.FindTraceIDsRequest)) *SpanReaderPluginServer_FindTraceIDs_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*storage_v1.FindTraceIDsRequest))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *storage_v1.FindTraceIDsRequest
+		if args[1] != nil {
+			arg1 = args[1].(*storage_v1.FindTraceIDsRequest)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -2506,15 +2714,26 @@ type SpanReaderPluginServer_FindTraces_Call struct {
 }
 
 // FindTraces is a helper method to define mock.On call
-//   - findTracesRequest
-//   - spanReaderPlugin_FindTracesServer
+//   - findTracesRequest *storage_v1.FindTracesRequest
+//   - spanReaderPlugin_FindTracesServer storage_v1.SpanReaderPlugin_FindTracesServer
 func (_e *SpanReaderPluginServer_Expecter) FindTraces(findTracesRequest interface{}, spanReaderPlugin_FindTracesServer interface{}) *SpanReaderPluginServer_FindTraces_Call {
 	return &SpanReaderPluginServer_FindTraces_Call{Call: _e.mock.On("FindTraces", findTracesRequest, spanReaderPlugin_FindTracesServer)}
 }
 
 func (_c *SpanReaderPluginServer_FindTraces_Call) Run(run func(findTracesRequest *storage_v1.FindTracesRequest, spanReaderPlugin_FindTracesServer storage_v1.SpanReaderPlugin_FindTracesServer)) *SpanReaderPluginServer_FindTraces_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(*storage_v1.FindTracesRequest), args[1].(storage_v1.SpanReaderPlugin_FindTracesServer))
+		var arg0 *storage_v1.FindTracesRequest
+		if args[0] != nil {
+			arg0 = args[0].(*storage_v1.FindTracesRequest)
+		}
+		var arg1 storage_v1.SpanReaderPlugin_FindTracesServer
+		if args[1] != nil {
+			arg1 = args[1].(storage_v1.SpanReaderPlugin_FindTracesServer)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -2563,15 +2782,26 @@ type SpanReaderPluginServer_GetOperations_Call struct {
 }
 
 // GetOperations is a helper method to define mock.On call
-//   - context1
-//   - getOperationsRequest
+//   - context1 context.Context
+//   - getOperationsRequest *storage_v1.GetOperationsRequest
 func (_e *SpanReaderPluginServer_Expecter) GetOperations(context1 interface{}, getOperationsRequest interface{}) *SpanReaderPluginServer_GetOperations_Call {
 	return &SpanReaderPluginServer_GetOperations_Call{Call: _e.mock.On("GetOperations", context1, getOperationsRequest)}
 }
 
 func (_c *SpanReaderPluginServer_GetOperations_Call) Run(run func(context1 context.Context, getOperationsRequest *storage_v1.GetOperationsRequest)) *SpanReaderPluginServer_GetOperations_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*storage_v1.GetOperationsRequest))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *storage_v1.GetOperationsRequest
+		if args[1] != nil {
+			arg1 = args[1].(*storage_v1.GetOperationsRequest)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -2620,15 +2850,26 @@ type SpanReaderPluginServer_GetServices_Call struct {
 }
 
 // GetServices is a helper method to define mock.On call
-//   - context1
-//   - getServicesRequest
+//   - context1 context.Context
+//   - getServicesRequest *storage_v1.GetServicesRequest
 func (_e *SpanReaderPluginServer_Expecter) GetServices(context1 interface{}, getServicesRequest interface{}) *SpanReaderPluginServer_GetServices_Call {
 	return &SpanReaderPluginServer_GetServices_Call{Call: _e.mock.On("GetServices", context1, getServicesRequest)}
 }
 
 func (_c *SpanReaderPluginServer_GetServices_Call) Run(run func(context1 context.Context, getServicesRequest *storage_v1.GetServicesRequest)) *SpanReaderPluginServer_GetServices_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*storage_v1.GetServicesRequest))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *storage_v1.GetServicesRequest
+		if args[1] != nil {
+			arg1 = args[1].(*storage_v1.GetServicesRequest)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -2666,15 +2907,26 @@ type SpanReaderPluginServer_GetTrace_Call struct {
 }
 
 // GetTrace is a helper method to define mock.On call
-//   - getTraceRequest
-//   - spanReaderPlugin_GetTraceServer
+//   - getTraceRequest *storage_v1.GetTraceRequest
+//   - spanReaderPlugin_GetTraceServer storage_v1.SpanReaderPlugin_GetTraceServer
 func (_e *SpanReaderPluginServer_Expecter) GetTrace(getTraceRequest interface{}, spanReaderPlugin_GetTraceServer interface{}) *SpanReaderPluginServer_GetTrace_Call {
 	return &SpanReaderPluginServer_GetTrace_Call{Call: _e.mock.On("GetTrace", getTraceRequest, spanReaderPlugin_GetTraceServer)}
 }
 
 func (_c *SpanReaderPluginServer_GetTrace_Call) Run(run func(getTraceRequest *storage_v1.GetTraceRequest, spanReaderPlugin_GetTraceServer storage_v1.SpanReaderPlugin_GetTraceServer)) *SpanReaderPluginServer_GetTrace_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(*storage_v1.GetTraceRequest), args[1].(storage_v1.SpanReaderPlugin_GetTraceServer))
+		var arg0 *storage_v1.GetTraceRequest
+		if args[0] != nil {
+			arg0 = args[0].(*storage_v1.GetTraceRequest)
+		}
+		var arg1 storage_v1.SpanReaderPlugin_GetTraceServer
+		if args[1] != nil {
+			arg1 = args[1].(storage_v1.SpanReaderPlugin_GetTraceServer)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -2785,14 +3037,20 @@ type SpanReaderPlugin_GetTraceServer_RecvMsg_Call struct {
 }
 
 // RecvMsg is a helper method to define mock.On call
-//   - m
+//   - m any
 func (_e *SpanReaderPlugin_GetTraceServer_Expecter) RecvMsg(m interface{}) *SpanReaderPlugin_GetTraceServer_RecvMsg_Call {
 	return &SpanReaderPlugin_GetTraceServer_RecvMsg_Call{Call: _e.mock.On("RecvMsg", m)}
 }
 
 func (_c *SpanReaderPlugin_GetTraceServer_RecvMsg_Call) Run(run func(m any)) *SpanReaderPlugin_GetTraceServer_RecvMsg_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(any))
+		var arg0 any
+		if args[0] != nil {
+			arg0 = args[0].(any)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -2830,14 +3088,20 @@ type SpanReaderPlugin_GetTraceServer_Send_Call struct {
 }
 
 // Send is a helper method to define mock.On call
-//   - spansResponseChunk
+//   - spansResponseChunk *storage_v1.SpansResponseChunk
 func (_e *SpanReaderPlugin_GetTraceServer_Expecter) Send(spansResponseChunk interface{}) *SpanReaderPlugin_GetTraceServer_Send_Call {
 	return &SpanReaderPlugin_GetTraceServer_Send_Call{Call: _e.mock.On("Send", spansResponseChunk)}
 }
 
 func (_c *SpanReaderPlugin_GetTraceServer_Send_Call) Run(run func(spansResponseChunk *storage_v1.SpansResponseChunk)) *SpanReaderPlugin_GetTraceServer_Send_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(*storage_v1.SpansResponseChunk))
+		var arg0 *storage_v1.SpansResponseChunk
+		if args[0] != nil {
+			arg0 = args[0].(*storage_v1.SpansResponseChunk)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -2875,14 +3139,20 @@ type SpanReaderPlugin_GetTraceServer_SendHeader_Call struct {
 }
 
 // SendHeader is a helper method to define mock.On call
-//   - mD
+//   - mD metadata.MD
 func (_e *SpanReaderPlugin_GetTraceServer_Expecter) SendHeader(mD interface{}) *SpanReaderPlugin_GetTraceServer_SendHeader_Call {
 	return &SpanReaderPlugin_GetTraceServer_SendHeader_Call{Call: _e.mock.On("SendHeader", mD)}
 }
 
 func (_c *SpanReaderPlugin_GetTraceServer_SendHeader_Call) Run(run func(mD metadata.MD)) *SpanReaderPlugin_GetTraceServer_SendHeader_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(metadata.MD))
+		var arg0 metadata.MD
+		if args[0] != nil {
+			arg0 = args[0].(metadata.MD)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -2920,14 +3190,20 @@ type SpanReaderPlugin_GetTraceServer_SendMsg_Call struct {
 }
 
 // SendMsg is a helper method to define mock.On call
-//   - m
+//   - m any
 func (_e *SpanReaderPlugin_GetTraceServer_Expecter) SendMsg(m interface{}) *SpanReaderPlugin_GetTraceServer_SendMsg_Call {
 	return &SpanReaderPlugin_GetTraceServer_SendMsg_Call{Call: _e.mock.On("SendMsg", m)}
 }
 
 func (_c *SpanReaderPlugin_GetTraceServer_SendMsg_Call) Run(run func(m any)) *SpanReaderPlugin_GetTraceServer_SendMsg_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(any))
+		var arg0 any
+		if args[0] != nil {
+			arg0 = args[0].(any)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -2965,14 +3241,20 @@ type SpanReaderPlugin_GetTraceServer_SetHeader_Call struct {
 }
 
 // SetHeader is a helper method to define mock.On call
-//   - mD
+//   - mD metadata.MD
 func (_e *SpanReaderPlugin_GetTraceServer_Expecter) SetHeader(mD interface{}) *SpanReaderPlugin_GetTraceServer_SetHeader_Call {
 	return &SpanReaderPlugin_GetTraceServer_SetHeader_Call{Call: _e.mock.On("SetHeader", mD)}
 }
 
 func (_c *SpanReaderPlugin_GetTraceServer_SetHeader_Call) Run(run func(mD metadata.MD)) *SpanReaderPlugin_GetTraceServer_SetHeader_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(metadata.MD))
+		var arg0 metadata.MD
+		if args[0] != nil {
+			arg0 = args[0].(metadata.MD)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -2999,14 +3281,20 @@ type SpanReaderPlugin_GetTraceServer_SetTrailer_Call struct {
 }
 
 // SetTrailer is a helper method to define mock.On call
-//   - mD
+//   - mD metadata.MD
 func (_e *SpanReaderPlugin_GetTraceServer_Expecter) SetTrailer(mD interface{}) *SpanReaderPlugin_GetTraceServer_SetTrailer_Call {
 	return &SpanReaderPlugin_GetTraceServer_SetTrailer_Call{Call: _e.mock.On("SetTrailer", mD)}
 }
 
 func (_c *SpanReaderPlugin_GetTraceServer_SetTrailer_Call) Run(run func(mD metadata.MD)) *SpanReaderPlugin_GetTraceServer_SetTrailer_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(metadata.MD))
+		var arg0 metadata.MD
+		if args[0] != nil {
+			arg0 = args[0].(metadata.MD)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -3117,14 +3405,20 @@ type SpanReaderPlugin_FindTracesServer_RecvMsg_Call struct {
 }
 
 // RecvMsg is a helper method to define mock.On call
-//   - m
+//   - m any
 func (_e *SpanReaderPlugin_FindTracesServer_Expecter) RecvMsg(m interface{}) *SpanReaderPlugin_FindTracesServer_RecvMsg_Call {
 	return &SpanReaderPlugin_FindTracesServer_RecvMsg_Call{Call: _e.mock.On("RecvMsg", m)}
 }
 
 func (_c *SpanReaderPlugin_FindTracesServer_RecvMsg_Call) Run(run func(m any)) *SpanReaderPlugin_FindTracesServer_RecvMsg_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(any))
+		var arg0 any
+		if args[0] != nil {
+			arg0 = args[0].(any)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -3162,14 +3456,20 @@ type SpanReaderPlugin_FindTracesServer_Send_Call struct {
 }
 
 // Send is a helper method to define mock.On call
-//   - spansResponseChunk
+//   - spansResponseChunk *storage_v1.SpansResponseChunk
 func (_e *SpanReaderPlugin_FindTracesServer_Expecter) Send(spansResponseChunk interface{}) *SpanReaderPlugin_FindTracesServer_Send_Call {
 	return &SpanReaderPlugin_FindTracesServer_Send_Call{Call: _e.mock.On("Send", spansResponseChunk)}
 }
 
 func (_c *SpanReaderPlugin_FindTracesServer_Send_Call) Run(run func(spansResponseChunk *storage_v1.SpansResponseChunk)) *SpanReaderPlugin_FindTracesServer_Send_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(*storage_v1.SpansResponseChunk))
+		var arg0 *storage_v1.SpansResponseChunk
+		if args[0] != nil {
+			arg0 = args[0].(*storage_v1.SpansResponseChunk)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -3207,14 +3507,20 @@ type SpanReaderPlugin_FindTracesServer_SendHeader_Call struct {
 }
 
 // SendHeader is a helper method to define mock.On call
-//   - mD
+//   - mD metadata.MD
 func (_e *SpanReaderPlugin_FindTracesServer_Expecter) SendHeader(mD interface{}) *SpanReaderPlugin_FindTracesServer_SendHeader_Call {
 	return &SpanReaderPlugin_FindTracesServer_SendHeader_Call{Call: _e.mock.On("SendHeader", mD)}
 }
 
 func (_c *SpanReaderPlugin_FindTracesServer_SendHeader_Call) Run(run func(mD metadata.MD)) *SpanReaderPlugin_FindTracesServer_SendHeader_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(metadata.MD))
+		var arg0 metadata.MD
+		if args[0] != nil {
+			arg0 = args[0].(metadata.MD)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -3252,14 +3558,20 @@ type SpanReaderPlugin_FindTracesServer_SendMsg_Call struct {
 }
 
 // SendMsg is a helper method to define mock.On call
-//   - m
+//   - m any
 func (_e *SpanReaderPlugin_FindTracesServer_Expecter) SendMsg(m interface{}) *SpanReaderPlugin_FindTracesServer_SendMsg_Call {
 	return &SpanReaderPlugin_FindTracesServer_SendMsg_Call{Call: _e.mock.On("SendMsg", m)}
 }
 
 func (_c *SpanReaderPlugin_FindTracesServer_SendMsg_Call) Run(run func(m any)) *SpanReaderPlugin_FindTracesServer_SendMsg_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(any))
+		var arg0 any
+		if args[0] != nil {
+			arg0 = args[0].(any)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -3297,14 +3609,20 @@ type SpanReaderPlugin_FindTracesServer_SetHeader_Call struct {
 }
 
 // SetHeader is a helper method to define mock.On call
-//   - mD
+//   - mD metadata.MD
 func (_e *SpanReaderPlugin_FindTracesServer_Expecter) SetHeader(mD interface{}) *SpanReaderPlugin_FindTracesServer_SetHeader_Call {
 	return &SpanReaderPlugin_FindTracesServer_SetHeader_Call{Call: _e.mock.On("SetHeader", mD)}
 }
 
 func (_c *SpanReaderPlugin_FindTracesServer_SetHeader_Call) Run(run func(mD metadata.MD)) *SpanReaderPlugin_FindTracesServer_SetHeader_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(metadata.MD))
+		var arg0 metadata.MD
+		if args[0] != nil {
+			arg0 = args[0].(metadata.MD)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -3331,14 +3649,20 @@ type SpanReaderPlugin_FindTracesServer_SetTrailer_Call struct {
 }
 
 // SetTrailer is a helper method to define mock.On call
-//   - mD
+//   - mD metadata.MD
 func (_e *SpanReaderPlugin_FindTracesServer_Expecter) SetTrailer(mD interface{}) *SpanReaderPlugin_FindTracesServer_SetTrailer_Call {
 	return &SpanReaderPlugin_FindTracesServer_SetTrailer_Call{Call: _e.mock.On("SetTrailer", mD)}
 }
 
 func (_c *SpanReaderPlugin_FindTracesServer_SetTrailer_Call) Run(run func(mD metadata.MD)) *SpanReaderPlugin_FindTracesServer_SetTrailer_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(metadata.MD))
+		var arg0 metadata.MD
+		if args[0] != nil {
+			arg0 = args[0].(metadata.MD)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -3420,9 +3744,9 @@ type ArchiveSpanWriterPluginClient_WriteArchiveSpan_Call struct {
 }
 
 // WriteArchiveSpan is a helper method to define mock.On call
-//   - ctx
-//   - in
-//   - opts
+//   - ctx context.Context
+//   - in *storage_v1.WriteSpanRequest
+//   - opts ...grpc.CallOption
 func (_e *ArchiveSpanWriterPluginClient_Expecter) WriteArchiveSpan(ctx interface{}, in interface{}, opts ...interface{}) *ArchiveSpanWriterPluginClient_WriteArchiveSpan_Call {
 	return &ArchiveSpanWriterPluginClient_WriteArchiveSpan_Call{Call: _e.mock.On("WriteArchiveSpan",
 		append([]interface{}{ctx, in}, opts...)...)}
@@ -3430,13 +3754,25 @@ func (_e *ArchiveSpanWriterPluginClient_Expecter) WriteArchiveSpan(ctx interface
 
 func (_c *ArchiveSpanWriterPluginClient_WriteArchiveSpan_Call) Run(run func(ctx context.Context, in *storage_v1.WriteSpanRequest, opts ...grpc.CallOption)) *ArchiveSpanWriterPluginClient_WriteArchiveSpan_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		variadicArgs := make([]grpc.CallOption, len(args)-2)
-		for i, a := range args[2:] {
-			if a != nil {
-				variadicArgs[i] = a.(grpc.CallOption)
-			}
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
 		}
-		run(args[0].(context.Context), args[1].(*storage_v1.WriteSpanRequest), variadicArgs...)
+		var arg1 *storage_v1.WriteSpanRequest
+		if args[1] != nil {
+			arg1 = args[1].(*storage_v1.WriteSpanRequest)
+		}
+		var arg2 []grpc.CallOption
+		var variadicArgs []grpc.CallOption
+		if len(args) > 2 {
+			variadicArgs = args[2].([]grpc.CallOption)
+		}
+		arg2 = variadicArgs
+		run(
+			arg0,
+			arg1,
+			arg2...,
+		)
 	})
 	return _c
 }
@@ -3512,15 +3848,26 @@ type ArchiveSpanWriterPluginServer_WriteArchiveSpan_Call struct {
 }
 
 // WriteArchiveSpan is a helper method to define mock.On call
-//   - context1
-//   - writeSpanRequest
+//   - context1 context.Context
+//   - writeSpanRequest *storage_v1.WriteSpanRequest
 func (_e *ArchiveSpanWriterPluginServer_Expecter) WriteArchiveSpan(context1 interface{}, writeSpanRequest interface{}) *ArchiveSpanWriterPluginServer_WriteArchiveSpan_Call {
 	return &ArchiveSpanWriterPluginServer_WriteArchiveSpan_Call{Call: _e.mock.On("WriteArchiveSpan", context1, writeSpanRequest)}
 }
 
 func (_c *ArchiveSpanWriterPluginServer_WriteArchiveSpan_Call) Run(run func(context1 context.Context, writeSpanRequest *storage_v1.WriteSpanRequest)) *ArchiveSpanWriterPluginServer_WriteArchiveSpan_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*storage_v1.WriteSpanRequest))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *storage_v1.WriteSpanRequest
+		if args[1] != nil {
+			arg1 = args[1].(*storage_v1.WriteSpanRequest)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -3602,9 +3949,9 @@ type ArchiveSpanReaderPluginClient_GetArchiveTrace_Call struct {
 }
 
 // GetArchiveTrace is a helper method to define mock.On call
-//   - ctx
-//   - in
-//   - opts
+//   - ctx context.Context
+//   - in *storage_v1.GetTraceRequest
+//   - opts ...grpc.CallOption
 func (_e *ArchiveSpanReaderPluginClient_Expecter) GetArchiveTrace(ctx interface{}, in interface{}, opts ...interface{}) *ArchiveSpanReaderPluginClient_GetArchiveTrace_Call {
 	return &ArchiveSpanReaderPluginClient_GetArchiveTrace_Call{Call: _e.mock.On("GetArchiveTrace",
 		append([]interface{}{ctx, in}, opts...)...)}
@@ -3612,13 +3959,25 @@ func (_e *ArchiveSpanReaderPluginClient_Expecter) GetArchiveTrace(ctx interface{
 
 func (_c *ArchiveSpanReaderPluginClient_GetArchiveTrace_Call) Run(run func(ctx context.Context, in *storage_v1.GetTraceRequest, opts ...grpc.CallOption)) *ArchiveSpanReaderPluginClient_GetArchiveTrace_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		variadicArgs := make([]grpc.CallOption, len(args)-2)
-		for i, a := range args[2:] {
-			if a != nil {
-				variadicArgs[i] = a.(grpc.CallOption)
-			}
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
 		}
-		run(args[0].(context.Context), args[1].(*storage_v1.GetTraceRequest), variadicArgs...)
+		var arg1 *storage_v1.GetTraceRequest
+		if args[1] != nil {
+			arg1 = args[1].(*storage_v1.GetTraceRequest)
+		}
+		var arg2 []grpc.CallOption
+		var variadicArgs []grpc.CallOption
+		if len(args) > 2 {
+			variadicArgs = args[2].([]grpc.CallOption)
+		}
+		arg2 = variadicArgs
+		run(
+			arg0,
+			arg1,
+			arg2...,
+		)
 	})
 	return _c
 }
@@ -3883,14 +4242,20 @@ type ArchiveSpanReaderPlugin_GetArchiveTraceClient_RecvMsg_Call struct {
 }
 
 // RecvMsg is a helper method to define mock.On call
-//   - m
+//   - m any
 func (_e *ArchiveSpanReaderPlugin_GetArchiveTraceClient_Expecter) RecvMsg(m interface{}) *ArchiveSpanReaderPlugin_GetArchiveTraceClient_RecvMsg_Call {
 	return &ArchiveSpanReaderPlugin_GetArchiveTraceClient_RecvMsg_Call{Call: _e.mock.On("RecvMsg", m)}
 }
 
 func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceClient_RecvMsg_Call) Run(run func(m any)) *ArchiveSpanReaderPlugin_GetArchiveTraceClient_RecvMsg_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(any))
+		var arg0 any
+		if args[0] != nil {
+			arg0 = args[0].(any)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -3928,14 +4293,20 @@ type ArchiveSpanReaderPlugin_GetArchiveTraceClient_SendMsg_Call struct {
 }
 
 // SendMsg is a helper method to define mock.On call
-//   - m
+//   - m any
 func (_e *ArchiveSpanReaderPlugin_GetArchiveTraceClient_Expecter) SendMsg(m interface{}) *ArchiveSpanReaderPlugin_GetArchiveTraceClient_SendMsg_Call {
 	return &ArchiveSpanReaderPlugin_GetArchiveTraceClient_SendMsg_Call{Call: _e.mock.On("SendMsg", m)}
 }
 
 func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceClient_SendMsg_Call) Run(run func(m any)) *ArchiveSpanReaderPlugin_GetArchiveTraceClient_SendMsg_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(any))
+		var arg0 any
+		if args[0] != nil {
+			arg0 = args[0].(any)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -4046,15 +4417,26 @@ type ArchiveSpanReaderPluginServer_GetArchiveTrace_Call struct {
 }
 
 // GetArchiveTrace is a helper method to define mock.On call
-//   - getTraceRequest
-//   - archiveSpanReaderPlugin_GetArchiveTraceServer
+//   - getTraceRequest *storage_v1.GetTraceRequest
+//   - archiveSpanReaderPlugin_GetArchiveTraceServer storage_v1.ArchiveSpanReaderPlugin_GetArchiveTraceServer
 func (_e *ArchiveSpanReaderPluginServer_Expecter) GetArchiveTrace(getTraceRequest interface{}, archiveSpanReaderPlugin_GetArchiveTraceServer interface{}) *ArchiveSpanReaderPluginServer_GetArchiveTrace_Call {
 	return &ArchiveSpanReaderPluginServer_GetArchiveTrace_Call{Call: _e.mock.On("GetArchiveTrace", getTraceRequest, archiveSpanReaderPlugin_GetArchiveTraceServer)}
 }
 
 func (_c *ArchiveSpanReaderPluginServer_GetArchiveTrace_Call) Run(run func(getTraceRequest *storage_v1.GetTraceRequest, archiveSpanReaderPlugin_GetArchiveTraceServer storage_v1.ArchiveSpanReaderPlugin_GetArchiveTraceServer)) *ArchiveSpanReaderPluginServer_GetArchiveTrace_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(*storage_v1.GetTraceRequest), args[1].(storage_v1.ArchiveSpanReaderPlugin_GetArchiveTraceServer))
+		var arg0 *storage_v1.GetTraceRequest
+		if args[0] != nil {
+			arg0 = args[0].(*storage_v1.GetTraceRequest)
+		}
+		var arg1 storage_v1.ArchiveSpanReaderPlugin_GetArchiveTraceServer
+		if args[1] != nil {
+			arg1 = args[1].(storage_v1.ArchiveSpanReaderPlugin_GetArchiveTraceServer)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -4165,14 +4547,20 @@ type ArchiveSpanReaderPlugin_GetArchiveTraceServer_RecvMsg_Call struct {
 }
 
 // RecvMsg is a helper method to define mock.On call
-//   - m
+//   - m any
 func (_e *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Expecter) RecvMsg(m interface{}) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_RecvMsg_Call {
 	return &ArchiveSpanReaderPlugin_GetArchiveTraceServer_RecvMsg_Call{Call: _e.mock.On("RecvMsg", m)}
 }
 
 func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceServer_RecvMsg_Call) Run(run func(m any)) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_RecvMsg_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(any))
+		var arg0 any
+		if args[0] != nil {
+			arg0 = args[0].(any)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -4210,14 +4598,20 @@ type ArchiveSpanReaderPlugin_GetArchiveTraceServer_Send_Call struct {
 }
 
 // Send is a helper method to define mock.On call
-//   - spansResponseChunk
+//   - spansResponseChunk *storage_v1.SpansResponseChunk
 func (_e *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Expecter) Send(spansResponseChunk interface{}) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Send_Call {
 	return &ArchiveSpanReaderPlugin_GetArchiveTraceServer_Send_Call{Call: _e.mock.On("Send", spansResponseChunk)}
 }
 
 func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Send_Call) Run(run func(spansResponseChunk *storage_v1.SpansResponseChunk)) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Send_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(*storage_v1.SpansResponseChunk))
+		var arg0 *storage_v1.SpansResponseChunk
+		if args[0] != nil {
+			arg0 = args[0].(*storage_v1.SpansResponseChunk)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -4255,14 +4649,20 @@ type ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendHeader_Call struct {
 }
 
 // SendHeader is a helper method to define mock.On call
-//   - mD
+//   - mD metadata.MD
 func (_e *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Expecter) SendHeader(mD interface{}) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendHeader_Call {
 	return &ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendHeader_Call{Call: _e.mock.On("SendHeader", mD)}
 }
 
 func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendHeader_Call) Run(run func(mD metadata.MD)) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendHeader_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(metadata.MD))
+		var arg0 metadata.MD
+		if args[0] != nil {
+			arg0 = args[0].(metadata.MD)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -4300,14 +4700,20 @@ type ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendMsg_Call struct {
 }
 
 // SendMsg is a helper method to define mock.On call
-//   - m
+//   - m any
 func (_e *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Expecter) SendMsg(m interface{}) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendMsg_Call {
 	return &ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendMsg_Call{Call: _e.mock.On("SendMsg", m)}
 }
 
 func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendMsg_Call) Run(run func(m any)) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SendMsg_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(any))
+		var arg0 any
+		if args[0] != nil {
+			arg0 = args[0].(any)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -4345,14 +4751,20 @@ type ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetHeader_Call struct {
 }
 
 // SetHeader is a helper method to define mock.On call
-//   - mD
+//   - mD metadata.MD
 func (_e *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Expecter) SetHeader(mD interface{}) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetHeader_Call {
 	return &ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetHeader_Call{Call: _e.mock.On("SetHeader", mD)}
 }
 
 func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetHeader_Call) Run(run func(mD metadata.MD)) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetHeader_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(metadata.MD))
+		var arg0 metadata.MD
+		if args[0] != nil {
+			arg0 = args[0].(metadata.MD)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -4379,14 +4791,20 @@ type ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetTrailer_Call struct {
 }
 
 // SetTrailer is a helper method to define mock.On call
-//   - mD
+//   - mD metadata.MD
 func (_e *ArchiveSpanReaderPlugin_GetArchiveTraceServer_Expecter) SetTrailer(mD interface{}) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetTrailer_Call {
 	return &ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetTrailer_Call{Call: _e.mock.On("SetTrailer", mD)}
 }
 
 func (_c *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetTrailer_Call) Run(run func(mD metadata.MD)) *ArchiveSpanReaderPlugin_GetArchiveTraceServer_SetTrailer_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(metadata.MD))
+		var arg0 metadata.MD
+		if args[0] != nil {
+			arg0 = args[0].(metadata.MD)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -4468,9 +4886,9 @@ type DependenciesReaderPluginClient_GetDependencies_Call struct {
 }
 
 // GetDependencies is a helper method to define mock.On call
-//   - ctx
-//   - in
-//   - opts
+//   - ctx context.Context
+//   - in *storage_v1.GetDependenciesRequest
+//   - opts ...grpc.CallOption
 func (_e *DependenciesReaderPluginClient_Expecter) GetDependencies(ctx interface{}, in interface{}, opts ...interface{}) *DependenciesReaderPluginClient_GetDependencies_Call {
 	return &DependenciesReaderPluginClient_GetDependencies_Call{Call: _e.mock.On("GetDependencies",
 		append([]interface{}{ctx, in}, opts...)...)}
@@ -4478,13 +4896,25 @@ func (_e *DependenciesReaderPluginClient_Expecter) GetDependencies(ctx interface
 
 func (_c *DependenciesReaderPluginClient_GetDependencies_Call) Run(run func(ctx context.Context, in *storage_v1.GetDependenciesRequest, opts ...grpc.CallOption)) *DependenciesReaderPluginClient_GetDependencies_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		variadicArgs := make([]grpc.CallOption, len(args)-2)
-		for i, a := range args[2:] {
-			if a != nil {
-				variadicArgs[i] = a.(grpc.CallOption)
-			}
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
 		}
-		run(args[0].(context.Context), args[1].(*storage_v1.GetDependenciesRequest), variadicArgs...)
+		var arg1 *storage_v1.GetDependenciesRequest
+		if args[1] != nil {
+			arg1 = args[1].(*storage_v1.GetDependenciesRequest)
+		}
+		var arg2 []grpc.CallOption
+		var variadicArgs []grpc.CallOption
+		if len(args) > 2 {
+			variadicArgs = args[2].([]grpc.CallOption)
+		}
+		arg2 = variadicArgs
+		run(
+			arg0,
+			arg1,
+			arg2...,
+		)
 	})
 	return _c
 }
@@ -4560,15 +4990,26 @@ type DependenciesReaderPluginServer_GetDependencies_Call struct {
 }
 
 // GetDependencies is a helper method to define mock.On call
-//   - context1
-//   - getDependenciesRequest
+//   - context1 context.Context
+//   - getDependenciesRequest *storage_v1.GetDependenciesRequest
 func (_e *DependenciesReaderPluginServer_Expecter) GetDependencies(context1 interface{}, getDependenciesRequest interface{}) *DependenciesReaderPluginServer_GetDependencies_Call {
 	return &DependenciesReaderPluginServer_GetDependencies_Call{Call: _e.mock.On("GetDependencies", context1, getDependenciesRequest)}
 }
 
 func (_c *DependenciesReaderPluginServer_GetDependencies_Call) Run(run func(context1 context.Context, getDependenciesRequest *storage_v1.GetDependenciesRequest)) *DependenciesReaderPluginServer_GetDependencies_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*storage_v1.GetDependenciesRequest))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *storage_v1.GetDependenciesRequest
+		if args[1] != nil {
+			arg1 = args[1].(*storage_v1.GetDependenciesRequest)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }
@@ -4650,9 +5091,9 @@ type PluginCapabilitiesClient_Capabilities_Call struct {
 }
 
 // Capabilities is a helper method to define mock.On call
-//   - ctx
-//   - in
-//   - opts
+//   - ctx context.Context
+//   - in *storage_v1.CapabilitiesRequest
+//   - opts ...grpc.CallOption
 func (_e *PluginCapabilitiesClient_Expecter) Capabilities(ctx interface{}, in interface{}, opts ...interface{}) *PluginCapabilitiesClient_Capabilities_Call {
 	return &PluginCapabilitiesClient_Capabilities_Call{Call: _e.mock.On("Capabilities",
 		append([]interface{}{ctx, in}, opts...)...)}
@@ -4660,13 +5101,25 @@ func (_e *PluginCapabilitiesClient_Expecter) Capabilities(ctx interface{}, in in
 
 func (_c *PluginCapabilitiesClient_Capabilities_Call) Run(run func(ctx context.Context, in *storage_v1.CapabilitiesRequest, opts ...grpc.CallOption)) *PluginCapabilitiesClient_Capabilities_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		variadicArgs := make([]grpc.CallOption, len(args)-2)
-		for i, a := range args[2:] {
-			if a != nil {
-				variadicArgs[i] = a.(grpc.CallOption)
-			}
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
 		}
-		run(args[0].(context.Context), args[1].(*storage_v1.CapabilitiesRequest), variadicArgs...)
+		var arg1 *storage_v1.CapabilitiesRequest
+		if args[1] != nil {
+			arg1 = args[1].(*storage_v1.CapabilitiesRequest)
+		}
+		var arg2 []grpc.CallOption
+		var variadicArgs []grpc.CallOption
+		if len(args) > 2 {
+			variadicArgs = args[2].([]grpc.CallOption)
+		}
+		arg2 = variadicArgs
+		run(
+			arg0,
+			arg1,
+			arg2...,
+		)
 	})
 	return _c
 }
@@ -4742,15 +5195,26 @@ type PluginCapabilitiesServer_Capabilities_Call struct {
 }
 
 // Capabilities is a helper method to define mock.On call
-//   - context1
-//   - capabilitiesRequest
+//   - context1 context.Context
+//   - capabilitiesRequest *storage_v1.CapabilitiesRequest
 func (_e *PluginCapabilitiesServer_Expecter) Capabilities(context1 interface{}, capabilitiesRequest interface{}) *PluginCapabilitiesServer_Capabilities_Call {
 	return &PluginCapabilitiesServer_Capabilities_Call{Call: _e.mock.On("Capabilities", context1, capabilitiesRequest)}
 }
 
 func (_c *PluginCapabilitiesServer_Capabilities_Call) Run(run func(context1 context.Context, capabilitiesRequest *storage_v1.CapabilitiesRequest)) *PluginCapabilitiesServer_Capabilities_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*storage_v1.CapabilitiesRequest))
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *storage_v1.CapabilitiesRequest
+		if args[1] != nil {
+			arg1 = args[1].(*storage_v1.CapabilitiesRequest)
+		}
+		run(
+			arg0,
+			arg1,
+		)
 	})
 	return _c
 }

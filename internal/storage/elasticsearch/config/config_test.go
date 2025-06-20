@@ -4,19 +4,24 @@
 package config
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
+	"github.com/jaegertracing/jaeger/internal/metricstest"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
@@ -69,6 +74,10 @@ func copyToTempFile(t *testing.T, pattern string, filename string) (file *os.Fil
 	require.NoError(t, tempFile.Close())
 
 	return tempFile
+}
+
+func int64Ptr(v int64) *int64 {
+	return &v
 }
 
 func TestNewClient(t *testing.T) {
@@ -408,7 +417,7 @@ func TestNewClient(t *testing.T) {
 			logger := zap.NewNop()
 			metricsFactory := metrics.NullFactory
 			config := test.config
-			client, err := NewClient(config, logger, metricsFactory)
+			client, err := NewClient(context.Background(), config, logger, metricsFactory)
 			if test.expectedError {
 				require.Error(t, err)
 				require.Nil(t, client)
@@ -441,17 +450,17 @@ func TestApplyDefaults(t *testing.T) {
 			IndexPrefix: "hello",
 			Spans: IndexOptions{
 				Shards:   5,
-				Replicas: 1,
+				Replicas: int64Ptr(1),
 				Priority: 10,
 			},
 			Services: IndexOptions{
 				Shards:   5,
-				Replicas: 1,
+				Replicas: int64Ptr(1),
 				Priority: 20,
 			},
 			Dependencies: IndexOptions{
 				Shards:   5,
-				Replicas: 1,
+				Replicas: int64Ptr(1),
 				Priority: 30,
 			},
 			Sampling: IndexOptions{},
@@ -524,17 +533,17 @@ func TestApplyDefaults(t *testing.T) {
 					IndexPrefix: "hello",
 					Spans: IndexOptions{
 						Shards:   5,
-						Replicas: 1,
+						Replicas: int64Ptr(1),
 						Priority: 10,
 					},
 					Services: IndexOptions{
 						Shards:   5,
-						Replicas: 1,
+						Replicas: int64Ptr(1),
 						Priority: 20,
 					},
 					Dependencies: IndexOptions{
 						Shards:   5,
-						Replicas: 1,
+						Replicas: int64Ptr(1),
 						Priority: 30,
 					},
 				},
@@ -570,17 +579,17 @@ func TestApplyDefaults(t *testing.T) {
 					IndexPrefix: "hello",
 					Spans: IndexOptions{
 						Shards:   5,
-						Replicas: 1,
+						Replicas: int64Ptr(1),
 						Priority: 10,
 					},
 					Services: IndexOptions{
 						Shards:   5,
-						Replicas: 1,
+						Replicas: int64Ptr(1),
 						Priority: 20,
 					},
 					Dependencies: IndexOptions{
 						Shards:   5,
-						Replicas: 1,
+						Replicas: int64Ptr(1),
 						Priority: 30,
 					},
 				},
@@ -727,27 +736,36 @@ func TestValidate(t *testing.T) {
 	tests := []struct {
 		name          string
 		config        *Configuration
-		expectedError bool
+		expectedError string
 	}{
 		{
 			name: "All valid input are set",
 			config: &Configuration{
 				Servers: []string{"localhost:8000/dummyserver"},
 			},
-			expectedError: false,
 		},
 		{
 			name:          "no valid input are set",
 			config:        &Configuration{},
-			expectedError: true,
+			expectedError: "Servers: non zero value required",
+		},
+		{
+			name:          "ilm disabled and read-write aliases enabled error",
+			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, UseILM: true},
+			expectedError: "UseILM must always be used in conjunction with UseReadWriteAliases to ensure ES writers and readers refer to the single index mapping",
+		},
+		{
+			name:          "ilm and create templates enabled",
+			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, UseILM: true, CreateIndexTemplates: true, UseReadWriteAliases: true},
+			expectedError: "when UseILM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			got := test.config.Validate()
-			if test.expectedError {
-				require.Error(t, got)
+			if test.expectedError != "" {
+				require.ErrorContains(t, got, test.expectedError)
 			} else {
 				require.NoError(t, got)
 			}
@@ -794,6 +812,103 @@ func TestApplyForIndexPrefix(t *testing.T) {
 			require.Equal(t, test.expectedName, got)
 		})
 	}
+}
+
+func TestHandleBulkAfterCallback_ErrorMetricsEmitted(t *testing.T) {
+	mf := metricstest.NewFactory(time.Minute)
+	sm := spanstoremetrics.NewWriter(mf, "bulk_index")
+	logger := zap.NewNop()
+	defer mf.Stop()
+
+	var m sync.Map
+	batchID := int64(1)
+	start := time.Now().Add(-100 * time.Millisecond)
+	m.Store(batchID, start)
+
+	fakeRequests := []elastic.BulkableRequest{nil, nil}
+	response := &elastic.BulkResponse{
+		Errors: true,
+		Items: []map[string]*elastic.BulkResponseItem{
+			{
+				"index": {
+					Status: 500,
+					Error:  &elastic.ErrorDetails{Type: "server_error"},
+				},
+			},
+			{
+				"index": {
+					Status: 200,
+					Error:  nil,
+				},
+			},
+		},
+	}
+
+	bcb := bulkCallback{
+		sm:     sm,
+		logger: logger,
+	}
+
+	bcb.invoke(batchID, fakeRequests, response, assert.AnError)
+
+	mf.AssertCounterMetrics(t,
+		metricstest.ExpectedMetric{
+			Name:  "bulk_index.errors",
+			Value: 1,
+		},
+		metricstest.ExpectedMetric{
+			Name:  "bulk_index.inserts",
+			Value: 1,
+		},
+		metricstest.ExpectedMetric{
+			Name:  "bulk_index.attempts",
+			Value: 2,
+		},
+	)
+}
+
+func TestHandleBulkAfterCallback_MissingStartTime(t *testing.T) {
+	mf := metricstest.NewFactory(time.Minute)
+	sm := spanstoremetrics.NewWriter(mf, "bulk_index")
+	logger := zap.NewNop()
+	defer mf.Stop()
+
+	batchID := int64(42) // assign any value which is not stored in the map
+
+	fakeRequests := []elastic.BulkableRequest{nil}
+	response := &elastic.BulkResponse{
+		Errors: true,
+		Items: []map[string]*elastic.BulkResponseItem{
+			{
+				"index": {
+					Status: 500,
+					Error:  &elastic.ErrorDetails{Type: "mock_error"},
+				},
+			},
+		},
+	}
+
+	bcb := bulkCallback{
+		sm:     sm,
+		logger: logger,
+	}
+
+	bcb.invoke(batchID, fakeRequests, response, assert.AnError)
+
+	mf.AssertCounterMetrics(t,
+		metricstest.ExpectedMetric{
+			Name:  "bulk_index.errors",
+			Value: 1,
+		},
+		metricstest.ExpectedMetric{
+			Name:  "bulk_index.inserts",
+			Value: 0,
+		},
+		metricstest.ExpectedMetric{
+			Name:  "bulk_index.attempts",
+			Value: 1,
+		},
+	)
 }
 
 func TestMain(m *testing.M) {
