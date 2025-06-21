@@ -60,14 +60,6 @@ generate_jks_files() {
   
   echo "Generating Kafka JKS files..."
   
-  # Check if PEM files exist
-  if [[ ! -f "${cert_dir}/example-CA-cert.pem" || ! -f "${cert_dir}/example-server-cert.pem" || ! -f "${cert_dir}/example-server-key.pem" ]]; then
-    echo "PEM certificate files not found. Generating certificates first..."
-    cd "${cert_dir}"
-    ./gen-certs.sh
-    cd - > /dev/null
-  fi
-  
   # Remove existing JKS files if they exist
   rm -f "${cert_dir}/kafka.keystore.jks"
   rm -f "${cert_dir}/kafka.truststore.jks"
