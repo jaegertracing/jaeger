@@ -472,6 +472,7 @@ func buildTestBaseQueryParameters(tc metricsTestCase) metricstore.BaseQueryParam
 	endTime := time.UnixMilli(1749894900000)
 	lookback := 6 * time.Hour
 	step := time.Minute
+	ratePer := 10 * time.Minute
 
 	return metricstore.BaseQueryParameters{
 		ServiceNames:     tc.serviceNames,
@@ -479,6 +480,7 @@ func buildTestBaseQueryParameters(tc metricsTestCase) metricstore.BaseQueryParam
 		EndTime:          &endTime,
 		Lookback:         &lookback,
 		Step:             &step,
+		RatePer:          &ratePer,
 		SpanKinds:        tc.spanKinds,
 	}
 }

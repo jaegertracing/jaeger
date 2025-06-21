@@ -56,7 +56,7 @@ type MetricsQueryParams struct {
 	metricstore.BaseQueryParameters
 	metricName string
 	metricDesc string
-	boolQuery  *elasticv7.BoolQuery
+	boolQuery  elasticv7.BoolQuery
 	aggQuery   elasticv7.Aggregation
 	// processMetricsFunc is a function that processes the raw time-series
 	// data (pairs of timestamp and value) returned from Elasticsearch
@@ -102,7 +102,7 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 		boolQuery:           r.buildQuery(params.BaseQueryParameters, timeRange),
 		aggQuery:            r.buildCallRateAggregations(params, timeRange),
 		processMetricsFunc: func(pairs []*Pair) []*Pair {
-			return getCallRateProcessMetrics(pairs, params.Step)
+			return getCallRateProcessMetrics(pairs, params.BaseQueryParameters)
 		},
 	}
 
@@ -124,7 +124,7 @@ func (MetricsReader) GetMinStepDuration(_ context.Context, _ *metricstore.MinSte
 	return minStep, nil
 }
 
-// Add this helper method
+// trimMetricPointsBefore removes metric points older than startMillis from each metric in the MetricFamily.
 func trimMetricPointsBefore(mf *metrics.MetricFamily, startMillis int64) *metrics.MetricFamily {
 	for _, metric := range mf.Metrics {
 		points := metric.MetricPoints
@@ -144,7 +144,7 @@ func trimMetricPointsBefore(mf *metrics.MetricFamily, startMillis int64) *metric
 }
 
 // buildQuery constructs the Elasticsearch bool query.
-func (MetricsReader) buildQuery(params metricstore.BaseQueryParameters, timeRange TimeRange) *elasticv7.BoolQuery {
+func (MetricsReader) buildQuery(params metricstore.BaseQueryParameters, timeRange TimeRange) elasticv7.BoolQuery {
 	boolQuery := elasticv7.NewBoolQuery()
 
 	serviceNameQuery := elasticv7.NewTermsQuery("process.serviceName", buildInterfaceSlice(params.ServiceNames)...)
@@ -162,7 +162,7 @@ func (MetricsReader) buildQuery(params metricstore.BaseQueryParameters, timeRang
 	boolQuery.Filter(nestedTagsQuery)
 
 	rangeQuery := elasticv7.NewRangeQuery("startTimeMillis").
-		// Use extendedStartTimeMillis to allow for a 5-minute lookback.
+		// Use extendedStartTimeMillis to allow for a 10-minute lookback.
 		Gte(timeRange.extendedStartTimeMillis).
 		Lte(timeRange.endTimeMillis).
 		Format("epoch_millis")
@@ -190,12 +190,14 @@ func (MetricsReader) buildQuery(params metricstore.BaseQueryParameters, timeRang
 	//				"format": "epoch_millis"}}}]}
 	// },
 
-	return boolQuery
+	return *boolQuery
 }
 
-func getCallRateProcessMetrics(pairs []*Pair, step *time.Duration) []*Pair {
-	// Configuration - lookback window size (10 data points)
-	lookback := 10
+func getCallRateProcessMetrics(pairs []*Pair, m metricstore.BaseQueryParameters) []*Pair {
+	lookback := int(math.Ceil(float64(m.RatePer.Milliseconds()) / float64(m.Step.Milliseconds())))
+	if lookback < 1 {
+		lookback = 1 // Ensure we always have at least 1 point
+	}
 	n := len(pairs)
 	results := make([]*Pair, 0, n) // Pre-allocate result slice for efficiency
 
@@ -228,7 +230,7 @@ func getCallRateProcessMetrics(pairs []*Pair, step *time.Duration) []*Pair {
 
 		// Calculate time window duration in seconds
 		// params.Step.Seconds() gives the interval between data points
-		windowSizeSeconds := float64(lookback) * (step.Seconds())
+		windowSizeSeconds := float64(lookback) * (m.Step.Seconds())
 
 		// Calculate rate of change per second
 		// Formula: (current_value - starting_value) / time_window
@@ -315,7 +317,7 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) 
 	defer span.End()
 
 	searchResult, err := r.client.Search(searchIndex).
-		Query(p.boolQuery).
+		Query(&p.boolQuery).
 		Size(0). // Set Size to 0 to return only aggregation results, excluding individual search hits
 		Aggregation(aggName, p.aggQuery).
 		Do(ctx)
