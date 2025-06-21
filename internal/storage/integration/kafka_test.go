@@ -46,34 +46,71 @@ type KafkaIntegrationTestSuite struct {
 	StorageIntegration
 }
 
-func (s *KafkaIntegrationTestSuite) initializeWithSASLPlaintext(t *testing.T) {
+type kafkaConfig struct {
+	brokerDefault  string
+	testNameSuffix string
+	groupIDSuffix  string
+	clientIDSuffix string
+	authType       string
+	username       string
+	password       string
+	mechanism      string
+	tlsEnabled     bool
+	caCertPath     string
+	skipHostVerify bool
+}
+
+func (s *KafkaIntegrationTestSuite) initializeWithConfig(t *testing.T, cfg kafkaConfig) {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	const encoding = "json"
-	const groupID = "kafka-sasl-plaintext-integration-test"
-	const clientID = "kafka-sasl-plaintext-integration-test"
-	broker := getEnv("KAFKA_BROKER", defaultLocalKafkaBrokerSASLPlaintext)
-	username := getEnv("KAFKA_USERNAME", "admin")
-	password := getEnv("KAFKA_PASSWORD", "admin-secret")
+	var groupID, clientID string
+	if cfg.groupIDSuffix != "" {
+		groupID = "kafka-" + cfg.groupIDSuffix + "-integration-test"
+		clientID = "kafka-" + cfg.clientIDSuffix + "-integration-test"
+	} else {
+		groupID = "kafka-integration-test"
+		clientID = "kafka-integration-test"
+	}
+	broker := getEnv("KAFKA_BROKER", cfg.brokerDefault)
+	username := getEnv("KAFKA_USERNAME", cfg.username)
+	password := getEnv("KAFKA_PASSWORD", cfg.password)
+
 	// A new topic is generated per execution to avoid data overlap
+	var topic string
+	if cfg.testNameSuffix != "" {
+		topic = "jaeger-kafka-" + cfg.testNameSuffix + "-integration-test-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	} else {
+		topic = "jaeger-kafka-integration-test-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	}
+
+	// Build producer flags
+	producerFlags := []string{
+		"--kafka.producer.topic", topic,
+		"--kafka.producer.brokers", broker,
+		"--kafka.producer.encoding", encoding,
+	}
+
+	if cfg.authType != "" {
+		producerFlags = append(producerFlags,
+			"--kafka.producer.authentication", cfg.authType,
+			"--kafka.producer.plaintext.username", username,
+			"--kafka.producer.plaintext.password", password,
+			"--kafka.producer.plaintext.mechanism", cfg.mechanism,
+		)
+	}
+
+	if cfg.tlsEnabled {
+		producerFlags = append(producerFlags,
+			"--kafka.producer.tls.enabled", "true",
+			"--kafka.producer.tls.ca", cfg.caCertPath,
+			"--kafka.producer.tls.skip-host-verify", strconv.FormatBool(cfg.skipHostVerify),
+		)
+	}
+
+	// Setup producer
 	f := kafka.NewFactory()
-	topic := "jaeger-kafka-sasl-plaintext-integration-test-" + strconv.FormatInt(time.Now().UnixNano(), 10)
 	v, command := config.Viperize(f.AddFlags)
-	err := command.ParseFlags([]string{
-		"--kafka.producer.topic",
-		topic,
-		"--kafka.producer.brokers",
-		broker,
-		"--kafka.producer.encoding",
-		encoding,
-		"--kafka.producer.authentication",
-		"plaintext",
-		"--kafka.producer.plaintext.username",
-		username,
-		"--kafka.producer.plaintext.password",
-		password,
-		"--kafka.producer.plaintext.mechanism",
-		"PLAIN",
-	})
+	err := command.ParseFlags(producerFlags)
 	require.NoError(t, err)
 	f.InitFromViper(v, logger)
 	err = f.Initialize(metrics.NullFactory, logger)
@@ -83,29 +120,37 @@ func (s *KafkaIntegrationTestSuite) initializeWithSASLPlaintext(t *testing.T) {
 	})
 	spanWriter, err := f.CreateSpanWriter()
 	require.NoError(t, err)
+
+	// Build consumer flags
+	consumerFlags := []string{
+		"--kafka.consumer.topic", topic,
+		"--kafka.consumer.brokers", broker,
+		"--kafka.consumer.encoding", encoding,
+		"--kafka.consumer.group-id", groupID,
+		"--kafka.consumer.client-id", clientID,
+		"--ingester.parallelism", "1000",
+	}
+
+	if cfg.authType != "" {
+		consumerFlags = append(consumerFlags,
+			"--kafka.consumer.authentication", cfg.authType,
+			"--kafka.consumer.plaintext.username", username,
+			"--kafka.consumer.plaintext.password", password,
+			"--kafka.consumer.plaintext.mechanism", cfg.mechanism,
+		)
+	}
+
+	if cfg.tlsEnabled {
+		consumerFlags = append(consumerFlags,
+			"--kafka.consumer.tls.enabled", "true",
+			"--kafka.consumer.tls.ca", cfg.caCertPath,
+			"--kafka.consumer.tls.skip-host-verify", strconv.FormatBool(cfg.skipHostVerify),
+		)
+	}
+
+	// Setup consumer
 	v, command = config.Viperize(app.AddFlags)
-	err = command.ParseFlags([]string{
-		"--kafka.consumer.topic",
-		topic,
-		"--kafka.consumer.brokers",
-		broker,
-		"--kafka.consumer.encoding",
-		encoding,
-		"--kafka.consumer.group-id",
-		groupID,
-		"--kafka.consumer.client-id",
-		clientID,
-		"--kafka.consumer.authentication",
-		"plaintext",
-		"--kafka.consumer.plaintext.username",
-		username,
-		"--kafka.consumer.plaintext.password",
-		password,
-		"--kafka.consumer.plaintext.mechanism",
-		"PLAIN",
-		"--ingester.parallelism",
-		"1000",
-	})
+	err = command.ParseFlags(consumerFlags)
 	require.NoError(t, err)
 	options := app.Options{
 		Configuration: consumer.Configuration{
@@ -125,161 +170,47 @@ func (s *KafkaIntegrationTestSuite) initializeWithSASLPlaintext(t *testing.T) {
 	s.TraceReader = v1adapter.NewTraceReader(spanReader)
 	s.TraceWriter = v1adapter.NewTraceWriter(spanWriter)
 	s.CleanUp = func(_ *testing.T) {}
+}
+
+func (s *KafkaIntegrationTestSuite) initializeWithSASLPlaintext(t *testing.T) {
+	s.initializeWithConfig(t, kafkaConfig{
+		brokerDefault:  defaultLocalKafkaBrokerSASLPlaintext,
+		testNameSuffix: "sasl-plaintext",
+		groupIDSuffix:  "sasl-plaintext",
+		clientIDSuffix: "sasl-plaintext",
+		authType:       "plaintext",
+		username:       "admin",
+		password:       "admin-secret",
+		mechanism:      "PLAIN",
+		tlsEnabled:     false,
+	})
 }
 
 func (s *KafkaIntegrationTestSuite) initializeWithSASLSSLPlaintext(t *testing.T) {
-	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
-	const encoding = "json"
-	const groupID = "kafka-sasl-ssl-plaintext-integration-test"
-	const clientID = "kafka-sasl-ssl-plaintext-integration-test"
-	broker := getEnv("KAFKA_BROKER", defaultLocalKafkaBrokerSASLSSLPlaintext)
-	username := getEnv("KAFKA_USERNAME", "admin")
-	password := getEnv("KAFKA_PASSWORD", "admin-secret")
-	// A new topic is generated per execution to avoid data overlap
-	f := kafka.NewFactory()
-	topic := "jaeger-kafka-sasl-ssl-plaintext-integration-test-" + strconv.FormatInt(time.Now().UnixNano(), 10)
-	v, command := config.Viperize(f.AddFlags)
-	err := command.ParseFlags([]string{
-		"--kafka.producer.topic",
-		topic,
-		"--kafka.producer.brokers",
-		broker,
-		"--kafka.producer.encoding",
-		encoding,
-		"--kafka.producer.authentication",
-		"plaintext",
-		"--kafka.producer.plaintext.username",
-		username,
-		"--kafka.producer.plaintext.password",
-		password,
-		"--kafka.producer.plaintext.mechanism",
-		"PLAIN",
-		"--kafka.producer.tls.enabled",
-		"true",
-		"--kafka.producer.tls.ca",
-		"../../../internal/config/tlscfg/testdata/example-CA-cert.pem",
-		"--kafka.producer.tls.skip-host-verify",
-		"true",
+	s.initializeWithConfig(t, kafkaConfig{
+		brokerDefault:  defaultLocalKafkaBrokerSASLSSLPlaintext,
+		testNameSuffix: "sasl-ssl-plaintext",
+		groupIDSuffix:  "sasl-ssl-plaintext",
+		clientIDSuffix: "sasl-ssl-plaintext",
+		authType:       "plaintext",
+		username:       "admin",
+		password:       "admin-secret",
+		mechanism:      "PLAIN",
+		tlsEnabled:     true,
+		caCertPath:     "../../../internal/config/tlscfg/testdata/example-CA-cert.pem",
+		skipHostVerify: true,
 	})
-	require.NoError(t, err)
-	f.InitFromViper(v, logger)
-	err = f.Initialize(metrics.NullFactory, logger)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		assert.NoError(t, f.Close())
-	})
-	spanWriter, err := f.CreateSpanWriter()
-	require.NoError(t, err)
-	v, command = config.Viperize(app.AddFlags)
-	err = command.ParseFlags([]string{
-		"--kafka.consumer.topic",
-		topic,
-		"--kafka.consumer.brokers",
-		broker,
-		"--kafka.consumer.encoding",
-		encoding,
-		"--kafka.consumer.group-id",
-		groupID,
-		"--kafka.consumer.client-id",
-		clientID,
-		"--kafka.consumer.authentication",
-		"plaintext",
-		"--kafka.consumer.plaintext.username",
-		username,
-		"--kafka.consumer.plaintext.password",
-		password,
-		"--kafka.consumer.plaintext.mechanism",
-		"PLAIN",
-		"--kafka.consumer.tls.enabled",
-		"true",
-		"--kafka.consumer.tls.ca",
-		"../../../internal/config/tlscfg/testdata/example-CA-cert.pem",
-		"--kafka.consumer.tls.skip-host-verify",
-		"true",
-		"--ingester.parallelism",
-		"1000",
-	})
-	require.NoError(t, err)
-	options := app.Options{
-		Configuration: consumer.Configuration{
-			InitialOffset: sarama.OffsetOldest,
-		},
-	}
-	options.InitFromViper(v)
-	traceStore := memory.NewStore()
-	spanConsumer, err := builder.CreateConsumer(logger, metrics.NullFactory, traceStore, options)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		assert.NoError(t, spanConsumer.Close())
-	})
-	spanConsumer.Start()
-
-	spanReader := &ingester{traceStore}
-	s.TraceReader = v1adapter.NewTraceReader(spanReader)
-	s.TraceWriter = v1adapter.NewTraceWriter(spanWriter)
-	s.CleanUp = func(_ *testing.T) {}
 }
 
 func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
-	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
-	const encoding = "json"
-	const groupID = "kafka-integration-test"
-	const clientID = "kafka-integration-test"
-	// A new topic is generated per execution to avoid data overlap
-	topic := "jaeger-kafka-integration-test-" + strconv.FormatInt(time.Now().UnixNano(), 10)
-	f := kafka.NewFactory()
-	v, command := config.Viperize(f.AddFlags)
-	err := command.ParseFlags([]string{
-		"--kafka.producer.topic",
-		topic,
-		"--kafka.producer.brokers",
-		defaultLocalKafkaBroker,
-		"--kafka.producer.encoding",
-		encoding,
+	s.initializeWithConfig(t, kafkaConfig{
+		brokerDefault:  defaultLocalKafkaBroker,
+		testNameSuffix: "",
+		groupIDSuffix:  "",
+		clientIDSuffix: "",
+		authType:       "",
+		tlsEnabled:     false,
 	})
-	require.NoError(t, err)
-	f.InitFromViper(v, logger)
-	err = f.Initialize(metrics.NullFactory, logger)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		assert.NoError(t, f.Close())
-	})
-	spanWriter, err := f.CreateSpanWriter()
-	require.NoError(t, err)
-	v, command = config.Viperize(app.AddFlags)
-	err = command.ParseFlags([]string{
-		"--kafka.consumer.topic",
-		topic,
-		"--kafka.consumer.brokers",
-		defaultLocalKafkaBroker,
-		"--kafka.consumer.encoding",
-		encoding,
-		"--kafka.consumer.group-id",
-		groupID,
-		"--kafka.consumer.client-id",
-		clientID,
-		"--ingester.parallelism",
-		"1000",
-	})
-	require.NoError(t, err)
-	options := app.Options{
-		Configuration: consumer.Configuration{
-			InitialOffset: sarama.OffsetOldest,
-		},
-	}
-	options.InitFromViper(v)
-	traceStore := memory.NewStore()
-	spanConsumer, err := builder.CreateConsumer(logger, metrics.NullFactory, traceStore, options)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		assert.NoError(t, spanConsumer.Close())
-	})
-	spanConsumer.Start()
-
-	spanReader := &ingester{traceStore}
-	s.TraceReader = v1adapter.NewTraceReader(spanReader)
-	s.TraceWriter = v1adapter.NewTraceWriter(spanWriter)
-	s.CleanUp = func(_ *testing.T) {}
 }
 
 // The ingester consumes spans from kafka and writes them to an in-memory traceStore
