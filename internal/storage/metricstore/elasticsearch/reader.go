@@ -1,11 +1,7 @@
-// Copyright (c) 2025 The Jaeger Authors.
-// SPDX-License-Identifier: Apache-2.0
-
 package elasticsearch
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -14,15 +10,12 @@ import (
 	"time"
 
 	elasticv7 "github.com/olivere/elastic/v7"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
-	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 var ErrNotImplemented = errors.New("metrics querying is currently not implemented yet")
@@ -36,9 +29,10 @@ const (
 
 // MetricsReader is an Elasticsearch metrics reader.
 type MetricsReader struct {
-	client es.Client
-	logger *zap.Logger
-	tracer trace.Tracer
+	client      es.Client
+	logger      *zap.Logger
+	tracer      trace.Tracer
+	queryLogger *QueryLogger
 }
 
 // TimeRange represents a time range for metrics queries.
@@ -77,10 +71,12 @@ type Pair struct {
 
 // NewMetricsReader initializes a new MetricsReader.
 func NewMetricsReader(client es.Client, logger *zap.Logger, tracer trace.TracerProvider) *MetricsReader {
+	tr := tracer.Tracer("elasticsearch-metricstore")
 	return &MetricsReader{
-		client: client,
-		logger: logger,
-		tracer: tracer.Tracer("elasticsearch-metricstore"),
+		client:      client,
+		logger:      logger,
+		tracer:      tr,
+		queryLogger: NewQueryLogger(logger, tr),
 	}
 }
 
@@ -311,12 +307,13 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) 
 		p.metricDesc += " & operation"
 	}
 
-	queryString, err := r.buildQueryJSON(p.boolQuery, p.aggQuery)
+	queryString, err := r.queryLogger.GetQueryJSON(p.boolQuery, p.aggQuery)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build query JSON: %w", err)
 	}
 
-	span := startSpanForQuery(ctx, p.metricName, queryString, r.tracer)
+	// Use the QueryLogger for logging and tracing the query
+	span := r.queryLogger.LogAndTraceQuery(ctx, p.metricName, queryString)
 	defer span.End()
 
 	searchResult, err := r.client.Search(searchIndex).
@@ -326,13 +323,12 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) 
 		Do(ctx)
 	if err != nil {
 		err = fmt.Errorf("failed executing metrics query: %w", err)
-		logErrorToSpan(span, err)
+		r.queryLogger.LogErrorToSpan(span, err) // Use the QueryLogger for logging error to span
 		return nil, err
 	}
 
-	result, _ := json.MarshalIndent(searchResult, "", "  ")
-
-	r.logger.Debug("Elasticsearch metricsreader query results", zap.String("results", string(result)), zap.String("query", queryString))
+	// Use the QueryLogger for logging and tracing the results
+	r.queryLogger.LogAndTraceResult(span, searchResult)
 
 	return Translator{}.ToMetricsFamily(
 		p,
@@ -372,36 +368,4 @@ func calculateTimeRange(params *metricstore.BaseQueryParameters) (TimeRange, err
 		endTimeMillis:           endTime.UnixMilli(),
 		extendedStartTimeMillis: extendedStartTime.UnixMilli(),
 	}, nil
-}
-
-func (MetricsReader) buildQueryJSON(boolQuery *elasticv7.BoolQuery, aggQuery elasticv7.Aggregation) (string, error) {
-	// Combine query and aggregations into a search source
-	searchSource := elasticv7.NewSearchSource().
-		Query(boolQuery).
-		Aggregation(aggName, aggQuery).
-		Size(0)
-
-	source, err := searchSource.Source()
-	if err != nil {
-		return "", fmt.Errorf("failed to get query source: %w", err)
-	}
-
-	queryJSON, _ := json.MarshalIndent(source, "", "  ")
-
-	return string(queryJSON), nil
-}
-
-func startSpanForQuery(ctx context.Context, metricName, query string, tp trace.Tracer) trace.Span {
-	_, span := tp.Start(ctx, metricName)
-	span.SetAttributes(
-		otelsemconv.DBQueryTextKey.String(query),
-		otelsemconv.DBSystemKey.String("elasticsearch"),
-		attribute.Key("component").String("es-metricsreader"),
-	)
-	return span
-}
-
-func logErrorToSpan(span trace.Span, err error) {
-	span.RecordError(err)
-	span.SetStatus(codes.Error, err.Error())
 }
