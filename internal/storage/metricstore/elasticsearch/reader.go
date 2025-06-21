@@ -35,32 +35,45 @@ const (
 )
 
 // MetricsReader is an Elasticsearch metrics reader.
-type (
-	MetricsReader struct {
-		client es.Client
-		logger *zap.Logger
-		tracer trace.Tracer
-	}
-	TimeRange struct {
-		startTimeMillis         int64
-		endTimeMillis           int64
-		extendedStartTimeMillis int64
-	}
+type MetricsReader struct {
+	client es.Client
+	logger *zap.Logger
+	tracer trace.Tracer
+}
 
-	MetricsQueryParams struct {
-		metricstore.BaseQueryParameters
-		metricName         string
-		metricDesc         string
-		boolQuery          *elasticv7.BoolQuery
-		aggQuery           elasticv7.Aggregation
-		processMetricsFunc func(pair []*Pair) []*Pair
-	}
+// TimeRange represents a time range for metrics queries.
+type TimeRange struct {
+	startTimeMillis int64
+	endTimeMillis   int64
+	// extendedStartTimeMillis is an extended start time used for lookback periods
+	// in certain aggregations (e.g., cumulative sums or rate calculations)
+	// where data prior to startTimeMillis is needed to compute metrics accurately
+	// within the primary time range. This typically accounts for a window of
+	// preceding data (e.g., 10 minutes) to ensure that the initial data
+	// points in the primary time range have enough historical context for calculation.
+	extendedStartTimeMillis int64
+}
 
-	Pair struct {
-		TimeStamp int64
-		Value     float64
-	}
-)
+// MetricsQueryParams contains parameters for Elasticsearch metrics queries.
+type MetricsQueryParams struct {
+	metricstore.BaseQueryParameters
+	metricName string
+	metricDesc string
+	boolQuery  *elasticv7.BoolQuery
+	aggQuery   elasticv7.Aggregation
+	// processMetricsFunc is a function that processes the raw time-series
+	// data (pairs of timestamp and value) returned from Elasticsearch
+	// aggregations into the final metric values. This is used for calculations
+	// like rates (e.g., calls/sec) which require manipulating the raw counts
+	// or sums over specific time windows.
+	processMetricsFunc func(pair []*Pair) []*Pair
+}
+
+// Pair represents a timestamp-value pair for metrics.
+type Pair struct {
+	TimeStamp int64
+	Value     float64
+}
 
 // NewMetricsReader initializes a new MetricsReader.
 func NewMetricsReader(client es.Client, logger *zap.Logger, tracer trace.TracerProvider) *MetricsReader {
@@ -87,7 +100,7 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 		BaseQueryParameters: params.BaseQueryParameters,
 		metricName:          "service_call_rate",
 		metricDesc:          "calls/sec, grouped by service",
-		boolQuery:           r.buildQuery(&params.BaseQueryParameters, timeRange),
+		boolQuery:           r.buildQuery(params.BaseQueryParameters, timeRange),
 		aggQuery:            r.buildCallRateAggregations(params, timeRange),
 		processMetricsFunc: func(pairs []*Pair) []*Pair {
 			return getCallRateProcessMetrics(pairs, params.Step)
@@ -98,12 +111,8 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 	if err != nil {
 		return nil, err
 	}
-
 	// Trim results to original time range
-	if metricFamily != nil {
-		metricFamily = trimMetricPointsBefore(metricFamily, timeRange.startTimeMillis)
-	}
-	return metricFamily, nil
+	return trimMetricPointsBefore(metricFamily, timeRange.startTimeMillis), nil
 }
 
 // GetErrorRates retrieves error rate metrics
@@ -136,7 +145,7 @@ func trimMetricPointsBefore(mf *metrics.MetricFamily, startMillis int64) *metric
 }
 
 // buildQuery constructs the Elasticsearch bool query.
-func (MetricsReader) buildQuery(params *metricstore.BaseQueryParameters, timeRange TimeRange) *elasticv7.BoolQuery {
+func (MetricsReader) buildQuery(params metricstore.BaseQueryParameters, timeRange TimeRange) *elasticv7.BoolQuery {
 	boolQuery := elasticv7.NewBoolQuery()
 
 	serviceNameQuery := elasticv7.NewTermsQuery("process.serviceName", buildInterfaceSlice(params.ServiceNames)...)
@@ -312,7 +321,7 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) 
 
 	searchResult, err := r.client.Search(searchIndex).
 		Query(p.boolQuery).
-		Size(0).
+		Size(0). // Set Size to 0 to return only aggregation results, excluding individual search hits
 		Aggregation(aggName, p.aggQuery).
 		Do(ctx)
 	if err != nil {
