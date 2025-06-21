@@ -68,7 +68,7 @@ func (tr RoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
 		var ctxToken string
 		var ok bool
 		if tr.AuthScheme == "ApiKey" {
-			ctxToken, ok = ApiKeyFromContext(req.Context())
+			ctxToken, ok = APIKeyFromContext(req.Context())
 		} else {
 			ctxToken, ok = GetBearerToken(req.Context())
 		}

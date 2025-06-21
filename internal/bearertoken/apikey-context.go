@@ -8,8 +8,8 @@ import "context"
 // APIKeyContextKey is the type used as a key for storing API keys in context.
 type APIKeyContextKey struct{}
 
-// ApiKeyFromContext retrieves the API key from the context.
-func ApiKeyFromContext(ctx context.Context) (string, bool) {
+// APIKeyFromContext retrieves the API key from the context.
+func APIKeyFromContext(ctx context.Context) (string, bool) {
 	val := ctx.Value(APIKeyContextKey{})
 	if val == nil {
 		return "", false
