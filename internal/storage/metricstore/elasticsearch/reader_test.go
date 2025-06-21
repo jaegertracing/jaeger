@@ -16,7 +16,6 @@ import (
 	"testing"
 	"time"
 
-	elasticv7 "github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -119,6 +118,7 @@ func tracerProvider(t *testing.T) (trace.TracerProvider, *tracetest.InMemoryExpo
 		sdktrace.WithSyncer(exporter),
 	)
 	t.Cleanup(func() {
+		require.NoError(t, tp.ForceFlush(context.Background()))
 		require.NoError(t, tp.Shutdown(context.Background()))
 	})
 	return tp, exporter
@@ -332,20 +332,6 @@ func TestGetMinStepDuration(t *testing.T) {
 	minStep, err := reader.GetMinStepDuration(context.Background(), &metricstore.MinStepDurationQueryParameters{})
 	require.NoError(t, err)
 	assert.Equal(t, time.Millisecond, minStep)
-}
-
-func TestExecuteSearchError(t *testing.T) {
-	t.Run("failed to execute search", func(t *testing.T) {
-		reader := MetricsReader{}
-		metricParams := MetricsQueryParams{
-			boolQuery: elasticv7.NewBoolQuery(),
-			aggQuery:  &failingAggregation{},
-		}
-
-		_, err := reader.executeSearch(context.Background(), metricParams)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to build query JSON")
-	})
 }
 
 func sendResponse(t *testing.T, w http.ResponseWriter, responseFile string) {

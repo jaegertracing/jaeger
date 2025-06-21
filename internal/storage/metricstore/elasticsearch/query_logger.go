@@ -1,11 +1,10 @@
 package elasticsearch
 
 import (
-	"encoding/json"
-	"github.com/olivere/elastic"
-
 	"context"
+	"encoding/json"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
+	"github.com/olivere/elastic"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
