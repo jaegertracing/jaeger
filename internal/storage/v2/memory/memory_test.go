@@ -53,19 +53,19 @@ func TestNewStore_DefaultConfig(t *testing.T) {
 	expectedOperations := []tracestore.Operation{
 		{
 			Name:     "test-general-conversion-2",
-			SpanKind: "Server",
+			SpanKind: "server",
 		},
 		{
 			Name:     "test-general-conversion-3",
-			SpanKind: "Client",
+			SpanKind: "client",
 		},
 		{
 			Name:     "test-general-conversion-4",
-			SpanKind: "Producer",
+			SpanKind: "producer",
 		},
 		{
 			Name:     "test-general-conversion-5",
-			SpanKind: "Consumer",
+			SpanKind: "consumer",
 		},
 	}
 	sort.Slice(operations, func(i, j int) bool {
@@ -460,30 +460,59 @@ func TestFindTraces_StatusCode(t *testing.T) {
 }
 
 func TestGetOperationsWithKind(t *testing.T) {
-	store, err := NewStore(v1.Configuration{
-		MaxTraces: 10,
-	})
-	require.NoError(t, err)
-	td := ptrace.NewTraces()
-	resourceSpans := td.ResourceSpans().AppendEmpty()
-	attrs := resourceSpans.Resource().Attributes()
-	attrs.PutStr(conventions.AttributeServiceName, "service-x")
-	span1 := resourceSpans.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-	span1.SetTraceID(fromString(t, "00000000000000010000000000000000"))
-	span1.SetKind(ptrace.SpanKindConsumer)
-	span1.SetName("operation-with-kind")
-	span2 := resourceSpans.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-	span2.SetTraceID(fromString(t, "00000000000000010000000000000000"))
-	err = store.WriteTraces(context.Background(), td)
-	require.NoError(t, err)
-	operations, err := store.GetOperations(context.Background(), tracestore.OperationQueryParams{
-		ServiceName: "service-x",
-		SpanKind:    ptrace.SpanKindConsumer.String(),
-	})
-	assert.Len(t, operations, 1)
-	assert.Equal(t, "operation-with-kind", operations[0].Name)
-	assert.Equal(t, operations[0].SpanKind, ptrace.SpanKindConsumer.String())
-	require.NoError(t, err)
+	tests := []struct {
+		spanKind     ptrace.SpanKind
+		expectedKind string
+	}{
+		{
+			spanKind:     ptrace.SpanKindClient,
+			expectedKind: "client",
+		},
+		{
+			spanKind:     ptrace.SpanKindServer,
+			expectedKind: "server",
+		},
+		{
+			spanKind:     ptrace.SpanKindProducer,
+			expectedKind: "producer",
+		},
+		{
+			spanKind:     ptrace.SpanKindUnspecified,
+			expectedKind: "",
+		},
+		{
+			spanKind:     ptrace.SpanKindInternal,
+			expectedKind: "internal",
+		},
+		{
+			spanKind:     ptrace.SpanKindConsumer,
+			expectedKind: "consumer",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.spanKind.String(), func(t *testing.T) {
+			store, err := NewStore(v1.Configuration{
+				MaxTraces: 10,
+			})
+			require.NoError(t, err)
+			td := ptrace.NewTraces()
+			resourceSpan := td.ResourceSpans().AppendEmpty()
+			resourceSpan.Resource().Attributes().PutStr(conventions.AttributeServiceName, "service-z")
+			span := resourceSpan.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+			span.SetTraceID(fromString(t, "00000000000000010000000000000000"))
+			span.SetName("span")
+			span.SetKind(test.spanKind)
+			err = store.WriteTraces(context.Background(), td)
+			require.NoError(t, err)
+			operations, err := store.GetOperations(context.Background(), tracestore.OperationQueryParams{
+				ServiceName: "service-z",
+				SpanKind:    test.expectedKind,
+			})
+			require.NoError(t, err)
+			assert.Len(t, operations, 1)
+			assert.Equal(t, operations[0].SpanKind, string(test.expectedKind))
+		})
+	}
 }
 
 func TestGetTraces_IterBreak(t *testing.T) {
