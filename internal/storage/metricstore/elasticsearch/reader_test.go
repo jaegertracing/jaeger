@@ -199,7 +199,7 @@ func TestGetCallRates_ErrorCases(t *testing.T) {
 			metricFamily, err := reader.GetCallRates(context.Background(), tc.params)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.wantErr)
-			assert.Empty(t, metricFamily)
+			require.Nil(t, metricFamily)
 		})
 	}
 }
