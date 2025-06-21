@@ -1,14 +1,19 @@
+// Copyright (c) 2025 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package elasticsearch
 
 import (
 	"context"
 	"encoding/json"
-	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
+
 	"github.com/olivere/elastic"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 // QueryLogger handles logging and tracing of Elasticsearch queries.
@@ -49,7 +54,7 @@ func (ql *QueryLogger) LogAndTraceResult(span trace.Span, searchResult *elastic.
 }
 
 // LogErrorToSpan logs an error to the trace span.
-func (ql *QueryLogger) LogErrorToSpan(span trace.Span, err error) {
+func (*QueryLogger) LogErrorToSpan(span trace.Span, err error) {
 	span.RecordError(err)
 	span.SetStatus(codes.Error, err.Error())
 }

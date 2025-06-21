@@ -1,3 +1,6 @@
+// Copyright (c) 2025 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package elasticsearch
 
 import (
@@ -96,7 +99,7 @@ func TestQueryLogger(t *testing.T) {
 
 			// Mock json.Marshal to fail
 			originalMarshal := jsonMarshal
-			jsonMarshal = func(v interface{}) ([]byte, error) { return nil, errors.New("marshal error") }
+			jsonMarshal = func(any) ([]byte, error) { return nil, errors.New("marshal error") }
 			defer func() { jsonMarshal = originalMarshal }()
 
 			result := &elastic.SearchResult{TookInMillis: 10}
