@@ -42,21 +42,6 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 			expectedType: "http.Transport",
 		},
 		{
-			name: "static API key",
-			setup: func(_ *testing.T) *Configuration {
-				return &Configuration{
-					TLS: configtls.ClientConfig{Insecure: true},
-					Authentication: Authentication{
-						APIKeyAuthentication: APIKeyAuthentication{
-							APIKey: "test-api-key",
-						},
-					},
-				}
-			},
-			expectedType:   "bearertoken.RoundTripper",
-			expectedScheme: "ApiKey",
-		},
-		{
 			name: "API key from file",
 			setup: func(_ *testing.T) *Configuration {
 				tempFile := filepath.Join(t.TempDir(), "api-key")
@@ -86,7 +71,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				}
 			},
 			setupCtx: func(ctx context.Context) context.Context {
-				return context.WithValue(ctx, APIKeyContextKey{}, "context-api-key")
+				return context.WithValue(ctx, bearertoken.APIKeyContextKey{}, "context-api-key")
 			},
 			expectedType:   "bearertoken.RoundTripper",
 			expectedScheme: "ApiKey",
@@ -107,7 +92,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				}
 			},
 			setupCtx: func(ctx context.Context) context.Context {
-				return context.WithValue(ctx, APIKeyContextKey{}, "context-api-key")
+				return context.WithValue(ctx, bearertoken.APIKeyContextKey{}, "context-api-key")
 			},
 			wantLogMsgs: []string{
 				"Both API key file and context propagation are enabled - context token will take precedence over file-based token",

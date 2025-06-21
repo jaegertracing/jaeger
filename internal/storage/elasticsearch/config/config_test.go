@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
@@ -381,7 +382,8 @@ func TestNewClient(t *testing.T) {
 				Servers: []string{testServer.URL},
 				Authentication: Authentication{
 					APIKeyAuthentication: APIKeyAuthentication{
-						APIKey: apiKey,
+						FilePath:         apiKeyFile,
+						AllowFromContext: false,
 					},
 				},
 				LogLevel: "debug",
@@ -508,7 +510,7 @@ func TestNewClient(t *testing.T) {
 			config := test.config
 			ctx := context.Background()
 			if strings.Contains(test.name, "from context") {
-				ctx = context.WithValue(ctx, APIKeyContextKey{}, "context-api-key")
+				ctx = context.WithValue(ctx, bearertoken.APIKeyContextKey{}, "context-api-key")
 			}
 			client, err := NewClient(ctx, config, logger, metricsFactory)
 			if test.expectedError {
@@ -1004,32 +1006,29 @@ func TestHandleBulkAfterCallback_MissingStartTime(t *testing.T) {
 	)
 }
 
-// Helper function to create a context with API key
-// This mimics how the context would be set up in production code
-func contextWithAPIKey(ctx context.Context, apiKey any) context.Context {
-	// Use the exported APIKeyContextKey type
-	return context.WithValue(ctx, APIKeyContextKey{}, apiKey)
+func TestTagKeysAsFields_WhitespaceLines(t *testing.T) {
+	tmpFile := filepath.Join(t.TempDir(), "tags.txt")
+	require.NoError(t, os.WriteFile(tmpFile, []byte("tag1\n   \ntag2\n\n\t\n"), 0o600))
+	tagsConfig := &Configuration{Tags: TagsAsFields{File: tmpFile}}
+	tags, err := tagsConfig.TagKeysAsFields()
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"tag1", "tag2"}, tags)
 }
 
-func TestApiKeyFromContext(t *testing.T) {
-	// Test with no value in context
-	emptyCtx := context.Background()
-	apiKey, ok := apiKeyFromContext(emptyCtx)
-	assert.Empty(t, apiKey)
-	assert.False(t, ok)
-
-	// Test with string value in context
-	expectedApiKey := "test-api-key"
-	ctxWithApiKey := contextWithAPIKey(context.Background(), expectedApiKey)
-	apiKey, ok = apiKeyFromContext(ctxWithApiKey)
-	assert.Equal(t, expectedApiKey, apiKey)
-	assert.True(t, ok)
-
-	// Test with non-string value in context
-	ctxWithNonString := contextWithAPIKey(context.Background(), 123)
-	apiKey, ok = apiKeyFromContext(ctxWithNonString)
-	assert.Empty(t, apiKey)
-	assert.False(t, ok)
+func TestGetConfigOptions_AddLoggerOptionsError(t *testing.T) {
+	cfg := &Configuration{
+		Servers: []string{"http://localhost:9200"},
+		Authentication: Authentication{
+			BasicAuthentication: BasicAuthentication{
+				Username: "user",
+				Password: "secret",
+			},
+		},
+		LogLevel: "invalid",
+	}
+	logger := zap.NewNop()
+	_, err := cfg.getConfigOptions(context.Background(), logger)
+	assert.Error(t, err)
 }
 
 func TestMain(m *testing.M) {

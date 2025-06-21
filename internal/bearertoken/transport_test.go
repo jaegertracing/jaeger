@@ -104,7 +104,6 @@ func TestRoundTripper(t *testing.T) {
 		staticToken      string
 		overrideFromCtx  bool
 		authScheme       string
-		tokenFromContext TokenFromContextFunc
 		wrappedTransport http.RoundTripper
 		requestContext   context.Context
 		wantError        bool
@@ -164,14 +163,24 @@ func TestRoundTripper(t *testing.T) {
 			requestContext: context.Background(),
 		},
 		{
-			name:            "ApiKey: Custom token retrieval function should be used",
+			name:            "ApiKey: Override from context should use context API key",
 			overrideFromCtx: true,
+			staticToken:     "apiKeyToken",
 			authScheme:      "ApiKey",
-			tokenFromContext: func(_ context.Context) (string, bool) {
-				return "customApiKey", true
-			},
 			wrappedTransport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
-				assert.Equal(t, "ApiKey customApiKey", r.Header.Get("Authorization"))
+				assert.Equal(t, "ApiKey contextApiKey", r.Header.Get("Authorization"))
+				return &http.Response{}, nil
+			}),
+			requestContext: ContextWithAPIKey(context.Background(), "contextApiKey"),
+		},
+
+		{
+			name:            "ApiKey: Custom token retrieval function should be used (not supported, should fallback to staticToken)",
+			overrideFromCtx: true,
+			staticToken:     "apiKeyToken",
+			authScheme:      "ApiKey",
+			wrappedTransport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				assert.Equal(t, "ApiKey apiKeyToken", r.Header.Get("Authorization"))
 				return &http.Response{}, nil
 			}),
 			requestContext: context.Background(),
@@ -189,11 +198,10 @@ func TestRoundTripper(t *testing.T) {
 			require.NoError(t, err)
 
 			tr := RoundTripper{
-				Transport:        tc.wrappedTransport,
-				OverrideFromCtx:  tc.overrideFromCtx,
-				StaticToken:      tc.staticToken,
-				AuthScheme:       tc.authScheme,
-				TokenFromContext: tc.tokenFromContext,
+				Transport:       tc.wrappedTransport,
+				OverrideFromCtx: tc.overrideFromCtx,
+				StaticToken:     tc.staticToken,
+				AuthScheme:      tc.authScheme,
 			}
 			resp, err := tr.RoundTrip(req)
 

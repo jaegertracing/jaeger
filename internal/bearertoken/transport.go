@@ -50,10 +50,6 @@ type RoundTripper struct {
 
 	// OverrideFromCtx enables reading token from Context.
 	OverrideFromCtx bool
-
-	// TokenFromContext is a function that retrieves a token from context.
-	// If not specified and OverrideFromCtx is true, defaults to GetBearerToken.
-	TokenFromContext TokenFromContextFunc
 }
 
 // RoundTrip injects the outbound Authorization header with the
@@ -63,24 +59,20 @@ func (tr RoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, errors.New("no http.RoundTripper provided")
 	}
 
-	// Use the TokenFromContext function or default to GetBearerToken
-	tokenFromCtx := tr.TokenFromContext
-	if tokenFromCtx == nil && tr.OverrideFromCtx {
-		tokenFromCtx = GetBearerToken
-	}
-
-	// Default AuthScheme to "Bearer" if not specified
 	authScheme := tr.AuthScheme
-	if authScheme == "" {
-		authScheme = "Bearer"
-	}
-
 	// Clone the request to avoid modifying the original
 	req := cloneRequest(r)
 
 	token := tr.StaticToken
-	if tr.OverrideFromCtx && tokenFromCtx != nil {
-		if ctxToken, ok := tokenFromCtx(req.Context()); ok && ctxToken != "" {
+	if tr.OverrideFromCtx {
+		var ctxToken string
+		var ok bool
+		if tr.AuthScheme == "ApiKey" {
+			ctxToken, ok = ApiKeyFromContext(req.Context())
+		} else {
+			ctxToken, ok = GetBearerToken(req.Context())
+		}
+		if ok && ctxToken != "" {
 			token = ctxToken
 		}
 	}
