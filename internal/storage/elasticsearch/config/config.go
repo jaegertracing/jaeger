@@ -195,6 +195,7 @@ type BulkProcessing struct {
 type Authentication struct {
 	BasicAuthentication       BasicAuthentication       `mapstructure:"basic"`
 	BearerTokenAuthentication BearerTokenAuthentication `mapstructure:"bearer_token"`
+	APIKeyAuthentication      APIKeyAuthentication      `mapstructure:"api_key"`
 }
 
 type BasicAuthentication struct {
@@ -217,6 +218,13 @@ type BearerTokenAuthentication struct {
 	// FilePath contains the path to a file containing a bearer token.
 	FilePath string `mapstructure:"file_path"`
 	// AllowTokenFromContext, if set to true, enables reading bearer token from the context.
+	AllowFromContext bool `mapstructure:"from_context"`
+}
+
+type APIKeyAuthentication struct {
+	// FilePath contains the path to a file containing an API key.
+	FilePath string `mapstructure:"file_path"`
+	// AllowFromContext, if set to true, enables reading API key from the context.
 	AllowFromContext bool `mapstructure:"from_context"`
 }
 
@@ -484,15 +492,22 @@ func (c *Configuration) TagKeysAsFields() ([]string, error) {
 
 // getConfigOptions wraps the configs to feed to the ElasticSearch client init
 func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
-	// Disable health check when token from context is allowed, this is because at this time
-	// we don'r have a valid token to do the check ad if we don't disable the check the service that
-	// uses this won't start.
-	// Also disable health check when it was requested (health check has problems on AWS OpenSearch)
-	disableHealthCheck := c.Authentication.BearerTokenAuthentication.AllowFromContext || c.DisableHealthCheck
+	// Disable health check only in the following cases:
+	// 1. When health check is explicitly disabled (has problems on AWS OpenSearch)
+	// 2. When tokens are EXCLUSIVELY available from context (not from file)
+	//    because at startup we don't have a valid token to do the health check
+	disableHealthCheck := c.DisableHealthCheck ||
+		(c.Authentication.BearerTokenAuthentication.AllowFromContext &&
+			c.Authentication.BearerTokenAuthentication.FilePath == "") ||
+		(c.Authentication.APIKeyAuthentication.AllowFromContext &&
+			c.Authentication.APIKeyAuthentication.FilePath == "")
+
 	options := []elastic.ClientOptionFunc{
-		elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffing.Enabled),
+		elastic.SetURL(c.Servers...),
+		elastic.SetSniff(c.Sniffing.Enabled),
 		elastic.SetHealthcheck(!disableHealthCheck),
 	}
+
 	if c.Sniffing.UseHTTPS {
 		options = append(options, elastic.SetScheme("https"))
 	}
@@ -501,6 +516,26 @@ func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger
 	}
 	options = append(options, elastic.SetHttpClient(httpClient))
 
+	// API Key authentication
+	if c.Authentication.APIKeyAuthentication.FilePath != "" {
+		apiKeyFromFile, err := loadTokenFromFile(c.Authentication.APIKeyAuthentication.FilePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load API key from file: %w", err)
+		}
+		// Store loaded API key in context for use by GetHTTPRoundTripper
+		ctx = bearertoken.ContextWithAPIKey(ctx, apiKeyFromFile)
+	}
+
+	if c.Authentication.APIKeyAuthentication.FilePath != "" || c.Authentication.APIKeyAuthentication.AllowFromContext {
+		transport, err := GetHTTPRoundTripper(ctx, c, logger)
+		if err != nil {
+			return nil, err
+		}
+		httpClient.Transport = transport
+		return options, nil
+	}
+
+	// Basic authentication
 	if c.Authentication.BasicAuthentication.Password != "" && c.Authentication.BasicAuthentication.PasswordFilePath != "" {
 		return nil, errors.New("both Password and PasswordFilePath are set")
 	}
@@ -591,6 +626,31 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 		transport = httpTransport
 	}
 
+	// Check for API key authentication first
+	apiKey := ""
+	if c.Authentication.APIKeyAuthentication.FilePath != "" {
+		if c.Authentication.APIKeyAuthentication.AllowFromContext {
+			logger.Warn("Both API key file and context propagation are enabled - context token will take precedence over file-based token")
+		}
+		apiKeyFromFile, err := loadTokenFromFile(c.Authentication.APIKeyAuthentication.FilePath)
+		if err != nil {
+			return nil, err
+		}
+		apiKey = apiKeyFromFile
+	}
+
+	if apiKey != "" || c.Authentication.APIKeyAuthentication.AllowFromContext {
+		// Use the unified bearertoken.RoundTripper with ApiKey scheme
+		transport = bearertoken.RoundTripper{
+			Transport:       httpTransport,
+			StaticToken:     apiKey,
+			AuthScheme:      "ApiKey",
+			OverrideFromCtx: c.Authentication.APIKeyAuthentication.AllowFromContext,
+		}
+		return transport, nil
+	}
+
+	// Check for Bearer token authentication if API key is not configured
 	token := ""
 	if c.Authentication.BearerTokenAuthentication.FilePath != "" {
 		if c.Authentication.BearerTokenAuthentication.AllowFromContext {
@@ -602,11 +662,14 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 		}
 		token = tokenFromFile
 	}
+
 	if token != "" || c.Authentication.BearerTokenAuthentication.AllowFromContext {
+		// Use the unified bearertoken.RoundTripper with the Bearer scheme
 		transport = bearertoken.RoundTripper{
 			Transport:       httpTransport,
-			OverrideFromCtx: c.Authentication.BearerTokenAuthentication.AllowFromContext,
 			StaticToken:     token,
+			AuthScheme:      "Bearer",
+			OverrideFromCtx: c.Authentication.BearerTokenAuthentication.AllowFromContext,
 		}
 	}
 	return transport, nil
