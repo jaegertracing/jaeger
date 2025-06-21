@@ -173,11 +173,14 @@ func (Translator) toDomainTimestamp(millis int64) *types.Timestamp {
 
 // toDomainMetricPointValue converts a float64 value to Jaeger's gauge metric point.
 func (Translator) toDomainMetricPointValue(value float64) *metrics.MetricPoint_GaugeValue {
-	// Round to 2 decimal places
-	roundedValue := math.Round(value*100) / 100
+	result := value
+	if !math.IsNaN(value) {
+		// Round to 2 decimal places
+		result = math.Round(value*100) / 100
+	}
 	return &metrics.MetricPoint_GaugeValue{
 		GaugeValue: &metrics.GaugeValue{
-			Value: &metrics.GaugeValue_DoubleValue{DoubleValue: roundedValue},
+			Value: &metrics.GaugeValue_DoubleValue{DoubleValue: result},
 		},
 	}
 }
