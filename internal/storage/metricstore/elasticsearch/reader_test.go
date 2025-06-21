@@ -6,6 +6,7 @@ package elasticsearch
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"math"
 	"net/http"
@@ -86,6 +87,13 @@ const (
 	mockEmptyResponse             = "testdata/output_empty.json"
 	mockErrorResponse             = "testdata/output_error_es.json"
 )
+
+// failingAggregation is a mock aggregation that fails when Source() is called
+type failingAggregation struct{}
+
+func (*failingAggregation) Source() (any, error) {
+	return nil, errors.New("forced aggregation source error")
+}
 
 type metricsTestCase struct {
 	name         string

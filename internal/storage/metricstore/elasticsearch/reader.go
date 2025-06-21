@@ -307,13 +307,8 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) 
 		p.metricDesc += " & operation"
 	}
 
-	queryString, err := r.queryLogger.GetQueryJSON(p.boolQuery, p.aggQuery)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build query JSON: %w", err)
-	}
-
 	// Use the QueryLogger for logging and tracing the query
-	span := r.queryLogger.LogAndTraceQuery(ctx, p.metricName, queryString)
+	span := r.queryLogger.TraceQuery(ctx, p.metricName)
 	defer span.End()
 
 	searchResult, err := r.client.Search(searchIndex).
