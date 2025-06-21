@@ -17,7 +17,7 @@ patches:
       - op: add
         path: /spec/template/spec/containers/-
         value:
-          image: jaegertracing/all-in-one:latest
+          image: cr.jaegertracing.io/jaegertracing/all-in-one:latest
           name: jaeger
           ports:
             - containerPort: 6831
