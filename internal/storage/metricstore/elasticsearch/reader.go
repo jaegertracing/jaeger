@@ -37,10 +37,9 @@ const (
 // MetricsReader is an Elasticsearch metrics reader.
 type (
 	MetricsReader struct {
-		client            es.Client
-		logger            *zap.Logger
-		tracer            trace.Tracer
-		metricsTranslator Translator
+		client es.Client
+		logger *zap.Logger
+		tracer trace.Tracer
 	}
 	TimeRange struct {
 		startTimeMillis         int64
@@ -66,10 +65,9 @@ type (
 // NewMetricsReader initializes a new MetricsReader.
 func NewMetricsReader(client es.Client, logger *zap.Logger, tracer trace.TracerProvider) *MetricsReader {
 	return &MetricsReader{
-		client:            client,
-		logger:            logger,
-		tracer:            tracer.Tracer("elasticsearch-metricstore"),
-		metricsTranslator: NewTranslator(),
+		client: client,
+		logger: logger,
+		tracer: tracer.Tracer("elasticsearch-metricstore"),
 	}
 }
 
@@ -82,7 +80,7 @@ func (MetricsReader) GetLatencies(_ context.Context, _ *metricstore.LatenciesQue
 func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
 	timeRange, err := calculateTimeRange(&params.BaseQueryParameters)
 	if err != nil {
-		return &metrics.MetricFamily{}, err
+		return nil, err
 	}
 
 	metricsParams := MetricsQueryParams{
@@ -92,54 +90,7 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 		boolQuery:           r.buildQuery(&params.BaseQueryParameters, timeRange),
 		aggQuery:            r.buildCallRateAggregations(params, timeRange),
 		processMetricsFunc: func(pairs []*Pair) []*Pair {
-			// Configuration - lookback window size (10 data points)
-			lookback := 10
-			n := len(pairs)
-			results := make([]*Pair, 0, n) // Pre-allocate result slice for efficiency
-
-			for i := range pairs {
-				// Elasticsearch's percentiles aggregation returns 0.0 for time buckets with no documents
-				// These aren't true zero values but represent missing data points in sparse time series
-				// We convert them to NaN to distinguish from actual measured zero values (slope of 0)
-				if pairs[i].Value == 0.0 {
-					results = append(results, &Pair{
-						TimeStamp: pairs[i].TimeStamp,
-						Value:     math.NaN(),
-					})
-					continue
-				}
-
-				// For first (lookback-1) points, we don't have enough history
-				if i < lookback-1 {
-					results = append(results, &Pair{
-						TimeStamp: pairs[i].TimeStamp,
-						Value:     0.0, // Return 0 when insufficient data
-					})
-					continue
-				}
-
-				// Get boundary values for our lookback window:
-				// First value in window (oldest)
-				firstVal := pairs[i-lookback+1].Value
-				// Last value in window (current value)
-				lastVal := pairs[i].Value
-
-				// Calculate time window duration in seconds
-				// params.Step.Seconds() gives the interval between data points
-				windowSizeSeconds := float64(lookback) * (params.Step.Seconds())
-
-				// Calculate rate of change per second
-				// Formula: (current_value - starting_value) / time_window
-				rate := (lastVal - firstVal) / windowSizeSeconds
-
-				// Store the result with original timestamp
-				results = append(results, &Pair{
-					TimeStamp: pairs[i].TimeStamp,
-					Value:     rate,
-				})
-			}
-
-			return results
+			return getCallRateProcessMetrics(pairs, params.Step)
 		},
 	}
 
@@ -234,6 +185,57 @@ func (MetricsReader) buildQuery(params *metricstore.BaseQueryParameters, timeRan
 	return boolQuery
 }
 
+func getCallRateProcessMetrics(pairs []*Pair, step *time.Duration) []*Pair {
+	// Configuration - lookback window size (10 data points)
+	lookback := 10
+	n := len(pairs)
+	results := make([]*Pair, 0, n) // Pre-allocate result slice for efficiency
+
+	for i := range pairs {
+		// Elasticsearch's percentiles aggregation returns 0.0 for time buckets with no documents
+		// These aren't true zero values but represent missing data points in sparse time series
+		// We convert them to NaN to distinguish from actual measured zero values (slope of 0)
+		if pairs[i].Value == 0.0 {
+			results = append(results, &Pair{
+				TimeStamp: pairs[i].TimeStamp,
+				Value:     math.NaN(),
+			})
+			continue
+		}
+
+		// For first (lookback-1) points, we don't have enough history
+		if i < lookback-1 {
+			results = append(results, &Pair{
+				TimeStamp: pairs[i].TimeStamp,
+				Value:     0.0, // Return 0 when insufficient data
+			})
+			continue
+		}
+
+		// Get boundary values for our lookback window:
+		// First value in window (oldest)
+		firstVal := pairs[i-lookback+1].Value
+		// Last value in window (current value)
+		lastVal := pairs[i].Value
+
+		// Calculate time window duration in seconds
+		// params.Step.Seconds() gives the interval between data points
+		windowSizeSeconds := float64(lookback) * (step.Seconds())
+
+		// Calculate rate of change per second
+		// Formula: (current_value - starting_value) / time_window
+		rate := (lastVal - firstVal) / windowSizeSeconds
+
+		// Store the result with original timestamp
+		results = append(results, &Pair{
+			TimeStamp: pairs[i].TimeStamp,
+			Value:     rate,
+		})
+	}
+
+	return results
+}
+
 // buildSpanKindQuery constructs the query for span kinds.
 func buildSpanKindQuery(spanKinds []string) elasticv7.Query {
 	querySpanKinds := normalizeSpanKinds(spanKinds)
@@ -316,14 +318,14 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) 
 	if err != nil {
 		err = fmt.Errorf("failed executing metrics query: %w", err)
 		logErrorToSpan(span, err)
-		return &metrics.MetricFamily{}, err
+		return nil, err
 	}
 
 	result, _ := json.MarshalIndent(searchResult, "", "  ")
 
 	r.logger.Debug("Elasticsearch metricsreader query results", zap.String("results", string(result)), zap.String("query", queryString))
 
-	return r.metricsTranslator.ToMetricsFamily(
+	return Translator{}.ToMetricsFamily(
 		p,
 		searchResult,
 	)

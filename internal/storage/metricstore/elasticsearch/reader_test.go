@@ -81,11 +81,11 @@ var mockCallRateQuery = `{
 }`
 
 const (
-	mockEsValidResponse           = "testdata/test_valid_es.json"
-	mockCallRateResponse          = "testdata/test_call_rate.json"
-	mockCallRateOperationResponse = "testdata/test_call_rate_operation.json"
-	mockEmptyResponse             = "testdata/test_empty.json"
-	mockErrorResponse             = "testdata/test_error_es.json"
+	mockEsValidResponse           = "testdata/output_valid_es.json"
+	mockCallRateResponse          = "testdata/output_call_rate.json"
+	mockCallRateOperationResponse = "testdata/output_call_rate_operation.json"
+	mockEmptyResponse             = "testdata/output_empty.json"
+	mockErrorResponse             = "testdata/output_error_es.json"
 )
 
 type metricsTestCase struct {

@@ -17,11 +17,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
 
-func TestNewTranslator(t *testing.T) {
-	translator := NewTranslator()
-	require.NotNil(t, translator)
-}
-
 func TestToMetricsFamily(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -78,7 +73,7 @@ func TestToMetricsFamily(t *testing.T) {
 		},
 	}
 
-	translator := NewTranslator()
+	translator := Translator{}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := translator.ToMetricsFamily(tt.params, tt.result)
@@ -147,7 +142,7 @@ func TestToDomainMetrics(t *testing.T) {
 		},
 	}
 
-	translator := NewTranslator()
+	translator := Translator{}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := translator.toDomainMetrics(tt.params, tt.result)
@@ -190,7 +185,7 @@ func TestToDomainMetrics_ErrorCases(t *testing.T) {
 		},
 	}
 
-	translator := NewTranslator()
+	translator := Translator{}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := translator.toDomainMetrics(tt.params, tt.result)

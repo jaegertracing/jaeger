@@ -17,11 +17,6 @@ import (
 // Translator converts Elasticsearch aggregations to Jaeger's metrics model.
 type Translator struct{}
 
-// NewTranslator returns a new Translator.
-func NewTranslator() Translator {
-	return Translator{}
-}
-
 // ToMetricsFamily converts Elasticsearch aggregations to Jaeger's MetricFamily.
 func (d Translator) ToMetricsFamily(m MetricsQueryParams, result *elastic.SearchResult) (*metrics.MetricFamily, error) {
 	domainMetrics, err := d.toDomainMetrics(m, result)
