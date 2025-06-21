@@ -24,6 +24,7 @@ require (
 	github.com/jaegertracing/jaeger-idl v0.6.0
 	github.com/kr/pretty v0.3.1
 	github.com/olivere/elastic v6.2.37+incompatible
+	github.com/olivere/elastic/v7 v7.0.32
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.127.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.127.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.127.0
