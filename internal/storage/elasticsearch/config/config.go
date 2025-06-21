@@ -20,7 +20,7 @@ import (
 
 	"github.com/asaskevich/govalidator"
 	esV8 "github.com/elastic/go-elasticsearch/v9"
-	"github.com/olivere/elastic"
+	"github.com/olivere/elastic/v7"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"

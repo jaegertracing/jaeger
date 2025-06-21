@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/olivere/elastic"
+	"github.com/olivere/elastic/v7"
 	"go.uber.org/zap"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
@@ -83,7 +83,7 @@ func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput
 	}
 	output := make([]dbmodel.TimeThroughput, len(searchResult.Hits.Hits))
 	for i, hit := range searchResult.Hits.Hits {
-		if err := json.Unmarshal(*hit.Source, &output[i]); err != nil {
+		if err := json.Unmarshal(hit.Source, &output[i]); err != nil {
 			return nil, fmt.Errorf("unmarshalling documents failed: %w", err)
 		}
 	}
@@ -132,7 +132,7 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 	latestTime := time.Time{}
 	for _, hit := range searchResult.Hits.Hits {
 		var data dbmodel.TimeProbabilitiesAndQPS
-		if err = json.Unmarshal(*hit.Source, &data); err != nil {
+		if err = json.Unmarshal(hit.Source, &data); err != nil {
 			return nil, fmt.Errorf("unmarshalling documents failed: %w", err)
 		}
 		if data.Timestamp.After(latestTime) {

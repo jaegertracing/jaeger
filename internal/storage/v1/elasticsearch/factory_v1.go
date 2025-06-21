@@ -122,7 +122,7 @@ func (f *Factory) InheritSettingsFrom(other storage.Factory) {
 }
 
 func (f *Factory) IsArchiveCapable() bool {
-	return f.Options.Config.namespace == archiveNamespace && f.Options.Config.Enabled
+	return f.Options.Config.namespace == archiveNamespace && f.Options.Config.Configuration.Enabled
 }
 
 func (f *Factory) getConfig() *config.Configuration {
