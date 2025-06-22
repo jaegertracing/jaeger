@@ -317,7 +317,7 @@ func TestLoadTokenFromFile(t *testing.T) {
 				require.NoError(t, os.WriteFile(tempFile, []byte("\n \t\n"), 0o600))
 				return tempFile
 			},
-			wantToken: "\n \t\n",
+			wantToken: "\n \t",
 		},
 	}
 
