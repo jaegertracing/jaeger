@@ -25,7 +25,7 @@ func TestAPIKeyFromContext(t *testing.T) {
 	assert.True(t, ok)
 
 	// Non-string value in context (simulate misuse)
-	ctxWithNonString := context.WithValue(context.Background(), APIKeyContextKey{}, 123)
+	ctxWithNonString := context.WithValue(context.Background(), apiKeyContextKey{}, 123)
 	apiKey, ok = APIKeyFromContext(ctxWithNonString)
 	assert.Empty(t, apiKey)
 	assert.False(t, ok)

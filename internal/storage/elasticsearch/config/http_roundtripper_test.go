@@ -71,7 +71,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				}
 			},
 			setupCtx: func(ctx context.Context) context.Context {
-				return context.WithValue(ctx, bearertoken.APIKeyContextKey{}, "context-api-key")
+				return bearertoken.ContextWithAPIKey(ctx, "context-api-key")
 			},
 			expectedType:   "bearertoken.RoundTripper",
 			expectedScheme: "ApiKey",
@@ -92,7 +92,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				}
 			},
 			setupCtx: func(ctx context.Context) context.Context {
-				return context.WithValue(ctx, bearertoken.APIKeyContextKey{}, "context-api-key")
+				return bearertoken.ContextWithAPIKey(ctx, "context-api-key")
 			},
 			wantLogMsgs: []string{
 				"Both API key file and context propagation are enabled - context token will take precedence over file-based token",

@@ -6,11 +6,11 @@ package bearertoken
 import "context"
 
 // APIKeyContextKey is the type used as a key for storing API keys in context.
-type APIKeyContextKey struct{}
+type apiKeyContextKey struct{}
 
 // APIKeyFromContext retrieves the API key from the context.
 func APIKeyFromContext(ctx context.Context) (string, bool) {
-	val := ctx.Value(APIKeyContextKey{})
+	val := ctx.Value(apiKeyContextKey{})
 	if val == nil {
 		return "", false
 	}
@@ -25,5 +25,5 @@ func ContextWithAPIKey(ctx context.Context, apiKey string) context.Context {
 	if apiKey == "" {
 		return ctx
 	}
-	return context.WithValue(ctx, APIKeyContextKey{}, apiKey)
+	return context.WithValue(ctx, apiKeyContextKey{}, apiKey)
 }

@@ -375,6 +375,7 @@ func getHTTPRoundTripper(c *config.Configuration) (rt http.RoundTripper, err err
 		Transport:       httpTransport,
 		OverrideFromCtx: c.TokenOverrideFromContext,
 		StaticToken:     token,
+		AuthScheme:      "Bearer",
 	}, nil
 }
 

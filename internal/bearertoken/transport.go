@@ -4,36 +4,9 @@
 package bearertoken
 
 import (
-	"context"
 	"errors"
 	"net/http"
-	"net/url"
 )
-
-// TokenFromContextFunc is a function that retrieves a token from context.
-type TokenFromContextFunc func(ctx context.Context) (string, bool)
-
-// cloneRequest returns a clone of the provided request for modification.
-func cloneRequest(r *http.Request) *http.Request {
-	// Shallow copy of the struct
-	clone := new(http.Request)
-	*clone = *r
-
-	// Deep copy of the URL
-	if r.URL != nil {
-		cloneURL := new(url.URL)
-		*cloneURL = *r.URL
-		clone.URL = cloneURL
-	}
-
-	// Deep copy of the Header
-	clone.Header = make(http.Header, len(r.Header))
-	for k, v := range r.Header {
-		clone.Header[k] = append([]string(nil), v...)
-	}
-
-	return clone
-}
 
 // RoundTripper wraps another http.RoundTripper and injects
 // an authentication header with a token into requests.
@@ -45,7 +18,6 @@ type RoundTripper struct {
 	StaticToken string
 
 	// AuthScheme is the authentication scheme (e.g., "Bearer", "ApiKey").
-	// Defaults to "Bearer" if not specified.
 	AuthScheme string
 
 	// OverrideFromCtx enables reading token from Context.
@@ -61,16 +33,16 @@ func (tr RoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	authScheme := tr.AuthScheme
 	// Clone the request to avoid modifying the original
-	req := cloneRequest(r)
+	req := r.Clone(r.Context())
 
 	token := tr.StaticToken
 	if tr.OverrideFromCtx {
 		var ctxToken string
 		var ok bool
 		if tr.AuthScheme == "ApiKey" {
-			ctxToken, ok = APIKeyFromContext(req.Context())
+			ctxToken, ok = APIKeyFromContext(r.Context())
 		} else {
-			ctxToken, ok = GetBearerToken(req.Context())
+			ctxToken, ok = GetBearerToken(r.Context())
 		}
 		if ok && ctxToken != "" {
 			token = ctxToken

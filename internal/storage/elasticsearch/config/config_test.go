@@ -510,7 +510,7 @@ func TestNewClient(t *testing.T) {
 			config := test.config
 			ctx := context.Background()
 			if strings.Contains(test.name, "from context") {
-				ctx = context.WithValue(ctx, bearertoken.APIKeyContextKey{}, "context-api-key")
+				ctx = bearertoken.ContextWithAPIKey(ctx, "context-api-key")
 			}
 			client, err := NewClient(ctx, config, logger, metricsFactory)
 			if test.expectedError {
@@ -1015,20 +1015,194 @@ func TestTagKeysAsFields_WhitespaceLines(t *testing.T) {
 	assert.ElementsMatch(t, []string{"tag1", "tag2"}, tags)
 }
 
-func TestGetConfigOptions_AddLoggerOptionsError(t *testing.T) {
-	cfg := &Configuration{
-		Servers: []string{"http://localhost:9200"},
-		Authentication: Authentication{
-			BasicAuthentication: BasicAuthentication{
-				Username: "user",
-				Password: "secret",
+func TestGetConfigOptions(t *testing.T) {
+	tmpDir := t.TempDir()
+	apiKeyFile := filepath.Join(tmpDir, "apikey")
+	bearerTokenFile := filepath.Join(tmpDir, "bearertoken")
+	os.WriteFile(apiKeyFile, []byte("test-api-key"), 0o600)
+	os.WriteFile(bearerTokenFile, []byte("file-bearer-token"), 0o600)
+
+	tests := []struct {
+		name            string
+		cfg             *Configuration
+		ctx             context.Context
+		prepare         func()
+		wantErr         bool
+		wantErrContains string
+	}{
+		{
+			name: "APIKey file error",
+			cfg: &Configuration{
+				Servers: []string{"http://localhost:9200"},
+				Authentication: Authentication{
+					APIKeyAuthentication: APIKeyAuthentication{
+						FilePath: "non-existent-apikey-file",
+					},
+				},
 			},
+			ctx:             context.Background(),
+			wantErr:         true,
+			wantErrContains: "no such file or directory",
 		},
-		LogLevel: "invalid",
+		{
+			name: "APIKey file present",
+			cfg: &Configuration{
+				Servers: []string{"http://localhost:9200"},
+				Authentication: Authentication{
+					APIKeyAuthentication: APIKeyAuthentication{
+						FilePath: apiKeyFile,
+					},
+				},
+			},
+			ctx:     context.Background(),
+			wantErr: false,
+		},
+		{
+			name: "APIKey context propagation",
+			cfg: &Configuration{
+				Servers: []string{"http://localhost:9200"},
+				Authentication: Authentication{
+					APIKeyAuthentication: APIKeyAuthentication{
+						AllowFromContext: true,
+					},
+				},
+			},
+			ctx:     bearertoken.ContextWithAPIKey(context.Background(), "context-api-key"),
+			wantErr: false,
+		},
+		{
+			name: "APIKey file and context both enabled",
+			cfg: &Configuration{
+				Servers: []string{"http://localhost:9200"},
+				Authentication: Authentication{
+					APIKeyAuthentication: APIKeyAuthentication{
+						FilePath:         apiKeyFile,
+						AllowFromContext: true,
+					},
+				},
+			},
+			ctx:     bearertoken.ContextWithAPIKey(context.Background(), "context-api-key"),
+			wantErr: false,
+		},
+		{
+			name: "BearerToken context propagation",
+			cfg: &Configuration{
+				Servers: []string{"http://localhost:9200"},
+				Authentication: Authentication{
+					BearerTokenAuthentication: BearerTokenAuthentication{
+						AllowFromContext: true,
+					},
+				},
+				LogLevel: "info",
+			},
+			ctx:     bearertoken.ContextWithBearerToken(context.Background(), "context-bearer-token"),
+			wantErr: false,
+		},
+		{
+			name: "BearerToken file and context both enabled",
+			cfg: &Configuration{
+				Servers: []string{"http://localhost:9200"},
+				Authentication: Authentication{
+					BearerTokenAuthentication: BearerTokenAuthentication{
+						FilePath:         bearerTokenFile,
+						AllowFromContext: true,
+					},
+				},
+				LogLevel: "info",
+			},
+			ctx:     bearertoken.ContextWithBearerToken(context.Background(), "context-bearer-token"),
+			wantErr: false,
+		},
+		{
+			name: "BearerToken file error",
+			cfg: &Configuration{
+				Servers: []string{"http://localhost:9200"},
+				TLS:     configtls.ClientConfig{Insecure: true},
+				Authentication: Authentication{
+					BearerTokenAuthentication: BearerTokenAuthentication{
+						FilePath: "/does/not/exist/token",
+					},
+				},
+				LogLevel: "info",
+			},
+			ctx:             context.Background(),
+			wantErr:         true,
+			wantErrContains: "no such file or directory",
+		},
+		{
+			name: "No auth configured",
+			cfg: &Configuration{
+				Servers:  []string{"http://localhost:9200"},
+				LogLevel: "info",
+			},
+			ctx:     context.Background(),
+			wantErr: false,
+		},
+		{
+			name: "BasicAuth password file error",
+			cfg: &Configuration{
+				Servers: []string{"http://localhost:9200"},
+				Authentication: Authentication{
+					BasicAuthentication: BasicAuthentication{
+						PasswordFilePath: "/does/not/exist",
+					},
+				},
+			},
+			ctx:             context.Background(),
+			wantErr:         true,
+			wantErrContains: "failed to load password from file",
+		},
+		{
+			name: "BasicAuth both Password and PasswordFilePath set",
+			cfg: &Configuration{
+				Servers: []string{"http://localhost:9200"},
+				Authentication: Authentication{
+					BasicAuthentication: BasicAuthentication{
+						Password:         "secret",
+						PasswordFilePath: "/some/file/path",
+					},
+				},
+			},
+			ctx:             context.Background(),
+			wantErr:         true,
+			wantErrContains: "both Password and PasswordFilePath are set",
+		},
+		{
+			name: "Invalid log level triggers addLoggerOptions error",
+			cfg: &Configuration{
+				Servers: []string{"http://localhost:9200"},
+				Authentication: Authentication{
+					BasicAuthentication: BasicAuthentication{
+						Username: "user",
+						Password: "secret",
+					},
+				},
+				LogLevel: "invalid",
+			},
+			ctx:             context.Background(),
+			wantErr:         true,
+			wantErrContains: "unrecognized log-level",
+		},
 	}
+
 	logger := zap.NewNop()
-	_, err := cfg.getConfigOptions(context.Background(), logger)
-	assert.Error(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.prepare != nil {
+				tt.prepare()
+			}
+			options, err := tt.cfg.getConfigOptions(tt.ctx, logger)
+			if tt.wantErr {
+				require.Error(t, err)
+				if tt.wantErrContains != "" {
+					require.Contains(t, err.Error(), tt.wantErrContains)
+				}
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, options)
+			}
+		})
+	}
 }
 
 func TestMain(m *testing.M) {
