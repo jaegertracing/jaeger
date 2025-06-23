@@ -21,7 +21,7 @@ type mockClientBuilder struct {
 	createTemplateError error
 }
 
-func (m *mockClientBuilder) NewClient(*escfg.Configuration, *zap.Logger, metrics.Factory) (es.Client, error) {
+func (m *mockClientBuilder) NewClient(context.Context, *escfg.Configuration, *zap.Logger, metrics.Factory) (es.Client, error) {
 	if m.err == nil {
 		c := &mocks.Client{}
 		tService := &mocks.TemplateCreateService{}
@@ -48,7 +48,7 @@ func SetFactoryForTestWithCreateTemplateErr(f *FactoryBase, logger *zap.Logger, 
 	f.metricsFactory = metricsFactory
 	f.config = cfg
 	f.tracer = otel.GetTracerProvider()
-	client, err := f.newClientFn(cfg, logger, metricsFactory)
+	client, err := f.newClientFn(context.Background(), cfg, logger, metricsFactory)
 	if err != nil {
 		return err
 	}

@@ -49,7 +49,7 @@ type IndexOptions struct {
 	// Shards is the number of shards per index in Elasticsearch.
 	Shards int64 `mapstructure:"shards"`
 	// Replicas is the number of replicas per index in Elasticsearch.
-	Replicas int64 `mapstructure:"replicas"`
+	Replicas *int64 `mapstructure:"replicas"`
 	// RolloverFrequency contains the rollover frequency setting used to fetch
 	// indices from elasticsearch.
 	// Valid configuration options are: [hour, day].
@@ -101,6 +101,8 @@ type Configuration struct {
 	// TLS contains the TLS configuration for the connection to the ElasticSearch clusters.
 	TLS      configtls.ClientConfig `mapstructure:"tls"`
 	Sniffing Sniffing               `mapstructure:"sniffing"`
+	// Disable the Elasticsearch health check
+	DisableHealthCheck bool `mapstructure:"disable_health_check"`
 	// SendGetBodyAs is the HTTP verb to use for requests that contain a body.
 	SendGetBodyAs string `mapstructure:"send_get_body_as"`
 	// QueryTimeout contains the timeout used for queries. A timeout of zero means no timeout.
@@ -221,11 +223,11 @@ type BearerTokenAuthentication struct {
 }
 
 // NewClient creates a new ElasticSearch client
-func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
+func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
 	if len(c.Servers) < 1 {
 		return nil, errors.New("no servers specified")
 	}
-	options, err := c.getConfigOptions(logger)
+	options, err := c.getConfigOptions(ctx, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -249,14 +251,14 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 		Workers(c.BulkProcessing.Workers).
 		BulkActions(c.BulkProcessing.MaxActions).
 		FlushInterval(c.BulkProcessing.FlushInterval).
-		Do(context.Background())
+		Do(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	if c.Version == 0 {
 		// Determine ElasticSearch Version
-		pingResult, _, err := rawClient.Ping(c.Servers[0]).Do(context.Background())
+		pingResult, _, err := rawClient.Ping(c.Servers[0]).Do(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -282,7 +284,7 @@ func NewClient(c *Configuration, logger *zap.Logger, metricsFactory metrics.Fact
 
 	var rawClientV8 *esV8.Client
 	if c.Version >= 8 {
-		rawClientV8, err = newElasticsearchV8(c, logger)
+		rawClientV8, err = newElasticsearchV8(ctx, c, logger)
 		if err != nil {
 			return nil, fmt.Errorf("error creating v8 client: %w", err)
 		}
@@ -337,14 +339,14 @@ func (bcb *bulkCallback) invoke(id int64, requests []elastic.BulkableRequest, re
 	}
 }
 
-func newElasticsearchV8(c *Configuration, logger *zap.Logger) (*esV8.Client, error) {
+func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logger) (*esV8.Client, error) {
 	var options esV8.Config
 	options.Addresses = c.Servers
 	options.Username = c.Authentication.BasicAuthentication.Username
 	options.Password = c.Authentication.BasicAuthentication.Password
 	options.DiscoverNodesOnStart = c.Sniffing.Enabled
 	options.CompressRequestBody = c.HTTPCompression
-	transport, err := GetHTTPRoundTripper(c, logger)
+	transport, err := GetHTTPRoundTripper(ctx, c, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -357,7 +359,7 @@ func setDefaultIndexOptions(target, source *IndexOptions) {
 		target.Shards = source.Shards
 	}
 
-	if target.Replicas == 0 {
+	if target.Replicas == nil {
 		target.Replicas = source.Replicas
 	}
 
@@ -483,13 +485,15 @@ func (c *Configuration) TagKeysAsFields() ([]string, error) {
 }
 
 // getConfigOptions wraps the configs to feed to the ElasticSearch client init
-func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
+func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
+	// Disable health check when token from context is allowed, this is because at this time
+	// we don'r have a valid token to do the check ad if we don't disable the check the service that
+	// uses this won't start.
+	// Also disable health check when it was requested (health check has problems on AWS OpenSearch)
+	disableHealthCheck := c.Authentication.BearerTokenAuthentication.AllowFromContext || c.DisableHealthCheck
 	options := []elastic.ClientOptionFunc{
 		elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffing.Enabled),
-		// Disable health check when token from context is allowed, this is because at this time
-		// we don'r have a valid token to do the check ad if we don't disable the check the service that
-		// uses this won't start.
-		elastic.SetHealthcheck(!c.Authentication.BearerTokenAuthentication.AllowFromContext),
+		elastic.SetHealthcheck(!disableHealthCheck),
 	}
 	if c.Sniffing.UseHTTPS {
 		options = append(options, elastic.SetScheme("https"))
@@ -521,7 +525,7 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 		return options, err
 	}
 
-	transport, err := GetHTTPRoundTripper(c, logger)
+	transport, err := GetHTTPRoundTripper(ctx, c, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -563,9 +567,9 @@ func addLoggerOptions(options []elastic.ClientOptionFunc, logLevel string, logge
 }
 
 // GetHTTPRoundTripper returns configured http.RoundTripper
-func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTripper, error) {
+func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logger) (http.RoundTripper, error) {
 	if !c.TLS.Insecure {
-		ctlsConfig, err := c.TLS.LoadTLSConfig(context.Background())
+		ctlsConfig, err := c.TLS.LoadTLSConfig(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -581,7 +585,7 @@ func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTrippe
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: c.TLS.InsecureSkipVerify},
 	}
 	if c.TLS.CAFile != "" {
-		ctlsConfig, err := c.TLS.LoadTLSConfig(context.Background())
+		ctlsConfig, err := c.TLS.LoadTLSConfig(ctx)
 		if err != nil {
 			return nil, err
 		}

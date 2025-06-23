@@ -4,6 +4,7 @@
 package config
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -73,6 +74,10 @@ func copyToTempFile(t *testing.T, pattern string, filename string) (file *os.Fil
 	require.NoError(t, tempFile.Close())
 
 	return tempFile
+}
+
+func int64Ptr(v int64) *int64 {
+	return &v
 }
 
 func TestNewClient(t *testing.T) {
@@ -412,7 +417,7 @@ func TestNewClient(t *testing.T) {
 			logger := zap.NewNop()
 			metricsFactory := metrics.NullFactory
 			config := test.config
-			client, err := NewClient(config, logger, metricsFactory)
+			client, err := NewClient(context.Background(), config, logger, metricsFactory)
 			if test.expectedError {
 				require.Error(t, err)
 				require.Nil(t, client)
@@ -445,17 +450,17 @@ func TestApplyDefaults(t *testing.T) {
 			IndexPrefix: "hello",
 			Spans: IndexOptions{
 				Shards:   5,
-				Replicas: 1,
+				Replicas: int64Ptr(1),
 				Priority: 10,
 			},
 			Services: IndexOptions{
 				Shards:   5,
-				Replicas: 1,
+				Replicas: int64Ptr(1),
 				Priority: 20,
 			},
 			Dependencies: IndexOptions{
 				Shards:   5,
-				Replicas: 1,
+				Replicas: int64Ptr(1),
 				Priority: 30,
 			},
 			Sampling: IndexOptions{},
@@ -528,17 +533,17 @@ func TestApplyDefaults(t *testing.T) {
 					IndexPrefix: "hello",
 					Spans: IndexOptions{
 						Shards:   5,
-						Replicas: 1,
+						Replicas: int64Ptr(1),
 						Priority: 10,
 					},
 					Services: IndexOptions{
 						Shards:   5,
-						Replicas: 1,
+						Replicas: int64Ptr(1),
 						Priority: 20,
 					},
 					Dependencies: IndexOptions{
 						Shards:   5,
-						Replicas: 1,
+						Replicas: int64Ptr(1),
 						Priority: 30,
 					},
 				},
@@ -574,17 +579,17 @@ func TestApplyDefaults(t *testing.T) {
 					IndexPrefix: "hello",
 					Spans: IndexOptions{
 						Shards:   5,
-						Replicas: 1,
+						Replicas: int64Ptr(1),
 						Priority: 10,
 					},
 					Services: IndexOptions{
 						Shards:   5,
-						Replicas: 1,
+						Replicas: int64Ptr(1),
 						Priority: 20,
 					},
 					Dependencies: IndexOptions{
 						Shards:   5,
-						Replicas: 1,
+						Replicas: int64Ptr(1),
 						Priority: 30,
 					},
 				},

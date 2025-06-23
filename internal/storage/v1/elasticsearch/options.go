@@ -21,6 +21,7 @@ const (
 	suffixUsername                       = ".username"
 	suffixPassword                       = ".password"
 	suffixSniffer                        = ".sniffer"
+	suffixDisableHealthCheck             = ".disable-health-check"
 	suffixSnifferTLSEnabled              = ".sniffer-tls-enabled"
 	suffixTokenPath                      = ".token-file"
 	suffixPasswordPath                   = ".password-file"
@@ -75,7 +76,7 @@ var defaultIndexOptions = config.IndexOptions{
 	DateLayout:        initDateLayout(defaultIndexRolloverFrequency, defaultIndexDateSeparator),
 	RolloverFrequency: defaultIndexRolloverFrequency,
 	Shards:            5,
-	Replicas:          1,
+	Replicas:          ptr(int64(1)),
 	Priority:          0,
 }
 
@@ -114,6 +115,20 @@ func (cfg *namespaceConfig) getTLSFlagsConfig() tlscfg.ClientFlagsConfig {
 	}
 }
 
+// ptr returns a pointer to the given value.
+func ptr[T any](v T) *T {
+	return &v
+}
+
+// safeDerefInt64 safely dereferences a *int64 for use in flagSet.Int64.
+// If the pointer is nil (meaning no config was set), returns 0 as neutral default.
+func safeDerefInt64(ptr *int64) int64 {
+	if ptr != nil {
+		return *ptr
+	}
+	return 0
+}
+
 // AddFlags adds flags for Options
 func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	addFlags(flagSet, &opt.Config)
@@ -140,6 +155,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixSniffer,
 		nsConfig.Sniffing.Enabled,
 		"The sniffer config for Elasticsearch; client uses sniffing process to find all nodes automatically, disable if not required")
+	flagSet.Bool(
+		nsConfig.namespace+suffixDisableHealthCheck,
+		nsConfig.DisableHealthCheck,
+		"Disable the Elasticsearch health check.")
 	flagSet.String(
 		nsConfig.namespace+suffixServerURLs,
 		defaultServerURL,
@@ -164,7 +183,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	)
 	flagSet.Int64(
 		nsConfig.namespace+suffixNumReplicas,
-		nsConfig.Indices.Spans.Replicas,
+		safeDerefInt64(nsConfig.Indices.Spans.Replicas),
 		"The number of replicas per index in Elasticsearch")
 	flagSet.Int64(
 		nsConfig.namespace+suffixPrioritySpanTemplate,
@@ -305,6 +324,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Authentication.BasicAuthentication.PasswordFilePath = v.GetString(cfg.namespace + suffixPasswordPath)
 	cfg.Sniffing.Enabled = v.GetBool(cfg.namespace + suffixSniffer)
 	cfg.Sniffing.UseHTTPS = v.GetBool(cfg.namespace + suffixSnifferTLSEnabled)
+	cfg.DisableHealthCheck = v.GetBool(cfg.namespace + suffixDisableHealthCheck)
 	cfg.Servers = strings.Split(stripWhiteSpace(v.GetString(cfg.namespace+suffixServerURLs)), ",")
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
 	cfg.AdaptiveSamplingLookback = v.GetDuration(cfg.namespace + suffixAdaptiveSamplingLookback)
@@ -314,10 +334,13 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Indices.Sampling.Shards = v.GetInt64(cfg.namespace + suffixNumShards)
 	cfg.Indices.Dependencies.Shards = v.GetInt64(cfg.namespace + suffixNumShards)
 
-	cfg.Indices.Spans.Replicas = v.GetInt64(cfg.namespace + suffixNumReplicas)
-	cfg.Indices.Services.Replicas = v.GetInt64(cfg.namespace + suffixNumReplicas)
-	cfg.Indices.Sampling.Replicas = v.GetInt64(cfg.namespace + suffixNumReplicas)
-	cfg.Indices.Dependencies.Replicas = v.GetInt64(cfg.namespace + suffixNumReplicas)
+	// Note: We use a pointer type for Replicas to distinguish between "unset" and "explicit 0".
+	// Each field receives its own pointer to avoid accidental shared state.
+	replicas := v.GetInt64(cfg.namespace + suffixNumReplicas)
+	cfg.Indices.Spans.Replicas = ptr(replicas)
+	cfg.Indices.Services.Replicas = ptr(replicas)
+	cfg.Indices.Sampling.Replicas = ptr(replicas)
+	cfg.Indices.Dependencies.Replicas = ptr(replicas)
 
 	cfg.Indices.Spans.Priority = v.GetInt64(cfg.namespace + suffixPrioritySpanTemplate)
 	cfg.Indices.Services.Priority = v.GetInt64(cfg.namespace + suffixPriorityServiceTemplate)
@@ -406,6 +429,7 @@ func DefaultConfig() config.Configuration {
 		Sniffing: config.Sniffing{
 			Enabled: false,
 		},
+		DisableHealthCheck:       false,
 		MaxSpanAge:               72 * time.Hour,
 		AdaptiveSamplingLookback: 72 * time.Hour,
 		BulkProcessing: config.BulkProcessing{
