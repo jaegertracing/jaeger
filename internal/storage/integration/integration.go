@@ -227,6 +227,9 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
 		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
+		if err != nil {
+			t.Logf("Error loading large trace: %v", err)
+		}
 		if len(traces) == 0 {
 			return false
 		}
@@ -234,7 +237,7 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 		return err == nil && len(actual.Spans) >= len(expected.Spans)
 	})
 
-	if !assert.True(t, found) {
+	if !assert.True(t, found, "loading large trace, expected=%d, actual=%d", len(expected.Spans), len(actual.Spans)) {
 		CompareTraces(t, expected, actual)
 		return
 	}
