@@ -8,6 +8,7 @@ package tracestore
 
 import (
 	"encoding/hex"
+	"fmt"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -29,7 +30,7 @@ const (
 
 // ToDBModel translates internal trace data into the DB Spans.
 // Returns slice of translated DB Spans and error if translation failed.
-func ToDBModel(td ptrace.Traces) []dbmodel.Span {
+func ToDBModel(td ptrace.Traces, int64AsString bool) []dbmodel.Span {
 	resourceSpans := td.ResourceSpans()
 
 	if resourceSpans.Len() == 0 {
@@ -39,7 +40,7 @@ func ToDBModel(td ptrace.Traces) []dbmodel.Span {
 	batches := make([]dbmodel.Span, 0, resourceSpans.Len())
 	for i := 0; i < resourceSpans.Len(); i++ {
 		rs := resourceSpans.At(i)
-		batch := resourceSpansToDbSpans(rs)
+		batch := resourceSpansToDbSpans(rs, int64AsString)
 		if batch != nil {
 			batches = append(batches, batch...)
 		}
@@ -48,7 +49,7 @@ func ToDBModel(td ptrace.Traces) []dbmodel.Span {
 	return batches
 }
 
-func resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans) []dbmodel.Span {
+func resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans, int64AsString bool) []dbmodel.Span {
 	resource := resourceSpans.Resource()
 	scopeSpans := resourceSpans.ScopeSpans()
 
@@ -56,7 +57,7 @@ func resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans) []dbmodel.Span {
 		return []dbmodel.Span{}
 	}
 
-	process := resourceToDbProcess(resource)
+	process := resourceToDbProcess(resource, int64AsString)
 
 	// Approximate the number of the spans as the number of the spans in the first
 	// instrumentation library info.
@@ -64,7 +65,7 @@ func resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans) []dbmodel.Span {
 
 	for _, scopeSpan := range scopeSpans.All() {
 		for _, span := range scopeSpan.Spans().All() {
-			dbSpan := spanToDbSpan(span, scopeSpan.Scope(), process)
+			dbSpan := spanToDbSpan(span, scopeSpan.Scope(), process, int64AsString)
 			dbSpans = append(dbSpans, dbSpan)
 		}
 	}
@@ -72,7 +73,7 @@ func resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans) []dbmodel.Span {
 	return dbSpans
 }
 
-func resourceToDbProcess(resource pcommon.Resource) dbmodel.Process {
+func resourceToDbProcess(resource pcommon.Resource, int64AsString bool) dbmodel.Process {
 	process := dbmodel.Process{}
 	attrs := resource.Attributes()
 	if attrs.Len() == 0 {
@@ -85,26 +86,32 @@ func resourceToDbProcess(resource pcommon.Resource) dbmodel.Process {
 			process.ServiceName = attr.AsString()
 			continue
 		}
-		tags = append(tags, attributeToDbTag(key, attr))
+		tags = append(tags, attributeToDbTag(key, attr, int64AsString))
 	}
 	process.Tags = tags
 	return process
 }
 
-func appendTagsFromAttributes(dest []dbmodel.KeyValue, attrs pcommon.Map) []dbmodel.KeyValue {
+func appendTagsFromAttributes(dest []dbmodel.KeyValue, attrs pcommon.Map, int64AsString bool) []dbmodel.KeyValue {
 	for key, attr := range attrs.All() {
-		dest = append(dest, attributeToDbTag(key, attr))
+		dest = append(dest, attributeToDbTag(key, attr, int64AsString))
 	}
 	return dest
 }
 
-func attributeToDbTag(key string, attr pcommon.Value) dbmodel.KeyValue {
+func attributeToDbTag(key string, attr pcommon.Value, int64AsString bool) dbmodel.KeyValue {
 	var tag dbmodel.KeyValue
 	switch attr.Type() {
 	case pcommon.ValueTypeBytes:
 		tag = dbmodel.KeyValue{Key: key, Value: hex.EncodeToString(attr.Bytes().AsRaw())}
 	case pcommon.ValueTypeMap:
 		tag = dbmodel.KeyValue{Key: key, Value: attr.AsString()}
+	case pcommon.ValueTypeInt:
+		if int64AsString {
+			tag = dbmodel.KeyValue{Key: key, Value: fmt.Sprintf("%d", attr.Int())}
+		} else {
+			tag = dbmodel.KeyValue{Key: key, Value: attr.Int()}
+		}
 	default:
 		tag = dbmodel.KeyValue{Key: key, Value: attr.AsRaw()}
 	}
@@ -125,7 +132,7 @@ func attributeToDbTag(key string, attr pcommon.Value) dbmodel.KeyValue {
 	return tag
 }
 
-func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, process dbmodel.Process) dbmodel.Span {
+func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, process dbmodel.Process, int64AsString bool) dbmodel.Span {
 	traceID := dbmodel.TraceID(span.TraceID().String())
 	parentSpanID := dbmodel.SpanID(span.ParentSpanID().String())
 	startTime := span.StartTimestamp().AsTime()
@@ -137,14 +144,14 @@ func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, pr
 		StartTime:       model.TimeAsEpochMicroseconds(startTime),
 		StartTimeMillis: model.TimeAsEpochMicroseconds(startTime) / 1000,
 		Duration:        model.DurationAsMicroseconds(span.EndTimestamp().AsTime().Sub(startTime)),
-		Tags:            getDbSpanTags(span, libraryTags),
-		Logs:            spanEventsToDbSpanLogs(span.Events()),
+		Tags:            getDbSpanTags(span, libraryTags, int64AsString),
+		Logs:            spanEventsToDbSpanLogs(span.Events(), int64AsString),
 		Process:         process,
 		Flags:           span.Flags(),
 	}
 }
 
-func getDbSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmodel.KeyValue {
+func getDbSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope, int64AsString bool) []dbmodel.KeyValue {
 	var spanKindTag, statusCodeTag, statusMsgTag dbmodel.KeyValue
 	var spanKindTagFound, statusCodeTagFound, statusMsgTagFound bool
 
@@ -180,7 +187,7 @@ func getDbSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmod
 	if libraryTagsFound {
 		tags = append(tags, libraryTags...)
 	}
-	tags = appendTagsFromAttributes(tags, span.Attributes())
+	tags = appendTagsFromAttributes(tags, span.Attributes(), int64AsString)
 	if spanKindTagFound {
 		tags = append(tags, spanKindTag)
 	}
@@ -240,7 +247,7 @@ func linksToDbSpanRefs(links ptrace.SpanLinkSlice, parentSpanID dbmodel.SpanID, 
 	return refs
 }
 
-func spanEventsToDbSpanLogs(events ptrace.SpanEventSlice) []dbmodel.Log {
+func spanEventsToDbSpanLogs(events ptrace.SpanEventSlice, int64AsString bool) []dbmodel.Log {
 	if events.Len() == 0 {
 		return nil
 	}
@@ -257,7 +264,7 @@ func spanEventsToDbSpanLogs(events ptrace.SpanEventSlice) []dbmodel.Log {
 				Value: event.Name(),
 			})
 		}
-		fields = appendTagsFromAttributes(fields, event.Attributes())
+		fields = appendTagsFromAttributes(fields, event.Attributes(), int64AsString)
 		logs = append(logs, dbmodel.Log{
 			Timestamp: model.TimeAsEpochMicroseconds(event.Timestamp().AsTime()),
 			Fields:    fields,

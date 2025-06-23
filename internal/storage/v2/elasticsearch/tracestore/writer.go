@@ -13,19 +13,21 @@ import (
 )
 
 type TraceWriter struct {
-	spanWriter spanstore.CoreSpanWriter
+	spanWriter    spanstore.CoreSpanWriter
+	int64AsString bool
 }
 
 // NewTraceWriter returns the TraceWriter for use
-func NewTraceWriter(p spanstore.SpanWriterParams) *TraceWriter {
+func NewTraceWriter(p spanstore.SpanWriterParams, int64AsString bool) *TraceWriter {
 	return &TraceWriter{
-		spanWriter: spanstore.NewSpanWriter(p),
+		spanWriter:    spanstore.NewSpanWriter(p),
+		int64AsString: int64AsString,
 	}
 }
 
 // WriteTraces convert the traces to ES Span model and write into the database
 func (t *TraceWriter) WriteTraces(_ context.Context, td ptrace.Traces) error {
-	dbSpans := ToDBModel(td)
+	dbSpans := ToDBModel(td, t.int64AsString)
 	for i := 0; i < len(dbSpans); i++ {
 		span := &dbSpans[i]
 		t.spanWriter.WriteSpan(model.EpochMicrosecondsAsTime(span.StartTime), span)

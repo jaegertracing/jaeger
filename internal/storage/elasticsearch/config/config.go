@@ -152,6 +152,8 @@ type Configuration struct {
 	Tags                     TagsAsFields  `mapstructure:"tags_as_fields"`
 	// Enabled, if set to true, enables the namespace for storage pointed to by this configuration.
 	Enabled bool `mapstructure:"-"`
+	// If true, int64 tags will be stored as strings for compatibility with Jaeger v1. Default: false.
+	Int64TagsAsString bool `mapstructure:"int64_tags_as_string"`
 }
 
 // TagsAsFields holds configuration for tag schema.
