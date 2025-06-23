@@ -104,14 +104,14 @@ func attributeToDbTag(key string, attr pcommon.Value, int64AsString bool) dbmode
 	switch attr.Type() {
 	case pcommon.ValueTypeBytes:
 		tag = dbmodel.KeyValue{Key: key, Value: hex.EncodeToString(attr.Bytes().AsRaw())}
-	case pcommon.ValueTypeMap:
-		tag = dbmodel.KeyValue{Key: key, Value: attr.AsString()}
 	case pcommon.ValueTypeInt:
 		if int64AsString {
 			tag = dbmodel.KeyValue{Key: key, Value: fmt.Sprintf("%d", attr.Int())}
 		} else {
 			tag = dbmodel.KeyValue{Key: key, Value: attr.Int()}
 		}
+	case pcommon.ValueTypeMap:
+		tag = dbmodel.KeyValue{Key: key, Value: attr.AsString()}
 	default:
 		tag = dbmodel.KeyValue{Key: key, Value: attr.AsRaw()}
 	}
