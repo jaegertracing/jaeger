@@ -95,7 +95,7 @@ func TestArchiveFactory(t *testing.T) {
 			})
 			require.Equal(t, test.expectedReadAlias, f.Options.GetConfig().ReadAliasSuffix)
 			require.Equal(t, test.expectedWriteAlias, f.Options.GetConfig().WriteAliasSuffix)
-			require.True(t, f.Options.Config.Configuration.UseReadWriteAliases)
+			require.True(t, f.Options.Config.UseReadWriteAliases)
 			require.Equal(t, DefaultConfig().BulkProcessing, f.Options.GetConfig().BulkProcessing)
 		})
 	}
