@@ -414,17 +414,17 @@ func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
 	trace := s.getTraceFixture(t, "example_trace")
 	repeatedSpan := trace.Spans[0]
 	trace.Spans = make([]*model.Span, 0, totalCount)
-	for i := 0; i < totalCount; i++ {
+	for i := range totalCount {
 		newSpan := new(model.Span)
 		*newSpan = *repeatedSpan
 		switch {
 		case i > 0 && i%dupFreq == 0:
 			newSpan.SpanID = repeatedSpan.SpanID
 		default:
-			newSpan.SpanID = model.SpanID(i)
+			newSpan.SpanID = model.SpanID(uint64(i) + 1) //nolint: gosec // G115
 		}
 		newSpan.StartTime = newSpan.StartTime.Add(time.Second * time.Duration(i+1))
-		trace.Spans = append(trace.Spans, newSpan)
+		trace.Spans[i] = newSpan
 	}
 	s.writeTrace(t, trace)
 	return trace
