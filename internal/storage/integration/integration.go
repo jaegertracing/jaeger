@@ -641,6 +641,6 @@ func (s *StorageIntegration) RunSpanStoreTests(t *testing.T) {
 	t.Run("GetOperations", s.testGetOperations)
 	t.Run("GetTrace", s.testGetTrace)
 	t.Run("GetLargeTrace", s.testGetLargeTrace)
-	t.Run("GetTraceWithDuplicatesSpans", s.testGetTraceWithDuplicates)
+	t.Run("GetTraceWithDuplicateSpans", s.testGetTraceWithDuplicates)
 	t.Run("FindTraces", s.testFindTraces)
 }
