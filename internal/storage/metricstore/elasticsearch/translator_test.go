@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/types"
-	"github.com/olivere/elastic"
+	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -224,7 +224,7 @@ func createTestSearchResultWithNonStringKey() *elastic.SearchResult {
 	}`)
 
 	aggs := make(elastic.Aggregations)
-	aggs[aggName] = &rawAggregation
+	aggs[aggName] = rawAggregation
 
 	return &elastic.SearchResult{
 		Aggregations: aggs,
@@ -240,7 +240,7 @@ func createTestSearchResultMissingDateHistogram() *elastic.SearchResult {
 	}`)
 
 	aggs := make(elastic.Aggregations)
-	aggs[aggName] = &rawAggregation
+	aggs[aggName] = rawAggregation
 
 	return &elastic.SearchResult{
 		Aggregations: aggs,
@@ -284,7 +284,7 @@ func createTestSearchResult(groupByOperation bool) *elastic.SearchResult {
 	}
 
 	aggs := make(elastic.Aggregations)
-	aggs[aggName] = &rawAggregation
+	aggs[aggName] = rawAggregation
 
 	return &elastic.SearchResult{
 		Aggregations: aggs,

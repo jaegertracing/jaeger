@@ -6,13 +6,12 @@ package depstore
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/olivere/elastic"
+	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -191,7 +190,7 @@ func createSearchResult(dependencyLink string) *elastic.SearchResult {
 	dependencyLinkRaw := []byte(dependencyLink)
 	hits := make([]*elastic.SearchHit, 1)
 	hits[0] = &elastic.SearchHit{
-		Source: (*json.RawMessage)(&dependencyLinkRaw),
+		Source: dependencyLinkRaw,
 	}
 	searchResult := &elastic.SearchResult{Hits: &elastic.SearchHits{Hits: hits}}
 	return searchResult

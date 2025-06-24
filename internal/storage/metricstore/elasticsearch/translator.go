@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/types"
-	"github.com/olivere/elastic"
+	"github.com/olivere/elastic/v7"
 
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 )

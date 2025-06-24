@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	elasticv7 "github.com/olivere/elastic/v7"
+	"github.com/olivere/elastic/v7"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -56,8 +56,8 @@ type MetricsQueryParams struct {
 	metricstore.BaseQueryParameters
 	metricName string
 	metricDesc string
-	boolQuery  elasticv7.BoolQuery
-	aggQuery   elasticv7.Aggregation
+	boolQuery  elastic.BoolQuery
+	aggQuery   elastic.Aggregation
 	// processMetricsFunc is a function that processes the raw time-series
 	// data (pairs of timestamp and value) returned from Elasticsearch
 	// aggregations into the final metric values. This is used for calculations
@@ -144,24 +144,24 @@ func trimMetricPointsBefore(mf *metrics.MetricFamily, startMillis int64) *metric
 }
 
 // buildQuery constructs the Elasticsearch bool query.
-func (MetricsReader) buildQuery(params metricstore.BaseQueryParameters, timeRange TimeRange) elasticv7.BoolQuery {
-	boolQuery := elasticv7.NewBoolQuery()
+func (MetricsReader) buildQuery(params metricstore.BaseQueryParameters, timeRange TimeRange) elastic.BoolQuery {
+	boolQuery := elastic.NewBoolQuery()
 
-	serviceNameQuery := elasticv7.NewTermsQuery("process.serviceName", buildInterfaceSlice(params.ServiceNames)...)
+	serviceNameQuery := elastic.NewTermsQuery("process.serviceName", buildInterfaceSlice(params.ServiceNames)...)
 	boolQuery.Filter(serviceNameQuery)
 
 	// Span kind filter
 	spanKindQuery := buildSpanKindQuery(params.SpanKinds)
-	nestedTagsQuery := elasticv7.NewNestedQuery("tags",
-		elasticv7.NewBoolQuery().
+	nestedTagsQuery := elastic.NewNestedQuery("tags",
+		elastic.NewBoolQuery().
 			Must(
-				elasticv7.NewTermQuery("tags.key", "span.kind"),
+				elastic.NewTermQuery("tags.key", "span.kind"),
 				spanKindQuery,
 			),
 	)
 	boolQuery.Filter(nestedTagsQuery)
 
-	rangeQuery := elasticv7.NewRangeQuery("startTimeMillis").
+	rangeQuery := elastic.NewRangeQuery("startTimeMillis").
 		// Use extendedStartTimeMillis to allow for a 10-minute lookback.
 		Gte(timeRange.extendedStartTimeMillis).
 		Lte(timeRange.endTimeMillis).
@@ -247,29 +247,29 @@ func getCallRateProcessMetrics(pairs []*Pair, m metricstore.BaseQueryParameters)
 }
 
 // buildSpanKindQuery constructs the query for span kinds.
-func buildSpanKindQuery(spanKinds []string) elasticv7.Query {
+func buildSpanKindQuery(spanKinds []string) elastic.Query {
 	querySpanKinds := normalizeSpanKinds(spanKinds)
 	if len(querySpanKinds) == 1 {
-		return elasticv7.NewTermQuery("tags.value", querySpanKinds[0])
+		return elastic.NewTermQuery("tags.value", querySpanKinds[0])
 	}
 
-	shouldQuery := elasticv7.NewBoolQuery()
+	shouldQuery := elastic.NewBoolQuery()
 	for _, kind := range querySpanKinds {
-		shouldQuery.Should(elasticv7.NewTermQuery("tags.value", kind))
+		shouldQuery.Should(elastic.NewTermQuery("tags.value", kind))
 	}
 	return shouldQuery
 }
 
 // buildCallRateAggregations constructs the GetCallRate aggregations.
-func (MetricsReader) buildCallRateAggregations(params *metricstore.CallRateQueryParameters, timeRange TimeRange) elasticv7.Aggregation {
+func (MetricsReader) buildCallRateAggregations(params *metricstore.CallRateQueryParameters, timeRange TimeRange) elastic.Aggregation {
 	fixedIntervalString := strconv.FormatInt(params.Step.Milliseconds(), 10) + "ms"
-	dateHistoAgg := elasticv7.NewDateHistogramAggregation().
+	dateHistoAgg := elastic.NewDateHistogramAggregation().
 		Field("startTimeMillis").
 		FixedInterval(fixedIntervalString).
 		MinDocCount(0).
 		ExtendedBounds(timeRange.extendedStartTimeMillis, timeRange.endTimeMillis)
 
-	cumulativeSumAgg := elasticv7.NewCumulativeSumAggregation().BucketsPath("_count")
+	cumulativeSumAgg := elastic.NewCumulativeSumAggregation().BucketsPath("_count")
 
 	// Corresponding AGG ES query:
 	// "aggs": {
@@ -295,7 +295,7 @@ func (MetricsReader) buildCallRateAggregations(params *metricstore.CallRateQuery
 		SubAggregation(culmuAggName, cumulativeSumAgg)
 
 	if params.GroupByOperation {
-		operationsAgg := elasticv7.NewTermsAggregation().
+		operationsAgg := elastic.NewTermsAggregation().
 			Field("operationName").
 			Size(10).
 			SubAggregation("date_histogram", dateHistoAgg) // Nest the dateHistoAgg inside operationsAgg

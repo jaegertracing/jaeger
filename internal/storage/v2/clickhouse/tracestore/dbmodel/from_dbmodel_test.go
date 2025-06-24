@@ -244,7 +244,7 @@ func TestConvertStatusCode(t *testing.T) {
 		{
 			name: "OK status code",
 			args: args{
-				sc: "OK",
+				sc: "Ok",
 			},
 			want: ptrace.StatusCodeOk,
 		},

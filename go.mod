@@ -2,7 +2,7 @@ module github.com/jaegertracing/jaeger
 
 go 1.23.7
 
-toolchain go1.24.3
+toolchain go1.24.4
 
 require (
 	github.com/ClickHouse/ch-go v0.66.0
@@ -23,7 +23,6 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/jaegertracing/jaeger-idl v0.6.0
 	github.com/kr/pretty v0.3.1
-	github.com/olivere/elastic v6.2.37+incompatible
 	github.com/olivere/elastic/v7 v7.0.32
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.127.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.127.0
