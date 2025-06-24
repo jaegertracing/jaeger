@@ -238,7 +238,7 @@ func (s *StorageIntegration) testGetLargeTrace(t *testing.T) {
 		return len(actual.Spans) == len(expected.Spans)
 	})
 	t.Logf("%-23s Loaded large trace, expected=%d, actual=%d", time.Now().Format("2006-01-02 15:04:05.999"), len(expected.Spans), len(actual.Spans))
-	if !assert.True(t, found, "loading large trace, expected=%d, actual=%d", len(expected.Spans), len(actual.Spans)) {
+	if !assert.True(t, found, "error loading large trace, expected=%d, actual=%d", len(expected.Spans), len(actual.Spans)) {
 		CompareTraces(t, expected, actual)
 	}
 }
