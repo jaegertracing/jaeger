@@ -107,10 +107,14 @@ func dbSpanToSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
 	attrs := span.Attributes()
 	attrs.EnsureCapacity(len(dbSpan.Tags))
 	dbTagsToAttributes(dbSpan.Tags, attrs)
-	if spanKindAttr, ok := attrs.Get(model.SpanKindKey); ok {
+
+	if dbSpan.SpanKind != "" {
+		span.SetKind(dbSpanKindToOTELSpanKind(dbSpan.SpanKind))
+	} else if spanKindAttr, ok := attrs.Get(model.SpanKindKey); ok {
 		span.SetKind(dbSpanKindToOTELSpanKind(spanKindAttr.Str()))
 		attrs.Remove(model.SpanKindKey)
 	}
+	
 	setSpanStatus(attrs, span)
 
 	span.TraceState().FromRaw(getTraceStateFromAttrs(attrs))

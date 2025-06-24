@@ -54,6 +54,7 @@ type Span struct {
 	// so Jaeger maps StartTime to a 'long' type. This extra StartTimeMillis field
 	// works around this issue, enabling timerange queries.
 	StartTimeMillis uint64     `json:"startTimeMillis"`
+	SpanKind        string     `json:"spanKind,omitempty"`
 	Duration        uint64     `json:"duration"` // microseconds
 	Tags            []KeyValue `json:"tags"`
 	// Alternative representation of tags for better kibana support
