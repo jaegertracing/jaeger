@@ -218,9 +218,9 @@ func (s *StorageIntegration) testGetLargeTrace(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
-	t.Log("Testing Large Trace over 10K with duplicate IDs every 100 spans...")
+	t.Log("Testing Large Trace over 10K without duplicates...")
 
-	expected := s.writeLargeTraceWithDuplicateSpanIds(t, 10008, 100)
+	expected := s.writeLargeTraceWithDuplicateSpanIds(t, 10008, 0)
 	expectedTraceID := v1adapter.FromV1TraceID(expected.Spans[0].TraceID)
 
 	actual := &model.Trace{} // no spans
@@ -229,16 +229,46 @@ func (s *StorageIntegration) testGetLargeTrace(t *testing.T) {
 		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
 		if err != nil {
 			t.Logf("Error loading large trace: %v", err)
+			return false
 		}
 		if len(traces) == 0 {
 			return false
 		}
 		actual = traces[0]
-		return err == nil && len(actual.Spans) >= len(expected.Spans)
+		return len(actual.Spans) == len(expected.Spans)
+	})
+	t.Logf("%-23s Loaded large trace, expected=%d, actual=%d", time.Now().Format("2006-01-02 15:04:05.999"), len(expected.Spans), len(actual.Spans))
+	if !assert.True(t, found, "loading large trace, expected=%d, actual=%d", len(expected.Spans), len(actual.Spans)) {
+		CompareTraces(t, expected, actual)
+	}
+}
+
+func (s *StorageIntegration) testGetTraceWithDuplicates(t *testing.T) {
+	s.skipIfNeeded(t)
+	defer s.cleanUp(t)
+
+	t.Log("Testing Trace with duplicate span IDs...")
+
+	expected := s.writeLargeTraceWithDuplicateSpanIds(t, 200, 20)
+	expectedTraceID := v1adapter.FromV1TraceID(expected.Spans[0].TraceID)
+
+	actual := &model.Trace{} // no spans
+	found := s.waitForCondition(t, func(_ *testing.T) bool {
+		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
+		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
+		if err != nil {
+			t.Logf("Error loading trace: %v", err)
+			return false
+		}
+		if len(traces) == 0 {
+			return false
+		}
+		actual = traces[0]
+		return len(actual.Spans) >= len(expected.Spans)
 	})
 
-	t.Logf("%-23s Loaded large trace, expected=%d, actual=%d", time.Now().Format("2006-01-02 15:04:05.999"), len(expected.Spans), len(actual.Spans))
-	if !assert.True(t, found, "error loading large trace, expected=%d, actual=%d", len(expected.Spans), len(actual.Spans)) {
+	t.Logf("%-23s Loaded trace, expected=%d, actual=%d", time.Now().Format("2006-01-02 15:04:05.999"), len(expected.Spans), len(actual.Spans))
+	if !assert.True(t, found, "loading trace with duplicates, expected at least %d spans, actual=%d", len(expected.Spans), len(actual.Spans)) {
 		CompareTraces(t, expected, actual)
 		return
 	}
@@ -418,7 +448,7 @@ func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
 		newSpan := new(model.Span)
 		*newSpan = *repeatedSpan
 		switch {
-		case i > 0 && i%dupFreq == 0:
+		case dupFreq > 0 && i > 0 && i%dupFreq == 0:
 			newSpan.SpanID = repeatedSpan.SpanID
 		default:
 			newSpan.SpanID = model.SpanID(uint64(i) + 1) //nolint: gosec // G115
@@ -615,11 +645,12 @@ func (s *StorageIntegration) RunAll(t *testing.T) {
 	t.Run("GetLatestProbability", s.testGetLatestProbability)
 }
 
-// RunTestSpanstore runs only span related integration tests
+// RunSpanStoreTests runs only span related integration tests
 func (s *StorageIntegration) RunSpanStoreTests(t *testing.T) {
 	t.Run("GetServices", s.testGetServices)
 	t.Run("GetOperations", s.testGetOperations)
 	t.Run("GetTrace", s.testGetTrace)
 	t.Run("GetLargeTrace", s.testGetLargeTrace)
+	t.Run("GetDuplicateTrace", s.testGetTraceWithDuplicates)
 	t.Run("FindTraces", s.testFindTraces)
 }
