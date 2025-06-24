@@ -413,7 +413,7 @@ func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
 ) *model.Trace {
 	trace := s.getTraceFixture(t, "example_trace")
 	repeatedSpan := trace.Spans[0]
-	trace.Spans = make([]*model.Span, 0, totalCount)
+	trace.Spans = make([]*model.Span, totalCount)
 	for i := range totalCount {
 		newSpan := new(model.Span)
 		*newSpan = *repeatedSpan
