@@ -219,7 +219,7 @@ func (s *StorageIntegration) helperTestGetTrace(
 	traceSize int,
 	duplicateCount int,
 	testName string,
-	validator func(t *testing.T, expected, actual *model.Trace),
+	validator func(t *testing.T, actual *model.Trace),
 ) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
@@ -251,7 +251,7 @@ func (s *StorageIntegration) helperTestGetTrace(
 	}
 
 	if validator != nil {
-		validator(t, expected, actual)
+		validator(t, actual)
 	}
 }
 
@@ -260,7 +260,7 @@ func (s *StorageIntegration) testGetLargeTrace(t *testing.T) {
 }
 
 func (s *StorageIntegration) testGetTraceWithDuplicates(t *testing.T) {
-	validator := func(t *testing.T, _, actual *model.Trace) {
+	validator := func(t *testing.T, actual *model.Trace) {
 		duplicateCount := 0
 		seenIDs := make(map[model.SpanID]int)
 
