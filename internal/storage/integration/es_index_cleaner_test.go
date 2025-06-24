@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	elasticsearch8 "github.com/elastic/go-elasticsearch/v9"
-	"github.com/olivere/elastic"
+	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 

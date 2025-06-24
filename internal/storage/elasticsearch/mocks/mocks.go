@@ -13,7 +13,7 @@ import (
 	"io"
 
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	"github.com/olivere/elastic"
+	"github.com/olivere/elastic/v7"
 	mock "github.com/stretchr/testify/mock"
 )
 

@@ -4,13 +4,12 @@
 package samplingstore
 
 import (
-	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/olivere/elastic"
+	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -430,7 +429,7 @@ func createSearchResult(rawJsonStr string) *elastic.SearchResult {
 	rawJsonArr := []byte(rawJsonStr)
 	hits := make([]*elastic.SearchHit, 1)
 	hits[0] = &elastic.SearchHit{
-		Source: (*json.RawMessage)(&rawJsonArr),
+		Source: rawJsonArr,
 	}
 	searchResult := &elastic.SearchResult{Hits: &elastic.SearchHits{Hits: hits}}
 	return searchResult

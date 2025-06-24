@@ -179,8 +179,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Duration(
 		nsConfig.namespace+suffixServiceCacheTTL,
 		nsConfig.ServiceCacheTTL,
-		"The TTL for the cache of known service names",
-	)
+		"The TTL for the cache of known service names")
 	flagSet.Int64(
 		nsConfig.namespace+suffixNumReplicas,
 		safeDerefInt64(nsConfig.Indices.Spans.Replicas),
