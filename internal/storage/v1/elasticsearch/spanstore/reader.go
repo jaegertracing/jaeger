@@ -411,7 +411,8 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 				nextTime = val
 			}
 
-			s := s.sourceFn(query, nextTime)
+			s := s.sourceFn(query, nextTime).
+				TrackTotalHits(true)
 			searchRequests[i] = elastic.NewSearchRequest().
 				IgnoreUnavailable(true).
 				Source(s)

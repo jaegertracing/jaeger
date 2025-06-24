@@ -327,6 +327,12 @@ func TestSpanReader_GetTrace(t *testing.T) {
 	})
 }
 
+func newSearchRequest(fn *elastic.SearchSource) *elastic.SearchRequest {
+	return elastic.NewSearchRequest().
+		IgnoreUnavailable(true).
+		Source(fn)
+}
+
 func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		traceID1 := dbmodel.TraceID(testingTraceId + "1")
@@ -357,17 +363,11 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 
 		traceID1Query := elastic.NewTermQuery(traceIDField, string(traceID1))
 		id1Query := elastic.NewBoolQuery().Must(traceID1Query)
-		id1Search := elastic.NewSearchRequest().
-			IgnoreUnavailable(true).
-			Source(r.reader.sourceFn(id1Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))))
+		id1Search := newSearchRequest(r.reader.sourceFn(id1Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))).TrackTotalHits(true))
 		traceID2Query := elastic.NewTermQuery(traceIDField, string(traceID2))
 		id2Query := elastic.NewBoolQuery().Must(traceID2Query)
-		id2Search := elastic.NewSearchRequest().
-			IgnoreUnavailable(true).
-			Source(r.reader.sourceFn(id2Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))))
-		id1SearchSpanTime := elastic.NewSearchRequest().
-			IgnoreUnavailable(true).
-			Source(r.reader.sourceFn(id1Query, spanID1.StartTime))
+		id2Search := newSearchRequest(r.reader.sourceFn(id2Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))).TrackTotalHits(true))
+		id1SearchSpanTime := newSearchRequest(r.reader.sourceFn(id1Query, spanID1.StartTime).TrackTotalHits(true))
 
 		multiSearchService := &mocks.MultiSearchService{}
 		firstMultiSearch := &mocks.MultiSearchService{}
