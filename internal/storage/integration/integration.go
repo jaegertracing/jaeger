@@ -214,13 +214,13 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 	}
 }
 
-func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
+func (s *StorageIntegration) testGetLargeTrace(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
-	t.Log("Testing Large Trace over 10K with duplicate IDs...")
+	t.Log("Testing Large Trace over 10K with duplicate IDs every 100 spans...")
 
-	expected := s.writeLargeTraceWithDuplicateSpanIds(t)
+	expected := s.writeLargeTraceWithDuplicateSpanIds(t, 10008, 100)
 	expectedTraceID := v1adapter.FromV1TraceID(expected.Spans[0].TraceID)
 
 	actual := &model.Trace{} // no spans
@@ -237,7 +237,8 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 		return err == nil && len(actual.Spans) >= len(expected.Spans)
 	})
 
-	if !assert.True(t, found, "loading large trace, expected=%d, actual=%d", len(expected.Spans), len(actual.Spans)) {
+	t.Logf("Loaded large trace, expected=%d, actual=%d", len(expected.Spans), len(actual.Spans))
+	if !assert.True(t, found, "error loading large trace, expected=%d, actual=%d", len(expected.Spans), len(actual.Spans)) {
 		CompareTraces(t, expected, actual)
 		return
 	}
@@ -405,15 +406,19 @@ func (s *StorageIntegration) loadParseAndWriteExampleTrace(t *testing.T) *model.
 	return trace
 }
 
-func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(t *testing.T) *model.Trace {
+func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
+	t *testing.T,
+	totalCount int,
+	dupFreq int,
+) *model.Trace {
 	trace := s.getTraceFixture(t, "example_trace")
 	repeatedSpan := trace.Spans[0]
-	trace.Spans = make([]*model.Span, 0, 10008)
-	for i := 0; i < 10008; i++ {
+	trace.Spans = make([]*model.Span, 0, totalCount)
+	for i := 0; i < totalCount; i++ {
 		newSpan := new(model.Span)
 		*newSpan = *repeatedSpan
 		switch {
-		case i%100 == 0:
+		case i > 0 && i%dupFreq == 0:
 			newSpan.SpanID = repeatedSpan.SpanID
 		default:
 			newSpan.SpanID = model.SpanID(i)
@@ -615,6 +620,6 @@ func (s *StorageIntegration) RunSpanStoreTests(t *testing.T) {
 	t.Run("GetServices", s.testGetServices)
 	t.Run("GetOperations", s.testGetOperations)
 	t.Run("GetTrace", s.testGetTrace)
-	t.Run("GetLargeSpans", s.testGetLargeSpan)
+	t.Run("GetLargeTrace", s.testGetLargeTrace)
 	t.Run("FindTraces", s.testFindTraces)
 }
