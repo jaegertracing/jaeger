@@ -48,13 +48,13 @@ type Span struct {
 	ParentSpanID  SpanID      `json:"parentSpanID,omitempty"` // deprecated
 	Flags         uint32      `json:"flags,omitempty"`
 	OperationName string      `json:"operationName"`
+	SpanKind      string      `json:"spanKind,omitempty"`
 	References    []Reference `json:"references"`
 	StartTime     uint64      `json:"startTime"` // microseconds since Unix epoch
 	// ElasticSearch does not support a UNIX Epoch timestamp in microseconds,
 	// so Jaeger maps StartTime to a 'long' type. This extra StartTimeMillis field
 	// works around this issue, enabling timerange queries.
 	StartTimeMillis uint64     `json:"startTimeMillis"`
-	SpanKind        string     `json:"spanKind,omitempty"`
 	Duration        uint64     `json:"duration"` // microseconds
 	Tags            []KeyValue `json:"tags"`
 	// Alternative representation of tags for better kibana support
