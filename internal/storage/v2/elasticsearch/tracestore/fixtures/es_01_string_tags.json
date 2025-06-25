@@ -3,6 +3,7 @@
   "spanID": "0000000000000002",
   "flags": 1,
   "operationName": "test-general-conversion",
+  "spanKind": "Server",
   "references": [
     {
       "refType": "CHILD_OF",
@@ -22,7 +23,6 @@
   ],
   "startTime": 1485467191639875,
   "startTimeMillis": 1485467191639,
-  "spanKind": "Server",
   "duration": 5,
   "tags": [
     {
