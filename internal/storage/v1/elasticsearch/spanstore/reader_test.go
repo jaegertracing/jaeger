@@ -1071,7 +1071,8 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 			ServiceName:   "s",
 			OperationName: "o",
 			Tags: map[string]string{
-				"hello": "world",
+				"hello":     "world",
+				"span.kind": "client",
 			},
 		}
 

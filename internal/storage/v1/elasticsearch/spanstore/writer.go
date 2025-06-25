@@ -127,7 +127,7 @@ func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 	s.logger.Debug("Wrote span to ES index", zap.String("index", spanIndexName))
 }
 
-func (s *SpanWriter) promoteSpanKindFromTags(span *dbmodel.Span) {
+func (*SpanWriter) promoteSpanKindFromTags(span *dbmodel.Span) {
 	if span.SpanKind != "" {
 		return
 	}
