@@ -631,7 +631,7 @@ func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParamet
 	return boolQuery
 }
 
-func (s *SpanReader) buildSpanKindQuery(spanKind string) elastic.Query {
+func (*SpanReader) buildSpanKindQuery(spanKind string) elastic.Query {
 	return elastic.NewMatchQuery(spanKindField, spanKind)
 }
 

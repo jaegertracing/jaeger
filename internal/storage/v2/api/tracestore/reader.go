@@ -83,6 +83,7 @@ type GetTraceParams struct {
 type TraceQueryParams struct {
 	ServiceName   string
 	OperationName string
+	SpanKind      string
 	// Attributes must initialized with pcommon.NewMap() before use.
 	Attributes   pcommon.Map
 	StartTimeMin time.Time
