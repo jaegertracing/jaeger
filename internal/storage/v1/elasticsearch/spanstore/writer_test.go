@@ -420,6 +420,11 @@ func TestTagMap(t *testing.T) {
 			Value: int64(1),
 			Type:  dbmodel.Int64Type,
 		},
+		{
+			Key:   spanKindNestedField,
+			Value: "server",
+			Type:  dbmodel.StringType,
+		},
 	}
 	dbSpan := dbmodel.Span{Tags: tags, Process: dbmodel.Process{Tags: tags}}
 	converter := NewSpanWriter(SpanWriterParams{

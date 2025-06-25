@@ -180,6 +180,11 @@ func (s *SpanWriter) splitElevatedTags(keyValues []dbmodel.KeyValue) ([]dbmodel.
 	var tagsMap map[string]any
 	var kvs []dbmodel.KeyValue
 	for _, kv := range keyValues {
+		// Special handling for span.kind - don't elevate because we already have it at top level (through promoteSpanKindFromTags)
+		if kv.Key == spanKindNestedField && kv.Type == dbmodel.StringType {
+			continue
+		}
+
 		if kv.Type != dbmodel.BinaryType && (s.allTagsAsFields || s.tagKeysAsFields[kv.Key]) {
 			if tagsMap == nil {
 				tagsMap = map[string]any{}
