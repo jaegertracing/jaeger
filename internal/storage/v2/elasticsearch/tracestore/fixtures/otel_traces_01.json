@@ -32,6 +32,7 @@
               "name": "test-general-conversion",
               "startTimeUnixNano": "1485467191639875000",
               "endTimeUnixNano": "1485467191639880000",
+              "kind": 2,
               "attributes": [
                 {
                   "key": "peer.service",

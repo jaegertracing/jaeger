@@ -108,13 +108,11 @@ func dbSpanToSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
 	attrs.EnsureCapacity(len(dbSpan.Tags))
 	dbTagsToAttributes(dbSpan.Tags, attrs)
 
-	if dbSpan.SpanKind != "" {
-		span.SetKind(dbSpanKindToOTELSpanKind(dbSpan.SpanKind))
-	} else if spanKindAttr, ok := attrs.Get(model.SpanKindKey); ok {
-		span.SetKind(dbSpanKindToOTELSpanKind(spanKindAttr.Str()))
+	if spanKindValue := getSpanKindValue(dbSpan, attrs); spanKindValue != "" {
+		span.SetKind(dbSpanKindToOTELSpanKind(strings.ToLower(spanKindValue)))
 		attrs.Remove(model.SpanKindKey)
 	}
-	
+
 	setSpanStatus(attrs, span)
 
 	span.TraceState().FromRaw(getTraceStateFromAttrs(attrs))
@@ -133,6 +131,16 @@ func dbSpanToSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
 	}
 	dbSpanLogsToSpanEvents(dbSpan.Logs, span.Events())
 	return dbSpanRefsToSpanEvents(dbSpan.References, dbParentSpanId, span.Links())
+}
+
+func getSpanKindValue(dbSpan *dbmodel.Span, attrs pcommon.Map) string {
+	if dbSpan.SpanKind != "" {
+		return dbSpan.SpanKind
+	}
+	if spanKindAttr, ok := attrs.Get(model.SpanKindKey); ok {
+		return spanKindAttr.Str()
+	}
+	return ""
 }
 
 func dbTagsToAttributes(tags []dbmodel.KeyValue, attributes pcommon.Map) {

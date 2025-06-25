@@ -22,6 +22,7 @@
   ],
   "startTime": 1485467191639875,
   "startTimeMillis": 1485467191639,
+  "spanKind": "Server",
   "duration": 5,
   "tags": [
     {
@@ -53,6 +54,11 @@
       "key": "temperature",
       "type": "float64",
       "value": "72.5"
+    },
+    {
+      "key": "span.kind",
+      "type": "string",
+      "value": "server"
     },
     {
       "key": "error",
