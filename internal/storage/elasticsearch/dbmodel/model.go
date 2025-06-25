@@ -113,7 +113,6 @@ type OperationQueryParameters struct {
 type TraceQueryParameters struct {
 	ServiceName   string
 	OperationName string
-	SpanKind      string
 	Tags          map[string]string
 	StartTimeMin  time.Time
 	StartTimeMax  time.Time

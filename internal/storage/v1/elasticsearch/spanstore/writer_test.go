@@ -142,32 +142,88 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 	testCases := []struct {
 		caption            string
 		serviceIndexExists bool
+		span               *dbmodel.Span
+		expectedSpanKind   string
 		expectedError      string
 		expectedLogs       []string
 	}{
 		{
-			caption:            "span insertion error",
+			caption:            "span insertion with span.kind tag",
 			serviceIndexExists: false,
-			expectedError:      "",
-			expectedLogs:       []string{"Wrote span to ES index"},
+			span: &dbmodel.Span{
+				TraceID:       "testing-traceid",
+				SpanID:        "testing-spanid",
+				OperationName: "operation",
+				Process:       dbmodel.Process{ServiceName: "service"},
+				StartTime:     model.TimeAsEpochMicroseconds(time.Date(1995, 4, 21, 22, 8, 41, 0, time.UTC)),
+				Tags: []dbmodel.KeyValue{
+					{Key: spanKindNestedField, Value: "server", Type: dbmodel.StringType},
+					{Key: "other", Value: "value", Type: dbmodel.StringType},
+				},
+			},
+			expectedSpanKind: "server",
+			expectedError:    "",
+			expectedLogs:     []string{"Wrote span to ES index"},
+		},
+		{
+			caption:            "span insertion with existing SpanKind",
+			serviceIndexExists: false,
+			span: &dbmodel.Span{
+				TraceID:       "testing-traceid",
+				SpanID:        "testing-spanid",
+				OperationName: "operation",
+				SpanKind:      "client",
+				Process:       dbmodel.Process{ServiceName: "service"},
+				StartTime:     model.TimeAsEpochMicroseconds(time.Date(1995, 4, 21, 22, 8, 41, 0, time.UTC)),
+				Tags: []dbmodel.KeyValue{
+					{Key: spanKindNestedField, Value: "server", Type: dbmodel.StringType},
+				},
+			},
+			expectedSpanKind: "client",
+			expectedError:    "",
+			expectedLogs:     []string{"Wrote span to ES index"},
+		},
+		{
+			caption:            "span insertion without span.kind tag",
+			serviceIndexExists: false,
+			span: &dbmodel.Span{
+				TraceID:       "testing-traceid",
+				SpanID:        "testing-spanid",
+				OperationName: "operation",
+				Process:       dbmodel.Process{ServiceName: "service"},
+				StartTime:     model.TimeAsEpochMicroseconds(time.Date(1995, 4, 21, 22, 8, 41, 0, time.UTC)),
+				Tags: []dbmodel.KeyValue{
+					{Key: "other", Value: "value", Type: dbmodel.StringType},
+				},
+			},
+			expectedSpanKind: "",
+			expectedError:    "",
+			expectedLogs:     []string{"Wrote span to ES index"},
+		},
+		{
+			caption:            "span insertion with invalid span.kind tag type",
+			serviceIndexExists: false,
+			span: &dbmodel.Span{
+				TraceID:       "testing-traceid",
+				SpanID:        "testing-spanid",
+				OperationName: "operation",
+				Process:       dbmodel.Process{ServiceName: "service"},
+				StartTime:     model.TimeAsEpochMicroseconds(time.Date(1995, 4, 21, 22, 8, 41, 0, time.UTC)),
+				Tags: []dbmodel.KeyValue{
+					{Key: spanKindNestedField, Value: 123, Type: dbmodel.Int64Type},
+				},
+			},
+			expectedSpanKind: "",
+			expectedError:    "",
+			expectedLogs:     []string{"Wrote span to ES index"},
 		},
 	}
+
 	for _, tc := range testCases {
-		testCase := tc
-		t.Run(testCase.caption, func(t *testing.T) {
+		t.Run(tc.caption, func(t *testing.T) {
 			withSpanWriter(func(w *spanWriterTest) {
 				date, err := time.Parse(time.RFC3339, "1995-04-21T22:08:41+00:00")
 				require.NoError(t, err)
-
-				span := &dbmodel.Span{
-					TraceID:       "testing-traceid",
-					SpanID:        "testing-spanid",
-					OperationName: "operation",
-					Process: dbmodel.Process{
-						ServiceName: "service",
-					},
-					StartTime: model.TimeAsEpochMicroseconds(date),
-				}
 
 				spanIndexName := "jaeger-span-1995-04-21"
 				serviceIndexName := "jaeger-service-1995-04-21"
@@ -193,19 +249,20 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 
 				w.client.On("Index").Return(indexService)
 
-				w.writer.WriteSpan(date, span)
+				w.writer.WriteSpan(date, tc.span)
 
-				if testCase.expectedError == "" {
+				if tc.expectedError == "" {
 					indexServicePut.AssertNumberOfCalls(t, "Add", 1)
 					indexSpanPut.AssertNumberOfCalls(t, "Add", 1)
+					assert.Equal(t, tc.expectedSpanKind, tc.span.SpanKind, "SpanKind should match expected value")
 				} else {
-					require.EqualError(t, err, testCase.expectedError)
+					require.EqualError(t, err, tc.expectedError)
 				}
 
-				for _, expectedLog := range testCase.expectedLogs {
+				for _, expectedLog := range tc.expectedLogs {
 					assert.Contains(t, w.logBuffer.String(), expectedLog, "Log must contain %s, but was %s", expectedLog, w.logBuffer.String())
 				}
-				if len(testCase.expectedLogs) == 0 {
+				if len(tc.expectedLogs) == 0 {
 					assert.Empty(t, w.logBuffer.String())
 				}
 			})
@@ -369,6 +426,73 @@ func TestTagMap(t *testing.T) {
 	tagsMap["b:b"] = int64(1)
 	assert.Equal(t, tagsMap, dbSpan.Tag)
 	assert.Equal(t, tagsMap, dbSpan.Process.Tag)
+}
+
+func TestPromoteSpanKindFromTags(t *testing.T) {
+	testCases := []struct {
+		name         string
+		span         *dbmodel.Span
+		expectedKind string
+	}{
+		{
+			name: "empty SpanKind with valid span.kind tag",
+			span: &dbmodel.Span{
+				SpanKind: "",
+				Tags: []dbmodel.KeyValue{
+					{Key: spanKindNestedField, Value: "server", Type: dbmodel.StringType},
+					{Key: "other", Value: "value", Type: dbmodel.StringType},
+				},
+			},
+			expectedKind: "server",
+		},
+		{
+			name: "non-empty SpanKind, should not overwrite",
+			span: &dbmodel.Span{
+				SpanKind: "client",
+				Tags: []dbmodel.KeyValue{
+					{Key: spanKindNestedField, Value: "server", Type: dbmodel.StringType},
+				},
+			},
+			expectedKind: "client",
+		},
+		{
+			name: "empty SpanKind with no span.kind tag",
+			span: &dbmodel.Span{
+				SpanKind: "",
+				Tags: []dbmodel.KeyValue{
+					{Key: "other", Value: "value", Type: dbmodel.StringType},
+				},
+			},
+			expectedKind: "",
+		},
+		{
+			name: "empty SpanKind with invalid span.kind tag type",
+			span: &dbmodel.Span{
+				SpanKind: "",
+				Tags: []dbmodel.KeyValue{
+					{Key: spanKindNestedField, Value: 123, Type: dbmodel.Int64Type},
+				},
+			},
+			expectedKind: "",
+		},
+		{
+			name: "empty SpanKind with empty tags",
+			span: &dbmodel.Span{
+				SpanKind: "",
+				Tags:     []dbmodel.KeyValue{},
+			},
+			expectedKind: "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			withSpanWriter(func(w *spanWriterTest) {
+				w.writer.promoteSpanKindFromTags(tc.span)
+				assert.Equal(t, tc.expectedKind, tc.span.SpanKind, "SpanKind should match expected value")
+			})
+		})
+	}
 }
 
 func TestNewSpanTags(t *testing.T) {

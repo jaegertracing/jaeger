@@ -118,12 +118,29 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServ
 func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 	s.writerMetrics.Attempts.Inc(1)
 	s.convertNestedTagsToFieldTags(span)
+	s.promoteSpanKindFromTags(span)
 	spanIndexName, serviceIndexName := s.spanServiceIndex(spanStartTime)
 	if serviceIndexName != "" {
 		s.writeService(serviceIndexName, span)
 	}
 	s.writeSpan(spanIndexName, span)
 	s.logger.Debug("Wrote span to ES index", zap.String("index", spanIndexName))
+}
+
+func (s *SpanWriter) promoteSpanKindFromTags(span *dbmodel.Span) {
+	if span.SpanKind != "" {
+		return
+	}
+
+	for _, tag := range span.Tags {
+		if tag.Key != spanKindNestedField {
+			continue
+		}
+		if kind, ok := tag.Value.(string); ok {
+			span.SpanKind = kind
+		}
+		return
+	}
 }
 
 func (s *SpanWriter) convertNestedTagsToFieldTags(span *dbmodel.Span) {

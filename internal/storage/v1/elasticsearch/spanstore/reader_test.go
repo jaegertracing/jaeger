@@ -1070,7 +1070,6 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 			StartTimeMax:  time.Time{}.Add(time.Second),
 			ServiceName:   "s",
 			OperationName: "o",
-			SpanKind:      "client",
 			Tags: map[string]string{
 				"hello": "world",
 			},
