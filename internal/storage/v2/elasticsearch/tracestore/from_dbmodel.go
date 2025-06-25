@@ -109,7 +109,7 @@ func dbSpanToSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
 	dbTagsToAttributes(dbSpan.Tags, attrs)
 
 	if spanKindValue := getSpanKindValue(dbSpan, attrs); spanKindValue != "" {
-		span.SetKind(dbSpanKindToOTELSpanKind(strings.ToLower(spanKindValue)))
+		span.SetKind(dbSpanKindToOTELSpanKind(spanKindValue))
 		attrs.Remove(model.SpanKindKey)
 	}
 
@@ -366,7 +366,7 @@ func statusCodeFromHTTP(httpStatusCode int64) ptrace.StatusCode {
 }
 
 func dbSpanKindToOTELSpanKind(spanKind string) ptrace.SpanKind {
-	switch spanKind {
+	switch strings.ToLower(spanKind) {
 	case "client":
 		return ptrace.SpanKindClient
 	case "server":
