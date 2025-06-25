@@ -116,6 +116,7 @@ type TraceQueryParameters struct {
 	Tags          map[string]string
 	StartTimeMin  time.Time
 	StartTimeMax  time.Time
+	SpanKind      string
 	DurationMin   time.Duration
 	DurationMax   time.Duration
 	// TODO: Rename NumTraces to SearchDepth

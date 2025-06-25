@@ -45,6 +45,8 @@ const (
 	nestedLogFieldsField   = "logs.fields"
 	tagKeyField            = "key"
 	tagValueField          = "value"
+	spanKindField          = "spanKind"
+	spanKindNestedField    = "span.kind"
 
 	defaultNumTraces = 100
 
@@ -616,11 +618,21 @@ func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParamet
 		boolQuery.Must(operationNameQuery)
 	}
 
+	if traceQuery.SpanKind != "" {
+		spanKindSpecificQuery := s.buildSpanKindQuery(traceQuery.SpanKind)
+		boolQuery.Must(spanKindSpecificQuery)
+		delete(traceQuery.Tags, spanKindNestedField)
+	}
+
 	for k, v := range traceQuery.Tags {
 		tagQuery := s.buildTagQuery(k, v)
 		boolQuery.Must(tagQuery)
 	}
 	return boolQuery
+}
+
+func (s *SpanReader) buildSpanKindQuery(spanKind string) elastic.Query {
+	return elastic.NewMatchQuery(spanKindField, spanKind)
 }
 
 func (*SpanReader) buildDurationQuery(durationMin time.Duration, durationMax time.Duration) elastic.Query {
