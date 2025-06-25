@@ -53,6 +53,7 @@ require (
 	go.opentelemetry.io/collector/config/configgrpc v0.128.0
 	go.opentelemetry.io/collector/config/confighttp v0.128.0
 	go.opentelemetry.io/collector/config/confighttp/xconfighttp v0.128.0
+	go.opentelemetry.io/collector/config/configoptional v0.128.0
 	go.opentelemetry.io/collector/config/configretry v1.34.0
 	go.opentelemetry.io/collector/config/configtls v1.34.0
 	go.opentelemetry.io/collector/confmap v1.34.0
@@ -111,7 +112,6 @@ require (
 	github.com/foxboron/go-tpm-keyfiles v0.0.0-20250323135004-b31fac66206e // indirect
 	github.com/google/go-tpm v0.9.5 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/configkafka v0.127.0 // indirect
-	go.opentelemetry.io/collector/config/configoptional v0.128.0 // indirect
 )
 
 require (
@@ -198,15 +198,15 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/onsi/ginkgo v1.16.5 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.127.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.127.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.128.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.127.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.127.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil v0.127.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersignal v0.127.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils v0.127.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/topic v0.127.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.127.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.127.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.128.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.128.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.127.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/status v0.127.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.127.0 // indirect
