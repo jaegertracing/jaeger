@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/collector/confmap/xconfmap"
 	"go.opentelemetry.io/collector/featuregate"
 
+	"github.com/jaegertracing/jaeger/internal/config"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
 )
 
@@ -62,36 +63,19 @@ type AdaptiveConfig struct {
 	adaptive.Options `mapstructure:",squash"`
 }
 
-// Unmarshal is a custom unmarshaler that allows the factory to provide default values
-// for nested configs (like GRPC endpoint) yes still reset the pointers to nil if the
-// config did not contain the corresponding sections.
-// This is a workaround for the lack of opional fields support in OTEL confmap.
+// Unmarshal is a custom unmarshaler that uses the generic optional fields solution
+// to properly handle optional pointer fields in the configuration.
+// This demonstrates the new approach for handling optional fields in Jaeger V2.
 // Issue: https://github.com/open-telemetry/opentelemetry-collector/issues/10266
 func (cfg *Config) Unmarshal(conf *confmap.Conf) error {
-	// first load the config normally
+	// First load the config normally
 	err := conf.Unmarshal(cfg)
 	if err != nil {
 		return err
 	}
 
-	// use string names of fields to see if they are set in the confmap
-	if !conf.IsSet("file") {
-		cfg.File = nil
-	}
-
-	if !conf.IsSet("adaptive") {
-		cfg.Adaptive = nil
-	}
-
-	if !conf.IsSet("grpc") {
-		cfg.GRPC = nil
-	}
-
-	if !conf.IsSet("http") {
-		cfg.HTTP = nil
-	}
-
-	return nil
+	// Use the generic optional fields processor instead of manual checking
+	return config.ProcessOptionalPointers(cfg, conf, "")
 }
 
 func (cfg *Config) Validate() error {
