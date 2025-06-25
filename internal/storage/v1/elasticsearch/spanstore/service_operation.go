@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/olivere/elastic"
+	"github.com/olivere/elastic/v7"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/cache"
