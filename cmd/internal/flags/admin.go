@@ -82,7 +82,7 @@ func (s *AdminServer) initFromViper(v *viper.Viper, logger *zap.Logger) error {
 	}
 
 	s.serverCfg.Endpoint = v.GetString(adminHTTPHostPort)
-	s.serverCfg.TLSSetting = tlsAdminHTTP
+	s.serverCfg.TLS = tlsAdminHTTP
 	return nil
 }
 

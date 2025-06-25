@@ -47,7 +47,7 @@ func TestCreateTLSHTTPServerError(t *testing.T) {
 	params := &HTTPServerParams{
 		ServerConfig: confighttp.ServerConfig{
 			Endpoint: ":0",
-			TLSSetting: &configtls.ServerConfig{
+			TLS: &configtls.ServerConfig{
 				Config: configtls.Config{
 					CertFile: "invalid/path",
 					KeyFile:  "invalid/path",
@@ -216,8 +216,8 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 			defer mFact.Backend.Stop()
 			params := &HTTPServerParams{
 				ServerConfig: confighttp.ServerConfig{
-					Endpoint:   fmt.Sprintf(":%d", ports.CollectorHTTP),
-					TLSSetting: test.TLS,
+					Endpoint: fmt.Sprintf(":%d", ports.CollectorHTTP),
+					TLS:      test.TLS,
 				},
 				Handler:          handler.NewJaegerSpanHandler(logger, &mockSpanProcessor{}),
 				SamplingProvider: &mockSamplingProvider{},

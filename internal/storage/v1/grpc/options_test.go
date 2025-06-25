@@ -46,7 +46,7 @@ func TestRemoteOptionsWithFlags(t *testing.T) {
 	require.NoError(t, opts.initFromViper(&cfg, v))
 
 	assert.Equal(t, "localhost:2001", cfg.ClientConfig.Endpoint)
-	assert.False(t, cfg.ClientConfig.TLSSetting.Insecure)
+	assert.False(t, cfg.ClientConfig.TLS.Insecure)
 	assert.Equal(t, 60*time.Second, cfg.TimeoutConfig.Timeout)
 }
 
@@ -63,7 +63,7 @@ func TestRemoteOptionsNoTLSWithFlags(t *testing.T) {
 	require.NoError(t, opts.initFromViper(&cfg, v))
 
 	assert.Equal(t, "localhost:2001", cfg.ClientConfig.Endpoint)
-	assert.True(t, cfg.ClientConfig.TLSSetting.Insecure)
+	assert.True(t, cfg.ClientConfig.TLS.Insecure)
 	assert.Equal(t, 60*time.Second, cfg.TimeoutConfig.Timeout)
 }
 
