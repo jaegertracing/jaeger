@@ -1135,12 +1135,11 @@ func TestSpanProcessorV2MetricsRegression(t *testing.T) {
 			})
 
 			// Check that bytes were counted (should be > 0)
-			hostMetrics := baseMetrics.Namespace(metrics.NSOptions{Name: "host", Tags: nil})
 			require.Eventually(t, func() bool {
-				// Get the current value of spans.bytes metric
-				_ = hostMetrics.Gauge(metrics.Options{Name: "spans.bytes", Tags: nil})
-				// The gauge should have a positive value after processing spans
-				return true // The gauge update happens in background, so we just verify it doesn't crash
+				// Check if spans.bytes metric has been incremented
+				_, gauges := baseMetrics.Snapshot()
+				bytesGauge, exists := gauges["host.spans.bytes"]
+				return exists && bytesGauge > 0
 			}, time.Second, 10*time.Millisecond)
 
 			t.Logf("Successfully verified metrics for %s with service=%s", tc.name, tc.serviceName)
