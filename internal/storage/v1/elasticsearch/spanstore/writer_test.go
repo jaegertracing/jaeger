@@ -148,6 +148,21 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 		expectedLogs       []string
 	}{
 		{
+			caption:            "span insertion error",
+			serviceIndexExists: false,
+			span: &dbmodel.Span{
+				TraceID:       "testing-traceid",
+				SpanID:        "testing-spanid",
+				OperationName: "operation",
+				Process: dbmodel.Process{
+					ServiceName: "service",
+				},
+				StartTime: model.TimeAsEpochMicroseconds(time.Date(1995, 4, 21, 22, 8, 41, 0, time.UTC)),
+			},
+			expectedError: "",
+			expectedLogs:  []string{"Wrote span to ES index"},
+		},
+		{
 			caption:            "span insertion with span.kind tag",
 			serviceIndexExists: false,
 			span: &dbmodel.Span{
