@@ -1070,6 +1070,7 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 			StartTimeMax:  time.Time{}.Add(time.Second),
 			ServiceName:   "s",
 			OperationName: "o",
+			SpanKind:      "client",
 			Tags: map[string]string{
 				"hello": "world",
 			},
@@ -1084,6 +1085,7 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 				r.reader.buildStartTimeQuery(time.Time{}, time.Time{}.Add(time.Second)),
 				r.reader.buildServiceNameQuery("s"),
 				r.reader.buildOperationNameQuery("o"),
+				r.reader.buildSpanKindQuery("client"),
 				r.reader.buildTagQuery("hello", "world"),
 			)
 		expected, err := expectedQuery.Source()
