@@ -1,9 +1,6 @@
-````markdown
-# 🚀 Jaeger + Prometheus + HotROD Demo Setup (Helm v2 Branch)
+# Jaeger + Prometheus + HotROD Demo Setup (Helm v2 Branch)
 
-This guide walks you through deploying **Jaeger** (using the v2 Helm chart with OpenTelemetry Collector style), **Prometheus**, and the **HotROD demo app** on Kubernetes.
-
----
+This guide walks you through deploying **Jaeger** (using the v2 Helm chart), **Prometheus**, and the **HotROD demo app** on Kubernetes.
 
 ## Prerequisites
 
@@ -22,10 +19,11 @@ Ensure the following tools are installed and configured:
 git clone https://github.com/jaegertracing/helm-charts.git
 cd helm-charts
 git checkout v2
-````
+```
 After cloning, you must install chart dependencies to avoid the depedency missing error using this command :
 ``` bash
 helm dependency build ./charts/jaeger
+```
 ---
 
 ## 2. Prepare Your Values and Config Files
@@ -53,7 +51,7 @@ kubectl create configmap prometheus-config --from-file=prometheus.yml=./promethe
 
 ## 4. Deploy Jaeger (All-in-One Mode with Memory Storage)
 
-Ensure your in correct directory 
+Ensure you're in the correct directory 
 ```bash
 cd ./examples/oci/
 ```
@@ -105,14 +103,12 @@ Then open in browser:
 * 📈 Prometheus: [http://localhost:9090](http://localhost:9090)
 * 🚕 HotROD: [http://localhost:8080](http://localhost:8080)
 
-```
-
 🔧 Remarks
+
 📌 The current configuration is set to run in the default namespace.
 You can use any custom namespace by making minor adjustments in:
-
+``` bash
 Helm --namespace flags
-
 Kubernetes manifests (metadata.namespace)
-
 Prometheus scrape configs and service selectors if targeting Jaeger in a different namespace
+```
