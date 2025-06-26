@@ -250,6 +250,12 @@ func (sp *spanProcessor) ProcessSpans(ctx context.Context, batch processor.Batch
 		// TODO verify if the context will survive all the way to the consumer threads.
 		ctx := tenancy.WithTenant(ctx, batch.GetTenant())
 
+		spanCounts := sp.metrics.GetCountsForFormat(batch.GetSpanFormat(), batch.GetInboundTransport())
+		jptrace.SpanIter(traces)(func(i jptrace.SpanIterPos, span ptrace.Span) bool {
+			spanCounts.ReceivedBySvc.ForSpanV2(i.Resource.Resource(), span)
+			return true
+		})
+
 		// the exporter will eventually call pushTraces from consumer threads.
 		if err := sp.otelExporter.ConsumeTraces(ctx, traces); err != nil {
 			batchErr = err
