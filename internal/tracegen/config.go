@@ -67,39 +67,28 @@ func Run(c *Config, tracers []trace.Tracer, logger *zap.Logger) error {
 
 	wg := sync.WaitGroup{}
 	var running uint32 = 1
-	if !c.Repeatable {
-		for i := 0; i < c.Workers; i++ {
-			wg.Add(1)
-			w := worker{
-				id:      i,
-				tracers: tracers,
-				Config:  *c,
-				running: &running,
-				wg:      &wg,
-				logger:  logger.With(zap.Int("worker", i)),
-			}
-			go w.simulateTraces()
+	for i := 0; i < c.Workers; i++ {
+		wg.Add(1)
+		w := worker{
+			id:      i,
+			tracers: tracers,
+			Config:  *c,
+			running: &running,
+			wg:      &wg,
+			logger:  logger.With(zap.Int("worker", i)),
 		}
-	} else {
-		for i := 0; i < c.Workers; i++ {
-			wg.Add(1)
-			w := worker{
-				id:      i,
-				tracers: tracers,
-				Config:  *c,
-				running: &running,
-				wg:      &wg,
-				logger:  logger.With(zap.Int("worker", i)),
-			}
-
-			layout := "2006-01-02T15:04:05.000000000+00:00"
-			t, err := time.Parse(layout, c.RepeatableTimeStart)
+		// set strategy
+		if w.Config.Repeatable {
+			strategy, err := newRepeatableStrategy(w.Config.RepeatableTimeStart)
 			if err != nil {
-				panic("Repeatable data time start is not valid: " + err.Error() + "  check this flag format, default&eg.: 2025-01-01T00:00:00.000000000+00:00")
+				return err
 			}
-			// mark
-			startTime := t.Add(time.Microsecond)
-			go w.simulateRepeatableTraces(startTime)
+			w.setStrategy(strategy)
+			// TODO: Make repeatable gen support concurrent
+			w.simulateTraces()
+		} else {
+			w.setStrategy(&randomStrategy{})
+			go w.simulateTraces()
 		}
 	}
 
@@ -113,11 +102,10 @@ func Run(c *Config, tracers []trace.Tracer, logger *zap.Logger) error {
 
 // PseudoRandomIDGenerator For Repeatable data generation
 type PseudoRandomIDGenerator struct {
-	mu  sync.Mutex
 	rng *rand.Rand
 }
 
-// NewPseudoRandomIDGenerator  The Nth TracerProvider has a pseudo seed of N. / 应该改成可指定
+// NewPseudoRandomIDGenerator  The Nth TracerProvider has a pseudo seed of N.
 func NewPseudoRandomIDGenerator(seed int) sdktrace.IDGenerator {
 	src := rand.NewSource(int64(seed))
 	return &PseudoRandomIDGenerator{
@@ -126,9 +114,6 @@ func NewPseudoRandomIDGenerator(seed int) sdktrace.IDGenerator {
 }
 
 func (g *PseudoRandomIDGenerator) NewIDs(ctx context.Context) (trace.TraceID, trace.SpanID) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
 	tid := trace.TraceID{}
 	sid := trace.SpanID{}
 
@@ -151,9 +136,6 @@ func (g *PseudoRandomIDGenerator) NewIDs(ctx context.Context) (trace.TraceID, tr
 }
 
 func (g *PseudoRandomIDGenerator) NewSpanID(ctx context.Context, traceID trace.TraceID) trace.SpanID {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
 	sid := trace.SpanID{}
 	for {
 		binary.NativeEndian.PutUint64(sid[:], g.rng.Uint64())

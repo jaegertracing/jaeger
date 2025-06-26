@@ -88,7 +88,7 @@ func Test_SimulateRepeatableTraces(t *testing.T) {
 			wg := sync.WaitGroup{}
 			wg.Add(1)
 			var running uint32 = 1
-			worker := &worker{
+			w := &worker{
 				logger:  logger,
 				tracers: tracers,
 				wg:      &wg,
@@ -102,12 +102,13 @@ func Test_SimulateRepeatableTraces(t *testing.T) {
 					Debug:      true,
 					Firehose:   true,
 					ChildSpans: 1,
+					Repeatable: true,
 				},
 			}
+			s, _ := newRepeatableStrategy("2025-01-01T00:00:00.000000000+00:00")
+			w.setStrategy(s)
 			expectedOutput := `{"level":"info","msg":"Worker 7 generated 7 traces"}` + "\n"
-			layout := "2006-01-02T15:04:05.000000000+00:00"
-			start, _ := time.Parse(layout, "2025-01-01T00:00:00.000000000+00:00")
-			worker.simulateRepeatableTraces(start)
+			w.simulateTraces()
 			assert.Equal(t, expectedOutput, buf.String())
 		})
 	}

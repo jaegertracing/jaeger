@@ -15,44 +15,47 @@ import (
 	"go.uber.org/zap"
 )
 
+type simulationStrategy interface {
+	run(worker *worker)
+}
+
 type worker struct {
 	tracers []trace.Tracer
-	running *uint32 // pointer to shared flag that indicates it's time to stop the test
-	id      int     // worker id
+	running *uint32
+	id      int
 	Config
-	wg     *sync.WaitGroup // notify when done
+	wg     *sync.WaitGroup
 	logger *zap.Logger
 
 	// internal counters
-	traceNo   int
-	attrKeyNo int
-	attrValNo int
-
-	// for trace&span repeatable data time generation
+	traceNo      int
+	attrKeyNo    int
+	attrValNo    int
 	spanInterval int
+
+	strategy simulationStrategy
 }
 
 const (
-	fakeSpanDuration = 123 * time.Microsecond
+	fakeSpanDuration    = 123 * time.Microsecond
+	maxSpanTimeInterval = 123
 )
 
+func (w *worker) setStrategy(strategy simulationStrategy) {
+	w.strategy = strategy
+}
+
+// simulateTraces main
 func (w *worker) simulateTraces() {
-	for atomic.LoadUint32(w.running) == 1 {
-		svcNo := w.traceNo % len(w.tracers)
-		w.simulateOneTrace(w.tracers[svcNo])
-		w.traceNo++
-		if w.Traces != 0 {
-			if w.traceNo >= w.Traces {
-				break
-			}
-		}
+	if w.strategy == nil {
+		w.setStrategy(&randomStrategy{})
 	}
-	w.logger.Info(fmt.Sprintf("Worker %d generated %d traces", w.id, w.traceNo))
+	w.strategy.run(w)
 	w.wg.Done()
 }
 
-func (w *worker) simulateOneTrace(tracer trace.Tracer) {
-	ctx := context.Background()
+// createParentSpan default common method
+func (w *worker) createParentSpan(tracer trace.Tracer, start time.Time) (context.Context, trace.Span) {
 	attrs := []attribute.KeyValue{
 		attribute.String("peer.service", "tracegen-server"),
 		attribute.String("peer.host.ipv4", "1.1.1.1"),
@@ -63,36 +66,59 @@ func (w *worker) simulateOneTrace(tracer trace.Tracer) {
 	if w.Firehose {
 		attrs = append(attrs, attribute.Bool("jaeger.firehose", true))
 	}
-	start := time.Now()
-	ctx, parent := tracer.Start(
-		ctx,
+
+	return tracer.Start(
+		context.Background(),
 		"lets-go",
 		trace.WithSpanKind(trace.SpanKindServer),
 		trace.WithAttributes(attrs...),
 		trace.WithTimestamp(start),
 	)
-	w.simulateChildSpans(ctx, start, tracer)
+}
 
+// generateAttributes default common method
+func (w *worker) generateAttributes() []attribute.KeyValue {
+	attrs := make([]attribute.KeyValue, 0, w.Attributes)
+	for a := 0; a < w.Attributes; a++ {
+		key := fmt.Sprintf("attr_%02d", w.attrKeyNo)
+		val := fmt.Sprintf("val_%02d", w.attrValNo)
+		attrs = append(attrs, attribute.String(key, val))
+		w.attrKeyNo = (w.attrKeyNo + 1) % w.AttrKeys
+		w.attrValNo = (w.attrValNo + 1) % w.AttrValues
+	}
+	return attrs
+}
+
+// ====================== randomStrategy ======================
+type randomStrategy struct{}
+
+func (s *randomStrategy) run(w *worker) {
+	for atomic.LoadUint32(w.running) == 1 {
+		svcNo := w.traceNo % len(w.tracers)
+		w.simulateRandomTrace(w.tracers[svcNo])
+		w.traceNo++
+		if w.Traces != 0 && w.traceNo >= w.Traces {
+			break
+		}
+	}
+	w.logger.Info(fmt.Sprintf("Worker %d generated %d traces", w.id, w.traceNo))
+}
+
+func (w *worker) simulateRandomTrace(tracer trace.Tracer) {
+	start := time.Now()
+	ctx, parent := w.createParentSpan(tracer, start)
+	w.simulateChildSpans(ctx, start, tracer)
 	if w.Pause != 0 {
 		parent.End()
 	} else {
 		totalDuration := time.Duration(w.ChildSpans) * fakeSpanDuration
-		parent.End(
-			trace.WithTimestamp(start.Add(totalDuration)),
-		)
+		parent.End(trace.WithTimestamp(start.Add(totalDuration)))
 	}
 }
 
 func (w *worker) simulateChildSpans(ctx context.Context, start time.Time, tracer trace.Tracer) {
 	for c := 0; c < w.ChildSpans; c++ {
-		var attrs []attribute.KeyValue
-		for a := 0; a < w.Attributes; a++ {
-			key := fmt.Sprintf("attr_%02d", w.attrKeyNo)
-			val := fmt.Sprintf("val_%02d", w.attrValNo)
-			attrs = append(attrs, attribute.String(key, val))
-			w.attrKeyNo = (w.attrKeyNo + 1) % w.AttrKeys
-			w.attrValNo = (w.attrValNo + 1) % w.AttrValues
-		}
+		attrs := w.generateAttributes()
 		opts := []trace.SpanStartOption{
 			trace.WithSpanKind(trace.SpanKindClient),
 			trace.WithAttributes(attrs...),
@@ -110,77 +136,55 @@ func (w *worker) simulateChildSpans(ctx context.Context, start time.Time, tracer
 			time.Sleep(w.Pause)
 			child.End()
 		} else {
-			child.End(
-				trace.WithTimestamp(childStart.Add(fakeSpanDuration)),
-			)
+			child.End(trace.WithTimestamp(childStart.Add(fakeSpanDuration)))
 		}
 	}
 }
 
-// For repeatable simulate
-func (w *worker) simulateRepeatableTraces(startTime time.Time) {
-	// reset
+// ====================== repeatableStrategy ======================
+type repeatableStrategy struct {
+	startTime time.Time
+}
+
+func newRepeatableStrategy(startTime string) (*repeatableStrategy, error) {
+	layout := "2006-01-02T15:04:05.000000000+00:00"
+	t, err := time.Parse(layout, startTime)
+	if err != nil {
+		return nil, fmt.Errorf("invalid repeatable start time: %w", err)
+	}
+	return &repeatableStrategy{
+		startTime: t.Add(time.Microsecond),
+	}, nil
+}
+
+func (s *repeatableStrategy) run(w *worker) {
 	w.spanInterval = 1
 	w.traceNo = 0
-
 	for atomic.LoadUint32(w.running) == 1 {
 		svcNo := w.traceNo % len(w.tracers)
-		w.simulateRepeatableOneTrace(w.tracers[svcNo], startTime)
+		w.simulateRepeatableTrace(w.tracers[svcNo], s.startTime)
 		w.traceNo++
 		if w.Traces != 0 && w.traceNo >= w.Traces {
 			break
 		}
 	}
 	w.logger.Info(fmt.Sprintf("Worker %d generated %d traces", w.id, w.traceNo))
-	w.wg.Done()
 }
 
-func (w *worker) simulateRepeatableOneTrace(tracer trace.Tracer, baseStartTime time.Time) {
-	ctx := context.Background()
-	attrs := []attribute.KeyValue{
-		attribute.String("peer.service", "tracegen-server"),
-		attribute.String("peer.host.ipv4", "1.1.1.1"),
-	}
-	if w.Debug {
-		attrs = append(attrs, attribute.Bool("jaeger.debug", true))
-	}
-	if w.Firehose {
-		attrs = append(attrs, attribute.Bool("jaeger.firehose", true))
-	}
-
-	start := baseStartTime
-	ctx, parent := tracer.Start(
-		ctx,
-		"lets-go",
-		trace.WithSpanKind(trace.SpanKindServer),
-		trace.WithAttributes(attrs...),
-		trace.WithTimestamp(start),
-	)
-
-	lastEnd := w.simulateRepeatableChildSpans(ctx, start, tracer)
-
+func (w *worker) simulateRepeatableTrace(tracer trace.Tracer, baseStartTime time.Time) {
+	ctx, parent := w.createParentSpan(tracer, baseStartTime)
+	lastEnd := w.simulateRepeatableChildSpans(ctx, baseStartTime, tracer)
 	parent.End(trace.WithTimestamp(lastEnd))
 }
 
 func (w *worker) simulateRepeatableChildSpans(ctx context.Context, baseStart time.Time, tracer trace.Tracer) time.Time {
 	lastEnd := baseStart
-
 	for c := 0; c < w.ChildSpans; c++ {
 		spanStart := lastEnd
-
 		if w.Pause != 0 {
 			spanStart = spanStart.Add(w.Pause)
 		}
-
-		var attrs []attribute.KeyValue
-		for a := 0; a < w.Attributes; a++ {
-			key := fmt.Sprintf("attr_%02d", w.attrKeyNo)
-			val := fmt.Sprintf("val_%02d", w.attrValNo)
-			attrs = append(attrs, attribute.String(key, val))
-			w.attrKeyNo = (w.attrKeyNo + 1) % w.AttrKeys
-			w.attrValNo = (w.attrValNo + 1) % w.AttrValues
-		}
-
+		attrs := w.generateAttributes()
 		_, child := tracer.Start(
 			ctx,
 			fmt.Sprintf("child-span-%02d", c),
@@ -188,18 +192,19 @@ func (w *worker) simulateRepeatableChildSpans(ctx context.Context, baseStart tim
 			trace.WithAttributes(attrs...),
 			trace.WithTimestamp(spanStart),
 		)
-
-		spanEnd := spanStart.Add(time.Duration(c)*time.Microsecond + time.Duration(w.spanInterval)*time.Microsecond)
+		spanEnd := spanStart.Add(
+			time.Duration(c)*time.Microsecond +
+				time.Duration(w.spanInterval)*time.Microsecond,
+		)
 		child.End(trace.WithTimestamp(spanEnd))
-
-		lastEnd = spanEnd.Add(w.Pause)
-
+		lastEnd = spanEnd
+		if w.Pause != 0 {
+			lastEnd = lastEnd.Add(w.Pause)
+		}
 		w.spanInterval++
-		// Can be controlled,When will it be reset
-		if w.spanInterval > 123 {
+		if w.spanInterval > maxSpanTimeInterval {
 			w.spanInterval = 1
 		}
 	}
-
 	return lastEnd
 }
