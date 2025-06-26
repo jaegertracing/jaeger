@@ -674,10 +674,11 @@ func BenchmarkProtoBatchToInternalTraces(b *testing.B) {
 }
 
 func TestGetSpanKindValueFromAttribute(t *testing.T) {
+	spanKind := "server"
 	dbSpan := &dbmodel.Span{SpanKind: ""}
 	attrs := pcommon.NewMap()
-	attrs.PutStr(model.SpanKindKey, "server")
+	attrs.PutStr(model.SpanKindKey, spanKind)
 
 	result := getSpanKindValue(dbSpan, attrs)
-	assert.Equal(t, "server", result)
+	assert.Equal(t, spanKind, result)
 }
