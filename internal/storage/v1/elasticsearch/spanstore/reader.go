@@ -646,7 +646,6 @@ func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParamet
 func (s *SpanReader) buildSpanKindQuery(spanKind string) elastic.Query {
 	materializedFieldQuery := elastic.NewMatchQuery(spanKindField, spanKind)
 	if disableSpanKindTagSearch.IsEnabled() {
-		// Only search the materialized field
 		return materializedFieldQuery
 	}
 	nestedTagQuery := s.buildNestedQuery(nestedTagsField, spanKindNestedField, spanKind)
