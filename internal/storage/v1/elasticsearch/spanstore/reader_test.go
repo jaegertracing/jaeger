@@ -1062,36 +1062,72 @@ func TestSpanReader_buildTraceIDAggregation(t *testing.T) {
 }
 
 func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
-	withSpanReader(t, func(r *spanReaderTest) {
-		traceQuery := dbmodel.TraceQueryParameters{
-			DurationMin:   time.Second,
-			DurationMax:   time.Second * 2,
-			StartTimeMin:  time.Time{},
-			StartTimeMax:  time.Time{}.Add(time.Second),
-			ServiceName:   "s",
-			OperationName: "o",
-			Tags: map[string]string{
-				"hello":     "world",
-				"span.kind": "client",
-			},
-		}
+	tests := []struct {
+		name                     string
+		disableSpanKindTagSearch bool
+		expectedSpanKindQuery    elastic.Query
+	}{
+		{
+			name:                     "span.kind tag search enabled (default)",
+			disableSpanKindTagSearch: false,
+			expectedSpanKindQuery: elastic.NewBoolQuery().Should(
+				elastic.NewMatchQuery(spanKindField, "client"),
+				elastic.NewNestedQuery(
+					nestedTagsField,
+					elastic.NewBoolQuery().Must(
+						elastic.NewMatchQuery("tags.key", spanKindNestedField),
+						elastic.NewRegexpQuery("tags.value", "client"),
+					),
+				),
+			),
+		},
+		{
+			name:                     "span.kind tag search disabled",
+			disableSpanKindTagSearch: true,
+			expectedSpanKindQuery:    elastic.NewMatchQuery(spanKindField, "client"),
+		},
+	}
 
-		actualQuery := r.reader.buildFindTraceIDsQuery(traceQuery)
-		actual, err := actualQuery.Source()
-		require.NoError(t, err)
-		expectedQuery := elastic.NewBoolQuery().
-			Must(
-				r.reader.buildDurationQuery(time.Second, time.Second*2),
-				r.reader.buildStartTimeQuery(time.Time{}, time.Time{}.Add(time.Second)),
-				r.reader.buildServiceNameQuery("s"),
-				r.reader.buildOperationNameQuery("o"),
-				r.reader.buildSpanKindQuery("client"),
-				r.reader.buildTagQuery("hello", "world"),
-			)
-		expected, err := expectedQuery.Source()
-		require.NoError(t, err)
-		assert.Equal(t, expected, actual)
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			withSpanReader(t, func(r *spanReaderTest) {
+				// Set up feature gate
+				err := featuregate.GlobalRegistry().Set("jaeger.es.disableSpanKindTagSearch", tt.disableSpanKindTagSearch)
+				require.NoError(t, err)
+
+				traceQuery := dbmodel.TraceQueryParameters{
+					DurationMin:   time.Second,
+					DurationMax:   time.Second * 2,
+					StartTimeMin:  time.Time{},
+					StartTimeMax:  time.Time{}.Add(time.Second),
+					ServiceName:   "s",
+					OperationName: "o",
+					Tags: map[string]string{
+						"hello":     "world",
+						"span.kind": "client",
+					},
+				}
+
+				// Build expected query components
+				expectedQuery := elastic.NewBoolQuery().Must(
+					r.reader.buildDurationQuery(time.Second, time.Second*2),
+					r.reader.buildStartTimeQuery(time.Time{}, time.Time{}.Add(time.Second)),
+					r.reader.buildServiceNameQuery("s"),
+					r.reader.buildOperationNameQuery("o"),
+					tt.expectedSpanKindQuery,
+					r.reader.buildTagQuery("hello", "world"),
+				)
+
+				// Verify the actual query matches expected
+				actualQuery := r.reader.buildFindTraceIDsQuery(traceQuery)
+				actual, err := actualQuery.Source()
+				require.NoError(t, err)
+				expected, err := expectedQuery.Source()
+				require.NoError(t, err)
+				assert.Equal(t, expected, actual)
+			})
+		})
+	}
 }
 
 func TestSpanReader_buildDurationQuery(t *testing.T) {

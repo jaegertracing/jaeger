@@ -81,6 +81,8 @@ var (
 	_ CoreSpanReader = (*SpanReader)(nil) // check API conformance
 
 	disableLegacyIDs *featuregate.Gate
+
+	disableSpanKindTagSearch *featuregate.Gate
 )
 
 func init() {
@@ -91,6 +93,12 @@ func init() {
 		featuregate.WithRegisterToVersion("v2.8.0"),
 		featuregate.WithRegisterDescription("Legacy trace ids are the ids that used to be rendered with leading 0s omitted. Setting this gate to false will force the reader to search for the spans with trace ids having leading zeroes"),
 		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/1578"))
+
+	disableSpanKindTagSearch = featuregate.GlobalRegistry().MustRegister(
+		"jaeger.es.disableSpanKindTagSearch",
+		featuregate.StageBeta, // enabled by default
+		featuregate.WithRegisterDescription("When enabled, only searches materialized span.kind field, not tags"),
+	)
 }
 
 // SpanReader can query for and load traces from ElasticSearch
@@ -635,8 +643,17 @@ func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParamet
 	return boolQuery
 }
 
-func (*SpanReader) buildSpanKindQuery(spanKind string) elastic.Query {
-	return elastic.NewMatchQuery(spanKindField, spanKind)
+func (s *SpanReader) buildSpanKindQuery(spanKind string) elastic.Query {
+	materializedFieldQuery := elastic.NewMatchQuery(spanKindField, spanKind)
+	if disableSpanKindTagSearch.IsEnabled() {
+		// Only search the materialized field
+		return materializedFieldQuery
+	}
+	nestedTagQuery := s.buildNestedQuery(nestedTagsField, spanKindNestedField, spanKind)
+	return elastic.NewBoolQuery().Should(
+		materializedFieldQuery,
+		nestedTagQuery,
+	)
 }
 
 func (*SpanReader) buildDurationQuery(durationMin time.Duration, durationMax time.Duration) elastic.Query {
