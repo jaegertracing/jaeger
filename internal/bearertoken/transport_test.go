@@ -22,89 +22,114 @@ func (s roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 func TestRoundTripper(t *testing.T) {
 	for _, tc := range []struct {
 		name             string
-		staticToken      string
+		tokenFn          func() string
 		overrideFromCtx  bool
 		authScheme       string
 		wrappedTransport http.RoundTripper
 		requestContext   context.Context
+		wantHeader       string
 		wantError        bool
 	}{
 		{
-			name: "Default RoundTripper and request context set should have empty Bearer token",
+			name:            "No token function, no context: header empty",
+			tokenFn:         nil,
+			overrideFromCtx: false,
+			authScheme:      "Bearer",
 			wrappedTransport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 				assert.Empty(t, r.Header.Get("Authorization"))
-				return &http.Response{
-					StatusCode: http.StatusOK,
-				}, nil
-			}),
-			requestContext: ContextWithBearerToken(context.Background(), "tokenFromContext"),
-		},
-		{
-			name:            "Bearer: Override from context provided, and request context set should use request context token",
-			overrideFromCtx: true,
-			authScheme:      "Bearer",
-			wrappedTransport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
-				assert.Equal(t, "Bearer tokenFromContext", r.Header.Get("Authorization"))
-				return &http.Response{
-					StatusCode: http.StatusOK,
-				}, nil
-			}),
-			requestContext: ContextWithBearerToken(context.Background(), "tokenFromContext"),
-		},
-		{
-			name:            "Bearer: Allow override from context and token provided, and request context unset should use defaultToken",
-			overrideFromCtx: true,
-			staticToken:     "initToken",
-			authScheme:      "Bearer",
-			wrappedTransport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
-				assert.Equal(t, "Bearer initToken", r.Header.Get("Authorization"))
-				return &http.Response{}, nil
+				return &http.Response{StatusCode: http.StatusOK}, nil
 			}),
 			requestContext: context.Background(),
+			wantHeader:     "",
 		},
 		{
-			name:            "Bearer: Allow override from context and token provided, and request context set should use context token",
-			overrideFromCtx: true,
-			staticToken:     "initToken",
+			name:            "TokenFn returns token, no context: header set",
+			tokenFn:         func() string { return "mytoken" },
+			overrideFromCtx: false,
 			authScheme:      "Bearer",
 			wrappedTransport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
-				assert.Equal(t, "Bearer tokenFromContext", r.Header.Get("Authorization"))
-				return &http.Response{}, nil
+				assert.Equal(t, "Bearer mytoken", r.Header.Get("Authorization"))
+				return &http.Response{StatusCode: http.StatusOK}, nil
 			}),
-			requestContext: ContextWithBearerToken(context.Background(), "tokenFromContext"),
+			requestContext: context.Background(),
+			wantHeader:     "Bearer mytoken",
 		},
 		{
-			name:        "ApiKey: Static token should be used with ApiKey scheme",
-			staticToken: "apiKeyToken",
-			authScheme:  "ApiKey",
+			name:            "Override from context, context token present: context wins",
+			tokenFn:         func() string { return "filetoken" },
+			overrideFromCtx: true,
+			authScheme:      "Bearer",
+			wrappedTransport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				assert.Equal(t, "Bearer ctxToken", r.Header.Get("Authorization"))
+				return &http.Response{StatusCode: http.StatusOK}, nil
+			}),
+			requestContext: ContextWithBearerToken(context.Background(), "ctxToken"),
+			wantHeader:     "Bearer ctxToken",
+		},
+		{
+			name:            "Override from context enabled but context empty: file token used",
+			tokenFn:         func() string { return "filetoken" },
+			overrideFromCtx: true,
+			authScheme:      "Bearer",
+			wrappedTransport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				assert.Equal(t, "Bearer filetoken", r.Header.Get("Authorization"))
+				return &http.Response{StatusCode: http.StatusOK}, nil
+			}),
+			requestContext: context.Background(),
+			wantHeader:     "Bearer filetoken",
+		},
+		{
+			name:            "ApiKey: TokenFn returns token, no context: header set",
+			tokenFn:         func() string { return "apiKeyToken" },
+			overrideFromCtx: false,
+			authScheme:      "ApiKey",
 			wrappedTransport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 				assert.Equal(t, "ApiKey apiKeyToken", r.Header.Get("Authorization"))
-				return &http.Response{}, nil
+				return &http.Response{StatusCode: http.StatusOK}, nil
 			}),
 			requestContext: context.Background(),
+			wantHeader:     "ApiKey apiKeyToken",
 		},
 		{
-			name:            "ApiKey: Override from context should use context API key",
+			name:            "ApiKey: Override from context, context token present: context wins",
+			tokenFn:         func() string { return "apiKeyToken" },
 			overrideFromCtx: true,
-			staticToken:     "apiKeyToken",
 			authScheme:      "ApiKey",
 			wrappedTransport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 				assert.Equal(t, "ApiKey contextApiKey", r.Header.Get("Authorization"))
-				return &http.Response{}, nil
+				return &http.Response{StatusCode: http.StatusOK}, nil
 			}),
 			requestContext: ContextWithAPIKey(context.Background(), "contextApiKey"),
+			wantHeader:     "ApiKey contextApiKey",
 		},
-
 		{
-			name:            "ApiKey: Custom token retrieval function should be used (not supported, should fallback to staticToken)",
-			overrideFromCtx: true,
-			staticToken:     "apiKeyToken",
+			name:           "Nil roundTripper provided should return an error",
+			requestContext: context.Background(),
+			wantError:      true,
+		},
+		{
+			name:            "ApiKey: TokenFn returns token, no context: header set",
+			tokenFn:         func() string { return "apiKeyToken" },
+			overrideFromCtx: false,
 			authScheme:      "ApiKey",
 			wrappedTransport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 				assert.Equal(t, "ApiKey apiKeyToken", r.Header.Get("Authorization"))
-				return &http.Response{}, nil
+				return &http.Response{StatusCode: http.StatusOK}, nil
 			}),
 			requestContext: context.Background(),
+			wantHeader:     "ApiKey apiKeyToken",
+		},
+		{
+			name:            "ApiKey: Override from context, context token present: context wins",
+			tokenFn:         func() string { return "apiKeyToken" },
+			overrideFromCtx: true,
+			authScheme:      "ApiKey",
+			wrappedTransport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				assert.Equal(t, "ApiKey contextApiKey", r.Header.Get("Authorization"))
+				return &http.Response{StatusCode: http.StatusOK}, nil
+			}),
+			requestContext: ContextWithAPIKey(context.Background(), "contextApiKey"),
+			wantHeader:     "ApiKey contextApiKey",
 		},
 		{
 			name:           "Nil roundTripper provided should return an error",
@@ -121,8 +146,8 @@ func TestRoundTripper(t *testing.T) {
 			tr := RoundTripper{
 				Transport:       tc.wrappedTransport,
 				OverrideFromCtx: tc.overrideFromCtx,
-				StaticToken:     tc.staticToken,
 				AuthScheme:      tc.authScheme,
+				TokenFn:         tc.tokenFn,
 			}
 			resp, err := tr.RoundTrip(req)
 
@@ -132,6 +157,7 @@ func TestRoundTripper(t *testing.T) {
 			} else {
 				assert.NotNil(t, resp)
 				require.NoError(t, err)
+
 			}
 		})
 	}

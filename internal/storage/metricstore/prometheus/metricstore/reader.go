@@ -6,11 +6,10 @@ package metricstore
 import (
 	"context"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 	"unicode"
@@ -363,26 +362,27 @@ func getHTTPRoundTripper(c *config.Configuration) (rt http.RoundTripper, err err
 		TLSClientConfig:     ctlsConfig,
 	}
 
-	token := ""
+	// dynamic token loader with interval-based caching
+	var tokenFn func() string
 	if c.TokenFilePath != "" {
-		tokenFromFile, err := loadToken(c.TokenFilePath)
-		if err != nil {
-			return nil, err
+		loader := bearertoken.CachedFileTokenLoader(c.TokenFilePath, 10*time.Second)
+
+		t, err := loader()
+		if err != nil || t == "" {
+			return nil, fmt.Errorf("failed to get token from file: %w", err)
 		}
-		token = tokenFromFile
+		tokenFn = func() string {
+			t, err := loader()
+			if err != nil {
+				log.Printf("Token reload failed: %v", err)
+			}
+			return t
+		}
 	}
 	return &bearertoken.RoundTripper{
 		Transport:       httpTransport,
 		OverrideFromCtx: c.TokenOverrideFromContext,
-		StaticToken:     token,
 		AuthScheme:      "Bearer",
+		TokenFn:         tokenFn,
 	}, nil
-}
-
-func loadToken(path string) (string, error) {
-	b, err := os.ReadFile(filepath.Clean(path))
-	if err != nil {
-		return "", fmt.Errorf("failed to get token from file: %w", err)
-	}
-	return strings.TrimRight(string(b), "\r\n"), nil
 }

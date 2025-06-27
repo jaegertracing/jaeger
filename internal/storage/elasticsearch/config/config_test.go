@@ -589,6 +589,35 @@ func TestApplyDefaults(t *testing.T) {
 			expected: source,
 		},
 		{
+			name:     "All fields empty, all default",
+			target:   &Configuration{},
+			expected: source,
+		},
+		{
+			name: "Fields already set, not defaulted",
+			target: &Configuration{
+				RemoteReadClusters: []string{"already"},
+				LogLevel:           "already",
+				HTTPCompression:    true,
+			},
+			expected: func() *Configuration {
+				cfg := *source
+				cfg.RemoteReadClusters = []string{"already"}
+				cfg.LogLevel = "already"
+				cfg.HTTPCompression = true
+				return &cfg
+			}(),
+		},
+		{
+			name: "Partial fields, some defaulted",
+			target: &Configuration{
+				RemoteReadClusters: nil,
+				LogLevel:           "",
+				HTTPCompression:    false,
+			},
+			expected: source,
+		},
+		{
 			name: "Some Defaults Applied",
 			target: &Configuration{
 				RemoteReadClusters: []string{"customCluster"},
@@ -712,11 +741,8 @@ func TestApplyDefaults(t *testing.T) {
 }
 
 func TestTagKeysAsFields(t *testing.T) {
-	const (
-		pwd1 = "tag1\ntag2"
-	)
-	pwdFile := filepath.Join(t.TempDir(), "pwd")
-	require.NoError(t, os.WriteFile(pwdFile, []byte(pwd1), 0o600))
+	tempFile := filepath.Join(t.TempDir(), "test_tags.txt")
+	require.NoError(t, os.WriteFile(tempFile, []byte("tag1\ntag2\n\n"), 0o600))
 
 	tests := []struct {
 		name         string
@@ -725,13 +751,26 @@ func TestTagKeysAsFields(t *testing.T) {
 		expectError  bool
 	}{
 		{
-			name: "File with tags",
-			config: &Configuration{
-				Tags: TagsAsFields{
-					File:    pwdFile,
-					Include: "",
-				},
-			},
+			name:         "Empty config",
+			config:       &Configuration{Tags: TagsAsFields{}},
+			expectedTags: nil,
+			expectError:  false,
+		},
+		{
+			name:         "Include only",
+			config:       &Configuration{Tags: TagsAsFields{Include: "foo,bar"}},
+			expectedTags: []string{"foo", "bar"},
+			expectError:  false,
+		},
+		{
+			name:         "File not found",
+			config:       &Configuration{Tags: TagsAsFields{File: "/nonexistent/file"}},
+			expectedTags: nil,
+			expectError:  true,
+		},
+		{
+			name:         "File with tags",
+			config:       &Configuration{Tags: TagsAsFields{File: tempFile}},
 			expectedTags: []string{"tag1", "tag2"},
 			expectError:  false,
 		},
@@ -750,7 +789,7 @@ func TestTagKeysAsFields(t *testing.T) {
 			name: "File and include with tags",
 			config: &Configuration{
 				Tags: TagsAsFields{
-					File:    pwdFile,
+					File:    tempFile,
 					Include: "cmdtag1,cmdtag2",
 				},
 			},

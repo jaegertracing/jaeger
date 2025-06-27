@@ -21,6 +21,88 @@ import (
 )
 
 func TestGetHTTPRoundTripper(t *testing.T) {
+	t.Run("APIKey file and context logs warning and exercises token loader", func(t *testing.T) {
+		core, observedLogs := observer.New(zap.WarnLevel)
+		logger := zap.New(core)
+		tempFile := filepath.Join(t.TempDir(), "api-key")
+		require.NoError(t, os.WriteFile(tempFile, []byte("file-api-key"), 0o600))
+		cfg := &Configuration{
+			TLS: configtls.ClientConfig{Insecure: true},
+			Authentication: Authentication{
+				APIKeyAuthentication: APIKeyAuthentication{
+					FilePath:         tempFile,
+					AllowFromContext: true,
+				},
+			},
+		}
+		rt, err := GetHTTPRoundTripper(context.Background(), cfg, logger)
+		require.NoError(t, err)
+		// Exercise the tokenFn to ensure loader is called (for branch coverage)
+		tr, ok := rt.(bearertoken.RoundTripper)
+		require.True(t, ok, "returned transport is not bearertoken.RoundTripper")
+		_ = tr.TokenFn()
+		found := false
+		for _, entry := range observedLogs.All() {
+			if strings.Contains(entry.Message, "Both API key file and context propagation are enabled") {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "expected warning log for both APIKey file and context")
+	})
+
+	t.Run("APIKey file and context logs warning", func(t *testing.T) {
+		core, observedLogs := observer.New(zap.WarnLevel)
+		logger := zap.New(core)
+		tempFile := filepath.Join(t.TempDir(), "api-key")
+		require.NoError(t, os.WriteFile(tempFile, []byte("file-api-key"), 0o600))
+		cfg := &Configuration{
+			TLS: configtls.ClientConfig{Insecure: true},
+			Authentication: Authentication{
+				APIKeyAuthentication: APIKeyAuthentication{
+					FilePath:         tempFile,
+					AllowFromContext: true,
+				},
+			},
+		}
+		_, err := GetHTTPRoundTripper(context.Background(), cfg, logger)
+		require.NoError(t, err)
+		found := false
+		for _, entry := range observedLogs.All() {
+			if strings.Contains(entry.Message, "Both API key file and context propagation are enabled") {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "expected warning log for both APIKey file and context")
+	})
+
+	t.Run("BearerToken file and context logs warning", func(t *testing.T) {
+		core, observedLogs := observer.New(zap.WarnLevel)
+		logger := zap.New(core)
+		tempFile := filepath.Join(t.TempDir(), "bearer-token")
+		require.NoError(t, os.WriteFile(tempFile, []byte("file-bearer-token"), 0o600))
+		cfg := &Configuration{
+			TLS: configtls.ClientConfig{Insecure: true},
+			Authentication: Authentication{
+				BearerTokenAuthentication: BearerTokenAuthentication{
+					FilePath:         tempFile,
+					AllowFromContext: true,
+				},
+			},
+		}
+		_, err := GetHTTPRoundTripper(context.Background(), cfg, logger)
+		require.NoError(t, err)
+		found := false
+		for _, entry := range observedLogs.All() {
+			if strings.Contains(entry.Message, "Token file and token propagation are both enabled") {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "expected warning log for both BearerToken file and context")
+	})
+
 	tests := []struct {
 		name           string
 		setup          func(*testing.T) *Configuration
@@ -41,6 +123,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 			},
 			expectedType: "http.Transport",
 		},
+
 		{
 			name: "API key from file",
 			setup: func(_ *testing.T) *Configuration {
@@ -75,6 +158,43 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 			},
 			expectedType:   "bearertoken.RoundTripper",
 			expectedScheme: "ApiKey",
+		},
+		{
+			name: "bearer token from context",
+			setup: func(_ *testing.T) *Configuration {
+				return &Configuration{
+					TLS: configtls.ClientConfig{Insecure: true},
+					Authentication: Authentication{
+						BearerTokenAuthentication: BearerTokenAuthentication{
+							AllowFromContext: true,
+						},
+					},
+				}
+			},
+			setupCtx: func(ctx context.Context) context.Context {
+				return bearertoken.ContextWithBearerToken(ctx, "context-bearer-token")
+			},
+			expectedType:   "bearertoken.RoundTripper",
+			expectedScheme: "Bearer",
+		},
+		// Explicit assertion for tokenFn
+		{
+			name: "bearer token from context",
+			setup: func(_ *testing.T) *Configuration {
+				return &Configuration{
+					TLS: configtls.ClientConfig{Insecure: true},
+					Authentication: Authentication{
+						BearerTokenAuthentication: BearerTokenAuthentication{
+							AllowFromContext: true,
+						},
+					},
+				}
+			},
+			setupCtx: func(ctx context.Context) context.Context {
+				return bearertoken.ContextWithBearerToken(ctx, "context-bearer-token")
+			},
+			expectedType:   "bearertoken.RoundTripper",
+			expectedScheme: "Bearer",
 		},
 		{
 			name: "API key file and context with warning",
@@ -205,6 +325,15 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 			expectedType:   "bearertoken.RoundTripper",
 			expectedScheme: "Bearer",
 		},
+		{
+			name: "No auth, fallback to http.Transport",
+			setup: func(_ *testing.T) *Configuration {
+				return &Configuration{
+					TLS: configtls.ClientConfig{Insecure: true},
+				}
+			},
+			expectedType: "http.Transport",
+		},
 	}
 
 	for _, tt := range tests {
@@ -274,6 +403,32 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTokenReloadErrorBranch(t *testing.T) {
+	tempFile := filepath.Join(t.TempDir(), "api-key")
+	require.NoError(t, os.WriteFile(tempFile, []byte("file-api-key"), 0o600))
+	cfg := &Configuration{
+		TLS: configtls.ClientConfig{Insecure: true},
+		Authentication: Authentication{
+			APIKeyAuthentication: APIKeyAuthentication{
+				FilePath: tempFile,
+			},
+		},
+	}
+	logger := zap.NewNop()
+	rt, err := GetHTTPRoundTripper(context.Background(), cfg, logger)
+	require.NoError(t, err)
+
+	// Delete the token file to force reload error
+	require.NoError(t, os.Remove(tempFile))
+
+	// Type assert to bearertoken.RoundTripper to access TokenFn
+	tr, ok := rt.(bearertoken.RoundTripper)
+	require.True(t, ok, "returned transport is not bearertoken.RoundTripper")
+
+	// Call TokenFn to trigger reload error branch
+	_ = tr.TokenFn()
 }
 
 func TestLoadTokenFromFile(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -600,6 +601,9 @@ func addLoggerOptions(options []elastic.ClientOptionFunc, logLevel string, logge
 }
 
 // GetHTTPRoundTripper returns configured http.RoundTripper
+// TokenReloadInterval is the default interval for reloading tokens from file.
+const TokenReloadInterval = 10 * time.Second
+
 func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logger) (http.RoundTripper, error) {
 	if !c.TLS.Insecure {
 		ctlsConfig, err := c.TLS.LoadTLSConfig(ctx)
@@ -626,53 +630,70 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 		transport = httpTransport
 	}
 
-	// Check for API key authentication first
-	apiKey := ""
-	if c.Authentication.APIKeyAuthentication.FilePath != "" {
-		if c.Authentication.APIKeyAuthentication.AllowFromContext {
-			logger.Warn("Both API key file and context propagation are enabled - context token will take precedence over file-based token")
-		}
-		apiKeyFromFile, err := loadTokenFromFile(c.Authentication.APIKeyAuthentication.FilePath)
-		if err != nil {
-			return nil, err
-		}
-		apiKey = apiKeyFromFile
+	var (
+		tokenFn         func() string
+		scheme          string
+		overrideFromCtx bool
+	)
+
+	if c.Authentication.APIKeyAuthentication.FilePath != "" && c.Authentication.APIKeyAuthentication.AllowFromContext {
+		logger.Warn("Both API key file and context propagation are enabled - context token will take precedence over file-based token")
+	}
+	if c.Authentication.BearerTokenAuthentication.FilePath != "" && c.Authentication.BearerTokenAuthentication.AllowFromContext {
+		logger.Warn("Token file and token propagation are both enabled, token from file won't be used")
 	}
 
-	if apiKey != "" || c.Authentication.APIKeyAuthentication.AllowFromContext {
-		// Use the unified bearertoken.RoundTripper with ApiKey scheme
+	if c.Authentication.APIKeyAuthentication.FilePath != "" {
+		loader := bearertoken.CachedFileTokenLoader(c.Authentication.APIKeyAuthentication.FilePath, TokenReloadInterval)
+		t, err := loader()
+		if err != nil || t == "" {
+			return nil, fmt.Errorf("failed to get token from file: %w", err)
+		}
+		tokenFn = func() string {
+			t, err := loader()
+			if err != nil {
+				log.Printf("Token reload failed: %v", err)
+			}
+			return t
+		}
+		scheme = "ApiKey"
+		overrideFromCtx = c.Authentication.APIKeyAuthentication.AllowFromContext
+	} else if c.Authentication.APIKeyAuthentication.AllowFromContext {
+		tokenFn = func() string { return "" }
+		scheme = "ApiKey"
+		overrideFromCtx = true
+	} else if c.Authentication.BearerTokenAuthentication.FilePath != "" {
+		loader := bearertoken.CachedFileTokenLoader(c.Authentication.BearerTokenAuthentication.FilePath, TokenReloadInterval)
+		t, err := loader()
+		if err != nil || t == "" {
+			return nil, fmt.Errorf("failed to get token from file: %w", err)
+		}
+		tokenFn = func() string {
+			t, err := loader()
+			if err != nil {
+				log.Printf("Token reload failed: %v", err)
+			}
+			return t
+		}
+		scheme = "Bearer"
+		overrideFromCtx = c.Authentication.BearerTokenAuthentication.AllowFromContext
+	} else if c.Authentication.BearerTokenAuthentication.AllowFromContext {
+		tokenFn = func() string { return "" }
+		scheme = "Bearer"
+		overrideFromCtx = true
+	}
+
+	if scheme != "" {
 		transport = bearertoken.RoundTripper{
 			Transport:       httpTransport,
-			StaticToken:     apiKey,
-			AuthScheme:      "ApiKey",
-			OverrideFromCtx: c.Authentication.APIKeyAuthentication.AllowFromContext,
+			AuthScheme:      scheme,
+			OverrideFromCtx: overrideFromCtx,
+			TokenFn:         tokenFn,
 		}
 		return transport, nil
 	}
 
-	// Check for Bearer token authentication if API key is not configured
-	token := ""
-	if c.Authentication.BearerTokenAuthentication.FilePath != "" {
-		if c.Authentication.BearerTokenAuthentication.AllowFromContext {
-			logger.Warn("Token file and token propagation are both enabled, token from file won't be used")
-		}
-		tokenFromFile, err := loadTokenFromFile(c.Authentication.BearerTokenAuthentication.FilePath)
-		if err != nil {
-			return nil, err
-		}
-		token = tokenFromFile
-	}
-
-	if token != "" || c.Authentication.BearerTokenAuthentication.AllowFromContext {
-		// Use the unified bearertoken.RoundTripper with the Bearer scheme
-		transport = bearertoken.RoundTripper{
-			Transport:       httpTransport,
-			StaticToken:     token,
-			AuthScheme:      "Bearer",
-			OverrideFromCtx: c.Authentication.BearerTokenAuthentication.AllowFromContext,
-		}
-	}
-	return transport, nil
+	return httpTransport, nil
 }
 
 func loadTokenFromFile(path string) (string, error) {
