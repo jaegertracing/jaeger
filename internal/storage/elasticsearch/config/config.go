@@ -627,7 +627,6 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 			return nil, err
 		}
 		httpTransport.TLSClientConfig = ctlsConfig
-		transport = httpTransport
 	}
 
 	var (
@@ -636,14 +635,15 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 		overrideFromCtx bool
 	)
 
-	if c.Authentication.APIKeyAuthentication.FilePath != "" && c.Authentication.APIKeyAuthentication.AllowFromContext {
+	switch {
+	case c.Authentication.APIKeyAuthentication.FilePath != "" && c.Authentication.APIKeyAuthentication.AllowFromContext:
 		logger.Warn("Both API key file and context propagation are enabled - context token will take precedence over file-based token")
-	}
-	if c.Authentication.BearerTokenAuthentication.FilePath != "" && c.Authentication.BearerTokenAuthentication.AllowFromContext {
+	case c.Authentication.BearerTokenAuthentication.FilePath != "" && c.Authentication.BearerTokenAuthentication.AllowFromContext:
 		logger.Warn("Token file and token propagation are both enabled, token from file won't be used")
 	}
 
-	if c.Authentication.APIKeyAuthentication.FilePath != "" {
+	switch {
+	case c.Authentication.APIKeyAuthentication.FilePath != "":
 		loader := bearertoken.CachedFileTokenLoader(c.Authentication.APIKeyAuthentication.FilePath, TokenReloadInterval)
 		t, err := loader()
 		if err != nil || t == "" {
@@ -658,11 +658,13 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 		}
 		scheme = "ApiKey"
 		overrideFromCtx = c.Authentication.APIKeyAuthentication.AllowFromContext
-	} else if c.Authentication.APIKeyAuthentication.AllowFromContext {
+
+	case c.Authentication.APIKeyAuthentication.AllowFromContext:
 		tokenFn = func() string { return "" }
 		scheme = "ApiKey"
 		overrideFromCtx = true
-	} else if c.Authentication.BearerTokenAuthentication.FilePath != "" {
+
+	case c.Authentication.BearerTokenAuthentication.FilePath != "":
 		loader := bearertoken.CachedFileTokenLoader(c.Authentication.BearerTokenAuthentication.FilePath, TokenReloadInterval)
 		t, err := loader()
 		if err != nil || t == "" {
@@ -677,7 +679,8 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 		}
 		scheme = "Bearer"
 		overrideFromCtx = c.Authentication.BearerTokenAuthentication.AllowFromContext
-	} else if c.Authentication.BearerTokenAuthentication.AllowFromContext {
+
+	case c.Authentication.BearerTokenAuthentication.AllowFromContext:
 		tokenFn = func() string { return "" }
 		scheme = "Bearer"
 		overrideFromCtx = true

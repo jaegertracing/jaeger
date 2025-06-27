@@ -157,7 +157,6 @@ func TestRoundTripper(t *testing.T) {
 			} else {
 				assert.NotNil(t, resp)
 				require.NoError(t, err)
-
 			}
 		})
 	}

@@ -10,7 +10,7 @@ import (
 )
 
 func TestCachedFileTokenLoader_Basic(t *testing.T) {
-	tmpfile, err := os.CreateTemp("", "tokenfile-*.txt")
+	tmpfile, err := os.CreateTemp(t.TempDir(), "tokenfile-*.txt")
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
