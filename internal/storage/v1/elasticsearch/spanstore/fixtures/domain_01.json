@@ -47,6 +47,11 @@
       "key": "blob",
       "vType": "BINARY",
       "vBinary": "AAAwOQ=="
+    },
+    {
+      "key": "span.kind",
+      "vType": "STRING",
+      "vStr": "server"
     }
   ],
   "logs": [

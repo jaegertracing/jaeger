@@ -621,10 +621,14 @@ func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParamet
 	if kind, ok := traceQuery.Tags[spanKindNestedField]; ok {
 		spanKindSpecificQuery := s.buildSpanKindQuery(kind)
 		boolQuery.Must(spanKindSpecificQuery)
-		delete(traceQuery.Tags, spanKindNestedField)
 	}
 
 	for k, v := range traceQuery.Tags {
+		// Skip the spanKindNestedField because we already have query for it above
+		if k == spanKindNestedField {
+			continue
+		}
+
 		tagQuery := s.buildTagQuery(k, v)
 		boolQuery.Must(tagQuery)
 	}

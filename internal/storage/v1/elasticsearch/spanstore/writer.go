@@ -118,29 +118,12 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServ
 func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 	s.writerMetrics.Attempts.Inc(1)
 	s.convertNestedTagsToFieldTags(span)
-	s.promoteSpanKindFromTags(span)
 	spanIndexName, serviceIndexName := s.spanServiceIndex(spanStartTime)
 	if serviceIndexName != "" {
 		s.writeService(serviceIndexName, span)
 	}
 	s.writeSpan(spanIndexName, span)
 	s.logger.Debug("Wrote span to ES index", zap.String("index", spanIndexName))
-}
-
-func (*SpanWriter) promoteSpanKindFromTags(span *dbmodel.Span) {
-	if span.SpanKind != "" {
-		return
-	}
-
-	for _, tag := range span.Tags {
-		if tag.Key != spanKindNestedField {
-			continue
-		}
-		if kind, ok := tag.Value.(string); ok {
-			span.SpanKind = kind
-		}
-		return
-	}
 }
 
 func (s *SpanWriter) convertNestedTagsToFieldTags(span *dbmodel.Span) {
@@ -180,7 +163,7 @@ func (s *SpanWriter) splitElevatedTags(keyValues []dbmodel.KeyValue) ([]dbmodel.
 	var tagsMap map[string]any
 	var kvs []dbmodel.KeyValue
 	for _, kv := range keyValues {
-		// Special handling for span.kind - don't elevate because we already have it at top level (through promoteSpanKindFromTags)
+		// Special handling for span.kind - don't elevate because we already have it at top level
 		if kv.Key == spanKindNestedField && kv.Type == dbmodel.StringType {
 			continue
 		}

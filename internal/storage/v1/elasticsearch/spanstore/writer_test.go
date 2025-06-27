@@ -169,6 +169,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				TraceID:       "testing-traceid",
 				SpanID:        "testing-spanid",
 				OperationName: "operation",
+				SpanKind:      "server",
 				Process:       dbmodel.Process{ServiceName: "service"},
 				StartTime:     model.TimeAsEpochMicroseconds(time.Date(1995, 4, 21, 22, 8, 41, 0, time.UTC)),
 				Tags: []dbmodel.KeyValue{
@@ -446,73 +447,6 @@ func TestTagMap(t *testing.T) {
 	tagsMap["b:b"] = int64(1)
 	assert.Equal(t, tagsMap, dbSpan.Tag)
 	assert.Equal(t, tagsMap, dbSpan.Process.Tag)
-}
-
-func TestPromoteSpanKindFromTags(t *testing.T) {
-	testCases := []struct {
-		name         string
-		span         *dbmodel.Span
-		expectedKind string
-	}{
-		{
-			name: "empty SpanKind with valid span.kind tag",
-			span: &dbmodel.Span{
-				SpanKind: "",
-				Tags: []dbmodel.KeyValue{
-					{Key: spanKindNestedField, Value: "server", Type: dbmodel.StringType},
-					{Key: "other", Value: "value", Type: dbmodel.StringType},
-				},
-			},
-			expectedKind: "server",
-		},
-		{
-			name: "non-empty SpanKind, should not overwrite",
-			span: &dbmodel.Span{
-				SpanKind: "client",
-				Tags: []dbmodel.KeyValue{
-					{Key: spanKindNestedField, Value: "server", Type: dbmodel.StringType},
-				},
-			},
-			expectedKind: "client",
-		},
-		{
-			name: "empty SpanKind with no span.kind tag",
-			span: &dbmodel.Span{
-				SpanKind: "",
-				Tags: []dbmodel.KeyValue{
-					{Key: "other", Value: "value", Type: dbmodel.StringType},
-				},
-			},
-			expectedKind: "",
-		},
-		{
-			name: "empty SpanKind with invalid span.kind tag type",
-			span: &dbmodel.Span{
-				SpanKind: "",
-				Tags: []dbmodel.KeyValue{
-					{Key: spanKindNestedField, Value: 123, Type: dbmodel.Int64Type},
-				},
-			},
-			expectedKind: "",
-		},
-		{
-			name: "empty SpanKind with empty tags",
-			span: &dbmodel.Span{
-				SpanKind: "",
-				Tags:     []dbmodel.KeyValue{},
-			},
-			expectedKind: "",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			withSpanWriter(func(w *spanWriterTest) {
-				w.writer.promoteSpanKindFromTags(tc.span)
-				assert.Equal(t, tc.expectedKind, tc.span.SpanKind, "SpanKind should match expected value")
-			})
-		})
-	}
 }
 
 func TestNewSpanTags(t *testing.T) {
