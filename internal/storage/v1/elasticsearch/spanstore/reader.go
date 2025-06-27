@@ -632,7 +632,7 @@ func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParamet
 	}
 
 	for k, v := range traceQuery.Tags {
-		// Skip the spanKindNestedField because we already have query for it above
+		// Skip the spanKindNestedField because we already have query for it
 		if k == spanKindNestedField {
 			continue
 		}
