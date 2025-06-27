@@ -175,7 +175,7 @@ func TestSpanCollectorZipkinTLS(t *testing.T) {
 
 			opts := &flags.CollectorOptions{}
 			opts.Zipkin.Endpoint = ports.PortToHostPort(ports.CollectorZipkin)
-			opts.Zipkin.TLSSetting = &test.serverTLS
+			opts.Zipkin.TLS = &test.serverTLS
 
 			server, err := StartZipkinReceiver(opts, logger, spanProcessor, tm)
 			if test.expectServerFail {

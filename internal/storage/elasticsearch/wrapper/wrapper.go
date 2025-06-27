@@ -12,7 +12,7 @@ import (
 
 	esV8 "github.com/elastic/go-elasticsearch/v9"
 	esV8api "github.com/elastic/go-elasticsearch/v9/esapi"
-	"github.com/olivere/elastic"
+	"github.com/olivere/elastic/v7"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 )
@@ -86,9 +86,6 @@ func (c ClientWrapper) Search(indices ...string) es.SearchService {
 // MultiSearch calls this function to internal client.
 func (c ClientWrapper) MultiSearch() es.MultiSearchService {
 	multiSearchService := c.client.MultiSearch()
-	if c.esVersion >= 7 {
-		multiSearchService = multiSearchService.RestTotalHitsAsInt(true)
-	}
 	return WrapESMultiSearchService(multiSearchService)
 }
 

@@ -34,8 +34,8 @@ var _ (io.Closer) = (*Collector)(nil)
 func optionsForEphemeralPorts() *flags.CollectorOptions {
 	collectorOpts := &flags.CollectorOptions{
 		HTTP: confighttp.ServerConfig{
-			Endpoint:   ":0",
-			TLSSetting: &configtls.ServerConfig{},
+			Endpoint: ":0",
+			TLS:      &configtls.ServerConfig{},
 		},
 		GRPC: configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{
@@ -55,8 +55,8 @@ func optionsForEphemeralPorts() *flags.CollectorOptions {
 		}{
 			Enabled: true,
 			HTTP: confighttp.ServerConfig{
-				Endpoint:   ":0",
-				TLSSetting: &configtls.ServerConfig{},
+				Endpoint: ":0",
+				TLS:      &configtls.ServerConfig{},
 			},
 			GRPC: configgrpc.ServerConfig{
 				NetAddr: confignet.AddrConfig{
