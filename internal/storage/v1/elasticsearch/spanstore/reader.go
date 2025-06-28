@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -48,9 +47,7 @@ const (
 	tagValueField          = "value"
 	spanKindField          = "spanKind"
 	statusCodeField        = "status.code"
-	statusMsgField         = "status.message"
-	statusCodeNestedField  = "http.status_code"
-	statusMsgNestedField   = "http.status_message"
+	errorTagField          = "error"
 
 	defaultNumTraces = 100
 
@@ -636,10 +633,8 @@ func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParamet
 		switch k {
 		case model.SpanKindKey:
 			boolQuery.Must(s.buildSpanKindQuery(v))
-		case statusCodeNestedField:
-			boolQuery.Must(s.buildStatusCodeQuery(v))
-		case statusMsgNestedField:
-			boolQuery.Must(s.buildStatusMsgQuery(v))
+		case errorTagField:
+			boolQuery.Must(s.buildStatusCodeQuery())
 		default:
 			boolQuery.Must(s.buildTagQuery(k, v))
 		}
@@ -647,7 +642,7 @@ func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParamet
 	return boolQuery
 }
 
-func (s *SpanReader) buildFieldQuery(field, nestedField string, value any, value2 any) elastic.Query {
+func (s *SpanReader) buildQueryForMaterializedTag(field, nestedField string, value any, value2 any) elastic.Query {
 	materializedQuery := elastic.NewMatchQuery(field, value)
 	if materializeSpanKindAndStatus.IsEnabled() {
 		return materializedQuery
@@ -658,23 +653,11 @@ func (s *SpanReader) buildFieldQuery(field, nestedField string, value any, value
 }
 
 func (s *SpanReader) buildSpanKindQuery(spanKind string) elastic.Query {
-	return s.buildFieldQuery(spanKindField, model.SpanKindKey, spanKind, spanKind)
+	return s.buildQueryForMaterializedTag(spanKindField, model.SpanKindKey, spanKind, spanKind)
 }
 
-func (s *SpanReader) buildStatusCodeQuery(status string) elastic.Query {
-	statusCode := int32(0) // Match the status code type int32 in dbmodel Span and Jaeger v2 ptrace
-	// convert to number
-	if num, err := strconv.Atoi(status); err == nil {
-		if num < 100 || num >= 400 {
-			statusCode = int32(2)
-		}
-	}
-
-	return s.buildFieldQuery(statusCodeField, statusCodeNestedField, statusCode, status)
-}
-
-func (s *SpanReader) buildStatusMsgQuery(statusMsg string) elastic.Query {
-	return s.buildFieldQuery(statusMsgField, statusMsgNestedField, statusMsg, statusMsg)
+func (s *SpanReader) buildStatusCodeQuery() elastic.Query {
+	return s.buildQueryForMaterializedTag(statusCodeField, errorTagField, 2, "true")
 }
 
 func (*SpanReader) buildDurationQuery(durationMin time.Duration, durationMax time.Duration) elastic.Query {

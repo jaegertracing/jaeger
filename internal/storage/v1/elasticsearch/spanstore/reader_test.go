@@ -1068,7 +1068,6 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 		materializeSpanKindAndStatus bool
 		expectedSpanKindQuery        elastic.Query
 		expectedStatusCodeQuery      elastic.Query
-		expectedStatusMsgQuery       elastic.Query
 	}{
 		{
 			name:                         "materializeSpanKindAndStatus disable",
@@ -1084,22 +1083,12 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 				),
 			),
 			expectedStatusCodeQuery: elastic.NewBoolQuery().Should(
-				elastic.NewMatchQuery(statusCodeField, int32(2)), // Error
+				elastic.NewMatchQuery(statusCodeField, 2),
 				elastic.NewNestedQuery(
 					nestedTagsField,
 					elastic.NewBoolQuery().Must(
-						elastic.NewMatchQuery("tags.key", statusCodeNestedField),
-						elastic.NewRegexpQuery("tags.value", "500"),
-					),
-				),
-			),
-			expectedStatusMsgQuery: elastic.NewBoolQuery().Should(
-				elastic.NewMatchQuery(statusMsgField, "error message"),
-				elastic.NewNestedQuery(
-					nestedTagsField,
-					elastic.NewBoolQuery().Must(
-						elastic.NewMatchQuery("tags.key", statusMsgNestedField),
-						elastic.NewRegexpQuery("tags.value", "error message"),
+						elastic.NewMatchQuery("tags.key", errorTagField),
+						elastic.NewRegexpQuery("tags.value", "true"),
 					),
 				),
 			),
@@ -1108,8 +1097,7 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 			name:                         "materializeSpanKindAndStatus enabled (default)",
 			materializeSpanKindAndStatus: true,
 			expectedSpanKindQuery:        elastic.NewMatchQuery(spanKindField, "client"),
-			expectedStatusCodeQuery:      elastic.NewMatchQuery(statusCodeField, int32(2)), // Error
-			expectedStatusMsgQuery:       elastic.NewMatchQuery(statusMsgField, "error message"),
+			expectedStatusCodeQuery:      elastic.NewMatchQuery(statusCodeField, 2),
 		},
 	}
 
@@ -1128,10 +1116,9 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 					ServiceName:   "s",
 					OperationName: "o",
 					Tags: map[string]string{
-						model.SpanKindKey:     "client",
-						"hello":               "world",
-						statusCodeNestedField: "500",
-						statusMsgNestedField:  "error message",
+						model.SpanKindKey: "client",
+						"hello":           "world",
+						errorTagField:     "true",
 					},
 				}
 
@@ -1143,7 +1130,6 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 					tt.expectedSpanKindQuery,
 					r.reader.buildTagQuery("hello", "world"),
 					tt.expectedStatusCodeQuery,
-					tt.expectedStatusMsgQuery,
 				)
 
 				// Build actual query
@@ -1217,89 +1203,6 @@ func getKeys(m map[string]any) []string {
 	}
 	sort.Strings(keys)
 	return keys
-}
-
-func TestSpanReader_buildStatusCodeQuery(t *testing.T) {
-	tests := []struct {
-		name         string
-		status       string
-		expectedCode int32
-	}{
-		{
-			name:         "http success status",
-			status:       "200",
-			expectedCode: 0, // Unset
-		},
-		{
-			name:         "http error status",
-			status:       "500",
-			expectedCode: 2, // Error
-		},
-		{
-			name:         "otel ok status",
-			status:       "100",
-			expectedCode: 0, // Unset
-		},
-		{
-			name:         "otel error status",
-			status:       "400",
-			expectedCode: 2, // Error
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			withSpanReader(t, func(r *spanReaderTest) {
-				// Test with feature gate disabled (materialized + nested)
-				err := featuregate.GlobalRegistry().Set("jaeger.es.materializeSpanKindAndStatus", false)
-				require.NoError(t, err)
-
-				actualQuery := r.reader.buildStatusCodeQuery(tt.status)
-				expectedQuery := elastic.NewBoolQuery().Should(
-					elastic.NewMatchQuery(statusCodeField, tt.expectedCode),
-					r.reader.buildNestedQuery(nestedTagsField, statusCodeNestedField, tt.status),
-				)
-
-				assert.Equal(t, expectedQuery, actualQuery)
-
-				// Test with feature gate enabled (materialized field only)
-				err = featuregate.GlobalRegistry().Set("jaeger.es.materializeSpanKindAndStatus", true)
-				require.NoError(t, err)
-
-				actualQuery = r.reader.buildStatusCodeQuery(tt.status)
-				expectQuery := elastic.NewMatchQuery(statusCodeField, tt.expectedCode)
-
-				assert.Equal(t, expectQuery, actualQuery)
-			})
-		})
-	}
-}
-
-func TestSpanReader_buildStatusMsgQuery(t *testing.T) {
-	withSpanReader(t, func(r *spanReaderTest) {
-		statusMsg := "error message"
-
-		// Test with feature gate disabled (materialized + nested)
-		err := featuregate.GlobalRegistry().Set("jaeger.es.materializeSpanKindAndStatus", false)
-		require.NoError(t, err)
-
-		actualQuery := r.reader.buildStatusMsgQuery(statusMsg)
-		expectedQuery := elastic.NewBoolQuery().Should(
-			elastic.NewMatchQuery(statusMsgField, statusMsg),
-			r.reader.buildNestedQuery(nestedTagsField, statusMsgNestedField, statusMsg),
-		)
-
-		assert.Equal(t, expectedQuery, actualQuery)
-
-		// Test with feature gate enabled (materialized field only)
-		err = featuregate.GlobalRegistry().Set("jaeger.es.materializeSpanKindAndStatus", true)
-		require.NoError(t, err)
-
-		actualQuery = r.reader.buildStatusMsgQuery(statusMsg)
-		expectQuery := elastic.NewMatchQuery(statusMsgField, statusMsg)
-
-		assert.Equal(t, expectQuery, actualQuery)
-	})
 }
 
 func TestSpanReader_buildDurationQuery(t *testing.T) {
