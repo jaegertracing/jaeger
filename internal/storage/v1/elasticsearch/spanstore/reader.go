@@ -46,7 +46,6 @@ const (
 	tagKeyField            = "key"
 	tagValueField          = "value"
 	spanKindField          = "spanKind"
-	spanKindNestedField    = "span.kind"
 
 	defaultNumTraces = 100
 
@@ -82,7 +81,7 @@ var (
 
 	disableLegacyIDs *featuregate.Gate
 
-	disableSpanKindTagSearch *featuregate.Gate
+	materializeSpanKind *featuregate.Gate
 )
 
 func init() {
@@ -94,11 +93,12 @@ func init() {
 		featuregate.WithRegisterDescription("Legacy trace ids are the ids that used to be rendered with leading 0s omitted. Setting this gate to false will force the reader to search for the spans with trace ids having leading zeroes"),
 		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/1578"))
 
-	disableSpanKindTagSearch = featuregate.GlobalRegistry().MustRegister(
-		"jaeger.es.disableSpanKindTagSearch",
+	materializeSpanKind = featuregate.GlobalRegistry().MustRegister(
+		"jaeger.es.materializeSpanKind",
 		featuregate.StageBeta, // enabled by default
-		featuregate.WithRegisterDescription("When enabled, only searches materialized span.kind field, not tags"),
-	)
+		featuregate.WithRegisterDescription(
+			"When feature is on, searching by span.kind tag will only search the materialized field in the ES document. This will become the only behavior in the future. To enable the legacy behavior of querying span kind from the nested tags, e.g. to support querying the data written before v2.8, turn off this feature."),
+		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/pull/7258"))
 }
 
 // SpanReader can query for and load traces from ElasticSearch
@@ -626,14 +626,14 @@ func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParamet
 		boolQuery.Must(operationNameQuery)
 	}
 
-	if kind, ok := traceQuery.Tags[spanKindNestedField]; ok {
+	if kind, ok := traceQuery.Tags[model.SpanKindKey]; ok {
 		spanKindSpecificQuery := s.buildSpanKindQuery(kind)
 		boolQuery.Must(spanKindSpecificQuery)
 	}
 
 	for k, v := range traceQuery.Tags {
 		// Skip the spanKindNestedField because we already have query for it
-		if k == spanKindNestedField {
+		if k == model.SpanKindKey {
 			continue
 		}
 
@@ -645,10 +645,10 @@ func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParamet
 
 func (s *SpanReader) buildSpanKindQuery(spanKind string) elastic.Query {
 	materializedFieldQuery := elastic.NewMatchQuery(spanKindField, spanKind)
-	if disableSpanKindTagSearch.IsEnabled() {
+	if materializeSpanKind.IsEnabled() {
 		return materializedFieldQuery
 	}
-	nestedTagQuery := s.buildNestedQuery(nestedTagsField, spanKindNestedField, spanKind)
+	nestedTagQuery := s.buildNestedQuery(nestedTagsField, model.SpanKindKey, spanKind)
 	return elastic.NewBoolQuery().Should(
 		materializedFieldQuery,
 		nestedTagQuery,

@@ -35,7 +35,6 @@ func (fd FromDomain) convertSpanInternal(span *model.Span) dbmodel.Span {
 		SpanID:          dbmodel.SpanID(span.SpanID.String()),
 		Flags:           uint32(span.Flags),
 		OperationName:   span.OperationName,
-		SpanKind:        extractSpanKindFromTags(tags),
 		StartTime:       model.TimeAsEpochMicroseconds(span.StartTime),
 		StartTimeMillis: model.TimeAsEpochMicroseconds(span.StartTime) / 1000,
 		Duration:        model.DurationAsMicroseconds(span.Duration),
@@ -54,17 +53,6 @@ func (fd FromDomain) convertReferences(span *model.Span) []dbmodel.Reference {
 		})
 	}
 	return out
-}
-
-func extractSpanKindFromTags(tags []dbmodel.KeyValue) string {
-	for _, tag := range tags {
-		if tag.Key == spanKindNestedField && tag.Type == dbmodel.StringType {
-			if value, ok := tag.Value.(string); ok {
-				return value
-			}
-		}
-	}
-	return ""
 }
 
 func (FromDomain) convertRefType(refType model.SpanRefType) dbmodel.ReferenceType {

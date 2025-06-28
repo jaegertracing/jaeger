@@ -5,6 +5,7 @@
 package spanstore
 
 import (
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"strings"
 	"time"
 
@@ -164,7 +165,7 @@ func (s *SpanWriter) splitElevatedTags(keyValues []dbmodel.KeyValue) ([]dbmodel.
 	var kvs []dbmodel.KeyValue
 	for _, kv := range keyValues {
 		// Special handling for span.kind - don't elevate because we already have it at top level
-		if kv.Key == spanKindNestedField && kv.Type == dbmodel.StringType {
+		if kv.Key == model.SpanKindKey && kv.Type == dbmodel.StringType {
 			continue
 		}
 

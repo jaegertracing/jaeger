@@ -173,7 +173,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				Process:       dbmodel.Process{ServiceName: "service"},
 				StartTime:     model.TimeAsEpochMicroseconds(time.Date(1995, 4, 21, 22, 8, 41, 0, time.UTC)),
 				Tags: []dbmodel.KeyValue{
-					{Key: spanKindNestedField, Value: "server", Type: dbmodel.StringType},
+					{Key: model.SpanKindKey, Value: "server", Type: dbmodel.StringType},
 					{Key: "other", Value: "value", Type: dbmodel.StringType},
 				},
 			},
@@ -192,7 +192,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				Process:       dbmodel.Process{ServiceName: "service"},
 				StartTime:     model.TimeAsEpochMicroseconds(time.Date(1995, 4, 21, 22, 8, 41, 0, time.UTC)),
 				Tags: []dbmodel.KeyValue{
-					{Key: spanKindNestedField, Value: "server", Type: dbmodel.StringType},
+					{Key: model.SpanKindKey, Value: "server", Type: dbmodel.StringType},
 				},
 			},
 			expectedSpanKind: "client",
@@ -226,7 +226,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				Process:       dbmodel.Process{ServiceName: "service"},
 				StartTime:     model.TimeAsEpochMicroseconds(time.Date(1995, 4, 21, 22, 8, 41, 0, time.UTC)),
 				Tags: []dbmodel.KeyValue{
-					{Key: spanKindNestedField, Value: 123, Type: dbmodel.Int64Type},
+					{Key: model.SpanKindKey, Value: 123, Type: dbmodel.Int64Type},
 				},
 			},
 			expectedSpanKind: "",
@@ -422,7 +422,7 @@ func TestTagMap(t *testing.T) {
 			Type:  dbmodel.Int64Type,
 		},
 		{
-			Key:   spanKindNestedField,
+			Key:   model.SpanKindKey,
 			Value: "server",
 			Type:  dbmodel.StringType,
 		},

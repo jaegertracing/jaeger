@@ -3,7 +3,6 @@
   "spanID": "0000000000000002",
   "flags": 1,
   "operationName": "test-general-conversion",
-  "spanKind": "server",
   "references": [
     {
       "refType": "CHILD_OF",
@@ -49,11 +48,6 @@
       "key": "blob",
       "type": "binary",
       "value": "00003039"
-    },
-    {
-      "key": "span.kind",
-      "type": "string",
-      "value": "server"
     }
   ],
   "logs": [

@@ -1063,28 +1063,28 @@ func TestSpanReader_buildTraceIDAggregation(t *testing.T) {
 
 func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 	tests := []struct {
-		name                     string
-		disableSpanKindTagSearch bool
-		expectedSpanKindQuery    elastic.Query
+		name                  string
+		materializeSpanKind   bool
+		expectedSpanKindQuery elastic.Query
 	}{
 		{
-			name:                     "span.kind tag search enabled (default)",
-			disableSpanKindTagSearch: false,
+			name:                "materializeSpanKind disable",
+			materializeSpanKind: false,
 			expectedSpanKindQuery: elastic.NewBoolQuery().Should(
 				elastic.NewMatchQuery(spanKindField, "client"),
 				elastic.NewNestedQuery(
 					nestedTagsField,
 					elastic.NewBoolQuery().Must(
-						elastic.NewMatchQuery("tags.key", spanKindNestedField),
+						elastic.NewMatchQuery("tags.key", model.SpanKindKey),
 						elastic.NewRegexpQuery("tags.value", "client"),
 					),
 				),
 			),
 		},
 		{
-			name:                     "span.kind tag search disabled",
-			disableSpanKindTagSearch: true,
-			expectedSpanKindQuery:    elastic.NewMatchQuery(spanKindField, "client"),
+			name:                  "materializeSpanKind enabled (default)",
+			materializeSpanKind:   true,
+			expectedSpanKindQuery: elastic.NewMatchQuery(spanKindField, "client"),
 		},
 	}
 
@@ -1092,7 +1092,7 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			withSpanReader(t, func(r *spanReaderTest) {
 				// Set up feature gate
-				err := featuregate.GlobalRegistry().Set("jaeger.es.disableSpanKindTagSearch", tt.disableSpanKindTagSearch)
+				err := featuregate.GlobalRegistry().Set("jaeger.es.materializeSpanKind", tt.materializeSpanKind)
 				require.NoError(t, err)
 
 				traceQuery := dbmodel.TraceQueryParameters{
