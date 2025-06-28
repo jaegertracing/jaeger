@@ -5,11 +5,14 @@ package bearertoken
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 // CachedFileTokenLoader returns a function that loads a token from the given file path,
@@ -35,4 +38,31 @@ func CachedFileTokenLoader(path string, interval time.Duration) func() (string, 
 		lastRead = now
 		return cachedToken, nil
 	}
+}
+
+// TokenProvider creates a token provider that handles file loading and error handling consistently.
+func TokenProvider(path string, interval time.Duration, logger *zap.Logger) (func() string, error) {
+	loader := CachedFileTokenLoader(path, interval)
+
+	// Initial token load
+	t, err := loader()
+	if err != nil || t == "" {
+		return nil, fmt.Errorf("failed to get token from file: %w", err)
+	}
+
+	initialToken := t
+
+	return func() string {
+		t, err := loader()
+		if err != nil {
+			if logger != nil {
+				logger.Warn("Token reload failed", zap.Error(err))
+			} else {
+				log.Printf("Token reload failed: %v", err)
+			}
+			return initialToken
+		}
+		initialToken = t
+		return t
+	}, nil
 }

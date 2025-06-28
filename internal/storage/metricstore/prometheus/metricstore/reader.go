@@ -6,7 +6,6 @@ package metricstore
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -365,24 +364,22 @@ func getHTTPRoundTripper(c *config.Configuration) (rt http.RoundTripper, err err
 	// dynamic token loader with interval-based caching
 	var tokenFn func() string
 	if c.TokenFilePath != "" {
-		loader := bearertoken.CachedFileTokenLoader(c.TokenFilePath, 10*time.Second)
-
-		t, err := loader()
-		if err != nil || t == "" {
-			return nil, fmt.Errorf("failed to get token from file: %w", err)
-		}
-		tokenFn = func() string {
-			t, err := loader()
-			if err != nil {
-				log.Printf("Token reload failed: %v", err)
-			}
-			return t
+		var err error
+		tokenFn, err = bearertoken.TokenProvider(
+			c.TokenFilePath,
+			10*time.Second,
+			nil,
+		)
+		if err != nil {
+			return nil, err
 		}
 	}
+
 	return &bearertoken.RoundTripper{
 		Transport:       httpTransport,
 		OverrideFromCtx: c.TokenOverrideFromContext,
 		AuthScheme:      "Bearer",
 		TokenFn:         tokenFn,
+		FromCtxFn:       bearertoken.GetBearerToken,
 	}, nil
 }

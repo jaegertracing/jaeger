@@ -4,6 +4,7 @@
 package bearertoken
 
 import (
+	"context"
 	"errors"
 	"net/http"
 )
@@ -22,6 +23,9 @@ type RoundTripper struct {
 
 	// TokenFn returns the cached token.
 	TokenFn func() string
+
+	// FromCtxFn extracts token from context.
+	FromCtxFn func(context.Context) (string, bool)
 }
 
 // RoundTrip injects the outbound Authorization header with the
@@ -32,20 +36,16 @@ func (tr RoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 	// Clone the request to avoid modifying the original
 	req := r.Clone(r.Context())
-
 	token := ""
+
+	// Get token from TokenFn if available
 	if tr.TokenFn != nil {
 		token = tr.TokenFn()
 	}
 
-	if tr.OverrideFromCtx {
-		var ctxToken string
-		var ok bool
-		if tr.AuthScheme == "ApiKey" {
-			ctxToken, ok = APIKeyFromContext(r.Context())
-		} else {
-			ctxToken, ok = GetBearerToken(r.Context())
-		}
+	// Check context for token override
+	if tr.OverrideFromCtx && tr.FromCtxFn != nil {
+		ctxToken, ok := tr.FromCtxFn(r.Context())
 		if ok && ctxToken != "" {
 			token = ctxToken
 		}

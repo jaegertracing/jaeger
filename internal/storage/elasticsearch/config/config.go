@@ -10,7 +10,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -644,17 +643,14 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 
 	switch {
 	case c.Authentication.APIKeyAuthentication.FilePath != "":
-		loader := bearertoken.CachedFileTokenLoader(c.Authentication.APIKeyAuthentication.FilePath, TokenReloadInterval)
-		t, err := loader()
-		if err != nil || t == "" {
-			return nil, fmt.Errorf("failed to get token from file: %w", err)
-		}
-		tokenFn = func() string {
-			t, err := loader()
-			if err != nil {
-				log.Printf("Token reload failed: %v", err)
-			}
-			return t
+		var err error
+		tokenFn, err = bearertoken.TokenProvider(
+			c.Authentication.APIKeyAuthentication.FilePath,
+			TokenReloadInterval,
+			logger,
+		)
+		if err != nil {
+			return nil, err
 		}
 		scheme = "ApiKey"
 		overrideFromCtx = c.Authentication.APIKeyAuthentication.AllowFromContext
@@ -665,17 +661,14 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 		overrideFromCtx = true
 
 	case c.Authentication.BearerTokenAuthentication.FilePath != "":
-		loader := bearertoken.CachedFileTokenLoader(c.Authentication.BearerTokenAuthentication.FilePath, TokenReloadInterval)
-		t, err := loader()
-		if err != nil || t == "" {
-			return nil, fmt.Errorf("failed to get token from file: %w", err)
-		}
-		tokenFn = func() string {
-			t, err := loader()
-			if err != nil {
-				log.Printf("Token reload failed: %v", err)
-			}
-			return t
+		var err error
+		tokenFn, err = bearertoken.TokenProvider(
+			c.Authentication.BearerTokenAuthentication.FilePath,
+			TokenReloadInterval,
+			logger,
+		)
+		if err != nil {
+			return nil, err
 		}
 		scheme = "Bearer"
 		overrideFromCtx = c.Authentication.BearerTokenAuthentication.AllowFromContext
@@ -687,11 +680,20 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 	}
 
 	if scheme != "" {
+		var fromCtxFn func(context.Context) (string, bool)
+		switch scheme {
+		case "ApiKey":
+			fromCtxFn = bearertoken.APIKeyFromContext
+		case "Bearer":
+			fromCtxFn = bearertoken.GetBearerToken
+		}
+
 		transport = bearertoken.RoundTripper{
 			Transport:       httpTransport,
 			AuthScheme:      scheme,
 			OverrideFromCtx: overrideFromCtx,
 			TokenFn:         tokenFn,
+			FromCtxFn:       fromCtxFn,
 		}
 		return transport, nil
 	}
