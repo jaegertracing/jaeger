@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -46,6 +47,10 @@ const (
 	tagKeyField            = "key"
 	tagValueField          = "value"
 	spanKindField          = "spanKind"
+	statusCodeField        = "status.code"
+	statusMsgField         = "status.message"
+	statusCodeNestedField  = "http.status_code"
+	statusMsgNestedField   = "http.status_message"
 
 	defaultNumTraces = 100
 
@@ -81,7 +86,7 @@ var (
 
 	disableLegacyIDs *featuregate.Gate
 
-	materializeSpanKind *featuregate.Gate
+	materializeSpanKindAndStatus *featuregate.Gate
 )
 
 func init() {
@@ -93,11 +98,11 @@ func init() {
 		featuregate.WithRegisterDescription("Legacy trace ids are the ids that used to be rendered with leading 0s omitted. Setting this gate to false will force the reader to search for the spans with trace ids having leading zeroes"),
 		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/1578"))
 
-	materializeSpanKind = featuregate.GlobalRegistry().MustRegister(
-		"jaeger.es.materializeSpanKind",
+	materializeSpanKindAndStatus = featuregate.GlobalRegistry().MustRegister(
+		"jaeger.es.materializeSpanKindAndStatus",
 		featuregate.StageBeta, // enabled by default
 		featuregate.WithRegisterDescription(
-			"When feature is on, searching by span.kind tag will only search the materialized field in the ES document. This will become the only behavior in the future. To enable the legacy behavior of querying span kind from the nested tags, e.g. to support querying the data written before v2.8, turn off this feature."),
+			"When feature is on, searching by span.kind and span.status tags will only search the materialized fields in the ES document. This will become the only behavior in the future. To enable the legacy behavior of querying span kind and status from the nested tags, e.g. to support querying the data written before v2.8, turn off this feature."),
 		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/pull/7258"))
 }
 
@@ -626,33 +631,50 @@ func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParamet
 		boolQuery.Must(operationNameQuery)
 	}
 
-	if kind, ok := traceQuery.Tags[model.SpanKindKey]; ok {
-		spanKindSpecificQuery := s.buildSpanKindQuery(kind)
-		boolQuery.Must(spanKindSpecificQuery)
-	}
-
+	// Handle both span.kind and span.status tags
 	for k, v := range traceQuery.Tags {
-		// Skip the spanKindNestedField because we already have query for it
-		if k == model.SpanKindKey {
-			continue
+		switch k {
+		case model.SpanKindKey:
+			boolQuery.Must(s.buildSpanKindQuery(v))
+		case statusCodeNestedField:
+			boolQuery.Must(s.buildStatusCodeQuery(v))
+		case statusMsgNestedField:
+			boolQuery.Must(s.buildStatusMsgQuery(v))
+		default:
+			boolQuery.Must(s.buildTagQuery(k, v))
 		}
-
-		tagQuery := s.buildTagQuery(k, v)
-		boolQuery.Must(tagQuery)
 	}
 	return boolQuery
 }
 
-func (s *SpanReader) buildSpanKindQuery(spanKind string) elastic.Query {
-	materializedFieldQuery := elastic.NewMatchQuery(spanKindField, spanKind)
-	if materializeSpanKind.IsEnabled() {
-		return materializedFieldQuery
+func (s *SpanReader) buildFieldQuery(field, nestedField string, value any, value2 any) elastic.Query {
+	materializedQuery := elastic.NewMatchQuery(field, value)
+	if materializeSpanKindAndStatus.IsEnabled() {
+		return materializedQuery
 	}
-	nestedTagQuery := s.buildNestedQuery(nestedTagsField, model.SpanKindKey, spanKind)
-	return elastic.NewBoolQuery().Should(
-		materializedFieldQuery,
-		nestedTagQuery,
-	)
+
+	nestedQuery := s.buildNestedQuery(nestedTagsField, nestedField, fmt.Sprintf("%v", value2))
+	return elastic.NewBoolQuery().Should(materializedQuery, nestedQuery)
+}
+
+func (s *SpanReader) buildSpanKindQuery(spanKind string) elastic.Query {
+	return s.buildFieldQuery(spanKindField, model.SpanKindKey, spanKind, spanKind)
+}
+
+func (s *SpanReader) buildStatusCodeQuery(status string) elastic.Query {
+	statusCode := int32(0) // Match the status code type int32 in dbmodel Span and Jaeger v2 ptrace
+	// convert to number
+	if num, err := strconv.Atoi(status); err == nil {
+		if num < 100 || num >= 400 {
+			statusCode = int32(2)
+		}
+	}
+
+	return s.buildFieldQuery(statusCodeField, statusCodeNestedField, statusCode, status)
+}
+
+func (s *SpanReader) buildStatusMsgQuery(statusMsg string) elastic.Query {
+	return s.buildFieldQuery(statusMsgField, statusMsgNestedField, statusMsg, statusMsg)
 }
 
 func (*SpanReader) buildDurationQuery(durationMin time.Duration, durationMax time.Duration) elastic.Query {
