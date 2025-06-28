@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/featuregate"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
@@ -1387,46 +1386,31 @@ func TestSpanReader_ArchiveTraces(t *testing.T) {
 
 func TestBuildTraceByIDQuery(t *testing.T) {
 	tests := []struct {
-		traceID                 string
-		query                   elastic.Query
-		disableLegacyIdsEnabled bool
+		traceID string
+		query   elastic.Query
 	}{
 		{
 			traceID: "0000000000000001",
-			query: elastic.NewBoolQuery().Should(
-				elastic.NewTermQuery(traceIDField, "0000000000000001").Boost(2),
-				elastic.NewTermQuery(traceIDField, "1"),
-			),
+			query:   elastic.NewTermQuery(traceIDField, "0000000000000001"),
 		},
 		{
 			traceID: "00000000000000010000000000000001",
-			query: elastic.NewBoolQuery().Should(
-				elastic.NewTermQuery(traceIDField, "00000000000000010000000000000001").Boost(2),
-				elastic.NewTermQuery(traceIDField, "10000000000000001"),
-			),
+			query:   elastic.NewTermQuery(traceIDField, "00000000000000010000000000000001"),
 		},
 		{
 			traceID: "ffffffffffffffffffffffffffffffff",
 			query:   elastic.NewTermQuery(traceIDField, "ffffffffffffffffffffffffffffffff"),
 		},
 		{
-			traceID:                 "00000000000000010000000000000001",
-			query:                   elastic.NewTermQuery(traceIDField, "00000000000000010000000000000001"),
-			disableLegacyIdsEnabled: true,
-		},
-		{
 			traceID: "0short-traceid",
-			query: elastic.NewBoolQuery().Should(
-				elastic.NewTermQuery(traceIDField, "0short-traceid").Boost(2),
-				elastic.NewTermQuery(traceIDField, "short-traceid"),
-			),
+			query:   elastic.NewTermQuery(traceIDField, "0short-traceid"),
 		},
 	}
 	for _, test := range tests {
-		err := featuregate.GlobalRegistry().Set("jaeger.es.disableLegacyId", test.disableLegacyIdsEnabled)
-		require.NoError(t, err)
-		q := buildTraceByIDQuery(dbmodel.TraceID(test.traceID))
-		assert.Equal(t, test.query, q)
+		t.Run(test.traceID, func(t *testing.T) {
+			q := buildTraceByIDQuery(dbmodel.TraceID(test.traceID))
+			assert.Equal(t, test.query, q)
+		})
 	}
 }
 

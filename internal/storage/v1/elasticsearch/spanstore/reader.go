@@ -89,7 +89,7 @@ var (
 func init() {
 	disableLegacyIDs = featuregate.GlobalRegistry().MustRegister(
 		"jaeger.es.disableLegacyId",
-		featuregate.StageBeta, // enabed by default
+		featuregate.StageStable, // enabled by default and cannot be disabled
 		featuregate.WithRegisterFromVersion("v2.5.0"),
 		featuregate.WithRegisterToVersion("v2.8.0"),
 		featuregate.WithRegisterDescription("Legacy trace ids are the ids that used to be rendered with leading 0s omitted. Setting this gate to false will force the reader to search for the spans with trace ids having leading zeroes"),
