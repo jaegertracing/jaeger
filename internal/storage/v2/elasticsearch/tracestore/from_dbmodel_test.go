@@ -682,3 +682,54 @@ func TestGetSpanKindValueFromAttribute(t *testing.T) {
 	result := getSpanKindValue(dbSpan, attrs)
 	assert.Equal(t, spanKind, result)
 }
+
+func TestDbSpanToSpan_StatusInferenceFromAttributes(t *testing.T) {
+	tests := []struct {
+		name         string
+		dbSpan       *dbmodel.Span
+		expectedCode ptrace.StatusCode
+	}{
+		{
+			name: "infer error status from error tag",
+			dbSpan: &dbmodel.Span{
+				Status: dbmodel.Status{}, // Empty status
+				Tags: []dbmodel.KeyValue{
+					{Key: "error", Type: dbmodel.BoolType, Value: true},
+				},
+			},
+			expectedCode: ptrace.StatusCodeError,
+		},
+		{
+			name: "infer error status from http 500",
+			dbSpan: &dbmodel.Span{
+				Status: dbmodel.Status{}, // Empty status
+				Tags: []dbmodel.KeyValue{
+					{Key: conventions.AttributeHTTPStatusCode, Type: dbmodel.Int64Type, Value: int64(500)},
+				},
+			},
+			expectedCode: ptrace.StatusCodeError,
+		},
+		{
+			name: "no status indicators leaves unset",
+			dbSpan: &dbmodel.Span{
+				Status: dbmodel.Status{}, // Empty status
+				Tags: []dbmodel.KeyValue{
+					{Key: "custom.tag", Type: dbmodel.StringType, Value: "value"},
+				},
+			},
+			expectedCode: ptrace.StatusCodeUnset,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup
+			traces := ptrace.NewTraces()
+			span := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+			err := dbSpanToSpan(tt.dbSpan, span)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.expectedCode, span.Status().Code())
+		})
+	}
+}
