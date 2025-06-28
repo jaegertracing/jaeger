@@ -21,6 +21,10 @@
       "spanID": "00000000000000ff"
     }
   ],
+  "status": {
+    "code": 2,
+    "message": "error"
+  },
   "startTime": 1485467191639875,
   "startTimeMillis": 1485467191639,
   "duration": 5,
@@ -54,11 +58,6 @@
       "key": "temperature",
       "type": "float64",
       "value": "72.5"
-    },
-    {
-      "key": "error",
-      "type": "bool",
-      "value": "true"
     }
   ],
   "logs": [

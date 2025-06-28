@@ -23,42 +23,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 )
 
-func TestGetTagFromStatusCode(t *testing.T) {
-	tests := []struct {
-		name string
-		code ptrace.StatusCode
-		tag  dbmodel.KeyValue
-	}{
-		{
-			name: "ok",
-			code: ptrace.StatusCodeOk,
-			tag: dbmodel.KeyValue{
-				Key:   conventions.OtelStatusCode,
-				Type:  dbmodel.StringType,
-				Value: statusOk,
-			},
-		},
-
-		{
-			name: "error",
-			code: ptrace.StatusCodeError,
-			tag: dbmodel.KeyValue{
-				Key:   tagError,
-				Type:  dbmodel.BoolType,
-				Value: true,
-			},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			got, ok := getTagFromStatusCode(test.code)
-			assert.True(t, ok)
-			assert.Equal(t, test.tag, got)
-		})
-	}
-}
-
 func TestEmptyAttributes(t *testing.T) {
 	traces := ptrace.NewTraces()
 	spans := traces.ResourceSpans().AppendEmpty()
@@ -80,19 +44,6 @@ func TestEmptyLinkRefs(t *testing.T) {
 	modelSpan := spanToDbSpan(span, spanScope, dbmodel.Process{})
 	assert.Len(t, modelSpan.References, 1)
 	assert.Equal(t, dbmodel.FollowsFrom, modelSpan.References[0].RefType)
-}
-
-func TestGetTagFromStatusMsg(t *testing.T) {
-	_, ok := getTagFromStatusMsg("")
-	assert.False(t, ok)
-
-	got, ok := getTagFromStatusMsg("test-error")
-	assert.True(t, ok)
-	assert.Equal(t, dbmodel.KeyValue{
-		Key:   conventions.OtelStatusDescription,
-		Value: "test-error",
-		Type:  dbmodel.StringType,
-	}, got)
 }
 
 func Test_resourceToDbProcess(t *testing.T) {
@@ -344,5 +295,38 @@ func BenchmarkInternalTracesToDbSpans(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		batches := ToDBModel(td)
 		assert.NotEmpty(b, batches)
+	}
+}
+
+func TestPtraceStatusToDBStatus(t *testing.T) {
+	msg := "An error occurred during processing."
+	code := ptrace.StatusCodeError
+	tests := []struct {
+		name             string
+		otelStatus       ptrace.Status
+		expectedDBStatus dbmodel.Status
+	}{
+		{
+			name: "Error Status with Message",
+			otelStatus: func() ptrace.Status {
+				s := ptrace.NewStatus()
+				s.SetCode(code)
+				s.SetMessage(msg)
+				return s
+			}(),
+			expectedDBStatus: dbmodel.Status{
+				Code:    int32(code),
+				Message: msg,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actualDBStatus := ptraceStatusToDBStatus(tt.otelStatus)
+
+			assert.Equal(t, tt.expectedDBStatus.Code, actualDBStatus.Code)
+			assert.Equal(t, tt.expectedDBStatus.Message, actualDBStatus.Message)
+		})
 	}
 }

@@ -137,6 +137,7 @@ func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, pr
 		StartTime:       model.TimeAsEpochMicroseconds(startTime),
 		StartTimeMillis: model.TimeAsEpochMicroseconds(startTime) / 1000,
 		SpanKind:        span.Kind().String(),
+		Status:          ptraceStatusToDBStatus(span.Status()),
 		Duration:        model.DurationAsMicroseconds(span.EndTimestamp().AsTime().Sub(startTime)),
 		Tags:            getDbSpanTags(span, libraryTags),
 		Logs:            spanEventsToDbSpanLogs(span.Events()),
@@ -145,24 +146,17 @@ func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, pr
 	}
 }
 
-func getDbSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmodel.KeyValue {
-	var spanKindTag, statusCodeTag, statusMsgTag dbmodel.KeyValue
-	var spanKindTagFound, statusCodeTagFound, statusMsgTagFound bool
+func ptraceStatusToDBStatus(status ptrace.Status) dbmodel.Status {
+	return dbmodel.Status{
+		Code:    int32(status.Code()),
+		Message: status.Message(),
+	}
+}
 
+func getDbSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmodel.KeyValue {
 	libraryTags, libraryTagsFound := getTagsFromInstrumentationLibrary(scope)
 
 	tagsCount := span.Attributes().Len() + len(libraryTags)
-
-	status := span.Status()
-	statusCodeTag, statusCodeTagFound = getTagFromStatusCode(status.Code())
-	if statusCodeTagFound {
-		tagsCount++
-	}
-
-	statusMsgTag, statusMsgTagFound = getTagFromStatusMsg(status.Message())
-	if statusMsgTagFound {
-		tagsCount++
-	}
 
 	traceStateTags, traceStateTagsFound := getTagsFromTraceState(span.TraceState().AsRaw())
 	if traceStateTagsFound {
@@ -178,15 +172,7 @@ func getDbSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmod
 		tags = append(tags, libraryTags...)
 	}
 	tags = appendTagsFromAttributes(tags, span.Attributes())
-	if spanKindTagFound {
-		tags = append(tags, spanKindTag)
-	}
-	if statusCodeTagFound {
-		tags = append(tags, statusCodeTag)
-	}
-	if statusMsgTagFound {
-		tags = append(tags, statusMsgTag)
-	}
+
 	if traceStateTagsFound {
 		tags = append(tags, traceStateTags...)
 	}
@@ -285,34 +271,6 @@ func getTagFromSpanKind(spanKind ptrace.SpanKind) (dbmodel.KeyValue, bool) {
 		Key:   model.SpanKindKey,
 		Type:  dbmodel.StringType,
 		Value: tagStr,
-	}, true
-}
-
-func getTagFromStatusCode(statusCode ptrace.StatusCode) (dbmodel.KeyValue, bool) {
-	if statusCode == ptrace.StatusCodeError {
-		return dbmodel.KeyValue{
-			Key:   tagError,
-			Type:  dbmodel.BoolType,
-			Value: true,
-		}, true
-	} else if statusCode == ptrace.StatusCodeOk {
-		return dbmodel.KeyValue{
-			Key:   conventions.OtelStatusCode,
-			Type:  dbmodel.StringType,
-			Value: statusOk,
-		}, true
-	}
-	return dbmodel.KeyValue{}, false
-}
-
-func getTagFromStatusMsg(statusMsg string) (dbmodel.KeyValue, bool) {
-	if statusMsg == "" {
-		return dbmodel.KeyValue{}, false
-	}
-	return dbmodel.KeyValue{
-		Key:   conventions.OtelStatusDescription,
-		Value: statusMsg,
-		Type:  dbmodel.StringType,
 	}, true
 }
 

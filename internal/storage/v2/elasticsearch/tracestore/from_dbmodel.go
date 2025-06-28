@@ -113,7 +113,12 @@ func dbSpanToSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
 		attrs.Remove(model.SpanKindKey)
 	}
 
-	setSpanStatus(attrs, span)
+	if dbSpan.Status.Code != 0 || dbSpan.Status.Message != "" {
+		span.Status().SetCode(ptrace.StatusCode(dbSpan.Status.Code))
+		span.Status().SetMessage(dbSpan.Status.Message)
+	} else {
+		setSpanStatus(attrs, span)
+	}
 
 	span.TraceState().FromRaw(getTraceStateFromAttrs(attrs))
 

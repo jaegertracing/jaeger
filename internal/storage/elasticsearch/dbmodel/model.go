@@ -23,6 +23,11 @@ type Trace struct {
 	Spans []Span
 }
 
+type Status struct {
+	Code    int32  `json:"code"`
+	Message string `json:"message"`
+}
+
 const (
 	// ChildOf means a span is the child of another span
 	ChildOf ReferenceType = "CHILD_OF"
@@ -50,6 +55,7 @@ type Span struct {
 	OperationName string      `json:"operationName"`
 	SpanKind      string      `json:"spanKind,omitempty"`
 	References    []Reference `json:"references"`
+	Status        Status      `json:"status,omitempty"`
 	StartTime     uint64      `json:"startTime"` // microseconds since Unix epoch
 	// ElasticSearch does not support a UNIX Epoch timestamp in microseconds,
 	// so Jaeger maps StartTime to a 'long' type. This extra StartTimeMillis field

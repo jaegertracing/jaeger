@@ -111,7 +111,8 @@
                 }
               ],
               "status": {
-                "code": 2
+                "code": 2,
+                "message" : "error"
               }
             }
           ]

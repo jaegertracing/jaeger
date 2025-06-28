@@ -5,12 +5,12 @@
 package spanstore
 
 import (
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"strings"
 	"time"
 
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/cache"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
