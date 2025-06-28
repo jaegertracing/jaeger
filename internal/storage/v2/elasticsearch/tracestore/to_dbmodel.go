@@ -153,10 +153,6 @@ func getDbSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmod
 
 	tagsCount := span.Attributes().Len() + len(libraryTags)
 
-	spanKindTag, spanKindTagFound = getTagFromSpanKind(span.Kind())
-	if spanKindTagFound {
-		tagsCount++
-	}
 	status := span.Status()
 	statusCodeTag, statusCodeTagFound = getTagFromStatusCode(status.Code())
 	if statusCodeTagFound {
