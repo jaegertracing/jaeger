@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"sort"
 	"testing"
 	"time"
 
@@ -1066,6 +1067,8 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 		name                         string
 		materializeSpanKindAndStatus bool
 		expectedSpanKindQuery        elastic.Query
+		expectedStatusCodeQuery      elastic.Query
+		expectedStatusMsgQuery       elastic.Query
 	}{
 		{
 			name:                         "materializeSpanKindAndStatus disable",
@@ -1080,11 +1083,33 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 					),
 				),
 			),
+			expectedStatusCodeQuery: elastic.NewBoolQuery().Should(
+				elastic.NewMatchQuery(statusCodeField, int32(2)), // Error
+				elastic.NewNestedQuery(
+					nestedTagsField,
+					elastic.NewBoolQuery().Must(
+						elastic.NewMatchQuery("tags.key", statusCodeNestedField),
+						elastic.NewRegexpQuery("tags.value", "500"),
+					),
+				),
+			),
+			expectedStatusMsgQuery: elastic.NewBoolQuery().Should(
+				elastic.NewMatchQuery(statusMsgField, "error message"),
+				elastic.NewNestedQuery(
+					nestedTagsField,
+					elastic.NewBoolQuery().Must(
+						elastic.NewMatchQuery("tags.key", statusMsgNestedField),
+						elastic.NewRegexpQuery("tags.value", "error message"),
+					),
+				),
+			),
 		},
 		{
 			name:                         "materializeSpanKindAndStatus enabled (default)",
 			materializeSpanKindAndStatus: true,
 			expectedSpanKindQuery:        elastic.NewMatchQuery(spanKindField, "client"),
+			expectedStatusCodeQuery:      elastic.NewMatchQuery(statusCodeField, int32(2)), // Error
+			expectedStatusMsgQuery:       elastic.NewMatchQuery(statusMsgField, "error message"),
 		},
 	}
 
@@ -1103,12 +1128,13 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 					ServiceName:   "s",
 					OperationName: "o",
 					Tags: map[string]string{
-						"span.kind": "client",
-						"hello":     "world",
+						model.SpanKindKey:     "client",
+						"hello":               "world",
+						statusCodeNestedField: "500",
+						statusMsgNestedField:  "error message",
 					},
 				}
 
-				// Build expected query components
 				expectedQuery := elastic.NewBoolQuery().Must(
 					r.reader.buildDurationQuery(time.Second, time.Second*2),
 					r.reader.buildStartTimeQuery(time.Time{}, time.Time{}.Add(time.Second)),
@@ -1116,18 +1142,81 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 					r.reader.buildOperationNameQuery("o"),
 					tt.expectedSpanKindQuery,
 					r.reader.buildTagQuery("hello", "world"),
+					tt.expectedStatusCodeQuery,
+					tt.expectedStatusMsgQuery,
 				)
 
-				// Verify the actual query matches expected
+				// Build actual query
 				actualQuery := r.reader.buildFindTraceIDsQuery(traceQuery)
-				actual, err := actualQuery.Source()
-				require.NoError(t, err)
-				expected, err := expectedQuery.Source()
-				require.NoError(t, err)
-				assert.Equal(t, expected, actual)
+
+				// Compare queries in an order-insensitive manner
+				assertQueriesEqual(t, actualQuery, expectedQuery)
 			})
 		})
 	}
+}
+
+// assertQueriesEqual compares two elastic queries, ensuring the must clauses match regardless of order.
+func assertQueriesEqual(t *testing.T, actual, expected elastic.Query) {
+	// Get query sources
+	actualSrc, err := actual.Source()
+	require.NoError(t, err)
+	expectedSrc, err := expected.Source()
+	require.NoError(t, err)
+
+	// Convert any to []byte by marshaling to JSON
+	actualBytes, err := json.Marshal(actualSrc)
+	require.NoError(t, err)
+	expectedBytes, err := json.Marshal(expectedSrc)
+	require.NoError(t, err)
+
+	// Unmarshal to maps for comparison
+	var actualMap, expectedMap map[string]any
+	err = json.Unmarshal(actualBytes, &actualMap)
+	require.NoError(t, err)
+	err = json.Unmarshal(expectedBytes, &expectedMap)
+	require.NoError(t, err)
+
+	// Verify both are bool queries
+	actualBool, ok := actualMap["bool"].(map[string]any)
+	require.True(t, ok, "Actual query is not a bool query")
+	expectedBool, ok := expectedMap["bool"].(map[string]any)
+	require.True(t, ok, "Expected query is not a bool query")
+
+	// Ensure only "must" clause exists
+	assert.Equal(t, []string{"must"}, getKeys(actualBool), "Actual query has unexpected clauses")
+	assert.Equal(t, []string{"must"}, getKeys(expectedBool), "Expected query has unexpected clauses")
+
+	// Extract must arrays
+	actualMust, ok := actualBool["must"].([]any)
+	require.True(t, ok, "Actual must clause is not an array")
+	expectedMust, ok := expectedBool["must"].([]any)
+	require.True(t, ok, "Expected must clause is not an array")
+
+	// Check lengths match
+	assert.Len(t, expectedMust, len(actualMust), "Number of must queries differ")
+
+	// Verify each expected query is present in actual
+	for _, expectedQ := range expectedMust {
+		found := false
+		for _, actualQ := range actualMust {
+			if reflect.DeepEqual(expectedQ, actualQ) {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "Expected query not found: %v", expectedQ)
+	}
+}
+
+// getKeys returns sorted keys of a map for consistent comparison.
+func getKeys(m map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func TestSpanReader_buildStatusCodeQuery(t *testing.T) {
@@ -1168,13 +1257,7 @@ func TestSpanReader_buildStatusCodeQuery(t *testing.T) {
 				actualQuery := r.reader.buildStatusCodeQuery(tt.status)
 				expectedQuery := elastic.NewBoolQuery().Should(
 					elastic.NewMatchQuery(statusCodeField, tt.expectedCode),
-					elastic.NewNestedQuery(
-						nestedTagsField,
-						elastic.NewBoolQuery().Must(
-							elastic.NewMatchQuery("tags.key", statusCodeNestedField),
-							elastic.NewRegexpQuery("tags.value", tt.status),
-						),
-					),
+					r.reader.buildNestedQuery(nestedTagsField, statusCodeNestedField, tt.status),
 				)
 
 				assert.Equal(t, expectedQuery, actualQuery)
@@ -1203,13 +1286,7 @@ func TestSpanReader_buildStatusMsgQuery(t *testing.T) {
 		actualQuery := r.reader.buildStatusMsgQuery(statusMsg)
 		expectedQuery := elastic.NewBoolQuery().Should(
 			elastic.NewMatchQuery(statusMsgField, statusMsg),
-			elastic.NewNestedQuery(
-				nestedTagsField,
-				elastic.NewBoolQuery().Must(
-					elastic.NewMatchQuery("tags.key", statusMsgNestedField),
-					elastic.NewRegexpQuery("tags.value", statusMsg),
-				),
-			),
+			r.reader.buildNestedQuery(nestedTagsField, statusMsgNestedField, statusMsg),
 		)
 
 		assert.Equal(t, expectedQuery, actualQuery)
