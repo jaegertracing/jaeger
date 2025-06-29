@@ -5,11 +5,12 @@ package elasticsearch
 
 import (
 	"context"
-	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"go.opentelemetry.io/collector/featuregate"
 	"io"
 	"strings"
 
+	"go.opentelemetry.io/collector/featuregate"
+
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"

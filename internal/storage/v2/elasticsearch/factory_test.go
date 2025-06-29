@@ -5,8 +5,6 @@ package elasticsearch
 
 import (
 	"context"
-	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"go.opentelemetry.io/collector/featuregate"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -14,8 +12,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.uber.org/zap/zaptest"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
