@@ -5,12 +5,12 @@ package elasticsearch
 
 import (
 	"context"
-	"go.opentelemetry.io/collector/featuregate"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
