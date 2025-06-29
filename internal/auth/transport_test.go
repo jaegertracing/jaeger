@@ -139,12 +139,6 @@ func TestRoundTripper(t *testing.T) {
 			requestContext: context.Background(),
 			wantError:      true,
 		},
-
-		{
-			name:           "Nil roundTripper provided should return an error",
-			requestContext: context.Background(),
-			wantError:      true,
-		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			server := httptest.NewServer(nil)

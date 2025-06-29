@@ -215,7 +215,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 		setupCtx       func(context.Context) context.Context
 		wantErr        bool
 		wantLogMsgs    []string
-		expectedType   string // "http.Transport" or "bearertoken.RoundTripper"
+		expectedType   string // "http.Transport" or "auth.RoundTripper"
 		expectedScheme string // "" (none), "ApiKey", or "Bearer"
 	}{
 		{
@@ -244,7 +244,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 					},
 				}
 			},
-			expectedType:   "bearertoken.RoundTripper",
+			expectedType:   "auth.RoundTripper",
 			expectedScheme: "ApiKey",
 		},
 		{
@@ -262,7 +262,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 			setupCtx: func(ctx context.Context) context.Context {
 				return apikey.ContextWithAPIKey(ctx, "context-api-key")
 			},
-			expectedType:   "bearertoken.RoundTripper",
+			expectedType:   "auth.RoundTripper",
 			expectedScheme: "ApiKey",
 		},
 		{
@@ -280,7 +280,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 			setupCtx: func(ctx context.Context) context.Context {
 				return bearertoken.ContextWithBearerToken(ctx, "context-bearer-token")
 			},
-			expectedType:   "bearertoken.RoundTripper",
+			expectedType:   "auth.RoundTripper",
 			expectedScheme: "Bearer",
 		},
 		{
@@ -304,7 +304,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 			wantLogMsgs: []string{
 				"Both API key file and context propagation are enabled - context token will take precedence over file-based token",
 			},
-			expectedType:   "bearertoken.RoundTripper",
+			expectedType:   "auth.RoundTripper",
 			expectedScheme: "ApiKey",
 		},
 		{
@@ -321,7 +321,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 					},
 				}
 			},
-			expectedType:   "bearertoken.RoundTripper",
+			expectedType:   "auth.RoundTripper",
 			expectedScheme: "Bearer",
 		},
 		{
@@ -336,7 +336,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 					},
 				}
 			},
-			expectedType:   "bearertoken.RoundTripper",
+			expectedType:   "auth.RoundTripper",
 			expectedScheme: "Bearer",
 		},
 		{
@@ -357,7 +357,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 			wantLogMsgs: []string{
 				"Token file and token propagation are both enabled, token from file won't be used",
 			},
-			expectedType:   "bearertoken.RoundTripper",
+			expectedType:   "auth.RoundTripper",
 			expectedScheme: "Bearer",
 		},
 		{
@@ -409,7 +409,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 			wantLogMsgs: []string{
 				"Token file and token propagation are both enabled, token from file won't be used",
 			},
-			expectedType:   "bearertoken.RoundTripper",
+			expectedType:   "auth.RoundTripper",
 			expectedScheme: "Bearer",
 		},
 		{
@@ -468,7 +468,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 					if !ok {
 						// Try non-pointer type
 						tr2, ok2 := transport.(auth.RoundTripper)
-						if !assert.True(t, ok2, "expected *bearertoken.RoundTripper or bearertoken.RoundTripper, got %T", transport) {
+						if !assert.True(t, ok2, "expected *auth.RoundTripper or auth.RoundTripper, got %T", transport) {
 							return
 						}
 						// Convert to pointer for consistent handling
