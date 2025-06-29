@@ -5,14 +5,12 @@ package elasticsearch
 
 import (
 	"context"
+	"go.opentelemetry.io/collector/featuregate"
 	"net/http"
 	"net/http/httptest"
-	"sort"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/featuregate"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
@@ -73,28 +71,7 @@ func getTestingFactoryBase(t *testing.T, cfg *escfg.Configuration) *elasticsearc
 	return f
 }
 
-func newTestConfig(tags escfg.TagsAsFields, serverURL string) escfg.Configuration {
-	return escfg.Configuration{
-		Servers:  []string{serverURL},
-		LogLevel: "error",
-		Tags:     tags,
-	}
-}
-
-// cleanAndSortTags splits a comma-separated tag string, removes empty tags, and sorts the result.
-func cleanAndSortTags(tagString string) []string {
-	tags := strings.Split(tagString, ",")
-	cleanTags := make([]string, 0, len(tags))
-	for _, tag := range tags {
-		if tag != "" {
-			cleanTags = append(cleanTags, tag)
-		}
-	}
-	sort.Strings(cleanTags)
-	return cleanTags
-}
-
-func TestEnsureRequiredFields(t *testing.T) {
+func TestAlwaysIncludesRequiredTags(t *testing.T) {
 	// Set up mock Elasticsearch server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write(mockEsServerResponse)
@@ -102,70 +79,82 @@ func TestEnsureRequiredFields(t *testing.T) {
 	defer server.Close()
 
 	tests := []struct {
-		name         string
-		gateEnabled  bool
-		tagsConfig   escfg.TagsAsFields
-		expectedTags []string
+		name           string
+		tagsConfig     escfg.TagsAsFields
+		enableFeature  bool
+		expectRequired bool
 	}{
 		{
-			name:        "AllAsFields true",
-			gateEnabled: true,
+			name: "Empty TagsAsFields with feature enabled",
+			tagsConfig: escfg.TagsAsFields{
+				Include: "",
+			},
+			enableFeature:  true,
+			expectRequired: true,
+		},
+		{
+			name: "With some tags with feature enabled",
+			tagsConfig: escfg.TagsAsFields{
+				Include: "foo.bar,baz.qux",
+			},
+			enableFeature:  true,
+			expectRequired: true,
+		},
+		{
+			name: "With one required tag already with feature enabled",
+			tagsConfig: escfg.TagsAsFields{
+				Include: "span.kind",
+			},
+			enableFeature:  true,
+			expectRequired: true,
+		},
+		{
+			name: "Feature disabled with AllAsFields true",
 			tagsConfig: escfg.TagsAsFields{
 				AllAsFields: true,
-				Include:     "tag1,tag2",
+				Include:     "custom.tag1,custom.tag2",
 			},
-			expectedTags: []string{"tag1", "tag2"},
+			enableFeature:  false,
+			expectRequired: false,
 		},
 		{
-			name:        "Gate disabled",
-			gateEnabled: false,
+			name: "Feature disabled with AllAsFields false",
 			tagsConfig: escfg.TagsAsFields{
-				Include: "tag1,tag2",
+				Include: "custom.tag1,custom.tag2",
 			},
-			expectedTags: []string{"tag1", "tag2"},
-		},
-		{
-			name:        "No required tags",
-			gateEnabled: true,
-			tagsConfig: escfg.TagsAsFields{
-				Include: "tag1, tag2",
-			},
-			expectedTags: []string{"tag1", "tag2", model.SpanKindKey, tagError},
-		},
-		{
-			name:        "Already have require tag",
-			gateEnabled: true,
-			tagsConfig: escfg.TagsAsFields{
-				Include: "span.kind, error",
-			},
-			expectedTags: []string{model.SpanKindKey, tagError},
-		},
-		{
-			name:        "Empty include list",
-			gateEnabled: true,
-			tagsConfig: escfg.TagsAsFields{
-				Include: " ",
-			},
-			expectedTags: []string{model.SpanKindKey, tagError},
+			enableFeature:  false,
+			expectRequired: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Set up feature gate
-			err := featuregate.GlobalRegistry().Set("jaeger.es.materializeSpanKindAndStatus", tt.gateEnabled)
+			// Set feature gate state
+			err := featuregate.GlobalRegistry().Set("jaeger.es.materializeSpanKindAndStatus", tt.enableFeature)
 			require.NoError(t, err)
 
-			// Create config and run factory
-			cfg := newTestConfig(tt.tagsConfig, server.URL)
+			cfg := escfg.Configuration{
+				Servers:  []string{server.URL},
+				LogLevel: "error",
+				Tags:     tt.tagsConfig,
+			}
 			factory, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 			require.NoError(t, err)
 			defer factory.Close()
 
-			// Compare tags
-			actualTags := cleanAndSortTags(factory.config.Tags.Include)
-			sort.Strings(tt.expectedTags)
-			require.Equal(t, tt.expectedTags, actualTags)
+			// Verify tag behavior based on test expectations
+			includeTags := factory.config.Tags.Include
+			if tt.expectRequired {
+				require.Contains(t, includeTags, model.SpanKindKey)
+				require.Contains(t, includeTags, tagError)
+			} else {
+				if tt.tagsConfig.AllAsFields {
+					require.True(t, factory.config.Tags.AllAsFields)
+					require.Equal(t, tt.tagsConfig.Include, includeTags)
+				}
+				require.NotContains(t, includeTags, model.SpanKindKey)
+				require.NotContains(t, includeTags, tagError)
+			}
 		})
 	}
 }

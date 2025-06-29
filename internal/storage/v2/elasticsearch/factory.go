@@ -6,7 +6,6 @@ package elasticsearch
 import (
 	"context"
 	"io"
-	"strings"
 
 	"go.opentelemetry.io/collector/featuregate"
 
@@ -96,32 +95,7 @@ func ensureRequiredFields(cfg escfg.Configuration) escfg.Configuration {
 		return cfg
 	}
 
-	requiredTags := map[string]bool{
-		model.SpanKindKey: false,
-		tagError:          false,
-	}
-
-	// Copies existing tags to new slice, trimming whitespace and tracking presence of required tags
-	includes := make([]string, 0, len(strings.Split(cfg.Tags.Include, ","))+2)
-	for _, tag := range strings.Split(cfg.Tags.Include, ",") {
-		tag = strings.TrimSpace(tag)
-		if tag == "" {
-			continue
-		}
-		includes = append(includes, tag)
-		if _, exists := requiredTags[tag]; exists {
-			requiredTags[tag] = true
-		}
-	}
-
-	// Append only missing required tags
-	for tag, present := range requiredTags {
-		if !present {
-			includes = append(includes, tag)
-		}
-	}
-
 	// Return new configuration with updated includes
-	cfg.Tags.Include = strings.Join(includes, ",")
+	cfg.Tags.Include = cfg.Tags.Include + model.SpanKindKey + "," + tagError
 	return cfg
 }
