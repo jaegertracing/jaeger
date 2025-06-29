@@ -141,6 +141,7 @@ func TestExporter(t *testing.T) {
 	traceID[15] = 1 // 00000000000000000000000000000001
 	span.SetTraceID(traceID)
 
+	traces.MarkReadOnly()
 	err = tracesExporter.ConsumeTraces(ctx, traces)
 	require.NoError(t, err)
 
