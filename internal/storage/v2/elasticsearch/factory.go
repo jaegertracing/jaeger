@@ -6,6 +6,7 @@ package elasticsearch
 import (
 	"context"
 	"io"
+	"strings"
 
 	"go.opentelemetry.io/collector/featuregate"
 
@@ -96,6 +97,10 @@ func ensureRequiredFields(cfg escfg.Configuration) escfg.Configuration {
 	}
 
 	// Return new configuration with updated includes
-	cfg.Tags.Include = cfg.Tags.Include + model.SpanKindKey + "," + tagError
+	if cfg.Tags.Include != "" && !strings.HasSuffix(cfg.Tags.Include, ",") {
+		cfg.Tags.Include += ","
+	}
+	cfg.Tags.Include += model.SpanKindKey + "," + tagError
+
 	return cfg
 }
