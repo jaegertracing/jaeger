@@ -27,6 +27,9 @@ jobs:
         - major: 2.x
           distribution: opensearch
           jaeger: v2
+        - major: 3.x
+          distribution: opensearch
+          jaeger: v2
     name: ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
     steps:
     - name: Harden Runner
