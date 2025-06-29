@@ -105,6 +105,9 @@ func ensureRequiredFields(cfg escfg.Configuration) escfg.Configuration {
 	includes := make([]string, 0, len(strings.Split(cfg.Tags.Include, ","))+2)
 	for _, tag := range strings.Split(cfg.Tags.Include, ",") {
 		tag = strings.TrimSpace(tag)
+		if tag == "" {
+			continue
+		}
 		includes = append(includes, tag)
 		if _, exists := requiredTags[tag]; exists {
 			requiredTags[tag] = true
