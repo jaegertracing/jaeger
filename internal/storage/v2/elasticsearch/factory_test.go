@@ -133,6 +133,14 @@ func TestEnsureRequiredFields(t *testing.T) {
 			expectedTags: []string{"tag1", "tag2", model.SpanKindKey, tagError},
 		},
 		{
+			name:        "Already have require tag",
+			gateEnabled: true,
+			tagsConfig: escfg.TagsAsFields{
+				Include: "span.kind, error",
+			},
+			expectedTags: []string{model.SpanKindKey, tagError},
+		},
+		{
 			name:        "Empty include list",
 			gateEnabled: true,
 			tagsConfig: escfg.TagsAsFields{
