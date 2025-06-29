@@ -109,16 +109,7 @@ func TestAlwaysIncludesRequiredTags(t *testing.T) {
 			expectRequired: true,
 		},
 		{
-			name: "Feature disabled with AllAsFields true",
-			tagsConfig: escfg.TagsAsFields{
-				AllAsFields: true,
-				Include:     "custom.tag1,custom.tag2",
-			},
-			enableFeature:  false,
-			expectRequired: false,
-		},
-		{
-			name: "Feature disabled with AllAsFields false",
+			name: "Feature disabled with enableFeature false",
 			tagsConfig: escfg.TagsAsFields{
 				Include: "custom.tag1,custom.tag2",
 			},
@@ -148,13 +139,23 @@ func TestAlwaysIncludesRequiredTags(t *testing.T) {
 				require.Contains(t, includeTags, model.SpanKindKey)
 				require.Contains(t, includeTags, tagError)
 			} else {
-				if tt.tagsConfig.AllAsFields {
-					require.True(t, factory.config.Tags.AllAsFields)
-					require.Equal(t, tt.tagsConfig.Include, includeTags)
-				}
 				require.NotContains(t, includeTags, model.SpanKindKey)
 				require.NotContains(t, includeTags, tagError)
 			}
 		})
 	}
+}
+
+func TestEnsureRequiredFields_AllAsFieldsTrue(t *testing.T) {
+	originalCfg := escfg.Configuration{
+		Tags: escfg.TagsAsFields{
+			AllAsFields: true,
+			Include:     "custom1,custom2,span.kind,error",
+		},
+	}
+
+	// Make an exact copy for comparison
+	expectedCfg := originalCfg
+	result := ensureRequiredFields(originalCfg)
+	require.Equal(t, expectedCfg, result)
 }
