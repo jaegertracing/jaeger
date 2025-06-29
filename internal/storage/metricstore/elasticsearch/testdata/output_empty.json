@@ -1,0 +1,21 @@
+
+{
+  "took": 5,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": 0,
+    "max_score": 0.0,
+    "hits": []
+  },
+  "aggregations": {
+    "results_buckets": {
+      "buckets": []
+    }
+  }
+}
