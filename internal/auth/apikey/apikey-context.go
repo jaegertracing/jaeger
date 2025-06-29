@@ -1,15 +1,15 @@
 // Copyright (c) 2025 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package bearertoken
+package apikey
 
 import "context"
 
-// APIKeyContextKey is the type used as a key for storing API keys in context.
+// apiKeyContextKey is the type used as a key for storing API keys in context.
 type apiKeyContextKey struct{}
 
-// APIKeyFromContext retrieves the API key from the context.
-func APIKeyFromContext(ctx context.Context) (string, bool) {
+// GetAPIKey retrieves the API key from the context.
+func GetAPIKey(ctx context.Context) (string, bool) {
 	val := ctx.Value(apiKeyContextKey{})
 	if val == nil {
 		return "", false

@@ -26,7 +26,9 @@ import (
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zapgrpc"
 
-	"github.com/jaegertracing/jaeger/internal/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/auth"
+	"github.com/jaegertracing/jaeger/internal/auth/apikey"
+	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	eswrapper "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/wrapper"
@@ -523,7 +525,7 @@ func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger
 			return nil, fmt.Errorf("failed to load API key from file: %w", err)
 		}
 		// Store loaded API key in context for use by GetHTTPRoundTripper
-		ctx = bearertoken.ContextWithAPIKey(ctx, apiKeyFromFile)
+		ctx = apikey.ContextWithAPIKey(ctx, apiKeyFromFile)
 	}
 
 	if c.Authentication.APIKeyAuthentication.FilePath != "" || c.Authentication.APIKeyAuthentication.AllowFromContext {
@@ -644,7 +646,7 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 	switch {
 	case c.Authentication.APIKeyAuthentication.FilePath != "":
 		var err error
-		tokenFn, err = bearertoken.TokenProvider(
+		tokenFn, err = auth.TokenProvider(
 			c.Authentication.APIKeyAuthentication.FilePath,
 			TokenReloadInterval,
 			logger,
@@ -662,7 +664,7 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 
 	case c.Authentication.BearerTokenAuthentication.FilePath != "":
 		var err error
-		tokenFn, err = bearertoken.TokenProvider(
+		tokenFn, err = auth.TokenProvider(
 			c.Authentication.BearerTokenAuthentication.FilePath,
 			TokenReloadInterval,
 			logger,
@@ -683,12 +685,12 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 		var fromCtxFn func(context.Context) (string, bool)
 		switch scheme {
 		case "ApiKey":
-			fromCtxFn = bearertoken.APIKeyFromContext
+			fromCtxFn = apikey.GetAPIKey
 		case "Bearer":
 			fromCtxFn = bearertoken.GetBearerToken
 		}
 
-		transport = bearertoken.RoundTripper{
+		transport = auth.RoundTripper{
 			Transport:       httpTransport,
 			AuthScheme:      scheme,
 			OverrideFromCtx: overrideFromCtx,

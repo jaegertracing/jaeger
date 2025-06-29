@@ -17,7 +17,9 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 
-	"github.com/jaegertracing/jaeger/internal/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/auth"
+	"github.com/jaegertracing/jaeger/internal/auth/apikey"
+	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 )
 
 type roundTripFunc func(r *http.Request) (*http.Response, error)
@@ -130,13 +132,13 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				logger := zap.NewNop()
 				rt, err := GetHTTPRoundTripper(context.Background(), cfg, logger)
 				require.NoError(t, err)
-				tr, ok := rt.(bearertoken.RoundTripper)
+				tr, ok := rt.(auth.RoundTripper)
 				require.True(t, ok)
 
 				ctx := context.Background()
 				if tc.contextToken != "" {
 					if tc.scheme == "ApiKey" {
-						ctx = bearertoken.ContextWithAPIKey(ctx, tc.contextToken)
+						ctx = apikey.ContextWithAPIKey(ctx, tc.contextToken)
 					} else {
 						ctx = bearertoken.ContextWithBearerToken(ctx, tc.contextToken)
 					}
@@ -258,7 +260,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				}
 			},
 			setupCtx: func(ctx context.Context) context.Context {
-				return bearertoken.ContextWithAPIKey(ctx, "context-api-key")
+				return apikey.ContextWithAPIKey(ctx, "context-api-key")
 			},
 			expectedType:   "bearertoken.RoundTripper",
 			expectedScheme: "ApiKey",
@@ -297,7 +299,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				}
 			},
 			setupCtx: func(ctx context.Context) context.Context {
-				return bearertoken.ContextWithAPIKey(ctx, "context-api-key")
+				return apikey.ContextWithAPIKey(ctx, "context-api-key")
 			},
 			wantLogMsgs: []string{
 				"Both API key file and context propagation are enabled - context token will take precedence over file-based token",
@@ -460,12 +462,12 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 					} else {
 						assert.False(t, tr.TLSClientConfig.InsecureSkipVerify, "InsecureSkipVerify should be false for secure config")
 					}
-				case "bearertoken.RoundTripper":
+				case "auth.RoundTripper":
 					// Try both pointer and non-pointer types
-					tr, ok := transport.(*bearertoken.RoundTripper)
+					tr, ok := transport.(*auth.RoundTripper)
 					if !ok {
 						// Try non-pointer type
-						tr2, ok2 := transport.(bearertoken.RoundTripper)
+						tr2, ok2 := transport.(auth.RoundTripper)
 						if !assert.True(t, ok2, "expected *bearertoken.RoundTripper or bearertoken.RoundTripper, got %T", transport) {
 							return
 						}
@@ -541,9 +543,9 @@ func TestTokenReloadErrorBranch(t *testing.T) {
 			// Delete the token file to force reload error
 			require.NoError(t, os.Remove(tempFile))
 
-			// Type assert to bearertoken.RoundTripper to access TokenFn
-			tr, ok := rt.(bearertoken.RoundTripper)
-			require.True(t, ok, "returned transport is not bearertoken.RoundTripper")
+			// Type assert to auth.RoundTripper to access TokenFn
+			tr, ok := rt.(auth.RoundTripper)
+			require.True(t, ok, "returned transport is not auth.RoundTripper")
 
 			// Call TokenFn to trigger reload error branch
 			_ = tr.TokenFn()

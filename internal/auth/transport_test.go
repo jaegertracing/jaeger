@@ -1,7 +1,7 @@
 // Copyright (c) 2021 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package bearertoken
+package auth
 
 import (
 	"context"
@@ -11,6 +11,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jaegertracing/jaeger/internal/auth/apikey"
+	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 )
 
 type roundTripFunc func(r *http.Request) (*http.Response, error)
@@ -64,9 +67,9 @@ func TestRoundTripper(t *testing.T) {
 				assert.Equal(t, "Bearer ctxToken", r.Header.Get("Authorization"))
 				return &http.Response{StatusCode: http.StatusOK}, nil
 			}),
-			requestContext: ContextWithBearerToken(context.Background(), "ctxToken"),
+			requestContext: bearertoken.ContextWithBearerToken(context.Background(), "ctxToken"),
 			wantHeader:     "Bearer ctxToken",
-			FromCtxFn:      GetBearerToken,
+			FromCtxFn:      bearertoken.GetBearerToken,
 		},
 		{
 			name:            "Override from context enabled but context empty: file token used",
@@ -101,9 +104,9 @@ func TestRoundTripper(t *testing.T) {
 				assert.Equal(t, "ApiKey contextApiKey", r.Header.Get("Authorization"))
 				return &http.Response{StatusCode: http.StatusOK}, nil
 			}),
-			requestContext: ContextWithAPIKey(context.Background(), "contextApiKey"),
+			requestContext: apikey.ContextWithAPIKey(context.Background(), "contextApiKey"),
 			wantHeader:     "ApiKey contextApiKey",
-			FromCtxFn:      APIKeyFromContext,
+			FromCtxFn:      apikey.GetAPIKey,
 		},
 		{
 			name:            "ApiKey: context override enabled, context token empty: fallback to TokenFn",
@@ -114,9 +117,9 @@ func TestRoundTripper(t *testing.T) {
 				assert.Equal(t, "ApiKey apiKeyToken", r.Header.Get("Authorization"))
 				return &http.Response{StatusCode: http.StatusOK}, nil
 			}),
-			requestContext: ContextWithAPIKey(context.Background(), ""),
+			requestContext: apikey.ContextWithAPIKey(context.Background(), ""),
 			wantHeader:     "ApiKey apiKeyToken",
-			FromCtxFn:      APIKeyFromContext,
+			FromCtxFn:      apikey.GetAPIKey,
 		},
 		{
 			name:            "ApiKey: context override enabled, FromCtxFn nil: fallback to TokenFn",
@@ -127,7 +130,7 @@ func TestRoundTripper(t *testing.T) {
 				assert.Equal(t, "ApiKey apiKeyToken", r.Header.Get("Authorization"))
 				return &http.Response{StatusCode: http.StatusOK}, nil
 			}),
-			requestContext: ContextWithAPIKey(context.Background(), "contextApiKey"),
+			requestContext: apikey.ContextWithAPIKey(context.Background(), "contextApiKey"),
 			wantHeader:     "ApiKey apiKeyToken",
 			FromCtxFn:      nil,
 		},

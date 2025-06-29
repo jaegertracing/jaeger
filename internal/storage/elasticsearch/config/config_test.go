@@ -20,7 +20,8 @@ import (
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/auth/apikey"
+	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
@@ -510,7 +511,7 @@ func TestNewClient(t *testing.T) {
 			config := test.config
 			ctx := context.Background()
 			if strings.Contains(test.name, "from context") {
-				ctx = bearertoken.ContextWithAPIKey(ctx, "context-api-key")
+				ctx = apikey.ContextWithAPIKey(ctx, "context-api-key")
 			}
 			client, err := NewClient(ctx, config, logger, metricsFactory)
 			if test.expectedError {
@@ -1106,7 +1107,7 @@ func TestGetConfigOptions(t *testing.T) {
 					},
 				},
 			},
-			ctx:     bearertoken.ContextWithAPIKey(context.Background(), "context-api-key"),
+			ctx:     apikey.ContextWithAPIKey(context.Background(), "context-api-key"),
 			wantErr: false,
 		},
 		{
@@ -1120,7 +1121,7 @@ func TestGetConfigOptions(t *testing.T) {
 					},
 				},
 			},
-			ctx:     bearertoken.ContextWithAPIKey(context.Background(), "context-api-key"),
+			ctx:     apikey.ContextWithAPIKey(context.Background(), "context-api-key"),
 			wantErr: false,
 		},
 		{
