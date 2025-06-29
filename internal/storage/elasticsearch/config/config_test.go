@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -19,6 +20,8 @@ import (
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/auth/apikey"
+	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
@@ -84,36 +87,43 @@ func TestNewClient(t *testing.T) {
 	const (
 		pwd1       = "password"
 		token      = "token"
+		apiKey     = "api-key"
 		serverCert = "../../../../internal/config/tlscfg/testdata/example-server-cert.pem"
 	)
 	pwdFile := filepath.Join(t.TempDir(), "pwd")
 	require.NoError(t, os.WriteFile(pwdFile, []byte(pwd1), 0o600))
 	pwdtokenFile := filepath.Join(t.TempDir(), "token")
 	require.NoError(t, os.WriteFile(pwdtokenFile, []byte(token), 0o600))
+	apiKeyFile := filepath.Join(t.TempDir(), "apikey")
+	require.NoError(t, os.WriteFile(apiKeyFile, []byte(apiKey), 0o600))
 	// copy certs to temp so we can modify them
 	certFilePath := copyToTempFile(t, "cert.crt", serverCert)
 	defer certFilePath.Close()
 
 	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-		assert.Equal(t, http.MethodGet, req.Method)
+		// Accept both GET (for version check) and HEAD (for health check)
+		assert.Contains(t, []string{http.MethodGet, http.MethodHead}, req.Method)
 		res.WriteHeader(http.StatusOK)
 		res.Write(mockEsServerResponseWithVersion0)
 	}))
 	defer testServer.Close()
 	testServer1 := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-		assert.Equal(t, http.MethodGet, req.Method)
+		// Accept both GET (for version check) and HEAD (for health check)
+		assert.Contains(t, []string{http.MethodGet, http.MethodHead}, req.Method)
 		res.WriteHeader(http.StatusOK)
 		res.Write(mockEsServerResponseWithVersion1)
 	}))
 	defer testServer1.Close()
 	testServer2 := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-		assert.Equal(t, http.MethodGet, req.Method)
+		// Accept both GET (for version check) and HEAD (for health check)
+		assert.Contains(t, []string{http.MethodGet, http.MethodHead}, req.Method)
 		res.WriteHeader(http.StatusOK)
 		res.Write(mockEsServerResponseWithVersion2)
 	}))
 	defer testServer2.Close()
 	testServer8 := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-		assert.Equal(t, http.MethodGet, req.Method)
+		// Accept both GET (for version check) and HEAD (for health check)
+		assert.Contains(t, []string{http.MethodGet, http.MethodHead}, req.Method)
 		res.WriteHeader(http.StatusOK)
 		res.Write(mockEsServerResponseWithVersion8)
 	}))
@@ -368,6 +378,88 @@ func TestNewClient(t *testing.T) {
 			expectedError: true,
 		},
 		{
+			name: "success with API key authentication",
+			config: &Configuration{
+				Servers: []string{testServer.URL},
+				Authentication: Authentication{
+					APIKeyAuthentication: APIKeyAuthentication{
+						FilePath:         apiKeyFile,
+						AllowFromContext: false,
+					},
+				},
+				LogLevel: "debug",
+				BulkProcessing: BulkProcessing{
+					MaxBytes: -1, // disable bulk; we want immediate flush
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "success with API key authentication from file",
+			config: &Configuration{
+				Servers: []string{testServer.URL},
+				Authentication: Authentication{
+					APIKeyAuthentication: APIKeyAuthentication{
+						FilePath: apiKeyFile,
+					},
+				},
+				LogLevel: "debug",
+				BulkProcessing: BulkProcessing{
+					MaxBytes: -1, // disable bulk; we want immediate flush
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "success with API key authentication from context",
+			config: &Configuration{
+				Servers: []string{testServer.URL},
+				Authentication: Authentication{
+					APIKeyAuthentication: APIKeyAuthentication{
+						AllowFromContext: true,
+					},
+				},
+				LogLevel: "debug",
+				BulkProcessing: BulkProcessing{
+					MaxBytes: -1, // disable bulk; we want immediate flush
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "fail with API key authentication from non-existent file",
+			config: &Configuration{
+				Servers: []string{testServer.URL},
+				Authentication: Authentication{
+					APIKeyAuthentication: APIKeyAuthentication{
+						FilePath: "non-existent-file",
+					},
+				},
+				LogLevel: "debug",
+				BulkProcessing: BulkProcessing{
+					MaxBytes: -1, // disable bulk; we want immediate flush
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "success with API key authentication from file with context override",
+			config: &Configuration{
+				Servers: []string{testServer.URL},
+				Authentication: Authentication{
+					APIKeyAuthentication: APIKeyAuthentication{
+						FilePath:         apiKeyFile,
+						AllowFromContext: true,
+					},
+				},
+				LogLevel: "debug",
+				BulkProcessing: BulkProcessing{
+					MaxBytes: -1, // disable bulk; we want immediate flush
+				},
+			},
+			expectedError: false,
+		},
+		{
 			name: "success with valid configuration and info log level",
 			config: &Configuration{
 				Servers: []string{testServer.URL},
@@ -417,7 +509,11 @@ func TestNewClient(t *testing.T) {
 			logger := zap.NewNop()
 			metricsFactory := metrics.NullFactory
 			config := test.config
-			client, err := NewClient(context.Background(), config, logger, metricsFactory)
+			ctx := context.Background()
+			if strings.Contains(test.name, "from context") {
+				ctx = apikey.ContextWithAPIKey(ctx, "context-api-key")
+			}
+			client, err := NewClient(ctx, config, logger, metricsFactory)
 			if test.expectedError {
 				require.Error(t, err)
 				require.Nil(t, client)
@@ -491,6 +587,35 @@ func TestApplyDefaults(t *testing.T) {
 					},
 				},
 			}, // All fields are empty
+			expected: source,
+		},
+		{
+			name:     "All fields empty, all default",
+			target:   &Configuration{},
+			expected: source,
+		},
+		{
+			name: "Fields already set, not defaulted",
+			target: &Configuration{
+				RemoteReadClusters: []string{"already"},
+				LogLevel:           "already",
+				HTTPCompression:    true,
+			},
+			expected: func() *Configuration {
+				cfg := *source
+				cfg.RemoteReadClusters = []string{"already"}
+				cfg.LogLevel = "already"
+				cfg.HTTPCompression = true
+				return &cfg
+			}(),
+		},
+		{
+			name: "Partial fields, some defaulted",
+			target: &Configuration{
+				RemoteReadClusters: nil,
+				LogLevel:           "",
+				HTTPCompression:    false,
+			},
 			expected: source,
 		},
 		{
@@ -617,11 +742,8 @@ func TestApplyDefaults(t *testing.T) {
 }
 
 func TestTagKeysAsFields(t *testing.T) {
-	const (
-		pwd1 = "tag1\ntag2"
-	)
-	pwdFile := filepath.Join(t.TempDir(), "pwd")
-	require.NoError(t, os.WriteFile(pwdFile, []byte(pwd1), 0o600))
+	tempFile := filepath.Join(t.TempDir(), "test_tags.txt")
+	require.NoError(t, os.WriteFile(tempFile, []byte("tag1\ntag2\n\n"), 0o600))
 
 	tests := []struct {
 		name         string
@@ -630,13 +752,26 @@ func TestTagKeysAsFields(t *testing.T) {
 		expectError  bool
 	}{
 		{
-			name: "File with tags",
-			config: &Configuration{
-				Tags: TagsAsFields{
-					File:    pwdFile,
-					Include: "",
-				},
-			},
+			name:         "Empty config",
+			config:       &Configuration{Tags: TagsAsFields{}},
+			expectedTags: nil,
+			expectError:  false,
+		},
+		{
+			name:         "Include only",
+			config:       &Configuration{Tags: TagsAsFields{Include: "foo,bar"}},
+			expectedTags: []string{"foo", "bar"},
+			expectError:  false,
+		},
+		{
+			name:         "File not found",
+			config:       &Configuration{Tags: TagsAsFields{File: "/nonexistent/file"}},
+			expectedTags: nil,
+			expectError:  true,
+		},
+		{
+			name:         "File with tags",
+			config:       &Configuration{Tags: TagsAsFields{File: tempFile}},
 			expectedTags: []string{"tag1", "tag2"},
 			expectError:  false,
 		},
@@ -655,7 +790,7 @@ func TestTagKeysAsFields(t *testing.T) {
 			name: "File and include with tags",
 			config: &Configuration{
 				Tags: TagsAsFields{
-					File:    pwdFile,
+					File:    tempFile,
 					Include: "cmdtag1,cmdtag2",
 				},
 			},
@@ -909,6 +1044,205 @@ func TestHandleBulkAfterCallback_MissingStartTime(t *testing.T) {
 			Value: 1,
 		},
 	)
+}
+
+func TestTagKeysAsFields_WhitespaceLines(t *testing.T) {
+	tmpFile := filepath.Join(t.TempDir(), "tags.txt")
+	require.NoError(t, os.WriteFile(tmpFile, []byte("tag1\n   \ntag2\n\n\t\n"), 0o600))
+	tagsConfig := &Configuration{Tags: TagsAsFields{File: tmpFile}}
+	tags, err := tagsConfig.TagKeysAsFields()
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"tag1", "tag2"}, tags)
+}
+
+func TestGetConfigOptions(t *testing.T) {
+	tmpDir := t.TempDir()
+	apiKeyFile := filepath.Join(tmpDir, "apikey")
+	bearerTokenFile := filepath.Join(tmpDir, "bearertoken")
+	os.WriteFile(apiKeyFile, []byte("test-api-key"), 0o600)
+	os.WriteFile(bearerTokenFile, []byte("file-bearer-token"), 0o600)
+
+	tests := []struct {
+		name            string
+		cfg             *Configuration
+		ctx             context.Context
+		prepare         func()
+		wantErr         bool
+		wantErrContains string
+	}{
+		{
+			name: "APIKey file error",
+			cfg: &Configuration{
+				Servers: []string{"http://localhost:9200"},
+				Authentication: Authentication{
+					APIKeyAuthentication: APIKeyAuthentication{
+						FilePath: "non-existent-apikey-file",
+					},
+				},
+			},
+			ctx:             context.Background(),
+			wantErr:         true,
+			wantErrContains: "no such file or directory",
+		},
+		{
+			name: "APIKey file present",
+			cfg: &Configuration{
+				Servers: []string{"http://localhost:9200"},
+				Authentication: Authentication{
+					APIKeyAuthentication: APIKeyAuthentication{
+						FilePath: apiKeyFile,
+					},
+				},
+			},
+			ctx:     context.Background(),
+			wantErr: false,
+		},
+		{
+			name: "APIKey context propagation",
+			cfg: &Configuration{
+				Servers: []string{"http://localhost:9200"},
+				Authentication: Authentication{
+					APIKeyAuthentication: APIKeyAuthentication{
+						AllowFromContext: true,
+					},
+				},
+			},
+			ctx:     apikey.ContextWithAPIKey(context.Background(), "context-api-key"),
+			wantErr: false,
+		},
+		{
+			name: "APIKey file and context both enabled",
+			cfg: &Configuration{
+				Servers: []string{"http://localhost:9200"},
+				Authentication: Authentication{
+					APIKeyAuthentication: APIKeyAuthentication{
+						FilePath:         apiKeyFile,
+						AllowFromContext: true,
+					},
+				},
+			},
+			ctx:     apikey.ContextWithAPIKey(context.Background(), "context-api-key"),
+			wantErr: false,
+		},
+		{
+			name: "BearerToken context propagation",
+			cfg: &Configuration{
+				Servers: []string{"http://localhost:9200"},
+				Authentication: Authentication{
+					BearerTokenAuthentication: BearerTokenAuthentication{
+						AllowFromContext: true,
+					},
+				},
+				LogLevel: "info",
+			},
+			ctx:     bearertoken.ContextWithBearerToken(context.Background(), "context-bearer-token"),
+			wantErr: false,
+		},
+		{
+			name: "BearerToken file and context both enabled",
+			cfg: &Configuration{
+				Servers: []string{"http://localhost:9200"},
+				Authentication: Authentication{
+					BearerTokenAuthentication: BearerTokenAuthentication{
+						FilePath:         bearerTokenFile,
+						AllowFromContext: true,
+					},
+				},
+				LogLevel: "info",
+			},
+			ctx:     bearertoken.ContextWithBearerToken(context.Background(), "context-bearer-token"),
+			wantErr: false,
+		},
+		{
+			name: "BearerToken file error",
+			cfg: &Configuration{
+				Servers: []string{"http://localhost:9200"},
+				TLS:     configtls.ClientConfig{Insecure: true},
+				Authentication: Authentication{
+					BearerTokenAuthentication: BearerTokenAuthentication{
+						FilePath: "/does/not/exist/token",
+					},
+				},
+				LogLevel: "info",
+			},
+			ctx:             context.Background(),
+			wantErr:         true,
+			wantErrContains: "no such file or directory",
+		},
+		{
+			name: "No auth configured",
+			cfg: &Configuration{
+				Servers:  []string{"http://localhost:9200"},
+				LogLevel: "info",
+			},
+			ctx:     context.Background(),
+			wantErr: false,
+		},
+		{
+			name: "BasicAuth password file error",
+			cfg: &Configuration{
+				Servers: []string{"http://localhost:9200"},
+				Authentication: Authentication{
+					BasicAuthentication: BasicAuthentication{
+						PasswordFilePath: "/does/not/exist",
+					},
+				},
+			},
+			ctx:             context.Background(),
+			wantErr:         true,
+			wantErrContains: "failed to load password from file",
+		},
+		{
+			name: "BasicAuth both Password and PasswordFilePath set",
+			cfg: &Configuration{
+				Servers: []string{"http://localhost:9200"},
+				Authentication: Authentication{
+					BasicAuthentication: BasicAuthentication{
+						Password:         "secret",
+						PasswordFilePath: "/some/file/path",
+					},
+				},
+			},
+			ctx:             context.Background(),
+			wantErr:         true,
+			wantErrContains: "both Password and PasswordFilePath are set",
+		},
+		{
+			name: "Invalid log level triggers addLoggerOptions error",
+			cfg: &Configuration{
+				Servers: []string{"http://localhost:9200"},
+				Authentication: Authentication{
+					BasicAuthentication: BasicAuthentication{
+						Username: "user",
+						Password: "secret",
+					},
+				},
+				LogLevel: "invalid",
+			},
+			ctx:             context.Background(),
+			wantErr:         true,
+			wantErrContains: "unrecognized log-level",
+		},
+	}
+
+	logger := zap.NewNop()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.prepare != nil {
+				tt.prepare()
+			}
+			options, err := tt.cfg.getConfigOptions(tt.ctx, logger)
+			if tt.wantErr {
+				require.Error(t, err)
+				if tt.wantErrContains != "" {
+					require.Contains(t, err.Error(), tt.wantErrContains)
+				}
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, options)
+			}
+		})
+	}
 }
 
 func TestMain(m *testing.M) {
