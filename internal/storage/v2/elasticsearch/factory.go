@@ -38,7 +38,7 @@ func init() {
 		featuregate.StageBeta, // enabled by default
 		featuregate.WithRegisterDescription(
 			"When feature is on, searching by span.kind and span.status tags will only search the materialized fields in the ES document. This will become the only behavior in the future. To enable the legacy behavior of querying span kind and status from the nested tags, e.g. to support querying the data written before v2.8, turn off this feature."),
-		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/pull/7258"))
+		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/pull/7272"))
 }
 
 type Factory struct {
