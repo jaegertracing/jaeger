@@ -5,8 +5,12 @@ package elasticsearch
 
 import (
 	"context"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"go.opentelemetry.io/collector/featuregate"
 	"net/http"
 	"net/http/httptest"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -67,4 +71,93 @@ func getTestingFactoryBase(t *testing.T, cfg *escfg.Configuration) *elasticsearc
 	err := elasticsearch.SetFactoryForTest(f, zaptest.NewLogger(t), metrics.NullFactory, cfg)
 	require.NoError(t, err)
 	return f
+}
+
+func newTestConfig(tags escfg.TagsAsFields, serverURL string) escfg.Configuration {
+	return escfg.Configuration{
+		Servers:  []string{serverURL},
+		LogLevel: "error",
+		Tags:     tags,
+	}
+}
+
+// cleanAndSortTags splits a comma-separated tag string, removes empty tags, and sorts the result.
+func cleanAndSortTags(tagString string) []string {
+	tags := strings.Split(tagString, ",")
+	cleanTags := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		if tag != "" {
+			cleanTags = append(cleanTags, tag)
+		}
+	}
+	sort.Strings(cleanTags)
+	return cleanTags
+}
+
+func TestEnsureRequiredFields(t *testing.T) {
+	// Set up mock Elasticsearch server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write(mockEsServerResponse)
+	}))
+	defer server.Close()
+
+	tests := []struct {
+		name         string
+		gateEnabled  bool
+		tagsConfig   escfg.TagsAsFields
+		expectedTags []string
+	}{
+		{
+			name:        "AllAsFields true",
+			gateEnabled: true,
+			tagsConfig: escfg.TagsAsFields{
+				AllAsFields: true,
+				Include:     "tag1,tag2",
+			},
+			expectedTags: []string{"tag1", "tag2"},
+		},
+		{
+			name:        "Gate disabled",
+			gateEnabled: false,
+			tagsConfig: escfg.TagsAsFields{
+				Include: "tag1,tag2",
+			},
+			expectedTags: []string{"tag1", "tag2"},
+		},
+		{
+			name:        "No required tags",
+			gateEnabled: true,
+			tagsConfig: escfg.TagsAsFields{
+				Include: "tag1, tag2",
+			},
+			expectedTags: []string{"tag1", "tag2", model.SpanKindKey, tagError},
+		},
+		{
+			name:        "Empty include list",
+			gateEnabled: true,
+			tagsConfig: escfg.TagsAsFields{
+				Include: "",
+			},
+			expectedTags: []string{model.SpanKindKey, tagError},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set up feature gate
+			err := featuregate.GlobalRegistry().Set("jaeger.es.materializeSpanKindAndStatus", tt.gateEnabled)
+			require.NoError(t, err)
+
+			// Create config and run factory
+			cfg := newTestConfig(tt.tagsConfig, server.URL)
+			factory, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
+			require.NoError(t, err)
+			defer factory.Close()
+
+			// Compare tags
+			actualTags := cleanAndSortTags(factory.config.Tags.Include)
+			sort.Strings(tt.expectedTags)
+			require.Equal(t, tt.expectedTags, actualTags)
+		})
+	}
 }
