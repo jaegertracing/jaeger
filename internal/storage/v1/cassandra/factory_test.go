@@ -17,33 +17,10 @@ import (
 
 	viperize "github.com/jaegertracing/jaeger/internal/config"
 	"github.com/jaegertracing/jaeger/internal/metrics"
-	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra/mocks"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
-
-type mockSessionBuilder struct {
-	index    int
-	sessions []*mocks.Session
-	errors   []error
-}
-
-func (m *mockSessionBuilder) add(session *mocks.Session, err error) *mockSessionBuilder {
-	m.sessions = append(m.sessions, session)
-	m.errors = append(m.errors, err)
-	return m
-}
-
-func (m *mockSessionBuilder) build(*config.Configuration) (cassandra.Session, error) {
-	if m.index >= len(m.sessions) {
-		return nil, errors.New("no more sessions")
-	}
-	session := m.sessions[m.index]
-	err := m.errors[m.index]
-	m.index++
-	return session, err
-}
 
 func TestCassandraFactory(t *testing.T) {
 	logger, _ := testutils.NewLogger()
@@ -73,7 +50,7 @@ func TestCassandraFactory(t *testing.T) {
 			command.ParseFlags([]string{})
 			f.InitFromViper(v, zap.NewNop())
 
-			f.sessionBuilderFn = new(mockSessionBuilder).add(nil, errors.New("made-up primary error")).build
+			MockSession(f, nil, errors.New("made-up primary error"))
 			require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up primary error")
 
 			var (
@@ -84,7 +61,7 @@ func TestCassandraFactory(t *testing.T) {
 			session.On("Close").Return()
 			query.On("Exec").Return(nil)
 
-			f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).build
+			MockSession(f, session, nil)
 			require.NoError(t, f.Initialize(metrics.NullFactory, logger))
 
 			_, err := f.CreateSpanReader()
@@ -96,7 +73,7 @@ func TestCassandraFactory(t *testing.T) {
 			_, err = f.CreateDependencyReader()
 			require.NoError(t, err)
 
-			f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).add(session, nil).build
+			MockSession(f, session, nil)
 			require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 
 			_, err = f.CreateLock()
@@ -121,7 +98,7 @@ func TestCreateSpanReaderError(t *testing.T) {
 		mock.Anything).Return(query)
 	query.On("Exec").Return(errors.New("table does not exist"))
 	f := NewFactory()
-	f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).add(session, nil).build
+	MockSession(f, session, nil)
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 	r, err := f.CreateSpanReader()
 	require.Error(t, err)
@@ -143,12 +120,12 @@ func TestExclusiveWhitelistBlacklist(t *testing.T) {
 	)
 	session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
 	query.On("Exec").Return(nil)
-	f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).build
+	MockSession(f, session, nil)
 
 	_, err := f.CreateSpanWriter()
 	require.EqualError(t, err, "only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
 
-	f.sessionBuilderFn = new(mockSessionBuilder).add(session, nil).add(session, nil).build
+	MockSession(f, session, nil)
 	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 }
 
@@ -197,52 +174,9 @@ func TestWriterOptions(t *testing.T) {
 func TestConfigureFromOptions(t *testing.T) {
 	f := NewFactory()
 	o := NewOptions("foo")
-	f.configureFromOptions(o)
+	f.ConfigureFromOptions(o)
 	assert.Equal(t, o, f.Options)
 	assert.Equal(t, o.GetConfig(), f.config)
-}
-
-func TestNewFactoryWithConfig(t *testing.T) {
-	t.Run("valid configuration", func(t *testing.T) {
-		opts := &Options{
-			NamespaceConfig: NamespaceConfig{
-				Configuration: config.DefaultConfiguration(),
-			},
-		}
-		f := NewFactory()
-		b := &withConfigBuilder{
-			f:              f,
-			opts:           opts,
-			metricsFactory: metrics.NullFactory,
-			logger:         zap.NewNop(),
-			initializer:    func(_ metrics.Factory, _ *zap.Logger) error { return nil },
-		}
-		_, err := b.build()
-		require.NoError(t, err)
-	})
-	t.Run("connection error", func(t *testing.T) {
-		expErr := errors.New("made-up error")
-		opts := &Options{
-			NamespaceConfig: NamespaceConfig{
-				Configuration: config.DefaultConfiguration(),
-			},
-		}
-		f := NewFactory()
-		b := &withConfigBuilder{
-			f:              f,
-			opts:           opts,
-			metricsFactory: metrics.NullFactory,
-			logger:         zap.NewNop(),
-			initializer:    func(_ metrics.Factory, _ *zap.Logger) error { return expErr },
-		}
-		_, err := b.build()
-		require.ErrorIs(t, err, expErr)
-	})
-	t.Run("invalid configuration", func(t *testing.T) {
-		cfg := Options{}
-		_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
-		require.ErrorContains(t, err, "Servers: non zero value required")
-	})
 }
 
 func TestFactory_Purge(t *testing.T) {
