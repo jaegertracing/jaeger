@@ -52,38 +52,6 @@ The first step is to isolate the specific set of documents (spans) needed for th
 
 This logic is constructed in the `buildQuery` method. The filters are progressively added to a `boolQuery`.
 
-```go
-// elasticsearch/reader.go
-
-func (MetricsReader) buildQuery(params metricstore.BaseQueryParameters, timeRange TimeRange) elasticv7.BoolQuery {
-    boolQuery := elasticv7.NewBoolQuery()
-
-    // Filter by service name
-    serviceNameQuery := elasticv7.NewTermsQuery("process.serviceName", buildInterfaceSlice(params.ServiceNames)...)
-    boolQuery.Filter(serviceNameQuery)
-
-    // Filter by span.kind = "server"
-    spanKindQuery := buildSpanKindQuery(params.SpanKinds)
-    nestedTagsQuery := elasticv7.NewNestedQuery("tags",
-       elasticv7.NewBoolQuery().
-          Must(
-             elasticv7.NewTermQuery("tags.key", "span.kind"),
-             spanKindQuery,
-          ),
-    )
-    boolQuery.Filter(nestedTagsQuery)
-
-    // Filter by time range, using the extended start time for lookback
-    rangeQuery := elasticv7.NewRangeQuery("startTimeMillis").
-       Gte(timeRange.extendedStartTimeMillis).
-       Lte(timeRange.endTimeMillis).
-       Format("epoch_millis")
-    boolQuery.Filter(rangeQuery)
-    
-    return *boolQuery
-}
-```
-
 -----
 
 ### 2\. Aggregation Query Part
@@ -125,30 +93,6 @@ Note: The reference ES query in the prompt includes a `moving_fn` aggregation to
 
 This aggregation pipeline is constructed in the `buildCallRateAggregations` method.
 
-```go
-// elasticsearch/reader.go
-
-func (MetricsReader) buildCallRateAggregations(params *metricstore.CallRateQueryParameters, timeRange TimeRange) elasticv7.Aggregation {
-    fixedIntervalString := strconv.FormatInt(params.Step.Milliseconds(), 10) + "ms"
-    
-    // 1. Create the date_histogram aggregation
-    dateHistoAgg := elasticv7.NewDateHistogramAggregation().
-       Field("startTimeMillis").
-       FixedInterval(fixedIntervalString).
-       MinDocCount(0).
-       ExtendedBounds(timeRange.extendedStartTimeMillis, timeRange.endTimeMillis)
-
-    // 2. Create the cumulative_sum sub-aggregation
-    cumulativeSumAgg := elasticv7.NewCumulativeSumAggregation().BucketsPath("_count")
-
-    // Nest cumulative_sum inside date_histogram
-    dateHistoAgg = dateHistoAgg.
-       SubAggregation(culmuAggName, cumulativeSumAgg)
-
-    return dateHistoAgg
-}
-```
-
 -----
 
 ### 3\. Post-Processing Part
@@ -181,43 +125,3 @@ This post-processing logic effectively calculates the slope of the cumulative re
 **Code Reference:**
 
 The post-processing logic resides in `getCallRateProcessMetrics`, which is passed as a function pointer to the main query executor in `GetCallRates`.
-
-```go
-// elasticsearch/reader.go
-
-func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
-    // ...
-    metricsParams := MetricsQueryParams{
-       // ...
-       // The post-processing function is assigned here
-       processMetricsFunc: func(pairs []*Pair) []*Pair {
-          return getCallRateProcessMetrics(pairs, params.BaseQueryParameters)
-       },
-    }
-    // ...
-}
-
-func getCallRateProcessMetrics(pairs []*Pair, m metricstore.BaseQueryParameters) []*Pair {
-    // ...
-    for i := range pairs {
-       // ...
-       // Get boundary values for our lookback window:
-       firstVal := pairs[i-lookback+1].Value
-       lastVal := pairs[i].Value
-
-       // Calculate time window duration in seconds
-       windowSizeSeconds := float64(lookback) * (m.Step.Seconds())
-
-       // Calculate rate of change per second
-       // Formula: (current_value - starting_value) / time_window
-       rate := (lastVal - firstVal) / windowSizeSeconds
-
-       results = append(results, &Pair{
-          TimeStamp: pairs[i].TimeStamp,
-          Value:     rate,
-       })
-    }
-
-    return results
-}
-```
