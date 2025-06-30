@@ -16,8 +16,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
 
@@ -33,6 +35,7 @@ const (
 // MetricsReader is an Elasticsearch metrics reader.
 type MetricsReader struct {
 	client      es.Client
+	cfg         config.Configuration
 	logger      *zap.Logger
 	tracer      trace.Tracer
 	queryLogger *QueryLogger
@@ -73,10 +76,11 @@ type Pair struct {
 }
 
 // NewMetricsReader initializes a new MetricsReader.
-func NewMetricsReader(client es.Client, logger *zap.Logger, tracer trace.TracerProvider) *MetricsReader {
+func NewMetricsReader(client es.Client, cfg config.Configuration, logger *zap.Logger, tracer trace.TracerProvider) *MetricsReader {
 	tr := tracer.Tracer("elasticsearch-metricstore")
 	return &MetricsReader{
 		client:      client,
+		cfg:         cfg,
 		logger:      logger,
 		tracer:      tr,
 		queryLogger: NewQueryLogger(logger, tr),
@@ -144,22 +148,16 @@ func trimMetricPointsBefore(mf *metrics.MetricFamily, startMillis int64) *metric
 }
 
 // buildQuery constructs the Elasticsearch bool query.
-func (MetricsReader) buildQuery(params metricstore.BaseQueryParameters, timeRange TimeRange) elastic.BoolQuery {
+func (r MetricsReader) buildQuery(params metricstore.BaseQueryParameters, timeRange TimeRange) elastic.BoolQuery {
 	boolQuery := elastic.NewBoolQuery()
 
 	serviceNameQuery := elastic.NewTermsQuery("process.serviceName", buildInterfaceSlice(params.ServiceNames)...)
 	boolQuery.Filter(serviceNameQuery)
 
 	// Span kind filter
-	spanKindQuery := buildSpanKindQuery(params.SpanKinds)
-	nestedTagsQuery := elastic.NewNestedQuery("tags",
-		elastic.NewBoolQuery().
-			Must(
-				elastic.NewTermQuery("tags.key", "span.kind"),
-				spanKindQuery,
-			),
-	)
-	boolQuery.Filter(nestedTagsQuery)
+	spanKindField := strings.ReplaceAll(model.SpanKindKey, ".", r.cfg.Tags.DotReplacement)
+	spanKindQuery := elastic.NewTermsQuery("tag."+spanKindField, buildInterfaceSlice(normalizeSpanKinds(params.SpanKinds))...)
+	boolQuery.Filter(spanKindQuery)
 
 	rangeQuery := elastic.NewRangeQuery("startTimeMillis").
 		// Use extendedStartTimeMillis to allow for a 10-minute lookback.
@@ -174,14 +172,7 @@ func (MetricsReader) buildQuery(params metricstore.BaseQueryParameters, timeRang
 	//	"bool": {
 	//		"filter": [
 	//			{"terms": {"process.serviceName": ["name1"] }},
-	//			{
-	//			"nested": {
-	//				"path": "tags",
-	//				"query": {
-	//					"bool": {
-	//						"must": [
-	//						{"term": {"tags.key": "span.kind"}},
-	//						{"term": {"tags.value": "server"}}]}}}},
+	//			{"terms": {"tag.span@kind": ["server"] }}, // Dot replacement: @
 	//			{
 	//			"range": {
 	//			"startTimeMillis": {
@@ -244,20 +235,6 @@ func getCallRateProcessMetrics(pairs []*Pair, m metricstore.BaseQueryParameters)
 	}
 
 	return results
-}
-
-// buildSpanKindQuery constructs the query for span kinds.
-func buildSpanKindQuery(spanKinds []string) elastic.Query {
-	querySpanKinds := normalizeSpanKinds(spanKinds)
-	if len(querySpanKinds) == 1 {
-		return elastic.NewTermQuery("tags.value", querySpanKinds[0])
-	}
-
-	shouldQuery := elastic.NewBoolQuery()
-	for _, kind := range querySpanKinds {
-		shouldQuery.Should(elastic.NewTermQuery("tags.value", kind))
-	}
-	return shouldQuery
 }
 
 // buildCallRateAggregations constructs the GetCallRate aggregations.

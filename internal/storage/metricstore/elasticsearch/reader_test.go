@@ -34,17 +34,7 @@ var mockCallRateQuery = `{
     "bool": {
       "filter": [
         {"terms": {"process.serviceName": ["driver"]}},
-        {"nested": {
-          "path": "tags",
-          "query": {
-            "bool": {
-              "must": [
-                {"term": {"tags.key": "span.kind"}},
-                {"term": {"tags.value": "server"}}
-              ]
-            }
-          }
-        }},
+        {"terms": {"tag.span@kind": ["server"]}},
         {"range": {
           "startTimeMillis": {
             "gte": 1749894300000,
@@ -459,10 +449,14 @@ func setupMetricsReaderAndServer(t *testing.T, wantEsQuery string, responseFile 
 	cfg := config.Configuration{
 		Servers:  []string{mockServer.URL},
 		LogLevel: "debug",
+		Tags: config.TagsAsFields{
+			Include:        "span.kind,error",
+			DotReplacement: "@",
+		},
 	}
 
 	client := clientProvider(t, &cfg, logger, esmetrics.NullFactory)
-	reader := NewMetricsReader(client, logger, tracer)
+	reader := NewMetricsReader(client, cfg, logger, tracer)
 	require.NotNil(t, reader)
 
 	return reader, exporter

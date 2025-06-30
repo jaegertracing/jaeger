@@ -14,20 +14,8 @@ The first step is to isolate the specific set of documents (spans) needed for th
 "query": {
   "bool": {
     "filter": [
-      { "term": { "process.serviceName": "${service}" } },
-      {
-        "nested": {
-          "path": "tags",
-          "query": {
-            "bool": {
-              "must": [
-                { "term": { "tags.key": "span.kind" } },
-                { "term": { "tags.value": "server" } }
-              ]
-            }
-          }
-        }
-      },
+      { "terms": { "process.serviceName": "[${service}]" } },
+      { "terms": { "tag.span@kind": "[{server}]" } },,
       {
         "range": {
           "startTimeMillis": {
@@ -44,8 +32,8 @@ The first step is to isolate the specific set of documents (spans) needed for th
 
 **Explanation:**
 
-* **`{ "term": { "process.serviceName": "${service}" } }`**: This filter selects spans that belong to the specified service. This is the primary entity for which we are calculating the call rate.
-* **`{ "nested": { ... "tags.value": "server" } }`**: This is a critical filter for correctly calculating the *incoming* call rate. By filtering for spans where `span.kind` is `server`, we ensure that we are only counting spans that represent a server receiving a request. This prevents us from incorrectly counting outgoing calls made by the service.
+* **`{ "terms": { "process.serviceName": "[${service}]" } }`**: This filter selects spans that belong to the specified service. This is the primary entity for which we are calculating the call rate.
+* **`{ "terms": { "tag.span@kind": "server" } }`**: This is a critical filter for correctly calculating the *incoming* call rate. By filtering for spans where `span.kind` is `server` (or other), we ensure that we are only counting spans that represent a server (or other) receiving a request. This prevents us from incorrectly counting outgoing calls made by the service.
 * **`{ "range": { "startTimeMillis": ... } }`**: This filter restricts the spans to a specific time window. The `getCallRate` implementation uses an extended time range (by adding a 10-minute lookback period via `extendedStartTimeMillis`). This is done to ensure that when we calculate the rate for the earliest time points in our requested window, we have sufficient historical data to compute a meaningful value.
 
 **Code Reference:**
