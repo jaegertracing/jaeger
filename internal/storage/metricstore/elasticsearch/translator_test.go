@@ -26,17 +26,8 @@ func TestToMetricsFamily(t *testing.T) {
 		err      string
 	}{
 		{
-			name: "successful conversion",
-			params: MetricsQueryParams{
-				metricName: "test_metric",
-				metricDesc: "test description",
-				BaseQueryParameters: metricstore.BaseQueryParameters{
-					ServiceNames: []string{"service1"},
-				},
-				processMetricsFunc: func(pair []*Pair) []*Pair {
-					return pair
-				},
-			},
+			name:   "successful conversion",
+			params: mockMetricsQueryParams([]string{"service1"}, false),
 			result: createTestSearchResult(false),
 			expected: &metrics.MetricFamily{
 				Name: "test_metric",
@@ -48,14 +39,7 @@ func TestToMetricsFamily(t *testing.T) {
 							{Name: "service_name", Value: "service1"},
 						},
 						MetricPoints: []*metrics.MetricPoint{
-							{
-								Value: &metrics.MetricPoint_GaugeValue{
-									GaugeValue: &metrics.GaugeValue{
-										Value: &metrics.GaugeValue_DoubleValue{DoubleValue: 1.23},
-									},
-								},
-								Timestamp: mustTimestampProto(time.Unix(0, 123456*int64(time.Millisecond))),
-							},
+							createEpochGaugePoint(1.23),
 						},
 					},
 				},
@@ -105,14 +89,7 @@ func TestToDomainMetrics(t *testing.T) {
 						{Name: "service_name", Value: "service1"},
 					},
 					MetricPoints: []*metrics.MetricPoint{
-						{
-							Value: &metrics.MetricPoint_GaugeValue{
-								GaugeValue: &metrics.GaugeValue{
-									Value: &metrics.GaugeValue_DoubleValue{DoubleValue: 1.23},
-								},
-							},
-							Timestamp: mustTimestampProto(time.Unix(0, 123456*int64(time.Millisecond))),
-						},
+						createEpochGaugePoint(1.23),
 					},
 				},
 			},
@@ -128,14 +105,7 @@ func TestToDomainMetrics(t *testing.T) {
 						{Name: "operation", Value: "op1"},
 					},
 					MetricPoints: []*metrics.MetricPoint{
-						{
-							Value: &metrics.MetricPoint_GaugeValue{
-								GaugeValue: &metrics.GaugeValue{
-									Value: &metrics.GaugeValue_DoubleValue{DoubleValue: 1.23},
-								},
-							},
-							Timestamp: mustTimestampProto(time.Unix(0, 123456*int64(time.Millisecond))),
-						},
+						createEpochGaugePoint(1.23),
 					},
 				},
 			},
@@ -195,19 +165,37 @@ func TestToDomainMetrics_ErrorCases(t *testing.T) {
 	}
 }
 
+func createEpochGaugePoint(value float64) *metrics.MetricPoint {
+	return &metrics.MetricPoint{
+		Value: &metrics.MetricPoint_GaugeValue{
+			GaugeValue: &metrics.GaugeValue{
+				Value: &metrics.GaugeValue_DoubleValue{DoubleValue: value},
+			},
+		},
+		Timestamp: mustTimestampProto(time.Unix(0, 0)),
+	}
+}
+
+// mockMetricsQueryParams creates a MetricsQueryParams struct for testing.
 func mockMetricsQueryParams(serviceNames []string, groupByOp bool) MetricsQueryParams {
 	return MetricsQueryParams{
+		metricName: "test_metric",
+		metricDesc: "test description",
 		BaseQueryParameters: metricstore.BaseQueryParameters{
 			ServiceNames:     serviceNames,
 			GroupByOperation: groupByOp,
 		},
-		processMetricsFunc: func(pair []*Pair) []*Pair {
+		bucketsToPointsFunc: func(buckets []*elastic.AggregationBucketHistogramItem) []*Pair {
+			return []*Pair{newPair(0, 1.23)}
+		},
+		processMetricsFunc: func(pair []*Pair, _ metricstore.BaseQueryParameters) []*Pair {
 			return pair
 		},
 	}
 }
 
-// Helper functions for test data creation
+// createTestSearchResultWithNonStringKey creates an Elasticsearch SearchResult
+// where the bucket key for operation is an integer, causing a type error.
 func createTestSearchResultWithNonStringKey() *elastic.SearchResult {
 	rawAggregation := json.RawMessage(`{
 		"buckets": [{
@@ -231,6 +219,8 @@ func createTestSearchResultWithNonStringKey() *elastic.SearchResult {
 	}
 }
 
+// createTestSearchResultMissingDateHistogram creates an Elasticsearch SearchResult
+// where an operation bucket is missing the expected date_histogram aggregation.
 func createTestSearchResultMissingDateHistogram() *elastic.SearchResult {
 	rawAggregation := json.RawMessage(`{
 		"buckets": [{
@@ -247,10 +237,9 @@ func createTestSearchResultMissingDateHistogram() *elastic.SearchResult {
 	}
 }
 
-// Helper functions to create properly typed test data
-
+// createTestSearchResult creates a well-formed Elasticsearch SearchResult
+// for testing successful conversions, with or without operation grouping.
 func createTestSearchResult(groupByOperation bool) *elastic.SearchResult {
-	// Create raw aggregation JSON that matches what Elasticsearch would return
 	var rawAggregation json.RawMessage
 
 	if groupByOperation {

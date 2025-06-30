@@ -61,18 +61,28 @@ type MetricsQueryParams struct {
 	metricDesc string
 	boolQuery  elastic.BoolQuery
 	aggQuery   elastic.Aggregation
+	// bucketsToPointsFunc is a function that turn raw ES Histogram Bucket result into
+	// array of Pair for easier post-processing (using processMetricsFunc)
+	bucketsToPointsFunc func(buckets []*elastic.AggregationBucketHistogramItem) []*Pair
 	// processMetricsFunc is a function that processes the raw time-series
 	// data (pairs of timestamp and value) returned from Elasticsearch
 	// aggregations into the final metric values. This is used for calculations
 	// like rates (e.g., calls/sec) which require manipulating the raw counts
 	// or sums over specific time windows.
-	processMetricsFunc func(pair []*Pair) []*Pair
+	processMetricsFunc func(pair []*Pair, params metricstore.BaseQueryParameters) []*Pair
 }
 
 // Pair represents a timestamp-value pair for metrics.
 type Pair struct {
 	TimeStamp int64
 	Value     float64
+}
+
+func newPair(ts int64, value float64) *Pair {
+	return &Pair{
+		TimeStamp: ts,
+		Value:     value,
+	}
 }
 
 // NewMetricsReader initializes a new MetricsReader.
@@ -104,10 +114,9 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 		metricName:          "service_call_rate",
 		metricDesc:          "calls/sec, grouped by service",
 		boolQuery:           r.buildQuery(params.BaseQueryParameters, timeRange),
-		aggQuery:            r.buildCallRateAggregations(params, timeRange),
-		processMetricsFunc: func(pairs []*Pair) []*Pair {
-			return getCallRateProcessMetrics(pairs, params.BaseQueryParameters)
-		},
+		aggQuery:            r.buildCallRateAggregations(params.BaseQueryParameters, timeRange),
+		bucketsToPointsFunc: getCallRateBucketsToPointsFunc,
+		processMetricsFunc:  getCallRateProcessMetrics,
 	}
 
 	metricFamily, err := r.executeSearch(ctx, metricsParams)
@@ -197,19 +206,13 @@ func getCallRateProcessMetrics(pairs []*Pair, m metricstore.BaseQueryParameters)
 		// These aren't true zero values but represent missing data points in sparse time series
 		// We convert them to NaN to distinguish from actual measured zero values (slope of 0)
 		if pairs[i].Value == 0.0 {
-			results = append(results, &Pair{
-				TimeStamp: pairs[i].TimeStamp,
-				Value:     math.NaN(),
-			})
+			results = append(results, newPair(pairs[i].TimeStamp, math.NaN()))
 			continue
 		}
 
 		// For first (lookback-1) points, we don't have enough history
 		if i < lookback-1 {
-			results = append(results, &Pair{
-				TimeStamp: pairs[i].TimeStamp,
-				Value:     0.0, // Return 0 when insufficient data
-			})
+			results = append(results, newPair(pairs[i].TimeStamp, 0.0))
 			continue
 		}
 
@@ -228,17 +231,34 @@ func getCallRateProcessMetrics(pairs []*Pair, m metricstore.BaseQueryParameters)
 		rate := (lastVal - firstVal) / windowSizeSeconds
 
 		// Store the result with original timestamp
-		results = append(results, &Pair{
-			TimeStamp: pairs[i].TimeStamp,
-			Value:     rate,
-		})
+		results = append(results, newPair(pairs[i].TimeStamp, rate))
 	}
 
 	return results
 }
 
+func getCallRateBucketsToPointsFunc(buckets []*elastic.AggregationBucketHistogramItem) []*Pair {
+	var points []*Pair
+
+	for _, bucket := range buckets {
+		aggMap, ok := bucket.Aggregations.CumulativeSum(culmuAggName)
+		if !ok {
+			return nil
+		}
+		value := math.NaN()
+		if aggMap != nil && aggMap.Value != nil {
+			value = *aggMap.Value
+		}
+		points = append(points, &Pair{
+			TimeStamp: int64(bucket.Key),
+			Value:     value,
+		})
+	}
+	return points
+}
+
 // buildCallRateAggregations constructs the GetCallRate aggregations.
-func (MetricsReader) buildCallRateAggregations(params *metricstore.CallRateQueryParameters, timeRange TimeRange) elastic.Aggregation {
+func (MetricsReader) buildCallRateAggregations(params metricstore.BaseQueryParameters, timeRange TimeRange) elastic.Aggregation {
 	fixedIntervalString := strconv.FormatInt(params.Step.Milliseconds(), 10) + "ms"
 	dateHistoAgg := elastic.NewDateHistogramAggregation().
 		Field("startTimeMillis").
