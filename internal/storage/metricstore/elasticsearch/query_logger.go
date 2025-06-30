@@ -42,15 +42,9 @@ func (ql *QueryLogger) TraceQuery(ctx context.Context, metricName string) trace.
 
 // LogAndTraceResult logs the Elasticsearch query results and potentially adds them to the span.
 func (ql *QueryLogger) LogAndTraceResult(span trace.Span, searchResult *elastic.SearchResult) {
-	resultJSON, err := json.MarshalIndent(searchResult, "", "  ")
-	if err != nil {
-		ql.logger.Error("Failed to marshal search result for logging", zap.Error(err))
-		// Log to span as well, but don't fail the primary operation
-		span.SetAttributes(attribute.String("db.response_json.error", err.Error()))
-	} else {
-		ql.logger.Debug("Elasticsearch metricsreader query results", zap.String("results", string(resultJSON)))
-		span.SetAttributes(attribute.String("db.response_json", string(resultJSON)))
-	}
+	resultJSON, _ := json.MarshalIndent(searchResult, "", "  ")
+	ql.logger.Debug("Elasticsearch metricsreader query results", zap.String("results", string(resultJSON)))
+	span.SetAttributes(attribute.String("db.response_json", string(resultJSON)))
 }
 
 // LogErrorToSpan logs an error to the trace span.

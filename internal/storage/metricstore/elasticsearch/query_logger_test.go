@@ -5,7 +5,6 @@ package elasticsearch
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -20,9 +19,6 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
-
-// test utilities
-var jsonMarshal = json.Marshal
 
 type testContext struct {
 	t        *testing.T
@@ -49,15 +45,10 @@ func newTestContext(t *testing.T) *testContext {
 	}
 }
 
-// tests
 func TestQueryLogger(t *testing.T) {
-	t.Run("NewQueryLogger", func(t *testing.T) {
-		tc := newTestContext(t)
-		assert.NotNil(t, tc.ql)
-	})
-
 	t.Run("TraceQuery", func(t *testing.T) {
 		tc := newTestContext(t)
+		assert.NotNil(t, tc.ql)
 
 		span := tc.ql.TraceQuery(context.Background(), "test_query")
 		assert.NotNil(t, span)
@@ -75,46 +66,29 @@ func TestQueryLogger(t *testing.T) {
 		assert.Equal(t, "test_query", spans[0].Name)
 		assert.Contains(t, spans[0].Attributes, attribute.String("db.system", "elasticsearch"))
 	})
+}
 
+func TestLogAndTraceResult(t *testing.T) {
 	t.Run("LogAndTraceResult", func(t *testing.T) {
-		t.Run("success", func(t *testing.T) {
-			tc := newTestContext(t)
-			_, span := tc.tracer.Start(context.Background(), "test_span")
+		tc := newTestContext(t)
+		_, span := tc.tracer.Start(context.Background(), "test_span")
 
-			result := &elastic.SearchResult{TookInMillis: 10, Hits: &elastic.SearchHits{TotalHits: &elastic.TotalHits{Value: 5, Relation: "eq"}}}
-			tc.ql.LogAndTraceResult(span, result)
+		result := &elastic.SearchResult{TookInMillis: 10, Hits: &elastic.SearchHits{TotalHits: &elastic.TotalHits{Value: 5, Relation: "eq"}}}
+		tc.ql.LogAndTraceResult(span, result)
 
-			span.End()
-			require.Eventually(t, func() bool {
-				return len(tc.exporter.GetSpans()) > 0
-			}, time.Second, 10*time.Millisecond)
+		span.End()
+		require.Eventually(t, func() bool {
+			return len(tc.exporter.GetSpans()) > 0
+		}, time.Second, 10*time.Millisecond)
 
-			spans := tc.exporter.GetSpans()
-			assert.Len(t, spans, 1)
-		})
-
-		t.Run("marshal error", func(t *testing.T) {
-			tc := newTestContext(t)
-			_, span := tc.tracer.Start(context.Background(), "test_span")
-
-			// Mock json.Marshal to fail
-			originalMarshal := jsonMarshal
-			jsonMarshal = func(any) ([]byte, error) { return nil, errors.New("marshal error") }
-			defer func() { jsonMarshal = originalMarshal }()
-
-			result := &elastic.SearchResult{TookInMillis: 10}
-			tc.ql.LogAndTraceResult(span, result)
-
-			span.End()
-			require.Eventually(t, func() bool {
-				return len(tc.exporter.GetSpans()) > 0
-			}, time.Second, 10*time.Millisecond)
-
-			spans := tc.exporter.GetSpans()
-			assert.Len(t, spans, 1)
-		})
+		spans := tc.exporter.GetSpans()
+		assert.Len(t, spans, 1)
+		assert.Equal(t, "test_span", spans[0].Name)
+		assert.Contains(t, spans[0].Attributes[0].Key, "db.response_json")
 	})
+}
 
+func TestLogErrorToSpan(t *testing.T) {
 	t.Run("LogErrorToSpan", func(t *testing.T) {
 		tc := newTestContext(t)
 		_, span := tc.tracer.Start(context.Background(), "test_span")
