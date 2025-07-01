@@ -115,7 +115,7 @@ jobs:
 
     - name: Upload binaries
       if: ${{ inputs.dry_run != true }}
-      uses: svenstaro/upload-release-action@ebd922b779f285dafcac6410a0710daee9c12b82 # 2.10.0
+      uses: svenstaro/upload-release-action@5e35e583720436a2cc5f9682b6f55657101c1ea1 # 2.11.1
       with:
         file: '{deploy/*.tar.gz,deploy/*.zip,deploy/*.sha256sum.txt,deploy/*.asc}'
         file_glob: true
@@ -177,7 +177,7 @@ jobs:
     - name: Upload SBOM
       # Upload SBOM manually, because anchore/sbom-action does not do that
       # when the workflow is triggered manually, only from a release.
-      uses: svenstaro/upload-release-action@ebd922b779f285dafcac6410a0710daee9c12b82 # 2.10.0
+      uses: svenstaro/upload-release-action@5e35e583720436a2cc5f9682b6f55657101c1ea1 # 2.11.1
       if: ${{ inputs.dry_run != true }}
       with:
         file: jaeger-SBOM.spdx.json
