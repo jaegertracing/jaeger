@@ -5,7 +5,7 @@ go 1.24.0
 require (
 	github.com/golangci/golangci-lint/v2 v2.2.1
 	github.com/josephspurrier/goversioninfo v1.5.0
-	github.com/vektra/mockery/v3 v3.4.0
+	github.com/vektra/mockery/v3 v3.5.0
 	mvdan.cc/gofumpt v0.8.0
 )
 
