@@ -978,7 +978,7 @@ func assertMetrics(t *testing.T, gotMetrics *metrics.MetricFamily, wantLabels ma
 	assert.Empty(t, wantLabels)
 
 	// Additional logging to show that all expected labels were found and matched
-	t.Log("Remaining expected labels after matching: %v\n", wantLabels)
+	t.Logf("Remaining expected labels after matching: %v\n", wantLabels)
 	t.Log("\n")
 
 	assert.Equal(t, int64(1620351786), mps[0].Timestamp.GetSeconds())
