@@ -679,7 +679,7 @@ func TestGetErrorRatesErrors(t *testing.T) {
 func TestInvalidLatencyUnit(t *testing.T) {
 	defer func() {
 		if r := recover(); r == nil {
-			t.Errorf("Expected a panic due to invalid latency unit")
+			t.Error("Expected a panic due to invalid latency unit")
 		}
 	}()
 	tracer, _, closer := tracerProvider(t)
@@ -978,8 +978,8 @@ func assertMetrics(t *testing.T, gotMetrics *metrics.MetricFamily, wantLabels ma
 	assert.Empty(t, wantLabels)
 
 	// Additional logging to show that all expected labels were found and matched
-	t.Logf("Remaining expected labels after matching: %v\n", wantLabels)
-	t.Logf("\n")
+	t.Log("Remaining expected labels after matching: %v\n", wantLabels)
+	t.Log("\n")
 
 	assert.Equal(t, int64(1620351786), mps[0].Timestamp.GetSeconds())
 
