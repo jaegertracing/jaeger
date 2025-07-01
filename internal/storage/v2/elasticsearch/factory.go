@@ -6,7 +6,9 @@ package elasticsearch
 import (
 	"context"
 	"io"
+	"strings"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
@@ -18,6 +20,8 @@ import (
 	v2tracestore "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
+
+const tagError = "error"
 
 var (
 	_ io.Closer          = (*Factory)(nil)
@@ -32,6 +36,9 @@ type Factory struct {
 }
 
 func NewFactory(ctx context.Context, cfg escfg.Configuration, telset telemetry.Settings) (*Factory, error) {
+	// Ensure required fields are always included in tagsAsFields
+	cfg = ensureRequiredFields(cfg)
+
 	coreFactory, err := elasticsearch.NewFactoryBase(ctx, cfg, telset.Metrics, telset.Logger)
 	if err != nil {
 		return nil, err
@@ -70,4 +77,20 @@ func (f *Factory) Close() error {
 
 func (f *Factory) Purge(ctx context.Context) error {
 	return f.coreFactory.Purge(ctx)
+}
+
+// ensureRequiredFields adds span.kind and span.status error to tags-as-fields configuration
+// regardless of user settings
+func ensureRequiredFields(cfg escfg.Configuration) escfg.Configuration {
+	if cfg.Tags.AllAsFields {
+		return cfg
+	}
+
+	// Return new configuration with updated includes
+	if cfg.Tags.Include != "" && !strings.HasSuffix(cfg.Tags.Include, ",") {
+		cfg.Tags.Include += ","
+	}
+	cfg.Tags.Include += model.SpanKindKey + "," + tagError
+
+	return cfg
 }
