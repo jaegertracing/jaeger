@@ -5,6 +5,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -64,9 +65,9 @@ func (c *Client) request(esRequest elasticRequest) ([]byte, error) {
 	var err error
 	if len(esRequest.body) > 0 {
 		reader = bytes.NewBuffer(esRequest.body)
-		r, err = http.NewRequest(esRequest.method, fmt.Sprintf("%s/%s", c.Endpoint, esRequest.endpoint), reader)
+		r, err = http.NewRequestWithContext(context.Background(), esRequest.method, fmt.Sprintf("%s/%s", c.Endpoint, esRequest.endpoint), reader)
 	} else {
-		r, err = http.NewRequest(esRequest.method, fmt.Sprintf("%s/%s", c.Endpoint, esRequest.endpoint), nil)
+		r, err = http.NewRequestWithContext(context.Background(), esRequest.method, fmt.Sprintf("%s/%s", c.Endpoint, esRequest.endpoint), nil)
 	}
 	if err != nil {
 		return []byte{}, err
