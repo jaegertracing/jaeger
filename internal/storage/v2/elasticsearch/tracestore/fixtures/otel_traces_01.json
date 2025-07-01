@@ -21,7 +21,15 @@
         {
           "scope": {
             "name": "testing-library",
-            "version": "1.1.1"
+            "version": "1.1.1",
+            "attributes": [
+              {
+                "key": "testing-attribute",
+                "value": {
+                  "stringValue": "scope-x"
+                }
+              }
+            ]
           },
           "spans": [
             {
@@ -30,6 +38,7 @@
               "parentSpanId": "0000000000000003",
               "flags": 1,
               "name": "test-general-conversion",
+              "kind": 2,
               "startTimeUnixNano": "1485467191639875000",
               "endTimeUnixNano": "1485467191639880000",
               "attributes": [
