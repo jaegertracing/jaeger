@@ -9,6 +9,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -57,6 +58,10 @@ func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
 func (f *Factory) CreateDependencyReader() (depstore.Reader, error) {
 	params := f.coreFactory.GetDependencyStoreParams()
 	return v2depstore.NewDependencyStoreV2(params), nil
+}
+
+func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
+	return f.coreFactory.CreateSamplingStore(maxBuckets)
 }
 
 func (f *Factory) Close() error {
