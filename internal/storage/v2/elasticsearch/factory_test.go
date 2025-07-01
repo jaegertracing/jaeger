@@ -103,7 +103,6 @@ func TestAlwaysIncludesRequiredTags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			cfg := escfg.Configuration{
 				Servers:  []string{server.URL},
 				LogLevel: "error",
