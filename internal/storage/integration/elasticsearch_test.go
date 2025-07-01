@@ -106,60 +106,26 @@ func (s *ESStorageIntegration) esCleanUp(t *testing.T) {
 	require.NoError(t, s.archiveFactory.Purge(context.Background()))
 }
 
-func getESIndexOptions() escfg.IndexOptions {
-	replicas := int64(1)
-	return escfg.IndexOptions{
-		Shards:            5,
-		Replicas:          &replicas,
-		DateLayout:        "2006-01-02",
-		RolloverFrequency: "day",
-	}
-}
-
-func getESIndices() escfg.Indices {
-	return escfg.Indices{
-		IndexPrefix:  indexPrefix,
-		Spans:        getESIndexOptions(),
-		Sampling:     getESIndexOptions(),
-		Services:     getESIndexOptions(),
-		Dependencies: getESIndexOptions(),
-	}
-}
-
 func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool) {
-	cfg := escfg.Configuration{
-		Servers:         []string{"http://127.0.0.1:9200"},
-		UseILM:          false,
-		ServiceCacheTTL: 1 * time.Second,
-		Tags: escfg.TagsAsFields{
-			AllAsFields: allTagsAsFields,
-		},
-		BulkProcessing: escfg.BulkProcessing{
-			MaxActions:    1,
-			FlushInterval: time.Nanosecond,
-		},
-		Indices:              getESIndices(),
-		CreateIndexTemplates: true,
+	cfg := es.DefaultConfig()
+	cfg.CreateIndexTemplates = true
+	cfg.BulkProcessing = escfg.BulkProcessing{
+		MaxActions:    1,
+		FlushInterval: time.Nanosecond,
 	}
-	defaultCfg := es.DefaultConfig()
-	cfg.ApplyDefaults(&defaultCfg)
+	cfg.Tags.AllAsFields = allTagsAsFields
+	cfg.ServiceCacheTTL = 1 * time.Second
 	var err error
 	f, err := esv2.NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, f.Close())
 	})
-	acfg := escfg.Configuration{
-		Servers: []string{"http://127.0.0.1:9200"},
-		Tags: escfg.TagsAsFields{
-			AllAsFields: allTagsAsFields,
-		},
-		Indices:             getESIndices(),
-		ReadAliasSuffix:     archiveAliasSuffix,
-		WriteAliasSuffix:    archiveAliasSuffix,
-		UseReadWriteAliases: true,
-	}
-	acfg.ApplyDefaults(&defaultCfg)
+	acfg := es.DefaultConfig()
+	acfg.ReadAliasSuffix = archiveAliasSuffix
+	acfg.WriteAliasSuffix = archiveAliasSuffix
+	acfg.UseReadWriteAliases = true
+	acfg.Tags.AllAsFields = allTagsAsFields
 	af, err := esv2.NewFactory(context.Background(), acfg, telemetry.NoopSettings())
 	require.NoError(t, err)
 	t.Cleanup(func() {
