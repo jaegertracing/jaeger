@@ -617,8 +617,8 @@ github.com/uudashr/gocognit v1.2.0 h1:3BU9aMr1xbhPlvJLSydKwdLN3tEUUrzPSSM8S4hDYR
 github.com/uudashr/gocognit v1.2.0/go.mod h1:k/DdKPI6XBZO1q7HgoV2juESI2/Ofj9AcHPZhBBdrTU=
 github.com/uudashr/iface v1.4.0 h1:ImZ+1oEJPXvjap7nK0md7gA9RRH7PMp4vliaLkJ2+cg=
 github.com/uudashr/iface v1.4.0/go.mod h1:i/H4cfRMPe0izticV8Yz0g6/zcsh5xXlvthrdh1kqcY=
-github.com/vektra/mockery/v3 v3.4.0 h1:PqaVrJASwCeW+zuLIIrTD1ripo7SZlUqOi+uVtU4RLw=
-github.com/vektra/mockery/v3 v3.4.0/go.mod h1:nHEhwwFt+3/CD3XdeklPWnRpDL96KNZgRiGuMPZNjN8=
+github.com/vektra/mockery/v3 v3.5.0 h1:BatbjYJLL6P/h0Jkb/+6REJaqaqp8eTbFE8uwQtt11E=
+github.com/vektra/mockery/v3 v3.5.0/go.mod h1:nHEhwwFt+3/CD3XdeklPWnRpDL96KNZgRiGuMPZNjN8=
 github.com/xeipuuv/gojsonpointer v0.0.0-20180127040702-4e3ac2762d5f h1:J9EGpcZtP0E/raorCMxlFGSTBrsSlaDGf3jU/qvAE2c=
 github.com/xeipuuv/gojsonpointer v0.0.0-20180127040702-4e3ac2762d5f/go.mod h1:N2zxlSyiKSe5eX1tZViRH5QA0qijqEDrYZiPEAiq3wU=
 github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 h1:EzJWgHovont7NscjpAxXsDA8S8BMYve8Y5+7cuRE7R0=
