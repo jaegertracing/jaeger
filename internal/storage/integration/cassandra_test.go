@@ -8,16 +8,17 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap/zaptest"
 
-	"github.com/jaegertracing/jaeger/internal/config"
 	"github.com/jaegertracing/jaeger/internal/metrics"
+	casConfig "github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
+	cassandrav1 "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
@@ -43,36 +44,48 @@ func (s *CassandraStorageIntegration) cleanUp(t *testing.T) {
 	require.NoError(t, s.factory.Purge(context.Background()))
 }
 
-func (*CassandraStorageIntegration) initializeCassandraFactory(t *testing.T, flags []string, factoryInit func() *cassandra.Factory) *cassandra.Factory {
-	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
-	f := factoryInit()
-	v, command := config.Viperize(f.AddFlags)
-	require.NoError(t, command.ParseFlags(flags))
-	f.InitFromViper(v, logger)
-	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
-	t.Cleanup(func() {
-		assert.NoError(t, f.Close())
-	})
-	return f
-}
-
 func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 	username := os.Getenv("CASSANDRA_USERNAME")
 	password := os.Getenv("CASSANDRA_PASSWORD")
-	f := s.initializeCassandraFactory(t, []string{
-		"--cassandra.basic.allowed-authenticators=org.apache.cassandra.auth.PasswordAuthenticator",
-		"--cassandra.password=" + password,
-		"--cassandra.username=" + username,
-		"--cassandra.keyspace=jaeger_v1_dc1",
-	}, cassandra.NewFactory)
+	cfg := casConfig.Configuration{
+		Schema: casConfig.Schema{
+			Keyspace: "jaeger_v1_dc1",
+		},
+		Connection: casConfig.Connection{
+			Servers: []string{"127.0.0.1"},
+			Authenticator: casConfig.Authenticator{
+				Basic: casConfig.BasicAuthenticator{
+					Username:              username,
+					Password:              password,
+					AllowedAuthenticators: []string{"org.apache.cassandra.auth.PasswordAuthenticator"},
+				},
+			},
+			TLS: configtls.ClientConfig{
+				Insecure: true,
+			},
+		},
+	}
+	defCfg := casConfig.DefaultConfiguration()
+	cfg.ApplyDefaults(&defCfg)
+	opts := cassandrav1.Options{
+		NamespaceConfig: cassandrav1.NamespaceConfig{Configuration: cfg},
+		Index: cassandrav1.IndexConfig{
+			Logs:        true,
+			Tags:        true,
+			ProcessTags: true,
+		},
+		SpanStoreWriteCacheTTL: time.Hour * 12,
+	}
+	f, err := cassandra.NewFactory(opts, metrics.NullFactory, zaptest.NewLogger(t))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, f.Close())
+	})
 	s.factory = f
-	var err error
-	spanWriter, err := f.CreateSpanWriter()
+	s.TraceWriter, err = f.CreateTraceWriter()
 	require.NoError(t, err)
-	s.TraceWriter = v1adapter.NewTraceWriter(spanWriter)
-	spanReader, err := f.CreateSpanReader()
+	s.TraceReader, err = f.CreateTraceReader()
 	require.NoError(t, err)
-	s.TraceReader = v1adapter.NewTraceReader(spanReader)
 	s.SamplingStore, err = f.CreateSamplingStore(0)
 	require.NoError(t, err)
 	s.initializeDependencyReaderAndWriter(t, f)
@@ -82,7 +95,7 @@ func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(t *tes
 	var err error
 	dependencyReader, err := f.CreateDependencyReader()
 	require.NoError(t, err)
-	s.DependencyReader = v1adapter.NewDependencyReader(dependencyReader)
+	s.DependencyReader = dependencyReader
 
 	// TODO: Update this when the factory interface has CreateDependencyWriter
 	if dependencyWriter, ok := dependencyReader.(dependencystore.Writer); !ok {
