@@ -18,6 +18,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
+
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 type testContext struct {
@@ -64,7 +66,7 @@ func TestQueryLogger(t *testing.T) {
 		spans := tc.exporter.GetSpans()
 		assert.Len(t, spans, 1)
 		assert.Equal(t, "test_query", spans[0].Name)
-		assert.Contains(t, spans[0].Attributes, attribute.String("db.system", "elasticsearch"))
+		assert.Contains(t, spans[0].Attributes, attribute.String(string(otelsemconv.DBSystemKey), "elasticsearch"))
 	})
 }
 
