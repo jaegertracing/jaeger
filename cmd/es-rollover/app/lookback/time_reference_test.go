@@ -23,19 +23,19 @@ func TestGetTimeReference(t *testing.T) {
 			name:         "seconds unit",
 			unit:         "seconds",
 			unitCount:    30,
-			expectedTime: time.Date(2021, time.October, 10, 10, 9, 40, 0o0, time.UTC),
+			expectedTime: time.Date(2021, time.October, 10, 10, 9, 40, 0, time.UTC),
 		},
 		{
 			name:         "minutes unit",
 			unit:         "minutes",
 			unitCount:    30,
-			expectedTime: time.Date(2021, time.October, 10, 9, 40, 0o0, 0o0, time.UTC),
+			expectedTime: time.Date(2021, time.October, 10, 9, 40, 0, 0, time.UTC),
 		},
 		{
 			name:         "hours unit",
 			unit:         "hours",
 			unitCount:    2,
-			expectedTime: time.Date(2021, time.October, 10, 8, 0o0, 0o0, 0o0, time.UTC),
+			expectedTime: time.Date(2021, time.October, 10, 8, 0, 0, 0, time.UTC),
 		},
 		{
 			name:         "days unit",

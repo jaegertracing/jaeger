@@ -4,7 +4,7 @@
 package otelsemconv
 
 import (
-	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 )
 
 // We do not use a lot of semconv constants, and its annoying to keep
@@ -21,7 +21,7 @@ const (
 
 	ServiceNameKey            = semconv.ServiceNameKey
 	DBQueryTextKey            = semconv.DBQueryTextKey
-	DBSystemKey               = semconv.DBSystemKey
+	DBSystemKey               = semconv.DBSystemNameKey
 	PeerServiceKey            = semconv.PeerServiceKey
 	HTTPResponseStatusCodeKey = semconv.HTTPResponseStatusCodeKey
 
