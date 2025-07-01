@@ -8,8 +8,6 @@ import (
 	"io"
 	"strings"
 
-	"go.opentelemetry.io/collector/featuregate"
-
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
@@ -30,17 +28,6 @@ var (
 	_ depstore.Factory   = (*Factory)(nil)
 )
 
-var materializeSpanKindAndStatus *featuregate.Gate
-
-func init() {
-	materializeSpanKindAndStatus = featuregate.GlobalRegistry().MustRegister(
-		"jaeger.es.materializeSpanKindAndStatus",
-		featuregate.StageBeta, // enabled by default
-		featuregate.WithRegisterDescription(
-			"When feature is on, searching by span.kind and span.status tags will only search the materialized fields in the ES document. This will become the only behavior in the future. To enable the legacy behavior of querying span kind and status from the nested tags, e.g. to support querying the data written before v2.8, turn off this feature."),
-		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/pull/7272"))
-}
-
 type Factory struct {
 	coreFactory    *elasticsearch.FactoryBase
 	config         escfg.Configuration
@@ -49,9 +36,7 @@ type Factory struct {
 
 func NewFactory(ctx context.Context, cfg escfg.Configuration, telset telemetry.Settings) (*Factory, error) {
 	// Ensure required fields are always included in tagsAsFields
-	if materializeSpanKindAndStatus.IsEnabled() {
-		cfg = ensureRequiredFields(cfg)
-	}
+	cfg = ensureRequiredFields(cfg)
 
 	coreFactory, err := elasticsearch.NewFactoryBase(ctx, cfg, telset.Metrics, telset.Logger)
 	if err != nil {

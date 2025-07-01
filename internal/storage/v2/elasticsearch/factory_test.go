@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/featuregate"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
@@ -79,50 +78,31 @@ func TestAlwaysIncludesRequiredTags(t *testing.T) {
 	defer server.Close()
 
 	tests := []struct {
-		name           string
-		tagsConfig     escfg.TagsAsFields
-		enableFeature  bool
-		expectRequired bool
+		name       string
+		tagsConfig escfg.TagsAsFields
 	}{
 		{
 			name: "Empty TagsAsFields with feature enabled",
 			tagsConfig: escfg.TagsAsFields{
 				Include: "",
 			},
-			enableFeature:  true,
-			expectRequired: true,
 		},
 		{
 			name: "With some tags with feature enabled",
 			tagsConfig: escfg.TagsAsFields{
 				Include: "foo.bar,baz.qux",
 			},
-			enableFeature:  true,
-			expectRequired: true,
 		},
 		{
 			name: "With one required tag already with feature enabled",
 			tagsConfig: escfg.TagsAsFields{
 				Include: "span.kind",
 			},
-			enableFeature:  true,
-			expectRequired: true,
-		},
-		{
-			name: "Feature disabled with enableFeature false",
-			tagsConfig: escfg.TagsAsFields{
-				Include: "custom.tag1,custom.tag2",
-			},
-			enableFeature:  false,
-			expectRequired: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Set feature gate state
-			err := featuregate.GlobalRegistry().Set("jaeger.es.materializeSpanKindAndStatus", tt.enableFeature)
-			require.NoError(t, err)
 
 			cfg := escfg.Configuration{
 				Servers:  []string{server.URL},
@@ -135,13 +115,9 @@ func TestAlwaysIncludesRequiredTags(t *testing.T) {
 
 			// Verify tag behavior based on test expectations
 			includeTags := factory.config.Tags.Include
-			if tt.expectRequired {
-				require.Contains(t, includeTags, model.SpanKindKey)
-				require.Contains(t, includeTags, tagError)
-			} else {
-				require.NotContains(t, includeTags, model.SpanKindKey)
-				require.NotContains(t, includeTags, tagError)
-			}
+
+			require.Contains(t, includeTags, model.SpanKindKey)
+			require.Contains(t, includeTags, tagError)
 		})
 	}
 }
