@@ -115,6 +115,7 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	}
 	cfg.Tags.AllAsFields = allTagsAsFields
 	cfg.ServiceCacheTTL = 1 * time.Second
+	cfg.Indices.IndexPrefix = indexPrefix
 	var err error
 	f, err := esv2.NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 	require.NoError(t, err)
@@ -126,6 +127,7 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	acfg.WriteAliasSuffix = archiveAliasSuffix
 	acfg.UseReadWriteAliases = true
 	acfg.Tags.AllAsFields = allTagsAsFields
+	acfg.Indices.IndexPrefix = indexPrefix
 	af, err := esv2.NewFactory(context.Background(), acfg, telemetry.NoopSettings())
 	require.NoError(t, err)
 	t.Cleanup(func() {
