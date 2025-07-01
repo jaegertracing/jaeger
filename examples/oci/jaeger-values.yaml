@@ -1,0 +1,19 @@
+hotrod:
+  enabled: true
+  image:
+    tag: "latest"
+  args:
+    - all
+  extraArgs:
+    - --otel-exporter=otlp
+  extraEnv:
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://jaeger-collector:4318
+    - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+      value: http://jaeger-collector:4318/v1/traces
+    - name: OTEL_EXPORTER_OTLP_PROTOCOL
+      value: http/protobuf
+    - name: OTEL_SERVICE_NAME
+      value: hotrod
+    - name: OTEL_LOG_LEVEL
+      value: debug
