@@ -109,7 +109,7 @@ func (r MetricsReader) GetLatencies(ctx context.Context, params *metricstore.Lat
 		return nil, err
 	}
 
-	// Process the raw aggregation value to calculate call_rate (req/s)
+	// Process the raw aggregation value to calculate latencies (ms)
 	return getLatenciesProcessMetrics(rawMetricFamily, *params), nil
 }
 
