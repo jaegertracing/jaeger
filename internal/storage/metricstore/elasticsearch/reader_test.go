@@ -60,13 +60,40 @@ var mockCallRateQuery = `{
       "aggregations": {
         "cumulative_requests": {
           "cumulative_sum": {
-            "buckets_path": "_count"
-          }
-        }
-      }
-    }
-  }
-}`
+            "buckets_path": "_count"}}}}}}
+`
+
+var mockLatencyQuery = `
+{
+  "size": 0,
+  "query": {
+    "bool": {
+      "filter": [
+		{"terms": {"process.serviceName": ["driver"]}},
+        {"terms": {"tag.span@kind": ["server"]}},,
+        {"range": {
+            "startTimeMillis": {
+				"gte": 1749894300000,
+				"lte": 1749894960000,
+				"format": "epoch_millis"
+			}}}]}},
+  "aggs": {
+    "requests_per_bucket": {
+      "date_histogram": {
+        "extended_bounds": {
+          "min": 1749894900000,
+          "max": 1749894960000
+        },
+        "field": "startTimeMillis",
+        "fixed_interval": "60000ms",
+        "min_doc_count": 0
+      },
+      "aggs": {
+        "percentiles_of_bucket": {
+          "percentiles": {
+            "field": "duration",
+            "percents": [95]}}}}}}
+`
 
 const (
 	mockEsValidResponse           = "testdata/output_valid_es.json"
@@ -74,6 +101,8 @@ const (
 	mockCallRateOperationResponse = "testdata/output_call_rate_operation.json"
 	mockEmptyResponse             = "testdata/output_empty.json"
 	mockErrorResponse             = "testdata/output_error_es.json"
+	mockLatencyResponse           = "testdata/output_latencies.json"
+	mockLatencyOperationResponse  = "testdata/output_latencies_operation.json"
 )
 
 type metricsTestCase struct {
@@ -145,31 +174,26 @@ func assertMetricFamily(t *testing.T, got *metrics.MetricFamily, m metricsTestCa
 	}
 }
 
-func TestGetCallRates_ErrorCases(t *testing.T) {
+func Test_ErrorCases(t *testing.T) {
 	endTime := time.UnixMilli(0)
 	tests := []struct {
 		name    string
-		params  *metricstore.CallRateQueryParameters
+		params  metricstore.BaseQueryParameters
 		wantErr string
 	}{
 		{
 			name:    "nil base params",
-			params:  &metricstore.CallRateQueryParameters{},
 			wantErr: "invalid parameters",
 		},
 		{
-			name: "nil end time params",
-			params: &metricstore.CallRateQueryParameters{
-				BaseQueryParameters: metricstore.BaseQueryParameters{},
-			},
+			name:    "nil end time params",
+			params:  metricstore.BaseQueryParameters{},
 			wantErr: "invalid parameters",
 		},
 		{
 			name: "nil step params",
-			params: &metricstore.CallRateQueryParameters{
-				BaseQueryParameters: metricstore.BaseQueryParameters{
-					EndTime: &(endTime),
-				},
+			params: metricstore.BaseQueryParameters{
+				EndTime: &(endTime),
 			},
 			wantErr: "invalid parameters",
 		},
@@ -178,12 +202,18 @@ func TestGetCallRates_ErrorCases(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			reader, _ := setupMetricsReaderAndServer(t, "", mockEmptyResponse)
-			metricFamily, err := reader.GetCallRates(context.Background(), tc.params)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tc.wantErr)
-			require.Nil(t, metricFamily)
+			callRateMetricFamily, err := reader.GetCallRates(context.Background(), &metricstore.CallRateQueryParameters{BaseQueryParameters: tc.params})
+			helperAssertError(t, err, tc.wantErr, callRateMetricFamily)
+			latenciesMetricFamily, err := reader.GetLatencies(context.Background(), &metricstore.LatenciesQueryParameters{BaseQueryParameters: tc.params})
+			helperAssertError(t, err, tc.wantErr, latenciesMetricFamily)
 		})
 	}
+}
+
+func helperAssertError(t *testing.T, err error, wantErr string, result *metrics.MetricFamily) {
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), wantErr)
+	require.Nil(t, result)
 }
 
 func TestGetCallRates(t *testing.T) {
@@ -294,11 +324,94 @@ func TestGetCallRates(t *testing.T) {
 }
 
 func TestGetLatencies(t *testing.T) {
-	reader, _ := setupMetricsReaderAndServer(t, "", mockEsValidResponse)
-	r, err := reader.GetLatencies(context.Background(), &metricstore.LatenciesQueryParameters{})
-	assert.Zero(t, r)
-	require.ErrorIs(t, err, ErrNotImplemented)
-	require.EqualError(t, err, ErrNotImplemented.Error())
+	tests := []metricsTestCase{
+		{
+			name:         "group by service only",
+			serviceNames: []string{"driver"},
+			spanKinds:    []string{"SPAN_KIND_SERVER"},
+			groupByOp:    false,
+			query:        mockLatencyQuery,
+			responseFile: mockLatencyResponse,
+			wantName:     "service_latencies",
+			wantDesc:     "0.95th quantile latency, grouped by service",
+			wantLabels: map[string]string{
+				"service_name": "driver",
+			},
+			wantPoints: []struct {
+				TimestampSec int64
+				Value        float64
+			}{
+				{1749894900, 0.2},
+				{1749894960, 0.21},
+			},
+		},
+		{
+			name:         "group by service and operation",
+			serviceNames: []string{"driver"},
+			spanKinds:    []string{"SPAN_KIND_SERVER"},
+			groupByOp:    true,
+			responseFile: mockLatencyOperationResponse,
+			wantName:     "service_operation_latencies",
+			wantDesc:     "0.95th quantile latency, grouped by service & operation",
+			wantLabels: map[string]string{
+				"service_name": "driver",
+				"operation":    "/FindNearest",
+			},
+			wantPoints: []struct {
+				TimestampSec int64
+				Value        float64
+			}{
+				{1749894900, 0.2},
+				{1749894960, 0.21},
+			},
+		},
+		{
+			name:         "empty response",
+			serviceNames: []string{"driver"},
+			spanKinds:    []string{"SPAN_KIND_SERVER"},
+			groupByOp:    false,
+			responseFile: mockEmptyResponse,
+			wantName:     "service_latencies",
+			wantDesc:     "0.95th quantile latency, grouped by service",
+			wantLabels: map[string]string{
+				"service_name": "driver",
+			},
+			wantPoints: nil,
+		},
+		{
+			name:         "server error",
+			serviceNames: []string{"driver"},
+			spanKinds:    []string{"SPAN_KIND_SERVER"},
+			groupByOp:    false,
+			responseFile: mockErrorResponse,
+			wantErr:      "failed executing metrics query",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			reader, exporter := setupMetricsReaderAndServer(t, tc.query, tc.responseFile)
+
+			params := &metricstore.LatenciesQueryParameters{
+				BaseQueryParameters: buildTestBaseQueryParameters(tc),
+				Quantile:            0.95,
+			}
+
+			metricFamily, err := reader.GetLatencies(context.Background(), params)
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				assert.Empty(t, metricFamily)
+			} else {
+				require.NoError(t, err)
+				assertMetricFamily(t, metricFamily, tc)
+			}
+
+			spans := exporter.GetSpans()
+			if tc.wantErr == "" {
+				assert.Len(t, spans, 1, "Expected one span for the Elasticsearch query")
+			}
+		})
+	}
 }
 
 func TestGetErrorRates(t *testing.T) {

@@ -185,9 +185,6 @@ func mockMetricsQueryParams(serviceNames []string, groupByOp bool) MetricsQueryP
 		bucketsToPointsFunc: func(_ []*elastic.AggregationBucketHistogramItem) []*Pair {
 			return []*Pair{{TimeStamp: 0, Value: 1.23}}
 		},
-		processMetricsFunc: func(mf *metrics.MetricFamily, _ metricstore.BaseQueryParameters) *metrics.MetricFamily {
-			return mf
-		},
 	}
 }
 
