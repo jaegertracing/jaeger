@@ -206,79 +206,18 @@ func (r MetricsReader) buildQuery(params metricstore.BaseQueryParameters, timeRa
 	return *boolQuery
 }
 
-// processCallRateMetrics processes the MetricFamily to calculate call rates
-func getCallRateProcessMetrics(mf *metrics.MetricFamily, params metricstore.BaseQueryParameters) *metrics.MetricFamily {
-	lookback := int(math.Ceil(float64(params.RatePer.Milliseconds()) / float64(params.Step.Milliseconds())))
-	if lookback < 1 {
-		lookback = 1
-	}
-
+// processMovingFunction applies a given processing function over a moving window of metric points.
+// This is the core generic function that contains the shared logic.
+func processMovingFunction(mf *metrics.MetricFamily, lookback int, processor func(window []*metrics.MetricPoint) float64) *metrics.MetricFamily {
 	for _, metric := range mf.Metrics {
 		points := metric.MetricPoints
-		var processedPoints []*metrics.MetricPoint
-
-		for i := range points {
-			currentPoint := points[i]
-			currentValue := currentPoint.GetGaugeValue().GetDoubleValue()
-
-			// Elasticsearch's percentiles aggregation returns 0.0 for time buckets with no documents
-			// These aren't true zero values but represent missing data points in sparse time series
-			// We convert them to NaN to distinguish from actual measured zero values (slope of 0)
-			if currentValue == 0.0 {
-				processedPoints = append(processedPoints, &metrics.MetricPoint{
-					Timestamp: currentPoint.Timestamp,
-					Value:     toDomainMetricPointValue(math.NaN()),
-				})
-				continue
-			}
-
-			// For first (lookback-1) points, we don't have enough history
-			if i < lookback-1 {
-				processedPoints = append(processedPoints, &metrics.MetricPoint{
-					Timestamp: currentPoint.Timestamp,
-					Value:     toDomainMetricPointValue(0.0),
-				})
-				continue
-			}
-
-			// Get boundary values for our lookback window
-			firstPoint := points[i-lookback+1]
-			firstValue := firstPoint.GetGaugeValue().GetDoubleValue()
-			lastValue := currentValue
-
-			// Calculate time window duration in seconds
-			windowSizeSeconds := float64(lookback) * params.Step.Seconds()
-
-			// Calculate rate of change per second
-			rate := (lastValue - firstValue) / windowSizeSeconds
-			rate = math.Round(rate*100) / 100 // Round to 2 decimal places
-
-			processedPoints = append(processedPoints, &metrics.MetricPoint{
-				Timestamp: currentPoint.Timestamp,
-				Value:     toDomainMetricPointValue(rate),
-			})
+		if len(points) == 0 {
+			continue
 		}
 
-		metric.MetricPoints = processedPoints
-	}
-
-	return mf
-}
-
-func getLatenciesProcessMetrics(mf *metrics.MetricFamily, params metricstore.LatenciesQueryParameters) *metrics.MetricFamily {
-	// Configuration - sliding window size (10 data points)
-	window := int(math.Ceil(float64(params.RatePer.Milliseconds()) / float64(params.Step.Milliseconds())))
-	if window < 1 {
-		window = 1
-	}
-
-	for _, metric := range mf.Metrics {
-		points := metric.MetricPoints
 		processedPoints := make([]*metrics.MetricPoint, 0, len(points))
 
-		// Process each data point in the time series
-		for i := range points {
-			currentPoint := points[i]
+		for i, currentPoint := range points {
 			currentValue := currentPoint.GetGaugeValue().GetDoubleValue()
 
 			// Elasticsearch's percentiles aggregation returns 0.0 for time buckets with no documents
@@ -292,46 +231,91 @@ func getLatenciesProcessMetrics(mf *metrics.MetricFamily, params metricstore.Lat
 				continue
 			}
 
-			// Calculate window boundaries (ensuring we don't go before start of data)
-			start := max(0, i-window+1)
-
-			// Collect all non-NaN values within our window
-			var valid []float64
-			for j := start; j <= i; j++ {
-				if v := points[j].GetGaugeValue().GetDoubleValue(); !math.IsNaN(v) {
-					valid = append(valid, v)
-				}
+			// Define the start of the moving window, ensuring it's not out of bounds.
+			start := i - lookback + 1
+			if start < 0 {
+				start = 0
 			}
+			window := points[start : i+1]
 
-			// If no valid values in window, return NaN for this point
-			if len(valid) == 0 {
-				processedPoints = append(processedPoints, &metrics.MetricPoint{
-					Timestamp: currentPoint.Timestamp,
-					Value:     toDomainMetricPointValue(math.NaN()),
-				})
-				continue
-			}
+			// Delegate the specific calculation to the provided processor function.
+			resultValue := processor(window)
 
-			// Sort values to enable accurate percentile calculation
-			sort.Float64s(valid)
-
-			// Calculate index for desired percentile
-			// params.Quantile is the target percentile (e.g., 0.95 for 95th)
-			idx := int(math.Ceil(params.Quantile * float64(len(valid)-1)))
-			// Scale down the result value (division by 1000 to get milliseconds)
-			resultValue := valid[idx] / 1000.0
-
-			// Store the calculated percentile value with original timestamp
 			processedPoints = append(processedPoints, &metrics.MetricPoint{
 				Timestamp: currentPoint.Timestamp,
 				Value:     toDomainMetricPointValue(resultValue),
 			})
 		}
-
 		metric.MetricPoints = processedPoints
 	}
-
 	return mf
+}
+
+// getCallRateProcessMetrics now defines only the rate calculation logic and calls the generic processor.
+func getCallRateProcessMetrics(mf *metrics.MetricFamily, params metricstore.BaseQueryParameters) *metrics.MetricFamily {
+	lookback := int(math.Ceil(float64(params.RatePer.Milliseconds()) / float64(params.Step.Milliseconds())))
+	if lookback < 1 {
+		lookback = 1
+	}
+
+	windowSizeSeconds := float64(lookback) * params.Step.Seconds()
+
+	// rateCalculator is a closure that captures 'lookback' and 'windowSizeSeconds'.
+	// It implements the specific logic for calculating the rate.
+	rateCalculator := func(window []*metrics.MetricPoint) float64 {
+		// For the initial points where the window is not full, we can't calculate a rate.
+		if len(window) < lookback {
+			return 0.0
+		}
+
+		firstValue := window[0].GetGaugeValue().GetDoubleValue()
+		lastValue := window[len(window)-1].GetGaugeValue().GetDoubleValue()
+
+		rate := (lastValue - firstValue) / windowSizeSeconds
+		return math.Round(rate*100) / 100
+	}
+
+	return processMovingFunction(mf, lookback, rateCalculator)
+}
+
+// getLatenciesProcessMetrics now defines only the percentile logic and calls the generic processor.
+func getLatenciesProcessMetrics(mf *metrics.MetricFamily, params metricstore.LatenciesQueryParameters) *metrics.MetricFamily {
+	lookback := int(math.Ceil(float64(params.RatePer.Milliseconds()) / float64(params.Step.Milliseconds())))
+	if lookback < 1 {
+		lookback = 1
+	}
+
+	// percentileCalculator is a closure that captures 'params.Quantile'.
+	// It implements the specific logic for calculating the percentile.
+	percentileCalculator := func(window []*metrics.MetricPoint) float64 {
+		var validValues []float64
+		for _, point := range window {
+			// The generic function already handles the 0 -> NaN conversion,
+			// but we also check for existing NaNs within the window.
+			v := point.GetGaugeValue().GetDoubleValue()
+			if !math.IsNaN(v) {
+				validValues = append(validValues, v)
+			}
+		}
+
+		if len(validValues) == 0 {
+			return math.NaN()
+		}
+
+		sort.Float64s(validValues)
+
+		// Calculate index for the desired percentile.
+		idx := int(math.Ceil(params.Quantile * float64(len(validValues)-1)))
+		if idx >= len(validValues) {
+			idx = len(validValues) - 1
+		}
+
+		// Scale down the result value (e.g., from microseconds to milliseconds).
+		resultValue := validValues[idx] / 1000.0
+		return math.Round(resultValue*100) / 100 // Round to 2 decimal places
+	}
+
+	return processMovingFunction(mf, lookback, percentileCalculator)
 }
 
 func getCallRateBucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem) []*Pair {
