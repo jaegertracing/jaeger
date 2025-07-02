@@ -4,6 +4,8 @@ The `getCallRate` method calculates the call rate (requests per second) for a se
 
 This document breaks down each of these stages, referencing the corresponding parts of the Elasticsearch query and the Go implementation.
 
+-----
+
 ### 1\. Filter Query Part
 
 The first step is to isolate the specific set of documents (spans) needed for the calculation. We use a `bool` query with a `filter` clause, which is efficient as it doesn't contribute to document scoring.
@@ -113,3 +115,75 @@ This post-processing logic effectively calculates the slope of the cumulative re
 **Code Reference:**
 
 The post-processing logic resides in `getCallRateProcessMetrics`, which is passed as a function pointer to the main query executor in `GetCallRates`.
+
+-----
+
+## `getLatencies` Calculation Explained
+
+The `getLatencies` method retrieves latency metrics (specifically, a specified percentile of duration) for spans. Similar to `getCallRate`, it involves filtering spans, aggregating their durations into time series percentiles, and then post-processing the results.
+
+-----
+
+### 1\. Filter Query Part
+
+The filtering for `getLatencies` is identical to `getCallRate`, ensuring that only relevant spans within a specified time range and for specific services/span kinds are considered.
+
+-----
+
+### 2\. Aggregation Query Part
+
+The aggregation part for latencies involves grouping spans into time buckets and then calculating percentiles of the `duration` field within each bucket.
+
+**ES Query Reference (as implemented in `buildLatenciesAggregations`):**
+
+```json
+"aggs": {
+  "results_buckets": {
+    "date_histogram": {
+      "field": "startTimeMillis",
+      "fixed_interval": "60s",
+      "min_doc_count": 0,
+      "extended_bounds": {
+        "min": "now-6h",
+        "max": "now"
+      }
+    },
+    "aggs": {
+      "percentiles_of_bucket": {
+        "percentiles": {
+          "field": "duration",
+          "percents": [95.0]
+        }
+      }
+    }
+  }
+}
+```
+
+**Explanation:**
+
+1.  **`date_histogram`**: This aggregation, similar to `getCallRate`, groups spans into fixed-interval time buckets based on their `startTimeMillis`. `MinDocCount(0)` ensures that even time buckets with no spans are returned, allowing for a complete time series.
+2.  **`percentiles`**: Nested within each date histogram bucket, this aggregation calculates the specified percentile (e.g., 95th) of the `duration` field for all spans within that bucket. The `duration` field typically represents the time taken for the span's operation in microseconds.
+
+**Code Reference:**
+
+This aggregation pipeline is constructed in the `buildLatenciesAggregations` .
+
+-----
+
+### 3\. Post-Processing Part
+
+The `getLatenciesProcessMetrics` function takes the raw percentile values from Elasticsearch and performs further processing, primarily for smoothing and handling missing data.
+
+**Explanation:**
+
+* **Handling Missing Data**: Elasticsearch's percentiles aggregation returns `0.0` for time buckets with no documents. The code explicitly converts these `0.0` values to `math.NaN()` (Not a Number). This is crucial because `0.0` could be interpreted as a valid, albeit very fast, latency, whereas `NaN` correctly indicates an absence of data for that period.
+* **Sliding Window for Percentile Calculation**: The most significant part of the post-processing is the application of a **sliding window** to re-calculate the percentile. For each data point, the function considers a window of preceding valid (non-NaN) data points. It then:
+    1.  Collects all valid `duration` values within this window.
+    2.  Sorts these valid values.
+    3.  Calculates the percentile value from this sorted set.
+    4.  Scales the result by dividing by `1000.0` to convert the duration from microseconds (as typically stored in Jaeger) to milliseconds.
+
+**Code Reference:**
+
+The post-processing logic resides in `getLatenciesProcessMetrics`.
