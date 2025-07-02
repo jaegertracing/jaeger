@@ -28,7 +28,6 @@ var ErrNotImplemented = errors.New("metrics querying is currently not implemente
 const (
 	minStep      = time.Millisecond
 	aggName      = "results_buckets"
-	searchIndex  = "jaeger-span-*"
 	culmuAggName = "cumulative_requests"
 )
 
@@ -313,7 +312,8 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) 
 	span := r.queryLogger.TraceQuery(ctx, p.metricName)
 	defer span.End()
 
-	searchResult, err := r.client.Search(searchIndex).
+	indexName := r.cfg.Indices.IndexPrefix.Apply("jaeger-span") + "*"
+	searchResult, err := r.client.Search(indexName).
 		Query(&p.boolQuery).
 		Size(0). // Set Size to 0 to return only aggregation results, excluding individual search hits
 		Aggregation(aggName, p.aggQuery).
