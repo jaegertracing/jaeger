@@ -316,11 +316,10 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) 
 		p.metricDesc += " & operation"
 	}
 
-	// Use the QueryLogger for logging and tracing the query
 	span := r.queryLogger.TraceQuery(ctx, p.metricName)
 	defer span.End()
 
-	indexName := r.cfg.Indices.IndexPrefix.Apply("jaeger-span") + "*"
+	indexName := r.cfg.Indices.IndexPrefix.Apply("jaeger-span-*")
 	searchResult, err := r.client.Search(indexName).
 		Query(&p.boolQuery).
 		Size(0). // Set Size to 0 to return only aggregation results, excluding individual search hits
@@ -328,11 +327,10 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) 
 		Do(ctx)
 	if err != nil {
 		err = fmt.Errorf("failed executing metrics query: %w", err)
-		r.queryLogger.LogErrorToSpan(span, err) // Use the QueryLogger for logging error to span
+		r.queryLogger.LogErrorToSpan(span, err)
 		return nil, err
 	}
 
-	// Use the QueryLogger for logging and tracing the results
 	r.queryLogger.LogAndTraceResult(span, searchResult)
 
 	rawResult, err := ToDomainMetricsFamily(p, searchResult)
