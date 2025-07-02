@@ -63,12 +63,6 @@ type MetricsQueryParams struct {
 	// bucketsToPointsFunc is a function that turn raw ES Histogram Bucket result into
 	// array of Pair for easier post-processing (using processMetricsFunc)
 	bucketsToPointsFunc func(buckets []*elastic.AggregationBucketHistogramItem) []*Pair
-	// processMetricsFunc is a function that processes the raw time-series
-	// data (pairs of timestamp and value) returned from Elasticsearch
-	// aggregations into the final metric values. This is used for calculations
-	// like rates (e.g., calls/sec) which require manipulating the raw counts
-	// or sums over specific time windows.
-	processMetricsFunc func(mf *metrics.MetricFamily, params metricstore.BaseQueryParameters) *metrics.MetricFamily
 }
 
 // Pair represents a timestamp-value pair for metrics.
@@ -108,15 +102,17 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 		boolQuery:           r.buildQuery(params.BaseQueryParameters, timeRange),
 		aggQuery:            r.buildCallRateAggregations(params.BaseQueryParameters, timeRange),
 		bucketsToPointsFunc: getCallRateBucketsToPoints,
-		processMetricsFunc:  getCallRateProcessMetrics,
 	}
 
-	metricFamily, err := r.executeSearch(ctx, metricsParams)
+	rawMetricFamily, err := r.executeSearch(ctx, metricsParams)
 	if err != nil {
 		return nil, err
 	}
+
+	// Process the raw aggregation value to calculate call_rate (req/s)
+	processedMetricFamily := getCallRateProcessMetrics(rawMetricFamily, params.BaseQueryParameters)
 	// Trim results to original time range
-	return trimMetricPointsBefore(metricFamily, timeRange.startTimeMillis), nil
+	return trimMetricPointsBefore(processedMetricFamily, timeRange.startTimeMillis), nil
 }
 
 // GetErrorRates retrieves error rate metrics
@@ -333,13 +329,8 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) 
 
 	r.queryLogger.LogAndTraceResult(span, searchResult)
 
-	rawResult, err := ToDomainMetricsFamily(p, searchResult)
-	if err != nil {
-		return nil, err
-	}
-
-	processedResult := p.processMetricsFunc(rawResult, p.BaseQueryParameters)
-	return processedResult, nil
+	// Return raw result
+	return ToDomainMetricsFamily(p, searchResult)
 }
 
 // normalizeSpanKinds normalizes a slice of span kinds.
