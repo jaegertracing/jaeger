@@ -57,10 +57,9 @@ func TestToMetricsFamily(t *testing.T) {
 		},
 	}
 
-	translator := Translator{}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := translator.ToMetricsFamily(tt.params, tt.result)
+			got, err := ToDomainMetricsFamily(tt.params, tt.result)
 			if tt.err != "" {
 				require.ErrorContains(t, err, tt.err)
 				return
@@ -112,10 +111,9 @@ func TestToDomainMetrics(t *testing.T) {
 		},
 	}
 
-	translator := Translator{}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := translator.toDomainMetrics(tt.params, tt.result)
+			got, err := toDomainMetrics(tt.params, tt.result)
 			if tt.err != "" {
 				require.ErrorContains(t, err, tt.err)
 				return
@@ -155,10 +153,9 @@ func TestToDomainMetrics_ErrorCases(t *testing.T) {
 		},
 	}
 
-	translator := Translator{}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := translator.toDomainMetrics(tt.params, tt.result)
+			_, err := toDomainMetrics(tt.params, tt.result)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.errMsg)
 		})

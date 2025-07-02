@@ -14,12 +14,9 @@ import (
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 )
 
-// Translator converts Elasticsearch aggregations to Jaeger's metrics model.
-type Translator struct{}
-
-// ToMetricsFamily converts Elasticsearch aggregations to Jaeger's MetricFamily.
-func (d Translator) ToMetricsFamily(m MetricsQueryParams, result *elastic.SearchResult) (*metrics.MetricFamily, error) {
-	domainMetrics, err := d.toDomainMetrics(m, result)
+// ToDomainMetricsFamily converts Elasticsearch aggregations to Jaeger's MetricFamily.
+func ToDomainMetricsFamily(m MetricsQueryParams, result *elastic.SearchResult) (*metrics.MetricFamily, error) {
+	domainMetrics, err := toDomainMetrics(m, result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert aggregations to metrics: %w", err)
 	}
@@ -33,18 +30,18 @@ func (d Translator) ToMetricsFamily(m MetricsQueryParams, result *elastic.Search
 }
 
 // toDomainMetrics converts Elasticsearch aggregations to Jaeger metrics.
-func (d Translator) toDomainMetrics(m MetricsQueryParams, result *elastic.SearchResult) ([]*metrics.Metric, error) {
+func toDomainMetrics(m MetricsQueryParams, result *elastic.SearchResult) ([]*metrics.Metric, error) {
 	labels := buildServiceLabels(m.ServiceNames)
 
 	if !m.GroupByOperation {
-		buckets, err := d.extractBuckets(result)
+		buckets, err := extractBuckets(result)
 		if err != nil {
 			return nil, err
 		}
 		return []*metrics.Metric{
 			{
 				Labels:       labels,
-				MetricPoints: d.toDomainMetricPoints(m, buckets),
+				MetricPoints: toDomainMetricPoints(m, buckets),
 			},
 		}, nil
 	}
@@ -57,7 +54,7 @@ func (d Translator) toDomainMetrics(m MetricsQueryParams, result *elastic.Search
 
 	var metricsData []*metrics.Metric
 	for _, bucket := range agg.Buckets {
-		metric, err := d.processOperationBucket(m, bucket, labels)
+		metric, err := processOperationBucket(m, bucket, labels)
 		if err != nil {
 			return nil, fmt.Errorf("failed to process bucket: %w", err)
 		}
@@ -75,7 +72,7 @@ func buildServiceLabels(serviceNames []string) []*metrics.Label {
 	return labels
 }
 
-func (d Translator) processOperationBucket(m MetricsQueryParams, bucket *elastic.AggregationBucketKeyItem, baseLabels []*metrics.Label) (*metrics.Metric, error) {
+func processOperationBucket(m MetricsQueryParams, bucket *elastic.AggregationBucketKeyItem, baseLabels []*metrics.Label) (*metrics.Metric, error) {
 	key, ok := bucket.Key.(string)
 	if !ok {
 		return nil, fmt.Errorf("bucket key is not a string: %v", bucket.Key)
@@ -88,16 +85,16 @@ func (d Translator) processOperationBucket(m MetricsQueryParams, bucket *elastic
 	}
 
 	// Combine base labels with operation label
-	labels := append(baseLabels, d.toDomainLabels(key)...)
+	labels := append(baseLabels, toDomainLabels(key)...)
 
 	return &metrics.Metric{
 		Labels:       labels,
-		MetricPoints: d.toDomainMetricPoints(m, dateHistAgg.Buckets),
+		MetricPoints: toDomainMetricPoints(m, dateHistAgg.Buckets),
 	}, nil
 }
 
 // toDomainLabels converts the bucket key to Jaeger metric labels.
-func (Translator) toDomainLabels(key string) []*metrics.Label {
+func toDomainLabels(key string) []*metrics.Label {
 	return []*metrics.Label{
 		{
 			Name:  "operation",
@@ -107,7 +104,7 @@ func (Translator) toDomainLabels(key string) []*metrics.Label {
 }
 
 // extractBuckets retrieves date histogram buckets from Elasticsearch results.
-func (Translator) extractBuckets(result *elastic.SearchResult) ([]*elastic.AggregationBucketHistogramItem, error) {
+func extractBuckets(result *elastic.SearchResult) ([]*elastic.AggregationBucketHistogramItem, error) {
 	agg, found := result.Aggregations.DateHistogram(aggName)
 	if !found {
 		return nil, fmt.Errorf("%s aggregation not found", aggName)
@@ -116,13 +113,13 @@ func (Translator) extractBuckets(result *elastic.SearchResult) ([]*elastic.Aggre
 }
 
 // toDomainMetricPoints converts Elasticsearch buckets to Jaeger metric points.
-func (d Translator) toDomainMetricPoints(m MetricsQueryParams, buckets []*elastic.AggregationBucketHistogramItem) []*metrics.MetricPoint {
+func toDomainMetricPoints(m MetricsQueryParams, buckets []*elastic.AggregationBucketHistogramItem) []*metrics.MetricPoint {
 	result := m.bucketsToPointsFunc(buckets)
 	processOutput := m.processMetricsFunc(result, m.BaseQueryParameters)
 
 	metricPoints := make([]*metrics.MetricPoint, 0, len(processOutput))
 	for _, pair := range processOutput {
-		mp := d.toDomainMetricPoint(pair)
+		mp := toDomainMetricPoint(pair)
 		if mp != nil {
 			metricPoints = append(metricPoints, mp)
 		}
@@ -132,27 +129,27 @@ func (d Translator) toDomainMetricPoints(m MetricsQueryParams, buckets []*elasti
 }
 
 // toDomainMetricPoint converts a single Pair to a Jaeger metric point.
-func (d Translator) toDomainMetricPoint(pair *Pair) *metrics.MetricPoint {
-	timestamp := d.toDomainTimestamp(pair.TimeStamp)
+func toDomainMetricPoint(pair *Pair) *metrics.MetricPoint {
+	timestamp := toDomainTimestamp(pair.TimeStamp)
 	if timestamp == nil {
 		return nil
 	}
 
 	return &metrics.MetricPoint{
-		Value:     d.toDomainMetricPointValue(pair.Value),
+		Value:     toDomainMetricPointValue(pair.Value),
 		Timestamp: timestamp,
 	}
 }
 
 // toDomainTimestamp converts milliseconds since epoch to protobuf Timestamp.
-func (Translator) toDomainTimestamp(millis int64) *types.Timestamp {
+func toDomainTimestamp(millis int64) *types.Timestamp {
 	timestamp := time.Unix(0, millis*int64(time.Millisecond))
 	protoTimestamp, _ := types.TimestampProto(timestamp)
 	return protoTimestamp
 }
 
 // toDomainMetricPointValue converts a float64 value to Jaeger's gauge metric point.
-func (Translator) toDomainMetricPointValue(value float64) *metrics.MetricPoint_GaugeValue {
+func toDomainMetricPointValue(value float64) *metrics.MetricPoint_GaugeValue {
 	result := value
 	if !math.IsNaN(value) {
 		// Round to 2 decimal places

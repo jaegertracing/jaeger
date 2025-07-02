@@ -327,7 +327,7 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) 
 	// Use the QueryLogger for logging and tracing the results
 	r.queryLogger.LogAndTraceResult(span, searchResult)
 
-	return Translator{}.ToMetricsFamily(
+	return ToDomainMetricsFamily(
 		p,
 		searchResult,
 	)
