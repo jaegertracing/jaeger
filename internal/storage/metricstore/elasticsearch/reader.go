@@ -254,9 +254,8 @@ func processMovingFunction(mf *metrics.MetricFamily, lookback int, processor fun
 // getCallRateProcessMetrics now defines only the rate calculation logic and calls the generic processor.
 func getCallRateProcessMetrics(mf *metrics.MetricFamily, params metricstore.BaseQueryParameters) *metrics.MetricFamily {
 	lookback := int(math.Ceil(float64(params.RatePer.Milliseconds()) / float64(params.Step.Milliseconds())))
-	if lookback < 1 {
-		lookback = 1
-	}
+	// Ensure lookback >= 1
+	lookback = int(math.Max(float64(lookback), 1))
 
 	windowSizeSeconds := float64(lookback) * params.Step.Seconds()
 
@@ -281,9 +280,8 @@ func getCallRateProcessMetrics(mf *metrics.MetricFamily, params metricstore.Base
 // getLatenciesProcessMetrics now defines only the percentile logic and calls the generic processor.
 func getLatenciesProcessMetrics(mf *metrics.MetricFamily, params metricstore.LatenciesQueryParameters) *metrics.MetricFamily {
 	lookback := int(math.Ceil(float64(params.RatePer.Milliseconds()) / float64(params.Step.Milliseconds())))
-	if lookback < 1 {
-		lookback = 1
-	}
+	// Ensure lookback >= 1
+	lookback = int(math.Max(float64(lookback), 1))
 
 	// percentileCalculator is a closure that captures 'params.Quantile'.
 	// It implements the specific logic for calculating the percentile.
@@ -306,9 +304,6 @@ func getLatenciesProcessMetrics(mf *metrics.MetricFamily, params metricstore.Lat
 
 		// Calculate index for the desired percentile.
 		idx := int(math.Ceil(params.Quantile * float64(len(validValues)-1)))
-		if idx >= len(validValues) {
-			idx = len(validValues) - 1
-		}
 
 		// Scale down the result value (e.g., from microseconds to milliseconds).
 		resultValue := validValues[idx] / 1000.0

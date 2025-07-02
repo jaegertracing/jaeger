@@ -31,22 +31,16 @@
                   "values": {
                     "95.0": 200.0
                   }
-                },
-                "results": {
-                  "value": 0.2
                 }
               },
               {
-                "key_as_string": "1749894900000",
+                "key_as_string": "1749894960000",
                 "key": 1749894960000,
                 "doc_count": 60,
                 "percentiles_of_bucket": {
                   "values": {
                     "95.0": 210.0
                   }
-                },
-                "results": {
-                  "value": 0.21
                 }
               }
             ]

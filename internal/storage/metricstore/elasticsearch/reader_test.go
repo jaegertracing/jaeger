@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -101,7 +102,7 @@ const (
 	mockCallRateOperationResponse = "testdata/output_call_rate_operation.json"
 	mockEmptyResponse             = "testdata/output_empty.json"
 	mockErrorResponse             = "testdata/output_error_es.json"
-	mockLatencyResponse           = "testdata/output_latencies.json"
+	mockLatencyResponse           = "testdata/output_latencies.json" // simple case
 	mockLatencyOperationResponse  = "testdata/output_latencies_operation.json"
 )
 
@@ -410,6 +411,161 @@ func TestGetLatencies(t *testing.T) {
 			if tc.wantErr == "" {
 				assert.Len(t, spans, 1, "Expected one span for the Elasticsearch query")
 			}
+		})
+	}
+}
+
+func TestGetLatencies_WithDifferentQuantiles(t *testing.T) {
+	tests := []metricsTestCase{
+		{
+			name:         "0.5 quantile",
+			serviceNames: []string{"driver"},
+			spanKinds:    []string{"SPAN_KIND_SERVER"},
+			groupByOp:    false,
+			responseFile: "testdata/output_latencies_50.json",
+			wantName:     "service_latencies",
+			wantDesc:     "0.50th quantile latency, grouped by service",
+			wantLabels: map[string]string{
+				"service_name": "driver",
+			},
+			wantPoints: []struct {
+				TimestampSec int64
+				Value        float64
+			}{
+				{1749894840, math.NaN()},
+				{1749894900, 0.15},
+				{1749894960, 0.15},
+				{1749895020, 0.16},
+				{1749895080, 0.16},
+				{1749895140, 0.17},
+				{1749895200, math.NaN()},
+				{1749895260, 0.17},
+				{1749895320, 0.17},
+				{1749895380, 0.18},
+				{1749895440, 0.19},
+			},
+		},
+		{
+			name:         "0.75 quantile",
+			serviceNames: []string{"driver"},
+			spanKinds:    []string{"SPAN_KIND_SERVER"},
+			groupByOp:    false,
+			responseFile: "testdata/output_latencies_75.json",
+			wantName:     "service_latencies",
+			wantDesc:     "0.75th quantile latency, grouped by service",
+			wantLabels: map[string]string{
+				"service_name": "driver",
+			},
+			wantPoints: []struct {
+				TimestampSec int64
+				Value        float64
+			}{
+				{1749894840, math.NaN()},
+				{1749894900, 0.25},
+				{1749894960, 0.26},
+				{1749895020, 0.27},
+				{1749895080, 0.27},
+				{1749895140, 0.29},
+				{1749895200, math.NaN()},
+				{1749895260, 0.29},
+				{1749895320, 0.29},
+				{1749895380, 0.30},
+				{1749895440, 0.31},
+			},
+		},
+		{
+			name:         "0.95 quantile",
+			serviceNames: []string{"driver"},
+			spanKinds:    []string{"SPAN_KIND_SERVER"},
+			groupByOp:    false,
+			responseFile: "testdata/output_latencies_95.json",
+			wantName:     "service_latencies",
+			wantDesc:     "0.95th quantile latency, grouped by service",
+			wantLabels: map[string]string{
+				"service_name": "driver",
+			},
+			wantPoints: []struct {
+				TimestampSec int64
+				Value        float64
+			}{
+				{1749894840, math.NaN()},
+				{1749894900, 0.45},
+				{1749894960, 0.46},
+				{1749895020, 0.47},
+				{1749895080, 0.48},
+				{1749895140, 0.49},
+				{1749895200, math.NaN()},
+				{1749895260, 0.50},
+				{1749895320, 0.51},
+				{1749895380, 0.52},
+				{1749895440, 0.53},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			reader, exporter := setupMetricsReaderAndServer(t, "", tc.responseFile)
+
+			params := &metricstore.LatenciesQueryParameters{
+				BaseQueryParameters: buildTestBaseQueryParameters(tc),
+				Quantile:            0.95, // Will be adjusted based on test case
+			}
+
+			// Set the correct quantile for each test case
+			switch tc.name {
+			case "0.5 quantile":
+				params.Quantile = 0.5
+			case "0.75 quantile":
+				params.Quantile = 0.75
+			case "0.95 quantile":
+				params.Quantile = 0.95
+			}
+
+			metricFamily, err := reader.GetLatencies(context.Background(), params)
+			require.NoError(t, err)
+			assertMetricFamily(t, metricFamily, tc)
+
+			spans := exporter.GetSpans()
+			assert.Len(t, spans, 1, "Expected one span for the Elasticsearch query")
+		})
+	}
+}
+
+func TestGetLatenciesBucketsToPoints_ErrorCases(t *testing.T) {
+	tests := []struct {
+		name            string
+		buckets         []*elastic.AggregationBucketHistogramItem
+		percentileValue float64
+	}{
+		{
+			name:            "missing percentiles aggregation",
+			percentileValue: 95.0,
+			buckets: []*elastic.AggregationBucketHistogramItem{
+				{
+					Key:          1749894900000,
+					Aggregations: map[string]json.RawMessage{},
+				},
+			},
+		},
+		{
+			name:            "missing percentile key",
+			percentileValue: 95.0,
+			buckets: []*elastic.AggregationBucketHistogramItem{
+				{
+					Key: 1749894900000,
+					Aggregations: map[string]json.RawMessage{
+						percentilesAggName: json.RawMessage(`{"values": {"90.0": 200.0}}`),
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getLatenciesBucketsToPoints(tt.buckets, tt.percentileValue)
+			require.Nil(t, result)
 		})
 	}
 }
