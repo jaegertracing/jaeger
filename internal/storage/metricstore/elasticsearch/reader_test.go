@@ -191,7 +191,7 @@ func TestGetCallRates(t *testing.T) {
 		TimestampSec int64
 		Value        float64
 	}{
-		{1749894960, math.NaN()},
+		{1749894840, math.NaN()},
 		{1749894900, 0.0},
 		{1749894960, 0.0},
 		{1749895020, 0.0},

@@ -115,7 +115,7 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 		metricDesc:          "calls/sec, grouped by service",
 		boolQuery:           r.buildQuery(params.BaseQueryParameters, timeRange),
 		aggQuery:            r.buildCallRateAggregations(params.BaseQueryParameters, timeRange),
-		bucketsToPointsFunc: getCallRateBucketsToPointsFunc,
+		bucketsToPointsFunc: getCallRateBucketsToPoints,
 		processMetricsFunc:  getCallRateProcessMetrics,
 	}
 
@@ -237,7 +237,7 @@ func getCallRateProcessMetrics(pairs []*Pair, m metricstore.BaseQueryParameters)
 	return results
 }
 
-func getCallRateBucketsToPointsFunc(buckets []*elastic.AggregationBucketHistogramItem) []*Pair {
+func getCallRateBucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem) []*Pair {
 	var points []*Pair
 
 	for _, bucket := range buckets {
@@ -351,7 +351,6 @@ func buildInterfaceSlice(s []string) []any {
 	return ifaceSlice
 }
 
-// calculateTimeRange computes the time range for the query.
 func calculateTimeRange(params *metricstore.BaseQueryParameters) (TimeRange, error) {
 	if params == nil || params.EndTime == nil || params.Lookback == nil {
 		return TimeRange{}, errors.New("invalid parameters")

@@ -16,8 +16,8 @@
     "results_buckets": {
       "buckets": [
         {
-          "key_as_string": "1749894960000",
-          "key": 1749894960000,
+          "key_as_string": "1749894840000",
+          "key": 1749894840000,
           "doc_count": 10,
           "cumulative_requests": {
             "value": 0
