@@ -1,0 +1,25 @@
+name: Prometheus Rule Test
+
+on:
+  push:
+    paths:
+      - 'monitoring/jaeger-mixin/**.yml'
+  pull_request:
+    paths:
+      - 'monitoring/jaeger-mixin/**.yml'
+
+jobs:
+  test-prometheus-rules:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install Prometheus (promtool)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y prometheus
+
+      - name: Run Prometheus rule tests
+        run: |
+          promtool test rules monitoring/jaeger-mixin/rule_tests.yml
