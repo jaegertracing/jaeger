@@ -37,6 +37,12 @@ jobs:
 
     - run: make lint
 
+    - name: Validate Prometheus alert rules  
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y prometheus
+        promtool test rules monitoring/jaeger-mixin/rule_tests.yml
+
   pull-request-preconditions:
     runs-on: ubuntu-latest
     steps:
