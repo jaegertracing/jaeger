@@ -70,7 +70,7 @@ var mockLatencyQuery = `
     "bool": {
       "filter": [
 		{"terms": {"process.serviceName": ["driver"]}},
-        {"terms": {"tag.span@kind": ["server"]}},,
+        {"terms": {"tag.span@kind": ["server"]}},
         {"range": {
             "startTimeMillis": {
 				"gte": 1749894300000,

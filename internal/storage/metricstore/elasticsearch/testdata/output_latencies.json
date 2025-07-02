@@ -17,7 +17,7 @@
     "results_buckets": {
       "buckets": [
         {
-          "key_as_string": "2025-06-13T11:15:00.000Z",
+          "key_as_string": "1749894900000",
           "key": 1749894900000,
           "doc_count": 50,
           "percentiles_of_bucket": {
@@ -30,7 +30,7 @@
           }
         },
         {
-          "key_as_string": "2025-06-13T11:16:00.000Z",
+          "key_as_string": "1749894900000",
           "key": 1749894960000,
           "doc_count": 60,
           "percentiles_of_bucket": {
