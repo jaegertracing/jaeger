@@ -5,7 +5,6 @@ package elasticsearch
 
 import (
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/gogo/protobuf/types"
@@ -41,7 +40,7 @@ func toDomainMetrics(m MetricsQueryParams, result *elastic.SearchResult) ([]*met
 		return []*metrics.Metric{
 			{
 				Labels:       labels,
-				MetricPoints: toDomainMetricPoints(m, buckets),
+				MetricPoints: toDomainMetricPoints(m.bucketsToPointsFunc(buckets)),
 			},
 		}, nil
 	}
@@ -89,7 +88,7 @@ func processOperationBucket(m MetricsQueryParams, bucket *elastic.AggregationBuc
 
 	return &metrics.Metric{
 		Labels:       labels,
-		MetricPoints: toDomainMetricPoints(m, dateHistAgg.Buckets),
+		MetricPoints: toDomainMetricPoints(m.bucketsToPointsFunc(dateHistAgg.Buckets)),
 	}, nil
 }
 
@@ -113,12 +112,9 @@ func extractBuckets(result *elastic.SearchResult) ([]*elastic.AggregationBucketH
 }
 
 // toDomainMetricPoints converts Elasticsearch buckets to Jaeger metric points.
-func toDomainMetricPoints(m MetricsQueryParams, buckets []*elastic.AggregationBucketHistogramItem) []*metrics.MetricPoint {
-	result := m.bucketsToPointsFunc(buckets)
-	processOutput := m.processMetricsFunc(result, m.BaseQueryParameters)
-
-	metricPoints := make([]*metrics.MetricPoint, 0, len(processOutput))
-	for _, pair := range processOutput {
+func toDomainMetricPoints(rawResult []*Pair) []*metrics.MetricPoint {
+	metricPoints := make([]*metrics.MetricPoint, 0, len(rawResult))
+	for _, pair := range rawResult {
 		mp := toDomainMetricPoint(pair)
 		if mp != nil {
 			metricPoints = append(metricPoints, mp)
@@ -150,14 +146,9 @@ func toDomainTimestamp(millis int64) *types.Timestamp {
 
 // toDomainMetricPointValue converts a float64 value to Jaeger's gauge metric point.
 func toDomainMetricPointValue(value float64) *metrics.MetricPoint_GaugeValue {
-	result := value
-	if !math.IsNaN(value) {
-		// Round to 2 decimal places
-		result = math.Round(value*100) / 100
-	}
 	return &metrics.MetricPoint_GaugeValue{
 		GaugeValue: &metrics.GaugeValue{
-			Value: &metrics.GaugeValue_DoubleValue{DoubleValue: result},
+			Value: &metrics.GaugeValue_DoubleValue{DoubleValue: value},
 		},
 	}
 }

@@ -68,20 +68,13 @@ type MetricsQueryParams struct {
 	// aggregations into the final metric values. This is used for calculations
 	// like rates (e.g., calls/sec) which require manipulating the raw counts
 	// or sums over specific time windows.
-	processMetricsFunc func(pair []*Pair, params metricstore.BaseQueryParameters) []*Pair
+	processMetricsFunc func(mf *metrics.MetricFamily, params metricstore.BaseQueryParameters) *metrics.MetricFamily
 }
 
 // Pair represents a timestamp-value pair for metrics.
 type Pair struct {
 	TimeStamp int64
 	Value     float64
-}
-
-func newPair(ts int64, value float64) *Pair {
-	return &Pair{
-		TimeStamp: ts,
-		Value:     value,
-	}
 }
 
 // NewMetricsReader initializes a new MetricsReader.
@@ -192,48 +185,63 @@ func (r MetricsReader) buildQuery(params metricstore.BaseQueryParameters, timeRa
 	return *boolQuery
 }
 
-func getCallRateProcessMetrics(pairs []*Pair, m metricstore.BaseQueryParameters) []*Pair {
-	lookback := int(math.Ceil(float64(m.RatePer.Milliseconds()) / float64(m.Step.Milliseconds())))
+// processCallRateMetrics processes the MetricFamily to calculate call rates
+func getCallRateProcessMetrics(mf *metrics.MetricFamily, params metricstore.BaseQueryParameters) *metrics.MetricFamily {
+	lookback := int(math.Ceil(float64(params.RatePer.Milliseconds()) / float64(params.Step.Milliseconds())))
 	if lookback < 1 {
-		lookback = 1 // Ensure we always have at least 1 point
-	}
-	n := len(pairs)
-	results := make([]*Pair, 0, n) // Pre-allocate result slice for efficiency
-
-	for i := range pairs {
-		// Elasticsearch's percentiles aggregation returns 0.0 for time buckets with no documents
-		// These aren't true zero values but represent missing data points in sparse time series
-		// We convert them to NaN to distinguish from actual measured zero values (slope of 0)
-		if pairs[i].Value == 0.0 {
-			results = append(results, newPair(pairs[i].TimeStamp, math.NaN()))
-			continue
-		}
-
-		// For first (lookback-1) points, we don't have enough history
-		if i < lookback-1 {
-			results = append(results, newPair(pairs[i].TimeStamp, 0.0))
-			continue
-		}
-
-		// Get boundary values for our lookback window:
-		// First value in window (oldest)
-		firstVal := pairs[i-lookback+1].Value
-		// Last value in window (current value)
-		lastVal := pairs[i].Value
-
-		// Calculate time window duration in seconds
-		// params.Step.Seconds() gives the interval between data points
-		windowSizeSeconds := float64(lookback) * (m.Step.Seconds())
-
-		// Calculate rate of change per second
-		// Formula: (current_value - starting_value) / time_window
-		rate := (lastVal - firstVal) / windowSizeSeconds
-
-		// Store the result with original timestamp
-		results = append(results, newPair(pairs[i].TimeStamp, rate))
+		lookback = 1
 	}
 
-	return results
+	for _, metric := range mf.Metrics {
+		points := metric.MetricPoints
+		var processedPoints []*metrics.MetricPoint
+
+		for i := range points {
+			currentPoint := points[i]
+			currentValue := currentPoint.GetGaugeValue().GetDoubleValue()
+
+			// Elasticsearch's percentiles aggregation returns 0.0 for time buckets with no documents
+			// These aren't true zero values but represent missing data points in sparse time series
+			// We convert them to NaN to distinguish from actual measured zero values (slope of 0)
+			if currentValue == 0.0 {
+				processedPoints = append(processedPoints, &metrics.MetricPoint{
+					Timestamp: currentPoint.Timestamp,
+					Value:     toDomainMetricPointValue(math.NaN()),
+				})
+				continue
+			}
+
+			// For first (lookback-1) points, we don't have enough history
+			if i < lookback-1 {
+				processedPoints = append(processedPoints, &metrics.MetricPoint{
+					Timestamp: currentPoint.Timestamp,
+					Value:     toDomainMetricPointValue(0.0),
+				})
+				continue
+			}
+
+			// Get boundary values for our lookback window
+			firstPoint := points[i-lookback+1]
+			firstValue := firstPoint.GetGaugeValue().GetDoubleValue()
+			lastValue := currentValue
+
+			// Calculate time window duration in seconds
+			windowSizeSeconds := float64(lookback) * params.Step.Seconds()
+
+			// Calculate rate of change per second
+			rate := (lastValue - firstValue) / windowSizeSeconds
+			rate = math.Round(rate*100) / 100 // Round to 2 decimal places
+
+			processedPoints = append(processedPoints, &metrics.MetricPoint{
+				Timestamp: currentPoint.Timestamp,
+				Value:     toDomainMetricPointValue(rate),
+			})
+		}
+
+		metric.MetricPoints = processedPoints
+	}
+
+	return mf
 }
 
 func getCallRateBucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem) []*Pair {
@@ -327,10 +335,13 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) 
 	// Use the QueryLogger for logging and tracing the results
 	r.queryLogger.LogAndTraceResult(span, searchResult)
 
-	return ToDomainMetricsFamily(
-		p,
-		searchResult,
-	)
+	rawResult, err := ToDomainMetricsFamily(p, searchResult)
+	if err != nil {
+		return nil, err
+	}
+
+	processedResult := p.processMetricsFunc(rawResult, p.BaseQueryParameters)
+	return processedResult, nil
 }
 
 // normalizeSpanKinds normalizes a slice of span kinds.
