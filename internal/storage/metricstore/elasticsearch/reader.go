@@ -298,8 +298,7 @@ func getLatenciesProcessMetrics(mf *metrics.MetricFamily, params metricstore.Lat
 			// Collect all non-NaN values within our window
 			var valid []float64
 			for j := start; j <= i; j++ {
-				v := points[j].GetGaugeValue().GetDoubleValue()
-				if !math.IsNaN(v) {
+				if v := points[j].GetGaugeValue().GetDoubleValue(); !math.IsNaN(v) {
 					valid = append(valid, v)
 				}
 			}
@@ -386,75 +385,42 @@ func getLatenciesBucketsToPoints(buckets []*elastic.AggregationBucketHistogramIt
 	return points
 }
 
-// buildCallRateAggregations constructs the GetCallRate aggregations.
-func (MetricsReader) buildCallRateAggregations(params metricstore.BaseQueryParameters, timeRange TimeRange) elastic.Aggregation {
+func (MetricsReader) buildTimeSeriesAggregation(params metricstore.BaseQueryParameters, timeRange TimeRange, subAggName string, subAgg elastic.Aggregation) elastic.Aggregation {
 	fixedIntervalString := strconv.FormatInt(params.Step.Milliseconds(), 10) + "ms"
-	dateHistoAgg := elastic.NewDateHistogramAggregation().
+
+	dateHistAgg := elastic.NewDateHistogramAggregation().
 		Field("startTimeMillis").
 		FixedInterval(fixedIntervalString).
 		MinDocCount(0).
 		ExtendedBounds(timeRange.extendedStartTimeMillis, timeRange.endTimeMillis)
 
-	cumulativeSumAgg := elastic.NewCumulativeSumAggregation().BucketsPath("_count")
-
-	// Corresponding AGG ES query:
-	// "aggs": {
-	//	"results_buckets": {
-	//		"date_histogram": {
-	//			"field": "startTimeMillis",
-	//				"fixed_interval": "60s",
-	//				"min_doc_count": 0,
-	//				"extended_bounds": {
-	//				"min": "now-lookback-5m",
-	//				"max": "now"
-	//			}
-	//		},
-	//		"aggs": {
-	//			"cumulative_requests": {
-	//				"cumulative_sum": {
-	//					"buckets_path": "_count"
-	//				}
-	//			}
-	//
-
-	dateHistoAgg = dateHistoAgg.
-		SubAggregation(culmuAggName, cumulativeSumAgg)
+	dateHistAgg = dateHistAgg.SubAggregation(subAggName, subAgg)
 
 	if params.GroupByOperation {
-		operationsAgg := elastic.NewTermsAggregation().
+		return elastic.NewTermsAggregation().
 			Field("operationName").
 			Size(10).
-			SubAggregation(dateHistAggName, dateHistoAgg) // Nest the dateHistoAgg inside operationsAgg
-		return operationsAgg
+			SubAggregation(dateHistAggName, dateHistAgg)
 	}
 
-	return dateHistoAgg
+	return dateHistAgg
 }
 
-func (MetricsReader) buildLatenciesAggregations(params *metricstore.LatenciesQueryParameters, timeRange TimeRange) elastic.Aggregation {
-	fixedIntervalString := strconv.FormatInt(params.Step.Milliseconds(), 10) + "ms"
-	dateHistAgg := elastic.NewDateHistogramAggregation().
-		Field("startTimeMillis").
-		FixedInterval(fixedIntervalString).
-		MinDocCount(0).
-		ExtendedBounds(timeRange.startTimeMillis, timeRange.endTimeMillis)
+// buildCallRateAggregations now calls the generic builder function.
+func (r MetricsReader) buildCallRateAggregations(params metricstore.BaseQueryParameters, timeRange TimeRange) elastic.Aggregation {
+	cumulativeSumAgg := elastic.NewCumulativeSumAggregation().BucketsPath("_count")
 
+	return r.buildTimeSeriesAggregation(params, timeRange, culmuAggName, cumulativeSumAgg)
+}
+
+// buildLatenciesAggregations now calls the generic builder function.
+func (r MetricsReader) buildLatenciesAggregations(params *metricstore.LatenciesQueryParameters, timeRange TimeRange) elastic.Aggregation {
 	percentileValue := params.Quantile * 100
 	percentilesAgg := elastic.NewPercentilesAggregation().
 		Field("duration").
 		Percentiles(percentileValue)
 
-	dateHistAgg.SubAggregation(percentilesAggName, percentilesAgg)
-
-	if params.GroupByOperation {
-		operationsAgg := elastic.NewTermsAggregation().
-			Field("operationName").
-			Size(10).
-			SubAggregation(dateHistAggName, dateHistAgg)
-		return operationsAgg
-	}
-
-	return dateHistAgg
+	return r.buildTimeSeriesAggregation(params.BaseQueryParameters, timeRange, percentilesAggName, percentilesAgg)
 }
 
 // executeSearch performs the Elasticsearch search.
