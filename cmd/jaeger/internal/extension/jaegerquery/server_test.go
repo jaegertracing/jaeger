@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/jaegertracing/jaeger/cmd/query/app"
 	"net/http"
 	"testing"
 	"time"
@@ -193,6 +194,14 @@ func TestServerStart(t *testing.T) {
 				},
 			},
 			expectedErr: "cannot create metrics reader",
+		},
+		{
+			name: "start with Tracing",
+			config: &Config{
+				QueryOptions: app.QueryOptions{
+					EnableTracing: true,
+				},
+			},
 		},
 	}
 
