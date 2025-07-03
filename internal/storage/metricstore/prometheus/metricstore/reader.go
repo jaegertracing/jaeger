@@ -376,11 +376,16 @@ func getHTTPRoundTripper(c *config.Configuration) (rt http.RoundTripper, err err
 		}
 	}
 
+	// Only set FromCtxFn if token override from context is enabled
+	var fromCtxFn func(context.Context) (string, bool)
+	if c.TokenOverrideFromContext {
+		fromCtxFn = bearertoken.GetBearerToken
+	}
+
 	return &auth.RoundTripper{
-		Transport:       httpTransport,
-		OverrideFromCtx: c.TokenOverrideFromContext,
-		AuthScheme:      "Bearer",
-		TokenFn:         tokenFn,
-		FromCtxFn:       bearertoken.GetBearerToken,
+		Transport:  httpTransport,
+		AuthScheme: "Bearer",
+		TokenFn:    tokenFn,
+		FromCtxFn:  fromCtxFn,
 	}, nil
 }

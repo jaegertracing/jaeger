@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
@@ -50,6 +51,9 @@ func TestElasticsearchFactoryBase(t *testing.T) {
 	cfg := escfg.Configuration{
 		Servers:  []string{server.URL},
 		LogLevel: "debug",
+		Authentication: escfg.Authentication{
+			BasicAuthentication: configoptional.Some(escfg.BasicAuthentication{}),
+		},
 	}
 	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t))
 	require.NoError(t, err)
@@ -319,10 +323,10 @@ func testPasswordFromFile(t *testing.T) {
 		Servers:  []string{server.URL},
 		LogLevel: "debug",
 		Authentication: escfg.Authentication{
-			BasicAuthentication: escfg.BasicAuthentication{
-				Username:         "user",
-				PasswordFilePath: pwdFile,
-			},
+			BasicAuthentication: configoptional.Some(escfg.BasicAuthentication{
+				Username:         configoptional.Some("user"),
+				PasswordFilePath: configoptional.Some(pwdFile),
+			}),
 		},
 		BulkProcessing: escfg.BulkProcessing{
 			MaxBytes: -1, // disable bulk; we want immediate flush
@@ -396,9 +400,9 @@ func TestPasswordFromFileErrors(t *testing.T) {
 		Servers:  []string{server.URL},
 		LogLevel: "debug",
 		Authentication: escfg.Authentication{
-			BasicAuthentication: escfg.BasicAuthentication{
-				PasswordFilePath: pwdFile,
-			},
+			BasicAuthentication: configoptional.Some(escfg.BasicAuthentication{
+				PasswordFilePath: configoptional.Some(pwdFile),
+			}),
 		},
 	}
 

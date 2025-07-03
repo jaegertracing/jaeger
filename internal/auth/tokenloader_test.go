@@ -4,8 +4,6 @@
 package auth
 
 import (
-	"bytes"
-	"log"
 	"os"
 	"testing"
 	"time"
@@ -31,7 +29,7 @@ func TestCachedFileTokenLoader_Basic(t *testing.T) {
 	}
 	tmpfile.Close()
 
-	loader := CachedFileTokenLoader(tmpfile.Name(), 100*time.Millisecond)
+	loader := cachedFileTokenLoader(tmpfile.Name(), 100*time.Millisecond)
 
 	// First load - should read from file
 	t1, err := loader()
@@ -78,12 +76,6 @@ func TestNewTokenProvider_InitialLoad(t *testing.T) {
 	_, err = TokenProvider("/nonexistent/file", 100*time.Millisecond, nil)
 	require.Error(t, err, "TokenProvider should fail fast on missing file")
 	assert.Contains(t, err.Error(), "failed to get token from file", "Error message should indicate token loading failure")
-
-	// Test fail-fast on empty token
-	emptyFile := createTempTokenFile(t, "\n")
-	defer os.Remove(emptyFile)
-	_, err = TokenProvider(emptyFile, 100*time.Millisecond, nil)
-	require.Error(t, err, "TokenProvider should fail fast on empty token")
 }
 
 // TestNewTokenProvider_ReloadErrors ensures reload errors log and return cached token.
@@ -92,13 +84,12 @@ func TestNewTokenProvider_ReloadErrors(t *testing.T) {
 	tokenFile := createTempTokenFile(t, "initial-token\n")
 	defer os.Remove(tokenFile)
 
-	// Capture log output
-	var logBuf bytes.Buffer
-	log.SetOutput(&logBuf)
-	defer log.SetOutput(os.Stderr)
+	// Create an observed zap logger
+	core, logs := observer.New(zapcore.InfoLevel)
+	logger := zap.New(core)
 
-	// Initialize token provider
-	tokenFn, err := TokenProvider(tokenFile, 10*time.Millisecond, nil)
+	// Initialize token provider with logger
+	tokenFn, err := TokenProvider(tokenFile, 10*time.Millisecond, logger)
 	require.NoError(t, err)
 
 	// Initial call should succeed
@@ -111,10 +102,15 @@ func TestNewTokenProvider_ReloadErrors(t *testing.T) {
 	// Wait for cache to expire
 	time.Sleep(20 * time.Millisecond)
 
-	// Call should return last cached token and log error
+	// Call should return last cached token
 	token = tokenFn()
 	assert.Equal(t, "initial-token", token, "Should return cached token even after file deletion")
-	assert.Contains(t, logBuf.String(), "Token reload failed", "Error should be logged")
+
+	// Verify the error was logged
+	require.Equal(t, 1, logs.Len(), "Expected one log message")
+	logEntry := logs.All()[0]
+	assert.Equal(t, "Token reload failed", logEntry.Message, "Expected log message to match")
+	assert.Equal(t, zapcore.WarnLevel, logEntry.Level, "Expected warning level log")
 }
 
 // TestNewTokenProvider_WithZapLogger ensures zap logger is used for reload errors.

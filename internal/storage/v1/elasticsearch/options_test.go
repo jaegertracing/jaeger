@@ -10,17 +10,41 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
 
 	"github.com/jaegertracing/jaeger/internal/config"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
+func getBasicAuthField(opt configoptional.Optional[escfg.BasicAuthentication], field string) string {
+	ba := opt.Get()
+	if ba == nil {
+		return ""
+	}
+	switch field {
+	case "Username":
+		if v := ba.Username.Get(); v != nil {
+			return *v
+		}
+	case "Password":
+		if v := ba.Password.Get(); v != nil {
+			return *v
+		}
+	case "PasswordFilePath":
+		if v := ba.PasswordFilePath.Get(); v != nil {
+			return *v
+		}
+	}
+	return ""
+}
+
 func TestOptions(t *testing.T) {
 	opts := NewOptions("foo")
 	primary := opts.GetConfig()
-	assert.Empty(t, primary.Authentication.BasicAuthentication.Username)
-	assert.Empty(t, primary.Authentication.BasicAuthentication.Password)
-	assert.Empty(t, primary.Authentication.BasicAuthentication.PasswordFilePath)
+
+	assert.Empty(t, getBasicAuthField(primary.Authentication.BasicAuthentication, "Username"))
+	assert.Empty(t, getBasicAuthField(primary.Authentication.BasicAuthentication, "Password"))
+	assert.Empty(t, getBasicAuthField(primary.Authentication.BasicAuthentication, "PasswordFilePath"))
 	assert.NotEmpty(t, primary.Servers)
 	assert.Empty(t, primary.RemoteReadClusters)
 	assert.EqualValues(t, 5, primary.Indices.Spans.Shards)
@@ -39,6 +63,20 @@ func TestOptions(t *testing.T) {
 	assert.False(t, primary.Sniffing.Enabled)
 	assert.False(t, primary.Sniffing.UseHTTPS)
 	assert.False(t, primary.DisableHealthCheck)
+}
+
+// Helper for BearerTokenAuthentication
+func getBearerTokenField(opt configoptional.Optional[escfg.BearerTokenAuthentication], field string) string {
+	ba := opt.Get()
+	if ba == nil {
+		return ""
+	}
+	if field == "FilePath" {
+		if v := ba.FilePath.Get(); v != nil {
+			return *v
+		}
+	}
+	return ""
 }
 
 func TestOptionsWithFlags(t *testing.T) {
@@ -75,10 +113,11 @@ func TestOptionsWithFlags(t *testing.T) {
 	opts.InitFromViper(v)
 
 	primary := opts.GetConfig()
-	assert.Equal(t, "hello", primary.Authentication.BasicAuthentication.Username)
-	assert.Equal(t, "world", primary.Authentication.BasicAuthentication.Password)
-	assert.Equal(t, "/foo/bar", primary.Authentication.BearerTokenAuthentication.FilePath)
-	assert.Equal(t, "/foo/bar/baz", primary.Authentication.BasicAuthentication.PasswordFilePath)
+
+	assert.Equal(t, "hello", getBasicAuthField(primary.Authentication.BasicAuthentication, "Username"))
+	assert.Equal(t, "world", getBasicAuthField(primary.Authentication.BasicAuthentication, "Password"))
+	assert.Equal(t, "/foo/bar", getBearerTokenField(primary.Authentication.BearerTokenAuthentication, "FilePath"))
+	assert.Equal(t, "/foo/bar/baz", getBasicAuthField(primary.Authentication.BasicAuthentication, "PasswordFilePath"))
 	assert.Equal(t, []string{"1.1.1.1", "2.2.2.2"}, primary.Servers)
 	assert.Equal(t, []string{"cluster_one", "cluster_two"}, primary.RemoteReadClusters)
 	assert.Equal(t, 48*time.Hour, primary.MaxSpanAge)

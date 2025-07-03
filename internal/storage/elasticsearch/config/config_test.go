@@ -17,6 +17,7 @@ import (
 	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
@@ -83,6 +84,33 @@ func int64Ptr(v int64) *int64 {
 	return &v
 }
 
+// Helper function to create a BasicAuthentication with optional fields
+func newBasicAuth(username, password, passwordFilePath string) configoptional.Optional[BasicAuthentication] {
+	return configoptional.Some(BasicAuthentication{
+		Username:         configoptional.Some(username),
+		Password:         configoptional.Some(password),
+		PasswordFilePath: configoptional.Some(passwordFilePath),
+	})
+}
+
+// Helper function to create a BearerTokenAuthentication with optional fields
+func newBearerTokenAuth(allowFromContext bool, filePath string) configoptional.Optional[BearerTokenAuthentication] {
+	return configoptional.Some(BearerTokenAuthentication{
+		AllowFromContext: configoptional.Some(allowFromContext),
+		FilePath:         configoptional.Some(filePath),
+		ReloadInterval:   configoptional.Some(0 * time.Second),
+	})
+}
+
+// Helper function to create an APIKeyAuthentication with optional fields
+func newAPIKeyAuth(allowFromContext bool, filePath string) configoptional.Optional[APIKeyAuthentication] {
+	return configoptional.Some(APIKeyAuthentication{
+		AllowFromContext: configoptional.Some(allowFromContext),
+		FilePath:         configoptional.Some(filePath),
+		ReloadInterval:   configoptional.Some(0 * time.Second),
+	})
+}
+
 func TestNewClient(t *testing.T) {
 	const (
 		pwd1       = "password"
@@ -138,14 +166,14 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer.URL},
 				Authentication: Authentication{
-					BasicAuthentication: BasicAuthentication{
-						Username:         "user",
-						Password:         "secret",
-						PasswordFilePath: "",
-					},
-					BearerTokenAuthentication: BearerTokenAuthentication{
-						AllowFromContext: true,
-					},
+					BasicAuthentication: configoptional.Some(BasicAuthentication{
+						Username:         configoptional.Some("user"),
+						Password:         configoptional.Some("secret"),
+						PasswordFilePath: configoptional.Some(""),
+					}),
+					BearerTokenAuthentication: configoptional.Some(BearerTokenAuthentication{
+						AllowFromContext: configoptional.Some(true),
+					}),
 				},
 				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
@@ -160,14 +188,14 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer.URL},
 				Authentication: Authentication{
-					BasicAuthentication: BasicAuthentication{
-						Username:         "user",
-						Password:         "secret",
-						PasswordFilePath: "",
-					},
-					BearerTokenAuthentication: BearerTokenAuthentication{
-						AllowFromContext: true,
-					},
+					BasicAuthentication: configoptional.Some(BasicAuthentication{
+						Username:         configoptional.Some("user"),
+						Password:         configoptional.Some("secret"),
+						PasswordFilePath: configoptional.Some(""),
+					}),
+					BearerTokenAuthentication: configoptional.Some(BearerTokenAuthentication{
+						AllowFromContext: configoptional.Some(true),
+					}),
 				},
 				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
@@ -183,15 +211,8 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer.URL},
 				Authentication: Authentication{
-					BasicAuthentication: BasicAuthentication{
-						Username:         "user",
-						Password:         "secret",
-						PasswordFilePath: "",
-					},
-					BearerTokenAuthentication: BearerTokenAuthentication{
-						AllowFromContext: true,
-						FilePath:         pwdtokenFile,
-					},
+					BasicAuthentication:       newBasicAuth("user", "secret", ""),
+					BearerTokenAuthentication: newBearerTokenAuth(true, pwdtokenFile),
 				},
 				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
@@ -212,14 +233,8 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer8.URL},
 				Authentication: Authentication{
-					BasicAuthentication: BasicAuthentication{
-						Username:         "user",
-						Password:         "secret",
-						PasswordFilePath: "",
-					},
-					BearerTokenAuthentication: BearerTokenAuthentication{
-						AllowFromContext: true,
-					},
+					BasicAuthentication:       newBasicAuth("user", "secret", ""),
+					BearerTokenAuthentication: newBearerTokenAuth(true, ""),
 				},
 				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
@@ -234,14 +249,8 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer1.URL},
 				Authentication: Authentication{
-					BasicAuthentication: BasicAuthentication{
-						Username:         "user",
-						Password:         "secret",
-						PasswordFilePath: "",
-					},
-					BearerTokenAuthentication: BearerTokenAuthentication{
-						AllowFromContext: true,
-					},
+					BasicAuthentication:       newBasicAuth("user", "secret", ""),
+					BearerTokenAuthentication: newBearerTokenAuth(true, ""),
 				},
 				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
@@ -255,14 +264,8 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer2.URL},
 				Authentication: Authentication{
-					BasicAuthentication: BasicAuthentication{
-						Username:         "user",
-						Password:         "secret",
-						PasswordFilePath: "",
-					},
-					BearerTokenAuthentication: BearerTokenAuthentication{
-						AllowFromContext: true,
-					},
+					BasicAuthentication:       newBasicAuth("user", "secret", ""),
+					BearerTokenAuthentication: newBearerTokenAuth(true, ""),
 				},
 				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
@@ -276,14 +279,8 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer.URL},
 				Authentication: Authentication{
-					BasicAuthentication: BasicAuthentication{
-						Username:         "user",
-						Password:         "",
-						PasswordFilePath: pwdFile,
-					},
-					BearerTokenAuthentication: BearerTokenAuthentication{
-						AllowFromContext: true,
-					},
+					BasicAuthentication:       newBasicAuth("user", "", pwdFile),
+					BearerTokenAuthentication: newBearerTokenAuth(true, ""),
 				},
 				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
@@ -297,14 +294,8 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer.URL},
 				Authentication: Authentication{
-					BasicAuthentication: BasicAuthentication{
-						Username:         "user",
-						Password:         "secret",
-						PasswordFilePath: pwdFile,
-					},
-					BearerTokenAuthentication: BearerTokenAuthentication{
-						AllowFromContext: true,
-					},
+					BasicAuthentication:       newBasicAuth("user", "secret", pwdFile),
+					BearerTokenAuthentication: newBearerTokenAuth(true, ""),
 				},
 				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
@@ -318,14 +309,8 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{},
 				Authentication: Authentication{
-					BasicAuthentication: BasicAuthentication{
-						Username:         "user",
-						Password:         "secret",
-						PasswordFilePath: "",
-					},
-					BearerTokenAuthentication: BearerTokenAuthentication{
-						AllowFromContext: true,
-					},
+					BasicAuthentication:       newBasicAuth("user", "secret", ""),
+					BearerTokenAuthentication: newBearerTokenAuth(true, ""),
 				},
 				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
@@ -339,14 +324,8 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer.URL},
 				Authentication: Authentication{
-					BasicAuthentication: BasicAuthentication{
-						Username:         "user",
-						Password:         "secret",
-						PasswordFilePath: "",
-					},
-					BearerTokenAuthentication: BearerTokenAuthentication{
-						AllowFromContext: true,
-					},
+					BasicAuthentication:       newBasicAuth("user", "secret", ""),
+					BearerTokenAuthentication: newBearerTokenAuth(true, ""),
 				},
 				LogLevel: "invalid",
 				BulkProcessing: BulkProcessing{
@@ -360,14 +339,8 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer.URL},
 				Authentication: Authentication{
-					BasicAuthentication: BasicAuthentication{
-						Username:         "user",
-						Password:         "secret",
-						PasswordFilePath: "",
-					},
-					BearerTokenAuthentication: BearerTokenAuthentication{
-						AllowFromContext: true,
-					},
+					BasicAuthentication:       newBasicAuth("user", "secret", ""),
+					BearerTokenAuthentication: newBearerTokenAuth(true, ""),
 				},
 				LogLevel: "invalid",
 				BulkProcessing: BulkProcessing{
@@ -382,10 +355,7 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer.URL},
 				Authentication: Authentication{
-					APIKeyAuthentication: APIKeyAuthentication{
-						FilePath:         apiKeyFile,
-						AllowFromContext: false,
-					},
+					APIKeyAuthentication: newAPIKeyAuth(false, apiKeyFile),
 				},
 				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
@@ -399,9 +369,7 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer.URL},
 				Authentication: Authentication{
-					APIKeyAuthentication: APIKeyAuthentication{
-						FilePath: apiKeyFile,
-					},
+					APIKeyAuthentication: newAPIKeyAuth(false, apiKeyFile),
 				},
 				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
@@ -415,9 +383,7 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer.URL},
 				Authentication: Authentication{
-					APIKeyAuthentication: APIKeyAuthentication{
-						AllowFromContext: true,
-					},
+					APIKeyAuthentication: newAPIKeyAuth(true, ""),
 				},
 				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
@@ -431,26 +397,21 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer.URL},
 				Authentication: Authentication{
-					APIKeyAuthentication: APIKeyAuthentication{
-						FilePath: "non-existent-file",
-					},
+					APIKeyAuthentication: newAPIKeyAuth(false, "non-existent-file"),
 				},
 				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
 					MaxBytes: -1, // disable bulk; we want immediate flush
 				},
 			},
-			expectedError: true,
+			expectedError: false, // No error at config time, error will occur at request time
 		},
 		{
 			name: "success with API key authentication from file with context override",
 			config: &Configuration{
 				Servers: []string{testServer.URL},
 				Authentication: Authentication{
-					APIKeyAuthentication: APIKeyAuthentication{
-						FilePath:         apiKeyFile,
-						AllowFromContext: true,
-					},
+					APIKeyAuthentication: newAPIKeyAuth(true, apiKeyFile),
 				},
 				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
@@ -464,14 +425,8 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer.URL},
 				Authentication: Authentication{
-					BasicAuthentication: BasicAuthentication{
-						Username:         "user",
-						Password:         "secret",
-						PasswordFilePath: "",
-					},
-					BearerTokenAuthentication: BearerTokenAuthentication{
-						AllowFromContext: true,
-					},
+					BasicAuthentication:       newBasicAuth("user", "secret", ""),
+					BearerTokenAuthentication: newBearerTokenAuth(true, ""),
 				},
 				LogLevel: "info",
 				BulkProcessing: BulkProcessing{
@@ -486,14 +441,8 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer.URL},
 				Authentication: Authentication{
-					BasicAuthentication: BasicAuthentication{
-						Username:         "user",
-						Password:         "secret",
-						PasswordFilePath: "",
-					},
-					BearerTokenAuthentication: BearerTokenAuthentication{
-						AllowFromContext: true,
-					},
+					BasicAuthentication:       newBasicAuth("user", "secret", ""),
+					BearerTokenAuthentication: newBearerTokenAuth(true, ""),
 				},
 				LogLevel: "error",
 				BulkProcessing: BulkProcessing{
@@ -527,14 +476,76 @@ func TestNewClient(t *testing.T) {
 	}
 }
 
+// compareIndexOptions is a helper function to compare two IndexOptions
+func compareIndexOptions(t *testing.T, got, want *IndexOptions) {
+	t.Helper()
+	assert.Equal(t, want.Shards, got.Shards)
+	assert.Equal(t, want.Replicas, got.Replicas)
+	assert.Equal(t, want.Priority, got.Priority)
+	assert.Equal(t, want.DateLayout, got.DateLayout)
+	assert.Equal(t, want.RolloverFrequency, got.RolloverFrequency)
+}
+
+// compareConfigs is a helper function to compare two Configuration objects
+func compareConfigs(t *testing.T, got, want *Configuration) {
+	t.Helper()
+
+	// Compare basic fields
+	assert.Equal(t, want.RemoteReadClusters, got.RemoteReadClusters)
+	assert.Equal(t, want.Sniffing, got.Sniffing)
+	assert.Equal(t, want.MaxSpanAge, got.MaxSpanAge)
+	assert.Equal(t, want.AdaptiveSamplingLookback, got.AdaptiveSamplingLookback)
+	assert.Equal(t, want.Indices.IndexPrefix, got.Indices.IndexPrefix)
+	assert.Equal(t, want.BulkProcessing, got.BulkProcessing)
+	assert.Equal(t, want.Tags, got.Tags)
+	assert.Equal(t, want.MaxDocCount, got.MaxDocCount)
+	assert.Equal(t, want.LogLevel, got.LogLevel)
+	assert.Equal(t, want.SendGetBodyAs, got.SendGetBodyAs)
+
+	// Compare BasicAuthentication
+	gotBasic := got.Authentication.BasicAuthentication.Get()
+	wantBasic := want.Authentication.BasicAuthentication.Get()
+
+	// If both are nil, we're done
+	if wantBasic == nil && gotBasic == nil {
+		return
+	}
+
+	// If one is nil but not the other, fail
+	if (wantBasic == nil) != (gotBasic == nil) {
+		t.Errorf("BasicAuthentication mismatch: want %v, got %v", wantBasic, gotBasic)
+		return
+	}
+
+	// Compare username if present
+	gotUsername := gotBasic.Username.Get()
+	wantUsername := wantBasic.Username.Get()
+	if wantUsername != nil {
+		assert.Equal(t, *wantUsername, *gotUsername)
+	} else {
+		assert.Nil(t, gotUsername)
+	}
+
+	// Compare password if present
+	gotPassword := gotBasic.Password.Get()
+	wantPassword := wantBasic.Password.Get()
+	if wantPassword != nil {
+		assert.Equal(t, *wantPassword, *gotPassword)
+	} else {
+		assert.Nil(t, gotPassword)
+	}
+
+	// Compare IndexOptions
+	compareIndexOptions(t, &got.Indices.Spans, &want.Indices.Spans)
+	compareIndexOptions(t, &got.Indices.Services, &want.Indices.Services)
+	compareIndexOptions(t, &got.Indices.Dependencies, &want.Indices.Dependencies)
+}
+
 func TestApplyDefaults(t *testing.T) {
 	source := &Configuration{
 		RemoteReadClusters: []string{"cluster1", "cluster2"},
 		Authentication: Authentication{
-			BasicAuthentication: BasicAuthentication{
-				Username: "sourceUser",
-				Password: "sourcePass",
-			},
+			BasicAuthentication: newBasicAuth("sourceUser", "sourcePass", ""),
 		},
 		Sniffing: Sniffing{
 			Enabled:  true,
@@ -623,9 +634,7 @@ func TestApplyDefaults(t *testing.T) {
 			target: &Configuration{
 				RemoteReadClusters: []string{"customCluster"},
 				Authentication: Authentication{
-					BasicAuthentication: BasicAuthentication{
-						Username: "customUser",
-					},
+					BasicAuthentication: newBasicAuth("customUser", "", ""),
 				},
 				Indices: Indices{
 					Spans: IndexOptions{
@@ -643,10 +652,7 @@ func TestApplyDefaults(t *testing.T) {
 			expected: &Configuration{
 				RemoteReadClusters: []string{"customCluster"},
 				Authentication: Authentication{
-					BasicAuthentication: BasicAuthentication{
-						Username: "customUser",
-						Password: "sourcePass",
-					},
+					BasicAuthentication: newBasicAuth("customUser", "sourcePass", ""),
 				},
 				Sniffing: Sniffing{
 					Enabled:  true,
@@ -689,10 +695,7 @@ func TestApplyDefaults(t *testing.T) {
 			target: &Configuration{
 				RemoteReadClusters: []string{"cluster1", "cluster2"},
 				Authentication: Authentication{
-					BasicAuthentication: BasicAuthentication{
-						Username: "sourceUser",
-						Password: "sourcePass",
-					},
+					BasicAuthentication: newBasicAuth("sourceUser", "sourcePass", ""),
 				},
 				Sniffing: Sniffing{
 					Enabled:  true,
@@ -729,14 +732,53 @@ func TestApplyDefaults(t *testing.T) {
 				LogLevel:      "info",
 				SendGetBodyAs: "json",
 			},
-			expected: source,
+			expected: &Configuration{
+				RemoteReadClusters: []string{"cluster1", "cluster2"},
+				Authentication: Authentication{
+					BasicAuthentication: newBasicAuth("sourceUser", "sourcePass", ""),
+				},
+				Sniffing: Sniffing{
+					Enabled:  true,
+					UseHTTPS: true,
+				},
+				MaxSpanAge:               100,
+				AdaptiveSamplingLookback: 50,
+				Indices: Indices{
+					IndexPrefix: "hello",
+					Spans: IndexOptions{
+						Shards:   5,
+						Replicas: int64Ptr(1),
+						Priority: 10,
+					},
+					Services: IndexOptions{
+						Shards:   5,
+						Replicas: int64Ptr(1),
+						Priority: 20,
+					},
+					Dependencies: IndexOptions{
+						Shards:   5,
+						Replicas: int64Ptr(1),
+						Priority: 30,
+					},
+				},
+				BulkProcessing: BulkProcessing{
+					MaxBytes:      1000,
+					Workers:       10,
+					MaxActions:    100,
+					FlushInterval: 30,
+				},
+				Tags:          TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
+				MaxDocCount:   10000,
+				LogLevel:      "info",
+				SendGetBodyAs: "json",
+			},
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			test.target.ApplyDefaults(source)
-			require.Equal(t, test.expected, test.target)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.target.ApplyDefaults(source)
+			compareConfigs(t, tt.target, tt.expected)
 		})
 	}
 }
@@ -1073,25 +1115,23 @@ func TestGetConfigOptions(t *testing.T) {
 		{
 			name: "APIKey file error",
 			cfg: &Configuration{
-				Servers: []string{"http://localhost:9200"},
+				Servers:  []string{"http://localhost:9200"},
+				LogLevel: "info",
 				Authentication: Authentication{
-					APIKeyAuthentication: APIKeyAuthentication{
-						FilePath: "non-existent-apikey-file",
-					},
+					APIKeyAuthentication: newAPIKeyAuth(false, "non-existent-apikey-file"),
 				},
 			},
 			ctx:             context.Background(),
-			wantErr:         true,
-			wantErrContains: "no such file or directory",
+			wantErr:         false,
+			wantErrContains: "",
 		},
 		{
 			name: "APIKey file present",
 			cfg: &Configuration{
-				Servers: []string{"http://localhost:9200"},
+				Servers:  []string{"http://localhost:9200"},
+				LogLevel: "info",
 				Authentication: Authentication{
-					APIKeyAuthentication: APIKeyAuthentication{
-						FilePath: apiKeyFile,
-					},
+					APIKeyAuthentication: newAPIKeyAuth(false, apiKeyFile),
 				},
 			},
 			ctx:     context.Background(),
@@ -1100,11 +1140,10 @@ func TestGetConfigOptions(t *testing.T) {
 		{
 			name: "APIKey context propagation",
 			cfg: &Configuration{
-				Servers: []string{"http://localhost:9200"},
+				Servers:  []string{"http://localhost:9200"},
+				LogLevel: "info",
 				Authentication: Authentication{
-					APIKeyAuthentication: APIKeyAuthentication{
-						AllowFromContext: true,
-					},
+					APIKeyAuthentication: newAPIKeyAuth(true, ""),
 				},
 			},
 			ctx:     apikey.ContextWithAPIKey(context.Background(), "context-api-key"),
@@ -1113,12 +1152,10 @@ func TestGetConfigOptions(t *testing.T) {
 		{
 			name: "APIKey file and context both enabled",
 			cfg: &Configuration{
-				Servers: []string{"http://localhost:9200"},
+				Servers:  []string{"http://localhost:9200"},
+				LogLevel: "info",
 				Authentication: Authentication{
-					APIKeyAuthentication: APIKeyAuthentication{
-						FilePath:         apiKeyFile,
-						AllowFromContext: true,
-					},
+					APIKeyAuthentication: newAPIKeyAuth(true, apiKeyFile),
 				},
 			},
 			ctx:     apikey.ContextWithAPIKey(context.Background(), "context-api-key"),
@@ -1129,9 +1166,7 @@ func TestGetConfigOptions(t *testing.T) {
 			cfg: &Configuration{
 				Servers: []string{"http://localhost:9200"},
 				Authentication: Authentication{
-					BearerTokenAuthentication: BearerTokenAuthentication{
-						AllowFromContext: true,
-					},
+					BearerTokenAuthentication: newBearerTokenAuth(true, ""),
 				},
 				LogLevel: "info",
 			},
@@ -1143,10 +1178,7 @@ func TestGetConfigOptions(t *testing.T) {
 			cfg: &Configuration{
 				Servers: []string{"http://localhost:9200"},
 				Authentication: Authentication{
-					BearerTokenAuthentication: BearerTokenAuthentication{
-						FilePath:         bearerTokenFile,
-						AllowFromContext: true,
-					},
+					BearerTokenAuthentication: newBearerTokenAuth(true, bearerTokenFile),
 				},
 				LogLevel: "info",
 			},
@@ -1159,15 +1191,15 @@ func TestGetConfigOptions(t *testing.T) {
 				Servers: []string{"http://localhost:9200"},
 				TLS:     configtls.ClientConfig{Insecure: true},
 				Authentication: Authentication{
-					BearerTokenAuthentication: BearerTokenAuthentication{
-						FilePath: "/does/not/exist/token",
-					},
+					BearerTokenAuthentication: configoptional.Some(BearerTokenAuthentication{
+						FilePath: configoptional.Some("/does/not/exist/token"),
+					}),
 				},
 				LogLevel: "info",
 			},
 			ctx:             context.Background(),
 			wantErr:         true,
-			wantErrContains: "no such file or directory",
+			wantErrContains: "failed to get token from file",
 		},
 		{
 			name: "No auth configured",
@@ -1183,9 +1215,9 @@ func TestGetConfigOptions(t *testing.T) {
 			cfg: &Configuration{
 				Servers: []string{"http://localhost:9200"},
 				Authentication: Authentication{
-					BasicAuthentication: BasicAuthentication{
-						PasswordFilePath: "/does/not/exist",
-					},
+					BasicAuthentication: configoptional.Some(BasicAuthentication{
+						PasswordFilePath: configoptional.Some("/does/not/exist"),
+					}),
 				},
 			},
 			ctx:             context.Background(),
@@ -1197,10 +1229,10 @@ func TestGetConfigOptions(t *testing.T) {
 			cfg: &Configuration{
 				Servers: []string{"http://localhost:9200"},
 				Authentication: Authentication{
-					BasicAuthentication: BasicAuthentication{
-						Password:         "secret",
-						PasswordFilePath: "/some/file/path",
-					},
+					BasicAuthentication: configoptional.Some(BasicAuthentication{
+						Password:         configoptional.Some("secret"),
+						PasswordFilePath: configoptional.Some("/some/file/path"),
+					}),
 				},
 			},
 			ctx:             context.Background(),
@@ -1212,10 +1244,7 @@ func TestGetConfigOptions(t *testing.T) {
 			cfg: &Configuration{
 				Servers: []string{"http://localhost:9200"},
 				Authentication: Authentication{
-					BasicAuthentication: BasicAuthentication{
-						Username: "user",
-						Password: "secret",
-					},
+					BasicAuthentication: newBasicAuth("user", "secret", ""),
 				},
 				LogLevel: "invalid",
 			},

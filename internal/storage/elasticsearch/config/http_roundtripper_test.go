@@ -10,9 +10,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
@@ -112,22 +114,22 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				cfg := &Configuration{
 					TLS: configtls.ClientConfig{Insecure: true},
 					Authentication: Authentication{
-						APIKeyAuthentication: APIKeyAuthentication{
-							FilePath:         "",
-							AllowFromContext: false,
-						},
-						BearerTokenAuthentication: BearerTokenAuthentication{
-							FilePath:         "",
-							AllowFromContext: false,
-						},
+						APIKeyAuthentication:      configoptional.None[APIKeyAuthentication](),
+						BearerTokenAuthentication: configoptional.None[BearerTokenAuthentication](),
 					},
 				}
 				if tc.scheme == "ApiKey" {
-					cfg.Authentication.APIKeyAuthentication.FilePath = tc.filePath
-					cfg.Authentication.APIKeyAuthentication.AllowFromContext = tc.allowFromContext
+					cfg.Authentication.APIKeyAuthentication = configoptional.Some(APIKeyAuthentication{
+						FilePath:         configoptional.Some(tc.filePath),
+						AllowFromContext: configoptional.Some(tc.allowFromContext),
+						ReloadInterval:   configoptional.Some(0 * time.Second),
+					})
 				} else {
-					cfg.Authentication.BearerTokenAuthentication.FilePath = tc.filePath
-					cfg.Authentication.BearerTokenAuthentication.AllowFromContext = tc.allowFromContext
+					cfg.Authentication.BearerTokenAuthentication = configoptional.Some(BearerTokenAuthentication{
+						FilePath:         configoptional.Some(tc.filePath),
+						AllowFromContext: configoptional.Some(tc.allowFromContext),
+						ReloadInterval:   configoptional.Some(0 * time.Second),
+					})
 				}
 				logger := zap.NewNop()
 				rt, err := GetHTTPRoundTripper(context.Background(), cfg, logger)
@@ -169,9 +171,14 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				expectedLog: "Both API key file and context propagation are enabled",
 			},
 			{
-				authType:    "BearerToken",
+				authType:    "Bearer",
 				fileName:    "bearer-token",
-				expectedLog: "Token file and token propagation are both enabled",
+				expectedLog: "Both Bearer Token file and context propagation are enabled",
+			},
+			{
+				authType:    "Both",
+				fileName:    "api-key",
+				expectedLog: "Both API Key and Bearer Token authentication are configured. Priority order: (1) API Key will be used if available",
 			},
 		}
 		for _, tc := range cases {
@@ -181,22 +188,78 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				tempFile := filepath.Join(t.TempDir(), tc.fileName)
 				require.NoError(t, os.WriteFile(tempFile, []byte("file-token"), 0o600))
 				cfg := &Configuration{
-					TLS:            configtls.ClientConfig{Insecure: true},
-					Authentication: Authentication{},
+					TLS: configtls.ClientConfig{Insecure: true},
+					Authentication: Authentication{
+						APIKeyAuthentication:      configoptional.None[APIKeyAuthentication](),
+						BearerTokenAuthentication: configoptional.None[BearerTokenAuthentication](),
+					},
 				}
-				if tc.authType == "APIKey" {
-					cfg.Authentication.APIKeyAuthentication = APIKeyAuthentication{
-						FilePath:         tempFile,
-						AllowFromContext: true,
-					}
-				} else {
-					cfg.Authentication.BearerTokenAuthentication = BearerTokenAuthentication{
-						FilePath:         tempFile,
-						AllowFromContext: true,
-					}
+				switch tc.authType {
+				case "Both":
+					cfg.Authentication.APIKeyAuthentication = configoptional.Some(APIKeyAuthentication{
+						FilePath:         configoptional.Some(tempFile),
+						AllowFromContext: configoptional.Some(true),
+						ReloadInterval:   configoptional.Some(0 * time.Second),
+					})
+					cfg.Authentication.BearerTokenAuthentication = configoptional.Some(BearerTokenAuthentication{
+						FilePath:         configoptional.Some(tempFile),
+						AllowFromContext: configoptional.Some(true),
+						ReloadInterval:   configoptional.Some(0 * time.Second),
+					})
+				case "APIKey":
+					cfg.Authentication.APIKeyAuthentication = configoptional.Some(APIKeyAuthentication{
+						FilePath:         configoptional.Some(tempFile),
+						AllowFromContext: configoptional.Some(true),
+						ReloadInterval:   configoptional.Some(0 * time.Second),
+					})
+				case "Bearer":
+					cfg.Authentication.BearerTokenAuthentication = configoptional.Some(BearerTokenAuthentication{
+						FilePath:         configoptional.Some(tempFile),
+						AllowFromContext: configoptional.Some(true),
+						ReloadInterval:   configoptional.Some(0 * time.Second),
+					})
 				}
-				_, err := GetHTTPRoundTripper(context.Background(), cfg, logger)
+				rt, err := GetHTTPRoundTripper(context.Background(), cfg, logger)
 				require.NoError(t, err)
+
+				switch tc.authType {
+				case "Both":
+					tr, ok := rt.(auth.RoundTripper)
+					require.True(t, ok)
+					req, err := http.NewRequest(http.MethodGet, "http://example.com", nil)
+					require.NoError(t, err)
+					tr.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+						assert.Equal(t, "ApiKey file-token", r.Header.Get("Authorization"))
+						return &http.Response{StatusCode: http.StatusOK}, nil
+					})
+					_, err = tr.RoundTrip(req)
+					require.NoError(t, err)
+				case "APIKey":
+					tr, ok := rt.(auth.RoundTripper)
+					require.True(t, ok)
+					req, err := http.NewRequest(http.MethodGet, "http://example.com", nil)
+					require.NoError(t, err)
+					tr.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+						assert.Equal(t, "ApiKey file-token", r.Header.Get("Authorization"))
+						return &http.Response{StatusCode: http.StatusOK}, nil
+					})
+					_, err = tr.RoundTrip(req)
+					require.NoError(t, err)
+				case "Bearer":
+					tr, ok := rt.(auth.RoundTripper)
+					require.True(t, ok)
+					req, err := http.NewRequest(http.MethodGet, "http://example.com", nil)
+					require.NoError(t, err)
+					tr.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+						assert.Equal(t, "Bearer file-token", r.Header.Get("Authorization"))
+						return &http.Response{StatusCode: http.StatusOK}, nil
+					})
+					_, err = tr.RoundTrip(req)
+					require.NoError(t, err)
+				default:
+					// no-op
+				}
+
 				found := false
 				for _, entry := range observedLogs.All() {
 					if strings.Contains(entry.Message, tc.expectedLog) {
@@ -204,7 +267,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 						break
 					}
 				}
-				assert.True(t, found, "expected warning log for both %s file and context", tc.authType)
+				assert.True(t, found, "expected warning log for %s", tc.authType)
 			})
 		}
 	})
@@ -238,9 +301,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				return &Configuration{
 					TLS: configtls.ClientConfig{Insecure: true},
 					Authentication: Authentication{
-						APIKeyAuthentication: APIKeyAuthentication{
-							FilePath: tempFile,
-						},
+						APIKeyAuthentication: newAPIKeyAuth(false, tempFile),
 					},
 				}
 			},
@@ -253,9 +314,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				return &Configuration{
 					TLS: configtls.ClientConfig{Insecure: true},
 					Authentication: Authentication{
-						APIKeyAuthentication: APIKeyAuthentication{
-							AllowFromContext: true,
-						},
+						APIKeyAuthentication: newAPIKeyAuth(true, ""),
 					},
 				}
 			},
@@ -271,9 +330,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				return &Configuration{
 					TLS: configtls.ClientConfig{Insecure: true},
 					Authentication: Authentication{
-						BearerTokenAuthentication: BearerTokenAuthentication{
-							AllowFromContext: true,
-						},
+						BearerTokenAuthentication: newBearerTokenAuth(true, ""),
 					},
 				}
 			},
@@ -291,10 +348,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				return &Configuration{
 					TLS: configtls.ClientConfig{Insecure: true},
 					Authentication: Authentication{
-						APIKeyAuthentication: APIKeyAuthentication{
-							FilePath:         tempFile,
-							AllowFromContext: true,
-						},
+						APIKeyAuthentication: newAPIKeyAuth(true, tempFile),
 					},
 				}
 			},
@@ -315,9 +369,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				return &Configuration{
 					TLS: configtls.ClientConfig{Insecure: true},
 					Authentication: Authentication{
-						BearerTokenAuthentication: BearerTokenAuthentication{
-							FilePath: tempFile,
-						},
+						BearerTokenAuthentication: newBearerTokenAuth(false, tempFile),
 					},
 				}
 			},
@@ -330,9 +382,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				return &Configuration{
 					TLS: configtls.ClientConfig{Insecure: true},
 					Authentication: Authentication{
-						BearerTokenAuthentication: BearerTokenAuthentication{
-							AllowFromContext: true,
-						},
+						BearerTokenAuthentication: newBearerTokenAuth(true, ""),
 					},
 				}
 			},
@@ -347,15 +397,12 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				return &Configuration{
 					TLS: configtls.ClientConfig{Insecure: true},
 					Authentication: Authentication{
-						BearerTokenAuthentication: BearerTokenAuthentication{
-							FilePath:         tempFile,
-							AllowFromContext: true,
-						},
+						BearerTokenAuthentication: newBearerTokenAuth(true, tempFile),
 					},
 				}
 			},
 			wantLogMsgs: []string{
-				"Token file and token propagation are both enabled, token from file won't be used",
+				"Both Bearer Token file and context propagation are enabled",
 			},
 			expectedType:   "auth.RoundTripper",
 			expectedScheme: "Bearer",
@@ -366,9 +413,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				return &Configuration{
 					TLS: configtls.ClientConfig{Insecure: true},
 					Authentication: Authentication{
-						APIKeyAuthentication: APIKeyAuthentication{
-							FilePath: "/nonexistent/file",
-						},
+						APIKeyAuthentication: newAPIKeyAuth(false, "/nonexistent/file"),
 					},
 				}
 			},
@@ -380,9 +425,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				return &Configuration{
 					TLS: configtls.ClientConfig{Insecure: true},
 					Authentication: Authentication{
-						BearerTokenAuthentication: BearerTokenAuthentication{
-							FilePath: "/nonexistent/token",
-						},
+						BearerTokenAuthentication: newBearerTokenAuth(false, "/nonexistent/token"),
 					},
 				}
 			},
@@ -396,10 +439,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				return &Configuration{
 					TLS: configtls.ClientConfig{Insecure: true},
 					Authentication: Authentication{
-						BearerTokenAuthentication: BearerTokenAuthentication{
-							FilePath:         tempFile,
-							AllowFromContext: true,
-						},
+						BearerTokenAuthentication: newBearerTokenAuth(true, tempFile),
 					},
 				}
 			},
@@ -407,7 +447,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				return bearertoken.ContextWithBearerToken(ctx, "context-bearer-token")
 			},
 			wantLogMsgs: []string{
-				"Token file and token propagation are both enabled, token from file won't be used",
+				"Both Bearer Token file and context propagation are enabled",
 			},
 			expectedType:   "auth.RoundTripper",
 			expectedScheme: "Bearer",
@@ -507,9 +547,7 @@ func TestTokenReloadErrorBranch(t *testing.T) {
 				return &Configuration{
 					TLS: configtls.ClientConfig{Insecure: true},
 					Authentication: Authentication{
-						APIKeyAuthentication: APIKeyAuthentication{
-							FilePath: tempFile,
-						},
+						APIKeyAuthentication: newAPIKeyAuth(false, tempFile),
 					},
 				}
 			},
@@ -522,9 +560,7 @@ func TestTokenReloadErrorBranch(t *testing.T) {
 				return &Configuration{
 					TLS: configtls.ClientConfig{Insecure: true},
 					Authentication: Authentication{
-						BearerTokenAuthentication: BearerTokenAuthentication{
-							FilePath: tempFile,
-						},
+						BearerTokenAuthentication: newBearerTokenAuth(false, tempFile),
 					},
 				}
 			},

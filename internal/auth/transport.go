@@ -5,7 +5,6 @@ package auth
 
 import (
 	"context"
-	"errors"
 	"net/http"
 )
 
@@ -18,9 +17,6 @@ type RoundTripper struct {
 	// AuthScheme is the authentication scheme (e.g., "Bearer", "ApiKey").
 	AuthScheme string
 
-	// OverrideFromCtx enables reading token from Context.
-	OverrideFromCtx bool
-
 	// TokenFn returns the cached token.
 	TokenFn func() string
 
@@ -31,9 +27,6 @@ type RoundTripper struct {
 // RoundTrip injects the outbound Authorization header with the
 // token provided in the inbound request.
 func (tr RoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
-	if tr.Transport == nil {
-		return nil, errors.New("no http.RoundTripper provided")
-	}
 	// Clone the request to avoid modifying the original
 	req := r.Clone(r.Context())
 	token := ""
@@ -44,7 +37,7 @@ func (tr RoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	// Check context for token override
-	if tr.OverrideFromCtx && tr.FromCtxFn != nil {
+	if tr.FromCtxFn != nil {
 		ctxToken, ok := tr.FromCtxFn(r.Context())
 		if ok && ctxToken != "" {
 			token = ctxToken
