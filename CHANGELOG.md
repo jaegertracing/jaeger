@@ -21,6 +21,49 @@ copy from UI changelog
 
 </details>
 
+v1.71.0 / v2.8.0 (2025-07-03)
+-------------------------------
+
+### Backend Changes
+
+#### ⛔ Breaking Changes
+
+* [es] materialize span.kind and span.status tags ([@pipiland2612](https://github.com/pipiland2612) in [#7272](https://github.com/jaegertracing/jaeger/pull/7272))
+* Make jaeger.es.disablelegacyid feature stable ([@yurishkuro](https://github.com/yurishkuro) in [#7267](https://github.com/jaegertracing/jaeger/pull/7267))
+
+#### ✨ New Features
+
+* [v2] switch memory backend to storage api v2 implementation ([@Manik2708](https://github.com/Manik2708) in [#7157](https://github.com/jaegertracing/jaeger/pull/7157))
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* [fix] prevent panic when sanitizing read-only traces with multiple exporters ([@victornguen](https://github.com/victornguen) in [#7245](https://github.com/jaegertracing/jaeger/pull/7245))
+* Update elasticsearch to use olivere/elastic/v7 ([@pipiland2612](https://github.com/pipiland2612) in [#7244](https://github.com/jaegertracing/jaeger/pull/7244))
+* Repoint docker compose files to use cr.jaegertracing.io ([@jkowall](https://github.com/jkowall) in [#7240](https://github.com/jaegertracing/jaeger/pull/7240))
+* [es/v2] add metrics decorator for trace reader ([@Manik2708](https://github.com/Manik2708) in [#7201](https://github.com/jaegertracing/jaeger/pull/7201))
+
+#### 🚧 Experimental Features
+
+* [spm] getcallrate implementation ([@pipiland2612](https://github.com/pipiland2612) in [#7229](https://github.com/jaegertracing/jaeger/pull/7229))
+* [cassandra] give responsibility of creating v2 factory to storage backend ([@Manik2708](https://github.com/Manik2708) in [#7228](https://github.com/jaegertracing/jaeger/pull/7228))
+* Jaeger demo on kubernetes ([@chahatsagarmain](https://github.com/chahatsagarmain) in [#7262](https://github.com/jaegertracing/jaeger/pull/7262))
+* [clickhouse] implement gettraces for clickhouse storage ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7207](https://github.com/jaegertracing/jaeger/pull/7207))
+* [spm] and esclient to es/reader.go and refactor test ([@pipiland2612](https://github.com/pipiland2612) in [#7216](https://github.com/jaegertracing/jaeger/pull/7216))
+* Add skeleton implementation for es as metricstorage for spm ([@pipiland2612](https://github.com/pipiland2612) in [#7209](https://github.com/jaegertracing/jaeger/pull/7209))
+
+### 📊 UI Changes
+
+#### ⚙️ Refactoring
+
+* Convert `opsgraph.tsx` from class component to functional component ([@Parship999](https://github.com/Parship999) in [#2914](https://github.com/jaegertracing/jaeger-ui/pull/2914))
+* Convert `regiondemo.tsx` from class component to functional component ([@Parship999](https://github.com/Parship999) in [#2910](https://github.com/jaegertracing/jaeger-ui/pull/2910))
+* Convert `dividerdemo.tsx` from class component to functional component ([@Parship999](https://github.com/Parship999) in [#2909](https://github.com/jaegertracing/jaeger-ui/pull/2909))
+* Convert `draggablemanagerdemo.tsx` from class component to functional component ([@Parship999](https://github.com/Parship999) in [#2908](https://github.com/jaegertracing/jaeger-ui/pull/2908))
+* Convert `nameselector.tsx` from class component to functional component ([@Parship999](https://github.com/Parship999) in [#2889](https://github.com/jaegertracing/jaeger-ui/pull/2889))
+* Convert `copyicon.tsx` from class component to functional component ([@Parship999](https://github.com/Parship999) in [#2887](https://github.com/jaegertracing/jaeger-ui/pull/2887))
+
+</details>
+
 v1.70.0 / v2.7.0 (2025-06-10)
 -------------------------------
 
