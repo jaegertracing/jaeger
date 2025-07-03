@@ -82,44 +82,6 @@ func NewArchiveFactory() *Factory {
 	}
 }
 
-// NewFactoryWithConfig initializes factory with Config.
-func NewFactoryWithConfig(
-	opts Options,
-	metricsFactory metrics.Factory,
-	logger *zap.Logger,
-) (*Factory, error) {
-	f := NewFactory()
-	// use this to help with testing
-	b := &withConfigBuilder{
-		f:              f,
-		opts:           &opts,
-		metricsFactory: metricsFactory,
-		logger:         logger,
-		initializer:    f.Initialize, // this can be mocked in tests
-	}
-	return b.build()
-}
-
-type withConfigBuilder struct {
-	f              *Factory
-	opts           *Options
-	metricsFactory metrics.Factory
-	logger         *zap.Logger
-	initializer    func(metricsFactory metrics.Factory, logger *zap.Logger) error
-}
-
-func (b *withConfigBuilder) build() (*Factory, error) {
-	b.f.configureFromOptions(b.opts)
-	if err := b.opts.NamespaceConfig.Validate(); err != nil {
-		return nil, err
-	}
-	err := b.initializer(b.metricsFactory, b.logger)
-	if err != nil {
-		return nil, err
-	}
-	return b.f, nil
-}
-
 // AddFlags implements storage.Configurable
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 	f.Options.AddFlags(flagSet)
@@ -128,11 +90,11 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 // InitFromViper implements storage.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, _ *zap.Logger) {
 	f.Options.InitFromViper(v)
-	f.configureFromOptions(f.Options)
+	f.ConfigureFromOptions(f.Options)
 }
 
 // InitFromOptions initializes factory from options.
-func (f *Factory) configureFromOptions(o *Options) {
+func (f *Factory) ConfigureFromOptions(o *Options) {
 	f.Options = o
 	f.config = o.GetConfig()
 }

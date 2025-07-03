@@ -39,7 +39,7 @@ func NewFactory(ctx context.Context, cfg config.Configuration, telset telemetry.
 
 // CreateMetricsReader implements storage.MetricStoreFactory.
 func (f *Factory) CreateMetricsReader() (metricstore.Reader, error) {
-	mr := NewMetricsReader(f.client, f.telset.Logger, f.telset.TracerProvider)
+	mr := NewMetricsReader(f.client, f.config, f.telset.Logger, f.telset.TracerProvider)
 	return metricstoremetrics.NewReaderDecorator(mr, f.telset.Metrics), nil
 }
 

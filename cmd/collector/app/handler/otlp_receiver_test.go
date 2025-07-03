@@ -106,7 +106,7 @@ func TestOtelHost_ReportFatalError(t *testing.T) {
 		assert.Contains(t, buf.String(), "mock error")
 	}()
 	host.ReportFatalError(errors.New("mock error"))
-	t.Errorf("ReportFatalError did not panic")
+	t.Error("ReportFatalError did not panic")
 }
 
 func TestOtelHost(t *testing.T) {
