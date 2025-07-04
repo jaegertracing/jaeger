@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -314,6 +315,33 @@ func TestGetMinStepDuration(t *testing.T) {
 	minStep, err := reader.GetMinStepDuration(context.Background(), &metricstore.MinStepDurationQueryParameters{})
 	require.NoError(t, err)
 	assert.Equal(t, time.Millisecond, minStep)
+}
+
+func TestGetCallRateBucketsToPoints_ErrorCases(t *testing.T) {
+	tests := []struct {
+		name    string
+		buckets []*elastic.AggregationBucketHistogramItem
+	}{
+		{
+			name: "nil cumulative sum value",
+			buckets: []*elastic.AggregationBucketHistogramItem{
+				{
+					Key:      1749894900000,
+					DocCount: 1,
+					Aggregations: map[string]json.RawMessage{
+						culmuAggName: json.RawMessage(`{"value": null}`),
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getCallRateBucketsToPoints(tt.buckets)
+			require.Nil(t, result)
+		})
+	}
 }
 
 func sendResponse(t *testing.T, w http.ResponseWriter, responseFile string) {
