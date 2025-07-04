@@ -61,9 +61,6 @@ type MetricsQueryParams struct {
 	metricDesc string
 	boolQuery  elastic.BoolQuery
 	aggQuery   elastic.Aggregation
-	// bucketsToPointsFunc is a function that turn raw ES Histogram Bucket result into
-	// array of Pair for easier post-processing (using processMetricsFunc)
-	bucketsToPointsFunc func(buckets []*elastic.AggregationBucketHistogramItem) []*Pair
 }
 
 // Pair represents a timestamp-value pair for metrics.
@@ -102,15 +99,21 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 		metricDesc:          "calls/sec, grouped by service",
 		boolQuery:           r.buildQuery(params.BaseQueryParameters, timeRange),
 		aggQuery:            r.buildCallRateAggregations(params.BaseQueryParameters, timeRange),
-		bucketsToPointsFunc: getCallRateBucketsToPoints,
 	}
 
-	rawMetricFamily, err := r.executeSearch(ctx, metricsParams)
+	searchResult, err := r.executeSearch(ctx, metricsParams)
 	if err != nil {
 		return nil, err
 	}
 
-	// Process the raw aggregation value to calculate call_rate (req/s)
+	// Convert search results into raw metric family using translator
+	translator := NewTranslator(getCallRateBucketsToPoints)
+	rawMetricFamily, err := translator.ToDomainMetricsFamily(metricsParams, searchResult)
+	if err != nil {
+		return nil, err
+	}
+
+	// Process and return results
 	processedMetricFamily := calcCallRate(rawMetricFamily, params.BaseQueryParameters)
 	// Trim results to original time range
 	return trimMetricPointsBefore(processedMetricFamily, timeRange.startTimeMillis), nil
@@ -317,12 +320,7 @@ func (r MetricsReader) buildCallRateAggregations(params metricstore.BaseQueryPar
 }
 
 // executeSearch performs the Elasticsearch search.
-func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) (*metrics.MetricFamily, error) {
-	if p.GroupByOperation {
-		p.metricName = strings.Replace(p.metricName, "service", "service_operation", 1)
-		p.metricDesc += " & operation"
-	}
-
+func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) (*elastic.SearchResult, error) {
 	span := r.queryLogger.TraceQuery(ctx, p.metricName)
 	defer span.End()
 
@@ -340,8 +338,8 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) 
 
 	r.queryLogger.LogAndTraceResult(span, searchResult)
 
-	// Return raw result
-	return ToDomainMetricsFamily(p, searchResult)
+	// Return raw search result
+	return searchResult, nil
 }
 
 // normalizeSpanKinds normalizes a slice of span kinds.
