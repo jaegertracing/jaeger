@@ -37,6 +37,7 @@ v1.71.0 / v2.8.0 (2025-07-03)
 
 #### 🐞 Bug fixes, Minor Improvements
 
+* Fix panic when reading malformed warning attribute ([@yurishkuro](https://github.com/yurishkuro) in [#7293](https://github.com/jaegertracing/jaeger/pull/7293))
 * [fix] prevent panic when sanitizing read-only traces with multiple exporters ([@victornguen](https://github.com/victornguen) in [#7245](https://github.com/jaegertracing/jaeger/pull/7245))
 * Update elasticsearch to use olivere/elastic/v7 ([@pipiland2612](https://github.com/pipiland2612) in [#7244](https://github.com/jaegertracing/jaeger/pull/7244))
 * Repoint docker compose files to use cr.jaegertracing.io ([@jkowall](https://github.com/jkowall) in [#7240](https://github.com/jaegertracing/jaeger/pull/7240))
