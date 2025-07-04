@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -82,9 +83,8 @@ func NewFactoryBase(
 	f.client.Store(&client)
 
 	if f.config.Authentication.BasicAuthentication.HasValue() {
-		basicAuth := f.config.Authentication.BasicAuthentication.Get()
-		if basicAuth != nil && basicAuth.PasswordFilePath != "" {
-			watcher, err := fswatcher.New([]string{basicAuth.PasswordFilePath}, f.onPasswordChange, f.logger)
+		if f.config.Authentication.BasicAuthentication.Get().PasswordFilePath != "" {
+			watcher, err := fswatcher.New([]string{f.config.Authentication.BasicAuthentication.Get().PasswordFilePath}, f.onPasswordChange, f.logger)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create watcher for ES client's password: %w", err)
 			}
@@ -206,31 +206,34 @@ func (f *FactoryBase) onPasswordChange() {
 }
 
 func (f *FactoryBase) onClientPasswordChange(cfg *config.Configuration, client *atomic.Pointer[es.Client], mf metrics.Factory) {
+	// Check if basic authentication is configured
 	if !cfg.Authentication.BasicAuthentication.HasValue() {
 		f.logger.Error("basic authentication not configured")
 		return
 	}
 
+	// Get the basic auth configuration
 	basicAuth := cfg.Authentication.BasicAuthentication.Get()
 	if basicAuth == nil || basicAuth.PasswordFilePath == "" {
 		f.logger.Error("password file path not set")
 		return
 	}
 
+	// Load the new password from file
 	newPassword, err := loadTokenFromFile(basicAuth.PasswordFilePath)
 	if err != nil {
 		f.logger.Error("failed to reload password for Elasticsearch client", zap.Error(err))
 		return
 	}
-
 	f.logger.Sugar().Infof("loaded new password of length %d from file", len(newPassword))
+	// Create a copy of the config and update the password
 	newCfg := *cfg // copy by value
-	// Update password and clear password file path to avoid having both set
 	if newCfg.Authentication.BasicAuthentication.HasValue() {
-		if basicAuth := newCfg.Authentication.BasicAuthentication.Get(); basicAuth != nil {
-			basicAuth.Password = newPassword
-			basicAuth.PasswordFilePath = ""
-		}
+		// Create a new BasicAuthentication with the new password
+		updatedAuth := *basicAuth // copy the existing auth
+		updatedAuth.Password = newPassword
+		updatedAuth.PasswordFilePath = "" // avoid error that both are set
+		newCfg.Authentication.BasicAuthentication = configoptional.Some(updatedAuth)
 	}
 
 	newClient, err := f.newClientFn(context.Background(), &newCfg, f.logger, mf)

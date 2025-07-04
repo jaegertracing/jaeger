@@ -7,6 +7,7 @@ package elasticsearch
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -23,6 +25,7 @@ import (
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
@@ -66,6 +69,60 @@ func TestElasticsearchFactoryBase(t *testing.T) {
 	_, err = f.CreateSamplingStore(1)
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
+}
+
+func TestFactoryBase_Purge(t *testing.T) {
+	tests := []struct {
+		name        string
+		setupMock   func(*mocks.IndicesDeleteService)
+		expectedErr bool
+	}{
+		{
+			name: "successful purge",
+			setupMock: func(mockDelete *mocks.IndicesDeleteService) {
+				mockDelete.On("Do", mock.Anything).Return(nil, nil)
+			},
+			expectedErr: false,
+		},
+		{
+			name: "purge error",
+			setupMock: func(mockDelete *mocks.IndicesDeleteService) {
+				mockDelete.On("Do", mock.Anything).Return(nil, errors.New("delete error"))
+			},
+			expectedErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a real factory with a mock ES client
+			mockClient := &mocks.Client{}
+			mockDelete := &mocks.IndicesDeleteService{}
+			mockClient.On("DeleteIndex", "*").Return(mockDelete)
+
+			tt.setupMock(mockDelete)
+
+			// Create a mock client that will be stored in the atomic.Pointer
+			f := &FactoryBase{
+				client: atomic.Pointer[es.Client]{},
+			}
+			// Create a concrete type that implements es.Client
+			var client es.Client = mockClient
+			// Store the client in the atomic.Pointer
+			f.client.Store(&client)
+
+			err := f.Purge(context.Background())
+			if tt.expectedErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			// Verify the mock was called as expected
+			mockClient.AssertExpectations(t)
+			mockDelete.AssertExpectations(t)
+		})
+	}
 }
 
 func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
@@ -417,4 +474,107 @@ func TestPasswordFromFileErrors(t *testing.T) {
 
 	require.NoError(t, os.Remove(pwdFile))
 	f.onPasswordChange()
+}
+
+func TestFactoryBase_OnClientPasswordChange(t *testing.T) {
+	tests := []struct {
+		name           string
+		setupConfig    func() *escfg.Configuration
+		expectedLogs   []string
+		shouldCallLoad bool
+	}{
+		{
+			name: "basic authentication not configured",
+			setupConfig: func() *escfg.Configuration {
+				return &escfg.Configuration{
+					Servers: []string{"http://localhost:9200"},
+					// Authentication is not set up at all
+				}
+			},
+			expectedLogs:   []string{"basic authentication not configured"},
+			shouldCallLoad: false,
+		},
+		{
+			name: "password file path not set",
+			setupConfig: func() *escfg.Configuration {
+				return &escfg.Configuration{
+					Servers: []string{"http://localhost:9200"},
+					Authentication: escfg.Authentication{
+						BasicAuthentication: configoptional.Some(escfg.BasicAuthentication{
+							// No PasswordFilePath set
+							Username: "user",
+							Password: "pass",
+						}),
+					},
+				}
+			},
+			expectedLogs:   []string{"password file path not set"},
+			shouldCallLoad: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup logger that captures logs
+			logger, logs := setupTestLogger()
+
+			// Create a test factory with the test configuration
+			cfg := tt.setupConfig()
+
+			fb := &FactoryBase{
+				logger:         logger,
+				metricsFactory: metrics.NullFactory,
+				config:         cfg,
+				// Mock the newClientFn to fail the test if it's called unexpectedly
+				newClientFn: func(_ context.Context, _ *escfg.Configuration, _ *zap.Logger, _ metrics.Factory) (es.Client, error) {
+					t.Fatal("newClientFn should not be called in this test case")
+					return nil, nil
+				},
+			}
+
+			// Create a dummy client to pass to onClientPasswordChange
+			var client atomic.Pointer[es.Client]
+
+			// Execute the function under test
+			fb.onClientPasswordChange(cfg, &client, metrics.NullFactory)
+
+			// Verify logs
+			loggedMsgs := getLoggedMessages(logs)
+			for _, expectedLog := range tt.expectedLogs {
+				assert.Contains(t, loggedMsgs, expectedLog, "Expected log message not found")
+			}
+
+			// Verify client was not modified
+			nilClient := (*es.Client)(nil)
+			assert.Equal(t, nilClient, client.Load(), "Client should not be modified in error cases")
+		})
+	}
+}
+
+// setupTestLogger creates a logger that captures logs for testing
+func setupTestLogger() (*zap.Logger, *zaptest.Buffer) {
+	buffer := &zaptest.Buffer{}
+	logger := zap.New(
+		zapcore.NewCore(
+			zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
+			buffer,
+			zap.InfoLevel,
+		),
+	)
+	return logger, buffer
+}
+
+// getLoggedMessages extracts log messages from the buffer and parses them as JSON
+func getLoggedMessages(buffer *zaptest.Buffer) []string {
+	var messages []string
+	for _, line := range buffer.Lines() {
+		// Parse the JSON log entry
+		var entry struct {
+			Msg string `json:"msg"`
+		}
+		if err := json.Unmarshal([]byte(line), &entry); err == nil {
+			messages = append(messages, entry.Msg)
+		}
+	}
+	return messages
 }
