@@ -223,14 +223,14 @@ func TestGetCallRates(t *testing.T) {
 		Value        float64
 	}{
 		{1749894840, math.NaN()},
-		{1749894900, 0.0},
-		{1749894960, 0.0},
-		{1749895020, 0.0},
-		{1749895080, 0.0},
-		{1749895140, 0.0},
-		{1749895200, 0.0},
-		{1749895260, 0.0},
-		{1749895320, 0.0},
+		{1749894900, math.NaN()},
+		{1749894960, math.NaN()},
+		{1749895020, math.NaN()},
+		{1749895080, math.NaN()},
+		{1749895140, math.NaN()},
+		{1749895200, math.NaN()},
+		{1749895260, math.NaN()},
+		{1749895320, math.NaN()},
 		{1749895380, 0.75},
 		{1749895440, 0.9},
 	}
@@ -312,6 +312,7 @@ func TestGetCallRates(t *testing.T) {
 				require.ErrorContains(t, err, tc.wantErr)
 				assert.Nil(t, metricFamily)
 			} else {
+				t.Logf("metric family" + metricFamily.String())
 				require.NoError(t, err)
 				assertMetricFamily(t, metricFamily, tc)
 			}
@@ -344,6 +345,7 @@ func TestGetLatencies(t *testing.T) {
 			}{
 				{1749894900, 0.2},
 				{1749894960, 0.21},
+				{1749895020, math.NaN()},
 			},
 		},
 		{
@@ -544,6 +546,7 @@ func TestGetLatenciesBucketsToPoints_ErrorCases(t *testing.T) {
 			buckets: []*elastic.AggregationBucketHistogramItem{
 				{
 					Key:          1749894900000,
+					DocCount:     1,
 					Aggregations: map[string]json.RawMessage{},
 				},
 			},
@@ -553,7 +556,8 @@ func TestGetLatenciesBucketsToPoints_ErrorCases(t *testing.T) {
 			percentileValue: 95.0,
 			buckets: []*elastic.AggregationBucketHistogramItem{
 				{
-					Key: 1749894900000,
+					Key:      1749894900000,
+					DocCount: 1,
 					Aggregations: map[string]json.RawMessage{
 						percentilesAggName: json.RawMessage(`{"values": {"90.0": 200.0}}`),
 					},

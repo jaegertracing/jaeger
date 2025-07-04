@@ -18,7 +18,7 @@
         {
           "key_as_string": "1749894840000",
           "key": 1749894840000,
-          "doc_count": 10,
+          "doc_count": 0,
           "cumulative_requests": {
             "value": 0
           }

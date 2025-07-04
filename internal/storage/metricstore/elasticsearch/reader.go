@@ -217,19 +217,6 @@ func applySlidingWindow(mf *metrics.MetricFamily, lookback int, processor func(w
 		processedPoints := make([]*metrics.MetricPoint, 0, len(points))
 
 		for i, currentPoint := range points {
-			currentValue := currentPoint.GetGaugeValue().GetDoubleValue()
-
-			// Elasticsearch's percentiles aggregation returns 0.0 for time buckets with no documents
-			// These aren't true zero values but represent missing data points in sparse time series
-			// We convert them to NaN to distinguish from actual measured zero values
-			if currentValue == 0.0 {
-				processedPoints = append(processedPoints, &metrics.MetricPoint{
-					Timestamp: currentPoint.Timestamp,
-					Value:     toDomainMetricPointValue(math.NaN()),
-				})
-				continue
-			}
-
 			// Define the start of the moving window, ensuring it's not out of bounds.
 			start := i - lookback + 1
 			if start < 0 {
@@ -261,13 +248,24 @@ func calcCallRate(mf *metrics.MetricFamily, params metricstore.BaseQueryParamete
 	// rateCalculator is a closure that captures 'lookback' and 'windowSizeSeconds'.
 	// It implements the specific logic for calculating the rate.
 	rateCalculator := func(window []*metrics.MetricPoint) float64 {
-		// For the initial points where the window is not full, we can't calculate a rate.
+		// If the window is not "full" (i.e., we don't have enough preceding points
+		// to calculate a rate over the full 'lookback' period), return NaN.
 		if len(window) < lookback {
-			return 0.0
+			return math.NaN()
 		}
 
 		firstValue := window[0].GetGaugeValue().GetDoubleValue()
+		// If the first value in the full window is NaN, treat it as 0 for the rate calculation.
+		// This implies that if data was missing at the start of the window, we assume no contribution from that missing period.
+		if math.IsNaN(firstValue) {
+			firstValue = 0
+		}
 		lastValue := window[len(window)-1].GetGaugeValue().GetDoubleValue()
+		// If the current point (the last value in the window) is NaN, the rate cannot be defined.
+		// Propagate NaN to indicate missing data for the result point.
+		if math.IsNaN(lastValue) {
+			return math.NaN()
+		}
 
 		rate := (lastValue - firstValue) / windowSizeSeconds
 		return math.Round(rate*100) / 100
@@ -296,18 +294,24 @@ func getLatenciesProcessMetrics(mf *metrics.MetricFamily) *metrics.MetricFamily 
 	return applySlidingWindow(mf, lookback, valueProcessor)
 }
 
-func getCallRateBucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem) []*Pair {
+// getBucketsToPoints is a helper function for getting points value from ES AGG bucket
+func getBucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem, valueExtractor func(*elastic.AggregationBucketHistogramItem) (float64, bool)) []*Pair {
 	var points []*Pair
 
 	for _, bucket := range buckets {
-		aggMap, ok := bucket.Aggregations.CumulativeSum(culmuAggName)
-		if !ok {
-			return nil
+		var value float64
+		// If there is no data (doc_count = 0), we return NaN()
+		if bucket.DocCount == 0 {
+			value = math.NaN()
+		} else {
+			// Else extract the value and return it
+			val, ok := valueExtractor(bucket)
+			if !ok {
+				return nil
+			}
+			value = val
 		}
-		value := math.NaN()
-		if aggMap != nil && aggMap.Value != nil {
-			value = *aggMap.Value
-		}
+
 		points = append(points, &Pair{
 			TimeStamp: int64(bucket.Key),
 			Value:     value,
@@ -316,30 +320,31 @@ func getCallRateBucketsToPoints(buckets []*elastic.AggregationBucketHistogramIte
 	return points
 }
 
-func getLatenciesBucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem, percentileValue float64) []*Pair {
-	var points []*Pair
+func getCallRateBucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem) []*Pair {
+	valueExtractor := func(bucket *elastic.AggregationBucketHistogramItem) (float64, bool) {
+		aggMap, ok := bucket.Aggregations.CumulativeSum(culmuAggName)
+		if !ok || aggMap.Value == nil {
+			return 0, false
+		}
+		return *aggMap.Value, true
+	}
+	return getBucketsToPoints(buckets, valueExtractor)
+}
 
-	// Process each bucket from the Elasticsearch histogram aggregation
-	for _, bucket := range buckets {
-		// Extract percentiles aggregation from the bucket
+func getLatenciesBucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem, percentileValue float64) []*Pair {
+	valueExtractor := func(bucket *elastic.AggregationBucketHistogramItem) (float64, bool) {
 		aggMap, ok := bucket.Aggregations.Percentiles(percentilesAggName)
 		if !ok {
-			return nil
+			return 0, false
 		}
-
-		// Format the percentile key to match Elasticsearch's format (e.g., "95.0")
 		percentileKey := fmt.Sprintf("%.1f", percentileValue)
 		aggMapValue, ok := aggMap.Values[percentileKey]
 		if !ok {
-			return nil
+			return 0, false
 		}
-
-		points = append(points, &Pair{
-			TimeStamp: int64(bucket.Key),
-			Value:     aggMapValue,
-		})
+		return aggMapValue, true
 	}
-	return points
+	return getBucketsToPoints(buckets, valueExtractor)
 }
 
 func (MetricsReader) buildTimeSeriesAggregation(params metricstore.BaseQueryParameters, timeRange TimeRange, subAggName string, subAgg elastic.Aggregation) elastic.Aggregation {
