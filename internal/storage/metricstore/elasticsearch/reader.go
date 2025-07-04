@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -110,7 +109,7 @@ func (r MetricsReader) GetLatencies(ctx context.Context, params *metricstore.Lat
 	}
 
 	// Process the raw aggregation value to calculate latencies (ms)
-	return getLatenciesProcessMetrics(rawMetricFamily, *params), nil
+	return getLatenciesProcessMetrics(rawMetricFamily), nil
 }
 
 // GetCallRates retrieves call rate metrics
@@ -277,40 +276,29 @@ func getCallRateProcessMetrics(mf *metrics.MetricFamily, params metricstore.Base
 	return processMovingFunction(mf, lookback, rateCalculator)
 }
 
-// getLatenciesProcessMetrics now defines only the percentile logic and calls the generic processor.
-func getLatenciesProcessMetrics(mf *metrics.MetricFamily, params metricstore.LatenciesQueryParameters) *metrics.MetricFamily {
-	lookback := int(math.Ceil(float64(params.RatePer.Milliseconds()) / float64(params.Step.Milliseconds())))
-	// Ensure lookback >= 1
-	lookback = int(math.Max(float64(lookback), 1))
+// getLatenciesProcessMetrics scales down and rounds the metric values
+func getLatenciesProcessMetrics(mf *metrics.MetricFamily) *metrics.MetricFamily {
+	// Operates on only current value
+	lookback := 1
 
-	// percentileCalculator is a closure that captures 'params.Quantile'.
-	// It implements the specific logic for calculating the percentile.
-	percentileCalculator := func(window []*metrics.MetricPoint) float64 {
-		var validValues []float64
-		for _, point := range window {
-			// The generic function already handles the 0 -> NaN conversion,
-			// but we also check for existing NaNs within the window.
-			v := point.GetGaugeValue().GetDoubleValue()
-			if !math.IsNaN(v) {
-				validValues = append(validValues, v)
-			}
-		}
-
-		if len(validValues) == 0 {
+	// valueProcessor is a closure that implements scaling and rounding
+	valueProcessor := func(window []*metrics.MetricPoint) float64 {
+		if len(window) == 0 {
 			return math.NaN()
 		}
 
-		sort.Float64s(validValues)
+		v := window[len(window)-1].GetGaugeValue().GetDoubleValue()
 
-		// Calculate index for the desired percentile.
-		idx := int(math.Ceil(params.Quantile * float64(len(validValues)-1)))
+		if math.IsNaN(v) {
+			return math.NaN()
+		}
 
-		// Scale down the result value (e.g., from microseconds to milliseconds).
-		resultValue := validValues[idx] / 1000.0
+		// Scale down the value (e.g., from microseconds to milliseconds)
+		resultValue := v / 1000.0
 		return math.Round(resultValue*100) / 100 // Round to 2 decimal places
 	}
 
-	return processMovingFunction(mf, lookback, percentileCalculator)
+	return processMovingFunction(mf, lookback, valueProcessor)
 }
 
 func getCallRateBucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem) []*Pair {

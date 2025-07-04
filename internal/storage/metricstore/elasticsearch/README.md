@@ -173,12 +173,12 @@ This aggregation pipeline is constructed in the `buildLatenciesAggregations` .
 
 ### 3\. Post-Processing Part
 
-The `getLatenciesProcessMetrics` function takes the raw percentile values from Elasticsearch and performs further processing, primarily for smoothing and handling missing data.
+The `getLatenciesProcessMetrics` function takes the raw percentile values from Elasticsearch and performs further processing, primarily for scale down, round value and handling missing data.
 
 **Explanation:**
 
 * **Handling Missing Data**: Elasticsearch's percentiles aggregation returns `0.0` for time buckets with no documents. The code explicitly converts these `0.0` values to `math.NaN()` (Not a Number). This is crucial because `0.0` could be interpreted as a valid, albeit very fast, latency, whereas `NaN` correctly indicates an absence of data for that period.
-* **Sliding Window for Smoothing Graph**: The post-processing part is the application of a **sliding window** to smoothen the rough graph got by `percentiles` ES aggregation.
+* **Post Processing**: The post-processing part is to scale down and round value got from `percentiles` ES aggregation.
 **Code Reference:**
 
 The post-processing logic resides in `getLatenciesProcessMetrics`.
