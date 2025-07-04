@@ -313,7 +313,6 @@ func TestGetCallRates(t *testing.T) {
 				require.ErrorContains(t, err, tc.wantErr)
 				assert.Nil(t, metricFamily)
 			} else {
-				t.Logf("metric family" + metricFamily.String())
 				require.NoError(t, err)
 				assertMetricFamily(t, metricFamily, tc)
 			}
