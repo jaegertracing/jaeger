@@ -25,7 +25,7 @@
               {
                 "key_as_string": "1749894840000",
                 "key": 1749894840000,
-                "doc_count": 10,
+                "doc_count": 0,
                 "cumulative_requests": {
                   "value": 0
                 }
@@ -108,6 +108,14 @@
                 "doc_count": 100,
                 "cumulative_requests": {
                   "value": 550
+                }
+              },
+              {
+                "key_as_string": "1749895500000",
+                "key": 1749895500000,
+                "doc_count": 0,
+                "cumulative_requests": {
+                  "value": 0
                 }
               }
             ]

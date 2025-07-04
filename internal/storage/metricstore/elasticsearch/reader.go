@@ -26,9 +26,10 @@ import (
 var ErrNotImplemented = errors.New("metrics querying is currently not implemented yet")
 
 const (
-	minStep      = time.Millisecond
-	aggName      = "results_buckets"
-	culmuAggName = "cumulative_requests"
+	minStep         = time.Millisecond
+	aggName         = "results_buckets"
+	culmuAggName    = "cumulative_requests"
+	dateHistAggName = "date_histogram"
 )
 
 // MetricsReader is an Elasticsearch metrics reader.
@@ -63,12 +64,6 @@ type MetricsQueryParams struct {
 	// bucketsToPointsFunc is a function that turn raw ES Histogram Bucket result into
 	// array of Pair for easier post-processing (using processMetricsFunc)
 	bucketsToPointsFunc func(buckets []*elastic.AggregationBucketHistogramItem) []*Pair
-	// processMetricsFunc is a function that processes the raw time-series
-	// data (pairs of timestamp and value) returned from Elasticsearch
-	// aggregations into the final metric values. This is used for calculations
-	// like rates (e.g., calls/sec) which require manipulating the raw counts
-	// or sums over specific time windows.
-	processMetricsFunc func(mf *metrics.MetricFamily, params metricstore.BaseQueryParameters) *metrics.MetricFamily
 }
 
 // Pair represents a timestamp-value pair for metrics.
@@ -108,15 +103,17 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 		boolQuery:           r.buildQuery(params.BaseQueryParameters, timeRange),
 		aggQuery:            r.buildCallRateAggregations(params.BaseQueryParameters, timeRange),
 		bucketsToPointsFunc: getCallRateBucketsToPoints,
-		processMetricsFunc:  getCallRateProcessMetrics,
 	}
 
-	metricFamily, err := r.executeSearch(ctx, metricsParams)
+	rawMetricFamily, err := r.executeSearch(ctx, metricsParams)
 	if err != nil {
 		return nil, err
 	}
+
+	// Process the raw aggregation value to calculate call_rate (req/s)
+	processedMetricFamily := calcCallRate(rawMetricFamily, params.BaseQueryParameters)
 	// Trim results to original time range
-	return trimMetricPointsBefore(metricFamily, timeRange.startTimeMillis), nil
+	return trimMetricPointsBefore(processedMetricFamily, timeRange.startTimeMillis), nil
 }
 
 // GetErrorRates retrieves error rate metrics
@@ -185,77 +182,93 @@ func (r MetricsReader) buildQuery(params metricstore.BaseQueryParameters, timeRa
 	return *boolQuery
 }
 
-// processCallRateMetrics processes the MetricFamily to calculate call rates
-func getCallRateProcessMetrics(mf *metrics.MetricFamily, params metricstore.BaseQueryParameters) *metrics.MetricFamily {
-	lookback := int(math.Ceil(float64(params.RatePer.Milliseconds()) / float64(params.Step.Milliseconds())))
-	if lookback < 1 {
-		lookback = 1
-	}
-
+// applySlidingWindow applies a given processing function over a moving window of metric points.
+// This is the core generic function that contains the shared logic.
+func applySlidingWindow(mf *metrics.MetricFamily, lookback int, processor func(window []*metrics.MetricPoint) float64) *metrics.MetricFamily {
 	for _, metric := range mf.Metrics {
 		points := metric.MetricPoints
-		var processedPoints []*metrics.MetricPoint
+		if len(points) == 0 {
+			continue
+		}
 
-		for i := range points {
-			currentPoint := points[i]
-			currentValue := currentPoint.GetGaugeValue().GetDoubleValue()
+		processedPoints := make([]*metrics.MetricPoint, 0, len(points))
 
-			// Elasticsearch's percentiles aggregation returns 0.0 for time buckets with no documents
-			// These aren't true zero values but represent missing data points in sparse time series
-			// We convert them to NaN to distinguish from actual measured zero values (slope of 0)
-			if currentValue == 0.0 {
-				processedPoints = append(processedPoints, &metrics.MetricPoint{
-					Timestamp: currentPoint.Timestamp,
-					Value:     toDomainMetricPointValue(math.NaN()),
-				})
-				continue
+		for i, currentPoint := range points {
+			// Define the start of the moving window, ensuring it's not out of bounds.
+			start := i - lookback + 1
+			if start < 0 {
+				start = 0
 			}
+			window := points[start : i+1]
 
-			// For first (lookback-1) points, we don't have enough history
-			if i < lookback-1 {
-				processedPoints = append(processedPoints, &metrics.MetricPoint{
-					Timestamp: currentPoint.Timestamp,
-					Value:     toDomainMetricPointValue(0.0),
-				})
-				continue
-			}
-
-			// Get boundary values for our lookback window
-			firstPoint := points[i-lookback+1]
-			firstValue := firstPoint.GetGaugeValue().GetDoubleValue()
-			lastValue := currentValue
-
-			// Calculate time window duration in seconds
-			windowSizeSeconds := float64(lookback) * params.Step.Seconds()
-
-			// Calculate rate of change per second
-			rate := (lastValue - firstValue) / windowSizeSeconds
-			rate = math.Round(rate*100) / 100 // Round to 2 decimal places
+			// Delegate the specific calculation to the provided processor function.
+			resultValue := processor(window)
 
 			processedPoints = append(processedPoints, &metrics.MetricPoint{
 				Timestamp: currentPoint.Timestamp,
-				Value:     toDomainMetricPointValue(rate),
+				Value:     toDomainMetricPointValue(resultValue),
 			})
 		}
-
 		metric.MetricPoints = processedPoints
 	}
-
 	return mf
 }
 
-func getCallRateBucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem) []*Pair {
+// calcCallRate defines the rate calculation logic and pass in applySlidingWindow.
+func calcCallRate(mf *metrics.MetricFamily, params metricstore.BaseQueryParameters) *metrics.MetricFamily {
+	lookback := int(math.Ceil(float64(params.RatePer.Milliseconds()) / float64(params.Step.Milliseconds())))
+	// Ensure lookback >= 1
+	lookback = int(math.Max(float64(lookback), 1))
+
+	windowSizeSeconds := float64(lookback) * params.Step.Seconds()
+
+	// rateCalculator is a closure that captures 'lookback' and 'windowSizeSeconds'.
+	// It implements the specific logic for calculating the rate.
+	rateCalculator := func(window []*metrics.MetricPoint) float64 {
+		// If the window is not "full" (i.e., we don't have enough preceding points
+		// to calculate a rate over the full 'lookback' period), return NaN.
+		if len(window) < lookback {
+			return math.NaN()
+		}
+
+		firstValue := window[0].GetGaugeValue().GetDoubleValue()
+		// If the first value in the full window is NaN, treat it as 0 for the rate calculation.
+		// This implies that if data was missing at the start of the window, we assume no contribution from that missing period.
+		if math.IsNaN(firstValue) {
+			firstValue = 0
+		}
+		lastValue := window[len(window)-1].GetGaugeValue().GetDoubleValue()
+		// If the current point (the last value in the window) is NaN, the rate cannot be defined.
+		// Propagate NaN to indicate missing data for the result point.
+		if math.IsNaN(lastValue) {
+			return math.NaN()
+		}
+
+		rate := (lastValue - firstValue) / windowSizeSeconds
+		return math.Round(rate*100) / 100
+	}
+
+	return applySlidingWindow(mf, lookback, rateCalculator)
+}
+
+// getBucketsToPoints is a helper function for getting points value from ES AGG bucket
+func getBucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem, valueExtractor func(*elastic.AggregationBucketHistogramItem) (float64, bool)) []*Pair {
 	var points []*Pair
 
 	for _, bucket := range buckets {
-		aggMap, ok := bucket.Aggregations.CumulativeSum(culmuAggName)
-		if !ok {
-			return nil
+		var value float64
+		// If there is no data (doc_count = 0), we return NaN()
+		if bucket.DocCount == 0 {
+			value = math.NaN()
+		} else {
+			// Else extract the value and return it
+			val, ok := valueExtractor(bucket)
+			if !ok {
+				return nil
+			}
+			value = val
 		}
-		value := math.NaN()
-		if aggMap != nil && aggMap.Value != nil {
-			value = *aggMap.Value
-		}
+
 		points = append(points, &Pair{
 			TimeStamp: int64(bucket.Key),
 			Value:     value,
@@ -264,49 +277,43 @@ func getCallRateBucketsToPoints(buckets []*elastic.AggregationBucketHistogramIte
 	return points
 }
 
-// buildCallRateAggregations constructs the GetCallRate aggregations.
-func (MetricsReader) buildCallRateAggregations(params metricstore.BaseQueryParameters, timeRange TimeRange) elastic.Aggregation {
+func getCallRateBucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem) []*Pair {
+	valueExtractor := func(bucket *elastic.AggregationBucketHistogramItem) (float64, bool) {
+		aggMap, ok := bucket.Aggregations.CumulativeSum(culmuAggName)
+		if !ok || aggMap.Value == nil {
+			return 0, false
+		}
+		return *aggMap.Value, true
+	}
+	return getBucketsToPoints(buckets, valueExtractor)
+}
+
+func (MetricsReader) buildTimeSeriesAggregation(params metricstore.BaseQueryParameters, timeRange TimeRange, subAggName string, subAgg elastic.Aggregation) elastic.Aggregation {
 	fixedIntervalString := strconv.FormatInt(params.Step.Milliseconds(), 10) + "ms"
-	dateHistoAgg := elastic.NewDateHistogramAggregation().
+
+	dateHistAgg := elastic.NewDateHistogramAggregation().
 		Field("startTimeMillis").
 		FixedInterval(fixedIntervalString).
 		MinDocCount(0).
 		ExtendedBounds(timeRange.extendedStartTimeMillis, timeRange.endTimeMillis)
 
-	cumulativeSumAgg := elastic.NewCumulativeSumAggregation().BucketsPath("_count")
-
-	// Corresponding AGG ES query:
-	// "aggs": {
-	//	"results_buckets": {
-	//		"date_histogram": {
-	//			"field": "startTimeMillis",
-	//				"fixed_interval": "60s",
-	//				"min_doc_count": 0,
-	//				"extended_bounds": {
-	//				"min": "now-lookback-5m",
-	//				"max": "now"
-	//			}
-	//		},
-	//		"aggs": {
-	//			"cumulative_requests": {
-	//				"cumulative_sum": {
-	//					"buckets_path": "_count"
-	//				}
-	//			}
-	//
-
-	dateHistoAgg = dateHistoAgg.
-		SubAggregation(culmuAggName, cumulativeSumAgg)
+	dateHistAgg = dateHistAgg.SubAggregation(subAggName, subAgg)
 
 	if params.GroupByOperation {
-		operationsAgg := elastic.NewTermsAggregation().
+		return elastic.NewTermsAggregation().
 			Field("operationName").
 			Size(10).
-			SubAggregation("date_histogram", dateHistoAgg) // Nest the dateHistoAgg inside operationsAgg
-		return operationsAgg
+			SubAggregation(dateHistAggName, dateHistAgg)
 	}
 
-	return dateHistoAgg
+	return dateHistAgg
+}
+
+// buildCallRateAggregations now calls the generic builder function.
+func (r MetricsReader) buildCallRateAggregations(params metricstore.BaseQueryParameters, timeRange TimeRange) elastic.Aggregation {
+	cumulativeSumAgg := elastic.NewCumulativeSumAggregation().BucketsPath("_count")
+
+	return r.buildTimeSeriesAggregation(params, timeRange, culmuAggName, cumulativeSumAgg)
 }
 
 // executeSearch performs the Elasticsearch search.
@@ -333,13 +340,8 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) 
 
 	r.queryLogger.LogAndTraceResult(span, searchResult)
 
-	rawResult, err := ToDomainMetricsFamily(p, searchResult)
-	if err != nil {
-		return nil, err
-	}
-
-	processedResult := p.processMetricsFunc(rawResult, p.BaseQueryParameters)
-	return processedResult, nil
+	// Return raw result
+	return ToDomainMetricsFamily(p, searchResult)
 }
 
 // normalizeSpanKinds normalizes a slice of span kinds.
