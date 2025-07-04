@@ -134,7 +134,7 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 	}
 
 	// Process the raw aggregation value to calculate call_rate (req/s)
-	processedMetricFamily := getCallRateProcessMetrics(rawMetricFamily, params.BaseQueryParameters)
+	processedMetricFamily := calcCallRate(rawMetricFamily, params.BaseQueryParameters)
 	// Trim results to original time range
 	return trimMetricPointsBefore(processedMetricFamily, timeRange.startTimeMillis), nil
 }
@@ -205,9 +205,9 @@ func (r MetricsReader) buildQuery(params metricstore.BaseQueryParameters, timeRa
 	return *boolQuery
 }
 
-// processMovingFunction applies a given processing function over a moving window of metric points.
+// applySlidingWindow applies a given processing function over a moving window of metric points.
 // This is the core generic function that contains the shared logic.
-func processMovingFunction(mf *metrics.MetricFamily, lookback int, processor func(window []*metrics.MetricPoint) float64) *metrics.MetricFamily {
+func applySlidingWindow(mf *metrics.MetricFamily, lookback int, processor func(window []*metrics.MetricPoint) float64) *metrics.MetricFamily {
 	for _, metric := range mf.Metrics {
 		points := metric.MetricPoints
 		if len(points) == 0 {
@@ -250,8 +250,8 @@ func processMovingFunction(mf *metrics.MetricFamily, lookback int, processor fun
 	return mf
 }
 
-// getCallRateProcessMetrics now defines only the rate calculation logic and calls the generic processor.
-func getCallRateProcessMetrics(mf *metrics.MetricFamily, params metricstore.BaseQueryParameters) *metrics.MetricFamily {
+// calcCallRate defines the rate calculation logic and pass in applySlidingWindow.
+func calcCallRate(mf *metrics.MetricFamily, params metricstore.BaseQueryParameters) *metrics.MetricFamily {
 	lookback := int(math.Ceil(float64(params.RatePer.Milliseconds()) / float64(params.Step.Milliseconds())))
 	// Ensure lookback >= 1
 	lookback = int(math.Max(float64(lookback), 1))
@@ -273,7 +273,7 @@ func getCallRateProcessMetrics(mf *metrics.MetricFamily, params metricstore.Base
 		return math.Round(rate*100) / 100
 	}
 
-	return processMovingFunction(mf, lookback, rateCalculator)
+	return applySlidingWindow(mf, lookback, rateCalculator)
 }
 
 // getLatenciesProcessMetrics scales down and rounds the metric values
@@ -293,7 +293,7 @@ func getLatenciesProcessMetrics(mf *metrics.MetricFamily) *metrics.MetricFamily 
 		return math.Round(resultValue*100) / 100 // Round to 2 decimal places
 	}
 
-	return processMovingFunction(mf, lookback, valueProcessor)
+	return applySlidingWindow(mf, lookback, valueProcessor)
 }
 
 func getCallRateBucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem) []*Pair {
