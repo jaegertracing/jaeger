@@ -88,9 +88,9 @@ Here are the release managers for future versions with the tentative release dat
 
 | Version | Release Manager | Tentative release date |
 |---------|-----------------|------------------------|
-| 1.71.0  | @mahadzaryab1   | 2 July      2025       |
 | 1.72.0  | @jkowall        | 6 August    2025       |
 | 1.73.0  | @yurishkuro     | 5 September 2025       |
 | 1.74.0  | @albertteoh     | 1 October   2025       |
 | 1.75.0  | @pavolloffay    | 5 November  2025       |
 | 1.76.0  | @joe-elliott    | 3 December  2025       |
+| 1.77.0  | @mahadzaryab1   | 7 January   2025       |
