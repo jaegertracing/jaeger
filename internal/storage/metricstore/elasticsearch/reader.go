@@ -312,7 +312,7 @@ func (MetricsReader) buildTimeSeriesAggregation(params metricstore.BaseQueryPara
 	return dateHistAgg
 }
 
-// buildCallRateAggregations now calls the generic builder function.
+// buildCallRateAggregations build aggregation query for GetCallRate method
 func (r MetricsReader) buildCallRateAggregations(params metricstore.BaseQueryParameters, timeRange TimeRange) elastic.Aggregation {
 	cumulativeSumAgg := elastic.NewCumulativeSumAggregation().BucketsPath("_count")
 
