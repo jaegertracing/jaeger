@@ -1,0 +1,21 @@
+rule_files:
+  - prometheus_alerts_v2.yml
+
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'otelcol_http_server_duration_count{job="jaeger",instance="localhost:14269",http_status_code="500"}'
+        values: '0+1x15'
+      - series: 'otelcol_http_server_duration_count{job="jaeger",instance="localhost:14269"}'
+        values: '10+0x15'
+
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: OtelHttpServerErrors
+        exp_alerts:
+          - exp_labels:
+              severity: "warning"
+              job: "jaeger"
+              instance: "localhost:14269"
+            exp_annotations:
+              message: "jaeger localhost:14269 is experiencing high HTTP 5xx error rate.\n"
