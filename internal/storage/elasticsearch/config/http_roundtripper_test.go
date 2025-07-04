@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -119,17 +118,9 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 					},
 				}
 				if tc.scheme == "ApiKey" {
-					cfg.Authentication.APIKeyAuthentication = configoptional.Some(APIKeyAuthentication{
-						FilePath:         configoptional.Some(tc.filePath),
-						AllowFromContext: configoptional.Some(tc.allowFromContext),
-						ReloadInterval:   configoptional.Some(0 * time.Second),
-					})
+					cfg.Authentication.APIKeyAuthentication = newAPIKeyAuth(tc.allowFromContext, tc.filePath)
 				} else {
-					cfg.Authentication.BearerTokenAuthentication = configoptional.Some(BearerTokenAuthentication{
-						FilePath:         configoptional.Some(tc.filePath),
-						AllowFromContext: configoptional.Some(tc.allowFromContext),
-						ReloadInterval:   configoptional.Some(0 * time.Second),
-					})
+					cfg.Authentication.BearerTokenAuthentication = newBearerTokenAuth(tc.allowFromContext, tc.filePath)
 				}
 				logger := zap.NewNop()
 				rt, err := GetHTTPRoundTripper(context.Background(), cfg, logger)
@@ -196,28 +187,12 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				}
 				switch tc.authType {
 				case "Both":
-					cfg.Authentication.APIKeyAuthentication = configoptional.Some(APIKeyAuthentication{
-						FilePath:         configoptional.Some(tempFile),
-						AllowFromContext: configoptional.Some(true),
-						ReloadInterval:   configoptional.Some(0 * time.Second),
-					})
-					cfg.Authentication.BearerTokenAuthentication = configoptional.Some(BearerTokenAuthentication{
-						FilePath:         configoptional.Some(tempFile),
-						AllowFromContext: configoptional.Some(true),
-						ReloadInterval:   configoptional.Some(0 * time.Second),
-					})
+					cfg.Authentication.APIKeyAuthentication = newAPIKeyAuth(true, tempFile)
+					cfg.Authentication.BearerTokenAuthentication = newBearerTokenAuth(true, tempFile)
 				case "APIKey":
-					cfg.Authentication.APIKeyAuthentication = configoptional.Some(APIKeyAuthentication{
-						FilePath:         configoptional.Some(tempFile),
-						AllowFromContext: configoptional.Some(true),
-						ReloadInterval:   configoptional.Some(0 * time.Second),
-					})
+					cfg.Authentication.APIKeyAuthentication = newAPIKeyAuth(true, tempFile)
 				case "Bearer":
-					cfg.Authentication.BearerTokenAuthentication = configoptional.Some(BearerTokenAuthentication{
-						FilePath:         configoptional.Some(tempFile),
-						AllowFromContext: configoptional.Some(true),
-						ReloadInterval:   configoptional.Some(0 * time.Second),
-					})
+					cfg.Authentication.BearerTokenAuthentication = newBearerTokenAuth(true, tempFile)
 				}
 				rt, err := GetHTTPRoundTripper(context.Background(), cfg, logger)
 				require.NoError(t, err)

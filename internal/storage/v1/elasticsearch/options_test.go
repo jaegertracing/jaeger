@@ -23,16 +23,16 @@ func getBasicAuthField(opt configoptional.Optional[escfg.BasicAuthentication], f
 	}
 	switch field {
 	case "Username":
-		if v := ba.Username.Get(); v != nil {
-			return *v
+		if v := ba.Username; v != "" {
+			return v
 		}
 	case "Password":
-		if v := ba.Password.Get(); v != nil {
-			return *v
+		if v := ba.Password; v != "" {
+			return v
 		}
 	case "PasswordFilePath":
-		if v := ba.PasswordFilePath.Get(); v != nil {
-			return *v
+		if v := ba.PasswordFilePath; v != "" {
+			return v
 		}
 	}
 	return ""
@@ -72,8 +72,8 @@ func getBearerTokenField(opt configoptional.Optional[escfg.BearerTokenAuthentica
 		return ""
 	}
 	if field == "FilePath" {
-		if v := ba.FilePath.Get(); v != nil {
-			return *v
+		if v := ba.FilePath; v != "" {
+			return v
 		}
 	}
 	return ""

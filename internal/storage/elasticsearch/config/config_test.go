@@ -87,28 +87,34 @@ func int64Ptr(v int64) *int64 {
 // Helper function to create a BasicAuthentication with optional fields
 func newBasicAuth(username, password, passwordFilePath string) configoptional.Optional[BasicAuthentication] {
 	return configoptional.Some(BasicAuthentication{
-		Username:         configoptional.Some(username),
-		Password:         configoptional.Some(password),
-		PasswordFilePath: configoptional.Some(passwordFilePath),
+		Username:         username,
+		Password:         password,
+		PasswordFilePath: passwordFilePath,
 	})
 }
 
 // Helper function to create a BearerTokenAuthentication with optional fields
 func newBearerTokenAuth(allowFromContext bool, filePath string) configoptional.Optional[BearerTokenAuthentication] {
-	return configoptional.Some(BearerTokenAuthentication{
-		AllowFromContext: configoptional.Some(allowFromContext),
-		FilePath:         configoptional.Some(filePath),
-		ReloadInterval:   configoptional.Some(0 * time.Second),
-	})
+	auth := BearerTokenAuthentication{
+		AllowFromContext: allowFromContext,
+		FilePath:         filePath,
+	}
+	if !allowFromContext && filePath != "" {
+		auth.ReloadInterval = configoptional.Some(0 * time.Second)
+	}
+	return configoptional.Some(auth)
 }
 
 // Helper function to create an APIKeyAuthentication with optional fields
 func newAPIKeyAuth(allowFromContext bool, filePath string) configoptional.Optional[APIKeyAuthentication] {
-	return configoptional.Some(APIKeyAuthentication{
-		AllowFromContext: configoptional.Some(allowFromContext),
-		FilePath:         configoptional.Some(filePath),
-		ReloadInterval:   configoptional.Some(0 * time.Second),
-	})
+	auth := APIKeyAuthentication{
+		AllowFromContext: allowFromContext,
+		FilePath:         filePath,
+	}
+	if !allowFromContext && filePath != "" {
+		auth.ReloadInterval = configoptional.Some(0 * time.Second)
+	}
+	return configoptional.Some(auth)
 }
 
 func TestNewClient(t *testing.T) {
@@ -167,12 +173,12 @@ func TestNewClient(t *testing.T) {
 				Servers: []string{testServer.URL},
 				Authentication: Authentication{
 					BasicAuthentication: configoptional.Some(BasicAuthentication{
-						Username:         configoptional.Some("user"),
-						Password:         configoptional.Some("secret"),
-						PasswordFilePath: configoptional.Some(""),
+						Username:         "user",
+						Password:         "secret",
+						PasswordFilePath: "",
 					}),
 					BearerTokenAuthentication: configoptional.Some(BearerTokenAuthentication{
-						AllowFromContext: configoptional.Some(true),
+						AllowFromContext: true,
 					}),
 				},
 				LogLevel: "debug",
@@ -189,12 +195,12 @@ func TestNewClient(t *testing.T) {
 				Servers: []string{testServer.URL},
 				Authentication: Authentication{
 					BasicAuthentication: configoptional.Some(BasicAuthentication{
-						Username:         configoptional.Some("user"),
-						Password:         configoptional.Some("secret"),
-						PasswordFilePath: configoptional.Some(""),
+						Username:         "user",
+						Password:         "secret",
+						PasswordFilePath: "",
 					}),
 					BearerTokenAuthentication: configoptional.Some(BearerTokenAuthentication{
-						AllowFromContext: configoptional.Some(true),
+						AllowFromContext: true,
 					}),
 				},
 				LogLevel: "debug",
@@ -503,34 +509,38 @@ func compareConfigs(t *testing.T, got, want *Configuration) {
 	assert.Equal(t, want.SendGetBodyAs, got.SendGetBodyAs)
 
 	// Compare BasicAuthentication
+	gotHasBasic := got.Authentication.BasicAuthentication.HasValue()
+	wantHasBasic := want.Authentication.BasicAuthentication.HasValue()
+
+	// If both don't have values, we're done
+	if !wantHasBasic && !gotHasBasic {
+		return
+	}
+
+	// If one has a value but not the other, fail
+	if wantHasBasic != gotHasBasic {
+		t.Errorf("BasicAuthentication presence mismatch: want %v, got %v", wantHasBasic, gotHasBasic)
+		return
+	}
+
+	// Both have values, compare them
 	gotBasic := got.Authentication.BasicAuthentication.Get()
 	wantBasic := want.Authentication.BasicAuthentication.Get()
 
-	// If both are nil, we're done
-	if wantBasic == nil && gotBasic == nil {
-		return
-	}
-
-	// If one is nil but not the other, fail
-	if (wantBasic == nil) != (gotBasic == nil) {
-		t.Errorf("BasicAuthentication mismatch: want %v, got %v", wantBasic, gotBasic)
-		return
-	}
-
 	// Compare username if present
-	gotUsername := gotBasic.Username.Get()
-	wantUsername := wantBasic.Username.Get()
-	if wantUsername != nil {
-		assert.Equal(t, *wantUsername, *gotUsername)
+	gotUsername := gotBasic.Username
+	wantUsername := wantBasic.Username
+	if wantUsername != "" {
+		assert.Equal(t, wantUsername, gotUsername)
 	} else {
 		assert.Nil(t, gotUsername)
 	}
 
 	// Compare password if present
-	gotPassword := gotBasic.Password.Get()
-	wantPassword := wantBasic.Password.Get()
-	if wantPassword != nil {
-		assert.Equal(t, *wantPassword, *gotPassword)
+	gotPassword := gotBasic.Password
+	wantPassword := wantBasic.Password
+	if wantPassword != "" {
+		assert.Equal(t, wantPassword, gotPassword)
 	} else {
 		assert.Nil(t, gotPassword)
 	}
@@ -1192,7 +1202,7 @@ func TestGetConfigOptions(t *testing.T) {
 				TLS:     configtls.ClientConfig{Insecure: true},
 				Authentication: Authentication{
 					BearerTokenAuthentication: configoptional.Some(BearerTokenAuthentication{
-						FilePath: configoptional.Some("/does/not/exist/token"),
+						FilePath: "/does/not/exist/token",
 					}),
 				},
 				LogLevel: "info",
@@ -1216,7 +1226,7 @@ func TestGetConfigOptions(t *testing.T) {
 				Servers: []string{"http://localhost:9200"},
 				Authentication: Authentication{
 					BasicAuthentication: configoptional.Some(BasicAuthentication{
-						PasswordFilePath: configoptional.Some("/does/not/exist"),
+						PasswordFilePath: "/does/not/exist",
 					}),
 				},
 			},
@@ -1230,8 +1240,8 @@ func TestGetConfigOptions(t *testing.T) {
 				Servers: []string{"http://localhost:9200"},
 				Authentication: Authentication{
 					BasicAuthentication: configoptional.Some(BasicAuthentication{
-						Password:         configoptional.Some("secret"),
-						PasswordFilePath: configoptional.Some("/some/file/path"),
+						Password:         "secret",
+						PasswordFilePath: "/some/file/path",
 					}),
 				},
 			},

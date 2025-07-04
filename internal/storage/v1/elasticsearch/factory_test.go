@@ -324,8 +324,8 @@ func testPasswordFromFile(t *testing.T) {
 		LogLevel: "debug",
 		Authentication: escfg.Authentication{
 			BasicAuthentication: configoptional.Some(escfg.BasicAuthentication{
-				Username:         configoptional.Some("user"),
-				PasswordFilePath: configoptional.Some(pwdFile),
+				Username:         "user",
+				PasswordFilePath: pwdFile,
 			}),
 		},
 		BulkProcessing: escfg.BulkProcessing{
@@ -401,7 +401,7 @@ func TestPasswordFromFileErrors(t *testing.T) {
 		LogLevel: "debug",
 		Authentication: escfg.Authentication{
 			BasicAuthentication: configoptional.Some(escfg.BasicAuthentication{
-				PasswordFilePath: configoptional.Some(pwdFile),
+				PasswordFilePath: pwdFile,
 			}),
 		},
 	}

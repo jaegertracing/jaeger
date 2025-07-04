@@ -137,69 +137,56 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 }
 
 func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
-	// Basic Authentication Username
-	username := ""
-	basicAuth := nsConfig.Authentication.BasicAuthentication.Get()
-	if basicAuth != nil {
-		if val := basicAuth.Username.Get(); val != nil {
-			username = *val
-		}
+	// authentication fields
+	var (
+		username     string
+		password     string
+		passwordPath string
+		tokenPath    string
+		apiKeyPath   string
+	)
+
+	if nsConfig.Authentication.BasicAuthentication.HasValue() {
+		basicAuth := nsConfig.Authentication.BasicAuthentication.Get()
+		username = basicAuth.Username
+		password = basicAuth.Password
+		passwordPath = basicAuth.PasswordFilePath
 	}
+
+	if nsConfig.Authentication.BearerTokenAuthentication.HasValue() {
+		bearerAuth := nsConfig.Authentication.BearerTokenAuthentication.Get()
+		tokenPath = bearerAuth.FilePath
+	}
+
+	if nsConfig.Authentication.APIKeyAuthentication.HasValue() {
+		apiKeyAuth := nsConfig.Authentication.APIKeyAuthentication.Get()
+		apiKeyPath = apiKeyAuth.FilePath
+	}
+
 	flagSet.String(
 		nsConfig.namespace+suffixUsername,
 		username,
 		"The username required by Elasticsearch. The basic authentication also loads CA if it is specified.")
 
-	// Basic Authentication Password
-	password := ""
-	if basicAuth != nil {
-		if val := basicAuth.Password.Get(); val != nil {
-			password = *val
-		}
-	}
 	flagSet.String(
 		nsConfig.namespace+suffixPassword,
 		password,
 		"The password required by Elasticsearch")
 
-	// Bearer Token FilePath
-	bearerTokenAuth := nsConfig.Authentication.BearerTokenAuthentication.Get()
-	bearerTokenFilePath := ""
-	if bearerTokenAuth != nil {
-		if val := bearerTokenAuth.FilePath.Get(); val != nil {
-			bearerTokenFilePath = *val
-		}
-	}
 	flagSet.String(
 		nsConfig.namespace+suffixTokenPath,
-		bearerTokenFilePath,
+		tokenPath,
 		"Path to a file containing bearer token. This flag also loads CA if it is specified.")
 
-	// Basic Authentication PasswordFilePath
-	passwordFilePath := ""
-	if basicAuth != nil {
-		if val := basicAuth.PasswordFilePath.Get(); val != nil {
-			passwordFilePath = *val
-		}
-	}
 	flagSet.String(
 		nsConfig.namespace+suffixPasswordPath,
-		passwordFilePath,
+		passwordPath,
 		"Path to a file containing password. This file is watched for changes.")
 
-	// API Key FilePath
-	apiKeyAuth := nsConfig.Authentication.APIKeyAuthentication.Get()
-	apiKeyFilePath := ""
-	if apiKeyAuth != nil {
-		if val := apiKeyAuth.FilePath.Get(); val != nil {
-			apiKeyFilePath = *val
-		}
-	}
 	flagSet.String(
 		nsConfig.namespace+suffixAPIKeyFile,
-		apiKeyFilePath,
+		apiKeyPath,
 		"Path to a file containing API key. This file is watched for changes.")
-
 	flagSet.Bool(
 		nsConfig.namespace+suffixSniffer,
 		nsConfig.Sniffing.Enabled,
@@ -367,18 +354,19 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 
 func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Authentication.BasicAuthentication = configoptional.Some(config.BasicAuthentication{
-		Username:         configoptional.Some(v.GetString(cfg.namespace + suffixUsername)),
-		Password:         configoptional.Some(v.GetString(cfg.namespace + suffixPassword)),
-		PasswordFilePath: configoptional.Some(v.GetString(cfg.namespace + suffixPasswordPath)),
+		Username:         v.GetString(cfg.namespace + suffixUsername),
+		Password:         v.GetString(cfg.namespace + suffixPassword),
+		PasswordFilePath: v.GetString(cfg.namespace + suffixPasswordPath),
 	})
 
 	cfg.Authentication.BearerTokenAuthentication = configoptional.Some(config.BearerTokenAuthentication{
-		FilePath: configoptional.Some(v.GetString(cfg.namespace + suffixTokenPath)),
+		FilePath: v.GetString(cfg.namespace + suffixTokenPath),
 	})
 
 	cfg.Authentication.APIKeyAuthentication = configoptional.Some(config.APIKeyAuthentication{
-		FilePath: configoptional.Some(v.GetString(cfg.namespace + suffixAPIKeyFile)),
+		FilePath: v.GetString(cfg.namespace + suffixAPIKeyFile),
 	})
+
 	cfg.Sniffing.Enabled = v.GetBool(cfg.namespace + suffixSniffer)
 	cfg.Sniffing.UseHTTPS = v.GetBool(cfg.namespace + suffixSnifferTLSEnabled)
 	cfg.DisableHealthCheck = v.GetBool(cfg.namespace + suffixDisableHealthCheck)
@@ -431,7 +419,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 
 	// TODO: Need to figure out a better way for do this.
 	if bearerAuth := cfg.Authentication.BearerTokenAuthentication.Get(); bearerAuth != nil {
-		bearerAuth.AllowFromContext = configoptional.Some(v.GetBool(bearertoken.StoragePropagationKey))
+		bearerAuth.AllowFromContext = v.GetBool(bearertoken.StoragePropagationKey)
 		cfg.Authentication.BearerTokenAuthentication = configoptional.Some(*bearerAuth)
 	}
 

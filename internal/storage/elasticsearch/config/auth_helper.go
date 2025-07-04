@@ -32,16 +32,16 @@ func initAuthVars(
 	}
 
 	// Strict priority: API Key first
-	if apiKeyAuth != nil && (apiKeyAuth.FilePath.Get() != nil && *apiKeyAuth.FilePath.Get() != "" || apiKeyAuth.AllowFromContext.Get() != nil && *apiKeyAuth.AllowFromContext.Get()) {
-		if apiKeyAuth.FilePath.Get() != nil && *apiKeyAuth.FilePath.Get() != "" && apiKeyAuth.AllowFromContext.Get() != nil && *apiKeyAuth.AllowFromContext.Get() {
+	if apiKeyAuth != nil && (apiKeyAuth.FilePath != "" || apiKeyAuth.AllowFromContext) {
+		if apiKeyAuth.FilePath != "" && apiKeyAuth.AllowFromContext {
 			logger.Warn("Both API key file and context propagation are enabled - context token will take precedence over file-based token")
 		}
-		if filePath := apiKeyAuth.FilePath.Get(); filePath != nil && *filePath != "" {
+		if apiKeyAuth.FilePath != "" {
 			reloadInterval := 10 * time.Second
-			if reload := apiKeyAuth.ReloadInterval.Get(); reload != nil {
-				reloadInterval = *reload
+			if apiKeyAuth.ReloadInterval.HasValue() {
+				reloadInterval = *apiKeyAuth.ReloadInterval.Get()
 			}
-			tokenFn, err := auth.TokenProvider(*filePath, reloadInterval, logger)
+			tokenFn, err := auth.TokenProvider(apiKeyAuth.FilePath, reloadInterval, logger)
 			if err != nil {
 				return AuthVars{}, err
 			}
@@ -49,11 +49,11 @@ func initAuthVars(
 				TokenFn: tokenFn,
 				Scheme:  "ApiKey",
 			}
-			if allow := apiKeyAuth.AllowFromContext.Get(); allow != nil && *allow {
+			if apiKeyAuth.AllowFromContext {
 				av.FromCtxFn = apikey.GetAPIKey
 			}
 			return av, nil
-		} else if allow := apiKeyAuth.AllowFromContext.Get(); allow != nil && *allow {
+		} else if apiKeyAuth.AllowFromContext {
 			av := AuthVars{
 				TokenFn:   func() string { return "" },
 				Scheme:    "ApiKey",
@@ -63,16 +63,16 @@ func initAuthVars(
 		}
 	}
 	// Only check Bearer Token if API Key is not configured
-	if bearerAuth != nil && (bearerAuth.FilePath.Get() != nil && *bearerAuth.FilePath.Get() != "" || bearerAuth.AllowFromContext.Get() != nil && *bearerAuth.AllowFromContext.Get()) {
-		if bearerAuth.FilePath.Get() != nil && *bearerAuth.FilePath.Get() != "" && bearerAuth.AllowFromContext.Get() != nil && *bearerAuth.AllowFromContext.Get() {
+	if bearerAuth != nil && (bearerAuth.FilePath != "" || bearerAuth.AllowFromContext) {
+		if bearerAuth.FilePath != "" && bearerAuth.AllowFromContext {
 			logger.Warn("Both Bearer Token file and context propagation are enabled - context token will take precedence over file-based token")
 		}
-		if filePath := bearerAuth.FilePath.Get(); filePath != nil && *filePath != "" {
+		if bearerAuth.FilePath != "" {
 			reloadInterval := 10 * time.Second
-			if reload := bearerAuth.ReloadInterval.Get(); reload != nil {
-				reloadInterval = *reload
+			if bearerAuth.ReloadInterval.HasValue() {
+				reloadInterval = *bearerAuth.ReloadInterval.Get()
 			}
-			tokenFn, err := auth.TokenProvider(*filePath, reloadInterval, logger)
+			tokenFn, err := auth.TokenProvider(bearerAuth.FilePath, reloadInterval, logger)
 			if err != nil {
 				return AuthVars{}, err
 			}
@@ -80,11 +80,11 @@ func initAuthVars(
 				TokenFn: tokenFn,
 				Scheme:  "Bearer",
 			}
-			if allow := bearerAuth.AllowFromContext.Get(); allow != nil && *allow {
+			if bearerAuth.AllowFromContext {
 				av.FromCtxFn = bearertoken.GetBearerToken
 			}
 			return av, nil
-		} else if allow := bearerAuth.AllowFromContext.Get(); allow != nil && *allow {
+		} else if bearerAuth.AllowFromContext {
 			av := AuthVars{
 				TokenFn:   func() string { return "" },
 				Scheme:    "Bearer",
