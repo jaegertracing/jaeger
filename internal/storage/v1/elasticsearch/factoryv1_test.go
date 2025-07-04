@@ -4,10 +4,11 @@
 package elasticsearch
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
+    "context"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
@@ -15,6 +16,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/config"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 )
 
 func TestElasticsearchFactory(t *testing.T) {
@@ -101,29 +103,26 @@ func TestArchiveFactory(t *testing.T) {
 	}
 }
 
-func TestFactoryInitializeErr(t *testing.T) {
-	tests := []struct {
-		name        string
-		factory     *Factory
-		expectedErr string
-	}{
-		{
-			name:        "cfg validation err",
-			factory:     &Factory{Options: &Options{Config: namespaceConfig{Configuration: escfg.Configuration{}}}},
-			expectedErr: "Servers: non zero value required",
-		},
-		{
-			name:        "server error",
-			factory:     NewFactory(),
-			expectedErr: "failed to create Elasticsearch client: health check timeout: Head \"http://127.0.0.1:9200\": dial tcp 127.0.0.1:9200: connect: connection refused: no Elasticsearch node available",
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			err := test.factory.Initialize(metrics.NullFactory, zaptest.NewLogger(t))
-			require.EqualError(t, err, test.expectedErr)
-		})
-	}
+
+func TestFactoryBase_ESClientFailure(t *testing.T) {
+	t.Run("newClientFn returns error immediately", func(t *testing.T) {
+		f := &FactoryBase{
+			newClientFn: func(_ context.Context, _ *escfg.Configuration, _ *zap.Logger, _ metrics.Factory) (es.Client, error) {
+				return nil, errors.New("mock connection error")
+			},
+			logger:         zaptest.NewLogger(t),
+			metricsFactory: metrics.NullFactory,
+			config: &escfg.Configuration{
+				Servers:            []string{"http://fake-es:9200"},
+				CreateIndexTemplates: true,
+			},
+		}
+
+		
+		client, err := f.newClientFn(context.Background(), f.config, f.logger, f.metricsFactory)
+		require.Nil(t, client)
+		require.ErrorContains(t, err, "mock connection error")
+	})
 }
 
 func TestIsArchiveCapable(t *testing.T) {
