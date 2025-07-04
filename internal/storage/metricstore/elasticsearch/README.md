@@ -132,7 +132,7 @@ The filtering for `getLatencies` is identical to `getCallRate`, ensuring that on
 
 ### 2\. Aggregation Query Part
 
-The aggregation part for latencies involves grouping spans into time buckets and then calculating percentiles of the `duration` field within each bucket.
+The aggregation part for latencies involves grouping spans into time buckets and then calculating percentiles of the `duration` field within each bucket. This is the core calculation in our result.
 
 **ES Query Reference (as implemented in `buildLatenciesAggregations`):**
 
@@ -178,12 +178,7 @@ The `getLatenciesProcessMetrics` function takes the raw percentile values from E
 **Explanation:**
 
 * **Handling Missing Data**: Elasticsearch's percentiles aggregation returns `0.0` for time buckets with no documents. The code explicitly converts these `0.0` values to `math.NaN()` (Not a Number). This is crucial because `0.0` could be interpreted as a valid, albeit very fast, latency, whereas `NaN` correctly indicates an absence of data for that period.
-* **Sliding Window for Percentile Calculation**: The most significant part of the post-processing is the application of a **sliding window** to re-calculate the percentile. For each data point, the function considers a window of preceding valid (non-NaN) data points. It then:
-    1.  Collects all valid `duration` values within this window.
-    2.  Sorts these valid values.
-    3.  Calculates the percentile value from this sorted set.
-    4.  Scales the result by dividing by `1000.0` to convert the duration from microseconds (as typically stored in Jaeger) to milliseconds.
-
+* **Sliding Window for Smoothing Graph**: The post-processing part is the application of a **sliding window** to smoothen the rough graph got by `percentiles` ES aggregation.
 **Code Reference:**
 
 The post-processing logic resides in `getLatenciesProcessMetrics`.
