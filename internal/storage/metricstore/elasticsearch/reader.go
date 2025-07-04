@@ -288,11 +288,6 @@ func getLatenciesProcessMetrics(mf *metrics.MetricFamily) *metrics.MetricFamily 
 		}
 
 		v := window[len(window)-1].GetGaugeValue().GetDoubleValue()
-
-		if math.IsNaN(v) {
-			return math.NaN()
-		}
-
 		// Scale down the value (e.g., from microseconds to milliseconds)
 		resultValue := v / 1000.0
 		return math.Round(resultValue*100) / 100 // Round to 2 decimal places
@@ -339,14 +334,9 @@ func getLatenciesBucketsToPoints(buckets []*elastic.AggregationBucketHistogramIt
 			return nil
 		}
 
-		value := math.NaN()
-		if !math.IsNaN(aggMapValue) {
-			value = aggMapValue
-		}
-
 		points = append(points, &Pair{
 			TimeStamp: int64(bucket.Key),
-			Value:     value,
+			Value:     aggMapValue,
 		})
 	}
 	return points
