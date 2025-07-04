@@ -565,13 +565,13 @@ func TestGetLatenciesBucketsToPoints_ErrorCases(t *testing.T) {
 			},
 		},
 		{
-			name: "nil cumulative sum value",
+			name: "nil percentile value",
 			buckets: []*elastic.AggregationBucketHistogramItem{
 				{
 					Key:      1749894900000,
 					DocCount: 1,
 					Aggregations: map[string]json.RawMessage{
-						culmuAggName: json.RawMessage(`{"value": null}`),
+						percentilesAggName: json.RawMessage(`{"values": {"95.0": null}}`),
 					},
 				},
 			},
