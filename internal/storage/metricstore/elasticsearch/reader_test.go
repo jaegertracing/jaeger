@@ -233,6 +233,7 @@ func TestGetCallRates(t *testing.T) {
 		{1749895320, math.NaN()},
 		{1749895380, 0.75},
 		{1749895440, 0.9},
+		{1749895500, math.NaN()},
 	}
 	tests := []metricsTestCase{
 		{
@@ -560,6 +561,18 @@ func TestGetLatenciesBucketsToPoints_ErrorCases(t *testing.T) {
 					DocCount: 1,
 					Aggregations: map[string]json.RawMessage{
 						percentilesAggName: json.RawMessage(`{"values": {"90.0": 200.0}}`),
+					},
+				},
+			},
+		},
+		{
+			name: "nil cumulative sum value",
+			buckets: []*elastic.AggregationBucketHistogramItem{
+				{
+					Key:      1749894900000,
+					DocCount: 1,
+					Aggregations: map[string]json.RawMessage{
+						culmuAggName: json.RawMessage(`{"value": null}`),
 					},
 				},
 			},
