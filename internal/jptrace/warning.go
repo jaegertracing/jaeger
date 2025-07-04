@@ -21,13 +21,19 @@ func AddWarnings(span ptrace.Span, warnings ...string) {
 }
 
 func GetWarnings(span ptrace.Span) []string {
-	if w, ok := span.Attributes().Get(WarningsAttribute); ok {
-		warnings := []string{}
-		ws := w.Slice()
-		for i := 0; i < ws.Len(); i++ {
-			warnings = append(warnings, ws.At(i).Str())
+	if wa, ok := span.Attributes().Get(WarningsAttribute); ok {
+		switch wa.Type() {
+		case pcommon.ValueTypeSlice:
+			warnings := []string{}
+			ws := wa.Slice()
+			for i := 0; i < ws.Len(); i++ {
+				warnings = append(warnings, ws.At(i).Str())
+			}
+			return warnings
+		default:
+			// fallback for malformed data
+			return []string{wa.AsString()}
 		}
-		return warnings
 	}
 	return nil
 }

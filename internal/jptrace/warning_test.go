@@ -104,3 +104,10 @@ func TestGetWarnings(t *testing.T) {
 		})
 	}
 }
+
+func TestGetWarnings_EmptySpan(t *testing.T) {
+	span := ptrace.NewSpan()
+	span.Attributes().PutStr(WarningsAttribute, "warning-1")
+	actual := GetWarnings(span)
+	assert.Equal(t, []string{"warning-1"}, actual)
+}
