@@ -19,6 +19,7 @@ permissions:
 jobs:
   all-in-one:
     runs-on: ubuntu-latest
+    timeout-minutes: 30 # max + 3*std over the last 2600 runs
     strategy:
       fail-fast: false
       matrix:
