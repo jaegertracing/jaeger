@@ -62,9 +62,6 @@ type MetricsQueryParams struct {
 	metricDesc string
 	boolQuery  elastic.BoolQuery
 	aggQuery   elastic.Aggregation
-	// bucketsToPointsFunc is a function that turn raw ES Histogram Bucket result into
-	// array of Pair for easier post-processing (using processMetricsFunc)
-	bucketsToPointsFunc func(buckets []*elastic.AggregationBucketHistogramItem) []*Pair
 }
 
 // Pair represents a timestamp-value pair for metrics.
@@ -98,12 +95,19 @@ func (r MetricsReader) GetLatencies(ctx context.Context, params *metricstore.Lat
 		metricDesc:          fmt.Sprintf("%.2fth quantile latency, grouped by service", params.Quantile),
 		boolQuery:           r.buildQuery(params.BaseQueryParameters, timeRange),
 		aggQuery:            r.buildLatenciesAggregations(params, timeRange),
-		bucketsToPointsFunc: func(buckets []*elastic.AggregationBucketHistogramItem) []*Pair {
-			return getLatenciesBucketsToPoints(buckets, params.Quantile*100)
-		},
 	}
 
-	rawMetricFamily, err := r.executeSearch(ctx, metricsParams)
+	searchResult, err := r.executeSearch(ctx, metricsParams)
+	if err != nil {
+		return nil, err
+	}
+
+	bucketsToLatenciesFunc := func(buckets []*elastic.AggregationBucketHistogramItem) []*Pair {
+		return bucketsToLatencies(buckets, params.Quantile*100)
+	}
+
+	translator := NewTranslator(bucketsToLatenciesFunc)
+	rawMetricFamily, err := translator.ToDomainMetricsFamily(metricsParams, searchResult)
 	if err != nil {
 		return nil, err
 	}
@@ -124,16 +128,21 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 		metricName:          "service_call_rate",
 		metricDesc:          "calls/sec, grouped by service",
 		boolQuery:           r.buildQuery(params.BaseQueryParameters, timeRange),
-		aggQuery:            r.buildCallRateAggregations(params.BaseQueryParameters, timeRange),
-		bucketsToPointsFunc: getCallRateBucketsToPoints,
+		aggQuery:            r.buildCallRateAggQuery(params.BaseQueryParameters, timeRange),
 	}
 
-	rawMetricFamily, err := r.executeSearch(ctx, metricsParams)
+	searchResult, err := r.executeSearch(ctx, metricsParams)
+	if err != nil {
+		return nil, err
+	}
+	// Convert search results into raw metric family using translator
+	translator := NewTranslator(bucketsToCallRate)
+	rawMetricFamily, err := translator.ToDomainMetricsFamily(metricsParams, searchResult)
 	if err != nil {
 		return nil, err
 	}
 
-	// Process the raw aggregation value to calculate call_rate (req/s)
+	// Process and return results
 	processedMetricFamily := calcCallRate(rawMetricFamily, params.BaseQueryParameters)
 	// Trim results to original time range
 	return trimMetricPointsBefore(processedMetricFamily, timeRange.startTimeMillis), nil
@@ -294,8 +303,8 @@ func getLatenciesProcessMetrics(mf *metrics.MetricFamily) *metrics.MetricFamily 
 	return applySlidingWindow(mf, lookback, valueProcessor)
 }
 
-// getBucketsToPoints is a helper function for getting points value from ES AGG bucket
-func getBucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem, valueExtractor func(*elastic.AggregationBucketHistogramItem) (float64, bool)) []*Pair {
+// bucketsToPoints is a helper function for getting points value from ES AGG bucket
+func bucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem, valueExtractor func(*elastic.AggregationBucketHistogramItem) float64) []*Pair {
 	var points []*Pair
 
 	for _, bucket := range buckets {
@@ -305,11 +314,7 @@ func getBucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem, value
 			value = math.NaN()
 		} else {
 			// Else extract the value and return it
-			val, ok := valueExtractor(bucket)
-			if !ok {
-				return nil
-			}
-			value = val
+			value = valueExtractor(bucket)
 		}
 
 		points = append(points, &Pair{
@@ -320,34 +325,34 @@ func getBucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem, value
 	return points
 }
 
-func getCallRateBucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem) []*Pair {
-	valueExtractor := func(bucket *elastic.AggregationBucketHistogramItem) (float64, bool) {
+func bucketsToCallRate(buckets []*elastic.AggregationBucketHistogramItem) []*Pair {
+	valueExtractor := func(bucket *elastic.AggregationBucketHistogramItem) float64 {
 		aggMap, ok := bucket.Aggregations.CumulativeSum(culmuAggName)
 		if !ok || aggMap.Value == nil {
-			return 0, false
+			return math.NaN()
 		}
-		return *aggMap.Value, true
+		return *aggMap.Value
 	}
-	return getBucketsToPoints(buckets, valueExtractor)
+	return bucketsToPoints(buckets, valueExtractor)
 }
 
-func getLatenciesBucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem, percentileValue float64) []*Pair {
-	valueExtractor := func(bucket *elastic.AggregationBucketHistogramItem) (float64, bool) {
+func bucketsToLatencies(buckets []*elastic.AggregationBucketHistogramItem, percentileValue float64) []*Pair {
+	valueExtractor := func(bucket *elastic.AggregationBucketHistogramItem) float64 {
 		aggMap, ok := bucket.Aggregations.Percentiles(percentilesAggName)
 		if !ok {
-			return 0, false
+			return math.NaN()
 		}
 		percentileKey := fmt.Sprintf("%.1f", percentileValue)
 		aggMapValue, ok := aggMap.Values[percentileKey]
 		if !ok {
-			return 0, false
+			return math.NaN()
 		}
-		return aggMapValue, true
+		return aggMapValue
 	}
-	return getBucketsToPoints(buckets, valueExtractor)
+	return bucketsToPoints(buckets, valueExtractor)
 }
 
-func (MetricsReader) buildTimeSeriesAggregation(params metricstore.BaseQueryParameters, timeRange TimeRange, subAggName string, subAgg elastic.Aggregation) elastic.Aggregation {
+func (MetricsReader) buildTimeSeriesAggQuery(params metricstore.BaseQueryParameters, timeRange TimeRange, subAggName string, subAgg elastic.Aggregation) elastic.Aggregation {
 	fixedIntervalString := strconv.FormatInt(params.Step.Milliseconds(), 10) + "ms"
 
 	dateHistAgg := elastic.NewDateHistogramAggregation().
@@ -368,13 +373,6 @@ func (MetricsReader) buildTimeSeriesAggregation(params metricstore.BaseQueryPara
 	return dateHistAgg
 }
 
-// buildCallRateAggregations now calls the generic builder function.
-func (r MetricsReader) buildCallRateAggregations(params metricstore.BaseQueryParameters, timeRange TimeRange) elastic.Aggregation {
-	cumulativeSumAgg := elastic.NewCumulativeSumAggregation().BucketsPath("_count")
-
-	return r.buildTimeSeriesAggregation(params, timeRange, culmuAggName, cumulativeSumAgg)
-}
-
 // buildLatenciesAggregations now calls the generic builder function.
 func (r MetricsReader) buildLatenciesAggregations(params *metricstore.LatenciesQueryParameters, timeRange TimeRange) elastic.Aggregation {
 	percentileValue := params.Quantile * 100
@@ -382,16 +380,18 @@ func (r MetricsReader) buildLatenciesAggregations(params *metricstore.LatenciesQ
 		Field("duration").
 		Percentiles(percentileValue)
 
-	return r.buildTimeSeriesAggregation(params.BaseQueryParameters, timeRange, percentilesAggName, percentilesAgg)
+	return r.buildTimeSeriesAggQuery(params.BaseQueryParameters, timeRange, percentilesAggName, percentilesAgg)
+}
+
+// buildCallRateAggQuery build aggregation query for GetCallRate method
+func (r MetricsReader) buildCallRateAggQuery(params metricstore.BaseQueryParameters, timeRange TimeRange) elastic.Aggregation {
+	cumulativeSumAgg := elastic.NewCumulativeSumAggregation().BucketsPath("_count")
+
+	return r.buildTimeSeriesAggQuery(params, timeRange, culmuAggName, cumulativeSumAgg)
 }
 
 // executeSearch performs the Elasticsearch search.
-func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) (*metrics.MetricFamily, error) {
-	if p.GroupByOperation {
-		p.metricName = strings.Replace(p.metricName, "service", "service_operation", 1)
-		p.metricDesc += " & operation"
-	}
-
+func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) (*elastic.SearchResult, error) {
 	span := r.queryLogger.TraceQuery(ctx, p.metricName)
 	defer span.End()
 
@@ -409,8 +409,8 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) 
 
 	r.queryLogger.LogAndTraceResult(span, searchResult)
 
-	// Return raw result
-	return ToDomainMetricsFamily(p, searchResult)
+	// Return raw search result
+	return searchResult, nil
 }
 
 // normalizeSpanKinds normalizes a slice of span kinds.

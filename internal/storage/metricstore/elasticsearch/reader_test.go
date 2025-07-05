@@ -580,8 +580,8 @@ func TestGetLatenciesBucketsToPoints_ErrorCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := getLatenciesBucketsToPoints(tt.buckets, tt.percentileValue)
-			require.Nil(t, result)
+			result := bucketsToLatencies(tt.buckets, tt.percentileValue)
+			assert.True(t, math.IsNaN(result[0].Value))
 		})
 	}
 }
@@ -599,6 +599,33 @@ func TestGetMinStepDuration(t *testing.T) {
 	minStep, err := reader.GetMinStepDuration(context.Background(), &metricstore.MinStepDurationQueryParameters{})
 	require.NoError(t, err)
 	assert.Equal(t, time.Millisecond, minStep)
+}
+
+func TestGetCallRateBucketsToPoints_ErrorCases(t *testing.T) {
+	tests := []struct {
+		name    string
+		buckets []*elastic.AggregationBucketHistogramItem
+	}{
+		{
+			name: "nil cumulative sum value",
+			buckets: []*elastic.AggregationBucketHistogramItem{
+				{
+					Key:      1749894900000,
+					DocCount: 1,
+					Aggregations: map[string]json.RawMessage{
+						culmuAggName: json.RawMessage(`{"value": null}`),
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := bucketsToCallRate(tt.buckets)
+			assert.True(t, math.IsNaN(result[0].Value))
+		})
+	}
 }
 
 func sendResponse(t *testing.T, w http.ResponseWriter, responseFile string) {

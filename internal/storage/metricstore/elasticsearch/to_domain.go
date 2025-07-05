@@ -5,6 +5,7 @@ package elasticsearch
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/types"
@@ -13,11 +14,26 @@ import (
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 )
 
+type Translator struct {
+	bucketsToPointsFunc func(buckets []*elastic.AggregationBucketHistogramItem) []*Pair
+}
+
+func NewTranslator(bucketsToPointsFunc func(buckets []*elastic.AggregationBucketHistogramItem) []*Pair) Translator {
+	return Translator{
+		bucketsToPointsFunc: bucketsToPointsFunc,
+	}
+}
+
 // ToDomainMetricsFamily converts Elasticsearch aggregations to Jaeger's MetricFamily.
-func ToDomainMetricsFamily(m MetricsQueryParams, result *elastic.SearchResult) (*metrics.MetricFamily, error) {
-	domainMetrics, err := toDomainMetrics(m, result)
+func (t *Translator) ToDomainMetricsFamily(m MetricsQueryParams, result *elastic.SearchResult) (*metrics.MetricFamily, error) {
+	domainMetrics, err := t.toDomainMetrics(m, result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert aggregations to metrics: %w", err)
+	}
+
+	if m.GroupByOperation {
+		m.metricName = strings.Replace(m.metricName, "service", "service_operation", 1)
+		m.metricDesc += " & operation"
 	}
 
 	return &metrics.MetricFamily{
@@ -29,7 +45,7 @@ func ToDomainMetricsFamily(m MetricsQueryParams, result *elastic.SearchResult) (
 }
 
 // toDomainMetrics converts Elasticsearch aggregations to Jaeger metrics.
-func toDomainMetrics(m MetricsQueryParams, result *elastic.SearchResult) ([]*metrics.Metric, error) {
+func (t *Translator) toDomainMetrics(m MetricsQueryParams, result *elastic.SearchResult) ([]*metrics.Metric, error) {
 	labels := buildServiceLabels(m.ServiceNames)
 
 	if !m.GroupByOperation {
@@ -40,7 +56,7 @@ func toDomainMetrics(m MetricsQueryParams, result *elastic.SearchResult) ([]*met
 		return []*metrics.Metric{
 			{
 				Labels:       labels,
-				MetricPoints: toDomainMetricPoints(m.bucketsToPointsFunc(buckets)),
+				MetricPoints: toDomainMetricPoints(t.bucketsToPointsFunc(buckets)),
 			},
 		}, nil
 	}
@@ -53,7 +69,7 @@ func toDomainMetrics(m MetricsQueryParams, result *elastic.SearchResult) ([]*met
 
 	var metricsData []*metrics.Metric
 	for _, bucket := range agg.Buckets {
-		metric, err := processOperationBucket(m, bucket, labels)
+		metric, err := t.processOperationBucket(bucket, labels)
 		if err != nil {
 			return nil, fmt.Errorf("failed to process bucket: %w", err)
 		}
@@ -71,7 +87,7 @@ func buildServiceLabels(serviceNames []string) []*metrics.Label {
 	return labels
 }
 
-func processOperationBucket(m MetricsQueryParams, bucket *elastic.AggregationBucketKeyItem, baseLabels []*metrics.Label) (*metrics.Metric, error) {
+func (t *Translator) processOperationBucket(bucket *elastic.AggregationBucketKeyItem, baseLabels []*metrics.Label) (*metrics.Metric, error) {
 	key, ok := bucket.Key.(string)
 	if !ok {
 		return nil, fmt.Errorf("bucket key is not a string: %v", bucket.Key)
@@ -88,7 +104,7 @@ func processOperationBucket(m MetricsQueryParams, bucket *elastic.AggregationBuc
 
 	return &metrics.Metric{
 		Labels:       labels,
-		MetricPoints: toDomainMetricPoints(m.bucketsToPointsFunc(dateHistAgg.Buckets)),
+		MetricPoints: toDomainMetricPoints(t.bucketsToPointsFunc(dateHistAgg.Buckets)),
 	}, nil
 }
 
