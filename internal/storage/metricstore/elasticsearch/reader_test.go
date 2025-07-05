@@ -338,8 +338,8 @@ func TestGetCallRateBucketsToPoints_ErrorCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := getCallRateBucketsToPoints(tt.buckets)
-			require.Nil(t, result)
+			result := bucketsToCallRate(tt.buckets)
+			assert.True(t, math.IsNaN(result[0].Value))
 		})
 	}
 }

@@ -255,7 +255,7 @@ func calcCallRate(mf *metrics.MetricFamily, params metricstore.BaseQueryParamete
 }
 
 // bucketsToPoints is a helper function for getting points value from ES AGG bucket
-func bucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem, valueExtractor func(*elastic.AggregationBucketHistogramItem) (float64, bool)) []*Pair {
+func bucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem, valueExtractor func(*elastic.AggregationBucketHistogramItem) float64) []*Pair {
 	var points []*Pair
 
 	for _, bucket := range buckets {
@@ -265,11 +265,7 @@ func bucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem, valueExt
 			value = math.NaN()
 		} else {
 			// Else extract the value and return it
-			val, ok := valueExtractor(bucket)
-			if !ok {
-				return nil
-			}
-			value = val
+			value = valueExtractor(bucket)
 		}
 
 		points = append(points, &Pair{
@@ -281,12 +277,12 @@ func bucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem, valueExt
 }
 
 func bucketsToCallRate(buckets []*elastic.AggregationBucketHistogramItem) []*Pair {
-	valueExtractor := func(bucket *elastic.AggregationBucketHistogramItem) (float64, bool) {
+	valueExtractor := func(bucket *elastic.AggregationBucketHistogramItem) float64 {
 		aggMap, ok := bucket.Aggregations.CumulativeSum(culmuAggName)
 		if !ok || aggMap.Value == nil {
-			return 0, false
+			return math.NaN()
 		}
-		return *aggMap.Value, true
+		return *aggMap.Value
 	}
 	return bucketsToPoints(buckets, valueExtractor)
 }

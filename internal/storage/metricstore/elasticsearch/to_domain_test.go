@@ -18,7 +18,7 @@ import (
 )
 
 func TestCreateNewTranslator(t *testing.T) {
-	translator := NewTranslator(getCallRateBucketsToPoints)
+	translator := NewTranslator(bucketsToCallRate)
 	require.NotNil(t, translator)
 }
 
