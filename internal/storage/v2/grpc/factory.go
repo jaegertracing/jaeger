@@ -16,7 +16,7 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 	"google.golang.org/grpc"
 
-	"github.com/jaegertracing/jaeger/internal/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
