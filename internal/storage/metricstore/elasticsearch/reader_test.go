@@ -389,6 +389,14 @@ func TestGetLatencies(t *testing.T) {
 			responseFile: mockErrorResponse,
 			wantErr:      "failed executing metrics query",
 		},
+		{
+			name:         "convert error",
+			serviceNames: []string{"driver"},
+			spanKinds:    []string{"SPAN_KIND_SERVER"},
+			groupByOp:    true,
+			responseFile: "testdata/output_error_latencies.json",
+			wantErr:      "failed to convert aggregations to metrics",
+		},
 	}
 
 	for _, tc := range tests {
