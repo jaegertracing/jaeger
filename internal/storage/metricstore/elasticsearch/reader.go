@@ -98,7 +98,7 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 		metricName:          "service_call_rate",
 		metricDesc:          "calls/sec, grouped by service",
 		boolQuery:           r.buildQuery(params.BaseQueryParameters, timeRange),
-		aggQuery:            r.buildCallRateAggregations(params.BaseQueryParameters, timeRange),
+		aggQuery:            r.buildCallRateAggQuery(params.BaseQueryParameters, timeRange),
 	}
 
 	searchResult, err := r.executeSearch(ctx, metricsParams)
@@ -107,7 +107,7 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 	}
 
 	// Convert search results into raw metric family using translator
-	translator := NewTranslator(getCallRateBucketsToPoints)
+	translator := NewTranslator(bucketsToCallRate)
 	rawMetricFamily, err := translator.ToDomainMetricsFamily(metricsParams, searchResult)
 	if err != nil {
 		return nil, err
@@ -254,8 +254,8 @@ func calcCallRate(mf *metrics.MetricFamily, params metricstore.BaseQueryParamete
 	return applySlidingWindow(mf, lookback, rateCalculator)
 }
 
-// getBucketsToPoints is a helper function for getting points value from ES AGG bucket
-func getBucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem, valueExtractor func(*elastic.AggregationBucketHistogramItem) (float64, bool)) []*Pair {
+// bucketsToPoints is a helper function for getting points value from ES AGG bucket
+func bucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem, valueExtractor func(*elastic.AggregationBucketHistogramItem) (float64, bool)) []*Pair {
 	var points []*Pair
 
 	for _, bucket := range buckets {
@@ -280,7 +280,7 @@ func getBucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem, value
 	return points
 }
 
-func getCallRateBucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem) []*Pair {
+func bucketsToCallRate(buckets []*elastic.AggregationBucketHistogramItem) []*Pair {
 	valueExtractor := func(bucket *elastic.AggregationBucketHistogramItem) (float64, bool) {
 		aggMap, ok := bucket.Aggregations.CumulativeSum(culmuAggName)
 		if !ok || aggMap.Value == nil {
@@ -288,10 +288,10 @@ func getCallRateBucketsToPoints(buckets []*elastic.AggregationBucketHistogramIte
 		}
 		return *aggMap.Value, true
 	}
-	return getBucketsToPoints(buckets, valueExtractor)
+	return bucketsToPoints(buckets, valueExtractor)
 }
 
-func (MetricsReader) buildTimeSeriesAggregation(params metricstore.BaseQueryParameters, timeRange TimeRange, subAggName string, subAgg elastic.Aggregation) elastic.Aggregation {
+func (MetricsReader) buildTimeSeriesAggQuery(params metricstore.BaseQueryParameters, timeRange TimeRange, subAggName string, subAgg elastic.Aggregation) elastic.Aggregation {
 	fixedIntervalString := strconv.FormatInt(params.Step.Milliseconds(), 10) + "ms"
 
 	dateHistAgg := elastic.NewDateHistogramAggregation().
@@ -312,11 +312,11 @@ func (MetricsReader) buildTimeSeriesAggregation(params metricstore.BaseQueryPara
 	return dateHistAgg
 }
 
-// buildCallRateAggregations build aggregation query for GetCallRate method
-func (r MetricsReader) buildCallRateAggregations(params metricstore.BaseQueryParameters, timeRange TimeRange) elastic.Aggregation {
+// buildCallRateAggQuery build aggregation query for GetCallRate method
+func (r MetricsReader) buildCallRateAggQuery(params metricstore.BaseQueryParameters, timeRange TimeRange) elastic.Aggregation {
 	cumulativeSumAgg := elastic.NewCumulativeSumAggregation().BucketsPath("_count")
 
-	return r.buildTimeSeriesAggregation(params, timeRange, culmuAggName, cumulativeSumAgg)
+	return r.buildTimeSeriesAggQuery(params, timeRange, culmuAggName, cumulativeSumAgg)
 }
 
 // executeSearch performs the Elasticsearch search.
