@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -145,31 +146,26 @@ func assertMetricFamily(t *testing.T, got *metrics.MetricFamily, m metricsTestCa
 	}
 }
 
-func TestGetCallRates_ErrorCases(t *testing.T) {
+func Test_ErrorCases(t *testing.T) {
 	endTime := time.UnixMilli(0)
 	tests := []struct {
 		name    string
-		params  *metricstore.CallRateQueryParameters
+		params  metricstore.BaseQueryParameters
 		wantErr string
 	}{
 		{
 			name:    "nil base params",
-			params:  &metricstore.CallRateQueryParameters{},
 			wantErr: "invalid parameters",
 		},
 		{
-			name: "nil end time params",
-			params: &metricstore.CallRateQueryParameters{
-				BaseQueryParameters: metricstore.BaseQueryParameters{},
-			},
+			name:    "nil end time params",
+			params:  metricstore.BaseQueryParameters{},
 			wantErr: "invalid parameters",
 		},
 		{
 			name: "nil step params",
-			params: &metricstore.CallRateQueryParameters{
-				BaseQueryParameters: metricstore.BaseQueryParameters{
-					EndTime: &(endTime),
-				},
+			params: metricstore.BaseQueryParameters{
+				EndTime: &(endTime),
 			},
 			wantErr: "invalid parameters",
 		},
@@ -178,12 +174,16 @@ func TestGetCallRates_ErrorCases(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			reader, _ := setupMetricsReaderAndServer(t, "", mockEmptyResponse)
-			metricFamily, err := reader.GetCallRates(context.Background(), tc.params)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tc.wantErr)
-			require.Nil(t, metricFamily)
+			callRateMetricFamily, err := reader.GetCallRates(context.Background(), &metricstore.CallRateQueryParameters{BaseQueryParameters: tc.params})
+			helperAssertError(t, err, tc.wantErr, callRateMetricFamily)
 		})
 	}
+}
+
+func helperAssertError(t *testing.T, err error, wantErr string, result *metrics.MetricFamily) {
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), wantErr)
+	require.Nil(t, result)
 }
 
 func TestGetCallRates(t *testing.T) {
@@ -192,16 +192,17 @@ func TestGetCallRates(t *testing.T) {
 		Value        float64
 	}{
 		{1749894840, math.NaN()},
-		{1749894900, 0.0},
-		{1749894960, 0.0},
-		{1749895020, 0.0},
-		{1749895080, 0.0},
-		{1749895140, 0.0},
-		{1749895200, 0.0},
-		{1749895260, 0.0},
-		{1749895320, 0.0},
+		{1749894900, math.NaN()},
+		{1749894960, math.NaN()},
+		{1749895020, math.NaN()},
+		{1749895080, math.NaN()},
+		{1749895140, math.NaN()},
+		{1749895200, math.NaN()},
+		{1749895260, math.NaN()},
+		{1749895320, math.NaN()},
 		{1749895380, 0.75},
 		{1749895440, 0.9},
+		{1749895500, math.NaN()},
 	}
 	tests := []metricsTestCase{
 		{
@@ -314,6 +315,33 @@ func TestGetMinStepDuration(t *testing.T) {
 	minStep, err := reader.GetMinStepDuration(context.Background(), &metricstore.MinStepDurationQueryParameters{})
 	require.NoError(t, err)
 	assert.Equal(t, time.Millisecond, minStep)
+}
+
+func TestGetCallRateBucketsToPoints_ErrorCases(t *testing.T) {
+	tests := []struct {
+		name    string
+		buckets []*elastic.AggregationBucketHistogramItem
+	}{
+		{
+			name: "nil cumulative sum value",
+			buckets: []*elastic.AggregationBucketHistogramItem{
+				{
+					Key:      1749894900000,
+					DocCount: 1,
+					Aggregations: map[string]json.RawMessage{
+						culmuAggName: json.RawMessage(`{"value": null}`),
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := bucketsToCallRate(tt.buckets)
+			assert.True(t, math.IsNaN(result[0].Value))
+		})
+	}
 }
 
 func sendResponse(t *testing.T, w http.ResponseWriter, responseFile string) {
