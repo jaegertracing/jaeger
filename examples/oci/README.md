@@ -103,6 +103,23 @@ Then open in browser:
 * 📈 Prometheus: [http://localhost:9090](http://localhost:9090)
 * 🚕 HotROD: [http://localhost:8080](http://localhost:8080)
 
+## 7. Deploy Load Generator (Trace Generator Pod)
+
+Run the following commands to deploy the load generator that continuously sends trace traffic to the HotROD service:
+
+Create ConfigMap from the Python trace generator script
+```bash
+kubectl create configmap trace-script --from-file=generate_traces.py
+```
+Apply the Deployment YAML
+```bash
+kubectl apply -f trace-generator.yaml
+```
+(Optional) View Logs to Confirm Trace Generation
+```bash
+kubectl logs -f deployment/trace-generator
+```
+
 🔧 Remarks
 
 📌 The current configuration is set to run in the default namespace.
