@@ -94,7 +94,7 @@ func (r MetricsReader) GetLatencies(ctx context.Context, params *metricstore.Lat
 		metricName:          "service_latencies",
 		metricDesc:          fmt.Sprintf("%.2fth quantile latency, grouped by service", params.Quantile),
 		boolQuery:           r.buildQuery(params.BaseQueryParameters, timeRange),
-		aggQuery:            r.buildLatenciesAggregations(params, timeRange),
+		aggQuery:            r.buildLatenciesAggQuery(params, timeRange),
 	}
 
 	searchResult, err := r.executeSearch(ctx, metricsParams)
@@ -113,7 +113,7 @@ func (r MetricsReader) GetLatencies(ctx context.Context, params *metricstore.Lat
 	}
 
 	// Process the raw aggregation value to calculate latencies (ms)
-	return getLatenciesProcessMetrics(rawMetricFamily), nil
+	return processRawLatenciesMetrics(rawMetricFamily), nil
 }
 
 // GetCallRates retrieves call rate metrics
@@ -283,8 +283,8 @@ func calcCallRate(mf *metrics.MetricFamily, params metricstore.BaseQueryParamete
 	return applySlidingWindow(mf, lookback, rateCalculator)
 }
 
-// getLatenciesProcessMetrics scales down and rounds the metric values
-func getLatenciesProcessMetrics(mf *metrics.MetricFamily) *metrics.MetricFamily {
+// processRawLatenciesMetrics scales down and rounds the metric values
+func processRawLatenciesMetrics(mf *metrics.MetricFamily) *metrics.MetricFamily {
 	// Operates on only current value
 	lookback := 1
 
@@ -373,8 +373,8 @@ func (MetricsReader) buildTimeSeriesAggQuery(params metricstore.BaseQueryParamet
 	return dateHistAgg
 }
 
-// buildLatenciesAggregations now calls the generic builder function.
-func (r MetricsReader) buildLatenciesAggregations(params *metricstore.LatenciesQueryParameters, timeRange TimeRange) elastic.Aggregation {
+// buildLatenciesAggQuery build aggregation query for GetLatencies method
+func (r MetricsReader) buildLatenciesAggQuery(params *metricstore.LatenciesQueryParameters, timeRange TimeRange) elastic.Aggregation {
 	percentileValue := params.Quantile * 100
 	percentilesAgg := elastic.NewPercentilesAggregation().
 		Field("duration").
