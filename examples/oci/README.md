@@ -109,11 +109,11 @@ Run the following commands to deploy the load generator that continuously sends 
 
 Create ConfigMap from the Python trace generator script
 ```bash
-kubectl create configmap trace-script --from-file=generate_traces.py
+kubectl create configmap trace-script --from-file=./load-generator/generate_traces.py
 ```
 Apply the Deployment YAML
 ```bash
-kubectl apply -f trace-generator.yaml
+kubectl apply -f ./load-generator/load-generator.yaml
 ```
 (Optional) View Logs to Confirm Trace Generation
 ```bash
