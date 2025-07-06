@@ -16,6 +16,9 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
 
+// These constants define the specific names of aggregations used within Elasticsearch
+// queries. They are crucial for both constructing the query sent to Elasticsearch
+// and for correctly extracting the corresponding data from the Elasticsearch response.
 const (
 	aggName            = "results_buckets"
 	culmuAggName       = "cumulative_requests"

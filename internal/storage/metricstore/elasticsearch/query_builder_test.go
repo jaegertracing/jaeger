@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/olivere/elastic/v7"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	esmetrics "github.com/jaegertracing/jaeger/internal/metrics"
@@ -19,30 +19,26 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
 
-var (
-	commonTimeRange = TimeRange{
-		extendedStartTimeMillis: 1000,
-		endTimeMillis:           2000,
-	}
-
-	commonStep = time.Minute
-)
+var commonTimeRange = TimeRange{
+	extendedStartTimeMillis: 1000,
+	endTimeMillis:           2000,
+}
 
 // Test helper functions
 func setupTestQB() *QueryBuilder {
 	return NewQueryBuilder(nil, config.Configuration{Tags: config.TagsAsFields{DotReplacement: "_"}})
 }
 
-func testAggregationStructure(t *testing.T, agg elastic.Aggregation, expectedInterval string, validateSubAggs func(map[string]interface{})) {
+func testAggregationStructure(t *testing.T, agg elastic.Aggregation, expectedInterval string, validateSubAggs func(map[string]any)) {
 	src, err := agg.Source()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	aggMap, ok := src.(map[string]interface{})
-	assert.True(t, ok)
+	aggMap, ok := src.(map[string]any)
+	require.True(t, ok)
 
-	dateHist, ok := aggMap["date_histogram"].(map[string]interface{})
-	assert.True(t, ok)
-	assert.Equal(t, expectedInterval, dateHist["fixed_interval"])
+	dateHist, ok := aggMap["date_histogram"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, expectedInterval, dateHist["fixed_interval"])
 
 	if validateSubAggs != nil {
 		validateSubAggs(aggMap)
@@ -58,69 +54,72 @@ func TestBuildBoolQuery(t *testing.T) {
 	}
 
 	boolQuery := qb.BuildBoolQuery(params, commonTimeRange)
-	assert.NotNil(t, boolQuery)
+	require.NotNil(t, boolQuery)
 
 	src, err := boolQuery.Source()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	queryMap := src.(map[string]interface{})
-	boolClause := queryMap["bool"].(map[string]interface{})
-	filterClause := boolClause["filter"].([]interface{})
+	queryMap := src.(map[string]any)
+	boolClause := queryMap["bool"].(map[string]any)
+	filterClause := boolClause["filter"].([]any)
 
-	assert.Len(t, filterClause, 3) // services, span kinds, time range
+	require.Len(t, filterClause, 3) // services, span kinds, time range
 }
 
 func TestBuildLatenciesAggregation(t *testing.T) {
 	qb := setupTestQB()
+	step := time.Minute
 	params := &metricstore.LatenciesQueryParameters{
 		BaseQueryParameters: metricstore.BaseQueryParameters{
-			Step: &commonStep,
+			Step: &step,
 		},
 		Quantile: 0.95,
 	}
 
 	agg := qb.BuildLatenciesAggQuery(params, commonTimeRange)
-	assert.NotNil(t, agg)
+	require.NotNil(t, agg)
 
-	testAggregationStructure(t, agg, "60000ms", func(aggMap map[string]interface{}) {
-		_, ok := aggMap["aggregations"].(map[string]interface{})
-		assert.True(t, ok)
+	testAggregationStructure(t, agg, "60000ms", func(aggMap map[string]any) {
+		_, ok := aggMap["aggregations"].(map[string]any)
+		require.True(t, ok)
 	})
 }
 
 func TestBuildCallRateAggregation(t *testing.T) {
 	qb := setupTestQB()
+	step := time.Minute
 	params := metricstore.BaseQueryParameters{
-		Step: &commonStep,
+		Step: &step,
 	}
 
 	agg := qb.BuildCallRateAggQuery(params, commonTimeRange)
-	assert.NotNil(t, agg)
+	require.NotNil(t, agg)
 
-	testAggregationStructure(t, agg, "60000ms", func(aggMap map[string]interface{}) {
-		assert.NotNil(t, aggMap["aggregations"])
+	testAggregationStructure(t, agg, "60000ms", func(aggMap map[string]any) {
+		require.NotNil(t, aggMap["aggregations"])
 	})
 }
 
 func TestBuildTimeSeriesAggQuery(t *testing.T) {
 	qb := setupTestQB()
+	step := time.Minute
 	params := metricstore.BaseQueryParameters{
-		Step:             &commonStep,
+		Step:             &step,
 		GroupByOperation: false,
 	}
 	subAgg := elastic.NewCumulativeSumAggregation()
 
 	agg := qb.buildTimeSeriesAggQuery(params, commonTimeRange, "test_sub_agg", subAgg)
-	assert.NotNil(t, agg)
+	require.NotNil(t, agg)
 
-	testAggregationStructure(t, agg, "60000ms", func(aggMap map[string]interface{}) {
-		aggs := aggMap["aggregations"].(map[string]interface{})
-		assert.NotNil(t, aggs["test_sub_agg"])
+	testAggregationStructure(t, agg, "60000ms", func(aggMap map[string]any) {
+		aggs := aggMap["aggregations"].(map[string]any)
+		require.NotNil(t, aggs["test_sub_agg"])
 	})
 }
 
 func TestExecute(t *testing.T) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		sendResponse(t, w, mockEsValidResponse)
@@ -140,6 +139,6 @@ func TestExecute(t *testing.T) {
 
 	result, err := qb.Execute(context.Background(), *boolQuery, aggQuery)
 
-	assert.NoError(t, err)
-	assert.NotNil(t, result)
+	require.NoError(t, err)
+	require.NotNil(t, result)
 }
