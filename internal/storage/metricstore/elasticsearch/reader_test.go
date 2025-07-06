@@ -175,6 +175,12 @@ func assertMetricFamily(t *testing.T, got *metrics.MetricFamily, m metricsTestCa
 	}
 }
 
+func TestScaleToMillisAndRound_EmptyWindow(t *testing.T) {
+	var window []*metrics.MetricPoint
+	result := scaleToMillisAndRound(window)
+	assert.True(t, math.IsNaN(result))
+}
+
 func Test_ErrorCases(t *testing.T) {
 	endTime := time.UnixMilli(0)
 	tests := []struct {
