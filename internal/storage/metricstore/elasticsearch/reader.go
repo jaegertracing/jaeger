@@ -102,18 +102,19 @@ func (r MetricsReader) GetLatencies(ctx context.Context, params *metricstore.Lat
 		return nil, err
 	}
 
-	bucketsToLatenciesFunc := func(buckets []*elastic.AggregationBucketHistogramItem) []*Pair {
+	translator := NewTranslator(func(
+		buckets []*elastic.AggregationBucketHistogramItem,
+	) []*Pair {
 		return bucketsToLatencies(buckets, params.Quantile*100)
-	}
-
-	translator := NewTranslator(bucketsToLatenciesFunc)
+	})
 	rawMetricFamily, err := translator.ToDomainMetricsFamily(metricsParams, searchResult)
 	if err != nil {
 		return nil, err
 	}
 
 	// Process the raw aggregation value to calculate latencies (ms)
-	return processRawLatenciesMetrics(rawMetricFamily), nil
+	const lookback = 1 // only current value
+	return applySlidingWindow(rawMetricFamily, lookback, scaleToMillisAndRound), nil
 }
 
 // GetCallRates retrieves call rate metrics
@@ -283,24 +284,15 @@ func calcCallRate(mf *metrics.MetricFamily, params metricstore.BaseQueryParamete
 	return applySlidingWindow(mf, lookback, rateCalculator)
 }
 
-// processRawLatenciesMetrics scales down and rounds the metric values
-func processRawLatenciesMetrics(mf *metrics.MetricFamily) *metrics.MetricFamily {
-	// Operates on only current value
-	lookback := 1
-
-	// valueProcessor is a closure that implements scaling and rounding
-	valueProcessor := func(window []*metrics.MetricPoint) float64 {
-		if len(window) == 0 {
-			return math.NaN()
-		}
-
-		v := window[len(window)-1].GetGaugeValue().GetDoubleValue()
-		// Scale down the value (e.g., from microseconds to milliseconds)
-		resultValue := v / 1000.0
-		return math.Round(resultValue*100) / 100 // Round to 2 decimal places
+func scaleToMillisAndRound(window []*metrics.MetricPoint) float64 {
+	if len(window) == 0 {
+		return math.NaN()
 	}
 
-	return applySlidingWindow(mf, lookback, valueProcessor)
+	v := window[len(window)-1].GetGaugeValue().GetDoubleValue()
+	// Scale down the value (e.g., from microseconds to milliseconds)
+	resultValue := v / 1000.0
+	return math.Round(resultValue*100) / 100 // Round to 2 decimal places
 }
 
 // bucketsToPoints is a helper function for getting points value from ES AGG bucket
