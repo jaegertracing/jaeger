@@ -14,6 +14,9 @@ import (
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 )
 
+// Translator converts raw Elasticsearch aggregation results into Jaeger's metrics domain model
+// (metrics.MetricFamily). It uses a configurable function to extract values from buckets,
+// ensuring flexibility across different metric types (e.g., latencies, call rates).
 type Translator struct {
 	bucketsToPointsFunc func(buckets []*elastic.AggregationBucketHistogramItem) []*Pair
 }
