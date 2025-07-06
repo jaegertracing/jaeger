@@ -26,10 +26,11 @@ import (
 var ErrNotImplemented = errors.New("metrics querying is currently not implemented yet")
 
 const (
-	minStep         = time.Millisecond
-	aggName         = "results_buckets"
-	culmuAggName    = "cumulative_requests"
-	dateHistAggName = "date_histogram"
+	minStep            = time.Millisecond
+	aggName            = "results_buckets"
+	culmuAggName       = "cumulative_requests"
+	percentilesAggName = "percentiles_of_bucket"
+	dateHistAggName    = "date_histogram"
 )
 
 // MetricsReader is an Elasticsearch metrics reader.
@@ -82,8 +83,38 @@ func NewMetricsReader(client es.Client, cfg config.Configuration, logger *zap.Lo
 }
 
 // GetLatencies retrieves latency metrics
-func (MetricsReader) GetLatencies(_ context.Context, _ *metricstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
-	return nil, ErrNotImplemented
+func (r MetricsReader) GetLatencies(ctx context.Context, params *metricstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
+	timeRange, err := calculateTimeRange(&params.BaseQueryParameters)
+	if err != nil {
+		return nil, err
+	}
+
+	metricsParams := MetricsQueryParams{
+		BaseQueryParameters: params.BaseQueryParameters,
+		metricName:          "service_latencies",
+		metricDesc:          fmt.Sprintf("%.2fth quantile latency, grouped by service", params.Quantile),
+		boolQuery:           r.buildQuery(params.BaseQueryParameters, timeRange),
+		aggQuery:            r.buildLatenciesAggQuery(params, timeRange),
+	}
+
+	searchResult, err := r.executeSearch(ctx, metricsParams)
+	if err != nil {
+		return nil, err
+	}
+
+	translator := NewTranslator(func(
+		buckets []*elastic.AggregationBucketHistogramItem,
+	) []*Pair {
+		return bucketsToLatencies(buckets, params.Quantile*100)
+	})
+	rawMetricFamily, err := translator.ToDomainMetricsFamily(metricsParams, searchResult)
+	if err != nil {
+		return nil, err
+	}
+
+	// Process the raw aggregation value to calculate latencies (ms)
+	const lookback = 1 // only current value
+	return applySlidingWindow(rawMetricFamily, lookback, scaleToMillisAndRound), nil
 }
 
 // GetCallRates retrieves call rate metrics
@@ -105,7 +136,6 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 	if err != nil {
 		return nil, err
 	}
-
 	// Convert search results into raw metric family using translator
 	translator := NewTranslator(bucketsToCallRate)
 	rawMetricFamily, err := translator.ToDomainMetricsFamily(metricsParams, searchResult)
@@ -254,6 +284,17 @@ func calcCallRate(mf *metrics.MetricFamily, params metricstore.BaseQueryParamete
 	return applySlidingWindow(mf, lookback, rateCalculator)
 }
 
+func scaleToMillisAndRound(window []*metrics.MetricPoint) float64 {
+	if len(window) == 0 {
+		return math.NaN()
+	}
+
+	v := window[len(window)-1].GetGaugeValue().GetDoubleValue()
+	// Scale down the value (e.g., from microseconds to milliseconds)
+	resultValue := v / 1000.0
+	return math.Round(resultValue*100) / 100 // Round to 2 decimal places
+}
+
 // bucketsToPoints is a helper function for getting points value from ES AGG bucket
 func bucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem, valueExtractor func(*elastic.AggregationBucketHistogramItem) float64) []*Pair {
 	var points []*Pair
@@ -287,6 +328,22 @@ func bucketsToCallRate(buckets []*elastic.AggregationBucketHistogramItem) []*Pai
 	return bucketsToPoints(buckets, valueExtractor)
 }
 
+func bucketsToLatencies(buckets []*elastic.AggregationBucketHistogramItem, percentileValue float64) []*Pair {
+	valueExtractor := func(bucket *elastic.AggregationBucketHistogramItem) float64 {
+		aggMap, ok := bucket.Aggregations.Percentiles(percentilesAggName)
+		if !ok {
+			return math.NaN()
+		}
+		percentileKey := fmt.Sprintf("%.1f", percentileValue)
+		aggMapValue, ok := aggMap.Values[percentileKey]
+		if !ok {
+			return math.NaN()
+		}
+		return aggMapValue
+	}
+	return bucketsToPoints(buckets, valueExtractor)
+}
+
 func (MetricsReader) buildTimeSeriesAggQuery(params metricstore.BaseQueryParameters, timeRange TimeRange, subAggName string, subAgg elastic.Aggregation) elastic.Aggregation {
 	fixedIntervalString := strconv.FormatInt(params.Step.Milliseconds(), 10) + "ms"
 
@@ -306,6 +363,16 @@ func (MetricsReader) buildTimeSeriesAggQuery(params metricstore.BaseQueryParamet
 	}
 
 	return dateHistAgg
+}
+
+// buildLatenciesAggQuery build aggregation query for GetLatencies method
+func (r MetricsReader) buildLatenciesAggQuery(params *metricstore.LatenciesQueryParameters, timeRange TimeRange) elastic.Aggregation {
+	percentileValue := params.Quantile * 100
+	percentilesAgg := elastic.NewPercentilesAggregation().
+		Field("duration").
+		Percentiles(percentileValue)
+
+	return r.buildTimeSeriesAggQuery(params.BaseQueryParameters, timeRange, percentilesAggName, percentilesAgg)
 }
 
 // buildCallRateAggQuery build aggregation query for GetCallRate method

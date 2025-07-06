@@ -94,7 +94,7 @@ func (t *Translator) processOperationBucket(bucket *elastic.AggregationBucketKey
 	}
 
 	// Extract nested date_histogram buckets
-	dateHistAgg, found := bucket.Aggregations.DateHistogram("date_histogram")
+	dateHistAgg, found := bucket.Aggregations.DateHistogram(dateHistAggName)
 	if !found {
 		return nil, fmt.Errorf("date_histogram aggregation not found in bucket %q", key)
 	}
