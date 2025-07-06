@@ -41,8 +41,13 @@ func NewQueryBuilder(client es.Client, cfg config.Configuration) *QueryBuilder {
 	}
 }
 
+func (q *QueryBuilder) BuildErrorBoolQuery(params metricstore.BaseQueryParameters, timeRange TimeRange) elastic.BoolQuery {
+	errorQuery := elastic.NewTermsQuery("tag.error", true)
+	return q.BuildBoolQuery(params, timeRange, errorQuery)
+}
+
 // BuildBoolQuery constructs the base bool query for filtering metrics data.
-func (q *QueryBuilder) BuildBoolQuery(params metricstore.BaseQueryParameters, timeRange TimeRange) elastic.BoolQuery {
+func (q *QueryBuilder) BuildBoolQuery(params metricstore.BaseQueryParameters, timeRange TimeRange, termsQueries ...elastic.Query) elastic.BoolQuery {
 	boolQuery := elastic.NewBoolQuery()
 
 	serviceNameQuery := elastic.NewTermsQuery("process.serviceName", buildInterfaceSlice(params.ServiceNames)...)
@@ -51,6 +56,11 @@ func (q *QueryBuilder) BuildBoolQuery(params metricstore.BaseQueryParameters, ti
 	spanKindField := strings.ReplaceAll(model.SpanKindKey, ".", q.cfg.Tags.DotReplacement)
 	spanKindQuery := elastic.NewTermsQuery("tag."+spanKindField, buildInterfaceSlice(normalizeSpanKinds(params.SpanKinds))...)
 	boolQuery.Filter(spanKindQuery)
+
+	// Add additional terms queries if provided
+	for _, termQuery := range termsQueries {
+		boolQuery.Filter(termQuery)
+	}
 
 	rangeQuery := elastic.NewRangeQuery("startTimeMillis").
 		Gte(timeRange.extendedStartTimeMillis).

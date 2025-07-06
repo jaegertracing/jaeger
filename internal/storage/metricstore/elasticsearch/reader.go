@@ -139,8 +139,101 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 }
 
 // GetErrorRates retrieves error rate metrics
-func (MetricsReader) GetErrorRates(_ context.Context, _ *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
-	return nil, ErrNotImplemented
+func (r MetricsReader) GetErrorRates(ctx context.Context, params *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
+	timeRange, err := calculateTimeRange(&params.BaseQueryParameters)
+	if err != nil {
+		return nil, err
+	}
+
+	metricsParams := MetricsQueryParams{
+		BaseQueryParameters: params.BaseQueryParameters,
+		metricName:          "service_error_rate",
+		metricDesc:          "error rate, computed as a fraction of errors/sec over calls/sec, grouped by service",
+		boolQuery:           r.queryBuilder.BuildErrorBoolQuery(params.BaseQueryParameters, timeRange),
+		aggQuery:            r.queryBuilder.BuildCallRateAggQuery(params.BaseQueryParameters, timeRange), // Use the same aggQuery as GetCallRates
+	}
+
+	searchResult, err := r.executeSearch(ctx, metricsParams)
+	if err != nil {
+		return nil, err
+	}
+	// Convert search results into raw metric family using translator
+	translator := NewTranslator(bucketsToCallRate)
+	rawErrorsMetricFamily, err := translator.ToDomainMetricsFamily(metricsParams, searchResult)
+	if err != nil {
+		return nil, err
+	}
+
+	// Process and return results (using the same calculate method as GetCallRates)
+	errorsMetrics := calcCallRate(rawErrorsMetricFamily, params.BaseQueryParameters)
+
+	callRateMetrics, err := r.GetCallRates(ctx, &metricstore.CallRateQueryParameters{BaseQueryParameters: params.BaseQueryParameters})
+	if err != nil {
+		return nil, err
+	}
+
+	// Calculate error rates as errors/sec divided by calls/sec
+	errorRateMetrics := calculateErrorMetrics(errorsMetrics, callRateMetrics)
+
+	// Trim results to original time range
+	return trimMetricPointsBefore(errorRateMetrics, timeRange.startTimeMillis), nil
+}
+
+// calculateErrorMetrics computes error rates as a fraction of error rates over call rates. This method mutates errorsMetrics MetricFamily.
+func calculateErrorMetrics(callRateMetrics, errorRateMetrics *metrics.MetricFamily) *metrics.MetricFamily {
+	// Create a map of service names to call rate metrics for quick lookup
+	callRateMap := make(map[string]*metrics.Metric)
+	for _, callMetric := range callRateMetrics.Metrics {
+		if len(callMetric.Labels) > 0 {
+			serviceName := callMetric.Labels[0].Value
+			callRateMap[serviceName] = callMetric
+		}
+	}
+
+	// Iterate through error metrics and modify in place
+	for _, errorMetric := range errorRateMetrics.Metrics {
+		if len(errorMetric.Labels) == 0 {
+			continue
+		}
+
+		serviceName := errorMetric.Labels[0].Value
+		callMetric, exists := callRateMap[serviceName]
+		if !exists {
+			continue
+		}
+
+		// Pair up corresponding points
+		for i, errorPoint := range errorMetric.MetricPoints {
+			if i >= len(callMetric.MetricPoints) {
+				break
+			}
+
+			callPoint := callMetric.MetricPoints[i]
+			if errorPoint.Timestamp != callPoint.Timestamp {
+				continue
+			}
+
+			callValue := callPoint.GetGaugeValue().GetDoubleValue()
+			errorValue := errorPoint.GetGaugeValue().GetDoubleValue()
+
+			var resultValue float64
+			switch {
+			case math.IsNaN(callValue) || math.IsNaN(errorValue):
+				resultValue = math.NaN()
+			case callValue == 0:
+				resultValue = 0.0
+			default:
+				resultValue = errorValue / callValue
+				// Cap at 1.0 (100%) in case of calculation artifacts
+				resultValue = math.Max(resultValue, 1.0)
+			}
+
+			// Modify the error point in place
+			errorPoint.Value = toDomainMetricPointValue(resultValue)
+		}
+	}
+
+	return errorRateMetrics
 }
 
 // GetMinStepDuration returns the minimum step duration.
