@@ -8,15 +8,12 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/olivere/elastic/v7"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
@@ -25,21 +22,16 @@ import (
 
 var ErrNotImplemented = errors.New("metrics querying is currently not implemented yet")
 
-const (
-	minStep            = time.Millisecond
-	aggName            = "results_buckets"
-	culmuAggName       = "cumulative_requests"
-	percentilesAggName = "percentiles_of_bucket"
-	dateHistAggName    = "date_histogram"
-)
+const minStep = time.Millisecond
 
-// MetricsReader is an Elasticsearch metrics reader.
+// MetricsReader orchestrates metrics queries by:
+// 1. Calculating time ranges from query parameters.
+// 2. Delegating query construction and execution to Query.
+// 3. Using Translator to convert raw results to the domain model.
+// 4. Applying metric-specific processing to get desired metrics.
 type MetricsReader struct {
-	client      es.Client
-	cfg         config.Configuration
-	logger      *zap.Logger
-	tracer      trace.Tracer
-	queryLogger *QueryLogger
+	queryLogger  *QueryLogger
+	queryBuilder *QueryBuilder
 }
 
 // TimeRange represents a time range for metrics queries.
@@ -74,11 +66,8 @@ type Pair struct {
 func NewMetricsReader(client es.Client, cfg config.Configuration, logger *zap.Logger, tracer trace.TracerProvider) *MetricsReader {
 	tr := tracer.Tracer("elasticsearch-metricstore")
 	return &MetricsReader{
-		client:      client,
-		cfg:         cfg,
-		logger:      logger,
-		tracer:      tr,
-		queryLogger: NewQueryLogger(logger, tr),
+		queryLogger:  NewQueryLogger(logger, tr),
+		queryBuilder: NewQueryBuilder(client, cfg),
 	}
 }
 
@@ -93,8 +82,8 @@ func (r MetricsReader) GetLatencies(ctx context.Context, params *metricstore.Lat
 		BaseQueryParameters: params.BaseQueryParameters,
 		metricName:          "service_latencies",
 		metricDesc:          fmt.Sprintf("%.2fth quantile latency, grouped by service", params.Quantile),
-		boolQuery:           r.buildQuery(params.BaseQueryParameters, timeRange),
-		aggQuery:            r.buildLatenciesAggQuery(params, timeRange),
+		boolQuery:           r.queryBuilder.BuildBoolQuery(params.BaseQueryParameters, timeRange),
+		aggQuery:            r.queryBuilder.BuildLatenciesAggQuery(params, timeRange),
 	}
 
 	searchResult, err := r.executeSearch(ctx, metricsParams)
@@ -128,8 +117,8 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 		BaseQueryParameters: params.BaseQueryParameters,
 		metricName:          "service_call_rate",
 		metricDesc:          "calls/sec, grouped by service",
-		boolQuery:           r.buildQuery(params.BaseQueryParameters, timeRange),
-		aggQuery:            r.buildCallRateAggQuery(params.BaseQueryParameters, timeRange),
+		boolQuery:           r.queryBuilder.BuildBoolQuery(params.BaseQueryParameters, timeRange),
+		aggQuery:            r.queryBuilder.BuildCallRateAggQuery(params.BaseQueryParameters, timeRange),
 	}
 
 	searchResult, err := r.executeSearch(ctx, metricsParams)
@@ -176,43 +165,6 @@ func trimMetricPointsBefore(mf *metrics.MetricFamily, startMillis int64) *metric
 		metric.MetricPoints = points[cutoff:]
 	}
 	return mf
-}
-
-// buildQuery constructs the Elasticsearch bool query.
-func (r MetricsReader) buildQuery(params metricstore.BaseQueryParameters, timeRange TimeRange) elastic.BoolQuery {
-	boolQuery := elastic.NewBoolQuery()
-
-	serviceNameQuery := elastic.NewTermsQuery("process.serviceName", buildInterfaceSlice(params.ServiceNames)...)
-	boolQuery.Filter(serviceNameQuery)
-
-	// Span kind filter
-	spanKindField := strings.ReplaceAll(model.SpanKindKey, ".", r.cfg.Tags.DotReplacement)
-	spanKindQuery := elastic.NewTermsQuery("tag."+spanKindField, buildInterfaceSlice(normalizeSpanKinds(params.SpanKinds))...)
-	boolQuery.Filter(spanKindQuery)
-
-	rangeQuery := elastic.NewRangeQuery("startTimeMillis").
-		// Use extendedStartTimeMillis to allow for a 10-minute lookback.
-		Gte(timeRange.extendedStartTimeMillis).
-		Lte(timeRange.endTimeMillis).
-		Format("epoch_millis")
-	boolQuery.Filter(rangeQuery)
-
-	// Corresponding ES query:
-	// {
-	// "query": {
-	//	"bool": {
-	//		"filter": [
-	//			{"terms": {"process.serviceName": ["name1"] }},
-	//			{"terms": {"tag.span@kind": ["server"] }}, // Dot replacement: @
-	//			{
-	//			"range": {
-	//			"startTimeMillis": {
-	//				"gte": "now-'lookback'-5m",
-	//				"lte": "now",
-	//				"format": "epoch_millis"}}}]}
-	// },
-
-	return *boolQuery
 }
 
 // applySlidingWindow applies a given processing function over a moving window of metric points.
@@ -344,55 +296,12 @@ func bucketsToLatencies(buckets []*elastic.AggregationBucketHistogramItem, perce
 	return bucketsToPoints(buckets, valueExtractor)
 }
 
-func (MetricsReader) buildTimeSeriesAggQuery(params metricstore.BaseQueryParameters, timeRange TimeRange, subAggName string, subAgg elastic.Aggregation) elastic.Aggregation {
-	fixedIntervalString := strconv.FormatInt(params.Step.Milliseconds(), 10) + "ms"
-
-	dateHistAgg := elastic.NewDateHistogramAggregation().
-		Field("startTimeMillis").
-		FixedInterval(fixedIntervalString).
-		MinDocCount(0).
-		ExtendedBounds(timeRange.extendedStartTimeMillis, timeRange.endTimeMillis)
-
-	dateHistAgg = dateHistAgg.SubAggregation(subAggName, subAgg)
-
-	if params.GroupByOperation {
-		return elastic.NewTermsAggregation().
-			Field("operationName").
-			Size(10).
-			SubAggregation(dateHistAggName, dateHistAgg)
-	}
-
-	return dateHistAgg
-}
-
-// buildLatenciesAggQuery build aggregation query for GetLatencies method
-func (r MetricsReader) buildLatenciesAggQuery(params *metricstore.LatenciesQueryParameters, timeRange TimeRange) elastic.Aggregation {
-	percentileValue := params.Quantile * 100
-	percentilesAgg := elastic.NewPercentilesAggregation().
-		Field("duration").
-		Percentiles(percentileValue)
-
-	return r.buildTimeSeriesAggQuery(params.BaseQueryParameters, timeRange, percentilesAggName, percentilesAgg)
-}
-
-// buildCallRateAggQuery build aggregation query for GetCallRate method
-func (r MetricsReader) buildCallRateAggQuery(params metricstore.BaseQueryParameters, timeRange TimeRange) elastic.Aggregation {
-	cumulativeSumAgg := elastic.NewCumulativeSumAggregation().BucketsPath("_count")
-
-	return r.buildTimeSeriesAggQuery(params, timeRange, culmuAggName, cumulativeSumAgg)
-}
-
 // executeSearch performs the Elasticsearch search.
 func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) (*elastic.SearchResult, error) {
 	span := r.queryLogger.TraceQuery(ctx, p.metricName)
 	defer span.End()
 
-	indexName := r.cfg.Indices.IndexPrefix.Apply("jaeger-span-*")
-	searchResult, err := r.client.Search(indexName).
-		Query(&p.boolQuery).
-		Size(0). // Set Size to 0 to return only aggregation results, excluding individual search hits
-		Aggregation(aggName, p.aggQuery).
-		Do(ctx)
+	searchResult, err := r.queryBuilder.Execute(ctx, p.boolQuery, p.aggQuery)
 	if err != nil {
 		err = fmt.Errorf("failed executing metrics query: %w", err)
 		r.queryLogger.LogErrorToSpan(span, err)
@@ -403,24 +312,6 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) 
 
 	// Return raw search result
 	return searchResult, nil
-}
-
-// normalizeSpanKinds normalizes a slice of span kinds.
-func normalizeSpanKinds(spanKinds []string) []string {
-	normalized := make([]string, len(spanKinds))
-	for i, kind := range spanKinds {
-		normalized[i] = strings.ToLower(strings.TrimPrefix(kind, "SPAN_KIND_"))
-	}
-	return normalized
-}
-
-// buildInterfaceSlice converts []string to []interface{} for elastic terms query.
-func buildInterfaceSlice(s []string) []any {
-	ifaceSlice := make([]any, len(s))
-	for i, v := range s {
-		ifaceSlice[i] = v
-	}
-	return ifaceSlice
 }
 
 func calculateTimeRange(params *metricstore.BaseQueryParameters) (TimeRange, error) {
