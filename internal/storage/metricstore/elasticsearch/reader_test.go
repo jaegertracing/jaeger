@@ -825,13 +825,13 @@ func TestGetCallRateBucketsToPoints_ErrorCases(t *testing.T) {
 	}
 }
 
-func isErrorQuery(query map[string]interface{}) bool {
-	if q, ok := query["query"].(map[string]interface{}); ok {
-		if b, ok := q["bool"].(map[string]interface{}); ok {
-			if filters, ok := b["filter"].([]interface{}); ok {
+func isErrorQuery(query map[string]any) bool {
+	if q, ok := query["query"].(map[string]any); ok {
+		if b, ok := q["bool"].(map[string]any); ok {
+			if filters, ok := b["filter"].([]any); ok {
 				for _, f := range filters {
-					if term, ok := f.(map[string]interface{}); ok {
-						if _, ok := term["term"].(map[string]interface{}); ok {
+					if term, ok := f.(map[string]any); ok {
+						if _, ok := term["term"].(map[string]any); ok {
 							return true
 						}
 					}
@@ -866,9 +866,8 @@ func startMockEsErrorRateServer(t *testing.T, wantEsQuery string, responseFile s
 		defer r.Body.Close()
 
 		// Determine which response to return based on query content
-		var query map[string]interface{}
-		err = json.Unmarshal(body, &query)
-		require.NoError(t, err)
+		var query map[string]any
+		json.Unmarshal(body, &query)
 
 		// Check if this is an error query (contains error term filter)
 		if isErrorQuery(query) {

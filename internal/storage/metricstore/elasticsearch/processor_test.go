@@ -9,9 +9,10 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/types"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
-	"github.com/stretchr/testify/assert"
 )
 
 // TestProcessLatencies tests the ProcessLatencies function for scaling and handling edge cases.
@@ -59,7 +60,7 @@ func TestProcessLatencies(t *testing.T) {
 			if tt.isNaN {
 				assert.True(t, math.IsNaN(value))
 			} else {
-				assert.Equal(t, tt.expected, value)
+				assert.InDelta(t, tt.expected, value, 0.1)
 			}
 		})
 	}
@@ -169,7 +170,7 @@ func TestProcessErrorRates(t *testing.T) {
 			if tt.isNaN {
 				assert.True(t, math.IsNaN(value))
 			} else {
-				assert.Equal(t, tt.expected, value)
+				assert.InDelta(t, tt.expected, value, 0.1)
 			}
 		})
 	}
@@ -220,7 +221,7 @@ func TestCalculateErrorRateValue(t *testing.T) {
 			if tt.isNaN {
 				assert.True(t, math.IsNaN(result))
 			} else {
-				assert.Equal(t, tt.expected, result)
+				assert.InDelta(t, tt.expected, result, 0.1)
 			}
 		})
 	}

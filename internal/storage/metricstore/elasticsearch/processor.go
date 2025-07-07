@@ -1,9 +1,13 @@
+// Copyright (c) 2025 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package elasticsearch
 
 import (
+	"math"
+
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
-	"math"
 )
 
 // ProcessLatencies processes raw latency metrics by applying scaling and rounding.
