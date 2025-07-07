@@ -173,67 +173,72 @@ func (r MetricsReader) GetErrorRates(ctx context.Context, params *metricstore.Er
 	}
 
 	// Calculate error rates as errors/sec divided by calls/sec
-	errorRateMetrics := calculateErrorMetrics(errorsMetrics, callRateMetrics)
+	errorRateMetrics := calcErrorRates(trimMetricPointsBefore(errorsMetrics, timeRange.startTimeMillis), callRateMetrics)
 
 	// Trim results to original time range
-	return trimMetricPointsBefore(errorRateMetrics, timeRange.startTimeMillis), nil
+	return errorRateMetrics, nil
 }
 
-// calculateErrorMetrics computes error rates as a fraction of error rates over call rates. This method mutates errorsMetrics MetricFamily.
-func calculateErrorMetrics(callRateMetrics, errorRateMetrics *metrics.MetricFamily) *metrics.MetricFamily {
-	// Create a map of service names to call rate metrics for quick lookup
-	callRateMap := make(map[string]*metrics.Metric)
-	for _, callMetric := range callRateMetrics.Metrics {
-		if len(callMetric.Labels) > 0 {
-			serviceName := callMetric.Labels[0].Value
-			callRateMap[serviceName] = callMetric
-		}
+// calcErrorRates computes error rates by dividing error metrics by call metrics
+func calcErrorRates(errorMetrics, callMetrics *metrics.MetricFamily) *metrics.MetricFamily {
+	result := &metrics.MetricFamily{
+		Name:    errorMetrics.Name,
+		Type:    metrics.MetricType_GAUGE,
+		Help:    errorMetrics.Help,
+		Metrics: make([]*metrics.Metric, 0, len(errorMetrics.Metrics)),
 	}
 
-	// Iterate through error metrics and modify in place
-	for _, errorMetric := range errorRateMetrics.Metrics {
-		if len(errorMetric.Labels) == 0 {
-			continue
+	for i, errorMetric := range errorMetrics.Metrics {
+		if i >= len(callMetrics.Metrics) {
+			break
 		}
 
-		serviceName := errorMetric.Labels[0].Value
-		callMetric, exists := callRateMap[serviceName]
-		if !exists {
-			continue
-		}
+		callMetric := callMetrics.Metrics[i]
+		metricPoints := calculateErrorRatePoints(errorMetric.MetricPoints, callMetric.MetricPoints)
 
-		// Pair up corresponding points
-		for i, errorPoint := range errorMetric.MetricPoints {
-			if i >= len(callMetric.MetricPoints) {
-				break
-			}
-
-			callPoint := callMetric.MetricPoints[i]
-			if errorPoint.Timestamp != callPoint.Timestamp {
-				continue
-			}
-
-			callValue := callPoint.GetGaugeValue().GetDoubleValue()
-			errorValue := errorPoint.GetGaugeValue().GetDoubleValue()
-
-			var resultValue float64
-			switch {
-			case math.IsNaN(callValue) || math.IsNaN(errorValue):
-				resultValue = math.NaN()
-			case callValue == 0:
-				resultValue = 0.0
-			default:
-				resultValue = errorValue / callValue
-				// Cap at 1.0 (100%) in case of calculation artifacts
-				resultValue = math.Max(resultValue, 1.0)
-			}
-
-			// Modify the error point in place
-			errorPoint.Value = toDomainMetricPointValue(resultValue)
-		}
+		result.Metrics = append(result.Metrics, &metrics.Metric{
+			Labels:       errorMetric.Labels,
+			MetricPoints: metricPoints,
+		})
 	}
 
-	return errorRateMetrics
+	return result
+}
+
+// calculateErrorRatePoints computes error rates for corresponding metric points
+func calculateErrorRatePoints(errorPoints, callPoints []*metrics.MetricPoint) []*metrics.MetricPoint {
+	metricPoints := make([]*metrics.MetricPoint, 0, len(errorPoints))
+
+	for j, errorPoint := range errorPoints {
+		if j >= len(callPoints) {
+			break
+		}
+
+		callPoint := callPoints[j]
+		value := calculateErrorRateValue(errorPoint, callPoint)
+
+		metricPoints = append(metricPoints, &metrics.MetricPoint{
+			Timestamp: errorPoint.Timestamp,
+			Value:     toDomainMetricPointValue(value),
+		})
+	}
+
+	return metricPoints
+}
+
+// calculateErrorRateValue computes the error rate for a single point
+func calculateErrorRateValue(errorPoint, callPoint *metrics.MetricPoint) float64 {
+	errorValue := errorPoint.GetGaugeValue().GetDoubleValue()
+	callValue := callPoint.GetGaugeValue().GetDoubleValue()
+
+	if math.IsNaN(errorValue) && !math.IsNaN(callValue) {
+		return 0.0
+	}
+
+	if math.IsNaN(errorValue) || math.IsNaN(callValue) {
+		return math.NaN()
+	}
+	return errorValue / callValue
 }
 
 // GetMinStepDuration returns the minimum step duration.
