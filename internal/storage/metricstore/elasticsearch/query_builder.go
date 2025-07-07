@@ -42,7 +42,7 @@ func NewQueryBuilder(client es.Client, cfg config.Configuration) *QueryBuilder {
 }
 
 func (q *QueryBuilder) BuildErrorBoolQuery(params metricstore.BaseQueryParameters, timeRange TimeRange) elastic.BoolQuery {
-	errorQuery := elastic.NewTermsQuery("tag.error", true)
+	errorQuery := elastic.NewTermQuery("tag.error", true)
 	return q.BuildBoolQuery(params, timeRange, errorQuery)
 }
 

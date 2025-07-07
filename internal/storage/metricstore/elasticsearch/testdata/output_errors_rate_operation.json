@@ -1,0 +1,127 @@
+{
+  "took": 501,
+  "timed_out": false,
+  "_shards": {
+    "total": 5,
+    "successful": 5,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": 10000,
+    "max_score": null,
+    "hits": []
+  },
+  "aggregations": {
+    "results_buckets": {
+      "doc_count_error_upper_bound": 0,
+      "sum_other_doc_count": 0,
+      "buckets": [
+        {
+          "key": "/FindNearest",
+          "doc_count": 100,
+          "date_histogram": {
+            "buckets": [
+              {
+                "key_as_string": "1749894840000",
+                "key": 1749894840000,
+                "doc_count": 0,
+                "cumulative_requests": {
+                  "value": 0
+                }
+              },
+              {
+                "key_as_string": "1749894900000",
+                "key": 1749894900000,
+                "doc_count": 5,
+                "cumulative_requests": {
+                  "value": 5
+                }
+              },
+              {
+                "key_as_string": "1749894960000",
+                "key": 1749894960000,
+                "doc_count": 10,
+                "cumulative_requests": {
+                  "value": 15
+                }
+              },
+              {
+                "key_as_string": "1749895020000",
+                "key": 1749895020000,
+                "doc_count": 15,
+                "cumulative_requests": {
+                  "value": 30
+                }
+              },
+              {
+                "key_as_string": "1749895080000",
+                "key": 1749895080000,
+                "doc_count": 20,
+                "cumulative_requests": {
+                  "value": 50
+                }
+              },
+              {
+                "key_as_string": "1749895140000",
+                "key": 1749895140000,
+                "doc_count": 25,
+                "cumulative_requests": {
+                  "value": 75
+                }
+              },
+              {
+                "key_as_string": "1749895200000",
+                "key": 1749895200000,
+                "doc_count": 30,
+                "cumulative_requests": {
+                  "value": 105
+                }
+              },
+              {
+                "key_as_string": "1749895260000",
+                "key": 1749895260000,
+                "doc_count": 35,
+                "cumulative_requests": {
+                  "value": 140
+                }
+              },
+              {
+                "key_as_string": "1749895320000",
+                "key": 1749895320000,
+                "doc_count": 40,
+                "cumulative_requests": {
+                  "value": 180
+                }
+              },
+              {
+                "key_as_string": "1749895380000",
+                "key": 1749895380000,
+                "doc_count": 45,
+                "cumulative_requests": {
+                  "value": 225
+                }
+              },
+              {
+                "key_as_string": "1749895440000",
+                "key": 1749895440000,
+                "doc_count": 50,
+                "cumulative_requests": {
+                  "value": 415
+                }
+              },
+              {
+                "key_as_string": "1749895500000",
+                "key": 1749895500000,
+                "doc_count": 0,
+                "cumulative_requests": {
+                  "value": 415
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
