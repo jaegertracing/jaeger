@@ -252,6 +252,8 @@ func Test_ErrorCases(t *testing.T) {
 			helperAssertError(t, err, tc.wantErr, callRateMetricFamily)
 			latenciesMetricFamily, err := reader.GetLatencies(context.Background(), &metricstore.LatenciesQueryParameters{BaseQueryParameters: tc.params})
 			helperAssertError(t, err, tc.wantErr, latenciesMetricFamily)
+			errorMetricFamily, err := reader.GetErrorRates(context.Background(), &metricstore.ErrorRateQueryParameters{BaseQueryParameters: tc.params})
+			helperAssertError(t, err, tc.wantErr, errorMetricFamily)
 		})
 	}
 }
@@ -755,6 +757,17 @@ func TestGetErrorRates(t *testing.T) {
 				wantErr:      "failed executing metrics query",
 			},
 			callRateFile: mockErrorResponse,
+		},
+		{
+			metricsTestCase: metricsTestCase{
+				name:         "convert error",
+				serviceNames: []string{"driver"},
+				spanKinds:    []string{"SPAN_KIND_SERVER"},
+				groupByOp:    true,
+				responseFile: "testdata/output_error_latencies.json",
+				wantErr:      "failed to convert aggregations to metrics",
+			},
+			callRateFile: mockCallRateResponse,
 		},
 	}
 
