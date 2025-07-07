@@ -76,6 +76,10 @@ func calculateErrorRateValue(errorPoint, callPoint *metrics.MetricPoint) float64
 	errorValue := errorPoint.GetGaugeValue().GetDoubleValue()
 	callValue := callPoint.GetGaugeValue().GetDoubleValue()
 
+	if callValue == 0 {
+		return 0.0
+	}
+
 	if math.IsNaN(errorValue) && !math.IsNaN(callValue) {
 		return 0.0
 	}
@@ -86,23 +90,32 @@ func calculateErrorRateValue(errorPoint, callPoint *metrics.MetricPoint) float64
 	return errorValue / callValue
 }
 
-// calcCallRate defines the rate calculation logic and passes it to applySlidingWindow.
+// calcCallRate defines the rate calculation logic and pass in applySlidingWindow.
 func calcCallRate(mf *metrics.MetricFamily, params metricstore.BaseQueryParameters) *metrics.MetricFamily {
 	lookback := int(math.Ceil(float64(params.RatePer.Milliseconds()) / float64(params.Step.Milliseconds())))
+	// Ensure lookback >= 1
 	lookback = int(math.Max(float64(lookback), 1))
 
 	windowSizeSeconds := float64(lookback) * params.Step.Seconds()
 
+	// rateCalculator is a closure that captures 'lookback' and 'windowSizeSeconds'.
+	// It implements the specific logic for calculating the rate.
 	rateCalculator := func(window []*metrics.MetricPoint) float64 {
+		// If the window is not "full" (i.e., we don't have enough preceding points
+		// to calculate a rate over the full 'lookback' period), return NaN.
 		if len(window) < lookback {
 			return math.NaN()
 		}
 
 		firstValue := window[0].GetGaugeValue().GetDoubleValue()
+		// If the first value in the full window is NaN, treat it as 0 for the rate calculation.
+		// This implies that if data was missing at the start of the window, we assume no contribution from that missing period.
 		if math.IsNaN(firstValue) {
 			firstValue = 0
 		}
 		lastValue := window[len(window)-1].GetGaugeValue().GetDoubleValue()
+		// If the current point (the last value in the window) is NaN, the rate cannot be defined.
+		// Propagate NaN to indicate missing data for the result point.
 		if math.IsNaN(lastValue) {
 			return math.NaN()
 		}
@@ -118,6 +131,7 @@ func calcCallRate(mf *metrics.MetricFamily, params metricstore.BaseQueryParamete
 func trimMetricPointsBefore(mf *metrics.MetricFamily, startMillis int64) *metrics.MetricFamily {
 	for _, metric := range mf.Metrics {
 		points := metric.MetricPoints
+		// Find first index where point >= startMillis
 		cutoff := 0
 		for ; cutoff < len(points); cutoff++ {
 			point := points[cutoff]
@@ -126,6 +140,7 @@ func trimMetricPointsBefore(mf *metrics.MetricFamily, startMillis int64) *metric
 				break
 			}
 		}
+		// Slice the array starting from cutoff index
 		metric.MetricPoints = points[cutoff:]
 	}
 	return mf
@@ -159,13 +174,13 @@ func applySlidingWindow(mf *metrics.MetricFamily, lookback int, processor func(w
 	return mf
 }
 
-// scaleToMillisAndRound scales the metric value to milliseconds and rounds it.
 func scaleToMillisAndRound(window []*metrics.MetricPoint) float64 {
 	if len(window) == 0 {
 		return math.NaN()
 	}
 
 	v := window[len(window)-1].GetGaugeValue().GetDoubleValue()
+	// Scale down the value (e.g., from microseconds to milliseconds)
 	resultValue := v / 1000.0
-	return math.Round(resultValue*100) / 100
+	return math.Round(resultValue*100) / 100 // Round to 2 decimal places
 }
