@@ -98,7 +98,7 @@ func TestWithConfiguration(t *testing.T) {
 	t.Run("with invalid prometheus.query.duration-unit", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r == nil {
-				t.Errorf("Expected a panic due to invalid duration-unit")
+				t.Error("Expected a panic due to invalid duration-unit")
 			}
 		}()
 
@@ -131,7 +131,7 @@ func TestFailedTLSOptions(t *testing.T) {
 	}()
 
 	f.InitFromViper(v, logger)
-	t.Errorf("f.InitFromViper did not panic")
+	t.Error("f.InitFromViper did not panic")
 }
 
 func TestEmptyFactoryConfig(t *testing.T) {

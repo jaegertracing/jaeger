@@ -507,7 +507,7 @@ func spanCount(traces []*model.Trace) int {
 
 func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 	if s.DependencyReader == nil || s.DependencyWriter == nil {
-		t.Skipf("Skipping GetDependencies test because dependency reader or writer is nil")
+		t.Skip("Skipping GetDependencies test because dependency reader or writer is nil")
 		return
 	}
 
