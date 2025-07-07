@@ -1,0 +1,11 @@
+fullnameOverride: ""
+prometheus:
+  prometheusSpec:
+    enableAdminAPI: true
+    additionalScrapeConfigs: |
+      - job_name: aggregated-trace-metrics
+        static_configs:
+          - targets: ['jaeger-collector-prometheus.default.svc.cluster.local:8889']
+        scrape_interval:     15s
+
+

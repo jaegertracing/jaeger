@@ -1,43 +1,20 @@
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: prometheus
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: prometheus
-  template:
-    metadata:
-      labels:
-        app: prometheus
-    spec:
-      containers:
-        - name: prometheus
-          image: prom/prometheus:v2.52.0
-          args: ["--config.file=/etc/prometheus/prometheus.yml"]
-          ports:
-            - containerPort: 9090
-          volumeMounts:
-            - name: prometheus-config
-              mountPath: /etc/prometheus/prometheus.yml
-              subPath: prometheus.yml
-      volumes:
-        - name: prometheus-config
-          configMap:
-            name: prometheus-config
----
+# Services to expose ports 
+
 apiVersion: v1
 kind: Service
 metadata:
   name: prometheus
+  labels:
+    app.kubernetes.io/name: prometheus
 spec:
   selector:
-    app: prometheus
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/instance: prometheus-kube-prometheus-prometheus
   ports:
     - name: http
       port: 9090
       targetPort: 9090
+
 ---
 apiVersion: v1
 kind: Service
