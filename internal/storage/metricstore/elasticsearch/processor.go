@@ -10,21 +10,21 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
 
-// ProcessLatencies processes raw latency metrics by applying scaling and rounding.
-func ProcessLatencies(mf *metrics.MetricFamily) *metrics.MetricFamily {
+// ScaleAndRoundLatencies processes raw latency metrics by applying scaling and rounding.
+func ScaleAndRoundLatencies(mf *metrics.MetricFamily) *metrics.MetricFamily {
 	const lookback = 1 // only current value
 	return applySlidingWindow(mf, lookback, scaleToMillisAndRound)
 }
 
-// ProcessCallRates processes raw call rate metrics by calculating rates and trimming to time range.
-func ProcessCallRates(mf *metrics.MetricFamily, params metricstore.BaseQueryParameters, timeRange TimeRange) *metrics.MetricFamily {
+// CalculateCallRates processes raw call rate metrics by calculating rates and trimming to time range.
+func CalculateCallRates(mf *metrics.MetricFamily, params metricstore.BaseQueryParameters, timeRange TimeRange) *metrics.MetricFamily {
 	processed := calcCallRate(mf, params)
 	return trimMetricPointsBefore(processed, timeRange.startTimeMillis)
 }
 
-// ProcessErrorRates processes error rate metrics by computing error rates from errors and calls.
-func ProcessErrorRates(rawErrors, calls *metrics.MetricFamily, params metricstore.BaseQueryParameters, timeRange TimeRange) *metrics.MetricFamily {
-	processedErrors := ProcessCallRates(rawErrors, params, timeRange)
+// CalculateErrorRates processes error rate metrics by computing error rates from errors and calls.
+func CalculateErrorRates(rawErrors, calls *metrics.MetricFamily, params metricstore.BaseQueryParameters, timeRange TimeRange) *metrics.MetricFamily {
+	processedErrors := CalculateCallRates(rawErrors, params, timeRange)
 	return calcErrorRates(processedErrors, calls)
 }
 

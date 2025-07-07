@@ -100,7 +100,7 @@ func (r MetricsReader) GetLatencies(ctx context.Context, params *metricstore.Lat
 	}
 
 	// Process the raw aggregation value to calculate latencies (ms)
-	return ProcessLatencies(rawMetricFamily), nil
+	return ScaleAndRoundLatencies(rawMetricFamily), nil
 }
 
 // GetCallRates retrieves call rate metrics
@@ -129,7 +129,7 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 		return nil, err
 	}
 
-	return ProcessCallRates(rawMetricFamily, params.BaseQueryParameters, timeRange), nil
+	return CalculateCallRates(rawMetricFamily, params.BaseQueryParameters, timeRange), nil
 }
 
 // GetErrorRates retrieves error rate metrics
@@ -163,7 +163,7 @@ func (r MetricsReader) GetErrorRates(ctx context.Context, params *metricstore.Er
 		return nil, err
 	}
 
-	return ProcessErrorRates(rawErrorsMetrics, callRateMetrics, params.BaseQueryParameters, timeRange), nil
+	return CalculateErrorRates(rawErrorsMetrics, callRateMetrics, params.BaseQueryParameters, timeRange), nil
 }
 
 // GetMinStepDuration returns the minimum step duration.

@@ -51,7 +51,7 @@ func TestProcessLatencies(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := ProcessLatencies(tt.input)
+			result := ScaleAndRoundLatencies(tt.input)
 			if len(result.Metrics) == 0 || len(result.Metrics[0].MetricPoints) == 0 {
 				assert.True(t, tt.isNaN)
 				return
@@ -108,7 +108,7 @@ func TestProcessCallRates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := ProcessCallRates(tt.input, params, timeRange)
+			result := CalculateCallRates(tt.input, params, timeRange)
 			assert.Len(t, result.Metrics[0].MetricPoints, tt.expectedPoints)
 			assert.True(t, math.IsNaN(result.Metrics[0].MetricPoints[0].GetGaugeValue().GetDoubleValue()))
 		})
@@ -165,7 +165,7 @@ func TestProcessErrorRates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := ProcessErrorRates(tt.errorMetrics, tt.callMetrics, params, timeRange)
+			result := CalculateErrorRates(tt.errorMetrics, tt.callMetrics, params, timeRange)
 			value := result.Metrics[0].MetricPoints[0].GetGaugeValue().GetDoubleValue()
 			if tt.isNaN {
 				assert.True(t, math.IsNaN(value))
