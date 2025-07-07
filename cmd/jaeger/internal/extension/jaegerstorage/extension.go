@@ -16,9 +16,9 @@ import (
 	esmetrics "github.com/jaegertracing/jaeger/internal/storage/metricstore/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/badger"
 	es "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
@@ -167,7 +167,7 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 			memTelset.Metrics = scopedMetricsFactory(storageName, "memory", "tracestore")
 			factory, err = memory.NewFactory(*cfg.Memory, memTelset)
 		case cfg.Badger != nil:
-			v1Factory, err = badger.NewFactoryWithConfig(
+			factory, err = badger.NewFactory(
 				*cfg.Badger,
 				scopedMetricsFactory(storageName, "badger", "tracestore"),
 				s.telset.Logger)
