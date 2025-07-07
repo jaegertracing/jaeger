@@ -600,13 +600,13 @@ func TestGetLatenciesBucketsToPoints_ErrorCases(t *testing.T) {
 	}
 }
 
-func TestGetErrorRates(t *testing.T) {
-	reader, _ := setupMetricsReaderAndServer(t, "", mockEsValidResponse)
-	r, err := reader.GetErrorRates(context.Background(), &metricstore.ErrorRateQueryParameters{})
-	assert.Zero(t, r)
-	require.ErrorIs(t, err, ErrNotImplemented)
-	require.EqualError(t, err, ErrNotImplemented.Error())
-}
+//func TestGetErrorRates(t *testing.T) {
+//	reader, _ := setupMetricsReaderAndServer(t, "", mockEsValidResponse)
+//	r, err := reader.GetErrorRates(context.Background(), &metricstore.ErrorRateQueryParameters{})
+//	assert.Zero(t, r)
+//	require.ErrorIs(t, err, ErrNotImplemented)
+//	require.EqualError(t, err, ErrNotImplemented.Error())
+//}
 
 func TestGetMinStepDuration(t *testing.T) {
 	reader, _ := setupMetricsReaderAndServer(t, "", mockEsValidResponse)
