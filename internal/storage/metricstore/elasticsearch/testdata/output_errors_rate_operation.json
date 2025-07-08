@@ -120,6 +120,25 @@
               }
             ]
           }
+        },
+        {
+          "key": "/FindDriverIDs",
+          "doc_count": 200,
+          "date_histogram": {
+            "buckets": [
+              {"key": 1749894840000, "doc_count": 0, "cumulative_requests": {"value": 0}},
+              {"key": 1749894900000, "doc_count": 8, "cumulative_requests": {"value": 8}},
+              {"key": 1749894960000, "doc_count": 16, "cumulative_requests": {"value": 24}},
+              {"key": 1749895020000, "doc_count": 24, "cumulative_requests": {"value": 48}},
+              {"key": 1749895080000, "doc_count": 32, "cumulative_requests": {"value": 80}},
+              {"key": 1749895140000, "doc_count": 40, "cumulative_requests": {"value": 120}},
+              {"key": 1749895200000, "doc_count": 48, "cumulative_requests": {"value": 168}},
+              {"key": 1749895260000, "doc_count": 56, "cumulative_requests": {"value": 224}},
+              {"key": 1749895320000, "doc_count": 64, "cumulative_requests": {"value": 288}},
+              {"key": 1749895380000, "doc_count": 72, "cumulative_requests": {"value": 360}},
+              {"key": 1749895440000, "doc_count": 80, "cumulative_requests": {"value": 440}}
+            ]
+          }
         }
       ]
     }

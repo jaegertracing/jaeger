@@ -18,6 +18,25 @@
       "sum_other_doc_count": 0,
       "buckets": [
         {
+          "key": "/FindDriverIDs",
+          "doc_count": 200,
+          "date_histogram": {
+            "buckets": [
+              {"key": 1749894840000, "doc_count": 0, "cumulative_requests": {"value": 0}},
+              {"key": 1749894900000, "doc_count": 10, "cumulative_requests": {"value": 10}},
+              {"key": 1749894960000, "doc_count": 20, "cumulative_requests": {"value": 30}},
+              {"key": 1749895020000, "doc_count": 30, "cumulative_requests": {"value": 60}},
+              {"key": 1749895080000, "doc_count": 40, "cumulative_requests": {"value": 100}},
+              {"key": 1749895140000, "doc_count": 50, "cumulative_requests": {"value": 150}},
+              {"key": 1749895200000, "doc_count": 60, "cumulative_requests": {"value": 210}},
+              {"key": 1749895260000, "doc_count": 70, "cumulative_requests": {"value": 280}},
+              {"key": 1749895320000, "doc_count": 80, "cumulative_requests": {"value": 360}},
+              {"key": 1749895380000, "doc_count": 90, "cumulative_requests": {"value": 450}},
+              {"key": 1749895440000, "doc_count": 100, "cumulative_requests": {"value": 550}}
+            ]
+          }
+        },
+        {
           "key": "/FindNearest",
           "doc_count": 100,
           "date_histogram": {

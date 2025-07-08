@@ -4,7 +4,11 @@
 package elasticsearch
 
 import (
+	"fmt"
 	"math"
+	"strings"
+
+	"github.com/gogo/protobuf/types"
 
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
@@ -37,14 +41,21 @@ func calcErrorRates(errorMetrics, callMetrics *metrics.MetricFamily) *metrics.Me
 		Metrics: make([]*metrics.Metric, 0, len(errorMetrics.Metrics)),
 	}
 
-	for i, errorMetric := range errorMetrics.Metrics {
-		if i >= len(callMetrics.Metrics) {
-			break
+	// Build a lookup map for call metrics by their labels.
+	callMetricsByLabels := make(map[string]*metrics.Metric)
+	for _, callMetric := range callMetrics.Metrics {
+		labelKey := getLabelKey(callMetric.Labels)
+		callMetricsByLabels[labelKey] = callMetric
+	}
+
+	for _, errorMetric := range errorMetrics.Metrics {
+		labelKey := getLabelKey(errorMetric.Labels)
+		callMetric, exists := callMetricsByLabels[labelKey]
+		if !exists {
+			continue // Skip if no matching call metric.
 		}
 
-		callMetric := callMetrics.Metrics[i]
 		metricPoints := calculateErrorRatePoints(errorMetric.MetricPoints, callMetric.MetricPoints)
-
 		result.Metrics = append(result.Metrics, &metrics.Metric{
 			Labels:       errorMetric.Labels,
 			MetricPoints: metricPoints,
@@ -58,14 +69,21 @@ func calcErrorRates(errorMetrics, callMetrics *metrics.MetricFamily) *metrics.Me
 func calculateErrorRatePoints(errorPoints, callPoints []*metrics.MetricPoint) []*metrics.MetricPoint {
 	metricPoints := make([]*metrics.MetricPoint, 0, len(errorPoints))
 
-	for j, errorPoint := range errorPoints {
-		if j >= len(callPoints) {
-			break
+	// Build a lookup map for call points by timestamp.
+	callPointsByTime := make(map[int64]*metrics.MetricPoint)
+	for _, callPoint := range callPoints {
+		key, _ := timestampToKey(callPoint.Timestamp)
+		callPointsByTime[key] = callPoint
+	}
+
+	for _, errorPoint := range errorPoints {
+		key, _ := timestampToKey(errorPoint.Timestamp)
+		callPoint, exists := callPointsByTime[key]
+		if !exists {
+			continue // Skip if no matching timestamp.
 		}
 
-		callPoint := callPoints[j]
 		value := calculateErrorRateValue(errorPoint, callPoint)
-
 		metricPoints = append(metricPoints, &metrics.MetricPoint{
 			Timestamp: errorPoint.Timestamp,
 			Value:     toDomainMetricPointValue(value),
@@ -73,6 +91,24 @@ func calculateErrorRatePoints(errorPoints, callPoints []*metrics.MetricPoint) []
 	}
 
 	return metricPoints
+}
+
+// Helper function to generate a unique key for labels.
+func getLabelKey(labels []*metrics.Label) string {
+	keys := make([]string, len(labels))
+	for i, label := range labels {
+		keys[i] = fmt.Sprintf("%s=%s", label.Name, label.Value)
+	}
+	return strings.Join(keys, ",")
+}
+
+// Function to convert types.Timestamp to int64 (Unix nanoseconds)
+func timestampToKey(ts *types.Timestamp) (int64, error) {
+	t, err := types.TimestampFromProto(ts)
+	if err != nil {
+		return 0, err
+	}
+	return t.UnixNano(), nil
 }
 
 // calculateErrorRateValue computes the error rate for a single point.
