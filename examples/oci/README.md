@@ -25,7 +25,7 @@ The following components are deployed as part of the Jaeger demo setup:
 To deploy the entire infrastructure with a single command, run:
 
 ```bash
-bash ./examples/oci/deploy-all.sh
+bash ./deploy-all.sh
 ```
 This script will automatically install and configure all components on your Kubernetes , To deal with individual components refer to deploy-all.sh script . 
 
