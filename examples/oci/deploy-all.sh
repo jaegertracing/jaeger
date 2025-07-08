@@ -28,7 +28,7 @@ fi
 
 # Deploy Jaeger (All-in-One with memory storage)
 echo "🟣 Step 1: Installing Jaeger..."
-helm install jaeger ./helm-charts/charts/jaeger \
+helm upgrade --install jaeger ./helm-charts/charts/jaeger \
   --set provisionDataStore.cassandra=false \
   --set allInOne.enabled=true \
   --set storage.type=memory \
@@ -37,7 +37,9 @@ helm install jaeger ./helm-charts/charts/jaeger \
 
 # Deploy Prometheus Monitoring Stack
 echo "🟢 Step 2: Deploying Prometheus Monitoring stack..."
-helm install prometheus -f monitoring-values.yaml prometheus-community/kube-prometheus-stack
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+helm upgrade --install prometheus -f monitoring-values.yaml prometheus-community/kube-prometheus-stack
 
 # Create ConfigMap for Trace Generator
 echo "🔵 Step 3: Creating ConfigMap for Trace Generator..."
