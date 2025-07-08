@@ -1,4 +1,4 @@
-# Services to expose ports 
+# Services to expose ports for Prometheus
 
 apiVersion: v1
 kind: Service
