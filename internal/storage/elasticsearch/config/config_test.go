@@ -410,7 +410,7 @@ func TestNewClient(t *testing.T) {
 					MaxBytes: -1, // disable bulk; we want immediate flush
 				},
 			},
-			expectedError: false, // No error at config time, error will occur at request time
+			expectedError: true, // No error at config time, error will occur at request time
 		},
 		{
 			name: "success with API key authentication from file with context override",
@@ -1107,6 +1107,107 @@ func TestTagKeysAsFields_WhitespaceLines(t *testing.T) {
 	assert.ElementsMatch(t, []string{"tag1", "tag2"}, tags)
 }
 
+func TestGetESOptions(t *testing.T) {
+	tests := []struct {
+		name               string
+		cfg                *Configuration
+		disableHealthCheck bool
+		wantErr            bool
+		validateOptions    func(t *testing.T, options []elastic.ClientOptionFunc)
+	}{
+		{
+			name: "Basic configuration",
+			cfg: &Configuration{
+				Servers: []string{"http://localhost:9200"},
+				Sniffing: Sniffing{
+					Enabled:  true,
+					UseHTTPS: false,
+				},
+				HTTPCompression: true,
+				SendGetBodyAs:   "POST",
+			},
+			disableHealthCheck: false,
+			wantErr:            false,
+			validateOptions: func(t *testing.T, options []elastic.ClientOptionFunc) {
+				require.NotNil(t, options)
+				require.NotEmpty(t, options, "Expected non-empty options slice")
+			},
+		},
+		{
+			name: "HTTPS configuration",
+			cfg: &Configuration{
+				Servers: []string{"https://localhost:9200"},
+				Sniffing: Sniffing{
+					Enabled:  false,
+					UseHTTPS: true,
+				},
+				HTTPCompression: false,
+				SendGetBodyAs:   "",
+			},
+			disableHealthCheck: true,
+			wantErr:            false,
+			validateOptions: func(t *testing.T, options []elastic.ClientOptionFunc) {
+				require.NotNil(t, options)
+				require.NotEmpty(t, options, "Expected non-empty options slice")
+			},
+		},
+		{
+			name: "Minimal configuration",
+			cfg: &Configuration{
+				Servers: []string{"http://localhost:9200"},
+				Sniffing: Sniffing{
+					Enabled:  false,
+					UseHTTPS: false,
+				},
+				HTTPCompression: false,
+				SendGetBodyAs:   "",
+			},
+			disableHealthCheck: false,
+			wantErr:            false,
+			validateOptions: func(t *testing.T, options []elastic.ClientOptionFunc) {
+				require.NotNil(t, options)
+				require.NotEmpty(t, options, "Expected non-empty options slice")
+			},
+		},
+		{
+			name: "Multiple servers",
+			cfg: &Configuration{
+				Servers: []string{
+					"http://localhost:9200",
+					"http://localhost:9201",
+					"http://localhost:9202",
+				},
+				Sniffing: Sniffing{
+					Enabled:  true,
+					UseHTTPS: false,
+				},
+				HTTPCompression: true,
+				SendGetBodyAs:   "GET",
+			},
+			disableHealthCheck: false,
+			wantErr:            false,
+			validateOptions: func(t *testing.T, options []elastic.ClientOptionFunc) {
+				require.NotNil(t, options)
+				require.NotEmpty(t, options, "Expected non-empty options slice")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			options, err := tt.cfg.getESOptions(tt.disableHealthCheck)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				if tt.validateOptions != nil {
+					tt.validateOptions(t, options)
+				}
+			}
+		})
+	}
+}
+
 func TestGetConfigOptions(t *testing.T) {
 	tmpDir := t.TempDir()
 	apiKeyFile := filepath.Join(tmpDir, "apikey")
@@ -1127,19 +1228,21 @@ func TestGetConfigOptions(t *testing.T) {
 			cfg: &Configuration{
 				Servers:  []string{"http://localhost:9200"},
 				LogLevel: "info",
+				Sniffing: Sniffing{Enabled: false},
 				Authentication: Authentication{
 					APIKeyAuthentication: newAPIKeyAuth(false, "non-existent-apikey-file"),
 				},
 			},
 			ctx:             context.Background(),
-			wantErr:         false,
-			wantErrContains: "",
+			wantErr:         true,
+			wantErrContains: "no such file or directory",
 		},
 		{
 			name: "APIKey file present",
 			cfg: &Configuration{
 				Servers:  []string{"http://localhost:9200"},
 				LogLevel: "info",
+				Sniffing: Sniffing{Enabled: false},
 				Authentication: Authentication{
 					APIKeyAuthentication: newAPIKeyAuth(false, apiKeyFile),
 				},
@@ -1152,6 +1255,7 @@ func TestGetConfigOptions(t *testing.T) {
 			cfg: &Configuration{
 				Servers:  []string{"http://localhost:9200"},
 				LogLevel: "info",
+				Sniffing: Sniffing{Enabled: false},
 				Authentication: Authentication{
 					APIKeyAuthentication: newAPIKeyAuth(true, ""),
 				},
@@ -1164,6 +1268,7 @@ func TestGetConfigOptions(t *testing.T) {
 			cfg: &Configuration{
 				Servers:  []string{"http://localhost:9200"},
 				LogLevel: "info",
+				Sniffing: Sniffing{Enabled: false},
 				Authentication: Authentication{
 					APIKeyAuthentication: newAPIKeyAuth(true, apiKeyFile),
 				},
@@ -1174,7 +1279,8 @@ func TestGetConfigOptions(t *testing.T) {
 		{
 			name: "BearerToken context propagation",
 			cfg: &Configuration{
-				Servers: []string{"http://localhost:9200"},
+				Servers:  []string{"http://localhost:9200"},
+				Sniffing: Sniffing{Enabled: false},
 				Authentication: Authentication{
 					BearerTokenAuthentication: newBearerTokenAuth(true, ""),
 				},
@@ -1186,7 +1292,8 @@ func TestGetConfigOptions(t *testing.T) {
 		{
 			name: "BearerToken file and context both enabled",
 			cfg: &Configuration{
-				Servers: []string{"http://localhost:9200"},
+				Servers:  []string{"http://localhost:9200"},
+				Sniffing: Sniffing{Enabled: false},
 				Authentication: Authentication{
 					BearerTokenAuthentication: newBearerTokenAuth(true, bearerTokenFile),
 				},
@@ -1198,8 +1305,9 @@ func TestGetConfigOptions(t *testing.T) {
 		{
 			name: "BearerToken file error",
 			cfg: &Configuration{
-				Servers: []string{"http://localhost:9200"},
-				TLS:     configtls.ClientConfig{Insecure: true},
+				Servers:  []string{"http://localhost:9200"},
+				TLS:      configtls.ClientConfig{Insecure: true},
+				Sniffing: Sniffing{Enabled: false},
 				Authentication: Authentication{
 					BearerTokenAuthentication: configoptional.Some(BearerTokenAuthentication{
 						FilePath: "/does/not/exist/token",
@@ -1209,13 +1317,14 @@ func TestGetConfigOptions(t *testing.T) {
 			},
 			ctx:             context.Background(),
 			wantErr:         true,
-			wantErrContains: "failed to get token from file",
+			wantErrContains: "no such file or directory",
 		},
 		{
 			name: "No auth configured",
 			cfg: &Configuration{
 				Servers:  []string{"http://localhost:9200"},
 				LogLevel: "info",
+				Sniffing: Sniffing{Enabled: false},
 			},
 			ctx:     context.Background(),
 			wantErr: false,
@@ -1223,12 +1332,14 @@ func TestGetConfigOptions(t *testing.T) {
 		{
 			name: "BasicAuth password file error",
 			cfg: &Configuration{
-				Servers: []string{"http://localhost:9200"},
+				Servers:  []string{"http://localhost:9200"},
+				Sniffing: Sniffing{Enabled: false},
 				Authentication: Authentication{
 					BasicAuthentication: configoptional.Some(BasicAuthentication{
 						PasswordFilePath: "/does/not/exist",
 					}),
 				},
+				LogLevel: "info",
 			},
 			ctx:             context.Background(),
 			wantErr:         true,
@@ -1237,13 +1348,15 @@ func TestGetConfigOptions(t *testing.T) {
 		{
 			name: "BasicAuth both Password and PasswordFilePath set",
 			cfg: &Configuration{
-				Servers: []string{"http://localhost:9200"},
+				Servers:  []string{"http://localhost:9200"},
+				Sniffing: Sniffing{Enabled: false},
 				Authentication: Authentication{
 					BasicAuthentication: configoptional.Some(BasicAuthentication{
 						Password:         "secret",
 						PasswordFilePath: "/some/file/path",
 					}),
 				},
+				LogLevel: "info",
 			},
 			ctx:             context.Background(),
 			wantErr:         true,
@@ -1252,7 +1365,8 @@ func TestGetConfigOptions(t *testing.T) {
 		{
 			name: "Invalid log level triggers addLoggerOptions error",
 			cfg: &Configuration{
-				Servers: []string{"http://localhost:9200"},
+				Servers:  []string{"http://localhost:9200"},
+				Sniffing: Sniffing{Enabled: false},
 				Authentication: Authentication{
 					BasicAuthentication: newBasicAuth("user", "secret", ""),
 				},
@@ -1261,6 +1375,46 @@ func TestGetConfigOptions(t *testing.T) {
 			ctx:             context.Background(),
 			wantErr:         true,
 			wantErrContains: "unrecognized log-level",
+		},
+		{
+			name: "Health check disabled for context-only auth",
+			cfg: &Configuration{
+				Servers:            []string{"http://localhost:9200"},
+				LogLevel:           "info",
+				DisableHealthCheck: false, // Should be overridden by context-only auth
+				Sniffing:           Sniffing{Enabled: false},
+				Authentication: Authentication{
+					BearerTokenAuthentication: configoptional.Some(BearerTokenAuthentication{
+						AllowFromContext: true,
+						FilePath:         "", // No file path, only context
+					}),
+				},
+			},
+			ctx:     bearertoken.ContextWithBearerToken(context.Background(), "context-bearer-token"),
+			wantErr: false,
+		},
+		{
+			name: "Health check disabled explicitly",
+			cfg: &Configuration{
+				Servers:            []string{"http://localhost:9200"},
+				LogLevel:           "info",
+				DisableHealthCheck: true,
+				Sniffing:           Sniffing{Enabled: false},
+			},
+			ctx:     context.Background(),
+			wantErr: false,
+		},
+		{
+			name: "HTTP compression and custom SendGetBodyAs",
+			cfg: &Configuration{
+				Servers:         []string{"http://localhost:9200"},
+				LogLevel:        "info",
+				HTTPCompression: true,
+				SendGetBodyAs:   "POST",
+				Sniffing:        Sniffing{Enabled: true, UseHTTPS: true},
+			},
+			ctx:     context.Background(),
+			wantErr: false,
 		},
 	}
 
@@ -1279,9 +1433,39 @@ func TestGetConfigOptions(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, options)
+				require.NotEmpty(t, options, "Should have at least basic ES options")
 			}
 		})
 	}
+}
+
+func TestGetConfigOptionsIntegration(t *testing.T) {
+	// Test that getConfigOptions properly integrates with getESOptions
+	cfg := &Configuration{
+		Servers: []string{"http://localhost:9200"},
+		Sniffing: Sniffing{
+			Enabled:  true,
+			UseHTTPS: false,
+		},
+		HTTPCompression: true,
+		SendGetBodyAs:   "POST",
+		LogLevel:        "info",
+		QueryTimeout:    30 * time.Second,
+		Authentication: Authentication{
+			BasicAuthentication: configoptional.Some(BasicAuthentication{
+				Username: "testuser",
+				Password: "testpass",
+			}),
+		},
+	}
+
+	logger := zap.NewNop()
+	options, err := cfg.getConfigOptions(context.Background(), logger)
+
+	require.NoError(t, err)
+	require.NotNil(t, options)
+
+	require.Greater(t, len(options), 5, "Should have basic ES options plus additional config options")
 }
 
 func TestMain(m *testing.M) {

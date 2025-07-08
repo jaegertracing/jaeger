@@ -83,8 +83,8 @@ func NewFactoryBase(
 	f.client.Store(&client)
 
 	if f.config.Authentication.BasicAuthentication.HasValue() {
-		if f.config.Authentication.BasicAuthentication.Get().PasswordFilePath != "" {
-			watcher, err := fswatcher.New([]string{f.config.Authentication.BasicAuthentication.Get().PasswordFilePath}, f.onPasswordChange, f.logger)
+		if file := f.config.Authentication.BasicAuthentication.Get().PasswordFilePath; file != "" {
+			watcher, err := fswatcher.New([]string{file}, f.onPasswordChange, f.logger)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create watcher for ES client's password: %w", err)
 			}
@@ -206,18 +206,7 @@ func (f *FactoryBase) onPasswordChange() {
 }
 
 func (f *FactoryBase) onClientPasswordChange(cfg *config.Configuration, client *atomic.Pointer[es.Client], mf metrics.Factory) {
-	// Check if basic authentication is configured
-	if !cfg.Authentication.BasicAuthentication.HasValue() {
-		f.logger.Error("basic authentication not configured")
-		return
-	}
-
-	// Get the basic auth configuration
 	basicAuth := cfg.Authentication.BasicAuthentication.Get()
-	if basicAuth == nil || basicAuth.PasswordFilePath == "" {
-		f.logger.Error("password file path not set")
-		return
-	}
 
 	// Load the new password from file
 	newPassword, err := loadTokenFromFile(basicAuth.PasswordFilePath)
@@ -226,16 +215,12 @@ func (f *FactoryBase) onClientPasswordChange(cfg *config.Configuration, client *
 		return
 	}
 	f.logger.Sugar().Infof("loaded new password of length %d from file", len(newPassword))
-	// Create a copy of the config and update the password
 	newCfg := *cfg // copy by value
-	if newCfg.Authentication.BasicAuthentication.HasValue() {
-		// Create a new BasicAuthentication with the new password
-		updatedAuth := *basicAuth // copy the existing auth
-		updatedAuth.Password = newPassword
-		updatedAuth.PasswordFilePath = "" // avoid error that both are set
-		newCfg.Authentication.BasicAuthentication = configoptional.Some(updatedAuth)
-	}
-
+	newCfg.Authentication.BasicAuthentication = configoptional.Some(config.BasicAuthentication{
+		Username:         basicAuth.Username,
+		Password:         newPassword,
+		PasswordFilePath: "", // avoid error that both are set
+	})
 	newClient, err := f.newClientFn(context.Background(), &newCfg, f.logger, mf)
 	if err != nil {
 		f.logger.Error("failed to recreate Elasticsearch client with new password", zap.Error(err))

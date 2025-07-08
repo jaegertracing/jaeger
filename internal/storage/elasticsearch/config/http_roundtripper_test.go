@@ -125,7 +125,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				logger := zap.NewNop()
 				rt, err := GetHTTPRoundTripper(context.Background(), cfg, logger)
 				require.NoError(t, err)
-				tr, ok := rt.(auth.RoundTripper)
+				tr, ok := rt.(*auth.RoundTripper)
 				require.True(t, ok)
 
 				ctx := context.Background()
@@ -169,7 +169,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 			{
 				authType:    "Both",
 				fileName:    "api-key",
-				expectedLog: "Both API Key and Bearer Token authentication are configured. Priority order: (1) API Key will be used if available",
+				expectedLog: "Both API Key and Bearer Token authentication are configured. The client will attempt to use both methods, prioritizing tokens from the context over files.",
 			},
 		}
 		for _, tc := range cases {
@@ -199,7 +199,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 
 				switch tc.authType {
 				case "Both":
-					tr, ok := rt.(auth.RoundTripper)
+					tr, ok := rt.(*auth.RoundTripper)
 					require.True(t, ok)
 					req, err := http.NewRequest(http.MethodGet, "http://example.com", nil)
 					require.NoError(t, err)
@@ -210,7 +210,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 					_, err = tr.RoundTrip(req)
 					require.NoError(t, err)
 				case "APIKey":
-					tr, ok := rt.(auth.RoundTripper)
+					tr, ok := rt.(*auth.RoundTripper)
 					require.True(t, ok)
 					req, err := http.NewRequest(http.MethodGet, "http://example.com", nil)
 					require.NoError(t, err)
@@ -221,7 +221,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 					_, err = tr.RoundTrip(req)
 					require.NoError(t, err)
 				case "Bearer":
-					tr, ok := rt.(auth.RoundTripper)
+					tr, ok := rt.(*auth.RoundTripper)
 					require.True(t, ok)
 					req, err := http.NewRequest(http.MethodGet, "http://example.com", nil)
 					require.NoError(t, err)
@@ -482,15 +482,17 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 					tr, ok := transport.(*auth.RoundTripper)
 					if !ok {
 						// Try non-pointer type
-						tr2, ok2 := transport.(auth.RoundTripper)
+						tr2, ok2 := transport.(*auth.RoundTripper)
 						if !assert.True(t, ok2, "expected *auth.RoundTripper or auth.RoundTripper, got %T", transport) {
 							return
 						}
 						// Convert to pointer for consistent handling
-						tr = &tr2
+						tr = tr2
 					}
 					assert.NotNil(t, tr.Transport, "transport should not be nil")
-					assert.Equal(t, tt.expectedScheme, tr.AuthScheme, "unexpected auth scheme")
+					if len(tr.Auths) > 0 {
+						assert.Equal(t, tt.expectedScheme, tr.Auths[0].Scheme, "unexpected auth scheme")
+					}
 				}
 			}
 
@@ -555,11 +557,12 @@ func TestTokenReloadErrorBranch(t *testing.T) {
 			require.NoError(t, os.Remove(tempFile))
 
 			// Type assert to auth.RoundTripper to access TokenFn
-			tr, ok := rt.(auth.RoundTripper)
+			tr, ok := rt.(*auth.RoundTripper)
 			require.True(t, ok, "returned transport is not auth.RoundTripper")
 
 			// Call TokenFn to trigger reload error branch
-			_ = tr.TokenFn()
+			require.NotEmpty(t, tr.Auths)
+			_ = tr.Auths[0].TokenFn()
 		})
 	}
 }

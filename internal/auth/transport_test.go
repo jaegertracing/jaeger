@@ -6,7 +6,6 @@ package auth
 import (
 	"context"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,129 +23,121 @@ func (s roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 
 func TestRoundTripper(t *testing.T) {
 	for _, tc := range []struct {
-		name             string
-		tokenFn          func() string
-		authScheme       string
-		wrappedTransport http.RoundTripper
-		requestContext   context.Context
-		wantHeader       string
-		wantError        bool
-		FromCtxFn        func(context.Context) (string, bool)
+		name           string
+		auths          []Config
+		requestContext context.Context
+		wantHeaders    []string
 	}{
 		{
-			name:       "No token function, no context: header empty",
-			tokenFn:    nil,
-			authScheme: "Bearer",
-			wrappedTransport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
-				assert.Empty(t, r.Header.Get("Authorization"))
-				return &http.Response{StatusCode: http.StatusOK}, nil
-			}),
+			name:           "No auth methods",
+			auths:          []Config{},
 			requestContext: context.Background(),
-			wantHeader:     "",
+			wantHeaders:    nil,
 		},
 		{
-			name:       "TokenFn returns token, no context: header set",
-			tokenFn:    func() string { return "mytoken" },
-			authScheme: "Bearer",
-			wrappedTransport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
-				assert.Equal(t, "Bearer mytoken", r.Header.Get("Authorization"))
-				return &http.Response{StatusCode: http.StatusOK}, nil
-			}),
+			name: "Single auth: Bearer token from function",
+			auths: []Config{
+				{
+					Scheme:  "Bearer",
+					TokenFn: func() string { return "mytoken" },
+				},
+			},
 			requestContext: context.Background(),
-			wantHeader:     "Bearer mytoken",
+			wantHeaders:    []string{"Bearer mytoken"},
 		},
 		{
-			name:       "Override from context, context token present: context wins",
-			tokenFn:    func() string { return "filetoken" },
-			authScheme: "Bearer",
-			wrappedTransport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
-				assert.Equal(t, "Bearer ctxToken", r.Header.Get("Authorization"))
-				return &http.Response{StatusCode: http.StatusOK}, nil
-			}),
+			name: "Single auth: Bearer token from context",
+			auths: []Config{
+				{
+					Scheme:  "Bearer",
+					FromCtx: bearertoken.GetBearerToken,
+				},
+			},
 			requestContext: bearertoken.ContextWithBearerToken(context.Background(), "ctxToken"),
-			wantHeader:     "Bearer ctxToken",
-			FromCtxFn:      bearertoken.GetBearerToken,
+			wantHeaders:    []string{"Bearer ctxToken"},
 		},
 		{
-			name:       "Context check enabled but context empty: file token used",
-			tokenFn:    func() string { return "filetoken" },
-			authScheme: "Bearer",
-			wrappedTransport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
-				assert.Equal(t, "Bearer filetoken", r.Header.Get("Authorization"))
-				return &http.Response{StatusCode: http.StatusOK}, nil
-			}),
+			name: "Single auth: API Key from function",
+			auths: []Config{
+				{
+					Scheme:  "ApiKey",
+					TokenFn: func() string { return "apiKeyToken" },
+				},
+			},
 			requestContext: context.Background(),
-			wantHeader:     "Bearer filetoken",
+			wantHeaders:    []string{"ApiKey apiKeyToken"},
 		},
 		{
-			name:       "ApiKey: TokenFn only, no FromCtxFn",
-			tokenFn:    func() string { return "apiKeyToken" },
-			authScheme: "ApiKey",
-			wrappedTransport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
-				assert.Equal(t, "ApiKey apiKeyToken", r.Header.Get("Authorization"))
-				return &http.Response{StatusCode: http.StatusOK}, nil
-			}),
-			requestContext: context.Background(),
-			wantHeader:     "ApiKey apiKeyToken",
+			name: "Multiple auth methods: API Key and Bearer",
+			auths: []Config{
+				{
+					Scheme:  "ApiKey",
+					TokenFn: func() string { return "apiKeyToken" },
+				},
+				{
+					Scheme:  "Bearer",
+					FromCtx: bearertoken.GetBearerToken,
+				},
+			},
+			requestContext: bearertoken.ContextWithBearerToken(context.Background(), "bearerToken"),
+			wantHeaders:    []string{"ApiKey apiKeyToken", "Bearer bearerToken"},
 		},
 		{
-			name:       "ApiKey: context token present and FromCtxFn set: context wins",
-			tokenFn:    func() string { return "apiKeyToken" },
-			authScheme: "ApiKey",
-			wrappedTransport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
-				assert.Equal(t, "ApiKey contextApiKey", r.Header.Get("Authorization"))
-				return &http.Response{StatusCode: http.StatusOK}, nil
-			}),
-			requestContext: apikey.ContextWithAPIKey(context.Background(), "contextApiKey"),
-			wantHeader:     "ApiKey contextApiKey",
-			FromCtxFn:      apikey.GetAPIKey,
+			name: "Context overrides function token",
+			auths: []Config{
+				{
+					Scheme:  "ApiKey",
+					TokenFn: func() string { return "fileToken" },
+					FromCtx: apikey.GetAPIKey,
+				},
+			},
+			requestContext: apikey.ContextWithAPIKey(context.Background(), "contextToken"),
+			wantHeaders:    []string{"ApiKey contextToken"},
 		},
 		{
-			name:       "ApiKey: context token empty and FromCtxFn set: fallback to TokenFn",
-			tokenFn:    func() string { return "apiKeyToken" },
-			authScheme: "ApiKey",
-			wrappedTransport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
-				assert.Equal(t, "ApiKey apiKeyToken", r.Header.Get("Authorization"))
-				return &http.Response{StatusCode: http.StatusOK}, nil
-			}),
-			requestContext: apikey.ContextWithAPIKey(context.Background(), ""),
-			wantHeader:     "ApiKey apiKeyToken",
-			FromCtxFn:      apikey.GetAPIKey,
-		},
-		{
-			name:       "ApiKey: FromCtxFn nil: use TokenFn",
-			tokenFn:    func() string { return "apiKeyToken" },
-			authScheme: "ApiKey",
-			wrappedTransport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
-				assert.Equal(t, "ApiKey apiKeyToken", r.Header.Get("Authorization"))
-				return &http.Response{StatusCode: http.StatusOK}, nil
-			}),
-			requestContext: apikey.ContextWithAPIKey(context.Background(), "contextApiKey"),
-			wantHeader:     "ApiKey apiKeyToken",
-			FromCtxFn:      nil,
+			name: "Multiple auth methods with context",
+			auths: []Config{
+				{
+					Scheme:  "ApiKey",
+					TokenFn: func() string { return "apiKeyFromFile" },
+					FromCtx: apikey.GetAPIKey,
+				},
+				{
+					Scheme:  "Bearer",
+					TokenFn: func() string { return "bearerFromFile" },
+					FromCtx: bearertoken.GetBearerToken,
+				},
+			},
+			requestContext: func() context.Context {
+				ctx := context.Background()
+				ctx = apikey.ContextWithAPIKey(ctx, "apiKeyFromCtx")
+				ctx = bearertoken.ContextWithBearerToken(ctx, "bearerFromCtx")
+				return ctx
+			}(),
+			wantHeaders: []string{"ApiKey apiKeyFromCtx", "Bearer bearerFromCtx"},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			server := httptest.NewServer(nil)
-			defer server.Close()
-			req, err := http.NewRequestWithContext(tc.requestContext, http.MethodGet, server.URL, nil)
+			req, err := http.NewRequestWithContext(tc.requestContext, http.MethodGet, "http://test", nil)
 			require.NoError(t, err)
 
-			tr := RoundTripper{
-				Transport:  tc.wrappedTransport,
-				AuthScheme: tc.authScheme,
-				TokenFn:    tc.tokenFn,
-				FromCtxFn:  tc.FromCtxFn,
-			}
-			resp, err := tr.RoundTrip(req)
+			var gotHeaders []string
+			mockTransport := roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				gotHeaders = r.Header.Values("Authorization")
+				return &http.Response{StatusCode: http.StatusOK}, nil
+			})
 
-			if tc.wantError {
-				assert.Nil(t, resp)
-				require.Error(t, err)
-			} else {
-				assert.NotNil(t, resp)
-				require.NoError(t, err)
+			tr := RoundTripper{
+				Transport: mockTransport,
+				Auths:     tc.auths,
 			}
+
+			resp, err := tr.RoundTrip(req)
+			assert.NotNil(t, resp)
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.wantHeaders, gotHeaders,
+				"Expected Authorization headers: %v, got: %v", tc.wantHeaders, gotHeaders)
 		})
 	}
 }

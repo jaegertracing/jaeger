@@ -383,9 +383,13 @@ func getHTTPRoundTripper(c *config.Configuration) (rt http.RoundTripper, err err
 	}
 
 	return &auth.RoundTripper{
-		Transport:  httpTransport,
-		AuthScheme: "Bearer",
-		TokenFn:    tokenFn,
-		FromCtxFn:  fromCtxFn,
+		Transport: httpTransport,
+		Auths: []auth.Config{
+			{
+				Scheme:  "Bearer",
+				TokenFn: tokenFn,
+				FromCtx: fromCtxFn,
+			},
+		},
 	}, nil
 }

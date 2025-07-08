@@ -17,7 +17,7 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 )
 
-func TestInitAuthVars_PriorityAndLogging(t *testing.T) {
+func TestInitAuthVars_MultiAuthAndLogging(t *testing.T) {
 	// Setup zap observer
 	core, logs := observer.New(zap.WarnLevel)
 	logger := zap.New(core)
@@ -29,20 +29,21 @@ func TestInitAuthVars_PriorityAndLogging(t *testing.T) {
 	require.NoError(t, os.WriteFile(bearerFile, []byte("bearer-file-token"), 0o600))
 
 	tests := []struct {
-		name           string
-		apiKey         *APIKeyAuthentication
-		bearer         *BearerTokenAuthentication
-		expectedScheme string
-		expectedLog    string
+		name               string
+		apiKey             *APIKeyAuthentication
+		bearer             *BearerTokenAuthentication
+		expectedNumConfigs int
+		expectedSchemes    []string
+		expectedLogs       []string
 	}{
 		{
 			name: "Only APIKey file",
 			apiKey: &APIKeyAuthentication{
 				FilePath: apiKeyFile,
 			},
-			bearer:         nil,
-			expectedScheme: "ApiKey",
-			// No log expected
+			bearer:             nil,
+			expectedNumConfigs: 1,
+			expectedSchemes:    []string{"ApiKey"},
 		},
 		{
 			name:   "Only Bearer file",
@@ -50,8 +51,8 @@ func TestInitAuthVars_PriorityAndLogging(t *testing.T) {
 			bearer: &BearerTokenAuthentication{
 				FilePath: bearerFile,
 			},
-			expectedScheme: "Bearer",
-			// No log expected
+			expectedNumConfigs: 1,
+			expectedSchemes:    []string{"Bearer"},
 		},
 		{
 			name: "APIKey context and file",
@@ -59,9 +60,10 @@ func TestInitAuthVars_PriorityAndLogging(t *testing.T) {
 				FilePath:         apiKeyFile,
 				AllowFromContext: true,
 			},
-			bearer:         nil,
-			expectedScheme: "ApiKey",
-			expectedLog:    "Both API key file and context propagation are enabled",
+			bearer:             nil,
+			expectedNumConfigs: 1,
+			expectedSchemes:    []string{"ApiKey"},
+			expectedLogs:       []string{"Both API key file and context propagation are enabled"},
 		},
 		{
 			name:   "Bearer context and file",
@@ -70,8 +72,9 @@ func TestInitAuthVars_PriorityAndLogging(t *testing.T) {
 				FilePath:         bearerFile,
 				AllowFromContext: true,
 			},
-			expectedScheme: "Bearer",
-			expectedLog:    "Both Bearer Token file and context propagation are enabled",
+			expectedNumConfigs: 1,
+			expectedSchemes:    []string{"Bearer"},
+			expectedLogs:       []string{"Both Bearer Token file and context propagation are enabled"},
 		},
 		{
 			name: "Both APIKey and Bearer set",
@@ -83,8 +86,13 @@ func TestInitAuthVars_PriorityAndLogging(t *testing.T) {
 				FilePath:         bearerFile,
 				AllowFromContext: true,
 			},
-			expectedScheme: "ApiKey",
-			expectedLog:    "Both API Key and Bearer Token authentication are configured. Priority order: (1) API Key will be used if available",
+			expectedNumConfigs: 2,
+			expectedSchemes:    []string{"ApiKey", "Bearer"},
+			expectedLogs: []string{
+				"Both API Key and Bearer Token authentication are configured. The client will attempt to use both methods, prioritizing tokens from the context over files.",
+				"Both API key file and context propagation are enabled",
+				"Both Bearer Token file and context propagation are enabled",
+			},
 		},
 	}
 
@@ -93,22 +101,53 @@ func TestInitAuthVars_PriorityAndLogging(t *testing.T) {
 			logs.TakeAll() // Clear previous logs
 			authVars, err := initAuthVars(tc.apiKey, tc.bearer, logger)
 			require.NoError(t, err)
-			assert.Equal(t, tc.expectedScheme, authVars.Scheme)
-			if tc.expectedScheme == "ApiKey" && tc.apiKey != nil && tc.apiKey.FilePath != "" {
-				assert.Equal(t, "api-file-key", authVars.TokenFn())
-			}
-			if tc.expectedScheme == "Bearer" && tc.bearer != nil && tc.bearer.FilePath != "" {
-				assert.Equal(t, "bearer-file-token", authVars.TokenFn())
-			}
-			if tc.expectedLog != "" {
-				found := false
-				for _, entry := range logs.All() {
-					if strings.Contains(entry.Message, tc.expectedLog) {
-						found = true
-						break
+
+			require.Len(t, authVars.AuthConfigs, tc.expectedNumConfigs)
+
+			var schemes []string
+			for _, config := range authVars.AuthConfigs {
+				schemes = append(schemes, config.Scheme)
+				if config.Scheme == "ApiKey" {
+					if tc.apiKey.FilePath != "" {
+						assert.NotNil(t, config.TokenFn)
+						assert.Equal(t, "api-file-key", config.TokenFn())
+					}
+					if tc.apiKey.AllowFromContext {
+						assert.NotNil(t, config.FromCtx)
 					}
 				}
-				assert.True(t, found, "expected log message not found: %s", tc.expectedLog)
+				if config.Scheme == "Bearer" {
+					if tc.bearer.FilePath != "" {
+						assert.NotNil(t, config.TokenFn)
+						assert.Equal(t, "bearer-file-token", config.TokenFn())
+					}
+					if tc.bearer.AllowFromContext {
+						assert.NotNil(t, config.FromCtx)
+					}
+				}
+			}
+			assert.ElementsMatch(t, tc.expectedSchemes, schemes)
+
+			logEntries := logs.All()
+			if len(tc.expectedLogs) > 0 {
+				require.Len(t, logEntries, len(tc.expectedLogs), "Mismatched number of logs")
+				actualLogs := make([]string, len(logEntries))
+				for i, entry := range logEntries {
+					actualLogs[i] = entry.Message
+				}
+
+				for _, expectedLog := range tc.expectedLogs {
+					var found bool
+					for _, actualLog := range actualLogs {
+						if strings.Contains(actualLog, expectedLog) {
+							found = true
+							break
+						}
+					}
+					assert.True(t, found, "expected log message not found: %s", expectedLog)
+				}
+			} else {
+				assert.Empty(t, logEntries, "unexpected log messages")
 			}
 		})
 	}
@@ -122,8 +161,8 @@ func TestInitAuthVars_ReloadInterval(t *testing.T) {
 	logger := zap.New(core)
 
 	tempDir := t.TempDir()
-	apiKeyFile := filepath.Join(tempDir, "api-key")
-	require.NoError(t, os.WriteFile(apiKeyFile, []byte("api-file-key"), 0o600))
+	tokenFile := filepath.Join(tempDir, "token")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("some-token"), 0o600))
 
 	tests := []struct {
 		name           string
@@ -133,18 +172,16 @@ func TestInitAuthVars_ReloadInterval(t *testing.T) {
 		{
 			name: "APIKey with ReloadInterval",
 			auth: &APIKeyAuthentication{
-				FilePath:         apiKeyFile,
-				AllowFromContext: false,
-				ReloadInterval:   configoptional.Some(5 * time.Second),
+				FilePath:       tokenFile,
+				ReloadInterval: configoptional.Some(5 * time.Second),
 			},
 			expectedScheme: "ApiKey",
 		},
 		{
 			name: "Bearer with ReloadInterval",
 			auth: &BearerTokenAuthentication{
-				FilePath:         apiKeyFile, // Reusing apiKeyFile since we just need a valid file
-				AllowFromContext: false,
-				ReloadInterval:   configoptional.Some(10 * time.Second),
+				FilePath:       tokenFile,
+				ReloadInterval: configoptional.Some(10 * time.Second),
 			},
 			expectedScheme: "Bearer",
 		},
@@ -152,16 +189,22 @@ func TestInitAuthVars_ReloadInterval(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			var authVars AuthVars
+			var err error
+
 			switch auth := tc.auth.(type) {
 			case *APIKeyAuthentication:
-				authVars, err := initAuthVars(auth, nil, logger)
-				require.NoError(t, err)
-				assert.Equal(t, tc.expectedScheme, authVars.Scheme)
+				authVars, err = initAuthVars(auth, nil, logger)
 			case *BearerTokenAuthentication:
-				authVars, err := initAuthVars(nil, auth, logger)
-				require.NoError(t, err)
-				assert.Equal(t, tc.expectedScheme, authVars.Scheme)
+				authVars, err = initAuthVars(nil, auth, logger)
+			default:
+				t.Fatalf("Unknown auth type: %T", auth)
 			}
+
+			require.NoError(t, err)
+			require.Len(t, authVars.AuthConfigs, 1)
+			assert.Equal(t, tc.expectedScheme, authVars.AuthConfigs[0].Scheme)
+			assert.NotNil(t, authVars.AuthConfigs[0].TokenFn)
 		})
 	}
 }

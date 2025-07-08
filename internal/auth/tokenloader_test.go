@@ -18,47 +18,32 @@ import (
 // TestCachedFileTokenLoader_Basic covers basic cache and reload logic for the token loader.
 func TestCachedFileTokenLoader_Basic(t *testing.T) {
 	tmpfile, err := os.CreateTemp(t.TempDir(), "tokenfile-*.txt")
-	if err != nil {
-		t.Fatalf("failed to create temp file: %v", err)
-	}
+	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
 
 	token := "my-secret-token"
-	if _, err := tmpfile.WriteString(token + "\n"); err != nil {
-		t.Fatalf("failed to write token: %v", err)
-	}
+	_, err = tmpfile.WriteString(token + "\n")
+	require.NoError(t, err)
 	tmpfile.Close()
 
 	loader := cachedFileTokenLoader(tmpfile.Name(), 100*time.Millisecond)
 
 	// First load - should read from file
 	t1, err := loader()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if t1 != token {
-		t.Errorf("expected %q, got %q", token, t1)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, token, t1, "expected %q, got %q")
 
 	// Change the file, but within cache interval
 	os.WriteFile(tmpfile.Name(), []byte("new-token\n"), 0o644)
 	t2, err := loader()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if t2 != token {
-		t.Errorf("expected cached %q, got %q", token, t2)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, token, t2, "expected cached %q, got %q")
 
 	// Wait for cache to expire
 	time.Sleep(120 * time.Millisecond)
 	t3, err := loader()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if t3 != "new-token" {
-		t.Errorf("expected refreshed token 'new-token', got %q", t3)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "new-token", t3, "expected refreshed token 'new-token', got %q")
 }
 
 // TestNewTokenProvider_InitialLoad covers initial load, fail-fast on missing/empty file, and correct token return.
