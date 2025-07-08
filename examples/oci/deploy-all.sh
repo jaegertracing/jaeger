@@ -3,6 +3,8 @@
 # Copyright (c) 2025 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
+set -euo pipefail
+
 # Clone Jaeger Helm Charts (v2 branch) if not already present
 if [ ! -d "helm-charts" ]; then
   echo "📥 Cloning Jaeger Helm Charts..."
