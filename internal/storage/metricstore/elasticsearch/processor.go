@@ -6,6 +6,7 @@ package elasticsearch
 import (
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 
 	"github.com/gogo/protobuf/types"
@@ -95,8 +96,20 @@ func calculateErrorRatePoints(errorPoints, callPoints []*metrics.MetricPoint) []
 
 // Helper function to generate a unique key for labels.
 func getLabelKey(labels []*metrics.Label) string {
-	keys := make([]string, len(labels))
-	for i, label := range labels {
+	// Defensive copying
+	labelsCopy := make([]*metrics.Label, len(labels))
+	copy(labelsCopy, labels)
+
+	// Sort by Name first, then by Value
+	sort.Slice(labelsCopy, func(i, j int) bool {
+		if labelsCopy[i].Name == labelsCopy[j].Name {
+			return labelsCopy[i].Value < labelsCopy[j].Value
+		}
+		return labelsCopy[i].Name < labelsCopy[j].Name
+	})
+
+	keys := make([]string, len(labelsCopy))
+	for i, label := range labelsCopy {
 		keys[i] = fmt.Sprintf("%s=%s", label.Name, label.Value)
 	}
 	return strings.Join(keys, ",")
