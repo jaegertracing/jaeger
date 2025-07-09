@@ -310,39 +310,61 @@ func TestGRPC(t *testing.T) {
 	require.NoError(t, ext.Shutdown(ctx))
 }
 
-func TestPrometheus(t *testing.T) {
-	ext := makeStorageExtension(t, &Config{
-		MetricBackends: map[string]MetricBackend{
-			"foo": {
-				Prometheus: &promCfg.Configuration{
-					ServerURL: "localhost:12345",
+func TestMetricBackends(t *testing.T) {
+	mockServer := setupMockServer(t, getVersionResponse(t), http.StatusOK)
+	tests := []struct {
+		name   string
+		config *Config
+	}{
+		{
+			name: "Prometheus",
+			config: &Config{
+				MetricBackends: map[string]MetricBackend{
+					"foo": {
+						Prometheus: &promCfg.Configuration{
+							ServerURL: mockServer.URL,
+						},
+					},
 				},
 			},
 		},
-	})
-	ctx := context.Background()
-	err := ext.Start(ctx, componenttest.NewNopHost())
-	require.NoError(t, err)
-	require.NoError(t, ext.Shutdown(ctx))
-}
-
-func TestElasticsearchAsMetricsBackend(t *testing.T) {
-	server := setupMockServer(t, getVersionResponse(t), http.StatusOK)
-
-	ext := makeStorageExtension(t, &Config{
-		MetricBackends: map[string]MetricBackend{
-			"foo": {
-				Elasticsearch: &esCfg.Configuration{
-					Servers:  []string{server.URL},
-					LogLevel: "info",
+		{
+			name: "Elasticsearch",
+			config: &Config{
+				MetricBackends: map[string]MetricBackend{
+					"foo": {
+						Elasticsearch: &esCfg.Configuration{
+							Servers:  []string{mockServer.URL},
+							LogLevel: "info",
+						},
+					},
 				},
 			},
 		},
-	})
-	ctx := context.Background()
-	err := ext.Start(ctx, componenttest.NewNopHost())
-	require.NoError(t, err)
-	require.NoError(t, ext.Shutdown(ctx))
+		{
+			name: "OpenSearch",
+			config: &Config{
+				MetricBackends: map[string]MetricBackend{
+					"foo": {
+						Opensearch: &esCfg.Configuration{
+							Servers:  []string{mockServer.URL},
+							LogLevel: "info",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ext := makeStorageExtension(t, tt.config)
+			ctx := context.Background()
+			err := ext.Start(ctx, componenttest.NewNopHost())
+			require.NoError(t, err)
+			require.NoError(t, ext.Shutdown(ctx))
+		})
+	}
 }
 
 func TestMetricsBackendCloseError(t *testing.T) {
@@ -389,6 +411,16 @@ func TestMetricStorageStartError(t *testing.T) {
 				MetricBackends: map[string]MetricBackend{
 					"foo": {
 						Elasticsearch: &esCfg.Configuration{},
+					},
+				},
+			},
+		},
+		{
+			name: "OpenSearch backend initialization error",
+			config: &Config{
+				MetricBackends: map[string]MetricBackend{
+					"foo": {
+						Opensearch: &esCfg.Configuration{},
 					},
 				},
 			},
