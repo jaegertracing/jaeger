@@ -42,28 +42,51 @@ func calcErrorRates(errorMetrics, callMetrics *metrics.MetricFamily) *metrics.Me
 		Metrics: make([]*metrics.Metric, 0, len(errorMetrics.Metrics)),
 	}
 
-	// Build a lookup map for call metrics by their labels.
-	callMetricsByLabels := make(map[string]*metrics.Metric)
-	for _, callMetric := range callMetrics.Metrics {
-		labelKey := getLabelKey(callMetric.Labels)
-		callMetricsByLabels[labelKey] = callMetric
-	}
-
+	// Build a lookup map for error metrics by their labels.
+	errorMetricsByLabels := make(map[string]*metrics.Metric)
 	for _, errorMetric := range errorMetrics.Metrics {
 		labelKey := getLabelKey(errorMetric.Labels)
-		callMetric, exists := callMetricsByLabels[labelKey]
+		errorMetricsByLabels[labelKey] = errorMetric
+	}
+
+	for _, callMetric := range callMetrics.Metrics {
+		labelKey := getLabelKey(callMetric.Labels)
+		errorMetric, exists := errorMetricsByLabels[labelKey]
 		if !exists {
-			continue // Skip if no matching call metric.
+			// If do not exist, it means that no data for error span, returning 0 error rate.
+			metricPoints := zeroValue(callMetric.MetricPoints)
+			result.Metrics = append(result.Metrics, &metrics.Metric{
+				Labels:       callMetric.Labels,
+				MetricPoints: metricPoints,
+			})
+			continue
 		}
 
 		metricPoints := calculateErrorRatePoints(errorMetric.MetricPoints, callMetric.MetricPoints)
 		result.Metrics = append(result.Metrics, &metrics.Metric{
-			Labels:       errorMetric.Labels,
+			Labels:       callMetric.Labels,
 			MetricPoints: metricPoints,
 		})
 	}
 
 	return result
+}
+
+// zeroValue creates metric points with zero values matching the timestamps of the input points
+func zeroValue(points []*metrics.MetricPoint) []*metrics.MetricPoint {
+	zeroPoints := make([]*metrics.MetricPoint, 0, len(points))
+
+	for _, point := range points {
+		// Only append 0 for call_points value is not NaN
+		if !math.IsNaN(point.GetGaugeValue().GetDoubleValue()) {
+			zeroPoints = append(zeroPoints, &metrics.MetricPoint{
+				Timestamp: point.Timestamp,
+				Value:     toDomainMetricPointValue(0.0),
+			})
+		}
+	}
+
+	return zeroPoints
 }
 
 // calculateErrorRatePoints computes error rates for corresponding metric points.
@@ -151,6 +174,8 @@ func calcCallRate(mf *metrics.MetricFamily, params metricstore.BaseQueryParamete
 
 	windowSizeSeconds := float64(lookback) * params.Step.Seconds()
 
+	var lastNonNaN = 0.0
+
 	// rateCalculator is a closure that captures 'lookback' and 'windowSizeSeconds'.
 	// It implements the specific logic for calculating the rate.
 	rateCalculator := func(window []*metrics.MetricPoint) float64 {
@@ -161,11 +186,12 @@ func calcCallRate(mf *metrics.MetricFamily, params metricstore.BaseQueryParamete
 		}
 
 		firstValue := window[0].GetGaugeValue().GetDoubleValue()
-		// If the first value in the full window is NaN, treat it as 0 for the rate calculation.
-		// This implies that if data was missing at the start of the window, we assume no contribution from that missing period.
 		if math.IsNaN(firstValue) {
-			firstValue = 0
+			firstValue = lastNonNaN // Use the tracked value.
+		} else {
+			lastNonNaN = firstValue
 		}
+
 		lastValue := window[len(window)-1].GetGaugeValue().GetDoubleValue()
 		// If the current point (the last value in the window) is NaN, the rate cannot be defined.
 		// Propagate NaN to indicate missing data for the result point.
