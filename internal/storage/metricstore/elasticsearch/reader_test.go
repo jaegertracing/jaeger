@@ -220,7 +220,7 @@ func assertMetricFamily(t *testing.T, got *metrics.MetricFamily, m metricsTestCa
 
 func TestScaleToMillisAndRound_EmptyWindow(t *testing.T) {
 	var window []*metrics.MetricPoint
-	result := scaleToMillisAndRound(window)
+	result := scaleToMillisAndRound(nil, window)
 	assert.True(t, math.IsNaN(result))
 }
 
@@ -735,18 +735,17 @@ func TestGetErrorRates(t *testing.T) {
 				wantLabels: []map[string]string{
 					{
 						"service_name": "driver",
-						"operation":    "/FindNearest",
+						"operation":    "/FindDriverIDs",
 					},
 					{
 						"service_name": "driver",
-						"operation":    "/FindDriverIDs",
+						"operation":    "/FindNearest",
 					},
 				},
 				wantPoints: [][]struct {
 					TimestampSec int64
 					Value        float64
 				}{
-					expectedPoints[0], // FindNearest Expected Points
 					{ // FindDriverIDS Expected Points
 						{1749894840, math.NaN()},
 						{1749894900, math.NaN()},
@@ -760,6 +759,7 @@ func TestGetErrorRates(t *testing.T) {
 						{1749895380, 0.8},
 						{1749895440, 0.8},
 					},
+					expectedPoints[0], // FindNearest Expected Points
 				},
 			},
 			callRateFile: mockCallRateOperationResponse,

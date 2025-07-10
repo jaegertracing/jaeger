@@ -174,11 +174,12 @@ func calcCallRate(mf *metrics.MetricFamily, params metricstore.BaseQueryParamete
 
 	windowSizeSeconds := float64(lookback) * params.Step.Seconds()
 
-	var lastNonNaN = 0.0
+	lastNonNaNMap := make(map[string]float64)
 
 	// rateCalculator is a closure that captures 'lookback' and 'windowSizeSeconds'.
 	// It implements the specific logic for calculating the rate.
-	rateCalculator := func(window []*metrics.MetricPoint) float64 {
+	rateCalculator := func(metric *metrics.Metric, window []*metrics.MetricPoint) float64 {
+		labelKey := getLabelKey(metric.Labels)
 		// If the window is not "full" (i.e., we don't have enough preceding points
 		// to calculate a rate over the full 'lookback' period), return NaN.
 		if len(window) < lookback {
@@ -187,9 +188,9 @@ func calcCallRate(mf *metrics.MetricFamily, params metricstore.BaseQueryParamete
 
 		firstValue := window[0].GetGaugeValue().GetDoubleValue()
 		if math.IsNaN(firstValue) {
-			firstValue = lastNonNaN // Use the tracked value.
+			firstValue = lastNonNaNMap[labelKey] // Use the tracked value for this label set
 		} else {
-			lastNonNaN = firstValue
+			lastNonNaNMap[labelKey] = firstValue // Update the tracked value
 		}
 
 		lastValue := window[len(window)-1].GetGaugeValue().GetDoubleValue()
@@ -226,7 +227,7 @@ func trimMetricPointsBefore(mf *metrics.MetricFamily, startMillis int64) *metric
 }
 
 // applySlidingWindow applies a given processing function over a moving window of metric points.
-func applySlidingWindow(mf *metrics.MetricFamily, lookback int, processor func(window []*metrics.MetricPoint) float64) *metrics.MetricFamily {
+func applySlidingWindow(mf *metrics.MetricFamily, lookback int, processor func(metric *metrics.Metric, window []*metrics.MetricPoint) float64) *metrics.MetricFamily {
 	for _, metric := range mf.Metrics {
 		points := metric.MetricPoints
 		if len(points) == 0 {
@@ -241,7 +242,7 @@ func applySlidingWindow(mf *metrics.MetricFamily, lookback int, processor func(w
 				start = 0
 			}
 			window := points[start : i+1]
-			resultValue := processor(window)
+			resultValue := processor(metric, window)
 
 			processedPoints = append(processedPoints, &metrics.MetricPoint{
 				Timestamp: currentPoint.Timestamp,
@@ -253,7 +254,7 @@ func applySlidingWindow(mf *metrics.MetricFamily, lookback int, processor func(w
 	return mf
 }
 
-func scaleToMillisAndRound(window []*metrics.MetricPoint) float64 {
+func scaleToMillisAndRound(_ *metrics.Metric, window []*metrics.MetricPoint) float64 {
 	if len(window) == 0 {
 		return math.NaN()
 	}
