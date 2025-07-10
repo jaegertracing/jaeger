@@ -13,78 +13,25 @@ Ensure the following tools are installed and configured:
 
 ---
 
-## 1. Clone Jaeger Helm Charts (v2 Branch)
+## Deploy the Jaeger Demo Setup
+
+The following components are deployed as part of the Jaeger demo setup:
+
+- **Jaeger All-in-One**: Tracing backend (collector, query, UI, agent in one pod)
+- **HotROD Demo App**: Sample microservices application for tracing demonstration
+- **Prometheus Monitoring Stack**: Includes Prometheus, Grafana, and Alertmanager for metrics and dashboards
+- **Load Generator**: Continuously generates traces from the HotROD app
+
+To deploy the entire infrastructure with a single command, run:
 
 ```bash
-git clone https://github.com/jaegertracing/helm-charts.git
-cd helm-charts
-git checkout v2
+bash ./deploy-all.sh
 ```
-After cloning, you must install chart dependencies to avoid the depedency missing error using this command :
-``` bash
-helm dependency build ./charts/jaeger
-```
----
+This script will automatically install and configure all components on your Kubernetes , To deal with individual components refer to deploy-all.sh script . 
 
-## 2. Prepare Your Values and Config Files
+## Access the Deployment
 
-* `config.yaml`: Configuration file for the Jaeger Collector (in Jaeger binary mode).
-
-  * Currently configured to:
-
-    * Store **traces** in **memory**
-    * Export **metrics** to **Prometheus**
-
-* `prometheus.yml`: Configuration for Prometheus scrape targets.
-
----
-
-## 3. Create ConfigMap for Prometheus
-
-Create a ConfigMap to mount the Prometheus configuration:
-
-```bash
-kubectl create configmap prometheus-config --from-file=prometheus.yml=./prometheus.yml
-```
-
----
-
-## 4. Deploy Jaeger (All-in-One Mode with Memory Storage)
-
-Ensure you're in the correct directory 
-```bash
-cd ./examples/oci/
-```
-Install the Jaeger Helm chart with memory storage and a custom config:
-
-```bash
-helm install jaeger /path/to/charts/jaeger \
-  --set provisionDataStore.cassandra=false \
-  --set allInOne.enabled=true \
-  --set storage.type=memory \
-  --set-file userconfig="./config.yaml" \
-  -f ./jaeger-values.yaml
-```
-
-> 🔁 Adjust the path to match your local directory structure.
-
----
-
-## 5. Deploy Prometheus (for SPM Metrics)
-
-Apply the Prometheus deployment and service:
-
-```bash
-kubectl apply -f ./prometheus-deploy.yaml
-```
-
-This enables **Span Metrics Processor (SPM)** functionality in Jaeger.
-
----
-
-## 6. Port Forward Services for Local Access
-
-Use the following port-forward commands to access the UIs locally:
+After deploying, you can access each component locally using the following port-forward commands in separate terminals:
 
 ```bash
 # Jaeger UI
@@ -93,32 +40,19 @@ kubectl port-forward svc/jaeger-query 16686:16686
 # Prometheus UI
 kubectl port-forward svc/prometheus 9090:9090
 
+# Grafana Dashboard
+kubectl port-forward svc/prometheus-grafana 9091:80
+
 # HotROD UI
 kubectl port-forward svc/jaeger-hotrod 8080:80
 ```
 
-Then open in browser:
+Then, open the following URLs in your browser:
 
-* 🔍 Jaeger: [http://localhost:16686](http://localhost:16686)
-* 📈 Prometheus: [http://localhost:9090](http://localhost:9090)
-* 🚕 HotROD: [http://localhost:8080](http://localhost:8080)
-
-## 7. Deploy Load Generator (Trace Generator Pod)
-
-Run the following commands to deploy the load generator that continuously sends trace traffic to the HotROD service:
-
-Create ConfigMap from the Python trace generator script
-```bash
-kubectl create configmap trace-script --from-file=./load-generator/generate_traces.py
-```
-Apply the Deployment YAML
-```bash
-kubectl apply -f ./load-generator/load-generator.yaml
-```
-(Optional) View Logs to Confirm Trace Generation
-```bash
-kubectl logs -f deployment/trace-generator
-```
+- **Jaeger UI:** [http://localhost:16686](http://localhost:16686)
+- **Prometheus:** [http://localhost:9090](http://localhost:9090)
+- **Grafana:** [http://localhost:9091](http://localhost:9091)
+- **HotROD Demo App:** [http://localhost:8080](http://localhost:8080)
 
 🔧 Remarks
 
@@ -129,3 +63,9 @@ Helm --namespace flags
 Kubernetes manifests (metadata.namespace)
 Prometheus scrape configs and service selectors if targeting Jaeger in a different namespace
 ```
+📌 The default credentials for Grafana dashboards are:
+
+- **Username:** `admin`
+- **Password:** `prom-operator`
+
+Once logged in, you can explore the pre-built dashboards or add your own tracing and metrics visualizations.

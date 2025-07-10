@@ -17,7 +17,7 @@ The first step is to isolate the specific set of documents (spans) needed for th
   "bool": {
     "filter": [
       { "terms": { "process.serviceName": "[${service}]" } },
-      { "terms": { "tag.span@kind": "[{server}]" } },,
+      { "terms": { "tag.span@kind": "[{server}]" } },
       {
         "range": {
           "startTimeMillis": {
@@ -182,3 +182,45 @@ The `getLatenciesProcessMetrics` function takes the raw percentile values from E
 **Code Reference:**
 
 The post-processing logic resides in `getLatenciesProcessMetrics`.
+
+-----
+
+### `getErrorRates` Calculation Explained
+
+The `getErrorRates` method calculates the error rate for a service. This process leverages the same underlying mechanisms as `getCallRates` and `getLatencies` for data retrieval and aggregation, with an additional step to compute the ratio of errors to total calls.
+
+-----
+
+### 1\. Filter Query Part
+
+For `getErrorRates`, the initial filtering is designed to isolate spans that represent *errors*. This is achieved by extending the base filter with conditions that identify erroneous spans. i.e:
+
+```json
+  { "term": { "tag.error": true } },
+```
+
+-----
+
+### 2\. Aggregation Query Part
+
+The aggregation for error rates reuses the same `date_histogram` and `cumulative_sum` aggregation as `getCallRates`. This is because, fundamentally, an error rate requires counting the cumulative sum of errors over time, just as call rate counts cumulative calls.
+
+-----
+
+### 3\. Post-Processing Part
+
+The `getErrorRates` post-processing is the most distinct part, as it combines the results from two separate queries: one for **errors** and one for **total calls**.
+
+**Explanation:**
+
+1.  **Retrieve Error Counts:** First, the method executes a query to get the cumulative count of *error* spans, similar to how `getCallRates` obtains total call counts, but with the error-specific filter applied. The `ProcessCallRates` function is then used to convert these cumulative error counts into a time series of errors per second.
+2.  **Retrieve Total Call Counts:** `GetErrorRates` makes a separate call to `GetCallRates` to obtain the time series of total requests per second for the same service and time window.
+3.  **Calculate Error Rate:** The `calcErrorRates` function then takes these two time series (errors per second and calls per second) and, for each corresponding timestamp, divides the error rate by the call rate to compute the final error rate.
+
+The core calculation for each point in the time series is:
+
+$$\text{Error Rate} = \frac{\text{Errors rate}}{\text{Calls rate}}$$
+
+**Code Reference:**
+
+The post-processing logic resides in `ProcessErrorRates`, `calcErrorRates`, and `calculateErrorRateValue` functions.
