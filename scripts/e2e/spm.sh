@@ -124,7 +124,7 @@ validate_service_metrics() {
 
     # Check that at least some values are non-zero after the threshold
     local non_zero_count
-    non_zero_count=$(count_non_zero_metrics_point "$response")
+    non_zero_count=$(count_non_zero_and_NaN_metrics_point "$response")
     local expected_non_zero_count=4
     local zero_count
     zero_count=$(count_zero_metrics_point "$response")
@@ -160,7 +160,7 @@ validate_service_metrics() {
       return 1
     fi
 
-    non_zero_count=$(count_non_zero_metrics_point "$response")
+    non_zero_count=$(count_non_zero_and_NaN_metrics_point "$response")
     local services_with_error="driver frontend ui redis"
     if [[ "$services_with_error" =~ $service ]]; then # the service is in the list
       if [[ $non_zero_count == "0" ]]; then
@@ -211,8 +211,8 @@ count_zero_metrics_point() {
   echo "$1" | jq -r '[.metrics[0].metricPoints[].gaugeValue.doubleValue | select(. == 0)] | length'
 }
 
-count_non_zero_metrics_point() {
-  echo "$1" | jq -r '[.metrics[0].metricPoints[].gaugeValue.doubleValue | select(. != 0)] | length'
+count_non_zero_and_NaN_metrics_point() {
+  echo "$1" | jq -r '[.metrics[0].metricPoints[].gaugeValue.doubleValue | select(. != 0 and (. | tostring != "NaN"))] | length'
 }
 
 check_spm() {
