@@ -316,6 +316,10 @@ func TestGetCallRates(t *testing.T) {
 			wantLabels: []map[string]string{
 				{
 					"service_name": "driver",
+					"operation":    "/FindCar",
+				},
+				{
+					"service_name": "driver",
 					"operation":    "/FindDriverIDs",
 				},
 				{
@@ -327,6 +331,9 @@ func TestGetCallRates(t *testing.T) {
 				TimestampSec int64
 				Value        float64
 			}{
+				{
+					{1749894840, math.NaN()},
+				},
 				{
 					{1749894840, math.NaN()},
 					{1749894900, math.NaN()},
@@ -735,6 +742,10 @@ func TestGetErrorRates(t *testing.T) {
 				wantLabels: []map[string]string{
 					{
 						"service_name": "driver",
+						"operation":    "/FindCar",
+					},
+					{
+						"service_name": "driver",
 						"operation":    "/FindDriverIDs",
 					},
 					{
@@ -746,6 +757,9 @@ func TestGetErrorRates(t *testing.T) {
 					TimestampSec int64
 					Value        float64
 				}{
+					{ // FindCar Expected Points
+						{1749894840, math.NaN()},
+					},
 					{ // FindDriverIDS Expected Points
 						{1749894840, math.NaN()},
 						{1749894900, math.NaN()},

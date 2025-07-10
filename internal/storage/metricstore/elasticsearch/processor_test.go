@@ -242,6 +242,19 @@ func TestTrimMetricPointsBefore(t *testing.T) {
 	assert.Len(t, result.Metrics[0].MetricPoints, 2)
 }
 
+func TestZeroValue(t *testing.T) {
+	// Create test input with one NaN and one non-NaN value
+	input := []*metrics.MetricPoint{
+		{Value: toDomainMetricPointValue(math.NaN())}, // NaN case
+		{Value: toDomainMetricPointValue(42.0)},       // Non-NaN case
+	}
+
+	result := zeroValue(input)
+
+	assert.True(t, math.IsNaN(result[0].GetGaugeValue().GetDoubleValue()))
+	assert.InDelta(t, 0.0, result[1].GetGaugeValue().GetDoubleValue(), 0.1)
+}
+
 // createMetricFamily creates a MetricFamily with the given name and metrics.
 func createMetricFamily(name string, m []*metrics.Metric) *metrics.MetricFamily {
 	return &metrics.MetricFamily{

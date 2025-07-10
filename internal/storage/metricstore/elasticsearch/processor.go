@@ -77,13 +77,15 @@ func zeroValue(points []*metrics.MetricPoint) []*metrics.MetricPoint {
 	zeroPoints := make([]*metrics.MetricPoint, 0, len(points))
 
 	for _, point := range points {
+		value := math.NaN()
 		// Only append 0 for call_points value is not NaN
 		if !math.IsNaN(point.GetGaugeValue().GetDoubleValue()) {
-			zeroPoints = append(zeroPoints, &metrics.MetricPoint{
-				Timestamp: point.Timestamp,
-				Value:     toDomainMetricPointValue(0.0),
-			})
+			value = 0.0
 		}
+		zeroPoints = append(zeroPoints, &metrics.MetricPoint{
+			Timestamp: point.Timestamp,
+			Value:     toDomainMetricPointValue(value),
+		})
 	}
 
 	return zeroPoints
