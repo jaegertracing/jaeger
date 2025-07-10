@@ -181,6 +181,11 @@ validate_service_metrics() {
 assert_service_name_equals() {
   local response=$1
   local expected=$2
+  # First check if metrics structure exists at all
+  if ! echo "$response" | jq -e '.metrics and .metrics[0]' >/dev/null; then
+    echo "⏳ Metrics not available yet (no metrics array)"
+    return 1
+  fi
   service_name=$(echo "$response" | jq -r 'if .metrics and .metrics[0] then .metrics[0].labels[] | select(.name=="service_name") | .value else empty end')
   if [[ "$service_name" != "$expected" ]]; then
     echo "❌ ERROR: Obtained service_name: '$service_name' are not same as expected: '$expected'"
