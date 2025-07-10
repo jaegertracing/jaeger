@@ -18,25 +18,6 @@
       "sum_other_doc_count": 0,
       "buckets": [
         {
-          "key": "/FindDriverIDs",
-          "doc_count": 200,
-          "date_histogram": {
-            "buckets": [
-              {"key": 1749894840000, "doc_count": 0, "cumulative_requests": {"value": 0}},
-              {"key": 1749894900000, "doc_count": 10, "cumulative_requests": {"value": 10}},
-              {"key": 1749894960000, "doc_count": 20, "cumulative_requests": {"value": 30}},
-              {"key": 1749895020000, "doc_count": 30, "cumulative_requests": {"value": 60}},
-              {"key": 1749895080000, "doc_count": 40, "cumulative_requests": {"value": 100}},
-              {"key": 1749895140000, "doc_count": 50, "cumulative_requests": {"value": 150}},
-              {"key": 1749895200000, "doc_count": 60, "cumulative_requests": {"value": 210}},
-              {"key": 1749895260000, "doc_count": 70, "cumulative_requests": {"value": 280}},
-              {"key": 1749895320000, "doc_count": 80, "cumulative_requests": {"value": 360}},
-              {"key": 1749895380000, "doc_count": 90, "cumulative_requests": {"value": 450}},
-              {"key": 1749895440000, "doc_count": 100, "cumulative_requests": {"value": 550}}
-            ]
-          }
-        },
-        {
           "key": "/FindNearest",
           "doc_count": 100,
           "date_histogram": {
@@ -52,81 +33,81 @@
               {
                 "key_as_string": "1749894900000",
                 "key": 1749894900000,
-                "doc_count": 10,
+                "doc_count": 5,
                 "cumulative_requests": {
-                  "value": 10
+                  "value": 5
                 }
               },
               {
                 "key_as_string": "1749894960000",
                 "key": 1749894960000,
-                "doc_count": 20,
+                "doc_count": 10,
                 "cumulative_requests": {
-                  "value": 30
+                  "value": 15
                 }
               },
               {
                 "key_as_string": "1749895020000",
                 "key": 1749895020000,
-                "doc_count": 30,
+                "doc_count": 15,
                 "cumulative_requests": {
-                  "value": 60
+                  "value": 30
                 }
               },
               {
                 "key_as_string": "1749895080000",
                 "key": 1749895080000,
-                "doc_count": 40,
+                "doc_count": 20,
                 "cumulative_requests": {
-                  "value": 100
+                  "value": 50
                 }
               },
               {
                 "key_as_string": "1749895140000",
                 "key": 1749895140000,
-                "doc_count": 50,
+                "doc_count": 25,
                 "cumulative_requests": {
-                  "value": 150
+                  "value": 75
                 }
               },
               {
                 "key_as_string": "1749895200000",
                 "key": 1749895200000,
-                "doc_count": 60,
+                "doc_count": 30,
                 "cumulative_requests": {
-                  "value": 210
+                  "value": 105
                 }
               },
               {
                 "key_as_string": "1749895260000",
                 "key": 1749895260000,
-                "doc_count": 70,
+                "doc_count": 35,
                 "cumulative_requests": {
-                  "value": 280
+                  "value": 140
                 }
               },
               {
                 "key_as_string": "1749895320000",
                 "key": 1749895320000,
-                "doc_count": 80,
+                "doc_count": 40,
                 "cumulative_requests": {
-                  "value": 360
+                  "value": 180
                 }
               },
               {
                 "key_as_string": "1749895380000",
                 "key": 1749895380000,
-                "doc_count": 90,
+                "doc_count": 45,
                 "cumulative_requests": {
-                  "value": 450
+                  "value": 225
                 }
               },
               {
                 "key_as_string": "1749895440000",
                 "key": 1749895440000,
-                "doc_count": 100,
+                "doc_count": 50,
                 "cumulative_requests": {
-                  "value": 550
+                  "value": 415
                 }
               },
               {
@@ -134,9 +115,28 @@
                 "key": 1749895500000,
                 "doc_count": 0,
                 "cumulative_requests": {
-                  "value": 0
+                  "value": 415
                 }
               }
+            ]
+          }
+        },
+        {
+          "key": "/FindDriverIDs",
+          "doc_count": 200,
+          "date_histogram": {
+            "buckets": [
+              {"key": 1749894840000, "doc_count": 0, "cumulative_requests": {"value": 0}},
+              {"key": 1749894900000, "doc_count": 8, "cumulative_requests": {"value": 8}},
+              {"key": 1749894960000, "doc_count": 16, "cumulative_requests": {"value": 24}},
+              {"key": 1749895020000, "doc_count": 24, "cumulative_requests": {"value": 48}},
+              {"key": 1749895080000, "doc_count": 32, "cumulative_requests": {"value": 80}},
+              {"key": 1749895140000, "doc_count": 40, "cumulative_requests": {"value": 120}},
+              {"key": 1749895200000, "doc_count": 48, "cumulative_requests": {"value": 168}},
+              {"key": 1749895260000, "doc_count": 56, "cumulative_requests": {"value": 224}},
+              {"key": 1749895320000, "doc_count": 64, "cumulative_requests": {"value": 288}},
+              {"key": 1749895380000, "doc_count": 72, "cumulative_requests": {"value": 360}},
+              {"key": 1749895440000, "doc_count": 80, "cumulative_requests": {"value": 440}}
             ]
           }
         }

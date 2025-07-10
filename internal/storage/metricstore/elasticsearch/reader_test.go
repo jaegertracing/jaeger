@@ -96,6 +96,41 @@ var mockLatencyQuery = `
             "percents": [95]}}}}}}
 `
 
+var mockErrorRateQuery = `{
+  "query": {
+    "bool": {
+      "filter": [
+        {"terms": {"process.serviceName": ["driver"]}},
+        {"terms": {"tag.span@kind": ["server"]}},
+		{"term": {"tag.error": true}},
+        {"range": {
+          "startTimeMillis": {
+            "gte": 1749894300000,
+            "lte": 1749894960000,
+            "format": "epoch_millis"
+          }
+        }}
+      ]
+    }
+  },
+  "size": 0,
+  "aggregations": {
+    "results_buckets": {
+      "date_histogram": {
+        "field": "startTimeMillis",
+        "fixed_interval": "60000ms",
+        "min_doc_count": 0,
+        "extended_bounds": {
+          "min": 1749894900000,
+          "max": 1749894960000
+        }
+      },
+      "aggregations": {
+        "cumulative_requests": {
+          "cumulative_sum": {
+            "buckets_path": "_count"}}}}}}
+`
+
 const (
 	mockEsValidResponse           = "testdata/output_valid_es.json"
 	mockCallRateResponse          = "testdata/output_call_rate.json"
@@ -104,6 +139,8 @@ const (
 	mockErrorResponse             = "testdata/output_error_es.json"
 	mockLatencyResponse           = "testdata/output_latencies.json" // simple case
 	mockLatencyOperationResponse  = "testdata/output_latencies_operation.json"
+	mockErrorRateResponse         = "testdata/output_errors_rate.json"
+	mockErrRateOperationResponse  = "testdata/output_errors_rate_operation.json"
 )
 
 type metricsTestCase struct {
@@ -115,8 +152,8 @@ type metricsTestCase struct {
 	responseFile string
 	wantName     string
 	wantDesc     string
-	wantLabels   map[string]string
-	wantPoints   []struct {
+	wantLabels   []map[string]string
+	wantPoints   [][]struct {
 		TimestampSec int64
 		Value        float64
 	}
@@ -153,25 +190,31 @@ func assertMetricFamily(t *testing.T, got *metrics.MetricFamily, m metricsTestCa
 	assert.Equal(t, m.wantName, got.Name, "Metric name mismatch")
 	assert.Equal(t, m.wantDesc, got.Help, "Metric description mismatch")
 	assert.Equal(t, metrics.MetricType_GAUGE, got.Type, "Metric type mismatch")
-	assert.Len(t, got.Metrics, 1, "Expected one metric")
 
-	metric := got.Metrics[0]
-	gotLabels := make(map[string]string)
-	for _, label := range metric.Labels {
-		gotLabels[label.Name] = label.Value
-	}
-	assert.Equal(t, m.wantLabels, gotLabels, "Labels mismatch")
+	for i, metric := range got.Metrics {
+		currWantLabels := m.wantLabels[i]
+		gotLabels := make(map[string]string)
+		for _, label := range metric.Labels {
+			gotLabels[label.Name] = label.Value
+		}
+		assert.Equal(t, currWantLabels, gotLabels, "Labels mismatch")
 
-	if len(m.wantPoints) == 0 {
-		assert.Empty(t, metric.MetricPoints, "Expected no metric points")
-		return
-	}
+		if len(m.wantPoints) == 0 {
+			return
+		}
+		currWantPoints := m.wantPoints[i]
 
-	assert.Len(t, metric.MetricPoints, len(m.wantPoints), "Metric points count mismatch")
-	for i, point := range metric.MetricPoints {
-		assert.Equal(t, m.wantPoints[i].TimestampSec, point.Timestamp.GetSeconds(), "Timestamp mismatch for point %d", i)
-		actualValue := point.Value.(*metrics.MetricPoint_GaugeValue).GaugeValue.GetDoubleValue()
-		assert.InDelta(t, m.wantPoints[i].Value, actualValue, 0.01, "Value mismatch for point %d", i)
+		if len(currWantPoints) == 0 {
+			assert.Empty(t, metric.MetricPoints, "Expected no metric points")
+			return
+		}
+
+		assert.Len(t, metric.MetricPoints, len(currWantPoints), "Metric points count mismatch")
+		for j, point := range metric.MetricPoints {
+			assert.Equal(t, currWantPoints[j].TimestampSec, point.Timestamp.GetSeconds(), "Timestamp mismatch for point %d", j)
+			actualValue := point.Value.(*metrics.MetricPoint_GaugeValue).GaugeValue.GetDoubleValue()
+			assert.InDelta(t, currWantPoints[j].Value, actualValue, 0.01, "Value mismatch for point %d", j)
+		}
 	}
 }
 
@@ -208,11 +251,15 @@ func Test_ErrorCases(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			reader, _ := setupMetricsReaderAndServer(t, "", mockEmptyResponse)
+			mockServer := startMockEsServer(t, "", mockEmptyResponse)
+			defer mockServer.Close()
+			reader, _ := setupMetricsReaderFromServer(t, mockServer)
 			callRateMetricFamily, err := reader.GetCallRates(context.Background(), &metricstore.CallRateQueryParameters{BaseQueryParameters: tc.params})
 			helperAssertError(t, err, tc.wantErr, callRateMetricFamily)
 			latenciesMetricFamily, err := reader.GetLatencies(context.Background(), &metricstore.LatenciesQueryParameters{BaseQueryParameters: tc.params})
 			helperAssertError(t, err, tc.wantErr, latenciesMetricFamily)
+			errorMetricFamily, err := reader.GetErrorRates(context.Background(), &metricstore.ErrorRateQueryParameters{BaseQueryParameters: tc.params})
+			helperAssertError(t, err, tc.wantErr, errorMetricFamily)
 		})
 	}
 }
@@ -224,22 +271,24 @@ func helperAssertError(t *testing.T, err error, wantErr string, result *metrics.
 }
 
 func TestGetCallRates(t *testing.T) {
-	expectedPoints := []struct {
+	expectedPoints := [][]struct {
 		TimestampSec int64
 		Value        float64
 	}{
-		{1749894840, math.NaN()},
-		{1749894900, math.NaN()},
-		{1749894960, math.NaN()},
-		{1749895020, math.NaN()},
-		{1749895080, math.NaN()},
-		{1749895140, math.NaN()},
-		{1749895200, math.NaN()},
-		{1749895260, math.NaN()},
-		{1749895320, math.NaN()},
-		{1749895380, 0.75},
-		{1749895440, 0.9},
-		{1749895500, math.NaN()},
+		{
+			{1749894840, math.NaN()},
+			{1749894900, math.NaN()},
+			{1749894960, math.NaN()},
+			{1749895020, math.NaN()},
+			{1749895080, math.NaN()},
+			{1749895140, math.NaN()},
+			{1749895200, math.NaN()},
+			{1749895260, math.NaN()},
+			{1749895320, math.NaN()},
+			{1749895380, 0.75},
+			{1749895440, 0.9},
+			{1749895500, math.NaN()},
+		},
 	}
 	tests := []metricsTestCase{
 		{
@@ -251,8 +300,8 @@ func TestGetCallRates(t *testing.T) {
 			responseFile: mockCallRateResponse,
 			wantName:     "service_call_rate",
 			wantDesc:     "calls/sec, grouped by service",
-			wantLabels: map[string]string{
-				"service_name": "driver",
+			wantLabels: []map[string]string{
+				{"service_name": "driver"},
 			},
 			wantPoints: expectedPoints,
 		},
@@ -264,11 +313,35 @@ func TestGetCallRates(t *testing.T) {
 			responseFile: mockCallRateOperationResponse,
 			wantName:     "service_operation_call_rate",
 			wantDesc:     "calls/sec, grouped by service & operation",
-			wantLabels: map[string]string{
-				"service_name": "driver",
-				"operation":    "/FindNearest",
+			wantLabels: []map[string]string{
+				{
+					"service_name": "driver",
+					"operation":    "/FindDriverIDs",
+				},
+				{
+					"service_name": "driver",
+					"operation":    "/FindNearest",
+				},
 			},
-			wantPoints: expectedPoints,
+			wantPoints: [][]struct {
+				TimestampSec int64
+				Value        float64
+			}{
+				{
+					{1749894840, math.NaN()},
+					{1749894900, math.NaN()},
+					{1749894960, math.NaN()},
+					{1749895020, math.NaN()},
+					{1749895080, math.NaN()},
+					{1749895140, math.NaN()},
+					{1749895200, math.NaN()},
+					{1749895260, math.NaN()},
+					{1749895320, math.NaN()},
+					{1749895380, 0.75},
+					{1749895440, 0.9},
+				},
+				expectedPoints[0],
+			},
 		},
 		{
 			name:         "different service names",
@@ -278,8 +351,8 @@ func TestGetCallRates(t *testing.T) {
 			responseFile: mockCallRateResponse,
 			wantName:     "service_call_rate",
 			wantDesc:     "calls/sec, grouped by service",
-			wantLabels: map[string]string{
-				"service_name": "jaeger",
+			wantLabels: []map[string]string{
+				{"service_name": "jaeger"},
 			},
 			wantPoints: expectedPoints,
 		},
@@ -291,8 +364,8 @@ func TestGetCallRates(t *testing.T) {
 			responseFile: mockEmptyResponse,
 			wantName:     "service_call_rate",
 			wantDesc:     "calls/sec, grouped by service",
-			wantLabels: map[string]string{
-				"service_name": "driver",
+			wantLabels: []map[string]string{
+				{"service_name": "driver"},
 			},
 			wantPoints: nil,
 		},
@@ -308,7 +381,9 @@ func TestGetCallRates(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			reader, exporter := setupMetricsReaderAndServer(t, tc.query, tc.responseFile)
+			mockServer := startMockEsServer(t, tc.query, tc.responseFile)
+			defer mockServer.Close()
+			reader, exporter := setupMetricsReaderFromServer(t, mockServer)
 
 			params := &metricstore.CallRateQueryParameters{
 				BaseQueryParameters: buildTestBaseQueryParameters(tc),
@@ -342,17 +417,17 @@ func TestGetLatencies(t *testing.T) {
 			responseFile: mockLatencyResponse,
 			wantName:     "service_latencies",
 			wantDesc:     "0.95th quantile latency, grouped by service",
-			wantLabels: map[string]string{
-				"service_name": "driver",
+			wantLabels: []map[string]string{
+				{"service_name": "driver"},
 			},
-			wantPoints: []struct {
+			wantPoints: [][]struct {
 				TimestampSec int64
 				Value        float64
-			}{
+			}{{
 				{1749894900, 0.2},
 				{1749894960, 0.21},
 				{1749895020, math.NaN()},
-			},
+			}},
 		},
 		{
 			name:         "group by service and operation",
@@ -362,17 +437,19 @@ func TestGetLatencies(t *testing.T) {
 			responseFile: mockLatencyOperationResponse,
 			wantName:     "service_operation_latencies",
 			wantDesc:     "0.95th quantile latency, grouped by service & operation",
-			wantLabels: map[string]string{
-				"service_name": "driver",
-				"operation":    "/FindNearest",
+			wantLabels: []map[string]string{
+				{
+					"service_name": "driver",
+					"operation":    "/FindNearest",
+				},
 			},
-			wantPoints: []struct {
+			wantPoints: [][]struct {
 				TimestampSec int64
 				Value        float64
-			}{
+			}{{
 				{1749894900, 0.2},
 				{1749894960, 0.21},
-			},
+			}},
 		},
 		{
 			name:         "empty response",
@@ -382,8 +459,8 @@ func TestGetLatencies(t *testing.T) {
 			responseFile: mockEmptyResponse,
 			wantName:     "service_latencies",
 			wantDesc:     "0.95th quantile latency, grouped by service",
-			wantLabels: map[string]string{
-				"service_name": "driver",
+			wantLabels: []map[string]string{
+				{"service_name": "driver"},
 			},
 			wantPoints: nil,
 		},
@@ -407,7 +484,9 @@ func TestGetLatencies(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			reader, exporter := setupMetricsReaderAndServer(t, tc.query, tc.responseFile)
+			mockServer := startMockEsServer(t, tc.query, tc.responseFile)
+			defer mockServer.Close()
+			reader, exporter := setupMetricsReaderFromServer(t, mockServer)
 
 			params := &metricstore.LatenciesQueryParameters{
 				BaseQueryParameters: buildTestBaseQueryParameters(tc),
@@ -441,13 +520,13 @@ func TestGetLatencies_WithDifferentQuantiles(t *testing.T) {
 			responseFile: "testdata/output_latencies_50.json",
 			wantName:     "service_latencies",
 			wantDesc:     "0.50th quantile latency, grouped by service",
-			wantLabels: map[string]string{
-				"service_name": "driver",
+			wantLabels: []map[string]string{
+				{"service_name": "driver"},
 			},
-			wantPoints: []struct {
+			wantPoints: [][]struct {
 				TimestampSec int64
 				Value        float64
-			}{
+			}{{
 				{1749894840, math.NaN()},
 				{1749894900, 0.15},
 				{1749894960, 0.16},
@@ -459,7 +538,7 @@ func TestGetLatencies_WithDifferentQuantiles(t *testing.T) {
 				{1749895320, 0.21},
 				{1749895380, 0.22},
 				{1749895440, 0.23},
-			},
+			}},
 		},
 		{
 			name:         "0.75 quantile",
@@ -469,13 +548,13 @@ func TestGetLatencies_WithDifferentQuantiles(t *testing.T) {
 			responseFile: "testdata/output_latencies_75.json",
 			wantName:     "service_latencies",
 			wantDesc:     "0.75th quantile latency, grouped by service",
-			wantLabels: map[string]string{
-				"service_name": "driver",
+			wantLabels: []map[string]string{
+				{"service_name": "driver"},
 			},
-			wantPoints: []struct {
+			wantPoints: [][]struct {
 				TimestampSec int64
 				Value        float64
-			}{
+			}{{
 				{1749894840, math.NaN()},
 				{1749894900, 0.25},
 				{1749894960, 0.26},
@@ -487,7 +566,7 @@ func TestGetLatencies_WithDifferentQuantiles(t *testing.T) {
 				{1749895320, 0.31},
 				{1749895380, 0.32},
 				{1749895440, 0.33},
-			},
+			}},
 		},
 		{
 			name:         "0.95 quantile",
@@ -497,13 +576,13 @@ func TestGetLatencies_WithDifferentQuantiles(t *testing.T) {
 			responseFile: "testdata/output_latencies_95.json",
 			wantName:     "service_latencies",
 			wantDesc:     "0.95th quantile latency, grouped by service",
-			wantLabels: map[string]string{
-				"service_name": "driver",
+			wantLabels: []map[string]string{
+				{"service_name": "driver"},
 			},
-			wantPoints: []struct {
+			wantPoints: [][]struct {
 				TimestampSec int64
 				Value        float64
-			}{
+			}{{
 				{1749894840, math.NaN()},
 				{1749894900, 0.45},
 				{1749894960, 0.46},
@@ -515,13 +594,15 @@ func TestGetLatencies_WithDifferentQuantiles(t *testing.T) {
 				{1749895320, 0.51},
 				{1749895380, 0.52},
 				{1749895440, 0.53},
-			},
+			}},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			reader, exporter := setupMetricsReaderAndServer(t, "", tc.responseFile)
+			mockServer := startMockEsServer(t, "", tc.responseFile)
+			defer mockServer.Close()
+			reader, exporter := setupMetricsReaderFromServer(t, mockServer)
 
 			params := &metricstore.LatenciesQueryParameters{
 				BaseQueryParameters: buildTestBaseQueryParameters(tc),
@@ -601,15 +682,190 @@ func TestGetLatenciesBucketsToPoints_ErrorCases(t *testing.T) {
 }
 
 func TestGetErrorRates(t *testing.T) {
-	reader, _ := setupMetricsReaderAndServer(t, "", mockEsValidResponse)
-	r, err := reader.GetErrorRates(context.Background(), &metricstore.ErrorRateQueryParameters{})
-	assert.Zero(t, r)
-	require.ErrorIs(t, err, ErrNotImplemented)
-	require.EqualError(t, err, ErrNotImplemented.Error())
+	expectedPoints := [][]struct {
+		TimestampSec int64
+		Value        float64
+	}{
+		{
+			{1749894840, math.NaN()},
+			{1749894900, math.NaN()},
+			{1749894960, math.NaN()},
+			{1749895020, math.NaN()},
+			{1749895080, math.NaN()},
+			{1749895140, math.NaN()},
+			{1749895200, math.NaN()},
+			{1749895260, math.NaN()},
+			{1749895320, math.NaN()},
+			{1749895380, 0.5},
+			{1749895440, 0.75},
+			{1749895500, math.NaN()},
+		},
+	}
+
+	tests := []struct {
+		metricsTestCase
+		callRateFile string
+	}{
+		{
+			metricsTestCase: metricsTestCase{
+				name:         "group by service only - successful",
+				serviceNames: []string{"driver"},
+				spanKinds:    []string{"SPAN_KIND_SERVER"},
+				groupByOp:    false,
+				query:        mockErrorRateQuery,
+				responseFile: mockErrorRateResponse,
+				wantName:     "service_error_rate",
+				wantDesc:     "error rate, computed as a fraction of errors/sec over calls/sec, grouped by service",
+				wantLabels: []map[string]string{
+					{"service_name": "driver"},
+				},
+				wantPoints: expectedPoints,
+			},
+			callRateFile: mockCallRateResponse,
+		},
+		{
+			metricsTestCase: metricsTestCase{
+				name:         "group by service and operation - successful",
+				serviceNames: []string{"driver"},
+				spanKinds:    []string{"SPAN_KIND_SERVER"},
+				groupByOp:    true,
+				responseFile: mockErrRateOperationResponse,
+				wantName:     "service_operation_error_rate",
+				wantDesc:     "error rate, computed as a fraction of errors/sec over calls/sec, grouped by service & operation",
+				wantLabels: []map[string]string{
+					{
+						"service_name": "driver",
+						"operation":    "/FindNearest",
+					},
+					{
+						"service_name": "driver",
+						"operation":    "/FindDriverIDs",
+					},
+				},
+				wantPoints: [][]struct {
+					TimestampSec int64
+					Value        float64
+				}{
+					expectedPoints[0], // FindNearest Expected Points
+					{ // FindDriverIDS Expected Points
+						{1749894840, math.NaN()},
+						{1749894900, math.NaN()},
+						{1749894960, math.NaN()},
+						{1749895020, math.NaN()},
+						{1749895080, math.NaN()},
+						{1749895140, math.NaN()},
+						{1749895200, math.NaN()},
+						{1749895260, math.NaN()},
+						{1749895320, math.NaN()},
+						{1749895380, 0.8},
+						{1749895440, 0.8},
+					},
+				},
+			},
+			callRateFile: mockCallRateOperationResponse,
+		},
+		{
+			metricsTestCase: metricsTestCase{
+				name:         "empty error response",
+				serviceNames: []string{"driver"},
+				spanKinds:    []string{"SPAN_KIND_SERVER"},
+				groupByOp:    false,
+				responseFile: mockEmptyResponse,
+				wantName:     "service_error_rate",
+				wantDesc:     "error rate, computed as a fraction of errors/sec over calls/sec, grouped by service",
+				wantLabels: []map[string]string{
+					{"service_name": "driver"},
+				},
+				wantPoints: nil,
+			},
+			callRateFile: mockCallRateResponse,
+		},
+		{
+			metricsTestCase: metricsTestCase{
+				name:         "empty call rate response",
+				serviceNames: []string{"driver"},
+				spanKinds:    []string{"SPAN_KIND_SERVER"},
+				groupByOp:    false,
+				responseFile: mockErrorRateResponse,
+				wantName:     "service_error_rate",
+				wantDesc:     "error rate, computed as a fraction of errors/sec over calls/sec, grouped by service",
+				wantLabels: []map[string]string{
+					{"service_name": "driver"},
+				},
+				wantPoints: nil,
+			},
+			callRateFile: mockEmptyResponse,
+		},
+		{
+			metricsTestCase: metricsTestCase{
+				name:         "error query fails",
+				serviceNames: []string{"driver"},
+				spanKinds:    []string{"SPAN_KIND_SERVER"},
+				groupByOp:    false,
+				responseFile: mockErrorResponse,
+				wantErr:      "failed executing metrics query",
+			},
+			callRateFile: mockCallRateResponse,
+		},
+		{
+			metricsTestCase: metricsTestCase{
+				name:         "call rate query fails",
+				serviceNames: []string{"driver"},
+				spanKinds:    []string{"SPAN_KIND_SERVER"},
+				groupByOp:    false,
+				responseFile: mockErrorRateResponse,
+				wantErr:      "failed executing metrics query",
+			},
+			callRateFile: mockErrorResponse,
+		},
+		{
+			metricsTestCase: metricsTestCase{
+				name:         "convert error",
+				serviceNames: []string{"driver"},
+				spanKinds:    []string{"SPAN_KIND_SERVER"},
+				groupByOp:    true,
+				responseFile: "testdata/output_error_latencies.json",
+				wantErr:      "failed to convert aggregations to metrics",
+			},
+			callRateFile: mockCallRateResponse,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockServer := startMockEsErrorRateServer(t, tc.query, tc.responseFile, tc.callRateFile)
+			defer mockServer.Close()
+			reader, exporter := setupMetricsReaderFromServer(t, mockServer)
+			params := &metricstore.ErrorRateQueryParameters{
+				BaseQueryParameters: buildTestBaseQueryParameters(tc.metricsTestCase),
+			}
+
+			metricFamily, err := reader.GetErrorRates(context.Background(), params)
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				assert.Nil(t, metricFamily)
+			} else {
+				require.NoError(t, err)
+				assertMetricFamily(t, metricFamily, metricsTestCase{
+					wantName:   tc.wantName,
+					wantDesc:   tc.wantDesc,
+					wantLabels: tc.wantLabels,
+					wantPoints: tc.wantPoints,
+				})
+			}
+
+			spans := exporter.GetSpans()
+			if tc.wantErr == "" {
+				assert.GreaterOrEqual(t, len(spans), 1, "Expected at least one span for the Elasticsearch queries")
+			}
+		})
+	}
 }
 
 func TestGetMinStepDuration(t *testing.T) {
-	reader, _ := setupMetricsReaderAndServer(t, "", mockEsValidResponse)
+	mockServer := startMockEsServer(t, "", mockEsValidResponse)
+	defer mockServer.Close()
+	reader, _ := setupMetricsReaderFromServer(t, mockServer)
 	minStep, err := reader.GetMinStepDuration(context.Background(), &metricstore.MinStepDurationQueryParameters{})
 	require.NoError(t, err)
 	assert.Equal(t, time.Millisecond, minStep)
@@ -642,12 +898,59 @@ func TestGetCallRateBucketsToPoints_ErrorCases(t *testing.T) {
 	}
 }
 
+func isErrorQuery(query map[string]any) bool {
+	if q, ok := query["query"].(map[string]any); ok {
+		if b, ok := q["bool"].(map[string]any); ok {
+			if filters, ok := b["filter"].([]any); ok {
+				for _, f := range filters {
+					if term, ok := f.(map[string]any); ok {
+						if _, ok := term["term"].(map[string]any); ok {
+							return true
+						}
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
 func sendResponse(t *testing.T, w http.ResponseWriter, responseFile string) {
 	bytes, err := os.ReadFile(responseFile)
 	require.NoError(t, err)
 
 	_, err = w.Write(bytes)
 	require.NoError(t, err)
+}
+
+func startMockEsErrorRateServer(t *testing.T, wantEsQuery string, responseFile string, callRateResponseFile string) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		// Handle initial ping request
+		if r.Method == http.MethodHead || r.URL.Path == "/" {
+			sendResponse(t, w, mockEsValidResponse)
+			return
+		}
+
+		// Read request body
+		body, err := io.ReadAll(r.Body)
+		assert.NoError(t, err, "Failed to read request body")
+		defer r.Body.Close()
+
+		// Determine which response to return based on query content
+		var query map[string]any
+		json.Unmarshal(body, &query)
+
+		// Check if this is an error query (contains error term filter)
+		if isErrorQuery(query) {
+			// Validate query if provided
+			checkQuery(t, wantEsQuery, body)
+			sendResponse(t, w, responseFile)
+		} else {
+			sendResponse(t, w, callRateResponseFile)
+		}
+	}))
 }
 
 func startMockEsServer(t *testing.T, wantEsQuery string, responseFile string) *httptest.Server {
@@ -667,18 +970,21 @@ func startMockEsServer(t *testing.T, wantEsQuery string, responseFile string) *h
 		defer r.Body.Close()
 
 		// Validate query if provided
-		if wantEsQuery != "" {
-			var expected, actual map[string]any
-			assert.NoError(t, json.Unmarshal([]byte(wantEsQuery), &expected))
-			assert.NoError(t, json.Unmarshal(body, &actual))
-			normalizeScripts(expected)
-			normalizeScripts(actual)
-
-			compareQueryStructure(t, expected, actual)
-		}
-
+		checkQuery(t, wantEsQuery, body)
 		sendResponse(t, w, responseFile)
 	}))
+}
+
+func checkQuery(t *testing.T, wantEsQuery string, body []byte) {
+	if wantEsQuery != "" {
+		var expected, actual map[string]any
+		assert.NoError(t, json.Unmarshal([]byte(wantEsQuery), &expected))
+		assert.NoError(t, json.Unmarshal(body, &actual))
+		normalizeScripts(expected)
+		normalizeScripts(actual)
+
+		compareQueryStructure(t, expected, actual)
+	}
 }
 
 func normalizeScripts(m any) {
@@ -765,13 +1071,10 @@ func compareFilters(t *testing.T, expected, actual []any) {
 	}
 }
 
-func setupMetricsReaderAndServer(t *testing.T, wantEsQuery string, responseFile string) (*MetricsReader, *tracetest.InMemoryExporter) {
+func setupMetricsReaderFromServer(t *testing.T, mockServer *httptest.Server) (*MetricsReader, *tracetest.InMemoryExporter) {
 	logger, _ := zap.NewDevelopment() // Use development logger for client-side logs
 	tracer, exporter := tracerProvider(t)
 
-	mockServer := startMockEsServer(t, wantEsQuery, responseFile)
-
-	t.Cleanup(mockServer.Close)
 	cfg := config.Configuration{
 		Servers:  []string{mockServer.URL},
 		LogLevel: "debug",
