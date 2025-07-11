@@ -18,6 +18,15 @@
       "sum_other_doc_count": 0,
       "buckets": [
         {
+          "key": "/FindCar",
+          "doc_count": 10,
+          "date_histogram": {
+            "buckets": [
+              {"key": 1749894840000, "doc_count": 10, "cumulative_requests": {"value": 10}}
+            ]
+          }
+        },
+        {
           "key": "/FindDriverIDs",
           "doc_count": 200,
           "date_histogram": {
