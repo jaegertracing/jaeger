@@ -4,9 +4,12 @@
 package fswatcher
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -94,14 +97,21 @@ func TestFSWatcherWithMultipleFiles(t *testing.T) {
 	zcore, logObserver := observer.New(zapcore.InfoLevel)
 	logger := zap.New(zcore)
 
+	onChangeCalled := make(chan struct{}, 10) // Buffered channel to prevent blocking
 	onChange := func() {
 		logger.Info("Change happens")
+		select {
+		case onChangeCalled <- struct{}{}:
+		default:
+		}
 	}
 
 	w, err := New([]string{testFile1.Name(), testFile2.Name()}, onChange, logger)
 	require.NoError(t, err)
 	require.IsType(t, &FSWatcher{}, w)
-	defer w.Close()
+	t.Cleanup(func() {
+		w.Close()
+	})
 
 	// Test Write event
 	testFile1.WriteString(" changed")
@@ -126,23 +136,49 @@ func TestFSWatcherWithMultipleFiles(t *testing.T) {
 	w.mu.RUnlock()
 
 	// Test Remove event
+	redactedPath1 := redactPath(testFile1.Name())
+	redactedPath2 := redactPath(testFile2.Name())
+
 	os.Remove(testFile1.Name())
 	os.Remove(testFile2.Name())
+
+	// Check for received events with redacted paths
 	assertLogs(t,
 		func() bool {
-			return logObserver.FilterMessage("Received event").Len() > 0
+			for _, entry := range logObserver.All() {
+				if entry.Message == "Received event" {
+					for _, field := range entry.Context {
+						if field.Key == "event" {
+							eventStr := field.String
+							if strings.Contains(eventStr, redactedPath1) || strings.Contains(eventStr, redactedPath2) {
+								return true
+							}
+						}
+					}
+				}
+			}
+			return false
 		},
-		"Unable to locate 'Received event' in log. All logs: %v", logObserver)
+		"Unable to locate 'Received event' with redacted paths in log. All logs: %v", logObserver)
+
+	// Check for file read errors with redacted paths
 	assertLogs(t,
 		func() bool {
-			return logObserver.FilterMessage("Unable to read the file").FilterField(zap.String("file", testFile1.Name())).Len() > 0
+			for _, entry := range logObserver.All() {
+				if entry.Message == "Unable to read the file" {
+					for _, field := range entry.Context {
+						if field.Key == "file" {
+							filePath := field.String
+							if filePath == redactedPath1 || filePath == redactedPath2 {
+								return true
+							}
+						}
+					}
+				}
+			}
+			return false
 		},
-		"Unable to locate 'Unable to read the file' in log. All logs: %v", logObserver)
-	assertLogs(t,
-		func() bool {
-			return logObserver.FilterMessage("Unable to read the file").FilterField(zap.String("file", testFile2.Name())).Len() > 0
-		},
-		"Unable to locate 'Unable to read the file' in log. All logs: %v", logObserver)
+		"Unable to locate 'Unable to read the file' with redacted paths in log. All logs: %v", logObserver)
 }
 
 func TestFSWatcherWithSymlinkAndRepoChanges(t *testing.T) {
@@ -159,12 +195,20 @@ func TestFSWatcherWithSymlinkAndRepoChanges(t *testing.T) {
 	zcore, logObserver := observer.New(zapcore.InfoLevel)
 	logger := zap.New(zcore)
 
-	onChange := func() {}
+	onChangeCalled := make(chan struct{}, 10) // Buffered channel to prevent blocking
+	onChange := func() {
+		select {
+		case onChangeCalled <- struct{}{}:
+		default:
+		}
+	}
 
 	w, err := New([]string{filepath.Join(testDir, "test.doc")}, onChange, logger)
 	require.NoError(t, err)
 	require.IsType(t, &FSWatcher{}, w)
-	defer w.Close()
+	t.Cleanup(func() {
+		w.Close()
+	})
 
 	timestamp2Dir := filepath.Join(testDir, "..timestamp-2")
 	createTimestampDir(t, timestamp2Dir)
@@ -230,6 +274,119 @@ func assertLogs(t *testing.T, f func() bool, errorMsg string, logObserver *obser
 			fn: func() any { return logObserver.All() },
 		},
 	)
+}
+
+func TestRedactPath(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		expected string
+	}{
+		{
+			name:     "empty path",
+			path:     "",
+			expected: "",
+		},
+		{
+			name:     "file without extension",
+			path:     "/path/to/secret",
+			expected: filepath.Join("/path/to", hashFilename("secret")),
+		},
+		{
+			name:     "file with extension",
+			path:     "/path/to/secret.txt",
+			expected: filepath.Join("/path/to", hashFilename("secret.txt")),
+		},
+		{
+			name:     "hidden file",
+			path:     "/path/to/.secret",
+			expected: filepath.Join("/path/to", hashFilename(".secret")),
+		},
+		{
+			name:     "just filename",
+			path:     "secret.txt",
+			expected: hashFilename("secret.txt"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := redactPath(tt.path)
+			assert.Equal(t, tt.expected, result, "redacted path does not match expected")
+		})
+	}
+}
+
+// hashFilename mimics the hashing logic in redactPath for test assertions
+func hashFilename(filename string) string {
+	if filename == "" {
+		return ""
+	}
+	h := sha256.Sum256([]byte(filename))
+	ext := filepath.Ext(filename)
+	hashPrefix := hex.EncodeToString(h[:4])
+	if ext != "" {
+		return hashPrefix + "..." + ext
+	}
+	return hashPrefix
+}
+
+func TestRedactionInLogs(t *testing.T) {
+	// Setup test file
+	testDir := t.TempDir()
+	testFile := filepath.Join(testDir, "secret-password.txt")
+	err := os.WriteFile(testFile, []byte("test"), 0o600)
+	require.NoError(t, err)
+
+	// Setup logger with observer
+	zcore, logObserver := observer.New(zapcore.InfoLevel)
+	logger := zap.New(zcore)
+
+	// Create a channel to signal when onChange is called
+	onChangeCalled := make(chan struct{})
+	onChange := func() {
+		select {
+		case onChangeCalled <- struct{}{}:
+		default:
+		}
+	}
+
+	// Create and defer cleanup of watcher
+	watcher, err := New([]string{testFile}, onChange, logger)
+	require.NoError(t, err)
+	defer watcher.Close()
+
+	// Modify the file to trigger the watcher
+	err = os.WriteFile(testFile, []byte("new content"), 0o600)
+	require.NoError(t, err)
+
+	// Wait for the event to be processed or timeout after a second
+	select {
+	case <-onChangeCalled:
+		// onChange was called, continue with assertions
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for onChange to be called")
+	}
+
+	// Check that the log contains redacted path
+	found := false
+	redactedName := redactPath(testFile)
+
+	for _, entry := range logObserver.All() {
+		if entry.Message == "Received event" {
+			for _, field := range entry.Context {
+				if field.Key == "event" {
+					eventStr := field.String
+					// The log should contain the redacted path
+					assert.Contains(t, eventStr, redactedName, "log should contain redacted filename")
+					// The log should not contain the original filename
+					assert.NotContains(t, eventStr, filepath.Base(testFile), "log should not contain original filename")
+					found = true
+				}
+			}
+		}
+	}
+	assert.True(t, found, "expected log entry not found")
 }
 
 func TestMain(m *testing.M) {

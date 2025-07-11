@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
@@ -103,7 +104,12 @@ func (w *FSWatcher) watch() {
 			if !ok {
 				return
 			}
-			w.logger.Info("Received event", zap.String("event", event.String()))
+			// Redact sensitive file paths in logs
+			eventStr := event.String()
+			if event.Name != "" {
+				eventStr = strings.Replace(eventStr, event.Name, redactPath(event.Name), 1)
+			}
+			w.logger.Info("Received event", zap.String("event", eventStr))
 			var changed bool
 			w.mu.Lock()
 			for file, hash := range w.fileHashContentMap {
@@ -135,10 +141,35 @@ func (w *FSWatcher) Close() error {
 func (w *FSWatcher) isModified(filePathName string, previousHash string) (bool, string) {
 	hash, err := hashFile(filePathName)
 	if err != nil {
-		w.logger.Warn("Unable to read the file", zap.String("file", filePathName), zap.Error(err))
+		w.logger.Warn("Unable to read the file", zap.String("file", redactPath(filePathName)), zap.Error(err))
 		return true, ""
 	}
 	return previousHash != hash, hash
+}
+
+// redactPath redacts the filename portion of a file path by hashing it
+// while preserving the directory structure and file extension.
+// This is used to prevent logging sensitive file paths.
+func redactPath(filePath string) string {
+	if filePath == "" {
+		return filePath
+	}
+
+	dir, file := filepath.Split(filePath)
+	if file == "" {
+		return dir
+	}
+
+	// Create a hash of the filename
+	h := sha256.Sum256([]byte(file))
+	hashPrefix := hex.EncodeToString(h[:4])
+
+	// Keep the file extension if it exists
+	ext := filepath.Ext(file)
+	if ext != "" {
+		return filepath.Join(dir, hashPrefix+"..."+ext)
+	}
+	return filepath.Join(dir, hashPrefix)
 }
 
 // hashFile returns the SHA256 hash of the file.

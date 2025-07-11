@@ -14,12 +14,14 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
@@ -50,6 +52,9 @@ func TestElasticsearchFactoryBase(t *testing.T) {
 	cfg := escfg.Configuration{
 		Servers:  []string{server.URL},
 		LogLevel: "debug",
+		Authentication: escfg.Authentication{
+			BasicAuthentication: configoptional.Some(escfg.BasicAuthentication{}),
+		},
 	}
 	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t))
 	require.NoError(t, err)
@@ -62,6 +67,60 @@ func TestElasticsearchFactoryBase(t *testing.T) {
 	_, err = f.CreateSamplingStore(1)
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
+}
+
+func TestFactoryBase_Purge(t *testing.T) {
+	tests := []struct {
+		name        string
+		setupMock   func(*mocks.IndicesDeleteService)
+		expectedErr bool
+	}{
+		{
+			name: "successful purge",
+			setupMock: func(mockDelete *mocks.IndicesDeleteService) {
+				mockDelete.On("Do", mock.Anything).Return(nil, nil)
+			},
+			expectedErr: false,
+		},
+		{
+			name: "purge error",
+			setupMock: func(mockDelete *mocks.IndicesDeleteService) {
+				mockDelete.On("Do", mock.Anything).Return(nil, errors.New("delete error"))
+			},
+			expectedErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a real factory with a mock ES client
+			mockClient := &mocks.Client{}
+			mockDelete := &mocks.IndicesDeleteService{}
+			mockClient.On("DeleteIndex", "*").Return(mockDelete)
+
+			tt.setupMock(mockDelete)
+
+			// Create a mock client that will be stored in the atomic.Pointer
+			f := &FactoryBase{
+				client: atomic.Pointer[es.Client]{},
+			}
+			// Create a concrete type that implements es.Client
+			var client es.Client = mockClient
+			// Store the client in the atomic.Pointer
+			f.client.Store(&client)
+
+			err := f.Purge(context.Background())
+			if tt.expectedErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			// Verify the mock was called as expected
+			mockClient.AssertExpectations(t)
+			mockDelete.AssertExpectations(t)
+		})
+	}
 }
 
 func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
@@ -319,10 +378,10 @@ func testPasswordFromFile(t *testing.T) {
 		Servers:  []string{server.URL},
 		LogLevel: "debug",
 		Authentication: escfg.Authentication{
-			BasicAuthentication: escfg.BasicAuthentication{
+			BasicAuthentication: configoptional.Some(escfg.BasicAuthentication{
 				Username:         "user",
 				PasswordFilePath: pwdFile,
-			},
+			}),
 		},
 		BulkProcessing: escfg.BulkProcessing{
 			MaxBytes: -1, // disable bulk; we want immediate flush
@@ -396,9 +455,9 @@ func TestPasswordFromFileErrors(t *testing.T) {
 		Servers:  []string{server.URL},
 		LogLevel: "debug",
 		Authentication: escfg.Authentication{
-			BasicAuthentication: escfg.BasicAuthentication{
+			BasicAuthentication: configoptional.Some(escfg.BasicAuthentication{
 				PasswordFilePath: pwdFile,
-			},
+			}),
 		},
 	}
 
