@@ -4,32 +4,38 @@
 package tracegen
 
 import (
+	"context"
+	"encoding/binary"
 	"errors"
 	"flag"
+	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
 // Config describes the test scenario.
 type Config struct {
-	Workers       int
-	Services      int
-	Traces        int
-	ChildSpans    int
-	Attributes    int
-	AttrKeys      int
-	AttrValues    int
-	Marshal       bool
-	Debug         bool
-	Firehose      bool
-	Pause         time.Duration
-	Duration      time.Duration
-	Service       string
-	TraceExporter string
+	Workers             int
+	Services            int
+	Traces              int
+	ChildSpans          int
+	Attributes          int
+	AttrKeys            int
+	AttrValues          int
+	Marshal             bool
+	Debug               bool
+	Firehose            bool
+	Pause               time.Duration
+	Duration            time.Duration
+	Service             string
+	TraceExporter       string
+	Repeatable          bool
+	RepeatableTimeStart string
 }
 
 // Flags registers config flags.
@@ -47,6 +53,8 @@ func (c *Config) Flags(fs *flag.FlagSet) {
 	fs.StringVar(&c.Service, "service", "tracegen", "Service name prefix to use")
 	fs.IntVar(&c.Services, "services", 1, "Number of unique suffixes to add to service name when generating traces, e.g. tracegen-01 (but only one service per trace)")
 	fs.StringVar(&c.TraceExporter, "trace-exporter", "otlp-http", "Trace exporter (otlp/otlp-http|otlp-grpc|stdout). Exporters can be additionally configured via environment variables, see https://github.com/jaegertracing/jaeger/blob/main/cmd/tracegen/README.md")
+	fs.BoolVar(&c.Repeatable, "repeatable", false, "For generated repeatable data to suit some Trace Bench, default: false")
+	fs.StringVar(&c.RepeatableTimeStart, "repeatable-timestart", "2025-01-01T00:00:00.000000000+00:00", "For support generated repeatable data from this time point. default&eg. 2025-01-01T00:00:00.000000000+00:00")
 }
 
 // Run executes the test scenario.
@@ -69,13 +77,71 @@ func Run(c *Config, tracers []trace.Tracer, logger *zap.Logger) error {
 			wg:      &wg,
 			logger:  logger.With(zap.Int("worker", i)),
 		}
-
-		go w.simulateTraces()
+		// set strategy
+		if w.Config.Repeatable {
+			strategy, err := newRepeatableStrategy(w.Config.RepeatableTimeStart)
+			if err != nil {
+				return err
+			}
+			w.setStrategy(strategy)
+			// TODO: Make repeatable gen support concurrent
+			w.simulateTraces()
+		} else {
+			w.setStrategy(&randomStrategy{})
+			go w.simulateTraces()
+		}
 	}
+
 	if c.Duration > 0 {
 		time.Sleep(c.Duration)
 		atomic.StoreUint32(&running, 0)
 	}
 	wg.Wait()
 	return nil
+}
+
+// PseudoRandomIDGenerator For Repeatable data generation
+type PseudoRandomIDGenerator struct {
+	rng *rand.Rand
+}
+
+// NewPseudoRandomIDGenerator  The Nth TracerProvider has a pseudo seed of N.
+func NewPseudoRandomIDGenerator(seed int) sdktrace.IDGenerator {
+	src := rand.NewSource(int64(seed))
+	return &PseudoRandomIDGenerator{
+		rng: rand.New(src),
+	}
+}
+
+func (g *PseudoRandomIDGenerator) NewIDs(ctx context.Context) (trace.TraceID, trace.SpanID) {
+	tid := trace.TraceID{}
+	sid := trace.SpanID{}
+
+	for {
+		binary.NativeEndian.PutUint64(tid[:8], g.rng.Uint64())
+		binary.NativeEndian.PutUint64(tid[8:], g.rng.Uint64())
+		if tid.IsValid() {
+			break
+		}
+	}
+
+	for {
+		binary.NativeEndian.PutUint64(sid[:], g.rng.Uint64())
+		if sid.IsValid() {
+			break
+		}
+	}
+
+	return tid, sid
+}
+
+func (g *PseudoRandomIDGenerator) NewSpanID(ctx context.Context, traceID trace.TraceID) trace.SpanID {
+	sid := trace.SpanID{}
+	for {
+		binary.NativeEndian.PutUint64(sid[:], g.rng.Uint64())
+		if sid.IsValid() {
+			break
+		}
+	}
+	return sid
 }
