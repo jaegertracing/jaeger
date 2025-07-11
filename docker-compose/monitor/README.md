@@ -138,21 +138,21 @@ docker compose up
 
 Generate a specific number of traces with:
 ```shell
-docker run --env OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="http://otel_collector:4317" \
+docker run --env OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="http://jaeger:4318/v1/traces" \
   --network monitor_backend \
   --rm \
   jaegertracing/jaeger-tracegen:1.49 \
-    -trace-exporter otlp-grpc \
+    -trace-exporter otlp-http \
     -traces 1
 ```
 
 Or, emit traces over a period of time with:
 ```shell
-docker run --env OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="http://otel_collector:4317" \
+docker run --env OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="http://jaeger:4318/v1/traces" \
   --network monitor_backend \
   --rm \
   jaegertracing/jaeger-tracegen:1.49 \
-    -trace-exporter otlp-grpc \
+    -trace-exporter otlp-http \
     -duration 5s
 ```
 
