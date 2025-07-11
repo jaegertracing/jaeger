@@ -51,6 +51,15 @@ var mockEsServerResponseWithVersion2 = []byte(`
 }
 `)
 
+var mockEsServerResponseWithVersion3 = []byte(`
+{
+	"tagline": "OpenSearch",
+	"Version": {
+		"Number": "3"
+	}
+}
+`)
+
 var mockEsServerResponseWithVersion8 = []byte(`
 {
 	"tagline": "OpenSearch",
