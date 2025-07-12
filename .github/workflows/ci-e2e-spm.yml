@@ -25,10 +25,10 @@ jobs:
         mode:
         - name: v1
           binary: all-in-one
-          database: memory
+          database: prometheus
         - name: v2
           binary: jaeger
-          database: memory
+          database: prometheus
         - name: v2 with ES
           binary: jaeger
           database: elasticsearch

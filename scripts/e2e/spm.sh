@@ -8,13 +8,13 @@ set -euf -o pipefail
 print_help() {
   echo "Usage: $0 [-b binary] [-d database]"
   echo "-b: Which binary to build: 'all-in-one' or 'jaeger' (v2, default)"
-  echo "-d: Which database to use: 'memory' (default) or 'elasticsearch'"
+  echo "-d: Which database to use: 'prometheus' (default) or 'elasticsearch'"
   echo "-h: Print help"
   exit 1
 }
 
 BINARY='jaeger'
-DATABASE='memory'
+DATABASE='prometheus' #DATABASE now represents metrics store database
 compose_file=docker-compose/monitor/docker-compose.yml
 make_target="dev"
 
@@ -47,7 +47,7 @@ esac
 
 # Validate database option
 case "$DATABASE" in
-  "memory"|"elasticsearch")
+  "prometheus"|"elasticsearch")
     # Valid options
     ;;
   *)
@@ -103,8 +103,12 @@ wait_for_services() {
   if [ "$DATABASE" == "elasticsearch" ]; then
     check_service_health "Elasticsearch" "http://localhost:9200"
   fi
+
+  if [ "$DATABASE" == "prometheus" ]; then
+    check_service_health "Prometheus" "http://localhost:9090/query"
+  fi
+
   check_service_health "Jaeger" "http://localhost:16686"
-  check_service_health "Prometheus" "http://localhost:9090/query"
 }
 
 # Function to validate the service metrics
@@ -124,7 +128,7 @@ validate_service_metrics() {
 
     # Check that at least some values are non-zero after the threshold
     local non_zero_count
-    non_zero_count=$(count_non_zero_metrics_point "$response")
+    non_zero_count=$(count_non_zero_and_NaN_metrics_point "$response")
     local expected_non_zero_count=4
     local zero_count
     zero_count=$(count_zero_metrics_point "$response")
@@ -160,7 +164,7 @@ validate_service_metrics() {
       return 1
     fi
 
-    non_zero_count=$(count_non_zero_metrics_point "$response")
+    non_zero_count=$(count_non_zero_and_NaN_metrics_point "$response")
     local services_with_error="driver frontend ui redis"
     if [[ "$services_with_error" =~ $service ]]; then # the service is in the list
       if [[ $non_zero_count == "0" ]]; then
@@ -211,8 +215,8 @@ count_zero_metrics_point() {
   echo "$1" | jq -r '[.metrics[0].metricPoints[].gaugeValue.doubleValue | select(. == 0)] | length'
 }
 
-count_non_zero_metrics_point() {
-  echo "$1" | jq -r '[.metrics[0].metricPoints[].gaugeValue.doubleValue | select(. != 0)] | length'
+count_non_zero_and_NaN_metrics_point() {
+  echo "$1" | jq -r '[.metrics[0].metricPoints[].gaugeValue.doubleValue | select(. != 0 and (. | tostring != "NaN"))] | length'
 }
 
 check_spm() {
