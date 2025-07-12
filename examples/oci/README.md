@@ -54,6 +54,53 @@ Then, open the following URLs in your browser:
 - **Grafana:** [http://localhost:9091](http://localhost:9091)
 - **HotROD Demo App:** [http://localhost:8080](http://localhost:8080)
 
+## Deploying on Cloud Infrastructure (e.g., Oracle Cloud)
+
+To expose your services externally using a custom domain (e.g., `http://demo.jaegertracing.io/`), you need to set up an **Ingress Controller** and define an **Ingress resource**.
+
+### Step 1: Deploy the NGINX Ingress Controller
+
+Apply the official NGINX Ingress Controller manifest for cloud environments:
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v<VERSION>/deploy/static/provider/cloud/deploy.yaml
+```
+
+> 🔁 Replace `<VERSION>` with the latest version from the [Ingress NGINX GitHub Releases](https://github.com/kubernetes/ingress-nginx/releases).
+
+---
+
+### Step 2: Verify the Ingress Controller
+
+After deployment, check that the ingress controller service is up and has an external IP:
+
+```bash
+kubectl get svc -n ingress-nginx
+```
+
+You should see output like:
+
+```bash
+NAME                       TYPE           CLUSTER-IP      EXTERNAL-IP       PORT(S)                       AGE
+ingress-nginx-controller   LoadBalancer   10.96.229.38    129.146.214.219   80:30756/TCP,443:30118/TCP    1h
+```
+
+> 🧠 Note: The `EXTERNAL-IP` is the public IP address your domain (e.g., `demo.jaegertracing.io`) should point to via DNS.
+
+---
+
+### Step 3: Apply the Ingress Resource
+
+Once your DNS is mapped and the ingress controller is ready, deploy your Ingress definition:
+
+```bash
+kubectl apply -f ingress.yaml
+```
+
+This routes incoming HTTP traffic to the respective Kubernetes services based on the path or host rules defined in `ingress.yaml`.
+
+---
+
 🔧 Remarks
 
 📌 The current configuration is set to run in the default namespace.
