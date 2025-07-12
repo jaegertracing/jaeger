@@ -1,0 +1,43 @@
+groups:
+- name: jaeger_alerts
+  rules:
+  - alert: OtelHttpServerErrors
+    expr: |
+      100 * sum(rate(otelcol_http_server_duration_count{http_status_code=~"5.."}[1m])) by (job, instance)
+      /
+      sum(rate(otelcol_http_server_duration_count[1m])) by (job, instance)
+      > 1
+    labels:
+      severity: warning
+    annotations:
+      message: |
+        {{ $labels.job }} {{ $labels.instance }} is experiencing high HTTP 5xx error rate.
+
+  - alert: OtelExporterQueueFull
+    expr: |
+      100 * otelcol_exporter_queue_size / otelcol_exporter_queue_capacity > 80
+    labels:
+      severity: warning
+    annotations:
+      message: |
+        {{ $labels.job }} {{ $labels.instance }} exporter queue is over 80% capacity.
+
+  - alert: OtelHighMemoryUsage
+    expr: otelcol_process_memory_rss > 100000000
+    labels:
+      severity: warning
+    annotations:
+      message: |
+        {{ $labels.job }} {{ $labels.instance }} memory usage is high.
+
+  - alert: OtelReceiverRefusedSpans
+    expr: |
+      sum(rate(otelcol_receiver_refused_spans_total[1m])) by (job, instance)
+      /
+      sum(rate(otelcol_receiver_accepted_spans[1m])) by (job, instance)
+      > 0.01
+    labels:
+      severity: warning
+    annotations:
+      message: |
+        {{ $labels.job }} {{ $labels.instance }} is dropping spans.
