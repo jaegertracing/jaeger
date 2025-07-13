@@ -32,6 +32,9 @@ jobs:
         - name: v2 with ES
           binary: jaeger
           metricstore: elasticsearch
+        - name: v2 with OS
+          binary: jaeger
+          metricstore: opensearch
 
     steps:
     - name: Harden Runner
