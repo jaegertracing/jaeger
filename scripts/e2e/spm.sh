@@ -105,17 +105,18 @@ check_service_health() {
 # Function to check if all services are healthy
 wait_for_services() {
   echo "Waiting for services to be up and running..."
-  if [ "$METRICSTORE" == "elasticsearch" ]; then
-    check_service_health "Elasticsearch" "http://localhost:9200"
-  fi
 
-  if [ "$METRICSTORE" == "opensearch" ]; then
+  case "$METRICSTORE" in
+    "elasticsearch")
+      check_service_health "Elasticsearch" "http://localhost:9200"
+      ;;
+    "opensearch")
       check_service_health "Opensearch" "http://localhost:9200"
-    fi
-
-  if [ "$METRICSTORE" == "prometheus" ]; then
-    check_service_health "Prometheus" "http://localhost:9090/query"
-  fi
+      ;;
+    "prometheus")
+      check_service_health "Prometheus" "http://localhost:9090/query"
+      ;;
+  esac
 
   check_service_health "Jaeger" "http://localhost:16686"
 }
