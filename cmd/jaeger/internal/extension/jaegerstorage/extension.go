@@ -16,13 +16,12 @@ import (
 	esmetrics "github.com/jaegertracing/jaeger/internal/storage/metricstore/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/badger"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/cassandra"
 	es "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
@@ -159,17 +158,14 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 	for storageName, cfg := range s.config.TraceBackends {
 		s.telset.Logger.Sugar().Infof("Initializing storage '%s'", storageName)
 		var factory tracestore.Factory
-		var v1Factory storage.Factory
 		var err error = errors.New("empty configuration")
 		switch {
 		case cfg.Memory != nil:
-			v1Factory, err = memory.NewFactoryWithConfig(
-				*cfg.Memory,
-				scopedMetricsFactory(storageName, "memory", "tracestore"),
-				s.telset.Logger,
-			), nil
+			memTelset := telset
+			memTelset.Metrics = scopedMetricsFactory(storageName, "memory", "tracestore")
+			factory, err = memory.NewFactory(*cfg.Memory, memTelset)
 		case cfg.Badger != nil:
-			v1Factory, err = badger.NewFactoryWithConfig(
+			factory, err = badger.NewFactory(
 				*cfg.Badger,
 				scopedMetricsFactory(storageName, "badger", "tracestore"),
 				s.telset.Logger)
@@ -178,7 +174,7 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 			grpcTelset.Metrics = scopedMetricsFactory(storageName, "grpc", "tracestore")
 			factory, err = grpc.NewFactory(ctx, *cfg.GRPC, grpcTelset)
 		case cfg.Cassandra != nil:
-			v1Factory, err = cassandra.NewFactoryWithConfig(
+			factory, err = cassandra.NewFactory(
 				*cfg.Cassandra,
 				scopedMetricsFactory(storageName, "cassandra", "tracestore"),
 				s.telset.Logger,
@@ -202,10 +198,6 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		}
 		if err != nil {
 			return fmt.Errorf("failed to initialize storage '%s': %w", storageName, err)
-		}
-
-		if v1Factory != nil {
-			factory = v1adapter.NewFactory(v1Factory)
 		}
 
 		s.factories[storageName] = factory

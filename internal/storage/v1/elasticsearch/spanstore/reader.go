@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/olivere/elastic"
+	"github.com/olivere/elastic/v7"
 	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -84,7 +84,7 @@ var (
 func init() {
 	disableLegacyIDs = featuregate.GlobalRegistry().MustRegister(
 		"jaeger.es.disableLegacyId",
-		featuregate.StageBeta, // enabed by default
+		featuregate.StageStable, // enabled by default and cannot be disabled
 		featuregate.WithRegisterFromVersion("v2.5.0"),
 		featuregate.WithRegisterToVersion("v2.8.0"),
 		featuregate.WithRegisterDescription("Legacy trace ids are the ids that used to be rendered with leading 0s omitted. Setting this gate to false will force the reader to search for the spans with trace ids having leading zeroes"),
@@ -264,7 +264,7 @@ func (*SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (dbmodel.Span
 
 	var jsonSpan dbmodel.Span
 
-	d := json.NewDecoder(bytes.NewReader(*esSpanInByteArray))
+	d := json.NewDecoder(bytes.NewReader(esSpanInByteArray))
 	d.UseNumber()
 	if err := d.Decode(&jsonSpan); err != nil {
 		return dbmodel.Span{}, err
@@ -411,7 +411,8 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 				nextTime = val
 			}
 
-			s := s.sourceFn(query, nextTime)
+			s := s.sourceFn(query, nextTime).
+				TrackTotalHits(true)
 			searchRequests[i] = elastic.NewSearchRequest().
 				IgnoreUnavailable(true).
 				Source(s)

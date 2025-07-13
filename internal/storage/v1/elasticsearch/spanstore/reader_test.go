@@ -14,11 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/olivere/elastic"
+	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/featuregate"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
@@ -302,7 +301,7 @@ func TestSpanReader_GetTrace(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		hits := make([]*elastic.SearchHit, 1)
 		hits[0] = &elastic.SearchHit{
-			Source: (*json.RawMessage)(&exampleESSpan),
+			Source: exampleESSpan,
 		}
 		searchHits := &elastic.SearchHits{Hits: hits}
 
@@ -325,6 +324,12 @@ func TestSpanReader_GetTrace(t *testing.T) {
 		require.Len(t, trace[0].Spans, 1)
 		assert.Equal(t, trace[0].Spans[0], expectedSpans[0])
 	})
+}
+
+func newSearchRequest(fn *elastic.SearchSource) *elastic.SearchRequest {
+	return elastic.NewSearchRequest().
+		IgnoreUnavailable(true).
+		Source(fn)
 }
 
 func TestSpanReader_multiRead_followUp_query(t *testing.T) {
@@ -357,17 +362,11 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 
 		traceID1Query := elastic.NewTermQuery(traceIDField, string(traceID1))
 		id1Query := elastic.NewBoolQuery().Must(traceID1Query)
-		id1Search := elastic.NewSearchRequest().
-			IgnoreUnavailable(true).
-			Source(r.reader.sourceFn(id1Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))))
+		id1Search := newSearchRequest(r.reader.sourceFn(id1Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))).TrackTotalHits(true))
 		traceID2Query := elastic.NewTermQuery(traceIDField, string(traceID2))
 		id2Query := elastic.NewBoolQuery().Must(traceID2Query)
-		id2Search := elastic.NewSearchRequest().
-			IgnoreUnavailable(true).
-			Source(r.reader.sourceFn(id2Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))))
-		id1SearchSpanTime := elastic.NewSearchRequest().
-			IgnoreUnavailable(true).
-			Source(r.reader.sourceFn(id1Query, spanID1.StartTime))
+		id2Search := newSearchRequest(r.reader.sourceFn(id2Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))).TrackTotalHits(true))
+		id1SearchSpanTime := newSearchRequest(r.reader.sourceFn(id1Query, spanID1.StartTime).TrackTotalHits(true))
 
 		multiSearchService := &mocks.MultiSearchService{}
 		firstMultiSearch := &mocks.MultiSearchService{}
@@ -394,8 +393,11 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 		// the client will return only one span therefore the implementation
 		// triggers follow up query for the same traceID with the timestamp of the last span
 		searchHitsID1 := &elastic.SearchHits{Hits: []*elastic.SearchHit{
-			{Source: (*json.RawMessage)(&spanBytesID1)},
-		}, TotalHits: 2}
+			{Source: spanBytesID1},
+		}, TotalHits: &elastic.TotalHits{
+			Value:    2,
+			Relation: "eq",
+		}}
 		fistMultiSearchMock.
 			Return(&elastic.MultiSearchResult{
 				Responses: []*elastic.SearchResult{
@@ -404,8 +406,11 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 			}, nil)
 
 		searchHitsID2 := &elastic.SearchHits{Hits: []*elastic.SearchHit{
-			{Source: (*json.RawMessage)(&spanBytesID2)},
-		}, TotalHits: 1}
+			{Source: spanBytesID2},
+		}, TotalHits: &elastic.TotalHits{
+			Value:    1,
+			Relation: "eq",
+		}}
 		secondMultiSearchMock.
 			Return(&elastic.MultiSearchResult{
 				Responses: []*elastic.SearchResult{
@@ -435,11 +440,16 @@ func TestSpanReader_SearchAfter(t *testing.T) {
 		var hits []*elastic.SearchHit
 
 		for i := 0; i < 10000; i++ {
-			hit := &elastic.SearchHit{Source: (*json.RawMessage)(&exampleESSpan)}
+			hit := &elastic.SearchHit{Source: exampleESSpan}
 			hits = append(hits, hit)
 		}
 
-		searchHits := &elastic.SearchHits{Hits: hits, TotalHits: int64(10040)}
+		totalHits := &elastic.TotalHits{
+			Value:    int64(10040),
+			Relation: "eq",
+		}
+
+		searchHits := &elastic.SearchHits{Hits: hits, TotalHits: totalHits}
 
 		mockSearchService(r).Return(&elastic.SearchResult{Hits: searchHits}, nil)
 		mockMultiSearchService(r).
@@ -504,7 +514,7 @@ func TestSpanReader_GetTraceInvalidSpanError(t *testing.T) {
 		data := []byte(`{"TraceID": "123"asdf fadsg}`)
 		hits := make([]*elastic.SearchHit, 1)
 		hits[0] = &elastic.SearchHit{
-			Source: (*json.RawMessage)(&data),
+			Source: data,
 		}
 		searchHits := &elastic.SearchHits{Hits: hits}
 
@@ -526,7 +536,7 @@ func TestSpanReader_GetTraceInvalidSpanError(t *testing.T) {
 
 func TestSpanReader_esJSONtoJSONSpanModel(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		jsonPayload := (*json.RawMessage)(&exampleESSpan)
+		jsonPayload := exampleESSpan
 
 		esSpanRaw := &elastic.SearchHit{
 			Source: jsonPayload,
@@ -544,7 +554,7 @@ func TestSpanReader_esJSONtoJSONSpanModel(t *testing.T) {
 func TestSpanReader_esJSONtoJSONSpanModelError(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		data := []byte(`{"TraceID": "123"asdf fadsg}`)
-		jsonPayload := (*json.RawMessage)(&data)
+		jsonPayload := data
 
 		esSpanRaw := &elastic.SearchHit{
 			Source: jsonPayload,
@@ -607,13 +617,13 @@ func TestSpanReader_indexWithDate(t *testing.T) {
 }
 
 func testGet(typ string, t *testing.T) {
-	goodAggregations := make(map[string]*json.RawMessage)
+	goodAggregations := make(map[string]json.RawMessage)
 	rawMessage := []byte(`{"buckets": [{"key": "123","doc_count": 16}]}`)
-	goodAggregations[typ] = (*json.RawMessage)(&rawMessage)
+	goodAggregations[typ] = rawMessage
 
-	badAggregations := make(map[string]*json.RawMessage)
+	badAggregations := make(map[string]json.RawMessage)
 	badRawMessage := []byte(`{"buckets": [{bad json]}asdf`)
-	badAggregations[typ] = (*json.RawMessage)(&badRawMessage)
+	badAggregations[typ] = badRawMessage
 
 	testCases := []struct {
 		caption        string
@@ -714,13 +724,13 @@ func TestSpanReader_bucketToStringArrayError(t *testing.T) {
 }
 
 func TestSpanReader_FindTraces(t *testing.T) {
-	goodAggregations := make(map[string]*json.RawMessage)
+	goodAggregations := make(map[string]json.RawMessage)
 	rawMessage := []byte(`{"buckets": [{"key": "1","doc_count": 16},{"key": "2","doc_count": 16},{"key": "3","doc_count": 16}]}`)
-	goodAggregations[traceIDAggregation] = (*json.RawMessage)(&rawMessage)
+	goodAggregations[traceIDAggregation] = rawMessage
 
 	hits := make([]*elastic.SearchHit, 1)
 	hits[0] = &elastic.SearchHit{
-		Source: (*json.RawMessage)(&exampleESSpan),
+		Source: exampleESSpan,
 	}
 	searchHits := &elastic.SearchHits{Hits: hits}
 
@@ -762,13 +772,13 @@ func TestSpanReader_FindTraces(t *testing.T) {
 }
 
 func TestSpanReader_FindTracesInvalidQuery(t *testing.T) {
-	goodAggregations := make(map[string]*json.RawMessage)
+	goodAggregations := make(map[string]json.RawMessage)
 	rawMessage := []byte(`{"buckets": [{"key": "1","doc_count": 16},{"key": "2","doc_count": 16},{"key": "3","doc_count": 16}]}`)
-	goodAggregations[traceIDAggregation] = (*json.RawMessage)(&rawMessage)
+	goodAggregations[traceIDAggregation] = rawMessage
 
 	hits := make([]*elastic.SearchHit, 1)
 	hits[0] = &elastic.SearchHit{
-		Source: (*json.RawMessage)(&exampleESSpan),
+		Source: exampleESSpan,
 	}
 	searchHits := &elastic.SearchHits{Hits: hits}
 
@@ -800,11 +810,11 @@ func TestSpanReader_FindTracesInvalidQuery(t *testing.T) {
 }
 
 func TestSpanReader_FindTracesAggregationFailure(t *testing.T) {
-	goodAggregations := make(map[string]*json.RawMessage)
+	goodAggregations := make(map[string]json.RawMessage)
 
 	hits := make([]*elastic.SearchHit, 1)
 	hits[0] = &elastic.SearchHit{
-		Source: (*json.RawMessage)(&exampleESSpan),
+		Source: exampleESSpan,
 	}
 	searchHits := &elastic.SearchHits{Hits: hits}
 
@@ -833,13 +843,13 @@ func TestSpanReader_FindTracesAggregationFailure(t *testing.T) {
 }
 
 func TestSpanReader_FindTracesNoTraceIDs(t *testing.T) {
-	goodAggregations := make(map[string]*json.RawMessage)
+	goodAggregations := make(map[string]json.RawMessage)
 	rawMessage := []byte(`{"buckets": []}`)
-	goodAggregations[traceIDAggregation] = (*json.RawMessage)(&rawMessage)
+	goodAggregations[traceIDAggregation] = rawMessage
 
 	hits := make([]*elastic.SearchHit, 1)
 	hits[0] = &elastic.SearchHit{
-		Source: (*json.RawMessage)(&exampleESSpan),
+		Source: exampleESSpan,
 	}
 	searchHits := &elastic.SearchHits{Hits: hits}
 
@@ -868,14 +878,14 @@ func TestSpanReader_FindTracesNoTraceIDs(t *testing.T) {
 }
 
 func TestSpanReader_FindTracesReadTraceFailure(t *testing.T) {
-	goodAggregations := make(map[string]*json.RawMessage)
+	goodAggregations := make(map[string]json.RawMessage)
 	rawMessage := []byte(`{"buckets": [{"key": "1","doc_count": 16},{"key": "2","doc_count": 16}]}`)
-	goodAggregations[traceIDAggregation] = (*json.RawMessage)(&rawMessage)
+	goodAggregations[traceIDAggregation] = rawMessage
 
 	badSpan := []byte(`{"TraceID": "123"asjlgajdfhilqghi[adfvca} bad json`)
 	hits := make([]*elastic.SearchHit, 1)
 	hits[0] = &elastic.SearchHit{
-		Source: (*json.RawMessage)(&badSpan),
+		Source: badSpan,
 	}
 	searchHits := &elastic.SearchHits{Hits: hits}
 
@@ -902,14 +912,14 @@ func TestSpanReader_FindTracesReadTraceFailure(t *testing.T) {
 }
 
 func TestSpanReader_FindTracesSpanCollectionFailure(t *testing.T) {
-	goodAggregations := make(map[string]*json.RawMessage)
+	goodAggregations := make(map[string]json.RawMessage)
 	rawMessage := []byte(`{"buckets": [{"key": "1","doc_count": 16},{"key": "2","doc_count": 16}]}`)
-	goodAggregations[traceIDAggregation] = (*json.RawMessage)(&rawMessage)
+	goodAggregations[traceIDAggregation] = rawMessage
 
 	badSpan := []byte(`{"TraceID": "123"asjlgajdfhilqghi[adfvca} bad json`)
 	hits := make([]*elastic.SearchHit, 1)
 	hits[0] = &elastic.SearchHit{
-		Source: (*json.RawMessage)(&badSpan),
+		Source: badSpan,
 	}
 	searchHits := &elastic.SearchHits{Hits: hits}
 
@@ -1263,46 +1273,31 @@ func TestSpanReader_ArchiveTraces(t *testing.T) {
 
 func TestBuildTraceByIDQuery(t *testing.T) {
 	tests := []struct {
-		traceID                 string
-		query                   elastic.Query
-		disableLegacyIdsEnabled bool
+		traceID string
+		query   elastic.Query
 	}{
 		{
 			traceID: "0000000000000001",
-			query: elastic.NewBoolQuery().Should(
-				elastic.NewTermQuery(traceIDField, "0000000000000001").Boost(2),
-				elastic.NewTermQuery(traceIDField, "1"),
-			),
+			query:   elastic.NewTermQuery(traceIDField, "0000000000000001"),
 		},
 		{
 			traceID: "00000000000000010000000000000001",
-			query: elastic.NewBoolQuery().Should(
-				elastic.NewTermQuery(traceIDField, "00000000000000010000000000000001").Boost(2),
-				elastic.NewTermQuery(traceIDField, "10000000000000001"),
-			),
+			query:   elastic.NewTermQuery(traceIDField, "00000000000000010000000000000001"),
 		},
 		{
 			traceID: "ffffffffffffffffffffffffffffffff",
 			query:   elastic.NewTermQuery(traceIDField, "ffffffffffffffffffffffffffffffff"),
 		},
 		{
-			traceID:                 "00000000000000010000000000000001",
-			query:                   elastic.NewTermQuery(traceIDField, "00000000000000010000000000000001"),
-			disableLegacyIdsEnabled: true,
-		},
-		{
 			traceID: "0short-traceid",
-			query: elastic.NewBoolQuery().Should(
-				elastic.NewTermQuery(traceIDField, "0short-traceid").Boost(2),
-				elastic.NewTermQuery(traceIDField, "short-traceid"),
-			),
+			query:   elastic.NewTermQuery(traceIDField, "0short-traceid"),
 		},
 	}
 	for _, test := range tests {
-		err := featuregate.GlobalRegistry().Set("jaeger.es.disableLegacyId", test.disableLegacyIdsEnabled)
-		require.NoError(t, err)
-		q := buildTraceByIDQuery(dbmodel.TraceID(test.traceID))
-		assert.Equal(t, test.query, q)
+		t.Run(test.traceID, func(t *testing.T) {
+			q := buildTraceByIDQuery(dbmodel.TraceID(test.traceID))
+			assert.Equal(t, test.query, q)
+		})
 	}
 }
 

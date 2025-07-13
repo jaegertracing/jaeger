@@ -144,7 +144,7 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 				NetAddr: confignet.AddrConfig{
 					Endpoint: ":8081",
 				},
-				TLSSetting: tlsCfg,
+				TLS: tlsCfg,
 			},
 		},
 		&fakeFactory{},
@@ -352,7 +352,7 @@ func TestServerGRPCTLS(t *testing.T) {
 					NetAddr: confignet.AddrConfig{
 						Endpoint: ":0",
 					},
-					TLSSetting: test.TLS,
+					TLS: test.TLS,
 				},
 			}
 			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
@@ -384,7 +384,7 @@ func TestServerGRPCTLS(t *testing.T) {
 			var clientError error
 			var client *grpcClient
 
-			if serverOptions.TLSSetting != nil {
+			if serverOptions.TLS != nil {
 				clientTLSCfg, err0 := test.clientTLS.LoadTLSConfig(context.Background())
 				require.NoError(t, err0)
 				creds := credentials.NewTLS(clientTLSCfg)

@@ -7,7 +7,6 @@ package integration
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -15,19 +14,18 @@ import (
 	"time"
 
 	elasticsearch8 "github.com/elastic/go-elasticsearch/v9"
-	"github.com/olivere/elastic"
+	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/config"
-	"github.com/jaegertracing/jaeger/internal/metrics"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
+	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	es "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	esv2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
@@ -44,8 +42,7 @@ const (
 	spanTemplateName         = "jaeger-span"
 	serviceTemplateName      = "jaeger-service"
 	dependenciesTemplateName = "jaeger-dependencies"
-	primaryNamespace         = "es"
-	archiveNamespace         = "es-archive"
+	archiveAliasSuffix       = "archive"
 )
 
 type ESStorageIntegration struct {
@@ -57,8 +54,8 @@ type ESStorageIntegration struct {
 	ArchiveTraceReader tracestore.Reader
 	ArchiveTraceWriter tracestore.Writer
 
-	factory        *es.Factory
-	archiveFactory *es.Factory
+	factory        *esv2.Factory
+	archiveFactory *esv2.Factory
 }
 
 func (s *ESStorageIntegration) getVersion() (uint, error) {
@@ -109,58 +106,46 @@ func (s *ESStorageIntegration) esCleanUp(t *testing.T) {
 	require.NoError(t, s.archiveFactory.Purge(context.Background()))
 }
 
-func (*ESStorageIntegration) initializeESFactory(t *testing.T, args []string, factoryInit func() *es.Factory) *es.Factory {
-	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
-	f := factoryInit()
-	v, command := config.Viperize(f.AddFlags)
-	require.NoError(t, command.ParseFlags(args))
-	f.InitFromViper(v, logger)
-	require.NoError(t, f.Initialize(metrics.NullFactory, logger))
-
+func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool) {
+	cfg := es.DefaultConfig()
+	cfg.CreateIndexTemplates = true
+	cfg.BulkProcessing = escfg.BulkProcessing{
+		MaxActions:    1,
+		FlushInterval: time.Nanosecond,
+	}
+	cfg.Tags.AllAsFields = allTagsAsFields
+	cfg.ServiceCacheTTL = 1 * time.Second
+	cfg.Indices.IndexPrefix = indexPrefix
+	var err error
+	f, err := esv2.NewFactory(context.Background(), cfg, telemetry.NoopSettings())
+	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, f.Close())
 	})
-	return f
-}
-
-func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool) {
-	f := s.initializeESFactory(t, []string{
-		fmt.Sprintf("--es.num-shards=%v", 5),
-		fmt.Sprintf("--es.num-replicas=%v", 1),
-		fmt.Sprintf("--es.index-prefix=%v", indexPrefix),
-		fmt.Sprintf("--es.use-ilm=%v", false),
-		fmt.Sprintf("--es.service-cache-ttl=%v", 1*time.Second),
-		fmt.Sprintf("--es.tags-as-fields.all=%v", allTagsAsFields),
-		fmt.Sprintf("--es.bulk.actions=%v", 1),
-		fmt.Sprintf("--es.bulk.flush-interval=%v", time.Nanosecond),
-	}, es.NewFactory)
-	af := s.initializeESFactory(t, []string{
-		"--es-archive.enabled=true",
-		fmt.Sprintf("--es-archive.tags-as-fields.all=%v", allTagsAsFields),
-		fmt.Sprintf("--es-archive.index-prefix=%v", indexPrefix),
-	}, es.NewArchiveFactory)
+	acfg := es.DefaultConfig()
+	acfg.ReadAliasSuffix = archiveAliasSuffix
+	acfg.WriteAliasSuffix = archiveAliasSuffix
+	acfg.UseReadWriteAliases = true
+	acfg.Tags.AllAsFields = allTagsAsFields
+	acfg.Indices.IndexPrefix = indexPrefix
+	af, err := esv2.NewFactory(context.Background(), acfg, telemetry.NoopSettings())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, af.Close())
+	})
 	s.factory = f
 	s.archiveFactory = af
-	var err error
-	spanWriter, err := f.CreateSpanWriter()
+	s.TraceWriter, err = f.CreateTraceWriter()
 	require.NoError(t, err)
-	s.TraceWriter = v1adapter.NewTraceWriter(spanWriter)
-	spanReader, err := f.CreateSpanReader()
+	s.TraceReader, err = f.CreateTraceReader()
 	require.NoError(t, err)
-	s.TraceReader = v1adapter.NewTraceReader(spanReader)
-	archiveSpanReader, err := af.CreateSpanReader()
+	s.ArchiveTraceReader, err = af.CreateTraceReader()
 	require.NoError(t, err)
-	s.ArchiveTraceReader = v1adapter.NewTraceReader(archiveSpanReader)
-	archiveSpanWriter, err := af.CreateSpanWriter()
+	s.ArchiveTraceWriter, err = af.CreateTraceWriter()
 	require.NoError(t, err)
-	s.ArchiveTraceWriter = v1adapter.NewTraceWriter(archiveSpanWriter)
-
-	dependencyReader, err := f.CreateDependencyReader()
+	s.DependencyReader, err = f.CreateDependencyReader()
 	require.NoError(t, err)
-	s.DependencyReader = v1adapter.NewDependencyReader(dependencyReader)
-
-	s.DependencyWriter = v1adapter.NewDependencyWriter(dependencyReader.(dependencystore.Writer))
-
+	s.DependencyWriter = s.DependencyReader.(depstore.Writer)
 	s.SamplingStore, err = f.CreateSamplingStore(1)
 	require.NoError(t, err)
 }

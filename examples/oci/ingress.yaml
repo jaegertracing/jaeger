@@ -1,0 +1,31 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jaeger-demo-ingress
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: demo.jaegertracing.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: jaeger-query
+                port:
+                  number: 16686
+          - path: /grafana
+            pathType: Prefix
+            backend:
+              service:
+                name: prometheus-grafana
+                port:
+                  number: 80
+          - path: /hotrod
+            pathType: Prefix
+            backend:
+              service:
+                name: jaeger-hotrod
+                port:
+                  number: 80
