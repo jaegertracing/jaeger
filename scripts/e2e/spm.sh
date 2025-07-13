@@ -6,25 +6,25 @@
 set -euf -o pipefail
 
 print_help() {
-  echo "Usage: $0 [-b binary] [-d database]"
+  echo "Usage: $0 [-b binary] [-m metricstore]"
   echo "-b: Which binary to build: 'all-in-one' or 'jaeger' (v2, default)"
-  echo "-d: Which database to use: 'prometheus' (default) or 'elasticsearch'"
+  echo "-m: Which database to use as metrics store: 'prometheus' (default) or 'elasticsearch'"
   echo "-h: Print help"
   exit 1
 }
 
 BINARY='jaeger'
-DATABASE='prometheus' #DATABASE now represents metrics store database
+METRICSTORE='prometheus'
 compose_file=docker-compose/monitor/docker-compose.yml
 make_target="dev"
 
-while getopts "b:d:h" opt; do
+while getopts "b:m:h" opt; do
   case "${opt}" in
   b)
     BINARY=${OPTARG}
     ;;
-  d)
-    DATABASE=${OPTARG}
+  m)
+    METRICSTORE=${OPTARG}
     ;;
   *)
     print_help
@@ -45,24 +45,24 @@ case "$BINARY" in
     ;;
 esac
 
-# Validate database option
-case "$DATABASE" in
+# Validate metricstore option
+case "$METRICSTORE" in
   "prometheus"|"elasticsearch")
     # Valid options
     ;;
   *)
-    echo "❌ ERROR: Invalid database option: $DATABASE"
+    echo "❌ ERROR: Invalid metricstore option: $METRICSTORE"
     print_help
     ;;
 esac
 
-# Set compose file based on binary and database
+# Set compose file based on binary and metricstore
 if [ "$BINARY" == "all-in-one" ]; then
   compose_file=docker-compose/monitor/docker-compose-v1.yml
   make_target="dev-v1"
 fi
 
-if [ "$DATABASE" == "elasticsearch" ]; then
+if [ "$METRICSTORE" == "elasticsearch" ]; then
   compose_file=docker-compose/monitor/docker-compose-elasticsearch.yml
   make_target="elasticsearch"
 fi
@@ -100,11 +100,11 @@ check_service_health() {
 # Function to check if all services are healthy
 wait_for_services() {
   echo "Waiting for services to be up and running..."
-  if [ "$DATABASE" == "elasticsearch" ]; then
+  if [ "$METRICSTORE" == "elasticsearch" ]; then
     check_service_health "Elasticsearch" "http://localhost:9200"
   fi
 
-  if [ "$DATABASE" == "prometheus" ]; then
+  if [ "$METRICSTORE" == "prometheus" ]; then
     check_service_health "Prometheus" "http://localhost:9090/query"
   fi
 
@@ -128,7 +128,7 @@ validate_service_metrics() {
 
     # Check that at least some values are non-zero after the threshold
     local non_zero_count
-    non_zero_count=$(count_non_zero_and_NaN_metrics_point "$response")
+    non_zero_count=$(count_non_zero_metrics_point "$response")
     local expected_non_zero_count=4
     local zero_count
     zero_count=$(count_zero_metrics_point "$response")
@@ -164,7 +164,7 @@ validate_service_metrics() {
       return 1
     fi
 
-    non_zero_count=$(count_non_zero_and_NaN_metrics_point "$response")
+    non_zero_count=$(count_non_zero_metrics_point "$response")
     local services_with_error="driver frontend ui redis"
     if [[ "$services_with_error" =~ $service ]]; then # the service is in the list
       if [[ $non_zero_count == "0" ]]; then
@@ -215,7 +215,7 @@ count_zero_metrics_point() {
   echo "$1" | jq -r '[.metrics[0].metricPoints[].gaugeValue.doubleValue | select(. == 0)] | length'
 }
 
-count_non_zero_and_NaN_metrics_point() {
+count_non_zero_metrics_point() {
   echo "$1" | jq -r '[.metrics[0].metricPoints[].gaugeValue.doubleValue | select(. != 0 and (. | tostring != "NaN"))] | length'
 }
 

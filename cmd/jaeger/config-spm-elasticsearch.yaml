@@ -13,15 +13,12 @@ extensions:
       metrics: elasticsearch_trace_storage
   jaeger_storage:
     backends:
-      elasticsearch_trace_storage:
+      elasticsearch_trace_storage: &elasticsearch_config
         elasticsearch:
           server_urls:
             - http://elasticsearch:9200
     metric_backends:
-      elasticsearch_trace_storage:
-        elasticsearch:
-          server_urls:
-            - http://elasticsearch:9200
+      elasticsearch_trace_storage: *elasticsearch_config
 
 receivers:
   otlp:
