@@ -95,25 +95,26 @@ func TestNewClient(t *testing.T) {
 	defer certFilePath.Close()
 
 	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-		assert.Equal(t, http.MethodGet, req.Method)
+		// Accept both GET and HEAD requests
+		assert.Contains(t, []string{http.MethodGet, http.MethodHead}, req.Method)
 		res.WriteHeader(http.StatusOK)
 		res.Write(mockEsServerResponseWithVersion0)
 	}))
 	defer testServer.Close()
 	testServer1 := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-		assert.Equal(t, http.MethodGet, req.Method)
+		assert.Contains(t, []string{http.MethodGet, http.MethodHead}, req.Method)
 		res.WriteHeader(http.StatusOK)
 		res.Write(mockEsServerResponseWithVersion1)
 	}))
 	defer testServer1.Close()
 	testServer2 := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-		assert.Equal(t, http.MethodGet, req.Method)
+		assert.Contains(t, []string{http.MethodGet, http.MethodHead}, req.Method)
 		res.WriteHeader(http.StatusOK)
 		res.Write(mockEsServerResponseWithVersion2)
 	}))
 	defer testServer2.Close()
 	testServer8 := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-		assert.Equal(t, http.MethodGet, req.Method)
+		assert.Contains(t, []string{http.MethodGet, http.MethodHead}, req.Method)
 		res.WriteHeader(http.StatusOK)
 		res.Write(mockEsServerResponseWithVersion8)
 	}))

@@ -1,11 +1,13 @@
 // Copyright (c) 2021 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package bearertoken
+package auth
 
 import (
 	"errors"
 	"net/http"
+
+	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 )
 
 // RoundTripper wraps another http.RoundTripper and injects
@@ -29,7 +31,7 @@ func (tr RoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 	token := tr.StaticToken
 	if tr.OverrideFromCtx {
-		headerToken, _ := GetBearerToken(r.Context())
+		headerToken, _ := bearertoken.GetBearerToken(r.Context())
 		if headerToken != "" {
 			token = headerToken
 		}

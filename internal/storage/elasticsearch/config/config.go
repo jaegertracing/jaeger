@@ -26,7 +26,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zapgrpc"
 
-	"github.com/jaegertracing/jaeger/internal/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/auth"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	eswrapper "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/wrapper"
@@ -603,7 +603,7 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 		token = tokenFromFile
 	}
 	if token != "" || c.Authentication.BearerTokenAuthentication.AllowFromContext {
-		transport = bearertoken.RoundTripper{
+		transport = auth.RoundTripper{
 			Transport:       httpTransport,
 			OverrideFromCtx: c.Authentication.BearerTokenAuthentication.AllowFromContext,
 			StaticToken:     token,
