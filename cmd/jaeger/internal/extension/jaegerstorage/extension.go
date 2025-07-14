@@ -223,6 +223,15 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 				*cfg.Elasticsearch,
 				esTelset,
 			)
+
+		case cfg.Opensearch != nil:
+			osTelset := telset
+			osTelset.Metrics = scopedMetricsFactory(metricStorageName, "opensearch", "metricstore")
+			metricStoreFactory, err = esmetrics.NewFactory(
+				ctx,
+				*cfg.Opensearch,
+				osTelset,
+			)
 		}
 		if err != nil {
 			return fmt.Errorf("failed to initialize metrics storage '%s': %w", metricStorageName, err)
