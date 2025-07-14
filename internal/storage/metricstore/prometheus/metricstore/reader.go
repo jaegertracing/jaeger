@@ -9,8 +9,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 	"unicode"
@@ -22,7 +20,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/auth"
+	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	config "github.com/jaegertracing/jaeger/internal/config/promcfg"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus/metricstore/dbmodel"
@@ -363,25 +362,34 @@ func getHTTPRoundTripper(c *config.Configuration) (rt http.RoundTripper, err err
 		TLSClientConfig:     ctlsConfig,
 	}
 
-	token := ""
+	// dynamic token loader with interval-based caching
+	var tokenFn func() string
 	if c.TokenFilePath != "" {
-		tokenFromFile, err := loadToken(c.TokenFilePath)
+		var err error
+		tokenFn, err = auth.TokenProvider(
+			c.TokenFilePath,
+			10*time.Second,
+			nil,
+		)
 		if err != nil {
 			return nil, err
 		}
-		token = tokenFromFile
 	}
-	return &bearertoken.RoundTripper{
-		Transport:       httpTransport,
-		OverrideFromCtx: c.TokenOverrideFromContext,
-		StaticToken:     token,
-	}, nil
-}
 
-func loadToken(path string) (string, error) {
-	b, err := os.ReadFile(filepath.Clean(path))
-	if err != nil {
-		return "", fmt.Errorf("failed to get token from file: %w", err)
+	// Only set FromCtxFn if token override from context is enabled
+	var fromCtxFn func(context.Context) (string, bool)
+	if c.TokenOverrideFromContext {
+		fromCtxFn = bearertoken.GetBearerToken
 	}
-	return strings.TrimRight(string(b), "\r\n"), nil
+
+	return &auth.RoundTripper{
+		Transport: httpTransport,
+		Auths: []auth.Config{
+			{
+				Scheme:  "Bearer",
+				TokenFn: tokenFn,
+				FromCtx: fromCtxFn,
+			},
+		},
+	}, nil
 }

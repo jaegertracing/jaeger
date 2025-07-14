@@ -17,12 +17,13 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
-	"github.com/jaegertracing/jaeger/internal/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/config"
 	es "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
@@ -82,7 +83,12 @@ func runQueryService(t *testing.T, esURL string) *Server {
 	}))
 	f.InitFromViper(v, flagsSvc.Logger)
 	// set AllowTokenFromContext manually because we don't register the respective CLI flag from query svc
-	f.Options.Config.Authentication.BearerTokenAuthentication.AllowFromContext = true
+	if f.Options.Config.Authentication.BearerTokenAuthentication.HasValue() {
+		bearerAuth := f.Options.Config.Authentication.BearerTokenAuthentication.Get()
+		bearerAuth.AllowFromContext = true
+		f.Options.Config.Authentication.BearerTokenAuthentication = configoptional.Some(*bearerAuth)
+	}
+
 	require.NoError(t, f.Initialize(telset.Metrics, telset.Logger))
 	defer f.Close()
 

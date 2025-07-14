@@ -21,12 +21,13 @@ import (
 	"github.com/asaskevich/govalidator"
 	esV8 "github.com/elastic/go-elasticsearch/v9"
 	"github.com/olivere/elastic/v7"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zapgrpc"
 
-	"github.com/jaegertracing/jaeger/internal/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/auth"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	eswrapper "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/wrapper"
@@ -193,16 +194,17 @@ type BulkProcessing struct {
 }
 
 type Authentication struct {
-	BasicAuthentication       BasicAuthentication       `mapstructure:"basic"`
-	BearerTokenAuthentication BearerTokenAuthentication `mapstructure:"bearer_token"`
+	BasicAuthentication       configoptional.Optional[BasicAuthentication]       `mapstructure:"basic"`
+	BearerTokenAuthentication configoptional.Optional[BearerTokenAuthentication] `mapstructure:"bearer_token"`
+	APIKeyAuthentication      configoptional.Optional[APIKeyAuthentication]      `mapstructure:"api_key"`
 }
 
 type BasicAuthentication struct {
 	// Username contains the username required to connect to Elasticsearch.
 	Username string `mapstructure:"username"`
-	// Password contains The password required by Elasticsearch
+	// Password contains the password required to connect to Elasticsearch.
 	Password string `mapstructure:"password" json:"-"`
-	// PasswordFilePath contains the path to a file containing password.
+	// PasswordFilePath contains the path to the file containing the password required to connect to Elasticsearch.
 	// This file is watched for changes.
 	PasswordFilePath string `mapstructure:"password_file"`
 }
@@ -213,11 +215,30 @@ type BasicAuthentication struct {
 // the TokenFilePath will be ignored.
 // For more information about token-based authentication in elasticsearch, check out
 // https://www.elastic.co/guide/en/elasticsearch/reference/current/token-authentication-services.html.
+
 type BearerTokenAuthentication struct {
 	// FilePath contains the path to a file containing a bearer token.
+	// This file is watched for changes.
 	FilePath string `mapstructure:"file_path"`
 	// AllowTokenFromContext, if set to true, enables reading bearer token from the context.
 	AllowFromContext bool `mapstructure:"from_context"`
+	// ReloadInterval contains the interval at which the bearer token is reloaded.
+	ReloadInterval configoptional.Optional[time.Duration] `mapstructure:"reload_interval"`
+}
+
+// APIKeyAuthentication contains the configuration for attaching API keys
+// when making HTTP requests. Note that FilePath and AllowTokenFromContext
+// should not both be enabled. If both FilePath and AllowTokenFromContext are set,
+// the FilePath will be ignored.
+
+type APIKeyAuthentication struct {
+	// FilePath contains the path to a file containing an API key.
+	// This file is watched for changes.
+	FilePath string `mapstructure:"file_path"`
+	// AllowTokenFromContext, if set to true, enables reading API key from the context.
+	AllowFromContext bool `mapstructure:"from_context"`
+	// ReloadInterval contains the interval at which the API key is reloaded.
+	ReloadInterval configoptional.Optional[time.Duration] `mapstructure:"reload_interval"`
 }
 
 // NewClient creates a new ElasticSearch client
@@ -340,8 +361,12 @@ func (bcb *bulkCallback) invoke(id int64, requests []elastic.BulkableRequest, re
 func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logger) (*esV8.Client, error) {
 	var options esV8.Config
 	options.Addresses = c.Servers
-	options.Username = c.Authentication.BasicAuthentication.Username
-	options.Password = c.Authentication.BasicAuthentication.Password
+	if c.Authentication.BasicAuthentication.HasValue() {
+		basicAuth := c.Authentication.BasicAuthentication.Get()
+		options.Username = basicAuth.Username
+		options.Password = basicAuth.Password
+	}
+
 	options.DiscoverNodesOnStart = c.Sniffing.Enabled
 	options.CompressRequestBody = c.HTTPCompression
 	transport, err := GetHTTPRoundTripper(ctx, c, logger)
@@ -379,12 +404,40 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if len(c.RemoteReadClusters) == 0 {
 		c.RemoteReadClusters = source.RemoteReadClusters
 	}
-	if c.Authentication.BasicAuthentication.Username == "" {
-		c.Authentication.BasicAuthentication.Username = source.Authentication.BasicAuthentication.Username
+	// Handle BasicAuthentication defaults
+	sourceHasBasicAuth := source.Authentication.BasicAuthentication.HasValue()
+	targetHasBasicAuth := c.Authentication.BasicAuthentication.HasValue()
+
+	if sourceHasBasicAuth {
+		// If target doesn't have BasicAuth, copy it from source
+		if !targetHasBasicAuth {
+			c.Authentication.BasicAuthentication = source.Authentication.BasicAuthentication
+		} else {
+			// Target has BasicAuth, apply field-level defaults
+			sourceBasicAuth := source.Authentication.BasicAuthentication.Get()
+			// Get or create target BasicAuth
+			var basicAuth BasicAuthentication
+			if existing := c.Authentication.BasicAuthentication.Get(); existing != nil {
+				basicAuth = *existing
+			}
+
+			// Apply defaults for username if not set
+			if basicAuth.Username == "" && sourceBasicAuth.Username != "" {
+				basicAuth.Username = sourceBasicAuth.Username
+			}
+
+			// Apply defaults for password if not set
+			if basicAuth.Password == "" && sourceBasicAuth.Password != "" {
+				basicAuth.Password = sourceBasicAuth.Password
+			}
+
+			// Only update BasicAuthentication if we have values to set
+			if basicAuth.Username != "" || basicAuth.Password != "" {
+				c.Authentication.BasicAuthentication = configoptional.Some(basicAuth)
+			}
+		}
 	}
-	if c.Authentication.BasicAuthentication.Password == "" {
-		c.Authentication.BasicAuthentication.Password = source.Authentication.BasicAuthentication.Password
-	}
+
 	if !c.Sniffing.Enabled {
 		c.Sniffing.Enabled = source.Sniffing.Enabled
 	}
@@ -482,52 +535,94 @@ func (c *Configuration) TagKeysAsFields() ([]string, error) {
 	return tags, nil
 }
 
-// getConfigOptions wraps the configs to feed to the ElasticSearch client init
-func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
-	// Disable health check when token from context is allowed, this is because at this time
-	// we don'r have a valid token to do the check ad if we don't disable the check the service that
-	// uses this won't start.
-	// Also disable health check when it was requested (health check has problems on AWS OpenSearch)
-	disableHealthCheck := c.Authentication.BearerTokenAuthentication.AllowFromContext || c.DisableHealthCheck
+// getESOptions creates and returns Elasticsearch client options based on the configuration
+func (c *Configuration) getESOptions(disableHealthCheck bool) ([]elastic.ClientOptionFunc, error) {
 	options := []elastic.ClientOptionFunc{
-		elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffing.Enabled),
+		elastic.SetURL(c.Servers...),
+		elastic.SetSniff(c.Sniffing.Enabled),
 		elastic.SetHealthcheck(!disableHealthCheck),
 	}
+
+	// HTTP/HTTPS scheme configuration
 	if c.Sniffing.UseHTTPS {
 		options = append(options, elastic.SetScheme("https"))
 	}
-	httpClient := &http.Client{
-		Timeout: c.QueryTimeout,
-	}
-	options = append(options, elastic.SetHttpClient(httpClient))
 
-	if c.Authentication.BasicAuthentication.Password != "" && c.Authentication.BasicAuthentication.PasswordFilePath != "" {
-		return nil, errors.New("both Password and PasswordFilePath are set")
-	}
-	if c.Authentication.BasicAuthentication.PasswordFilePath != "" {
-		passwordFromFile, err := loadTokenFromFile(c.Authentication.BasicAuthentication.PasswordFilePath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load password from file: %w", err)
-		}
-		c.Authentication.BasicAuthentication.Password = passwordFromFile
-	}
-	options = append(options, elastic.SetBasicAuth(c.Authentication.BasicAuthentication.Username, c.Authentication.BasicAuthentication.Password))
+	// HTTP compression settings
+	options = append(options, elastic.SetGzip(c.HTTPCompression))
 
+	// HTTP method configuration for GET requests with body
 	if c.SendGetBodyAs != "" {
 		options = append(options, elastic.SetSendGetBodyAs(c.SendGetBodyAs))
 	}
-	options = append(options, elastic.SetGzip(c.HTTPCompression))
 
-	options, err := addLoggerOptions(options, c.LogLevel, logger)
-	if err != nil {
-		return options, err
+	return options, nil
+}
+
+// getConfigOptions wraps the configs to feed to the ElasticSearch client init
+func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
+	// (has problems on AWS OpenSearch) see https://github.com/jaegertracing/jaeger/pull/7212
+	// Disable health check only in the following cases:
+	// 1. When health check is explicitly disabled
+	// 2. When tokens are EXCLUSIVELY available from context (not from file)
+	//    because at startup we don't have a valid token to do the health check
+	disableHealthCheck := c.DisableHealthCheck
+
+	// Check if we have bearer token or API key authentication that only allows from context
+	if c.Authentication.BearerTokenAuthentication.HasValue() || c.Authentication.APIKeyAuthentication.HasValue() {
+		bearerAuth := c.Authentication.BearerTokenAuthentication.Get()
+		apiKeyAuth := c.Authentication.APIKeyAuthentication.Get()
+
+		disableHealthCheck = disableHealthCheck ||
+			(bearerAuth != nil && bearerAuth.AllowFromContext && bearerAuth.FilePath == "") ||
+			(apiKeyAuth != nil && apiKeyAuth.AllowFromContext && apiKeyAuth.FilePath == "")
 	}
-
+	// Get base Elasticsearch options using the helper function
+	options, err := c.getESOptions(disableHealthCheck)
+	if err != nil {
+		return nil, err
+	}
+	// Configure HTTP transport with TLS and authentication
 	transport, err := GetHTTPRoundTripper(ctx, c, logger)
 	if err != nil {
 		return nil, err
 	}
-	httpClient.Transport = transport
+
+	// HTTP client setup with timeout and transport
+	httpClient := &http.Client{
+		Timeout:   c.QueryTimeout,
+		Transport: transport,
+	}
+
+	options = append(options, elastic.SetHttpClient(httpClient))
+	// Basic authentication setup
+	if c.Authentication.BasicAuthentication.HasValue() {
+		basicAuth := c.Authentication.BasicAuthentication.Get()
+
+		password := basicAuth.Password
+		passwordFilePath := basicAuth.PasswordFilePath
+
+		if password != "" && passwordFilePath != "" {
+			return nil, errors.New("both Password and PasswordFilePath are set")
+		}
+		if passwordFilePath != "" {
+			passwordFromFile, err := loadTokenFromFile(passwordFilePath)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load password from file: %w", err)
+			}
+			password = passwordFromFile
+		}
+
+		username := basicAuth.Username
+		options = append(options, elastic.SetBasicAuth(username, password))
+	}
+
+	// Add logging configuration
+	options, err = addLoggerOptions(options, c.LogLevel, logger)
+	if err != nil {
+		return options, err
+	}
+
 	return options, nil
 }
 
@@ -565,50 +660,65 @@ func addLoggerOptions(options []elastic.ClientOptionFunc, logLevel string, logge
 }
 
 // GetHTTPRoundTripper returns configured http.RoundTripper
+
 func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logger) (http.RoundTripper, error) {
+	var httpTransport *http.Transport
+	var err error
+
+	// Set up base transport with TLS
 	if !c.TLS.Insecure {
-		ctlsConfig, err := c.TLS.LoadTLSConfig(ctx)
+		var tlsConfig *tls.Config
+		tlsConfig, err = c.TLS.LoadTLSConfig(ctx)
 		if err != nil {
 			return nil, err
 		}
-		return &http.Transport{
+		httpTransport = &http.Transport{
 			Proxy:           http.ProxyFromEnvironment,
-			TLSClientConfig: ctlsConfig,
-		}, nil
-	}
-	var transport http.RoundTripper
-	httpTransport := &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		// #nosec G402
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: c.TLS.InsecureSkipVerify},
-	}
-	if c.TLS.CAFile != "" {
-		ctlsConfig, err := c.TLS.LoadTLSConfig(ctx)
-		if err != nil {
-			return nil, err
+			TLSClientConfig: tlsConfig,
 		}
-		httpTransport.TLSClientConfig = ctlsConfig
-		transport = httpTransport
+	} else {
+		httpTransport = &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			// #nosec G402
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: c.TLS.InsecureSkipVerify},
+		}
+		if c.TLS.CAFile != "" {
+			var tlsConfig *tls.Config
+			tlsConfig, err = c.TLS.LoadTLSConfig(ctx)
+			if err != nil {
+				return nil, err
+			}
+			httpTransport.TLSClientConfig = tlsConfig
+		}
 	}
 
-	token := ""
-	if c.Authentication.BearerTokenAuthentication.FilePath != "" {
-		if c.Authentication.BearerTokenAuthentication.AllowFromContext {
-			logger.Warn("Token file and token propagation are both enabled, token from file won't be used")
-		}
-		tokenFromFile, err := loadTokenFromFile(c.Authentication.BearerTokenAuthentication.FilePath)
-		if err != nil {
-			return nil, err
-		}
-		token = tokenFromFile
+	// Set up authentication if configured
+	var transport http.RoundTripper = httpTransport
+
+	// Get authentication configs if they exist
+	var apiKeyAuth *APIKeyAuthentication
+	var bearerAuth *BearerTokenAuthentication
+
+	if c.Authentication.APIKeyAuthentication.HasValue() {
+		apiKeyAuth = c.Authentication.APIKeyAuthentication.Get()
 	}
-	if token != "" || c.Authentication.BearerTokenAuthentication.AllowFromContext {
-		transport = bearertoken.RoundTripper{
-			Transport:       httpTransport,
-			OverrideFromCtx: c.Authentication.BearerTokenAuthentication.AllowFromContext,
-			StaticToken:     token,
+	if c.Authentication.BearerTokenAuthentication.HasValue() {
+		bearerAuth = c.Authentication.BearerTokenAuthentication.Get()
+	}
+
+	// Apply authentication if configured
+	authVars, err := initAuthVars(apiKeyAuth, bearerAuth, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	if authVars.AuthConfigs != nil {
+		transport = &auth.RoundTripper{
+			Transport: httpTransport,
+			Auths:     authVars.AuthConfigs,
 		}
 	}
+
 	return transport, nil
 }
 
