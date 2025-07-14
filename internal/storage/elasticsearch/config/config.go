@@ -531,6 +531,39 @@ func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger
 	return options, nil
 }
 
+func addLoggerOptions(options []elastic.ClientOptionFunc, logLevel string, logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
+	// Decouple ES logger from the log-level assigned to the parent application's log-level; otherwise, the least
+	// permissive log-level will dominate.
+	// e.g. --log-level=info and --es.log-level=debug would mute ES's debug logging and would require --log-level=debug
+	// to show ES debug logs.
+	var lvl zapcore.Level
+	var setLogger func(logger elastic.Logger) elastic.ClientOptionFunc
+
+	switch logLevel {
+	case "debug":
+		lvl = zap.DebugLevel
+		setLogger = elastic.SetTraceLog
+	case "info":
+		lvl = zap.InfoLevel
+		setLogger = elastic.SetInfoLog
+	case "error":
+		lvl = zap.ErrorLevel
+		setLogger = elastic.SetErrorLog
+	default:
+		return options, fmt.Errorf("unrecognized log-level: \"%s\"", logLevel)
+	}
+
+	esLogger := logger.WithOptions(
+		zap.IncreaseLevel(lvl),
+		zap.AddCallerSkip(2), // to ensure the right caller:lineno are logged
+	)
+
+	// Elastic client requires a "Printf"-able logger.
+	l := zapgrpc.NewLogger(esLogger)
+	options = append(options, setLogger(l))
+	return options, nil
+}
+
 // GetHTTPRoundTripper returns configured http.RoundTripper
 func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logger) (http.RoundTripper, error) {
 	if !c.TLS.Insecure {

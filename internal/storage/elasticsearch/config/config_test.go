@@ -19,8 +19,6 @@ import (
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/auth"
-	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
