@@ -19,6 +19,8 @@ import (
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/auth"
+	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
@@ -910,6 +912,439 @@ func TestHandleBulkAfterCallback_MissingStartTime(t *testing.T) {
 			Value: 1,
 		},
 	)
+}
+
+func TestGetConfigOptions(t *testing.T) {
+	tmpDir := t.TempDir()
+	apiKeyFile := filepath.Join(tmpDir, "apikey")
+	bearerTokenFile := filepath.Join(tmpDir, "bearertoken")
+	os.WriteFile(apiKeyFile, []byte("test-api-key"), 0o600)
+	os.WriteFile(bearerTokenFile, []byte("file-bearer-token"), 0o600)
+
+	tests := []struct {
+		name            string
+		cfg             *Configuration
+		ctx             context.Context
+		prepare         func()
+		wantErr         bool
+		wantErrContains string
+	}{
+		{
+			name: "BearerToken context propagation",
+			cfg: &Configuration{
+				Servers:  []string{"http://localhost:9200"},
+				Sniffing: Sniffing{Enabled: false},
+				Authentication: Authentication{
+					BearerTokenAuthentication: BearerTokenAuthentication{
+						AllowFromContext: true,
+						FilePath:         "",
+					},
+				},
+				LogLevel: "info",
+			},
+			ctx:     bearertoken.ContextWithBearerToken(context.Background(), "context-bearer-token"),
+			wantErr: false,
+		},
+		{
+			name: "BearerToken file and context both enabled",
+			cfg: &Configuration{
+				Servers:  []string{"http://localhost:9200"},
+				Sniffing: Sniffing{Enabled: false},
+				Authentication: Authentication{
+					BearerTokenAuthentication: BearerTokenAuthentication{
+						AllowFromContext: true,
+						FilePath:         bearerTokenFile,
+					},
+				},
+				LogLevel: "info",
+			},
+			ctx:     bearertoken.ContextWithBearerToken(context.Background(), "context-bearer-token"),
+			wantErr: false,
+		},
+		{
+			name: "BearerToken file error",
+			cfg: &Configuration{
+				Servers:  []string{"http://localhost:9200"},
+				TLS:      configtls.ClientConfig{Insecure: true},
+				Sniffing: Sniffing{Enabled: false},
+				Authentication: Authentication{
+					BearerTokenAuthentication: BearerTokenAuthentication{
+						FilePath: "/does/not/exist/token",
+					},
+				},
+				LogLevel: "info",
+			},
+			ctx:             context.Background(),
+			wantErr:         true,
+			wantErrContains: "no such file or directory",
+		},
+		{
+			name: "No auth configured",
+			cfg: &Configuration{
+				Servers:  []string{"http://localhost:9200"},
+				LogLevel: "info",
+				Sniffing: Sniffing{Enabled: false},
+			},
+			ctx:     context.Background(),
+			wantErr: false,
+		},
+		{
+			name: "BasicAuth password file error",
+			cfg: &Configuration{
+				Servers:  []string{"http://localhost:9200"},
+				Sniffing: Sniffing{Enabled: false},
+				Authentication: Authentication{
+					BasicAuthentication: BasicAuthentication{
+						PasswordFilePath: "/does/not/exist",
+					},
+				},
+				LogLevel: "info",
+			},
+			ctx:             context.Background(),
+			wantErr:         true,
+			wantErrContains: "failed to load password from file",
+		},
+		{
+			name: "BasicAuth both Password and PasswordFilePath set",
+			cfg: &Configuration{
+				Servers:  []string{"http://localhost:9200"},
+				Sniffing: Sniffing{Enabled: false},
+				Authentication: Authentication{
+					BasicAuthentication: BasicAuthentication{
+						Password:         "secret",
+						PasswordFilePath: "/some/file/path",
+					},
+				},
+				LogLevel: "info",
+			},
+			ctx:             context.Background(),
+			wantErr:         true,
+			wantErrContains: "both Password and PasswordFilePath are set",
+		},
+		{
+			name: "Invalid log level triggers addLoggerOptions error",
+			cfg: &Configuration{
+				Servers:  []string{"http://localhost:9200"},
+				Sniffing: Sniffing{Enabled: false},
+				Authentication: Authentication{
+					BasicAuthentication: BasicAuthentication{
+						Username: "user",
+						Password: "secret",
+					},
+				},
+				LogLevel: "invalid",
+			},
+			ctx:             context.Background(),
+			wantErr:         true,
+			wantErrContains: "unrecognized log-level",
+		},
+		{
+			name: "Health check disabled for context-only auth",
+			cfg: &Configuration{
+				Servers:            []string{"http://localhost:9200"},
+				LogLevel:           "info",
+				DisableHealthCheck: false, // Should be overridden by context-only auth
+				Sniffing:           Sniffing{Enabled: false},
+				Authentication: Authentication{
+					BearerTokenAuthentication: BearerTokenAuthentication{
+						AllowFromContext: true,
+						FilePath:         "", // No file path, only context
+					},
+				},
+			},
+			ctx:     bearertoken.ContextWithBearerToken(context.Background(), "context-bearer-token"),
+			wantErr: false,
+		},
+		{
+			name: "Health check disabled explicitly",
+			cfg: &Configuration{
+				Servers:            []string{"http://localhost:9200"},
+				LogLevel:           "info",
+				DisableHealthCheck: true,
+				Sniffing:           Sniffing{Enabled: false},
+			},
+			ctx:     context.Background(),
+			wantErr: false,
+		},
+		{
+			name: "HTTP compression and custom SendGetBodyAs",
+			cfg: &Configuration{
+				Servers:         []string{"http://localhost:9200"},
+				LogLevel:        "info",
+				HTTPCompression: true,
+				SendGetBodyAs:   "POST",
+				Sniffing:        Sniffing{Enabled: true, UseHTTPS: true},
+			},
+			ctx:     context.Background(),
+			wantErr: false,
+		},
+	}
+
+	logger := zap.NewNop()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.prepare != nil {
+				tt.prepare()
+			}
+			options, err := tt.cfg.getConfigOptions(tt.ctx, logger)
+			if tt.wantErr {
+				require.Error(t, err)
+				if tt.wantErrContains != "" {
+					require.Contains(t, err.Error(), tt.wantErrContains)
+				}
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, options)
+				require.NotEmpty(t, options, "Should have at least basic ES options")
+			}
+		})
+	}
+}
+
+func TestGetESOptions(t *testing.T) {
+	tests := []struct {
+		name               string
+		cfg                *Configuration
+		disableHealthCheck bool
+		wantErr            bool
+		validateOptions    func(t *testing.T, options []elastic.ClientOptionFunc)
+	}{
+		{
+			name: "Basic configuration",
+			cfg: &Configuration{
+				Servers: []string{"http://localhost:9200"},
+				Sniffing: Sniffing{
+					Enabled:  true,
+					UseHTTPS: false,
+				},
+				HTTPCompression: true,
+				SendGetBodyAs:   "POST",
+			},
+			disableHealthCheck: false,
+			wantErr:            false,
+			validateOptions: func(t *testing.T, options []elastic.ClientOptionFunc) {
+				require.NotNil(t, options)
+				require.NotEmpty(t, options, "Expected non-empty options slice")
+			},
+		},
+		{
+			name: "HTTPS configuration",
+			cfg: &Configuration{
+				Servers: []string{"https://localhost:9200"},
+				Sniffing: Sniffing{
+					Enabled:  false,
+					UseHTTPS: true,
+				},
+				HTTPCompression: false,
+				SendGetBodyAs:   "",
+			},
+			disableHealthCheck: true,
+			wantErr:            false,
+			validateOptions: func(t *testing.T, options []elastic.ClientOptionFunc) {
+				require.NotNil(t, options)
+				require.NotEmpty(t, options, "Expected non-empty options slice")
+			},
+		},
+		{
+			name: "Minimal configuration",
+			cfg: &Configuration{
+				Servers: []string{"http://localhost:9200"},
+				Sniffing: Sniffing{
+					Enabled:  false,
+					UseHTTPS: false,
+				},
+				HTTPCompression: false,
+				SendGetBodyAs:   "",
+			},
+			disableHealthCheck: false,
+			wantErr:            false,
+			validateOptions: func(t *testing.T, options []elastic.ClientOptionFunc) {
+				require.NotNil(t, options)
+				require.NotEmpty(t, options, "Expected non-empty options slice")
+			},
+		},
+		{
+			name: "Multiple servers",
+			cfg: &Configuration{
+				Servers: []string{
+					"http://localhost:9200",
+					"http://localhost:9201",
+					"http://localhost:9202",
+				},
+				Sniffing: Sniffing{
+					Enabled:  true,
+					UseHTTPS: false,
+				},
+				HTTPCompression: true,
+				SendGetBodyAs:   "GET",
+			},
+			disableHealthCheck: false,
+			wantErr:            false,
+			validateOptions: func(t *testing.T, options []elastic.ClientOptionFunc) {
+				require.NotNil(t, options)
+				require.NotEmpty(t, options, "Expected non-empty options slice")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			options := tt.cfg.getESOptions(tt.disableHealthCheck)
+			if tt.wantErr {
+				require.Fail(t, "Test case expects an error, but getESOptions does not return one.")
+			} else if tt.validateOptions != nil {
+				tt.validateOptions(t, options)
+			}
+		})
+	}
+}
+
+func TestGetConfigOptionsIntegration(t *testing.T) {
+	// Test that getConfigOptions properly integrates with getESOptions
+	cfg := &Configuration{
+		Servers: []string{"http://localhost:9200"},
+		Sniffing: Sniffing{
+			Enabled:  true,
+			UseHTTPS: false,
+		},
+		HTTPCompression: true,
+		SendGetBodyAs:   "POST",
+		LogLevel:        "info",
+		QueryTimeout:    30 * time.Second,
+		Authentication: Authentication{
+			BasicAuthentication: BasicAuthentication{
+				Username: "testuser",
+				Password: "testpass",
+			},
+		},
+	}
+
+	logger := zap.NewNop()
+	options, err := cfg.getConfigOptions(context.Background(), logger)
+
+	require.NoError(t, err)
+	require.NotNil(t, options)
+
+	require.Greater(t, len(options), 5, "Should have basic ES options plus additional config options")
+}
+
+func TestGetHTTPRoundTripper(t *testing.T) {
+	tmpDir := t.TempDir()
+	bearerTokenFile := filepath.Join(tmpDir, "bearertoken")
+	require.NoError(t, os.WriteFile(bearerTokenFile, []byte("file-bearer-token"), 0o600))
+
+	tests := []struct {
+		name            string
+		cfg             *Configuration
+		ctx             context.Context
+		wantErrContains string
+		validate        func(t *testing.T, rt http.RoundTripper)
+	}{
+		{
+			name: "Secure mode without auth",
+			cfg: &Configuration{
+				TLS: configtls.ClientConfig{Insecure: false},
+			},
+			ctx: context.Background(),
+			validate: func(t *testing.T, rt http.RoundTripper) {
+				assert.NotNil(t, rt)
+				_, ok := rt.(*auth.RoundTripper)
+				assert.False(t, ok, "Should not be an auth round tripper")
+			},
+		},
+		{
+			name: "Insecure mode without auth",
+			cfg: &Configuration{
+				TLS: configtls.ClientConfig{Insecure: true},
+			},
+			ctx: context.Background(),
+			validate: func(t *testing.T, rt http.RoundTripper) {
+				assert.NotNil(t, rt)
+				transport, ok := rt.(*http.Transport)
+				require.True(t, ok)
+				assert.True(t, transport.TLSClientConfig.InsecureSkipVerify)
+			},
+		},
+		{
+			name: "Secure mode with bearer token from file",
+			cfg: &Configuration{
+				TLS: configtls.ClientConfig{Insecure: false},
+				Authentication: Authentication{
+					BearerTokenAuthentication: BearerTokenAuthentication{
+						FilePath: bearerTokenFile,
+					},
+				},
+			},
+			ctx: context.Background(),
+			validate: func(t *testing.T, rt http.RoundTripper) {
+				assert.NotNil(t, rt)
+				authRT, ok := rt.(*auth.RoundTripper)
+				require.True(t, ok, "Should be an auth round tripper")
+				assert.Equal(t, "file-bearer-token", authRT.StaticToken)
+			},
+		},
+		{
+			name: "Insecure mode with bearer token from context",
+			cfg: &Configuration{
+				TLS: configtls.ClientConfig{Insecure: true},
+				Authentication: Authentication{
+					BearerTokenAuthentication: BearerTokenAuthentication{
+						AllowFromContext: true,
+					},
+				},
+			},
+			ctx: bearertoken.ContextWithBearerToken(context.Background(), "context-bearer-token"),
+			validate: func(t *testing.T, rt http.RoundTripper) {
+				assert.NotNil(t, rt)
+				authRT, ok := rt.(*auth.RoundTripper)
+				require.True(t, ok, "Should be an auth round tripper")
+				assert.True(t, authRT.OverrideFromCtx)
+				transport, ok := authRT.Transport.(*http.Transport)
+				require.True(t, ok)
+				assert.True(t, transport.TLSClientConfig.InsecureSkipVerify)
+			},
+		},
+		{
+			name: "BearerToken file error",
+			cfg: &Configuration{
+				Authentication: Authentication{
+					BearerTokenAuthentication: BearerTokenAuthentication{
+						FilePath: "/does/not/exist/token",
+					},
+				},
+			},
+			ctx:             context.Background(),
+			wantErrContains: "no such file or directory",
+		},
+		{
+			name: "Invalid TLS config should fail",
+			cfg: &Configuration{
+				TLS: configtls.ClientConfig{
+					Insecure: false,
+					Config: configtls.Config{
+						CAFile: "/does/not/exist/ca.pem",
+					},
+				},
+			},
+			ctx:             context.Background(),
+			wantErrContains: "failed to load TLS config",
+		},
+	}
+
+	logger := zap.NewNop()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rt, err := GetHTTPRoundTripper(tt.ctx, tt.cfg, logger)
+			if tt.wantErrContains != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErrContains)
+				assert.Nil(t, rt)
+			} else {
+				require.NoError(t, err)
+				tt.validate(t, rt)
+			}
+		})
+	}
 }
 
 func TestMain(m *testing.M) {
