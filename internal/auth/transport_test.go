@@ -1,7 +1,7 @@
 // Copyright (c) 2021 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package bearertoken
+package auth
 
 import (
 	"context"
@@ -11,6 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 )
 
 type roundTripFunc func(r *http.Request) (*http.Response, error)
@@ -36,7 +38,7 @@ func TestRoundTripper(t *testing.T) {
 					StatusCode: http.StatusOK,
 				}, nil
 			}),
-			requestContext: ContextWithBearerToken(context.Background(), "tokenFromContext"),
+			requestContext: bearertoken.ContextWithBearerToken(context.Background(), "tokenFromContext"),
 		},
 		{
 			name:            "Override from context provided, and request context set should use request context token",
@@ -47,7 +49,7 @@ func TestRoundTripper(t *testing.T) {
 					StatusCode: http.StatusOK,
 				}, nil
 			}),
-			requestContext: ContextWithBearerToken(context.Background(), "tokenFromContext"),
+			requestContext: bearertoken.ContextWithBearerToken(context.Background(), "tokenFromContext"),
 		},
 		{
 			name:            "Allow override from context and token provided, and request context unset should use defaultToken",
@@ -67,7 +69,7 @@ func TestRoundTripper(t *testing.T) {
 				assert.Equal(t, "Bearer tokenFromContext", r.Header.Get("Authorization"))
 				return &http.Response{}, nil
 			}),
-			requestContext: ContextWithBearerToken(context.Background(), "tokenFromContext"),
+			requestContext: bearertoken.ContextWithBearerToken(context.Background(), "tokenFromContext"),
 		},
 		{
 			name:           "Nil roundTripper provided should return an error",

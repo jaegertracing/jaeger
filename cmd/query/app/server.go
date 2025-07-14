@@ -29,7 +29,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/apiv3"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
-	"github.com/jaegertracing/jaeger/internal/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/recoveryhandler"
 	"github.com/jaegertracing/jaeger/internal/telemetry"

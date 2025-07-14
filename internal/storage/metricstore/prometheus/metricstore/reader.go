@@ -22,7 +22,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/auth"
 	config "github.com/jaegertracing/jaeger/internal/config/promcfg"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus/metricstore/dbmodel"
@@ -371,7 +371,7 @@ func getHTTPRoundTripper(c *config.Configuration) (rt http.RoundTripper, err err
 		}
 		token = tokenFromFile
 	}
-	return &bearertoken.RoundTripper{
+	return &auth.RoundTripper{
 		Transport:       httpTransport,
 		OverrideFromCtx: c.TokenOverrideFromContext,
 		StaticToken:     token,
