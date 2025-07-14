@@ -482,49 +482,25 @@ func (c *Configuration) TagKeysAsFields() ([]string, error) {
 	return tags, nil
 }
 
-func (c *Configuration) getESOptions(disableHealthCheck bool) ([]elastic.ClientOptionFunc, error) {
-	// Get base Elasticsearch options
+// getConfigOptions wraps the configs to feed to the ElasticSearch client init
+func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
+	// Disable health check when token from context is allowed, this is because at this time
+	// we don'r have a valid token to do the check ad if we don't disable the check the service that
+	// uses this won't start.
+	// Also disable health check when it was requested (health check has problems on AWS OpenSearch)
+	disableHealthCheck := c.Authentication.BearerTokenAuthentication.AllowFromContext || c.DisableHealthCheck
 	options := []elastic.ClientOptionFunc{
-		elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffing.Enabled), elastic.SetHealthcheck(!disableHealthCheck),
+		elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffing.Enabled),
+		elastic.SetHealthcheck(!disableHealthCheck),
 	}
 	if c.Sniffing.UseHTTPS {
 		options = append(options, elastic.SetScheme("https"))
 	}
-	if c.SendGetBodyAs != "" {
-		options = append(options, elastic.SetSendGetBodyAs(c.SendGetBodyAs))
-	}
-	options = append(options, elastic.SetGzip(c.HTTPCompression))
-	return options, nil
-}
-
-// getConfigOptions wraps the configs to feed to the ElasticSearch client init
-func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
-	// (has problems on AWS OpenSearch) see https://github.com/jaegertracing/jaeger/pull/7212
-	// Disable health check only in the following cases:
-	// 1. When health check is explicitly disabled
-	// 2. When tokens are EXCLUSIVELY available from context (not from file)
-	//    because at startup we don't have a valid token to do the health check
-	disableHealthCheck := c.DisableHealthCheck ||
-		(c.Authentication.BearerTokenAuthentication.AllowFromContext && c.Authentication.BearerTokenAuthentication.FilePath == "")
-	// Get base Elasticsearch options using the helper function
-	options, err := c.getESOptions(disableHealthCheck)
-	if err != nil {
-		return nil, err
-	}
-	// Configure HTTP transport with TLS and authentication
-	transport, err := GetHTTPRoundTripper(ctx, c, logger)
-	if err != nil {
-		return nil, err
-	}
-
-	// HTTP client setup with timeout and transport
 	httpClient := &http.Client{
-		Timeout:   c.QueryTimeout,
-		Transport: transport,
+		Timeout: c.QueryTimeout,
 	}
-
 	options = append(options, elastic.SetHttpClient(httpClient))
-	// Basic authentication setup
+
 	if c.Authentication.BasicAuthentication.Password != "" && c.Authentication.BasicAuthentication.PasswordFilePath != "" {
 		return nil, errors.New("both Password and PasswordFilePath are set")
 	}
@@ -535,93 +511,72 @@ func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger
 		}
 		c.Authentication.BasicAuthentication.Password = passwordFromFile
 	}
-
 	options = append(options, elastic.SetBasicAuth(c.Authentication.BasicAuthentication.Username, c.Authentication.BasicAuthentication.Password))
 
-	// Add logging configuration
-	options, err = addLoggerOptions(options, c.LogLevel, logger)
+	if c.SendGetBodyAs != "" {
+		options = append(options, elastic.SetSendGetBodyAs(c.SendGetBodyAs))
+	}
+	options = append(options, elastic.SetGzip(c.HTTPCompression))
+
+	options, err := addLoggerOptions(options, c.LogLevel, logger)
 	if err != nil {
 		return options, err
 	}
 
-	return options, nil
-}
-
-func addLoggerOptions(options []elastic.ClientOptionFunc, logLevel string, logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
-	// Decouple ES logger from the log-level assigned to the parent application's log-level; otherwise, the least
-	// permissive log-level will dominate.
-	// e.g. --log-level=info and --es.log-level=debug would mute ES's debug logging and would require --log-level=debug
-	// to show ES debug logs.
-	var lvl zapcore.Level
-	var setLogger func(logger elastic.Logger) elastic.ClientOptionFunc
-
-	switch logLevel {
-	case "debug":
-		lvl = zap.DebugLevel
-		setLogger = elastic.SetTraceLog
-	case "info":
-		lvl = zap.InfoLevel
-		setLogger = elastic.SetInfoLog
-	case "error":
-		lvl = zap.ErrorLevel
-		setLogger = elastic.SetErrorLog
-	default:
-		return options, fmt.Errorf("unrecognized log-level: \"%s\"", logLevel)
+	transport, err := GetHTTPRoundTripper(ctx, c, logger)
+	if err != nil {
+		return nil, err
 	}
-
-	esLogger := logger.WithOptions(
-		zap.IncreaseLevel(lvl),
-		zap.AddCallerSkip(2), // to ensure the right caller:lineno are logged
-	)
-
-	// Elastic client requires a "Printf"-able logger.
-	l := zapgrpc.NewLogger(esLogger)
-	options = append(options, setLogger(l))
+	httpClient.Transport = transport
 	return options, nil
 }
 
-// GetHTTPRoundTripper returns configured http.RoundTripper.
+// GetHTTPRoundTripper returns configured http.RoundTripper
 func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logger) (http.RoundTripper, error) {
-	// Configure base transport.
-	transport := &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-	}
-
-	// 2. Configure TLS.
-	if c.TLS.Insecure {
-		// #nosec G402
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-	} else {
-		tlsConfig, err := c.TLS.LoadTLSConfig(ctx)
+	if !c.TLS.Insecure {
+		ctlsConfig, err := c.TLS.LoadTLSConfig(ctx)
 		if err != nil {
 			return nil, err
 		}
-		transport.TLSClientConfig = tlsConfig
+		return &http.Transport{
+			Proxy:           http.ProxyFromEnvironment,
+			TLSClientConfig: ctlsConfig,
+		}, nil
+	}
+	var transport http.RoundTripper
+	httpTransport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		// #nosec G402
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: c.TLS.InsecureSkipVerify},
+	}
+	if c.TLS.CAFile != "" {
+		ctlsConfig, err := c.TLS.LoadTLSConfig(ctx)
+		if err != nil {
+			return nil, err
+		}
+		httpTransport.TLSClientConfig = ctlsConfig
+		transport = httpTransport
 	}
 
-	// Wrap with authentication layer if configured.
-	var roundTripper http.RoundTripper = transport
-	if c.Authentication.BearerTokenAuthentication.AllowFromContext || c.Authentication.BearerTokenAuthentication.FilePath != "" {
-		token := ""
-		if c.Authentication.BearerTokenAuthentication.FilePath != "" {
-			if c.Authentication.BearerTokenAuthentication.AllowFromContext {
-				logger.Warn("Token file and token propagation are both enabled, token from file won't be used")
-			}
-			tokenFromFile, err := loadTokenFromFile(c.Authentication.BearerTokenAuthentication.FilePath)
-			if err != nil {
-				return nil, err
-			}
-			token = tokenFromFile
+	token := ""
+	if c.Authentication.BearerTokenAuthentication.FilePath != "" {
+		if c.Authentication.BearerTokenAuthentication.AllowFromContext {
+			logger.Warn("Token file and token propagation are both enabled, token from file won't be used")
 		}
-
-		roundTripper = &auth.RoundTripper{
-			Transport:       transport,
+		tokenFromFile, err := loadTokenFromFile(c.Authentication.BearerTokenAuthentication.FilePath)
+		if err != nil {
+			return nil, err
+		}
+		token = tokenFromFile
+	}
+	if token != "" || c.Authentication.BearerTokenAuthentication.AllowFromContext {
+		transport = auth.RoundTripper{
+			Transport:       httpTransport,
 			OverrideFromCtx: c.Authentication.BearerTokenAuthentication.AllowFromContext,
 			StaticToken:     token,
 		}
 	}
-
-	return roundTripper, nil
+	return transport, nil
 }
 
 func loadTokenFromFile(path string) (string, error) {
