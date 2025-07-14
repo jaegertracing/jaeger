@@ -33,6 +33,11 @@ elasticsearch: export JAEGER_VERSION = dev
 elasticsearch:
 	docker compose -f docker-compose-elasticsearch.yml up $(DOCKER_COMPOSE_ARGS)
 
+.PHONY: opensearch
+opensearch: export JAEGER_VERSION = dev
+opensearch:
+	docker compose -f docker-compose-opensearch.yml up $(DOCKER_COMPOSE_ARGS)
+
 .PHONY: clean-jaeger
 clean-jaeger:
 	# Also cleans up intermediate cached containers.
