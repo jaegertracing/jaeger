@@ -5,22 +5,60 @@
 package elasticsearch
 
 import (
+	"flag"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
 
 	"github.com/jaegertracing/jaeger/internal/config"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
+func getBasicAuthField(opt configoptional.Optional[escfg.BasicAuthentication], field string) string {
+	ba := opt.Get()
+	if ba == nil {
+		return ""
+	}
+	switch field {
+	case "Username":
+		if v := ba.Username; v != "" {
+			return v
+		}
+	case "Password":
+		if v := ba.Password; v != "" {
+			return v
+		}
+	case "PasswordFilePath":
+		if v := ba.PasswordFilePath; v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// Helper for BearerTokenAuthentication
+func getBearerTokenField(opt configoptional.Optional[escfg.BearerTokenAuthentication], field string) string {
+	ba := opt.Get()
+	if ba == nil {
+		return ""
+	}
+	if field == "FilePath" {
+		if v := ba.FilePath; v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 func TestOptions(t *testing.T) {
 	opts := NewOptions("foo")
 	primary := opts.GetConfig()
-	assert.Empty(t, primary.Authentication.BasicAuthentication.Username)
-	assert.Empty(t, primary.Authentication.BasicAuthentication.Password)
-	assert.Empty(t, primary.Authentication.BasicAuthentication.PasswordFilePath)
+	assert.Empty(t, getBasicAuthField(primary.Authentication.BasicAuthentication, "Username"))
+	assert.Empty(t, getBasicAuthField(primary.Authentication.BasicAuthentication, "Password"))
+	assert.Empty(t, getBasicAuthField(primary.Authentication.BasicAuthentication, "PasswordFilePath"))
 	assert.NotEmpty(t, primary.Servers)
 	assert.Empty(t, primary.RemoteReadClusters)
 	assert.EqualValues(t, 5, primary.Indices.Spans.Shards)
@@ -75,10 +113,10 @@ func TestOptionsWithFlags(t *testing.T) {
 	opts.InitFromViper(v)
 
 	primary := opts.GetConfig()
-	assert.Equal(t, "hello", primary.Authentication.BasicAuthentication.Username)
-	assert.Equal(t, "world", primary.Authentication.BasicAuthentication.Password)
-	assert.Equal(t, "/foo/bar", primary.Authentication.BearerTokenAuthentication.FilePath)
-	assert.Equal(t, "/foo/bar/baz", primary.Authentication.BasicAuthentication.PasswordFilePath)
+	assert.Equal(t, "hello", getBasicAuthField(primary.Authentication.BasicAuthentication, "Username"))
+	assert.Equal(t, "world", getBasicAuthField(primary.Authentication.BasicAuthentication, "Password"))
+	assert.Equal(t, "/foo/bar", getBearerTokenField(primary.Authentication.BearerTokenAuthentication, "FilePath"))
+	assert.Equal(t, "/foo/bar/baz", getBasicAuthField(primary.Authentication.BasicAuthentication, "PasswordFilePath"))
 	assert.Equal(t, []string{"1.1.1.1", "2.2.2.2"}, primary.Servers)
 	assert.Equal(t, []string{"cluster_one", "cluster_two"}, primary.RemoteReadClusters)
 	assert.Equal(t, 48*time.Hour, primary.MaxSpanAge)
@@ -219,6 +257,101 @@ func TestIndexRollover(t *testing.T) {
 			assert.Equal(t, tc.wantServiceDateLayout, primary.Indices.Services.DateLayout)
 			assert.Equal(t, tc.wantSpanIndexRolloverFrequency, escfg.RolloverFrequencyAsNegativeDuration(primary.Indices.Spans.RolloverFrequency))
 			assert.Equal(t, tc.wantServiceIndexRolloverFrequency, escfg.RolloverFrequencyAsNegativeDuration(primary.Indices.Services.RolloverFrequency))
+		})
+	}
+}
+
+func TestAddFlags(t *testing.T) {
+	tests := []struct {
+		name              string
+		setupConfig       func() *namespaceConfig
+		expectedUsername  string
+		expectedPassword  string
+		expectedTokenPath string
+	}{
+		{
+			name: "no authentication",
+			setupConfig: func() *namespaceConfig {
+				return &namespaceConfig{
+					namespace: "es",
+					Configuration: escfg.Configuration{
+						Servers: []string{"http://localhost:9200"},
+					},
+				}
+			},
+			expectedUsername:  "",
+			expectedPassword:  "",
+			expectedTokenPath: "",
+		},
+		{
+			name: "basic authentication",
+			setupConfig: func() *namespaceConfig {
+				return &namespaceConfig{
+					namespace: "es",
+					Configuration: escfg.Configuration{
+						Servers: []string{"http://localhost:9200"},
+						Authentication: escfg.Authentication{
+							BasicAuthentication: configoptional.Some(escfg.BasicAuthentication{
+								Username:         "testuser",
+								Password:         "testpass",
+								PasswordFilePath: "/path/to/pass",
+							}),
+						},
+					},
+				}
+			},
+			expectedUsername:  "testuser",
+			expectedPassword:  "testpass",
+			expectedTokenPath: "",
+		},
+		{
+			name: "bearer token authentication",
+			setupConfig: func() *namespaceConfig {
+				return &namespaceConfig{
+					namespace: "es",
+					Configuration: escfg.Configuration{
+						Servers: []string{"http://localhost:9200"},
+						Authentication: escfg.Authentication{
+							BearerTokenAuthentication: configoptional.Some(escfg.BearerTokenAuthentication{
+								FilePath: "/path/to/token",
+							}),
+						},
+					},
+				}
+			},
+			expectedUsername:  "",
+			expectedPassword:  "",
+			expectedTokenPath: "/path/to/token",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup
+			cfg := tt.setupConfig()
+			flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
+
+			// Test
+			addFlags(flagSet, cfg)
+
+			// Verify flags were registered with correct default values
+			if tt.expectedUsername != "" {
+				flag := flagSet.Lookup("es.username")
+				require.NotNil(t, flag, "username flag not registered")
+				assert.Equal(t, tt.expectedUsername, flag.DefValue)
+			}
+
+			if tt.expectedPassword != "" {
+				flag := flagSet.Lookup("es.password")
+				require.NotNil(t, flag, "password flag not registered")
+				assert.Equal(t, tt.expectedPassword, flag.DefValue)
+			}
+
+			if tt.expectedTokenPath != "" {
+				flag := flagSet.Lookup("es.token-file")
+				require.NotNil(t, flag, "token-file flag not registered")
+				assert.Equal(t, tt.expectedTokenPath, flag.DefValue)
+			}
 		})
 	}
 }
