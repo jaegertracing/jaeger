@@ -98,7 +98,7 @@ docker compose -f docker-compose-v1.yml up
 **Tips:**
 - Let the application run for a couple of minutes to ensure there is enough time series data to plot in the dashboard.
 - Navigate to Jaeger UI at http://localhost:16686/ and inspect the Monitor tab. Select `redis` service from the dropdown to see more than one endpoint.
-- For the Prometheus option, visualize raw metrics in the Prometheus UI at http://localhost:9090/query (e.g., [example query for trace spans](http://localhost:9090/query?g0.expr=traces\_span\_metrics\_calls\_total\&g0.tab=0\&g0.range\_input=5m)).
+- For the Prometheus option, visualize raw metrics in the Prometheus UI at http://localhost:9090/query (e.g., [example query for trace spans](http://localhost:9090/query?g0.expr=traces_span_metrics_calls_total&g0.tab=0&g0.range_input=5m)).
 
 **Warning:** The included ` docker compose` files use the `latest` version of Jaeger and other components. If your local Docker registry already contains older versions, which may still be tagged as `latest`, you may want to delete those images before running the full set, to ensure consistent behavior:
 
