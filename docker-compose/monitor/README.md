@@ -4,7 +4,7 @@ Service Performance Monitoring (SPM) is an opt-in feature introduced to Jaeger t
 (RED) metrics grouped by service name and operation that are derived from span data. These metrics are programmatically
 available through an API exposed by jaeger-query along with a "Monitor" UI tab that visualizes these metrics as graphs.
 
-1.  **Prometheus as metrics backend**: Metrics are aggregated by the OpenTelemetry Collector and stored in Prometheus (see [tracking issue](https://github.com/jaegertracing/jaeger/issues/2954)).
+1.  **Prometheus as metrics backend**: Metrics are computed by the OpenTelemetry Collector and aggregated in Prometheus (see [tracking issue](https://github.com/jaegertracing/jaeger/issues/2954)).
 2.  **Directly querying from trace storage (Elasticsearch/OpenSearch)**: Metrics are computed directly from trace data stored in Elasticsearch or OpenSearch, eliminating the need for a separate metrics storage backend like Prometheus (see [issue \#6641](https://github.com/jaegertracing/jaeger/issues/6641) for details).
 
 The motivation for providing this environment is to allow developers to either test Jaeger UI or their own applications against jaeger-query's metrics query API, as well as a quick and simple way for users to bring up the entire stack required to visualize RED metrics from simulated traces or from their own application.
