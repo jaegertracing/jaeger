@@ -307,6 +307,11 @@ func TestRedactPath(t *testing.T) {
 			path:     "secret.txt",
 			expected: hashFilename("secret.txt"),
 		},
+		{
+			name:     "directory path",
+			path:     "/path/to/directory/",
+			expected: "/path/to/directory/",
+		},
 	}
 
 	for _, tt := range tests {

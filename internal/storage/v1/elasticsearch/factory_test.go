@@ -473,3 +473,42 @@ func TestPasswordFromFileErrors(t *testing.T) {
 	require.NoError(t, os.Remove(pwdFile))
 	f.onPasswordChange()
 }
+
+func TestFactoryBase_NewClient_WatcherError(t *testing.T) {
+	testCases := []struct {
+		name     string
+		setup    func() (escfg.Configuration, func())
+		expected string
+	}{
+		{
+			name: "fails to create watcher for non-existent password file",
+			setup: func() (escfg.Configuration, func()) {
+				return escfg.Configuration{
+					Servers:  []string{"http://localhost:9200"},
+					LogLevel: "debug",
+					Authentication: escfg.Authentication{
+						BasicAuthentication: configoptional.Some(escfg.BasicAuthentication{
+							PasswordFilePath: "/nonexistent/path/to/password.txt",
+						}),
+					},
+				}, func() {}
+			},
+			expected: "failed to create Elasticsearch client: failed to load password from file:",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup
+			cfg, cleanup := tc.setup()
+			defer cleanup()
+
+			// Test
+			_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t))
+
+			// Verify
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.expected)
+		})
+	}
+}

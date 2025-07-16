@@ -620,6 +620,38 @@ func TestApplyDefaults(t *testing.T) {
 	}
 }
 
+func TestApplyDefaults_Auth(t *testing.T) {
+	source := &Configuration{
+		Authentication: Authentication{
+			BasicAuthentication: configoptional.Some(BasicAuthentication{
+				Username: "sourceUser",
+				Password: "sourcePass",
+			}),
+		},
+	}
+
+	target := &Configuration{
+		Authentication: Authentication{
+			BasicAuthentication: configoptional.Some(BasicAuthentication{
+				Username: "",
+				Password: "",
+			}),
+		},
+	}
+
+	expected := &Configuration{
+		Authentication: Authentication{
+			BasicAuthentication: configoptional.Some(BasicAuthentication{
+				Username: "sourceUser",
+				Password: "sourcePass",
+			}),
+		},
+	}
+
+	target.ApplyDefaults(source)
+	require.Equal(t, expected, target)
+}
+
 func TestTagKeysAsFields(t *testing.T) {
 	const (
 		pwd1 = `tag1
