@@ -32,7 +32,7 @@ func fromDbSpanId(dbSpanId dbmodel.SpanID) (pcommon.SpanID, error) {
 }
 
 // TODO extend DB model to support parent span ID directly
-func getParentSpanId(dbSpan *dbmodel.Span) dbmodel.SpanID {
+func getParentSpanId(dbSpan dbmodel.Span) dbmodel.SpanID {
 	var followsFromRef *dbmodel.Reference
 	for i := range dbSpan.References {
 		ref := dbSpan.References[i]

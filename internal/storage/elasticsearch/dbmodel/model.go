@@ -60,6 +60,7 @@ type Span struct {
 	Tag     map[string]any `json:"tag,omitempty"`
 	Logs    []Log          `json:"logs"`
 	Process Process        `json:"process,omitempty"`
+	Scope   Scope          `json:"scope,omitempty"`
 }
 
 // Reference is a reference from one span to another
@@ -119,4 +120,11 @@ type TraceQueryParameters struct {
 	DurationMax   time.Duration
 	// TODO: Rename NumTraces to SearchDepth
 	NumTraces int
+}
+
+type Scope struct {
+	Name    string         `json:"name,omitempty"`
+	Version string         `json:"version,omitempty"`
+	Tags    []KeyValue     `json:"tags,omitempty"`
+	Tag     map[string]any `json:"tag,omitempty"`
 }
