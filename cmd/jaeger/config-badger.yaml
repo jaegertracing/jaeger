@@ -41,12 +41,16 @@ extensions:
             keys: "/tmp/jaeger/"
             values: "/tmp/jaeger/"
           ephemeral: false
+          ttl:
+            spans: 48h # 2 days
       another_store:
         badger:
           directories:
             keys: "/tmp/jaeger_archive/"
             values: "/tmp/jaeger_archive/"
           ephemeral: false
+          ttl:
+            spans: 720h # 30 days
 
 receivers:
   otlp:
