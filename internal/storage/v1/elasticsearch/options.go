@@ -40,6 +40,8 @@ const (
 	suffixBulkFlushInterval              = ".bulk.flush-interval"
 	suffixTimeout                        = ".timeout"
 	suffixIndexPrefix                    = ".index-prefix"
+	suffixSpanAlias                      = ".span-alias"
+	suffixServiceAlias                   = ".service-alias"
 	suffixIndexDateSeparator             = ".index-date-separator"
 	suffixIndexRolloverFrequencySpans    = ".index-rollover-frequency-spans"
 	suffixIndexRolloverFrequencyServices = ".index-rollover-frequency-services"
@@ -217,6 +219,14 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		string(nsConfig.Indices.IndexPrefix),
 		"Optional prefix of Jaeger indices. For example \"production\" creates \"production-jaeger-*\".")
 	flagSet.String(
+		nsConfig.namespace+suffixSpanAlias,
+		nsConfig.Indices.SpanAlias,
+		"Explicit index or alias to use for span data (overrides prefix/date pattern).")
+	flagSet.String(
+		nsConfig.namespace+suffixServiceAlias,
+		nsConfig.Indices.ServiceAlias,
+		"Explicit index or alias to use for service data (overrides prefix/date pattern).")
+	flagSet.String(
 		nsConfig.namespace+suffixIndexDateSeparator,
 		defaultIndexDateSeparator,
 		"Optional date separator of Jaeger indices. For example \".\" creates \"jaeger-span-2020.11.20\".")
@@ -355,6 +365,9 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	indexPrefix := v.GetString(cfg.namespace + suffixIndexPrefix)
 
 	cfg.Indices.IndexPrefix = config.IndexPrefix(indexPrefix)
+
+	cfg.Indices.SpanAlias = v.GetString(cfg.namespace + suffixSpanAlias)
+	cfg.Indices.ServiceAlias = v.GetString(cfg.namespace + suffixServiceAlias)
 
 	cfg.Tags.AllAsFields = v.GetBool(cfg.namespace + suffixTagsAsFieldsAll)
 	cfg.Tags.Include = v.GetString(cfg.namespace + suffixTagsAsFieldsInclude)
