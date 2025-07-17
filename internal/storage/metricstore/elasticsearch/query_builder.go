@@ -109,16 +109,7 @@ func (*QueryBuilder) buildTimeSeriesAggQuery(params metricstore.BaseQueryParamet
 
 // Execute runs the Elasticsearch search with the provided bool and aggregation queries.
 func (q *QueryBuilder) Execute(ctx context.Context, boolQuery elastic.BoolQuery, aggQuery elastic.Aggregation, timeRange TimeRange) (*elastic.SearchResult, error) {
-	readAliasSuffix := ""
-	if q.cfg.UseReadWriteAliases {
-		if q.cfg.ReadAliasSuffix != "" {
-			readAliasSuffix = q.cfg.ReadAliasSuffix
-		} else {
-			readAliasSuffix = "read"
-		}
-	}
-
-	indexSearcher := spanstore.NewIndexSearcher(q.cfg.UseReadWriteAliases, readAliasSuffix, q.cfg.RemoteReadClusters)
+	indexSearcher := spanstore.NewIndexSearcher(q.cfg.UseReadWriteAliases, q.cfg.ReadAliasSuffix, q.cfg.RemoteReadClusters)
 	indexName := q.cfg.Indices.IndexPrefix.Apply("jaeger-span-")
 	indices := indexSearcher.GetTimeRangeIndicesFn()(
 		indexName,
