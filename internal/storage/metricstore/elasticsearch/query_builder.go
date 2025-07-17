@@ -5,7 +5,6 @@ package elasticsearch
 
 import (
 	"context"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 	"strconv"
 	"strings"
 	"time"
@@ -16,6 +15,7 @@ import (
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 )
 
 // These constants define the specific names of aggregations used within Elasticsearch

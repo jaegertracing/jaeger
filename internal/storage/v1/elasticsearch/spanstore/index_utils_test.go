@@ -1,9 +1,13 @@
+// Copyright (c) 2025 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package spanstore
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSpanReaderFindIndices(t *testing.T) {
