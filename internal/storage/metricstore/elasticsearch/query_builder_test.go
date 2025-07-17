@@ -137,7 +137,7 @@ func TestExecute(t *testing.T) {
 	boolQuery := elastic.NewBoolQuery()
 	aggQuery := elastic.NewDateHistogramAggregation().Field("startTimeMillis").FixedInterval("60000ms")
 
-	result, err := qb.Execute(context.Background(), *boolQuery, aggQuery)
+	result, err := qb.Execute(context.Background(), *boolQuery, aggQuery, TimeRange{endTimeMillis: 0, startTimeMillis: 0})
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
