@@ -24,6 +24,7 @@ func NewFactory() extension.Factory {
 
 func createDefaultConfig() component.Config {
 	queryOptions := app.DefaultQueryOptions()
+	// Tracing is off by default in v1, but we want it on for v2
 	queryOptions.EnableTracing = true
 	return &Config{
 		QueryOptions: queryOptions,
