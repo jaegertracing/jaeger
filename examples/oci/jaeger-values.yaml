@@ -6,6 +6,7 @@ hotrod:
     - all
   extraArgs:
     - --otel-exporter=otlp
+    - --basepath=hotrod
   extraEnv:
     - name: OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://jaeger-collector:4318
