@@ -12,7 +12,7 @@ type TimeRangeIndexFn func(indexName string, indexDateLayout string, startTime t
 // IndexSearcher provides reusable index search optimization functionality
 type IndexSearcher struct {
 	UseReadWriteAliases bool
-	readAliasSuffix     string
+	ReadAliasSuffix     string
 	RemoteReadClusters  []string
 }
 
@@ -30,14 +30,22 @@ func NewIndexSearcher(
 ) *IndexSearcher {
 	return &IndexSearcher{
 		UseReadWriteAliases: useReadWriteAliases,
-		readAliasSuffix:     readAliasSuffix,
+		ReadAliasSuffix:     readAliasSuffix,
 		RemoteReadClusters:  remoteReadClusters,
 	}
 }
 
 func (i IndexSearcher) GetTimeRangeIndicesFn() TimeRangeIndexFn {
+	readAliasSuffix := ""
+	if i.UseReadWriteAliases {
+		if i.ReadAliasSuffix != "" {
+			readAliasSuffix = i.ReadAliasSuffix
+		} else {
+			readAliasSuffix = "read"
+		}
+	}
 	return addRemoteReadClusters(
-		getTimeRangeIndexFn(i.UseReadWriteAliases, i.readAliasSuffix),
+		getTimeRangeIndexFn(i.UseReadWriteAliases, readAliasSuffix),
 		i.RemoteReadClusters,
 	)
 }
