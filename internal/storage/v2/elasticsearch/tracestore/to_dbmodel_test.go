@@ -211,6 +211,40 @@ func TestLinksToDbSpanRefs(t *testing.T) {
 			expectedRefType: dbmodel.ChildOf, // Not used in this case
 			description:     "Span with no links should have no references",
 		},
+		{
+			name: "span with client kind",
+			setupSpan: func() ptrace.Span {
+				traces := ptrace.NewTraces()
+				spans := traces.ResourceSpans().AppendEmpty()
+				scopeSpans := spans.ScopeSpans().AppendEmpty()
+				span := scopeSpans.Spans().AppendEmpty()
+				span.SetKind(ptrace.SpanKindClient) // This triggers spanKindTagFound = true
+				return span
+			},
+			setupLinks: func(_ ptrace.SpanLinkSlice) {
+				// No links needed for this test
+			},
+			expectedRefs:    0,
+			expectedRefType: dbmodel.ChildOf,
+			description:     "Span with client kind should have span kind tag",
+		},
+		{
+			name: "span with unspecified kind",
+			setupSpan: func() ptrace.Span {
+				traces := ptrace.NewTraces()
+				spans := traces.ResourceSpans().AppendEmpty()
+				scopeSpans := spans.ScopeSpans().AppendEmpty()
+				span := scopeSpans.Spans().AppendEmpty()
+				span.SetKind(ptrace.SpanKindUnspecified) // This triggers spanKindTagFound = false
+				return span
+			},
+			setupLinks: func(_ ptrace.SpanLinkSlice) {
+				// No links needed for this test
+			},
+			expectedRefs:    0,
+			expectedRefType: dbmodel.ChildOf,
+			description:     "Span with unspecified kind should not have span kind tag",
+		},
 	}
 
 	for _, tt := range tests {
@@ -278,25 +312,24 @@ func TestResourceToDbProcess(t *testing.T) {
 			expectedTags:    nil,
 			description:     "Resource with no attributes should use default service name",
 		},
-
 		{
-			name: "resource with scope name attribute",
+			name: "resource with empty service name",
 			setupResource: func() pcommon.Resource {
 				traces := ptrace.NewTraces()
 				resource := traces.ResourceSpans().AppendEmpty().Resource()
-				resource.Attributes().PutStr(conventions.ServiceNameKey, "service")
-				resource.Attributes().PutStr(conventions.AttributeOtelScopeName, "my-scope")
+				resource.Attributes().PutStr(conventions.ServiceNameKey, "") // Explicitly empty string
+				resource.Attributes().PutStr("foo", "bar")
 				return resource
 			},
-			expectedService: "service",
+			expectedService: "",
 			expectedTags: []dbmodel.KeyValue{
 				{
-					Key:   conventions.AttributeOtelScopeName,
-					Value: "my-scope",
+					Key:   "foo",
+					Value: "bar",
 					Type:  dbmodel.StringType,
 				},
 			},
-			description: "Resource with scope name should include it as a tag",
+			description: "Resource with empty service name should use empty string",
 		},
 	}
 

@@ -1,7 +1,6 @@
 // Copyright (c) 2025 The Jaeger Authors.
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
-
 // Code originally copied from https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/e49500a9b68447cbbe237fa29526ba99e4963f39/pkg/translator/jaeger/jaegerproto_to_traces_test.go
 
 package tracestore
@@ -38,20 +37,17 @@ func TestCodeFromAttr(t *testing.T) {
 			attr: pcommon.NewValueStr("0"),
 			code: 0,
 		},
-
 		{
 			name: "ok-int",
 			attr: pcommon.NewValueInt(1),
 			code: 1,
 		},
-
 		{
 			name: "wrong-type",
 			attr: pcommon.NewValueBool(true),
 			code: 0,
 			err:  errType,
 		},
-
 		{
 			name: "invalid-string",
 			attr: pcommon.NewValueStr("inf"),
@@ -99,14 +95,12 @@ func TestGetStatusCodeFromHTTPStatusAttr(t *testing.T) {
 			kind: ptrace.SpanKindClient,
 			code: ptrace.StatusCodeError,
 		},
-
 		{
 			name: "string-ok",
 			attr: pcommon.NewValueStr("101"),
 			kind: ptrace.SpanKindClient,
 			code: ptrace.StatusCodeUnset,
 		},
-
 		{
 			name: "int-not-found",
 			attr: pcommon.NewValueInt(404),
@@ -159,6 +153,7 @@ func Test_SetSpanEventsFromDbSpanLogs(t *testing.T) {
 	span.Events().AppendEmpty().SetName("event1")
 	span.Events().AppendEmpty().SetName("event2")
 	span.Events().AppendEmpty().Attributes().PutStr(eventNameAttr, "testing")
+
 	logs := []dbmodel.Log{
 		{
 			Timestamp: model.TimeAsEpochMicroseconds(testSpanEventTime),
@@ -167,6 +162,7 @@ func Test_SetSpanEventsFromDbSpanLogs(t *testing.T) {
 			Timestamp: model.TimeAsEpochMicroseconds(testSpanEventTime),
 		},
 	}
+
 	dbSpanLogsToSpanEvents(logs, span.Events())
 	for i := 0; i < len(logs); i++ {
 		assert.Equal(t, testSpanEventTime, span.Events().At(i).Timestamp().AsTime())
@@ -403,6 +399,7 @@ func TestSetAttributesFromDbTags(t *testing.T) {
 			},
 		},
 	}
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			expected := pcommon.NewMap()
@@ -445,7 +442,17 @@ func TestFromDBModelErrors(t *testing.T) {
 			dbSpans: []dbmodel.Span{{References: []dbmodel.Reference{{SpanID: dbmodel.SpanID("ref-span-id")}}}},
 			err:     "encoding/hex: invalid byte: U+0072 'r'",
 		},
+		{
+			name: "wrong parent span-id with valid trace-id",
+			dbSpans: []dbmodel.Span{{
+				TraceID:      dbmodel.TraceID("0123456789abcdef0123456789abcdef"),
+				SpanID:       dbmodel.SpanID("0123456789abcdef"),
+				ParentSpanID: dbmodel.SpanID("invalid-parent-id"),
+			}},
+			err: "encoding/hex: invalid byte: U+0069 'i'",
+		},
 	}
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			_, err := FromDBModel(test.dbSpans)
@@ -469,17 +476,187 @@ func TestParentIdWhenRefTraceIdIsDifferent(t *testing.T) {
 	assert.True(t, trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).ParentSpanID().IsEmpty())
 }
 
+func TestDbSpanToSpanWithSpanKind(t *testing.T) {
+	tests := []struct {
+		name         string
+		spanKind     string
+		expectedKind ptrace.SpanKind
+		description  string
+	}{
+		{
+			name:         "span with client kind",
+			spanKind:     "client",
+			expectedKind: ptrace.SpanKindClient,
+			description:  "Span with client kind should be converted properly",
+		},
+		{
+			name:         "span with server kind",
+			spanKind:     "server",
+			expectedKind: ptrace.SpanKindServer,
+			description:  "Span with server kind should be converted properly",
+		},
+		{
+			name:         "span with unspecified kind",
+			spanKind:     "unknown",
+			expectedKind: ptrace.SpanKindUnspecified,
+			description:  "Span with unknown kind should be unspecified",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dbSpan := &dbmodel.Span{
+				TraceID: dbmodel.TraceID("0123456789abcdef0123456789abcdef"),
+				SpanID:  dbmodel.SpanID("0123456789abcdef"),
+				Tags: []dbmodel.KeyValue{
+					{Key: model.SpanKindKey, Value: tt.spanKind, Type: dbmodel.StringType},
+				},
+			}
+
+			span := ptrace.NewSpan()
+			err := dbSpanToSpan(dbSpan, span)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedKind, span.Kind(), tt.description)
+			// Verify span kind attribute was removed
+			_, exists := span.Attributes().Get(model.SpanKindKey)
+			assert.False(t, exists, "Span kind attribute should be removed")
+		})
+	}
+}
+
+func TestDbProcessToResource(t *testing.T) {
+	tests := []struct {
+		name          string
+		process       dbmodel.Process
+		expectedAttrs map[string]any
+		description   string
+	}{
+		{
+			name: "process with service name and tags",
+			process: dbmodel.Process{
+				ServiceName: "test-service",
+				Tags: []dbmodel.KeyValue{
+					{Key: "key1", Value: "value1", Type: dbmodel.StringType},
+					{Key: "key2", Value: "value2", Type: dbmodel.StringType},
+				},
+			},
+			expectedAttrs: map[string]any{
+				string(conventions.ServiceNameKey): "test-service",
+				"key1":                             "value1",
+				"key2":                             "value2",
+			},
+			description: "Process with service name should trigger first branch",
+		},
+		{
+			name: "process with empty service name and tags",
+			process: dbmodel.Process{
+				ServiceName: "",
+				Tags: []dbmodel.KeyValue{
+					{Key: "key1", Value: "value1", Type: dbmodel.StringType},
+					{Key: "key2", Value: "value2", Type: dbmodel.StringType},
+				},
+			},
+			expectedAttrs: map[string]any{
+				"key1": "value1",
+				"key2": "value2",
+			},
+			description: "Process with empty service name should trigger else branch",
+		},
+		{
+			name: "process with noServiceName and tags",
+			process: dbmodel.Process{
+				ServiceName: noServiceName,
+				Tags: []dbmodel.KeyValue{
+					{Key: "key1", Value: "value1", Type: dbmodel.StringType},
+				},
+			},
+			expectedAttrs: map[string]any{
+				"key1": "value1",
+			},
+			description: "Process with noServiceName should trigger else branch",
+		},
+		{
+			name: "process with empty service name and no tags",
+			process: dbmodel.Process{
+				ServiceName: "",
+				Tags:        nil,
+			},
+			expectedAttrs: map[string]any{},
+			description:   "Process with no service name and no tags should return early",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resource := pcommon.NewResource()
+			dbProcessToResource(tt.process, resource)
+
+			// Instead of comparing the entire map structure, compare individual attributes
+			attrs := resource.Attributes()
+			for key, expectedValue := range tt.expectedAttrs {
+				actualValue, exists := attrs.Get(key)
+				assert.True(t, exists, "Expected attribute %s to exist", key)
+
+				// Fixed: Replace switch with if-then as suggested by linter
+				if v, ok := expectedValue.(string); ok {
+					assert.Equal(t, v, actualValue.Str(), "Attribute %s value mismatch", key)
+				}
+			}
+
+			// Verify the total number of attributes matches
+			assert.Equal(t, len(tt.expectedAttrs), attrs.Len(), "Total attribute count mismatch")
+		})
+	}
+}
+
+func TestGetTraceStateFromAttrs(t *testing.T) {
+	tests := []struct {
+		name               string
+		attrs              map[string]any
+		expectedTraceState string
+		expectedAttrCount  int
+		description        string
+	}{
+		{
+			name: "attrs with w3c trace state",
+			attrs: map[string]any{
+				tagW3CTraceState: "vendor1=value1,vendor2=value2",
+				"other-attr":     "other-value",
+			},
+			expectedTraceState: "vendor1=value1,vendor2=value2",
+			expectedAttrCount:  1,
+			description:        "Should extract and remove W3C trace state",
+		},
+		{
+			name: "attrs without w3c trace state",
+			attrs: map[string]any{
+				"other-attr": "other-value",
+			},
+			expectedTraceState: "",
+			expectedAttrCount:  1,
+			description:        "Should return empty string when no trace state",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			attrs := pcommon.NewMap()
+			require.NoError(t, attrs.FromRaw(tt.attrs))
+			traceState := getTraceStateFromAttrs(attrs)
+			assert.Equal(t, tt.expectedTraceState, traceState, tt.description)
+			assert.Equal(t, tt.expectedAttrCount, attrs.Len(), "Attribute count should match expected")
+		})
+	}
+}
+
 func TestSetInternalSpanStatus(t *testing.T) {
 	okStatus := ptrace.NewStatus()
 	okStatus.SetCode(ptrace.StatusCodeOk)
-
 	errorStatus := ptrace.NewStatus()
 	errorStatus.SetCode(ptrace.StatusCodeError)
-
 	errorStatusWithMessage := ptrace.NewStatus()
 	errorStatusWithMessage.SetCode(ptrace.StatusCodeError)
 	errorStatusWithMessage.SetMessage("Error: Invalid argument")
-
 	errorStatusWith404Message := ptrace.NewStatus()
 	errorStatusWith404Message.SetCode(ptrace.StatusCodeError)
 	errorStatusWith404Message.SetMessage("HTTP 404: Not Found")
@@ -665,7 +842,6 @@ func BenchmarkProtoBatchToInternalTraces(b *testing.B) {
 	err = json.Unmarshal(data, &dbSpan)
 	require.NoError(b, err)
 	jb := []dbmodel.Span{dbSpan}
-
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		_, err := FromDBModel(jb)

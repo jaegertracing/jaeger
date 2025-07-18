@@ -79,23 +79,14 @@ func resourceToDbProcess(resource pcommon.Resource) dbmodel.Process {
 		process.ServiceName = noServiceName
 		return process
 	}
-	var serviceName string
 	tags := make([]dbmodel.KeyValue, 0, attrs.Len())
 	for key, attr := range attrs.All() {
-		switch key {
-		case conventions.ServiceNameKey:
-			serviceName = attr.AsString()
-		case conventions.AttributeOtelScopeName:
-			tags = append(tags, attributeToDbTag(key, attr))
-		default:
-			tags = append(tags, attributeToDbTag(key, attr))
+		if key == conventions.ServiceNameKey {
+			process.ServiceName = attr.AsString()
+			continue
 		}
+		tags = append(tags, attributeToDbTag(key, attr))
 	}
-
-	if serviceName == "" {
-		serviceName = noServiceName
-	}
-	process.ServiceName = serviceName
 	process.Tags = tags
 	return process
 }

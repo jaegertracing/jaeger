@@ -15,29 +15,29 @@ const (
 	SchemaURL = semconv.SchemaURL
 
 	// Telemetry SDK
-	TelemetrySDKLanguageKey   = "telemetry.sdk.language"
-	TelemetrySDKNameKey       = "telemetry.sdk.name"
-	TelemetrySDKVersionKey    = "telemetry.sdk.version"
-	TelemetryDistroNameKey    = "telemetry.distro.name"
-	TelemetryDistroVersionKey = "telemetry.distro.version"
+	TelemetrySDKLanguageKey   = string(semconv.TelemetrySDKLanguageKey)
+	TelemetrySDKNameKey       = string(semconv.TelemetrySDKNameKey)
+	TelemetrySDKVersionKey    = string(semconv.TelemetrySDKVersionKey)
+	TelemetryDistroNameKey    = string(semconv.TelemetryDistroNameKey)
+	TelemetryDistroVersionKey = string(semconv.TelemetryDistroVersionKey)
 
 	// Service
-	ServiceNameKey = "service.name"
+	ServiceNameKey = string(semconv.ServiceNameKey)
 
 	// Database
-	DBQueryTextKey = "db.query.text"
+	DBQueryTextKey = string(semconv.DBQueryTextKey)
 	DBSystemKey    = "db.system"
 
 	// Network
-	PeerServiceKey = "peer.service"
+	PeerServiceKey = string(semconv.PeerServiceKey)
 
 	// HTTP
-	HTTPResponseStatusCodeKey = "http.response.status_code"
+	HTTPResponseStatusCodeKey = string(semconv.HTTPResponseStatusCodeKey)
 
 	// Host
-	HostIDKey   = "host.id"
-	HostIPKey   = "host.ip"
-	HostNameKey = "host.name"
+	HostIDKey   = string(semconv.HostIDKey)
+	HostIPKey   = string(semconv.HostIPKey)
+	HostNameKey = string(semconv.HostNameKey)
 
 	// Status
 	OtelStatusCode        = "otel.status_code"
