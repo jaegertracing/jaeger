@@ -159,7 +159,7 @@ func TestLinksToDbSpanRefs(t *testing.T) {
 			description:     "Links with explicit follows-from reference type",
 		},
 		{
-			name: "links without ref type defaults to ChildOf",
+			name: "links without ref type defaults to FollowsFrom",
 			setupSpan: func() ptrace.Span {
 				traces := ptrace.NewTraces()
 				spans := traces.ResourceSpans().AppendEmpty()
@@ -171,8 +171,8 @@ func TestLinksToDbSpanRefs(t *testing.T) {
 				link.Attributes().PutStr("testing-key", "testing-inputValue")
 			},
 			expectedRefs:    1,
-			expectedRefType: dbmodel.ChildOf,
-			description:     "Links without reference type should default to ChildOf",
+			expectedRefType: dbmodel.FollowsFrom,
+			description:     "Links without reference type should default to FollowsFrom",
 		},
 		{
 			name: "parent reference with follows from link",
@@ -462,6 +462,47 @@ func TestStatusMessageHandling(t *testing.T) {
 	}
 }
 
+func TestRefTypeFromLink(t *testing.T) {
+	tests := []struct {
+		name      string
+		setupLink func() ptrace.SpanLink
+		expected  dbmodel.ReferenceType
+	}{
+		{
+			name: "link with child_of reference type",
+			setupLink: func() ptrace.SpanLink {
+				link := ptrace.NewSpanLink()
+				link.Attributes().PutStr(conventions.AttributeOpentracingRefType, conventions.AttributeOpentracingRefTypeChildOf)
+				return link
+			},
+			expected: dbmodel.ChildOf,
+		},
+		{
+			name: "link with follows_from reference type",
+			setupLink: func() ptrace.SpanLink {
+				link := ptrace.NewSpanLink()
+				link.Attributes().PutStr(conventions.AttributeOpentracingRefType, conventions.AttributeOpentracingRefTypeFollowsFrom)
+				return link
+			},
+			expected: dbmodel.FollowsFrom,
+		},
+		{
+			name:      "link without reference type defaults to follows_from",
+			setupLink: ptrace.NewSpanLink,
+
+			expected: dbmodel.FollowsFrom,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			link := tt.setupLink()
+			result := refTypeFromLink(link)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 func TestTraceStateHandling(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -517,6 +558,11 @@ func TestReferenceTypeConversion(t *testing.T) {
 		{
 			name:     "unknown reference type defaults to follows from",
 			refType:  "any other string",
+			expected: dbmodel.FollowsFrom,
+		},
+		{
+			name:     "empty reference type defaults to follows from",
+			refType:  "",
 			expected: dbmodel.FollowsFrom,
 		},
 	}

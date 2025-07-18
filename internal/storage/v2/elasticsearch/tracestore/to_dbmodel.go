@@ -359,18 +359,16 @@ func getTagsFromInstrumentationLibrary(il pcommon.InstrumentationScope) ([]dbmod
 }
 
 func refTypeFromLink(link ptrace.SpanLink) dbmodel.ReferenceType {
-	if refType, ok := link.Attributes().Get(conventions.AttributeOpentracingRefType); ok {
-		return strToDbSpanRefType(refType.Str())
+	refTypeAttr, ok := link.Attributes().Get(conventions.AttributeOpentracingRefType)
+	if !ok {
+		return dbmodel.FollowsFrom
 	}
-	return dbmodel.ChildOf
+	return strToDbSpanRefType(refTypeAttr.Str())
 }
 
 func strToDbSpanRefType(attr string) dbmodel.ReferenceType {
-	switch attr {
-	case conventions.AttributeOpentracingRefTypeChildOf:
+	if attr == conventions.AttributeOpentracingRefTypeChildOf {
 		return dbmodel.ChildOf
-	case conventions.AttributeOpentracingRefTypeFollowsFrom:
-		return dbmodel.FollowsFrom
 	}
 	// There are only 2 types of SpanRefType we assume that everything
 	// that's not a model.ChildOf is a model.FollowsFrom
