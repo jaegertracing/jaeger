@@ -117,6 +117,8 @@ type SpanReaderParams struct {
 	MaxSpanAge          time.Duration
 	MaxDocCount         int
 	IndexPrefix         cfg.IndexPrefix
+	SpanAlias           string
+	ServiceAlias        string
 	SpanIndex           cfg.IndexOptions
 	ServiceIndex        cfg.IndexOptions
 	TagDotReplacement   string
@@ -142,18 +144,34 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		}
 	}
 
+	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
+	if p.SpanAlias != "" {
+		spanIndexPrefix = p.SpanAlias
+	}
+	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
+	if p.ServiceAlias != "" {
+		serviceIndexPrefix = p.ServiceAlias
+	}
+
+	baseTimeRangeFn := getTimeRangeIndexFn(p.UseReadWriteAliases, readAliasSuffix)
+	if p.SpanAlias != "" || p.ServiceAlias != "" {
+		baseTimeRangeFn = func(indexName string, _ string, _ time.Time, _ time.Time, _ time.Duration) []string {
+			return []string{indexName}
+		}
+	}
+
 	return &SpanReader{
 		client:                  p.Client,
 		maxSpanAge:              maxSpanAge,
 		serviceOperationStorage: NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics
-		spanIndexPrefix:         p.IndexPrefix.Apply(spanIndexBaseName),
-		serviceIndexPrefix:      p.IndexPrefix.Apply(serviceIndexBaseName),
+		spanIndexPrefix:         spanIndexPrefix,
+		serviceIndexPrefix:      serviceIndexPrefix,
 		spanIndex:               p.SpanIndex,
 		serviceIndex:            p.ServiceIndex,
 		timeRangeIndices: getLoggingTimeRangeIndexFn(
 			p.Logger,
 			addRemoteReadClusters(
-				getTimeRangeIndexFn(p.UseReadWriteAliases, readAliasSuffix),
+				baseTimeRangeFn,
 				p.RemoteReadClusters,
 			),
 		),
@@ -308,7 +326,7 @@ func (s *SpanReader) GetOperations(
 	}
 
 	// TODO: https://github.com/jaegertracing/jaeger/issues/1923
-	// 	- return the operations with actual span kind that meet requirement
+	//  - return the operations with actual span kind that meet requirement
 	var result []dbmodel.Operation
 	for _, operation := range operations {
 		result = append(result, dbmodel.Operation{

@@ -62,6 +62,8 @@ type IndexOptions struct {
 type Indices struct {
 	// IndexPrefix is an optional prefix to prepend to Jaeger indices.
 	// For example, setting this field to "production" creates "production-jaeger-*".
+	SpanAlias    string       `mapstructure:"span_alias"`
+	ServiceAlias string       `mapstructure:"service_alias"`
 	IndexPrefix  IndexPrefix  `mapstructure:"index_prefix"`
 	Spans        IndexOptions `mapstructure:"spans"`
 	Services     IndexOptions `mapstructure:"services"`
