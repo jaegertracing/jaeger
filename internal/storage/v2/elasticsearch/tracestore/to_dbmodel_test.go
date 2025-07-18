@@ -17,10 +17,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/collector/semconv/v1.9.0"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
+	conventions "github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 func TestGetTagFromStatusCode(t *testing.T) {
@@ -38,7 +38,6 @@ func TestGetTagFromStatusCode(t *testing.T) {
 				Value: statusOk,
 			},
 		},
-
 		{
 			name: "error",
 			code: ptrace.StatusCodeError,
@@ -59,75 +58,6 @@ func TestGetTagFromStatusCode(t *testing.T) {
 	}
 }
 
-func TestEmptyAttributes(t *testing.T) {
-	traces := ptrace.NewTraces()
-	spans := traces.ResourceSpans().AppendEmpty()
-	scopeSpans := spans.ScopeSpans().AppendEmpty()
-	spanScope := scopeSpans.Scope()
-	span := scopeSpans.Spans().AppendEmpty()
-	modelSpan := spanToDbSpan(span, spanScope, dbmodel.Process{})
-	assert.Empty(t, modelSpan.Tags)
-}
-
-func TestEmptyLinkRefs(t *testing.T) {
-	traces := ptrace.NewTraces()
-	spans := traces.ResourceSpans().AppendEmpty()
-	scopeSpans := spans.ScopeSpans().AppendEmpty()
-	spanScope := scopeSpans.Scope()
-	span := scopeSpans.Spans().AppendEmpty()
-	spanLink := span.Links().AppendEmpty()
-	spanLink.Attributes().PutStr("testing-key", "testing-inputValue")
-	modelSpan := spanToDbSpan(span, spanScope, dbmodel.Process{})
-	assert.Len(t, modelSpan.References, 1)
-	assert.Equal(t, dbmodel.FollowsFrom, modelSpan.References[0].RefType)
-}
-
-func TestGetTagFromStatusMsg(t *testing.T) {
-	_, ok := getTagFromStatusMsg("")
-	assert.False(t, ok)
-
-	got, ok := getTagFromStatusMsg("test-error")
-	assert.True(t, ok)
-	assert.Equal(t, dbmodel.KeyValue{
-		Key:   conventions.OtelStatusDescription,
-		Value: "test-error",
-		Type:  dbmodel.StringType,
-	}, got)
-}
-
-func Test_resourceToDbProcess(t *testing.T) {
-	traces := ptrace.NewTraces()
-	resourceSpans := traces.ResourceSpans().AppendEmpty()
-	resource := resourceSpans.Resource()
-	resource.Attributes().PutStr(conventions.AttributeServiceName, "service")
-	resource.Attributes().PutStr("foo", "bar")
-	process := resourceToDbProcess(resource)
-	assert.Equal(t, "service", process.ServiceName)
-	expected := []dbmodel.KeyValue{
-		{
-			Key:   "foo",
-			Value: "bar",
-			Type:  dbmodel.StringType,
-		},
-	}
-	assert.Equal(t, expected, process.Tags)
-}
-
-func Test_resourceToDbProcess_WhenOnlyServiceNameIsPresent(t *testing.T) {
-	traces := ptrace.NewTraces()
-	spans := traces.ResourceSpans().AppendEmpty()
-	spans.Resource().Attributes().PutStr(conventions.AttributeServiceName, "service")
-	process := resourceToDbProcess(spans.Resource())
-	assert.Equal(t, "service", process.ServiceName)
-}
-
-func Test_appendTagsFromResourceAttributes_empty_attrs(t *testing.T) {
-	traces := ptrace.NewTraces()
-	emptyAttrs := traces.ResourceSpans().AppendEmpty().Resource().Attributes()
-	kv := appendTagsFromAttributes([]dbmodel.KeyValue{}, emptyAttrs)
-	assert.Empty(t, kv)
-}
-
 func TestGetTagFromSpanKind(t *testing.T) {
 	tests := []struct {
 		name string
@@ -141,7 +71,6 @@ func TestGetTagFromSpanKind(t *testing.T) {
 			tag:  dbmodel.KeyValue{},
 			ok:   false,
 		},
-
 		{
 			name: "client",
 			kind: ptrace.SpanKindClient,
@@ -152,7 +81,6 @@ func TestGetTagFromSpanKind(t *testing.T) {
 			},
 			ok: true,
 		},
-
 		{
 			name: "server",
 			kind: ptrace.SpanKindServer,
@@ -163,7 +91,6 @@ func TestGetTagFromSpanKind(t *testing.T) {
 			},
 			ok: true,
 		},
-
 		{
 			name: "producer",
 			kind: ptrace.SpanKindProducer,
@@ -174,7 +101,6 @@ func TestGetTagFromSpanKind(t *testing.T) {
 			},
 			ok: true,
 		},
-
 		{
 			name: "consumer",
 			kind: ptrace.SpanKindConsumer,
@@ -185,7 +111,6 @@ func TestGetTagFromSpanKind(t *testing.T) {
 			},
 			ok: true,
 		},
-
 		{
 			name: "internal",
 			kind: ptrace.SpanKindInternal,
@@ -207,64 +132,483 @@ func TestGetTagFromSpanKind(t *testing.T) {
 	}
 }
 
-func TestAttributesToDbSpanTags(t *testing.T) {
-	attributes := pcommon.NewMap()
-	attributes.PutBool("bool-val", true)
-	attributes.PutInt("int-val", 123)
-	attributes.PutStr("string-val", "abc")
-	attributes.PutDouble("double-val", 1.23)
-	attributes.PutEmptyBytes("bytes-val").FromRaw([]byte{1, 2, 3, 4})
-	attributes.PutStr(conventions.AttributeServiceName, "service-name")
-
-	expected := []dbmodel.KeyValue{
+func TestLinksToDbSpanRefs(t *testing.T) {
+	tests := []struct {
+		name            string
+		setupSpan       func() ptrace.Span
+		setupLinks      func(ptrace.SpanLinkSlice)
+		expectedRefs    int
+		expectedRefType dbmodel.ReferenceType
+		description     string
+	}{
 		{
-			Key:   "bool-val",
-			Type:  dbmodel.BoolType,
-			Value: true,
+			name: "empty links with follows from attribute",
+			setupSpan: func() ptrace.Span {
+				traces := ptrace.NewTraces()
+				spans := traces.ResourceSpans().AppendEmpty()
+				scopeSpans := spans.ScopeSpans().AppendEmpty()
+				return scopeSpans.Spans().AppendEmpty()
+			},
+			setupLinks: func(links ptrace.SpanLinkSlice) {
+				link := links.AppendEmpty()
+				link.Attributes().PutStr("testing-key", "testing-inputValue")
+				link.Attributes().PutStr(conventions.AttributeOpentracingRefType, conventions.AttributeOpentracingRefTypeFollowsFrom)
+			},
+			expectedRefs:    1,
+			expectedRefType: dbmodel.FollowsFrom,
+			description:     "Links with explicit follows-from reference type",
 		},
 		{
-			Key:   "int-val",
-			Type:  dbmodel.Int64Type,
-			Value: int64(123),
+			name: "links without ref type defaults to ChildOf",
+			setupSpan: func() ptrace.Span {
+				traces := ptrace.NewTraces()
+				spans := traces.ResourceSpans().AppendEmpty()
+				scopeSpans := spans.ScopeSpans().AppendEmpty()
+				return scopeSpans.Spans().AppendEmpty()
+			},
+			setupLinks: func(links ptrace.SpanLinkSlice) {
+				link := links.AppendEmpty()
+				link.Attributes().PutStr("testing-key", "testing-inputValue")
+			},
+			expectedRefs:    1,
+			expectedRefType: dbmodel.ChildOf,
+			description:     "Links without reference type should default to ChildOf",
 		},
 		{
-			Key:   "string-val",
-			Type:  dbmodel.StringType,
-			Value: "abc",
+			name: "parent reference with follows from link",
+			setupSpan: func() ptrace.Span {
+				traces := ptrace.NewTraces()
+				resourceSpans := traces.ResourceSpans().AppendEmpty()
+				scopeSpans := resourceSpans.ScopeSpans().AppendEmpty()
+				span := scopeSpans.Spans().AppendEmpty()
+				span.SetTraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+				span.SetSpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8})
+				span.SetParentSpanID([8]byte{8, 7, 6, 5, 4, 3, 2, 1})
+				return span
+			},
+			setupLinks: func(links ptrace.SpanLinkSlice) {
+				link := links.AppendEmpty()
+				link.SetTraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+				link.SetSpanID([8]byte{8, 7, 6, 5, 4, 3, 2, 1})
+				link.Attributes().PutStr(conventions.AttributeOpentracingRefType, conventions.AttributeOpentracingRefTypeFollowsFrom)
+			},
+			expectedRefs:    1,
+			expectedRefType: dbmodel.FollowsFrom,
+			description:     "Parent reference should be overridden by link with follows-from type",
 		},
 		{
-			Key:   "double-val",
-			Type:  dbmodel.Float64Type,
-			Value: 1.23,
-		},
-		{
-			Key:   "bytes-val",
-			Type:  dbmodel.BinaryType,
-			Value: "01020304",
-		},
-		{
-			Key:   conventions.AttributeServiceName,
-			Type:  dbmodel.StringType,
-			Value: "service-name",
+			name: "empty span no links",
+			setupSpan: func() ptrace.Span {
+				traces := ptrace.NewTraces()
+				spans := traces.ResourceSpans().AppendEmpty()
+				scopeSpans := spans.ScopeSpans().AppendEmpty()
+				return scopeSpans.Spans().AppendEmpty()
+			},
+			setupLinks: func(_ ptrace.SpanLinkSlice) {
+				// No links added
+			},
+			expectedRefs:    0,
+			expectedRefType: dbmodel.ChildOf, // Not used in this case
+			description:     "Span with no links should have no references",
 		},
 	}
 
-	got := appendTagsFromAttributes(make([]dbmodel.KeyValue, 0, len(expected)), attributes)
-	require.Equal(t, expected, got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := tt.setupSpan()
+			tt.setupLinks(span.Links())
+
+			scopeSpans := ptrace.NewScopeSpans()
+			modelSpan := spanToDbSpan(span, scopeSpans.Scope(), dbmodel.Process{})
+
+			assert.Len(t, modelSpan.References, tt.expectedRefs, tt.description)
+			if tt.expectedRefs > 0 {
+				assert.Equal(t, tt.expectedRefType, modelSpan.References[0].RefType)
+			}
+		})
+	}
 }
 
-func TestAttributesToDbSpanTags_MapType(t *testing.T) {
-	attributes := pcommon.NewMap()
-	attributes.PutEmptyMap("empty-map")
-	got := appendTagsFromAttributes(make([]dbmodel.KeyValue, 0, 1), attributes)
-	expected := []dbmodel.KeyValue{
+func TestResourceToDbProcess(t *testing.T) {
+	tests := []struct {
+		name            string
+		setupResource   func() pcommon.Resource
+		expectedService string
+		expectedTags    []dbmodel.KeyValue
+		description     string
+	}{
 		{
-			Key:   "empty-map",
-			Type:  dbmodel.StringType,
-			Value: "{}",
+			name: "resource with service name and attributes",
+			setupResource: func() pcommon.Resource {
+				traces := ptrace.NewTraces()
+				resource := traces.ResourceSpans().AppendEmpty().Resource()
+				resource.Attributes().PutStr(conventions.ServiceNameKey, "service")
+				resource.Attributes().PutStr("foo", "bar")
+				return resource
+			},
+			expectedService: "service",
+			expectedTags: []dbmodel.KeyValue{
+				{
+					Key:   "foo",
+					Value: "bar",
+					Type:  dbmodel.StringType,
+				},
+			},
+			description: "Resource with service name and additional attributes",
+		},
+		{
+			name: "resource with only service name",
+			setupResource: func() pcommon.Resource {
+				traces := ptrace.NewTraces()
+				resource := traces.ResourceSpans().AppendEmpty().Resource()
+				resource.Attributes().PutStr(conventions.ServiceNameKey, "service")
+				return resource
+			},
+			expectedService: "service",
+			expectedTags:    []dbmodel.KeyValue{},
+			description:     "Resource with only service name should have empty tags",
+		},
+		{
+			name: "resource with no attributes",
+			setupResource: func() pcommon.Resource {
+				traces := ptrace.NewTraces()
+				return traces.ResourceSpans().AppendEmpty().Resource()
+			},
+			expectedService: noServiceName,
+			expectedTags:    nil,
+			description:     "Resource with no attributes should use default service name",
+		},
+
+		{
+			name: "resource with scope name attribute",
+			setupResource: func() pcommon.Resource {
+				traces := ptrace.NewTraces()
+				resource := traces.ResourceSpans().AppendEmpty().Resource()
+				resource.Attributes().PutStr(conventions.ServiceNameKey, "service")
+				resource.Attributes().PutStr(conventions.AttributeOtelScopeName, "my-scope")
+				return resource
+			},
+			expectedService: "service",
+			expectedTags: []dbmodel.KeyValue{
+				{
+					Key:   conventions.AttributeOtelScopeName,
+					Value: "my-scope",
+					Type:  dbmodel.StringType,
+				},
+			},
+			description: "Resource with scope name should include it as a tag",
 		},
 	}
-	require.Equal(t, expected, got)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resource := tt.setupResource()
+			process := resourceToDbProcess(resource)
+
+			assert.Equal(t, tt.expectedService, process.ServiceName, tt.description)
+			assert.Equal(t, tt.expectedTags, process.Tags)
+		})
+	}
+}
+
+func TestAttributeConversion(t *testing.T) {
+	tests := []struct {
+		name      string
+		setupAttr func() pcommon.Map
+		expected  []dbmodel.KeyValue
+	}{
+		{
+			name: "mixed attribute types",
+			setupAttr: func() pcommon.Map {
+				attributes := pcommon.NewMap()
+				attributes.PutBool("bool-val", true)
+				attributes.PutInt("int-val", 123)
+				attributes.PutStr("string-val", "abc")
+				attributes.PutDouble("double-val", 1.23)
+				attributes.PutEmptyBytes("bytes-val").FromRaw([]byte{1, 2, 3, 4})
+				attributes.PutStr(conventions.ServiceNameKey, "service-name")
+				return attributes
+			},
+			expected: []dbmodel.KeyValue{
+				{
+					Key:   "bool-val",
+					Type:  dbmodel.BoolType,
+					Value: true,
+				},
+				{
+					Key:   "int-val",
+					Type:  dbmodel.Int64Type,
+					Value: int64(123),
+				},
+				{
+					Key:   "string-val",
+					Type:  dbmodel.StringType,
+					Value: "abc",
+				},
+				{
+					Key:   "double-val",
+					Type:  dbmodel.Float64Type,
+					Value: 1.23,
+				},
+				{
+					Key:   "bytes-val",
+					Type:  dbmodel.BinaryType,
+					Value: "01020304",
+				},
+				{
+					Key:   conventions.ServiceNameKey,
+					Type:  dbmodel.StringType,
+					Value: "service-name",
+				},
+			},
+		},
+		{
+			name:      "empty attributes",
+			setupAttr: pcommon.NewMap,
+			expected:  []dbmodel.KeyValue{},
+		},
+		{
+			name: "map type attributes",
+			setupAttr: func() pcommon.Map {
+				attributes := pcommon.NewMap()
+				attributes.PutEmptyMap("empty-map")
+				return attributes
+			},
+			expected: []dbmodel.KeyValue{
+				{
+					Key:   "empty-map",
+					Type:  dbmodel.StringType,
+					Value: "{}",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			attrs := tt.setupAttr()
+			result := appendTagsFromAttributes(make([]dbmodel.KeyValue, 0, len(tt.expected)), attrs)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestStatusMessageHandling(t *testing.T) {
+	tests := []struct {
+		name        string
+		statusMsg   string
+		expectFound bool
+		expected    dbmodel.KeyValue
+	}{
+		{
+			name:        "empty status message",
+			statusMsg:   "",
+			expectFound: false,
+			expected:    dbmodel.KeyValue{},
+		},
+		{
+			name:        "non-empty status message",
+			statusMsg:   "test-error",
+			expectFound: true,
+			expected: dbmodel.KeyValue{
+				Key:   conventions.OtelStatusDescription,
+				Value: "test-error",
+				Type:  dbmodel.StringType,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := getTagFromStatusMsg(tt.statusMsg)
+			assert.Equal(t, tt.expectFound, ok)
+			if tt.expectFound {
+				assert.Equal(t, tt.expected, got)
+			}
+		})
+	}
+}
+
+func TestTraceStateHandling(t *testing.T) {
+	tests := []struct {
+		name        string
+		traceState  string
+		expectFound bool
+		expected    []dbmodel.KeyValue
+	}{
+		{
+			name:        "empty trace state",
+			traceState:  "",
+			expectFound: false,
+			expected:    nil,
+		},
+		{
+			name:        "non-empty trace state",
+			traceState:  "key1=value1,key2=value2",
+			expectFound: true,
+			expected: []dbmodel.KeyValue{
+				{
+					Key:   tagW3CTraceState,
+					Value: "key1=value1,key2=value2",
+					Type:  dbmodel.StringType,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			keyValues, exists := getTagsFromTraceState(tt.traceState)
+			assert.Equal(t, tt.expectFound, exists)
+			assert.Equal(t, tt.expected, keyValues)
+		})
+	}
+}
+
+func TestReferenceTypeConversion(t *testing.T) {
+	tests := []struct {
+		name     string
+		refType  string
+		expected dbmodel.ReferenceType
+	}{
+		{
+			name:     "child of reference",
+			refType:  conventions.AttributeOpentracingRefTypeChildOf,
+			expected: dbmodel.ChildOf,
+		},
+		{
+			name:     "follows from reference",
+			refType:  conventions.AttributeOpentracingRefTypeFollowsFrom,
+			expected: dbmodel.FollowsFrom,
+		},
+		{
+			name:     "unknown reference type defaults to follows from",
+			refType:  "any other string",
+			expected: dbmodel.FollowsFrom,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := strToDbSpanRefType(tt.refType)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestEdgeCases(t *testing.T) {
+	tests := []struct {
+		name        string
+		setupTraces func() ptrace.Traces
+		expected    any
+		testFunc    func(ptrace.Traces) any
+		description string
+	}{
+		{
+			name: "empty span attributes",
+			setupTraces: func() ptrace.Traces {
+				traces := ptrace.NewTraces()
+				spans := traces.ResourceSpans().AppendEmpty()
+				scopeSpans := spans.ScopeSpans().AppendEmpty()
+				scopeSpans.Spans().AppendEmpty()
+				return traces
+			},
+			expected: true,
+			testFunc: func(traces ptrace.Traces) any {
+				spans := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+				spanScope := traces.ResourceSpans().At(0).ScopeSpans().At(0).Scope()
+				modelSpan := spanToDbSpan(spans, spanScope, dbmodel.Process{})
+				return len(modelSpan.Tags) == 0
+			},
+			description: "Empty span attributes should result in no tags",
+		},
+		{
+			name: "resource spans with no scope spans",
+			setupTraces: func() ptrace.Traces {
+				traces := ptrace.NewTraces()
+				traces.ResourceSpans().AppendEmpty()
+				return traces
+			},
+			expected: true,
+			testFunc: func(traces ptrace.Traces) any {
+				resourceSpans := traces.ResourceSpans().At(0)
+				dbSpans := resourceSpansToDbSpans(resourceSpans)
+				return len(dbSpans) == 0
+			},
+			description: "Resource spans with no scope spans should return empty slice",
+		},
+		{
+			name:        "traces with no resource spans",
+			setupTraces: ptrace.NewTraces,
+			expected:    true,
+			testFunc: func(traces ptrace.Traces) any {
+				dbSpans := ToDBModel(traces)
+				return dbSpans == nil
+			},
+			description: "Traces with no resource spans should return nil",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			traces := tt.setupTraces()
+			result := tt.testFunc(traces)
+			assert.Equal(t, tt.expected, result, tt.description)
+		})
+	}
+}
+
+func TestDbSpanTagsWithStatusAndTraceState(t *testing.T) {
+	tests := []struct {
+		name            string
+		setupSpan       func() ptrace.Span
+		expectedTagKeys []string
+		description     string
+	}{
+		{
+			name: "span with status message and trace state",
+			setupSpan: func() ptrace.Span {
+				span := ptrace.NewSpan()
+				span.Status().SetMessage("test-error")
+				span.TraceState().FromRaw("key1=value1,key2=value2")
+				return span
+			},
+			expectedTagKeys: []string{conventions.OtelStatusDescription, tagW3CTraceState},
+			description:     "Span with both status message and trace state should have both tags",
+		},
+		{
+			name: "span with only status message",
+			setupSpan: func() ptrace.Span {
+				span := ptrace.NewSpan()
+				span.Status().SetMessage("test-error")
+				return span
+			},
+			expectedTagKeys: []string{conventions.OtelStatusDescription},
+			description:     "Span with only status message should have only status tag",
+		},
+		{
+			name: "span with only trace state",
+			setupSpan: func() ptrace.Span {
+				span := ptrace.NewSpan()
+				span.TraceState().FromRaw("key1=value1,key2=value2")
+				return span
+			},
+			expectedTagKeys: []string{tagW3CTraceState},
+			description:     "Span with only trace state should have only trace state tag",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := tt.setupSpan()
+			tags := getDbSpanTags(span, pcommon.NewInstrumentationScope())
+
+			assert.Len(t, tags, len(tt.expectedTagKeys), tt.description)
+			for i, expectedKey := range tt.expectedTagKeys {
+				assert.Equal(t, expectedKey, tags[i].Key)
+			}
+		})
+	}
 }
 
 func TestToDbModel_Fixtures(t *testing.T) {
@@ -272,12 +616,28 @@ func TestToDbModel_Fixtures(t *testing.T) {
 	var span dbmodel.Span
 	err := json.Unmarshal(spansStr, &span)
 	require.NoError(t, err)
+
 	td, err := FromDBModel([]dbmodel.Span{span})
 	require.NoError(t, err)
 	testTraces(t, tracesStr, td)
+
 	spans := ToDBModel(td)
 	assert.Len(t, spans, 1)
 	testSpans(t, spansStr, spans[0])
+}
+
+func BenchmarkInternalTracesToDbSpans(b *testing.B) {
+	unmarshaller := ptrace.JSONUnmarshaler{}
+	data, err := os.ReadFile("fixtures/otel_traces_01.json")
+	require.NoError(b, err)
+	td, err := unmarshaller.UnmarshalTraces(data)
+	require.NoError(b, err)
+
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		batches := ToDBModel(td)
+		assert.NotEmpty(b, batches)
+	}
 }
 
 func writeActualData(t *testing.T, name string, data []byte) {
@@ -330,19 +690,5 @@ func testSpans(t *testing.T, expectedSpan []byte, actualSpan dbmodel.Span) {
 	require.NoError(t, enc.Encode(actualSpan))
 	if !assert.Equal(t, string(expectedSpan), buf.String()) {
 		writeActualData(t, "spans", buf.Bytes())
-	}
-}
-
-func BenchmarkInternalTracesToDbSpans(b *testing.B) {
-	unmarshaller := ptrace.JSONUnmarshaler{}
-	data, err := os.ReadFile("fixtures/otel_traces_01.json")
-	require.NoError(b, err)
-	td, err := unmarshaller.UnmarshalTraces(data)
-	require.NoError(b, err)
-
-	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
-		batches := ToDBModel(td)
-		assert.NotEmpty(b, batches)
 	}
 }

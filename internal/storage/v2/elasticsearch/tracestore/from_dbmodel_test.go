@@ -18,10 +18,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
+	conventions "github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 var testSpanEventTime = time.Date(2020, 2, 11, 20, 26, 13, 123000, time.UTC)
@@ -511,7 +511,7 @@ func TestSetInternalSpanStatus(t *testing.T) {
 		{
 			name: "http.status_code tag is set as string",
 			attrs: map[string]any{
-				conventions.AttributeHTTPStatusCode: "404",
+				conventions.HTTPResponseStatusCodeKey: "404",
 			},
 			status:           errorStatus,
 			attrsModifiedLen: 1,
@@ -519,8 +519,8 @@ func TestSetInternalSpanStatus(t *testing.T) {
 		{
 			name: "http.status_code, http.status_message and error tags are set",
 			attrs: map[string]any{
-				conventions.AttributeHTTPStatusCode: 404,
-				tagHTTPStatusMsg:                    "HTTP 404: Not Found",
+				conventions.HTTPResponseStatusCodeKey: 404,
+				tagHTTPStatusMsg:                      "HTTP 404: Not Found",
 			},
 			status:           errorStatusWith404Message,
 			attrsModifiedLen: 2,
@@ -528,9 +528,9 @@ func TestSetInternalSpanStatus(t *testing.T) {
 		{
 			name: "status.code has precedence over http.status_code.",
 			attrs: map[string]any{
-				conventions.OtelStatusCode:          statusOk,
-				conventions.AttributeHTTPStatusCode: 500,
-				tagHTTPStatusMsg:                    "Server Error",
+				conventions.OtelStatusCode:            statusOk,
+				conventions.HTTPResponseStatusCodeKey: 500,
+				tagHTTPStatusMsg:                      "Server Error",
 			},
 			status:           okStatus,
 			attrsModifiedLen: 2,
@@ -538,9 +538,9 @@ func TestSetInternalSpanStatus(t *testing.T) {
 		{
 			name: "status.error has precedence over http.status_error.",
 			attrs: map[string]any{
-				conventions.OtelStatusCode:          statusError,
-				conventions.AttributeHTTPStatusCode: 500,
-				tagHTTPStatusMsg:                    "Server Error",
+				conventions.OtelStatusCode:            statusError,
+				conventions.HTTPResponseStatusCodeKey: 500,
+				tagHTTPStatusMsg:                      "Server Error",
 			},
 			status:           errorStatus,
 			attrsModifiedLen: 2,
@@ -548,8 +548,8 @@ func TestSetInternalSpanStatus(t *testing.T) {
 		{
 			name: "whether tagHttpStatusMsg is set as string",
 			attrs: map[string]any{
-				conventions.AttributeHTTPStatusCode: 404,
-				tagHTTPStatusMsg:                    "HTTP 404: Not Found",
+				conventions.HTTPResponseStatusCodeKey: 404,
+				tagHTTPStatusMsg:                      "HTTP 404: Not Found",
 			},
 			status:           errorStatusWith404Message,
 			attrsModifiedLen: 2,

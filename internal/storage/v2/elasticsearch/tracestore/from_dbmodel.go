@@ -16,10 +16,10 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
+	conventions "github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 var errType = errors.New("invalid type")
@@ -48,7 +48,7 @@ func dbProcessToResource(process dbmodel.Process, resource pcommon.Resource) {
 	attrs := resource.Attributes()
 	if serviceName != "" && serviceName != noServiceName {
 		attrs.EnsureCapacity(len(tags) + 1)
-		attrs.PutStr(conventions.AttributeServiceName, serviceName)
+		attrs.PutStr(string(conventions.ServiceNameKey), serviceName)
 	} else {
 		attrs.EnsureCapacity(len(tags))
 	}
@@ -267,7 +267,7 @@ func setSpanStatus(attrs pcommon.Map, span ptrace.Span) {
 		// otel.status_message tag will have already been removed if
 		// statusExists is true.
 		attrs.Remove(conventions.OtelStatusCode)
-	} else if httpCodeAttr, ok := attrs.Get(conventions.AttributeHTTPStatusCode); !statusExists && ok {
+	} else if httpCodeAttr, ok := attrs.Get(string(conventions.HTTPResponseStatusCodeKey)); !statusExists && ok {
 		// Fallback to introspecting if this span represents a failed HTTP
 		// request or response, but again, only do so if the `error` tag was
 		// not set to true and no explicit status was sent.

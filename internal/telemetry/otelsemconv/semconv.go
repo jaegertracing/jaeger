@@ -4,6 +4,7 @@
 package otelsemconv
 
 import (
+	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 )
 
@@ -13,21 +14,65 @@ import (
 const (
 	SchemaURL = semconv.SchemaURL
 
-	TelemetrySDKLanguageKey   = semconv.TelemetrySDKLanguageKey
-	TelemetrySDKNameKey       = semconv.TelemetrySDKNameKey
-	TelemetrySDKVersionKey    = semconv.TelemetrySDKVersionKey
-	TelemetryDistroNameKey    = semconv.TelemetryDistroNameKey
-	TelemetryDistroVersionKey = semconv.TelemetryDistroVersionKey
+	// Telemetry SDK
+	TelemetrySDKLanguageKey   = "telemetry.sdk.language"
+	TelemetrySDKNameKey       = "telemetry.sdk.name"
+	TelemetrySDKVersionKey    = "telemetry.sdk.version"
+	TelemetryDistroNameKey    = "telemetry.distro.name"
+	TelemetryDistroVersionKey = "telemetry.distro.version"
 
-	ServiceNameKey            = semconv.ServiceNameKey
-	DBQueryTextKey            = semconv.DBQueryTextKey
-	DBSystemKey               = semconv.DBSystemNameKey
-	PeerServiceKey            = semconv.PeerServiceKey
-	HTTPResponseStatusCodeKey = semconv.HTTPResponseStatusCodeKey
+	// Service
+	ServiceNameKey = "service.name"
 
-	HostIDKey   = semconv.HostIDKey
-	HostIPKey   = semconv.HostIPKey
-	HostNameKey = semconv.HostNameKey
+	// Database
+	DBQueryTextKey = "db.query.text"
+	DBSystemKey    = "db.system"
+
+	// Network
+	PeerServiceKey = "peer.service"
+
+	// HTTP
+	HTTPResponseStatusCodeKey = "http.response.status_code"
+
+	// Host
+	HostIDKey   = "host.id"
+	HostIPKey   = "host.ip"
+	HostNameKey = "host.name"
+
+	// Status
+	OtelStatusCode        = "otel.status_code"
+	OtelStatusDescription = "otel.status_description"
+
+	// OpenTracing
+	AttributeOpentracingRefType            = "opentracing.ref_type"
+	AttributeOpentracingRefTypeChildOf     = "child_of"
+	AttributeOpentracingRefTypeFollowsFrom = "follows_from"
+
+	// OTel Scope
+	AttributeOtelScopeName    = "otel.scope.name"
+	AttributeOtelScopeVersion = "otel.scope.version"
 )
 
+// Helper functions for creating typed attributes for the OpenTelemetry SDK.
+// ServiceName creates a key-value pair for the service name attribute.
+func ServiceNameAttribute(value string) attribute.KeyValue {
+	return semconv.ServiceNameKey.String(value)
+}
+
+// PeerService creates a key-value pair for the peer service attribute.
+func PeerServiceAttribute(value string) attribute.KeyValue {
+	return semconv.PeerServiceKey.String(value)
+}
+
+// DBSystem creates a key-value pair for the DB system attribute.
+func DBSystemAttribute(value string) attribute.KeyValue {
+	return semconv.DBSystemNameKey.String(value)
+}
+
+// HTTPStatusCode creates a key-value pair for the HTTP status code attribute.
+func HTTPStatusCodeAttribute(value int) attribute.KeyValue {
+	return semconv.HTTPResponseStatusCodeKey.Int(value)
+}
+
+// This var provides the original semconv function variable for creating an int attribute.
 var HTTPResponseStatusCode = semconv.HTTPResponseStatusCode
