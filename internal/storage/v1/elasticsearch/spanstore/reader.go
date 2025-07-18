@@ -135,7 +135,6 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	if p.UseReadWriteAliases {
 		maxSpanAge = dawnOfTimeSpanAge
 	}
-	indexSearcher := NewIndexSearcher(p.UseReadWriteAliases, p.ReadAliasSuffix, p.RemoteReadClusters)
 
 	return &SpanReader{
 		client:                  p.Client,
@@ -147,7 +146,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		serviceIndex:            p.ServiceIndex,
 		timeRangeIndices: getLoggingTimeRangeIndexFn(
 			p.Logger,
-			indexSearcher.GetTimeRangeIndicesFn(),
+			TimeRangeIndicesFn(p.UseReadWriteAliases, p.ReadAliasSuffix, p.RemoteReadClusters),
 		),
 		sourceFn:            getSourceFn(p.MaxDocCount),
 		maxDocCount:         p.MaxDocCount,

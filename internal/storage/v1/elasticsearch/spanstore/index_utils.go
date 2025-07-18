@@ -9,45 +9,25 @@ import (
 
 type TimeRangeIndexFn func(indexName string, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string
 
-// IndexSearcher provides reusable index search optimization functionality
-type IndexSearcher struct {
-	UseReadWriteAliases bool
-	ReadAliasSuffix     string
-	RemoteReadClusters  []string
+func TimeRangeIndicesFn(useReadWriteAliases bool, readAliasSuffix string, remoteReadClusters []string) TimeRangeIndexFn {
+	suffix := ""
+	if useReadWriteAliases {
+		if readAliasSuffix != "" {
+			suffix = readAliasSuffix
+		} else {
+			suffix = "read"
+		}
+	}
+	return addRemoteReadClusters(
+		getTimeRangeIndexFn(useReadWriteAliases, suffix),
+		remoteReadClusters,
+	)
 }
 
 // returns index name with date
 func indexWithDate(indexPrefix, indexDateLayout string, date time.Time) string {
 	spanDate := date.UTC().Format(indexDateLayout)
 	return indexPrefix + spanDate
-}
-
-// NewIndexSearcher creates a new IndexSearcher
-func NewIndexSearcher(
-	useReadWriteAliases bool,
-	readAliasSuffix string,
-	remoteReadClusters []string,
-) *IndexSearcher {
-	return &IndexSearcher{
-		UseReadWriteAliases: useReadWriteAliases,
-		ReadAliasSuffix:     readAliasSuffix,
-		RemoteReadClusters:  remoteReadClusters,
-	}
-}
-
-func (i IndexSearcher) GetTimeRangeIndicesFn() TimeRangeIndexFn {
-	readAliasSuffix := ""
-	if i.UseReadWriteAliases {
-		if i.ReadAliasSuffix != "" {
-			readAliasSuffix = i.ReadAliasSuffix
-		} else {
-			readAliasSuffix = "read"
-		}
-	}
-	return addRemoteReadClusters(
-		getTimeRangeIndexFn(i.UseReadWriteAliases, readAliasSuffix),
-		i.RemoteReadClusters,
-	)
 }
 
 func getTimeRangeIndexFn(useReadWriteAliases bool, readAlias string) TimeRangeIndexFn {
