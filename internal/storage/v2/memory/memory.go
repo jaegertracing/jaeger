@@ -11,8 +11,7 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
-
+	semconv "github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	v1 "github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
@@ -220,7 +219,7 @@ func reshuffleSpans(spanSlice ptrace.SpanSlice) map[pcommon.TraceID]ptrace.SpanS
 }
 
 func getServiceNameFromResource(resource pcommon.Resource) string {
-	val, ok := resource.Attributes().Get(conventions.AttributeServiceName)
+	val, ok := resource.Attributes().Get(string(semconv.ServiceNameKey))
 	if !ok {
 		return ""
 	}

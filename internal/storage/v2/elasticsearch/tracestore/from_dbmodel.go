@@ -16,7 +16,7 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
@@ -48,7 +48,7 @@ func dbProcessToResource(process dbmodel.Process, resource pcommon.Resource) {
 	attrs := resource.Attributes()
 	if serviceName != "" && serviceName != noServiceName {
 		attrs.EnsureCapacity(len(tags) + 1)
-		attrs.PutStr(conventions.AttributeServiceName, serviceName)
+		attrs.PutStr(string(semconv.ServiceNameKey), serviceName)
 	} else {
 		attrs.EnsureCapacity(len(tags))
 	}
@@ -246,7 +246,12 @@ func setSpanStatus(attrs pcommon.Map, span ptrace.Span) {
 		}
 	}
 
-	if codeAttr, ok := attrs.Get(conventions.OtelStatusCode); ok {
+	const (
+		OtelStatusCode        = "otel.status_code"
+		AttributeHTTPStatusCode = "http.status_code"
+	)
+	
+    if codeAttr, ok := attrs.Get(OtelStatusCode); ok {
 		if !statusExists {
 			// The error tag is the ultimate truth for a Jaeger spans' error
 			// status. Only parse the otel.status_code tag if the error tag is
@@ -266,8 +271,10 @@ func setSpanStatus(attrs pcommon.Map, span ptrace.Span) {
 		// Regardless of error tag inputValue, remove the otel.status_code tag. The
 		// otel.status_message tag will have already been removed if
 		// statusExists is true.
-		attrs.Remove(conventions.OtelStatusCode)
-	} else if httpCodeAttr, ok := attrs.Get(conventions.AttributeHTTPStatusCode); !statusExists && ok {
+		attrs.Remove(OtelStatusCode)
+
+		} else if httpCodeAttr, ok := attrs.Get(AttributeHTTPStatusCode); !statusExists && ok {
+
 		// Fallback to introspecting if this span represents a failed HTTP
 		// request or response, but again, only do so if the `error` tag was
 		// not set to true and no explicit status was sent.
@@ -293,10 +300,11 @@ func setSpanStatus(attrs pcommon.Map, span ptrace.Span) {
 // along with true if it is set. Otherwise, an empty string and false are
 // returned. The OTel status description attribute is deleted from attrs in
 // the process.
+const OtelStatusDescription = "otel.status_description"
 func extractStatusDescFromAttr(attrs pcommon.Map) (string, bool) {
-	if msgAttr, ok := attrs.Get(conventions.OtelStatusDescription); ok {
+	if msgAttr, ok := attrs.Get(OtelStatusDescription); ok {
 		msg := msgAttr.Str()
-		attrs.Remove(conventions.OtelStatusDescription)
+		attrs.Remove(OtelStatusDescription)
 		return msg, true
 	}
 	return "", false
@@ -400,8 +408,11 @@ func dbSpanLogsToSpanEvents(logs []dbmodel.Log, events ptrace.SpanEventSlice) {
 }
 
 // dbSpanRefsToSpanEvents sets internal span links based on db references skipping excludeParentID
+const AttributeOpentracingRefType = "opentracing.ref_type"
+const AttributeOpentracingRefTypeChildOf = "child_of"
+const AttributeOpentracingRefTypeFollowsFrom = "follows_from"
 func dbSpanRefsToSpanEvents(refs []dbmodel.Reference, excludeParentID dbmodel.SpanID, spanLinks ptrace.SpanLinkSlice) error {
-	if len(refs) == 0 || len(refs) == 1 && refs[0].SpanID == excludeParentID && refs[0].RefType == dbmodel.ChildOf {
+	if len(refs) == 0 || (len(refs) == 1 && refs[0].SpanID == excludeParentID && refs[0].RefType == dbmodel.ChildOf) {
 		return nil
 	}
 
@@ -422,7 +433,7 @@ func dbSpanRefsToSpanEvents(refs []dbmodel.Reference, excludeParentID dbmodel.Sp
 		}
 		link.SetTraceID(refTraceId)
 		link.SetSpanID(refSpanId)
-		link.Attributes().PutStr(conventions.AttributeOpentracingRefType, dbRefTypeToAttribute(ref.RefType))
+		link.Attributes().PutStr(AttributeOpentracingRefType, dbRefTypeToAttribute(ref.RefType))
 	}
 	return nil
 }
@@ -437,10 +448,12 @@ func getTraceStateFromAttrs(attrs pcommon.Map) string {
 	return traceState
 }
 
+const AttributeOtelLibraryName = "otel.library.name"
+const AttributeOtelLibraryVersion = "otel.library.version"
 func dbSpanToScope(span *dbmodel.Span, scopeSpan ptrace.ScopeSpans) {
-	if libraryName, ok := getAndDeleteTag(span, conventions.AttributeOtelScopeName); ok {
+	if libraryName, ok := getAndDeleteTag(span, AttributeOtelLibraryName); ok {
 		scopeSpan.Scope().SetName(libraryName)
-		if libraryVersion, ok := getAndDeleteTag(span, conventions.AttributeOtelScopeVersion); ok {
+		if libraryVersion, ok := getAndDeleteTag(span, AttributeOtelLibraryVersion); ok {
 			scopeSpan.Scope().SetVersion(libraryVersion)
 		}
 	}
@@ -460,7 +473,7 @@ func getAndDeleteTag(span *dbmodel.Span, key string) (string, bool) {
 
 func dbRefTypeToAttribute(ref dbmodel.ReferenceType) string {
 	if ref == dbmodel.ChildOf {
-		return conventions.AttributeOpentracingRefTypeChildOf
+		return AttributeOpentracingRefTypeChildOf
 	}
-	return conventions.AttributeOpentracingRefTypeFollowsFrom
+	return AttributeOpentracingRefTypeFollowsFrom
 }

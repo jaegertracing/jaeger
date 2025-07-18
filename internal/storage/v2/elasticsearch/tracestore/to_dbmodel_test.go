@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/collector/semconv/v1.9.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
@@ -33,7 +33,7 @@ func TestGetTagFromStatusCode(t *testing.T) {
 			name: "ok",
 			code: ptrace.StatusCodeOk,
 			tag: dbmodel.KeyValue{
-				Key:   conventions.OtelStatusCode,
+				Key:   string(semconv.OTelStatusCodeKey),
 				Type:  dbmodel.StringType,
 				Value: statusOk,
 			},
@@ -89,7 +89,7 @@ func TestGetTagFromStatusMsg(t *testing.T) {
 	got, ok := getTagFromStatusMsg("test-error")
 	assert.True(t, ok)
 	assert.Equal(t, dbmodel.KeyValue{
-		Key:   conventions.OtelStatusDescription,
+		Key: string(semconv.OTelStatusDescriptionKey),
 		Value: "test-error",
 		Type:  dbmodel.StringType,
 	}, got)
@@ -99,7 +99,7 @@ func Test_resourceToDbProcess(t *testing.T) {
 	traces := ptrace.NewTraces()
 	resourceSpans := traces.ResourceSpans().AppendEmpty()
 	resource := resourceSpans.Resource()
-	resource.Attributes().PutStr(conventions.AttributeServiceName, "service")
+	resource.Attributes().PutStr(string(semconv.ServiceNameKey), "service")
 	resource.Attributes().PutStr("foo", "bar")
 	process := resourceToDbProcess(resource)
 	assert.Equal(t, "service", process.ServiceName)
@@ -116,7 +116,7 @@ func Test_resourceToDbProcess(t *testing.T) {
 func Test_resourceToDbProcess_WhenOnlyServiceNameIsPresent(t *testing.T) {
 	traces := ptrace.NewTraces()
 	spans := traces.ResourceSpans().AppendEmpty()
-	spans.Resource().Attributes().PutStr(conventions.AttributeServiceName, "service")
+	spans.Resource().Attributes().PutStr(string(semconv.ServiceNameKey), "service")
 	process := resourceToDbProcess(spans.Resource())
 	assert.Equal(t, "service", process.ServiceName)
 }
@@ -214,7 +214,7 @@ func TestAttributesToDbSpanTags(t *testing.T) {
 	attributes.PutStr("string-val", "abc")
 	attributes.PutDouble("double-val", 1.23)
 	attributes.PutEmptyBytes("bytes-val").FromRaw([]byte{1, 2, 3, 4})
-	attributes.PutStr(conventions.AttributeServiceName, "service-name")
+	attributes.PutStr(string(semconv.ServiceNameKey), "service-name")
 
 	expected := []dbmodel.KeyValue{
 		{
@@ -243,7 +243,7 @@ func TestAttributesToDbSpanTags(t *testing.T) {
 			Value: "01020304",
 		},
 		{
-			Key:   conventions.AttributeServiceName,
+			Key: string(semconv.ServiceNameKey),
 			Type:  dbmodel.StringType,
 			Value: "service-name",
 		},
