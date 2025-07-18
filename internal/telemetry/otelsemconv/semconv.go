@@ -7,9 +7,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 )
 
-// We do not use a lot of semconv constants, and its annoying to keep
-// the semver of the imports the same. This package serves as a
-// one stop shop replacement / alias.
+
 const (
 	SchemaURL = semconv.SchemaURL
 
@@ -30,4 +28,6 @@ const (
 	HostNameKey = semconv.HostNameKey
 )
 
-var HTTPResponseStatusCode = semconv.HTTPResponseStatusCode
+var (
+	HTTPResponseStatusCode = semconv.HTTPResponseStatusCode
+)

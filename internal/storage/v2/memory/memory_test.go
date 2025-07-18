@@ -18,8 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
-
+	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	v1 "github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
@@ -497,7 +496,7 @@ func TestGetOperationsWithKind(t *testing.T) {
 			require.NoError(t, err)
 			td := ptrace.NewTraces()
 			resourceSpan := td.ResourceSpans().AppendEmpty()
-			resourceSpan.Resource().Attributes().PutStr(conventions.AttributeServiceName, "service-z")
+			resourceSpan.Resource().Attributes().PutStr(string(semconv.ServiceNameKey), "service-x")
 			span := resourceSpan.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
 			span.SetTraceID(fromString(t, "00000000000000010000000000000000"))
 			span.SetName("span")
@@ -630,7 +629,7 @@ func TestGetDependencies(t *testing.T) {
 	traceId := fromString(t, "00000000000000010000000000000000")
 	td := ptrace.NewTraces()
 	resourceSpans := td.ResourceSpans().AppendEmpty()
-	resourceSpans.Resource().Attributes().PutStr(conventions.AttributeServiceName, "service-x")
+	resourceSpans.Resource().Attributes().PutStr(string(semconv.ServiceNameKey), "service-x")
 	span1StartTime := time.Now()
 	span1 := resourceSpans.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
 	span1.SetTraceID(traceId)
@@ -645,7 +644,7 @@ func TestGetDependencies(t *testing.T) {
 	span2.SetStartTimestamp(pcommon.NewTimestampFromTime(span1StartTime.Add(1 * time.Second)))
 	span2.SetEndTimestamp(pcommon.NewTimestampFromTime(span1StartTime.Add(2 * time.Second)))
 	newResourceSpan := td.ResourceSpans().AppendEmpty()
-	newResourceSpan.Resource().Attributes().PutStr(conventions.AttributeServiceName, "service-y")
+	newResourceSpan.Resource().Attributes().PutStr(string(semconv.ServiceNameKey), "service-y")
 	span3 := newResourceSpan.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
 	span3.SetTraceID(traceId)
 	span3.SetSpanID(spanIdFromString(t, "0000000000000003"))
@@ -667,7 +666,7 @@ func TestGetDependencies(t *testing.T) {
 	}, deps[0])
 	td2 := ptrace.NewTraces()
 	resourceSpan2 := td2.ResourceSpans().AppendEmpty()
-	resourceSpan2.Resource().Attributes().PutStr(conventions.AttributeServiceName, "service-z")
+	resourceSpan2.Resource().Attributes().PutStr(string(semconv.ServiceNameKey), "service-z")
 	span4 := resourceSpan2.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
 	span4.SetTraceID(traceId)
 	span4.SetSpanID(spanIdFromString(t, "0000000000000004"))

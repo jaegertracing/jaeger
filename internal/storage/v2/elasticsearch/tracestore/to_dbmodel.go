@@ -11,7 +11,7 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
@@ -81,7 +81,7 @@ func resourceToDbProcess(resource pcommon.Resource) dbmodel.Process {
 	}
 	tags := make([]dbmodel.KeyValue, 0, attrs.Len())
 	for key, attr := range attrs.All() {
-		if key == conventions.AttributeServiceName {
+		if key == string(semconv.ServiceNameKey){
 			process.ServiceName = attr.AsString()
 			continue
 		}
@@ -300,7 +300,7 @@ func getTagFromStatusCode(statusCode ptrace.StatusCode) (dbmodel.KeyValue, bool)
 		}, true
 	} else if statusCode == ptrace.StatusCodeOk {
 		return dbmodel.KeyValue{
-			Key:   conventions.OtelStatusCode,
+			Key: string(semconv.OTelStatusCodeKey),
 			Type:  dbmodel.StringType,
 			Value: statusOk,
 		}, true
@@ -313,7 +313,7 @@ func getTagFromStatusMsg(statusMsg string) (dbmodel.KeyValue, bool) {
 		return dbmodel.KeyValue{}, false
 	}
 	return dbmodel.KeyValue{
-		Key:   conventions.OtelStatusDescription,
+		Key: string(semconv.OTelStatusDescriptionKey),
 		Value: statusMsg,
 		Type:  dbmodel.StringType,
 	}, true
@@ -338,7 +338,7 @@ func getTagsFromInstrumentationLibrary(il pcommon.InstrumentationScope) ([]dbmod
 	var keyValues []dbmodel.KeyValue
 	if ilName := il.Name(); ilName != "" {
 		kv := dbmodel.KeyValue{
-			Key:   conventions.AttributeOtelScopeName,
+			Key: string(semconv.OTelScopeNameKey),
 			Value: ilName,
 			Type:  dbmodel.StringType,
 		}
@@ -346,7 +346,7 @@ func getTagsFromInstrumentationLibrary(il pcommon.InstrumentationScope) ([]dbmod
 	}
 	if ilVersion := il.Version(); ilVersion != "" {
 		kv := dbmodel.KeyValue{
-			Key:   conventions.AttributeOtelScopeVersion,
+			Key: string(semconv.OTelScopeVersionKey),
 			Value: ilVersion,
 			Type:  dbmodel.StringType,
 		}
@@ -357,7 +357,7 @@ func getTagsFromInstrumentationLibrary(il pcommon.InstrumentationScope) ([]dbmod
 }
 
 func refTypeFromLink(link ptrace.SpanLink) dbmodel.ReferenceType {
-	refTypeAttr, ok := link.Attributes().Get(conventions.AttributeOpentracingRefType)
+	refTypeAttr, ok := link.Attributes().Get("opentracing.ref_type")
 	if !ok {
 		return dbmodel.FollowsFrom
 	}
@@ -365,7 +365,7 @@ func refTypeFromLink(link ptrace.SpanLink) dbmodel.ReferenceType {
 }
 
 func strToDbSpanRefType(attr string) dbmodel.ReferenceType {
-	if attr == conventions.AttributeOpentracingRefTypeChildOf {
+	if attr == "child_of" {
 		return dbmodel.ChildOf
 	}
 	// There are only 2 types of SpanRefType we assume that everything
