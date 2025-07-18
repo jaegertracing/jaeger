@@ -12,6 +12,8 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
@@ -214,4 +216,42 @@ func (r *Reader) GetOperations(
 		})
 	}
 	return operations, nil
+}
+
+func (r *Reader) GetDependencies(ctx context.Context, params depstore.QueryParameters) ([]model.DependencyLink, error) {
+	const sql = `
+        SELECT
+            parent.service_name AS parent,
+            child.service_name AS child,
+            COUNT(*) AS call_count
+        FROM spans AS child
+        ANY LEFT JOIN spans AS parent
+            ON child.trace_id = parent.trace_id
+            AND child.parent_span_id = parent.id
+        WHERE child.start_time >= ? AND child.start_time <= ?
+            AND parent.service_name != ''
+        GROUP BY parent.service_name, child.service_name;
+    `
+
+	rows, err := r.conn.Query(ctx, sql, params.StartTime, params.EndTime)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query dependencies: %w", err)
+	}
+	defer rows.Close()
+
+	var links []model.DependencyLink
+	for rows.Next() {
+		var parent, child string
+		var callCount uint64
+		if err := rows.Scan(&parent, &child, &callCount); err != nil {
+			return nil, fmt.Errorf("failed to scan row: %w", err)
+		}
+		links = append(links, model.DependencyLink{
+			Parent:    parent,
+			Child:     child,
+			CallCount: callCount,
+		})
+	}
+
+	return links, rows.Err()
 }
