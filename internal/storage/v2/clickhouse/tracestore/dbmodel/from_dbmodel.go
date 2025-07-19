@@ -161,3 +161,53 @@ func convertStatusCode(sc string) ptrace.StatusCode {
 	}
 	return ptrace.StatusCodeUnset
 }
+
+func FromDBModelBatch(spans []Span) ptrace.Traces {
+	td := ptrace.NewTraces()
+	rs := td.ResourceSpans().AppendEmpty()
+	ils := rs.ScopeSpans().AppendEmpty()
+
+	for _, s := range spans {
+		newSpan := ils.Spans().AppendEmpty()
+		convertedSpan, err := convertSpan(s)
+		if err != nil {
+			jptrace.AddWarnings(newSpan, err.Error())
+		}
+		convertedSpan.CopyTo(newSpan)
+
+		resource := rs.Resource()
+		r, err := convertResource(s)
+		if err != nil {
+			jptrace.AddWarnings(newSpan, err.Error())
+		}
+		r.CopyTo(resource)
+
+		scope := ils.Scope()
+		sc, err := convertScope(s)
+		if err != nil {
+			jptrace.AddWarnings(newSpan, err.Error())
+		}
+		sc.CopyTo(scope)
+
+		for _, e := range s.Events {
+			event := newSpan.Events().AppendEmpty()
+			ce, err := convertEvent(e)
+			if err != nil {
+				jptrace.AddWarnings(newSpan, err.Error())
+			}
+			ce.CopyTo(event)
+		}
+
+		for _, l := range s.Links {
+			link := newSpan.Links().AppendEmpty()
+			cl, err := convertSpanLink(l)
+			if err != nil {
+				jptrace.AddWarnings(newSpan, err.Error())
+			}
+			cl.CopyTo(link)
+		}
+	}
+
+	return td
+}
+
