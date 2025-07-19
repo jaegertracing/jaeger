@@ -69,7 +69,7 @@ func NewServer(
 	}
 	separatePorts := grpcPort != httpPort || grpcPort == "0" || httpPort == "0"
 
-	if (options.HTTP.TLS != nil || options.GRPC.TLS != nil) && !separatePorts {
+	if (options.HTTP.TLS.HasValue() || options.GRPC.TLS.HasValue()) && !separatePorts {
 		return nil, errors.New("server with TLS enabled can not use same host ports for gRPC and HTTP.  Use dedicated HTTP and gRPC host ports instead")
 	}
 

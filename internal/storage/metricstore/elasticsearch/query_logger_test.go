@@ -12,7 +12,6 @@ import (
 	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
@@ -66,7 +65,7 @@ func TestQueryLogger(t *testing.T) {
 		spans := tc.exporter.GetSpans()
 		assert.Len(t, spans, 1)
 		assert.Equal(t, "test_query", spans[0].Name)
-		assert.Contains(t, spans[0].Attributes, attribute.String(string(otelsemconv.DBSystemKey), "elasticsearch"))
+		assert.Contains(t, spans[0].Attributes, otelsemconv.DBSystemAttribute("elasticsearch"))
 	})
 }
 

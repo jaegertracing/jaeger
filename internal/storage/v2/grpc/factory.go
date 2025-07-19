@@ -117,7 +117,7 @@ func (f *Factory) initializeConnections(
 	readerConfig, writerConfig *configgrpc.ClientConfig,
 	newClient newClientFn,
 ) error {
-	if f.config.Auth != nil {
+	if f.config.Auth.HasValue() {
 		return errors.New("authenticator is not supported")
 	}
 
