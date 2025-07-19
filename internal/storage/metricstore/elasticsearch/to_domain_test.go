@@ -17,6 +17,11 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
 
+func TestCreateNewTranslator(t *testing.T) {
+	translator := NewTranslator(bucketsToCallRate)
+	require.NotNil(t, translator)
+}
+
 func TestToMetricsFamily(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -59,7 +64,8 @@ func TestToMetricsFamily(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ToDomainMetricsFamily(tt.params, tt.result)
+			translator := mockTranslator()
+			got, err := translator.ToDomainMetricsFamily(tt.params, tt.result)
 			if tt.err != "" {
 				require.ErrorContains(t, err, tt.err)
 				return
@@ -113,7 +119,8 @@ func TestToDomainMetrics(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := toDomainMetrics(tt.params, tt.result)
+			translator := mockTranslator()
+			got, err := translator.toDomainMetrics(tt.params, tt.result)
 			if tt.err != "" {
 				require.ErrorContains(t, err, tt.err)
 				return
@@ -155,7 +162,8 @@ func TestToDomainMetrics_ErrorCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := toDomainMetrics(tt.params, tt.result)
+			translator := mockTranslator()
+			_, err := translator.toDomainMetrics(tt.params, tt.result)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.errMsg)
 		})
@@ -182,13 +190,14 @@ func mockMetricsQueryParams(serviceNames []string, groupByOp bool) MetricsQueryP
 			ServiceNames:     serviceNames,
 			GroupByOperation: groupByOp,
 		},
-		bucketsToPointsFunc: func(_ []*elastic.AggregationBucketHistogramItem) []*Pair {
-			return []*Pair{{TimeStamp: 0, Value: 1.23}}
-		},
-		processMetricsFunc: func(mf *metrics.MetricFamily, _ metricstore.BaseQueryParameters) *metrics.MetricFamily {
-			return mf
-		},
 	}
+}
+
+func mockTranslator() Translator {
+	bucketsToPointsFunc := func(_ []*elastic.AggregationBucketHistogramItem) []*Pair {
+		return []*Pair{{TimeStamp: 0, Value: 1.23}}
+	}
+	return NewTranslator(bucketsToPointsFunc)
 }
 
 // createTestSearchResultWithNonStringKey creates an Elasticsearch SearchResult

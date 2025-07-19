@@ -18,6 +18,13 @@ We gratefully welcome improvements to documentation as well as to code.
 
 This library uses Go modules to manage dependencies.
 
+If you are running `make test` or other Makefile targets on macOS, please ensure that you have GNU `sed` installed.
+
+To install GNU `sed`:
+
+```bash
+brew install gnu-sed
+```
 
 ```
 git clone git@github.com:jaegertracing/jaeger.git jaeger
@@ -49,6 +56,7 @@ make fmt  # commit all changes from auto-format
 make lint
 make test
 ```
+
 
 ### Auto-format
 

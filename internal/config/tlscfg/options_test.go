@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 )
 
@@ -69,14 +70,14 @@ func TestToOtelServerConfig(t *testing.T) {
 	testCases := []struct {
 		name     string
 		options  options
-		expected *configtls.ServerConfig
+		expected configoptional.Optional[configtls.ServerConfig]
 	}{
 		{
 			name: "not enabled",
 			options: options{
 				Enabled: false,
 			},
-			expected: nil,
+			expected: configoptional.None[configtls.ServerConfig](),
 		},
 		{
 			name: "default mapping",
@@ -90,7 +91,7 @@ func TestToOtelServerConfig(t *testing.T) {
 				MinVersion:   "1.2",
 				MaxVersion:   "1.3",
 			},
-			expected: &configtls.ServerConfig{
+			expected: configoptional.Some(configtls.ServerConfig{
 				ClientCAFile: "path/to/client/ca.pem",
 				Config: configtls.Config{
 					CAFile:       "path/to/ca.pem",
@@ -100,7 +101,7 @@ func TestToOtelServerConfig(t *testing.T) {
 					MinVersion:   "1.2",
 					MaxVersion:   "1.3",
 				},
-			},
+			}),
 		},
 		{
 			name: "with reload interval",
@@ -115,7 +116,7 @@ func TestToOtelServerConfig(t *testing.T) {
 				MaxVersion:     "1.3",
 				ReloadInterval: 24 * time.Hour,
 			},
-			expected: &configtls.ServerConfig{
+			expected: configoptional.Some(configtls.ServerConfig{
 				ClientCAFile:       "path/to/client/ca.pem",
 				ReloadClientCAFile: true,
 				Config: configtls.Config{
@@ -127,7 +128,7 @@ func TestToOtelServerConfig(t *testing.T) {
 					MaxVersion:     "1.3",
 					ReloadInterval: 24 * time.Hour,
 				},
-			},
+			}),
 		},
 	}
 

@@ -52,7 +52,7 @@ func InitOTEL(serviceName string, exporterType string, metricsFactory metrics.Fa
 	res, err := resource.New(
 		context.Background(),
 		resource.WithSchemaURL(otelsemconv.SchemaURL),
-		resource.WithAttributes(otelsemconv.ServiceNameKey.String(serviceName)),
+		resource.WithAttributes(otelsemconv.ServiceNameAttribute(serviceName)),
 		resource.WithTelemetrySDK(),
 		resource.WithHost(),
 		resource.WithOSType(),

@@ -1,0 +1,19 @@
+# Configuration for Prometheus , Grafana , Alertmanager can be set from this configuration 
+
+fullnameOverride: ""
+prometheus:
+  prometheusSpec:
+    enableAdminAPI: true
+    additionalScrapeConfigs: |
+      - job_name: aggregated-trace-metrics
+        static_configs:
+          - targets: ['jaeger-collector-prometheus.default.svc.cluster.local:8889']
+        scrape_interval:     15s
+
+
+grafana:
+  grafana.ini:
+    server:
+      domain: demo.jaegertracing.io
+      root_url: "%(protocol)s://%(domain)s:%(http_port)s/grafana/"
+      serve_from_sub_path: true

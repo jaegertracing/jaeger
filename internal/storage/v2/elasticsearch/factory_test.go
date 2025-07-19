@@ -37,6 +37,8 @@ func TestNewFactory(t *testing.T) {
 	require.NoError(t, err)
 	_, err = f.CreateDependencyReader()
 	require.NoError(t, err)
+	_, err = f.CreateSamplingStore(1)
+	require.NoError(t, err)
 	err = f.Close()
 	require.NoError(t, err)
 	err = f.Purge(context.Background())

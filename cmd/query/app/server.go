@@ -29,7 +29,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/apiv3"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
-	"github.com/jaegertracing/jaeger/internal/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/recoveryhandler"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
@@ -69,7 +69,7 @@ func NewServer(
 	}
 	separatePorts := grpcPort != httpPort || grpcPort == "0" || httpPort == "0"
 
-	if (options.HTTP.TLS != nil || options.GRPC.TLS != nil) && !separatePorts {
+	if (options.HTTP.TLS.HasValue() || options.GRPC.TLS.HasValue()) && !separatePorts {
 		return nil, errors.New("server with TLS enabled can not use same host ports for gRPC and HTTP.  Use dedicated HTTP and gRPC host ports instead")
 	}
 
