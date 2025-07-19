@@ -1452,7 +1452,7 @@ func TestLoadTokenFromFile(t *testing.T) {
 	})
 }
 
-func TestInvoke_NilResponse(t *testing.T) {
+func TestBulkCallbackInvoke_NilResponse(t *testing.T) {
 	mf := metricstest.NewFactory(time.Minute)
 	sm := spanstoremetrics.NewWriter(mf, "bulk_index")
 	logger := zap.NewNop()
