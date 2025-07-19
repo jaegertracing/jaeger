@@ -34,7 +34,7 @@ func NewQueryLogger(logger *zap.Logger, tracer trace.Tracer) *QueryLogger {
 func (ql *QueryLogger) TraceQuery(ctx context.Context, metricName string) trace.Span {
 	_, span := ql.tracer.Start(ctx, metricName)
 	span.SetAttributes(
-		otelsemconv.DBSystemKey.String("elasticsearch"),
+		otelsemconv.DBSystemAttribute("elasticsearch"),
 		attribute.Key("component").String("es-metricsreader-query-logger"),
 	)
 	return span
