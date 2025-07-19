@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -98,7 +99,7 @@ func TestNewFactoryError(t *testing.T) {
 	cfg := &Config{
 		ClientConfig: configgrpc.ClientConfig{
 			// non-empty Auth is currently not supported
-			Auth: &configauth.Config{},
+			Auth: configoptional.Some(configauth.Config{}),
 		},
 	}
 	telset := telemetry.NoopSettings()
