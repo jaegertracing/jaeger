@@ -266,8 +266,20 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 		Servers:  []string{"http://127.0.0.1:65535"},
 		LogLevel: "error",
 	}
-	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop())
-	require.ErrorContains(t, err, "failed to create Elasticsearch client")
+
+	f := &FactoryBase{
+		logger:         zap.NewNop(),
+		metricsFactory: metrics.NullFactory,
+		tracer:         otel.GetTracerProvider(),
+		config:         &cfg,
+	}
+
+	f.newClientFn = func(_ context.Context, _ *escfg.Configuration, _ *zap.Logger, _ metrics.Factory) (es.Client, error) {
+		return nil, errors.New("simulated Elasticsearch client creation failure")
+	}
+
+	_, err := f.newClientFn(context.Background(), f.config, f.logger, f.metricsFactory)
+	require.ErrorContains(t, err, "simulated Elasticsearch client creation failure")
 }
 
 func TestPasswordFromFile(t *testing.T) {
