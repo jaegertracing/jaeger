@@ -103,7 +103,7 @@ func otelResource(ctx context.Context, svc string) (*resource.Resource, error) {
 	return resource.New(
 		ctx,
 		resource.WithSchemaURL(otelsemconv.SchemaURL),
-		resource.WithAttributes(otelsemconv.ServiceNameKey.String(svc)),
+		resource.WithAttributes(otelsemconv.ServiceNameAttribute(svc)),
 		resource.WithTelemetrySDK(),
 		resource.WithHost(),
 		resource.WithOSType(),

@@ -66,7 +66,7 @@ func (d *database) Get(ctx context.Context, customerID int) (*Customer, error) {
 
 	ctx, span := d.tracer.Start(ctx, "SQL SELECT", trace.WithSpanKind(trace.SpanKindClient))
 	span.SetAttributes(
-		otelsemconv.PeerServiceKey.String("mysql"),
+		otelsemconv.PeerServiceAttribute("mysql"),
 		attribute.
 			Key("sql.query").
 			String(fmt.Sprintf("SELECT * FROM customer WHERE customer_id=%d", customerID)),
