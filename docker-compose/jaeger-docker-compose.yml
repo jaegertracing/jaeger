@@ -4,7 +4,11 @@ services:
       ports:
         - '8080:8080'
         - '8083:8083'
-      command: ["-m","prometheus","all"]
+      environment:
+        - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger-collector:4318
+      restart: on-failure
+      depends_on:
+        - cassandra-schema
 
     jaeger-collector:
       image: cr.jaegertracing.io/jaegertracing/jaeger-collector
@@ -21,6 +25,7 @@ services:
         - "14268:14268"
         - "14250"
         - "9411:9411"
+        - "4318:4318"
       restart: on-failure
       depends_on:
         - cassandra-schema
