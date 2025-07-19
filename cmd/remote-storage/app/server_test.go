@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
@@ -144,7 +145,7 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 				NetAddr: confignet.AddrConfig{
 					Endpoint: ":8081",
 				},
-				TLS: tlsCfg,
+				TLS: configoptional.Some(*tlsCfg),
 			},
 		},
 		&fakeFactory{},
@@ -347,12 +348,16 @@ func newGRPCClient(t *testing.T, addr string, creds credentials.TransportCredent
 func TestServerGRPCTLS(t *testing.T) {
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
+			tls := configoptional.None[configtls.ServerConfig]()
+			if test.TLS != nil {
+				tls = configoptional.Some(*test.TLS)
+			}
 			serverOptions := &Options{
 				ServerConfig: configgrpc.ServerConfig{
 					NetAddr: confignet.AddrConfig{
 						Endpoint: ":0",
 					},
-					TLS: test.TLS,
+					TLS: tls,
 				},
 			}
 			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
@@ -384,7 +389,7 @@ func TestServerGRPCTLS(t *testing.T) {
 			var clientError error
 			var client *grpcClient
 
-			if serverOptions.TLS != nil {
+			if serverOptions.TLS.HasValue() {
 				clientTLSCfg, err0 := test.clientTLS.LoadTLSConfig(context.Background())
 				require.NoError(t, err0)
 				creds := credentials.NewTLS(clientTLSCfg)
