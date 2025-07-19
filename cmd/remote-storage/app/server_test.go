@@ -126,7 +126,7 @@ func (*fakeFactory) InitArchiveStorage(*zap.Logger) (spanstore.Reader, spanstore
 }
 
 func TestNewServer_TLSConfigError(t *testing.T) {
-	tlsCfg := &configtls.ServerConfig{
+	tlsCfg := configtls.ServerConfig{
 		ClientCAFile: "invalid/path",
 		Config: configtls.Config{
 			CertFile: "invalid/path",
@@ -145,7 +145,7 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 				NetAddr: confignet.AddrConfig{
 					Endpoint: ":8081",
 				},
-				TLS: configoptional.Some(*tlsCfg),
+				TLS: configoptional.Some(tlsCfg),
 			},
 		},
 		&fakeFactory{},
