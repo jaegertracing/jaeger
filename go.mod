@@ -13,7 +13,7 @@ require (
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
 	github.com/bsm/sarama-cluster v2.1.13+incompatible
 	github.com/crossdock/crossdock-go v0.0.0-20160816171116-049aabb0122b
-	github.com/dgraph-io/badger/v4 v4.7.0
+	github.com/dgraph-io/badger/v4 v4.8.0
 	github.com/elastic/go-elasticsearch/v9 v9.0.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-logr/zapr v1.3.0
