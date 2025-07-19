@@ -250,11 +250,37 @@ func (sp *spanProcessor) ProcessSpans(ctx context.Context, batch processor.Batch
 		// TODO verify if the context will survive all the way to the consumer threads.
 		ctx := tenancy.WithTenant(ctx, batch.GetTenant())
 
+		// BUGFIX: Collect metrics for V2 spans that were being skipped
+		// This is equivalent to what enqueueSpan does for V1 spans
+		spanCounts := sp.metrics.GetCountsForFormat(batch.GetSpanFormat(), batch.GetInboundTransport())
+		spanCount := traces.SpanCount()
+
+		// Count received spans by service for V2 traces and track bytes (optimized single pass)
+		var totalBytes uint64
+		jptrace.SpanIter(traces)(func(i jptrace.SpanIterPos, span ptrace.Span) bool {
+			spanCounts.ReceivedBySvc.ForSpanV2(i.Resource.Resource(), span)
+			// Estimate bytes without expensive V1 conversion (optimized)
+			nameLen := len(span.Name())
+			if nameLen >= 0 { // Guard against negative values
+				totalBytes += uint64(nameLen) + 200 // Approximation: span name + ~200 bytes overhead
+			}
+			return true
+		})
+
+		// Update atomic counters efficiently
+		sp.bytesProcessed.Add(totalBytes)
+		if spanCount >= 0 { // Guard against negative span count
+			sp.spansProcessed.Add(uint64(spanCount))
+		}
+
+		// Update batch size metrics
+		sp.metrics.BatchSize.Update(int64(spanCount))
+
 		// the exporter will eventually call pushTraces from consumer threads.
 		if err := sp.otelExporter.ConsumeTraces(ctx, traces); err != nil {
 			batchErr = err
 		} else {
-			batchOks = make([]bool, traces.SpanCount())
+			batchOks = make([]bool, spanCount)
 			for i := range batchOks {
 				batchOks[i] = true
 			}
