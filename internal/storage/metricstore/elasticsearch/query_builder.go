@@ -7,6 +7,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/olivere/elastic/v7"
 
@@ -14,6 +15,7 @@ import (
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 )
 
 // These constants define the specific names of aggregations used within Elasticsearch
@@ -106,9 +108,19 @@ func (*QueryBuilder) buildTimeSeriesAggQuery(params metricstore.BaseQueryParamet
 }
 
 // Execute runs the Elasticsearch search with the provided bool and aggregation queries.
-func (q *QueryBuilder) Execute(ctx context.Context, boolQuery elastic.BoolQuery, aggQuery elastic.Aggregation) (*elastic.SearchResult, error) {
-	indexName := q.cfg.Indices.IndexPrefix.Apply("jaeger-span-*")
-	return q.client.Search(indexName).
+func (q *QueryBuilder) Execute(ctx context.Context, boolQuery elastic.BoolQuery, aggQuery elastic.Aggregation, timeRange TimeRange) (*elastic.SearchResult, error) {
+	indexName := q.cfg.Indices.IndexPrefix.Apply("jaeger-span-")
+	timeRangeIndicesFn := spanstore.TimeRangeIndicesFn(q.cfg.UseReadWriteAliases, q.cfg.ReadAliasSuffix, q.cfg.RemoteReadClusters)
+	indices := timeRangeIndicesFn(
+		indexName,
+		q.cfg.Indices.Services.DateLayout,
+		time.UnixMilli(timeRange.extendedStartTimeMillis).UTC(),
+		time.UnixMilli(timeRange.endTimeMillis).UTC(),
+		config.RolloverFrequencyAsNegativeDuration(q.cfg.Indices.Services.RolloverFrequency),
+	)
+
+	return q.client.Search(indices...).
+		IgnoreUnavailable(true).
 		Query(&boolQuery).
 		Size(0). // Set Size to 0 to return only aggregation results, excluding individual search hits
 		Aggregation(aggName, aggQuery).
