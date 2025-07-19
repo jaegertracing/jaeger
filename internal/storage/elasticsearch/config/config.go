@@ -393,11 +393,8 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 		} else {
 			// Target has BasicAuth, apply field-level defaults
 			sourceBasicAuth := source.Authentication.BasicAuthentication.Get()
-			// Get or create target BasicAuth
-			var basicAuth BasicAuthentication
-			if existing := c.Authentication.BasicAuthentication.Get(); existing != nil {
-				basicAuth = *existing
-			}
+			// Get target BasicAuth
+			basicAuth := *c.Authentication.BasicAuthentication.Get()
 
 			// Apply defaults for username if not set
 			if basicAuth.Username == "" && sourceBasicAuth.Username != "" {

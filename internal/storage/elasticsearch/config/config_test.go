@@ -564,6 +564,60 @@ func TestApplyDefaults(t *testing.T) {
 			},
 		},
 		{
+			name: "BasicAuth with Empty Fields Gets Defaults",
+			target: &Configuration{
+				Authentication: Authentication{
+					BasicAuthentication: configoptional.Some(BasicAuthentication{
+						Username: "",
+						Password: "",
+					}),
+				},
+			},
+			expected: &Configuration{
+				RemoteReadClusters: []string{"cluster1", "cluster2"},
+				Authentication: Authentication{
+					BasicAuthentication: configoptional.Some(BasicAuthentication{
+						Username: "sourceUser",
+						Password: "sourcePass",
+					}),
+				},
+				Sniffing: Sniffing{
+					Enabled:  true,
+					UseHTTPS: true,
+				},
+				MaxSpanAge:               100,
+				AdaptiveSamplingLookback: 50,
+				Indices: Indices{
+					IndexPrefix: "hello",
+					Spans: IndexOptions{
+						Shards:   5,
+						Replicas: int64Ptr(1),
+						Priority: 10,
+					},
+					Services: IndexOptions{
+						Shards:   5,
+						Replicas: int64Ptr(1),
+						Priority: 20,
+					},
+					Dependencies: IndexOptions{
+						Shards:   5,
+						Replicas: int64Ptr(1),
+						Priority: 30,
+					},
+				},
+				BulkProcessing: BulkProcessing{
+					MaxBytes:      1000,
+					Workers:       10,
+					MaxActions:    100,
+					FlushInterval: 30,
+				},
+				Tags:          TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
+				MaxDocCount:   10000,
+				LogLevel:      "info",
+				SendGetBodyAs: "json",
+			},
+		},
+		{
 			name: "No Defaults Applied",
 			target: &Configuration{
 				RemoteReadClusters: []string{"cluster1", "cluster2"},

@@ -18,37 +18,30 @@ import (
 )
 
 func getBasicAuthField(opt configoptional.Optional[escfg.BasicAuthentication], field string) string {
-	ba := opt.Get()
-	if ba == nil {
+	if !opt.HasValue() {
 		return ""
 	}
+
+	ba := opt.Get()
 	switch field {
 	case "Username":
-		if v := ba.Username; v != "" {
-			return v
-		}
+		return ba.Username
 	case "Password":
-		if v := ba.Password; v != "" {
-			return v
-		}
+		return ba.Password
 	case "PasswordFilePath":
-		if v := ba.PasswordFilePath; v != "" {
-			return v
-		}
+		return ba.PasswordFilePath
 	}
 	return ""
 }
 
-// Helper for BearerTokenAuthentication
 func getBearerTokenField(opt configoptional.Optional[escfg.BearerTokenAuthentication], field string) string {
-	ba := opt.Get()
-	if ba == nil {
+	if !opt.HasValue() {
 		return ""
 	}
+
+	ba := opt.Get()
 	if field == "FilePath" {
-		if v := ba.FilePath; v != "" {
-			return v
-		}
+		return ba.FilePath
 	}
 	return ""
 }
@@ -56,9 +49,11 @@ func getBearerTokenField(opt configoptional.Optional[escfg.BearerTokenAuthentica
 func TestOptions(t *testing.T) {
 	opts := NewOptions("foo")
 	primary := opts.GetConfig()
-	assert.Empty(t, getBasicAuthField(primary.Authentication.BasicAuthentication, "Username"))
-	assert.Empty(t, getBasicAuthField(primary.Authentication.BasicAuthentication, "Password"))
-	assert.Empty(t, getBasicAuthField(primary.Authentication.BasicAuthentication, "PasswordFilePath"))
+
+	// Authentication should not be present when no values are provided
+	assert.False(t, primary.Authentication.BasicAuthentication.HasValue())
+	assert.False(t, primary.Authentication.BearerTokenAuthentication.HasValue())
+
 	assert.NotEmpty(t, primary.Servers)
 	assert.Empty(t, primary.RemoteReadClusters)
 	assert.EqualValues(t, 5, primary.Indices.Spans.Shards)
@@ -97,7 +92,6 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--es.index-date-separator=",
 		"--es.index-rollover-frequency-spans=hour",
 		"--es.index-rollover-frequency-services=day",
-		// a couple overrides
 		"--es.remote-read-clusters=cluster_one,cluster_two",
 		"--es.tls.enabled=true",
 		"--es.tls.skip-host-verify=true",
@@ -111,12 +105,17 @@ func TestOptionsWithFlags(t *testing.T) {
 	})
 	require.NoError(t, err)
 	opts.InitFromViper(v)
-
 	primary := opts.GetConfig()
+
+	// Now authentication should be present since values were provided
+	assert.True(t, primary.Authentication.BasicAuthentication.HasValue())
+	assert.True(t, primary.Authentication.BearerTokenAuthentication.HasValue())
+
 	assert.Equal(t, "hello", getBasicAuthField(primary.Authentication.BasicAuthentication, "Username"))
 	assert.Equal(t, "world", getBasicAuthField(primary.Authentication.BasicAuthentication, "Password"))
 	assert.Equal(t, "/foo/bar", getBearerTokenField(primary.Authentication.BearerTokenAuthentication, "FilePath"))
 	assert.Equal(t, "/foo/bar/baz", getBasicAuthField(primary.Authentication.BasicAuthentication, "PasswordFilePath"))
+
 	assert.Equal(t, []string{"1.1.1.1", "2.2.2.2"}, primary.Servers)
 	assert.Equal(t, []string{"cluster_one", "cluster_two"}, primary.RemoteReadClusters)
 	assert.Equal(t, 48*time.Hour, primary.MaxSpanAge)
@@ -133,6 +132,77 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "2006010215", primary.Indices.Spans.DateLayout)
 	assert.True(t, primary.UseILM)
 	assert.True(t, primary.HTTPCompression)
+}
+
+func TestAuthenticationConditionalCreation(t *testing.T) {
+	testCases := []struct {
+		name              string
+		flags             []string
+		expectBasicAuth   bool
+		expectBearerAuth  bool
+		expectedUsername  string
+		expectedPassword  string
+		expectedTokenPath string
+	}{
+		{
+			name:             "no authentication flags",
+			flags:            []string{},
+			expectBasicAuth:  false,
+			expectBearerAuth: false,
+		},
+		{
+			name:             "only username provided",
+			flags:            []string{"--es.username=testuser"},
+			expectBasicAuth:  true,
+			expectBearerAuth: false,
+			expectedUsername: "testuser",
+		},
+		{
+			name:             "only password provided",
+			flags:            []string{"--es.password=testpass"},
+			expectBasicAuth:  true,
+			expectBearerAuth: false,
+			expectedPassword: "testpass",
+		},
+		{
+			name:              "only token file provided",
+			flags:             []string{"--es.token-file=/path/to/token"},
+			expectBasicAuth:   false,
+			expectBearerAuth:  true,
+			expectedTokenPath: "/path/to/token",
+		},
+		{
+			name:             "username and password provided",
+			flags:            []string{"--es.username=testuser", "--es.password=testpass"},
+			expectBasicAuth:  true,
+			expectBearerAuth: false,
+			expectedUsername: "testuser",
+			expectedPassword: "testpass",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			opts := NewOptions("es")
+			v, command := config.Viperize(opts.AddFlags)
+			err := command.ParseFlags(tc.flags)
+			require.NoError(t, err)
+			opts.InitFromViper(v)
+			primary := opts.GetConfig()
+
+			assert.Equal(t, tc.expectBasicAuth, primary.Authentication.BasicAuthentication.HasValue())
+			assert.Equal(t, tc.expectBearerAuth, primary.Authentication.BearerTokenAuthentication.HasValue())
+
+			if tc.expectBasicAuth {
+				assert.Equal(t, tc.expectedUsername, getBasicAuthField(primary.Authentication.BasicAuthentication, "Username"))
+				assert.Equal(t, tc.expectedPassword, getBasicAuthField(primary.Authentication.BasicAuthentication, "Password"))
+			}
+
+			if tc.expectBearerAuth {
+				assert.Equal(t, tc.expectedTokenPath, getBearerTokenField(primary.Authentication.BearerTokenAuthentication, "FilePath"))
+			}
+		})
+	}
 }
 
 func TestEmptyRemoteReadClusters(t *testing.T) {
@@ -327,31 +397,22 @@ func TestAddFlags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Setup
 			cfg := tt.setupConfig()
 			flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
-
-			// Test
 			addFlags(flagSet, cfg)
 
 			// Verify flags were registered with correct default values
-			if tt.expectedUsername != "" {
-				flag := flagSet.Lookup("es.username")
-				require.NotNil(t, flag, "username flag not registered")
-				assert.Equal(t, tt.expectedUsername, flag.DefValue)
-			}
+			usernameFlag := flagSet.Lookup("es.username")
+			require.NotNil(t, usernameFlag, "username flag not registered")
+			assert.Equal(t, tt.expectedUsername, usernameFlag.DefValue)
 
-			if tt.expectedPassword != "" {
-				flag := flagSet.Lookup("es.password")
-				require.NotNil(t, flag, "password flag not registered")
-				assert.Equal(t, tt.expectedPassword, flag.DefValue)
-			}
+			passwordFlag := flagSet.Lookup("es.password")
+			require.NotNil(t, passwordFlag, "password flag not registered")
+			assert.Equal(t, tt.expectedPassword, passwordFlag.DefValue)
 
-			if tt.expectedTokenPath != "" {
-				flag := flagSet.Lookup("es.token-file")
-				require.NotNil(t, flag, "token-file flag not registered")
-				assert.Equal(t, tt.expectedTokenPath, flag.DefValue)
-			}
+			tokenFlag := flagSet.Lookup("es.token-file")
+			require.NotNil(t, tokenFlag, "token-file flag not registered")
+			assert.Equal(t, tt.expectedTokenPath, tokenFlag.DefValue)
 		})
 	}
 }

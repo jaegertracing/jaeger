@@ -207,7 +207,6 @@ func (f *FactoryBase) onPasswordChange() {
 
 func (f *FactoryBase) onClientPasswordChange(cfg *config.Configuration, client *atomic.Pointer[es.Client], mf metrics.Factory) {
 	basicAuth := cfg.Authentication.BasicAuthentication.Get()
-
 	newPassword, err := loadTokenFromFile(basicAuth.PasswordFilePath)
 	if err != nil {
 		f.logger.Error("failed to reload password for Elasticsearch client", zap.Error(err))

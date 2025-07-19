@@ -338,15 +338,27 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 }
 
 func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
-	cfg.Authentication.BasicAuthentication = configoptional.Some(config.BasicAuthentication{
-		Username:         v.GetString(cfg.namespace + suffixUsername),
-		Password:         v.GetString(cfg.namespace + suffixPassword),
-		PasswordFilePath: v.GetString(cfg.namespace + suffixPasswordPath),
-	})
+	// BasicAuthentication if atleast one of username, password or passwordPath is set
+	username := v.GetString(cfg.namespace + suffixUsername)
+	password := v.GetString(cfg.namespace + suffixPassword)
+	passwordPath := v.GetString(cfg.namespace + suffixPasswordPath)
 
-	cfg.Authentication.BearerTokenAuthentication = configoptional.Some(config.BearerTokenAuthentication{
-		FilePath: v.GetString(cfg.namespace + suffixTokenPath),
-	})
+	if username != "" || password != "" || passwordPath != "" {
+		cfg.Authentication.BasicAuthentication = configoptional.Some(config.BasicAuthentication{
+			Username:         username,
+			Password:         password,
+			PasswordFilePath: passwordPath,
+		})
+	}
+
+	// BearerTokenAuthentication if tokenPath is set
+	tokenPath := v.GetString(cfg.namespace + suffixTokenPath)
+	if tokenPath != "" {
+		cfg.Authentication.BearerTokenAuthentication = configoptional.Some(config.BearerTokenAuthentication{
+			FilePath: tokenPath,
+		})
+	}
+
 	cfg.Sniffing.Enabled = v.GetBool(cfg.namespace + suffixSniffer)
 	cfg.Sniffing.UseHTTPS = v.GetBool(cfg.namespace + suffixSnifferTLSEnabled)
 	cfg.DisableHealthCheck = v.GetBool(cfg.namespace + suffixDisableHealthCheck)
