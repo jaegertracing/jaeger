@@ -65,7 +65,7 @@ func NewMetricsReader(client es.Client, cfg config.Configuration, logger *zap.Lo
 	tr := tracer.Tracer("elasticsearch-metricstore")
 	return &MetricsReader{
 		queryLogger:  NewQueryLogger(logger, tr),
-		queryBuilder: NewQueryBuilder(client, cfg),
+		queryBuilder: NewQueryBuilder(client, cfg, logger),
 	}
 }
 

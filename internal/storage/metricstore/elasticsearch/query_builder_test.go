@@ -26,7 +26,7 @@ var commonTimeRange = TimeRange{
 
 // Test helper functions
 func setupTestQB() *QueryBuilder {
-	return NewQueryBuilder(nil, config.Configuration{Tags: config.TagsAsFields{DotReplacement: "_"}})
+	return NewQueryBuilder(nil, config.Configuration{Tags: config.TagsAsFields{DotReplacement: "_"}}, zap.NewNop())
 }
 
 func testAggregationStructure(t *testing.T, agg elastic.Aggregation, expectedInterval string, validateSubAggs func(map[string]any)) {
@@ -132,7 +132,7 @@ func TestExecute(t *testing.T) {
 		LogLevel: "debug",
 	}
 	client := clientProvider(t, cfg, zap.NewNop(), esmetrics.NullFactory)
-	qb := NewQueryBuilder(client, *cfg)
+	qb := NewQueryBuilder(client, *cfg, zap.NewNop())
 
 	boolQuery := elastic.NewBoolQuery()
 	aggQuery := elastic.NewDateHistogramAggregation().Field("startTimeMillis").FixedInterval("60000ms")
