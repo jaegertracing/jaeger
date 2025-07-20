@@ -5,14 +5,17 @@ package tracestore
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/jiter"
@@ -488,5 +491,73 @@ func TestGetOperations(t *testing.T) {
 				require.Equal(t, test.expected, result)
 			}
 		})
+	}
+}
+
+func TestGetTraceIDs(t *testing.T) {
+	type traceRow struct {
+		TraceID   string
+		StartTime time.Time
+	}
+
+	now := time.Now()
+	traceHex := []string{
+		"11111111111111111111111111111111",
+		"22222222222222222222222222222222",
+		"33333333333333333333333333333333",
+	}
+
+	var traceRows []traceRow
+	for _, hexID := range traceHex {
+		traceRows = append(traceRows, traceRow{
+			TraceID:   hexID,
+			StartTime: now,
+		})
+	}
+
+	scanFn := func(dest any, row traceRow) error {
+		ptrs := dest.([]any)
+		if len(ptrs) != 2 {
+			return fmt.Errorf("expected 2 fields, got %d", len(ptrs))
+		}
+		reflect.ValueOf(ptrs[0]).Elem().Set(reflect.ValueOf(&row.TraceID).Elem())
+		reflect.ValueOf(ptrs[1]).Elem().Set(reflect.ValueOf(&row.StartTime).Elem())
+		return nil
+	}
+
+	query := &tracestore.TraceQueryParams{
+		SearchDepth: 100,
+	}
+
+	sqlQuery, _ := BuildFindTraceIDsQuery(*query)
+
+	conn := &testDriver{
+		t:             t,
+		expectedQuery: sqlQuery,
+		rows: &testRows[traceRow]{
+			data:   traceRows,
+			scanFn: scanFn,
+		},
+	}
+
+	reader := NewReader(conn)
+
+	stream := reader.GetTraceIDs(context.Background(), query)
+
+	var gotTraceIDs []pcommon.TraceID
+	stream(func(batch []pcommon.TraceID, err error) bool {
+		require.NoError(t, err)
+		gotTraceIDs = append(gotTraceIDs, batch...)
+		return true
+	})
+
+	require.Len(t, gotTraceIDs, len(traceHex))
+
+	for i, hexID := range traceHex {
+		expectedBytes, err := hex.DecodeString(hexID)
+		require.NoError(t, err, "failed to decode hex string: %s", hexID)
+		var expectedID pcommon.TraceID
+		copy(expectedID[:], expectedBytes)
+		assert.Equal(t, expectedID, gotTraceIDs[i])
 	}
 }
