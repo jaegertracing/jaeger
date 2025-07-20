@@ -4,24 +4,28 @@ Service Performance Monitoring (SPM) is an opt-in feature introduced to Jaeger t
 (RED) metrics grouped by service name and operation that are derived from span data. These metrics are programmatically
 available through an API exposed by jaeger-query along with a "Monitor" UI tab that visualizes these metrics as graphs.
 
-For more details on this feature, please refer to the [tracking Issue](https://github.com/jaegertracing/jaeger/issues/2954)
-documenting the proposal and status.
+1.  **Prometheus as metrics backend**: Metrics are computed by the OpenTelemetry Collector and aggregated in Prometheus (see [tracking issue](https://github.com/jaegertracing/jaeger/issues/2954)).
+2.  **Directly querying from trace storage (Elasticsearch/OpenSearch)**: Metrics are computed directly from trace data stored in Elasticsearch or OpenSearch, eliminating the need for a separate metrics storage backend like Prometheus (see [issue \#6641](https://github.com/jaegertracing/jaeger/issues/6641) for details).
 
-The motivation for providing this environment is to allow developers to either test Jaeger UI or their own applications
-against jaeger-query's metrics query API, as well as a quick and simple way for users to bring up the entire stack
-required to visualize RED metrics from simulated traces or from their own application.
+The motivation for providing this environment is to allow developers to either test Jaeger UI or their own applications against jaeger-query's metrics query API, as well as a quick and simple way for users to bring up the entire stack required to visualize RED metrics from simulated traces or from their own application.
 
-This environment consists the following backend components:
+This environment supports the following backend components, depending on the chosen metrics storage:
 
-- [MicroSim](https://github.com/yurishkuro/microsim): a program to simulate traces.
-- [Jaeger All-in-one](https://www.jaegertracing.io/docs/1.24/getting-started/#all-in-one): the full Jaeger stack in a single container image.
-- [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/): vendor agnostic integration layer for traces and metrics. Its main role in this particular development environment is to receive Jaeger spans, forward these spans untouched to Jaeger All-in-one while simultaneously aggregating metrics out of this span data. To learn more about span metrics aggregation, please refer to the [spanmetrics connector documentation][spanmetricsconnectorreadme].
-- [Prometheus](https://prometheus.io/): a metrics collection and query engine, used to scrape metrics computed by OpenTelemetry Collector, and presents an API for Jaeger All-in-one to query these metrics.
-- [Elasticsearch](https://www.elastic.co/elasticsearch): is a trace storage that helps Jaeger store and retrieve span data for searching and visualizing traces in the UI.
+- **Common Components**:
 
-The following diagram illustrates the relationship between these components:
+    - [MicroSim](https://github.com/yurishkuro/microsim): A program to simulate traces.
+    - [Jaeger All-in-one](https://www.jaegertracing.io/docs/1.24/getting-started/#all-in-one): The full Jaeger stack in a single container image.
+    - [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/): A vendor-agnostic integration layer for traces and metrics. For the Prometheus option, it receives Jaeger spans, forwards them to Jaeger All-in-one, and aggregates metrics from span data (see [spanmetrics connector documentation][spanmetricsconnectorreadme]).
 
-![SPM diagram](./diagram.png)
+- **For Prometheus as metrics backend**:
+
+    - [Prometheus](https://prometheus.io/): A metrics collection and query engine that scrapes metrics computed by the OpenTelemetry Collector and provides an API for Jaeger All-in-one to query these metrics.
+
+- **For directly querying from trace storage (ES/OS)**:
+
+    - [Elasticsearch/OpenSearch](https://www.elastic.co/elasticsearch/): The trace storage backend for Jaeger, used for both trace storage and direct metrics querying in this configuration.
+
+The following diagram illustrates the relationship between these components when using Prometheus as the metrics backend:
 
 ```mermaid
 flowchart LR
@@ -69,26 +73,32 @@ flowchart LR
 This brings up the system necessary to use the SPM feature locally.
 It uses the latest image tags from both Jaeger and OpenTelemetry.
 
+### Option 1: Prometheus as metrics backend
+
 ```shell
 docker compose up
 ```
 
-**Jaeger v1**
-
-```shell
-docker compose -f docker-compose-v1.yml up
-```
-
-**Jaeger with Elasticsearch as Trace Storage**
+### Option 2: Directly querying from trace storage (ES/OS)
 
 ```shell
 docker compose -f docker-compose-elasticsearch.yml up
 ```
 
+```shell
+docker compose -f docker-compose-opensearch.yml up
+```
+
+**Jaeger v1 (Prometheus only)**
+
+```shell
+docker compose -f docker-compose-v1.yml up
+```
+
 **Tips:**
 - Let the application run for a couple of minutes to ensure there is enough time series data to plot in the dashboard.
 - Navigate to Jaeger UI at http://localhost:16686/ and inspect the Monitor tab. Select `redis` service from the dropdown to see more than one endpoint.
-- To visualize the raw metrics stored on the Prometheus server (for debugging and local development use cases), use the built-in Prometheus UI at http://localhost:9090/query. For example, http://localhost:9090/query?g0.expr=traces_span_metrics_calls_total&g0.tab=0&g0.range_input=5m
+- For the Prometheus option, visualize raw metrics in the Prometheus UI at http://localhost:9090/query (e.g., [example query for trace spans](http://localhost:9090/query?g0.expr=traces_span_metrics_calls_total&g0.tab=0&g0.range_input=5m)).
 
 **Warning:** The included ` docker compose` files use the `latest` version of Jaeger and other components. If your local Docker registry already contains older versions, which may still be tagged as `latest`, you may want to delete those images before running the full set, to ensure consistent behavior:
 
@@ -132,11 +142,13 @@ We will use [tracegen](https://github.com/jaegertracing/jaeger/tree/main/cmd/tra
 to emit traces to the OpenTelemetry Collector which, in turn, will aggregate the trace data into metrics.
 
 Start the local stack needed for SPM, if not already done:
+
 ```shell
 docker compose up
 ```
 
 Generate a specific number of traces with:
+
 ```shell
 docker run --env OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="http://jaeger:4318/v1/traces" \
   --network monitor_backend \
@@ -147,6 +159,7 @@ docker run --env OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="http://jaeger:4318/v1/trace
 ```
 
 Or, emit traces over a period of time with:
+
 ```shell
 docker run --env OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="http://jaeger:4318/v1/traces" \
   --network monitor_backend \
@@ -185,13 +198,17 @@ curl "http://localhost:16686/api/metrics/latencies?service=driver&service=fronte
 ```
 
 ### Example 3
+
 Fetch error rates for both driver and frontend services using default parameters.
+
 ```bash
 curl "http://localhost:16686/api/metrics/errors?service=driver&service=frontend" | jq .
 ```
 
 ### Example 4
+
 Fetch the minimum step size supported by the underlying metrics store.
+
 ```bash
 curl "http://localhost:16686/api/metrics/minstep" | jq .
 ```
@@ -203,6 +220,7 @@ curl "http://localhost:16686/api/metrics/minstep" | jq .
 `/api/metrics/{metric_type}?{query}`
 
 Where (Backus-Naur form):
+
 ```
 metric_type = 'latencies' | 'calls' | 'errors'
 
@@ -264,6 +282,7 @@ e.g. a min step of 1 means the backend can only return data points that are at l
 The response data model is based on [`MetricsFamily`](https://github.com/jaegertracing/jaeger/blob/main/internal/proto/metrics/openmetrics.proto#L53).
 
 For example:
+
 ```
 {
   "name": "service_call_rate",
@@ -300,6 +319,7 @@ For example:
   ```
 
 If the `groupByOperation=true` parameter is set, the response will include the operation name in the labels like so:
+
 ```
       "labels": [
         {
@@ -320,6 +340,7 @@ As this is feature is opt-in only, disabling metrics querying simply involves om
 For example, try removing the `METRICS_STORAGE_TYPE=prometheus` environment variable from the [docker-compose.yml](./docker-compose.yml) file.
 
 Then querying any metrics endpoints results in an error message:
+
 ```
 $ curl http://localhost:16686/api/metrics/minstep | jq .
 {

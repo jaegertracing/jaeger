@@ -8,7 +8,7 @@ set -euf -o pipefail
 print_help() {
   echo "Usage: $0 [-b binary] [-m metricstore]"
   echo "-b: Which binary to build: 'all-in-one' or 'jaeger' (v2, default)"
-  echo "-m: Which database to use as metrics store: 'prometheus' (default) or 'elasticsearch'"
+  echo "-m: Which database to use as metrics store: 'prometheus' (default) or 'elasticsearch' or 'opensearch'"
   echo "-h: Print help"
   exit 1
 }
@@ -47,7 +47,7 @@ esac
 
 # Validate metricstore option
 case "$METRICSTORE" in
-  "prometheus"|"elasticsearch")
+  "prometheus"|"elasticsearch"|"opensearch")
     # Valid options
     ;;
   *)
@@ -65,6 +65,11 @@ fi
 if [ "$METRICSTORE" == "elasticsearch" ]; then
   compose_file=docker-compose/monitor/docker-compose-elasticsearch.yml
   make_target="elasticsearch"
+fi
+
+if [ "$METRICSTORE" == "opensearch" ]; then
+  compose_file=docker-compose/monitor/docker-compose-opensearch.yml
+  make_target="opensearch"
 fi
 
 timeout=600
@@ -100,13 +105,18 @@ check_service_health() {
 # Function to check if all services are healthy
 wait_for_services() {
   echo "Waiting for services to be up and running..."
-  if [ "$METRICSTORE" == "elasticsearch" ]; then
-    check_service_health "Elasticsearch" "http://localhost:9200"
-  fi
 
-  if [ "$METRICSTORE" == "prometheus" ]; then
-    check_service_health "Prometheus" "http://localhost:9090/query"
-  fi
+  case "$METRICSTORE" in
+    "elasticsearch")
+      check_service_health "Elasticsearch" "http://localhost:9200"
+      ;;
+    "opensearch")
+      check_service_health "Opensearch" "http://localhost:9200"
+      ;;
+    "prometheus")
+      check_service_health "Prometheus" "http://localhost:9090/query"
+      ;;
+  esac
 
   check_service_health "Jaeger" "http://localhost:16686"
 }

@@ -570,7 +570,7 @@ func addLoggerOptions(options []elastic.ClientOptionFunc, logLevel string, logge
     return options, nil
 }
 
-// GetHTTPRoundTripper returns configured http.RoundTripper
+// GetHTTPRoundTripper returns configured http.RoundTripper.
 func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logger) (http.RoundTripper, error) {
     if !c.TLS.Insecure {
         ctlsConfig, err := c.TLS.LoadTLSConfig(ctx)
