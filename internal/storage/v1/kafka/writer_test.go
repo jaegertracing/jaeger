@@ -19,6 +19,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/kafka/mocks"
+	"go.opentelemetry.io/collector/component"
 )
 
 var (
@@ -64,6 +65,7 @@ type spanWriterTest struct {
 // Checks that Kafka SpanWriter conforms to spanstore.Writer API
 var _ spanstore.Writer = &SpanWriter{}
 
+
 func withSpanWriter(t *testing.T, fn func(span *model.Span, w *spanWriterTest)) {
 	serviceMetrics := metricstest.NewFactory(100 * time.Millisecond)
 	defer serviceMetrics.Stop()
@@ -73,15 +75,28 @@ func withSpanWriter(t *testing.T, fn func(span *model.Span, w *spanWriterTest)) 
 	marshaller := &mocks.Marshaller{}
 	marshaller.On("Marshal", mock.AnythingOfType("*model.Span")).Return([]byte{}, nil)
 
+	// Declare and initialize brokers and telemetry settings
+	brokers := []string{"localhost:9092"} // Example broker list
+	telemetry := component.TelemetrySettings{
+		Logger: zap.NewNop(), // You can add more telemetry settings here
+	}
+
+	// Correctly call NewSpanWriter with all required arguments
+	writer, err := NewSpanWriter("someTopic", serviceMetrics, brokers, marshaller, zap.NewNop(), telemetry)
+	if err != nil {
+		t.Fatalf("Error creating SpanWriter: %v", err)
+	}
+
 	writerTest := &spanWriterTest{
 		producer:       producer,
 		marshaller:     marshaller,
 		metricsFactory: serviceMetrics,
-		writer:         NewSpanWriter(producer, marshaller, "someTopic", serviceMetrics, zap.NewNop()),
+		writer:         writer, // Correctly assign writer here
 	}
 
 	fn(sampleSpan, writerTest)
 }
+
 
 func TestKafkaWriter(t *testing.T) {
 	withSpanWriter(t, func(span *model.Span, w *spanWriterTest) {
