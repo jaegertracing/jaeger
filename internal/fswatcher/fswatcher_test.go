@@ -135,9 +135,14 @@ func TestFSWatcherWithMultipleFiles(t *testing.T) {
 		"Unable to locate 'Received event' in log. All logs: %v", logObserver)
 	assertLogs(t,
 		func() bool {
-			return logObserver.FilterMessage("Unable to read the file").Len() >= 2 // Check for multiple occurrences
+			return logObserver.FilterMessage("Unable to read the file").FilterField(zap.String("file", testFile1.Name())).Len() > 0
 		},
-		"Unable to locate expected 'Unable to read the file' entries in log. All logs: %v", logObserver)
+		"Unable to locate 'Unable to read the file' in log. All logs: %v", logObserver)
+	assertLogs(t,
+		func() bool {
+			return logObserver.FilterMessage("Unable to read the file").FilterField(zap.String("file", testFile2.Name())).Len() > 0
+		},
+		"Unable to locate 'Unable to read the file' in log. All logs: %v", logObserver)
 }
 
 func TestFSWatcherWithSymlinkAndRepoChanges(t *testing.T) {
