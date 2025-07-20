@@ -135,7 +135,7 @@ func (w *FSWatcher) Close() error {
 func (w *FSWatcher) isModified(filePathName string, previousHash string) (bool, string) {
 	hash, err := hashFile(filePathName)
 	if err != nil {
-		w.logger.Warn("Unable to read the file", zap.String("file", filePathName), zap.Error(err))
+		w.logger.Warn("Unable to read the file", zap.Error(err))
 		return true, ""
 	}
 	return previousHash != hash, hash
