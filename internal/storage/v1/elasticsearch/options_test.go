@@ -34,16 +34,23 @@ func getBasicAuthField(opt configoptional.Optional[escfg.BasicAuthentication], f
 	return ""
 }
 
-func getBearerTokenField(opt configoptional.Optional[escfg.BearerTokenAuthentication], field string) string {
+func getBearerTokenField(opt configoptional.Optional[escfg.BearerTokenAuthentication], field string) any {
 	if !opt.HasValue() {
+		if field == "AllowFromContext" {
+			return false
+		}
 		return ""
 	}
 
 	ba := opt.Get()
-	if field == "FilePath" {
+	switch field {
+	case "FilePath":
 		return ba.FilePath
+	case "AllowFromContext":
+		return ba.AllowFromContext
+	default:
+		return ""
 	}
-	return ""
 }
 
 func TestOptions(t *testing.T) {
@@ -83,6 +90,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--es.password=world",
 		"--es.token-file=/foo/bar",
 		"--es.password-file=/foo/bar/baz",
+		"--es.bearer-token-propagation=true",
 		"--es.sniffer=true",
 		"--es.sniffer-tls-enabled=true",
 		"--es.disable-health-check=true",
@@ -114,6 +122,8 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "hello", getBasicAuthField(primary.Authentication.BasicAuthentication, "Username"))
 	assert.Equal(t, "world", getBasicAuthField(primary.Authentication.BasicAuthentication, "Password"))
 	assert.Equal(t, "/foo/bar", getBearerTokenField(primary.Authentication.BearerTokenAuthentication, "FilePath"))
+	assert.Equal(t, true, getBearerTokenField(primary.Authentication.BearerTokenAuthentication, "AllowFromContext"))
+
 	assert.Equal(t, "/foo/bar/baz", getBasicAuthField(primary.Authentication.BasicAuthentication, "PasswordFilePath"))
 
 	assert.Equal(t, []string{"1.1.1.1", "2.2.2.2"}, primary.Servers)
@@ -178,6 +188,19 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 			expectBearerAuth: false,
 			expectedUsername: "testuser",
 			expectedPassword: "testpass",
+		},
+		{
+			name:             "only bearer token context propagation enabled",
+			flags:            []string{"--es.bearer-token-propagation=true"},
+			expectBasicAuth:  false,
+			expectBearerAuth: true,
+		},
+		{
+			name:              "both token file and context propagation enabled",
+			flags:             []string{"--es.token-file=/path/to/token", "--es.bearer-token-propagation=true"},
+			expectBasicAuth:   false,
+			expectBearerAuth:  true,
+			expectedTokenPath: "/path/to/token",
 		},
 	}
 

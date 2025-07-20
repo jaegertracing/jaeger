@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/config/configoptional"
 
-	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/config/tlscfg"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
@@ -25,6 +24,7 @@ const (
 	suffixDisableHealthCheck             = ".disable-health-check"
 	suffixSnifferTLSEnabled              = ".sniffer-tls-enabled"
 	suffixTokenPath                      = ".token-file"
+	suffixBearerTokenPropagation         = ".bearer-token-propagation" // #nosec G101
 	suffixPasswordPath                   = ".password-file"
 	suffixServerURLs                     = ".server-urls"
 	suffixRemoteReadClusters             = ".remote-read-clusters"
@@ -138,10 +138,11 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	// authentication fields
 	var (
-		username     string
-		password     string
-		passwordPath string
-		tokenPath    string
+		username                    string
+		password                    string
+		passwordPath                string
+		tokenPath                   string
+		bearerTokenAllowFromContext bool
 	)
 
 	if nsConfig.Authentication.BasicAuthentication.HasValue() {
@@ -154,6 +155,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	if nsConfig.Authentication.BearerTokenAuthentication.HasValue() {
 		bearerAuth := nsConfig.Authentication.BearerTokenAuthentication.Get()
 		tokenPath = bearerAuth.FilePath
+		bearerTokenAllowFromContext = bearerAuth.AllowFromContext
 	}
 
 	flagSet.String(
@@ -168,6 +170,11 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixTokenPath,
 		tokenPath,
 		"Path to a file containing bearer token. This flag also loads CA if it is specified.")
+
+	flagSet.Bool(
+		nsConfig.namespace+suffixBearerTokenPropagation,
+		bearerTokenAllowFromContext,
+		"Allow bearer token to be read from incoming request context")
 	flagSet.String(
 		nsConfig.namespace+suffixPasswordPath,
 		passwordPath,
@@ -351,11 +358,15 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 		})
 	}
 
-	// BearerTokenAuthentication if tokenPath is set
+	// BearerAuthentication if tokenPath or allowFromContext is set
 	tokenPath := v.GetString(cfg.namespace + suffixTokenPath)
-	if tokenPath != "" {
+	bearerTokenAllowFromContext := v.GetBool(cfg.namespace + suffixBearerTokenPropagation)
+
+	// Create BearerTokenAuthentication if either field is configured
+	if tokenPath != "" || bearerTokenAllowFromContext {
 		cfg.Authentication.BearerTokenAuthentication = configoptional.Some(config.BearerTokenAuthentication{
-			FilePath: tokenPath,
+			FilePath:         tokenPath,
+			AllowFromContext: bearerTokenAllowFromContext,
 		})
 	}
 
@@ -408,12 +419,6 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 
 	cfg.MaxDocCount = v.GetInt(cfg.namespace + suffixMaxDocCount)
 	cfg.UseILM = v.GetBool(cfg.namespace + suffixUseILM)
-
-	// TODO: Need to figure out a better way for do this.
-	if bearerAuth := cfg.Authentication.BearerTokenAuthentication.Get(); bearerAuth != nil {
-		bearerAuth.AllowFromContext = v.GetBool(bearertoken.StoragePropagationKey)
-		cfg.Authentication.BearerTokenAuthentication = configoptional.Some(*bearerAuth)
-	}
 
 	remoteReadClusters := stripWhiteSpace(v.GetString(cfg.namespace + suffixRemoteReadClusters))
 	if len(remoteReadClusters) > 0 {
