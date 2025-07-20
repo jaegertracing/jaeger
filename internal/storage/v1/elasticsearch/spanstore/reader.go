@@ -231,7 +231,7 @@ func timeRangeIndices(indexName, indexDateLayout string, startTime time.Time, en
 	var indices []string
 	firstIndex := indexWithDate(indexName, indexDateLayout, startTime)
 	currentIndex := indexWithDate(indexName, indexDateLayout, endTime)
-	for currentIndex != firstIndex {
+	for currentIndex != firstIndex && endTime.After(startTime) {
 		if len(indices) == 0 || indices[len(indices)-1] != currentIndex {
 			indices = append(indices, currentIndex)
 		}
