@@ -69,13 +69,10 @@ func copyToTempFile(t *testing.T, pattern string, filename string) (file *os.Fil
 	tempFile, err := os.Create(tempFilePath)
 	require.NoError(t, err)
 	data, err := os.ReadFile(filename)
-
 	require.NoError(t, err)
-
 	_, err = tempFile.Write(data)
 	require.NoError(t, err)
 	require.NoError(t, tempFile.Close())
-
 	return tempFile
 }
 
@@ -83,40 +80,21 @@ func int64Ptr(v int64) *int64 {
 	return &v
 }
 
-// basicAuth creates basic authentication configuration
-func basicAuth(username, password, passwordFilePath string) Authentication {
-	return Authentication{
-		BasicAuthentication: configoptional.Some(BasicAuthentication{
-			Username:         username,
-			Password:         password,
-			PasswordFilePath: passwordFilePath,
-		}),
-	}
+// basicAuth creates basic authentication component
+func basicAuth(username, password, passwordFilePath string) configoptional.Optional[BasicAuthentication] {
+	return configoptional.Some(BasicAuthentication{
+		Username:         username,
+		Password:         password,
+		PasswordFilePath: passwordFilePath,
+	})
 }
 
-// bearerAuth creates bearer token authentication configuration
-func bearerAuth(filePath string, allowFromContext bool) Authentication {
-	return Authentication{
-		BearerTokenAuthentication: configoptional.Some(BearerTokenAuthentication{
-			FilePath:         filePath,
-			AllowFromContext: allowFromContext,
-		}),
-	}
-}
-
-// combinedAuth creates both basic and bearer token authentication
-func combinedAuth(username, password, passwordFilePath, tokenFilePath string, allowFromContext bool) Authentication {
-	return Authentication{
-		BasicAuthentication: configoptional.Some(BasicAuthentication{
-			Username:         username,
-			Password:         password,
-			PasswordFilePath: passwordFilePath,
-		}),
-		BearerTokenAuthentication: configoptional.Some(BearerTokenAuthentication{
-			FilePath:         tokenFilePath,
-			AllowFromContext: allowFromContext,
-		}),
-	}
+// bearerAuth creates bearer token authentication component
+func bearerAuth(filePath string, allowFromContext bool) configoptional.Optional[BearerTokenAuthentication] {
+	return configoptional.Some(BearerTokenAuthentication{
+		FilePath:         filePath,
+		AllowFromContext: allowFromContext,
+	})
 }
 
 func TestNewClient(t *testing.T) {
@@ -125,6 +103,7 @@ func TestNewClient(t *testing.T) {
 		token      = "token"
 		serverCert = "../../../../internal/config/tlscfg/testdata/example-server-cert.pem"
 	)
+
 	pwdFile := filepath.Join(t.TempDir(), "pwd")
 	require.NoError(t, os.WriteFile(pwdFile, []byte(pwd1), 0o600))
 	pwdtokenFile := filepath.Join(t.TempDir(), "token")
@@ -140,24 +119,28 @@ func TestNewClient(t *testing.T) {
 		res.Write(mockEsServerResponseWithVersion0)
 	}))
 	defer testServer.Close()
+
 	testServer1 := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 		assert.Contains(t, []string{http.MethodGet, http.MethodHead}, req.Method)
 		res.WriteHeader(http.StatusOK)
 		res.Write(mockEsServerResponseWithVersion1)
 	}))
 	defer testServer1.Close()
+
 	testServer2 := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 		assert.Contains(t, []string{http.MethodGet, http.MethodHead}, req.Method)
 		res.WriteHeader(http.StatusOK)
 		res.Write(mockEsServerResponseWithVersion2)
 	}))
 	defer testServer2.Close()
+
 	testServer8 := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 		assert.Contains(t, []string{http.MethodGet, http.MethodHead}, req.Method)
 		res.WriteHeader(http.StatusOK)
 		res.Write(mockEsServerResponseWithVersion8)
 	}))
 	defer testServer8.Close()
+
 	tests := []struct {
 		name          string
 		config        *Configuration
@@ -166,9 +149,12 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "success with valid configuration",
 			config: &Configuration{
-				Servers:        []string{testServer.URL},
-				Authentication: combinedAuth("user", "secret", "", "", true),
-				LogLevel:       "debug",
+				Servers: []string{testServer.URL},
+				Authentication: Authentication{
+					BasicAuthentication:       basicAuth("user", "secret", ""),
+					BearerTokenAuthentication: bearerAuth("", true),
+				},
+				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
 					MaxBytes: -1, // disable bulk; we want immediate flush
 				},
@@ -179,9 +165,12 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "success with valid configuration and tls enabled",
 			config: &Configuration{
-				Servers:        []string{testServer.URL},
-				Authentication: combinedAuth("user", "secret", "", "", true),
-				LogLevel:       "debug",
+				Servers: []string{testServer.URL},
+				Authentication: Authentication{
+					BasicAuthentication:       basicAuth("user", "secret", ""),
+					BearerTokenAuthentication: bearerAuth("", true),
+				},
+				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
 					MaxBytes: -1, // disable bulk; we want immediate flush
 				},
@@ -191,11 +180,14 @@ func TestNewClient(t *testing.T) {
 			expectedError: false,
 		},
 		{
-			name: "success with valid configuration and reading token and certicate from file",
+			name: "success with valid configuration and reading token and certificate from file",
 			config: &Configuration{
-				Servers:        []string{testServer.URL},
-				Authentication: combinedAuth("user", "secret", "", pwdtokenFile, true),
-				LogLevel:       "debug",
+				Servers: []string{testServer.URL},
+				Authentication: Authentication{
+					BasicAuthentication:       basicAuth("user", "secret", ""),
+					BearerTokenAuthentication: bearerAuth(pwdtokenFile, true),
+				},
+				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
 					MaxBytes: -1, // disable bulk; we want immediate flush
 				},
@@ -210,11 +202,14 @@ func TestNewClient(t *testing.T) {
 			expectedError: false,
 		},
 		{
-			name: "succes with invalid configuration of version higher than 8",
+			name: "success with invalid configuration of version higher than 8",
 			config: &Configuration{
-				Servers:        []string{testServer8.URL},
-				Authentication: combinedAuth("user", "secret", "", "", true),
-				LogLevel:       "debug",
+				Servers: []string{testServer8.URL},
+				Authentication: Authentication{
+					BasicAuthentication:       basicAuth("user", "secret", ""),
+					BearerTokenAuthentication: bearerAuth("", true),
+				},
+				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
 					MaxBytes: -1, // disable bulk; we want immediate flush
 				},
@@ -225,9 +220,12 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "success with valid configuration with version 1",
 			config: &Configuration{
-				Servers:        []string{testServer1.URL},
-				Authentication: combinedAuth("user", "secret", "", "", true),
-				LogLevel:       "debug",
+				Servers: []string{testServer1.URL},
+				Authentication: Authentication{
+					BasicAuthentication:       basicAuth("user", "secret", ""),
+					BearerTokenAuthentication: bearerAuth("", true),
+				},
+				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
 					MaxBytes: -1, // disable bulk; we want immediate flush
 				},
@@ -237,9 +235,12 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "success with valid configuration with version 2",
 			config: &Configuration{
-				Servers:        []string{testServer2.URL},
-				Authentication: combinedAuth("user", "secret", "", "", true),
-				LogLevel:       "debug",
+				Servers: []string{testServer2.URL},
+				Authentication: Authentication{
+					BasicAuthentication:       basicAuth("user", "secret", ""),
+					BearerTokenAuthentication: bearerAuth("", true),
+				},
+				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
 					MaxBytes: -1, // disable bulk; we want immediate flush
 				},
@@ -249,9 +250,12 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "success with valid configuration password from file",
 			config: &Configuration{
-				Servers:        []string{testServer.URL},
-				Authentication: combinedAuth("user", "", pwdFile, "", true),
-				LogLevel:       "debug",
+				Servers: []string{testServer.URL},
+				Authentication: Authentication{
+					BasicAuthentication:       basicAuth("user", "", pwdFile),
+					BearerTokenAuthentication: bearerAuth("", true),
+				},
+				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
 					MaxBytes: -1, // disable bulk; we want immediate flush
 				},
@@ -259,11 +263,14 @@ func TestNewClient(t *testing.T) {
 			expectedError: false,
 		},
 		{
-			name: "fali with configuration password and password from file are set",
+			name: "fail with configuration password and password from file are set",
 			config: &Configuration{
-				Servers:        []string{testServer.URL},
-				Authentication: combinedAuth("user", "secret", pwdFile, "", true),
-				LogLevel:       "debug",
+				Servers: []string{testServer.URL},
+				Authentication: Authentication{
+					BasicAuthentication:       basicAuth("user", "secret", pwdFile),
+					BearerTokenAuthentication: bearerAuth("", true),
+				},
+				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
 					MaxBytes: -1, // disable bulk; we want immediate flush
 				},
@@ -273,9 +280,12 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "fail with missing server",
 			config: &Configuration{
-				Servers:        []string{},
-				Authentication: combinedAuth("user", "secret", "", "", true),
-				LogLevel:       "debug",
+				Servers: []string{},
+				Authentication: Authentication{
+					BasicAuthentication:       basicAuth("user", "secret", ""),
+					BearerTokenAuthentication: bearerAuth("", true),
+				},
+				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
 					MaxBytes: -1, // disable bulk; we want immediate flush
 				},
@@ -285,9 +295,12 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "fail with invalid configuration invalid loglevel",
 			config: &Configuration{
-				Servers:        []string{testServer.URL},
-				Authentication: combinedAuth("user", "secret", "", "", true),
-				LogLevel:       "invalid",
+				Servers: []string{testServer.URL},
+				Authentication: Authentication{
+					BasicAuthentication:       basicAuth("user", "secret", ""),
+					BearerTokenAuthentication: bearerAuth("", true),
+				},
+				LogLevel: "invalid",
 				BulkProcessing: BulkProcessing{
 					MaxBytes: -1, // disable bulk; we want immediate flush
 				},
@@ -297,9 +310,12 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "fail with invalid configuration invalid bulkworkers number",
 			config: &Configuration{
-				Servers:        []string{testServer.URL},
-				Authentication: combinedAuth("user", "secret", "", "", true),
-				LogLevel:       "invalid",
+				Servers: []string{testServer.URL},
+				Authentication: Authentication{
+					BasicAuthentication:       basicAuth("user", "secret", ""),
+					BearerTokenAuthentication: bearerAuth("", true),
+				},
+				LogLevel: "invalid",
 				BulkProcessing: BulkProcessing{
 					Workers:  0,
 					MaxBytes: -1, // disable bulk; we want immediate flush
@@ -310,9 +326,12 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "success with valid configuration and info log level",
 			config: &Configuration{
-				Servers:        []string{testServer.URL},
-				Authentication: combinedAuth("user", "secret", "", "", true),
-				LogLevel:       "info",
+				Servers: []string{testServer.URL},
+				Authentication: Authentication{
+					BasicAuthentication:       basicAuth("user", "secret", ""),
+					BearerTokenAuthentication: bearerAuth("", true),
+				},
+				LogLevel: "info",
 				BulkProcessing: BulkProcessing{
 					Workers:  0,
 					MaxBytes: -1, // disable bulk; we want immediate flush
@@ -323,9 +342,12 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "success with valid configuration and error log level",
 			config: &Configuration{
-				Servers:        []string{testServer.URL},
-				Authentication: combinedAuth("user", "secret", "", "", true),
-				LogLevel:       "error",
+				Servers: []string{testServer.URL},
+				Authentication: Authentication{
+					BasicAuthentication:       basicAuth("user", "secret", ""),
+					BearerTokenAuthentication: bearerAuth("", true),
+				},
+				LogLevel: "error",
 				BulkProcessing: BulkProcessing{
 					MaxBytes: -1, // disable bulk; we want immediate flush
 				},
@@ -356,7 +378,9 @@ func TestNewClient(t *testing.T) {
 func TestApplyDefaults(t *testing.T) {
 	source := &Configuration{
 		RemoteReadClusters: []string{"cluster1", "cluster2"},
-		Authentication:     basicAuth("sourceUser", "sourcePass", ""),
+		Authentication: Authentication{
+			BasicAuthentication: basicAuth("sourceUser", "sourcePass", ""),
+		},
 		Sniffing: Sniffing{
 			Enabled:  true,
 			UseHTTPS: true,
@@ -414,7 +438,9 @@ func TestApplyDefaults(t *testing.T) {
 			name: "Some Defaults Applied",
 			target: &Configuration{
 				RemoteReadClusters: []string{"customCluster"},
-				Authentication:     basicAuth("customUser", "sourcePass", ""),
+				Authentication: Authentication{
+					BasicAuthentication: basicAuth("customUser", "sourcePass", ""),
+				},
 				Indices: Indices{
 					Spans: IndexOptions{
 						Priority: 10,
@@ -430,7 +456,9 @@ func TestApplyDefaults(t *testing.T) {
 			},
 			expected: &Configuration{
 				RemoteReadClusters: []string{"customCluster"},
-				Authentication:     basicAuth("customUser", "sourcePass", ""),
+				Authentication: Authentication{
+					BasicAuthentication: basicAuth("customUser", "sourcePass", ""),
+				},
 				Sniffing: Sniffing{
 					Enabled:  true,
 					UseHTTPS: true,
@@ -471,7 +499,9 @@ func TestApplyDefaults(t *testing.T) {
 			name: "No Defaults Applied",
 			target: &Configuration{
 				RemoteReadClusters: []string{"cluster1", "cluster2"},
-				Authentication:     basicAuth("sourceUser", "sourcePass", ""),
+				Authentication: Authentication{
+					BasicAuthentication: basicAuth("sourceUser", "sourcePass", ""),
+				},
 				Sniffing: Sniffing{
 					Enabled:  true,
 					UseHTTPS: true,
@@ -521,15 +551,21 @@ func TestApplyDefaults(t *testing.T) {
 
 func TestApplyDefaults_Auth(t *testing.T) {
 	source := &Configuration{
-		Authentication: basicAuth("sourceUser", "sourcePass", ""),
+		Authentication: Authentication{
+			BasicAuthentication: basicAuth("sourceUser", "sourcePass", ""),
+		},
 	}
 
 	target := &Configuration{
-		Authentication: basicAuth("", "", ""),
+		Authentication: Authentication{
+			BasicAuthentication: basicAuth("", "", ""),
+		},
 	}
 
 	expected := &Configuration{
-		Authentication: basicAuth("sourceUser", "sourcePass", ""),
+		Authentication: Authentication{
+			BasicAuthentication: basicAuth("sourceUser", "sourcePass", ""),
+		},
 	}
 
 	target.ApplyDefaults(source)
@@ -540,6 +576,7 @@ func TestTagKeysAsFields(t *testing.T) {
 	const (
 		pwd1 = "tag1\ntag2"
 	)
+
 	pwdFile := filepath.Join(t.TempDir(), "pwd")
 	require.NoError(t, os.WriteFile(pwdFile, []byte(pwd1), 0o600))
 
@@ -609,7 +646,6 @@ func TestTagKeysAsFields(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			tags, err := test.config.TagKeysAsFields()
-
 			if test.expectError {
 				require.Error(t, err)
 				require.Nil(t, tags)
@@ -794,7 +830,6 @@ func TestHandleBulkAfterCallback_MissingStartTime(t *testing.T) {
 	defer mf.Stop()
 
 	batchID := int64(42) // assign any value which is not stored in the map
-
 	fakeRequests := []elastic.BulkableRequest{nil}
 	response := &elastic.BulkResponse{
 		Errors: true,
@@ -849,10 +884,12 @@ func TestGetConfigOptions(t *testing.T) {
 		{
 			name: "BearerToken context propagation",
 			cfg: &Configuration{
-				Servers:        []string{"http://localhost:9200"},
-				Sniffing:       Sniffing{Enabled: false},
-				Authentication: bearerAuth("", true),
-				LogLevel:       "info",
+				Servers:  []string{"http://localhost:9200"},
+				Sniffing: Sniffing{Enabled: false},
+				Authentication: Authentication{
+					BearerTokenAuthentication: bearerAuth("", true),
+				},
+				LogLevel: "info",
 			},
 			ctx:     bearertoken.ContextWithBearerToken(context.Background(), "context-bearer-token"),
 			wantErr: false,
@@ -860,10 +897,12 @@ func TestGetConfigOptions(t *testing.T) {
 		{
 			name: "BearerToken file and context both enabled",
 			cfg: &Configuration{
-				Servers:        []string{"http://localhost:9200"},
-				Sniffing:       Sniffing{Enabled: false},
-				Authentication: bearerAuth(bearerTokenFile, true),
-				LogLevel:       "info",
+				Servers:  []string{"http://localhost:9200"},
+				Sniffing: Sniffing{Enabled: false},
+				Authentication: Authentication{
+					BearerTokenAuthentication: bearerAuth(bearerTokenFile, true),
+				},
+				LogLevel: "info",
 			},
 			ctx:     bearertoken.ContextWithBearerToken(context.Background(), "context-bearer-token"),
 			wantErr: false,
@@ -871,11 +910,13 @@ func TestGetConfigOptions(t *testing.T) {
 		{
 			name: "BearerToken file error",
 			cfg: &Configuration{
-				Servers:        []string{"http://localhost:9200"},
-				TLS:            configtls.ClientConfig{Insecure: true},
-				Sniffing:       Sniffing{Enabled: false},
-				Authentication: bearerAuth("/does/not/exist/token", false),
-				LogLevel:       "info",
+				Servers:  []string{"http://localhost:9200"},
+				TLS:      configtls.ClientConfig{Insecure: true},
+				Sniffing: Sniffing{Enabled: false},
+				Authentication: Authentication{
+					BearerTokenAuthentication: bearerAuth("/does/not/exist/token", false),
+				},
+				LogLevel: "info",
 			},
 			ctx:             context.Background(),
 			wantErr:         true,
@@ -894,10 +935,12 @@ func TestGetConfigOptions(t *testing.T) {
 		{
 			name: "BasicAuth password file error",
 			cfg: &Configuration{
-				Servers:        []string{"http://localhost:9200"},
-				Sniffing:       Sniffing{Enabled: false},
-				Authentication: basicAuth("", "", "/does/not/exist"),
-				LogLevel:       "info",
+				Servers:  []string{"http://localhost:9200"},
+				Sniffing: Sniffing{Enabled: false},
+				Authentication: Authentication{
+					BasicAuthentication: basicAuth("", "", "/does/not/exist"),
+				},
+				LogLevel: "info",
 			},
 			ctx:             context.Background(),
 			wantErr:         true,
@@ -906,10 +949,12 @@ func TestGetConfigOptions(t *testing.T) {
 		{
 			name: "BasicAuth both Password and PasswordFilePath set",
 			cfg: &Configuration{
-				Servers:        []string{"http://localhost:9200"},
-				Sniffing:       Sniffing{Enabled: false},
-				Authentication: basicAuth("", "secret", "/some/file/path"),
-				LogLevel:       "info",
+				Servers:  []string{"http://localhost:9200"},
+				Sniffing: Sniffing{Enabled: false},
+				Authentication: Authentication{
+					BasicAuthentication: basicAuth("", "secret", "/some/file/path"),
+				},
+				LogLevel: "info",
 			},
 			ctx:             context.Background(),
 			wantErr:         true,
@@ -918,10 +963,12 @@ func TestGetConfigOptions(t *testing.T) {
 		{
 			name: "Invalid log level triggers addLoggerOptions error",
 			cfg: &Configuration{
-				Servers:        []string{"http://localhost:9200"},
-				Sniffing:       Sniffing{Enabled: false},
-				Authentication: basicAuth("user", "secret", ""),
-				LogLevel:       "invalid",
+				Servers:  []string{"http://localhost:9200"},
+				Sniffing: Sniffing{Enabled: false},
+				Authentication: Authentication{
+					BasicAuthentication: basicAuth("user", "secret", ""),
+				},
+				LogLevel: "invalid",
 			},
 			ctx:             context.Background(),
 			wantErr:         true,
@@ -934,7 +981,9 @@ func TestGetConfigOptions(t *testing.T) {
 				LogLevel:           "info",
 				DisableHealthCheck: false, // Should be overridden by context-only auth
 				Sniffing:           Sniffing{Enabled: false},
-				Authentication:     bearerAuth("", true),
+				Authentication: Authentication{
+					BearerTokenAuthentication: bearerAuth("", true),
+				},
 			},
 			ctx:     bearertoken.ContextWithBearerToken(context.Background(), "context-bearer-token"),
 			wantErr: false,
@@ -970,6 +1019,7 @@ func TestGetConfigOptions(t *testing.T) {
 			if tt.prepare != nil {
 				tt.prepare()
 			}
+
 			options, err := tt.cfg.getConfigOptions(tt.ctx, logger)
 			if tt.wantErr {
 				require.Error(t, err)
@@ -1095,15 +1145,15 @@ func TestGetConfigOptionsIntegration(t *testing.T) {
 		SendGetBodyAs:   "POST",
 		LogLevel:        "info",
 		QueryTimeout:    30 * time.Second,
-		Authentication:  basicAuth("testuser", "testpass", ""),
+		Authentication: Authentication{
+			BasicAuthentication: basicAuth("testuser", "testpass", ""),
+		},
 	}
 
 	logger := zap.NewNop()
 	options, err := cfg.getConfigOptions(context.Background(), logger)
-
 	require.NoError(t, err)
 	require.NotNil(t, options)
-
 	require.Greater(t, len(options), 5, "Should have basic ES options plus additional config options")
 }
 
@@ -1147,8 +1197,10 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 		{
 			name: "Secure mode with bearer token from file",
 			cfg: &Configuration{
-				TLS:            configtls.ClientConfig{Insecure: false},
-				Authentication: bearerAuth(bearerTokenFile, false),
+				TLS: configtls.ClientConfig{Insecure: false},
+				Authentication: Authentication{
+					BearerTokenAuthentication: bearerAuth(bearerTokenFile, false),
+				},
 			},
 			ctx: context.Background(),
 			validate: func(t *testing.T, rt http.RoundTripper) {
@@ -1161,8 +1213,10 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 		{
 			name: "Insecure mode with bearer token from context",
 			cfg: &Configuration{
-				TLS:            configtls.ClientConfig{Insecure: true},
-				Authentication: bearerAuth("", true),
+				TLS: configtls.ClientConfig{Insecure: true},
+				Authentication: Authentication{
+					BearerTokenAuthentication: bearerAuth("", true),
+				},
 			},
 			ctx: bearertoken.ContextWithBearerToken(context.Background(), "context-bearer-token"),
 			validate: func(t *testing.T, rt http.RoundTripper) {
@@ -1178,7 +1232,9 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 		{
 			name: "BearerToken file error",
 			cfg: &Configuration{
-				Authentication: bearerAuth("/does/not/exist/token", false),
+				Authentication: Authentication{
+					BearerTokenAuthentication: bearerAuth("/does/not/exist/token", false),
+				},
 			},
 			ctx:             context.Background(),
 			wantErrContains: "no such file or directory",
@@ -1219,7 +1275,6 @@ func TestLoadTokenFromFile(t *testing.T) {
 		const token = "test-token"
 		tokenFile := filepath.Join(t.TempDir(), "token")
 		require.NoError(t, os.WriteFile(tokenFile, []byte(token), 0o600))
-
 		loadedToken, err := loadTokenFromFile(tokenFile)
 		require.NoError(t, err)
 		assert.Equal(t, token, loadedToken)
