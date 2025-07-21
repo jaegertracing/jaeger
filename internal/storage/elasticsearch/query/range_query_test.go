@@ -6,6 +6,8 @@ package query
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 func TestRangeQuery(t *testing.T) {
@@ -64,4 +66,8 @@ func TestRangeQueryWithFormat(t *testing.T) {
 	if got != expected {
 		t.Errorf("expected\n%s\n,got:\n%s", expected, got)
 	}
+}
+
+func TestMain(m *testing.M) {
+	testutils.VerifyGoLeaks(m)
 }
