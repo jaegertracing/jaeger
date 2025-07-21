@@ -51,4 +51,4 @@ jobs:
           # General configuration
           operations-per-run: 100
           remove-stale-when-updated: true
-          debug-only: false
+          debug-only: true
