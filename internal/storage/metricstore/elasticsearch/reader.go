@@ -65,7 +65,7 @@ func NewMetricsReader(client es.Client, cfg config.Configuration, logger *zap.Lo
 	tr := tracer.Tracer("elasticsearch-metricstore")
 	return &MetricsReader{
 		queryLogger:  NewQueryLogger(logger, tr),
-		queryBuilder: NewQueryBuilder(client, cfg),
+		queryBuilder: NewQueryBuilder(client, cfg, logger),
 	}
 }
 
@@ -84,7 +84,7 @@ func (r MetricsReader) GetLatencies(ctx context.Context, params *metricstore.Lat
 		aggQuery:            r.queryBuilder.BuildLatenciesAggQuery(params, timeRange),
 	}
 
-	searchResult, err := r.executeSearch(ctx, metricsParams)
+	searchResult, err := r.executeSearch(ctx, metricsParams, timeRange)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +118,7 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 		aggQuery:            r.queryBuilder.BuildCallRateAggQuery(params.BaseQueryParameters, timeRange),
 	}
 
-	searchResult, err := r.executeSearch(ctx, metricsParams)
+	searchResult, err := r.executeSearch(ctx, metricsParams, timeRange)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +147,7 @@ func (r MetricsReader) GetErrorRates(ctx context.Context, params *metricstore.Er
 		aggQuery:            r.queryBuilder.BuildCallRateAggQuery(params.BaseQueryParameters, timeRange), // Use the same aggQuery as GetCallRates
 	}
 
-	searchResult, err := r.executeSearch(ctx, metricsParams)
+	searchResult, err := r.executeSearch(ctx, metricsParams, timeRange)
 	if err != nil {
 		return nil, err
 	}
@@ -221,11 +221,11 @@ func bucketsToLatencies(buckets []*elastic.AggregationBucketHistogramItem, perce
 }
 
 // executeSearch performs the Elasticsearch search.
-func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams) (*elastic.SearchResult, error) {
+func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams, timeRange TimeRange) (*elastic.SearchResult, error) {
 	span := r.queryLogger.TraceQuery(ctx, p.metricName)
 	defer span.End()
 
-	searchResult, err := r.queryBuilder.Execute(ctx, p.boolQuery, p.aggQuery)
+	searchResult, err := r.queryBuilder.Execute(ctx, p.boolQuery, p.aggQuery, timeRange)
 	if err != nil {
 		err = fmt.Errorf("failed executing metrics query: %w", err)
 		r.queryLogger.LogErrorToSpan(span, err)
