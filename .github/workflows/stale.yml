@@ -2,8 +2,8 @@ name: 'Close stale issues and PRs'
 
 on:
   schedule:
-    # Run daily at 1:30 AM UTC
-    - cron: '30 1 * * *'
+    # Run every Monday at 1:30 AM UTC
+    - cron: '30 1 * * 1'
   workflow_dispatch:
 
 permissions:
@@ -22,14 +22,16 @@ jobs:
       - uses: actions/stale@28ca1036281a5e5922ead5184a1bbf96e5fc984e
         with:
           # Issues configuration
-          days-before-issue-stale: 30
+          days-before-issue-stale: 90
           days-before-issue-close: 14
           stale-issue-message: >
             This issue has been automatically marked as stale because it has not had
             recent activity. It will be closed if no further activity occurs.
+            To keep it open either add a comment or the label `do-not-expire`.
           close-issue-message: >
             This issue has been automatically closed due to inactivity.
           stale-issue-label: 'stale'
+          exempt-issue-labels: 'do-not-expire'
           only-issue-labels: 'question'
           
           # Pull requests configuration  
@@ -44,6 +46,7 @@ jobs:
             it if you need more time. We really appreciate your contribution and we are sorry
             that this has not been completed.
           stale-pr-label: 'stale'
+          exempt-pr-labels: 'do-not-expire'
           
           # General configuration
           operations-per-run: 100
