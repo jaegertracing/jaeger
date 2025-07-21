@@ -54,6 +54,15 @@ var mockEsServerResponseWithVersion2 = []byte(`
 }
 `)
 
+var mockEsServerResponseWithVersion3 = []byte(`
+{
+	"tagline": "OpenSearch",
+	"Version": {
+		"Number": "3"
+	}
+}
+`)
+
 var mockEsServerResponseWithVersion8 = []byte(`
 {
 	"tagline": "OpenSearch",
@@ -133,6 +142,13 @@ func TestNewClient(t *testing.T) {
 		res.Write(mockEsServerResponseWithVersion2)
 	}))
 	defer testServer2.Close()
+
+	testServer3 := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		assert.Contains(t, []string{http.MethodGet, http.MethodHead}, req.Method)
+		res.WriteHeader(http.StatusOK)
+		res.Write(mockEsServerResponseWithVersion3)
+	}))
+	defer testServer3.Close()
 
 	testServer8 := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 		assert.Contains(t, []string{http.MethodGet, http.MethodHead}, req.Method)
@@ -236,6 +252,21 @@ func TestNewClient(t *testing.T) {
 			name: "success with valid configuration with version 2",
 			config: &Configuration{
 				Servers: []string{testServer2.URL},
+				Authentication: Authentication{
+					BasicAuthentication:       basicAuth("user", "secret", ""),
+					BearerTokenAuthentication: bearerAuth("", true),
+				},
+				LogLevel: "debug",
+				BulkProcessing: BulkProcessing{
+					MaxBytes: -1, // disable bulk; we want immediate flush
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "success with valid configuration with version 3",
+			config: &Configuration{
+				Servers: []string{testServer3.URL},
 				Authentication: Authentication{
 					BasicAuthentication:       basicAuth("user", "secret", ""),
 					BearerTokenAuthentication: bearerAuth("", true),
