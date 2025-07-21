@@ -24,6 +24,7 @@ import (
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
+	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 )
 
 const (
@@ -629,7 +630,7 @@ func (*SpanReader) buildDurationQuery(durationMin time.Duration, durationMax tim
 	if durationMax != 0 {
 		maxDurationMicros = model.DurationAsMicroseconds(durationMax)
 	}
-	return elastic.NewRangeQuery(durationField).Gte(minDurationMicros).Lte(maxDurationMicros)
+	return esquery.NewRangeQuery(durationField).Gte(minDurationMicros).Lte(maxDurationMicros)
 }
 
 func (*SpanReader) buildStartTimeQuery(startTimeMin time.Time, startTimeMax time.Time) elastic.Query {
@@ -638,7 +639,7 @@ func (*SpanReader) buildStartTimeQuery(startTimeMin time.Time, startTimeMax time
 	// startTimeMillisField is date field in ES mapping.
 	// Using date field in range queries helps to skip search on unnecessary shards at Elasticsearch side.
 	// https://discuss.elastic.co/t/timeline-query-on-timestamped-indices/129328/2
-	return elastic.NewRangeQuery(startTimeMillisField).Gte(minStartTimeMicros / 1000).Lte(maxStartTimeMicros / 1000)
+	return esquery.NewRangeQuery(startTimeMillisField).Gte(minStartTimeMicros / 1000).Lte(maxStartTimeMicros / 1000)
 }
 
 func (*SpanReader) buildServiceNameQuery(serviceName string) elastic.Query {
