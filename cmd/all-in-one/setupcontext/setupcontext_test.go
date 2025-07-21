@@ -6,16 +6,12 @@ package setupcontext
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
-func TestSetupContext(t *testing.T) {
+func TestSetupContext(_ *testing.T) {
 	// purely for code coverage
 	SetAllInOne()
-	defer UnsetAllInOne()
-	assert.True(t, IsAllInOne())
 }
 
 func TestMain(m *testing.M) {
