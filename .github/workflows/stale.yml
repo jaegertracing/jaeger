@@ -31,7 +31,7 @@ jobs:
           close-issue-message: >
             This issue has been automatically closed due to inactivity.
           stale-issue-label: 'stale'
-          exempt-issue-labels: 'do-not-expire'
+          exempt-issue-labels: 'do-not-expire,help-wanted'
           only-issue-labels: 'question'
           
           # Pull requests configuration  
