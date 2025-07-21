@@ -439,7 +439,7 @@ func TestApplyDefaults(t *testing.T) {
 			target: &Configuration{
 				RemoteReadClusters: []string{"customCluster"},
 				Authentication: Authentication{
-					BasicAuthentication: basicAuth("customUser", "sourcePass", ""),
+					BasicAuthentication: basicAuth("customUser", "", ""),
 				},
 				Indices: Indices{
 					Spans: IndexOptions{
