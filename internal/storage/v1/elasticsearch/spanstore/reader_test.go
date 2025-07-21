@@ -1094,8 +1094,8 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 func TestSpanReader_buildDurationQuery(t *testing.T) {
 	expectedStr := `{ "range":
 			{ "duration": {
-				        "lte": 1000000,
-				        "gte": 2000000 }
+				        "gte": 1000000,
+				        "lte": 2000000 }
 			}
 		}`
 	withSpanReader(t, func(r *spanReaderTest) {
