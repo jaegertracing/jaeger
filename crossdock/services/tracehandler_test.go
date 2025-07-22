@@ -438,7 +438,7 @@ func TestAdaptiveSamplingTestInternal(t *testing.T) {
 				query.On("GetTraces", "crossdock-svc", "op", mock.Anything).Return([]*ui.Trace{&testTrace}, nil)
 			}
 
-			_, err := handler.adaptiveSamplingTest("svc", &traceRequest{Operation: "op"})
+			_, err := handler.runAdaptiveSamplingTest("svc", &traceRequest{Operation: "op"})
 			if test.errMsg != "" {
 				require.EqualError(t, err, test.errMsg)
 			} else {

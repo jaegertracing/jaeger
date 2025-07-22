@@ -72,7 +72,7 @@ func NewSpanProcessor(
 	additional []ProcessSpan,
 	opts ...Option,
 ) (processor.SpanProcessor, error) {
-	sp, err := newSpanProcessor(traceWriter, additional, opts...)
+	sp, err := createSpanProcessor(traceWriter, additional, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("could not create span processor: %w", err)
 	}
@@ -95,7 +95,7 @@ func NewSpanProcessor(
 	return sp, nil
 }
 
-func newSpanProcessor(traceWriter tracestore.Writer, additional []ProcessSpan, opts ...Option) (*spanProcessor, error) {
+func createSpanProcessor(traceWriter tracestore.Writer, additional []ProcessSpan, opts ...Option) (*spanProcessor, error) {
 	options := Options.apply(opts...)
 	handlerMetrics := NewSpanProcessorMetrics(
 		options.serviceMetrics,
@@ -245,7 +245,7 @@ func (sp *spanProcessor) ProcessSpans(ctx context.Context, batch processor.Batch
 	var batchOks []bool
 	var batchErr error
 	batch.GetSpans(func(spans []*model.Span) {
-		batchOks, batchErr = sp.processSpans(ctx, batch, spans)
+		batchOks, batchErr = sp.processSpanBatch(ctx, batch, spans)
 	}, func(traces ptrace.Traces) {
 		// TODO verify if the context will survive all the way to the consumer threads.
 		ctx := tenancy.WithTenant(ctx, batch.GetTenant())
@@ -263,7 +263,7 @@ func (sp *spanProcessor) ProcessSpans(ctx context.Context, batch processor.Batch
 	return batchOks, batchErr
 }
 
-func (sp *spanProcessor) processSpans(_ context.Context, batch processor.Batch, spans []*model.Span) ([]bool, error) {
+func (sp *spanProcessor) processSpanBatch(_ context.Context, batch processor.Batch, spans []*model.Span) ([]bool, error) {
 	sp.metrics.BatchSize.Update(int64(len(spans)))
 	retMe := make([]bool, len(spans))
 

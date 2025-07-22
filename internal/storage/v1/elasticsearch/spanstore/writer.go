@@ -122,7 +122,7 @@ func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 	if serviceIndexName != "" {
 		s.writeService(serviceIndexName, span)
 	}
-	s.writeSpan(spanIndexName, span)
+	s.indexSpan(spanIndexName, span)
 	s.logger.Debug("Wrote span to ES index", zap.String("index", spanIndexName))
 }
 
@@ -152,7 +152,7 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
 	s.serviceWriter(indexName, jsonSpan)
 }
 
-func (s *SpanWriter) writeSpan(indexName string, jsonSpan *dbmodel.Span) {
+func (s *SpanWriter) indexSpan(indexName string, jsonSpan *dbmodel.Span) {
 	s.client().Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan).Add()
 }
 

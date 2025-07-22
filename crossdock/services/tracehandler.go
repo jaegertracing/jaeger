@@ -104,7 +104,7 @@ func (h *TraceHandler) AdaptiveSamplingTest(t crossdock.T) {
 	service := t.Param(servicesParam)
 	h.logger.Info("Starting AdaptiveSampling test", zap.String("service", service))
 
-	if err := h.runTest(service, request, h.adaptiveSamplingTest, validateAdaptiveSamplingTraces); err != nil {
+	if err := h.runTest(service, request, h.runAdaptiveSamplingTest, validateAdaptiveSamplingTraces); err != nil {
 		h.logger.Error(err.Error())
 		t.Errorf("Fail: %s", err.Error())
 	} else {
@@ -120,7 +120,7 @@ func (*TraceHandler) runTest(service string, request *traceRequest, tFunc testFu
 	return vFunc(request, traces)
 }
 
-func (h *TraceHandler) adaptiveSamplingTest(service string, request *traceRequest) ([]*ui.Trace, error) {
+func (h *TraceHandler) runAdaptiveSamplingTest(service string, request *traceRequest) ([]*ui.Trace, error) {
 	stop := make(chan struct{})
 	go h.createTracesLoop(service, *request, stop)
 	defer close(stop)

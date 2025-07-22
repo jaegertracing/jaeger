@@ -13,14 +13,14 @@ import (
 )
 
 func TestIndexFilter(t *testing.T) {
-	testIndexFilter(t, "")
+	runIndexFilterTest(t, "")
 }
 
 func TestIndexFilter_prefix(t *testing.T) {
-	testIndexFilter(t, "tenant1-")
+	runIndexFilterTest(t, "tenant1-")
 }
 
-func testIndexFilter(t *testing.T, prefix string) {
+func runIndexFilterTest(t *testing.T, prefix string) {
 	time20200807 := time.Date(2020, time.August, 6, 0, 0, 0, 0, time.UTC).AddDate(0, 0, 1)
 	indices := []client.Index{
 		{

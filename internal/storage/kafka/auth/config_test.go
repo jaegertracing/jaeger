@@ -18,14 +18,14 @@ import (
 	"github.com/jaegertracing/jaeger/internal/config"
 )
 
-func addFlags(flags *flag.FlagSet) {
+func addTestFlags(flags *flag.FlagSet) {
 	configPrefix := "kafka.auth"
 	AddFlags(configPrefix, flags)
 }
 
 func Test_InitFromViper(t *testing.T) {
 	configPrefix := "kafka.auth"
-	v, command := config.Viperize(addFlags)
+	v, command := config.Viperize(addTestFlags)
 	command.ParseFlags([]string{
 		"--kafka.auth.authentication=tls",
 		"--kafka.auth.kerberos.service-name=kafka",
@@ -92,7 +92,7 @@ func TestSetConfiguration(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	saramaConfig := sarama.NewConfig()
 	configPrefix := "kafka.auth"
-	v, command := config.Viperize(addFlags)
+	v, command := config.Viperize(addTestFlags)
 
 	// Table-driven test cases
 	tests := []struct {

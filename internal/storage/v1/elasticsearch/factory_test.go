@@ -331,7 +331,7 @@ func TestPasswordFromFile(t *testing.T) {
 		testutils.VerifyGoLeaksOnce(t)
 	})
 	t.Run("primary client", func(t *testing.T) {
-		testPasswordFromFile(t)
+		runPasswordFromFileTest(t)
 	})
 
 	t.Run("load token error", func(t *testing.T) {
@@ -342,7 +342,7 @@ func TestPasswordFromFile(t *testing.T) {
 	})
 }
 
-func testPasswordFromFile(t *testing.T) {
+func runPasswordFromFileTest(t *testing.T) {
 	const (
 		pwd1 = "first password"
 		pwd2 = "second password"

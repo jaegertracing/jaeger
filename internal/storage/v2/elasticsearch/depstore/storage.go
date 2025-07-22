@@ -69,7 +69,7 @@ func NewDependencyStore(p Params) *DependencyStore {
 // WriteDependencies write dependencies to Elasticsearch
 func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []dbmodel.DependencyLink) error {
 	writeIndexName := s.getWriteIndex(ts)
-	s.writeDependencies(writeIndexName, ts, dependencies)
+	s.indexDependencies(writeIndexName, ts, dependencies)
 	return nil
 }
 
@@ -82,7 +82,7 @@ func (s *DependencyStore) CreateTemplates(dependenciesTemplate string) error {
 	return nil
 }
 
-func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, dependencies []dbmodel.DependencyLink) {
+func (s *DependencyStore) indexDependencies(indexName string, ts time.Time, dependencies []dbmodel.DependencyLink) {
 	s.client().Index().Index(indexName).Type(dependencyType).
 		BodyJson(&dbmodel.TimeDependencies{
 			Timestamp:    ts,

@@ -180,7 +180,7 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 	}
 	expected := make([]tracestore.FoundTraceID, 0, len(dbTraceIDs))
 	for _, dbTraceID := range dbTraceIDs {
-		expected = append(expected, fromDBTraceId(t, dbTraceID))
+		expected = append(expected, convertDBTraceId(t, dbTraceID))
 	}
 	coreReader.On("FindTraceIDs", mock.Anything, mock.Anything).Return(dbTraceIDs, nil)
 	for traceIds, err := range reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
@@ -252,7 +252,7 @@ func Test_NewTraceReader(t *testing.T) {
 	assert.IsType(t, &spanstore.SpanReader{}, reader.spanReader)
 }
 
-func fromDBTraceId(t *testing.T, traceID dbmodel.TraceID) tracestore.FoundTraceID {
+func convertDBTraceId(t *testing.T, traceID dbmodel.TraceID) tracestore.FoundTraceID {
 	traceId, err := fromDbTraceId(traceID)
 	require.NoError(t, err)
 	return tracestore.FoundTraceID{

@@ -113,9 +113,6 @@ linters:
         # often looks like a red herring, needs investigation
         - name: flag-parameter
           disabled: true
-        # looks like a good linter, needs cleanup
-        - name: confusing-naming
-          disabled: true
         # too pendantic
         - name: function-length
           disabled: true

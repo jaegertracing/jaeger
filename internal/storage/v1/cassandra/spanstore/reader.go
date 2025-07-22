@@ -257,7 +257,7 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 		traceQuery.NumTraces = defaultNumTraces
 	}
 
-	dbTraceIDs, err := s.findTraceIDs(ctx, traceQuery)
+	dbTraceIDs, err := s.queryTraceIDs(ctx, traceQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -272,7 +272,7 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	return traceIDs, nil
 }
 
-func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
+func (s *SpanReader) queryTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
 	if traceQuery.DurationMin != 0 || traceQuery.DurationMax != 0 {
 		return s.queryByDuration(ctx, traceQuery)
 	}

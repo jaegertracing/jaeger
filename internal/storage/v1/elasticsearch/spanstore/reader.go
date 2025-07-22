@@ -360,7 +360,7 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQ
 		traceQuery.NumTraces = defaultNumTraces
 	}
 
-	esTraceIDs, err := s.findTraceIDs(ctx, traceQuery)
+	esTraceIDs, err := s.queryTraceIDs(ctx, traceQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -494,8 +494,8 @@ func validateQuery(p dbmodel.TraceQueryParameters) error {
 	return nil
 }
 
-func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error) {
-	ctx, childSpan := s.tracer.Start(ctx, "findTraceIDs")
+func (s *SpanReader) queryTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error) {
+	ctx, childSpan := s.tracer.Start(ctx, "queryTraceIDs")
 	defer childSpan.End()
 	//  Below is the JSON body to our HTTP GET request to ElasticSearch. This function creates this.
 	// {
@@ -551,7 +551,7 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQ
 	//      "aggs": { "traceIDs" : { "terms" : {"size": 100,"field": "traceID" }}}
 	//  }
 	aggregation := s.buildTraceIDAggregation(traceQuery.NumTraces)
-	boolQuery := s.buildFindTraceIDsQuery(traceQuery)
+	boolQuery := s.buildTraceIDsQuery(traceQuery)
 	jaegerIndices := s.timeRangeIndices(
 		s.spanIndexPrefix,
 		s.spanIndex.DateLayout,
@@ -597,7 +597,7 @@ func (*SpanReader) buildTraceIDSubAggregation() elastic.Aggregation {
 		Field(startTimeField)
 }
 
-func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParameters) elastic.Query {
+func (s *SpanReader) buildTraceIDsQuery(traceQuery dbmodel.TraceQueryParameters) elastic.Query {
 	boolQuery := elastic.NewBoolQuery()
 
 	// add duration query

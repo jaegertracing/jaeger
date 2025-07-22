@@ -160,7 +160,7 @@ func healthCheck(c *http.Client) error {
 	return errors.New("elastic search is not ready")
 }
 
-func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
+func runElasticsearchStorageTest(t *testing.T, allTagsAsFields bool) {
 	SkipUnlessEnv(t, "elasticsearch", "opensearch")
 	c := getESHttpClient(t)
 	require.NoError(t, healthCheck(c))
@@ -181,14 +181,14 @@ func TestElasticsearchStorage(t *testing.T) {
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnceForES(t)
 	})
-	testElasticsearchStorage(t, false)
+	runElasticsearchStorageTest(t, false)
 }
 
 func TestElasticsearchStorage_AllTagsAsObjectFields(t *testing.T) {
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnceForES(t)
 	})
-	testElasticsearchStorage(t, true)
+	runElasticsearchStorageTest(t, true)
 }
 
 func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
