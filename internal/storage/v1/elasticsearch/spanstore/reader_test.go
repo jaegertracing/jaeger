@@ -692,7 +692,7 @@ func returnSearchFunc(typ string, r *spanReaderTest) (any, error) {
 			dbmodel.OperationQueryParameters{ServiceName: "someService"},
 		)
 	case traceIDAggregation:
-		return r.reader.queryTraceIDs(context.Background(), dbmodel.TraceQueryParameters{})
+		return r.reader.locateTraceIDs(context.Background(), dbmodel.TraceQueryParameters{})
 	}
 	return nil, errors.New("Specify services, operations, traceIDs only")
 }

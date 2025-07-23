@@ -96,7 +96,7 @@ func TestBySvcMetrics(t *testing.T) {
 		logger := zap.NewNop()
 		serviceMetrics := mb.Namespace(metrics.NSOptions{Name: "service", Tags: nil})
 		hostMetrics := mb.Namespace(metrics.NSOptions{Name: "host", Tags: nil})
-		sp, err := createSpanProcessor(
+		sp, err := freshSpanProcessor(
 			v1adapter.NewTraceWriter(&fakeSpanWriter{}),
 			nil,
 			Options.ServiceMetrics(serviceMetrics),
@@ -647,7 +647,7 @@ func TestUpdateDynQueueSize(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := &fakeSpanWriter{}
-			p, err := createSpanProcessor(v1adapter.NewTraceWriter(w), nil, Options.QueueSize(tt.initialCapacity), Options.DynQueueSizeWarmup(tt.warmup), Options.DynQueueSizeMemory(tt.sizeInBytes))
+			p, err := freshSpanProcessor(v1adapter.NewTraceWriter(w), nil, Options.QueueSize(tt.initialCapacity), Options.DynQueueSizeWarmup(tt.warmup), Options.DynQueueSizeMemory(tt.sizeInBytes))
 			require.NoError(t, err)
 			assert.Equal(t, tt.initialCapacity, p.queue.Capacity())
 
@@ -662,7 +662,7 @@ func TestUpdateDynQueueSize(t *testing.T) {
 
 func TestUpdateQueueSizeNoActivityYet(t *testing.T) {
 	w := &fakeSpanWriter{}
-	p, err := createSpanProcessor(v1adapter.NewTraceWriter(w), nil, Options.QueueSize(1), Options.DynQueueSizeWarmup(1), Options.DynQueueSizeMemory(1))
+	p, err := freshSpanProcessor(v1adapter.NewTraceWriter(w), nil, Options.QueueSize(1), Options.DynQueueSizeWarmup(1), Options.DynQueueSizeMemory(1))
 	require.NoError(t, err)
 	assert.NotPanics(t, p.updateQueueSize)
 }
@@ -671,7 +671,7 @@ func TestStartDynQueueSizeUpdater(t *testing.T) {
 	w := &fakeSpanWriter{}
 	oneGiB := uint(1024 * 1024 * 1024)
 
-	p, err := createSpanProcessor(v1adapter.NewTraceWriter(w), nil, Options.QueueSize(100), Options.DynQueueSizeWarmup(1000), Options.DynQueueSizeMemory(oneGiB))
+	p, err := freshSpanProcessor(v1adapter.NewTraceWriter(w), nil, Options.QueueSize(100), Options.DynQueueSizeWarmup(1000), Options.DynQueueSizeMemory(oneGiB))
 	require.NoError(t, err)
 	assert.Equal(t, 100, p.queue.Capacity())
 

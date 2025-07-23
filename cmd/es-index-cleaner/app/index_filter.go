@@ -28,11 +28,11 @@ type IndexFilter struct {
 
 // Filter filters indices.
 func (i *IndexFilter) Filter(indices []client.Index) []client.Index {
-	indices = i.filterByPattern(indices)
+	indices = i.filterIndices(indices)
 	return filter.ByDate(indices, i.DeleteBeforeThisDate)
 }
 
-func (i *IndexFilter) filterByPattern(indices []client.Index) []client.Index {
+func (i *IndexFilter) filterIndices(indices []client.Index) []client.Index {
 	var reg *regexp.Regexp
 	switch {
 	case i.Archive:

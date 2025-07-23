@@ -72,7 +72,7 @@ func NewSpanProcessor(
 	additional []ProcessSpan,
 	opts ...Option,
 ) (processor.SpanProcessor, error) {
-	sp, err := createSpanProcessor(traceWriter, additional, opts...)
+	sp, err := freshSpanProcessor(traceWriter, additional, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("could not create span processor: %w", err)
 	}
@@ -95,7 +95,7 @@ func NewSpanProcessor(
 	return sp, nil
 }
 
-func createSpanProcessor(traceWriter tracestore.Writer, additional []ProcessSpan, opts ...Option) (*spanProcessor, error) {
+func freshSpanProcessor(traceWriter tracestore.Writer, additional []ProcessSpan, opts ...Option) (*spanProcessor, error) {
 	options := Options.apply(opts...)
 	handlerMetrics := NewSpanProcessorMetrics(
 		options.serviceMetrics,
