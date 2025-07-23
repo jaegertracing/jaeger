@@ -219,6 +219,9 @@ type BearerTokenAuthentication struct {
 	FilePath string `mapstructure:"file_path"`
 	// AllowTokenFromContext, if set to true, enables reading bearer token from the context.
 	AllowFromContext bool `mapstructure:"from_context"`
+	// ReloadInterval contains the interval at which the bearer token file is reloaded.
+	// If set to 0 then the file is only loaded once on startup.
+	ReloadInterval time.Duration `mapstructure:"reload_interval"`
 }
 
 // NewClient creates a new ElasticSearch client
@@ -641,29 +644,27 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 		transport.TLSClientConfig = tlsConfig
 	}
 
-	// Wrap with authentication layer if configured.
-	var roundTripper http.RoundTripper = transport
+	// Initialize authentication methods.
+	var authMethods []auth.Method
 
+	// Bearer Token Authentication
 	if c.Authentication.BearerTokenAuthentication.HasValue() {
 		bearerAuth := c.Authentication.BearerTokenAuthentication.Get()
-		if bearerAuth.AllowFromContext || bearerAuth.FilePath != "" {
-			token := ""
-			if bearerAuth.FilePath != "" {
-				if bearerAuth.AllowFromContext {
-					logger.Warn("Token file and token propagation are both enabled, token from file won't be used")
-				}
-				tokenFromFile, err := loadTokenFromFile(bearerAuth.FilePath)
-				if err != nil {
-					return nil, err
-				}
-				token = tokenFromFile
-			}
+		ba, err := initBearerAuth(bearerAuth, logger)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize bearer authentication: %w", err)
+		}
+		if ba != nil {
+			authMethods = append(authMethods, *ba)
+		}
+	}
 
-			roundTripper = &auth.RoundTripper{
-				Transport:       transport,
-				OverrideFromCtx: bearerAuth.AllowFromContext,
-				StaticToken:     token,
-			}
+	// Wrap with authentication layer.
+	var roundTripper http.RoundTripper = transport
+	if len(authMethods) > 0 {
+		roundTripper = &auth.RoundTripper{
+			Transport: transport,
+			Auths:     authMethods,
 		}
 	}
 

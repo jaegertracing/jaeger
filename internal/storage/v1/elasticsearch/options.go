@@ -24,7 +24,8 @@ const (
 	suffixDisableHealthCheck             = ".disable-health-check"
 	suffixSnifferTLSEnabled              = ".sniffer-tls-enabled"
 	suffixTokenPath                      = ".token-file"
-	suffixBearerTokenPropagation         = ".bearer-token-propagation" // #nosec G101
+	suffixBearerTokenPropagation         = ".bearer-token-propagation"     // #nosec G101
+	suffixBearerTokenReloadInterval      = ".bearer-token-reload-interval" //#nosec G101
 	suffixPasswordPath                   = ".password-file"
 	suffixServerURLs                     = ".server-urls"
 	suffixRemoteReadClusters             = ".remote-read-clusters"
@@ -143,6 +144,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		passwordPath                string
 		tokenPath                   string
 		bearerTokenAllowFromContext bool
+		reloadInterval              time.Duration = 10 * time.Second
 	)
 
 	if nsConfig.Authentication.BasicAuthentication.HasValue() {
@@ -156,6 +158,9 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		bearerAuth := nsConfig.Authentication.BearerTokenAuthentication.Get()
 		tokenPath = bearerAuth.FilePath
 		bearerTokenAllowFromContext = bearerAuth.AllowFromContext
+		if bearerAuth.ReloadInterval != 0 {
+			reloadInterval = bearerAuth.ReloadInterval
+		}
 	}
 
 	flagSet.String(
@@ -171,6 +176,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		tokenPath,
 		"Path to a file containing bearer token. This flag also loads CA if it is specified.")
 
+	flagSet.Duration(
+		nsConfig.namespace+suffixBearerTokenReloadInterval,
+		reloadInterval,
+		"Interval for reloading bearer token from file. Set to 0 to disable automatic reloading.")
 	flagSet.Bool(
 		nsConfig.namespace+suffixBearerTokenPropagation,
 		bearerTokenAllowFromContext,
@@ -361,15 +370,15 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	// BearerAuthentication if tokenPath or allowFromContext is set
 	tokenPath := v.GetString(cfg.namespace + suffixTokenPath)
 	bearerTokenAllowFromContext := v.GetBool(cfg.namespace + suffixBearerTokenPropagation)
-
 	// Create BearerTokenAuthentication if either field is configured
 	if tokenPath != "" || bearerTokenAllowFromContext {
+		reloadInterval := v.GetDuration(cfg.namespace + suffixBearerTokenReloadInterval)
 		cfg.Authentication.BearerTokenAuthentication = configoptional.Some(config.BearerTokenAuthentication{
 			FilePath:         tokenPath,
 			AllowFromContext: bearerTokenAllowFromContext,
+			ReloadInterval:   reloadInterval,
 		})
 	}
-
 	cfg.Sniffing.Enabled = v.GetBool(cfg.namespace + suffixSniffer)
 	cfg.Sniffing.UseHTTPS = v.GetBool(cfg.namespace + suffixSnifferTLSEnabled)
 	cfg.DisableHealthCheck = v.GetBool(cfg.namespace + suffixDisableHealthCheck)
