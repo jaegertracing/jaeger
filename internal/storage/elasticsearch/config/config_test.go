@@ -1221,6 +1221,29 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 			},
 		},
 		{
+			name: "Bearer auth not applicable (empty config)",
+			cfg: &Configuration{
+				TLS: configtls.ClientConfig{Insecure: true},
+				Authentication: Authentication{
+					BearerTokenAuthentication: configoptional.Some(BearerTokenAuthentication{
+						FilePath:         "",    // Empty
+						AllowFromContext: false, // Disabled
+					}),
+				},
+			},
+			ctx: context.Background(),
+			validate: func(t *testing.T, rt http.RoundTripper) {
+				assert.NotNil(t, rt)
+				// Should be plain transport since auth is not applicable
+				_, ok := rt.(*auth.RoundTripper)
+				assert.False(t, ok, "Should not be an auth round tripper when config is not applicable")
+
+				transport, ok := rt.(*http.Transport)
+				assert.True(t, ok, "Should be plain http.Transport")
+				assert.True(t, transport.TLSClientConfig.InsecureSkipVerify)
+			},
+		},
+		{
 			name: "Secure mode with bearer token from file",
 			cfg: &Configuration{
 				TLS: configtls.ClientConfig{Insecure: false},

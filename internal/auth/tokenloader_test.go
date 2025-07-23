@@ -4,7 +4,9 @@
 package auth
 
 import (
+	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -88,7 +90,6 @@ func TestCachedFileTokenLoader_ZeroInterval(t *testing.T) {
 	currentTime := time.Unix(0, 0)
 	timeFn := func() time.Time { return currentTime }
 	tokenFile := createTempTokenFile(t, "initial-token\n")
-
 	loader := cachedFileTokenLoader(tokenFile, 0, timeFn) // Zero interval = no reloading
 
 	// T=0: Initial load
@@ -107,10 +108,16 @@ func TestCachedFileTokenLoader_ZeroInterval(t *testing.T) {
 
 	// Multiple calls should continue returning cached token
 	for i := 0; i < 5; i++ {
+		// Generate different content for each iteration
+		newContent := fmt.Sprintf("different-token-%d-%d\n", i, currentTime.Unix())
+		updateTokenFile(t, tokenFile, newContent)
+
 		currentTime = currentTime.Add(1 * time.Hour)
 		token, err = loader()
 		require.NoError(t, err)
-		assert.Equal(t, "initial-token", token, "Should always return initially cached token")
+		assert.Equal(t, "initial-token", token,
+			"Should always return initially cached token despite file change to %s at time %v",
+			strings.TrimSpace(newContent), currentTime)
 	}
 }
 

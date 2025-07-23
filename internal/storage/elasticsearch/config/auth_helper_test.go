@@ -28,7 +28,8 @@ func TestInitBearerAuth(t *testing.T) {
 		name        string
 		bearerAuth  *BearerTokenAuthentication
 		expectError bool
-		validate    func(t *testing.T, method auth.Method)
+		expectNil   bool
+		validate    func(t *testing.T, method *auth.Method)
 	}{
 		{
 			name: "Valid file-based bearer auth",
@@ -36,7 +37,9 @@ func TestInitBearerAuth(t *testing.T) {
 				FilePath: bearerFile,
 			},
 			expectError: false,
-			validate: func(t *testing.T, method auth.Method) {
+			expectNil:   false,
+			validate: func(t *testing.T, method *auth.Method) {
+				require.NotNil(t, method)
 				assert.Equal(t, "Bearer", method.Scheme)
 				assert.NotNil(t, method.TokenFn)
 				assert.Equal(t, "test-token", method.TokenFn())
@@ -49,23 +52,24 @@ func TestInitBearerAuth(t *testing.T) {
 				AllowFromContext: true,
 			},
 			expectError: false,
-			validate: func(t *testing.T, method auth.Method) {
+			expectNil:   false,
+			validate: func(t *testing.T, method *auth.Method) {
+				require.NotNil(t, method)
 				assert.Equal(t, "Bearer", method.Scheme)
 				assert.Nil(t, method.TokenFn)
 				assert.NotNil(t, method.FromCtx)
 			},
 		},
 		{
-			name: "Invalid bearer auth config returns empty method",
+			name: "Invalid bearer auth config returns nil",
 			bearerAuth: &BearerTokenAuthentication{
 				FilePath:         "",
 				AllowFromContext: false,
 			},
 			expectError: false,
-			validate: func(t *testing.T, method auth.Method) {
-				assert.Empty(t, method.Scheme) // Empty method
-				assert.Nil(t, method.TokenFn)
-				assert.Nil(t, method.FromCtx)
+			expectNil:   true,
+			validate: func(t *testing.T, method *auth.Method) {
+				assert.Nil(t, method)
 			},
 		},
 	}
@@ -75,9 +79,14 @@ func TestInitBearerAuth(t *testing.T) {
 			method, err := initBearerAuth(tc.bearerAuth, logger)
 			if tc.expectError {
 				require.Error(t, err)
+				assert.Nil(t, method)
 			} else {
 				require.NoError(t, err)
-				tc.validate(t, method)
+				if tc.expectNil {
+					assert.Nil(t, method)
+				} else {
+					tc.validate(t, method)
+				}
 			}
 		})
 	}
@@ -127,6 +136,7 @@ func TestInitBearerAuthWithTime(t *testing.T) {
 			// Initialize with mock time
 			method, err := initBearerAuthWithTime(bearer, logger, timeFn)
 			require.NoError(t, err)
+			require.NotNil(t, method)
 			require.NotNil(t, method.TokenFn)
 
 			// Initial token
@@ -154,6 +164,7 @@ func TestInitBearerAuth_FileErrors(t *testing.T) {
 		name          string
 		bearer        *BearerTokenAuthentication
 		expectedError bool
+		expectNil     bool
 		errorContains string
 	}{
 		{
@@ -163,6 +174,7 @@ func TestInitBearerAuth_FileErrors(t *testing.T) {
 				AllowFromContext: false,
 			},
 			expectedError: true,
+			expectNil:     true,
 			errorContains: "failed to get token from file",
 		},
 		{
@@ -173,15 +185,17 @@ func TestInitBearerAuth_FileErrors(t *testing.T) {
 				ReloadInterval:   5 * time.Second,
 			},
 			expectedError: true,
+			expectNil:     true,
 			errorContains: "failed to get token from file",
 		},
 		{
-			name: "Empty file path with context disabled - returns empty method",
+			name: "Empty file path with context disabled - returns nil",
 			bearer: &BearerTokenAuthentication{
 				FilePath:         "",
 				AllowFromContext: false,
 			},
 			expectedError: false,
+			expectNil:     true,
 		},
 		{
 			name: "Directory instead of file - returns error",
@@ -190,6 +204,7 @@ func TestInitBearerAuth_FileErrors(t *testing.T) {
 				AllowFromContext: false,
 			},
 			expectedError: true,
+			expectNil:     true,
 			errorContains: "failed to get token from file",
 		},
 	}
@@ -197,17 +212,16 @@ func TestInitBearerAuth_FileErrors(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			method, err := initBearerAuth(tc.bearer, logger)
-
 			if tc.expectedError {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.errorContains)
-				// Verify that empty method is returned on error
-				assert.Equal(t, auth.Method{}, method)
+				assert.Nil(t, method)
 			} else {
 				require.NoError(t, err)
-				// For the empty config case, verify empty method is returned
-				if tc.bearer.FilePath == "" && !tc.bearer.AllowFromContext {
-					assert.Equal(t, auth.Method{}, method)
+				if tc.expectNil {
+					assert.Nil(t, method)
+				} else {
+					assert.NotNil(t, method)
 				}
 			}
 		})

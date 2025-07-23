@@ -219,7 +219,8 @@ type BearerTokenAuthentication struct {
 	FilePath string `mapstructure:"file_path"`
 	// AllowTokenFromContext, if set to true, enables reading bearer token from the context.
 	AllowFromContext bool `mapstructure:"from_context"`
-	// ReloadInterval contains the interval at which the bearer token is reloaded.
+	// ReloadInterval contains the interval at which the bearer token file is reloaded.
+	// If set to 0 then the file is only loaded once on startup.
 	ReloadInterval time.Duration `mapstructure:"reload_interval"`
 }
 
@@ -653,7 +654,9 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize bearer authentication: %w", err)
 		}
-		authMethods = append(authMethods, ba)
+		if ba != nil {
+			authMethods = append(authMethods, *ba)
+		}
 	}
 
 	// Wrap with authentication layer.

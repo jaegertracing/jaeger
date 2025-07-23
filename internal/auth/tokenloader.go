@@ -31,12 +31,8 @@ func cachedFileTokenLoader(path string, interval time.Duration, timeFn func() ti
 		now := timeFn()
 
 		// Special case: interval = 0 means "never reload after first load"
-		if interval == 0 && !lastRead.IsZero() {
-			return cachedToken, nil
-		}
-
-		// Normal caching logic for non-zero intervals
-		if !lastRead.IsZero() && interval > 0 && now.Sub(lastRead) < interval {
+		// Otherwise reload only if `interval` time has passed since last load.
+		if !lastRead.IsZero() && (interval == 0 || now.Sub(lastRead) < interval) {
 			return cachedToken, nil
 		}
 

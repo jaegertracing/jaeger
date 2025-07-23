@@ -14,14 +14,14 @@ import (
 )
 
 // initBearerAuth initializes bearer token authentication method
-func initBearerAuth(bearerAuth *BearerTokenAuthentication, logger *zap.Logger) (auth.Method, error) {
+func initBearerAuth(bearerAuth *BearerTokenAuthentication, logger *zap.Logger) (*auth.Method, error) {
 	return initBearerAuthWithTime(bearerAuth, logger, time.Now)
 }
 
 // initBearerAuthWithTime initializes bearer token authentication method with injectable time for testing
-func initBearerAuthWithTime(bearerAuth *BearerTokenAuthentication, logger *zap.Logger, timeFn func() time.Time) (auth.Method, error) {
+func initBearerAuthWithTime(bearerAuth *BearerTokenAuthentication, logger *zap.Logger, timeFn func() time.Time) (*auth.Method, error) {
 	if bearerAuth == nil || (bearerAuth.FilePath == "" && !bearerAuth.AllowFromContext) {
-		return auth.Method{}, nil
+		return nil, nil
 	}
 
 	if bearerAuth.FilePath != "" && bearerAuth.AllowFromContext {
@@ -36,7 +36,7 @@ func initBearerAuthWithTime(bearerAuth *BearerTokenAuthentication, logger *zap.L
 		reloadInterval := bearerAuth.ReloadInterval
 		tf, err := auth.TokenProviderWithTime(bearerAuth.FilePath, reloadInterval, logger, timeFn)
 		if err != nil {
-			return auth.Method{}, err
+			return nil, err
 		}
 		tokenFn = tf
 	}
@@ -46,8 +46,8 @@ func initBearerAuthWithTime(bearerAuth *BearerTokenAuthentication, logger *zap.L
 		fromCtx = bearertoken.GetBearerToken
 	}
 
-	// Return the auth method
-	return auth.Method{
+	// Return pointer to the auth method
+	return &auth.Method{
 		Scheme:  "Bearer",
 		TokenFn: tokenFn,
 		FromCtx: fromCtx,
