@@ -11,10 +11,10 @@ package query
 
 type RangeQuery struct {
 	name      string
-	gt        interface{}
-	gte       interface{}
-	lt        interface{}
-	lte       interface{}
+	gt        any
+	gte       any
+	lt        any
+	lte       any
 	timeZone  string
 	boost     *float64
 	queryName string
@@ -27,22 +27,22 @@ func NewRangeQuery(name string) *RangeQuery {
 	return &RangeQuery{name: name}
 }
 
-func (q *RangeQuery) Gt(val interface{}) *RangeQuery {
+func (q *RangeQuery) Gt(val any) *RangeQuery {
 	q.gt = val
 	return q
 }
 
-func (q *RangeQuery) Gte(val interface{}) *RangeQuery {
+func (q *RangeQuery) Gte(val any) *RangeQuery {
 	q.gte = val
 	return q
 }
 
-func (q *RangeQuery) Lt(val interface{}) *RangeQuery {
+func (q *RangeQuery) Lt(val any) *RangeQuery {
 	q.lt = val
 	return q
 }
 
-func (q *RangeQuery) Lte(val interface{}) *RangeQuery {
+func (q *RangeQuery) Lte(val any) *RangeQuery {
 	q.lte = val
 	return q
 }
@@ -74,11 +74,11 @@ func (q *RangeQuery) Relation(relation string) *RangeQuery {
 
 // Source builds and returns the Elasticsearch-compatible representation of the range query.
 
-func (q *RangeQuery) Source() (interface{}, error) {
-	source := make(map[string]interface{})
-	rangeQ := make(map[string]interface{})
+func (q *RangeQuery) Source() (any, error) {
+	source := make(map[string]any)
+	rangeQ := make(map[string]any)
 	source["range"] = rangeQ
-	params := make(map[string]interface{})
+	params := make(map[string]any)
 	rangeQ[q.name] = params
 
 	if q.gt != nil {
