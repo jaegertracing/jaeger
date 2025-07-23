@@ -172,16 +172,39 @@ func TestTLSFlags(t *testing.T) {
 		expected auth.AuthenticationConfig
 	}{
 		{
-			flags:    []string{},
-			expected: auth.AuthenticationConfig{Authentication: "none", Kerberos: kerb, PlainText: plain},
+			flags: []string{},
+			expected: auth.AuthenticationConfig{
+				Authentication: "none",
+				Kerberos:       kerb,
+				TLS: configtls.ClientConfig{
+					Insecure: true, // TLS disabled by default
+				},
+				PlainText: plain,
+			},
 		},
 		{
-			flags:    []string{"--kafka.producer.authentication=foo"},
-			expected: auth.AuthenticationConfig{Authentication: "foo", Kerberos: kerb, PlainText: plain},
+			flags: []string{"--kafka.producer.authentication=foo"},
+			expected: auth.AuthenticationConfig{
+				Authentication: "foo",
+				Kerberos:       kerb,
+				TLS: configtls.ClientConfig{
+					Insecure: true, // TLS disabled by default
+				},
+				PlainText: plain,
+			},
 		},
 		{
-			flags:    []string{"--kafka.producer.authentication=kerberos", "--kafka.producer.tls.enabled=true"},
-			expected: auth.AuthenticationConfig{Authentication: "kerberos", Kerberos: kerb, TLS: configtls.ClientConfig{}, PlainText: plain},
+			flags: []string{"--kafka.producer.authentication=kerberos", "--kafka.producer.tls.enabled=true"},
+			expected: auth.AuthenticationConfig{
+				Authentication: "kerberos",
+				Kerberos:       kerb,
+				TLS: configtls.ClientConfig{
+					Config: configtls.Config{
+						IncludeSystemCACertsPool: true,
+					},
+				},
+				PlainText: plain,
+			},
 		},
 		{
 			flags: []string{"--kafka.producer.authentication=tls"},
