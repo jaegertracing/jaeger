@@ -275,6 +275,10 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 				logger.Info("OpenSearch 2.x detected, using ES 7.x index mappings")
 				esVersion = 7
 			}
+			if pingResult.Version.Number[0] == '3' {
+				logger.Info("OpenSearch 3.x detected, using ES 7.x index mappings")
+				esVersion = 7
+			}
 		}
 		logger.Info("Elasticsearch detected", zap.Int("version", esVersion))
 		//nolint: gosec // G115
