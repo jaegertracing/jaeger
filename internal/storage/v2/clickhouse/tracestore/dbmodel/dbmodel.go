@@ -11,15 +11,15 @@ import (
 type Span struct {
 	// --- Span ---
 	// TODO: add attributes
-	ID            string    `ch:"id"`
-	TraceID       string    `ch:"trace_id"`
-	TraceState    string    `ch:"trace_state"`
-	ParentSpanID  string    `ch:"parent_span_id"`
-	Name          string    `ch:"name"`
-	Kind          string    `ch:"kind"`
-	StartTime     time.Time `ch:"start_time"`
-	StatusCode    string    `ch:"status_code"`
-	StatusMessage string    `ch:"status_message"`
+	ID            string
+	TraceID       string
+	TraceState    string
+	ParentSpanID  string
+	Name          string
+	Kind          string
+	StartTime     time.Time
+	StatusCode    string
+	StatusMessage string
 
 	// Duration is stored in ClickHouse as a UInt64 representing the number of nanoseconds.
 	// In Go, it is manually converted to and from time.Duration for convenience.
@@ -39,12 +39,12 @@ type Span struct {
 
 	// --- Resource ---
 	// TODO: add attributes
-	ServiceName string `ch:"service_name"`
+	ServiceName string
 
 	// --- Scope ---
 	// TODO: add attributes
-	ScopeName    string `ch:"scope_name"`
-	ScopeVersion string `ch:"scope_version"`
+	ScopeName    string
+	ScopeVersion string
 }
 
 type Link struct {

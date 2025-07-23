@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -99,7 +100,7 @@ func TestSpanCollector(t *testing.T) {
 
 func TestCollectorStartWithTLS(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
-	tlsCfg := &configtls.ServerConfig{
+	tlsCfg := configtls.ServerConfig{
 		ClientCAFile: testCertKeyLocation + "/example-CA-cert.pem",
 		Config: configtls.Config{
 			CertFile: testCertKeyLocation + "/example-server-cert.pem",
@@ -114,7 +115,7 @@ func TestCollectorStartWithTLS(t *testing.T) {
 			NetAddr: confignet.AddrConfig{
 				Transport: confignet.TransportTypeTCP,
 			},
-			TLSSetting: tlsCfg,
+			TLS: configoptional.Some(tlsCfg),
 		},
 	}
 	server, err := StartGRPCServer(params)

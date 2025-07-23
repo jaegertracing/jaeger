@@ -23,9 +23,37 @@ func NewEmptyServiceNameSanitizer() Func {
 }
 
 func sanitizeEmptyServiceName(traces ptrace.Traces) ptrace.Traces {
-	resourceSpans := traces.ResourceSpans()
-	for i := 0; i < resourceSpans.Len(); i++ {
-		resourceSpan := resourceSpans.At(i)
+	needsModification := false
+	for _, resourceSpan := range traces.ResourceSpans().All() {
+		attributes := resourceSpan.Resource().Attributes()
+		serviceName, ok := attributes.Get(string(otelsemconv.ServiceNameKey))
+		switch {
+		case !ok:
+			needsModification = true
+		case serviceName.Type() != pcommon.ValueTypeStr:
+			needsModification = true
+		case serviceName.Str() == "":
+			needsModification = true
+		}
+		if needsModification {
+			break
+		}
+	}
+
+	if !needsModification {
+		return traces
+	}
+
+	var workingTraces ptrace.Traces
+
+	if traces.IsReadOnly() {
+		workingTraces = ptrace.NewTraces()
+		traces.CopyTo(workingTraces)
+	} else {
+		workingTraces = traces
+	}
+
+	for _, resourceSpan := range workingTraces.ResourceSpans().All() {
 		attributes := resourceSpan.Resource().Attributes()
 		serviceName, ok := attributes.Get(string(otelsemconv.ServiceNameKey))
 		switch {
@@ -37,5 +65,6 @@ func sanitizeEmptyServiceName(traces ptrace.Traces) ptrace.Traces {
 			attributes.PutStr(string(otelsemconv.ServiceNameKey), emptyServiceName)
 		}
 	}
-	return traces
+
+	return workingTraces
 }

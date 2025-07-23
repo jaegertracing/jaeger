@@ -214,41 +214,65 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 	}
 }
 
-func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
+func (s *StorageIntegration) helperTestGetTrace(
+	t *testing.T,
+	traceSize int,
+	duplicateCount int,
+	testName string,
+	validator func(t *testing.T, actual *model.Trace),
+) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
-	t.Log("Testing Large Trace over 10K with duplicate IDs...")
+	t.Logf("Testing %s...", testName)
 
-	expected := s.writeLargeTraceWithDuplicateSpanIds(t)
+	expected := s.writeLargeTraceWithDuplicateSpanIds(t, traceSize, duplicateCount)
 	expectedTraceID := v1adapter.FromV1TraceID(expected.Spans[0].TraceID)
 
 	actual := &model.Trace{} // no spans
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
 		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
+		if err != nil {
+			t.Logf("Error loading trace: %v", err)
+			return false
+		}
 		if len(traces) == 0 {
 			return false
 		}
 		actual = traces[0]
-		return err == nil && len(actual.Spans) >= len(expected.Spans)
+		return len(actual.Spans) >= len(expected.Spans)
 	})
 
-	if !assert.True(t, found) {
+	t.Logf("%-23s Loaded trace, expected=%d, actual=%d", time.Now().Format("2006-01-02 15:04:05.999"), len(expected.Spans), len(actual.Spans))
+	if !assert.True(t, found, "error loading trace, expected=%d, actual=%d", len(expected.Spans), len(actual.Spans)) {
 		CompareTraces(t, expected, actual)
 		return
 	}
 
-	duplicateCount := 0
-	seenIDs := make(map[model.SpanID]int)
-
-	for _, span := range actual.Spans {
-		seenIDs[span.SpanID]++
-		if seenIDs[span.SpanID] > 1 {
-			duplicateCount++
-		}
+	if validator != nil {
+		validator(t, actual)
 	}
-	assert.Positive(t, duplicateCount, "Duplicate SpanIDs should be present in the trace")
+}
+
+func (s *StorageIntegration) testGetLargeTrace(t *testing.T) {
+	s.helperTestGetTrace(t, 10008, 0, "Large Trace over 10K without duplicates", nil)
+}
+
+func (s *StorageIntegration) testGetTraceWithDuplicates(t *testing.T) {
+	validator := func(t *testing.T, actual *model.Trace) {
+		duplicateCount := 0
+		seenIDs := make(map[model.SpanID]int)
+
+		for _, span := range actual.Spans {
+			seenIDs[span.SpanID]++
+			if seenIDs[span.SpanID] > 1 {
+				duplicateCount++
+			}
+		}
+		assert.Positive(t, duplicateCount, "Duplicate SpanIDs should be present in the trace")
+	}
+	s.helperTestGetTrace(t, 200, 20, "Trace with duplicate span IDs", validator)
 }
 
 func (s *StorageIntegration) testGetOperations(t *testing.T) {
@@ -402,21 +426,25 @@ func (s *StorageIntegration) loadParseAndWriteExampleTrace(t *testing.T) *model.
 	return trace
 }
 
-func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(t *testing.T) *model.Trace {
+func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
+	t *testing.T,
+	totalCount int,
+	dupFreq int,
+) *model.Trace {
 	trace := s.getTraceFixture(t, "example_trace")
 	repeatedSpan := trace.Spans[0]
-	trace.Spans = make([]*model.Span, 0, 10008)
-	for i := 0; i < 10008; i++ {
+	trace.Spans = make([]*model.Span, totalCount)
+	for i := range totalCount {
 		newSpan := new(model.Span)
 		*newSpan = *repeatedSpan
 		switch {
-		case i%100 == 0:
+		case dupFreq > 0 && i > 0 && i%dupFreq == 0:
 			newSpan.SpanID = repeatedSpan.SpanID
 		default:
-			newSpan.SpanID = model.SpanID(i)
+			newSpan.SpanID = model.SpanID(uint64(i) + 1) //nolint: gosec // G115
 		}
 		newSpan.StartTime = newSpan.StartTime.Add(time.Second * time.Duration(i+1))
-		trace.Spans = append(trace.Spans, newSpan)
+		trace.Spans[i] = newSpan
 	}
 	s.writeTrace(t, trace)
 	return trace
@@ -479,7 +507,7 @@ func spanCount(traces []*model.Trace) int {
 
 func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 	if s.DependencyReader == nil || s.DependencyWriter == nil {
-		t.Skipf("Skipping GetDependencies test because dependency reader or writer is nil")
+		t.Skip("Skipping GetDependencies test because dependency reader or writer is nil")
 		return
 	}
 
@@ -607,11 +635,12 @@ func (s *StorageIntegration) RunAll(t *testing.T) {
 	t.Run("GetLatestProbability", s.testGetLatestProbability)
 }
 
-// RunTestSpanstore runs only span related integration tests
+// RunSpanStoreTests runs only span related integration tests
 func (s *StorageIntegration) RunSpanStoreTests(t *testing.T) {
 	t.Run("GetServices", s.testGetServices)
 	t.Run("GetOperations", s.testGetOperations)
 	t.Run("GetTrace", s.testGetTrace)
-	t.Run("GetLargeSpans", s.testGetLargeSpan)
+	t.Run("GetLargeTrace", s.testGetLargeTrace)
+	t.Run("GetTraceWithDuplicateSpans", s.testGetTraceWithDuplicates)
 	t.Run("FindTraces", s.testFindTraces)
 }

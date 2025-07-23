@@ -109,7 +109,7 @@ func TestNoGlobalPanicIfDeadlockDetectorDisabled(t *testing.T) {
 		logger:         l,
 		interval:       0,
 		panicFunc: func(_ /* partition */ int32) {
-			t.Errorf("Should not panic when deadlock detector is disabled")
+			t.Error("Should not panic when deadlock detector is disabled")
 		},
 	}
 
@@ -127,7 +127,7 @@ func TestNoPanicForPartitionIfDeadlockDetectorDisabled(t *testing.T) {
 		logger:         l,
 		interval:       0,
 		panicFunc: func(_ /* partition */ int32) {
-			t.Errorf("Should not panic when deadlock detector is disabled")
+			t.Error("Should not panic when deadlock detector is disabled")
 		},
 	}
 

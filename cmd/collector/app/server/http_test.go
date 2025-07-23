@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
@@ -47,13 +48,13 @@ func TestCreateTLSHTTPServerError(t *testing.T) {
 	params := &HTTPServerParams{
 		ServerConfig: confighttp.ServerConfig{
 			Endpoint: ":0",
-			TLSSetting: &configtls.ServerConfig{
+			TLS: configoptional.Some(configtls.ServerConfig{
 				Config: configtls.Config{
 					CertFile: "invalid/path",
 					KeyFile:  "invalid/path",
 					CAFile:   "invalid/path",
 				},
-			},
+			}),
 		},
 		HealthCheck: healthcheck.New(),
 		Logger:      logger,
@@ -89,6 +90,13 @@ func TestSpanCollectorHTTP(t *testing.T) {
 	assert.NotNil(t, response)
 	defer response.Body.Close()
 	defer server.Close()
+}
+
+func optionalFromPtr[T any](ptr *T) configoptional.Optional[T] {
+	if ptr == nil {
+		return configoptional.None[T]()
+	}
+	return configoptional.Some(*ptr)
 }
 
 func TestSpanCollectorHTTPS(t *testing.T) {
@@ -216,8 +224,8 @@ func TestSpanCollectorHTTPS(t *testing.T) {
 			defer mFact.Backend.Stop()
 			params := &HTTPServerParams{
 				ServerConfig: confighttp.ServerConfig{
-					Endpoint:   fmt.Sprintf(":%d", ports.CollectorHTTP),
-					TLSSetting: test.TLS,
+					Endpoint: fmt.Sprintf(":%d", ports.CollectorHTTP),
+					TLS:      optionalFromPtr(test.TLS),
 				},
 				Handler:          handler.NewJaegerSpanHandler(logger, &mockSpanProcessor{}),
 				SamplingProvider: &mockSamplingProvider{},

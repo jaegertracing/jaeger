@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
@@ -175,7 +176,7 @@ func TestSpanCollectorZipkinTLS(t *testing.T) {
 
 			opts := &flags.CollectorOptions{}
 			opts.Zipkin.Endpoint = ports.PortToHostPort(ports.CollectorZipkin)
-			opts.Zipkin.TLSSetting = &test.serverTLS
+			opts.Zipkin.TLS = configoptional.Some(test.serverTLS)
 
 			server, err := StartZipkinReceiver(opts, logger, spanProcessor, tm)
 			if test.expectServerFail {

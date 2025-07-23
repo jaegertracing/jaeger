@@ -6,10 +6,6 @@ filename: mocks.go
 template-data:
   boilerplate-file: .mockery.header.txt
 packages:
-  github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/cache:
-    interfaces:
-      ServiceAliasMappingExternalSource: {}
-      ServiceAliasMappingStorage: {}
   github.com/jaegertracing/jaeger/cmd/ingester/app/consumer:
     interfaces:
       Message: {}

@@ -11,10 +11,10 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
+	conventions "github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 const (
@@ -81,7 +81,7 @@ func resourceToDbProcess(resource pcommon.Resource) dbmodel.Process {
 	}
 	tags := make([]dbmodel.KeyValue, 0, attrs.Len())
 	for key, attr := range attrs.All() {
-		if key == conventions.AttributeServiceName {
+		if key == conventions.ServiceNameKey {
 			process.ServiceName = attr.AsString()
 			continue
 		}
@@ -103,7 +103,7 @@ func attributeToDbTag(key string, attr pcommon.Value) dbmodel.KeyValue {
 	switch attr.Type() {
 	case pcommon.ValueTypeBytes:
 		tag = dbmodel.KeyValue{Key: key, Value: hex.EncodeToString(attr.Bytes().AsRaw())}
-	case pcommon.ValueTypeMap:
+	case pcommon.ValueTypeMap, pcommon.ValueTypeSlice:
 		tag = dbmodel.KeyValue{Key: key, Value: attr.AsString()}
 	default:
 		tag = dbmodel.KeyValue{Key: key, Value: attr.AsRaw()}
@@ -233,7 +233,7 @@ func linksToDbSpanRefs(links ptrace.SpanLinkSlice, parentSpanID dbmodel.SpanID, 
 		refs = append(refs, dbmodel.Reference{
 			TraceID: linkTraceID,
 			SpanID:  linkSpanID,
-			RefType: refTypeFromLink(link),
+			RefType: linkRefType,
 		})
 	}
 
@@ -292,17 +292,20 @@ func getTagFromSpanKind(spanKind ptrace.SpanKind) (dbmodel.KeyValue, bool) {
 }
 
 func getTagFromStatusCode(statusCode ptrace.StatusCode) (dbmodel.KeyValue, bool) {
-	if statusCode == ptrace.StatusCodeError {
-		return dbmodel.KeyValue{
-			Key:   tagError,
-			Type:  dbmodel.BoolType,
-			Value: true,
-		}, true
-	} else if statusCode == ptrace.StatusCodeOk {
+	switch statusCode {
+	case ptrace.StatusCodeOk:
 		return dbmodel.KeyValue{
 			Key:   conventions.OtelStatusCode,
 			Type:  dbmodel.StringType,
 			Value: statusOk,
+		}, true
+	case ptrace.StatusCodeError:
+		// For backward compatibility, we also include the error tag
+		// which was previously used in the test fixtures
+		return dbmodel.KeyValue{
+			Key:   "error",
+			Type:  dbmodel.BoolType,
+			Value: true,
 		}, true
 	}
 	return dbmodel.KeyValue{}, false
@@ -314,8 +317,8 @@ func getTagFromStatusMsg(statusMsg string) (dbmodel.KeyValue, bool) {
 	}
 	return dbmodel.KeyValue{
 		Key:   conventions.OtelStatusDescription,
-		Value: statusMsg,
 		Type:  dbmodel.StringType,
+		Value: statusMsg,
 	}, true
 }
 
@@ -339,21 +342,20 @@ func getTagsFromInstrumentationLibrary(il pcommon.InstrumentationScope) ([]dbmod
 	if ilName := il.Name(); ilName != "" {
 		kv := dbmodel.KeyValue{
 			Key:   conventions.AttributeOtelScopeName,
-			Value: ilName,
 			Type:  dbmodel.StringType,
+			Value: ilName,
 		}
 		keyValues = append(keyValues, kv)
 	}
 	if ilVersion := il.Version(); ilVersion != "" {
 		kv := dbmodel.KeyValue{
 			Key:   conventions.AttributeOtelScopeVersion,
-			Value: ilVersion,
 			Type:  dbmodel.StringType,
+			Value: ilVersion,
 		}
 		keyValues = append(keyValues, kv)
 	}
-
-	return keyValues, true
+	return keyValues, len(keyValues) > 0
 }
 
 func refTypeFromLink(link ptrace.SpanLink) dbmodel.ReferenceType {

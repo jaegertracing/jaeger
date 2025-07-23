@@ -115,8 +115,8 @@ func TestHTTPGatewayGetTrace(t *testing.T) {
 			},
 			expectedQuery: tracestore.GetTraceParams{
 				TraceID: traceID,
-				Start:   time.Date(2000, time.January, 0o2, 12, 30, 8, 999999998, time.UTC),
-				End:     time.Date(2000, time.April, 0o5, 13, 55, 16, 999999992, time.UTC),
+				Start:   time.Date(2000, time.January, 2, 12, 30, 8, 999999998, time.UTC),
+				End:     time.Date(2000, time.April, 5, 13, 55, 16, 999999992, time.UTC),
 			},
 		},
 	}

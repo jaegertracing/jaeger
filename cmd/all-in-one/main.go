@@ -18,7 +18,6 @@ import (
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/all-in-one/setupcontext"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	collectorFlags "github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/internal/docs"
@@ -47,7 +46,6 @@ import (
 // all-in-one/main is a standalone full-stack jaeger backend, backed by a memory store
 func main() {
 	flags.PrintV1EOL()
-	setupcontext.SetAllInOne()
 
 	svc := flags.NewService(ports.CollectorAdminHTTP)
 

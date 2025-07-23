@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pipeline"
@@ -60,9 +61,15 @@ func startOTLPReceiver(
 		cfg component.Config, nextConsumer consumer.Traces) (receiver.Traces, error),
 ) (receiver.Traces, error) {
 	otlpReceiverConfig := otlpFactory.CreateDefaultConfig().(*otlpreceiver.Config)
-	otlpReceiverConfig.GRPC = &options.OTLP.GRPC
-	otlpReceiverConfig.GRPC.NetAddr.Transport = confignet.TransportTypeTCP
-	otlpReceiverConfig.HTTP.ServerConfig = options.OTLP.HTTP
+	// override grpc defaults with our config
+	options.OTLP.GRPC.NetAddr.Transport = confignet.TransportTypeTCP
+	otlpReceiverConfig.GRPC = configoptional.Some(options.OTLP.GRPC)
+	// override http defaults with our config
+	otlpReceiverConfig.HTTP = configoptional.Some(otlpreceiver.HTTPConfig{
+		ServerConfig:  options.OTLP.HTTP,
+		TracesURLPath: "/v1/traces",
+	})
+
 	statusReporter := func(ev *componentstatus.Event) {
 		// TODO this could be wired into changing healthcheck.HealthCheck
 		logger.Info("OTLP receiver status change", zap.Stringer("status", ev.Status()))

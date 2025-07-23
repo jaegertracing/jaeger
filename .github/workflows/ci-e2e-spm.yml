@@ -25,17 +25,20 @@ jobs:
         mode:
         - name: v1
           binary: all-in-one
-          database: memory
+          metricstore: prometheus
         - name: v2
           binary: jaeger
-          database: memory
+          metricstore: prometheus
         - name: v2 with ES
           binary: jaeger
-          database: elasticsearch
+          metricstore: elasticsearch
+        - name: v2 with OS
+          binary: jaeger
+          metricstore: opensearch
 
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+      uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -55,4 +58,4 @@ jobs:
       uses: ./.github/actions/setup-node.js
       
     - name: Run SPM Test
-      run:  bash scripts/e2e/spm.sh -b ${{ matrix.mode.binary }} -d ${{ matrix.mode.database }}
+      run:  bash scripts/e2e/spm.sh -b ${{ matrix.mode.binary }} -m ${{ matrix.mode.metricstore }}

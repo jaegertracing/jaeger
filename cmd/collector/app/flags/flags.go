@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
@@ -195,7 +196,7 @@ func initHTTPFromViper(v *viper.Viper, opts *confighttp.ServerConfig, cfg server
 	if err != nil {
 		return fmt.Errorf("failed to parse HTTP TLS options: %w", err)
 	}
-	opts.TLSSetting = tlsHTTPCfg
+	opts.TLS = tlsHTTPCfg
 	opts.Endpoint = ports.FormatHostPort(v.GetString(cfg.prefix + "." + flagSuffixHostPort))
 	opts.IdleTimeout = v.GetDuration(cfg.prefix + "." + flagSuffixHTTPIdleTimeout)
 	opts.ReadTimeout = v.GetDuration(cfg.prefix + "." + flagSuffixHTTPReadTimeout)
@@ -210,15 +211,15 @@ func initGRPCFromViper(v *viper.Viper, opts *configgrpc.ServerConfig, cfg server
 	if err != nil {
 		return fmt.Errorf("failed to parse GRPC TLS options: %w", err)
 	}
-	opts.TLSSetting = tlsGRPCCfg
+	opts.TLS = tlsGRPCCfg
 	opts.NetAddr.Endpoint = ports.FormatHostPort(v.GetString(cfg.prefix + "." + flagSuffixHostPort))
 	opts.MaxRecvMsgSizeMiB = v.GetInt(cfg.prefix+"."+flagSuffixGRPCMaxReceiveMessageLength) / (1024 * 1024)
-	opts.Keepalive = &configgrpc.KeepaliveServerConfig{
+	opts.Keepalive = configoptional.Some(configgrpc.KeepaliveServerConfig{
 		ServerParameters: &configgrpc.KeepaliveServerParameters{
 			MaxConnectionAge:      v.GetDuration(cfg.prefix + "." + flagSuffixGRPCMaxConnectionAge),
 			MaxConnectionAgeGrace: v.GetDuration(cfg.prefix + "." + flagSuffixGRPCMaxConnectionAgeGrace),
 		},
-	}
+	})
 
 	return nil
 }
