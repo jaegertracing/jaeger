@@ -15,7 +15,7 @@ func TestToDBModel(t *testing.T) {
 	trace := jsonToPtrace(t, "./fixtures/ptrace.json")
 	input := ToDBModel(trace)
 
-	expected := readJSONBytes(t, "./fixtures/input.json")
+	expected := readJSONBytes(t, "./fixtures/input_dbmodel.json")
 	actual, err := json.MarshalIndent(input, "", "  ")
 	require.NoError(t, err)
 	require.ElementsMatch(t, expected, actual)
