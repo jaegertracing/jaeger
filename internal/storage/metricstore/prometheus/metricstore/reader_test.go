@@ -731,19 +731,47 @@ func (s *fakePromServer) getAuth() string {
 
 func TestGetRoundTripperTLSConfig(t *testing.T) {
 	for _, tc := range []struct {
-		name       string
-		tlsEnabled bool
+		name      string
+		tlsConfig configtls.ClientConfig
+		wantErr   bool
 	}{
-		{"tls tlsEnabled", true},
-		{"tls disabled", false},
+		{
+			name: "tls enabled with cert verification",
+			tlsConfig: configtls.ClientConfig{
+				Insecure: false,
+			},
+		},
+		{
+			name: "tls enabled insecure",
+			tlsConfig: configtls.ClientConfig{
+				Insecure: true, // Skip verify
+			},
+		},
+		{
+			name:      "tls disabled",
+			tlsConfig: configtls.ClientConfig{},
+		},
+		{
+			name: "invalid tls config",
+			tlsConfig: configtls.ClientConfig{
+				Config: configtls.Config{
+					CAFile: "foo",
+				},
+			},
+			wantErr: true,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			config := &config.Configuration{
 				ConnectTimeout:           9 * time.Millisecond,
-				TLS:                      configtls.ClientConfig{},
+				TLS:                      tc.tlsConfig,
 				TokenOverrideFromContext: true,
 			}
 			rt, err := getHTTPRoundTripper(config)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
 			require.NoError(t, err)
 
 			server := newFakePromServer(t)

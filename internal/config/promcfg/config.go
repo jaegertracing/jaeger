@@ -14,7 +14,8 @@ import (
 type Configuration struct {
 	ServerURL      string        `valid:"required" mapstructure:"endpoint"`
 	ConnectTimeout time.Duration `mapstructure:"connect_timeout"`
-	TLS            configtls.ClientConfig
+	// TLS contains the TLS configuration for the connection to the Prometheus clusters.
+	TLS configtls.ClientConfig `mapstructure:"tls"`
 
 	TokenFilePath            string `mapstructure:"token_file_path"`
 	TokenOverrideFromContext bool   `mapstructure:"token_override_from_context"`

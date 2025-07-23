@@ -5,6 +5,7 @@ package metricstore
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -347,10 +348,6 @@ func logErrorToSpan(span trace.Span, err error) {
 }
 
 func getHTTPRoundTripper(c *config.Configuration) (rt http.RoundTripper, err error) {
-	ctlsConfig, err := c.TLS.LoadTLSConfig(context.Background())
-	if err != nil {
-		return nil, err
-	}
 	// KeepAlive and TLSHandshake timeouts are kept to existing Prometheus client's
 	// DefaultRoundTripper to simplify user configuration and may be made configurable when required.
 	httpTransport := &http.Transport{
@@ -360,7 +357,17 @@ func getHTTPRoundTripper(c *config.Configuration) (rt http.RoundTripper, err err
 			KeepAlive: 30 * time.Second,
 		}).DialContext,
 		TLSHandshakeTimeout: 10 * time.Second,
-		TLSClientConfig:     ctlsConfig,
+	}
+
+	if c.TLS.Insecure {
+		// #nosec G402
+		httpTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	} else {
+		ctlsConfig, err := c.TLS.LoadTLSConfig(context.Background())
+		if err != nil {
+			return nil, err
+		}
+		httpTransport.TLSClientConfig = ctlsConfig
 	}
 
 	token := ""
