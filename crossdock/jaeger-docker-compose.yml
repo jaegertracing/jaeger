@@ -1,6 +1,6 @@
 services:
     jaeger-remote-storage:
-      image: jaegertracing/jaeger-remote-storage
+      image: cr.jaegertracing.io/jaegertracing/jaeger-remote-storage
       command:
         - "--log-level=debug"
       environment:
@@ -9,7 +9,7 @@ services:
         - "17271:17271"
 
     jaeger-collector:
-      image: jaegertracing/jaeger-collector
+      image: cr.jaegertracing.io/jaegertracing/jaeger-collector
       command:
         - "--grpc-storage.server=jaeger-remote-storage:17271"
         - "--collector.zipkin.host-port=:9411"
@@ -27,7 +27,7 @@ services:
         - jaeger-remote-storage
 
     jaeger-query:
-      image: jaegertracing/jaeger-query
+      image: cr.jaegertracing.io/jaegertracing/jaeger-query
       command:
         - "--grpc-storage.server=jaeger-remote-storage:17271"
         - "--log-level=debug"

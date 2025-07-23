@@ -107,7 +107,8 @@ func MappingTypeFromString(val string) (MappingType, error) {
 // GetMapping returns the rendered mapping based on elasticsearch version
 func (mb *MappingBuilder) GetMapping(mappingType MappingType) (string, error) {
 	templateOpts := mb.getMappingTemplateOptions(mappingType)
-	return mb.renderMapping(fmt.Sprintf("%s-%d.json", mappingType.String(), mb.EsVersion), templateOpts)
+	esVersion := min(mb.EsVersion, 8) // Elasticsearch v9 uses the same template as v8
+	return mb.renderMapping(fmt.Sprintf("%s-%d.json", mappingType.String(), esVersion), templateOpts)
 }
 
 // GetSpanServiceMappings returns span and service mappings

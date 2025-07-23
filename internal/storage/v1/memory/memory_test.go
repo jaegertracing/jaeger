@@ -107,7 +107,7 @@ var nonSerializableSpan = &model.Span{
 	Process: &model.Process{
 		ServiceName: "naughtyService",
 	},
-	StartTime: time.Date(0, 0, 0, 0, 0, 0, 0, time.UTC),
+	StartTime: time.Date(0, 1, 1, 0, 0, 0, 0, time.UTC),
 }
 
 func withPopulatedMemoryStore(f func(store *Store)) {

@@ -1,0 +1,117 @@
+{
+  "took": 5,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": 100,
+    "max_score": 0.0,
+    "hits": []
+  },
+  "aggregations": {
+    "results_buckets": {
+      "buckets": [
+        {
+          "key_as_string": "1749894840000",
+          "key": 1749894840000,
+          "doc_count": 0,
+          "cumulative_requests": {
+            "value": 0
+          }
+        },
+        {
+          "key_as_string": "1749894900000",
+          "key": 1749894900000,
+          "doc_count": 10,
+          "cumulative_requests": {
+            "value": 10
+          }
+        },
+        {
+          "key_as_string": "1749894960000",
+          "key": 1749894960000,
+          "doc_count": 20,
+          "cumulative_requests": {
+            "value": 30
+          }
+        },
+        {
+          "key_as_string": "1749895020000",
+          "key": 1749895020000,
+          "doc_count": 30,
+          "cumulative_requests": {
+            "value": 60
+          }
+        },
+        {
+          "key_as_string": "1749895080000",
+          "key": 1749895080000,
+          "doc_count": 40,
+          "cumulative_requests": {
+            "value": 100
+          }
+        },
+        {
+          "key_as_string": "1749895140000",
+          "key": 1749895140000,
+          "doc_count": 50,
+          "cumulative_requests": {
+            "value": 150
+          }
+        },
+        {
+          "key_as_string": "1749895200000",
+          "key": 1749895200000,
+          "doc_count": 60,
+          "cumulative_requests": {
+            "value": 210
+          }
+        },
+        {
+          "key_as_string": "1749895260000",
+          "key": 1749895260000,
+          "doc_count": 70,
+          "cumulative_requests": {
+            "value": 280
+          }
+        },
+        {
+          "key_as_string": "1749895320000",
+          "key": 1749895320000,
+          "doc_count": 80,
+          "cumulative_requests": {
+            "value": 360
+          }
+        },
+        {
+          "key_as_string": "1749895380000",
+          "key": 1749895380000,
+          "doc_count": 90,
+          "cumulative_requests": {
+            "value": 450
+          }
+        },
+        {
+          "key_as_string": "1749895440000",
+          "key": 1749895440000,
+          "doc_count": 100,
+          "cumulative_requests": {
+            "value": 550
+          }
+        },
+        {
+          "key_as_string": "1749895500000",
+          "key": 1749895500000,
+          "doc_count": 0,
+          "cumulative_requests": {
+            "value": 0
+          }
+        }
+      ]
+    }
+  }
+}

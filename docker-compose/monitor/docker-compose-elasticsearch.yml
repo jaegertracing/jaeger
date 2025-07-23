@@ -52,17 +52,6 @@ services:
     depends_on:
       - jaeger
 
-  prometheus:
-    networks:
-      - backend
-    image: prom/prometheus:v3.4.0@sha256:78ed1f9050eb9eaf766af6e580230b1c4965728650e332cd1ee918c0c4699775
-    volumes:
-      - "./prometheus.yml:/etc/prometheus/prometheus.yml"
-    ports:
-      - "9090:9090"
-    depends_on:
-      - jaeger
-
 networks:
   backend:
 

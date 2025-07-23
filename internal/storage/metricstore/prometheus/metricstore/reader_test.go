@@ -26,7 +26,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	config "github.com/jaegertracing/jaeger/internal/config/promcfg"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
@@ -679,7 +679,7 @@ func TestGetErrorRatesErrors(t *testing.T) {
 func TestInvalidLatencyUnit(t *testing.T) {
 	defer func() {
 		if r := recover(); r == nil {
-			t.Errorf("Expected a panic due to invalid latency unit")
+			t.Error("Expected a panic due to invalid latency unit")
 		}
 	}()
 	tracer, _, closer := tracerProvider(t)
@@ -979,7 +979,7 @@ func assertMetrics(t *testing.T, gotMetrics *metrics.MetricFamily, wantLabels ma
 
 	// Additional logging to show that all expected labels were found and matched
 	t.Logf("Remaining expected labels after matching: %v\n", wantLabels)
-	t.Logf("\n")
+	t.Log("\n")
 
 	assert.Equal(t, int64(1620351786), mps[0].Timestamp.GetSeconds())
 

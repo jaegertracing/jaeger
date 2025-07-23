@@ -129,3 +129,14 @@ metric_backends:
 	require.NoError(t, conf.Unmarshal(cfg))
 	assert.NotEmpty(t, cfg.MetricBackends["some_metrics_storage"].Elasticsearch.Servers)
 }
+
+func TestConfigDefaultOpenSearchAsMetricsBackend(t *testing.T) {
+	conf := loadConf(t, `
+metric_backends:
+  some_metrics_storage:
+    opensearch:
+`)
+	cfg := createDefaultConfig().(*Config)
+	require.NoError(t, conf.Unmarshal(cfg))
+	assert.NotEmpty(t, cfg.MetricBackends["some_metrics_storage"].Opensearch.Servers)
+}

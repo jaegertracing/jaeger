@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -42,7 +43,7 @@ type FactoryBase struct {
 	logger         *zap.Logger
 	tracer         trace.TracerProvider
 
-	newClientFn func(c *config.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error)
+	newClientFn func(ctx context.Context, c *config.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error)
 
 	config *config.Configuration
 
@@ -75,18 +76,20 @@ func NewFactoryBase(
 	}
 	f.tags = tags
 
-	client, err := f.newClientFn(f.config, logger, metricsFactory)
+	client, err := f.newClientFn(ctx, f.config, logger, metricsFactory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Elasticsearch client: %w", err)
 	}
 	f.client.Store(&client)
 
-	if f.config.Authentication.BasicAuthentication.PasswordFilePath != "" {
-		watcher, err := fswatcher.New([]string{f.config.Authentication.BasicAuthentication.PasswordFilePath}, f.onPasswordChange, f.logger)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create watcher for ES client's password: %w", err)
+	if f.config.Authentication.BasicAuthentication.HasValue() {
+		if file := f.config.Authentication.BasicAuthentication.Get().PasswordFilePath; file != "" {
+			watcher, err := fswatcher.New([]string{file}, f.onPasswordChange, f.logger)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create watcher for ES client's password: %w", err)
+			}
+			f.pwdFileWatcher = watcher
 		}
-		f.pwdFileWatcher = watcher
 	}
 
 	if err = f.createTemplates(ctx); err != nil {
@@ -203,17 +206,21 @@ func (f *FactoryBase) onPasswordChange() {
 }
 
 func (f *FactoryBase) onClientPasswordChange(cfg *config.Configuration, client *atomic.Pointer[es.Client], mf metrics.Factory) {
-	newPassword, err := loadTokenFromFile(cfg.Authentication.BasicAuthentication.PasswordFilePath)
+	basicAuth := cfg.Authentication.BasicAuthentication.Get()
+	newPassword, err := loadTokenFromFile(basicAuth.PasswordFilePath)
 	if err != nil {
 		f.logger.Error("failed to reload password for Elasticsearch client", zap.Error(err))
 		return
 	}
 	f.logger.Sugar().Infof("loaded new password of length %d from file", len(newPassword))
 	newCfg := *cfg // copy by value
-	newCfg.Authentication.BasicAuthentication.Password = newPassword
-	newCfg.Authentication.BasicAuthentication.PasswordFilePath = "" // avoid error that both are set
+	newCfg.Authentication.BasicAuthentication = configoptional.Some(config.BasicAuthentication{
+		Username:         basicAuth.Username,
+		Password:         newPassword,
+		PasswordFilePath: "", // avoid error that both are set
+	})
 
-	newClient, err := f.newClientFn(&newCfg, f.logger, mf)
+	newClient, err := f.newClientFn(context.Background(), &newCfg, f.logger, mf)
 	if err != nil {
 		f.logger.Error("failed to recreate Elasticsearch client with new password", zap.Error(err))
 		return

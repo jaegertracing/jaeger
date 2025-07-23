@@ -6,25 +6,25 @@
 set -euf -o pipefail
 
 print_help() {
-  echo "Usage: $0 [-b binary] [-d database]"
+  echo "Usage: $0 [-b binary] [-m metricstore]"
   echo "-b: Which binary to build: 'all-in-one' or 'jaeger' (v2, default)"
-  echo "-d: Which database to use: 'memory' (default) or 'elasticsearch'"
+  echo "-m: Which database to use as metrics store: 'prometheus' (default) or 'elasticsearch' or 'opensearch'"
   echo "-h: Print help"
   exit 1
 }
 
 BINARY='jaeger'
-DATABASE='memory'
+METRICSTORE='prometheus'
 compose_file=docker-compose/monitor/docker-compose.yml
 make_target="dev"
 
-while getopts "b:d:h" opt; do
+while getopts "b:m:h" opt; do
   case "${opt}" in
   b)
     BINARY=${OPTARG}
     ;;
-  d)
-    DATABASE=${OPTARG}
+  m)
+    METRICSTORE=${OPTARG}
     ;;
   *)
     print_help
@@ -45,26 +45,31 @@ case "$BINARY" in
     ;;
 esac
 
-# Validate database option
-case "$DATABASE" in
-  "memory"|"elasticsearch")
+# Validate metricstore option
+case "$METRICSTORE" in
+  "prometheus"|"elasticsearch"|"opensearch")
     # Valid options
     ;;
   *)
-    echo "❌ ERROR: Invalid database option: $DATABASE"
+    echo "❌ ERROR: Invalid metricstore option: $METRICSTORE"
     print_help
     ;;
 esac
 
-# Set compose file based on binary and database
+# Set compose file based on binary and metricstore
 if [ "$BINARY" == "all-in-one" ]; then
   compose_file=docker-compose/monitor/docker-compose-v1.yml
   make_target="dev-v1"
 fi
 
-if [ "$DATABASE" == "elasticsearch" ]; then
+if [ "$METRICSTORE" == "elasticsearch" ]; then
   compose_file=docker-compose/monitor/docker-compose-elasticsearch.yml
   make_target="elasticsearch"
+fi
+
+if [ "$METRICSTORE" == "opensearch" ]; then
+  compose_file=docker-compose/monitor/docker-compose-opensearch.yml
+  make_target="opensearch"
 fi
 
 timeout=600
@@ -100,11 +105,20 @@ check_service_health() {
 # Function to check if all services are healthy
 wait_for_services() {
   echo "Waiting for services to be up and running..."
-  if [ "$DATABASE" == "elasticsearch" ]; then
-    check_service_health "Elasticsearch" "http://localhost:9200"
-  fi
+
+  case "$METRICSTORE" in
+    "elasticsearch")
+      check_service_health "Elasticsearch" "http://localhost:9200"
+      ;;
+    "opensearch")
+      check_service_health "Opensearch" "http://localhost:9200"
+      ;;
+    "prometheus")
+      check_service_health "Prometheus" "http://localhost:9090/query"
+      ;;
+  esac
+
   check_service_health "Jaeger" "http://localhost:16686"
-  check_service_health "Prometheus" "http://localhost:9090/query"
 }
 
 # Function to validate the service metrics
@@ -181,6 +195,11 @@ validate_service_metrics() {
 assert_service_name_equals() {
   local response=$1
   local expected=$2
+  # First check if metrics structure exists at all
+  if ! echo "$response" | jq -e '.metrics and .metrics[0]' >/dev/null; then
+    echo "⏳ Metrics not available yet (no metrics array)"
+    return 1
+  fi
   service_name=$(echo "$response" | jq -r 'if .metrics and .metrics[0] then .metrics[0].labels[] | select(.name=="service_name") | .value else empty end')
   if [[ "$service_name" != "$expected" ]]; then
     echo "❌ ERROR: Obtained service_name: '$service_name' are not same as expected: '$expected'"
@@ -207,7 +226,7 @@ count_zero_metrics_point() {
 }
 
 count_non_zero_metrics_point() {
-  echo "$1" | jq -r '[.metrics[0].metricPoints[].gaugeValue.doubleValue | select(. != 0)] | length'
+  echo "$1" | jq -r '[.metrics[0].metricPoints[].gaugeValue.doubleValue | select(. != 0 and (. | tostring != "NaN"))] | length'
 }
 
 check_spm() {

@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trace-generator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trace-generator
+  template:
+    metadata:
+      labels:
+        app: trace-generator
+    spec:
+      containers:
+      - name: trace-generator
+        image: python:3.11
+        command: 
+          - /bin/sh
+          - -c
+          - |
+            pip install requests && python /app/generate_traces.py
+        volumeMounts:
+        - name: script-volume
+          mountPath: /app
+      restartPolicy: Always
+      volumes:
+      - name: script-volume
+        configMap:
+          name: trace-script

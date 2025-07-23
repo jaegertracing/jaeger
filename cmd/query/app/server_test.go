@@ -19,6 +19,7 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -77,8 +78,8 @@ func TestCreateTLSServerSinglePortError(t *testing.T) {
 	telset := initTelSet(zaptest.NewLogger(t), jtracer.NoOp(), healthcheck.New())
 	_, err := NewServer(context.Background(), &querysvc.QueryService{}, &v2querysvc.QueryService{}, nil,
 		&QueryOptions{
-			HTTP: confighttp.ServerConfig{Endpoint: ":8080", TLSSetting: &tlsCfg},
-			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8080", Transport: confignet.TransportTypeTCP}, TLSSetting: &tlsCfg},
+			HTTP: confighttp.ServerConfig{Endpoint: ":8080", TLS: configoptional.Some(tlsCfg)},
+			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8080", Transport: confignet.TransportTypeTCP}, TLS: configoptional.Some(tlsCfg)},
 		},
 		tenancy.NewManager(&tenancy.Options{}), telset)
 	require.Error(t, err)
@@ -96,7 +97,7 @@ func TestCreateTLSGrpcServerError(t *testing.T) {
 	_, err := NewServer(context.Background(), &querysvc.QueryService{}, &v2querysvc.QueryService{}, nil,
 		&QueryOptions{
 			HTTP: confighttp.ServerConfig{Endpoint: ":8080"},
-			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8081", Transport: confignet.TransportTypeTCP}, TLSSetting: &tlsCfg},
+			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8081", Transport: confignet.TransportTypeTCP}, TLS: configoptional.Some(tlsCfg)},
 		},
 		tenancy.NewManager(&tenancy.Options{}), telset)
 	require.Error(t, err)
@@ -113,7 +114,7 @@ func TestStartTLSHttpServerError(t *testing.T) {
 	telset := initTelSet(zaptest.NewLogger(t), jtracer.NoOp(), healthcheck.New())
 	s, err := NewServer(context.Background(), &querysvc.QueryService{}, &v2querysvc.QueryService{}, nil,
 		&QueryOptions{
-			HTTP: confighttp.ServerConfig{Endpoint: ":8080", TLSSetting: &tlsCfg},
+			HTTP: confighttp.ServerConfig{Endpoint: ":8080", TLS: configoptional.Some(tlsCfg)},
 			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8081", Transport: confignet.TransportTypeTCP}},
 		}, tenancy.NewManager(&tenancy.Options{}), telset)
 	require.NoError(t, err)
@@ -338,6 +339,13 @@ func makeQuerySvc() *fakeQueryService {
 	}
 }
 
+func optionalFromPtr[T any](ptr *T) configoptional.Optional[T] {
+	if ptr == nil {
+		return configoptional.None[T]()
+	}
+	return configoptional.Some(*ptr)
+}
+
 func TestServerHTTPTLS(t *testing.T) {
 	testlen := len(testCases)
 
@@ -371,19 +379,18 @@ func TestServerHTTPTLS(t *testing.T) {
 			if test.GRPCTLSEnabled {
 				tlsGrpc = enabledTLSCfg
 			}
-
 			serverOptions := &QueryOptions{
 				BearerTokenPropagation: true,
 				HTTP: confighttp.ServerConfig{
-					Endpoint:   ":0",
-					TLSSetting: test.TLS,
+					Endpoint: ":0",
+					TLS:      optionalFromPtr(test.TLS),
 				},
 				GRPC: configgrpc.ServerConfig{
 					NetAddr: confignet.AddrConfig{
 						Endpoint:  ":0",
 						Transport: confignet.TransportTypeTCP,
 					},
-					TLSSetting: tlsGrpc,
+					TLS: optionalFromPtr(tlsGrpc),
 				},
 			}
 			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
@@ -483,15 +490,15 @@ func TestServerGRPCTLS(t *testing.T) {
 			serverOptions := &QueryOptions{
 				BearerTokenPropagation: true,
 				HTTP: confighttp.ServerConfig{
-					Endpoint:   ":0",
-					TLSSetting: tlsHttp,
+					Endpoint: ":0",
+					TLS:      optionalFromPtr(tlsHttp),
 				},
 				GRPC: configgrpc.ServerConfig{
 					NetAddr: confignet.AddrConfig{
 						Endpoint:  ":0",
 						Transport: confignet.TransportTypeTCP,
 					},
-					TLSSetting: test.TLS,
+					TLS: optionalFromPtr(test.TLS),
 				},
 			}
 			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
@@ -509,7 +516,7 @@ func TestServerGRPCTLS(t *testing.T) {
 			})
 
 			var client *grpcClient
-			if serverOptions.GRPC.TLSSetting != nil {
+			if serverOptions.GRPC.TLS.HasValue() {
 				clientTLSCfg, err0 := test.clientTLS.LoadTLSConfig(context.Background())
 				require.NoError(t, err0)
 				creds := credentials.NewTLS(clientTLSCfg)

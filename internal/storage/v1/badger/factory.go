@@ -79,20 +79,6 @@ func NewFactory() *Factory {
 	}
 }
 
-func NewFactoryWithConfig(
-	cfg Config,
-	metricsFactory metrics.Factory,
-	logger *zap.Logger,
-) (*Factory, error) {
-	f := NewFactory()
-	f.configure(&cfg)
-	err := f.Initialize(metricsFactory, logger)
-	if err != nil {
-		return nil, err
-	}
-	return f, nil
-}
-
 // AddFlags implements storage.Configurable
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 	f.Config.AddFlags(flagSet)

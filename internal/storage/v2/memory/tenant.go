@@ -5,6 +5,7 @@ package memory
 
 import (
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -73,7 +74,7 @@ func (t *Tenant) storeTraces(tracesById map[pcommon.TraceID]ptrace.ResourceSpans
 					if serviceName != "" {
 						operation := tracestore.Operation{
 							Name:     span.Name(),
-							SpanKind: span.Kind().String(),
+							SpanKind: fromOTELSpanKind(span.Kind()),
 						}
 						if _, ok := t.operations[serviceName]; !ok {
 							t.operations[serviceName] = make(map[tracestore.Operation]struct{})
@@ -288,4 +289,11 @@ func findKeyValInTrace(key string, val pcommon.Value, resourceAttributes pcommon
 		}
 	}
 	return tagsMatched
+}
+
+func fromOTELSpanKind(kind ptrace.SpanKind) string {
+	if kind == ptrace.SpanKindUnspecified {
+		return ""
+	}
+	return strings.ToLower(kind.String())
 }

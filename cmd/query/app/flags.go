@@ -115,12 +115,12 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Q
 	if err != nil {
 		return qOpts, fmt.Errorf("failed to process gRPC TLS options: %w", err)
 	}
-	qOpts.GRPC.TLSSetting = tlsGrpc
+	qOpts.GRPC.TLS = tlsGrpc
 	tlsHTTP, err := tlsHTTPFlagsConfig.InitFromViper(v)
 	if err != nil {
 		return qOpts, fmt.Errorf("failed to process HTTP TLS options: %w", err)
 	}
-	qOpts.HTTP.TLSSetting = tlsHTTP
+	qOpts.HTTP.TLS = tlsHTTP
 	qOpts.BasePath = v.GetString(queryBasePath)
 	qOpts.UIConfig.AssetsPath = v.GetString(queryStaticFiles)
 	qOpts.UIConfig.LogAccess = v.GetBool(queryLogStaticAssetsAccess)

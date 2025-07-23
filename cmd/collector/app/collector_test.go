@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
@@ -34,19 +35,19 @@ var _ (io.Closer) = (*Collector)(nil)
 func optionsForEphemeralPorts() *flags.CollectorOptions {
 	collectorOpts := &flags.CollectorOptions{
 		HTTP: confighttp.ServerConfig{
-			Endpoint:   ":0",
-			TLSSetting: &configtls.ServerConfig{},
+			Endpoint: ":0",
+			TLS:      configoptional.Some(configtls.ServerConfig{}),
 		},
 		GRPC: configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{
 				Endpoint:  ":0",
 				Transport: confignet.TransportTypeTCP,
 			},
-			Keepalive: &configgrpc.KeepaliveServerConfig{
+			Keepalive: configoptional.Some(configgrpc.KeepaliveServerConfig{
 				ServerParameters: &configgrpc.KeepaliveServerParameters{
 					MaxConnectionIdle: 10,
 				},
-			},
+			}),
 		},
 		OTLP: struct {
 			Enabled bool
@@ -55,19 +56,19 @@ func optionsForEphemeralPorts() *flags.CollectorOptions {
 		}{
 			Enabled: true,
 			HTTP: confighttp.ServerConfig{
-				Endpoint:   ":0",
-				TLSSetting: &configtls.ServerConfig{},
+				Endpoint: ":0",
+				TLS:      configoptional.Some(configtls.ServerConfig{}),
 			},
 			GRPC: configgrpc.ServerConfig{
 				NetAddr: confignet.AddrConfig{
 					Endpoint:  ":0",
 					Transport: confignet.TransportTypeTCP,
 				},
-				Keepalive: &configgrpc.KeepaliveServerConfig{
+				Keepalive: configoptional.Some(configgrpc.KeepaliveServerConfig{
 					ServerParameters: &configgrpc.KeepaliveServerParameters{
 						MaxConnectionIdle: 10,
 					},
-				},
+				}),
 			},
 		},
 		Zipkin: struct {

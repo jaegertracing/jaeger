@@ -11,12 +11,12 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	v1 "github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	conventions "github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
@@ -147,6 +147,13 @@ func (st *Store) GetDependencies(ctx context.Context, query depstore.QueryParame
 	return m.getDependencies(query)
 }
 
+func (st *Store) Purge() error {
+	st.Lock()
+	st.perTenant = make(map[string]*Tenant)
+	st.Unlock()
+	return nil
+}
+
 // reshuffleResourceSpans reshuffles the resource spans so as to group the spans from same traces together. To understand this reshuffling
 // take an example of 2 resource spans, then these two resource spans have 2 scope spans each.
 // Every scope span consists of 2 spans with trace ids: 1 and 2. Now the final structure should look like:
@@ -213,7 +220,7 @@ func reshuffleSpans(spanSlice ptrace.SpanSlice) map[pcommon.TraceID]ptrace.SpanS
 }
 
 func getServiceNameFromResource(resource pcommon.Resource) string {
-	val, ok := resource.Attributes().Get(conventions.AttributeServiceName)
+	val, ok := resource.Attributes().Get(conventions.ServiceNameKey)
 	if !ok {
 		return ""
 	}

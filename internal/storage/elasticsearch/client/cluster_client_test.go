@@ -102,9 +102,9 @@ const opensearch3 = `
 	  "number" : "3.0.0",
 	  "build_type" : "tar",
 	  "build_hash" : "34550c5b17124ddc59458ef774f6b43a086522e3",
-	  "build_date" : "2021-07-02T23:22:21.383695Z",
+	  "build_date" : "2025-05-06T23:22:21.383695Z",
 	  "build_snapshot" : false,
-	  "lucene_version" : "10.0.1",
+	  "lucene_version" : "10.0.0",
 	  "minimum_wire_compatibility_version" : "6.8.0",
 	  "minimum_index_compatibility_version" : "6.0.0-beta1"
 	},
