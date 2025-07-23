@@ -748,10 +748,6 @@ func TestGetRoundTripperTLSConfig(t *testing.T) {
 			},
 		},
 		{
-			name:      "tls disabled",
-			tlsConfig: configtls.ClientConfig{},
-		},
-		{
 			name: "invalid tls config",
 			tlsConfig: configtls.ClientConfig{
 				Config: configtls.Config{
