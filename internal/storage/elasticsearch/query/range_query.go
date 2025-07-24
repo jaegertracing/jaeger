@@ -11,64 +11,43 @@ package query
 
 type RangeQuery struct {
 	name      string
-	gt        any
-	gte       any
-	lt        any
-	lte       any
-	timeZone  string
-	boost     *float64
 	queryName string
-	format    string
-	relation  string
+	params    map[string]any
 }
 
 // NewRangeQuery creates and initializes a new RangeQuery.
 func NewRangeQuery(name string) *RangeQuery {
-	return &RangeQuery{name: name}
+	return &RangeQuery{
+		name:   name,
+		params: make(map[string]any),
+	}
 }
 
-func (q *RangeQuery) Gt(val any) *RangeQuery {
-	q.gt = val
+// Generic setter
+func (q *RangeQuery) set(key string, val any) *RangeQuery {
+	q.params[key] = val
 	return q
 }
 
-func (q *RangeQuery) Gte(val any) *RangeQuery {
-	q.gte = val
-	return q
+func (q *RangeQuery) Gt(val any) *RangeQuery      { return q.set("gt", val) }
+func (q *RangeQuery) Gte(val any) *RangeQuery     { return q.set("gte", val) }
+func (q *RangeQuery) Lt(val any) *RangeQuery      { return q.set("lt", val) }
+func (q *RangeQuery) Lte(val any) *RangeQuery     { return q.set("lte", val) }
+func (q *RangeQuery) Boost(b float64) *RangeQuery { return q.set("boost", b) }
+func (q *RangeQuery) TimeZone(tz string) *RangeQuery {
+	return q.set("time_zone", tz)
 }
 
-func (q *RangeQuery) Lt(val any) *RangeQuery {
-	q.lt = val
-	return q
+func (q *RangeQuery) Format(fmt string) *RangeQuery {
+	return q.set("format", fmt)
 }
 
-func (q *RangeQuery) Lte(val any) *RangeQuery {
-	q.lte = val
-	return q
-}
-
-func (q *RangeQuery) Boost(boost float64) *RangeQuery {
-	q.boost = &boost
-	return q
+func (q *RangeQuery) Relation(r string) *RangeQuery {
+	return q.set("relation", r)
 }
 
 func (q *RangeQuery) QueryName(queryName string) *RangeQuery {
 	q.queryName = queryName
-	return q
-}
-
-func (q *RangeQuery) TimeZone(timeZone string) *RangeQuery {
-	q.timeZone = timeZone
-	return q
-}
-
-func (q *RangeQuery) Format(format string) *RangeQuery {
-	q.format = format
-	return q
-}
-
-func (q *RangeQuery) Relation(relation string) *RangeQuery {
-	q.relation = relation
 	return q
 }
 
@@ -78,36 +57,10 @@ func (q *RangeQuery) Source() (any, error) {
 	source := make(map[string]any)
 	rangeQ := make(map[string]any)
 	source["range"] = rangeQ
-	params := make(map[string]any)
-	rangeQ[q.name] = params
+	rangeQ[q.name] = q.params
 
-	if q.gt != nil {
-		params["gt"] = q.gt
-	}
-	if q.gte != nil {
-		params["gte"] = q.gte
-	}
-	if q.lt != nil {
-		params["lt"] = q.lt
-	}
-	if q.lte != nil {
-		params["lte"] = q.lte
-	}
-	if q.timeZone != "" {
-		params["time_zone"] = q.timeZone
-	}
-	if q.format != "" {
-		params["format"] = q.format
-	}
-	if q.relation != "" {
-		params["relation"] = q.relation
-	}
-	if q.boost != nil {
-		params["boost"] = *q.boost
-	}
 	if q.queryName != "" {
 		rangeQ["_name"] = q.queryName
 	}
-
 	return source, nil
 }
