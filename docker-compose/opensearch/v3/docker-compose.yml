@@ -1,0 +1,11 @@
+services:
+  opensearch:
+    image: opensearchproject/opensearch:3.0.0
+    environment:
+      - discovery.type=single-node
+      - plugins.security.disabled=true
+      - http.host=0.0.0.0
+      - transport.host=127.0.0.1
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=passRT%^#234
+    ports:
+      - "9200:9200"

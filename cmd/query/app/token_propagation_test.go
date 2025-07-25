@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
@@ -24,6 +25,7 @@ import (
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/config"
+	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	es "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
@@ -80,9 +82,18 @@ func runQueryService(t *testing.T, esURL string) *Server {
 		"--es.server-urls=" + esURL,
 		"--es.create-index-templates=false",
 	}))
+
 	f.InitFromViper(v, flagsSvc.Logger)
 	// set AllowTokenFromContext manually because we don't register the respective CLI flag from query svc
-	f.Options.Config.Authentication.BearerTokenAuthentication.AllowFromContext = true
+	bearerAuth := escfg.BearerTokenAuthentication{
+		AllowFromContext: true,
+	}
+	// set the authentication in the factory options
+	f.Options.Config.Authentication = escfg.Authentication{
+		BearerTokenAuthentication: configoptional.Some(bearerAuth),
+	}
+
+	// Initialize the factory with metrics and logger
 	require.NoError(t, f.Initialize(telset.Metrics, telset.Logger))
 	defer f.Close()
 
