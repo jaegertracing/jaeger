@@ -7,6 +7,10 @@ hotrod:
   extraArgs:
     - --otel-exporter=otlp
     - --basepath=/hotrod
+  livenessProbe:
+    path: /hotrod
+  readinessProbe: 
+    path: /hotrod
   extraEnv:
     - name: OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://jaeger-collector:4318
