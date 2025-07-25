@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
-
+     "strings"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,14 +25,31 @@ type testDriver struct {
 	driver.Conn
 
 	t             *testing.T
-	rows          driver.Rows
 	expectedQuery string
 	err           error
+    rows          driver.Rows 
+	traceIDRows     driver.Rows
+	spanRowsByTrace map[string]driver.Rows
 }
 
-func (t *testDriver) Query(_ context.Context, query string, _ ...any) (driver.Rows, error) {
-	require.Equal(t.t, t.expectedQuery, query)
-	return t.rows, t.err
+func (t *testDriver) Query(_ context.Context, query string, args ...any) (driver.Rows, error) {
+	if strings.Contains(query, "SELECT DISTINCT trace_id") {		
+		return t.traceIDRows, t.err
+	}
+	if strings.Contains(query, "FROM spans") && strings.Contains(query, "trace_id =") {
+		if len(args) > 0 {
+			traceID, ok := args[0].(string)
+			if ok {
+				rows, found := t.spanRowsByTrace[traceID]
+				if found {
+					return rows, nil
+				}
+				return nil, fmt.Errorf("no mock rows found for traceID %s", traceID)
+			}
+		}
+		return nil, errors.New("missing traceID argument for spans query")
+	}
+	return nil, fmt.Errorf("unexpected query: %s", query)
 }
 
 type testRows[T any] struct {
@@ -489,4 +506,69 @@ func TestGetOperations(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFindTraces(t *testing.T) {
+
+    traceIDRows := &testRows[string]{
+        data: []string{"trace1", "trace2"},
+        scanFn: func(dest any, src string) error {
+            ptrs, ok := dest.([]any)
+            if !ok {
+                return fmt.Errorf("expected []any dest, got %T", dest)
+            }
+            if len(ptrs) != 1 {
+                return fmt.Errorf("expected 1 destination pointer, got %d", len(ptrs))
+            }
+            p, ok := ptrs[0].(*string)
+            if !ok {
+                return fmt.Errorf("expected *string pointer, got %T", ptrs[0])
+            }
+            *p = src
+            return nil
+        },
+    }
+
+    spanRowsTrace1 := &testRows[testdata.SpanRow]{
+        data: []testdata.SpanRow{
+            {
+                ID:          "span1",
+                TraceID:     "trace1",
+                ServiceName: "test-service",
+            },
+        },
+        scanFn: scanSpanRowFn(),
+    }
+
+    spanRowsTrace2 := &testRows[testdata.SpanRow]{
+        data: []testdata.SpanRow{
+            {
+                ID:          "span2",
+                TraceID:     "trace2",
+                ServiceName: "test-service",
+            },
+        },
+        scanFn: scanSpanRowFn(),
+    }
+
+    conn := &testDriver{
+        t:             t,
+        traceIDRows:   traceIDRows,
+        spanRowsByTrace: map[string]driver.Rows{
+            "trace1": spanRowsTrace1,
+            "trace2": spanRowsTrace2,
+        },
+    }
+
+    reader := NewReader(conn)
+
+    params := &tracestore.TraceQueryParams{
+        ServiceName:   "test-service",
+        OperationName: "op1",
+        SearchDepth:   10,
+    }
+
+    traces, err := reader.FindTraces(context.Background(), params)
+    require.NoError(t, err)
+    require.Len(t, traces, 2)
 }
