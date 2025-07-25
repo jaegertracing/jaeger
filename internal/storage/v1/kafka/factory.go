@@ -17,9 +17,10 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"go.opentelemetry.io/collector/component"
 )
 
-var ( // interface comformance checks
+var (
 	_ storage.Factory      = (*Factory)(nil)
 	_ io.Closer            = (*Factory)(nil)
 	_ storage.Configurable = (*Factory)(nil)
@@ -65,6 +66,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	logger.Info("Kafka factory",
 		zap.Any("producer builder", f.Builder),
 		zap.Any("topic", f.options.Topic))
+
 	switch f.options.Encoding {
 	case EncodingProto:
 		f.marshaller = newProtobufMarshaller()
@@ -73,6 +75,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	default:
 		return errors.New("kafka encoding is not one of '" + EncodingJSON + "' or '" + EncodingProto + "'")
 	}
+
 	p, err := f.NewProducer(logger)
 	if err != nil {
 		return err
@@ -88,7 +91,12 @@ func (*Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return NewSpanWriter(f.producer, f.marshaller, f.options.Topic, f.metricsFactory, f.logger), nil
+	// Create telemetry settings
+	telemetrySettings := component.TelemetrySettings{
+		Logger: f.logger,
+	}
+
+	return NewSpanWriter(f.options.Topic, f.metricsFactory, f.options.Config.Brokers, f.marshaller, f.logger, telemetrySettings)
 }
 
 // CreateDependencyReader implements storage.Factory
@@ -96,7 +104,7 @@ func (*Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	return nil, errors.New("kafka storage is write-only")
 }
 
-var _ io.Closer = (*Factory)(nil)
+
 
 // Close closes the resources held by the factory
 func (f *Factory) Close() error {
