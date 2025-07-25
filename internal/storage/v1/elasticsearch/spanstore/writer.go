@@ -7,7 +7,7 @@ package spanstore
 import (
 	"strings"
 	"time"
-
+	"encoding/json"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/cache"
@@ -153,7 +153,49 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
 }
 
 func (s *SpanWriter) writeSpan(indexName string, jsonSpan *dbmodel.Span) {
-	s.client().Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan).Add()
+	for i := range jsonSpan.Tags {
+		val := jsonSpan.Tags[i].Value
+		if val == nil {
+			continue
+		}
+
+		switch v := val.(type) {
+		case []string:
+			jsonSpan.Tags[i].Type = dbmodel.StringArrayType
+
+		case []interface{}:
+			if allStrings(v) {
+				strSlice := make([]string, len(v))
+				for j, elem := range v {
+					strSlice[j] = elem.(string)
+				}
+				jsonSpan.Tags[i].Type = dbmodel.StringArrayType
+				jsonSpan.Tags[i].Value = strSlice
+			}
+
+		case string:
+			var parsed []string
+			if err := json.Unmarshal([]byte(v), &parsed); err == nil {
+				jsonSpan.Tags[i].Type = dbmodel.StringArrayType
+				jsonSpan.Tags[i].Value = parsed
+			}
+		}
+	}
+
+	s.client().Index().
+		Index(indexName).
+		Type(spanType).
+		BodyJson(&jsonSpan).
+		Add()
+}
+
+func allStrings(v []interface{}) bool {
+	for _, item := range v {
+		if _, ok := item.(string); !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *SpanWriter) splitElevatedTags(keyValues []dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any) {

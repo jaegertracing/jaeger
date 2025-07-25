@@ -39,6 +39,7 @@ const (
 	Float64Type ValueType = "float64"
 	// BinaryType indicates an arbitrary byte array stored in KeyValue
 	BinaryType ValueType = "binary"
+    StringArrayType ValueType = "string[]"
 )
 
 // Span is ES database representation of the domain span.
