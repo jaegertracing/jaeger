@@ -18,6 +18,7 @@ func setTLSConfiguration(config *configtls.ClientConfig, saramaConfig *sarama.Co
 		if err != nil {
 			return fmt.Errorf("error loading tls config: %w", err)
 		}
+
 		saramaConfig.Net.TLS.Enable = true
 		saramaConfig.Net.TLS.Config = tlsConfig
 	}
