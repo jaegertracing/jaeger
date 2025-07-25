@@ -77,6 +77,7 @@ Once you're ready to make changes:
     git push --set-upstream origin {branch-name}
     ```
   * After you push, look for the output, it usually contains a URL to create a pull request.
+  * After raising a PR, please refrain from repeatedly merging the upstream main branch into your feature branch unless you're specifically resolving merge conflicts or updating for critical changes. Each merge triggers a reset of CI checks, requiring maintainers to re-approve your PR, which adds unnecessary overhead.
 
 Each PR should have:
 

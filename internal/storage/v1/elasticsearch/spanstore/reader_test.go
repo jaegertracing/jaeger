@@ -1093,10 +1093,9 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 
 func TestSpanReader_buildDurationQuery(t *testing.T) {
 	expectedStr := `{ "range":
-			{ "duration": { "include_lower": true,
-				        "include_upper": true,
-				        "from": 1000000,
-				        "to": 2000000 }
+			{ "duration": {
+				        "gte": 1000000,
+				        "lte": 2000000 }
 			}
 		}`
 	withSpanReader(t, func(r *spanReaderTest) {
@@ -1109,8 +1108,8 @@ func TestSpanReader_buildDurationQuery(t *testing.T) {
 		expected := make(map[string]any)
 		json.Unmarshal([]byte(expectedStr), &expected)
 		// We need to do this because we cannot process a json into uint64.
-		expected["range"].(map[string]any)["duration"].(map[string]any)["from"] = model.DurationAsMicroseconds(durationMin)
-		expected["range"].(map[string]any)["duration"].(map[string]any)["to"] = model.DurationAsMicroseconds(durationMax)
+		expected["range"].(map[string]any)["duration"].(map[string]any)["gte"] = model.DurationAsMicroseconds(durationMin)
+		expected["range"].(map[string]any)["duration"].(map[string]any)["lte"] = model.DurationAsMicroseconds(durationMax)
 
 		assert.EqualValues(t, expected, actual)
 	})
@@ -1118,10 +1117,9 @@ func TestSpanReader_buildDurationQuery(t *testing.T) {
 
 func TestSpanReader_buildStartTimeQuery(t *testing.T) {
 	expectedStr := `{ "range":
-			{ "startTimeMillis": { "include_lower": true,
-				         "include_upper": true,
-				         "from": 1000000,
-				         "to": 2000000 }
+			{ "startTimeMillis": {
+				         "gte": 1000000,
+				         "lte": 2000000 }
 			}
 		}`
 	withSpanReader(t, func(r *spanReaderTest) {
@@ -1134,8 +1132,8 @@ func TestSpanReader_buildStartTimeQuery(t *testing.T) {
 		expected := make(map[string]any)
 		json.Unmarshal([]byte(expectedStr), &expected)
 		// We need to do this because we cannot process a json into uint64.
-		expected["range"].(map[string]any)["startTimeMillis"].(map[string]any)["from"] = model.TimeAsEpochMicroseconds(startTimeMin) / 1000
-		expected["range"].(map[string]any)["startTimeMillis"].(map[string]any)["to"] = model.TimeAsEpochMicroseconds(startTimeMax) / 1000
+		expected["range"].(map[string]any)["startTimeMillis"].(map[string]any)["gte"] = model.TimeAsEpochMicroseconds(startTimeMin) / 1000
+		expected["range"].(map[string]any)["startTimeMillis"].(map[string]any)["lte"] = model.TimeAsEpochMicroseconds(startTimeMax) / 1000
 
 		assert.EqualValues(t, expected, actual)
 	})

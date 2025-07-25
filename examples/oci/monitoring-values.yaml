@@ -15,5 +15,5 @@ grafana:
   grafana.ini:
     server:
       domain: demo.jaegertracing.io
-      root_url: "%(protocol)s://%(domain)s:%(http_port)s/grafana/"
+      root_url: "%(protocol)s://%(domain)s/grafana/"
       serve_from_sub_path: true

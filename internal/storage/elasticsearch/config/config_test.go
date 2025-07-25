@@ -54,6 +54,15 @@ var mockEsServerResponseWithVersion2 = []byte(`
 }
 `)
 
+var mockEsServerResponseWithVersion3 = []byte(`
+{
+	"tagline": "OpenSearch",
+	"Version": {
+		"Number": "3"
+	}
+}
+`)
+
 var mockEsServerResponseWithVersion8 = []byte(`
 {
 	"tagline": "OpenSearch",
@@ -133,6 +142,13 @@ func TestNewClient(t *testing.T) {
 		res.Write(mockEsServerResponseWithVersion2)
 	}))
 	defer testServer2.Close()
+
+	testServer3 := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		assert.Contains(t, []string{http.MethodGet, http.MethodHead}, req.Method)
+		res.WriteHeader(http.StatusOK)
+		res.Write(mockEsServerResponseWithVersion3)
+	}))
+	defer testServer3.Close()
 
 	testServer8 := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 		assert.Contains(t, []string{http.MethodGet, http.MethodHead}, req.Method)
@@ -236,6 +252,21 @@ func TestNewClient(t *testing.T) {
 			name: "success with valid configuration with version 2",
 			config: &Configuration{
 				Servers: []string{testServer2.URL},
+				Authentication: Authentication{
+					BasicAuthentication:       basicAuth("user", "secret", ""),
+					BearerTokenAuthentication: bearerAuth("", true),
+				},
+				LogLevel: "debug",
+				BulkProcessing: BulkProcessing{
+					MaxBytes: -1, // disable bulk; we want immediate flush
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "success with valid configuration with version 3",
+			config: &Configuration{
+				Servers: []string{testServer3.URL},
 				Authentication: Authentication{
 					BasicAuthentication:       basicAuth("user", "secret", ""),
 					BearerTokenAuthentication: bearerAuth("", true),
@@ -579,7 +610,6 @@ func TestTagKeysAsFields(t *testing.T) {
 
 	pwdFile := filepath.Join(t.TempDir(), "pwd")
 	require.NoError(t, os.WriteFile(pwdFile, []byte(pwd1), 0o600))
-
 	tests := []struct {
 		name         string
 		config       *Configuration
@@ -804,7 +834,6 @@ func TestHandleBulkAfterCallback_ErrorMetricsEmitted(t *testing.T) {
 		sm:     sm,
 		logger: logger,
 	}
-
 	bcb.invoke(batchID, fakeRequests, response, assert.AnError)
 
 	mf.AssertCounterMetrics(t,
@@ -847,7 +876,6 @@ func TestHandleBulkAfterCallback_MissingStartTime(t *testing.T) {
 		sm:     sm,
 		logger: logger,
 	}
-
 	bcb.invoke(batchID, fakeRequests, response, assert.AnError)
 
 	mf.AssertCounterMetrics(t,
@@ -868,9 +896,7 @@ func TestHandleBulkAfterCallback_MissingStartTime(t *testing.T) {
 
 func TestGetConfigOptions(t *testing.T) {
 	tmpDir := t.TempDir()
-	apiKeyFile := filepath.Join(tmpDir, "apikey")
 	bearerTokenFile := filepath.Join(tmpDir, "bearertoken")
-	os.WriteFile(apiKeyFile, []byte("test-api-key"), 0o600)
 	os.WriteFile(bearerTokenFile, []byte("file-bearer-token"), 0o600)
 
 	tests := []struct {
@@ -1195,6 +1221,29 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 			},
 		},
 		{
+			name: "Bearer auth not applicable (empty config)",
+			cfg: &Configuration{
+				TLS: configtls.ClientConfig{Insecure: true},
+				Authentication: Authentication{
+					BearerTokenAuthentication: configoptional.Some(BearerTokenAuthentication{
+						FilePath:         "",    // Empty
+						AllowFromContext: false, // Disabled
+					}),
+				},
+			},
+			ctx: context.Background(),
+			validate: func(t *testing.T, rt http.RoundTripper) {
+				assert.NotNil(t, rt)
+				// Should be plain transport since auth is not applicable
+				_, ok := rt.(*auth.RoundTripper)
+				assert.False(t, ok, "Should not be an auth round tripper when config is not applicable")
+
+				transport, ok := rt.(*http.Transport)
+				assert.True(t, ok, "Should be plain http.Transport")
+				assert.True(t, transport.TLSClientConfig.InsecureSkipVerify)
+			},
+		},
+		{
 			name: "Secure mode with bearer token from file",
 			cfg: &Configuration{
 				TLS: configtls.ClientConfig{Insecure: false},
@@ -1207,7 +1256,10 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				assert.NotNil(t, rt)
 				authRT, ok := rt.(*auth.RoundTripper)
 				require.True(t, ok, "Should be an auth round tripper")
-				assert.Equal(t, "file-bearer-token", authRT.StaticToken)
+				require.Len(t, authRT.Auths, 1)
+				assert.Equal(t, "Bearer", authRT.Auths[0].Scheme)
+				assert.NotNil(t, authRT.Auths[0].TokenFn)
+				assert.Equal(t, "file-bearer-token", authRT.Auths[0].TokenFn())
 			},
 		},
 		{
@@ -1223,7 +1275,10 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				assert.NotNil(t, rt)
 				authRT, ok := rt.(*auth.RoundTripper)
 				require.True(t, ok, "Should be an auth round tripper")
-				assert.True(t, authRT.OverrideFromCtx)
+				require.Len(t, authRT.Auths, 1)
+				assert.Equal(t, "Bearer", authRT.Auths[0].Scheme)
+				assert.NotNil(t, authRT.Auths[0].FromCtx)
+
 				transport, ok := authRT.Transport.(*http.Transport)
 				require.True(t, ok)
 				assert.True(t, transport.TLSClientConfig.InsecureSkipVerify)
@@ -1275,6 +1330,7 @@ func TestLoadTokenFromFile(t *testing.T) {
 		const token = "test-token"
 		tokenFile := filepath.Join(t.TempDir(), "token")
 		require.NoError(t, os.WriteFile(tokenFile, []byte(token), 0o600))
+
 		loadedToken, err := loadTokenFromFile(tokenFile)
 		require.NoError(t, err)
 		assert.Equal(t, token, loadedToken)
@@ -1296,7 +1352,6 @@ func TestBulkCallbackInvoke_NilResponse(t *testing.T) {
 		sm:     sm,
 		logger: logger,
 	}
-
 	bcb.invoke(1, []elastic.BulkableRequest{nil}, nil, assert.AnError)
 
 	mf.AssertCounterMetrics(t,
