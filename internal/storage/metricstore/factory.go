@@ -56,7 +56,9 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 func (*Factory) getFactoryOfType(factoryType string) (storage.V1MetricStoreFactory, error) {
 	switch factoryType {
 	case prometheusStorageType:
-		return prometheus.NewFactory(), nil
+		return prometheus.NewFactory(
+			prometheus.WithBuckets([]float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}),
+		), nil
 	case disabledStorageType:
 		return disabled.NewFactory(), nil
 	}
