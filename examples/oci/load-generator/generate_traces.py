@@ -5,7 +5,7 @@ import requests
 import random
 import time
 
-url = "http://jaeger-hotrod.default.svc.cluster.local:80/dispatch" 
+url = "http://jaeger-hotrod.default.svc.cluster.local:80/hotrod/dispatch" # /hotrod is the basepath
 
 customer_ids = [123, 392, 731, 567]
 i = 0
