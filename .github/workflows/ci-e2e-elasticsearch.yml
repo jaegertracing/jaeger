@@ -30,6 +30,9 @@ jobs:
         - major: 8.x
           distribution: elasticsearch
           jaeger: v2
+        - major: 9.x
+          distribution: elasticsearch
+          jaeger: v2
     name: ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
     steps:
     - name: Harden Runner
