@@ -754,6 +754,68 @@ func TestGetDependencies_WrongSpanId(t *testing.T) {
 	assert.Empty(t, deps)
 }
 
+func TestFindTraces_FirstClassFields(t *testing.T) {
+	store, err := NewStore(v1.Configuration{MaxTraces: 10})
+	require.NoError(t, err)
+
+	// Create a trace with known first-class fields
+	td := ptrace.NewTraces()
+	rs := td.ResourceSpans().AppendEmpty()
+	ss := rs.ScopeSpans().AppendEmpty()
+	span := ss.Spans().AppendEmpty()
+
+	traceID := fromString(t, "00000000000000010000000000000000")
+	span.SetTraceID(traceID)
+	span.SetSpanID(spanIdFromString(t, "0000000000000001"))
+	span.SetKind(ptrace.SpanKindServer)
+	span.Status().SetCode(ptrace.StatusCodeError)
+
+	// Set scope info
+	ss.Scope().SetName("test-scope")
+	ss.Scope().SetVersion("1.0.0")
+
+	// Write trace to store
+	err = store.WriteTraces(context.Background(), td)
+	require.NoError(t, err)
+
+	// Table-driven tests for first-class fields
+	tests := []struct {
+		name  string
+		key   string
+		value string
+	}{
+		{"ScopeName", "scope.name", "test-scope"},
+		{"ScopeVersion", "scope.version", "1.0.0"},
+		{"SpanKind", "span.kind", "server"},
+		{"SpanStatus", "span.status", "ERROR"},
+		// NOTE: span.tracestate is skipped because it can't be set programmatically
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			attrs := pcommon.NewMap()
+			attrs.PutStr(tt.key, tt.value)
+
+			params := tracestore.TraceQueryParams{
+				Attributes:  attrs,
+				SearchDepth: 10,
+			}
+
+			iter := store.FindTraces(context.Background(), params)
+			found := 0
+			for traces, err := range iter {
+				require.NoError(t, err)
+				for i := 0; i < len(traces); i++ {
+					if traces[i].ResourceSpans().Len() > 0 {
+						found++
+					}
+				}
+			}
+			assert.Equal(t, 1, found, "Expected to find exactly 1 trace for key=%s", tt.key)
+		})
+	}
+}
+
 func writeTenTraces(t *testing.T, store *Store) {
 	for i := 1; i < 10; i++ {
 		traceID := fromString(t, fmt.Sprintf("000000000000000%d0000000000000000", i))

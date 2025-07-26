@@ -90,6 +90,12 @@ type TraceQueryParams struct {
 	DurationMin  time.Duration
 	DurationMax  time.Duration
 	SearchDepth  int
+
+	SpanStatus   ptrace.StatusCode
+	SpanKind     ptrace.SpanKind
+	ScopeName    string
+	ScopeVersion string
+	TraceState   string
 }
 
 // FoundTraceID is a wrapper around trace ID returned from FindTraceIDs
