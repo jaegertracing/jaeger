@@ -238,6 +238,33 @@ func validResource(resource pcommon.Resource, query tracestore.TraceQueryParams)
 }
 
 func validSpan(resourceAttributes, scopeAttributes pcommon.Map, span ptrace.Span, query tracestore.TraceQueryParams) bool {
+	if query.SpanStatus != 0 && span.Status().Code() != query.SpanStatus {
+		return false
+	}
+
+	if query.SpanKind != 0 && span.Kind() != query.SpanKind {
+		return false
+	}
+
+	if query.ScopeName != "" || query.ScopeVersion != "" {
+		scope := scopeAttributes
+		if query.ScopeName != "" {
+			if v, ok := scope.Get("name"); !ok || v.Str() != query.ScopeName {
+				return false
+			}
+		}
+		if query.ScopeVersion != "" {
+			if v, ok := scope.Get("version"); !ok || v.Str() != query.ScopeVersion {
+				return false
+			}
+		}
+
+	}
+
+	if query.TraceState != "" && span.TraceState().AsRaw() != query.TraceState {
+		return false
+	}
+
 	if errAttribute, ok := query.Attributes.Get(errorAttribute); ok {
 		if errAttribute.Bool() && span.Status().Code() != ptrace.StatusCodeError {
 			return false
