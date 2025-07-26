@@ -62,25 +62,42 @@ def compare_metric_details(base_details, pr_details):
     }
 
 def generate_markdown_summary(comparison):
-    summary = []
-    summary.append("## Metrics Comparison Summary")
-    summary.append(f"- ✅ **Added metrics:** {len(comparison['added'])}")
-    summary.append(f"- ❌ **Removed metrics:** {len(comparison['removed'])}")
-    summary.append(f"- 🔄 **Changed metrics:** {len(comparison['changed'])}")
+    summary = [
+        "## Metrics Comparison Summary",
+        f"- ✅ **Added metrics:** {len(comparison['added'])}",
+        f"- ❌ **Removed metrics:** {len(comparison['removed'])}",
+        f"- 🔄 **Changed metrics:** {len(comparison['changed'])}"
+    ]
 
-    if comparison['added']:
-        summary.append("\n### 🆕 Added Metrics")
-        for metric in comparison['added'][:5]:  # Show first 5 for brevity
-            summary.append(f"- `{metric['name']}`")
-        if len(comparison['added']) > 5:
-            summary.append(f"- ... and {len(comparison['added']) - 5} more")
+    def add_section(title, icon, metrics, is_changed=False, max_items=5):
+        if not metrics:
+            return
 
-    if comparison['removed']:
-        summary.append("\n### 🗑️ Removed Metrics")
-        for metric in comparison['removed'][:5]:
+        summary.append(f"\n### {icon} {title}")
+
+        for metric in metrics[:max_items]:
             summary.append(f"- `{metric['name']}`")
-        if len(comparison['removed']) > 5:
-            summary.append(f"- ... and {len(comparison['removed']) - 5} more")
+
+            if is_changed:
+                if metric['removed']:
+                    summary.append("  - **Before:**")
+                    for sample in metric['removed'][:2]:
+                        summary.append(f"    - `{sample['labels']}` = {sample['value']}")
+
+                if metric['added']:
+                    summary.append("  - **After:**")
+                    for sample in metric['added'][:2]:
+                        summary.append(f"    - `{sample['labels']}` = {sample['value']}")
+            else:
+                for sample in metric.get('samples', [])[:2]:
+                    summary.append(f"  - `{sample['labels']}` = {sample['value']}")
+
+            if len(metrics) > max_items and metric == metrics[max_items-1]:
+                summary.append(f"- ... and {len(metrics) - max_items} more")
+
+    add_section("Added Metrics", "🆕", comparison['added'])
+    add_section("Removed Metrics", "🗑️", comparison['removed'])
+    add_section("Changed Metrics", "🔄", comparison['changed'], is_changed=True)
 
     return '\n'.join(summary)
 
