@@ -84,6 +84,7 @@ runs:
       with:
         script: |
           const fs = require('fs');
+          const core = require('@actions/core');
           try {
             const summary = fs.readFileSync('./.metrics/summary_${{ inputs.snapshot }}.md', 'utf8');
             await github.rest.issues.createComment({
