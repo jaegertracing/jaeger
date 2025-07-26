@@ -19,7 +19,7 @@ def parse_metrics(content):
             labels.pop('service_instance_id',None)
             label_pairs = sorted(labels.items(), key=lambda x: x[0])
             label_str = ','.join(f'{k}="{v}"' for k,v in label_pairs)
-            metric = f"{family.name}{{{label_str}}}"
+            metric = f"{family.name}{{{label_str}}} {sample.value}"
             insort(metrics , metric)
         
     return metrics
