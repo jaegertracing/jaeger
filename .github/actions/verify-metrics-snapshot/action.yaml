@@ -90,7 +90,10 @@ runs:
           
           try {
             const summary = fs.readFileSync('./.metrics/summary_${{ inputs.snapshot }}.md', 'utf8');
-            const commentBody = `${summary}`;
+          
+            // Get the artifact URL for the full details
+            const artifactUrl = `https://github.com/${owner}/${repo}/actions/runs/${{ github.run_id }}/artifacts`;
+            const commentBody = summary.replace('$LINK_TO_ARTIFACT', artifactUrl);
           
             // Find existing comment
             const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number });

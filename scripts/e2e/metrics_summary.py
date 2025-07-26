@@ -63,43 +63,23 @@ def compare_metric_details(base_details, pr_details):
 
 def generate_markdown_summary(comparison):
     summary = [
-        "## Metrics Comparison Summary",
-        f"- ✅ **Added metrics:** {len(comparison['added'])}",
-        f"- ❌ **Removed metrics:** {len(comparison['removed'])}",
-        f"- 🔄 **Changed metrics:** {len(comparison['changed'])}"
+        "## 📊 Metrics Report",
+        "",
+        "|  Change   | Count |",
+        "|-----------|-------|"
     ]
 
-    def add_section(title, icon, metrics, is_changed=False, max_items=5):
-        if not metrics:
-            return
+    if comparison['added']:
+        summary.append(f"| 🆕 Added | {len(comparison['added'])} |")
+    if comparison['removed']:
+        summary.append(f"| ❌ Removed | {len(comparison['removed'])}     |")
 
-        summary.append(f"\n### {icon} {title}")
+    summary.extend([
+        "",
+        "➡️ [View full metrics comparison]($LINK_TO_ARTIFACT)",
+    ])
 
-        for metric in metrics[:max_items]:
-            summary.append(f"- `{metric['name']}`")
-
-            if is_changed:
-                if metric['removed']:
-                    summary.append("  - **Before:**")
-                    for sample in metric['removed'][:5]: # We just log at most 5 component for the sake of brevity
-                        summary.append(f"    - `{sample['labels']}` = {sample['value']}")
-
-                if metric['added']:
-                    summary.append("  - **After:**")
-                    for sample in metric['added'][:5]:
-                        summary.append(f"    - `{sample['labels']}` = {sample['value']}")
-            else:
-                for sample in metric.get('samples', [])[:5]:
-                    summary.append(f"  - `{sample['labels']}` = {sample['value']}")
-
-            if len(metrics) > max_items and metric == metrics[max_items-1]:
-                summary.append(f"- ... and {len(metrics) - max_items} more")
-
-    add_section("Added Metrics", "🆕", comparison['added'])
-    add_section("Removed Metrics", "🗑️", comparison['removed'])
-    add_section("Changed Metrics", "🔄", comparison['changed'], is_changed=True)
-
-    return '\n'.join(summary)
+    return "\n".join(summary)
 
 def main():
     parser = argparse.ArgumentParser(description='Generate metrics comparison summary')
