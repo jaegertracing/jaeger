@@ -36,10 +36,3 @@ func New(workers int) *Pool {
 func (p *Pool) Execute(job func()) {
 	p.jobs <- job
 }
-
-// Stop halts all the workers
-func (p *Pool) Stop() {
-	if p.stop != nil {
-		close(p.stop)
-	}
-}
