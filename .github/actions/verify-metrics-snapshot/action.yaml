@@ -85,14 +85,29 @@ runs:
         script: |
           const fs = require('fs');
           const core = require('@actions/core');
+          const { owner, repo } = context.repo;
+          const { number: issue_number } = context.issue;
+          
           try {
             const summary = fs.readFileSync('./.metrics/summary_${{ inputs.snapshot }}.md', 'utf8');
-            await github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: summary
-            });
-          } catch (error) {
-            core.error('Failed to post PR comment: ' + error.message);
+            const commentBody = `${summary}`;
+          
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number });
+            const metricsComment = comments.find(c => c.body.includes('<!-- METRICS_COMMENT -->'));
+          
+            if (metricsComment) {
+              await github.rest.issues.updateComment({
+                owner, repo,
+                comment_id: metricsComment.id,
+                body: commentBody
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number,
+                body: commentBody
+              });
+            }
+          } catch (err) {
+            core.error(`Failed to post PR comment: ${err.message}`);
           }
