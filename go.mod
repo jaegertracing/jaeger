@@ -2,7 +2,7 @@ module github.com/jaegertracing/jaeger
 
 go 1.23.7
 
-toolchain go1.24.4
+toolchain go1.24.5
 
 require (
 	github.com/ClickHouse/ch-go v0.66.1
@@ -109,11 +109,12 @@ require (
 	go.uber.org/zap v1.27.0
 	golang.org/x/net v0.41.0
 	golang.org/x/sys v0.34.0
-	golang.org/x/text v0.26.0
 	google.golang.org/grpc v1.73.0
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/yaml.v3 v3.0.1
 )
+
+require golang.org/x/text v0.26.0 // indirect
 
 require (
 	github.com/IBM/sarama v1.45.2 // indirect
