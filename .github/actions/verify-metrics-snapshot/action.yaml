@@ -48,7 +48,7 @@ runs:
           ${{ inputs.artifact_key }}
 
     - name: Calculate diff between the snapshots 
-      id: compare-snapshots
+      id: generate-diff
       if: ${{ (github.ref_name != 'main') && (steps.download-release-snapshot.outputs.cache-matched-key != '')  }}
       shell: bash
       run: |
@@ -56,6 +56,8 @@ runs:
         python3 ./scripts/e2e/compare_metrics.py --file1 ./.metrics/${{ inputs.snapshot }}.txt --file2 ./.metrics/baseline_${{ inputs.snapshot }}.txt --output ./.metrics/diff_${{ inputs.snapshot }}.txt
         if [ $? -eq 1 ]; then
           echo "DIFF_FOUND=true" >> $GITHUB_OUTPUT
+          echo "🛑 Differences found in metrics"
+          exit 1
         fi
 
     - name: Generate metrics summary
