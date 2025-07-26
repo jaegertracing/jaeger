@@ -81,15 +81,15 @@ def generate_markdown_summary(comparison):
             if is_changed:
                 if metric['removed']:
                     summary.append("  - **Before:**")
-                    for sample in metric['removed'][:2]:
+                    for sample in metric['removed'][:5]: # We just log at most 5 component for the sake of brevity
                         summary.append(f"    - `{sample['labels']}` = {sample['value']}")
 
                 if metric['added']:
                     summary.append("  - **After:**")
-                    for sample in metric['added'][:2]:
+                    for sample in metric['added'][:5]:
                         summary.append(f"    - `{sample['labels']}` = {sample['value']}")
             else:
-                for sample in metric.get('samples', [])[:2]:
+                for sample in metric.get('samples', [])[:5]:
                     summary.append(f"  - `{sample['labels']}` = {sample['value']}")
 
             if len(metrics) > max_items and metric == metrics[max_items-1]:
