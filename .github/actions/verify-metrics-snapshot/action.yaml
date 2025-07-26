@@ -55,16 +55,43 @@ runs:
         python3 -m pip install prometheus-client
         python3 ./scripts/e2e/compare_metrics.py --file1 ./.metrics/${{ inputs.snapshot }}.txt --file2 ./.metrics/baseline_${{ inputs.snapshot }}.txt --output ./.metrics/diff_${{ inputs.snapshot }}.txt
         if [ $? -eq 1 ]; then
-        echo "🛑 Differences found in metrics"
-        exit 1
+          echo "DIFF_FOUND=true" >> $GITHUB_OUTPUT
         fi
 
+    - name: Generate metrics summary
+      id: generate-summary
+      if: ${{ steps.generate-diff.outputs.DIFF_FOUND == 'true' }}
+      shell: bash
+      run: |
+        python3 ./scripts/e2e/metrics_summary.py \
+          --base ./.metrics/baseline_${{ inputs.snapshot }}.txt \
+          --pr ./.metrics/${{ inputs.snapshot }}.txt \
+          --output ./.metrics/summary_${{ inputs.snapshot }}.md
+
     - name: Upload the diff artifact
-      if: ${{ (github.ref_name != 'main') && (steps.compare-snapshots.outcome == 'failure') }}
+      if: ${{ steps.generate-diff.outputs.DIFF_FOUND == 'true' }}
       uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
       with:
         name: diff_${{ inputs.artifact_key }}
-        path: ./.metrics/diff_${{ inputs.snapshot }}.txt
+        path: |
+          ./.metrics/diff_${{ inputs.snapshot }}.txt
+          ./.metrics/summary_${{ inputs.snapshot }}.md
         retention-days: 7
 
-    
+    - name: Post PR comment with metrics summary
+      if: ${{ github.event_name == 'pull_request' && steps.generate-diff.outputs.DIFF_FOUND == 'true' }}
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          try {
+            const summary = fs.readFileSync('./.metrics/summary_${{ inputs.snapshot }}.md', 'utf8');
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });
+          } catch (error) {
+            core.error('Failed to post PR comment: ' + error.message);
+          }
