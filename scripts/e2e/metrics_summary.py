@@ -65,18 +65,20 @@ def generate_markdown_summary(comparison):
     summary = [
         "## 📊 Metrics Report",
         "",
-        "|  Change   | Count |",
-        "|-----------|-------|"
+        "|  Change    | Count |",
+        "|------------|-------|"
     ]
 
     if comparison['added']:
-        summary.append(f"| 🆕 Added | {len(comparison['added'])} |")
+        summary.append(f"| 🆕 Added  | {len(comparison['added'])} |")
     if comparison['removed']:
-        summary.append(f"| ❌ Removed | {len(comparison['removed'])}     |")
+        summary.append(f"| ❌ Removed  | {len(comparison['removed'])}     |")
+    if comparison['changed']:
+        summary.append(f"| 🔄 Changed | {len(comparison['changed'])}     |")
 
     summary.extend([
         "",
-        "➡️ [View full metrics comparison]($LINK_TO_ARTIFACT)",
+        "➡️ [View full metrics file]($LINK_TO_ARTIFACT)",
     ])
 
     return "\n".join(summary)
