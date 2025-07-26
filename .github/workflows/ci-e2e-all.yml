@@ -40,3 +40,98 @@ jobs:
   query:
     uses: ./.github/workflows/ci-e2e-query.yml
 
+  metrics-comparison:
+    name: Compare Metrics
+    needs: [badger, cassandra, elasticsearch, grpc, kafka, memory, opensearch, query]
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all metrics artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./.metrics/
+
+      - name: Install dependencies
+        run: python3 -m pip install prometheus-client
+
+      - name: Compare metrics and generate summary
+        id: compare-metrics
+        shell: bash
+        run: |
+          set +e
+          any_diff=false
+          summary_files=""
+          
+          # Loop through all metric files
+          for file in ./.metrics/*.txt; do
+            if [[ $file == *"baseline_"* ]] || [[ $file == *"diff_"* ]]; then
+              continue
+            fi
+          
+            base_file="./.metrics/baseline_$(basename "$file")"
+            if [ -f "$base_file" ]; then
+              snapshot_name=$(basename "$file" .txt)
+          
+              # First run comparison to check for differences
+              python3 ./scripts/e2e/compare_metrics.py \
+                --file1 "$file" \
+                --file2 "$base_file" \
+                --output "./.metrics/diff_$snapshot_name.txt"
+          
+              if [ $? -eq 1 ]; then
+                any_diff=true
+                # Only generate summary if there are differences
+                python3 ./scripts/e2e/metrics_summary.py \
+                  --base "$base_file" \
+                  --pr "$file" \
+                  --output "./.metrics/summary_$snapshot_name.md"
+                summary_files+="./.metrics/summary_$snapshot_name.md "
+              fi
+            fi
+          done
+          
+          if $any_diff; then
+            echo "DIFF_FOUND=true" >> $GITHUB_OUTPUT
+            # Combine all summaries into one
+            echo "## Metrics Comparison Summary" > ./.metrics/combined_summary.md
+            cat $summary_files >> ./.metrics/combined_summary.md
+            echo -e "\n\n[View detailed metrics differences]($LINK_TO_ARTIFACT)" >> ./.metrics/combined_summary.md
+          fi
+
+      - name: Post PR comment with combined metrics summary
+        if: steps.compare-metrics.outputs.DIFF_FOUND == 'true'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const core = require('@actions/core');
+            const { owner, repo } = context.repo;
+            const { number: issue_number } = context.issue;
+            
+            try {
+              const summary = fs.readFileSync('./.metrics/combined_summary.md', 'utf8');
+              const artifactUrl = `https://github.com/${owner}/${repo}/actions/runs/${{ github.run_id }}/artifacts`;
+              const commentBody = summary.replace('$LINK_TO_ARTIFACT', artifactUrl) + '\n<!-- METRICS_COMMENT -->';
+            
+              // Find existing comment
+              const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number });
+              const metricsComment = comments.find(c => c.body.includes('<!-- METRICS_COMMENT -->'));
+            
+              if (metricsComment) {
+                await github.rest.issues.updateComment({
+                  owner, repo,
+                  comment_id: metricsComment.id,
+                  body: commentBody
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner, repo, issue_number,
+                  body: commentBody
+                });
+              }
+            } catch (err) {
+              core.error(`Failed to post PR comment: ${err.message}`);
+            }
