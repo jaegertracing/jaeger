@@ -242,6 +242,11 @@ func TestZipkinReceiverWrapper_DisableKeepAlive_ErrorCases(t *testing.T) {
 			receiver:       &mockReceiverWithNilServer{server: nil},
 			expectedErrMsg: "server field is nil",
 		},
+		{
+			name:           "non-struct receiver (string type)",
+			receiver:       func() receiver.Traces { s := mockStringReceiver("test"); return &s }(),
+			expectedErrMsg: "receiver is not a struct",
+		},
 	}
 
 	for _, tt := range tests {
@@ -291,4 +296,58 @@ func (*mockReceiverWithNilServer) Start(_ context.Context, _ component.Host) err
 
 func (*mockReceiverWithNilServer) Shutdown(_ context.Context) error {
 	return nil
+}
+
+type mockStringReceiver string
+
+func (*mockStringReceiver) Start(_ context.Context, _ component.Host) error {
+	return nil
+}
+
+func (*mockStringReceiver) Shutdown(_ context.Context) error {
+	return nil
+}
+
+func TestZipkinReceiverWrapper_DisableKeepAlive_SuccessPath(t *testing.T) {
+	logger, _ := testutils.NewLogger()
+
+	mockReceiver := &mockReceiverWithValidServer{
+		server: &http.Server{},
+	}
+
+	wrapper := &zipkinReceiverWrapper{
+		Traces:    mockReceiver,
+		keepAlive: false,
+		logger:    logger,
+	}
+
+	err := wrapper.disableKeepAlive()
+	require.NoError(t, err)
+}
+
+type mockReceiverWithValidServer struct {
+	server *http.Server
+}
+
+func (*mockReceiverWithValidServer) Start(_ context.Context, _ component.Host) error {
+	return nil
+}
+
+func (*mockReceiverWithValidServer) Shutdown(_ context.Context) error {
+	return nil
+}
+
+func TestZipkinReceiverWrapper_Start_WithDisableKeepAliveError(t *testing.T) {
+	logger, _ := testutils.NewLogger()
+
+	mockReceiver := &mockReceiverWithoutServerField{}
+
+	wrapper := &zipkinReceiverWrapper{
+		Traces:    mockReceiver,
+		keepAlive: false,
+		logger:    logger,
+	}
+
+	err := wrapper.Start(context.Background(), &otelHost{logger: logger})
+	require.NoError(t, err)
 }
