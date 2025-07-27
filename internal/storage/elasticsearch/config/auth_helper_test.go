@@ -335,3 +335,107 @@ func TestInitBasicAuthWithReload(t *testing.T) {
 	updatedExpected := base64.StdEncoding.EncodeToString([]byte("user:updated"))
 	assert.Equal(t, updatedExpected, method.TokenFn())
 }
+
+func TestInitBasicAuth_EdgeCases(t *testing.T) {
+	logger := zap.NewNop()
+
+	tests := []struct {
+		name        string
+		basicAuth   *BasicAuthentication
+		expectError bool
+		expectNil   bool
+		errorMsg    string
+	}{
+		{
+			name:      "nil basicAuth returns nil",
+			basicAuth: nil,
+			expectNil: true,
+		},
+		{
+			name: "both password and file path set - validation error",
+			basicAuth: &BasicAuthentication{
+				Username:         "user",
+				Password:         "pass",
+				PasswordFilePath: "/some/path",
+			},
+			expectError: true,
+			errorMsg:    "both Password and PasswordFilePath are set",
+		},
+		{
+			name: "empty username returns nil",
+			basicAuth: &BasicAuthentication{
+				Username: "",
+				Password: "pass",
+			},
+			expectNil: true,
+		},
+		{
+			name: "file path error",
+			basicAuth: &BasicAuthentication{
+				Username:         "user",
+				PasswordFilePath: "/nonexistent/path",
+			},
+			expectError: true,
+			errorMsg:    "failed to load password from file",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			method, err := initBasicAuth(tc.basicAuth, logger)
+			switch {
+			case tc.expectError:
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.errorMsg)
+				assert.Nil(t, method)
+			case tc.expectNil:
+				require.NoError(t, err)
+				assert.Nil(t, method)
+			default:
+				require.NoError(t, err)
+				require.NotNil(t, method)
+			}
+		})
+	}
+}
+
+func TestInitBearerAuth_EdgeCases(t *testing.T) {
+	logger := zap.NewNop()
+
+	tests := []struct {
+		name        string
+		bearerAuth  *BearerTokenAuthentication
+		expectError bool
+		expectNil   bool
+	}{
+		{
+			name:       "nil bearerAuth returns nil",
+			bearerAuth: nil,
+			expectNil:  true,
+		},
+		{
+			name: "empty config returns nil",
+			bearerAuth: &BearerTokenAuthentication{
+				FilePath:         "",
+				AllowFromContext: false,
+			},
+			expectNil: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			method, err := initBearerAuth(tc.bearerAuth, logger)
+			switch {
+			case tc.expectError:
+				require.Error(t, err)
+			case tc.expectNil:
+				require.NoError(t, err)
+				assert.Nil(t, method)
+			default:
+				require.NoError(t, err)
+				require.NotNil(t, method)
+			}
+		})
+	}
+}

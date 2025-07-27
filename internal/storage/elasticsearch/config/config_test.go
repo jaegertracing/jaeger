@@ -970,7 +970,7 @@ func TestGetConfigOptions(t *testing.T) {
 			},
 			ctx:             context.Background(),
 			wantErr:         true,
-			wantErrContains: "failed to load password from file",
+			wantErrContains: "failed to initialize basic authentication",
 		},
 
 		{

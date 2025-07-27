@@ -439,3 +439,69 @@ func TestAddFlags(t *testing.T) {
 		})
 	}
 }
+
+func TestAddFlagsWithPreExistingAuth(t *testing.T) {
+	tests := []struct {
+		name             string
+		setupConfig      func() *namespaceConfig
+		expectedDefaults map[string]string
+	}{
+		{
+			name: "existing basic auth with reload interval",
+			setupConfig: func() *namespaceConfig {
+				return &namespaceConfig{
+					namespace: "es",
+					Configuration: escfg.Configuration{
+						Authentication: escfg.Authentication{
+							BasicAuthentication: configoptional.Some(escfg.BasicAuthentication{
+								Username:         "existing_user",
+								Password:         "existing_pass",
+								PasswordFilePath: "/existing/path",
+								ReloadInterval:   30 * time.Second,
+							}),
+						},
+					},
+				}
+			},
+			expectedDefaults: map[string]string{
+				"es.username":      "existing_user",
+				"es.password":      "existing_pass",
+				"es.password-file": "/existing/path",
+			},
+		},
+		{
+			name: "existing bearer token with reload interval",
+			setupConfig: func() *namespaceConfig {
+				return &namespaceConfig{
+					namespace: "es",
+					Configuration: escfg.Configuration{
+						Authentication: escfg.Authentication{
+							BearerTokenAuthentication: configoptional.Some(escfg.BearerTokenAuthentication{
+								FilePath:         "/existing/token",
+								AllowFromContext: true,
+								ReloadInterval:   60 * time.Second,
+							}),
+						},
+					},
+				}
+			},
+			expectedDefaults: map[string]string{
+				"es.token-file": "/existing/token",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := tt.setupConfig()
+			flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
+			addFlags(flagSet, cfg)
+
+			for flagName, expectedDefault := range tt.expectedDefaults {
+				flag := flagSet.Lookup(flagName)
+				require.NotNil(t, flag, "flag %s not found", flagName)
+				assert.Equal(t, expectedDefault, flag.DefValue, "wrong default for %s", flagName)
+			}
+		})
+	}
+}
