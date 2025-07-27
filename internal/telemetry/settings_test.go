@@ -79,6 +79,29 @@ func TestHCAdapter(t *testing.T) {
 	}
 }
 
+func TestHCAdapter_DefaultCase(t *testing.T) {
+	hc := healthcheck.New()
+	adapter := telemetry.HCAdapter(hc)
+	
+	adapter(componentstatus.NewEvent(componentstatus.StatusStarting))
+	assert.Equal(t, healthcheck.Unavailable, hc.Get())
+	
+	adapter(componentstatus.NewEvent(componentstatus.StatusRecoverableError))
+	assert.Equal(t, healthcheck.Unavailable, hc.Get())
+	
+	adapter(componentstatus.NewEvent(componentstatus.StatusPermanentError))
+	assert.Equal(t, healthcheck.Unavailable, hc.Get())
+	
+	adapter(componentstatus.NewEvent(componentstatus.StatusNone))
+	assert.Equal(t, healthcheck.Unavailable, hc.Get())
+	
+	adapter(componentstatus.NewEvent(componentstatus.StatusStopping))
+	assert.Equal(t, healthcheck.Unavailable, hc.Get())
+	
+	adapter(componentstatus.NewEvent(componentstatus.StatusStopped))
+	assert.Equal(t, healthcheck.Unavailable, hc.Get())
+}
+
 func TestNoopSettingss(t *testing.T) {
 	telset := telemetry.NoopSettings()
 	assert.NotNil(t, telset.Logger)

@@ -147,6 +147,22 @@ func TestGetStatusCodeFromHTTPStatusAttr(t *testing.T) {
 	}
 }
 
+func TestGetStatusCodeFromHTTPStatusAttr_DefaultSpanKind(t *testing.T) {
+	value := pcommon.NewValueInt(404)
+	
+	statusCode, err := getStatusCodeFromHTTPStatusAttr(value, ptrace.SpanKindInternal)
+	require.NoError(t, err)
+	assert.Equal(t, ptrace.StatusCodeError, statusCode)
+	
+	statusCode, err = getStatusCodeFromHTTPStatusAttr(value, ptrace.SpanKindProducer)
+	require.NoError(t, err)
+	assert.Equal(t, ptrace.StatusCodeError, statusCode)
+	
+	statusCode, err = getStatusCodeFromHTTPStatusAttr(value, ptrace.SpanKindConsumer)
+	require.NoError(t, err)
+	assert.Equal(t, ptrace.StatusCodeError, statusCode)
+}
+
 func Test_SetSpanEventsFromDbSpanLogs(t *testing.T) {
 	traces := ptrace.NewTraces()
 	span := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
@@ -801,6 +817,17 @@ func TestDBSpanKindToOTELSpanKind(t *testing.T) {
 			assert.Equal(t, test.otlpSpanKind, dbSpanKindToOTELSpanKind(test.jSpanKind))
 		})
 	}
+}
+
+func TestDbSpanKindToOTELSpanKind_DefaultCase(t *testing.T) {
+	result := dbSpanKindToOTELSpanKind("unknown-span-kind")
+	assert.Equal(t, ptrace.SpanKindUnspecified, result)
+	
+	result = dbSpanKindToOTELSpanKind("")
+	assert.Equal(t, ptrace.SpanKindUnspecified, result)
+	
+	result = dbSpanKindToOTELSpanKind("invalid")
+	assert.Equal(t, ptrace.SpanKindUnspecified, result)
 }
 
 func TestFromDbModel_Fixtures(t *testing.T) {

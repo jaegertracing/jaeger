@@ -229,6 +229,19 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 	}
 }
 
+func TestGetBasicAuthField_DefaultCase(t *testing.T) {
+	basicAuth := escfg.BasicAuthentication{
+		Username:         "test-user",
+		Password:         "test-pass",
+		PasswordFilePath: "/path/to/file",
+	}
+	
+	opt := configoptional.Some(basicAuth)
+	
+	result := getBasicAuthField(opt, "UnknownField")
+	assert.Equal(t, "", result)
+}
+
 func TestEmptyRemoteReadClusters(t *testing.T) {
 	opts := NewOptions("es")
 	v, command := config.Viperize(opts.AddFlags)

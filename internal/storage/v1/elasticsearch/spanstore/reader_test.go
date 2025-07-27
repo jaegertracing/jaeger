@@ -966,6 +966,16 @@ func TestFindTraceIDs(t *testing.T) {
 	}
 }
 
+func TestReturnSearchFunc_DefaultCase(t *testing.T) {
+	r := &spanReaderTest{}
+	
+	result, err := returnSearchFunc("unknownAggregationType", r)
+	
+	assert.Nil(t, result)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "Specify services, operations, traceIDs only")
+}
+
 func mockMultiSearchService(r *spanReaderTest) *mock.Call {
 	multiSearchService := &mocks.MultiSearchService{}
 	multiSearchService.On("Add", mock.Anything, mock.Anything, mock.Anything).Return(multiSearchService)

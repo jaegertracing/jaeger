@@ -173,3 +173,20 @@ func TestServer_Start(t *testing.T) {
 		})
 	}
 }
+
+func TestTraceStorageFactory_DefaultCase(t *testing.T) {
+	fakeExt := fakeStorageExt{}
+	
+	factory, exists := fakeExt.TraceStorageFactory("unknown-factory-name")
+	
+	require.True(t, exists)
+	require.NotNil(t, factory)
+	
+	_, ok := factory.(*fakeFactory)
+	require.True(t, ok)
+	
+	factory2, exists2 := fakeExt.TraceStorageFactory("another-unknown-name")
+	require.True(t, exists2)
+	require.NotNil(t, factory2)
+	require.NotEqual(t, factory, factory2)
+}

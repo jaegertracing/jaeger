@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/uimodel"
 	jModel "github.com/jaegertracing/jaeger/internal/uimodel"
 )
 
@@ -167,4 +168,24 @@ func TestDependenciesFromDomain(t *testing.T) {
 	}
 	actual := DependenciesFromDomain(input)
 	assert.Equal(t, expected, actual)
+}
+
+func TestConvertKeyValues_DefaultValueType(t *testing.T) {
+	// Create a custom ValueType that's not handled by the switch
+	customType := model.ValueType(999)
+	
+	kv := model.KeyValue{
+		Key:   "custom-key",
+		VType: customType,
+		VStr:  "custom-value",
+	}
+	
+	fd := fromDomain{}
+	result := fd.convertKeyValues(model.KeyValues{kv})
+	
+	require.Len(t, result, 1)
+	assert.Equal(t, "custom-key", result[0].Key)
+
+	assert.Equal(t, "unknown type 999", result[0].Value)
+	assert.Equal(t, uimodel.ValueType("999"), result[0].Type)
 }

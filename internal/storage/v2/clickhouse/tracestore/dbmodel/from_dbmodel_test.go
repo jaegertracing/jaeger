@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestFromDBModel_Fixtures(t *testing.T) {
@@ -275,4 +276,26 @@ func TestConvertStatusCode(t *testing.T) {
 			require.Equal(t, tt.want, convertStatusCode(tt.args.sc))
 		})
 	}
+}
+
+func TestConvertSpanKind_DefaultCase(t *testing.T) {
+	result := convertSpanKind("unknown-span-kind")
+	assert.Equal(t, ptrace.SpanKindUnspecified, result)
+	
+	result = convertSpanKind("")
+	assert.Equal(t, ptrace.SpanKindUnspecified, result)
+	
+	result = convertSpanKind("invalid")
+	assert.Equal(t, ptrace.SpanKindUnspecified, result)
+}
+
+func TestConvertStatusCode_DefaultCase(t *testing.T) {
+	result := convertStatusCode("Unknown")
+	assert.Equal(t, ptrace.StatusCodeUnset, result)
+	
+	result = convertStatusCode("")
+	assert.Equal(t, ptrace.StatusCodeUnset, result)
+	
+	result = convertStatusCode("Invalid")
+	assert.Equal(t, ptrace.StatusCodeUnset, result)
 }

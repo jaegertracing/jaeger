@@ -19,6 +19,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
+	casMetrics "github.com/jaegertracing/jaeger/internal/storage/cassandra/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/testutils"
@@ -257,4 +258,29 @@ func TestGetBuckets(t *testing.T) {
 
 func matchEverything() any {
 	return mock.MatchedBy(func([]any) bool { return true })
+}
+
+func TestDependencyStore_UnsupportedVersion(t *testing.T) {
+	logger := zap.NewNop()
+	metricsFactory := metrics.NullFactory
+	session := &mocks.Session{}
+	
+	store := &DependencyStore{
+		session:                  session,
+		dependenciesTableMetrics: casMetrics.NewTable(metricsFactory, "dependencies"),
+		logger:                   logger,
+		version:                  Version(999),
+	}
+	
+	deps := []model.DependencyLink{
+		{Parent: "parent", Child: "child", CallCount: 1},
+	}
+	
+	err := store.WriteDependencies(time.Now(), deps)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported schema version")
+	
+	_, err = store.GetDependencies(context.Background(), time.Now(), time.Hour)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported schema version")
 }

@@ -104,3 +104,14 @@ func TestConfigurable(t *testing.T) {
 	assert.Equal(t, fs, mock.flagSet)
 	assert.Equal(t, v, mock.viper)
 }
+
+func TestFactory_GetFactoryOfType_UnknownType(t *testing.T) {
+	f := &Factory{}
+	
+	factory, err := f.getFactoryOfType("unknown-type")
+	
+	assert.Nil(t, factory)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown metrics type \"unknown-type\"")
+	assert.Contains(t, err.Error(), "Valid types are")
+}

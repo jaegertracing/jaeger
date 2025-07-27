@@ -432,12 +432,6 @@ func mergeJoinIds(left, right [][]byte) [][]byte {
 	rMax := len(right) - 1
 	for r, l := 0, 0; r <= rMax && l <= lMax; {
 		switch bytes.Compare(left[l], right[r]) {
-		case 0:
-			// Left matches right - merge
-			merged = append(merged, left[l])
-			// Advance both
-			l++
-			r++
 		case 1:
 			// left > right, increase right one
 			r++
@@ -445,7 +439,11 @@ func mergeJoinIds(left, right [][]byte) [][]byte {
 			// left < right, increase left one
 			l++
 		default:
+			// Left matches right (case 0) - merge
+			merged = append(merged, left[l])
+			// Advance both
 			l++
+			r++
 		}
 	}
 	return merged
