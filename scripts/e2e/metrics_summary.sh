@@ -7,7 +7,7 @@ set -exo pipefail
 
 METRICS_DIR="./.metrics"
 DIFF_FOUND=false
-summary_files=""
+declare -a summary_files=()
 
 echo "Starting metrics comparison in directory: $METRICS_DIR"
 ls -la "$METRICS_DIR" || echo "Metrics directory listing failed"
@@ -41,7 +41,7 @@ for file in "$METRICS_DIR"/*.txt; do
                 --base "$base_file" \
                 --pr "$file" \
                 --output "$METRICS_DIR/summary_$snapshot_name.md"
-            summary_files+="$METRICS_DIR/summary_$snapshot_name.md "
+            summary_files+=("$METRICS_DIR/summary_$snapshot_name.md")
         else
             echo "No differences found for $snapshot_name"
         fi
@@ -56,7 +56,14 @@ if $DIFF_FOUND; then
 
     # Combine all summaries into one
     echo "## Metrics Comparison Summary" > "$METRICS_DIR/combined_summary.md"
-    cat "$summary_files" >> "$METRICS_DIR/combined_summary.md"
+
+    if [ ${#summary_files[@]} -gt 0 ]; then
+        for summary_file in "${summary_files[@]}"; do
+            echo "Appending $summary_file to combined summary"
+            cat "$summary_file" >> "$METRICS_DIR/combined_summary.md"
+        done
+    fi
+
     echo -e "\n\n[View detailed metrics differences]($LINK_TO_ARTIFACT)" >> "$METRICS_DIR/combined_summary.md"
 else
     echo "No metric differences detected"

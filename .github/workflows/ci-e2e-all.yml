@@ -69,6 +69,5 @@ jobs:
         run: node ./scripts/e2e/post_metrics_comment.js
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          summary-path: ./.metrics/combined_summary.md
-          run-id: ${{ github.run_id }}
+          SUMMARY_PATH: ./.metrics/combined_summary.md
+          RUN_ID: ${{ github.run_id }}
