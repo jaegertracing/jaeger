@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import argparse
+import sys
 from difflib import unified_diff
 from bisect import insort
 from prometheus_client.parser import text_string_to_metric_families

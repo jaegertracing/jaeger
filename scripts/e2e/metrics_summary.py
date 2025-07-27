@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import argparse
-import sys
 from collections import defaultdict
 from prometheus_client.parser import text_string_to_metric_families
 
