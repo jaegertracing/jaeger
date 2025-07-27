@@ -1,4 +1,7 @@
 #!/bin/bash
+
+# Copyright (c) 2025 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
 # Enable debug tracing and exit on error
 set -exo pipefail
 
@@ -49,11 +52,11 @@ done
 
 if $DIFF_FOUND; then
     echo "Metric differences detected"
-    echo "DIFF_FOUND=true" >> $GITHUB_OUTPUT
+    echo "DIFF_FOUND=true" >> "$GITHUB_OUTPUT"
 
     # Combine all summaries into one
     echo "## Metrics Comparison Summary" > "$METRICS_DIR/combined_summary.md"
-    cat $summary_files >> "$METRICS_DIR/combined_summary.md"
+    cat "$summary_files" >> "$METRICS_DIR/combined_summary.md"
     echo -e "\n\n[View detailed metrics differences]($LINK_TO_ARTIFACT)" >> "$METRICS_DIR/combined_summary.md"
 else
     echo "No metric differences detected"
