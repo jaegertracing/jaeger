@@ -69,10 +69,10 @@ def main():
         print(diff_lines)
         write_diff_file(diff_lines, args.output)
 
-        return 1    
+        return 0
 
     print("no difference found")
-    return 0
+    return 1
 
 if __name__ == '__main__':
     sys.exit(main())

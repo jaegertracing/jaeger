@@ -57,7 +57,7 @@ runs:
         python3 ./scripts/e2e/compare_metrics.py --file1 ./.metrics/${{ inputs.snapshot }}.txt --file2 ./.metrics/baseline_${{ inputs.snapshot }}.txt --output ./.metrics/diff_${{ inputs.snapshot }}.txt
         EXIT_CODE=$?
         echo "Compare metrics exit code: $EXIT_CODE"
-        if [ $EXIT_CODE -eq 1 ]; then
+        if [ $EXIT_CODE -eq 0 ]; then
           echo "🛑 Differences found in metrics"
           echo "has_diff=true" >> $GITHUB_OUTPUT
         else
