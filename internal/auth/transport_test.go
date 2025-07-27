@@ -5,6 +5,7 @@ package auth
 
 import (
 	"context"
+	"encoding/base64"
 	"net/http"
 	"testing"
 
@@ -104,6 +105,20 @@ func TestRoundTripper(t *testing.T) {
 			auths:          []Method{},
 			requestContext: context.Background(),
 			expectError:    true,
+		},
+		{
+			name: "Basic auth with pre-encoded credentials",
+			auths: []Method{
+				{
+					Scheme: "Basic",
+					TokenFn: func() string {
+						// Pre-encoded "user:pass"
+						return base64.StdEncoding.EncodeToString([]byte("user:pass"))
+					},
+				},
+			},
+			requestContext:  context.Background(),
+			expectedHeaders: []string{"Basic dXNlcjpwYXNz"}, // base64("user:pass")
 		},
 	}
 

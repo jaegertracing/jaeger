@@ -477,6 +477,7 @@ func TestFactoryBase_NewClient_WatcherError(t *testing.T) {
 		LogLevel: "debug",
 		Authentication: escfg.Authentication{
 			BasicAuthentication: configoptional.Some(escfg.BasicAuthentication{
+				Username:         "testuser",
 				PasswordFilePath: "/nonexistent/path/to/password.txt",
 			}),
 		},
@@ -484,5 +485,6 @@ func TestFactoryBase_NewClient_WatcherError(t *testing.T) {
 
 	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t))
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to create Elasticsearch client: failed to load password from file:")
+	assert.Contains(t, err.Error(), "failed to initialize basic authentication")
+	assert.Contains(t, err.Error(), "failed to get token from file")
 }
