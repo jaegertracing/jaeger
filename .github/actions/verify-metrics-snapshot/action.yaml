@@ -60,10 +60,8 @@ runs:
         if [ $EXIT_CODE -eq 1 ]; then
           echo "🛑 Differences found in metrics"
           echo "has_diff=true" >> $GITHUB_OUTPUT
-          exit 1
         else
           echo "No differences or unexpected exit code: $EXIT_CODE"
-          exit 0  # Exit with 0 to avoid failing the step
         fi
 
     - name: Upload the diff artifact
