@@ -63,9 +63,7 @@ jobs:
         id: compare-metrics
         shell: bash
         run: |
-          chmod +x ./scripts/e2e/metrics_summary.sh
-          chmod +x ./scripts/e2e/post_metrics_comment.js
-          ./scripts/e2e/metrics_summary.sh
+          bash ./scripts/e2e/metrics_summary.sh
 
       - name: Post PR comment with combined metrics summary
         if: steps.compare-metrics.outputs.DIFF_FOUND == 'true'
