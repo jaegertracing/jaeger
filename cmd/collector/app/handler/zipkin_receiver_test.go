@@ -213,3 +213,82 @@ func TestZipkinReceiverKeepAlive(t *testing.T) {
 		})
 	}
 }
+
+func TestZipkinReceiverWrapper_DisableKeepAlive_ErrorCases(t *testing.T) {
+	logger, _ := testutils.NewLogger()
+
+	tests := []struct {
+		name           string
+		receiver       receiver.Traces
+		expectedErrMsg string
+	}{
+		{
+			name:           "nil receiver",
+			receiver:       nil,
+			expectedErrMsg: "receiver is nil",
+		},
+		{
+			name:           "receiver without server field",
+			receiver:       &mockReceiverWithoutServerField{},
+			expectedErrMsg: "server field not found in zipkin receiver",
+		},
+		{
+			name:           "receiver with wrong server field type",
+			receiver:       &mockReceiverWithWrongServerType{server: "not a server"},
+			expectedErrMsg: "server field is not of type *http.Server",
+		},
+		{
+			name:           "receiver with nil server field",
+			receiver:       &mockReceiverWithNilServer{server: nil},
+			expectedErrMsg: "server field is nil",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wrapper := &zipkinReceiverWrapper{
+				Traces:    tt.receiver,
+				keepAlive: false,
+				logger:    logger,
+			}
+
+			err := wrapper.disableKeepAlive()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.expectedErrMsg)
+		})
+	}
+}
+
+type mockReceiverWithoutServerField struct{}
+
+func (*mockReceiverWithoutServerField) Start(_ context.Context, _ component.Host) error {
+	return nil
+}
+
+func (*mockReceiverWithoutServerField) Shutdown(_ context.Context) error {
+	return nil
+}
+
+type mockReceiverWithWrongServerType struct {
+	server string
+}
+
+func (*mockReceiverWithWrongServerType) Start(_ context.Context, _ component.Host) error {
+	return nil
+}
+
+func (*mockReceiverWithWrongServerType) Shutdown(_ context.Context) error {
+	return nil
+}
+
+type mockReceiverWithNilServer struct {
+	server *http.Server
+}
+
+func (*mockReceiverWithNilServer) Start(_ context.Context, _ component.Host) error {
+	return nil
+}
+
+func (*mockReceiverWithNilServer) Shutdown(_ context.Context) error {
+	return nil
+}

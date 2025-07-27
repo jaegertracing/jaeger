@@ -56,9 +56,17 @@ func (w *zipkinReceiverWrapper) Start(ctx context.Context, host component.Host) 
 
 // disableKeepAlive use reflection and unsafe operations to access the internal HTTP server and disable keep alive
 func (w *zipkinReceiverWrapper) disableKeepAlive() error {
+	if w.Traces == nil {
+		return errors.New("receiver is nil")
+	}
+
 	receiverValue := reflect.ValueOf(w.Traces)
 	if receiverValue.Kind() == reflect.Ptr {
 		receiverValue = receiverValue.Elem()
+	}
+
+	if receiverValue.Kind() != reflect.Struct {
+		return errors.New("receiver is not a struct")
 	}
 
 	serverField := receiverValue.FieldByName("server")
