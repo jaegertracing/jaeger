@@ -60,6 +60,8 @@ while IFS= read -r -d '' file; do
         fi
     else
         echo "No baseline file found for $file (expected at: $base_file)"
+        echo "Debug: Listing contents of $dir:"
+        ls -la "$dir"
     fi
 done < <(find "$METRICS_DIR" -type f -name "*.txt" ! -name "baseline_*" ! -name "diff_*" -print0)
 
