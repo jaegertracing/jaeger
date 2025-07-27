@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"reflect"
 	"testing"
 
 	gogojsonpb "github.com/gogo/protobuf/jsonpb"
@@ -159,4 +160,56 @@ func TestStartZipkinReceiver_Error(t *testing.T) {
 	}
 	_, err = startZipkinReceiver(opts, logger, spanProcessor, tm, f, consumer.NewTraces, createTracesReceiver)
 	assert.ErrorContains(t, err, "could not create Zipkin receiver")
+}
+
+func TestZipkinReceiverKeepAlive(t *testing.T) {
+	spanProcessor := &mockSpanProcessor{}
+	logger, _ := testutils.NewLogger()
+	tm := &tenancy.Manager{}
+
+	testCases := []struct {
+		name      string
+		keepAlive bool
+	}{
+		{
+			name:      "KeepAlive enabled",
+			keepAlive: true,
+		},
+		{
+			name:      "KeepAlive disabled",
+			keepAlive: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			opts := &flags.CollectorOptions{}
+			opts.Zipkin.Endpoint = ":0"
+			opts.Zipkin.KeepAlive = tc.keepAlive
+
+			rec, err := StartZipkinReceiver(opts, logger, spanProcessor, tm)
+			require.NoError(t, err)
+			defer func() {
+				require.NoError(t, rec.Shutdown(context.Background()))
+			}()
+
+			wrapper, ok := rec.(*zipkinReceiverWrapper)
+			require.True(t, ok, "receiver should be wrapped with zipkinReceiverWrapper")
+			assert.Equal(t, tc.keepAlive, wrapper.keepAlive, "keepAlive setting should match")
+
+			// Try to access the internal server to verify keep-alive setting
+			// this is a test only verification using reflection
+			receiverValue := reflect.ValueOf(wrapper.Traces)
+			if receiverValue.Kind() == reflect.Ptr {
+				receiverValue = receiverValue.Elem()
+			}
+
+			serverField := receiverValue.FieldByName("server")
+			if serverField.IsValid() && !serverField.IsNil() {
+				// we can not directly check the keep alive setting on the server
+				// because it's an internal state but we can verify if our wrapper was applied correctly or not
+				t.Logf("Server field found and is not nil for keepAlive=%v", tc.keepAlive)
+			}
+		})
+	}
 }

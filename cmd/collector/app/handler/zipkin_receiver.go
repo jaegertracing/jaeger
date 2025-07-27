@@ -5,7 +5,11 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
+	"reflect"
+	"unsafe"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
 	"go.opentelemetry.io/collector/component"
@@ -24,6 +28,61 @@ var (
 	zipkinComponentType = component.MustNewType("zipkin")
 	zipkinID            = component.NewID(zipkinComponentType)
 )
+
+// zipkinReceiverWrapper wraps the Opentelemetry zipkin receiver to apply keep alive settings
+type zipkinReceiverWrapper struct {
+	receiver.Traces
+	keepAlive bool
+	logger    *zap.Logger
+}
+
+// start wraps the original start method to apply keep-alive settings
+func (w *zipkinReceiverWrapper) Start(ctx context.Context, host component.Host) error {
+	err := w.Traces.Start(ctx, host)
+	if err != nil {
+		return err
+	}
+
+	if !w.keepAlive {
+		if err := w.disableKeepAlive(); err != nil {
+			w.logger.Warn("Failed to disable keep-alive on Zipkin receiver", zap.Error(err))
+		} else {
+			w.logger.Info("Disabled keep-alive on Zipkin receiver")
+		}
+	}
+
+	return nil
+}
+
+// disableKeepAlive use reflection and unsafe operations to access the internal HTTP server and disable keep alive
+func (w *zipkinReceiverWrapper) disableKeepAlive() error {
+	receiverValue := reflect.ValueOf(w.Traces)
+	if receiverValue.Kind() == reflect.Ptr {
+		receiverValue = receiverValue.Elem()
+	}
+
+	serverField := receiverValue.FieldByName("server")
+	if !serverField.IsValid() {
+		return errors.New("server field not found in zipkin receiver")
+	}
+
+	if serverField.Kind() != reflect.Ptr || serverField.Type() != reflect.TypeOf((*http.Server)(nil)) {
+		return errors.New("server field is not of type *http.Server")
+	}
+
+	if serverField.IsNil() {
+		return errors.New("server field is nil")
+	}
+
+	serverPtr := (*http.Server)(unsafe.Pointer(serverField.Pointer()))
+	if serverPtr == nil {
+		return errors.New("server is nil")
+	}
+	serverPtr.SetKeepAlivesEnabled(false)
+	w.logger.Debug("Successfully disabled keep-alive on Zipkin HTTP server")
+
+	return nil
+}
 
 // StartZipkinReceiver starts Zipkin receiver from OTEL Collector.
 func StartZipkinReceiver(
@@ -90,8 +149,14 @@ func startZipkinReceiver(
 	if err != nil {
 		return nil, fmt.Errorf("could not create Zipkin receiver: %w", err)
 	}
-	if err := rcvr.Start(context.Background(), &otelHost{logger: logger}); err != nil {
+	wrappedReceiver := &zipkinReceiverWrapper{ // wrap the receiver to apply keep-alive settings
+		Traces:    rcvr,
+		keepAlive: options.Zipkin.KeepAlive,
+		logger:    logger,
+	}
+
+	if err := wrappedReceiver.Start(context.Background(), &otelHost{logger: logger}); err != nil {
 		return nil, fmt.Errorf("could not start Zipkin receiver: %w", err)
 	}
-	return rcvr, nil
+	return wrappedReceiver, nil
 }
