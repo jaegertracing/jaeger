@@ -10,60 +10,37 @@ METRICS_DIR="./.metrics"
 DIFF_FOUND=false
 declare -a summary_files=()
 
-echo "Starting metrics comparison in directory: $METRICS_DIR"
+echo "Starting metrics diff processing in directory: $METRICS_DIR"
 echo "Directory structure:"
 ls -la "$METRICS_DIR" || echo "Metrics directory listing failed"
 
-# Debug: List all metric files found
-echo "=== Searching for metric files ==="
-find "$METRICS_DIR" -type f -name "*.txt" | while read -r file; do
-    echo "Found file: $file"
+# Debug: List all diff files found
+echo "=== Searching for diff files ==="
+find "$METRICS_DIR" -type f -name "diff_*.txt" | while read -r file; do
+    echo "Found diff file: $file"
 done
 
-# Process all metric files (excluding baseline/diff files)
-while IFS= read -r -d '' file; do
-    echo "Processing file: $file"
+# Process all diff files
+while IFS= read -r -d '' diff_file; do
+    echo "Processing diff file: $diff_file"
+    DIFF_FOUND=true
 
-    # Skip baseline/diff files
-    if [[ $file == *"baseline_"* ]] || [[ $file == *"diff_"* ]]; then
-        echo "Skipping baseline/diff file: $file"
-        continue
-    fi
+    # Extract the base name (e.g., diff_metrics_snapshot_cassandra.txt -> metrics_snapshot_cassandra)
+    base_name=$(basename "$diff_file" .txt)
+    snapshot_name=${base_name#diff_}
+    dir=$(dirname "$diff_file")
 
-    # Construct baseline file path
-    dir=$(dirname "$file")
-    filename=$(basename "$file")
-    base_file="$dir/baseline_$filename"
+    # Generate summary for this diff
+    summary_file="$dir/summary_$snapshot_name.md"
 
-    if [ -f "$base_file" ]; then
-        snapshot_name=$(basename "$file" .txt)
-        echo "Comparing against baseline: $base_file"
+    echo "Generating summary for $snapshot_name"
+    python3 ./scripts/e2e/metrics_summary.py \
+        --diff "$diff_file" \
+        --output "$summary_file"
 
-        # First run comparison to check for differences
-        python3 ./scripts/e2e/compare_metrics.py \
-            --file1 "$file" \
-            --file2 "$base_file" \
-            --output "$dir/diff_$snapshot_name.txt"
-
-        if [ $? -eq 1 ]; then
-            DIFF_FOUND=true
-            echo "Differences found for $snapshot_name"
-
-            # Only generate summary if there are differences
-            python3 ./scripts/e2e/metrics_summary.py \
-                --base "$base_file" \
-                --pr "$file" \
-                --output "$dir/summary_$snapshot_name.md"
-            summary_files+=("$dir/summary_$snapshot_name.md")
-        else
-            echo "No differences found for $snapshot_name"
-        fi
-    else
-        echo "No baseline file found for $file (expected at: $base_file)"
-        echo "Debug: Listing contents of $dir:"
-        ls -la "$dir"
-    fi
-done < <(find "$METRICS_DIR" -type f -name "*.txt" ! -name "baseline_*" ! -name "diff_*" -print0)
+    summary_files+=("$summary_file")
+    echo "Generated summary at: $summary_file"
+done < <(find "$METRICS_DIR" -type f -name "diff_*.txt" -print0)
 
 # Output results
 if $DIFF_FOUND; then
@@ -83,9 +60,9 @@ if $DIFF_FOUND; then
         done
     fi
 
-    echo -e "\n\n[View detailed metrics differences]($LINK_TO_ARTIFACT)" >> "$METRICS_DIR/combined_summary.md"
+    echo -e "\n\n➡️ [View full metrics file]($LINK_TO_ARTIFACT)" >> "$METRICS_DIR/combined_summary.md"
 else
     echo "No metric differences detected"
 fi
 
-echo "Metrics comparison completed"
+echo "Metrics diff processing completed"
