@@ -985,7 +985,7 @@ func TestGetConfigOptions(t *testing.T) {
 			},
 			ctx:             context.Background(),
 			wantErr:         true,
-			wantErrContains: "both Password and PasswordFilePath are set",
+			wantErrContains: "failed to initialize basic authentication",
 		},
 
 		{
