@@ -83,9 +83,6 @@ func (w *zipkinReceiverWrapper) disableKeepAlive() error {
 	}
 
 	serverPtr := (*http.Server)(unsafe.Pointer(serverField.Pointer()))
-	if serverPtr == nil {
-		return errors.New("server is nil")
-	}
 	serverPtr.SetKeepAlivesEnabled(false)
 	w.logger.Debug("Successfully disabled keep-alive on Zipkin HTTP server")
 
