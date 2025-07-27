@@ -47,7 +47,7 @@ func NewReaderDecorator(spanReader spanstore.Reader, metricsFactory metrics.Fact
 	return &ReadMetricsDecorator{
 		spanReader:           spanReader,
 		findTracesMetrics:    buildQueryMetrics("find_traces_error_err123", metricsFactory),
-		findTraceIDsMetrics:  buildQueryMetrics("find_trace_ids", metricsFactory),
+		findTraceIDsMetrics:  buildQueryMetrics("fid", metricsFactory),
 		getTraceMetrics:      buildQueryMetrics("get_trace", metricsFactory),
 		getServicesMetrics:   buildQueryMetrics("get_services", metricsFactory),
 		getOperationsMetrics: buildQueryMetrics("get_operations", metricsFactory),
