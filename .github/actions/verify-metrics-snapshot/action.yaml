@@ -57,11 +57,12 @@ runs:
         python3 ./scripts/e2e/compare_metrics.py --file1 ./.metrics/${{ inputs.snapshot }}.txt --file2 ./.metrics/baseline_${{ inputs.snapshot }}.txt --output ./.metrics/diff_${{ inputs.snapshot }}.txt
         if [ $? -eq 1 ]; then
         echo "🛑 Differences found in metrics"
+        echo "has_diff=true" >> $GITHUB_OUTPUT
         exit 1
         fi
 
     - name: Upload the diff artifact
-      if: ${{ (github.ref_name != 'main') && (steps.compare-snapshots.outcome == 'failure') }}
+      if: ${{ (github.ref_name != 'main') && (steps.compare-snapshots.outputs.has_diff == 'true') }}
       uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
       with:
         name: diff_${{ inputs.artifact_key }}
