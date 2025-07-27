@@ -693,8 +693,9 @@ func returnSearchFunc(typ string, r *spanReaderTest) (any, error) {
 		)
 	case traceIDAggregation:
 		return r.reader.findTraceIDs(context.Background(), dbmodel.TraceQueryParameters{})
+	default:
+		return nil, errors.New("Specify services, operations, traceIDs only")
 	}
-	return nil, errors.New("Specify services, operations, traceIDs only")
 }
 
 func TestSpanReader_bucketToStringArray(t *testing.T) {

@@ -444,6 +444,8 @@ func mergeJoinIds(left, right [][]byte) [][]byte {
 		case -1:
 			// left < right, increase left one
 			l++
+		default:
+			l++
 		}
 	}
 	return merged

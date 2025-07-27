@@ -59,8 +59,9 @@ func (*Factory) getFactoryOfType(factoryType string) (storage.V1MetricStoreFacto
 		return prometheus.NewFactory(), nil
 	case disabledStorageType:
 		return disabled.NewFactory(), nil
+	default:
+		return nil, fmt.Errorf("unknown metrics type %q. Valid types are %v", factoryType, AllStorageTypes)
 	}
-	return nil, fmt.Errorf("unknown metrics type %q. Valid types are %v", factoryType, AllStorageTypes)
 }
 
 // Initialize implements storage.V1MetricStoreFactory.

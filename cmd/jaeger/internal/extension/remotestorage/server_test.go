@@ -77,9 +77,9 @@ func (fakeStorageExt) TraceStorageFactory(name string) (tracestore.Factory, bool
 		return nil, false
 	case "without-dependency-storage":
 		return fakeTraceStorageFactory{name: name}, true
+	default:
+		return newFakeFactory(name), true
 	}
-
-	return newFakeFactory(name), true
 }
 
 func (fakeStorageExt) MetricStorageFactory(string) (storage.MetricStoreFactory, bool) {

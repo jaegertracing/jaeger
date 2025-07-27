@@ -653,6 +653,8 @@ func TestGetErrorRatesErrors(t *testing.T) {
 					} else {
 						sendResponse(t, w, responses[callCount])
 					}
+				default:
+					t.Errorf("Unexpected Prometheus query: %s", promQuery)
 				}
 				callCount++
 			}))

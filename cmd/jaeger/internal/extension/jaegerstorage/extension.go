@@ -195,6 +195,8 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 				*cfg.Opensearch,
 				osTelset,
 			)
+		default:
+			// default case
 		}
 		if err != nil {
 			return fmt.Errorf("failed to initialize storage '%s': %w", storageName, err)
@@ -232,6 +234,8 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 				*cfg.Opensearch,
 				osTelset,
 			)
+		default:
+			err = fmt.Errorf("no metric backend configuration provided for '%s'", metricStorageName)
 		}
 		if err != nil {
 			return fmt.Errorf("failed to initialize metrics storage '%s': %w", metricStorageName, err)

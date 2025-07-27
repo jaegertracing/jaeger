@@ -30,8 +30,9 @@ func getBasicAuthField(opt configoptional.Optional[escfg.BasicAuthentication], f
 		return ba.Password
 	case "PasswordFilePath":
 		return ba.PasswordFilePath
+	default:
+		return ""
 	}
-	return ""
 }
 
 func getBearerTokenField(opt configoptional.Optional[escfg.BearerTokenAuthentication], field string) any {
