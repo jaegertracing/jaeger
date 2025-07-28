@@ -14,8 +14,6 @@ concurrency:
 
 permissions:
   contents: read
-  pull-requests: write
-  issues: write
 
 jobs:
   badger:
@@ -41,36 +39,3 @@ jobs:
 
   query:
     uses: ./.github/workflows/ci-e2e-query.yml
-
-  metrics-comparison:
-    name: Compare Metrics
-    needs: [badger, cassandra, elasticsearch, grpc, kafka, memory, opensearch, query]
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download all metrics artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./.metrics/
-
-      - name: Install dependencies
-        run: |
-          python3 -m pip install prometheus-client
-          npm install @actions/core @actions/github
-
-      - name: Compare metrics and generate summary
-        id: compare-metrics
-        shell: bash
-        run: |
-          bash ./scripts/e2e/metrics_summary.sh
-
-      - name: Post PR comment with combined metrics summary
-        if: steps.compare-metrics.outputs.DIFF_FOUND == 'true'
-        run: node ./scripts/e2e/post_metrics_comment.js
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SUMMARY_PATH: ./.metrics/combined_summary.md
-          RUN_ID: ${{ github.run_id }}

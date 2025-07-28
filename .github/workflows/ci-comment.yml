@@ -1,0 +1,45 @@
+name: Metrics Comparison and Post Comment
+on:
+  workflow_run:
+    workflows: ["E2E Tests"]
+    types: [completed]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  metrics-comparison:
+    name: Compare Metrics
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Download all metrics artifacts
+        id : download-artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./.metrics/
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install prometheus-client
+          npm install @actions/core @actions/github
+
+      - name: Compare metrics and generate summary
+        id: compare-metrics
+        shell: bash
+        run: |
+          bash ./scripts/e2e/metrics_summary.sh
+
+      - name: Post PR comment with combined metrics summary
+        if: steps.compare-metrics.outputs.DIFF_FOUND == 'true'
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          file-path: ./.metrics/combined_summary.md
+          github-token: '${{ secrets.GITHUB_TOKEN }}'
+          comment-tag: "## Metrics Comparison Summary"
+          pr-number: ${{ steps.download-artifacts.outputs.pr_number }}
