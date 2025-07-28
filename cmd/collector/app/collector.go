@@ -50,6 +50,7 @@ type Collector struct {
 	grpcServer     *grpc.Server
 	otlpReceiver   receiver.Traces
 	zipkinReceiver receiver.Traces
+	kafkaReceiver  receiver.Traces
 }
 
 // CollectorParams to construct a new Jaeger Collector.
@@ -133,7 +134,7 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 		}
 		c.zipkinReceiver = zipkinReceiver
 	}
-
+	// TODO: Handle Kafka receiver, Kafka broker by default should be localhost:9092, Should we do the check for this?
 	if options.OTLP.Enabled {
 		otlpReceiver, err := handler.StartOTLPReceiver(options, c.logger, c.spanProcessor, c.tenancyMgr)
 		if err != nil {
