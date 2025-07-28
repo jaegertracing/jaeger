@@ -54,8 +54,10 @@ if $DIFF_FOUND; then
     if [ ${#summary_files[@]} -gt 0 ]; then
         for summary_file in "${summary_files[@]}"; do
             echo "Appending $summary_file to combined summary"
-            echo "### $(basename "$summary_file" .md)" >> "$METRICS_DIR/combined_summary.md"
-            cat "$summary_file" >> "$METRICS_DIR/combined_summary.md"
+            {
+              echo "### $(basename "$summary_file" .md)"
+              cat "$summary_file"
+            } >> "$METRICS_DIR/combined_summary.md"
             echo "" >> "$METRICS_DIR/combined_summary.md"
         done
     fi
