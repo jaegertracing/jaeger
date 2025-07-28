@@ -29,13 +29,14 @@ extensions:
   jaeger_query:
     storage:
       traces: some_storage
+      metrics: some_storage
       traces_archive: another_storage
     ui:
       config_file: ./cmd/jaeger/config-ui.json
 
   jaeger_storage:
     backends:
-      some_storage:
+      some_storage: &opensearch_config
         opensearch:
           server_urls:
             - http://localhost:9200
@@ -68,11 +69,16 @@ extensions:
           indices:
             index_prefix: "jaeger-archive"
 
+    # Optional, enable metrics backend to use Monitor tab
+    metric_backends:
+      some_storage: *opensearch_config
+
 receivers:
   otlp:
     protocols:
       grpc:
       http:
+        endpoint: "0.0.0.0:4318"
 
 processors:
   batch:
