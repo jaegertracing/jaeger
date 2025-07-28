@@ -24,7 +24,11 @@ func TestMain(m *testing.M) {
 }
 
 func newTestFactory(t *testing.T, registry *promReg.Registry) metrics.Factory {
-	exporter, err := prometheus.New(prometheus.WithRegisterer(registry), prometheus.WithoutScopeInfo())
+	exporter, err := prometheus.New(
+		prometheus.WithRegisterer(registry),
+		prometheus.WithoutScopeInfo(),
+		prometheus.WithoutCounterSuffixes(),
+	)
 	require.NoError(t, err)
 	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(exporter))
 	return otelmetrics.NewFactory(meterProvider)
