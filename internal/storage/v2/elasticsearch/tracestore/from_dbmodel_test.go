@@ -830,6 +830,19 @@ func TestDbSpanKindToOTELSpanKind_DefaultCase(t *testing.T) {
 	assert.Equal(t, ptrace.SpanKindUnspecified, result)
 }
 
+func TestSetInternalSpanStatus_DefaultCase(t *testing.T) {
+	span := ptrace.NewSpan()
+	status := span.Status()
+	attrs := pcommon.NewMap()
+	
+	attrs.PutStr(conventions.OtelStatusCode, "UNKNOWN_STATUS")
+	
+	setSpanStatus(attrs, span)
+	
+	assert.Equal(t, ptrace.StatusCodeUnset, status.Code())
+	assert.Empty(t, status.Message())
+}
+
 func TestFromDbModel_Fixtures(t *testing.T) {
 	tracesData, spansData := loadFixtures(t, 1)
 	unmarshaller := ptrace.JSONUnmarshaler{}

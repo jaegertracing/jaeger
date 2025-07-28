@@ -102,10 +102,15 @@ func TestEmptyServiceNameSanitizer_DefaultCases(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, validServiceName, serviceName.Str())
 	
-	anotherValidService := "another-valid-service"
-	attributes.PutStr("service.name", anotherValidService)
-	sanitized = sanitizer(traces)
+	attributes2 := traces.
+		ResourceSpans().
+		AppendEmpty().
+		Resource().
+		Attributes()
+	attributes2.PutStr("service.name", "")
 	
+	sanitized = sanitizer(traces)
+
 	serviceName, ok = sanitized.
 		ResourceSpans().
 		At(0).
@@ -113,5 +118,14 @@ func TestEmptyServiceNameSanitizer_DefaultCases(t *testing.T) {
 		Attributes().
 		Get("service.name")
 	require.True(t, ok)
-	require.Equal(t, anotherValidService, serviceName.Str())
+	require.Equal(t, validServiceName, serviceName.Str())
+	
+	serviceName2, ok := sanitized.
+		ResourceSpans().
+		At(1).
+		Resource().
+		Attributes().
+		Get("service.name")
+	require.True(t, ok)
+	require.Equal(t, "empty-service-name", serviceName2.Str())
 }

@@ -411,7 +411,7 @@ func TestGetMappingTemplateOptions_DefaultCase(t *testing.T) {
 	assert.Equal(t, int64(5), opts.Shards)
 	assert.Equal(t, int64(1), opts.Replicas)
 	assert.Equal(t, int64(0), opts.Priority)
-	assert.Equal(t, true, opts.UseILM)
+	assert.True(t, opts.UseILM)
 	assert.Equal(t, "test-policy", opts.ILMPolicyName)
 }
 

@@ -18,7 +18,6 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/uimodel"
-	jModel "github.com/jaegertracing/jaeger/internal/uimodel"
 )
 
 const NumberOfFixtures = 1
@@ -77,7 +76,7 @@ func TestFromDomainEmbedProcess(t *testing.T) {
 		require.NoError(t, jsonpb.Unmarshal(bytes.NewReader(domainStr), &span))
 		embeddedSpan := FromDomainEmbedProcess(&span)
 
-		var expectedSpan jModel.Span
+		var expectedSpan uimodel.Span
 		require.NoError(t, json.Unmarshal(jsonStr, &expectedSpan))
 
 		testJSONEncoding(t, i, jsonStr, embeddedSpan, true)
@@ -142,7 +141,7 @@ func TestDependenciesFromDomain(t *testing.T) {
 	anotherParent := "anotherParent"
 	anotherChild := "anotherChild"
 	anotherCallCount := uint64(456)
-	expected := []jModel.DependencyLink{
+	expected := []uimodel.DependencyLink{
 		{
 			Parent:    someParent,
 			Child:     someChild,

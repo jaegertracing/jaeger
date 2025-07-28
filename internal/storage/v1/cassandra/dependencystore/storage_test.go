@@ -277,10 +277,10 @@ func TestDependencyStore_UnsupportedVersion(t *testing.T) {
 	}
 	
 	err := store.WriteDependencies(time.Now(), deps)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported schema version")
 	
 	_, err = store.GetDependencies(context.Background(), time.Now(), time.Hour)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported schema version")
 }

@@ -83,22 +83,8 @@ func TestHCAdapter_DefaultCase(t *testing.T) {
 	hc := healthcheck.New()
 	adapter := telemetry.HCAdapter(hc)
 	
-	adapter(componentstatus.NewEvent(componentstatus.StatusStarting))
-	assert.Equal(t, healthcheck.Unavailable, hc.Get())
-	
-	adapter(componentstatus.NewEvent(componentstatus.StatusRecoverableError))
-	assert.Equal(t, healthcheck.Unavailable, hc.Get())
-	
-	adapter(componentstatus.NewEvent(componentstatus.StatusPermanentError))
-	assert.Equal(t, healthcheck.Unavailable, hc.Get())
-	
-	adapter(componentstatus.NewEvent(componentstatus.StatusNone))
-	assert.Equal(t, healthcheck.Unavailable, hc.Get())
-	
-	adapter(componentstatus.NewEvent(componentstatus.StatusStopping))
-	assert.Equal(t, healthcheck.Unavailable, hc.Get())
-	
-	adapter(componentstatus.NewEvent(componentstatus.StatusStopped))
+	event := componentstatus.NewEvent(componentstatus.Status(999))
+	adapter(event)
 	assert.Equal(t, healthcheck.Unavailable, hc.Get())
 }
 

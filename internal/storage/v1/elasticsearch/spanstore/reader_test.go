@@ -972,7 +972,7 @@ func TestReturnSearchFunc_DefaultCase(t *testing.T) {
 	result, err := returnSearchFunc("unknownAggregationType", r)
 	
 	assert.Nil(t, result)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Specify services, operations, traceIDs only")
 }
 

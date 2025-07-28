@@ -7,11 +7,11 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestFromDBModel_Fixtures(t *testing.T) {

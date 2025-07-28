@@ -796,7 +796,7 @@ func TestAttributeToDbTag_DefaultCase(t *testing.T) {
 	
 	assert.Equal(t, "test-key", tag.Key)
 	assert.Equal(t, dbmodel.StringType, tag.Type)
-	assert.Nil(t, tag.Value) 
+	assert.Nil(t, tag.Value)
 }
 
 func TestGetTagFromStatusCode_DefaultCase(t *testing.T) {

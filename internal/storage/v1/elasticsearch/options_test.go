@@ -239,7 +239,7 @@ func TestGetBasicAuthField_DefaultCase(t *testing.T) {
 	opt := configoptional.Some(basicAuth)
 	
 	result := getBasicAuthField(opt, "UnknownField")
-	assert.Equal(t, "", result)
+	assert.Empty(t, result)
 }
 
 func TestEmptyRemoteReadClusters(t *testing.T) {

@@ -306,7 +306,7 @@ func TestFromDBTag_DefaultCase(t *testing.T) {
 	td := ToDomain{}
 	result, err := td.convertKeyValue(tag)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not a valid ValueType string unknown-type")
 	assert.Equal(t, model.KeyValue{}, result)
 }
