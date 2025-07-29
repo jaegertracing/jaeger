@@ -206,6 +206,9 @@ type BasicAuthentication struct {
 	// PasswordFilePath contains the path to a file containing password.
 	// This file is watched for changes.
 	PasswordFilePath string `mapstructure:"password_file"`
+	// ReloadInterval contains the interval at which the password file is reloaded.
+	// If set to 0 then the file is only loaded once on startup.
+	ReloadInterval time.Duration `mapstructure:"reload_interval"`
 }
 
 // BearerTokenAuthentication contains the configuration for attaching bearer tokens
@@ -561,28 +564,6 @@ func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger
 
 	options = append(options, elastic.SetHttpClient(httpClient))
 
-	// Basic authentication setup
-	if c.Authentication.BasicAuthentication.HasValue() {
-		basicAuth := c.Authentication.BasicAuthentication.Get()
-
-		password := basicAuth.Password
-		passwordFilePath := basicAuth.PasswordFilePath
-
-		if password != "" && passwordFilePath != "" {
-			return nil, errors.New("both Password and PasswordFilePath are set")
-		}
-		if passwordFilePath != "" {
-			passwordFromFile, err := loadTokenFromFile(passwordFilePath)
-			if err != nil {
-				return nil, fmt.Errorf("failed to load password from file: %w", err)
-			}
-			password = passwordFromFile
-		}
-
-		username := basicAuth.Username
-		options = append(options, elastic.SetBasicAuth(username, password))
-	}
-
 	// Add logging configuration
 	options, err = addLoggerOptions(options, c.LogLevel, logger)
 	if err != nil {
@@ -653,6 +634,18 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 		ba, err := initBearerAuth(bearerAuth, logger)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize bearer authentication: %w", err)
+		}
+		if ba != nil {
+			authMethods = append(authMethods, *ba)
+		}
+	}
+
+	// Basic Authentication
+	if c.Authentication.BasicAuthentication.HasValue() {
+		basicAuth := c.Authentication.BasicAuthentication.Get()
+		ba, err := initBasicAuth(basicAuth, logger)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize basic authentication: %w", err)
 		}
 		if ba != nil {
 			authMethods = append(authMethods, *ba)

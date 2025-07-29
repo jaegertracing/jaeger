@@ -257,6 +257,8 @@ func setSpanStatus(attrs pcommon.Map, span ptrace.Span) {
 				statusCode = ptrace.StatusCodeOk
 			case statusError:
 				statusCode = ptrace.StatusCodeError
+			default:
+				statusCode = ptrace.StatusCodeUnset
 			}
 
 			if desc, ok := extractStatusDescFromAttr(attrs); ok {
@@ -338,6 +340,8 @@ func getStatusCodeFromHTTPStatusAttr(attrVal pcommon.Value, kind ptrace.SpanKind
 			return ptrace.StatusCodeError, nil
 		case ptrace.SpanKindServer:
 			return ptrace.StatusCodeUnset, nil
+		default:
+			return ptrace.StatusCodeError, nil
 		}
 	}
 
@@ -365,8 +369,9 @@ func dbSpanKindToOTELSpanKind(spanKind string) ptrace.SpanKind {
 		return ptrace.SpanKindConsumer
 	case "internal":
 		return ptrace.SpanKindInternal
+	default:
+		return ptrace.SpanKindUnspecified
 	}
-	return ptrace.SpanKindUnspecified
 }
 
 func dbSpanLogsToSpanEvents(logs []dbmodel.Log, events ptrace.SpanEventSlice) {

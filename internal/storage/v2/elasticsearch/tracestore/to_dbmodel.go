@@ -121,6 +121,8 @@ func attributeToDbTag(key string, attr pcommon.Value) dbmodel.KeyValue {
 		tag.Type = dbmodel.BinaryType
 	case pcommon.ValueTypeMap, pcommon.ValueTypeSlice:
 		tag.Type = dbmodel.StringType
+	default:
+		tag.Type = dbmodel.StringType
 	}
 	return tag
 }
@@ -307,8 +309,9 @@ func getTagFromStatusCode(statusCode ptrace.StatusCode) (dbmodel.KeyValue, bool)
 			Type:  dbmodel.BoolType,
 			Value: true,
 		}, true
+	default:
+		return dbmodel.KeyValue{}, false
 	}
-	return dbmodel.KeyValue{}, false
 }
 
 func getTagFromStatusMsg(statusMsg string) (dbmodel.KeyValue, bool) {

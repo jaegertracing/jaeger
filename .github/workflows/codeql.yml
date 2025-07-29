@@ -1,7 +1,6 @@
 name: "CodeQL"
 
 on:
-  merge_group:
   push:
     branches: [main]
 

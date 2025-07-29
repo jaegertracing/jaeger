@@ -209,6 +209,8 @@ func TestFailedTLSFlags(t *testing.T) {
 					case "server":
 						exp := configoptional.Some(configtls.ServerConfig{})
 						require.IsType(t, exp, result, "result should be of type *configtls.ServerConfig")
+					default:
+						t.Errorf("Unexpected side value: %s", metaTest.side)
 					}
 
 					cmdLine[0] = "--prefix.tls.enabled=false"

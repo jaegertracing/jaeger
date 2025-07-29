@@ -296,6 +296,21 @@ func TestRevertKeyValueOfType(t *testing.T) {
 	}
 }
 
+func TestFromDBTag_DefaultCase(t *testing.T) {
+	tag := &dbmodel.KeyValue{
+		Key:   "test-key",
+		Type:  "unknown-type",
+		Value: "test-value",
+	}
+
+	td := ToDomain{}
+	result, err := td.convertKeyValue(tag)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not a valid ValueType string unknown-type")
+	assert.Equal(t, model.KeyValue{}, result)
+}
+
 func TestFailureBadRefs(t *testing.T) {
 	badRefsESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)

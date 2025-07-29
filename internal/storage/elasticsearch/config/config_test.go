@@ -964,28 +964,30 @@ func TestGetConfigOptions(t *testing.T) {
 				Servers:  []string{"http://localhost:9200"},
 				Sniffing: Sniffing{Enabled: false},
 				Authentication: Authentication{
-					BasicAuthentication: basicAuth("", "", "/does/not/exist"),
+					BasicAuthentication: basicAuth("testuser", "", "/does/not/exist"),
 				},
 				LogLevel: "info",
 			},
 			ctx:             context.Background(),
 			wantErr:         true,
-			wantErrContains: "failed to load password from file",
+			wantErrContains: "failed to initialize basic authentication",
 		},
+
 		{
 			name: "BasicAuth both Password and PasswordFilePath set",
 			cfg: &Configuration{
 				Servers:  []string{"http://localhost:9200"},
 				Sniffing: Sniffing{Enabled: false},
 				Authentication: Authentication{
-					BasicAuthentication: basicAuth("", "secret", "/some/file/path"),
+					BasicAuthentication: basicAuth("testuser", "secret", "/some/file/path"),
 				},
 				LogLevel: "info",
 			},
 			ctx:             context.Background(),
 			wantErr:         true,
-			wantErrContains: "both Password and PasswordFilePath are set",
+			wantErrContains: "failed to initialize basic authentication",
 		},
+
 		{
 			name: "Invalid log level triggers addLoggerOptions error",
 			cfg: &Configuration{
