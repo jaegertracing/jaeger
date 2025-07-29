@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/config/configoptional"
 
-	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/config/tlscfg"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
@@ -24,6 +24,9 @@ const (
 	suffixDisableHealthCheck             = ".disable-health-check"
 	suffixSnifferTLSEnabled              = ".sniffer-tls-enabled"
 	suffixTokenPath                      = ".token-file"
+	suffixBearerTokenPropagation         = ".bearer-token-propagation"     // #nosec G101
+	suffixBearerTokenReloadInterval      = ".bearer-token-reload-interval" //#nosec G101
+	suffixPasswordReloadInterval         = ".password-reload-interval"
 	suffixPasswordPath                   = ".password-file"
 	suffixServerURLs                     = ".server-urls"
 	suffixRemoteReadClusters             = ".remote-read-clusters"
@@ -135,22 +138,65 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 }
 
 func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
+	// authentication fields
+	var (
+		username                    string
+		password                    string
+		passwordPath                string
+		tokenPath                   string
+		bearerTokenAllowFromContext bool
+		bearerTokenReloadInterval   time.Duration = 10 * time.Second
+		passwordReloadInterval      time.Duration = 10 * time.Second
+	)
+
+	if nsConfig.Authentication.BasicAuthentication.HasValue() {
+		basicAuth := nsConfig.Authentication.BasicAuthentication.Get()
+		username = basicAuth.Username
+		password = basicAuth.Password
+		passwordPath = basicAuth.PasswordFilePath
+		if basicAuth.ReloadInterval != 0 {
+			passwordReloadInterval = basicAuth.ReloadInterval
+		}
+	}
+
+	if nsConfig.Authentication.BearerTokenAuthentication.HasValue() {
+		bearerAuth := nsConfig.Authentication.BearerTokenAuthentication.Get()
+		tokenPath = bearerAuth.FilePath
+		bearerTokenAllowFromContext = bearerAuth.AllowFromContext
+		if bearerAuth.ReloadInterval != 0 {
+			bearerTokenReloadInterval = bearerAuth.ReloadInterval
+		}
+	}
+
 	flagSet.String(
 		nsConfig.namespace+suffixUsername,
-		nsConfig.Authentication.BasicAuthentication.Username,
+		username,
 		"The username required by Elasticsearch. The basic authentication also loads CA if it is specified.")
 	flagSet.String(
 		nsConfig.namespace+suffixPassword,
-		nsConfig.Authentication.BasicAuthentication.Password,
+		password,
 		"The password required by Elasticsearch")
 	flagSet.String(
 		nsConfig.namespace+suffixTokenPath,
-		nsConfig.Authentication.BearerTokenAuthentication.FilePath,
+		tokenPath,
 		"Path to a file containing bearer token. This flag also loads CA if it is specified.")
+
+	flagSet.Duration(
+		nsConfig.namespace+suffixBearerTokenReloadInterval,
+		bearerTokenReloadInterval,
+		"Interval for reloading bearer token from file. Set to 0 to disable automatic reloading.")
+	flagSet.Bool(
+		nsConfig.namespace+suffixBearerTokenPropagation,
+		bearerTokenAllowFromContext,
+		"Allow bearer token to be read from incoming request context")
 	flagSet.String(
 		nsConfig.namespace+suffixPasswordPath,
-		nsConfig.Authentication.BasicAuthentication.PasswordFilePath,
+		passwordPath,
 		"Path to a file containing password. This file is watched for changes.")
+	flagSet.Duration(
+		nsConfig.namespace+suffixPasswordReloadInterval,
+		passwordReloadInterval,
+		"Interval for reloading password from file. Set to 0 to disable automatic reloading.")
 	flagSet.Bool(
 		nsConfig.namespace+suffixSniffer,
 		nsConfig.Sniffing.Enabled,
@@ -317,10 +363,33 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 }
 
 func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
-	cfg.Authentication.BasicAuthentication.Username = v.GetString(cfg.namespace + suffixUsername)
-	cfg.Authentication.BasicAuthentication.Password = v.GetString(cfg.namespace + suffixPassword)
-	cfg.Authentication.BearerTokenAuthentication.FilePath = v.GetString(cfg.namespace + suffixTokenPath)
-	cfg.Authentication.BasicAuthentication.PasswordFilePath = v.GetString(cfg.namespace + suffixPasswordPath)
+	// BasicAuthentication if atleast one of username, password or passwordPath is set
+	username := v.GetString(cfg.namespace + suffixUsername)
+	password := v.GetString(cfg.namespace + suffixPassword)
+	passwordPath := v.GetString(cfg.namespace + suffixPasswordPath)
+
+	if username != "" || password != "" || passwordPath != "" {
+		reloadInterval := v.GetDuration(cfg.namespace + suffixPasswordReloadInterval)
+		cfg.Authentication.BasicAuthentication = configoptional.Some(config.BasicAuthentication{
+			Username:         username,
+			Password:         password,
+			PasswordFilePath: passwordPath,
+			ReloadInterval:   reloadInterval,
+		})
+	}
+
+	// BearerAuthentication if tokenPath or allowFromContext is set
+	tokenPath := v.GetString(cfg.namespace + suffixTokenPath)
+	bearerTokenAllowFromContext := v.GetBool(cfg.namespace + suffixBearerTokenPropagation)
+	// Create BearerTokenAuthentication if either field is configured
+	if tokenPath != "" || bearerTokenAllowFromContext {
+		reloadInterval := v.GetDuration(cfg.namespace + suffixBearerTokenReloadInterval)
+		cfg.Authentication.BearerTokenAuthentication = configoptional.Some(config.BearerTokenAuthentication{
+			FilePath:         tokenPath,
+			AllowFromContext: bearerTokenAllowFromContext,
+			ReloadInterval:   reloadInterval,
+		})
+	}
 	cfg.Sniffing.Enabled = v.GetBool(cfg.namespace + suffixSniffer)
 	cfg.Sniffing.UseHTTPS = v.GetBool(cfg.namespace + suffixSnifferTLSEnabled)
 	cfg.DisableHealthCheck = v.GetBool(cfg.namespace + suffixDisableHealthCheck)
@@ -371,9 +440,6 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.MaxDocCount = v.GetInt(cfg.namespace + suffixMaxDocCount)
 	cfg.UseILM = v.GetBool(cfg.namespace + suffixUseILM)
 
-	// TODO: Need to figure out a better way for do this.
-	cfg.Authentication.BearerTokenAuthentication.AllowFromContext = v.GetBool(bearertoken.StoragePropagationKey)
-
 	remoteReadClusters := stripWhiteSpace(v.GetString(cfg.namespace + suffixRemoteReadClusters))
 	if len(remoteReadClusters) > 0 {
 		cfg.RemoteReadClusters = strings.Split(remoteReadClusters, ",")
@@ -419,12 +485,7 @@ func initDateLayout(rolloverFreq, sep string) string {
 
 func DefaultConfig() config.Configuration {
 	return config.Configuration{
-		Authentication: config.Authentication{
-			BasicAuthentication: config.BasicAuthentication{
-				Username: "",
-				Password: "",
-			},
-		},
+		Authentication: config.Authentication{},
 		Sniffing: config.Sniffing{
 			Enabled: false,
 		},

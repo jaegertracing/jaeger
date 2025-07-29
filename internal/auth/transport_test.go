@@ -5,8 +5,8 @@ package auth
 
 import (
 	"context"
+	"encoding/base64"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,80 +22,149 @@ func (s roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 }
 
 func TestRoundTripper(t *testing.T) {
-	for _, tc := range []struct {
-		name             string
-		staticToken      string
-		overrideFromCtx  bool
-		wrappedTransport http.RoundTripper
-		requestContext   context.Context
-		wantError        bool
+	tests := []struct {
+		name               string
+		auths              []Method
+		requestContext     context.Context
+		expectedHeaders    []string // Expected Authorization headers
+		expectError        bool
+		expectNoAuthHeader bool
 	}{
 		{
-			name: "Default RoundTripper and request context set should have empty Bearer token",
-			wrappedTransport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
-				assert.Empty(t, r.Header.Get("Authorization"))
-				return &http.Response{
-					StatusCode: http.StatusOK,
-				}, nil
-			}),
-			requestContext: bearertoken.ContextWithBearerToken(context.Background(), "tokenFromContext"),
+			name:               "No auth configs - no headers added",
+			auths:              []Method{},
+			requestContext:     context.Background(),
+			expectNoAuthHeader: true,
 		},
 		{
-			name:            "Override from context provided, and request context set should use request context token",
-			overrideFromCtx: true,
-			wrappedTransport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
-				assert.Equal(t, "Bearer tokenFromContext", r.Header.Get("Authorization"))
-				return &http.Response{
-					StatusCode: http.StatusOK,
-				}, nil
-			}),
-			requestContext: bearertoken.ContextWithBearerToken(context.Background(), "tokenFromContext"),
+			name: "Single Bearer auth with static token",
+			auths: []Method{
+				{
+					Scheme:  "Bearer",
+					TokenFn: func() string { return "static-token" },
+				},
+			},
+			requestContext:  context.Background(),
+			expectedHeaders: []string{"Bearer static-token"},
 		},
 		{
-			name:            "Allow override from context and token provided, and request context unset should use defaultToken",
-			overrideFromCtx: true,
-			staticToken:     "initToken",
-			wrappedTransport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
-				assert.Equal(t, "Bearer initToken", r.Header.Get("Authorization"))
-				return &http.Response{}, nil
-			}),
+			name: "Bearer auth with context override - context token used",
+			auths: []Method{
+				{
+					Scheme:  "Bearer",
+					TokenFn: func() string { return "static-token" },
+					FromCtx: bearertoken.GetBearerToken,
+				},
+			},
+			requestContext:  bearertoken.ContextWithBearerToken(context.Background(), "context-token"),
+			expectedHeaders: []string{"Bearer context-token"},
+		},
+		{
+			name: "Multiple auth methods - both tokens added",
+			auths: []Method{
+				{
+					Scheme:  "Bearer",
+					TokenFn: func() string { return "bearer-token" },
+				},
+				{
+					Scheme:  "ApiKey",
+					TokenFn: func() string { return "api-key-value" },
+				},
+			},
+			requestContext:  context.Background(),
+			expectedHeaders: []string{"Bearer bearer-token", "ApiKey api-key-value"},
+		},
+		{
+			name: "Auth config with empty token - no header added",
+			auths: []Method{
+				{
+					Scheme:  "Bearer",
+					TokenFn: func() string { return "" }, // Empty token
+				},
+				{
+					Scheme:  "ApiKey",
+					TokenFn: func() string { return "valid-key" },
+				},
+			},
+			requestContext:  context.Background(),
+			expectedHeaders: []string{"ApiKey valid-key"}, // Only valid token
+		},
+		{
+			name: "Only context extraction, no context token - no header added",
+			auths: []Method{
+				{
+					Scheme:  "Bearer",
+					FromCtx: bearertoken.GetBearerToken,
+				},
+			},
+			requestContext:     context.Background(),
+			expectNoAuthHeader: true,
+		},
+		{
+			name:           "Nil transport - should return error",
+			auths:          []Method{},
 			requestContext: context.Background(),
+			expectError:    true,
 		},
 		{
-			name:            "Allow override from context and token provided, and request context set should use context token",
-			overrideFromCtx: true,
-			staticToken:     "initToken",
-			wrappedTransport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
-				assert.Equal(t, "Bearer tokenFromContext", r.Header.Get("Authorization"))
-				return &http.Response{}, nil
-			}),
-			requestContext: bearertoken.ContextWithBearerToken(context.Background(), "tokenFromContext"),
+			name: "Basic auth with pre-encoded credentials",
+			auths: []Method{
+				{
+					Scheme: "Basic",
+					TokenFn: func() string {
+						// Pre-encoded "user:pass"
+						return base64.StdEncoding.EncodeToString([]byte("user:pass"))
+					},
+				},
+			},
+			requestContext:  context.Background(),
+			expectedHeaders: []string{"Basic dXNlcjpwYXNz"}, // base64("user:pass")
 		},
-		{
-			name:           "Nil roundTripper provided should return an error",
-			requestContext: context.Background(),
-			wantError:      true,
-		},
-	} {
+	}
+
+	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			server := httptest.NewServer(nil)
-			defer server.Close()
-			req, err := http.NewRequestWithContext(tc.requestContext, http.MethodGet, server.URL, nil)
+			t.Parallel() // Enable parallel execution for faster tests
+
+			// Each test gets its own isolated capturedRequest and transport
+			var capturedRequest *http.Request
+			wrappedTransport := roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				capturedRequest = r
+				return &http.Response{StatusCode: http.StatusOK}, nil
+			})
+
+			req, err := http.NewRequestWithContext(tc.requestContext, http.MethodGet, "http://fake.example.com/api", nil)
 			require.NoError(t, err)
 
-			tr := RoundTripper{
-				Transport:       tc.wrappedTransport,
-				OverrideFromCtx: tc.overrideFromCtx,
-				StaticToken:     tc.staticToken,
+			var transport http.RoundTripper = wrappedTransport
+			if tc.expectError {
+				transport = nil // Force nil transport for error test
 			}
+
+			tr := RoundTripper{
+				Transport: transport,
+				Auths:     tc.auths,
+			}
+
 			resp, err := tr.RoundTrip(req)
 
-			if tc.wantError {
+			if tc.expectError {
 				assert.Nil(t, resp)
 				require.Error(t, err)
-			} else {
-				assert.NotNil(t, resp)
-				require.NoError(t, err)
+				assert.Contains(t, err.Error(), "no http.RoundTripper provided")
+				return
+			}
+
+			require.NoError(t, err)
+			assert.NotNil(t, resp)
+			require.NotNil(t, capturedRequest, "Request should have been captured")
+
+			// Perform assertions on captured request
+			if tc.expectNoAuthHeader {
+				assert.Empty(t, capturedRequest.Header.Get("Authorization"))
+			} else if len(tc.expectedHeaders) > 0 {
+				authHeaders := capturedRequest.Header["Authorization"]
+				assert.ElementsMatch(t, tc.expectedHeaders, authHeaders)
 			}
 		})
 	}

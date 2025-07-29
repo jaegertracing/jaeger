@@ -169,8 +169,9 @@ func (td ToDomain) convertKeyValue(tag *dbmodel.KeyValue) (model.KeyValue, error
 			return model.KeyValue{}, err
 		}
 		return model.Binary(tag.Key, value), nil
+	default:
+		return model.KeyValue{}, fmt.Errorf("not a valid ValueType string %s", string(tag.Type))
 	}
-	return model.KeyValue{}, fmt.Errorf("not a valid ValueType string %s", string(tag.Type))
 }
 
 func (ToDomain) fromDBNumber(kv *dbmodel.KeyValue) (model.KeyValue, error) {

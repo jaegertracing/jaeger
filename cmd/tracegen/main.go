@@ -86,7 +86,7 @@ func createTracers(cfg *tracegen.Config, logger *zap.Logger) ([]trace.Tracer, fu
 		res, err := resource.New(
 			context.Background(),
 			resource.WithSchemaURL(otelsemconv.SchemaURL),
-			resource.WithAttributes(otelsemconv.ServiceNameKey.String(svc)),
+			resource.WithAttributes(otelsemconv.ServiceNameAttribute(svc)),
 			resource.WithTelemetrySDK(),
 			resource.WithHost(),
 			resource.WithOSType(),

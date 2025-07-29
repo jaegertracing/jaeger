@@ -24,6 +24,7 @@ import (
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
+	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 )
 
 const (
@@ -102,7 +103,7 @@ type SpanReader struct {
 	serviceIndexPrefix      string
 	spanIndex               cfg.IndexOptions
 	serviceIndex            cfg.IndexOptions
-	timeRangeIndices        timeRangeIndexFn
+	timeRangeIndices        TimeRangeIndexFn
 	sourceFn                sourceFn
 	maxDocCount             int
 	useReadWriteAliases     bool
@@ -130,16 +131,10 @@ type SpanReaderParams struct {
 // NewSpanReader returns a new SpanReader with a metrics.
 func NewSpanReader(p SpanReaderParams) *SpanReader {
 	maxSpanAge := p.MaxSpanAge
-	readAliasSuffix := ""
 	// Setting the maxSpanAge to a large duration will ensure all spans in the "read" alias are accessible by queries (query window = [now - maxSpanAge, now]).
 	// When read/write aliases are enabled, which are required for index rollovers, only the "read" alias is queried and therefore should not affect performance.
 	if p.UseReadWriteAliases {
 		maxSpanAge = dawnOfTimeSpanAge
-		if p.ReadAliasSuffix != "" {
-			readAliasSuffix = p.ReadAliasSuffix
-		} else {
-			readAliasSuffix = "read"
-		}
 	}
 
 	return &SpanReader{
@@ -150,12 +145,9 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		serviceIndexPrefix:      p.IndexPrefix.Apply(serviceIndexBaseName),
 		spanIndex:               p.SpanIndex,
 		serviceIndex:            p.ServiceIndex,
-		timeRangeIndices: getLoggingTimeRangeIndexFn(
+		timeRangeIndices: LoggingTimeRangeIndexFn(
 			p.Logger,
-			addRemoteReadClusters(
-				getTimeRangeIndexFn(p.UseReadWriteAliases, readAliasSuffix),
-				p.RemoteReadClusters,
-			),
+			TimeRangeIndicesFn(p.UseReadWriteAliases, p.ReadAliasSuffix, p.RemoteReadClusters),
 		),
 		sourceFn:            getSourceFn(p.MaxDocCount),
 		maxDocCount:         p.MaxDocCount,
@@ -166,11 +158,11 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	}
 }
 
-type timeRangeIndexFn func(indexName string, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string
+type TimeRangeIndexFn func(indexName string, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string
 
 type sourceFn func(query elastic.Query, nextTime uint64) *elastic.SearchSource
 
-func getLoggingTimeRangeIndexFn(logger *zap.Logger, fn timeRangeIndexFn) timeRangeIndexFn {
+func LoggingTimeRangeIndexFn(logger *zap.Logger, fn TimeRangeIndexFn) TimeRangeIndexFn {
 	if !logger.Core().Enabled(zap.DebugLevel) {
 		return fn
 	}
@@ -181,7 +173,22 @@ func getLoggingTimeRangeIndexFn(logger *zap.Logger, fn timeRangeIndexFn) timeRan
 	}
 }
 
-func getTimeRangeIndexFn(useReadWriteAliases bool, readAlias string) timeRangeIndexFn {
+func TimeRangeIndicesFn(useReadWriteAliases bool, readAliasSuffix string, remoteReadClusters []string) TimeRangeIndexFn {
+	suffix := ""
+	if useReadWriteAliases {
+		if readAliasSuffix != "" {
+			suffix = readAliasSuffix
+		} else {
+			suffix = "read"
+		}
+	}
+	return addRemoteReadClusters(
+		getTimeRangeIndexFn(useReadWriteAliases, suffix),
+		remoteReadClusters,
+	)
+}
+
+func getTimeRangeIndexFn(useReadWriteAliases bool, readAlias string) TimeRangeIndexFn {
 	if useReadWriteAliases {
 		return func(indexPrefix, _ /* indexDateLayout */ string, _ /* startTime */ time.Time, _ /* endTime */ time.Time, _ /* reduceDuration */ time.Duration) []string {
 			return []string{indexPrefix + readAlias}
@@ -192,7 +199,7 @@ func getTimeRangeIndexFn(useReadWriteAliases bool, readAlias string) timeRangeIn
 
 // Add a remote cluster prefix for each cluster and for each index and add it to the list of original indices.
 // Elasticsearch cross cluster api example GET /twitter,cluster_one:twitter,cluster_two:twitter/_search.
-func addRemoteReadClusters(fn timeRangeIndexFn, remoteReadClusters []string) timeRangeIndexFn {
+func addRemoteReadClusters(fn TimeRangeIndexFn, remoteReadClusters []string) TimeRangeIndexFn {
 	return func(indexPrefix string, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string {
 		jaegerIndices := fn(indexPrefix, indexDateLayout, startTime, endTime, reduceDuration)
 		if len(remoteReadClusters) == 0 {
@@ -225,7 +232,7 @@ func timeRangeIndices(indexName, indexDateLayout string, startTime time.Time, en
 	var indices []string
 	firstIndex := indexWithDate(indexName, indexDateLayout, startTime)
 	currentIndex := indexWithDate(indexName, indexDateLayout, endTime)
-	for currentIndex != firstIndex {
+	for currentIndex != firstIndex && endTime.After(startTime) {
 		if len(indices) == 0 || indices[len(indices)-1] != currentIndex {
 			indices = append(indices, currentIndex)
 		}
@@ -629,7 +636,7 @@ func (*SpanReader) buildDurationQuery(durationMin time.Duration, durationMax tim
 	if durationMax != 0 {
 		maxDurationMicros = model.DurationAsMicroseconds(durationMax)
 	}
-	return elastic.NewRangeQuery(durationField).Gte(minDurationMicros).Lte(maxDurationMicros)
+	return esquery.NewRangeQuery(durationField).Gte(minDurationMicros).Lte(maxDurationMicros)
 }
 
 func (*SpanReader) buildStartTimeQuery(startTimeMin time.Time, startTimeMax time.Time) elastic.Query {
@@ -638,7 +645,7 @@ func (*SpanReader) buildStartTimeQuery(startTimeMin time.Time, startTimeMax time
 	// startTimeMillisField is date field in ES mapping.
 	// Using date field in range queries helps to skip search on unnecessary shards at Elasticsearch side.
 	// https://discuss.elastic.co/t/timeline-query-on-timestamped-indices/129328/2
-	return elastic.NewRangeQuery(startTimeMillisField).Gte(minStartTimeMicros / 1000).Lte(maxStartTimeMicros / 1000)
+	return esquery.NewRangeQuery(startTimeMillisField).Gte(minStartTimeMicros / 1000).Lte(maxStartTimeMicros / 1000)
 }
 
 func (*SpanReader) buildServiceNameQuery(serviceName string) elastic.Query {

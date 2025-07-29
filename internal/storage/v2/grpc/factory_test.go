@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"google.golang.org/grpc"
 
@@ -24,7 +25,7 @@ import (
 func TestNewFactory_NonEmptyAuthenticator(t *testing.T) {
 	cfg := &Config{
 		ClientConfig: configgrpc.ClientConfig{
-			Auth: &configauth.Config{},
+			Auth: configoptional.Some(configauth.Config{}),
 		},
 	}
 	_, err := NewFactory(context.Background(), *cfg, telemetry.NoopSettings())

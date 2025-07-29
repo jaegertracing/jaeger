@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	jModel "github.com/jaegertracing/jaeger/internal/uimodel"
+	"github.com/jaegertracing/jaeger/internal/uimodel"
 )
 
 const NumberOfFixtures = 1
@@ -76,7 +76,7 @@ func TestFromDomainEmbedProcess(t *testing.T) {
 		require.NoError(t, jsonpb.Unmarshal(bytes.NewReader(domainStr), &span))
 		embeddedSpan := FromDomainEmbedProcess(&span)
 
-		var expectedSpan jModel.Span
+		var expectedSpan uimodel.Span
 		require.NoError(t, json.Unmarshal(jsonStr, &expectedSpan))
 
 		testJSONEncoding(t, i, jsonStr, embeddedSpan, true)
@@ -141,7 +141,7 @@ func TestDependenciesFromDomain(t *testing.T) {
 	anotherParent := "anotherParent"
 	anotherChild := "anotherChild"
 	anotherCallCount := uint64(456)
-	expected := []jModel.DependencyLink{
+	expected := []uimodel.DependencyLink{
 		{
 			Parent:    someParent,
 			Child:     someChild,
@@ -167,4 +167,24 @@ func TestDependenciesFromDomain(t *testing.T) {
 	}
 	actual := DependenciesFromDomain(input)
 	assert.Equal(t, expected, actual)
+}
+
+func TestConvertKeyValues_DefaultValueType(t *testing.T) {
+	// Create a custom ValueType that's not handled by the switch
+	customType := model.ValueType(999)
+	
+	kv := model.KeyValue{
+		Key:   "custom-key",
+		VType: customType,
+		VStr:  "custom-value",
+	}
+	
+	fd := fromDomain{}
+	result := fd.convertKeyValues(model.KeyValues{kv})
+	
+	require.Len(t, result, 1)
+	assert.Equal(t, "custom-key", result[0].Key)
+
+	assert.Equal(t, "unknown type 999", result[0].Value)
+	assert.Equal(t, uimodel.ValueType("999"), result[0].Type)
 }

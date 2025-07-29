@@ -124,6 +124,8 @@ func (fromDomain) convertKeyValues(keyValues model.KeyValues) []uimodel.KeyValue
 			value = kv.Float64()
 		case model.BinaryType:
 			value = kv.Binary()
+		default:
+			value = kv.AsString()
 		}
 
 		out[i] = uimodel.KeyValue{

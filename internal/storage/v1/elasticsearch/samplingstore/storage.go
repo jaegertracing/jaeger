@@ -15,6 +15,7 @@ import (
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/samplingstore/dbmodel"
 )
@@ -190,7 +191,7 @@ func (p *Params) PrefixedIndexName() string {
 }
 
 func buildTSQuery(start, end time.Time) elastic.Query {
-	return elastic.NewRangeQuery("timestamp").Gte(start).Lte(end)
+	return esquery.NewRangeQuery("timestamp").Gte(start).Lte(end)
 }
 
 func indexWithDate(indexNamePrefix, indexDateLayout string, date time.Time) string {

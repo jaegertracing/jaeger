@@ -68,6 +68,11 @@ func (mb MappingBuilder) getMappingTemplateOptions(mappingType MappingType) temp
 		mappingOpts.Shards = mb.Indices.Sampling.Shards
 		mappingOpts.Replicas = *mb.Indices.Sampling.Replicas
 		mappingOpts.Priority = mb.Indices.Sampling.Priority
+	default:
+		// Using default values as fallback to avoid breaking functionality.
+		mappingOpts.Shards = 5
+		mappingOpts.Replicas = 1
+		mappingOpts.Priority = 0
 	}
 
 	return mappingOpts

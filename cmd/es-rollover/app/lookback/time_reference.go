@@ -25,6 +25,7 @@ func getTimeReference(currentTime time.Time, units string, unitCount int) time.T
 	case "years":
 		year, month, day := currentTime.Date()
 		return time.Date(year, month, day, 0, 0, 0, 0, currentTime.Location()).AddDate(-1*unitCount, 0, 0)
+	default:
+		return currentTime.Truncate(time.Second).Add(-time.Duration(unitCount) * time.Second)
 	}
-	return currentTime.Truncate(time.Second).Add(-time.Duration(unitCount) * time.Second)
 }

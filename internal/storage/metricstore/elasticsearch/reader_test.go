@@ -624,6 +624,8 @@ func TestGetLatencies_WithDifferentQuantiles(t *testing.T) {
 				params.Quantile = 0.75
 			case "0.95 quantile":
 				params.Quantile = 0.95
+			default:
+				t.Errorf("Unexpected test case name: %s", tc.name)
 			}
 
 			metricFamily, err := reader.GetLatencies(context.Background(), params)

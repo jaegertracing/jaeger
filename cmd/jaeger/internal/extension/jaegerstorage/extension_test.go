@@ -506,6 +506,31 @@ func makeStorageExtension(t *testing.T, config *Config) component.Component {
 	return ext
 }
 
+func TestStorageBackend_DefaultCases(t *testing.T) {
+	config := &Config{
+		TraceBackends: map[string]TraceBackend{
+			"unconfigured": {},
+		},
+	}
+
+	ext := makeStorageExtension(t, config)
+	err := ext.Start(context.Background(), componenttest.NewNopHost())
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "empty configuration")
+
+	config = &Config{
+		MetricBackends: map[string]MetricBackend{
+			"unconfigured": {},
+		},
+	}
+
+	ext = makeStorageExtension(t, config)
+	err = ext.Start(context.Background(), componenttest.NewNopHost())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no metric backend configuration provided")
+}
+
 func startStorageExtension(t *testing.T, memstoreName string, promstoreName string) component.Component {
 	config := &Config{
 		TraceBackends: map[string]TraceBackend{

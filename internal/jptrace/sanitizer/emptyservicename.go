@@ -34,6 +34,8 @@ func sanitizeEmptyServiceName(traces ptrace.Traces) ptrace.Traces {
 			needsModification = true
 		case serviceName.Str() == "":
 			needsModification = true
+		default:
+			// Service name is valid, no modification needed
 		}
 		if needsModification {
 			break
@@ -63,6 +65,8 @@ func sanitizeEmptyServiceName(traces ptrace.Traces) ptrace.Traces {
 			attributes.PutStr(string(otelsemconv.ServiceNameKey), serviceNameWrongType)
 		case serviceName.Str() == "":
 			attributes.PutStr(string(otelsemconv.ServiceNameKey), emptyServiceName)
+		default:
+			// Service name is valid, no action needed
 		}
 	}
 

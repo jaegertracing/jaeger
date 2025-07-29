@@ -79,6 +79,15 @@ func TestHCAdapter(t *testing.T) {
 	}
 }
 
+func TestHCAdapter_DefaultCase(t *testing.T) {
+	hc := healthcheck.New()
+	adapter := telemetry.HCAdapter(hc)
+	
+	event := componentstatus.NewEvent(componentstatus.Status(999))
+	adapter(event)
+	assert.Equal(t, healthcheck.Unavailable, hc.Get())
+}
+
 func TestNoopSettingss(t *testing.T) {
 	telset := telemetry.NoopSettings()
 	assert.NotNil(t, telset.Logger)

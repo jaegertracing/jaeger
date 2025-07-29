@@ -393,6 +393,28 @@ func TestMappingBuilderGetSamplingMappings(t *testing.T) {
 	require.EqualError(t, err, "template load error")
 }
 
+func TestGetMappingTemplateOptions_DefaultCase(t *testing.T) {
+	mappingBuilder := &MappingBuilder{
+		Indices: config.Indices{
+			Spans: config.IndexOptions{
+				Shards:   2,
+				Replicas: ptr(int64(1)),
+				Priority: 10,
+			},
+		},
+		UseILM:        true,
+		ILMPolicyName: "test-policy",
+	}
+
+	opts := mappingBuilder.getMappingTemplateOptions(MappingType(-1))
+
+	assert.Equal(t, int64(5), opts.Shards)
+	assert.Equal(t, int64(1), opts.Replicas)
+	assert.Equal(t, int64(0), opts.Priority)
+	assert.True(t, opts.UseILM)
+	assert.Equal(t, "test-policy", opts.ILMPolicyName)
+}
+
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
 }

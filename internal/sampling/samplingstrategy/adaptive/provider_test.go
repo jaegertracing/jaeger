@@ -123,6 +123,8 @@ func TestProviderRealisticRunCalculationLoop(t *testing.T) {
 		case http.MethodDelete:
 			assert.InEpsilon(t, 0.0005, s.ProbabilisticSampling.SamplingRate, 0.025,
 				"Over sampled, halve probability")
+		default:
+			t.Errorf("Unexpected operation: %s", s.Operation)
 		}
 	}
 }
