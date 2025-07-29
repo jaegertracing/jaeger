@@ -54,6 +54,8 @@ func (m *Metrics) recordHTTPStatusCode(statusCode int64) {
 		m.HTTPStatusCode4xx.Inc(1)
 	case statusCode >= http.StatusInternalServerError && statusCode < 600:
 		m.HTTPStatusCode5xx.Inc(1)
+	default:
+		// Status codes outside standard ranges (< 200 or >= 600) are ignored
 	}
 }
 

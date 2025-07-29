@@ -693,8 +693,9 @@ func returnSearchFunc(typ string, r *spanReaderTest) (any, error) {
 		)
 	case traceIDAggregation:
 		return r.reader.findTraceIDs(context.Background(), dbmodel.TraceQueryParameters{})
+	default:
+		return nil, errors.New("Specify services, operations, traceIDs only")
 	}
-	return nil, errors.New("Specify services, operations, traceIDs only")
 }
 
 func TestSpanReader_bucketToStringArray(t *testing.T) {
@@ -963,6 +964,16 @@ func TestFindTraceIDs(t *testing.T) {
 			testGet(testCase.aggregrationID, t)
 		})
 	}
+}
+
+func TestReturnSearchFunc_DefaultCase(t *testing.T) {
+	r := &spanReaderTest{}
+	
+	result, err := returnSearchFunc("unknownAggregationType", r)
+	
+	assert.Nil(t, result)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Specify services, operations, traceIDs only")
 }
 
 func mockMultiSearchService(r *spanReaderTest) *mock.Call {

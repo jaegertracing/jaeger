@@ -30,8 +30,9 @@ func getBasicAuthField(opt configoptional.Optional[escfg.BasicAuthentication], f
 		return ba.Password
 	case "PasswordFilePath":
 		return ba.PasswordFilePath
+	default:
+		return ""
 	}
-	return ""
 }
 
 func getBearerTokenField(opt configoptional.Optional[escfg.BearerTokenAuthentication], field string) any {
@@ -226,6 +227,19 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetBasicAuthField_DefaultCase(t *testing.T) {
+	basicAuth := escfg.BasicAuthentication{
+		Username:         "test-user",
+		Password:         "test-pass",
+		PasswordFilePath: "/path/to/file",
+	}
+	
+	opt := configoptional.Some(basicAuth)
+	
+	result := getBasicAuthField(opt, "UnknownField")
+	assert.Empty(t, result)
 }
 
 func TestEmptyRemoteReadClusters(t *testing.T) {

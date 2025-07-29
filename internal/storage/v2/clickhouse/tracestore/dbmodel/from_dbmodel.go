@@ -146,8 +146,9 @@ func convertSpanKind(sk string) ptrace.SpanKind {
 		return ptrace.SpanKindProducer
 	case "Consumer":
 		return ptrace.SpanKindConsumer
+	default:
+		return ptrace.SpanKindUnspecified
 	}
-	return ptrace.SpanKindUnspecified
 }
 
 func convertStatusCode(sc string) ptrace.StatusCode {
@@ -158,6 +159,7 @@ func convertStatusCode(sc string) ptrace.StatusCode {
 		return ptrace.StatusCodeUnset
 	case "Error":
 		return ptrace.StatusCodeError
+	default:
+		return ptrace.StatusCodeUnset
 	}
-	return ptrace.StatusCodeUnset
 }

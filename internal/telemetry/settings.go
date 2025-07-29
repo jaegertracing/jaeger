@@ -42,6 +42,8 @@ func HCAdapter(hc *healthcheck.HealthCheck) func(*componentstatus.Event) {
 			hcStatus = healthcheck.Unavailable
 		case componentstatus.StatusFatalError:
 			hcStatus = healthcheck.Broken
+		default:
+			hcStatus = healthcheck.Unavailable
 		}
 		hc.Set(hcStatus)
 	}

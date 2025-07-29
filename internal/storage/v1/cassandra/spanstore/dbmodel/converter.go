@@ -162,8 +162,9 @@ func (converter) fromDBTag(tag *KeyValue) (model.KeyValue, error) {
 		return model.Float64(tag.Key, tag.ValueFloat64), nil
 	case binaryType:
 		return model.Binary(tag.Key, tag.ValueBinary), nil
+	default:
+		return model.KeyValue{}, fmt.Errorf("invalid ValueType in %+v", tag)
 	}
-	return model.KeyValue{}, fmt.Errorf("invalid ValueType in %+v", tag)
 }
 
 func (c converter) fromDBLogs(logs []Log) ([]model.Log, error) {

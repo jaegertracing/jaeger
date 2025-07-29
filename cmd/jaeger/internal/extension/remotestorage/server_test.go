@@ -77,9 +77,9 @@ func (fakeStorageExt) TraceStorageFactory(name string) (tracestore.Factory, bool
 		return nil, false
 	case "without-dependency-storage":
 		return fakeTraceStorageFactory{name: name}, true
+	default:
+		return newFakeFactory(name), true
 	}
-
-	return newFakeFactory(name), true
 }
 
 func (fakeStorageExt) MetricStorageFactory(string) (storage.MetricStoreFactory, bool) {
@@ -172,4 +172,21 @@ func TestServer_Start(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTraceStorageFactory_DefaultCase(t *testing.T) {
+	fakeExt := fakeStorageExt{}
+	
+	factory, exists := fakeExt.TraceStorageFactory("unknown-factory-name")
+	
+	require.True(t, exists)
+	require.NotNil(t, factory)
+	
+	_, ok := factory.(*fakeFactory)
+	require.True(t, ok)
+	
+	factory2, exists2 := fakeExt.TraceStorageFactory("another-unknown-name")
+	require.True(t, exists2)
+	require.NotNil(t, factory2)
+	require.NotEqual(t, factory, factory2)
 }
