@@ -4,12 +4,11 @@ on:
   schedule:
     - cron: '0 5 * * *'  # Daily at 5 AM UTC
   #testing 
-  merge_group:
-    push:
-      branches: [main]
+  push:
+    branches: [main]
 
-    pull_request:
-      branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
