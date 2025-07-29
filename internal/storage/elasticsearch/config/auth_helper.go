@@ -5,6 +5,9 @@ package config
 
 import (
 	"context"
+	"encoding/base64"
+	"errors"
+	"fmt"
 	"time"
 
 	"go.uber.org/zap"
@@ -51,5 +54,56 @@ func initBearerAuthWithTime(bearerAuth *BearerTokenAuthentication, logger *zap.L
 		Scheme:  "Bearer",
 		TokenFn: tokenFn,
 		FromCtx: fromCtx,
+	}, nil
+}
+
+func initBasicAuth(basicAuth *BasicAuthentication, logger *zap.Logger) (*auth.Method, error) {
+	return initBasicAuthWithTime(basicAuth, logger, time.Now)
+}
+
+func initBasicAuthWithTime(basicAuth *BasicAuthentication, logger *zap.Logger, timeFn func() time.Time) (*auth.Method, error) {
+	if basicAuth == nil {
+		return nil, nil
+	}
+
+	if basicAuth.Password != "" && basicAuth.PasswordFilePath != "" {
+		return nil, errors.New("both Password and PasswordFilePath are set")
+	}
+
+	username := basicAuth.Username
+	if username == "" {
+		return nil, nil
+	}
+	var tokenFn func() string
+
+	// Handle password from file or static password
+	if basicAuth.PasswordFilePath != "" {
+		// Use TokenProvider for password loading
+		passwordFn, err := auth.TokenProviderWithTime(basicAuth.PasswordFilePath, basicAuth.ReloadInterval, logger, timeFn)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load password from file: %w", err)
+		}
+
+		// Pre-encode credentials in TokenFn
+		tokenFn = func() string {
+			password := passwordFn()
+			if password == "" {
+				return ""
+			}
+			credentials := username + ":" + password
+			return base64.StdEncoding.EncodeToString([]byte(credentials))
+		}
+	} else {
+		// Static password - pre-encode once
+		password := basicAuth.Password
+		credentials := username + ":" + password
+		encodedCredentials := base64.StdEncoding.EncodeToString([]byte(credentials))
+
+		tokenFn = func() string { return encodedCredentials }
+	}
+
+	return &auth.Method{
+		Scheme:  "Basic",
+		TokenFn: tokenFn, // Returns base64-encoded credentials
 	}, nil
 }

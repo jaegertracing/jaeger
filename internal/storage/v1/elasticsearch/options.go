@@ -26,6 +26,7 @@ const (
 	suffixTokenPath                      = ".token-file"
 	suffixBearerTokenPropagation         = ".bearer-token-propagation"     // #nosec G101
 	suffixBearerTokenReloadInterval      = ".bearer-token-reload-interval" //#nosec G101
+	suffixPasswordReloadInterval         = ".password-reload-interval"
 	suffixPasswordPath                   = ".password-file"
 	suffixServerURLs                     = ".server-urls"
 	suffixRemoteReadClusters             = ".remote-read-clusters"
@@ -144,7 +145,8 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		passwordPath                string
 		tokenPath                   string
 		bearerTokenAllowFromContext bool
-		reloadInterval              time.Duration = 10 * time.Second
+		bearerTokenReloadInterval   time.Duration = 10 * time.Second
+		passwordReloadInterval      time.Duration = 10 * time.Second
 	)
 
 	if nsConfig.Authentication.BasicAuthentication.HasValue() {
@@ -152,6 +154,9 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		username = basicAuth.Username
 		password = basicAuth.Password
 		passwordPath = basicAuth.PasswordFilePath
+		if basicAuth.ReloadInterval != 0 {
+			passwordReloadInterval = basicAuth.ReloadInterval
+		}
 	}
 
 	if nsConfig.Authentication.BearerTokenAuthentication.HasValue() {
@@ -159,7 +164,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		tokenPath = bearerAuth.FilePath
 		bearerTokenAllowFromContext = bearerAuth.AllowFromContext
 		if bearerAuth.ReloadInterval != 0 {
-			reloadInterval = bearerAuth.ReloadInterval
+			bearerTokenReloadInterval = bearerAuth.ReloadInterval
 		}
 	}
 
@@ -178,7 +183,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 
 	flagSet.Duration(
 		nsConfig.namespace+suffixBearerTokenReloadInterval,
-		reloadInterval,
+		bearerTokenReloadInterval,
 		"Interval for reloading bearer token from file. Set to 0 to disable automatic reloading.")
 	flagSet.Bool(
 		nsConfig.namespace+suffixBearerTokenPropagation,
@@ -188,6 +193,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixPasswordPath,
 		passwordPath,
 		"Path to a file containing password. This file is watched for changes.")
+	flagSet.Duration(
+		nsConfig.namespace+suffixPasswordReloadInterval,
+		passwordReloadInterval,
+		"Interval for reloading password from file. Set to 0 to disable automatic reloading.")
 	flagSet.Bool(
 		nsConfig.namespace+suffixSniffer,
 		nsConfig.Sniffing.Enabled,
@@ -360,10 +369,12 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	passwordPath := v.GetString(cfg.namespace + suffixPasswordPath)
 
 	if username != "" || password != "" || passwordPath != "" {
+		reloadInterval := v.GetDuration(cfg.namespace + suffixPasswordReloadInterval)
 		cfg.Authentication.BasicAuthentication = configoptional.Some(config.BasicAuthentication{
 			Username:         username,
 			Password:         password,
 			PasswordFilePath: passwordPath,
+			ReloadInterval:   reloadInterval,
 		})
 	}
 
