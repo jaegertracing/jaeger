@@ -6,7 +6,7 @@ on:
   #testing 
   push:
     branches: [main]
-
+  #testing
   pull_request:
     branches: [main]
   workflow_dispatch:
