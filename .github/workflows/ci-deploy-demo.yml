@@ -10,8 +10,7 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  secrets: read
+permissions: read
 
 jobs:
   deploy:
@@ -33,11 +32,12 @@ jobs:
         echo "OCI_CLI_KEY_CONTENT: ${OCI_CLI_KEY_CONTENT}"
         echo "OCI_CLI_REGION: ${OCI_CLI_REGION}"
       env:
-        OCI_CLI_USER: ${{ secrets.OCI_USER_OCID }}
-        OCI_CLI_TENANCY: ${{ secrets.OCI_TENANCY_OCID }}
-        OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
-        OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
-        OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+      OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+      OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
+      OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+      OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+
     - name: Configure kubectl with OKE
       uses: oracle-actions/configure-kubectl-oke@v1.5.0
       with:
