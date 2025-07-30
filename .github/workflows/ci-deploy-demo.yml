@@ -27,7 +27,7 @@ jobs:
       uses: oracle-actions/configure-kubectl-oke@v1.5.0
       with:
         cluster: ${{ secrets.OKE_CLUSTER_OCID }}
-        enablePrivateEndpoint: true
+        enablePrivateEndpoint: false
         
     - name: Clone Jaeger repository
       run: git clone https://github.com/jaegertracing/jaeger.git
