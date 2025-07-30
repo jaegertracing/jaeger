@@ -11,7 +11,6 @@ if [ ! -d "helm-charts" ]; then
   git clone https://github.com/jaegertracing/helm-charts.git
   cd helm-charts
   git checkout v2
-  # Add missing Helm repositories
   echo "Adding required Helm repositories..."
   helm repo add bitnami https://charts.bitnami.com/bitnami
   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
