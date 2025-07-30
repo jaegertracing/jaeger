@@ -2,7 +2,7 @@ name: Deploy Jaeger Demo to OKE
 
 on:
   schedule:
-    - cron: '0 5 * * *'  # Daily at 5 AM UTC
+    - cron: '0 13 * * *'  # Daily at 8:00 AM US Eastern Time (ET)
   push:
     branches: [main]
   pull_request:
@@ -32,10 +32,10 @@ jobs:
     - name: Install Helm
       uses: azure/setup-helm@v4
         
-    - name: Clone Jaeger repository
-      run: git clone https://github.com/jaegertracing/jaeger.git
+    - name: Checkout jaeger repository
+      uses: actions/checkout@v3
 
     - name: Deploy using Jaeger's deploy-all.sh
       run: |
-        cd ./jaeger/examples/oci
+        cd ./examples/oci
         bash ./deploy-all.sh
