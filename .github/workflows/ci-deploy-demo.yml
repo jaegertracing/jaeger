@@ -1,0 +1,37 @@
+name: Deploy Jaeger Demo to OKE
+
+on:
+  schedule:
+    - cron: '0 13 * * *'  # Daily at 8:00 AM US Eastern Time (ET)
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  deploy:
+    name: Deploy Jaeger to OKE Cluster
+    runs-on: ubuntu-latest
+    env:
+      OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+      OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
+      OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+      OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+
+    steps:
+    - name: Configure kubectl with OKE
+      uses: oracle-actions/configure-kubectl-oke@v1.5.0
+      with:
+        cluster: ${{ secrets.OKE_CLUSTER_OCID }}
+        enablePrivateEndpoint: false
+    
+    - name: Install Helm
+      uses: azure/setup-helm@v4
+        
+    - name: Checkout jaeger repository
+      uses: actions/checkout@v3
+
+    - name: Deploy using Jaeger's deploy-all.sh
+      run: |
+        cd ./examples/oci
+        bash ./deploy-all.sh
