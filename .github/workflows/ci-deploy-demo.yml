@@ -28,6 +28,9 @@ jobs:
       with:
         cluster: ${{ secrets.OKE_CLUSTER_OCID }}
         enablePrivateEndpoint: false
+    
+    - name: Install Helm
+      uses: azure/setup-helm@v4
         
     - name: Clone Jaeger repository
       run: git clone https://github.com/jaegertracing/jaeger.git
