@@ -3,10 +3,6 @@ name: Deploy Jaeger Demo to OKE
 on:
   schedule:
     - cron: '0 13 * * *'  # Daily at 8:00 AM US Eastern Time (ET)
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions: read-all
