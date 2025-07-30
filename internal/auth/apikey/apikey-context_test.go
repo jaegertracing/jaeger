@@ -30,7 +30,7 @@ func TestGetAPIKey(t *testing.T) {
 	assert.Empty(t, apiKey)
 	assert.False(t, ok)
 
-	// Empty string value in context (should be set, but value is empty)
+	// No API key when empty string passed to ContextWithAPIKey
 	emptyStringCtx := ContextWithAPIKey(context.Background(), "")
 	apiKey, ok = GetAPIKey(emptyStringCtx)
 	assert.Empty(t, apiKey)
