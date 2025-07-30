@@ -24,8 +24,11 @@ const (
 	suffixDisableHealthCheck             = ".disable-health-check"
 	suffixSnifferTLSEnabled              = ".sniffer-tls-enabled"
 	suffixTokenPath                      = ".token-file"
+	suffixAPIKeyPath                     = ".api-key-file"                 // #nosec G101
+	suffixAPIKeyReloadInterval           = ".api-key-reload-interval"      // #nosec G101
+	suffixAPIKeyAllowFromContext         = ".api-key-allow-from-context"   // #nosec G101
 	suffixBearerTokenPropagation         = ".bearer-token-propagation"     // #nosec G101
-	suffixBearerTokenReloadInterval      = ".bearer-token-reload-interval" //#nosec G101
+	suffixBearerTokenReloadInterval      = ".bearer-token-reload-interval" // #nosec G101
 	suffixPasswordReloadInterval         = ".password-reload-interval"
 	suffixPasswordPath                   = ".password-file"
 	suffixServerURLs                     = ".server-urls"
@@ -147,8 +150,18 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		bearerTokenAllowFromContext bool
 		bearerTokenReloadInterval   time.Duration = 10 * time.Second
 		passwordReloadInterval      time.Duration = 10 * time.Second
+		apiKeyPath                  string
+		apiKeyReloadInterval        time.Duration = 10 * time.Second
+		apiKeyAllowFromContext      bool
 	)
-
+	if nsConfig.Authentication.APIKeyAuthentication.HasValue() {
+		apiKeyAuth := nsConfig.Authentication.APIKeyAuthentication.Get()
+		apiKeyPath = apiKeyAuth.FilePath
+		apiKeyAllowFromContext = apiKeyAuth.AllowFromContext
+		if apiKeyAuth.ReloadInterval != 0 {
+			apiKeyReloadInterval = apiKeyAuth.ReloadInterval
+		}
+	}
 	if nsConfig.Authentication.BasicAuthentication.HasValue() {
 		basicAuth := nsConfig.Authentication.BasicAuthentication.Get()
 		username = basicAuth.Username
@@ -167,6 +180,18 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 			bearerTokenReloadInterval = bearerAuth.ReloadInterval
 		}
 	}
+	flagSet.Duration(
+		nsConfig.namespace+suffixAPIKeyReloadInterval,
+		apiKeyReloadInterval,
+		"Interval for reloading API key from file. Set to 0 to disable automatic reloading.")
+	flagSet.Bool(
+		nsConfig.namespace+suffixAPIKeyAllowFromContext,
+		apiKeyAllowFromContext,
+		"Allow API key to be read from incoming request context")
+	flagSet.String(
+		nsConfig.namespace+suffixAPIKeyPath,
+		apiKeyPath,
+		"Path to a file containing API key.")
 
 	flagSet.String(
 		nsConfig.namespace+suffixUsername,
@@ -387,6 +412,17 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 		cfg.Authentication.BearerTokenAuthentication = configoptional.Some(config.BearerTokenAuthentication{
 			FilePath:         tokenPath,
 			AllowFromContext: bearerTokenAllowFromContext,
+			ReloadInterval:   reloadInterval,
+		})
+	}
+	apiKeyPath := v.GetString(cfg.namespace + suffixAPIKeyPath)
+	apiKeyAllowFromContext := v.GetBool(cfg.namespace + suffixAPIKeyAllowFromContext)
+	// Create APIKeyAuthentication if either field is configured
+	if apiKeyPath != "" || apiKeyAllowFromContext {
+		reloadInterval := v.GetDuration(cfg.namespace + suffixAPIKeyReloadInterval)
+		cfg.Authentication.APIKeyAuthentication = configoptional.Some(config.APIKeyAuthentication{
+			FilePath:         apiKeyPath,
+			AllowFromContext: apiKeyAllowFromContext,
 			ReloadInterval:   reloadInterval,
 		})
 	}

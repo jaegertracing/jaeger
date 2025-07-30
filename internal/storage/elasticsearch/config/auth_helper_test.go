@@ -439,3 +439,182 @@ func TestInitBearerAuth_EdgeCases(t *testing.T) {
 		})
 	}
 }
+
+// TestInitAPIKeyAuth tests API key initialization
+func TestInitAPIKeyAuth(t *testing.T) {
+	logger := zap.NewNop()
+	tempDir := t.TempDir()
+	apiKeyFile := filepath.Join(tempDir, "api-key")
+	require.NoError(t, os.WriteFile(apiKeyFile, []byte("test-api-key"), 0o600))
+
+	tests := []struct {
+		name        string
+		apiKeyAuth  *APIKeyAuthentication
+		expectError bool
+		expectNil   bool
+		validate    func(t *testing.T, method *auth.Method)
+	}{
+		{
+			name: "Valid file-based API key auth",
+			apiKeyAuth: &APIKeyAuthentication{
+				FilePath: apiKeyFile,
+			},
+			expectError: false,
+			expectNil:   false,
+			validate: func(t *testing.T, method *auth.Method) {
+				require.NotNil(t, method)
+				assert.Equal(t, "APIKey", method.Scheme)
+				assert.NotNil(t, method.TokenFn)
+				assert.Equal(t, "test-api-key", method.TokenFn())
+				assert.Nil(t, method.FromCtx)
+			},
+		},
+		{
+			name: "Valid context-based API key auth",
+			apiKeyAuth: &APIKeyAuthentication{
+				AllowFromContext: true,
+			},
+			expectError: false,
+			expectNil:   false,
+			validate: func(t *testing.T, method *auth.Method) {
+				require.NotNil(t, method)
+				assert.Equal(t, "APIKey", method.Scheme)
+				assert.Nil(t, method.TokenFn)
+				assert.NotNil(t, method.FromCtx)
+			},
+		},
+		{
+			name: "Invalid API key config returns nil",
+			apiKeyAuth: &APIKeyAuthentication{
+				FilePath:         "",
+				AllowFromContext: false,
+			},
+			expectError: false,
+			expectNil:   true,
+			validate: func(t *testing.T, method *auth.Method) {
+				assert.Nil(t, method)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			method, err := initAPIKeyAuth(tc.apiKeyAuth, logger)
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Nil(t, method)
+			} else {
+				require.NoError(t, err)
+				if tc.expectNil {
+					assert.Nil(t, method)
+				} else {
+					tc.validate(t, method)
+				}
+			}
+		})
+	}
+}
+
+// Test the time-injectable function for advanced scenarios
+func TestInitAPIKeyAuthWithTime(t *testing.T) {
+	logger := zap.NewNop()
+	tempDir := t.TempDir()
+
+	tests := []struct {
+		name               string
+		reloadInterval     time.Duration
+		timeAdvance        time.Duration
+		expectedFinalToken string
+		description        string
+	}{
+		{
+			name:               "Normal reloading behavior",
+			reloadInterval:     50 * time.Millisecond,
+			timeAdvance:        60 * time.Millisecond,
+			expectedFinalToken: "updated-api-key",
+			description:        "Should return updated API key after cache expires",
+		},
+		{
+			name:               "Zero interval disables reloading",
+			reloadInterval:     0,
+			timeAdvance:        24 * time.Minute,
+			expectedFinalToken: "initial-api-key",
+			description:        "Zero interval should completely disable API key reloading",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			apiKeyFile := filepath.Join(tempDir, "reloadable-api-key-"+tc.name)
+			require.NoError(t, os.WriteFile(apiKeyFile, []byte("initial-api-key"), 0o600))
+
+			currentTime := time.Unix(0, 0)
+			timeFn := func() time.Time { return currentTime }
+
+			apiKeyAuth := &APIKeyAuthentication{
+				FilePath:       apiKeyFile,
+				ReloadInterval: tc.reloadInterval,
+			}
+
+			// Initialize with mock time
+			method, err := initAPIKeyAuthWithTime(apiKeyAuth, logger, timeFn)
+			require.NoError(t, err)
+			require.NotNil(t, method)
+			require.NotNil(t, method.TokenFn)
+
+			// Initial API key
+			token := method.TokenFn()
+			assert.Equal(t, "initial-api-key", token)
+
+			// Update the file
+			err = os.WriteFile(apiKeyFile, []byte("updated-api-key"), 0o600)
+			require.NoError(t, err)
+
+			// Advance time and test
+			currentTime = currentTime.Add(tc.timeAdvance)
+			token = method.TokenFn()
+			assert.Equal(t, tc.expectedFinalToken, token, tc.description)
+		})
+	}
+}
+
+func TestInitAPIKeyAuth_EdgeCases(t *testing.T) {
+	logger := zap.NewNop()
+
+	tests := []struct {
+		name        string
+		apiKeyAuth  *APIKeyAuthentication
+		expectError bool
+		expectNil   bool
+	}{
+		{
+			name:       "nil apiKeyAuth returns nil",
+			apiKeyAuth: nil,
+			expectNil:  true,
+		},
+		{
+			name: "file path error",
+			apiKeyAuth: &APIKeyAuthentication{
+				FilePath: "/nonexistent/path",
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			method, err := initAPIKeyAuth(tc.apiKeyAuth, logger)
+			switch {
+			case tc.expectError:
+				require.Error(t, err)
+				assert.Nil(t, method)
+			case tc.expectNil:
+				require.NoError(t, err)
+				assert.Nil(t, method)
+			default:
+				require.NoError(t, err)
+				require.NotNil(t, method)
+			}
+		})
+	}
+}

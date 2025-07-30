@@ -196,6 +196,7 @@ type BulkProcessing struct {
 type Authentication struct {
 	BasicAuthentication       configoptional.Optional[BasicAuthentication]       `mapstructure:"basic"`
 	BearerTokenAuthentication configoptional.Optional[BearerTokenAuthentication] `mapstructure:"bearer_token"`
+	APIKeyAuthentication      configoptional.Optional[APIKeyAuthentication]      `mapstructure:"api_key"`
 }
 
 type BasicAuthentication struct {
@@ -223,6 +224,17 @@ type BearerTokenAuthentication struct {
 	// AllowTokenFromContext, if set to true, enables reading bearer token from the context.
 	AllowFromContext bool `mapstructure:"from_context"`
 	// ReloadInterval contains the interval at which the bearer token file is reloaded.
+	// If set to 0 then the file is only loaded once on startup.
+	ReloadInterval time.Duration `mapstructure:"reload_interval"`
+}
+
+// APIKeyAuthentication contains the configuration for attaching API keys
+type APIKeyAuthentication struct {
+	// FilePath contains the path to a file containing an API key.
+	FilePath string `mapstructure:"file_path"`
+	// AllowTokenFromContext, if set to true, enables reading API key from the context.
+	AllowFromContext bool `mapstructure:"from_context"`
+	// ReloadInterval contains the interval at which the API key file is reloaded.
 	// If set to 0 then the file is only loaded once on startup.
 	ReloadInterval time.Duration `mapstructure:"reload_interval"`
 }
@@ -543,9 +555,13 @@ func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger
 	disableHealthCheck := c.DisableHealthCheck
 
 	// Check if we have bearer token or API key authentication that only allows from context
-	if c.Authentication.BearerTokenAuthentication.HasValue() {
+	if c.Authentication.BearerTokenAuthentication.HasValue() || c.Authentication.APIKeyAuthentication.HasValue() {
 		bearerAuth := c.Authentication.BearerTokenAuthentication.Get()
-		disableHealthCheck = disableHealthCheck || (bearerAuth.AllowFromContext && bearerAuth.FilePath == "")
+		apiKeyAuth := c.Authentication.APIKeyAuthentication.Get()
+
+		disableHealthCheck = disableHealthCheck ||
+			(bearerAuth != nil && bearerAuth.AllowFromContext && bearerAuth.FilePath == "") ||
+			(apiKeyAuth != nil && apiKeyAuth.AllowFromContext && apiKeyAuth.FilePath == "")
 	}
 
 	// Get base Elasticsearch options using the helper function
@@ -627,6 +643,17 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 
 	// Initialize authentication methods.
 	var authMethods []auth.Method
+	// API Key Authentication
+	if c.Authentication.APIKeyAuthentication.HasValue() {
+		apiKeyAuth := c.Authentication.APIKeyAuthentication.Get()
+		ak, err := initAPIKeyAuth(apiKeyAuth, logger)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize API key authentication: %w", err)
+		}
+		if ak != nil {
+			authMethods = append(authMethods, *ak)
+		}
+	}
 
 	// Bearer Token Authentication
 	if c.Authentication.BearerTokenAuthentication.HasValue() {

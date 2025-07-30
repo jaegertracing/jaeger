@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/auth"
+	"github.com/jaegertracing/jaeger/internal/auth/apikey"
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 )
 
@@ -105,5 +106,49 @@ func initBasicAuthWithTime(basicAuth *BasicAuthentication, logger *zap.Logger, t
 	return &auth.Method{
 		Scheme:  "Basic",
 		TokenFn: tokenFn, // Returns base64-encoded credentials
+	}, nil
+}
+
+func initAPIKeyAuth(apiKeyAuth *APIKeyAuthentication, logger *zap.Logger) (*auth.Method, error) {
+	return initAPIKeyAuthWithTime(apiKeyAuth, logger, time.Now)
+}
+
+func initAPIKeyAuthWithTime(apiKeyAuth *APIKeyAuthentication, logger *zap.Logger, timeFn func() time.Time) (*auth.Method, error) {
+	if apiKeyAuth == nil || (apiKeyAuth.FilePath == "" && !apiKeyAuth.AllowFromContext) {
+		return nil, nil
+	}
+
+	if apiKeyAuth.FilePath != "" && apiKeyAuth.AllowFromContext {
+		logger.Warn("Both API Key file and context propagation are enabled - context token will take precedence over file-based token")
+	}
+
+	var tokenFn func() string
+	var fromCtx func(context.Context) (string, bool)
+
+	// file-based token setup
+	if apiKeyAuth.FilePath != "" {
+		reloadInterval := apiKeyAuth.ReloadInterval
+		tf, err := auth.TokenProviderWithTime(apiKeyAuth.FilePath, reloadInterval, logger, timeFn)
+		if err != nil {
+			return nil, err
+		}
+		tokenFn = tf
+	}
+
+	// context-based token setup
+	if apiKeyAuth.AllowFromContext {
+		fromCtx = apikey.GetAPIKey
+	}
+
+	// Return nil if no token source is available
+	if tokenFn == nil && fromCtx == nil {
+		return nil, nil
+	}
+
+	// Return pointer to the auth method
+	return &auth.Method{
+		Scheme:  "APIKey",
+		TokenFn: tokenFn,
+		FromCtx: fromCtx,
 	}, nil
 }
