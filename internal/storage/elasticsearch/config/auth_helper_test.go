@@ -17,6 +17,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/auth"
 )
+
 // TestInitBearerAuth tests bearer token authentication initialization
 func TestInitBearerAuth(t *testing.T) {
 	logger := zap.NewNop()
@@ -88,6 +89,7 @@ func TestInitBearerAuth(t *testing.T) {
 		})
 	}
 }
+
 // TestInitAPIKeyAuth tests API key authentication initialization
 func TestInitAPIKeyAuth(t *testing.T) {
 	logger := zap.NewNop()
