@@ -101,16 +101,20 @@ func basicAuth(username, password, passwordFilePath string) configoptional.Optio
 // bearerAuth creates bearer token authentication component
 func bearerAuth(filePath string, allowFromContext bool) configoptional.Optional[BearerTokenAuthentication] {
 	return configoptional.Some(BearerTokenAuthentication{
-		FilePath:         filePath,
-		AllowFromContext: allowFromContext,
+		TokenAuthBase: TokenAuthBase{
+			FilePath:         filePath,
+			AllowFromContext: allowFromContext,
+		},
 	})
 }
 
 // apiKeyAuth creates api key authentication component
 func apiKeyAuth(filePath string, allowFromContext bool) configoptional.Optional[APIKeyAuthentication] {
 	return configoptional.Some(APIKeyAuthentication{
-		FilePath:         filePath,
-		AllowFromContext: allowFromContext,
+		TokenAuthBase: TokenAuthBase{
+			FilePath:         filePath,
+			AllowFromContext: allowFromContext,
+		},
 	})
 }
 
@@ -1328,10 +1332,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 			cfg: &Configuration{
 				TLS: configtls.ClientConfig{Insecure: true},
 				Authentication: Authentication{
-					BearerTokenAuthentication: configoptional.Some(BearerTokenAuthentication{
-						FilePath:         "",    // Empty
-						AllowFromContext: false, // Disabled
-					}),
+					BearerTokenAuthentication: bearerAuth("", false),
 				},
 			},
 			ctx: context.Background(),

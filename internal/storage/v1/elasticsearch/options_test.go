@@ -17,6 +17,38 @@ import (
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
+// basicAuth creates basic authentication component
+func basicAuth(username, password, passwordFilePath string, reloadInterval time.Duration) configoptional.Optional[escfg.BasicAuthentication] {
+	return configoptional.Some(escfg.BasicAuthentication{
+		Username:         username,
+		Password:         password,
+		PasswordFilePath: passwordFilePath,
+		ReloadInterval:   reloadInterval,
+	})
+}
+
+// bearerAuth creates bearer token authentication component
+func bearerAuth(filePath string, allowFromContext bool, reloadInterval time.Duration) configoptional.Optional[escfg.BearerTokenAuthentication] {
+	return configoptional.Some(escfg.BearerTokenAuthentication{
+		TokenAuthBase: escfg.TokenAuthBase{
+			FilePath:         filePath,
+			AllowFromContext: allowFromContext,
+			ReloadInterval:   reloadInterval,
+		},
+	})
+}
+
+// apiKeyAuth creates api key authentication component
+func apiKeyAuth(filePath string, allowFromContext bool, reloadInterval time.Duration) configoptional.Optional[escfg.APIKeyAuthentication] {
+	return configoptional.Some(escfg.APIKeyAuthentication{
+		TokenAuthBase: escfg.TokenAuthBase{
+			FilePath:         filePath,
+			AllowFromContext: allowFromContext,
+			ReloadInterval:   reloadInterval,
+		},
+	})
+}
+
 func getBasicAuthField(opt configoptional.Optional[escfg.BasicAuthentication], field string) any {
 	if !opt.HasValue() {
 		return ""
@@ -703,9 +735,7 @@ func TestAddFlags(t *testing.T) {
 					Configuration: escfg.Configuration{
 						Servers: []string{"http://localhost:9200"},
 						Authentication: escfg.Authentication{
-							BearerTokenAuthentication: configoptional.Some(escfg.BearerTokenAuthentication{
-								FilePath: "/path/to/token",
-							}),
+							BearerTokenAuthentication: bearerAuth("/path/to/token", false, 10*time.Second),
 						},
 					},
 				}
@@ -723,10 +753,7 @@ func TestAddFlags(t *testing.T) {
 					Configuration: escfg.Configuration{
 						Servers: []string{"http://localhost:9200"},
 						Authentication: escfg.Authentication{
-							APIKeyAuthentication: configoptional.Some(escfg.APIKeyAuthentication{
-								FilePath:         "/path/to/apikey",
-								AllowFromContext: true,
-							}),
+							APIKeyAuthentication: apiKeyAuth("/path/to/apikey", true, 10*time.Second),
 						},
 					},
 				}
@@ -800,11 +827,7 @@ func TestAddFlagsWithPreExistingAuth(t *testing.T) {
 					namespace: "es",
 					Configuration: escfg.Configuration{
 						Authentication: escfg.Authentication{
-							BearerTokenAuthentication: configoptional.Some(escfg.BearerTokenAuthentication{
-								FilePath:         "/existing/token",
-								AllowFromContext: true,
-								ReloadInterval:   60 * time.Second,
-							}),
+							BearerTokenAuthentication: bearerAuth("/existing/token", true, 60*time.Second),
 						},
 					},
 				}
@@ -820,11 +843,7 @@ func TestAddFlagsWithPreExistingAuth(t *testing.T) {
 					namespace: "es",
 					Configuration: escfg.Configuration{
 						Authentication: escfg.Authentication{
-							APIKeyAuthentication: configoptional.Some(escfg.APIKeyAuthentication{
-								FilePath:         "/existing/apikey",
-								AllowFromContext: false,
-								ReloadInterval:   45 * time.Second,
-							}),
+							APIKeyAuthentication: apiKeyAuth("/existing/apikey", false, 45*time.Second),
 						},
 					},
 				}
@@ -840,11 +859,7 @@ func TestAddFlagsWithPreExistingAuth(t *testing.T) {
 					namespace: "es",
 					Configuration: escfg.Configuration{
 						Authentication: escfg.Authentication{
-							APIKeyAuthentication: configoptional.Some(escfg.APIKeyAuthentication{
-								FilePath:         "/path/to/key",
-								AllowFromContext: true,
-								ReloadInterval:   20 * time.Second,
-							}),
+							APIKeyAuthentication: apiKeyAuth("/path/to/key", true, 20*time.Second),
 						},
 					},
 				}
@@ -860,11 +875,7 @@ func TestAddFlagsWithPreExistingAuth(t *testing.T) {
 					namespace: "es",
 					Configuration: escfg.Configuration{
 						Authentication: escfg.Authentication{
-							APIKeyAuthentication: configoptional.Some(escfg.APIKeyAuthentication{
-								FilePath:         "/existing/apikey",
-								AllowFromContext: false,
-								ReloadInterval:   0 * time.Second,
-							}),
+							APIKeyAuthentication: apiKeyAuth("/existing/apikey", false, 0*time.Second),
 						},
 					},
 				}
@@ -901,11 +912,7 @@ func TestAddFlagsWithPreExistingAuth(t *testing.T) {
 					namespace: "es",
 					Configuration: escfg.Configuration{
 						Authentication: escfg.Authentication{
-							BearerTokenAuthentication: configoptional.Some(escfg.BearerTokenAuthentication{
-								FilePath:         "/existing/token",
-								AllowFromContext: true,
-								ReloadInterval:   0 * time.Second,
-							}),
+							BearerTokenAuthentication: bearerAuth("/existing/token", true, 0*time.Second),
 						},
 					},
 				}
@@ -921,22 +928,9 @@ func TestAddFlagsWithPreExistingAuth(t *testing.T) {
 					namespace: "es",
 					Configuration: escfg.Configuration{
 						Authentication: escfg.Authentication{
-							BasicAuthentication: configoptional.Some(escfg.BasicAuthentication{
-								Username:         "multi_user",
-								Password:         "multi_pass",
-								PasswordFilePath: "/multi/path",
-								ReloadInterval:   15 * time.Second,
-							}),
-							BearerTokenAuthentication: configoptional.Some(escfg.BearerTokenAuthentication{
-								FilePath:         "/multi/token",
-								AllowFromContext: true,
-								ReloadInterval:   25 * time.Second,
-							}),
-							APIKeyAuthentication: configoptional.Some(escfg.APIKeyAuthentication{
-								FilePath:         "/multi/apikey",
-								AllowFromContext: false,
-								ReloadInterval:   35 * time.Second,
-							}),
+							BasicAuthentication:       basicAuth("multi_user", "multi_pass", "/multi/path", 15*time.Second),
+							BearerTokenAuthentication: bearerAuth("/multi/token", true, 25*time.Second),
+							APIKeyAuthentication:      apiKeyAuth("/multi/apikey", false, 35*time.Second),
 						},
 					},
 				}

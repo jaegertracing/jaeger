@@ -193,6 +193,17 @@ type BulkProcessing struct {
 	Workers int `mapstructure:"workers"`
 }
 
+// TokenAuthBase contains the common fields shared by all token-based authentication methods
+type TokenAuthBase struct {
+	// FilePath contains the path to a file containing the token.
+	FilePath         string        `mapstructure:"file_path"`
+	// AllowFromContext, if set to true, allows the token to be retrieved from the context.
+	AllowFromContext bool          `mapstructure:"from_context"`
+	// ReloadInterval contains the interval at which the token file is reloaded.
+	// If set to 0 then the file is only loaded once on startup.
+	ReloadInterval   time.Duration `mapstructure:"reload_interval"`
+}
+
 type Authentication struct {
 	BasicAuthentication       configoptional.Optional[BasicAuthentication]       `mapstructure:"basic"`
 	BearerTokenAuthentication configoptional.Optional[BearerTokenAuthentication] `mapstructure:"bearer_token"`
@@ -219,24 +230,12 @@ type BasicAuthentication struct {
 // For more information about token-based authentication in elasticsearch, check out
 // https://www.elastic.co/guide/en/elasticsearch/reference/current/token-authentication-services.html.
 type BearerTokenAuthentication struct {
-	// FilePath contains the path to a file containing a bearer token.
-	FilePath string `mapstructure:"file_path"`
-	// AllowTokenFromContext, if set to true, enables reading bearer token from the context.
-	AllowFromContext bool `mapstructure:"from_context"`
-	// ReloadInterval contains the interval at which the bearer token file is reloaded.
-	// If set to 0 then the file is only loaded once on startup.
-	ReloadInterval time.Duration `mapstructure:"reload_interval"`
+	TokenAuthBase `mapstructure:",squash"`
 }
 
 // APIKeyAuthentication contains the configuration for attaching API keys
 type APIKeyAuthentication struct {
-	// FilePath contains the path to a file containing an API key.
-	FilePath string `mapstructure:"file_path"`
-	// AllowTokenFromContext, if set to true, enables reading API key from the context.
-	AllowFromContext bool `mapstructure:"from_context"`
-	// ReloadInterval contains the interval at which the API key file is reloaded.
-	// If set to 0 then the file is only loaded once on startup.
-	ReloadInterval time.Duration `mapstructure:"reload_interval"`
+	TokenAuthBase `mapstructure:",squash"`
 }
 
 // NewClient creates a new ElasticSearch client

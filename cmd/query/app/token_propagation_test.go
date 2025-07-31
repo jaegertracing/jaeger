@@ -86,7 +86,9 @@ func runQueryService(t *testing.T, esURL string) *Server {
 	f.InitFromViper(v, flagsSvc.Logger)
 	// set AllowTokenFromContext manually because we don't register the respective CLI flag from query svc
 	bearerAuth := escfg.BearerTokenAuthentication{
-		AllowFromContext: true,
+		TokenAuthBase: escfg.TokenAuthBase{
+			AllowFromContext: true,
+		},
 	}
 	// set the authentication in the factory options
 	f.Options.Config.Authentication = escfg.Authentication{
