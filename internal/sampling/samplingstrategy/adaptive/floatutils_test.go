@@ -21,7 +21,7 @@ func TestTruncateFloat(t *testing.T) {
 		{prob: 0.10404450002098709, expected: "0.104045"},
 	}
 	for _, test := range tests {
-		assert.Equal(t, test.expected, TruncateFloat(test.prob))
+		assert.Equal(t, test.expected, truncateFloat(test.prob))
 	}
 }
 
@@ -36,6 +36,6 @@ func TestFloatEquals(t *testing.T) {
 		{f1: 0.123456780000, f2: 0.123456781111, equal: false},
 	}
 	for _, test := range tests {
-		assert.Equal(t, test.equal, FloatEquals(test.f1, test.f2))
+		assert.Equal(t, test.equal, floatEquals(test.f1, test.f2))
 	}
 }
