@@ -39,3 +39,12 @@ jobs:
 
   query:
     uses: ./.github/workflows/ci-e2e-query.yml
+
+  metrics-comparison-trigger:
+    runs-on: ubuntu-latest
+    needs: [ badger, cassandra, elasticsearch, grpc, kafka, memory, opensearch, query ]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Signal completion
+        run: echo "All E2E tests completed, metrics comparison will run."
