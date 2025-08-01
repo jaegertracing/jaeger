@@ -36,7 +36,7 @@ runs:
         key: ${{ inputs.artifact_key }}_${{ github.run_id }}
 
     # Use restore keys to match prefix and fetch the latest cache
-    # Here , restore keys is an ordered list of prefixes that need to be matched 
+    # Here , restore keys is an ordered list of prefixes that need to be matched
     - name: Download the cached tagged metrics
       id: download-release-snapshot
       if: github.ref_name != 'main'
@@ -54,14 +54,11 @@ runs:
       shell: bash
       run: |
         python3 -m pip install prometheus-client
-        python3 ./scripts/e2e/compare_metrics.py --file1 ./.metrics/${{ inputs.snapshot }}.txt --file2 ./.metrics/baseline_${{ inputs.snapshot }}.txt --output ./.metrics/diff_${{ inputs.snapshot }}.txt
-        EXIT_CODE=$?
-        echo "Compare metrics exit code: $EXIT_CODE"
-        if [ $EXIT_CODE -eq 0 ]; then
+        if python3 ./scripts/e2e/compare_metrics.py --file1 ./.metrics/${{ inputs.snapshot }}.txt --file2 ./.metrics/baseline_${{ inputs.snapshot }}.txt --output ./.metrics/diff_${{ inputs.snapshot }}.txt; then
+          echo "No differences found in metrics"
+        else
           echo "🛑 Differences found in metrics"
           echo "has_diff=true" >> $GITHUB_OUTPUT
-        else
-          echo "No differences or unexpected exit code: $EXIT_CODE"
         fi
 
     - name: Upload the diff artifact
@@ -71,4 +68,3 @@ runs:
         name: diff_${{ inputs.artifact_key }}
         path: ./.metrics/diff_${{ inputs.snapshot }}.txt
         retention-days: 7
-

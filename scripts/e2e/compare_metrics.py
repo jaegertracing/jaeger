@@ -68,11 +68,10 @@ def main():
         print("=== Metrics Comparison Results ===")
         print(diff_lines)
         write_diff_file(diff_lines, args.output)
-
-        return 0
+        return 1
 
     print("no difference found")
-    return 1
+    return 0
 
 if __name__ == '__main__':
     sys.exit(main())
