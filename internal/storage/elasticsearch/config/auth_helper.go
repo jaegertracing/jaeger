@@ -17,13 +17,13 @@ import (
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 )
 
-// initTokenAuthBaseWithTime initializes token authentication injectable time for testing
-func initTokenAuthBaseWithTime(base *TokenAuthBase, scheme string, logger *zap.Logger, timeFn func() time.Time) (*auth.Method, error) {
-	if base == nil || (base.FilePath == "" && !base.AllowFromContext) {
+// initTokenAuthWithTime initializes token authentication injectable time for testing
+func initTokenAuthWithTime(tokenAuth *TokenAuthentication, scheme string, logger *zap.Logger, timeFn func() time.Time) (*auth.Method, error) {
+	if tokenAuth == nil || (tokenAuth.FilePath == "" && !tokenAuth.AllowFromContext) {
 		return nil, nil
 	}
 
-	if base.FilePath != "" && base.AllowFromContext {
+	if tokenAuth.FilePath != "" && tokenAuth.AllowFromContext {
 		logger.Warn("Both token file and context propagation are enabled - context token will take precedence over file-based token",
 			zap.String("auth_scheme", scheme))
 	}
@@ -32,8 +32,8 @@ func initTokenAuthBaseWithTime(base *TokenAuthBase, scheme string, logger *zap.L
 	var fromCtx func(context.Context) (string, bool)
 
 	// File-based token setup
-	if base.FilePath != "" {
-		tf, err := auth.TokenProviderWithTime(base.FilePath, base.ReloadInterval, logger, timeFn)
+	if tokenAuth.FilePath != "" {
+		tf, err := auth.TokenProviderWithTime(tokenAuth.FilePath, tokenAuth.ReloadInterval, logger, timeFn)
 		if err != nil {
 			return nil, err
 		}
@@ -41,7 +41,7 @@ func initTokenAuthBaseWithTime(base *TokenAuthBase, scheme string, logger *zap.L
 	}
 
 	// Context-based token setup
-	if base.AllowFromContext {
+	if tokenAuth.AllowFromContext {
 		if scheme == "Bearer" {
 			fromCtx = bearertoken.GetBearerToken
 		} else if scheme == "APIKey" {
@@ -57,18 +57,18 @@ func initTokenAuthBaseWithTime(base *TokenAuthBase, scheme string, logger *zap.L
 }
 
 // Simplified init functions - directly call shared implementation
-func initBearerAuth(bearerAuth *BearerTokenAuthentication, logger *zap.Logger) (*auth.Method, error) {
-	if bearerAuth == nil {
+func initBearerAuth(tokenAuth *TokenAuthentication, logger *zap.Logger) (*auth.Method, error) {
+	if tokenAuth == nil {
 		return nil, nil
-	}
-	return initTokenAuthBaseWithTime(&bearerAuth.TokenAuthBase, "Bearer", logger, time.Now)
+	}	
+	return initTokenAuthWithTime(tokenAuth, "Bearer", logger, time.Now)
 }
 
-func initAPIKeyAuth(apiKeyAuth *APIKeyAuthentication, logger *zap.Logger) (*auth.Method, error) {
-	if apiKeyAuth == nil {
+func initAPIKeyAuth(tokenAuth *TokenAuthentication, logger *zap.Logger) (*auth.Method, error) {
+	if tokenAuth == nil {
 		return nil, nil
 	}
-	return initTokenAuthBaseWithTime(&apiKeyAuth.TokenAuthBase, "APIKey", logger, time.Now)
+	return initTokenAuthWithTime(tokenAuth, "APIKey", logger, time.Now)
 }
 
 // Keep initBasicAuth unchanged

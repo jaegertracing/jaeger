@@ -28,24 +28,20 @@ func basicAuth(username, password, passwordFilePath string, reloadInterval time.
 }
 
 // bearerAuth creates bearer token authentication component
-func bearerAuth(filePath string, allowFromContext bool, reloadInterval time.Duration) configoptional.Optional[escfg.BearerTokenAuthentication] {
-	return configoptional.Some(escfg.BearerTokenAuthentication{
-		TokenAuthBase: escfg.TokenAuthBase{
-			FilePath:         filePath,
-			AllowFromContext: allowFromContext,
-			ReloadInterval:   reloadInterval,
-		},
+func bearerAuth(filePath string, allowFromContext bool, reloadInterval time.Duration) configoptional.Optional[escfg.TokenAuthentication] {
+	return configoptional.Some(escfg.TokenAuthentication{
+		FilePath:         filePath,
+		AllowFromContext: allowFromContext,
+		ReloadInterval:   reloadInterval,
 	})
 }
 
 // apiKeyAuth creates api key authentication component
-func apiKeyAuth(filePath string, allowFromContext bool, reloadInterval time.Duration) configoptional.Optional[escfg.APIKeyAuthentication] {
-	return configoptional.Some(escfg.APIKeyAuthentication{
-		TokenAuthBase: escfg.TokenAuthBase{
-			FilePath:         filePath,
-			AllowFromContext: allowFromContext,
-			ReloadInterval:   reloadInterval,
-		},
+func apiKeyAuth(filePath string, allowFromContext bool, reloadInterval time.Duration) configoptional.Optional[escfg.TokenAuthentication] {
+	return configoptional.Some(escfg.TokenAuthentication{
+		FilePath:         filePath,
+		AllowFromContext: allowFromContext,
+		ReloadInterval:   reloadInterval,
 	})
 }
 
@@ -69,7 +65,7 @@ func getBasicAuthField(opt configoptional.Optional[escfg.BasicAuthentication], f
 	}
 }
 
-func getBearerTokenField(opt configoptional.Optional[escfg.BearerTokenAuthentication], field string) any {
+func getBearerTokenField(opt configoptional.Optional[escfg.TokenAuthentication], field string) any {
 	if !opt.HasValue() {
 		if field == "AllowFromContext" {
 			return false
@@ -90,7 +86,7 @@ func getBearerTokenField(opt configoptional.Optional[escfg.BearerTokenAuthentica
 	}
 }
 
-func getAPIKeyField(opt configoptional.Optional[escfg.APIKeyAuthentication], field string) any {
+func getAPIKeyField(opt configoptional.Optional[escfg.TokenAuthentication], field string) any {
 	if !opt.HasValue() {
 		if field == "AllowFromContext" {
 			return false
@@ -117,8 +113,8 @@ func TestOptions(t *testing.T) {
 
 	// Authentication should not be present when no values are provided
 	assert.False(t, primary.Authentication.BasicAuthentication.HasValue())
-	assert.False(t, primary.Authentication.BearerTokenAuthentication.HasValue())
-	assert.False(t, primary.Authentication.APIKeyAuthentication.HasValue())
+	assert.False(t, primary.Authentication.BearerTokenAuth.HasValue())
+	assert.False(t, primary.Authentication.APIKeyAuth.HasValue())
 
 	assert.NotEmpty(t, primary.Servers)
 	assert.Empty(t, primary.RemoteReadClusters)
@@ -181,21 +177,21 @@ func TestOptionsWithFlags(t *testing.T) {
 
 	// Now authentication should be present since values were provided
 	assert.True(t, primary.Authentication.BasicAuthentication.HasValue())
-	assert.True(t, primary.Authentication.BearerTokenAuthentication.HasValue())
-	assert.True(t, primary.Authentication.APIKeyAuthentication.HasValue())
+	assert.True(t, primary.Authentication.BearerTokenAuth.HasValue())
+	assert.True(t, primary.Authentication.APIKeyAuth.HasValue())
 	// Basic Authentication
 	assert.Equal(t, "hello", getBasicAuthField(primary.Authentication.BasicAuthentication, "Username"))
 	assert.Equal(t, "world", getBasicAuthField(primary.Authentication.BasicAuthentication, "Password"))
 	assert.Equal(t, "/foo/bar/baz", getBasicAuthField(primary.Authentication.BasicAuthentication, "PasswordFilePath"))
 	assert.Equal(t, 35*time.Second, getBasicAuthField(primary.Authentication.BasicAuthentication, "ReloadInterval"))
 	// Bearer Token Authentication
-	assert.Equal(t, "/foo/bar", getBearerTokenField(primary.Authentication.BearerTokenAuthentication, "FilePath"))
-	assert.Equal(t, true, getBearerTokenField(primary.Authentication.BearerTokenAuthentication, "AllowFromContext"))
-	assert.Equal(t, 50*time.Second, getBearerTokenField(primary.Authentication.BearerTokenAuthentication, "ReloadInterval"))
+	assert.Equal(t, "/foo/bar", getBearerTokenField(primary.Authentication.BearerTokenAuth, "FilePath"))
+	assert.Equal(t, true, getBearerTokenField(primary.Authentication.BearerTokenAuth, "AllowFromContext"))
+	assert.Equal(t, 50*time.Second, getBearerTokenField(primary.Authentication.BearerTokenAuth, "ReloadInterval"))
 	// API Key Authentication
-	assert.Equal(t, "/foo/api-key", getAPIKeyField(primary.Authentication.APIKeyAuthentication, "FilePath"))
-	assert.Equal(t, true, getAPIKeyField(primary.Authentication.APIKeyAuthentication, "AllowFromContext"))
-	assert.Equal(t, 30*time.Second, getAPIKeyField(primary.Authentication.APIKeyAuthentication, "ReloadInterval"))
+	assert.Equal(t, "/foo/api-key", getAPIKeyField(primary.Authentication.APIKeyAuth, "FilePath"))
+	assert.Equal(t, true, getAPIKeyField(primary.Authentication.APIKeyAuth, "AllowFromContext"))
+	assert.Equal(t, 30*time.Second, getAPIKeyField(primary.Authentication.APIKeyAuth, "ReloadInterval"))
 	// Server URLs
 	assert.Equal(t, []string{"1.1.1.1", "2.2.2.2"}, primary.Servers)
 	// Remote Read Clusters
@@ -511,8 +507,8 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 
 			// Assert authentication method presence
 			assert.Equal(t, tc.expectBasicAuth, primary.Authentication.BasicAuthentication.HasValue())
-			assert.Equal(t, tc.expectBearerAuth, primary.Authentication.BearerTokenAuthentication.HasValue())
-			assert.Equal(t, tc.expectAPIKeyAuth, primary.Authentication.APIKeyAuthentication.HasValue())
+			assert.Equal(t, tc.expectBearerAuth, primary.Authentication.BearerTokenAuth.HasValue())
+			assert.Equal(t, tc.expectAPIKeyAuth, primary.Authentication.APIKeyAuth.HasValue())
 
 			// Assert basic authentication details
 			if tc.expectBasicAuth {
@@ -525,7 +521,7 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 
 			// Assert bearer token authentication details
 			if tc.expectBearerAuth {
-				bearerAuth := primary.Authentication.BearerTokenAuthentication.Get()
+				bearerAuth := primary.Authentication.BearerTokenAuth.Get()
 				assert.Equal(t, tc.expectedTokenPath, bearerAuth.FilePath)
 				assert.Equal(t, tc.expectedBearerFromContext, bearerAuth.AllowFromContext)
 				assert.Equal(t, tc.expectedBearerReloadInterval, bearerAuth.ReloadInterval)
@@ -533,7 +529,7 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 
 			// Assert API key authentication details
 			if tc.expectAPIKeyAuth {
-				apiKeyAuth := primary.Authentication.APIKeyAuthentication.Get()
+				apiKeyAuth := primary.Authentication.APIKeyAuth.Get()
 				assert.Equal(t, tc.expectedAPIKeyFilePath, apiKeyAuth.FilePath)
 				assert.Equal(t, tc.expectedAPIKeyFromContext, apiKeyAuth.AllowFromContext)
 				assert.Equal(t, tc.expectedAPIKeyReloadInterval, apiKeyAuth.ReloadInterval)
@@ -735,7 +731,7 @@ func TestAddFlags(t *testing.T) {
 					Configuration: escfg.Configuration{
 						Servers: []string{"http://localhost:9200"},
 						Authentication: escfg.Authentication{
-							BearerTokenAuthentication: bearerAuth("/path/to/token", false, 10*time.Second),
+							BearerTokenAuth: bearerAuth("/path/to/token", false, 10*time.Second),
 						},
 					},
 				}
@@ -753,7 +749,7 @@ func TestAddFlags(t *testing.T) {
 					Configuration: escfg.Configuration{
 						Servers: []string{"http://localhost:9200"},
 						Authentication: escfg.Authentication{
-							APIKeyAuthentication: apiKeyAuth("/path/to/apikey", true, 10*time.Second),
+							APIKeyAuth: apiKeyAuth("/path/to/apikey", true, 10*time.Second),
 						},
 					},
 				}
@@ -827,7 +823,7 @@ func TestAddFlagsWithPreExistingAuth(t *testing.T) {
 					namespace: "es",
 					Configuration: escfg.Configuration{
 						Authentication: escfg.Authentication{
-							BearerTokenAuthentication: bearerAuth("/existing/token", true, 60*time.Second),
+							BearerTokenAuth: bearerAuth("/existing/token", true, 60*time.Second),
 						},
 					},
 				}
@@ -843,7 +839,7 @@ func TestAddFlagsWithPreExistingAuth(t *testing.T) {
 					namespace: "es",
 					Configuration: escfg.Configuration{
 						Authentication: escfg.Authentication{
-							APIKeyAuthentication: apiKeyAuth("/existing/apikey", false, 45*time.Second),
+							APIKeyAuth: apiKeyAuth("/existing/apikey", false, 45*time.Second),
 						},
 					},
 				}
@@ -859,7 +855,7 @@ func TestAddFlagsWithPreExistingAuth(t *testing.T) {
 					namespace: "es",
 					Configuration: escfg.Configuration{
 						Authentication: escfg.Authentication{
-							APIKeyAuthentication: apiKeyAuth("/path/to/key", true, 20*time.Second),
+							APIKeyAuth: apiKeyAuth("/path/to/key", true, 20*time.Second),
 						},
 					},
 				}
@@ -875,7 +871,7 @@ func TestAddFlagsWithPreExistingAuth(t *testing.T) {
 					namespace: "es",
 					Configuration: escfg.Configuration{
 						Authentication: escfg.Authentication{
-							APIKeyAuthentication: apiKeyAuth("/existing/apikey", false, 0*time.Second),
+							APIKeyAuth: apiKeyAuth("/existing/apikey", false, 0*time.Second),
 						},
 					},
 				}
@@ -912,7 +908,7 @@ func TestAddFlagsWithPreExistingAuth(t *testing.T) {
 					namespace: "es",
 					Configuration: escfg.Configuration{
 						Authentication: escfg.Authentication{
-							BearerTokenAuthentication: bearerAuth("/existing/token", true, 0*time.Second),
+							BearerTokenAuth: bearerAuth("/existing/token", true, 0*time.Second),
 						},
 					},
 				}
@@ -928,9 +924,9 @@ func TestAddFlagsWithPreExistingAuth(t *testing.T) {
 					namespace: "es",
 					Configuration: escfg.Configuration{
 						Authentication: escfg.Authentication{
-							BasicAuthentication:       basicAuth("multi_user", "multi_pass", "/multi/path", 15*time.Second),
-							BearerTokenAuthentication: bearerAuth("/multi/token", true, 25*time.Second),
-							APIKeyAuthentication:      apiKeyAuth("/multi/apikey", false, 35*time.Second),
+							BasicAuthentication: basicAuth("multi_user", "multi_pass", "/multi/path", 15*time.Second),
+							BearerTokenAuth:     bearerAuth("/multi/token", true, 25*time.Second),
+							APIKeyAuth:          apiKeyAuth("/multi/apikey", false, 35*time.Second),
 						},
 					},
 				}

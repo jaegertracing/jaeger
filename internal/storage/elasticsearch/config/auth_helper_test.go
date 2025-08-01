@@ -27,17 +27,15 @@ func TestInitBearerAuth(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		bearerAuth  *BearerTokenAuthentication
+		bearerAuth  *TokenAuthentication
 		expectError bool
 		expectNil   bool
 		validate    func(t *testing.T, method *auth.Method)
 	}{
 		{
 			name: "Valid file-based bearer auth",
-			bearerAuth: &BearerTokenAuthentication{
-				TokenAuthBase: TokenAuthBase{
-					FilePath: bearerFile,
-				},
+			bearerAuth: &TokenAuthentication{
+				FilePath: bearerFile,
 			},
 			expectError: false,
 			expectNil:   false,
@@ -51,10 +49,8 @@ func TestInitBearerAuth(t *testing.T) {
 		},
 		{
 			name: "Valid context-based bearer auth",
-			bearerAuth: &BearerTokenAuthentication{
-				TokenAuthBase: TokenAuthBase{
-					AllowFromContext: true,
-				},
+			bearerAuth: &TokenAuthentication{
+				AllowFromContext: true,
 			},
 			expectError: false,
 			expectNil:   false,
@@ -99,17 +95,15 @@ func TestInitAPIKeyAuth(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		apiKeyAuth  *APIKeyAuthentication
+		apiKeyAuth  *TokenAuthentication
 		expectError bool
 		expectNil   bool
 		validate    func(t *testing.T, method *auth.Method)
 	}{
 		{
 			name: "Valid file-based API key auth",
-			apiKeyAuth: &APIKeyAuthentication{
-				TokenAuthBase: TokenAuthBase{
-					FilePath: apiKeyFile,
-				},
+			apiKeyAuth: &TokenAuthentication{
+				FilePath: apiKeyFile,
 			},
 			validate: func(t *testing.T, method *auth.Method) {
 				require.NotNil(t, method)
@@ -121,10 +115,8 @@ func TestInitAPIKeyAuth(t *testing.T) {
 		},
 		{
 			name: "Valid context-based API key auth",
-			apiKeyAuth: &APIKeyAuthentication{
-				TokenAuthBase: TokenAuthBase{
-					AllowFromContext: true,
-				},
+			apiKeyAuth: &TokenAuthentication{
+				AllowFromContext: true,
 			},
 			validate: func(t *testing.T, method *auth.Method) {
 				require.NotNil(t, method)
@@ -168,11 +160,11 @@ func TestMultipleTokenAuth(t *testing.T) {
 	require.NoError(t, os.WriteFile(bearerFile, []byte("bearer-token"), 0o600))
 	require.NoError(t, os.WriteFile(apiKeyFile, []byte("api-key-token"), 0o600))
 
-	bearerAuth := &BearerTokenAuthentication{
-		TokenAuthBase: TokenAuthBase{FilePath: bearerFile},
+	bearerAuth := &TokenAuthentication{
+		FilePath: bearerFile,
 	}
-	apiKeyAuth := &APIKeyAuthentication{
-		TokenAuthBase: TokenAuthBase{FilePath: apiKeyFile},
+	apiKeyAuth := &TokenAuthentication{
+		FilePath: apiKeyFile,
 	}
 
 	bearerMethod, err := initBearerAuth(bearerAuth, logger)
@@ -360,7 +352,7 @@ func TestInitBasicAuth_EdgeCases(t *testing.T) {
 }
 
 // Test warning logs for conflicting configuration
-func TestTokenAuthBase_WarningLogs(t *testing.T) {
+func TestTokenAuth_WarningLogs(t *testing.T) {
 	core, logs := observer.New(zap.WarnLevel)
 	logger := zap.New(core)
 	tempDir := t.TempDir()
@@ -368,12 +360,12 @@ func TestTokenAuthBase_WarningLogs(t *testing.T) {
 	tokenFile := filepath.Join(tempDir, "token")
 	require.NoError(t, os.WriteFile(tokenFile, []byte("test-token"), 0o600))
 
-	base := &TokenAuthBase{
+	base := &TokenAuthentication{
 		FilePath:         tokenFile,
 		AllowFromContext: true,
 	}
 
-	method, err := initTokenAuthBaseWithTime(base, "Bearer", logger, time.Now)
+	method, err := initTokenAuthWithTime(base, "Bearer", logger, time.Now)
 	require.NoError(t, err)
 	require.NotNil(t, method)
 

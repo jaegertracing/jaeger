@@ -193,8 +193,8 @@ type BulkProcessing struct {
 	Workers int `mapstructure:"workers"`
 }
 
-// TokenAuthBase contains the common fields shared by all token-based authentication methods
-type TokenAuthBase struct {
+// TokenAuthentication contains the common fields shared by all token-based authentication methods
+type TokenAuthentication struct {
 	// FilePath contains the path to a file containing the token.
 	FilePath string `mapstructure:"file_path"`
 	// AllowFromContext, if set to true, allows the token to be retrieved from the context.
@@ -205,9 +205,9 @@ type TokenAuthBase struct {
 }
 
 type Authentication struct {
-	BasicAuthentication       configoptional.Optional[BasicAuthentication]       `mapstructure:"basic"`
-	BearerTokenAuthentication configoptional.Optional[BearerTokenAuthentication] `mapstructure:"bearer_token"`
-	APIKeyAuthentication      configoptional.Optional[APIKeyAuthentication]      `mapstructure:"api_key"`
+	BasicAuthentication configoptional.Optional[BasicAuthentication] `mapstructure:"basic"`
+	BearerTokenAuth     configoptional.Optional[TokenAuthentication] `mapstructure:"bearer_token"`
+	APIKeyAuth          configoptional.Optional[TokenAuthentication] `mapstructure:"api_key"`
 }
 
 type BasicAuthentication struct {
@@ -229,14 +229,6 @@ type BasicAuthentication struct {
 // the TokenFilePath will be ignored.
 // For more information about token-based authentication in elasticsearch, check out
 // https://www.elastic.co/guide/en/elasticsearch/reference/current/token-authentication-services.html.
-type BearerTokenAuthentication struct {
-	TokenAuthBase `mapstructure:",squash"`
-}
-
-// APIKeyAuthentication contains the configuration for attaching API keys
-type APIKeyAuthentication struct {
-	TokenAuthBase `mapstructure:",squash"`
-}
 
 // NewClient creates a new ElasticSearch client
 func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
@@ -554,9 +546,9 @@ func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger
 	disableHealthCheck := c.DisableHealthCheck
 
 	// Check if we have bearer token or API key authentication that only allows from context
-	if c.Authentication.BearerTokenAuthentication.HasValue() || c.Authentication.APIKeyAuthentication.HasValue() {
-		bearerAuth := c.Authentication.BearerTokenAuthentication.Get()
-		apiKeyAuth := c.Authentication.APIKeyAuthentication.Get()
+	if c.Authentication.BearerTokenAuth.HasValue() || c.Authentication.APIKeyAuth.HasValue() {
+		bearerAuth := c.Authentication.BearerTokenAuth.Get()
+		apiKeyAuth := c.Authentication.APIKeyAuth.Get()
 
 		disableHealthCheck = disableHealthCheck ||
 			(bearerAuth != nil && bearerAuth.AllowFromContext && bearerAuth.FilePath == "") ||
@@ -643,8 +635,8 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 	// Initialize authentication methods.
 	var authMethods []auth.Method
 	// API Key Authentication
-	if c.Authentication.APIKeyAuthentication.HasValue() {
-		apiKeyAuth := c.Authentication.APIKeyAuthentication.Get()
+	if c.Authentication.APIKeyAuth.HasValue() {
+		apiKeyAuth := c.Authentication.APIKeyAuth.Get()
 		ak, err := initAPIKeyAuth(apiKeyAuth, logger)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize API key authentication: %w", err)
@@ -655,8 +647,8 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 	}
 
 	// Bearer Token Authentication
-	if c.Authentication.BearerTokenAuthentication.HasValue() {
-		bearerAuth := c.Authentication.BearerTokenAuthentication.Get()
+	if c.Authentication.BearerTokenAuth.HasValue() {
+		bearerAuth := c.Authentication.BearerTokenAuth.Get()
 		ba, err := initBearerAuth(bearerAuth, logger)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize bearer authentication: %w", err)

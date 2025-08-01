@@ -154,8 +154,8 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		apiKeyReloadInterval        time.Duration = 10 * time.Second
 		apiKeyAllowFromContext      bool
 	)
-	if nsConfig.Authentication.APIKeyAuthentication.HasValue() {
-		apiKeyAuth := nsConfig.Authentication.APIKeyAuthentication.Get()
+	if nsConfig.Authentication.APIKeyAuth.HasValue() {
+		apiKeyAuth := nsConfig.Authentication.APIKeyAuth.Get()
 		apiKeyPath = apiKeyAuth.FilePath
 		apiKeyAllowFromContext = apiKeyAuth.AllowFromContext
 		if apiKeyAuth.ReloadInterval != 0 {
@@ -172,8 +172,8 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		}
 	}
 
-	if nsConfig.Authentication.BearerTokenAuthentication.HasValue() {
-		bearerAuth := nsConfig.Authentication.BearerTokenAuthentication.Get()
+	if nsConfig.Authentication.BearerTokenAuth.HasValue() {
+		bearerAuth := nsConfig.Authentication.BearerTokenAuth.Get()
 		tokenPath = bearerAuth.FilePath
 		bearerTokenAllowFromContext = bearerAuth.AllowFromContext
 		if bearerAuth.ReloadInterval != 0 {
@@ -406,28 +406,24 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	// BearerAuthentication if tokenPath or allowFromContext is set
 	tokenPath := v.GetString(cfg.namespace + suffixTokenPath)
 	bearerTokenAllowFromContext := v.GetBool(cfg.namespace + suffixBearerTokenPropagation)
-	// Create BearerTokenAuthentication if either field is configured
+	// Create BearerTokenAuth if either field is configured
 	if tokenPath != "" || bearerTokenAllowFromContext {
 		reloadInterval := v.GetDuration(cfg.namespace + suffixBearerTokenReloadInterval)
-		cfg.Authentication.BearerTokenAuthentication = configoptional.Some(config.BearerTokenAuthentication{
-			TokenAuthBase: config.TokenAuthBase{
-				FilePath:         tokenPath,
-				AllowFromContext: bearerTokenAllowFromContext,
-				ReloadInterval:   reloadInterval,
-			},
+		cfg.Authentication.BearerTokenAuth = configoptional.Some(config.TokenAuthentication{
+			FilePath:         tokenPath,
+			AllowFromContext: bearerTokenAllowFromContext,
+			ReloadInterval:   reloadInterval,
 		})
 	}
-	// Create APIKeyAuthentication if either field is configured
+	// Create APIKeyAuth if either field is configured
 	apiKeyPath := v.GetString(cfg.namespace + suffixAPIKeyPath)
 	apiKeyAllowFromContext := v.GetBool(cfg.namespace + suffixAPIKeyAllowFromContext)
 	if apiKeyPath != "" || apiKeyAllowFromContext {
 		reloadInterval := v.GetDuration(cfg.namespace + suffixAPIKeyReloadInterval)
-		cfg.Authentication.APIKeyAuthentication = configoptional.Some(config.APIKeyAuthentication{
-			TokenAuthBase: config.TokenAuthBase{
-				FilePath:         apiKeyPath,
-				AllowFromContext: apiKeyAllowFromContext,
-				ReloadInterval:   reloadInterval,
-			},
+		cfg.Authentication.APIKeyAuth = configoptional.Some(config.TokenAuthentication{
+			FilePath:         apiKeyPath,
+			AllowFromContext: apiKeyAllowFromContext,
+			ReloadInterval:   reloadInterval,
 		})
 	}
 	cfg.Sniffing.Enabled = v.GetBool(cfg.namespace + suffixSniffer)
