@@ -20,16 +20,16 @@ jobs:
 
     steps:
     - name: Configure kubectl with OKE
-      uses: oracle-actions/configure-kubectl-oke@v1.5.0
+      uses: oracle-actions/configure-kubectl-oke@77a733d79446dabe7bf0e58eb56197d33ce4dc58 # v1.5.0
       with:
         cluster: ${{ secrets.OKE_CLUSTER_OCID }}
         enablePrivateEndpoint: false
     
     - name: Install Helm
-      uses: azure/setup-helm@v4
+      uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4
         
     - name: Checkout jaeger repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
 
     - name: Deploy using Jaeger's deploy-all.sh
       run: |

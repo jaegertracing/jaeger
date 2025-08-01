@@ -39,4 +39,3 @@ jobs:
 
   query:
     uses: ./.github/workflows/ci-e2e-query.yml
-
