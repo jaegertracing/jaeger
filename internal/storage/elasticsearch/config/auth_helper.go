@@ -60,7 +60,7 @@ func initTokenAuthWithTime(tokenAuth *TokenAuthentication, scheme string, logger
 func initBearerAuth(tokenAuth *TokenAuthentication, logger *zap.Logger) (*auth.Method, error) {
 	if tokenAuth == nil {
 		return nil, nil
-	}	
+	}
 	return initTokenAuthWithTime(tokenAuth, "Bearer", logger, time.Now)
 }
 
