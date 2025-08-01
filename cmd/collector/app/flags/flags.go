@@ -125,6 +125,7 @@ type CollectorOptions struct {
 		confighttp.ServerConfig
 		KeepAlive bool
 	}
+	// TODO:Do we need to define a section for Kafka?
 	// CollectorTags is the string representing collector tags to append to each and every span
 	CollectorTags map[string]string
 	// SpanSizeMetricsEnabled determines whether to enable metrics based on processed span size

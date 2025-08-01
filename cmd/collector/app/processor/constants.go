@@ -30,6 +30,8 @@ const (
 	JaegerSpanFormat SpanFormat = "jaeger"
 	// ZipkinSpanFormat is for Zipkin Thrift spans.
 	ZipkinSpanFormat SpanFormat = "zipkin"
+	// KafkaSpanFormat is for kafka spans.
+	KafkaSpanFormat SpanFormat = "kafka"
 	// ProtoSpanFormat is for Jaeger protobuf Spans.
 	ProtoSpanFormat SpanFormat = "proto"
 	// OTLPSpanFormat is for OpenTelemetry OTLP format.
