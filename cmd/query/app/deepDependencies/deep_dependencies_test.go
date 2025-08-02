@@ -12,7 +12,7 @@ import (
 )
 
 func TestGetData(t *testing.T) {
-	focalService := "customer"
+	focalService := ""
 	data := GetData(focalService)
 	assert.NotEmpty(t, data.Dependencies)
 }
