@@ -31,7 +31,7 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	deepdependencies "github.com/jaegertracing/jaeger/cmd/query/app/deepDependencies"
+	deepdependencies "github.com/jaegertracing/jaeger/cmd/query/app/ddg"
 	"github.com/jaegertracing/jaeger/cmd/query/app/qualitymetrics"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jtracer"
