@@ -21,10 +21,12 @@ import (
 
 // ClientWrapper is a wrapper around elastic.Client
 type ClientWrapper struct {
-	client      *elastic.Client
-	bulkService *elastic.BulkProcessor
-	esVersion   uint
-	clientV8    *esV8.Client
+	client         *elastic.Client
+	bulkService    *elastic.BulkProcessor
+	esVersion      uint
+	clientV8       *esV8.Client
+	isOpenSearch   bool
+	clientV8Config *esV8.Config
 }
 
 // GetVersion returns the ElasticSearch Version
@@ -33,12 +35,14 @@ func (c ClientWrapper) GetVersion() uint {
 }
 
 // WrapESClient creates a ESClient out of *elastic.Client.
-func WrapESClient(client *elastic.Client, s *elastic.BulkProcessor, esVersion uint, clientV8 *esV8.Client) ClientWrapper {
+func WrapESClient(client *elastic.Client, s *elastic.BulkProcessor, esVersion uint, clientV8 *esV8.Client, isOpenSearch bool, clientV8Config *esV8.Config) ClientWrapper {
 	return ClientWrapper{
-		client:      client,
-		bulkService: s,
-		esVersion:   esVersion,
-		clientV8:    clientV8,
+		client:         client,
+		bulkService:    s,
+		esVersion:      esVersion,
+		clientV8:       clientV8,
+		isOpenSearch:   isOpenSearch,
+		clientV8Config: clientV8Config,
 	}
 }
 
@@ -60,10 +64,21 @@ func (c ClientWrapper) DeleteIndex(index string) es.IndicesDeleteService {
 // CreateTemplate calls this function to internal client.
 func (c ClientWrapper) CreateTemplate(ttype string) es.TemplateCreateService {
 	if c.esVersion >= 8 {
-		return TemplateCreatorWrapperV8{
+		wrapper := TemplateCreatorWrapperV8{
 			indicesV8:    c.clientV8.Indices,
 			templateName: ttype,
+			isOpenSearch: c.isOpenSearch,
+			clientV8:     c.clientV8,
 		}
+
+		// Create uncompressed client for OpenSearch template operations
+		if c.isOpenSearch {
+			if uncompressedClient := c.createUncompressedClient(); uncompressedClient != nil {
+				wrapper.uncompressedIndices = uncompressedClient.Indices
+			}
+		}
+
+		return wrapper
 	}
 	return WrapESTemplateCreateService(c.client.IndexPutTemplate(ttype))
 }
@@ -87,6 +102,24 @@ func (c ClientWrapper) Search(indices ...string) es.SearchService {
 func (c ClientWrapper) MultiSearch() es.MultiSearchService {
 	multiSearchService := c.client.MultiSearch()
 	return WrapESMultiSearchService(multiSearchService)
+}
+
+// createUncompressedClient creates a new ES v8 client without compression for OpenSearch
+func (c ClientWrapper) createUncompressedClient() *esV8.Client {
+	if c.clientV8Config == nil {
+		return nil
+	}
+
+	// Create a copy of the original config but with compression disabled
+	config := *c.clientV8Config
+	config.CompressRequestBody = false
+
+	uncompressedClient, err := esV8.NewClient(config)
+	if err != nil {
+		return nil
+	}
+
+	return uncompressedClient
 }
 
 // Close closes ESClient and flushes all data to the storage.
@@ -173,9 +206,12 @@ func (c TemplateCreateServiceWrapper) Do(ctx context.Context) (*elastic.IndicesP
 
 // TemplateCreatorWrapperV8 implements es.TemplateCreateService.
 type TemplateCreatorWrapperV8 struct {
-	indicesV8       *esV8api.Indices
-	templateName    string
-	templateMapping string
+	indicesV8           *esV8api.Indices
+	templateName        string
+	templateMapping     string
+	isOpenSearch        bool
+	clientV8            *esV8.Client
+	uncompressedIndices *esV8api.Indices
 }
 
 // Body adds mapping to the future request.
@@ -187,7 +223,14 @@ func (c TemplateCreatorWrapperV8) Body(mapping string) es.TemplateCreateService 
 
 // Do executes Put Template command.
 func (c TemplateCreatorWrapperV8) Do(context.Context) (*elastic.IndicesPutTemplateResponse, error) {
-	resp, err := c.indicesV8.PutIndexTemplate(c.templateName, strings.NewReader(c.templateMapping))
+	// For OpenSearch, use uncompressed client to avoid "Compressor detection" error
+	var resp *esV8api.Response
+	var err error
+	if c.isOpenSearch && c.uncompressedIndices != nil {
+		resp, err = c.uncompressedIndices.PutIndexTemplate(c.templateName, strings.NewReader(c.templateMapping))
+	} else {
+		resp, err = c.indicesV8.PutIndexTemplate(c.templateName, strings.NewReader(c.templateMapping))
+	}
 	if err != nil {
 		return nil, fmt.Errorf("error creating index template %s: %w", c.templateName, err)
 	}

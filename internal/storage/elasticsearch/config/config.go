@@ -264,6 +264,7 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 		return nil, err
 	}
 
+	var isOpenSearch bool
 	if c.Version == 0 {
 		// Determine ElasticSearch Version
 		pingResult, _, err := rawClient.Ping(c.Servers[0]).Do(ctx)
@@ -276,6 +277,7 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 		}
 		// OpenSearch is based on ES 7.x
 		if strings.Contains(pingResult.TagLine, "OpenSearch") {
+			isOpenSearch = true
 			if pingResult.Version.Number[0] == '1' {
 				logger.Info("OpenSearch 1.x detected, using ES 7.x index mappings")
 				esVersion = 7
@@ -295,14 +297,15 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 	}
 
 	var rawClientV8 *esV8.Client
+	var clientV8Config *esV8.Config
 	if c.Version >= 8 {
-		rawClientV8, err = newElasticsearchV8(ctx, c, logger)
+		rawClientV8, clientV8Config, err = newElasticsearchV8WithConfig(ctx, c, logger)
 		if err != nil {
 			return nil, fmt.Errorf("error creating v8 client: %w", err)
 		}
 	}
 
-	return eswrapper.WrapESClient(rawClient, bulkProc, c.Version, rawClientV8), nil
+	return eswrapper.WrapESClient(rawClient, bulkProc, c.Version, rawClientV8, isOpenSearch, clientV8Config), nil
 }
 
 func (bcb *bulkCallback) invoke(id int64, requests []elastic.BulkableRequest, response *elastic.BulkResponse, err error) {
@@ -352,6 +355,11 @@ func (bcb *bulkCallback) invoke(id int64, requests []elastic.BulkableRequest, re
 }
 
 func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logger) (*esV8.Client, error) {
+	client, _, err := newElasticsearchV8WithConfig(ctx, c, logger)
+	return client, err
+}
+
+func newElasticsearchV8WithConfig(ctx context.Context, c *Configuration, logger *zap.Logger) (*esV8.Client, *esV8.Config, error) {
 	var options esV8.Config
 	options.Addresses = c.Servers
 	if c.Authentication.BasicAuthentication.HasValue() {
@@ -363,10 +371,14 @@ func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logge
 	options.CompressRequestBody = c.HTTPCompression
 	transport, err := GetHTTPRoundTripper(ctx, c, logger)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	options.Transport = transport
-	return esV8.NewClient(options)
+	client, err := esV8.NewClient(options)
+	if err != nil {
+		return nil, nil, err
+	}
+	return client, &options, nil
 }
 
 func setDefaultIndexOptions(target, source *IndexOptions) {
