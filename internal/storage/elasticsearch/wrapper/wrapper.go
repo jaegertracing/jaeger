@@ -21,12 +21,13 @@ import (
 
 // ClientWrapper is a wrapper around elastic.Client
 type ClientWrapper struct {
-	client         *elastic.Client
-	bulkService    *elastic.BulkProcessor
-	esVersion      uint
-	clientV8       *esV8.Client
-	isOpenSearch   bool
-	clientV8Config *esV8.Config
+	client               *elastic.Client
+	bulkService          *elastic.BulkProcessor
+	esVersion            uint
+	clientV8             *esV8.Client
+	isOpenSearch         bool
+	clientV8Config       *esV8.Config
+	uncompressedClientV8 *esV8.Client // Cached uncompressed client for OpenSearch template operations
 }
 
 // GetVersion returns the ElasticSearch Version
@@ -36,13 +37,25 @@ func (c ClientWrapper) GetVersion() uint {
 
 // WrapESClient creates a ESClient out of *elastic.Client.
 func WrapESClient(client *elastic.Client, s *elastic.BulkProcessor, esVersion uint, clientV8 *esV8.Client, isOpenSearch bool, clientV8Config *esV8.Config) ClientWrapper {
+	var uncompressedClientV8 *esV8.Client
+
+	// Create uncompressed client for OpenSearch template operations during initialization
+	if isOpenSearch && clientV8Config != nil {
+		config := *clientV8Config
+		config.CompressRequestBody = false
+		uncompressedClientV8, _ = esV8.NewClient(config)
+		// Note: We silently ignore errors here to maintain backward compatibility
+		// The template operations will fall back to the compressed client if this fails
+	}
+
 	return ClientWrapper{
-		client:         client,
-		bulkService:    s,
-		esVersion:      esVersion,
-		clientV8:       clientV8,
-		isOpenSearch:   isOpenSearch,
-		clientV8Config: clientV8Config,
+		client:               client,
+		bulkService:          s,
+		esVersion:            esVersion,
+		clientV8:             clientV8,
+		isOpenSearch:         isOpenSearch,
+		clientV8Config:       clientV8Config,
+		uncompressedClientV8: uncompressedClientV8,
 	}
 }
 
@@ -71,11 +84,9 @@ func (c ClientWrapper) CreateTemplate(ttype string) es.TemplateCreateService {
 			clientV8:     c.clientV8,
 		}
 
-		// Create uncompressed client for OpenSearch template operations
-		if c.isOpenSearch {
-			if uncompressedClient := c.createUncompressedClient(); uncompressedClient != nil {
-				wrapper.uncompressedIndices = uncompressedClient.Indices
-			}
+		// Use cached uncompressed client for OpenSearch template operations
+		if c.isOpenSearch && c.uncompressedClientV8 != nil {
+			wrapper.uncompressedIndices = c.uncompressedClientV8.Indices
 		}
 
 		return wrapper
@@ -104,27 +115,14 @@ func (c ClientWrapper) MultiSearch() es.MultiSearchService {
 	return WrapESMultiSearchService(multiSearchService)
 }
 
-// createUncompressedClient creates a new ES v8 client without compression for OpenSearch
-func (c ClientWrapper) createUncompressedClient() *esV8.Client {
-	if c.clientV8Config == nil {
-		return nil
-	}
-
-	// Create a copy of the original config but with compression disabled
-	config := *c.clientV8Config
-	config.CompressRequestBody = false
-
-	uncompressedClient, err := esV8.NewClient(config)
-	if err != nil {
-		return nil
-	}
-
-	return uncompressedClient
-}
-
 // Close closes ESClient and flushes all data to the storage.
 func (c ClientWrapper) Close() error {
 	c.client.Stop()
+
+	// Note: ES v8 client (both compressed and uncompressed) doesn't have explicit Close method
+	// The underlying HTTP client will be garbage collected when the wrapper is disposed
+	// No additional cleanup needed for c.clientV8 or c.uncompressedClientV8
+
 	return c.bulkService.Close()
 }
 
@@ -223,19 +221,30 @@ func (c TemplateCreatorWrapperV8) Body(mapping string) es.TemplateCreateService 
 
 // Do executes Put Template command.
 func (c TemplateCreatorWrapperV8) Do(context.Context) (*elastic.IndicesPutTemplateResponse, error) {
-	// For OpenSearch, use uncompressed client to avoid "Compressor detection" error
 	var resp *esV8api.Response
 	var err error
-	if c.isOpenSearch && c.uncompressedIndices != nil {
-		resp, err = c.uncompressedIndices.PutIndexTemplate(c.templateName, strings.NewReader(c.templateMapping))
+
+	if c.isOpenSearch {
+		if c.uncompressedIndices != nil {
+			// Use uncompressed client for OpenSearch to avoid "Compressor detection" error
+			resp, err = c.uncompressedIndices.PutIndexTemplate(c.templateName, strings.NewReader(c.templateMapping))
+		} else {
+			// Fallback to compressed client with warning in error message
+			resp, err = c.indicesV8.PutIndexTemplate(c.templateName, strings.NewReader(c.templateMapping))
+			if err != nil && strings.Contains(err.Error(), "Compressor detection") {
+				return nil, fmt.Errorf("error creating index template %s: uncompressed client unavailable for OpenSearch, compression error occurred: %w", c.templateName, err)
+			}
+		}
 	} else {
+		// Use standard client for Elasticsearch
 		resp, err = c.indicesV8.PutIndexTemplate(c.templateName, strings.NewReader(c.templateMapping))
 	}
+
 	if err != nil {
 		return nil, fmt.Errorf("error creating index template %s: %w", c.templateName, err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("error creating index template %s: %s", c.templateName, resp)
+		return nil, fmt.Errorf("error creating index template %s: unexpected status code %d: %s", c.templateName, resp.StatusCode, resp)
 	}
 	return nil, nil // no response expected by span writer
 }
