@@ -100,6 +100,26 @@ type Options struct {
 	// FollowerLeaseRefreshInterval is the duration to sleep if this processor is a follower
 	// (ie. failed to gain the leader lock).
 	FollowerLeaseRefreshInterval time.Duration `mapstructure:"follower_lease_refresh_interval"`
+
+	// Use at your own risk!  When this setting is enabled, the engine will not attempt
+	// to infer the actual sampling probability used in the SDKs and may cause a spike
+	// of trace volume under the conditions explained below.
+	//
+	// The original adaptive sampling logic was built to work with legacy Jaeger SDK
+	// which used to report via span tag when the probabilistic sampled was used and
+	// with which probability value. The sampler implementation in the OpenTelemetry
+	// SDKs do not include such span tags, which makes it impossible for the engine
+	// to verify if the adaptive sampling rates are being respected / used by the sampler.
+	// However, this validation is not critical to the engine's operation, as it was
+	// done as a protection measure against a situation when a non-adaptive sampler
+	// is used in the SDK with a very low probability, and the engine keeps trying
+	// to increase this probability and not seeing an expected change in the trace
+	// volume (aka throughput), which will eventually result in the calculated
+	// probability reaching 100%. This could present a danger if the SDK is then
+	// switched to respect adaptive sampling rate since it will drastically increase
+	// the volume of traces sampled and the engine will take a few minutes to react
+	// to that.
+	IgnoreSamplerTags bool
 }
 
 func DefaultOptions() Options {
