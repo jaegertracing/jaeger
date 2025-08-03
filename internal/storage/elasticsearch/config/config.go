@@ -264,7 +264,6 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 		return nil, err
 	}
 
-	var isOpenSearch bool
 	if c.Version == 0 {
 		// Determine ElasticSearch Version
 		pingResult, _, err := rawClient.Ping(c.Servers[0]).Do(ctx)
@@ -277,7 +276,6 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 		}
 		// OpenSearch is based on ES 7.x
 		if strings.Contains(pingResult.TagLine, "OpenSearch") {
-			isOpenSearch = true
 			if pingResult.Version.Number[0] == '1' {
 				logger.Info("OpenSearch 1.x detected, using ES 7.x index mappings")
 				esVersion = 7
@@ -305,7 +303,7 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 		}
 	}
 
-	return eswrapper.WrapESClient(rawClient, bulkProc, c.Version, rawClientV8, isOpenSearch, clientV8Config), nil
+	return eswrapper.WrapESClient(rawClient, bulkProc, c.Version, rawClientV8, clientV8Config), nil
 }
 
 func (bcb *bulkCallback) invoke(id int64, requests []elastic.BulkableRequest, response *elastic.BulkResponse, err error) {
