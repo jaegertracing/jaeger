@@ -79,7 +79,6 @@ func (c ClientWrapper) CreateTemplate(ttype string) es.TemplateCreateService {
 		wrapper := TemplateCreatorWrapperV8{
 			indicesV8:    c.clientV8.Indices,
 			templateName: ttype,
-			clientV8:     c.clientV8,
 		}
 
 		// Use cached uncompressed client for template operations
@@ -206,7 +205,6 @@ type TemplateCreatorWrapperV8 struct {
 	indicesV8           *esV8api.Indices
 	templateName        string
 	templateMapping     string
-	clientV8            *esV8.Client
 	uncompressedIndices *esV8api.Indices
 }
 
