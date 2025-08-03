@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  opensearch:
+    image: opensearchproject/opensearch:2.11.0
+    container_name: opensearch-test
+    environment:
+      - discovery.type=single-node
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+      - DISABLE_SECURITY_PLUGIN=true
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    networks:
+      - jaeger-test
+
+  # For testing the original bug
+  jaeger-original:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+      args:
+        - VERSION=original
+    container_name: jaeger-original
+    environment:
+      - SPAN_STORAGE_TYPE=elasticsearch
+      - ES_SERVER_URLS=http://opensearch:9200
+      - ES_VERSION=7
+      - ES_CREATE_INDEX_TEMPLATES=true
+      - ES_HTTP_COMPRESSION=true  # This triggers the bug
+    ports:
+      - "14268:14268"
+      - "16686:16686"
+    depends_on:
+      - opensearch
+    networks:
+      - jaeger-test
+
+  # For testing the fix
+  jaeger-fixed:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+      args:
+        - VERSION=fixed
+    container_name: jaeger-fixed
+    environment:
+      - SPAN_STORAGE_TYPE=elasticsearch
+      - ES_SERVER_URLS=http://opensearch:9200
+      - ES_VERSION=7
+      - ES_CREATE_INDEX_TEMPLATES=true
+      - ES_HTTP_COMPRESSION=true  # Should work with fix
+    ports:
+      - "14269:14268"
+      - "16687:16686"
+    depends_on:
+      - opensearch
+    networks:
+      - jaeger-test
+
+networks:
+  jaeger-test:
+    driver: bridge
