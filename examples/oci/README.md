@@ -116,3 +116,16 @@ Prometheus scrape configs and service selectors if targeting Jaeger in a differe
 - **Password:** `prom-operator`
 
 Once logged in, you can explore the pre-built dashboards or add your own tracing and metrics visualizations.
+
+### Configure TLS/SSL with Cert-Manager
+
+To secure services with TLS/SSL, we use **Cert-Manager**. It provides the following features:
+
+- Automatic provisioning of TLS/SSL certificates.
+- Integration with Let's Encrypt for certificates.
+- Automatic renewal of certificates before expiration.
+- Integration with NGINX Ingress Controller.
+
+The issuer configuration YAML is located at `./tls-cert/issuer.yaml`.
+
+For detailed setup instructions, refer to the official Cert-Manager documentation: [Cert-Manager ACME Tutorial with NGINX Ingress](https://cert-manager.io/docs/tutorials/acme/nginx-ingress/)
