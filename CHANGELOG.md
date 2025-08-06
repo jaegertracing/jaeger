@@ -21,7 +21,7 @@ copy from UI changelog
 
 </details>
 
-v1.72.0 / v2.9.0 (2025-07-03)
+v1.72.0 / v2.9.0 (2025-08-03)
 -------------------------------
 ### Backend Changes
 
