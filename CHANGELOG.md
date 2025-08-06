@@ -21,6 +21,76 @@ copy from UI changelog
 
 </details>
 
+v1.72.0 / v2.9.0 (2025-07-03)
+-------------------------------
+### Backend Changes
+
+#### ✨ New Features
+
+* Implement custom rangequery interface to support elasticsearch v9 ([@shuraih775](https://github.com/shuraih775) in [#7358](https://github.com/jaegertracing/jaeger/pull/7358))
+* Add opensearch 3.x support ([@Parship999](https://github.com/Parship999) in [#7356](https://github.com/jaegertracing/jaeger/pull/7356))
+* Ingress service for jaeger demo deployment ([@chahatsagarmain](https://github.com/chahatsagarmain) in [#7308](https://github.com/jaegertracing/jaeger/pull/7308))
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Add `/deep-dependencies` endpoint ([@sujalshah-bit](https://github.com/sujalshah-bit) in [#7399](https://github.com/jaegertracing/jaeger/pull/7399))
+* Add api key authentication support for elasticsearch storage ([@danish9039](https://github.com/danish9039) in [#7402](https://github.com/jaegertracing/jaeger/pull/7402))
+* Fix kafka tls configuration with plaintext authentication ([@Parship999](https://github.com/Parship999) in [#7395](https://github.com/jaegertracing/jaeger/pull/7395))
+* Add alerts for jaeger 2.x ([@danish9039](https://github.com/danish9039) in [#6854](https://github.com/jaegertracing/jaeger/pull/6854))
+* Add missing mapstructure tag for tls in promcfg/config.go ([@pipiland2612](https://github.com/pipiland2612) in [#7367](https://github.com/jaegertracing/jaeger/pull/7367))
+* Add bearer token reloading and reuse in multiple storage backends ([@danish9039](https://github.com/danish9039) in [#7360](https://github.com/jaegertracing/jaeger/pull/7360))
+* Fixed invalid string type issue for array-valued tags ([@Parship999](https://github.com/Parship999) in [#7350](https://github.com/jaegertracing/jaeger/pull/7350))
+* Enable stale bot ([@Parship999](https://github.com/Parship999) in [#7355](https://github.com/jaegertracing/jaeger/pull/7355))
+* Enable automated closing of stale pull requests and issues ([@Parship999](https://github.com/Parship999) in [#7347](https://github.com/jaegertracing/jaeger/pull/7347))
+* Fix codeql security alert: remove sensitive file paths from log messages ([@danish9039](https://github.com/danish9039) in [#7345](https://github.com/jaegertracing/jaeger/pull/7345))
+* Decouple from otel collector semconv package ([@danish9039](https://github.com/danish9039) in [#7318](https://github.com/jaegertracing/jaeger/pull/7318))
+* Expose jaeger 4318 otlp http port in grafana integration example ([@gokulvootla](https://github.com/gokulvootla) in [#7325](https://github.com/jaegertracing/jaeger/pull/7325))
+* Add ttl to badger sample config ([@yurishkuro](https://github.com/yurishkuro) in [#7319](https://github.com/jaegertracing/jaeger/pull/7319))
+* [hotrod] load jquery from cdn to allow hotrod to work with a basepath ([@chahatsagarmain](https://github.com/chahatsagarmain) in [#7321](https://github.com/jaegertracing/jaeger/pull/7321))
+* [refactor] improved  gethttproundtripper ([@danish9039](https://github.com/danish9039) in [#7313](https://github.com/jaegertracing/jaeger/pull/7313))
+* Correct command in docker-compose/monitor/readme.md ([@pipiland2612](https://github.com/pipiland2612) in [#7309](https://github.com/jaegertracing/jaeger/pull/7309))
+
+#### 🚧 Experimental Features
+
+* Added tls/ssl certification and automation for jaeger demo deployment ([@chahatsagarmain](https://github.com/chahatsagarmain) in [#7419](https://github.com/jaegertracing/jaeger/pull/7419))
+* Automate jaeger demo deployment to oke using github actions ([@chahatsagarmain](https://github.com/chahatsagarmain) in [#7334](https://github.com/jaegertracing/jaeger/pull/7334))
+* Add required helm repositories for jaeger demo deployment ([@chahatsagarmain](https://github.com/chahatsagarmain) in [#7403](https://github.com/jaegertracing/jaeger/pull/7403))
+* Add metrics_storage to config-elasticsearch/opensearch ([@pipiland2612](https://github.com/pipiland2612) in [#7390](https://github.com/jaegertracing/jaeger/pull/7390))
+* Change basepath and remove unused yaml for jaeger demo deployment ([@chahatsagarmain](https://github.com/chahatsagarmain) in [#7374](https://github.com/jaegertracing/jaeger/pull/7374))
+* Add readiness and liveness probe paths to demo deployment for improved health checks ([@chahatsagarmain](https://github.com/chahatsagarmain) in [#7371](https://github.com/jaegertracing/jaeger/pull/7371))
+* [spm] add optimisation by time range ([@pipiland2612](https://github.com/pipiland2612) in [#7322](https://github.com/jaegertracing/jaeger/pull/7322))
+* Serve hotrod ui and grafana from separate basepaths in jaeger demo ([@chahatsagarmain](https://github.com/chahatsagarmain) in [#7328](https://github.com/jaegertracing/jaeger/pull/7328))
+* Add support for elasticsearch v9 index template creation by reusing v8 template ([@shuraih775](https://github.com/shuraih775) in [#7320](https://github.com/jaegertracing/jaeger/pull/7320))
+* [spm] add opensearch option ([@pipiland2612](https://github.com/pipiland2612) in [#7304](https://github.com/jaegertracing/jaeger/pull/7304))
+* [spm] bug fix for metricstore/elasticsearch/processor.go ([@pipiland2612](https://github.com/pipiland2612) in [#7303](https://github.com/jaegertracing/jaeger/pull/7303))
+* Add jaeger demo monitoring setup with deployment script ([@chahatsagarmain](https://github.com/chahatsagarmain) in [#7300](https://github.com/jaegertracing/jaeger/pull/7300))
+* [spm] geterrorrates implementation ([@pipiland2612](https://github.com/pipiland2612) in [#7298](https://github.com/jaegertracing/jaeger/pull/7298))
+* [spm] getlatencies implementation ([@pipiland2612](https://github.com/pipiland2612) in [#7290](https://github.com/jaegertracing/jaeger/pull/7290))
+* Add load generator for jaeger demo to generate trace data from hotrod service ([@chahatsagarmain](https://github.com/chahatsagarmain) in [#7296](https://github.com/jaegertracing/jaeger/pull/7296))
+* Refactor metricstore/elasticsearch/reader.go ([@pipiland2612](https://github.com/pipiland2612) in [#7295](https://github.com/jaegertracing/jaeger/pull/7295))
+
+#### 👷 CI Improvements
+
+* [ci] add metrics summary action ([@pipiland2612](https://github.com/pipiland2612) in [#7376](https://github.com/jaegertracing/jaeger/pull/7376))
+* [spm e2e] add e2e test for new spm (using elasticsearch as metrics_backend) ([@pipiland2612](https://github.com/pipiland2612) in [#7307](https://github.com/jaegertracing/jaeger/pull/7307))
+
+#### ⚙️ Refactoring
+
+* Refactor basic authentication to http transport layer ([@danish9039](https://github.com/danish9039) in [#7388](https://github.com/jaegertracing/jaeger/pull/7388))
+* Fix enforce-switch-style linting errors ([@Andrei-hub11](https://github.com/Andrei-hub11) in [#7387](https://github.com/jaegertracing/jaeger/pull/7387))
+* Remove pool.go/pool.stop method (deadcode) ([@Parship999](https://github.com/Parship999) in [#7373](https://github.com/jaegertracing/jaeger/pull/7373))
+* Removing dead code from thrift/jaeger ([@wololowarrior](https://github.com/wololowarrior) in [#7365](https://github.com/jaegertracing/jaeger/pull/7365))
+* Remove sanitizer/service_name_sanitizer (dead code) ([@Parship999](https://github.com/Parship999) in [#7366](https://github.com/jaegertracing/jaeger/pull/7366))
+* Remove deadcode jptrace/utf8 ([@Parship999](https://github.com/Parship999) in [#7369](https://github.com/jaegertracing/jaeger/pull/7369))
+* Removal of all-in-one/setupcontext package (dead codes) ([@Parship999](https://github.com/Parship999) in [#7359](https://github.com/jaegertracing/jaeger/pull/7359))
+* Remove of sanitizer/utf8_sanitizer (dead code) ([@Parship999](https://github.com/Parship999) in [#7363](https://github.com/jaegertracing/jaeger/pull/7363))
+* Removal of sanitizer/cache package (dead code) ([@Parship999](https://github.com/Parship999) in [#7357](https://github.com/jaegertracing/jaeger/pull/7357))
+* [refactor] used otel optional type for union auth struct ([@danish9039](https://github.com/danish9039) in [#7316](https://github.com/jaegertracing/jaeger/pull/7316))
+* [refactor] move bearertoken under auth/ ([@danish9039](https://github.com/danish9039) in [#7312](https://github.com/jaegertracing/jaeger/pull/7312))
+* [badger] give responsibility of creating v2 factory to storage backend ([@Manik2708](https://github.com/Manik2708) in [#7299](https://github.com/jaegertracing/jaeger/pull/7299))
+* Refactor metricstore/es/reader.go by introducing querybuilder ([@pipiland2612](https://github.com/pipiland2612) in [#7297](https://github.com/jaegertracing/jaeger/pull/7297))
+
+
 v1.71.0 / v2.8.0 (2025-07-03)
 -------------------------------
 
