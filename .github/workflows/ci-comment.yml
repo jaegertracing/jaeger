@@ -29,6 +29,15 @@ jobs:
         shell: bash
         run: |
           bash ./scripts/e2e/metrics_summary.sh
+      - name: Extract PR number from workflow_run
+        id: extract-pr-number
+        run: |
+          PR_NUMBER=$(jq -r '.workflow_run.pull_requests[0].number' <<< '${{ toJSON(github.event) }}')
+          echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
+      - name: Debug PR number
+        run: |
+          echo "Event JSON: ${{ toJSON(github.event) }}"
+          echo "Extracted PR: ${{ steps.extract-pr-number.outputs.pr_number }}"
       - name: Post PR comment with combined metrics summary
         if: steps.compare-metrics.outputs.DIFF_FOUND == 'true'
         uses: thollander/actions-comment-pull-request@v3
@@ -36,4 +45,4 @@ jobs:
           file-path: ./.metrics/combined_summary.md
           github-token: '${{ secrets.GITHUB_TOKEN }}'
           comment-tag: "## Metrics Comparison Summary"
-          pr-number: ${{ steps.download-artifacts.outputs.pr_number }}
+          pr-number: ${{ steps.extract-pr-number.outputs.pr_number }}
