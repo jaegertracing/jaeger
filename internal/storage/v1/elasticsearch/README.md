@@ -2,6 +2,35 @@
 
 This provides a storage backend for Jaeger using [Elasticsearch](https://www.elastic.co). More information is available on the [Jaeger documentation website](https://www.jaegertracing.io/docs/latest/deployment/#elasticsearch).
 
+## Authentication
+
+The Elasticsearch storage supports multiple authentication methods.
+
+### Basic Authentication
+
+Use a username and password to connect to Elasticsearch.
+
+- `--es.username`: The username for basic authentication.
+- `--es.password`: The password for basic authentication.
+- `--es.password-file`: Path to a file containing the password for basic authentication. This file is watched for changes.
+- `--es.password-reload-interval`: Interval for reloading the password from the file. Set to 0 to disable automatic reloading.
+
+### Bearer Token Authentication
+
+Use a bearer token for authentication.
+
+- `--es.token-file`: Path to a file containing the bearer token.
+- `--es.bearer-token-propagation`: Allow the bearer token to be read from the incoming request context.
+- `--es.bearer-token-reload-interval`: Interval for reloading the bearer token from the file. Set to 0 to disable automatic reloading.
+
+### API Key Authentication
+
+Use an API key for authentication.
+
+- `--es.api-key-file`: Path to a file containing the API key.
+- `--es.api-key-allow-from-context`: Allow the API key to be read from the incoming request context.
+- `--es.api-key-reload-interval`: Interval for reloading the API key from the file. Set to 0 to disable automatic reloading.
+
 ## Indices
 Indices will be created depending on the spans timestamp. i.e., a span with
 a timestamp on 2017/04/21 will be stored in an index named `jaeger-2017-04-21`.
