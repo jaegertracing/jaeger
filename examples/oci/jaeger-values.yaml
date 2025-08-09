@@ -1,7 +1,7 @@
 hotrod:
   enabled: true
   image:
-    tag: "latest"
+    tag: "1.72.0"
   args:
     - all
   extraArgs:
