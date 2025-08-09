@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/collector/receiver"
@@ -50,6 +51,8 @@ type Collector struct {
 	grpcServer     *grpc.Server
 	otlpReceiver   receiver.Traces
 	zipkinReceiver receiver.Traces
+
+	collectorSpanMetrics *CollectorSpanMetrics
 }
 
 // CollectorParams to construct a new Jaeger Collector.
@@ -64,7 +67,6 @@ type CollectorParams struct {
 	TenancyMgr         *tenancy.Manager
 }
 
-// New constructs a new collector component, ready to be started
 func New(params *CollectorParams) *Collector {
 	return &Collector{
 		serviceName:        params.ServiceName,
@@ -75,6 +77,7 @@ func New(params *CollectorParams) *Collector {
 		samplingAggregator: params.SamplingAggregator,
 		hCheck:             params.HealthCheck,
 		tenancyMgr:         params.TenancyMgr,
+		collectorSpanMetrics: NewCollectorSpanMetrics(params.MetricsFactory),
 	}
 }
 
@@ -90,17 +93,20 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 
 	var additionalProcessors []ProcessSpan
 	if c.samplingAggregator != nil {
-		additionalProcessors = append(additionalProcessors, func(span *model.Span, _ /* tenant */ string) {
+		additionalProcessors = append(additionalProcessors, ProcessSpan(func(span *model.Span, _ string) {
 			c.samplingAggregator.HandleRootSpan(span)
-		})
+		}))
 	}
 
 	spanProcessor, err := handlerBuilder.BuildSpanProcessor(additionalProcessors...)
 	if err != nil {
 		return fmt.Errorf("could not create span processor: %w", err)
 	}
-	c.spanProcessor = spanProcessor
+
+	c.spanProcessor = NewMetricsReportingSpanProcessor(spanProcessor, c.collectorSpanMetrics)
+
 	c.spanHandlers = handlerBuilder.BuildHandlers(c.spanProcessor)
+
 	grpcServer, err := server.StartGRPCServer(&server.GRPCServerParams{
 		Handler:          c.spanHandlers.GRPCHandler,
 		SamplingProvider: c.samplingProvider,
@@ -111,6 +117,7 @@ func (c *Collector) Start(options *flags.CollectorOptions) error {
 		return fmt.Errorf("could not start gRPC server: %w", err)
 	}
 	c.grpcServer = grpcServer
+
 	httpServer, err := server.StartHTTPServer(&server.HTTPServerParams{
 		ServerConfig:     options.HTTP,
 		Handler:          c.spanHandlers.JaegerBatchesHandler,
@@ -204,4 +211,85 @@ func (c *Collector) Close() error {
 // SpanHandlers returns span handlers used by the Collector.
 func (c *Collector) SpanHandlers() *SpanHandlers {
 	return c.spanHandlers
+}
+
+type CollectorSpanMetrics struct {
+	factory        metrics.Factory
+	receivedMutex  sync.Mutex
+	rejectedMutex  sync.Mutex
+	receivedBySvc  map[string]metrics.Counter
+	rejectedBySvc  map[string]metrics.Counter
+}
+
+func NewCollectorSpanMetrics(factory metrics.Factory) *CollectorSpanMetrics {
+	return &CollectorSpanMetrics{
+		factory:       factory,
+		receivedBySvc: make(map[string]metrics.Counter),
+		rejectedBySvc: make(map[string]metrics.Counter),
+	}
+}
+
+func (m *CollectorSpanMetrics) incReceived(svc string) {
+    m.incMetric(svc, m.receivedBySvc, "jaeger_collector_spans_received_total")
+}
+
+func (m *CollectorSpanMetrics) incRejected(svc string) {
+    m.incMetric(svc, m.rejectedBySvc, "jaeger_collector_spans_rejected_total")
+}
+
+func (m *CollectorSpanMetrics) incMetric(svc string, counterMap map[string]metrics.Counter, metricName string) {
+    m.receivedMutex.Lock()
+    defer m.receivedMutex.Unlock()
+
+    if svc == "" {
+        svc = "unknown-service"
+    }
+
+    counter, ok := counterMap[svc]
+    if !ok {
+        counter = m.factory.Counter(metrics.Options{
+			Name: metricName,
+			Help: fmt.Sprintf("Number of spans %s by the collector by service.", metricName),
+			Tags: map[string]string{"svc": svc},
+		})		
+        counterMap[svc] = counter
+    }
+    counter.Inc(1)
+}
+
+
+type metricsReportingSpanProcessor struct {
+	wrapped processor.SpanProcessor
+	metrics *CollectorSpanMetrics
+}
+
+func NewMetricsReportingSpanProcessor(wrapped processor.SpanProcessor, m *CollectorSpanMetrics) processor.SpanProcessor {
+	return &metricsReportingSpanProcessor{wrapped: wrapped, metrics: m}
+}
+
+func (m *metricsReportingSpanProcessor) ProcessSpans(ctx context.Context, batch processor.Batch) ([]bool, error) {
+	var spans []*model.Span
+	if s, ok := interface{}(batch).([]*model.Span); ok {
+		spans = s
+	} else {
+		spans = []*model.Span{}
+	}
+
+	for _, span := range spans {
+		svcName := span.GetProcess().GetServiceName()
+		m.metrics.incReceived(svcName)
+	}
+
+	results, err := m.wrapped.ProcessSpans(ctx, batch)
+	if err != nil {
+		for _, span := range spans {
+			svcName := span.GetProcess().GetServiceName()
+			m.metrics.incRejected(svcName)
+		}
+	}
+	return results, err
+}
+
+func (m *metricsReportingSpanProcessor) Close() error {
+	return m.wrapped.Close()
 }
