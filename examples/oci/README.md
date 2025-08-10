@@ -49,7 +49,7 @@ kubectl port-forward svc/jaeger-hotrod 8080:80
 
 Then, open the following URLs in your browser:
 
-- **Jaeger UI:** [http://localhost:16686](http://localhost:16686)
+- **Jaeger UI:** [http://localhost:16686/jaeger](http://localhost:16686/jaeger)
 - **Prometheus:** [http://localhost:9090](http://localhost:9090)
 - **Grafana:** [http://localhost:9091](http://localhost:9091)
 - **HotROD Demo App:** [http://localhost:8080](http://localhost:8080)

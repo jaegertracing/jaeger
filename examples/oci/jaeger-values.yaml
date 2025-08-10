@@ -7,7 +7,7 @@ hotrod:
   extraArgs:
     - --otel-exporter=otlp
     - --basepath=/hotrod
-    - --jaeger-ui=https://demo.jaegertracing.io
+    - --jaeger-ui=https://demo.jaegertracing.io/jaeger
   livenessProbe:
     path: /hotrod
   readinessProbe: 

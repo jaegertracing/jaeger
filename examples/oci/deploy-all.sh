@@ -55,6 +55,10 @@ kubectl create configmap trace-script --from-file=./load-generator/generate_trac
 echo "🟡 Step 4: Deploying Trace Generator Pod..."
 kubectl apply -f ./load-generator/load-generator.yaml
 
+#Deploy ingress changes 
+echo "🟡 Step 4: Deploying Ingress Resource..."
+kubectl apply -f ingress.yaml
+
 # Output Port-forward Instructions
 echo "✅ Deployment Complete!"
 echo ""
@@ -66,7 +70,7 @@ echo "kubectl port-forward svc/prometheus-grafana 9091:80    # Grafana UI"
 echo "kubectl port-forward svc/jaeger-hotrod 8080:80         # HotROD UI"
 echo ""
 echo "Then open:"
-echo "🔍 Jaeger: http://localhost:16686"
+echo "🔍 Jaeger: http://localhost:16686/jaeger"
 echo "📈 Prometheus: http://localhost:9090"
 echo "📊 Grafana: http://localhost:9091"
 echo "🚕 HotROD: http://localhost:8080"
