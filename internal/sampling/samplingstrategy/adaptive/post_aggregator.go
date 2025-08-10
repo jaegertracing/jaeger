@@ -20,8 +20,6 @@ import (
 )
 
 const (
-	maxSamplingProbability = 1.0
-
 	getThroughputErrMsg = "failed to get throughput from storage"
 
 	// The number of past entries for samplingCache the leader keeps in memory
@@ -330,8 +328,8 @@ func (p *PostAggregator) calculateProbabilitiesAndQPS() (model.ServiceOperationP
 }
 
 func (p *PostAggregator) calculateProbability(service, operation string, qps float64) float64 {
+	// TODO: is this method overly expensive to run in a loop?
 	oldProbability := p.InitialSamplingProbability
-	// TODO: is this loop overly expensive?
 	p.RLock()
 	if opProbabilities, ok := p.probabilities[service]; ok {
 		if probability, ok := opProbabilities[operation]; ok {
@@ -353,14 +351,14 @@ func (p *PostAggregator) calculateProbability(service, operation string, qps flo
 		return oldProbability
 	}
 	var newProbability float64
-	if FloatEquals(qps, 0) {
+	if floatEquals(qps, 0) {
 		// Edge case; we double the sampling probability if the QPS is 0 so that we force the service
 		// to at least sample one span probabilistically.
 		newProbability = oldProbability * 2.0
 	} else {
 		newProbability = p.probabilityCalculator.Calculate(p.TargetSamplesPerSecond, qps, oldProbability)
 	}
-	return math.Min(maxSamplingProbability, math.Max(p.MinSamplingProbability, newProbability))
+	return math.Min(1.0, math.Max(p.MinSamplingProbability, newProbability))
 }
 
 // is actual value within p.DeltaTolerance percentage of expected value.
@@ -382,14 +380,19 @@ func (p *PostAggregator) isUsingAdaptiveSampling(
 	operation string,
 	throughput serviceOperationThroughput,
 ) bool {
-	if FloatEquals(probability, p.InitialSamplingProbability) {
+	if p.IgnoreSamplerTags {
+		return true
+	}
+	if floatEquals(probability, p.InitialSamplingProbability) {
 		// If the service is seen for the first time, assume it's using adaptive sampling (ie prob == initialProb).
 		// Even if this isn't the case, the next time around this loop, the newly calculated probability will not equal
 		// the initialProb so the logic will fall through.
 		return true
 	}
+	// if the previous probability can be found in the set of observed values
+	// in the latest time bucket then assume service is respecting adaptive sampling.
 	if opThroughput, ok := throughput.get(service, operation); ok {
-		f := TruncateFloat(probability)
+		f := truncateFloat(probability)
 		_, ok := opThroughput.Probabilities[f]
 		return ok
 	}
@@ -398,7 +401,7 @@ func (p *PostAggregator) isUsingAdaptiveSampling(
 	// before.
 	if len(p.serviceCache) > 1 {
 		if e := p.serviceCache[1].Get(service, operation); e != nil {
-			return e.UsingAdaptive && !FloatEquals(e.Probability, p.InitialSamplingProbability)
+			return e.UsingAdaptive && !floatEquals(e.Probability, p.InitialSamplingProbability)
 		}
 	}
 	return false
