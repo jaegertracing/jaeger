@@ -24,6 +24,7 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/cmd/query/app/ui"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
@@ -220,9 +221,10 @@ func TestHotReloadUIConfig(t *testing.T) {
 
 func TestLoadUIConfig(t *testing.T) {
 	type testCase struct {
-		configFile    string
-		expected      *loadedConfig
-		expectedError string
+		configFile      string
+		expected        *loadedConfig
+		expectedError   string
+		expectedContent string
 	}
 
 	run := func(description string, testCase testCase) {
@@ -234,6 +236,20 @@ func TestLoadUIConfig(t *testing.T) {
 				require.NoError(t, err)
 			}
 			assert.Equal(t, testCase.expected, config)
+
+			if testCase.expectedContent != "" {
+				h := &StaticAssetsHandler{
+					options: StaticAssetsHandlerOptions{
+						UIConfig: UIConfig{
+							ConfigFile: testCase.configFile,
+						},
+					},
+				}
+				assetsFS := ui.GetStaticFiles(zap.NewNop())
+				indexHTML, err := h.loadAndEnrichIndexHTML(assetsFS.Open)
+				require.NoError(t, err)
+				assert.Contains(t, string(indexHTML), testCase.expectedContent)
+			}
 		})
 	}
 
@@ -286,6 +302,7 @@ func TestLoadUIConfig(t *testing.T) {
   }
 }`),
 		},
+		expectedContent: `x: "y"`,
 	})
 	run("js-menu", testCase{
 		configFile: "fixture/ui-config-menu.js",
