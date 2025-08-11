@@ -77,7 +77,6 @@ linters:
         - nestingReduce
         - paramTypeCombine
         - rangeValCopy
-        - redundantSprint
         - regexpSimplify
         - returnAfterHttpError
         - sloppyReassign
