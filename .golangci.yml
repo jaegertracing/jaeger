@@ -81,7 +81,6 @@ linters:
         - returnAfterHttpError
         - todoCommentWithoutDetail
         - typeAssertChain
-        - typeUnparen
         - unnamedResult
         - unnecessaryDefer
         - whyNoLint
