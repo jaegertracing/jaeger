@@ -77,7 +77,6 @@ linters:
         - rangeValCopy
         - returnAfterHttpError
         - todoCommentWithoutDetail
-        - typeAssertChain
         - unnamedResult
         - whyNoLint
       enable-all: true
