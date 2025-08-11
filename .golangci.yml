@@ -150,7 +150,6 @@ linters:
         - -SA1019 # Using a deprecated function, variable, constant or field
         - -ST1003 # Poorly chosen identifier
         - -ST1005 # Incorrectly formatted error string
-        - -ST1016 # Use consistent method receiver names
         - -ST1023 # Redundant type in variable declaration
     testifylint:
       enable-all: true
