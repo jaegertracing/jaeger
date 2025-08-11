@@ -75,7 +75,6 @@ linters:
         - importShadow
         - paramTypeCombine # WON'T FIX
         - rangeValCopy
-        - regexpSimplify
         - returnAfterHttpError
         - todoCommentWithoutDetail
         - typeAssertChain
