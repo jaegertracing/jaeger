@@ -779,7 +779,7 @@ func TestGetRoundTripperTLSConfig(t *testing.T) {
 				bearertoken.ContextWithBearerToken(context.Background(), "foo"),
 				http.MethodGet,
 				server.URL,
-				nil,
+				http.NoBody,
 			)
 			require.NoError(t, err)
 
@@ -817,7 +817,7 @@ func TestGetRoundTripperTokenFile(t *testing.T) {
 		ctx,
 		http.MethodGet,
 		server.URL,
-		nil,
+		http.NoBody,
 	)
 	require.NoError(t, err)
 
@@ -851,7 +851,7 @@ func TestGetRoundTripperTokenFromContext(t *testing.T) {
 		ctx,
 		http.MethodGet,
 		server.URL,
-		nil,
+		http.NoBody,
 	)
 	require.NoError(t, err)
 

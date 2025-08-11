@@ -72,7 +72,6 @@ linters:
         - dupArg
         - exitAfterDefer
         - exposedSyncMutex
-        - httpNoBody
         - hugeParam
         - importShadow
         - nestingReduce
