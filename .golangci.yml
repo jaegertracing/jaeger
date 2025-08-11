@@ -147,7 +147,6 @@ linters:
       checks:
         - all
         - -QF1008 # Omit embedded fields from selector expression
-        - -QF1011 # Omit redundant type from variable declaration
         - -SA1019 # Using a deprecated function, variable, constant or field
         - -ST1003 # Poorly chosen identifier
         - -ST1005 # Incorrectly formatted error string
