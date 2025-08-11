@@ -236,8 +236,10 @@ func createHTTPServer(
 
 func (hS httpServer) Close() error {
 	var errs []error
-	errs = append(errs, hS.Server.Close())
-	errs = append(errs, hS.staticHandlerCloser.Close())
+	errs = append(errs,
+		hS.Server.Close(),
+		hS.staticHandlerCloser.Close(),
+	)
 	return errors.Join(errs...)
 }
 

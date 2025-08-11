@@ -477,7 +477,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.UseILM = v.GetBool(cfg.namespace + suffixUseILM)
 
 	remoteReadClusters := stripWhiteSpace(v.GetString(cfg.namespace + suffixRemoteReadClusters))
-	if len(remoteReadClusters) > 0 {
+	if remoteReadClusters != "" {
 		cfg.RemoteReadClusters = strings.Split(remoteReadClusters, ",")
 	}
 

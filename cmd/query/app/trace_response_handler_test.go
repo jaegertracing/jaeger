@@ -30,7 +30,7 @@ func TestTraceResponseHandler(t *testing.T) {
 	ctx, span := tracer.Start(context.Background(), "test-span")
 	defer span.End()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost:8080", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost:8080", http.NoBody)
 	require.NoError(t, err)
 
 	w := httptest.NewRecorder()

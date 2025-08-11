@@ -120,7 +120,7 @@ func TestCollectorStartWithTLS(t *testing.T) {
 	}
 	server, err := StartGRPCServer(params)
 	require.NoError(t, err)
-	defer server.Stop()
+	server.Stop()
 }
 
 func TestCollectorReflection(t *testing.T) {

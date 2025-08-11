@@ -64,7 +64,7 @@ func Test_PropagationHandler(t *testing.T) {
 			r := PropagationHandler(logger, testCase.handler(&stop))
 			server := httptest.NewServer(r)
 			defer server.Close()
-			req, err := http.NewRequest(http.MethodGet, server.URL, nil)
+			req, err := http.NewRequest(http.MethodGet, server.URL, http.NoBody)
 			require.NoError(t, err)
 			if testCase.sendHeader {
 				req.Header.Add(testCase.headerName, testCase.headerValue)

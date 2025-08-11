@@ -56,7 +56,7 @@ func TestESStorageFactoryWithConfig(t *testing.T) {
 	}
 	factory, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 	require.NoError(t, err)
-	defer factory.Close()
+	factory.Close()
 }
 
 func TestESStorageFactoryErr(t *testing.T) {

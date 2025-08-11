@@ -196,7 +196,7 @@ func (*Handler) encodeThriftEnums092(jsonData []byte) []byte {
 	for _, strategyType := range samplingStrategyTypes {
 		str = strings.Replace(
 			str,
-			fmt.Sprintf(`"strategyType":"%s"`, strategyType.String()),
+			fmt.Sprintf(`"strategyType":%q`, strategyType.String()),
 			fmt.Sprintf(`"strategyType":%d`, strategyType),
 			1,
 		)

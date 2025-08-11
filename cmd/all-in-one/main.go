@@ -181,13 +181,17 @@ by default uses only in-memory database.`,
 
 			svc.RunAndThen(func() {
 				var errs []error
-				errs = append(errs, c.Close())
-				errs = append(errs, querySrv.Close())
+				errs = append(errs,
+					c.Close(),
+					querySrv.Close(),
+				)
 				if closer, ok := spanWriter.(io.Closer); ok {
 					errs = append(errs, closer.Close())
 				}
-				errs = append(errs, storageFactory.Close())
-				errs = append(errs, tracer.Close(context.Background()))
+				errs = append(errs,
+					storageFactory.Close(),
+					tracer.Close(context.Background()),
+				)
 				if err := errors.Join(errs...); err != nil {
 					logger.Error("Failed to close services", zap.Error(err))
 				}

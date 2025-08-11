@@ -32,7 +32,8 @@ func (c *ClusterClient) Version() (uint, error) {
 		return 0, err
 	}
 	var info clusterInfo
-	if err = json.Unmarshal(body, &info); err != nil {
+	err = json.Unmarshal(body, &info)
+	if err != nil {
 		return 0, err
 	}
 

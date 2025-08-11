@@ -63,6 +63,27 @@ linters:
               desc: Use github.com/jaegertracing/jaeger-idl/model/v1
             - pkg: github.com/jaegertracing/jaeger/internal/proto-gen/api_v2$
               desc: Use github.com/jaegertracing/jaeger-idl/proto-gen/api_v2
+    gocritic:
+      disabled-checks:
+        - appendAssign
+        - badLock
+        - commentedOutCode
+        - deferInLoop
+        - dupArg
+        - exitAfterDefer
+        - exposedSyncMutex
+        - hugeParam
+        - importShadow
+        - nestingReduce
+        - paramTypeCombine
+        - rangeValCopy
+        - regexpSimplify
+        - returnAfterHttpError
+        - todoCommentWithoutDetail
+        - typeAssertChain
+        - unnamedResult
+        - whyNoLint
+      enable-all: true
     gosec:
       excludes:
         - G104
@@ -171,15 +192,6 @@ linters:
       - linters:
           - staticcheck
         path: internal/grpctest/
-      - linters:
-          - gocritic
-        text: dupArg
-      - linters:
-          - gocritic
-        text: exitAfterDefer
-      - linters:
-          - gocritic
-        text: appendAssign
     paths:
       - .*.pb.go$
       - mocks

@@ -103,7 +103,7 @@ func (*Creator) getQueriesFromBytes(queryFile []byte) ([]string, error) {
 		}
 	}
 
-	if len(queryString) > 0 {
+	if queryString != "" {
 		return nil, errors.New(`query exists in template without ";"`)
 	}
 

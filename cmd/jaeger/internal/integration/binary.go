@@ -78,7 +78,7 @@ func (b *Binary) doHealthCheck(t *testing.T) bool {
 	t.Logf("Checking if %s is available on %s", b.Name, healthCheckEndpoint)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthCheckEndpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthCheckEndpoint, http.NoBody)
 	if err != nil {
 		t.Logf("HTTP request creation failed: %v", err)
 		return false

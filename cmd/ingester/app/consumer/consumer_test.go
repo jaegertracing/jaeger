@@ -65,7 +65,7 @@ func newSaramaClusterConsumer(saramaPartitionConsumer sarama.PartitionConsumer, 
 		PartitionConsumer: saramaPartitionConsumer,
 	}
 	saramaClusterConsumer := &kmocks.Consumer{}
-	saramaClusterConsumer.On("Partitions").Return((<-chan cluster.PartitionConsumer)(pcha))
+	saramaClusterConsumer.On("Partitions").Return((<-chan cluster.PartitionConsumer)(pcha)) //nolint:gocritic // typeUnparen is failing
 	saramaClusterConsumer.On("Close").Return(nil).Run(func(_ mock.Arguments) {
 		mc.Close()
 		close(pcha)

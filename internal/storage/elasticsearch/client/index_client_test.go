@@ -156,7 +156,7 @@ func TestClientGetIndices(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				sort.Slice(indices, func(i, j int) bool {
-					return strings.Compare(indices[i].Index, indices[j].Index) < 0
+					return indices[i].Index < indices[j].Index
 				})
 				assert.Equal(t, test.indices, indices)
 			}
@@ -167,8 +167,10 @@ func TestClientGetIndices(t *testing.T) {
 func getIndicesList(size int) []Index {
 	indicesList := []Index{}
 	for count := 1; count <= size/2; count++ {
-		indicesList = append(indicesList, Index{Index: fmt.Sprintf("jaeger-span-%06d", count)})
-		indicesList = append(indicesList, Index{Index: fmt.Sprintf("jaeger-service-%06d", count)})
+		indicesList = append(indicesList,
+			Index{Index: fmt.Sprintf("jaeger-span-%06d", count)},
+			Index{Index: fmt.Sprintf("jaeger-service-%06d", count)},
+		)
 	}
 	return indicesList
 }

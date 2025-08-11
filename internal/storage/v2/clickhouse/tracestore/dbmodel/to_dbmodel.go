@@ -441,8 +441,10 @@ func (link *LinkColumnSet) linkInput() proto.Input {
 func (acm attributeColumnsMap) attributesInput() proto.Input {
 	var result []proto.InputColumn
 	for _, pair := range acm {
-		result = append(result, input(pair.keyColName, pair.keyCol))
-		result = append(result, input(pair.valueColName, pair.valueCol))
+		result = append(result, 
+			input(pair.keyColName, pair.keyCol),
+			input(pair.valueColName, pair.valueCol),
+		)
 	}
 	return result
 }
