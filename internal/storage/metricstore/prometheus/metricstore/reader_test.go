@@ -798,7 +798,7 @@ func TestGetRoundTripperTokenFile(t *testing.T) {
 	file, err := os.Create(t.TempDir() + "token_")
 	require.NoError(t, err)
 
-	_, err = file.Write([]byte(wantBearer))
+	_, err = file.WriteString(wantBearer)
 	require.NoError(t, err)
 	require.NoError(t, file.Close())
 
@@ -832,7 +832,7 @@ func TestGetRoundTripperTokenFromContext(t *testing.T) {
 	file, err := os.Create(t.TempDir() + "token_")
 	require.NoError(t, err)
 
-	_, err = file.Write([]byte("token from file"))
+	_, err = file.WriteString("token from file")
 	require.NoError(t, err)
 	require.NoError(t, file.Close())
 
