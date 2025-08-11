@@ -78,7 +78,6 @@ linters:
         - returnAfterHttpError
         - todoCommentWithoutDetail
         - unnamedResult
-        - whyNoLint
       enable-all: true
     gosec:
       excludes:

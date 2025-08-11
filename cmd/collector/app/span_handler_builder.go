@@ -49,7 +49,7 @@ func (b *SpanHandlerBuilder) BuildSpanProcessor(additional ...ProcessSpan) (proc
 		Options.Logger(b.logger()),
 		Options.SpanFilter(defaultSpanFilter),
 		Options.NumWorkers(b.CollectorOpts.NumWorkers),
-		//nolint: gosec // G115
+		//nolint:gosec // G115
 		Options.QueueSize(int(b.CollectorOpts.QueueSize)),
 		Options.CollectorTags(b.CollectorOpts.CollectorTags),
 		Options.DynQueueSizeWarmup(b.CollectorOpts.QueueSize), // same as queue size for now

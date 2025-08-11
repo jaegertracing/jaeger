@@ -290,7 +290,7 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 			}
 		}
 		logger.Info("Elasticsearch detected", zap.Int("version", esVersion))
-		//nolint: gosec // G115
+		//nolint:gosec // G115
 		c.Version = uint(esVersion)
 	}
 

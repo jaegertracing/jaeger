@@ -19,9 +19,9 @@ func (f *Factory) diskStatisticsUpdate() error {
 	_ = unix.Statfs(f.Config.Directories.Values, &valDirStatfs)
 
 	// Using Bavail instead of Bfree to get non-priviledged user space available
-	//nolint: gosec // G115
+	//nolint:gosec // G115
 	f.metrics.ValueLogSpaceAvailable.Update(int64(valDirStatfs.Bavail) * int64(valDirStatfs.Bsize))
-	//nolint: gosec // G115
+	//nolint:gosec // G115
 	f.metrics.KeyLogSpaceAvailable.Update(int64(keyDirStatfs.Bavail) * int64(keyDirStatfs.Bsize))
 
 	/*
