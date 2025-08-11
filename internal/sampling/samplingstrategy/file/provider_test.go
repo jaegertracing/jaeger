@@ -322,14 +322,16 @@ func TestParseStrategy(t *testing.T) {
 
 func makeResponse(samplerType api_v2.SamplingStrategyType, param float64) (resp api_v2.SamplingStrategyResponse) {
 	resp.StrategyType = samplerType
-	if samplerType == api_v2.SamplingStrategyType_PROBABILISTIC {
+	switch samplerType {
+	case api_v2.SamplingStrategyType_PROBABILISTIC:
 		resp.ProbabilisticSampling = &api_v2.ProbabilisticSamplingStrategy{
 			SamplingRate: param,
 		}
-	} else if samplerType == api_v2.SamplingStrategyType_RATE_LIMITING {
+	case api_v2.SamplingStrategyType_RATE_LIMITING:
 		resp.RateLimitingSampling = &api_v2.RateLimitingSamplingStrategy{
 			MaxTracesPerSecond: int32(param),
 		}
+	default:
 	}
 	return resp
 }

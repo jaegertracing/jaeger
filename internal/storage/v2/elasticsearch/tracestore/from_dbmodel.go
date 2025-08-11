@@ -189,7 +189,8 @@ func dbTagsToAttributes(tags []dbmodel.KeyValue, attributes pcommon.Map) {
 }
 
 func fromDBNumber(kv dbmodel.KeyValue, dest pcommon.Map) {
-	if kv.Type == dbmodel.Int64Type {
+	switch kv.Type {
+	case dbmodel.Int64Type:
 		switch v := kv.Value.(type) {
 		case int64:
 			dest.PutInt(kv.Key, v)
@@ -204,7 +205,7 @@ func fromDBNumber(kv dbmodel.KeyValue, dest pcommon.Map) {
 		default:
 			recordTagInvalidTypeError(kv, dest)
 		}
-	} else if kv.Type == dbmodel.Float64Type {
+	case dbmodel.Float64Type:
 		switch v := kv.Value.(type) {
 		case float64:
 			dest.PutDouble(kv.Key, v)
@@ -216,6 +217,7 @@ func fromDBNumber(kv dbmodel.KeyValue, dest pcommon.Map) {
 		default:
 			recordTagInvalidTypeError(kv, dest)
 		}
+	default:
 	}
 }
 
