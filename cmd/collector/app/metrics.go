@@ -231,7 +231,7 @@ func (m *SpanProcessorMetrics) GetCountsForFormat(spanFormat processor.SpanForma
 // the span and reports a counter stat.
 func (m metricsBySvc) ForSpanV1(span *model.Span) {
 	var serviceName string
-	if nil == span.Process || span.Process.ServiceName == "" {
+	if span.Process == nil || span.Process.ServiceName == "" {
 		serviceName = unknownServiceName
 	} else {
 		serviceName = span.Process.ServiceName

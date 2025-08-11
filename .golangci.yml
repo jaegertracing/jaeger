@@ -83,7 +83,6 @@ linters:
         - typeAssertChain
         - unnamedResult
         - whyNoLint
-        - yodaStyleExpr
       enable-all: true
     gosec:
       excludes:
