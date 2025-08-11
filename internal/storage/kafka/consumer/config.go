@@ -48,7 +48,7 @@ func (c *Configuration) NewConsumer(logger *zap.Logger) (Consumer, error) {
 	saramaConfig.ClientID = c.ClientID
 	saramaConfig.RackID = c.RackID
 	saramaConfig.Consumer.Fetch.Default = c.FetchMaxMessageBytes
-	if len(c.ProtocolVersion) > 0 {
+	if c.ProtocolVersion != "" {
 		ver, err := sarama.ParseKafkaVersion(c.ProtocolVersion)
 		if err != nil {
 			return nil, err

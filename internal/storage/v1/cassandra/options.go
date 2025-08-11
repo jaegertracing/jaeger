@@ -249,7 +249,7 @@ func (opt *Options) GetConfig() config.Configuration {
 
 // TagIndexBlacklist returns the list of blacklisted tags
 func (opt *Options) TagIndexBlacklist() []string {
-	if len(opt.Index.TagBlackList) > 0 {
+	if opt.Index.TagBlackList != "" {
 		return strings.Split(opt.Index.TagBlackList, ",")
 	}
 
@@ -258,7 +258,7 @@ func (opt *Options) TagIndexBlacklist() []string {
 
 // TagIndexWhitelist returns the list of whitelisted tags
 func (opt *Options) TagIndexWhitelist() []string {
-	if len(opt.Index.TagWhiteList) > 0 {
+	if opt.Index.TagWhiteList != "" {
 		return strings.Split(opt.Index.TagWhiteList, ",")
 	}
 

@@ -44,7 +44,7 @@ func (c *Configuration) NewProducer(logger *zap.Logger) (sarama.AsyncProducer, e
 	saramaConfig.Producer.Flush.Messages = c.BatchMinMessages
 	saramaConfig.Producer.Flush.MaxMessages = c.BatchMaxMessages
 	saramaConfig.Producer.MaxMessageBytes = c.MaxMessageBytes
-	if len(c.ProtocolVersion) > 0 {
+	if c.ProtocolVersion != "" {
 		ver, err := sarama.ParseKafkaVersion(c.ProtocolVersion)
 		if err != nil {
 			return nil, err

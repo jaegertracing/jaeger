@@ -70,7 +70,6 @@ linters:
         - commentedOutCode
         - deferInLoop
         - dupArg
-        - emptyStringTest
         - exitAfterDefer
         - exposedSyncMutex
         - httpNoBody
