@@ -24,9 +24,9 @@ const defaultFollowerProbabilityInterval = 20 * time.Second
 // Provider relies on sampling probabilities being periodically updated by the
 // aggregator & post-aggregator.
 type Provider struct {
-	sync.RWMutex
 	Options
 
+	mu                  sync.RWMutex
 	electionParticipant leaderelection.ElectionParticipant
 	storage             samplingstore.Store
 	logger              *zap.Logger
@@ -82,8 +82,8 @@ func (p *Provider) loadProbabilities() {
 		p.logger.Warn("failed to initialize probabilities", zap.Error(err))
 		return
 	}
-	p.Lock()
-	defer p.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	p.probabilities = probabilities
 }
 
@@ -119,7 +119,7 @@ func (p *Provider) isLeader() bool {
 
 // generateStrategyResponses generates and caches SamplingStrategyResponse from the calculated sampling probabilities.
 func (p *Provider) generateStrategyResponses() {
-	p.RLock()
+	p.mu.RLock()
 	strategies := make(map[string]*api_v2.SamplingStrategyResponse)
 	for svc, opProbabilities := range p.probabilities {
 		opStrategies := make([]*api_v2.OperationSamplingStrategy, len(opProbabilities))
@@ -137,10 +137,10 @@ func (p *Provider) generateStrategyResponses() {
 		strategy.OperationSampling.PerOperationStrategies = opStrategies
 		strategies[svc] = strategy
 	}
-	p.RUnlock()
+	p.mu.RUnlock()
 
-	p.Lock()
-	defer p.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	p.strategyResponses = strategies
 }
 
@@ -156,8 +156,8 @@ func (p *Provider) generateDefaultSamplingStrategyResponse() *api_v2.SamplingStr
 
 // GetSamplingStrategy implements protobuf endpoint for retrieving sampling strategy for a service.
 func (p *Provider) GetSamplingStrategy(_ context.Context, service string) (*api_v2.SamplingStrategyResponse, error) {
-	p.RLock()
-	defer p.RUnlock()
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 	if strategy, ok := p.strategyResponses[service]; ok {
 		return strategy, nil
 	}

@@ -71,18 +71,13 @@ linters:
         - deferInLoop
         - dupArg
         - exitAfterDefer
-        - exposedSyncMutex
         - hugeParam
         - importShadow
-        - nestingReduce
-        - paramTypeCombine
+        - paramTypeCombine # WON'T FIX
         - rangeValCopy
-        - regexpSimplify
         - returnAfterHttpError
         - todoCommentWithoutDetail
-        - typeAssertChain
         - unnamedResult
-        - whyNoLint
       enable-all: true
     gosec:
       excludes:
