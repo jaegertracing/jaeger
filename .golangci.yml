@@ -22,12 +22,12 @@ linters:
     - nolintlint
     - perfsprint
     - revive
+    - staticcheck
     - testifylint
     - usestdlibvars
     - usetesting
   disable:
     - errcheck
-    - staticcheck
   settings:
     depguard:
       rules:
@@ -143,6 +143,21 @@ linters:
         # this rule conflicts with nolintlint which does insist on no-space in //nolint
         - name: comment-spacings
           disabled: true
+    staticcheck:
+      checks:
+        - all
+        - -QF1001 # Apply De Morgan’s law
+        - -QF1003 # Convert if/else-if chain to tagged switch
+        - -QF1006 # Lift if+break into loop condition
+        - -QF1008 # Omit embedded fields from selector expression
+        - -QF1009 # Use time.Time.Equal instead of == operator
+        - -QF1010 # Convert slice of bytes to string when printing it
+        - -QF1011 # Omit redundant type from variable declaration
+        - -SA1019 # Using a deprecated function, variable, constant or field
+        - -ST1003 # Poorly chosen identifier
+        - -ST1005 # Incorrectly formatted error string
+        - -ST1016 # Use consistent method receiver names
+        - -ST1023 # Redundant type in variable declaration
     testifylint:
       enable-all: true
   exclusions:
