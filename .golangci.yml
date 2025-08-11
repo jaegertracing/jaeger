@@ -22,12 +22,12 @@ linters:
     - nolintlint
     - perfsprint
     - revive
+    - staticcheck
     - testifylint
     - usestdlibvars
     - usetesting
   disable:
     - errcheck
-    - staticcheck
   settings:
     depguard:
       rules:
@@ -143,6 +143,13 @@ linters:
         # this rule conflicts with nolintlint which does insist on no-space in //nolint
         - name: comment-spacings
           disabled: true
+    staticcheck:
+      checks:
+        - all
+        - -QF1008 # Omit embedded fields from selector expression
+        - -SA1019 # Using a deprecated function, variable, constant or field
+        - -ST1003 # Poorly chosen identifier
+        - -ST1005 # Incorrectly formatted error string
     testifylint:
       enable-all: true
   exclusions:

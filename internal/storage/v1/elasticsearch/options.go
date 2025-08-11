@@ -148,10 +148,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		passwordPath                string
 		tokenPath                   string
 		bearerTokenAllowFromContext bool
-		bearerTokenReloadInterval   time.Duration = 10 * time.Second
-		passwordReloadInterval      time.Duration = 10 * time.Second
+		bearerTokenReloadInterval   = 10 * time.Second
+		passwordReloadInterval      = 10 * time.Second
 		apiKeyPath                  string
-		apiKeyReloadInterval        time.Duration = 10 * time.Second
+		apiKeyReloadInterval        = 10 * time.Second
 		apiKeyAllowFromContext      bool
 	)
 	if nsConfig.Authentication.APIKeyAuth.HasValue() {

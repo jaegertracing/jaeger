@@ -113,8 +113,8 @@ func TestProtoToTraces_AddsWarnings(t *testing.T) {
 
 func TestV1TracesFromSeq2(t *testing.T) {
 	var (
-		processNoServiceName string    = "OTLPResourceNoServiceName"
-		startTime            time.Time = time.Unix(0, 0) // 1970-01-01T00:00:00Z, matches the default for otel span's start time
+		processNoServiceName = "OTLPResourceNoServiceName"
+		startTime            = time.Unix(0, 0) // 1970-01-01T00:00:00Z, matches the default for otel span's start time
 	)
 
 	testCases := []struct {
