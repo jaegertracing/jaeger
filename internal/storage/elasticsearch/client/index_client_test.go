@@ -156,7 +156,7 @@ func TestClientGetIndices(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				sort.Slice(indices, func(i, j int) bool {
-					return strings.Compare(indices[i].Index, indices[j].Index) < 0
+					return indices[i].Index < indices[j].Index
 				})
 				assert.Equal(t, test.indices, indices)
 			}
