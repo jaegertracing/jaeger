@@ -73,7 +73,7 @@ linters:
         - exitAfterDefer
         - hugeParam
         - importShadow
-        - paramTypeCombine
+        - paramTypeCombine # WON'T FIX
         - rangeValCopy
         - regexpSimplify
         - returnAfterHttpError
