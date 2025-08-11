@@ -26,8 +26,8 @@ func (f *Factory) AssertCounterMetrics(t *testing.T, expectedMetrics ...Expected
 }
 
 // AssertGaugeMetrics checks if gauge metrics exist.
-func (f *Factory) AssertGaugeMetrics(t *testing.T, expectedMetrics ...ExpectedMetric) {
-	_, gauges := f.Snapshot()
+func (l *Factory) AssertGaugeMetrics(t *testing.T, expectedMetrics ...ExpectedMetric) {
+	_, gauges := l.Snapshot()
 	assertMetrics(t, gauges, expectedMetrics...)
 }
 
