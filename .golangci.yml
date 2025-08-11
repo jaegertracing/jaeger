@@ -82,7 +82,6 @@ linters:
         - todoCommentWithoutDetail
         - typeAssertChain
         - unnamedResult
-        - unnecessaryDefer
         - whyNoLint
         - yodaStyleExpr
       enable-all: true

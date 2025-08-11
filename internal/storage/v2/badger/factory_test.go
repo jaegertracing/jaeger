@@ -61,5 +61,5 @@ func TestBadgerStorageFactoryWithConfig(t *testing.T) {
 	}
 	factory, err := NewFactory(cfg, metrics.NullFactory, zaptest.NewLogger(t))
 	require.NoError(t, err)
-	defer factory.Close()
+	factory.Close()
 }
