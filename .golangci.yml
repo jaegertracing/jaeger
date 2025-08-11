@@ -76,7 +76,6 @@ linters:
         - importShadow
         - nestingReduce
         - paramTypeCombine
-        - preferFilepathJoin
         - preferStringWriter
         - rangeValCopy
         - redundantSprint
