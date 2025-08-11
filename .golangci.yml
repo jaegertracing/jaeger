@@ -71,7 +71,6 @@ linters:
         - deferInLoop
         - dupArg
         - exitAfterDefer
-        - exposedSyncMutex
         - hugeParam
         - importShadow
         - nestingReduce
