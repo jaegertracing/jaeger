@@ -146,7 +146,6 @@ linters:
     staticcheck:
       checks:
         - all
-        - -QF1006 # Lift if+break into loop condition
         - -QF1008 # Omit embedded fields from selector expression
         - -QF1009 # Use time.Time.Equal instead of == operator
         - -QF1010 # Convert slice of bytes to string when printing it
