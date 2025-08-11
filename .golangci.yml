@@ -147,7 +147,6 @@ linters:
       checks:
         - all
         - -QF1008 # Omit embedded fields from selector expression
-        - -QF1009 # Use time.Time.Equal instead of == operator
         - -QF1010 # Convert slice of bytes to string when printing it
         - -QF1011 # Omit redundant type from variable declaration
         - -SA1019 # Using a deprecated function, variable, constant or field
