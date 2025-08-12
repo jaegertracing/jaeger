@@ -40,7 +40,7 @@ helm upgrade --install --force jaeger ./helm-charts/charts/jaeger \
   --set allInOne.enabled=true \
   --set storage.type=memory \
   --set-file userconfig="./config.yaml" \
-  --set-file uiconfig="./ui-config.json" \45
+  --set-file uiconfig="./ui-config.json" \
   -f ./jaeger-values.yaml
 
 # Deploy Prometheus Monitoring Stack
