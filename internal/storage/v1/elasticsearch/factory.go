@@ -108,8 +108,8 @@ func (f *FactoryBase) getClient() es.Client {
 }
 
 // GetSpanReaderParams returns the SpanReaderParams which can be used to initialize the v1 and v2 readers.
-func (f *FactoryBase) GetSpanReaderParams() esSpanStore.SpanReaderParams {
-	return esSpanStore.SpanReaderParams{
+func (f *FactoryBase) GetSpanReaderParams() *esSpanStore.SpanReaderParams {
+	return &esSpanStore.SpanReaderParams{
 		Client:              f.getClient,
 		MaxDocCount:         f.config.MaxDocCount,
 		MaxSpanAge:          f.config.MaxSpanAge,
@@ -126,8 +126,8 @@ func (f *FactoryBase) GetSpanReaderParams() esSpanStore.SpanReaderParams {
 }
 
 // GetSpanWriterParams returns the SpanWriterParams which can be used to initialize the v1 and v2 writers.
-func (f *FactoryBase) GetSpanWriterParams() esSpanStore.SpanWriterParams {
-	return esSpanStore.SpanWriterParams{
+func (f *FactoryBase) GetSpanWriterParams() *esSpanStore.SpanWriterParams {
+	return &esSpanStore.SpanWriterParams{
 		Client:              f.getClient,
 		IndexPrefix:         f.config.Indices.IndexPrefix,
 		SpanIndex:           f.config.Indices.Spans,

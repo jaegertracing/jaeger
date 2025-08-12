@@ -40,7 +40,7 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 		client:    client,
 		logger:    logger,
 		logBuffer: logBuffer,
-		writer: NewSpanWriter(SpanWriterParams{
+		writer: NewSpanWriter(&SpanWriterParams{
 			Client: func() es.Client { return client },
 			Logger: logger, MetricsFactory: metricsFactory,
 			SpanIndex:    config.IndexOptions{DateLayout: "2006-01-02"},
@@ -68,24 +68,24 @@ func TestSpanWriterIndices(t *testing.T) {
 
 	testCases := []struct {
 		indices []string
-		params  SpanWriterParams
+		params  *SpanWriterParams
 	}{
 		{
-			params: SpanWriterParams{
+			params: &SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts,
 			},
 			indices: []string{spanIndexBaseName + spanDataLayoutFormat, serviceIndexBaseName + serviceDataLayoutFormat},
 		},
 		{
-			params: SpanWriterParams{
+			params: &SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, UseReadWriteAliases: true,
 			},
 			indices: []string{spanIndexBaseName + "write", serviceIndexBaseName + "write"},
 		},
 		{
-			params: SpanWriterParams{
+			params: &SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts,
 				WriteAliasSuffix: "archive", // ignored because UseReadWriteAliases is false
@@ -93,28 +93,28 @@ func TestSpanWriterIndices(t *testing.T) {
 			indices: []string{spanIndexBaseName + spanDataLayoutFormat, serviceIndexBaseName + serviceDataLayoutFormat},
 		},
 		{
-			params: SpanWriterParams{
+			params: &SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:",
 			},
 			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + spanDataLayoutFormat, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + serviceDataLayoutFormat},
 		},
 		{
-			params: SpanWriterParams{
+			params: &SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", UseReadWriteAliases: true,
 			},
 			indices: []string{"foo:-" + spanIndexBaseName + "write", "foo:-" + serviceIndexBaseName + "write"},
 		},
 		{
-			params: SpanWriterParams{
+			params: &SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, WriteAliasSuffix: "archive", UseReadWriteAliases: true,
 			},
 			indices: []string{spanIndexBaseName + "archive", serviceIndexBaseName + "archive"},
 		},
 		{
-			params: SpanWriterParams{
+			params: &SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", WriteAliasSuffix: "archive", UseReadWriteAliases: true,
 			},
@@ -290,7 +290,7 @@ func TestSpanWriterParamsTTL(t *testing.T) {
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
 			client := &mocks.Client{}
-			params := SpanWriterParams{
+			params := &SpanWriterParams{
 				Client:          func() es.Client { return client },
 				Logger:          logger,
 				MetricsFactory:  metricsFactory,
@@ -350,7 +350,7 @@ func TestTagMap(t *testing.T) {
 		},
 	}
 	dbSpan := dbmodel.Span{Tags: tags, Process: dbmodel.Process{Tags: tags}}
-	converter := NewSpanWriter(SpanWriterParams{
+	converter := NewSpanWriter(&SpanWriterParams{
 		Logger:            zap.NewNop(),
 		MetricsFactory:    metrics.NullFactory,
 		AllTagsAsFields:   false,
@@ -431,7 +431,7 @@ func TestNewSpanTags(t *testing.T) {
 			params := test.params
 			params.Logger = zap.NewNop()
 			params.MetricsFactory = metrics.NullFactory
-			writer := NewSpanWriter(params)
+			writer := NewSpanWriter(&params)
 			writer.convertNestedTagsToFieldTags(mSpan)
 			assert.Equal(t, test.expected.Tag, mSpan.Tag)
 			assert.Equal(t, test.expected.Tags, mSpan.Tags)

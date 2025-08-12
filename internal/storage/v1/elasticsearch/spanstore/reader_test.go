@@ -108,7 +108,7 @@ func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 		logger:      logger,
 		logBuffer:   logBuffer,
 		traceBuffer: exp,
-		reader: NewSpanReader(SpanReaderParams{
+		reader: NewSpanReader(&SpanReaderParams{
 			Client:            func() es.Client { return client },
 			Logger:            zap.NewNop(),
 			Tracer:            tracer.Tracer("test"),
@@ -130,7 +130,7 @@ func withArchiveSpanReader(t *testing.T, readAlias bool, readAliasSuffix string,
 		logger:      logger,
 		logBuffer:   logBuffer,
 		traceBuffer: exp,
-		reader: NewSpanReader(SpanReaderParams{
+		reader: NewSpanReader(&SpanReaderParams{
 			Client:              func() es.Client { return client },
 			Logger:              zap.NewNop(),
 			Tracer:              tracer.Tracer("test"),
@@ -169,7 +169,7 @@ func TestNewSpanReader(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			params := test.params
 			params.Logger = zaptest.NewLogger(t)
-			reader := NewSpanReader(params)
+			reader := NewSpanReader(&params)
 			require.NotNil(t, reader)
 			assert.Equal(t, test.maxSpanAge, reader.maxSpanAge)
 		})
@@ -289,7 +289,7 @@ func TestSpanReaderIndices(t *testing.T) {
 		testCase.params.Client = clientFn
 		testCase.params.Logger = logger
 		testCase.params.Tracer = tracer.Tracer("test")
-		r := NewSpanReader(testCase.params)
+		r := NewSpanReader(&testCase.params)
 
 		actualSpan := r.timeRangeIndices(r.spanIndexPrefix, r.spanIndex.DateLayout, date, date, -1*time.Hour)
 		actualService := r.timeRangeIndices(r.serviceIndexPrefix, r.serviceIndex.DateLayout, date, date, -24*time.Hour)
@@ -689,10 +689,10 @@ func returnSearchFunc(typ string, r *spanReaderTest) (any, error) {
 	case operationsAggregation:
 		return r.reader.GetOperations(
 			context.Background(),
-			dbmodel.OperationQueryParameters{ServiceName: "someService"},
+			&dbmodel.OperationQueryParameters{ServiceName: "someService"},
 		)
 	case traceIDAggregation:
-		return r.reader.findTraceIDs(context.Background(), dbmodel.TraceQueryParameters{})
+		return r.reader.findTraceIDs(context.Background(), &dbmodel.TraceQueryParameters{})
 	default:
 		return nil, errors.New("Specify services, operations, traceIDs only")
 	}
@@ -748,7 +748,7 @@ func TestSpanReader_FindTraces(t *testing.T) {
 				},
 			}, nil)
 
-		traceQuery := dbmodel.TraceQueryParameters{
+		traceQuery := &dbmodel.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",
@@ -794,7 +794,7 @@ func TestSpanReader_FindTracesInvalidQuery(t *testing.T) {
 				},
 			}, nil)
 
-		traceQuery := dbmodel.TraceQueryParameters{
+		traceQuery := &dbmodel.TraceQueryParameters{
 			ServiceName: "",
 			Tags: map[string]string{
 				"hello": "world",
@@ -827,7 +827,7 @@ func TestSpanReader_FindTracesAggregationFailure(t *testing.T) {
 				Responses: []*elastic.SearchResult{},
 			}, nil)
 
-		traceQuery := dbmodel.TraceQueryParameters{
+		traceQuery := &dbmodel.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",
@@ -862,7 +862,7 @@ func TestSpanReader_FindTracesNoTraceIDs(t *testing.T) {
 				Responses: []*elastic.SearchResult{},
 			}, nil)
 
-		traceQuery := dbmodel.TraceQueryParameters{
+		traceQuery := &dbmodel.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",
@@ -896,7 +896,7 @@ func TestSpanReader_FindTracesReadTraceFailure(t *testing.T) {
 		mockMultiSearchService(r).
 			Return(nil, errors.New("read error"))
 
-		traceQuery := dbmodel.TraceQueryParameters{
+		traceQuery := &dbmodel.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",
@@ -935,7 +935,7 @@ func TestSpanReader_FindTracesSpanCollectionFailure(t *testing.T) {
 				},
 			}, nil)
 
-		traceQuery := dbmodel.TraceQueryParameters{
+		traceQuery := &dbmodel.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",
@@ -1015,7 +1015,7 @@ func mockSearchService(r *spanReaderTest) *mock.Call {
 }
 
 func TestTraceQueryParameterValidation(t *testing.T) {
-	tqp := dbmodel.TraceQueryParameters{
+	tqp := &dbmodel.TraceQueryParameters{
 		ServiceName: "",
 		Tags: map[string]string{
 			"hello": "world",
@@ -1073,7 +1073,7 @@ func TestSpanReader_buildTraceIDAggregation(t *testing.T) {
 
 func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		traceQuery := dbmodel.TraceQueryParameters{
+		traceQuery := &dbmodel.TraceQueryParameters{
 			DurationMin:   time.Second,
 			DurationMax:   time.Second * 2,
 			StartTimeMin:  time.Time{},
@@ -1232,7 +1232,7 @@ func TestSpanReader_GetEmptyIndex(t *testing.T) {
 				Responses: []*elastic.SearchResult{},
 			}, nil)
 
-		traceQuery := dbmodel.TraceQueryParameters{
+		traceQuery := &dbmodel.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",
@@ -1357,7 +1357,7 @@ func TestTagsMap(t *testing.T) {
 		{fieldTags: map[string]any{"binary:binary": []byte("foo")}, expected: dbmodel.KeyValue{Key: "binary.binary", Value: []byte("foo"), Type: dbmodel.BinaryType}},
 		{fieldTags: map[string]any{"unsupported": struct{}{}}, expected: dbmodel.KeyValue{Key: "unsupported", Value: fmt.Sprintf("invalid tag type in %+v", struct{}{}), Type: dbmodel.StringType}},
 	}
-	reader := NewSpanReader(SpanReaderParams{
+	reader := NewSpanReader(&SpanReaderParams{
 		TagDotReplacement: ":",
 		Logger:            zap.NewNop(),
 	})

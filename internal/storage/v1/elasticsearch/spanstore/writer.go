@@ -65,7 +65,7 @@ type SpanWriterParams struct {
 }
 
 // NewSpanWriter creates a new SpanWriter for use
-func NewSpanWriter(p SpanWriterParams) *SpanWriter {
+func NewSpanWriter(p *SpanWriterParams) *SpanWriter {
 	serviceCacheTTL := p.ServiceCacheTTL
 	if p.ServiceCacheTTL == 0 {
 		serviceCacheTTL = serviceCacheTTLDefault
@@ -101,7 +101,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 // spanAndServiceIndexFn returns names of span and service indices
 type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
 
-func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServiceIndexFn {
+func getSpanAndServiceIndexFn(p *SpanWriterParams, writeAlias string) spanAndServiceIndexFn {
 	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
 	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
 	if p.UseReadWriteAliases {

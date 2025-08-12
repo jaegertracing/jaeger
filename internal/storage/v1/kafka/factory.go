@@ -27,7 +27,7 @@ var ( // interface comformance checks
 
 // Factory implements storage.Factory and creates write-only storage components backed by kafka.
 type Factory struct {
-	options Options
+	options *Options
 
 	metricsFactory metrics.Factory
 	logger         *zap.Logger
@@ -54,7 +54,7 @@ func (f *Factory) InitFromViper(v *viper.Viper, _ *zap.Logger) {
 }
 
 // configureFromOptions initializes factory from options.
-func (f *Factory) configureFromOptions(o Options) {
+func (f *Factory) configureFromOptions(o *Options) {
 	f.options = o
 	f.Builder = &f.options.Config
 }

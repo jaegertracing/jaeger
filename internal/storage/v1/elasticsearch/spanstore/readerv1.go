@@ -21,7 +21,7 @@ type SpanReaderV1 struct {
 }
 
 // NewSpanReaderV1 returns an instance of SpanReaderV1
-func NewSpanReaderV1(p SpanReaderParams) *SpanReaderV1 {
+func NewSpanReaderV1(p *SpanReaderParams) *SpanReaderV1 {
 	return &SpanReaderV1{
 		spanReader:    NewSpanReader(p),
 		spanConverter: NewToDomain(),
@@ -61,7 +61,7 @@ func (s *SpanReaderV1) GetOperations(
 	ctx context.Context,
 	query spanstore.OperationQueryParameters,
 ) ([]spanstore.Operation, error) {
-	dbmodelQuery := dbmodel.OperationQueryParameters{
+	dbmodelQuery := &dbmodel.OperationQueryParameters{
 		ServiceName: query.ServiceName,
 		SpanKind:    query.SpanKind,
 	}
@@ -111,8 +111,8 @@ func (s *SpanReaderV1) FindTraceIDs(ctx context.Context, traceQuery *spanstore.T
 	return toModelTraceIDs(ids)
 }
 
-func toDbQueryParams(p *spanstore.TraceQueryParameters) dbmodel.TraceQueryParameters {
-	return dbmodel.TraceQueryParameters{
+func toDbQueryParams(p *spanstore.TraceQueryParameters) *dbmodel.TraceQueryParameters {
+	return &dbmodel.TraceQueryParameters{
 		ServiceName:   p.ServiceName,
 		OperationName: p.OperationName,
 		Tags:          p.Tags,

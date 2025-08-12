@@ -14,7 +14,7 @@ type SpanWriterV1 struct {
 }
 
 // NewSpanWriterV1 returns the SpanWriterV1 for use
-func NewSpanWriterV1(p SpanWriterParams) *SpanWriterV1 {
+func NewSpanWriterV1(p *SpanWriterParams) *SpanWriterV1 {
 	return &SpanWriterV1{
 		spanWriter: NewSpanWriter(p),
 	}

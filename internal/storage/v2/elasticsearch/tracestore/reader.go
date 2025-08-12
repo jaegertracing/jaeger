@@ -20,7 +20,7 @@ type TraceReader struct {
 }
 
 // NewTraceReader returns an instance of TraceReader
-func NewTraceReader(p spanstore.SpanReaderParams) *TraceReader {
+func NewTraceReader(p *spanstore.SpanReaderParams) *TraceReader {
 	return &TraceReader{
 		spanReader: spanstore.NewSpanReader(p),
 	}
@@ -55,7 +55,7 @@ func (t *TraceReader) GetServices(ctx context.Context) ([]string, error) {
 }
 
 func (t *TraceReader) GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
-	dbOperations, err := t.spanReader.GetOperations(ctx, dbmodel.OperationQueryParameters{
+	dbOperations, err := t.spanReader.GetOperations(ctx, &dbmodel.OperationQueryParameters{
 		ServiceName: query.ServiceName,
 		SpanKind:    query.SpanKind,
 	})
@@ -114,12 +114,12 @@ func (t *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQu
 	}
 }
 
-func toDBTraceQueryParams(query tracestore.TraceQueryParams) dbmodel.TraceQueryParameters {
+func toDBTraceQueryParams(query tracestore.TraceQueryParams) *dbmodel.TraceQueryParameters {
 	tags := make(map[string]string)
 	for key, val := range query.Attributes.All() {
 		tags[key] = val.AsString()
 	}
-	return dbmodel.TraceQueryParameters{
+	return &dbmodel.TraceQueryParameters{
 		ServiceName:   query.ServiceName,
 		OperationName: query.OperationName,
 		StartTimeMin:  query.StartTimeMin,

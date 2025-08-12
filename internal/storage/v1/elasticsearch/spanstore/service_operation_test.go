@@ -112,7 +112,7 @@ func TestSpanReader_GetOperationsEmptyIndex(t *testing.T) {
 			}, nil)
 		services, err := r.reader.GetOperations(
 			context.Background(),
-			dbmodel.OperationQueryParameters{ServiceName: "foo"},
+			&dbmodel.OperationQueryParameters{ServiceName: "foo"},
 		)
 		require.NoError(t, err)
 		assert.Empty(t, services)

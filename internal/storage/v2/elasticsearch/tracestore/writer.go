@@ -17,7 +17,7 @@ type TraceWriter struct {
 }
 
 // NewTraceWriter returns the TraceWriter for use
-func NewTraceWriter(p spanstore.SpanWriterParams) *TraceWriter {
+func NewTraceWriter(p *spanstore.SpanWriterParams) *TraceWriter {
 	return &TraceWriter{
 		spanWriter: spanstore.NewSpanWriter(p),
 	}

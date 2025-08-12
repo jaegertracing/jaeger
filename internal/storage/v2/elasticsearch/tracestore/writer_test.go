@@ -41,7 +41,7 @@ func TestTraceWriter_Close(t *testing.T) {
 }
 
 func Test_NewTraceWriter(t *testing.T) {
-	params := spanstore.SpanWriterParams{
+	params := &spanstore.SpanWriterParams{
 		Logger:         zap.NewNop(),
 		MetricsFactory: metrics.NullFactory,
 	}

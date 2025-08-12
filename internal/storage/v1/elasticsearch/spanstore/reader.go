@@ -129,7 +129,7 @@ type SpanReaderParams struct {
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
-func NewSpanReader(p SpanReaderParams) *SpanReader {
+func NewSpanReader(p *SpanReaderParams) *SpanReader {
 	maxSpanAge := p.MaxSpanAge
 	// Setting the maxSpanAge to a large duration will ensure all spans in the "read" alias are accessible by queries (query window = [now - maxSpanAge, now]).
 	// When read/write aliases are enabled, which are required for index rollovers, only the "read" alias is queried and therefore should not affect performance.
@@ -297,7 +297,7 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (s *SpanReader) GetOperations(
 	ctx context.Context,
-	query dbmodel.OperationQueryParameters,
+	query *dbmodel.OperationQueryParameters,
 ) ([]dbmodel.Operation, error) {
 	ctx, span := s.tracer.Start(ctx, "GetOperations")
 	defer span.End()
@@ -338,7 +338,7 @@ func bucketToStringArray[T ~string](buckets []*elastic.AggregationBucketKeyItem)
 }
 
 // FindTraces retrieves traces that match the traceQuery
-func (s *SpanReader) FindTraces(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.Trace, error) {
+func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *dbmodel.TraceQueryParameters) ([]dbmodel.Trace, error) {
 	ctx, span := s.tracer.Start(ctx, "FindTraces")
 	defer span.End()
 
@@ -350,7 +350,7 @@ func (s *SpanReader) FindTraces(ctx context.Context, traceQuery dbmodel.TraceQue
 }
 
 // FindTraceIDs retrieves traces IDs that match the traceQuery
-func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error) {
+func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error) {
 	ctx, span := s.tracer.Start(ctx, "FindTraceIDs")
 	defer span.End()
 
@@ -476,7 +476,7 @@ func buildTraceByIDQuery(traceID dbmodel.TraceID) elastic.Query {
 		elastic.NewTermQuery(traceIDField, legacyTraceID))
 }
 
-func validateQuery(p dbmodel.TraceQueryParameters) error {
+func validateQuery(p *dbmodel.TraceQueryParameters) error {
 	if p.ServiceName == "" && len(p.Tags) > 0 {
 		return ErrServiceNameNotSet
 	}
@@ -492,7 +492,7 @@ func validateQuery(p dbmodel.TraceQueryParameters) error {
 	return nil
 }
 
-func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error) {
+func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error) {
 	ctx, childSpan := s.tracer.Start(ctx, "findTraceIDs")
 	defer childSpan.End()
 	//  Below is the JSON body to our HTTP GET request to ElasticSearch. This function creates this.
@@ -595,7 +595,7 @@ func (*SpanReader) buildTraceIDSubAggregation() elastic.Aggregation {
 		Field(startTimeField)
 }
 
-func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParameters) elastic.Query {
+func (s *SpanReader) buildFindTraceIDsQuery(traceQuery *dbmodel.TraceQueryParameters) elastic.Query {
 	boolQuery := elastic.NewBoolQuery()
 
 	// add duration query
