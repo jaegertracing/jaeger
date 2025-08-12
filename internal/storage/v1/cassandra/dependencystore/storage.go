@@ -78,7 +78,7 @@ func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.D
 		deps[i] = Dependency{
 			Parent: d.Parent,
 			Child:  d.Child,
-			//nolint: gosec // G115
+			//nolint:gosec // G115
 			CallCount: int64(d.CallCount),
 			Source:    string(d.Source),
 		}
@@ -118,7 +118,7 @@ func (s *DependencyStore) GetDependencies(_ context.Context, endTs time.Time, lo
 			dl := model.DependencyLink{
 				Parent: dependency.Parent,
 				Child:  dependency.Child,
-				//nolint: gosec // G115
+				//nolint:gosec // G115
 				CallCount: uint64(dependency.CallCount),
 				Source:    dependency.Source,
 			}.ApplyDefaults()

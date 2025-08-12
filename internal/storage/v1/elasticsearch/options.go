@@ -148,10 +148,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		passwordPath                string
 		tokenPath                   string
 		bearerTokenAllowFromContext bool
-		bearerTokenReloadInterval   time.Duration = 10 * time.Second
-		passwordReloadInterval      time.Duration = 10 * time.Second
+		bearerTokenReloadInterval   = 10 * time.Second
+		passwordReloadInterval      = 10 * time.Second
 		apiKeyPath                  string
-		apiKeyReloadInterval        time.Duration = 10 * time.Second
+		apiKeyReloadInterval        = 10 * time.Second
 		apiKeyAllowFromContext      bool
 	)
 	if nsConfig.Authentication.APIKeyAuth.HasValue() {
@@ -477,7 +477,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.UseILM = v.GetBool(cfg.namespace + suffixUseILM)
 
 	remoteReadClusters := stripWhiteSpace(v.GetString(cfg.namespace + suffixRemoteReadClusters))
-	if len(remoteReadClusters) > 0 {
+	if remoteReadClusters != "" {
 		cfg.RemoteReadClusters = strings.Split(remoteReadClusters, ",")
 	}
 

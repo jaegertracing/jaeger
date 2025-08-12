@@ -75,7 +75,7 @@ func TestNew(t *testing.T) {
 	require.NoError(t, err)
 	defer file.Close()
 
-	_, err = file.Write([]byte(`
+	_, err = file.WriteString(`
 {
     "services": {
 		"api": "hashed_api"
@@ -84,7 +84,7 @@ func TestNew(t *testing.T) {
 		"[api]:delete": "hashed_api_delete"
 	}
 }
-`))
+`)
 	require.NoError(t, err)
 
 	anonymizer := New(file.Name(), Options{}, nopLogger)

@@ -67,7 +67,8 @@ func (h *Handler) GetTraces(
 		}
 		for _, trace := range traces {
 			td := jptrace.TracesData(trace)
-			if err = srv.Send(&td); err != nil {
+			err = srv.Send(&td)
+			if err != nil {
 				return err
 			}
 		}
@@ -121,7 +122,8 @@ func (h *Handler) FindTraces(
 		}
 		for _, trace := range traces {
 			td := jptrace.TracesData(trace)
-			if err = srv.Send(&td); err != nil {
+			err = srv.Send(&td)
+			if err != nil {
 				return err
 			}
 		}

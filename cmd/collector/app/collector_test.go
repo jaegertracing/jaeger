@@ -30,7 +30,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
-var _ (io.Closer) = (*Collector)(nil)
+var _ io.Closer = (*Collector)(nil)
 
 func optionsForEphemeralPorts() *flags.CollectorOptions {
 	collectorOpts := &flags.CollectorOptions{

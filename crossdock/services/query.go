@@ -67,7 +67,8 @@ func (s *queryService) GetTraces(serviceName, operation string, tags map[string]
 	s.logger.Info("GetTraces: received response from query", zap.String("body", string(body)), zap.String("url", fmtURL))
 
 	var queryResponse response
-	if err = json.Unmarshal(body, &queryResponse); err != nil {
+	err = json.Unmarshal(body, &queryResponse)
+	if err != nil {
 		return nil, err
 	}
 	return queryResponse.Data, nil

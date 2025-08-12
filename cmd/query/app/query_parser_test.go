@@ -205,7 +205,7 @@ func TestParseTraceQuery(t *testing.T) {
 	for _, tc := range tests {
 		test := tc // capture loop var
 		t.Run(test.urlStr, func(t *testing.T) {
-			request, err := http.NewRequest(http.MethodGet, test.urlStr, nil)
+			request, err := http.NewRequest(http.MethodGet, test.urlStr, http.NoBody)
 			require.NoError(t, err)
 			parser := &queryParser{
 				timeNow: func() time.Time {
@@ -248,7 +248,7 @@ func TestParseBool(t *testing.T) {
 		{"0", false},
 	} {
 		t.Run(tc.input, func(t *testing.T) {
-			request, err := http.NewRequest(http.MethodGet, "x?service=foo&groupByOperation="+tc.input, nil)
+			request, err := http.NewRequest(http.MethodGet, "x?service=foo&groupByOperation="+tc.input, http.NoBody)
 			require.NoError(t, err)
 			timeNow := time.Now()
 			parser := &queryParser{
@@ -264,7 +264,7 @@ func TestParseBool(t *testing.T) {
 }
 
 func TestParseDuration(t *testing.T) {
-	request, err := http.NewRequest(http.MethodGet, "x?service=foo&step=1000", nil)
+	request, err := http.NewRequest(http.MethodGet, "x?service=foo&step=1000", http.NoBody)
 	require.NoError(t, err)
 	parser := &queryParser{
 		timeNow: time.Now,
@@ -275,7 +275,7 @@ func TestParseDuration(t *testing.T) {
 }
 
 func TestParseRepeatedServices(t *testing.T) {
-	request, err := http.NewRequest(http.MethodGet, "x?service=foo&service=bar", nil)
+	request, err := http.NewRequest(http.MethodGet, "x?service=foo&service=bar", http.NoBody)
 	require.NoError(t, err)
 	parser := &queryParser{
 		timeNow: time.Now,
@@ -287,7 +287,7 @@ func TestParseRepeatedServices(t *testing.T) {
 
 func TestParseRepeatedSpanKinds(t *testing.T) {
 	q := "x?service=foo&spanKind=unspecified&spanKind=internal&spanKind=server&spanKind=client&spanKind=producer&spanKind=consumer"
-	request, err := http.NewRequest(http.MethodGet, q, nil)
+	request, err := http.NewRequest(http.MethodGet, q, http.NoBody)
 	require.NoError(t, err)
 	parser := &queryParser{
 		timeNow: time.Now,

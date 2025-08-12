@@ -67,7 +67,7 @@ func (c *Client) request(esRequest elasticRequest) ([]byte, error) {
 		reader = bytes.NewBuffer(esRequest.body)
 		r, err = http.NewRequestWithContext(context.Background(), esRequest.method, fmt.Sprintf("%s/%s", c.Endpoint, esRequest.endpoint), reader)
 	} else {
-		r, err = http.NewRequestWithContext(context.Background(), esRequest.method, fmt.Sprintf("%s/%s", c.Endpoint, esRequest.endpoint), nil)
+		r, err = http.NewRequestWithContext(context.Background(), esRequest.method, fmt.Sprintf("%s/%s", c.Endpoint, esRequest.endpoint), http.NoBody)
 	}
 	if err != nil {
 		return []byte{}, err

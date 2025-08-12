@@ -149,7 +149,7 @@ func TestAdminServerTLS(t *testing.T) {
 				},
 			}
 			url := fmt.Sprintf("https://localhost:%d", ports.CollectorAdminHTTP)
-			req, err := http.NewRequest(http.MethodGet, url, nil)
+			req, err := http.NewRequest(http.MethodGet, url, http.NoBody)
 			require.NoError(t, err)
 			req.Close = true // avoid persistent connections which leak goroutines
 			response, requestError := client.Do(req)

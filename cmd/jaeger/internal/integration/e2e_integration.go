@@ -122,7 +122,7 @@ func (s *E2EStorageIntegration) scrapeMetrics(t *testing.T, storage string) {
 	}
 	metricsUrl := fmt.Sprintf("http://localhost:%d/metrics", metricsPort)
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, metricsUrl, nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, metricsUrl, http.NoBody)
 	require.NoError(t, err)
 
 	client := &http.Client{}
@@ -219,7 +219,7 @@ func purge(t *testing.T) {
 		addr = purgerAddr
 	}
 	t.Logf("Purging storage via %s", addr)
-	r, err := http.NewRequestWithContext(context.Background(), http.MethodPost, addr, nil)
+	r, err := http.NewRequestWithContext(context.Background(), http.MethodPost, addr, http.NoBody)
 	require.NoError(t, err)
 
 	client := &http.Client{}

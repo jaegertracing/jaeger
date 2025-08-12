@@ -416,7 +416,7 @@ func TestServerHTTPTLS(t *testing.T) {
 				}
 				querySvc.spanReader.On("FindTraces", mock.Anything, mock.Anything).Return([]*model.Trace{mockTrace}, nil).Once()
 				queryString := "/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms"
-				req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("https://%s/%s", server.HTTPAddr(), queryString), nil)
+				req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("https://%s/%s", server.HTTPAddr(), queryString), http.NoBody)
 				require.NoError(t, err)
 				req.Header.Add("Accept", "application/json")
 
@@ -764,7 +764,7 @@ func TestServerHTTPTenancy(t *testing.T) {
 			require.NoError(t, clientError)
 
 			queryString := "/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms"
-			req, err := http.NewRequest(http.MethodGet, "http://localhost:8080"+queryString, nil)
+			req, err := http.NewRequest(http.MethodGet, "http://localhost:8080"+queryString, http.NoBody)
 			if test.tenant != "" {
 				req.Header.Add(tenancyMgr.Header, test.tenant)
 			}
@@ -863,7 +863,7 @@ func TestServerHTTP_TracesRequest(t *testing.T) {
 				require.NoError(t, server.Close())
 			})
 
-			req, err := http.NewRequest(http.MethodGet, "http://localhost:8080"+test.queryString, nil)
+			req, err := http.NewRequest(http.MethodGet, "http://localhost:8080"+test.queryString, http.NoBody)
 			require.NoError(t, err)
 
 			client := &http.Client{}

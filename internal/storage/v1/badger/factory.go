@@ -238,12 +238,13 @@ func (f *Factory) metricsCopier() {
 		case <-metricsTicker.C:
 			expvar.Do(func(kv expvar.KeyValue) {
 				if strings.HasPrefix(kv.Key, "badger") {
-					if intVal, ok := kv.Value.(*expvar.Int); ok {
+					switch val := kv.Value.(type) {
+					case *expvar.Int:
 						if g, found := f.metrics.badgerMetrics[kv.Key]; found {
-							g.Update(intVal.Value())
+							g.Update(val.Value())
 						}
-					} else if mapVal, ok := kv.Value.(*expvar.Map); ok {
-						mapVal.Do(func(innerKv expvar.KeyValue) {
+					case *expvar.Map:
+						val.Do(func(innerKv expvar.KeyValue) {
 							// The metrics we're interested in have only a single inner key (dynamic name)
 							// and we're only interested in its value
 							if intVal, ok := innerKv.Value.(*expvar.Int); ok {
@@ -264,14 +265,15 @@ func (f *Factory) registerBadgerExpvarMetrics(metricsFactory metrics.Factory) {
 
 	expvar.Do(func(kv expvar.KeyValue) {
 		if strings.HasPrefix(kv.Key, "badger") {
-			if _, ok := kv.Value.(*expvar.Int); ok {
+			switch val := kv.Value.(type) {
+			case *expvar.Int:
 				g := metricsFactory.Gauge(metrics.Options{Name: kv.Key})
 				f.metrics.badgerMetrics[kv.Key] = g
-			} else if mapVal, ok := kv.Value.(*expvar.Map); ok {
-				mapVal.Do(func(innerKv expvar.KeyValue) {
+			case *expvar.Map:
+				val.Do(func(innerKv expvar.KeyValue) {
 					// The metrics we're interested in have only a single inner key (dynamic name)
 					// and we're only interested in its value
-					if _, ok = innerKv.Value.(*expvar.Int); ok {
+					if _, ok := innerKv.Value.(*expvar.Int); ok {
 						g := metricsFactory.Gauge(metrics.Options{Name: kv.Key})
 						f.metrics.badgerMetrics[kv.Key] = g
 					}
