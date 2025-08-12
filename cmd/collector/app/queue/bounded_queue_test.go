@@ -43,7 +43,7 @@ func helper(t *testing.T, startConsumers func(q *BoundedQueue[string], consumerF
 
 		// block further processing until startLock is released
 		startLock.Lock()
-		//nolint:staticcheck // empty section is ok
+		//nolint:gocritic,staticcheck // empty section is ok
 		startLock.Unlock()
 	})
 
