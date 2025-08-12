@@ -33,20 +33,28 @@ if [[ "$(basename $PWD)" != "oci" ]]; then
   fi
 fi
 
-# Deploy Jaeger (All-in-One with memory storage)
+# Uninstall and reinstall Jaeger (All-in-One with memory storage)
+echo "🟣 Step 1: Uninstalling existing Jaeger..."
+helm uninstall jaeger --ignore-not-found || true
+sleep 5
+
 echo "🟣 Step 1: Installing Jaeger..."
-helm upgrade --install --force jaeger ./helm-charts/charts/jaeger \
+helm install jaeger ./helm-charts/charts/jaeger \
   --set provisionDataStore.cassandra=false \
   --set allInOne.enabled=true \
   --set storage.type=memory \
   --set-file userconfig="./config.yaml" \
-  --set-file uiconfig="./ui-config.json" \45
+  --set-file uiconfig="./ui-config.json" \
   -f ./jaeger-values.yaml
 
-# Deploy Prometheus Monitoring Stack
+# Uninstall and reinstall Prometheus Monitoring Stack
+echo "🟢 Step 2: Uninstalling existing Prometheus..."
+helm uninstall prometheus --ignore-not-found || true
+sleep 5
+
 echo "🟢 Step 2: Deploying Prometheus Monitoring stack..."
 kubectl apply -f prometheus-svc.yaml
-helm upgrade --install --force prometheus -f monitoring-values.yaml prometheus-community/kube-prometheus-stack
+helm install prometheus -f monitoring-values.yaml prometheus-community/kube-prometheus-stack
 
 # Create ConfigMap for Trace Generator
 echo "🔵 Step 3: Creating ConfigMap for Trace Generator..."
