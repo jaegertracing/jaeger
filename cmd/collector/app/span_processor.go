@@ -277,7 +277,7 @@ func (sp *spanProcessor) processSpans(_ context.Context, batch processor.Batch, 
 	}
 
 	for i, mSpan := range spans {
-		if (batch.GetSpanFormat() == processor.JaegerSpanFormat){
+		if batch.GetSpanFormat() == processor.JaegerSpanFormat {
 			sp.sanitizer(mSpan)
 		}
 		ok := sp.enqueueSpan(mSpan, batch.GetSpanFormat(), batch.GetInboundTransport(), batch.GetTenant())
@@ -290,7 +290,7 @@ func (sp *spanProcessor) processSpans(_ context.Context, batch processor.Batch, 
 }
 
 func (sp *spanProcessor) processItemFromQueue(item queueItem) {
-    sp.processSpan(item.span, item.tenant)
+	sp.processSpan(item.span, item.tenant)
 	sp.metrics.InQueueLatency.Record(time.Since(item.queuedTime))
 }
 
