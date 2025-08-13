@@ -287,8 +287,7 @@ func (sp *spanProcessor) processSpans(_ context.Context, batch processor.Batch, 
 }
 
 func (sp *spanProcessor) processItemFromQueue(item queueItem) {
-	// TODO calling sanitizer here contradicts the comment in enqueueSpan about immutable Process.
-	sp.processSpan(sp.sanitizer(item.span), item.tenant)
+	sp.processSpan(item.span, item.tenant)
 	sp.metrics.InQueueLatency.Record(time.Since(item.queuedTime))
 }
 
