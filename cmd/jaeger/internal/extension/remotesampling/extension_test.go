@@ -443,7 +443,7 @@ func TestShutdownWithProviderError(t *testing.T) {
 // mockFailingProvider is a mock that always fails on Close()
 type mockFailingProvider struct{}
 
-func (*mockFailingProvider) GetSamplingStrategy(ctx context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
+func (*mockFailingProvider) GetSamplingStrategy(_ context.Context, _ string) (*api_v2.SamplingStrategyResponse, error) {
 	return &api_v2.SamplingStrategyResponse{}, nil
 }
 
