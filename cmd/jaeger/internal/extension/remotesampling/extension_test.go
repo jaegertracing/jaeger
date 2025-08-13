@@ -33,7 +33,6 @@ import (
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 
-	// "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/remotesampling"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 )
@@ -264,8 +263,6 @@ func TestDependencies(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []component.ID{jaegerstorage.ID}, ext.(*rsExtension).Dependencies())
 }
-
-// ===== ERROR HANDLING TESTS =====
 
 // TestStartFileBasedProviderError tests error handling in file-based provider startup
 func TestStartFileBasedProviderError(t *testing.T) {
