@@ -73,9 +73,9 @@ func (e *extractor) Run() error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal UI trace: %w", err)
 	}
-	e.uiFile.Write([]byte(`{"data": [`))
+	e.uiFile.WriteString(`{"data": [`)
 	e.uiFile.Write(jsonBytes)
-	e.uiFile.Write([]byte(`]}`))
+	e.uiFile.WriteString(`]}`)
 	e.uiFile.Sync()
 	e.uiFile.Close()
 	e.logger.Sugar().Infof("Wrote spans to UI file %s", e.uiFile.Name())

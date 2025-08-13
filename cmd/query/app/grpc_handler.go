@@ -227,7 +227,7 @@ func (g *GRPCHandler) GetDependencies(ctx context.Context, r *api_v2.GetDependen
 
 	startTime := r.StartTime
 	endTime := r.EndTime
-	if startTime == (time.Time{}) || endTime == (time.Time{}) {
+	if startTime.IsZero() || endTime.IsZero() {
 		return nil, status.Errorf(codes.InvalidArgument, "StartTime and EndTime must be initialized.")
 	}
 

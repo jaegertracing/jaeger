@@ -312,7 +312,7 @@ func TestESStorageFactoryWithConfig(t *testing.T) {
 	}
 	factory, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
-	defer factory.Close()
+	factory.Close()
 }
 
 func TestESStorageFactoryWithConfigError(t *testing.T) {

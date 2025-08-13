@@ -133,7 +133,7 @@ func TestRoundTripper(t *testing.T) {
 				return &http.Response{StatusCode: http.StatusOK}, nil
 			})
 
-			req, err := http.NewRequestWithContext(tc.requestContext, http.MethodGet, "http://fake.example.com/api", nil)
+			req, err := http.NewRequestWithContext(tc.requestContext, http.MethodGet, "http://fake.example.com/api", http.NoBody)
 			require.NoError(t, err)
 
 			var transport http.RoundTripper = wrappedTransport

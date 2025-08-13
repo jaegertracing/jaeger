@@ -30,7 +30,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
-var _ (io.Closer) = (*Collector)(nil)
+var _ io.Closer = (*Collector)(nil)
 
 func optionsForEphemeralPorts() *flags.CollectorOptions {
 	collectorOpts := &flags.CollectorOptions{
@@ -44,9 +44,9 @@ func optionsForEphemeralPorts() *flags.CollectorOptions {
 				Transport: confignet.TransportTypeTCP,
 			},
 			Keepalive: configoptional.Some(configgrpc.KeepaliveServerConfig{
-				ServerParameters: &configgrpc.KeepaliveServerParameters{
+				ServerParameters: configoptional.Some(configgrpc.KeepaliveServerParameters{
 					MaxConnectionIdle: 10,
-				},
+				}),
 			}),
 		},
 		OTLP: struct {
@@ -65,9 +65,9 @@ func optionsForEphemeralPorts() *flags.CollectorOptions {
 					Transport: confignet.TransportTypeTCP,
 				},
 				Keepalive: configoptional.Some(configgrpc.KeepaliveServerConfig{
-					ServerParameters: &configgrpc.KeepaliveServerParameters{
+					ServerParameters: configoptional.Some(configgrpc.KeepaliveServerParameters{
 						MaxConnectionIdle: 10,
-					},
+					}),
 				}),
 			},
 		},

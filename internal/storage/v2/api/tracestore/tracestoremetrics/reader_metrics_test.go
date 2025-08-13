@@ -121,18 +121,18 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 	mrs.GetOperations(context.Background(), operationQuery)
 	mockReader.On("GetTraces", context.Background(), []tracestore.GetTraceParams{{}}).
 		Return(emptyIter[ptrace.Traces](nil, returningErr))
-	//nolint:revive
+	//nolint:revive // Needed to empty loop
 	for range mrs.GetTraces(context.Background(), tracestore.GetTraceParams{}) {
 		// It is necessary to range the iter to emit metrics, therefore this empty loop is present
 	}
 	mockReader.On("FindTraces", context.Background(), tracestore.TraceQueryParams{}).
 		Return(emptyIter[ptrace.Traces](nil, returningErr))
-	//nolint:revive
+	//nolint:revive // Needed to empty loop
 	for range mrs.FindTraces(context.Background(), tracestore.TraceQueryParams{}) {
 	}
 	mockReader.On("FindTraceIDs", context.Background(), tracestore.TraceQueryParams{}).
 		Return(emptyIter[tracestore.FoundTraceID](nil, returningErr))
-	//nolint:revive
+	//nolint:revive // Needed to empty loop
 	for range mrs.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{}) {
 	}
 	counters, gauges := mf.Snapshot()

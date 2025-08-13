@@ -30,7 +30,7 @@ func TestNewMetricsHandler(t *testing.T) {
 	defer mb.Stop()
 	handler := Wrap(dummyHandlerFunc, mb, zap.NewNop())
 
-	req, err := http.NewRequest(http.MethodGet, "/subdir/qwerty", nil)
+	req, err := http.NewRequest(http.MethodGet, "/subdir/qwerty", http.NoBody)
 	require.NoError(t, err)
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 
@@ -73,7 +73,7 @@ func TestIllegalPrometheusLabel(t *testing.T) {
 	handler := Wrap(dummyHandlerFunc, mf, zap.NewNop())
 
 	invalidUtf8 := []byte{0xC0, 0xAE, 0xC0, 0xAE}
-	req, err := http.NewRequest(http.MethodGet, string(invalidUtf8), nil)
+	req, err := http.NewRequest(http.MethodGet, string(invalidUtf8), http.NoBody)
 	require.NoError(t, err)
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 }

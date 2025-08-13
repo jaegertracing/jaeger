@@ -20,7 +20,7 @@ import (
 
 // Store is an in-memory store of traces
 type Store struct {
-	sync.RWMutex
+	mu sync.RWMutex
 	// Each tenant gets a copy of default config.
 	// In the future this can be extended to contain per-tenant configuration.
 	defaultConfig Configuration
@@ -29,7 +29,7 @@ type Store struct {
 
 // Tenant is an in-memory store of traces for a single tenant
 type Tenant struct {
-	sync.RWMutex
+	mu         sync.RWMutex
 	ids        []*model.TraceID
 	traces     map[model.TraceID]*model.Trace
 	services   map[string]struct{}
@@ -63,12 +63,12 @@ func newTenant(cfg Configuration) *Tenant {
 
 // getTenant returns the per-tenant storage.  Note that tenantID has already been checked for by the collector or query
 func (st *Store) getTenant(tenantID string) *Tenant {
-	st.RLock()
+	st.mu.RLock()
 	tenant, ok := st.perTenant[tenantID]
-	st.RUnlock()
+	st.mu.RUnlock()
 	if !ok {
-		st.Lock()
-		defer st.Unlock()
+		st.mu.Lock()
+		defer st.mu.Unlock()
 		tenant, ok = st.perTenant[tenantID]
 		if !ok {
 			tenant = newTenant(st.defaultConfig)
@@ -82,8 +82,8 @@ func (st *Store) getTenant(tenantID string) *Tenant {
 func (st *Store) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 	m := st.getTenant(tenancy.GetTenant(ctx))
 	// deduper used below can modify the spans, so we take an exclusive lock
-	m.Lock()
-	defer m.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	deps := map[string]*model.DependencyLink{}
 	startTs := endTs.Add(-1 * lookback)
 	for _, trace := range m.traces {
@@ -136,8 +136,8 @@ func traceIsBetweenStartAndEnd(startTs, endTs time.Time, trace *model.Trace) boo
 // WriteSpan writes the given span
 func (st *Store) WriteSpan(ctx context.Context, span *model.Span) error {
 	m := st.getTenant(tenancy.GetTenant(ctx))
-	m.Lock()
-	defer m.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if _, ok := m.operations[span.Process.ServiceName]; !ok {
 		m.operations[span.Process.ServiceName] = map[spanstore.Operation]struct{}{}
 	}
@@ -179,8 +179,8 @@ func (st *Store) WriteSpan(ctx context.Context, span *model.Span) error {
 // GetTrace gets a trace
 func (st *Store) GetTrace(ctx context.Context, query spanstore.GetTraceParameters) (*model.Trace, error) {
 	m := st.getTenant(tenancy.GetTenant(ctx))
-	m.RLock()
-	defer m.RUnlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	trace, ok := m.traces[query.TraceID]
 	if !ok {
 		return nil, spanstore.ErrTraceNotFound
@@ -203,8 +203,8 @@ func copyTrace(trace *model.Trace) (*model.Trace, error) {
 // GetServices returns a list of all known services
 func (st *Store) GetServices(ctx context.Context) ([]string, error) {
 	m := st.getTenant(tenancy.GetTenant(ctx))
-	m.RLock()
-	defer m.RUnlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	var retMe []string
 	for k := range m.services {
 		retMe = append(retMe, k)
@@ -218,8 +218,8 @@ func (st *Store) GetOperations(
 	query spanstore.OperationQueryParameters,
 ) ([]spanstore.Operation, error) {
 	m := st.getTenant(tenancy.GetTenant(ctx))
-	m.RLock()
-	defer m.RUnlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	var retMe []spanstore.Operation
 	if operations, ok := m.operations[query.ServiceName]; ok {
 		for operation := range operations {
@@ -234,8 +234,8 @@ func (st *Store) GetOperations(
 // FindTraces returns all traces in the query parameters are satisfied by a trace's span
 func (st *Store) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
 	m := st.getTenant(tenancy.GetTenant(ctx))
-	m.RLock()
-	defer m.RUnlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	var retMe []*model.Trace
 	for _, trace := range m.traces {
 		if validTrace(trace, query) {
@@ -324,7 +324,7 @@ func flattenTags(span *model.Span) model.KeyValues {
 
 // purge supports Purger interface.
 func (st *Store) purge(context.Context) {
-	st.Lock()
+	st.mu.Lock()
 	st.perTenant = make(map[string]*Tenant)
-	st.Unlock()
+	st.mu.Unlock()
 }

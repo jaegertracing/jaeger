@@ -99,8 +99,16 @@ func basicAuth(username, password, passwordFilePath string) configoptional.Optio
 }
 
 // bearerAuth creates bearer token authentication component
-func bearerAuth(filePath string, allowFromContext bool) configoptional.Optional[BearerTokenAuthentication] {
-	return configoptional.Some(BearerTokenAuthentication{
+func bearerAuth(filePath string, allowFromContext bool) configoptional.Optional[TokenAuthentication] {
+	return configoptional.Some(TokenAuthentication{
+		FilePath:         filePath,
+		AllowFromContext: allowFromContext,
+	})
+}
+
+// apiKeyAuth creates api key authentication component
+func apiKeyAuth(filePath string, allowFromContext bool) configoptional.Optional[TokenAuthentication] {
+	return configoptional.Some(TokenAuthentication{
 		FilePath:         filePath,
 		AllowFromContext: allowFromContext,
 	})
@@ -111,7 +119,10 @@ func TestNewClient(t *testing.T) {
 		pwd1       = "password"
 		token      = "token"
 		serverCert = "../../../../internal/config/tlscfg/testdata/example-server-cert.pem"
+		apiKey     = "test-api-key"
 	)
+	apiKeyFile := filepath.Join(t.TempDir(), "api-key")
+	require.NoError(t, os.WriteFile(apiKeyFile, []byte(apiKey), 0o600))
 
 	pwdFile := filepath.Join(t.TempDir(), "pwd")
 	require.NoError(t, os.WriteFile(pwdFile, []byte(pwd1), 0o600))
@@ -167,8 +178,9 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer.URL},
 				Authentication: Authentication{
-					BasicAuthentication:       basicAuth("user", "secret", ""),
-					BearerTokenAuthentication: bearerAuth("", true),
+					BasicAuthentication: basicAuth("user", "secret", ""),
+					BearerTokenAuth:     bearerAuth("", true),
+					APIKeyAuth:          apiKeyAuth("", false),
 				},
 				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
@@ -183,8 +195,9 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer.URL},
 				Authentication: Authentication{
-					BasicAuthentication:       basicAuth("user", "secret", ""),
-					BearerTokenAuthentication: bearerAuth("", true),
+					BasicAuthentication: basicAuth("user", "secret", ""),
+					BearerTokenAuth:     bearerAuth("", true),
+					APIKeyAuth:          apiKeyAuth("", false),
 				},
 				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
@@ -200,8 +213,9 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer.URL},
 				Authentication: Authentication{
-					BasicAuthentication:       basicAuth("user", "secret", ""),
-					BearerTokenAuthentication: bearerAuth(pwdtokenFile, true),
+					BasicAuthentication: basicAuth("user", "secret", ""),
+					BearerTokenAuth:     bearerAuth(pwdtokenFile, true),
+					APIKeyAuth:          apiKeyAuth("", false),
 				},
 				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
@@ -222,8 +236,9 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer8.URL},
 				Authentication: Authentication{
-					BasicAuthentication:       basicAuth("user", "secret", ""),
-					BearerTokenAuthentication: bearerAuth("", true),
+					BasicAuthentication: basicAuth("user", "secret", ""),
+					BearerTokenAuth:     bearerAuth("", true),
+					APIKeyAuth:          apiKeyAuth("", false),
 				},
 				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
@@ -238,8 +253,9 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer1.URL},
 				Authentication: Authentication{
-					BasicAuthentication:       basicAuth("user", "secret", ""),
-					BearerTokenAuthentication: bearerAuth("", true),
+					BasicAuthentication: basicAuth("user", "secret", ""),
+					BearerTokenAuth:     bearerAuth("", true),
+					APIKeyAuth:          apiKeyAuth("", false),
 				},
 				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
@@ -253,8 +269,9 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer2.URL},
 				Authentication: Authentication{
-					BasicAuthentication:       basicAuth("user", "secret", ""),
-					BearerTokenAuthentication: bearerAuth("", true),
+					BasicAuthentication: basicAuth("user", "secret", ""),
+					BearerTokenAuth:     bearerAuth("", true),
+					APIKeyAuth:          apiKeyAuth("", false),
 				},
 				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
@@ -268,8 +285,9 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer3.URL},
 				Authentication: Authentication{
-					BasicAuthentication:       basicAuth("user", "secret", ""),
-					BearerTokenAuthentication: bearerAuth("", true),
+					BasicAuthentication: basicAuth("user", "secret", ""),
+					BearerTokenAuth:     bearerAuth("", true),
+					APIKeyAuth:          apiKeyAuth("", false),
 				},
 				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
@@ -283,8 +301,9 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer.URL},
 				Authentication: Authentication{
-					BasicAuthentication:       basicAuth("user", "", pwdFile),
-					BearerTokenAuthentication: bearerAuth("", true),
+					BasicAuthentication: basicAuth("user", "", pwdFile),
+					BearerTokenAuth:     bearerAuth("", true),
+					APIKeyAuth:          apiKeyAuth("", false),
 				},
 				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
@@ -298,8 +317,9 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer.URL},
 				Authentication: Authentication{
-					BasicAuthentication:       basicAuth("user", "secret", pwdFile),
-					BearerTokenAuthentication: bearerAuth("", true),
+					BasicAuthentication: basicAuth("user", "secret", pwdFile),
+					BearerTokenAuth:     bearerAuth("", true),
+					APIKeyAuth:          apiKeyAuth("", false),
 				},
 				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
@@ -313,8 +333,9 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{},
 				Authentication: Authentication{
-					BasicAuthentication:       basicAuth("user", "secret", ""),
-					BearerTokenAuthentication: bearerAuth("", true),
+					BasicAuthentication: basicAuth("user", "secret", ""),
+					BearerTokenAuth:     bearerAuth("", true),
+					APIKeyAuth:          apiKeyAuth("", false),
 				},
 				LogLevel: "debug",
 				BulkProcessing: BulkProcessing{
@@ -328,8 +349,9 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer.URL},
 				Authentication: Authentication{
-					BasicAuthentication:       basicAuth("user", "secret", ""),
-					BearerTokenAuthentication: bearerAuth("", true),
+					BasicAuthentication: basicAuth("user", "secret", ""),
+					BearerTokenAuth:     bearerAuth("", true),
+					APIKeyAuth:          apiKeyAuth("", false),
 				},
 				LogLevel: "invalid",
 				BulkProcessing: BulkProcessing{
@@ -343,8 +365,9 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer.URL},
 				Authentication: Authentication{
-					BasicAuthentication:       basicAuth("user", "secret", ""),
-					BearerTokenAuthentication: bearerAuth("", true),
+					BasicAuthentication: basicAuth("user", "secret", ""),
+					BearerTokenAuth:     bearerAuth("", true),
+					APIKeyAuth:          apiKeyAuth("", false),
 				},
 				LogLevel: "invalid",
 				BulkProcessing: BulkProcessing{
@@ -359,8 +382,9 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer.URL},
 				Authentication: Authentication{
-					BasicAuthentication:       basicAuth("user", "secret", ""),
-					BearerTokenAuthentication: bearerAuth("", true),
+					BasicAuthentication: basicAuth("user", "secret", ""),
+					BearerTokenAuth:     bearerAuth("", true),
+					APIKeyAuth:          apiKeyAuth("", false),
 				},
 				LogLevel: "info",
 				BulkProcessing: BulkProcessing{
@@ -375,13 +399,90 @@ func TestNewClient(t *testing.T) {
 			config: &Configuration{
 				Servers: []string{testServer.URL},
 				Authentication: Authentication{
-					BasicAuthentication:       basicAuth("user", "secret", ""),
-					BearerTokenAuthentication: bearerAuth("", true),
+					BasicAuthentication: basicAuth("user", "secret", ""),
+					BearerTokenAuth:     bearerAuth("", true),
+					APIKeyAuth:          apiKeyAuth("", false),
 				},
 				LogLevel: "error",
 				BulkProcessing: BulkProcessing{
 					MaxBytes: -1, // disable bulk; we want immediate flush
 				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "success with API key from file",
+			config: &Configuration{
+				Servers: []string{testServer.URL},
+				Authentication: Authentication{
+					APIKeyAuth: apiKeyAuth(apiKeyFile, false),
+				},
+				LogLevel: "debug",
+				BulkProcessing: BulkProcessing{
+					MaxBytes: -1,
+				},
+				Version: 8,
+			},
+			expectedError: false,
+		},
+		{
+			name: "success with API key from context only",
+			config: &Configuration{
+				Servers: []string{testServer.URL},
+				Authentication: Authentication{
+					APIKeyAuth: apiKeyAuth("", true),
+				},
+				LogLevel: "debug",
+				BulkProcessing: BulkProcessing{
+					MaxBytes: -1,
+				},
+				Version: 8,
+			},
+			expectedError: false,
+		},
+		{
+			name: "success with API key from both file and context",
+			config: &Configuration{
+				Servers: []string{testServer.URL},
+				Authentication: Authentication{
+					APIKeyAuth: apiKeyAuth(apiKeyFile, true),
+				},
+				LogLevel: "debug",
+				BulkProcessing: BulkProcessing{
+					MaxBytes: -1,
+				},
+				Version: 8,
+			},
+			expectedError: false,
+		},
+		{
+			name: "fail with invalid API key file path",
+			config: &Configuration{
+				Servers: []string{testServer.URL},
+				Authentication: Authentication{
+					APIKeyAuth: apiKeyAuth("/nonexistent/api-key", false),
+				},
+				LogLevel: "debug",
+				BulkProcessing: BulkProcessing{
+					MaxBytes: -1,
+				},
+				Version: 8,
+			},
+			expectedError: true,
+		},
+		{
+			name: "success with API key context-only disables health check",
+			config: &Configuration{
+				Servers:            []string{testServer.URL},
+				DisableHealthCheck: false,
+				Authentication: Authentication{
+					APIKeyAuth: apiKeyAuth("", true),
+				},
+				LogLevel: "debug",
+				BulkProcessing: BulkProcessing{
+					MaxBytes: -1,
+				},
+				Version: 8,
 			},
 			expectedError: false,
 		},
@@ -913,7 +1014,7 @@ func TestGetConfigOptions(t *testing.T) {
 				Servers:  []string{"http://localhost:9200"},
 				Sniffing: Sniffing{Enabled: false},
 				Authentication: Authentication{
-					BearerTokenAuthentication: bearerAuth("", true),
+					BearerTokenAuth: bearerAuth("", true),
 				},
 				LogLevel: "info",
 			},
@@ -926,7 +1027,7 @@ func TestGetConfigOptions(t *testing.T) {
 				Servers:  []string{"http://localhost:9200"},
 				Sniffing: Sniffing{Enabled: false},
 				Authentication: Authentication{
-					BearerTokenAuthentication: bearerAuth(bearerTokenFile, true),
+					BearerTokenAuth: bearerAuth(bearerTokenFile, true),
 				},
 				LogLevel: "info",
 			},
@@ -940,7 +1041,7 @@ func TestGetConfigOptions(t *testing.T) {
 				TLS:      configtls.ClientConfig{Insecure: true},
 				Sniffing: Sniffing{Enabled: false},
 				Authentication: Authentication{
-					BearerTokenAuthentication: bearerAuth("/does/not/exist/token", false),
+					BearerTokenAuth: bearerAuth("/does/not/exist/token", false),
 				},
 				LogLevel: "info",
 			},
@@ -1010,7 +1111,7 @@ func TestGetConfigOptions(t *testing.T) {
 				DisableHealthCheck: false, // Should be overridden by context-only auth
 				Sniffing:           Sniffing{Enabled: false},
 				Authentication: Authentication{
-					BearerTokenAuthentication: bearerAuth("", true),
+					BearerTokenAuth: bearerAuth("", true),
 				},
 			},
 			ctx:     bearertoken.ContextWithBearerToken(context.Background(), "context-bearer-token"),
@@ -1227,10 +1328,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 			cfg: &Configuration{
 				TLS: configtls.ClientConfig{Insecure: true},
 				Authentication: Authentication{
-					BearerTokenAuthentication: configoptional.Some(BearerTokenAuthentication{
-						FilePath:         "",    // Empty
-						AllowFromContext: false, // Disabled
-					}),
+					BearerTokenAuth: bearerAuth("", false),
 				},
 			},
 			ctx: context.Background(),
@@ -1250,7 +1348,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 			cfg: &Configuration{
 				TLS: configtls.ClientConfig{Insecure: false},
 				Authentication: Authentication{
-					BearerTokenAuthentication: bearerAuth(bearerTokenFile, false),
+					BearerTokenAuth: bearerAuth(bearerTokenFile, false),
 				},
 			},
 			ctx: context.Background(),
@@ -1269,7 +1367,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 			cfg: &Configuration{
 				TLS: configtls.ClientConfig{Insecure: true},
 				Authentication: Authentication{
-					BearerTokenAuthentication: bearerAuth("", true),
+					BearerTokenAuth: bearerAuth("", true),
 				},
 			},
 			ctx: bearertoken.ContextWithBearerToken(context.Background(), "context-bearer-token"),
@@ -1290,7 +1388,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 			name: "BearerToken file error",
 			cfg: &Configuration{
 				Authentication: Authentication{
-					BearerTokenAuthentication: bearerAuth("/does/not/exist/token", false),
+					BearerTokenAuth: bearerAuth("/does/not/exist/token", false),
 				},
 			},
 			ctx:             context.Background(),

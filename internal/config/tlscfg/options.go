@@ -41,7 +41,7 @@ func (o *options) ToOtelClientConfig() configtls.ClientConfig {
 
 			// when no truststore given, use SystemCertPool
 			// https://github.com/jaegertracing/jaeger/issues/6334
-			IncludeSystemCACertsPool: o.Enabled && (len(o.CAPath) == 0),
+			IncludeSystemCACertsPool: o.Enabled && (o.CAPath == ""),
 		},
 	}
 }

@@ -10,7 +10,6 @@
               {
                 "kind": 2,
                 "name": "foobar",
-                "parentSpanId": "",
                 "spanId": "0000000000000002",
                 "status": {
                   "code": 2

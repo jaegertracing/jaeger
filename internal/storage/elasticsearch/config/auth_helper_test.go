@@ -18,23 +18,23 @@ import (
 	"github.com/jaegertracing/jaeger/internal/auth"
 )
 
-// Test the  initBearerAuth function that uses real time
+// TestInitBearerAuth tests bearer token authentication initialization
 func TestInitBearerAuth(t *testing.T) {
 	logger := zap.NewNop()
 	tempDir := t.TempDir()
 	bearerFile := filepath.Join(tempDir, "bearer-token")
-	require.NoError(t, os.WriteFile(bearerFile, []byte("test-token"), 0o600))
+	require.NoError(t, os.WriteFile(bearerFile, []byte("test-bearer"), 0o600))
 
 	tests := []struct {
 		name        string
-		bearerAuth  *BearerTokenAuthentication
+		bearerAuth  *TokenAuthentication
 		expectError bool
 		expectNil   bool
 		validate    func(t *testing.T, method *auth.Method)
 	}{
 		{
 			name: "Valid file-based bearer auth",
-			bearerAuth: &BearerTokenAuthentication{
+			bearerAuth: &TokenAuthentication{
 				FilePath: bearerFile,
 			},
 			expectError: false,
@@ -43,13 +43,13 @@ func TestInitBearerAuth(t *testing.T) {
 				require.NotNil(t, method)
 				assert.Equal(t, "Bearer", method.Scheme)
 				assert.NotNil(t, method.TokenFn)
-				assert.Equal(t, "test-token", method.TokenFn())
+				assert.Equal(t, "test-bearer", method.TokenFn())
 				assert.Nil(t, method.FromCtx)
 			},
 		},
 		{
 			name: "Valid context-based bearer auth",
-			bearerAuth: &BearerTokenAuthentication{
+			bearerAuth: &TokenAuthentication{
 				AllowFromContext: true,
 			},
 			expectError: false,
@@ -62,171 +62,123 @@ func TestInitBearerAuth(t *testing.T) {
 			},
 		},
 		{
-			name: "Invalid bearer auth config returns nil",
-			bearerAuth: &BearerTokenAuthentication{
-				FilePath:         "",
-				AllowFromContext: false,
-			},
-			expectError: false,
-			expectNil:   true,
-			validate: func(t *testing.T, method *auth.Method) {
-				assert.Nil(t, method)
-			},
+			name:       "Nil bearer auth returns nil",
+			bearerAuth: nil,
+			expectNil:  true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			method, err := initBearerAuth(tc.bearerAuth, logger)
-			if tc.expectError {
+			switch {
+			case tc.expectError:
 				require.Error(t, err)
 				assert.Nil(t, method)
-			} else {
+			case tc.expectNil:
 				require.NoError(t, err)
-				if tc.expectNil {
-					assert.Nil(t, method)
-				} else {
-					tc.validate(t, method)
-				}
+				assert.Nil(t, method)
+			default:
+				require.NoError(t, err)
+				tc.validate(t, method)
 			}
 		})
 	}
 }
 
-// Test the time-injectable function for advanced scenarios
-func TestInitBearerAuthWithTime(t *testing.T) {
+// TestInitAPIKeyAuth tests API key authentication initialization
+func TestInitAPIKeyAuth(t *testing.T) {
+	logger := zap.NewNop()
+	tempDir := t.TempDir()
+	apiKeyFile := filepath.Join(tempDir, "api-key")
+	require.NoError(t, os.WriteFile(apiKeyFile, []byte("test-apikey"), 0o600))
+
+	tests := []struct {
+		name        string
+		apiKeyAuth  *TokenAuthentication
+		expectError bool
+		expectNil   bool
+		validate    func(t *testing.T, method *auth.Method)
+	}{
+		{
+			name: "Valid file-based API key auth",
+			apiKeyAuth: &TokenAuthentication{
+				FilePath: apiKeyFile,
+			},
+			validate: func(t *testing.T, method *auth.Method) {
+				require.NotNil(t, method)
+				assert.Equal(t, "APIKey", method.Scheme)
+				assert.NotNil(t, method.TokenFn)
+				assert.Equal(t, "test-apikey", method.TokenFn())
+				assert.Nil(t, method.FromCtx)
+			},
+		},
+		{
+			name: "Valid context-based API key auth",
+			apiKeyAuth: &TokenAuthentication{
+				AllowFromContext: true,
+			},
+			validate: func(t *testing.T, method *auth.Method) {
+				require.NotNil(t, method)
+				assert.Equal(t, "APIKey", method.Scheme)
+				assert.Nil(t, method.TokenFn)
+				assert.NotNil(t, method.FromCtx)
+			},
+		},
+		{
+			name:       "Nil API key auth returns nil",
+			apiKeyAuth: nil,
+			expectNil:  true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			method, err := initAPIKeyAuth(tc.apiKeyAuth, logger)
+			switch {
+			case tc.expectError:
+				require.Error(t, err)
+				assert.Nil(t, method)
+			case tc.expectNil:
+				require.NoError(t, err)
+				assert.Nil(t, method)
+			default:
+				require.NoError(t, err)
+				tc.validate(t, method)
+			}
+		})
+	}
+}
+
+// Test multiple auth types working together
+func TestMultipleTokenAuth(t *testing.T) {
 	logger := zap.NewNop()
 	tempDir := t.TempDir()
 
-	tests := []struct {
-		name               string
-		reloadInterval     time.Duration
-		timeAdvance        time.Duration
-		expectedFinalToken string
-		description        string
-	}{
-		{
-			name:               "Normal reloading behavior",
-			reloadInterval:     50 * time.Millisecond,
-			timeAdvance:        60 * time.Millisecond,
-			expectedFinalToken: "updated-token",
-			description:        "Should return updated token after cache expires",
-		},
-		{
-			name:               "Zero interval disables reloading",
-			reloadInterval:     0,
-			timeAdvance:        24 * time.Minute,
-			expectedFinalToken: "initial-token",
-			description:        "Zero interval should completely disable token reloading",
-		},
+	bearerFile := filepath.Join(tempDir, "bearer")
+	apiKeyFile := filepath.Join(tempDir, "apikey")
+	require.NoError(t, os.WriteFile(bearerFile, []byte("bearer-token"), 0o600))
+	require.NoError(t, os.WriteFile(apiKeyFile, []byte("api-key-token"), 0o600))
+
+	bearerAuth := &TokenAuthentication{
+		FilePath: bearerFile,
+	}
+	apiKeyAuth := &TokenAuthentication{
+		FilePath: apiKeyFile,
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			tokenFile := filepath.Join(tempDir, "reloadable-token-"+tc.name)
-			require.NoError(t, os.WriteFile(tokenFile, []byte("initial-token"), 0o600))
+	bearerMethod, err := initBearerAuth(bearerAuth, logger)
+	require.NoError(t, err)
+	require.NotNil(t, bearerMethod)
 
-			currentTime := time.Unix(0, 0)
-			timeFn := func() time.Time { return currentTime }
+	apiKeyMethod, err := initAPIKeyAuth(apiKeyAuth, logger)
+	require.NoError(t, err)
+	require.NotNil(t, apiKeyMethod)
 
-			bearer := &BearerTokenAuthentication{
-				FilePath:       tokenFile,
-				ReloadInterval: tc.reloadInterval,
-			}
-
-			// Initialize with mock time
-			method, err := initBearerAuthWithTime(bearer, logger, timeFn)
-			require.NoError(t, err)
-			require.NotNil(t, method)
-			require.NotNil(t, method.TokenFn)
-
-			// Initial token
-			token := method.TokenFn()
-			assert.Equal(t, "initial-token", token)
-
-			// Update the file
-			err = os.WriteFile(tokenFile, []byte("updated-token"), 0o600)
-			require.NoError(t, err)
-
-			// Advance time and test
-			currentTime = currentTime.Add(tc.timeAdvance)
-			token = method.TokenFn()
-			assert.Equal(t, tc.expectedFinalToken, token, tc.description)
-		})
-	}
-}
-
-// TestInitBearerAuth_FileErrors tests error handling for file operations in initBearerAuth
-func TestInitBearerAuth_FileErrors(t *testing.T) {
-	core, _ := observer.New(zap.WarnLevel)
-	logger := zap.New(core)
-
-	tests := []struct {
-		name          string
-		bearer        *BearerTokenAuthentication
-		expectedError bool
-		expectNil     bool
-		errorContains string
-	}{
-		{
-			name: "Non-existent file path - returns error",
-			bearer: &BearerTokenAuthentication{
-				FilePath:         "/non/existent/path/token.txt",
-				AllowFromContext: false,
-			},
-			expectedError: true,
-			expectNil:     true,
-			errorContains: "failed to get token from file",
-		},
-		{
-			name: "Non-existent file with context enabled - still returns error",
-			bearer: &BearerTokenAuthentication{
-				FilePath:         "/non/existent/path/token.txt",
-				AllowFromContext: true,
-				ReloadInterval:   5 * time.Second,
-			},
-			expectedError: true,
-			expectNil:     true,
-			errorContains: "failed to get token from file",
-		},
-		{
-			name: "Empty file path with context disabled - returns nil",
-			bearer: &BearerTokenAuthentication{
-				FilePath:         "",
-				AllowFromContext: false,
-			},
-			expectedError: false,
-			expectNil:     true,
-		},
-		{
-			name: "Directory instead of file - returns error",
-			bearer: &BearerTokenAuthentication{
-				FilePath:         "/tmp",
-				AllowFromContext: false,
-			},
-			expectedError: true,
-			expectNil:     true,
-			errorContains: "failed to get token from file",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			method, err := initBearerAuth(tc.bearer, logger)
-			if tc.expectedError {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.errorContains)
-				assert.Nil(t, method)
-			} else {
-				require.NoError(t, err)
-				if tc.expectNil {
-					assert.Nil(t, method)
-				} else {
-					assert.NotNil(t, method)
-				}
-			}
-		})
-	}
+	assert.Equal(t, "Bearer", bearerMethod.Scheme)
+	assert.Equal(t, "APIKey", apiKeyMethod.Scheme)
+	assert.Equal(t, "bearer-token", bearerMethod.TokenFn())
+	assert.Equal(t, "api-key-token", apiKeyMethod.TokenFn())
 }
 
 // TestInitBasicAuth tests basic authentication initialization
@@ -399,43 +351,28 @@ func TestInitBasicAuth_EdgeCases(t *testing.T) {
 	}
 }
 
-func TestInitBearerAuth_EdgeCases(t *testing.T) {
-	logger := zap.NewNop()
+// Test warning logs for conflicting configuration
+func TestTokenAuth_WarningLogs(t *testing.T) {
+	core, logs := observer.New(zap.WarnLevel)
+	logger := zap.New(core)
+	tempDir := t.TempDir()
 
-	tests := []struct {
-		name        string
-		bearerAuth  *BearerTokenAuthentication
-		expectError bool
-		expectNil   bool
-	}{
-		{
-			name:       "nil bearerAuth returns nil",
-			bearerAuth: nil,
-			expectNil:  true,
-		},
-		{
-			name: "empty config returns nil",
-			bearerAuth: &BearerTokenAuthentication{
-				FilePath:         "",
-				AllowFromContext: false,
-			},
-			expectNil: true,
-		},
+	tokenFile := filepath.Join(tempDir, "token")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("test-token"), 0o600))
+
+	base := &TokenAuthentication{
+		FilePath:         tokenFile,
+		AllowFromContext: true,
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			method, err := initBearerAuth(tc.bearerAuth, logger)
-			switch {
-			case tc.expectError:
-				require.Error(t, err)
-			case tc.expectNil:
-				require.NoError(t, err)
-				assert.Nil(t, method)
-			default:
-				require.NoError(t, err)
-				require.NotNil(t, method)
-			}
-		})
-	}
+	method, err := initTokenAuthWithTime(base, "Bearer", logger, time.Now)
+	require.NoError(t, err)
+	require.NotNil(t, method)
+
+	// Check that warning was logged
+	require.Equal(t, 1, logs.Len())
+	logEntry := logs.All()[0]
+	assert.Equal(t, zap.WarnLevel, logEntry.Level)
+	assert.Contains(t, logEntry.Message, "Both token file and context propagation are enabled")
+	assert.Equal(t, "Bearer", logEntry.Context[0].String)
 }

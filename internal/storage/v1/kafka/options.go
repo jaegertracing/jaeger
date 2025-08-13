@@ -163,7 +163,7 @@ func (*Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
 		configPrefix+suffixEncoding,
 		defaultEncoding,
-		fmt.Sprintf(`Encoding of spans ("%s" or "%s") sent to kafka.`, EncodingJSON, EncodingProto),
+		fmt.Sprintf(`Encoding of spans (%q or %q) sent to kafka.`, EncodingJSON, EncodingProto),
 	)
 
 	auth.AddFlags(configPrefix, flagSet)

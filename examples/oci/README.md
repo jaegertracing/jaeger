@@ -49,7 +49,7 @@ kubectl port-forward svc/jaeger-hotrod 8080:80
 
 Then, open the following URLs in your browser:
 
-- **Jaeger UI:** [http://localhost:16686](http://localhost:16686)
+- **Jaeger UI:** [http://localhost:16686/jaeger](http://localhost:16686/jaeger)
 - **Prometheus:** [http://localhost:9090](http://localhost:9090)
 - **Grafana:** [http://localhost:9091](http://localhost:9091)
 - **HotROD Demo App:** [http://localhost:8080](http://localhost:8080)
@@ -116,3 +116,16 @@ Prometheus scrape configs and service selectors if targeting Jaeger in a differe
 - **Password:** `prom-operator`
 
 Once logged in, you can explore the pre-built dashboards or add your own tracing and metrics visualizations.
+
+### Configure TLS/SSL with Cert-Manager
+
+To secure services with TLS/SSL, we use **Cert-Manager**. It provides the following features:
+
+- Automatic provisioning of TLS/SSL certificates.
+- Integration with Let's Encrypt for certificates.
+- Automatic renewal of certificates before expiration.
+- Integration with NGINX Ingress Controller.
+
+The issuer configuration YAML is located at `./tls-cert/issuer.yaml`.
+
+For detailed setup instructions, refer to the official Cert-Manager documentation: [Cert-Manager ACME Tutorial with NGINX Ingress](https://cert-manager.io/docs/tutorials/acme/nginx-ingress/)

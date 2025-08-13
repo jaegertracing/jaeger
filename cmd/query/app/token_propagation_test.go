@@ -85,12 +85,12 @@ func runQueryService(t *testing.T, esURL string) *Server {
 
 	f.InitFromViper(v, flagsSvc.Logger)
 	// set AllowTokenFromContext manually because we don't register the respective CLI flag from query svc
-	bearerAuth := escfg.BearerTokenAuthentication{
+	bearerAuth := escfg.TokenAuthentication{
 		AllowFromContext: true,
 	}
 	// set the authentication in the factory options
 	f.Options.Config.Authentication = escfg.Authentication{
-		BearerTokenAuthentication: configoptional.Some(bearerAuth),
+		BearerTokenAuth: configoptional.Some(bearerAuth),
 	}
 
 	// Initialize the factory with metrics and logger
@@ -147,7 +147,7 @@ func TestBearerTokenPropagation(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			req, err := http.NewRequest(http.MethodGet, url, nil)
+			req, err := http.NewRequest(http.MethodGet, url, http.NoBody)
 			require.NoError(t, err)
 			req.Header.Add(testCase.headerName, testCase.headerValue)
 

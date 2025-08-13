@@ -99,13 +99,13 @@ func TraceIDFromDomain(traceID model.TraceID) TraceID {
 }
 
 // ToDomain converts trace ID from db-serializable form to domain TradeID
-func (dbTraceID TraceID) ToDomain() model.TraceID {
-	traceIDHigh := binary.BigEndian.Uint64(dbTraceID[:8])
-	traceIDLow := binary.BigEndian.Uint64(dbTraceID[8:])
+func (t TraceID) ToDomain() model.TraceID {
+	traceIDHigh := binary.BigEndian.Uint64(t[:8])
+	traceIDLow := binary.BigEndian.Uint64(t[8:])
 	return model.NewTraceID(traceIDHigh, traceIDLow)
 }
 
 // String returns hex string representation of the trace ID.
-func (dbTraceID TraceID) String() string {
-	return dbTraceID.ToDomain().String()
+func (t TraceID) String() string {
+	return t.ToDomain().String()
 }

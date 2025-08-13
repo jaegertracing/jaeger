@@ -13,50 +13,67 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/auth"
+	"github.com/jaegertracing/jaeger/internal/auth/apikey"
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 )
 
-// initBearerAuth initializes bearer token authentication method
-func initBearerAuth(bearerAuth *BearerTokenAuthentication, logger *zap.Logger) (*auth.Method, error) {
-	return initBearerAuthWithTime(bearerAuth, logger, time.Now)
-}
-
-// initBearerAuthWithTime initializes bearer token authentication method with injectable time for testing
-func initBearerAuthWithTime(bearerAuth *BearerTokenAuthentication, logger *zap.Logger, timeFn func() time.Time) (*auth.Method, error) {
-	if bearerAuth == nil || (bearerAuth.FilePath == "" && !bearerAuth.AllowFromContext) {
+// initTokenAuthWithTime initializes token authentication injectable time for testing
+func initTokenAuthWithTime(tokenAuth *TokenAuthentication, scheme string, logger *zap.Logger, timeFn func() time.Time) (*auth.Method, error) {
+	if tokenAuth == nil || (tokenAuth.FilePath == "" && !tokenAuth.AllowFromContext) {
 		return nil, nil
 	}
 
-	if bearerAuth.FilePath != "" && bearerAuth.AllowFromContext {
-		logger.Warn("Both Bearer Token file and context propagation are enabled - context token will take precedence over file-based token")
+	if tokenAuth.FilePath != "" && tokenAuth.AllowFromContext {
+		logger.Warn("Both token file and context propagation are enabled - context token will take precedence over file-based token",
+			zap.String("auth_scheme", scheme))
 	}
 
 	var tokenFn func() string
 	var fromCtx func(context.Context) (string, bool)
 
-	// file-based token setup
-	if bearerAuth.FilePath != "" {
-		reloadInterval := bearerAuth.ReloadInterval
-		tf, err := auth.TokenProviderWithTime(bearerAuth.FilePath, reloadInterval, logger, timeFn)
+	// File-based token setup
+	if tokenAuth.FilePath != "" {
+		tf, err := auth.TokenProviderWithTime(tokenAuth.FilePath, tokenAuth.ReloadInterval, logger, timeFn)
 		if err != nil {
 			return nil, err
 		}
 		tokenFn = tf
 	}
 
-	// context-based token setup
-	if bearerAuth.AllowFromContext {
-		fromCtx = bearertoken.GetBearerToken
+	// Context-based token setup
+	if tokenAuth.AllowFromContext {
+		switch scheme {
+		case "Bearer":
+			fromCtx = bearertoken.GetBearerToken
+		case "APIKey":
+			fromCtx = apikey.GetAPIKey
+		default:
+		}
 	}
 
-	// Return pointer to the auth method
 	return &auth.Method{
-		Scheme:  "Bearer",
+		Scheme:  scheme,
 		TokenFn: tokenFn,
 		FromCtx: fromCtx,
 	}, nil
 }
 
+// Simplified init functions - directly call shared implementation
+func initBearerAuth(tokenAuth *TokenAuthentication, logger *zap.Logger) (*auth.Method, error) {
+	if tokenAuth == nil {
+		return nil, nil
+	}
+	return initTokenAuthWithTime(tokenAuth, "Bearer", logger, time.Now)
+}
+
+func initAPIKeyAuth(tokenAuth *TokenAuthentication, logger *zap.Logger) (*auth.Method, error) {
+	if tokenAuth == nil {
+		return nil, nil
+	}
+	return initTokenAuthWithTime(tokenAuth, "APIKey", logger, time.Now)
+}
+
+// Keep initBasicAuth unchanged
 func initBasicAuth(basicAuth *BasicAuthentication, logger *zap.Logger) (*auth.Method, error) {
 	return initBasicAuthWithTime(basicAuth, logger, time.Now)
 }
@@ -74,8 +91,8 @@ func initBasicAuthWithTime(basicAuth *BasicAuthentication, logger *zap.Logger, t
 	if username == "" {
 		return nil, nil
 	}
-	var tokenFn func() string
 
+	var tokenFn func() string
 	// Handle password from file or static password
 	if basicAuth.PasswordFilePath != "" {
 		// Use TokenProvider for password loading
@@ -98,7 +115,6 @@ func initBasicAuthWithTime(basicAuth *BasicAuthentication, logger *zap.Logger, t
 		password := basicAuth.Password
 		credentials := username + ":" + password
 		encodedCredentials := base64.StdEncoding.EncodeToString([]byte(credentials))
-
 		tokenFn = func() string { return encodedCredentials }
 	}
 

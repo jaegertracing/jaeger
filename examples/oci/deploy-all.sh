@@ -11,6 +11,11 @@ if [ ! -d "helm-charts" ]; then
   git clone https://github.com/jaegertracing/helm-charts.git
   cd helm-charts
   git checkout v2
+  echo "Adding required Helm repositories..."
+  helm repo add bitnami https://charts.bitnami.com/bitnami
+  helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+  helm repo add incubator https://charts.helm.sh/incubator
+  helm repo update
   helm dependency build ./charts/jaeger
   cd ..
 else
@@ -30,7 +35,7 @@ fi
 
 # Deploy Jaeger (All-in-One with memory storage)
 echo "🟣 Step 1: Installing Jaeger..."
-helm upgrade --install jaeger ./helm-charts/charts/jaeger \
+helm upgrade --install --force jaeger ./helm-charts/charts/jaeger \
   --set provisionDataStore.cassandra=false \
   --set allInOne.enabled=true \
   --set storage.type=memory \
@@ -39,9 +44,8 @@ helm upgrade --install jaeger ./helm-charts/charts/jaeger \
 
 # Deploy Prometheus Monitoring Stack
 echo "🟢 Step 2: Deploying Prometheus Monitoring stack..."
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-helm repo update
-helm upgrade --install prometheus -f monitoring-values.yaml prometheus-community/kube-prometheus-stack
+kubectl apply -f prometheus-svc.yaml
+helm upgrade --install --force prometheus -f monitoring-values.yaml prometheus-community/kube-prometheus-stack
 
 # Create ConfigMap for Trace Generator
 echo "🔵 Step 3: Creating ConfigMap for Trace Generator..."
@@ -50,6 +54,10 @@ kubectl create configmap trace-script --from-file=./load-generator/generate_trac
 # Deploy Trace Generator Pod
 echo "🟡 Step 4: Deploying Trace Generator Pod..."
 kubectl apply -f ./load-generator/load-generator.yaml
+
+#Deploy ingress changes 
+echo "🟡 Step 4: Deploying Ingress Resource..."
+kubectl apply -f ingress.yaml
 
 # Output Port-forward Instructions
 echo "✅ Deployment Complete!"
@@ -62,7 +70,7 @@ echo "kubectl port-forward svc/prometheus-grafana 9091:80    # Grafana UI"
 echo "kubectl port-forward svc/jaeger-hotrod 8080:80         # HotROD UI"
 echo ""
 echo "Then open:"
-echo "🔍 Jaeger: http://localhost:16686"
+echo "🔍 Jaeger: http://localhost:16686/jaeger"
 echo "📈 Prometheus: http://localhost:9090"
 echo "📊 Grafana: http://localhost:9091"
 echo "🚕 HotROD: http://localhost:8080"

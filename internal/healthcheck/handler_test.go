@@ -43,7 +43,7 @@ func TestStatusSetGet(t *testing.T) {
 
 func TestHealthCheck_Handler_ContentType(t *testing.T) {
 	rec := httptest.NewRecorder()
-	healthcheck.New().Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	healthcheck.New().Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", http.NoBody))
 	resp := rec.Result()
 
 	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))

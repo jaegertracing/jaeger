@@ -126,7 +126,7 @@ func (r *traceReader) FindTraces(
 				StartTimeMax:  query.StartTimeMax,
 				DurationMin:   query.DurationMin,
 				DurationMax:   query.DurationMax,
-				//nolint: gosec // G115
+				//nolint:gosec // G115
 				SearchDepth: int32(query.SearchDepth),
 				RawTraces:   true,
 			},

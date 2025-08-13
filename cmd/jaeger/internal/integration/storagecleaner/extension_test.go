@@ -106,7 +106,7 @@ func TestStorageCleanerExtension(t *testing.T) {
 			addr := fmt.Sprintf("http://0.0.0.0:%s%s", Port, URL)
 			client := &http.Client{}
 			require.Eventually(t, func() bool {
-				r, err := http.NewRequest(http.MethodPost, addr, nil)
+				r, err := http.NewRequest(http.MethodPost, addr, http.NoBody)
 				require.NoError(t, err)
 				resp, err := client.Do(r)
 				require.NoError(t, err)

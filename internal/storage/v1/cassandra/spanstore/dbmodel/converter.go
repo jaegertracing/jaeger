@@ -60,7 +60,7 @@ func (c converter) fromDomain(span *model.Span) *Span {
 
 	tags = append(tags, warnings...)
 
-	//nolint: gosec // G115
+	//nolint:gosec // G115
 	return &Span{
 		TraceID:       TraceIDFromDomain(span.TraceID),
 		SpanID:        int64(span.SpanID),
@@ -101,16 +101,16 @@ func (c converter) toDomain(dbSpan *Span) (*model.Span, error) {
 	traceID := dbSpan.TraceID.ToDomain()
 	span := &model.Span{
 		TraceID: traceID,
-		//nolint: gosec // G115
+		//nolint:gosec // G115
 		SpanID:        model.NewSpanID(uint64(dbSpan.SpanID)),
 		OperationName: dbSpan.OperationName,
-		//nolint: gosec // G115
+		//nolint:gosec // G115
 		References: model.MaybeAddParentSpanID(traceID, model.NewSpanID(uint64(dbSpan.ParentID)), refs),
-		//nolint: gosec // G115
+		//nolint:gosec // G115
 		Flags: model.Flags(uint32(dbSpan.Flags)),
-		//nolint: gosec // G115
+		//nolint:gosec // G115
 		StartTime: model.EpochMicrosecondsAsTime(uint64(dbSpan.StartTime)),
-		//nolint: gosec // G115
+		//nolint:gosec // G115
 		Duration: model.MicrosecondsAsDuration(uint64(dbSpan.Duration)),
 		Tags:     tags,
 		Warnings: warnings,
@@ -175,7 +175,7 @@ func (c converter) fromDBLogs(logs []Log) ([]model.Log, error) {
 			return nil, err
 		}
 		retMe[i] = model.Log{
-			//nolint: gosec // G115
+			//nolint:gosec // G115
 			Timestamp: model.EpochMicrosecondsAsTime(uint64(l.Timestamp)),
 			Fields:    fields,
 		}
@@ -193,7 +193,7 @@ func (converter) fromDBRefs(refs []SpanRef) ([]model.SpanRef, error) {
 		retMe[i] = model.SpanRef{
 			RefType: refType,
 			TraceID: r.TraceID.ToDomain(),
-			//nolint: gosec // G115
+			//nolint:gosec // G115
 			SpanID: model.NewSpanID(uint64(r.SpanID)),
 		}
 	}
@@ -245,7 +245,7 @@ func (c converter) toDBLogs(logs []model.Log) []Log {
 	retMe := make([]Log, len(logs))
 	for i, l := range logs {
 		retMe[i] = Log{
-			//nolint: gosec // G115
+			//nolint:gosec // G115
 			Timestamp: int64(model.TimeAsEpochMicroseconds(l.Timestamp)),
 			Fields:    c.toDBTags(l.Fields),
 		}
@@ -258,7 +258,7 @@ func (converter) toDBRefs(refs []model.SpanRef) []SpanRef {
 	for i, r := range refs {
 		retMe[i] = SpanRef{
 			TraceID: TraceIDFromDomain(r.TraceID),
-			//nolint: gosec // G115
+			//nolint:gosec // G115
 			SpanID:  int64(r.SpanID),
 			RefType: domainToDBRefMap[r.RefType],
 		}
