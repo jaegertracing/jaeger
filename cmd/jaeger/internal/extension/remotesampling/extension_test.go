@@ -370,32 +370,72 @@ func TestServerStartupErrors(t *testing.T) {
 
 // TestShutdownWithProviderError tests shutdown when strategy provider fails to close
 func TestShutdownWithProviderError(t *testing.T) {
-	ext := &rsExtension{
-		cfg:       &Config{},
-		telemetry: componenttest.NewNopTelemetrySettings(),
-	}
+	t.Run("error from strategy provider", func(t *testing.T) {
+		ext := &rsExtension{
+			cfg:       &Config{},
+			telemetry: componenttest.NewNopTelemetrySettings(),
+		}
 
-	// Mock a strategy provider that will fail on Close()
-	ext.strategyProvider = &mockFailingProvider{}
+		// Mock a strategy provider that will fail on Close()
+		ext.strategyProvider = &mockFailingProvider{}
 
-	err := ext.Shutdown(context.Background())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "mock provider close error")
-}
+		err := ext.Shutdown(context.Background())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "mock provider close error")
+	})
 
-// TestShutdownWithMultipleErrors tests shutdown when strategy provider fails
-func TestShutdownWithMultipleErrors(t *testing.T) {
-	ext := &rsExtension{
-		cfg:       &Config{},
-		telemetry: componenttest.NewNopTelemetrySettings(),
-	}
+	t.Run("error from HTTP server shutdown", func(t *testing.T) {
+		ext := &rsExtension{
+			cfg:       &Config{},
+			telemetry: componenttest.NewNopTelemetrySettings(),
+		}
 
-	// Mock a strategy provider that will fail on Close()
-	ext.strategyProvider = &mockFailingProvider{}
+		// Create a server that will have active connections during shutdown
+		srv := &http.Server{
+			Addr: ":0", // use dynamic port
+			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Simulate a slow request that will still be running during shutdown
+				time.Sleep(100 * time.Millisecond)
+				w.Write([]byte("done"))
+			}),
+		}
 
-	err := ext.Shutdown(context.Background())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "mock provider close error")
+		ln, err := net.Listen("tcp", srv.Addr)
+		require.NoError(t, err)
+		defer ln.Close()
+
+		// Set the server in the extension
+		ext.httpServer = srv
+
+		// Start the server
+		go srv.Serve(ln)
+
+		var wg sync.WaitGroup
+		wg.Add(1)
+
+		// Fire off a request that will still be running during shutdown
+		go func() {
+			defer wg.Done()
+			client := &http.Client{Timeout: 200 * time.Millisecond}
+			_, _ = client.Get("http://" + ln.Addr().String())
+		}()
+
+		// Give the handler time to start processing the request
+		time.Sleep(10 * time.Millisecond)
+
+		// Use a very short timeout context so shutdown fails due to active connections
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
+		defer cancel()
+
+		// This should trigger the error path in the extension's Shutdown method
+		err = ext.Shutdown(ctx)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "context deadline exceeded")
+
+		// Clean up: ensure the request completes and server shuts down properly
+		wg.Wait()
+		_ = srv.Shutdown(context.Background())
+	})
 }
 
 // Mock types for testing shutdown error paths
@@ -409,58 +449,4 @@ func (m *mockFailingProvider) GetSamplingStrategy(ctx context.Context, serviceNa
 
 func (m *mockFailingProvider) Close() error {
 	return errors.New("mock provider close error")
-}
-
-// TestShutdownHTTPServerError tests that shutdown handles HTTP server errors gracefully
-func TestShutdownHTTPServerError(t *testing.T) {
-	ext := &rsExtension{
-		cfg:       &Config{},
-		telemetry: componenttest.NewNopTelemetrySettings(),
-	}
-
-	// Create a server that will have active connections during shutdown
-	srv := &http.Server{
-		Addr: ":0", // use dynamic port
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Simulate a slow request that will still be running during shutdown
-			time.Sleep(100 * time.Millisecond)
-			w.Write([]byte("done"))
-		}),
-	}
-
-	ln, err := net.Listen("tcp", srv.Addr)
-	require.NoError(t, err)
-	defer ln.Close()
-
-	// Set the server in the extension
-	ext.httpServer = srv
-
-	// Start the server
-	go srv.Serve(ln)
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	// Fire off a request that will still be running during shutdown
-	go func() {
-		defer wg.Done()
-		client := &http.Client{Timeout: 200 * time.Millisecond}
-		_, _ = client.Get("http://" + ln.Addr().String())
-	}()
-
-	// Give the handler time to start processing the request
-	time.Sleep(10 * time.Millisecond)
-
-	// Use a very short timeout context so shutdown fails due to active connections
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
-	defer cancel()
-
-	// This should trigger the error path in the extension's Shutdown method
-	err = ext.Shutdown(ctx)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "context deadline exceeded")
-
-	// Clean up: ensure the request completes and server shuts down properly
-	wg.Wait()
-	_ = srv.Shutdown(context.Background())
 }
