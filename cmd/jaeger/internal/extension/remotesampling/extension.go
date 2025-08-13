@@ -139,9 +139,7 @@ func (ext *rsExtension) Shutdown(ctx context.Context) error {
 	var errs []error
 
 	if ext.httpServer != nil {
-		if err := ext.httpServer.Shutdown(ctx); err != nil {
-			errs = append(errs, err)
-		}
+		errs = append(errs, ext.httpServer.Shutdown(ctx))
 	}
 
 	if ext.grpcServer != nil {
@@ -149,15 +147,11 @@ func (ext *rsExtension) Shutdown(ctx context.Context) error {
 	}
 
 	if ext.distLock != nil {
-		if err := ext.distLock.Close(); err != nil {
-			errs = append(errs, err)
-		}
+		errs = append(errs, ext.distLock.Close())
 	}
 
 	if ext.strategyProvider != nil {
-		if err := ext.strategyProvider.Close(); err != nil {
-			errs = append(errs, err)
-		}
+		errs = append(errs, ext.strategyProvider.Close())
 	}
 	return errors.Join(errs...)
 }
