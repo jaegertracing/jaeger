@@ -393,7 +393,7 @@ func TestShutdownWithProviderError(t *testing.T) {
 		// Create a server that will have active connections during shutdown
 		srv := &http.Server{
 			Addr: ":0", // use dynamic port
-			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				// Simulate a slow request that will still be running during shutdown
 				time.Sleep(100 * time.Millisecond)
 				w.Write([]byte("done"))
@@ -443,10 +443,10 @@ func TestShutdownWithProviderError(t *testing.T) {
 // mockFailingProvider is a mock that always fails on Close()
 type mockFailingProvider struct{}
 
-func (m *mockFailingProvider) GetSamplingStrategy(ctx context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
+func (_ *mockFailingProvider) GetSamplingStrategy(ctx context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
 	return &api_v2.SamplingStrategyResponse{}, nil
 }
 
-func (m *mockFailingProvider) Close() error {
+func (_ *mockFailingProvider) Close() error {
 	return errors.New("mock provider close error")
 }
