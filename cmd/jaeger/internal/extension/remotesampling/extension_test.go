@@ -269,7 +269,6 @@ func TestStartFileBasedProviderError(t *testing.T) {
 	factory := NewFactory()
 	cfg := factory.CreateDefaultConfig().(*Config)
 
-	// Configure with invalid file path to trigger error
 	cfg.File = &FileConfig{
 		Path:                       "/nonexistent/directory/file.json",
 		ReloadInterval:             0,
@@ -285,7 +284,6 @@ func TestStartFileBasedProviderError(t *testing.T) {
 	}, cfg)
 	require.NoError(t, err)
 
-	// This should trigger the error path in startFileBasedStrategyProvider
 	err = ext.Start(context.Background(), nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create the local file strategy store")
@@ -309,7 +307,6 @@ func TestStartAdaptiveProviderCreateStoreError(t *testing.T) {
 	}, cfg)
 	require.NoError(t, err)
 
-	// This should trigger error in startAdaptiveStrategyProvider due to invalid storage
 	err = ext.Start(context.Background(), makeStorageExtension(t, "foobar"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to obtain sampling store factory")
@@ -323,7 +320,7 @@ func TestServerStartupErrors(t *testing.T) {
 		cfg.File = &FileConfig{Path: filepath.Join("..", "..", "..", "sampling-strategies.json")}
 		cfg.Adaptive = nil
 		cfg.HTTP = &confighttp.ServerConfig{
-			Endpoint: "invalid://endpoint", // Invalid URL scheme
+			Endpoint: "invalid://endpoint",
 		}
 		cfg.GRPC = nil
 
@@ -333,11 +330,9 @@ func TestServerStartupErrors(t *testing.T) {
 		}, cfg)
 		require.NoError(t, err)
 
-		// This should trigger an error in Start() -> startHTTPServer()
 		err = ext.Start(context.Background(), makeStorageExtension(t, "foobar"))
 		require.Error(t, err)
 
-		// Ensure cleanup
 		_ = ext.Shutdown(context.Background())
 	})
 
@@ -349,7 +344,7 @@ func TestServerStartupErrors(t *testing.T) {
 		cfg.HTTP = nil
 		cfg.GRPC = &configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{
-				Endpoint:  "invalid://endpoint", // Invalid URL scheme
+				Endpoint:  "invalid://endpoint",
 				Transport: "tcp",
 			},
 		}
@@ -364,7 +359,6 @@ func TestServerStartupErrors(t *testing.T) {
 		err = ext.Start(context.Background(), makeStorageExtension(t, "foobar"))
 		require.Error(t, err)
 
-		// Ensure cleanup
 		_ = ext.Shutdown(context.Background())
 	})
 
@@ -375,7 +369,6 @@ func TestServerStartupErrors(t *testing.T) {
 		cfg.Adaptive = nil
 		cfg.HTTP = &confighttp.ServerConfig{
 			Endpoint: "localhost:0",
-			// Configure a middleware that doesn't exist
 			Middlewares: []configmiddleware.Config{
 				{ID: component.MustNewIDWithName("nonexistent", "middleware")},
 			},
@@ -393,13 +386,11 @@ func TestServerStartupErrors(t *testing.T) {
 		err = ext.Start(context.Background(), makeStorageExtension(t, "foobar"))
 		require.Error(t, err)
 
-		// The error should come from middleware resolution failure in configmiddleware.go
 		require.Contains(t, err.Error(), "failed to start sampling http server")
 		require.Contains(t, err.Error(), "failed to resolve middleware")
 		require.Contains(t, err.Error(), "nonexistent/middleware")
 		require.Contains(t, err.Error(), "middleware not found")
 
-		// Ensure cleanup
 		_ = ext.Shutdown(context.Background())
 	})
 
@@ -414,7 +405,6 @@ func TestServerStartupErrors(t *testing.T) {
 				Endpoint:  "localhost:0",
 				Transport: "tcp",
 			},
-			// Configure a middleware that doesn't exist
 			Middlewares: []configmiddleware.Config{
 				{ID: component.MustNewIDWithName("nonexistent", "grpc-middleware")},
 			},
@@ -432,14 +422,12 @@ func TestServerStartupErrors(t *testing.T) {
 		err = ext.Start(context.Background(), makeStorageExtension(t, "foobar"))
 		require.Error(t, err)
 
-		// The error should come from gRPC middleware resolution failure in configmiddleware.go
 		require.Contains(t, err.Error(), "failed to start sampling gRPC server")
 		require.Contains(t, err.Error(), "failed to get gRPC server options from middleware")
 		require.Contains(t, err.Error(), "failed to resolve middleware")
 		require.Contains(t, err.Error(), "nonexistent/grpc-middleware")
 		require.Contains(t, err.Error(), "middleware not found")
 
-		// Ensure cleanup
 		_ = ext.Shutdown(context.Background())
 	})
 }
@@ -452,7 +440,6 @@ func TestShutdownWithProviderError(t *testing.T) {
 			telemetry: componenttest.NewNopTelemetrySettings(),
 		}
 
-		// Mock a strategy provider that will fail on Close()
 		ext.strategyProvider = &mockFailingProvider{}
 
 		err := ext.Shutdown(context.Background())
@@ -480,10 +467,8 @@ func TestShutdownWithProviderError(t *testing.T) {
 		require.NoError(t, err)
 		defer ln.Close()
 
-		// Set the server in the extension
 		ext.httpServer = srv
 
-		// Start the server
 		go srv.Serve(ln)
 
 		var wg sync.WaitGroup
@@ -503,18 +488,14 @@ func TestShutdownWithProviderError(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
 		defer cancel()
 
-		// This should trigger the error path in the extension's Shutdown method
 		err = ext.Shutdown(ctx)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "context deadline exceeded")
 
-		// Clean up: ensure the request completes and server shuts down properly
 		wg.Wait()
 		_ = srv.Shutdown(context.Background())
 	})
 }
-
-// Mock types for testing shutdown error paths
 
 // mockFailingProvider is a mock that always fails on Close()
 type mockFailingProvider struct{}
