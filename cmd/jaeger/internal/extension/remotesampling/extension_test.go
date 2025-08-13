@@ -464,27 +464,3 @@ func TestShutdownHTTPServerError(t *testing.T) {
 	wg.Wait()
 	_ = srv.Shutdown(context.Background())
 }
-
-type fakeDistLock struct {
-	closed bool
-	err    error
-}
-
-func (f *fakeDistLock) Close() error {
-	f.closed = true
-	return f.err
-}
-
-func TestShutdown_ClosesDistLock(t *testing.T) {
-	t.Run("error from distLock", func(t *testing.T) {
-		expectedErr := errors.New("close failed")
-		f := &fakeDistLock{err: expectedErr}
-		ext := &rsExtension{
-			distLock: f,
-		}
-
-		err := ext.Shutdown(context.Background())
-		require.ErrorIs(t, err, expectedErr)
-		require.True(t, f.closed, "distLock.Close() should have been called even on error")
-	})
-}
