@@ -5,9 +5,12 @@ package remotesampling
 
 import (
 	"context"
+	"errors"
 	"io"
+	"net"
 	"net/http"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -29,6 +32,8 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
+
+	// "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/remotesampling"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 )
@@ -258,4 +263,232 @@ func TestDependencies(t *testing.T) {
 	}, cfg)
 	require.NoError(t, err)
 	assert.Equal(t, []component.ID{jaegerstorage.ID}, ext.(*rsExtension).Dependencies())
+}
+
+// ===== ERROR HANDLING TESTS =====
+
+// TestStartFileBasedProviderError tests error handling in file-based provider startup
+func TestStartFileBasedProviderError(t *testing.T) {
+	factory := NewFactory()
+	cfg := factory.CreateDefaultConfig().(*Config)
+
+	// Configure with invalid file path to trigger error
+	cfg.File = &FileConfig{
+		Path:                       "/nonexistent/directory/file.json",
+		ReloadInterval:             0,
+		DefaultSamplingProbability: 0.1,
+	}
+	cfg.Adaptive = nil
+	cfg.HTTP = nil
+	cfg.GRPC = nil
+
+	ext, err := factory.Create(context.Background(), extension.Settings{
+		ID:                ID,
+		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
+	}, cfg)
+	require.NoError(t, err)
+
+	// This should trigger the error path in startFileBasedStrategyProvider
+	err = ext.Start(context.Background(), nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create the local file strategy store")
+}
+
+// TestStartAdaptiveProviderCreateStoreError tests error handling in adaptive provider startup
+func TestStartAdaptiveProviderCreateStoreError(t *testing.T) {
+	factory := NewFactory()
+	cfg := factory.CreateDefaultConfig().(*Config)
+	cfg.File = nil
+	cfg.Adaptive = &AdaptiveConfig{
+		SamplingStore: "nonexistent-store",
+		Options:       adaptive.DefaultOptions(),
+	}
+	cfg.HTTP = nil
+	cfg.GRPC = nil
+
+	ext, err := factory.Create(context.Background(), extension.Settings{
+		ID:                ID,
+		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
+	}, cfg)
+	require.NoError(t, err)
+
+	// This should trigger error in startAdaptiveStrategyProvider due to invalid storage
+	err = ext.Start(context.Background(), makeStorageExtension(t, "foobar"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to obtain sampling store factory")
+}
+
+// TestServerStartupErrors tests various server startup error scenarios
+func TestServerStartupErrors(t *testing.T) {
+	t.Run("HTTP server with invalid endpoint", func(t *testing.T) {
+		factory := NewFactory()
+		cfg := factory.CreateDefaultConfig().(*Config)
+		cfg.File = &FileConfig{Path: filepath.Join("..", "..", "..", "sampling-strategies.json")}
+		cfg.Adaptive = nil
+		cfg.HTTP = &confighttp.ServerConfig{
+			Endpoint: "invalid://endpoint", // Invalid URL scheme
+		}
+		cfg.GRPC = nil
+
+		ext, err := factory.Create(context.Background(), extension.Settings{
+			ID:                ID,
+			TelemetrySettings: componenttest.NewNopTelemetrySettings(),
+		}, cfg)
+		require.NoError(t, err)
+
+		// This should trigger an error in Start() -> startHTTPServer()
+		err = ext.Start(context.Background(), makeStorageExtension(t, "foobar"))
+		require.Error(t, err)
+
+		// Ensure cleanup
+		_ = ext.Shutdown(context.Background())
+	})
+
+	t.Run("gRPC server with invalid endpoint", func(t *testing.T) {
+		factory := NewFactory()
+		cfg := factory.CreateDefaultConfig().(*Config)
+		cfg.File = &FileConfig{Path: filepath.Join("..", "..", "..", "sampling-strategies.json")}
+		cfg.Adaptive = nil
+		cfg.HTTP = nil
+		cfg.GRPC = &configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  "invalid://endpoint", // Invalid URL scheme
+				Transport: "tcp",
+			},
+		}
+
+		ext, err := factory.Create(context.Background(), extension.Settings{
+			ID:                ID,
+			TelemetrySettings: componenttest.NewNopTelemetrySettings(),
+		}, cfg)
+		require.NoError(t, err)
+
+		// This should trigger an error in Start() -> startGRPCServer()
+		err = ext.Start(context.Background(), makeStorageExtension(t, "foobar"))
+		require.Error(t, err)
+
+		// Ensure cleanup
+		_ = ext.Shutdown(context.Background())
+	})
+}
+
+// TestShutdownWithProviderError tests shutdown when strategy provider fails to close
+func TestShutdownWithProviderError(t *testing.T) {
+	ext := &rsExtension{
+		cfg:       &Config{},
+		telemetry: componenttest.NewNopTelemetrySettings(),
+	}
+
+	// Mock a strategy provider that will fail on Close()
+	ext.strategyProvider = &mockFailingProvider{}
+
+	err := ext.Shutdown(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "mock provider close error")
+}
+
+// TestShutdownWithMultipleErrors tests shutdown when strategy provider fails
+func TestShutdownWithMultipleErrors(t *testing.T) {
+	ext := &rsExtension{
+		cfg:       &Config{},
+		telemetry: componenttest.NewNopTelemetrySettings(),
+	}
+
+	// Mock a strategy provider that will fail on Close()
+	ext.strategyProvider = &mockFailingProvider{}
+
+	err := ext.Shutdown(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "mock provider close error")
+}
+
+// Mock types for testing shutdown error paths
+
+// mockFailingProvider is a mock that always fails on Close()
+type mockFailingProvider struct{}
+
+func (m *mockFailingProvider) GetSamplingStrategy(ctx context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
+	return &api_v2.SamplingStrategyResponse{}, nil
+}
+
+func (m *mockFailingProvider) Close() error {
+	return errors.New("mock provider close error")
+}
+
+// TestShutdownHTTPServerError tests that shutdown handles HTTP server errors gracefully
+func TestShutdownHTTPServerError(t *testing.T) {
+	ext := &rsExtension{
+		cfg:       &Config{},
+		telemetry: componenttest.NewNopTelemetrySettings(),
+	}
+
+	// Create a server that will have active connections during shutdown
+	srv := &http.Server{
+		Addr: ":0", // use dynamic port
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Simulate a slow request that will still be running during shutdown
+			time.Sleep(100 * time.Millisecond)
+			w.Write([]byte("done"))
+		}),
+	}
+
+	ln, err := net.Listen("tcp", srv.Addr)
+	require.NoError(t, err)
+	defer ln.Close()
+
+	// Set the server in the extension
+	ext.httpServer = srv
+
+	// Start the server
+	go srv.Serve(ln)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	// Fire off a request that will still be running during shutdown
+	go func() {
+		defer wg.Done()
+		client := &http.Client{Timeout: 200 * time.Millisecond}
+		_, _ = client.Get("http://" + ln.Addr().String())
+	}()
+
+	// Give the handler time to start processing the request
+	time.Sleep(10 * time.Millisecond)
+
+	// Use a very short timeout context so shutdown fails due to active connections
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
+	defer cancel()
+
+	// This should trigger the error path in the extension's Shutdown method
+	err = ext.Shutdown(ctx)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "context deadline exceeded")
+
+	// Clean up: ensure the request completes and server shuts down properly
+	wg.Wait()
+	_ = srv.Shutdown(context.Background())
+}
+
+type fakeDistLock struct {
+	closed bool
+	err    error
+}
+
+func (f *fakeDistLock) Close() error {
+	f.closed = true
+	return f.err
+}
+
+func TestShutdown_ClosesDistLock(t *testing.T) {
+	t.Run("error from distLock", func(t *testing.T) {
+		expectedErr := errors.New("close failed")
+		f := &fakeDistLock{err: expectedErr}
+		ext := &rsExtension{
+			distLock: f,
+		}
+
+		err := ext.Shutdown(context.Background())
+		require.ErrorIs(t, err, expectedErr)
+		require.True(t, f.closed, "distLock.Close() should have been called even on error")
+	})
 }
