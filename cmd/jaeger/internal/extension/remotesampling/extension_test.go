@@ -21,6 +21,7 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/configmiddleware"
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/extension"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
@@ -362,6 +363,81 @@ func TestServerStartupErrors(t *testing.T) {
 		// This should trigger an error in Start() -> startGRPCServer()
 		err = ext.Start(context.Background(), makeStorageExtension(t, "foobar"))
 		require.Error(t, err)
+
+		// Ensure cleanup
+		_ = ext.Shutdown(context.Background())
+	})
+
+	t.Run("HTTP middleware not found error", func(t *testing.T) {
+		factory := NewFactory()
+		cfg := factory.CreateDefaultConfig().(*Config)
+		cfg.File = &FileConfig{Path: filepath.Join("..", "..", "..", "sampling-strategies.json")}
+		cfg.Adaptive = nil
+		cfg.HTTP = &confighttp.ServerConfig{
+			Endpoint: "localhost:0",
+			// Configure a middleware that doesn't exist
+			Middlewares: []configmiddleware.Config{
+				{ID: component.MustNewIDWithName("nonexistent", "middleware")},
+			},
+		}
+		cfg.GRPC = nil
+
+		ext, err := factory.Create(context.Background(), extension.Settings{
+			ID:                ID,
+			TelemetrySettings: componenttest.NewNopTelemetrySettings(),
+		}, cfg)
+		require.NoError(t, err)
+
+		// This should trigger the specific error from configmiddleware.go line 64-65:
+		// return nil, fmt.Errorf("failed to resolve middleware %q: %w", m.ID, errMiddlewareNotFound)
+		err = ext.Start(context.Background(), makeStorageExtension(t, "foobar"))
+		require.Error(t, err)
+
+		// The error should come from middleware resolution failure in configmiddleware.go
+		require.Contains(t, err.Error(), "failed to start sampling http server")
+		require.Contains(t, err.Error(), "failed to resolve middleware")
+		require.Contains(t, err.Error(), "nonexistent/middleware")
+		require.Contains(t, err.Error(), "middleware not found")
+
+		// Ensure cleanup
+		_ = ext.Shutdown(context.Background())
+	})
+
+	t.Run("gRPC middleware not found error", func(t *testing.T) {
+		factory := NewFactory()
+		cfg := factory.CreateDefaultConfig().(*Config)
+		cfg.File = &FileConfig{Path: filepath.Join("..", "..", "..", "sampling-strategies.json")}
+		cfg.Adaptive = nil
+		cfg.HTTP = nil
+		cfg.GRPC = &configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  "localhost:0",
+				Transport: "tcp",
+			},
+			// Configure a middleware that doesn't exist
+			Middlewares: []configmiddleware.Config{
+				{ID: component.MustNewIDWithName("nonexistent", "grpc-middleware")},
+			},
+		}
+
+		ext, err := factory.Create(context.Background(), extension.Settings{
+			ID:                ID,
+			TelemetrySettings: componenttest.NewNopTelemetrySettings(),
+		}, cfg)
+		require.NoError(t, err)
+
+		// This should trigger the specific error from configmiddleware.go line 83-84:
+		// return nil, fmt.Errorf("failed to resolve middleware %q: %w", m.ID, errMiddlewareNotFound)
+		// called via gRPC ToServer() -> getGrpcServerOptions() -> GetGRPCServerOptions()
+		err = ext.Start(context.Background(), makeStorageExtension(t, "foobar"))
+		require.Error(t, err)
+
+		// The error should come from gRPC middleware resolution failure in configmiddleware.go
+		require.Contains(t, err.Error(), "failed to start sampling gRPC server")
+		require.Contains(t, err.Error(), "failed to get gRPC server options from middleware")
+		require.Contains(t, err.Error(), "failed to resolve middleware")
+		require.Contains(t, err.Error(), "nonexistent/grpc-middleware")
+		require.Contains(t, err.Error(), "middleware not found")
 
 		// Ensure cleanup
 		_ = ext.Shutdown(context.Background())
