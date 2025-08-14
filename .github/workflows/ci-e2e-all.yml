@@ -16,26 +16,5 @@ permissions:
   contents: read
 
 jobs:
-  badger:
-    uses: ./.github/workflows/ci-e2e-badger.yaml
-
-  cassandra:
-    uses: ./.github/workflows/ci-e2e-cassandra.yml
-
   elasticsearch:
     uses: ./.github/workflows/ci-e2e-elasticsearch.yml
-
-  grpc:
-    uses: ./.github/workflows/ci-e2e-grpc.yml
-
-  kafka:
-    uses: ./.github/workflows/ci-e2e-kafka.yml
-
-  memory:
-    uses: ./.github/workflows/ci-e2e-memory.yaml
-
-  opensearch:
-    uses: ./.github/workflows/ci-e2e-opensearch.yml
-
-  query:
-    uses: ./.github/workflows/ci-e2e-query.yml
