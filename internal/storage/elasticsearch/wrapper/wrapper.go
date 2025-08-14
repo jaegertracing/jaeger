@@ -21,10 +21,12 @@ import (
 
 // ClientWrapper is a wrapper around elastic.Client
 type ClientWrapper struct {
-	client      *elastic.Client
-	bulkService *elastic.BulkProcessor
-	esVersion   uint
-	clientV8    *esV8.Client
+	client               *elastic.Client
+	bulkService          *elastic.BulkProcessor
+	esVersion            uint
+	clientV8             *esV8.Client
+	clientV8Config       *esV8.Config
+	uncompressedClientV8 *esV8.Client // Cached uncompressed client for template operations
 }
 
 // GetVersion returns the ElasticSearch Version
@@ -33,12 +35,26 @@ func (c ClientWrapper) GetVersion() uint {
 }
 
 // WrapESClient creates a ESClient out of *elastic.Client.
-func WrapESClient(client *elastic.Client, s *elastic.BulkProcessor, esVersion uint, clientV8 *esV8.Client) ClientWrapper {
+func WrapESClient(client *elastic.Client, s *elastic.BulkProcessor, esVersion uint, clientV8 *esV8.Client, clientV8Config *esV8.Config) ClientWrapper {
+	var uncompressedClientV8 *esV8.Client
+
+	// Create uncompressed client for template operations during initialization
+	// Template requests are small and don't benefit from compression
+	if clientV8 != nil && clientV8Config != nil {
+		config := *clientV8Config
+		config.CompressRequestBody = false
+		uncompressedClientV8, _ = esV8.NewClient(config)
+		// Note: We silently ignore errors here to maintain backward compatibility
+		// The template operations will fall back to the compressed client if this fails
+	}
+
 	return ClientWrapper{
-		client:      client,
-		bulkService: s,
-		esVersion:   esVersion,
-		clientV8:    clientV8,
+		client:               client,
+		bulkService:          s,
+		esVersion:            esVersion,
+		clientV8:             clientV8,
+		clientV8Config:       clientV8Config,
+		uncompressedClientV8: uncompressedClientV8,
 	}
 }
 
@@ -60,10 +76,18 @@ func (c ClientWrapper) DeleteIndex(index string) es.IndicesDeleteService {
 // CreateTemplate calls this function to internal client.
 func (c ClientWrapper) CreateTemplate(ttype string) es.TemplateCreateService {
 	if c.esVersion >= 8 {
-		return TemplateCreatorWrapperV8{
+		wrapper := TemplateCreatorWrapperV8{
 			indicesV8:    c.clientV8.Indices,
 			templateName: ttype,
 		}
+
+		// Use cached uncompressed client for template operations
+		// Template requests are small and don't benefit from compression
+		if c.uncompressedClientV8 != nil {
+			wrapper.uncompressedIndices = c.uncompressedClientV8.Indices
+		}
+
+		return wrapper
 	}
 	return WrapESTemplateCreateService(c.client.IndexPutTemplate(ttype))
 }
@@ -92,6 +116,11 @@ func (c ClientWrapper) MultiSearch() es.MultiSearchService {
 // Close closes ESClient and flushes all data to the storage.
 func (c ClientWrapper) Close() error {
 	c.client.Stop()
+
+	// Note: ES v8 client (both compressed and uncompressed) doesn't have explicit Close method
+	// The underlying HTTP client will be garbage collected when the wrapper is disposed
+	// No additional cleanup needed for c.clientV8 or c.uncompressedClientV8
+
 	return c.bulkService.Close()
 }
 
@@ -173,9 +202,10 @@ func (c TemplateCreateServiceWrapper) Do(ctx context.Context) (*elastic.IndicesP
 
 // TemplateCreatorWrapperV8 implements es.TemplateCreateService.
 type TemplateCreatorWrapperV8 struct {
-	indicesV8       *esV8api.Indices
-	templateName    string
-	templateMapping string
+	indicesV8           *esV8api.Indices
+	templateName        string
+	templateMapping     string
+	uncompressedIndices *esV8api.Indices
 }
 
 // Body adds mapping to the future request.
@@ -187,12 +217,23 @@ func (c TemplateCreatorWrapperV8) Body(mapping string) es.TemplateCreateService 
 
 // Do executes Put Template command.
 func (c TemplateCreatorWrapperV8) Do(context.Context) (*elastic.IndicesPutTemplateResponse, error) {
-	resp, err := c.indicesV8.PutIndexTemplate(c.templateName, strings.NewReader(c.templateMapping))
+	var resp *esV8api.Response
+	var err error
+
+	// Use uncompressed client for template operations if available
+	// Template requests are small and don't benefit from compression
+	if c.uncompressedIndices != nil {
+		resp, err = c.uncompressedIndices.PutIndexTemplate(c.templateName, strings.NewReader(c.templateMapping))
+	} else {
+		// Fallback to standard client if uncompressed client is not available
+		resp, err = c.indicesV8.PutIndexTemplate(c.templateName, strings.NewReader(c.templateMapping))
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("error creating index template %s: %w", c.templateName, err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("error creating index template %s: %s", c.templateName, resp)
+		return nil, fmt.Errorf("error creating index template %s: unexpected status code %d: %s", c.templateName, resp.StatusCode, resp)
 	}
 	return nil, nil // no response expected by span writer
 }
