@@ -46,7 +46,7 @@ runs:
       id: get_go_version
       shell: bash
       run: |
-        LATEST_GO_VERSION=$(curl -s "https://go.dev/VERSION?m=text")
+        LATEST_GO_VERSION=$(curl -s "https://go.dev/VERSION?m=text" | grep go1)
         echo "LATEST_GO_VERSION=$LATEST_GO_VERSION" >> $GITHUB_OUTPUT
 
     - name: Install Go toolchain
