@@ -27,12 +27,16 @@ jobs:
             const { owner, repo } = context.repo;
             const workflowRunId = context.payload.workflow_run.id;
             
+            console.log(`Starting artifact download for workflow run ${workflowRunId} in ${owner}/${repo}`);
+            
             // List all artifacts from the triggering workflow run
+            console.log('Fetching artifacts list...');
             const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
               owner,
               repo,
               run_id: workflowRunId,
             });
+            console.log(`Found ${artifacts.data.artifacts.length} artifacts`);
             
             // Download and extract each artifact
             const fs = require('fs');
@@ -40,6 +44,7 @@ jobs:
             const AdmZip = require('adm-zip');
             
             for (const artifact of artifacts.data.artifacts) {
+              console.log(`Processing artifact: ${artifact.name} (ID: ${artifact.id})`);
               const download = await github.rest.actions.downloadArtifact({
                 owner,
                 repo,
@@ -47,39 +52,62 @@ jobs:
                 archive_format: 'zip',
               });
             
+              const extractPath = path.join(process.env.GITHUB_WORKSPACE, '.metrics', artifact.name);
+              console.log(`Extracting to ${extractPath}`);
               const zip = new AdmZip(Buffer.from(download.data));
-              zip.extractAllTo(path.join(process.env.GITHUB_WORKSPACE, '.metrics', artifact.name), true);
-              console.log(`Extracted artifact: ${artifact.name}`);
+              zip.extractAllTo(extractPath, true);
+              console.log(`Successfully extracted ${artifact.name}`);
             }
             
-            // Extract PR number (adapted from PDF logic)
+            // Extract PR number with detailed logging
+            console.log('\nStarting PR number detection...');
             let prNumber = null;
+            const headBranch = context.payload.workflow_run.head_branch;
+            const headRepo = context.payload.workflow_run.head_repository.full_name;
+            const headSha = context.payload.workflow_run.head_sha;
+            
+            console.log(`Workflow run details:
+            - Head branch: ${headBranch}
+            - Head repository: ${headRepo}
+            - Commit SHA: ${headSha}`);
+            
+            // First try: Find PR by branch
+            console.log(`\nAttempt 1: Searching PRs for branch ${headRepo}:${headBranch}`);
             const pullRequest = await github.rest.pulls.list({
               owner,
               repo,
-              head: `${context.payload.workflow_run.head_repository.full_name}:${context.payload.workflow_run.head_branch}`,
+              head: `${headRepo}:${headBranch}`,
             });
             
             if (pullRequest.data.length > 0) {
               prNumber = pullRequest.data[0].number;
+              console.log(`Found PR via branch search: #${prNumber}`);
             } else {
-              // Fallback to commit SHA if needed
-              const commitSha = context.payload.workflow_run.head_sha;
+              console.log('No PR found via branch search. Trying commit SHA...');
+            
+              // Second try: Find PR by commit SHA
+              console.log(`\nAttempt 2: Searching PRs for commit ${headSha}`);
               const prsForCommit = await github.rest.repos.listPullRequestsAssociatedWithCommit({
                 owner,
                 repo,
-                commit_sha: commitSha,
+                commit_sha: headSha,
               });
+            
               if (prsForCommit.data.length > 0) {
                 prNumber = prsForCommit.data[0].number;
+                console.log(`Found PR via commit SHA: #${prNumber}`);
               }
             }
             
             if (prNumber) {
-              console.log(`Found PR Number: ${prNumber}`);
+              console.log(`\nFinal PR Number: ${prNumber}`);
               core.setOutput('pr_number', prNumber);
             } else {
-              console.log('Could not determine PR number. Skipping comment.');
+              console.error('\nPR detection failed. Possible reasons:');
+              console.error('- The workflow was triggered directly (not from a PR)');
+              console.error('- The branch is not associated with any open PR');
+              console.error('- The PR comes from a fork with restricted permissions');
+              console.error(`Full workflow run context: ${JSON.stringify(context.payload.workflow_run, null, 2)}`);
               core.setFailed('Could not determine PR number for commenting.');
             }
         env:
