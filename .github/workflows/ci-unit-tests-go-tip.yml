@@ -5,11 +5,17 @@ on:
   push:
     branches: [main]
 
+  # We normally don't want this workflow to run on PRs, only on main branch.
+  # But to allow testing of this workflow itself, we can add `run-on-pr` label.
+  pull_request:
+    branches: [main]
+
 permissions:
   contents: read
 
 jobs:
   unit-tests-go-tip:
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-on-pr')
     permissions:
       checks: write
     runs-on: ubuntu-latest

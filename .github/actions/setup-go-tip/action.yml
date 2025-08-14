@@ -44,6 +44,7 @@ runs:
     - name: Determine latest Go version
       if: steps.download.outputs.success == 'false'
       id: get_go_version
+      shell: bash
       run: |
         LATEST_GO_VERSION=$(curl -s "https://go.dev/VERSION?m=text")
         echo "LATEST_GO_VERSION=$LATEST_GO_VERSION" >> $GITHUB_OUTPUT
