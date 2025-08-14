@@ -10,7 +10,7 @@ runs:
       run: |
         echo Download Go Tip
         set -euo pipefail
-        tip=$(git ls-remote https://github.com/golang/go.git HEAD | awk '{print $1;}')
+        tip=$(git ls-remote https://github.com/golang/go.git refs/heads/master | awk '{print $1;}')
         echo "Go Tip version: ${tip}"
         retries=3
         wait_time=10
