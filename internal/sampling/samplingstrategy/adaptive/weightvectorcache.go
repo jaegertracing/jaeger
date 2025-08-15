@@ -11,8 +11,7 @@ import (
 // WeightVectorCache stores normalizing weight vectors of different lengths.
 // The head of each weight vector contains the largest weight.
 type WeightVectorCache struct {
-	sync.Mutex
-
+	mu    sync.Mutex
 	cache map[int][]float64
 }
 
@@ -26,8 +25,8 @@ func NewWeightVectorCache() *WeightVectorCache {
 
 // GetWeights returns weights for the specified length { w(i) = i ^ 4, i=1..L }, normalized.
 func (c *WeightVectorCache) GetWeights(length int) []float64 {
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if weights, ok := c.cache[length]; ok {
 		return weights
 	}

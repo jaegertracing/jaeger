@@ -147,7 +147,7 @@ func TestBearerTokenPropagation(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			req, err := http.NewRequest(http.MethodGet, url, nil)
+			req, err := http.NewRequest(http.MethodGet, url, http.NoBody)
 			require.NoError(t, err)
 			req.Header.Add(testCase.headerName, testCase.headerValue)
 

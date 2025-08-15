@@ -26,7 +26,7 @@ var errInvalidSearchDepth = errors.New("search depth must be greater than 0 and 
 
 // Store is an in-memory store of traces
 type Store struct {
-	sync.RWMutex
+	mu sync.RWMutex
 	// Each tenant gets a copy of default config.
 	// In the future this can be extended to contain per-tenant configuration.
 	defaultConfig v1.Configuration
@@ -46,12 +46,12 @@ func NewStore(cfg v1.Configuration) (*Store, error) {
 
 // getTenant returns the per-tenant storage.  Note that tenantID has already been checked for by the collector or query
 func (st *Store) getTenant(tenantID string) *Tenant {
-	st.RLock()
+	st.mu.RLock()
 	tenant, ok := st.perTenant[tenantID]
-	st.RUnlock()
+	st.mu.RUnlock()
 	if !ok {
-		st.Lock()
-		defer st.Unlock()
+		st.mu.Lock()
+		defer st.mu.Unlock()
 		tenant, ok = st.perTenant[tenantID]
 		if !ok {
 			tenant = newTenant(&st.defaultConfig)
@@ -73,8 +73,8 @@ func (st *Store) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 // GetOperations returns operations based on the service name and span kind
 func (st *Store) GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
 	m := st.getTenant(tenancy.GetTenant(ctx))
-	m.RLock()
-	defer m.RUnlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	var retMe []tracestore.Operation
 	if operations, ok := m.operations[query.ServiceName]; ok {
 		for operation := range operations {
@@ -89,8 +89,8 @@ func (st *Store) GetOperations(ctx context.Context, query tracestore.OperationQu
 // GetServices returns a list of all known services
 func (st *Store) GetServices(ctx context.Context) ([]string, error) {
 	m := st.getTenant(tenancy.GetTenant(ctx))
-	m.RLock()
-	defer m.RUnlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	var retMe []string
 	for k := range m.services {
 		retMe = append(retMe, k)
@@ -148,9 +148,9 @@ func (st *Store) GetDependencies(ctx context.Context, query depstore.QueryParame
 }
 
 func (st *Store) Purge() error {
-	st.Lock()
+	st.mu.Lock()
 	st.perTenant = make(map[string]*Tenant)
-	st.Unlock()
+	st.mu.Unlock()
 	return nil
 }
 

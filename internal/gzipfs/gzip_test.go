@@ -134,7 +134,7 @@ func TestFileStatError(t *testing.T) {
 }
 
 func TestFileRead(t *testing.T) {
-	f := &file{content: ([]byte)("long content")}
+	f := &file{content: []byte("long content")}
 	buf := make([]byte, 5) // shorter buffer
 	n, err := f.Read(buf)
 	require.NoError(t, err)

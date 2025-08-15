@@ -61,9 +61,9 @@ type throughputBucket struct {
 // retrieving discrete buckets of operation throughput and doing a weighted average of the throughput
 // and generating a probability to match the targetQPS.
 type PostAggregator struct {
-	sync.RWMutex
 	Options
 
+	mu                  sync.RWMutex
 	electionParticipant leaderelection.ElectionParticipant
 	storage             samplingstore.Store
 	logger              *zap.Logger
@@ -170,10 +170,10 @@ func (p *PostAggregator) runCalculation() {
 	if p.isLeader() {
 		startTime := time.Now()
 		probabilities, qps := p.calculateProbabilitiesAndQPS()
-		p.Lock()
+		p.mu.Lock()
 		p.probabilities = probabilities
 		p.qps = qps
-		p.Unlock()
+		p.mu.Unlock()
 		// NB: This has the potential of running into a race condition if the CalculationInterval
 		// is set to an extremely low value. The worst case scenario is that probabilities is calculated
 		// and swapped more than once before generateStrategyResponses() and saveProbabilities() are called.
@@ -187,8 +187,8 @@ func (p *PostAggregator) runCalculation() {
 }
 
 func (p *PostAggregator) saveProbabilitiesAndQPS() {
-	p.RLock()
-	defer p.RUnlock()
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 	if err := p.storage.InsertProbabilitiesAndQPS(p.hostname, p.probabilities, p.qps); err != nil {
 		p.logger.Warn("could not save probabilities", zap.Error(err))
 	}
@@ -332,14 +332,14 @@ func (p *PostAggregator) calculateProbabilitiesAndQPS() (model.ServiceOperationP
 func (p *PostAggregator) calculateProbability(service, operation string, qps float64) float64 {
 	oldProbability := p.InitialSamplingProbability
 	// TODO: is this loop overly expensive?
-	p.RLock()
+	p.mu.RLock()
 	if opProbabilities, ok := p.probabilities[service]; ok {
 		if probability, ok := opProbabilities[operation]; ok {
 			oldProbability = probability
 		}
 	}
 	latestThroughput := p.throughputs[0].throughput
-	p.RUnlock()
+	p.mu.RUnlock()
 
 	usingAdaptiveSampling := p.isUsingAdaptiveSampling(oldProbability, service, operation, latestThroughput)
 	p.serviceCache[0].Set(service, operation, &SamplingCacheEntry{

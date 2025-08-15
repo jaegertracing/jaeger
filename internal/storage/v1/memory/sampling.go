@@ -12,7 +12,7 @@ import (
 
 // SamplingStore is an in-memory store for sampling data
 type SamplingStore struct {
-	sync.RWMutex
+	mu                  sync.RWMutex
 	throughputs         []*storedThroughput
 	probabilitiesAndQPS *storedServiceOperationProbabilitiesAndQPS
 	maxBuckets          int
@@ -37,8 +37,8 @@ func NewSamplingStore(maxBuckets int) *SamplingStore {
 
 // InsertThroughput implements samplingstore.Store#InsertThroughput.
 func (ss *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
-	ss.Lock()
-	defer ss.Unlock()
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
 	now := time.Now()
 	ss.preprendThroughput(&storedThroughput{throughput, now})
 	return nil
@@ -46,8 +46,8 @@ func (ss *SamplingStore) InsertThroughput(throughput []*model.Throughput) error 
 
 // GetThroughput implements samplingstore.Store#GetThroughput.
 func (ss *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
-	ss.Lock()
-	defer ss.Unlock()
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
 	var retSlice []*model.Throughput
 	for _, t := range ss.throughputs {
 		if t.time.After(start) && (t.time.Before(end) || t.time.Equal(end)) {
@@ -63,16 +63,16 @@ func (ss *SamplingStore) InsertProbabilitiesAndQPS(
 	probabilities model.ServiceOperationProbabilities,
 	qps model.ServiceOperationQPS,
 ) error {
-	ss.Lock()
-	defer ss.Unlock()
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
 	ss.probabilitiesAndQPS = &storedServiceOperationProbabilitiesAndQPS{hostname, probabilities, qps, time.Now()}
 	return nil
 }
 
 // GetLatestProbabilities implements samplingstore.Store#GetLatestProbabilities.
 func (ss *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
-	ss.Lock()
-	defer ss.Unlock()
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
 	if ss.probabilitiesAndQPS != nil {
 		return ss.probabilitiesAndQPS.probabilities, nil
 	}

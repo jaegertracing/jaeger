@@ -141,7 +141,7 @@ func TestHTTPGatewayGetTrace(t *testing.T) {
 				testUrl += "?" + q.Encode()
 			}
 
-			r, err := http.NewRequest(http.MethodGet, testUrl, nil)
+			r, err := http.NewRequest(http.MethodGet, testUrl, http.NoBody)
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 			gw.router.ServeHTTP(w, r)
@@ -157,7 +157,7 @@ func TestHTTPGatewayGetTraceEmptyResponse(t *testing.T) {
 			yield([]ptrace.Traces{}, nil)
 		})).Once()
 
-	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", nil)
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 	gw.router.ServeHTTP(w, r)
@@ -167,7 +167,7 @@ func TestHTTPGatewayGetTraceEmptyResponse(t *testing.T) {
 
 func TestHTTPGatewayFindTracesEmptyResponse(t *testing.T) {
 	q, qp := mockFindQueries()
-	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), nil)
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
@@ -219,7 +219,7 @@ func TestHTTPGatewayGetTraceMalformedInputErrors(t *testing.T) {
 					yield([]ptrace.Traces{}, nil)
 				})).Once()
 
-			r, err := http.NewRequest(http.MethodGet, tc.requestUrl, nil)
+			r, err := http.NewRequest(http.MethodGet, tc.requestUrl, http.NoBody)
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 			gw.router.ServeHTTP(w, r)
@@ -235,7 +235,7 @@ func TestHTTPGatewayGetTraceInternalErrors(t *testing.T) {
 			yield([]ptrace.Traces{}, assert.AnError)
 		})).Once()
 
-	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", nil)
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 	gw.router.ServeHTTP(w, r)
@@ -335,7 +335,7 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 			for k, v := range tc.params {
 				q.Set(k, v)
 			}
-			r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), nil)
+			r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
@@ -346,7 +346,7 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 	}
 	t.Run("span reader error", func(t *testing.T) {
 		q, qp := mockFindQueries()
-		r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), nil)
+		r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
 		require.NoError(t, err)
 		w := httptest.NewRecorder()
 
@@ -369,7 +369,7 @@ func TestHTTPGatewayGetServicesErrors(t *testing.T) {
 		On("GetServices", matchContext).
 		Return(nil, assert.AnError).Once()
 
-	r, err := http.NewRequest(http.MethodGet, "/api/v3/services", nil)
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/services", http.NoBody)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 	gw.router.ServeHTTP(w, r)
@@ -384,7 +384,7 @@ func TestHTTPGatewayGetOperationsErrors(t *testing.T) {
 		On("GetOperations", matchContext, qp).
 		Return(nil, assert.AnError).Once()
 
-	r, err := http.NewRequest(http.MethodGet, "/api/v3/operations?service=foo&span_kind=server", nil)
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/operations?service=foo&span_kind=server", http.NoBody)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 	gw.router.ServeHTTP(w, r)

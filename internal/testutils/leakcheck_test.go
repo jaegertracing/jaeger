@@ -10,7 +10,7 @@ import (
 )
 
 func TestVerifyGoLeaksOnce(t *testing.T) {
-	defer testutils.VerifyGoLeaksOnce(t)
+	testutils.VerifyGoLeaksOnce(t)
 }
 
 func TestMain(m *testing.M) {

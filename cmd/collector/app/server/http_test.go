@@ -89,7 +89,7 @@ func TestSpanCollectorHTTP(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, response)
 	defer response.Body.Close()
-	defer server.Close()
+	server.Close()
 }
 
 func optionalFromPtr[T any](ptr *T) configoptional.Optional[T] {

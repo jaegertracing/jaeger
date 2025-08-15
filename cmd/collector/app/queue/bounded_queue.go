@@ -43,7 +43,7 @@ func NewBoundedQueue[T any](capacity int, onDroppedItem func(item T)) *BoundedQu
 		stopCh:        make(chan struct{}),
 	}
 	bq.items.Store(&queue)
-	//nolint: gosec // G115
+	//nolint:gosec // G115
 	bq.capacity.Store(uint32(capacity))
 	return bq
 }
@@ -187,7 +187,7 @@ func (q *BoundedQueue[T]) Resize(capacity int) bool {
 		close(*previous)
 
 		// update the capacity
-		//nolint: gosec // G115
+		//nolint:gosec // G115
 		q.capacity.Store(uint32(capacity))
 	}
 

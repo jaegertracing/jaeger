@@ -28,7 +28,7 @@ func TestResponseHeadersHandler(t *testing.T) {
 	server := httptest.NewServer(handler)
 	defer server.Close()
 
-	req, err := http.NewRequest(http.MethodGet, server.URL, nil)
+	req, err := http.NewRequest(http.MethodGet, server.URL, http.NoBody)
 	require.NoError(t, err)
 
 	resp, err := server.Client().Do(req)

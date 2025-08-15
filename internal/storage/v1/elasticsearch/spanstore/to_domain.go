@@ -175,7 +175,8 @@ func (td ToDomain) convertKeyValue(tag *dbmodel.KeyValue) (model.KeyValue, error
 }
 
 func (ToDomain) fromDBNumber(kv *dbmodel.KeyValue) (model.KeyValue, error) {
-	if kv.Type == dbmodel.Int64Type {
+	switch kv.Type {
+	case dbmodel.Int64Type:
 		switch v := kv.Value.(type) {
 		case int64:
 			return model.Int64(kv.Key, v), nil
@@ -187,10 +188,11 @@ func (ToDomain) fromDBNumber(kv *dbmodel.KeyValue) (model.KeyValue, error) {
 			if err == nil {
 				return model.Int64(kv.Key, n), nil
 			}
+			return model.KeyValue{}, fmt.Errorf("not a valid number ValueType %s", string(kv.Type))
 		default:
 			return model.KeyValue{}, invalidValueErr(kv)
 		}
-	} else if kv.Type == dbmodel.Float64Type {
+	case dbmodel.Float64Type:
 		switch v := kv.Value.(type) {
 		case float64:
 			return model.Float64(kv.Key, v), nil
@@ -199,11 +201,13 @@ func (ToDomain) fromDBNumber(kv *dbmodel.KeyValue) (model.KeyValue, error) {
 			if err == nil {
 				return model.Float64(kv.Key, n), nil
 			}
+			return model.KeyValue{}, fmt.Errorf("not a valid number ValueType %s", string(kv.Type))
 		default:
 			return model.KeyValue{}, invalidValueErr(kv)
 		}
+	default:
+		return model.KeyValue{}, fmt.Errorf("not a valid number ValueType %s", string(kv.Type))
 	}
-	return model.KeyValue{}, fmt.Errorf("not a valid number ValueType %s", string(kv.Type))
 }
 
 func invalidValueErr(kv *dbmodel.KeyValue) error {

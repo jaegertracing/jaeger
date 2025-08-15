@@ -79,11 +79,11 @@ func (e *bridgeFieldEncoder) AddObject(key string, marshaler zapcore.ObjectMarsh
 }
 
 func (e *bridgeFieldEncoder) AddBinary(key string, value []byte) {
-	e.pairs = append(e.pairs, attribute.String(key, fmt.Sprint(value)))
+	e.pairs = append(e.pairs, attribute.String(key, string(value)))
 }
 
 func (e *bridgeFieldEncoder) AddByteString(key string, value []byte) {
-	e.pairs = append(e.pairs, attribute.String(key, fmt.Sprint(value)))
+	e.pairs = append(e.pairs, attribute.String(key, string(value)))
 }
 
 func (e *bridgeFieldEncoder) AddBool(key string, value bool) {
@@ -99,7 +99,7 @@ func (e *bridgeFieldEncoder) AddComplex64(key string, value complex64) {
 }
 
 func (e *bridgeFieldEncoder) AddDuration(key string, value time.Duration) {
-	e.pairs = append(e.pairs, attribute.String(key, fmt.Sprint(value)))
+	e.pairs = append(e.pairs, attribute.String(key, value.String()))
 }
 
 func (e *bridgeFieldEncoder) AddFloat64(key string, value float64) {
@@ -135,7 +135,7 @@ func (e *bridgeFieldEncoder) AddString(key, value string) {
 }
 
 func (e *bridgeFieldEncoder) AddTime(key string, value time.Time) {
-	e.pairs = append(e.pairs, attribute.String(key, fmt.Sprint(value)))
+	e.pairs = append(e.pairs, attribute.String(key, value.String()))
 }
 
 func (e *bridgeFieldEncoder) AddUint(key string, value uint) {

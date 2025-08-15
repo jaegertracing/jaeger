@@ -362,9 +362,9 @@ func TestRunCalculationLoop(t *testing.T) {
 	}
 
 	postAgg := agg.(*aggregator).postAggregator
-	postAgg.Lock()
+	postAgg.mu.Lock()
 	probabilities := postAgg.probabilities
-	postAgg.Unlock()
+	postAgg.mu.Unlock()
 	require.Len(t, probabilities["svcA"], 2)
 }
 

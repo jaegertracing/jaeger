@@ -243,7 +243,7 @@ func (s *SpanWriter) indexByDuration(span *dbmodel.Span, startTime time.Time) er
 }
 
 func (s *SpanWriter) indexByService(span *dbmodel.Span) error {
-	//nolint: gosec // G115
+	//nolint:gosec // G115
 	bucketNo := uint64(span.SpanHash) % defaultNumBuckets
 	query := s.session.Query(serviceNameIndex)
 	q := query.Bind(span.Process.ServiceName, bucketNo, span.StartTime, span.TraceID)

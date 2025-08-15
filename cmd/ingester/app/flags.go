@@ -105,7 +105,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
 		KafkaConsumerConfigPrefix+SuffixEncoding,
 		DefaultEncoding,
-		fmt.Sprintf(`The encoding of spans ("%s") consumed from kafka`, strings.Join(kafka.AllEncodings, "\", \"")))
+		fmt.Sprintf(`The encoding of spans (%q) consumed from kafka`, strings.Join(kafka.AllEncodings, "\", \"")))
 	flagSet.String(
 		KafkaConsumerConfigPrefix+SuffixRackID,
 		"",

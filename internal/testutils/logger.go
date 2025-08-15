@@ -45,7 +45,7 @@ func NewEchoLogger(t *testing.T) (*zap.Logger, *Buffer) {
 
 // Buffer wraps zaptest.Buffer and provides convenience method JSONLine(n)
 type Buffer struct {
-	sync.RWMutex
+	mu sync.RWMutex
 	zaptest.Buffer
 }
 
@@ -67,29 +67,29 @@ func (b *Buffer) JSONLine(n int) map[string]string {
 
 // Lines overwrites zaptest.Buffer.Lines() to make it thread safe
 func (b *Buffer) Lines() []string {
-	b.RLock()
-	defer b.RUnlock()
+	b.mu.RLock()
+	defer b.mu.RUnlock()
 	return b.Buffer.Lines()
 }
 
 // Stripped overwrites zaptest.Buffer.Stripped() to make it thread safe
 func (b *Buffer) Stripped() string {
-	b.RLock()
-	defer b.RUnlock()
+	b.mu.RLock()
+	defer b.mu.RUnlock()
 	return b.Buffer.Stripped()
 }
 
 // String overwrites zaptest.Buffer.String() to make it thread safe
 func (b *Buffer) String() string {
-	b.RLock()
-	defer b.RUnlock()
+	b.mu.RLock()
+	defer b.mu.RUnlock()
 	return b.Buffer.String()
 }
 
 // Write overwrites zaptest.Buffer.bytes.Buffer.Write() to make it thread safe
 func (b *Buffer) Write(p []byte) (int, error) {
-	b.Lock()
-	defer b.Unlock()
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	return b.Buffer.Write(p)
 }
 

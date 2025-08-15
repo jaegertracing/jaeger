@@ -92,7 +92,8 @@ func NewFactoryBase(
 		}
 	}
 
-	if err = f.createTemplates(ctx); err != nil {
+	err = f.createTemplates(ctx)
+	if err != nil {
 		return nil, err
 	}
 
