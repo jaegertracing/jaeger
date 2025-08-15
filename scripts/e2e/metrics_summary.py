@@ -115,9 +115,6 @@ def generate_diff_summary(changes):
             summary.append(f"  - Added variants: {len(versions['added'])}")
             summary.append(f"  - Removed variants: {len(versions['removed'])}")
 
-    # Preserve the artifact link placeholder
-    summary.append("\n➡️ [View full metrics file]($LINK_TO_ARTIFACT)")
-
     return "\n".join(summary)
 
 def main():
