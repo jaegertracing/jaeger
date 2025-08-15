@@ -7,6 +7,22 @@ set -euo pipefail
 
 MODE="${1:-upgrade}"
 
+if [[ "$MODE" == "upgrade" ]]; then
+  HELM_JAEGER_CMD="upgrade --install --force"
+  HELM_PROM_CMD="upgrade --install --force"
+else
+  echo "🟣 Clean mode: Uninstalling Jaeger and Prometheus..."
+  helm uninstall jaeger --ignore-not-found || true
+  helm uninstall prometheus --ignore-not-found || true
+  for name in jaeger prometheus; do
+    while helm list --filter "^${name}$" | grep "$name" &>/dev/null; do
+      echo "Waiting for Helm release $name to be deleted..."
+    done
+  done
+  HELM_JAEGER_CMD="install"
+  HELM_PROM_CMD="install"
+fi
+
 # Clone Jaeger Helm Charts (v2 branch) if not already present
 if [ ! -d "helm-charts" ]; then
   echo "📥 Cloning Jaeger Helm Charts..."
@@ -35,35 +51,18 @@ if [[ "$(basename $PWD)" != "oci" ]]; then
   fi
 fi
 
-if [[ "$MODE" == "upgrade" ]]; then
-  echo "🟣 Upgrade mode: Upgrading Jaeger and Prometheus..."
-  helm upgrade --install --force jaeger ./helm-charts/charts/jaeger \
-    --set provisionDataStore.cassandra=false \
-    --set allInOne.enabled=true \
-    --set storage.type=memory \
-    --set-file userconfig="./config.yaml" \
-    --set-file uiconfig="./ui-config.json" \
-    -f ./jaeger-values.yaml
+echo "🟣 Deploying Jaeger..."
+helm $HELM_JAEGER_CMD jaeger ./helm-charts/charts/jaeger \
+  --set provisionDataStore.cassandra=false \
+  --set allInOne.enabled=true \
+  --set storage.type=memory \
+  --set-file userconfig="./config.yaml" \
+  --set-file uiconfig="./ui-config.json" \
+  -f ./jaeger-values.yaml
 
-  kubectl apply -f prometheus-svc.yaml
-  helm upgrade --install --force prometheus -f monitoring-values.yaml prometheus-community/kube-prometheus-stack
-else
-  echo "🟣 Clean mode: Uninstalling and reinstalling Jaeger and Prometheus..."
-  helm uninstall jaeger --ignore-not-found || true
-  helm uninstall prometheus --ignore-not-found || true
-  sleep 5
-
-  helm install jaeger ./helm-charts/charts/jaeger \
-    --set provisionDataStore.cassandra=false \
-    --set allInOne.enabled=true \
-    --set storage.type=memory \
-    --set-file userconfig="./config.yaml" \
-    --set-file uiconfig="./ui-config.json" \
-    -f ./jaeger-values.yaml
-
-  kubectl apply -f prometheus-svc.yaml
-  helm install prometheus -f monitoring-values.yaml prometheus-community/kube-prometheus-stack
-fi
+echo "🟢 Deploying Prometheus..."
+kubectl apply -f prometheus-svc.yaml
+helm $HELM_PROM_CMD prometheus -f monitoring-values.yaml prometheus-community/kube-prometheus-stack
 
 # Create ConfigMap for Trace Generator
 echo "🔵 Step 3: Creating ConfigMap for Trace Generator..."
