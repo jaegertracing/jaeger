@@ -34,10 +34,10 @@ jobs:
     - name: Deploy using appropriate script
       run: |
         cd ./examples/oci
-        if [[ "${{ github.event_name }}" == "schedule" ]]; then
+        if [ "${{ github.event_name }}" = "schedule" ]; then
           echo "🕒 Scheduled run - using deploy-all.sh (upgrade mode)"
           bash ./deploy-all.sh
         else
-          echo "🔄 clean run - using deploy-all-new.sh (clean install mode)"
-          bash ./deploy-all-new.sh
-        fi
+          echo "🔄 Manual run - using deploy-all.sh with clean mode (uninstall/install)"
+          bash ./deploy-all.sh clean
+        fi         

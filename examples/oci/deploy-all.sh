@@ -5,6 +5,8 @@
 
 set -euo pipefail
 
+MODE="${1:-upgrade}"
+
 # Clone Jaeger Helm Charts (v2 branch) if not already present
 if [ ! -d "helm-charts" ]; then
   echo "📥 Cloning Jaeger Helm Charts..."
@@ -33,20 +35,35 @@ if [[ "$(basename $PWD)" != "oci" ]]; then
   fi
 fi
 
-# Deploy Jaeger (All-in-One with memory storage)
-echo "🟣 Step 1: Installing Jaeger..."
-helm upgrade --install --force jaeger ./helm-charts/charts/jaeger \
-  --set provisionDataStore.cassandra=false \
-  --set allInOne.enabled=true \
-  --set storage.type=memory \
-  --set-file userconfig="./config.yaml" \
-  --set-file uiconfig="./ui-config.json" \
-  -f ./jaeger-values.yaml
+if [[ "$MODE" == "upgrade" ]]; then
+  echo "🟣 Upgrade mode: Upgrading Jaeger and Prometheus..."
+  helm upgrade --install --force jaeger ./helm-charts/charts/jaeger \
+    --set provisionDataStore.cassandra=false \
+    --set allInOne.enabled=true \
+    --set storage.type=memory \
+    --set-file userconfig="./config.yaml" \
+    --set-file uiconfig="./ui-config.json" \
+    -f ./jaeger-values.yaml
 
-# Deploy Prometheus Monitoring Stack
-echo "🟢 Step 2: Deploying Prometheus Monitoring stack..."
-kubectl apply -f prometheus-svc.yaml
-helm upgrade --install --force prometheus -f monitoring-values.yaml prometheus-community/kube-prometheus-stack
+  kubectl apply -f prometheus-svc.yaml
+  helm upgrade --install --force prometheus -f monitoring-values.yaml prometheus-community/kube-prometheus-stack
+else
+  echo "🟣 Clean mode: Uninstalling and reinstalling Jaeger and Prometheus..."
+  helm uninstall jaeger --ignore-not-found || true
+  helm uninstall prometheus --ignore-not-found || true
+  sleep 5
+
+  helm install jaeger ./helm-charts/charts/jaeger \
+    --set provisionDataStore.cassandra=false \
+    --set allInOne.enabled=true \
+    --set storage.type=memory \
+    --set-file userconfig="./config.yaml" \
+    --set-file uiconfig="./ui-config.json" \
+    -f ./jaeger-values.yaml
+
+  kubectl apply -f prometheus-svc.yaml
+  helm install prometheus -f monitoring-values.yaml prometheus-community/kube-prometheus-stack
+fi
 
 # Create ConfigMap for Trace Generator
 echo "🔵 Step 3: Creating ConfigMap for Trace Generator..."
@@ -56,8 +73,8 @@ kubectl create configmap trace-script --from-file=./load-generator/generate_trac
 echo "🟡 Step 4: Deploying Trace Generator Pod..."
 kubectl apply -f ./load-generator/load-generator.yaml
 
-#Deploy ingress changes 
-echo "🟡 Step 4: Deploying Ingress Resource..."
+# Deploy ingress changes 
+echo "🟡 Step 5: Deploying Ingress Resource..."
 kubectl apply -f ingress.yaml
 
 # Output Port-forward Instructions
