@@ -41,11 +41,18 @@ runs:
 
     # If download failed, we will try to build tip from source.
     # This requires Go toolchain, so install it first.
+    - name: Determine latest Go version
+      if: steps.download.outputs.success == 'false'
+      id: get_go_version
+      run: |
+        LATEST_GO_VERSION=$(curl -s "https://go.dev/VERSION?m=text")
+        echo "LATEST_GO_VERSION=$LATEST_GO_VERSION" >> $GITHUB_OUTPUT
+
     - name: Install Go toolchain
       if: steps.download.outputs.success == 'false'
       uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
       with:
-        go-version: 1.24.x
+        go-version: ${{ steps.get_go_version.outputs.LATEST_GO_VERSION }}
 
     - name: Build Go Tip from source
       if: steps.download.outputs.success == 'false'
