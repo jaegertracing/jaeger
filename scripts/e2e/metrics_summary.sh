@@ -57,12 +57,14 @@ if $DIFF_FOUND; then
     # Combine all summaries into one
     combined_file="$METRICS_DIR/combined_summary.md"
     echo "## Metrics Comparison Summary" > "$combined_file"
-    echo "" >> "$combined_file"
-    echo "Total changes across all snapshots: $total_changes" >> "$combined_file"
-    echo "" >> "$combined_file"
-    echo "<details>" >> "$combined_file"
-    echo "<summary>Detailed changes per snapshot</summary>" >> "$combined_file"
-    echo "" >> "$combined_file"
+    {
+      echo ""
+      echo "Total changes across all snapshots: $total_changes"
+      echo ""
+      echo "<details>"
+      echo "<summary>Detailed changes per snapshot</summary>"
+      echo ""
+    } >> "$combined_file"
 
     if [ ${#summary_files[@]} -gt 0 ]; then
         for summary_file in "${summary_files[@]}"; do
