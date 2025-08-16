@@ -5,6 +5,24 @@
 
 set -euo pipefail
 
+MODE="${1:-upgrade}"
+
+if [[ "$MODE" == "upgrade" ]]; then
+  HELM_JAEGER_CMD="upgrade --install --force"
+  HELM_PROM_CMD="upgrade --install --force"
+else
+  echo "🟣 Clean mode: Uninstalling Jaeger and Prometheus..."
+  helm uninstall jaeger --ignore-not-found || true
+  helm uninstall prometheus --ignore-not-found || true
+  for name in jaeger prometheus; do
+    while helm list --filter "^${name}$" | grep "$name" &>/dev/null; do
+      echo "Waiting for Helm release $name to be deleted..."
+    done
+  done
+  HELM_JAEGER_CMD="install"
+  HELM_PROM_CMD="install"
+fi
+
 # Clone Jaeger Helm Charts (v2 branch) if not already present
 if [ ! -d "helm-charts" ]; then
   echo "📥 Cloning Jaeger Helm Charts..."
@@ -33,19 +51,18 @@ if [[ "$(basename $PWD)" != "oci" ]]; then
   fi
 fi
 
-# Deploy Jaeger (All-in-One with memory storage)
-echo "🟣 Step 1: Installing Jaeger..."
-helm upgrade --install --force jaeger ./helm-charts/charts/jaeger \
+echo "🟣 Deploying Jaeger..."
+helm $HELM_JAEGER_CMD jaeger ./helm-charts/charts/jaeger \
   --set provisionDataStore.cassandra=false \
   --set allInOne.enabled=true \
   --set storage.type=memory \
   --set-file userconfig="./config.yaml" \
+  --set-file uiconfig="./ui-config.json" \
   -f ./jaeger-values.yaml
 
-# Deploy Prometheus Monitoring Stack
-echo "🟢 Step 2: Deploying Prometheus Monitoring stack..."
+echo "🟢 Deploying Prometheus..."
 kubectl apply -f prometheus-svc.yaml
-helm upgrade --install --force prometheus -f monitoring-values.yaml prometheus-community/kube-prometheus-stack
+helm $HELM_PROM_CMD prometheus -f monitoring-values.yaml prometheus-community/kube-prometheus-stack
 
 # Create ConfigMap for Trace Generator
 echo "🔵 Step 3: Creating ConfigMap for Trace Generator..."
@@ -55,8 +72,8 @@ kubectl create configmap trace-script --from-file=./load-generator/generate_trac
 echo "🟡 Step 4: Deploying Trace Generator Pod..."
 kubectl apply -f ./load-generator/load-generator.yaml
 
-#Deploy ingress changes 
-echo "🟡 Step 4: Deploying Ingress Resource..."
+# Deploy ingress changes 
+echo "🟡 Step 5: Deploying Ingress Resource..."
 kubectl apply -f ingress.yaml
 
 # Output Port-forward Instructions

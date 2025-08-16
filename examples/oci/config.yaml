@@ -24,6 +24,9 @@ extensions:
         endpoint: 0.0.0.0:13133
   jaeger_query:
     base_path: /jaeger
+    ui:
+      config_file: /etc/jaeger/ui-config/ui-config.json
+      log_access: true
     storage:
       traces: some_storage
       metrics: some_metrics_storage
