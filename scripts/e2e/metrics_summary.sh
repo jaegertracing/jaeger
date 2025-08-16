@@ -47,9 +47,22 @@ if $DIFF_FOUND; then
     echo "Metric differences detected"
     echo "DIFF_FOUND=true" >> "$GITHUB_OUTPUT"
 
+    # Calculate total changes across all files
+    total_changes=0
+    for summary_file in "${summary_files[@]}"; do
+        changes=$(grep "**Total Changes:**" "$summary_file" | awk '{print $3}')
+        total_changes=$((total_changes + changes))
+    done
+
     # Combine all summaries into one
-    echo "## Metrics Comparison Summary" > "$METRICS_DIR/combined_summary.md"
-    echo "" >> "$METRICS_DIR/combined_summary.md"
+    combined_file="$METRICS_DIR/combined_summary.md"
+    echo "## Metrics Comparison Summary" > "$combined_file"
+    echo "" >> "$combined_file"
+    echo "Total changes across all snapshots: $total_changes" >> "$combined_file"
+    echo "" >> "$combined_file"
+    echo "<details>" >> "$combined_file"
+    echo "<summary>Detailed changes per snapshot</summary>" >> "$combined_file"
+    echo "" >> "$combined_file"
 
     if [ ${#summary_files[@]} -gt 0 ]; then
         for summary_file in "${summary_files[@]}"; do
@@ -57,12 +70,13 @@ if $DIFF_FOUND; then
             {
               echo "### $(basename "$summary_file" .md)"
               cat "$summary_file"
-            } >> "$METRICS_DIR/combined_summary.md"
-            echo "" >> "$METRICS_DIR/combined_summary.md"
+            } >> "$combined_file"
+            echo "" >> "$combined_file"
         done
     fi
 
-    echo -e "\n\n➡️ [View full metrics file]($LINK_TO_ARTIFACT)" >> "$METRICS_DIR/combined_summary.md"
+    echo "</details>" >> "$combined_file"
+    echo -e "\n\n➡️ [View full metrics file]($LINK_TO_ARTIFACT)" >> "$combined_file"
 else
     echo "No metric differences detected"
 fi
