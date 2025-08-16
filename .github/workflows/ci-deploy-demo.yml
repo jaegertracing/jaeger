@@ -1,0 +1,43 @@
+name: Deploy Jaeger Demo to OKE
+
+on:
+  schedule:
+    - cron: '0 13 * * *'  # Daily at 8:00 AM US Eastern Time (ET)
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  deploy:
+    name: Deploy Jaeger to OKE Cluster
+    runs-on: ubuntu-latest
+    env:
+      OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+      OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
+      OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+      OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+
+    steps:
+      - name: Configure kubectl with OKE
+        uses: oracle-actions/configure-kubectl-oke@77a733d79446dabe7bf0e58eb56197d33ce4dc58 # v1.5.0
+        with:
+          cluster: ${{ secrets.OKE_CLUSTER_OCID }}
+          enablePrivateEndpoint: false
+
+      - name: Install Helm
+        uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4
+
+      - name: Checkout jaeger repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Deploy using appropriate script
+        run: |
+          cd ./examples/oci
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "🕒 Scheduled run - using deploy-all.sh (upgrade mode)"
+            bash ./deploy-all.sh
+          else
+            echo "🔄 Manual run - using deploy-all.sh with clean mode (uninstall/install)"
+            bash ./deploy-all.sh clean
+          fi
