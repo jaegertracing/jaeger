@@ -60,18 +60,25 @@ jobs:
               head: `${context.payload.workflow_run.head_repository.full_name}:${context.payload.workflow_run.head_branch}`,
             });
             
-            if (pullRequest.data.length > 0) {
-              prNumber = pullRequest.data[0].number;
+            const prArtifactPath = path.join(process.env.GITHUB_WORKSPACE, '.metrics', 'pr_number', 'pr_number.txt');
+            if (fs.existsSync(prArtifactPath)) {
+              prNumber = fs.readFileSync(prArtifactPath, 'utf8').trim();
+              console.log(`Found PR Number from artifact: ${prNumber}`);
             } else {
-              // Fallback to commit SHA if needed
-              const commitSha = context.payload.workflow_run.head_sha;
-              const prsForCommit = await github.rest.repos.listPullRequestsAssociatedWithCommit({
-                owner,
-                repo,
-                commit_sha: commitSha,
-              });
-              if (prsForCommit.data.length > 0) {
-                prNumber = prsForCommit.data[0].number;
+              if (pullRequest.data.length > 0) {
+                prNumber = pullRequest.data[0].number;
+              } else {
+                // Fallback to commit SHA if needed
+                const commitSha = context.payload.workflow_run.head_sha;
+                const prsForCommit = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                  owner,
+                  repo,
+                  commit_sha: commitSha,
+                });
+                if (prsForCommit.data.length > 0) {
+                  prNumber = prsForCommit.data[0].number;
+                  console.log(`Found PR via commit SHA: #${prNumber}`);
+                }
               }
             }
             
