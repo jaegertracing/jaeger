@@ -50,7 +50,7 @@ if $DIFF_FOUND; then
     # Calculate total changes across all files
     total_changes=0
     for summary_file in "${summary_files[@]}"; do
-        changes=$(grep "**Total Changes:**" "$summary_file" | awk '{print $3}')
+        changes=$(grep -F "**Total Changes:**" "$summary_file" | awk '{print $3}')
         total_changes=$((total_changes + changes))
     done
 
