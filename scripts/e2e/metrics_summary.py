@@ -83,28 +83,23 @@ def extract_metric_name(line):
         return line.split('{')[0].strip()
     return line.strip()
 
-def get_raw_diff_sample(raw_sections, max_lines=7):
+def get_raw_diff_sample(raw_lines, max_lines=7):
     """
     Get sample raw diff lines, preserving original diff formatting.
     """
-    if not raw_sections:
+    if not raw_lines:
         return []
 
-    # Take first section and limit lines
-    sample_lines = []
-    for section in raw_sections[:1]:  # Just take first section to keep it concise
-        lines = section.split('\n')
-        for i, line in enumerate(lines):
-            if i >= max_lines:
-                sample_lines.append("...")
-                break
-            sample_lines.append(line)
+    # Take up to max_lines
+    sample_lines = raw_lines[:max_lines]
+    if len(raw_lines) > max_lines:
+        sample_lines.append("...")
 
     return sample_lines
 
-def generate_diff_summary(changes):
+def generate_diff_summary(changes, raw_diff_sections):
     """
-    Generates a markdown summary from the parsed diff changes with sample lines.
+    Generates a markdown summary from the parsed diff changes with raw diff samples.
     """
     summary = ["## 📊 Metrics Diff Summary\n"]
 
@@ -123,13 +118,13 @@ def generate_diff_summary(changes):
         summary.append("\n### 🆕 Added Metrics")
         for metric, samples in changes['added'].items():
             summary.append(f"- `{metric}` ({len(samples)} variants)")
-            sample_lines = get_sample_lines(samples)
-            if sample_lines:
+            raw_samples = get_raw_diff_sample(raw_diff_sections.get(metric, []))
+            if raw_samples:
                 summary.append("<details>")
-                summary.append("<summary>View samples</summary>")
+                summary.append("<summary>View diff sample</summary>")
                 summary.append("")
-                summary.append("```")
-                summary.extend(sample_lines)
+                summary.append("```diff")
+                summary.extend(raw_samples)
                 summary.append("```")
                 summary.append("</details>")
 
@@ -138,13 +133,13 @@ def generate_diff_summary(changes):
         summary.append("\n### ❌ Removed Metrics")
         for metric, samples in changes['removed'].items():
             summary.append(f"- `{metric}` ({len(samples)} variants)")
-            sample_lines = get_sample_lines(samples)
-            if sample_lines:
+            raw_samples = get_raw_diff_sample(raw_diff_sections.get(metric, []))
+            if raw_samples:
                 summary.append("<details>")
-                summary.append("<summary>View samples</summary>")
+                summary.append("<summary>View diff sample</summary>")
                 summary.append("")
-                summary.append("```")
-                summary.extend(sample_lines)
+                summary.append("```diff")
+                summary.extend(raw_samples)
                 summary.append("```")
                 summary.append("</details>")
 
@@ -156,31 +151,15 @@ def generate_diff_summary(changes):
             summary.append(f"  - Added variants: {len(versions['added'])}")
             summary.append(f"  - Removed variants: {len(versions['removed'])}")
 
-            # Show samples of added variants
-            if versions['added']:
-                added_samples = get_sample_lines(versions['added'], max_lines=3)
-                if added_samples:
-                    summary.append("  - Sample added:")
-                    summary.append("    <details>")
-                    summary.append("    <summary>View added samples</summary>")
-                    summary.append("")
-                    summary.append("    ```")
-                    summary.extend([f"  {line}" for line in added_samples])
-                    summary.append("    ```")
-                    summary.append("    </details>")
-
-            # Show samples of removed variants
-            if versions['removed']:
-                removed_samples = get_sample_lines(versions['removed'], max_lines=3)
-                if removed_samples:
-                    summary.append("  - Sample removed:")
-                    summary.append("    <details>")
-                    summary.append("    <summary>View removed samples</summary>")
-                    summary.append("")
-                    summary.append("    ```")
-                    summary.extend([f"  {line}" for line in removed_samples])
-                    summary.append("    ```")
-                    summary.append("    </details>")
+            raw_samples = get_raw_diff_sample(raw_diff_sections.get(metric, []))
+            if raw_samples:
+                summary.append("  <details>")
+                summary.append("  <summary>View diff sample</summary>")
+                summary.append("")
+                summary.append("  ```diff")
+                summary.extend([f"  {line}" for line in raw_samples])
+                summary.append("  ```")
+                summary.append("  </details>")
 
     return "\n".join(summary)
 
