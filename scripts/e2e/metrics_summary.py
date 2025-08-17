@@ -21,6 +21,7 @@ def parse_metrics(content):
 def parse_diff_file(diff_path):
     """
     Parses a unified diff file and categorizes changes into added, removed, and modified metrics.
+    Also captures the raw diff sections for each metric.
     """
     changes = {
         'added': defaultdict(list),
@@ -28,40 +29,43 @@ def parse_diff_file(diff_path):
         'modified': defaultdict(list)
     }
 
-    current_block = []
-    current_change = None
+    # Store raw diff sections for each metric - just collect all lines related to each metric
+    raw_diff_sections = defaultdict(list)
 
     with open(diff_path, 'r') as f:
-        for line in f:
-            line = line.strip()
-            # Skip diff headers
-            if line.startswith('+++') or line.startswith('---'):
-                continue
+        lines = f.readlines()
 
-            # Start new block for changes
-            if line.startswith('+') or line.startswith('-'):
-                if current_block and current_change:
-                    metric_name = extract_metric_name(current_block[0])
-                    if metric_name:
-                        changes[current_change][metric_name].append('\n'.join(current_block))
-                current_block = [line[1:].strip()]  # Remove +/-
-                current_change = 'added' if line.startswith('+') else 'removed'
-            elif line.startswith(' '):
-                if current_block:
-                    current_block.append(line.strip())
+    current_metric = None
+
+    for line in lines:
+        original_line = line.rstrip()
+        stripped = line.strip()
+
+        # Skip diff headers
+        if stripped.startswith('+++') or stripped.startswith('---'):
+            continue
+
+        # Check if this line contains a metric change
+        if stripped.startswith('+') or stripped.startswith('-'):
+            metric_name = extract_metric_name(stripped[1:].strip())
+            if metric_name:
+                # Track the change type
+                change_type = 'added' if stripped.startswith('+') else 'removed'
+                changes[change_type][metric_name].append(stripped[1:].strip())
+
+                # Always add to raw diff sections regardless of change type
+                raw_diff_sections[metric_name].append(original_line)
+                current_metric = metric_name
             else:
-                if current_block and current_change:
-                    metric_name = extract_metric_name(current_block[0])
-                    if metric_name:
-                        changes[current_change][metric_name].append('\n'.join(current_block))
-                current_block = []
-                current_change = None
-
-    # Process any remaining block
-    if current_block and current_change:
-        metric_name = extract_metric_name(current_block[0])
-        if metric_name:
-            changes[current_change][metric_name].append('\n'.join(current_block))
+                # If we're in a metric section, keep adding lines
+                if current_metric:
+                    raw_diff_sections[current_metric].append(original_line)
+        elif stripped.startswith(' ') and current_metric:
+            # Context line - add to current metric's raw section
+            raw_diff_sections[current_metric].append(original_line)
+        else:
+            # End of current metric section
+            current_metric = None
 
     # Identify modified metrics (same metric name with both additions and removals)
     common_metrics = set(changes['added'].keys()) & set(changes['removed'].keys())
@@ -71,7 +75,7 @@ def parse_diff_file(diff_path):
             'removed': changes['removed'].pop(metric)
         }
 
-    return changes
+    return changes, raw_diff_sections
 
 def extract_metric_name(line):
     """Extracts metric name from a metric line, matching the diff generation format"""
@@ -79,9 +83,28 @@ def extract_metric_name(line):
         return line.split('{')[0].strip()
     return line.strip()
 
+def get_raw_diff_sample(raw_sections, max_lines=7):
+    """
+    Get sample raw diff lines, preserving original diff formatting.
+    """
+    if not raw_sections:
+        return []
+
+    # Take first section and limit lines
+    sample_lines = []
+    for section in raw_sections[:1]:  # Just take first section to keep it concise
+        lines = section.split('\n')
+        for i, line in enumerate(lines):
+            if i >= max_lines:
+                sample_lines.append("...")
+                break
+            sample_lines.append(line)
+
+    return sample_lines
+
 def generate_diff_summary(changes):
     """
-    Generates a markdown summary from the parsed diff changes.
+    Generates a markdown summary from the parsed diff changes with sample lines.
     """
     summary = ["## 📊 Metrics Diff Summary\n"]
 
@@ -100,12 +123,30 @@ def generate_diff_summary(changes):
         summary.append("\n### 🆕 Added Metrics")
         for metric, samples in changes['added'].items():
             summary.append(f"- `{metric}` ({len(samples)} variants)")
+            sample_lines = get_sample_lines(samples)
+            if sample_lines:
+                summary.append("<details>")
+                summary.append("<summary>View samples</summary>")
+                summary.append("")
+                summary.append("```")
+                summary.extend(sample_lines)
+                summary.append("```")
+                summary.append("</details>")
 
     # Removed metrics
     if changes['removed']:
         summary.append("\n### ❌ Removed Metrics")
         for metric, samples in changes['removed'].items():
             summary.append(f"- `{metric}` ({len(samples)} variants)")
+            sample_lines = get_sample_lines(samples)
+            if sample_lines:
+                summary.append("<details>")
+                summary.append("<summary>View samples</summary>")
+                summary.append("")
+                summary.append("```")
+                summary.extend(sample_lines)
+                summary.append("```")
+                summary.append("</details>")
 
     # Modified metrics
     if changes['modified']:
@@ -114,6 +155,32 @@ def generate_diff_summary(changes):
             summary.append(f"- `{metric}`")
             summary.append(f"  - Added variants: {len(versions['added'])}")
             summary.append(f"  - Removed variants: {len(versions['removed'])}")
+
+            # Show samples of added variants
+            if versions['added']:
+                added_samples = get_sample_lines(versions['added'], max_lines=3)
+                if added_samples:
+                    summary.append("  - Sample added:")
+                    summary.append("    <details>")
+                    summary.append("    <summary>View added samples</summary>")
+                    summary.append("")
+                    summary.append("    ```")
+                    summary.extend([f"  {line}" for line in added_samples])
+                    summary.append("    ```")
+                    summary.append("    </details>")
+
+            # Show samples of removed variants
+            if versions['removed']:
+                removed_samples = get_sample_lines(versions['removed'], max_lines=3)
+                if removed_samples:
+                    summary.append("  - Sample removed:")
+                    summary.append("    <details>")
+                    summary.append("    <summary>View removed samples</summary>")
+                    summary.append("")
+                    summary.append("    ```")
+                    summary.extend([f"  {line}" for line in removed_samples])
+                    summary.append("    ```")
+                    summary.append("    </details>")
 
     return "\n".join(summary)
 
@@ -124,8 +191,8 @@ def main():
 
     args = parser.parse_args()
 
-    changes = parse_diff_file(args.diff)
-    summary = generate_diff_summary(changes)
+    changes, raw_diff_sections = parse_diff_file(args.diff)
+    summary = generate_diff_summary(changes, raw_diff_sections)
 
     with open(args.output, 'w') as f:
         f.write(summary)
