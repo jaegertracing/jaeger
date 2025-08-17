@@ -39,3 +39,17 @@ jobs:
 
   query:
     uses: ./.github/workflows/ci-e2e-query.yml
+
+  upload_pr_number:
+    name: Save and Upload PR Number as Artifact
+    runs-on: ubuntu-latest
+    steps:
+      - name: Save PR number as artifact
+        if: github.event_name == 'pull_request'
+        run: echo "${{ github.event.number }}" > pr_number.txt
+      - name: Upload PR number artifact
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr_number
+          path: pr_number.txt

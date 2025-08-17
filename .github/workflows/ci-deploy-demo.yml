@@ -31,7 +31,13 @@ jobs:
     - name: Checkout jaeger repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
-    - name: Deploy using Jaeger's deploy-all.sh
+    - name: Deploy using appropriate script
       run: |
         cd ./examples/oci
-        bash ./deploy-all.sh
+        if [ "${{ github.event_name }}" = "schedule" ]; then
+          echo "🕒 Scheduled run - using deploy-all.sh (upgrade mode)"
+          bash ./deploy-all.sh
+        else
+          echo "🔄 Manual run - using deploy-all.sh with clean mode (uninstall/install)"
+          bash ./deploy-all.sh clean
+        fi         
