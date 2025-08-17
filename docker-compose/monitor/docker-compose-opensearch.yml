@@ -1,6 +1,6 @@
 services:
   opensearch:
-    image: opensearchproject/opensearch:3.1.0@sha256:2ddce3f8e2e00644f122cedeeb8b2e93d8a2dc587d3a1338bfe868ec56848afe
+    image: opensearchproject/opensearch:3.1.0@sha256:474ea3fdf25d229e103018b14c8a0d5bb858113f919bc3f0652a3c2e98f16f1e
     networks:
       - backend
     environment:
