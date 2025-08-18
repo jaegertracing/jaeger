@@ -66,6 +66,55 @@ func TestBuildBoolQuery(t *testing.T) {
 	require.Len(t, filterClause, 3) // services, span kinds, time range
 }
 
+func TestBuildBoolQueryWithTags(t *testing.T) {
+	qb := setupTestQB()
+	params := metricstore.BaseQueryParameters{
+		ServiceNames: []string{"service1"},
+		SpanKinds:    []string{"server"},
+		Tags: map[string]string{
+			"environment": "prod",
+			"region":      "us-east-1",
+		},
+	}
+
+	boolQuery := qb.BuildBoolQuery(params, commonTimeRange)
+	require.NotNil(t, boolQuery)
+
+	src, err := boolQuery.Source()
+	require.NoError(t, err)
+
+	queryMap := src.(map[string]any)
+	boolClause := queryMap["bool"].(map[string]any)
+	filterClause := boolClause["filter"].([]any)
+
+	require.Len(t, filterClause, 5) // services, span kinds, 2 tags, time range
+
+	// Validate the presence of tag filters
+	tagFiltersFound := 0
+	for _, filter := range filterClause {
+		filterMap, ok := filter.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		if termQuery, ok := filterMap["term"]; ok {
+			termMap, ok := termQuery.(map[string]any)
+			if !ok {
+				continue
+			}
+
+			if _, ok := termMap["tag.environment"]; ok {
+				tagFiltersFound++
+			}
+			if _, ok := termMap["tag.region"]; ok {
+				tagFiltersFound++
+			}
+		}
+	}
+
+	require.Equal(t, 2, tagFiltersFound, "Expected to find 2 tag filters")
+}
+
 func TestBuildLatenciesAggregation(t *testing.T) {
 	qb := setupTestQB()
 	step := time.Minute

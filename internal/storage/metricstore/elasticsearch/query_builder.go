@@ -66,6 +66,15 @@ func (q *QueryBuilder) BuildBoolQuery(params metricstore.BaseQueryParameters, ti
 	spanKindQuery := elastic.NewTermsQuery("tag."+spanKindField, buildInterfaceSlice(normalizeSpanKinds(params.SpanKinds))...)
 	boolQuery.Filter(spanKindQuery)
 
+	// Add tag filters if present
+	if len(params.Tags) > 0 {
+		for k, v := range params.Tags {
+			tagKey := strings.ReplaceAll(k, ".", q.cfg.Tags.DotReplacement)
+			tagQuery := elastic.NewTermQuery("tag."+tagKey, v)
+			boolQuery.Filter(tagQuery)
+		}
+	}
+
 	// Add additional terms queries if provided
 	for _, termQuery := range termsQueries {
 		boolQuery.Filter(termQuery)

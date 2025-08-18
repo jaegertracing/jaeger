@@ -304,6 +304,67 @@ func TestParseRepeatedSpanKinds(t *testing.T) {
 	}, mqp.SpanKinds)
 }
 
+func TestParseMetricsQueryWithTags(t *testing.T) {
+	tests := []struct {
+		name     string
+		urlStr   string
+		wantTags map[string]string
+		wantErr  bool
+	}{
+		{
+			name:     "with simple tag",
+			urlStr:   "x?service=foo&tag=key:value",
+			wantTags: map[string]string{"key": "value"},
+		},
+		{
+			name:     "with multiple tags",
+			urlStr:   "x?service=foo&tag=key1:value1&tag=key2:value2",
+			wantTags: map[string]string{"key1": "value1", "key2": "value2"},
+		},
+		{
+			name:     "with JSON tags",
+			urlStr:   `x?service=foo&tags={"jsonKey":"jsonValue"}`,
+			wantTags: map[string]string{"jsonKey": "jsonValue"},
+		},
+		{
+			name:     "with both simple and JSON tags",
+			urlStr:   `x?service=foo&tag=key:value&tags={"jsonKey":"jsonValue"}`,
+			wantTags: map[string]string{"key": "value", "jsonKey": "jsonValue"},
+		},
+		{
+			name:    "with malformed tag",
+			urlStr:  "x?service=foo&tag=malformed",
+			wantErr: true,
+		},
+		{
+			name:    "with malformed JSON tags",
+			urlStr:  `x?service=foo&tags={"jsonKey":1234}`,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			request, err := http.NewRequest(http.MethodGet, tt.urlStr, http.NoBody)
+			require.NoError(t, err)
+
+			parser := &queryParser{
+				timeNow: time.Now,
+			}
+
+			mqp, err := parser.parseMetricsQueryParams(request)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantTags, mqp.Tags)
+		})
+	}
+}
+
 func TestParameterErrors(t *testing.T) {
 	ts := initializeTestServer(t)
 
