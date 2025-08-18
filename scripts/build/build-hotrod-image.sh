@@ -147,6 +147,14 @@ else
   echo '::endgroup::'
 fi
 
+if [[ "${runtime}" == "k8s" ]]; then
+  HOTROD_URL="http://localhost:8080/hotrod"
+  JAEGER_QUERY_URL="http://localhost:16686/jaeger"
+else
+  HOTROD_URL="http://localhost:8080"
+  JAEGER_QUERY_URL="http://localhost:16686"
+fi
+
 i=0
 while [[ "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080)" != "200" && $i -lt 30 ]]; do
   sleep 1
@@ -162,7 +170,7 @@ if [[ $body != *"Rides On Demand"* ]]; then
 fi
 echo '::endgroup::'
 
-response=$(curl -i -X POST "http://localhost:8080/dispatch?customer=123")
+response=$(curl -i -X POST "${HOTROD_URL}/dispatch?customer=123")
 TRACE_ID=$(echo "$response" | grep -Fi "Traceresponse:" | awk '{print $2}' | cut -d '-' -f 2)
 
 if [ -n "$TRACE_ID" ]; then
@@ -172,7 +180,6 @@ else
   exit 1
 fi
 
-JAEGER_QUERY_URL="http://localhost:16686"
 EXPECTED_SPANS=35
 MAX_RETRIES=30
 SLEEP_INTERVAL=3
