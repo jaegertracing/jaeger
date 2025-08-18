@@ -132,12 +132,11 @@ if [[ "${runtime}" == "k8s" ]]; then
   fi
 
   echo '::group:: run on Kubernetes'
-  kustomize build ./examples/hotrod/kubernetes | kubectl apply -n example-hotrod -f -
-  kubectl wait --for=condition=available --timeout=180s -n example-hotrod deployment/example-hotrod
+  bash ./examples/oci/deploy-all.sh clean
   
-  kubectl port-forward -n example-hotrod service/example-hotrod 8080:frontend &
+  kubectl port-forward svc/jaeger-hotrod 8080:80 &
   HOTROD_PORT_FWD_PID=$!
-  kubectl port-forward -n example-hotrod service/jaeger 16686:frontend &
+  kubectl port-forward svc/jaeger-query 16686:16686 &
   JAEGER_PORT_FWD_PID=$!
   echo '::endgroup::'
 
