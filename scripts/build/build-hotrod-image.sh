@@ -75,8 +75,7 @@ dump_logs() {
 
   echo "::group:: Logs"
   if [ "$runtime" == "k8s" ]; then
-    kubectl logs -n example-hotrod -l app=example-hotrod
-    kubectl logs -n example-hotrod -l app=jaeger
+    kubectl logs -l app.kubernetes.io/name=jaeger
   else
     docker compose -f "$compose_file" logs
   fi
@@ -95,7 +94,8 @@ teardown() {
     if [[ -n "${JAEGER_PORT_FWD_PID:-}" ]]; then
       kill "$JAEGER_PORT_FWD_PID" || true
     fi
-    kubectl delete namespace example-hotrod --ignore-not-found=true
+    helm uninstall jaeger --ignore-not-found || true
+    helm uninstall prometheus --ignore-not-found || true
   else
     docker compose -f "$docker_compose_file" down
   fi
@@ -156,14 +156,14 @@ else
 fi
 
 i=0
-while [[ "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080)" != "200" && $i -lt 30 ]]; do
+while [[ "$(curl -s -o /dev/null -w '%{http_code}' ${HOTROD_URL})" != "200" && $i -lt 30 ]]; do
   sleep 1
   i=$((i+1))
 done
 
 echo '::group:: check HTML'
 echo 'Check that home page contains text Rides On Demand'
-body=$(curl localhost:8080)
+body=$(curl ${HOTROD_URL})
 if [[ $body != *"Rides On Demand"* ]]; then
   echo "String \"Rides On Demand\" is not present on the index page"
   exit 1
