@@ -132,6 +132,7 @@ if [[ "${runtime}" == "k8s" ]]; then
   fi
 
   echo '::group:: run on Kubernetes'
+  cd ./examples/oci
   bash ./examples/oci/deploy-all.sh clean
   
   kubectl port-forward svc/jaeger-hotrod 8080:80 &
