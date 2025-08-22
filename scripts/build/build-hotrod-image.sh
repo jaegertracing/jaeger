@@ -3,7 +3,7 @@
 # Copyright (c) 2024 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-set -euf -o pipefail
+set -exuf -o pipefail
 
 print_help() {
   echo "Usage: $0 [-h] [-l] [-o] [-p platforms] [-v jaeger_version]"
@@ -132,9 +132,7 @@ if [[ "${runtime}" == "k8s" ]]; then
   fi
 
   echo '::group:: run on Kubernetes'
-  cd ./examples/oci
   bash ./deploy-all.sh clean
-  cd ../..
   
   kubectl port-forward svc/jaeger-hotrod 8080:80 &
   HOTROD_PORT_FWD_PID=$!

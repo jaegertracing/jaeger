@@ -23,6 +23,17 @@ else
   HELM_PROM_CMD="install"
 fi
 
+# Navigate into examples/oci if not already in it
+if [[ "$(basename $PWD)" != "oci" ]]; then
+  if [ -d "./examples/oci" ]; then
+    echo "📂 Changing to ./examples/oci directory..."
+    cd ./examples/oci
+  else
+    echo "❌ Cannot find ./examples/oci directory. Exiting."
+    exit 1
+  fi
+fi
+
 # Clone Jaeger Helm Charts (v2 branch) if not already present
 if [ ! -d "helm-charts" ]; then
   echo "📥 Cloning Jaeger Helm Charts..."
@@ -40,25 +51,30 @@ else
   echo "📁 Jaeger Helm Charts already exist. Skipping clone."
 fi
 
-# Navigate into examples/oci if not already in it
-if [[ "$(basename $PWD)" != "oci" ]]; then
-  if [ -d "./examples/oci" ]; then
-    echo "📂 Changing to ./examples/oci directory..."
-    cd ./examples/oci
-  else
-    echo "❌ Cannot find ./examples/oci directory. Exiting."
-    exit 1
-  fi
+# Set image repositories and deploy based on mode
+if [[ "$MODE" == "local" ]]; then
+  echo "🟣 Deploying Jaeger with local registry images..."
+  helm $HELM_JAEGER_CMD jaeger ./helm-charts/charts/jaeger \
+    --set provisionDataStore.cassandra=false \
+    --set allInOne.enabled=true \
+    --set storage.type=memory \
+    --set allInOne.image.repository="cr.jaegertracing.io/jaegertracing/all-in-one" \
+    --set allInOne.image.tag="latest" \
+    --set hotrod.image.repository="cr.jaegertracing.io/jaegertracing/example-hotrod" \
+    --set hotrod.image.tag="latest" \
+    --set-file userconfig="./config.yaml" \
+    --set-file uiconfig="./ui-config.json" \
+    -f ./jaeger-values.yaml
+else
+  echo "🟣 Deploying Jaeger..."
+  helm $HELM_JAEGER_CMD jaeger ./helm-charts/charts/jaeger \
+    --set provisionDataStore.cassandra=false \
+    --set allInOne.enabled=true \
+    --set storage.type=memory \
+    --set-file userconfig="./config.yaml" \
+    --set-file uiconfig="./ui-config.json" \
+    -f ./jaeger-values.yaml
 fi
-
-echo "🟣 Deploying Jaeger..."
-helm $HELM_JAEGER_CMD jaeger ./helm-charts/charts/jaeger \
-  --set provisionDataStore.cassandra=false \
-  --set allInOne.enabled=true \
-  --set storage.type=memory \
-  --set-file userconfig="./config.yaml" \
-  --set-file uiconfig="./ui-config.json" \
-  -f ./jaeger-values.yaml
 
 echo "🟢 Deploying Prometheus..."
 kubectl apply -f prometheus-svc.yaml

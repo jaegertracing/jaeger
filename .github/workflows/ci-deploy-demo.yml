@@ -33,7 +33,6 @@ jobs:
 
     - name: Deploy using appropriate script
       run: |
-        cd ./examples/oci
         if [ "${{ github.event_name }}" = "schedule" ]; then
           echo "🕒 Scheduled run - using deploy-all.sh (upgrade mode)"
           bash ./deploy-all.sh
