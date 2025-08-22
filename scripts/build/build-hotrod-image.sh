@@ -133,6 +133,8 @@ if [[ "${runtime}" == "k8s" ]]; then
 
   echo '::group:: run on Kubernetes'
   bash ./examples/oci/deploy-all.sh local
+  kubectl --for=condition=available --timeout=180s deployment/jaeger-hotrod
+  kubectl --for=condition=available --timeout=180s deployment/jaeger
   
   kubectl port-forward svc/jaeger-hotrod 8080:80 &
   HOTROD_PORT_FWD_PID=$!
