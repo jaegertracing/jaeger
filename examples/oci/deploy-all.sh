@@ -63,8 +63,11 @@ if [[ "$MODE" == "local" ]]; then
     --set hotrod.enabled=true \
     --set hotrod.image.repository="cr.jaegertracing.io/jaegertracing/example-hotrod" \
     --set hotrod.image.tag="latest" \
-    --set hotrod.extraEnv[0].name="OTEL_EXPORTER_OTLP_ENDPOINT" \
-    --set hotrod.extraEnv[0].value="http://jaeger:4318"
+    --set hotrod.args[0]="all" \
+    --set hotrod.extraEnv[0].name="JAEGER_AGENT_HOST" \
+    --set hotrod.extraEnv[0].value="localhost" \
+    --set hotrod.extraEnv[1].name="JAEGER_AGENT_PORT" \
+    --set hotrod.extraEnv[1].value="6831"
 else
   echo "🟣 Deploying Jaeger..."
   helm $HELM_JAEGER_CMD jaeger ./helm-charts/charts/jaeger \
