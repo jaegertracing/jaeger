@@ -132,7 +132,7 @@ if [[ "${runtime}" == "k8s" ]]; then
   fi
 
   echo '::group:: run on Kubernetes'
-  bash ./deploy-all.sh clean
+  bash ./deploy-all.sh local
   
   kubectl port-forward svc/jaeger-hotrod 8080:80 &
   HOTROD_PORT_FWD_PID=$!
