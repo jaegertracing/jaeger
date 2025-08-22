@@ -59,9 +59,9 @@ if [[ "$MODE" == "local" ]]; then
     --set provisionDataStore.cassandra=false \
     --set allInOne.enabled=true \
     --set storage.type=memory \
-    --set allInOne.image.repository="localhost:5000/jaegertracing/all-in-one" \
+    --set allInOne.image.repository="cr.jaegertracing.io/jaegertracing/all-in-one" \
     --set allInOne.image.tag="latest" \
-    --set hotrod.image.repository="localhost:5000/jaegertracing/example-hotrod" \
+    --set hotrod.image.repository="cr.jaegertracing.io/jaegertracing/example-hotrod" \
     --set hotrod.image.tag="latest" \
     --set-file userconfig="./config.yaml" \
     --set-file uiconfig="./ui-config.json" \
