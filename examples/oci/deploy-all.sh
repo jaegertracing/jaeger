@@ -61,8 +61,7 @@ if [[ "$MODE" == "local" ]]; then
     --set allInOne.image.repository="cr.jaegertracing.io/jaegertracing/all-in-one" \
     --set allInOne.image.tag="latest" \
     --set hotrod.image.repository="cr.jaegertracing.io/jaegertracing/example-hotrod" \
-    --set hotrod.image.tag="latest" \
-    -f ./jaeger-values.yaml
+    --set hotrod.image.tag="latest"
 else
   echo "🟣 Deploying Jaeger..."
   helm $HELM_JAEGER_CMD jaeger ./helm-charts/charts/jaeger \
