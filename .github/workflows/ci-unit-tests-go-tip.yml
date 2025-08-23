@@ -29,6 +29,8 @@ jobs:
 
     - name: Install Go Tip
       uses: ./.github/actions/setup-go-tip
+      with:
+        gh_token: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Install test deps
       # even though the same target runs from test-ci, running it separately makes for cleaner log in GH workflow

@@ -1,6 +1,10 @@
 # Inspired by https://github.com/actions/setup-go/issues/21#issuecomment-997208686
 name: 'Install Go Tip'
 description: 'Install Go Tip toolchain'
+inputs:
+  gh_token:
+    description: 'The GitHub Token'
+    required: true
 runs:
   using: "composite"
   steps:
@@ -51,7 +55,7 @@ runs:
         # echo "$HOME/sdk/gotip/bin" >> "$GITHUB_PATH"
         echo "success=${success}" >> $GITHUB_OUTPUT
       env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ inputs.gh_token }}
 
     # If download failed, we will try to build tip from source.
     # This requires Go toolchain, so install it first.
