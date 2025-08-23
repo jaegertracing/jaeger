@@ -4,7 +4,7 @@ Example deployment for the [hotrod app](..) using Helm charts in your Kubernetes
 
 ## Prerequisites
 
-- Kubernetes cluster (Kind recommended for local development)
+- Kubernetes cluster
 - Helm 3.x installed
 - kubectl configured
 
@@ -64,6 +64,6 @@ The deployment uses:
 
 Configuration files:
 - `jaeger-values.yaml` - Jaeger Helm chart values
-- `config.yaml` - Jaeger configuration (v1 only)
+- `config.yaml` - Jaeger configuration
 - `ui-config.json` - Jaeger UI configuration
 - `monitoring-values.yaml` - Prometheus configuration
