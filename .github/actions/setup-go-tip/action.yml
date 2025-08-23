@@ -13,7 +13,7 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        gh release download ubuntu-latest --repo grafana/gotip --pattern 'go*.zip'
+        gh release download ubuntu-latest --repo grafana/gotip --pattern 'go.zip'
         echo "::group::unzip"
         unzip go.zip -d $HOME/sdk
         echo "::endgroup::"
