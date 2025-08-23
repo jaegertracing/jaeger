@@ -21,7 +21,7 @@ jobs:
 
       - name: Download all metrics artifacts from triggering workflow
         id: download-artifacts
-        uses: actions/github-script@v7
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
         with:
           script: |
             const { owner, repo } = context.repo;
@@ -109,7 +109,7 @@ jobs:
 
       - name: Post PR comment with combined metrics summary
         if: steps.compare-metrics.outputs.DIFF_FOUND == 'true' && steps.download-artifacts.outputs.pr_number
-        uses: thollander/actions-comment-pull-request@v3
+        uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3
         with:
           file-path: ./.metrics/combined_summary.md
           github-token: '${{ secrets.GITHUB_TOKEN }}'
