@@ -133,8 +133,10 @@ if [[ "${runtime}" == "k8s" ]]; then
 
   echo '::group:: run on Kubernetes'
   echo '::group:: Loading images into Kind cluster'
-  kind load docker-image localhost:5000/jaegertracing/all-in-one:latest --name kind
-  kind load docker-image localhost:5000/jaegertracing/example-hotrod:latest --name kind
+  docker tag localhost:5000/jaegertracing/all-in-one:latest jaegertracing/all-in-one:latest
+  docker tag localhost:5000/jaegertracing/example-hotrod:latest jaegertracing/example-hotrod:latest
+  kind load docker-image jaegertracing/all-in-one:latest --name kind
+  kind load docker-image jaegertracing/example-hotrod:latest --name kind
   
   bash ./examples/oci/deploy-all.sh local
   kubectl wait --for=condition=available --timeout=180s deployment/jaeger-hotrod
