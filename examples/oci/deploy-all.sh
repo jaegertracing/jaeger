@@ -74,7 +74,7 @@ if [[ "$MODE" == "local" ]]; then
     --set hotrod.image.repository="jaegertracing/example-hotrod" \
     --set hotrod.image.tag="latest" \
     --set hotrod.image.pullPolicy="Never" \
-    --set-file userconfig="./config.yaml" \
+    --set-file userconfig="./config-local.yaml" \
     --set-file uiconfig="./ui-config.json" \
     -f ./jaeger-values.yaml
 else
