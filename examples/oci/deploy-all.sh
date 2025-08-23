@@ -34,12 +34,21 @@ if [[ "$(basename $PWD)" != "oci" ]]; then
   fi
 fi
 
-# Clone Jaeger Helm Charts (v2 branch) if not already present
+# Clone Jaeger Helm Charts if not already present
 if [ ! -d "helm-charts" ]; then
   echo "📥 Cloning Jaeger Helm Charts..."
   git clone https://github.com/jaegertracing/helm-charts.git
   cd helm-charts
-  git checkout v2
+  
+  # Use main branch for v1, v2 branch for v2
+  if [[ "${JAEGER_VERSION:-v2}" == "v1" ]]; then
+    echo "Using main branch for Jaeger v1..."
+    git checkout main
+  else
+    echo "Using v2 branch for Jaeger v2..."
+    git checkout v2
+  fi
+  
   echo "Adding required Helm repositories..."
   helm repo add bitnami https://charts.bitnami.com/bitnami
   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
@@ -66,10 +75,8 @@ if [[ "$MODE" == "local" ]]; then
     --set hotrod.image.tag="latest" \
     --set hotrod.image.pullPolicy="Never" \
     --set hotrod.args[0]="all" \
-    --set hotrod.extraEnv[0].name="OTEL_EXPORTER_OTLP_ENDPOINT" \
-    --set hotrod.extraEnv[0].value="http://jaeger-collector:4318" \
-    --set hotrod.extraEnv[1].name="OTEL_EXPORTER_OTLP_TRACES_ENDPOINT" \
-    --set hotrod.extraEnv[1].value="http://jaeger-collector:4318/v1/traces"
+    --set hotrod.tracing.host="jaeger" \
+    --set hotrod.tracing.port="6831"
 else
   echo "🟣 Deploying Jaeger..."
   helm $HELM_JAEGER_CMD jaeger ./helm-charts/charts/jaeger \
