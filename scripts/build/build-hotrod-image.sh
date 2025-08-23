@@ -152,7 +152,7 @@ if [[ "${runtime}" == "k8s" ]]; then
     exit 1
   fi
   
-  bash ./examples/oci/deploy-all.sh local "${jaeger_version}"
+  bash ./examples/oci/deploy-all.sh local 
   kubectl wait --for=condition=available --timeout=180s deployment/jaeger-hotrod
   kubectl get deployments
   kubectl describe deployments/jaeger

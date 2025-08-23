@@ -6,7 +6,6 @@
 set -euo pipefail
 
 MODE="${1:-upgrade}"
-JAEGER_VERSION="${2:-v2}"
 
 if [[ "$MODE" == "upgrade" ]]; then
   HELM_JAEGER_CMD="upgrade --install --force"
@@ -15,11 +14,6 @@ else
   echo "🟣 Clean mode: Uninstalling Jaeger and Prometheus..."
   helm uninstall jaeger --ignore-not-found || true
   helm uninstall prometheus --ignore-not-found || true
-  echo "🧹 Cleaning up remaining Kubernetes resources..."
-  kubectl delete services -l app.kubernetes.io/name=jaeger --ignore-not-found=true
-  kubectl delete deployments -l app.kubernetes.io/name=jaeger --ignore-not-found=true
-  kubectl delete configmaps -l app.kubernetes.io/name=jaeger --ignore-not-found=true
-  kubectl delete secrets -l app.kubernetes.io/name=jaeger --ignore-not-found=true
   for name in jaeger prometheus; do
     while helm list --filter "^${name}$" | grep "$name" &>/dev/null; do
       echo "Waiting for Helm release $name to be deleted..."
@@ -45,16 +39,8 @@ if [ ! -d "helm-charts" ]; then
   echo "📥 Cloning Jaeger Helm Charts..."
   git clone https://github.com/jaegertracing/helm-charts.git
   cd helm-charts
-  
-  # Use main branch for v1, v2 branch for v2
-  if [[ "${JAEGER_VERSION:-v2}" == "v1" ]]; then
-    echo "Using main branch for Jaeger v1..."
-    git checkout main
-  else
-    echo "Using v2 branch for Jaeger v2..."
-    git checkout v2
-  fi
-  
+  echo "Using v2 branch for Jaeger v2..."
+  git checkout v2
   echo "Adding required Helm repositories..."
   helm repo add bitnami https://charts.bitnami.com/bitnami
   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
