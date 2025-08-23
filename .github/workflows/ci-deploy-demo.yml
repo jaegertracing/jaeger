@@ -35,8 +35,8 @@ jobs:
       run: |
         if [ "${{ github.event_name }}" = "schedule" ]; then
           echo "🕒 Scheduled run - using deploy-all.sh (upgrade mode)"
-          bash ./deploy-all.sh
+          bash ./examples/oci/deploy-all.sh
         else
           echo "🔄 Manual run - using deploy-all.sh with clean mode (uninstall/install)"
-          bash ./deploy-all.sh clean
+          bash ./examples/oci/deploy-all.sh clean
         fi         

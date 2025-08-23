@@ -137,10 +137,6 @@ if [[ "${runtime}" == "k8s" ]]; then
   docker pull localhost:5000/jaegertracing/jaeger:"${GITHUB_SHA}"
   docker pull localhost:5000/jaegertracing/example-hotrod:"${GITHUB_SHA}"
   
-  # Check available Kind clusters
-  echo "Available Kind clusters:"
-  kind get clusters || echo "No clusters found"
-  
   # Get the actual cluster name
   CLUSTER_NAME=$(kind get clusters | head -n1)
   if [[ -n "$CLUSTER_NAME" ]]; then
