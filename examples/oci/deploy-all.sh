@@ -60,16 +60,18 @@ if [[ "$MODE" == "local" ]]; then
     --set provisionDataStore.cassandra=false \
     --set allInOne.enabled=true \
     --set storage.type=memory \
+    --set hotrod.enabled=true \
     --set allInOne.image.repository="jaegertracing/all-in-one" \
     --set allInOne.image.tag="latest" \
     --set allInOne.image.pullPolicy="Never" \
-    --set hotrod.enabled=true \
     --set hotrod.image.repository="jaegertracing/example-hotrod" \
     --set hotrod.image.tag="latest" \
     --set hotrod.image.pullPolicy="Never" \
     --set hotrod.args[0]="all" \
     --set hotrod.tracing.host="jaeger" \
-    --set hotrod.tracing.port="6831"
+    --set hotrod.tracing.port="6831" \
+    --set-file userconfig="./config.yaml" \
+    --set-file uiconfig="./ui-config.json" 
 else
   echo "🟣 Deploying Jaeger..."
   helm $HELM_JAEGER_CMD jaeger ./helm-charts/charts/jaeger \
