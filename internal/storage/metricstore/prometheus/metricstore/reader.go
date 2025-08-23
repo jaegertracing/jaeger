@@ -365,7 +365,6 @@ func (m MetricsReader) buildPromQuery(metricsParams metricsQueryParams) string {
 		}
 	}
 
-	fmt.Println(">>>>>>>>> tagfilters", tagFilters)
 	promParams := promQueryParams{
 		serviceFilter:  strings.Join(metricsParams.ServiceNames, "|"),
 		spanKindFilter: spanKindFilter,
