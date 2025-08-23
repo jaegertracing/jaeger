@@ -6,6 +6,7 @@
 set -euo pipefail
 
 MODE="${1:-upgrade}"
+JAEGER_VERSION="${2:-v2}"
 
 if [[ "${JAEGER_VERSION}" == "v1" ]]; then
   JAEGER_IMAGE_REPO="jaegertracing/all-in-one"
