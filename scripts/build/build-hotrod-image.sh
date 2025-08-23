@@ -141,19 +141,16 @@ if [[ "${runtime}" == "k8s" ]]; then
   echo "Available Kind clusters:"
   kind get clusters || echo "No clusters found"
   
-  # Load into Kind cluster - try with and without cluster name
-  if kind get clusters | grep -q "kind"; then
-    echo "Loading images into 'kind' cluster..."
-    kind load docker-image jaegertracing/all-in-one:latest --name kind
-    kind load docker-image jaegertracing/example-hotrod:latest --name kind
+  # Get the actual cluster name
+  CLUSTER_NAME=$(kind get clusters | head -n1)
+  if [[ -n "$CLUSTER_NAME" ]]; then
+    echo "Loading images into '$CLUSTER_NAME' cluster..."
+    kind load docker-image jaegertracing/all-in-one:latest --name "$CLUSTER_NAME"
+    kind load docker-image jaegertracing/example-hotrod:latest --name "$CLUSTER_NAME"
   else
-    # Try without specifying cluster name (uses default)
-    echo "Loading images into default cluster..."
-    kind load docker-image jaegertracing/all-in-one:latest
-    kind load docker-image jaegertracing/example-hotrod:latest
+    echo "No Kind clusters found!"
+    exit 1
   fi
-  kind load docker-image jaegertracing/all-in-one:latest
-  kind load docker-image jaegertracing/example-hotrod:latest 
   
   bash ./examples/oci/deploy-all.sh local
   kubectl wait --for=condition=available --timeout=180s deployment/jaeger-hotrod
