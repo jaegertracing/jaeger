@@ -154,6 +154,8 @@ if [[ "${runtime}" == "k8s" ]]; then
   
   bash ./examples/oci/deploy-all.sh local
   kubectl wait --for=condition=available --timeout=180s deployment/jaeger-hotrod
+  kubectl get deployments
+  kubectl describe deployments/jaeger
   kubectl wait --for=condition=available --timeout=180s deployment/jaeger
 
   kubectl port-forward svc/jaeger-hotrod 8080:80 &
