@@ -30,7 +30,7 @@ jobs:
 
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
-          go-version: 1.24.x
+          go-version: 1.25.x
 
       - name: Add GOPATH
         run: |
@@ -39,7 +39,7 @@ jobs:
           echo "$GOPATH/bin" >>"$GITHUB_PATH"
 
       - name: Run FOSSA scan and upload report
-        uses: fossa-contrib/fossa-action@v3.0.1
+        uses: fossa-contrib/fossa-action@3d2ef181b1820d6dcd1972f86a767d18167fa19b # v3.0.1
         with:
           # FOSSA Push-Only API Token
           fossa-api-key: 304657e2357ba57b416b94e6b119131b
