@@ -58,10 +58,10 @@ if [[ "$MODE" == "local" ]]; then
     --set provisionDataStore.cassandra=false \
     --set allInOne.enabled=true \
     --set storage.type=memory \
-    --set allInOne.image.repository="cr.jaegertracing.io/jaegertracing/all-in-one" \
+    --set allInOne.image.repository="localhost:5000/jaegertracing/all-in-one" \
     --set allInOne.image.tag="latest" \
     --set hotrod.enabled=true \
-    --set hotrod.image.repository="cr.jaegertracing.io/jaegertracing/example-hotrod" \
+    --set hotrod.image.repository="localhost:5000/jaegertracing/example-hotrod" \
     --set hotrod.image.tag="latest" \
     --set hotrod.args[0]="all" \
     --set hotrod.extraEnv[0].name="JAEGER_AGENT_HOST" \
