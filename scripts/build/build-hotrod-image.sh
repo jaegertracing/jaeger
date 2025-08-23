@@ -169,6 +169,7 @@ if [[ "${runtime}" == "k8s" ]]; then
   kubectl get deployments
   kubectl describe deployments/jaeger
   kubectl events | grep jaeger
+  kubectl logs deployment/jaeger
   kubectl wait --for=condition=available --timeout=180s deployment/jaeger
 
   kubectl port-forward svc/jaeger-hotrod 8080:80 &
