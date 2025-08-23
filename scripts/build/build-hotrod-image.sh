@@ -133,10 +133,22 @@ if [[ "${runtime}" == "k8s" ]]; then
 
   echo '::group:: run on Kubernetes'
   echo '::group:: Loading images into Kind cluster'
-  docker pull localhost:5000/jaegertracing/all-in-one:${GITHUB_SHA}
+  
+  # Check available Kind clusters
+  echo "Available Kind clusters:"
+  kind get clusters || echo "No clusters found"
+  
+  if [[ "$jaeger_version" == "v1" ]]; then
+    JAEGER_IMAGE_NAME="jaegertracing/all-in-one"
+  else
+    JAEGER_IMAGE_NAME="jaegertracing/jaeger"
+  fi
+  
+  docker pull localhost:5000/${JAEGER_IMAGE_NAME}:${GITHUB_SHA}
   docker pull localhost:5000/jaegertracing/example-hotrod:${GITHUB_SHA}
-  docker tag localhost:5000/jaegertracing/all-in-one:${GITHUB_SHA} jaegertracing/all-in-one:latest
+  docker tag localhost:5000/${JAEGER_IMAGE_NAME}:${GITHUB_SHA} ${JAEGER_IMAGE_NAME}:latest
   docker tag localhost:5000/jaegertracing/example-hotrod:${GITHUB_SHA} jaegertracing/example-hotrod:latest
+  
   # Check available Kind clusters
   echo "Available Kind clusters:"
   kind get clusters || echo "No clusters found"
@@ -145,7 +157,7 @@ if [[ "${runtime}" == "k8s" ]]; then
   CLUSTER_NAME=$(kind get clusters | head -n1)
   if [[ -n "$CLUSTER_NAME" ]]; then
     echo "Loading images into '$CLUSTER_NAME' cluster..."
-    kind load docker-image jaegertracing/all-in-one:latest --name "$CLUSTER_NAME"
+    kind load docker-image ${JAEGER_IMAGE_NAME}:latest --name "$CLUSTER_NAME"
     kind load docker-image jaegertracing/example-hotrod:latest --name "$CLUSTER_NAME"
   else
     echo "No Kind clusters found!"
