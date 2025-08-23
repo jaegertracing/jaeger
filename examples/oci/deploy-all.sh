@@ -6,6 +6,7 @@
 set -euo pipefail
 
 MODE="${1:-upgrade}"
+JAEGER_VERSION="${2:-v2}"
 
 if [[ "$MODE" == "upgrade" ]]; then
   HELM_JAEGER_CMD="upgrade --install --force"
