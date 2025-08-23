@@ -133,7 +133,7 @@ if [[ "${runtime}" == "k8s" ]]; then
 
   echo '::group:: run on Kubernetes'
   echo '::group:: Loading images into Kind cluster'
-  
+
   # Check available Kind clusters
   echo "Available Kind clusters:"
   kind get clusters || echo "No clusters found"
@@ -168,6 +168,7 @@ if [[ "${runtime}" == "k8s" ]]; then
   kubectl wait --for=condition=available --timeout=180s deployment/jaeger-hotrod
   kubectl get deployments
   kubectl describe deployments/jaeger
+  kubectl events | grep jaeger
   kubectl wait --for=condition=available --timeout=180s deployment/jaeger
 
   kubectl port-forward svc/jaeger-hotrod 8080:80 &

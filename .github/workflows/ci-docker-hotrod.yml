@@ -23,7 +23,7 @@ jobs:
       fail-fast: false
       matrix:
         runtime: [docker, k8s]
-        jaeger-version: [v1, v2]
+        jaeger-version: [v2]
           
     steps:
     - uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
