@@ -45,6 +45,8 @@ type BaseQueryParameters struct {
 	RatePer *time.Duration
 	// SpanKinds is the list of span kinds to include (logical OR) in the resulting metrics aggregation.
 	SpanKinds []string
+	// Tags is a map of tag keys and values to filter the metrics by.
+	Tags map[string]string
 }
 
 // LatenciesQueryParameters contains the parameters required for latency metrics queries.
