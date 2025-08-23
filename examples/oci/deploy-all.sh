@@ -67,7 +67,7 @@ if [[ "$MODE" == "local" ]]; then
     --set hotrod.image.pullPolicy="Never" \
     --set hotrod.args[0]="all" \
     --set hotrod.extraEnv[0].name="JAEGER_AGENT_HOST" \
-    --set hotrod.extraEnv[0].value="localhost" \
+    --set hotrod.extraEnv[0].value="jaeger" \
     --set hotrod.extraEnv[1].name="JAEGER_AGENT_PORT" \
     --set hotrod.extraEnv[1].value="\"6831\""
 else
