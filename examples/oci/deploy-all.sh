@@ -6,13 +6,7 @@
 set -euo pipefail
 
 MODE="${1:-upgrade}"
-JAEGER_VERSION="${2:-v2}"
-
-if [[ "${JAEGER_VERSION}" == "v1" ]]; then
-  JAEGER_IMAGE_REPO="jaegertracing/all-in-one"
-else
-  JAEGER_IMAGE_REPO="jaegertracing/jaeger"
-fi
+IMAGE_TAG="${2:-latest}"
 
 if [[ "$MODE" == "upgrade" ]]; then
   HELM_JAEGER_CMD="upgrade --install --force"
@@ -30,16 +24,8 @@ else
   HELM_PROM_CMD="install"
 fi
 
-# Navigate into examples/oci if not already in it
-if [[ "$(basename $PWD)" != "oci" ]]; then
-  if [ -d "./examples/oci" ]; then
-    echo "📂 Changing to ./examples/oci directory..."
-    cd ./examples/oci
-  else
-    echo "❌ Cannot find ./examples/oci directory. Exiting."
-    exit 1
-  fi
-fi
+# Navigate to the script's directory (examples/oci)
+cd $(dirname $0)
 
 # Clone Jaeger Helm Charts if not already present
 if [ ! -d "helm-charts" ]; then
@@ -68,13 +54,13 @@ if [[ "$MODE" == "local" ]]; then
     --set allInOne.enabled=true \
     --set storage.type=memory \
     --set hotrod.enabled=true \
-    --set allInOne.image.repository="${JAEGER_IMAGE_REPO}" \
-    --set allInOne.image.tag="latest" \
+    --set allInOne.image.repository="localhost:5000/jaegertracing/jaeger" \
+    --set allInOne.image.tag="${IMAGE_TAG}"  \
     --set allInOne.image.pullPolicy="Never" \
-    --set hotrod.image.repository="jaegertracing/example-hotrod" \
-    --set hotrod.image.tag="latest" \
+    --set hotrod.image.repository="localhost:5000/jaegertracing/example-hotrod" \
+    --set hotrod.image.tag="${IMAGE_TAG}"  \
     --set hotrod.image.pullPolicy="Never" \
-    --set-file userconfig="./config-local.yaml" \
+    --set-file userconfig="./config.yaml" \
     --set-file uiconfig="./ui-config.json" \
     -f ./jaeger-values.yaml
 else
