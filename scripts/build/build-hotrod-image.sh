@@ -133,8 +133,8 @@ if [[ "${runtime}" == "k8s" ]]; then
 
   echo '::group:: run on Kubernetes'
   echo '::group:: Loading images into Kind cluster'
-  docker tag localhost:5000/jaegertracing/all-in-one:latest jaegertracing/all-in-one:latest
-  docker tag localhost:5000/jaegertracing/example-hotrod:latest jaegertracing/example-hotrod:latest
+  docker tag localhost:5000/jaegertracing/all-in-one:${GITHUB_SHA} jaegertracing/all-in-one:latest
+  docker tag localhost:5000/jaegertracing/example-hotrod:${GITHUB_SHA} jaegertracing/example-hotrod:latest
   kind load docker-image jaegertracing/all-in-one:latest --name kind
   kind load docker-image jaegertracing/example-hotrod:latest --name kind
   
