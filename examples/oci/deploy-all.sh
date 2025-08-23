@@ -7,6 +7,12 @@ set -euo pipefail
 
 MODE="${1:-upgrade}"
 
+if [[ "${JAEGER_VERSION}" == "v1" ]]; then
+  JAEGER_IMAGE_REPO="jaegertracing/all-in-one"
+else
+  JAEGER_IMAGE_REPO="jaegertracing/jaeger"
+fi
+
 if [[ "$MODE" == "upgrade" ]]; then
   HELM_JAEGER_CMD="upgrade --install --force"
   HELM_PROM_CMD="upgrade --install --force"
@@ -61,7 +67,7 @@ if [[ "$MODE" == "local" ]]; then
     --set allInOne.enabled=true \
     --set storage.type=memory \
     --set hotrod.enabled=true \
-    --set allInOne.image.repository="jaegertracing/all-in-one" \
+    --set allInOne.image.repository="${JAEGER_IMAGE_REPO}" \
     --set allInOne.image.tag="latest" \
     --set allInOne.image.pullPolicy="Never" \
     --set hotrod.image.repository="jaegertracing/example-hotrod" \
