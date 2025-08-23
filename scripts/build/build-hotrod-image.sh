@@ -137,8 +137,8 @@ if [[ "${runtime}" == "k8s" ]]; then
   docker pull localhost:5000/jaegertracing/example-hotrod:${GITHUB_SHA}
   docker tag localhost:5000/jaegertracing/all-in-one:${GITHUB_SHA} jaegertracing/all-in-one:latest
   docker tag localhost:5000/jaegertracing/example-hotrod:${GITHUB_SHA} jaegertracing/example-hotrod:latest
-  kind load docker-image jaegertracing/all-in-one:latest --name kind
-  kind load docker-image jaegertracing/example-hotrod:latest --name kind
+  kind load docker-image jaegertracing/all-in-one:latest
+  kind load docker-image jaegertracing/example-hotrod:latest 
   
   bash ./examples/oci/deploy-all.sh local
   kubectl wait --for=condition=available --timeout=180s deployment/jaeger-hotrod
