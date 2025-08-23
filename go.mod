@@ -5,8 +5,8 @@ go 1.24.6
 toolchain go1.25.0
 
 require (
-	github.com/ClickHouse/ch-go v0.66.1
-	github.com/ClickHouse/clickhouse-go/v2 v2.37.2
+	github.com/ClickHouse/ch-go v0.67.0
+	github.com/ClickHouse/clickhouse-go/v2 v2.40.1
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/Shopify/sarama v1.37.2
 	github.com/apache/thrift v0.22.0
