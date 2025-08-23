@@ -137,6 +137,21 @@ if [[ "${runtime}" == "k8s" ]]; then
   docker pull localhost:5000/jaegertracing/example-hotrod:${GITHUB_SHA}
   docker tag localhost:5000/jaegertracing/all-in-one:${GITHUB_SHA} jaegertracing/all-in-one:latest
   docker tag localhost:5000/jaegertracing/example-hotrod:${GITHUB_SHA} jaegertracing/example-hotrod:latest
+  # Check available Kind clusters
+  echo "Available Kind clusters:"
+  kind get clusters || echo "No clusters found"
+  
+  # Load into Kind cluster - try with and without cluster name
+  if kind get clusters | grep -q "kind"; then
+    echo "Loading images into 'kind' cluster..."
+    kind load docker-image jaegertracing/all-in-one:latest --name kind
+    kind load docker-image jaegertracing/example-hotrod:latest --name kind
+  else
+    # Try without specifying cluster name (uses default)
+    echo "Loading images into default cluster..."
+    kind load docker-image jaegertracing/all-in-one:latest
+    kind load docker-image jaegertracing/example-hotrod:latest
+  fi
   kind load docker-image jaegertracing/all-in-one:latest
   kind load docker-image jaegertracing/example-hotrod:latest 
   
