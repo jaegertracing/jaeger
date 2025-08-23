@@ -19,7 +19,7 @@ runs:
         echo "::endgroup::"
         export GOROOT="$HOME/sdk/gotip"
         echo "GOROOT=$GOROOT" >> $GITHUB_ENV
-        echo "success=${success}" >> $GITHUB_OUTPUT
+        echo "success=true" >> $GITHUB_OUTPUT
       env:
         GH_TOKEN: ${{ inputs.gh_token }}
 
