@@ -67,9 +67,9 @@ if [[ "$MODE" == "local" ]]; then
     --set hotrod.image.pullPolicy="Never" \
     --set hotrod.args[0]="all" \
     --set hotrod.extraEnv[0].name="OTEL_EXPORTER_OTLP_ENDPOINT" \
-    --set hotrod.extraEnv[0].value="http://jaeger:4318" \
+    --set hotrod.extraEnv[0].value="http://jaeger-collector:4318" \
     --set hotrod.extraEnv[1].name="OTEL_EXPORTER_OTLP_TRACES_ENDPOINT" \
-    --set hotrod.extraEnv[1].value="http://jaeger:4318/v1/traces"
+    --set hotrod.extraEnv[1].value="http://jaeger-collector:4318/v1/traces"
 else
   echo "🟣 Deploying Jaeger..."
   helm $HELM_JAEGER_CMD jaeger ./helm-charts/charts/jaeger \
