@@ -63,6 +63,8 @@ fi
 
 # Set image repositories and deploy based on mode
 if [[ "$MODE" == "local" ]]; then
+  HELM_JAEGER_CMD="upgrade --install --force"
+  HELM_PROM_CMD="upgrade --install --force"
   echo "🟣 Deploying Jaeger with local registry images..."
   helm $HELM_JAEGER_CMD jaeger ./helm-charts/charts/jaeger \
     --set provisionDataStore.cassandra=false \
