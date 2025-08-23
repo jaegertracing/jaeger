@@ -50,6 +50,8 @@ runs:
         # echo "$HOME/go/bin" >> "$GITHUB_PATH"
         # echo "$HOME/sdk/gotip/bin" >> "$GITHUB_PATH"
         echo "success=${success}" >> $GITHUB_OUTPUT
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     # If download failed, we will try to build tip from source.
     # This requires Go toolchain, so install it first.
