@@ -15,6 +15,11 @@ else
   echo "🟣 Clean mode: Uninstalling Jaeger and Prometheus..."
   helm uninstall jaeger --ignore-not-found || true
   helm uninstall prometheus --ignore-not-found || true
+  echo "🧹 Cleaning up remaining Kubernetes resources..."
+  kubectl delete services -l app.kubernetes.io/name=jaeger --ignore-not-found=true
+  kubectl delete deployments -l app.kubernetes.io/name=jaeger --ignore-not-found=true
+  kubectl delete configmaps -l app.kubernetes.io/name=jaeger --ignore-not-found=true
+  kubectl delete secrets -l app.kubernetes.io/name=jaeger --ignore-not-found=true
   for name in jaeger prometheus; do
     while helm list --filter "^${name}$" | grep "$name" &>/dev/null; do
       echo "Waiting for Helm release $name to be deleted..."
@@ -63,8 +68,7 @@ fi
 
 # Set image repositories and deploy based on mode
 if [[ "$MODE" == "local" ]]; then
-  HELM_JAEGER_CMD="upgrade --install --force"
-  HELM_PROM_CMD="upgrade --install --force"
+
   echo "🟣 Deploying Jaeger with local registry images..."
   helm $HELM_JAEGER_CMD jaeger ./helm-charts/charts/jaeger \
     --set provisionDataStore.cassandra=false \
