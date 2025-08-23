@@ -15,6 +15,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
 // These constants define the specific names of aggregations used within Elasticsearch
@@ -30,9 +31,10 @@ const (
 // QueryBuilder is responsible for constructing Elasticsearch queries (bool and aggregation)
 // based on provided parameters and executing them to retrieve raw search results.
 type QueryBuilder struct {
-	searcher     esclient.Searcher
-	cfg          config.Configuration
-	spanRotation indices.Rotation
+	searcher        esclient.Searcher
+	cfg             config.Configuration
+	spanRotation    indices.Rotation
+	tagQueryBuilder esquery.TagQueryBuilder
 }
 
 // NewQueryBuilder creates a new QueryBuilder instance.
@@ -41,6 +43,9 @@ func NewQueryBuilder(searcher esclient.Searcher, cfg config.Configuration, spanR
 		searcher:     searcher,
 		cfg:          cfg,
 		spanRotation: spanRotation,
+		tagQueryBuilder: esquery.NewTagQueryBuilder(
+			dbmodel.NewDotReplacer(cfg.Tags.DotReplacement),
+		),
 	}
 }
 
@@ -59,6 +64,12 @@ func (q *QueryBuilder) BuildBoolQuery(params metricstore.BaseQueryParameters, ti
 	spanKindField := strings.ReplaceAll(model.SpanKindKey, ".", q.cfg.Tags.DotReplacement)
 	spanKindQuery := esquery.NewTermsQuery("tag."+spanKindField, buildInterfaceSlice(normalizeSpanKinds(params.SpanKinds))...)
 	boolQuery.Filter(spanKindQuery)
+
+	// Add complex tag filters using TagQueryBuilder's BuildTagQuery method
+	for tagKey, tagValue := range params.Tags {
+		tagQuery := q.tagQueryBuilder.BuildTagQuery(tagKey, tagValue)
+		boolQuery.Filter(tagQuery)
+	}
 
 	// Add additional terms queries if provided
 	for _, termQuery := range termsQueries {
