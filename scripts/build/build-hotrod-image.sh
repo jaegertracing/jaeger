@@ -184,8 +184,8 @@ else
 fi
 
 if [[ "${runtime}" == "k8s" ]]; then
-  HOTROD_URL="http://localhost:8080"
-  JAEGER_QUERY_URL="http://localhost:16686"
+  HOTROD_URL="http://localhost:8080/hotrod"
+  JAEGER_QUERY_URL="http://localhost:16686/jaeger"
 else
   HOTROD_URL="http://localhost:8080"
   JAEGER_QUERY_URL="http://localhost:16686"
