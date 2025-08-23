@@ -67,7 +67,7 @@ if [[ "$MODE" == "local" ]]; then
     --set hotrod.extraEnv[0].name="JAEGER_AGENT_HOST" \
     --set hotrod.extraEnv[0].value="localhost" \
     --set hotrod.extraEnv[1].name="JAEGER_AGENT_PORT" \
-    --set hotrod.extraEnv[1].value="6831"
+    --set hotrod.extraEnv[1].value="\"6831\""
 else
   echo "🟣 Deploying Jaeger..."
   helm $HELM_JAEGER_CMD jaeger ./helm-charts/charts/jaeger \
