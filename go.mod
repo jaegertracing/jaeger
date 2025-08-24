@@ -1,12 +1,12 @@
 module github.com/jaegertracing/jaeger
 
-go 1.23.7
+go 1.24.6
 
-toolchain go1.24.5
+toolchain go1.25.0
 
 require (
-	github.com/ClickHouse/ch-go v0.66.1
-	github.com/ClickHouse/clickhouse-go/v2 v2.37.2
+	github.com/ClickHouse/ch-go v0.68.0
+	github.com/ClickHouse/clickhouse-go/v2 v2.40.1
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/Shopify/sarama v1.37.2
 	github.com/apache/thrift v0.22.0
@@ -109,7 +109,7 @@ require (
 	go.uber.org/zap v1.27.0
 	golang.org/x/net v0.43.0
 	golang.org/x/sys v0.35.0
-	google.golang.org/grpc v1.74.2
+	google.golang.org/grpc v1.75.0
 	google.golang.org/protobuf v1.36.7
 	gopkg.in/yaml.v3 v3.0.1
 )
