@@ -51,7 +51,7 @@ kubectl port-forward svc/prometheus-grafana 9091:80
 
 Then access:
 - 🔍 **Jaeger UI**: http://localhost:16686/jaeger
-- 🚕 **HotROD App**: http://localhost:8080
+- 🚕 **HotROD App**: http://localhost:8080/hotrod
 - 📈 **Prometheus**: http://localhost:9090
 - 📊 **Grafana**: http://localhost:9091
 
