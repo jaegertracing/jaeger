@@ -6,6 +6,7 @@ import sys
 from difflib import unified_diff
 from bisect import insort
 from prometheus_client.parser import text_string_to_metric_families
+import re
 
 def read_metric_file(file_path):
     with open(file_path, 'r') as f:
@@ -18,6 +19,9 @@ def parse_metrics(content):
             labels = dict(sample.labels)
             #simply pop undesirable metric labels
             labels.pop('service_instance_id',None)
+            if "kafka" in sample.name:
+                if "topic" in labels:
+                    labels["topic"] = re.sub(r"jaeger-spans-\d+", "jaeger-spans-", labels["topic"])
             label_pairs = sorted(labels.items(), key=lambda x: x[0])
             label_str = ','.join(f'{k}="{v}"' for k,v in label_pairs)
             metric = f"{family.name}{{{label_str}}}"
