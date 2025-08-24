@@ -1,51 +1,38 @@
 # Inspired by https://github.com/actions/setup-go/issues/21#issuecomment-997208686
 name: 'Install Go Tip'
 description: 'Install Go Tip toolchain'
+inputs:
+  gh_token:
+    description: 'The GitHub Token'
+    required: true
 runs:
   using: "composite"
   steps:
-    - name: Download Go Tip
+    - name: Download pre-built Go tip from grafana/gotip repo
       id: download
       shell: bash
       run: |
-        echo Download Go Tip
         set -euo pipefail
-        tip=$(git ls-remote https://github.com/golang/go.git HEAD | awk '{print $1;}')
-        echo "Go Tip version: ${tip}"
-        retries=3
-        wait_time=10
-        success=false
-        for ((i=1; i<=retries; i++)); do
-          url="https://storage.googleapis.com/go-build-snap/go/linux-amd64/${tip}.tar.gz"
-          if curl -fsSL -o gotip.tar.gz "$url"; then
-            success=true
-            break
-          fi
-          echo "Failed to download. Retrying in $wait_time seconds..."
-          sleep $wait_time
-        done
-        echo "success=${success}" >> $GITHUB_OUTPUT
-
-    - name: Unpack gotip bundle
-      if: steps.download.outputs.success == 'true'
-      shell: bash
-      run: |
-        echo Unpack gotip bundle
-        set -euo pipefail
-        echo "Downloaded bundle:"
-        ls -lah gotip.tar.gz
+        gh release download ubuntu-latest --repo grafana/gotip --pattern 'go.zip'
+        echo "::group::unzip"
+        unzip go.zip -d $HOME/sdk
+        echo "::endgroup::"
         export GOROOT="$HOME/sdk/gotip"
-        mkdir -p $GOROOT
-        tar -C $GOROOT -xzf gotip.tar.gz
         echo "GOROOT=$GOROOT" >> $GITHUB_ENV
+        echo "success=true" >> $GITHUB_OUTPUT
+      env:
+        GH_TOKEN: ${{ inputs.gh_token }}
 
     # If download failed, we will try to build tip from source.
     # This requires Go toolchain, so install it first.
+    # However, gotip is picky about the version of Go used to build it,
+    # sometimes it requires the latest version, so determine it dynamically.
     - name: Determine latest Go version
       if: steps.download.outputs.success == 'false'
       id: get_go_version
+      shell: bash
       run: |
-        LATEST_GO_VERSION=$(curl -s "https://go.dev/VERSION?m=text")
+        LATEST_GO_VERSION=$(curl -s "https://go.dev/VERSION?m=text" | grep go1 | sed 's/^go//g')
         echo "LATEST_GO_VERSION=$LATEST_GO_VERSION" >> $GITHUB_OUTPUT
 
     - name: Install Go toolchain

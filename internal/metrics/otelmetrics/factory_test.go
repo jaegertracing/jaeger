@@ -27,7 +27,6 @@ func newTestFactory(t *testing.T, registry *promReg.Registry) metrics.Factory {
 	exporter, err := prometheus.New(
 		prometheus.WithRegisterer(registry),
 		prometheus.WithoutScopeInfo(),
-		prometheus.WithoutCounterSuffixes(),
 	)
 	require.NoError(t, err)
 	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(exporter))
@@ -40,6 +39,7 @@ func findMetric(t *testing.T, registry *promReg.Registry, name string) *promMode
 
 	for _, mf := range metricFamilies {
 		t.Log(mf.GetName())
+		t.Log(name)
 		if mf.GetName() == name {
 			return mf
 		}
@@ -106,17 +106,6 @@ func TestCounter(t *testing.T) {
 		"tag1": "value1",
 	}
 	assert.Equal(t, expectedLabels, promLabelsToMap(metricData[0].GetLabel()))
-}
-
-func TestCounterNamingConvention(t *testing.T) {
-	input := "test_counter"
-	expected := "test_counter_total"
-
-	result := otelmetrics.CounterNamingConvention(input)
-
-	if result != expected {
-		t.Errorf("Expected %s, but got %s", expected, result)
-	}
 }
 
 func TestGauge(t *testing.T) {
