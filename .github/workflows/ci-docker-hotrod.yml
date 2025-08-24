@@ -24,6 +24,9 @@ jobs:
       matrix:
         runtime: [docker, k8s]
         jaeger-version: [v1, v2]
+        exclude:
+          - runtime: k8s
+            jaeger-version: v1
           
     steps:
     - uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -64,10 +67,6 @@ jobs:
       with:
         version: 'latest'
   
-    - name: Install Kustomize
-      if: matrix.runtime == 'k8s'
-      uses: imranismail/setup-kustomize@2ba527d4d055ab63514ba50a99456fc35684947f # v2
-
     - name: Create k8s Kind Cluster
       if: matrix.runtime == 'k8s'
       uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1

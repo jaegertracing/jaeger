@@ -6,6 +6,28 @@
 set -euo pipefail
 
 MODE="${1:-upgrade}"
+IMAGE_TAG="${2:-latest}"
+
+case "$MODE" in
+  upgrade|clean|local)
+    echo "🔵 Running in '$MODE' mode..."
+    ;;
+  *)
+    echo "❌ Error: Invalid mode '$MODE'"
+    echo "Usage: $0 [upgrade|clean|local] [image-tag]"
+    echo ""
+    echo "Modes:"
+    echo "  upgrade  - Upgrade existing deployment or install if not present (default)"
+    echo "  clean    - Clean install (removes existing deployment first)"
+    echo "  local    - Deploy using local registry images (localhost:5000)"
+    echo ""
+    echo "Examples:"
+    echo "  $0                    # Upgrade mode with latest tag"
+    echo "  $0 clean              # Clean install"
+    echo "  $0 local <image_tag>       # Local mode with specific image tag"
+    exit 1
+    ;;
+esac
 
 if [[ "$MODE" == "upgrade" ]]; then
   HELM_JAEGER_CMD="upgrade --install --force"
@@ -23,11 +45,15 @@ else
   HELM_PROM_CMD="install"
 fi
 
-# Clone Jaeger Helm Charts (v2 branch) if not already present
+# Navigate to the script's directory (examples/oci)
+cd $(dirname $0)
+
+# Clone Jaeger Helm Charts if not already present
 if [ ! -d "helm-charts" ]; then
   echo "📥 Cloning Jaeger Helm Charts..."
   git clone https://github.com/jaegertracing/helm-charts.git
   cd helm-charts
+  echo "Using v2 branch for Jaeger v2..."
   git checkout v2
   echo "Adding required Helm repositories..."
   helm repo add bitnami https://charts.bitnami.com/bitnami
@@ -40,25 +66,34 @@ else
   echo "📁 Jaeger Helm Charts already exist. Skipping clone."
 fi
 
-# Navigate into examples/oci if not already in it
-if [[ "$(basename $PWD)" != "oci" ]]; then
-  if [ -d "./examples/oci" ]; then
-    echo "📂 Changing to ./examples/oci directory..."
-    cd ./examples/oci
-  else
-    echo "❌ Cannot find ./examples/oci directory. Exiting."
-    exit 1
-  fi
-fi
+# Set image repositories and deploy based on mode
+if [[ "$MODE" == "local" ]]; then
 
-echo "🟣 Deploying Jaeger..."
-helm $HELM_JAEGER_CMD jaeger ./helm-charts/charts/jaeger \
-  --set provisionDataStore.cassandra=false \
-  --set allInOne.enabled=true \
-  --set storage.type=memory \
-  --set-file userconfig="./config.yaml" \
-  --set-file uiconfig="./ui-config.json" \
-  -f ./jaeger-values.yaml
+  echo "🟣 Deploying Jaeger with local registry images..."
+  helm $HELM_JAEGER_CMD jaeger ./helm-charts/charts/jaeger \
+    --set provisionDataStore.cassandra=false \
+    --set allInOne.enabled=true \
+    --set storage.type=memory \
+    --set hotrod.enabled=true \
+    --set allInOne.image.repository="localhost:5000/jaegertracing/jaeger" \
+    --set allInOne.image.tag="${IMAGE_TAG}"  \
+    --set allInOne.image.pullPolicy="Never" \
+    --set hotrod.image.repository="localhost:5000/jaegertracing/example-hotrod" \
+    --set hotrod.image.tag="${IMAGE_TAG}"  \
+    --set hotrod.image.pullPolicy="Never" \
+    --set-file userconfig="./config.yaml" \
+    --set-file uiconfig="./ui-config.json" \
+    -f ./jaeger-values.yaml
+else
+  echo "🟣 Deploying Jaeger..."
+  helm $HELM_JAEGER_CMD jaeger ./helm-charts/charts/jaeger \
+    --set provisionDataStore.cassandra=false \
+    --set allInOne.enabled=true \
+    --set storage.type=memory \
+    --set-file userconfig="./config.yaml" \
+    --set-file uiconfig="./ui-config.json" \
+    -f ./jaeger-values.yaml
+fi
 
 echo "🟢 Deploying Prometheus..."
 kubectl apply -f prometheus-svc.yaml
@@ -91,3 +126,7 @@ echo "🔍 Jaeger: http://localhost:16686/jaeger"
 echo "📈 Prometheus: http://localhost:9090"
 echo "📊 Grafana: http://localhost:9091"
 echo "🚕 HotROD: http://localhost:8080"
+echo ""
+echo "📝 Note: If you made changes to Jaeger configuration files (e.g., config.yaml, ui-config.json), you may need to run this script in clean mode:"
+echo "    ./deploy-all.sh clean"
+echo "Or manually restart the CI workflow to ensure your changes are applied."
