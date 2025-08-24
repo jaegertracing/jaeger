@@ -8,6 +8,27 @@ set -euo pipefail
 MODE="${1:-upgrade}"
 IMAGE_TAG="${2:-latest}"
 
+case "$MODE" in
+  upgrade|clean|local)
+    echo "🔵 Running in '$MODE' mode..."
+    ;;
+  *)
+    echo "❌ Error: Invalid mode '$MODE'"
+    echo "Usage: $0 [upgrade|clean|local] [image-tag]"
+    echo ""
+    echo "Modes:"
+    echo "  upgrade  - Upgrade existing deployment or install if not present (default)"
+    echo "  clean    - Clean install (removes existing deployment first)"
+    echo "  local    - Deploy using local registry images (localhost:5000)"
+    echo ""
+    echo "Examples:"
+    echo "  $0                    # Upgrade mode with latest tag"
+    echo "  $0 clean              # Clean install"
+    echo "  $0 local <image_tag>       # Local mode with specific image tag"
+    exit 1
+    ;;
+esac
+
 if [[ "$MODE" == "upgrade" ]]; then
   HELM_JAEGER_CMD="upgrade --install --force"
   HELM_PROM_CMD="upgrade --install --force"
