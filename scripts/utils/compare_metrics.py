@@ -38,7 +38,6 @@ def extract_metrics_with_labels(metrics, strip_prefix=None):
         labels = {}
         if 'metrics' in metric and 'labels' in metric['metrics'][0]:
             labels = metric['metrics'][0]['labels']
-            labels = suppress_transient_labels(name, labels)
         result[name] = labels
     return result
 
