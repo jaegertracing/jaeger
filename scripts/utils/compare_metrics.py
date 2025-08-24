@@ -4,6 +4,7 @@
 import json
 import argparse
 import subprocess
+import re
 
 #Instructions of use:
 
@@ -26,6 +27,13 @@ import subprocess
 # 3. The script will compare the metrics in V1_Metrics.json and V2_Metrics.json and output the differences to differences.json
 
 
+def suppress_transient_labels(name, labels):
+    """Suppresses transient labels in metrics."""
+    if "kafka" in name:
+        if "topic" in labels:
+            labels["topic"] = re.sub(r"jaeger-spans-\d+", "jaeger-spans-", labels["topic"])
+    return labels
+
 # Extract names and labels of the metrics
 def extract_metrics_with_labels(metrics, strip_prefix=None):
     result = {}
@@ -38,6 +46,7 @@ def extract_metrics_with_labels(metrics, strip_prefix=None):
         labels = {}
         if 'metrics' in metric and 'labels' in metric['metrics'][0]:
             labels = metric['metrics'][0]['labels']
+            labels = suppress_transient_labels(name, labels)
         result[name] = labels
     return result
 
