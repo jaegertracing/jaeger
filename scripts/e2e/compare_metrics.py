@@ -10,7 +10,6 @@ import re
 
 # Configuration for transient labels that should be normalized during comparison
 TRANSIENT_LABEL_PATTERNS = {
-    # Kafka topic labels with random suffixes
     'kafka': {
         'topic': {
             'pattern': r'jaeger-spans-\d+',
@@ -18,7 +17,7 @@ TRANSIENT_LABEL_PATTERNS = {
         }
     },
     # Add more patterns here as needed
-    # Example for future use:
+    # Example:
     # 'elasticsearch': {
     #     'index': {
     #         'pattern': r'jaeger-\d{4}-\d{2}-\d{2}',
@@ -62,7 +61,6 @@ def parse_metrics(content):
             #simply pop undesirable metric labels
             labels.pop('service_instance_id',None)
             
-            # Suppress transient labels using the extensible function
             labels = suppress_transient_labels(sample.name, labels)
             
             label_pairs = sorted(labels.items(), key=lambda x: x[0])
