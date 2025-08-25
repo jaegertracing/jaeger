@@ -4,12 +4,14 @@
 package apiv3
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -58,6 +60,12 @@ type HTTPGateway struct {
 	Tracer       trace.TracerProvider
 }
 
+type chunkedGzipWriter struct {
+	http.ResponseWriter
+	gzipWriter *gzip.Writer
+	flusher    http.Flusher
+}
+
 // RegisterRoutes registers HTTP endpoints for APIv3 into provided mux.
 // The called can create a subrouter if it needs to prepend a base path.
 func (h *HTTPGateway) RegisterRoutes(router *mux.Router) {
@@ -67,15 +75,58 @@ func (h *HTTPGateway) RegisterRoutes(router *mux.Router) {
 	h.addRoute(router, h.getOperations, routeGetOperations).Methods(http.MethodGet)
 }
 
-// addRoute adds a new endpoint to the router with given path and handler function.
-// This code is mostly copied from ../http_handler.
+func (w *chunkedGzipWriter) Write(b []byte) (int, error) {
+	n, err := w.gzipWriter.Write(b)
+	if err != nil {
+		return n, err
+	}
+
+	if err := w.gzipWriter.Flush(); err != nil {
+		return n, err
+	}
+
+	w.flusher.Flush()
+	return n, nil
+}
+
+func gzipMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
+			return
+		}
+
+		// Set chunked transfer encoding before any writes
+		w.Header().Set("Transfer-Encoding", "chunked")
+		w.Header().Set("Content-Encoding", "gzip")
+		w.Header().Set("Vary", "Accept-Encoding")
+
+		gz := gzip.NewWriter(w)
+		defer gz.Close()
+
+		writer := &chunkedGzipWriter{
+			ResponseWriter: w,
+			gzipWriter:     gz,
+			flusher:        flusher,
+		}
+
+		next.ServeHTTP(writer, r)
+	})
+}
+
 func (*HTTPGateway) addRoute(
 	router *mux.Router,
 	f func(http.ResponseWriter, *http.Request),
 	route string,
-	_ ...any, /* args */
 ) *mux.Route {
 	var handler http.Handler = http.HandlerFunc(f)
+	handler = gzipMiddleware(handler)
 	handler = otelhttp.WithRouteTag(route, handler)
 	handler = spanNameHandler(route, handler)
 	return router.HandleFunc(route, handler.ServeHTTP)
