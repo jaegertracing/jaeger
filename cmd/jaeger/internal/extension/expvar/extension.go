@@ -67,11 +67,13 @@ func (c *expvarExtension) Shutdown(ctx context.Context) error {
 		return nil
 	}
 
-	err := c.server.Shutdown(ctx)
-	c.shutdownWG.Wait()
 
+	err := c.server.Shutdown(ctx)
 	if err != nil {
 		return fmt.Errorf("error shutting down expvar server: %w", err)
+	}
+	c.shutdownWG.Wait()
+
 	}
 	return nil
 }
