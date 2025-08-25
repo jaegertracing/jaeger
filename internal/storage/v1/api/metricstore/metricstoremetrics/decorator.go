@@ -19,6 +19,7 @@ type ReadMetricsDecorator struct {
 	getCallRatesMetrics       *queryMetrics
 	getErrorRatesMetrics      *queryMetrics
 	getMinStepDurationMetrics *queryMetrics
+	getLabelValuesMetrics     *queryMetrics
 }
 
 type queryMetrics struct {
@@ -46,6 +47,7 @@ func NewReaderDecorator(reader metricstore.Reader, metricsFactory metrics.Factor
 		getCallRatesMetrics:       buildQueryMetrics("get_call_rates", metricsFactory),
 		getErrorRatesMetrics:      buildQueryMetrics("get_error_rates", metricsFactory),
 		getMinStepDurationMetrics: buildQueryMetrics("get_min_step_duration", metricsFactory),
+		getLabelValuesMetrics:     buildQueryMetrics("get_label_values", metricsFactory),
 	}
 }
 
@@ -86,4 +88,12 @@ func (m *ReadMetricsDecorator) GetMinStepDuration(ctx context.Context, params *m
 	retMe, err := m.reader.GetMinStepDuration(ctx, params)
 	m.getMinStepDurationMetrics.emit(err, time.Since(start))
 	return retMe, err
+}
+
+// GetLabelValues implements metricstore.Reader.
+func (m *ReadMetricsDecorator) GetLabelValues(ctx context.Context, params *metricstore.LabelValuesQueryParameters) ([]string, error) {
+	start := time.Now()
+	values, err := m.reader.GetLabelValues(ctx, params)
+	m.getLabelValuesMetrics.emit(err, time.Since(start))
+	return values, err
 }

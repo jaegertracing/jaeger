@@ -24,6 +24,8 @@ type Reader interface {
 	// GetMinStepDuration gets the min time resolution supported by the backing metrics store,
 	// e.g. 10s means the backend can only return data points that are at least 10s apart, not closer.
 	GetMinStepDuration(ctx context.Context, params *MinStepDurationQueryParameters) (time.Duration, error)
+	// GetLabelValues gets the available values for a specific label from the metrics store.
+	GetLabelValues(ctx context.Context, params *LabelValuesQueryParameters) ([]string, error)
 }
 
 // BaseQueryParameters contains the common set of parameters used by all metrics queries:
@@ -70,3 +72,11 @@ type ErrorRateQueryParameters struct {
 
 // MinStepDurationQueryParameters contains the parameters required for fetching the minimum step duration.
 type MinStepDurationQueryParameters struct{}
+
+// LabelValuesQueryParameters contains the parameters required for fetching label values.
+type LabelValuesQueryParameters struct {
+	// LabelName is the name of the label to get values for (e.g., "service_name", "operation", etc.)
+	LabelName string
+	// ServiceNames optionally filters the label values to only those present in metrics for the specified services
+	ServiceNames []string
+}

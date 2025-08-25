@@ -51,3 +51,8 @@ func (*MetricsReader) GetErrorRates(context.Context, *metricstore.ErrorRateQuery
 func (*MetricsReader) GetMinStepDuration(context.Context, *metricstore.MinStepDurationQueryParameters) (time.Duration, error) {
 	return 0, ErrDisabled
 }
+
+// GetLabelValues gets the available values for a specific label.
+func (*MetricsReader) GetLabelValues(context.Context, *metricstore.LabelValuesQueryParameters) ([]string, error) {
+	return nil, ErrDisabled
+}

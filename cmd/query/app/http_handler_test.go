@@ -37,6 +37,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/jtracer"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	metricsmocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
@@ -1159,4 +1160,96 @@ func TestSearchTenancyFlowTenantHTTP(t *testing.T) {
 	require.ErrorContains(t, err, "storage error")
 	assert.Empty(t, responseMegacorp.Errors)
 	assert.Nil(t, responseMegacorp.Data)
+}
+
+func TestGetLabelValues(t *testing.T) {
+	mr := &metricsmocks.Reader{}
+	apiHandlerOptions := []HandlerOption{
+		HandlerOptions.MetricsQueryService(mr),
+	}
+	ts := initializeTestServer(t, apiHandlerOptions...)
+	
+	expectedValues := []string{"emailservice", "frontend", "productcatalogservice"}
+	
+	testCases := []struct {
+		name        string
+		urlPath     string
+		labelName   string
+		services    []string
+	}{
+		{
+			name:      "Get service_name values",
+			urlPath:   "/api/metrics/labels/service_name/values",
+			labelName: "service_name",
+			services:  nil,
+		},
+		{
+			name:      "Get operation_name values filtered by service",
+			urlPath:   "/api/metrics/labels/operation_name/values?service=frontend",
+			labelName: "operation_name",
+			services:  []string{"frontend"},
+		},
+		{
+			name:      "Get values with multiple service filters",
+			urlPath:   "/api/metrics/labels/span_kind/values?service=frontend&service=emailservice",
+			labelName: "span_kind",
+			services:  []string{"frontend", "emailservice"},
+		},
+	}
+	
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Prepare
+			mr.On(
+				"GetLabelValues",
+				mock.AnythingOfType("*context.valueCtx"),
+				mock.MatchedBy(func(params *metricstore.LabelValuesQueryParameters) bool {
+					return params.LabelName == tc.labelName && 
+						   len(params.ServiceNames) == len(tc.services)
+				}),
+			).Return(expectedValues, nil).Once()
+
+			// Test
+			var response structuredResponse
+			err := getJSON(ts.server.URL+tc.urlPath, &response)
+
+			// Verify
+			require.NoError(t, err)
+			
+			// Convert response.Data from []interface{} to []string for comparison
+			dataSlice, ok := response.Data.([]interface{})
+			require.True(t, ok, "Response data should be a slice")
+			
+			actualValues := make([]string, len(dataSlice))
+			for i, v := range dataSlice {
+				actualValues[i] = v.(string)
+			}
+			
+			assert.Equal(t, expectedValues, actualValues)
+			assert.Equal(t, len(expectedValues), response.Total)
+		})
+	}
+}
+
+func TestGetLabelValuesError(t *testing.T) {
+	mr := &metricsmocks.Reader{}
+	apiHandlerOptions := []HandlerOption{
+		HandlerOptions.MetricsQueryService(mr),
+	}
+	ts := initializeTestServer(t, apiHandlerOptions...)
+	
+	// Prepare
+	mr.On(
+		"GetLabelValues",
+		mock.AnythingOfType("*context.valueCtx"),
+		mock.AnythingOfType("*metricstore.LabelValuesQueryParameters"),
+	).Return(nil, errors.New("storage error")).Once()
+
+	// Test
+	response, err := http.Get(ts.server.URL + "/api/metrics/labels/service_name/values")
+	require.NoError(t, err)
+	defer response.Body.Close()
+
+	// Verify
+	assert.Equal(t, http.StatusInternalServerError, response.StatusCode)
 }

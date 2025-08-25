@@ -258,6 +258,47 @@ func (MetricsReader) GetMinStepDuration(_ context.Context, _ *metricstore.MinSte
 	return minStep, nil
 }
 
+// GetLabelValues gets the available values for a specific label from Prometheus.
+func (m MetricsReader) GetLabelValues(ctx context.Context, params *metricstore.LabelValuesQueryParameters) ([]string, error) {
+	ctx, span := m.tracer.Start(ctx, "prometheus.label_values")
+	defer span.End()
+	
+	span.SetAttributes(
+		attribute.String("label_name", params.LabelName),
+		attribute.Int("service_count", len(params.ServiceNames)),
+	)
+	
+	// Build match[] selectors to filter by service names if provided
+	var matchers []string
+	if len(params.ServiceNames) > 0 {
+		for _, serviceName := range params.ServiceNames {
+			// Use the calls metric name to match the same metric used for other queries
+			matchers = append(matchers, fmt.Sprintf("{service_name=\"%s\"}", serviceName))
+		}
+	}
+	
+	values, warnings, err := m.client.LabelValues(ctx, params.LabelName, matchers, time.Time{}, time.Time{})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, fmt.Errorf("failed querying label values for %s: %w", params.LabelName, err)
+	}
+	
+	if len(warnings) > 0 {
+		m.logger.Warn("Prometheus label values query returned warnings", 
+			zap.String("label", params.LabelName), 
+			zap.Strings("warnings", warnings))
+	}
+	
+	// Convert model.LabelValues to []string
+	result := make([]string, len(values))
+	for i, value := range values {
+		result[i] = string(value)
+	}
+	
+	return result, nil
+}
+
 // executeQuery executes a query against a Prometheus-compliant metrics backend.
 func (m MetricsReader) executeQuery(ctx context.Context, p metricsQueryParams) (*metrics.MetricFamily, error) {
 	if p.GroupByOperation {

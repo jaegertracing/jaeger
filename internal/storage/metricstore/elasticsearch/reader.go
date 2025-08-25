@@ -32,6 +32,11 @@ type MetricsReader struct {
 	queryBuilder *QueryBuilder
 }
 
+// GetLabelValues implements metricstore.Reader.
+func (r *MetricsReader) GetLabelValues(ctx context.Context, params *metricstore.LabelValuesQueryParameters) ([]string, error) {
+	return nil, errors.New("GetLabelValues is not implemented yet")
+}
+
 // TimeRange represents a time range for metrics queries.
 type TimeRange struct {
 	startTimeMillis int64

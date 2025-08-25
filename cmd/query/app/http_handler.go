@@ -36,6 +36,7 @@ import (
 
 const (
 	traceIDParam          = "traceID"
+	labelNameParam        = "labelName"
 	endTsParam            = "endTs"
 	lookbackParam         = "lookback"
 	stepParam             = "step"
@@ -124,6 +125,7 @@ func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
 	aH.handleFunc(router, aH.calls, "/metrics/calls").Methods(http.MethodGet)
 	aH.handleFunc(router, aH.errors, "/metrics/errors").Methods(http.MethodGet)
 	aH.handleFunc(router, aH.minStep, "/metrics/minstep").Methods(http.MethodGet)
+	aH.handleFunc(router, aH.labelValues, "/metrics/labels/{%s}/values", labelNameParam).Methods(http.MethodGet)
 	aH.handleFunc(router, aH.getQualityMetrics, "/quality-metrics").Methods(http.MethodGet)
 }
 
@@ -356,6 +358,28 @@ func (aH *APIHandler) minStep(w http.ResponseWriter, r *http.Request) {
 
 	structuredRes := structuredResponse{
 		Data: minStep.Milliseconds(),
+	}
+	aH.writeJSON(w, r, &structuredRes)
+}
+
+func (aH *APIHandler) labelValues(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	labelName := vars[labelNameParam]
+	
+	// Parse service names from query parameter
+	serviceNames := r.URL.Query()["service"]
+	
+	values, err := aH.metricsQueryService.GetLabelValues(r.Context(), &metricstore.LabelValuesQueryParameters{
+		LabelName:    labelName,
+		ServiceNames: serviceNames,
+	})
+	if aH.handleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+
+	structuredRes := structuredResponse{
+		Data:  values,
+		Total: len(values),
 	}
 	aH.writeJSON(w, r, &structuredRes)
 }
