@@ -275,6 +275,15 @@ func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricstore.
 	if err != nil {
 		return bqp, err
 	}
+
+	tags, err := p.parseTags(r.Form[tagParam], r.Form[tagsParam])
+	if err != nil {
+		return bqp, err
+	}
+	if len(tags) > 0 {
+		bqp.Tags = tags
+	}
+
 	bqp.EndTime = &endTs
 	bqp.Lookback = &lookback
 	bqp.Step = &step
