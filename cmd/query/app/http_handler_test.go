@@ -1168,14 +1168,14 @@ func TestGetLabelValues(t *testing.T) {
 		HandlerOptions.MetricsQueryService(mr),
 	}
 	ts := initializeTestServer(t, apiHandlerOptions...)
-	
+
 	expectedValues := []string{"emailservice", "frontend", "productcatalogservice"}
-	
+
 	testCases := []struct {
-		name        string
-		urlPath     string
-		labelName   string
-		services    []string
+		name      string
+		urlPath   string
+		labelName string
+		services  []string
 	}{
 		{
 			name:      "Get service_name values",
@@ -1196,7 +1196,7 @@ func TestGetLabelValues(t *testing.T) {
 			services:  []string{"frontend", "emailservice"},
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Prepare
@@ -1204,8 +1204,8 @@ func TestGetLabelValues(t *testing.T) {
 				"GetLabelValues",
 				mock.AnythingOfType("*context.valueCtx"),
 				mock.MatchedBy(func(params *metricstore.LabelValuesQueryParameters) bool {
-					return params.LabelName == tc.labelName && 
-						   len(params.ServiceNames) == len(tc.services)
+					return params.LabelName == tc.labelName &&
+						len(params.ServiceNames) == len(tc.services)
 				}),
 			).Return(expectedValues, nil).Once()
 
@@ -1215,16 +1215,16 @@ func TestGetLabelValues(t *testing.T) {
 
 			// Verify
 			require.NoError(t, err)
-			
+
 			// Convert response.Data from []interface{} to []string for comparison
-			dataSlice, ok := response.Data.([]interface{})
+			dataSlice, ok := response.Data.([]any)
 			require.True(t, ok, "Response data should be a slice")
-			
+
 			actualValues := make([]string, len(dataSlice))
 			for i, v := range dataSlice {
 				actualValues[i] = v.(string)
 			}
-			
+
 			assert.Equal(t, expectedValues, actualValues)
 			assert.Equal(t, len(expectedValues), response.Total)
 		})
@@ -1237,7 +1237,7 @@ func TestGetLabelValuesError(t *testing.T) {
 		HandlerOptions.MetricsQueryService(mr),
 	}
 	ts := initializeTestServer(t, apiHandlerOptions...)
-	
+
 	// Prepare
 	mr.On(
 		"GetLabelValues",
