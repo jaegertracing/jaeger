@@ -60,3 +60,18 @@ func TestGetMinStepDurations(t *testing.T) {
 	require.ErrorIs(t, err, ErrDisabled)
 	require.EqualError(t, err, ErrDisabled.Error())
 }
+
+func TestGetLabelValues(t *testing.T) {
+	reader, err := NewMetricsReader()
+	require.NoError(t, err)
+	require.NotNil(t, reader)
+
+	qParams := &metricstore.LabelValuesQueryParameters{
+		LabelName:    "span_kind",
+		ServiceNames: []string{"service1", "service2"},
+	}
+	r, err := reader.GetLabelValues(context.Background(), qParams)
+	assert.Zero(t, r)
+	require.ErrorIs(t, err, ErrDisabled)
+	require.EqualError(t, err, ErrDisabled.Error())
+}

@@ -914,6 +914,20 @@ func TestGetCallRateBucketsToPoints_ErrorCases(t *testing.T) {
 	}
 }
 
+func TestGetLabelValuesError(t *testing.T) {
+	mockServer := startMockEsServer(t, "", mockEsValidResponse)
+	defer mockServer.Close()
+	reader, _ := setupMetricsReaderFromServer(t, mockServer)
+	params := &metricstore.LabelValuesQueryParameters{
+		LabelName:    "span_kind",
+		ServiceNames: []string{"service1", "service2"},
+	}
+
+	_, err := reader.GetLabelValues(context.Background(), params)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "GetLabelValues is not implemented yet")
+}
+
 func isErrorQuery(query map[string]any) bool {
 	if q, ok := query["query"].(map[string]any); ok {
 		if b, ok := q["bool"].(map[string]any); ok {

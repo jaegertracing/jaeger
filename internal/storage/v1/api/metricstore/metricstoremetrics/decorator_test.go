@@ -44,6 +44,14 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 		Return(time.Second, nil)
 	mrs.GetMinStepDuration(context.Background(), msdParams)
 
+	glvParams := &metricstore.LabelValuesQueryParameters{
+		LabelName:    "span_kind",
+		ServiceNames: []string{"service1", "service2"},
+	}
+	mockReader.On("GetLabelValues", context.Background(), glvParams).
+		Return([]string{"SPAN_KIND_SERVER", "SPAN_KIND_CLIENT", "SPAN_KIND_PRODUCER", "SPAN_KIND_CONSUMER"}, nil)
+	mrs.GetLabelValues(context.Background(), glvParams)
+
 	counters, gauges := mf.Snapshot()
 	wantCounts := map[string]int64{
 		"requests|operation=get_latencies|result=ok":          1,
