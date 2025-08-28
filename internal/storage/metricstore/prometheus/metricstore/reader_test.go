@@ -5,6 +5,7 @@ package metricstore
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -1011,6 +1012,123 @@ func assertMetrics(t *testing.T, gotMetrics *metrics.MetricFamily, wantLabels ma
 
 	actualVal := mps[0].Value.(*metrics.MetricPoint_GaugeValue).GaugeValue.Value.(*metrics.GaugeValue_DoubleValue).DoubleValue
 	assert.InDelta(t, float64(9223372036854), actualVal, 0.01)
+}
+
+func TestGetLabelValues(t *testing.T) {
+	for _, tc := range []struct {
+		name                string
+		labelName           string
+		serviceNames        []string
+		wantPromQuery       string
+		wantValues          []string
+		responsePayloadFile string // Added parameter for response file
+		wantError           bool
+		errorStatus         int
+	}{
+		{
+			name:                "get span_kind values for a specific service",
+			labelName:           "span_kind",
+			serviceNames:        []string{"emailservice"},
+			wantPromQuery:       `label_values(span_kind)`,
+			wantValues:          []string{"SPAN_KIND_SERVER", "SPAN_KIND_CLIENT", "SPAN_KIND_PRODUCER", "SPAN_KIND_CONSUMER"},
+			responsePayloadFile: "testdata/label_values_response.json",
+			wantError:           false,
+		},
+		{
+			name:          "handle server error",
+			labelName:     "operation_name",
+			serviceNames:  []string{"frontend"},
+			wantPromQuery: `label_values(operation_name)`,
+			wantError:     true,
+			errorStatus:   http.StatusInternalServerError,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Set up test infrastructure
+			tracer, exp, closer := tracerProvider(t)
+			defer closer()
+
+			// Create a mock server specifically for label values API
+			mockPrometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, _ := io.ReadAll(r.Body)
+				defer r.Body.Close()
+
+				// Parse request URL and query parameters
+				u, err := url.Parse("http://" + r.Host + r.RequestURI + "?" + string(body))
+				assert.NoError(t, err)
+
+				// Check if this is a labels API request
+				if strings.Contains(r.URL.Path, "/api/v1/label") {
+					// Expected path format is /api/v1/label/LABEL_NAME/values
+					expectedPath := fmt.Sprintf("/api/v1/label/%s/values", tc.labelName)
+					assert.Equal(t, expectedPath, r.URL.Path)
+
+					// Verify the match[] parameters for service filtering
+					q := u.Query()
+					matches := q["match[]"]
+
+					if len(tc.serviceNames) > 0 {
+						t.Logf("Expected service name: %q", tc.serviceNames[0])
+						t.Logf("Got matches: %v", matches)
+						assert.NotEmpty(t, matches)
+					} else {
+						assert.Empty(t, matches)
+					}
+
+					// Return error for error test case
+					if tc.wantError {
+						w.WriteHeader(tc.errorStatus)
+						w.Write([]byte("server error"))
+						return
+					}
+
+					// Return test data from the specified file for success case
+					sendResponse(t, w, tc.responsePayloadFile)
+					return
+				}
+
+				// For any other requests (which shouldn't happen)
+				t.Errorf("Unexpected request to %s", r.URL.Path)
+				w.WriteHeader(http.StatusNotFound)
+			}))
+			defer mockPrometheus.Close()
+
+			// Create reader with the mock server
+			logger := zap.NewNop()
+			address := mockPrometheus.Listener.Addr().String()
+
+			cfg := defaultConfig
+			cfg.ServerURL = "http://" + address
+			cfg.ConnectTimeout = defaultTimeout
+
+			reader, err := NewMetricsReader(cfg, logger, tracer)
+			require.NoError(t, err)
+			defer mockPrometheus.Close()
+
+			// Create parameters for GetLabelValues
+			params := &metricstore.LabelValuesQueryParameters{
+				LabelName:    tc.labelName,
+				ServiceNames: tc.serviceNames,
+			}
+
+			// Call GetLabelValues
+			values, err := reader.GetLabelValues(context.Background(), params)
+
+			if tc.wantError {
+				require.Error(t, err)
+				require.Nil(t, values)
+				assert.Contains(t, err.Error(), "failed querying label values")
+
+				// Verify span has error status
+				require.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
+				assert.Equal(t, codes.Error, exp.GetSpans()[0].Status.Code)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.wantValues, values)
+				assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
+			}
+		})
+	}
 }
 
 func TestMain(m *testing.M) {
