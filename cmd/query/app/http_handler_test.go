@@ -1199,7 +1199,6 @@ func TestGetLabelValues(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Prepare
 			mr.On(
 				"GetLabelValues",
 				mock.AnythingOfType("*context.valueCtx"),
@@ -1209,11 +1208,9 @@ func TestGetLabelValues(t *testing.T) {
 				}),
 			).Return(expectedValues, nil).Once()
 
-			// Test
 			var response structuredResponse
 			err := getJSON(ts.server.URL+tc.urlPath, &response)
 
-			// Verify
 			require.NoError(t, err)
 
 			// Convert response.Data from []interface{} to []string for comparison
@@ -1238,18 +1235,15 @@ func TestGetLabelValuesError(t *testing.T) {
 	}
 	ts := initializeTestServer(t, apiHandlerOptions...)
 
-	// Prepare
 	mr.On(
 		"GetLabelValues",
 		mock.AnythingOfType("*context.valueCtx"),
 		mock.AnythingOfType("*metricstore.LabelValuesQueryParameters"),
 	).Return(nil, errors.New("storage error")).Once()
 
-	// Test
 	response, err := http.Get(ts.server.URL + "/api/metrics/labels/service_name/values")
 	require.NoError(t, err)
 	defer response.Body.Close()
 
-	// Verify
 	assert.Equal(t, http.StatusInternalServerError, response.StatusCode)
 }
