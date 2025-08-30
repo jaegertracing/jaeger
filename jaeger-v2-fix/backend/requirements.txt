@@ -1,0 +1,6 @@
+fastapi==0.104.1
+uvicorn==0.24.0
+opentelemetry-sdk==1.21.0
+opentelemetry-exporter-otlp==1.21.0
+opentelemetry-instrumentation-fastapi==0.42b0
+opentelemetry-instrumentation-httpx==0.42b0

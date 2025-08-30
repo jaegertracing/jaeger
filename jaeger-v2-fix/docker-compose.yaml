@@ -1,0 +1,50 @@
+services:
+  elasticsearch:
+    image: elasticsearch:8.11.0
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    networks:
+      - jaeger-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  jaeger:
+    image: jaegertracing/jaeger:2.9.0
+    container_name: jaeger
+    command: ["--config=/etc/jaeger/config.yaml"]
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - ./jaeger-configs:/etc/jaeger
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - jaeger-net
+
+  backend:
+    build: ./backend
+    container_name: backend
+    ports:
+      - "8000:8000"
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
+      - OTEL_SERVICE_NAME=backend
+    depends_on:
+      - jaeger
+    networks:
+      - jaeger-net
+
+networks:
+  jaeger-net:
+    driver: bridge
