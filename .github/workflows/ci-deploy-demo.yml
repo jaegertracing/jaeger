@@ -40,3 +40,23 @@ jobs:
           echo "🔄 Manual run - using deploy-all.sh with clean mode (uninstall/install)"
           bash ./examples/oci/deploy-all.sh clean
         fi         
+
+    - name: Send detailed Slack notification on failure
+      if: failure()
+      uses: rtCamp/action-slack-notify@4e5fb42d249be6a45a298f3c9543b111b02f7907 # v2
+      env:
+        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+        SLACK_CHANNEL: '#jaeger-operations'
+        SLACK_COLOR: danger
+        SLACK_USERNAME: 'Jaeger CI Bot'
+        SLACK_ICON_EMOJI: ':warning:'
+        SLACK_TITLE: '🚨 Jaeger OKE Deployment Failed'
+        SLACK_MESSAGE: |
+          *Repository:* ${{ github.repository }}
+          *Workflow:* ${{ github.workflow }}
+          *Run ID:* ${{ github.run_id }}
+          *Trigger:* ${{ github.event_name }}
+          *Actor:* ${{ github.actor }}
+          
+          <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|🔗 View Failed Run>
+        SLACK_FOOTER: 'Jaeger CI/CD Pipeline'
