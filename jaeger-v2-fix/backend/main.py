@@ -19,9 +19,11 @@ def setup_tracing():
     provider = TracerProvider(resource=resource)
     trace.set_tracer_provider(provider)
     
+    # Configurable insecure flag for OTLP exporter
+    otlp_insecure = os.getenv("OTEL_EXPORTER_OTLP_INSECURE", "true").lower() in ("true", "1", "yes")
     otlp_exporter = OTLPSpanExporter(
         endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://jaeger:4317"),
-        insecure=True
+        insecure=otlp_insecure
     )
     
     span_processor = BatchSpanProcessor(otlp_exporter)
