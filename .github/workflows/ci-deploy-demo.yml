@@ -60,3 +60,4 @@ jobs:
           
           <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|🔗 View Failed Run>
         SLACK_FOOTER: 'Jaeger CI/CD Pipeline'
+        
