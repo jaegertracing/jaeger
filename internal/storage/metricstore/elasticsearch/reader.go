@@ -167,8 +167,99 @@ func (r MetricsReader) GetErrorRates(ctx context.Context, params *metricstore.Er
 }
 
 // GetLabelValues implements metricstore.Reader.
-func (MetricsReader) GetLabelValues(_ context.Context, _ *metricstore.LabelValuesQueryParameters) ([]string, error) {
-	return nil, errors.New("GetLabelValues is not implemented yet")
+func (r MetricsReader) GetLabelValues(ctx context.Context, params *metricstore.LabelValuesQueryParameters) ([]string, error) {
+
+	// Get the bool query and aggregation from QueryBuilder
+	boolQuery, aggQuery := r.queryBuilder.BuildLabelValuesQuery(params)
+	// Execute the search with the generated queries
+	searchResult, err := r.executeSearchWithAggregation(ctx, boolQuery, aggName, aggQuery)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute label values query: %w", err)
+	}
+
+	// For other labels, extract from nested aggregation
+	nestedAgg, found := searchResult.Aggregations.Nested(aggName)
+	if found {
+		// Navigate through the nested aggregation structure
+		if filterAgg, found := nestedAgg.Aggregations.Filter("filtered_by_key"); found {
+			if valuesAgg, found := filterAgg.Aggregations.Terms("values"); found {
+				values := make([]string, 0, len(valuesAgg.Buckets))
+				for _, bucket := range valuesAgg.Buckets {
+					if bucket.Key != nil {
+						keyStr, ok := bucket.Key.(string)
+						if !ok {
+							// Handle numeric or other types by converting to string
+							keyStr = fmt.Sprintf("%v", bucket.Key)
+						}
+						values = append(values, keyStr)
+					}
+				}
+				return values, nil
+			}
+		}
+	}
+
+	// If no aggregation was found, just return empty result
+	// Log what aggregations we found to help with debugging
+	aggValues := make([]string, 0)
+	for name := range searchResult.Aggregations {
+		aggValues = append(aggValues, name)
+	}
+
+	if len(aggValues) == 0 {
+		return []string{}, nil // Return empty list instead of error for better UX
+	}
+
+	return []string{}, nil // Return empty list instead of error for better UX
+}
+
+// executeSearchWithAggregation is a helper method to execute a search with an aggregation
+func (r MetricsReader) executeSearchWithAggregation(
+	ctx context.Context,
+	query elastic.Query,
+	aggregationName string,
+	aggQuery elastic.Aggregation) (*elastic.SearchResult, error) {
+
+	// Calculate a default time range for the last day
+	timeRange := TimeRange{
+		startTimeMillis:         time.Now().Add(-24 * time.Hour).UnixMilli(),
+		endTimeMillis:           time.Now().UnixMilli(),
+		extendedStartTimeMillis: time.Now().Add(-24 * time.Hour).UnixMilli(),
+	}
+
+	// Here we'll execute using a method similar to the QueryBuilder's Execute
+	// but using our own custom aggregation
+	searchRequest := elastic.NewSearchRequest()
+	searchRequest.Query(query)
+	searchRequest.Size(0) // Only interested in aggregations
+
+	if aggQuery != nil {
+		searchRequest.Aggregation(aggName, aggQuery)
+	} else {
+		return nil, errors.New("no aggregation could be built for label values")
+	}
+
+	// Convert the query to BoolQuery if needed for the Execute method
+	var boolQuery elastic.BoolQuery
+	switch q := query.(type) {
+	case *elastic.BoolQuery:
+		boolQuery = *q
+	case *elastic.MatchAllQuery:
+		// Create a new bool query and add the match all as a filter
+		boolQuery = *elastic.NewBoolQuery().Filter(q)
+	default:
+		// For other query types, wrap in a bool query
+		boolQuery = *elastic.NewBoolQuery().Filter(query)
+	}
+
+	metricsParams := MetricsQueryParams{
+		metricName: "label_value",
+		metricDesc: "Search for label values",
+		boolQuery:  boolQuery,
+		aggQuery:   aggQuery,
+	}
+
+	return r.executeSearch(ctx, metricsParams, timeRange)
 }
 
 // GetMinStepDuration returns the minimum step duration.

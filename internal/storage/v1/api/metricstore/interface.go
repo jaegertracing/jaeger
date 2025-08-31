@@ -77,6 +77,8 @@ type MinStepDurationQueryParameters struct{}
 type LabelValuesQueryParameters struct {
 	// LabelName is the name of the label to get values for (e.g., "service_name", "operation", etc.)
 	LabelName string
-	// ServiceNames optionally filters the label values to only those present in metrics for the specified services
-	ServiceNames []string
+	// ServiceName optionally filters the label values to only those present in metrics for the specified services
+	ServiceName string
+	// Location will tell the nested location of the tag to get the value from
+	Location string
 }

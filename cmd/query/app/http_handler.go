@@ -125,7 +125,7 @@ func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
 	aH.handleFunc(router, aH.calls, "/metrics/calls").Methods(http.MethodGet)
 	aH.handleFunc(router, aH.errors, "/metrics/errors").Methods(http.MethodGet)
 	aH.handleFunc(router, aH.minStep, "/metrics/minstep").Methods(http.MethodGet)
-	aH.handleFunc(router, aH.labelValues, "/metrics/labels/{%s}/values", labelNameParam).Methods(http.MethodGet)
+	aH.handleFunc(router, aH.labelValues, "/metrics/label/values").Methods(http.MethodGet)
 	aH.handleFunc(router, aH.getQualityMetrics, "/quality-metrics").Methods(http.MethodGet)
 }
 
@@ -363,15 +363,23 @@ func (aH *APIHandler) minStep(w http.ResponseWriter, r *http.Request) {
 }
 
 func (aH *APIHandler) labelValues(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	labelName := vars[labelNameParam]
-	
+	labelName := r.URL.Query().Get("label")
+	if labelName == "" {
+		aH.handleError(w, errors.New("label name is required"), http.StatusBadRequest)
+		return
+	}
+	location := r.URL.Query().Get("location")
+	if location == "" {
+		aH.handleError(w, errors.New("location of label is required"), http.StatusBadRequest)
+		return
+	}
 	// Parse service names from query parameter
-	serviceNames := r.URL.Query()["service"]
-	
+	serviceName := r.URL.Query().Get("service")
+
 	values, err := aH.metricsQueryService.GetLabelValues(r.Context(), &metricstore.LabelValuesQueryParameters{
-		LabelName:    labelName,
-		ServiceNames: serviceNames,
+		LabelName:   labelName,
+		ServiceName: serviceName,
+		Location:    location,
 	})
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return

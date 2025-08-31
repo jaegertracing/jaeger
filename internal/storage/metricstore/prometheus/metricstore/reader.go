@@ -265,16 +265,13 @@ func (m MetricsReader) GetLabelValues(ctx context.Context, params *metricstore.L
 
 	span.SetAttributes(
 		attribute.String("label_name", params.LabelName),
-		attribute.Int("service_count", len(params.ServiceNames)),
+		attribute.String("service", params.ServiceName),
 	)
 
 	// Build match[] selectors to filter by service names if provided
 	var matchers []string
-	if len(params.ServiceNames) > 0 {
-		for _, serviceName := range params.ServiceNames {
-			// Use the calls metric name to match the same metric used for other queries
-			matchers = append(matchers, fmt.Sprintf("{service_name=\"%q\"}", serviceName))
-		}
+	if params.ServiceName != "" {
+		matchers = append(matchers, fmt.Sprintf("{service_name=\"%q\"}", params.ServiceName))
 	}
 
 	values, warnings, err := m.client.LabelValues(ctx, params.LabelName, matchers, time.Time{}, time.Time{})

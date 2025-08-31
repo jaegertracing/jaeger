@@ -1018,7 +1018,7 @@ func TestGetLabelValues(t *testing.T) {
 	for _, tc := range []struct {
 		name                string
 		labelName           string
-		serviceNames        []string
+		serviceName         string
 		wantPromQuery       string
 		wantValues          []string
 		responsePayloadFile string // Added parameter for response file
@@ -1028,7 +1028,7 @@ func TestGetLabelValues(t *testing.T) {
 		{
 			name:                "get span_kind values for a specific service",
 			labelName:           "span_kind",
-			serviceNames:        []string{"emailservice"},
+			serviceName:         "emailservice",
 			wantPromQuery:       `label_values(span_kind)`,
 			wantValues:          []string{"SPAN_KIND_SERVER", "SPAN_KIND_CLIENT", "SPAN_KIND_PRODUCER", "SPAN_KIND_CONSUMER"},
 			responsePayloadFile: "testdata/label_values_response.json",
@@ -1037,7 +1037,7 @@ func TestGetLabelValues(t *testing.T) {
 		{
 			name:          "handle server error",
 			labelName:     "operation_name",
-			serviceNames:  []string{"frontend"},
+			serviceName:   "frontend",
 			wantPromQuery: `label_values(operation_name)`,
 			wantError:     true,
 			errorStatus:   http.StatusInternalServerError,
@@ -1067,8 +1067,8 @@ func TestGetLabelValues(t *testing.T) {
 					q := u.Query()
 					matches := q["match[]"]
 
-					if len(tc.serviceNames) > 0 {
-						t.Logf("Expected service name: %q", tc.serviceNames[0])
+					if tc.serviceName != "" {
+						t.Logf("Expected service name: %q", tc.serviceName)
 						t.Logf("Got matches: %v", matches)
 						assert.NotEmpty(t, matches)
 					} else {
@@ -1107,8 +1107,8 @@ func TestGetLabelValues(t *testing.T) {
 
 			// Create parameters for GetLabelValues
 			params := &metricstore.LabelValuesQueryParameters{
-				LabelName:    tc.labelName,
-				ServiceNames: tc.serviceNames,
+				LabelName:   tc.labelName,
+				ServiceName: tc.serviceName,
 			}
 
 			// Call GetLabelValues

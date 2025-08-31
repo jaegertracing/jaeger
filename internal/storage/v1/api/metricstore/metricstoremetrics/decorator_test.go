@@ -45,8 +45,8 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 	mrs.GetMinStepDuration(context.Background(), msdParams)
 
 	glvParams := &metricstore.LabelValuesQueryParameters{
-		LabelName:    "span_kind",
-		ServiceNames: []string{"service1", "service2"},
+		LabelName:   "span_kind",
+		ServiceName: "emailservice",
 	}
 	mockReader.On("GetLabelValues", context.Background(), glvParams).
 		Return([]string{"SPAN_KIND_SERVER", "SPAN_KIND_CLIENT", "SPAN_KIND_PRODUCER", "SPAN_KIND_CONSUMER"}, nil)

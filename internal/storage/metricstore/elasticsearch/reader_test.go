@@ -914,18 +914,80 @@ func TestGetCallRateBucketsToPoints_ErrorCases(t *testing.T) {
 	}
 }
 
-func TestGetLabelValuesError(t *testing.T) {
-	mockServer := startMockEsServer(t, "", mockEsValidResponse)
-	defer mockServer.Close()
-	reader, _ := setupMetricsReaderFromServer(t, mockServer)
-	params := &metricstore.LabelValuesQueryParameters{
-		LabelName:    "span_kind",
-		ServiceNames: []string{"service1", "service2"},
+func TestGetLabelValues(t *testing.T) {
+	// Define test cases to cover various scenarios
+	testCases := []struct {
+		name           string
+		responseFile   string
+		params         *metricstore.LabelValuesQueryParameters
+		expectedValues []string
+		expectError    bool
+	}{
+		{
+			name:         "successful lookup for string values",
+			responseFile: "testdata/output_label_values.json",
+			params: &metricstore.LabelValuesQueryParameters{
+				LabelName:   "span_kind",
+				ServiceName: "service1",
+				Location:    "tags",
+			},
+			expectedValues: []string{"server", "client", "producer", "400"},
+			expectError:    false,
+		},
+		{
+			name:         "empty results",
+			responseFile: "testdata/output_empty.json",
+			params: &metricstore.LabelValuesQueryParameters{
+				LabelName:   "nonexistent_label",
+				ServiceName: "service1",
+				Location:    "tags",
+			},
+			expectedValues: []string{},
+			expectError:    false,
+		},
 	}
 
-	_, err := reader.GetLabelValues(context.Background(), params)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "GetLabelValues is not implemented yet")
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Define a custom version of the mockServer to help debug
+			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+
+				// Handle initial ping request
+				if r.Method == http.MethodHead || r.URL.Path == "/" {
+					sendResponse(t, w, "testdata/output_valid_es.json")
+					return
+				}
+
+				// For actual queries, send our test response
+				t.Logf("Received request for %s, returning file: %s", r.URL.Path, tc.responseFile)
+				sendResponse(t, w, tc.responseFile)
+			}))
+			defer mockServer.Close()
+
+			// Get the reader with our mock server
+			reader, _ := setupMetricsReaderFromServer(t, mockServer)
+
+			// Log what constants we're using
+			t.Logf("Using aggName: %s", aggName)
+
+			// Call the function being tested
+			values, err := reader.GetLabelValues(context.Background(), tc.params)
+
+			// Log the results
+			t.Logf("Got values: %v, error: %v", values, err)
+
+			// Assert the results
+			if tc.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				t.Logf("Expected values: %v", tc.expectedValues)
+				assert.ElementsMatch(t, tc.expectedValues, values)
+			}
+		})
+	}
 }
 
 func isErrorQuery(query map[string]any) bool {

@@ -1175,25 +1175,13 @@ func TestGetLabelValues(t *testing.T) {
 		name      string
 		urlPath   string
 		labelName string
-		services  []string
+		service   string
 	}{
 		{
-			name:      "Get service_name values",
-			urlPath:   "/api/metrics/labels/service_name/values",
-			labelName: "service_name",
-			services:  nil,
-		},
-		{
-			name:      "Get operation_name values filtered by service",
-			urlPath:   "/api/metrics/labels/operation_name/values?service=frontend",
-			labelName: "operation_name",
-			services:  []string{"frontend"},
-		},
-		{
-			name:      "Get values with multiple service filters",
-			urlPath:   "/api/metrics/labels/span_kind/values?service=frontend&service=emailservice",
+			name:      "Get span_kind values",
+			urlPath:   "/api/metrics/label/values?label=span_kind&service=frontend&location=tags",
 			labelName: "span_kind",
-			services:  []string{"frontend", "emailservice"},
+			service:   "frontend",
 		},
 	}
 
@@ -1204,7 +1192,7 @@ func TestGetLabelValues(t *testing.T) {
 				mock.AnythingOfType("*context.valueCtx"),
 				mock.MatchedBy(func(params *metricstore.LabelValuesQueryParameters) bool {
 					return params.LabelName == tc.labelName &&
-						len(params.ServiceNames) == len(tc.services)
+						params.ServiceName == tc.service
 				}),
 			).Return(expectedValues, nil).Once()
 
@@ -1229,21 +1217,76 @@ func TestGetLabelValues(t *testing.T) {
 }
 
 func TestGetLabelValuesError(t *testing.T) {
-	mr := &metricsmocks.Reader{}
-	apiHandlerOptions := []HandlerOption{
-		HandlerOptions.MetricsQueryService(mr),
-	}
-	ts := initializeTestServer(t, apiHandlerOptions...)
+	t.Run("missing label name parameter", func(t *testing.T) {
+		mr := &metricsmocks.Reader{}
+		apiHandlerOptions := []HandlerOption{
+			HandlerOptions.MetricsQueryService(mr),
+		}
+		ts := initializeTestServer(t, apiHandlerOptions...)
+		response, err := http.Get(ts.server.URL + "/api/metrics/label/values?service=frontend")
 
-	mr.On(
-		"GetLabelValues",
-		mock.AnythingOfType("*context.valueCtx"),
-		mock.AnythingOfType("*metricstore.LabelValuesQueryParameters"),
-	).Return(nil, errors.New("storage error")).Once()
+		body, err := io.ReadAll(response.Body)
+		require.NoError(t, err)
 
-	response, err := http.Get(ts.server.URL + "/api/metrics/labels/service_name/values")
-	require.NoError(t, err)
-	defer response.Body.Close()
+		var errResponse structuredResponse
+		err = json.Unmarshal(body, &errResponse)
+		require.NoError(t, err)
 
-	assert.Equal(t, http.StatusInternalServerError, response.StatusCode)
+		require.Len(t, errResponse.Errors, 1)
+		assert.Equal(t, http.StatusBadRequest, errResponse.Errors[0].Code)
+		assert.Equal(t, "label name is required", errResponse.Errors[0].Msg)
+	})
+	t.Run("missing location parameter", func(t *testing.T) {
+		mr := &metricsmocks.Reader{}
+		apiHandlerOptions := []HandlerOption{
+			HandlerOptions.MetricsQueryService(mr),
+		}
+		ts := initializeTestServer(t, apiHandlerOptions...)
+		response, err := http.Get(ts.server.URL + "/api/metrics/label/values?service=frontend&label=span_kind")
+
+		body, err := io.ReadAll(response.Body)
+		require.NoError(t, err)
+
+		var errResponse structuredResponse
+		err = json.Unmarshal(body, &errResponse)
+		require.NoError(t, err)
+
+		require.Len(t, errResponse.Errors, 1)
+		assert.Equal(t, http.StatusBadRequest, errResponse.Errors[0].Code)
+		assert.Equal(t, "location of label is required", errResponse.Errors[0].Msg)
+	})
+
+	t.Run("storage error", func(t *testing.T) {
+		mr := &metricsmocks.Reader{}
+		apiHandlerOptions := []HandlerOption{
+			HandlerOptions.MetricsQueryService(mr),
+		}
+		ts := initializeTestServer(t, apiHandlerOptions...)
+
+		mr.On(
+			"GetLabelValues",
+			mock.AnythingOfType("*context.valueCtx"),
+			mock.MatchedBy(func(params *metricstore.LabelValuesQueryParameters) bool {
+				return params.LabelName == "span_kind" && params.ServiceName == "frontend"
+			}),
+		).Return(nil, errors.New("storage error")).Once()
+
+		response, err := http.Get(ts.server.URL + "/api/metrics/label/values?service=frontend&label=span_kind&location=tags")
+		require.NoError(t, err)
+		defer response.Body.Close()
+
+		assert.Equal(t, http.StatusInternalServerError, response.StatusCode)
+
+		// Read the response body to verify error message
+		body, err := io.ReadAll(response.Body)
+		require.NoError(t, err)
+
+		var errResponse structuredResponse
+		err = json.Unmarshal(body, &errResponse)
+		require.NoError(t, err)
+
+		require.Len(t, errResponse.Errors, 1)
+		assert.Equal(t, http.StatusInternalServerError, errResponse.Errors[0].Code)
+		assert.Equal(t, "storage error", errResponse.Errors[0].Msg)
+	})
 }

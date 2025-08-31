@@ -5,6 +5,7 @@ package elasticsearch
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -112,6 +113,34 @@ func (*QueryBuilder) buildTimeSeriesAggQuery(params metricstore.BaseQueryParamet
 			SubAggregation(dateHistAggName, dateHistAgg)
 	}
 	return dateHistAgg
+}
+
+func (q *QueryBuilder) BuildLabelValuesQuery(params *metricstore.LabelValuesQueryParameters) (elastic.Query, elastic.Aggregation) {
+	// Create a bool query to filter by service name if provided
+	boolQuery := elastic.NewBoolQuery()
+	if params.ServiceName != "" {
+		boolQuery.Filter(elastic.NewTermQuery("process.serviceName", params.ServiceName))
+	}
+
+	var aggQuery elastic.Aggregation
+	nestedAgg := elastic.NewNestedAggregation().Path(params.Location)
+
+	// Then add a filter to get only the tags with the specified key
+	searchLocation := fmt.Sprintf("%s.%s", params.Location, "key")
+	filterAgg := elastic.NewFilterAggregation().
+		Filter(elastic.NewTermQuery(searchLocation, params.LabelName))
+
+	// Finally add a terms aggregation to get the unique values
+	valuesAgg := elastic.NewTermsAggregation().
+		Field(fmt.Sprintf("%s.value", params.Location)).
+		Size(10000)
+
+	// Chain the aggregations together
+	filterAgg.SubAggregation("values", valuesAgg)
+	nestedAgg.SubAggregation("filtered_by_key", filterAgg)
+	aggQuery = nestedAgg
+
+	return boolQuery, aggQuery
 }
 
 // Execute runs the Elasticsearch search with the provided bool and aggregation queries.

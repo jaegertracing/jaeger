@@ -67,8 +67,8 @@ func TestGetLabelValues(t *testing.T) {
 	require.NotNil(t, reader)
 
 	qParams := &metricstore.LabelValuesQueryParameters{
-		LabelName:    "span_kind",
-		ServiceNames: []string{"service1", "service2"},
+		LabelName:   "span_kind",
+		ServiceName: "emailservice",
 	}
 	r, err := reader.GetLabelValues(context.Background(), qParams)
 	assert.Zero(t, r)
