@@ -1236,25 +1236,6 @@ func TestGetLabelValuesError(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, errResponse.Errors[0].Code)
 		assert.Equal(t, "label name is required", errResponse.Errors[0].Msg)
 	})
-	t.Run("missing location parameter", func(t *testing.T) {
-		mr := &metricsmocks.Reader{}
-		apiHandlerOptions := []HandlerOption{
-			HandlerOptions.MetricsQueryService(mr),
-		}
-		ts := initializeTestServer(t, apiHandlerOptions...)
-		response, err := http.Get(ts.server.URL + "/api/metrics/label/values?service=frontend&label=span_kind")
-
-		body, err := io.ReadAll(response.Body)
-		require.NoError(t, err)
-
-		var errResponse structuredResponse
-		err = json.Unmarshal(body, &errResponse)
-		require.NoError(t, err)
-
-		require.Len(t, errResponse.Errors, 1)
-		assert.Equal(t, http.StatusBadRequest, errResponse.Errors[0].Code)
-		assert.Equal(t, "location of label is required", errResponse.Errors[0].Msg)
-	})
 
 	t.Run("storage error", func(t *testing.T) {
 		mr := &metricsmocks.Reader{}

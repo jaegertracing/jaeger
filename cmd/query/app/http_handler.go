@@ -369,10 +369,6 @@ func (aH *APIHandler) labelValues(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	location := r.URL.Query().Get("location")
-	if location == "" {
-		aH.handleError(w, errors.New("location of label is required"), http.StatusBadRequest)
-		return
-	}
 	// Parse service names from query parameter
 	serviceName := r.URL.Query().Get("service")
 
