@@ -1107,8 +1107,8 @@ func TestGetLabelValues(t *testing.T) {
 
 			// Create parameters for GetLabelValues
 			params := &metricstore.LabelValuesQueryParameters{
-				LabelName:   tc.labelName,
-				ServiceName: tc.serviceName,
+				AttributeKey: tc.labelName,
+				ServiceName:  tc.serviceName,
 			}
 
 			// Call GetLabelValues

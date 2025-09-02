@@ -36,7 +36,6 @@ import (
 
 const (
 	traceIDParam          = "traceID"
-	labelNameParam        = "labelName"
 	endTsParam            = "endTs"
 	lookbackParam         = "lookback"
 	stepParam             = "step"
@@ -125,7 +124,7 @@ func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
 	aH.handleFunc(router, aH.calls, "/metrics/calls").Methods(http.MethodGet)
 	aH.handleFunc(router, aH.errors, "/metrics/errors").Methods(http.MethodGet)
 	aH.handleFunc(router, aH.minStep, "/metrics/minstep").Methods(http.MethodGet)
-	aH.handleFunc(router, aH.labelValues, "/metrics/label/values").Methods(http.MethodGet)
+	aH.handleFunc(router, aH.labelValues, "/metrics/labels").Methods(http.MethodGet)
 	aH.handleFunc(router, aH.getQualityMetrics, "/quality-metrics").Methods(http.MethodGet)
 }
 
@@ -363,19 +362,19 @@ func (aH *APIHandler) minStep(w http.ResponseWriter, r *http.Request) {
 }
 
 func (aH *APIHandler) labelValues(w http.ResponseWriter, r *http.Request) {
-	labelName := r.URL.Query().Get("label")
-	if labelName == "" {
-		aH.handleError(w, errors.New("label name is required"), http.StatusBadRequest)
+	key := r.URL.Query().Get("key")
+	if key == "" {
+		aH.handleError(w, errors.New("key is required"), http.StatusBadRequest)
 		return
 	}
-	location := r.URL.Query().Get("location")
+	target := r.URL.Query().Get("target")
 	// Parse service names from query parameter
 	serviceName := r.URL.Query().Get("service")
 
 	values, err := aH.metricsQueryService.GetLabelValues(r.Context(), &metricstore.LabelValuesQueryParameters{
-		LabelName:   labelName,
-		ServiceName: serviceName,
-		Location:    location,
+		AttributeKey:    key,
+		ServiceName:     serviceName,
+		AttributeTarget: metricstore.AttributeTarget(target),
 	})
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return

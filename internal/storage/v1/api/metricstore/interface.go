@@ -73,12 +73,27 @@ type ErrorRateQueryParameters struct {
 // MinStepDurationQueryParameters contains the parameters required for fetching the minimum step duration.
 type MinStepDurationQueryParameters struct{}
 
+type AttributeTarget string
+
+func (a AttributeTarget) String() string {
+	switch a {
+	case "tags":
+		return "tags"
+	case "process.tags":
+		return "process.tags"
+	case "tag":
+		return "tag"
+	default:
+		return ""
+	}
+}
+
 // LabelValuesQueryParameters contains the parameters required for fetching label values.
 type LabelValuesQueryParameters struct {
-	// LabelName is the name of the label to get values for (e.g., "service_name", "operation", etc.)
-	LabelName string
-	// ServiceName optionally filters the label values to only those present in metrics for the specified services
+	// AttributeKey is the name of the label to get values for (e.g., "service_name", "operation", etc.)
+	AttributeKey string
+	// AttributeTarget will tell the nested location of the tag to get the value from
+	AttributeTarget AttributeTarget
+	// ServiceName optionally filters the label values to only those present in metrics for the specified service
 	ServiceName string
-	// Location will tell the nested location of the tag to get the value from
-	Location string
 }

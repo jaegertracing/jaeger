@@ -264,7 +264,7 @@ func (m MetricsReader) GetLabelValues(ctx context.Context, params *metricstore.L
 	defer span.End()
 
 	span.SetAttributes(
-		attribute.String("label_name", params.LabelName),
+		attribute.String("label_name", params.AttributeKey),
 		attribute.String("service", params.ServiceName),
 	)
 
@@ -274,16 +274,16 @@ func (m MetricsReader) GetLabelValues(ctx context.Context, params *metricstore.L
 		matchers = append(matchers, fmt.Sprintf("{service_name=\"%q\"}", params.ServiceName))
 	}
 
-	values, warnings, err := m.client.LabelValues(ctx, params.LabelName, matchers, time.Time{}, time.Time{})
+	values, warnings, err := m.client.LabelValues(ctx, params.AttributeKey, matchers, time.Time{}, time.Time{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		return nil, fmt.Errorf("failed querying label values for %s: %w", params.LabelName, err)
+		return nil, fmt.Errorf("failed querying label values for %s: %w", params.AttributeKey, err)
 	}
 
 	if len(warnings) > 0 {
 		m.logger.Warn("Prometheus label values query returned warnings",
-			zap.String("label", params.LabelName),
+			zap.String("label", params.AttributeKey),
 			zap.Strings("warnings", warnings))
 	}
 

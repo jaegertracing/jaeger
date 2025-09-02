@@ -1179,7 +1179,7 @@ func TestGetLabelValues(t *testing.T) {
 	}{
 		{
 			name:      "Get span_kind values",
-			urlPath:   "/api/metrics/label/values?label=span_kind&service=frontend&location=tags",
+			urlPath:   "/api/metrics/labels?key=span_kind&service=frontend&target=tags",
 			labelName: "span_kind",
 			service:   "frontend",
 		},
@@ -1191,7 +1191,7 @@ func TestGetLabelValues(t *testing.T) {
 				"GetLabelValues",
 				mock.AnythingOfType("*context.valueCtx"),
 				mock.MatchedBy(func(params *metricstore.LabelValuesQueryParameters) bool {
-					return params.LabelName == tc.labelName &&
+					return params.AttributeKey == tc.labelName &&
 						params.ServiceName == tc.service
 				}),
 			).Return(expectedValues, nil).Once()
@@ -1217,13 +1217,13 @@ func TestGetLabelValues(t *testing.T) {
 }
 
 func TestGetLabelValuesError(t *testing.T) {
-	t.Run("missing label name parameter", func(t *testing.T) {
+	t.Run("missing key parameter", func(t *testing.T) {
 		mr := &metricsmocks.Reader{}
 		apiHandlerOptions := []HandlerOption{
 			HandlerOptions.MetricsQueryService(mr),
 		}
 		ts := initializeTestServer(t, apiHandlerOptions...)
-		response, err := http.Get(ts.server.URL + "/api/metrics/label/values?service=frontend")
+		response, err := http.Get(ts.server.URL + "/api/metrics/labels?service=frontend")
 
 		body, err := io.ReadAll(response.Body)
 		require.NoError(t, err)
@@ -1234,7 +1234,7 @@ func TestGetLabelValuesError(t *testing.T) {
 
 		require.Len(t, errResponse.Errors, 1)
 		assert.Equal(t, http.StatusBadRequest, errResponse.Errors[0].Code)
-		assert.Equal(t, "label name is required", errResponse.Errors[0].Msg)
+		assert.Equal(t, "key is required", errResponse.Errors[0].Msg)
 	})
 
 	t.Run("storage error", func(t *testing.T) {
@@ -1248,11 +1248,11 @@ func TestGetLabelValuesError(t *testing.T) {
 			"GetLabelValues",
 			mock.AnythingOfType("*context.valueCtx"),
 			mock.MatchedBy(func(params *metricstore.LabelValuesQueryParameters) bool {
-				return params.LabelName == "span_kind" && params.ServiceName == "frontend"
+				return params.AttributeKey == "span_kind" && params.ServiceName == "frontend"
 			}),
 		).Return(nil, errors.New("storage error")).Once()
 
-		response, err := http.Get(ts.server.URL + "/api/metrics/label/values?service=frontend&label=span_kind&location=tags")
+		response, err := http.Get(ts.server.URL + "/api/metrics/labels?service=frontend&key=span_kind&target=tags")
 		require.NoError(t, err)
 		defer response.Body.Close()
 

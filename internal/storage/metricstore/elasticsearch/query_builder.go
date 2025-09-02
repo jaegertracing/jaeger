@@ -123,16 +123,17 @@ func (q *QueryBuilder) BuildLabelValuesQuery(params *metricstore.LabelValuesQuer
 	}
 
 	var aggQuery elastic.Aggregation
-	nestedAgg := elastic.NewNestedAggregation().Path(params.Location)
+	attributeTarget := params.AttributeTarget.String()
+	nestedAgg := elastic.NewNestedAggregation().Path(attributeTarget)
 
 	// Then add a filter to get only the tags with the specified key
-	searchLocation := fmt.Sprintf("%s.%s", params.Location, "key")
+	searchLocation := fmt.Sprintf("%s.%s", attributeTarget, "key")
 	filterAgg := elastic.NewFilterAggregation().
-		Filter(elastic.NewTermQuery(searchLocation, params.LabelName))
+		Filter(elastic.NewTermQuery(searchLocation, params.AttributeKey))
 
 	// Finally add a terms aggregation to get the unique values
 	valuesAgg := elastic.NewTermsAggregation().
-		Field(fmt.Sprintf("%s.value", params.Location)).
+		Field(fmt.Sprintf("%s.value", params.AttributeTarget)).
 		Size(10000)
 
 	// Chain the aggregations together
