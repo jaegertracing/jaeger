@@ -925,7 +925,7 @@ func TestGetLabelValues(t *testing.T) {
 	}{
 		{
 			name:         "successful lookup for string values",
-			responseFile: "testdata/output_label_values.json",
+			responseFile: "testdata/output_attribute_key_values.json",
 			params: &metricstore.LabelValuesQueryParameters{
 				AttributeKey:    "span_kind",
 				ServiceName:     "service1",

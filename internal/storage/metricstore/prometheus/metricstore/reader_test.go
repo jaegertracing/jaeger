@@ -1031,7 +1031,7 @@ func TestGetLabelValues(t *testing.T) {
 			serviceName:         "emailservice",
 			wantPromQuery:       `label_values(span_kind)`,
 			wantValues:          []string{"SPAN_KIND_SERVER", "SPAN_KIND_CLIENT", "SPAN_KIND_PRODUCER", "SPAN_KIND_CONSUMER"},
-			responsePayloadFile: "testdata/label_values_response.json",
+			responsePayloadFile: "testdata/attribute_key_values_response.json",
 			wantError:           false,
 		},
 		{
