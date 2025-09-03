@@ -1,0 +1,42 @@
+name: Prepare release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g., 1.53.0)"
+        required: true
+        type: string
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install gh
+        uses: cli/cli-action@v2
+
+      - name: Configure gh auth
+        run: gh auth status || gh auth setup-git
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prepare release branch and PR
+        run: bash scripts/prepare-release.sh "${{ inputs.version }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Surface tag commands
+        run: |
+          echo "After PR merges, run these locally:"
+          echo "git fetch --tags"
+          echo "git checkout main && git pull --ff-only"
+          echo "git tag -a v${{ inputs.version }} -m 'Jaeger v${{ inputs.version }}'"
+          echo "git push origin v${{ inputs.version }}"
