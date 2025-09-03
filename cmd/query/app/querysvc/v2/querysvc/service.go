@@ -238,29 +238,47 @@ func (qs QueryService) limitTraceSize(trace ptrace.Traces) ptrace.Traces {
 
 	for i := 0; i < trace.ResourceSpans().Len() && spansAdded < qs.options.MaxTraceSize; i++ {
 		resource := trace.ResourceSpans().At(i)
-		newResource := limitedTrace.ResourceSpans().AppendEmpty()
-		resource.Resource().CopyTo(newResource.Resource())
 
-		// Limit spans in this resource
-		for j := 0; j < resource.ScopeSpans().Len() && spansAdded < qs.options.MaxTraceSize; j++ {
+		// Check if we'll keep any spans from this resource before creating it
+		resourceHasSpansToKeep := false
+		remainingSpans := qs.options.MaxTraceSize - spansAdded
+
+		// Preview if any spans will be kept from this resource
+		for j := 0; j < resource.ScopeSpans().Len() && remainingSpans > 0; j++ {
 			scope := resource.ScopeSpans().At(j)
-			spans := scope.Spans()
-			spansToKeep := qs.options.MaxTraceSize - spansAdded
-			if spansToKeep > spans.Len() {
-				spansToKeep = spans.Len()
+			spansInScope := scope.Spans().Len()
+			if spansInScope > 0 {
+				resourceHasSpansToKeep = true
+				break
 			}
+		}
 
-			if spansToKeep > 0 {
-				newScope := newResource.ScopeSpans().AppendEmpty()
-				scope.Scope().CopyTo(newScope.Scope())
-				newScope.SetSchemaUrl(scope.SchemaUrl())
+		// Only create a new resource if it will contain spans
+		if resourceHasSpansToKeep {
+			newResource := limitedTrace.ResourceSpans().AppendEmpty()
+			resource.Resource().CopyTo(newResource.Resource())
 
-				// Copy only the first spansToKeep spans
-				for k := 0; k < spansToKeep; k++ {
-					span := spans.At(k)
-					newSpan := newScope.Spans().AppendEmpty()
-					span.CopyTo(newSpan)
-					spansAdded++
+			// Limit spans in this resource
+			for j := 0; j < resource.ScopeSpans().Len() && spansAdded < qs.options.MaxTraceSize; j++ {
+				scope := resource.ScopeSpans().At(j)
+				spans := scope.Spans()
+				spansToKeep := qs.options.MaxTraceSize - spansAdded
+				if spansToKeep > spans.Len() {
+					spansToKeep = spans.Len()
+				}
+
+				if spansToKeep > 0 {
+					newScope := newResource.ScopeSpans().AppendEmpty()
+					scope.Scope().CopyTo(newScope.Scope())
+					newScope.SetSchemaUrl(scope.SchemaUrl())
+
+					// Copy only the first spansToKeep spans
+					for k := 0; k < spansToKeep; k++ {
+						span := spans.At(k)
+						newSpan := newScope.Spans().AppendEmpty()
+						span.CopyTo(newSpan)
+						spansAdded++
+					}
 				}
 			}
 		}

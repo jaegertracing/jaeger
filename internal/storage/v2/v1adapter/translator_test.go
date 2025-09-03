@@ -290,7 +290,7 @@ func TestV1TracesFromSeq2WithLimit(t *testing.T) {
 						trace.Spans[0].Tags = append(trace.Spans[0].Tags, model.KeyValue{
 							Key:   "jaeger.warning",
 							VType: model.ValueType_STRING,
-							VStr:  "Trace truncated: only first 3 spans loaded (total spans: 6)",
+							VStr:  "Trace truncated: only first 3 spans loaded (total spans: 5)",
 						})
 					}
 				}
@@ -368,10 +368,10 @@ func createExpectedTraces(numTraces, numSpans int) []*model.Trace {
 		for j := 0; j < numSpans; j++ {
 			spans = append(spans, &model.Span{
 				TraceID: model.TraceID{
-					Low:  uint64(i + 1),
-					High: 2,
+					Low:  uint64(i+1) | uint64(2)<<8 | uint64(3)<<16 | uint64(4)<<24 | uint64(5)<<32 | uint64(6)<<40 | uint64(7)<<48 | uint64(8)<<56,
+					High: uint64(9) | uint64(10)<<8 | uint64(11)<<16 | uint64(12)<<24 | uint64(13)<<32 | uint64(14)<<40 | uint64(15)<<48 | uint64(16)<<56,
 				},
-				SpanID:        model.NewSpanID(uint64(j + 1)),
+				SpanID:        model.NewSpanID(uint64(j+1) | uint64(2)<<8 | uint64(3)<<16 | uint64(4)<<24 | uint64(5)<<32 | uint64(6)<<40 | uint64(7)<<48 | uint64(8)<<56),
 				OperationName: fmt.Sprintf("span-%d", j),
 			})
 		}
