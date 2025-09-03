@@ -166,15 +166,13 @@ func (r MetricsReader) GetErrorRates(ctx context.Context, params *metricstore.Er
 	return CalculateErrorRates(rawErrorsMetrics, callRateMetrics, params.BaseQueryParameters, timeRange), nil
 }
 
-// GetLabelValues implements metricstore.Reader.
-func (r MetricsReader) GetLabelValues(ctx context.Context, params *metricstore.LabelValuesQueryParameters) ([]string, error) {
+// GetAttributeValues implements metricstore.Reader.
+func (r MetricsReader) GetAttributeValues(ctx context.Context, params *metricstore.AttributeValuesQueryParameters) ([]string, error) {
+	boolQuery, aggQuery := r.queryBuilder.BuildAttributeValuesQuery(params)
 
-	// Get the bool query and aggregation from QueryBuilder
-	boolQuery, aggQuery := r.queryBuilder.BuildLabelValuesQuery(params)
-	// Execute the search with the generated queries
-	searchResult, err := r.executeSearchWithAggregation(ctx, boolQuery, aggName, aggQuery)
+	searchResult, err := r.executeSearchWithAggregation(ctx, boolQuery, aggQuery)
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute label values query: %w", err)
+		return nil, fmt.Errorf("failed to execute attribute values query: %w", err)
 	}
 
 	// For other labels, extract from nested aggregation
@@ -217,9 +215,7 @@ func (r MetricsReader) GetLabelValues(ctx context.Context, params *metricstore.L
 func (r MetricsReader) executeSearchWithAggregation(
 	ctx context.Context,
 	query elastic.Query,
-	aggregationName string,
 	aggQuery elastic.Aggregation) (*elastic.SearchResult, error) {
-
 	// Calculate a default time range for the last day
 	timeRange := TimeRange{
 		startTimeMillis:         time.Now().Add(-24 * time.Hour).UnixMilli(),
@@ -233,29 +229,21 @@ func (r MetricsReader) executeSearchWithAggregation(
 	searchRequest.Query(query)
 	searchRequest.Size(0) // Only interested in aggregations
 
-	if aggQuery != nil {
-		searchRequest.Aggregation(aggName, aggQuery)
-	} else {
-		return nil, errors.New("no aggregation could be built for label values")
+	if aggQuery == nil {
+		return nil, errors.New("no aggregation could be built for attribute values")
 	}
+	searchRequest.Aggregation(aggName, aggQuery)
 
-	// Convert the query to BoolQuery if needed for the Execute method
-	var boolQuery elastic.BoolQuery
-	switch q := query.(type) {
-	case *elastic.BoolQuery:
-		boolQuery = *q
-	case *elastic.MatchAllQuery:
-		// Create a new bool query and add the match all as a filter
-		boolQuery = *elastic.NewBoolQuery().Filter(q)
-	default:
-		// For other query types, wrap in a bool query
-		boolQuery = *elastic.NewBoolQuery().Filter(query)
+	// Directly cast the query to BoolQuery
+	boolQuery, ok := query.(*elastic.BoolQuery)
+	if !ok {
+		return nil, errors.New("expected BoolQuery, but got a different query type")
 	}
 
 	metricsParams := MetricsQueryParams{
-		metricName: "label_value",
-		metricDesc: "Search for label values",
-		boolQuery:  boolQuery,
+		metricName: "attribute_values",
+		metricDesc: "Search for attribute values",
+		boolQuery:  *boolQuery,
 		aggQuery:   aggQuery,
 	}
 

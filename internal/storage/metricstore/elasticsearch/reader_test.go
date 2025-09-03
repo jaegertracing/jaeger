@@ -919,14 +919,14 @@ func TestGetLabelValues(t *testing.T) {
 	testCases := []struct {
 		name           string
 		responseFile   string
-		params         *metricstore.LabelValuesQueryParameters
+		params         *metricstore.AttributeValuesQueryParameters
 		expectedValues []string
 		expectError    bool
 	}{
 		{
 			name:         "successful lookup for string values",
 			responseFile: "testdata/output_attribute_key_values.json",
-			params: &metricstore.LabelValuesQueryParameters{
+			params: &metricstore.AttributeValuesQueryParameters{
 				AttributeKey:    "span_kind",
 				ServiceName:     "service1",
 				AttributeTarget: "tags",
@@ -937,7 +937,7 @@ func TestGetLabelValues(t *testing.T) {
 		{
 			name:         "empty results",
 			responseFile: "testdata/output_empty.json",
-			params: &metricstore.LabelValuesQueryParameters{
+			params: &metricstore.AttributeValuesQueryParameters{
 				AttributeKey:    "nonexistent_label",
 				ServiceName:     "service1",
 				AttributeTarget: "tags",
@@ -973,7 +973,7 @@ func TestGetLabelValues(t *testing.T) {
 			t.Logf("Using aggName: %s", aggName)
 
 			// Call the function being tested
-			values, err := reader.GetLabelValues(context.Background(), tc.params)
+			values, err := reader.GetAttributeValues(context.Background(), tc.params)
 
 			// Log the results
 			t.Logf("Got values: %v, error: %v", values, err)

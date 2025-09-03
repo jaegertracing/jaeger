@@ -1188,9 +1188,9 @@ func TestGetLabelValues(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			mr.On(
-				"GetLabelValues",
+				"GetAttributeValues",
 				mock.AnythingOfType("*context.valueCtx"),
-				mock.MatchedBy(func(params *metricstore.LabelValuesQueryParameters) bool {
+				mock.MatchedBy(func(params *metricstore.AttributeValuesQueryParameters) bool {
 					return params.AttributeKey == tc.labelName &&
 						params.ServiceName == tc.service
 				}),
@@ -1224,7 +1224,8 @@ func TestGetLabelValuesError(t *testing.T) {
 		}
 		ts := initializeTestServer(t, apiHandlerOptions...)
 		response, err := http.Get(ts.server.URL + "/api/metrics/labels?service=frontend")
-
+		require.NoError(t, err)
+		defer response.Body.Close()
 		body, err := io.ReadAll(response.Body)
 		require.NoError(t, err)
 
@@ -1245,9 +1246,9 @@ func TestGetLabelValuesError(t *testing.T) {
 		ts := initializeTestServer(t, apiHandlerOptions...)
 
 		mr.On(
-			"GetLabelValues",
+			"GetAttributeValues",
 			mock.AnythingOfType("*context.valueCtx"),
-			mock.MatchedBy(func(params *metricstore.LabelValuesQueryParameters) bool {
+			mock.MatchedBy(func(params *metricstore.AttributeValuesQueryParameters) bool {
 				return params.AttributeKey == "span_kind" && params.ServiceName == "frontend"
 			}),
 		).Return(nil, errors.New("storage error")).Once()

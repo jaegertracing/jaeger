@@ -115,7 +115,7 @@ func (*QueryBuilder) buildTimeSeriesAggQuery(params metricstore.BaseQueryParamet
 	return dateHistAgg
 }
 
-func (q *QueryBuilder) BuildLabelValuesQuery(params *metricstore.LabelValuesQueryParameters) (elastic.Query, elastic.Aggregation) {
+func (*QueryBuilder) BuildAttributeValuesQuery(params *metricstore.AttributeValuesQueryParameters) (elastic.Query, elastic.Aggregation) {
 	// Create a bool query to filter by service name if provided
 	boolQuery := elastic.NewBoolQuery()
 	if params.ServiceName != "" {
@@ -123,7 +123,18 @@ func (q *QueryBuilder) BuildLabelValuesQuery(params *metricstore.LabelValuesQuer
 	}
 
 	var aggQuery elastic.Aggregation
-	attributeTarget := params.AttributeTarget.String()
+	attributeTarget := ""
+	switch params.AttributeTarget {
+	case metricstore.AttributeTargetProcessTags:
+		attributeTarget = string(metricstore.AttributeTargetProcessTags)
+	case metricstore.AttributeTargetTags:
+		attributeTarget = string(metricstore.AttributeTargetTags)
+	case metricstore.AttributeTargetTag:
+		attributeTarget = string(metricstore.AttributeTargetTag)
+	default:
+		attributeTarget = string(metricstore.AttributeTargetDefault)
+	}
+
 	nestedAgg := elastic.NewNestedAggregation().Path(attributeTarget)
 
 	// Then add a filter to get only the tags with the specified key

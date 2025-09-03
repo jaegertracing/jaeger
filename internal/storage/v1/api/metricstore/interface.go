@@ -24,8 +24,8 @@ type Reader interface {
 	// GetMinStepDuration gets the min time resolution supported by the backing metrics store,
 	// e.g. 10s means the backend can only return data points that are at least 10s apart, not closer.
 	GetMinStepDuration(ctx context.Context, params *MinStepDurationQueryParameters) (time.Duration, error)
-	// GetLabelValues gets the available values for a specific label from the metrics store.
-	GetLabelValues(ctx context.Context, params *LabelValuesQueryParameters) ([]string, error)
+	// GetAttributeValues gets the available values for a specific attribute from the metrics store.
+	GetAttributeValues(ctx context.Context, params *AttributeValuesQueryParameters) ([]string, error)
 }
 
 // BaseQueryParameters contains the common set of parameters used by all metrics queries:
@@ -75,25 +75,19 @@ type MinStepDurationQueryParameters struct{}
 
 type AttributeTarget string
 
-func (a AttributeTarget) String() string {
-	switch a {
-	case "tags":
-		return "tags"
-	case "process.tags":
-		return "process.tags"
-	case "tag":
-		return "tag"
-	default:
-		return ""
-	}
-}
+const (
+	AttributeTargetTags        AttributeTarget = "tags"
+	AttributeTargetProcessTags AttributeTarget = "process.tags"
+	AttributeTargetTag         AttributeTarget = "tag"
+	AttributeTargetDefault     AttributeTarget = "tags"
+)
 
-// LabelValuesQueryParameters contains the parameters required for fetching label values.
-type LabelValuesQueryParameters struct {
-	// AttributeKey is the name of the label to get values for (e.g., "service_name", "operation", etc.)
+// AttributeValuesQueryParameters contains the parameters required for fetching attribute values.
+type AttributeValuesQueryParameters struct {
+	// AttributeKey is the name of the attribute to get values for (e.g., "service_name", "operation", etc.)
 	AttributeKey string
 	// AttributeTarget will tell the nested location of the tag to get the value from
 	AttributeTarget AttributeTarget
-	// ServiceName optionally filters the label values to only those present in metrics for the specified service
+	// ServiceName optionally filters the attribute values to only those present in metrics for the specified service
 	ServiceName string
 }

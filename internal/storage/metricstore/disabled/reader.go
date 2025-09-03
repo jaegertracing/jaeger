@@ -52,7 +52,7 @@ func (*MetricsReader) GetMinStepDuration(context.Context, *metricstore.MinStepDu
 	return 0, ErrDisabled
 }
 
-// GetLabelValues gets the available values for a specific label.
-func (*MetricsReader) GetLabelValues(context.Context, *metricstore.LabelValuesQueryParameters) ([]string, error) {
+// GetAttributeValues gets the available values for a specific attribute.
+func (*MetricsReader) GetAttributeValues(context.Context, *metricstore.AttributeValuesQueryParameters) ([]string, error) {
 	return nil, ErrDisabled
 }

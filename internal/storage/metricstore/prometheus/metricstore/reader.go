@@ -258,16 +258,16 @@ func (MetricsReader) GetMinStepDuration(_ context.Context, _ *metricstore.MinSte
 	return minStep, nil
 }
 
-// GetLabelValues gets the available values for a specific label from Prometheus.
-func (m MetricsReader) GetLabelValues(ctx context.Context, params *metricstore.LabelValuesQueryParameters) ([]string, error) {
-	ctx, span := m.tracer.Start(ctx, "prometheus.label_values")
+// GetAttributeValues gets the available values for a specific attribute from Prometheus.
+func (m MetricsReader) GetAttributeValues(ctx context.Context, params *metricstore.AttributeValuesQueryParameters) ([]string, error) {
+	ctx, span := m.tracer.Start(ctx, "prometheus.attribute_values")
 	defer span.End()
 
 	span.SetAttributes(
 		attribute.String("label_name", params.AttributeKey),
 		attribute.String("service", params.ServiceName),
 	)
-
+	fmt.Println(">>> ", params.AttributeKey)
 	// Build match[] selectors to filter by service names if provided
 	var matchers []string
 	if params.ServiceName != "" {

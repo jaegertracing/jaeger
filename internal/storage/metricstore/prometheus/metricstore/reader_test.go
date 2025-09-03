@@ -1106,13 +1106,13 @@ func TestGetLabelValues(t *testing.T) {
 			defer mockPrometheus.Close()
 
 			// Create parameters for GetLabelValues
-			params := &metricstore.LabelValuesQueryParameters{
+			params := &metricstore.AttributeValuesQueryParameters{
 				AttributeKey: tc.labelName,
 				ServiceName:  tc.serviceName,
 			}
 
-			// Call GetLabelValues
-			values, err := reader.GetLabelValues(context.Background(), params)
+			// Call GetAttributeValues
+			values, err := reader.GetAttributeValues(context.Background(), params)
 
 			if tc.wantError {
 				require.Error(t, err)

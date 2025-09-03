@@ -66,11 +66,11 @@ func TestGetLabelValues(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, reader)
 
-	qParams := &metricstore.LabelValuesQueryParameters{
+	qParams := &metricstore.AttributeValuesQueryParameters{
 		AttributeKey: "span_kind",
 		ServiceName:  "emailservice",
 	}
-	r, err := reader.GetLabelValues(context.Background(), qParams)
+	r, err := reader.GetAttributeValues(context.Background(), qParams)
 	assert.Zero(t, r)
 	require.ErrorIs(t, err, ErrDisabled)
 	require.EqualError(t, err, ErrDisabled.Error())
