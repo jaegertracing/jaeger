@@ -26,8 +26,6 @@ next release v1.73.0 / v2.10.0 (2025-09-02)
 
 ### Backend Changes
 
-### Backend Changes
-
 #### 🐞 Bug fixes, Minor Improvements
 
 * Chore(jaeger-tracegen): upgrade tracegen docker compose to jaeger-v2 ([@lekaf974](https://github.com/lekaf974) in [#7481](https://github.com/jaegertracing/jaeger/pull/7481))
