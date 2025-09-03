@@ -34,8 +34,13 @@ if git ls-files --stage | grep -q "160000 .* jaeger-ui$"; then
   git submodule update --init jaeger-ui
   pushd jaeger-ui >/dev/null
   git fetch --tags
-  NEW_UI_TAG="$(git tag --sort=-v:refname | head -n1)"
-  git checkout "${NEW_UI_TAG}"
+NEW_UI_TAG="$(git tag --sort=-v:refname | head -n1)"
+if [[ -z "${NEW_UI_TAG}" ]]; then
+  echo "Error: No UI tags found in submodule"
+  exit 1
+fi
+git checkout "${NEW_UI_TAG}"
+
   popd >/dev/null
   git add jaeger-ui
   git commit -m "chore(ui): bump jaeger-ui to ${NEW_UI_TAG}"
