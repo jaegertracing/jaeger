@@ -178,6 +178,25 @@ create_release_pr() {
     temp_changelog=$(mktemp)
     make changelog > "$temp_changelog"
     
+    # Update CHANGELOG.md with new version header and generated content
+    log_info "Updating CHANGELOG.md..."
+    current_date=$(date +"%Y-%m-%d")
+    if [ -f "CHANGELOG.md" ]; then
+        temp_full_changelog=$(mktemp)
+        # Header matches guideline: "1.x.x / 2.x.x (YYYY-MM-DD)"
+        echo "${new_version_v1} / ${new_version_v2} (${current_date})" > "$temp_full_changelog"
+        echo "" >> "$temp_full_changelog"
+        cat "$temp_changelog" >> "$temp_full_changelog"
+        echo "" >> "$temp_full_changelog"
+        cat CHANGELOG.md >> "$temp_full_changelog"
+        mv "$temp_full_changelog" CHANGELOG.md
+        log_success "CHANGELOG.md updated"
+    else
+        log_error "CHANGELOG.md not found"
+        rm -f "$temp_changelog"
+        exit 1
+    fi
+
     # Create PR title and body
     pr_title="Prepare release ${new_version_v1} / ${new_version_v2}"
     pr_body=$(cat << EOF
@@ -212,25 +231,39 @@ EOF
         log_info "DRY RUN: Would create PR with title: $pr_title"
         log_info "DRY RUN: PR body:"
         echo "$pr_body"
+        log_info "DRY RUN: Would create branch, commit CHANGELOG.md, push, and open PR"
     else
-        # Create the PR
-        pr_url=$(gh pr create \
+        # Create and switch to a new branch
+        branch_name="release-prep-${new_version_v1#v}-${new_version_v2#v}"
+        git checkout -b "$branch_name"
+
+        # Commit updated CHANGELOG.md
+        git add CHANGELOG.md
+        git commit -m "Prepare release ${new_version_v1} / ${new_version_v2}"
+
+        # Push branch
+        git push -u origin "$branch_name"
+
+        # Create the PR and robustly capture its URL
+        pr_out_file=$(mktemp)
+        if gh pr create \
             --repo "$REPO" \
             --title "$pr_title" \
             --body "$pr_body" \
             --base main \
-            --head "release-prep-${new_version_v1}-${new_version_v2}")
-        
-        if [[ $? -eq 0 ]]; then
+            --head "$branch_name" | tee "$pr_out_file" >/dev/null; then
+            pr_url=$(tr -d '\n' < "$pr_out_file")
             log_success "Release PR created: $pr_url"
-            
             # Add changelog:skip label
             gh pr edit "$pr_url" --add-label "changelog:skip"
             log_success "Added changelog:skip label"
         else
             log_error "Failed to create PR"
+            rm -f "$pr_out_file"
+            rm -f "$temp_changelog"
             exit 1
         fi
+        rm -f "$pr_out_file"
     fi
     
     # Clean up
