@@ -254,15 +254,42 @@ $changelogContent
         Write-Info "DRY RUN: Would create PR with title: $prTitle"
         Write-Info "DRY RUN: PR body:"
         Write-Host $prBody
+        Write-Info "DRY RUN: Would create branch, update CHANGELOG.md, commit and push, then open PR"
     }
     else {
+        # Create and switch to a new branch
+        $branchName = "release-prep-$($newVersionV1.TrimStart('v'))-$($newVersionV2.TrimStart('v'))"
+        git checkout -b $branchName
+
+        # Update CHANGELOG.md with new header and generated content
+        Write-Info "Updating CHANGELOG.md..."
+        $currentDate = Get-Date -Format 'yyyy-MM-dd'
+        if (Test-Path "CHANGELOG.md") {
+            $existing = Get-Content "CHANGELOG.md" -Raw
+            $header = "$newVersionV1 / $newVersionV2 ($currentDate)"
+            $newline = "`r`n"
+            $newContent = $header + $newline + $newline + $changelogContent + $newline + $newline + $existing
+            $newContent | Out-File -FilePath "CHANGELOG.md" -Encoding UTF8
+
+            git add CHANGELOG.md
+            git commit -m "Prepare release $newVersionV1 / $newVersionV2"
+            Write-Success "CHANGELOG.md updated and committed"
+        }
+        else {
+            Write-Error "CHANGELOG.md not found"
+            exit 1
+        }
+
+        # Push branch
+        git push -u origin $branchName
+
         # Create the PR
         $prUrl = gh pr create `
             --repo $Repo `
             --title $prTitle `
             --body $prBody `
             --base main `
-            --head "release-prep-$($newVersionV1.TrimStart('v'))-$($newVersionV2.TrimStart('v'))"
+            --head $branchName
         
         if ($LASTEXITCODE -eq 0) {
             Write-Success "Release PR created: $prUrl"
