@@ -204,6 +204,18 @@ run-all-in-one: build-ui
 changelog:
 	./scripts/release/notes.py --exclude-dependabot --verbose
 
+.PHONY: automate-release
+automate-release:
+ifeq ($(OS),Windows_NT)
+	powershell -ExecutionPolicy Bypass -File scripts/release/automate-release.ps1
+else
+	./scripts/release/automate-release.sh
+endif
+
+.PHONY: test-automation
+test-automation:
+	./scripts/release/test-automation.sh
+
 .PHONY: draft-release
 draft-release:
 	./scripts/release/draft.py

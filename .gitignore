@@ -52,3 +52,4 @@ resource.syso
 test-results.json
 .metrics/
 .mockery.log
+jaeger-all-in-one
