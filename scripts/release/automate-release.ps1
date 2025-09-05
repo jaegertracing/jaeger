@@ -74,10 +74,8 @@ function Test-Prerequisites {
     }
     
     # Check if gh is authenticated
-    try {
-        $null = gh auth status 2>$null
-    }
-    catch {
+    $authResult = gh auth status 2>&1
+    if ($LASTEXITCODE -ne 0) {
         Write-Error "GitHub CLI is not authenticated. Please run 'gh auth login' first."
         exit 1
     }
@@ -267,7 +265,7 @@ $changelogContent
             $header = "$newVersionV1 / $newVersionV2 ($currentDate)"
             $newline = "`r`n"
             $newContent = $header + $newline + $newline + $changelogContent + $newline + $newline + $existing
-            $newContent | Out-File -FilePath "CHANGELOG.md" -Encoding UTF8
+            [System.IO.File]::WriteAllText("CHANGELOG.md", $newContent, [System.Text.UTF8Encoding]::new($false))
 
             git add CHANGELOG.md
             git commit -m "Prepare release $newVersionV1 / $newVersionV2"
