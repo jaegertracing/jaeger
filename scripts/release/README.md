@@ -11,6 +11,19 @@ The release automation scripts streamline the manual steps in the release proces
 3. **Integrating with existing tools** like `make changelog`
 4. **Maintaining dual version support** for v1.x.x and v2.x.x
 
+## Setup
+
+### First Time Setup (Unix/Linux/macOS)
+```bash
+# Make scripts executable
+chmod +x scripts/release/*.sh
+```
+
+**Important:** This command ensures that the shell scripts can be executed directly without explicitly invoking bash. This is required for the automation to work properly.
+
+### Windows Setup
+No additional setup required. The PowerShell script (`automate-release.ps1`) will be used automatically.
+
 ## Scripts
 
 ### `automate-release.sh` / `automate-release.ps1`
@@ -25,6 +38,8 @@ The main automation script, available in both Bash and PowerShell versions.
 - Cross-platform support (Windows/Linux/macOS)
 
 **Usage:**
+
+> **Note:** On Unix systems, ensure scripts are executable first: `chmod +x scripts/release/*.sh`
 
 ```bash
 # Interactive mode
