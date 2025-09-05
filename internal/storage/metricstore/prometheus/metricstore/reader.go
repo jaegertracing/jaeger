@@ -267,11 +267,10 @@ func (m MetricsReader) GetAttributeValues(ctx context.Context, params *metricsto
 		attribute.String("label_name", params.AttributeKey),
 		attribute.String("service", params.ServiceName),
 	)
-	fmt.Println(">>> ", params.AttributeKey)
 	// Build match[] selectors to filter by service names if provided
 	var matchers []string
 	if params.ServiceName != "" {
-		matchers = append(matchers, fmt.Sprintf("{service_name=\"%q\"}", params.ServiceName))
+		matchers = append(matchers, fmt.Sprintf("{service_name=\"%s\"}", params.ServiceName))
 	}
 
 	values, warnings, err := m.client.LabelValues(ctx, params.AttributeKey, matchers, time.Time{}, time.Time{})
