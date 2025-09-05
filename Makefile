@@ -209,11 +209,13 @@ automate-release:
 ifeq ($(OS),Windows_NT)
 	powershell -ExecutionPolicy Bypass -File scripts/release/automate-release.ps1
 else
+	chmod +x scripts/release/*.sh
 	./scripts/release/automate-release.sh
 endif
 
 .PHONY: test-automation
 test-automation:
+	chmod +x scripts/release/*.sh
 	./scripts/release/test-automation.sh
 
 .PHONY: draft-release

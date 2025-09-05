@@ -190,19 +190,17 @@ function Determine-NextVersions {
     $suggestedV2 = "$majorV2.$($minorV2 + 1).0"
     
     Write-Host "Current v1 version: $currentVersionV1"
-    $userVersionV1 = Read-Host "New v1 version: v" -DefaultValue $suggestedV1
-    
-    Write-Host "Current v2 version: $currentVersionV2"
-    $userVersionV2 = Read-Host "New v2 version: v" -DefaultValue $suggestedV2
-    
-    # Ensure we have valid user input
+    $userVersionV1 = Read-Host "New v1 version: v [$suggestedV1]"
     if ([string]::IsNullOrWhiteSpace($userVersionV1)) {
         $userVersionV1 = $suggestedV1
     }
     
+    Write-Host "Current v2 version: $currentVersionV2"
+    $userVersionV2 = Read-Host "New v2 version: v [$suggestedV2]"
     if ([string]::IsNullOrWhiteSpace($userVersionV2)) {
         $userVersionV2 = $suggestedV2
     }
+    
     
     # Remove any 'v' prefix if user included it
     $userVersionV1 = $userVersionV1.TrimStart('v')

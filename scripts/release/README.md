@@ -63,6 +63,10 @@ make test-automation
 2. **Git repository** - Must be in the Jaeger repository root
 3. **Main branch** - Should be on main branch (with override option)
 4. **Make** - For version detection and changelog generation
+5. **Executable permissions** - On Unix systems, ensure scripts are executable:
+   ```bash
+   chmod +x scripts/release/*.sh
+   ```
 
 ## Workflow
 
