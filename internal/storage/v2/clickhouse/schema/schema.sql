@@ -10,6 +10,12 @@ CREATE TABLE IF NOT EXISTS spans (
     status_message String,
     duration Int64,
 
+    bool_attrs Nested (key String, value Bool),
+    double_attrs Nested (key String, value Float64),
+    int_attrs Nested (key String, value Int64),
+    str_attrs Nested (key String, value String),
+    bytes_attrs Nested (key String, value String)
+
     events Nested (
         name String,
         timestamp DateTime64(9)
