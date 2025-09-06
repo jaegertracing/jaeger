@@ -36,10 +36,24 @@ type QueryBuilder struct {
 	client           es.Client
 	cfg              config.Configuration
 	timeRangeIndices spanstore.TimeRangeIndexFn
+	spanReader       *spanstore.SpanReader
 }
 
 // NewQueryBuilder creates a new QueryBuilder instance.
 func NewQueryBuilder(client es.Client, cfg config.Configuration, logger *zap.Logger) *QueryBuilder {
+	// Create SpanReader parameters for reusing tag query logic
+	spanReaderParams := spanstore.SpanReaderParams{
+		Client:              func() es.Client { return client },
+		Logger:              logger,
+		IndexPrefix:         cfg.Indices.IndexPrefix,
+		TagDotReplacement:   cfg.Tags.DotReplacement,
+		UseReadWriteAliases: cfg.UseReadWriteAliases,
+		ReadAliasSuffix:     cfg.ReadAliasSuffix,
+		RemoteReadClusters:  cfg.RemoteReadClusters,
+		MaxSpanAge:          24 * time.Hour, // Default value
+		MaxDocCount:         10000,          // Default value
+	}
+
 	return &QueryBuilder{
 		client: client,
 		cfg:    cfg,
@@ -47,6 +61,7 @@ func NewQueryBuilder(client es.Client, cfg config.Configuration, logger *zap.Log
 			logger,
 			spanstore.TimeRangeIndicesFn(cfg.UseReadWriteAliases, cfg.ReadAliasSuffix, cfg.RemoteReadClusters),
 		),
+		spanReader: spanstore.NewSpanReader(spanReaderParams),
 	}
 }
 
@@ -65,6 +80,12 @@ func (q *QueryBuilder) BuildBoolQuery(params metricstore.BaseQueryParameters, ti
 	spanKindField := strings.ReplaceAll(model.SpanKindKey, ".", q.cfg.Tags.DotReplacement)
 	spanKindQuery := elastic.NewTermsQuery("tag."+spanKindField, buildInterfaceSlice(normalizeSpanKinds(params.SpanKinds))...)
 	boolQuery.Filter(spanKindQuery)
+
+	// Add complex tag filters using SpanReader's buildTagQuery method
+	for tagKey, tagValue := range params.Tags {
+		tagQuery := q.spanReader.BuildTagQuery(tagKey, tagValue)
+		boolQuery.Filter(tagQuery)
+	}
 
 	// Add additional terms queries if provided
 	for _, termQuery := range termsQueries {
