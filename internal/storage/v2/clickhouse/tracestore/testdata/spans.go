@@ -10,24 +10,34 @@ import (
 )
 
 type SpanRow struct {
-	ID              string
-	TraceID         string
-	TraceState      string
-	ParentSpanID    string
-	Name            string
-	Kind            string
-	StartTime       time.Time
-	StatusCode      string
-	StatusMessage   string
-	RawDuration     int64
-	EventNames      []string
-	EventTimestamps []time.Time
-	LinkTraceIDs    []string
-	LinkSpanIDs     []string
-	LinkTraceStates []string
-	ServiceName     string
-	ScopeName       string
-	ScopeVersion    string
+	ID                    string
+	TraceID               string
+	TraceState            string
+	ParentSpanID          string
+	Name                  string
+	Kind                  string
+	StartTime             time.Time
+	StatusCode            string
+	StatusMessage         string
+	RawDuration           int64
+	BoolAttributeKeys     []string
+	BoolAttributeValues   []bool
+	DoubleAttributeKeys   []string
+	DoubleAttributeValues []float64
+	IntAttributeKeys      []string
+	IntAttributeValues    []int64
+	StrAttributeKeys      []string
+	StrAttributeValues    []string
+	BytesAttributeKeys    []string
+	BytesAttributeValues  []string
+	EventNames            []string
+	EventTimestamps       []time.Time
+	LinkTraceIDs          []string
+	LinkSpanIDs           []string
+	LinkTraceStates       []string
+	ServiceName           string
+	ScopeName             string
+	ScopeVersion          string
 }
 
 var TraceID = pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1})
