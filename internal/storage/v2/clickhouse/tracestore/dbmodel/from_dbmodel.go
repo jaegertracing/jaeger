@@ -101,7 +101,22 @@ func convertSpan(s Span) (ptrace.Span, error) {
 	span.SetEndTimestamp(pcommon.NewTimestampFromTime(s.StartTime.Add(s.Duration)))
 	span.Status().SetCode(convertStatusCode(s.StatusCode))
 	span.Status().SetMessage(s.StatusMessage)
-	// TODO: populate attributes
+
+	for _, attr := range s.BoolAttributes {
+		span.Attributes().PutBool(attr.Key, attr.Value)
+	}
+	for _, attr := range s.DoubleAttributes {
+		span.Attributes().PutDouble(attr.Key, attr.Value)
+	}
+	for _, attr := range s.IntAttributes {
+		span.Attributes().PutInt(attr.Key, attr.Value)
+	}
+	for _, attr := range s.StrAttributes {
+		span.Attributes().PutStr(attr.Key, attr.Value)
+	}
+	for _, attr := range s.BytesAttributes {
+		span.Attributes().PutEmptyBytes(attr.Key).FromRaw(attr.Value)
+	}
 
 	return span, nil
 }
