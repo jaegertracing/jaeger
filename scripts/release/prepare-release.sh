@@ -103,10 +103,16 @@ check_prerequisites() {
     # Check if we're on main branch
     if [[ $(git branch --show-current) != "main" ]]; then
         log_warning "Not on main branch. Current branch: $(git branch --show-current)"
-        read -p "Continue anyway? (y/N): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            exit 1
+        if [[ -t 0 ]]; then
+            # Interactive mode - ask for confirmation
+            read -p "Continue anyway? (y/N): " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                exit 1
+            fi
+        else
+            # Non-interactive mode - assume yes
+            log_info "Non-interactive mode: continuing anyway"
         fi
     fi
     
@@ -159,10 +165,10 @@ determine_next_versions() {
     suggested_v2="${major_v2}.$((minor_v2 + 1)).0"
     
     echo "Current v1 version: ${current_version_v1}"
-    read -r -e -p "New v1 version: v" -i "${suggested_v1}" user_version_v1
+    read -r -e -p "New v1 version: " -i "${suggested_v1}" user_version_v1
     
     echo "Current v2 version: ${current_version_v2}"
-    read -r -e -p "New v2 version: v" -i "${suggested_v2}" user_version_v2
+    read -r -e -p "New v2 version: " -i "${suggested_v2}" user_version_v2
     
     new_version_v1="v${user_version_v1}"
     new_version_v2="v${user_version_v2}"
@@ -178,6 +184,21 @@ create_release_pr() {
     temp_changelog=$(mktemp)
     make changelog > "$temp_changelog"
     
+    # Update UI submodule to latest version
+    log_info "Updating UI submodule to latest version..."
+    if [ -d "jaeger-ui" ]; then
+        pushd jaeger-ui > /dev/null
+        git checkout main
+        git pull origin main
+        # Get the latest commit hash for the UI version
+        ui_latest_commit=$(git rev-parse HEAD)
+        ui_latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "latest")
+        popd > /dev/null
+        log_success "UI submodule updated to latest: ${ui_latest_tag} (${ui_latest_commit:0:8})"
+    else
+        log_warning "jaeger-ui submodule not found, skipping UI update"
+    fi
+
     # Update CHANGELOG.md with new version header and generated content
     log_info "Updating CHANGELOG.md..."
     current_date=$(date +"%Y-%m-%d")
@@ -207,7 +228,7 @@ This PR automates the release preparation for ${new_version_v1} / ${new_version_
 ### Changes Made:
 - [x] Updated CHANGELOG.md with new version section
 - [x] Generated changelog content using \`make changelog\`
-- [x] Prepared for UI submodule update
+- [x] Updated UI submodule to latest version
 
 ### Next Steps:
 1. Review and merge this PR
@@ -233,12 +254,20 @@ EOF
         echo "$pr_body"
         log_info "DRY RUN: Would create branch, commit CHANGELOG.md, push, and open PR"
     else
+        # Ensure we're on main branch before creating release branch
+        current_branch=$(git branch --show-current)
+        if [ "$current_branch" != "main" ]; then
+            log_info "Switching to main branch..."
+            git checkout main
+            git pull origin main
+        fi
+        
         # Create and switch to a new branch
         branch_name="release-prep-${new_version_v1#v}-${new_version_v2#v}"
         git checkout -b "$branch_name"
 
-        # Commit updated CHANGELOG.md
-        git add CHANGELOG.md
+        # Commit updated CHANGELOG.md and UI submodule changes
+        git add CHANGELOG.md jaeger-ui
         git commit -m "Prepare release ${new_version_v1} / ${new_version_v2}"
 
         # Push branch
