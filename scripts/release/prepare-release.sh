@@ -117,12 +117,12 @@ check_prerequisites() {
 get_current_versions() {
     log_info "Getting current versions..."
     
-    if ! current_version_v1=$(make "echo-v1" 2>/dev/null); then
+    if ! current_version_v1=$(make -s "echo-v1" 2>/dev/null); then
         log_error "Failed to fetch current v1 version from make echo-v1"
         exit 1
     fi
     
-    if ! current_version_v2=$(make "echo-v2" 2>/dev/null); then
+    if ! current_version_v2=$(make -s "echo-v2" 2>/dev/null); then
         log_error "Failed to fetch current v2 version from make echo-v2"
         exit 1
     fi
