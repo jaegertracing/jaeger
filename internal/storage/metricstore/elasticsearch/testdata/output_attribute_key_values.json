@@ -1,0 +1,70 @@
+{
+  "took": 5,
+  "timed_out": false,
+  "_shards": {
+    "total": 5,
+    "successful": 5,
+    "failed": 0
+  },
+  "hits": {
+    "total": 150,
+    "max_score": 0,
+    "hits": []
+  },
+  "aggregations": {
+    "results_buckets": {
+      "doc_count": 100,
+      "path_0": {
+        "doc_count": 85,
+        "filtered_by_key": {
+          "doc_count": 85,
+          "values": {
+            "doc_count_error_upper_bound": 0,
+            "sum_other_doc_count": 0,
+            "buckets": [
+              {
+                "key": "server",
+                "doc_count": 45
+              },
+              {
+                "key": "client",
+                "doc_count": 25
+              }
+            ]
+          }
+        }
+      },
+      "path_1": {
+        "doc_count": 20,
+        "filtered_by_key": {
+          "doc_count": 20,
+          "values": {
+            "doc_count_error_upper_bound": 0,
+            "sum_other_doc_count": 0,
+            "buckets": [
+              {
+                "key": "producer",
+                "doc_count": 10
+              },
+              {
+                "key": 400,
+                "doc_count": 5
+              }
+            ]
+          }
+        }
+      },
+      "path_2": {
+        "doc_count": 0,
+        "filtered_by_key": {
+          "doc_count": 0,
+          "values": {
+            "doc_count_error_upper_bound": 0,
+            "sum_other_doc_count": 0,
+            "buckets": []
+          }
+        }
+      }
+    }
+  }
+}
