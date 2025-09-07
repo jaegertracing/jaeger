@@ -71,7 +71,7 @@ var (
 
 	objectTagFieldList = []string{objectTagsField, objectProcessTagsField}
 
-	nestedTagFieldList = []string{nestedTagsField, nestedProcessTagsField, nestedLogFieldsField}
+	NestedTagFieldList = []string{nestedTagsField, nestedProcessTagsField, nestedLogFieldsField}
 
 	_ Reader = (*SpanReader)(nil) // check API conformance
 )
@@ -571,13 +571,13 @@ func (*SpanReader) buildOperationNameQuery(operationName string) esquery.Query {
 
 func (s *SpanReader) buildTagQuery(k string, v string) esquery.Query {
 	objectTagListLen := len(objectTagFieldList)
-	queries := make([]esquery.Query, len(nestedTagFieldList)+objectTagListLen)
+	queries := make([]esquery.Query, len(NestedTagFieldList)+objectTagListLen)
 	kd := s.dotReplacer.ReplaceDot(k)
 	for i := range objectTagFieldList {
 		queries[i] = s.buildObjectQuery(objectTagFieldList[i], kd, v)
 	}
-	for i := range nestedTagFieldList {
-		queries[i+objectTagListLen] = s.buildNestedQuery(nestedTagFieldList[i], k, v)
+	for i := range NestedTagFieldList {
+		queries[i+objectTagListLen] = s.buildNestedQuery(NestedTagFieldList[i], k, v)
 	}
 
 	// but configuration can change over time

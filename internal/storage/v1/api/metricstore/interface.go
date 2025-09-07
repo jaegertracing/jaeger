@@ -21,6 +21,8 @@ type Reader interface {
 	// GetErrorRates gets the error rate metrics for a given list of services grouped by service
 	// and optionally grouped by operation.
 	GetErrorRates(ctx context.Context, params *ErrorRateQueryParameters) (*metrics.MetricFamily, error)
+	// GetAttributeValues gets the available values for a specific attribute from the metrics store.
+	GetAttributeValues(ctx context.Context, params *AttributeValuesQueryParameters) ([]string, error)
 }
 
 // BaseQueryParameters contains the common set of parameters used by all metrics queries:
@@ -65,4 +67,12 @@ type CallRateQueryParameters struct {
 // ErrorRateQueryParameters contains the parameters required for error rate metrics queries.
 type ErrorRateQueryParameters struct {
 	BaseQueryParameters
+}
+
+// AttributeValuesQueryParameters contains the parameters required for fetching attribute values.
+type AttributeValuesQueryParameters struct {
+	// AttributeKey is the name of the attribute to get values for (e.g., "service_name", "operation", etc.)
+	AttributeKey string
+	// ServiceName optionally filters the attribute values to only those present in metrics for the specified service
+	ServiceName string
 }
