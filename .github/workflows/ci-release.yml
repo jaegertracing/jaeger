@@ -92,7 +92,7 @@ jobs:
       # TODO this currently utilizes 1.x version tag, which is ok for v1
       # binaries, but for tools/utils we may need to change in the future.
       run: |
-        BRANCH=$(make echo-v1)
+        BRANCH=$(make echo-v2)
         echo Validate that the latest tag ${BRANCH} is in semver format
         echo ${BRANCH} | grep -E '^v[0-9]+.[0-9]+.[0-9]+$'
         echo "BRANCH=${BRANCH}" >> ${GITHUB_ENV}
@@ -135,16 +135,6 @@ jobs:
       run: |
         bash scripts/build/build-upload-docker-images.sh -B \
           ${{ steps.params.outputs.docker_flags }}
-      env:
-        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
-
-    - name: Build, test, and publish all-in-one v1 image
-      run: |
-        BRANCH=$(make echo-v1) \
-        bash scripts/build/build-all-in-one-image.sh \
-          ${{ steps.params.outputs.docker_flags }} \
-          v1
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}

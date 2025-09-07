@@ -2,7 +2,7 @@
 
 Create an issue with the checklist for the release by running `bash scripts/release/start.sh`.
 
-1. Determine new version numbers for v1.x.x and v2.x.x
+1. Determine new version number for v2.x.x
 2. Perform UI release according to https://github.com/jaegertracing/jaeger-ui/blob/main/RELEASE.md
 3. Perform Backend release (see below)
 4. [Publish documentation](https://github.com/jaegertracing/documentation/blob/main/RELEASE.md) for the new version on `jaegertracing.io`.
@@ -14,8 +14,8 @@ Create an issue with the checklist for the release by running `bash scripts/rele
 
 <!-- BEGIN_CHECKLIST -->
 
-1. Create a PR "Prepare release 1.x.x / 2.x.x" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/6826)) by updating CHANGELOG.md to include:
-    * A new section with the header `1.x.x / 2.x.x (YYYY-MM-DD)` (copy the template at the top)
+1. Create a PR "Prepare release 2.x.x" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/6826)) by updating CHANGELOG.md to include:
+    * A new section with the header `2.x.x (YYYY-MM-DD)` (copy the template at the top)
     * A curated list of notable changes and links to PRs. Do not simply dump git log, select the changes that affect the users.
       To obtain the list of all changes run `make changelog`.
     * The section can be split into sub-section if necessary, e.g. UI Changes, Backend Changes, Bug Fixes, etc.
@@ -33,13 +33,12 @@ Create an issue with the checklist for the release by running `bash scripts/rele
       * If there are no changes, indicate this with "No changes" ([example](https://github.com/jaegertracing/jaeger/pull/4131/files)).
     * Rotate the below release managers table placing yourself at the bottom. The date should be the first Wednesday of the month.
     * Add label `changelog:skip` to the pull request.
-2. After the PR is merged, create new release tags:
+2. After the PR is merged, create new release tag:
     ```
     git checkout main
     git pull
-    git tag v1... -s  # use the new version
     git tag v2... -s  # use the new version
-    git push upstream v1... v2...
+    git push upstream v2...
     ```
 3. Create a release on Github:
     * Automated:
@@ -55,8 +54,8 @@ Create an issue with the checklist for the release by running `bash scripts/rele
 ## Manual release
 
     * Manual:
-       * Title "Release 1.x.x / 2.x.x"
-       * Tag `v1.x.x` (note the `v` prefix) and choose appropriate branch (usually `main`)
+       * Title "Release 2.x.x"
+       * Tag `v2.x.x` (note the `v` prefix) and choose appropriate branch (usually [main](cci:1://file:///home/soumya/open-source/jaeger/scripts/release/formatter.py:46:0-85:22))
        * Copy the new CHANGELOG.md section into the release notes
        * Extra: GitHub has a button "generate release notes". Those are not formatted as we want,
          but it has a nice feature of explicitly listing first-time contributors.
@@ -68,11 +67,11 @@ Create an issue with the checklist for the release by running `bash scripts/rele
 
 Sometimes we need to do a patch release, e.g. to fix a newly introduced bug. If the main branch already contains newer changes, it is recommended that a patch release is done from a version branch.
 
-Maintenance branches should follow naming convention: `release-major.minor` (e.g.`release-1.8`).
+Maintenance branches should follow naming convention: `release-major.minor` (e.g.`release-2.8`).
 
-1. Find the commit in `main` for the release you want to patch (e.g., `a49094c2` for v1.34.0).
-2. `git checkout ${commit}; git checkout -b ${branch-name}`. The branch name should be in the form `release-major.minor`, e.g., `release-1.34`. Push the branch to the upstream repository.
-3. Apply fixes to the branch. The recommended way is to merge the fixes into `main` first and then cherry-pick them into the version branch (e.g., `git cherry-pick c733708c` for the fix going into `v1.34.1`).
+1. Find the commit in [main](cci:1://file:///home/soumya/open-source/jaeger/scripts/release/formatter.py:46:0-85:22) for the release you want to patch (e.g., `a49094c2` for v2.34.0).
+2. `git checkout ${commit}; git checkout -b ${branch-name}`. The branch name should be in the form `release-major.minor`, e.g., `release-2.34`. Push the branch to the upstream repository.
+3. Apply fixes to the branch. The recommended way is to merge the fixes into [main](cci:1://file:///home/soumya/open-source/jaeger/scripts/release/formatter.py:46:0-85:22) first and then cherry-pick them into the version branch (e.g., `git cherry-pick c733708c` for the fix going into `v2.34.1`).
 4. Follow the regular process for creating a release (except for the Documentation step).
    * When creating a release on GitHub, pick the version branch when applying the new tag.
    * Once the release tag is created, the `ci-release` workflow will kick in and deploy the artifacts for the patch release.
