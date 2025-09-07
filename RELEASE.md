@@ -15,6 +15,8 @@ Create an issue with the checklist for the release by running `bash scripts/rele
 <!-- BEGIN_CHECKLIST -->
 
 1. Create a PR "Prepare release 1.x.x / 2.x.x" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/6826)) by updating CHANGELOG.md to include:
+    * **Automated option**: Run `make prepare-release` to automatically create the PR with changelog updates
+    * **Manual option**: Follow the steps below to manually create the PR
     * A new section with the header `1.x.x / 2.x.x (YYYY-MM-DD)` (copy the template at the top)
     * A curated list of notable changes and links to PRs. Do not simply dump git log, select the changes that affect the users.
       To obtain the list of all changes run `make changelog`.
