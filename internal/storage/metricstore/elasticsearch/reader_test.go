@@ -927,9 +927,8 @@ func TestGetLabelValues(t *testing.T) {
 			name:         "successful lookup for string values",
 			responseFile: "testdata/output_attribute_key_values.json",
 			params: &metricstore.AttributeValuesQueryParameters{
-				AttributeKey:    "span_kind",
-				ServiceName:     "service1",
-				AttributeTarget: "tags",
+				AttributeKey: "span_kind",
+				ServiceName:  "service1",
 			},
 			expectedValues: []string{"server", "client", "producer", "400"},
 			expectError:    false,
@@ -938,9 +937,8 @@ func TestGetLabelValues(t *testing.T) {
 			name:         "empty results",
 			responseFile: "testdata/output_empty.json",
 			params: &metricstore.AttributeValuesQueryParameters{
-				AttributeKey:    "nonexistent_label",
-				ServiceName:     "service1",
-				AttributeTarget: "tags",
+				AttributeKey: "nonexistent_label",
+				ServiceName:  "service1",
 			},
 			expectedValues: []string{},
 			expectError:    false,

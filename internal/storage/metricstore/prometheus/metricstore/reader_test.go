@@ -26,6 +26,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	config "github.com/jaegertracing/jaeger/internal/config/promcfg"
@@ -1024,6 +1025,7 @@ func TestGetLabelValues(t *testing.T) {
 		responsePayloadFile string // Added parameter for response file
 		wantError           bool
 		errorStatus         int
+		wantWarnings        bool
 	}{
 		{
 			name:                "get span_kind values for a specific service",
@@ -1042,11 +1044,32 @@ func TestGetLabelValues(t *testing.T) {
 			wantError:     true,
 			errorStatus:   http.StatusInternalServerError,
 		},
+		{
+			name:                "handle warning response",
+			labelName:           "span_kind",
+			serviceName:         "emailservice",
+			wantPromQuery:       `label_values(span_kind)`,
+			wantValues:          []string{"SPAN_KIND_SERVER", "SPAN_KIND_CLIENT", "SPAN_KIND_PRODUCER", "SPAN_KIND_CONSUMER"},
+			responsePayloadFile: "testdata/attribute_values_warning_response.json",
+			wantError:           false,
+			wantWarnings:        true,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Set up test infrastructure
 			tracer, exp, closer := tracerProvider(t)
 			defer closer()
+
+			// Set up logger with observer for warning test case
+			var logger *zap.Logger
+			var logObserver *observer.ObservedLogs
+			if tc.wantWarnings {
+				zapCore, obs := observer.New(zap.WarnLevel)
+				logger = zap.New(zapCore)
+				logObserver = obs
+			} else {
+				logger = zap.NewNop()
+			}
 
 			// Create a mock server specifically for label values API
 			mockPrometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1094,7 +1117,6 @@ func TestGetLabelValues(t *testing.T) {
 			defer mockPrometheus.Close()
 
 			// Create reader with the mock server
-			logger := zap.NewNop()
 			address := mockPrometheus.Listener.Addr().String()
 
 			cfg := defaultConfig
@@ -1126,6 +1148,17 @@ func TestGetLabelValues(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, tc.wantValues, values)
 				assert.Len(t, exp.GetSpans(), 1, "HTTP request was traced and span reported")
+
+				// For warning test case, verify that warnings are logged
+				if tc.wantWarnings {
+					require.NotNil(t, logObserver)
+					logs := logObserver.FilterMessage("Prometheus label values query returned warnings")
+					require.Len(t, logs.All(), 1, "Expected warning log message")
+
+					logEntry := logs.All()[0]
+					assert.Equal(t, tc.labelName, logEntry.ContextMap()["label"])
+					assert.Equal(t, []interface{}{"warning0", "warning1"}, logEntry.ContextMap()["warnings"])
+				}
 			}
 		})
 	}

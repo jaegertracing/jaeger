@@ -122,37 +122,31 @@ func (*QueryBuilder) BuildAttributeValuesQuery(params *metricstore.AttributeValu
 		boolQuery.Filter(elastic.NewTermQuery("process.serviceName", params.ServiceName))
 	}
 
-	var aggQuery elastic.Aggregation
-	attributeTarget := ""
-	switch params.AttributeTarget {
-	case metricstore.AttributeTargetProcessTags:
-		attributeTarget = string(metricstore.AttributeTargetProcessTags)
-	case metricstore.AttributeTargetTags:
-		attributeTarget = string(metricstore.AttributeTargetTags)
-	case metricstore.AttributeTargetTag:
-		attributeTarget = string(metricstore.AttributeTargetTag)
-	default:
-		attributeTarget = string(metricstore.AttributeTargetDefault)
+	// Create a global aggregation that will contain all nested aggregations
+	globalAgg := elastic.NewGlobalAggregation()
+
+	for i, path := range spanstore.NestedTagFieldList {
+		// Create nested aggregation for each path
+		nestedAgg := elastic.NewNestedAggregation().Path(path)
+
+		// Filter by the specified key
+		filterAgg := elastic.NewFilterAggregation().
+			Filter(elastic.NewTermQuery(fmt.Sprintf("%s.key", path), params.AttributeKey))
+
+		// Get unique values
+		valuesAgg := elastic.NewTermsAggregation().
+			Field(fmt.Sprintf("%s.value", path)).
+			Size(10000)
+
+		// Chain aggregations
+		filterAgg.SubAggregation("values", valuesAgg)
+		nestedAgg.SubAggregation("filtered_by_key", filterAgg)
+
+		// Add to global aggregation with unique name
+		globalAgg.SubAggregation(fmt.Sprintf("path_%d", i), nestedAgg)
 	}
 
-	nestedAgg := elastic.NewNestedAggregation().Path(attributeTarget)
-
-	// Then add a filter to get only the tags with the specified key
-	searchLocation := fmt.Sprintf("%s.%s", attributeTarget, "key")
-	filterAgg := elastic.NewFilterAggregation().
-		Filter(elastic.NewTermQuery(searchLocation, params.AttributeKey))
-
-	// Finally add a terms aggregation to get the unique values
-	valuesAgg := elastic.NewTermsAggregation().
-		Field(fmt.Sprintf("%s.value", params.AttributeTarget)).
-		Size(10000)
-
-	// Chain the aggregations together
-	filterAgg.SubAggregation("values", valuesAgg)
-	nestedAgg.SubAggregation("filtered_by_key", filterAgg)
-	aggQuery = nestedAgg
-
-	return boolQuery, aggQuery
+	return boolQuery, globalAgg
 }
 
 // Execute runs the Elasticsearch search with the provided bool and aggregation queries.

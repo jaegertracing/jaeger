@@ -367,14 +367,12 @@ func (aH *APIHandler) attributeValues(w http.ResponseWriter, r *http.Request) {
 		aH.handleError(w, errors.New("key is required"), http.StatusBadRequest)
 		return
 	}
-	target := r.URL.Query().Get("target")
 	// Parse service names from query parameter
 	serviceName := r.URL.Query().Get("service")
 
 	values, err := aH.metricsQueryService.GetAttributeValues(r.Context(), &metricstore.AttributeValuesQueryParameters{
-		AttributeKey:    key,
-		ServiceName:     serviceName,
-		AttributeTarget: metricstore.AttributeTarget(target),
+		AttributeKey: key,
+		ServiceName:  serviceName,
 	})
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return

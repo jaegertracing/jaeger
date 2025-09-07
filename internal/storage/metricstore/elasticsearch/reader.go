@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/olivere/elastic/v7"
@@ -175,40 +176,40 @@ func (r MetricsReader) GetAttributeValues(ctx context.Context, params *metricsto
 		return nil, fmt.Errorf("failed to execute attribute values query: %w", err)
 	}
 
-	// For other labels, extract from nested aggregation
-	nestedAgg, found := searchResult.Aggregations.Nested(aggName)
-	if found {
-		// Navigate through the nested aggregation structure
-		if filterAgg, found := nestedAgg.Aggregations.Filter("filtered_by_key"); found {
-			if valuesAgg, found := filterAgg.Aggregations.Terms("values"); found {
-				values := make([]string, 0, len(valuesAgg.Buckets))
-				for _, bucket := range valuesAgg.Buckets {
-					if bucket.Key != nil {
-						keyStr, ok := bucket.Key.(string)
-						if !ok {
-							// Handle numeric or other types by converting to string
-							keyStr = fmt.Sprintf("%v", bucket.Key)
+	// Collect values from all paths (path_0, path_1, path_2, etc.)
+	allValues := make(map[string]bool) // Use map to deduplicate
+
+	// The aggregation is wrapped in aggName ("results_buckets")
+	if resultsAgg, found := searchResult.Aggregations.Global(aggName); found {
+		// Look for path aggregations directly in results_buckets
+		for name := range resultsAgg.Aggregations {
+			if strings.HasPrefix(name, "path_") {
+				if nestedAgg, found := resultsAgg.Aggregations.Nested(name); found {
+					if filterAgg, found := nestedAgg.Aggregations.Filter("filtered_by_key"); found {
+						if valuesAgg, found := filterAgg.Aggregations.Terms("values"); found {
+							for _, bucket := range valuesAgg.Buckets {
+								if bucket.Key != nil {
+									keyStr, ok := bucket.Key.(string)
+									if !ok {
+										keyStr = fmt.Sprintf("%v", bucket.Key)
+									}
+									allValues[keyStr] = true
+								}
+							}
 						}
-						values = append(values, keyStr)
 					}
 				}
-				return values, nil
 			}
 		}
 	}
 
-	// If no aggregation was found, just return empty result
-	// Log what aggregations we found to help with debugging
-	aggValues := make([]string, 0)
-	for name := range searchResult.Aggregations {
-		aggValues = append(aggValues, name)
+	// Convert map keys to slice
+	values := make([]string, 0, len(allValues))
+	for value := range allValues {
+		values = append(values, value)
 	}
 
-	if len(aggValues) == 0 {
-		return []string{}, nil // Return empty list instead of error for better UX
-	}
-
-	return []string{}, nil // Return empty list instead of error for better UX
+	return values, nil
 }
 
 // executeSearchWithAggregation is a helper method to execute a search with an aggregation
