@@ -183,22 +183,30 @@ func (r MetricsReader) GetAttributeValues(ctx context.Context, params *metricsto
 	if resultsAgg, found := searchResult.Aggregations.Global(aggName); found {
 		// Look for path aggregations directly in results_buckets
 		for name := range resultsAgg.Aggregations {
-			if strings.HasPrefix(name, "path_") {
-				if nestedAgg, found := resultsAgg.Aggregations.Nested(name); found {
-					if filterAgg, found := nestedAgg.Aggregations.Filter("filtered_by_key"); found {
-						if valuesAgg, found := filterAgg.Aggregations.Terms("values"); found {
-							for _, bucket := range valuesAgg.Buckets {
-								if bucket.Key != nil {
-									keyStr, ok := bucket.Key.(string)
-									if !ok {
-										keyStr = fmt.Sprintf("%v", bucket.Key)
-									}
-									allValues[keyStr] = true
-								}
-							}
-						}
-					}
+			if !strings.HasPrefix(name, "path_") {
+				continue
+			}
+			nestedAgg, found := resultsAgg.Aggregations.Nested(name)
+			if !found {
+				continue
+			}
+			filterAgg, found := nestedAgg.Aggregations.Filter("filtered_by_key")
+			if !found {
+				continue
+			}
+			valuesAgg, found := filterAgg.Aggregations.Terms("values")
+			if !found {
+				continue
+			}
+			for _, bucket := range valuesAgg.Buckets {
+				if bucket.Key == nil {
+					continue
 				}
+				keyStr, ok := bucket.Key.(string)
+				if !ok {
+					keyStr = fmt.Sprintf("%v", bucket.Key)
+				}
+				allValues[keyStr] = true
 			}
 		}
 	}

@@ -1157,7 +1157,7 @@ func TestGetLabelValues(t *testing.T) {
 
 					logEntry := logs.All()[0]
 					assert.Equal(t, tc.labelName, logEntry.ContextMap()["label"])
-					assert.Equal(t, []interface{}{"warning0", "warning1"}, logEntry.ContextMap()["warnings"])
+					assert.Equal(t, []any{"warning0", "warning1"}, logEntry.ContextMap()["warnings"])
 				}
 			}
 		})

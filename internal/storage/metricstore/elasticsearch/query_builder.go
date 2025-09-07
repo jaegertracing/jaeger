@@ -131,11 +131,11 @@ func (*QueryBuilder) BuildAttributeValuesQuery(params *metricstore.AttributeValu
 
 		// Filter by the specified key
 		filterAgg := elastic.NewFilterAggregation().
-			Filter(elastic.NewTermQuery(fmt.Sprintf("%s.key", path), params.AttributeKey))
+			Filter(elastic.NewTermQuery(path+".key", params.AttributeKey))
 
 		// Get unique values
 		valuesAgg := elastic.NewTermsAggregation().
-			Field(fmt.Sprintf("%s.value", path)).
+			Field(path + ".value").
 			Size(10000)
 
 		// Chain aggregations
