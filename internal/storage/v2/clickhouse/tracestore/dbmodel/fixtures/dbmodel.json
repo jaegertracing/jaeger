@@ -23,5 +23,41 @@
       "Name": "event1",
       "Timestamp": "2023-12-25T09:53:49Z"
     }
-  ]
+  ],
+  "Attributes": {
+    "BoolAttributes": [
+      {
+        "Key": "app.payment.card_valid",
+        "Value": true
+      },
+      {
+        "Key": "app.payment.charged",
+        "Value": true
+      }
+    ],
+    "DoubleAttributes": [
+      {
+        "Key": "app.payment.amount",
+        "Value": 99.99
+      }
+    ],
+    "IntAttributes": [
+      {
+        "Key": "app.payment.count",
+        "Value": 5
+      }
+    ],
+    "StrAttributes": [
+      {
+        "Key": "app.payment.id",
+        "Value": "123456789"
+      }
+    ],
+    "BytesAttributes": [
+      {
+        "Key": "span.test.bytes.value",
+        "Value": "AQIDBAUG"
+      }
+    ]
+  }
 }
