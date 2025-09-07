@@ -165,10 +165,18 @@ determine_next_versions() {
     suggested_v2="${major_v2}.$((minor_v2 + 1)).0"
     
     echo "Current v1 version: ${current_version_v1}"
-    read -r -e -p "New v1 version: " -i "${suggested_v1}" user_version_v1
-    
-    echo "Current v2 version: ${current_version_v2}"
-    read -r -e -p "New v2 version: " -i "${suggested_v2}" user_version_v2
+    if [ -t 0 ]; then
+        # Interactive mode
+        read -r -e -p "New v1 version: " -i "${suggested_v1}" user_version_v1
+        
+        echo "Current v2 version: ${current_version_v2}"
+        read -r -e -p "New v2 version: " -i "${suggested_v2}" user_version_v2
+    else
+        # Non-interactive mode - use suggested versions
+        user_version_v1="${suggested_v1}"
+        user_version_v2="${suggested_v2}"
+        log_info "Non-interactive mode: using default versions v1=${user_version_v1}, v2=${user_version_v2}"
+    fi
     
     new_version_v1="v${user_version_v1}"
     new_version_v2="v${user_version_v2}"
