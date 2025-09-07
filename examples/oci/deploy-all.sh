@@ -70,7 +70,7 @@ fi
 if [[ "$MODE" == "local" ]]; then
 
   echo "🟣 Deploying Jaeger with local registry images..."
-  helm $HELM_JAEGER_CMD jaeger ./helm-charts/charts/jaeger \
+  helm $HELM_JAEGER_CMD --timeout 10m0s jaeger ./helm-charts/charts/jaeger \
     --set provisionDataStore.cassandra=false \
     --set allInOne.enabled=true \
     --set storage.type=memory \
@@ -86,7 +86,7 @@ if [[ "$MODE" == "local" ]]; then
     -f ./jaeger-values.yaml
 else
   echo "🟣 Deploying Jaeger..."
-  helm $HELM_JAEGER_CMD jaeger ./helm-charts/charts/jaeger \
+  helm $HELM_JAEGER_CMD --timeout 10m0s jaeger ./helm-charts/charts/jaeger \
     --set provisionDataStore.cassandra=false \
     --set allInOne.enabled=true \
     --set storage.type=memory \
