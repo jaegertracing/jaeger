@@ -30,7 +30,7 @@ const (
 		status_message,
 		duration,
 		bool_attributes.key,
-		bool_attributes.value, 
+		bool_attributes.value,
 		double_attributes.key,
 		double_attributes.value,
 		int_attributes.key,
@@ -170,16 +170,17 @@ func scanSpanRow(rows driver.Rows) (dbmodel.Span, error) {
 	}
 
 	span.Duration = time.Duration(rawDuration)
-	span.BoolAttributes = zipAttributes(boolAttributeKeys, boolAttributeValues)
-	span.DoubleAttributes = zipAttributes(doubleAttributeKeys, doubleAttributeValues)
-	span.IntAttributes = zipAttributes(intAttributeKeys, intAttributeValues)
-	span.StrAttributes = zipAttributes(strAttributeKeys, strAttributeValues)
+
+	span.Attributes.BoolAttributes = zipAttributes(boolAttributeKeys, boolAttributeValues)
+	span.Attributes.DoubleAttributes = zipAttributes(doubleAttributeKeys, doubleAttributeValues)
+	span.Attributes.IntAttributes = zipAttributes(intAttributeKeys, intAttributeValues)
+	span.Attributes.StrAttributes = zipAttributes(strAttributeKeys, strAttributeValues)
 
 	byteAttributeVals := make([][]byte, len(bytesAttributeValues))
 	for i, v := range bytesAttributeValues {
 		byteAttributeVals[i] = []byte(v)
 	}
-	span.BytesAttributes = zipAttributes(bytesAttributeKeys, byteAttributeVals)
+	span.Attributes.BytesAttributes = zipAttributes(bytesAttributeKeys, byteAttributeVals)
 
 	span.Events = buildEvents(eventNames, eventTimestamps)
 	span.Links = buildLinks(linkTraceIDs, linkSpanIDs, linkTraceStates)

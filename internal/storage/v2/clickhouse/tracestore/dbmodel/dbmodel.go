@@ -36,11 +36,7 @@ type Span struct {
 	Events []Event
 	Links  []Link
 
-	BoolAttributes   []Attribute[bool]
-	DoubleAttributes []Attribute[float64]
-	IntAttributes    []Attribute[int64]
-	StrAttributes    []Attribute[string]
-	BytesAttributes  []Attribute[[]byte]
+	Attributes Attributes
 
 	// --- Resource ---
 	// TODO: add attributes
@@ -50,6 +46,14 @@ type Span struct {
 	// TODO: add attributes
 	ScopeName    string
 	ScopeVersion string
+}
+
+type Attributes struct {
+	BoolAttributes   []Attribute[bool]
+	DoubleAttributes []Attribute[float64]
+	IntAttributes    []Attribute[int64]
+	StrAttributes    []Attribute[string]
+	BytesAttributes  []Attribute[[]byte]
 }
 
 type Attribute[T any] struct {

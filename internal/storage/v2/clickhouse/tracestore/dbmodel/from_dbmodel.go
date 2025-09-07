@@ -102,19 +102,19 @@ func convertSpan(s Span) (ptrace.Span, error) {
 	span.Status().SetCode(convertStatusCode(s.StatusCode))
 	span.Status().SetMessage(s.StatusMessage)
 
-	for _, attr := range s.BoolAttributes {
+	for _, attr := range s.Attributes.BoolAttributes {
 		span.Attributes().PutBool(attr.Key, attr.Value)
 	}
-	for _, attr := range s.DoubleAttributes {
+	for _, attr := range s.Attributes.DoubleAttributes {
 		span.Attributes().PutDouble(attr.Key, attr.Value)
 	}
-	for _, attr := range s.IntAttributes {
+	for _, attr := range s.Attributes.IntAttributes {
 		span.Attributes().PutInt(attr.Key, attr.Value)
 	}
-	for _, attr := range s.StrAttributes {
+	for _, attr := range s.Attributes.StrAttributes {
 		span.Attributes().PutStr(attr.Key, attr.Value)
 	}
-	for _, attr := range s.BytesAttributes {
+	for _, attr := range s.Attributes.BytesAttributes {
 		span.Attributes().PutEmptyBytes(attr.Key).FromRaw(attr.Value)
 	}
 
