@@ -188,11 +188,7 @@ func (qs QueryService) receiveTraces(
 			return proceed
 		}
 		for _, trace := range traces {
-			// Apply max trace size limit if configured
-			if qs.options.MaxTraceSize > 0 {
-				trace = qs.limitTraceSize(trace)
-			}
-
+			// Max trace size enforcement happens in the storage adapter (v1 adapter)
 			if !rawTraces {
 				qs.adjuster.Adjust(trace)
 			}
@@ -216,85 +212,4 @@ func (qs QueryService) receiveTraces(
 	return foundTraceIDs, proceed
 }
 
-// limitTraceSize limits the number of spans in a trace to the configured maximum.
-// If the trace exceeds the limit, it will be truncated and a warning will be added.
-func (qs QueryService) limitTraceSize(trace ptrace.Traces) ptrace.Traces {
-	totalSpans := 0
-	for i := 0; i < trace.ResourceSpans().Len(); i++ {
-		resource := trace.ResourceSpans().At(i)
-		for j := 0; j < resource.ScopeSpans().Len(); j++ {
-			scope := resource.ScopeSpans().At(j)
-			totalSpans += scope.Spans().Len()
-		}
-	}
-
-	if totalSpans <= qs.options.MaxTraceSize {
-		return trace
-	}
-
-	// Create a new trace with limited spans
-	limitedTrace := ptrace.NewTraces()
-	spansAdded := 0
-
-	for i := 0; i < trace.ResourceSpans().Len() && spansAdded < qs.options.MaxTraceSize; i++ {
-		resource := trace.ResourceSpans().At(i)
-
-		// Check if we'll keep any spans from this resource before creating it
-		resourceHasSpansToKeep := false
-		remainingSpans := qs.options.MaxTraceSize - spansAdded
-
-		// Preview if any spans will be kept from this resource
-		for j := 0; j < resource.ScopeSpans().Len() && remainingSpans > 0; j++ {
-			scope := resource.ScopeSpans().At(j)
-			spansInScope := scope.Spans().Len()
-			if spansInScope > 0 {
-				resourceHasSpansToKeep = true
-				break
-			}
-		}
-
-		// Only create a new resource if it will contain spans
-		if resourceHasSpansToKeep {
-			newResource := limitedTrace.ResourceSpans().AppendEmpty()
-			resource.Resource().CopyTo(newResource.Resource())
-
-			// Limit spans in this resource
-			for j := 0; j < resource.ScopeSpans().Len() && spansAdded < qs.options.MaxTraceSize; j++ {
-				scope := resource.ScopeSpans().At(j)
-				spans := scope.Spans()
-				spansToKeep := qs.options.MaxTraceSize - spansAdded
-				if spansToKeep > spans.Len() {
-					spansToKeep = spans.Len()
-				}
-
-				if spansToKeep > 0 {
-					newScope := newResource.ScopeSpans().AppendEmpty()
-					scope.Scope().CopyTo(newScope.Scope())
-					newScope.SetSchemaUrl(scope.SchemaUrl())
-
-					// Copy only the first spansToKeep spans
-					for k := 0; k < spansToKeep; k++ {
-						span := spans.At(k)
-						newSpan := newScope.Spans().AppendEmpty()
-						span.CopyTo(newSpan)
-						spansAdded++
-					}
-				}
-			}
-		}
-	}
-
-	// Add warning attribute to the first span
-	if limitedTrace.ResourceSpans().Len() > 0 {
-		firstResource := limitedTrace.ResourceSpans().At(0)
-		if firstResource.ScopeSpans().Len() > 0 {
-			firstScope := firstResource.ScopeSpans().At(0)
-			if firstScope.Spans().Len() > 0 {
-				firstSpan := firstScope.Spans().At(0)
-				firstSpan.Attributes().PutStr("jaeger.warning", fmt.Sprintf("Trace truncated: only first %d spans loaded (total spans: %d)", qs.options.MaxTraceSize, totalSpans))
-			}
-		}
-	}
-
-	return limitedTrace
-}
+// Note: no post-load trace truncation here; enforcement happens in storage adapter.

@@ -222,25 +222,3 @@ func TestDefaultQueryOptions(t *testing.T) {
 	require.Equal(t, ":16685", qo.GRPC.NetAddr.Endpoint)
 	require.EqualValues(t, "tcp", qo.GRPC.NetAddr.Transport)
 }
-
-func TestQueryOptionsMaxTraceSize(t *testing.T) {
-	v := viper.New()
-	v.Set(queryMaxTraceSize, 1000)
-	v.Set(queryHTTPHostPort, ":16686")
-	v.Set(queryGRPCHostPort, ":16685")
-
-	qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
-	require.NoError(t, err)
-	assert.Equal(t, 1000, qOpts.MaxTraceSize)
-}
-
-func TestQueryOptionsMaxTraceSizeDefault(t *testing.T) {
-	v := viper.New()
-	// Don't set the flag, should use default
-	v.Set(queryHTTPHostPort, ":16686")
-	v.Set(queryGRPCHostPort, ":16685")
-
-	qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
-	require.NoError(t, err)
-	assert.Equal(t, 0, qOpts.MaxTraceSize) // Use literal instead of constant for clarity
-}
