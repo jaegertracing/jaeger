@@ -21,13 +21,6 @@ copy from UI changelog
 
 </details>
 
-vNext (Unreleased)
--------------------------------
-
-### Backend Changes
-
-#### ✨ New Features
-
 * Implement max trace size parameter in query service to prevent OOM issues ([#7495](https://github.com/jaegertracing/jaeger/issues/7495))
   * Add `--query.max-trace-size` flag to limit number of spans per trace
   * Truncate large traces with warning messages when limit is exceeded
