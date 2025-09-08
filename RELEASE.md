@@ -55,7 +55,7 @@ Create an issue with the checklist for the release by running `bash scripts/rele
 
     * Manual:
        * Title "Release 2.x.x"
-       * Tag `v2.x.x` (note the `v` prefix) and choose appropriate branch (usually [main](cci:1://file:///home/soumya/open-source/jaeger/scripts/release/formatter.py:46:0-85:22))
+       * Tag `v2.x.x` (note the `v` prefix) and choose appropriate branch (usually main)
        * Copy the new CHANGELOG.md section into the release notes
        * Extra: GitHub has a button "generate release notes". Those are not formatted as we want,
          but it has a nice feature of explicitly listing first-time contributors.
