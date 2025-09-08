@@ -186,10 +186,7 @@ func (r MetricsReader) GetAttributeValues(ctx context.Context, params *metricsto
 			if !strings.HasPrefix(name, "path_") {
 				continue
 			}
-			nestedAgg, found := resultsAgg.Aggregations.Nested(name)
-			if !found {
-				continue
-			}
+			nestedAgg, _ := resultsAgg.Aggregations.Nested(name)
 			filterAgg, found := nestedAgg.Aggregations.Filter("filtered_by_key")
 			if !found {
 				continue

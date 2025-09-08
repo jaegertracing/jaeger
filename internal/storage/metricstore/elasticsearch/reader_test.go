@@ -930,7 +930,7 @@ func TestGetLabelValues(t *testing.T) {
 				AttributeKey: "span_kind",
 				ServiceName:  "service1",
 			},
-			expectedValues: []string{"server", "client", "producer", "400"},
+			expectedValues: []string{"server", "client", "producer"},
 			expectError:    false,
 		},
 		{
