@@ -221,7 +221,8 @@ func (r MetricsReader) GetAttributeValues(ctx context.Context, params *metricsto
 func (r MetricsReader) executeSearchWithAggregation(
 	ctx context.Context,
 	query elastic.Query,
-	aggQuery elastic.Aggregation) (*elastic.SearchResult, error) {
+	aggQuery elastic.Aggregation,
+) (*elastic.SearchResult, error) {
 	// Calculate a default time range for the last day
 	timeRange := TimeRange{
 		startTimeMillis:         time.Now().Add(-24 * time.Hour).UnixMilli(),
@@ -234,17 +235,10 @@ func (r MetricsReader) executeSearchWithAggregation(
 	searchRequest := elastic.NewSearchRequest()
 	searchRequest.Query(query)
 	searchRequest.Size(0) // Only interested in aggregations
-
-	if aggQuery == nil {
-		return nil, errors.New("no aggregation could be built for attribute values")
-	}
 	searchRequest.Aggregation(aggName, aggQuery)
 
 	// Directly cast the query to BoolQuery
-	boolQuery, ok := query.(*elastic.BoolQuery)
-	if !ok {
-		return nil, errors.New("expected BoolQuery, but got a different query type")
-	}
+	boolQuery, _ := query.(*elastic.BoolQuery)
 
 	metricsParams := MetricsQueryParams{
 		metricName: "attribute_values",

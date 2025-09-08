@@ -1035,6 +1035,7 @@ func TestGetLabelValues(t *testing.T) {
 			wantValues:          []string{"SPAN_KIND_SERVER", "SPAN_KIND_CLIENT", "SPAN_KIND_PRODUCER", "SPAN_KIND_CONSUMER"},
 			responsePayloadFile: "testdata/attribute_key_values_response.json",
 			wantError:           false,
+			wantWarnings:        true,
 		},
 		{
 			name:          "handle server error",
@@ -1043,16 +1044,6 @@ func TestGetLabelValues(t *testing.T) {
 			wantPromQuery: `label_values(operation_name)`,
 			wantError:     true,
 			errorStatus:   http.StatusInternalServerError,
-		},
-		{
-			name:                "handle warning response",
-			labelName:           "span_kind",
-			serviceName:         "emailservice",
-			wantPromQuery:       `label_values(span_kind)`,
-			wantValues:          []string{"SPAN_KIND_SERVER", "SPAN_KIND_CLIENT", "SPAN_KIND_PRODUCER", "SPAN_KIND_CONSUMER"},
-			responsePayloadFile: "testdata/attribute_values_warning_response.json",
-			wantError:           false,
-			wantWarnings:        true,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

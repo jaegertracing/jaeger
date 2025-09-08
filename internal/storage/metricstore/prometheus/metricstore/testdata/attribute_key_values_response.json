@@ -1,5 +1,6 @@
 {
         "status": "success",
+        "warnings": ["warning0", "warning1"],
         "data": [
             "SPAN_KIND_SERVER", 
             "SPAN_KIND_CLIENT", 
