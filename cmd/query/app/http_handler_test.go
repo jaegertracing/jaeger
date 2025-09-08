@@ -1179,7 +1179,7 @@ func TestGetLabelValues(t *testing.T) {
 	}{
 		{
 			name:      "Get span_kind values",
-			urlPath:   "/api/metrics/labels?key=span_kind&service=frontend&target=tags",
+			urlPath:   "/api/metrics/attributes?key=span_kind&service=frontend",
 			labelName: "span_kind",
 			service:   "frontend",
 		},
@@ -1223,7 +1223,7 @@ func TestGetLabelValuesError(t *testing.T) {
 			HandlerOptions.MetricsQueryService(mr),
 		}
 		ts := initializeTestServer(t, apiHandlerOptions...)
-		response, err := http.Get(ts.server.URL + "/api/metrics/labels?service=frontend")
+		response, err := http.Get(ts.server.URL + "/api/metrics/attributes?service=frontend")
 		require.NoError(t, err)
 		defer response.Body.Close()
 		body, err := io.ReadAll(response.Body)
@@ -1235,7 +1235,7 @@ func TestGetLabelValuesError(t *testing.T) {
 
 		require.Len(t, errResponse.Errors, 1)
 		assert.Equal(t, http.StatusBadRequest, errResponse.Errors[0].Code)
-		assert.Equal(t, "key is required", errResponse.Errors[0].Msg)
+		assert.Equal(t, "attribute key is required", errResponse.Errors[0].Msg)
 	})
 
 	t.Run("storage error", func(t *testing.T) {
@@ -1253,7 +1253,7 @@ func TestGetLabelValuesError(t *testing.T) {
 			}),
 		).Return(nil, errors.New("storage error")).Once()
 
-		response, err := http.Get(ts.server.URL + "/api/metrics/labels?service=frontend&key=span_kind&target=tags")
+		response, err := http.Get(ts.server.URL + "/api/metrics/attributes?service=frontend&key=span_kind&target=tags")
 		require.NoError(t, err)
 		defer response.Body.Close()
 

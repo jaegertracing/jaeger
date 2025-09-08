@@ -47,7 +47,7 @@
                 "doc_count": 10
               },
               {
-                "key": 400,
+                "key": null,
                 "doc_count": 5
               }
             ]
@@ -57,14 +57,10 @@
       "path_2": {
         "doc_count": 0,
         "filtered_by_key": {
-          "doc_count": 0,
-          "values": {
-            "doc_count_error_upper_bound": 0,
-            "sum_other_doc_count": 0,
-            "buckets": []
-          }
+          "doc_count": 0
         }
-      }
+      },
+      "path_3": {}
     }
   }
 }
