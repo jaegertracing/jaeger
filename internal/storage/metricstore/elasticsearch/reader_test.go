@@ -131,6 +131,94 @@ var mockErrorRateQuery = `{
             "buckets_path": "_count"}}}}}}
 `
 
+var mockAttributeValuesQuery = `{
+  "size": 0,
+  "query": {
+    "bool": {
+      "filter": [
+        {
+          "term": {
+            "process.serviceName": "service1"
+          }
+        }
+      ]
+    }
+  },
+  "aggs": {
+    "results_buckets": {
+      "global": {},
+      "aggs": {
+        "path_0": {
+          "nested": {
+            "path": "tag"
+          },
+          "aggs": {
+            "filtered_by_key": {
+              "filter": {
+                "term": {
+                  "tag.key": "environment"
+                }
+              },
+              "aggs": {
+                "values": {
+                  "terms": {
+                    "field": "tag.value",
+                    "size": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        "path_1": {
+          "nested": {
+            "path": "process.tag"
+          },
+          "aggs": {
+            "filtered_by_key": {
+              "filter": {
+                "term": {
+                  "process.tag.key": "environment"
+                }
+              },
+              "aggs": {
+                "values": {
+                  "terms": {
+                    "field": "process.tag.value",
+                    "size": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        "path_2": {
+          "nested": {
+            "path": "logs.fields"
+          },
+          "aggs": {
+            "filtered_by_key": {
+              "filter": {
+                "term": {
+                  "logs.fields.key": "environment"
+                }
+              },
+              "aggs": {
+                "values": {
+                  "terms": {
+                    "field": "logs.fields.value",
+                    "size": 100
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`
+
 const (
 	mockEsValidResponse           = "testdata/output_valid_es.json"
 	mockCallRateResponse          = "testdata/output_call_rate.json"
@@ -921,16 +1009,18 @@ func TestGetLabelValues(t *testing.T) {
 		responseFile   string
 		params         *metricstore.AttributeValuesQueryParameters
 		expectedValues []string
+		expectedQuery  string
 		expectError    bool
 	}{
 		{
 			name:         "successful lookup for string values",
 			responseFile: "testdata/output_attribute_key_values.json",
 			params: &metricstore.AttributeValuesQueryParameters{
-				AttributeKey: "span_kind",
+				AttributeKey: "environment",
 				ServiceName:  "service1",
 			},
 			expectedValues: []string{"server", "client", "producer"},
+			expectedQuery:  mockAttributeValuesQuery,
 			expectError:    false,
 		},
 		{
@@ -947,21 +1037,8 @@ func TestGetLabelValues(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Define a custom version of the mockServer to help debug
-			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusOK)
+			mockServer := startMockEsServer(t, tc.expectedQuery, tc.responseFile)
 
-				// Handle initial ping request
-				if r.Method == http.MethodHead || r.URL.Path == "/" {
-					sendResponse(t, w, "testdata/output_valid_es.json")
-					return
-				}
-
-				// For actual queries, send our test response
-				t.Logf("Received request for %s, returning file: %s", r.URL.Path, tc.responseFile)
-				sendResponse(t, w, tc.responseFile)
-			}))
 			defer mockServer.Close()
 
 			// Get the reader with our mock server
@@ -1139,7 +1216,25 @@ func compareBoolQuery(t *testing.T, expected, actual map[string]any) {
 
 	// Compare filters (excluding time ranges)
 	if expectedFilters, ok := expectedBool["filter"].([]any); ok {
-		actualFilters := actualBool["filter"].([]any)
+		// Handle the case where actual filter is either array or single object
+		actualFilter, exists := actualBool["filter"]
+		if !exists {
+			t.Errorf("Expected filter but not found in actual query")
+			return
+		}
+
+		// Convert to array if it's not already
+		var actualFilters []any
+		switch f := actualFilter.(type) {
+		case []any:
+			actualFilters = f
+		case map[string]any:
+			actualFilters = []any{f}
+		default:
+			t.Errorf("Filter has unexpected type: %T", f)
+			return
+		}
+
 		compareFilters(t, expectedFilters, actualFilters)
 	}
 }

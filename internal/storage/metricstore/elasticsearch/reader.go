@@ -223,11 +223,11 @@ func (r MetricsReader) executeSearchWithAggregation(
 	query elastic.Query,
 	aggQuery elastic.Aggregation,
 ) (*elastic.SearchResult, error) {
-	// Calculate a default time range for the last day
+	// Calculate a default time range for the last hour, keeping this low to reduce data volume
 	timeRange := TimeRange{
-		startTimeMillis:         time.Now().Add(-24 * time.Hour).UnixMilli(),
+		startTimeMillis:         time.Now().Add(-1 * time.Hour).UnixMilli(),
 		endTimeMillis:           time.Now().UnixMilli(),
-		extendedStartTimeMillis: time.Now().Add(-24 * time.Hour).UnixMilli(),
+		extendedStartTimeMillis: time.Now().Add(-1 * time.Hour).UnixMilli(),
 	}
 
 	// Here we'll execute using a method similar to the QueryBuilder's Execute

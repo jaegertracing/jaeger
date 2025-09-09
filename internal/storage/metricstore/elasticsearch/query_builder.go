@@ -115,6 +115,7 @@ func (*QueryBuilder) buildTimeSeriesAggQuery(params metricstore.BaseQueryParamet
 	return dateHistAgg
 }
 
+// This function builds an Elasticsearch query to fetch unique values for a specified attribute (tag), optionally filtered by a service name.
 func (*QueryBuilder) BuildAttributeValuesQuery(params *metricstore.AttributeValuesQueryParameters) (elastic.Query, elastic.Aggregation) {
 	// Create a bool query to filter by service name if provided
 	boolQuery := elastic.NewBoolQuery()
@@ -129,14 +130,13 @@ func (*QueryBuilder) BuildAttributeValuesQuery(params *metricstore.AttributeValu
 		// Create nested aggregation for each path
 		nestedAgg := elastic.NewNestedAggregation().Path(path)
 
-		// Filter by the specified key
 		filterAgg := elastic.NewFilterAggregation().
 			Filter(elastic.NewTermQuery(path+".key", params.AttributeKey))
 
 		// Get unique values
 		valuesAgg := elastic.NewTermsAggregation().
 			Field(path + ".value").
-			Size(10000)
+			Size(100)
 
 		// Chain aggregations
 		filterAgg.SubAggregation("values", valuesAgg)
