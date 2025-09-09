@@ -372,8 +372,8 @@ func TestParameterErrors(t *testing.T) {
 }
 
 func TestParseMetricsTags(t *testing.T) {
-	t.Run("simple tags only", func(t *testing.T) {
-		request, err := http.NewRequest(http.MethodGet, "x?service=foo&step=1000&tag=key1:value1,key2:value2", http.NoBody)
+	t.Run("simple tag only", func(t *testing.T) {
+		request, err := http.NewRequest(http.MethodGet, "x?service=foo&step=1000&tag=key1:value1", http.NoBody)
 		require.NoError(t, err)
 		parser := &queryParser{
 			timeNow: time.Now,
@@ -381,6 +381,18 @@ func TestParseMetricsTags(t *testing.T) {
 		mqp, err := parser.parseMetricsQueryParams(request)
 		require.NoError(t, err)
 		assert.Equal(t, time.Second, *mqp.Step)
+		assert.Equal(t, map[string]string{"key1": "value1"}, mqp.Tags)
+	})
+	t.Run("Tag json", func(t *testing.T) {
+		request, err := http.NewRequest(http.MethodGet, "x?service=foo&step=1000&tags={\"key1\":\"value1\",\"key2\":\"value2\"}", http.NoBody)
+		require.NoError(t, err)
+		parser := &queryParser{
+			timeNow: time.Now,
+		}
+		mqp, err := parser.parseMetricsQueryParams(request)
+		require.NoError(t, err)
+		assert.Equal(t, time.Second, *mqp.Step)
+		assert.Equal(t, map[string]string{"key1": "value1", "key2": "value2"}, mqp.Tags)
 	})
 	t.Run("malformed simple tag", func(t *testing.T) {
 		request, err := http.NewRequest(http.MethodGet, "x?service=foo&step=1000&tag=keyWithoutValue", http.NoBody)
@@ -390,5 +402,6 @@ func TestParseMetricsTags(t *testing.T) {
 		}
 		_, err = parser.parseMetricsQueryParams(request)
 		require.Error(t, err)
+		require.Contains(t, err.Error(), "malformed 'tag' parameter, expecting key:value, received: keyWithoutValue")
 	})
 }
