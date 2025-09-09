@@ -1015,7 +1015,7 @@ func assertMetrics(t *testing.T, gotMetrics *metrics.MetricFamily, wantLabels ma
 	assert.InDelta(t, float64(9223372036854), actualVal, 0.01)
 }
 
-func TestGetLabelValues(t *testing.T) {
+func TestGetAttributeValues(t *testing.T) {
 	for _, tc := range []struct {
 		name                string
 		labelName           string
@@ -1031,7 +1031,7 @@ func TestGetLabelValues(t *testing.T) {
 			name:                "get span_kind values for a specific service",
 			labelName:           "span_kind",
 			serviceName:         "emailservice",
-			wantPromQuery:       `label_values(span_kind)`,
+			wantPromQuery:       `attribute_name(span_kind)`,
 			wantValues:          []string{"SPAN_KIND_SERVER", "SPAN_KIND_CLIENT", "SPAN_KIND_PRODUCER", "SPAN_KIND_CONSUMER"},
 			responsePayloadFile: "testdata/attribute_key_values_response.json",
 			wantError:           false,
@@ -1041,7 +1041,7 @@ func TestGetLabelValues(t *testing.T) {
 			name:          "handle server error",
 			labelName:     "operation_name",
 			serviceName:   "frontend",
-			wantPromQuery: `label_values(operation_name)`,
+			wantPromQuery: `attribute_name(operation_name)`,
 			wantError:     true,
 			errorStatus:   http.StatusInternalServerError,
 		},

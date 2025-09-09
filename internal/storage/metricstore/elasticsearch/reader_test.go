@@ -1002,7 +1002,7 @@ func TestGetCallRateBucketsToPoints_ErrorCases(t *testing.T) {
 	}
 }
 
-func TestGetLabelValues(t *testing.T) {
+func TestGetAttributeValues(t *testing.T) {
 	// Define test cases to cover various scenarios
 	testCases := []struct {
 		name           string
@@ -1219,7 +1219,7 @@ func compareBoolQuery(t *testing.T, expected, actual map[string]any) {
 		// Handle the case where actual filter is either array or single object
 		actualFilter, exists := actualBool["filter"]
 		if !exists {
-			t.Errorf("Expected filter but not found in actual query")
+			t.Error("Expected filter but not found in actual query")
 			return
 		}
 
