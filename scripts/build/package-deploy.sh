@@ -110,9 +110,6 @@ function package {
     local -r COMPRESSION=$1
     local -r PLATFORM=$2
     local -r FILE_EXTENSION=${3:-}
-    local -r PACKAGE_NAME_V1=jaeger-${VERSION_V1}-$PLATFORM
-    local -r PACKAGE_NAME_V2=jaeger-${VERSION_V2}-$PLATFORM
-    local -r TOOLS_PACKAGE_NAME=jaeger-tools-${VERSION_V1}-$PLATFORM
 
     echo "Packaging binaries for $PLATFORM (track: $BUILD_TRACK)"
 
@@ -120,9 +117,12 @@ function package {
     
     # Add packages based on build track
     if [[ "$build_v1" == "true" ]]; then
+        local -r PACKAGE_NAME_V1=jaeger-${VERSION_V1}-$PLATFORM
+        local -r TOOLS_PACKAGE_NAME=jaeger-tools-${VERSION_V1}-$PLATFORM
         PACKAGES+=("$PACKAGE_NAME_V1" "$TOOLS_PACKAGE_NAME")
     fi
     if [[ "$build_v2" == "true" ]]; then
+        local -r PACKAGE_NAME_V2=jaeger-${VERSION_V2}-$PLATFORM
         PACKAGES+=("$PACKAGE_NAME_V2")
     fi
 
@@ -134,10 +134,13 @@ function package {
     done
     
     if [[ "$build_v1" == "true" ]]; then
+        local -r PACKAGE_NAME_V1=jaeger-${VERSION_V1}-$PLATFORM
+        local -r TOOLS_PACKAGE_NAME=jaeger-tools-${VERSION_V1}-$PLATFORM
         stage-platform-files-v1 "$PLATFORM" "$PACKAGE_NAME_V1" "$FILE_EXTENSION"
         stage-tool-platform-files "$PLATFORM" "$TOOLS_PACKAGE_NAME" "$FILE_EXTENSION"
     fi
     if [[ "$build_v2" == "true" ]]; then
+        local -r PACKAGE_NAME_V2=jaeger-${VERSION_V2}-$PLATFORM
         stage-platform-files-v2 "$PLATFORM" "$PACKAGE_NAME_V2" "$FILE_EXTENSION"
     fi
     
@@ -165,28 +168,25 @@ function package {
     done
 }
 
-# Get versions based on what we're building
+# Get versions based on what we're building and validate them
+echo "Working on track: $BUILD_TRACK"
+
 if [[ "$build_v1" == "true" ]]; then
     VERSION_V1="$(make echo-v1 | perl -lne 'print $1 if /^v(\d+.\d+.\d+)$/' )"
-fi
-if [[ "$build_v2" == "true" ]]; then
-    VERSION_V2="$(make echo-v2 | perl -lne 'print $1 if /^v(\d+.\d+.\d+(-rc\d+)?)$/' )"
-fi
-
-echo "Working on track: $BUILD_TRACK"
-if [[ "$build_v1" == "true" ]]; then
-    echo "V1 version: $VERSION_V1"
     if [ -z "$VERSION_V1" ]; then
         >&2 echo 'Failed to detect v1 version string'
         exit 1
     fi
+    echo "V1 version: $VERSION_V1"
 fi
+
 if [[ "$build_v2" == "true" ]]; then
-    echo "V2 version: $VERSION_V2"
+    VERSION_V2="$(make echo-v2 | perl -lne 'print $1 if /^v(\d+.\d+.\d+(-rc\d+)?)$/' )"
     if [ -z "$VERSION_V2" ]; then
         >&2 echo 'Failed to detect v2 version string'
         exit 1
     fi
+    echo "V2 version: $VERSION_V2"
 fi
 
 # make needed directories
