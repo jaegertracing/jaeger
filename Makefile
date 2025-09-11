@@ -12,38 +12,37 @@ LINUX_PLATFORMS=$(shell echo "$(PLATFORMS)" | tr ',' '\n' | grep linux | tr '\n'
 SRC_ROOT := $(shell git rev-parse --show-toplevel)
 
 ifeq ($(DEBUG_BINARY),)
-	DISABLE_OPTIMIZATIONS =
-	SUFFIX =
-	TARGET = release
+    DISABLE_OPTIMIZATIONS =
+    SUFFIX =
+    TARGET = release
 else
-	DISABLE_OPTIMIZATIONS = -gcflags="all=-N -l"
-	SUFFIX = -debug
-	TARGET = debug
+    DISABLE_OPTIMIZATIONS = -gcflags="all=-N -l"
+    SUFFIX = -debug
+    TARGET = debug
 endif
-
 
 # All .go files that are not auto-generated and should be auto-formatted and linted.
 ALL_SRC = $(shell find . -name '*.go' \
-				   -not -name '_*' \
-				   -not -name '.*' \
-				   -not -name 'mocks*' \
-				   -not -name '*.pb.go' \
-				   -not -path './vendor/*' \
-				   -not -path './idl/*' \
-				   -not -path './internal/tools/*' \
-				   -not -path './scripts/build/docker/debug/*' \
-				   -not -path '*/mocks/*' \
-				   -not -path '*/thrift-0.9.2/*' \
-				   -type f | \
-				sort)
+                   -not -name '_*' \
+                   -not -name '.*' \
+                   -not -name 'mocks*' \
+                   -not -name '*.pb.go' \
+                   -not -path './vendor/*' \
+                   -not -path './idl/*' \
+                   -not -path './internal/tools/*' \
+                   -not -path './scripts/build/docker/debug/*' \
+                   -not -path '*/mocks/*' \
+                   -not -path '*/thrift-0.9.2/*' \
+                   -type f | \
+                sort)
 
 # All .sh or .py or Makefile or .mk files that should be auto-formatted and linted.
 SCRIPTS_SRC = $(shell find . \( -name '*.sh' -o -name '*.py' -o -name '*.mk' -o -name 'Makefile*' -o -name 'Dockerfile*' \) \
-						-not -path './.git/*' \
-						-not -path './idl/*' \
-						-not -path './jaeger-ui/*' \
-						-type f | \
-					sort)
+                        -not -path './.git/*' \
+                        -not -path './idl/*' \
+                        -not -path './jaeger-ui/*' \
+                        -type f | \
+                    sort)
 
 # ALL_PKGS is used with 'nocover' and 'goleak'
 ALL_PKGS = $(shell echo $(dir $(ALL_SRC)) | tr ' ' '\n' | grep -v '/.*-gen/' | sort -u)
@@ -54,17 +53,17 @@ GOARCH ?= $(shell $(GO) env GOARCH)
 
 # go test does not support -race flag on s390x architecture
 ifeq ($(GOARCH), s390x)
-	RACE=
+    RACE=
 else
-	RACE=-race
+    RACE=-race
 endif
 # sed on Mac does not support the same syntax for in-place updates as sed on Linux
 # When running on MacOS it's best to install gsed and run Makefile with SED=gsed.
 # We want the actual OS here, not what GOOS may have been set to by recursive make calls.
 ifeq ($(shell GOOS= $(GO) env GOOS),darwin)
-	SED=gsed
+    SED=gsed
 else
-	SED=sed
+    SED=sed
 endif
 
 GOTEST_QUIET=$(GO) test $(RACE)
@@ -86,6 +85,24 @@ include scripts/makefiles/Protobuf.mk
 include scripts/makefiles/Tools.mk
 include scripts/makefiles/Windows.mk
 
+# TODO: Remove v1 version support after last scheduled v1 release (early 2026)
+
+# Build track selection (v2 is primary, v1 is legacy) - OVERRIDE BuildInfo.mk defaults
+BUILD_TRACK ?= v2
+
+# Override BUILD_INFO based on track (v2 is default)
+ifeq ($(BUILD_TRACK),v1)
+  BUILD_INFO := $(call buildinfoflags,V1)
+  GIT_CLOSEST_TAG := $(GIT_CLOSEST_TAG_V1)
+else
+  BUILD_INFO := $(call buildinfoflags,V2) 
+  GIT_CLOSEST_TAG := $(GIT_CLOSEST_TAG_V2)
+endif
+
+# Export for scripts
+export BUILD_TRACK
+export BUILD_INFO
+export GIT_CLOSEST_TAG
 
 .DEFAULT_GOAL := test-and-lint
 
@@ -99,6 +116,26 @@ echo-v1:
 .PHONY: echo-v2
 echo-v2:
 	@echo "$(GIT_CLOSEST_TAG_V2)"
+
+# Helper target to show current build track
+.PHONY: echo-build-track
+echo-build-track:
+	@echo "$(BUILD_TRACK)"
+
+# Helper target to show current build info
+.PHONY: echo-build-info
+echo-build-info:
+	@echo "$(BUILD_INFO)"
+
+.PHONY: debug-versions
+debug-versions:
+	@echo "BUILD_TRACK: $(BUILD_TRACK)"
+	@echo "GIT_CLOSEST_TAG_V1: $(GIT_CLOSEST_TAG_V1)"
+	@echo "GIT_CLOSEST_TAG_V2: $(GIT_CLOSEST_TAG_V2)" 
+	@echo "BUILD_INFO from V1: $(call buildinfoflags,V1)"
+	@echo "BUILD_INFO from V2: $(call buildinfoflags,V2)"
+	@echo "Selected BUILD_INFO: $(BUILD_INFO)"
+	@echo "Selected GIT_CLOSEST_TAG: $(GIT_CLOSEST_TAG)"
 
 .PHONY: echo-platforms
 echo-platforms:

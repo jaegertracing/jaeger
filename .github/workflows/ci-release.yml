@@ -31,29 +31,101 @@ on:
         type: boolean
         description: Allow overwriting artifacts.
 
+      # TODO: Remove after final v1 release (early 2026)
+      skip_v1:
+        required: false
+        type: boolean
+        default: false
+        description: Skip v1 release artifacts (v2-only release)
+
 jobs:
+  prepare-versions:
+    runs-on: ubuntu-latest
+    outputs:
+      v2_version: ${{ steps.versions.outputs.v2_version }}
+      v1_version: ${{ steps.versions.outputs.v1_version }}
+      v2_major_minor: ${{ steps.versions.outputs.v2_major_minor }}
+      v1_major_minor: ${{ steps.versions.outputs.v1_major_minor }}
+      release_v1: ${{ steps.versions.outputs.release_v1 }}
+      platforms: ${{ steps.params.outputs.platforms }}
+      docker_flags: ${{ steps.params.outputs.docker_flags }}
+      gpg_key_override: ${{ steps.params.outputs.gpg_key_override }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcb5dd907a8 # v5.0.0
+        with:
+          submodules: true
+      
+      - name: Fetch git tags
+        run: |
+          git fetch --prune --unshallow --tags
+      
+      - name: Compute versions
+        id: versions
+        run: |
+          V2_VERSION=$(make echo-v2)
+          V1_VERSION=$(make echo-v1 || echo "")
+          echo "v2_version=${V2_VERSION}" >> $GITHUB_OUTPUT
+          echo "v1_version=${V1_VERSION}" >> $GITHUB_OUTPUT
+          echo "v2_major_minor=${V2_VERSION%.*}" >> $GITHUB_OUTPUT
+          echo "v1_major_minor=${V1_VERSION%.*}" >> $GITHUB_OUTPUT
+          
+          # Determine if we should release v1 (legacy support)
+          if [[ "${{ inputs.skip_v1 }}" == "true" || -z "${V1_VERSION}" ]]; then
+            echo "release_v1=false" >> $GITHUB_OUTPUT
+          else
+            echo "release_v1=true" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Determine parameters
+        id: params
+        run: |
+          docker_flags=()
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            docker_flags=("${docker_flags[@]}" -l -p linux/amd64)
+            echo "platforms=linux/amd64" >> $GITHUB_OUTPUT
+            echo "gpg_key_override=-k skip" >> $GITHUB_OUTPUT
+          else
+            echo "platforms=$(make echo-platforms)" >> $GITHUB_OUTPUT
+          fi
+          if [[ "${{ inputs.overwrite }}" == "true" ]]; then
+            docker_flags=("${docker_flags[@]}" -o)
+          fi
+          echo "docker_flags=${docker_flags[@]}" >> $GITHUB_OUTPUT
+
   publish-release:
     permissions:
       contents: write
       deployments: write
     if: github.repository == 'jaegertracing/jaeger'
     runs-on: ubuntu-latest
+    needs: prepare-versions
+    strategy:
+      matrix:
+        include:
+          - track: v2
+            primary: true
+            version: ${{ needs.prepare-versions.outputs.v2_version }}
+            build_track: v2
+          - track: v1
+            primary: false
+            version: ${{ needs.prepare-versions.outputs.v1_version }}
+            build_track: v1
+            # Only include v1 if we're releasing it
+        exclude:
+          - track: v1
+            version: ""
 
     steps:
     - name: Clean up some disk space
-      # We had an issue where the workflow was running out of disk space,
-      # because it downloads so many Docker images for different platforms.
-      # Here we delete some stuff from the VM that we do not use.
-      # Inspired by https://github.com/jlumbroso/free-disk-space.
       run: |
         sudo rm -rf /usr/local/lib/android || true
         df -h /
 
     - uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
       with:
-        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+        egress-policy: audit
 
-    - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+    - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcb5dd907a8 # v5.0.0
       with:
         submodules: true
 
@@ -67,35 +139,13 @@ jobs:
 
     - uses: ./.github/actions/setup-node.js
 
-    - name: Determine parameters
-      id: params
+    - name: Export BRANCH variable and validate semver
       run: |
-        docker_flags=()
-        if [[ "${{ inputs.dry_run }}" == "true" ]]; then
-          docker_flags=("${docker_flags[@]}" -l -p linux/amd64)
-          echo "platforms=linux/amd64" >> $GITHUB_OUTPUT
-          echo "gpg_key_override=-k skip" >> $GITHUB_OUTPUT
-        else
-          echo "platforms=$(make echo-platforms)" >> $GITHUB_OUTPUT
-        fi
-        if [[ "${{ inputs.overwrite }}" == "true" ]]; then
-          docker_flags=("${docker_flags[@]}" -o)
-        fi
-        echo "docker_flags=${docker_flags[@]}" >> $GITHUB_OUTPUT
-        cat $GITHUB_OUTPUT
-
-    - name: Export BRANCH variable and validate it is a semver
-      # Many scripts depend on BRANCH variable. We do not want to
-      # use ./.github/actions/setup-branch here because it may set
-      # BRANCH=main when the workflow is triggered manually.
-      #
-      # TODO this currently utilizes 1.x version tag, which is ok for v1
-      # binaries, but for tools/utils we may need to change in the future.
-      run: |
-        BRANCH=$(make echo-v1)
-        echo Validate that the latest tag ${BRANCH} is in semver format
+        BRANCH=${{ matrix.version }}
+        echo "Validate that the version tag ${BRANCH} is in semver format"
         echo ${BRANCH} | grep -E '^v[0-9]+.[0-9]+.[0-9]+$'
         echo "BRANCH=${BRANCH}" >> ${GITHUB_ENV}
+        echo "BUILD_TRACK=${{ matrix.build_track }}" >> ${GITHUB_ENV}
 
     - name: Configure GPG Key
       if: ${{ inputs.dry_run != true }}
@@ -105,13 +155,16 @@ jobs:
         passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
     - name: Build all binaries
-      run: make build-all-platforms PLATFORMS=${{ steps.params.outputs.platforms }}
+      run: |
+        make build-all-platforms \
+          PLATFORMS=${{ needs.prepare-versions.outputs.platforms }} \
+          BUILD_TRACK=${{ matrix.build_track }}
 
     - name: Package binaries
       run: |
         bash scripts/build/package-deploy.sh \
-          -p ${{ steps.params.outputs.platforms }} \
-          ${{ steps.params.outputs.gpg_key_override }}
+          -p ${{ needs.prepare-versions.outputs.platforms }} \
+          ${{ needs.prepare-versions.outputs.gpg_key_override }}
 
     - name: Upload binaries
       if: ${{ inputs.dry_run != true }}
@@ -123,51 +176,44 @@ jobs:
         tag: ${{ env.BRANCH }}
         repo_token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Delete the release artifacts after uploading them.
+    - name: Delete the release artifacts after uploading them
       run: |
         rm -rf deploy || true
         df -h /
 
     - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
 
-    - name: Build and upload all container images
-      # -B skips building the binaries since we already did that above
+    - name: Build and upload container images
       run: |
         bash scripts/build/build-upload-docker-images.sh -B \
-          ${{ steps.params.outputs.docker_flags }}
+          ${{ needs.prepare-versions.outputs.docker_flags }}
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+        BUILD_TRACK: ${{ matrix.build_track }}
 
-    - name: Build, test, and publish all-in-one v1 image
+    - name: Build, test, and publish all-in-one image
       run: |
-        BRANCH=$(make echo-v1) \
+        BRANCH=${{ matrix.version }} \
         bash scripts/build/build-all-in-one-image.sh \
-          ${{ steps.params.outputs.docker_flags }} \
-          v1
+          ${{ needs.prepare-versions.outputs.docker_flags }} \
+          ${{ matrix.build_track }}
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
-    - name: Build, test, and publish v2 image
-      run: |
-        BRANCH=$(make echo-v2) \
-        bash scripts/build/build-all-in-one-image.sh \
-          ${{ steps.params.outputs.docker_flags }} \
-          v2
-      env:
-        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
-
+    # Only build hotrod on v2 (primary) to avoid duplication
     - name: Build, test, and publish hotrod image
+      if: matrix.primary == true
       run: |
         bash scripts/build/build-hotrod-image.sh \
-          ${{ steps.params.outputs.docker_flags }}
+          ${{ needs.prepare-versions.outputs.docker_flags }}
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
     - name: Generate SBOM
+      if: matrix.primary == true
       uses: anchore/sbom-action@e11c554f704a0b820cbf8c51673f6945e0731532 # v0.20.0
       with:
         output-file: jaeger-SBOM.spdx.json
@@ -175,13 +221,32 @@ jobs:
         upload-artifact: false
 
     - name: Upload SBOM
-      # Upload SBOM manually, because anchore/sbom-action does not do that
-      # when the workflow is triggered manually, only from a release.
+      if: ${{ inputs.dry_run != true && matrix.primary == true }}
       uses: svenstaro/upload-release-action@5e35e583720436a2cc5f9682b6f55657101c1ea1 # 2.11.1
-      if: ${{ inputs.dry_run != true }}
       with:
         file: jaeger-SBOM.spdx.json
         overwrite: ${{ inputs.overwrite }}
-        # TODO this will only work for 1.x artifacts
-        tag: ${{ env.BRANCH }}
+        tag: ${{ matrix.version }}
         repo_token: ${{ secrets.GITHUB_TOKEN }}
+
+  verify-artifacts:
+    runs-on: ubuntu-latest
+    needs: [prepare-versions, publish-release]
+    if: ${{ inputs.dry_run != true }}
+    steps:
+      - name: Verify v2 release exists (primary)
+        run: |
+          gh release view ${{ needs.prepare-versions.outputs.v2_version }} \
+            --repo jaegertracing/jaeger \
+            --json assets | jq -e '.assets | length > 0'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Verify v1 release exists (legacy)
+        if: needs.prepare-versions.outputs.release_v1 == 'true'
+        run: |
+          gh release view ${{ needs.prepare-versions.outputs.v1_version }} \
+            --repo jaegertracing/jaeger \
+            --json assets | jq -e '.assets | length > 0'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

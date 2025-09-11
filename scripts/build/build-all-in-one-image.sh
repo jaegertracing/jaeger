@@ -6,13 +6,13 @@
 set -euf -o pipefail
 
 print_help() {
-  echo "Usage: $0 [-b binary] [-D] [-h] [-l] [-o] [-p platforms] <jaeger_version>"
+  echo "Usage: $0 [-b binary] [-D] [-h] [-l] [-o] [-p platforms] [jaeger_version]"
   echo "  -D: Disable building of images with debugger"
   echo "  -h: Print help"
   echo "  -l: Enable local-only mode that only pushes images to local registry"
   echo "  -o: overwrite image in the target remote repository even if the semver tag already exists"
   echo "  -p: Comma-separated list of platforms to build for (default: all supported)"
-  echo "  jaeger_version:  major version, v1 | v2"
+  echo "  jaeger_version: major version, v1 | v2 (default: uses BUILD_TRACK env var or v2)"
   exit 1
 }
 
@@ -25,47 +25,50 @@ export BRANCH=${BRANCH?'env var is required'}
 export GITHUB_SHA=${GITHUB_SHA:-$(git rev-parse HEAD)}
 
 while getopts "Dhlop:" opt; do
-	case "${opt}" in
-	D)
-		add_debugger='N'
-		;;
-	l)
-		# in the local-only mode the images will only be pushed to local registry
-		FLAGS=("${FLAGS[@]}" -l)
-		;;
-	o)
-		FLAGS=("${FLAGS[@]}" -o)
-		;;
-	p)
-		platforms=${OPTARG}
-		;;
-	?)
-		print_help
-		;;
-	esac
+  case "${opt}" in
+  D)
+    add_debugger='N'
+    ;;
+  l)
+    # in the local-only mode the images will only be pushed to local registry
+    FLAGS=("${FLAGS[@]}" -l)
+    ;;
+  o)
+    FLAGS=("${FLAGS[@]}" -o)
+    ;;
+  p)
+    platforms=${OPTARG}
+    ;;
+  ?)
+    print_help
+    ;;
+  esac
 done
 
 # remove flags, leave only positional args
 shift $((OPTIND - 1))
 
-if [[ $# -eq 0 ]]; then
-  echo "Jaeger major version is required as argument"
-  print_help
-fi
+# TODO: Remove v1 support after last scheduled v1 release (early 2026)
+# Use BUILD_TRACK environment variable if set, otherwise use passed argument, default to v2
+JAEGER_VERSION=${BUILD_TRACK:-${1:-v2}}
 
-case $1 in
+echo "Building Jaeger ${JAEGER_VERSION} all-in-one image"
+
+case $JAEGER_VERSION in
   v1)
     BINARY='all-in-one'
     sampling_port=14268
     export HEALTHCHECK_V2=false
+    echo "Building v1 all-in-one image (legacy)"
     ;;
   v2)
     BINARY='jaeger'
     sampling_port=5778
     export HEALTHCHECK_V2=true
+    echo "Building v2 all-in-one image (primary)"
     ;;
   *)
-    echo "Jaeger major version is required as argument"
+    echo "ERROR: Invalid Jaeger version '${JAEGER_VERSION}'. Must be v1 or v2"
     print_help
 esac
 

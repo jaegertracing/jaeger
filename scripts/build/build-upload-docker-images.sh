@@ -21,6 +21,12 @@ build_binaries='Y'
 platforms="$(make echo-linux-platforms)"
 FLAGS=()
 
+# TODO: Remove v1 support after last scheduled v1 release (early 2026)
+# Use BUILD_TRACK environment variable, default to v2
+BUILD_TRACK=${BUILD_TRACK:-v2}
+
+echo "Building Jaeger component images for track: ${BUILD_TRACK}"
+
 while getopts "BDhlop:" opt; do
   case "${opt}" in
   B)
@@ -50,6 +56,7 @@ done
 set -x
 
 if [[ "$build_binaries" == "Y" ]]; then
+  echo "Building binaries for ${BUILD_TRACK} track"
   for platform in $(echo "$platforms" | tr ',' ' '); do
     arch=${platform##*/}  # Remove everything before the last slash
     make "build-binaries-linux-$arch"
@@ -63,6 +70,7 @@ fi
 make "$baseimg_target" LINUX_PLATFORMS="$platforms"
 
 # build/upload raw and debug images of Jaeger backend components
+echo "Building Jaeger backend component images (${BUILD_TRACK} track)"
 for component in collector query ingester remote-storage
 do
   bash scripts/build/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c "jaeger-${component}" -d "cmd/${component}" -p "${platforms}" -t release
@@ -72,11 +80,13 @@ do
   fi
 done
 
+echo "Building Jaeger utility images (${BUILD_TRACK} track)"
 bash scripts/build/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c jaeger-es-index-cleaner -d cmd/es-index-cleaner -p "${platforms}" -t release
 bash scripts/build/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c jaeger-es-rollover -d cmd/es-rollover  -p "${platforms}" -t release
 bash scripts/build/build-upload-a-docker-image.sh "${FLAGS[@]}" -c jaeger-cassandra-schema -d internal/storage/v1/cassandra/ -p "${platforms}"
 
 # build/upload images for jaeger-tracegen and jaeger-anonymizer
+echo "Building Jaeger tool images (${BUILD_TRACK} track)"
 for component in tracegen anonymizer
 do
   bash scripts/build/build-upload-a-docker-image.sh "${FLAGS[@]}" -c "jaeger-${component}" -d "cmd/${component}" -p "${platforms}"
