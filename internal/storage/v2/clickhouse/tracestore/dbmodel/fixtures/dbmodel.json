@@ -53,9 +53,9 @@
         "Value": "123456789"
       }
     ],
-    "BytesAttributes": [
+    "ComplexAttributes": [
       {
-        "Key": "span.test.bytes.value",
+        "Key": "@bytes@span.test.bytes.value",
         "Value": "AQIDBAUG"
       }
     ]
