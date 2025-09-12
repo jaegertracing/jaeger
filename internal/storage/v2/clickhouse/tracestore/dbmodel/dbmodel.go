@@ -49,11 +49,11 @@ type Span struct {
 }
 
 type Attributes struct {
-	BoolAttributes   []Attribute[bool]
-	DoubleAttributes []Attribute[float64]
-	IntAttributes    []Attribute[int64]
-	StrAttributes    []Attribute[string]
-	BytesAttributes  []Attribute[[]byte]
+	BoolAttributes    []Attribute[bool]
+	DoubleAttributes  []Attribute[float64]
+	IntAttributes     []Attribute[int64]
+	StrAttributes     []Attribute[string]
+	ComplexAttributes []Attribute[string]
 }
 
 type Attribute[T any] struct {
