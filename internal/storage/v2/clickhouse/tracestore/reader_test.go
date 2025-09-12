@@ -89,8 +89,8 @@ func scanSpanRowFn() func(dest any, src testdata.SpanRow) error {
 		if !ok {
 			return fmt.Errorf("expected []any for dest, got %T", dest)
 		}
-		if len(ptrs) != 18 {
-			return fmt.Errorf("expected 18 destination arguments, got %d", len(ptrs))
+		if len(ptrs) != 28 {
+			return fmt.Errorf("expected 28 destination arguments, got %d", len(ptrs))
 		}
 
 		values := []any{
@@ -104,6 +104,16 @@ func scanSpanRowFn() func(dest any, src testdata.SpanRow) error {
 			&src.StatusCode,
 			&src.StatusMessage,
 			&src.RawDuration,
+			&src.BoolAttributeKeys,
+			&src.BoolAttributeValues,
+			&src.DoubleAttributeKeys,
+			&src.DoubleAttributeValues,
+			&src.IntAttributeKeys,
+			&src.IntAttributeValues,
+			&src.StrAttributeKeys,
+			&src.StrAttributeValues,
+			&src.BytesAttributeKeys,
+			&src.BytesAttributeValues,
 			&src.EventNames,
 			&src.EventTimestamps,
 			&src.LinkTraceIDs,

@@ -10,7 +10,6 @@ import (
 // Span represents a single row in the ClickHouse `spans` table.
 type Span struct {
 	// --- Span ---
-	// TODO: add attributes
 	ID            string
 	TraceID       string
 	TraceState    string
@@ -37,6 +36,8 @@ type Span struct {
 	Events []Event
 	Links  []Link
 
+	Attributes Attributes
+
 	// --- Resource ---
 	// TODO: add attributes
 	ServiceName string
@@ -45,6 +46,19 @@ type Span struct {
 	// TODO: add attributes
 	ScopeName    string
 	ScopeVersion string
+}
+
+type Attributes struct {
+	BoolAttributes   []Attribute[bool]
+	DoubleAttributes []Attribute[float64]
+	IntAttributes    []Attribute[int64]
+	StrAttributes    []Attribute[string]
+	BytesAttributes  []Attribute[[]byte]
+}
+
+type Attribute[T any] struct {
+	Key   string
+	Value T
 }
 
 type Link struct {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
@@ -62,6 +63,12 @@ func TestFromDBModel_Fixtures(t *testing.T) {
 		require.Equal(t, exceptedSpan.EndTimestamp(), actualSpan.EndTimestamp(), "Span attributes mismatch")
 		require.Equal(t, exceptedSpan.Status().Code(), actualSpan.Status().Code(), "Span attributes mismatch")
 		require.Equal(t, exceptedSpan.Status().Message(), actualSpan.Status().Message(), "Span attributes mismatch")
+		exceptedSpan.Attributes().Range(func(k string, v pcommon.Value) bool {
+			actualValue, ok := actualSpan.Attributes().Get(k)
+			require.True(t, ok, "Missing attribute %s", k)
+			require.Equal(t, v, actualValue, "Attribute %s mismatch", k)
+			return true
+		})
 	})
 
 	t.Run("Events", func(t *testing.T) {
@@ -281,10 +288,10 @@ func TestConvertStatusCode(t *testing.T) {
 func TestConvertSpanKind_DefaultCase(t *testing.T) {
 	result := convertSpanKind("unknown-span-kind")
 	assert.Equal(t, ptrace.SpanKindUnspecified, result)
-	
+
 	result = convertSpanKind("")
 	assert.Equal(t, ptrace.SpanKindUnspecified, result)
-	
+
 	result = convertSpanKind("invalid")
 	assert.Equal(t, ptrace.SpanKindUnspecified, result)
 }
@@ -292,10 +299,10 @@ func TestConvertSpanKind_DefaultCase(t *testing.T) {
 func TestConvertStatusCode_DefaultCase(t *testing.T) {
 	result := convertStatusCode("Unknown")
 	assert.Equal(t, ptrace.StatusCodeUnset, result)
-	
+
 	result = convertStatusCode("")
 	assert.Equal(t, ptrace.StatusCodeUnset, result)
-	
+
 	result = convertStatusCode("Invalid")
 	assert.Equal(t, ptrace.StatusCodeUnset, result)
 }
