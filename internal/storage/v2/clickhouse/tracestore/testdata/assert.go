@@ -33,6 +33,36 @@ func RequireSpanEqual(t *testing.T, expected SpanRow, actual ptrace.Span) {
 	require.Equal(t, expected.StatusMessage, actual.Status().Message())
 	require.Equal(t, time.Duration(expected.RawDuration), actual.EndTimestamp().AsTime().Sub(actual.StartTimestamp().AsTime()))
 
+	for i, k := range expected.BoolAttributeKeys {
+		val, ok := actual.Attributes().Get(k)
+		require.True(t, ok)
+		require.Equal(t, expected.BoolAttributeValues[i], val.Bool())
+	}
+
+	for i, k := range expected.DoubleAttributeKeys {
+		val, ok := actual.Attributes().Get(k)
+		require.True(t, ok)
+		require.Equal(t, expected.DoubleAttributeValues[i], val.Double())
+	}
+
+	for i, k := range expected.IntAttributeKeys {
+		val, ok := actual.Attributes().Get(k)
+		require.True(t, ok)
+		require.Equal(t, expected.IntAttributeValues[i], val.Int())
+	}
+
+	for i, k := range expected.StrAttributeKeys {
+		val, ok := actual.Attributes().Get(k)
+		require.True(t, ok)
+		require.Equal(t, expected.StrAttributeValues[i], val.Str())
+	}
+
+	for i, k := range expected.BytesAttributeKeys {
+		val, ok := actual.Attributes().Get(k)
+		require.True(t, ok)
+		require.EqualValues(t, expected.BytesAttributeValues[i], val.Bytes().AsRaw())
+	}
+
 	require.Equal(t, actual.Events().Len(), len(expected.EventNames))
 	for i, e := range actual.Events().All() {
 		require.Equal(t, expected.EventNames[i], e.Name())
