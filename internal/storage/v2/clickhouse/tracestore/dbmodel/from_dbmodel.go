@@ -4,8 +4,10 @@
 package dbmodel
 
 import (
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -114,8 +116,16 @@ func convertSpan(s Span) (ptrace.Span, error) {
 	for _, attr := range s.Attributes.StrAttributes {
 		span.Attributes().PutStr(attr.Key, attr.Value)
 	}
-	for _, attr := range s.Attributes.BytesAttributes {
-		span.Attributes().PutEmptyBytes(attr.Key).FromRaw(attr.Value)
+	for _, attr := range s.Attributes.ComplexAttributes {
+		switch {
+		case strings.HasPrefix(attr.Key, "@bytes@"):
+			parsedKey := strings.TrimPrefix(attr.Key, "@bytes@")
+			decoded, err := base64.StdEncoding.DecodeString(attr.Value)
+			if err != nil {
+				return span, fmt.Errorf("failed to decode bytes attribute %q: %w", attr.Key, err)
+			}
+			span.Attributes().PutEmptyBytes(parsedKey).FromRaw(decoded)
+		}
 	}
 
 	return span, nil
