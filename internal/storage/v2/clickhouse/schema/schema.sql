@@ -1,3 +1,6 @@
+-- TODO: move to connection level setting in SDK --
+SET flatten_nested=0;
+
 CREATE TABLE IF NOT EXISTS spans (
     id String,
     trace_id String,
