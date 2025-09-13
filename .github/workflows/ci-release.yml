@@ -30,14 +30,6 @@ on:
         required: true
         type: boolean
         description: Allow overwriting artifacts.
-
-      # TODO: Remove after final v1 release (early 2026)
-      skip_v1:
-        required: false
-        type: boolean
-        default: false
-        description: Skip v1 release artifacts (v2-only release)
-
 jobs:
   prepare-versions:
     runs-on: ubuntu-latest
@@ -69,12 +61,12 @@ jobs:
           echo "v2_major_minor=${V2_VERSION%.*}" >> $GITHUB_OUTPUT
           echo "v1_major_minor=${V1_VERSION%.*}" >> $GITHUB_OUTPUT
           
-          # Determine if we should release v1 (legacy support)
-          if [[ "${{ inputs.skip_v1 }}" == "true" || -z "${V1_VERSION}" ]]; then
+           if [[ -z "${V1_VERSION}" ]]; then
             echo "release_v1=false" >> $GITHUB_OUTPUT
           else
             echo "release_v1=true" >> $GITHUB_OUTPUT
           fi
+
       
       - name: Determine parameters
         id: params
@@ -140,10 +132,11 @@ jobs:
     - uses: ./.github/actions/setup-node.js
 
     - name: Export BRANCH variable and validate semver
+      if: ${{ matrix.track == 'v2' || needs.prepare-versions.outputs.release_v1 == 'true' }}
       run: |
         BRANCH=${{ matrix.version }}
         echo "Validate that the version tag ${BRANCH} is in semver format"
-        echo ${BRANCH} | grep -E '^v[0-9]+.[0-9]+.[0-9]+$'
+        echo ${BRANCH} | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$'
         echo "BRANCH=${BRANCH}" >> ${GITHUB_ENV}
         echo "BUILD_TRACK=${{ matrix.build_track }}" >> ${GITHUB_ENV}
 
@@ -167,7 +160,7 @@ jobs:
           ${{ needs.prepare-versions.outputs.gpg_key_override }}
 
     - name: Upload binaries
-      if: ${{ inputs.dry_run != true }}
+      if: ${{ inputs.dry_run != true && (matrix.track == 'v2' || needs.prepare-versions.outputs.release_v1 == 'true') }}
       uses: svenstaro/upload-release-action@5e35e583720436a2cc5f9682b6f55657101c1ea1 # 2.11.1
       with:
         file: '{deploy/*.tar.gz,deploy/*.zip,deploy/*.sha256sum.txt,deploy/*.asc}'
@@ -184,6 +177,7 @@ jobs:
     - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
 
     - name: Build and upload container images
+      if: ${{ matrix.track == 'v2' || needs.prepare-versions.outputs.release_v1 == 'true' }}   
       run: |
         bash scripts/build/build-upload-docker-images.sh -B \
           ${{ needs.prepare-versions.outputs.docker_flags }}
@@ -193,6 +187,7 @@ jobs:
         BUILD_TRACK: ${{ matrix.build_track }}
 
     - name: Build, test, and publish all-in-one image
+      if: ${{ matrix.track == 'v2' || needs.prepare-versions.outputs.release_v1 == 'true' }}
       run: |
         BRANCH=${{ matrix.version }} \
         bash scripts/build/build-all-in-one-image.sh \
