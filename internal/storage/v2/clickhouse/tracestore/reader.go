@@ -126,8 +126,6 @@ func scanSpanRow(rows driver.Rows) (dbmodel.Span, error) {
 		intAttributeValues     []int64
 		strAttributeKeys       []string
 		strAttributeValues     []string
-		bytesAttributeKeys     []string
-		bytesAttributeValues   []string
 		complexAttributeKeys   []string
 		complexAttributeValues []string
 		eventNames             []string
@@ -156,8 +154,6 @@ func scanSpanRow(rows driver.Rows) (dbmodel.Span, error) {
 		&intAttributeValues,
 		&strAttributeKeys,
 		&strAttributeValues,
-		&bytesAttributeKeys,
-		&bytesAttributeValues,
 		&complexAttributeKeys,
 		&complexAttributeValues,
 		&eventNames,
