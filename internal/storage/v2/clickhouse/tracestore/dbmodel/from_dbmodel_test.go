@@ -341,7 +341,7 @@ func TestPopulateComplexAttributes(t *testing.T) {
 				},
 			},
 			expectedAttributes: map[string]pcommon.Value{},
-			expectedWarnings:   []string{"failed to decode bytes attribute \"@bytes@invalid\""},
+			expectedWarnings:   []string{"failed to decode bytes attribute \"invalid\""},
 		},
 		{
 			name: "unsupported complex attribute type",

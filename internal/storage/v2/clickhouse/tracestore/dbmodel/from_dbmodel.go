@@ -132,7 +132,7 @@ func populateComplexAttributes(span ptrace.Span, complexAttributes []Attribute[s
 			parsedKey := strings.TrimPrefix(attr.Key, "@bytes@")
 			decoded, err := base64.StdEncoding.DecodeString(attr.Value)
 			if err != nil {
-				jptrace.AddWarnings(span, fmt.Sprintf("failed to decode bytes attribute %q: %s", attr.Key, err.Error()))
+				jptrace.AddWarnings(span, fmt.Sprintf("failed to decode bytes attribute %q: %s", parsedKey, err.Error()))
 				continue
 			}
 			span.Attributes().PutEmptyBytes(parsedKey).FromRaw(decoded)
