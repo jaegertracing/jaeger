@@ -125,6 +125,9 @@ func convertSpan(s Span) (ptrace.Span, error) {
 				return span, fmt.Errorf("failed to decode bytes attribute %q: %w", attr.Key, err)
 			}
 			span.Attributes().PutEmptyBytes(parsedKey).FromRaw(decoded)
+		default:
+			// TODO: handle other complex types
+			continue
 		}
 	}
 
