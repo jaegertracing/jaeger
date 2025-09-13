@@ -4,6 +4,7 @@
 package dbmodel
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"testing"
 
@@ -305,4 +306,77 @@ func TestConvertStatusCode_DefaultCase(t *testing.T) {
 
 	result = convertStatusCode("Invalid")
 	assert.Equal(t, ptrace.StatusCodeUnset, result)
+}
+
+func TestPopulateComplexAttributes(t *testing.T) {
+	tests := []struct {
+		name               string
+		complexAttributes  []Attribute[string]
+		expectedAttributes map[string]pcommon.Value
+		expectedWarnings   []string
+	}{
+		{
+			name: "bytes attribute success",
+			complexAttributes: []Attribute[string]{
+				{
+					Key:   "@bytes@data",
+					Value: base64.StdEncoding.EncodeToString([]byte("hello world")),
+				},
+			},
+			expectedAttributes: map[string]pcommon.Value{
+				"data": func() pcommon.Value {
+					val := pcommon.NewValueBytes()
+					val.Bytes().FromRaw([]byte("hello world"))
+					return val
+				}(),
+			},
+			expectedWarnings: nil,
+		},
+		{
+			name: "invalid base64 encoding",
+			complexAttributes: []Attribute[string]{
+				{
+					Key:   "@bytes@invalid",
+					Value: "invalid-base64!",
+				},
+			},
+			expectedAttributes: map[string]pcommon.Value{},
+			expectedWarnings:   []string{"failed to decode bytes attribute \"invalid\""},
+		},
+		{
+			name: "unsupported complex attribute type",
+			complexAttributes: []Attribute[string]{
+				{
+					Key:   "@unknown@test",
+					Value: "some value",
+				},
+			},
+			expectedAttributes: map[string]pcommon.Value{},
+			expectedWarnings:   []string{"unsupported complex attribute type for key \"@unknown@test\""},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+
+			populateComplexAttributes(span, tt.complexAttributes)
+
+			for expectedKey, expectedValue := range tt.expectedAttributes {
+				actualValue, exists := span.Attributes().Get(expectedKey)
+				require.True(t, exists, "Expected attribute %s not found", expectedKey)
+				require.Equal(t, expectedValue, actualValue, "Attribute %s value mismatch", expectedKey)
+			}
+
+			actualWarnings := jptrace.GetWarnings(span)
+			if tt.expectedWarnings == nil {
+				require.Empty(t, actualWarnings, "Expected no warnings but got: %v", actualWarnings)
+			} else {
+				require.Len(t, actualWarnings, len(tt.expectedWarnings), "Warning count mismatch")
+				for i, expectedWarning := range tt.expectedWarnings {
+					require.Contains(t, actualWarnings[i], expectedWarning, "Warning %d mismatch", i)
+				}
+			}
+		})
+	}
 }

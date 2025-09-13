@@ -53,7 +53,15 @@ type Attributes struct {
 	DoubleAttributes []Attribute[float64]
 	IntAttributes    []Attribute[int64]
 	StrAttributes    []Attribute[string]
-	BytesAttributes  []Attribute[[]byte]
+	// ComplexAttributes are attributes that are not of a primitive type and hence need special handling.
+	// The following OTLP types are stored here:
+	// - AnyValue_BytesValue: This OTLP type is stored as a base64-encoded string. The key
+	// 	for this type will begin with `@bytes@`.
+	// - AnyValue_ArrayValue: This OTLP type is stored as a JSON-encoded string.
+	// 	The key for this type will begin with `@array@`.
+	// - AnyValue_KVListValue: This OTLP type is stored as a JSON-encoded string.
+	// 	The key for this type will begin with `@kvlist@`.
+	ComplexAttributes []Attribute[string]
 }
 
 type Attribute[T any] struct {

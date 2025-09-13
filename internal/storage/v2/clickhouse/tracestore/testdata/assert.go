@@ -4,6 +4,8 @@
 package testdata
 
 import (
+	"encoding/base64"
+	"strings"
 	"testing"
 	"time"
 
@@ -57,10 +59,20 @@ func RequireSpanEqual(t *testing.T, expected SpanRow, actual ptrace.Span) {
 		require.Equal(t, expected.StrAttributeValues[i], val.Str())
 	}
 
-	for i, k := range expected.BytesAttributeKeys {
-		val, ok := actual.Attributes().Get(k)
-		require.True(t, ok)
-		require.EqualValues(t, expected.BytesAttributeValues[i], val.Bytes().AsRaw())
+	for i, k := range expected.ComplexAttributeKeys {
+		switch {
+		case strings.HasPrefix(k, "@bytes@"):
+			parsedKey := strings.TrimPrefix(k, "@bytes@")
+			val, ok := actual.Attributes().Get(parsedKey)
+			require.True(t, ok)
+
+			// decode expected DB value before comparing
+			decoded, err := base64.StdEncoding.DecodeString(expected.ComplexAttributeValues[i])
+			require.NoError(t, err)
+			require.Equal(t, decoded, val.Bytes().AsRaw())
+		default:
+			require.FailNow(t, "unsupported complex attribute type", "key: %s", k)
+		}
 	}
 
 	require.Equal(t, actual.Events().Len(), len(expected.EventNames))
