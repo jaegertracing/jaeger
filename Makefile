@@ -74,8 +74,7 @@ FMT_LOG=.fmt.log
 IMPORT_LOG=.import.log
 COLORIZE ?= | $(SED) 's/PASS/✅ PASS/g' | $(SED) 's/FAIL/❌ FAIL/g' | $(SED) 's/SKIP/🔕 SKIP/g'
 
- # import other Makefiles after the variables are defined
-
+# import other Makefiles after the variables are defined
 include scripts/makefiles/BuildBinaries.mk
 include scripts/makefiles/BuildInfo.mk
 include scripts/makefiles/Crossdock.mk
@@ -86,7 +85,6 @@ include scripts/makefiles/Tools.mk
 include scripts/makefiles/Windows.mk
 
 # TODO: Remove v1 version support after last scheduled v1 release (early 2026)
-
 # Build track selection (v2 is primary, v1 is legacy) - OVERRIDE BuildInfo.mk defaults
 BUILD_TRACK ?= v2
 
@@ -95,7 +93,7 @@ ifeq ($(BUILD_TRACK),v1)
   BUILD_INFO := $(call buildinfoflags,V1)
   GIT_CLOSEST_TAG := $(GIT_CLOSEST_TAG_V1)
 else
-  BUILD_INFO := $(call buildinfoflags,V2) 
+  BUILD_INFO := $(call buildinfoflags,V2)
   GIT_CLOSEST_TAG := $(GIT_CLOSEST_TAG_V2)
 endif
 
@@ -131,7 +129,7 @@ echo-build-info:
 debug-versions:
 	@echo "BUILD_TRACK: $(BUILD_TRACK)"
 	@echo "GIT_CLOSEST_TAG_V1: $(GIT_CLOSEST_TAG_V1)"
-	@echo "GIT_CLOSEST_TAG_V2: $(GIT_CLOSEST_TAG_V2)" 
+	@echo "GIT_CLOSEST_TAG_V2: $(GIT_CLOSEST_TAG_V2)"
 	@echo "BUILD_INFO from V1: $(call buildinfoflags,V1)"
 	@echo "BUILD_INFO from V2: $(call buildinfoflags,V2)"
 	@echo "Selected BUILD_INFO: $(BUILD_INFO)"
