@@ -104,34 +104,42 @@ func convertSpan(s Span) (ptrace.Span, error) {
 	span.Status().SetCode(convertStatusCode(s.StatusCode))
 	span.Status().SetMessage(s.StatusMessage)
 
-	for _, attr := range s.Attributes.BoolAttributes {
-		span.Attributes().PutBool(attr.Key, attr.Value)
+	populateAttributes(s.Attributes, span.Attributes())
+	populateComplexAttributes(span, s.Attributes.ComplexAttributes)
+
+	return span, nil
+}
+
+func populateAttributes(storedAttributes Attributes, attributes pcommon.Map) {
+	for _, attr := range storedAttributes.BoolAttributes {
+		attributes.PutBool(attr.Key, attr.Value)
 	}
-	for _, attr := range s.Attributes.DoubleAttributes {
-		span.Attributes().PutDouble(attr.Key, attr.Value)
+	for _, attr := range storedAttributes.DoubleAttributes {
+		attributes.PutDouble(attr.Key, attr.Value)
 	}
-	for _, attr := range s.Attributes.IntAttributes {
-		span.Attributes().PutInt(attr.Key, attr.Value)
+	for _, attr := range storedAttributes.IntAttributes {
+		attributes.PutInt(attr.Key, attr.Value)
 	}
-	for _, attr := range s.Attributes.StrAttributes {
-		span.Attributes().PutStr(attr.Key, attr.Value)
+	for _, attr := range storedAttributes.StrAttributes {
+		attributes.PutStr(attr.Key, attr.Value)
 	}
-	for _, attr := range s.Attributes.ComplexAttributes {
+}
+
+func populateComplexAttributes(span ptrace.Span, complexAttributes []Attribute[string]) {
+	for _, attr := range complexAttributes {
 		switch {
 		case strings.HasPrefix(attr.Key, "@bytes@"):
 			parsedKey := strings.TrimPrefix(attr.Key, "@bytes@")
 			decoded, err := base64.StdEncoding.DecodeString(attr.Value)
 			if err != nil {
-				return span, fmt.Errorf("failed to decode bytes attribute %q: %w", attr.Key, err)
+				jptrace.AddWarnings(span, fmt.Sprintf("failed to decode bytes attribute %q: %w", attr.Key, err))
+				continue
 			}
 			span.Attributes().PutEmptyBytes(parsedKey).FromRaw(decoded)
 		default:
-			// TODO: handle other complex types
-			continue
+			jptrace.AddWarnings(span, fmt.Sprintf("unsupported complex attribute type for key %q", attr.Key))
 		}
 	}
-
-	return span, nil
 }
 
 func convertEvent(e Event) (ptrace.SpanEvent, error) {
