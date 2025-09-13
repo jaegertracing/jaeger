@@ -61,7 +61,7 @@ func RequireSpanEqual(t *testing.T, expected SpanRow, actual ptrace.Span) {
 
 	for i, k := range expected.ComplexAttributeKeys {
 		switch {
-		case strings.HasPrefix(k, "@bytes"):
+		case strings.HasPrefix(k, "@bytes@"):
 			parsedKey := strings.TrimPrefix(k, "@bytes@")
 			val, ok := actual.Attributes().Get(parsedKey)
 			require.True(t, ok)
