@@ -29,21 +29,13 @@ const (
 		status_code,
 		status_message,
 		duration,
-		bool_attributes.key,
-		bool_attributes.value,
-		double_attributes.key,
-		double_attributes.value,
-		int_attributes.key,
-		int_attributes.value,
-		str_attributes.key,
-		str_attributes.value,
-		complex_attributes.key,
-		complex_attributes.value,
-		events.name,
-		events.timestamp,
-		links.trace_id,
-		links.span_id,
-		links.trace_state,
+		bool_attributes,
+		double_attributes,
+		int_attributes,
+		str_attributes,
+		complex_attributes,
+		events,
+		links,
 		service_name,
 		scope_name,
 		scope_version
@@ -116,23 +108,15 @@ func (r *Reader) GetTraces(
 
 func scanSpanRow(rows driver.Rows) (dbmodel.Span, error) {
 	var (
-		span                   dbmodel.Span
-		rawDuration            int64
-		boolAttributeKeys      []string
-		boolAttributeValues    []bool
-		doubleAttributeKeys    []string
-		doubleAttributeValues  []float64
-		intAttributeKeys       []string
-		intAttributeValues     []int64
-		strAttributeKeys       []string
-		strAttributeValues     []string
-		complexAttributeKeys   []string
-		complexAttributeValues []string
-		eventNames             []string
-		eventTimestamps        []time.Time
-		linkTraceIDs           []string
-		linkSpanIDs            []string
-		linkTraceStates        []string
+		span              dbmodel.Span
+		rawDuration       int64
+		boolAttributes    []map[string]any
+		doubleAttributes  []map[string]any
+		intAttributes     []map[string]any
+		strAttributes     []map[string]any
+		complexAttributes []map[string]any
+		events            []map[string]any
+		links             []map[string]any
 	)
 
 	err := rows.Scan(
@@ -146,21 +130,13 @@ func scanSpanRow(rows driver.Rows) (dbmodel.Span, error) {
 		&span.StatusCode,
 		&span.StatusMessage,
 		&rawDuration,
-		&boolAttributeKeys,
-		&boolAttributeValues,
-		&doubleAttributeKeys,
-		&doubleAttributeValues,
-		&intAttributeKeys,
-		&intAttributeValues,
-		&strAttributeKeys,
-		&strAttributeValues,
-		&complexAttributeKeys,
-		&complexAttributeValues,
-		&eventNames,
-		&eventTimestamps,
-		&linkTraceIDs,
-		&linkSpanIDs,
-		&linkTraceStates,
+		&boolAttributes,
+		&doubleAttributes,
+		&intAttributes,
+		&strAttributes,
+		&complexAttributes,
+		&events,
+		&links,
 		&span.ServiceName,
 		&span.ScopeName,
 		&span.ScopeVersion,
@@ -171,14 +147,14 @@ func scanSpanRow(rows driver.Rows) (dbmodel.Span, error) {
 
 	span.Duration = time.Duration(rawDuration)
 
-	span.Attributes.BoolAttributes = zipAttributes(boolAttributeKeys, boolAttributeValues)
-	span.Attributes.DoubleAttributes = zipAttributes(doubleAttributeKeys, doubleAttributeValues)
-	span.Attributes.IntAttributes = zipAttributes(intAttributeKeys, intAttributeValues)
-	span.Attributes.StrAttributes = zipAttributes(strAttributeKeys, strAttributeValues)
-	span.Attributes.ComplexAttributes = zipAttributes(complexAttributeKeys, complexAttributeValues)
+	span.Attributes.BoolAttributes = convertAttributes[bool](boolAttributes)
+	span.Attributes.DoubleAttributes = convertAttributes[float64](doubleAttributes)
+	span.Attributes.IntAttributes = convertAttributes[int64](intAttributes)
+	span.Attributes.StrAttributes = convertAttributes[string](strAttributes)
+	span.Attributes.ComplexAttributes = convertAttributes[string](complexAttributes)
 
-	span.Events = buildEvents(eventNames, eventTimestamps)
-	span.Links = buildLinks(linkTraceIDs, linkSpanIDs, linkTraceStates)
+	span.Events = buildEvents(events)
+	span.Links = buildLinks(links)
 	return span, nil
 }
 
@@ -191,27 +167,52 @@ func zipAttributes[T any](keys []string, values []T) []dbmodel.Attribute[T] {
 	return attrs
 }
 
-func buildEvents(names []string, timestamps []time.Time) []dbmodel.Event {
+func convertAttributes[T any](storedLinks []map[string]any) []dbmodel.Attribute[T] {
+	var links []dbmodel.Attribute[T]
+	for _, attr := range storedLinks {
+		if key, ok := attr["key"].(string); ok {
+			if value, ok := attr["value"].(T); ok {
+				links = append(links, dbmodel.Attribute[T]{
+					Key:   key,
+					Value: value,
+				})
+			}
+		}
+	}
+	return links
+}
+
+func buildEvents(storedEvents []map[string]any) []dbmodel.Event {
 	var events []dbmodel.Event
-	for i := 0; i < len(names) && i < len(timestamps); i++ {
-		events = append(events, dbmodel.Event{
-			Name:      names[i],
-			Timestamp: timestamps[i],
-		})
+	for _, event := range storedEvents {
+		if name, ok := event["name"].(string); ok {
+			if timestamp, ok := event["timestamp"].(time.Time); ok {
+				events = append(events, dbmodel.Event{
+					Name:      name,
+					Timestamp: timestamp,
+				})
+			}
+		}
 	}
 	return events
 }
 
-func buildLinks(traceIDs, spanIDs, states []string) []dbmodel.Link {
-	var links []dbmodel.Link
-	for i := 0; i < len(traceIDs) && i < len(spanIDs) && i < len(states); i++ {
-		links = append(links, dbmodel.Link{
-			TraceID:    traceIDs[i],
-			SpanID:     spanIDs[i],
-			TraceState: states[i],
-		})
+func buildLinks(links []map[string]any) []dbmodel.Link {
+	var result []dbmodel.Link
+	for _, link := range links {
+		if traceID, ok := link["trace_id"].(string); ok {
+			if spanID, ok := link["span_id"].(string); ok {
+				if state, ok := link["state"].(string); ok {
+					result = append(result, dbmodel.Link{
+						TraceID:    traceID,
+						SpanID:     spanID,
+						TraceState: state,
+					})
+				}
+			}
+		}
 	}
-	return links
+	return result
 }
 
 func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
