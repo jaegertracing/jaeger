@@ -4,8 +4,10 @@
 package dbmodel
 
 import (
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -101,9 +103,43 @@ func convertSpan(s Span) (ptrace.Span, error) {
 	span.SetEndTimestamp(pcommon.NewTimestampFromTime(s.StartTime.Add(s.Duration)))
 	span.Status().SetCode(convertStatusCode(s.StatusCode))
 	span.Status().SetMessage(s.StatusMessage)
-	// TODO: populate attributes
+
+	populateAttributes(s.Attributes, span.Attributes())
+	populateComplexAttributes(span, s.Attributes.ComplexAttributes)
 
 	return span, nil
+}
+
+func populateAttributes(storedAttributes Attributes, attributes pcommon.Map) {
+	for _, attr := range storedAttributes.BoolAttributes {
+		attributes.PutBool(attr.Key, attr.Value)
+	}
+	for _, attr := range storedAttributes.DoubleAttributes {
+		attributes.PutDouble(attr.Key, attr.Value)
+	}
+	for _, attr := range storedAttributes.IntAttributes {
+		attributes.PutInt(attr.Key, attr.Value)
+	}
+	for _, attr := range storedAttributes.StrAttributes {
+		attributes.PutStr(attr.Key, attr.Value)
+	}
+}
+
+func populateComplexAttributes(span ptrace.Span, complexAttributes []Attribute[string]) {
+	for _, attr := range complexAttributes {
+		switch {
+		case strings.HasPrefix(attr.Key, "@bytes@"):
+			parsedKey := strings.TrimPrefix(attr.Key, "@bytes@")
+			decoded, err := base64.StdEncoding.DecodeString(attr.Value)
+			if err != nil {
+				jptrace.AddWarnings(span, fmt.Sprintf("failed to decode bytes attribute %q: %s", parsedKey, err.Error()))
+				continue
+			}
+			span.Attributes().PutEmptyBytes(parsedKey).FromRaw(decoded)
+		default:
+			jptrace.AddWarnings(span, fmt.Sprintf("unsupported complex attribute type for key %q", attr.Key))
+		}
+	}
 }
 
 func convertEvent(e Event) (ptrace.SpanEvent, error) {

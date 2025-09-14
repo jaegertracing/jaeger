@@ -4,11 +4,13 @@
 package dbmodel
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
@@ -62,6 +64,12 @@ func TestFromDBModel_Fixtures(t *testing.T) {
 		require.Equal(t, exceptedSpan.EndTimestamp(), actualSpan.EndTimestamp(), "Span attributes mismatch")
 		require.Equal(t, exceptedSpan.Status().Code(), actualSpan.Status().Code(), "Span attributes mismatch")
 		require.Equal(t, exceptedSpan.Status().Message(), actualSpan.Status().Message(), "Span attributes mismatch")
+		exceptedSpan.Attributes().Range(func(k string, v pcommon.Value) bool {
+			actualValue, ok := actualSpan.Attributes().Get(k)
+			require.True(t, ok, "Missing attribute %s", k)
+			require.Equal(t, v, actualValue, "Attribute %s mismatch", k)
+			return true
+		})
 	})
 
 	t.Run("Events", func(t *testing.T) {
@@ -281,10 +289,10 @@ func TestConvertStatusCode(t *testing.T) {
 func TestConvertSpanKind_DefaultCase(t *testing.T) {
 	result := convertSpanKind("unknown-span-kind")
 	assert.Equal(t, ptrace.SpanKindUnspecified, result)
-	
+
 	result = convertSpanKind("")
 	assert.Equal(t, ptrace.SpanKindUnspecified, result)
-	
+
 	result = convertSpanKind("invalid")
 	assert.Equal(t, ptrace.SpanKindUnspecified, result)
 }
@@ -292,10 +300,83 @@ func TestConvertSpanKind_DefaultCase(t *testing.T) {
 func TestConvertStatusCode_DefaultCase(t *testing.T) {
 	result := convertStatusCode("Unknown")
 	assert.Equal(t, ptrace.StatusCodeUnset, result)
-	
+
 	result = convertStatusCode("")
 	assert.Equal(t, ptrace.StatusCodeUnset, result)
-	
+
 	result = convertStatusCode("Invalid")
 	assert.Equal(t, ptrace.StatusCodeUnset, result)
+}
+
+func TestPopulateComplexAttributes(t *testing.T) {
+	tests := []struct {
+		name               string
+		complexAttributes  []Attribute[string]
+		expectedAttributes map[string]pcommon.Value
+		expectedWarnings   []string
+	}{
+		{
+			name: "bytes attribute success",
+			complexAttributes: []Attribute[string]{
+				{
+					Key:   "@bytes@data",
+					Value: base64.StdEncoding.EncodeToString([]byte("hello world")),
+				},
+			},
+			expectedAttributes: map[string]pcommon.Value{
+				"data": func() pcommon.Value {
+					val := pcommon.NewValueBytes()
+					val.Bytes().FromRaw([]byte("hello world"))
+					return val
+				}(),
+			},
+			expectedWarnings: nil,
+		},
+		{
+			name: "invalid base64 encoding",
+			complexAttributes: []Attribute[string]{
+				{
+					Key:   "@bytes@invalid",
+					Value: "invalid-base64!",
+				},
+			},
+			expectedAttributes: map[string]pcommon.Value{},
+			expectedWarnings:   []string{"failed to decode bytes attribute \"invalid\""},
+		},
+		{
+			name: "unsupported complex attribute type",
+			complexAttributes: []Attribute[string]{
+				{
+					Key:   "@unknown@test",
+					Value: "some value",
+				},
+			},
+			expectedAttributes: map[string]pcommon.Value{},
+			expectedWarnings:   []string{"unsupported complex attribute type for key \"@unknown@test\""},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+
+			populateComplexAttributes(span, tt.complexAttributes)
+
+			for expectedKey, expectedValue := range tt.expectedAttributes {
+				actualValue, exists := span.Attributes().Get(expectedKey)
+				require.True(t, exists, "Expected attribute %s not found", expectedKey)
+				require.Equal(t, expectedValue, actualValue, "Attribute %s value mismatch", expectedKey)
+			}
+
+			actualWarnings := jptrace.GetWarnings(span)
+			if tt.expectedWarnings == nil {
+				require.Empty(t, actualWarnings, "Expected no warnings but got: %v", actualWarnings)
+			} else {
+				require.Len(t, actualWarnings, len(tt.expectedWarnings), "Warning count mismatch")
+				for i, expectedWarning := range tt.expectedWarnings {
+					require.Contains(t, actualWarnings[i], expectedWarning, "Warning %d mismatch", i)
+				}
+			}
+		})
+	}
 }
