@@ -81,6 +81,12 @@ func TestFromDBModel_Fixtures(t *testing.T) {
 			actualEvent := actualEvents.At(i)
 			require.Equal(t, exceptedEvent.Name(), actualEvent.Name(), "Event attributes mismatch")
 			require.Equal(t, exceptedEvent.Timestamp(), actualEvent.Timestamp(), "Event attributes mismatch")
+			exceptedEvent.Attributes().Range(func(k string, v pcommon.Value) bool {
+				actualValue, ok := actualEvent.Attributes().Get(k)
+				require.True(t, ok, "Missing attribute %s", k)
+				require.Equal(t, v, actualValue, "Attribute %s mismatch", k)
+				return true
+			})
 		}
 	})
 
