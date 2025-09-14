@@ -41,6 +41,8 @@ const (
 		complex_attributes.value,
 		events.name,
 		events.timestamp,
+		events.bool_attributes.key,
+		events.bool_attributes.value,
 		links.trace_id,
 		links.span_id,
 		links.trace_state,
@@ -116,23 +118,33 @@ func (r *Reader) GetTraces(
 
 func scanSpanRow(rows driver.Rows) (dbmodel.Span, error) {
 	var (
-		span                   dbmodel.Span
-		rawDuration            int64
-		boolAttributeKeys      []string
-		boolAttributeValues    []bool
-		doubleAttributeKeys    []string
-		doubleAttributeValues  []float64
-		intAttributeKeys       []string
-		intAttributeValues     []int64
-		strAttributeKeys       []string
-		strAttributeValues     []string
-		complexAttributeKeys   []string
-		complexAttributeValues []string
-		eventNames             []string
-		eventTimestamps        []time.Time
-		linkTraceIDs           []string
-		linkSpanIDs            []string
-		linkTraceStates        []string
+		span                        dbmodel.Span
+		rawDuration                 int64
+		boolAttributeKeys           []string
+		boolAttributeValues         []bool
+		doubleAttributeKeys         []string
+		doubleAttributeValues       []float64
+		intAttributeKeys            []string
+		intAttributeValues          []int64
+		strAttributeKeys            []string
+		strAttributeValues          []string
+		complexAttributeKeys        []string
+		complexAttributeValues      []string
+		eventBoolAttributeKeys      [][]string
+		eventBoolAttributeValues    [][]bool
+		eventDoubleAttributeKeys    [][]string
+		eventDoubleAttributeValues  [][]float64
+		eventIntAttributeKeys       [][]string
+		eventIntAttributeValues     [][]int64
+		eventStrAttributeKeys       [][]string
+		eventStrAttributeValues     [][]string
+		eventComplexAttributeKeys   [][]string
+		eventComplexAttributeValues [][]string
+		eventNames                  []string
+		eventTimestamps             []time.Time
+		linkTraceIDs                []string
+		linkSpanIDs                 []string
+		linkTraceStates             []string
 	)
 
 	err := rows.Scan(
@@ -158,6 +170,16 @@ func scanSpanRow(rows driver.Rows) (dbmodel.Span, error) {
 		&complexAttributeValues,
 		&eventNames,
 		&eventTimestamps,
+		&eventBoolAttributeKeys,
+		&eventBoolAttributeValues,
+		&eventDoubleAttributeKeys,
+		&eventDoubleAttributeValues,
+		&eventIntAttributeKeys,
+		&eventIntAttributeValues,
+		&eventStrAttributeKeys,
+		&eventStrAttributeValues,
+		&eventComplexAttributeKeys,
+		&eventComplexAttributeValues,
 		&linkTraceIDs,
 		&linkSpanIDs,
 		&linkTraceStates,
@@ -177,7 +199,15 @@ func scanSpanRow(rows driver.Rows) (dbmodel.Span, error) {
 	span.Attributes.StrAttributes = zipAttributes(strAttributeKeys, strAttributeValues)
 	span.Attributes.ComplexAttributes = zipAttributes(complexAttributeKeys, complexAttributeValues)
 
-	span.Events = buildEvents(eventNames, eventTimestamps)
+	span.Events = buildEvents(
+		eventNames,
+		eventTimestamps,
+		eventBoolAttributeKeys, eventBoolAttributeValues,
+		eventDoubleAttributeKeys, eventDoubleAttributeValues,
+		eventIntAttributeKeys, eventIntAttributeValues,
+		eventStrAttributeKeys, eventStrAttributeValues,
+		eventComplexAttributeKeys, eventComplexAttributeValues,
+	)
 	span.Links = buildLinks(linkTraceIDs, linkSpanIDs, linkTraceStates)
 	return span, nil
 }
@@ -191,13 +221,29 @@ func zipAttributes[T any](keys []string, values []T) []dbmodel.Attribute[T] {
 	return attrs
 }
 
-func buildEvents(names []string, timestamps []time.Time) []dbmodel.Event {
+func buildEvents(
+	names []string,
+	timestamps []time.Time,
+	boolAttributeKeys [][]string, boolAttributeValues [][]bool,
+	doubleAttributeKeys [][]string, doubleAttributeValues [][]float64,
+	intAttributeKeys [][]string, intAttributeValues [][]int64,
+	strAttributeKeys [][]string, strAttributeValues [][]string,
+	complexAttributeKeys [][]string, complexAttributeValues [][]string,
+) []dbmodel.Event {
 	var events []dbmodel.Event
 	for i := 0; i < len(names) && i < len(timestamps); i++ {
-		events = append(events, dbmodel.Event{
+		event := dbmodel.Event{
 			Name:      names[i],
 			Timestamp: timestamps[i],
-		})
+			Attributes: dbmodel.Attributes{
+				BoolAttributes:    zipAttributes(boolAttributeKeys[i], boolAttributeValues[i]),
+				DoubleAttributes:  zipAttributes(doubleAttributeKeys[i], doubleAttributeValues[i]),
+				IntAttributes:     zipAttributes(intAttributeKeys[i], intAttributeValues[i]),
+				StrAttributes:     zipAttributes(strAttributeKeys[i], strAttributeValues[i]),
+				ComplexAttributes: zipAttributes(complexAttributeKeys[i], complexAttributeValues[i]),
+			},
+		}
+		events = append(events, event)
 	}
 	return events
 }
