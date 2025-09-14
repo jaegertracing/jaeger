@@ -29,6 +29,16 @@ const (
 		status_code,
 		status_message,
 		duration,
+		bool_attributes.key,
+		bool_attributes.value,
+		double_attributes.key,
+		double_attributes.value,
+		int_attributes.key,
+		int_attributes.value,
+		str_attributes.key,
+		str_attributes.value,
+		complex_attributes.key,
+		complex_attributes.value,
 		events.name,
 		events.timestamp,
 		links.trace_id,
@@ -106,13 +116,23 @@ func (r *Reader) GetTraces(
 
 func scanSpanRow(rows driver.Rows) (dbmodel.Span, error) {
 	var (
-		span            dbmodel.Span
-		rawDuration     int64
-		eventNames      []string
-		eventTimestamps []time.Time
-		linkTraceIDs    []string
-		linkSpanIDs     []string
-		linkTraceStates []string
+		span                   dbmodel.Span
+		rawDuration            int64
+		boolAttributeKeys      []string
+		boolAttributeValues    []bool
+		doubleAttributeKeys    []string
+		doubleAttributeValues  []float64
+		intAttributeKeys       []string
+		intAttributeValues     []int64
+		strAttributeKeys       []string
+		strAttributeValues     []string
+		complexAttributeKeys   []string
+		complexAttributeValues []string
+		eventNames             []string
+		eventTimestamps        []time.Time
+		linkTraceIDs           []string
+		linkSpanIDs            []string
+		linkTraceStates        []string
 	)
 
 	err := rows.Scan(
@@ -126,6 +146,16 @@ func scanSpanRow(rows driver.Rows) (dbmodel.Span, error) {
 		&span.StatusCode,
 		&span.StatusMessage,
 		&rawDuration,
+		&boolAttributeKeys,
+		&boolAttributeValues,
+		&doubleAttributeKeys,
+		&doubleAttributeValues,
+		&intAttributeKeys,
+		&intAttributeValues,
+		&strAttributeKeys,
+		&strAttributeValues,
+		&complexAttributeKeys,
+		&complexAttributeValues,
 		&eventNames,
 		&eventTimestamps,
 		&linkTraceIDs,
@@ -140,9 +170,25 @@ func scanSpanRow(rows driver.Rows) (dbmodel.Span, error) {
 	}
 
 	span.Duration = time.Duration(rawDuration)
+
+	span.Attributes.BoolAttributes = zipAttributes(boolAttributeKeys, boolAttributeValues)
+	span.Attributes.DoubleAttributes = zipAttributes(doubleAttributeKeys, doubleAttributeValues)
+	span.Attributes.IntAttributes = zipAttributes(intAttributeKeys, intAttributeValues)
+	span.Attributes.StrAttributes = zipAttributes(strAttributeKeys, strAttributeValues)
+	span.Attributes.ComplexAttributes = zipAttributes(complexAttributeKeys, complexAttributeValues)
+
 	span.Events = buildEvents(eventNames, eventTimestamps)
 	span.Links = buildLinks(linkTraceIDs, linkSpanIDs, linkTraceStates)
 	return span, nil
+}
+
+func zipAttributes[T any](keys []string, values []T) []dbmodel.Attribute[T] {
+	n := len(keys)
+	attrs := make([]dbmodel.Attribute[T], n)
+	for i := 0; i < n; i++ {
+		attrs[i] = dbmodel.Attribute[T]{Key: keys[i], Value: values[i]}
+	}
+	return attrs
 }
 
 func buildEvents(names []string, timestamps []time.Time) []dbmodel.Event {
