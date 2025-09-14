@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS spans (
     events Nested (
         name String,
         timestamp DateTime64(9),
-        bool_attributes Nested (key String, value Bool)
+        bool_attributes Nested (key String, value Bool),
         double_attributes Nested (key String, value Float64),
         int_attributes Nested (key String, value Int64),
         str_attributes Nested (key String, value String),
