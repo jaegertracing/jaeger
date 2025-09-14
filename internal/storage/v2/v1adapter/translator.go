@@ -44,31 +44,12 @@ func V1BatchesToTraces(batches []*model.Batch) ptrace.Traces {
 	return traces
 }
 
-// V1TracesFromSeq2 converts an interator of ptrace.Traces chunks into v1 traces.
-func V1TracesFromSeq2(otelSeq iter.Seq2[[]ptrace.Traces, error]) ([]*model.Trace, error) {
-	var (
-		jaegerTraces []*model.Trace
-		iterErr      error
-	)
-	jptrace.AggregateTraces(otelSeq)(func(otelTrace ptrace.Traces, err error) bool {
-		if err != nil {
-			iterErr = err
-			return false
-		}
-		jaegerTraces = append(jaegerTraces, modelTraceFromOtelTrace(otelTrace))
-		return true
-	})
-	if iterErr != nil {
-		return nil, iterErr
-	}
-	return jaegerTraces, nil
-}
-
-// V1TracesFromSeq2WithLimit converts an iterator of ptrace.Traces chunks into v1 traces
-// with a limit on the number of spans per trace. Exceeding traces are truncated with warnings.
-func V1TracesFromSeq2WithLimit(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize int) ([]*model.Trace, error) {
-	if maxTraceSize <= 0 {
-		return V1TracesFromSeq2(otelSeq)
+// V1TracesFromSeq2 converts an iterator of ptrace.Traces chunks into v1 traces.
+// If maxTraceSize > 0, traces exceeding that number of spans will be truncated with warnings.
+func V1TracesFromSeq2(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize ...int) ([]*model.Trace, error) {
+	limit := 0
+	if len(maxTraceSize) > 0 {
+		limit = maxTraceSize[0]
 	}
 
 	var (
@@ -82,17 +63,17 @@ func V1TracesFromSeq2WithLimit(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTra
 		}
 		trace := modelTraceFromOtelTrace(otelTrace)
 
-		// Check if trace exceeds the size limit
-		if len(trace.Spans) > maxTraceSize {
+		// Apply trace size limit if specified
+		if limit > 0 && len(trace.Spans) > limit {
 			originalSpanCount := len(trace.Spans)
 			// Truncate the trace to the limit
-			trace.Spans = trace.Spans[:maxTraceSize]
+			trace.Spans = trace.Spans[:limit]
 
 			// Add a warning tag to indicate truncation
 			warningTag := model.KeyValue{
 				Key:   "jaeger.warning",
 				VType: model.ValueType_STRING,
-				VStr:  fmt.Sprintf("Trace truncated: only first %d spans loaded (total spans: %d)", maxTraceSize, originalSpanCount),
+				VStr:  fmt.Sprintf("Trace truncated: only first %d spans loaded (total spans: %d)", limit, originalSpanCount),
 			}
 
 			// Add warning to the first span's tags

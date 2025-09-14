@@ -6,7 +6,6 @@ package querysvc
 import (
 	"context"
 	"errors"
-	"fmt"
 	"iter"
 	"time"
 
@@ -211,5 +210,3 @@ func (qs QueryService) receiveTraces(
 
 	return foundTraceIDs, proceed
 }
-
-// Note: no post-load trace truncation here; enforcement happens in storage adapter.

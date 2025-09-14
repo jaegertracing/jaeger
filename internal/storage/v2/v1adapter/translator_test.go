@@ -302,7 +302,7 @@ func TestV1TracesFromSeq2WithLimit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := V1TracesFromSeq2WithLimit(tt.input, tt.maxTraceSize)
+			result, err := V1TracesFromSeq2(tt.input, tt.maxTraceSize)
 
 			if tt.expectError {
 				assert.Error(t, err)

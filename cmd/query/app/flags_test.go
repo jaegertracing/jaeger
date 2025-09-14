@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configopaque"
