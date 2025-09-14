@@ -167,32 +167,24 @@ func zipAttributes[T any](keys []string, values []T) []dbmodel.Attribute[T] {
 	return attrs
 }
 
-func convertAttributes[T any](storedLinks []map[string]any) []dbmodel.Attribute[T] {
-	var links []dbmodel.Attribute[T]
-	for _, attr := range storedLinks {
-		if key, ok := attr["key"].(string); ok {
-			if value, ok := attr["value"].(T); ok {
-				links = append(links, dbmodel.Attribute[T]{
-					Key:   key,
-					Value: value,
-				})
-			}
-		}
+func convertAttributes[T any](storedAttributes []map[string]any) []dbmodel.Attribute[T] {
+	var attributes []dbmodel.Attribute[T]
+	for _, attr := range storedAttributes {
+		attributes = append(attributes, dbmodel.Attribute[T]{
+			Key:   attr["key"].(string),
+			Value: attr["value"].(T),
+		})
 	}
-	return links
+	return attributes
 }
 
 func buildEvents(storedEvents []map[string]any) []dbmodel.Event {
 	var events []dbmodel.Event
 	for _, event := range storedEvents {
-		if name, ok := event["name"].(string); ok {
-			if timestamp, ok := event["timestamp"].(time.Time); ok {
-				events = append(events, dbmodel.Event{
-					Name:      name,
-					Timestamp: timestamp,
-				})
-			}
-		}
+		events = append(events, dbmodel.Event{
+			Name:      event["name"].(string),
+			Timestamp: event["timestamp"].(time.Time),
+		})
 	}
 	return events
 }
@@ -200,17 +192,11 @@ func buildEvents(storedEvents []map[string]any) []dbmodel.Event {
 func buildLinks(links []map[string]any) []dbmodel.Link {
 	var result []dbmodel.Link
 	for _, link := range links {
-		if traceID, ok := link["trace_id"].(string); ok {
-			if spanID, ok := link["span_id"].(string); ok {
-				if state, ok := link["state"].(string); ok {
-					result = append(result, dbmodel.Link{
-						TraceID:    traceID,
-						SpanID:     spanID,
-						TraceState: state,
-					})
-				}
-			}
-		}
+		result = append(result, dbmodel.Link{
+			TraceID:    link["trace_id"].(string),
+			SpanID:     link["span_id"].(string),
+			TraceState: link["trace_state"].(string),
+		})
 	}
 	return result
 }
