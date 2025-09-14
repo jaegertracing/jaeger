@@ -270,9 +270,6 @@ After this PR is merged, follow the steps in the release issue created by \`scri
         fi
     fi
     
-    # Clean up temporary files
-    rm -f "$temp_changelog"
-    
     log_success "Release PR creation completed!"
     log_info "Next: Review and merge the created PR, then follow the steps in the release issue to complete the release."
 }
