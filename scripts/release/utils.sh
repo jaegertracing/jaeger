@@ -66,8 +66,9 @@ validate_repository() {
     
     # Validate origin points to a fork (not the official repo)
     origin_url=$(git remote get-url origin)
-    if [[ "$origin_url" == *"jaegertracing/jaeger"* ]]; then
+    if [[ "$origin_url" == *"jaegertracing/jaeger"* && "$I_AM_MAINTAINER" != "true" ]]; then
         log_error "Origin remote points to official repo. It should point to your fork: $origin_url"
+        log_error "If you are a maintainer with write access, set I_AM_MAINTAINER=true to bypass this check."
         exit 1
     fi
     

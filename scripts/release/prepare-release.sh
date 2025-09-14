@@ -101,7 +101,7 @@ main() {
     fi
     
     # Get user input for new versions
-    read -p "New v1 version: v [$suggested_v1]: " user_version_v1
+    read -p "New v1 version [$suggested_v1]: " user_version_v1
     if [[ -z "$user_version_v1" ]]; then
         user_version_v1="$suggested_v1"
     fi
@@ -109,7 +109,7 @@ main() {
         user_version_v1="v$user_version_v1"
     fi
     
-    read -p "New v2 version: v [$suggested_v2]: " user_version_v2
+    read -p "New v2 version [$suggested_v2]: " user_version_v2
     if [[ -z "$user_version_v2" ]]; then
         user_version_v2="$suggested_v2"
     fi
@@ -125,6 +125,7 @@ main() {
     # Generate changelog
     log_info "Generating changelog..."
     temp_changelog=$(mktemp)
+    trap "rm -f \"$temp_changelog\"" EXIT
     
     if make changelog > "$temp_changelog" 2>/dev/null; then
         log_success "Changelog generated successfully"
@@ -152,6 +153,13 @@ EOF
     else
         git submodule init
         git submodule update
+        
+        # Validate jaeger-ui directory exists before using pushd
+        if [[ ! -d "jaeger-ui" ]]; then
+            log_error "jaeger-ui submodule not found"
+            exit 1
+        fi
+        
         pushd jaeger-ui
         git checkout main
         git pull
