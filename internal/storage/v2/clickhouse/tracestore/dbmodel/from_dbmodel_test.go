@@ -359,11 +359,12 @@ func TestPopulateComplexAttributes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			span := ptrace.NewSpan()
+			attributes := span.Attributes()
 
-			populateComplexAttributes(span, tt.complexAttributes)
+			populateComplexAttributes(span, attributes, tt.complexAttributes)
 
 			for expectedKey, expectedValue := range tt.expectedAttributes {
-				actualValue, exists := span.Attributes().Get(expectedKey)
+				actualValue, exists := attributes.Get(expectedKey)
 				require.True(t, exists, "Expected attribute %s not found", expectedKey)
 				require.Equal(t, expectedValue, actualValue, "Attribute %s value mismatch", expectedKey)
 			}

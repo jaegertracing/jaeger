@@ -43,7 +43,7 @@ func FromDBModel(storedSpan Span) ptrace.Traces {
 
 	for i := range storedSpan.Events {
 		event := span.Events().AppendEmpty()
-		e, err := convertEvent(storedSpan.Events[i])
+		e, err := convertEvent(storedSpan.Events[i], span)
 		if err != nil {
 			jptrace.AddWarnings(span, err.Error())
 		}
@@ -105,7 +105,7 @@ func convertSpan(s Span) (ptrace.Span, error) {
 	span.Status().SetMessage(s.StatusMessage)
 
 	populateAttributes(s.Attributes, span.Attributes())
-	populateComplexAttributes(span, s.Attributes.ComplexAttributes)
+	populateComplexAttributes(span, span.Attributes(), s.Attributes.ComplexAttributes)
 
 	return span, nil
 }
@@ -125,7 +125,7 @@ func populateAttributes(storedAttributes Attributes, attributes pcommon.Map) {
 	}
 }
 
-func populateComplexAttributes(span ptrace.Span, complexAttributes []Attribute[string]) {
+func populateComplexAttributes(span ptrace.Span, attributes pcommon.Map, complexAttributes []Attribute[string]) {
 	for _, attr := range complexAttributes {
 		switch {
 		case strings.HasPrefix(attr.Key, "@bytes@"):
@@ -135,19 +135,20 @@ func populateComplexAttributes(span ptrace.Span, complexAttributes []Attribute[s
 				jptrace.AddWarnings(span, fmt.Sprintf("failed to decode bytes attribute %q: %s", parsedKey, err.Error()))
 				continue
 			}
-			span.Attributes().PutEmptyBytes(parsedKey).FromRaw(decoded)
+			attributes.PutEmptyBytes(parsedKey).FromRaw(decoded)
 		default:
 			jptrace.AddWarnings(span, fmt.Sprintf("unsupported complex attribute type for key %q", attr.Key))
 		}
 	}
 }
 
-func convertEvent(e Event) (ptrace.SpanEvent, error) {
+func convertEvent(e Event, s ptrace.Span) (ptrace.SpanEvent, error) {
 	event := ptrace.NewSpanEvent()
 	event.SetName(e.Name)
 	event.SetTimestamp(pcommon.NewTimestampFromTime(e.Timestamp))
+	populateAttributes(e.Attributes, event.Attributes())
+	populateComplexAttributes(s, event.Attributes(), e.Attributes.ComplexAttributes)
 
-	// TODO: populate attributes
 	return event, nil
 }
 
