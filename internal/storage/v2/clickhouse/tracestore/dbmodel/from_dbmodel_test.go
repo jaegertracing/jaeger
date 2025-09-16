@@ -367,7 +367,7 @@ func TestPopulateComplexAttributes(t *testing.T) {
 			span := ptrace.NewSpan()
 			attributes := span.Attributes()
 
-			populateComplexAttributes(span, attributes, tt.complexAttributes)
+			populateComplexAttributes(attributes, tt.complexAttributes, span)
 
 			for expectedKey, expectedValue := range tt.expectedAttributes {
 				actualValue, exists := attributes.Get(expectedKey)

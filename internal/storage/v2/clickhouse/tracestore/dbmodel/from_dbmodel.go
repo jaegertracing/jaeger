@@ -105,7 +105,7 @@ func convertSpan(s Span) (ptrace.Span, error) {
 	span.Status().SetMessage(s.StatusMessage)
 
 	populateAttributes(s.Attributes, span.Attributes())
-	populateComplexAttributes(span, span.Attributes(), s.Attributes.ComplexAttributes)
+	populateComplexAttributes(span.Attributes(), s.Attributes.ComplexAttributes, span)
 
 	return span, nil
 }
@@ -125,19 +125,19 @@ func populateAttributes(storedAttributes Attributes, attributes pcommon.Map) {
 	}
 }
 
-func populateComplexAttributes(span ptrace.Span, attributes pcommon.Map, complexAttributes []Attribute[string]) {
+func populateComplexAttributes(attributes pcommon.Map, complexAttributes []Attribute[string], spanForWarnings ptrace.Span) {
 	for _, attr := range complexAttributes {
 		switch {
 		case strings.HasPrefix(attr.Key, "@bytes@"):
 			parsedKey := strings.TrimPrefix(attr.Key, "@bytes@")
 			decoded, err := base64.StdEncoding.DecodeString(attr.Value)
 			if err != nil {
-				jptrace.AddWarnings(span, fmt.Sprintf("failed to decode bytes attribute %q: %s", parsedKey, err.Error()))
+				jptrace.AddWarnings(spanForWarnings, fmt.Sprintf("failed to decode bytes attribute %q: %s", parsedKey, err.Error()))
 				continue
 			}
 			attributes.PutEmptyBytes(parsedKey).FromRaw(decoded)
 		default:
-			jptrace.AddWarnings(span, fmt.Sprintf("unsupported complex attribute type for key %q", attr.Key))
+			jptrace.AddWarnings(spanForWarnings, fmt.Sprintf("unsupported complex attribute type for key %q", attr.Key))
 		}
 	}
 }
@@ -147,7 +147,7 @@ func convertEvent(e Event, s ptrace.Span) (ptrace.SpanEvent, error) {
 	event.SetName(e.Name)
 	event.SetTimestamp(pcommon.NewTimestampFromTime(e.Timestamp))
 	populateAttributes(e.Attributes, event.Attributes())
-	populateComplexAttributes(s, event.Attributes(), e.Attributes.ComplexAttributes)
+	populateComplexAttributes(event.Attributes(), e.Attributes.ComplexAttributes, s)
 
 	return event, nil
 }
