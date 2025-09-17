@@ -9,17 +9,146 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/testdata"
 )
+
+var traceID = pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1})
+
+var now = time.Date(2025, 6, 14, 10, 0, 0, 0, time.UTC)
+
+var singleSpan = []SpanRow{
+	{
+		ID:                          "0000000000000001",
+		TraceID:                     traceID.String(),
+		TraceState:                  "state1",
+		Name:                        "GET /api/user",
+		Kind:                        "Server",
+		StartTime:                   now,
+		StatusCode:                  "Ok",
+		StatusMessage:               "success",
+		RawDuration:                 1_000_000_000,
+		BoolAttributeKeys:           []string{"authenticated", "cache_hit"},
+		BoolAttributeValues:         []bool{true, false},
+		DoubleAttributeKeys:         []string{"response_time", "cpu_usage"},
+		DoubleAttributeValues:       []float64{0.123, 45.67},
+		IntAttributeKeys:            []string{"user_id", "request_size"},
+		IntAttributeValues:          []int64{12345, 1024},
+		StrAttributeKeys:            []string{"http.method", "http.url"},
+		StrAttributeValues:          []string{"GET", "/api/user"},
+		ComplexAttributeKeys:        []string{"@bytes@request_body"},
+		ComplexAttributeValues:      []string{"eyJuYW1lIjoidGVzdCJ9"},
+		EventNames:                  []string{"login"},
+		EventTimestamps:             []time.Time{now},
+		EventBoolAttributeKeys:      [][]string{{"event.authenticated", "event.cached"}},
+		EventBoolAttributeValues:    [][]bool{{true, false}},
+		EventDoubleAttributeKeys:    [][]string{{"event.response_time"}},
+		EventDoubleAttributeValues:  [][]float64{{0.001}},
+		EventIntAttributeKeys:       [][]string{{"event.sequence"}},
+		EventIntAttributeValues:     [][]int64{{1}},
+		EventStrAttributeKeys:       [][]string{{"event.message"}},
+		EventStrAttributeValues:     [][]string{{"user login successful"}},
+		EventComplexAttributeKeys:   [][]string{{"@bytes@event.payload"}},
+		EventComplexAttributeValues: [][]string{{"eyJ1c2VyX2lkIjoxMjM0NX0="}},
+		LinkTraceIDs:                []string{"00000000000000000000000000000002"},
+		LinkSpanIDs:                 []string{"0000000000000002"},
+		LinkTraceStates:             []string{"state2"},
+		ServiceName:                 "user-service",
+		ScopeName:                   "auth-scope",
+		ScopeVersion:                "v1.0.0",
+	},
+}
+
+var multipleSpans = []SpanRow{
+	{
+		ID:                          "0000000000000001",
+		TraceID:                     traceID.String(),
+		TraceState:                  "state1",
+		Name:                        "GET /api/user",
+		Kind:                        "Server",
+		StartTime:                   now,
+		StatusCode:                  "Ok",
+		StatusMessage:               "success",
+		RawDuration:                 1_000_000_000,
+		BoolAttributeKeys:           []string{"authenticated", "cache_hit"},
+		BoolAttributeValues:         []bool{true, false},
+		DoubleAttributeKeys:         []string{"response_time", "cpu_usage"},
+		DoubleAttributeValues:       []float64{0.123, 45.67},
+		IntAttributeKeys:            []string{"user_id", "request_size"},
+		IntAttributeValues:          []int64{12345, 1024},
+		StrAttributeKeys:            []string{"http.method", "http.url"},
+		StrAttributeValues:          []string{"GET", "/api/user"},
+		ComplexAttributeKeys:        []string{"@bytes@request_body"},
+		ComplexAttributeValues:      []string{"eyJuYW1lIjoidGVzdCJ9"},
+		EventNames:                  []string{"login"},
+		EventTimestamps:             []time.Time{now},
+		EventBoolAttributeKeys:      [][]string{{"event.authenticated", "event.cached"}},
+		EventBoolAttributeValues:    [][]bool{{true, false}},
+		EventDoubleAttributeKeys:    [][]string{{"event.response_time"}},
+		EventDoubleAttributeValues:  [][]float64{{0.001}},
+		EventIntAttributeKeys:       [][]string{{"event.sequence"}},
+		EventIntAttributeValues:     [][]int64{{1}},
+		EventStrAttributeKeys:       [][]string{{"event.message"}},
+		EventStrAttributeValues:     [][]string{{"user login successful"}},
+		EventComplexAttributeKeys:   [][]string{{"@bytes@event.payload"}},
+		EventComplexAttributeValues: [][]string{{"eyJ1c2VyX2lkIjoxMjM0NX0="}},
+		LinkTraceIDs:                []string{"00000000000000000000000000000002"},
+		LinkSpanIDs:                 []string{"0000000000000002"},
+		LinkTraceStates:             []string{"state2"},
+		ServiceName:                 "user-service",
+		ScopeName:                   "auth-scope",
+		ScopeVersion:                "v1.0.0",
+	},
+	{
+		ID:                          "0000000000000003",
+		TraceID:                     traceID.String(),
+		TraceState:                  "state1",
+		ParentSpanID:                "0000000000000001",
+		Name:                        "SELECT /db/query",
+		Kind:                        "Client",
+		StartTime:                   now.Add(10 * time.Millisecond),
+		StatusCode:                  "Ok",
+		StatusMessage:               "success",
+		RawDuration:                 500_000_000,
+		BoolAttributeKeys:           []string{"db.cached", "db.readonly"},
+		BoolAttributeValues:         []bool{false, true},
+		DoubleAttributeKeys:         []string{"db.latency", "db.connections"},
+		DoubleAttributeValues:       []float64{0.05, 5.0},
+		IntAttributeKeys:            []string{"db.rows_affected", "db.connection_id"},
+		IntAttributeValues:          []int64{150, 42},
+		StrAttributeKeys:            []string{"db.statement", "db.name"},
+		StrAttributeValues:          []string{"SELECT * FROM users", "userdb"},
+		ComplexAttributeKeys:        []string{"@bytes@db.query_plan"},
+		ComplexAttributeValues:      []string{"UExBTiBTRUxFQ1Q="},
+		EventNames:                  []string{"query-start", "query-end"},
+		EventTimestamps:             []time.Time{now.Add(10 * time.Millisecond), now.Add(510 * time.Millisecond)},
+		EventBoolAttributeKeys:      [][]string{{"db.optimized", "db.indexed"}, {"db.cached", "db.successful"}},
+		EventBoolAttributeValues:    [][]bool{{true, false}, {true, false}},
+		EventDoubleAttributeKeys:    [][]string{{"db.query_time"}, {"db.result_time"}},
+		EventDoubleAttributeValues:  [][]float64{{0.001}, {0.5}},
+		EventIntAttributeKeys:       [][]string{{"db.connection_pool_size"}, {"db.result_count"}},
+		EventIntAttributeValues:     [][]int64{{10}, {150}},
+		EventStrAttributeKeys:       [][]string{{"db.event.type"}, {"db.event.status"}},
+		EventStrAttributeValues:     [][]string{{"query_execution_start"}, {"query_execution_complete"}},
+		EventComplexAttributeKeys:   [][]string{{"@bytes@db.query_metadata"}, {"@bytes@db.result_metadata"}},
+		EventComplexAttributeValues: [][]string{{"eyJxdWVyeV9pZCI6MTIzfQ=="}, {"eyJyb3dfY291bnQiOjE1MH0="}},
+		LinkTraceIDs:                []string{},
+		LinkSpanIDs:                 []string{},
+		LinkTraceStates:             []string{},
+		ServiceName:                 "db-service",
+		ScopeName:                   "db-scope",
+		ScopeVersion:                "v1.0.0",
+	},
+}
 
 type testDriver struct {
 	driver.Conn
@@ -83,8 +212,8 @@ func (tr *testRows[T]) Scan(dest ...any) error {
 	return err
 }
 
-func scanSpanRowFn() func(dest any, src testdata.SpanRow) error {
-	return func(dest any, src testdata.SpanRow) error {
+func scanSpanRowFn() func(dest any, src SpanRow) error {
+	return func(dest any, src SpanRow) error {
 		ptrs, ok := dest.([]any)
 		if !ok {
 			return fmt.Errorf("expected []any for dest, got %T", dest)
@@ -144,16 +273,16 @@ func scanSpanRowFn() func(dest any, src testdata.SpanRow) error {
 func TestGetTraces_Success(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     []testdata.SpanRow
+		data     []SpanRow
 		expected []ptrace.Traces
 	}{
 		{
 			name: "single span",
-			data: testdata.SingleSpan,
+			data: singleSpan,
 		},
 		{
 			name: "multiple spans",
-			data: testdata.MultipleSpans,
+			data: multipleSpans,
 		},
 	}
 
@@ -162,7 +291,7 @@ func TestGetTraces_Success(t *testing.T) {
 			conn := &testDriver{
 				t:             t,
 				expectedQuery: sqlSelectSpansByTraceID,
-				rows: &testRows[testdata.SpanRow]{
+				rows: &testRows[SpanRow]{
 					data:   tt.data,
 					scanFn: scanSpanRowFn(),
 				},
@@ -170,12 +299,12 @@ func TestGetTraces_Success(t *testing.T) {
 
 			reader := NewReader(conn)
 			getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
-				TraceID: testdata.TraceID,
+				TraceID: traceID,
 			})
 			traces, err := jiter.FlattenWithErrors(getTracesIter)
 
 			require.NoError(t, err)
-			testdata.RequireTracesEqual(t, tt.data, traces)
+			RequireTracesEqual(t, tt.data, traces)
 		})
 	}
 }
@@ -200,8 +329,8 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 			driver: &testDriver{
 				t:             t,
 				expectedQuery: sqlSelectSpansByTraceID,
-				rows: &testRows[testdata.SpanRow]{
-					data:    testdata.SingleSpan,
+				rows: &testRows[SpanRow]{
+					data:    singleSpan,
 					scanErr: assert.AnError,
 				},
 			},
@@ -212,8 +341,8 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 			driver: &testDriver{
 				t:             t,
 				expectedQuery: sqlSelectSpansByTraceID,
-				rows: &testRows[testdata.SpanRow]{
-					data:     testdata.SingleSpan,
+				rows: &testRows[SpanRow]{
+					data:     singleSpan,
 					scanFn:   scanSpanRowFn(),
 					closeErr: assert.AnError,
 				},
@@ -226,7 +355,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			reader := NewReader(test.driver)
 			iter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
-				TraceID: testdata.TraceID,
+				TraceID: traceID,
 			})
 			_, err := jiter.FlattenWithErrors(iter)
 			require.ErrorContains(t, err, test.expectedErr)
@@ -237,7 +366,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 func TestGetTraces_ScanErrorContinues(t *testing.T) {
 	scanCalled := 0
 
-	scanFn := func(dest any, src testdata.SpanRow) error {
+	scanFn := func(dest any, src SpanRow) error {
 		scanCalled++
 		if scanCalled == 1 {
 			return assert.AnError // simulate scan error on the first row
@@ -248,24 +377,24 @@ func TestGetTraces_ScanErrorContinues(t *testing.T) {
 	conn := &testDriver{
 		t:             t,
 		expectedQuery: sqlSelectSpansByTraceID,
-		rows: &testRows[testdata.SpanRow]{
-			data:   testdata.MultipleSpans,
+		rows: &testRows[SpanRow]{
+			data:   multipleSpans,
 			scanFn: scanFn,
 		},
 	}
 
 	reader := NewReader(conn)
 	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
-		TraceID: testdata.TraceID,
+		TraceID: traceID,
 	})
 
-	expected := testdata.MultipleSpans[1:] // skip the first span which caused the error
+	expected := multipleSpans[1:] // skip the first span which caused the error
 	for trace, err := range getTracesIter {
 		if err != nil {
 			require.ErrorIs(t, err, assert.AnError)
 			continue
 		}
-		testdata.RequireTracesEqual(t, expected, trace)
+		RequireTracesEqual(t, expected, trace)
 	}
 }
 
@@ -273,15 +402,15 @@ func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	conn := &testDriver{
 		t:             t,
 		expectedQuery: sqlSelectSpansByTraceID,
-		rows: &testRows[testdata.SpanRow]{
-			data:   testdata.MultipleSpans,
+		rows: &testRows[SpanRow]{
+			data:   multipleSpans,
 			scanFn: scanSpanRowFn(),
 		},
 	}
 
 	reader := NewReader(conn)
 	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
-		TraceID: testdata.TraceID,
+		TraceID: traceID,
 	})
 
 	var gotTraces []ptrace.Traces
@@ -292,7 +421,7 @@ func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	})
 
 	require.Len(t, gotTraces, 1)
-	testdata.RequireTracesEqual(t, testdata.MultipleSpans[0:1], gotTraces)
+	RequireTracesEqual(t, multipleSpans[0:1], gotTraces)
 }
 
 func TestGetServices(t *testing.T) {
