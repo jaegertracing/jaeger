@@ -124,123 +124,123 @@ func (r *Reader) GetTraces(
 	}
 }
 
-type SpanRow struct {
-	ID                          string
-	TraceID                     string
-	TraceState                  string
-	ParentSpanID                string
-	Name                        string
-	Kind                        string
-	StartTime                   time.Time
-	StatusCode                  string
-	StatusMessage               string
-	RawDuration                 int64
-	BoolAttributeKeys           []string
-	BoolAttributeValues         []bool
-	DoubleAttributeKeys         []string
-	DoubleAttributeValues       []float64
-	IntAttributeKeys            []string
-	IntAttributeValues          []int64
-	StrAttributeKeys            []string
-	StrAttributeValues          []string
-	ComplexAttributeKeys        []string
-	ComplexAttributeValues      []string
-	EventNames                  []string
-	EventTimestamps             []time.Time
-	EventBoolAttributeKeys      [][]string
-	EventBoolAttributeValues    [][]bool
-	EventDoubleAttributeKeys    [][]string
-	EventDoubleAttributeValues  [][]float64
-	EventIntAttributeKeys       [][]string
-	EventIntAttributeValues     [][]int64
-	EventStrAttributeKeys       [][]string
-	EventStrAttributeValues     [][]string
-	EventComplexAttributeKeys   [][]string
-	EventComplexAttributeValues [][]string
-	LinkTraceIDs                []string
-	LinkSpanIDs                 []string
-	LinkTraceStates             []string
-	ServiceName                 string
-	ScopeName                   string
-	ScopeVersion                string
+type spanRow struct {
+	id                          string
+	traceID                     string
+	traceState                  string
+	parentSpanID                string
+	name                        string
+	kind                        string
+	startTime                   time.Time
+	statusCode                  string
+	statusMessage               string
+	rawDuration                 int64
+	boolAttributeKeys           []string
+	boolAttributeValues         []bool
+	doubleAttributeKeys         []string
+	doubleAttributeValues       []float64
+	intAttributeKeys            []string
+	intAttributeValues          []int64
+	strAttributeKeys            []string
+	strAttributeValues          []string
+	complexAttributeKeys        []string
+	complexAttributeValues      []string
+	eventNames                  []string
+	eventTimestamps             []time.Time
+	eventBoolAttributeKeys      [][]string
+	eventBoolAttributeValues    [][]bool
+	eventDoubleAttributeKeys    [][]string
+	eventDoubleAttributeValues  [][]float64
+	eventIntAttributeKeys       [][]string
+	eventIntAttributeValues     [][]int64
+	eventStrAttributeKeys       [][]string
+	eventStrAttributeValues     [][]string
+	eventComplexAttributeKeys   [][]string
+	eventComplexAttributeValues [][]string
+	linkTraceIDs                []string
+	linkSpanIDs                 []string
+	linkTraceStates             []string
+	serviceName                 string
+	scopeName                   string
+	scopeVersion                string
 }
 
-func (sr *SpanRow) ToDBModel() dbmodel.Span {
+func (sr *spanRow) ToDBModel() dbmodel.Span {
 	return dbmodel.Span{
-		ID:            sr.ID,
-		TraceID:       sr.TraceID,
-		TraceState:    sr.TraceState,
-		ParentSpanID:  sr.ParentSpanID,
-		Name:          sr.Name,
-		Kind:          sr.Kind,
-		StartTime:     sr.StartTime,
-		StatusCode:    sr.StatusCode,
-		StatusMessage: sr.StatusMessage,
-		Duration:      time.Duration(sr.RawDuration),
+		ID:            sr.id,
+		TraceID:       sr.traceID,
+		TraceState:    sr.traceState,
+		ParentSpanID:  sr.parentSpanID,
+		Name:          sr.name,
+		Kind:          sr.kind,
+		StartTime:     sr.startTime,
+		StatusCode:    sr.statusCode,
+		StatusMessage: sr.statusMessage,
+		Duration:      time.Duration(sr.rawDuration),
 		Attributes: dbmodel.Attributes{
-			BoolAttributes:    zipAttributes(sr.BoolAttributeKeys, sr.BoolAttributeValues),
-			DoubleAttributes:  zipAttributes(sr.DoubleAttributeKeys, sr.DoubleAttributeValues),
-			IntAttributes:     zipAttributes(sr.IntAttributeKeys, sr.IntAttributeValues),
-			StrAttributes:     zipAttributes(sr.StrAttributeKeys, sr.StrAttributeValues),
-			ComplexAttributes: zipAttributes(sr.ComplexAttributeKeys, sr.ComplexAttributeValues),
+			BoolAttributes:    zipAttributes(sr.boolAttributeKeys, sr.boolAttributeValues),
+			DoubleAttributes:  zipAttributes(sr.doubleAttributeKeys, sr.doubleAttributeValues),
+			IntAttributes:     zipAttributes(sr.intAttributeKeys, sr.intAttributeValues),
+			StrAttributes:     zipAttributes(sr.strAttributeKeys, sr.strAttributeValues),
+			ComplexAttributes: zipAttributes(sr.complexAttributeKeys, sr.complexAttributeValues),
 		},
 		Events: buildEvents(
-			sr.EventNames,
-			sr.EventTimestamps,
-			sr.EventBoolAttributeKeys, sr.EventBoolAttributeValues,
-			sr.EventDoubleAttributeKeys, sr.EventDoubleAttributeValues,
-			sr.EventIntAttributeKeys, sr.EventIntAttributeValues,
-			sr.EventStrAttributeKeys, sr.EventStrAttributeValues,
-			sr.EventComplexAttributeKeys, sr.EventComplexAttributeValues,
+			sr.eventNames,
+			sr.eventTimestamps,
+			sr.eventBoolAttributeKeys, sr.eventBoolAttributeValues,
+			sr.eventDoubleAttributeKeys, sr.eventDoubleAttributeValues,
+			sr.eventIntAttributeKeys, sr.eventIntAttributeValues,
+			sr.eventStrAttributeKeys, sr.eventStrAttributeValues,
+			sr.eventComplexAttributeKeys, sr.eventComplexAttributeValues,
 		),
-		Links:        buildLinks(sr.LinkTraceIDs, sr.LinkSpanIDs, sr.LinkTraceStates),
-		ServiceName:  sr.ServiceName,
-		ScopeName:    sr.ScopeName,
-		ScopeVersion: sr.ScopeVersion,
+		Links:        buildLinks(sr.linkTraceIDs, sr.linkSpanIDs, sr.linkTraceStates),
+		ServiceName:  sr.serviceName,
+		ScopeName:    sr.scopeName,
+		ScopeVersion: sr.scopeVersion,
 	}
 }
 
 func scanSpanRow(rows driver.Rows) (dbmodel.Span, error) {
-	var span SpanRow
+	var span spanRow
 	err := rows.Scan(
-		&span.ID,
-		&span.TraceID,
-		&span.TraceState,
-		&span.ParentSpanID,
-		&span.Name,
-		&span.Kind,
-		&span.StartTime,
-		&span.StatusCode,
-		&span.StatusMessage,
-		&span.RawDuration,
-		&span.BoolAttributeKeys,
-		&span.BoolAttributeValues,
-		&span.DoubleAttributeKeys,
-		&span.DoubleAttributeValues,
-		&span.IntAttributeKeys,
-		&span.IntAttributeValues,
-		&span.StrAttributeKeys,
-		&span.StrAttributeValues,
-		&span.ComplexAttributeKeys,
-		&span.ComplexAttributeValues,
-		&span.EventNames,
-		&span.EventTimestamps,
-		&span.EventBoolAttributeKeys,
-		&span.EventBoolAttributeValues,
-		&span.EventDoubleAttributeKeys,
-		&span.EventDoubleAttributeValues,
-		&span.EventIntAttributeKeys,
-		&span.EventIntAttributeValues,
-		&span.EventStrAttributeKeys,
-		&span.EventStrAttributeValues,
-		&span.EventComplexAttributeKeys,
-		&span.EventComplexAttributeValues,
-		&span.LinkTraceIDs,
-		&span.LinkSpanIDs,
-		&span.LinkTraceStates,
-		&span.ServiceName,
-		&span.ScopeName,
-		&span.ScopeVersion,
+		&span.id,
+		&span.traceID,
+		&span.traceState,
+		&span.parentSpanID,
+		&span.name,
+		&span.kind,
+		&span.startTime,
+		&span.statusCode,
+		&span.statusMessage,
+		&span.rawDuration,
+		&span.boolAttributeKeys,
+		&span.boolAttributeValues,
+		&span.doubleAttributeKeys,
+		&span.doubleAttributeValues,
+		&span.intAttributeKeys,
+		&span.intAttributeValues,
+		&span.strAttributeKeys,
+		&span.strAttributeValues,
+		&span.complexAttributeKeys,
+		&span.complexAttributeValues,
+		&span.eventNames,
+		&span.eventTimestamps,
+		&span.eventBoolAttributeKeys,
+		&span.eventBoolAttributeValues,
+		&span.eventDoubleAttributeKeys,
+		&span.eventDoubleAttributeValues,
+		&span.eventIntAttributeKeys,
+		&span.eventIntAttributeValues,
+		&span.eventStrAttributeKeys,
+		&span.eventStrAttributeValues,
+		&span.eventComplexAttributeKeys,
+		&span.eventComplexAttributeValues,
+		&span.linkTraceIDs,
+		&span.linkSpanIDs,
+		&span.linkTraceStates,
+		&span.serviceName,
+		&span.scopeName,
+		&span.scopeVersion,
 	)
 	if err != nil {
 		return dbmodel.Span{}, err
