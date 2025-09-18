@@ -14,7 +14,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
-func requireTracesEqual(t *testing.T, expected []spanRow, actual []ptrace.Traces) {
+func requireTracesEqual(t *testing.T, expected []*spanRow, actual []ptrace.Traces) {
 	t.Helper()
 
 	require.Len(t, actual, len(expected))
@@ -34,14 +34,14 @@ func requireTracesEqual(t *testing.T, expected []spanRow, actual []ptrace.Traces
 	}
 }
 
-func requireScopeEqual(t *testing.T, expected spanRow, actual pcommon.InstrumentationScope) {
+func requireScopeEqual(t *testing.T, expected *spanRow, actual pcommon.InstrumentationScope) {
 	t.Helper()
 
 	require.Equal(t, expected.scopeName, actual.Name())
 	require.Equal(t, expected.scopeVersion, actual.Version())
 }
 
-func requireSpanEqual(t *testing.T, expected spanRow, actual ptrace.Span) {
+func requireSpanEqual(t *testing.T, expected *spanRow, actual ptrace.Span) {
 	t.Helper()
 
 	require.Equal(t, expected.id, actual.SpanID().String())
@@ -61,7 +61,7 @@ func requireSpanEqual(t *testing.T, expected spanRow, actual ptrace.Span) {
 	requireStrAttrs(t, expected.strAttributeKeys, expected.strAttributeValues, actual.Attributes())
 	requireComplexAttrs(t, expected.complexAttributeKeys, expected.complexAttributeValues, actual.Attributes())
 
-	require.Equal(t, actual.Events().Len(), len(expected.eventNames))
+	require.Len(t, expected.eventNames, actual.Events().Len())
 	for i, e := range actual.Events().All() {
 		require.Equal(t, expected.eventNames[i], e.Name())
 		require.Equal(t, expected.eventTimestamps[i].UnixNano(), e.Timestamp().AsTime().UnixNano())
@@ -73,7 +73,7 @@ func requireSpanEqual(t *testing.T, expected spanRow, actual ptrace.Span) {
 		requireComplexAttrs(t, expected.eventComplexAttributeKeys[i], expected.eventComplexAttributeValues[i], e.Attributes())
 	}
 
-	require.Equal(t, actual.Links().Len(), len(expected.linkSpanIDs))
+	require.Len(t, expected.linkSpanIDs, actual.Links().Len())
 	for i, l := range actual.Links().All() {
 		require.Equal(t, expected.linkTraceIDs[i], l.TraceID().String())
 		require.Equal(t, expected.linkSpanIDs[i], l.SpanID().String())
@@ -93,7 +93,7 @@ func requireDoubleAttrs(t *testing.T, expectedKeys []string, expectedVals []floa
 	for i, k := range expectedKeys {
 		val, ok := attrs.Get(k)
 		require.True(t, ok)
-		require.Equal(t, expectedVals[i], val.Double())
+		require.InEpsilon(t, expectedVals[i], val.Double(), 1e-9)
 	}
 }
 
@@ -122,6 +122,8 @@ func requireComplexAttrs(t *testing.T, expectedKeys []string, expectedVals []str
 			require.True(t, ok)
 			encoded := base64.StdEncoding.EncodeToString(val.Bytes().AsRaw())
 			require.Equal(t, expectedVals[i], encoded)
+		default:
+			t.Fatalf("unsupported complex attribute key: %s", k)
 		}
 	}
 }

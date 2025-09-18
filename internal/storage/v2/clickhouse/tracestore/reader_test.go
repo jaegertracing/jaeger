@@ -26,8 +26,8 @@ var traceID = pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 
 var now = time.Date(2025, 6, 14, 10, 0, 0, 0, time.UTC)
 
-var singleSpan = []spanRow{
-	{
+var singleSpan = []*spanRow{
+	&spanRow{
 		id:                          "0000000000000001",
 		traceID:                     traceID.String(),
 		traceState:                  "state1",
@@ -68,8 +68,8 @@ var singleSpan = []spanRow{
 	},
 }
 
-var multipleSpans = []spanRow{
-	{
+var multipleSpans = []*spanRow{
+	&spanRow{
 		id:                          "0000000000000001",
 		traceID:                     traceID.String(),
 		traceState:                  "state1",
@@ -108,7 +108,7 @@ var multipleSpans = []spanRow{
 		scopeName:                   "auth-scope",
 		scopeVersion:                "v1.0.0",
 	},
-	{
+	&spanRow{
 		id:                          "0000000000000003",
 		traceID:                     traceID.String(),
 		traceState:                  "state1",
@@ -212,8 +212,8 @@ func (tr *testRows[T]) Scan(dest ...any) error {
 	return err
 }
 
-func scanSpanRowFn() func(dest any, src spanRow) error {
-	return func(dest any, src spanRow) error {
+func scanSpanRowFn() func(dest any, src *spanRow) error {
+	return func(dest any, src *spanRow) error {
 		ptrs, ok := dest.([]any)
 		if !ok {
 			return fmt.Errorf("expected []any for dest, got %T", dest)
@@ -273,7 +273,7 @@ func scanSpanRowFn() func(dest any, src spanRow) error {
 func TestGetTraces_Success(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     []spanRow
+		data     []*spanRow
 		expected []ptrace.Traces
 	}{
 		{
@@ -291,7 +291,7 @@ func TestGetTraces_Success(t *testing.T) {
 			conn := &testDriver{
 				t:             t,
 				expectedQuery: sqlSelectSpansByTraceID,
-				rows: &testRows[spanRow]{
+				rows: &testRows[*spanRow]{
 					data:   tt.data,
 					scanFn: scanSpanRowFn(),
 				},
@@ -329,7 +329,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 			driver: &testDriver{
 				t:             t,
 				expectedQuery: sqlSelectSpansByTraceID,
-				rows: &testRows[spanRow]{
+				rows: &testRows[*spanRow]{
 					data:    singleSpan,
 					scanErr: assert.AnError,
 				},
@@ -341,7 +341,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 			driver: &testDriver{
 				t:             t,
 				expectedQuery: sqlSelectSpansByTraceID,
-				rows: &testRows[spanRow]{
+				rows: &testRows[*spanRow]{
 					data:     singleSpan,
 					scanFn:   scanSpanRowFn(),
 					closeErr: assert.AnError,
@@ -366,7 +366,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 func TestGetTraces_ScanErrorContinues(t *testing.T) {
 	scanCalled := 0
 
-	scanFn := func(dest any, src spanRow) error {
+	scanFn := func(dest any, src *spanRow) error {
 		scanCalled++
 		if scanCalled == 1 {
 			return assert.AnError // simulate scan error on the first row
@@ -377,7 +377,7 @@ func TestGetTraces_ScanErrorContinues(t *testing.T) {
 	conn := &testDriver{
 		t:             t,
 		expectedQuery: sqlSelectSpansByTraceID,
-		rows: &testRows[spanRow]{
+		rows: &testRows[*spanRow]{
 			data:   multipleSpans,
 			scanFn: scanFn,
 		},
@@ -402,7 +402,7 @@ func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	conn := &testDriver{
 		t:             t,
 		expectedQuery: sqlSelectSpansByTraceID,
-		rows: &testRows[spanRow]{
+		rows: &testRows[*spanRow]{
 			data:   multipleSpans,
 			scanFn: scanSpanRowFn(),
 		},
