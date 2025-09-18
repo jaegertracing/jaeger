@@ -4,6 +4,7 @@
 package prometheus
 
 import (
+	"maps"
 	"sort"
 	"strings"
 	"time"
@@ -282,12 +283,8 @@ func (f *Factory) normalize(v string) string {
 
 func (f *Factory) mergeTags(tags map[string]string) map[string]string {
 	ret := make(map[string]string, len(f.tags)+len(tags))
-	for k, v := range f.tags {
-		ret[k] = v
-	}
-	for k, v := range tags {
-		ret[k] = v
-	}
+	maps.Copy(ret, f.tags)
+	maps.Copy(ret, tags)
 	return ret
 }
 

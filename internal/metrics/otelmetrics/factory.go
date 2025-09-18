@@ -6,6 +6,7 @@ package otelmetrics
 import (
 	"context"
 	"log"
+	"maps"
 	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -114,12 +115,8 @@ func (f *otelFactory) normalize(v string) string {
 
 func (f *otelFactory) mergeTags(tags map[string]string) map[string]string {
 	merged := make(map[string]string)
-	for k, v := range f.tags {
-		merged[k] = v
-	}
-	for k, v := range tags {
-		merged[k] = v
-	}
+	maps.Copy(merged, f.tags)
+	maps.Copy(merged, tags)
 	return merged
 }
 

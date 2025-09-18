@@ -6,6 +6,7 @@ package queue
 
 import (
 	"fmt"
+	"maps"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -138,9 +139,7 @@ func (s *consumerState) snapshot() map[string]bool {
 	s.Lock()
 	defer s.Unlock()
 	out := make(map[string]bool)
-	for k, v := range s.consumed {
-		out[k] = v
-	}
+	maps.Copy(out, s.consumed)
 	return out
 }
 
