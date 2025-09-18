@@ -304,7 +304,7 @@ func TestGetTraces_Success(t *testing.T) {
 			traces, err := jiter.FlattenWithErrors(getTracesIter)
 
 			require.NoError(t, err)
-			RequireTracesEqual(t, tt.data, traces)
+			requireTracesEqual(t, tt.data, traces)
 		})
 	}
 }
@@ -394,7 +394,7 @@ func TestGetTraces_ScanErrorContinues(t *testing.T) {
 			require.ErrorIs(t, err, assert.AnError)
 			continue
 		}
-		RequireTracesEqual(t, expected, trace)
+		requireTracesEqual(t, expected, trace)
 	}
 }
 
@@ -421,7 +421,7 @@ func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	})
 
 	require.Len(t, gotTraces, 1)
-	RequireTracesEqual(t, multipleSpans[0:1], gotTraces)
+	requireTracesEqual(t, multipleSpans[0:1], gotTraces)
 }
 
 func TestGetServices(t *testing.T) {

@@ -14,14 +14,34 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
-func RequireScopeEqual(t *testing.T, expected spanRow, actual pcommon.InstrumentationScope) {
+func requireTracesEqual(t *testing.T, expected []spanRow, actual []ptrace.Traces) {
+	t.Helper()
+
+	require.Len(t, actual, len(expected))
+
+	for i, e := range expected {
+		resources := actual[i].ResourceSpans()
+		require.Equal(t, 1, resources.Len())
+
+		scopes := resources.At(0).ScopeSpans()
+		require.Equal(t, 1, scopes.Len())
+		requireScopeEqual(t, e, scopes.At(0).Scope())
+
+		spans := scopes.At(0).Spans()
+		require.Equal(t, 1, spans.Len())
+
+		requireSpanEqual(t, e, spans.At(0))
+	}
+}
+
+func requireScopeEqual(t *testing.T, expected spanRow, actual pcommon.InstrumentationScope) {
 	t.Helper()
 
 	require.Equal(t, expected.scopeName, actual.Name())
 	require.Equal(t, expected.scopeVersion, actual.Version())
 }
 
-func RequireSpanEqual(t *testing.T, expected spanRow, actual ptrace.Span) {
+func requireSpanEqual(t *testing.T, expected spanRow, actual ptrace.Span) {
 	t.Helper()
 
 	require.Equal(t, expected.id, actual.SpanID().String())
@@ -58,26 +78,6 @@ func RequireSpanEqual(t *testing.T, expected spanRow, actual ptrace.Span) {
 		require.Equal(t, expected.linkTraceIDs[i], l.TraceID().String())
 		require.Equal(t, expected.linkSpanIDs[i], l.SpanID().String())
 		require.Equal(t, expected.linkTraceStates[i], l.TraceState().AsRaw())
-	}
-}
-
-func RequireTracesEqual(t *testing.T, expected []spanRow, actual []ptrace.Traces) {
-	t.Helper()
-
-	require.Len(t, actual, len(expected))
-
-	for i, e := range expected {
-		resources := actual[i].ResourceSpans()
-		require.Equal(t, 1, resources.Len())
-
-		scopes := resources.At(0).ScopeSpans()
-		require.Equal(t, 1, scopes.Len())
-		RequireScopeEqual(t, e, scopes.At(0).Scope())
-
-		spans := scopes.At(0).Spans()
-		require.Equal(t, 1, spans.Len())
-
-		RequireSpanEqual(t, e, spans.At(0))
 	}
 }
 
