@@ -35,45 +35,22 @@ func RequireSpanEqual(t *testing.T, expected spanRow, actual ptrace.Span) {
 	require.Equal(t, expected.statusMessage, actual.Status().Message())
 	require.Equal(t, time.Duration(expected.rawDuration), actual.EndTimestamp().AsTime().Sub(actual.StartTimestamp().AsTime()))
 
-	for i, k := range expected.boolAttributeKeys {
-		val, ok := actual.Attributes().Get(k)
-		require.True(t, ok)
-		require.Equal(t, expected.boolAttributeValues[i], val.Bool())
-	}
-
-	for i, k := range expected.doubleAttributeKeys {
-		val, ok := actual.Attributes().Get(k)
-		require.True(t, ok)
-		require.Equal(t, expected.doubleAttributeValues[i], val.Double())
-	}
-
-	for i, k := range expected.intAttributeKeys {
-		val, ok := actual.Attributes().Get(k)
-		require.True(t, ok)
-		require.Equal(t, expected.intAttributeValues[i], val.Int())
-	}
-
-	for i, k := range expected.strAttributeKeys {
-		val, ok := actual.Attributes().Get(k)
-		require.True(t, ok)
-		require.Equal(t, expected.strAttributeValues[i], val.Str())
-	}
-
-	for i, k := range expected.complexAttributeKeys {
-		switch {
-		case strings.HasPrefix(k, "@bytes@"):
-			key := strings.TrimPrefix(k, "@bytes@")
-			val, ok := actual.Attributes().Get(key)
-			require.True(t, ok)
-			encoded := base64.StdEncoding.EncodeToString(val.Bytes().AsRaw())
-			require.Equal(t, expected.complexAttributeValues[i], encoded)
-		}
-	}
+	requireBoolAttrs(t, expected.boolAttributeKeys, expected.boolAttributeValues, actual.Attributes())
+	requireDoubleAttrs(t, expected.doubleAttributeKeys, expected.doubleAttributeValues, actual.Attributes())
+	requireIntAttrs(t, expected.intAttributeKeys, expected.intAttributeValues, actual.Attributes())
+	requireStrAttrs(t, expected.strAttributeKeys, expected.strAttributeValues, actual.Attributes())
+	requireComplexAttrs(t, expected.complexAttributeKeys, expected.complexAttributeValues, actual.Attributes())
 
 	require.Equal(t, actual.Events().Len(), len(expected.eventNames))
 	for i, e := range actual.Events().All() {
 		require.Equal(t, expected.eventNames[i], e.Name())
 		require.Equal(t, expected.eventTimestamps[i].UnixNano(), e.Timestamp().AsTime().UnixNano())
+
+		requireBoolAttrs(t, expected.eventBoolAttributeKeys[i], expected.eventBoolAttributeValues[i], e.Attributes())
+		requireDoubleAttrs(t, expected.eventDoubleAttributeKeys[i], expected.eventDoubleAttributeValues[i], e.Attributes())
+		requireIntAttrs(t, expected.eventIntAttributeKeys[i], expected.eventIntAttributeValues[i], e.Attributes())
+		requireStrAttrs(t, expected.eventStrAttributeKeys[i], expected.eventStrAttributeValues[i], e.Attributes())
+		requireComplexAttrs(t, expected.eventComplexAttributeKeys[i], expected.eventComplexAttributeValues[i], e.Attributes())
 	}
 
 	require.Equal(t, actual.Links().Len(), len(expected.linkSpanIDs))
@@ -101,5 +78,50 @@ func RequireTracesEqual(t *testing.T, expected []spanRow, actual []ptrace.Traces
 		require.Equal(t, 1, spans.Len())
 
 		RequireSpanEqual(t, e, spans.At(0))
+	}
+}
+
+func requireBoolAttrs(t *testing.T, expectedKeys []string, expectedVals []bool, attrs pcommon.Map) {
+	for i, k := range expectedKeys {
+		val, ok := attrs.Get(k)
+		require.True(t, ok)
+		require.Equal(t, expectedVals[i], val.Bool())
+	}
+}
+
+func requireDoubleAttrs(t *testing.T, expectedKeys []string, expectedVals []float64, attrs pcommon.Map) {
+	for i, k := range expectedKeys {
+		val, ok := attrs.Get(k)
+		require.True(t, ok)
+		require.Equal(t, expectedVals[i], val.Double())
+	}
+}
+
+func requireIntAttrs(t *testing.T, expectedKeys []string, expectedVals []int64, attrs pcommon.Map) {
+	for i, k := range expectedKeys {
+		val, ok := attrs.Get(k)
+		require.True(t, ok)
+		require.Equal(t, expectedVals[i], val.Int())
+	}
+}
+
+func requireStrAttrs(t *testing.T, expectedKeys []string, expectedVals []string, attrs pcommon.Map) {
+	for i, k := range expectedKeys {
+		val, ok := attrs.Get(k)
+		require.True(t, ok)
+		require.Equal(t, expectedVals[i], val.Str())
+	}
+}
+
+func requireComplexAttrs(t *testing.T, expectedKeys []string, expectedVals []string, attrs pcommon.Map) {
+	for i, k := range expectedKeys {
+		switch {
+		case strings.HasPrefix(k, "@bytes@"):
+			key := strings.TrimPrefix(k, "@bytes@")
+			val, ok := attrs.Get(key)
+			require.True(t, ok)
+			encoded := base64.StdEncoding.EncodeToString(val.Bytes().AsRaw())
+			require.Equal(t, expectedVals[i], encoded)
+		}
 	}
 }
