@@ -117,11 +117,12 @@ func requireComplexAttrs(t *testing.T, expectedKeys []string, expectedVals []str
 	for i, k := range expectedKeys {
 		switch {
 		case strings.HasPrefix(k, "@bytes@"):
-			key := strings.TrimPrefix(k, "@bytes@")
+			key := strings.TrimPrefix(expectedKeys[i], "@bytes@")
 			val, ok := attrs.Get(key)
 			require.True(t, ok)
-			encoded := base64.StdEncoding.EncodeToString(val.Bytes().AsRaw())
-			require.Equal(t, expectedVals[i], encoded)
+			decoded, err := base64.StdEncoding.DecodeString(expectedVals[i])
+			require.NoError(t, err)
+			require.Equal(t, decoded, val.Bytes().AsRaw())
 		default:
 			t.Fatalf("unsupported complex attribute key: %s", k)
 		}
