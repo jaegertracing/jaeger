@@ -27,7 +27,7 @@ var traceID = pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 var now = time.Date(2025, 6, 14, 10, 0, 0, 0, time.UTC)
 
 var singleSpan = []*spanRow{
-	&spanRow{
+	{
 		id:                          "0000000000000001",
 		traceID:                     traceID.String(),
 		traceState:                  "state1",
@@ -69,7 +69,7 @@ var singleSpan = []*spanRow{
 }
 
 var multipleSpans = []*spanRow{
-	&spanRow{
+	{
 		id:                          "0000000000000001",
 		traceID:                     traceID.String(),
 		traceState:                  "state1",
@@ -108,7 +108,7 @@ var multipleSpans = []*spanRow{
 		scopeName:                   "auth-scope",
 		scopeVersion:                "v1.0.0",
 	},
-	&spanRow{
+	{
 		id:                          "0000000000000003",
 		traceID:                     traceID.String(),
 		traceState:                  "state1",
