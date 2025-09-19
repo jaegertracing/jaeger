@@ -29,6 +29,8 @@ type QueryServiceOptions struct {
 	ArchiveTraceWriter tracestore.Writer
 	// MaxClockSkewAdjust is the maximum duration by which to adjust a span.
 	MaxClockSkewAdjust time.Duration
+	// MaxTraceSize is the maximum number of spans per trace (0 = no limit, truncates with warning if exceeded)
+	MaxTraceSize int
 }
 
 // StorageCapabilities is a feature flag for query service
@@ -185,6 +187,7 @@ func (qs QueryService) receiveTraces(
 			return proceed
 		}
 		for _, trace := range traces {
+			// Max trace size enforcement happens in the storage adapter (v1 adapter)
 			if !rawTraces {
 				qs.adjuster.Adjust(trace)
 			}

@@ -5,6 +5,7 @@ package v1adapter
 
 import (
 	"errors"
+	"fmt"
 	"iter"
 	"testing"
 	"time"
@@ -253,6 +254,130 @@ func TestV1TracesFromSeq2(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestV1TracesFromSeq2WithLimit(t *testing.T) {
+	tests := []struct {
+		name         string
+		maxTraceSize int
+		input        iter.Seq2[[]ptrace.Traces, error]
+		expected     []*model.Trace
+		expectError  bool
+	}{
+		{
+			name:         "no limit",
+			maxTraceSize: 0,
+			input:        createTestTracesSeq(3, 5), // 3 traces with 5 spans each
+			expected:     createExpectedTraces(3, 5),
+			expectError:  false,
+		},
+		{
+			name:         "limit larger than trace size",
+			maxTraceSize: 10,
+			input:        createTestTracesSeq(2, 5), // 2 traces with 5 spans each
+			expected:     createExpectedTraces(2, 5),
+			expectError:  false,
+		},
+		{
+			name:         "limit smaller than trace size",
+			maxTraceSize: 3,
+			input:        createTestTracesSeq(2, 5), // 2 traces with 5 spans each
+			expected: func() []*model.Trace {
+				traces := createExpectedTraces(2, 3) // truncated to 3 spans
+				// Add warning tag to first span of each trace
+				for _, trace := range traces {
+					if len(trace.Spans) > 0 {
+						trace.Spans[0].Tags = append(trace.Spans[0].Tags, model.KeyValue{
+							Key:   "jaeger.warning",
+							VType: model.ValueType_STRING,
+							VStr:  "Trace truncated: only first 3 spans loaded (total spans: 5)",
+						})
+					}
+				}
+				return traces
+			}(),
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := V1TracesFromSeq2(tt.input, tt.maxTraceSize)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Len(t, result, len(tt.expected))
+
+			for i, trace := range result {
+				expectedTrace := tt.expected[i]
+				assert.Len(t, trace.Spans, len(expectedTrace.Spans))
+
+				// Check if warning tag is present when expected
+				if tt.maxTraceSize > 0 && len(trace.Spans) < 5 {
+					found := false
+					for _, tag := range trace.Spans[0].Tags {
+						if tag.Key == "jaeger.warning" {
+							found = true
+							break
+						}
+					}
+					assert.True(t, found, "Warning tag should be present when trace is truncated")
+				}
+			}
+		})
+	}
+}
+
+func createTestTracesSeq(numTraces, numSpans int) iter.Seq2[[]ptrace.Traces, error] {
+	return func(yield func([]ptrace.Traces, error) bool) {
+		for i := 0; i < numTraces; i++ {
+			trace := ptrace.NewTraces()
+			resource := trace.ResourceSpans().AppendEmpty()
+			scope := resource.ScopeSpans().AppendEmpty()
+
+			// Pre-allocate spans slice for better performance
+			spans := scope.Spans()
+			spans.EnsureCapacity(numSpans)
+
+			// Use different trace IDs for different traces
+			traceID := pcommon.TraceID{byte(i + 1), 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+			spanID := pcommon.SpanID{1, 2, 3, 4, 5, 6, 7, 8}
+
+			for j := 0; j < numSpans; j++ {
+				span := spans.AppendEmpty()
+				span.SetTraceID(traceID)
+				span.SetSpanID(spanID)
+				span.SetName(fmt.Sprintf("span-%d", j))
+			}
+
+			if !yield([]ptrace.Traces{trace}, nil) {
+				return
+			}
+		}
+	}
+}
+
+func createExpectedTraces(numTraces, numSpans int) []*model.Trace {
+	traces := make([]*model.Trace, 0, numTraces)
+	for i := 0; i < numTraces; i++ {
+		spans := make([]*model.Span, 0, numSpans)
+		for j := 0; j < numSpans; j++ {
+			spans = append(spans, &model.Span{
+				TraceID: model.TraceID{
+					Low:  uint64(i+1) | uint64(2)<<8 | uint64(3)<<16 | uint64(4)<<24 | uint64(5)<<32 | uint64(6)<<40 | uint64(7)<<48 | uint64(8)<<56,
+					High: uint64(9) | uint64(10)<<8 | uint64(11)<<16 | uint64(12)<<24 | uint64(13)<<32 | uint64(14)<<40 | uint64(15)<<48 | uint64(16)<<56,
+				},
+				SpanID:        model.NewSpanID(uint64(j+1) | uint64(2)<<8 | uint64(3)<<16 | uint64(4)<<24 | uint64(5)<<32 | uint64(6)<<40 | uint64(7)<<48 | uint64(8)<<56),
+				OperationName: fmt.Sprintf("span-%d", j),
+			})
+		}
+		traces = append(traces, &model.Trace{Spans: spans})
+	}
+	return traces
 }
 
 func TestV1TraceToOtelTrace_ReturnsExptectedOtelTrace(t *testing.T) {

@@ -4,6 +4,7 @@
 package v1adapter
 
 import (
+	"fmt"
 	"iter"
 
 	jaegerTranslator "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
@@ -43,8 +44,14 @@ func V1BatchesToTraces(batches []*model.Batch) ptrace.Traces {
 	return traces
 }
 
-// V1TracesFromSeq2 converts an interator of ptrace.Traces chunks into v1 traces.
-func V1TracesFromSeq2(otelSeq iter.Seq2[[]ptrace.Traces, error]) ([]*model.Trace, error) {
+// V1TracesFromSeq2 converts an iterator of ptrace.Traces chunks into v1 traces.
+// If maxTraceSize > 0, traces exceeding that number of spans will be truncated with warnings.
+func V1TracesFromSeq2(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize ...int) ([]*model.Trace, error) {
+	limit := 0
+	if len(maxTraceSize) > 0 {
+		limit = maxTraceSize[0]
+	}
+
 	var (
 		jaegerTraces []*model.Trace
 		iterErr      error
@@ -54,7 +61,31 @@ func V1TracesFromSeq2(otelSeq iter.Seq2[[]ptrace.Traces, error]) ([]*model.Trace
 			iterErr = err
 			return false
 		}
-		jaegerTraces = append(jaegerTraces, modelTraceFromOtelTrace(otelTrace))
+		trace := modelTraceFromOtelTrace(otelTrace)
+
+		// Apply trace size limit if specified
+		if limit > 0 && len(trace.Spans) > limit {
+			originalSpanCount := len(trace.Spans)
+			// Truncate the trace to the limit
+			trace.Spans = trace.Spans[:limit]
+
+			// Add a warning tag to indicate truncation
+			warningTag := model.KeyValue{
+				Key:   "jaeger.warning",
+				VType: model.ValueType_STRING,
+				VStr:  fmt.Sprintf("Trace truncated: only first %d spans loaded (total spans: %d)", limit, originalSpanCount),
+			}
+
+			// Add warning to the first span's tags
+			if len(trace.Spans) > 0 {
+				if trace.Spans[0].Tags == nil {
+					trace.Spans[0].Tags = make([]model.KeyValue, 0, 1)
+				}
+				trace.Spans[0].Tags = append(trace.Spans[0].Tags, warningTag)
+			}
+		}
+
+		jaegerTraces = append(jaegerTraces, trace)
 		return true
 	})
 	if iterErr != nil {
@@ -115,14 +146,14 @@ func modelTraceFromOtelTrace(otelTrace ptrace.Traces) *model.Trace {
 			spans = append(spans, span)
 
 			if span.Process.Tags == nil {
-				span.Process.Tags = []model.KeyValue{}
+				span.Process.Tags = make([]model.KeyValue, 0)
 			}
 
 			if span.References == nil {
-				span.References = []model.SpanRef{}
+				span.References = make([]model.SpanRef, 0)
 			}
 			if span.Tags == nil {
-				span.Tags = []model.KeyValue{}
+				span.Tags = make([]model.KeyValue, 0)
 			}
 		}
 	}
