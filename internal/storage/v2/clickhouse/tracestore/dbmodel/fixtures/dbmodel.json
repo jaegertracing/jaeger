@@ -21,7 +21,51 @@
   "Events": [
     {
       "Name": "event1",
-      "Timestamp": "2023-12-25T09:53:49Z"
+      "Timestamp": "2023-12-25T09:53:49Z",
+      "Attributes": {
+        "BoolAttributes": [
+          {
+            "Key": "inventory.available",
+            "Value": true
+          },
+          {
+            "Key": "payment.successful",
+            "Value": true
+          }
+        ],
+        "DoubleAttributes": [
+          {
+            "Key": "product.price",
+            "Value": 6.04
+          },
+          {
+            "Key": "order.discount.rate",
+            "Value": 0.04
+          }
+        ],
+        "IntAttributes": [
+          {
+            "Key": "order.quantity",
+            "Value": 2
+          }
+        ],
+        "StrAttributes": [
+          {
+            "Key": "order.id",
+            "Value": "123456789"
+          },
+          {
+            "Key": "product.id",
+            "Value": "987654321"
+          }
+        ],
+        "ComplexAttributes": [
+          {
+            "Key": "@bytes@event.test.bytes.value",
+            "Value": "AQIDBAUG"
+          }
+        ]
+      }
     }
   ],
   "Attributes": {
