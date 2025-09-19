@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"iter"
-	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -41,6 +40,16 @@ const (
 		complex_attributes.value,
 		events.name,
 		events.timestamp,
+		events.bool_attributes.key,
+		events.bool_attributes.value,
+		events.double_attributes.key,
+		events.double_attributes.value,
+		events.int_attributes.key,
+		events.int_attributes.value,
+		events.str_attributes.key,
+		events.str_attributes.value,
+		events.complex_attributes.key,
+		events.complex_attributes.value,
 		links.trace_id,
 		links.span_id,
 		links.trace_state,
@@ -112,106 +121,6 @@ func (r *Reader) GetTraces(
 			}
 		}
 	}
-}
-
-func scanSpanRow(rows driver.Rows) (dbmodel.Span, error) {
-	var (
-		span                   dbmodel.Span
-		rawDuration            int64
-		boolAttributeKeys      []string
-		boolAttributeValues    []bool
-		doubleAttributeKeys    []string
-		doubleAttributeValues  []float64
-		intAttributeKeys       []string
-		intAttributeValues     []int64
-		strAttributeKeys       []string
-		strAttributeValues     []string
-		complexAttributeKeys   []string
-		complexAttributeValues []string
-		eventNames             []string
-		eventTimestamps        []time.Time
-		linkTraceIDs           []string
-		linkSpanIDs            []string
-		linkTraceStates        []string
-	)
-
-	err := rows.Scan(
-		&span.ID,
-		&span.TraceID,
-		&span.TraceState,
-		&span.ParentSpanID,
-		&span.Name,
-		&span.Kind,
-		&span.StartTime,
-		&span.StatusCode,
-		&span.StatusMessage,
-		&rawDuration,
-		&boolAttributeKeys,
-		&boolAttributeValues,
-		&doubleAttributeKeys,
-		&doubleAttributeValues,
-		&intAttributeKeys,
-		&intAttributeValues,
-		&strAttributeKeys,
-		&strAttributeValues,
-		&complexAttributeKeys,
-		&complexAttributeValues,
-		&eventNames,
-		&eventTimestamps,
-		&linkTraceIDs,
-		&linkSpanIDs,
-		&linkTraceStates,
-		&span.ServiceName,
-		&span.ScopeName,
-		&span.ScopeVersion,
-	)
-	if err != nil {
-		return span, err
-	}
-
-	span.Duration = time.Duration(rawDuration)
-
-	span.Attributes.BoolAttributes = zipAttributes(boolAttributeKeys, boolAttributeValues)
-	span.Attributes.DoubleAttributes = zipAttributes(doubleAttributeKeys, doubleAttributeValues)
-	span.Attributes.IntAttributes = zipAttributes(intAttributeKeys, intAttributeValues)
-	span.Attributes.StrAttributes = zipAttributes(strAttributeKeys, strAttributeValues)
-	span.Attributes.ComplexAttributes = zipAttributes(complexAttributeKeys, complexAttributeValues)
-
-	span.Events = buildEvents(eventNames, eventTimestamps)
-	span.Links = buildLinks(linkTraceIDs, linkSpanIDs, linkTraceStates)
-	return span, nil
-}
-
-func zipAttributes[T any](keys []string, values []T) []dbmodel.Attribute[T] {
-	n := len(keys)
-	attrs := make([]dbmodel.Attribute[T], n)
-	for i := 0; i < n; i++ {
-		attrs[i] = dbmodel.Attribute[T]{Key: keys[i], Value: values[i]}
-	}
-	return attrs
-}
-
-func buildEvents(names []string, timestamps []time.Time) []dbmodel.Event {
-	var events []dbmodel.Event
-	for i := 0; i < len(names) && i < len(timestamps); i++ {
-		events = append(events, dbmodel.Event{
-			Name:      names[i],
-			Timestamp: timestamps[i],
-		})
-	}
-	return events
-}
-
-func buildLinks(traceIDs, spanIDs, states []string) []dbmodel.Link {
-	var links []dbmodel.Link
-	for i := 0; i < len(traceIDs) && i < len(spanIDs) && i < len(states); i++ {
-		links = append(links, dbmodel.Link{
-			TraceID:    traceIDs[i],
-			SpanID:     spanIDs[i],
-			TraceState: states[i],
-		})
-	}
-	return links
 }
 
 func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
