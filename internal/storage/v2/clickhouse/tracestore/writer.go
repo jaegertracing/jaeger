@@ -1,11 +1,15 @@
+// Copyright (c) 2025 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package tracestore
 
 import (
 	"context"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 )
 
 type Writer struct {
