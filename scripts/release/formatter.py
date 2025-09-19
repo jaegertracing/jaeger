@@ -38,6 +38,22 @@ def replace_version(ui_text, backend_text, doc_text, pattern, ver):
     doc_text = re.sub(pattern, ver, doc_text)
     return ui_text, backend_text, doc_text
 
+def add_automation_commands(backend_text, v1, v2):
+    # Add automation commands to the backend checklist
+    automation_section = f"""
+    * **Automated option**: Run `make prepare-release` to automatically create the PR with changelog updates
+    * **Manual option**: Follow the steps below to manually create the PR"""
+    
+    # Find the position after the first bullet point and insert automation commands
+    lines = backend_text.split('\n')
+    for i, line in enumerate(lines):
+        if line.strip().startswith('* A new section with the header'):
+            # Insert automation commands before the manual steps
+            lines.insert(i, automation_section)
+            break
+    
+    return '\n'.join(lines)
+
 def fetch_content(file_name):
     start_marker = "<!-- BEGIN_CHECKLIST -->"
     end_marker = "<!-- END_CHECKLIST -->"
@@ -77,6 +93,9 @@ def main():
     ui_section, backend_section, doc_section = replace_version(ui_section, backend_section, doc_section, v1_pattern, v1)
     v2_pattern = r'2.x.x'
     ui_section, backend_section, doc_section = replace_version(ui_section, backend_section, doc_section, v2_pattern, v2)
+
+    # Add automation commands to backend section
+    backend_section = add_automation_commands(backend_section, v1, v2)
 
     print("# UI Release")
     print(ui_section)

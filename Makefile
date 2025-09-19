@@ -204,6 +204,16 @@ run-all-in-one: build-ui
 changelog:
 	./scripts/release/notes.py --exclude-dependabot --verbose
 
+.PHONY: prepare-release
+prepare-release:
+	chmod +x scripts/release/*.sh
+	./scripts/release/prepare-release.sh
+
+.PHONY: test-release-prep
+test-release-prep:
+	chmod +x scripts/release/*.sh
+	./scripts/release/test-release-prep.sh
+
 .PHONY: draft-release
 draft-release:
 	./scripts/release/draft.py

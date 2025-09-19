@@ -62,7 +62,7 @@ wget -O "$TMPFILE" https://raw.githubusercontent.com/jaegertracing/documentation
 # Ensure the UI Release checklist is up to date.
 make init-submodules
 
-issue_body=$(python scripts/release/formatter.py "${TMPFILE}" "${user_version_v1}" "${user_version_v2}")
+issue_body=$(python3 scripts/release/formatter.py "${TMPFILE}" "${user_version_v1}" "${user_version_v2}")
 
 if $dry_run; then
   echo "${issue_body}"
