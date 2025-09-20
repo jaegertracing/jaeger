@@ -5,6 +5,7 @@ package tracestore
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -29,16 +30,15 @@ func NewWriter(conn driver.Conn) *Writer {
 func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	batch, err := w.conn.PrepareBatch(ctx, sql.SpansInsert)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to prepare batch: %w", err)
 	}
 	defer batch.Close()
-
 	for _, rs := range td.ResourceSpans().All() {
 		serviceName, _ := rs.Resource().Attributes().Get(otelsemconv.ServiceNameKey)
 		for _, ss := range rs.ScopeSpans().All() {
 			for _, span := range ss.Spans().All() {
 				duration := span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime()).Nanoseconds()
-				batch.Append(
+				err = batch.Append(
 					span.SpanID().String(),
 					span.TraceID().String(),
 					span.TraceState().AsRaw(),
@@ -53,9 +53,14 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 					ss.Scope().Name(),
 					ss.Scope().Version(),
 				)
+				if err != nil {
+					return fmt.Errorf("failed to append span to batch: %w", err)
+				}
 			}
 		}
 	}
-
-	return batch.Send()
+	if err := batch.Send(); err != nil {
+		return fmt.Errorf("failed to send batch: %w", err)
+	}
+	return nil
 }
