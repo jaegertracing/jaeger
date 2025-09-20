@@ -149,68 +149,6 @@ var multipleSpans = []*spanRow{
 	},
 }
 
-type testDriver struct {
-	driver.Conn
-
-	t             *testing.T
-	rows          driver.Rows
-	expectedQuery string
-	err           error
-}
-
-func (t *testDriver) Query(_ context.Context, query string, _ ...any) (driver.Rows, error) {
-	require.Equal(t.t, t.expectedQuery, query)
-	return t.rows, t.err
-}
-
-type testRows[T any] struct {
-	driver.Rows
-
-	data     []T
-	index    int
-	scanErr  error
-	scanFn   func(dest any, src T) error
-	closeErr error
-}
-
-func (tr *testRows[T]) Close() error {
-	return tr.closeErr
-}
-
-func (tr *testRows[T]) Next() bool {
-	return tr.index < len(tr.data)
-}
-
-func (tr *testRows[T]) ScanStruct(dest any) error {
-	if tr.scanErr != nil {
-		return tr.scanErr
-	}
-	if tr.index >= len(tr.data) {
-		return errors.New("no more rows")
-	}
-	if tr.scanFn == nil {
-		return errors.New("scanFn is not provided")
-	}
-	err := tr.scanFn(dest, tr.data[tr.index])
-	tr.index++
-	return err
-}
-
-func (tr *testRows[T]) Scan(dest ...any) error {
-	if tr.scanErr != nil {
-		return tr.scanErr
-	}
-	if tr.index >= len(tr.data) {
-		return errors.New("no more rows")
-	}
-	if tr.scanFn == nil {
-		return errors.New("scanFn is not provided")
-	}
-	err := tr.scanFn(dest, tr.data[tr.index])
-	tr.index++
-	return err
-}
-
 func scanSpanRowFn() func(dest any, src *spanRow) error {
 	return func(dest any, src *spanRow) error {
 		ptrs, ok := dest.([]any)
