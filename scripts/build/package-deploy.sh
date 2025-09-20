@@ -116,18 +116,20 @@ function package {
     # Prepare package names once to avoid re-declaration of readonly vars
     PACKAGES=()
     local PACKAGE_NAME_V1=""
-    local TOOLS_PACKAGE_NAME=""
+    local TOOLS_PACKAGE_NAME_V1=""
     local PACKAGE_NAME_V2=""
+    local TOOLS_PACKAGE_NAME_V2=""
 
     # Add packages based on build track
     if [[ "$build_v1" == "true" ]]; then
         PACKAGE_NAME_V1=jaeger-${VERSION_V1}-$PLATFORM
-        TOOLS_PACKAGE_NAME=jaeger-tools-${VERSION_V1}-$PLATFORM
-        PACKAGES+=("$PACKAGE_NAME_V1" "$TOOLS_PACKAGE_NAME")
+        TOOLS_PACKAGE_NAME_V1=jaeger-tools-${VERSION_V1}-$PLATFORM
+        PACKAGES+=("$PACKAGE_NAME_V1" "$TOOLS_PACKAGE_NAME_V1")
     fi
     if [[ "$build_v2" == "true" ]]; then
         PACKAGE_NAME_V2=jaeger-${VERSION_V2}-$PLATFORM
-        PACKAGES+=("$PACKAGE_NAME_V2")
+        TOOLS_PACKAGE_NAME_V2=jaeger-tools-${VERSION_V2}-$PLATFORM
+        PACKAGES+=("$PACKAGE_NAME_V2" "$TOOLS_PACKAGE_NAME_V2")
     fi
 
     for d in "${PACKAGES[@]}"; do
@@ -139,10 +141,11 @@ function package {
     
     if [[ "$build_v1" == "true" ]]; then
         stage-platform-files-v1 "$PLATFORM" "$PACKAGE_NAME_V1" "$FILE_EXTENSION"
-        stage-tool-platform-files "$PLATFORM" "$TOOLS_PACKAGE_NAME" "$FILE_EXTENSION"
+        stage-tool-platform-files "$PLATFORM" "$TOOLS_PACKAGE_NAME_V1" "$FILE_EXTENSION"
     fi
     if [[ "$build_v2" == "true" ]]; then
         stage-platform-files-v2 "$PLATFORM" "$PACKAGE_NAME_V2" "$FILE_EXTENSION"
+        stage-tool-platform-files "$PLATFORM" "$TOOLS_PACKAGE_NAME_V2" "$FILE_EXTENSION"
     fi
     
     # Create a checksum file for all the files being packaged in the archive. Sorted by filename.
