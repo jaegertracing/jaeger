@@ -99,9 +99,9 @@ func getLinkFromRaw(m map[string]any) Link {
 }
 
 type Event struct {
-	// TODO: add attributes
-	Name      string
-	Timestamp time.Time
+	Name       string
+	Timestamp  time.Time
+	Attributes Attributes
 }
 
 func getEventsFromRaw(raw []map[string]any) []Event {
