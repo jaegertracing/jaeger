@@ -1,3 +1,6 @@
+// Copyright (c) 2025 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package tracestore
 
 import (
@@ -104,7 +107,8 @@ func (tr *testRows[T]) Scan(dest ...any) error {
 func (t *testDriver) PrepareBatch(
 	_ context.Context,
 	query string,
-	opts ...driver.PrepareBatchOption) (driver.Batch, error) {
+	opts ...driver.PrepareBatchOption,
+) (driver.Batch, error) {
 	require.Equal(t.t, t.expectedQuery, query)
 	if t.err != nil {
 		return nil, t.err
