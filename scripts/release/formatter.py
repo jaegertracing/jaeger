@@ -38,45 +38,47 @@ def replace_version(ui_text, backend_text, doc_text, pattern, ver):
     doc_text = re.sub(pattern, ver, doc_text)
     return ui_text, backend_text, doc_text
 
-def fetch_content(file_name):
-    start_marker = "<!-- BEGIN_CHECKLIST -->"
-    end_marker = "<!-- END_CHECKLIST -->"
-    text = extract_section_from_file(file_name, start_marker, end_marker)
-    return text
-
 def main():
-    
     loc = sys.argv[1]
-    v1 = sys.argv[2]
-    v2 = sys.argv[3]
+    v1 = sys.argv[2].strip() if len(sys.argv) > 2 else ""
+    v2 = sys.argv[3].strip() if len(sys.argv) > 3 else ""
+
     try:
-        backend_file_name = "RELEASE.md"
-        backend_section = fetch_content(backend_file_name)
+        backend_section = extract_section_from_file("RELEASE.md", "<!-- BEGIN_CHECKLIST -->", "<!-- END_CHECKLIST -->")
     except Exception as e:
-        sys.exit(f"Failed to extract backendSection: {e}")
+        sys.exit(f"Failed to extract backend section: {e}")
+
     backend_section = replace_star(backend_section)
     backend_section = replace_num(backend_section)
-    try:
-        doc_filename = loc
-        doc_section = fetch_content(doc_filename)
-    except Exception as e:
-        sys.exit(f"Failed to extract documentation section: {e}")
-    doc_section=replace_dash(doc_section)
 
     try:
-        ui_filename = "jaeger-ui/RELEASE.md"
-        ui_section = fetch_content(ui_filename)
+        doc_section = extract_section_from_file(loc, "<!-- BEGIN_CHECKLIST -->", "<!-- END_CHECKLIST -->")
+    except Exception as e:
+        sys.exit(f"Failed to extract documentation section: {e}")
+    doc_section = replace_dash(doc_section)
+
+    try:
+        ui_section = extract_section_from_file("jaeger-ui/RELEASE.md", "<!-- BEGIN_CHECKLIST -->", "<!-- END_CHECKLIST -->")
     except Exception as e:
         sys.exit(f"Failed to extract UI section: {e}")
 
-    ui_section=replace_dash(ui_section)
-    ui_section=replace_num(ui_section)
+    ui_section = replace_dash(ui_section)
+    ui_section = replace_num(ui_section)
 
-    #Concrete version
-    v1_pattern = r'(?:X\.Y\.Z|1\.[0-9]+\.[0-9]+|1\.x\.x)'
-    ui_section, backend_section, doc_section = replace_version(ui_section, backend_section, doc_section, v1_pattern, v1)
+    # Replace v2 versions (primary focus)
     v2_pattern = r'2.x.x'
     ui_section, backend_section, doc_section = replace_version(ui_section, backend_section, doc_section, v2_pattern, v2)
+
+    # TODO: Remove v1 version replacement after final v1 release (early 2026)
+    if v1:
+        v1_pattern = r'(?:X\.Y\.Z|1\.[0-9]+\.[0-9]+|1\.x\.x)'
+        ui_section, backend_section, doc_section = replace_version(ui_section, backend_section, doc_section, v1_pattern, v1)
+    else:
+        # Add deprecation notice if v1 is skipped
+        deprecation_note = "\n**Note:** v1 releases are in maintenance mode. Only 3 more v1 releases planned before full v2 transition.\n"
+        ui_section = deprecation_note + ui_section
+        backend_section = deprecation_note + backend_section
+        doc_section = deprecation_note + doc_section
 
     print("# UI Release")
     print(ui_section)
