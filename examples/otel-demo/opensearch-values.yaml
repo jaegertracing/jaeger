@@ -1,0 +1,34 @@
+clusterName: "opensearch-cluster"
+nodeGroup: "single"
+
+replicas: 1
+
+persistence:
+  enabled: true
+  size: "10Gi"  
+  storageClass: "oci-bv" # Using Oracle Cloud Block Volume storage class
+
+opensearchJavaOpts: "-Xmx1g -Xms1g"
+
+securityConfig:
+  enabled: false
+
+extraEnvs:
+  - name: DISABLE_INSTALL_DEMO_CONFIG
+    value: "true"
+  - name: DISABLE_SECURITY_PLUGIN
+    value: "true"
+
+
+
+config:
+  opensearch.yml: |
+    cluster.name: opensearch-cluster
+    network.host: 0.0.0.0
+    bootstrap.memory_lock: false
+    plugins.security.disabled: true
+
+service:
+  type: ClusterIP
+  port: 9200
+

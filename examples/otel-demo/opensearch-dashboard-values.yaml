@@ -1,0 +1,19 @@
+
+image:
+  tag: "2.11.0"
+
+opensearchHosts: "http://opensearch-cluster-single:9200"
+
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+
+config:
+  opensearch_dashboards.yml: |
+    server.host: 0.0.0.0
+    opensearch.hosts: ["http://opensearch-cluster-single:9200"]
+    opensearch.username: "admin"
+    opensearch.password: "admin123"
+    opensearch.ssl.verificationMode: none
+    opensearch_security.enabled: false
+
