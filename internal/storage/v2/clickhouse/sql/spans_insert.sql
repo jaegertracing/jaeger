@@ -9,7 +9,13 @@ INSERT INTO spans (
     status_code,
     status_message,
     duration,
+    service_name,
+    scope_name,
+    scope_version
 ) VALUES (
+    ?,
+    ?,
+    ?,
     ?,
     ?,
     ?,
