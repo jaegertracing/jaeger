@@ -113,16 +113,20 @@ function package {
 
     echo "Packaging binaries for $PLATFORM (track: $BUILD_TRACK)"
 
+    # Prepare package names once to avoid re-declaration of readonly vars
     PACKAGES=()
-    
+    local PACKAGE_NAME_V1=""
+    local TOOLS_PACKAGE_NAME=""
+    local PACKAGE_NAME_V2=""
+
     # Add packages based on build track
     if [[ "$build_v1" == "true" ]]; then
-        local -r PACKAGE_NAME_V1=jaeger-${VERSION_V1}-$PLATFORM
-        local -r TOOLS_PACKAGE_NAME=jaeger-tools-${VERSION_V1}-$PLATFORM
+        PACKAGE_NAME_V1=jaeger-${VERSION_V1}-$PLATFORM
+        TOOLS_PACKAGE_NAME=jaeger-tools-${VERSION_V1}-$PLATFORM
         PACKAGES+=("$PACKAGE_NAME_V1" "$TOOLS_PACKAGE_NAME")
     fi
     if [[ "$build_v2" == "true" ]]; then
-        local -r PACKAGE_NAME_V2=jaeger-${VERSION_V2}-$PLATFORM
+        PACKAGE_NAME_V2=jaeger-${VERSION_V2}-$PLATFORM
         PACKAGES+=("$PACKAGE_NAME_V2")
     fi
 
@@ -134,13 +138,10 @@ function package {
     done
     
     if [[ "$build_v1" == "true" ]]; then
-        local -r PACKAGE_NAME_V1=jaeger-${VERSION_V1}-$PLATFORM
-        local -r TOOLS_PACKAGE_NAME=jaeger-tools-${VERSION_V1}-$PLATFORM
         stage-platform-files-v1 "$PLATFORM" "$PACKAGE_NAME_V1" "$FILE_EXTENSION"
         stage-tool-platform-files "$PLATFORM" "$TOOLS_PACKAGE_NAME" "$FILE_EXTENSION"
     fi
     if [[ "$build_v2" == "true" ]]; then
-        local -r PACKAGE_NAME_V2=jaeger-${VERSION_V2}-$PLATFORM
         stage-platform-files-v2 "$PLATFORM" "$PACKAGE_NAME_V2" "$FILE_EXTENSION"
     fi
     
