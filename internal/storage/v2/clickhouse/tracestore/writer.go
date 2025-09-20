@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 type Writer struct {
@@ -33,6 +34,7 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	defer batch.Close()
 
 	for _, rs := range td.ResourceSpans().All() {
+		serviceName, _ := rs.Resource().Attributes().Get(otelsemconv.ServiceNameKey)
 		for _, ss := range rs.ScopeSpans().All() {
 			for _, span := range ss.Spans().All() {
 				duration := span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime()).Nanoseconds()
@@ -47,6 +49,9 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 					span.Status().Code(),
 					span.Status().Message(),
 					duration,
+					serviceName.Str(),
+					ss.Scope().Name(),
+					ss.Scope().Version(),
 				)
 			}
 		}
