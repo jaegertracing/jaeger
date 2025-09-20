@@ -1,3 +1,4 @@
+# Re-indexing trigger
 name: Prepare Release
 
 on:
