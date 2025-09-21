@@ -81,6 +81,12 @@ func TestFromDBModel_Fixtures(t *testing.T) {
 			actualEvent := actualEvents.At(i)
 			require.Equal(t, exceptedEvent.Name(), actualEvent.Name(), "Event attributes mismatch")
 			require.Equal(t, exceptedEvent.Timestamp(), actualEvent.Timestamp(), "Event attributes mismatch")
+			exceptedEvent.Attributes().Range(func(k string, v pcommon.Value) bool {
+				actualValue, ok := actualEvent.Attributes().Get(k)
+				require.True(t, ok, "Missing attribute %s", k)
+				require.Equal(t, v, actualValue, "Attribute %s mismatch", k)
+				return true
+			})
 		}
 	})
 
@@ -359,11 +365,12 @@ func TestPopulateComplexAttributes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			span := ptrace.NewSpan()
+			attributes := span.Attributes()
 
-			populateComplexAttributes(span, tt.complexAttributes)
+			populateComplexAttributes(attributes, tt.complexAttributes, span)
 
 			for expectedKey, expectedValue := range tt.expectedAttributes {
-				actualValue, exists := span.Attributes().Get(expectedKey)
+				actualValue, exists := attributes.Get(expectedKey)
 				require.True(t, exists, "Expected attribute %s not found", expectedKey)
 				require.Equal(t, expectedValue, actualValue, "Attribute %s value mismatch", expectedKey)
 			}
