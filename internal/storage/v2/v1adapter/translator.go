@@ -89,7 +89,7 @@ func applyTraceSizeLimit(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize
 
 		otelSeq(func(traces []ptrace.Traces, err error) bool {
 			if err != nil {
-				return yield(traces, err)  // Propagate error and termination signal
+				return yield(traces, err) // Propagate error and termination signal
 			}
 
 			var limitedTraces []ptrace.Traces
@@ -136,11 +136,15 @@ func applyTraceSizeLimit(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize
 				}
 			}
 
-			// Properly propagate termination signals
-			return yield(limitedTraces, nil)
+			// Properly propagate termination signals - if yield returns false, stop iteration
+			if !yield(limitedTraces, nil) {
+				return false
+			}
+			return true
 		})
 	}
 }
+
 // countSpansInTrace counts the number of spans in a single ptrace.Traces object
 func countSpansInTrace(trace ptrace.Traces) int {
 	spanCount := 0
