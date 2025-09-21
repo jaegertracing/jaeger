@@ -43,6 +43,7 @@ const (
 	queryAdditionalHeaders     = "query.additional-headers"
 	queryMaxClockSkewAdjust    = "query.max-clock-skew-adjustment"
 	queryEnableTracing         = "query.enable-tracing"
+	queryMaxTraceSize          = "query.max-trace-size"
 )
 
 const (
@@ -101,6 +102,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Bool(queryTokenPropagation, false, "Allow propagation of bearer token to be used by storage plugins")
 	flagSet.Duration(queryMaxClockSkewAdjust, defaultMaxClockSkewAdjust, "The maximum delta by which span timestamps may be adjusted in the UI due to clock skew; set to 0s to disable clock skew adjustments")
 	flagSet.Bool(queryEnableTracing, false, "Enables emitting jaeger-query traces")
+	flagSet.Int(queryMaxTraceSize, defaultMaxTraceSize, "Maximum number of spans per trace (0 = no limit, truncates with warning if exceeded)")
 	tlsGRPCFlagsConfig.AddFlags(flagSet)
 	tlsHTTPFlagsConfig.AddFlags(flagSet)
 }
@@ -131,7 +133,7 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) (*Q
 	qOpts.BearerTokenPropagation = v.GetBool(queryTokenPropagation)
 
 	qOpts.MaxClockSkewAdjust = v.GetDuration(queryMaxClockSkewAdjust)
-	// MaxTraceSize is configured via v2 config only; leave default here
+	qOpts.MaxTraceSize = v.GetInt(queryMaxTraceSize)
 	stringSlice := v.GetStringSlice(queryAdditionalHeaders)
 	headers, err := stringSliceAsHeader(stringSlice)
 	if err != nil {
