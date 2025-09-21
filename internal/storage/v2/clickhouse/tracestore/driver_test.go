@@ -37,7 +37,7 @@ func (tb *testBatch) Send() error {
 	return nil
 }
 
-func (tb *testBatch) Close() error {
+func (*testBatch) Close() error {
 	return nil
 }
 
@@ -107,7 +107,7 @@ func (tr *testRows[T]) Scan(dest ...any) error {
 func (t *testDriver) PrepareBatch(
 	_ context.Context,
 	query string,
-	opts ...driver.PrepareBatchOption,
+	_ ...driver.PrepareBatchOption,
 ) (driver.Batch, error) {
 	require.Equal(t.t, t.expectedQuery, query)
 	if t.err != nil {

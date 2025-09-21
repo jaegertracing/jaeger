@@ -196,7 +196,7 @@ func TestWriter_Success(t *testing.T) {
 	require.Equal(t, "0000000000000001", s1[0])                 // SpanID
 	require.Equal(t, "00000000000000000000000000000001", s1[1]) // TraceID
 	require.Equal(t, "state1", s1[2])                           // TraceState
-	require.Equal(t, "", s1[3])                                 // ParentSpanID
+	require.Empty(t, s1[3])                                     // ParentSpanID
 	require.Equal(t, "GET /api/user", s1[4])                    // Name
 	require.EqualValues(t, ptrace.SpanKindServer, s1[5])        // Kind
 	require.Equal(t, fixedTime, s1[6])                          // StartTimestamp
@@ -210,13 +210,13 @@ func TestWriter_Success(t *testing.T) {
 	// ---------- Span 2 ----------
 	s2 := tb.appended[1]
 	require.Len(t, s2, 13)
-	require.Equal(t, "0000000000000002", s2[0])                 // SpanID
-	require.Equal(t, "00000000000000000000000000000002", s2[1]) // TraceID
-	require.Equal(t, "state2", s2[2])                           // TraceState
-	require.Equal(t, "0000000000000001", s2[3])                 // ParentSpanID
-	require.Equal(t, "POST /api/order", s2[4])                  // Name
-	require.EqualValues(t, ptrace.SpanKindServer, s2[5])        // Kind
-	require.Equal(t, fixedTime, s2[6])                          // StartTimestamp
+	require.Equal(t, "0000000000000002", s2[0])
+	require.Equal(t, "00000000000000000000000000000002", s2[1])
+	require.Equal(t, "state2", s2[2])
+	require.Equal(t, "0000000000000001", s2[3])
+	require.Equal(t, "POST /api/order", s2[4])
+	require.EqualValues(t, ptrace.SpanKindServer, s2[5])
+	require.Equal(t, fixedTime, s2[6])
 	require.EqualValues(t, ptrace.StatusCodeOk, s2[7])
 	require.Equal(t, "success", s2[8])
 	require.EqualValues(t, int64(2500*time.Millisecond), s2[9])
@@ -227,10 +227,10 @@ func TestWriter_Success(t *testing.T) {
 	// ---------- Span 3 ----------
 	s3 := tb.appended[2]
 	require.Len(t, s3, 13)
-	require.Equal(t, "0000000000000003", s3[0])                 // SpanID
-	require.Equal(t, "00000000000000000000000000000003", s3[1]) // TraceID
+	require.Equal(t, "0000000000000003", s3[0])
+	require.Equal(t, "00000000000000000000000000000003", s3[1])
 	require.Equal(t, "state1", s3[2])
-	require.Equal(t, "", s3[3]) // ParentSpanID (zero = root)
+	require.Empty(t, s3[3])
 	require.Equal(t, "GET /api/user", s3[4])
 	require.EqualValues(t, ptrace.SpanKindClient, s3[5])
 	require.Equal(t, fixedTime, s3[6])
