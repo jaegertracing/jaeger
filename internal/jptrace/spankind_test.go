@@ -11,9 +11,6 @@ import (
 )
 
 func TestStringToSpanKind(t *testing.T) {
-	type args struct {
-		sk string
-	}
 	tests := []struct {
 		str  string
 		want ptrace.SpanKind

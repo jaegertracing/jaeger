@@ -11,9 +11,6 @@ import (
 )
 
 func TestConvertStatusCode(t *testing.T) {
-	type args struct {
-		sc string
-	}
 	tests := []struct {
 		str  string
 		want ptrace.StatusCode
