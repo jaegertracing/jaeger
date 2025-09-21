@@ -99,9 +99,9 @@ func convertSpan(s Span) (ptrace.Span, error) {
 	}
 	span.TraceState().FromRaw(s.TraceState)
 	span.SetName(s.Name)
-	span.SetKind(convertSpanKind(s.Kind))
+	span.SetKind(jptrace.StringToSpanKind(s.Kind))
 	span.SetEndTimestamp(pcommon.NewTimestampFromTime(s.StartTime.Add(s.Duration)))
-	span.Status().SetCode(convertStatusCode(s.StatusCode))
+	span.Status().SetCode(jptrace.StringToStatusCode(s.StatusCode))
 	span.Status().SetMessage(s.StatusMessage)
 
 	populateAttributes(s.Attributes, span.Attributes())
@@ -167,36 +167,4 @@ func convertSpanLink(l Link) (ptrace.SpanLink, error) {
 	link.TraceState().FromRaw(l.TraceState)
 	// TODO: populate attributes
 	return link, nil
-}
-
-func convertSpanKind(sk string) ptrace.SpanKind {
-	switch sk {
-	case "Unspecified":
-		return ptrace.SpanKindUnspecified
-	case "Internal":
-		return ptrace.SpanKindInternal
-	case "Server":
-		return ptrace.SpanKindServer
-	case "Client":
-		return ptrace.SpanKindClient
-	case "Producer":
-		return ptrace.SpanKindProducer
-	case "Consumer":
-		return ptrace.SpanKindConsumer
-	default:
-		return ptrace.SpanKindUnspecified
-	}
-}
-
-func convertStatusCode(sc string) ptrace.StatusCode {
-	switch sc {
-	case "Ok":
-		return ptrace.StatusCodeOk
-	case "Unset":
-		return ptrace.StatusCodeUnset
-	case "Error":
-		return ptrace.StatusCodeError
-	default:
-		return ptrace.StatusCodeUnset
-	}
 }
