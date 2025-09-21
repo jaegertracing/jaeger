@@ -110,7 +110,7 @@ cleanup() {
       fi
       sleep 2
     done
-    done
+  done
   log "Cleanup complete"
 }
 
