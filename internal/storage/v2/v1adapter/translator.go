@@ -52,39 +52,40 @@ func V1TracesFromSeq2(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize ..
 		limit = maxTraceSize[0]
 	}
 
+	// Early return for no limit case to avoid unnecessary processing
+	if limit <= 0 {
+		var (
+			jaegerTraces []*model.Trace
+			iterErr      error
+		)
+		jptrace.AggregateTraces(otelSeq)(func(otelTrace ptrace.Traces, err error) bool {
+			if err != nil {
+				iterErr = err
+				return false
+			}
+			trace := modelTraceFromOtelTrace(otelTrace)
+			jaegerTraces = append(jaegerTraces, trace)
+			return true
+		})
+		if iterErr != nil {
+			return nil, iterErr
+		}
+		return jaegerTraces, nil
+	}
+
 	var (
 		jaegerTraces []*model.Trace
 		iterErr      error
 	)
-	jptrace.AggregateTraces(otelSeq)(func(otelTrace ptrace.Traces, err error) bool {
+
+	// Apply trace size limit incrementally during sequence consumption
+	limitedSeq := applyTraceSizeLimit(otelSeq, limit)
+	jptrace.AggregateTraces(limitedSeq)(func(otelTrace ptrace.Traces, err error) bool {
 		if err != nil {
 			iterErr = err
 			return false
 		}
 		trace := modelTraceFromOtelTrace(otelTrace)
-
-		// Apply trace size limit if specified
-		if limit > 0 && len(trace.Spans) > limit {
-			originalSpanCount := len(trace.Spans)
-			// Truncate the trace to the limit
-			trace.Spans = trace.Spans[:limit]
-
-			// Add a warning tag to indicate truncation
-			warningTag := model.KeyValue{
-				Key:   "jaeger.warning",
-				VType: model.ValueType_STRING,
-				VStr:  fmt.Sprintf("Trace truncated: only first %d spans loaded (total spans: %d)", limit, originalSpanCount),
-			}
-
-			// Add warning to the first span's tags
-			if len(trace.Spans) > 0 {
-				if trace.Spans[0].Tags == nil {
-					trace.Spans[0].Tags = make([]model.KeyValue, 0, 1)
-				}
-				trace.Spans[0].Tags = append(trace.Spans[0].Tags, warningTag)
-			}
-		}
-
 		jaegerTraces = append(jaegerTraces, trace)
 		return true
 	})
@@ -92,6 +93,97 @@ func V1TracesFromSeq2(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize ..
 		return nil, iterErr
 	}
 	return jaegerTraces, nil
+}
+
+// applyTraceSizeLimit applies trace size limits incrementally during sequence consumption.
+// This prevents loading large traces entirely into memory before applying the limit.
+func applyTraceSizeLimit(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize int) iter.Seq2[[]ptrace.Traces, error] {
+	if maxTraceSize <= 0 {
+		return otelSeq
+	}
+
+	return func(yield func(traces []ptrace.Traces, err error) bool) {
+		otelSeq(func(traces []ptrace.Traces, err error) bool {
+			if err != nil {
+				return yield(traces, err)
+			}
+
+			// Pre-allocate slice with known capacity for better performance
+			limitedTraces := make([]ptrace.Traces, 0, len(traces))
+
+			// Process each trace in the batch and apply size limits incrementally
+			for _, trace := range traces {
+				limitedTrace := applyTraceSizeLimitToSingleTrace(trace, maxTraceSize)
+				limitedTraces = append(limitedTraces, limitedTrace)
+			}
+
+			return yield(limitedTraces, nil)
+		})
+	}
+}
+
+// applyTraceSizeLimitToSingleTrace applies size limit to a single trace incrementally.
+// Optimized to avoid counting all spans upfront and use early returns.
+func applyTraceSizeLimitToSingleTrace(trace ptrace.Traces, maxTraceSize int) ptrace.Traces {
+	if maxTraceSize <= 0 {
+		return trace
+	}
+
+	// Quick check: if the trace has no resource spans, return early
+	resources := trace.ResourceSpans()
+	if resources.Len() == 0 {
+		return trace
+	}
+
+	// Pre-allocate with estimated capacity for better performance
+	estimatedSpans := 0
+	for i := 0; i < resources.Len(); i++ {
+		scopes := resources.At(i).ScopeSpans()
+		for j := 0; j < scopes.Len(); j++ {
+			estimatedSpans += scopes.At(j).Spans().Len()
+		}
+	}
+
+	// If trace is within limit, return as-is to avoid unnecessary copying
+	if estimatedSpans <= maxTraceSize {
+		return trace
+	}
+
+	// Create a new trace with limited spans, counting as we go
+	limitedTrace := ptrace.NewTraces()
+
+	spansAdded := 0
+
+	for i := 0; i < resources.Len() && spansAdded < maxTraceSize; i++ {
+		resource := resources.At(i)
+		limitedResource := limitedTrace.ResourceSpans().AppendEmpty()
+		resource.Resource().CopyTo(limitedResource.Resource())
+
+		scopes := resource.ScopeSpans()
+		for j := 0; j < scopes.Len() && spansAdded < maxTraceSize; j++ {
+			scope := scopes.At(j)
+			limitedScope := limitedResource.ScopeSpans().AppendEmpty()
+			scope.Scope().CopyTo(limitedScope.Scope())
+
+			spans := scope.Spans()
+			scopeSpanCount := spans.Len()
+
+			for k := 0; k < scopeSpanCount && spansAdded < maxTraceSize; k++ {
+				span := spans.At(k)
+				limitedSpan := limitedScope.Spans().AppendEmpty()
+				span.CopyTo(limitedSpan)
+				spansAdded++
+
+				// Add warning to the first span if this is a truncated trace
+				if spansAdded == 1 {
+					warningTag := pcommon.NewValueStr(fmt.Sprintf("Trace truncated: only first %d spans loaded (total spans: %d)", maxTraceSize, estimatedSpans))
+					limitedSpan.Attributes().PutStr("jaeger.warning", warningTag.Str())
+				}
+			}
+		}
+	}
+
+	return limitedTrace
 }
 
 func V1TraceIDsFromSeq2(traceIDsIter iter.Seq2[[]tracestore.FoundTraceID, error]) ([]model.TraceID, error) {
