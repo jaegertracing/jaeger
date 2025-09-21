@@ -198,7 +198,7 @@ components:
         value: "2.0.2"
       # Currency service (C++) with gRPC endpoint
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
-        value: jaeger-collector.jaeger.svc.cluster.local:4317
+        value: http://jaeger-collector.jaeger.svc.cluster.local:4317
       - name: OTEL_EXPORTER_OTLP_PROTOCOL
         value: grpc
       - name: OTEL_RESOURCE_ATTRIBUTES
