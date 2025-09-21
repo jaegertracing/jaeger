@@ -53,11 +53,10 @@ func tracesFromSpanRows(t *testing.T, rows []*spanRow) ptrace.Traces {
 }
 
 func TestWriter_Success(t *testing.T) {
-	tb := &testBatch{t: t}
 	conn := &testDriver{
 		t:             t,
 		expectedQuery: sql.SpansInsert,
-		batch:         tb,
+		batch:         &testBatch{t: t},
 	}
 	w := NewWriter(conn)
 
@@ -66,11 +65,11 @@ func TestWriter_Success(t *testing.T) {
 	err := w.WriteTraces(context.Background(), td)
 	require.NoError(t, err)
 
-	require.True(t, tb.sendCalled)
-	require.Len(t, tb.appended, len(multipleSpans))
+	require.True(t, conn.batch.sendCalled)
+	require.Len(t, conn.batch.appended, len(multipleSpans))
 
 	for i, expected := range multipleSpans {
-		row := tb.appended[i]
+		row := conn.batch.appended[i]
 
 		require.Equal(t, expected.id, row[0])                // SpanID
 		require.Equal(t, expected.traceID, row[1])           // TraceID
@@ -99,6 +98,7 @@ func TestWriter_PrepareBatchError(t *testing.T) {
 	err := w.WriteTraces(context.Background(), tracesFromSpanRows(t, multipleSpans))
 	require.ErrorContains(t, err, "failed to prepare batch")
 	require.ErrorIs(t, err, assert.AnError)
+	require.False(t, conn.batch.sendCalled)
 }
 
 func TestWriter_AppendBatchError(t *testing.T) {
@@ -111,6 +111,7 @@ func TestWriter_AppendBatchError(t *testing.T) {
 	err := w.WriteTraces(context.Background(), tracesFromSpanRows(t, multipleSpans))
 	require.ErrorContains(t, err, "failed to append span to batch")
 	require.ErrorIs(t, err, assert.AnError)
+	require.False(t, conn.batch.sendCalled)
 }
 
 func TestWriter_SendError(t *testing.T) {
@@ -123,4 +124,5 @@ func TestWriter_SendError(t *testing.T) {
 	err := w.WriteTraces(context.Background(), tracesFromSpanRows(t, multipleSpans))
 	require.ErrorContains(t, err, "failed to send batch")
 	require.ErrorIs(t, err, assert.AnError)
+	require.False(t, conn.batch.sendCalled)
 }
