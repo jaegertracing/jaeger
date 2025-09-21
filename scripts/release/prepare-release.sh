@@ -1,34 +1,41 @@
 #!/bin/bash
 set -e # Exit immediately if a command exits with a non-zero status.
 
-# The version number is passed as the first argument from the workflow
-VERSION=$1
-if [ -z "$VERSION" ]; then
-  echo "Error: Version number not provided."
+# This script expects two arguments: the main Jaeger version and the UI version.
+MAIN_VERSION=$1
+UI_VERSION=$2
+
+# Check if both version arguments were provided.
+if [ -z "$MAIN_VERSION" ] || [ -z "$UI_VERSION" ]; then
+  echo "Error: Missing version arguments."
+  echo "Usage: ./scripts/release/prepare-release.sh <main-version> <ui-version>"
+  echo "Example: ./scripts/release/prepare-release.sh v1.56.0 v4.10.0"
   exit 1
 fi
 
-echo "--- Preparing release for version: $VERSION ---"
+echo "--- Preparing release for main version: $MAIN_VERSION and UI version: $UI_VERSION ---"
 
-# --- Task 1: Generate Changelog ---
-# Find and run the command to update the CHANGELOG.md file.
-# You might need to find the exact command in the Makefile.
-# For example, it might be:
-echo "1. Generating changelog..."
-make changelog # Assuming this command exists
+# --- Task 1: Update Version Strings in the Codebase ---
+# You must investigate the codebase to find the correct files and patterns to replace.
+# Use 'grep' to find where the old version numbers are located.
+# The 'sed' command is used to replace them. The '-i.bak' flag creates a backup.
+echo "1. Updating version strings..."
 
-# --- Task 2: Update UI Version ---
-# This is an example. You must find the actual file and version string to replace.
-# Let's pretend the version is in a file called 'pkg/version/version.go'
-echo "2. Updating UI version..."
-# sed -i 's/jaeger-ui:v[0-9.]*/jaeger-ui:'$VERSION'/g' path/to/some/file
+# EXAMPLE ONLY - Replace with the actual files and patterns you find.
+# sed -i.bak "s/JAEGER_VERSION := .*/JAEGER_VERSION := ${MAIN_VERSION}/g" Makefile
+# sed -i.bak "s|github.com/jaegertracing/jaeger-ui v.*|github.com/jaegertracing/jaeger-ui ${UI_VERSION}|g" go.mod
 
-# --- Task 3: Print Tagging Commands ---
-echo "3. Generating tag commands..."
-echo "--------------------------------------------------"
-echo "✅ Release preparation is complete."
-echo "Once the PR is merged, run these commands locally to tag the release:"
+
+# --- Task 2: Generate Changelog ---
+echo "2. Generating changelog..."
+# This command updates the CHANGELOG.md file.
+make changelog
+
+
+# --- Final Instructions ---
 echo
-echo "git tag ${VERSION}"
-echo "git push upstream ${VERSION}"
+echo "--------------------------------------------------"
+echo "✅ Release preparation script finished."
+echo "Please review the file changes with 'git diff'."
+echo "Once you are satisfied, commit the changes and open a Pull Request."
 echo "--------------------------------------------------"
