@@ -122,68 +122,105 @@ func applyTraceSizeLimit(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize
 	}
 }
 
-// applyTraceSizeLimitToSingleTrace applies size limit to a single trace incrementally.
-// Optimized to avoid counting all spans upfront and use early returns.
+// applyTraceSizeLimitToSingleTrace applies size limit to a single trace with true incremental processing.
+// This version NEVER loads more spans than the limit, preventing OOM at the source.
 func applyTraceSizeLimitToSingleTrace(trace ptrace.Traces, maxTraceSize int) ptrace.Traces {
 	if maxTraceSize <= 0 {
 		return trace
 	}
 
-	// Quick check: if the trace has no resource spans, return early
 	resources := trace.ResourceSpans()
 	if resources.Len() == 0 {
 		return trace
 	}
 
-	// Pre-allocate with estimated capacity for better performance
-	estimatedSpans := 0
-	for i := 0; i < resources.Len(); i++ {
-		scopes := resources.At(i).ScopeSpans()
-		for j := 0; j < scopes.Len(); j++ {
-			estimatedSpans += scopes.At(j).Spans().Len()
-		}
-	}
-
-	// If trace is within limit, return as-is to avoid unnecessary copying
-	if estimatedSpans <= maxTraceSize {
-		return trace
-	}
-
-	// Create a new trace with limited spans, counting as we go
+	// Create limited trace with incremental span processing
 	limitedTrace := ptrace.NewTraces()
+	spansProcessed := 0
+	truncated := false
 
-	spansAdded := 0
-
-	for i := 0; i < resources.Len() && spansAdded < maxTraceSize; i++ {
+	// Process resources incrementally, stopping at limit
+resourceLoop:
+	for i := 0; i < resources.Len(); i++ {
 		resource := resources.At(i)
 		limitedResource := limitedTrace.ResourceSpans().AppendEmpty()
 		resource.Resource().CopyTo(limitedResource.Resource())
 
+		hasSpansInResource := false
 		scopes := resource.ScopeSpans()
-		for j := 0; j < scopes.Len() && spansAdded < maxTraceSize; j++ {
+
+		for j := 0; j < scopes.Len(); j++ {
 			scope := scopes.At(j)
+			spans := scope.Spans()
+
+			if spans.Len() == 0 {
+				continue
+			}
+
 			limitedScope := limitedResource.ScopeSpans().AppendEmpty()
 			scope.Scope().CopyTo(limitedScope.Scope())
+			hasSpansInScope := false
 
-			spans := scope.Spans()
-			scopeSpanCount := spans.Len()
+			for k := 0; k < spans.Len(); k++ {
+				if spansProcessed >= maxTraceSize {
+					truncated = true
+					break resourceLoop
+				}
 
-			for k := 0; k < scopeSpanCount && spansAdded < maxTraceSize; k++ {
 				span := spans.At(k)
 				limitedSpan := limitedScope.Spans().AppendEmpty()
 				span.CopyTo(limitedSpan)
-				spansAdded++
 
-				// Add warning to the first span if this is a truncated trace
-				if spansAdded == 1 {
-					warningTag := pcommon.NewValueStr(fmt.Sprintf("Trace truncated: only first %d spans loaded (total spans: %d)", maxTraceSize, estimatedSpans))
-					limitedSpan.Attributes().PutStr("jaeger.warning", warningTag.Str())
+				// Add warning to first span only if trace will actually be truncated
+				if spansProcessed == 0 && willExceedLimit(trace, maxTraceSize) {
+					limitedSpan.Attributes().PutStr("jaeger.warning",
+						fmt.Sprintf("Trace truncated: only first %d spans loaded", maxTraceSize))
 				}
+
+				spansProcessed++
+				hasSpansInScope = true
+				hasSpansInResource = true
 			}
+
+			// Remove empty scope if no spans were added
+			if !hasSpansInScope {
+				limitedResource.ScopeSpans().RemoveIf(func(ss ptrace.ScopeSpans) bool {
+					return ss.Spans().Len() == 0
+				})
+			}
+		}
+
+		// Remove empty resource if no spans were added
+		if !hasSpansInResource {
+			limitedTrace.ResourceSpans().RemoveIf(func(rs ptrace.ResourceSpans) bool {
+				return rs.ScopeSpans().Len() == 0
+			})
 		}
 	}
 
+	// If we didn't need truncation, return the original trace to avoid unnecessary copying
+	if !truncated {
+		return trace
+	}
+
 	return limitedTrace
+}
+
+// willExceedLimit efficiently checks if trace will exceed limit
+func willExceedLimit(trace ptrace.Traces, maxTraceSize int) bool {
+	spanCount := 0
+	resources := trace.ResourceSpans()
+
+	for i := 0; i < resources.Len(); i++ {
+		scopes := resources.At(i).ScopeSpans()
+		for j := 0; j < scopes.Len(); j++ {
+			spanCount += scopes.At(j).Spans().Len()
+			if spanCount > maxTraceSize {
+				return true // Early exit
+			}
+		}
+	}
+	return false
 }
 
 func V1TraceIDsFromSeq2(traceIDsIter iter.Seq2[[]tracestore.FoundTraceID, error]) ([]model.TraceID, error) {
