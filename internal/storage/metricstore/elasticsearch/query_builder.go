@@ -15,6 +15,8 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
@@ -36,24 +38,11 @@ type QueryBuilder struct {
 	client           es.Client
 	cfg              config.Configuration
 	timeRangeIndices spanstore.TimeRangeIndexFn
-	spanReader       *spanstore.SpanReader
+	tagQueryBuilder  query.TagQueryBuilder
 }
 
 // NewQueryBuilder creates a new QueryBuilder instance.
 func NewQueryBuilder(client es.Client, cfg config.Configuration, logger *zap.Logger) *QueryBuilder {
-	// Create SpanReader parameters for reusing tag query logic
-	spanReaderParams := spanstore.SpanReaderParams{
-		Client:              func() es.Client { return client },
-		Logger:              logger,
-		IndexPrefix:         cfg.Indices.IndexPrefix,
-		TagDotReplacement:   cfg.Tags.DotReplacement,
-		UseReadWriteAliases: cfg.UseReadWriteAliases,
-		ReadAliasSuffix:     cfg.ReadAliasSuffix,
-		RemoteReadClusters:  cfg.RemoteReadClusters,
-		MaxSpanAge:          24 * time.Hour, // Default value
-		MaxDocCount:         10000,          // Default value
-	}
-
 	return &QueryBuilder{
 		client: client,
 		cfg:    cfg,
@@ -61,7 +50,9 @@ func NewQueryBuilder(client es.Client, cfg config.Configuration, logger *zap.Log
 			logger,
 			spanstore.TimeRangeIndicesFn(cfg.UseReadWriteAliases, cfg.ReadAliasSuffix, cfg.RemoteReadClusters),
 		),
-		spanReader: spanstore.NewSpanReader(spanReaderParams),
+		tagQueryBuilder: query.NewTagQueryBuilder(
+			dbmodel.NewDotReplacer(cfg.Tags.DotReplacement),
+		),
 	}
 }
 
@@ -83,7 +74,7 @@ func (q *QueryBuilder) BuildBoolQuery(params metricstore.BaseQueryParameters, ti
 
 	// Add complex tag filters using SpanReader's buildTagQuery method
 	for tagKey, tagValue := range params.Tags {
-		tagQuery := q.spanReader.BuildTagQuery(tagKey, tagValue)
+		tagQuery := q.tagQueryBuilder.BuildTagQuery(tagKey, tagValue)
 		boolQuery.Filter(tagQuery)
 	}
 

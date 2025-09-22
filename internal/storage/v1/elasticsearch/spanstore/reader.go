@@ -325,10 +325,6 @@ func (s *SpanReader) GetOperations(
 	return result, err
 }
 
-func (s *SpanReader) BuildTagQuery(k, v string) elastic.Query {
-	return s.buildTagQuery(k, v)
-}
-
 func bucketToStringArray[T ~string](buckets []*elastic.AggregationBucketKeyItem) ([]T, error) {
 	stringSlice := make([]T, len(buckets))
 	for i, keyitem := range buckets {
