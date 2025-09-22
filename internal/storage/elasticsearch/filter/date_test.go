@@ -13,7 +13,7 @@ import (
 )
 
 func TestByDate(t *testing.T) {
-	beforeDateFilter := time.Date(2021, 10, 10, 12, 0o0, 0o0, 0o0, time.Local)
+	beforeDateFilter := time.Date(2021, 10, 10, 12, 0, 0, 0, time.Local)
 	expectedIndices := []client.Index{
 		{
 			Index:        "jaeger-span-0006",
@@ -21,7 +21,7 @@ func TestByDate(t *testing.T) {
 		},
 		{
 			Index:        "jaeger-span-0004",
-			CreationTime: time.Date(2021, 9, 16, 11, 0o0, 0o0, 0o0, time.Local),
+			CreationTime: time.Date(2021, 9, 16, 11, 0, 0, 0, time.Local),
 			Aliases: map[string]bool{
 				"jaeger-span-other": true,
 			},
@@ -41,7 +41,7 @@ func TestByDate(t *testing.T) {
 		},
 		{
 			Index:        "jaeger-span-0004",
-			CreationTime: time.Date(2021, 9, 16, 11, 0o0, 0o0, 0o0, time.Local),
+			CreationTime: time.Date(2021, 9, 16, 11, 0, 0, 0, time.Local),
 			Aliases: map[string]bool{
 				"jaeger-span-other": true,
 			},
@@ -55,7 +55,7 @@ func TestByDate(t *testing.T) {
 		},
 		{
 			Index:        "jaeger-span-0001",
-			CreationTime: time.Date(2021, 10, 10, 12, 0o0, 0o0, 0o0, time.Local),
+			CreationTime: time.Date(2021, 10, 10, 12, 0, 0, 0, time.Local),
 			Aliases: map[string]bool{
 				"jaeger-span-write": true,
 				"jaeger-span-read":  true,
@@ -63,14 +63,14 @@ func TestByDate(t *testing.T) {
 		},
 		{
 			Index:        "jaeger-span-0002",
-			CreationTime: time.Date(2021, 11, 10, 12, 30, 0o0, 0o0, time.Local),
+			CreationTime: time.Date(2021, 11, 10, 12, 30, 0, 0, time.Local),
 			Aliases: map[string]bool{
 				"jaeger-span-read": true,
 			},
 		},
 		{
 			Index:        "jaeger-span-0003",
-			CreationTime: time.Date(2021, 12, 10, 2, 15, 20, 0o1, time.Local),
+			CreationTime: time.Date(2021, 12, 10, 2, 15, 20, 1, time.Local),
 			Aliases: map[string]bool{
 				"jaeger-span-read": true,
 			},

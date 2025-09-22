@@ -8,7 +8,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/olivere/elastic"
+	"github.com/olivere/elastic/v7"
 )
 
 // Client is an abstraction for elastic.Client

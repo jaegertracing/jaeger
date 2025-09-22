@@ -44,7 +44,7 @@ type Service struct {
 }
 
 func PrintV1EOL() {
-	println(`
+	fmt.Fprintln(os.Stderr, (`
 *******************************************************************************
 
 🛑  WARNING: End-of-life Notice for Jaeger v1
@@ -63,8 +63,7 @@ Tracking issue: https://github.com/jaegertracing/jaeger/issues/6321
 
 🛑  WARNING: End-of-life Notice for Jaeger v1
 
-*******************************************************************************
-`)
+*******************************************************************************`))
 }
 
 // NewService creates a new Service.

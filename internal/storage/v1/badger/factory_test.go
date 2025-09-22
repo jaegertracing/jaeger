@@ -190,24 +190,3 @@ func TestConfigure(t *testing.T) {
 	f.configure(cfg)
 	assert.Equal(t, cfg, f.Config)
 }
-
-func TestBadgerStorageFactoryWithConfig(t *testing.T) {
-	cfg := Config{}
-	_, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
-	require.ErrorContains(t, err, "Error Creating Dir")
-
-	tmp := os.TempDir()
-	defer os.Remove(tmp)
-	cfg = Config{
-		Directories: Directories{
-			Keys:   tmp,
-			Values: tmp,
-		},
-		Ephemeral:             false,
-		MaintenanceInterval:   5,
-		MetricsUpdateInterval: 10,
-	}
-	factory, err := NewFactoryWithConfig(cfg, metrics.NullFactory, zap.NewNop())
-	require.NoError(t, err)
-	defer factory.Close()
-}

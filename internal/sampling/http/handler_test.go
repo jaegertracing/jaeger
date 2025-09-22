@@ -244,7 +244,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 			withServer("", probabilistic(0.001), withGorilla, func(ts *testServer) {
 				handler := ts.handler
 
-				req := httptest.NewRequest(http.MethodGet, "http://localhost:80/?service=X", nil)
+				req := httptest.NewRequest(http.MethodGet, "http://localhost:80/?service=X", http.NoBody)
 				w := &mockWriter{header: make(http.Header)}
 				handler.serveSamplingHTTP(w, req, handler.encodeThriftLegacy)
 

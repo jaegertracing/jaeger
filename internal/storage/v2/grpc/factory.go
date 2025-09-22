@@ -16,7 +16,7 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 	"google.golang.org/grpc"
 
-	"github.com/jaegertracing/jaeger/internal/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
@@ -117,7 +117,7 @@ func (f *Factory) initializeConnections(
 	readerConfig, writerConfig *configgrpc.ClientConfig,
 	newClient newClientFn,
 ) error {
-	if f.config.Auth != nil {
+	if f.config.Auth.HasValue() {
 		return errors.New("authenticator is not supported")
 	}
 

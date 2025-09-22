@@ -54,7 +54,7 @@ func (IPAttributeAdjuster) adjustAttributes(attributes pcommon.Map) {
 		var value uint32
 		switch v.Type() {
 		case pcommon.ValueTypeInt:
-			//nolint: gosec // G115
+			//nolint:gosec // G115
 			value = uint32(v.Int())
 		case pcommon.ValueTypeDouble:
 			value = uint32(v.Double())

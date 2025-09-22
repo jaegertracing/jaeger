@@ -51,7 +51,7 @@ type testGateway struct {
 }
 
 func (gw *testGateway) execRequest(t *testing.T, url string) ([]byte, int) {
-	req, err := http.NewRequest(http.MethodGet, gw.url+url, nil)
+	req, err := http.NewRequest(http.MethodGet, gw.url+url, http.NoBody)
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	gw.setupRequest(req)

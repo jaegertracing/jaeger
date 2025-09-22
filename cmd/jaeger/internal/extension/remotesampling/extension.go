@@ -139,9 +139,7 @@ func (ext *rsExtension) Shutdown(ctx context.Context) error {
 	var errs []error
 
 	if ext.httpServer != nil {
-		if err := ext.httpServer.Shutdown(ctx); err != nil {
-			errs = append(errs, fmt.Errorf("failed to stop the sampling HTTP server: %w", err))
-		}
+		errs = append(errs, ext.httpServer.Shutdown(ctx))
 	}
 
 	if ext.grpcServer != nil {
@@ -149,15 +147,11 @@ func (ext *rsExtension) Shutdown(ctx context.Context) error {
 	}
 
 	if ext.distLock != nil {
-		if err := ext.distLock.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("failed to stop the distributed lock: %w", err))
-		}
+		errs = append(errs, ext.distLock.Close())
 	}
 
 	if ext.strategyProvider != nil {
-		if err := ext.strategyProvider.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("failed to stop strategy provider: %w", err))
-		}
+		errs = append(errs, ext.strategyProvider.Close())
 	}
 	return errors.Join(errs...)
 }
@@ -169,8 +163,7 @@ func (ext *rsExtension) startFileBasedStrategyProvider(_ context.Context) error 
 		DefaultSamplingProbability: ext.cfg.File.DefaultSamplingProbability,
 	}
 
-	// contextcheck linter complains about next line that context is not passed.
-	//nolint:contextcheck
+	//nolint:contextcheck // contextcheck linter complains about next line that context is not passed.
 	provider, err := file.NewProvider(opts, ext.telemetry.Logger)
 	if err != nil {
 		return fmt.Errorf("failed to create the local file strategy store: %w", err)

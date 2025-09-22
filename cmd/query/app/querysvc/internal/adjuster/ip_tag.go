@@ -26,7 +26,7 @@ func IPTagAdjuster() Adjuster {
 			var value uint32
 			switch tag.VType {
 			case model.Int64Type:
-				//nolint: gosec // G115
+				//nolint:gosec // G115
 				value = uint32(tag.Int64())
 			case model.Float64Type:
 				value = uint32(tag.Float64())

@@ -62,7 +62,7 @@ func (opts *options) initFromViper(cfg *Config, v *viper.Viper) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse gRPC storage TLS options: %w", err)
 	}
-	cfg.ClientConfig.TLSSetting = remoteTLSCfg
+	cfg.ClientConfig.TLS = remoteTLSCfg
 	cfg.TimeoutConfig.Timeout = v.GetDuration(opts.namespace + remoteConnectionTimeout)
 	cfg.Tenancy = tenancy.InitFromViper(v)
 	if opts.namespace == archiveRemotePrefix {

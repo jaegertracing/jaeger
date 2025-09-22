@@ -10,11 +10,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/olivere/elastic"
+	"github.com/olivere/elastic/v7"
 	"go.uber.org/zap"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/samplingstore/dbmodel"
 )
@@ -83,7 +84,7 @@ func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput
 	}
 	output := make([]dbmodel.TimeThroughput, len(searchResult.Hits.Hits))
 	for i, hit := range searchResult.Hits.Hits {
-		if err := json.Unmarshal(*hit.Source, &output[i]); err != nil {
+		if err := json.Unmarshal(hit.Source, &output[i]); err != nil {
 			return nil, fmt.Errorf("unmarshalling documents failed: %w", err)
 		}
 	}
@@ -132,7 +133,7 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 	latestTime := time.Time{}
 	for _, hit := range searchResult.Hits.Hits {
 		var data dbmodel.TimeProbabilitiesAndQPS
-		if err = json.Unmarshal(*hit.Source, &data); err != nil {
+		if err = json.Unmarshal(hit.Source, &data); err != nil {
 			return nil, fmt.Errorf("unmarshalling documents failed: %w", err)
 		}
 		if data.Timestamp.After(latestTime) {
@@ -190,7 +191,7 @@ func (p *Params) PrefixedIndexName() string {
 }
 
 func buildTSQuery(start, end time.Time) elastic.Query {
-	return elastic.NewRangeQuery("timestamp").Gte(start).Lte(end)
+	return esquery.NewRangeQuery("timestamp").Gte(start).Lte(end)
 }
 
 func indexWithDate(indexNamePrefix, indexDateLayout string, date time.Time) string {

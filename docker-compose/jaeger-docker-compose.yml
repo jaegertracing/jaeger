@@ -1,13 +1,13 @@
 services:
     hotrod:
-      image: jaegertracing/example-hotrod:latest
+      image: cr.jaegertracing.io/jaegertracing/example-hotrod:latest
       ports:
         - '8080:8080'
         - '8083:8083'
       command: ["-m","prometheus","all"]
 
     jaeger-collector:
-      image: jaegertracing/jaeger-collector
+      image: cr.jaegertracing.io/jaegertracing/jaeger-collector
       command:
         - "--cassandra.keyspace=jaeger_v1_dc1"
         - "--cassandra.servers=cassandra"
@@ -26,7 +26,7 @@ services:
         - cassandra-schema
 
     jaeger-query:
-      image: jaegertracing/jaeger-query
+      image: cr.jaegertracing.io/jaegertracing/jaeger-query
       command: ["--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra"]
       ports:
         - "16686:16686"
@@ -39,6 +39,6 @@ services:
       image: cassandra:4.0
 
     cassandra-schema:
-      image: jaegertracing/jaeger-cassandra-schema
+      image: cr.jaegertracing.io/jaegertracing/jaeger-cassandra-schema
       depends_on:
         - cassandra

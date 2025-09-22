@@ -4,44 +4,21 @@ service:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [jaeger_storage_exporter, spanmetrics]
-    metrics/spanmetrics:
-      receivers: [spanmetrics]
-      exporters: [prometheus]
-  telemetry:
-    resource:
-      service.name: jaeger
-    metrics:
-      level: detailed
-      readers:
-        - pull:
-            exporter:
-              prometheus:
-                host: 0.0.0.0
-                port: 8888
-    logs:
-      level: DEBUG
+      exporters: [jaeger_storage_exporter]
 
 extensions:
   jaeger_query:
     storage:
-      traces: some_storage
-      metrics: some_metrics_storage
+      traces: elasticsearch_trace_storage
+      metrics: elasticsearch_trace_storage
   jaeger_storage:
     backends:
-      some_storage:
+      elasticsearch_trace_storage: &elasticsearch_config
         elasticsearch:
           server_urls:
             - http://elasticsearch:9200
     metric_backends:
-      some_metrics_storage:
-        prometheus:
-          endpoint: http://prometheus:9090
-          normalize_calls: true
-          normalize_duration: true
-
-connectors:
-  spanmetrics:
+      elasticsearch_trace_storage: *elasticsearch_config
 
 receivers:
   otlp:
@@ -55,6 +32,4 @@ processors:
 
 exporters:
   jaeger_storage_exporter:
-    trace_storage: some_storage
-  prometheus:
-    endpoint: "0.0.0.0:8889"
+    trace_storage: elasticsearch_trace_storage

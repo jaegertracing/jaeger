@@ -5,6 +5,7 @@ package memory
 
 import (
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,7 +22,7 @@ var errInvalidMaxTraces = errors.New("max traces must be greater than zero")
 
 // Tenant is an in-memory store of traces for a single tenant
 type Tenant struct {
-	sync.RWMutex
+	mu     sync.RWMutex
 	config *v1.Configuration
 
 	ids        map[pcommon.TraceID]int // maps trace id to index in traces[]
@@ -58,8 +59,8 @@ func newTenant(cfg *v1.Configuration) *Tenant {
 }
 
 func (t *Tenant) storeTraces(tracesById map[pcommon.TraceID]ptrace.ResourceSpansSlice) {
-	t.Lock()
-	defer t.Unlock()
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	for traceId, sameTraceIDResourceSpan := range tracesById {
 		var startTime time.Time
 		var endTime time.Time
@@ -73,7 +74,7 @@ func (t *Tenant) storeTraces(tracesById map[pcommon.TraceID]ptrace.ResourceSpans
 					if serviceName != "" {
 						operation := tracestore.Operation{
 							Name:     span.Name(),
-							SpanKind: span.Kind().String(),
+							SpanKind: fromOTELSpanKind(span.Kind()),
 						}
 						if _, ok := t.operations[serviceName]; !ok {
 							t.operations[serviceName] = make(map[tracestore.Operation]struct{})
@@ -121,8 +122,8 @@ func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndI
 	if query.SearchDepth <= 0 || query.SearchDepth > t.config.MaxTraces {
 		return nil, errInvalidSearchDepth
 	}
-	t.RLock()
-	defer t.RUnlock()
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	traceAndIds := make([]traceAndId, 0, query.SearchDepth)
 	n := len(t.traces)
 	for i := range t.traces {
@@ -144,8 +145,8 @@ func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndI
 }
 
 func (t *Tenant) getTraces(traceIds ...tracestore.GetTraceParams) []ptrace.Traces {
-	t.RLock()
-	defer t.RUnlock()
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	traces := make([]ptrace.Traces, 0)
 	for i := range traceIds {
 		index, ok := t.ids[traceIds[i].TraceID]
@@ -163,8 +164,8 @@ func (t *Tenant) getDependencies(query depstore.QueryParameters) ([]model.Depend
 	if !query.EndTime.IsZero() && query.EndTime.Before(query.StartTime) {
 		return nil, errors.New("end time must be greater than start time")
 	}
-	t.RLock()
-	defer t.RUnlock()
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	deps := map[string]*model.DependencyLink{}
 	for _, index := range t.ids {
 		traceWithTime := t.traces[index]
@@ -288,4 +289,11 @@ func findKeyValInTrace(key string, val pcommon.Value, resourceAttributes pcommon
 		}
 	}
 	return tagsMatched
+}
+
+func fromOTELSpanKind(kind ptrace.SpanKind) string {
+	if kind == ptrace.SpanKindUnspecified {
+		return ""
+	}
+	return strings.ToLower(kind.String())
 }

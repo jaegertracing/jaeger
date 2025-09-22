@@ -11,11 +11,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/olivere/elastic"
+	"github.com/olivere/elastic/v7"
 	"go.uber.org/zap"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore/dbmodel"
 )
 
@@ -107,7 +108,7 @@ func (s *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, 
 	for _, hit := range hits {
 		source := hit.Source
 		var tToD dbmodel.TimeDependencies
-		if err := json.Unmarshal(*source, &tToD); err != nil {
+		if err := json.Unmarshal(source, &tToD); err != nil {
 			return nil, errors.New("unmarshalling ElasticSearch documents failed")
 		}
 		retDependencies = append(retDependencies, tToD.Dependencies...)
@@ -116,7 +117,7 @@ func (s *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, 
 }
 
 func buildTSQuery(endTs time.Time, lookback time.Duration) elastic.Query {
-	return elastic.NewRangeQuery("timestamp").Gte(endTs.Add(-lookback)).Lte(endTs)
+	return esquery.NewRangeQuery("timestamp").Gte(endTs.Add(-lookback)).Lte(endTs)
 }
 
 func (s *DependencyStore) getReadIndices(ts time.Time, lookback time.Duration) []string {

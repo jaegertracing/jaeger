@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 
 	"github.com/jaegertracing/jaeger/internal/config"
@@ -109,7 +110,7 @@ func TestServerFlags(t *testing.T) {
 			serverConfig, err := flagCfg.InitFromViper(v)
 			require.NoError(t, err)
 
-			expectedConfig := configtls.ServerConfig{
+			expectedConfig := configoptional.Some(configtls.ServerConfig{
 				ClientCAFile: "client-ca-file",
 				Config: configtls.Config{
 					CertFile:     "cert-file",
@@ -118,9 +119,9 @@ func TestServerFlags(t *testing.T) {
 					MaxVersion:   "1.3",
 					CipherSuites: []string{"TLS_AES_256_GCM_SHA384", "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA"},
 				},
-			}
+			})
 
-			assert.Equal(t, expectedConfig, *serverConfig)
+			assert.Equal(t, expectedConfig, serverConfig)
 		})
 	}
 }
@@ -137,7 +138,8 @@ func TestServerCertReloadInterval(t *testing.T) {
 	require.NoError(t, err)
 	tlscfg, err := cfg.InitFromViper(v)
 	require.NoError(t, err)
-	assert.Equal(t, 24*time.Hour, tlscfg.ReloadInterval)
+	require.True(t, tlscfg.HasValue())
+	assert.Equal(t, 24*time.Hour, tlscfg.Get().ReloadInterval)
 }
 
 // TestFailedTLSFlags verifies that TLS options cannot be used when tls.enabled=false
@@ -205,7 +207,10 @@ func TestFailedTLSFlags(t *testing.T) {
 					case "client":
 						require.IsType(t, configtls.ClientConfig{}, result, "result should be of type configtls.ClientConfig")
 					case "server":
-						require.IsType(t, &configtls.ServerConfig{}, result, "result should be of type *configtls.ServerConfig")
+						exp := configoptional.Some(configtls.ServerConfig{})
+						require.IsType(t, exp, result, "result should be of type *configtls.ServerConfig")
+					default:
+						t.Errorf("Unexpected side value: %s", metaTest.side)
 					}
 
 					cmdLine[0] = "--prefix.tls.enabled=false"

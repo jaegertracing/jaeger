@@ -1,6 +1,6 @@
 services:
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.18.0@sha256:70b37a809f04cd86e14460f959ff33c272a38f24268eee8b913c2cc73ac86c88
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.19.0@sha256:e1e66bfabae0fd03a0a36651a9bb198e7f061e0c99f457a6203b116e053e9cdb
     environment:
       - discovery.type=single-node
       - http.host=0.0.0.0

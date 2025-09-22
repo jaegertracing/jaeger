@@ -78,3 +78,54 @@ func TestEmptyServiceNameSanitizer_SubstitutesCorrectlyForNonStringType(t *testi
 	require.True(t, ok)
 	require.Equal(t, "service-name-wrong-type", serviceName.Str())
 }
+
+func TestEmptyServiceNameSanitizer_DefaultCases(t *testing.T) {
+	validServiceName := "valid-service"
+	
+	traces := ptrace.NewTraces()
+	attributes := traces.
+		ResourceSpans().
+		AppendEmpty().
+		Resource().
+		Attributes()
+	attributes.PutStr("service.name", validServiceName)
+	
+	sanitizer := NewEmptyServiceNameSanitizer()
+	sanitized := sanitizer(traces)
+	
+	serviceName, ok := sanitized.
+		ResourceSpans().
+		At(0).
+		Resource().
+		Attributes().
+		Get("service.name")
+	require.True(t, ok)
+	require.Equal(t, validServiceName, serviceName.Str())
+	
+	attributes2 := traces.
+		ResourceSpans().
+		AppendEmpty().
+		Resource().
+		Attributes()
+	attributes2.PutStr("service.name", "")
+	
+	sanitized = sanitizer(traces)
+
+	serviceName, ok = sanitized.
+		ResourceSpans().
+		At(0).
+		Resource().
+		Attributes().
+		Get("service.name")
+	require.True(t, ok)
+	require.Equal(t, validServiceName, serviceName.Str())
+	
+	serviceName2, ok := sanitized.
+		ResourceSpans().
+		At(1).
+		Resource().
+		Attributes().
+		Get("service.name")
+	require.True(t, ok)
+	require.Equal(t, "empty-service-name", serviceName2.Str())
+}

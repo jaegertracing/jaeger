@@ -60,7 +60,7 @@ func main() {
 		}
 		handler.xHandler.ServeHTTP(w, r)
 	})
-	//nolint:gosec
+	//nolint:gosec // G114: Use of net/http serve function that has no support for setting timeouts
 	http.ListenAndServe(":8080", nil)
 }
 

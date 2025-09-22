@@ -17,7 +17,7 @@ import (
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/reflection"
 
-	"github.com/jaegertracing/jaeger/internal/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc/shared"
@@ -109,7 +109,7 @@ func createGRPCServer(
 	streamInterceptors := []grpc.StreamServerInterceptor{
 		bearertoken.NewStreamServerInterceptor(),
 	}
-	//nolint:contextcheck
+	//nolint:contextcheck // The context is handled by the interceptors
 	if tm.Enabled {
 		unaryInterceptors = append(unaryInterceptors, tenancy.NewGuardingUnaryInterceptor(tm))
 		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm))

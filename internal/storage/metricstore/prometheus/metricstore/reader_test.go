@@ -26,7 +26,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	config "github.com/jaegertracing/jaeger/internal/config/promcfg"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
@@ -653,6 +653,8 @@ func TestGetErrorRatesErrors(t *testing.T) {
 					} else {
 						sendResponse(t, w, responses[callCount])
 					}
+				default:
+					t.Errorf("Unexpected Prometheus query: %s", promQuery)
 				}
 				callCount++
 			}))
@@ -679,7 +681,7 @@ func TestGetErrorRatesErrors(t *testing.T) {
 func TestInvalidLatencyUnit(t *testing.T) {
 	defer func() {
 		if r := recover(); r == nil {
-			t.Errorf("Expected a panic due to invalid latency unit")
+			t.Error("Expected a panic due to invalid latency unit")
 		}
 	}()
 	tracer, _, closer := tracerProvider(t)
@@ -731,19 +733,43 @@ func (s *fakePromServer) getAuth() string {
 
 func TestGetRoundTripperTLSConfig(t *testing.T) {
 	for _, tc := range []struct {
-		name       string
-		tlsEnabled bool
+		name      string
+		tlsConfig configtls.ClientConfig
+		wantErr   bool
 	}{
-		{"tls tlsEnabled", true},
-		{"tls disabled", false},
+		{
+			name: "tls enabled with cert verification",
+			tlsConfig: configtls.ClientConfig{
+				Insecure: false,
+			},
+		},
+		{
+			name: "tls enabled insecure",
+			tlsConfig: configtls.ClientConfig{
+				Insecure: true, // Skip verify
+			},
+		},
+		{
+			name: "invalid tls config",
+			tlsConfig: configtls.ClientConfig{
+				Config: configtls.Config{
+					CAFile: "foo",
+				},
+			},
+			wantErr: true,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			config := &config.Configuration{
 				ConnectTimeout:           9 * time.Millisecond,
-				TLS:                      configtls.ClientConfig{},
+				TLS:                      tc.tlsConfig,
 				TokenOverrideFromContext: true,
 			}
 			rt, err := getHTTPRoundTripper(config)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
 			require.NoError(t, err)
 
 			server := newFakePromServer(t)
@@ -753,7 +779,7 @@ func TestGetRoundTripperTLSConfig(t *testing.T) {
 				bearertoken.ContextWithBearerToken(context.Background(), "foo"),
 				http.MethodGet,
 				server.URL,
-				nil,
+				http.NoBody,
 			)
 			require.NoError(t, err)
 
@@ -772,7 +798,7 @@ func TestGetRoundTripperTokenFile(t *testing.T) {
 	file, err := os.Create(t.TempDir() + "token_")
 	require.NoError(t, err)
 
-	_, err = file.Write([]byte(wantBearer))
+	_, err = file.WriteString(wantBearer)
 	require.NoError(t, err)
 	require.NoError(t, file.Close())
 
@@ -791,7 +817,7 @@ func TestGetRoundTripperTokenFile(t *testing.T) {
 		ctx,
 		http.MethodGet,
 		server.URL,
-		nil,
+		http.NoBody,
 	)
 	require.NoError(t, err)
 
@@ -806,7 +832,7 @@ func TestGetRoundTripperTokenFromContext(t *testing.T) {
 	file, err := os.Create(t.TempDir() + "token_")
 	require.NoError(t, err)
 
-	_, err = file.Write([]byte("token from file"))
+	_, err = file.WriteString("token from file")
 	require.NoError(t, err)
 	require.NoError(t, file.Close())
 
@@ -825,7 +851,7 @@ func TestGetRoundTripperTokenFromContext(t *testing.T) {
 		ctx,
 		http.MethodGet,
 		server.URL,
-		nil,
+		http.NoBody,
 	)
 	require.NoError(t, err)
 
@@ -979,7 +1005,7 @@ func assertMetrics(t *testing.T, gotMetrics *metrics.MetricFamily, wantLabels ma
 
 	// Additional logging to show that all expected labels were found and matched
 	t.Logf("Remaining expected labels after matching: %v\n", wantLabels)
-	t.Logf("\n")
+	t.Log("\n")
 
 	assert.Equal(t, int64(1620351786), mps[0].Timestamp.GetSeconds())
 

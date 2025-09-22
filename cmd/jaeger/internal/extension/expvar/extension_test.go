@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -45,7 +46,7 @@ func TestExpvarExtension(t *testing.T) {
 			addr := fmt.Sprintf("http://0.0.0.0:%d/", Port)
 			client := &http.Client{}
 			require.Eventually(t, func() bool {
-				r, err := http.NewRequest(http.MethodPost, addr, nil)
+				r, err := http.NewRequest(http.MethodPost, addr, http.NoBody)
 				require.NoError(t, err)
 				resp, err := client.Do(r)
 				require.NoError(t, err)
@@ -60,11 +61,11 @@ func TestExpvarExtension_StartError(t *testing.T) {
 	config := &Config{
 		ServerConfig: confighttp.ServerConfig{
 			Endpoint: "0.0.0.0:27777",
-			Auth: &confighttp.AuthConfig{
+			Auth: configoptional.Some(confighttp.AuthConfig{
 				Config: configauth.Config{
 					AuthenticatorID: component.MustNewID("invalid_auth"),
 				},
-			},
+			}),
 		},
 	}
 	s := newExtension(config, component.TelemetrySettings{

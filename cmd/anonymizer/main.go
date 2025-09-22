@@ -66,8 +66,9 @@ func main() {
 				logger.Error("Failed to close grpc client connection", zap.Error(err))
 			}
 
-			for _, span := range spans {
-				if err := w.WriteSpan(&span); err != nil {
+			for i := range spans {
+				span := &spans[i]
+				if err := w.WriteSpan(span); err != nil {
 					if errors.Is(err, writer.ErrMaxSpansCountReached) {
 						logger.Info("max spans count reached")
 						os.Exit(0)

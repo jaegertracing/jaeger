@@ -12,8 +12,8 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
+	v1badger "github.com/jaegertracing/jaeger/internal/storage/v1/badger"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/badger"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
@@ -23,23 +23,20 @@ type BadgerIntegrationStorage struct {
 }
 
 func (s *BadgerIntegrationStorage) initialize(t *testing.T) {
-	s.factory = badger.NewFactory()
-	s.factory.Config.Ephemeral = false
-
-	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
-	err := s.factory.Initialize(metrics.NullFactory, logger)
+	cfg := v1badger.DefaultConfig()
+	cfg.Ephemeral = false
+	var err error
+	s.factory, err = badger.NewFactory(*cfg, metrics.NullFactory, zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		s.factory.Close()
 	})
 
-	spanWriter, err := s.factory.CreateSpanWriter()
+	s.TraceWriter, err = s.factory.CreateTraceWriter()
 	require.NoError(t, err)
-	s.TraceWriter = v1adapter.NewTraceWriter(spanWriter)
 
-	spanReader, err := s.factory.CreateSpanReader()
+	s.TraceReader, err = s.factory.CreateTraceReader()
 	require.NoError(t, err)
-	s.TraceReader = v1adapter.NewTraceReader(spanReader)
 
 	s.SamplingStore, err = s.factory.CreateSamplingStore(0)
 	require.NoError(t, err)

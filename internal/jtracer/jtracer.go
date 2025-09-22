@@ -103,7 +103,7 @@ func otelResource(ctx context.Context, svc string) (*resource.Resource, error) {
 	return resource.New(
 		ctx,
 		resource.WithSchemaURL(otelsemconv.SchemaURL),
-		resource.WithAttributes(otelsemconv.ServiceNameKey.String(svc)),
+		resource.WithAttributes(otelsemconv.ServiceNameAttribute(svc)),
 		resource.WithTelemetrySDK(),
 		resource.WithHost(),
 		resource.WithOSType(),
@@ -113,7 +113,7 @@ func otelResource(ctx context.Context, svc string) (*resource.Resource, error) {
 
 func defaultGRPCOptions() []otlptracegrpc.Option {
 	var options []otlptracegrpc.Option
-	if !(strings.HasPrefix(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"), "https://") || strings.ToLower(os.Getenv("OTEL_EXPORTER_OTLP_INSECURE")) == "false") {
+	if !strings.HasPrefix(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"), "https://") && strings.ToLower(os.Getenv("OTEL_EXPORTER_OTLP_INSECURE")) != "false" {
 		options = append(options, otlptracegrpc.WithInsecure())
 	}
 	return options

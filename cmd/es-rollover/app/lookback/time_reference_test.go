@@ -23,19 +23,19 @@ func TestGetTimeReference(t *testing.T) {
 			name:         "seconds unit",
 			unit:         "seconds",
 			unitCount:    30,
-			expectedTime: time.Date(2021, time.October, 10, 10, 9, 40, 0o0, time.UTC),
+			expectedTime: time.Date(2021, time.October, 10, 10, 9, 40, 0, time.UTC),
 		},
 		{
 			name:         "minutes unit",
 			unit:         "minutes",
 			unitCount:    30,
-			expectedTime: time.Date(2021, time.October, 10, 9, 40, 0o0, 0o0, time.UTC),
+			expectedTime: time.Date(2021, time.October, 10, 9, 40, 0, 0, time.UTC),
 		},
 		{
 			name:         "hours unit",
 			unit:         "hours",
 			unitCount:    2,
-			expectedTime: time.Date(2021, time.October, 10, 8, 0o0, 0o0, 0o0, time.UTC),
+			expectedTime: time.Date(2021, time.October, 10, 8, 0, 0, 0, time.UTC),
 		},
 		{
 			name:         "days unit",
@@ -69,4 +69,21 @@ func TestGetTimeReference(t *testing.T) {
 			assert.Equal(t, test.expectedTime, ref)
 		})
 	}
+}
+
+func TestGetTimeReference_DefaultCase(t *testing.T) {
+	now := time.Date(2021, time.October, 10, 10, 10, 10, 10, time.UTC)
+	
+	unknownUnit := "unknown-unit"
+	unitCount := 30
+	
+	ref := getTimeReference(now, unknownUnit, unitCount)
+	
+	expectedTime := time.Date(2021, time.October, 10, 10, 9, 40, 0, time.UTC)
+	assert.Equal(t, expectedTime, ref)
+	
+	anotherUnknownUnit := "milliseconds"
+	ref2 := getTimeReference(now, anotherUnknownUnit, unitCount)
+	
+	assert.Equal(t, expectedTime, ref2)
 }

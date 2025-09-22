@@ -9,8 +9,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 	"unicode"
@@ -22,7 +20,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/auth"
+	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	config "github.com/jaegertracing/jaeger/internal/config/promcfg"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus/metricstore/dbmodel"
@@ -137,7 +136,7 @@ func (m MetricsReader) GetLatencies(ctx context.Context, requestParams *metricst
 		buildPromQuery: func(p promQueryParams) string {
 			return fmt.Sprintf(
 				// Note: p.spanKindFilter can be ""; trailing commas are okay within a timeseries selection.
-				`histogram_quantile(%.2f, sum(rate(%s_bucket{service_name =~ "%s", %s}[%s])) by (%s))`,
+				`histogram_quantile(%.2f, sum(rate(%s_bucket{service_name =~ %q, %s}[%s])) by (%s))`,
 				requestParams.Quantile,
 				m.latencyMetricName,
 				p.serviceFilter,
@@ -180,7 +179,7 @@ func (m MetricsReader) GetCallRates(ctx context.Context, requestParams *metricst
 		buildPromQuery: func(p promQueryParams) string {
 			return fmt.Sprintf(
 				// Note: p.spanKindFilter can be ""; trailing commas are okay within a timeseries selection.
-				`sum(rate(%s{service_name =~ "%s", %s}[%s])) by (%s)`,
+				`sum(rate(%s{service_name =~ %q, %s}[%s])) by (%s)`,
 				m.callsMetricName,
 				p.serviceFilter,
 				p.spanKindFilter,
@@ -214,7 +213,7 @@ func (m MetricsReader) GetErrorRates(ctx context.Context, requestParams *metrics
 		buildPromQuery: func(p promQueryParams) string {
 			return fmt.Sprintf(
 				// Note: p.spanKindFilter can be ""; trailing commas are okay within a timeseries selection.
-				`sum(rate(%s{service_name =~ "%s", status_code = "STATUS_CODE_ERROR", %s}[%s])) by (%s) / sum(rate(%s{service_name =~ "%s", %s}[%s])) by (%s)`,
+				`sum(rate(%s{service_name =~ %q, status_code = "STATUS_CODE_ERROR", %s}[%s])) by (%s) / sum(rate(%s{service_name =~ %q, %s}[%s])) by (%s)`,
 				m.callsMetricName, p.serviceFilter, p.spanKindFilter, p.rate, p.groupBy,
 				m.callsMetricName, p.serviceFilter, p.spanKindFilter, p.rate, p.groupBy,
 			)
@@ -307,7 +306,7 @@ func (m MetricsReader) buildPromQuery(metricsParams metricsQueryParams) string {
 
 	spanKindFilter := ""
 	if len(metricsParams.SpanKinds) > 0 {
-		spanKindFilter = fmt.Sprintf(`span_kind =~ "%s"`, strings.Join(metricsParams.SpanKinds, "|"))
+		spanKindFilter = fmt.Sprintf(`span_kind =~ %q`, strings.Join(metricsParams.SpanKinds, "|"))
 	}
 	promParams := promQueryParams{
 		serviceFilter:  strings.Join(metricsParams.ServiceNames, "|"),
@@ -362,26 +361,32 @@ func getHTTPRoundTripper(c *config.Configuration) (rt http.RoundTripper, err err
 		TLSHandshakeTimeout: 10 * time.Second,
 		TLSClientConfig:     ctlsConfig,
 	}
-
-	token := ""
+	// dynamic token loader with interval-based caching
+	var tokenFn func() string
 	if c.TokenFilePath != "" {
-		tokenFromFile, err := loadToken(c.TokenFilePath)
+		var err error
+		tokenFn, err = auth.TokenProvider(
+			c.TokenFilePath,
+			10*time.Second,
+			nil,
+		)
 		if err != nil {
 			return nil, err
 		}
-		token = tokenFromFile
 	}
-	return &bearertoken.RoundTripper{
-		Transport:       httpTransport,
-		OverrideFromCtx: c.TokenOverrideFromContext,
-		StaticToken:     token,
+	// Only set FromCtxFn if token override from context is enabled
+	var fromCtxFn func(context.Context) (string, bool)
+	if c.TokenOverrideFromContext {
+		fromCtxFn = bearertoken.GetBearerToken
+	}
+	return &auth.RoundTripper{
+		Transport: httpTransport,
+		Auths: []auth.Method{
+			{
+				Scheme:  "Bearer",
+				TokenFn: tokenFn,
+				FromCtx: fromCtxFn,
+			},
+		},
 	}, nil
-}
-
-func loadToken(path string) (string, error) {
-	b, err := os.ReadFile(filepath.Clean(path))
-	if err != nil {
-		return "", fmt.Errorf("failed to get token from file: %w", err)
-	}
-	return strings.TrimRight(string(b), "\r\n"), nil
 }

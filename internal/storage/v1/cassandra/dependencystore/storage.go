@@ -78,7 +78,7 @@ func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.D
 		deps[i] = Dependency{
 			Parent: d.Parent,
 			Child:  d.Child,
-			//nolint: gosec // G115
+			//nolint:gosec // G115
 			CallCount: int64(d.CallCount),
 			Source:    string(d.Source),
 		}
@@ -90,6 +90,8 @@ func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.D
 		query = s.session.Query(depsInsertStmtV1, ts, ts, deps)
 	case V2:
 		query = s.session.Query(depsInsertStmtV2, ts, ts.Truncate(tsBucket), deps)
+	default:
+		return fmt.Errorf("unsupported schema version: %v", s.version)
 	}
 	return s.dependenciesTableMetrics.Exec(query, s.logger)
 }
@@ -103,6 +105,8 @@ func (s *DependencyStore) GetDependencies(_ context.Context, endTs time.Time, lo
 		query = s.session.Query(depsSelectStmtV1, startTs, endTs)
 	case V2:
 		query = s.session.Query(depsSelectStmtV2, getBuckets(startTs, endTs), startTs, endTs)
+	default:
+		return nil, fmt.Errorf("unsupported schema version: %v", s.version)
 	}
 	iter := query.Consistency(cassandra.One).Iter()
 
@@ -114,7 +118,7 @@ func (s *DependencyStore) GetDependencies(_ context.Context, endTs time.Time, lo
 			dl := model.DependencyLink{
 				Parent: dependency.Parent,
 				Child:  dependency.Child,
-				//nolint: gosec // G115
+				//nolint:gosec // G115
 				CallCount: uint64(dependency.CallCount),
 				Source:    dependency.Source,
 			}.ApplyDefaults()

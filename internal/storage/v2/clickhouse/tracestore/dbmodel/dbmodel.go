@@ -10,16 +10,15 @@ import (
 // Span represents a single row in the ClickHouse `spans` table.
 type Span struct {
 	// --- Span ---
-	// TODO: add attributes
-	ID            string    `ch:"id"`
-	TraceID       string    `ch:"trace_id"`
-	TraceState    string    `ch:"trace_state"`
-	ParentSpanID  string    `ch:"parent_span_id"`
-	Name          string    `ch:"name"`
-	Kind          string    `ch:"kind"`
-	StartTime     time.Time `ch:"start_time"`
-	StatusCode    string    `ch:"status_code"`
-	StatusMessage string    `ch:"status_message"`
+	ID            string
+	TraceID       string
+	TraceState    string
+	ParentSpanID  string
+	Name          string
+	Kind          string
+	StartTime     time.Time
+	StatusCode    string
+	StatusMessage string
 
 	// Duration is stored in ClickHouse as a UInt64 representing the number of nanoseconds.
 	// In Go, it is manually converted to and from time.Duration for convenience.
@@ -37,14 +36,37 @@ type Span struct {
 	Events []Event
 	Links  []Link
 
+	Attributes Attributes
+
 	// --- Resource ---
 	// TODO: add attributes
-	ServiceName string `ch:"service_name"`
+	ServiceName string
 
 	// --- Scope ---
 	// TODO: add attributes
-	ScopeName    string `ch:"scope_name"`
-	ScopeVersion string `ch:"scope_version"`
+	ScopeName    string
+	ScopeVersion string
+}
+
+type Attributes struct {
+	BoolAttributes   []Attribute[bool]
+	DoubleAttributes []Attribute[float64]
+	IntAttributes    []Attribute[int64]
+	StrAttributes    []Attribute[string]
+	// ComplexAttributes are attributes that are not of a primitive type and hence need special handling.
+	// The following OTLP types are stored here:
+	// - AnyValue_BytesValue: This OTLP type is stored as a base64-encoded string. The key
+	// 	for this type will begin with `@bytes@`.
+	// - AnyValue_ArrayValue: This OTLP type is stored as a JSON-encoded string.
+	// 	The key for this type will begin with `@array@`.
+	// - AnyValue_KVListValue: This OTLP type is stored as a JSON-encoded string.
+	// 	The key for this type will begin with `@kvlist@`.
+	ComplexAttributes []Attribute[string]
+}
+
+type Attribute[T any] struct {
+	Key   string
+	Value T
 }
 
 type Link struct {
@@ -77,9 +99,9 @@ func getLinkFromRaw(m map[string]any) Link {
 }
 
 type Event struct {
-	// TODO: add attributes
-	Name      string
-	Timestamp time.Time
+	Name       string
+	Timestamp  time.Time
+	Attributes Attributes
 }
 
 func getEventsFromRaw(raw []map[string]any) []Event {

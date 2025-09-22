@@ -10,7 +10,7 @@ networks:
 services:
   collector:
     restart: unless-stopped
-    image: jaegertracing/jaeger-collector:${JAEGER_VERSION:-latest}
+    image: cr.jaegertracing.io/jaegertracing/jaeger-collector:${JAEGER_VERSION:-latest}
     environment:
       SPAN_STORAGE_TYPE: cassandra
       CASSANDRA_SERVERS: scylladb
@@ -21,7 +21,7 @@ services:
       - cassandra-schema
 
   web:
-    image: jaegertracing/jaeger-query:${JAEGER_VERSION:-latest}
+    image: cr.jaegertracing.io/jaegertracing/jaeger-query:${JAEGER_VERSION:-latest}
     restart: unless-stopped
     ports:
       - 16686:16686
@@ -36,7 +36,7 @@ services:
       - cassandra-schema
 
   cassandra-schema:
-    image: jaegertracing/jaeger-cassandra-schema:${JAEGER_VERSION:-latest}
+    image: cr.jaegertracing.io/jaegertracing/jaeger-cassandra-schema:${JAEGER_VERSION:-latest}
     environment:
       CASSANDRA_PROTOCOL_VERSION: 4
       CASSANDRA_VERSION: 4
@@ -83,7 +83,8 @@ services:
       - jaeger-scylladb
 
   hotrod:
-    image: jaegertracing/example-hotrod:${JAEGER_VERSION:-latest}
+    image: cr.jaegertracing.io/jaegertracing/example-hotrod:${JAEGER_VERSION:-latest}
+    container_name: hotrod
     ports:
       - 8080:8080
     command: [ "all" ]

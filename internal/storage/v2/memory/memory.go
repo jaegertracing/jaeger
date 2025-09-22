@@ -11,12 +11,12 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	v1 "github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	conventions "github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
@@ -26,7 +26,7 @@ var errInvalidSearchDepth = errors.New("search depth must be greater than 0 and 
 
 // Store is an in-memory store of traces
 type Store struct {
-	sync.RWMutex
+	mu sync.RWMutex
 	// Each tenant gets a copy of default config.
 	// In the future this can be extended to contain per-tenant configuration.
 	defaultConfig v1.Configuration
@@ -46,12 +46,12 @@ func NewStore(cfg v1.Configuration) (*Store, error) {
 
 // getTenant returns the per-tenant storage.  Note that tenantID has already been checked for by the collector or query
 func (st *Store) getTenant(tenantID string) *Tenant {
-	st.RLock()
+	st.mu.RLock()
 	tenant, ok := st.perTenant[tenantID]
-	st.RUnlock()
+	st.mu.RUnlock()
 	if !ok {
-		st.Lock()
-		defer st.Unlock()
+		st.mu.Lock()
+		defer st.mu.Unlock()
 		tenant, ok = st.perTenant[tenantID]
 		if !ok {
 			tenant = newTenant(&st.defaultConfig)
@@ -73,8 +73,8 @@ func (st *Store) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 // GetOperations returns operations based on the service name and span kind
 func (st *Store) GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
 	m := st.getTenant(tenancy.GetTenant(ctx))
-	m.RLock()
-	defer m.RUnlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	var retMe []tracestore.Operation
 	if operations, ok := m.operations[query.ServiceName]; ok {
 		for operation := range operations {
@@ -89,8 +89,8 @@ func (st *Store) GetOperations(ctx context.Context, query tracestore.OperationQu
 // GetServices returns a list of all known services
 func (st *Store) GetServices(ctx context.Context) ([]string, error) {
 	m := st.getTenant(tenancy.GetTenant(ctx))
-	m.RLock()
-	defer m.RUnlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	var retMe []string
 	for k := range m.services {
 		retMe = append(retMe, k)
@@ -145,6 +145,13 @@ func (st *Store) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTraceP
 func (st *Store) GetDependencies(ctx context.Context, query depstore.QueryParameters) ([]model.DependencyLink, error) {
 	m := st.getTenant(tenancy.GetTenant(ctx))
 	return m.getDependencies(query)
+}
+
+func (st *Store) Purge() error {
+	st.mu.Lock()
+	st.perTenant = make(map[string]*Tenant)
+	st.mu.Unlock()
+	return nil
 }
 
 // reshuffleResourceSpans reshuffles the resource spans so as to group the spans from same traces together. To understand this reshuffling
@@ -213,7 +220,7 @@ func reshuffleSpans(spanSlice ptrace.SpanSlice) map[pcommon.TraceID]ptrace.SpanS
 }
 
 func getServiceNameFromResource(resource pcommon.Resource) string {
-	val, ok := resource.Attributes().Get(conventions.AttributeServiceName)
+	val, ok := resource.Attributes().Get(conventions.ServiceNameKey)
 	if !ok {
 		return ""
 	}

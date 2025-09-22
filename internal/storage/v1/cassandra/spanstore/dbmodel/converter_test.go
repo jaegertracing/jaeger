@@ -331,3 +331,18 @@ func TestFailingFromDBWarnings(t *testing.T) {
 	span := getCustomSpan(badDBWarningTags, someDBProcess, someDBLogs, someDBRefs)
 	failingDBSpanTransform(t, span, notValidTagTypeErrStr)
 }
+
+func TestFromDBTag_DefaultCase(t *testing.T) {
+	tag := &KeyValue{
+		Key:         "test-key",
+		ValueType:   "unknown-type",
+		ValueString: "test-value",
+	}
+	
+	converter := converter{}
+	result, err := converter.fromDBTag(tag)
+	
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid ValueType")
+	assert.Equal(t, model.KeyValue{}, result)
+}

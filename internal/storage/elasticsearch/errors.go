@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/olivere/elastic"
+	"github.com/olivere/elastic/v7"
 )
 
 // DetailedError creates a more detailed error if the error stack contains elastic.Error.

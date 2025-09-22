@@ -29,7 +29,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/apiv3"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
-	"github.com/jaegertracing/jaeger/internal/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/recoveryhandler"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
@@ -69,7 +69,7 @@ func NewServer(
 	}
 	separatePorts := grpcPort != httpPort || grpcPort == "0" || httpPort == "0"
 
-	if (options.HTTP.TLSSetting != nil || options.GRPC.TLSSetting != nil) && !separatePorts {
+	if (options.HTTP.TLS.HasValue() || options.GRPC.TLS.HasValue()) && !separatePorts {
 		return nil, errors.New("server with TLS enabled can not use same host ports for gRPC and HTTP.  Use dedicated HTTP and gRPC host ports instead")
 	}
 
@@ -126,7 +126,7 @@ func createGRPCServer(
 		bearertoken.NewStreamServerInterceptor(),
 	}
 
-	//nolint:contextcheck
+	//nolint:contextcheck // The context is handled by the interceptors
 	if tm.Enabled {
 		unaryInterceptors = append(unaryInterceptors, tenancy.NewGuardingUnaryInterceptor(tm))
 		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm))
@@ -236,8 +236,10 @@ func createHTTPServer(
 
 func (hS httpServer) Close() error {
 	var errs []error
-	errs = append(errs, hS.Server.Close())
-	errs = append(errs, hS.staticHandlerCloser.Close())
+	errs = append(errs,
+		hS.Server.Close(),
+		hS.staticHandlerCloser.Close(),
+	)
 	return errors.Join(errs...)
 }
 

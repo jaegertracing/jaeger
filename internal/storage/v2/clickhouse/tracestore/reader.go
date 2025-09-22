@@ -6,14 +6,59 @@ package tracestore
 import (
 	"context"
 	"fmt"
+	"iter"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
 const (
+	sqlSelectSpansByTraceID = `
+	SELECT
+		id,
+		trace_id,
+		trace_state,
+		parent_span_id,
+		name,
+		kind,
+		start_time,
+		status_code,
+		status_message,
+		duration,
+		bool_attributes.key,
+		bool_attributes.value,
+		double_attributes.key,
+		double_attributes.value,
+		int_attributes.key,
+		int_attributes.value,
+		str_attributes.key,
+		str_attributes.value,
+		complex_attributes.key,
+		complex_attributes.value,
+		events.name,
+		events.timestamp,
+		events.bool_attributes.key,
+		events.bool_attributes.value,
+		events.double_attributes.key,
+		events.double_attributes.value,
+		events.int_attributes.key,
+		events.int_attributes.value,
+		events.str_attributes.key,
+		events.str_attributes.value,
+		events.complex_attributes.key,
+		events.complex_attributes.value,
+		links.trace_id,
+		links.span_id,
+		links.trace_state,
+		service_name,
+		scope_name,
+		scope_version
+	FROM spans
+	WHERE
+		trace_id = ?`
 	sqlSelectAllServices        = `SELECT DISTINCT name FROM services`
 	sqlSelectOperationsAllKinds = `SELECT name, span_kind
 	FROM operations
@@ -34,6 +79,48 @@ type Reader struct {
 // to enable instrumentation on the connection without risk of recursively generating traces.
 func NewReader(conn driver.Conn) *Reader {
 	return &Reader{conn: conn}
+}
+
+func (r *Reader) GetTraces(
+	ctx context.Context,
+	traceIDs ...tracestore.GetTraceParams,
+) iter.Seq2[[]ptrace.Traces, error] {
+	return func(yield func([]ptrace.Traces, error) bool) {
+		for _, traceID := range traceIDs {
+			rows, err := r.conn.Query(ctx, sqlSelectSpansByTraceID, traceID.TraceID)
+			if err != nil {
+				yield(nil, fmt.Errorf("failed to query trace: %w", err))
+				return
+			}
+
+			done := false
+			for rows.Next() {
+				span, err := scanSpanRow(rows)
+				if err != nil {
+					if !yield(nil, fmt.Errorf("failed to scan span row: %w", err)) {
+						done = true
+						break
+					}
+					continue
+				}
+
+				trace := dbmodel.FromDBModel(span)
+				if !yield([]ptrace.Traces{trace}, nil) {
+					done = true
+					break
+				}
+			}
+
+			if err := rows.Close(); err != nil {
+				yield(nil, fmt.Errorf("failed to close rows: %w", err))
+				return
+			}
+
+			if done {
+				return
+			}
+		}
+	}
 }
 
 func (r *Reader) GetServices(ctx context.Context) ([]string, error) {

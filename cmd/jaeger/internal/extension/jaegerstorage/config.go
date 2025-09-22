@@ -53,6 +53,7 @@ type TraceBackend struct {
 type MetricBackend struct {
 	Prometheus    *promCfg.Configuration `mapstructure:"prometheus"`
 	Elasticsearch *esCfg.Configuration   `mapstructure:"elasticsearch"`
+	Opensearch    *esCfg.Configuration   `mapstructure:"opensearch"`
 }
 
 // Unmarshal implements confmap.Unmarshaler. This allows us to provide
@@ -122,5 +123,11 @@ func (cfg *MetricBackend) Unmarshal(conf *confmap.Conf) error {
 		v := es.DefaultConfig()
 		cfg.Elasticsearch = &v
 	}
+
+	if conf.IsSet("opensearch") {
+		v := es.DefaultConfig()
+		cfg.Opensearch = &v
+	}
+
 	return conf.Unmarshal(cfg)
 }

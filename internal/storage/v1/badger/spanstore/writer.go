@@ -55,7 +55,7 @@ func NewSpanWriter(db *badger.DB, c *CacheStore, ttl time.Duration) *SpanWriter 
 
 // WriteSpan writes the encoded span as well as creates indexes with defined TTL
 func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
-	//nolint: gosec // G115
+	//nolint:gosec // G115
 	expireTime := uint64(time.Now().Add(w.ttl).Unix())
 	startTime := model.TimeAsEpochMicroseconds(span.StartTime)
 
@@ -67,9 +67,11 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 		return err
 	}
 
-	entriesToStore = append(entriesToStore, trace)
-	entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(serviceNameIndexKey, []byte(span.Process.ServiceName), startTime, span.TraceID), nil, expireTime))
-	entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(operationNameIndexKey, []byte(span.Process.ServiceName+span.OperationName), startTime, span.TraceID), nil, expireTime))
+	entriesToStore = append(entriesToStore,
+		trace,
+		w.createBadgerEntry(createIndexKey(serviceNameIndexKey, []byte(span.Process.ServiceName), startTime, span.TraceID), nil, expireTime),
+		w.createBadgerEntry(createIndexKey(operationNameIndexKey, []byte(span.Process.ServiceName+span.OperationName), startTime, span.TraceID), nil, expireTime),
+	)
 
 	// It doesn't matter if we overwrite Duration index keys, everything is read at Trace level in any case
 	durationValue := make([]byte, 8)

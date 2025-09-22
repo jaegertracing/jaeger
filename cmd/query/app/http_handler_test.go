@@ -31,6 +31,7 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	deepdependencies "github.com/jaegertracing/jaeger/cmd/query/app/ddg"
 	"github.com/jaegertracing/jaeger/cmd/query/app/qualitymetrics"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jtracer"
@@ -866,7 +867,7 @@ func TestGetMetricsSuccess(t *testing.T) {
 
 func TestGetQualityMetrics(t *testing.T) {
 	handler := &APIHandler{}
-	req := httptest.NewRequest(http.MethodGet, "/quality-metrics", nil)
+	req := httptest.NewRequest(http.MethodGet, "/quality-metrics", http.NoBody)
 	rr := httptest.NewRecorder()
 	handler.getQualityMetrics(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)
@@ -874,6 +875,21 @@ func TestGetQualityMetrics(t *testing.T) {
 	var resp qualitymetrics.TQualityMetrics
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 	require.Contains(t, resp.TraceQualityDocumentationLink, "github.com/jaegertracing")
+}
+
+func TestGetDeepDependenciesData(t *testing.T) {
+	handler := &APIHandler{}
+	req := httptest.NewRequest(http.MethodGet, "/deep-dependencies?service=customer", http.NoBody)
+	rr := httptest.NewRecorder()
+
+	handler.deepDependencies(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var resp deepdependencies.TDdgPayload
+	err := json.Unmarshal(rr.Body.Bytes(), &resp)
+	require.NoError(t, err)
+
+	require.NotEmpty(t, resp.Dependencies, "Dependencies should not be empty")
 }
 
 func TestMetricsReaderError(t *testing.T) {
@@ -981,7 +997,7 @@ func getJSON(url string, out any) error {
 }
 
 func getJSONCustomHeaders(url string, additionalHeaders map[string]string, out any) error {
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	req, err := http.NewRequest(http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return err
 	}
@@ -1088,7 +1104,7 @@ func TestSearchTenancyRejectionHTTP(t *testing.T) {
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 		Return(mockTrace, nil).Twice()
 
-	req, err := http.NewRequest(http.MethodGet, ts.server.URL+`/api/traces?traceID=1&traceID=2`, nil)
+	req, err := http.NewRequest(http.MethodGet, ts.server.URL+`/api/traces?traceID=1&traceID=2`, http.NoBody)
 	require.NoError(t, err)
 	req.Header.Add("Accept", "application/json")
 	// We don't set tenant header

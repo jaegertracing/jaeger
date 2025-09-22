@@ -1,0 +1,14 @@
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.1.0@sha256:47f91984aa1065d745f0a7c827bc912ea1ac439c635854902b65b6ed77f62055
+    environment:
+      - discovery.type=single-node
+      - http.host=0.0.0.0
+      - transport.host=127.0.0.1
+      - xpack.security.enabled=false  # Disable security features
+      - xpack.security.http.ssl.enabled=false  # Disable HTTPS
+      - action.destructive_requires_name=false
+      - xpack.monitoring.collection.enabled=false  # Disable monitoring features
+    ports:
+      - "9200:9200"
+      

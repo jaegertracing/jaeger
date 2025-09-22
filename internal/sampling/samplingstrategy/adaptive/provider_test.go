@@ -50,18 +50,18 @@ func TestProviderRunUpdateProbabilitiesLoop(t *testing.T) {
 	go p.runUpdateProbabilitiesLoop()
 
 	for i := 0; i < 1000; i++ {
-		p.RLock()
+		p.mu.RLock()
 		if p.probabilities != nil && p.strategyResponses != nil {
-			p.RUnlock()
+			p.mu.RUnlock()
 			break
 		}
-		p.RUnlock()
+		p.mu.RUnlock()
 		time.Sleep(time.Millisecond)
 	}
-	p.RLock()
+	p.mu.RLock()
 	assert.NotNil(t, p.probabilities)
 	assert.NotNil(t, p.strategyResponses)
-	p.RUnlock()
+	p.mu.RUnlock()
 }
 
 func TestProviderRealisticRunCalculationLoop(t *testing.T) {
@@ -123,6 +123,8 @@ func TestProviderRealisticRunCalculationLoop(t *testing.T) {
 		case http.MethodDelete:
 			assert.InEpsilon(t, 0.0005, s.ProbabilisticSampling.SamplingRate, 0.025,
 				"Over sampled, halve probability")
+		default:
+			t.Errorf("Unexpected operation: %s", s.Operation)
 		}
 	}
 }

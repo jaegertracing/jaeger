@@ -68,6 +68,11 @@ func (mb MappingBuilder) getMappingTemplateOptions(mappingType MappingType) temp
 		mappingOpts.Shards = mb.Indices.Sampling.Shards
 		mappingOpts.Replicas = *mb.Indices.Sampling.Replicas
 		mappingOpts.Priority = mb.Indices.Sampling.Priority
+	default:
+		// Using default values as fallback to avoid breaking functionality.
+		mappingOpts.Shards = 5
+		mappingOpts.Replicas = 1
+		mappingOpts.Priority = 0
 	}
 
 	return mappingOpts
@@ -107,7 +112,8 @@ func MappingTypeFromString(val string) (MappingType, error) {
 // GetMapping returns the rendered mapping based on elasticsearch version
 func (mb *MappingBuilder) GetMapping(mappingType MappingType) (string, error) {
 	templateOpts := mb.getMappingTemplateOptions(mappingType)
-	return mb.renderMapping(fmt.Sprintf("%s-%d.json", mappingType.String(), mb.EsVersion), templateOpts)
+	esVersion := min(mb.EsVersion, 8) // Elasticsearch v9 uses the same template as v8
+	return mb.renderMapping(fmt.Sprintf("%s-%d.json", mappingType.String(), esVersion), templateOpts)
 }
 
 // GetSpanServiceMappings returns span and service mappings

@@ -1,6 +1,6 @@
 services:
   jaeger:
-    image: jaegertracing/jaeger:${JAEGER_VERSION:-2.5.0}
+    image: cr.jaegertracing.io/jaegertracing/jaeger:${JAEGER_VERSION:-2.5.0}
     ports:
       - "16686:16686"  # Jaeger UI
       - "4317:4317"    # Collector, OpenTelemetry gRPC

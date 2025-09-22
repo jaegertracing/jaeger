@@ -44,7 +44,7 @@ func NewServer(hostPort string, otelExporter string, metricsFactory metrics.Fact
 
 // Run starts the Driver server
 func (s *Server) Run() error {
-	lis, err := net.Listen("tcp", s.hostPort)
+	lis, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", s.hostPort)
 	if err != nil {
 		s.logger.Bg().Fatal("Unable to create http listener", zap.Error(err))
 	}

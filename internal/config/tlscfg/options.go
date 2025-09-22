@@ -6,6 +6,7 @@ package tlscfg
 import (
 	"time"
 
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 )
 
@@ -40,18 +41,18 @@ func (o *options) ToOtelClientConfig() configtls.ClientConfig {
 
 			// when no truststore given, use SystemCertPool
 			// https://github.com/jaegertracing/jaeger/issues/6334
-			IncludeSystemCACertsPool: o.Enabled && (len(o.CAPath) == 0),
+			IncludeSystemCACertsPool: o.Enabled && (o.CAPath == ""),
 		},
 	}
 }
 
 // ToOtelServerConfig provides a mapping between from Options to OTEL's TLS Server Configuration.
-func (o *options) ToOtelServerConfig() *configtls.ServerConfig {
+func (o *options) ToOtelServerConfig() configoptional.Optional[configtls.ServerConfig] {
 	if !o.Enabled {
-		return nil
+		return configoptional.None[configtls.ServerConfig]()
 	}
 
-	cfg := &configtls.ServerConfig{
+	cfg := configtls.ServerConfig{
 		ClientCAFile: o.ClientCAPath,
 		Config: configtls.Config{
 			CAFile:         o.CAPath,
@@ -68,5 +69,5 @@ func (o *options) ToOtelServerConfig() *configtls.ServerConfig {
 		cfg.ReloadClientCAFile = true
 	}
 
-	return cfg
+	return configoptional.Some(cfg)
 }

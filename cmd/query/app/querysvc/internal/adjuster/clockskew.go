@@ -74,7 +74,7 @@ func hostKey(span *model.Span) string {
 		if tag.VType == model.Int64Type {
 			var buf [4]byte // avoid heap allocation
 			ip := buf[0:4]  // utils require a slice, not an array
-			//nolint: gosec // G115
+			//nolint:gosec // G115
 			binary.BigEndian.PutUint32(ip, uint32(tag.Int64()))
 			return net.IP(ip).String()
 		}

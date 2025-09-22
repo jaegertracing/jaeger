@@ -95,8 +95,8 @@ func TestCollectorOptionsWithFlags_CheckMaxConnectionAge(t *testing.T) {
 	_, err := c.InitFromViper(v, zap.NewNop())
 	require.NoError(t, err)
 
-	assert.Equal(t, 5*time.Minute, c.GRPC.Keepalive.ServerParameters.MaxConnectionAge)
-	assert.Equal(t, time.Minute, c.GRPC.Keepalive.ServerParameters.MaxConnectionAgeGrace)
+	assert.Equal(t, 5*time.Minute, c.GRPC.Keepalive.Get().ServerParameters.Get().MaxConnectionAge)
+	assert.Equal(t, time.Minute, c.GRPC.Keepalive.Get().ServerParameters.Get().MaxConnectionAgeGrace)
 	assert.Equal(t, 5*time.Minute, c.HTTP.IdleTimeout)
 	assert.Equal(t, 6*time.Minute, c.HTTP.ReadTimeout)
 	assert.Equal(t, 5*time.Second, c.HTTP.ReadHeaderTimeout)

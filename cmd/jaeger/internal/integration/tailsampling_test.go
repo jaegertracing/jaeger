@@ -35,7 +35,7 @@ type TailSamplingIntegration struct {
 //     listed as part of the policy in the config file are stored.
 func TestTailSamplingProcessor_EnforcesPolicies(t *testing.T) {
 	if env := os.Getenv("SAMPLING"); env != "tail" {
-		t.Skipf("This test requires environment variable SAMPLING=tail")
+		t.Skip("This test requires environment variable SAMPLING=tail")
 	}
 
 	expectedServicesA := []string{"tracegen-00", "tracegen-01", "tracegen-02", "tracegen-03", "tracegen-04"}
