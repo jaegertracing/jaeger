@@ -42,7 +42,21 @@ func (sm *Mutex) Lock(ctx context.Context) {
 			fmt.Sprintf("Waiting for lock behind %d transactions", waiting),
 			zap.String("blockers", fmt.Sprintf("%v", sm.waiters)),
 		)
+	
+		if activeSpan!= nil {
+			nonEmptyWaiters := make([]string, 0, len(sm.waiters))
+			for _, w := range sm.waiters {
+				if w != "" {
+					nonEmptyWaiters = append(nonEmptyWaiters, w)
+				}
+			}
+		
+			logger.Info("SETTING SPAN TAG: blockers", zap.Strings("blockers", nonEmptyWaiters))
+			activeSpan.SetAttributes(attribute.StringSlice("blockers", nonEmptyWaiters))
+		}		
+		
 	}
+	
 	sm.waiters = append(sm.waiters, session)
 	sm.waitersLock.Unlock()
 
