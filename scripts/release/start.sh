@@ -25,7 +25,7 @@ if ! current_version_v1=$(make "echo-v1"); then
 fi
 
 # removing the v so that in the line "New version: v1.66.1", v cannot be removed with backspace
-clean_version="${current_version_v1#v}" 
+clean_version="${current_version_v1#v}"
 
 IFS='.' read -r major minor patch <<< "$clean_version"
 
@@ -41,7 +41,7 @@ if ! current_version_v2=$(make "echo-v2"); then
 fi
 
 # removing the v so that in the line "New version: v1.66.1", v cannot be removed with backspace
-clean_version="${current_version_v2#v}" 
+clean_version="${current_version_v2#v}"
 
 IFS='.' read -r major minor patch <<< "$clean_version"
 
@@ -56,11 +56,25 @@ echo "Using new version: ${new_version}"
 
 
 
-TMPFILE=$(mktemp "/tmp/DOC_RELEASE.XXXXXX") 
-wget -O "$TMPFILE" https://raw.githubusercontent.com/jaegertracing/documentation/main/RELEASE.md
+TMPFILE=$(mktemp "/tmp/DOC_RELEASE.XXXXXX")
+if $dry_run; then
+  echo "DRY RUN: Skipping download of RELEASE.md. Using minimal fallback template."
+  cat > "$TMPFILE" << 'EOF'
+<!-- BEGIN_CHECKLIST -->
+* Update documentation for the release
+* Verify release artifacts
+<!-- END_CHECKLIST -->
+EOF
+else
+  wget -O "$TMPFILE" https://raw.githubusercontent.com/jaegertracing/documentation/main/RELEASE.md
+fi
 
 # Ensure the UI Release checklist is up to date.
-make init-submodules
+if $dry_run; then
+  echo "DRY RUN: Skipping submodule init/update"
+else
+  make init-submodules
+fi
 
 # Extract sections between markers from UI, Backend, and Docs READMEs
 START_MARKER='<!-- BEGIN_CHECKLIST -->'
@@ -97,16 +111,20 @@ $doc_section"
 # Append automated command with concrete versions
 cmd_v1="v${user_version_v1}"
 cmd_v2="v${user_version_v2}"
-issue_body+=$'\n\n**Automated option**: Run `bash ./scripts/release/prepare-release.sh '"${cmd_v1}"' '"${cmd_v2}"'` to automatically create the PR with changelog updates. Add `--auto-tag` to create and push tags after merging the PR.'
+issue_body+=$'\n\n**Automated option**: Run `bash ./scripts/release/prepare-release.sh '
+issue_body+="$cmd_v1"
+issue_body+=$' '
+issue_body+="$cmd_v2"
+issue_body+=$'` to automatically create the PR with changelog updates. Add `--auto-tag` to create and push tags after merging the PR.'
 
 if $dry_run; then
   echo "${issue_body}"
+  rm -f "${TMPFILE}"
+  exit 0
 else
   gh issue create -R jaegertracing/jaeger --title "Prepare Jaeger Release ${new_version}" --body "$issue_body"
 fi
 
-rm "${TMPFILE}"
-
-exit 1;
+rm -f "${TMPFILE}"
 
 
