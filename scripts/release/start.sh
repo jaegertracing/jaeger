@@ -97,7 +97,7 @@ $doc_section"
 # Append automated command with concrete versions
 cmd_v1="v${user_version_v1}"
 cmd_v2="v${user_version_v2}"
-issue_body+=$'\n\n**Automated option**: Run `bash ./scripts/release/prepare.sh '"${cmd_v1}"' '"${cmd_v2}"'` to automatically create the PR with changelog updates.'
+issue_body+=$'\n\n**Automated option**: Run `bash ./scripts/release/prepare-release.sh '"${cmd_v1}"' '"${cmd_v2}"'` to automatically create the PR with changelog updates. Add `--auto-tag` to create and push tags after merging the PR.'
 
 if $dry_run; then
   echo "${issue_body}"

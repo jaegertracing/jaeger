@@ -23,6 +23,7 @@ Automated release script for Jaeger
 
 OPTIONS:
     -d, --dry-run     Run in dry-run mode (no actual changes)
+    --auto-tag        Create and push tags automatically after PR creation
     -h, --help        Show this help message
 
 EOF
