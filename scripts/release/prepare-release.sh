@@ -16,16 +16,13 @@ fi
 echo "--- Preparing release for main version: $MAIN_VERSION and UI version: $UI_VERSION ---"
 
 # --- Task 1: Update Version Strings in the Codebase ---
+# These are the commands suggested by the review bot and our investigation.
 echo "1. Updating version strings..."
 
-# Update the main Jaeger version in the Makefile
-# Note: The 'v' is intentionally left out here as per the file's format.
-sed -i.bak "s/JAEGER_VERSION ?= .*/JAEGER_VERSION ?= ${MAIN_VERSION}/g" Makefile
-
-# Update the main Jaeger version in the Go version file
-sed -i.bak "s/const Version = \".*\"/const Version = \"${MAIN_VERSION}\"/g" pkg/version/version.go
-
-# Update the Jaeger UI version in its package.json file
+sed -i.bak "s/version: .*/version: ${MAIN_VERSION}/g" charts/jaeger/Chart.yaml
+sed -i.bak "s/appVersion: .*/appVersion: ${MAIN_VERSION}/g" charts/jaeger/Chart.yaml
+sed -i.bak "s/const Version = .*/const Version = \"${MAIN_VERSION}\"/g" pkg/version/version.go
+# This is for the UI version, as per the "two-version system" requirement.
 sed -i.bak "s/\"version\": \".*\"/\"version\": \"${UI_VERSION}\"/g" jaeger-ui/package.json
 
 # --- Task 2: Generate Changelog ---
@@ -37,5 +34,5 @@ echo
 echo "--------------------------------------------------"
 echo "✅ Release preparation script finished."
 echo "Review the file changes with 'git diff'."
-echo "Once you are satisfied, commit the changes and open a Pull Request."
+echo "Once you are satisfied, commit the changes and update your Pull Request."
 echo "--------------------------------------------------"
