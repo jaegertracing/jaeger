@@ -16,18 +16,28 @@ fi
 echo "--- Preparing release for main version: $MAIN_VERSION and UI version: $UI_VERSION ---"
 
 # --- Task 1: Update Version Strings in the Codebase ---
-# These are the commands suggested by the review bot and our investigation.
+# Using 'sed -i' without '.bak' to avoid creating backup files.
 echo "1. Updating version strings..."
 
-sed -i.bak "s/version: .*/version: ${MAIN_VERSION}/g" charts/jaeger/Chart.yaml
-sed -i.bak "s/appVersion: .*/appVersion: ${MAIN_VERSION}/g" charts/jaeger/Chart.yaml
-sed -i.bak "s/const Version = .*/const Version = \"${MAIN_VERSION}\"/g" pkg/version/version.go
-# This is for the UI version, as per the "two-version system" requirement.
-sed -i.bak "s/\"version\": \".*\"/\"version\": \"${UI_VERSION}\"/g" jaeger-ui/package.json
+sed -i "s/version: .*/version: ${MAIN_VERSION}/g" charts/jaeger/Chart.yaml
+sed -i "s/appVersion: .*/appVersion: ${MAIN_VERSION}/g" charts/jaeger/Chart.yaml
+sed -i "s/const Version = .*/const Version = \"${MAIN_VERSION}\"/g" pkg/version/version.go
+sed -i "s/\"version\": \".*\"/\"version\": \"${UI_VERSION}\"/g" jaeger-ui/package.json
 
 # --- Task 2: Generate Changelog ---
+# Calling the python script directly to filter changes and save to a file.
 echo "2. Generating changelog..."
-make changelog
+
+# Find the tag of the most recent release to generate a delta changelog.
+PREVIOUS_TAG=$(git describe --tags --abbrev=0)
+echo "Generating changelog since previous tag: ${PREVIOUS_TAG}"
+
+# Call the python script directly with arguments to save the filtered output.
+python3 ./scripts/release/notes.py \
+  --start-tag "${PREVIOUS_TAG}" \
+  --output CHANGELOG.md
+
+echo "Changelog successfully written to CHANGELOG.md"
 
 # --- Final Instructions ---
 echo

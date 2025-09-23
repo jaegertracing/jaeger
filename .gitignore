@@ -2,7 +2,7 @@ go.work
 go.work.sum
 
 .tools/
-
+*.bak
 *.out
 *.test
 *.xml
