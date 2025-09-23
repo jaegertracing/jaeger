@@ -1,12 +1,17 @@
 package tracestore
 
+import (
+	"time"
+)
+
 type Config struct {
 	// Addresses contains a list of ClickHouse server addresses to connect to.
 	Addresses []string `mapstructure:"addresses"`
 	// Auth contains the authentication configuration to connect to ClickHouse.
 	Auth AuthConfig `mapstructure:"auth"`
-	// DialTimeout is the timeout for establishing a connection to ClickHouse in seconds.
-	DialTimeout int `mapstructure:"dial_timeout"`
+	// DialTimeout is the timeout for establishing a connection to ClickHouse.
+	DialTimeout time.Duration `mapstructure:"dial_timeout"`
+	// TODO: add more settings
 }
 
 type AuthConfig struct {
