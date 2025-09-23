@@ -56,75 +56,35 @@ echo "Using new version: ${new_version}"
 
 
 
-TMPFILE=$(mktemp "/tmp/DOC_RELEASE.XXXXXX")
-if $dry_run; then
-  echo "DRY RUN: Skipping download of RELEASE.md. Using minimal fallback template."
-  cat > "$TMPFILE" << 'EOF'
-<!-- BEGIN_CHECKLIST -->
-* Update documentation for the release
-* Verify release artifacts
-<!-- END_CHECKLIST -->
-EOF
-else
-  wget -O "$TMPFILE" https://raw.githubusercontent.com/jaegertracing/documentation/main/RELEASE.md
-fi
-
-# Ensure the UI Release checklist is up to date.
-if $dry_run; then
-  echo "DRY RUN: Skipping submodule init/update"
-else
-  make init-submodules
-fi
-
-# Extract sections between markers from UI, Backend, and Docs READMEs
-START_MARKER='<!-- BEGIN_CHECKLIST -->'
-END_MARKER='<!-- END_CHECKLIST -->'
-
-# Read UI checklist from submodule
-if [[ -f "jaeger-ui/RELEASE.md" ]]; then
-  ui_section=$(awk "/${START_MARKER}/{flag=1;next}/$END_MARKER/{flag=0}flag" jaeger-ui/RELEASE.md)
-else
-  ui_section=""
-fi
-
-# Read Backend checklist from local RELEASE.md
-backend_section=$(awk "/${START_MARKER}/{flag=1;next}/$END_MARKER/{flag=0}flag" RELEASE.md)
-
-# Read Docs checklist from downloaded template
-doc_section=$(awk "/${START_MARKER}/{flag=1;next}/$END_MARKER/{flag=0}flag" "$TMPFILE")
-
-# Substitute versions (v1 placeholders like 1.x.x/X.Y.Z, and v2 placeholders 2.x.x)
-v1_replacement="${user_version_v1}"
-v2_replacement="${user_version_v2}"
-ui_section=$(echo "$ui_section" | sed -E "s/(X\\.Y\\.Z|1\\.[0-9]+\\.[0-9]+|1\\.x\\.x)/$v1_replacement/g" | sed -E "s/2\\.x\\.x/$v2_replacement/g")
-backend_section=$(echo "$backend_section" | sed -E "s/(X\\.Y\\.Z|1\\.[0-9]+\\.[0-9]+|1\\.x\\.x)/$v1_replacement/g" | sed -E "s/2\\.x\\.x/$v2_replacement/g")
-doc_section=$(echo "$doc_section" | sed -E "s/(X\\.Y\\.Z|1\\.[0-9]+\\.[0-9]+|1\\.x\\.x)/$v1_replacement/g" | sed -E "s/2\\.x\\.x/$v2_replacement/g")
-
-# Build issue body
-issue_body="# UI Release
-$ui_section
-# Backend Release
-$backend_section
-# Doc Release
-$doc_section"
-
-# Append automated command with concrete versions
 cmd_v1="v${user_version_v1}"
 cmd_v2="v${user_version_v2}"
-issue_body+=$'\n\n**Automated option**: Run `bash ./scripts/release/prepare-release.sh '
-issue_body+="$cmd_v1"
-issue_body+=$' '
-issue_body+="$cmd_v2"
-issue_body+=$'` to automatically create the PR with changelog updates. Add `--auto-tag` to create and push tags after merging the PR.'
+
+issue_body=$(cat << EOF
+## Prepare Jaeger Release ${cmd_v1} / ${cmd_v2}
+
+This is the tracking issue for preparing the Jaeger release.
+
+Next step (automated):
+Run: \`bash ./scripts/release/prepare-release.sh ${cmd_v1} ${cmd_v2}\`
+
+After merging the PR, create signed tags and push:
+\`\`\`
+git checkout main
+git pull --ff-only upstream main
+git tag ${cmd_v1} -s -m "${cmd_v1}"
+git tag ${cmd_v2} -s -m "${cmd_v2}"
+git push upstream ${cmd_v1} ${cmd_v2}
+\`\`\`
+
+References: #7496
+EOF
+)
 
 if $dry_run; then
-  echo "${issue_body}"
-  rm -f "${TMPFILE}"
+  printf "%s\n" "${issue_body}"
   exit 0
 else
   gh issue create -R jaegertracing/jaeger --title "Prepare Jaeger Release ${new_version}" --body "$issue_body"
 fi
-
-rm -f "${TMPFILE}"
 
 
