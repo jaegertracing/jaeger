@@ -1,48 +1,58 @@
 #!/bin/bash
 set -e # Exit if any command fails
 
-# This script expects two version numbers as arguments
 MAIN_VERSION=$1
 UI_VERSION=$2
 
-# Check if both version arguments were provided.
 if [ -z "$MAIN_VERSION" ] || [ -z "$UI_VERSION" ]; then
   echo "Error: Missing version arguments."
   echo "Usage: ./scripts/release/prepare-release.sh <main-version> <ui-version>"
-  echo "Example: ./scripts/release/prepare-release.sh 1.56.0 4.10.0"
+  echo "Example: ./scripts/release/prepare-release.sh 1.73.0 v2.10.0" # Note the 'v' for UI version
   exit 1
 fi
+
+BRANCH_NAME="release-${MAIN_VERSION}"
+COMMIT_MSG="chore(release): Prepare release ${MAIN_VERSION}"
+
+echo "--- Creating new release branch: ${BRANCH_NAME} ---"
+git checkout -b "${BRANCH_NAME}"
 
 echo "--- Preparing release for main version: $MAIN_VERSION and UI version: $UI_VERSION ---"
 
 # --- Task 1: Update Version Strings in the Codebase ---
-# Using 'sed -i' without '.bak' to avoid creating backup files.
-echo "1. Updating version strings..."
-
+echo "1. Updating version strings in main repository..."
 sed -i "s/version: .*/version: ${MAIN_VERSION}/g" charts/jaeger/Chart.yaml
 sed -i "s/appVersion: .*/appVersion: ${MAIN_VERSION}/g" charts/jaeger/Chart.yaml
 sed -i "s/const Version = .*/const Version = \"${MAIN_VERSION}\"/g" pkg/version/version.go
-sed -i "s/\"version\": \".*\"/\"version\": \"${UI_VERSION}\"/g" jaeger-ui/package.json
 
-# --- Task 2: Generate Changelog ---
-# Calling the python script directly to filter changes and save to a file.
-echo "2. Generating changelog..."
+# --- Task 2: Update Jaeger UI Submodule ---
+echo "2. Updating jaeger-ui submodule to version ${UI_VERSION}..."
+# Initialize and update the submodule to the latest from its main branch
+git submodule update --init --recursive
+pushd jaeger-ui
+git checkout main
+git pull
+# Check out the specific version tag for the new UI release
+git checkout "${UI_VERSION}"
+popd
 
-# Find the tag of the most recent release to generate a delta changelog.
+# --- Task 3: Generate Changelog ---
+echo "3. Generating changelog..."
 PREVIOUS_TAG=$(git describe --tags --abbrev=0)
-echo "Generating changelog since previous tag: ${PREVIOUS_TAG}"
+python3 ./scripts/release/notes.py --start-tag "${PREVIOUS_TAG}" --output CHANGELOG.md
 
-# Call the python script directly with arguments to save the filtered output.
-python3 ./scripts/release/notes.py \
-  --start-tag "${PREVIOUS_TAG}" \
-  --output CHANGELOG.md
+# --- Task 4: Commit and Push Changes ---
+echo "4. Committing all changes..."
+git add .
+git commit -m "${COMMIT_MSG}"
 
-echo "Changelog successfully written to CHANGELOG.md"
+echo "5. Pushing new branch to your fork..."
+# The user will need to have their fork set up as 'origin'
+git push --set-upstream origin "${BRANCH_NAME}"
 
 # --- Final Instructions ---
 echo
 echo "--------------------------------------------------"
-echo "✅ Release preparation script finished."
-echo "Review the file changes with 'git diff'."
-echo "Once you are satisfied, commit the changes and update your Pull Request."
+echo "✅ Release branch '${BRANCH_NAME}' has been created and pushed."
+echo "You can now go to GitHub to open a Pull Request."
 echo "--------------------------------------------------"
