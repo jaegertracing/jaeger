@@ -62,7 +62,42 @@ wget -O "$TMPFILE" https://raw.githubusercontent.com/jaegertracing/documentation
 # Ensure the UI Release checklist is up to date.
 make init-submodules
 
-issue_body=$(python scripts/release/formatter.py "${TMPFILE}" "${user_version_v1}" "${user_version_v2}")
+# Extract sections between markers from UI, Backend, and Docs READMEs
+START_MARKER='<!-- BEGIN_CHECKLIST -->'
+END_MARKER='<!-- END_CHECKLIST -->'
+
+# Read UI checklist from submodule
+if [[ -f "jaeger-ui/RELEASE.md" ]]; then
+  ui_section=$(awk "/${START_MARKER}/{flag=1;next}/$END_MARKER/{flag=0}flag" jaeger-ui/RELEASE.md)
+else
+  ui_section=""
+fi
+
+# Read Backend checklist from local RELEASE.md
+backend_section=$(awk "/${START_MARKER}/{flag=1;next}/$END_MARKER/{flag=0}flag" RELEASE.md)
+
+# Read Docs checklist from downloaded template
+doc_section=$(awk "/${START_MARKER}/{flag=1;next}/$END_MARKER/{flag=0}flag" "$TMPFILE")
+
+# Substitute versions (v1 placeholders like 1.x.x/X.Y.Z, and v2 placeholders 2.x.x)
+v1_replacement="${user_version_v1}"
+v2_replacement="${user_version_v2}"
+ui_section=$(echo "$ui_section" | sed -E "s/(X\\.Y\\.Z|1\\.[0-9]+\\.[0-9]+|1\\.x\\.x)/$v1_replacement/g" | sed -E "s/2\\.x\\.x/$v2_replacement/g")
+backend_section=$(echo "$backend_section" | sed -E "s/(X\\.Y\\.Z|1\\.[0-9]+\\.[0-9]+|1\\.x\\.x)/$v1_replacement/g" | sed -E "s/2\\.x\\.x/$v2_replacement/g")
+doc_section=$(echo "$doc_section" | sed -E "s/(X\\.Y\\.Z|1\\.[0-9]+\\.[0-9]+|1\\.x\\.x)/$v1_replacement/g" | sed -E "s/2\\.x\\.x/$v2_replacement/g")
+
+# Build issue body
+issue_body="# UI Release
+$ui_section
+# Backend Release
+$backend_section
+# Doc Release
+$doc_section"
+
+# Append automated command with concrete versions
+cmd_v1="v${user_version_v1}"
+cmd_v2="v${user_version_v2}"
+issue_body+=$'\n\n**Automated option**: Run `bash ./scripts/release/prepare.sh '"${cmd_v1}"' '"${cmd_v2}"'` to automatically create the PR with changelog updates.'
 
 if $dry_run; then
   echo "${issue_body}"
