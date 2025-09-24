@@ -49,9 +49,16 @@ type TraceBackend struct {
 	Opensearch    *esCfg.Configuration  `mapstructure:"opensearch"`
 }
 
+// AuthConfig represents authentication configuration for metric backends
+type AuthConfig struct {
+    Authenticator string `mapstructure:"authenticator"`
+}
+
+
 // MetricBackend contains configuration for a single metric storage backend.
 type MetricBackend struct {
 	Prometheus    *promCfg.Configuration `mapstructure:"prometheus"`
+	Auth          *AuthConfig           `mapstructure:"auth,omitempty"`
 	Elasticsearch *esCfg.Configuration   `mapstructure:"elasticsearch"`
 	Opensearch    *esCfg.Configuration   `mapstructure:"opensearch"`
 }
