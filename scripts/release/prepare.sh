@@ -120,13 +120,13 @@ generate_changelog() {
         cat > "$temp_changelog" << EOF
 ## Changes since last release
 
-### âœ¨ New Features
+### ✨ New Features
 - Automated release process implementation
 
-### ðŸ› Bug Fixes
+### 🛠️ Bug Fixes
 - Various bug fixes and improvements
 
-### ðŸ“š Documentation
+### 📚 Documentation
 - Updated release documentation
 
 EOF
