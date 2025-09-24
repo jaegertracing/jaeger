@@ -81,7 +81,12 @@ validate_environment() {
     validate_gh_cli
 }
 
-determine_current_versions() { :; }
+
+determine_current_versions() {
+    read -r current_v1 current_v2 <<< "$(get_current_versions)"
+    log_info "Current versions: $current_v1 / $current_v2"
+}
+
 
 validate_semver_increment() {
     local new_version="$1"
