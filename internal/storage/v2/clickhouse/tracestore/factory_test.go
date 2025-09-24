@@ -25,7 +25,7 @@ func TestNewFactory(t *testing.T) {
 	testcontainers.CleanupContainer(t, clickhouseC)
 	require.NoError(t, err)
 
-	factory, err := NewFactory(Config{
+	factory, err := NewFactory(context.Background(), Config{
 		Addresses: []string{"localhost:9000"},
 		Auth: AuthConfig{
 			Database: "default",
@@ -35,4 +35,29 @@ func TestNewFactory(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 	require.NoError(t, factory.Close())
+}
+
+func TestNewFactory_FailedPing(t *testing.T) {
+	ctx := context.Background()
+	req := testcontainers.ContainerRequest{
+		Image:        "clickhouse/clickhouse-server:latest",
+		ExposedPorts: []string{"9000:9000"},
+		WaitingFor:   wait.ForListeningPort("9000"),
+	}
+	clickhouseC, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	testcontainers.CleanupContainer(t, clickhouseC)
+	require.NoError(t, err)
+
+	factory, err := NewFactory(context.Background(), Config{
+		Addresses: []string{"localhost:9999"}, // wrong port
+		Auth: AuthConfig{
+			Database: "default",
+			Username: "default",
+		},
+	}, telemetry.NoopSettings())
+	require.ErrorContains(t, err, "failed to ping ClickHouse")
+	require.Nil(t, factory)
 }
