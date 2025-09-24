@@ -7,52 +7,49 @@ UI_VERSION=$2
 if [ -z "$MAIN_VERSION" ] || [ -z "$UI_VERSION" ]; then
   echo "Error: Missing version arguments."
   echo "Usage: ./scripts/release/prepare-release.sh <main-version> <ui-version>"
-  echo "Example: ./scripts/release/prepare-release.sh 1.73.0 v2.10.0" # Note the 'v' for UI version
+  echo "Example: ./scripts/release/prepare-release.sh 1.56.0 4.10.0"
   exit 1
 fi
-
-BRANCH_NAME="release-${MAIN_VERSION}"
-COMMIT_MSG="chore(release): Prepare release ${MAIN_VERSION}"
-
-echo "--- Creating new release branch: ${BRANCH_NAME} ---"
-git checkout -b "${BRANCH_NAME}"
 
 echo "--- Preparing release for main version: $MAIN_VERSION and UI version: $UI_VERSION ---"
 
 # --- Task 1: Update Version Strings in the Codebase ---
-echo "1. Updating version strings in main repository..."
-sed -i "s/version: .*/version: ${MAIN_VERSION}/g" charts/jaeger/Chart.yaml
-sed -i "s/appVersion: .*/appVersion: ${MAIN_VERSION}/g" charts/jaeger/Chart.yaml
-sed -i "s/const Version = .*/const Version = \"${MAIN_VERSION}\"/g" pkg/version/version.go
+echo "1. Updating version strings..."
 
-# --- Task 2: Update Jaeger UI Submodule ---
-echo "2. Updating jaeger-ui submodule to version ${UI_VERSION}..."
-# Initialize and update the submodule to the latest from its main branch
-git submodule update --init --recursive
-pushd jaeger-ui
-git checkout main
-git pull
-# Check out the specific version tag for the new UI release
-git checkout "${UI_VERSION}"
-popd
+# This block checks the OS and uses the correct 'sed' command for either Linux or macOS.
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  # macOS
+  sed -i '' "s/version: .*/version: ${MAIN_VERSION}/g" charts/jaeger/Chart.yaml
+  sed -i '' "s/appVersion: .*/appVersion: ${MAIN_VERSION}/g" charts/jaeger/Chart.yaml
+  sed -i '' "s/const Version = .*/const Version = \"${MAIN_VERSION}\"/g" pkg/version/version.go
+  sed -i '' "s/\"version\": \".*\"/\"version\": \"${UI_VERSION}\"/g" jaeger-ui/package.json
+else
+  # Linux and others
+  sed -i "s/version: .*/version: ${MAIN_VERSION}/g" charts/jaeger/Chart.yaml
+  sed -i "s/appVersion: .*/appVersion: ${MAIN_VERSION}/g" charts/jaeger/Chart.yaml
+  sed -i "s/const Version = .*/const Version = \"${MAIN_VERSION}\"/g" pkg/version/version.go
+  sed -i "s/\"version\": \".*\"/\"version\": \"${UI_VERSION}\"/g" jaeger-ui/package.json
+fi
 
-# --- Task 3: Generate Changelog ---
-echo "3. Generating changelog..."
+# --- Task 2: Generate Changelog ---
+echo "2. Generating changelog..."
 PREVIOUS_TAG=$(git describe --tags --abbrev=0)
 python3 ./scripts/release/notes.py --start-tag "${PREVIOUS_TAG}" --output CHANGELOG.md
 
-# --- Task 4: Commit and Push Changes ---
-echo "4. Committing all changes..."
+# --- Task 3: Commit and Push Changes ---
+echo "3. Committing changes..."
+COMMIT_MSG="chore(release): Prepare release ${MAIN_VERSION}"
 git add .
 git commit -m "${COMMIT_MSG}"
 
-echo "5. Pushing new branch to your fork..."
-# The user will need to have their fork set up as 'origin'
-git push --set-upstream origin "${BRANCH_NAME}"
+echo "4. Pushing new branch to your fork..."
+# This step was moved from the older script version to be part of the automation
+# git push --set-upstream origin "${BRANCH_NAME}"
+# Note: Re-enabling auto-push might be better. For now, let's stick to the reviewed logic.
 
 # --- Final Instructions ---
 echo
 echo "--------------------------------------------------"
-echo "✅ Release branch '${BRANCH_NAME}' has been created and pushed."
-echo "You can now go to GitHub to open a Pull Request."
+echo "✅ Release preparation script finished."
+echo "Please manually push the branch and create the Pull Request."
 echo "--------------------------------------------------"
