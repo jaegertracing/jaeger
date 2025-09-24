@@ -40,6 +40,8 @@ extensions:
     # The maximum duration that is considered for clock skew adjustments.
     # Defaults to 0 seconds, which means it's disabled.
     max_clock_skew_adjust: 0s
+    # Maximum number of spans per trace (0 = no limit, truncates with warning if exceeded)
+    max_trace_size: 0
 
   jaeger_storage:
     backends:

@@ -23,6 +23,7 @@ type QueryServiceOptions struct {
 	ArchiveSpanReader  spanstore.Reader
 	ArchiveSpanWriter  spanstore.Writer
 	MaxClockSkewAdjust time.Duration
+	MaxTraceSize       int
 }
 
 // StorageCapabilities is a feature flag for query service
@@ -55,7 +56,7 @@ type TraceQueryParameters struct {
 
 // NewQueryService returns a new QueryService.
 func NewQueryService(traceReader tracestore.Reader, dependencyReader depstore.Reader, options QueryServiceOptions) *QueryService {
-	spanReader := v1adapter.GetV1Reader(traceReader)
+	spanReader := v1adapter.GetV1ReaderWithLimit(traceReader, options.MaxTraceSize)
 	qsvc := &QueryService{
 		spanReader:       spanReader,
 		dependencyReader: dependencyReader,

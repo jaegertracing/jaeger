@@ -33,6 +33,7 @@ func TestQueryBuilderFlags(t *testing.T) {
 		"--query.additional-headers=access-control-allow-origin:blerg",
 		"--query.additional-headers=whatever:thing",
 		"--query.max-clock-skew-adjustment=10s",
+		"--query.max-trace-size=1000",
 	})
 	qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
 	require.NoError(t, err)
@@ -47,6 +48,7 @@ func TestQueryBuilderFlags(t *testing.T) {
 		"Whatever":                    "thing",
 	}, qOpts.HTTP.ResponseHeaders)
 	assert.Equal(t, 10*time.Second, qOpts.MaxClockSkewAdjust)
+	assert.Equal(t, 1000, qOpts.MaxTraceSize)
 }
 
 func TestQueryBuilderBadHeadersFlags(t *testing.T) {

@@ -4,6 +4,7 @@
 package v1adapter
 
 import (
+	"fmt"
 	"iter"
 
 	jaegerTranslator "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
@@ -43,24 +44,156 @@ func V1BatchesToTraces(batches []*model.Batch) ptrace.Traces {
 	return traces
 }
 
-// V1TracesFromSeq2 converts an interator of ptrace.Traces chunks into v1 traces.
-func V1TracesFromSeq2(otelSeq iter.Seq2[[]ptrace.Traces, error]) ([]*model.Trace, error) {
+// V1TracesFromSeq2 converts an iterator of ptrace.Traces chunks into v1 traces.
+// If maxTraceSize > 0, traces exceeding that number of spans will be truncated with warnings.
+func V1TracesFromSeq2(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize ...int) ([]*model.Trace, error) {
+	limit := 0
+	if len(maxTraceSize) > 0 {
+		limit = maxTraceSize[0]
+	}
+
 	var (
 		jaegerTraces []*model.Trace
 		iterErr      error
 	)
-	jptrace.AggregateTraces(otelSeq)(func(otelTrace ptrace.Traces, err error) bool {
+
+	// Single code path that streams results and applies limit filter when necessary
+	limitedSeq := applyTraceSizeLimit(otelSeq, limit)
+	jptrace.AggregateTraces(limitedSeq)(func(otelTrace ptrace.Traces, err error) bool {
 		if err != nil {
 			iterErr = err
 			return false
 		}
-		jaegerTraces = append(jaegerTraces, modelTraceFromOtelTrace(otelTrace))
+		trace := modelTraceFromOtelTrace(otelTrace)
+		jaegerTraces = append(jaegerTraces, trace)
 		return true
 	})
 	if iterErr != nil {
 		return nil, iterErr
 	}
 	return jaegerTraces, nil
+}
+
+// applyTraceSizeLimit applies trace size limits incrementally during sequence consumption.
+// This prevents loading large traces entirely into memory before applying the limit.
+// A single logical trace can be split across multiple ptrace.Traces objects in the sequence.
+func applyTraceSizeLimit(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize int) iter.Seq2[[]ptrace.Traces, error] {
+	if maxTraceSize <= 0 {
+		return otelSeq
+	}
+
+	return func(yield func(traces []ptrace.Traces, err error) bool) {
+		spansProcessed := 0
+		truncated := false
+		currentTraceID := pcommon.NewTraceIDEmpty()
+
+		otelSeq(func(traces []ptrace.Traces, err error) bool {
+			if err != nil {
+				return yield(traces, err) // Propagate error and termination signal
+			}
+
+			var limitedTraces []ptrace.Traces
+
+			for _, trace := range traces {
+				// Check if this is a new trace (different trace ID)
+				resources := trace.ResourceSpans()
+				if resources.Len() > 0 {
+					scopes := resources.At(0).ScopeSpans()
+					if scopes.Len() > 0 {
+						spans := scopes.At(0).Spans()
+						if spans.Len() > 0 {
+							traceID := spans.At(0).TraceID()
+							if traceID != currentTraceID {
+								// New trace - reset counters
+								currentTraceID = traceID
+								spansProcessed = 0
+								truncated = false
+							}
+						}
+					}
+				}
+
+				// If we've already truncated this trace, skip remaining parts
+				if truncated {
+					continue
+				}
+
+				// Count spans in this trace part
+				spanCount := countSpansInTrace(trace)
+
+				// If adding these spans would exceed the limit, truncate
+				if spansProcessed+spanCount > maxTraceSize {
+					truncated = true
+					remainingSpans := maxTraceSize - spansProcessed
+					if remainingSpans > 0 {
+						limitedTrace := truncateTraceToLimit(trace, remainingSpans, maxTraceSize)
+						limitedTraces = append(limitedTraces, limitedTrace)
+					}
+				} else {
+					// Add all spans from this trace part
+					limitedTraces = append(limitedTraces, trace)
+					spansProcessed += spanCount
+				}
+			}
+
+			// Properly propagate termination signals - if yield returns false, stop iteration
+			if !yield(limitedTraces, nil) {
+				return false
+			}
+			return true
+		})
+	}
+}
+
+// countSpansInTrace counts the number of spans in a single ptrace.Traces object
+func countSpansInTrace(trace ptrace.Traces) int {
+	spanCount := 0
+	resources := trace.ResourceSpans()
+
+	for i := 0; i < resources.Len(); i++ {
+		scopes := resources.At(i).ScopeSpans()
+		for j := 0; j < scopes.Len(); j++ {
+			spanCount += scopes.At(j).Spans().Len()
+		}
+	}
+	return spanCount
+}
+
+// truncateTraceToLimit truncates a trace to the specified number of spans and adds warning
+func truncateTraceToLimit(trace ptrace.Traces, maxSpans, totalLimit int) ptrace.Traces {
+	limitedTrace := ptrace.NewTraces()
+	spansProcessed := 0
+
+	resources := trace.ResourceSpans()
+	for i := 0; i < resources.Len() && spansProcessed < maxSpans; i++ {
+		resource := resources.At(i)
+		limitedResource := limitedTrace.ResourceSpans().AppendEmpty()
+		resource.Resource().CopyTo(limitedResource.Resource())
+
+		scopes := resource.ScopeSpans()
+		for j := 0; j < scopes.Len() && spansProcessed < maxSpans; j++ {
+			scope := scopes.At(j)
+			limitedScope := limitedResource.ScopeSpans().AppendEmpty()
+			scope.Scope().CopyTo(limitedScope.Scope())
+
+			spans := scope.Spans()
+			for k := 0; k < spans.Len() && spansProcessed < maxSpans; k++ {
+				span := spans.At(k)
+				limitedSpan := limitedScope.Spans().AppendEmpty()
+				span.CopyTo(limitedSpan)
+
+				// Add warning to first span
+				if spansProcessed == 0 {
+					limitedSpan.Attributes().PutStr("jaeger.warning",
+						fmt.Sprintf("Trace truncated: only first %d spans loaded", totalLimit))
+				}
+
+				spansProcessed++
+			}
+		}
+	}
+
+	return limitedTrace
 }
 
 func V1TraceIDsFromSeq2(traceIDsIter iter.Seq2[[]tracestore.FoundTraceID, error]) ([]model.TraceID, error) {
@@ -115,14 +248,14 @@ func modelTraceFromOtelTrace(otelTrace ptrace.Traces) *model.Trace {
 			spans = append(spans, span)
 
 			if span.Process.Tags == nil {
-				span.Process.Tags = []model.KeyValue{}
+				span.Process.Tags = make([]model.KeyValue, 0)
 			}
 
 			if span.References == nil {
-				span.References = []model.SpanRef{}
+				span.References = make([]model.SpanRef, 0)
 			}
 			if span.Tags == nil {
-				span.Tags = []model.KeyValue{}
+				span.Tags = make([]model.KeyValue, 0)
 			}
 		}
 	}
