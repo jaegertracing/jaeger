@@ -258,6 +258,44 @@ func (MetricsReader) GetMinStepDuration(_ context.Context, _ *metricstore.MinSte
 	return minStep, nil
 }
 
+// GetAttributeValues gets the available values for a specific attribute from Prometheus.
+func (m MetricsReader) GetAttributeValues(ctx context.Context, params *metricstore.AttributeValuesQueryParameters) ([]string, error) {
+	ctx, span := m.tracer.Start(ctx, "prometheus.attribute_values")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("attribute_name", params.AttributeKey),
+		attribute.String("service", params.ServiceName),
+	)
+	// Build match[] selectors to filter by service names if provided
+	var matchers []string
+	if params.ServiceName != "" {
+		matchers = append(matchers, fmt.Sprintf("{service_name=%q}", params.ServiceName))
+	}
+
+	escapedKey := strings.ReplaceAll(params.AttributeKey, ".", "_")
+	values, warnings, err := m.client.LabelValues(ctx, escapedKey, matchers, time.Time{}, time.Time{})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, fmt.Errorf("failed querying label values for %s: %w", params.AttributeKey, err)
+	}
+
+	if len(warnings) > 0 {
+		m.logger.Warn("Prometheus label values query returned warnings",
+			zap.String("label", params.AttributeKey),
+			zap.Strings("warnings", warnings))
+	}
+
+	// Convert model.LabelValues to []string
+	result := make([]string, len(values))
+	for i, value := range values {
+		result[i] = string(value)
+	}
+
+	return result, nil
+}
+
 // executeQuery executes a query against a Prometheus-compliant metrics backend.
 func (m MetricsReader) executeQuery(ctx context.Context, p metricsQueryParams) (*metrics.MetricFamily, error) {
 	if p.GroupByOperation {
