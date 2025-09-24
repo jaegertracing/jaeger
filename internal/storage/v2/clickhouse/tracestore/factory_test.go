@@ -1,14 +1,17 @@
+// Copyright (c) 2025 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package tracestore
 
 import (
 	"context"
 	"testing"
 
-	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/stretchr/testify/require"
-
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+
+	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
 func TestNewFactory(t *testing.T) {
