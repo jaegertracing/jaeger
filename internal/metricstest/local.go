@@ -5,6 +5,7 @@
 package metricstest
 
 import (
+	"maps"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -80,9 +81,7 @@ func (b *Backend) runLoop(collectionInterval time.Duration) {
 		case <-ticker.C:
 			b.tm.Lock()
 			timers := make(map[string]*localBackendTimer, len(b.timers))
-			for timerName, timer := range b.timers {
-				timers[timerName] = timer
-			}
+			maps.Copy(timers, b.timers)
 			b.tm.Unlock()
 
 			for _, t := range timers {
@@ -210,9 +209,7 @@ func (b *Backend) Snapshot() (counters, gauges map[string]int64) {
 
 	b.tm.Lock()
 	timers := make(map[string]*localBackendTimer)
-	for timerName, timer := range b.timers {
-		timers[timerName] = timer
-	}
+	maps.Copy(timers, b.timers)
 	b.tm.Unlock()
 
 	for timerName, timer := range timers {
@@ -226,9 +223,7 @@ func (b *Backend) Snapshot() (counters, gauges map[string]int64) {
 
 	b.hm.Lock()
 	histograms := make(map[string]*localBackendHistogram)
-	for histogramName, histogram := range b.histograms {
-		histograms[histogramName] = histogram
-	}
+	maps.Copy(histograms, b.histograms)
 	b.hm.Unlock()
 
 	for histogramName, histogram := range histograms {
@@ -306,12 +301,8 @@ func NewFactory(collectionInterval time.Duration) *Factory {
 // appendTags adds the tags to the namespace tags and returns a combined map.
 func (f *Factory) appendTags(tags map[string]string) map[string]string {
 	newTags := make(map[string]string)
-	for k, v := range f.tags {
-		newTags[k] = v
-	}
-	for k, v := range tags {
-		newTags[k] = v
-	}
+	maps.Copy(newTags, f.tags)
+	maps.Copy(newTags, tags)
 	return newTags
 }
 

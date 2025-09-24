@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"strconv"
 	"strings"
@@ -394,9 +395,7 @@ func (*queryParser) parseTags(simpleTags []string, jsonTags []string) (map[strin
 		if err := json.Unmarshal([]byte(tags), &fromJSON); err != nil {
 			return nil, fmt.Errorf("malformed 'tags' parameter, cannot unmarshal JSON: %w", err)
 		}
-		for k, v := range fromJSON {
-			retMe[k] = v
-		}
+		maps.Copy(retMe, fromJSON)
 	}
 	return retMe, nil
 }

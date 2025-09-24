@@ -4,8 +4,10 @@
 package dbmodel
 
 import (
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -41,7 +43,7 @@ func FromDBModel(storedSpan Span) ptrace.Traces {
 
 	for i := range storedSpan.Events {
 		event := span.Events().AppendEmpty()
-		e, err := convertEvent(storedSpan.Events[i])
+		e, err := convertEvent(storedSpan.Events[i], span)
 		if err != nil {
 			jptrace.AddWarnings(span, err.Error())
 		}
@@ -97,21 +99,56 @@ func convertSpan(s Span) (ptrace.Span, error) {
 	}
 	span.TraceState().FromRaw(s.TraceState)
 	span.SetName(s.Name)
-	span.SetKind(convertSpanKind(s.Kind))
+	span.SetKind(jptrace.StringToSpanKind(s.Kind))
 	span.SetEndTimestamp(pcommon.NewTimestampFromTime(s.StartTime.Add(s.Duration)))
-	span.Status().SetCode(convertStatusCode(s.StatusCode))
+	span.Status().SetCode(jptrace.StringToStatusCode(s.StatusCode))
 	span.Status().SetMessage(s.StatusMessage)
-	// TODO: populate attributes
+
+	populateAttributes(s.Attributes, span.Attributes())
+	populateComplexAttributes(span.Attributes(), s.Attributes.ComplexAttributes, span)
 
 	return span, nil
 }
 
-func convertEvent(e Event) (ptrace.SpanEvent, error) {
+func populateAttributes(storedAttributes Attributes, attributes pcommon.Map) {
+	for _, attr := range storedAttributes.BoolAttributes {
+		attributes.PutBool(attr.Key, attr.Value)
+	}
+	for _, attr := range storedAttributes.DoubleAttributes {
+		attributes.PutDouble(attr.Key, attr.Value)
+	}
+	for _, attr := range storedAttributes.IntAttributes {
+		attributes.PutInt(attr.Key, attr.Value)
+	}
+	for _, attr := range storedAttributes.StrAttributes {
+		attributes.PutStr(attr.Key, attr.Value)
+	}
+}
+
+func populateComplexAttributes(attributes pcommon.Map, complexAttributes []Attribute[string], spanForWarnings ptrace.Span) {
+	for _, attr := range complexAttributes {
+		switch {
+		case strings.HasPrefix(attr.Key, "@bytes@"):
+			parsedKey := strings.TrimPrefix(attr.Key, "@bytes@")
+			decoded, err := base64.StdEncoding.DecodeString(attr.Value)
+			if err != nil {
+				jptrace.AddWarnings(spanForWarnings, fmt.Sprintf("failed to decode bytes attribute %q: %s", parsedKey, err.Error()))
+				continue
+			}
+			attributes.PutEmptyBytes(parsedKey).FromRaw(decoded)
+		default:
+			jptrace.AddWarnings(spanForWarnings, fmt.Sprintf("unsupported complex attribute type for key %q", attr.Key))
+		}
+	}
+}
+
+func convertEvent(e Event, s ptrace.Span) (ptrace.SpanEvent, error) {
 	event := ptrace.NewSpanEvent()
 	event.SetName(e.Name)
 	event.SetTimestamp(pcommon.NewTimestampFromTime(e.Timestamp))
+	populateAttributes(e.Attributes, event.Attributes())
+	populateComplexAttributes(event.Attributes(), e.Attributes.ComplexAttributes, s)
 
-	// TODO: populate attributes
 	return event, nil
 }
 
@@ -130,36 +167,4 @@ func convertSpanLink(l Link) (ptrace.SpanLink, error) {
 	link.TraceState().FromRaw(l.TraceState)
 	// TODO: populate attributes
 	return link, nil
-}
-
-func convertSpanKind(sk string) ptrace.SpanKind {
-	switch sk {
-	case "Unspecified":
-		return ptrace.SpanKindUnspecified
-	case "Internal":
-		return ptrace.SpanKindInternal
-	case "Server":
-		return ptrace.SpanKindServer
-	case "Client":
-		return ptrace.SpanKindClient
-	case "Producer":
-		return ptrace.SpanKindProducer
-	case "Consumer":
-		return ptrace.SpanKindConsumer
-	default:
-		return ptrace.SpanKindUnspecified
-	}
-}
-
-func convertStatusCode(sc string) ptrace.StatusCode {
-	switch sc {
-	case "Ok":
-		return ptrace.StatusCodeOk
-	case "Unset":
-		return ptrace.StatusCodeUnset
-	case "Error":
-		return ptrace.StatusCodeError
-	default:
-		return ptrace.StatusCodeUnset
-	}
 }

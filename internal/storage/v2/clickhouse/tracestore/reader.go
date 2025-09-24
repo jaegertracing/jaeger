@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"iter"
-	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -29,8 +28,28 @@ const (
 		status_code,
 		status_message,
 		duration,
+		bool_attributes.key,
+		bool_attributes.value,
+		double_attributes.key,
+		double_attributes.value,
+		int_attributes.key,
+		int_attributes.value,
+		str_attributes.key,
+		str_attributes.value,
+		complex_attributes.key,
+		complex_attributes.value,
 		events.name,
 		events.timestamp,
+		events.bool_attributes.key,
+		events.bool_attributes.value,
+		events.double_attributes.key,
+		events.double_attributes.value,
+		events.int_attributes.key,
+		events.int_attributes.value,
+		events.str_attributes.key,
+		events.str_attributes.value,
+		events.complex_attributes.key,
+		events.complex_attributes.value,
 		links.trace_id,
 		links.span_id,
 		links.trace_state,
@@ -102,70 +121,6 @@ func (r *Reader) GetTraces(
 			}
 		}
 	}
-}
-
-func scanSpanRow(rows driver.Rows) (dbmodel.Span, error) {
-	var (
-		span            dbmodel.Span
-		rawDuration     int64
-		eventNames      []string
-		eventTimestamps []time.Time
-		linkTraceIDs    []string
-		linkSpanIDs     []string
-		linkTraceStates []string
-	)
-
-	err := rows.Scan(
-		&span.ID,
-		&span.TraceID,
-		&span.TraceState,
-		&span.ParentSpanID,
-		&span.Name,
-		&span.Kind,
-		&span.StartTime,
-		&span.StatusCode,
-		&span.StatusMessage,
-		&rawDuration,
-		&eventNames,
-		&eventTimestamps,
-		&linkTraceIDs,
-		&linkSpanIDs,
-		&linkTraceStates,
-		&span.ServiceName,
-		&span.ScopeName,
-		&span.ScopeVersion,
-	)
-	if err != nil {
-		return span, err
-	}
-
-	span.Duration = time.Duration(rawDuration)
-	span.Events = buildEvents(eventNames, eventTimestamps)
-	span.Links = buildLinks(linkTraceIDs, linkSpanIDs, linkTraceStates)
-	return span, nil
-}
-
-func buildEvents(names []string, timestamps []time.Time) []dbmodel.Event {
-	var events []dbmodel.Event
-	for i := 0; i < len(names) && i < len(timestamps); i++ {
-		events = append(events, dbmodel.Event{
-			Name:      names[i],
-			Timestamp: timestamps[i],
-		})
-	}
-	return events
-}
-
-func buildLinks(traceIDs, spanIDs, states []string) []dbmodel.Link {
-	var links []dbmodel.Link
-	for i := 0; i < len(traceIDs) && i < len(spanIDs) && i < len(states); i++ {
-		links = append(links, dbmodel.Link{
-			TraceID:    traceIDs[i],
-			SpanID:     spanIDs[i],
-			TraceState: states[i],
-		})
-	}
-	return links
 }
 
 func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
