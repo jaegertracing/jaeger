@@ -1,0 +1,34 @@
+allInOne:
+  enabled: true
+  extraEnv: []
+  
+
+# Enable HotROD demo application
+hotrod:
+  enabled: true
+  image:
+    tag: "1.72.0"
+  args:
+    - all
+  extraArgs:
+    - --otel-exporter=otlp
+  livenessProbe:
+    path: /
+  readinessProbe:
+    path: /
+  extraEnv:
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://jaeger-collector:4318
+    - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+      value: http://jaeger-collector:4318/v1/traces
+    - name: OTEL_EXPORTER_OTLP_PROTOCOL
+      value: http/protobuf
+    - name: OTEL_SERVICE_NAME
+      value: hotrod
+    - name: OTEL_LOG_LEVEL
+      value: debug
+  
+
+query:
+  service:
+    type: ClusterIP
