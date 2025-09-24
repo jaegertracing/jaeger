@@ -15,7 +15,9 @@ Create an issue with the checklist for the release by running `bash scripts/rele
 <!-- BEGIN_CHECKLIST -->
 
 1. Create a PR "Prepare release 1.x.x / 2.x.x" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/6826)):
-    * **Automated option**: Run `bash ./scripts/release/prepare.sh v1.x.x v2.x.x` to automatically create the PR with changelog updates
+    * **Automated option**: 
+        - First, create a tracking issue: `bash scripts/release/start.sh`
+        - Then, create the PR: `bash ./scripts/release/prepare.sh v1.x.x v2.x.x --tracking-issue #ISSUE_NUMBER`
     * **Manual option**: Follow the [manual release preparation steps](#manual-release-preparation-steps) below
 2. After the PR is merged, create new release tags:
     ```
@@ -61,23 +63,6 @@ Maintenance branches should follow naming convention: `release-major.minor` (e.g
    * Once the release tag is created, the `ci-release` workflow will kick in and deploy the artifacts for the patch release.
 5. Do not perform a new release of the documentation since the major.minor is not changing. The one change that may be useful is bumping the `binariesLatest` variable in the `config.toml` file ([example](https://github.com/jaegertracing/documentation/commit/eacb52f332a7e069c254e652a6b4a58ea5a07b32)).
 
-## Release managers
-
-A Release Manager is the person responsible for ensuring that a new version of Jaeger is released. This person will coordinate the required changes, including to the related components such as UI, IDL, and jaeger-lib and will address any problems that might happen during the release, making sure that the documentation above is correct.
-
-In order to ensure that knowledge about releasing Jaeger is spread among maintainers, we rotate the role of Release Manager among maintainers.
-
-Here are the release managers for future versions with the tentative release dates. The release dates are the first Wednesday of the month, and we might skip a release if not enough changes happened since the previous release. In such case, the next tentative release date is the first Wednesday of the subsequent month.
-
-| Version | Release Manager | Tentative release date |
-|---------|-----------------|------------------------|
-| 2.11.0  | @albertteoh     | 1 October   2025       |
-| 2.12.0  | @pavolloffay    | 5 November  2025       |
-| 2.13.0  | @joe-elliott    | 3 December  2025       |
-| 2.14.0  | @mahadzaryab1   | 7 January   2026       |
-| 2.15.0  | @jkowall        | 4 February  2026       |
-| 2.16.0  | @yurishkuro     | 5 March     2026       |
-
 ## Manual Release Preparation Steps
 
 If you prefer to manually create the release PR instead of using the automated script, follow these steps:
@@ -106,3 +91,20 @@ If you prefer to manually create the release PR instead of using the automated s
 4. Commit your changes and create a pull request.
 
 5. Add label `changelog:skip` to the pull request.
+
+## Release managers
+
+A Release Manager is the person responsible for ensuring that a new version of Jaeger is released. This person will coordinate the required changes, including to the related components such as UI, IDL, and jaeger-lib and will address any problems that might happen during the release, making sure that the documentation above is correct.
+
+In order to ensure that knowledge about releasing Jaeger is spread among maintainers, we rotate the role of Release Manager among maintainers.
+
+Here are the release managers for future versions with the tentative release dates. The release dates are the first Wednesday of the month, and we might skip a release if not enough changes happened since the previous release. In such case, the next tentative release date is the first Wednesday of the subsequent month.
+
+| Version | Release Manager | Tentative release date |
+|---------|-----------------|------------------------|
+| 2.11.0  | @albertteoh     | 1 October   2025       |
+| 2.12.0  | @pavolloffay    | 5 November  2025       |
+| 2.13.0  | @joe-elliott    | 3 December  2025       |
+| 2.14.0  | @mahadzaryab1   | 7 January   2026       |
+| 2.15.0  | @jkowall        | 4 February  2026       |
+| 2.16.0  | @yurishkuro     | 5 March     2026       |

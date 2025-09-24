@@ -62,17 +62,23 @@ cmd_v2="v${user_version_v2}"
 issue_body=$(cat << EOF
 ## Prepare Jaeger Release ${cmd_v1} / ${cmd_v2}
 
-This is the tracking issue for preparing the Jaeger release.
+This issue tracks the release of Jaeger ${cmd_v1} / ${cmd_v2}.
 
-Next step (automated):
-Run: \`bash ./scripts/release/prepare-release.sh ${cmd_v1} ${cmd_v2}\`
+**Automated option**: Run \`bash ./scripts/release/prepare.sh ${cmd_v1} ${cmd_v2} --tracking-issue #ISSUE_NUMBER\` to automatically create the PR with changelog updates. (Replace #ISSUE_NUMBER with this issue's number)
 
-After merging the PR, create signed tags and push:
-\`\`\`
+**Manual option**: Follow the [manual release preparation steps](https://github.com/jaegertracing/jaeger/blob/main/RELEASE.md#manual-release-preparation-steps) in \`RELEASE.md\`.
+
+---
+
+### Tagging
+
+After merging the PR, create signed tags and push them:
+
+\`\`\`bash
 git checkout main
 git pull --ff-only upstream main
-git tag ${cmd_v1} -s -m "${cmd_v1}"
-git tag ${cmd_v2} -s -m "${cmd_v2}"
+git tag ${cmd_v1} -s -m "Release ${cmd_v1}"
+git tag ${cmd_v2} -s -m "Release ${cmd_v2}"
 git push upstream ${cmd_v1} ${cmd_v2}
 \`\`\`
 
@@ -84,7 +90,12 @@ if $dry_run; then
   printf "%s\n" "${issue_body}"
   exit 0
 else
-  gh issue create -R jaegertracing/jaeger --title "Prepare Jaeger Release ${new_version}" --body "$issue_body"
+  issue_output=$(gh issue create -R jaegertracing/jaeger --title "Prepare Jaeger Release ${new_version}" --body "$issue_body")
+  issue_number=$(echo "$issue_output" | grep -o '#[0-9]*' | head -1)
+  echo "Created tracking issue: $issue_output"
+  echo ""
+  echo "Next step: Run the following command with the issue number:"
+  echo "bash ./scripts/release/prepare.sh ${cmd_v1} ${cmd_v2} --tracking-issue ${issue_number}"
 fi
 
 
