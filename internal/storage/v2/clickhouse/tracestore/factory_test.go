@@ -16,7 +16,14 @@ func TestNewFactory(t *testing.T) {
 	req := testcontainers.ContainerRequest{
 		Image:        "clickhouse/clickhouse-server:latest",
 		ExposedPorts: []string{"9000:9000"},
-		WaitingFor:   wait.ForListeningPort("9000"),
+		Files: []testcontainers.ContainerFile{
+			{
+				HostFilePath:      "./testdata/clickhouse-users.xml",
+				ContainerFilePath: "/etc/clickhouse-server/users.d/jaeger-users.xml",
+				FileMode:          0o644,
+			},
+		},
+		WaitingFor: wait.ForListeningPort("9000"),
 	}
 	clickhouseC, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
@@ -30,6 +37,7 @@ func TestNewFactory(t *testing.T) {
 		Auth: AuthConfig{
 			Database: "default",
 			Username: "default",
+			Password: "jaeger",
 		},
 	}, telemetry.NoopSettings())
 	require.NoError(t, err)
@@ -56,6 +64,7 @@ func TestNewFactory_FailedPing(t *testing.T) {
 		Auth: AuthConfig{
 			Database: "default",
 			Username: "default",
+			Password: "jaeger",
 		},
 	}, telemetry.NoopSettings())
 	require.ErrorContains(t, err, "failed to ping ClickHouse")
