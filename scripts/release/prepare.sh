@@ -8,7 +8,7 @@
 set -euo pipefail
 
 # Source utility functions
-source "$(dirname $0)/utils.sh"
+source "$(dirname "$0")/utils.sh"
 
 # Configuration
 REPO="jaegertracing/jaeger"
