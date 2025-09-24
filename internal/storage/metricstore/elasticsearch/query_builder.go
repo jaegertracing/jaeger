@@ -15,6 +15,8 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
@@ -36,6 +38,7 @@ type QueryBuilder struct {
 	client           es.Client
 	cfg              config.Configuration
 	timeRangeIndices spanstore.TimeRangeIndexFn
+	tagQueryBuilder  query.TagQueryBuilder
 }
 
 // NewQueryBuilder creates a new QueryBuilder instance.
@@ -46,6 +49,9 @@ func NewQueryBuilder(client es.Client, cfg config.Configuration, logger *zap.Log
 		timeRangeIndices: spanstore.LoggingTimeRangeIndexFn(
 			logger,
 			spanstore.TimeRangeIndicesFn(cfg.UseReadWriteAliases, cfg.ReadAliasSuffix, cfg.RemoteReadClusters),
+		),
+		tagQueryBuilder: query.NewTagQueryBuilder(
+			dbmodel.NewDotReplacer(cfg.Tags.DotReplacement),
 		),
 	}
 }
@@ -65,6 +71,12 @@ func (q *QueryBuilder) BuildBoolQuery(params metricstore.BaseQueryParameters, ti
 	spanKindField := strings.ReplaceAll(model.SpanKindKey, ".", q.cfg.Tags.DotReplacement)
 	spanKindQuery := elastic.NewTermsQuery("tag."+spanKindField, buildInterfaceSlice(normalizeSpanKinds(params.SpanKinds))...)
 	boolQuery.Filter(spanKindQuery)
+
+	// Add complex tag filters using SpanReader's buildTagQuery method
+	for tagKey, tagValue := range params.Tags {
+		tagQuery := q.tagQueryBuilder.BuildTagQuery(tagKey, tagValue)
+		boolQuery.Filter(tagQuery)
+	}
 
 	// Add additional terms queries if provided
 	for _, termQuery := range termsQueries {
