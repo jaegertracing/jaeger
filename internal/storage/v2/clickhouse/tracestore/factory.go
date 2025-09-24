@@ -1,6 +1,7 @@
 package tracestore
 
 import (
+	"context"
 	"fmt"
 	"io"
 
@@ -21,7 +22,7 @@ type Factory struct {
 	conn   driver.Conn
 }
 
-func NewFactory(cfg Config, telset telemetry.Settings) (*Factory, error) {
+func NewFactory(ctx context.Context, cfg Config, telset telemetry.Settings) (*Factory, error) {
 	f := &Factory{
 		config: cfg,
 		telset: telset,
@@ -36,7 +37,13 @@ func NewFactory(cfg Config, telset telemetry.Settings) (*Factory, error) {
 		DialTimeout: f.config.DialTimeout,
 	})
 	if err != nil {
+		defer conn.Close()
 		return nil, fmt.Errorf("failed to create ClickHouse connection: %w", err)
+	}
+	err = conn.Ping(ctx)
+	if err != nil {
+		defer conn.Close()
+		return nil, fmt.Errorf("failed to ping ClickHouse: %w", err)
 	}
 	f.conn = conn
 	return f, nil
