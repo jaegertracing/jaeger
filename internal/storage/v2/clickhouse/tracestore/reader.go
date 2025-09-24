@@ -173,16 +173,16 @@ func (r *Reader) GetOperations(
 	return operations, nil
 }
 
-func (r *Reader) FindTraces(
-	ctx context.Context,
-	query tracestore.TraceQueryParams,
+func (*Reader) FindTraces(
+	context.Context,
+	tracestore.TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	panic("not implemented")
 }
 
 func (r *Reader) FindTraceIDs(
-	ctx context.Context,
-	query tracestore.TraceQueryParams,
+	context.Context,
+	tracestore.TraceQueryParams,
 ) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	panic("not implemented")
 }
