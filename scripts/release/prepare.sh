@@ -85,6 +85,11 @@ validate_environment() {
 determine_current_versions() {
     read -r current_v1 current_v2 <<< "$(get_current_versions)"
     log_info "Current versions: $current_v1 / $current_v2"
+    if [[ -z "${current_v1:-}" || -z "${current_v2:-}" ]]; then
+        log_error "Failed to determine current versions (v1='${current_v1:-}', v2='${current_v2:-}')."
+        log_error "Ensure 'get_current_versions' returns both versions in 'vX.Y.Z vA.B.C' format."
+        exit 1
+    fi
 }
 
 
