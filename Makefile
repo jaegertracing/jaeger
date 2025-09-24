@@ -208,6 +208,10 @@ changelog:
 draft-release:
 	./scripts/release/draft.py
 
+.PHONY: prepare-release
+prepare-release:
+	bash ./scripts/release/prepare.sh
+
 .PHONY: test-ci
 test-ci: GOTEST := $(GOTEST_QUIET)
 test-ci: build-examples cover

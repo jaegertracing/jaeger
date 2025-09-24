@@ -14,25 +14,11 @@ Create an issue with the checklist for the release by running `bash scripts/rele
 
 <!-- BEGIN_CHECKLIST -->
 
-1. Create a PR "Prepare release 1.x.x / 2.x.x" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/6826)) by updating CHANGELOG.md to include:
-    * A new section with the header `1.x.x / 2.x.x (YYYY-MM-DD)` (copy the template at the top)
-    * A curated list of notable changes and links to PRs. Do not simply dump git log, select the changes that affect the users.
-      To obtain the list of all changes run `make changelog`.
-    * The section can be split into sub-section if necessary, e.g. UI Changes, Backend Changes, Bug Fixes, etc.
-    * Then upgrade the submodule versions and finally commit. For example:
-        ```
-        git submodule init
-        git submodule update
-        pushd jaeger-ui
-        git checkout main
-        git pull
-        git checkout {new_ui_version} # e.g. v1.5.0
-        popd
-        ```
-      * If there are only dependency bumps, indicate this with "Dependencies upgrades only" ([example](https://github.com/jaegertracing/jaeger-ui/pull/2431/files)).
-      * If there are no changes, indicate this with "No changes" ([example](https://github.com/jaegertracing/jaeger/pull/4131/files)).
-    * Rotate the below release managers table placing yourself at the bottom. The date should be the first Wednesday of the month.
-    * Add label `changelog:skip` to the pull request.
+1. Create a PR "Prepare release 1.x.x / 2.x.x" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/6826)):
+    * **Automated option**: 
+        - First, create a tracking issue: `bash scripts/release/start.sh`
+        - Then, create the PR: `bash ./scripts/release/prepare.sh v1.x.x v2.x.x --tracking-issue #ISSUE_NUMBER`
+    * **Manual option**: Follow the [manual release preparation steps](#manual-release-preparation-steps) below
 2. After the PR is merged, create new release tags:
     ```
     git checkout main
@@ -54,15 +40,14 @@ Create an issue with the checklist for the release by running `bash scripts/rele
 
 ## Manual release
 
-    * Manual:
-       * Title "Release 1.x.x / 2.x.x"
-       * Tag `v1.x.x` (note the `v` prefix) and choose appropriate branch (usually `main`)
-       * Copy the new CHANGELOG.md section into the release notes
-       * Extra: GitHub has a button "generate release notes". Those are not formatted as we want,
-         but it has a nice feature of explicitly listing first-time contributors.
-         Before doing the previous step, you can click that button and then remove everything
-         except the New Contributors section. Change the header to `### 👏 New Contributors`,
-         then copy the main changelog above it. [Example](https://github.com/jaegertracing/jaeger/releases/tag/v1.55.0).
+* Title "Release 1.x.x / 2.x.x"
+* Tag `v1.x.x` (note the `v` prefix) and choose appropriate branch (usually `main`)
+* Copy the new CHANGELOG.md section into the release notes
+* Extra: GitHub has a button "generate release notes". Those are not formatted as we want,
+  but it has a nice feature of explicitly listing first-time contributors.
+  Before doing the previous step, you can click that button and then remove everything
+  except the New Contributors section. Change the header to `### 👏 New Contributors`,
+  then copy the main changelog above it. [Example](https://github.com/jaegertracing/jaeger/releases/tag/v1.55.0).
 
 ## Patch Release
 
@@ -77,6 +62,35 @@ Maintenance branches should follow naming convention: `release-major.minor` (e.g
    * When creating a release on GitHub, pick the version branch when applying the new tag.
    * Once the release tag is created, the `ci-release` workflow will kick in and deploy the artifacts for the patch release.
 5. Do not perform a new release of the documentation since the major.minor is not changing. The one change that may be useful is bumping the `binariesLatest` variable in the `config.toml` file ([example](https://github.com/jaegertracing/documentation/commit/eacb52f332a7e069c254e652a6b4a58ea5a07b32)).
+
+## Manual Release Preparation Steps
+
+If you prefer to manually create the release PR instead of using the automated script, follow these steps:
+
+1. Update CHANGELOG.md to include:
+    * A new section with the header `1.x.x / 2.x.x (YYYY-MM-DD)` (copy the template at the top)
+    * A curated list of notable changes and links to PRs. Do not simply dump git log, select the changes that affect the users.
+      To obtain the list of all changes run `make changelog`.
+    * The section can be split into sub-section if necessary, e.g. UI Changes, Backend Changes, Bug Fixes, etc.
+
+2. Update the UI submodule to the latest version:
+    ```bash
+    git submodule init
+    git submodule update
+    pushd jaeger-ui
+    git checkout main
+    git pull
+    git checkout {new_ui_version} # e.g. v1.5.0
+    popd
+    ```
+    * If there are only dependency bumps, indicate this with "Dependencies upgrades only" ([example](https://github.com/jaegertracing/jaeger-ui/pull/2431/files)).
+    * If there are no changes, indicate this with "No changes" ([example](https://github.com/jaegertracing/jaeger/pull/4131/files)).
+
+3. Rotate the release managers table placing yourself at the bottom. The date should be the first Wednesday of the month.
+
+4. Commit your changes and create a pull request.
+
+5. Add label `changelog:skip` to the pull request.
 
 ## Release managers
 
