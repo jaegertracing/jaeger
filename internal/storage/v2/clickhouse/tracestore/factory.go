@@ -32,7 +32,8 @@ func NewFactory(ctx context.Context, cfg Config, telset telemetry.Settings) (*Fa
 		telset: telset,
 	}
 	conn, err := clickhouse.Open(&clickhouse.Options{
-		Addr: f.config.Addresses,
+		Protocol: getProtocol(f.config.Protocol),
+		Addr:     f.config.Addresses,
 		Auth: clickhouse.Auth{
 			Database: f.config.Auth.Database,
 			Username: f.config.Auth.Username,
@@ -66,4 +67,11 @@ func (f *Factory) Close() error {
 		return fmt.Errorf("failed to close ClickHouse connection: %w", err)
 	}
 	return nil
+}
+
+func getProtocol(protocol string) clickhouse.Protocol {
+	if protocol == "http" {
+		return clickhouse.HTTP
+	}
+	return clickhouse.Native
 }
