@@ -6,7 +6,6 @@ go.work.sum
 *.out
 *.test
 *.xml
-!internal/storage/v2/clickhouse/tracestore/testdata/clickhouse-users.xml
 *.swp
 .fmt.log
 .import.log
