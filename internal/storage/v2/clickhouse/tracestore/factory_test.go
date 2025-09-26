@@ -101,34 +101,29 @@ func TestFactory_PingError(t *testing.T) {
 
 func TestGetProtocol(t *testing.T) {
 	tests := []struct {
-		name     string
 		protocol string
 		expected clickhouse.Protocol
 	}{
 		{
-			name:     "http protocol",
 			protocol: "http",
 			expected: clickhouse.HTTP,
 		},
 		{
-			name:     "native protocol",
 			protocol: "native",
 			expected: clickhouse.Native,
 		},
 		{
-			name:     "empty protocol",
 			protocol: "",
 			expected: clickhouse.Native,
 		},
 		{
-			name:     "unknown protocol",
 			protocol: "unknown",
 			expected: clickhouse.Native,
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.protocol, func(t *testing.T) {
 			result := getProtocol(tt.protocol)
 			require.Equal(t, tt.expected, result)
 		})
