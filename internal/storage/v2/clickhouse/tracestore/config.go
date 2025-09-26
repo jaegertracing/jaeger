@@ -12,7 +12,7 @@ import (
 type Config struct {
 	// Protocol is the protocol to use to connect to ClickHouse.
 	// Supported values are "native" and "http". Default is "native".
-	Protocol string `mapstructure:"protocol" valid:"in(native,http),optional"`
+	Protocol string `mapstructure:"protocol" valid:"in(native|http),optional"`
 	// Addresses contains a list of ClickHouse server addresses to connect to.
 	Addresses []string `mapstructure:"addresses" valid:"required"`
 	// Auth contains the authentication configuration to connect to ClickHouse.
