@@ -2,3 +2,135 @@
 // SPDX-License-Identifier: Apache-2.0
 
 package tracestore
+
+import (
+	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/ClickHouse/ch-go/proto"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
+	"github.com/stretchr/testify/require"
+
+	"github.com/ClickHouse/clickhouse-go/v2"
+	chproto "github.com/ClickHouse/clickhouse-go/v2/lib/proto"
+)
+
+var (
+	pingQuery      = "SELECT 1"
+	handshakeQuery = "SELECT displayName(), version(), revision(), timezone()"
+)
+
+func newMockClickHouseServer() *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		query := string(body)
+
+		block := chproto.NewBlock()
+
+		switch query {
+		case pingQuery:
+			block.AddColumn("1", "UInt8")
+			block.Append(uint8(1))
+		case handshakeQuery:
+			block.AddColumn("displayName()", "String")
+			block.AddColumn("version()", "String")
+			block.AddColumn("revision()", "UInt32")
+			block.AddColumn("timezone()", "String")
+			block.Append("mock-server", "23.3.1", chproto.DBMS_MIN_REVISION_WITH_CUSTOM_SERIALIZATION, "UTC")
+		default:
+		}
+
+		var buf proto.Buffer
+		block.Encode(&buf, clickhouse.ClientTCPProtocolVersion)
+
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Write(buf.Buf)
+	}))
+}
+
+func TestFactory(t *testing.T) {
+	srv := newMockClickHouseServer()
+	defer srv.Close()
+
+	cfg := Config{
+		Protocol: "http",
+		Addresses: []string{
+			srv.Listener.Addr().String(),
+		},
+	}
+
+	f, err := NewFactory(context.Background(), cfg, telemetry.Settings{})
+	require.NoError(t, err)
+	require.NotNil(t, f)
+
+	tr, err := f.CreateTraceReader()
+	require.NoError(t, err)
+	require.NotNil(t, tr)
+
+	tw, err := f.CreateTraceWriter()
+	require.NoError(t, err)
+	require.NotNil(t, tw)
+
+	require.NoError(t, f.Close())
+}
+
+func TestFactory_PingError(t *testing.T) {
+	srv := newMockClickHouseServer()
+	defer srv.Close()
+
+	cfg := Config{
+		Protocol: "http",
+		Addresses: []string{
+			"127.0.0.1:9999", // wrong address to simulate ping error
+		},
+		Auth: AuthConfig{
+			Database: "default",
+			Username: "default",
+		},
+		DialTimeout: 1 * time.Second,
+	}
+
+	f, err := NewFactory(context.Background(), cfg, telemetry.Settings{})
+	require.ErrorContains(t, err, "failed to ping ClickHouse")
+	require.Nil(t, f)
+}
+
+func TestGetProtocol(t *testing.T) {
+	tests := []struct {
+		name     string
+		protocol string
+		expected clickhouse.Protocol
+	}{
+		{
+			name:     "http protocol",
+			protocol: "http",
+			expected: clickhouse.HTTP,
+		},
+		{
+			name:     "native protocol",
+			protocol: "native",
+			expected: clickhouse.Native,
+		},
+		{
+			name:     "empty protocol",
+			protocol: "",
+			expected: clickhouse.Native,
+		},
+		{
+			name:     "unknown protocol",
+			protocol: "unknown",
+			expected: clickhouse.Native,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getProtocol(tt.protocol)
+			require.Equal(t, tt.expected, result)
+		})
+	}
+}
