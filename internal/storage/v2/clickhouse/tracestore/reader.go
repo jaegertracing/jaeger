@@ -180,7 +180,7 @@ func (*Reader) FindTraces(
 	panic("not implemented")
 }
 
-func (r *Reader) FindTraceIDs(
+func (*Reader) FindTraceIDs(
 	context.Context,
 	tracestore.TraceQueryParams,
 ) iter.Seq2[[]tracestore.FoundTraceID, error] {
