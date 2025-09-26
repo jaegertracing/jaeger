@@ -12,11 +12,11 @@ import (
 	"time"
 
 	"github.com/ClickHouse/ch-go/proto"
-	"github.com/jaegertracing/jaeger/internal/telemetry"
-	"github.com/stretchr/testify/require"
-
 	"github.com/ClickHouse/clickhouse-go/v2"
 	chproto "github.com/ClickHouse/clickhouse-go/v2/lib/proto"
+	"github.com/stretchr/testify/require"
+
+	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
 var (
