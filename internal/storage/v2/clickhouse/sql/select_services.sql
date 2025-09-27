@@ -1,1 +1,4 @@
-SELECT DISTINCT name FROM services
+SELECT DISTINCT
+    name
+FROM
+    services
