@@ -493,8 +493,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.132.0/go.mod h1:7ysAGj5Yq3I/WHIex/LzBK8KeaAlyf/JJ3luBgghbr8=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.132.0 h1:7Vl5GMHZfrL+cZsE2nowvrz5kpkCyv2e2ak4/Migsz0=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.132.0/go.mod h1:woeUj0HRP9DX3lYqfXC2tc10mqpYB9DYb2/ao3TgF1M=
-github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension v0.136.0 h1:q2veLXcHv8EVVRk8z8r0kwBJdNeQPb+8svlJsfyNJPI=
-github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension v0.136.0/go.mod h1:wqGhk+F2lDl/qMY9WC/wcjqM2bxBt03KKOoygDKQ+iA=
+github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension v0.132.0 h1:xy/jXmWnlXdJEe5uIdWINUjoSvQ6DAzwCqO7N4i/E6s=
+github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension v0.132.0/go.mod h1:4tKX/Xw98ULFeXSSiASY46dDaElwjH9JxH7OU3qUqPU=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckv2extension v0.132.0 h1:IkxVrLjF7hQ+8iWxoUzrjRIO4LxwtsLft8RWy3TaSsQ=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckv2extension v0.132.0/go.mod h1:6SutqOAe9A3GvR8+QGFmtmFCmZrP9eNyLXt/xRam0nQ=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.132.0 h1:sKfbsgrZPbrsTBGuOYvFpWEmGMZzthlNYKhXQleZtUo=

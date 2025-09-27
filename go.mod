@@ -27,7 +27,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.132.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.132.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.132.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension v0.136.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension v0.132.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckv2extension v0.132.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.132.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage v0.132.0
