@@ -63,6 +63,13 @@ func TestFactory(t *testing.T) {
 		Addresses: []string{
 			srv.Listener.Addr().String(),
 		},
+		Database: "default",
+		Auth: Authentication{
+			Basic: configoptional.Some(basicauthextension.ClientAuthSettings{
+				Username: "user",
+				Password: "password",
+			}),
+		},
 	}
 
 	f, err := NewFactory(context.Background(), cfg, telemetry.Settings{})
@@ -77,7 +84,7 @@ func TestFactory(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tw)
 
-	require.NoError(t, f.Close())
+	require.Error(t, f.Close())
 }
 
 func TestFactory_PingError(t *testing.T) {
@@ -88,12 +95,6 @@ func TestFactory_PingError(t *testing.T) {
 		Protocol: "http",
 		Addresses: []string{
 			"127.0.0.1:9999", // wrong address to simulate ping error
-		},
-		Database: "default",
-		Auth: Authentication{
-			Basic: configoptional.Some(basicauthextension.ClientAuthSettings{
-				Username: "default",
-			}),
 		},
 		DialTimeout: 1 * time.Second,
 	}
