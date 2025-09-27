@@ -84,7 +84,7 @@ func TestFactory(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tw)
 
-	require.Error(t, f.Close())
+	require.NoError(t, f.Close())
 }
 
 func TestFactory_PingError(t *testing.T) {
