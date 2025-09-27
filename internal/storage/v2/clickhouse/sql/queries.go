@@ -1,3 +1,32 @@
+// Copyright (c) 2025 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
+package sql
+
+import _ "embed"
+
+const InsertSpan = `
+INSERT INTO
+    spans (
+        id,
+        trace_id,
+        trace_state,
+        parent_span_id,
+        name,
+        kind,
+        start_time,
+        status_code,
+        status_message,
+        duration,
+        service_name,
+        scope_name,
+        scope_version
+    )
+VALUES
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`
+
+const SelectSpansByTraceID = `
 SELECT
     id,
     trace_id,
@@ -41,3 +70,35 @@ FROM
     spans
 WHERE
     trace_id = ?
+`
+
+const SelectServices = `
+SELECT DISTINCT
+    name
+FROM
+    services
+`
+
+const SelectOperationsAllKinds = `
+SELECT
+    name,
+    span_kind
+FROM
+    operations
+WHERE
+    service_name = ?
+`
+
+const SelectOperationsByKind = `
+SELECT
+    name,
+    span_kind
+FROM
+    operations
+WHERE
+    service_name = ?
+    AND span_kind = ?
+`
+
+//go:embed create_schema.sql
+var CreateSchema string
