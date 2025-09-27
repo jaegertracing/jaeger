@@ -15,6 +15,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
+var _ tracestore.Reader = (*Reader)(nil)
+
 const (
 	sqlSelectSpansByTraceID = `
 	SELECT
@@ -169,4 +171,18 @@ func (r *Reader) GetOperations(
 		})
 	}
 	return operations, nil
+}
+
+func (*Reader) FindTraces(
+	context.Context,
+	tracestore.TraceQueryParams,
+) iter.Seq2[[]ptrace.Traces, error] {
+	panic("not implemented")
+}
+
+func (*Reader) FindTraceIDs(
+	context.Context,
+	tracestore.TraceQueryParams,
+) iter.Seq2[[]tracestore.FoundTraceID, error] {
+	panic("not implemented")
 }
