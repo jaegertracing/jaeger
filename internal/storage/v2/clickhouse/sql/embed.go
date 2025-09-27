@@ -19,3 +19,6 @@ var SelectOperationsAllKinds string
 
 //go:embed select_operations_by_kind.sql
 var SelectOperationsByKind string
+
+//go:embed create_schema.sql
+var CreateSchema string
