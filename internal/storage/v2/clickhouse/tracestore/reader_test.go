@@ -98,7 +98,7 @@ func TestGetTraces_Success(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			conn := &testDriver{
 				t:             t,
-				expectedQuery: sql.SpansByTraceID,
+				expectedQuery: sql.SelectSpansByTraceID,
 				rows: &testRows[*spanRow]{
 					data:   tt.data,
 					scanFn: scanSpanRowFn(),
@@ -127,7 +127,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 			name: "QueryError",
 			driver: &testDriver{
 				t:             t,
-				expectedQuery: sql.SpansByTraceID,
+				expectedQuery: sql.SelectSpansByTraceID,
 				err:           assert.AnError,
 			},
 			expectedErr: "failed to query trace",
@@ -136,7 +136,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 			name: "ScanError",
 			driver: &testDriver{
 				t:             t,
-				expectedQuery: sql.SpansByTraceID,
+				expectedQuery: sql.SelectSpansByTraceID,
 				rows: &testRows[*spanRow]{
 					data:    singleSpan,
 					scanErr: assert.AnError,
@@ -148,7 +148,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 			name: "CloseError",
 			driver: &testDriver{
 				t:             t,
-				expectedQuery: sql.SpansByTraceID,
+				expectedQuery: sql.SelectSpansByTraceID,
 				rows: &testRows[*spanRow]{
 					data:     singleSpan,
 					scanFn:   scanSpanRowFn(),
@@ -184,7 +184,7 @@ func TestGetTraces_ScanErrorContinues(t *testing.T) {
 
 	conn := &testDriver{
 		t:             t,
-		expectedQuery: sql.SpansByTraceID,
+		expectedQuery: sql.SelectSpansByTraceID,
 		rows: &testRows[*spanRow]{
 			data:   multipleSpans,
 			scanFn: scanFn,
@@ -209,7 +209,7 @@ func TestGetTraces_ScanErrorContinues(t *testing.T) {
 func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	conn := &testDriver{
 		t:             t,
-		expectedQuery: sql.SpansByTraceID,
+		expectedQuery: sql.SelectSpansByTraceID,
 		rows: &testRows[*spanRow]{
 			data:   multipleSpans,
 			scanFn: scanSpanRowFn(),

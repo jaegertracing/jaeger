@@ -5,11 +5,11 @@ package sql
 
 import _ "embed"
 
-//go:embed spans_insert.sql
-var SpansInsert string
+//go:embed insert_span.sql
+var InsertSpan string
 
-//go:embed spans_by_trace_id.sql
-var SpansByTraceID string
+//go:embed select_spans_by_trace_id.sql
+var SelectSpansByTraceID string
 
 //go:embed select_services.sql
 var SelectServices string
