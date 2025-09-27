@@ -447,3 +447,17 @@ func TestGetOperations(t *testing.T) {
 		})
 	}
 }
+
+func TestFindTraces(t *testing.T) {
+	reader := NewReader(&testDriver{})
+	require.Panics(t, func() {
+		reader.FindTraces(context.Background(), tracestore.TraceQueryParams{})
+	})
+}
+
+func TestFindTraceIDs(t *testing.T) {
+	reader := NewReader(&testDriver{})
+	require.Panics(t, func() {
+		reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
+	})
+}
