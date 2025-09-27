@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/asaskevich/govalidator"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension"
+	"go.opentelemetry.io/collector/config/configoptional"
 )
 
 type Config struct {
@@ -15,20 +17,18 @@ type Config struct {
 	Protocol string `mapstructure:"protocol" valid:"in(native|http),optional"`
 	// Addresses contains a list of ClickHouse server addresses to connect to.
 	Addresses []string `mapstructure:"addresses" valid:"required"`
+	// Database is the ClickHouse database to connect to.
+	Database string `mapstructure:"database"`
 	// Auth contains the authentication configuration to connect to ClickHouse.
-	Auth AuthConfig `mapstructure:"auth"`
+	Auth Authentication `mapstructure:"auth"`
 	// DialTimeout is the timeout for establishing a connection to ClickHouse.
 	DialTimeout time.Duration `mapstructure:"dial_timeout"`
 	// TODO: add more settings
 }
 
-type AuthConfig struct {
-	// Database is the ClickHouse database to connect to.
-	Database string `mapstructure:"database"`
-	// Username is the username to connect to ClickHouse.
-	Username string `mapstructure:"username"`
-	// Password is the password to connect to ClickHouse.
-	Password string `mapstructure:"password"`
+type Authentication struct {
+	Basic configoptional.Optional[basicauthextension.ClientAuthSettings] `mapstructure:"basic"`
+	// TODO: add JWT
 }
 
 func (cfg *Config) Validate() error {

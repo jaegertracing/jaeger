@@ -14,7 +14,9 @@ import (
 	"github.com/ClickHouse/ch-go/proto"
 	"github.com/ClickHouse/clickhouse-go/v2"
 	chproto "github.com/ClickHouse/clickhouse-go/v2/lib/proto"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
 
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
@@ -87,9 +89,11 @@ func TestFactory_PingError(t *testing.T) {
 		Addresses: []string{
 			"127.0.0.1:9999", // wrong address to simulate ping error
 		},
-		Auth: AuthConfig{
-			Database: "default",
-			Username: "default",
+		Database: "default",
+		Auth: Authentication{
+			Basic: configoptional.Some(basicauthextension.ClientAuthSettings{
+				Username: "default",
+			}),
 		},
 		DialTimeout: 1 * time.Second,
 	}

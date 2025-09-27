@@ -31,16 +31,20 @@ func NewFactory(ctx context.Context, cfg Config, telset telemetry.Settings) (*Fa
 		config: cfg,
 		telset: telset,
 	}
-	conn, err := clickhouse.Open(&clickhouse.Options{
+	opts := &clickhouse.Options{
 		Protocol: getProtocol(f.config.Protocol),
 		Addr:     f.config.Addresses,
 		Auth: clickhouse.Auth{
-			Database: f.config.Auth.Database,
-			Username: f.config.Auth.Username,
-			Password: f.config.Auth.Password,
+			Database: f.config.Database,
 		},
 		DialTimeout: f.config.DialTimeout,
-	})
+	}
+	basicAuth := f.config.Auth.Basic.Get()
+	if basicAuth != nil {
+		opts.Auth.Username = basicAuth.Username
+		opts.Auth.Password = string(basicAuth.Password)
+	}
+	conn, err := clickhouse.Open(opts)
 	if err != nil {
 		defer conn.Close()
 		return nil, fmt.Errorf("failed to create ClickHouse connection: %w", err)
