@@ -10,3 +10,6 @@ var SpansInsert string
 
 //go:embed spans_by_trace_id.sql
 var SpansByTraceID string
+
+//go:embed select_services.sql
+var SelectServices string

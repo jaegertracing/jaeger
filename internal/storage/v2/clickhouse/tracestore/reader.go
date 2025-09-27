@@ -17,7 +17,6 @@ import (
 )
 
 const (
-	sqlSelectAllServices        = `SELECT DISTINCT name FROM services`
 	sqlSelectOperationsAllKinds = `SELECT name, span_kind
 	FROM operations
 	WHERE service_name = ?`
@@ -82,7 +81,7 @@ func (r *Reader) GetTraces(
 }
 
 func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
-	rows, err := r.conn.Query(ctx, sqlSelectAllServices)
+	rows, err := r.conn.Query(ctx, sql.SelectServices)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query services: %w", err)
 	}

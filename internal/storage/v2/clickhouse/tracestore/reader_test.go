@@ -243,7 +243,7 @@ func TestGetServices(t *testing.T) {
 			name: "successfully returns services",
 			conn: &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectAllServices,
+				expectedQuery: sql.SelectServices,
 				rows: &testRows[dbmodel.Service]{
 					data: []dbmodel.Service{
 						{Name: "serviceA"},
@@ -266,7 +266,7 @@ func TestGetServices(t *testing.T) {
 			name: "query error",
 			conn: &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectAllServices,
+				expectedQuery: sql.SelectServices,
 				err:           assert.AnError,
 			},
 			expectError: "failed to query services",
@@ -275,7 +275,7 @@ func TestGetServices(t *testing.T) {
 			name: "scan error",
 			conn: &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectAllServices,
+				expectedQuery: sql.SelectServices,
 				rows: &testRows[dbmodel.Service]{
 					data: []dbmodel.Service{
 						{Name: "serviceA"},
