@@ -5,6 +5,7 @@ package tracestore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -46,13 +47,14 @@ func NewFactory(ctx context.Context, cfg Config, telset telemetry.Settings) (*Fa
 	}
 	conn, err := clickhouse.Open(opts)
 	if err != nil {
-		defer conn.Close()
 		return nil, fmt.Errorf("failed to create ClickHouse connection: %w", err)
 	}
 	err = conn.Ping(ctx)
 	if err != nil {
-		defer conn.Close()
-		return nil, fmt.Errorf("failed to ping ClickHouse: %w", err)
+		return nil, errors.Join(
+			fmt.Errorf("failed to ping ClickHouse: %w", err),
+			conn.Close(),
+		)
 	}
 	f.conn = conn
 	return f, nil
@@ -67,10 +69,7 @@ func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
 }
 
 func (f *Factory) Close() error {
-	if err := f.conn.Close(); err != nil {
-		return fmt.Errorf("failed to close ClickHouse connection: %w", err)
-	}
-	return nil
+	return f.conn.Close()
 }
 
 func getProtocol(protocol string) clickhouse.Protocol {
