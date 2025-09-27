@@ -325,7 +325,7 @@ func TestGetOperations(t *testing.T) {
 			name: "successfully returns operations for all kinds",
 			conn: &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectOperationsAllKinds,
+				expectedQuery: sql.SelectOperationsAllKinds,
 				rows: &testRows[dbmodel.Operation]{
 					data: []dbmodel.Operation{
 						{Name: "operationA"},
@@ -401,7 +401,7 @@ func TestGetOperations(t *testing.T) {
 			name: "query error",
 			conn: &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectOperationsAllKinds,
+				expectedQuery: sql.SelectOperationsAllKinds,
 				err:           assert.AnError,
 			},
 			expectError: "failed to query operations",
@@ -410,7 +410,7 @@ func TestGetOperations(t *testing.T) {
 			name: "scan error",
 			conn: &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectOperationsAllKinds,
+				expectedQuery: sql.SelectOperationsAllKinds,
 				rows: &testRows[dbmodel.Operation]{
 					data: []dbmodel.Operation{
 						{Name: "operationA"},

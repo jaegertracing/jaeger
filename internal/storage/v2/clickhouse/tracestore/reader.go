@@ -17,9 +17,6 @@ import (
 )
 
 const (
-	sqlSelectOperationsAllKinds = `SELECT name, span_kind
-	FROM operations
-	WHERE service_name = ?`
 	sqlSelectOperationsByKind = `SELECT name, span_kind
 	FROM operations
 	WHERE service_name = ? AND span_kind = ?`
@@ -105,7 +102,7 @@ func (r *Reader) GetOperations(
 	var rows driver.Rows
 	var err error
 	if query.SpanKind == "" {
-		rows, err = r.conn.Query(ctx, sqlSelectOperationsAllKinds, query.ServiceName)
+		rows, err = r.conn.Query(ctx, sql.SelectOperationsAllKinds, query.ServiceName)
 	} else {
 		rows, err = r.conn.Query(ctx, sqlSelectOperationsByKind, query.ServiceName, query.SpanKind)
 	}

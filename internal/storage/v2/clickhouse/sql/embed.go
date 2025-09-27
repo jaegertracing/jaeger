@@ -13,3 +13,6 @@ var SpansByTraceID string
 
 //go:embed select_services.sql
 var SelectServices string
+
+//go:embed select_operations_all_kinds.sql
+var SelectOperationsAllKinds string
