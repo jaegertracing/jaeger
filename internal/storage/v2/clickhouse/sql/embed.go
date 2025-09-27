@@ -16,3 +16,6 @@ var SelectServices string
 
 //go:embed select_operations_all_kinds.sql
 var SelectOperationsAllKinds string
+
+//go:embed select_operations_by_kind.sql
+var SelectOperationsByKind string

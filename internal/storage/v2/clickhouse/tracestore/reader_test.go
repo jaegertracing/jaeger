@@ -361,7 +361,7 @@ func TestGetOperations(t *testing.T) {
 			name: "successfully returns operations by kind",
 			conn: &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectOperationsByKind,
+				expectedQuery: sql.SelectOperationsByKind,
 				rows: &testRows[dbmodel.Operation]{
 					data: []dbmodel.Operation{
 						{Name: "operationA", SpanKind: "server"},

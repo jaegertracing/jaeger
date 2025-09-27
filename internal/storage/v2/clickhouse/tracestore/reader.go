@@ -16,12 +16,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
-const (
-	sqlSelectOperationsByKind = `SELECT name, span_kind
-	FROM operations
-	WHERE service_name = ? AND span_kind = ?`
-)
-
 type Reader struct {
 	conn driver.Conn
 }
@@ -104,7 +98,7 @@ func (r *Reader) GetOperations(
 	if query.SpanKind == "" {
 		rows, err = r.conn.Query(ctx, sql.SelectOperationsAllKinds, query.ServiceName)
 	} else {
-		rows, err = r.conn.Query(ctx, sqlSelectOperationsByKind, query.ServiceName, query.SpanKind)
+		rows, err = r.conn.Query(ctx, sql.SelectOperationsByKind, query.ServiceName, query.SpanKind)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to query operations: %w", err)
