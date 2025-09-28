@@ -1,9 +1,7 @@
 CREATE MATERIALIZED VIEW IF NOT EXISTS operations_mv TO operations AS
-SELECT
+SELECT DISTINCT
     name,
-    kind AS span_kind
+    kind AS span_kind,
+    service_name
 FROM
-    spans
-GROUP BY
-    name,
-    span_kind
+    spans;
