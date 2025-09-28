@@ -37,6 +37,7 @@ extensions:
         clickhouse:
           addresses:
             - localhost:8123
+          create_schema: true
 
 receivers:
   otlp:
