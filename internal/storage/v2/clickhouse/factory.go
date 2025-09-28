@@ -65,19 +65,19 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 	}
 	if f.config.CreateSchema {
 		if err = conn.Exec(ctx, sql.CreateSpansTable); err != nil {
-			return nil, fmt.Errorf("failed to create spans table: %w", err)
+			return nil, errors.Join(fmt.Errorf("failed to create spans table: %w", err), conn.Close())
 		}
 		if err = conn.Exec(ctx, sql.CreateServicesTable); err != nil {
-			return nil, fmt.Errorf("failed to create services table: %w", err)
+			return nil, errors.Join(fmt.Errorf("failed to create services table: %w", err), conn.Close())
 		}
 		if err = conn.Exec(ctx, sql.CreateServicesMaterializedView); err != nil {
-			return nil, fmt.Errorf("failed to create services materialized view: %w", err)
+			return nil, errors.Join(fmt.Errorf("failed to create services materialized view: %w", err), conn.Close())
 		}
 		if err = conn.Exec(ctx, sql.CreateOperationsTable); err != nil {
-			return nil, fmt.Errorf("failed to create operations table: %w", err)
+			return nil, errors.Join(fmt.Errorf("failed to create operations table: %w", err), conn.Close())
 		}
 		if err = conn.Exec(ctx, sql.CreateOperationsMaterializedView); err != nil {
-			return nil, fmt.Errorf("failed to create operations materialized view: %w", err)
+			return nil, errors.Join(fmt.Errorf("failed to create operations materialized view: %w", err), conn.Close())
 		}
 	}
 	f.conn = conn

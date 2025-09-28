@@ -5,6 +5,7 @@ package clickhouse
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
@@ -26,12 +28,19 @@ var (
 	handshakeQuery = "SELECT displayName(), version(), revision(), timezone()"
 )
 
-func newMockClickHouseServer() *httptest.Server {
+type mockFailureConfig map[string]error
+
+func newMockClickHouseServer(failures mockFailureConfig) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		query := string(body)
 
 		block := chproto.NewBlock()
+
+		if err, shouldFail := failures[query]; shouldFail {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 		switch query {
 		case pingQuery:
@@ -55,53 +64,125 @@ func newMockClickHouseServer() *httptest.Server {
 }
 
 func TestFactory(t *testing.T) {
-	srv := newMockClickHouseServer()
-	defer srv.Close()
-
-	cfg := Configuration{
-		Protocol: "http",
-		Addresses: []string{
-			srv.Listener.Addr().String(),
+	tests := []struct {
+		name         string
+		createSchema bool
+	}{
+		{
+			name:         "without schema creation",
+			createSchema: false,
 		},
-		Database: "default",
-		Auth: Authentication{
-			Basic: configoptional.Some(basicauthextension.ClientAuthSettings{
-				Username: "user",
-				Password: "password",
-			}),
+		{
+			name:         "with schema creation",
+			createSchema: true,
 		},
 	}
 
-	f, err := NewFactory(context.Background(), cfg, telemetry.Settings{})
-	require.NoError(t, err)
-	require.NotNil(t, f)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := newMockClickHouseServer(mockFailureConfig{})
+			defer srv.Close()
 
-	tr, err := f.CreateTraceReader()
-	require.NoError(t, err)
-	require.NotNil(t, tr)
+			cfg := Configuration{
+				Protocol: "http",
+				Addresses: []string{
+					srv.Listener.Addr().String(),
+				},
+				Database: "default",
+				Auth: Authentication{
+					Basic: configoptional.Some(basicauthextension.ClientAuthSettings{
+						Username: "user",
+						Password: "password",
+					}),
+				},
+			}
 
-	tw, err := f.CreateTraceWriter()
-	require.NoError(t, err)
-	require.NotNil(t, tw)
+			f, err := NewFactory(context.Background(), cfg, telemetry.Settings{})
+			require.NoError(t, err)
+			require.NotNil(t, f)
 
-	require.NoError(t, f.Close())
+			tr, err := f.CreateTraceReader()
+			require.NoError(t, err)
+			require.NotNil(t, tr)
+
+			tw, err := f.CreateTraceWriter()
+			require.NoError(t, err)
+			require.NotNil(t, tw)
+
+			require.NoError(t, f.Close())
+		})
+	}
 }
 
-func TestFactory_PingError(t *testing.T) {
-	srv := newMockClickHouseServer()
-	defer srv.Close()
-
-	cfg := Configuration{
-		Protocol: "http",
-		Addresses: []string{
-			"127.0.0.1:9999", // wrong address to simulate ping error
+func TestFactory_Errors(t *testing.T) {
+	tests := []struct {
+		name          string
+		failureConfig mockFailureConfig
+		expectedError string
+	}{
+		{
+			name: "ping error",
+			failureConfig: mockFailureConfig{
+				pingQuery: errors.New("ping error"),
+			},
+			expectedError: "failed to ping ClickHouse",
 		},
-		DialTimeout: 1 * time.Second,
+		{
+			name: "spans table creation error",
+			failureConfig: mockFailureConfig{
+				sql.CreateSpansTable: errors.New("spans table creation error"),
+			},
+			expectedError: "failed to create spans table",
+		},
+		{
+			name: "services table creation error",
+			failureConfig: mockFailureConfig{
+				sql.CreateServicesTable: errors.New("services table creation error"),
+			},
+			expectedError: "failed to create services table",
+		},
+		{
+			name: "services materialized view creation error",
+			failureConfig: mockFailureConfig{
+				sql.CreateServicesMaterializedView: errors.New("services materialized view creation error"),
+			},
+			expectedError: "failed to create services materialized view",
+		},
+		{
+			name: "operations table creation error",
+			failureConfig: mockFailureConfig{
+				sql.CreateOperationsTable: errors.New("operations table creation error"),
+			},
+			expectedError: "failed to create operations table",
+		},
+		{
+			name: "operations materialized view creation error",
+			failureConfig: mockFailureConfig{
+				sql.CreateOperationsMaterializedView: errors.New("operations materialized view creation error"),
+			},
+			expectedError: "failed to create operations materialized view",
+		},
 	}
 
-	f, err := NewFactory(context.Background(), cfg, telemetry.Settings{})
-	require.ErrorContains(t, err, "failed to ping ClickHouse")
-	require.Nil(t, f)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := newMockClickHouseServer(tt.failureConfig)
+			defer srv.Close()
+
+			cfg := Configuration{
+				Protocol: "http",
+				Addresses: []string{
+					srv.Listener.Addr().String(),
+				},
+				DialTimeout:  1 * time.Second,
+				CreateSchema: true,
+			}
+
+			f, err := NewFactory(context.Background(), cfg, telemetry.Settings{})
+			require.ErrorContains(t, err, tt.expectedError)
+			require.Nil(t, f)
+		})
+	}
 }
 
 func TestGetProtocol(t *testing.T) {
