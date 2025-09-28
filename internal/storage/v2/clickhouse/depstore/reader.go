@@ -18,6 +18,6 @@ func NewDependencyReader() *Reader {
 	return &Reader{}
 }
 
-func (*Reader) GetDependencies(ctx context.Context, query depstore.QueryParameters) ([]model.DependencyLink, error) {
+func (*Reader) GetDependencies(context.Context, depstore.QueryParameters) ([]model.DependencyLink, error) {
 	panic("not implemented")
 }
