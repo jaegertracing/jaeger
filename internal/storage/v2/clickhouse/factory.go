@@ -12,6 +12,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	chtracestore "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore"
@@ -21,6 +22,7 @@ import (
 var (
 	_ io.Closer          = (*Factory)(nil)
 	_ tracestore.Factory = (*Factory)(nil)
+	_ storage.Purger     = (*Factory)(nil)
 )
 
 type Factory struct {
@@ -77,6 +79,19 @@ func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
 
 func (f *Factory) Close() error {
 	return f.conn.Close()
+}
+
+func (f *Factory) Purge(ctx context.Context) error {
+	if err := f.conn.Exec(ctx, "TRUNCATE TABLE spans"); err != nil {
+		return fmt.Errorf("failed to purge spans: %w", err)
+	}
+	if err := f.conn.Exec(ctx, "TRUNCATE TABLE services"); err != nil {
+		return fmt.Errorf("failed to purge services: %w", err)
+	}
+	if err := f.conn.Exec(ctx, "TRUNCATE TABLE operations"); err != nil {
+		return fmt.Errorf("failed to purge operations: %w", err)
+	}
+	return nil
 }
 
 func getProtocol(protocol string) clickhouse.Protocol {
