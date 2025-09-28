@@ -129,6 +129,7 @@ func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace
 
 // GetLatencies gets the latency metrics for the given set of latency query parameters.
 func (m MetricsReader) GetLatencies(ctx context.Context, requestParams *metricstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
+	const queryTemplate = `histogram_quantile(%.2f, sum(rate(%s{%s}[%s])) by (%s))`
 	metricsParams := metricsQueryParams{
 		BaseQueryParameters: requestParams.BaseQueryParameters,
 		groupByHistBucket:   true,
@@ -136,30 +137,48 @@ func (m MetricsReader) GetLatencies(ctx context.Context, requestParams *metricst
 		metricDesc:          fmt.Sprintf("%.2fth quantile latency, grouped by service", requestParams.Quantile),
 		buildPromQuery: func(p promQueryParams) string {
 			// Build filter string including service_name, span_kind, and tags
-			filters := []string{fmt.Sprintf(`service_name =~ %q`, p.serviceFilter)}
-
-			if p.spanKindFilter != "" {
-				filters = append(filters, p.spanKindFilter)
-			}
-
-			// Add tag filters if there are any
-			if len(p.tagFilters) > 0 {
-				filters = append(filters, p.tagFilters...)
-			}
-
-			filterStr := strings.Join(filters, ", ")
-
-			return fmt.Sprintf(
-				`histogram_quantile(%.2f, sum(rate(%s_bucket{%s}[%s])) by (%s))`,
-				requestParams.Quantile,
-				m.latencyMetricName,
-				filterStr,
-				p.rate,
-				p.groupBy,
-			)
+			// For histogram quantile queries, we need to use the _bucket metric
+			bucketMetricName := m.latencyMetricName + "_bucket"
+			return m.promQlQuery(p, queryTemplate, bucketMetricName, requestParams.Quantile)
 		},
 	}
 	return m.executeQuery(ctx, metricsParams)
+}
+
+func (m MetricsReader) promQlQuery(p promQueryParams, queryTemplate string, metricName string, quantile ...float64) string {
+	filters := []string{fmt.Sprintf(`service_name =~ %q`, p.serviceFilter)}
+
+	if p.spanKindFilter != "" {
+		filters = append(filters, p.spanKindFilter)
+	}
+
+	// Add tag filters if there are any
+	if len(p.tagFilters) > 0 {
+		filters = append(filters, p.tagFilters...)
+	}
+
+	filterStr := strings.Join(filters, ", ")
+
+	// If quantile is provided, format the query with quantile parameter
+	if len(quantile) > 0 {
+		return fmt.Sprintf(
+			queryTemplate,
+			quantile[0],
+			metricName,
+			filterStr,
+			p.rate,
+			p.groupBy,
+		)
+	}
+
+	// For non-quantile queries (call rates, error rates)
+	return fmt.Sprintf(
+		queryTemplate,
+		metricName,
+		filterStr,
+		p.rate,
+		p.groupBy,
+	)
 }
 
 func buildFullLatencyMetricName(cfg config.Configuration) string {
@@ -185,32 +204,13 @@ func buildFullLatencyMetricName(cfg config.Configuration) string {
 
 // GetCallRates gets the call rate metrics for the given set of call rate query parameters.
 func (m MetricsReader) GetCallRates(ctx context.Context, requestParams *metricstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
+	const queryTemplate = `sum(rate(%s{%s}[%s])) by (%s)`
 	metricsParams := metricsQueryParams{
 		BaseQueryParameters: requestParams.BaseQueryParameters,
 		metricName:          "service_call_rate",
 		metricDesc:          "calls/sec, grouped by service",
 		buildPromQuery: func(p promQueryParams) string {
-			// Build filter string including service_name, span_kind, and tags
-			filters := []string{fmt.Sprintf(`service_name =~ %q`, p.serviceFilter)}
-
-			if p.spanKindFilter != "" {
-				filters = append(filters, p.spanKindFilter)
-			}
-
-			// Add tag filters if there are any
-			if len(p.tagFilters) > 0 {
-				filters = append(filters, p.tagFilters...)
-			}
-
-			filterStr := strings.Join(filters, ", ")
-
-			return fmt.Sprintf(
-				`sum(rate(%s{%s}[%s])) by (%s)`,
-				m.callsMetricName,
-				filterStr,
-				p.rate,
-				p.groupBy,
-			)
+			return m.promQlQuery(p, queryTemplate, m.callsMetricName)
 		},
 	}
 	return m.executeQuery(ctx, metricsParams)
@@ -239,22 +239,18 @@ func (m MetricsReader) GetErrorRates(ctx context.Context, requestParams *metrics
 			// Build base filters for all queries (service_name)
 			baseFilters := []string{fmt.Sprintf(`service_name =~ %q`, p.serviceFilter)}
 
-			// Add status_code filter only for error rate numerator, must be right after service_name to match test expectations
-			errorFilters := append([]string{}, baseFilters...)
-			errorFilters = append(errorFilters, `status_code = "STATUS_CODE_ERROR"`)
-
 			// Add span_kind filter
 			if p.spanKindFilter != "" {
 				baseFilters = append(baseFilters, p.spanKindFilter)
-				errorFilters = append(errorFilters, p.spanKindFilter)
 			}
 
 			// Add tag filters if there are any
 			if len(p.tagFilters) > 0 {
 				baseFilters = append(baseFilters, p.tagFilters...)
-				errorFilters = append(errorFilters, p.tagFilters...)
 			}
-
+			// Add status_code filter only for error rate numerator, must be right after service_name to match test expectations
+			errorFilters := append([]string{}, baseFilters...)
+			errorFilters = append(errorFilters, `status_code = "STATUS_CODE_ERROR"`)
 			errorFilterStr := strings.Join(errorFilters, ", ")
 			baseFilterStr := strings.Join(baseFilters, ", ")
 

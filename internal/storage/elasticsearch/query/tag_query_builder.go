@@ -6,8 +6,9 @@ package query
 import (
 	"fmt"
 
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"github.com/olivere/elastic/v7"
+
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 )
 
 const (

@@ -401,7 +401,6 @@ func TestParseMetricsTags(t *testing.T) {
 			timeNow: time.Now,
 		}
 		_, err = parser.parseMetricsQueryParams(request)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "malformed 'tag' parameter, expecting key:value, received: keyWithoutValue")
+		require.ErrorContains(t, err, "malformed 'tag' parameter, expecting key:value, received: keyWithoutValue")
 	})
 }
