@@ -1,9 +1,16 @@
 services:
   clickhouse:
     image: clickhouse/clickhouse-server:latest
+    container_name: clickhouse
     environment:
       - CLICKHOUSE_USER=default
       - CLICKHOUSE_PASSWORD=password
       - CLICKHOUSE_DB=jaeger
     ports:
       - "8123:8123"
+      - "9000:9000"
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query=SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
