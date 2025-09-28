@@ -1,5 +1,9 @@
 services:
   clickhouse:
     image: clickhouse/clickhouse-server:latest
+    environment:
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=password
+      - CLICKHOUSE_DB=jaeger
     ports:
       - "8123:8123"
