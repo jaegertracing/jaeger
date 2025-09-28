@@ -109,6 +109,13 @@ func TestFactory(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, tw)
 
+			dr, err := f.CreateDependencyReader()
+			require.NoError(t, err)
+			require.NotNil(t, dr)
+
+			err = f.Purge(context.Background())
+			require.NoError(t, err)
+
 			require.NoError(t, f.Close())
 		})
 	}
