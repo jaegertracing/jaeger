@@ -64,7 +64,7 @@ issue_body=$(cat << EOF
 
 This issue tracks the release of Jaeger ${cmd_v1} / ${cmd_v2}.
 
-**Automated option**: Run \`bash ./scripts/release/prepare.sh ${cmd_v1} ${cmd_v2} --tracking-issue #ISSUE_NUMBER\` to automatically create the PR with changelog updates. (Replace #ISSUE_NUMBER with this issue's number)
+**Automated option**: Run \`bash ./scripts/release/prepare.sh ${cmd_v1} ${cmd_v2}\` to automatically create the PR with changelog updates.
 
 **Manual option**: Follow the [manual release preparation steps](https://github.com/jaegertracing/jaeger/blob/main/RELEASE.md#manual-release-preparation-steps) in \`RELEASE.md\`.
 
@@ -86,8 +86,8 @@ else
   issue_number=$(echo "$issue_output" | grep -o '#[0-9]*' | head -1)
   echo "Created tracking issue: $issue_output"
   echo ""
-  echo "Next step: Run the following command with the issue number:"
-  echo "bash ./scripts/release/prepare.sh ${cmd_v1} ${cmd_v2} --tracking-issue ${issue_number}"
+  echo "Next step: Run the following command:"
+  echo "bash ./scripts/release/prepare.sh ${cmd_v1} ${cmd_v2}"
 fi
 
 

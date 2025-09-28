@@ -17,7 +17,7 @@ Create an issue with the checklist for the release by running `bash scripts/rele
 1. Create a PR "Prepare release 1.x.x / 2.x.x" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/6826)):
     * **Automated option**: 
         - First, create a tracking issue: `bash scripts/release/start.sh`
-        - Then, create the PR: `bash ./scripts/release/prepare.sh v1.x.x v2.x.x --tracking-issue #ISSUE_NUMBER`
+        - Then, create the PR: `bash ./scripts/release/prepare.sh v1.x.x v2.x.x`
     * **Manual option**: Follow the [manual release preparation steps](#manual-release-preparation-steps) below
 2. After the PR is merged, create new release tags:
     ```

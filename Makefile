@@ -210,7 +210,7 @@ draft-release:
 
 .PHONY: prepare-release
 prepare-release:
-	bash ./scripts/release/prepare.sh
+	@echo "Usage: bash ./scripts/release/prepare.sh v1.x.x v2.x.x"
 
 .PHONY: test-ci
 test-ci: GOTEST := $(GOTEST_QUIET)
