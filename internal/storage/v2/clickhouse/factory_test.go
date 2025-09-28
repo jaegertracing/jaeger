@@ -114,7 +114,7 @@ func TestFactory(t *testing.T) {
 	}
 }
 
-func TestFactory_Errors(t *testing.T) {
+func TestNewFactory_Errors(t *testing.T) {
 	tests := []struct {
 		name          string
 		failureConfig mockFailureConfig
@@ -181,6 +181,61 @@ func TestFactory_Errors(t *testing.T) {
 			f, err := NewFactory(context.Background(), cfg, telemetry.Settings{})
 			require.ErrorContains(t, err, tt.expectedError)
 			require.Nil(t, f)
+		})
+	}
+}
+
+func TestPurge(t *testing.T) {
+	tests := []struct {
+		name          string
+		failureConfig mockFailureConfig
+		expectedError string
+	}{
+		{
+			name: "truncate spans table error",
+			failureConfig: mockFailureConfig{
+				sql.TruncateSpans: errors.New("truncate spans table error"),
+			},
+			expectedError: "failed to purge spans",
+		},
+		{
+			name: "truncate services table error",
+			failureConfig: mockFailureConfig{
+				sql.TruncateServices: errors.New("truncate services table error"),
+			},
+			expectedError: "failed to purge services",
+		},
+		{
+			name: "truncate operations table error",
+			failureConfig: mockFailureConfig{
+				sql.TruncateOperations: errors.New("truncate operations table error"),
+			},
+			expectedError: "failed to purge operations",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := newMockClickHouseServer(tt.failureConfig)
+			defer srv.Close()
+
+			cfg := Configuration{
+				Protocol: "http",
+				Addresses: []string{
+					srv.Listener.Addr().String(),
+				},
+				DialTimeout:  1 * time.Second,
+				CreateSchema: true,
+			}
+
+			f, err := NewFactory(context.Background(), cfg, telemetry.Settings{})
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, f.Close())
+			})
+
+			err = f.Purge(context.Background())
+			require.ErrorContains(t, err, tt.expectedError)
 		})
 	}
 }
