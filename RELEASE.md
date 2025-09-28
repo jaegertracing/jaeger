@@ -22,10 +22,10 @@ Create an issue with the checklist for the release by running `bash scripts/rele
 2. After the PR is merged, create new release tags:
     ```
     git checkout main
-    git pull
-    git tag v1... -s  # use the new version
-    git tag v2... -s  # use the new version
-    git push upstream v1... v2...
+    git pull --ff-only upstream main
+    git tag v1.x.x -s -m "Release v1.x.x"
+    git tag v2.x.x -s -m "Release v2.x.x"
+    git push upstream v1.x.x v2.x.x
     ```
 3. Create a release on Github:
     * Automated:
