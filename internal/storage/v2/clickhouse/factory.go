@@ -15,6 +15,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	chdepstore "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	chtracestore "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
@@ -92,7 +93,7 @@ func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
 }
 
 func (*Factory) CreateDependencyReader() (depstore.Reader, error) {
-	panic("not implemented")
+	return chdepstore.NewDependencyReader(), nil
 }
 
 func (f *Factory) Close() error {
