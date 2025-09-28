@@ -13,6 +13,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	chtracestore "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore"
@@ -21,6 +22,7 @@ import (
 
 var (
 	_ io.Closer          = (*Factory)(nil)
+	_ depstore.Factory   = (*Factory)(nil)
 	_ tracestore.Factory = (*Factory)(nil)
 	_ storage.Purger     = (*Factory)(nil)
 )
@@ -87,6 +89,10 @@ func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
 
 func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
 	return chtracestore.NewWriter(f.conn), nil
+}
+
+func (*Factory) CreateDependencyReader() (depstore.Reader, error) {
+	panic("not implemented")
 }
 
 func (f *Factory) Close() error {
