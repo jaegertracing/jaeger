@@ -74,14 +74,6 @@ This issue tracks the release of Jaeger ${cmd_v1} / ${cmd_v2}.
 
 After merging the PR, create signed tags and push them:
 
-\`\`\`bash
-git checkout main
-git pull --ff-only upstream main
-git tag ${cmd_v1} -s -m "Release ${cmd_v1}"
-git tag ${cmd_v2} -s -m "Release ${cmd_v2}"
-git push upstream ${cmd_v1} ${cmd_v2}
-\`\`\`
-
 References: #7496
 EOF
 )
