@@ -13,6 +13,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	chtracestore "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
@@ -56,6 +57,11 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 			fmt.Errorf("failed to ping ClickHouse: %w", err),
 			conn.Close(),
 		)
+	}
+	if f.config.CreateSchema {
+		if err = conn.Exec(ctx, sql.CreateSchema); err != nil {
+			return nil, fmt.Errorf("failed to create ClickHouse schema: %w", err)
+		}
 	}
 	f.conn = conn
 	return f, nil

@@ -23,6 +23,8 @@ type Configuration struct {
 	Auth Authentication `mapstructure:"auth"`
 	// DialTimeout is the timeout for establishing a connection to ClickHouse.
 	DialTimeout time.Duration `mapstructure:"dial_timeout"`
+	// CreateSchema, if set to true, will create the ClickHouse schema if it does not exist.
+	CreateSchema bool `mapstructure:"create_schema"`
 	// TODO: add more settings
 }
 
