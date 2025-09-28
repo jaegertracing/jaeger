@@ -11,31 +11,12 @@ if [[ "$3" == "--create-tags" ]]; then
     create_tags=true
 fi
 
-# Generate changelog 
-make changelog > changelog_content.tmp
-
-# Update CHANGELOG.md directly (no awk complexity)
-current_date=$(date +"%Y-%m-%d")
-echo "## $v1 / $v2 ($current_date)" > new_changelog.md
-echo "" >> new_changelog.md  
-cat changelog_content.tmp >> new_changelog.md
-echo "" >> new_changelog.md
-cat CHANGELOG.md >> new_changelog.md
-mv new_changelog.md CHANGELOG.md
-
-# Update jaeger-ui submodule
-git submodule update --init jaeger-ui
-cd jaeger-ui
-git checkout main  
-git pull
-cd ..
-
 # Git operations (only skip in dry-run)
 if [[ "${DRY_RUN:-}" != "true" ]]; then
     if [[ "$create_tags" == "true" ]]; then
         # Tag creation mode
-    git checkout main
-    git pull --ff-only upstream main
+        git checkout main
+        git pull --ff-only upstream main
         echo "About to create and push tags: $v1 and $v2"
         echo "This will run:"
         echo "  git tag $v1 -s -m \"Release $v1\""
@@ -54,6 +35,25 @@ if [[ "${DRY_RUN:-}" != "true" ]]; then
         fi
     else
         # PR creation mode
+        # Generate changelog 
+        make changelog > changelog_content.tmp
+
+        # Update CHANGELOG.md directly (no awk complexity)
+        current_date=$(date +"%Y-%m-%d")
+        echo "## $v1 / $v2 ($current_date)" > new_changelog.md
+        echo "" >> new_changelog.md  
+        cat changelog_content.tmp >> new_changelog.md
+        echo "" >> new_changelog.md
+        cat CHANGELOG.md >> new_changelog.md
+        mv new_changelog.md CHANGELOG.md
+
+        # Update jaeger-ui submodule
+        git submodule update --init jaeger-ui
+        cd jaeger-ui
+        git checkout main  
+        git pull
+        cd ..
+
         git checkout -b "prepare-release-$v1-$v2"
         git add CHANGELOG.md jaeger-ui
         git commit -m "Prepare release $v1 / $v2"
@@ -69,5 +69,3 @@ fi
 
 # Cleanup
 rm -f changelog_content.tmp
-
-
