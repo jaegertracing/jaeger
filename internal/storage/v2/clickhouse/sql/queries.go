@@ -100,6 +100,12 @@ WHERE
     AND span_kind = ?
 `
 
+const TruncateSpans = `TRUNCATE TABLE spans`
+
+const TruncateServices = `TRUNCATE TABLE services`
+
+const TruncateOperations = `TRUNCATE TABLE operations`
+
 //go:embed create_spans_table.sql
 var CreateSpansTable string
 

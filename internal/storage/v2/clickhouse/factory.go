@@ -101,13 +101,13 @@ func (f *Factory) Close() error {
 }
 
 func (f *Factory) Purge(ctx context.Context) error {
-	if err := f.conn.Exec(ctx, "TRUNCATE TABLE spans"); err != nil {
+	if err := f.conn.Exec(ctx, sql.TruncateSpans); err != nil {
 		return fmt.Errorf("failed to purge spans: %w", err)
 	}
-	if err := f.conn.Exec(ctx, "TRUNCATE TABLE services"); err != nil {
+	if err := f.conn.Exec(ctx, sql.TruncateServices); err != nil {
 		return fmt.Errorf("failed to purge services: %w", err)
 	}
-	if err := f.conn.Exec(ctx, "TRUNCATE TABLE operations"); err != nil {
+	if err := f.conn.Exec(ctx, sql.TruncateOperations); err != nil {
 		return fmt.Errorf("failed to purge operations: %w", err)
 	}
 	return nil
