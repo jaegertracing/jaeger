@@ -36,7 +36,7 @@ extensions:
       some-storage:
         clickhouse:
           addresses:
-            - localhost:8123
+            - localhost:9000
           database: jaeger
           auth:
             basic:
