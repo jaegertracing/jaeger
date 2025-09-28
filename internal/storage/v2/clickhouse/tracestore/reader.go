@@ -120,8 +120,6 @@ func (r *Reader) GetOperations(
 		}
 		if operation.SpanKind != "Unspecified" {
 			o.SpanKind = strings.ToLower(operation.SpanKind)
-		} else {
-			o.SpanKind = ""
 		}
 		operations = append(operations, o)
 	}
