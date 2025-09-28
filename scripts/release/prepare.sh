@@ -238,15 +238,6 @@ This PR updates CHANGELOG.md with a new version section and bumps UI submodule."
     fi
 }
 
-print_tag_commands() {
-    cat << EOF
-git checkout main
-git pull
-git tag ${new_version_v1} -s   # sign the v1 tag
-git tag ${new_version_v2} -s   # sign the v2 tag
-git push upstream ${new_version_v1} ${new_version_v2}
-EOF
-}
 
 create_release_tags() {
     if [[ "$DRY_RUN" == "true" ]]; then
