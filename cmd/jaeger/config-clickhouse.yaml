@@ -39,8 +39,9 @@ extensions:
             - localhost:8123
           database: jaeger
           auth:
-            username: default
-            password: password
+            basic:
+              username: default
+              password: password
           create_schema: true
 
 receivers:
