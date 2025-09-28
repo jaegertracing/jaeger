@@ -16,6 +16,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
@@ -97,7 +98,7 @@ func TestGetTraces_Success(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			conn := &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectSpansByTraceID,
+				expectedQuery: sql.SelectSpansByTraceID,
 				rows: &testRows[*spanRow]{
 					data:   tt.data,
 					scanFn: scanSpanRowFn(),
@@ -126,7 +127,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 			name: "QueryError",
 			driver: &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectSpansByTraceID,
+				expectedQuery: sql.SelectSpansByTraceID,
 				err:           assert.AnError,
 			},
 			expectedErr: "failed to query trace",
@@ -135,7 +136,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 			name: "ScanError",
 			driver: &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectSpansByTraceID,
+				expectedQuery: sql.SelectSpansByTraceID,
 				rows: &testRows[*spanRow]{
 					data:    singleSpan,
 					scanErr: assert.AnError,
@@ -147,7 +148,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 			name: "CloseError",
 			driver: &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectSpansByTraceID,
+				expectedQuery: sql.SelectSpansByTraceID,
 				rows: &testRows[*spanRow]{
 					data:     singleSpan,
 					scanFn:   scanSpanRowFn(),
@@ -183,7 +184,7 @@ func TestGetTraces_ScanErrorContinues(t *testing.T) {
 
 	conn := &testDriver{
 		t:             t,
-		expectedQuery: sqlSelectSpansByTraceID,
+		expectedQuery: sql.SelectSpansByTraceID,
 		rows: &testRows[*spanRow]{
 			data:   multipleSpans,
 			scanFn: scanFn,
@@ -208,7 +209,7 @@ func TestGetTraces_ScanErrorContinues(t *testing.T) {
 func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	conn := &testDriver{
 		t:             t,
-		expectedQuery: sqlSelectSpansByTraceID,
+		expectedQuery: sql.SelectSpansByTraceID,
 		rows: &testRows[*spanRow]{
 			data:   multipleSpans,
 			scanFn: scanSpanRowFn(),
@@ -242,7 +243,7 @@ func TestGetServices(t *testing.T) {
 			name: "successfully returns services",
 			conn: &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectAllServices,
+				expectedQuery: sql.SelectServices,
 				rows: &testRows[dbmodel.Service]{
 					data: []dbmodel.Service{
 						{Name: "serviceA"},
@@ -265,7 +266,7 @@ func TestGetServices(t *testing.T) {
 			name: "query error",
 			conn: &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectAllServices,
+				expectedQuery: sql.SelectServices,
 				err:           assert.AnError,
 			},
 			expectError: "failed to query services",
@@ -274,7 +275,7 @@ func TestGetServices(t *testing.T) {
 			name: "scan error",
 			conn: &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectAllServices,
+				expectedQuery: sql.SelectServices,
 				rows: &testRows[dbmodel.Service]{
 					data: []dbmodel.Service{
 						{Name: "serviceA"},
@@ -324,7 +325,7 @@ func TestGetOperations(t *testing.T) {
 			name: "successfully returns operations for all kinds",
 			conn: &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectOperationsAllKinds,
+				expectedQuery: sql.SelectOperationsAllKinds,
 				rows: &testRows[dbmodel.Operation]{
 					data: []dbmodel.Operation{
 						{Name: "operationA"},
@@ -360,7 +361,7 @@ func TestGetOperations(t *testing.T) {
 			name: "successfully returns operations by kind",
 			conn: &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectOperationsByKind,
+				expectedQuery: sql.SelectOperationsByKind,
 				rows: &testRows[dbmodel.Operation]{
 					data: []dbmodel.Operation{
 						{Name: "operationA", SpanKind: "server"},
@@ -400,7 +401,7 @@ func TestGetOperations(t *testing.T) {
 			name: "query error",
 			conn: &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectOperationsAllKinds,
+				expectedQuery: sql.SelectOperationsAllKinds,
 				err:           assert.AnError,
 			},
 			expectError: "failed to query operations",
@@ -409,7 +410,7 @@ func TestGetOperations(t *testing.T) {
 			name: "scan error",
 			conn: &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectOperationsAllKinds,
+				expectedQuery: sql.SelectOperationsAllKinds,
 				rows: &testRows[dbmodel.Operation]{
 					data: []dbmodel.Operation{
 						{Name: "operationA"},
@@ -445,4 +446,18 @@ func TestGetOperations(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFindTraces(t *testing.T) {
+	reader := NewReader(&testDriver{})
+	require.Panics(t, func() {
+		reader.FindTraces(context.Background(), tracestore.TraceQueryParams{})
+	})
+}
+
+func TestFindTraceIDs(t *testing.T) {
+	reader := NewReader(&testDriver{})
+	require.Panics(t, func() {
+		reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
+	})
 }
