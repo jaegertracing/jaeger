@@ -20,6 +20,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	es "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
 )
 
@@ -41,12 +42,13 @@ type Config struct {
 
 // TraceBackend contains configuration for a single trace storage backend.
 type TraceBackend struct {
-	Memory        *memory.Configuration `mapstructure:"memory"`
-	Badger        *badger.Config        `mapstructure:"badger"`
-	GRPC          *grpc.Config          `mapstructure:"grpc"`
-	Cassandra     *cassandra.Options    `mapstructure:"cassandra"`
-	Elasticsearch *esCfg.Configuration  `mapstructure:"elasticsearch"`
-	Opensearch    *esCfg.Configuration  `mapstructure:"opensearch"`
+	Memory        *memory.Configuration     `mapstructure:"memory"`
+	Badger        *badger.Config            `mapstructure:"badger"`
+	GRPC          *grpc.Config              `mapstructure:"grpc"`
+	Cassandra     *cassandra.Options        `mapstructure:"cassandra"`
+	Elasticsearch *esCfg.Configuration      `mapstructure:"elasticsearch"`
+	Opensearch    *esCfg.Configuration      `mapstructure:"opensearch"`
+	ClickHouse    *clickhouse.Configuration `mapstructure:"clickhouse"`
 }
 
 // MetricBackend contains configuration for a single metric storage backend.

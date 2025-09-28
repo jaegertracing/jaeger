@@ -12,12 +12,12 @@ import (
 func TestValidate(t *testing.T) {
 	tests := []struct {
 		name    string
-		cfg     Config
+		cfg     Configuration
 		wantErr bool
 	}{
 		{
 			name: "valid config with native protocol",
-			cfg: Config{
+			cfg: Configuration{
 				Protocol:  "native",
 				Addresses: []string{"localhost:9000"},
 			},
@@ -25,7 +25,7 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name: "valid config with http protocol",
-			cfg: Config{
+			cfg: Configuration{
 				Protocol:  "http",
 				Addresses: []string{"localhost:8123"},
 			},
@@ -33,14 +33,14 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name: "valid config with empty protocol",
-			cfg: Config{
+			cfg: Configuration{
 				Addresses: []string{"localhost:9000"},
 			},
 			wantErr: false,
 		},
 		{
 			name: "valid config with multiple addresses",
-			cfg: Config{
+			cfg: Configuration{
 				Protocol:  "native",
 				Addresses: []string{"localhost:9000", "localhost:9001"},
 			},
@@ -48,7 +48,7 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name: "invalid config with unsupported protocol",
-			cfg: Config{
+			cfg: Configuration{
 				Protocol:  "grpc",
 				Addresses: []string{"localhost:9000"},
 			},
@@ -56,7 +56,7 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name: "invalid config with empty addresses",
-			cfg: Config{
+			cfg: Configuration{
 				Protocol:  "native",
 				Addresses: []string{},
 			},
@@ -64,7 +64,7 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name: "invalid config with nil addresses",
-			cfg: Config{
+			cfg: Configuration{
 				Protocol: "native",
 			},
 			wantErr: true,

@@ -58,7 +58,7 @@ func TestFactory(t *testing.T) {
 	srv := newMockClickHouseServer()
 	defer srv.Close()
 
-	cfg := Config{
+	cfg := Configuration{
 		Protocol: "http",
 		Addresses: []string{
 			srv.Listener.Addr().String(),
@@ -91,7 +91,7 @@ func TestFactory_PingError(t *testing.T) {
 	srv := newMockClickHouseServer()
 	defer srv.Close()
 
-	cfg := Config{
+	cfg := Configuration{
 		Protocol: "http",
 		Addresses: []string{
 			"127.0.0.1:9999", // wrong address to simulate ping error

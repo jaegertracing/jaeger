@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/collector/config/configoptional"
 )
 
-type Config struct {
+type Configuration struct {
 	// Protocol is the protocol to use to connect to ClickHouse.
 	// Supported values are "native" and "http". Default is "native".
 	Protocol string `mapstructure:"protocol" valid:"in(native|http),optional"`
@@ -31,7 +31,7 @@ type Authentication struct {
 	// TODO: add JWT
 }
 
-func (cfg *Config) Validate() error {
+func (cfg *Configuration) Validate() error {
 	_, err := govalidator.ValidateStruct(cfg)
 	return err
 }

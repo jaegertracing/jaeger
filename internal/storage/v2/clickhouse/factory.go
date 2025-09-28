@@ -23,12 +23,12 @@ var (
 )
 
 type Factory struct {
-	config Config
+	config Configuration
 	telset telemetry.Settings
 	conn   driver.Conn
 }
 
-func NewFactory(ctx context.Context, cfg Config, telset telemetry.Settings) (*Factory, error) {
+func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Settings) (*Factory, error) {
 	f := &Factory{
 		config: cfg,
 		telset: telset,
