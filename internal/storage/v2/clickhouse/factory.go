@@ -1,7 +1,7 @@
 // Copyright (c) 2025 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package tracestore
+package clickhouse
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	chtracestore "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
@@ -61,11 +62,11 @@ func NewFactory(ctx context.Context, cfg Config, telset telemetry.Settings) (*Fa
 }
 
 func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
-	return NewReader(f.conn), nil
+	return chtracestore.NewReader(f.conn), nil
 }
 
 func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
-	return NewWriter(f.conn), nil
+	return chtracestore.NewWriter(f.conn), nil
 }
 
 func (f *Factory) Close() error {
