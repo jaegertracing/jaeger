@@ -644,3 +644,13 @@ func (s *StorageIntegration) RunSpanStoreTests(t *testing.T) {
 	t.Run("GetTraceWithDuplicateSpans", s.testGetTraceWithDuplicates)
 	t.Run("FindTraces", s.testFindTraces)
 }
+
+// TODO: Use RunSpanStoreTests once ClickHouse work is complete.
+func (s *StorageIntegration) RunClickHouseTests(t *testing.T) {
+	t.Run("GetServices", s.testGetServices)
+	t.Run("GetOperations", s.testGetOperations)
+	t.Run("GetTrace", s.testGetTrace)
+	t.Run("GetLargeTrace", s.testGetLargeTrace)
+	t.Run("GetTraceWithDuplicateSpans", s.testGetTraceWithDuplicates)
+	// t.Run("FindTraces", s.testFindTraces)
+}
