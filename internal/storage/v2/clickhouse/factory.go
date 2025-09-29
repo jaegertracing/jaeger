@@ -64,20 +64,21 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 		)
 	}
 	if f.config.CreateSchema {
-		if err = conn.Exec(ctx, sql.CreateSpansTable); err != nil {
-			return nil, errors.Join(fmt.Errorf("failed to create spans table: %w", err), conn.Close())
+		schemas := []struct {
+			name  string
+			query string
+		}{
+			{"spans table", sql.CreateSpansTable},
+			{"services table", sql.CreateServicesTable},
+			{"services materialized view", sql.CreateServicesMaterializedView},
+			{"operations table", sql.CreateOperationsTable},
+			{"operations materialized view", sql.CreateOperationsMaterializedView},
 		}
-		if err = conn.Exec(ctx, sql.CreateServicesTable); err != nil {
-			return nil, errors.Join(fmt.Errorf("failed to create services table: %w", err), conn.Close())
-		}
-		if err = conn.Exec(ctx, sql.CreateServicesMaterializedView); err != nil {
-			return nil, errors.Join(fmt.Errorf("failed to create services materialized view: %w", err), conn.Close())
-		}
-		if err = conn.Exec(ctx, sql.CreateOperationsTable); err != nil {
-			return nil, errors.Join(fmt.Errorf("failed to create operations table: %w", err), conn.Close())
-		}
-		if err = conn.Exec(ctx, sql.CreateOperationsMaterializedView); err != nil {
-			return nil, errors.Join(fmt.Errorf("failed to create operations materialized view: %w", err), conn.Close())
+
+		for _, schema := range schemas {
+			if err = conn.Exec(ctx, schema.query); err != nil {
+				return nil, errors.Join(fmt.Errorf("failed to create %s: %w", schema.name, err), conn.Close())
+			}
 		}
 	}
 	f.conn = conn
@@ -101,14 +102,19 @@ func (f *Factory) Close() error {
 }
 
 func (f *Factory) Purge(ctx context.Context) error {
-	if err := f.conn.Exec(ctx, sql.TruncateSpans); err != nil {
-		return fmt.Errorf("failed to purge spans: %w", err)
+	tables := []struct {
+		name  string
+		query string
+	}{
+		{"spans", sql.TruncateSpans},
+		{"services", sql.TruncateServices},
+		{"operations", sql.TruncateOperations},
 	}
-	if err := f.conn.Exec(ctx, sql.TruncateServices); err != nil {
-		return fmt.Errorf("failed to purge services: %w", err)
-	}
-	if err := f.conn.Exec(ctx, sql.TruncateOperations); err != nil {
-		return fmt.Errorf("failed to purge operations: %w", err)
+
+	for _, table := range tables {
+		if err := f.conn.Exec(ctx, table.query); err != nil {
+			return fmt.Errorf("failed to purge %s: %w", table.name, err)
+		}
 	}
 	return nil
 }
