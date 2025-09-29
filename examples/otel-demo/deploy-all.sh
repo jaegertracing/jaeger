@@ -93,6 +93,27 @@ wait_for_statefulset() {
   log "StatefulSet $sts is ready"
 }
 
+wait_for_service_endpoints() {
+  local namespace="$1"
+  local service="$2"
+  local timeout_secs="${3:-120}"
+  log "Waiting for service $service endpoints in $namespace..."
+  for i in $(seq 1 "$timeout_secs"); do
+    if kubectl get endpoints "$service" -n "$namespace" >/dev/null 2>&1; then
+      local ready
+      ready=$(kubectl get endpoints "$service" -n "$namespace" -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null || true)
+      if [[ -n "$ready" ]]; then
+        log "Service $service has endpoints: $ready"
+        return 0
+      fi
+    fi
+    sleep 1
+  done
+  kubectl get svc "$service" -n "$namespace" -o wide || true
+  kubectl get endpoints "$service" -n "$namespace" -o yaml || true
+  err "Service $service in $namespace has no ready endpoints after ${timeout_secs}s"
+}
+
 cleanup() {
   log "Cleanup: uninstalling existing releases if present"
   helm uninstall opensearch -n opensearch >/dev/null 2>&1 || true
@@ -202,11 +223,15 @@ main() {
   kubectl apply -n jaeger -f "$SCRIPT_DIR/jaeger-query-service.yaml"
   log "Jaeger query ClusterIP service created"
 
-  log "Deploying OpenTelemetry Demo"
+  log "Ensuring Jaeger Collector service endpoints are ready before deploying the demo"
+  wait_for_service_endpoints jaeger jaeger-collector 180
+
+  log "Deploying OpenTelemetry Demo (with in-cluster Collector)"
   helm upgrade --install otel-demo open-telemetry/opentelemetry-demo \
     -f "$SCRIPT_DIR/otel-demo-values.yaml" \
     --namespace otel-demo --create-namespace \
     --wait --timeout 15m
+  wait_for_deployment otel-demo otel-collector "${ROLLOUT_TIMEOUT}s"
   wait_for_deployment otel-demo frontend "${ROLLOUT_TIMEOUT}s"
   wait_for_deployment otel-demo load-generator "${ROLLOUT_TIMEOUT}s"
 

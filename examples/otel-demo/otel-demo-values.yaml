@@ -1,41 +1,28 @@
 # official schema for otel demo is at https://raw.githubusercontent.com/open-telemetry/opentelemetry-helm-charts/main/charts/opentelemetry-demo/values.yaml
 
-# Disable all bundled infrastructure components
-opentelemetry-collector:
-  enabled: false
-
+# Keep bundled infra disabled (we deploy Jaeger/OpenSearch separately)
 jaeger:
   enabled: false
-
 prometheus:
   enabled: false
-
 grafana:
   enabled: false
-
 opensearch:
   enabled: false
 
-# Global configuration pointing to Jaeger
+# Preserve default.env (to keep OTEL_SERVICE_NAME and OTEL_COLLECTOR_NAME) and override only what we need
 default:
-  env:
-    - name: OTEL_SERVICE_NAME
-      valueFrom:
-        fieldRef:
-          apiVersion: v1
-          fieldPath: "metadata.labels['app.kubernetes.io/component']"
-    # Override default collector to point to Jaeger
-    - name: OTEL_COLLECTOR_NAME
-      value: jaeger-collector.jaeger.svc.cluster.local
+  envOverrides:
+    # Narrower service namespace + explicit environment tag
+    - name: OTEL_RESOURCE_ATTRIBUTES
+      value: service.name=$(OTEL_SERVICE_NAME),service.namespace=otel-demo,deployment.environment=oke-dev
+    # Send OTLP over HTTP by default and disable metrics/logs exporters (traces only)
     - name: OTEL_EXPORTER_OTLP_ENDPOINT
-      value: http://jaeger-collector.jaeger.svc.cluster.local:4318
-    - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
-      value: http://jaeger-collector.jaeger.svc.cluster.local:4318/v1/traces
+      value: http://otel-collector:4318
     - name: OTEL_EXPORTER_OTLP_PROTOCOL
       value: http/protobuf
-    - name: OTEL_RESOURCE_ATTRIBUTES
-      value: service.namespace=otel-demo,deployment.environment=minikube-demo
-    # Disable logs and metrics export to Jaeger (only traces)
+    - name: OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
+      value: http/protobuf
     - name: OTEL_LOGS_EXPORTER
       value: none
     - name: OTEL_METRICS_EXPORTER
@@ -43,280 +30,55 @@ default:
     - name: OTEL_TRACES_EXPORTER
       value: otlp
 
-# Component-specific configurations using correct schema names
 components:
-  # Enable Kafka for services that require it
-  kafka:
-    enabled: true
-
-  # Frontend configuration
-  frontend:
-    enabled: true
-    useDefault:
-      env: true
-    env:
-      # Frontend service addresses
-      - name: FRONTEND_PORT
-        value: "8080"
-      - name: FRONTEND_ADDR
-        value: ":8080"
-      - name: AD_ADDR
-        value: ad:8080
-      - name: CART_ADDR
-        value: cart:8080
-      - name: CHECKOUT_ADDR
-        value: checkout:8080
-      - name: CURRENCY_ADDR
-        value: currency:8080
-      - name: PRODUCT_CATALOG_ADDR
-        value: product-catalog:8080
-      - name: RECOMMENDATION_ADDR
-        value: recommendation:8080
-      - name: SHIPPING_ADDR
-        value: shipping:8080
-      - name: FLAGD_HOST
-        value: flagd
-      - name: FLAGD_PORT
-        value: "8013"
-      # Override the problematic variable substitution
-      - name: OTEL_EXPORTER_OTLP_ENDPOINT
-        value: http://jaeger-collector.jaeger.svc.cluster.local:4318
-      - name: OTEL_EXPORTER_OTLP_PROTOCOL
-        value: http/protobuf
-    
-
-  # Load generator 
   load-generator:
-    enabled: true
-    useDefault:
-      env: true
-    env:
+    envOverrides:
       - name: LOCUST_USERS
         value: "5"
       - name: LOCUST_SPAWN_RATE
         value: "2"
-      - name: LOCUST_HOST
-        value: http://frontend-proxy:8080
-      - name: OTEL_EXPORTER_OTLP_ENDPOINT
-        value: http://jaeger-collector.jaeger.svc.cluster.local:4318
-      - name: OTEL_EXPORTER_OTLP_PROTOCOL
-        value: http/protobuf
-    
-  # Fraud detection 
-  fraud-detection:
-    enabled: true
-    useDefault:
-      env: true
-    env:
-      - name: KAFKA_ADDR
-        value: kafka:9092
-      - name: FLAGD_HOST
-        value: flagd
-      - name: FLAGD_PORT
-        value: "8013"
-      - name: OTEL_EXPORTER_OTLP_ENDPOINT
-        value: http://jaeger-collector.jaeger.svc.cluster.local:4318
-      - name: OTEL_EXPORTER_OTLP_PROTOCOL
-        value: http/protobuf
 
-  # Product catalog 
-  product-catalog:
-    enabled: true
-    useDefault:
-      env: true
-    env:
-      - name: PRODUCT_CATALOG_PORT
-        value: "8080"
-      - name: FLAGD_HOST
-        value: flagd
-      - name: FLAGD_PORT
-        value: "8013"
-      - name: OTEL_EXPORTER_OTLP_ENDPOINT
-        value: http://jaeger-collector.jaeger.svc.cluster.local:4318
-      - name: OTEL_EXPORTER_OTLP_PROTOCOL
-        value: http/protobuf
-
-  # All other services with consistent configuration
-  checkout:
-    enabled: true
-    useDefault:
-      env: false
-    env:
-      - name: OTEL_SERVICE_NAME
-        valueFrom:
-          fieldRef:
-            apiVersion: v1
-            fieldPath: "metadata.labels['app.kubernetes.io/component']"
-      - name: CHECKOUT_PORT
-        value: "8080"
-      - name: KAFKA_ADDR
-        value: kafka:9092
-      - name: FLAGD_HOST
-        value: flagd
-      - name: FLAGD_PORT
-        value: "8013"
-      # Go service with gRPC
-      - name: OTEL_EXPORTER_OTLP_ENDPOINT
-        value: http://jaeger-collector.jaeger.svc.cluster.local:4317
-      - name: OTEL_EXPORTER_OTLP_PROTOCOL
-        value: grpc
-      - name: OTEL_RESOURCE_ATTRIBUTES
-        value: service.namespace=otel-demo,deployment.environment=minikube-demo
-      - name: OTEL_LOGS_EXPORTER
-        value: none
-      - name: OTEL_METRICS_EXPORTER
-        value: none
-      - name: OTEL_TRACES_EXPORTER
-        value: otlp
-      # Additional required addresses
-      - name: CART_ADDR
-        value: cart:8080
-      - name: CURRENCY_ADDR
-        value: currency:8080
-      - name: EMAIL_ADDR
-        value: email:8080
-      - name: PAYMENT_ADDR
-        value: payment:8080
-      - name: PRODUCT_CATALOG_ADDR
-        value: product-catalog:8080
-      - name: SHIPPING_ADDR
-        value: shipping:8080
-
-  currency:
-    enabled: true
-    useDefault:
-      env: false
-    env:
-      - name: OTEL_SERVICE_NAME
-        valueFrom:
-          fieldRef:
-            apiVersion: v1
-            fieldPath: "metadata.labels['app.kubernetes.io/component']"
-      - name: CURRENCY_PORT
-        value: "8080"
-      - name: VERSION
-        value: "2.0.2"
-      # Currency service (C++) with gRPC endpoint
-      - name: OTEL_EXPORTER_OTLP_ENDPOINT
-        value: http://jaeger-collector.jaeger.svc.cluster.local:4317
-      - name: OTEL_EXPORTER_OTLP_PROTOCOL
-        value: grpc
-      - name: OTEL_RESOURCE_ATTRIBUTES
-        value: service.namespace=otel-demo,deployment.environment=minikube-demo
-      - name: OTEL_LOGS_EXPORTER
-        value: none
-      - name: OTEL_METRICS_EXPORTER
-        value: none
-      - name: OTEL_TRACES_EXPORTER
-        value: otlp
-
-  payment:
-    enabled: true
-    useDefault:
-      env: true
-    env:
-      - name: PAYMENT_PORT
-        value: "8080"
-      - name: FLAGD_HOST
-        value: flagd
-      - name: FLAGD_PORT
-        value: "8013"
-      - name: OTEL_EXPORTER_OTLP_ENDPOINT
-        value: http://jaeger-collector.jaeger.svc.cluster.local:4318
-      - name: OTEL_EXPORTER_OTLP_PROTOCOL
-        value: http/protobuf
-
-  shipping:
-    enabled: true
-    useDefault:
-      env: true
-    env:
-      - name: SHIPPING_PORT
-        value: "8080"
-      - name: QUOTE_ADDR
-        value: http://quote:8080
-      - name: OTEL_EXPORTER_OTLP_ENDPOINT
-        value: http://jaeger-collector.jaeger.svc.cluster.local:4318
-      - name: OTEL_EXPORTER_OTLP_PROTOCOL
-        value: http/protobuf
-
-  recommendation:
-    enabled: true
-    useDefault:
-      env: true
-    env:
-      - name: RECOMMENDATION_PORT
-        value: "8080"
-      - name: PRODUCT_CATALOG_ADDR
-        value: product-catalog:8080
-      - name: OTEL_EXPORTER_OTLP_ENDPOINT
-        value: http://jaeger-collector.jaeger.svc.cluster.local:4318
-      - name: OTEL_EXPORTER_OTLP_PROTOCOL
-        value: http/protobuf
-
-  cart:
-    enabled: true
-    useDefault:
-      env: true
-    env:
-      - name: CART_PORT
-        value: "8080"
-      - name: ASPNETCORE_URLS
-        value: http://*:8080
-      - name: VALKEY_ADDR
-        value: valkey-cart:6379
-      - name: FLAGD_HOST
-        value: flagd
-      - name: FLAGD_PORT
-        value: "8013"
-      - name: OTEL_EXPORTER_OTLP_ENDPOINT
-        value: http://jaeger-collector.jaeger.svc.cluster.local:4318
-      - name: OTEL_EXPORTER_OTLP_PROTOCOL
-        value: http/protobuf
-
-  accounting:
-    enabled: true
-    useDefault:
-      env: true
-    env:
-      - name: KAFKA_ADDR
-        value: kafka:9092
-      - name: OTEL_EXPORTER_OTLP_ENDPOINT
-        value: http://jaeger-collector.jaeger.svc.cluster.local:4318
-      - name: OTEL_EXPORTER_OTLP_PROTOCOL
-        value: http/protobuf
-
-  # Keep other components that don't require configuration changes
-  ad:
-    enabled: true
-    useDefault:
-      env: true
-    env:
-      - name: AD_PORT
-        value: "8080"
-      - name: FLAGD_HOST
-        value: flagd
-      - name: FLAGD_PORT
-        value: "8013"
-      - name: OTEL_EXPORTER_OTLP_ENDPOINT
-        value: http://jaeger-collector.jaeger.svc.cluster.local:4318
-      - name: OTEL_EXPORTER_OTLP_PROTOCOL
-        value: http/protobuf
-  
-  email:
-    enabled: true
-    
-  frontend-proxy:
-    enabled: true
-    
-  image-provider:
-    enabled: true
-    
-  quote:
-    enabled: true
-    
-  flagd:
-    enabled: true
-    
-  valkey-cart:
-    enabled: true
+# Override Collector config to export traces to Jaeger only and drop demo metrics/logs
+opentelemetry-collector:
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc: {}
+          http:
+            cors:
+              allowed_origins:
+                - http://*
+                - https://*
+      httpcheck/frontend-proxy: null
+      redis: null
+    processors:
+      memory_limiter: {}
+      k8sattributes: {}
+      resource:
+        attributes:
+          - key: service.instance.id
+            from_attribute: k8s.pod.uid
+            action: insert
+      transform: null
+      batch: {}
+    connectors:
+      spanmetrics: null
+    exporters:
+      otlp/jaeger:
+        endpoint: jaeger-collector.jaeger.svc.cluster.local:4317
+        tls:
+          insecure: true
+      opensearch: null
+      otlphttp/prometheus: null
+      debug: null
+      otlp: null
+    service:
+      telemetry: null
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, k8sattributes, resource, batch]
+          exporters: [otlp/jaeger]
+        metrics: null
+        logs: null
