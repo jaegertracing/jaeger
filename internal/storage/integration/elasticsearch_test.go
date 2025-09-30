@@ -269,7 +269,7 @@ func (s *ESStorageIntegration) testArchiveTrace(t *testing.T) {
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		var err error
 		iterTraces := s.ArchiveTraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: v1adapter.FromV1TraceID(tID)})
-		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
+		traces, err := v1adapter.V1TracesFromSeq2(iterTraces, 0)
 		if len(traces) == 0 {
 			return false
 		}

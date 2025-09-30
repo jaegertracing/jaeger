@@ -29,7 +29,7 @@ func (sr *SpanReader) GetTrace(ctx context.Context, query spanstore.GetTracePara
 		Start:   query.StartTime,
 		End:     query.EndTime,
 	})
-	traces, err := V1TracesFromSeq2(getTracesIter)
+	traces, err := V1TracesFromSeq2(getTracesIter, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func (sr *SpanReader) FindTraces(
 		DurationMax:   query.DurationMax,
 		SearchDepth:   query.NumTraces,
 	})
-	return V1TracesFromSeq2(getTracesIter)
+	return V1TracesFromSeq2(getTracesIter, 0)
 }
 
 func (sr *SpanReader) FindTraceIDs(
