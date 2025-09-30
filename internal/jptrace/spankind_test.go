@@ -16,31 +16,31 @@ func TestStringToSpanKind(t *testing.T) {
 		want ptrace.SpanKind
 	}{
 		{
-			str:  "unspecified",
+			str:  "Unspecified",
 			want: ptrace.SpanKindUnspecified,
 		},
 		{
-			str:  "internal",
+			str:  "Internal",
 			want: ptrace.SpanKindInternal,
 		},
 		{
-			str:  "server",
+			str:  "Server",
 			want: ptrace.SpanKindServer,
 		},
 		{
-			str:  "client",
+			str:  "Client",
 			want: ptrace.SpanKindClient,
 		},
 		{
-			str:  "producer",
+			str:  "Producer",
 			want: ptrace.SpanKindProducer,
 		},
 		{
-			str:  "consumer",
+			str:  "Consumer",
 			want: ptrace.SpanKindConsumer,
 		},
 		{
-			str:  "unknown",
+			str:  "Unknown",
 			want: ptrace.SpanKindUnspecified,
 		},
 		{
