@@ -1,2 +1,4 @@
 CREATE TABLE
-    IF NOT EXISTS services (name String) ENGINE = AggregatingMergeTree PRIMARY KEY (name)
+    IF NOT EXISTS services (name String) ENGINE = ReplacingMergeTree
+ORDER BY
+    (name);
