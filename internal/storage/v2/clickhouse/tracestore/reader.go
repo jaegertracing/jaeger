@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"iter"
-	"strings"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -114,12 +113,11 @@ func (r *Reader) GetOperations(
 		if err := rows.ScanStruct(&operation); err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
-		// TODO: should this be handled in the write path instead?
 		o := tracestore.Operation{
 			Name: operation.Name,
 		}
-		if operation.SpanKind != "Unspecified" {
-			o.SpanKind = strings.ToLower(operation.SpanKind)
+		if operation.SpanKind != "unspecified" {
+			o.SpanKind = operation.SpanKind
 		}
 		operations = append(operations, o)
 	}
