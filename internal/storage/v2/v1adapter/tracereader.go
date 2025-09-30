@@ -22,11 +22,16 @@ type TraceReader struct {
 }
 
 func GetV1Reader(reader tracestore.Reader) spanstore.Reader {
+	return GetV1ReaderWithLimit(reader, 0)
+}
+
+func GetV1ReaderWithLimit(reader tracestore.Reader, maxTraceSize int) spanstore.Reader {
 	if tr, ok := reader.(*TraceReader); ok {
 		return tr.spanReader
 	}
 	return &SpanReader{
-		traceReader: reader,
+		traceReader:  reader,
+		maxTraceSize: maxTraceSize,
 	}
 }
 

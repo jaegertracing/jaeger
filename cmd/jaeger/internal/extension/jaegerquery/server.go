@@ -102,6 +102,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 
 	opts := querysvc.QueryServiceOptions{
 		MaxClockSkewAdjust: s.config.MaxClockSkewAdjust,
+		MaxTraceSize:       s.config.MaxTraceSize,
 	}
 	v2opts := v2querysvc.QueryServiceOptions{
 		MaxClockSkewAdjust: s.config.MaxClockSkewAdjust,

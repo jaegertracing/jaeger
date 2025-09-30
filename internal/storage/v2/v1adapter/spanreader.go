@@ -20,7 +20,8 @@ var errTooManyTracesFound = errors.New("too many traces found")
 // SpanReader wraps a tracestore.Reader so that it can be downgraded to implement
 // the v1 spanstore.Reader interface.
 type SpanReader struct {
-	traceReader tracestore.Reader
+	traceReader  tracestore.Reader
+	maxTraceSize int
 }
 
 func (sr *SpanReader) GetTrace(ctx context.Context, query spanstore.GetTraceParameters) (*model.Trace, error) {
@@ -29,7 +30,7 @@ func (sr *SpanReader) GetTrace(ctx context.Context, query spanstore.GetTracePara
 		Start:   query.StartTime,
 		End:     query.EndTime,
 	})
-	traces, err := V1TracesFromSeq2(getTracesIter, 0)
+	traces, err := V1TracesFromSeq2(getTracesIter, sr.maxTraceSize)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +81,7 @@ func (sr *SpanReader) FindTraces(
 		DurationMax:   query.DurationMax,
 		SearchDepth:   query.NumTraces,
 	})
-	return V1TracesFromSeq2(getTracesIter, 0)
+	return V1TracesFromSeq2(getTracesIter, sr.maxTraceSize)
 }
 
 func (sr *SpanReader) FindTraceIDs(
