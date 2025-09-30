@@ -28,7 +28,7 @@ func NewWriter(conn driver.Conn) *Writer {
 }
 
 func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
-	batch, err := w.conn.PrepareBatch(ctx, sql.SpansInsert)
+	batch, err := w.conn.PrepareBatch(ctx, sql.InsertSpan)
 	if err != nil {
 		return fmt.Errorf("failed to prepare batch: %w", err)
 	}

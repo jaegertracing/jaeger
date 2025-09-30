@@ -55,7 +55,7 @@ func tracesFromSpanRows(t *testing.T, rows []*spanRow) ptrace.Traces {
 func TestWriter_Success(t *testing.T) {
 	conn := &testDriver{
 		t:             t,
-		expectedQuery: sql.SpansInsert,
+		expectedQuery: sql.InsertSpan,
 		batch:         &testBatch{t: t},
 	}
 	w := NewWriter(conn)
@@ -90,7 +90,7 @@ func TestWriter_Success(t *testing.T) {
 func TestWriter_PrepareBatchError(t *testing.T) {
 	conn := &testDriver{
 		t:             t,
-		expectedQuery: sql.SpansInsert,
+		expectedQuery: sql.InsertSpan,
 		err:           assert.AnError,
 		batch:         &testBatch{t: t},
 	}
@@ -104,7 +104,7 @@ func TestWriter_PrepareBatchError(t *testing.T) {
 func TestWriter_AppendBatchError(t *testing.T) {
 	conn := &testDriver{
 		t:             t,
-		expectedQuery: sql.SpansInsert,
+		expectedQuery: sql.InsertSpan,
 		batch:         &testBatch{t: t, appendErr: assert.AnError},
 	}
 	w := NewWriter(conn)
@@ -117,7 +117,7 @@ func TestWriter_AppendBatchError(t *testing.T) {
 func TestWriter_SendError(t *testing.T) {
 	conn := &testDriver{
 		t:             t,
-		expectedQuery: sql.SpansInsert,
+		expectedQuery: sql.InsertSpan,
 		batch:         &testBatch{t: t, sendErr: assert.AnError},
 	}
 	w := NewWriter(conn)
