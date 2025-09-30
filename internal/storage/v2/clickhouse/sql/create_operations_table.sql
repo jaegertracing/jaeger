@@ -1,6 +1,8 @@
 CREATE TABLE
-    IF NOT EXISTS operations (
+    operations (
+        service_name String,
         name String,
-        span_kind String,
-        service_name String
-    ) ENGINE = AggregatingMergeTree PRIMARY KEY (name, span_kind)
+        span_kind String
+    ) ENGINE = ReplacingMergeTree
+ORDER BY
+    (service_name, name, span_kind);

@@ -80,7 +80,7 @@ FROM
 `
 
 const SelectOperationsAllKinds = `
-SELECT
+SELECT DISTINCT
     name,
     span_kind
 FROM
@@ -90,7 +90,7 @@ WHERE
 `
 
 const SelectOperationsByKind = `
-SELECT
+SELECT DISTINCT
     name,
     span_kind
 FROM
