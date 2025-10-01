@@ -17,7 +17,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
-	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 )
@@ -83,7 +82,7 @@ func (q *QueryBuilder) BuildBoolQuery(params metricstore.BaseQueryParameters, ti
 		boolQuery.Filter(termQuery)
 	}
 
-	rangeQuery := esquery.NewRangeQuery("startTimeMillis").
+	rangeQuery := elastic.NewRangeQuery("startTimeMillis").
 		Gte(timeRange.extendedStartTimeMillis).
 		Lte(timeRange.endTimeMillis).
 		Format("epoch_millis")

@@ -1,7 +1,8 @@
 # Copyright (c) 2024 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-BINARY ?= jaeger # Default value uses v2 binary
+BINARY ?= jaeger
+# Default value uses v2 binary
 
 .PHONY: build
 build: clean-jaeger

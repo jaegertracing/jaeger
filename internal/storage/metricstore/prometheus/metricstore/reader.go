@@ -145,7 +145,7 @@ func (m MetricsReader) GetLatencies(ctx context.Context, requestParams *metricst
 	return m.executeQuery(ctx, metricsParams)
 }
 
-func (m MetricsReader) promQlQuery(p promQueryParams, queryTemplate string, metricName string, quantile ...float64) string {
+func (MetricsReader) promQlQuery(p promQueryParams, queryTemplate string, metricName string, quantile ...float64) string {
 	filters := []string{fmt.Sprintf(`service_name =~ %q`, p.serviceFilter)}
 
 	if p.spanKindFilter != "" {

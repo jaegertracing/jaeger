@@ -75,34 +75,33 @@ func TestTagQueryBuilder_BuildTagQuery(t *testing.T) {
 			require.NoError(t, err)
 
 			// Check that it's a bool query with should clause
-			queryMapTyped, ok := queryMap.(map[string]interface{})
-			require.True(t, ok, "Expected query map to be map[string]interface{}")
+			queryMapTyped, ok := queryMap.(map[string]any)
+			require.True(t, ok, "Expected query map to be map[string]any")
 
 			boolClause, exists := queryMapTyped["bool"]
 			require.True(t, exists, "Expected bool clause")
 
-			boolMap, ok := boolClause.(map[string]interface{})
+			boolMap, ok := boolClause.(map[string]any)
 			require.True(t, ok, "Expected bool clause to be map")
 
 			shouldClause, exists := boolMap["should"]
 			require.True(t, exists, "Expected should clause")
 
-			shouldQueries, ok := shouldClause.([]interface{})
+			shouldQueries, ok := shouldClause.([]any)
 			require.True(t, ok, "Expected should clause to be array")
 
 			// Verify we have the expected number of queries
-			assert.Equal(t, tt.expectedQueries, len(shouldQueries), "Expected %d queries", tt.expectedQueries)
+			assert.Len(t, shouldQueries, tt.expectedQueries, "Expected %d queries", tt.expectedQueries)
 		})
 	}
 }
 
 func TestTagQueryBuilder_BuildNestedQuery(t *testing.T) {
 	tests := []struct {
-		name     string
-		field    string
-		key      string
-		value    string
-		expected map[string]interface{}
+		name  string
+		field string
+		key   string
+		value string
 	}{
 		{
 			name:  "nested tags query",
@@ -140,13 +139,13 @@ func TestTagQueryBuilder_BuildNestedQuery(t *testing.T) {
 			require.NoError(t, err)
 
 			// Check nested structure
-			queryMapTyped, ok := queryMap.(map[string]interface{})
-			require.True(t, ok, "Expected query map to be map[string]interface{}")
+			queryMapTyped, ok := queryMap.(map[string]any)
+			require.True(t, ok, "Expected query map to be map[string]any")
 
 			nestedClause, exists := queryMapTyped["nested"]
 			require.True(t, exists, "Expected nested clause")
 
-			nestedMap, ok := nestedClause.(map[string]interface{})
+			nestedMap, ok := nestedClause.(map[string]any)
 			require.True(t, ok, "Expected nested clause to be map")
 
 			// Check path
@@ -158,24 +157,24 @@ func TestTagQueryBuilder_BuildNestedQuery(t *testing.T) {
 			queryClause, exists := nestedMap["query"]
 			require.True(t, exists, "Expected query in nested clause")
 
-			queryBool, ok := queryClause.(map[string]interface{})
+			queryBool, ok := queryClause.(map[string]any)
 			require.True(t, ok, "Expected query to be map")
 
 			// Should have bool -> must structure
 			boolClause, exists := queryBool["bool"]
 			require.True(t, exists, "Expected bool clause in nested query")
 
-			boolMap, ok := boolClause.(map[string]interface{})
+			boolMap, ok := boolClause.(map[string]any)
 			require.True(t, ok, "Expected bool clause to be map")
 
 			mustClause, exists := boolMap["must"]
 			require.True(t, exists, "Expected must clause")
 
-			mustQueries, ok := mustClause.([]interface{})
+			mustQueries, ok := mustClause.([]any)
 			require.True(t, ok, "Expected must clause to be array")
 
 			// Should have exactly 2 queries: key match and value regexp
-			assert.Equal(t, 2, len(mustQueries), "Expected 2 must queries")
+			assert.Len(t, mustQueries, 2, "Expected 2 must queries")
 		})
 	}
 }
@@ -217,13 +216,13 @@ func TestTagQueryBuilder_BuildObjectQuery(t *testing.T) {
 			require.NoError(t, err)
 
 			// Check bool structure
-			queryMapTyped, ok := queryMap.(map[string]interface{})
-			require.True(t, ok, "Expected query map to be map[string]interface{}")
+			queryMapTyped, ok := queryMap.(map[string]any)
+			require.True(t, ok, "Expected query map to be map[string]any")
 
 			boolClause, exists := queryMapTyped["bool"]
 			require.True(t, exists, "Expected bool clause")
 
-			boolMap, ok := boolClause.(map[string]interface{})
+			boolMap, ok := boolClause.(map[string]any)
 			require.True(t, ok, "Expected bool clause to be map")
 
 			mustClause, exists := boolMap["must"]
@@ -232,17 +231,17 @@ func TestTagQueryBuilder_BuildObjectQuery(t *testing.T) {
 			// Must clause can be either a single query or an array of queries
 			// When there's only one query, elastic returns it as a single object
 			// When there are multiple queries, it returns an array
-			if mustArray, ok := mustClause.([]interface{}); ok {
+			if mustArray, ok := mustClause.([]any); ok {
 				// Multiple queries case
-				assert.Equal(t, 1, len(mustArray), "Expected 1 must query")
+				assert.Len(t, mustArray, 1, "Expected 1 must query")
 
 				// Check that it's a regexp query
-				regexpQuery, ok := mustArray[0].(map[string]interface{})
+				regexpQuery, ok := mustArray[0].(map[string]any)
 				require.True(t, ok, "Expected query to be map")
 
 				_, exists = regexpQuery["regexp"]
 				assert.True(t, exists, "Expected regexp query")
-			} else if mustQuery, ok := mustClause.(map[string]interface{}); ok {
+			} else if mustQuery, ok := mustClause.(map[string]any); ok {
 				// Single query case
 				_, exists = mustQuery["regexp"]
 				assert.True(t, exists, "Expected regexp query")
@@ -303,16 +302,16 @@ func TestTagQueryBuilder_DotReplacement(t *testing.T) {
 
 			// The dot replacement should be visible in the object queries
 			// We can verify this by checking the structure contains the replaced key
-			queryMapTyped, ok := queryMap.(map[string]interface{})
-			require.True(t, ok, "Expected query map to be map[string]interface{}")
+			queryMapTyped, ok := queryMap.(map[string]any)
+			require.True(t, ok, "Expected query map to be map[string]any")
 
-			boolClause := queryMapTyped["bool"].(map[string]interface{})
-			shouldClause := boolClause["should"].([]interface{})
+			boolClause := queryMapTyped["bool"].(map[string]any)
+			shouldClause := boolClause["should"].([]any)
 
 			// First two queries should be object queries with dot replacement
 			// This is a basic structural test - more detailed testing would require
 			// examining the specific field names in the regexp queries
-			assert.Equal(t, 5, len(shouldClause), "Expected 5 should queries")
+			assert.Len(t, shouldClause, 5, "Expected 5 should queries")
 		})
 	}
 }
@@ -332,8 +331,8 @@ func TestTagQueryBuilder_EdgeCases(t *testing.T) {
 		queryMap, err := boolQuery.Source()
 		require.NoError(t, err)
 
-		queryMapTyped, ok := queryMap.(map[string]interface{})
-		require.True(t, ok, "Expected query map to be map[string]interface{}")
+		queryMapTyped, ok := queryMap.(map[string]any)
+		require.True(t, ok, "Expected query map to be map[string]any")
 		assert.Contains(t, queryMapTyped, "bool")
 	})
 
@@ -347,8 +346,8 @@ func TestTagQueryBuilder_EdgeCases(t *testing.T) {
 		queryMap, err := boolQuery.Source()
 		require.NoError(t, err)
 
-		queryMapTyped, ok := queryMap.(map[string]interface{})
-		require.True(t, ok, "Expected query map to be map[string]interface{}")
+		queryMapTyped, ok := queryMap.(map[string]any)
+		require.True(t, ok, "Expected query map to be map[string]any")
 		assert.Contains(t, queryMapTyped, "bool")
 	})
 
@@ -365,8 +364,8 @@ func TestTagQueryBuilder_EdgeCases(t *testing.T) {
 		queryMap, err := boolQuery.Source()
 		require.NoError(t, err)
 
-		queryMapTyped, ok := queryMap.(map[string]interface{})
-		require.True(t, ok, "Expected query map to be map[string]interface{}")
+		queryMapTyped, ok := queryMap.(map[string]any)
+		require.True(t, ok, "Expected query map to be map[string]any")
 		assert.Contains(t, queryMapTyped, "bool")
 	})
 }
