@@ -29,5 +29,8 @@ func StringToSpanKind(sk string) ptrace.SpanKind {
 }
 
 func SpanKindToString(sk ptrace.SpanKind) string {
+	if sk == ptrace.SpanKindUnspecified {
+		return ""
+	}
 	return strings.ToLower(sk.String())
 }

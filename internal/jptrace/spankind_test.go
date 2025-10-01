@@ -66,7 +66,7 @@ func TestSpanKindToString(t *testing.T) {
 	}{
 		{
 			kind: ptrace.SpanKindUnspecified,
-			want: "unspecified",
+			want: "",
 		},
 		{
 			kind: ptrace.SpanKindInternal,

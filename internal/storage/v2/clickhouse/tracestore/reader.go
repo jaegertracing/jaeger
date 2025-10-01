@@ -114,10 +114,8 @@ func (r *Reader) GetOperations(
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 		o := tracestore.Operation{
-			Name: operation.Name,
-		}
-		if operation.SpanKind != "unspecified" {
-			o.SpanKind = operation.SpanKind
+			Name:     operation.Name,
+			SpanKind: operation.SpanKind,
 		}
 		operations = append(operations, o)
 	}
