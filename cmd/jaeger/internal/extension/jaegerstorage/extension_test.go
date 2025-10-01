@@ -30,7 +30,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse"
-	clickhousetest "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/test"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
 )
 

@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/test"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
@@ -36,7 +36,7 @@ func TestFactory(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			srv := test.NewServer(test.FailureConfig{})
+			srv := clickhousetest.NewServer(clickhousetest.FailureConfig{})
 			defer srv.Close()
 
 			cfg := Configuration{
@@ -80,47 +80,47 @@ func TestFactory(t *testing.T) {
 func TestNewFactory_Errors(t *testing.T) {
 	tests := []struct {
 		name          string
-		failureConfig test.FailureConfig
+		failureConfig clickhousetest.FailureConfig
 		expectedError string
 	}{
 		{
 			name: "ping error",
-			failureConfig: test.FailureConfig{
-				test.PingQuery: errors.New("ping error"),
+			failureConfig: clickhousetest.FailureConfig{
+				clickhousetest.PingQuery: errors.New("ping error"),
 			},
 			expectedError: "failed to ping ClickHouse",
 		},
 		{
 			name: "spans table creation error",
-			failureConfig: test.FailureConfig{
+			failureConfig: clickhousetest.FailureConfig{
 				sql.CreateSpansTable: errors.New("spans table creation error"),
 			},
 			expectedError: "failed to create spans table",
 		},
 		{
 			name: "services table creation error",
-			failureConfig: test.FailureConfig{
+			failureConfig: clickhousetest.FailureConfig{
 				sql.CreateServicesTable: errors.New("services table creation error"),
 			},
 			expectedError: "failed to create services table",
 		},
 		{
 			name: "services materialized view creation error",
-			failureConfig: test.FailureConfig{
+			failureConfig: clickhousetest.FailureConfig{
 				sql.CreateServicesMaterializedView: errors.New("services materialized view creation error"),
 			},
 			expectedError: "failed to create services materialized view",
 		},
 		{
 			name: "operations table creation error",
-			failureConfig: test.FailureConfig{
+			failureConfig: clickhousetest.FailureConfig{
 				sql.CreateOperationsTable: errors.New("operations table creation error"),
 			},
 			expectedError: "failed to create operations table",
 		},
 		{
 			name: "operations materialized view creation error",
-			failureConfig: test.FailureConfig{
+			failureConfig: clickhousetest.FailureConfig{
 				sql.CreateOperationsMaterializedView: errors.New("operations materialized view creation error"),
 			},
 			expectedError: "failed to create operations materialized view",
@@ -129,7 +129,7 @@ func TestNewFactory_Errors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			srv := test.NewServer(tt.failureConfig)
+			srv := clickhousetest.NewServer(tt.failureConfig)
 			defer srv.Close()
 
 			cfg := Configuration{
@@ -151,26 +151,26 @@ func TestNewFactory_Errors(t *testing.T) {
 func TestPurge(t *testing.T) {
 	tests := []struct {
 		name          string
-		failureConfig test.FailureConfig
+		failureConfig clickhousetest.FailureConfig
 		expectedError string
 	}{
 		{
 			name: "truncate spans table error",
-			failureConfig: test.FailureConfig{
+			failureConfig: clickhousetest.FailureConfig{
 				sql.TruncateSpans: errors.New("truncate spans table error"),
 			},
 			expectedError: "failed to purge spans",
 		},
 		{
 			name: "truncate services table error",
-			failureConfig: test.FailureConfig{
+			failureConfig: clickhousetest.FailureConfig{
 				sql.TruncateServices: errors.New("truncate services table error"),
 			},
 			expectedError: "failed to purge services",
 		},
 		{
 			name: "truncate operations table error",
-			failureConfig: test.FailureConfig{
+			failureConfig: clickhousetest.FailureConfig{
 				sql.TruncateOperations: errors.New("truncate operations table error"),
 			},
 			expectedError: "failed to purge operations",
@@ -179,7 +179,7 @@ func TestPurge(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			srv := test.NewServer(tt.failureConfig)
+			srv := clickhousetest.NewServer(tt.failureConfig)
 			defer srv.Close()
 
 			cfg := Configuration{
