@@ -14,8 +14,8 @@ Create an issue with the checklist for the release by running `bash scripts/rele
 
 <!-- BEGIN_CHECKLIST -->
 
-1. Create a PR "Prepare release 1.x.x / 2.x.x" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/6826)) by updating CHANGELOG.md to include:
-    * A new section with the header `1.x.x / 2.x.x (YYYY-MM-DD)` (copy the template at the top)
+1. Create a PR "Prepare release v1.x.x / v2.x.x" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/6826)) by updating CHANGELOG.md to include:
+    * A new section with the header `v1.x.x / v2.x.x (YYYY-MM-DD)` (copy the template at the top)
     * A curated list of notable changes and links to PRs. Do not simply dump git log, select the changes that affect the users.
       To obtain the list of all changes run `make changelog`.
     * The section can be split into sub-section if necessary, e.g. UI Changes, Backend Changes, Bug Fixes, etc.
@@ -26,7 +26,7 @@ Create an issue with the checklist for the release by running `bash scripts/rele
         pushd jaeger-ui
         git checkout main
         git pull
-        git checkout {new_ui_version} # e.g. v1.5.0
+        git checkout v1.x.x  # use the new version
         popd
         ```
       * If there are only dependency bumps, indicate this with "Dependencies upgrades only" ([example](https://github.com/jaegertracing/jaeger-ui/pull/2431/files)).
@@ -37,8 +37,8 @@ Create an issue with the checklist for the release by running `bash scripts/rele
     ```
     git checkout main
     git pull
-    git tag v1... -s  # use the new version
-    git tag v2... -s  # use the new version
+    git tag v1.x.x -s  # use the new version
+    git tag v2.x.x -s  # use the new version
     git push upstream v1... v2...
     ```
 3. Create a release on Github:
@@ -55,7 +55,7 @@ Create an issue with the checklist for the release by running `bash scripts/rele
 ## Manual release
 
     * Manual:
-       * Title "Release 1.x.x / 2.x.x"
+       * Title "Prepare Release v1.x.x / v2.x.x"
        * Tag `v1.x.x` (note the `v` prefix) and choose appropriate branch (usually `main`)
        * Copy the new CHANGELOG.md section into the release notes
        * Extra: GitHub has a button "generate release notes". Those are not formatted as we want,

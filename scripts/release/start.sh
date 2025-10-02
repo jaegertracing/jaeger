@@ -8,10 +8,14 @@ set -euo pipefail
 
 dry_run=false
 
-while getopts "d" opt; do
+while getopts "dh" opt; do
     case "${opt}" in
         d)
             dry_run=true
+            ;;
+        h)
+            echo "Usage: $0 [-d]"
+            exit 0
             ;;
         *)
             echo "Usage: $0 [-d]"
