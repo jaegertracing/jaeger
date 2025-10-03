@@ -29,6 +29,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
 )
 
@@ -481,6 +483,26 @@ func TestCassandraError(t *testing.T) {
 	err := ext.Start(context.Background(), componenttest.NewNopHost())
 	require.ErrorContains(t, err, "failed to initialize storage 'cassandra'")
 	require.ErrorContains(t, err, "Servers: non zero value required")
+}
+
+func TestClickHouse(t *testing.T) {
+	testServer := clickhousetest.NewServer(clickhousetest.FailureConfig{})
+	t.Cleanup(testServer.Close)
+	ext := makeStorageExtension(t, &Config{
+		TraceBackends: map[string]TraceBackend{
+			"foo": {
+				ClickHouse: &clickhouse.Configuration{
+					Protocol: "http",
+					Addresses: []string{
+						testServer.Listener.Addr().String(),
+					},
+				},
+			},
+		},
+	})
+	err := ext.Start(t.Context(), componenttest.NewNopHost())
+	require.NoError(t, err)
+	require.NoError(t, ext.Shutdown(t.Context()))
 }
 
 func noopTelemetrySettings() component.TelemetrySettings {
