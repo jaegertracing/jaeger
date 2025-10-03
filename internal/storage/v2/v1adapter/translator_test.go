@@ -235,7 +235,7 @@ func TestV1TracesFromSeq2(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actualTraces, err := V1TracesFromSeq2(tc.seqTrace)
+			actualTraces, err := V1TracesFromSeq2(tc.seqTrace, 0)
 			require.Equal(t, tc.expectedErr, err)
 			require.Len(t, actualTraces, len(tc.expectedModelTraces))
 			if len(tc.expectedModelTraces) < 1 {
