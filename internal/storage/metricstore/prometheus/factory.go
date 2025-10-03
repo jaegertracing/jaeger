@@ -7,6 +7,7 @@ import (
 	"flag"
 
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/extension/extensionauth"
 	"go.uber.org/zap"
 
 	config "github.com/jaegertracing/jaeger/internal/config/promcfg"
@@ -23,6 +24,8 @@ var _ storage.Configurable = (*Factory)(nil)
 type Factory struct {
 	options *Options
 	telset  telemetry.Settings
+	// httpAuth is an optional authenticator used to wrap the HTTP RoundTripper for outbound requests to Prometheus.
+	httpAuth extensionauth.HTTPClient
 }
 
 // NewFactory creates a new Factory.
@@ -54,7 +57,15 @@ func (f *Factory) Initialize(telset telemetry.Settings) error {
 
 // CreateMetricsReader implements storage.V1MetricStoreFactory.
 func (f *Factory) CreateMetricsReader() (metricstore.Reader, error) {
-	mr, err := prometheusstore.NewMetricsReader(f.options.Configuration, f.telset.Logger, f.telset.TracerProvider)
+	var (
+		mr  *prometheusstore.MetricsReader
+		err error
+	)
+	if f.httpAuth != nil {
+		mr, err = prometheusstore.NewMetricsReaderWithAuth(f.options.Configuration, f.telset.Logger, f.telset.TracerProvider, f.httpAuth)
+	} else {
+		mr, err = prometheusstore.NewMetricsReader(f.options.Configuration, f.telset.Logger, f.telset.TracerProvider)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -73,5 +84,20 @@ func NewFactoryWithConfig(
 		Configuration: cfg,
 	}
 	f.Initialize(telset)
+	return f, nil
+}
+
+// NewFactoryWithConfigAndAuth is like NewFactoryWithConfig but wires an HTTP authenticator
+// to be used for outbound requests to Prometheus-compatible backends.
+func NewFactoryWithConfigAndAuth(
+	cfg config.Configuration,
+	telset telemetry.Settings,
+	httpAuth extensionauth.HTTPClient,
+) (*Factory, error) {
+	f, err := NewFactoryWithConfig(cfg, telset)
+	if err != nil {
+		return nil, err
+	}
+	f.httpAuth = httpAuth
 	return f, nil
 }

@@ -11,6 +11,7 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
+	"go.opentelemetry.io/collector/extension/extensionauth"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	esmetrics "github.com/jaegertracing/jaeger/internal/storage/metricstore/elasticsearch"
@@ -213,9 +214,31 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		case cfg.Prometheus != nil:
 			promTelset := telset
 			promTelset.Metrics = scopedMetricsFactory(metricStorageName, "prometheus", "metricstore")
-			metricStoreFactory, err = prometheus.NewFactoryWithConfig(
-				*cfg.Prometheus,
-				promTelset)
+
+			// Check if authentication is configured
+			if cfg.Auth != nil && cfg.Auth.Authenticator != "" {
+				// Get the HTTP authenticator extension
+				httpAuthenticator, err := s.getAuthenticator(host, cfg.Auth.Authenticator)
+				if err != nil {
+					return fmt.Errorf("failed to get HTTP authenticator '%s' for metric storage '%s': %w",
+						cfg.Auth.Authenticator, metricStorageName, err)
+				}
+
+				// Create factory with HTTP authenticator
+				metricStoreFactory, err = prometheus.NewFactoryWithConfigAndAuth(
+					*cfg.Prometheus,
+					promTelset,
+					httpAuthenticator,
+				)
+
+				s.telset.Logger.Sugar().Infof("HTTP auth configured for metric storage '%s' with authenticator '%s'",
+					metricStorageName, cfg.Auth.Authenticator)
+			} else {
+				// Use existing non-authenticated factory
+				metricStoreFactory, err = prometheus.NewFactoryWithConfig(
+					*cfg.Prometheus,
+					promTelset)
+			}
 
 		case cfg.Elasticsearch != nil:
 			esTelset := telset
@@ -274,4 +297,17 @@ func (s *storageExt) TraceStorageFactory(name string) (tracestore.Factory, bool)
 func (s *storageExt) MetricStorageFactory(name string) (storage.MetricStoreFactory, bool) {
 	mf, ok := s.metricsFactories[name]
 	return mf, ok
+}
+
+// getAuthenticator retrieves an HTTP authenticator extension from the host by name
+func (s *storageExt) getAuthenticator(host component.Host, authenticatorName string) (extensionauth.HTTPClient, error) {
+	for id, ext := range host.GetExtensions() {
+		if id.Name() == authenticatorName {
+			if httpAuth, ok := ext.(extensionauth.HTTPClient); ok {
+				return httpAuth, nil
+			}
+			return nil, fmt.Errorf("extension '%s' does not implement extensionauth.HTTPClient", authenticatorName)
+		}
+	}
+	return nil, fmt.Errorf("authenticator extension '%s' not found", authenticatorName)
 }
