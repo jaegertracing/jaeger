@@ -500,10 +500,9 @@ func TestClickHouse(t *testing.T) {
 			},
 		},
 	})
-	ctx := context.Background()
-	err := ext.Start(ctx, componenttest.NewNopHost())
+	err := ext.Start(t.Context(), componenttest.NewNopHost())
 	require.NoError(t, err)
-	require.NoError(t, ext.Shutdown(ctx))
+	require.NoError(t, ext.Shutdown(t.Context()))
 }
 
 func noopTelemetrySettings() component.TelemetrySettings {

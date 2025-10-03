@@ -18,6 +18,7 @@ var (
 	HandshakeQuery = "SELECT displayName(), version(), revision(), timezone()"
 )
 
+// FailureConfig is a map of query body to error
 type FailureConfig map[string]error
 
 // NewServer creates a new HTTP test server that simulates a ClickHouse server.
