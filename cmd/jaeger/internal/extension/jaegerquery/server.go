@@ -106,6 +106,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	}
 	v2opts := v2querysvc.QueryServiceOptions{
 		MaxClockSkewAdjust: s.config.MaxClockSkewAdjust,
+		MaxTraceSize:       s.config.MaxTraceSize,
 	}
 	if err := s.addArchiveStorage(&opts, &v2opts, host); err != nil {
 		return err
@@ -165,7 +166,7 @@ func (s *server) addArchiveStorage(
 	v2opts.ArchiveTraceReader = traceReader
 	v2opts.ArchiveTraceWriter = traceWriter
 
-	spanReader := v1adapter.GetV1Reader(traceReader)
+	spanReader := v1adapter.GetV1ReaderWithLimit(traceReader, v2opts.MaxTraceSize)
 	spanWriter := v1adapter.GetV1Writer(traceWriter)
 
 	opts.ArchiveSpanReader = spanReader

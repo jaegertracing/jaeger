@@ -44,8 +44,28 @@ func V1BatchesToTraces(batches []*model.Batch) ptrace.Traces {
 }
 
 // V1TracesFromSeq2 converts an interator of ptrace.Traces chunks into v1 traces.
+func V1TracesFromSeq2(otelSeq iter.Seq2[[]ptrace.Traces, error]) ([]*model.Trace, error) {
+	var (
+		jaegerTraces []*model.Trace
+		iterErr      error
+	)
+	jptrace.AggregateTraces(otelSeq)(func(otelTrace ptrace.Traces, err error) bool {
+		if err != nil {
+			iterErr = err
+			return false
+		}
+		jaegerTraces = append(jaegerTraces, modelTraceFromOtelTrace(otelTrace))
+		return true
+	})
+	if iterErr != nil {
+		return nil, iterErr
+	}
+	return jaegerTraces, nil
+}
+
+// V1TracesFromSeq2WithLimit converts an interator of ptrace.Traces chunks into v1 traces.
 // If maxTraceSize > 0, traces exceeding that number of spans will be truncated while consuming the sequence.
-func V1TracesFromSeq2(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize int) ([]*model.Trace, error) {
+func V1TracesFromSeq2WithLimit(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize int) ([]*model.Trace, error) {
 	var (
 		jaegerTraces []*model.Trace
 		iterErr      error
@@ -77,15 +97,12 @@ func applyTraceSizeLimit(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize
 		spansProcessed := 0
 		currentTraceID := pcommon.NewTraceIDEmpty()
 		truncated := false
-
-		returnSeq := func(batch []ptrace.Traces) bool {
-			if len(batch) == 0 {
-				return true
-			}
-			return yield(batch, nil)
-		}
+		stopped := false
 
 		otelSeq(func(traces []ptrace.Traces, err error) bool {
+			if stopped {
+				return false // Stop consuming if already terminated
+			}
 			if err != nil {
 				return yield(nil, err)
 			}
@@ -110,8 +127,9 @@ func applyTraceSizeLimit(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize
 				}
 
 				if truncated {
-					// already reached limit for this trace; skip remaining chunks
-					continue
+					// already reached limit for this trace; stop processing
+					stopped = true
+					break
 				}
 
 				spanCount := countSpansInTrace(tr)
@@ -122,15 +140,20 @@ func applyTraceSizeLimit(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize
 						spansProcessed += remaining
 					}
 					truncated = true
-					// do not include the rest of this chunk or further chunks for this trace
-					continue
+					stopped = true
+					break // Stop processing current batch
 				}
 
 				limited = append(limited, tr)
 				spansProcessed += spanCount
 			}
 
-			return returnSeq(limited)
+			if len(limited) > 0 {
+				if !yield(limited, nil) {
+					return false
+				}
+			}
+			return !stopped // Continue only if not stopped
 		})
 	}
 }

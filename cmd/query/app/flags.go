@@ -158,9 +158,11 @@ func (qOpts *QueryOptions) BuildQueryServiceOptions(
 ) (*querysvc.QueryServiceOptions, *v2querysvc.QueryServiceOptions) {
 	opts := &querysvc.QueryServiceOptions{
 		MaxClockSkewAdjust: qOpts.MaxClockSkewAdjust,
+		MaxTraceSize:       qOpts.MaxTraceSize,
 	}
 	v2Opts := &v2querysvc.QueryServiceOptions{
 		MaxClockSkewAdjust: qOpts.MaxClockSkewAdjust,
+		MaxTraceSize:       qOpts.MaxTraceSize,
 	}
 	as, err := initArchiveStorageFn()
 	if err != nil {
