@@ -113,10 +113,11 @@ func (r *Reader) GetOperations(
 		if err := rows.ScanStruct(&operation); err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
-		operations = append(operations, tracestore.Operation{
+		o := tracestore.Operation{
 			Name:     operation.Name,
 			SpanKind: operation.SpanKind,
-		})
+		}
+		operations = append(operations, o)
 	}
 	return operations, nil
 }

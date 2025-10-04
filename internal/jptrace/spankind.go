@@ -3,7 +3,11 @@
 
 package jptrace
 
-import "go.opentelemetry.io/collector/pdata/ptrace"
+import (
+	"strings"
+
+	"go.opentelemetry.io/collector/pdata/ptrace"
+)
 
 func StringToSpanKind(sk string) ptrace.SpanKind {
 	switch sk {
@@ -22,4 +26,11 @@ func StringToSpanKind(sk string) ptrace.SpanKind {
 	default:
 		return ptrace.SpanKindUnspecified
 	}
+}
+
+func SpanKindToString(sk ptrace.SpanKind) string {
+	if sk == ptrace.SpanKindUnspecified {
+		return ""
+	}
+	return strings.ToLower(sk.String())
 }

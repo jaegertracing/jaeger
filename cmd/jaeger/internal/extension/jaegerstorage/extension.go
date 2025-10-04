@@ -19,6 +19,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/cassandra"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse"
 	es "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
@@ -194,6 +195,14 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 				ctx,
 				*cfg.Opensearch,
 				osTelset,
+			)
+		case cfg.ClickHouse != nil:
+			chTelset := telset
+			chTelset.Metrics = scopedMetricsFactory(storageName, "clickhouse", "tracestore")
+			factory, err = clickhouse.NewFactory(
+				ctx,
+				*cfg.ClickHouse,
+				chTelset,
 			)
 		default:
 			// default case
