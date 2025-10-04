@@ -597,12 +597,12 @@ func TestV1TracesFromSeq2WithLimit(t *testing.T) {
 				span4 := spans2.AppendEmpty()
 				span4.SetTraceID(FromV1TraceID(modelTraceID2))
 				span4.SetName("op-trace2-span1")
-				span4.SetSpanID(FromV1SpanID(model.NewSpanID(4)))
+				span4.SetSpanID(FromV1SpanID(model.NewSpanID(3)))
 
 				span5 := spans2.AppendEmpty()
 				span5.SetTraceID(FromV1TraceID(modelTraceID2))
 				span5.SetName("op-trace2-span2")
-				span5.SetSpanID(FromV1SpanID(model.NewSpanID(5)))
+				span5.SetSpanID(FromV1SpanID(model.NewSpanID(4)))
 
 				// Yield both traces in sequence
 				yield([]ptrace.Traces{trace1}, nil)
