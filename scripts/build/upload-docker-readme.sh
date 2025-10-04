@@ -27,32 +27,36 @@ abs_readme_path=$(realpath "$readme_path")
 repository="jaegertracing/$repo"
 
 DOCKERHUB_TOKEN=${DOCKERHUB_TOKEN:?'missing Docker Hub token'}
+DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME:?'missing Docker Hub user name'}
 QUAY_TOKEN=${QUAY_TOKEN:?'missing Quay token'}
 
 dockerhub_url="https://hub.docker.com/v2/repositories/$repository/"
 quay_url="https://quay.io/api/v1/repository/${repository}"
 
 readme_content=$(<"$abs_readme_path")
+# encode readme as properly escaped JSON
+body=$(jq -n \
+  --arg full_desc "$readme_content" \
+  '{full_description: $full_desc}')
 
-# do not echo commands as they contain tokens
+# 🛑 IMPORTANT: do not echo commands as they contain tokens
 set +x
 
+# Handle DockerHUB upload
+
 # Get Docker Hub JWT token from PAT
+dockerhub_credentials=$(jq -n \
+  --arg pwd "$DOCKERHUB_TOKEN" \
+  --arg user "$DOCKERHUB_USERNAME" \
+  '{username: $user, password: $pwd}')
 dockerhub_jwt=$(curl -s -H "Content-Type: application/json" \
-  -X POST \
-  -d $(jq -n --arg pwd "$DOCKERHUB_TOKEN" '{username: "jaegertracing", password: $pwd}') \
+  -X POST -d "$dockerhub_credentials" \
   https://hub.docker.com/v2/users/login/ | jq -r .token)
 
 if [ "$dockerhub_jwt" = "null" ] || [ -z "$dockerhub_jwt" ]; then
   echo "🛑 Failed to get Docker Hub JWT token"
   exit 1
 fi
-
-# Handling DockerHUB upload
-# encode readme as properly escaped JSON
-body=$(jq -n \
-  --arg full_desc "$readme_content" \
-  '{full_description: $full_desc}')
 
 dockerhub_response=$(curl -s -w "%{http_code}" -X PATCH "$dockerhub_url" \
     -H "Content-Type: application/json" \
@@ -69,11 +73,7 @@ else
   echo "🛑 Full response: $response_body"
 fi
 
-# Handling Quay upload
-# encode readme as properly escaped JSON
-quay_body=$(jq -n \
-  --arg full_desc "$readme_content" \
-  '{description: $full_desc}') 
+# Handle Quay upload
 
 quay_response=$(curl -s -w "%{http_code}" -X PUT "$quay_url" \
     -H "Content-Type: application/json" \
