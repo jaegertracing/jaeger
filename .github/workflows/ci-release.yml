@@ -37,7 +37,7 @@ jobs:
       contents: write
       deployments: write
     if: github.repository == 'jaegertracing/jaeger'
-    runs-on: ubuntu-latest
+    runs-on: jaeger-linux-amd64-32core-1200GB_SSD
 
     steps:
     - name: Clean up some disk space
