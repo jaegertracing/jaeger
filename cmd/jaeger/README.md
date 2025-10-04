@@ -3,35 +3,6 @@
 Jaeger V2 based on OpenTelemetry collector.
 Read the [blog post](https://medium.com/jaegertracing/towards-jaeger-v2-moar-opentelemetry-2f8239bee48e).
 
-```mermaid
-flowchart LR
-    Receiver1 --> Processor
-    Receiver2 --> Processor
-    Receiver3 --> Processor
-    Processor --> Exporter
-
-    Exporter --> Database
-    Database --> Query[Query + UI]
-
-    subgraph Pipeline
-        Receiver1[OTLP Receiver]
-        Receiver2[Jaeger Proto Receiver]
-        Receiver3[Zipkin Receiver]
-        Processor[Batch
-            Processor]
-        Exporter[Jaeger
-            Storage
-            Exporter]
-    end
-
-    subgraph JaegerStorageExension[Jaeger Storage Ext]
-        Database[(Storage)]
-    end
-    subgraph JaegerQueryExtension[Jaeger Query Ext]
-        Query
-    end
-```
-
 ## Try it out
 
 * Download `docker-compose.yml` from https://github.com/jaegertracing/jaeger/blob/main/examples/hotrod/docker-compose.yml, e.g.:

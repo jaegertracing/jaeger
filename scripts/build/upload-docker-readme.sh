@@ -78,7 +78,7 @@ fi
 quay_response=$(curl -s -w "%{http_code}" -X PUT "$quay_url" \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer $QUAY_TOKEN" \
-    -d "$quay_body")
+    -d "$body")
 
 quay_http_code="${quay_response: -3}"
 quay_response_body="${quay_response:0:${#quay_response}-3}"
