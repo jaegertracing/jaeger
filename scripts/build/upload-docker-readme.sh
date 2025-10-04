@@ -34,10 +34,6 @@ dockerhub_url="https://hub.docker.com/v2/repositories/$repository/"
 quay_url="https://quay.io/api/v1/repository/${repository}"
 
 readme_content=$(<"$abs_readme_path")
-# encode readme as properly escaped JSON
-body=$(jq -n \
-  --arg full_desc "$readme_content" \
-  '{full_description: $full_desc}')
 
 # 🛑 IMPORTANT: do not echo commands as they contain tokens
 set +x
@@ -58,6 +54,11 @@ if [ "$dockerhub_jwt" = "null" ] || [ -z "$dockerhub_jwt" ]; then
   exit 1
 fi
 
+# encode readme as properly escaped JSON
+body=$(jq -n \
+  --arg full_desc "$readme_content" \
+  '{full_description: $full_desc}')
+
 dockerhub_response=$(curl -s -w "%{http_code}" -X PATCH "$dockerhub_url" \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer $dockerhub_jwt" \
@@ -75,10 +76,15 @@ fi
 
 # Handle Quay upload
 
+# encode readme as properly escaped JSON
+quay_body=$(jq -n \
+  --arg full_desc "$readme_content" \
+  '{description: $full_desc}')
+
 quay_response=$(curl -s -w "%{http_code}" -X PUT "$quay_url" \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer $QUAY_TOKEN" \
-    -d "$body")
+    -d "$quay_body")
 
 quay_http_code="${quay_response: -3}"
 quay_response_body="${quay_response:0:${#quay_response}-3}"
