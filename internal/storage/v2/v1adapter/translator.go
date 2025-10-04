@@ -97,12 +97,8 @@ func applyTraceSizeLimit(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize
 		spansProcessed := 0
 		currentTraceID := pcommon.NewTraceIDEmpty()
 		truncated := false
-		stopped := false
 
 		otelSeq(func(traces []ptrace.Traces, err error) bool {
-			if stopped {
-				return false // Stop consuming if already terminated
-			}
 			if err != nil {
 				return yield(nil, err)
 			}
@@ -127,9 +123,8 @@ func applyTraceSizeLimit(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize
 				}
 
 				if truncated {
-					// already reached limit for this trace; stop processing
-					stopped = true
-					break
+					// already reached limit for this trace; skip this trace
+					continue
 				}
 
 				spanCount := countSpansInTrace(tr)
@@ -140,8 +135,8 @@ func applyTraceSizeLimit(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize
 						spansProcessed += remaining
 					}
 					truncated = true
-					stopped = true
-					break // Stop processing current batch
+					// Continue to next trace in the same batch
+					continue
 				}
 
 				limited = append(limited, tr)
@@ -153,7 +148,7 @@ func applyTraceSizeLimit(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize
 					return false
 				}
 			}
-			return !stopped // Continue only if not stopped
+			return true // Always continue to process more batches
 		})
 	}
 }
