@@ -4,6 +4,8 @@
 package tracestore
 
 import (
+	"encoding/base64"
+	"fmt"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
@@ -209,5 +211,33 @@ func traceToSpanRow(
 		scopeName:     scope.Name(),
 		scopeVersion:  scope.Version(),
 	}
+	sr.appendAttributes(span.Attributes())
 	return sr
+}
+
+func (sr *spanRow) appendAttributes(attrs pcommon.Map) {
+	attrs.Range(func(k string, v pcommon.Value) bool {
+		switch v.Type() {
+		case pcommon.ValueTypeBool:
+			sr.boolAttributeKeys = append(sr.boolAttributeKeys, k)
+			sr.boolAttributeValues = append(sr.boolAttributeValues, v.Bool())
+		case pcommon.ValueTypeDouble:
+			sr.doubleAttributeKeys = append(sr.doubleAttributeKeys, k)
+			sr.doubleAttributeValues = append(sr.doubleAttributeValues, v.Double())
+		case pcommon.ValueTypeInt:
+			sr.intAttributeKeys = append(sr.intAttributeKeys, k)
+			sr.intAttributeValues = append(sr.intAttributeValues, v.Int())
+		case pcommon.ValueTypeStr:
+			sr.strAttributeKeys = append(sr.strAttributeKeys, k)
+			sr.strAttributeValues = append(sr.strAttributeValues, v.Str())
+		case pcommon.ValueTypeBytes:
+			key := fmt.Sprintf("@bytes@%s", k)
+			encoded := base64.StdEncoding.EncodeToString(v.Bytes().AsRaw())
+			sr.complexAttributeKeys = append(sr.complexAttributeKeys, key)
+			sr.complexAttributeValues = append(sr.complexAttributeValues, encoded)
+		case pcommon.ValueTypeSlice, pcommon.ValueTypeMap:
+			// TODO
+		}
+		return true
+	})
 }
