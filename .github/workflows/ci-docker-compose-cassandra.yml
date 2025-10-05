@@ -1,4 +1,4 @@
-name: CIT Docker Compose Cassandra
+name: CI Docker Compose Cassandra
 
 on:
   merge_group:
