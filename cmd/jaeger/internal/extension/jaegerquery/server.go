@@ -60,7 +60,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	tp = noop.NewTracerProvider()
 
 	if s.config.EnableTracing {
-		//Getting Tracer from otel
+		//Getting Tracer from OTEL
 		tp = otel.GetTracerProvider()
 	}
 
