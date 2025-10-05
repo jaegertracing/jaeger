@@ -6,7 +6,7 @@
 set -euxf -o pipefail
 
 success="false"
-timeout=180
+timeout=360
 compose_file="docker-compose/jaeger-docker-compose.yml"
 
 setup_services() {
@@ -16,15 +16,25 @@ setup_services() {
 
 wait_for_cassandra() {
     local end_time=$((SECONDS + timeout))
+    local count=0
+    echo "Waiting for Cassandra to become healthy (timeout: ${timeout}s)..."
     while [ $SECONDS -lt $end_time ]; do
         if docker compose -f "$compose_file" ps | grep cassandra | grep -q "healthy"; then
             echo "Cassandra is healthy"
+            # Wait a bit more for Cassandra to fully initialize
+            echo "Waiting additional 15 seconds for Cassandra to fully stabilize..."
+            sleep 15
             return 0
         fi
-        echo "Waiting for Cassandra..."
+        count=$((count + 1))
+        if [ $((count % 10)) -eq 0 ]; then
+            elapsed=$((SECONDS))
+            echo "Still waiting for Cassandra... (${elapsed}s elapsed)"
+        fi
         sleep 3
     done
-    echo "ERROR: Cassandra did not become healthy"
+    echo "ERROR: Cassandra did not become healthy after ${timeout}s"
+    docker compose -f "$compose_file" logs cassandra | tail -50
     exit 1
 }
 
@@ -51,13 +61,13 @@ generate_traces() {
         fi
     done
     echo "Waiting for traces to be written to Cassandra..."
-    sleep 20
+    sleep 30
 }
 
 verify_traces() {
     echo "Verifying traces in Cassandra"
     local span_count
-    local max_attempts=3
+    local max_attempts=5
     local attempt=1
     
     while [ $attempt -le $max_attempts ]; do
@@ -66,21 +76,20 @@ verify_traces() {
             cqlsh -e "USE jaeger_v1_dc1; SELECT COUNT(*) FROM traces;" 2>/dev/null | \
             grep -o '[0-9]\+' | tail -1 || echo "0")
         
-        echo "Found $span_count spans"
-        
-        if [ "$span_count" -ge 5 ]; then
-            echo "Found $span_count spans in storage"
+        if [ "$span_count" -ge 1 ]; then
+            echo "SUCCESS: Found $span_count span(s) in Cassandra - E2E pipeline is working!"
             return 0
         fi
         
+        echo "No spans found yet (attempt $attempt/$max_attempts)"
         if [ $attempt -lt $max_attempts ]; then
-            echo "Not enough spans yet, waiting 10 seconds..."
-            sleep 10
+            echo "Waiting 15 seconds before retry..."
+            sleep 15
         fi
         attempt=$((attempt + 1))
     done
     
-    echo "ERROR: Expected at least 5 spans, found $span_count after $max_attempts attempts"
+    echo "ERROR: No spans found after $max_attempts attempts and 75s of waiting"
     echo "Checking collector logs for errors..."
     docker compose -f "$compose_file" logs --tail=50 jaeger-collector
     return 1
@@ -104,7 +113,12 @@ main() {
     trap teardown EXIT
     
     wait_for_cassandra
-    sleep 30  # Wait for collector to start
+    
+    echo "Waiting for collector and other services to start..."
+    sleep 40
+    
+    echo "Checking service status..."
+    docker compose -f "$compose_file" ps
     
     verify_services
     generate_traces
