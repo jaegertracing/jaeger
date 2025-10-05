@@ -5,6 +5,7 @@ package prometheus
 
 import (
 	"net"
+	"net/http"
 	"testing"
 	"time"
 
@@ -147,6 +148,98 @@ func TestFactoryConfig(t *testing.T) {
 	_, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings())
 	require.NoError(t, err)
 }
+
+func TestNewFactoryWithConfigAndAuth(t *testing.T) {
+	listener, err := net.Listen("tcp", "localhost:")
+	require.NoError(t, err)
+	defer listener.Close()
+
+	cfg := promCfg.Configuration{
+		ServerURL: "http://" + listener.Addr().String(),
+	}
+
+	mockAuth := &mockHTTPAuthenticator{}
+	
+	factory, err := NewFactoryWithConfigAndAuth(cfg, telemetry.NoopSettings(), mockAuth)
+	require.NoError(t, err)
+	require.NotNil(t, factory)
+	
+	// Verify the factory can create a metrics reader
+	reader, err := factory.CreateMetricsReader()
+	require.NoError(t, err)
+	require.NotNil(t, reader)
+}
+
+func TestNewFactoryWithConfigAndAuth_NilAuthenticator(t *testing.T) {
+	listener, err := net.Listen("tcp", "localhost:")
+	require.NoError(t, err)
+	defer listener.Close()
+
+	cfg := promCfg.Configuration{
+		ServerURL: "http://" + listener.Addr().String(),
+	}
+	
+	// Should work fine with nil authenticator (backward compatibility)
+	factory, err := NewFactoryWithConfigAndAuth(cfg, telemetry.NoopSettings(), nil)
+	require.NoError(t, err)
+	require.NotNil(t, factory)
+	
+	reader, err := factory.CreateMetricsReader()
+	require.NoError(t, err)
+	require.NotNil(t, reader)
+}
+
+func TestNewFactoryWithConfigAndAuth_EmptyServerURL(t *testing.T) {
+	cfg := promCfg.Configuration{
+		ServerURL: "", // Empty URL should fail
+	}
+	
+	mockAuth := &mockHTTPAuthenticator{}
+	
+	factory, err := NewFactoryWithConfigAndAuth(cfg, telemetry.NoopSettings(), mockAuth)
+	require.Error(t, err)
+	require.Nil(t, factory)
+}
+
+func TestNewFactoryWithConfigAndAuth_InvalidTLS(t *testing.T) {
+	cfg := promCfg.Configuration{
+		ServerURL: "https://localhost:9090",
+	}
+	cfg.TLS.CAFile = "/does/not/exist"
+	
+	mockAuth := &mockHTTPAuthenticator{}
+	
+	factory, err := NewFactoryWithConfigAndAuth(cfg, telemetry.NoopSettings(), mockAuth)
+	require.NoError(t, err) // Factory creation succeeds
+	require.NotNil(t, factory)
+	
+	// But creating reader should fail due to bad TLS config
+	reader, err := factory.CreateMetricsReader()
+	require.Error(t, err)
+	require.Nil(t, reader)
+}
+
+// Mock HTTP authenticator for testing
+type mockHTTPAuthenticator struct{}
+
+func (m *mockHTTPAuthenticator) RoundTripper(base http.RoundTripper) (http.RoundTripper, error) {
+	return &mockRoundTripper{base: base}, nil
+}
+
+// Mock RoundTripper for testing
+type mockRoundTripper struct {
+	base http.RoundTripper
+}
+
+func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Add mock authentication header
+	req.Header.Set("Authorization", "Bearer test-token")
+	if m.base != nil {
+		return m.base.RoundTrip(req)
+	}
+	return &http.Response{StatusCode: 200, Body: http.NoBody}, nil
+}
+
 
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
