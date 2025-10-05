@@ -10,9 +10,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
-	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 type Writer struct {
@@ -35,24 +33,23 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	}
 	defer batch.Close()
 	for _, rs := range td.ResourceSpans().All() {
-		serviceName, _ := rs.Resource().Attributes().Get(otelsemconv.ServiceNameKey)
 		for _, ss := range rs.ScopeSpans().All() {
 			for _, span := range ss.Spans().All() {
-				duration := span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime()).Nanoseconds()
+				sr := traceToSpanRow(rs.Resource(), ss.Scope(), span)
 				err = batch.Append(
-					span.SpanID().String(),
-					span.TraceID().String(),
-					span.TraceState().AsRaw(),
-					span.ParentSpanID().String(),
-					span.Name(),
-					jptrace.SpanKindToString(span.Kind()),
-					span.StartTimestamp().AsTime(),
-					span.Status().Code().String(),
-					span.Status().Message(),
-					duration,
-					serviceName.Str(),
-					ss.Scope().Name(),
-					ss.Scope().Version(),
+					sr.id,
+					sr.traceID,
+					sr.traceState,
+					sr.parentSpanID,
+					sr.name,
+					sr.kind,
+					sr.startTime,
+					sr.statusCode,
+					sr.statusMessage,
+					sr.rawDuration,
+					sr.serviceName,
+					sr.scopeName,
+					sr.scopeVersion,
 				)
 				if err != nil {
 					return fmt.Errorf("failed to append span to batch: %w", err)

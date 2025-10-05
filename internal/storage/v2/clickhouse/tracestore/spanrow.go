@@ -7,8 +7,12 @@ import (
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 type spanRow struct {
@@ -181,4 +185,29 @@ func buildLinks(traceIDs, spanIDs, states []string) []dbmodel.Link {
 		})
 	}
 	return links
+}
+
+func traceToSpanRow(
+	resource pcommon.Resource,
+	scope pcommon.InstrumentationScope,
+	span ptrace.Span,
+) spanRow {
+	serviceName, _ := resource.Attributes().Get(otelsemconv.ServiceNameKey)
+	duration := span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime()).Nanoseconds()
+	sr := spanRow{
+		id:            span.SpanID().String(),
+		traceID:       span.TraceID().String(),
+		traceState:    span.TraceState().AsRaw(),
+		parentSpanID:  span.ParentSpanID().String(),
+		name:          span.Name(),
+		kind:          jptrace.SpanKindToString(span.Kind()),
+		startTime:     span.StartTimestamp().AsTime(),
+		statusCode:    span.Status().Code().String(),
+		statusMessage: span.Status().Message(),
+		rawDuration:   duration,
+		serviceName:   serviceName.Str(),
+		scopeName:     scope.Name(),
+		scopeVersion:  scope.Version(),
+	}
+	return sr
 }
