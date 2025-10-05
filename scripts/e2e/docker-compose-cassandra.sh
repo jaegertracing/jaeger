@@ -55,7 +55,7 @@ verify_services() {
 generate_traces() {
     echo "Generating test traces via HotROD"
     for i in {1..20}; do
-        curl -s "http://localhost:8080/dispatch?customer=123&nonse=$i" > /dev/null || true
+        curl -s "http://localhost:8080/dispatch?customer=123&nonce=$i" > /dev/null || true
         if [ $((i % 5)) -eq 0 ]; then
             echo "  Sent $i requests..."
         fi
