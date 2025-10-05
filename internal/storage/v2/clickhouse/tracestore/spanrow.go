@@ -52,7 +52,7 @@ type spanRow struct {
 	scopeVersion                string
 }
 
-func (sr *spanRow) ToDBModel() dbmodel.Span {
+func (sr *spanRow) toDBModel() dbmodel.Span {
 	return dbmodel.Span{
 		ID:            sr.id,
 		TraceID:       sr.traceID,
@@ -132,7 +132,7 @@ func scanSpanRow(rows driver.Rows) (dbmodel.Span, error) {
 	if err != nil {
 		return dbmodel.Span{}, err
 	}
-	return span.ToDBModel(), nil
+	return span.toDBModel(), nil
 }
 
 func zipAttributes[T any](keys []string, values []T) []dbmodel.Attribute[T] {
