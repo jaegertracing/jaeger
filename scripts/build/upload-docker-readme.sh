@@ -27,7 +27,7 @@ abs_readme_path=$(realpath "$readme_path")
 repository="jaegertracing/$repo"
 
 DOCKERHUB_TOKEN=${DOCKERHUB_TOKEN:?'missing Docker Hub token'}
-DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME:?'missing Docker Hub user name'}
+DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME:-"jaegertracingbot"}
 QUAY_TOKEN=${QUAY_TOKEN:?'missing Quay token'}
 
 dockerhub_url="https://hub.docker.com/v2/repositories/$repository/"
