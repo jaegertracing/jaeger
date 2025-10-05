@@ -42,10 +42,10 @@ type server struct {
 	closeTracer func(ctx context.Context) error
 }
 
-func newServer(config *Config, otel component.TelemetrySettings) *server {
+func newServer(config *Config, telemetry component.TelemetrySettings) *server {
 	return &server{
 		config: config,
-		telset: otel,
+		telset: telemetry,
 	}
 }
 
@@ -60,7 +60,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	tp = noop.NewTracerProvider()
 
 	if s.config.EnableTracing {
-		//Getting Tracer from OTEL
+		// Getting Tracer from OTEL
 		tp = otel.GetTracerProvider()
 	}
 
