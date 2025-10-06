@@ -61,16 +61,15 @@ type TraceBackend struct {
 //     is included in the build; otherwise Jaeger will error at startup when
 //     resolving the extension.
 //   - Empty/omitted means no auth (default behavior).
-//
 type AuthConfig struct {
-    // Authenticator is the name (ID) of the HTTP authenticator extension to use.
-    Authenticator string `mapstructure:"authenticator"`
+	// Authenticator is the name (ID) of the HTTP authenticator extension to use.
+	Authenticator string `mapstructure:"authenticator"`
 }
 
 // MetricBackend contains configuration for a single metric storage backend.
 type MetricBackend struct {
 	Prometheus    *promCfg.Configuration `mapstructure:"prometheus"`
-	Auth          *AuthConfig           `mapstructure:"auth,omitempty"`
+	Auth          *AuthConfig            `mapstructure:"auth,omitempty"`
 	Elasticsearch *esCfg.Configuration   `mapstructure:"elasticsearch"`
 	Opensearch    *esCfg.Configuration   `mapstructure:"opensearch"`
 }

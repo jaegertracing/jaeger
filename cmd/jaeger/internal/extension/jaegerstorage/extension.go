@@ -230,6 +230,9 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 					promTelset,
 					httpAuthenticator,
 				)
+				if err != nil {
+					return fmt.Errorf("failed to initialize metrics storage '%s': %w", metricStorageName, err)
+				}
 
 				s.telset.Logger.Sugar().Infof("HTTP auth configured for metric storage '%s' with authenticator '%s'",
 					metricStorageName, cfg.Auth.Authenticator)
@@ -300,7 +303,7 @@ func (s *storageExt) MetricStorageFactory(name string) (storage.MetricStoreFacto
 }
 
 // getAuthenticator retrieves an HTTP authenticator extension from the host by name
-func (s *storageExt) getAuthenticator(host component.Host, authenticatorName string) (extensionauth.HTTPClient, error) {
+func (_ *storageExt) getAuthenticator(host component.Host, authenticatorName string) (extensionauth.HTTPClient, error) {
 	for id, ext := range host.GetExtensions() {
 		if id.Name() == authenticatorName {
 			if httpAuth, ok := ext.(extensionauth.HTTPClient); ok {

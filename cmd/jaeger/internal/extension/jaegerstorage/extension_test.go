@@ -562,13 +562,13 @@ func startStorageExtension(t *testing.T, memstoreName string, promstoreName stri
 // Test authenticator resolution - success case
 func TestGetAuthenticator_Success(t *testing.T) {
 	mockAuth := &mockHTTPAuthenticator{}
-	
+
 	host := storagetest.NewStorageHost().
 		WithExtension(component.MustNewIDWithName("sigv4auth", "sigv4auth"), mockAuth)
-	
+
 	cfg := &Config{}
 	ext := newStorageExt(cfg, noopTelemetrySettings())
-	
+
 	auth, err := ext.getAuthenticator(host, "sigv4auth")
 	require.NoError(t, err)
 	require.NotNil(t, auth)
@@ -577,10 +577,10 @@ func TestGetAuthenticator_Success(t *testing.T) {
 // Test authenticator not found
 func TestGetAuthenticator_NotFound(t *testing.T) {
 	host := componenttest.NewNopHost()
-	
+
 	cfg := &Config{}
 	ext := newStorageExt(cfg, noopTelemetrySettings())
-	
+
 	auth, err := ext.getAuthenticator(host, "nonexistent")
 	require.Error(t, err)
 	require.Nil(t, auth)
@@ -590,13 +590,13 @@ func TestGetAuthenticator_NotFound(t *testing.T) {
 // Test authenticator wrong type
 func TestGetAuthenticator_WrongType(t *testing.T) {
 	mockExt := &mockNonHTTPExtension{}
-	
+
 	host := storagetest.NewStorageHost().
 		WithExtension(component.MustNewIDWithName("wrongtype", "wrongtype"), mockExt)
-	
+
 	cfg := &Config{}
 	ext := newStorageExt(cfg, noopTelemetrySettings())
-	
+
 	auth, err := ext.getAuthenticator(host, "wrongtype")
 	require.Error(t, err)
 	require.Nil(t, auth)
@@ -606,9 +606,9 @@ func TestGetAuthenticator_WrongType(t *testing.T) {
 // Test metric backend with valid authenticator
 func TestMetricBackendWithAuthenticator(t *testing.T) {
 	mockServer := setupMockServer(t, getVersionResponse(t), http.StatusOK)
-	
+
 	mockAuth := &mockHTTPAuthenticator{}
-	
+
 	host := storagetest.NewStorageHost().
 		WithExtension(ID, makeStorageExtension(t, &Config{
 			MetricBackends: map[string]MetricBackend{
@@ -623,14 +623,14 @@ func TestMetricBackendWithAuthenticator(t *testing.T) {
 			},
 		})).
 		WithExtension(component.MustNewIDWithName("sigv4auth", "sigv4auth"), mockAuth)
-	
+
 	ext := host.GetExtensions()[ID]
-	require.NoError(t, ext.(component.Component).Start(context.Background(), host))
-	
+	require.NoError(t, ext.Start(context.Background(), host))
+
 	factory, err := GetMetricStorageFactory("prometheus", host)
 	require.NoError(t, err)
 	require.NotNil(t, factory)
-	
+
 	t.Cleanup(func() {
 		require.NoError(t, ext.(extension.Extension).Shutdown(context.Background()))
 	})
@@ -639,7 +639,7 @@ func TestMetricBackendWithAuthenticator(t *testing.T) {
 // Test metric backend with invalid authenticator name
 func TestMetricBackendWithInvalidAuthenticator(t *testing.T) {
 	mockServer := setupMockServer(t, getVersionResponse(t), http.StatusOK)
-	
+
 	config := &Config{
 		MetricBackends: map[string]MetricBackend{
 			"prometheus": {
@@ -652,7 +652,7 @@ func TestMetricBackendWithInvalidAuthenticator(t *testing.T) {
 			},
 		},
 	}
-	
+
 	ext := makeStorageExtension(t, config)
 	err := ext.Start(context.Background(), componenttest.NewNopHost())
 	require.Error(t, err)
@@ -664,15 +664,15 @@ type mockHTTPAuthenticator struct {
 	component.Component
 }
 
-func (m *mockHTTPAuthenticator) RoundTripper(base http.RoundTripper) (http.RoundTripper, error) {
+func (*mockHTTPAuthenticator) RoundTripper(base http.RoundTripper) (http.RoundTripper, error) {
 	return &mockRoundTripper{base: base}, nil
 }
 
-func (m *mockHTTPAuthenticator) Start(context.Context, component.Host) error {
+func (*mockHTTPAuthenticator) Start(context.Context, component.Host) error {
 	return nil
 }
 
-func (m *mockHTTPAuthenticator) Shutdown(context.Context) error {
+func (*mockHTTPAuthenticator) Shutdown(context.Context) error {
 	return nil
 }
 
@@ -686,7 +686,7 @@ func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	if m.base != nil {
 		return m.base.RoundTrip(req)
 	}
-	return &http.Response{StatusCode: 200, Body: http.NoBody}, nil
+	return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
 }
 
 // Mock non-HTTP extension for testing wrong type scenario
@@ -694,11 +694,11 @@ type mockNonHTTPExtension struct {
 	component.Component
 }
 
-func (m *mockNonHTTPExtension) Start(context.Context, component.Host) error {
+func (*mockNonHTTPExtension) Start(context.Context, component.Host) error {
 	return nil
 }
 
-func (m *mockNonHTTPExtension) Shutdown(context.Context) error {
+func (*mockNonHTTPExtension) Shutdown(context.Context) error {
 	return nil
 }
 
