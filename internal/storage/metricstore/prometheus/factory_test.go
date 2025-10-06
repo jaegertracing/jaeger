@@ -159,11 +159,11 @@ func TestNewFactoryWithConfigAndAuth(t *testing.T) {
 	}
 
 	mockAuth := &mockHTTPAuthenticator{}
-	
+
 	factory, err := NewFactoryWithConfigAndAuth(cfg, telemetry.NoopSettings(), mockAuth)
 	require.NoError(t, err)
 	require.NotNil(t, factory)
-	
+
 	// Verify the factory can create a metrics reader
 	reader, err := factory.CreateMetricsReader()
 	require.NoError(t, err)
@@ -178,12 +178,12 @@ func TestNewFactoryWithConfigAndAuth_NilAuthenticator(t *testing.T) {
 	cfg := promCfg.Configuration{
 		ServerURL: "http://" + listener.Addr().String(),
 	}
-	
+
 	// Should work fine with nil authenticator (backward compatibility)
 	factory, err := NewFactoryWithConfigAndAuth(cfg, telemetry.NoopSettings(), nil)
 	require.NoError(t, err)
 	require.NotNil(t, factory)
-	
+
 	reader, err := factory.CreateMetricsReader()
 	require.NoError(t, err)
 	require.NotNil(t, reader)
@@ -193,9 +193,9 @@ func TestNewFactoryWithConfigAndAuth_EmptyServerURL(t *testing.T) {
 	cfg := promCfg.Configuration{
 		ServerURL: "", // Empty URL should fail
 	}
-	
+
 	mockAuth := &mockHTTPAuthenticator{}
-	
+
 	factory, err := NewFactoryWithConfigAndAuth(cfg, telemetry.NoopSettings(), mockAuth)
 	require.Error(t, err)
 	require.Nil(t, factory)
@@ -206,13 +206,13 @@ func TestNewFactoryWithConfigAndAuth_InvalidTLS(t *testing.T) {
 		ServerURL: "https://localhost:9090",
 	}
 	cfg.TLS.CAFile = "/does/not/exist"
-	
+
 	mockAuth := &mockHTTPAuthenticator{}
-	
+
 	factory, err := NewFactoryWithConfigAndAuth(cfg, telemetry.NoopSettings(), mockAuth)
 	require.NoError(t, err) // Factory creation succeeds
 	require.NotNil(t, factory)
-	
+
 	// But creating reader should fail due to bad TLS config
 	reader, err := factory.CreateMetricsReader()
 	require.Error(t, err)
@@ -239,7 +239,6 @@ func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 	return &http.Response{StatusCode: 200, Body: http.NoBody}, nil
 }
-
 
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)

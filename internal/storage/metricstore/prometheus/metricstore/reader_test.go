@@ -806,7 +806,7 @@ func TestGetRoundTripperTokenFile(t *testing.T) {
 		ConnectTimeout:           time.Second,
 		TokenFilePath:            file.Name(),
 		TokenOverrideFromContext: false,
-	},nil)
+	}, nil)
 	require.NoError(t, err)
 
 	server := newFakePromServer(t)
@@ -840,7 +840,7 @@ func TestGetRoundTripperTokenFromContext(t *testing.T) {
 		ConnectTimeout:           time.Second,
 		TokenFilePath:            file.Name(),
 		TokenOverrideFromContext: true,
-	},nil)
+	}, nil)
 	require.NoError(t, err)
 
 	server := newFakePromServer(t)
@@ -1016,7 +1016,7 @@ func assertMetrics(t *testing.T, gotMetrics *metrics.MetricFamily, wantLabels ma
 // Test NewMetricsReaderWithAuth with authenticator
 func TestNewMetricsReaderWithAuth(t *testing.T) {
 	authHeaderReceived := ""
-	
+
 	mockPrometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeaderReceived = r.Header.Get("Authorization")
 		sendResponse(t, w, "testdata/service_datapoint_response.json")
@@ -1028,7 +1028,7 @@ func TestNewMetricsReaderWithAuth(t *testing.T) {
 	defer closer()
 
 	mockAuth := &mockHTTPAuthenticator{}
-	
+
 	cfg := config.Configuration{
 		ServerURL:      mockPrometheus.URL,
 		ConnectTimeout: defaultTimeout,
@@ -1096,7 +1096,7 @@ func TestNewMetricsReaderWithAuth_NilAuthenticator(t *testing.T) {
 
 func TestGetHTTPRoundTripperWithAuth(t *testing.T) {
 	authApplied := false
-	
+
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") == "Bearer sigv4-token" {
 			authApplied = true
@@ -1114,7 +1114,7 @@ func TestGetHTTPRoundTripperWithAuth(t *testing.T) {
 	rt, err := getHTTPRoundTripper(&cfg, mockAuth)
 	require.NoError(t, err)
 	require.NotNil(t, rt)
-	
+
 	client := &http.Client{Transport: rt}
 	resp, err := client.Get(mockServer.URL)
 	require.NoError(t, err)
@@ -1137,14 +1137,14 @@ func TestAuthenticatorWithTokenFile(t *testing.T) {
 	tmpfile, err := os.CreateTemp("", "token")
 	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
-	
+
 	testToken := "file-bearer-token"
 	_, err = tmpfile.Write([]byte(testToken))
 	require.NoError(t, err)
 	require.NoError(t, tmpfile.Close())
 
 	authHeaderReceived := ""
-	
+
 	mockPrometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeaderReceived = r.Header.Get("Authorization")
 		sendResponse(t, w, "testdata/service_datapoint_response.json")
@@ -1156,12 +1156,12 @@ func TestAuthenticatorWithTokenFile(t *testing.T) {
 	defer closer()
 
 	mockAuth := &mockHTTPAuthenticator{}
-	
+
 	cfg := config.Configuration{
-		ServerURL:                 mockPrometheus.URL,
-		ConnectTimeout:            defaultTimeout,
-		TokenFilePath:             tmpfile.Name(),
-		TokenOverrideFromContext:  false,
+		ServerURL:                mockPrometheus.URL,
+		ConnectTimeout:           defaultTimeout,
+		TokenFilePath:            tmpfile.Name(),
+		TokenOverrideFromContext: false,
 	}
 
 	reader, err := NewMetricsReaderWithAuth(cfg, logger, tracer, mockAuth)
@@ -1189,7 +1189,7 @@ func TestAuthenticatorWithTokenFile(t *testing.T) {
 
 func TestCreatePromClientWithAuth(t *testing.T) {
 	mockAuth := &mockHTTPAuthenticator{}
-	
+
 	cfg := config.Configuration{
 		ServerURL:      "http://localhost:9090",
 		ConnectTimeout: defaultTimeout,

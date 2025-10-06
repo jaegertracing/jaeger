@@ -73,17 +73,17 @@ func TestGetTimeReference(t *testing.T) {
 
 func TestGetTimeReference_DefaultCase(t *testing.T) {
 	now := time.Date(2021, time.October, 10, 10, 10, 10, 10, time.UTC)
-	
+
 	unknownUnit := "unknown-unit"
 	unitCount := 30
-	
+
 	ref := getTimeReference(now, unknownUnit, unitCount)
-	
+
 	expectedTime := time.Date(2021, time.October, 10, 10, 9, 40, 0, time.UTC)
 	assert.Equal(t, expectedTime, ref)
-	
+
 	anotherUnknownUnit := "milliseconds"
 	ref2 := getTimeReference(now, anotherUnknownUnit, unitCount)
-	
+
 	assert.Equal(t, expectedTime, ref2)
 }
