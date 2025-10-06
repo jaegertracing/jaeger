@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2024 The Jaeger Authors.
+# Copyright (c) 2025 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
 set -euxf -o pipefail
