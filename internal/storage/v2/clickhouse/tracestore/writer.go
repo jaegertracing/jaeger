@@ -10,6 +10,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
@@ -44,7 +45,7 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 					span.TraceState().AsRaw(),
 					span.ParentSpanID().String(),
 					span.Name(),
-					span.Kind().String(),
+					jptrace.SpanKindToString(span.Kind()),
 					span.StartTimestamp().AsTime(),
 					span.Status().Code().String(),
 					span.Status().Message(),

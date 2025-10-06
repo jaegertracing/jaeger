@@ -1,7 +1,7 @@
 // Copyright (c) 2025 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package tracestore
+package clickhouse
 
 import (
 	"time"
@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/collector/config/configoptional"
 )
 
-type Config struct {
+type Configuration struct {
 	// Protocol is the protocol to use to connect to ClickHouse.
 	// Supported values are "native" and "http". Default is "native".
 	Protocol string `mapstructure:"protocol" valid:"in(native|http),optional"`
@@ -23,6 +23,8 @@ type Config struct {
 	Auth Authentication `mapstructure:"auth"`
 	// DialTimeout is the timeout for establishing a connection to ClickHouse.
 	DialTimeout time.Duration `mapstructure:"dial_timeout"`
+	// CreateSchema, if set to true, will create the ClickHouse schema if it does not exist.
+	CreateSchema bool `mapstructure:"create_schema"`
 	// TODO: add more settings
 }
 
@@ -31,7 +33,7 @@ type Authentication struct {
 	// TODO: add JWT
 }
 
-func (cfg *Config) Validate() error {
+func (cfg *Configuration) Validate() error {
 	_, err := govalidator.ValidateStruct(cfg)
 	return err
 }
