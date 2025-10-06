@@ -90,8 +90,8 @@ verify_traces() {
     done
     
     echo "ERROR: No spans found after $max_attempts attempts and 75s of waiting"
-    echo "Checking collector logs for errors..."
-    docker compose -f "$compose_file" logs --tail=50 jaeger-collector
+    echo "Checking jaeger logs for errors..."
+    docker compose -f "$compose_file" logs --tail=50 jaeger
     return 1
 }
 
