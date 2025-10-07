@@ -166,6 +166,8 @@ func (s *KafkaIntegrationTestSuite) initializeWithConfig(t *testing.T, cfg kafka
 	})
 	spanConsumer.Start()
 
+	s.waitForConsumerReady(t, traceStore, spanWriter, topic)
+
 	spanReader := &ingester{traceStore}
 	s.TraceReader = v1adapter.NewTraceReader(spanReader)
 	s.TraceWriter = v1adapter.NewTraceWriter(spanWriter)
@@ -211,6 +213,55 @@ func (s *KafkaIntegrationTestSuite) initialize(t *testing.T) {
 		authType:       "",
 		tlsEnabled:     false,
 	})
+}
+
+func (*KafkaIntegrationTestSuite) waitForConsumerReady(
+	t *testing.T,
+	traceStore *memory.Store,
+	spanWriter spanstore.Writer,
+	_ string,
+) {
+	t.Log("Waiting for Kafka consumer to be ready...")
+
+	testTraceID := model.NewTraceID(uint64(time.Now().UnixNano()), uint64(time.Now().UnixNano()))
+	testSpan := &model.Span{
+		TraceID:       testTraceID,
+		SpanID:        model.NewSpanID(1),
+		OperationName: "consumer-readiness-check",
+		StartTime:     time.Now(),
+		Duration:      time.Millisecond,
+		Process: &model.Process{
+			ServiceName: "test-consumer-readiness",
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	err := spanWriter.WriteSpan(ctx, testSpan)
+	require.NoError(t, err, "Failed to write test span for consumer readiness check")
+
+	const maxAttempts = 30
+	const pollInterval = 1 * time.Second
+
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		time.Sleep(pollInterval)
+
+		trace, err := traceStore.GetTrace(context.Background(), spanstore.GetTraceParameters{
+			TraceID: testTraceID,
+		})
+
+		if err == nil && trace != nil && len(trace.Spans) > 0 {
+			t.Log("Kafka consumer is ready")
+			return
+		}
+
+		if attempt%5 == 0 {
+			t.Log("Still waiting for consumer readiness... ")
+		}
+	}
+
+	require.Fail(t, "Kafka consumer did not become ready after 30 seconds")
 }
 
 // The ingester consumes spans from kafka and writes them to an in-memory traceStore
