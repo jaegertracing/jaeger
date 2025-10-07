@@ -11,7 +11,6 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
@@ -42,10 +41,10 @@ type server struct {
 	closeTracer func(ctx context.Context) error
 }
 
-func newServer(config *Config, telemetry component.TelemetrySettings) *server {
+func newServer(config *Config, telset component.TelemetrySettings) *server {
 	return &server{
 		config: config,
-		telset: telemetry,
+		telset: telset,
 	}
 }
 
@@ -61,7 +60,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 
 	if s.config.EnableTracing {
 		// Getting Tracer from OTEL
-		tp = otel.GetTracerProvider()
+		tp = s.telset.TracerProvider
 	}
 
 	telset := telemetry.FromOtelComponent(s.telset, host)
