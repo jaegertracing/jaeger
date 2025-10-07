@@ -5,7 +5,6 @@ package tracestore
 
 import (
 	"encoding/base64"
-	"fmt"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
@@ -231,12 +230,13 @@ func (sr *spanRow) appendAttributes(attrs pcommon.Map) {
 			sr.strAttributeKeys = append(sr.strAttributeKeys, k)
 			sr.strAttributeValues = append(sr.strAttributeValues, v.Str())
 		case pcommon.ValueTypeBytes:
-			key := fmt.Sprintf("@bytes@%s", k)
+			key := "@bytes@" + k
 			encoded := base64.StdEncoding.EncodeToString(v.Bytes().AsRaw())
 			sr.complexAttributeKeys = append(sr.complexAttributeKeys, key)
 			sr.complexAttributeValues = append(sr.complexAttributeValues, encoded)
 		case pcommon.ValueTypeSlice, pcommon.ValueTypeMap:
 			// TODO
+		default:
 		}
 		return true
 	})
