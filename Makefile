@@ -5,7 +5,7 @@ SHELL := /bin/bash
 JAEGER_IMPORT_PATH = github.com/jaegertracing/jaeger
 
 # PLATFORMS is a list of all supported platforms
-PLATFORMS="linux/amd64,linux/arm64,linux/s390x,linux/ppc64le,darwin/amd64,darwin/arm64,windows/amd64,linux/riscv64"
+PLATFORMS="linux/amd64,linux/arm64,linux/s390x,linux/ppc6le,darwin/amd64,darwin/arm64,windows/amd64,linux/riscv64"
 LINUX_PLATFORMS=$(shell echo "$(PLATFORMS)" | tr ',' '\n' | grep linux | tr '\n' ',' | sed 's/,$$/\n/')
 
 # SRC_ROOT is the top of the source tree.
@@ -24,26 +24,26 @@ endif
 
 # All .go files that are not auto-generated and should be auto-formatted and linted.
 ALL_SRC = $(shell find . -name '*.go' \
-				   -not -name '_*' \
-				   -not -name '.*' \
-				   -not -name 'mocks*' \
-				   -not -name '*.pb.go' \
-				   -not -path './vendor/*' \
-				   -not -path './idl/*' \
-				   -not -path './internal/tools/*' \
-				   -not -path './scripts/build/docker/debug/*' \
-				   -not -path '*/mocks/*' \
-				   -not -path '*/thrift-0.9.2/*' \
-				   -type f | \
-				sort)
+	-not -name '_*' \
+	-not -name '.*' \
+	-not -name 'mocks*' \
+	-not -name '*.pb.go' \
+	-not -path './vendor/*' \
+	-not -path './idl/*' \
+	-not -path './internal/tools/*' \
+	-not -path './scripts/build/docker/debug/*' \
+	-not -path '*/mocks/*' \
+	-not -path '*/thrift-0.9.2/*' \
+	-type f | \
+	sort)
 
 # All .sh or .py or Makefile or .mk files that should be auto-formatted and linted.
 SCRIPTS_SRC = $(shell find . \( -name '*.sh' -o -name '*.py' -o -name '*.mk' -o -name 'Makefile*' -o -name 'Dockerfile*' \) \
-						-not -path './.git/*' \
-						-not -path './idl/*' \
-						-not -path './jaeger-ui/*' \
-						-type f | \
-					sort)
+	-not -path './.git/*' \
+	-not -path './idl/*' \
+	-not -path './jaeger-ui/*' \
+	-type f | \
+	sort)
 
 # ALL_PKGS is used with 'nocover' and 'goleak'
 ALL_PKGS = $(shell echo $(dir $(ALL_SRC)) | tr ' ' '\n' | grep -v '/.*-gen/' | sort -u)
@@ -75,7 +75,7 @@ FMT_LOG=.fmt.log
 IMPORT_LOG=.import.log
 COLORIZE ?= | $(SED) 's/PASS/✅ PASS/g' | $(SED) 's/FAIL/❌ FAIL/g' | $(SED) 's/SKIP/🔕 SKIP/g'
 
- # import other Makefiles after the variables are defined
+	# import other Makefiles after the variables are defined
 
 include scripts/makefiles/BuildBinaries.mk
 include scripts/makefiles/BuildInfo.mk
@@ -84,7 +84,11 @@ include scripts/makefiles/Docker.mk
 include scripts/makefiles/IntegrationTests.mk
 include scripts/makefiles/Protobuf.mk
 include scripts/makefiles/Tools.mk
+
+# Only include Windows-specific build rules when building for Windows
+ifeq ($(GOOS),windows)
 include scripts/makefiles/Windows.mk
+endif
 
 
 .DEFAULT_GOAL := test-and-lint
@@ -119,7 +123,7 @@ echo-all-srcs:
 .PHONY: clean
 clean:
 	rm -rf cover*.out .cover/ cover.html $(FMT_LOG) $(IMPORT_LOG) \
-		jaeger-ui/packages/jaeger-ui/build
+	jaeger-ui/packages/jaeger-ui/build
 	find ./cmd/query/app/ui/actual -type f -name '*.gz' -delete
 	GOCACHE=$(GOCACHE) go clean -cache -testcache
 	bash scripts/build/clean-binaries.sh
@@ -161,11 +165,11 @@ lint-license:
 .PHONY: lint-nocommit
 lint-nocommit:
 	@if git diff origin/main | grep '@no''commit' ; then \
-		echo "❌ Cannot merge PR that contains @no""commit string" ; \
-		GIT_PAGER=cat git diff -G '@no''commit' origin/main ; \
-		false ; \
+	echo "❌ Cannot merge PR that contains @no""commit string" ; \
+	GIT_PAGER=cat git diff -G '@no''commit' origin/main ; \
+	false ; \
 	else \
-		echo "✅ Changes do not contain @no""commit string" ; \
+	echo "✅ Changes do not contain @no""commit string" ; \
 	fi
 
 .PHONY: lint-imports
@@ -239,4 +243,4 @@ repro-check:
 	find cmd -type f -executable -exec shasum -b -a 256 {} \; | sort -k2 | tee sha256sum.combined.txt
 	$(MAKE) clean
 	$(MAKE) build-all-platforms
-	shasum -b -a 256 --strict --check ./sha256sum.combined.txt
+	shasum -b -a 26 --strict --check ./sha256sum.combined.txt
