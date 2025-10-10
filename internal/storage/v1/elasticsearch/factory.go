@@ -120,6 +120,8 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 		UseReadWriteAliases: f.config.UseReadWriteAliases,
 		ReadAliasSuffix:     f.config.ReadAliasSuffix,
 		RemoteReadClusters:  f.config.RemoteReadClusters,
+		SpanAlias:           f.config.IndexSpanAlias,
+		ServiceAlias:        f.config.IndexServiceAlias,
 		Logger:              f.logger,
 		Tracer:              f.tracer.Tracer("esspanstore.SpanReader"),
 	}
@@ -137,6 +139,8 @@ func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
 		TagDotReplacement:   f.config.Tags.DotReplacement,
 		UseReadWriteAliases: f.config.UseReadWriteAliases,
 		WriteAliasSuffix:    f.config.WriteAliasSuffix,
+		SpanAlias:           f.config.IndexSpanAlias,
+		ServiceAlias:        f.config.IndexServiceAlias,
 		Logger:              f.logger,
 		MetricsFactory:      f.metricsFactory,
 		ServiceCacheTTL:     f.config.ServiceCacheTTL,

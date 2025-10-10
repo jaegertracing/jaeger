@@ -61,7 +61,13 @@ type SpanWriterParams struct {
 	TagDotReplacement   string
 	UseReadWriteAliases bool
 	WriteAliasSuffix    string
-	ServiceCacheTTL     time.Duration
+	// SpanAlias is an explicit alias name for span indices.
+	// When set, this alias will be used instead of the IndexPrefix pattern.
+	SpanAlias string
+	// ServiceAlias is an explicit alias name for service indices.
+	// When set, this alias will be used instead of the IndexPrefix pattern.
+	ServiceAlias    string
+	ServiceCacheTTL time.Duration
 }
 
 // NewSpanWriter creates a new SpanWriter for use
@@ -102,13 +108,30 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
 
 func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServiceIndexFn {
+	// Use explicit aliases if provided, otherwise use prefix pattern
 	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
+	if p.SpanAlias != "" {
+		spanIndexPrefix = p.SpanAlias
+	}
+
 	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
+	if p.ServiceAlias != "" {
+		serviceIndexPrefix = p.ServiceAlias
+	}
+
 	if p.UseReadWriteAliases {
 		return func(_ time.Time) (string, string) {
 			return spanIndexPrefix + writeAlias, serviceIndexPrefix + writeAlias
 		}
 	}
+
+	// When using explicit aliases, don't append date suffix
+	if p.SpanAlias != "" || p.ServiceAlias != "" {
+		return func(_ time.Time) (string, string) {
+			return spanIndexPrefix, serviceIndexPrefix
+		}
+	}
+
 	return func(date time.Time) (string, string) {
 		return indexWithDate(spanIndexPrefix, p.SpanIndex.DateLayout, date), indexWithDate(serviceIndexPrefix, p.ServiceIndex.DateLayout, date)
 	}

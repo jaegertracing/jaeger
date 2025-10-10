@@ -124,37 +124,71 @@ type SpanReaderParams struct {
 	ReadAliasSuffix     string
 	UseReadWriteAliases bool
 	RemoteReadClusters  []string
-	Logger              *zap.Logger
-	Tracer              trace.Tracer
+	// SpanAlias is an explicit alias name for span indices.
+	// When set, this alias will be used instead of the IndexPrefix pattern.
+	SpanAlias string
+	// ServiceAlias is an explicit alias name for service indices.
+	// When set, this alias will be used instead of the IndexPrefix pattern.
+	ServiceAlias string
+	Logger       *zap.Logger
+	Tracer       trace.Tracer
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
 func NewSpanReader(p SpanReaderParams) *SpanReader {
+	// Determine span index prefix - use explicit alias if provided
+	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
+	useExplicitAlias := false
+	if p.SpanAlias != "" {
+		spanIndexPrefix = p.SpanAlias
+		useExplicitAlias = true
+	}
+
+	// Determine service index prefix - use explicit alias if provided
+	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
+	if p.ServiceAlias != "" {
+		serviceIndexPrefix = p.ServiceAlias
+		useExplicitAlias = true
+	}
+
+	// When using explicit aliases, treat them like read/write aliases
+	// (no time-based index selection)
+	useAliasMode := p.UseReadWriteAliases || useExplicitAlias
+
 	maxSpanAge := p.MaxSpanAge
 	// Setting the maxSpanAge to a large duration will ensure all spans in the "read" alias are accessible by queries (query window = [now - maxSpanAge, now]).
-	// When read/write aliases are enabled, which are required for index rollovers, only the "read" alias is queried and therefore should not affect performance.
-	if p.UseReadWriteAliases {
+	// When read/write aliases or explicit aliases are enabled, only the alias is queried and therefore should not affect performance.
+	if useAliasMode {
 		maxSpanAge = dawnOfTimeSpanAge
+	}
+
+	// Create custom time range function for explicit aliases
+	var timeRangeFn TimeRangeIndexFn
+	if useExplicitAlias {
+		// For explicit aliases, return the alias name as-is (no time-based selection, no suffix)
+		timeRangeFn = func(indexPrefix, _ string, _, _ time.Time, _ time.Duration) []string {
+			return []string{indexPrefix}
+		}
+	} else {
+		// Use standard time range function
+		timeRangeFn = TimeRangeIndicesFn(p.UseReadWriteAliases, p.ReadAliasSuffix, p.RemoteReadClusters)
 	}
 
 	return &SpanReader{
 		client:                  p.Client,
 		maxSpanAge:              maxSpanAge,
 		serviceOperationStorage: NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics
-		spanIndexPrefix:         p.IndexPrefix.Apply(spanIndexBaseName),
-		serviceIndexPrefix:      p.IndexPrefix.Apply(serviceIndexBaseName),
+		spanIndexPrefix:         spanIndexPrefix,
+		serviceIndexPrefix:      serviceIndexPrefix,
 		spanIndex:               p.SpanIndex,
 		serviceIndex:            p.ServiceIndex,
-		timeRangeIndices: LoggingTimeRangeIndexFn(
-			p.Logger,
-			TimeRangeIndicesFn(p.UseReadWriteAliases, p.ReadAliasSuffix, p.RemoteReadClusters),
-		),
-		sourceFn:            getSourceFn(p.MaxDocCount),
-		maxDocCount:         p.MaxDocCount,
-		useReadWriteAliases: p.UseReadWriteAliases,
-		logger:              p.Logger,
-		tracer:              p.Tracer,
-		dotReplacer:         dbmodel.NewDotReplacer(p.TagDotReplacement),
+		timeRangeIndices:        LoggingTimeRangeIndexFn(p.Logger, timeRangeFn),
+		sourceFn:                getSourceFn(p.MaxDocCount),
+		maxDocCount:             p.MaxDocCount,
+		useReadWriteAliases:     useAliasMode,
+		logger:                  p.Logger,
+		tracer:                  p.Tracer,
+		dotReplacer:             dbmodel.NewDotReplacer(p.TagDotReplacement),
 	}
 }
 
