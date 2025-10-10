@@ -35,7 +35,7 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	for _, rs := range td.ResourceSpans().All() {
 		for _, ss := range rs.ScopeSpans().All() {
 			for _, span := range ss.Spans().All() {
-				sr := traceToSpanRow(rs.Resource(), ss.Scope(), span)
+				sr := spanToRow(rs.Resource(), ss.Scope(), span)
 				err = batch.Append(
 					sr.id,
 					sr.traceID,

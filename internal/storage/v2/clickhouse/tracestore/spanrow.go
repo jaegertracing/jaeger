@@ -188,7 +188,7 @@ func buildLinks(traceIDs, spanIDs, states []string) []dbmodel.Link {
 	return links
 }
 
-func traceToSpanRow(
+func spanToRow(
 	resource pcommon.Resource,
 	scope pcommon.InstrumentationScope,
 	span ptrace.Span,
