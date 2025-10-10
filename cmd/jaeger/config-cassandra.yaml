@@ -1,9 +1,9 @@
 service:
-  extensions: [jaeger_storage, jaeger_query, healthcheckv2]
+  extensions: [jaeger_storage, jaeger_query, remote_sampling, healthcheckv2]
   pipelines:
     traces:
-      receivers: [otlp]
-      processors: [batch]
+      receivers: [otlp, jaeger]
+      processors: [batch, adaptive_sampling]
       exporters: [jaeger_storage_exporter]
   telemetry:
     resource:
@@ -30,8 +30,6 @@ extensions:
     storage:
       traces: some_storage
       traces_archive: another_storage
-    ui:
-      config_file: ./cmd/jaeger/config-ui.json
 
   jaeger_storage:
     backends:
@@ -41,6 +39,7 @@ extensions:
             keyspace: "jaeger_v1_dc1"
             create: "${env:CASSANDRA_CREATE_SCHEMA:-true}"
           connection:
+            servers: ["${env:CASSANDRA_CONTACT_POINTS:-127.0.0.1:9042}"]
             auth: 
               basic:
                 username: "cassandra"
@@ -52,13 +51,23 @@ extensions:
           schema: 
             keyspace: "jaeger_v1_dc1_archive"
             create: "${env:CASSANDRA_CREATE_SCHEMA:-true}"
-          connection: 
+          connection:
+            servers: ["${env:CASSANDRA_CONTACT_POINTS:-127.0.0.1:9042}"]
             auth:
               basic: 
                 username: "cassandra"
                 password: "cassandra"
             tls:
               insecure: true
+
+  remote_sampling:
+    adaptive:
+      sampling_store: some_storage
+      initial_sampling_probability: 0.1
+      target_samples_per_second: 1.0
+    http:
+    grpc:
+
 receivers:
   otlp:
     protocols:
@@ -74,6 +83,7 @@ receivers:
 
 processors:
   batch:
+  adaptive_sampling:
 
 exporters:
   jaeger_storage_exporter:
