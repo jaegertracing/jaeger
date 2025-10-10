@@ -80,7 +80,7 @@ FROM
 `
 
 const SelectOperationsAllKinds = `
-SELECT
+SELECT DISTINCT
     name,
     span_kind
 FROM
@@ -90,7 +90,7 @@ WHERE
 `
 
 const SelectOperationsByKind = `
-SELECT
+SELECT DISTINCT
     name,
     span_kind
 FROM
@@ -100,5 +100,23 @@ WHERE
     AND span_kind = ?
 `
 
-//go:embed create_schema.sql
-var CreateSchema string
+const TruncateSpans = `TRUNCATE TABLE spans`
+
+const TruncateServices = `TRUNCATE TABLE services`
+
+const TruncateOperations = `TRUNCATE TABLE operations`
+
+//go:embed create_spans_table.sql
+var CreateSpansTable string
+
+//go:embed create_services_table.sql
+var CreateServicesTable string
+
+//go:embed create_services_mv.sql
+var CreateServicesMaterializedView string
+
+//go:embed create_operations_table.sql
+var CreateOperationsTable string
+
+//go:embed create_operations_mv.sql
+var CreateOperationsMaterializedView string
