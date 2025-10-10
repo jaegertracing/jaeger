@@ -5,7 +5,7 @@ SHELL := /bin/bash
 JAEGER_IMPORT_PATH = github.com/jaegertracing/jaeger
 
 # PLATFORMS is a list of all supported platforms
-PLATFORMS="linux/amd64,linux/arm64,linux/s390x,linux/ppc64le,darwin/amd64,darwin/arm64,windows/amd64"
+PLATFORMS="linux/amd64,linux/arm64,linux/s390x,linux/ppc64le,linux/riscv64,darwin/amd64,darwin/arm64,windows/amd64"
 LINUX_PLATFORMS=$(shell echo "$(PLATFORMS)" | tr ',' '\n' | grep linux | tr '\n' ',' | sed 's/,$$/\n/')
 
 # SRC_ROOT is the top of the source tree.
@@ -98,6 +98,11 @@ echo-v1:
 
 .PHONY: echo-v2
 echo-v2:
+
+.PHONY: build-riscv64
+build-riscv64:
+	@echo "Building for RISC-V 64-bit..."
+	@bash scripts/build-riscv64.sh
 	@echo "$(GIT_CLOSEST_TAG_V2)"
 
 .PHONY: echo-platforms
