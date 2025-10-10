@@ -1094,6 +1094,7 @@ func TestNewMetricsReaderWithAuth_NilAuthenticator(t *testing.T) {
 	require.NoError(t, err)
 }
 
+
 func TestGetHTTPRoundTripperWithAuth(t *testing.T) {
 	authApplied := false
 
@@ -1119,8 +1120,10 @@ func TestGetHTTPRoundTripperWithAuth(t *testing.T) {
 	resp, err := client.Get(mockServer.URL)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
+	defer resp.Body.Close()
 	require.True(t, authApplied)
 }
+
 
 func TestGetHTTPRoundTripperWithAuth_NilAuth(t *testing.T) {
 	cfg := config.Configuration{
