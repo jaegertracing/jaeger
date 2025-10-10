@@ -215,32 +215,27 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 			promTelset := telset
 			promTelset.Metrics = scopedMetricsFactory(metricStorageName, "prometheus", "metricstore")
 
-			// Check if authentication is configured
-			if cfg.Auth != nil && cfg.Auth.Authenticator != "" {
-				// Get the HTTP authenticator extension
-				httpAuthenticator, err := s.getAuthenticator(host, cfg.Auth.Authenticator)
-				if err != nil {
+			// Resolve authenticator if configured
+			var httpAuthenticator extensionauth.HTTPClient
+			if cfg.Prometheus.Auth != nil && cfg.Prometheus.Auth.Authenticator != "" {
+				var authErr error
+				httpAuthenticator, authErr = s.getAuthenticator(host, cfg.Prometheus.Auth.Authenticator)
+				if authErr != nil {
 					return fmt.Errorf("failed to get HTTP authenticator '%s' for metric storage '%s': %w",
-						cfg.Auth.Authenticator, metricStorageName, err)
+						cfg.Prometheus.Auth.Authenticator, metricStorageName, authErr)
 				}
-
-				// Create factory with HTTP authenticator
-				metricStoreFactory, err = prometheus.NewFactoryWithConfigAndAuth(
-					*cfg.Prometheus,
-					promTelset,
-					httpAuthenticator,
-				)
-				if err != nil {
-					return fmt.Errorf("failed to initialize metrics storage '%s': %w", metricStorageName, err)
-				}
-
 				s.telset.Logger.Sugar().Infof("HTTP auth configured for metric storage '%s' with authenticator '%s'",
-					metricStorageName, cfg.Auth.Authenticator)
-			} else {
-				// Use existing non-authenticated factory
-				metricStoreFactory, err = prometheus.NewFactoryWithConfig(
-					*cfg.Prometheus,
-					promTelset)
+					metricStorageName, cfg.Prometheus.Auth.Authenticator)
+			}
+
+			// Create factory with optional authenticator (nil if not configured)
+			metricStoreFactory, err = prometheus.NewFactoryWithConfigAndAuth(
+				cfg.Prometheus.Configuration, //  Use embedded config
+				promTelset,
+				httpAuthenticator, //  Can be nil
+			)
+			if err != nil {
+				return fmt.Errorf("failed to initialize metrics storage '%s': %w", metricStorageName, err)
 			}
 
 		case cfg.Elasticsearch != nil:

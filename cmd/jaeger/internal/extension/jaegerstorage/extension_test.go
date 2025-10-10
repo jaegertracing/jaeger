@@ -321,8 +321,10 @@ func TestMetricBackends(t *testing.T) {
 			config: &Config{
 				MetricBackends: map[string]MetricBackend{
 					"foo": {
-						Prometheus: &promCfg.Configuration{
-							ServerURL: mockServer.URL,
+						Prometheus: &PrometheusConfiguration{
+							Configuration: promCfg.Configuration{
+								ServerURL: mockServer.URL,
+							},
 						},
 					},
 				},
@@ -400,7 +402,9 @@ func TestMetricStorageStartError(t *testing.T) {
 			config: &Config{
 				MetricBackends: map[string]MetricBackend{
 					"foo": {
-						Prometheus: &promCfg.Configuration{},
+						Prometheus: &PrometheusConfiguration{
+							Configuration: promCfg.Configuration{},
+						},
 					},
 				},
 			},
@@ -542,8 +546,10 @@ func startStorageExtension(t *testing.T, memstoreName string, promstoreName stri
 		},
 		MetricBackends: map[string]MetricBackend{
 			promstoreName: {
-				Prometheus: &promCfg.Configuration{
-					ServerURL: "localhost:12345",
+				Prometheus: &PrometheusConfiguration{
+					Configuration: promCfg.Configuration{
+						ServerURL: "localhost:12345",
+					},
 				},
 			},
 		},
@@ -606,18 +612,19 @@ func TestGetAuthenticator_WrongType(t *testing.T) {
 // Test metric backend with valid authenticator
 func TestMetricBackendWithAuthenticator(t *testing.T) {
 	mockServer := setupMockServer(t, getVersionResponse(t), http.StatusOK)
-
 	mockAuth := &mockHTTPAuthenticator{}
 
 	host := storagetest.NewStorageHost().
 		WithExtension(ID, makeStorageExtension(t, &Config{
 			MetricBackends: map[string]MetricBackend{
 				"prometheus": {
-					Prometheus: &promCfg.Configuration{
-						ServerURL: mockServer.URL,
-					},
-					Auth: &AuthConfig{
-						Authenticator: "sigv4auth",
+					Prometheus: &PrometheusConfiguration{
+						Configuration: promCfg.Configuration{
+							ServerURL: mockServer.URL,
+						},
+						Auth: &AuthConfig{
+							Authenticator: "sigv4auth",
+						},
 					},
 				},
 			},
@@ -643,11 +650,13 @@ func TestMetricBackendWithInvalidAuthenticator(t *testing.T) {
 	config := &Config{
 		MetricBackends: map[string]MetricBackend{
 			"prometheus": {
-				Prometheus: &promCfg.Configuration{
-					ServerURL: mockServer.URL,
-				},
-				Auth: &AuthConfig{
-					Authenticator: "nonexistent",
+				Prometheus: &PrometheusConfiguration{
+					Configuration: promCfg.Configuration{
+						ServerURL: mockServer.URL,
+					},
+					Auth: &AuthConfig{
+						Authenticator: "nonexistent",
+					},
 				},
 			},
 		},
@@ -701,4 +710,3 @@ func (*mockNonHTTPExtension) Start(context.Context, component.Host) error {
 func (*mockNonHTTPExtension) Shutdown(context.Context) error {
 	return nil
 }
-

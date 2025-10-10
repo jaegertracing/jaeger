@@ -66,12 +66,17 @@ type AuthConfig struct {
 	Authenticator string `mapstructure:"authenticator"`
 }
 
+// PrometheusConfiguration wraps the base Prometheus configuration with auth support.
+type PrometheusConfiguration struct {
+	promCfg.Configuration `mapstructure:",squash"`
+	Auth                  *AuthConfig `mapstructure:"auth,omitempty"`
+}
+
 // MetricBackend contains configuration for a single metric storage backend.
 type MetricBackend struct {
-	Prometheus    *promCfg.Configuration `mapstructure:"prometheus"`
-	Auth          *AuthConfig            `mapstructure:"auth,omitempty"`
-	Elasticsearch *esCfg.Configuration   `mapstructure:"elasticsearch"`
-	Opensearch    *esCfg.Configuration   `mapstructure:"opensearch"`
+	Prometheus    *PrometheusConfiguration `mapstructure:"prometheus"`
+	Elasticsearch *esCfg.Configuration     `mapstructure:"elasticsearch"`
+	Opensearch    *esCfg.Configuration     `mapstructure:"opensearch"`
 }
 
 // Unmarshal implements confmap.Unmarshaler. This allows us to provide
@@ -134,7 +139,9 @@ func (cfg *MetricBackend) Unmarshal(conf *confmap.Conf) error {
 	// apply defaults
 	if conf.IsSet("prometheus") {
 		v := prometheus.DefaultConfig()
-		cfg.Prometheus = &v
+		cfg.Prometheus = &PrometheusConfiguration{
+			Configuration: v,
+		}
 	}
 
 	if conf.IsSet("elasticsearch") {
