@@ -126,6 +126,13 @@ type Configuration struct {
 	// Use this option with Elasticsearch rollover API. It requires an external component
 	// to create aliases before startup and then performing its management.
 	UseReadWriteAliases bool `mapstructure:"use_aliases"`
+	// IndexSpanAlias is an explicit alias name for span indices.
+	// When set, Jaeger will use this alias directly instead of the prefix+wildcard pattern.
+	// This allows integration with existing Elasticsearch setups and custom index management.
+	IndexSpanAlias string `mapstructure:"index_span_alias"`
+	// IndexServiceAlias is an explicit alias name for service indices.
+	// When set, Jaeger will use this alias directly instead of the prefix+wildcard pattern.
+	IndexServiceAlias string `mapstructure:"index_service_alias"`
 	// ReadAliasSuffix is the suffix to append to the index name used for reading.
 	// This configuration only exists to provide backwards compatibility for jaeger-v1
 	// which is why it is not exposed as a configuration option for jaeger-v2
