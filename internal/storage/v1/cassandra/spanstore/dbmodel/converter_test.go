@@ -338,10 +338,10 @@ func TestFromDBTag_DefaultCase(t *testing.T) {
 		ValueType:   "unknown-type",
 		ValueString: "test-value",
 	}
-	
+
 	converter := converter{}
 	result, err := converter.fromDBTag(tag)
-	
+
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid ValueType")
 	assert.Equal(t, model.KeyValue{}, result)

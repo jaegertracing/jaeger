@@ -107,9 +107,9 @@ func TestConfigurable(t *testing.T) {
 
 func TestFactory_GetFactoryOfType_UnknownType(t *testing.T) {
 	f := &Factory{}
-	
+
 	factory, err := f.getFactoryOfType("unknown-type")
-	
+
 	assert.Nil(t, factory)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unknown metrics type \"unknown-type\"")

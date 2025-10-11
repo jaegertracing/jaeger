@@ -323,8 +323,10 @@ func TestMetricBackends(t *testing.T) {
 			config: &Config{
 				MetricBackends: map[string]MetricBackend{
 					"foo": {
-						Prometheus: &promCfg.Configuration{
-							ServerURL: mockServer.URL,
+						Prometheus: &PrometheusConfiguration{
+							Configuration: promCfg.Configuration{
+								ServerURL: mockServer.URL,
+							},
 						},
 					},
 				},
@@ -402,7 +404,9 @@ func TestMetricStorageStartError(t *testing.T) {
 			config: &Config{
 				MetricBackends: map[string]MetricBackend{
 					"foo": {
-						Prometheus: &promCfg.Configuration{},
+						Prometheus: &PrometheusConfiguration{
+							Configuration: promCfg.Configuration{},
+						},
 					},
 				},
 			},
@@ -564,8 +568,10 @@ func startStorageExtension(t *testing.T, memstoreName string, promstoreName stri
 		},
 		MetricBackends: map[string]MetricBackend{
 			promstoreName: {
-				Prometheus: &promCfg.Configuration{
-					ServerURL: "localhost:12345",
+				Prometheus: &PrometheusConfiguration{
+					Configuration: promCfg.Configuration{
+						ServerURL: "localhost:12345",
+					},
 				},
 			},
 		},
@@ -579,4 +585,150 @@ func startStorageExtension(t *testing.T, memstoreName string, promstoreName stri
 		require.NoError(t, ext.Shutdown(context.Background()))
 	})
 	return ext
+}
+
+// Test authenticator resolution - success case
+func TestGetAuthenticator_Success(t *testing.T) {
+	mockAuth := &mockHTTPAuthenticator{}
+
+	host := storagetest.NewStorageHost().
+		WithExtension(component.MustNewIDWithName("sigv4auth", "sigv4auth"), mockAuth)
+
+	cfg := &Config{}
+	ext := newStorageExt(cfg, noopTelemetrySettings())
+
+	auth, err := ext.getAuthenticator(host, "sigv4auth")
+	require.NoError(t, err)
+	require.NotNil(t, auth)
+}
+
+// Test authenticator not found
+func TestGetAuthenticator_NotFound(t *testing.T) {
+	host := componenttest.NewNopHost()
+
+	cfg := &Config{}
+	ext := newStorageExt(cfg, noopTelemetrySettings())
+
+	auth, err := ext.getAuthenticator(host, "nonexistent")
+	require.Error(t, err)
+	require.Nil(t, auth)
+	require.Contains(t, err.Error(), "authenticator extension 'nonexistent' not found")
+}
+
+// Test authenticator wrong type
+func TestGetAuthenticator_WrongType(t *testing.T) {
+	mockExt := &mockNonHTTPExtension{}
+
+	host := storagetest.NewStorageHost().
+		WithExtension(component.MustNewIDWithName("wrongtype", "wrongtype"), mockExt)
+
+	cfg := &Config{}
+	ext := newStorageExt(cfg, noopTelemetrySettings())
+
+	auth, err := ext.getAuthenticator(host, "wrongtype")
+	require.Error(t, err)
+	require.Nil(t, auth)
+	require.Contains(t, err.Error(), "does not implement extensionauth.HTTPClient")
+}
+
+// Test metric backend with valid authenticator
+func TestMetricBackendWithAuthenticator(t *testing.T) {
+	mockServer := setupMockServer(t, getVersionResponse(t), http.StatusOK)
+	mockAuth := &mockHTTPAuthenticator{}
+
+	host := storagetest.NewStorageHost().
+		WithExtension(ID, makeStorageExtension(t, &Config{
+			MetricBackends: map[string]MetricBackend{
+				"prometheus": {
+					Prometheus: &PrometheusConfiguration{
+						Configuration: promCfg.Configuration{
+							ServerURL: mockServer.URL,
+						},
+						Auth: &AuthConfig{
+							Authenticator: "sigv4auth",
+						},
+					},
+				},
+			},
+		})).
+		WithExtension(component.MustNewIDWithName("sigv4auth", "sigv4auth"), mockAuth)
+
+	ext := host.GetExtensions()[ID]
+	require.NoError(t, ext.Start(context.Background(), host))
+
+	factory, err := GetMetricStorageFactory("prometheus", host)
+	require.NoError(t, err)
+	require.NotNil(t, factory)
+
+	t.Cleanup(func() {
+		require.NoError(t, ext.(extension.Extension).Shutdown(context.Background()))
+	})
+}
+
+// Test metric backend with invalid authenticator name
+func TestMetricBackendWithInvalidAuthenticator(t *testing.T) {
+	mockServer := setupMockServer(t, getVersionResponse(t), http.StatusOK)
+
+	config := &Config{
+		MetricBackends: map[string]MetricBackend{
+			"prometheus": {
+				Prometheus: &PrometheusConfiguration{
+					Configuration: promCfg.Configuration{
+						ServerURL: mockServer.URL,
+					},
+					Auth: &AuthConfig{
+						Authenticator: "nonexistent",
+					},
+				},
+			},
+		},
+	}
+
+	ext := makeStorageExtension(t, config)
+	err := ext.Start(context.Background(), componenttest.NewNopHost())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to get HTTP authenticator")
+}
+
+// Mock HTTP authenticator for testing
+type mockHTTPAuthenticator struct {
+	component.Component
+}
+
+func (*mockHTTPAuthenticator) RoundTripper(base http.RoundTripper) (http.RoundTripper, error) {
+	return &mockRoundTripper{base: base}, nil
+}
+
+func (*mockHTTPAuthenticator) Start(context.Context, component.Host) error {
+	return nil
+}
+
+func (*mockHTTPAuthenticator) Shutdown(context.Context) error {
+	return nil
+}
+
+// Mock RoundTripper for testing
+type mockRoundTripper struct {
+	base http.RoundTripper
+}
+
+func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	req.Header.Set("Authorization", "Bearer mock-token")
+	if m.base != nil {
+		return m.base.RoundTrip(req)
+	}
+	return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+}
+
+// Mock non-HTTP extension for testing wrong type scenario
+type mockNonHTTPExtension struct {
+	component.Component
+}
+
+func (*mockNonHTTPExtension) Start(context.Context, component.Host) error {
+	return nil
+}
+
+func (*mockNonHTTPExtension) Shutdown(context.Context) error {
+	return nil
 }
