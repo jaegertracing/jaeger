@@ -29,6 +29,10 @@ func (tb *testBatch) Append(v ...any) error {
 	return nil
 }
 
+func (*testBatch) Flush() error {
+	return nil
+}
+
 func (tb *testBatch) Send() error {
 	if tb.sendErr != nil {
 		return tb.sendErr

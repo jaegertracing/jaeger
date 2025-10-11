@@ -131,6 +131,11 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 		}
 	}
 
+	// Flush any pending data before sending
+	if err := batch.Flush(); err != nil {
+		return fmt.Errorf("failed to flush batch: %w", err)
+	}
+
 	if err := batch.Send(); err != nil {
 		return fmt.Errorf("failed to send batch: %w", err)
 	}
