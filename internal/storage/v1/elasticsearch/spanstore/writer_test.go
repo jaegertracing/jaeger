@@ -152,6 +152,25 @@ func TestSpanWriterIndices(t *testing.T) {
 			},
 			indices: []string{"custom-span-alias", "custom-service-alias"},
 		},
+		{
+			params: SpanWriterParams{
+				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts,
+				UseReadWriteAliases: true, WriteAliasSuffix: "write",
+				SpanAlias: "custom-span-alias",
+			},
+			indices: []string{"custom-span-alias", serviceIndexBaseName + serviceDataLayoutFormat},
+		},
+		{
+			params: SpanWriterParams{
+				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts,
+				UseReadWriteAliases: true, WriteAliasSuffix: "write",
+				SpanAlias:    "custom-span-alias",
+				ServiceAlias: "custom-service-alias",
+			},
+			indices: []string{"custom-span-alias", "custom-service-alias"},
+		},
 	}
 	for _, testCase := range testCases {
 		w := NewSpanWriter(testCase.params)
