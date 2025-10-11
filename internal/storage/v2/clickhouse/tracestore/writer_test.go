@@ -83,12 +83,12 @@ func TestWriter_Success(t *testing.T) {
 		require.Equal(t, expected.statusMessage, row[8])         // Status message
 		require.EqualValues(t, expected.rawDuration, row[9])     // Duration
 
-		// Fields 10-31 are attributes, events, and links (verified by successful batch.Append)
+		// Fields 10-33 are attributes, events, and links (verified by successful batch.Append)
 		// These fields are tested indirectly - if batch.Append succeeds, the structure is correct
 
-		require.Equal(t, expected.serviceName, row[33])  // Service name (field 34, index 33)
-		require.Equal(t, expected.scopeName, row[34])    // Scope name (field 35, index 34)
-		require.Equal(t, expected.scopeVersion, row[35]) // Scope version (field 36, index 35)
+		require.Equal(t, expected.serviceName, row[35])  // Service name (field 36, index 35)
+		require.Equal(t, expected.scopeName, row[36])    // Scope name (field 37, index 36)
+		require.Equal(t, expected.scopeVersion, row[37]) // Scope version (field 38, index 37)
 	}
 }
 
@@ -176,15 +176,15 @@ func TestWriter_WithAttributesEventsAndLinks(t *testing.T) {
 	require.True(t, conn.batch.sendCalled)
 	require.Len(t, conn.batch.appended, 1)
 
-	// Verify the row has all 36 fields
+	// Verify the row has all 38 fields
 	row := conn.batch.appended[0]
-	require.Len(t, row, 36, "Expected 36 fields in batch.Append")
+	require.Len(t, row, 38, "Expected 38 fields in batch.Append")
 
 	// Verify basic fields
 	require.NotEmpty(t, row[0])           // SpanID
 	require.NotEmpty(t, row[1])           // TraceID
 	require.Equal(t, "test-span", row[4]) // Name
 
-	// Verify service name (field 34, index 33)
-	require.Equal(t, "test-service", row[33])
+	// Verify service name (field 36, index 35)
+	require.Equal(t, "test-service", row[35])
 }
