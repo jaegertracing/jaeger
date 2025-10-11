@@ -125,10 +125,22 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServ
 		}
 	}
 
-	// When using explicit aliases, don't append date suffix
+	// When using explicit aliases, handle each index independently
+	// Only append date suffix to indices without explicit aliases
 	if p.SpanAlias != "" || p.ServiceAlias != "" {
-		return func(_ time.Time) (string, string) {
-			return spanIndexPrefix, serviceIndexPrefix
+		return func(date time.Time) (string, string) {
+			spanIndex := spanIndexPrefix
+			serviceIndex := serviceIndexPrefix
+
+			// Only apply date suffix to indices without explicit aliases
+			if p.SpanAlias == "" {
+				spanIndex = indexWithDate(spanIndexPrefix, p.SpanIndex.DateLayout, date)
+			}
+			if p.ServiceAlias == "" {
+				serviceIndex = indexWithDate(serviceIndexPrefix, p.ServiceIndex.DateLayout, date)
+			}
+
+			return spanIndex, serviceIndex
 		}
 	}
 
