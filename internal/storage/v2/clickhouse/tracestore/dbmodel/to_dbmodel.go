@@ -55,14 +55,15 @@ func attributesToGroup(attributes pcommon.Map) AttributesGroup {
 			group.BytesKeys = append(group.BytesKeys, k)
 			group.BytesValues = append(group.BytesValues, base64.StdEncoding.EncodeToString(v.Bytes().AsRaw()))
 		case ValueTypeSlice, ValueTypeMap:
-			// For complex types, serialize to JSON string
+			// For complex types (slice, map), serialize to JSON and store in BytesKeys/BytesValues
+			// which map to complex_attributes column in ClickHouse schema
 			data, err := json.Marshal(convertValueToInterface(v))
 			if err != nil {
 				// Fallback: use string representation if JSON marshaling fails
 				data, _ = json.Marshal(v.AsString())
 			}
-			group.StrKeys = append(group.StrKeys, k)
-			group.StrValues = append(group.StrValues, string(data))
+			group.BytesKeys = append(group.BytesKeys, k)
+			group.BytesValues = append(group.BytesValues, string(data))
 		default:
 			// Handle other types as generic strings or ignore
 			group.StrKeys = append(group.StrKeys, k)

@@ -51,28 +51,28 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 				// Extract events
 				var eventNames []string
 				var eventTimestamps []int64
-			var eventBoolKeys, eventDoubleKeys, eventIntKeys, eventStrKeys, eventComplexKeys [][]string
-			var eventBoolVals [][]bool
-			var eventDoubleVals [][]float64
-			var eventIntVals [][]int64
-			var eventStrVals, eventComplexVals [][]string
+				var eventBoolKeys, eventDoubleKeys, eventIntKeys, eventStrKeys, eventComplexKeys [][]string
+				var eventBoolVals [][]bool
+				var eventDoubleVals [][]float64
+				var eventIntVals [][]int64
+				var eventStrVals, eventComplexVals [][]string
 
-			for _, event := range span.Events().All() {
-				eventNames = append(eventNames, event.Name())
-				eventTimestamps = append(eventTimestamps, event.Timestamp().AsTime().UnixNano())
+				for _, event := range span.Events().All() {
+					eventNames = append(eventNames, event.Name())
+					eventTimestamps = append(eventTimestamps, event.Timestamp().AsTime().UnixNano())
 
-				evtAttrs := dbmodel.ExtractAttributes(event.Attributes())
-				eventBoolKeys = append(eventBoolKeys, evtAttrs.BoolKeys)
-				eventBoolVals = append(eventBoolVals, evtAttrs.BoolValues)
-				eventDoubleKeys = append(eventDoubleKeys, evtAttrs.DoubleKeys)
-				eventDoubleVals = append(eventDoubleVals, evtAttrs.DoubleValues)
-				eventIntKeys = append(eventIntKeys, evtAttrs.IntKeys)
-				eventIntVals = append(eventIntVals, evtAttrs.IntValues)
-				eventStrKeys = append(eventStrKeys, evtAttrs.StrKeys)
-				eventStrVals = append(eventStrVals, evtAttrs.StrValues)
-				eventComplexKeys = append(eventComplexKeys, evtAttrs.BytesKeys)
-				eventComplexVals = append(eventComplexVals, evtAttrs.BytesValues)
-			}
+					evtAttrs := dbmodel.ExtractAttributes(event.Attributes())
+					eventBoolKeys = append(eventBoolKeys, evtAttrs.BoolKeys)
+					eventBoolVals = append(eventBoolVals, evtAttrs.BoolValues)
+					eventDoubleKeys = append(eventDoubleKeys, evtAttrs.DoubleKeys)
+					eventDoubleVals = append(eventDoubleVals, evtAttrs.DoubleValues)
+					eventIntKeys = append(eventIntKeys, evtAttrs.IntKeys)
+					eventIntVals = append(eventIntVals, evtAttrs.IntValues)
+					eventStrKeys = append(eventStrKeys, evtAttrs.StrKeys)
+					eventStrVals = append(eventStrVals, evtAttrs.StrValues)
+					eventComplexKeys = append(eventComplexKeys, evtAttrs.BytesKeys)
+					eventComplexVals = append(eventComplexVals, evtAttrs.BytesValues)
+				}
 
 				// Extract links
 				var linkTraceIDs, linkSpanIDs, linkTraceStates []string
@@ -82,42 +82,42 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 					linkTraceStates = append(linkTraceStates, link.TraceState().AsRaw())
 				}
 
-			duration := span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime()).Nanoseconds()
+				duration := span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime()).Nanoseconds()
 
-			err = batch.Append(
-				span.SpanID().String(),
-				span.TraceID().String(),
-				span.TraceState().AsRaw(),
-				span.ParentSpanID().String(),
-				span.Name(),
-				jptrace.SpanKindToString(span.Kind()),
-				span.StartTimestamp().AsTime(),
-				span.Status().Code().String(),
-				span.Status().Message(),
-				duration,
-				allAttrs.BoolKeys,
-				allAttrs.BoolValues,
-				allAttrs.DoubleKeys,
-				allAttrs.DoubleValues,
-				allAttrs.IntKeys,
-				allAttrs.IntValues,
-				allAttrs.StrKeys,
-				allAttrs.StrValues,
-				allAttrs.BytesKeys,
-				allAttrs.BytesValues,
-				eventNames,
-				eventTimestamps,
-				eventBoolKeys,
-				eventBoolVals,
-				eventDoubleKeys,
-				eventDoubleVals,
-				eventIntKeys,
-				eventIntVals,
-				eventStrKeys,
-				eventStrVals,
-				eventComplexKeys,
-				eventComplexVals,
-				linkTraceIDs,
+				err = batch.Append(
+					span.SpanID().String(),
+					span.TraceID().String(),
+					span.TraceState().AsRaw(),
+					span.ParentSpanID().String(),
+					span.Name(),
+					jptrace.SpanKindToString(span.Kind()),
+					span.StartTimestamp().AsTime(),
+					span.Status().Code().String(),
+					span.Status().Message(),
+					duration,
+					allAttrs.BoolKeys,
+					allAttrs.BoolValues,
+					allAttrs.DoubleKeys,
+					allAttrs.DoubleValues,
+					allAttrs.IntKeys,
+					allAttrs.IntValues,
+					allAttrs.StrKeys,
+					allAttrs.StrValues,
+					allAttrs.BytesKeys,
+					allAttrs.BytesValues,
+					eventNames,
+					eventTimestamps,
+					eventBoolKeys,
+					eventBoolVals,
+					eventDoubleKeys,
+					eventDoubleVals,
+					eventIntKeys,
+					eventIntVals,
+					eventStrKeys,
+					eventStrVals,
+					eventComplexKeys,
+					eventComplexVals,
+					linkTraceIDs,
 					linkSpanIDs,
 					linkTraceStates,
 					serviceName.Str(),

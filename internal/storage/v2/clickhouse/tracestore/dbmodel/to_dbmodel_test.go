@@ -114,8 +114,8 @@ func TestExtractAttributes(t *testing.T) {
 				return m
 			}(),
 			expected: AttributesGroup{
-				StrKeys:   []string{"slice_key"},
-				StrValues: []string{`["item1",123]`},
+				BytesKeys:   []string{"slice_key"},
+				BytesValues: []string{`["item1",123]`},
 			},
 		},
 		{
@@ -128,9 +128,9 @@ func TestExtractAttributes(t *testing.T) {
 				return m
 			}(),
 			expected: AttributesGroup{
-				StrKeys: []string{"map_key"},
+				BytesKeys: []string{"map_key"},
 				// Note: JSON marshaling may produce different key orders
-				StrValues: []string{`{"nested_bool":true,"nested_str":"val"}`},
+				BytesValues: []string{`{"nested_bool":true,"nested_str":"val"}`},
 			},
 		},
 		{
@@ -161,21 +161,21 @@ func TestExtractAttributes(t *testing.T) {
 			assert.ElementsMatch(t, tt.expected.IntKeys, actual.IntKeys)
 			assert.ElementsMatch(t, tt.expected.IntValues, actual.IntValues)
 			assert.ElementsMatch(t, tt.expected.StrKeys, actual.StrKeys)
-
-			// For string values, handle JSON with different key ordering
-			if tt.name == "map attribute (converted to JSON string)" {
-				// Parse and compare as maps
-				assert.Len(t, actual.StrValues, 1)
-				var actualMap, expectedMap map[string]any
-				assert.NoError(t, json.Unmarshal([]byte(actual.StrValues[0]), &actualMap))
-				assert.NoError(t, json.Unmarshal([]byte(tt.expected.StrValues[0]), &expectedMap))
-				assert.Equal(t, expectedMap, actualMap)
-			} else {
-				assert.ElementsMatch(t, tt.expected.StrValues, actual.StrValues)
-			}
+			assert.ElementsMatch(t, tt.expected.StrValues, actual.StrValues)
 
 			assert.ElementsMatch(t, tt.expected.BytesKeys, actual.BytesKeys)
-			assert.ElementsMatch(t, tt.expected.BytesValues, actual.BytesValues)
+
+			// For complex types (map/slice), handle JSON with different key ordering
+			if tt.name == "map attribute (converted to JSON string)" {
+				// Parse and compare as maps
+				assert.Len(t, actual.BytesValues, 1)
+				var actualMap, expectedMap map[string]any
+				assert.NoError(t, json.Unmarshal([]byte(actual.BytesValues[0]), &actualMap))
+				assert.NoError(t, json.Unmarshal([]byte(tt.expected.BytesValues[0]), &expectedMap))
+				assert.Equal(t, expectedMap, actualMap)
+			} else {
+				assert.ElementsMatch(t, tt.expected.BytesValues, actual.BytesValues)
+			}
 		})
 	}
 }
