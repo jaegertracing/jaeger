@@ -1,0 +1,30 @@
+[
+  {
+    "ID": "0102030000000000",
+    "TraceID": "01020300000000000000000000000000",
+    "TraceState": "trace state",
+    "ParentSpanID": "0102040000000000",
+    "Name": "call db",
+    "Kind": "Internal",
+    "StartTime": "2023-12-25T09:53:49Z",
+    "StatusCode": "Error",
+    "StatusMessage": "error",
+    "Duration": 60000000000,
+    "Events": [
+      {
+        "Name": "event1",
+        "Timestamp": "2023-12-25T09:53:49Z"
+      }
+    ],
+    "Links": [
+      {
+        "TraceID": "01020500000000000000000000000000",
+        "SpanID": "0102050000000000",
+        "TraceState": "test"
+      }
+    ],
+    "ServiceName": "",
+    "ScopeName": "io.opentelemetry.contrib.clickhouse",
+    "ScopeVersion": "1.0.0"
+  }
+]
