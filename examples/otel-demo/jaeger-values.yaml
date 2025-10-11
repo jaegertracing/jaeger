@@ -1,3 +1,6 @@
+global:
+  imageRegistry: docker.io
+
 allInOne:
   enabled: true
   extraEnv: []
@@ -11,6 +14,7 @@ hotrod:
   args:
     - all
   extraArgs:
+    - --jaeger-ui=https://jaeger.demo.jaegertracing.io
     - --otel-exporter=otlp
   livenessProbe:
     path: /

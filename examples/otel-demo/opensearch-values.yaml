@@ -1,6 +1,9 @@
 clusterName: "opensearch-cluster"
 nodeGroup: "single"
 
+global:
+  dockerRegistry: docker.io
+
 replicas: 1
 
 persistence:

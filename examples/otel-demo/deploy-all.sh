@@ -121,6 +121,11 @@ cleanup() {
   helm uninstall jaeger -n jaeger >/dev/null 2>&1 || true
   helm uninstall otel-demo -n otel-demo >/dev/null 2>&1 || true
 
+  log "Cleanup: deleting ingress resources"
+  kubectl delete ingress --all -n jaeger >/dev/null 2>&1 || true
+  kubectl delete ingress --all -n opensearch >/dev/null 2>&1 || true
+  kubectl delete ingress --all -n otel-demo >/dev/null 2>&1 || true
+
   log "Cleanup: deleting namespaces (may take time)"
   for ns in jaeger otel-demo opensearch; do
     kubectl delete namespace "$ns" --ignore-not-found=true >/dev/null 2>&1 || true
@@ -136,6 +141,69 @@ cleanup() {
     done
   done
   log "Cleanup complete"
+}
+
+# Deploy HTTPS ingress resources
+deploy_ingress() {
+  log "Deploying HTTPS ingress resources..."
+  
+  # Check if ingress files exist
+  if [[ ! -f "$SCRIPT_DIR/ingress/ingress-jaeger.yaml" ]]; then
+    log " Ingress files not found in $SCRIPT_DIR/ingress/ - skipping HTTPS setup"
+    return 0
+  fi
+  
+  # Apply ingress for each namespace
+  if kubectl apply -f "$SCRIPT_DIR/ingress/ingress-jaeger.yaml" 2>&1 | grep -q "created\|configured\|unchanged"; then
+    log "Jaeger ingress configured (jaeger.demo.jaegertracing.io, hotrod.demo.jaegertracing.io)"
+  else
+    log " Failed to apply Jaeger ingress "
+  fi
+  
+  if kubectl apply -f "$SCRIPT_DIR/ingress/ingress-opensearch.yaml" 2>&1 | grep -q "created\|configured\|unchanged"; then
+    log " OpenSearch ingress configured (opensearch.demo.jaegertracing.io)"
+  else
+    log "  Failed to apply OpenSearch ingress "
+  fi
+  
+  if kubectl apply -f "$SCRIPT_DIR/ingress/ingress-otel-demo.yaml" 2>&1 | grep -q "created\|configured\|unchanged"; then
+    log " OTel Demo ingress configured (shop.demo.jaegertracing.io)"
+  else
+    log "  Failed to apply OTel Demo ingress "
+  fi
+  
+  log "Waiting for SSL certificates to be issued..."
+  sleep 10
+  
+  # Check certificate status
+  local certs_ready=0
+  local certs_total=0
+  
+  for ns in jaeger opensearch otel-demo; do
+    if kubectl get namespace "$ns" >/dev/null 2>&1; then
+      if kubectl get certificate -n "$ns" >/dev/null 2>&1; then
+        certs_total=$((certs_total + 1))
+        if kubectl get certificate -n "$ns" -o jsonpath='{.items[*].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null | grep -q "True"; then
+          certs_ready=$((certs_ready + 1))
+        fi
+      fi
+    fi
+  done
+  
+  if [[ $certs_total -eq 0 ]]; then
+    log " No certificates found - cert-manager may not be installed"
+  elif [[ $certs_ready -eq $certs_total ]]; then
+    log "All SSL certificates ready ($certs_ready/$certs_total)"
+  else
+    log "Some certificates still pending ($certs_ready/$certs_total ready)"
+    log "Certificates will be issued automatically by cert-manager"
+  fi
+  
+  log "HTTPS endpoints:"
+  log " • https://jaeger.demo.jaegertracing.io"
+  log " • https://hotrod.demo.jaegertracing.io"
+  log " • https://opensearch.demo.jaegertracing.io"
+  log " • https://shop.demo.jaegertracing.io"
 }
 
 # Clone Jaeger Helm chart and prepare dependencies
@@ -236,6 +304,11 @@ main() {
   wait_for_deployment otel-demo load-generator "${ROLLOUT_TIMEOUT}s"
 
   log "All components deployed successfully"
+
+  # Deploy HTTPS ingress
+  deploy_ingress
+
+  log "🎉 Deployment complete! Stack is ready."
 
 }
 
