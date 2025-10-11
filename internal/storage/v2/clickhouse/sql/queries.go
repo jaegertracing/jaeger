@@ -31,9 +31,13 @@ INSERT INTO
         str_attributes.value,
         complex_attributes.key,
         complex_attributes.value,
+        events.name,
+        events.timestamp
     )
 VALUES
     (
+        ?,
+        ?,
         ?,
         ?,
         ?,

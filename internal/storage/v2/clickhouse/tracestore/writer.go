@@ -60,6 +60,8 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 					sr.strAttributeValues,
 					sr.complexAttributeKeys,
 					sr.complexAttributeValues,
+					sr.eventNames,
+					sr.eventTimestamps,
 				)
 				if err != nil {
 					return fmt.Errorf("failed to append span to batch: %w", err)
