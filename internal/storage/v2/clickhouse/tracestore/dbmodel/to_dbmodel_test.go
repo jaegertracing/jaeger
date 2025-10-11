@@ -166,7 +166,7 @@ func TestExtractAttributes(t *testing.T) {
 			if tt.name == "map attribute (converted to JSON string)" {
 				// Parse and compare as maps
 				assert.Len(t, actual.StrValues, 1)
-				var actualMap, expectedMap map[string]interface{}
+				var actualMap, expectedMap map[string]any
 				assert.NoError(t, json.Unmarshal([]byte(actual.StrValues[0]), &actualMap))
 				assert.NoError(t, json.Unmarshal([]byte(tt.expected.StrValues[0]), &expectedMap))
 				assert.Equal(t, expectedMap, actualMap)
@@ -231,7 +231,7 @@ func TestConvertValueToInterface(t *testing.T) {
 	tests := []struct {
 		name     string
 		value    pcommon.Value
-		expected interface{}
+		expected any
 	}{
 		{
 			name: "bool",
@@ -283,7 +283,7 @@ func TestConvertValueToInterface(t *testing.T) {
 				s.AppendEmpty().SetInt(123)
 				return v
 			}(),
-			expected: []interface{}{"item1", int64(123)},
+			expected: []any{"item1", int64(123)},
 		},
 		{
 			name: "map",
@@ -294,7 +294,7 @@ func TestConvertValueToInterface(t *testing.T) {
 				m.PutInt("key2", 456)
 				return v
 			}(),
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				"key1": "val1",
 				"key2": int64(456),
 			},
@@ -322,9 +322,9 @@ func TestNestedSliceConversion(t *testing.T) {
 	nestedMap.SetEmptyMap().PutInt("nested_key", 789)
 
 	result := convertValueToInterface(v)
-	expected := []interface{}{
-		[]interface{}{"nested"},
-		map[string]interface{}{"nested_key": int64(789)},
+	expected := []any{
+		[]any{"nested"},
+		map[string]any{"nested_key": int64(789)},
 	}
 
 	assert.Equal(t, expected, result)
@@ -344,9 +344,9 @@ func TestNestedMapConversion(t *testing.T) {
 	nestedSlice.AppendEmpty().SetInt(2)
 
 	result := convertValueToInterface(v)
-	expected := map[string]interface{}{
-		"nested_map":   map[string]interface{}{"key": "value"},
-		"nested_slice": []interface{}{int64(1), int64(2)},
+	expected := map[string]any{
+		"nested_map":   map[string]any{"key": "value"},
+		"nested_slice": []any{int64(1), int64(2)},
 	}
 
 	assert.Equal(t, expected, result)

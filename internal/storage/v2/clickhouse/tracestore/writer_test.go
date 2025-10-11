@@ -131,3 +131,60 @@ func TestWriter_SendError(t *testing.T) {
 	require.ErrorIs(t, err, assert.AnError)
 	require.False(t, conn.batch.sendCalled)
 }
+
+func TestWriter_WithAttributesEventsAndLinks(t *testing.T) {
+	conn := &testDriver{
+		t:             t,
+		expectedQuery: sql.InsertSpan,
+		batch:         &testBatch{t: t},
+	}
+	w := NewWriter(conn)
+
+	// Create traces with attributes, events, and links
+	td := ptrace.NewTraces()
+	rs := td.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr("service.name", "test-service")
+	rs.Resource().Attributes().PutInt("resource.attr", 123)
+
+	ss := rs.ScopeSpans().AppendEmpty()
+	ss.Scope().SetName("test-scope")
+	ss.Scope().SetVersion("1.0")
+	ss.Scope().Attributes().PutStr("scope.attr", "value")
+
+	span := ss.Spans().AppendEmpty()
+	span.SetSpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8})
+	span.SetTraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+	span.SetName("test-span")
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+	span.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(time.Second)))
+	span.Attributes().PutStr("span.attr", "test")
+	span.Attributes().PutInt("span.int", 456)
+
+	// Add event
+	event := span.Events().AppendEmpty()
+	event.SetName("test-event")
+	event.SetTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+	event.Attributes().PutStr("event.attr", "event-value")
+
+	// Add link
+	link := span.Links().AppendEmpty()
+	link.SetTraceID([16]byte{16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1})
+	link.SetSpanID([8]byte{8, 7, 6, 5, 4, 3, 2, 1})
+
+	err := w.WriteTraces(context.Background(), td)
+	require.NoError(t, err)
+	require.True(t, conn.batch.sendCalled)
+	require.Len(t, conn.batch.appended, 1)
+
+	// Verify the row has all 36 fields
+	row := conn.batch.appended[0]
+	require.Len(t, row, 36, "Expected 36 fields in batch.Append")
+
+	// Verify basic fields
+	require.NotEmpty(t, row[0])           // SpanID
+	require.NotEmpty(t, row[1])           // TraceID
+	require.Equal(t, "test-span", row[4]) // Name
+
+	// Verify service name (field 34, index 33)
+	require.Equal(t, "test-service", row[33])
+}

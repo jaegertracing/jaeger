@@ -57,10 +57,12 @@ func attributesToGroup(attributes pcommon.Map) AttributesGroup {
 		case ValueTypeSlice, ValueTypeMap:
 			// For complex types, serialize to JSON string
 			data, err := json.Marshal(convertValueToInterface(v))
-			if err == nil {
-				group.StrKeys = append(group.StrKeys, k)
-				group.StrValues = append(group.StrValues, string(data))
+			if err != nil {
+				// Fallback: use string representation if JSON marshaling fails
+				data, _ = json.Marshal(v.AsString())
 			}
+			group.StrKeys = append(group.StrKeys, k)
+			group.StrValues = append(group.StrValues, string(data))
 		default:
 			// Handle other types as generic strings or ignore
 			group.StrKeys = append(group.StrKeys, k)
@@ -71,9 +73,9 @@ func attributesToGroup(attributes pcommon.Map) AttributesGroup {
 	return group
 }
 
-// convertValueToInterface recursively converts pcommon.Value to a Go interface{}
+// convertValueToInterface recursively converts pcommon.Value to a Go any
 // suitable for JSON marshaling.
-func convertValueToInterface(v pcommon.Value) interface{} {
+func convertValueToInterface(v pcommon.Value) any {
 	switch v.Type() {
 	case ValueTypeBool:
 		return v.Bool()
@@ -86,13 +88,13 @@ func convertValueToInterface(v pcommon.Value) interface{} {
 	case ValueTypeBytes:
 		return base64.StdEncoding.EncodeToString(v.Bytes().AsRaw())
 	case ValueTypeSlice:
-		slice := make([]interface{}, 0, v.Slice().Len())
+		slice := make([]any, 0, v.Slice().Len())
 		for i := 0; i < v.Slice().Len(); i++ {
 			slice = append(slice, convertValueToInterface(v.Slice().At(i)))
 		}
 		return slice
 	case ValueTypeMap:
-		m := make(map[string]interface{}, v.Map().Len())
+		m := make(map[string]any, v.Map().Len())
 		v.Map().Range(func(k string, mv pcommon.Value) bool {
 			m[k] = convertValueToInterface(mv)
 			return true
