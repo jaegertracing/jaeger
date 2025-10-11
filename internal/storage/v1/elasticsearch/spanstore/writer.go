@@ -110,33 +110,29 @@ type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
 func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServiceIndexFn {
 	// Use explicit aliases if provided, otherwise use prefix pattern
 	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
-	if p.SpanAlias != "" {
+	hasSpanAlias := p.SpanAlias != ""
+	if hasSpanAlias {
 		spanIndexPrefix = p.SpanAlias
 	}
 
 	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
-	if p.ServiceAlias != "" {
+	hasServiceAlias := p.ServiceAlias != ""
+	if hasServiceAlias {
 		serviceIndexPrefix = p.ServiceAlias
 	}
 
-	if p.UseReadWriteAliases {
-		return func(_ time.Time) (string, string) {
-			return spanIndexPrefix + writeAlias, serviceIndexPrefix + writeAlias
-		}
-	}
-
-	// When using explicit aliases, handle each index independently
-	// Only append date suffix to indices without explicit aliases
-	if p.SpanAlias != "" || p.ServiceAlias != "" {
+	// Explicit aliases take priority over UseReadWriteAliases
+	// When explicit aliases are set, use them as-is without any suffix
+	if hasSpanAlias || hasServiceAlias {
 		return func(date time.Time) (string, string) {
 			spanIndex := spanIndexPrefix
 			serviceIndex := serviceIndexPrefix
 
 			// Only apply date suffix to indices without explicit aliases
-			if p.SpanAlias == "" {
+			if !hasSpanAlias {
 				spanIndex = indexWithDate(spanIndexPrefix, p.SpanIndex.DateLayout, date)
 			}
-			if p.ServiceAlias == "" {
+			if !hasServiceAlias {
 				serviceIndex = indexWithDate(serviceIndexPrefix, p.ServiceIndex.DateLayout, date)
 			}
 
@@ -144,6 +140,14 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServ
 		}
 	}
 
+	// UseReadWriteAliases: append write suffix to the prefix-based index names
+	if p.UseReadWriteAliases {
+		return func(_ time.Time) (string, string) {
+			return spanIndexPrefix + writeAlias, serviceIndexPrefix + writeAlias
+		}
+	}
+
+	// Default: use date-based index naming
 	return func(date time.Time) (string, string) {
 		return indexWithDate(spanIndexPrefix, p.SpanIndex.DateLayout, date), indexWithDate(serviceIndexPrefix, p.ServiceIndex.DateLayout, date)
 	}
