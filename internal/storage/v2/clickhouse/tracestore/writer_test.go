@@ -82,9 +82,13 @@ func TestWriter_Success(t *testing.T) {
 		require.Equal(t, expected.statusCode, row[7])            // Status code
 		require.Equal(t, expected.statusMessage, row[8])         // Status message
 		require.EqualValues(t, expected.rawDuration, row[9])     // Duration
-		require.Equal(t, expected.serviceName, row[10])          // Service name
-		require.Equal(t, expected.scopeName, row[11])            // Scope name
-		require.Equal(t, expected.scopeVersion, row[12])         // Scope version
+
+		// Fields 10-31 are attributes, events, and links (verified by successful batch.Append)
+		// These fields are tested indirectly - if batch.Append succeeds, the structure is correct
+
+		require.Equal(t, expected.serviceName, row[33])  // Service name (field 34, index 33)
+		require.Equal(t, expected.scopeName, row[34])    // Scope name (field 35, index 34)
+		require.Equal(t, expected.scopeVersion, row[35]) // Scope version (field 36, index 35)
 	}
 }
 

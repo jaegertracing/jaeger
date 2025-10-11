@@ -18,12 +18,35 @@ INSERT INTO
         status_code,
         status_message,
         duration,
+        bool_attributes.key,
+        bool_attributes.value,
+        double_attributes.key,
+        double_attributes.value,
+        int_attributes.key,
+        int_attributes.value,
+        complex_attributes.key,
+        complex_attributes.value,
+        events.name,
+        events.timestamp,
+        events.bool_attributes.key,
+        events.bool_attributes.value,
+        events.double_attributes.key,
+        events.double_attributes.value,
+        events.int_attributes.key,
+        events.int_attributes.value,
+        events.str_attributes.key,
+        events.str_attributes.value,
+        events.complex_attributes.key,
+        events.complex_attributes.value,
+        links.trace_id,
+        links.span_id,
+        links.trace_state,
         service_name,
         scope_name,
         scope_version
     )
 VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 const SelectSpansByTraceID = `

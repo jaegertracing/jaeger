@@ -12,6 +12,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
@@ -34,11 +35,60 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 		return fmt.Errorf("failed to prepare batch: %w", err)
 	}
 	defer batch.Close()
+
 	for _, rs := range td.ResourceSpans().All() {
 		serviceName, _ := rs.Resource().Attributes().Get(otelsemconv.ServiceNameKey)
+		resourceAttrs := dbmodel.ExtractAttributes(rs.Resource().Attributes())
+
 		for _, ss := range rs.ScopeSpans().All() {
+			scopeAttrs := dbmodel.ExtractAttributes(ss.Scope().Attributes())
+
 			for _, span := range ss.Spans().All() {
+				// Combine resource, scope, and span attributes
+				spanAttrs := dbmodel.ExtractAttributes(span.Attributes())
+				allAttrs := dbmodel.CombineAttributes(resourceAttrs, scopeAttrs, spanAttrs)
+
+				// Extract events
+				var eventNames []string
+				var eventTimestamps []int64
+				var eventBoolKeys, eventDoubleKeys, eventIntKeys, eventStrKeys, eventBytesKeys [][]string
+				var eventBoolVals [][]bool
+				var eventDoubleVals [][]float64
+				var eventIntVals [][]int64
+				var eventStrVals, eventBytesVals [][]string
+
+				for _, event := range span.Events().All() {
+					eventNames = append(eventNames, event.Name())
+					eventTimestamps = append(eventTimestamps, event.Timestamp().AsTime().UnixNano())
+
+					evtAttrs := dbmodel.ExtractAttributes(event.Attributes())
+					eventBoolKeys = append(eventBoolKeys, evtAttrs.BoolKeys)
+					eventBoolVals = append(eventBoolVals, evtAttrs.BoolValues)
+					eventDoubleKeys = append(eventDoubleKeys, evtAttrs.DoubleKeys)
+					eventDoubleVals = append(eventDoubleVals, evtAttrs.DoubleValues)
+					eventIntKeys = append(eventIntKeys, evtAttrs.IntKeys)
+					eventIntVals = append(eventIntVals, evtAttrs.IntValues)
+					eventStrKeys = append(eventStrKeys, evtAttrs.StrKeys)
+					eventStrVals = append(eventStrVals, evtAttrs.StrValues)
+					eventBytesKeys = append(eventBytesKeys, evtAttrs.BytesKeys)
+					eventBytesVals = append(eventBytesVals, evtAttrs.BytesValues)
+				}
+
+				// Extract links
+				var linkTraceIDs, linkSpanIDs, linkTraceStates []string
+				for _, link := range span.Links().All() {
+					linkTraceIDs = append(linkTraceIDs, link.TraceID().String())
+					linkSpanIDs = append(linkSpanIDs, link.SpanID().String())
+					linkTraceStates = append(linkTraceStates, link.TraceState().AsRaw())
+				}
+
 				duration := span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime()).Nanoseconds()
+
+				// Combine str and bytes attributes into "complex" for storage
+				// ClickHouse schema has: bool, double, int, str, complex
+				complexKeys := append(append([]string{}, allAttrs.StrKeys...), allAttrs.BytesKeys...)
+				complexVals := append(append([]string{}, allAttrs.StrValues...), allAttrs.BytesValues...)
+
 				err = batch.Append(
 					span.SpanID().String(),
 					span.TraceID().String(),
@@ -50,6 +100,29 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 					span.Status().Code().String(),
 					span.Status().Message(),
 					duration,
+					allAttrs.BoolKeys,
+					allAttrs.BoolValues,
+					allAttrs.DoubleKeys,
+					allAttrs.DoubleValues,
+					allAttrs.IntKeys,
+					allAttrs.IntValues,
+					complexKeys,
+					complexVals,
+					eventNames,
+					eventTimestamps,
+					eventBoolKeys,
+					eventBoolVals,
+					eventDoubleKeys,
+					eventDoubleVals,
+					eventIntKeys,
+					eventIntVals,
+					eventStrKeys,
+					eventStrVals,
+					eventBytesKeys,
+					eventBytesVals,
+					linkTraceIDs,
+					linkSpanIDs,
+					linkTraceStates,
 					serviceName.Str(),
 					ss.Scope().Name(),
 					ss.Scope().Version(),
@@ -60,6 +133,7 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 			}
 		}
 	}
+
 	if err := batch.Send(); err != nil {
 		return fmt.Errorf("failed to send batch: %w", err)
 	}
