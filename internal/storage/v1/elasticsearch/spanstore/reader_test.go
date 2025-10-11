@@ -165,6 +165,31 @@ func TestNewSpanReader(t *testing.T) {
 			},
 			maxSpanAge: time.Hour * 24 * 365 * 50,
 		},
+		{
+			name: "explicit span alias",
+			params: SpanReaderParams{
+				MaxSpanAge: time.Hour * 72,
+				SpanAlias:  "custom-span-alias",
+			},
+			maxSpanAge: time.Hour * 24 * 365 * 50,
+		},
+		{
+			name: "explicit service alias",
+			params: SpanReaderParams{
+				MaxSpanAge:   time.Hour * 72,
+				ServiceAlias: "custom-service-alias",
+			},
+			maxSpanAge: time.Hour * 24 * 365 * 50,
+		},
+		{
+			name: "both explicit aliases",
+			params: SpanReaderParams{
+				MaxSpanAge:   time.Hour * 72,
+				SpanAlias:    "custom-span-alias",
+				ServiceAlias: "custom-service-alias",
+			},
+			maxSpanAge: time.Hour * 24 * 365 * 50,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -243,6 +268,41 @@ func TestSpanReaderIndices(t *testing.T) {
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", UseReadWriteAliases: true, ReadAliasSuffix: "archive",
 			},
 			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + "archive", "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + "archive"},
+		},
+		{
+			params: SpanReaderParams{
+				SpanIndex:    spanIndexOpts,
+				ServiceIndex: serviceIndexOpts,
+				SpanAlias:    "custom-span-alias",
+				ServiceAlias: "custom-service-alias",
+			},
+			indices: []string{"custom-span-alias", "custom-service-alias"},
+		},
+		{
+			params: SpanReaderParams{
+				SpanIndex:    spanIndexOpts,
+				ServiceIndex: serviceIndexOpts,
+				SpanAlias:    "custom-span-alias",
+			},
+			indices: []string{"custom-span-alias", serviceIndexBaseName + serviceDataLayoutFormat},
+		},
+		{
+			params: SpanReaderParams{
+				SpanIndex:    spanIndexOpts,
+				ServiceIndex: serviceIndexOpts,
+				ServiceAlias: "custom-service-alias",
+			},
+			indices: []string{spanIndexBaseName + spanDataLayoutFormat, "custom-service-alias"},
+		},
+		{
+			params: SpanReaderParams{
+				SpanIndex:    spanIndexOpts,
+				ServiceIndex: serviceIndexOpts,
+				IndexPrefix:  "foo:",
+				SpanAlias:    "custom-span-alias",
+				ServiceAlias: "custom-service-alias",
+			},
+			indices: []string{"custom-span-alias", "custom-service-alias"},
 		},
 		{
 			params: SpanReaderParams{
