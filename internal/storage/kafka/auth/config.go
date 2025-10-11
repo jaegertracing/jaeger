@@ -88,16 +88,10 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 	}
 
 	// Configure TLS settings based on authentication type and TLS enablement
-	if config.Authentication == tls {
-		// for TLS authentication, ensure TLS is secure and include system CAs
-		tlsCfg.Insecure = false
-		tlsCfg.IncludeSystemCACertsPool = true
-	} else if v.GetBool(configPrefix + ".tls.enabled") {
-		// for non-TLS authentication with TLS enabled, ensure TLS is secure and include system CAs
+	if config.Authentication == tls || v.GetBool(configPrefix+".tls.enabled") {
 		tlsCfg.Insecure = false
 		tlsCfg.IncludeSystemCACertsPool = true
 	}
-	// for non-TLS authentication without TLS enabled, keep OTEL defaults (Insecure=false, IncludeSystemCACertsPool=false)
 	config.TLS = tlsCfg
 
 	config.PlainText.Username = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextUsername)
