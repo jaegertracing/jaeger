@@ -120,6 +120,38 @@ func TestSpanWriterIndices(t *testing.T) {
 			},
 			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + "archive", "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + "archive"},
 		},
+		{
+			params: SpanWriterParams{
+				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts,
+				SpanAlias: "custom-span-alias", ServiceAlias: "custom-service-alias",
+			},
+			indices: []string{"custom-span-alias", "custom-service-alias"},
+		},
+		{
+			params: SpanWriterParams{
+				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts,
+				SpanAlias: "custom-span-alias",
+			},
+			indices: []string{"custom-span-alias", serviceIndexBaseName + serviceDataLayoutFormat},
+		},
+		{
+			params: SpanWriterParams{
+				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts,
+				ServiceAlias: "custom-service-alias",
+			},
+			indices: []string{spanIndexBaseName + spanDataLayoutFormat, "custom-service-alias"},
+		},
+		{
+			params: SpanWriterParams{
+				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:",
+				SpanAlias: "custom-span-alias", ServiceAlias: "custom-service-alias",
+			},
+			indices: []string{"custom-span-alias", "custom-service-alias"},
+		},
 	}
 	for _, testCase := range testCases {
 		w := NewSpanWriter(testCase.params)

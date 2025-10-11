@@ -138,22 +138,21 @@ type SpanReaderParams struct {
 func NewSpanReader(p SpanReaderParams) *SpanReader {
 	// Determine span index prefix - use explicit alias if provided
 	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
-	useExplicitAlias := false
-	if p.SpanAlias != "" {
+	hasSpanAlias := p.SpanAlias != ""
+	if hasSpanAlias {
 		spanIndexPrefix = p.SpanAlias
-		useExplicitAlias = true
 	}
 
 	// Determine service index prefix - use explicit alias if provided
 	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
-	if p.ServiceAlias != "" {
+	hasServiceAlias := p.ServiceAlias != ""
+	if hasServiceAlias {
 		serviceIndexPrefix = p.ServiceAlias
-		useExplicitAlias = true
 	}
 
 	// When using explicit aliases, treat them like read/write aliases
 	// (no time-based index selection)
-	useAliasMode := p.UseReadWriteAliases || useExplicitAlias
+	useAliasMode := p.UseReadWriteAliases || hasSpanAlias || hasServiceAlias
 
 	maxSpanAge := p.MaxSpanAge
 	// Setting the maxSpanAge to a large duration will ensure all spans in the "read" alias are accessible by queries (query window = [now - maxSpanAge, now]).
@@ -162,12 +161,20 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		maxSpanAge = dawnOfTimeSpanAge
 	}
 
-	// Create custom time range function for explicit aliases
+	// Create custom time range function that handles explicit aliases independently
 	var timeRangeFn TimeRangeIndexFn
-	if useExplicitAlias {
-		// For explicit aliases, return the alias name as-is (no time-based selection, no suffix)
-		timeRangeFn = func(indexPrefix, _ string, _, _ time.Time, _ time.Duration) []string {
-			return []string{indexPrefix}
+	if hasSpanAlias || hasServiceAlias {
+		// For explicit aliases, we need to check each index prefix individually
+		// to determine if it's an alias (and should be returned as-is) or a regular prefix (needs date-based logic)
+		baseTimeRangeFn := TimeRangeIndicesFn(p.UseReadWriteAliases, p.ReadAliasSuffix, p.RemoteReadClusters)
+		timeRangeFn = func(indexPrefix, indexDateLayout string, startTime, endTime time.Time, reduceDuration time.Duration) []string {
+			// Check if this indexPrefix matches one of our explicit aliases
+			if (hasSpanAlias && indexPrefix == spanIndexPrefix) || (hasServiceAlias && indexPrefix == serviceIndexPrefix) {
+				// This is an explicit alias, return it as-is
+				return []string{indexPrefix}
+			}
+			// Not an explicit alias, use standard time-based logic
+			return baseTimeRangeFn(indexPrefix, indexDateLayout, startTime, endTime, reduceDuration)
 		}
 	} else {
 		// Use standard time range function
