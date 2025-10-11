@@ -390,3 +390,119 @@ func TestHTTPGatewayGetOperationsErrors(t *testing.T) {
 	gw.router.ServeHTTP(w, r)
 	assert.Contains(t, w.Body.String(), assert.AnError.Error())
 }
+
+// TestHTTPGatewayStreamingResponse verifies that chunked encoding is used for streaming responses
+func TestHTTPGatewayStreamingResponse(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	// Create multiple trace batches to verify streaming
+	trace1 := makeTestTrace()
+	trace2 := ptrace.NewTraces()
+	resources := trace2.ResourceSpans().AppendEmpty()
+	scopes := resources.ScopeSpans().AppendEmpty()
+	spanB := scopes.Spans().AppendEmpty()
+	spanB.SetName("second-span")
+	spanB.SetTraceID(traceID)
+	spanB.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 3}))
+
+	// Setup iterator that returns multiple batches
+	gw.reader.
+		On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			// Yield first batch
+			if !yield([]ptrace.Traces{trace1}, nil) {
+				return
+			}
+			// Yield second batch
+			yield([]ptrace.Traces{trace2}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+
+	assert.Equal(t, "identity", w.Header().Get("Content-Encoding"))
+
+	body := w.Body.String()
+	assert.Contains(t, body, "foobar")      // First trace span name
+	assert.Contains(t, body, "second-span") // Second trace span name
+}
+
+// TestHTTPGatewayStreamingMultipleBatches tests streaming with multiple trace batches
+func TestHTTPGatewayStreamingMultipleBatches(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	trace1 := makeTestTrace()
+	trace2 := ptrace.NewTraces()
+	resources := trace2.ResourceSpans().AppendEmpty()
+	scopes := resources.ScopeSpans().AppendEmpty()
+	spanB := scopes.Spans().AppendEmpty()
+	spanB.SetName("batch2-span")
+	spanB.SetTraceID(traceID)
+	spanB.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 4}))
+
+	gw.reader.
+		On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			if !yield([]ptrace.Traces{trace1}, nil) {
+				return
+			}
+			if !yield([]ptrace.Traces{trace2}, nil) {
+				return
+			}
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	body := w.Body.String()
+	assert.Contains(t, body, "foobar")
+	assert.Contains(t, body, "batch2-span")
+}
+
+func TestHTTPGatewayStreamingFallbackNoFlusher(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	trace1 := makeTestTrace()
+	gw.reader.
+		On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{trace1}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+	require.NoError(t, err)
+
+	// Use a custom ResponseWriter that doesn't implement http.Flusher
+	w := &nonFlushableRecorder{ResponseWriter: httptest.NewRecorder()}
+	gw.router.ServeHTTP(w, r)
+
+	// Should still work but fall back to buffered response
+	assert.Equal(t, http.StatusOK, w.ResponseWriter.(*httptest.ResponseRecorder).Code)
+}
+
+type nonFlushableRecorder struct {
+	http.ResponseWriter
+}
+
+func (n *nonFlushableRecorder) Header() http.Header {
+	return n.ResponseWriter.Header()
+}
+
+func (n *nonFlushableRecorder) Write(b []byte) (int, error) {
+	return n.ResponseWriter.Write(b)
+}
+
+func (n *nonFlushableRecorder) WriteHeader(statusCode int) {
+	n.ResponseWriter.WriteHeader(statusCode)
+}
