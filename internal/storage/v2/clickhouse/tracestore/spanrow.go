@@ -193,6 +193,7 @@ func spanToRow(
 	scope pcommon.InstrumentationScope,
 	span ptrace.Span,
 ) spanRow {
+	// we assume a sanitizer was applied upstream to guarantee non-empty service name
 	serviceName, _ := resource.Attributes().Get(otelsemconv.ServiceNameKey)
 	duration := span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime()).Nanoseconds()
 	sr := spanRow{
