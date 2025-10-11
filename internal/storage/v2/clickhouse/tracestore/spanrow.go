@@ -4,11 +4,16 @@
 package tracestore
 
 import (
+	"encoding/base64"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 type spanRow struct {
@@ -52,7 +57,7 @@ type spanRow struct {
 	scopeVersion                string
 }
 
-func (sr *spanRow) ToDBModel() dbmodel.Span {
+func (sr *spanRow) toDBModel() dbmodel.Span {
 	return dbmodel.Span{
 		ID:            sr.id,
 		TraceID:       sr.traceID,
@@ -132,7 +137,7 @@ func scanSpanRow(rows driver.Rows) (dbmodel.Span, error) {
 	if err != nil {
 		return dbmodel.Span{}, err
 	}
-	return span.ToDBModel(), nil
+	return span.toDBModel(), nil
 }
 
 func zipAttributes[T any](keys []string, values []T) []dbmodel.Attribute[T] {
@@ -181,4 +186,59 @@ func buildLinks(traceIDs, spanIDs, states []string) []dbmodel.Link {
 		})
 	}
 	return links
+}
+
+func spanToRow(
+	resource pcommon.Resource,
+	scope pcommon.InstrumentationScope,
+	span ptrace.Span,
+) spanRow {
+	// we assume a sanitizer was applied upstream to guarantee non-empty service name
+	serviceName, _ := resource.Attributes().Get(otelsemconv.ServiceNameKey)
+	duration := span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime()).Nanoseconds()
+	sr := spanRow{
+		id:            span.SpanID().String(),
+		traceID:       span.TraceID().String(),
+		traceState:    span.TraceState().AsRaw(),
+		parentSpanID:  span.ParentSpanID().String(),
+		name:          span.Name(),
+		kind:          jptrace.SpanKindToString(span.Kind()),
+		startTime:     span.StartTimestamp().AsTime(),
+		statusCode:    span.Status().Code().String(),
+		statusMessage: span.Status().Message(),
+		rawDuration:   duration,
+		serviceName:   serviceName.Str(),
+		scopeName:     scope.Name(),
+		scopeVersion:  scope.Version(),
+	}
+	sr.appendAttributes(span.Attributes())
+	return sr
+}
+
+func (sr *spanRow) appendAttributes(attrs pcommon.Map) {
+	attrs.Range(func(k string, v pcommon.Value) bool {
+		switch v.Type() {
+		case pcommon.ValueTypeBool:
+			sr.boolAttributeKeys = append(sr.boolAttributeKeys, k)
+			sr.boolAttributeValues = append(sr.boolAttributeValues, v.Bool())
+		case pcommon.ValueTypeDouble:
+			sr.doubleAttributeKeys = append(sr.doubleAttributeKeys, k)
+			sr.doubleAttributeValues = append(sr.doubleAttributeValues, v.Double())
+		case pcommon.ValueTypeInt:
+			sr.intAttributeKeys = append(sr.intAttributeKeys, k)
+			sr.intAttributeValues = append(sr.intAttributeValues, v.Int())
+		case pcommon.ValueTypeStr:
+			sr.strAttributeKeys = append(sr.strAttributeKeys, k)
+			sr.strAttributeValues = append(sr.strAttributeValues, v.Str())
+		case pcommon.ValueTypeBytes:
+			key := "@bytes@" + k
+			encoded := base64.StdEncoding.EncodeToString(v.Bytes().AsRaw())
+			sr.complexAttributeKeys = append(sr.complexAttributeKeys, key)
+			sr.complexAttributeValues = append(sr.complexAttributeValues, encoded)
+		case pcommon.ValueTypeSlice, pcommon.ValueTypeMap:
+			// TODO
+		default:
+		}
+		return true
+	})
 }
