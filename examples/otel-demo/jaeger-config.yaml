@@ -1,0 +1,80 @@
+service:
+  extensions: [jaeger_storage, jaeger_query, healthcheckv2]
+  
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [jaeger_storage_exporter]
+
+extensions:
+  healthcheckv2:
+    use_v2: true
+    http:
+      endpoint: 0.0.0.0:13133
+  
+  jaeger_query:
+    storage:
+      traces: some_storage
+      traces_archive: another_storage
+      metrics: some_storage  # For SPM metrics
+  
+  jaeger_storage:
+    backends:
+      some_storage: &opensearch_config
+        opensearch:
+          server_urls:
+            - http://opensearch-cluster-single.opensearch.svc.cluster.local:9200
+          indices:
+            index_prefix: "jaeger-main"
+            spans:
+              date_layout: "2006-01-02"
+              rollover_frequency: "day"
+              shards: 1
+              replicas: 0
+            services:
+              date_layout: "2006-01-02"
+              rollover_frequency: "day"
+              shards: 1
+              replicas: 0
+            dependencies:
+              date_layout: "2006-01-02"
+              rollover_frequency: "day"
+              shards: 1
+              replicas: 0
+            sampling:
+              date_layout: "2006-01-02"
+              rollover_frequency: "day"
+              shards: 1
+              replicas: 0
+      
+      another_storage:
+        opensearch:
+          server_urls:
+            - http://opensearch-cluster-single.opensearch.svc.cluster.local:9200
+          indices:
+            index_prefix: "jaeger-archive"
+            spans:
+              date_layout: "2006-01-02"
+              rollover_frequency: "day"
+              shards: 1
+              replicas: 0
+    
+    metric_backends:
+      some_storage: *opensearch_config
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+      http:
+        endpoint: "0.0.0.0:4318"
+
+processors:
+  batch:
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: some_storage
+
