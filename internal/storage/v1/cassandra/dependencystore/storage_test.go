@@ -264,22 +264,22 @@ func TestDependencyStore_UnsupportedVersion(t *testing.T) {
 	logger := zap.NewNop()
 	metricsFactory := metrics.NullFactory
 	session := &mocks.Session{}
-
+	
 	store := &DependencyStore{
 		session:                  session,
 		dependenciesTableMetrics: casMetrics.NewTable(metricsFactory, "dependencies"),
 		logger:                   logger,
 		version:                  Version(999),
 	}
-
+	
 	deps := []model.DependencyLink{
 		{Parent: "parent", Child: "child", CallCount: 1},
 	}
-
+	
 	err := store.WriteDependencies(time.Now(), deps)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported schema version")
-
+	
 	_, err = store.GetDependencies(context.Background(), time.Now(), time.Hour)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported schema version")

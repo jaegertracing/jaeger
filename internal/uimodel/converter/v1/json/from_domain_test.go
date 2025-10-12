@@ -172,16 +172,16 @@ func TestDependenciesFromDomain(t *testing.T) {
 func TestConvertKeyValues_DefaultValueType(t *testing.T) {
 	// Create a custom ValueType that's not handled by the switch
 	customType := model.ValueType(999)
-
+	
 	kv := model.KeyValue{
 		Key:   "custom-key",
 		VType: customType,
 		VStr:  "custom-value",
 	}
-
+	
 	fd := fromDomain{}
 	result := fd.convertKeyValues(model.KeyValues{kv})
-
+	
 	require.Len(t, result, 1)
 	assert.Equal(t, "custom-key", result[0].Key)
 
