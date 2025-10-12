@@ -33,23 +33,14 @@ INSERT INTO
         complex_attributes.value,
         events.name,
         events.timestamp,
-        events.bool_attributes.key,
-        events.bool_attributes.value,
-        events.double_attributes.key,
-        events.double_attributes.value,
-        events.int_attributes.key,
-        events.int_attributes.value,
-        events.str_attributes.key,
-        events.str_attributes.value,
-        events.complex_attributes.key,
-        events.complex_attributes.value,
+        events.bool_attributes,
+        events.double_attributes,
+        events.int_attributes,
+        events.str_attributes,
+        events.complex_attributes
     )
 VALUES
     (
-        ?,
-        ?,
-        ?,
-        ?,
         ?,
         ?,
         ?,
