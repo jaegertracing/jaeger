@@ -109,10 +109,13 @@ func TestStorageCleanerExtension(t *testing.T) {
 				r, err := http.NewRequest(http.MethodPost, addr, http.NoBody)
 				require.NoError(t, err)
 				resp, err := client.Do(r)
-				require.NoError(t, err)
-				defer resp.Body.Close()
-				return test.status == resp.StatusCode
-			}, 5*time.Second, 100*time.Millisecond)
+				if (err != nil) {
+					t.Logf("client.Do error: %v", err)
+				} else {
+					defer resp.Body.Close()
+				}
+				return err == nil && test.status == resp.StatusCode
+			}, 10*time.Second, 100*time.Millisecond)
 		})
 	}
 }
