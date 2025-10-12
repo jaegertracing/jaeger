@@ -157,7 +157,7 @@ func NewSession(c *config.Configuration) (cassandra.Session, error) {
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	sr, err := cspanstore.NewSpanReader(f.session, f.metricsFactory, f.logger, f.tracer.Tracer("cspanstore.SpanReader"))
+	sr, err := cspanstore.NewSpanReader(f.session, f.metricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
 	if err != nil {
 		return nil, err
 	}
