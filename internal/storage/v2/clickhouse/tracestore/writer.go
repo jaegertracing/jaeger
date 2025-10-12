@@ -10,7 +10,10 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 type Writer struct {
@@ -32,34 +35,94 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 		return fmt.Errorf("failed to prepare batch: %w", err)
 	}
 	defer batch.Close()
+
 	for _, rs := range td.ResourceSpans().All() {
+		serviceName, _ := rs.Resource().Attributes().Get(otelsemconv.ServiceNameKey)
+		resourceAttrs := dbmodel.ExtractAttributes(rs.Resource().Attributes())
+
 		for _, ss := range rs.ScopeSpans().All() {
+			scopeAttrs := dbmodel.ExtractAttributes(ss.Scope().Attributes())
+
 			for _, span := range ss.Spans().All() {
-				sr := spanToRow(rs.Resource(), ss.Scope(), span)
+				// Combine resource, scope, and span attributes
+				spanAttrs := dbmodel.ExtractAttributes(span.Attributes())
+				allAttrs := dbmodel.CombineAttributes(resourceAttrs, scopeAttrs, spanAttrs)
+
+				// Extract events
+				var eventNames []string
+				var eventTimestamps []int64
+				var eventBoolKeys, eventDoubleKeys, eventIntKeys, eventStrKeys, eventComplexKeys [][]string
+				var eventBoolVals [][]bool
+				var eventDoubleVals [][]float64
+				var eventIntVals [][]int64
+				var eventStrVals, eventComplexVals [][]string
+
+				for _, event := range span.Events().All() {
+					eventNames = append(eventNames, event.Name())
+					eventTimestamps = append(eventTimestamps, event.Timestamp().AsTime().UnixNano())
+
+					evtAttrs := dbmodel.ExtractAttributes(event.Attributes())
+					eventBoolKeys = append(eventBoolKeys, evtAttrs.BoolKeys)
+					eventBoolVals = append(eventBoolVals, evtAttrs.BoolValues)
+					eventDoubleKeys = append(eventDoubleKeys, evtAttrs.DoubleKeys)
+					eventDoubleVals = append(eventDoubleVals, evtAttrs.DoubleValues)
+					eventIntKeys = append(eventIntKeys, evtAttrs.IntKeys)
+					eventIntVals = append(eventIntVals, evtAttrs.IntValues)
+					eventStrKeys = append(eventStrKeys, evtAttrs.StrKeys)
+					eventStrVals = append(eventStrVals, evtAttrs.StrValues)
+					eventComplexKeys = append(eventComplexKeys, evtAttrs.BytesKeys)
+					eventComplexVals = append(eventComplexVals, evtAttrs.BytesValues)
+				}
+
+				// Extract links
+				var linkTraceIDs, linkSpanIDs, linkTraceStates []string
+				for _, link := range span.Links().All() {
+					linkTraceIDs = append(linkTraceIDs, link.TraceID().String())
+					linkSpanIDs = append(linkSpanIDs, link.SpanID().String())
+					linkTraceStates = append(linkTraceStates, link.TraceState().AsRaw())
+				}
+
+				duration := span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime()).Nanoseconds()
+
 				err = batch.Append(
-					sr.id,
-					sr.traceID,
-					sr.traceState,
-					sr.parentSpanID,
-					sr.name,
-					sr.kind,
-					sr.startTime,
-					sr.statusCode,
-					sr.statusMessage,
-					sr.rawDuration,
-					sr.serviceName,
-					sr.scopeName,
-					sr.scopeVersion,
-					sr.boolAttributeKeys,
-					sr.boolAttributeValues,
-					sr.doubleAttributeKeys,
-					sr.doubleAttributeValues,
-					sr.intAttributeKeys,
-					sr.intAttributeValues,
-					sr.strAttributeKeys,
-					sr.strAttributeValues,
-					sr.complexAttributeKeys,
-					sr.complexAttributeValues,
+					span.SpanID().String(),
+					span.TraceID().String(),
+					span.TraceState().AsRaw(),
+					span.ParentSpanID().String(),
+					span.Name(),
+					jptrace.SpanKindToString(span.Kind()),
+					span.StartTimestamp().AsTime(),
+					span.Status().Code().String(),
+					span.Status().Message(),
+					duration,
+					allAttrs.BoolKeys,
+					allAttrs.BoolValues,
+					allAttrs.DoubleKeys,
+					allAttrs.DoubleValues,
+					allAttrs.IntKeys,
+					allAttrs.IntValues,
+					allAttrs.StrKeys,
+					allAttrs.StrValues,
+					allAttrs.BytesKeys,
+					allAttrs.BytesValues,
+					eventNames,
+					eventTimestamps,
+					eventBoolKeys,
+					eventBoolVals,
+					eventDoubleKeys,
+					eventDoubleVals,
+					eventIntKeys,
+					eventIntVals,
+					eventStrKeys,
+					eventStrVals,
+					eventComplexKeys,
+					eventComplexVals,
+					linkTraceIDs,
+					linkSpanIDs,
+					linkTraceStates,
+					serviceName.Str(),
+					ss.Scope().Name(),
+					ss.Scope().Version(),
 				)
 				if err != nil {
 					return fmt.Errorf("failed to append span to batch: %w", err)
@@ -67,6 +130,7 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 			}
 		}
 	}
+
 	if err := batch.Send(); err != nil {
 		return fmt.Errorf("failed to send batch: %w", err)
 	}

@@ -6,6 +6,7 @@ package dbmodel
 import (
 	"encoding/base64"
 	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -252,4 +253,15 @@ func TestPopulateComplexAttributes(t *testing.T) {
 			}
 		})
 	}
+}
+
+func jsonToPtrace(t *testing.T, filename string) ptrace.Traces {
+	t.Helper()
+	data, err := os.ReadFile(filename)
+	require.NoError(t, err)
+
+	unmarshaler := &ptrace.JSONUnmarshaler{}
+	traces, err := unmarshaler.UnmarshalTraces(data)
+	require.NoError(t, err)
+	return traces
 }
