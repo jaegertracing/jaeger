@@ -62,16 +62,11 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 					sr.complexAttributeValues,
 					sr.eventNames,
 					sr.eventTimestamps,
-					sr.eventBoolAttributeKeys,
-					sr.eventBoolAttributeValues,
-					sr.eventDoubleAttributeKeys,
-					sr.eventDoubleAttributeValues,
-					sr.eventIntAttributeKeys,
-					sr.eventIntAttributeValues,
-					sr.eventStrAttributeKeys,
-					sr.eventStrAttributeValues,
-					sr.eventComplexAttributeKeys,
-					sr.eventComplexAttributeValues,
+					toTuple(sr.eventBoolAttributeKeys, sr.eventBoolAttributeValues),
+					toTuple(sr.eventDoubleAttributeKeys, sr.eventDoubleAttributeValues),
+					toTuple(sr.eventIntAttributeKeys, sr.eventIntAttributeValues),
+					toTuple(sr.eventStrAttributeKeys, sr.eventStrAttributeValues),
+					toTuple(sr.eventComplexAttributeKeys, sr.eventComplexAttributeValues),
 				)
 				if err != nil {
 					return fmt.Errorf("failed to append span to batch: %w", err)
@@ -83,4 +78,16 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 		return fmt.Errorf("failed to send batch: %w", err)
 	}
 	return nil
+}
+
+func toTuple[T any](keys [][]string, values [][]T) [][][]any {
+	tuple := make([][][]any, 0, len(keys))
+	for i := range keys {
+		inner := make([][]any, 0, len(keys[i]))
+		for j := range keys[i] {
+			inner = append(inner, []any{keys[i][j], values[i][j]})
+		}
+		tuple = append(tuple, inner)
+	}
+	return tuple
 }
