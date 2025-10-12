@@ -178,12 +178,9 @@ lint-imports:
 lint-fmt: $(GOFUMPT)
 	@echo Verifying that all Go files are formatted with gofmt and gofumpt
 	@rm -f $(FMT_LOG)
-	@for file in $(ALL_SRC); do \
-		$(GOFMT) -e -s "$$file" | $(GOFUMPT) -e | diff -u "$$file" - > /dev/null || echo "$$file" >> $(FMT_LOG); \
-	done; \
-	if [ -s "$(FMT_LOG)" ]; then \
-		echo "The following files need formatting, run 'make fmt':" && cat $(FMT_LOG) && exit 1; \
-	fi
+	@$(GOFMT) -d -e -s $(ALL_SRC) > $(FMT_LOG) || true
+	@$(GOFUMPT) -d -e $(ALL_SRC) >> $(FMT_LOG) || true
+	@[ ! -s "$(FMT_LOG)" ] || (echo "Formatting check failed. Please run 'make fmt'" && head -100 $(FMT_LOG) && false)
 
 .PHONY: lint-semconv
 lint-semconv:
