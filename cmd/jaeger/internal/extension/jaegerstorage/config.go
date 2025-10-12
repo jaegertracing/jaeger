@@ -12,9 +12,9 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
 
-	promCfg "github.com/jaegertracing/jaeger/internal/config/promcfg"
-	casCfg "github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
-	esCfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	pcfg "github.com/jaegertracing/jaeger/internal/config/promcfg"
+	cascfg "github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
+	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
@@ -46,16 +46,16 @@ type TraceBackend struct {
 	Badger        *badger.Config            `mapstructure:"badger"`
 	GRPC          *grpc.Config              `mapstructure:"grpc"`
 	Cassandra     *cassandra.Options        `mapstructure:"cassandra"`
-	Elasticsearch *esCfg.Configuration      `mapstructure:"elasticsearch"`
-	Opensearch    *esCfg.Configuration      `mapstructure:"opensearch"`
+	Elasticsearch *escfg.Configuration      `mapstructure:"elasticsearch"`
+	Opensearch    *escfg.Configuration      `mapstructure:"opensearch"`
 	ClickHouse    *clickhouse.Configuration `mapstructure:"clickhouse"`
 }
 
 // MetricBackend contains configuration for a single metric storage backend.
 type MetricBackend struct {
-	Prometheus    *promCfg.Configuration `mapstructure:"prometheus"`
-	Elasticsearch *esCfg.Configuration   `mapstructure:"elasticsearch"`
-	Opensearch    *esCfg.Configuration   `mapstructure:"opensearch"`
+	Prometheus    *pcfg.Configuration  `mapstructure:"prometheus"`
+	Elasticsearch *escfg.Configuration `mapstructure:"elasticsearch"`
+	Opensearch    *escfg.Configuration `mapstructure:"opensearch"`
 }
 
 // Unmarshal implements confmap.Unmarshaler. This allows us to provide
@@ -79,7 +79,7 @@ func (cfg *TraceBackend) Unmarshal(conf *confmap.Conf) error {
 	if conf.IsSet("cassandra") {
 		cfg.Cassandra = &cassandra.Options{
 			NamespaceConfig: cassandra.NamespaceConfig{
-				Configuration: casCfg.DefaultConfiguration(),
+				Configuration: cascfg.DefaultConfiguration(),
 				Enabled:       true,
 			},
 			SpanStoreWriteCacheTTL: 12 * time.Hour,

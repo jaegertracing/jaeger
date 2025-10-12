@@ -20,7 +20,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
-	dependencyStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
+	dependencystoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
 
@@ -60,7 +60,7 @@ func newTestServer(t *testing.T) *testServer {
 
 	q := querysvc.NewQueryService(
 		traceReader,
-		&dependencyStoreMocks.Reader{},
+		&dependencystoremocks.Reader{},
 		querysvc.QueryServiceOptions{},
 	)
 	h := app.NewGRPCHandler(q, app.GRPCHandlerOptions{})

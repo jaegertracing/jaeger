@@ -13,15 +13,15 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
-	jaegerM "github.com/jaegertracing/jaeger/internal/metrics"
+	jaegerm "github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 )
 
 func TestProcessorMetrics(t *testing.T) {
 	baseMetrics := metricstest.NewFactory(time.Hour)
 	defer baseMetrics.Backend.Stop()
-	serviceMetrics := baseMetrics.Namespace(jaegerM.NSOptions{Name: "service", Tags: nil})
-	hostMetrics := baseMetrics.Namespace(jaegerM.NSOptions{Name: "host", Tags: nil})
+	serviceMetrics := baseMetrics.Namespace(jaegerm.NSOptions{Name: "service", Tags: nil})
+	hostMetrics := baseMetrics.Namespace(jaegerm.NSOptions{Name: "host", Tags: nil})
 	spm := NewSpanProcessorMetrics(serviceMetrics, hostMetrics, []processor.SpanFormat{processor.SpanFormat("scruffy")})
 	benderFormatHTTPMetrics := spm.GetCountsForFormat("bender", processor.HTTPTransport)
 	assert.NotNil(t, benderFormatHTTPMetrics)
@@ -122,7 +122,7 @@ func TestNewSpanCountsBySvc(t *testing.T) {
 
 func TestBuildKey(t *testing.T) {
 	// This test checks if stringBuilder is reset every time buildKey is called.
-	tc := newTraceCountsBySvc(jaegerM.NullFactory, "received", 100)
+	tc := newTraceCountsBySvc(jaegerm.NullFactory, "received", 100)
 	key := tc.buildKey("sample-service", model.SamplerTypeUnrecognized.String())
 	assert.Equal(t, "sample-service$_$unrecognized", key)
 	key = tc.buildKey("sample-service2", model.SamplerTypeConst.String())

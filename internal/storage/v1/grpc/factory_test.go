@@ -26,9 +26,9 @@ import (
 	"github.com/jaegertracing/jaeger/internal/config"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
-	dependencyStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
+	dependencystoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	spanStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
+	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc/shared"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc/shared/mocks"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
@@ -69,12 +69,12 @@ func makeMockServices() *ClientPluginServices {
 	return &ClientPluginServices{
 		PluginServices: shared.PluginServices{
 			Store: &store{
-				writer: new(spanStoreMocks.Writer),
-				reader: new(spanStoreMocks.Reader),
-				deps:   new(dependencyStoreMocks.Reader),
+				writer: new(spanstoremocks.Writer),
+				reader: new(spanstoremocks.Reader),
+				deps:   new(dependencystoremocks.Reader),
 			},
 			StreamingSpanWriter: &store{
-				writer: new(spanStoreMocks.Writer),
+				writer: new(spanstoremocks.Writer),
 			},
 		},
 		Capabilities: new(mocks.PluginCapabilities),
@@ -244,9 +244,9 @@ func TestStreamingSpanWriterFactory_CapabilitiesNil(t *testing.T) {
 	f := makeFactory(t)
 
 	f.services.Capabilities = nil
-	mockWriter := f.services.Store.SpanWriter().(*spanStoreMocks.Writer)
+	mockWriter := f.services.Store.SpanWriter().(*spanstoremocks.Writer)
 	mockWriter.On("WriteSpan", mock.Anything, mock.Anything).Return(errors.New("not streaming writer"))
-	mockWriter2 := f.services.StreamingSpanWriter.StreamingSpanWriter().(*spanStoreMocks.Writer)
+	mockWriter2 := f.services.StreamingSpanWriter.StreamingSpanWriter().(*spanstoremocks.Writer)
 	mockWriter2.On("WriteSpan", mock.Anything, mock.Anything).Return(errors.New("I am streaming writer"))
 
 	writer, err := f.CreateSpanWriter()
@@ -268,9 +268,9 @@ func TestStreamingSpanWriterFactory_Capabilities(t *testing.T) {
 		// then return true on the second call
 		On("Capabilities").Return(&shared.Capabilities{StreamingSpanWriter: true}, nil).Once()
 
-	mockWriter := f.services.Store.SpanWriter().(*spanStoreMocks.Writer)
+	mockWriter := f.services.Store.SpanWriter().(*spanstoremocks.Writer)
 	mockWriter.On("WriteSpan", mock.Anything, mock.Anything).Return(errors.New("not streaming writer"))
-	mockWriter2 := f.services.StreamingSpanWriter.StreamingSpanWriter().(*spanStoreMocks.Writer)
+	mockWriter2 := f.services.StreamingSpanWriter.StreamingSpanWriter().(*spanstoremocks.Writer)
 	mockWriter2.On("WriteSpan", mock.Anything, mock.Anything).Return(errors.New("I am streaming writer"))
 
 	writer, err := f.CreateSpanWriter()

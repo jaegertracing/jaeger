@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/config"
-	promCfg "github.com/jaegertracing/jaeger/internal/config/promcfg"
+	pcfg "github.com/jaegertracing/jaeger/internal/config/promcfg"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/testutils"
@@ -135,13 +135,13 @@ func TestFailedTLSOptions(t *testing.T) {
 }
 
 func TestEmptyFactoryConfig(t *testing.T) {
-	cfg := promCfg.Configuration{}
+	cfg := pcfg.Configuration{}
 	_, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings())
 	require.Error(t, err)
 }
 
 func TestFactoryConfig(t *testing.T) {
-	cfg := promCfg.Configuration{
+	cfg := pcfg.Configuration{
 		ServerURL: "localhost:1234",
 	}
 	_, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings())

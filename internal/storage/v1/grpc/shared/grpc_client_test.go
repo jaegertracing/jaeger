@@ -19,7 +19,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage_v1"
-	grpcMocks "github.com/jaegertracing/jaeger/internal/proto-gen/storage_v1/mocks"
+	grpcmocks "github.com/jaegertracing/jaeger/internal/proto-gen/storage_v1/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 )
 
@@ -61,19 +61,19 @@ var (
 
 type grpcClientTest struct {
 	client       *GRPCClient
-	spanReader   *grpcMocks.SpanReaderPluginClient
-	spanWriter   *grpcMocks.SpanWriterPluginClient
-	capabilities *grpcMocks.PluginCapabilitiesClient
-	depsReader   *grpcMocks.DependenciesReaderPluginClient
-	streamWriter *grpcMocks.StreamingSpanWriterPluginClient
+	spanReader   *grpcmocks.SpanReaderPluginClient
+	spanWriter   *grpcmocks.SpanWriterPluginClient
+	capabilities *grpcmocks.PluginCapabilitiesClient
+	depsReader   *grpcmocks.DependenciesReaderPluginClient
+	streamWriter *grpcmocks.StreamingSpanWriterPluginClient
 }
 
 func withGRPCClient(fn func(r *grpcClientTest)) {
-	spanReader := new(grpcMocks.SpanReaderPluginClient)
-	spanWriter := new(grpcMocks.SpanWriterPluginClient)
-	depReader := new(grpcMocks.DependenciesReaderPluginClient)
-	streamWriter := new(grpcMocks.StreamingSpanWriterPluginClient)
-	capabilities := new(grpcMocks.PluginCapabilitiesClient)
+	spanReader := new(grpcmocks.SpanReaderPluginClient)
+	spanWriter := new(grpcmocks.SpanWriterPluginClient)
+	depReader := new(grpcmocks.DependenciesReaderPluginClient)
+	streamWriter := new(grpcmocks.StreamingSpanWriterPluginClient)
+	capabilities := new(grpcmocks.PluginCapabilitiesClient)
 
 	r := &grpcClientTest{
 		client: &GRPCClient{
@@ -149,7 +149,7 @@ func TestGRPCClientGetTrace(t *testing.T) {
 	withGRPCClient(func(r *grpcClientTest) {
 		startTime := time.Date(2020, time.January, 1, 13, 0, 0, 0, time.UTC)
 		endTime := time.Date(2020, time.January, 1, 14, 0, 0, 0, time.UTC)
-		traceClient := new(grpcMocks.SpanReaderPlugin_GetTraceClient)
+		traceClient := new(grpcmocks.SpanReaderPlugin_GetTraceClient)
 		traceClient.On("Recv").Return(&storage_v1.SpansResponseChunk{
 			Spans: mockTraceSpans,
 		}, nil).Once()
@@ -179,7 +179,7 @@ func TestGRPCClientGetTrace(t *testing.T) {
 
 func TestGRPCClientGetTrace_StreamError(t *testing.T) {
 	withGRPCClient(func(r *grpcClientTest) {
-		traceClient := new(grpcMocks.SpanReaderPlugin_GetTraceClient)
+		traceClient := new(grpcmocks.SpanReaderPlugin_GetTraceClient)
 		traceClient.On("Recv").Return(nil, errors.New("an error"))
 		r.spanReader.On("GetTrace", mock.Anything, &storage_v1.GetTraceRequest{
 			TraceID: mockTraceID,
@@ -207,7 +207,7 @@ func TestGRPCClientGetTrace_StreamErrorTraceNotFound(t *testing.T) {
 	s, _ := status.FromError(spanstore.ErrTraceNotFound)
 
 	withGRPCClient(func(r *grpcClientTest) {
-		traceClient := new(grpcMocks.SpanReaderPlugin_GetTraceClient)
+		traceClient := new(grpcmocks.SpanReaderPlugin_GetTraceClient)
 		traceClient.On("Recv").Return(nil, s.Err())
 		r.spanReader.On("GetTrace", mock.Anything, &storage_v1.GetTraceRequest{
 			TraceID: mockTraceID,
@@ -221,7 +221,7 @@ func TestGRPCClientGetTrace_StreamErrorTraceNotFound(t *testing.T) {
 
 func TestGRPCClientFindTraces(t *testing.T) {
 	withGRPCClient(func(r *grpcClientTest) {
-		traceClient := new(grpcMocks.SpanReaderPlugin_FindTracesClient)
+		traceClient := new(grpcmocks.SpanReaderPlugin_FindTracesClient)
 		traceClient.On("Recv").Return(&storage_v1.SpansResponseChunk{
 			Spans: mockTracesSpans,
 		}, nil).Once()
@@ -251,7 +251,7 @@ func TestGRPCClientFindTraces_Error(t *testing.T) {
 
 func TestGRPCClientFindTraces_RecvError(t *testing.T) {
 	withGRPCClient(func(r *grpcClientTest) {
-		traceClient := new(grpcMocks.SpanReaderPlugin_FindTracesClient)
+		traceClient := new(grpcmocks.SpanReaderPlugin_FindTracesClient)
 		traceClient.On("Recv").Return(nil, errors.New("an error"))
 		r.spanReader.On("FindTraces", mock.Anything, &storage_v1.FindTracesRequest{
 			Query: &storage_v1.TraceQueryParameters{},
@@ -330,7 +330,7 @@ func TestGRPCClientGetDependencies(t *testing.T) {
 
 func TestGrpcClientStreamWriterWriteSpan(t *testing.T) {
 	withGRPCClient(func(r *grpcClientTest) {
-		stream := new(grpcMocks.StreamingSpanWriterPlugin_WriteSpanStreamClient)
+		stream := new(grpcmocks.StreamingSpanWriterPlugin_WriteSpanStreamClient)
 		r.streamWriter.On("WriteSpanStream", mock.Anything).Return(stream, nil)
 		stream.On("Send", &storage_v1.WriteSpanRequest{Span: &mockTraceSpans[0]}).Return(nil)
 		err := r.client.StreamingSpanWriter().WriteSpan(context.Background(), &mockTraceSpans[0])

@@ -17,11 +17,11 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/config"
 	"github.com/jaegertracing/jaeger/internal/metrics"
-	kafkaConfig "github.com/jaegertracing/jaeger/internal/storage/kafka/producer"
+	kafkaconfig "github.com/jaegertracing/jaeger/internal/storage/kafka/producer"
 )
 
 type mockProducerBuilder struct {
-	kafkaConfig.Configuration
+	kafkaconfig.Configuration
 	err error
 	t   *testing.T
 }
@@ -129,7 +129,7 @@ func TestKafkaFactoryDoesNotLogPassword(t *testing.T) {
 
 			f.InitFromViper(v, zap.NewNop())
 
-			parsedConfig := f.Builder.(*kafkaConfig.Configuration)
+			parsedConfig := f.Builder.(*kafkaconfig.Configuration)
 			f.Builder = &mockProducerBuilder{t: t, Configuration: *parsedConfig}
 			logbuf := &bytes.Buffer{}
 			logger := zap.New(zapcore.NewCore(
@@ -149,7 +149,7 @@ func TestKafkaFactoryDoesNotLogPassword(t *testing.T) {
 
 func TestConfigureFromOptions(t *testing.T) {
 	f := NewFactory()
-	o := Options{Topic: "testTopic", Config: kafkaConfig.Configuration{Brokers: []string{"host"}}}
+	o := Options{Topic: "testTopic", Config: kafkaconfig.Configuration{Brokers: []string{"host"}}}
 	f.configureFromOptions(o)
 	assert.Equal(t, o, f.options)
 	assert.Equal(t, &o.Config, f.Builder)

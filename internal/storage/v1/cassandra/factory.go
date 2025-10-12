@@ -21,16 +21,16 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
 	gocqlw "github.com/jaegertracing/jaeger/internal/storage/cassandra/gocql"
-	cLock "github.com/jaegertracing/jaeger/internal/storage/distributedlock/cassandra"
+	clock "github.com/jaegertracing/jaeger/internal/storage/distributedlock/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
-	cDepStore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/dependencystore"
-	cSamplingStore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/samplingstore"
+	cdepstore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/dependencystore"
+	csamplingstore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/schema"
-	cSpanStore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore"
+	cspanstore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 )
 
@@ -157,7 +157,7 @@ func NewSession(c *config.Configuration) (cassandra.Session, error) {
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	sr, err := cSpanStore.NewSpanReader(f.session, f.metricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
+	sr, err := cspanstore.NewSpanReader(f.session, f.metricsFactory, f.logger, f.tracer.Tracer("cspanstore.SpanReader"))
 	if err != nil {
 		return nil, err
 	}
@@ -170,13 +170,13 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return cSpanStore.NewSpanWriter(f.session, f.Options.SpanStoreWriteCacheTTL, f.metricsFactory, f.logger, options...)
+	return cspanstore.NewSpanWriter(f.session, f.Options.SpanStoreWriteCacheTTL, f.metricsFactory, f.logger, options...)
 }
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	version := cDepStore.GetDependencyVersion(f.session)
-	return cDepStore.NewDependencyStore(f.session, f.metricsFactory, f.logger, version)
+	version := cdepstore.GetDependencyVersion(f.session)
+	return cdepstore.NewDependencyStore(f.session, f.metricsFactory, f.logger, version)
 }
 
 // CreateLock implements storage.SamplingStoreFactory
@@ -187,7 +187,7 @@ func (f *Factory) CreateLock() (distributedlock.Lock, error) {
 	}
 	f.logger.Info("Using unique participantName in the distributed lock", zap.String("participantName", hostId))
 
-	return cLock.NewLock(f.session, hostId), nil
+	return clock.NewLock(f.session, hostId), nil
 }
 
 // CreateSamplingStore implements storage.SamplingStoreFactory
@@ -199,10 +199,10 @@ func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store
 			},
 		},
 	)
-	return cSamplingStore.New(f.session, samplingMetricsFactory, f.logger), nil
+	return csamplingstore.New(f.session, samplingMetricsFactory, f.logger), nil
 }
 
-func writerOptions(opts *Options) ([]cSpanStore.Option, error) {
+func writerOptions(opts *Options) ([]cspanstore.Option, error) {
 	var tagFilters []dbmodel.TagFilter
 
 	// drop all tag filters
@@ -225,10 +225,10 @@ func writerOptions(opts *Options) ([]cSpanStore.Option, error) {
 	if len(tagFilters) == 0 {
 		return nil, nil
 	} else if len(tagFilters) == 1 {
-		return []cSpanStore.Option{cSpanStore.TagFilter(tagFilters[0])}, nil
+		return []cspanstore.Option{cspanstore.TagFilter(tagFilters[0])}, nil
 	}
 
-	return []cSpanStore.Option{cSpanStore.TagFilter(dbmodel.NewChainedTagFilter(tagFilters...))}, nil
+	return []cspanstore.Option{cspanstore.TagFilter(dbmodel.NewChainedTagFilter(tagFilters...))}, nil
 }
 
 var _ io.Closer = (*Factory)(nil)
