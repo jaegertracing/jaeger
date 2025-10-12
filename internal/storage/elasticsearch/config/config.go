@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/asaskevich/govalidator"
-	esV8 "github.com/elastic/go-elasticsearch/v9"
+	esv8 "github.com/elastic/go-elasticsearch/v9"
 	"github.com/olivere/elastic/v7"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
@@ -294,7 +294,7 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 		c.Version = uint(esVersion)
 	}
 
-	var rawClientV8 *esV8.Client
+	var rawClientV8 *esv8.Client
 	if c.Version >= 8 {
 		rawClientV8, err = newElasticsearchV8(ctx, c, logger)
 		if err != nil {
@@ -351,8 +351,8 @@ func (bcb *bulkCallback) invoke(id int64, requests []elastic.BulkableRequest, re
 	}
 }
 
-func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logger) (*esV8.Client, error) {
-	var options esV8.Config
+func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logger) (*esv8.Client, error) {
+	var options esv8.Config
 	options.Addresses = c.Servers
 	if c.Authentication.BasicAuthentication.HasValue() {
 		basicAuth := c.Authentication.BasicAuthentication.Get()
@@ -366,7 +366,7 @@ func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logge
 		return nil, err
 	}
 	options.Transport = transport
-	return esV8.NewClient(options)
+	return esv8.NewClient(options)
 }
 
 func setDefaultIndexOptions(target, source *IndexOptions) {

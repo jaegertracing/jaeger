@@ -32,7 +32,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
-	esDepStorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
+	esdepstorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
@@ -60,7 +60,7 @@ func TestElasticsearchFactoryBase(t *testing.T) {
 	writerParams := f.GetSpanWriterParams()
 	assert.IsType(t, spanstore.SpanWriterParams{}, writerParams)
 	depParams := f.GetDependencyStoreParams()
-	assert.IsType(t, esDepStorev2.Params{}, depParams)
+	assert.IsType(t, esdepstorev2.Params{}, depParams)
 	_, err = f.CreateSamplingStore(1)
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
