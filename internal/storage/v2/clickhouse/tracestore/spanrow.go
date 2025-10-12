@@ -261,7 +261,8 @@ func extractAttributes(attrs pcommon.Map) (out struct {
 	strValues     []string
 	complexKeys   []string
 	complexValues []string
-}) {
+},
+) {
 	attrs.Range(func(k string, v pcommon.Value) bool {
 		switch v.Type() {
 		case pcommon.ValueTypeBool:
