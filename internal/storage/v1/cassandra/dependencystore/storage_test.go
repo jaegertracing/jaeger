@@ -19,7 +19,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
-	casMetrics "github.com/jaegertracing/jaeger/internal/storage/cassandra/metrics"
+	casmetrics "github.com/jaegertracing/jaeger/internal/storage/cassandra/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/testutils"
@@ -267,7 +267,7 @@ func TestDependencyStore_UnsupportedVersion(t *testing.T) {
 
 	store := &DependencyStore{
 		session:                  session,
-		dependenciesTableMetrics: casMetrics.NewTable(metricsFactory, "dependencies"),
+		dependenciesTableMetrics: casmetrics.NewTable(metricsFactory, "dependencies"),
 		logger:                   logger,
 		version:                  Version(999),
 	}

@@ -23,16 +23,16 @@ import (
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
-	factoryMocks "github.com/jaegertracing/jaeger/internal/storage/v1/mocks"
+	factorymocks "github.com/jaegertracing/jaeger/internal/storage/v1/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	tracestoreMocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
+	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 type mockStorageExt struct {
 	name           string
-	factory        *tracestoreMocks.Factory
-	metricsFactory *factoryMocks.MetricStoreFactory
+	factory        *tracestoremocks.Factory
+	metricsFactory *factorymocks.MetricStoreFactory
 }
 
 var _ jaegerstorage.Extension = (*mockStorageExt)(nil)
@@ -79,7 +79,7 @@ func TestExporterStartBadNameError(t *testing.T) {
 }
 
 func TestExporterStartBadSpanstoreError(t *testing.T) {
-	factory := new(tracestoreMocks.Factory)
+	factory := new(tracestoremocks.Factory)
 	factory.On("CreateTraceWriter").Return(nil, assert.AnError)
 
 	host := storagetest.NewStorageHost()

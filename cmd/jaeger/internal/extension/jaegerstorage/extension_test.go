@@ -21,8 +21,8 @@ import (
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
-	promCfg "github.com/jaegertracing/jaeger/internal/config/promcfg"
-	esCfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/config/promcfg"
+	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
@@ -179,7 +179,7 @@ func TestGetSamplingStoreFactory(t *testing.T) {
 				ext := makeStorageExtension(t, &Config{
 					TraceBackends: map[string]TraceBackend{
 						"foo": {
-							Elasticsearch: &esCfg.Configuration{
+							Elasticsearch: &escfg.Configuration{
 								Servers:  []string{server.URL},
 								LogLevel: "error",
 							},
@@ -323,7 +323,7 @@ func TestMetricBackends(t *testing.T) {
 			config: &Config{
 				MetricBackends: map[string]MetricBackend{
 					"foo": {
-						Prometheus: &promCfg.Configuration{
+						Prometheus: &promcfg.Configuration{
 							ServerURL: mockServer.URL,
 						},
 					},
@@ -335,7 +335,7 @@ func TestMetricBackends(t *testing.T) {
 			config: &Config{
 				MetricBackends: map[string]MetricBackend{
 					"foo": {
-						Elasticsearch: &esCfg.Configuration{
+						Elasticsearch: &escfg.Configuration{
 							Servers:  []string{mockServer.URL},
 							LogLevel: "info",
 						},
@@ -348,7 +348,7 @@ func TestMetricBackends(t *testing.T) {
 			config: &Config{
 				MetricBackends: map[string]MetricBackend{
 					"foo": {
-						Opensearch: &esCfg.Configuration{
+						Opensearch: &escfg.Configuration{
 							Servers:  []string{mockServer.URL},
 							LogLevel: "info",
 						},
@@ -402,7 +402,7 @@ func TestMetricStorageStartError(t *testing.T) {
 			config: &Config{
 				MetricBackends: map[string]MetricBackend{
 					"foo": {
-						Prometheus: &promCfg.Configuration{},
+						Prometheus: &promcfg.Configuration{},
 					},
 				},
 			},
@@ -412,7 +412,7 @@ func TestMetricStorageStartError(t *testing.T) {
 			config: &Config{
 				MetricBackends: map[string]MetricBackend{
 					"foo": {
-						Elasticsearch: &esCfg.Configuration{},
+						Elasticsearch: &escfg.Configuration{},
 					},
 				},
 			},
@@ -422,7 +422,7 @@ func TestMetricStorageStartError(t *testing.T) {
 			config: &Config{
 				MetricBackends: map[string]MetricBackend{
 					"foo": {
-						Opensearch: &esCfg.Configuration{},
+						Opensearch: &escfg.Configuration{},
 					},
 				},
 			},
@@ -454,7 +454,7 @@ func TestXYZsearch(t *testing.T) {
 	server := setupMockServer(t, getVersionResponse(t), http.StatusOK)
 	t.Run("Elasticsearch", func(t *testing.T) {
 		testElasticsearchOrOpensearch(t, TraceBackend{
-			Elasticsearch: &esCfg.Configuration{
+			Elasticsearch: &escfg.Configuration{
 				Servers:  []string{server.URL},
 				LogLevel: "error",
 			},
@@ -462,7 +462,7 @@ func TestXYZsearch(t *testing.T) {
 	})
 	t.Run("OpenSearch", func(t *testing.T) {
 		testElasticsearchOrOpensearch(t, TraceBackend{
-			Opensearch: &esCfg.Configuration{
+			Opensearch: &escfg.Configuration{
 				Servers:  []string{server.URL},
 				LogLevel: "error",
 			},
@@ -564,7 +564,7 @@ func startStorageExtension(t *testing.T, memstoreName string, promstoreName stri
 		},
 		MetricBackends: map[string]MetricBackend{
 			promstoreName: {
-				Prometheus: &promCfg.Configuration{
+				Prometheus: &promcfg.Configuration{
 					ServerURL: "localhost:12345",
 				},
 			},

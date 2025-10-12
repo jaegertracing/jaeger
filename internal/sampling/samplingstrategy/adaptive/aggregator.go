@@ -10,7 +10,7 @@ import (
 
 	"go.uber.org/zap"
 
-	span_model "github.com/jaegertracing/jaeger-idl/model/v1"
+	spanmodel "github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/hostname"
 	"github.com/jaegertracing/jaeger/internal/leaderelection"
 	"github.com/jaegertracing/jaeger/internal/metrics"
@@ -98,7 +98,7 @@ func (a *aggregator) saveThroughput() {
 	a.storage.InsertThroughput(throughputSlice)
 }
 
-func (a *aggregator) RecordThroughput(service, operation string, samplerType span_model.SamplerType, probability float64) {
+func (a *aggregator) RecordThroughput(service, operation string, samplerType spanmodel.SamplerType, probability float64) {
 	a.Lock()
 	defer a.Unlock()
 	if _, ok := a.currentThroughput[service]; !ok {
@@ -120,7 +120,7 @@ func (a *aggregator) RecordThroughput(service, operation string, samplerType spa
 	// Only if we see probabilistically sampled root spans do we increment the throughput counter,
 	// for lowerbound sampled spans, we don't increment at all but we still save a count of 0 as
 	// the throughput so that the adaptive sampling processor is made aware of the endpoint.
-	if samplerType == span_model.SamplerTypeProbabilistic {
+	if samplerType == spanmodel.SamplerTypeProbabilistic {
 		throughput.Count++
 	}
 }
@@ -141,10 +141,10 @@ func (a *aggregator) Close() error {
 	return nil
 }
 
-func (a *aggregator) HandleRootSpan(span *span_model.Span) {
+func (a *aggregator) HandleRootSpan(span *spanmodel.Span) {
 	// simply checking parentId to determine if a span is a root span is not sufficient. However,
 	// we can be sure that only a root span will have sampler tags.
-	if span.ParentSpanID() != span_model.NewSpanID(0) {
+	if span.ParentSpanID() != spanmodel.NewSpanID(0) {
 		return
 	}
 	service := span.Process.ServiceName
@@ -152,21 +152,21 @@ func (a *aggregator) HandleRootSpan(span *span_model.Span) {
 		return
 	}
 	samplerType, samplerParam := getSamplerParams(span, a.postAggregator.logger)
-	if samplerType == span_model.SamplerTypeUnrecognized {
+	if samplerType == spanmodel.SamplerTypeUnrecognized {
 		return
 	}
 	a.RecordThroughput(service, span.OperationName, samplerType, samplerParam)
 }
 
 // GetSamplerParams returns the sampler.type and sampler.param value if they are valid.
-func getSamplerParams(s *span_model.Span, logger *zap.Logger) (span_model.SamplerType, float64) {
+func getSamplerParams(s *spanmodel.Span, logger *zap.Logger) (spanmodel.SamplerType, float64) {
 	samplerType := s.GetSamplerType()
-	if samplerType == span_model.SamplerTypeUnrecognized {
-		return span_model.SamplerTypeUnrecognized, 0
+	if samplerType == spanmodel.SamplerTypeUnrecognized {
+		return spanmodel.SamplerTypeUnrecognized, 0
 	}
-	tag, ok := span_model.KeyValues(s.Tags).FindByKey(span_model.SamplerParamKey)
+	tag, ok := spanmodel.KeyValues(s.Tags).FindByKey(spanmodel.SamplerParamKey)
 	if !ok {
-		return span_model.SamplerTypeUnrecognized, 0
+		return spanmodel.SamplerTypeUnrecognized, 0
 	}
 	samplerParam, err := samplerParamToFloat(tag)
 	if err != nil {
@@ -174,17 +174,17 @@ func getSamplerParams(s *span_model.Span, logger *zap.Logger) (span_model.Sample
 			With(zap.String("traceID", s.TraceID.String())).
 			With(zap.String("spanID", s.SpanID.String())).
 			Warn("sampler.param tag is not a number", zap.Any("tag", tag))
-		return span_model.SamplerTypeUnrecognized, 0
+		return spanmodel.SamplerTypeUnrecognized, 0
 	}
 	return samplerType, samplerParam
 }
 
-func samplerParamToFloat(samplerParamTag span_model.KeyValue) (float64, error) {
+func samplerParamToFloat(samplerParamTag spanmodel.KeyValue) (float64, error) {
 	// The param could be represented as a string, an int, or a float
 	switch samplerParamTag.VType {
-	case span_model.Float64Type:
+	case spanmodel.Float64Type:
 		return samplerParamTag.Float64(), nil
-	case span_model.Int64Type:
+	case spanmodel.Int64Type:
 		return float64(samplerParamTag.Int64()), nil
 	default:
 		return strconv.ParseFloat(samplerParamTag.AsString(), 64)

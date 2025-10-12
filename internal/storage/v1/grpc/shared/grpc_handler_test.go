@@ -18,18 +18,18 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage_v1"
-	grpcMocks "github.com/jaegertracing/jaeger/internal/proto-gen/storage_v1/mocks"
+	grpcmocks "github.com/jaegertracing/jaeger/internal/proto-gen/storage_v1/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
-	dependencyStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
+	dependencystoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	spanStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
+	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 )
 
 type mockStoragePlugin struct {
-	spanReader   *spanStoreMocks.Reader
-	spanWriter   *spanStoreMocks.Writer
-	depsReader   *dependencyStoreMocks.Reader
-	streamWriter *spanStoreMocks.Writer
+	spanReader   *spanstoremocks.Reader
+	spanWriter   *spanstoremocks.Writer
+	depsReader   *dependencystoremocks.Reader
+	streamWriter *spanstoremocks.Writer
 }
 
 func (plugin *mockStoragePlugin) SpanReader() spanstore.Reader {
@@ -54,10 +54,10 @@ type grpcServerTest struct {
 }
 
 func withGRPCServer(fn func(r *grpcServerTest)) {
-	spanReader := new(spanStoreMocks.Reader)
-	spanWriter := new(spanStoreMocks.Writer)
-	depReader := new(dependencyStoreMocks.Reader)
-	streamWriter := new(spanStoreMocks.Writer)
+	spanReader := new(spanstoremocks.Reader)
+	spanWriter := new(spanstoremocks.Writer)
+	depReader := new(dependencystoremocks.Reader)
+	streamWriter := new(spanstoremocks.Writer)
 
 	mockPlugin := &mockStoragePlugin{
 		spanReader:   spanReader,
@@ -128,7 +128,7 @@ func TestGRPCServerGetOperations(t *testing.T) {
 
 func TestGRPCServerGetTrace(t *testing.T) {
 	withGRPCServer(func(r *grpcServerTest) {
-		traceSteam := new(grpcMocks.SpanReaderPlugin_GetTraceServer)
+		traceSteam := new(grpcmocks.SpanReaderPlugin_GetTraceServer)
 		traceSteam.On("Context").Return(context.Background())
 		traceSteam.On("Send", &storage_v1.SpansResponseChunk{Spans: mockTraceSpans}).
 			Return(nil)
@@ -149,7 +149,7 @@ func TestGRPCServerGetTrace(t *testing.T) {
 
 func TestGRPCServerGetTrace_NotFound(t *testing.T) {
 	withGRPCServer(func(r *grpcServerTest) {
-		traceSteam := new(grpcMocks.SpanReaderPlugin_GetTraceServer)
+		traceSteam := new(grpcmocks.SpanReaderPlugin_GetTraceServer)
 		traceSteam.On("Context").Return(context.Background())
 
 		r.impl.spanReader.On("GetTrace", mock.Anything, spanstore.GetTraceParameters{TraceID: mockTraceID}).
@@ -164,7 +164,7 @@ func TestGRPCServerGetTrace_NotFound(t *testing.T) {
 
 func TestGRPCServerFindTraces(t *testing.T) {
 	withGRPCServer(func(r *grpcServerTest) {
-		traceSteam := new(grpcMocks.SpanReaderPlugin_FindTracesServer)
+		traceSteam := new(grpcmocks.SpanReaderPlugin_FindTracesServer)
 		traceSteam.On("Context").Return(context.Background())
 		traceSteam.On("Send", &storage_v1.SpansResponseChunk{Spans: mockTracesSpans[:2]}).
 			Return(nil).Once()
@@ -221,7 +221,7 @@ func TestGRPCServerWriteSpan(t *testing.T) {
 
 func TestGRPCServerWriteSpanStream(t *testing.T) {
 	withGRPCServer(func(r *grpcServerTest) {
-		stream := new(grpcMocks.StreamingSpanWriterPlugin_WriteSpanStreamServer)
+		stream := new(grpcmocks.StreamingSpanWriterPlugin_WriteSpanStreamServer)
 		stream.On("Recv").Return(&storage_v1.WriteSpanRequest{Span: &mockTraceSpans[0]}, nil).Twice().
 			On("Recv").Return(nil, io.EOF).Once()
 		stream.On("SendAndClose", &storage_v1.WriteSpanResponse{}).Return(nil)
@@ -240,7 +240,7 @@ func TestGRPCServerWriteSpanStream(t *testing.T) {
 
 func TestGRPCServerWriteSpanStreamWithGRPCError(t *testing.T) {
 	withGRPCServer(func(r *grpcServerTest) {
-		stream := new(grpcMocks.StreamingSpanWriterPlugin_WriteSpanStreamServer)
+		stream := new(grpcmocks.StreamingSpanWriterPlugin_WriteSpanStreamServer)
 		stream.On("Recv").Return(&storage_v1.WriteSpanRequest{Span: &mockTraceSpans[0]}, nil).Twice().
 			On("Recv").Return(nil, context.DeadlineExceeded).Once()
 		stream.On("SendAndClose", &storage_v1.WriteSpanResponse{}).Return(nil)

@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	promReg "github.com/prometheus/client_golang/prometheus"
-	promModel "github.com/prometheus/client_model/go"
+	promreg "github.com/prometheus/client_golang/prometheus"
+	prommodel "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/exporters/prometheus"
@@ -23,7 +23,7 @@ func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
 }
 
-func newTestFactory(t *testing.T, registry *promReg.Registry) metrics.Factory {
+func newTestFactory(t *testing.T, registry *promreg.Registry) metrics.Factory {
 	exporter, err := prometheus.New(
 		prometheus.WithRegisterer(registry),
 		prometheus.WithoutScopeInfo(),
@@ -33,7 +33,7 @@ func newTestFactory(t *testing.T, registry *promReg.Registry) metrics.Factory {
 	return otelmetrics.NewFactory(meterProvider)
 }
 
-func findMetric(t *testing.T, registry *promReg.Registry, name string) *promModel.MetricFamily {
+func findMetric(t *testing.T, registry *promreg.Registry, name string) *prommodel.MetricFamily {
 	metricFamilies, err := registry.Gather()
 	require.NoError(t, err)
 
@@ -48,7 +48,7 @@ func findMetric(t *testing.T, registry *promReg.Registry, name string) *promMode
 	return nil
 }
 
-func promLabelsToMap(labels []*promModel.LabelPair) map[string]string {
+func promLabelsToMap(labels []*prommodel.LabelPair) map[string]string {
 	labelMap := make(map[string]string)
 	for _, label := range labels {
 		labelMap[label.GetName()] = label.GetValue()
@@ -57,7 +57,7 @@ func promLabelsToMap(labels []*promModel.LabelPair) map[string]string {
 }
 
 func TestInvalidCounter(t *testing.T) {
-	factory := newTestFactory(t, promReg.NewPedanticRegistry())
+	factory := newTestFactory(t, promreg.NewPedanticRegistry())
 	counter := factory.Counter(metrics.Options{
 		Name: "invalid*counter%",
 	})
@@ -65,7 +65,7 @@ func TestInvalidCounter(t *testing.T) {
 }
 
 func TestInvalidGauge(t *testing.T) {
-	factory := newTestFactory(t, promReg.NewPedanticRegistry())
+	factory := newTestFactory(t, promreg.NewPedanticRegistry())
 	gauge := factory.Gauge(metrics.Options{
 		Name: "#invalid>gauge%",
 	})
@@ -73,7 +73,7 @@ func TestInvalidGauge(t *testing.T) {
 }
 
 func TestInvalidHistogram(t *testing.T) {
-	factory := newTestFactory(t, promReg.NewPedanticRegistry())
+	factory := newTestFactory(t, promreg.NewPedanticRegistry())
 	histogram := factory.Histogram(metrics.HistogramOptions{
 		Name: "invalid>histogram?%",
 	})
@@ -81,7 +81,7 @@ func TestInvalidHistogram(t *testing.T) {
 }
 
 func TestInvalidTimer(t *testing.T) {
-	factory := newTestFactory(t, promReg.NewPedanticRegistry())
+	factory := newTestFactory(t, promreg.NewPedanticRegistry())
 	timer := factory.Timer(metrics.TimerOptions{
 		Name: "invalid*<=timer%",
 	})
@@ -89,7 +89,7 @@ func TestInvalidTimer(t *testing.T) {
 }
 
 func TestCounter(t *testing.T) {
-	registry := promReg.NewPedanticRegistry()
+	registry := promreg.NewPedanticRegistry()
 	factory := newTestFactory(t, registry)
 	counter := factory.Counter(metrics.Options{
 		Name: "test_counter",
@@ -109,7 +109,7 @@ func TestCounter(t *testing.T) {
 }
 
 func TestGauge(t *testing.T) {
-	registry := promReg.NewPedanticRegistry()
+	registry := promreg.NewPedanticRegistry()
 	factory := newTestFactory(t, registry)
 	gauge := factory.Gauge(metrics.Options{
 		Name: "test_gauge",
@@ -129,7 +129,7 @@ func TestGauge(t *testing.T) {
 }
 
 func TestHistogram(t *testing.T) {
-	registry := promReg.NewPedanticRegistry()
+	registry := promreg.NewPedanticRegistry()
 	factory := newTestFactory(t, registry)
 	histogram := factory.Histogram(metrics.HistogramOptions{
 		Name: "test_histogram",
@@ -149,7 +149,7 @@ func TestHistogram(t *testing.T) {
 }
 
 func TestTimer(t *testing.T) {
-	registry := promReg.NewPedanticRegistry()
+	registry := promreg.NewPedanticRegistry()
 	factory := newTestFactory(t, registry)
 	timer := factory.Timer(metrics.TimerOptions{
 		Name: "test_timer",
@@ -219,7 +219,7 @@ func TestNamespace(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			registry := promReg.NewPedanticRegistry()
+			registry := promreg.NewPedanticRegistry()
 			factory := newTestFactory(t, registry)
 			nsFactory1 := factory.Namespace(tc.nsOptions1)
 			nsFactory2 := nsFactory1.Namespace(tc.nsOptions2)
@@ -241,7 +241,7 @@ func TestNamespace(t *testing.T) {
 }
 
 func TestNormalization(t *testing.T) {
-	registry := promReg.NewPedanticRegistry()
+	registry := promreg.NewPedanticRegistry()
 	factory := newTestFactory(t, registry)
 	normalizedFactory := factory.Namespace(metrics.NSOptions{
 		Name: "My Namespace",
