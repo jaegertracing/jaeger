@@ -150,7 +150,7 @@ fmt: $(GOFUMPT)
 	@./scripts/lint/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC)
 
 .PHONY: lint
-lint: lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go
+lint: lint-fmt lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go
 
 .PHONY: lint-license
 lint-license:
@@ -173,6 +173,14 @@ lint-imports:
 	@echo Verifying that all Go files have correctly ordered imports
 	@./scripts/lint/import-order-cleanup.py -o stdout -t $(ALL_SRC) > $(IMPORT_LOG)
 	@[ ! -s "$(IMPORT_LOG)" ] || (echo "Import ordering failures, run 'make fmt'" | cat - $(IMPORT_LOG) && false)
+
+.PHONY: lint-fmt
+lint-fmt: $(GOFUMPT)
+	@echo Verifying that all Go files are formatted with gofmt and gofumpt
+	@rm -f $(FMT_LOG)
+	@$(GOFMT) -d -e -s $(ALL_SRC) > $(FMT_LOG) || true
+	@$(GOFUMPT) -d -e $(ALL_SRC) >> $(FMT_LOG) || true
+	@[ ! -s "$(FMT_LOG)" ] || (echo "Formatting check failed. Please run 'make fmt'" && head -100 $(FMT_LOG) && false)
 
 .PHONY: lint-semconv
 lint-semconv:
