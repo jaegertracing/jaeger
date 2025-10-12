@@ -21,7 +21,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
 	gocqlw "github.com/jaegertracing/jaeger/internal/storage/cassandra/gocql"
-	clock "github.com/jaegertracing/jaeger/internal/storage/distributedlock/cassandra"
+	caslock "github.com/jaegertracing/jaeger/internal/storage/distributedlock/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
@@ -187,7 +187,7 @@ func (f *Factory) CreateLock() (distributedlock.Lock, error) {
 	}
 	f.logger.Info("Using unique participantName in the distributed lock", zap.String("participantName", hostId))
 
-	return clock.NewLock(f.session, hostId), nil
+	return caslock.NewLock(f.session, hostId), nil
 }
 
 // CreateSamplingStore implements storage.SamplingStoreFactory

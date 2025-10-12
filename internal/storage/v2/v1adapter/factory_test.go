@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	storage "github.com/jaegertracing/jaeger/internal/storage/v1"
+	storagev1 "github.com/jaegertracing/jaeger/internal/storage/v1"
 	dependencystoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
 	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc"
@@ -26,7 +26,7 @@ func TestNewFactory(t *testing.T) {
 
 	tests := []struct {
 		name               string
-		factory            storage.Factory
+		factory            storagev1.Factory
 		expectedInterfaces []any
 	}{
 		{
@@ -41,42 +41,42 @@ func TestNewFactory(t *testing.T) {
 		{
 			name: "Implements Purger",
 			factory: struct {
-				storage.Factory
-				storage.Purger
+				storagev1.Factory
+				storagev1.Purger
 			}{mockFactory, mockPurger},
 			expectedInterfaces: []any{
 				(*tracestore.Factory)(nil),
 				(*depstore.Factory)(nil),
 				(*io.Closer)(nil),
-				(*storage.Purger)(nil),
+				(*storagev1.Purger)(nil),
 			},
 		},
 		{
 			name: "Implements SamplingStoreFactory",
 			factory: struct {
-				storage.Factory
-				storage.SamplingStoreFactory
+				storagev1.Factory
+				storagev1.SamplingStoreFactory
 			}{mockFactory, mockSamplingStoreFactory},
 			expectedInterfaces: []any{
 				(*tracestore.Factory)(nil),
 				(*depstore.Factory)(nil),
 				(*io.Closer)(nil),
-				(*storage.SamplingStoreFactory)(nil),
+				(*storagev1.SamplingStoreFactory)(nil),
 			},
 		},
 		{
 			name: "Implements both Purger and SamplingStoreFactory",
 			factory: struct {
-				storage.Factory
-				storage.Purger
-				storage.SamplingStoreFactory
+				storagev1.Factory
+				storagev1.Purger
+				storagev1.SamplingStoreFactory
 			}{mockFactory, mockPurger, mockSamplingStoreFactory},
 			expectedInterfaces: []any{
 				(*tracestore.Factory)(nil),
 				(*depstore.Factory)(nil),
 				(*io.Closer)(nil),
-				(*storage.Purger)(nil),
-				(*storage.SamplingStoreFactory)(nil),
+				(*storagev1.Purger)(nil),
+				(*storagev1.SamplingStoreFactory)(nil),
 			},
 		},
 	}

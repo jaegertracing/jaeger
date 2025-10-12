@@ -21,7 +21,7 @@ import (
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
-	pcfg "github.com/jaegertracing/jaeger/internal/config/promcfg"
+	"github.com/jaegertracing/jaeger/internal/config/promcfg"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
@@ -323,7 +323,7 @@ func TestMetricBackends(t *testing.T) {
 			config: &Config{
 				MetricBackends: map[string]MetricBackend{
 					"foo": {
-						Prometheus: &pcfg.Configuration{
+						Prometheus: &promcfg.Configuration{
 							ServerURL: mockServer.URL,
 						},
 					},
@@ -402,7 +402,7 @@ func TestMetricStorageStartError(t *testing.T) {
 			config: &Config{
 				MetricBackends: map[string]MetricBackend{
 					"foo": {
-						Prometheus: &pcfg.Configuration{},
+						Prometheus: &promcfg.Configuration{},
 					},
 				},
 			},
@@ -564,7 +564,7 @@ func startStorageExtension(t *testing.T, memstoreName string, promstoreName stri
 		},
 		MetricBackends: map[string]MetricBackend{
 			promstoreName: {
-				Prometheus: &pcfg.Configuration{
+				Prometheus: &promcfg.Configuration{
 					ServerURL: "localhost:12345",
 				},
 			},

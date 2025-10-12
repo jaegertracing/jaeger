@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
 
-	pcfg "github.com/jaegertracing/jaeger/internal/config/promcfg"
+	"github.com/jaegertracing/jaeger/internal/config/promcfg"
 	cascfg "github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus"
@@ -53,9 +53,9 @@ type TraceBackend struct {
 
 // MetricBackend contains configuration for a single metric storage backend.
 type MetricBackend struct {
-	Prometheus    *pcfg.Configuration  `mapstructure:"prometheus"`
-	Elasticsearch *escfg.Configuration `mapstructure:"elasticsearch"`
-	Opensearch    *escfg.Configuration `mapstructure:"opensearch"`
+	Prometheus    *promcfg.Configuration `mapstructure:"prometheus"`
+	Elasticsearch *escfg.Configuration   `mapstructure:"elasticsearch"`
+	Opensearch    *escfg.Configuration   `mapstructure:"opensearch"`
 }
 
 // Unmarshal implements confmap.Unmarshaler. This allows us to provide
