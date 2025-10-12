@@ -5,6 +5,7 @@ package tracestore
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/hex"
 	"strings"
 	"testing"
@@ -49,6 +50,27 @@ func tracesFromSpanRows(t *testing.T, rows []*spanRow) ptrace.Traces {
 		span.SetEndTimestamp(pcommon.NewTimestampFromTime(r.startTime.Add(time.Duration(r.rawDuration))))
 		span.Status().SetCode(jptrace.StringToStatusCode(r.statusCode))
 		span.Status().SetMessage(r.statusMessage)
+
+		for i := 0; i < len(r.boolAttributeKeys); i++ {
+			span.Attributes().PutBool(r.boolAttributeKeys[i], r.boolAttributeValues[i])
+		}
+		for i := 0; i < len(r.doubleAttributeKeys); i++ {
+			span.Attributes().PutDouble(r.doubleAttributeKeys[i], r.doubleAttributeValues[i])
+		}
+		for i := 0; i < len(r.intAttributeKeys); i++ {
+			span.Attributes().PutInt(r.intAttributeKeys[i], r.intAttributeValues[i])
+		}
+		for i := 0; i < len(r.strAttributeKeys); i++ {
+			span.Attributes().PutStr(r.strAttributeKeys[i], r.strAttributeValues[i])
+		}
+		for i := 0; i < len(r.complexAttributeKeys); i++ {
+			if strings.HasPrefix(r.complexAttributeKeys[i], "@bytes@") {
+				decoded, err := base64.StdEncoding.DecodeString(r.complexAttributeValues[i])
+				require.NoError(t, err)
+				k := strings.TrimPrefix(r.complexAttributeKeys[i], "@bytes@")
+				span.Attributes().PutEmptyBytes(k).FromRaw(decoded)
+			}
+		}
 	}
 	return td
 }
@@ -83,7 +105,7 @@ func TestWriter_Success(t *testing.T) {
 		require.Equal(t, expected.statusMessage, row[8])         // Status message
 		require.EqualValues(t, expected.rawDuration, row[9])     // Duration
 
-		// Fields 10-33 are attributes, events, and links (verified by successful batch.Append)
+		// Fields 10-34 are attributes, events, and links (verified by successful batch.Append)
 		// These fields are tested indirectly - if batch.Append succeeds, the structure is correct
 
 		require.Equal(t, expected.serviceName, row[35])  // Service name (field 36, index 35)

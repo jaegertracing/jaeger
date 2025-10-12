@@ -63,7 +63,7 @@ func NewTraceHandler(query QueryService, agent CollectorService, logger *zap.Log
 		agent:  agent,
 		logger: logger,
 		getClientURL: func(service string) string {
-			return fmt.Sprintf("http://%s:8081", service)
+			return fmt.Sprintf("http://%s:8081", service) //revive:disable-line:unsecure-url-scheme
 		},
 		getTags: func() map[string]string {
 			return map[string]string{generateRandomString(): generateRandomString()}
