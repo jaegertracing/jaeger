@@ -5,7 +5,7 @@ SHELL := /bin/bash
 JAEGER_IMPORT_PATH = github.com/jaegertracing/jaeger
 
 # PLATFORMS is a list of all supported platforms
-PLATFORMS="linux/amd64,linux/arm64,linux/s390x,linux/ppc64le,darwin/amd64,darwin/arm64,windows/amd64"
+PLATFORMS="linux/amd64,linux/arm64,linux/s390x,linux/ppc64le,linux/riscv64,darwin/amd64,darwin/arm64,windows/amd64"
 LINUX_PLATFORMS=$(shell echo "$(PLATFORMS)" | tr ',' '\n' | grep linux | tr '\n' ',' | sed 's/,$$/\n/')
 
 # SRC_ROOT is the top of the source tree.
@@ -52,8 +52,10 @@ GO=go
 GOOS ?= $(shell $(GO) env GOOS)
 GOARCH ?= $(shell $(GO) env GOARCH)
 
-# go test does not support -race flag on s390x architecture
+# go test does not support -race flag on s390x and riscv64 architectures
 ifeq ($(GOARCH), s390x)
+	RACE=
+else ifeq ($(GOARCH), riscv64)
 	RACE=
 else
 	RACE=-race
