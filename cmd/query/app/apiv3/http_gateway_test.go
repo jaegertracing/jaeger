@@ -489,6 +489,44 @@ func TestHTTPGatewayStreamingFallbackNoFlusher(t *testing.T) {
 
 	// Should still work but fall back to buffered response
 	assert.Equal(t, http.StatusOK, w.ResponseWriter.(*httptest.ResponseRecorder).Code)
+	assert.Contains(t, w.ResponseWriter.(*httptest.ResponseRecorder).Body.String(), "foobar")
+}
+
+// TestHTTPGatewayStreamingFallbackMultipleTraces tests fallback with multiple traces
+func TestHTTPGatewayStreamingFallbackMultipleTraces(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	trace1 := makeTestTrace()
+	trace2 := ptrace.NewTraces()
+	resources := trace2.ResourceSpans().AppendEmpty()
+	scopes := resources.ScopeSpans().AppendEmpty()
+	spanB := scopes.Spans().AppendEmpty()
+	spanB.SetName("fallback-span")
+	spanB.SetTraceID(traceID)
+	spanB.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 6}))
+
+	gw.reader.
+		On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			// Multiple traces to test the combining logic in returnTraces
+			if !yield([]ptrace.Traces{trace1}, nil) {
+				return
+			}
+			yield([]ptrace.Traces{trace2}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+	require.NoError(t, err)
+
+	// Use a non-flushable writer to trigger fallback path
+	w := &nonFlushableRecorder{ResponseWriter: httptest.NewRecorder()}
+	gw.router.ServeHTTP(w, r)
+
+	// Should combine multiple traces and return them
+	assert.Equal(t, http.StatusOK, w.ResponseWriter.(*httptest.ResponseRecorder).Code)
+	body := w.ResponseWriter.(*httptest.ResponseRecorder).Body.String()
+	assert.Contains(t, body, "foobar")
+	assert.Contains(t, body, "fallback-span")
 }
 
 type nonFlushableRecorder struct {
@@ -505,4 +543,242 @@ func (n *nonFlushableRecorder) Write(b []byte) (int, error) {
 
 func (n *nonFlushableRecorder) WriteHeader(statusCode int) {
 	n.ResponseWriter.WriteHeader(statusCode)
+}
+
+// TestHTTPGatewayStreamingWithEmptyBatches tests handling of empty trace batches
+func TestHTTPGatewayStreamingWithEmptyBatches(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	trace1 := makeTestTrace()
+
+	// Setup iterator that returns empty batches mixed with real data
+	gw.reader.
+		On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			// Yield empty batch (should be skipped)
+			if !yield([]ptrace.Traces{}, nil) {
+				return
+			}
+			// Yield real batch
+			if !yield([]ptrace.Traces{trace1}, nil) {
+				return
+			}
+			// Another empty batch
+			yield([]ptrace.Traces{}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "foobar")
+}
+
+// TestHTTPGatewayStreamingNoTracesFound tests 404 when no traces exist
+func TestHTTPGatewayStreamingNoTracesFound(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	// Setup iterator that returns only empty batches
+	gw.reader.
+		On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Contains(t, w.Body.String(), "No traces found")
+}
+
+// TestHTTPGatewayFindTracesStreaming tests findTraces endpoint with streaming
+func TestHTTPGatewayFindTracesStreaming(t *testing.T) {
+	q, qp := mockFindQueries()
+	trace1 := makeTestTrace()
+
+	gw := setupHTTPGatewayNoServer(t, "")
+	gw.reader.
+		On("FindTraces", matchContext, qp).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{trace1}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "foobar")
+}
+
+// TestHTTPGatewayStreamingMarshalError tests handling of marshal errors during streaming
+func TestHTTPGatewayStreamingMarshalError(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	trace1 := makeTestTrace()
+
+	gw.reader.
+		On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{trace1}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+	require.NoError(t, err)
+
+	// Use a logger to capture error logs
+	logger, log := testutils.NewLogger()
+	q := querysvc.NewQueryService(gw.reader,
+		&dependencyStoreMocks.Reader{},
+		querysvc.QueryServiceOptions{},
+	)
+	hgw := &HTTPGateway{
+		QueryService: q,
+		Logger:       logger,
+		Tracer:       jtracer.NoOp().OTEL,
+	}
+	gw.router = &mux.Router{}
+	hgw.RegisterRoutes(gw.router)
+
+	// Use a ResponseWriter that fails immediately
+	w := &failingWriter{
+		ResponseRecorder: httptest.NewRecorder(),
+		failImmediately:  true,
+	}
+	gw.router.ServeHTTP(w, r)
+
+	// Should log the marshal error
+	assert.Contains(t, log.String(), "Failed to marshal trace chunk")
+}
+
+// failingWriter is a ResponseWriter that simulates write failures
+type failingWriter struct {
+	*httptest.ResponseRecorder
+	writeCount      int
+	failAfterBytes  int
+	failImmediately bool
+}
+
+func (f *failingWriter) Write(b []byte) (int, error) {
+	f.writeCount++
+	if f.failImmediately && f.writeCount == 1 {
+		// Fail on first write (marshal output)
+		return 0, assert.AnError
+	}
+	if f.failAfterBytes > 0 && f.writeCount == 2 {
+		// Fail on second write (separator)
+		return 0, assert.AnError
+	}
+	return f.ResponseRecorder.Write(b)
+}
+
+func (*failingWriter) Flush() {
+	// Implement Flusher interface
+}
+
+// TestHTTPGatewayStreamingFirstChunkWrite tests various edge cases in first chunk handling
+func TestHTTPGatewayStreamingFirstChunkWrite(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	trace1 := makeTestTrace()
+	trace2 := ptrace.NewTraces()
+	resources := trace2.ResourceSpans().AppendEmpty()
+	scopes := resources.ScopeSpans().AppendEmpty()
+	spanB := scopes.Spans().AppendEmpty()
+	spanB.SetName("span2")
+	spanB.SetTraceID(traceID)
+	spanB.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 5}))
+
+	gw.reader.
+		On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			// Multiple traces to ensure we test the iteration logic
+			yield([]ptrace.Traces{trace1, trace2}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "foobar")
+	assert.Contains(t, w.Body.String(), "span2")
+}
+
+// TestHTTPGatewayStreamingErrorBeforeFirstChunk tests error handling before streaming starts
+func TestHTTPGatewayStreamingErrorBeforeFirstChunk(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	// Setup iterator that returns error immediately
+	gw.reader.
+		On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield(nil, assert.AnError)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+
+	// Should return 500 error since streaming hasn't started
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), assert.AnError.Error())
+}
+
+// TestHTTPGatewayStreamingFallbackError tests fallback path with errors
+func TestHTTPGatewayStreamingFallbackError(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	// Mock reader to return error
+	gw.reader.
+		On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield(nil, assert.AnError)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+	require.NoError(t, err)
+
+	// Use a non-flushing writer to trigger fallback
+	w := &nonFlushingWriter{ResponseRecorder: httptest.NewRecorder()}
+	gw.router.ServeHTTP(w, r)
+
+	// Should return 500 error via returnTraces fallback path
+	assert.Equal(t, http.StatusInternalServerError, w.ResponseRecorder.Code)
+}
+
+// nonFlushingWriter simulates a ResponseWriter without Flusher interface
+type nonFlushingWriter struct {
+	*httptest.ResponseRecorder
+}
+
+// TestHTTPGatewayStreamingFallbackNoTraces tests fallback path with no traces (404)
+func TestHTTPGatewayStreamingFallbackNoTraces(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	// Mock reader to return empty traces
+	gw.reader.
+		On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(_ func([]ptrace.Traces, error) bool) {
+			// Return empty - no traces found
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+	require.NoError(t, err)
+
+	// Use a non-flushing writer to trigger fallback path
+	w := &nonFlushingWriter{ResponseRecorder: httptest.NewRecorder()}
+	gw.router.ServeHTTP(w, r)
+
+	// Should return 404 via returnTraces fallback path
+	assert.Equal(t, http.StatusNotFound, w.ResponseRecorder.Code)
+	assert.Contains(t, w.ResponseRecorder.Body.String(), "No traces found")
 }
