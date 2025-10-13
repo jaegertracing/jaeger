@@ -74,7 +74,7 @@ func TestNewMetricsReaderValidAddress(t *testing.T) {
 	reader, err := NewMetricsReader(config.Configuration{
 		ServerURL:      "http://localhost:1234",
 		ConnectTimeout: defaultTimeout,
-	}, logger, tracer)
+	}, logger, tracer, nil)
 	require.NoError(t, err)
 	assert.NotNil(t, reader)
 }
@@ -86,7 +86,7 @@ func TestNewMetricsReaderInvalidAddress(t *testing.T) {
 	reader, err := NewMetricsReader(config.Configuration{
 		ServerURL:      "\n",
 		ConnectTimeout: defaultTimeout,
-	}, logger, tracer)
+	}, logger, tracer, nil)
 	require.ErrorContains(t, err, "failed to initialize prometheus client")
 	assert.Nil(t, reader)
 }
@@ -103,7 +103,7 @@ func TestGetMinStepDuration(t *testing.T) {
 	reader, err := NewMetricsReader(config.Configuration{
 		ServerURL:      "http://" + listener.Addr().String(),
 		ConnectTimeout: defaultTimeout,
-	}, logger, tracer)
+	}, logger, tracer, nil)
 	require.NoError(t, err)
 
 	minStep, err := reader.GetMinStepDuration(context.Background(), &params)
@@ -138,7 +138,7 @@ func TestMetricsServerError(t *testing.T) {
 	reader, err := NewMetricsReader(config.Configuration{
 		ServerURL:      "http://" + address,
 		ConnectTimeout: defaultTimeout,
-	}, logger, tracer)
+	}, logger, tracer, nil)
 	require.NoError(t, err)
 	m, err := reader.GetCallRates(context.Background(), &params)
 	assert.NotNil(t, m)
@@ -516,7 +516,7 @@ func TestGetErrorRatesZero(t *testing.T) {
 	cfg.ServerURL = "http://" + address
 	cfg.ConnectTimeout = defaultTimeout
 
-	reader, err := NewMetricsReader(cfg, logger, tracer)
+	reader, err := NewMetricsReader(cfg, logger, tracer, nil)
 	require.NoError(t, err)
 
 	defer mockPrometheus.Close()
@@ -579,7 +579,7 @@ func TestGetErrorRatesNull(t *testing.T) {
 	cfg.ServerURL = "http://" + address
 	cfg.ConnectTimeout = defaultTimeout
 
-	reader, err := NewMetricsReader(cfg, logger, tracer)
+	reader, err := NewMetricsReader(cfg, logger, tracer , nil)
 	require.NoError(t, err)
 
 	defer mockPrometheus.Close()
@@ -666,7 +666,7 @@ func TestGetErrorRatesErrors(t *testing.T) {
 			cfg.ServerURL = "http://" + address
 			cfg.ConnectTimeout = defaultTimeout
 
-			reader, err := NewMetricsReader(cfg, logger, tracer)
+			reader, err := NewMetricsReader(cfg, logger, tracer , nil)
 			require.NoError(t, err)
 
 			defer mockPrometheus.Close()
@@ -690,7 +690,7 @@ func TestInvalidLatencyUnit(t *testing.T) {
 		NormalizeDuration: true,
 		LatencyUnit:       "something invalid",
 	}
-	_, _ = NewMetricsReader(cfg, zap.NewNop(), tracer)
+	_, _ = NewMetricsReader(cfg, zap.NewNop(), tracer, nil)
 }
 
 func TestWarningResponse(t *testing.T) {
@@ -883,7 +883,7 @@ func TestInvalidCertFile(t *testing.T) {
 				CAFile: "foo",
 			},
 		},
-	}, logger, tracer)
+	}, logger, tracer,nil)
 	require.Error(t, err)
 	assert.Nil(t, reader)
 }
@@ -976,7 +976,7 @@ func prepareMetricsReaderAndServer(t *testing.T, cfg config.Configuration, wantP
 	cfg.ServerURL = "http://" + address
 	cfg.ConnectTimeout = defaultTimeout
 
-	reader, err := NewMetricsReader(cfg, logger, tracer)
+	reader, err := NewMetricsReader(cfg, logger, tracer, nil)
 	require.NoError(t, err)
 
 	return reader, mockPrometheus
@@ -1013,202 +1013,69 @@ func assertMetrics(t *testing.T, gotMetrics *metrics.MetricFamily, wantLabels ma
 	assert.InDelta(t, float64(9223372036854), actualVal, 0.01)
 }
 
-// Test NewMetricsReaderWithAuth with authenticator
-func TestNewMetricsReaderWithAuth(t *testing.T) {
-	authHeaderReceived := ""
+func TestNewMetricsReaderWithHTTPAuth(t *testing.T) {
+    tests := []struct {
+        name         string
+        httpAuth     *mockHTTPAuthenticator
+        wantAuthUsed bool
+    }{
+        {
+            name:         "with HTTP authenticator",
+            httpAuth:     &mockHTTPAuthenticator{},
+            wantAuthUsed: true,
+        },
+        {
+            name:         "without HTTP authenticator",
+            httpAuth:     nil,
+            wantAuthUsed: false,
+        },
+    }
 
-	mockPrometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authHeaderReceived = r.Header.Get("Authorization")
-		sendResponse(t, w, "testdata/service_datapoint_response.json")
-	}))
-	defer mockPrometheus.Close()
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            authHeaderReceived := ""
+            mockPrometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+                authHeaderReceived = r.Header.Get("Authorization")
+                sendResponse(t, w, "testdata/service_datapoint_response.json")
+            }))
+            defer mockPrometheus.Close()
 
-	logger := zap.NewNop()
-	tracer, _, closer := tracerProvider(t)
-	defer closer()
+            logger := zap.NewNop()
+            tracer, _, closer := tracerProvider(t)
+            defer closer()
 
-	mockAuth := &mockHTTPAuthenticator{}
+            cfg := config.Configuration{
+                ServerURL:      mockPrometheus.URL,
+                ConnectTimeout: defaultTimeout,
+            }
 
-	cfg := config.Configuration{
-		ServerURL:      mockPrometheus.URL,
-		ConnectTimeout: defaultTimeout,
-	}
+            reader, err := NewMetricsReader(cfg, logger, tracer, tt.httpAuth)
+            require.NoError(t, err)
+            require.NotNil(t, reader)
 
-	reader, err := NewMetricsReaderWithAuth(cfg, logger, tracer, mockAuth)
-	require.NoError(t, err)
-	require.NotNil(t, reader)
+            endTime := time.Now()
+            lookback := time.Minute
+            step := time.Millisecond
+            ratePer := 10 * time.Minute
 
-	params := metricstore.CallRateQueryParameters{
-		BaseQueryParameters: metricstore.BaseQueryParameters{
-			ServiceNames: []string{"emailservice"},
-		},
-	}
-	endTime := time.Now()
-	lookback := time.Minute
-	step := time.Millisecond
-	ratePer := 10 * time.Minute
-	params.EndTime = &endTime
-	params.Lookback = &lookback
-	params.Step = &step
-	params.RatePer = &ratePer
+            params := metricstore.CallRateQueryParameters{
+                BaseQueryParameters: metricstore.BaseQueryParameters{
+                    ServiceNames: []string{"emailservice"},
+                    EndTime:      &endTime,
+                    Lookback:     &lookback,
+                    Step:         &step,
+                    RatePer:      &ratePer,
+                },
+            }
 
-	_, err = reader.GetCallRates(context.Background(), &params)
-	require.NoError(t, err)
-	assert.Equal(t, "Bearer sigv4-token", authHeaderReceived)
-}
+            _, err = reader.GetCallRates(context.Background(), &params)
+            require.NoError(t, err)
 
-func TestNewMetricsReaderWithAuth_NilAuthenticator(t *testing.T) {
-	mockPrometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sendResponse(t, w, "testdata/service_datapoint_response.json")
-	}))
-	defer mockPrometheus.Close()
-
-	logger := zap.NewNop()
-	tracer, _, closer := tracerProvider(t)
-	defer closer()
-
-	cfg := config.Configuration{
-		ServerURL:      mockPrometheus.URL,
-		ConnectTimeout: defaultTimeout,
-	}
-
-	reader, err := NewMetricsReaderWithAuth(cfg, logger, tracer, nil)
-	require.NoError(t, err)
-	require.NotNil(t, reader)
-
-	params := metricstore.CallRateQueryParameters{
-		BaseQueryParameters: metricstore.BaseQueryParameters{
-			ServiceNames: []string{"emailservice"},
-		},
-	}
-	endTime := time.Now()
-	lookback := time.Minute
-	step := time.Millisecond
-	ratePer := 10 * time.Minute
-	params.EndTime = &endTime
-	params.Lookback = &lookback
-	params.Step = &step
-	params.RatePer = &ratePer
-
-	_, err = reader.GetCallRates(context.Background(), &params)
-	require.NoError(t, err)
-}
-
-func TestGetHTTPRoundTripperWithAuth(t *testing.T) {
-	authApplied := false
-
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") == "Bearer sigv4-token" {
-			authApplied = true
-		}
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer mockServer.Close()
-
-	mockAuth := &mockHTTPAuthenticator{}
-	cfg := config.Configuration{
-		ServerURL:      mockServer.URL,
-		ConnectTimeout: defaultTimeout,
-	}
-
-	rt, err := getHTTPRoundTripper(&cfg, mockAuth)
-	require.NoError(t, err)
-	require.NotNil(t, rt)
-
-	client := &http.Client{Transport: rt}
-	resp, err := client.Get(mockServer.URL)
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-	require.True(t, authApplied)
-}
-
-func TestGetHTTPRoundTripperWithAuth_NilAuth(t *testing.T) {
-	cfg := config.Configuration{
-		ServerURL:      "http://localhost:9090",
-		ConnectTimeout: defaultTimeout,
-	}
-
-	rt, err := getHTTPRoundTripper(&cfg, nil)
-	require.NoError(t, err)
-	require.NotNil(t, rt)
-}
-
-func TestAuthenticatorWithTokenFile(t *testing.T) {
-	tmpfile, err := os.CreateTemp("", "token")
-	require.NoError(t, err)
-	defer os.Remove(tmpfile.Name())
-
-	testToken := "file-bearer-token"
-	_, err = tmpfile.Write([]byte(testToken))
-	require.NoError(t, err)
-	require.NoError(t, tmpfile.Close())
-
-	authHeaderReceived := ""
-
-	mockPrometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authHeaderReceived = r.Header.Get("Authorization")
-		sendResponse(t, w, "testdata/service_datapoint_response.json")
-	}))
-	defer mockPrometheus.Close()
-
-	logger := zap.NewNop()
-	tracer, _, closer := tracerProvider(t)
-	defer closer()
-
-	mockAuth := &mockHTTPAuthenticator{}
-
-	cfg := config.Configuration{
-		ServerURL:                mockPrometheus.URL,
-		ConnectTimeout:           defaultTimeout,
-		TokenFilePath:            tmpfile.Name(),
-		TokenOverrideFromContext: false,
-	}
-
-	reader, err := NewMetricsReaderWithAuth(cfg, logger, tracer, mockAuth)
-	require.NoError(t, err)
-	require.NotNil(t, reader)
-
-	params := metricstore.CallRateQueryParameters{
-		BaseQueryParameters: metricstore.BaseQueryParameters{
-			ServiceNames: []string{"emailservice"},
-		},
-	}
-	endTime := time.Now()
-	lookback := time.Minute
-	step := time.Millisecond
-	ratePer := 10 * time.Minute
-	params.EndTime = &endTime
-	params.Lookback = &lookback
-	params.Step = &step
-	params.RatePer = &ratePer
-
-	_, err = reader.GetCallRates(context.Background(), &params)
-	require.NoError(t, err)
-	assert.Equal(t, "Bearer sigv4-token", authHeaderReceived)
-}
-
-func TestCreatePromClientWithAuth(t *testing.T) {
-	mockAuth := &mockHTTPAuthenticator{}
-
-	cfg := config.Configuration{
-		ServerURL:      "http://localhost:9090",
-		ConnectTimeout: defaultTimeout,
-	}
-
-	client, err := createPromClientWithAuth(cfg, mockAuth)
-	require.NoError(t, err)
-	require.NotNil(t, client)
-}
-
-func TestCreatePromClientWithAuth_NilAuth(t *testing.T) {
-	cfg := config.Configuration{
-		ServerURL:      "http://localhost:9090",
-		ConnectTimeout: defaultTimeout,
-	}
-
-	client, err := createPromClientWithAuth(cfg, nil)
-	require.NoError(t, err)
-	require.NotNil(t, client)
+            if tt.wantAuthUsed {
+                assert.Equal(t, "Bearer sigv4-token", authHeaderReceived)
+            }
+        })
+    }
 }
 
 type mockHTTPAuthenticator struct{}

@@ -137,7 +137,7 @@ func TestFailedTLSOptions(t *testing.T) {
 
 func TestEmptyFactoryConfig(t *testing.T) {
 	cfg := promCfg.Configuration{}
-	_, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings())
+	_, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings(), nil)
 	require.Error(t, err)
 }
 
@@ -145,7 +145,7 @@ func TestFactoryConfig(t *testing.T) {
 	cfg := promCfg.Configuration{
 		ServerURL: "localhost:1234",
 	}
-	_, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings())
+	_, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings(), nil)
 	require.NoError(t, err)
 }
 
@@ -160,7 +160,7 @@ func TestNewFactoryWithConfigAndAuth(t *testing.T) {
 
 	mockAuth := &mockHTTPAuthenticator{}
 
-	factory, err := NewFactoryWithConfigAndAuth(cfg, telemetry.NoopSettings(), mockAuth)
+	factory, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings(), mockAuth)
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 
@@ -180,7 +180,7 @@ func TestNewFactoryWithConfigAndAuth_NilAuthenticator(t *testing.T) {
 	}
 
 	// Should work fine with nil authenticator (backward compatibility)
-	factory, err := NewFactoryWithConfigAndAuth(cfg, telemetry.NoopSettings(), nil)
+	factory, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings(), nil)
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 
@@ -196,7 +196,7 @@ func TestNewFactoryWithConfigAndAuth_EmptyServerURL(t *testing.T) {
 
 	mockAuth := &mockHTTPAuthenticator{}
 
-	factory, err := NewFactoryWithConfigAndAuth(cfg, telemetry.NoopSettings(), mockAuth)
+	factory, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings(), mockAuth)
 	require.Error(t, err)
 	require.Nil(t, factory)
 }
@@ -209,7 +209,7 @@ func TestNewFactoryWithConfigAndAuth_InvalidTLS(t *testing.T) {
 
 	mockAuth := &mockHTTPAuthenticator{}
 
-	factory, err := NewFactoryWithConfigAndAuth(cfg, telemetry.NoopSettings(), mockAuth)
+	factory, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings(), mockAuth)
 	require.NoError(t, err) // Factory creation succeeds
 	require.NotNil(t, factory)
 
