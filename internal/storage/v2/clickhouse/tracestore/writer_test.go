@@ -207,6 +207,7 @@ func TestWriter_SendError(t *testing.T) {
 	require.ErrorIs(t, err, assert.AnError)
 	require.False(t, conn.batch.sendCalled)
 }
+
 func TestToTuple(t *testing.T) {
 	tests := []struct {
 		name     string
