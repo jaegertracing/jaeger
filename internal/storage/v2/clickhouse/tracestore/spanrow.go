@@ -217,6 +217,7 @@ func spanToRow(
 
 func (sr *spanRow) appendAttributes(attrs pcommon.Map) {
 	attrs.Range(func(k string, v pcommon.Value) bool {
+		//revive:disable
 		switch v.Type() {
 		case pcommon.ValueTypeBool:
 			sr.boolAttributeKeys = append(sr.boolAttributeKeys, k)
@@ -238,6 +239,7 @@ func (sr *spanRow) appendAttributes(attrs pcommon.Map) {
 		case pcommon.ValueTypeSlice, pcommon.ValueTypeMap:
 			// TODO
 		default:
+			//revive:enable
 		}
 		return true
 	})

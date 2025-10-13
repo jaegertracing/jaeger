@@ -103,9 +103,6 @@ linters:
           arguments:
             - 80
           disabled: true
-        # this could be enabled after some cleanup
-        - name: identical-switch-branches
-          disabled: true
         # this should be enabled after fixing or disabling in a few packages
         - name: package-directory-mismatch
           disabled: true
