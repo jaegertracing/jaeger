@@ -71,6 +71,32 @@ func tracesFromSpanRows(t *testing.T, rows []*spanRow) ptrace.Traces {
 				span.Attributes().PutEmptyBytes(k).FromRaw(decoded)
 			}
 		}
+
+		for i, e := range r.eventNames {
+			event := span.Events().AppendEmpty()
+			event.SetName(e)
+			event.SetTimestamp(pcommon.NewTimestampFromTime(r.eventTimestamps[i]))
+			for j := 0; j < len(r.eventBoolAttributeKeys[i]); j++ {
+				event.Attributes().PutBool(r.eventBoolAttributeKeys[i][j], r.eventBoolAttributeValues[i][j])
+			}
+			for j := 0; j < len(r.eventDoubleAttributeKeys[i]); j++ {
+				event.Attributes().PutDouble(r.eventDoubleAttributeKeys[i][j], r.eventDoubleAttributeValues[i][j])
+			}
+			for j := 0; j < len(r.eventIntAttributeKeys[i]); j++ {
+				event.Attributes().PutInt(r.eventIntAttributeKeys[i][j], r.eventIntAttributeValues[i][j])
+			}
+			for j := 0; j < len(r.eventStrAttributeKeys[i]); j++ {
+				event.Attributes().PutStr(r.eventStrAttributeKeys[i][j], r.eventStrAttributeValues[i][j])
+			}
+			for j := 0; j < len(r.eventComplexAttributeKeys[i]); j++ {
+				if strings.HasPrefix(r.eventComplexAttributeKeys[i][j], "@bytes@") {
+					decoded, err := base64.StdEncoding.DecodeString(r.eventComplexAttributeValues[i][j])
+					require.NoError(t, err)
+					k := strings.TrimPrefix(r.eventComplexAttributeKeys[i][j], "@bytes@")
+					event.Attributes().PutEmptyBytes(k).FromRaw(decoded)
+				}
+			}
+		}
 	}
 	return td
 }
@@ -117,6 +143,28 @@ func TestWriter_Success(t *testing.T) {
 		require.Equal(t, expected.strAttributeValues, row[20])     // Str attribute values
 		require.Equal(t, expected.complexAttributeKeys, row[21])   // Complex attribute keys
 		require.Equal(t, expected.complexAttributeValues, row[22]) // Complex attribute values
+		require.Equal(t, expected.eventNames, row[23])             // Event names
+		require.Equal(t, expected.eventTimestamps, row[24])        // Event timestamps
+		require.Equal(t,
+			toTuple(expected.eventBoolAttributeKeys, expected.eventBoolAttributeValues),
+			row[25],
+		) // Bool attributes
+		require.Equal(t,
+			toTuple(expected.eventDoubleAttributeKeys, expected.eventDoubleAttributeValues),
+			row[26],
+		) // Double attributes
+		require.Equal(t,
+			toTuple(expected.eventIntAttributeKeys, expected.eventIntAttributeValues),
+			row[27],
+		) // Int attributes
+		require.Equal(t,
+			toTuple(expected.eventStrAttributeKeys, expected.eventStrAttributeValues),
+			row[28],
+		) // Str attributes
+		require.Equal(t,
+			toTuple(expected.eventComplexAttributeKeys, expected.eventComplexAttributeValues),
+			row[29],
+		) // Complex attribute
 	}
 }
 
@@ -158,4 +206,73 @@ func TestWriter_SendError(t *testing.T) {
 	require.ErrorContains(t, err, "failed to send batch")
 	require.ErrorIs(t, err, assert.AnError)
 	require.False(t, conn.batch.sendCalled)
+}
+func TestToTuple(t *testing.T) {
+	tests := []struct {
+		name     string
+		keys     [][]string
+		values   [][]int
+		expected [][][]any
+	}{
+		{
+			name:     "empty slices",
+			keys:     [][]string{},
+			values:   [][]int{},
+			expected: [][][]any{},
+		},
+		{
+			name:     "single empty inner slice",
+			keys:     [][]string{{}},
+			values:   [][]int{{}},
+			expected: [][][]any{{}},
+		},
+		{
+			name:   "single element",
+			keys:   [][]string{{"key1"}},
+			values: [][]int{{42}},
+			expected: [][][]any{
+				{
+					{"key1", 42},
+				},
+			},
+		},
+		{
+			name:   "multiple elements in single slice",
+			keys:   [][]string{{"key1", "key2", "key3"}},
+			values: [][]int{{10, 20, 30}},
+			expected: [][][]any{
+				{
+					{"key1", 10},
+					{"key2", 20},
+					{"key3", 30},
+				},
+			},
+		},
+		{
+			name:   "multiple slices with multiple elements",
+			keys:   [][]string{{"key1", "key2"}, {"key3"}, {"key4", "key5", "key6"}},
+			values: [][]int{{1, 2}, {3}, {4, 5, 6}},
+			expected: [][][]any{
+				{
+					{"key1", 1},
+					{"key2", 2},
+				},
+				{
+					{"key3", 3},
+				},
+				{
+					{"key4", 4},
+					{"key5", 5},
+					{"key6", 6},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := toTuple(tt.keys, tt.values)
+			require.Equal(t, tt.expected, result)
+		})
+	}
 }
