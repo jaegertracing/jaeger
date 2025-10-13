@@ -30,15 +30,24 @@ type Settings struct {
 func HCAdapter(hc *healthcheck.HealthCheck) func(*componentstatus.Event) {
 	return func(event *componentstatus.Event) {
 		var hcStatus healthcheck.Status
+		//revive:disable
 		switch event.Status() {
 		case componentstatus.StatusOK:
 			hcStatus = healthcheck.Ready
+		case componentstatus.StatusStarting,
+			componentstatus.StatusRecoverableError,
+			componentstatus.StatusPermanentError,
+			componentstatus.StatusNone,
+			componentstatus.StatusStopping,
+			componentstatus.StatusStopped:
+			hcStatus = healthcheck.Unavailable
 		case componentstatus.StatusFatalError:
 			hcStatus = healthcheck.Broken
 		default:
 			hcStatus = healthcheck.Unavailable
 		}
 		hc.Set(hcStatus)
+		//revive:enable
 	}
 }
 
