@@ -52,7 +52,7 @@ func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config
 	}
 
 	switch authentication {
-	case none,tls:
+	case none, tls:
 		return nil
 	case kerberos:
 		setKerberosConfiguration(&config.Kerberos, saramaConfig)
