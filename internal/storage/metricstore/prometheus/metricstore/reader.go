@@ -399,5 +399,9 @@ func getHTTPRoundTripper(c *config.Configuration, httpAuth extensionauth.HTTPCli
 	if httpAuth == nil {
 		return base, nil
 	}
-	return httpAuth.RoundTripper(base)
+	wrappedRT, err := httpAuth.RoundTripper(base)
+	if err != nil {
+		return nil, err
+	}
+	return wrappedRT, nil
 }
