@@ -212,31 +212,30 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		var err error
 		switch {
 		case cfg.Prometheus != nil:
-			promTelset := telset
-			promTelset.Metrics = scopedMetricsFactory(metricStorageName, "prometheus", "metricstore")
+    promTelset := telset
+    promTelset.Metrics = scopedMetricsFactory(metricStorageName, "prometheus", "metricstore")
 
-			// Resolve authenticator if configured
-			var httpAuthenticator extensionauth.HTTPClient
-			if cfg.Prometheus.Auth != nil && cfg.Prometheus.Auth.Authenticator != "" {
-				var authErr error
-				httpAuthenticator, authErr = s.getAuthenticator(host, cfg.Prometheus.Auth.Authenticator)
-				if authErr != nil {
-					return fmt.Errorf("failed to get HTTP authenticator '%s' for metric storage '%s': %w",
-						cfg.Prometheus.Auth.Authenticator, metricStorageName, authErr)
-				}
-				s.telset.Logger.Sugar().Infof("HTTP auth configured for metric storage '%s' with authenticator '%s'",
-					metricStorageName, cfg.Prometheus.Auth.Authenticator)
-			}
+    // Resolve authenticator if configured
+    var httpAuthenticator extensionauth.HTTPClient
+    if cfg.Auth != nil && cfg.Auth.Authenticator != "" {
+        httpAuthenticator, err = s.getAuthenticator(host, cfg.Auth.Authenticator)
+        if err != nil {
+            return fmt.Errorf("failed to get HTTP authenticator '%s' for metric storage '%s': %w",
+                cfg.Auth.Authenticator, metricStorageName, err)
+        }
+        s.telset.Logger.Sugar().Infof("HTTP auth configured for metric storage '%s' with authenticator '%s'",
+            metricStorageName, cfg.Auth.Authenticator)
+    }
 
-			// Create factory with optional authenticator (nil if not configured)
-			metricStoreFactory, err = prometheus.NewFactoryWithConfigAndAuth(
-				cfg.Prometheus.Configuration, //  Use embedded config
-				promTelset,
-				httpAuthenticator, //  Can be nil
-			)
-			if err != nil {
-				return fmt.Errorf("failed to initialize metrics storage '%s': %w", metricStorageName, err)
-			}
+    // Create factory with optional authenticator (nil if not configured)
+    metricStoreFactory, err = prometheus.NewFactoryWithConfig(
+        cfg.Prometheus.Configuration,
+        promTelset,
+        httpAuthenticator,
+    )
+    if err != nil {
+        return fmt.Errorf("failed to initialize metrics storage '%s': %w", metricStorageName, err)
+    }
 
 		case cfg.Elasticsearch != nil:
 			esTelset := telset

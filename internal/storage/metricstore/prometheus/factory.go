@@ -57,24 +57,19 @@ func (f *Factory) Initialize(telset telemetry.Settings) error {
 
 // CreateMetricsReader implements storage.V1MetricStoreFactory.
 func (f *Factory) CreateMetricsReader() (metricstore.Reader, error) {
-	var (
-		mr  *prometheusstore.MetricsReader
-		err error
-	)
-	if f.httpAuth != nil {
-		mr, err = prometheusstore.NewMetricsReaderWithAuth(f.options.Configuration, f.telset.Logger, f.telset.TracerProvider, f.httpAuth)
-	} else {
-		mr, err = prometheusstore.NewMetricsReader(f.options.Configuration, f.telset.Logger, f.telset.TracerProvider)
-	}
+		mr, err := prometheusstore.NewMetricsReader(f.options.Configuration, f.telset.Logger, f.telset.TracerProvider, f.httpAuth)
 	if err != nil {
 		return nil, err
 	}
 	return metricstoremetrics.NewReaderDecorator(mr, f.telset.Metrics), nil
 }
 
+// NewFactoryWithConfig creates a new Factory with configuration and optional HTTP authenticator.
+// Pass nil for httpAuth if authentication is not required.
 func NewFactoryWithConfig(
 	cfg config.Configuration,
 	telset telemetry.Settings,
+	httpAuth extensionauth.HTTPClient,
 ) (*Factory, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -83,21 +78,7 @@ func NewFactoryWithConfig(
 	f.options = &Options{
 		Configuration: cfg,
 	}
-	f.Initialize(telset)
-	return f, nil
-}
-
-// NewFactoryWithConfigAndAuth is like NewFactoryWithConfig but wires an HTTP authenticator
-// to be used for outbound requests to Prometheus-compatible backends.
-func NewFactoryWithConfigAndAuth(
-	cfg config.Configuration,
-	telset telemetry.Settings,
-	httpAuth extensionauth.HTTPClient,
-) (*Factory, error) {
-	f, err := NewFactoryWithConfig(cfg, telset)
-	if err != nil {
-		return nil, err
-	}
 	f.httpAuth = httpAuth
+	f.Initialize(telset)
 	return f, nil
 }

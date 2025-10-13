@@ -107,33 +107,29 @@ func createPromClientWithAuth(cfg config.Configuration, httpAuth extensionauth.H
 	return customClient, nil
 }
 
-// NewMetricsReader returns a new MetricsReader.
-func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace.TracerProvider) (*MetricsReader, error) {
-	return NewMetricsReaderWithAuth(cfg, logger, tracer, nil)
-}
+// NewMetricsReader returns a new MetricsReader with optional HTTP authentication.
+// Pass nil for httpAuth if authentication is not required.
+func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace.TracerProvider, httpAuth extensionauth.HTTPClient) (*MetricsReader, error) {
+    const operationLabel = "span_name"
+    
+    promClient, err := createPromClientWithAuth(cfg, httpAuth)
+    if err != nil {
+        return nil, err
+    }
 
-// NewMetricsReaderWithAuth returns a new MetricsReader using the provided HTTP authenticator for outbound requests.
-func NewMetricsReaderWithAuth(cfg config.Configuration, logger *zap.Logger, tracer trace.TracerProvider, httpAuth extensionauth.HTTPClient) (*MetricsReader, error) {
-	const operationLabel = "span_name"
+    mr := &MetricsReader{
+        client: promapi.NewAPI(promClient),
+        logger: logger,
+        tracer: tracer.Tracer("prom-metrics-reader"),
 
-	promClient, err := createPromClientWithAuth(cfg, httpAuth)
-	if err != nil {
-		return nil, err
-	}
+        metricsTranslator: dbmodel.New(operationLabel),
+        callsMetricName:   buildFullCallsMetricName(cfg),
+        latencyMetricName: buildFullLatencyMetricName(cfg),
+        operationLabel:    operationLabel,
+    }
 
-	mr := &MetricsReader{
-		client: promapi.NewAPI(promClient),
-		logger: logger,
-		tracer: tracer.Tracer("prom-metrics-reader"),
-
-		metricsTranslator: dbmodel.New(operationLabel),
-		callsMetricName:   buildFullCallsMetricName(cfg),
-		latencyMetricName: buildFullLatencyMetricName(cfg),
-		operationLabel:    operationLabel,
-	}
-
-	logger.Info("Prometheus reader initialized", zap.String("addr", cfg.ServerURL))
-	return mr, nil
+    logger.Info("Prometheus reader initialized", zap.String("addr", cfg.ServerURL))
+    return mr, nil
 }
 
 // GetLatencies gets the latency metrics for the given set of latency query parameters.
@@ -399,13 +395,9 @@ func getHTTPRoundTripper(c *config.Configuration, httpAuth extensionauth.HTTPCli
 			},
 		},
 	}
-	// If an HTTP authenticator is provided, wrap the base transport with it
-	if httpAuth != nil {
-		wrapped, err := httpAuth.RoundTripper(base)
-		if err != nil {
-			return nil, fmt.Errorf("failed to apply HTTP authenticator: %w", err)
-		}
-		return wrapped, nil
-	}
-	return base, nil
+// If an HTTP authenticator is provided, wrap the base transport with it
+if httpAuth == nil {
+    return base, nil
+}
+return httpAuth.RoundTripper(base)
 }
