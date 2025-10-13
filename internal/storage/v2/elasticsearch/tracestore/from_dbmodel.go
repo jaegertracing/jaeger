@@ -338,9 +338,7 @@ func getStatusCodeFromHTTPStatusAttr(attrVal pcommon.Value, kind ptrace.SpanKind
 	// failed to interpret, span status MUST be set to Error.
 	if statusCode >= 400 && statusCode < 500 {
 		switch kind {
-		case ptrace.SpanKindClient:
-			return ptrace.StatusCodeError, nil
-		case ptrace.SpanKindServer:
+		case ptrace.SpanKindServer,ptrace.SpanKindClient:
 			return ptrace.StatusCodeUnset, nil
 		default:
 			return ptrace.StatusCodeError, nil
