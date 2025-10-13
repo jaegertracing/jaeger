@@ -579,7 +579,7 @@ func TestGetErrorRatesNull(t *testing.T) {
 	cfg.ServerURL = "http://" + address
 	cfg.ConnectTimeout = defaultTimeout
 
-	reader, err := NewMetricsReader(cfg, logger, tracer , nil)
+	reader, err := NewMetricsReader(cfg, logger, tracer, nil)
 	require.NoError(t, err)
 
 	defer mockPrometheus.Close()
@@ -666,7 +666,7 @@ func TestGetErrorRatesErrors(t *testing.T) {
 			cfg.ServerURL = "http://" + address
 			cfg.ConnectTimeout = defaultTimeout
 
-			reader, err := NewMetricsReader(cfg, logger, tracer , nil)
+			reader, err := NewMetricsReader(cfg, logger, tracer, nil)
 			require.NoError(t, err)
 
 			defer mockPrometheus.Close()
@@ -883,7 +883,7 @@ func TestInvalidCertFile(t *testing.T) {
 				CAFile: "foo",
 			},
 		},
-	}, logger, tracer,nil)
+	}, logger, tracer, nil)
 	require.Error(t, err)
 	assert.Nil(t, reader)
 }
@@ -1014,68 +1014,68 @@ func assertMetrics(t *testing.T, gotMetrics *metrics.MetricFamily, wantLabels ma
 }
 
 func TestNewMetricsReaderWithHTTPAuth(t *testing.T) {
-    tests := []struct {
-        name         string
-        httpAuth     *mockHTTPAuthenticator
-        wantAuthUsed bool
-    }{
-        {
-            name:         "with HTTP authenticator",
-            httpAuth:     &mockHTTPAuthenticator{},
-            wantAuthUsed: true,
-        },
-        {
-            name:         "without HTTP authenticator",
-            httpAuth:     nil,
-            wantAuthUsed: false,
-        },
-    }
+	tests := []struct {
+		name         string
+		httpAuth     *mockHTTPAuthenticator
+		wantAuthUsed bool
+	}{
+		{
+			name:         "with HTTP authenticator",
+			httpAuth:     &mockHTTPAuthenticator{},
+			wantAuthUsed: true,
+		},
+		{
+			name:         "without HTTP authenticator",
+			httpAuth:     nil,
+			wantAuthUsed: false,
+		},
+	}
 
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            authHeaderReceived := ""
-            mockPrometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-                authHeaderReceived = r.Header.Get("Authorization")
-                sendResponse(t, w, "testdata/service_datapoint_response.json")
-            }))
-            defer mockPrometheus.Close()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			authHeaderReceived := ""
+			mockPrometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				authHeaderReceived = r.Header.Get("Authorization")
+				sendResponse(t, w, "testdata/service_datapoint_response.json")
+			}))
+			defer mockPrometheus.Close()
 
-            logger := zap.NewNop()
-            tracer, _, closer := tracerProvider(t)
-            defer closer()
+			logger := zap.NewNop()
+			tracer, _, closer := tracerProvider(t)
+			defer closer()
 
-            cfg := config.Configuration{
-                ServerURL:      mockPrometheus.URL,
-                ConnectTimeout: defaultTimeout,
-            }
+			cfg := config.Configuration{
+				ServerURL:      mockPrometheus.URL,
+				ConnectTimeout: defaultTimeout,
+			}
 
-            reader, err := NewMetricsReader(cfg, logger, tracer, tt.httpAuth)
-            require.NoError(t, err)
-            require.NotNil(t, reader)
+			reader, err := NewMetricsReader(cfg, logger, tracer, tt.httpAuth)
+			require.NoError(t, err)
+			require.NotNil(t, reader)
 
-            endTime := time.Now()
-            lookback := time.Minute
-            step := time.Millisecond
-            ratePer := 10 * time.Minute
+			endTime := time.Now()
+			lookback := time.Minute
+			step := time.Millisecond
+			ratePer := 10 * time.Minute
 
-            params := metricstore.CallRateQueryParameters{
-                BaseQueryParameters: metricstore.BaseQueryParameters{
-                    ServiceNames: []string{"emailservice"},
-                    EndTime:      &endTime,
-                    Lookback:     &lookback,
-                    Step:         &step,
-                    RatePer:      &ratePer,
-                },
-            }
+			params := metricstore.CallRateQueryParameters{
+				BaseQueryParameters: metricstore.BaseQueryParameters{
+					ServiceNames: []string{"emailservice"},
+					EndTime:      &endTime,
+					Lookback:     &lookback,
+					Step:         &step,
+					RatePer:      &ratePer,
+				},
+			}
 
-            _, err = reader.GetCallRates(context.Background(), &params)
-            require.NoError(t, err)
+			_, err = reader.GetCallRates(context.Background(), &params)
+			require.NoError(t, err)
 
-            if tt.wantAuthUsed {
-                assert.Equal(t, "Bearer sigv4-token", authHeaderReceived)
-            }
-        })
-    }
+			if tt.wantAuthUsed {
+				assert.Equal(t, "Bearer sigv4-token", authHeaderReceived)
+			}
+		})
+	}
 }
 
 type mockHTTPAuthenticator struct{}

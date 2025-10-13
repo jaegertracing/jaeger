@@ -75,7 +75,6 @@ type PrometheusConfiguration struct {
 // MetricBackend contains configuration for a single metric storage backend.
 type MetricBackend struct {
 	Prometheus    *PrometheusConfiguration `mapstructure:"prometheus"`
-	Auth          *AuthConfig           `mapstructure:"auth,omitempty"`
 	Elasticsearch *esCfg.Configuration     `mapstructure:"elasticsearch"`
 	Opensearch    *esCfg.Configuration     `mapstructure:"opensearch"`
 }

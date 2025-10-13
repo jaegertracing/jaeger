@@ -110,26 +110,26 @@ func createPromClientWithAuth(cfg config.Configuration, httpAuth extensionauth.H
 // NewMetricsReader returns a new MetricsReader with optional HTTP authentication.
 // Pass nil for httpAuth if authentication is not required.
 func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace.TracerProvider, httpAuth extensionauth.HTTPClient) (*MetricsReader, error) {
-    const operationLabel = "span_name"
-    
-    promClient, err := createPromClientWithAuth(cfg, httpAuth)
-    if err != nil {
-        return nil, err
-    }
+	const operationLabel = "span_name"
 
-    mr := &MetricsReader{
-        client: promapi.NewAPI(promClient),
-        logger: logger,
-        tracer: tracer.Tracer("prom-metrics-reader"),
+	promClient, err := createPromClientWithAuth(cfg, httpAuth)
+	if err != nil {
+		return nil, err
+	}
 
-        metricsTranslator: dbmodel.New(operationLabel),
-        callsMetricName:   buildFullCallsMetricName(cfg),
-        latencyMetricName: buildFullLatencyMetricName(cfg),
-        operationLabel:    operationLabel,
-    }
+	mr := &MetricsReader{
+		client: promapi.NewAPI(promClient),
+		logger: logger,
+		tracer: tracer.Tracer("prom-metrics-reader"),
 
-    logger.Info("Prometheus reader initialized", zap.String("addr", cfg.ServerURL))
-    return mr, nil
+		metricsTranslator: dbmodel.New(operationLabel),
+		callsMetricName:   buildFullCallsMetricName(cfg),
+		latencyMetricName: buildFullLatencyMetricName(cfg),
+		operationLabel:    operationLabel,
+	}
+
+	logger.Info("Prometheus reader initialized", zap.String("addr", cfg.ServerURL))
+	return mr, nil
 }
 
 // GetLatencies gets the latency metrics for the given set of latency query parameters.
@@ -395,9 +395,9 @@ func getHTTPRoundTripper(c *config.Configuration, httpAuth extensionauth.HTTPCli
 			},
 		},
 	}
-// If an HTTP authenticator is provided, wrap the base transport with it
-if httpAuth == nil {
-    return base, nil
-}
-return httpAuth.RoundTripper(base)
+	// If an HTTP authenticator is provided, wrap the base transport with it
+	if httpAuth == nil {
+		return base, nil
+	}
+	return httpAuth.RoundTripper(base)
 }
