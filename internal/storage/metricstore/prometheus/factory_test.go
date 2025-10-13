@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/config"
-	promCfg "github.com/jaegertracing/jaeger/internal/config/promcfg"
+	"github.com/jaegertracing/jaeger/internal/config/promcfg"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/testutils"
@@ -142,7 +142,7 @@ func TestEmptyFactoryConfig(t *testing.T) {
 }
 
 func TestFactoryConfig(t *testing.T) {
-	cfg := promCfg.Configuration{
+	cfg := promcfg.Configuration{
 		ServerURL: "localhost:1234",
 	}
 	_, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings(), nil)

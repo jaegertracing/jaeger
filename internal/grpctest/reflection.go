@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	grpc_reflection "google.golang.org/grpc/reflection/grpc_reflection_v1alpha"
+	grpcreflection "google.golang.org/grpc/reflection/grpc_reflection_v1alpha"
 )
 
 // ReflectionServiceValidator verifies that a gRPC service at a given address
@@ -28,22 +28,22 @@ func (v ReflectionServiceValidator) Execute(t *testing.T) {
 	require.NoError(t, err)
 	defer conn.Close()
 
-	client := grpc_reflection.NewServerReflectionClient(conn)
+	client := grpcreflection.NewServerReflectionClient(conn)
 	r, err := client.ServerReflectionInfo(context.Background())
 	require.NoError(t, err)
 	require.NotNil(t, r)
 
-	err = r.Send(&grpc_reflection.ServerReflectionRequest{
-		MessageRequest: &grpc_reflection.ServerReflectionRequest_ListServices{},
+	err = r.Send(&grpcreflection.ServerReflectionRequest{
+		MessageRequest: &grpcreflection.ServerReflectionRequest_ListServices{},
 	})
 	require.NoError(t, err)
 	m, err := r.Recv()
 	require.NoError(t, err)
 	require.IsType(t,
-		new(grpc_reflection.ServerReflectionResponse_ListServicesResponse),
+		new(grpcreflection.ServerReflectionResponse_ListServicesResponse),
 		m.MessageResponse)
 
-	resp := m.MessageResponse.(*grpc_reflection.ServerReflectionResponse_ListServicesResponse)
+	resp := m.MessageResponse.(*grpcreflection.ServerReflectionResponse_ListServicesResponse)
 	for _, svc := range v.ExpectedServices {
 		var found string
 		for _, s := range resp.ListServicesResponse.Service {

@@ -109,8 +109,6 @@ func attributeToDbTag(key string, attr pcommon.Value) dbmodel.KeyValue {
 		tag = dbmodel.KeyValue{Key: key, Value: attr.AsRaw()}
 	}
 	switch attr.Type() {
-	case pcommon.ValueTypeStr:
-		tag.Type = dbmodel.StringType
 	case pcommon.ValueTypeInt:
 		tag.Type = dbmodel.Int64Type
 	case pcommon.ValueTypeBool:
@@ -119,8 +117,6 @@ func attributeToDbTag(key string, attr pcommon.Value) dbmodel.KeyValue {
 		tag.Type = dbmodel.Float64Type
 	case pcommon.ValueTypeBytes:
 		tag.Type = dbmodel.BinaryType
-	case pcommon.ValueTypeMap, pcommon.ValueTypeSlice:
-		tag.Type = dbmodel.StringType
 	default:
 		tag.Type = dbmodel.StringType
 	}

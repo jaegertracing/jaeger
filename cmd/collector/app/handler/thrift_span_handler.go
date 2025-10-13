@@ -14,8 +14,8 @@ import (
 	"github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
-	zipkinS "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
-	jConv "github.com/jaegertracing/jaeger/internal/converter/thrift/jaeger"
+	zipkins "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
+	jconv "github.com/jaegertracing/jaeger/internal/converter/thrift/jaeger"
 )
 
 // SubmitBatchOptions are passed to Submit methods of the handlers.
@@ -53,7 +53,7 @@ func (jbh *jaegerBatchesHandler) SubmitBatches(ctx context.Context, batches []*j
 	for _, batch := range batches {
 		mSpans := make([]*model.Span, 0, len(batch.Spans))
 		for _, span := range batch.Spans {
-			mSpan := jConv.ToDomainSpan(span, batch.Process)
+			mSpan := jconv.ToDomainSpan(span, batch.Process)
 			mSpans = append(mSpans, mSpan)
 		}
 		oks, err := jbh.modelProcessor.ProcessSpans(ctx, processor.SpansV1{
@@ -86,12 +86,12 @@ func (jbh *jaegerBatchesHandler) SubmitBatches(ctx context.Context, batches []*j
 
 type zipkinSpanHandler struct {
 	logger         *zap.Logger
-	sanitizer      zipkinS.Sanitizer
+	sanitizer      zipkins.Sanitizer
 	modelProcessor processor.SpanProcessor
 }
 
 // NewZipkinSpanHandler returns a ZipkinSpansHandler
-func NewZipkinSpanHandler(logger *zap.Logger, modelHandler processor.SpanProcessor, sanitizer zipkinS.Sanitizer) ZipkinSpansHandler {
+func NewZipkinSpanHandler(logger *zap.Logger, modelHandler processor.SpanProcessor, sanitizer zipkins.Sanitizer) ZipkinSpansHandler {
 	return &zipkinSpanHandler{
 		logger:         logger,
 		modelProcessor: modelHandler,

@@ -12,14 +12,15 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
 
-	promCfg "github.com/jaegertracing/jaeger/internal/config/promcfg"
-	casCfg "github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
-	esCfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/config/promcfg"
+	cascfg "github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
+	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	es "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
 )
 
@@ -41,12 +42,13 @@ type Config struct {
 
 // TraceBackend contains configuration for a single trace storage backend.
 type TraceBackend struct {
-	Memory        *memory.Configuration `mapstructure:"memory"`
-	Badger        *badger.Config        `mapstructure:"badger"`
-	GRPC          *grpc.Config          `mapstructure:"grpc"`
-	Cassandra     *cassandra.Options    `mapstructure:"cassandra"`
-	Elasticsearch *esCfg.Configuration  `mapstructure:"elasticsearch"`
-	Opensearch    *esCfg.Configuration  `mapstructure:"opensearch"`
+	Memory        *memory.Configuration     `mapstructure:"memory"`
+	Badger        *badger.Config            `mapstructure:"badger"`
+	GRPC          *grpc.Config              `mapstructure:"grpc"`
+	Cassandra     *cassandra.Options        `mapstructure:"cassandra"`
+	Elasticsearch *escfg.Configuration      `mapstructure:"elasticsearch"`
+	Opensearch    *escfg.Configuration      `mapstructure:"opensearch"`
+	ClickHouse    *clickhouse.Configuration `mapstructure:"clickhouse"`
 }
 
 // AuthConfig represents authentication configuration for metric backends.
@@ -100,7 +102,7 @@ func (cfg *TraceBackend) Unmarshal(conf *confmap.Conf) error {
 	if conf.IsSet("cassandra") {
 		cfg.Cassandra = &cassandra.Options{
 			NamespaceConfig: cassandra.NamespaceConfig{
-				Configuration: casCfg.DefaultConfiguration(),
+				Configuration: cascfg.DefaultConfiguration(),
 				Enabled:       true,
 			},
 			SpanStoreWriteCacheTTL: 12 * time.Hour,

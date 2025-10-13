@@ -21,14 +21,16 @@ import (
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
-	promCfg "github.com/jaegertracing/jaeger/internal/config/promcfg"
-	esCfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/config/promcfg"
+	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
 )
 
@@ -177,7 +179,7 @@ func TestGetSamplingStoreFactory(t *testing.T) {
 				ext := makeStorageExtension(t, &Config{
 					TraceBackends: map[string]TraceBackend{
 						"foo": {
-							Elasticsearch: &esCfg.Configuration{
+							Elasticsearch: &escfg.Configuration{
 								Servers:  []string{server.URL},
 								LogLevel: "error",
 							},
@@ -335,7 +337,7 @@ func TestMetricBackends(t *testing.T) {
 			config: &Config{
 				MetricBackends: map[string]MetricBackend{
 					"foo": {
-						Elasticsearch: &esCfg.Configuration{
+						Elasticsearch: &escfg.Configuration{
 							Servers:  []string{mockServer.URL},
 							LogLevel: "info",
 						},
@@ -348,7 +350,7 @@ func TestMetricBackends(t *testing.T) {
 			config: &Config{
 				MetricBackends: map[string]MetricBackend{
 					"foo": {
-						Opensearch: &esCfg.Configuration{
+						Opensearch: &escfg.Configuration{
 							Servers:  []string{mockServer.URL},
 							LogLevel: "info",
 						},
@@ -414,7 +416,7 @@ func TestMetricStorageStartError(t *testing.T) {
 			config: &Config{
 				MetricBackends: map[string]MetricBackend{
 					"foo": {
-						Elasticsearch: &esCfg.Configuration{},
+						Elasticsearch: &escfg.Configuration{},
 					},
 				},
 			},
@@ -424,7 +426,7 @@ func TestMetricStorageStartError(t *testing.T) {
 			config: &Config{
 				MetricBackends: map[string]MetricBackend{
 					"foo": {
-						Opensearch: &esCfg.Configuration{},
+						Opensearch: &escfg.Configuration{},
 					},
 				},
 			},
@@ -456,7 +458,7 @@ func TestXYZsearch(t *testing.T) {
 	server := setupMockServer(t, getVersionResponse(t), http.StatusOK)
 	t.Run("Elasticsearch", func(t *testing.T) {
 		testElasticsearchOrOpensearch(t, TraceBackend{
-			Elasticsearch: &esCfg.Configuration{
+			Elasticsearch: &escfg.Configuration{
 				Servers:  []string{server.URL},
 				LogLevel: "error",
 			},
@@ -464,7 +466,7 @@ func TestXYZsearch(t *testing.T) {
 	})
 	t.Run("OpenSearch", func(t *testing.T) {
 		testElasticsearchOrOpensearch(t, TraceBackend{
-			Opensearch: &esCfg.Configuration{
+			Opensearch: &escfg.Configuration{
 				Servers:  []string{server.URL},
 				LogLevel: "error",
 			},
@@ -485,6 +487,26 @@ func TestCassandraError(t *testing.T) {
 	err := ext.Start(t.Context(), componenttest.NewNopHost())
 	require.ErrorContains(t, err, "failed to initialize storage 'cassandra'")
 	require.ErrorContains(t, err, "Servers: non zero value required")
+}
+
+func TestClickHouse(t *testing.T) {
+	testServer := clickhousetest.NewServer(clickhousetest.FailureConfig{})
+	t.Cleanup(testServer.Close)
+	ext := makeStorageExtension(t, &Config{
+		TraceBackends: map[string]TraceBackend{
+			"foo": {
+				ClickHouse: &clickhouse.Configuration{
+					Protocol: "http",
+					Addresses: []string{
+						testServer.Listener.Addr().String(),
+					},
+				},
+			},
+		},
+	})
+	err := ext.Start(t.Context(), componenttest.NewNopHost())
+	require.NoError(t, err)
+	require.NoError(t, ext.Shutdown(t.Context()))
 }
 
 func noopTelemetrySettings() component.TelemetrySettings {

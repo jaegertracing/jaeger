@@ -10,23 +10,23 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	storage_v1 "github.com/jaegertracing/jaeger/internal/storage/v1"
-	dependencyStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
-	spanstoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
+	storagev1 "github.com/jaegertracing/jaeger/internal/storage/v1"
+	dependencystoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
+	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc"
-	factoryMocks "github.com/jaegertracing/jaeger/internal/storage/v1/mocks"
+	factorymocks "github.com/jaegertracing/jaeger/internal/storage/v1/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 func TestNewFactory(t *testing.T) {
-	mockFactory := new(factoryMocks.Factory)
-	mockPurger := new(factoryMocks.Purger)
-	mockSamplingStoreFactory := new(factoryMocks.SamplingStoreFactory)
+	mockFactory := new(factorymocks.Factory)
+	mockPurger := new(factorymocks.Purger)
+	mockSamplingStoreFactory := new(factorymocks.SamplingStoreFactory)
 
 	tests := []struct {
 		name               string
-		factory            storage_v1.Factory
+		factory            storagev1.Factory
 		expectedInterfaces []any
 	}{
 		{
@@ -41,42 +41,42 @@ func TestNewFactory(t *testing.T) {
 		{
 			name: "Implements Purger",
 			factory: struct {
-				storage_v1.Factory
-				storage_v1.Purger
+				storagev1.Factory
+				storagev1.Purger
 			}{mockFactory, mockPurger},
 			expectedInterfaces: []any{
 				(*tracestore.Factory)(nil),
 				(*depstore.Factory)(nil),
 				(*io.Closer)(nil),
-				(*storage_v1.Purger)(nil),
+				(*storagev1.Purger)(nil),
 			},
 		},
 		{
 			name: "Implements SamplingStoreFactory",
 			factory: struct {
-				storage_v1.Factory
-				storage_v1.SamplingStoreFactory
+				storagev1.Factory
+				storagev1.SamplingStoreFactory
 			}{mockFactory, mockSamplingStoreFactory},
 			expectedInterfaces: []any{
 				(*tracestore.Factory)(nil),
 				(*depstore.Factory)(nil),
 				(*io.Closer)(nil),
-				(*storage_v1.SamplingStoreFactory)(nil),
+				(*storagev1.SamplingStoreFactory)(nil),
 			},
 		},
 		{
 			name: "Implements both Purger and SamplingStoreFactory",
 			factory: struct {
-				storage_v1.Factory
-				storage_v1.Purger
-				storage_v1.SamplingStoreFactory
+				storagev1.Factory
+				storagev1.Purger
+				storagev1.SamplingStoreFactory
 			}{mockFactory, mockPurger, mockSamplingStoreFactory},
 			expectedInterfaces: []any{
 				(*tracestore.Factory)(nil),
 				(*depstore.Factory)(nil),
 				(*io.Closer)(nil),
-				(*storage_v1.Purger)(nil),
-				(*storage_v1.SamplingStoreFactory)(nil),
+				(*storagev1.Purger)(nil),
+				(*storagev1.SamplingStoreFactory)(nil),
 			},
 		},
 	}
@@ -92,7 +92,7 @@ func TestNewFactory(t *testing.T) {
 }
 
 func TestAdapterCloseNotOk(t *testing.T) {
-	f := NewFactory(&factoryMocks.Factory{})
+	f := NewFactory(&factorymocks.Factory{})
 	closer, ok := f.(io.Closer)
 	require.True(t, ok)
 	require.NoError(t, closer.Close())
@@ -106,8 +106,8 @@ func TestAdapterClose(t *testing.T) {
 }
 
 func TestAdapterCreateTraceReader(t *testing.T) {
-	f1 := new(factoryMocks.Factory)
-	f1.On("CreateSpanReader").Return(new(spanstoreMocks.Reader), nil)
+	f1 := new(factorymocks.Factory)
+	f1.On("CreateSpanReader").Return(new(spanstoremocks.Reader), nil)
 
 	f := NewFactory(f1)
 	_, err := f.CreateTraceReader()
@@ -115,7 +115,7 @@ func TestAdapterCreateTraceReader(t *testing.T) {
 }
 
 func TestAdapterCreateTraceReaderError(t *testing.T) {
-	f1 := new(factoryMocks.Factory)
+	f1 := new(factorymocks.Factory)
 	f1.On("CreateSpanReader").Return(nil, errors.New("mock error"))
 
 	f := NewFactory(f1)
@@ -124,7 +124,7 @@ func TestAdapterCreateTraceReaderError(t *testing.T) {
 }
 
 func TestAdapterCreateTraceWriterError(t *testing.T) {
-	f1 := new(factoryMocks.Factory)
+	f1 := new(factorymocks.Factory)
 	f1.On("CreateSpanWriter").Return(nil, errors.New("mock error"))
 
 	f := NewFactory(f1)
@@ -133,8 +133,8 @@ func TestAdapterCreateTraceWriterError(t *testing.T) {
 }
 
 func TestAdapterCreateTraceWriter(t *testing.T) {
-	f1 := new(factoryMocks.Factory)
-	f1.On("CreateSpanWriter").Return(new(spanstoreMocks.Writer), nil)
+	f1 := new(factorymocks.Factory)
+	f1.On("CreateSpanWriter").Return(new(spanstoremocks.Writer), nil)
 
 	f := NewFactory(f1)
 	_, err := f.CreateTraceWriter()
@@ -142,8 +142,8 @@ func TestAdapterCreateTraceWriter(t *testing.T) {
 }
 
 func TestAdapterCreateDependencyReader(t *testing.T) {
-	f1 := new(factoryMocks.Factory)
-	f1.On("CreateDependencyReader").Return(new(dependencyStoreMocks.Reader), nil)
+	f1 := new(factorymocks.Factory)
+	f1.On("CreateDependencyReader").Return(new(dependencystoremocks.Reader), nil)
 
 	f := NewFactory(f1)
 	depFactory, ok := f.(depstore.Factory)
@@ -154,7 +154,7 @@ func TestAdapterCreateDependencyReader(t *testing.T) {
 }
 
 func TestAdapterCreateDependencyReaderError(t *testing.T) {
-	f1 := new(factoryMocks.Factory)
+	f1 := new(factorymocks.Factory)
 	testErr := errors.New("test error")
 	f1.On("CreateDependencyReader").Return(nil, testErr)
 

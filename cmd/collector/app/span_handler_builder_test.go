@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
-	cmdFlags "github.com/jaegertracing/jaeger/cmd/internal/flags"
+	cmdflags "github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/internal/config"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
@@ -21,7 +21,7 @@ import (
 )
 
 func TestNewSpanHandlerBuilder(t *testing.T) {
-	v, command := config.Viperize(cmdFlags.AddFlags, flags.AddFlags)
+	v, command := config.Viperize(cmdflags.AddFlags, flags.AddFlags)
 
 	require.NoError(t, command.ParseFlags([]string{}))
 	cOpts, err := new(flags.CollectorOptions).InitFromViper(v, zap.NewNop())

@@ -24,9 +24,9 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
-	depStore "github.com/jaegertracing/jaeger/internal/storage/v1/badger/dependencystore"
-	badgerSampling "github.com/jaegertracing/jaeger/internal/storage/v1/badger/samplingstore"
-	badgerStore "github.com/jaegertracing/jaeger/internal/storage/v1/badger/spanstore"
+	depstore "github.com/jaegertracing/jaeger/internal/storage/v1/badger/dependencystore"
+	badgersampling "github.com/jaegertracing/jaeger/internal/storage/v1/badger/samplingstore"
+	badgerstore "github.com/jaegertracing/jaeger/internal/storage/v1/badger/spanstore"
 )
 
 const (
@@ -48,7 +48,7 @@ var ( // interface comformance checks
 type Factory struct {
 	Config         *Config
 	store          *badger.DB
-	cache          *badgerStore.CacheStore
+	cache          *badgerstore.CacheStore
 	logger         *zap.Logger
 	metricsFactory metrics.Factory
 
@@ -131,7 +131,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	}
 	f.store = store
 
-	f.cache = badgerStore.NewCacheStore(f.store, f.Config.TTL.Spans)
+	f.cache = badgerstore.NewCacheStore(f.store, f.Config.TTL.Spans)
 
 	f.metrics.ValueLogSpaceAvailable = metricsFactory.Gauge(metrics.Options{Name: valueLogSpaceAvailableName})
 	f.metrics.KeyLogSpaceAvailable = metricsFactory.Gauge(metrics.Options{Name: keyLogSpaceAvailableName})
@@ -157,24 +157,24 @@ func initializeDir(path string) {
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	tr := badgerStore.NewTraceReader(f.store, f.cache, true)
+	tr := badgerstore.NewTraceReader(f.store, f.cache, true)
 	return spanstoremetrics.NewReaderDecorator(tr, f.metricsFactory), nil
 }
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return badgerStore.NewSpanWriter(f.store, f.cache, f.Config.TTL.Spans), nil
+	return badgerstore.NewSpanWriter(f.store, f.cache, f.Config.TTL.Spans), nil
 }
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	sr, _ := f.CreateSpanReader() // err is always nil
-	return depStore.NewDependencyStore(sr), nil
+	return depstore.NewDependencyStore(sr), nil
 }
 
 // CreateSamplingStore implements storage.SamplingStoreFactory
 func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
-	return badgerSampling.NewSamplingStore(f.store), nil
+	return badgersampling.NewSamplingStore(f.store), nil
 }
 
 // CreateLock implements storage.SamplingStoreFactory

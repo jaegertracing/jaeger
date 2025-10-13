@@ -103,6 +103,9 @@ linters:
           arguments:
             - 80
           disabled: true
+        # this should be enabled after fixing or disabling in a few packages
+        - name: package-directory-mismatch
+          disabled: true
         # would be ok if we could exclude the test files, but otherwise too noisy
         - name: add-constant
           disabled: true
@@ -135,9 +138,6 @@ linters:
           disabled: true
         # definitely a good one, needs cleanup first
         - name: argument-limit
-          disabled: true
-        # maybe enable, needs invesitgation of the impact
-        - name: import-alias-naming
           disabled: true
         # maybe enable, needs invesitgation of the impact
         - name: get-return
