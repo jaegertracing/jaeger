@@ -107,7 +107,7 @@ func TestStorageFactoryBadShutdownError(t *testing.T) {
 			"foo": errorFactory{closeErr: shutdownError},
 		},
 	}
-	err := ext.Shutdown(context.Background())
+	err := ext.Shutdown(t.Context())
 	require.ErrorIs(t, err, shutdownError)
 }
 
@@ -184,9 +184,9 @@ func TestGetSamplingStoreFactory(t *testing.T) {
 						},
 					},
 				})
-				require.NoError(t, ext.Start(context.Background(), componenttest.NewNopHost()))
+				require.NoError(t, ext.Start(t.Context(), componenttest.NewNopHost()))
 				t.Cleanup(func() {
-					require.NoError(t, ext.Shutdown(context.Background()))
+					require.NoError(t, ext.Shutdown(t.Context()))
 				})
 				return ext
 			},
@@ -249,9 +249,9 @@ func TestGetPurger(t *testing.T) {
 						},
 					},
 				})
-				require.NoError(t, ext.Start(context.Background(), componenttest.NewNopHost()))
+				require.NoError(t, ext.Start(t.Context(), componenttest.NewNopHost()))
 				t.Cleanup(func() {
-					require.NoError(t, ext.Shutdown(context.Background()))
+					require.NoError(t, ext.Shutdown(t.Context()))
 				})
 				return ext
 			},
@@ -286,7 +286,7 @@ func TestBadger(t *testing.T) {
 			},
 		},
 	})
-	ctx := context.Background()
+	ctx := t.Context()
 	err := ext.Start(ctx, componenttest.NewNopHost())
 	require.NoError(t, err)
 	require.NoError(t, ext.Shutdown(ctx))
@@ -304,7 +304,7 @@ func TestGRPC(t *testing.T) {
 			},
 		},
 	})
-	ctx := context.Background()
+	ctx := t.Context()
 	err := ext.Start(ctx, componenttest.NewNopHost())
 	require.NoError(t, err)
 	require.NoError(t, ext.Shutdown(ctx))
@@ -361,7 +361,7 @@ func TestMetricBackends(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ext := makeStorageExtension(t, tt.config)
-			ctx := context.Background()
+			ctx := t.Context()
 			err := ext.Start(ctx, componenttest.NewNopHost())
 			require.NoError(t, err)
 			require.NoError(t, ext.Shutdown(ctx))
@@ -376,7 +376,7 @@ func TestMetricsBackendCloseError(t *testing.T) {
 			"foo": errorFactory{closeErr: shutdownError},
 		},
 	}
-	err := ext.Shutdown(context.Background())
+	err := ext.Shutdown(t.Context())
 	require.ErrorIs(t, err, shutdownError)
 }
 
@@ -386,7 +386,7 @@ func TestStartError(t *testing.T) {
 			"foo": {},
 		},
 	})
-	err := ext.Start(context.Background(), componenttest.NewNopHost())
+	err := ext.Start(t.Context(), componenttest.NewNopHost())
 	require.ErrorContains(t, err, "failed to initialize storage 'foo'")
 	require.ErrorContains(t, err, "empty configuration")
 }
@@ -434,7 +434,7 @@ func TestMetricStorageStartError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ext := makeStorageExtension(t, tt.config)
-			err := ext.Start(context.Background(), componenttest.NewNopHost())
+			err := ext.Start(t.Context(), componenttest.NewNopHost())
 			require.ErrorContains(t, err, expectedError)
 		})
 	}
@@ -446,7 +446,7 @@ func testElasticsearchOrOpensearch(t *testing.T, cfg TraceBackend) {
 			"foo": cfg,
 		},
 	})
-	ctx := context.Background()
+	ctx := t.Context()
 	err := ext.Start(ctx, componenttest.NewNopHost())
 	require.NoError(t, err)
 	require.NoError(t, ext.Shutdown(ctx))
@@ -482,7 +482,7 @@ func TestCassandraError(t *testing.T) {
 			},
 		},
 	})
-	err := ext.Start(context.Background(), componenttest.NewNopHost())
+	err := ext.Start(t.Context(), componenttest.NewNopHost())
 	require.ErrorContains(t, err, "failed to initialize storage 'cassandra'")
 	require.ErrorContains(t, err, "Servers: non zero value required")
 }
@@ -497,7 +497,7 @@ func noopTelemetrySettings() component.TelemetrySettings {
 
 func makeStorageExtension(t *testing.T, config *Config) component.Component {
 	extensionFactory := NewFactory()
-	ctx := context.Background()
+	ctx := t.Context()
 	ext, err := extensionFactory.Create(ctx,
 		extension.Settings{
 			ID:                ID,
@@ -518,7 +518,7 @@ func TestStorageBackend_DefaultCases(t *testing.T) {
 	}
 
 	ext := makeStorageExtension(t, config)
-	err := ext.Start(context.Background(), componenttest.NewNopHost())
+	err := ext.Start(t.Context(), componenttest.NewNopHost())
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "empty configuration")
@@ -530,7 +530,7 @@ func TestStorageBackend_DefaultCases(t *testing.T) {
 	}
 
 	ext = makeStorageExtension(t, config)
-	err = ext.Start(context.Background(), componenttest.NewNopHost())
+	err = ext.Start(t.Context(), componenttest.NewNopHost())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "no metric backend configuration provided")
 }
@@ -557,10 +557,10 @@ func startStorageExtension(t *testing.T, memstoreName string, promstoreName stri
 	require.NoError(t, config.Validate())
 
 	ext := makeStorageExtension(t, config)
-	err := ext.Start(context.Background(), componenttest.NewNopHost())
+	err := ext.Start(t.Context(), componenttest.NewNopHost())
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, ext.Shutdown(context.Background()))
+		require.NoError(t, ext.Shutdown(t.Context()))
 	})
 	return ext
 }
@@ -632,14 +632,14 @@ func TestMetricBackendWithAuthenticator(t *testing.T) {
 		WithExtension(component.MustNewIDWithName("sigv4auth", "sigv4auth"), mockAuth)
 
 	ext := host.GetExtensions()[ID]
-	require.NoError(t, ext.Start(context.Background(), host))
+	require.NoError(t, ext.Start(t.Context(), host))
 
 	factory, err := GetMetricStorageFactory("prometheus", host)
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 
 	t.Cleanup(func() {
-		require.NoError(t, ext.(extension.Extension).Shutdown(context.Background()))
+		require.NoError(t, ext.(extension.Extension).Shutdown(t.Context()))
 	})
 }
 
@@ -663,7 +663,7 @@ func TestMetricBackendWithInvalidAuthenticator(t *testing.T) {
 	}
 
 	ext := makeStorageExtension(t, config)
-	err := ext.Start(context.Background(), componenttest.NewNopHost())
+	err := ext.Start(t.Context(), componenttest.NewNopHost())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to get HTTP authenticator")
 }

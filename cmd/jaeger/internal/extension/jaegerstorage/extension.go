@@ -296,8 +296,8 @@ func (s *storageExt) MetricStorageFactory(name string) (storage.MetricStoreFacto
 	return mf, ok
 }
 
-// getAuthenticator retrieves an HTTP authenticator extension from the host by name
-func (_ *storageExt) getAuthenticator(host component.Host, authenticatorName string) (extensionauth.HTTPClient, error) {
+//nolint:revive // receiver not used but kept as method for consistency // getAuthenticator retrieves an HTTP authenticator extension from the host by name
+func (s *storageExt) getAuthenticator(host component.Host, authenticatorName string) (extensionauth.HTTPClient, error) {
 	for id, ext := range host.GetExtensions() {
 		if id.Name() == authenticatorName {
 			if httpAuth, ok := ext.(extensionauth.HTTPClient); ok {
