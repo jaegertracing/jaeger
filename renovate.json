@@ -57,7 +57,7 @@
         "github.com/open-telemetry/opentelemetry-go-contrib/**"
       ],
       "schedule": [
-        "every friday"
+        "on friday"
       ]
     },
     {
@@ -69,7 +69,7 @@
         "go.opentelemetry.io/collector{/,}**"
       ],
       "schedule": [
-        "every friday"
+        "on friday"
       ]
     },
     {
@@ -81,7 +81,7 @@
         "github.com/open-telemetry/opentelemetry-collector-contrib{/,}**"
       ],
       "schedule": [
-        "every friday"
+        "on friday"
       ]
     },
     {
