@@ -54,7 +54,7 @@ func Init(m any, factory Factory, globalTags map[string]string) error {
 		}
 		if tagString := field.Tag.Get("tags"); tagString != "" {
 			tagPairs := strings.SplitSeq(tagString, ",")
-			for tagPair := range tagPairs {
+			for tagPair := range strings.SplitSeq(tagString, ",") {
 				tag := strings.Split(tagPair, "=")
 				if len(tag) != 2 {
 					return fmt.Errorf(
