@@ -81,30 +81,25 @@ func (p promClient) URL(ep string, args map[string]string) *url.URL {
 	return u
 }
 
-func createPromClient(cfg config.Configuration) (api.Client, error) {
-	return createPromClientWithAuth(cfg, nil)
-}
-
-func createPromClientWithAuth(cfg config.Configuration, httpAuth extensionauth.HTTPClient) (api.Client, error) {
+func createPromClient(cfg config.Configuration, httpAuth extensionauth.HTTPClient) (api.Client, error) {
 	roundTripper, err := getHTTPRoundTripper(&cfg, httpAuth)
 	if err != nil {
 		return nil, err
 	}
 
-	client, err := api.NewClient(api.Config{
+	promConfig := api.Config{
 		Address:      cfg.ServerURL,
 		RoundTripper: roundTripper,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize prometheus client: %w", err)
 	}
 
-	customClient := promClient{
+	client, err := api.NewClient(promConfig)
+	if err != nil {
+		return nil, err
+	}
+	return promClient{
 		Client:      client,
 		extraParams: cfg.ExtraQueryParams,
-	}
-
-	return customClient, nil
+	}, nil
 }
 
 // NewMetricsReader returns a new MetricsReader with optional HTTP authentication.
@@ -112,7 +107,7 @@ func createPromClientWithAuth(cfg config.Configuration, httpAuth extensionauth.H
 func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace.TracerProvider, httpAuth extensionauth.HTTPClient) (*MetricsReader, error) {
 	const operationLabel = "span_name"
 
-	promClient, err := createPromClientWithAuth(cfg, httpAuth)
+	promClient, err := createPromClient(cfg, httpAuth)
 	if err != nil {
 		return nil, err
 	}

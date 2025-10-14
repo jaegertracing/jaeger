@@ -168,6 +168,7 @@ func TestNewFactoryWithConfigAndAuth(t *testing.T) {
 	reader, err := factory.CreateMetricsReader()
 	require.NoError(t, err)
 	require.NotNil(t, reader)
+	require.True(t, mockAuth.called, "HTTP authenticator should have been called during reader creation")
 }
 
 func TestNewFactoryWithConfigAndAuth_NilAuthenticator(t *testing.T) {
@@ -220,9 +221,12 @@ func TestNewFactoryWithConfigAndAuth_InvalidTLS(t *testing.T) {
 }
 
 // Mock HTTP authenticator for testing
-type mockHTTPAuthenticator struct{}
+type mockHTTPAuthenticator struct {
+	called bool
+}
 
 func (m *mockHTTPAuthenticator) RoundTripper(base http.RoundTripper) (http.RoundTripper, error) {
+	m.called = true
 	return &mockRoundTripper{base: base}, nil
 }
 
@@ -237,7 +241,7 @@ func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	if m.base != nil {
 		return m.base.RoundTrip(req)
 	}
-	return &http.Response{StatusCode: 200, Body: http.NoBody}, nil
+	return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
 }
 
 func TestMain(m *testing.M) {

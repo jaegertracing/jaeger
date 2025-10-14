@@ -188,7 +188,7 @@ func TestGetSamplingStoreFactory(t *testing.T) {
 				})
 				require.NoError(t, ext.Start(t.Context(), componenttest.NewNopHost()))
 				t.Cleanup(func() {
-					require.NoError(t, ext.Shutdown(t.Context()))
+					require.NoError(t, ext.Shutdown(context.Background()))
 				})
 				return ext
 			},
@@ -253,7 +253,7 @@ func TestGetPurger(t *testing.T) {
 				})
 				require.NoError(t, ext.Start(t.Context(), componenttest.NewNopHost()))
 				t.Cleanup(func() {
-					require.NoError(t, ext.Shutdown(t.Context()))
+					require.NoError(t, ext.Shutdown(context.Background()))
 				})
 				return ext
 			},
@@ -582,7 +582,7 @@ func startStorageExtension(t *testing.T, memstoreName string, promstoreName stri
 	err := ext.Start(t.Context(), componenttest.NewNopHost())
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, ext.Shutdown(t.Context()))
+		require.NoError(t, ext.Shutdown(context.Background()))
 	})
 	return ext
 }
@@ -661,7 +661,7 @@ func TestMetricBackendWithAuthenticator(t *testing.T) {
 	require.NotNil(t, factory)
 
 	t.Cleanup(func() {
-		require.NoError(t, ext.(extension.Extension).Shutdown(t.Context()))
+		require.NoError(t, ext.(extension.Extension).Shutdown(context.Background()))
 	})
 }
 

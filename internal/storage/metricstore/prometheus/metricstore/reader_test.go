@@ -87,7 +87,7 @@ func TestNewMetricsReaderInvalidAddress(t *testing.T) {
 		ServerURL:      "\n",
 		ConnectTimeout: defaultTimeout,
 	}, logger, tracer, nil)
-	require.ErrorContains(t, err, "failed to initialize prometheus client")
+	require.Error(t, err)
 	assert.Nil(t, reader)
 }
 
@@ -904,7 +904,7 @@ func TestCreatePromClientWithExtraQueryParameters(t *testing.T) {
 		"param2": {"value2"},
 	}
 
-	customClient, err := createPromClient(cfg)
+	customClient, err := createPromClient(cfg, nil)
 	require.NoError(t, err)
 
 	u := customClient.URL("", nil)
@@ -1015,19 +1015,16 @@ func assertMetrics(t *testing.T, gotMetrics *metrics.MetricFamily, wantLabels ma
 
 func TestNewMetricsReaderWithHTTPAuth(t *testing.T) {
 	tests := []struct {
-		name         string
-		httpAuth     *mockHTTPAuthenticator
-		wantAuthUsed bool
+		name     string
+		httpAuth *mockHTTPAuthenticator
 	}{
 		{
-			name:         "with HTTP authenticator",
-			httpAuth:     &mockHTTPAuthenticator{},
-			wantAuthUsed: true,
+			name:     "with HTTP authenticator",
+			httpAuth: &mockHTTPAuthenticator{},
 		},
 		{
-			name:         "without HTTP authenticator",
-			httpAuth:     nil,
-			wantAuthUsed: false,
+			name:     "without HTTP authenticator",
+			httpAuth: nil,
 		},
 	}
 
@@ -1071,7 +1068,7 @@ func TestNewMetricsReaderWithHTTPAuth(t *testing.T) {
 			_, err = reader.GetCallRates(context.Background(), &params)
 			require.NoError(t, err)
 
-			if tt.wantAuthUsed {
+			if tt.httpAuth != nil {
 				assert.Equal(t, "Bearer sigv4-token", authHeaderReceived)
 			}
 		})
@@ -1080,7 +1077,7 @@ func TestNewMetricsReaderWithHTTPAuth(t *testing.T) {
 
 type mockHTTPAuthenticator struct{}
 
-func (m *mockHTTPAuthenticator) RoundTripper(base http.RoundTripper) (http.RoundTripper, error) {
+func (*mockHTTPAuthenticator) RoundTripper(base http.RoundTripper) (http.RoundTripper, error) {
 	return &mockAuthRoundTripper{base: base}, nil
 }
 
@@ -1094,7 +1091,7 @@ func (m *mockAuthRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 		return m.base.RoundTrip(req)
 	}
 	return &http.Response{
-		StatusCode: 200,
+		StatusCode: http.StatusOK,
 		Body:       http.NoBody,
 	}, nil
 }
