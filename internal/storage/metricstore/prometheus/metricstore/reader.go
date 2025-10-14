@@ -395,7 +395,6 @@ func getHTTPRoundTripper(c *config.Configuration, httpAuth extensionauth.HTTPCli
 			},
 		},
 	}
-	// If an HTTP authenticator is provided, wrap the base transport with it
 	if httpAuth == nil {
 		return base, nil
 	}
