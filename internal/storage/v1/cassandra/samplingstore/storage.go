@@ -235,7 +235,7 @@ func (s *SamplingStore) appendThroughput(throughput *[]*model.Throughput) func(c
 
 func parseProbabilitiesSet(probabilitiesStr string) map[string]struct{} {
 	ret := map[string]struct{}{}
-	for _, probability := range strings.Split(probabilitiesStr, ",") {
+	for probability := range strings.SplitSeq(probabilitiesStr, ",") {
 		if probability != "" {
 			ret[probability] = struct{}{}
 		}
