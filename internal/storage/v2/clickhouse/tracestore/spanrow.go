@@ -211,31 +211,78 @@ func spanToRow(
 		scopeName:     scope.Name(),
 		scopeVersion:  scope.Version(),
 	}
-	sr.appendAttributes(span.Attributes())
+	sr.appendSpanAttributes(span.Attributes())
+	for _, event := range span.Events().All() {
+		sr.appendEvent(event)
+	}
+
 	return sr
 }
 
-func (sr *spanRow) appendAttributes(attrs pcommon.Map) {
+func (sr *spanRow) appendSpanAttributes(attrs pcommon.Map) {
+	a := extractAttributes(attrs)
+	sr.boolAttributeKeys = append(sr.boolAttributeKeys, a.boolKeys...)
+	sr.boolAttributeValues = append(sr.boolAttributeValues, a.boolValues...)
+	sr.doubleAttributeKeys = append(sr.doubleAttributeKeys, a.doubleKeys...)
+	sr.doubleAttributeValues = append(sr.doubleAttributeValues, a.doubleValues...)
+	sr.intAttributeKeys = append(sr.intAttributeKeys, a.intKeys...)
+	sr.intAttributeValues = append(sr.intAttributeValues, a.intValues...)
+	sr.strAttributeKeys = append(sr.strAttributeKeys, a.strKeys...)
+	sr.strAttributeValues = append(sr.strAttributeValues, a.strValues...)
+	sr.complexAttributeKeys = append(sr.complexAttributeKeys, a.complexKeys...)
+	sr.complexAttributeValues = append(sr.complexAttributeValues, a.complexValues...)
+}
+
+func (sr *spanRow) appendEvent(event ptrace.SpanEvent) {
+	sr.eventNames = append(sr.eventNames, event.Name())
+	sr.eventTimestamps = append(sr.eventTimestamps, event.Timestamp().AsTime())
+
+	evAttrs := extractAttributes(event.Attributes())
+	sr.eventBoolAttributeKeys = append(sr.eventBoolAttributeKeys, evAttrs.boolKeys)
+	sr.eventBoolAttributeValues = append(sr.eventBoolAttributeValues, evAttrs.boolValues)
+	sr.eventDoubleAttributeKeys = append(sr.eventDoubleAttributeKeys, evAttrs.doubleKeys)
+	sr.eventDoubleAttributeValues = append(sr.eventDoubleAttributeValues, evAttrs.doubleValues)
+	sr.eventIntAttributeKeys = append(sr.eventIntAttributeKeys, evAttrs.intKeys)
+	sr.eventIntAttributeValues = append(sr.eventIntAttributeValues, evAttrs.intValues)
+	sr.eventStrAttributeKeys = append(sr.eventStrAttributeKeys, evAttrs.strKeys)
+	sr.eventStrAttributeValues = append(sr.eventStrAttributeValues, evAttrs.strValues)
+	sr.eventComplexAttributeKeys = append(sr.eventComplexAttributeKeys, evAttrs.complexKeys)
+	sr.eventComplexAttributeValues = append(sr.eventComplexAttributeValues, evAttrs.complexValues)
+}
+
+func extractAttributes(attrs pcommon.Map) (out struct {
+	boolKeys      []string
+	boolValues    []bool
+	doubleKeys    []string
+	doubleValues  []float64
+	intKeys       []string
+	intValues     []int64
+	strKeys       []string
+	strValues     []string
+	complexKeys   []string
+	complexValues []string
+},
+) {
 	attrs.Range(func(k string, v pcommon.Value) bool {
 		//revive:disable
 		switch v.Type() {
 		case pcommon.ValueTypeBool:
-			sr.boolAttributeKeys = append(sr.boolAttributeKeys, k)
-			sr.boolAttributeValues = append(sr.boolAttributeValues, v.Bool())
+			out.boolKeys = append(out.boolKeys, k)
+			out.boolValues = append(out.boolValues, v.Bool())
 		case pcommon.ValueTypeDouble:
-			sr.doubleAttributeKeys = append(sr.doubleAttributeKeys, k)
-			sr.doubleAttributeValues = append(sr.doubleAttributeValues, v.Double())
+			out.doubleKeys = append(out.doubleKeys, k)
+			out.doubleValues = append(out.doubleValues, v.Double())
 		case pcommon.ValueTypeInt:
-			sr.intAttributeKeys = append(sr.intAttributeKeys, k)
-			sr.intAttributeValues = append(sr.intAttributeValues, v.Int())
+			out.intKeys = append(out.intKeys, k)
+			out.intValues = append(out.intValues, v.Int())
 		case pcommon.ValueTypeStr:
-			sr.strAttributeKeys = append(sr.strAttributeKeys, k)
-			sr.strAttributeValues = append(sr.strAttributeValues, v.Str())
+			out.strKeys = append(out.strKeys, k)
+			out.strValues = append(out.strValues, v.Str())
 		case pcommon.ValueTypeBytes:
 			key := "@bytes@" + k
 			encoded := base64.StdEncoding.EncodeToString(v.Bytes().AsRaw())
-			sr.complexAttributeKeys = append(sr.complexAttributeKeys, key)
-			sr.complexAttributeValues = append(sr.complexAttributeValues, encoded)
+			out.complexKeys = append(out.complexKeys, key)
+			out.complexValues = append(out.complexValues, encoded)
 		case pcommon.ValueTypeSlice, pcommon.ValueTypeMap:
 			// TODO
 		default:
@@ -243,4 +290,5 @@ func (sr *spanRow) appendAttributes(attrs pcommon.Map) {
 		}
 		return true
 	})
+	return out
 }
