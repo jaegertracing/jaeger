@@ -1,7 +1,7 @@
 # Copyright (c) 2024 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-FROM golang:1.25.0-alpine@sha256:f18a072054848d87a8077455f0ac8a25886f2397f88bfdd222d6fafbb5bba440 AS build
+FROM golang:1.25.3-alpine@sha256:aee43c3ccbf24fdffb7295693b6e33b21e01baec1b2a55acc351fde345e9ec34 AS build
 ARG TARGETARCH
 ENV GOPATH /go
 RUN apk add --update --no-cache ca-certificates make git build-base mailcap
@@ -17,7 +17,7 @@ RUN if [[ "$TARGETARCH" == "s390x" ||  "$TARGETARCH" == "ppc64le" ||  "$TARGETAR
         cd /go/src/debug-delve && go mod download && go build -o /go/bin/dlv github.com/go-delve/delve/cmd/dlv; \
     fi 
 
-FROM golang:1.25.0-alpine@sha256:f18a072054848d87a8077455f0ac8a25886f2397f88bfdd222d6fafbb5bba440
+FROM golang:1.25.3-alpine@sha256:aee43c3ccbf24fdffb7295693b6e33b21e01baec1b2a55acc351fde345e9ec34
 COPY --from=build /go/bin/dlv /go/bin/dlv
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=build /etc/mime.types /etc/mime.types
