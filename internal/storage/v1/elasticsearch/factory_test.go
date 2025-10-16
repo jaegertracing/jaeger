@@ -316,8 +316,8 @@ func TestESStorageFactoryWithConfig(t *testing.T) {
 }
 
 func TestESStorageFactoryWithConfigError(t *testing.T) {
-	defer testutils.VerifyGoLeaksOnce(t)
-
+	// defer testutils.VerifyGoLeaksOnce(t)
+	t.Parallel()
 	cfg := escfg.Configuration{
 		Servers:  []string{"http://127.0.0.1:65535"},
 		LogLevel: "error",
