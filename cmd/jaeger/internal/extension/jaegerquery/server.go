@@ -11,7 +11,6 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
@@ -54,8 +53,7 @@ func (*server) Dependencies() []component.ID {
 }
 
 func (s *server) Start(ctx context.Context, host component.Host) error {
-	var tp trace.TracerProvider
-	tp = s.telset.TracerProvider
+	tp := s.telset.TracerProvider
 
 	telset := telemetry.FromOtelComponent(s.telset, host)
 	telset.TracerProvider = tp
