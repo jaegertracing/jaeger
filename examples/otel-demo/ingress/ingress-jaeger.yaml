@@ -1,0 +1,35 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jaeger-demo-ingress
+  namespace: jaeger
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: jaeger.demo.jaegertracing.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: jaeger-query-clusterip
+                port:
+                  number: 16686
+    - host: hotrod.demo.jaegertracing.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: jaeger-hotrod
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - jaeger.demo.jaegertracing.io
+        - hotrod.demo.jaegertracing.io
+      secretName: jaeger-demo-tls
