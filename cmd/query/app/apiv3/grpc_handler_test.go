@@ -21,7 +21,7 @@ import (
 	_ "github.com/jaegertracing/jaeger/internal/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
-	dependencyStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
+	dependencystoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
@@ -56,7 +56,7 @@ func newTestServerClient(t *testing.T) *testServerClient {
 
 	q := querysvc.NewQueryService(
 		tsc.reader,
-		&dependencyStoreMocks.Reader{},
+		&dependencystoremocks.Reader{},
 		querysvc.QueryServiceOptions{},
 	)
 	h := &Handler{
@@ -194,7 +194,7 @@ func TestFindTracesSendError(t *testing.T) {
 	h := &Handler{
 		QueryService: querysvc.NewQueryService(
 			reader,
-			new(dependencyStoreMocks.Reader),
+			new(dependencystoremocks.Reader),
 			querysvc.QueryServiceOptions{},
 		),
 	}

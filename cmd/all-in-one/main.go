@@ -18,14 +18,14 @@ import (
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
-	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
-	collectorFlags "github.com/jaegertracing/jaeger/cmd/collector/app/flags"
+	collectorapp "github.com/jaegertracing/jaeger/cmd/collector/app"
+	collectorflags "github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/internal/docs"
 	"github.com/jaegertracing/jaeger/cmd/internal/env"
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/cmd/internal/printconfig"
 	"github.com/jaegertracing/jaeger/cmd/internal/status"
-	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
+	queryapp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/config"
@@ -142,11 +142,11 @@ by default uses only in-memory database.`,
 				logger.Fatal("Failed to create sampling strategy provider", zap.Error(err))
 			}
 
-			cOpts, err := new(collectorFlags.CollectorOptions).InitFromViper(v, logger)
+			cOpts, err := new(collectorflags.CollectorOptions).InitFromViper(v, logger)
 			if err != nil {
 				logger.Fatal("Failed to initialize collector", zap.Error(err))
 			}
-			defaultOpts := queryApp.DefaultQueryOptions()
+			defaultOpts := queryapp.DefaultQueryOptions()
 			qOpts, err := defaultOpts.InitFromViper(v, logger)
 			if err != nil {
 				logger.Fatal("Failed to configure query service", zap.Error(err))
@@ -155,7 +155,7 @@ by default uses only in-memory database.`,
 			tm := tenancy.NewManager(&cOpts.Tenancy)
 
 			// collector
-			c := collectorApp.New(&collectorApp.CollectorParams{
+			c := collectorapp.New(&collectorapp.CollectorParams{
 				ServiceName:        "jaeger-collector",
 				Logger:             logger,
 				MetricsFactory:     collectorMetricsFactory,
@@ -211,8 +211,8 @@ by default uses only in-memory database.`,
 		command,
 		svc.AddFlags,
 		storageFactory.AddPipelineFlags,
-		collectorFlags.AddFlags,
-		queryApp.AddFlags,
+		collectorflags.AddFlags,
+		queryapp.AddFlags,
 		samplingStrategyFactory.AddFlags,
 		metricsReaderFactory.AddFlags,
 	)
@@ -224,7 +224,7 @@ by default uses only in-memory database.`,
 
 func startQuery(
 	svc *flags.Service,
-	qOpts *queryApp.QueryOptions,
+	qOpts *queryapp.QueryOptions,
 	queryOpts *querysvc.QueryServiceOptions,
 	v2QueryOpts *v2querysvc.QueryServiceOptions,
 	traceReader tracestore.Reader,
@@ -232,11 +232,11 @@ func startQuery(
 	metricsQueryService querysvc.MetricsQueryService,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
-) *queryApp.Server {
+) *queryapp.Server {
 	qs := querysvc.NewQueryService(traceReader, depReader, *queryOpts)
 	v2qs := v2querysvc.NewQueryService(traceReader, depReader, *v2QueryOpts)
 
-	server, err := queryApp.NewServer(context.Background(), qs, v2qs, metricsQueryService, qOpts, tm, telset)
+	server, err := queryapp.NewServer(context.Background(), qs, v2qs, metricsQueryService, qOpts, tm, telset)
 	if err != nil {
 		svc.Logger.Fatal("Could not create jaeger-query", zap.Error(err))
 	}

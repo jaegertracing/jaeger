@@ -13,7 +13,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/cache"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
-	casMetrics "github.com/jaegertracing/jaeger/internal/storage/cassandra/metrics"
+	casmetrics "github.com/jaegertracing/jaeger/internal/storage/cassandra/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 )
@@ -81,7 +81,7 @@ type OperationNamesStorage struct {
 	table          tableMeta
 	session        cassandra.Session
 	writeCacheTTL  time.Duration
-	metrics        *casMetrics.Table
+	metrics        *casmetrics.Table
 	operationNames cache.Cache
 	logger         *zap.Logger
 }
@@ -108,7 +108,7 @@ func NewOperationNamesStorage(
 		session:       session,
 		schemaVersion: schemaVersion,
 		table:         table,
-		metrics:       casMetrics.NewTable(metricsFactory, schemas[schemaVersion].tableName),
+		metrics:       casmetrics.NewTable(metricsFactory, schemas[schemaVersion].tableName),
 		writeCacheTTL: writeCacheTTL,
 		logger:        logger,
 		operationNames: cache.NewLRUWithOptions(

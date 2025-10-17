@@ -20,10 +20,59 @@ INSERT INTO
         duration,
         service_name,
         scope_name,
-        scope_version
+        scope_version,
+        bool_attributes.key,
+        bool_attributes.value,
+        double_attributes.key,
+        double_attributes.value,
+        int_attributes.key,
+        int_attributes.value,
+        str_attributes.key,
+        str_attributes.value,
+        complex_attributes.key,
+        complex_attributes.value,
+        events.name,
+        events.timestamp,
+        events.bool_attributes,
+        events.double_attributes,
+        events.int_attributes,
+        events.str_attributes,
+        events.complex_attributes
     )
 VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?
+    )
 `
 
 const SelectSpansByTraceID = `

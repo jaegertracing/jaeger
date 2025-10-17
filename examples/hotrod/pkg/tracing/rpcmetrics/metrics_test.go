@@ -54,18 +54,18 @@ func TestRecordHTTPStatusCode_DefaultCase(t *testing.T) {
 	met := metricstest.NewFactory(0)
 	mbe := newMetricsByEndpoint(met, DefaultNameNormalizer, 2)
 	metrics := mbe.get("test-endpoint")
-	
+
 	metrics.recordHTTPStatusCode(100)
 	metrics.recordHTTPStatusCode(199)
 	metrics.recordHTTPStatusCode(600)
 	metrics.recordHTTPStatusCode(999)
-	
+
 	met.AssertCounterMetrics(t)
-	
+
 	metrics.recordHTTPStatusCode(200)
 	metrics.recordHTTPStatusCode(404)
 	metrics.recordHTTPStatusCode(500)
-	
+
 	met.AssertCounterMetrics(t,
 		metricstest.ExpectedMetric{Name: "http_requests", Tags: endpointTags("test_endpoint", "status_code", "2xx"), Value: 1},
 		metricstest.ExpectedMetric{Name: "http_requests", Tags: endpointTags("test_endpoint", "status_code", "4xx"), Value: 1},
