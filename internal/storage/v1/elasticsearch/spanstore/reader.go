@@ -114,70 +114,53 @@ type SpanReader struct {
 
 // SpanReaderParams holds constructor params for NewSpanReader
 type SpanReaderParams struct {
-	Client              func() es.Client
-	MaxSpanAge          time.Duration
-	MaxDocCount         int
-	IndexPrefix         cfg.IndexPrefix
-	SpanIndex           cfg.IndexOptions
-	ServiceIndex        cfg.IndexOptions
-	TagDotReplacement   string
-	ReadAliasSuffix     string
-	UseReadWriteAliases bool
-	RemoteReadClusters  []string
-	// SpanAlias is an explicit alias name for span indices.
-	// When set, this alias will be used instead of the IndexPrefix pattern.
-	SpanAlias string
-	// ServiceAlias is an explicit alias name for service indices.
-	// When set, this alias will be used instead of the IndexPrefix pattern.
-	ServiceAlias string
-	Logger       *zap.Logger
-	Tracer       trace.Tracer
+	Client               func() es.Client
+	MaxSpanAge           time.Duration
+	MaxDocCount          int
+	IndexPrefix          cfg.IndexPrefix
+	SpanIndex            cfg.IndexOptions
+	ServiceIndex         cfg.IndexOptions
+	TagDotReplacement    string
+	ReadAliasSuffix      string
+	UseReadWriteAliases  bool
+	RemoteReadClusters   []string
+	SpanIndexOverride    string
+	ServiceIndexOverride string
+	Logger               *zap.Logger
+	Tracer               trace.Tracer
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
 func NewSpanReader(p SpanReaderParams) *SpanReader {
-	// Determine span index prefix - use explicit alias if provided
 	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
-	hasSpanAlias := p.SpanAlias != ""
-	if hasSpanAlias {
-		spanIndexPrefix = p.SpanAlias
+	hasSpanOverride := p.SpanIndexOverride != ""
+	if hasSpanOverride {
+		spanIndexPrefix = p.SpanIndexOverride
 	}
 
-	// Determine service index prefix - use explicit alias if provided
 	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
-	hasServiceAlias := p.ServiceAlias != ""
-	if hasServiceAlias {
-		serviceIndexPrefix = p.ServiceAlias
+	hasServiceOverride := p.ServiceIndexOverride != ""
+	if hasServiceOverride {
+		serviceIndexPrefix = p.ServiceIndexOverride
 	}
 
-	// When using explicit aliases, treat them like read/write aliases
-	// (no time-based index selection)
-	useAliasMode := p.UseReadWriteAliases || hasSpanAlias || hasServiceAlias
+	useAliasMode := p.UseReadWriteAliases || hasSpanOverride || hasServiceOverride
 
 	maxSpanAge := p.MaxSpanAge
-	// Setting the maxSpanAge to a large duration will ensure all spans in the "read" alias are accessible by queries (query window = [now - maxSpanAge, now]).
-	// When read/write aliases or explicit aliases are enabled, only the alias is queried and therefore should not affect performance.
 	if useAliasMode {
 		maxSpanAge = dawnOfTimeSpanAge
 	}
 
-	// Create custom time range function that handles explicit aliases independently
 	var timeRangeFn TimeRangeIndexFn
-	if hasSpanAlias || hasServiceAlias {
-		// For explicit aliases, we need to check each index prefix individually
-		// to determine if it's an alias (and should be returned as-is) or a regular prefix (needs date-based logic)
+	if hasSpanOverride || hasServiceOverride {
 		baseTimeRangeFn := TimeRangeIndicesFn(p.UseReadWriteAliases, p.ReadAliasSuffix, p.RemoteReadClusters)
 		timeRangeFn = func(indexPrefix, indexDateLayout string, startTime, endTime time.Time, reduceDuration time.Duration) []string {
-			// Check if this indexPrefix matches one of our explicit aliases
-			if (hasSpanAlias && indexPrefix == spanIndexPrefix) || (hasServiceAlias && indexPrefix == serviceIndexPrefix) {
-				// This is an explicit alias, return it as-is
+			if (hasSpanOverride && indexPrefix == spanIndexPrefix) || (hasServiceOverride && indexPrefix == serviceIndexPrefix) {
 				return []string{indexPrefix}
 			}
-			// Not an explicit alias, use standard time-based logic
 			return baseTimeRangeFn(indexPrefix, indexDateLayout, startTime, endTime, reduceDuration)
 		}
 	} else {
-		// Use standard time range function
 		timeRangeFn = TimeRangeIndicesFn(p.UseReadWriteAliases, p.ReadAliasSuffix, p.RemoteReadClusters)
 	}
 

@@ -50,24 +50,20 @@ type CoreSpanWriter interface {
 
 // SpanWriterParams holds constructor parameters for NewSpanWriter
 type SpanWriterParams struct {
-	Client              func() es.Client
-	Logger              *zap.Logger
-	MetricsFactory      metrics.Factory
-	SpanIndex           cfg.IndexOptions
-	ServiceIndex        cfg.IndexOptions
-	IndexPrefix         cfg.IndexPrefix
-	AllTagsAsFields     bool
-	TagKeysAsFields     []string
-	TagDotReplacement   string
-	UseReadWriteAliases bool
-	WriteAliasSuffix    string
-	// SpanAlias is an explicit alias name for span indices.
-	// When set, this alias will be used instead of the IndexPrefix pattern.
-	SpanAlias string
-	// ServiceAlias is an explicit alias name for service indices.
-	// When set, this alias will be used instead of the IndexPrefix pattern.
-	ServiceAlias    string
-	ServiceCacheTTL time.Duration
+	Client               func() es.Client
+	Logger               *zap.Logger
+	MetricsFactory       metrics.Factory
+	SpanIndex            cfg.IndexOptions
+	ServiceIndex         cfg.IndexOptions
+	IndexPrefix          cfg.IndexPrefix
+	AllTagsAsFields      bool
+	TagKeysAsFields      []string
+	TagDotReplacement    string
+	UseReadWriteAliases  bool
+	WriteAliasSuffix     string
+	SpanIndexOverride    string
+	ServiceIndexOverride string
+	ServiceCacheTTL      time.Duration
 }
 
 // NewSpanWriter creates a new SpanWriter for use
@@ -108,46 +104,38 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
 
 func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServiceIndexFn {
-	// Use explicit aliases if provided, otherwise use prefix pattern
 	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
-	hasSpanAlias := p.SpanAlias != ""
-	if hasSpanAlias {
-		spanIndexPrefix = p.SpanAlias
+	hasSpanOverride := p.SpanIndexOverride != ""
+	if hasSpanOverride {
+		spanIndexPrefix = p.SpanIndexOverride
 	}
 
 	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
-	hasServiceAlias := p.ServiceAlias != ""
-	if hasServiceAlias {
-		serviceIndexPrefix = p.ServiceAlias
+	hasServiceOverride := p.ServiceIndexOverride != ""
+	if hasServiceOverride {
+		serviceIndexPrefix = p.ServiceIndexOverride
 	}
 
-	// Explicit aliases take priority over UseReadWriteAliases
-	// When explicit aliases are set, use them as-is without any suffix
-	if hasSpanAlias || hasServiceAlias {
+	if hasSpanOverride || hasServiceOverride {
 		return func(date time.Time) (string, string) {
 			spanIndex := spanIndexPrefix
 			serviceIndex := serviceIndexPrefix
-
-			// Only apply date suffix to indices without explicit aliases
-			if !hasSpanAlias {
+			if !hasSpanOverride {
 				spanIndex = indexWithDate(spanIndexPrefix, p.SpanIndex.DateLayout, date)
 			}
-			if !hasServiceAlias {
+			if !hasServiceOverride {
 				serviceIndex = indexWithDate(serviceIndexPrefix, p.ServiceIndex.DateLayout, date)
 			}
 
 			return spanIndex, serviceIndex
 		}
 	}
-
-	// UseReadWriteAliases: append write suffix to the prefix-based index names
 	if p.UseReadWriteAliases {
 		return func(_ time.Time) (string, string) {
 			return spanIndexPrefix + writeAlias, serviceIndexPrefix + writeAlias
 		}
 	}
 
-	// Default: use date-based index naming
 	return func(date time.Time) (string, string) {
 		return indexWithDate(spanIndexPrefix, p.SpanIndex.DateLayout, date), indexWithDate(serviceIndexPrefix, p.ServiceIndex.DateLayout, date)
 	}

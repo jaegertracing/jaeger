@@ -126,13 +126,14 @@ type Configuration struct {
 	// Use this option with Elasticsearch rollover API. It requires an external component
 	// to create aliases before startup and then performing its management.
 	UseReadWriteAliases bool `mapstructure:"use_aliases"`
-	// IndexSpanAlias is an explicit alias name for span indices.
-	// When set, Jaeger will use this alias directly instead of the prefix+wildcard pattern.
-	// This allows integration with existing Elasticsearch setups and custom index management.
-	IndexSpanAlias string `mapstructure:"index_span_alias"`
-	// IndexServiceAlias is an explicit alias name for service indices.
-	// When set, Jaeger will use this alias directly instead of the prefix+wildcard pattern.
-	IndexServiceAlias string `mapstructure:"index_service_alias"`
+	// SpanIndexOverride allows full control over the name of the index alias.
+	// Overrides any index prefix / suffix settings.
+	// Can only be used with UseReadWriteAliases=true.
+	SpanIndexOverride string `mapstructure:"span_index_override"`
+	// ServiceIndexOverride allows full control over the name of the index alias.
+	// Overrides any index prefix / suffix settings.
+	// Can only be used with UseReadWriteAliases=true.
+	ServiceIndexOverride string `mapstructure:"service_index_override"`
 	// ReadAliasSuffix is the suffix to append to the index name used for reading.
 	// This configuration only exists to provide backwards compatibility for jaeger-v1
 	// which is why it is not exposed as a configuration option for jaeger-v2
@@ -708,5 +709,33 @@ func (c *Configuration) Validate() error {
 	if c.CreateIndexTemplates && c.UseILM {
 		return errors.New("when UseILM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app")
 	}
+
+	// Validate explicit override settings
+	hasSpanOverride := c.SpanIndexOverride != ""
+	hasServiceOverride := c.ServiceIndexOverride != ""
+
+	// When explicit overrides are set, UseReadWriteAliases must be true
+	if (hasSpanOverride || hasServiceOverride) && !c.UseReadWriteAliases {
+		return errors.New("when SpanIndexOverride or ServiceIndexOverride is set, UseReadWriteAliases must be true")
+	}
+
+	// When BOTH explicit overrides are set, prefix/suffix configurations are incompatible
+	// (because IndexPrefix would not be used at all in this case)
+	if hasSpanOverride && hasServiceOverride {
+		hasPrefix := c.Indices.IndexPrefix != ""
+		hasReadSuffix := c.ReadAliasSuffix != ""
+		hasWriteSuffix := c.WriteAliasSuffix != ""
+
+		if hasPrefix {
+			return errors.New("IndexPrefix is incompatible with override settings when both SpanIndexOverride and ServiceIndexOverride are set")
+		}
+		if hasReadSuffix {
+			return errors.New("ReadAliasSuffix is incompatible with override settings when both SpanIndexOverride and ServiceIndexOverride are set")
+		}
+		if hasWriteSuffix {
+			return errors.New("WriteAliasSuffix is incompatible with override settings when both SpanIndexOverride and ServiceIndexOverride are set")
+		}
+	}
+
 	return nil
 }

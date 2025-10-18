@@ -846,6 +846,77 @@ func TestValidate(t *testing.T) {
 			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, UseILM: true, CreateIndexTemplates: true, UseReadWriteAliases: true},
 			expectedError: "when UseILM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app",
 		},
+		{
+			name: "explicit span override without UseReadWriteAliases",
+			config: &Configuration{
+				Servers:           []string{"localhost:8000/dummyserver"},
+				SpanIndexOverride: "custom-span-override",
+			},
+			expectedError: "when SpanIndexOverride or ServiceIndexOverride is set, UseReadWriteAliases must be true",
+		},
+		{
+			name: "explicit service override without UseReadWriteAliases",
+			config: &Configuration{
+				Servers:              []string{"localhost:8000/dummyserver"},
+				ServiceIndexOverride: "custom-service-override",
+			},
+			expectedError: "when SpanIndexOverride or ServiceIndexOverride is set, UseReadWriteAliases must be true",
+		},
+		{
+			name: "explicit overrides with UseReadWriteAliases is valid",
+			config: &Configuration{
+				Servers:              []string{"localhost:8000/dummyserver"},
+				UseReadWriteAliases:  true,
+				SpanIndexOverride:    "custom-span-override",
+				ServiceIndexOverride: "custom-service-override",
+			},
+		},
+		{
+			name: "single explicit override with IndexPrefix is valid",
+			config: &Configuration{
+				Servers:             []string{"localhost:8000/dummyserver"},
+				UseReadWriteAliases: true,
+				SpanIndexOverride:   "custom-span-override",
+				Indices: Indices{
+					IndexPrefix: "prod",
+				},
+			},
+		},
+		{
+			name: "both explicit overrides with IndexPrefix is incompatible",
+			config: &Configuration{
+				Servers:              []string{"localhost:8000/dummyserver"},
+				UseReadWriteAliases:  true,
+				SpanIndexOverride:    "custom-span-override",
+				ServiceIndexOverride: "custom-service-override",
+				Indices: Indices{
+					IndexPrefix: "prod",
+				},
+			},
+			expectedError: "IndexPrefix is incompatible with override settings when both",
+		},
+		{
+			name: "both explicit overrides with ReadAliasSuffix is incompatible",
+			config: &Configuration{
+				Servers:              []string{"localhost:8000/dummyserver"},
+				UseReadWriteAliases:  true,
+				SpanIndexOverride:    "custom-span-override",
+				ServiceIndexOverride: "custom-service-override",
+				ReadAliasSuffix:      "read",
+			},
+			expectedError: "ReadAliasSuffix is incompatible with override settings when both",
+		},
+		{
+			name: "both explicit overrides with WriteAliasSuffix is incompatible",
+			config: &Configuration{
+				Servers:              []string{"localhost:8000/dummyserver"},
+				UseReadWriteAliases:  true,
+				SpanIndexOverride:    "custom-span-override",
+				ServiceIndexOverride: "custom-service-override",
+				WriteAliasSuffix:     "write",
+			},
+			expectedError: "WriteAliasSuffix is incompatible with override settings when both",
+		},
 	}
 
 	for _, test := range tests {

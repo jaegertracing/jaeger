@@ -110,40 +110,40 @@ func (f *FactoryBase) getClient() es.Client {
 // GetSpanReaderParams returns the SpanReaderParams which can be used to initialize the v1 and v2 readers.
 func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 	return esspanstore.SpanReaderParams{
-		Client:              f.getClient,
-		MaxDocCount:         f.config.MaxDocCount,
-		MaxSpanAge:          f.config.MaxSpanAge,
-		IndexPrefix:         f.config.Indices.IndexPrefix,
-		SpanIndex:           f.config.Indices.Spans,
-		ServiceIndex:        f.config.Indices.Services,
-		TagDotReplacement:   f.config.Tags.DotReplacement,
-		UseReadWriteAliases: f.config.UseReadWriteAliases,
-		ReadAliasSuffix:     f.config.ReadAliasSuffix,
-		RemoteReadClusters:  f.config.RemoteReadClusters,
-		SpanAlias:           f.config.IndexSpanAlias,
-		ServiceAlias:        f.config.IndexServiceAlias,
-		Logger:              f.logger,
-		Tracer:              f.tracer.Tracer("esspanstore.SpanReader"),
+		Client:               f.getClient,
+		MaxDocCount:          f.config.MaxDocCount,
+		MaxSpanAge:           f.config.MaxSpanAge,
+		IndexPrefix:          f.config.Indices.IndexPrefix,
+		SpanIndex:            f.config.Indices.Spans,
+		ServiceIndex:         f.config.Indices.Services,
+		TagDotReplacement:    f.config.Tags.DotReplacement,
+		UseReadWriteAliases:  f.config.UseReadWriteAliases,
+		ReadAliasSuffix:      f.config.ReadAliasSuffix,
+		RemoteReadClusters:   f.config.RemoteReadClusters,
+		SpanIndexOverride:    f.config.SpanIndexOverride,
+		ServiceIndexOverride: f.config.ServiceIndexOverride,
+		Logger:               f.logger,
+		Tracer:               f.tracer.Tracer("esspanstore.SpanReader"),
 	}
 }
 
 // GetSpanWriterParams returns the SpanWriterParams which can be used to initialize the v1 and v2 writers.
 func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
 	return esspanstore.SpanWriterParams{
-		Client:              f.getClient,
-		IndexPrefix:         f.config.Indices.IndexPrefix,
-		SpanIndex:           f.config.Indices.Spans,
-		ServiceIndex:        f.config.Indices.Services,
-		AllTagsAsFields:     f.config.Tags.AllAsFields,
-		TagKeysAsFields:     f.tags,
-		TagDotReplacement:   f.config.Tags.DotReplacement,
-		UseReadWriteAliases: f.config.UseReadWriteAliases,
-		WriteAliasSuffix:    f.config.WriteAliasSuffix,
-		SpanAlias:           f.config.IndexSpanAlias,
-		ServiceAlias:        f.config.IndexServiceAlias,
-		Logger:              f.logger,
-		MetricsFactory:      f.metricsFactory,
-		ServiceCacheTTL:     f.config.ServiceCacheTTL,
+		Client:               f.getClient,
+		IndexPrefix:          f.config.Indices.IndexPrefix,
+		SpanIndex:            f.config.Indices.Spans,
+		ServiceIndex:         f.config.Indices.Services,
+		AllTagsAsFields:      f.config.Tags.AllAsFields,
+		TagKeysAsFields:      f.tags,
+		TagDotReplacement:    f.config.Tags.DotReplacement,
+		UseReadWriteAliases:  f.config.UseReadWriteAliases,
+		WriteAliasSuffix:     f.config.WriteAliasSuffix,
+		SpanIndexOverride:    f.config.SpanIndexOverride,
+		ServiceIndexOverride: f.config.ServiceIndexOverride,
+		Logger:               f.logger,
+		MetricsFactory:       f.metricsFactory,
+		ServiceCacheTTL:      f.config.ServiceCacheTTL,
 	}
 }
 
