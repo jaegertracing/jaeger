@@ -4,6 +4,7 @@
 package apiv3
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"iter"
@@ -781,4 +782,184 @@ func TestHTTPGatewayStreamingFallbackNoTraces(t *testing.T) {
 	// Should return 404 via returnTraces fallback path
 	assert.Equal(t, http.StatusNotFound, w.ResponseRecorder.Code)
 	assert.Contains(t, w.ResponseRecorder.Body.String(), "No traces found")
+}
+
+// TestHTTPGatewayStreamingClientSideParsing demonstrates how clients should parse
+// NDJSON (newline-delimited JSON) responses from the streaming API
+func TestHTTPGatewayStreamingClientSideParsing(t *testing.T) {
+	gw := setupHTTPGateway(t, "")
+
+	trace1 := makeTestTrace()
+
+	trace2 := ptrace.NewTraces()
+	resources2 := trace2.ResourceSpans().AppendEmpty()
+	scopes2 := resources2.ScopeSpans().AppendEmpty()
+	spanB := scopes2.Spans().AppendEmpty()
+	spanB.SetName("client-test-span")
+	spanB.SetTraceID(pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2})) // Different trace ID
+	spanB.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 7}))
+
+	trace3 := ptrace.NewTraces()
+	resources3 := trace3.ResourceSpans().AppendEmpty()
+	scopes3 := resources3.ScopeSpans().AppendEmpty()
+	spanC := scopes3.Spans().AppendEmpty()
+	spanC.SetName("third-span")
+	spanC.SetTraceID(pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3})) // Different trace ID
+	spanC.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 8}))
+
+	gw.reader.
+		On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			if !yield([]ptrace.Traces{trace1}, nil) {
+				return
+			}
+			if !yield([]ptrace.Traces{trace2}, nil) {
+				return
+			}
+			yield([]ptrace.Traces{trace3}, nil)
+		})).Once()
+
+	resp, err := http.Get(gw.url + "/api/v3/traces/1")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+
+	assert.Equal(t, "identity", resp.Header.Get("Content-Encoding"), "Should use streaming path")
+
+	body := make([]byte, 0)
+	buf := make([]byte, 1024)
+	for {
+		n, err := resp.Body.Read(buf)
+		if n > 0 {
+			body = append(body, buf[:n]...)
+		}
+		if err != nil {
+			break
+		}
+	}
+
+	bodyStr := string(body)
+
+	newlineCount := 0
+	for _, b := range body {
+		if b == '\n' {
+			newlineCount++
+		}
+	}
+
+	if newlineCount > 1 {
+		var combinedObj map[string]any
+		err = json.Unmarshal(body, &combinedObj)
+		require.Error(t, err, "Combined response with multiple chunks should NOT be valid JSON - it's NDJSON format")
+	}
+
+	lines := 0
+	currentPos := 0
+	validChunks := []map[string]any{}
+
+	for i := 0; i < len(body); i++ {
+		if body[i] == '\n' {
+			line := body[currentPos:i]
+			if len(line) > 0 {
+				// Each individual line MUST be valid JSON
+				var jsonObj map[string]any
+				err := json.Unmarshal(line, &jsonObj)
+				require.NoError(t, err, "Each line should be valid JSON independently")
+
+				// Verify it has the expected structure with a "result" field
+				result, hasResult := jsonObj["result"]
+				assert.True(t, hasResult, "Each chunk should have a 'result' field")
+				assert.NotNil(t, result, "Result should not be nil")
+
+				validChunks = append(validChunks, jsonObj)
+				lines++
+			}
+			currentPos = i + 1
+		}
+	}
+
+	assert.GreaterOrEqual(t, lines, 1, "Should receive at least 1 NDJSON line")
+	assert.GreaterOrEqual(t, len(validChunks), 1, "Should have parsed at least 1 valid chunk")
+
+	assert.Contains(t, bodyStr, "foobar", "Should contain first trace")
+	assert.Contains(t, bodyStr, "client-test-span", "Should contain second trace")
+	assert.Contains(t, bodyStr, "third-span", "Should contain third trace")
+}
+
+// TestHTTPGatewayStreamingEmptyTracesVsNoTraces tests the distinction between
+// "query matched but traces are empty" vs "query matched nothing"
+func TestHTTPGatewayStreamingEmptyTracesVsNoTraces(t *testing.T) {
+	t.Run("empty traces with data afterwards", func(t *testing.T) {
+		// This simulates traces exist but some batches are empty
+		gw := setupHTTPGatewayNoServer(t, "")
+		trace1 := makeTestTrace()
+
+		gw.reader.
+			On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+			Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+				if !yield([]ptrace.Traces{}, nil) {
+					return
+				}
+				if !yield([]ptrace.Traces{}, nil) {
+					return
+				}
+				yield([]ptrace.Traces{trace1}, nil)
+			})).Once()
+
+		r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+		require.NoError(t, err)
+		w := httptest.NewRecorder()
+		gw.router.ServeHTTP(w, r)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "foobar")
+	})
+
+	t.Run("only empty traces - no actual data", func(t *testing.T) {
+		// This simulates "query matched nothing" or "all traces are empty"
+		gw := setupHTTPGatewayNoServer(t, "")
+
+		gw.reader.
+			On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+			Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+				if !yield([]ptrace.Traces{}, nil) {
+					return
+				}
+				if !yield([]ptrace.Traces{}, nil) {
+					return
+				}
+				yield([]ptrace.Traces{}, nil)
+			})).Once()
+
+		r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+		require.NoError(t, err)
+		w := httptest.NewRecorder()
+		gw.router.ServeHTTP(w, r)
+
+		// Should return 404 because tracesFound remains false
+		assert.Equal(t, http.StatusNotFound, w.Code)
+		assert.Contains(t, w.Body.String(), "No traces found")
+	})
+
+	t.Run("no iterations at all", func(t *testing.T) {
+		// Case 3: Iterator never yields anything (different from yielding empty arrays)
+		gw := setupHTTPGatewayNoServer(t, "")
+
+		gw.reader.
+			On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+			Return(iter.Seq2[[]ptrace.Traces, error](func(_ func([]ptrace.Traces, error) bool) {
+				// Iterator completes without yielding anything
+			})).Once()
+
+		r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+		require.NoError(t, err)
+		w := httptest.NewRecorder()
+		gw.router.ServeHTTP(w, r)
+
+		// Should return 404 because no traces were found
+		assert.Equal(t, http.StatusNotFound, w.Code)
+		assert.Contains(t, w.Body.String(), "No traces found")
+	})
 }
