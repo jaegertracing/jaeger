@@ -268,17 +268,17 @@ func (sr *spanRow) appendLink(link ptrace.SpanLink) {
 	sr.linkSpanIDs = append(sr.linkSpanIDs, link.SpanID().String())
 	sr.linkTraceStates = append(sr.linkTraceStates, link.TraceState().AsRaw())
 
-	evAttrs := extractAttributes(link.Attributes())
-	sr.linkBoolAttributeKeys = append(sr.linkBoolAttributeKeys, evAttrs.boolKeys)
-	sr.linkBoolAttributeValues = append(sr.linkBoolAttributeValues, evAttrs.boolValues)
-	sr.linkDoubleAttributeKeys = append(sr.linkDoubleAttributeKeys, evAttrs.doubleKeys)
-	sr.linkDoubleAttributeValues = append(sr.linkDoubleAttributeValues, evAttrs.doubleValues)
-	sr.linkIntAttributeKeys = append(sr.linkIntAttributeKeys, evAttrs.intKeys)
-	sr.linkIntAttributeValues = append(sr.linkIntAttributeValues, evAttrs.intValues)
-	sr.linkStrAttributeKeys = append(sr.linkStrAttributeKeys, evAttrs.strKeys)
-	sr.linkStrAttributeValues = append(sr.linkStrAttributeValues, evAttrs.strValues)
-	sr.linkComplexAttributeKeys = append(sr.linkComplexAttributeKeys, evAttrs.complexKeys)
-	sr.linkComplexAttributeValues = append(sr.linkComplexAttributeValues, evAttrs.complexValues)
+	linkAttrs := extractAttributes(link.Attributes())
+	sr.linkBoolAttributeKeys = append(sr.linkBoolAttributeKeys, linkAttrs.boolKeys)
+	sr.linkBoolAttributeValues = append(sr.linkBoolAttributeValues, linkAttrs.boolValues)
+	sr.linkDoubleAttributeKeys = append(sr.linkDoubleAttributeKeys, linkAttrs.doubleKeys)
+	sr.linkDoubleAttributeValues = append(sr.linkDoubleAttributeValues, linkAttrs.doubleValues)
+	sr.linkIntAttributeKeys = append(sr.linkIntAttributeKeys, linkAttrs.intKeys)
+	sr.linkIntAttributeValues = append(sr.linkIntAttributeValues, linkAttrs.intValues)
+	sr.linkStrAttributeKeys = append(sr.linkStrAttributeKeys, linkAttrs.strKeys)
+	sr.linkStrAttributeValues = append(sr.linkStrAttributeValues, linkAttrs.strValues)
+	sr.linkComplexAttributeKeys = append(sr.linkComplexAttributeKeys, linkAttrs.complexKeys)
+	sr.linkComplexAttributeValues = append(sr.linkComplexAttributeValues, linkAttrs.complexValues)
 }
 
 func extractAttributes(attrs pcommon.Map) (out struct {
