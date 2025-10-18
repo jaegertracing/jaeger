@@ -52,6 +52,16 @@ type spanRow struct {
 	linkTraceIDs                []string
 	linkSpanIDs                 []string
 	linkTraceStates             []string
+	linkBoolAttributeKeys       [][]string
+	linkBoolAttributeValues     [][]bool
+	linkDoubleAttributeKeys     [][]string
+	linkDoubleAttributeValues   [][]float64
+	linkIntAttributeKeys        [][]string
+	linkIntAttributeValues      [][]int64
+	linkStrAttributeKeys        [][]string
+	linkStrAttributeValues      [][]string
+	linkComplexAttributeKeys    [][]string
+	linkComplexAttributeValues  [][]string
 	serviceName                 string
 	scopeName                   string
 	scopeVersion                string
@@ -257,6 +267,18 @@ func (sr *spanRow) appendLink(link ptrace.SpanLink) {
 	sr.linkTraceIDs = append(sr.linkTraceIDs, link.TraceID().String())
 	sr.linkSpanIDs = append(sr.linkSpanIDs, link.SpanID().String())
 	sr.linkTraceStates = append(sr.linkTraceStates, link.TraceState().AsRaw())
+
+	evAttrs := extractAttributes(link.Attributes())
+	sr.linkBoolAttributeKeys = append(sr.linkBoolAttributeKeys, evAttrs.boolKeys)
+	sr.linkBoolAttributeValues = append(sr.linkBoolAttributeValues, evAttrs.boolValues)
+	sr.linkDoubleAttributeKeys = append(sr.linkDoubleAttributeKeys, evAttrs.doubleKeys)
+	sr.linkDoubleAttributeValues = append(sr.linkDoubleAttributeValues, evAttrs.doubleValues)
+	sr.linkIntAttributeKeys = append(sr.linkIntAttributeKeys, evAttrs.intKeys)
+	sr.linkIntAttributeValues = append(sr.linkIntAttributeValues, evAttrs.intValues)
+	sr.linkStrAttributeKeys = append(sr.linkStrAttributeKeys, evAttrs.strKeys)
+	sr.linkStrAttributeValues = append(sr.linkStrAttributeValues, evAttrs.strValues)
+	sr.linkComplexAttributeKeys = append(sr.linkComplexAttributeKeys, evAttrs.complexKeys)
+	sr.linkComplexAttributeValues = append(sr.linkComplexAttributeValues, evAttrs.complexValues)
 }
 
 func extractAttributes(attrs pcommon.Map) (out struct {
