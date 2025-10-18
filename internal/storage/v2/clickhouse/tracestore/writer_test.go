@@ -21,6 +21,38 @@ import (
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
+func putAttributes(
+	t *testing.T,
+	attrs pcommon.Map,
+	boolKeys []string, boolValues []bool,
+	doubleKeys []string, doubleValues []float64,
+	intKeys []string, intValues []int64,
+	strKeys []string, strValues []string,
+	complexKeys []string, complexValues []string,
+) {
+	t.Helper()
+	for i := 0; i < len(boolKeys); i++ {
+		attrs.PutBool(boolKeys[i], boolValues[i])
+	}
+	for i := 0; i < len(doubleKeys); i++ {
+		attrs.PutDouble(doubleKeys[i], doubleValues[i])
+	}
+	for i := 0; i < len(intKeys); i++ {
+		attrs.PutInt(intKeys[i], intValues[i])
+	}
+	for i := 0; i < len(strKeys); i++ {
+		attrs.PutStr(strKeys[i], strValues[i])
+	}
+	for i := 0; i < len(complexKeys); i++ {
+		if strings.HasPrefix(complexKeys[i], "@bytes@") {
+			decoded, err := base64.StdEncoding.DecodeString(complexValues[i])
+			require.NoError(t, err)
+			k := strings.TrimPrefix(complexKeys[i], "@bytes@")
+			attrs.PutEmptyBytes(k).FromRaw(decoded)
+		}
+	}
+}
+
 func tracesFromSpanRows(t *testing.T, rows []*spanRow) ptrace.Traces {
 	td := ptrace.NewTraces()
 	for _, r := range rows {
@@ -51,51 +83,29 @@ func tracesFromSpanRows(t *testing.T, rows []*spanRow) ptrace.Traces {
 		span.Status().SetCode(jptrace.StringToStatusCode(r.statusCode))
 		span.Status().SetMessage(r.statusMessage)
 
-		for i := 0; i < len(r.boolAttributeKeys); i++ {
-			span.Attributes().PutBool(r.boolAttributeKeys[i], r.boolAttributeValues[i])
-		}
-		for i := 0; i < len(r.doubleAttributeKeys); i++ {
-			span.Attributes().PutDouble(r.doubleAttributeKeys[i], r.doubleAttributeValues[i])
-		}
-		for i := 0; i < len(r.intAttributeKeys); i++ {
-			span.Attributes().PutInt(r.intAttributeKeys[i], r.intAttributeValues[i])
-		}
-		for i := 0; i < len(r.strAttributeKeys); i++ {
-			span.Attributes().PutStr(r.strAttributeKeys[i], r.strAttributeValues[i])
-		}
-		for i := 0; i < len(r.complexAttributeKeys); i++ {
-			if strings.HasPrefix(r.complexAttributeKeys[i], "@bytes@") {
-				decoded, err := base64.StdEncoding.DecodeString(r.complexAttributeValues[i])
-				require.NoError(t, err)
-				k := strings.TrimPrefix(r.complexAttributeKeys[i], "@bytes@")
-				span.Attributes().PutEmptyBytes(k).FromRaw(decoded)
-			}
-		}
+		putAttributes(
+			t,
+			span.Attributes(),
+			r.boolAttributeKeys, r.boolAttributeValues,
+			r.doubleAttributeKeys, r.doubleAttributeValues,
+			r.intAttributeKeys, r.intAttributeValues,
+			r.strAttributeKeys, r.strAttributeValues,
+			r.complexAttributeKeys, r.complexAttributeValues,
+		)
 
 		for i, e := range r.eventNames {
 			event := span.Events().AppendEmpty()
 			event.SetName(e)
 			event.SetTimestamp(pcommon.NewTimestampFromTime(r.eventTimestamps[i]))
-			for j := 0; j < len(r.eventBoolAttributeKeys[i]); j++ {
-				event.Attributes().PutBool(r.eventBoolAttributeKeys[i][j], r.eventBoolAttributeValues[i][j])
-			}
-			for j := 0; j < len(r.eventDoubleAttributeKeys[i]); j++ {
-				event.Attributes().PutDouble(r.eventDoubleAttributeKeys[i][j], r.eventDoubleAttributeValues[i][j])
-			}
-			for j := 0; j < len(r.eventIntAttributeKeys[i]); j++ {
-				event.Attributes().PutInt(r.eventIntAttributeKeys[i][j], r.eventIntAttributeValues[i][j])
-			}
-			for j := 0; j < len(r.eventStrAttributeKeys[i]); j++ {
-				event.Attributes().PutStr(r.eventStrAttributeKeys[i][j], r.eventStrAttributeValues[i][j])
-			}
-			for j := 0; j < len(r.eventComplexAttributeKeys[i]); j++ {
-				if strings.HasPrefix(r.eventComplexAttributeKeys[i][j], "@bytes@") {
-					decoded, err := base64.StdEncoding.DecodeString(r.eventComplexAttributeValues[i][j])
-					require.NoError(t, err)
-					k := strings.TrimPrefix(r.eventComplexAttributeKeys[i][j], "@bytes@")
-					event.Attributes().PutEmptyBytes(k).FromRaw(decoded)
-				}
-			}
+			putAttributes(
+				t,
+				event.Attributes(),
+				r.eventBoolAttributeKeys[i], r.eventBoolAttributeValues[i],
+				r.eventDoubleAttributeKeys[i], r.eventDoubleAttributeValues[i],
+				r.eventIntAttributeKeys[i], r.eventIntAttributeValues[i],
+				r.eventStrAttributeKeys[i], r.eventStrAttributeValues[i],
+				r.eventComplexAttributeKeys[i], r.eventComplexAttributeValues[i],
+			)
 		}
 
 		for i, l := range r.linkTraceIDs {
@@ -107,6 +117,16 @@ func tracesFromSpanRows(t *testing.T, rows []*spanRow) ptrace.Traces {
 			require.NoError(t, err)
 			link.SetSpanID(pcommon.SpanID(spanID))
 			link.TraceState().FromRaw(r.linkTraceStates[i])
+
+			putAttributes(
+				t,
+				link.Attributes(),
+				r.linkBoolAttributeKeys[i], r.linkBoolAttributeValues[i],
+				r.linkDoubleAttributeKeys[i], r.linkDoubleAttributeValues[i],
+				r.linkIntAttributeKeys[i], r.linkIntAttributeValues[i],
+				r.linkStrAttributeKeys[i], r.linkStrAttributeValues[i],
+				r.linkComplexAttributeKeys[i], r.linkComplexAttributeValues[i],
+			)
 		}
 	}
 	return td
@@ -159,26 +179,46 @@ func TestWriter_Success(t *testing.T) {
 		require.Equal(t,
 			toTuple(expected.eventBoolAttributeKeys, expected.eventBoolAttributeValues),
 			row[25],
-		) // Bool attributes
+		) // Event bool attributes
 		require.Equal(t,
 			toTuple(expected.eventDoubleAttributeKeys, expected.eventDoubleAttributeValues),
 			row[26],
-		) // Double attributes
+		) // Event double attributes
 		require.Equal(t,
 			toTuple(expected.eventIntAttributeKeys, expected.eventIntAttributeValues),
 			row[27],
-		) // Int attributes
+		) // Event int attributes
 		require.Equal(t,
 			toTuple(expected.eventStrAttributeKeys, expected.eventStrAttributeValues),
 			row[28],
-		) // Str attributes
+		) // Event str attributes
 		require.Equal(t,
 			toTuple(expected.eventComplexAttributeKeys, expected.eventComplexAttributeValues),
 			row[29],
-		) // Complex attribute
+		) // Event complex attributes
 		require.Equal(t, expected.linkTraceIDs, row[30])    // Link TraceIDs
 		require.Equal(t, expected.linkSpanIDs, row[31])     // Link SpanIDs
 		require.Equal(t, expected.linkTraceStates, row[32]) // Link TraceStates
+		require.Equal(t,
+			toTuple(expected.linkBoolAttributeKeys, expected.linkBoolAttributeValues),
+			row[33],
+		) // Link bool attributes
+		require.Equal(t,
+			toTuple(expected.linkDoubleAttributeKeys, expected.linkDoubleAttributeValues),
+			row[34],
+		) // Link double attributes
+		require.Equal(t,
+			toTuple(expected.linkIntAttributeKeys, expected.linkIntAttributeValues),
+			row[35],
+		) // Link int attributes
+		require.Equal(t,
+			toTuple(expected.linkStrAttributeKeys, expected.linkStrAttributeValues),
+			row[36],
+		) // Link str attributes
+		require.Equal(t,
+			toTuple(expected.linkComplexAttributeKeys, expected.linkComplexAttributeValues),
+			row[37],
+		) // Link complex attributes
 	}
 }
 
