@@ -636,7 +636,7 @@ func TestHTTPGatewayStreamingMarshalError(t *testing.T) {
 	// Use a logger to capture error logs
 	logger, log := testutils.NewLogger()
 	q := querysvc.NewQueryService(gw.reader,
-		&dependencyStoreMocks.Reader{},
+		&dependencystoremocks.Reader{},
 		querysvc.QueryServiceOptions{},
 	)
 	hgw := &HTTPGateway{
