@@ -44,6 +44,7 @@ const (
 	paramDurationMin    = "query.duration_min"
 	paramDurationMax    = "query.duration_max"
 	paramQueryRawTraces = "query.raw_traces"
+	paramAttributes="query.attributes"
 
 	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
 	routeFindTraces    = "/api/v3/traces"
@@ -215,6 +216,17 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 			OperationName: q.Get(paramOperationName),
 			Attributes:    pcommon.NewMap(), // most curiously not supported by grpc-gateway
 		},
+	}
+
+	if attrs := q.Get(paramAttributes); attrs != "" {
+		var kv map[string]string
+		if err := json.Unmarshal([]byte(attrs), &kv); err != nil {
+			h.tryHandleError(w, fmt.Errorf("invalid query.attributes format: must be JSON object of string pairs"), http.StatusBadRequest)
+			return nil, true
+		}
+		for k, v := range kv {
+			queryParams.Attributes.PutStr(k, v)
+		}
 	}
 
 	timeMin := q.Get(paramTimeMin)
