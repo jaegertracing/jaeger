@@ -16,7 +16,7 @@ import (
 	cascfg "github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
-	cSpanStore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore"
+	cspanstore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore"
 )
 
 var logger, _ = zap.NewDevelopment()
@@ -45,11 +45,11 @@ func main() {
 	if err != nil {
 		logger.Fatal("Failed to initialize tracer", zap.Error(err))
 	}
-	spanStore, err := cSpanStore.NewSpanWriter(cqlSession, time.Hour*12, noScope, logger)
+	spanStore, err := cspanstore.NewSpanWriter(cqlSession, time.Hour*12, noScope, logger)
 	if err != nil {
 		logger.Fatal("Failed to create span writer", zap.Error(err))
 	}
-	spanReader, err := cSpanStore.NewSpanReader(cqlSession, noScope, logger, tracer.OTEL.Tracer("cSpanStore.SpanReader"))
+	spanReader, err := cspanstore.NewSpanReader(cqlSession, noScope, logger, tracer.OTEL.Tracer("cspanstore.SpanReader"))
 	if err != nil {
 		logger.Fatal("Failed to create span reader", zap.Error(err))
 	}
@@ -92,7 +92,7 @@ func main() {
 	queryAndPrint(ctx, spanReader, tqp)
 }
 
-func queryAndPrint(ctx context.Context, spanReader *cSpanStore.SpanReader, tqp *spanstore.TraceQueryParameters) {
+func queryAndPrint(ctx context.Context, spanReader *cspanstore.SpanReader, tqp *spanstore.TraceQueryParameters) {
 	traces, err := spanReader.FindTraces(ctx, tqp)
 	if err != nil {
 		logger.Fatal("Failed to query", zap.Error(err))

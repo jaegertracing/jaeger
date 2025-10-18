@@ -102,6 +102,7 @@ func TestArchiveFactory(t *testing.T) {
 }
 
 func TestFactoryInitializeErr(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		factory     *Factory

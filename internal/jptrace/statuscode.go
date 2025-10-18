@@ -9,8 +9,6 @@ func StringToStatusCode(sc string) ptrace.StatusCode {
 	switch sc {
 	case "Ok":
 		return ptrace.StatusCodeOk
-	case "Unset":
-		return ptrace.StatusCodeUnset
 	case "Error":
 		return ptrace.StatusCodeError
 	default:
