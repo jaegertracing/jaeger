@@ -6,6 +6,7 @@ package tracestore
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -50,7 +51,7 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 
 				// Extract events
 				var eventNames []string
-				var eventTimestamps []int64
+				var eventTimestamps []time.Time
 				var eventBoolKeys, eventDoubleKeys, eventIntKeys, eventStrKeys, eventComplexKeys [][]string
 				var eventBoolVals [][]bool
 				var eventDoubleVals [][]float64
@@ -59,7 +60,7 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 
 				for _, event := range span.Events().All() {
 					eventNames = append(eventNames, event.Name())
-					eventTimestamps = append(eventTimestamps, event.Timestamp().AsTime().UnixNano())
+					eventTimestamps = append(eventTimestamps, event.Timestamp().AsTime())
 
 					evtAttrs := dbmodel.ExtractAttributes(event.Attributes())
 					eventBoolKeys = append(eventBoolKeys, evtAttrs.BoolKeys)
