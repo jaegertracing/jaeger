@@ -97,6 +97,17 @@ func tracesFromSpanRows(t *testing.T, rows []*spanRow) ptrace.Traces {
 				}
 			}
 		}
+
+		for i, l := range r.linkTraceIDs {
+			link := span.Links().AppendEmpty()
+			traceID, err := hex.DecodeString(l)
+			require.NoError(t, err)
+			link.SetTraceID(pcommon.TraceID(traceID))
+			spanID, err := hex.DecodeString(r.linkSpanIDs[i])
+			require.NoError(t, err)
+			link.SetSpanID(pcommon.SpanID(spanID))
+			link.TraceState().FromRaw(r.linkTraceStates[i])
+		}
 	}
 	return td
 }
@@ -165,6 +176,9 @@ func TestWriter_Success(t *testing.T) {
 			toTuple(expected.eventComplexAttributeKeys, expected.eventComplexAttributeValues),
 			row[29],
 		) // Complex attribute
+		require.Equal(t, expected.linkTraceIDs, row[30])    // Link TraceIDs
+		require.Equal(t, expected.linkSpanIDs, row[31])     // Link SpanIDs
+		require.Equal(t, expected.linkTraceStates, row[32]) // Link TraceStates
 	}
 }
 
