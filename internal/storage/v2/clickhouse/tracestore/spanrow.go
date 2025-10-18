@@ -215,6 +215,9 @@ func spanToRow(
 	for _, event := range span.Events().All() {
 		sr.appendEvent(event)
 	}
+	for _, link := range span.Links().All() {
+		sr.appendLink(link)
+	}
 
 	return sr
 }
@@ -248,6 +251,12 @@ func (sr *spanRow) appendEvent(event ptrace.SpanEvent) {
 	sr.eventStrAttributeValues = append(sr.eventStrAttributeValues, evAttrs.strValues)
 	sr.eventComplexAttributeKeys = append(sr.eventComplexAttributeKeys, evAttrs.complexKeys)
 	sr.eventComplexAttributeValues = append(sr.eventComplexAttributeValues, evAttrs.complexValues)
+}
+
+func (sr *spanRow) appendLink(link ptrace.SpanLink) {
+	sr.linkTraceIDs = append(sr.linkTraceIDs, link.TraceID().String())
+	sr.linkSpanIDs = append(sr.linkSpanIDs, link.SpanID().String())
+	sr.linkTraceStates = append(sr.linkTraceStates, link.TraceState().AsRaw())
 }
 
 func extractAttributes(attrs pcommon.Map) (out struct {
