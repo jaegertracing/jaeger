@@ -44,7 +44,7 @@ const (
 	paramDurationMin    = "query.duration_min"
 	paramDurationMax    = "query.duration_max"
 	paramQueryRawTraces = "query.raw_traces"
-	paramAttributes="query.attributes"
+	paramAttributes     = "query.attributes"
 
 	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
 	routeFindTraces    = "/api/v3/traces"
@@ -221,7 +221,7 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 	if attrs := q.Get(paramAttributes); attrs != "" {
 		var kv map[string]string
 		if err := json.Unmarshal([]byte(attrs), &kv); err != nil {
-			h.tryHandleError(w, fmt.Errorf("invalid query.attributes format: must be JSON object of string pairs"), http.StatusBadRequest)
+			h.tryHandleError(w, errors.New("invalid query.attributes format: must be JSON object of string pairs"), http.StatusBadRequest)
 			return nil, true
 		}
 		for k, v := range kv {
