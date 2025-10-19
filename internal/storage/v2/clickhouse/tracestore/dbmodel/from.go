@@ -30,36 +30,30 @@ func FromRow(storedSpan *SpanRow) ptrace.Traces {
 	}
 
 	resource := resourceSpans.Resource()
-	rs, err := convertResource(storedSpan)
-	if err != nil {
-		jptrace.AddWarnings(span, err.Error())
-	}
+	rs := convertResource(storedSpan)
 	rs.CopyTo(resource)
 
 	scope := scopeSpans.Scope()
-	sc, err := convertScope(storedSpan)
-	if err != nil {
-		jptrace.AddWarnings(span, err.Error())
-	}
+	sc := convertScope(storedSpan)
 	sc.CopyTo(scope)
 
 	return trace
 }
 
-func convertResource(sr *SpanRow) (pcommon.Resource, error) {
+func convertResource(sr *SpanRow) pcommon.Resource {
 	resource := ptrace.NewResourceSpans().Resource()
 	resource.Attributes().PutStr(otelsemconv.ServiceNameKey, sr.ServiceName)
 	// TODO: populate attributes
-	return resource, nil
+	return resource
 }
 
-func convertScope(s *SpanRow) (pcommon.InstrumentationScope, error) {
+func convertScope(s *SpanRow) pcommon.InstrumentationScope {
 	scope := ptrace.NewScopeSpans().Scope()
 	scope.SetName(s.ScopeName)
 	scope.SetVersion(s.ScopeVersion)
 	// TODO: populate attributes
 
-	return scope, nil
+	return scope
 }
 
 func convertSpan(sr *SpanRow) (ptrace.Span, error) {
