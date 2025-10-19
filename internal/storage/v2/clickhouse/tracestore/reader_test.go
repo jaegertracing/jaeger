@@ -26,8 +26,8 @@ func scanSpanRowFn() func(dest any, src *dbmodel.SpanRow) error {
 		if !ok {
 			return fmt.Errorf("expected []any for dest, got %T", dest)
 		}
-		if len(ptrs) != 38 {
-			return fmt.Errorf("expected 38 destination arguments, got %d", len(ptrs))
+		if len(ptrs) != 48 {
+			return fmt.Errorf("expected 48 destination arguments, got %d", len(ptrs))
 		}
 
 		values := []any{
@@ -66,6 +66,16 @@ func scanSpanRowFn() func(dest any, src *dbmodel.SpanRow) error {
 			&src.LinkTraceIDs,
 			&src.LinkSpanIDs,
 			&src.LinkTraceStates,
+			&src.LinkBoolAttributeKeys,
+			&src.LinkBoolAttributeValues,
+			&src.LinkDoubleAttributeKeys,
+			&src.LinkDoubleAttributeValues,
+			&src.LinkIntAttributeKeys,
+			&src.LinkIntAttributeValues,
+			&src.LinkStrAttributeKeys,
+			&src.LinkStrAttributeValues,
+			&src.LinkComplexAttributeKeys,
+			&src.LinkComplexAttributeValues,
 			&src.ServiceName,
 			&src.ScopeName,
 			&src.ScopeVersion,
