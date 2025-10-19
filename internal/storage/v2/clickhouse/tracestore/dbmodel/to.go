@@ -13,6 +13,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
+// ToRow converts an OpenTelemetry Span along with its Resource and Scope to a
+// span row that can be stored in ClickHouse.
 func ToRow(
 	resource pcommon.Resource,
 	scope pcommon.InstrumentationScope,
