@@ -21,51 +21,24 @@ import (
 //     The key for this type will begin with `@kvlist@`.
 type SpanRow struct {
 	// --- Span ---
-	ID                          string
-	TraceID                     string
-	TraceState                  string
-	ParentSpanID                string
-	Name                        string
-	Kind                        string
-	StartTime                   time.Time
-	StatusCode                  string
-	StatusMessage               string
-	Duration                    int64
-	BoolAttributeKeys           []string
-	BoolAttributeValues         []bool
-	DoubleAttributeKeys         []string
-	DoubleAttributeValues       []float64
-	IntAttributeKeys            []string
-	IntAttributeValues          []int64
-	StrAttributeKeys            []string
-	StrAttributeValues          []string
-	ComplexAttributeKeys        []string
-	ComplexAttributeValues      []string
-	EventNames                  []string
-	EventTimestamps             []time.Time
-	EventBoolAttributeKeys      [][]string
-	EventBoolAttributeValues    [][]bool
-	EventDoubleAttributeKeys    [][]string
-	EventDoubleAttributeValues  [][]float64
-	EventIntAttributeKeys       [][]string
-	EventIntAttributeValues     [][]int64
-	EventStrAttributeKeys       [][]string
-	EventStrAttributeValues     [][]string
-	EventComplexAttributeKeys   [][]string
-	EventComplexAttributeValues [][]string
-	LinkTraceIDs                []string
-	LinkSpanIDs                 []string
-	LinkTraceStates             []string
-	LinkBoolAttributeKeys       [][]string
-	LinkBoolAttributeValues     [][]bool
-	LinkDoubleAttributeKeys     [][]string
-	LinkDoubleAttributeValues   [][]float64
-	LinkIntAttributeKeys        [][]string
-	LinkIntAttributeValues      [][]int64
-	LinkStrAttributeKeys        [][]string
-	LinkStrAttributeValues      [][]string
-	LinkComplexAttributeKeys    [][]string
-	LinkComplexAttributeValues  [][]string
+	ID              string
+	TraceID         string
+	TraceState      string
+	ParentSpanID    string
+	Name            string
+	Kind            string
+	StartTime       time.Time
+	StatusCode      string
+	StatusMessage   string
+	Duration        int64
+	Attributes      Attributes
+	EventNames      []string
+	EventTimestamps []time.Time
+	EventAttributes Attributes2D
+	LinkTraceIDs    []string
+	LinkSpanIDs     []string
+	LinkTraceStates []string
+	LinkAttributes  Attributes2D
 
 	// --- Resource ---
 	ServiceName string
@@ -73,6 +46,32 @@ type SpanRow struct {
 	// --- Scope ---
 	ScopeName    string
 	ScopeVersion string
+}
+
+type Attributes struct {
+	BoolKeys      []string
+	BoolValues    []bool
+	DoubleKeys    []string
+	DoubleValues  []float64
+	IntKeys       []string
+	IntValues     []int64
+	StrKeys       []string
+	StrValues     []string
+	ComplexKeys   []string
+	ComplexValues []string
+}
+
+type Attributes2D struct {
+	BoolKeys      [][]string
+	BoolValues    [][]bool
+	DoubleKeys    [][]string
+	DoubleValues  [][]float64
+	IntKeys       [][]string
+	IntValues     [][]int64
+	StrKeys       [][]string
+	StrValues     [][]string
+	ComplexKeys   [][]string
+	ComplexValues [][]string
 }
 
 func ScanRow(rows driver.Rows) (*SpanRow, error) {
@@ -88,41 +87,41 @@ func ScanRow(rows driver.Rows) (*SpanRow, error) {
 		&sr.StatusCode,
 		&sr.StatusMessage,
 		&sr.Duration,
-		&sr.BoolAttributeKeys,
-		&sr.BoolAttributeValues,
-		&sr.DoubleAttributeKeys,
-		&sr.DoubleAttributeValues,
-		&sr.IntAttributeKeys,
-		&sr.IntAttributeValues,
-		&sr.StrAttributeKeys,
-		&sr.StrAttributeValues,
-		&sr.ComplexAttributeKeys,
-		&sr.ComplexAttributeValues,
+		&sr.Attributes.BoolKeys,
+		&sr.Attributes.BoolValues,
+		&sr.Attributes.DoubleKeys,
+		&sr.Attributes.DoubleValues,
+		&sr.Attributes.IntKeys,
+		&sr.Attributes.IntValues,
+		&sr.Attributes.StrKeys,
+		&sr.Attributes.StrValues,
+		&sr.Attributes.ComplexKeys,
+		&sr.Attributes.ComplexValues,
 		&sr.EventNames,
 		&sr.EventTimestamps,
-		&sr.EventBoolAttributeKeys,
-		&sr.EventBoolAttributeValues,
-		&sr.EventDoubleAttributeKeys,
-		&sr.EventDoubleAttributeValues,
-		&sr.EventIntAttributeKeys,
-		&sr.EventIntAttributeValues,
-		&sr.EventStrAttributeKeys,
-		&sr.EventStrAttributeValues,
-		&sr.EventComplexAttributeKeys,
-		&sr.EventComplexAttributeValues,
+		&sr.EventAttributes.BoolKeys,
+		&sr.EventAttributes.BoolValues,
+		&sr.EventAttributes.DoubleKeys,
+		&sr.EventAttributes.DoubleValues,
+		&sr.EventAttributes.IntKeys,
+		&sr.EventAttributes.IntValues,
+		&sr.EventAttributes.StrKeys,
+		&sr.EventAttributes.StrValues,
+		&sr.EventAttributes.ComplexKeys,
+		&sr.EventAttributes.ComplexValues,
 		&sr.LinkTraceIDs,
 		&sr.LinkSpanIDs,
 		&sr.LinkTraceStates,
-		&sr.LinkBoolAttributeKeys,
-		&sr.LinkBoolAttributeValues,
-		&sr.LinkDoubleAttributeKeys,
-		&sr.LinkDoubleAttributeValues,
-		&sr.LinkIntAttributeKeys,
-		&sr.LinkIntAttributeValues,
-		&sr.LinkStrAttributeKeys,
-		&sr.LinkStrAttributeValues,
-		&sr.LinkComplexAttributeKeys,
-		&sr.LinkComplexAttributeValues,
+		&sr.LinkAttributes.BoolKeys,
+		&sr.LinkAttributes.BoolValues,
+		&sr.LinkAttributes.DoubleKeys,
+		&sr.LinkAttributes.DoubleValues,
+		&sr.LinkAttributes.IntKeys,
+		&sr.LinkAttributes.IntValues,
+		&sr.LinkAttributes.StrKeys,
+		&sr.LinkAttributes.StrValues,
+		&sr.LinkAttributes.ComplexKeys,
+		&sr.LinkAttributes.ComplexValues,
 		&sr.ServiceName,
 		&sr.ScopeName,
 		&sr.ScopeVersion,
