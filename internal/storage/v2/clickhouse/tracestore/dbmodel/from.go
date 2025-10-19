@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 func FromRow(storedSpan *SpanRow) ptrace.Traces {
@@ -45,10 +46,10 @@ func FromRow(storedSpan *SpanRow) ptrace.Traces {
 	return trace
 }
 
-func convertResource(*SpanRow) (pcommon.Resource, error) {
+func convertResource(sr *SpanRow) (pcommon.Resource, error) {
 	resource := ptrace.NewResourceSpans().Resource()
+	resource.Attributes().PutStr(otelsemconv.ServiceNameKey, sr.ServiceName)
 	// TODO: populate attributes
-	// TODO: do we populate the service name from the span?
 	return resource, nil
 }
 
