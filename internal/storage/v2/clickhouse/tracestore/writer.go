@@ -67,6 +67,14 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 					toTuple(sr.eventIntAttributeKeys, sr.eventIntAttributeValues),
 					toTuple(sr.eventStrAttributeKeys, sr.eventStrAttributeValues),
 					toTuple(sr.eventComplexAttributeKeys, sr.eventComplexAttributeValues),
+					sr.linkTraceIDs,
+					sr.linkSpanIDs,
+					sr.linkTraceStates,
+					toTuple(sr.linkBoolAttributeKeys, sr.linkBoolAttributeValues),
+					toTuple(sr.linkDoubleAttributeKeys, sr.linkDoubleAttributeValues),
+					toTuple(sr.linkIntAttributeKeys, sr.linkIntAttributeValues),
+					toTuple(sr.linkStrAttributeKeys, sr.linkStrAttributeValues),
+					toTuple(sr.linkComplexAttributeKeys, sr.linkComplexAttributeValues),
 				)
 				if err != nil {
 					return fmt.Errorf("failed to append span to batch: %w", err)
