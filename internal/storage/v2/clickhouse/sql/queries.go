@@ -37,10 +37,25 @@ INSERT INTO
         events.double_attributes,
         events.int_attributes,
         events.str_attributes,
-        events.complex_attributes
+        events.complex_attributes,
+        links.trace_id,
+        links.span_id,
+        links.trace_state,
+        links.bool_attributes,
+        links.double_attributes,
+        links.int_attributes,
+        links.str_attributes,
+        links.complex_attributes,
     )
 VALUES
     (
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
         ?,
         ?,
         ?,
