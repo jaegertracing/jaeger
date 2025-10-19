@@ -56,7 +56,6 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	tp := s.telset.TracerProvider
 
 	telset := telemetry.FromOtelComponent(s.telset, host)
-	telset.TracerProvider = tp
 	telset.Metrics = telset.Metrics.
 		Namespace(metrics.NSOptions{Name: "jaeger"}).
 		Namespace(metrics.NSOptions{Name: "query"})
