@@ -144,7 +144,7 @@ func parseKV(input string) (map[string]string, error) {
 	}
 
 	ret := map[string]string{}
-	for _, entry := range strings.Split(input, ",") {
+	for entry := range strings.SplitSeq(input, ",") {
 		kv := strings.Split(entry, "=")
 		if len(kv) != 2 {
 			return map[string]string{}, fmt.Errorf("failed to parse '%s'. Expected format: 'param1=value1,param2=value2'", input)

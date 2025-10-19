@@ -11,8 +11,6 @@ import (
 
 func StringToSpanKind(sk string) ptrace.SpanKind {
 	switch sk {
-	case "Unspecified":
-		return ptrace.SpanKindUnspecified
 	case "Internal":
 		return ptrace.SpanKindInternal
 	case "Server":

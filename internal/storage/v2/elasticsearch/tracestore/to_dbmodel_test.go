@@ -791,9 +791,9 @@ func testSpans(t *testing.T, expectedSpan []byte, actualSpan dbmodel.Span) {
 
 func TestAttributeToDbTag_DefaultCase(t *testing.T) {
 	attr := pcommon.NewValueEmpty()
-	
+
 	tag := attributeToDbTag("test-key", attr)
-	
+
 	assert.Equal(t, "test-key", tag.Key)
 	assert.Equal(t, dbmodel.StringType, tag.Type)
 	assert.Nil(t, tag.Value)
@@ -801,7 +801,7 @@ func TestAttributeToDbTag_DefaultCase(t *testing.T) {
 
 func TestGetTagFromStatusCode_DefaultCase(t *testing.T) {
 	tag, shouldInclude := getTagFromStatusCode(ptrace.StatusCodeUnset)
-	
+
 	assert.False(t, shouldInclude)
 	assert.Equal(t, dbmodel.KeyValue{}, tag)
 }

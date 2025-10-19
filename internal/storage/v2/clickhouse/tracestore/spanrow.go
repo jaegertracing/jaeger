@@ -4,11 +4,16 @@
 package tracestore
 
 import (
+	"encoding/base64"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 type spanRow struct {
@@ -47,12 +52,22 @@ type spanRow struct {
 	linkTraceIDs                []string
 	linkSpanIDs                 []string
 	linkTraceStates             []string
+	linkBoolAttributeKeys       [][]string
+	linkBoolAttributeValues     [][]bool
+	linkDoubleAttributeKeys     [][]string
+	linkDoubleAttributeValues   [][]float64
+	linkIntAttributeKeys        [][]string
+	linkIntAttributeValues      [][]int64
+	linkStrAttributeKeys        [][]string
+	linkStrAttributeValues      [][]string
+	linkComplexAttributeKeys    [][]string
+	linkComplexAttributeValues  [][]string
 	serviceName                 string
 	scopeName                   string
 	scopeVersion                string
 }
 
-func (sr *spanRow) ToDBModel() dbmodel.Span {
+func (sr *spanRow) toDBModel() dbmodel.Span {
 	return dbmodel.Span{
 		ID:            sr.id,
 		TraceID:       sr.traceID,
@@ -132,7 +147,7 @@ func scanSpanRow(rows driver.Rows) (dbmodel.Span, error) {
 	if err != nil {
 		return dbmodel.Span{}, err
 	}
-	return span.ToDBModel(), nil
+	return span.toDBModel(), nil
 }
 
 func zipAttributes[T any](keys []string, values []T) []dbmodel.Attribute[T] {
@@ -181,4 +196,130 @@ func buildLinks(traceIDs, spanIDs, states []string) []dbmodel.Link {
 		})
 	}
 	return links
+}
+
+func spanToRow(
+	resource pcommon.Resource,
+	scope pcommon.InstrumentationScope,
+	span ptrace.Span,
+) spanRow {
+	// we assume a sanitizer was applied upstream to guarantee non-empty service name
+	serviceName, _ := resource.Attributes().Get(otelsemconv.ServiceNameKey)
+	duration := span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime()).Nanoseconds()
+	sr := spanRow{
+		id:            span.SpanID().String(),
+		traceID:       span.TraceID().String(),
+		traceState:    span.TraceState().AsRaw(),
+		parentSpanID:  span.ParentSpanID().String(),
+		name:          span.Name(),
+		kind:          jptrace.SpanKindToString(span.Kind()),
+		startTime:     span.StartTimestamp().AsTime(),
+		statusCode:    span.Status().Code().String(),
+		statusMessage: span.Status().Message(),
+		rawDuration:   duration,
+		serviceName:   serviceName.Str(),
+		scopeName:     scope.Name(),
+		scopeVersion:  scope.Version(),
+	}
+	sr.appendSpanAttributes(span.Attributes())
+	for _, event := range span.Events().All() {
+		sr.appendEvent(event)
+	}
+	for _, link := range span.Links().All() {
+		sr.appendLink(link)
+	}
+
+	return sr
+}
+
+func (sr *spanRow) appendSpanAttributes(attrs pcommon.Map) {
+	a := extractAttributes(attrs)
+	sr.boolAttributeKeys = append(sr.boolAttributeKeys, a.boolKeys...)
+	sr.boolAttributeValues = append(sr.boolAttributeValues, a.boolValues...)
+	sr.doubleAttributeKeys = append(sr.doubleAttributeKeys, a.doubleKeys...)
+	sr.doubleAttributeValues = append(sr.doubleAttributeValues, a.doubleValues...)
+	sr.intAttributeKeys = append(sr.intAttributeKeys, a.intKeys...)
+	sr.intAttributeValues = append(sr.intAttributeValues, a.intValues...)
+	sr.strAttributeKeys = append(sr.strAttributeKeys, a.strKeys...)
+	sr.strAttributeValues = append(sr.strAttributeValues, a.strValues...)
+	sr.complexAttributeKeys = append(sr.complexAttributeKeys, a.complexKeys...)
+	sr.complexAttributeValues = append(sr.complexAttributeValues, a.complexValues...)
+}
+
+func (sr *spanRow) appendEvent(event ptrace.SpanEvent) {
+	sr.eventNames = append(sr.eventNames, event.Name())
+	sr.eventTimestamps = append(sr.eventTimestamps, event.Timestamp().AsTime())
+
+	evAttrs := extractAttributes(event.Attributes())
+	sr.eventBoolAttributeKeys = append(sr.eventBoolAttributeKeys, evAttrs.boolKeys)
+	sr.eventBoolAttributeValues = append(sr.eventBoolAttributeValues, evAttrs.boolValues)
+	sr.eventDoubleAttributeKeys = append(sr.eventDoubleAttributeKeys, evAttrs.doubleKeys)
+	sr.eventDoubleAttributeValues = append(sr.eventDoubleAttributeValues, evAttrs.doubleValues)
+	sr.eventIntAttributeKeys = append(sr.eventIntAttributeKeys, evAttrs.intKeys)
+	sr.eventIntAttributeValues = append(sr.eventIntAttributeValues, evAttrs.intValues)
+	sr.eventStrAttributeKeys = append(sr.eventStrAttributeKeys, evAttrs.strKeys)
+	sr.eventStrAttributeValues = append(sr.eventStrAttributeValues, evAttrs.strValues)
+	sr.eventComplexAttributeKeys = append(sr.eventComplexAttributeKeys, evAttrs.complexKeys)
+	sr.eventComplexAttributeValues = append(sr.eventComplexAttributeValues, evAttrs.complexValues)
+}
+
+func (sr *spanRow) appendLink(link ptrace.SpanLink) {
+	sr.linkTraceIDs = append(sr.linkTraceIDs, link.TraceID().String())
+	sr.linkSpanIDs = append(sr.linkSpanIDs, link.SpanID().String())
+	sr.linkTraceStates = append(sr.linkTraceStates, link.TraceState().AsRaw())
+
+	linkAttrs := extractAttributes(link.Attributes())
+	sr.linkBoolAttributeKeys = append(sr.linkBoolAttributeKeys, linkAttrs.boolKeys)
+	sr.linkBoolAttributeValues = append(sr.linkBoolAttributeValues, linkAttrs.boolValues)
+	sr.linkDoubleAttributeKeys = append(sr.linkDoubleAttributeKeys, linkAttrs.doubleKeys)
+	sr.linkDoubleAttributeValues = append(sr.linkDoubleAttributeValues, linkAttrs.doubleValues)
+	sr.linkIntAttributeKeys = append(sr.linkIntAttributeKeys, linkAttrs.intKeys)
+	sr.linkIntAttributeValues = append(sr.linkIntAttributeValues, linkAttrs.intValues)
+	sr.linkStrAttributeKeys = append(sr.linkStrAttributeKeys, linkAttrs.strKeys)
+	sr.linkStrAttributeValues = append(sr.linkStrAttributeValues, linkAttrs.strValues)
+	sr.linkComplexAttributeKeys = append(sr.linkComplexAttributeKeys, linkAttrs.complexKeys)
+	sr.linkComplexAttributeValues = append(sr.linkComplexAttributeValues, linkAttrs.complexValues)
+}
+
+func extractAttributes(attrs pcommon.Map) (out struct {
+	boolKeys      []string
+	boolValues    []bool
+	doubleKeys    []string
+	doubleValues  []float64
+	intKeys       []string
+	intValues     []int64
+	strKeys       []string
+	strValues     []string
+	complexKeys   []string
+	complexValues []string
+},
+) {
+	attrs.Range(func(k string, v pcommon.Value) bool {
+		//revive:disable
+		switch v.Type() {
+		case pcommon.ValueTypeBool:
+			out.boolKeys = append(out.boolKeys, k)
+			out.boolValues = append(out.boolValues, v.Bool())
+		case pcommon.ValueTypeDouble:
+			out.doubleKeys = append(out.doubleKeys, k)
+			out.doubleValues = append(out.doubleValues, v.Double())
+		case pcommon.ValueTypeInt:
+			out.intKeys = append(out.intKeys, k)
+			out.intValues = append(out.intValues, v.Int())
+		case pcommon.ValueTypeStr:
+			out.strKeys = append(out.strKeys, k)
+			out.strValues = append(out.strValues, v.Str())
+		case pcommon.ValueTypeBytes:
+			key := "@bytes@" + k
+			encoded := base64.StdEncoding.EncodeToString(v.Bytes().AsRaw())
+			out.complexKeys = append(out.complexKeys, key)
+			out.complexValues = append(out.complexValues, encoded)
+		case pcommon.ValueTypeSlice, pcommon.ValueTypeMap:
+			// TODO
+		default:
+			//revive:enable
+		}
+		return true
+	})
+	return out
 }

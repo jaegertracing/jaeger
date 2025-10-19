@@ -10,9 +10,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
-	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 type Writer struct {
@@ -35,24 +33,48 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	}
 	defer batch.Close()
 	for _, rs := range td.ResourceSpans().All() {
-		serviceName, _ := rs.Resource().Attributes().Get(otelsemconv.ServiceNameKey)
 		for _, ss := range rs.ScopeSpans().All() {
 			for _, span := range ss.Spans().All() {
-				duration := span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime()).Nanoseconds()
+				sr := spanToRow(rs.Resource(), ss.Scope(), span)
 				err = batch.Append(
-					span.SpanID().String(),
-					span.TraceID().String(),
-					span.TraceState().AsRaw(),
-					span.ParentSpanID().String(),
-					span.Name(),
-					jptrace.SpanKindToString(span.Kind()),
-					span.StartTimestamp().AsTime(),
-					span.Status().Code().String(),
-					span.Status().Message(),
-					duration,
-					serviceName.Str(),
-					ss.Scope().Name(),
-					ss.Scope().Version(),
+					sr.id,
+					sr.traceID,
+					sr.traceState,
+					sr.parentSpanID,
+					sr.name,
+					sr.kind,
+					sr.startTime,
+					sr.statusCode,
+					sr.statusMessage,
+					sr.rawDuration,
+					sr.serviceName,
+					sr.scopeName,
+					sr.scopeVersion,
+					sr.boolAttributeKeys,
+					sr.boolAttributeValues,
+					sr.doubleAttributeKeys,
+					sr.doubleAttributeValues,
+					sr.intAttributeKeys,
+					sr.intAttributeValues,
+					sr.strAttributeKeys,
+					sr.strAttributeValues,
+					sr.complexAttributeKeys,
+					sr.complexAttributeValues,
+					sr.eventNames,
+					sr.eventTimestamps,
+					toTuple(sr.eventBoolAttributeKeys, sr.eventBoolAttributeValues),
+					toTuple(sr.eventDoubleAttributeKeys, sr.eventDoubleAttributeValues),
+					toTuple(sr.eventIntAttributeKeys, sr.eventIntAttributeValues),
+					toTuple(sr.eventStrAttributeKeys, sr.eventStrAttributeValues),
+					toTuple(sr.eventComplexAttributeKeys, sr.eventComplexAttributeValues),
+					sr.linkTraceIDs,
+					sr.linkSpanIDs,
+					sr.linkTraceStates,
+					toTuple(sr.linkBoolAttributeKeys, sr.linkBoolAttributeValues),
+					toTuple(sr.linkDoubleAttributeKeys, sr.linkDoubleAttributeValues),
+					toTuple(sr.linkIntAttributeKeys, sr.linkIntAttributeValues),
+					toTuple(sr.linkStrAttributeKeys, sr.linkStrAttributeValues),
+					toTuple(sr.linkComplexAttributeKeys, sr.linkComplexAttributeValues),
 				)
 				if err != nil {
 					return fmt.Errorf("failed to append span to batch: %w", err)
@@ -64,4 +86,16 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 		return fmt.Errorf("failed to send batch: %w", err)
 	}
 	return nil
+}
+
+func toTuple[T any](keys [][]string, values [][]T) [][][]any {
+	tuple := make([][][]any, 0, len(keys))
+	for i := range keys {
+		inner := make([][]any, 0, len(keys[i]))
+		for j := range keys[i] {
+			inner = append(inner, []any{keys[i][j], values[i][j]})
+		}
+		tuple = append(tuple, inner)
+	}
+	return tuple
 }
