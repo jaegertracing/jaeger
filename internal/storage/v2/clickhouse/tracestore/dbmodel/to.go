@@ -39,6 +39,9 @@ func ToRow(
 	for _, event := range span.Events().All() {
 		sr.appendEvent(event)
 	}
+	for _, link := range span.Links().All() {
+		sr.appendLink(link)
+	}
 
 	return sr
 }
@@ -72,6 +75,24 @@ func (sr *SpanRow) appendEvent(event ptrace.SpanEvent) {
 	sr.EventStrAttributeValues = append(sr.EventStrAttributeValues, evAttrs.strValues)
 	sr.EventComplexAttributeKeys = append(sr.EventComplexAttributeKeys, evAttrs.complexKeys)
 	sr.EventComplexAttributeValues = append(sr.EventComplexAttributeValues, evAttrs.complexValues)
+}
+
+func (sr *SpanRow) appendLink(link ptrace.SpanLink) {
+	sr.LinkTraceIDs = append(sr.LinkTraceIDs, link.TraceID().String())
+	sr.LinkSpanIDs = append(sr.LinkSpanIDs, link.SpanID().String())
+	sr.LinkTraceStates = append(sr.LinkTraceStates, link.TraceState().AsRaw())
+
+	linkAttrs := extractAttributes(link.Attributes())
+	sr.LinkBoolAttributeKeys = append(sr.LinkBoolAttributeKeys, linkAttrs.boolKeys)
+	sr.LinkBoolAttributeValues = append(sr.LinkBoolAttributeValues, linkAttrs.boolValues)
+	sr.LinkDoubleAttributeKeys = append(sr.LinkDoubleAttributeKeys, linkAttrs.doubleKeys)
+	sr.LinkDoubleAttributeValues = append(sr.LinkDoubleAttributeValues, linkAttrs.doubleValues)
+	sr.LinkIntAttributeKeys = append(sr.LinkIntAttributeKeys, linkAttrs.intKeys)
+	sr.LinkIntAttributeValues = append(sr.LinkIntAttributeValues, linkAttrs.intValues)
+	sr.LinkStrAttributeKeys = append(sr.LinkStrAttributeKeys, linkAttrs.strKeys)
+	sr.LinkStrAttributeValues = append(sr.LinkStrAttributeValues, linkAttrs.strValues)
+	sr.LinkComplexAttributeKeys = append(sr.LinkComplexAttributeKeys, linkAttrs.complexKeys)
+	sr.LinkComplexAttributeValues = append(sr.LinkComplexAttributeValues, linkAttrs.complexValues)
 }
 
 func extractAttributes(attrs pcommon.Map) (out struct {

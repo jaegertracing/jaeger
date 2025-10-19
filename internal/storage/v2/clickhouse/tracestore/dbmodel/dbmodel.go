@@ -45,6 +45,16 @@ type SpanRow struct {
 	LinkTraceIDs                []string
 	LinkSpanIDs                 []string
 	LinkTraceStates             []string
+	LinkBoolAttributeKeys       [][]string
+	LinkBoolAttributeValues     [][]bool
+	LinkDoubleAttributeKeys     [][]string
+	LinkDoubleAttributeValues   [][]float64
+	LinkIntAttributeKeys        [][]string
+	LinkIntAttributeValues      [][]int64
+	LinkStrAttributeKeys        [][]string
+	LinkStrAttributeValues      [][]string
+	LinkComplexAttributeKeys    [][]string
+	LinkComplexAttributeValues  [][]string
 	ServiceName                 string
 	ScopeName                   string
 	ScopeVersion                string

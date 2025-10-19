@@ -88,59 +88,91 @@ func convertSpan(sr *SpanRow) (ptrace.Span, error) {
 	span.Status().SetCode(jptrace.StringToStatusCode(sr.StatusCode))
 	span.Status().SetMessage(sr.StatusMessage)
 
-	for i := 0; i < len(sr.BoolAttributeKeys); i++ {
-		span.Attributes().PutBool(sr.BoolAttributeKeys[i], sr.BoolAttributeValues[i])
-	}
-	for i := 0; i < len(sr.DoubleAttributeKeys); i++ {
-		span.Attributes().PutDouble(sr.DoubleAttributeKeys[i], sr.DoubleAttributeValues[i])
-	}
-	for i := 0; i < len(sr.IntAttributeKeys); i++ {
-		span.Attributes().PutInt(sr.IntAttributeKeys[i], sr.IntAttributeValues[i])
-	}
-	for i := 0; i < len(sr.StrAttributeKeys); i++ {
-		span.Attributes().PutStr(sr.StrAttributeKeys[i], sr.StrAttributeValues[i])
-	}
-	for i := 0; i < len(sr.ComplexAttributeKeys); i++ {
-		key := sr.ComplexAttributeKeys[i]
-		if strings.HasPrefix(key, "@bytes@") {
-			parsedKey := strings.TrimPrefix(key, "@bytes@")
-			decoded, err := base64.StdEncoding.DecodeString(sr.ComplexAttributeValues[i])
-			if err != nil {
-				jptrace.AddWarnings(span, fmt.Sprintf("failed to decode bytes attribute %q: %s", parsedKey, err.Error()))
-				continue
-			}
-			span.Attributes().PutEmptyBytes(parsedKey).FromRaw(decoded)
-		}
-	}
+	putAttributes(
+		span.Attributes(),
+		span,
+		sr.BoolAttributeKeys, sr.BoolAttributeValues,
+		sr.DoubleAttributeKeys, sr.DoubleAttributeValues,
+		sr.IntAttributeKeys, sr.IntAttributeValues,
+		sr.StrAttributeKeys, sr.StrAttributeValues,
+		sr.ComplexAttributeKeys, sr.ComplexAttributeValues,
+	)
 
 	for i, e := range sr.EventNames {
 		event := span.Events().AppendEmpty()
 		event.SetName(e)
 		event.SetTimestamp(pcommon.NewTimestampFromTime(sr.EventTimestamps[i]))
-		for j := 0; j < len(sr.EventBoolAttributeKeys[i]); j++ {
-			event.Attributes().PutBool(sr.EventBoolAttributeKeys[i][j], sr.EventBoolAttributeValues[i][j])
+		putAttributes(
+			event.Attributes(),
+			span,
+			sr.EventBoolAttributeKeys[i], sr.EventBoolAttributeValues[i],
+			sr.EventDoubleAttributeKeys[i], sr.EventDoubleAttributeValues[i],
+			sr.EventIntAttributeKeys[i], sr.EventIntAttributeValues[i],
+			sr.EventStrAttributeKeys[i], sr.EventStrAttributeValues[i],
+			sr.EventComplexAttributeKeys[i], sr.EventComplexAttributeValues[i],
+		)
+	}
+
+	for i, l := range sr.LinkTraceIDs {
+		link := span.Links().AppendEmpty()
+		traceID, err := hex.DecodeString(l)
+		if err != nil {
+			jptrace.AddWarnings(span, fmt.Sprintf("failed to decode link trace ID: %s", err.Error()))
+			continue
 		}
-		for j := 0; j < len(sr.EventDoubleAttributeKeys[i]); j++ {
-			event.Attributes().PutDouble(sr.EventDoubleAttributeKeys[i][j], sr.EventDoubleAttributeValues[i][j])
+		link.SetTraceID(pcommon.TraceID(traceID))
+		spanID, err := hex.DecodeString(sr.LinkSpanIDs[i])
+		if err != nil {
+			jptrace.AddWarnings(span, fmt.Sprintf("failed to decode link span ID: %s", err.Error()))
+			continue
 		}
-		for j := 0; j < len(sr.EventIntAttributeKeys[i]); j++ {
-			event.Attributes().PutInt(sr.EventIntAttributeKeys[i][j], sr.EventIntAttributeValues[i][j])
-		}
-		for j := 0; j < len(sr.EventStrAttributeKeys[i]); j++ {
-			event.Attributes().PutStr(sr.EventStrAttributeKeys[i][j], sr.EventStrAttributeValues[i][j])
-		}
-		for j := 0; j < len(sr.EventComplexAttributeKeys[i]); j++ {
-			if strings.HasPrefix(sr.EventComplexAttributeKeys[i][j], "@bytes@") {
-				decoded, err := base64.StdEncoding.DecodeString(sr.EventComplexAttributeValues[i][j])
-				if err != nil {
-					jptrace.AddWarnings(span, fmt.Sprintf("failed to decode bytes attribute %q: %s", sr.EventComplexAttributeKeys[i][j], err.Error()))
-					continue
-				}
-				k := strings.TrimPrefix(sr.EventComplexAttributeKeys[i][j], "@bytes@")
-				event.Attributes().PutEmptyBytes(k).FromRaw(decoded)
-			}
-		}
+		link.SetSpanID(pcommon.SpanID(spanID))
+		link.TraceState().FromRaw(sr.LinkTraceStates[i])
+
+		putAttributes(
+			link.Attributes(),
+			span,
+			sr.LinkBoolAttributeKeys[i], sr.LinkBoolAttributeValues[i],
+			sr.LinkDoubleAttributeKeys[i], sr.LinkDoubleAttributeValues[i],
+			sr.LinkIntAttributeKeys[i], sr.LinkIntAttributeValues[i],
+			sr.LinkStrAttributeKeys[i], sr.LinkStrAttributeValues[i],
+			sr.LinkComplexAttributeKeys[i], sr.LinkComplexAttributeValues[i],
+		)
 	}
 
 	return span, nil
+}
+
+func putAttributes(
+	attrs pcommon.Map,
+	spanForWarnings ptrace.Span,
+	boolKeys []string, boolValues []bool,
+	doubleKeys []string, doubleValues []float64,
+	intKeys []string, intValues []int64,
+	strKeys []string, strValues []string,
+	complexKeys []string, complexValues []string,
+) {
+	for i := 0; i < len(boolKeys); i++ {
+		attrs.PutBool(boolKeys[i], boolValues[i])
+	}
+	for i := 0; i < len(doubleKeys); i++ {
+		attrs.PutDouble(doubleKeys[i], doubleValues[i])
+	}
+	for i := 0; i < len(intKeys); i++ {
+		attrs.PutInt(intKeys[i], intValues[i])
+	}
+	for i := 0; i < len(strKeys); i++ {
+		attrs.PutStr(strKeys[i], strValues[i])
+	}
+	for i := 0; i < len(complexKeys); i++ {
+		if strings.HasPrefix(complexKeys[i], "@bytes@") {
+			decoded, err := base64.StdEncoding.DecodeString(complexValues[i])
+			if err != nil {
+				jptrace.AddWarnings(spanForWarnings, fmt.Sprintf("failed to decode bytes attribute %q: %s", complexKeys[i], err.Error()))
+				continue
+			}
+			k := strings.TrimPrefix(complexKeys[i], "@bytes@")
+			attrs.PutEmptyBytes(k).FromRaw(decoded)
+		}
+	}
 }
