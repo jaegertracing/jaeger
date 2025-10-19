@@ -294,6 +294,14 @@ main() {
   log "Ensuring Jaeger Collector service endpoints are ready before deploying the demo"
   wait_for_service_endpoints jaeger jaeger-collector 180
 
+  log "Ensuring HotROD service endpoints are ready"
+  wait_for_service_endpoints jaeger jaeger-hotrod 180
+
+  log "Deploying HotROD trace generator"
+  kubectl -n jaeger create configmap trace-script --from-file="$SCRIPT_DIR/generate_traces.py" --dry-run=client -o yaml | kubectl apply -f -
+  kubectl apply -n jaeger -f "$SCRIPT_DIR/load-generator.yaml"
+  wait_for_deployment jaeger trace-generator "${ROLLOUT_TIMEOUT}s"
+
   log "Deploying OpenTelemetry Demo (with in-cluster Collector)"
   helm upgrade --install otel-demo open-telemetry/opentelemetry-demo \
     -f "$SCRIPT_DIR/otel-demo-values.yaml" \
