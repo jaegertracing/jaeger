@@ -163,6 +163,28 @@ func TestFromDBModel_DecodeID(t *testing.T) {
 		})
 	}
 }
+func TestPutAttributes_Warnings(t *testing.T) {
+	t.Run("bytes attribute with invalid base64", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		attributes := pcommon.NewMap()
+
+		putAttributes(
+			attributes,
+			span,
+			nil, nil,
+			nil, nil,
+			nil, nil,
+			nil, nil,
+			[]string{"@bytes@bytes-key"}, []string{"invalid-base64"},
+		)
+
+		_, ok := attributes.Get("bytes-key")
+		require.False(t, ok)
+		warnings := jptrace.GetWarnings(span)
+		require.Len(t, warnings, 1)
+		require.Contains(t, warnings[0], "failed to decode bytes attribute \"@bytes@bytes-key\"")
+	})
+}
 
 func jsonToDBModel(t *testing.T, filename string) (m *SpanRow) {
 	traceBytes := readJSONBytes(t, filename)
