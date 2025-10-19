@@ -112,7 +112,6 @@ func extractAttributes(attrs pcommon.Map) (out struct {
 },
 ) {
 	attrs.Range(func(k string, v pcommon.Value) bool {
-		//revive:disable
 		switch v.Type() {
 		case pcommon.ValueTypeBool:
 			out.boolKeys = append(out.boolKeys, k)
@@ -131,10 +130,8 @@ func extractAttributes(attrs pcommon.Map) (out struct {
 			encoded := base64.StdEncoding.EncodeToString(v.Bytes().AsRaw())
 			out.complexKeys = append(out.complexKeys, key)
 			out.complexValues = append(out.complexValues, encoded)
-		case pcommon.ValueTypeSlice, pcommon.ValueTypeMap:
-			// TODO
+		// TODO: support array and map types
 		default:
-			//revive:enable
 		}
 		return true
 	})
