@@ -57,22 +57,22 @@ func requireSpanEqual(t *testing.T, expected *dbmodel.SpanRow, actual ptrace.Spa
 	require.Equal(t, expected.StatusMessage, actual.Status().Message())
 	require.Equal(t, time.Duration(expected.Duration), actual.EndTimestamp().AsTime().Sub(actual.StartTimestamp().AsTime()))
 
-	requireBoolAttrs(t, expected.BoolAttributeKeys, expected.BoolAttributeValues, actual.Attributes())
-	requireDoubleAttrs(t, expected.DoubleAttributeKeys, expected.DoubleAttributeValues, actual.Attributes())
-	requireIntAttrs(t, expected.IntAttributeKeys, expected.IntAttributeValues, actual.Attributes())
-	requireStrAttrs(t, expected.StrAttributeKeys, expected.StrAttributeValues, actual.Attributes())
-	requireComplexAttrs(t, expected.ComplexAttributeKeys, expected.ComplexAttributeValues, actual.Attributes())
+	requireBoolAttrs(t, expected.Attributes.BoolKeys, expected.Attributes.BoolValues, actual.Attributes())
+	requireDoubleAttrs(t, expected.Attributes.DoubleKeys, expected.Attributes.DoubleValues, actual.Attributes())
+	requireIntAttrs(t, expected.Attributes.IntKeys, expected.Attributes.IntValues, actual.Attributes())
+	requireStrAttrs(t, expected.Attributes.StrKeys, expected.Attributes.StrValues, actual.Attributes())
+	requireComplexAttrs(t, expected.Attributes.ComplexKeys, expected.Attributes.ComplexValues, actual.Attributes())
 
 	require.Len(t, expected.EventNames, actual.Events().Len())
 	for i, e := range actual.Events().All() {
 		require.Equal(t, expected.EventNames[i], e.Name())
 		require.Equal(t, expected.EventTimestamps[i].UnixNano(), e.Timestamp().AsTime().UnixNano())
 
-		requireBoolAttrs(t, expected.EventBoolAttributeKeys[i], expected.EventBoolAttributeValues[i], e.Attributes())
-		requireDoubleAttrs(t, expected.EventDoubleAttributeKeys[i], expected.EventDoubleAttributeValues[i], e.Attributes())
-		requireIntAttrs(t, expected.EventIntAttributeKeys[i], expected.EventIntAttributeValues[i], e.Attributes())
-		requireStrAttrs(t, expected.EventStrAttributeKeys[i], expected.EventStrAttributeValues[i], e.Attributes())
-		requireComplexAttrs(t, expected.EventComplexAttributeKeys[i], expected.EventComplexAttributeValues[i], e.Attributes())
+		requireBoolAttrs(t, expected.EventAttributes.BoolKeys[i], expected.EventAttributes.BoolValues[i], e.Attributes())
+		requireDoubleAttrs(t, expected.EventAttributes.DoubleKeys[i], expected.EventAttributes.DoubleValues[i], e.Attributes())
+		requireIntAttrs(t, expected.EventAttributes.IntKeys[i], expected.EventAttributes.IntValues[i], e.Attributes())
+		requireStrAttrs(t, expected.EventAttributes.StrKeys[i], expected.EventAttributes.StrValues[i], e.Attributes())
+		requireComplexAttrs(t, expected.EventAttributes.ComplexKeys[i], expected.EventAttributes.ComplexValues[i], e.Attributes())
 	}
 
 	require.Len(t, expected.LinkSpanIDs, actual.Links().Len())
