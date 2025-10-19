@@ -76,7 +76,7 @@ type SpanRow struct {
 }
 
 func ScanRow(rows driver.Rows) (*SpanRow, error) {
-	var sr *SpanRow
+	var sr SpanRow
 	err := rows.Scan(
 		&sr.ID,
 		&sr.TraceID,
@@ -120,5 +120,5 @@ func ScanRow(rows driver.Rows) (*SpanRow, error) {
 	if err != nil {
 		return nil, err
 	}
-	return sr, nil
+	return &sr, nil
 }
