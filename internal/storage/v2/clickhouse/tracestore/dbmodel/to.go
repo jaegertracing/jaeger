@@ -6,10 +6,11 @@ package dbmodel
 import (
 	"encoding/base64"
 
-	"github.com/jaegertracing/jaeger/internal/jptrace"
-	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/internal/jptrace"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 func ToRow(

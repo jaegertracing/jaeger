@@ -9,10 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
 func requireTracesEqual(t *testing.T, expected []*dbmodel.SpanRow, actual []ptrace.Traces) {
