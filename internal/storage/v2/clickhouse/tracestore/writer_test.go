@@ -6,19 +6,16 @@ package tracestore
 import (
 	"context"
 	"encoding/base64"
-	"encoding/hex"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
-	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
 func putAttributes(
@@ -53,80 +50,14 @@ func putAttributes(
 	}
 }
 
-func tracesFromSpanRows(t *testing.T, rows []*spanRow) ptrace.Traces {
+func tracesFromSpanRows(rows []*dbmodel.SpanRow) ptrace.Traces {
 	td := ptrace.NewTraces()
+	rs := td.ResourceSpans()
 	for _, r := range rows {
-		rs := td.ResourceSpans().AppendEmpty()
-		rs.Resource().Attributes().PutStr(otelsemconv.ServiceNameKey, r.serviceName)
-
-		ss := rs.ScopeSpans().AppendEmpty()
-		ss.Scope().SetName(r.scopeName)
-		ss.Scope().SetVersion(r.scopeVersion)
-
-		span := ss.Spans().AppendEmpty()
-		spanID, err := hex.DecodeString(r.id)
-		require.NoError(t, err)
-		span.SetSpanID(pcommon.SpanID(spanID))
-		traceID, err := hex.DecodeString(r.traceID)
-		require.NoError(t, err)
-		span.SetTraceID(pcommon.TraceID(traceID))
-		span.TraceState().FromRaw(r.traceState)
-		if r.parentSpanID != "" {
-			parentSpanID, err := hex.DecodeString(r.parentSpanID)
-			require.NoError(t, err)
-			span.SetParentSpanID(pcommon.SpanID(parentSpanID))
-		}
-		span.SetName(r.name)
-		span.SetKind(jptrace.StringToSpanKind(r.kind))
-		span.SetStartTimestamp(pcommon.NewTimestampFromTime(r.startTime))
-		span.SetEndTimestamp(pcommon.NewTimestampFromTime(r.startTime.Add(time.Duration(r.rawDuration))))
-		span.Status().SetCode(jptrace.StringToStatusCode(r.statusCode))
-		span.Status().SetMessage(r.statusMessage)
-
-		putAttributes(
-			t,
-			span.Attributes(),
-			r.boolAttributeKeys, r.boolAttributeValues,
-			r.doubleAttributeKeys, r.doubleAttributeValues,
-			r.intAttributeKeys, r.intAttributeValues,
-			r.strAttributeKeys, r.strAttributeValues,
-			r.complexAttributeKeys, r.complexAttributeValues,
-		)
-
-		for i, e := range r.eventNames {
-			event := span.Events().AppendEmpty()
-			event.SetName(e)
-			event.SetTimestamp(pcommon.NewTimestampFromTime(r.eventTimestamps[i]))
-			putAttributes(
-				t,
-				event.Attributes(),
-				r.eventBoolAttributeKeys[i], r.eventBoolAttributeValues[i],
-				r.eventDoubleAttributeKeys[i], r.eventDoubleAttributeValues[i],
-				r.eventIntAttributeKeys[i], r.eventIntAttributeValues[i],
-				r.eventStrAttributeKeys[i], r.eventStrAttributeValues[i],
-				r.eventComplexAttributeKeys[i], r.eventComplexAttributeValues[i],
-			)
-		}
-
-		for i, l := range r.linkTraceIDs {
-			link := span.Links().AppendEmpty()
-			traceID, err := hex.DecodeString(l)
-			require.NoError(t, err)
-			link.SetTraceID(pcommon.TraceID(traceID))
-			spanID, err := hex.DecodeString(r.linkSpanIDs[i])
-			require.NoError(t, err)
-			link.SetSpanID(pcommon.SpanID(spanID))
-			link.TraceState().FromRaw(r.linkTraceStates[i])
-
-			putAttributes(
-				t,
-				link.Attributes(),
-				r.linkBoolAttributeKeys[i], r.linkBoolAttributeValues[i],
-				r.linkDoubleAttributeKeys[i], r.linkDoubleAttributeValues[i],
-				r.linkIntAttributeKeys[i], r.linkIntAttributeValues[i],
-				r.linkStrAttributeKeys[i], r.linkStrAttributeValues[i],
-				r.linkComplexAttributeKeys[i], r.linkComplexAttributeValues[i],
-			)
+		trace := dbmodel.FromRow(r)
+		srcRS := trace.ResourceSpans()
+		for i := 0; i < srcRS.Len(); i++ {
+			srcRS.At(i).CopyTo(rs.AppendEmpty())
 		}
 	}
 	return td
@@ -140,7 +71,7 @@ func TestWriter_Success(t *testing.T) {
 	}
 	w := NewWriter(conn)
 
-	td := tracesFromSpanRows(t, multipleSpans)
+	td := tracesFromSpanRows(multipleSpans)
 
 	err := w.WriteTraces(context.Background(), td)
 	require.NoError(t, err)
@@ -151,72 +82,72 @@ func TestWriter_Success(t *testing.T) {
 	for i, expected := range multipleSpans {
 		row := conn.batch.appended[i]
 
-		require.Equal(t, expected.id, row[0])                      // SpanID
-		require.Equal(t, expected.traceID, row[1])                 // TraceID
-		require.Equal(t, expected.traceState, row[2])              // TraceState
-		require.Equal(t, expected.parentSpanID, row[3])            // ParentSpanID
-		require.Equal(t, expected.name, row[4])                    // Name
-		require.Equal(t, strings.ToLower(expected.kind), row[5])   // Kind
-		require.Equal(t, expected.startTime, row[6])               // StartTimestamp
-		require.Equal(t, expected.statusCode, row[7])              // Status code
-		require.Equal(t, expected.statusMessage, row[8])           // Status message
-		require.EqualValues(t, expected.rawDuration, row[9])       // Duration
-		require.Equal(t, expected.serviceName, row[10])            // Service name
-		require.Equal(t, expected.scopeName, row[11])              // Scope name
-		require.Equal(t, expected.scopeVersion, row[12])           // Scope version
-		require.Equal(t, expected.boolAttributeKeys, row[13])      // Bool attribute keys
-		require.Equal(t, expected.boolAttributeValues, row[14])    // Bool attribute values
-		require.Equal(t, expected.doubleAttributeKeys, row[15])    // Double attribute keys
-		require.Equal(t, expected.doubleAttributeValues, row[16])  // Double attribute values
-		require.Equal(t, expected.intAttributeKeys, row[17])       // Int attribute keys
-		require.Equal(t, expected.intAttributeValues, row[18])     // Int attribute values
-		require.Equal(t, expected.strAttributeKeys, row[19])       // Str attribute keys
-		require.Equal(t, expected.strAttributeValues, row[20])     // Str attribute values
-		require.Equal(t, expected.complexAttributeKeys, row[21])   // Complex attribute keys
-		require.Equal(t, expected.complexAttributeValues, row[22]) // Complex attribute values
-		require.Equal(t, expected.eventNames, row[23])             // Event names
-		require.Equal(t, expected.eventTimestamps, row[24])        // Event timestamps
+		require.Equal(t, expected.ID, row[0])                      // SpanID
+		require.Equal(t, expected.TraceID, row[1])                 // TraceID
+		require.Equal(t, expected.TraceState, row[2])              // TraceState
+		require.Equal(t, expected.ParentSpanID, row[3])            // ParentSpanID
+		require.Equal(t, expected.Name, row[4])                    // Name
+		require.Equal(t, strings.ToLower(expected.Kind), row[5])   // Kind
+		require.Equal(t, expected.StartTime, row[6])               // StartTimestamp
+		require.Equal(t, expected.StatusCode, row[7])              // Status code
+		require.Equal(t, expected.StatusMessage, row[8])           // Status message
+		require.EqualValues(t, expected.RawDuration, row[9])       // Duration
+		require.Equal(t, expected.ServiceName, row[10])            // Service name
+		require.Equal(t, expected.ScopeName, row[11])              // Scope name
+		require.Equal(t, expected.ScopeVersion, row[12])           // Scope version
+		require.Equal(t, expected.BoolAttributeKeys, row[13])      // Bool attribute keys
+		require.Equal(t, expected.BoolAttributeValues, row[14])    // Bool attribute values
+		require.Equal(t, expected.DoubleAttributeKeys, row[15])    // Double attribute keys
+		require.Equal(t, expected.DoubleAttributeValues, row[16])  // Double attribute values
+		require.Equal(t, expected.IntAttributeKeys, row[17])       // Int attribute keys
+		require.Equal(t, expected.IntAttributeValues, row[18])     // Int attribute values
+		require.Equal(t, expected.StrAttributeKeys, row[19])       // Str attribute keys
+		require.Equal(t, expected.StrAttributeValues, row[20])     // Str attribute values
+		require.Equal(t, expected.ComplexAttributeKeys, row[21])   // Complex attribute keys
+		require.Equal(t, expected.ComplexAttributeValues, row[22]) // Complex attribute values
+		require.Equal(t, expected.EventNames, row[23])             // Event names
+		require.Equal(t, expected.EventTimestamps, row[24])        // Event timestamps
 		require.Equal(t,
-			toTuple(expected.eventBoolAttributeKeys, expected.eventBoolAttributeValues),
+			toTuple(expected.EventBoolAttributeKeys, expected.EventBoolAttributeValues),
 			row[25],
 		) // Event bool attributes
 		require.Equal(t,
-			toTuple(expected.eventDoubleAttributeKeys, expected.eventDoubleAttributeValues),
+			toTuple(expected.EventDoubleAttributeKeys, expected.EventDoubleAttributeValues),
 			row[26],
 		) // Event double attributes
 		require.Equal(t,
-			toTuple(expected.eventIntAttributeKeys, expected.eventIntAttributeValues),
+			toTuple(expected.EventIntAttributeKeys, expected.EventIntAttributeValues),
 			row[27],
 		) // Event int attributes
 		require.Equal(t,
-			toTuple(expected.eventStrAttributeKeys, expected.eventStrAttributeValues),
+			toTuple(expected.EventStrAttributeKeys, expected.EventStrAttributeValues),
 			row[28],
 		) // Event str attributes
 		require.Equal(t,
-			toTuple(expected.eventComplexAttributeKeys, expected.eventComplexAttributeValues),
+			toTuple(expected.EventComplexAttributeKeys, expected.EventComplexAttributeValues),
 			row[29],
 		) // Event complex attributes
-		require.Equal(t, expected.linkTraceIDs, row[30])    // Link TraceIDs
-		require.Equal(t, expected.linkSpanIDs, row[31])     // Link SpanIDs
-		require.Equal(t, expected.linkTraceStates, row[32]) // Link TraceStates
+		require.Equal(t, expected.LinkTraceIDs, row[30])    // Link TraceIDs
+		require.Equal(t, expected.LinkSpanIDs, row[31])     // Link SpanIDs
+		require.Equal(t, expected.LinkTraceStates, row[32]) // Link TraceStates
 		require.Equal(t,
-			toTuple(expected.linkBoolAttributeKeys, expected.linkBoolAttributeValues),
+			toTuple(expected.LinkBoolAttributeKeys, expected.LinkBoolAttributeValues),
 			row[33],
 		) // Link bool attributes
 		require.Equal(t,
-			toTuple(expected.linkDoubleAttributeKeys, expected.linkDoubleAttributeValues),
+			toTuple(expected.LinkDoubleAttributeKeys, expected.LinkDoubleAttributeValues),
 			row[34],
 		) // Link double attributes
 		require.Equal(t,
-			toTuple(expected.linkIntAttributeKeys, expected.linkIntAttributeValues),
+			toTuple(expected.LinkIntAttributeKeys, expected.LinkIntAttributeValues),
 			row[35],
 		) // Link int attributes
 		require.Equal(t,
-			toTuple(expected.linkStrAttributeKeys, expected.linkStrAttributeValues),
+			toTuple(expected.LinkStrAttributeKeys, expected.LinkStrAttributeValues),
 			row[36],
 		) // Link str attributes
 		require.Equal(t,
-			toTuple(expected.linkComplexAttributeKeys, expected.linkComplexAttributeValues),
+			toTuple(expected.LinkComplexAttributeKeys, expected.LinkComplexAttributeValues),
 			row[37],
 		) // Link complex attributes
 	}
@@ -230,7 +161,7 @@ func TestWriter_PrepareBatchError(t *testing.T) {
 		batch:         &testBatch{t: t},
 	}
 	w := NewWriter(conn)
-	err := w.WriteTraces(context.Background(), tracesFromSpanRows(t, multipleSpans))
+	err := w.WriteTraces(context.Background(), tracesFromSpanRows(multipleSpans))
 	require.ErrorContains(t, err, "failed to prepare batch")
 	require.ErrorIs(t, err, assert.AnError)
 	require.False(t, conn.batch.sendCalled)
@@ -243,7 +174,7 @@ func TestWriter_AppendBatchError(t *testing.T) {
 		batch:         &testBatch{t: t, appendErr: assert.AnError},
 	}
 	w := NewWriter(conn)
-	err := w.WriteTraces(context.Background(), tracesFromSpanRows(t, multipleSpans))
+	err := w.WriteTraces(context.Background(), tracesFromSpanRows(multipleSpans))
 	require.ErrorContains(t, err, "failed to append span to batch")
 	require.ErrorIs(t, err, assert.AnError)
 	require.False(t, conn.batch.sendCalled)
@@ -256,7 +187,7 @@ func TestWriter_SendError(t *testing.T) {
 		batch:         &testBatch{t: t, sendErr: assert.AnError},
 	}
 	w := NewWriter(conn)
-	err := w.WriteTraces(context.Background(), tracesFromSpanRows(t, multipleSpans))
+	err := w.WriteTraces(context.Background(), tracesFromSpanRows(multipleSpans))
 	require.ErrorContains(t, err, "failed to send batch")
 	require.ErrorIs(t, err, assert.AnError)
 	require.False(t, conn.batch.sendCalled)
