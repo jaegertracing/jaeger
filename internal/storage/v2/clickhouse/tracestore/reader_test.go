@@ -20,55 +20,65 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
-func scanSpanRowFn() func(dest any, src *spanRow) error {
-	return func(dest any, src *spanRow) error {
+func scanSpanRowFn() func(dest any, src *dbmodel.SpanRow) error {
+	return func(dest any, src *dbmodel.SpanRow) error {
 		ptrs, ok := dest.([]any)
 		if !ok {
 			return fmt.Errorf("expected []any for dest, got %T", dest)
 		}
-		if len(ptrs) != 38 {
-			return fmt.Errorf("expected 38 destination arguments, got %d", len(ptrs))
+		if len(ptrs) != 48 {
+			return fmt.Errorf("expected 48 destination arguments, got %d", len(ptrs))
 		}
 
 		values := []any{
-			&src.id,
-			&src.traceID,
-			&src.traceState,
-			&src.parentSpanID,
-			&src.name,
-			&src.kind,
-			&src.startTime,
-			&src.statusCode,
-			&src.statusMessage,
-			&src.rawDuration,
-			&src.boolAttributeKeys,
-			&src.boolAttributeValues,
-			&src.doubleAttributeKeys,
-			&src.doubleAttributeValues,
-			&src.intAttributeKeys,
-			&src.intAttributeValues,
-			&src.strAttributeKeys,
-			&src.strAttributeValues,
-			&src.complexAttributeKeys,
-			&src.complexAttributeValues,
-			&src.eventNames,
-			&src.eventTimestamps,
-			&src.eventBoolAttributeKeys,
-			&src.eventBoolAttributeValues,
-			&src.eventDoubleAttributeKeys,
-			&src.eventDoubleAttributeValues,
-			&src.eventIntAttributeKeys,
-			&src.eventIntAttributeValues,
-			&src.eventStrAttributeKeys,
-			&src.eventStrAttributeValues,
-			&src.eventComplexAttributeKeys,
-			&src.eventComplexAttributeValues,
-			&src.linkTraceIDs,
-			&src.linkSpanIDs,
-			&src.linkTraceStates,
-			&src.serviceName,
-			&src.scopeName,
-			&src.scopeVersion,
+			&src.ID,
+			&src.TraceID,
+			&src.TraceState,
+			&src.ParentSpanID,
+			&src.Name,
+			&src.Kind,
+			&src.StartTime,
+			&src.StatusCode,
+			&src.StatusMessage,
+			&src.Duration,
+			&src.BoolAttributeKeys,
+			&src.BoolAttributeValues,
+			&src.DoubleAttributeKeys,
+			&src.DoubleAttributeValues,
+			&src.IntAttributeKeys,
+			&src.IntAttributeValues,
+			&src.StrAttributeKeys,
+			&src.StrAttributeValues,
+			&src.ComplexAttributeKeys,
+			&src.ComplexAttributeValues,
+			&src.EventNames,
+			&src.EventTimestamps,
+			&src.EventBoolAttributeKeys,
+			&src.EventBoolAttributeValues,
+			&src.EventDoubleAttributeKeys,
+			&src.EventDoubleAttributeValues,
+			&src.EventIntAttributeKeys,
+			&src.EventIntAttributeValues,
+			&src.EventStrAttributeKeys,
+			&src.EventStrAttributeValues,
+			&src.EventComplexAttributeKeys,
+			&src.EventComplexAttributeValues,
+			&src.LinkTraceIDs,
+			&src.LinkSpanIDs,
+			&src.LinkTraceStates,
+			&src.LinkBoolAttributeKeys,
+			&src.LinkBoolAttributeValues,
+			&src.LinkDoubleAttributeKeys,
+			&src.LinkDoubleAttributeValues,
+			&src.LinkIntAttributeKeys,
+			&src.LinkIntAttributeValues,
+			&src.LinkStrAttributeKeys,
+			&src.LinkStrAttributeValues,
+			&src.LinkComplexAttributeKeys,
+			&src.LinkComplexAttributeValues,
+			&src.ServiceName,
+			&src.ScopeName,
+			&src.ScopeVersion,
 		}
 
 		for i := range ptrs {
@@ -81,7 +91,7 @@ func scanSpanRowFn() func(dest any, src *spanRow) error {
 func TestGetTraces_Success(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     []*spanRow
+		data     []*dbmodel.SpanRow
 		expected []ptrace.Traces
 	}{
 		{
@@ -99,7 +109,7 @@ func TestGetTraces_Success(t *testing.T) {
 			conn := &testDriver{
 				t:             t,
 				expectedQuery: sql.SelectSpansByTraceID,
-				rows: &testRows[*spanRow]{
+				rows: &testRows[*dbmodel.SpanRow]{
 					data:   tt.data,
 					scanFn: scanSpanRowFn(),
 				},
@@ -137,7 +147,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 			driver: &testDriver{
 				t:             t,
 				expectedQuery: sql.SelectSpansByTraceID,
-				rows: &testRows[*spanRow]{
+				rows: &testRows[*dbmodel.SpanRow]{
 					data:    singleSpan,
 					scanErr: assert.AnError,
 				},
@@ -149,7 +159,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 			driver: &testDriver{
 				t:             t,
 				expectedQuery: sql.SelectSpansByTraceID,
-				rows: &testRows[*spanRow]{
+				rows: &testRows[*dbmodel.SpanRow]{
 					data:     singleSpan,
 					scanFn:   scanSpanRowFn(),
 					closeErr: assert.AnError,
@@ -174,7 +184,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 func TestGetTraces_ScanErrorContinues(t *testing.T) {
 	scanCalled := 0
 
-	scanFn := func(dest any, src *spanRow) error {
+	scanFn := func(dest any, src *dbmodel.SpanRow) error {
 		scanCalled++
 		if scanCalled == 1 {
 			return assert.AnError // simulate scan error on the first row
@@ -185,7 +195,7 @@ func TestGetTraces_ScanErrorContinues(t *testing.T) {
 	conn := &testDriver{
 		t:             t,
 		expectedQuery: sql.SelectSpansByTraceID,
-		rows: &testRows[*spanRow]{
+		rows: &testRows[*dbmodel.SpanRow]{
 			data:   multipleSpans,
 			scanFn: scanFn,
 		},
@@ -210,7 +220,7 @@ func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	conn := &testDriver{
 		t:             t,
 		expectedQuery: sql.SelectSpansByTraceID,
-		rows: &testRows[*spanRow]{
+		rows: &testRows[*dbmodel.SpanRow]{
 			data:   multipleSpans,
 			scanFn: scanSpanRowFn(),
 		},
