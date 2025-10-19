@@ -8,7 +8,7 @@
   "StartTime": "2023-12-25T09:53:49Z",
   "StatusCode": "Ok",
   "StatusMessage": "success",
-  "RawDuration": 500000000,
+  "Duration": 500000000,
   "BoolAttributeKeys": ["db.cached", "db.readonly"],
   "BoolAttributeValues": [false, true],
   "DoubleAttributeKeys": ["db.latency", "db.connections"],
