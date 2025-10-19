@@ -9,12 +9,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
-func requireTracesEqual(t *testing.T, expected []*spanRow, actual []ptrace.Traces) {
+func requireTracesEqual(t *testing.T, expected []*dbmodel.SpanRow, actual []ptrace.Traces) {
 	t.Helper()
 
 	require.Len(t, actual, len(expected))
@@ -34,50 +35,50 @@ func requireTracesEqual(t *testing.T, expected []*spanRow, actual []ptrace.Trace
 	}
 }
 
-func requireScopeEqual(t *testing.T, expected *spanRow, actual pcommon.InstrumentationScope) {
+func requireScopeEqual(t *testing.T, expected *dbmodel.SpanRow, actual pcommon.InstrumentationScope) {
 	t.Helper()
 
-	require.Equal(t, expected.scopeName, actual.Name())
-	require.Equal(t, expected.scopeVersion, actual.Version())
+	require.Equal(t, expected.ScopeName, actual.Name())
+	require.Equal(t, expected.ScopeVersion, actual.Version())
 }
 
-func requireSpanEqual(t *testing.T, expected *spanRow, actual ptrace.Span) {
+func requireSpanEqual(t *testing.T, expected *dbmodel.SpanRow, actual ptrace.Span) {
 	t.Helper()
 
-	require.Equal(t, expected.id, actual.SpanID().String())
-	require.Equal(t, expected.traceID, actual.TraceID().String())
-	require.Equal(t, expected.traceState, actual.TraceState().AsRaw())
-	require.Equal(t, expected.parentSpanID, actual.ParentSpanID().String())
-	require.Equal(t, expected.name, actual.Name())
-	require.Equal(t, expected.kind, actual.Kind().String())
-	require.Equal(t, expected.startTime.UnixNano(), actual.StartTimestamp().AsTime().UnixNano())
-	require.Equal(t, expected.statusCode, actual.Status().Code().String())
-	require.Equal(t, expected.statusMessage, actual.Status().Message())
-	require.Equal(t, time.Duration(expected.rawDuration), actual.EndTimestamp().AsTime().Sub(actual.StartTimestamp().AsTime()))
+	require.Equal(t, expected.ID, actual.SpanID().String())
+	require.Equal(t, expected.TraceID, actual.TraceID().String())
+	require.Equal(t, expected.TraceState, actual.TraceState().AsRaw())
+	require.Equal(t, expected.ParentSpanID, actual.ParentSpanID().String())
+	require.Equal(t, expected.Name, actual.Name())
+	require.Equal(t, expected.Kind, actual.Kind().String())
+	require.Equal(t, expected.StartTime.UnixNano(), actual.StartTimestamp().AsTime().UnixNano())
+	require.Equal(t, expected.StatusCode, actual.Status().Code().String())
+	require.Equal(t, expected.StatusMessage, actual.Status().Message())
+	require.Equal(t, time.Duration(expected.RawDuration), actual.EndTimestamp().AsTime().Sub(actual.StartTimestamp().AsTime()))
 
-	requireBoolAttrs(t, expected.boolAttributeKeys, expected.boolAttributeValues, actual.Attributes())
-	requireDoubleAttrs(t, expected.doubleAttributeKeys, expected.doubleAttributeValues, actual.Attributes())
-	requireIntAttrs(t, expected.intAttributeKeys, expected.intAttributeValues, actual.Attributes())
-	requireStrAttrs(t, expected.strAttributeKeys, expected.strAttributeValues, actual.Attributes())
-	requireComplexAttrs(t, expected.complexAttributeKeys, expected.complexAttributeValues, actual.Attributes())
+	requireBoolAttrs(t, expected.BoolAttributeKeys, expected.BoolAttributeValues, actual.Attributes())
+	requireDoubleAttrs(t, expected.DoubleAttributeKeys, expected.DoubleAttributeValues, actual.Attributes())
+	requireIntAttrs(t, expected.IntAttributeKeys, expected.IntAttributeValues, actual.Attributes())
+	requireStrAttrs(t, expected.StrAttributeKeys, expected.StrAttributeValues, actual.Attributes())
+	requireComplexAttrs(t, expected.ComplexAttributeKeys, expected.ComplexAttributeValues, actual.Attributes())
 
-	require.Len(t, expected.eventNames, actual.Events().Len())
+	require.Len(t, expected.EventNames, actual.Events().Len())
 	for i, e := range actual.Events().All() {
-		require.Equal(t, expected.eventNames[i], e.Name())
-		require.Equal(t, expected.eventTimestamps[i].UnixNano(), e.Timestamp().AsTime().UnixNano())
+		require.Equal(t, expected.EventNames[i], e.Name())
+		require.Equal(t, expected.EventTimestamps[i].UnixNano(), e.Timestamp().AsTime().UnixNano())
 
-		requireBoolAttrs(t, expected.eventBoolAttributeKeys[i], expected.eventBoolAttributeValues[i], e.Attributes())
-		requireDoubleAttrs(t, expected.eventDoubleAttributeKeys[i], expected.eventDoubleAttributeValues[i], e.Attributes())
-		requireIntAttrs(t, expected.eventIntAttributeKeys[i], expected.eventIntAttributeValues[i], e.Attributes())
-		requireStrAttrs(t, expected.eventStrAttributeKeys[i], expected.eventStrAttributeValues[i], e.Attributes())
-		requireComplexAttrs(t, expected.eventComplexAttributeKeys[i], expected.eventComplexAttributeValues[i], e.Attributes())
+		requireBoolAttrs(t, expected.EventBoolAttributeKeys[i], expected.EventBoolAttributeValues[i], e.Attributes())
+		requireDoubleAttrs(t, expected.EventDoubleAttributeKeys[i], expected.EventDoubleAttributeValues[i], e.Attributes())
+		requireIntAttrs(t, expected.EventIntAttributeKeys[i], expected.EventIntAttributeValues[i], e.Attributes())
+		requireStrAttrs(t, expected.EventStrAttributeKeys[i], expected.EventStrAttributeValues[i], e.Attributes())
+		requireComplexAttrs(t, expected.EventComplexAttributeKeys[i], expected.EventComplexAttributeValues[i], e.Attributes())
 	}
 
-	require.Len(t, expected.linkSpanIDs, actual.Links().Len())
+	require.Len(t, expected.LinkSpanIDs, actual.Links().Len())
 	for i, l := range actual.Links().All() {
-		require.Equal(t, expected.linkTraceIDs[i], l.TraceID().String())
-		require.Equal(t, expected.linkSpanIDs[i], l.SpanID().String())
-		require.Equal(t, expected.linkTraceStates[i], l.TraceState().AsRaw())
+		require.Equal(t, expected.LinkTraceIDs[i], l.TraceID().String())
+		require.Equal(t, expected.LinkSpanIDs[i], l.SpanID().String())
+		require.Equal(t, expected.LinkTraceStates[i], l.TraceState().AsRaw())
 	}
 }
 
