@@ -118,13 +118,13 @@ func convertSpan(sr *SpanRow) (ptrace.Span, error) {
 		link := span.Links().AppendEmpty()
 		traceID, err := hex.DecodeString(l)
 		if err != nil {
-			jptrace.AddWarnings(span, fmt.Sprintf("failed to decode link trace ID: %s", err.Error()))
+			jptrace.AddWarnings(span, fmt.Sprintf("failed to decode link trace ID: %v", err))
 			continue
 		}
 		link.SetTraceID(pcommon.TraceID(traceID))
 		spanID, err := hex.DecodeString(sr.LinkSpanIDs[i])
 		if err != nil {
-			jptrace.AddWarnings(span, fmt.Sprintf("failed to decode link span ID: %s", err.Error()))
+			jptrace.AddWarnings(span, fmt.Sprintf("failed to decode link span ID: %v", err))
 			continue
 		}
 		link.SetSpanID(pcommon.SpanID(spanID))

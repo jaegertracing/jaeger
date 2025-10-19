@@ -5,50 +5,16 @@ package tracestore
 
 import (
 	"context"
-	"encoding/base64"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
-
-func putAttributes(
-	t *testing.T,
-	attrs pcommon.Map,
-	boolKeys []string, boolValues []bool,
-	doubleKeys []string, doubleValues []float64,
-	intKeys []string, intValues []int64,
-	strKeys []string, strValues []string,
-	complexKeys []string, complexValues []string,
-) {
-	t.Helper()
-	for i := 0; i < len(boolKeys); i++ {
-		attrs.PutBool(boolKeys[i], boolValues[i])
-	}
-	for i := 0; i < len(doubleKeys); i++ {
-		attrs.PutDouble(doubleKeys[i], doubleValues[i])
-	}
-	for i := 0; i < len(intKeys); i++ {
-		attrs.PutInt(intKeys[i], intValues[i])
-	}
-	for i := 0; i < len(strKeys); i++ {
-		attrs.PutStr(strKeys[i], strValues[i])
-	}
-	for i := 0; i < len(complexKeys); i++ {
-		if strings.HasPrefix(complexKeys[i], "@bytes@") {
-			decoded, err := base64.StdEncoding.DecodeString(complexValues[i])
-			require.NoError(t, err)
-			k := strings.TrimPrefix(complexKeys[i], "@bytes@")
-			attrs.PutEmptyBytes(k).FromRaw(decoded)
-		}
-	}
-}
 
 func tracesFromSpanRows(rows []*dbmodel.SpanRow) ptrace.Traces {
 	td := ptrace.NewTraces()
