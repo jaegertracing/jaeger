@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/crossdock/crossdock-go/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
+	"github.com/stretchr/testify/require"
 )
 
 func TestToRow(t *testing.T) {
