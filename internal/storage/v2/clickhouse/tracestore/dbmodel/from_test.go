@@ -163,6 +163,7 @@ func TestFromDBModel_DecodeID(t *testing.T) {
 		})
 	}
 }
+
 func TestPutAttributes_Warnings(t *testing.T) {
 	t.Run("bytes attribute with invalid base64", func(t *testing.T) {
 		span := ptrace.NewSpan()
