@@ -130,15 +130,15 @@ func convertSpan(sr *SpanRow) (ptrace.Span, error) {
 		link.SetSpanID(pcommon.SpanID(spanID))
 		link.TraceState().FromRaw(sr.LinkTraceStates[i])
 
-		putAttributes(
-			link.Attributes(),
-			span,
-			sr.LinkBoolAttributeKeys[i], sr.LinkBoolAttributeValues[i],
-			sr.LinkDoubleAttributeKeys[i], sr.LinkDoubleAttributeValues[i],
-			sr.LinkIntAttributeKeys[i], sr.LinkIntAttributeValues[i],
-			sr.LinkStrAttributeKeys[i], sr.LinkStrAttributeValues[i],
-			sr.LinkComplexAttributeKeys[i], sr.LinkComplexAttributeValues[i],
-		)
+		// putAttributes(
+		// 	link.Attributes(),
+		// 	span,
+		// 	sr.LinkBoolAttributeKeys[i], sr.LinkBoolAttributeValues[i],
+		// 	sr.LinkDoubleAttributeKeys[i], sr.LinkDoubleAttributeValues[i],
+		// 	sr.LinkIntAttributeKeys[i], sr.LinkIntAttributeValues[i],
+		// 	sr.LinkStrAttributeKeys[i], sr.LinkStrAttributeValues[i],
+		// 	sr.LinkComplexAttributeKeys[i], sr.LinkComplexAttributeValues[i],
+		// )
 	}
 
 	return span, nil
