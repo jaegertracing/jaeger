@@ -30,7 +30,7 @@ type SpanRow struct {
 	StartTime                   time.Time
 	StatusCode                  string
 	StatusMessage               string
-	RawDuration                 int64
+	Duration                    int64
 	BoolAttributeKeys           []string
 	BoolAttributeValues         []bool
 	DoubleAttributeKeys         []string
@@ -87,7 +87,7 @@ func ScanRow(rows driver.Rows) (*SpanRow, error) {
 		&sr.StartTime,
 		&sr.StatusCode,
 		&sr.StatusMessage,
-		&sr.RawDuration,
+		&sr.Duration,
 		&sr.BoolAttributeKeys,
 		&sr.BoolAttributeValues,
 		&sr.DoubleAttributeKeys,

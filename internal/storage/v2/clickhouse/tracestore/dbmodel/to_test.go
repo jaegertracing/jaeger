@@ -106,7 +106,7 @@ func createExpectedSpanRow(now time.Time, duration time.Duration) *SpanRow {
 		StartTime:                   now,
 		StatusCode:                  "Ok",
 		StatusMessage:               "test-status-message",
-		RawDuration:                 duration.Nanoseconds(),
+		Duration:                    duration.Nanoseconds(),
 		StrAttributeKeys:            []string{"string_attr"},
 		StrAttributeValues:          []string{"string_value"},
 		IntAttributeKeys:            []string{"int_attr"},

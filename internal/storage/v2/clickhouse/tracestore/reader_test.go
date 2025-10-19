@@ -40,7 +40,7 @@ func scanSpanRowFn() func(dest any, src *dbmodel.SpanRow) error {
 			&src.StartTime,
 			&src.StatusCode,
 			&src.StatusMessage,
-			&src.RawDuration,
+			&src.Duration,
 			&src.BoolAttributeKeys,
 			&src.BoolAttributeValues,
 			&src.DoubleAttributeKeys,

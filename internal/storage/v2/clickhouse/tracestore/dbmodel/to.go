@@ -31,7 +31,7 @@ func ToRow(
 		StartTime:     span.StartTimestamp().AsTime(),
 		StatusCode:    span.Status().Code().String(),
 		StatusMessage: span.Status().Message(),
-		RawDuration:   duration,
+		Duration:      duration,
 		ServiceName:   serviceName.Str(),
 		ScopeName:     scope.Name(),
 		ScopeVersion:  scope.Version(),

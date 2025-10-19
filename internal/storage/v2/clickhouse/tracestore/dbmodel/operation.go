@@ -3,6 +3,7 @@
 
 package dbmodel
 
+// Operation represents a single row in the ClickHouse `operations` table.
 type Operation struct {
 	Name     string `ch:"name"`
 	SpanKind string `ch:"span_kind"`

@@ -3,6 +3,7 @@
 
 package dbmodel
 
+// Service represents a single row in the ClickHouse `services` table.
 type Service struct {
 	Name string `ch:"name"`
 }

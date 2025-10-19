@@ -47,7 +47,7 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 					sr.StartTime,
 					sr.StatusCode,
 					sr.StatusMessage,
-					sr.RawDuration,
+					sr.Duration,
 					sr.ServiceName,
 					sr.ScopeName,
 					sr.ScopeVersion,

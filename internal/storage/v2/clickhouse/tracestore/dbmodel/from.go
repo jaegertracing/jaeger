@@ -17,6 +17,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
+// FromRow converts a ClickHouse stored span row to an OpenTelemetry Traces object.
 func FromRow(storedSpan *SpanRow) ptrace.Traces {
 	trace := ptrace.NewTraces()
 	resourceSpans := trace.ResourceSpans().AppendEmpty()
@@ -79,7 +80,7 @@ func convertSpan(sr *SpanRow) (ptrace.Span, error) {
 	span.TraceState().FromRaw(sr.TraceState)
 	span.SetName(sr.Name)
 	span.SetKind(jptrace.StringToSpanKind(sr.Kind))
-	span.SetEndTimestamp(pcommon.NewTimestampFromTime(sr.StartTime.Add(time.Duration(sr.RawDuration))))
+	span.SetEndTimestamp(pcommon.NewTimestampFromTime(sr.StartTime.Add(time.Duration(sr.Duration))))
 	span.Status().SetCode(jptrace.StringToStatusCode(sr.StatusCode))
 	span.Status().SetMessage(sr.StatusMessage)
 

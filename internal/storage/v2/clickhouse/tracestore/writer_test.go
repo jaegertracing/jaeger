@@ -57,7 +57,7 @@ func TestWriter_Success(t *testing.T) {
 		require.Equal(t, expected.StartTime, row[6])               // StartTimestamp
 		require.Equal(t, expected.StatusCode, row[7])              // Status code
 		require.Equal(t, expected.StatusMessage, row[8])           // Status message
-		require.EqualValues(t, expected.RawDuration, row[9])       // Duration
+		require.EqualValues(t, expected.Duration, row[9])          // Duration
 		require.Equal(t, expected.ServiceName, row[10])            // Service name
 		require.Equal(t, expected.ScopeName, row[11])              // Scope name
 		require.Equal(t, expected.ScopeVersion, row[12])           // Scope version

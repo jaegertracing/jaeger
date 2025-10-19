@@ -55,7 +55,7 @@ func requireSpanEqual(t *testing.T, expected *dbmodel.SpanRow, actual ptrace.Spa
 	require.Equal(t, expected.StartTime.UnixNano(), actual.StartTimestamp().AsTime().UnixNano())
 	require.Equal(t, expected.StatusCode, actual.Status().Code().String())
 	require.Equal(t, expected.StatusMessage, actual.Status().Message())
-	require.Equal(t, time.Duration(expected.RawDuration), actual.EndTimestamp().AsTime().Sub(actual.StartTimestamp().AsTime()))
+	require.Equal(t, time.Duration(expected.Duration), actual.EndTimestamp().AsTime().Sub(actual.StartTimestamp().AsTime()))
 
 	requireBoolAttrs(t, expected.BoolAttributeKeys, expected.BoolAttributeValues, actual.Attributes())
 	requireDoubleAttrs(t, expected.DoubleAttributeKeys, expected.DoubleAttributeValues, actual.Attributes())
