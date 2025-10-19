@@ -20,6 +20,7 @@ import (
 //   - AnyValue_KVListValue: This OTLP type is stored as a JSON-encoded string.
 //     The key for this type will begin with `@kvlist@`.
 type SpanRow struct {
+	// --- Span ---
 	ID                          string
 	TraceID                     string
 	TraceState                  string
