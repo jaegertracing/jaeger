@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
 type Writer struct {
@@ -35,46 +36,46 @@ func (w *Writer) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	for _, rs := range td.ResourceSpans().All() {
 		for _, ss := range rs.ScopeSpans().All() {
 			for _, span := range ss.Spans().All() {
-				sr := spanToRow(rs.Resource(), ss.Scope(), span)
+				sr := dbmodel.ToRow(rs.Resource(), ss.Scope(), span)
 				err = batch.Append(
-					sr.id,
-					sr.traceID,
-					sr.traceState,
-					sr.parentSpanID,
-					sr.name,
-					sr.kind,
-					sr.startTime,
-					sr.statusCode,
-					sr.statusMessage,
-					sr.rawDuration,
-					sr.serviceName,
-					sr.scopeName,
-					sr.scopeVersion,
-					sr.boolAttributeKeys,
-					sr.boolAttributeValues,
-					sr.doubleAttributeKeys,
-					sr.doubleAttributeValues,
-					sr.intAttributeKeys,
-					sr.intAttributeValues,
-					sr.strAttributeKeys,
-					sr.strAttributeValues,
-					sr.complexAttributeKeys,
-					sr.complexAttributeValues,
-					sr.eventNames,
-					sr.eventTimestamps,
-					toTuple(sr.eventBoolAttributeKeys, sr.eventBoolAttributeValues),
-					toTuple(sr.eventDoubleAttributeKeys, sr.eventDoubleAttributeValues),
-					toTuple(sr.eventIntAttributeKeys, sr.eventIntAttributeValues),
-					toTuple(sr.eventStrAttributeKeys, sr.eventStrAttributeValues),
-					toTuple(sr.eventComplexAttributeKeys, sr.eventComplexAttributeValues),
-					sr.linkTraceIDs,
-					sr.linkSpanIDs,
-					sr.linkTraceStates,
-					toTuple(sr.linkBoolAttributeKeys, sr.linkBoolAttributeValues),
-					toTuple(sr.linkDoubleAttributeKeys, sr.linkDoubleAttributeValues),
-					toTuple(sr.linkIntAttributeKeys, sr.linkIntAttributeValues),
-					toTuple(sr.linkStrAttributeKeys, sr.linkStrAttributeValues),
-					toTuple(sr.linkComplexAttributeKeys, sr.linkComplexAttributeValues),
+					sr.ID,
+					sr.TraceID,
+					sr.TraceState,
+					sr.ParentSpanID,
+					sr.Name,
+					sr.Kind,
+					sr.StartTime,
+					sr.StatusCode,
+					sr.StatusMessage,
+					sr.RawDuration,
+					sr.ServiceName,
+					sr.ScopeName,
+					sr.ScopeVersion,
+					sr.BoolAttributeKeys,
+					sr.BoolAttributeValues,
+					sr.DoubleAttributeKeys,
+					sr.DoubleAttributeValues,
+					sr.IntAttributeKeys,
+					sr.IntAttributeValues,
+					sr.StrAttributeKeys,
+					sr.StrAttributeValues,
+					sr.ComplexAttributeKeys,
+					sr.ComplexAttributeValues,
+					sr.EventNames,
+					sr.EventTimestamps,
+					toTuple(sr.EventBoolAttributeKeys, sr.EventBoolAttributeValues),
+					toTuple(sr.EventDoubleAttributeKeys, sr.EventDoubleAttributeValues),
+					toTuple(sr.EventIntAttributeKeys, sr.EventIntAttributeValues),
+					toTuple(sr.EventStrAttributeKeys, sr.EventStrAttributeValues),
+					toTuple(sr.EventComplexAttributeKeys, sr.EventComplexAttributeValues),
+					sr.LinkTraceIDs,
+					sr.LinkSpanIDs,
+					sr.LinkTraceStates,
+					toTuple(sr.LinkBoolAttributeKeys, sr.LinkBoolAttributeValues),
+					toTuple(sr.LinkDoubleAttributeKeys, sr.LinkDoubleAttributeValues),
+					toTuple(sr.LinkIntAttributeKeys, sr.LinkIntAttributeValues),
+					toTuple(sr.LinkStrAttributeKeys, sr.LinkStrAttributeValues),
+					toTuple(sr.LinkComplexAttributeKeys, sr.LinkComplexAttributeValues),
 				)
 				if err != nil {
 					return fmt.Errorf("failed to append span to batch: %w", err)
