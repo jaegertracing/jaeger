@@ -87,11 +87,11 @@ func convertSpan(sr *SpanRow) (ptrace.Span, error) {
 	putAttributes(
 		span.Attributes(),
 		span,
-		sr.BoolAttributeKeys, sr.BoolAttributeValues,
-		sr.DoubleAttributeKeys, sr.DoubleAttributeValues,
-		sr.IntAttributeKeys, sr.IntAttributeValues,
-		sr.StrAttributeKeys, sr.StrAttributeValues,
-		sr.ComplexAttributeKeys, sr.ComplexAttributeValues,
+		sr.Attributes.BoolKeys, sr.Attributes.BoolValues,
+		sr.Attributes.DoubleKeys, sr.Attributes.DoubleValues,
+		sr.Attributes.IntKeys, sr.Attributes.IntValues,
+		sr.Attributes.StrKeys, sr.Attributes.StrValues,
+		sr.Attributes.ComplexKeys, sr.Attributes.ComplexValues,
 	)
 
 	for i, e := range sr.EventNames {
@@ -101,11 +101,11 @@ func convertSpan(sr *SpanRow) (ptrace.Span, error) {
 		putAttributes(
 			event.Attributes(),
 			span,
-			sr.EventBoolAttributeKeys[i], sr.EventBoolAttributeValues[i],
-			sr.EventDoubleAttributeKeys[i], sr.EventDoubleAttributeValues[i],
-			sr.EventIntAttributeKeys[i], sr.EventIntAttributeValues[i],
-			sr.EventStrAttributeKeys[i], sr.EventStrAttributeValues[i],
-			sr.EventComplexAttributeKeys[i], sr.EventComplexAttributeValues[i],
+			sr.EventAttributes.BoolKeys[i], sr.EventAttributes.BoolValues[i],
+			sr.EventAttributes.DoubleKeys[i], sr.EventAttributes.DoubleValues[i],
+			sr.EventAttributes.IntKeys[i], sr.EventAttributes.IntValues[i],
+			sr.EventAttributes.StrKeys[i], sr.EventAttributes.StrValues[i],
+			sr.EventAttributes.ComplexKeys[i], sr.EventAttributes.ComplexValues[i],
 		)
 	}
 
@@ -128,11 +128,11 @@ func convertSpan(sr *SpanRow) (ptrace.Span, error) {
 		putAttributes(
 			link.Attributes(),
 			span,
-			sr.LinkBoolAttributeKeys[i], sr.LinkBoolAttributeValues[i],
-			sr.LinkDoubleAttributeKeys[i], sr.LinkDoubleAttributeValues[i],
-			sr.LinkIntAttributeKeys[i], sr.LinkIntAttributeValues[i],
-			sr.LinkStrAttributeKeys[i], sr.LinkStrAttributeValues[i],
-			sr.LinkComplexAttributeKeys[i], sr.LinkComplexAttributeValues[i],
+			sr.LinkAttributes.BoolKeys[i], sr.LinkAttributes.BoolValues[i],
+			sr.LinkAttributes.DoubleKeys[i], sr.LinkAttributes.DoubleValues[i],
+			sr.LinkAttributes.IntKeys[i], sr.LinkAttributes.IntValues[i],
+			sr.LinkAttributes.StrKeys[i], sr.LinkAttributes.StrValues[i],
+			sr.LinkAttributes.ComplexKeys[i], sr.LinkAttributes.ComplexValues[i],
 		)
 	}
 
