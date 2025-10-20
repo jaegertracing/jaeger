@@ -48,72 +48,72 @@ func TestWriter_Success(t *testing.T) {
 	for i, expected := range multipleSpans {
 		row := conn.batch.appended[i]
 
-		require.Equal(t, expected.ID, row[0])                      // SpanID
-		require.Equal(t, expected.TraceID, row[1])                 // TraceID
-		require.Equal(t, expected.TraceState, row[2])              // TraceState
-		require.Equal(t, expected.ParentSpanID, row[3])            // ParentSpanID
-		require.Equal(t, expected.Name, row[4])                    // Name
-		require.Equal(t, strings.ToLower(expected.Kind), row[5])   // Kind
-		require.Equal(t, expected.StartTime, row[6])               // StartTimestamp
-		require.Equal(t, expected.StatusCode, row[7])              // Status code
-		require.Equal(t, expected.StatusMessage, row[8])           // Status message
-		require.EqualValues(t, expected.Duration, row[9])          // Duration
-		require.Equal(t, expected.ServiceName, row[10])            // Service name
-		require.Equal(t, expected.ScopeName, row[11])              // Scope name
-		require.Equal(t, expected.ScopeVersion, row[12])           // Scope version
-		require.Equal(t, expected.BoolAttributeKeys, row[13])      // Bool attribute keys
-		require.Equal(t, expected.BoolAttributeValues, row[14])    // Bool attribute values
-		require.Equal(t, expected.DoubleAttributeKeys, row[15])    // Double attribute keys
-		require.Equal(t, expected.DoubleAttributeValues, row[16])  // Double attribute values
-		require.Equal(t, expected.IntAttributeKeys, row[17])       // Int attribute keys
-		require.Equal(t, expected.IntAttributeValues, row[18])     // Int attribute values
-		require.Equal(t, expected.StrAttributeKeys, row[19])       // Str attribute keys
-		require.Equal(t, expected.StrAttributeValues, row[20])     // Str attribute values
-		require.Equal(t, expected.ComplexAttributeKeys, row[21])   // Complex attribute keys
-		require.Equal(t, expected.ComplexAttributeValues, row[22]) // Complex attribute values
-		require.Equal(t, expected.EventNames, row[23])             // Event names
-		require.Equal(t, expected.EventTimestamps, row[24])        // Event timestamps
+		require.Equal(t, expected.ID, row[0])                        // SpanID
+		require.Equal(t, expected.TraceID, row[1])                   // TraceID
+		require.Equal(t, expected.TraceState, row[2])                // TraceState
+		require.Equal(t, expected.ParentSpanID, row[3])              // ParentSpanID
+		require.Equal(t, expected.Name, row[4])                      // Name
+		require.Equal(t, strings.ToLower(expected.Kind), row[5])     // Kind
+		require.Equal(t, expected.StartTime, row[6])                 // StartTimestamp
+		require.Equal(t, expected.StatusCode, row[7])                // Status code
+		require.Equal(t, expected.StatusMessage, row[8])             // Status message
+		require.EqualValues(t, expected.Duration, row[9])            // Duration
+		require.Equal(t, expected.ServiceName, row[10])              // Service name
+		require.Equal(t, expected.ScopeName, row[11])                // Scope name
+		require.Equal(t, expected.ScopeVersion, row[12])             // Scope version
+		require.Equal(t, expected.Attributes.BoolKeys, row[13])      // Bool attribute keys
+		require.Equal(t, expected.Attributes.BoolValues, row[14])    // Bool attribute values
+		require.Equal(t, expected.Attributes.DoubleKeys, row[15])    // Double attribute keys
+		require.Equal(t, expected.Attributes.DoubleValues, row[16])  // Double attribute values
+		require.Equal(t, expected.Attributes.IntKeys, row[17])       // Int attribute keys
+		require.Equal(t, expected.Attributes.IntValues, row[18])     // Int attribute values
+		require.Equal(t, expected.Attributes.StrKeys, row[19])       // Str attribute keys
+		require.Equal(t, expected.Attributes.StrValues, row[20])     // Str attribute values
+		require.Equal(t, expected.Attributes.ComplexKeys, row[21])   // Complex attribute keys
+		require.Equal(t, expected.Attributes.ComplexValues, row[22]) // Complex attribute values
+		require.Equal(t, expected.EventNames, row[23])               // Event names
+		require.Equal(t, expected.EventTimestamps, row[24])          // Event timestamps
 		require.Equal(t,
-			toTuple(expected.EventBoolAttributeKeys, expected.EventBoolAttributeValues),
+			toTuple(expected.EventAttributes.BoolKeys, expected.EventAttributes.BoolValues),
 			row[25],
 		) // Event bool attributes
 		require.Equal(t,
-			toTuple(expected.EventDoubleAttributeKeys, expected.EventDoubleAttributeValues),
+			toTuple(expected.EventAttributes.DoubleKeys, expected.EventAttributes.DoubleValues),
 			row[26],
 		) // Event double attributes
 		require.Equal(t,
-			toTuple(expected.EventIntAttributeKeys, expected.EventIntAttributeValues),
+			toTuple(expected.EventAttributes.IntKeys, expected.EventAttributes.IntValues),
 			row[27],
 		) // Event int attributes
 		require.Equal(t,
-			toTuple(expected.EventStrAttributeKeys, expected.EventStrAttributeValues),
+			toTuple(expected.EventAttributes.StrKeys, expected.EventAttributes.StrValues),
 			row[28],
 		) // Event str attributes
 		require.Equal(t,
-			toTuple(expected.EventComplexAttributeKeys, expected.EventComplexAttributeValues),
+			toTuple(expected.EventAttributes.ComplexKeys, expected.EventAttributes.ComplexValues),
 			row[29],
 		) // Event complex attributes
 		require.Equal(t, expected.LinkTraceIDs, row[30])    // Link TraceIDs
 		require.Equal(t, expected.LinkSpanIDs, row[31])     // Link SpanIDs
 		require.Equal(t, expected.LinkTraceStates, row[32]) // Link TraceStates
 		require.Equal(t,
-			toTuple(expected.LinkBoolAttributeKeys, expected.LinkBoolAttributeValues),
+			toTuple(expected.LinkAttributes.BoolKeys, expected.LinkAttributes.BoolValues),
 			row[33],
 		) // Link bool attributes
 		require.Equal(t,
-			toTuple(expected.LinkDoubleAttributeKeys, expected.LinkDoubleAttributeValues),
+			toTuple(expected.LinkAttributes.DoubleKeys, expected.LinkAttributes.DoubleValues),
 			row[34],
 		) // Link double attributes
 		require.Equal(t,
-			toTuple(expected.LinkIntAttributeKeys, expected.LinkIntAttributeValues),
+			toTuple(expected.LinkAttributes.IntKeys, expected.LinkAttributes.IntValues),
 			row[35],
 		) // Link int attributes
 		require.Equal(t,
-			toTuple(expected.LinkStrAttributeKeys, expected.LinkStrAttributeValues),
+			toTuple(expected.LinkAttributes.StrKeys, expected.LinkAttributes.StrValues),
 			row[36],
 		) // Link str attributes
 		require.Equal(t,
-			toTuple(expected.LinkComplexAttributeKeys, expected.LinkComplexAttributeValues),
+			toTuple(expected.LinkAttributes.ComplexKeys, expected.LinkAttributes.ComplexValues),
 			row[37],
 		) // Link complex attributes
 	}
