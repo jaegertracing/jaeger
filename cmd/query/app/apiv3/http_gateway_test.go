@@ -392,7 +392,7 @@ func TestHTTPGatewayGetOperationsErrors(t *testing.T) {
 	assert.Contains(t, w.Body.String(), assert.AnError.Error())
 }
 
-// TestHTTPGatewayStreamingResponse verifies that chunked encoding is used for streaming responses
+// TestHTTPGatewayStreamingResponse verifies that streaming produces valid JSON array
 func TestHTTPGatewayStreamingResponse(t *testing.T) {
 	gw := setupHTTPGatewayNoServer(t, "")
 
@@ -424,12 +424,17 @@ func TestHTTPGatewayStreamingResponse(t *testing.T) {
 	gw.router.ServeHTTP(w, r)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-
 	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
 
-	assert.Equal(t, "identity", w.Header().Get("Content-Encoding"))
-
 	body := w.Body.String()
+
+	// Verify response is valid JSON array
+	var jsonArray []map[string]any
+	err = json.Unmarshal([]byte(body), &jsonArray)
+	require.NoError(t, err, "Response should be valid JSON array")
+
+	// We should have individual trace objects in the array
+	assert.GreaterOrEqual(t, len(jsonArray), 1, "Should have at least 1 trace")
 	assert.Contains(t, body, "foobar")      // First trace span name
 	assert.Contains(t, body, "second-span") // Second trace span name
 }
@@ -467,6 +472,12 @@ func TestHTTPGatewayStreamingMultipleBatches(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	body := w.Body.String()
+
+	// Verify response is valid JSON
+	var jsonArray []map[string]any
+	err = json.Unmarshal([]byte(body), &jsonArray)
+	require.NoError(t, err, "Response should be valid JSON array")
+
 	assert.Contains(t, body, "foobar")
 	assert.Contains(t, body, "batch2-span")
 }
@@ -574,7 +585,14 @@ func TestHTTPGatewayStreamingWithEmptyBatches(t *testing.T) {
 	gw.router.ServeHTTP(w, r)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Contains(t, w.Body.String(), "foobar")
+
+	body := w.Body.String()
+	// Verify response is valid JSON
+	var jsonArray []map[string]any
+	err = json.Unmarshal([]byte(body), &jsonArray)
+	require.NoError(t, err, "Response should be valid JSON array")
+
+	assert.Contains(t, body, "foobar")
 }
 
 // TestHTTPGatewayStreamingNoTracesFound tests 404 when no traces exist
@@ -615,10 +633,17 @@ func TestHTTPGatewayFindTracesStreaming(t *testing.T) {
 	gw.router.ServeHTTP(w, r)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Contains(t, w.Body.String(), "foobar")
+
+	body := w.Body.String()
+	// Verify response is valid JSON
+	var jsonArray []map[string]any
+	err = json.Unmarshal([]byte(body), &jsonArray)
+	require.NoError(t, err, "Response should be valid JSON array")
+
+	assert.Contains(t, body, "foobar")
 }
 
-// TestHTTPGatewayStreamingMarshalError tests handling of marshal errors during streaming
+// TestHTTPGatewayStreamingMarshalError tests handling of write errors during streaming
 func TestHTTPGatewayStreamingMarshalError(t *testing.T) {
 	gw := setupHTTPGatewayNoServer(t, "")
 
@@ -647,15 +672,15 @@ func TestHTTPGatewayStreamingMarshalError(t *testing.T) {
 	gw.router = &mux.Router{}
 	hgw.RegisterRoutes(gw.router)
 
-	// Use a ResponseWriter that fails immediately
+	// Use a ResponseWriter that fails immediately on first write
 	w := &failingWriter{
 		ResponseRecorder: httptest.NewRecorder(),
 		failImmediately:  true,
 	}
 	gw.router.ServeHTTP(w, r)
 
-	// Should log the marshal error
-	assert.Contains(t, log.String(), "Failed to marshal trace chunk")
+	// Should log error for failing to write opening bracket (first write operation)
+	assert.Contains(t, log.String(), "Failed to write opening bracket")
 }
 
 // failingWriter is a ResponseWriter that simulates write failures
@@ -709,8 +734,15 @@ func TestHTTPGatewayStreamingFirstChunkWrite(t *testing.T) {
 	gw.router.ServeHTTP(w, r)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Contains(t, w.Body.String(), "foobar")
-	assert.Contains(t, w.Body.String(), "span2")
+
+	body := w.Body.String()
+	// Verify response is valid JSON
+	var jsonArray []map[string]any
+	err = json.Unmarshal([]byte(body), &jsonArray)
+	require.NoError(t, err, "Response should be valid JSON array")
+
+	assert.Contains(t, body, "foobar")
+	assert.Contains(t, body, "span2")
 }
 
 // TestHTTPGatewayStreamingErrorBeforeFirstChunk tests error handling before streaming starts
@@ -784,8 +816,8 @@ func TestHTTPGatewayStreamingFallbackNoTraces(t *testing.T) {
 	assert.Contains(t, w.ResponseRecorder.Body.String(), "No traces found")
 }
 
-// TestHTTPGatewayStreamingClientSideParsing demonstrates how clients should parse
-// NDJSON (newline-delimited JSON) responses from the streaming API
+// TestHTTPGatewayStreamingClientSideParsing verifies that the streaming response
+// is valid JSON that clients can parse normally
 func TestHTTPGatewayStreamingClientSideParsing(t *testing.T) {
 	gw := setupHTTPGateway(t, "")
 
@@ -826,8 +858,6 @@ func TestHTTPGatewayStreamingClientSideParsing(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
-	assert.Equal(t, "identity", resp.Header.Get("Content-Encoding"), "Should use streaming path")
-
 	body := make([]byte, 0)
 	buf := make([]byte, 1024)
 	for {
@@ -842,47 +872,22 @@ func TestHTTPGatewayStreamingClientSideParsing(t *testing.T) {
 
 	bodyStr := string(body)
 
-	newlineCount := 0
-	for _, b := range body {
-		if b == '\n' {
-			newlineCount++
-		}
+	// The response MUST be valid JSON that can be parsed as a whole
+	var jsonArray []map[string]any
+	err = json.Unmarshal(body, &jsonArray)
+	require.NoError(t, err, "Response should be valid JSON array that can be parsed")
+
+	// Verify we got multiple trace results
+	assert.GreaterOrEqual(t, len(jsonArray), 3, "Should have at least 3 trace objects in array")
+
+	// Each element should have a "result" field
+	for i, obj := range jsonArray {
+		result, hasResult := obj["result"]
+		assert.True(t, hasResult, "Element %d should have a 'result' field", i)
+		assert.NotNil(t, result, "Element %d result should not be nil", i)
 	}
 
-	if newlineCount > 1 {
-		var combinedObj map[string]any
-		err = json.Unmarshal(body, &combinedObj)
-		require.Error(t, err, "Combined response with multiple chunks should NOT be valid JSON - it's NDJSON format")
-	}
-
-	lines := 0
-	currentPos := 0
-	validChunks := []map[string]any{}
-
-	for i := 0; i < len(body); i++ {
-		if body[i] == '\n' {
-			line := body[currentPos:i]
-			if len(line) > 0 {
-				// Each individual line MUST be valid JSON
-				var jsonObj map[string]any
-				err := json.Unmarshal(line, &jsonObj)
-				require.NoError(t, err, "Each line should be valid JSON independently")
-
-				// Verify it has the expected structure with a "result" field
-				result, hasResult := jsonObj["result"]
-				assert.True(t, hasResult, "Each chunk should have a 'result' field")
-				assert.NotNil(t, result, "Result should not be nil")
-
-				validChunks = append(validChunks, jsonObj)
-				lines++
-			}
-			currentPos = i + 1
-		}
-	}
-
-	assert.GreaterOrEqual(t, lines, 1, "Should receive at least 1 NDJSON line")
-	assert.GreaterOrEqual(t, len(validChunks), 1, "Should have parsed at least 1 valid chunk")
-
+	// Verify all traces are present in the response
 	assert.Contains(t, bodyStr, "foobar", "Should contain first trace")
 	assert.Contains(t, bodyStr, "client-test-span", "Should contain second trace")
 	assert.Contains(t, bodyStr, "third-span", "Should contain third trace")

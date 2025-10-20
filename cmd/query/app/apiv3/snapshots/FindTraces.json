@@ -1,25 +1,27 @@
-{
-  "result": {
-    "resourceSpans": [
-      {
-        "resource": {},
-        "scopeSpans": [
-          {
-            "scope": {},
-            "spans": [
-              {
-                "kind": 2,
-                "name": "foobar",
-                "spanId": "0000000000000002",
-                "status": {
-                  "code": 2
-                },
-                "traceId": "00000000000000000000000000000001"
-              }
-            ]
-          }
-        ]
-      }
-    ]
+[
+  {
+    "result": {
+      "resourceSpans": [
+        {
+          "resource": {},
+          "scopeSpans": [
+            {
+              "scope": {},
+              "spans": [
+                {
+                  "kind": 2,
+                  "name": "foobar",
+                  "spanId": "0000000000000002",
+                  "status": {
+                    "code": 2
+                  },
+                  "traceId": "00000000000000000000000000000001"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
   }
-}
+]

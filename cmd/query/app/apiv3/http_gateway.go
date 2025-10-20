@@ -159,15 +159,14 @@ func (h *HTTPGateway) streamTraces(tracesIter func(yield func([]ptrace.Traces, e
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("Content-Encoding", "identity")
 
 	tracesFound := false
-	firstChunk := true
 	hasError := false
+	headerWritten := false
 
 	tracesIter(func(traces []ptrace.Traces, err error) bool {
 		if err != nil {
-			if firstChunk {
+			if !headerWritten {
 				h.tryHandleError(w, err, http.StatusInternalServerError)
 			} else {
 				h.Logger.Error("Error while streaming traces", zap.Error(err))
@@ -183,24 +182,38 @@ func (h *HTTPGateway) streamTraces(tracesIter func(yield func([]ptrace.Traces, e
 		tracesFound = true
 
 		for _, td := range traces {
-			tracesData := jptrace.TracesData(td)
+			// Combine all resource spans into a single trace response
+			combinedTrace := ptrace.NewTraces()
+			resources := td.ResourceSpans()
+			for i := 0; i < resources.Len(); i++ {
+				resource := resources.At(i)
+				resource.CopyTo(combinedTrace.ResourceSpans().AppendEmpty())
+			}
+
+			tracesData := jptrace.TracesData(combinedTrace)
 			response := &api_v3.GRPCGatewayWrapper{
 				Result: &tracesData,
 			}
 
-			if firstChunk {
+			if !headerWritten {
 				w.WriteHeader(http.StatusOK)
-				firstChunk = false
+				// Write opening bracket for JSON array
+				if _, err := w.Write([]byte("[")); err != nil {
+					h.Logger.Error("Failed to write opening bracket", zap.Error(err))
+					return false
+				}
+				headerWritten = true
+			} else {
+				// Write comma separator between array elements
+				if _, err := w.Write([]byte(",")); err != nil {
+					h.Logger.Error("Failed to write comma separator", zap.Error(err))
+					return false
+				}
 			}
 
 			marshaler := jsonpb.Marshaler{}
 			if err := marshaler.Marshal(w, response); err != nil {
 				h.Logger.Error("Failed to marshal trace chunk", zap.Error(err))
-				return false
-			}
-
-			if _, err := w.Write([]byte("\n")); err != nil {
-				h.Logger.Error("Failed to write chunk separator", zap.Error(err))
 				return false
 			}
 
@@ -219,6 +232,15 @@ func (h *HTTPGateway) streamTraces(tracesIter func(yield func([]ptrace.Traces, e
 		}
 		resp, _ := json.Marshal(&errorResponse)
 		http.Error(w, string(resp), http.StatusNotFound)
+		return
+	}
+
+	if headerWritten {
+		// Write closing bracket for JSON array
+		if _, err := w.Write([]byte("]")); err != nil {
+			h.Logger.Error("Failed to write closing bracket", zap.Error(err))
+		}
+		flusher.Flush()
 	}
 }
 

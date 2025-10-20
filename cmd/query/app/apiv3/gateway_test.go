@@ -166,8 +166,13 @@ func (gw *testGateway) getTracesAndVerify(t *testing.T, url string, expectedTrac
 	require.Equal(t, http.StatusOK, statusCode, "response=%s", string(body))
 	body = gw.verifySnapshot(t, body)
 
+	var jsonArray []json.RawMessage
+	require.NoError(t, json.Unmarshal(body, &jsonArray), "response should be valid JSON array")
+	require.NotEmpty(t, jsonArray, "response array should not be empty")
+
 	var response api_v3.GRPCGatewayWrapper
-	parseResponse(t, body, &response)
+	parseResponse(t, jsonArray[0], &response)
+
 	td := response.Result.ToTraces()
 	assert.Equal(t, 1, td.SpanCount())
 	traceID := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
