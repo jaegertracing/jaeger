@@ -33,8 +33,12 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
+	"github.com/jaegertracing/jaeger/internal/distributedlock"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
+	"github.com/jaegertracing/jaeger/internal/storage/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
@@ -210,6 +214,105 @@ func TestStartAdaptiveStrategyProviderErrors(t *testing.T) {
 	}
 	err := ext.startAdaptiveStrategyProvider(host)
 	require.ErrorContains(t, err, "failed to obtain sampling store factory")
+}
+
+func TestStartAdaptiveStrategyProviderOtherErrors(t *testing.T) {
+	tests := map[string]struct {
+		request       func(t *testing.T) error
+		requiredError string
+	}{
+		"failed to create the sampling store": {
+			request: func(t *testing.T) error {
+				failingFactory := &mockFailingSamplingFactory{}
+				mockExt := &mockStorageExt{factories: map[string]interface{}{"foobar": failingFactory}}
+
+				host := storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, mockExt)
+
+				ext := &rsExtension{
+					cfg: &Config{
+						Adaptive: &AdaptiveConfig{
+							SamplingStore: "foobar",
+						},
+					},
+				}
+				return ext.startAdaptiveStrategyProvider(host)
+			},
+			requiredError: "failed to create the sampling store",
+		},
+		"failed to create the distributed lock": {
+			request: func(t *testing.T) error {
+				failingFactory := &mockFailingLockSamplingFactory{}
+				mockExt := &mockStorageExt{factories: map[string]interface{}{"foobar": failingFactory}}
+
+				host := storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, mockExt)
+
+				ext := &rsExtension{
+					cfg: &Config{
+						Adaptive: &AdaptiveConfig{
+							SamplingStore: "foobar",
+						},
+					},
+				}
+				return ext.startAdaptiveStrategyProvider(host)
+			},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := test.request(t)
+			require.ErrorContains(t, err, test.requiredError)
+		})
+	}
+}
+
+// mockFailingSamplingFactory implements tracestore.Factory
+type mockFailingSamplingFactory struct{}
+
+func (*mockFailingSamplingFactory) CreateTraceReader() (tracestore.Reader, error) { return nil, nil }
+func (*mockFailingSamplingFactory) CreateTraceWriter() (tracestore.Writer, error) { return nil, nil }
+
+func (*mockFailingSamplingFactory) CreateLock() (distributedlock.Lock, error) { return nil, nil }
+func (*mockFailingSamplingFactory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
+	return nil, errors.New("create sampling store failed")
+}
+
+// mockFailingLockSamplingFactory implements tracestore.Factory
+type mockFailingLockSamplingFactory struct{}
+
+func (*mockFailingLockSamplingFactory) CreateTraceReader() (tracestore.Reader, error) {
+	return nil, nil
+}
+func (*mockFailingLockSamplingFactory) CreateTraceWriter() (tracestore.Writer, error) {
+	return nil, nil
+}
+func (*mockFailingLockSamplingFactory) CreateLock() (distributedlock.Lock, error) {
+	return nil, errors.New("create distributed lock failed")
+}
+func (*mockFailingLockSamplingFactory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
+	return memory.NewSamplingStore(maxBuckets), nil
+}
+
+// mockStorageExt is a minimal implementation of jaegerstorage.Extension
+// that returns factories from a map.
+type mockStorageExt struct {
+	factories map[string]interface{}
+}
+
+func (m *mockStorageExt) Start(context.Context, component.Host) error { return nil }
+func (m *mockStorageExt) Shutdown(context.Context) error              { return nil }
+
+func (m *mockStorageExt) TraceStorageFactory(name string) (tracestore.Factory, bool) {
+	f, ok := m.factories[name]
+	if !ok {
+		return nil, false
+	}
+	tf, ok := f.(tracestore.Factory)
+	return tf, ok
+}
+
+func (m *mockStorageExt) MetricStorageFactory(name string) (storage.MetricStoreFactory, bool) {
+	return nil, false
 }
 
 func TestGetAdaptiveSamplingComponents(t *testing.T) {
