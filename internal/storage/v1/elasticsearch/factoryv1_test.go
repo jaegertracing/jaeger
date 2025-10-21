@@ -119,7 +119,7 @@ func TestFactoryInitializeErr(t *testing.T) {
 				Servers:            []string{"http://invalid-host-name:9200"},
 				DisableHealthCheck: true,
 			}}}},
-			expectedErr: "no such host",
+			expectedErr: "failed to create Elasticsearch client",
 		},
 	}
 	for _, test := range tests {
