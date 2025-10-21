@@ -318,8 +318,9 @@ func TestESStorageFactoryWithConfig(t *testing.T) {
 func TestESStorageFactoryWithConfigError(t *testing.T) {
 	t.Parallel()
 	cfg := escfg.Configuration{
-		Servers:  []string{"http://127.0.0.1:65535"},
-		LogLevel: "error",
+		Servers:            []string{"http://invalid-host-name:65535"},
+		DisableHealthCheck: true,
+		LogLevel:           "error",
 	}
 	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop())
 	require.ErrorContains(t, err, "failed to create Elasticsearch client")
