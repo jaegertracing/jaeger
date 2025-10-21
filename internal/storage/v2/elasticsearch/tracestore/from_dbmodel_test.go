@@ -882,8 +882,8 @@ func BenchmarkProtoBatchToInternalTraces(b *testing.B) {
 	err = json.Unmarshal(data, &dbSpan)
 	require.NoError(b, err)
 	jb := []dbmodel.Span{dbSpan}
-	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
+
+	for b.Loop() {
 		_, err := FromDBModel(jb)
 		assert.NoError(b, err)
 	}
