@@ -4,7 +4,6 @@
 package dbmodel
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"testing"
 
@@ -16,9 +15,9 @@ import (
 )
 
 func TestFromDBModel_Fixtures(t *testing.T) {
-	dbTrace := jsonToDBModel(t, "./fixtures/dbmodel.json")
-	expected := jsonToPtrace(t, "./fixtures/ptrace.json")
-	actual := FromDBModel(dbTrace)
+	dbTrace := jsonToDBModel(t, "./testdata/dbmodel.json")
+	expected := jsonToPtrace(t, "./testdata/ptrace.json")
+	actual := FromRow(dbTrace)
 
 	require.Equal(t, expected.ResourceSpans().Len(), actual.ResourceSpans().Len(), "ResourceSpans count mismatch")
 	if actual.ResourceSpans().Len() == 0 {
@@ -103,7 +102,92 @@ func TestFromDBModel_Fixtures(t *testing.T) {
 	})
 }
 
-func jsonToDBModel(t *testing.T, filename string) (m Span) {
+func TestFromDBModel_DecodeID(t *testing.T) {
+	tests := []struct {
+		name string
+		arg  *SpanRow
+		want string
+	}{
+		{
+			name: "decode span trace id failed",
+			arg: &SpanRow{
+				TraceID: "0x",
+			},
+			want: "failed to decode trace ID: encoding/hex: invalid byte: U+0078 'x'",
+		},
+		{
+			name: "decode span id failed",
+			arg: &SpanRow{
+				TraceID: "00010001000100010001000100010001",
+				ID:      "0x",
+			},
+			want: "failed to decode span ID: encoding/hex: invalid byte: U+0078 'x'",
+		},
+		{
+			name: "decode span parent id failed",
+			arg: &SpanRow{
+				TraceID:      "00010001000100010001000100010001",
+				ID:           "0001000100010001",
+				ParentSpanID: "0x",
+			},
+			want: "failed to decode parent span ID: encoding/hex: invalid byte: U+0078 'x'",
+		},
+		{
+			name: "decode link trace id failed",
+			arg: &SpanRow{
+				TraceID:      "00010001000100010001000100010001",
+				ID:           "0001000100010001",
+				ParentSpanID: "0001000100010001",
+				LinkTraceIDs: []string{"0x"},
+			},
+			want: "failed to decode link trace ID: encoding/hex: invalid byte: U+0078 'x'",
+		},
+		{
+			name: "decode link span id failed",
+			arg: &SpanRow{
+				TraceID:      "00010001000100010001000100010001",
+				ID:           "0001000100010001",
+				ParentSpanID: "0001000100010001",
+				LinkTraceIDs: []string{"00010001000100010001000100010001"},
+				LinkSpanIDs:  []string{"0x"},
+			},
+			want: "failed to decode link span ID: encoding/hex: invalid byte: U+0078 'x'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			trace := FromRow(tt.arg)
+			span := trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+			require.Contains(t, jptrace.GetWarnings(span), tt.want)
+		})
+	}
+}
+
+func TestPutAttributes_Warnings(t *testing.T) {
+	t.Run("bytes attribute with invalid base64", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		attributes := pcommon.NewMap()
+
+		putAttributes(
+			attributes,
+			span,
+			nil, nil,
+			nil, nil,
+			nil, nil,
+			nil, nil,
+			[]string{"@bytes@bytes-key"}, []string{"invalid-base64"},
+		)
+
+		_, ok := attributes.Get("bytes-key")
+		require.False(t, ok)
+		warnings := jptrace.GetWarnings(span)
+		require.Len(t, warnings, 1)
+		require.Contains(t, warnings[0], "failed to decode bytes attribute \"@bytes@bytes-key\"")
+	})
+}
+
+func jsonToDBModel(t *testing.T, filename string) (m *SpanRow) {
 	traceBytes := readJSONBytes(t, filename)
 	err := json.Unmarshal(traceBytes, &m)
 	require.NoError(t, err, "Failed to read file %s", filename)
@@ -115,148 +199,4 @@ func jsonToPtrace(t *testing.T, filename string) (trace ptrace.Traces) {
 	trace, err := unMarshaler.UnmarshalTraces(readJSONBytes(t, filename))
 	require.NoError(t, err, "Failed to unmarshal trace with %s", filename)
 	return trace
-}
-
-func TestFromDBModel_DecodeID(t *testing.T) {
-	tests := []struct {
-		name string
-		arg  Span
-		want string
-	}{
-		{
-			name: "decode span trace id failed",
-			arg: Span{
-				TraceID: "0x",
-			},
-			want: "failed to decode trace ID: encoding/hex: invalid byte: U+0078 'x'",
-		},
-		{
-			name: "decode span id failed",
-			arg: Span{
-				TraceID: "00010001000100010001000100010001",
-				ID:      "0x",
-			},
-			want: "failed to decode span ID: encoding/hex: invalid byte: U+0078 'x'",
-		},
-		{
-			name: "decode span parent id failed",
-			arg: Span{
-				TraceID:      "00010001000100010001000100010001",
-				ID:           "0001000100010001",
-				ParentSpanID: "0x",
-			},
-			want: "failed to decode parent span ID: encoding/hex: invalid byte: U+0078 'x'",
-		},
-		{
-			name: "decode link trace id failed",
-			arg: Span{
-				TraceID:      "00010001000100010001000100010001",
-				ID:           "0001000100010001",
-				ParentSpanID: "0001000100010001",
-				Links: []Link{
-					{
-						TraceID: "0x",
-					},
-				},
-			},
-			want: "failed to decode link trace ID: encoding/hex: invalid byte: U+0078 'x'",
-		},
-		{
-			name: "decode link span id failed",
-			arg: Span{
-				TraceID:      "00010001000100010001000100010001",
-				ID:           "0001000100010001",
-				ParentSpanID: "0001000100010001",
-				Links: []Link{
-					{
-						TraceID: "00010001000100010001000100010001",
-						SpanID:  "0x",
-					},
-				},
-			},
-			want: "failed to decode link span ID: encoding/hex: invalid byte: U+0078 'x'",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			trace := FromDBModel(tt.arg)
-			span := trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
-			require.Contains(t, jptrace.GetWarnings(span), tt.want)
-		})
-	}
-}
-
-func TestPopulateComplexAttributes(t *testing.T) {
-	tests := []struct {
-		name               string
-		complexAttributes  []Attribute[string]
-		expectedAttributes map[string]pcommon.Value
-		expectedWarnings   []string
-	}{
-		{
-			name: "bytes attribute success",
-			complexAttributes: []Attribute[string]{
-				{
-					Key:   "@bytes@data",
-					Value: base64.StdEncoding.EncodeToString([]byte("hello world")),
-				},
-			},
-			expectedAttributes: map[string]pcommon.Value{
-				"data": func() pcommon.Value {
-					val := pcommon.NewValueBytes()
-					val.Bytes().FromRaw([]byte("hello world"))
-					return val
-				}(),
-			},
-			expectedWarnings: nil,
-		},
-		{
-			name: "invalid base64 encoding",
-			complexAttributes: []Attribute[string]{
-				{
-					Key:   "@bytes@invalid",
-					Value: "invalid-base64!",
-				},
-			},
-			expectedAttributes: map[string]pcommon.Value{},
-			expectedWarnings:   []string{"failed to decode bytes attribute \"invalid\""},
-		},
-		{
-			name: "unsupported complex attribute type",
-			complexAttributes: []Attribute[string]{
-				{
-					Key:   "@unknown@test",
-					Value: "some value",
-				},
-			},
-			expectedAttributes: map[string]pcommon.Value{},
-			expectedWarnings:   []string{"unsupported complex attribute type for key \"@unknown@test\""},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			span := ptrace.NewSpan()
-			attributes := span.Attributes()
-
-			populateComplexAttributes(attributes, tt.complexAttributes, span)
-
-			for expectedKey, expectedValue := range tt.expectedAttributes {
-				actualValue, exists := attributes.Get(expectedKey)
-				require.True(t, exists, "Expected attribute %s not found", expectedKey)
-				require.Equal(t, expectedValue, actualValue, "Attribute %s value mismatch", expectedKey)
-			}
-
-			actualWarnings := jptrace.GetWarnings(span)
-			if tt.expectedWarnings == nil {
-				require.Empty(t, actualWarnings, "Expected no warnings but got: %v", actualWarnings)
-			} else {
-				require.Len(t, actualWarnings, len(tt.expectedWarnings), "Warning count mismatch")
-				for i, expectedWarning := range tt.expectedWarnings {
-					require.Contains(t, actualWarnings[i], expectedWarning, "Warning %d mismatch", i)
-				}
-			}
-		})
-	}
 }
