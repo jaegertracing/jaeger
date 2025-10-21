@@ -324,7 +324,7 @@ func TestMetricBackends(t *testing.T) {
 				MetricBackends: map[string]MetricBackend{
 					"foo": {
 						Prometheus: &PrometheusConfiguration{
-							Configuration: promCfg.Configuration{
+							Configuration: promcfg.Configuration{
 								ServerURL: mockServer.URL,
 							},
 						},
@@ -405,7 +405,7 @@ func TestMetricStorageStartError(t *testing.T) {
 				MetricBackends: map[string]MetricBackend{
 					"foo": {
 						Prometheus: &PrometheusConfiguration{
-							Configuration: promCfg.Configuration{},
+							Configuration: promcfg.Configuration{},
 						},
 					},
 				},
@@ -569,7 +569,7 @@ func startStorageExtension(t *testing.T, memstoreName string, promstoreName stri
 		MetricBackends: map[string]MetricBackend{
 			promstoreName: {
 				Prometheus: &PrometheusConfiguration{
-					Configuration: promCfg.Configuration{
+					Configuration: promcfg.Configuration{
 						ServerURL: "localhost:12345",
 					},
 				},
@@ -641,7 +641,7 @@ func TestMetricBackendWithAuthenticator(t *testing.T) {
 			MetricBackends: map[string]MetricBackend{
 				"prometheus": {
 					Prometheus: &PrometheusConfiguration{
-						Configuration: promCfg.Configuration{
+						Configuration: promcfg.Configuration{
 							ServerURL: mockServer.URL,
 						},
 						Auth: &AuthConfig{
@@ -673,7 +673,7 @@ func TestMetricBackendWithInvalidAuthenticator(t *testing.T) {
 		MetricBackends: map[string]MetricBackend{
 			"prometheus": {
 				Prometheus: &PrometheusConfiguration{
-					Configuration: promCfg.Configuration{
+					Configuration: promcfg.Configuration{
 						ServerURL: mockServer.URL,
 					},
 					Auth: &AuthConfig{

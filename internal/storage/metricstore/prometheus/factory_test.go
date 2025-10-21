@@ -136,7 +136,7 @@ func TestFailedTLSOptions(t *testing.T) {
 }
 
 func TestEmptyFactoryConfig(t *testing.T) {
-	cfg := promCfg.Configuration{}
+	cfg := promcfg.Configuration{}
 	_, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings(), nil)
 	require.Error(t, err)
 }
@@ -154,7 +154,7 @@ func TestNewFactoryWithConfigAndAuth(t *testing.T) {
 	require.NoError(t, err)
 	defer listener.Close()
 
-	cfg := promCfg.Configuration{
+	cfg := promcfg.Configuration{
 		ServerURL: "http://" + listener.Addr().String(),
 	}
 
@@ -176,7 +176,7 @@ func TestNewFactoryWithConfigAndAuth_NilAuthenticator(t *testing.T) {
 	require.NoError(t, err)
 	defer listener.Close()
 
-	cfg := promCfg.Configuration{
+	cfg := promcfg.Configuration{
 		ServerURL: "http://" + listener.Addr().String(),
 	}
 
@@ -191,7 +191,7 @@ func TestNewFactoryWithConfigAndAuth_NilAuthenticator(t *testing.T) {
 }
 
 func TestNewFactoryWithConfigAndAuth_EmptyServerURL(t *testing.T) {
-	cfg := promCfg.Configuration{
+	cfg := promcfg.Configuration{
 		ServerURL: "", // Empty URL should fail
 	}
 
@@ -203,7 +203,7 @@ func TestNewFactoryWithConfigAndAuth_EmptyServerURL(t *testing.T) {
 }
 
 func TestNewFactoryWithConfigAndAuth_InvalidTLS(t *testing.T) {
-	cfg := promCfg.Configuration{
+	cfg := promcfg.Configuration{
 		ServerURL: "https://localhost:9090",
 	}
 	cfg.TLS.CAFile = "/does/not/exist"

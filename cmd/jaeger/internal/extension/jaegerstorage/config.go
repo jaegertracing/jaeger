@@ -70,15 +70,15 @@ type AuthConfig struct {
 
 // PrometheusConfiguration wraps the base Prometheus configuration with auth support.
 type PrometheusConfiguration struct {
-	promCfg.Configuration `mapstructure:",squash"`
+	promcfg.Configuration `mapstructure:",squash"`
 	Auth                  *AuthConfig `mapstructure:"auth,omitempty"`
 }
 
 // MetricBackend contains configuration for a single metric storage backend.
 type MetricBackend struct {
 	Prometheus    *PrometheusConfiguration `mapstructure:"prometheus"`
-	Elasticsearch *esCfg.Configuration     `mapstructure:"elasticsearch"`
-	Opensearch    *esCfg.Configuration     `mapstructure:"opensearch"`
+	Elasticsearch *escfg.Configuration     `mapstructure:"elasticsearch"`
+	Opensearch    *escfg.Configuration     `mapstructure:"opensearch"`
 }
 
 // Unmarshal implements confmap.Unmarshaler. This allows us to provide
