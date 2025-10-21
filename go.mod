@@ -30,7 +30,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension v0.137.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckv2extension v0.137.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.137.0
-  github.com/open-telemetry/opentelemetry-collector-contrib/extension/sigv4authextension v0.137.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/sigv4authextension v0.137.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage v0.137.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.137.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.137.0
@@ -303,7 +303,7 @@ require (
 	go.opentelemetry.io/collector/consumer/xconsumer v0.137.0 // indirect
 	go.opentelemetry.io/collector/exporter/exporterhelper/xexporterhelper v0.137.0 // indirect
 	go.opentelemetry.io/collector/exporter/xexporter v0.137.0 // indirect
-	go.opentelemetry.io/collector/extension/extensionauth v1.43.0 // indirect
+	go.opentelemetry.io/collector/extension/extensionauth v1.43.0
 	go.opentelemetry.io/collector/extension/extensioncapabilities v0.137.0
 	go.opentelemetry.io/collector/extension/extensionmiddleware v0.137.0 // indirect
 	go.opentelemetry.io/collector/extension/extensiontest v0.137.0 // indirect
