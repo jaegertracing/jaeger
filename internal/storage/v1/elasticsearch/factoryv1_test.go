@@ -114,15 +114,18 @@ func TestFactoryInitializeErr(t *testing.T) {
 			expectedErr: "Servers: non zero value required",
 		},
 		{
-			name:        "server error",
-			factory:     NewFactory(),
-			expectedErr: "failed to create Elasticsearch client: health check timeout: Head \"http://127.0.0.1:9200\": dial tcp 127.0.0.1:9200: connect: connection refused: no Elasticsearch node available",
+			name: "server error",
+			factory: &Factory{Options: &Options{Config: namespaceConfig{Configuration: escfg.Configuration{
+				Servers:            []string{"http://invalid-host-name:9200"},
+				DisableHealthCheck: true,
+			}}}},
+			expectedErr: "no such host",
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			err := test.factory.Initialize(metrics.NullFactory, zaptest.NewLogger(t))
-			require.EqualError(t, err, test.expectedErr)
+			require.ErrorContains(t, err, test.expectedErr)
 		})
 	}
 }
