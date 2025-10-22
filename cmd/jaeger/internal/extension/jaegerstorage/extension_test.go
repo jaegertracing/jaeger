@@ -732,3 +732,4 @@ func (*mockNonHTTPExtension) Start(context.Context, component.Host) error {
 func (*mockNonHTTPExtension) Shutdown(context.Context) error {
 	return nil
 }
+
