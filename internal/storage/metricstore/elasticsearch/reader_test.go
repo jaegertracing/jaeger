@@ -131,6 +131,94 @@ var mockErrorRateQuery = `{
             "buckets_path": "_count"}}}}}}
 `
 
+var mockAttributeValuesQuery = `{
+  "size": 0,
+  "query": {
+    "bool": {
+      "filter": [
+        {
+          "term": {
+            "process.serviceName": "service1"
+          }
+        }
+      ]
+    }
+  },
+  "aggs": {
+    "results_buckets": {
+      "global": {},
+      "aggs": {
+        "path_0": {
+          "nested": {
+            "path": "tag"
+          },
+          "aggs": {
+            "filtered_by_key": {
+              "filter": {
+                "term": {
+                  "tag.key": "environment"
+                }
+              },
+              "aggs": {
+                "values": {
+                  "terms": {
+                    "field": "tag.value",
+                    "size": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        "path_1": {
+          "nested": {
+            "path": "process.tag"
+          },
+          "aggs": {
+            "filtered_by_key": {
+              "filter": {
+                "term": {
+                  "process.tag.key": "environment"
+                }
+              },
+              "aggs": {
+                "values": {
+                  "terms": {
+                    "field": "process.tag.value",
+                    "size": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        "path_2": {
+          "nested": {
+            "path": "logs.fields"
+          },
+          "aggs": {
+            "filtered_by_key": {
+              "filter": {
+                "term": {
+                  "logs.fields.key": "environment"
+                }
+              },
+              "aggs": {
+                "values": {
+                  "terms": {
+                    "field": "logs.fields.value",
+                    "size": 100
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`
+
 const (
 	mockEsValidResponse           = "testdata/output_valid_es.json"
 	mockCallRateResponse          = "testdata/output_call_rate.json"
@@ -914,6 +1002,69 @@ func TestGetCallRateBucketsToPoints_ErrorCases(t *testing.T) {
 	}
 }
 
+func TestGetAttributeValues(t *testing.T) {
+	// Define test cases to cover various scenarios
+	testCases := []struct {
+		name           string
+		responseFile   string
+		params         *metricstore.AttributeValuesQueryParameters
+		expectedValues []string
+		expectedQuery  string
+		expectError    bool
+	}{
+		{
+			name:         "successful lookup for string values",
+			responseFile: "testdata/output_attribute_key_values.json",
+			params: &metricstore.AttributeValuesQueryParameters{
+				AttributeKey: "environment",
+				ServiceName:  "service1",
+			},
+			expectedValues: []string{"server", "client", "producer"},
+			expectedQuery:  mockAttributeValuesQuery,
+			expectError:    false,
+		},
+		{
+			name:         "empty results",
+			responseFile: "testdata/output_empty.json",
+			params: &metricstore.AttributeValuesQueryParameters{
+				AttributeKey: "nonexistent_label",
+				ServiceName:  "service1",
+			},
+			expectedValues: []string{},
+			expectError:    false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockServer := startMockEsServer(t, tc.expectedQuery, tc.responseFile)
+
+			defer mockServer.Close()
+
+			// Get the reader with our mock server
+			reader, _ := setupMetricsReaderFromServer(t, mockServer)
+
+			// Log what constants we're using
+			t.Logf("Using aggName: %s", aggName)
+
+			// Call the function being tested
+			values, err := reader.GetAttributeValues(context.Background(), tc.params)
+
+			// Log the results
+			t.Logf("Got values: %v, error: %v", values, err)
+
+			// Assert the results
+			if tc.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				t.Logf("Expected values: %v", tc.expectedValues)
+				assert.ElementsMatch(t, tc.expectedValues, values)
+			}
+		})
+	}
+}
+
 func isErrorQuery(query map[string]any) bool {
 	if q, ok := query["query"].(map[string]any); ok {
 		if b, ok := q["bool"].(map[string]any); ok {
@@ -1065,7 +1216,25 @@ func compareBoolQuery(t *testing.T, expected, actual map[string]any) {
 
 	// Compare filters (excluding time ranges)
 	if expectedFilters, ok := expectedBool["filter"].([]any); ok {
-		actualFilters := actualBool["filter"].([]any)
+		// Handle the case where actual filter is either array or single object
+		actualFilter, exists := actualBool["filter"]
+		if !exists {
+			t.Error("Expected filter but not found in actual query")
+			return
+		}
+
+		// Convert to array if it's not already
+		var actualFilters []any
+		switch f := actualFilter.(type) {
+		case []any:
+			actualFilters = f
+		case map[string]any:
+			actualFilters = []any{f}
+		default:
+			t.Errorf("Filter has unexpected type: %T", f)
+			return
+		}
+
 		compareFilters(t, expectedFilters, actualFilters)
 	}
 }
