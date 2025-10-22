@@ -265,20 +265,6 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 		logger: logger,
 	}
 
-	bulkProc, err := rawClient.BulkProcessor().
-		Before(func(id int64, _ /* requests */ []elastic.BulkableRequest) {
-			bcb.startTimes.Store(id, time.Now())
-		}).
-		After(bcb.invoke).
-		BulkSize(c.BulkProcessing.MaxBytes).
-		Workers(c.BulkProcessing.Workers).
-		BulkActions(c.BulkProcessing.MaxActions).
-		FlushInterval(c.BulkProcessing.FlushInterval).
-		Do(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	if c.Version == 0 {
 		// Determine ElasticSearch Version
 		pingResult, _, err := rawClient.Ping(c.Servers[0]).Do(ctx)
@@ -315,6 +301,20 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 		if err != nil {
 			return nil, fmt.Errorf("error creating v8 client: %w", err)
 		}
+	}
+
+	bulkProc, err := rawClient.BulkProcessor().
+		Before(func(id int64, _ /* requests */ []elastic.BulkableRequest) {
+			bcb.startTimes.Store(id, time.Now())
+		}).
+		After(bcb.invoke).
+		BulkSize(c.BulkProcessing.MaxBytes).
+		Workers(c.BulkProcessing.Workers).
+		BulkActions(c.BulkProcessing.MaxActions).
+		FlushInterval(c.BulkProcessing.FlushInterval).
+		Do(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	return eswrapper.WrapESClient(rawClient, bulkProc, c.Version, rawClientV8), nil
