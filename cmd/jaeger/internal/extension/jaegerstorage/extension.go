@@ -184,19 +184,46 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		case cfg.Elasticsearch != nil:
 			esTelset := telset
 			esTelset.Metrics = scopedMetricsFactory(storageName, "elasticsearch", "tracestore")
+
+			// Resolve authenticator if configured
+			var httpAuthenticator extensionauth.HTTPClient
+			if cfg.Elasticsearch.AuthExtension != nil && cfg.Elasticsearch.AuthExtension.Authenticator != "" {
+				httpAuthenticator, err = s.getAuthenticator(host, cfg.Elasticsearch.AuthExtension.Authenticator)
+				if err != nil {
+					return fmt.Errorf("failed to get HTTP authenticator '%s' for storage '%s': %w",
+						cfg.Elasticsearch.AuthExtension.Authenticator, storageName, err)
+				}
+				s.telset.Logger.Sugar().Infof("HTTP auth configured for storage '%s' with authenticator '%s'",
+					storageName, cfg.Elasticsearch.AuthExtension.Authenticator)
+			}
+
 			factory, err = es.NewFactory(
 				ctx,
 				*cfg.Elasticsearch,
 				esTelset,
+				httpAuthenticator,
 			)
 		case cfg.Opensearch != nil:
 			osTelset := telset
 			osTelset.Metrics = scopedMetricsFactory(storageName, "opensearch", "tracestore")
+			// Resolve authenticator if configured
+			var httpAuthenticator extensionauth.HTTPClient
+			if cfg.Opensearch.AuthExtension != nil && cfg.Opensearch.AuthExtension.Authenticator != "" {
+				httpAuthenticator, err = s.getAuthenticator(host, cfg.Opensearch.AuthExtension.Authenticator)
+				if err != nil {
+					return fmt.Errorf("failed to get HTTP authenticator '%s' for storage '%s': %w",
+						cfg.Opensearch.AuthExtension.Authenticator, storageName, err)
+				}
+				s.telset.Logger.Sugar().Infof("HTTP auth configured for storage '%s' with authenticator '%s'",
+					storageName, cfg.Opensearch.AuthExtension.Authenticator)
+			}
 			factory, err = es.NewFactory(
 				ctx,
 				*cfg.Opensearch,
 				osTelset,
+				httpAuthenticator,
 			)
+
 		case cfg.ClickHouse != nil:
 			chTelset := telset
 			chTelset.Metrics = scopedMetricsFactory(storageName, "clickhouse", "tracestore")
@@ -249,20 +276,48 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		case cfg.Elasticsearch != nil:
 			esTelset := telset
 			esTelset.Metrics = scopedMetricsFactory(metricStorageName, "elasticsearch", "metricstore")
+			// Resolve authenticator if configured
+			var httpAuthenticator extensionauth.HTTPClient
+			if cfg.Elasticsearch.AuthExtension != nil && cfg.Elasticsearch.AuthExtension.Authenticator != "" {
+				httpAuthenticator, err = s.getAuthenticator(host, cfg.Elasticsearch.AuthExtension.Authenticator)
+				if err != nil {
+					return fmt.Errorf("failed to get HTTP authenticator '%s' for metric storage '%s': %w",
+						cfg.Elasticsearch.AuthExtension.Authenticator, metricStorageName, err)
+				}
+				s.telset.Logger.Sugar().Infof("HTTP auth configured for metric storage '%s' with authenticator '%s'",
+					metricStorageName, cfg.Elasticsearch.AuthExtension.Authenticator)
+			}
+
 			metricStoreFactory, err = esmetrics.NewFactory(
 				ctx,
 				*cfg.Elasticsearch,
 				esTelset,
+				httpAuthenticator,
 			)
 
 		case cfg.Opensearch != nil:
 			osTelset := telset
 			osTelset.Metrics = scopedMetricsFactory(metricStorageName, "opensearch", "metricstore")
+
+			// Resolve authenticator if configured
+			var httpAuthenticator extensionauth.HTTPClient
+			if cfg.Opensearch.AuthExtension != nil && cfg.Opensearch.AuthExtension.Authenticator != "" {
+				httpAuthenticator, err = s.getAuthenticator(host, cfg.Opensearch.AuthExtension.Authenticator)
+				if err != nil {
+					return fmt.Errorf("failed to get HTTP authenticator '%s' for metric storage '%s': %w",
+						cfg.Opensearch.AuthExtension.Authenticator, metricStorageName, err)
+				}
+				s.telset.Logger.Sugar().Infof("HTTP auth configured for metric storage '%s' with authenticator '%s'",
+					metricStorageName, cfg.Opensearch.AuthExtension.Authenticator)
+			}
+
 			metricStoreFactory, err = esmetrics.NewFactory(
 				ctx,
 				*cfg.Opensearch,
 				osTelset,
+				httpAuthenticator,
 			)
+
 		default:
 			err = fmt.Errorf("no metric backend configuration provided for '%s'", metricStorageName)
 		}
@@ -305,9 +360,12 @@ func (s *storageExt) MetricStorageFactory(name string) (storage.MetricStoreFacto
 	return mf, ok
 }
 
-// getAuthenticator retrieves an HTTP authenticator extension from the host by name
-// authentication extension ID, or nil if no extension is configured.
+// getAuthenticator retrieves an HTTP authenticator extension from the host by name.
 func (*storageExt) getAuthenticator(host component.Host, authenticatorName string) (extensionauth.HTTPClient, error) {
+	if authenticatorName == "" {
+		return nil, nil
+	}
+
 	for id, ext := range host.GetExtensions() {
 		if id.Name() == authenticatorName {
 			if httpAuth, ok := ext.(extensionauth.HTTPClient); ok {

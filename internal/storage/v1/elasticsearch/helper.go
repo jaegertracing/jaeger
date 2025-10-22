@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/stretchr/testify/mock"
+	"go.opentelemetry.io/collector/extension/extensionauth"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 
@@ -21,7 +22,8 @@ type mockClientBuilder struct {
 	createTemplateError error
 }
 
-func (m *mockClientBuilder) NewClient(context.Context, *escfg.Configuration, *zap.Logger, metrics.Factory) (es.Client, error) {
+// UPDATE THIS FUNCTION - Add httpAuth parameter
+func (m *mockClientBuilder) NewClient(context.Context, *escfg.Configuration, *zap.Logger, metrics.Factory, extensionauth.HTTPClient) (es.Client, error) {
 	if m.err == nil {
 		c := &mocks.Client{}
 		tService := &mocks.TemplateCreateService{}
@@ -48,7 +50,7 @@ func SetFactoryForTestWithCreateTemplateErr(f *FactoryBase, logger *zap.Logger, 
 	f.metricsFactory = metricsFactory
 	f.config = cfg
 	f.tracer = otel.GetTracerProvider()
-	client, err := f.newClientFn(context.Background(), cfg, logger, metricsFactory)
+	client, err := f.newClientFn(context.Background(), cfg, logger, metricsFactory, nil)
 	if err != nil {
 		return err
 	}

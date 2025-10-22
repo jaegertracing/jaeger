@@ -493,7 +493,7 @@ func TestNewClient(t *testing.T) {
 			logger := zap.NewNop()
 			metricsFactory := metrics.NullFactory
 			config := test.config
-			client, err := NewClient(context.Background(), config, logger, metricsFactory)
+			client, err := NewClient(context.Background(), config, logger, metricsFactory, nil)
 			if test.expectedError {
 				require.Error(t, err)
 				require.Nil(t, client)
@@ -1149,7 +1149,7 @@ func TestGetConfigOptions(t *testing.T) {
 				tt.prepare()
 			}
 
-			options, err := tt.cfg.getConfigOptions(tt.ctx, logger)
+			options, err := tt.cfg.getConfigOptions(tt.ctx, logger, nil)
 			if tt.wantErr {
 				require.Error(t, err)
 				if tt.wantErrContains != "" {
@@ -1280,7 +1280,7 @@ func TestGetConfigOptionsIntegration(t *testing.T) {
 	}
 
 	logger := zap.NewNop()
-	options, err := cfg.getConfigOptions(context.Background(), logger)
+	options, err := cfg.getConfigOptions(context.Background(), logger, nil)
 	require.NoError(t, err)
 	require.NotNil(t, options)
 	require.Greater(t, len(options), 5, "Should have basic ES options plus additional config options")
@@ -1412,7 +1412,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 	logger := zap.NewNop()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rt, err := GetHTTPRoundTripper(tt.ctx, tt.cfg, logger)
+			rt, err := GetHTTPRoundTripper(tt.ctx, tt.cfg, logger, nil)
 			if tt.wantErrContains != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErrContains)

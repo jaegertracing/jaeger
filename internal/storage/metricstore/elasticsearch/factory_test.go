@@ -52,7 +52,7 @@ func newTestFactoryConfig(serverURL string) config.Configuration {
 func TestCreateMetricsReader(t *testing.T) {
 	server := setupMockServer(t, mockESServerResponse, http.StatusOK)
 	cfg := newTestFactoryConfig(server.URL)
-	f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
+	f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
 	require.NoError(t, err)
 	require.NotNil(t, f)
 	defer require.NoError(t, f.Close())
@@ -103,7 +103,7 @@ func TestNewFactory(t *testing.T) {
 				server := setupMockServer(t, tt.response, tt.statusCode)
 				tt.cfg.Servers = []string{server.URL}
 			}
-			f, err := NewFactory(context.Background(), tt.cfg, telemetry.NoopSettings())
+			f, err := NewFactory(context.Background(), tt.cfg, telemetry.NoopSettings(), nil)
 
 			if tt.expectedErr {
 				require.Error(t, err)

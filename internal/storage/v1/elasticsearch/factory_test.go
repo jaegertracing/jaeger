@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/extension/extensionauth"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
@@ -53,7 +54,7 @@ func TestElasticsearchFactoryBase(t *testing.T) {
 		Servers:  []string{server.URL},
 		LogLevel: "debug",
 	}
-	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t))
+	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nil)
 	require.NoError(t, err)
 	readerParams := f.GetSpanReaderParams()
 	assert.IsType(t, spanstore.SpanReaderParams{}, readerParams)
@@ -132,7 +133,7 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 		},
 		LogLevel: "debug",
 	}
-	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t))
+	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nil)
 	require.ErrorContains(t, err, "open fixtures/file-does-not-exist.txt: no such file or directory")
 	assert.Nil(t, f)
 }
@@ -265,7 +266,7 @@ func TestCreateTemplates(t *testing.T) {
 	for _, test := range tests {
 		f := FactoryBase{}
 		mockClient := &mocks.Client{}
-		f.newClientFn = func(_ context.Context, _ *escfg.Configuration, _ *zap.Logger, _ metrics.Factory) (es.Client, error) {
+		f.newClientFn = func(_ context.Context, _ *escfg.Configuration, _ *zap.Logger, _ metrics.Factory, _ extensionauth.HTTPClient) (es.Client, error) {
 			return mockClient, nil
 		}
 		f.logger = zaptest.NewLogger(t)
@@ -284,7 +285,7 @@ func TestCreateTemplates(t *testing.T) {
 			},
 		}}
 		f.tracer = otel.GetTracerProvider()
-		client, err := f.newClientFn(context.Background(), &escfg.Configuration{}, zaptest.NewLogger(t), metrics.NullFactory)
+		client, err := f.newClientFn(context.Background(), &escfg.Configuration{}, zaptest.NewLogger(t), metrics.NullFactory, nil)
 		require.NoError(t, err)
 		f.client.Store(&client)
 		f.templateBuilder = es.TextTemplateBuilder{}
@@ -310,7 +311,7 @@ func TestESStorageFactoryWithConfig(t *testing.T) {
 		Servers:  []string{server.URL},
 		LogLevel: "error",
 	}
-	factory, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop())
+	factory, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nil)
 	require.NoError(t, err)
 	factory.Close()
 }
@@ -322,7 +323,7 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 		DisableHealthCheck: true,
 		LogLevel:           "error",
 	}
-	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop())
+	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nil)
 	require.ErrorContains(t, err, "failed to create Elasticsearch client")
 }
 
@@ -384,7 +385,7 @@ func testPasswordFromFile(t *testing.T) {
 			MaxBytes: -1, // disable bulk; we want immediate flush
 		},
 	}
-	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop())
+	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, f.Close())
@@ -459,7 +460,7 @@ func TestPasswordFromFileErrors(t *testing.T) {
 	}
 
 	logger, buf := testutils.NewEchoLogger(t)
-	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, logger)
+	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, logger, nil)
 	require.NoError(t, err)
 	defer f.Close()
 
@@ -483,7 +484,7 @@ func TestFactoryBase_NewClient_WatcherError(t *testing.T) {
 		},
 	}
 
-	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t))
+	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to initialize basic authentication")
 	assert.Contains(t, err.Error(), "failed to get token from file")

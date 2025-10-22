@@ -23,6 +23,7 @@ import (
 	"github.com/olivere/elastic/v7"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/extension/extensionauth"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zapgrpc"
@@ -99,6 +100,9 @@ type Configuration struct {
 	// querying.
 	RemoteReadClusters []string       `mapstructure:"remote_read_clusters"`
 	Authentication     Authentication `mapstructure:"auth"`
+	// AuthExtension configures HTTP authentication using OpenTelemetry extensions
+	// (e.g., sigv4auth for AWS). This is independent of the Authentication field above.
+	AuthExtension *AuthExtensionConfig `mapstructure:"auth_extension,omitempty"`
 	// TLS contains the TLS configuration for the connection to the ElasticSearch clusters.
 	TLS      configtls.ClientConfig `mapstructure:"tls"`
 	Sniffing Sniffing               `mapstructure:"sniffing"`
@@ -210,6 +214,20 @@ type Authentication struct {
 	APIKeyAuth          configoptional.Optional[TokenAuthentication] `mapstructure:"api_key"`
 }
 
+// The Authenticator field expects the ID (name) of an HTTP authenticator
+// extension that is registered in the running binary and implements
+// go.opentelemetry.io/collector/extension/extensionauth.HTTPClient.
+// Valid values:
+//   - "sigv4auth" in the stock Jaeger binary (built-in).
+//   - Any other extension name is valid only if that authenticator extension
+//     is included in the build; otherwise Jaeger will error at startup when
+//     resolving the extension.
+//   - Empty/omitted means no auth (default behavior).
+type AuthExtensionConfig struct {
+	// Authenticator is the name (ID) of the HTTP authenticator extension to use.
+	Authenticator string `mapstructure:"authenticator"`
+}
+
 type BasicAuthentication struct {
 	// Username contains the username required to connect to Elasticsearch.
 	Username string `mapstructure:"username"`
@@ -231,11 +249,11 @@ type BasicAuthentication struct {
 // https://www.elastic.co/guide/en/elasticsearch/reference/current/token-authentication-services.html.
 
 // NewClient creates a new ElasticSearch client
-func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
+func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metricsFactory metrics.Factory, httpAuth extensionauth.HTTPClient) (es.Client, error) {
 	if len(c.Servers) < 1 {
 		return nil, errors.New("no servers specified")
 	}
-	options, err := c.getConfigOptions(ctx, logger)
+	options, err := c.getConfigOptions(ctx, logger, httpAuth)
 	if err != nil {
 		return nil, err
 	}
@@ -282,7 +300,7 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 
 	var rawClientV8 *esv8.Client
 	if c.Version >= 8 {
-		rawClientV8, err = newElasticsearchV8(ctx, c, logger)
+		rawClientV8, err = newElasticsearchV8(ctx, c, logger, httpAuth)
 		if err != nil {
 			return nil, fmt.Errorf("error creating v8 client: %w", err)
 		}
@@ -351,7 +369,7 @@ func (bcb *bulkCallback) invoke(id int64, requests []elastic.BulkableRequest, re
 	}
 }
 
-func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logger) (*esv8.Client, error) {
+func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (*esv8.Client, error) {
 	var options esv8.Config
 	options.Addresses = c.Servers
 	if c.Authentication.BasicAuthentication.HasValue() {
@@ -361,7 +379,7 @@ func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logge
 	}
 	options.DiscoverNodesOnStart = c.Sniffing.Enabled
 	options.CompressRequestBody = c.HTTPCompression
-	transport, err := GetHTTPRoundTripper(ctx, c, logger)
+	transport, err := GetHTTPRoundTripper(ctx, c, logger, httpAuth)
 	if err != nil {
 		return nil, err
 	}
@@ -537,7 +555,7 @@ func (c *Configuration) getESOptions(disableHealthCheck bool) []elastic.ClientOp
 }
 
 // getConfigOptions wraps the configs to feed to the ElasticSearch client init
-func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
+func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger, httpAuth extensionauth.HTTPClient) ([]elastic.ClientOptionFunc, error) {
 	// (has problems on AWS OpenSearch) see https://github.com/jaegertracing/jaeger/pull/7212
 	// Disable health check only in the following cases:
 	// 1. When health check is explicitly disabled
@@ -558,7 +576,7 @@ func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger
 	// Get base Elasticsearch options using the helper function
 	options := c.getESOptions(disableHealthCheck)
 	// Configure HTTP transport with TLS and authentication
-	transport, err := GetHTTPRoundTripper(ctx, c, logger)
+	transport, err := GetHTTPRoundTripper(ctx, c, logger, httpAuth)
 	if err != nil {
 		return nil, err
 	}
@@ -613,8 +631,9 @@ func addLoggerOptions(options []elastic.ClientOptionFunc, logLevel string, logge
 	return options, nil
 }
 
-// GetHTTPRoundTripper returns configured http.RoundTripper.
-func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logger) (http.RoundTripper, error) {
+// GetHTTPRoundTripper returns configured http.RoundTripper with optional HTTP authenticator.
+// Pass nil for httpAuth if authentication is not required.
+func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (http.RoundTripper, error) {
 	// Configure base transport.
 	transport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
@@ -677,6 +696,15 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 			Transport: transport,
 			Auths:     authMethods,
 		}
+	}
+
+	// NEW: Apply HTTP authenticator extension if configured (e.g., SigV4)
+	if httpAuth != nil {
+		wrappedRT, err := httpAuth.RoundTripper(roundTripper)
+		if err != nil {
+			return nil, fmt.Errorf("failed to wrap round tripper with HTTP authenticator: %w", err)
+		}
+		return wrappedRT, nil
 	}
 
 	return roundTripper, nil
