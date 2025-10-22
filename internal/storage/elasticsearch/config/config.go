@@ -205,9 +205,24 @@ type TokenAuthentication struct {
 }
 
 type Authentication struct {
-	BasicAuthentication configoptional.Optional[BasicAuthentication] `mapstructure:"basic"`
-	BearerTokenAuth     configoptional.Optional[TokenAuthentication] `mapstructure:"bearer_token"`
-	APIKeyAuth          configoptional.Optional[TokenAuthentication] `mapstructure:"api_key"`
+	BasicAuthentication configoptional.Optional[BasicAuthentication]    `mapstructure:"basic"`
+	BearerTokenAuth     configoptional.Optional[TokenAuthentication]    `mapstructure:"bearer_token"`
+	APIKeyAuth          configoptional.Optional[TokenAuthentication]    `mapstructure:"api_key"`
+	AWSSigV4Auth        configoptional.Optional[AWSSigV4Authentication] `mapstructure:"aws_sigv4"`
+}
+
+type AWSSigV4Authentication struct {
+	Region string `mapstructure:"region"`
+	// Service is the AWS service name (es for Elasticsearch Service, aoss for OpenSearch Serverless)
+	Service string `mapstructure:"service"`
+	// AccessKeyID is the AWS access key ID (optional, uses AWS SDK default credential chain if not provided)
+	AccessKeyID string `mapstructure:"access_key_id"`
+	// SecretAccessKey is the AWS secret access key (optional, uses AWS SDK default credential chain if not provided)
+	SecretAccessKey string `mapstructure:"secret_access_key" json:"-"`
+	// SessionToken is the AWS session token for temporary credentials (optional)
+	SessionToken string `mapstructure:"session_token" json:"-"`
+	// Profile is the AWS profile name to use from the shared configuration file (optional)
+	Profile string `mapstructure:"profile"`
 }
 
 type BasicAuthentication struct {
@@ -632,8 +647,24 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 		transport.TLSClientConfig = tlsConfig
 	}
 
-	// Initialize authentication methods.
+	var roundTripper http.RoundTripper = transport
+
+	if c.Authentication.AWSSigV4Auth.HasValue() {
+		awsAuth := c.Authentication.AWSSigV4Auth.Get()
+		sigv4RT, err := initAWSSigV4RoundTripper(transport, awsAuth, logger)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize AWS SigV4 authentication: %w", err)
+		}
+		if sigv4RT != nil {
+			logger.Info("AWS SigV4 authentication enabled",
+				zap.String("region", awsAuth.Region),
+				zap.String("service", awsAuth.Service))
+			return sigv4RT, nil
+		}
+	}
+
 	var authMethods []auth.Method
+
 	// API Key Authentication
 	if c.Authentication.APIKeyAuth.HasValue() {
 		apiKeyAuth := c.Authentication.APIKeyAuth.Get()
@@ -671,7 +702,6 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 	}
 
 	// Wrap with authentication layer.
-	var roundTripper http.RoundTripper = transport
 	if len(authMethods) > 0 {
 		roundTripper = &auth.RoundTripper{
 			Transport: transport,

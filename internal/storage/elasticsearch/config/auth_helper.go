@@ -8,12 +8,14 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/auth"
 	"github.com/jaegertracing/jaeger/internal/auth/apikey"
+	"github.com/jaegertracing/jaeger/internal/auth/awssigv4"
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 )
 
@@ -122,4 +124,35 @@ func initBasicAuthWithTime(basicAuth *BasicAuthentication, logger *zap.Logger, t
 		Scheme:  "Basic",
 		TokenFn: tokenFn, // Returns base64-encoded credentials
 	}, nil
+}
+
+func initAWSSigV4RoundTripper(transport http.RoundTripper, awsAuth *AWSSigV4Authentication, logger *zap.Logger) (http.RoundTripper, error) {
+	if awsAuth == nil {
+		return nil, nil
+	}
+
+	if awsAuth.Region == "" {
+		return nil, fmt.Errorf("AWS region is required for SigV4 authentication")
+	}
+
+	service := awsAuth.Service
+	if service == "" {
+		service = "es" // Default to Elasticsearch
+		logger.Info("AWS service not specified, defaulting to 'es' (Elasticsearch Service)")
+	}
+
+	rt, err := awssigv4.NewRoundTripper(
+		transport,
+		awsAuth.Region,
+		service,
+		awsAuth.AccessKeyID,
+		awsAuth.SecretAccessKey,
+		awsAuth.SessionToken,
+		awsAuth.Profile,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create AWS SigV4 round tripper: %w", err)
+	}
+
+	return rt, nil
 }
