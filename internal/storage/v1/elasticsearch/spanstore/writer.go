@@ -50,18 +50,20 @@ type CoreSpanWriter interface {
 
 // SpanWriterParams holds constructor parameters for NewSpanWriter
 type SpanWriterParams struct {
-	Client              func() es.Client
-	Logger              *zap.Logger
-	MetricsFactory      metrics.Factory
-	SpanIndex           cfg.IndexOptions
-	ServiceIndex        cfg.IndexOptions
-	IndexPrefix         cfg.IndexPrefix
-	AllTagsAsFields     bool
-	TagKeysAsFields     []string
-	TagDotReplacement   string
-	UseReadWriteAliases bool
-	WriteAliasSuffix    string
-	ServiceCacheTTL     time.Duration
+	Client               func() es.Client
+	Logger               *zap.Logger
+	MetricsFactory       metrics.Factory
+	SpanIndex            cfg.IndexOptions
+	ServiceIndex         cfg.IndexOptions
+	IndexPrefix          cfg.IndexPrefix
+	AllTagsAsFields      bool
+	TagKeysAsFields      []string
+	TagDotReplacement    string
+	UseReadWriteAliases  bool
+	WriteAliasSuffix     string
+	SpanIndexOverride    string
+	ServiceIndexOverride string
+	ServiceCacheTTL      time.Duration
 }
 
 // NewSpanWriter creates a new SpanWriter for use
@@ -103,12 +105,21 @@ type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
 
 func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServiceIndexFn {
 	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
+	if p.SpanIndexOverride != "" {
+		spanIndexPrefix = p.SpanIndexOverride
+	}
+
 	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
+	if p.ServiceIndexOverride != "" {
+		serviceIndexPrefix = p.ServiceIndexOverride
+	}
+
 	if p.UseReadWriteAliases {
 		return func(_ time.Time) (string, string) {
 			return spanIndexPrefix + writeAlias, serviceIndexPrefix + writeAlias
 		}
 	}
+
 	return func(date time.Time) (string, string) {
 		return indexWithDate(spanIndexPrefix, p.SpanIndex.DateLayout, date), indexWithDate(serviceIndexPrefix, p.ServiceIndex.DateLayout, date)
 	}

@@ -126,6 +126,16 @@ type Configuration struct {
 	// Use this option with Elasticsearch rollover API. It requires an external component
 	// to create aliases before startup and then performing its management.
 	UseReadWriteAliases bool `mapstructure:"use_aliases"`
+	// SpanIndexOverride overrides the default span index prefix (e.g., "jaeger-span-").
+	// When set, it replaces the prefix but read/write suffixes are still appended.
+	// For example, if set to "my-spans", the indices become "my-spans-read" and "my-spans-write".
+	// Can only be used with UseReadWriteAliases=true.
+	SpanIndexOverride string `mapstructure:"span_index_override"`
+	// ServiceIndexOverride overrides the default service index prefix (e.g., "jaeger-service-").
+	// When set, it replaces the prefix but read/write suffixes are still appended.
+	// For example, if set to "my-services", the indices become "my-services-read" and "my-services-write".
+	// Can only be used with UseReadWriteAliases=true.
+	ServiceIndexOverride string `mapstructure:"service_index_override"`
 	// ReadAliasSuffix is the suffix to append to the index name used for reading.
 	// This configuration only exists to provide backwards compatibility for jaeger-v1
 	// which is why it is not exposed as a configuration option for jaeger-v2
@@ -701,5 +711,11 @@ func (c *Configuration) Validate() error {
 	if c.CreateIndexTemplates && c.UseILM {
 		return errors.New("when UseILM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app")
 	}
+
+	// Validate explicit override settings require UseReadWriteAliases
+	if (c.SpanIndexOverride != "" || c.ServiceIndexOverride != "") && !c.UseReadWriteAliases {
+		return errors.New("when SpanIndexOverride or ServiceIndexOverride is set, UseReadWriteAliases must be true")
+	}
+
 	return nil
 }

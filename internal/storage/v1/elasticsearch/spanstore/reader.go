@@ -114,25 +114,37 @@ type SpanReader struct {
 
 // SpanReaderParams holds constructor params for NewSpanReader
 type SpanReaderParams struct {
-	Client              func() es.Client
-	MaxSpanAge          time.Duration
-	MaxDocCount         int
-	IndexPrefix         cfg.IndexPrefix
-	SpanIndex           cfg.IndexOptions
-	ServiceIndex        cfg.IndexOptions
-	TagDotReplacement   string
-	ReadAliasSuffix     string
-	UseReadWriteAliases bool
-	RemoteReadClusters  []string
-	Logger              *zap.Logger
-	Tracer              trace.Tracer
+	Client               func() es.Client
+	MaxSpanAge           time.Duration
+	MaxDocCount          int
+	IndexPrefix          cfg.IndexPrefix
+	SpanIndex            cfg.IndexOptions
+	ServiceIndex         cfg.IndexOptions
+	TagDotReplacement    string
+	ReadAliasSuffix      string
+	UseReadWriteAliases  bool
+	RemoteReadClusters   []string
+	SpanIndexOverride    string
+	ServiceIndexOverride string
+	Logger               *zap.Logger
+	Tracer               trace.Tracer
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
 func NewSpanReader(p SpanReaderParams) *SpanReader {
+	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
+	if p.SpanIndexOverride != "" {
+		spanIndexPrefix = p.SpanIndexOverride
+	}
+
+	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
+	if p.ServiceIndexOverride != "" {
+		serviceIndexPrefix = p.ServiceIndexOverride
+	}
+
 	maxSpanAge := p.MaxSpanAge
 	// Setting the maxSpanAge to a large duration will ensure all spans in the "read" alias are accessible by queries (query window = [now - maxSpanAge, now]).
-	// When read/write aliases are enabled, which are required for index rollovers, only the "read" alias is queried and therefore should not affect performance.
+	// Queries that don't specify a start and end time will use this maxSpanAge, querying all data.
 	if p.UseReadWriteAliases {
 		maxSpanAge = dawnOfTimeSpanAge
 	}
@@ -141,20 +153,17 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		client:                  p.Client,
 		maxSpanAge:              maxSpanAge,
 		serviceOperationStorage: NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics
-		spanIndexPrefix:         p.IndexPrefix.Apply(spanIndexBaseName),
-		serviceIndexPrefix:      p.IndexPrefix.Apply(serviceIndexBaseName),
+		spanIndexPrefix:         spanIndexPrefix,
+		serviceIndexPrefix:      serviceIndexPrefix,
 		spanIndex:               p.SpanIndex,
 		serviceIndex:            p.ServiceIndex,
-		timeRangeIndices: LoggingTimeRangeIndexFn(
-			p.Logger,
-			TimeRangeIndicesFn(p.UseReadWriteAliases, p.ReadAliasSuffix, p.RemoteReadClusters),
-		),
-		sourceFn:            getSourceFn(p.MaxDocCount),
-		maxDocCount:         p.MaxDocCount,
-		useReadWriteAliases: p.UseReadWriteAliases,
-		logger:              p.Logger,
-		tracer:              p.Tracer,
-		dotReplacer:         dbmodel.NewDotReplacer(p.TagDotReplacement),
+		timeRangeIndices:        LoggingTimeRangeIndexFn(p.Logger, TimeRangeIndicesFn(p.UseReadWriteAliases, p.ReadAliasSuffix, p.RemoteReadClusters)),
+		sourceFn:                getSourceFn(p.MaxDocCount),
+		maxDocCount:             p.MaxDocCount,
+		useReadWriteAliases:     p.UseReadWriteAliases,
+		logger:                  p.Logger,
+		tracer:                  p.Tracer,
+		dotReplacer:             dbmodel.NewDotReplacer(p.TagDotReplacement),
 	}
 }
 
