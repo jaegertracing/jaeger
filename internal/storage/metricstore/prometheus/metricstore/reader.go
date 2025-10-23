@@ -15,6 +15,7 @@ import (
 
 	"github.com/prometheus/client_golang/api"
 	promapi "github.com/prometheus/client_golang/api/prometheus/v1"
+	"go.opentelemetry.io/collector/extension/extensionauth"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -80,33 +81,33 @@ func (p promClient) URL(ep string, args map[string]string) *url.URL {
 	return u
 }
 
-func createPromClient(cfg config.Configuration) (api.Client, error) {
-	roundTripper, err := getHTTPRoundTripper(&cfg)
+func createPromClient(cfg config.Configuration, httpAuth extensionauth.HTTPClient) (api.Client, error) {
+	roundTripper, err := getHTTPRoundTripper(&cfg, httpAuth)
 	if err != nil {
 		return nil, err
 	}
 
-	client, err := api.NewClient(api.Config{
+	promConfig := api.Config{
 		Address:      cfg.ServerURL,
 		RoundTripper: roundTripper,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize prometheus client: %w", err)
 	}
 
-	customClient := promClient{
+	client, err := api.NewClient(promConfig)
+	if err != nil {
+		return nil, err
+	}
+	return promClient{
 		Client:      client,
 		extraParams: cfg.ExtraQueryParams,
-	}
-
-	return customClient, nil
+	}, nil
 }
 
-// NewMetricsReader returns a new MetricsReader.
-func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace.TracerProvider) (*MetricsReader, error) {
+// NewMetricsReader returns a new MetricsReader with optional HTTP authentication.
+// Pass nil for httpAuth if authentication is not required.
+func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace.TracerProvider, httpAuth extensionauth.HTTPClient) (*MetricsReader, error) {
 	const operationLabel = "span_name"
 
-	promClient, err := createPromClient(cfg)
+	promClient, err := createPromClient(cfg, httpAuth)
 	if err != nil {
 		return nil, err
 	}
@@ -345,7 +346,7 @@ func logErrorToSpan(span trace.Span, err error) {
 	span.SetStatus(codes.Error, err.Error())
 }
 
-func getHTTPRoundTripper(c *config.Configuration) (rt http.RoundTripper, err error) {
+func getHTTPRoundTripper(c *config.Configuration, httpAuth extensionauth.HTTPClient) (rt http.RoundTripper, err error) {
 	ctlsConfig, err := c.TLS.LoadTLSConfig(context.Background())
 	if err != nil {
 		return nil, err
@@ -379,7 +380,7 @@ func getHTTPRoundTripper(c *config.Configuration) (rt http.RoundTripper, err err
 	if c.TokenOverrideFromContext {
 		fromCtxFn = bearertoken.GetBearerToken
 	}
-	return &auth.RoundTripper{
+	base := &auth.RoundTripper{
 		Transport: httpTransport,
 		Auths: []auth.Method{
 			{
@@ -388,5 +389,9 @@ func getHTTPRoundTripper(c *config.Configuration) (rt http.RoundTripper, err err
 				FromCtx: fromCtxFn,
 			},
 		},
-	}, nil
+	}
+	if httpAuth == nil {
+		return base, nil
+	}
+	return httpAuth.RoundTripper(base)
 }
