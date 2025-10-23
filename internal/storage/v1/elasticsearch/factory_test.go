@@ -489,3 +489,48 @@ func TestFactoryBase_NewClient_WatcherError(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to initialize basic authentication")
 	assert.Contains(t, err.Error(), "failed to get token from file")
 }
+
+func TestElasticsearchFactoryBaseWithAuthenticator(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write(mockEsServerResponse)
+	}))
+	t.Cleanup(server.Close)
+
+	cfg := escfg.Configuration{
+		Servers:  []string{server.URL},
+		LogLevel: "debug",
+	}
+
+	// Mock authenticator
+	mockAuth := &mockHTTPAuthenticator{}
+
+	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), mockAuth)
+	require.NoError(t, err)
+	require.NotNil(t, f)
+	defer require.NoError(t, f.Close())
+
+	// Verify factory is properly initialized with authenticator
+	readerParams := f.GetSpanReaderParams()
+	assert.IsType(t, spanstore.SpanReaderParams{}, readerParams)
+}
+
+// mockHTTPAuthenticator implements extensionauth.HTTPClient for testing
+type mockHTTPAuthenticator struct{}
+
+func (*mockHTTPAuthenticator) RoundTripper(base http.RoundTripper) (http.RoundTripper, error) {
+	return &mockRoundTripper{base: base}, nil
+}
+
+// mockRoundTripper wraps the base RoundTripper
+type mockRoundTripper struct {
+	base http.RoundTripper
+}
+
+func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	req.Header.Set("Authorization", "Bearer mock-token")
+	if m.base != nil {
+		return m.base.RoundTrip(req)
+	}
+	return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+}
+

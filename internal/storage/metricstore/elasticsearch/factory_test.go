@@ -116,3 +116,40 @@ func TestNewFactory(t *testing.T) {
 		})
 	}
 }
+
+func TestNewFactoryWithAuthenticator(t *testing.T) {
+	mockServer := setupMockServer(t, mockESServerResponse, http.StatusOK)
+	cfg := newTestFactoryConfig(mockServer.URL)
+
+	mockAuth := &mockHTTPAuthenticator{}
+
+	// Test with authenticator
+	f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings(), mockAuth)
+	require.NoError(t, err)
+	require.NotNil(t, f)
+	defer require.NoError(t, f.Close())
+
+	reader, err := f.CreateMetricsReader()
+	require.NoError(t, err)
+	assert.NotNil(t, reader)
+}
+
+// mockHTTPAuthenticator implements extensionauth.HTTPClient for testing
+type mockHTTPAuthenticator struct{}
+
+func (*mockHTTPAuthenticator) RoundTripper(base http.RoundTripper) (http.RoundTripper, error) {
+	return &mockRoundTripper{base: base}, nil
+}
+
+// mockRoundTripper wraps the base RoundTripper
+type mockRoundTripper struct {
+	base http.RoundTripper
+}
+
+func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	req.Header.Set("Authorization", "Bearer mock-token")
+	if m.base != nil {
+		return m.base.RoundTrip(req)
+	}
+	return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+}
