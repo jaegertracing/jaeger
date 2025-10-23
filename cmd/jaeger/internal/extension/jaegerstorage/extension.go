@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/collector/extension/extensionauth"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	esmetrics "github.com/jaegertracing/jaeger/internal/storage/metricstore/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
@@ -184,45 +185,20 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		case cfg.Elasticsearch != nil:
 			esTelset := telset
 			esTelset.Metrics = scopedMetricsFactory(storageName, "elasticsearch", "tracestore")
-
-			// Resolve authenticator if configured
-			var httpAuthenticator extensionauth.HTTPClient
-			if cfg.Elasticsearch.AuthExtension != nil && cfg.Elasticsearch.AuthExtension.Authenticator != "" {
-				httpAuthenticator, err = s.getAuthenticator(host, cfg.Elasticsearch.AuthExtension.Authenticator)
-				if err != nil {
-					return fmt.Errorf("failed to get HTTP authenticator '%s' for storage '%s': %w",
-						cfg.Elasticsearch.AuthExtension.Authenticator, storageName, err)
-				}
-				s.telset.Logger.Sugar().Infof("HTTP auth configured for storage '%s' with authenticator '%s'",
-					storageName, cfg.Elasticsearch.AuthExtension.Authenticator)
+			httpAuth, err := s.resolveAuthenticator(host, cfg.Elasticsearch.AuthExtension, "elasticsearch", storageName)
+			if err != nil {
+				return err
 			}
+			factory, err = es.NewFactory(ctx, *cfg.Elasticsearch, esTelset, httpAuth)
 
-			factory, err = es.NewFactory(
-				ctx,
-				*cfg.Elasticsearch,
-				esTelset,
-				httpAuthenticator,
-			)
 		case cfg.Opensearch != nil:
 			osTelset := telset
 			osTelset.Metrics = scopedMetricsFactory(storageName, "opensearch", "tracestore")
-			// Resolve authenticator if configured
-			var httpAuthenticator extensionauth.HTTPClient
-			if cfg.Opensearch.AuthExtension != nil && cfg.Opensearch.AuthExtension.Authenticator != "" {
-				httpAuthenticator, err = s.getAuthenticator(host, cfg.Opensearch.AuthExtension.Authenticator)
-				if err != nil {
-					return fmt.Errorf("failed to get HTTP authenticator '%s' for storage '%s': %w",
-						cfg.Opensearch.AuthExtension.Authenticator, storageName, err)
-				}
-				s.telset.Logger.Sugar().Infof("HTTP auth configured for storage '%s' with authenticator '%s'",
-					storageName, cfg.Opensearch.AuthExtension.Authenticator)
+			httpAuth, err := s.resolveAuthenticator(host, cfg.Opensearch.AuthExtension, "opensearch", storageName)
+			if err != nil {
+				return err
 			}
-			factory, err = es.NewFactory(
-				ctx,
-				*cfg.Opensearch,
-				osTelset,
-				httpAuthenticator,
-			)
+			factory, err = es.NewFactory(ctx, *cfg.Opensearch, osTelset, httpAuth)
 
 		case cfg.ClickHouse != nil:
 			chTelset := telset
@@ -276,47 +252,20 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		case cfg.Elasticsearch != nil:
 			esTelset := telset
 			esTelset.Metrics = scopedMetricsFactory(metricStorageName, "elasticsearch", "metricstore")
-			// Resolve authenticator if configured
-			var httpAuthenticator extensionauth.HTTPClient
-			if cfg.Elasticsearch.AuthExtension != nil && cfg.Elasticsearch.AuthExtension.Authenticator != "" {
-				httpAuthenticator, err = s.getAuthenticator(host, cfg.Elasticsearch.AuthExtension.Authenticator)
-				if err != nil {
-					return fmt.Errorf("failed to get HTTP authenticator '%s' for metric storage '%s': %w",
-						cfg.Elasticsearch.AuthExtension.Authenticator, metricStorageName, err)
-				}
-				s.telset.Logger.Sugar().Infof("HTTP auth configured for metric storage '%s' with authenticator '%s'",
-					metricStorageName, cfg.Elasticsearch.AuthExtension.Authenticator)
+			httpAuth, err := s.resolveAuthenticator(host, cfg.Elasticsearch.AuthExtension, "elasticsearch metrics", metricStorageName)
+			if err != nil {
+				return err
 			}
-
-			metricStoreFactory, err = esmetrics.NewFactory(
-				ctx,
-				*cfg.Elasticsearch,
-				esTelset,
-				httpAuthenticator,
-			)
+			metricStoreFactory, err = esmetrics.NewFactory(ctx, *cfg.Elasticsearch, esTelset, httpAuth)
 
 		case cfg.Opensearch != nil:
 			osTelset := telset
 			osTelset.Metrics = scopedMetricsFactory(metricStorageName, "opensearch", "metricstore")
-
-			// Resolve authenticator if configured
-			var httpAuthenticator extensionauth.HTTPClient
-			if cfg.Opensearch.AuthExtension != nil && cfg.Opensearch.AuthExtension.Authenticator != "" {
-				httpAuthenticator, err = s.getAuthenticator(host, cfg.Opensearch.AuthExtension.Authenticator)
-				if err != nil {
-					return fmt.Errorf("failed to get HTTP authenticator '%s' for metric storage '%s': %w",
-						cfg.Opensearch.AuthExtension.Authenticator, metricStorageName, err)
-				}
-				s.telset.Logger.Sugar().Infof("HTTP auth configured for metric storage '%s' with authenticator '%s'",
-					metricStorageName, cfg.Opensearch.AuthExtension.Authenticator)
+			httpAuth, err := s.resolveAuthenticator(host, cfg.Opensearch.AuthExtension, "opensearch metrics", metricStorageName)
+			if err != nil {
+				return err
 			}
-
-			metricStoreFactory, err = esmetrics.NewFactory(
-				ctx,
-				*cfg.Opensearch,
-				osTelset,
-				httpAuthenticator,
-			)
+			metricStoreFactory, err = esmetrics.NewFactory(ctx, *cfg.Opensearch, osTelset, httpAuth)
 
 		default:
 			err = fmt.Errorf("no metric backend configuration provided for '%s'", metricStorageName)
@@ -375,4 +324,19 @@ func (*storageExt) getAuthenticator(host component.Host, authenticatorName strin
 		}
 	}
 	return nil, fmt.Errorf("authenticator extension '%s' not found", authenticatorName)
+}
+
+// resolveAuthenticator is a helper to resolve and validate HTTP authenticator for a backend
+func (s *storageExt) resolveAuthenticator(host component.Host, authCfg *config.AuthExtensionConfig, backendType, backendName string) (extensionauth.HTTPClient, error) {
+	if authCfg == nil || authCfg.Authenticator == "" {
+		return nil, nil
+	}
+
+	httpAuth, err := s.getAuthenticator(host, authCfg.Authenticator)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get HTTP authenticator for %s backend '%s': %w", backendType, backendName, err)
+	}
+	s.telset.Logger.Sugar().Infof("HTTP auth configured for %s backend '%s' with authenticator '%s'",
+		backendType, backendName, authCfg.Authenticator)
+	return httpAuth, nil
 }
