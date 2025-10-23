@@ -1490,7 +1490,7 @@ func TestAuthExtensionConfig(t *testing.T) {
 		{
 			name: "valid configuration without auth extension",
 			cfg: &Configuration{
-				Servers: []string{"http://localhost:9200"},
+				Servers:  []string{"http://localhost:9200"},
 				LogLevel: "info",
 			},
 			wantErr: false,
@@ -1519,7 +1519,6 @@ func TestAuthExtensionConfig(t *testing.T) {
 		})
 	}
 }
-
 
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)

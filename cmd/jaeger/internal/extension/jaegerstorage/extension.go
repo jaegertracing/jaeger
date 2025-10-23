@@ -136,9 +136,9 @@ func findExtension(host component.Host) (Extension, error) {
 	return ext, nil
 }
 
-func newStorageExt(config *Config, telset component.TelemetrySettings) *storageExt {
+func newStorageExt(cfg *Config, telset component.TelemetrySettings) *storageExt {
 	return &storageExt{
-		config:           config,
+		config:           cfg,
 		telset:           telset,
 		factories:        make(map[string]tracestore.Factory),
 		metricsFactories: make(map[string]storage.MetricStoreFactory),
@@ -185,20 +185,26 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		case cfg.Elasticsearch != nil:
 			esTelset := telset
 			esTelset.Metrics = scopedMetricsFactory(storageName, "elasticsearch", "tracestore")
-			httpAuth, err := s.resolveAuthenticator(host, cfg.Elasticsearch.AuthExtension, "elasticsearch", storageName)
+			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Elasticsearch.AuthExtension, "elasticsearch", storageName)
+			if authErr != nil {
+				return authErr
+			}
+			factory, err = es.NewFactory(ctx, *cfg.Elasticsearch, esTelset, httpAuth)
 			if err != nil {
 				return err
 			}
-			factory, err = es.NewFactory(ctx, *cfg.Elasticsearch, esTelset, httpAuth)
 
 		case cfg.Opensearch != nil:
 			osTelset := telset
 			osTelset.Metrics = scopedMetricsFactory(storageName, "opensearch", "tracestore")
-			httpAuth, err := s.resolveAuthenticator(host, cfg.Opensearch.AuthExtension, "opensearch", storageName)
+			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Opensearch.AuthExtension, "opensearch", storageName)
+			if authErr != nil {
+				return authErr
+			}
+			factory, err = es.NewFactory(ctx, *cfg.Opensearch, osTelset, httpAuth)
 			if err != nil {
 				return err
 			}
-			factory, err = es.NewFactory(ctx, *cfg.Opensearch, osTelset, httpAuth)
 
 		case cfg.ClickHouse != nil:
 			chTelset := telset
@@ -252,20 +258,26 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		case cfg.Elasticsearch != nil:
 			esTelset := telset
 			esTelset.Metrics = scopedMetricsFactory(metricStorageName, "elasticsearch", "metricstore")
-			httpAuth, err := s.resolveAuthenticator(host, cfg.Elasticsearch.AuthExtension, "elasticsearch metrics", metricStorageName)
+			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Elasticsearch.AuthExtension, "elasticsearch metrics", metricStorageName)
+			if authErr != nil {
+				return authErr
+			}
+			metricStoreFactory, err = esmetrics.NewFactory(ctx, *cfg.Elasticsearch, esTelset, httpAuth)
 			if err != nil {
 				return err
 			}
-			metricStoreFactory, err = esmetrics.NewFactory(ctx, *cfg.Elasticsearch, esTelset, httpAuth)
 
 		case cfg.Opensearch != nil:
 			osTelset := telset
 			osTelset.Metrics = scopedMetricsFactory(metricStorageName, "opensearch", "metricstore")
-			httpAuth, err := s.resolveAuthenticator(host, cfg.Opensearch.AuthExtension, "opensearch metrics", metricStorageName)
+			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Opensearch.AuthExtension, "opensearch metrics", metricStorageName)
+			if authErr != nil {
+				return authErr
+			}
+			metricStoreFactory, err = esmetrics.NewFactory(ctx, *cfg.Opensearch, osTelset, httpAuth)
 			if err != nil {
 				return err
 			}
-			metricStoreFactory, err = esmetrics.NewFactory(ctx, *cfg.Opensearch, osTelset, httpAuth)
 
 		default:
 			err = fmt.Errorf("no metric backend configuration provided for '%s'", metricStorageName)

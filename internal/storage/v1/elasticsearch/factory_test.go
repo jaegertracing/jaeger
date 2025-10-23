@@ -540,4 +540,3 @@ func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 	return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
 }
-
