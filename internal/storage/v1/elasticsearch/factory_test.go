@@ -317,8 +317,15 @@ func TestESStorageFactoryWithConfig(t *testing.T) {
 
 func TestESStorageFactoryWithConfigError(t *testing.T) {
 	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	}))
+	defer server.Close()
 	cfg := escfg.Configuration{
-		Servers:            []string{"http://invalid-host-name:65535"},
+		Servers:            []string{server.URL},
 		DisableHealthCheck: true,
 		LogLevel:           "error",
 	}
