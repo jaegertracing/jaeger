@@ -22,7 +22,6 @@ type Factory struct {
 }
 
 // NewFactory creates a new Factory with the given configuration and telemetry settings.
-// Pass nil for httpAuth if authentication is not required.
 func NewFactory(
 	ctx context.Context,
 	cfg config.Configuration,
@@ -33,7 +32,7 @@ func NewFactory(
 		return nil, err
 	}
 
-	client, err := config.NewClient(ctx, &cfg, telset.Logger, telset.Metrics, httpAuth) // ADD httpAuth argument
+	client, err := config.NewClient(ctx, &cfg, telset.Logger, telset.Metrics, httpAuth)
 	if err != nil {
 		return nil, err
 	}
