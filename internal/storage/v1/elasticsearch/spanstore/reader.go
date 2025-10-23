@@ -133,35 +133,20 @@ type SpanReaderParams struct {
 // NewSpanReader returns a new SpanReader with a metrics.
 func NewSpanReader(p SpanReaderParams) *SpanReader {
 	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
-	hasSpanOverride := p.SpanIndexOverride != ""
-	if hasSpanOverride {
+	if p.SpanIndexOverride != "" {
 		spanIndexPrefix = p.SpanIndexOverride
 	}
 
 	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
-	hasServiceOverride := p.ServiceIndexOverride != ""
-	if hasServiceOverride {
+	if p.ServiceIndexOverride != "" {
 		serviceIndexPrefix = p.ServiceIndexOverride
 	}
 
-	useAliasMode := p.UseReadWriteAliases || hasSpanOverride || hasServiceOverride
-
 	maxSpanAge := p.MaxSpanAge
-	if useAliasMode {
+	// Setting the maxSpanAge to a large duration will ensure all spans in the "read" alias are accessible by queries (query window = [now - maxSpanAge, now]).
+	// Queries that don't specify a start and end time will use this maxSpanAge, querying all data.
+	if p.UseReadWriteAliases {
 		maxSpanAge = dawnOfTimeSpanAge
-	}
-
-	var timeRangeFn TimeRangeIndexFn
-	if hasSpanOverride || hasServiceOverride {
-		baseTimeRangeFn := TimeRangeIndicesFn(p.UseReadWriteAliases, p.ReadAliasSuffix, p.RemoteReadClusters)
-		timeRangeFn = func(indexPrefix, indexDateLayout string, startTime, endTime time.Time, reduceDuration time.Duration) []string {
-			if (hasSpanOverride && indexPrefix == spanIndexPrefix) || (hasServiceOverride && indexPrefix == serviceIndexPrefix) {
-				return []string{indexPrefix}
-			}
-			return baseTimeRangeFn(indexPrefix, indexDateLayout, startTime, endTime, reduceDuration)
-		}
-	} else {
-		timeRangeFn = TimeRangeIndicesFn(p.UseReadWriteAliases, p.ReadAliasSuffix, p.RemoteReadClusters)
 	}
 
 	return &SpanReader{
@@ -172,10 +157,10 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		serviceIndexPrefix:      serviceIndexPrefix,
 		spanIndex:               p.SpanIndex,
 		serviceIndex:            p.ServiceIndex,
-		timeRangeIndices:        LoggingTimeRangeIndexFn(p.Logger, timeRangeFn),
+		timeRangeIndices:        LoggingTimeRangeIndexFn(p.Logger, TimeRangeIndicesFn(p.UseReadWriteAliases, p.ReadAliasSuffix, p.RemoteReadClusters)),
 		sourceFn:                getSourceFn(p.MaxDocCount),
 		maxDocCount:             p.MaxDocCount,
-		useReadWriteAliases:     useAliasMode,
+		useReadWriteAliases:     p.UseReadWriteAliases,
 		logger:                  p.Logger,
 		tracer:                  p.Tracer,
 		dotReplacer:             dbmodel.NewDotReplacer(p.TagDotReplacement),

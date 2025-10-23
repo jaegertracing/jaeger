@@ -166,25 +166,28 @@ func TestNewSpanReader(t *testing.T) {
 			maxSpanAge: time.Hour * 24 * 365 * 50,
 		},
 		{
-			name: "explicit span alias",
+			name: "explicit span alias with UseReadWriteAliases",
 			params: SpanReaderParams{
-				MaxSpanAge:        time.Hour * 72,
-				SpanIndexOverride: "custom-span-alias",
+				MaxSpanAge:          time.Hour * 72,
+				UseReadWriteAliases: true,
+				SpanIndexOverride:   "custom-span-alias",
 			},
 			maxSpanAge: time.Hour * 24 * 365 * 50,
 		},
 		{
-			name: "explicit service alias",
+			name: "explicit service alias with UseReadWriteAliases",
 			params: SpanReaderParams{
 				MaxSpanAge:           time.Hour * 72,
+				UseReadWriteAliases:  true,
 				ServiceIndexOverride: "custom-service-alias",
 			},
 			maxSpanAge: time.Hour * 24 * 365 * 50,
 		},
 		{
-			name: "both explicit aliases",
+			name: "both explicit aliases with UseReadWriteAliases",
 			params: SpanReaderParams{
 				MaxSpanAge:           time.Hour * 72,
+				UseReadWriteAliases:  true,
 				SpanIndexOverride:    "custom-span-alias",
 				ServiceIndexOverride: "custom-service-alias",
 			},
@@ -273,36 +276,40 @@ func TestSpanReaderIndices(t *testing.T) {
 			params: SpanReaderParams{
 				SpanIndex:            spanIndexOpts,
 				ServiceIndex:         serviceIndexOpts,
+				UseReadWriteAliases:  true,
 				SpanIndexOverride:    "custom-span-alias",
 				ServiceIndexOverride: "custom-service-alias",
 			},
-			indices: []string{"custom-span-alias", "custom-service-alias"},
+			indices: []string{"custom-span-aliasread", "custom-service-aliasread"},
 		},
 		{
 			params: SpanReaderParams{
-				SpanIndex:         spanIndexOpts,
-				ServiceIndex:      serviceIndexOpts,
-				SpanIndexOverride: "custom-span-alias",
+				SpanIndex:           spanIndexOpts,
+				ServiceIndex:        serviceIndexOpts,
+				UseReadWriteAliases: true,
+				SpanIndexOverride:   "custom-span-alias",
 			},
-			indices: []string{"custom-span-alias", serviceIndexBaseName + serviceDataLayoutFormat},
+			indices: []string{"custom-span-aliasread", serviceIndexBaseName + "read"},
 		},
 		{
 			params: SpanReaderParams{
 				SpanIndex:            spanIndexOpts,
 				ServiceIndex:         serviceIndexOpts,
+				UseReadWriteAliases:  true,
 				ServiceIndexOverride: "custom-service-alias",
 			},
-			indices: []string{spanIndexBaseName + spanDataLayoutFormat, "custom-service-alias"},
+			indices: []string{spanIndexBaseName + "read", "custom-service-aliasread"},
 		},
 		{
 			params: SpanReaderParams{
 				SpanIndex:            spanIndexOpts,
 				ServiceIndex:         serviceIndexOpts,
 				IndexPrefix:          "foo:",
+				UseReadWriteAliases:  true,
 				SpanIndexOverride:    "custom-span-alias",
 				ServiceIndexOverride: "custom-service-alias",
 			},
-			indices: []string{"custom-span-alias", "custom-service-alias"},
+			indices: []string{"custom-span-aliasread", "custom-service-aliasread"},
 		},
 		{
 			params: SpanReaderParams{

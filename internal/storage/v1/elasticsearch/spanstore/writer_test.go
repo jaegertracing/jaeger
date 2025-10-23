@@ -124,52 +124,56 @@ func TestSpanWriterIndices(t *testing.T) {
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts,
-				SpanIndexOverride: "custom-span-alias", ServiceIndexOverride: "custom-service-alias",
+				UseReadWriteAliases: true,
+				SpanIndexOverride:   "custom-span-alias", ServiceIndexOverride: "custom-service-alias",
 			},
-			indices: []string{"custom-span-alias", "custom-service-alias"},
+			indices: []string{"custom-span-aliaswrite", "custom-service-aliaswrite"},
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts,
-				SpanIndexOverride: "custom-span-alias",
+				UseReadWriteAliases: true,
+				SpanIndexOverride:   "custom-span-alias",
 			},
-			indices: []string{"custom-span-alias", serviceIndexBaseName + serviceDataLayoutFormat},
+			indices: []string{"custom-span-aliaswrite", serviceIndexBaseName + "write"},
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts,
+				UseReadWriteAliases:  true,
 				ServiceIndexOverride: "custom-service-alias",
 			},
-			indices: []string{spanIndexBaseName + spanDataLayoutFormat, "custom-service-alias"},
+			indices: []string{spanIndexBaseName + "write", "custom-service-aliaswrite"},
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:",
-				SpanIndexOverride: "custom-span-alias", ServiceIndexOverride: "custom-service-alias",
+				UseReadWriteAliases: true,
+				SpanIndexOverride:   "custom-span-alias", ServiceIndexOverride: "custom-service-alias",
 			},
-			indices: []string{"custom-span-alias", "custom-service-alias"},
+			indices: []string{"custom-span-aliaswrite", "custom-service-aliaswrite"},
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts,
-				UseReadWriteAliases: true, WriteAliasSuffix: "write",
+				UseReadWriteAliases: true, WriteAliasSuffix: "archive",
 				SpanIndexOverride: "custom-span-alias",
 			},
-			indices: []string{"custom-span-alias", serviceIndexBaseName + serviceDataLayoutFormat},
+			indices: []string{"custom-span-aliasarchive", serviceIndexBaseName + "archive"},
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts,
-				UseReadWriteAliases: true, WriteAliasSuffix: "write",
+				UseReadWriteAliases: true, WriteAliasSuffix: "archive",
 				SpanIndexOverride:    "custom-span-alias",
 				ServiceIndexOverride: "custom-service-alias",
 			},
-			indices: []string{"custom-span-alias", "custom-service-alias"},
+			indices: []string{"custom-span-aliasarchive", "custom-service-aliasarchive"},
 		},
 	}
 	for _, testCase := range testCases {

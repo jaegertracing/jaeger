@@ -105,31 +105,15 @@ type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
 
 func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServiceIndexFn {
 	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
-	hasSpanOverride := p.SpanIndexOverride != ""
-	if hasSpanOverride {
+	if p.SpanIndexOverride != "" {
 		spanIndexPrefix = p.SpanIndexOverride
 	}
 
 	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
-	hasServiceOverride := p.ServiceIndexOverride != ""
-	if hasServiceOverride {
+	if p.ServiceIndexOverride != "" {
 		serviceIndexPrefix = p.ServiceIndexOverride
 	}
 
-	if hasSpanOverride || hasServiceOverride {
-		return func(date time.Time) (string, string) {
-			spanIndex := spanIndexPrefix
-			serviceIndex := serviceIndexPrefix
-			if !hasSpanOverride {
-				spanIndex = indexWithDate(spanIndexPrefix, p.SpanIndex.DateLayout, date)
-			}
-			if !hasServiceOverride {
-				serviceIndex = indexWithDate(serviceIndexPrefix, p.ServiceIndex.DateLayout, date)
-			}
-
-			return spanIndex, serviceIndex
-		}
-	}
 	if p.UseReadWriteAliases {
 		return func(_ time.Time) (string, string) {
 			return spanIndexPrefix + writeAlias, serviceIndexPrefix + writeAlias

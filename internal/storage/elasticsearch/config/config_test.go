@@ -872,18 +872,7 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "single explicit override with IndexPrefix is valid",
-			config: &Configuration{
-				Servers:             []string{"localhost:8000/dummyserver"},
-				UseReadWriteAliases: true,
-				SpanIndexOverride:   "custom-span-override",
-				Indices: Indices{
-					IndexPrefix: "prod",
-				},
-			},
-		},
-		{
-			name: "both explicit overrides with IndexPrefix is incompatible",
+			name: "explicit overrides with IndexPrefix is valid",
 			config: &Configuration{
 				Servers:              []string{"localhost:8000/dummyserver"},
 				UseReadWriteAliases:  true,
@@ -893,10 +882,9 @@ func TestValidate(t *testing.T) {
 					IndexPrefix: "prod",
 				},
 			},
-			expectedError: "IndexPrefix is incompatible with override settings when both",
 		},
 		{
-			name: "both explicit overrides with ReadAliasSuffix is incompatible",
+			name: "explicit overrides with ReadAliasSuffix is valid",
 			config: &Configuration{
 				Servers:              []string{"localhost:8000/dummyserver"},
 				UseReadWriteAliases:  true,
@@ -904,10 +892,9 @@ func TestValidate(t *testing.T) {
 				ServiceIndexOverride: "custom-service-override",
 				ReadAliasSuffix:      "read",
 			},
-			expectedError: "ReadAliasSuffix is incompatible with override settings when both",
 		},
 		{
-			name: "both explicit overrides with WriteAliasSuffix is incompatible",
+			name: "explicit overrides with WriteAliasSuffix is valid",
 			config: &Configuration{
 				Servers:              []string{"localhost:8000/dummyserver"},
 				UseReadWriteAliases:  true,
@@ -915,7 +902,6 @@ func TestValidate(t *testing.T) {
 				ServiceIndexOverride: "custom-service-override",
 				WriteAliasSuffix:     "write",
 			},
-			expectedError: "WriteAliasSuffix is incompatible with override settings when both",
 		},
 	}
 
