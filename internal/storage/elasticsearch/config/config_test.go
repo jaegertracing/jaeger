@@ -1470,6 +1470,57 @@ func TestBulkCallbackInvoke_NilResponse(t *testing.T) {
 	)
 }
 
+func TestAuthExtensionConfig(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     *Configuration
+		wantErr bool
+	}{
+		{
+			name: "valid configuration with auth extension",
+			cfg: &Configuration{
+				Servers: []string{"http://localhost:9200"},
+				AuthExtension: &AuthExtensionConfig{
+					Authenticator: "sigv4auth",
+				},
+				LogLevel: "info",
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid configuration without auth extension",
+			cfg: &Configuration{
+				Servers: []string{"http://localhost:9200"},
+				LogLevel: "info",
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid configuration with empty authenticator",
+			cfg: &Configuration{
+				Servers: []string{"http://localhost:9200"},
+				AuthExtension: &AuthExtensionConfig{
+					Authenticator: "",
+				},
+				LogLevel: "info",
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.cfg.Validate()
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
 }
