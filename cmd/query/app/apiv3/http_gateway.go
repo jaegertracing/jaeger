@@ -159,6 +159,7 @@ func (h *HTTPGateway) streamTraces(tracesIter func(yield func([]ptrace.Traces, e
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Transfer-Encoding", "chunked")
 
 	tracesFound := false
 	hasError := false
@@ -182,7 +183,6 @@ func (h *HTTPGateway) streamTraces(tracesIter func(yield func([]ptrace.Traces, e
 		tracesFound = true
 
 		for _, td := range traces {
-			// Combine all resource spans into a single trace response
 			combinedTrace := ptrace.NewTraces()
 			resources := td.ResourceSpans()
 			for i := 0; i < resources.Len(); i++ {
@@ -197,16 +197,10 @@ func (h *HTTPGateway) streamTraces(tracesIter func(yield func([]ptrace.Traces, e
 
 			if !headerWritten {
 				w.WriteHeader(http.StatusOK)
-				// Write opening bracket for JSON array
-				if _, err := w.Write([]byte("[")); err != nil {
-					h.Logger.Error("Failed to write opening bracket", zap.Error(err))
-					return false
-				}
 				headerWritten = true
 			} else {
-				// Write comma separator between array elements
-				if _, err := w.Write([]byte(",")); err != nil {
-					h.Logger.Error("Failed to write comma separator", zap.Error(err))
+				if _, err := w.Write([]byte("\n")); err != nil {
+					h.Logger.Error("Failed to write newline separator", zap.Error(err))
 					return false
 				}
 			}
@@ -233,14 +227,6 @@ func (h *HTTPGateway) streamTraces(tracesIter func(yield func([]ptrace.Traces, e
 		resp, _ := json.Marshal(&errorResponse)
 		http.Error(w, string(resp), http.StatusNotFound)
 		return
-	}
-
-	if headerWritten {
-		// Write closing bracket for JSON array
-		if _, err := w.Write([]byte("]")); err != nil {
-			h.Logger.Error("Failed to write closing bracket", zap.Error(err))
-		}
-		flusher.Flush()
 	}
 }
 

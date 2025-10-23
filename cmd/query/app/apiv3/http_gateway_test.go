@@ -4,6 +4,7 @@
 package apiv3
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -392,7 +393,7 @@ func TestHTTPGatewayGetOperationsErrors(t *testing.T) {
 	assert.Contains(t, w.Body.String(), assert.AnError.Error())
 }
 
-// TestHTTPGatewayStreamingResponse verifies that streaming produces valid JSON array
+// TestHTTPGatewayStreamingResponse verifies that streaming produces valid NDJSON
 func TestHTTPGatewayStreamingResponse(t *testing.T) {
 	gw := setupHTTPGatewayNoServer(t, "")
 
@@ -428,13 +429,21 @@ func TestHTTPGatewayStreamingResponse(t *testing.T) {
 
 	body := w.Body.String()
 
-	// Verify response is valid JSON array
-	var jsonArray []map[string]any
-	err = json.Unmarshal([]byte(body), &jsonArray)
-	require.NoError(t, err, "Response should be valid JSON array")
+	// Verify response contains newline-separated JSON objects (NDJSON)
+	lines := bytes.Split([]byte(body), []byte("\n"))
+	nonEmptyLines := 0
+	for _, line := range lines {
+		if len(bytes.TrimSpace(line)) > 0 {
+			nonEmptyLines++
+			// Each line should be valid JSON
+			var obj map[string]any
+			err := json.Unmarshal(line, &obj)
+			require.NoError(t, err, "Each line should be valid JSON")
+		}
+	}
 
-	// We should have individual trace objects in the array
-	assert.GreaterOrEqual(t, len(jsonArray), 1, "Should have at least 1 trace")
+	// We should have multiple trace objects
+	assert.GreaterOrEqual(t, nonEmptyLines, 1, "Should have at least 1 trace")
 	assert.Contains(t, body, "foobar")      // First trace span name
 	assert.Contains(t, body, "second-span") // Second trace span name
 }
@@ -473,10 +482,18 @@ func TestHTTPGatewayStreamingMultipleBatches(t *testing.T) {
 
 	body := w.Body.String()
 
-	// Verify response is valid JSON
-	var jsonArray []map[string]any
-	err = json.Unmarshal([]byte(body), &jsonArray)
-	require.NoError(t, err, "Response should be valid JSON array")
+	// Verify response contains valid NDJSON
+	lines := bytes.Split([]byte(body), []byte("\n"))
+	nonEmptyLines := 0
+	for _, line := range lines {
+		if len(bytes.TrimSpace(line)) > 0 {
+			nonEmptyLines++
+			var obj map[string]any
+			err := json.Unmarshal(line, &obj)
+			require.NoError(t, err, "Each line should be valid JSON")
+		}
+	}
+	assert.GreaterOrEqual(t, nonEmptyLines, 1, "Should have at least 1 trace")
 
 	assert.Contains(t, body, "foobar")
 	assert.Contains(t, body, "batch2-span")
@@ -587,10 +604,18 @@ func TestHTTPGatewayStreamingWithEmptyBatches(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	body := w.Body.String()
-	// Verify response is valid JSON
-	var jsonArray []map[string]any
-	err = json.Unmarshal([]byte(body), &jsonArray)
-	require.NoError(t, err, "Response should be valid JSON array")
+	// Verify response contains valid NDJSON
+	lines := bytes.Split([]byte(body), []byte("\n"))
+	nonEmptyLines := 0
+	for _, line := range lines {
+		if len(bytes.TrimSpace(line)) > 0 {
+			nonEmptyLines++
+			var obj map[string]any
+			err := json.Unmarshal(line, &obj)
+			require.NoError(t, err, "Each line should be valid JSON")
+		}
+	}
+	assert.GreaterOrEqual(t, nonEmptyLines, 1, "Should have at least 1 trace")
 
 	assert.Contains(t, body, "foobar")
 }
@@ -635,10 +660,10 @@ func TestHTTPGatewayFindTracesStreaming(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	body := w.Body.String()
-	// Verify response is valid JSON
-	var jsonArray []map[string]any
-	err = json.Unmarshal([]byte(body), &jsonArray)
-	require.NoError(t, err, "Response should be valid JSON array")
+	// Verify response contains valid JSON
+	var obj map[string]any
+	err = json.Unmarshal([]byte(body), &obj)
+	require.NoError(t, err, "Response should be valid JSON")
 
 	assert.Contains(t, body, "foobar")
 }
@@ -679,8 +704,8 @@ func TestHTTPGatewayStreamingMarshalError(t *testing.T) {
 	}
 	gw.router.ServeHTTP(w, r)
 
-	// Should log error for failing to write opening bracket (first write operation)
-	assert.Contains(t, log.String(), "Failed to write opening bracket")
+	// Should log error for failing to marshal trace chunk (first write operation)
+	assert.Contains(t, log.String(), "Failed to marshal trace chunk")
 }
 
 // failingWriter is a ResponseWriter that simulates write failures
@@ -736,10 +761,18 @@ func TestHTTPGatewayStreamingFirstChunkWrite(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	body := w.Body.String()
-	// Verify response is valid JSON
-	var jsonArray []map[string]any
-	err = json.Unmarshal([]byte(body), &jsonArray)
-	require.NoError(t, err, "Response should be valid JSON array")
+	// Verify response contains valid NDJSON
+	lines := bytes.Split([]byte(body), []byte("\n"))
+	nonEmptyLines := 0
+	for _, line := range lines {
+		if len(bytes.TrimSpace(line)) > 0 {
+			nonEmptyLines++
+			var obj map[string]any
+			err := json.Unmarshal(line, &obj)
+			require.NoError(t, err, "Each line should be valid JSON")
+		}
+	}
+	assert.GreaterOrEqual(t, nonEmptyLines, 1, "Should have at least 1 trace")
 
 	assert.Contains(t, body, "foobar")
 	assert.Contains(t, body, "span2")
@@ -817,7 +850,7 @@ func TestHTTPGatewayStreamingFallbackNoTraces(t *testing.T) {
 }
 
 // TestHTTPGatewayStreamingClientSideParsing verifies that the streaming response
-// is valid JSON that clients can parse normally
+// is valid NDJSON that clients can parse
 func TestHTTPGatewayStreamingClientSideParsing(t *testing.T) {
 	gw := setupHTTPGateway(t, "")
 
@@ -872,20 +905,26 @@ func TestHTTPGatewayStreamingClientSideParsing(t *testing.T) {
 
 	bodyStr := string(body)
 
-	// The response MUST be valid JSON that can be parsed as a whole
-	var jsonArray []map[string]any
-	err = json.Unmarshal(body, &jsonArray)
-	require.NoError(t, err, "Response should be valid JSON array that can be parsed")
+	// The response should be NDJSON - newline-separated JSON objects
+	lines := bytes.Split(body, []byte("\n"))
+	validObjects := 0
+	for _, line := range lines {
+		if len(bytes.TrimSpace(line)) == 0 {
+			continue
+		}
+		var obj map[string]any
+		err := json.Unmarshal(line, &obj)
+		require.NoError(t, err, "Each line should be valid JSON")
+
+		// Each object should have a "result" field
+		result, hasResult := obj["result"]
+		assert.True(t, hasResult, "Object should have a 'result' field")
+		assert.NotNil(t, result, "Object result should not be nil")
+		validObjects++
+	}
 
 	// Verify we got multiple trace results
-	assert.GreaterOrEqual(t, len(jsonArray), 3, "Should have at least 3 trace objects in array")
-
-	// Each element should have a "result" field
-	for i, obj := range jsonArray {
-		result, hasResult := obj["result"]
-		assert.True(t, hasResult, "Element %d should have a 'result' field", i)
-		assert.NotNil(t, result, "Element %d result should not be nil", i)
-	}
+	assert.GreaterOrEqual(t, validObjects, 3, "Should have at least 3 trace objects")
 
 	// Verify all traces are present in the response
 	assert.Contains(t, bodyStr, "foobar", "Should contain first trace")
@@ -967,4 +1006,42 @@ func TestHTTPGatewayStreamingEmptyTracesVsNoTraces(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, w.Code)
 		assert.Contains(t, w.Body.String(), "No traces found")
 	})
+}
+
+// TestHTTPGatewayStreamingSingleTraceValidJSON verifies that a single trace
+// with streaming support returns valid JSON (not NDJSON)
+func TestHTTPGatewayStreamingSingleTraceValidJSON(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	trace1 := makeTestTrace()
+	gw.reader.
+		On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{trace1}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	body := w.Body.String()
+
+	// Critical: Single trace should be parseable as standard JSON
+	var response map[string]any
+	err = json.Unmarshal([]byte(body), &response)
+	require.NoError(t, err, "Single trace response should be valid JSON")
+
+	// Should have result field
+	result, hasResult := response["result"]
+	assert.True(t, hasResult, "Response should have 'result' field")
+	assert.NotNil(t, result, "Result should not be nil")
+
+	// Should NOT contain newlines (not NDJSON)
+	assert.NotContains(t, body, "}\n{", "Single trace should not have NDJSON format")
+
+	// Verify content
+	assert.Contains(t, body, "foobar")
 }
