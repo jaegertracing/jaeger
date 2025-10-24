@@ -29,6 +29,8 @@ type QueryServiceOptions struct {
 	ArchiveTraceWriter tracestore.Writer
 	// MaxClockSkewAdjust is the maximum duration by which to adjust a span.
 	MaxClockSkewAdjust time.Duration
+	// MaxTraceSize is the maximum number of spans per trace (0 = no limit).
+	MaxTraceSize int
 }
 
 // StorageCapabilities is a feature flag for query service
