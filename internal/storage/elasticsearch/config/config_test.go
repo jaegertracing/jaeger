@@ -1480,8 +1480,10 @@ func TestAuthExtensionConfig(t *testing.T) {
 			name: "valid configuration with auth extension",
 			cfg: &Configuration{
 				Servers: []string{"http://localhost:9200"},
-				AuthExtension: &AuthExtensionConfig{
-					Authenticator: "sigv4auth",
+				Authentication: Authentication{
+					AuthExtension: &AuthExtensionConfig{
+						Authenticator: "sigv4auth",
+					},
 				},
 				LogLevel: "info",
 			},
@@ -1499,8 +1501,10 @@ func TestAuthExtensionConfig(t *testing.T) {
 			name: "valid configuration with empty authenticator",
 			cfg: &Configuration{
 				Servers: []string{"http://localhost:9200"},
-				AuthExtension: &AuthExtensionConfig{
-					Authenticator: "",
+				Authentication: Authentication{
+					AuthExtension: &AuthExtensionConfig{
+						Authenticator: "",
+					},
 				},
 				LogLevel: "info",
 			},

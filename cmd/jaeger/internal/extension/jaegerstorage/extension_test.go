@@ -445,18 +445,6 @@ func TestMetricStorageStartError(t *testing.T) {
 	}
 }
 
-func testElasticsearchOrOpensearch(t *testing.T, cfg TraceBackend) {
-	ext := makeStorageExtension(t, &Config{
-		TraceBackends: map[string]TraceBackend{
-			"foo": cfg,
-		},
-	})
-	ctx := t.Context()
-	err := ext.Start(ctx, componenttest.NewNopHost())
-	require.NoError(t, err)
-	require.NoError(t, ext.Shutdown(ctx))
-}
-
 func TestXYZsearch(t *testing.T) {
 	server := setupMockServer(t, getVersionResponse(t), http.StatusOK)
 	t.Run("Elasticsearch", func(t *testing.T) {

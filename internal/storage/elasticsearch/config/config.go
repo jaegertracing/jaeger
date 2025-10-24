@@ -100,9 +100,6 @@ type Configuration struct {
 	// querying.
 	RemoteReadClusters []string       `mapstructure:"remote_read_clusters"`
 	Authentication     Authentication `mapstructure:"auth"`
-	// AuthExtension configures HTTP authentication using OpenTelemetry extensions
-	// (e.g., sigv4auth for AWS). This is independent of the Authentication field above.
-	AuthExtension *AuthExtensionConfig `mapstructure:"auth_extension,omitempty"`
 	// TLS contains the TLS configuration for the connection to the ElasticSearch clusters.
 	TLS      configtls.ClientConfig `mapstructure:"tls"`
 	Sniffing Sniffing               `mapstructure:"sniffing"`
@@ -212,6 +209,7 @@ type Authentication struct {
 	BasicAuthentication configoptional.Optional[BasicAuthentication] `mapstructure:"basic"`
 	BearerTokenAuth     configoptional.Optional[TokenAuthentication] `mapstructure:"bearer_token"`
 	APIKeyAuth          configoptional.Optional[TokenAuthentication] `mapstructure:"api_key"`
+	AuthExtension       *AuthExtensionConfig                         `mapstructure:"auth_extension,omitempty"`
 }
 
 // The Authenticator field expects the ID (name) of an HTTP authenticator

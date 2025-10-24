@@ -185,7 +185,7 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		case cfg.Elasticsearch != nil:
 			esTelset := telset
 			esTelset.Metrics = scopedMetricsFactory(storageName, "elasticsearch", "tracestore")
-			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Elasticsearch.AuthExtension, "elasticsearch", storageName)
+			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Elasticsearch.Authentication.AuthExtension, "elasticsearch", storageName)
 			if authErr != nil {
 				return authErr
 			}
@@ -197,7 +197,7 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		case cfg.Opensearch != nil:
 			osTelset := telset
 			osTelset.Metrics = scopedMetricsFactory(storageName, "opensearch", "tracestore")
-			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Opensearch.AuthExtension, "opensearch", storageName)
+			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Opensearch.Authentication.AuthExtension, "opensearch", storageName)
 			if authErr != nil {
 				return authErr
 			}
@@ -234,15 +234,15 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 			promTelset.Metrics = scopedMetricsFactory(metricStorageName, "prometheus", "metricstore")
 
 			// Resolve authenticator if configured
-			var httpAuthenticator extensionauth.HTTPClient
+			var promAuthExt *config.AuthExtensionConfig
 			if cfg.Prometheus.Auth != nil && cfg.Prometheus.Auth.Authenticator != "" {
-				httpAuthenticator, err = s.getAuthenticator(host, cfg.Prometheus.Auth.Authenticator)
-				if err != nil {
-					return fmt.Errorf("failed to get HTTP authenticator '%s' for metric storage '%s': %w",
-						cfg.Prometheus.Auth.Authenticator, metricStorageName, err)
+				promAuthExt = &config.AuthExtensionConfig{
+					Authenticator: cfg.Prometheus.Auth.Authenticator,
 				}
-				s.telset.Logger.Sugar().Infof("HTTP auth configured for metric storage '%s' with authenticator '%s'",
-					metricStorageName, cfg.Prometheus.Auth.Authenticator)
+			}
+			httpAuthenticator, authErr := s.resolveAuthenticator(host, promAuthExt, "prometheus metrics", metricStorageName)
+			if authErr != nil {
+				return authErr
 			}
 
 			// Create factory with optional authenticator (nil if not configured)
@@ -258,7 +258,7 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		case cfg.Elasticsearch != nil:
 			esTelset := telset
 			esTelset.Metrics = scopedMetricsFactory(metricStorageName, "elasticsearch", "metricstore")
-			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Elasticsearch.AuthExtension, "elasticsearch metrics", metricStorageName)
+			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Elasticsearch.Authentication.AuthExtension, "elasticsearch metrics", metricStorageName)
 			if authErr != nil {
 				return authErr
 			}
@@ -270,7 +270,7 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		case cfg.Opensearch != nil:
 			osTelset := telset
 			osTelset.Metrics = scopedMetricsFactory(metricStorageName, "opensearch", "metricstore")
-			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Opensearch.AuthExtension, "opensearch metrics", metricStorageName)
+			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Opensearch.Authentication.AuthExtension, "opensearch metrics", metricStorageName)
 			if authErr != nil {
 				return authErr
 			}
