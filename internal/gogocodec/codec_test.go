@@ -92,9 +92,7 @@ func BenchmarkCodecUnmarshal25Spans(b *testing.B) {
 	bytes, err := c.Marshal(&trace)
 	require.NoError(b, err)
 
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		var trace model.Trace
 		err := c.Unmarshal(bytes, &trace)
 		require.NoError(b, err)

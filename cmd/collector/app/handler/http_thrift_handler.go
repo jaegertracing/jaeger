@@ -14,7 +14,7 @@ import (
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/gorilla/mux"
 
-	tJaeger "github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
+	tjaeger "github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 )
 
@@ -68,12 +68,12 @@ func (aH *APIHandler) SaveSpan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tdes := thrift.NewTDeserializer()
-	batch := &tJaeger.Batch{}
+	batch := &tjaeger.Batch{}
 	if err = tdes.Read(r.Context(), batch, bodyBytes); err != nil {
 		http.Error(w, fmt.Sprintf(UnableToReadBodyErrFormat, err), http.StatusBadRequest)
 		return
 	}
-	batches := []*tJaeger.Batch{batch}
+	batches := []*tjaeger.Batch{batch}
 	opts := SubmitBatchOptions{InboundTransport: processor.HTTPTransport}
 	if _, err = aH.jaegerBatchesHandler.SubmitBatches(r.Context(), batches, opts); err != nil {
 		http.Error(w, fmt.Sprintf("Cannot submit Jaeger batch: %v", err), http.StatusInternalServerError)

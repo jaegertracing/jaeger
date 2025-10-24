@@ -20,7 +20,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/internal/docs"
 	"github.com/jaegertracing/jaeger/cmd/internal/env"
 	"github.com/jaegertracing/jaeger/cmd/internal/featuregate"
-	cmdFlags "github.com/jaegertracing/jaeger/cmd/internal/flags"
+	cmdflags "github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/cmd/internal/printconfig"
 	"github.com/jaegertracing/jaeger/cmd/internal/status"
 	"github.com/jaegertracing/jaeger/internal/config"
@@ -37,8 +37,8 @@ import (
 const serviceName = "jaeger-collector"
 
 func main() {
-	cmdFlags.PrintV1EOL()
-	svc := cmdFlags.NewService(ports.CollectorAdminHTTP)
+	cmdflags.PrintV1EOL()
+	svc := cmdflags.NewService(ports.CollectorAdminHTTP)
 
 	storageFactory, err := storage.NewFactory(storage.ConfigFromEnvAndCLI(os.Args, os.Stderr))
 	if err != nil {

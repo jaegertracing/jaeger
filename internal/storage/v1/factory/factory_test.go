@@ -22,9 +22,9 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
-	depStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
+	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	spanStoreMocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
+	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/mocks"
 )
 
@@ -112,9 +112,9 @@ func TestCreate(t *testing.T) {
 	mock := new(mocks.Factory)
 	f.factories[cassandraStorageType] = mock
 
-	spanReader := new(spanStoreMocks.Reader)
-	spanWriter := new(spanStoreMocks.Writer)
-	depReader := new(depStoreMocks.Reader)
+	spanReader := new(spanstoremocks.Reader)
+	spanWriter := new(spanstoremocks.Writer)
+	depReader := new(depstoremocks.Reader)
 
 	mock.On("CreateSpanReader").Return(spanReader, errors.New("span-reader-error"))
 	mock.On("CreateSpanWriter").Once().Return(spanWriter, errors.New("span-writer-error"))
@@ -148,7 +148,7 @@ func TestCreateDownsamplingWriter(t *testing.T) {
 	assert.NotEmpty(t, f.factories[cassandraStorageType])
 	mock := new(mocks.Factory)
 	f.factories[cassandraStorageType] = mock
-	spanWriter := new(spanStoreMocks.Writer)
+	spanWriter := new(spanstoremocks.Writer)
 	mock.On("CreateSpanWriter").Return(spanWriter, nil)
 
 	m := metrics.NullFactory
@@ -189,8 +189,8 @@ func TestCreateMulti(t *testing.T) {
 	f.factories[elasticsearchStorageType] = mock2
 	f.archiveFactories[elasticsearchStorageType] = mock2
 
-	spanWriter := new(spanStoreMocks.Writer)
-	spanWriter2 := new(spanStoreMocks.Writer)
+	spanWriter := new(spanstoremocks.Writer)
+	spanWriter2 := new(spanstoremocks.Writer)
 
 	mock.On("CreateSpanWriter").Once().Return(spanWriter, errors.New("span-writer-error"))
 
@@ -472,22 +472,22 @@ func TestInitArchiveStorage(t *testing.T) {
 		{
 			name: "successful initialization",
 			setupMock: func(mock *mocks.Factory) {
-				spanReader := &spanStoreMocks.Reader{}
-				spanWriter := &spanStoreMocks.Writer{}
+				spanReader := &spanstoremocks.Reader{}
+				spanWriter := &spanstoremocks.Writer{}
 				mock.On("CreateSpanReader").Return(spanReader, nil)
 				mock.On("CreateSpanWriter").Return(spanWriter, nil)
 			},
 			factoryCfg: defaultCfg,
 			expectedStorage: &ArchiveStorage{
-				Reader: &spanStoreMocks.Reader{},
-				Writer: &spanStoreMocks.Writer{},
+				Reader: &spanstoremocks.Reader{},
+				Writer: &spanstoremocks.Writer{},
 			},
 		},
 		{
 			name: "no archive span reader",
 			setupMock: func(mock *mocks.Factory) {
-				spanReader := &spanStoreMocks.Reader{}
-				spanWriter := &spanStoreMocks.Writer{}
+				spanReader := &spanstoremocks.Reader{}
+				spanWriter := &spanstoremocks.Writer{}
 				mock.On("CreateSpanReader").Return(spanReader, nil)
 				mock.On("CreateSpanWriter").Return(spanWriter, nil)
 			},
@@ -501,8 +501,8 @@ func TestInitArchiveStorage(t *testing.T) {
 		{
 			name: "no archive span writer",
 			setupMock: func(mock *mocks.Factory) {
-				spanReader := &spanStoreMocks.Reader{}
-				spanWriter := &spanStoreMocks.Writer{}
+				spanReader := &spanstoremocks.Reader{}
+				spanWriter := &spanstoremocks.Writer{}
 				mock.On("CreateSpanReader").Return(spanReader, nil)
 				mock.On("CreateSpanWriter").Return(spanWriter, nil)
 			},
@@ -525,7 +525,7 @@ func TestInitArchiveStorage(t *testing.T) {
 		{
 			name: "error initializing writer",
 			setupMock: func(mock *mocks.Factory) {
-				spanReader := new(spanStoreMocks.Reader)
+				spanReader := new(spanstoremocks.Reader)
 				mock.On("CreateSpanReader").Return(spanReader, nil)
 				mock.On("CreateSpanWriter").Return(nil, assert.AnError)
 			},

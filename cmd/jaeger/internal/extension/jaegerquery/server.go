@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
-	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
+	queryapp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jtracer"
@@ -36,7 +36,7 @@ var (
 
 type server struct {
 	config      *Config
-	server      *queryApp.Server
+	server      *queryapp.Server
 	telset      component.TelemetrySettings
 	closeTracer func(ctx context.Context) error
 }
@@ -121,7 +121,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 
 	tm := tenancy.NewManager(&s.config.Tenancy)
 
-	s.server, err = queryApp.NewServer(
+	s.server, err = queryapp.NewServer(
 		ctx,
 		// TODO propagate healthcheck updates up to the collector's runtime
 		qs,
