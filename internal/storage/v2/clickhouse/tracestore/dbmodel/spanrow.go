@@ -41,7 +41,8 @@ type SpanRow struct {
 	LinkAttributes  Attributes2D
 
 	// --- Resource ---
-	ServiceName string
+	ServiceName        string
+	ResourceAttributes Attributes
 
 	// --- Scope ---
 	ScopeName    string
@@ -123,6 +124,16 @@ func ScanRow(rows driver.Rows) (*SpanRow, error) {
 		&sr.LinkAttributes.ComplexKeys,
 		&sr.LinkAttributes.ComplexValues,
 		&sr.ServiceName,
+		&sr.ResourceAttributes.BoolKeys,
+		&sr.ResourceAttributes.BoolValues,
+		&sr.ResourceAttributes.DoubleKeys,
+		&sr.ResourceAttributes.DoubleValues,
+		&sr.ResourceAttributes.IntKeys,
+		&sr.ResourceAttributes.IntValues,
+		&sr.ResourceAttributes.StrKeys,
+		&sr.ResourceAttributes.StrValues,
+		&sr.ResourceAttributes.ComplexKeys,
+		&sr.ResourceAttributes.ComplexValues,
 		&sr.ScopeName,
 		&sr.ScopeVersion,
 	)
