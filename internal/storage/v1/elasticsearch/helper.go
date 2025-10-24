@@ -22,7 +22,6 @@ type mockClientBuilder struct {
 	createTemplateError error
 }
 
-// UPDATE THIS FUNCTION - Add httpAuth parameter
 func (m *mockClientBuilder) NewClient(context.Context, *escfg.Configuration, *zap.Logger, metrics.Factory, extensionauth.HTTPClient) (es.Client, error) {
 	if m.err == nil {
 		c := &mocks.Client{}
