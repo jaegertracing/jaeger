@@ -233,23 +233,15 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 			promTelset := telset
 			promTelset.Metrics = scopedMetricsFactory(metricStorageName, "prometheus", "metricstore")
 
-			// Resolve authenticator if configured
-			var promAuthExt *config.AuthExtensionConfig
-			if cfg.Prometheus.Auth != nil && cfg.Prometheus.Auth.Authenticator != "" {
-				promAuthExt = &config.AuthExtensionConfig{
-					Authenticator: cfg.Prometheus.Auth.Authenticator,
-				}
-			}
-			httpAuthenticator, authErr := s.resolveAuthenticator(host, promAuthExt, "prometheus metrics", metricStorageName)
+			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Prometheus.Authentication.AuthExtension, "prometheus metrics", metricStorageName)
 			if authErr != nil {
 				return authErr
 			}
 
-			// Create factory with optional authenticator (nil if not configured)
 			metricStoreFactory, err = prometheus.NewFactoryWithConfig(
 				cfg.Prometheus.Configuration,
 				promTelset,
-				httpAuthenticator,
+				httpAuth,
 			)
 			if err != nil {
 				return fmt.Errorf("failed to initialize metrics storage '%s': %w", metricStorageName, err)
