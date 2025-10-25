@@ -35,7 +35,7 @@ func FromRow(storedSpan *SpanRow) ptrace.Traces {
 	rs.CopyTo(resource)
 
 	scope := scopeSpans.Scope()
-	sc := convertScope(storedSpan)
+	sc := convertScope(storedSpan, span)
 	sc.CopyTo(scope)
 
 	return trace
@@ -56,11 +56,19 @@ func convertResource(sr *SpanRow, spanForWarnings ptrace.Span) pcommon.Resource 
 	return resource
 }
 
-func convertScope(s *SpanRow) pcommon.InstrumentationScope {
+func convertScope(sr *SpanRow, spanForWarnings ptrace.Span) pcommon.InstrumentationScope {
 	scope := ptrace.NewScopeSpans().Scope()
-	scope.SetName(s.ScopeName)
-	scope.SetVersion(s.ScopeVersion)
-	// TODO: populate attributes
+	scope.SetName(sr.ScopeName)
+	scope.SetVersion(sr.ScopeVersion)
+	putAttributes(
+		scope.Attributes(),
+		spanForWarnings,
+		sr.ScopeAttributes.BoolKeys, sr.ScopeAttributes.BoolValues,
+		sr.ScopeAttributes.DoubleKeys, sr.ScopeAttributes.DoubleValues,
+		sr.ScopeAttributes.IntKeys, sr.ScopeAttributes.IntValues,
+		sr.ScopeAttributes.StrKeys, sr.ScopeAttributes.StrValues,
+		sr.ScopeAttributes.ComplexKeys, sr.ScopeAttributes.ComplexValues,
+	)
 
 	return scope
 }
