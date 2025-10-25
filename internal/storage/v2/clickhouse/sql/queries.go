@@ -56,9 +56,29 @@ INSERT INTO
         resource_complex_attributes.value,
         scope_name,
         scope_version,
+        scope_bool_attributes.key,
+        scope_bool_attributes.value,
+        scope_double_attributes.key,
+        scope_double_attributes.value,
+        scope_int_attributes.key,
+        scope_int_attributes.value,
+        scope_str_attributes.key,
+        scope_str_attributes.value,
+        scope_complex_attributes.key,
+        scope_complex_attributes.value
     )
 VALUES
     (
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
         ?,
         ?,
         ?,
@@ -169,7 +189,17 @@ SELECT
     resource_complex_attributes.key,
     resource_complex_attributes.value,
     scope_name,
-    scope_version
+    scope_version,
+    scope_bool_attributes.key,
+    scope_bool_attributes.value,
+    scope_double_attributes.key,
+    scope_double_attributes.value,
+    scope_int_attributes.key,
+    scope_int_attributes.value,
+    scope_str_attributes.key,
+    scope_str_attributes.value,
+    scope_complex_attributes.key,
+    scope_complex_attributes.value,
 FROM
     spans
 WHERE
