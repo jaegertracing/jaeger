@@ -41,5 +41,10 @@ CREATE TABLE
         resource_str_attributes Nested (key String, value String),
         resource_complex_attributes Nested (key String, value String),
         scope_name String,
-        scope_version String
+        scope_version String,
+        scope_bool_attributes Nested (key String, value Bool),
+        scope_double_attributes Nested (key String, value Float64),
+        scope_int_attributes Nested (key String, value Int64),
+        scope_str_attributes Nested (key String, value String),
+        scope_complex_attributes Nested (key String, value String),
     ) ENGINE = MergeTree PRIMARY KEY (trace_id)
