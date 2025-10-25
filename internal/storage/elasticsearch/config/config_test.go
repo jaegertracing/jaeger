@@ -1482,9 +1482,7 @@ func TestAuthExtensionConfig(t *testing.T) {
 			cfg: &Configuration{
 				Servers: []string{"http://localhost:9200"},
 				Authentication: Authentication{
-					AuthExtension: &AuthExtensionConfig{
-						AuthenticatorID: component.MustNewID("sigv4auth"),
-					},
+					Authenticator: component.MustNewID("sigv4auth"),
 				},
 				LogLevel: "info",
 			},
@@ -1503,7 +1501,7 @@ func TestAuthExtensionConfig(t *testing.T) {
 			cfg: &Configuration{
 				Servers: []string{"http://localhost:9200"},
 				Authentication: Authentication{
-					AuthExtension: &AuthExtensionConfig{},
+					Authenticator: component.ID{},
 				},
 				LogLevel: "info",
 			},

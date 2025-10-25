@@ -185,7 +185,13 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		case cfg.Elasticsearch != nil:
 			esTelset := telset
 			esTelset.Metrics = scopedMetricsFactory(storageName, "elasticsearch", "tracestore")
-			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Elasticsearch.Authentication.AuthExtension, "elasticsearch", storageName)
+			var esAuthCfg *config.AuthExtensionConfig
+			if cfg.Elasticsearch.Authentication.Authenticator != (component.ID{}) {
+				esAuthCfg = &config.AuthExtensionConfig{
+					AuthenticatorID: cfg.Elasticsearch.Authentication.Authenticator,
+				}
+			}
+			httpAuth, authErr := s.resolveAuthenticator(host, esAuthCfg, "elasticsearch", storageName)
 			if authErr != nil {
 				return authErr
 			}
@@ -194,7 +200,13 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		case cfg.Opensearch != nil:
 			osTelset := telset
 			osTelset.Metrics = scopedMetricsFactory(storageName, "opensearch", "tracestore")
-			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Opensearch.Authentication.AuthExtension, "opensearch", storageName)
+			var osAuthCfg *config.AuthExtensionConfig
+			if cfg.Opensearch.Authentication.Authenticator != (component.ID{}) {
+				osAuthCfg = &config.AuthExtensionConfig{
+					AuthenticatorID: cfg.Opensearch.Authentication.Authenticator,
+				}
+			}
+			httpAuth, authErr := s.resolveAuthenticator(host, osAuthCfg, "opensearch", storageName)
 			if authErr != nil {
 				return authErr
 			}
@@ -250,7 +262,13 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		case cfg.Elasticsearch != nil:
 			esTelset := telset
 			esTelset.Metrics = scopedMetricsFactory(metricStorageName, "elasticsearch", "metricstore")
-			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Elasticsearch.Authentication.AuthExtension, "elasticsearch metrics", metricStorageName)
+			var esMetAuthCfg *config.AuthExtensionConfig
+			if cfg.Elasticsearch.Authentication.Authenticator != (component.ID{}) {
+				esMetAuthCfg = &config.AuthExtensionConfig{
+					AuthenticatorID: cfg.Elasticsearch.Authentication.Authenticator,
+				}
+			}
+			httpAuth, authErr := s.resolveAuthenticator(host, esMetAuthCfg, "elasticsearch metrics", metricStorageName)
 			if authErr != nil {
 				return authErr
 			}
@@ -259,7 +277,13 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		case cfg.Opensearch != nil:
 			osTelset := telset
 			osTelset.Metrics = scopedMetricsFactory(metricStorageName, "opensearch", "metricstore")
-			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Opensearch.Authentication.AuthExtension, "opensearch metrics", metricStorageName)
+			var osMetAuthCfg *config.AuthExtensionConfig
+			if cfg.Opensearch.Authentication.Authenticator != (component.ID{}) {
+				osMetAuthCfg = &config.AuthExtensionConfig{
+					AuthenticatorID: cfg.Opensearch.Authentication.Authenticator,
+				}
+			}
+			httpAuth, authErr := s.resolveAuthenticator(host, osMetAuthCfg, "opensearch metrics", metricStorageName)
 			if authErr != nil {
 				return authErr
 			}
