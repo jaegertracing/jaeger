@@ -126,6 +126,16 @@ func TestWriter_Success(t *testing.T) {
 		require.Equal(t, expected.ResourceAttributes.ComplexValues, row[45]) // Resource complex attribute values
 		require.Equal(t, expected.ScopeName, row[46])                        // Scope name
 		require.Equal(t, expected.ScopeVersion, row[47])                     // Scope version
+		require.Equal(t, expected.ScopeAttributes.BoolKeys, row[48])         // Scope bool attribute keys
+		require.Equal(t, expected.ScopeAttributes.BoolValues, row[49])       // Scope bool attribute values
+		require.Equal(t, expected.ScopeAttributes.DoubleKeys, row[50])       // Scope double attribute keys
+		require.Equal(t, expected.ScopeAttributes.DoubleValues, row[51])     // Scope double attribute values
+		require.Equal(t, expected.ScopeAttributes.IntKeys, row[52])          // Scope int attribute keys
+		require.Equal(t, expected.ScopeAttributes.IntValues, row[53])        // Scope int attribute values
+		require.Equal(t, expected.ScopeAttributes.StrKeys, row[54])          // Scope str attribute keys
+		require.Equal(t, expected.ScopeAttributes.StrValues, row[55])        // Scope str attribute values
+		require.Equal(t, expected.ScopeAttributes.ComplexKeys, row[56])      // Scope complex attribute keys
+		require.Equal(t, expected.ScopeAttributes.ComplexValues, row[57])    // Scope complex attribute values
 	}
 }
 
