@@ -4,6 +4,10 @@
 
 package rpcmetrics
 
+import (
+	io_prometheus_client "github.com/prometheus/client_model/go"
+)
+
 // NameNormalizer is used to convert the endpoint names to strings
 // that can be safely used as tags in the metrics.
 type NameNormalizer interface {
@@ -87,4 +91,39 @@ func (n *SimpleNameNormalizer) safeByte(b byte) bool {
 		}
 	}
 	return false
+}
+
+const (
+	// e2eStableNamespace is a placeholder value used to stabilize the 'namespace' label
+	// in Prometheus metrics during end-to-end tests. This prevents flakiness caused
+	// by randomized namespace names in test environments.
+	e2eStableNamespace = "e2e-namespace-stable"
+)
+
+// NormalizeMetricFamilyForE2E processes a slice of Prometheus MetricFamily objects
+// and replaces the value of the 'namespace' label with a stable placeholder string.
+// This function is intended for use in end-to-end testing scenarios where
+// randomized namespace names can cause metric comparisons to be flaky.
+// The modification is performed in-place on the provided slice.
+func NormalizeMetricFamilyForE2E(metricFamilies []*io_prometheus_client.MetricFamily) {
+	for _, mf := range metricFamilies {
+		if mf == nil {
+			continue
+		}
+		for _, m := range mf.Metric { // mf.Metric is []*Metric
+			if m == nil {
+				continue
+			}
+			for _, lp := range m.Label { // m.Label is []*LabelPair
+				if lp == nil {
+					continue
+				}
+				// Check if the label name exists and matches "namespace"
+				if lp.Name != nil && *lp.Name == "namespace" {
+					// Replace the label value with the stable placeholder
+					lp.Value = &e2eStableNamespace
+				}
+			}
+		}
+	}
 }
