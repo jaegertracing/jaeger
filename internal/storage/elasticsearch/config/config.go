@@ -211,7 +211,7 @@ type Authentication struct {
 	BasicAuthentication configoptional.Optional[BasicAuthentication] `mapstructure:"basic"`
 	BearerTokenAuth     configoptional.Optional[TokenAuthentication] `mapstructure:"bearer_token"`
 	APIKeyAuth          configoptional.Optional[TokenAuthentication] `mapstructure:"api_key"`
-	Authenticator       component.ID                                 `mapstructure:"authenticator"`
+	configauth.Config `mapstructure:",squash"`
 }
 
 type AuthExtensionConfig = configauth.Config
