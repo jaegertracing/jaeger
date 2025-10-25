@@ -40,6 +40,7 @@ func createTestScope() pcommon.InstrumentationScope {
 	sc := pcommon.NewInstrumentationScope()
 	sc.SetName("test-scope")
 	sc.SetVersion("v1.0.0")
+	addTestAttributes(sc.Attributes())
 	return sc
 }
 
@@ -155,5 +156,17 @@ func createExpectedSpanRow(now time.Time, duration time.Duration) *SpanRow {
 		},
 		ScopeName:    "test-scope",
 		ScopeVersion: "v1.0.0",
+		ScopeAttributes: Attributes{
+			BoolKeys:      []string{"bool_attr"},
+			BoolValues:    []bool{true},
+			DoubleKeys:    []string{"double_attr"},
+			DoubleValues:  []float64{3.14},
+			IntKeys:       []string{"int_attr"},
+			IntValues:     []int64{42},
+			StrKeys:       []string{"string_attr"},
+			StrValues:     []string{"string_value"},
+			ComplexKeys:   []string{"@bytes@bytes_attr"},
+			ComplexValues: []string{encodedBytes},
+		},
 	}
 }
