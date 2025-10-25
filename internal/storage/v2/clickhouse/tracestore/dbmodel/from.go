@@ -31,7 +31,7 @@ func FromRow(storedSpan *SpanRow) ptrace.Traces {
 	}
 
 	resource := resourceSpans.Resource()
-	rs := convertResource(storedSpan)
+	rs := convertResource(storedSpan, span)
 	rs.CopyTo(resource)
 
 	scope := scopeSpans.Scope()
@@ -41,10 +41,18 @@ func FromRow(storedSpan *SpanRow) ptrace.Traces {
 	return trace
 }
 
-func convertResource(sr *SpanRow) pcommon.Resource {
+func convertResource(sr *SpanRow, spanForWarnings ptrace.Span) pcommon.Resource {
 	resource := ptrace.NewResourceSpans().Resource()
 	resource.Attributes().PutStr(otelsemconv.ServiceNameKey, sr.ServiceName)
-	// TODO: populate attributes
+	putAttributes(
+		resource.Attributes(),
+		spanForWarnings,
+		sr.ResourceAttributes.BoolKeys, sr.ResourceAttributes.BoolValues,
+		sr.ResourceAttributes.DoubleKeys, sr.ResourceAttributes.DoubleValues,
+		sr.ResourceAttributes.IntKeys, sr.ResourceAttributes.IntValues,
+		sr.ResourceAttributes.StrKeys, sr.ResourceAttributes.StrValues,
+		sr.ResourceAttributes.ComplexKeys, sr.ResourceAttributes.ComplexValues,
+	)
 	return resource
 }
 
