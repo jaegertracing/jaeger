@@ -45,6 +45,7 @@ func ToRow(
 	for _, link := range span.Links().All() {
 		sr.appendLink(link)
 	}
+	sr.appendResourceAttributes(resource.Attributes())
 
 	return sr
 }
@@ -96,6 +97,20 @@ func (sr *SpanRow) appendLink(link ptrace.SpanLink) {
 	sr.LinkAttributes.StrValues = append(sr.LinkAttributes.StrValues, linkAttrs.strValues)
 	sr.LinkAttributes.ComplexKeys = append(sr.LinkAttributes.ComplexKeys, linkAttrs.complexKeys)
 	sr.LinkAttributes.ComplexValues = append(sr.LinkAttributes.ComplexValues, linkAttrs.complexValues)
+}
+
+func (sr *SpanRow) appendResourceAttributes(attrs pcommon.Map) {
+	a := extractAttributes(attrs)
+	sr.ResourceAttributes.BoolKeys = append(sr.ResourceAttributes.BoolKeys, a.boolKeys...)
+	sr.ResourceAttributes.BoolValues = append(sr.ResourceAttributes.BoolValues, a.boolValues...)
+	sr.ResourceAttributes.DoubleKeys = append(sr.ResourceAttributes.DoubleKeys, a.doubleKeys...)
+	sr.ResourceAttributes.DoubleValues = append(sr.ResourceAttributes.DoubleValues, a.doubleValues...)
+	sr.ResourceAttributes.IntKeys = append(sr.ResourceAttributes.IntKeys, a.intKeys...)
+	sr.ResourceAttributes.IntValues = append(sr.ResourceAttributes.IntValues, a.intValues...)
+	sr.ResourceAttributes.StrKeys = append(sr.ResourceAttributes.StrKeys, a.strKeys...)
+	sr.ResourceAttributes.StrValues = append(sr.ResourceAttributes.StrValues, a.strValues...)
+	sr.ResourceAttributes.ComplexKeys = append(sr.ResourceAttributes.ComplexKeys, a.complexKeys...)
+	sr.ResourceAttributes.ComplexValues = append(sr.ResourceAttributes.ComplexValues, a.complexValues...)
 }
 
 func extractAttributes(attrs pcommon.Map) (out struct {

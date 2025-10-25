@@ -35,6 +35,11 @@ CREATE TABLE
             complex_attributes Nested (key String, value String)
         ),
         service_name String,
+        resource_bool_attributes Nested (key String, value Bool),
+        resource_double_attributes Nested (key String, value Float64),
+        resource_int_attributes Nested (key String, value Int64),
+        resource_str_attributes Nested (key String, value String),
+        resource_complex_attributes Nested (key String, value String),
         scope_name String,
         scope_version String
     ) ENGINE = MergeTree PRIMARY KEY (trace_id)
