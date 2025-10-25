@@ -38,30 +38,30 @@ func ToRow(
 		ScopeName:     scope.Name(),
 		ScopeVersion:  scope.Version(),
 	}
-	sr.appendSpanAttributes(span.Attributes())
+	appendAttributes(&sr.Attributes, span.Attributes())
 	for _, event := range span.Events().All() {
 		sr.appendEvent(event)
 	}
 	for _, link := range span.Links().All() {
 		sr.appendLink(link)
 	}
-	sr.appendResourceAttributes(resource.Attributes())
+	appendAttributes(&sr.ResourceAttributes, resource.Attributes())
 
 	return sr
 }
 
-func (sr *SpanRow) appendSpanAttributes(attrs pcommon.Map) {
+func appendAttributes(dest *Attributes, attrs pcommon.Map) {
 	a := extractAttributes(attrs)
-	sr.Attributes.BoolKeys = append(sr.Attributes.BoolKeys, a.boolKeys...)
-	sr.Attributes.BoolValues = append(sr.Attributes.BoolValues, a.boolValues...)
-	sr.Attributes.DoubleKeys = append(sr.Attributes.DoubleKeys, a.doubleKeys...)
-	sr.Attributes.DoubleValues = append(sr.Attributes.DoubleValues, a.doubleValues...)
-	sr.Attributes.IntKeys = append(sr.Attributes.IntKeys, a.intKeys...)
-	sr.Attributes.IntValues = append(sr.Attributes.IntValues, a.intValues...)
-	sr.Attributes.StrKeys = append(sr.Attributes.StrKeys, a.strKeys...)
-	sr.Attributes.StrValues = append(sr.Attributes.StrValues, a.strValues...)
-	sr.Attributes.ComplexKeys = append(sr.Attributes.ComplexKeys, a.complexKeys...)
-	sr.Attributes.ComplexValues = append(sr.Attributes.ComplexValues, a.complexValues...)
+	dest.BoolKeys = append(dest.BoolKeys, a.boolKeys...)
+	dest.BoolValues = append(dest.BoolValues, a.boolValues...)
+	dest.DoubleKeys = append(dest.DoubleKeys, a.doubleKeys...)
+	dest.DoubleValues = append(dest.DoubleValues, a.doubleValues...)
+	dest.IntKeys = append(dest.IntKeys, a.intKeys...)
+	dest.IntValues = append(dest.IntValues, a.intValues...)
+	dest.StrKeys = append(dest.StrKeys, a.strKeys...)
+	dest.StrValues = append(dest.StrValues, a.strValues...)
+	dest.ComplexKeys = append(dest.ComplexKeys, a.complexKeys...)
+	dest.ComplexValues = append(dest.ComplexValues, a.complexValues...)
 }
 
 func (sr *SpanRow) appendEvent(event ptrace.SpanEvent) {
@@ -97,20 +97,6 @@ func (sr *SpanRow) appendLink(link ptrace.SpanLink) {
 	sr.LinkAttributes.StrValues = append(sr.LinkAttributes.StrValues, linkAttrs.strValues)
 	sr.LinkAttributes.ComplexKeys = append(sr.LinkAttributes.ComplexKeys, linkAttrs.complexKeys)
 	sr.LinkAttributes.ComplexValues = append(sr.LinkAttributes.ComplexValues, linkAttrs.complexValues)
-}
-
-func (sr *SpanRow) appendResourceAttributes(attrs pcommon.Map) {
-	a := extractAttributes(attrs)
-	sr.ResourceAttributes.BoolKeys = append(sr.ResourceAttributes.BoolKeys, a.boolKeys...)
-	sr.ResourceAttributes.BoolValues = append(sr.ResourceAttributes.BoolValues, a.boolValues...)
-	sr.ResourceAttributes.DoubleKeys = append(sr.ResourceAttributes.DoubleKeys, a.doubleKeys...)
-	sr.ResourceAttributes.DoubleValues = append(sr.ResourceAttributes.DoubleValues, a.doubleValues...)
-	sr.ResourceAttributes.IntKeys = append(sr.ResourceAttributes.IntKeys, a.intKeys...)
-	sr.ResourceAttributes.IntValues = append(sr.ResourceAttributes.IntValues, a.intValues...)
-	sr.ResourceAttributes.StrKeys = append(sr.ResourceAttributes.StrKeys, a.strKeys...)
-	sr.ResourceAttributes.StrValues = append(sr.ResourceAttributes.StrValues, a.strValues...)
-	sr.ResourceAttributes.ComplexKeys = append(sr.ResourceAttributes.ComplexKeys, a.complexKeys...)
-	sr.ResourceAttributes.ComplexValues = append(sr.ResourceAttributes.ComplexValues, a.complexValues...)
 }
 
 func extractAttributes(attrs pcommon.Map) (out struct {
