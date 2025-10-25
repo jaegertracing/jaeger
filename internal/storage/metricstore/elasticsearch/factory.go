@@ -6,6 +6,8 @@ package elasticsearch
 import (
 	"context"
 
+	"go.opentelemetry.io/collector/extension/extensionauth"
+
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
@@ -20,12 +22,17 @@ type Factory struct {
 }
 
 // NewFactory creates a new Factory with the given configuration and telemetry settings.
-func NewFactory(ctx context.Context, cfg config.Configuration, telset telemetry.Settings) (*Factory, error) {
+func NewFactory(
+	ctx context.Context,
+	cfg config.Configuration,
+	telset telemetry.Settings,
+	httpAuth extensionauth.HTTPClient,
+) (*Factory, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	client, err := config.NewClient(ctx, &cfg, telset.Logger, telset.Metrics)
+	client, err := config.NewClient(ctx, &cfg, telset.Logger, telset.Metrics, httpAuth)
 	if err != nil {
 		return nil, err
 	}

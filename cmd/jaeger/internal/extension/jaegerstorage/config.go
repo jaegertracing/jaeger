@@ -68,10 +68,14 @@ type AuthConfig struct {
 	Authenticator string `mapstructure:"authenticator"`
 }
 
+type AuthenticationConfig struct {
+	AuthExtension *escfg.AuthExtensionConfig `mapstructure:"auth_extension,omitempty"`
+}
+
 // PrometheusConfiguration wraps the base Prometheus configuration with auth support.
 type PrometheusConfiguration struct {
 	promcfg.Configuration `mapstructure:",squash"`
-	Auth                  *AuthConfig `mapstructure:"auth,omitempty"`
+	Authentication        AuthenticationConfig `mapstructure:"authentication"`
 }
 
 // MetricBackend contains configuration for a single metric storage backend.

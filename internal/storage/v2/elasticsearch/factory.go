@@ -8,6 +8,8 @@ import (
 	"io"
 	"strings"
 
+	"go.opentelemetry.io/collector/extension/extensionauth"
+
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
@@ -35,11 +37,11 @@ type Factory struct {
 	metricsFactory metrics.Factory
 }
 
-func NewFactory(ctx context.Context, cfg escfg.Configuration, telset telemetry.Settings) (*Factory, error) {
+func NewFactory(ctx context.Context, cfg escfg.Configuration, telset telemetry.Settings, httpAuth extensionauth.HTTPClient) (*Factory, error) {
 	// Ensure required fields are always included in tagsAsFields
 	cfg = ensureRequiredFields(cfg)
 
-	coreFactory, err := elasticsearch.NewFactoryBase(ctx, cfg, telset.Metrics, telset.Logger)
+	coreFactory, err := elasticsearch.NewFactoryBase(ctx, cfg, telset.Metrics, telset.Logger, httpAuth)
 	if err != nil {
 		return nil, err
 	}
