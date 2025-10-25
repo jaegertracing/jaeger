@@ -51,6 +51,30 @@
     "ComplexValues": [["eyJkYl9jb250ZXh0IjoidXNlcmRiIn0="]]
   },
   "ServiceName": "db-service",
+  "ResourceAttributes": {
+    "BoolKeys": ["resource.persistent", "resource.pooled"],
+    "BoolValues": [true, true],
+    "DoubleKeys": ["resource.cpu_limit", "resource.memory_limit"],
+    "DoubleValues": [1.5, 512.0],
+    "IntKeys": ["resource.instance_id", "resource.max_connections"],
+    "IntValues": [67890, 100],
+    "StrKeys": ["service.name", "resource.host", "resource.database_type"],
+    "StrValues": ["db-service", "db-host-1", "postgresql"],
+    "ComplexKeys": ["@bytes@resource.config"],
+    "ComplexValues": ["eyJkYl90eXBlIjoicG9zdGdyZXNxbCJ9"]
+  },
   "ScopeName": "db-scope",
-  "ScopeVersion": "v1.0.0"
+  "ScopeVersion": "v1.0.0",
+  "ScopeAttributes": {
+    "BoolKeys": ["scope.enabled", "scope.persistent"],
+    "BoolValues": [true, false],
+    "DoubleKeys": ["scope.version_number", "scope.priority"],
+    "DoubleValues": [1.0, 0.8],
+    "IntKeys": ["scope.instance_count", "scope.max_spans"],
+    "IntValues": [5, 1000],
+    "StrKeys": ["scope.environment", "scope.component"],
+    "StrValues": ["production", "database"],
+    "ComplexKeys": ["@bytes@scope.metadata"],
+    "ComplexValues": ["eyJzY29wZV90eXBlIjoiZGF0YWJhc2UifQ=="]
+  }
 }
