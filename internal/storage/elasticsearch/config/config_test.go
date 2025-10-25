@@ -16,6 +16,7 @@ import (
 	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
@@ -1482,7 +1483,7 @@ func TestAuthExtensionConfig(t *testing.T) {
 				Servers: []string{"http://localhost:9200"},
 				Authentication: Authentication{
 					AuthExtension: &AuthExtensionConfig{
-						Authenticator: "sigv4auth",
+						AuthenticatorID: component.MustNewID("sigv4auth"),
 					},
 				},
 				LogLevel: "info",
@@ -1502,9 +1503,7 @@ func TestAuthExtensionConfig(t *testing.T) {
 			cfg: &Configuration{
 				Servers: []string{"http://localhost:9200"},
 				Authentication: Authentication{
-					AuthExtension: &AuthExtensionConfig{
-						Authenticator: "",
-					},
+					AuthExtension: &AuthExtensionConfig{},
 				},
 				LogLevel: "info",
 			},

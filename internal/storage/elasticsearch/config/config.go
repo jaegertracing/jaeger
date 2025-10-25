@@ -21,6 +21,7 @@ import (
 	"github.com/asaskevich/govalidator"
 	esv8 "github.com/elastic/go-elasticsearch/v9"
 	"github.com/olivere/elastic/v7"
+	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/extension/extensionauth"
@@ -212,19 +213,7 @@ type Authentication struct {
 	AuthExtension       *AuthExtensionConfig                         `mapstructure:"auth_extension,omitempty"`
 }
 
-// The Authenticator field expects the ID (name) of an HTTP authenticator
-// extension that is registered in the running binary and implements
-// go.opentelemetry.io/collector/extension/extensionauth.HTTPClient.
-// Valid values:
-//   - "sigv4auth" in the stock Jaeger binary (built-in).
-//   - Any other extension name is valid only if that authenticator extension
-//     is included in the build; otherwise Jaeger will error at startup when
-//     resolving the extension.
-//   - Empty/omitted means no auth (default behavior).
-type AuthExtensionConfig struct {
-	// Authenticator is the name (ID) of the HTTP authenticator extension to use.
-	Authenticator string `mapstructure:"authenticator"`
-}
+type AuthExtensionConfig = configauth.Config
 
 type BasicAuthentication struct {
 	// Username contains the username required to connect to Elasticsearch.

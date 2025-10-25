@@ -190,9 +190,6 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 				return authErr
 			}
 			factory, err = es.NewFactory(ctx, *cfg.Elasticsearch, esTelset, httpAuth)
-			if err != nil {
-				return err
-			}
 
 		case cfg.Opensearch != nil:
 			osTelset := telset
@@ -202,9 +199,6 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 				return authErr
 			}
 			factory, err = es.NewFactory(ctx, *cfg.Opensearch, osTelset, httpAuth)
-			if err != nil {
-				return err
-			}
 
 		case cfg.ClickHouse != nil:
 			chTelset := telset
@@ -236,7 +230,7 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 			var promAuthExt *config.AuthExtensionConfig
 			if cfg.Prometheus.Auth != nil && cfg.Prometheus.Auth.Authenticator != "" {
 				promAuthExt = &config.AuthExtensionConfig{
-					Authenticator: cfg.Prometheus.Auth.Authenticator,
+					AuthenticatorID: component.MustNewID(cfg.Prometheus.Auth.Authenticator),
 				}
 			}
 			httpAuth, authErr := s.resolveAuthenticator(host, promAuthExt, "prometheus metrics", metricStorageName)
@@ -261,9 +255,6 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 				return authErr
 			}
 			metricStoreFactory, err = esmetrics.NewFactory(ctx, *cfg.Elasticsearch, esTelset, httpAuth)
-			if err != nil {
-				return err
-			}
 
 		case cfg.Opensearch != nil:
 			osTelset := telset
@@ -273,9 +264,6 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 				return authErr
 			}
 			metricStoreFactory, err = esmetrics.NewFactory(ctx, *cfg.Opensearch, osTelset, httpAuth)
-			if err != nil {
-				return err
-			}
 
 		default:
 			err = fmt.Errorf("no metric backend configuration provided for '%s'", metricStorageName)
@@ -326,7 +314,7 @@ func (*storageExt) getAuthenticator(host component.Host, authenticatorName strin
 	}
 
 	for id, ext := range host.GetExtensions() {
-		if id.Name() == authenticatorName {
+		if id.String() == authenticatorName || id.Name() == authenticatorName {
 			if httpAuth, ok := ext.(extensionauth.HTTPClient); ok {
 				return httpAuth, nil
 			}
@@ -338,15 +326,15 @@ func (*storageExt) getAuthenticator(host component.Host, authenticatorName strin
 
 // resolveAuthenticator is a helper to resolve and validate HTTP authenticator for a backend
 func (s *storageExt) resolveAuthenticator(host component.Host, authCfg *config.AuthExtensionConfig, backendType, backendName string) (extensionauth.HTTPClient, error) {
-	if authCfg == nil || authCfg.Authenticator == "" {
+	if authCfg == nil || authCfg.AuthenticatorID.String() == "" {
 		return nil, nil
 	}
 
-	httpAuth, err := s.getAuthenticator(host, authCfg.Authenticator)
+	httpAuth, err := s.getAuthenticator(host, authCfg.AuthenticatorID.String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get HTTP authenticator for %s backend '%s': %w", backendType, backendName, err)
 	}
 	s.telset.Logger.Sugar().Infof("HTTP auth configured for %s backend '%s' with authenticator '%s'",
-		backendType, backendName, authCfg.Authenticator)
+		backendType, backendName, authCfg.AuthenticatorID.String())
 	return httpAuth, nil
 }

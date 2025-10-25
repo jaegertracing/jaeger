@@ -658,7 +658,7 @@ func TestMetricBackendWithAuthenticator(t *testing.T) {
 				},
 			},
 		})).
-		WithExtension(component.MustNewIDWithName("sigv4auth", "sigv4auth"), mockAuth)
+		WithExtension(component.MustNewID("sigv4auth"), mockAuth)
 
 	ext := host.GetExtensions()[ID]
 	require.NoError(t, ext.Start(t.Context(), host))
@@ -761,7 +761,7 @@ func TestResolveAuthenticator(t *testing.T) {
 		},
 		{
 			name:        "empty authenticator returns nil",
-			authCfg:     &escfg.AuthExtensionConfig{Authenticator: ""},
+			authCfg:     &escfg.AuthExtensionConfig{},
 			setupHost:   componenttest.NewNopHost,
 			backendType: "elasticsearch",
 			backendName: "test",
@@ -769,7 +769,7 @@ func TestResolveAuthenticator(t *testing.T) {
 		},
 		{
 			name:    "valid authenticator",
-			authCfg: &escfg.AuthExtensionConfig{Authenticator: "sigv4auth"},
+			authCfg: &escfg.AuthExtensionConfig{AuthenticatorID: component.MustNewID("sigv4auth")},
 			setupHost: func() component.Host {
 				return storagetest.NewStorageHost().
 					WithExtension(component.MustNewIDWithName("sigv4auth", "sigv4auth"), &mockHTTPAuthenticator{})
@@ -780,7 +780,7 @@ func TestResolveAuthenticator(t *testing.T) {
 		},
 		{
 			name:        "authenticator not found",
-			authCfg:     &escfg.AuthExtensionConfig{Authenticator: "notfound"},
+			authCfg:     &escfg.AuthExtensionConfig{AuthenticatorID: component.MustNewID("notfound")},
 			setupHost:   componenttest.NewNopHost,
 			backendType: "elasticsearch",
 			backendName: "test",
@@ -802,7 +802,7 @@ func TestResolveAuthenticator(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			if tt.authCfg == nil || tt.authCfg.Authenticator == "" {
+			if tt.authCfg == nil || tt.authCfg.AuthenticatorID.String() == "" {
 				require.Nil(t, auth)
 			} else {
 				require.NotNil(t, auth)
