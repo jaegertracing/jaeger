@@ -21,7 +21,6 @@ import (
 	"github.com/asaskevich/govalidator"
 	esv8 "github.com/elastic/go-elasticsearch/v9"
 	"github.com/olivere/elastic/v7"
-	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
@@ -211,7 +210,7 @@ type Authentication struct {
 	BasicAuthentication configoptional.Optional[BasicAuthentication] `mapstructure:"basic"`
 	BearerTokenAuth     configoptional.Optional[TokenAuthentication] `mapstructure:"bearer_token"`
 	APIKeyAuth          configoptional.Optional[TokenAuthentication] `mapstructure:"api_key"`
-	configauth.Config `mapstructure:",squash"`
+	configauth.Config   `mapstructure:",squash"`
 }
 
 type AuthExtensionConfig = configauth.Config

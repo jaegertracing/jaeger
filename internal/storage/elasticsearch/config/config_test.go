@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
@@ -1482,12 +1483,15 @@ func TestAuthExtensionConfig(t *testing.T) {
 			cfg: &Configuration{
 				Servers: []string{"http://localhost:9200"},
 				Authentication: Authentication{
-					Authenticator: component.MustNewID("sigv4auth"),
+					Config: configauth.Config{
+						AuthenticatorID: component.MustNewID("sigv4auth"),
+					},
 				},
 				LogLevel: "info",
 			},
 			wantErr: false,
 		},
+
 		{
 			name: "valid configuration without auth extension",
 			cfg: &Configuration{
@@ -1501,7 +1505,9 @@ func TestAuthExtensionConfig(t *testing.T) {
 			cfg: &Configuration{
 				Servers: []string{"http://localhost:9200"},
 				Authentication: Authentication{
-					Authenticator: component.ID{},
+					Config: configauth.Config{
+						AuthenticatorID: component.ID{},
+					},
 				},
 				LogLevel: "info",
 			},
