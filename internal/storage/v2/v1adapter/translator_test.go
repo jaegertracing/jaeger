@@ -235,7 +235,7 @@ func TestV1TracesFromSeq2(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actualTraces, err := V1TracesFromSeq2(tc.seqTrace)
+			actualTraces, err := V1TracesFromSeq2(tc.seqTrace, 0)
 			require.Equal(t, tc.expectedErr, err)
 			require.Len(t, actualTraces, len(tc.expectedModelTraces))
 			if len(tc.expectedModelTraces) < 1 {
@@ -351,6 +351,7 @@ func TestV1TraceIDsFromSeq2(t *testing.T) {
 }
 
 func TestV1TracesFromSeq2WithLimit(t *testing.T) {
+	// Test the max trace size functionality
 	var (
 		processNoServiceName = "OTLPResourceNoServiceName"
 		startTime            = time.Unix(0, 0) // 1970-01-01T00:00:00Z, matches the default for otel span's start time
@@ -695,7 +696,7 @@ func TestV1TracesFromSeq2WithLimit(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actualTraces, err := V1TracesFromSeq2WithLimit(tc.seqTrace, tc.maxTraceSize)
+			actualTraces, err := V1TracesFromSeq2(tc.seqTrace, tc.maxTraceSize)
 			require.Equal(t, tc.expectedErr, err)
 			require.Len(t, actualTraces, len(tc.expectedModelTraces))
 			if len(tc.expectedModelTraces) < 1 {

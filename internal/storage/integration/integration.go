@@ -193,7 +193,7 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 					StartTimeMin: time.Now().Add(-2 * time.Hour),
 					StartTimeMax: time.Now(),
 				})
-				traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
+				traces, err := v1adapter.V1TracesFromSeq2(iterTraces, 0)
 				if err != nil {
 					t.Log(err)
 					continue

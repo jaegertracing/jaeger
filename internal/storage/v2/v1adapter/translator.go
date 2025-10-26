@@ -44,7 +44,13 @@ func V1BatchesToTraces(batches []*model.Batch) ptrace.Traces {
 }
 
 // V1TracesFromSeq2 converts an interator of ptrace.Traces chunks into v1 traces.
-func V1TracesFromSeq2(otelSeq iter.Seq2[[]ptrace.Traces, error]) ([]*model.Trace, error) {
+// If maxTraceSize > 0, traces exceeding that number of spans will be truncated.
+func V1TracesFromSeq2(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize int) ([]*model.Trace, error) {
+	// Apply size limiting if needed
+	if maxTraceSize > 0 {
+		otelSeq = applyTraceSizeLimit(otelSeq, maxTraceSize)
+	}
+
 	var (
 		jaegerTraces []*model.Trace
 		iterErr      error
@@ -63,36 +69,10 @@ func V1TracesFromSeq2(otelSeq iter.Seq2[[]ptrace.Traces, error]) ([]*model.Trace
 	return jaegerTraces, nil
 }
 
-// V1TracesFromSeq2WithLimit converts an interator of ptrace.Traces chunks into v1 traces.
-// If maxTraceSize > 0, traces exceeding that number of spans will be truncated while consuming the sequence.
-func V1TracesFromSeq2WithLimit(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize int) ([]*model.Trace, error) {
-	var (
-		jaegerTraces []*model.Trace
-		iterErr      error
-	)
-	limitedSeq := applyTraceSizeLimit(otelSeq, maxTraceSize)
-	jptrace.AggregateTraces(limitedSeq)(func(otelTrace ptrace.Traces, err error) bool {
-		if err != nil {
-			iterErr = err
-			return false
-		}
-		jaegerTraces = append(jaegerTraces, modelTraceFromOtelTrace(otelTrace))
-		return true
-	})
-	if iterErr != nil {
-		return nil, iterErr
-	}
-	return jaegerTraces, nil
-}
-
 // applyTraceSizeLimit applies a per-trace span budget while consuming the iterator.
 // Once the budget is reached for a logical trace, remaining chunks of that trace are not yielded,
 // and if the current chunk exceeds the remaining budget it is truncated to the exact number of remaining spans.
 func applyTraceSizeLimit(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize int) iter.Seq2[[]ptrace.Traces, error] {
-	if maxTraceSize <= 0 {
-		return otelSeq
-	}
-
 	return func(yield func([]ptrace.Traces, error) bool) {
 		spansProcessed := 0
 		currentTraceID := pcommon.NewTraceIDEmpty()
@@ -105,21 +85,12 @@ func applyTraceSizeLimit(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize
 
 			limited := make([]ptrace.Traces, 0, len(traces))
 			for _, tr := range traces {
-				// detect logical trace boundary by the first span's TraceID
-				rs := tr.ResourceSpans()
-				if rs.Len() > 0 {
-					ss := rs.At(0).ScopeSpans()
-					if ss.Len() > 0 {
-						spans := ss.At(0).Spans()
-						if spans.Len() > 0 {
-							tid := spans.At(0).TraceID()
-							if tid != currentTraceID {
-								currentTraceID = tid
-								spansProcessed = 0
-								truncated = false
-							}
-						}
-					}
+				// detect logical trace boundary by checking all spans in the trace
+				tid := getFirstTraceID(tr)
+				if tid != (pcommon.TraceID{}) && tid != currentTraceID {
+					currentTraceID = tid
+					spansProcessed = 0
+					truncated = false
 				}
 
 				if truncated {
@@ -163,6 +134,20 @@ func countSpansInTrace(tr ptrace.Traces) int {
 		}
 	}
 	return total
+}
+
+func getFirstTraceID(tr ptrace.Traces) pcommon.TraceID {
+	rs := tr.ResourceSpans()
+	for i := 0; i < rs.Len(); i++ {
+		ss := rs.At(i).ScopeSpans()
+		for j := 0; j < ss.Len(); j++ {
+			spans := ss.At(j).Spans()
+			for k := 0; k < spans.Len(); k++ {
+				return spans.At(k).TraceID()
+			}
+		}
+	}
+	return pcommon.NewTraceIDEmpty()
 }
 
 // truncateTraceToLimit returns a new ptrace.Traces containing at most remaining spans, preserving
