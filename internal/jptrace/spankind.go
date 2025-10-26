@@ -10,7 +10,7 @@ import (
 )
 
 func StringToSpanKind(sk string) ptrace.SpanKind {
-	switch sk {
+	switch strings.ToLower(sk) {
 	case "internal":
 		return ptrace.SpanKindInternal
 	case "server":
