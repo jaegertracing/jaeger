@@ -53,8 +53,6 @@ func (*server) Dependencies() []component.ID {
 }
 
 func (s *server) Start(ctx context.Context, host component.Host) error {
-	tp := s.telset.TracerProvider
-
 	telset := telemetry.FromOtelComponent(s.telset, host)
 	telset.Metrics = telset.Metrics.
 		Namespace(metrics.NSOptions{Name: "jaeger"}).
