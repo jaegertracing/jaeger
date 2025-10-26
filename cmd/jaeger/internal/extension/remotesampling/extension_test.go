@@ -508,16 +508,16 @@ func (*mockFailingProvider) Close() error {
 	return errors.New("mock provider close error")
 }
 
-// TestShutdownWithDistributedLockError tests shutdown when distributed lock fails to close
-func TestShutdownWithDistributedLockError(t *testing.T) {
-	ext := &rsExtension{
-		cfg:       &Config{},
-		telemetry: componenttest.NewNopTelemetrySettings(),
-	}
+// TestShutdownWithNilDistributedLock tests shutdown when distributed lock is nil
+func TestShutdownWithNilDistributedLock(t *testing.T) {
+    ext := &rsExtension{
+        cfg:       &Config{},
+        telemetry: componenttest.NewNopTelemetrySettings(),
+    }
 
-	// Test with nil distributed lock (should not cause error)
-	err := ext.Shutdown(context.Background())
-	require.NoError(t, err)
+    // Test with nil distributed lock (should not cause error)
+    err := ext.Shutdown(context.Background())
+    require.NoError(t, err)
 }
 
 // TestShutdownWithGRPCServer tests shutdown with gRPC server
