@@ -139,7 +139,7 @@ func extractMin(arr []int64) (int64, []int64) {
 // BenchmarkInserts-8   	100000000	        70.6 ns/op	      49 B/op	       0 allocs/op
 func BenchmarkInserts(b *testing.B) {
 	l := newConcurrentList(0)
-	for i := 1; i < b.N; i++ {
+	for i := 1; b.Loop(); i++ {
 		l.insert(int64(i))
 	}
 }
