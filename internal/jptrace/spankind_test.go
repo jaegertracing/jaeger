@@ -16,31 +16,31 @@ func TestStringToSpanKind(t *testing.T) {
 		want ptrace.SpanKind
 	}{
 		{
-			str:  "Unspecified",
+			str:  "unspecified",
 			want: ptrace.SpanKindUnspecified,
 		},
 		{
-			str:  "Internal",
+			str:  "internal",
 			want: ptrace.SpanKindInternal,
 		},
 		{
-			str:  "Server",
+			str:  "server",
 			want: ptrace.SpanKindServer,
 		},
 		{
-			str:  "Client",
+			str:  "client",
 			want: ptrace.SpanKindClient,
 		},
 		{
-			str:  "Producer",
+			str:  "producer",
 			want: ptrace.SpanKindProducer,
 		},
 		{
-			str:  "Consumer",
+			str:  "consumer",
 			want: ptrace.SpanKindConsumer,
 		},
 		{
-			str:  "Unknown",
+			str:  "unknown",
 			want: ptrace.SpanKindUnspecified,
 		},
 		{
@@ -55,6 +55,43 @@ func TestStringToSpanKind(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.str, func(t *testing.T) {
 			require.Equal(t, tt.want, StringToSpanKind(tt.str))
+		})
+	}
+}
+
+func TestSpanKindToString(t *testing.T) {
+	tests := []struct {
+		kind ptrace.SpanKind
+		want string
+	}{
+		{
+			kind: ptrace.SpanKindUnspecified,
+			want: "",
+		},
+		{
+			kind: ptrace.SpanKindInternal,
+			want: "internal",
+		},
+		{
+			kind: ptrace.SpanKindServer,
+			want: "server",
+		},
+		{
+			kind: ptrace.SpanKindClient,
+			want: "client",
+		},
+		{
+			kind: ptrace.SpanKindProducer,
+			want: "producer",
+		},
+		{
+			kind: ptrace.SpanKindConsumer,
+			want: "consumer",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.want, func(t *testing.T) {
+			require.Equal(t, tt.want, SpanKindToString(tt.kind))
 		})
 	}
 }

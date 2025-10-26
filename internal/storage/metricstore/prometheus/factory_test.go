@@ -5,6 +5,7 @@ package prometheus
 
 import (
 	"net"
+	"net/http"
 	"testing"
 	"time"
 
@@ -13,7 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/config"
-	promCfg "github.com/jaegertracing/jaeger/internal/config/promcfg"
+	"github.com/jaegertracing/jaeger/internal/config/promcfg"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/testutils"
@@ -135,17 +136,112 @@ func TestFailedTLSOptions(t *testing.T) {
 }
 
 func TestEmptyFactoryConfig(t *testing.T) {
-	cfg := promCfg.Configuration{}
-	_, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings())
+	cfg := promcfg.Configuration{}
+	_, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings(), nil)
 	require.Error(t, err)
 }
 
 func TestFactoryConfig(t *testing.T) {
-	cfg := promCfg.Configuration{
+	cfg := promcfg.Configuration{
 		ServerURL: "localhost:1234",
 	}
-	_, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings())
+	_, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings(), nil)
 	require.NoError(t, err)
+}
+
+func TestNewFactoryWithConfigAndAuth(t *testing.T) {
+	listener, err := net.Listen("tcp", "localhost:")
+	require.NoError(t, err)
+	defer listener.Close()
+
+	cfg := promcfg.Configuration{
+		ServerURL: "http://" + listener.Addr().String(),
+	}
+
+	mockAuth := &mockHTTPAuthenticator{}
+
+	factory, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings(), mockAuth)
+	require.NoError(t, err)
+	require.NotNil(t, factory)
+
+	// Verify the factory can create a metrics reader
+	reader, err := factory.CreateMetricsReader()
+	require.NoError(t, err)
+	require.NotNil(t, reader)
+	require.True(t, mockAuth.called, "HTTP authenticator should have been called during reader creation")
+}
+
+func TestNewFactoryWithConfigAndAuth_NilAuthenticator(t *testing.T) {
+	listener, err := net.Listen("tcp", "localhost:")
+	require.NoError(t, err)
+	defer listener.Close()
+
+	cfg := promcfg.Configuration{
+		ServerURL: "http://" + listener.Addr().String(),
+	}
+
+	// Should work fine with nil authenticator (backward compatibility)
+	factory, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings(), nil)
+	require.NoError(t, err)
+	require.NotNil(t, factory)
+
+	reader, err := factory.CreateMetricsReader()
+	require.NoError(t, err)
+	require.NotNil(t, reader)
+}
+
+func TestNewFactoryWithConfigAndAuth_EmptyServerURL(t *testing.T) {
+	cfg := promcfg.Configuration{
+		ServerURL: "", // Empty URL should fail
+	}
+
+	mockAuth := &mockHTTPAuthenticator{}
+
+	factory, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings(), mockAuth)
+	require.Error(t, err)
+	require.Nil(t, factory)
+}
+
+func TestNewFactoryWithConfigAndAuth_InvalidTLS(t *testing.T) {
+	cfg := promcfg.Configuration{
+		ServerURL: "https://localhost:9090",
+	}
+	cfg.TLS.CAFile = "/does/not/exist"
+
+	mockAuth := &mockHTTPAuthenticator{}
+
+	factory, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings(), mockAuth)
+	require.NoError(t, err) // Factory creation succeeds
+	require.NotNil(t, factory)
+
+	// But creating reader should fail due to bad TLS config
+	reader, err := factory.CreateMetricsReader()
+	require.Error(t, err)
+	require.Nil(t, reader)
+}
+
+// Mock HTTP authenticator for testing
+type mockHTTPAuthenticator struct {
+	called bool
+}
+
+func (m *mockHTTPAuthenticator) RoundTripper(base http.RoundTripper) (http.RoundTripper, error) {
+	m.called = true
+	return &mockRoundTripper{base: base}, nil
+}
+
+// Mock RoundTripper for testing
+type mockRoundTripper struct {
+	base http.RoundTripper
+}
+
+func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Add mock authentication header
+	req.Header.Set("Authorization", "Bearer test-token")
+	if m.base != nil {
+		return m.base.RoundTrip(req)
+	}
+	return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
 }
 
 func TestMain(m *testing.M) {

@@ -27,33 +27,24 @@ CREATE TABLE
         links Nested (
             trace_id String,
             span_id String,
-            trace_state String
+            trace_state String,
+            bool_attributes Nested (key String, value Bool),
+            double_attributes Nested (key String, value Float64),
+            int_attributes Nested (key String, value Int64),
+            str_attributes Nested (key String, value String),
+            complex_attributes Nested (key String, value String)
         ),
         service_name String,
+        resource_bool_attributes Nested (key String, value Bool),
+        resource_double_attributes Nested (key String, value Float64),
+        resource_int_attributes Nested (key String, value Int64),
+        resource_str_attributes Nested (key String, value String),
+        resource_complex_attributes Nested (key String, value String),
         scope_name String,
-        scope_version String
-    ) ENGINE = MergeTree PRIMARY KEY (trace_id);
-
-CREATE TABLE
-    IF NOT EXISTS services (name String) ENGINE = AggregatingMergeTree PRIMARY KEY (name);
-
-CREATE MATERIALIZED VIEW IF NOT EXISTS services_mv TO services AS
-SELECT
-    service_name AS name
-FROM
-    spans
-GROUP BY
-    service_name;
-
-CREATE TABLE
-    IF NOT EXISTS operations (name String, span_kind String) ENGINE = AggregatingMergeTree PRIMARY KEY (name, span_kind);
-
-CREATE MATERIALIZED VIEW IF NOT EXISTS operations_mv TO operations AS
-SELECT
-    name,
-    kind AS span_kind
-FROM
-    spans
-GROUP BY
-    name,
-    span_kind;
+        scope_version String,
+        scope_bool_attributes Nested (key String, value Bool),
+        scope_double_attributes Nested (key String, value Float64),
+        scope_int_attributes Nested (key String, value Int64),
+        scope_str_attributes Nested (key String, value String),
+        scope_complex_attributes Nested (key String, value String),
+    ) ENGINE = MergeTree PRIMARY KEY (trace_id)
