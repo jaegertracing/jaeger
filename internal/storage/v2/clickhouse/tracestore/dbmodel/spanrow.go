@@ -45,8 +45,9 @@ type SpanRow struct {
 	ResourceAttributes Attributes
 
 	// --- Scope ---
-	ScopeName    string
-	ScopeVersion string
+	ScopeName       string
+	ScopeVersion    string
+	ScopeAttributes Attributes
 }
 
 type Attributes struct {
@@ -136,6 +137,16 @@ func ScanRow(rows driver.Rows) (*SpanRow, error) {
 		&sr.ResourceAttributes.ComplexValues,
 		&sr.ScopeName,
 		&sr.ScopeVersion,
+		&sr.ScopeAttributes.BoolKeys,
+		&sr.ScopeAttributes.BoolValues,
+		&sr.ScopeAttributes.DoubleKeys,
+		&sr.ScopeAttributes.DoubleValues,
+		&sr.ScopeAttributes.IntKeys,
+		&sr.ScopeAttributes.IntValues,
+		&sr.ScopeAttributes.StrKeys,
+		&sr.ScopeAttributes.StrValues,
+		&sr.ScopeAttributes.ComplexKeys,
+		&sr.ScopeAttributes.ComplexValues,
 	)
 	if err != nil {
 		return nil, err

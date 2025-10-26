@@ -46,6 +46,7 @@ func ToRow(
 		sr.appendLink(link)
 	}
 	appendAttributes(&sr.ResourceAttributes, resource.Attributes())
+	appendAttributes(&sr.ScopeAttributes, scope.Attributes())
 
 	return sr
 }
