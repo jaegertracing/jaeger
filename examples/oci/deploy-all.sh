@@ -90,7 +90,7 @@ else
     --set provisionDataStore.cassandra=false \
     --set allInOne.enabled=true \
     --set storage.type=memory \
-    --set allInOne.image.repository="docker.io/jaegertracing/jaeger" \
+    --set allInOne.image.repository="jaegertracing/jaeger" \
     --set-file userconfig="./config.yaml" \
     --set-file uiconfig="./ui-config.json" \
     -f ./jaeger-values.yaml
