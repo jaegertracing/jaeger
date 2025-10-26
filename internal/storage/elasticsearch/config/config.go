@@ -213,8 +213,6 @@ type Authentication struct {
 	configauth.Config   `mapstructure:",squash"`
 }
 
-type AuthExtensionConfig = configauth.Config
-
 type BasicAuthentication struct {
 	// Username contains the username required to connect to Elasticsearch.
 	Username string `mapstructure:"username"`

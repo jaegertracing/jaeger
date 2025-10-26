@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/extension"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
@@ -744,7 +745,7 @@ func (*mockNonHTTPExtension) Shutdown(context.Context) error {
 func TestResolveAuthenticator(t *testing.T) {
 	tests := []struct {
 		name        string
-		authCfg     *escfg.AuthExtensionConfig
+		authCfg     escfg.Authentication
 		setupHost   func() component.Host
 		backendType string
 		backendName string
@@ -752,24 +753,20 @@ func TestResolveAuthenticator(t *testing.T) {
 		errContains string
 	}{
 		{
-			name:        "nil config returns nil",
-			authCfg:     nil,
-			setupHost:   componenttest.NewNopHost,
-			backendType: "elasticsearch",
-			backendName: "test",
-			wantErr:     false,
-		},
-		{
 			name:        "empty authenticator returns nil",
-			authCfg:     &escfg.AuthExtensionConfig{},
+			authCfg:     escfg.Authentication{},
 			setupHost:   componenttest.NewNopHost,
 			backendType: "elasticsearch",
 			backendName: "test",
 			wantErr:     false,
 		},
 		{
-			name:    "valid authenticator",
-			authCfg: &escfg.AuthExtensionConfig{AuthenticatorID: component.MustNewID("sigv4auth")},
+			name: "valid authenticator",
+			authCfg: escfg.Authentication{
+				Config: configauth.Config{
+					AuthenticatorID: component.MustNewID("sigv4auth"),
+				},
+			},
 			setupHost: func() component.Host {
 				return storagetest.NewStorageHost().
 					WithExtension(component.MustNewIDWithName("sigv4auth", "sigv4auth"), &mockHTTPAuthenticator{})
@@ -779,8 +776,12 @@ func TestResolveAuthenticator(t *testing.T) {
 			wantErr:     false,
 		},
 		{
-			name:        "authenticator not found",
-			authCfg:     &escfg.AuthExtensionConfig{AuthenticatorID: component.MustNewID("notfound")},
+			name: "authenticator not found",
+			authCfg: escfg.Authentication{
+				Config: configauth.Config{
+					AuthenticatorID: component.MustNewID("notfound"),
+				},
+			},
 			setupHost:   componenttest.NewNopHost,
 			backendType: "elasticsearch",
 			backendName: "test",
@@ -802,7 +803,8 @@ func TestResolveAuthenticator(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			if tt.authCfg == nil || tt.authCfg.AuthenticatorID.String() == "" {
+			// Check if authenticator ID is empty
+			if tt.authCfg.AuthenticatorID.String() == "" {
 				require.Nil(t, auth)
 			} else {
 				require.NotNil(t, auth)

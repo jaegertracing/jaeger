@@ -185,13 +185,7 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		case cfg.Elasticsearch != nil:
 			esTelset := telset
 			esTelset.Metrics = scopedMetricsFactory(storageName, "elasticsearch", "tracestore")
-			var esAuthCfg *config.AuthExtensionConfig
-			if cfg.Elasticsearch.Authentication.AuthenticatorID != (component.ID{}) {
-				esAuthCfg = &config.AuthExtensionConfig{
-					AuthenticatorID: cfg.Elasticsearch.Authentication.AuthenticatorID,
-				}
-			}
-			httpAuth, authErr := s.resolveAuthenticator(host, esAuthCfg, "elasticsearch", storageName)
+			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Elasticsearch.Authentication, "elasticsearch", storageName)
 			if authErr != nil {
 				return authErr
 			}
@@ -200,13 +194,7 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		case cfg.Opensearch != nil:
 			osTelset := telset
 			osTelset.Metrics = scopedMetricsFactory(storageName, "opensearch", "tracestore")
-			var osAuthCfg *config.AuthExtensionConfig
-			if cfg.Opensearch.Authentication.AuthenticatorID != (component.ID{}) {
-				osAuthCfg = &config.AuthExtensionConfig{
-					AuthenticatorID: cfg.Opensearch.Authentication.AuthenticatorID,
-				}
-			}
-			httpAuth, authErr := s.resolveAuthenticator(host, osAuthCfg, "opensearch", storageName)
+			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Opensearch.Authentication, "opensearch", storageName)
 			if authErr != nil {
 				return authErr
 			}
@@ -239,13 +227,11 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 			promTelset := telset
 			promTelset.Metrics = scopedMetricsFactory(metricStorageName, "prometheus", "metricstore")
 
-			var promAuthExt *config.AuthExtensionConfig
+			var promAuth config.Authentication
 			if cfg.Prometheus.Auth != nil && cfg.Prometheus.Auth.Authenticator != "" {
-				promAuthExt = &config.AuthExtensionConfig{
-					AuthenticatorID: component.MustNewID(cfg.Prometheus.Auth.Authenticator),
-				}
+				promAuth.AuthenticatorID = component.MustNewID(cfg.Prometheus.Auth.Authenticator)
 			}
-			httpAuth, authErr := s.resolveAuthenticator(host, promAuthExt, "prometheus metrics", metricStorageName)
+			httpAuth, authErr := s.resolveAuthenticator(host, promAuth, "prometheus metrics", metricStorageName)
 			if authErr != nil {
 				return authErr
 			}
@@ -262,13 +248,7 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		case cfg.Elasticsearch != nil:
 			esTelset := telset
 			esTelset.Metrics = scopedMetricsFactory(metricStorageName, "elasticsearch", "metricstore")
-			var esMetAuthCfg *config.AuthExtensionConfig
-			if cfg.Elasticsearch.Authentication.AuthenticatorID != (component.ID{}) {
-				esMetAuthCfg = &config.AuthExtensionConfig{
-					AuthenticatorID: cfg.Elasticsearch.Authentication.AuthenticatorID,
-				}
-			}
-			httpAuth, authErr := s.resolveAuthenticator(host, esMetAuthCfg, "elasticsearch metrics", metricStorageName)
+			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Elasticsearch.Authentication, "elasticsearch metrics", metricStorageName)
 			if authErr != nil {
 				return authErr
 			}
@@ -277,13 +257,7 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		case cfg.Opensearch != nil:
 			osTelset := telset
 			osTelset.Metrics = scopedMetricsFactory(metricStorageName, "opensearch", "metricstore")
-			var osMetAuthCfg *config.AuthExtensionConfig
-			if cfg.Opensearch.Authentication.AuthenticatorID != (component.ID{}) {
-				osMetAuthCfg = &config.AuthExtensionConfig{
-					AuthenticatorID: cfg.Opensearch.Authentication.AuthenticatorID,
-				}
-			}
-			httpAuth, authErr := s.resolveAuthenticator(host, osMetAuthCfg, "opensearch metrics", metricStorageName)
+			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Opensearch.Authentication, "opensearch metrics", metricStorageName)
 			if authErr != nil {
 				return authErr
 			}
@@ -349,8 +323,8 @@ func (*storageExt) getAuthenticator(host component.Host, authenticatorName strin
 }
 
 // resolveAuthenticator is a helper to resolve and validate HTTP authenticator for a backend
-func (s *storageExt) resolveAuthenticator(host component.Host, authCfg *config.AuthExtensionConfig, backendType, backendName string) (extensionauth.HTTPClient, error) {
-	if authCfg == nil || authCfg.AuthenticatorID.String() == "" {
+func (s *storageExt) resolveAuthenticator(host component.Host, authCfg config.Authentication, backendType, backendName string) (extensionauth.HTTPClient, error) {
+	if authCfg.AuthenticatorID.String() == "" {
 		return nil, nil
 	}
 
