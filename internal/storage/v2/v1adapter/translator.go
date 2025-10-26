@@ -85,8 +85,8 @@ func applyTraceSizeLimit(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize
 
 			limited := make([]ptrace.Traces, 0, len(traces))
 			for _, tr := range traces {
-				// detect logical trace boundary by checking all spans in the trace
-				tid := getFirstTraceID(tr)
+				// Single-pass: extract trace ID and count spans in one iteration
+				tid, spanCount := extractTraceIDAndCount(tr)
 				if tid != (pcommon.TraceID{}) && tid != currentTraceID {
 					currentTraceID = tid
 					spansProcessed = 0
@@ -98,7 +98,6 @@ func applyTraceSizeLimit(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize
 					continue
 				}
 
-				spanCount := countSpansInTrace(tr)
 				if spansProcessed+spanCount > maxTraceSize {
 					remaining := maxTraceSize - spansProcessed
 					if remaining > 0 {
@@ -124,30 +123,24 @@ func applyTraceSizeLimit(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize
 	}
 }
 
-func countSpansInTrace(tr ptrace.Traces) int {
-	total := 0
-	rs := tr.ResourceSpans()
-	for i := 0; i < rs.Len(); i++ {
-		ss := rs.At(i).ScopeSpans()
-		for j := 0; j < ss.Len(); j++ {
-			total += ss.At(j).Spans().Len()
-		}
-	}
-	return total
-}
-
-func getFirstTraceID(tr ptrace.Traces) pcommon.TraceID {
+// extractTraceIDAndCount extracts the first trace ID and counts spans in a single pass.
+func extractTraceIDAndCount(tr ptrace.Traces) (pcommon.TraceID, int) {
+	tid := pcommon.NewTraceIDEmpty()
+	count := 0
 	rs := tr.ResourceSpans()
 	for i := 0; i < rs.Len(); i++ {
 		ss := rs.At(i).ScopeSpans()
 		for j := 0; j < ss.Len(); j++ {
 			spans := ss.At(j).Spans()
 			for k := 0; k < spans.Len(); k++ {
-				return spans.At(k).TraceID()
+				if tid == (pcommon.TraceID{}) {
+					tid = spans.At(k).TraceID()
+				}
+				count++
 			}
 		}
 	}
-	return pcommon.NewTraceIDEmpty()
+	return tid, count
 }
 
 // truncateTraceToLimit returns a new ptrace.Traces containing at most remaining spans, preserving
