@@ -102,22 +102,7 @@ func convertSpan(sr *SpanRow) (ptrace.Span, error) {
 		event := span.Events().AppendEmpty()
 		event.SetName(e)
 		event.SetTimestamp(pcommon.NewTimestampFromTime(sr.EventTimestamps[i]))
-		putAttributes(
-			event.Attributes(),
-			&Attributes{
-				BoolKeys:      sr.EventAttributes.BoolKeys[i],
-				BoolValues:    sr.EventAttributes.BoolValues[i],
-				DoubleKeys:    sr.EventAttributes.DoubleKeys[i],
-				DoubleValues:  sr.EventAttributes.DoubleValues[i],
-				IntKeys:       sr.EventAttributes.IntKeys[i],
-				IntValues:     sr.EventAttributes.IntValues[i],
-				StrKeys:       sr.EventAttributes.StrKeys[i],
-				StrValues:     sr.EventAttributes.StrValues[i],
-				ComplexKeys:   sr.EventAttributes.ComplexKeys[i],
-				ComplexValues: sr.EventAttributes.ComplexValues[i],
-			},
-			span,
-		)
+		putAttributes2D(event.Attributes(), &sr.EventAttributes, i, span)
 	}
 
 	for i, l := range sr.LinkTraceIDs {
@@ -136,25 +121,34 @@ func convertSpan(sr *SpanRow) (ptrace.Span, error) {
 		link.SetSpanID(pcommon.SpanID(spanID))
 		link.TraceState().FromRaw(sr.LinkTraceStates[i])
 
-		putAttributes(
-			link.Attributes(),
-			&Attributes{
-				BoolKeys:      sr.LinkAttributes.BoolKeys[i],
-				BoolValues:    sr.LinkAttributes.BoolValues[i],
-				DoubleKeys:    sr.LinkAttributes.DoubleKeys[i],
-				DoubleValues:  sr.LinkAttributes.DoubleValues[i],
-				IntKeys:       sr.LinkAttributes.IntKeys[i],
-				IntValues:     sr.LinkAttributes.IntValues[i],
-				StrKeys:       sr.LinkAttributes.StrKeys[i],
-				StrValues:     sr.LinkAttributes.StrValues[i],
-				ComplexKeys:   sr.LinkAttributes.ComplexKeys[i],
-				ComplexValues: sr.LinkAttributes.ComplexValues[i],
-			},
-			span,
-		)
+		putAttributes2D(link.Attributes(), &sr.LinkAttributes, i, span)
 	}
 
 	return span, nil
+}
+
+func putAttributes2D(
+	attrs pcommon.Map,
+	storedAttrs *Attributes2D,
+	idx int,
+	spanForWarnings ptrace.Span,
+) {
+	putAttributes(
+		attrs,
+		&Attributes{
+			BoolKeys:      storedAttrs.BoolKeys[idx],
+			BoolValues:    storedAttrs.BoolValues[idx],
+			DoubleKeys:    storedAttrs.DoubleKeys[idx],
+			DoubleValues:  storedAttrs.DoubleValues[idx],
+			IntKeys:       storedAttrs.IntKeys[idx],
+			IntValues:     storedAttrs.IntValues[idx],
+			StrKeys:       storedAttrs.StrKeys[idx],
+			StrValues:     storedAttrs.StrValues[idx],
+			ComplexKeys:   storedAttrs.ComplexKeys[idx],
+			ComplexValues: storedAttrs.ComplexValues[idx],
+		},
+		spanForWarnings,
+	)
 }
 
 func putAttributes(
