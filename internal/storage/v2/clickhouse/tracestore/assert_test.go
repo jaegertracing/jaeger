@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
@@ -51,7 +52,7 @@ func requireSpanEqual(t *testing.T, expected *dbmodel.SpanRow, actual ptrace.Spa
 	require.Equal(t, expected.TraceState, actual.TraceState().AsRaw())
 	require.Equal(t, expected.ParentSpanID, actual.ParentSpanID().String())
 	require.Equal(t, expected.Name, actual.Name())
-	require.Equal(t, expected.Kind, actual.Kind().String())
+	require.Equal(t, expected.Kind, jptrace.SpanKindToString(actual.Kind()))
 	require.Equal(t, expected.StartTime.UnixNano(), actual.StartTimestamp().AsTime().UnixNano())
 	require.Equal(t, expected.StatusCode, actual.Status().Code().String())
 	require.Equal(t, expected.StatusMessage, actual.Status().Message())
