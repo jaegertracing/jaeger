@@ -32,6 +32,7 @@ func TestToRow(t *testing.T) {
 func createTestResource() pcommon.Resource {
 	rs := pcommon.NewResource()
 	rs.Attributes().PutStr(otelsemconv.ServiceNameKey, "test-service")
+	addTestAttributes(rs.Attributes())
 	return rs
 }
 
@@ -39,6 +40,7 @@ func createTestScope() pcommon.InstrumentationScope {
 	sc := pcommon.NewInstrumentationScope()
 	sc.SetName("test-scope")
 	sc.SetVersion("v1.0.0")
+	addTestAttributes(sc.Attributes())
 	return sc
 }
 
@@ -55,20 +57,11 @@ func createTestSpan(now time.Time, duration time.Duration) ptrace.Span {
 	span.Status().SetCode(ptrace.StatusCodeOk)
 	span.Status().SetMessage("test-status-message")
 
-	addSpanAttributes(span)
+	addTestAttributes(span.Attributes())
 	addSpanEvent(span, now)
 	addSpanLink(span)
 
 	return span
-}
-
-func addSpanAttributes(span ptrace.Span) {
-	attrs := span.Attributes()
-	attrs.PutStr("string_attr", "string_value")
-	attrs.PutInt("int_attr", 42)
-	attrs.PutDouble("double_attr", 3.14)
-	attrs.PutBool("bool_attr", true)
-	attrs.PutEmptyBytes("bytes_attr").FromRaw([]byte("bytes_value"))
 }
 
 func addSpanEvent(span ptrace.Span, now time.Time) {
@@ -148,8 +141,32 @@ func createExpectedSpanRow(now time.Time, duration time.Duration) *SpanRow {
 			ComplexKeys:   [][]string{{"@bytes@bytes_attr"}},
 			ComplexValues: [][]string{{encodedBytes}},
 		},
-		ServiceName:  "test-service",
+		ServiceName: "test-service",
+		ResourceAttributes: Attributes{
+			BoolKeys:      []string{"bool_attr"},
+			BoolValues:    []bool{true},
+			DoubleKeys:    []string{"double_attr"},
+			DoubleValues:  []float64{3.14},
+			IntKeys:       []string{"int_attr"},
+			IntValues:     []int64{42},
+			StrKeys:       []string{"service.name", "string_attr"},
+			StrValues:     []string{"test-service", "string_value"},
+			ComplexKeys:   []string{"@bytes@bytes_attr"},
+			ComplexValues: []string{encodedBytes},
+		},
 		ScopeName:    "test-scope",
 		ScopeVersion: "v1.0.0",
+		ScopeAttributes: Attributes{
+			BoolKeys:      []string{"bool_attr"},
+			BoolValues:    []bool{true},
+			DoubleKeys:    []string{"double_attr"},
+			DoubleValues:  []float64{3.14},
+			IntKeys:       []string{"int_attr"},
+			IntValues:     []int64{42},
+			StrKeys:       []string{"string_attr"},
+			StrValues:     []string{"string_value"},
+			ComplexKeys:   []string{"@bytes@bytes_attr"},
+			ComplexValues: []string{encodedBytes},
+		},
 	}
 }

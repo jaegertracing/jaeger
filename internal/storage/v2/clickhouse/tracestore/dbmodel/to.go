@@ -38,64 +38,58 @@ func ToRow(
 		ScopeName:     scope.Name(),
 		ScopeVersion:  scope.Version(),
 	}
-	sr.appendSpanAttributes(span.Attributes())
+	appendAttributes(&sr.Attributes, span.Attributes())
 	for _, event := range span.Events().All() {
 		sr.appendEvent(event)
 	}
 	for _, link := range span.Links().All() {
 		sr.appendLink(link)
 	}
+	appendAttributes(&sr.ResourceAttributes, resource.Attributes())
+	appendAttributes(&sr.ScopeAttributes, scope.Attributes())
 
 	return sr
 }
 
-func (sr *SpanRow) appendSpanAttributes(attrs pcommon.Map) {
+func appendAttributes(dest *Attributes, attrs pcommon.Map) {
 	a := extractAttributes(attrs)
-	sr.Attributes.BoolKeys = append(sr.Attributes.BoolKeys, a.boolKeys...)
-	sr.Attributes.BoolValues = append(sr.Attributes.BoolValues, a.boolValues...)
-	sr.Attributes.DoubleKeys = append(sr.Attributes.DoubleKeys, a.doubleKeys...)
-	sr.Attributes.DoubleValues = append(sr.Attributes.DoubleValues, a.doubleValues...)
-	sr.Attributes.IntKeys = append(sr.Attributes.IntKeys, a.intKeys...)
-	sr.Attributes.IntValues = append(sr.Attributes.IntValues, a.intValues...)
-	sr.Attributes.StrKeys = append(sr.Attributes.StrKeys, a.strKeys...)
-	sr.Attributes.StrValues = append(sr.Attributes.StrValues, a.strValues...)
-	sr.Attributes.ComplexKeys = append(sr.Attributes.ComplexKeys, a.complexKeys...)
-	sr.Attributes.ComplexValues = append(sr.Attributes.ComplexValues, a.complexValues...)
+	dest.BoolKeys = append(dest.BoolKeys, a.boolKeys...)
+	dest.BoolValues = append(dest.BoolValues, a.boolValues...)
+	dest.DoubleKeys = append(dest.DoubleKeys, a.doubleKeys...)
+	dest.DoubleValues = append(dest.DoubleValues, a.doubleValues...)
+	dest.IntKeys = append(dest.IntKeys, a.intKeys...)
+	dest.IntValues = append(dest.IntValues, a.intValues...)
+	dest.StrKeys = append(dest.StrKeys, a.strKeys...)
+	dest.StrValues = append(dest.StrValues, a.strValues...)
+	dest.ComplexKeys = append(dest.ComplexKeys, a.complexKeys...)
+	dest.ComplexValues = append(dest.ComplexValues, a.complexValues...)
+}
+
+func appendAttributes2D(dest *Attributes2D, attrs pcommon.Map) {
+	a := extractAttributes(attrs)
+	dest.BoolKeys = append(dest.BoolKeys, a.boolKeys)
+	dest.BoolValues = append(dest.BoolValues, a.boolValues)
+	dest.DoubleKeys = append(dest.DoubleKeys, a.doubleKeys)
+	dest.DoubleValues = append(dest.DoubleValues, a.doubleValues)
+	dest.IntKeys = append(dest.IntKeys, a.intKeys)
+	dest.IntValues = append(dest.IntValues, a.intValues)
+	dest.StrKeys = append(dest.StrKeys, a.strKeys)
+	dest.StrValues = append(dest.StrValues, a.strValues)
+	dest.ComplexKeys = append(dest.ComplexKeys, a.complexKeys)
+	dest.ComplexValues = append(dest.ComplexValues, a.complexValues)
 }
 
 func (sr *SpanRow) appendEvent(event ptrace.SpanEvent) {
 	sr.EventNames = append(sr.EventNames, event.Name())
 	sr.EventTimestamps = append(sr.EventTimestamps, event.Timestamp().AsTime())
-
-	evAttrs := extractAttributes(event.Attributes())
-	sr.EventAttributes.BoolKeys = append(sr.EventAttributes.BoolKeys, evAttrs.boolKeys)
-	sr.EventAttributes.BoolValues = append(sr.EventAttributes.BoolValues, evAttrs.boolValues)
-	sr.EventAttributes.DoubleKeys = append(sr.EventAttributes.DoubleKeys, evAttrs.doubleKeys)
-	sr.EventAttributes.DoubleValues = append(sr.EventAttributes.DoubleValues, evAttrs.doubleValues)
-	sr.EventAttributes.IntKeys = append(sr.EventAttributes.IntKeys, evAttrs.intKeys)
-	sr.EventAttributes.IntValues = append(sr.EventAttributes.IntValues, evAttrs.intValues)
-	sr.EventAttributes.StrKeys = append(sr.EventAttributes.StrKeys, evAttrs.strKeys)
-	sr.EventAttributes.StrValues = append(sr.EventAttributes.StrValues, evAttrs.strValues)
-	sr.EventAttributes.ComplexKeys = append(sr.EventAttributes.ComplexKeys, evAttrs.complexKeys)
-	sr.EventAttributes.ComplexValues = append(sr.EventAttributes.ComplexValues, evAttrs.complexValues)
+	appendAttributes2D(&sr.EventAttributes, event.Attributes())
 }
 
 func (sr *SpanRow) appendLink(link ptrace.SpanLink) {
 	sr.LinkTraceIDs = append(sr.LinkTraceIDs, link.TraceID().String())
 	sr.LinkSpanIDs = append(sr.LinkSpanIDs, link.SpanID().String())
 	sr.LinkTraceStates = append(sr.LinkTraceStates, link.TraceState().AsRaw())
-
-	linkAttrs := extractAttributes(link.Attributes())
-	sr.LinkAttributes.BoolKeys = append(sr.LinkAttributes.BoolKeys, linkAttrs.boolKeys)
-	sr.LinkAttributes.BoolValues = append(sr.LinkAttributes.BoolValues, linkAttrs.boolValues)
-	sr.LinkAttributes.DoubleKeys = append(sr.LinkAttributes.DoubleKeys, linkAttrs.doubleKeys)
-	sr.LinkAttributes.DoubleValues = append(sr.LinkAttributes.DoubleValues, linkAttrs.doubleValues)
-	sr.LinkAttributes.IntKeys = append(sr.LinkAttributes.IntKeys, linkAttrs.intKeys)
-	sr.LinkAttributes.IntValues = append(sr.LinkAttributes.IntValues, linkAttrs.intValues)
-	sr.LinkAttributes.StrKeys = append(sr.LinkAttributes.StrKeys, linkAttrs.strKeys)
-	sr.LinkAttributes.StrValues = append(sr.LinkAttributes.StrValues, linkAttrs.strValues)
-	sr.LinkAttributes.ComplexKeys = append(sr.LinkAttributes.ComplexKeys, linkAttrs.complexKeys)
-	sr.LinkAttributes.ComplexValues = append(sr.LinkAttributes.ComplexValues, linkAttrs.complexValues)
+	appendAttributes2D(&sr.LinkAttributes, link.Attributes())
 }
 
 func extractAttributes(attrs pcommon.Map) (out struct {
