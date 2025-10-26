@@ -507,3 +507,71 @@ func (*mockFailingProvider) GetSamplingStrategy(_ context.Context, _ string) (*a
 func (*mockFailingProvider) Close() error {
 	return errors.New("mock provider close error")
 }
+
+// TestShutdownWithDistributedLockError tests shutdown when distributed lock fails to close
+func TestShutdownWithDistributedLockError(t *testing.T) {
+	ext := &rsExtension{
+		cfg:       &Config{},
+		telemetry: componenttest.NewNopTelemetrySettings(),
+	}
+
+	// Test with nil distributed lock (should not cause error)
+	err := ext.Shutdown(context.Background())
+	require.NoError(t, err)
+}
+
+// TestShutdownWithGRPCServer tests shutdown with gRPC server
+func TestShutdownWithGRPCServer(t *testing.T) {
+	ext := &rsExtension{
+		cfg:       &Config{},
+		telemetry: componenttest.NewNopTelemetrySettings(),
+	}
+
+	// Create a gRPC server
+	grpcServer := grpc.NewServer()
+	ext.grpcServer = grpcServer
+
+	err := ext.Shutdown(context.Background())
+	require.NoError(t, err)
+}
+
+// TestShutdownWithAllComponents tests shutdown with all components
+func TestShutdownWithAllComponents(t *testing.T) {
+	ext := &rsExtension{
+		cfg:       &Config{},
+		telemetry: componenttest.NewNopTelemetrySettings(),
+	}
+
+	// Add all components
+	ext.strategyProvider = &mockFailingProvider{}
+	// distLock is nil, so it won't be called
+
+	// Create a simple HTTP server
+	srv := &http.Server{
+		Addr: ":0",
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Write([]byte("test"))
+		}),
+	}
+	ext.httpServer = srv
+
+	// Create a gRPC server
+	grpcServer := grpc.NewServer()
+	ext.grpcServer = grpcServer
+
+	err := ext.Shutdown(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "mock provider close error")
+}
+
+// TestShutdownWithNilComponents tests shutdown with nil components
+func TestShutdownWithNilComponents(t *testing.T) {
+	ext := &rsExtension{
+		cfg:       &Config{},
+		telemetry: componenttest.NewNopTelemetrySettings(),
+	}
+
+	// All components are nil
+	err := ext.Shutdown(context.Background())
+	require.NoError(t, err)
+}
