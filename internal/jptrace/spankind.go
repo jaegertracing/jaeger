@@ -11,15 +11,15 @@ import (
 
 func StringToSpanKind(sk string) ptrace.SpanKind {
 	switch sk {
-	case "Internal":
+	case "internal":
 		return ptrace.SpanKindInternal
-	case "Server":
+	case "server":
 		return ptrace.SpanKindServer
-	case "Client":
+	case "client":
 		return ptrace.SpanKindClient
-	case "Producer":
+	case "producer":
 		return ptrace.SpanKindProducer
-	case "Consumer":
+	case "consumer":
 		return ptrace.SpanKindConsumer
 	default:
 		return ptrace.SpanKindUnspecified
