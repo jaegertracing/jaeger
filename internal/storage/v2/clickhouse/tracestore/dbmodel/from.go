@@ -46,12 +46,8 @@ func convertResource(sr *SpanRow, spanForWarnings ptrace.Span) pcommon.Resource 
 	resource.Attributes().PutStr(otelsemconv.ServiceNameKey, sr.ServiceName)
 	putAttributes(
 		resource.Attributes(),
+		&sr.ResourceAttributes,
 		spanForWarnings,
-		sr.ResourceAttributes.BoolKeys, sr.ResourceAttributes.BoolValues,
-		sr.ResourceAttributes.DoubleKeys, sr.ResourceAttributes.DoubleValues,
-		sr.ResourceAttributes.IntKeys, sr.ResourceAttributes.IntValues,
-		sr.ResourceAttributes.StrKeys, sr.ResourceAttributes.StrValues,
-		sr.ResourceAttributes.ComplexKeys, sr.ResourceAttributes.ComplexValues,
 	)
 	return resource
 }
@@ -62,12 +58,8 @@ func convertScope(sr *SpanRow, spanForWarnings ptrace.Span) pcommon.Instrumentat
 	scope.SetVersion(sr.ScopeVersion)
 	putAttributes(
 		scope.Attributes(),
+		&sr.ScopeAttributes,
 		spanForWarnings,
-		sr.ScopeAttributes.BoolKeys, sr.ScopeAttributes.BoolValues,
-		sr.ScopeAttributes.DoubleKeys, sr.ScopeAttributes.DoubleValues,
-		sr.ScopeAttributes.IntKeys, sr.ScopeAttributes.IntValues,
-		sr.ScopeAttributes.StrKeys, sr.ScopeAttributes.StrValues,
-		sr.ScopeAttributes.ComplexKeys, sr.ScopeAttributes.ComplexValues,
 	)
 
 	return scope
@@ -102,12 +94,8 @@ func convertSpan(sr *SpanRow) (ptrace.Span, error) {
 
 	putAttributes(
 		span.Attributes(),
+		&sr.Attributes,
 		span,
-		sr.Attributes.BoolKeys, sr.Attributes.BoolValues,
-		sr.Attributes.DoubleKeys, sr.Attributes.DoubleValues,
-		sr.Attributes.IntKeys, sr.Attributes.IntValues,
-		sr.Attributes.StrKeys, sr.Attributes.StrValues,
-		sr.Attributes.ComplexKeys, sr.Attributes.ComplexValues,
 	)
 
 	for i, e := range sr.EventNames {
@@ -116,12 +104,19 @@ func convertSpan(sr *SpanRow) (ptrace.Span, error) {
 		event.SetTimestamp(pcommon.NewTimestampFromTime(sr.EventTimestamps[i]))
 		putAttributes(
 			event.Attributes(),
+			&Attributes{
+				BoolKeys:      sr.EventAttributes.BoolKeys[i],
+				BoolValues:    sr.EventAttributes.BoolValues[i],
+				DoubleKeys:    sr.EventAttributes.DoubleKeys[i],
+				DoubleValues:  sr.EventAttributes.DoubleValues[i],
+				IntKeys:       sr.EventAttributes.IntKeys[i],
+				IntValues:     sr.EventAttributes.IntValues[i],
+				StrKeys:       sr.EventAttributes.StrKeys[i],
+				StrValues:     sr.EventAttributes.StrValues[i],
+				ComplexKeys:   sr.EventAttributes.ComplexKeys[i],
+				ComplexValues: sr.EventAttributes.ComplexValues[i],
+			},
 			span,
-			sr.EventAttributes.BoolKeys[i], sr.EventAttributes.BoolValues[i],
-			sr.EventAttributes.DoubleKeys[i], sr.EventAttributes.DoubleValues[i],
-			sr.EventAttributes.IntKeys[i], sr.EventAttributes.IntValues[i],
-			sr.EventAttributes.StrKeys[i], sr.EventAttributes.StrValues[i],
-			sr.EventAttributes.ComplexKeys[i], sr.EventAttributes.ComplexValues[i],
 		)
 	}
 
@@ -143,12 +138,19 @@ func convertSpan(sr *SpanRow) (ptrace.Span, error) {
 
 		putAttributes(
 			link.Attributes(),
+			&Attributes{
+				BoolKeys:      sr.LinkAttributes.BoolKeys[i],
+				BoolValues:    sr.LinkAttributes.BoolValues[i],
+				DoubleKeys:    sr.LinkAttributes.DoubleKeys[i],
+				DoubleValues:  sr.LinkAttributes.DoubleValues[i],
+				IntKeys:       sr.LinkAttributes.IntKeys[i],
+				IntValues:     sr.LinkAttributes.IntValues[i],
+				StrKeys:       sr.LinkAttributes.StrKeys[i],
+				StrValues:     sr.LinkAttributes.StrValues[i],
+				ComplexKeys:   sr.LinkAttributes.ComplexKeys[i],
+				ComplexValues: sr.LinkAttributes.ComplexValues[i],
+			},
 			span,
-			sr.LinkAttributes.BoolKeys[i], sr.LinkAttributes.BoolValues[i],
-			sr.LinkAttributes.DoubleKeys[i], sr.LinkAttributes.DoubleValues[i],
-			sr.LinkAttributes.IntKeys[i], sr.LinkAttributes.IntValues[i],
-			sr.LinkAttributes.StrKeys[i], sr.LinkAttributes.StrValues[i],
-			sr.LinkAttributes.ComplexKeys[i], sr.LinkAttributes.ComplexValues[i],
 		)
 	}
 
@@ -157,33 +159,29 @@ func convertSpan(sr *SpanRow) (ptrace.Span, error) {
 
 func putAttributes(
 	attrs pcommon.Map,
+	storedAttrs *Attributes,
 	spanForWarnings ptrace.Span,
-	boolKeys []string, boolValues []bool,
-	doubleKeys []string, doubleValues []float64,
-	intKeys []string, intValues []int64,
-	strKeys []string, strValues []string,
-	complexKeys []string, complexValues []string,
 ) {
-	for i := 0; i < len(boolKeys); i++ {
-		attrs.PutBool(boolKeys[i], boolValues[i])
+	for i := 0; i < len(storedAttrs.BoolKeys); i++ {
+		attrs.PutBool(storedAttrs.BoolKeys[i], storedAttrs.BoolValues[i])
 	}
-	for i := 0; i < len(doubleKeys); i++ {
-		attrs.PutDouble(doubleKeys[i], doubleValues[i])
+	for i := 0; i < len(storedAttrs.DoubleKeys); i++ {
+		attrs.PutDouble(storedAttrs.DoubleKeys[i], storedAttrs.DoubleValues[i])
 	}
-	for i := 0; i < len(intKeys); i++ {
-		attrs.PutInt(intKeys[i], intValues[i])
+	for i := 0; i < len(storedAttrs.IntKeys); i++ {
+		attrs.PutInt(storedAttrs.IntKeys[i], storedAttrs.IntValues[i])
 	}
-	for i := 0; i < len(strKeys); i++ {
-		attrs.PutStr(strKeys[i], strValues[i])
+	for i := 0; i < len(storedAttrs.StrKeys); i++ {
+		attrs.PutStr(storedAttrs.StrKeys[i], storedAttrs.StrValues[i])
 	}
-	for i := 0; i < len(complexKeys); i++ {
-		if strings.HasPrefix(complexKeys[i], "@bytes@") {
-			decoded, err := base64.StdEncoding.DecodeString(complexValues[i])
+	for i := 0; i < len(storedAttrs.ComplexKeys); i++ {
+		if strings.HasPrefix(storedAttrs.ComplexKeys[i], "@bytes@") {
+			decoded, err := base64.StdEncoding.DecodeString(storedAttrs.ComplexValues[i])
 			if err != nil {
-				jptrace.AddWarnings(spanForWarnings, fmt.Sprintf("failed to decode bytes attribute %q: %s", complexKeys[i], err.Error()))
+				jptrace.AddWarnings(spanForWarnings, fmt.Sprintf("failed to decode bytes attribute %q: %s", storedAttrs.ComplexKeys[i], err.Error()))
 				continue
 			}
-			k := strings.TrimPrefix(complexKeys[i], "@bytes@")
+			k := strings.TrimPrefix(storedAttrs.ComplexKeys[i], "@bytes@")
 			attrs.PutEmptyBytes(k).FromRaw(decoded)
 		}
 	}

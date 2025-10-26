@@ -171,12 +171,11 @@ func TestPutAttributes_Warnings(t *testing.T) {
 
 		putAttributes(
 			attributes,
+			&Attributes{
+				ComplexKeys:   []string{"@bytes@bytes-key"},
+				ComplexValues: []string{"invalid-base64"},
+			},
 			span,
-			nil, nil,
-			nil, nil,
-			nil, nil,
-			nil, nil,
-			[]string{"@bytes@bytes-key"}, []string{"invalid-base64"},
 		)
 
 		_, ok := attributes.Get("bytes-key")
