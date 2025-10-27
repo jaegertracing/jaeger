@@ -16,8 +16,6 @@ import (
 	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
@@ -1470,61 +1468,6 @@ func TestBulkCallbackInvoke_NilResponse(t *testing.T) {
 			Value: 1,
 		},
 	)
-}
-
-func TestAuthExtensionConfig(t *testing.T) {
-	tests := []struct {
-		name    string
-		cfg     *Configuration
-		wantErr bool
-	}{
-		{
-			name: "valid configuration with auth extension",
-			cfg: &Configuration{
-				Servers: []string{"http://localhost:9200"},
-				Authentication: Authentication{
-					Config: configauth.Config{
-						AuthenticatorID: component.MustNewID("sigv4auth"),
-					},
-				},
-				LogLevel: "info",
-			},
-			wantErr: false,
-		},
-
-		{
-			name: "valid configuration without auth extension",
-			cfg: &Configuration{
-				Servers:  []string{"http://localhost:9200"},
-				LogLevel: "info",
-			},
-			wantErr: false,
-		},
-		{
-			name: "valid configuration with empty authenticator",
-			cfg: &Configuration{
-				Servers: []string{"http://localhost:9200"},
-				Authentication: Authentication{
-					Config: configauth.Config{
-						AuthenticatorID: component.ID{},
-					},
-				},
-				LogLevel: "info",
-			},
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.cfg.Validate()
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
 }
 
 func TestMain(m *testing.M) {

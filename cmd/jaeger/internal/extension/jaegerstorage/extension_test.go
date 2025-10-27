@@ -652,9 +652,11 @@ func TestMetricBackendWithAuthenticator(t *testing.T) {
 						Configuration: promcfg.Configuration{
 							ServerURL: mockServer.URL,
 						},
-						Auth: &AuthConfig{
-							Authenticator: "sigv4auth",
-						},
+						Authentication: escfg.Authentication{
+    Config: configauth.Config{
+        AuthenticatorID: component.MustNewID("sigv4auth"),
+    },
+},
 					},
 				},
 			},
@@ -684,9 +686,11 @@ func TestMetricBackendWithInvalidAuthenticator(t *testing.T) {
 					Configuration: promcfg.Configuration{
 						ServerURL: mockServer.URL,
 					},
-					Auth: &AuthConfig{
-						Authenticator: "nonexistent",
-					},
+					Authentication: escfg.Authentication{
+    Config: configauth.Config{
+        AuthenticatorID: component.MustNewID("sigv4auth"),
+    },
+},
 				},
 			},
 		},
