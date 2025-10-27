@@ -114,39 +114,50 @@ type SpanReader struct {
 
 // SpanReaderParams holds constructor params for NewSpanReader
 type SpanReaderParams struct {
-	Client               func() es.Client
-	MaxSpanAge           time.Duration
-	MaxDocCount          int
-	IndexPrefix          cfg.IndexPrefix
-	SpanIndex            cfg.IndexOptions
-	ServiceIndex         cfg.IndexOptions
-	TagDotReplacement    string
-	ReadAliasSuffix      string
-	UseReadWriteAliases  bool
-	RemoteReadClusters   []string
-	SpanIndexOverride    string
-	ServiceIndexOverride string
-	Logger               *zap.Logger
-	Tracer               trace.Tracer
+	Client              func() es.Client
+	MaxSpanAge          time.Duration
+	MaxDocCount         int
+	IndexPrefix         cfg.IndexPrefix
+	SpanIndex           cfg.IndexOptions
+	ServiceIndex        cfg.IndexOptions
+	TagDotReplacement   string
+	ReadAliasSuffix     string
+	UseReadWriteAliases bool
+	RemoteReadClusters  []string
+	SpanReadAlias       string
+	ServiceReadAlias    string
+	Logger              *zap.Logger
+	Tracer              trace.Tracer
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
 func NewSpanReader(p SpanReaderParams) *SpanReader {
-	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
-	if p.SpanIndexOverride != "" {
-		spanIndexPrefix = p.SpanIndexOverride
-	}
+	spanIndexPrefix := p.SpanReadAlias
+	serviceIndexPrefix := p.ServiceReadAlias
 
-	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
-	if p.ServiceIndexOverride != "" {
-		serviceIndexPrefix = p.ServiceIndexOverride
+	if spanIndexPrefix == "" {
+		spanIndexPrefix = p.IndexPrefix.Apply(spanIndexBaseName)
+	}
+	if serviceIndexPrefix == "" {
+		serviceIndexPrefix = p.IndexPrefix.Apply(serviceIndexBaseName)
 	}
 
 	maxSpanAge := p.MaxSpanAge
 	// Setting the maxSpanAge to a large duration will ensure all spans in the "read" alias are accessible by queries (query window = [now - maxSpanAge, now]).
 	// Queries that don't specify a start and end time will use this maxSpanAge, querying all data.
-	if p.UseReadWriteAliases {
+	useAliasMode := p.UseReadWriteAliases || (p.SpanReadAlias != "" && p.ServiceReadAlias != "")
+	if useAliasMode {
 		maxSpanAge = dawnOfTimeSpanAge
+	}
+
+	var timeRangeFn TimeRangeIndexFn
+	if p.SpanReadAlias != "" && p.ServiceReadAlias != "" {
+		// When using explicit aliases, return them directly without any date logic
+		timeRangeFn = func(indexPrefix string, _ string, _ time.Time, _ time.Time, _ time.Duration) []string {
+			return []string{indexPrefix}
+		}
+	} else {
+		timeRangeFn = TimeRangeIndicesFn(p.UseReadWriteAliases, p.ReadAliasSuffix, p.RemoteReadClusters)
 	}
 
 	return &SpanReader{
@@ -157,10 +168,10 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		serviceIndexPrefix:      serviceIndexPrefix,
 		spanIndex:               p.SpanIndex,
 		serviceIndex:            p.ServiceIndex,
-		timeRangeIndices:        LoggingTimeRangeIndexFn(p.Logger, TimeRangeIndicesFn(p.UseReadWriteAliases, p.ReadAliasSuffix, p.RemoteReadClusters)),
+		timeRangeIndices:        LoggingTimeRangeIndexFn(p.Logger, timeRangeFn),
 		sourceFn:                getSourceFn(p.MaxDocCount),
 		maxDocCount:             p.MaxDocCount,
-		useReadWriteAliases:     p.UseReadWriteAliases,
+		useReadWriteAliases:     useAliasMode,
 		logger:                  p.Logger,
 		tracer:                  p.Tracer,
 		dotReplacer:             dbmodel.NewDotReplacer(p.TagDotReplacement),

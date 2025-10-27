@@ -50,20 +50,20 @@ type CoreSpanWriter interface {
 
 // SpanWriterParams holds constructor parameters for NewSpanWriter
 type SpanWriterParams struct {
-	Client               func() es.Client
-	Logger               *zap.Logger
-	MetricsFactory       metrics.Factory
-	SpanIndex            cfg.IndexOptions
-	ServiceIndex         cfg.IndexOptions
-	IndexPrefix          cfg.IndexPrefix
-	AllTagsAsFields      bool
-	TagKeysAsFields      []string
-	TagDotReplacement    string
-	UseReadWriteAliases  bool
-	WriteAliasSuffix     string
-	SpanIndexOverride    string
-	ServiceIndexOverride string
-	ServiceCacheTTL      time.Duration
+	Client              func() es.Client
+	Logger              *zap.Logger
+	MetricsFactory      metrics.Factory
+	SpanIndex           cfg.IndexOptions
+	ServiceIndex        cfg.IndexOptions
+	IndexPrefix         cfg.IndexPrefix
+	AllTagsAsFields     bool
+	TagKeysAsFields     []string
+	TagDotReplacement   string
+	UseReadWriteAliases bool
+	WriteAliasSuffix    string
+	SpanWriteAlias      string
+	ServiceWriteAlias   string
+	ServiceCacheTTL     time.Duration
 }
 
 // NewSpanWriter creates a new SpanWriter for use
@@ -104,15 +104,16 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
 
 func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServiceIndexFn {
-	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
-	if p.SpanIndexOverride != "" {
-		spanIndexPrefix = p.SpanIndexOverride
+	// If explicit write aliases are provided, use them directly without modification
+	if p.SpanWriteAlias != "" && p.ServiceWriteAlias != "" {
+		return func(_ time.Time) (string, string) {
+			return p.SpanWriteAlias, p.ServiceWriteAlias
+		}
 	}
 
+	// Otherwise, use the standard prefix + suffix approach
+	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
 	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
-	if p.ServiceIndexOverride != "" {
-		serviceIndexPrefix = p.ServiceIndexOverride
-	}
 
 	if p.UseReadWriteAliases {
 		return func(_ time.Time) (string, string) {
