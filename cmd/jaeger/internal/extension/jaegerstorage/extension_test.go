@@ -653,10 +653,10 @@ func TestMetricBackendWithAuthenticator(t *testing.T) {
 							ServerURL: mockServer.URL,
 						},
 						Authentication: escfg.Authentication{
-    Config: configauth.Config{
-        AuthenticatorID: component.MustNewID("sigv4auth"),
-    },
-},
+							Config: configauth.Config{
+								AuthenticatorID: component.MustNewID("sigv4auth"),
+							},
+						},
 					},
 				},
 			},
@@ -687,10 +687,10 @@ func TestMetricBackendWithInvalidAuthenticator(t *testing.T) {
 						ServerURL: mockServer.URL,
 					},
 					Authentication: escfg.Authentication{
-    Config: configauth.Config{
-        AuthenticatorID: component.MustNewID("sigv4auth"),
-    },
-},
+						Config: configauth.Config{
+							AuthenticatorID: component.MustNewID("sigv4auth"),
+						},
+					},
 				},
 			},
 		},

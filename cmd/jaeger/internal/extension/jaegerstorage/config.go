@@ -52,8 +52,8 @@ type TraceBackend struct {
 }
 
 type PrometheusConfiguration struct {
-    Configuration  promcfg.Configuration  `mapstructure:",squash"`
-    Authentication escfg.Authentication   `mapstructure:"auth"`
+	Configuration  promcfg.Configuration `mapstructure:",squash"`
+	Authentication escfg.Authentication  `mapstructure:"auth"`
 }
 
 // MetricBackend contains configuration for a single metric storage backend.
