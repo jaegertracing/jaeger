@@ -1,12 +1,16 @@
+global:
+  imageRegistry: docker.io
 hotrod:
   enabled: true
   image:
-    tag: "latest"
+    repository: jaegertracing/example-hotrod
+    tag: "1.72.0"
   args:
     - all
   extraArgs:
     - --otel-exporter=otlp
     - --basepath=/hotrod
+    - --jaeger-ui=https://demo.jaegertracing.io/jaeger
   livenessProbe:
     path: /hotrod
   readinessProbe: 

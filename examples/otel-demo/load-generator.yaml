@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trace-generator
+  namespace: jaeger
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trace-generator
+  template:
+    metadata:
+      labels:
+        app: trace-generator
+    spec:
+      restartPolicy: Always
+      volumes:
+      - name: script-volume
+        configMap:
+          name: trace-script
+          items:
+          - key: generate_traces.py
+            path: generate_traces.py
+      containers:
+      - name: trace-generator
+        image: python:3.11-slim
+        command:
+          - /bin/sh
+          - -c
+          - |
+            pip install --no-cache-dir requests && python /app/generate_traces.py
+        env:
+        - name: TARGET_URL
+          value: "http://jaeger-hotrod.jaeger.svc.cluster.local/dispatch"
+        - name: SLEEP_SECONDS
+          value: "5"
+        volumeMounts:
+        - name: script-volume
+          mountPath: /app
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "128Mi"
+            ephemeral-storage: "200Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+            ephemeral-storage: "1Gi"

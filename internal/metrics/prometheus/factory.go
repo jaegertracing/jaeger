@@ -4,6 +4,7 @@
 package prometheus
 
 import (
+	"maps"
 	"sort"
 	"strings"
 	"time"
@@ -118,7 +119,7 @@ func newFactory(parent *Factory, scope string, tags map[string]string) *Factory 
 // Counter implements Counter of metrics.Factory.
 func (f *Factory) Counter(options metrics.Options) metrics.Counter {
 	help := strings.TrimSpace(options.Help)
-	if len(help) == 0 {
+	if help == "" {
 		help = options.Name
 	}
 	name := counterNamingConvention(f.subScope(options.Name))
@@ -143,7 +144,7 @@ func (f *Factory) Counter(options metrics.Options) metrics.Counter {
 // Gauge implements Gauge of metrics.Factory.
 func (f *Factory) Gauge(options metrics.Options) metrics.Gauge {
 	help := strings.TrimSpace(options.Help)
-	if len(help) == 0 {
+	if help == "" {
 		help = options.Name
 	}
 	name := f.subScope(options.Name)
@@ -167,7 +168,7 @@ func (f *Factory) Gauge(options metrics.Options) metrics.Gauge {
 // Timer implements Timer of metrics.Factory.
 func (f *Factory) Timer(options metrics.TimerOptions) metrics.Timer {
 	help := strings.TrimSpace(options.Help)
-	if len(help) == 0 {
+	if help == "" {
 		help = options.Name
 	}
 	name := f.subScope(options.Name)
@@ -201,7 +202,7 @@ func asFloatBuckets(buckets []time.Duration) []float64 {
 // Histogram implements Histogram of metrics.Factory.
 func (f *Factory) Histogram(options metrics.HistogramOptions) metrics.Histogram {
 	help := strings.TrimSpace(options.Help)
-	if len(help) == 0 {
+	if help == "" {
 		help = options.Name
 	}
 	name := f.subScope(options.Name)
@@ -282,12 +283,8 @@ func (f *Factory) normalize(v string) string {
 
 func (f *Factory) mergeTags(tags map[string]string) map[string]string {
 	ret := make(map[string]string, len(f.tags)+len(tags))
-	for k, v := range f.tags {
-		ret[k] = v
-	}
-	for k, v := range tags {
-		ret[k] = v
-	}
+	maps.Copy(ret, f.tags)
+	maps.Copy(ret, tags)
 	return ret
 }
 

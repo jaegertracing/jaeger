@@ -25,9 +25,9 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
-	esSampleStore "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/samplingstore"
-	esSpanStore "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
-	esDepStorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
+	essamplestore "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/samplingstore"
+	esspanstore "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
+	esdepstorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
 )
 
 var _ io.Closer = (*FactoryBase)(nil)
@@ -92,7 +92,8 @@ func NewFactoryBase(
 		}
 	}
 
-	if err = f.createTemplates(ctx); err != nil {
+	err = f.createTemplates(ctx)
+	if err != nil {
 		return nil, err
 	}
 
@@ -107,8 +108,8 @@ func (f *FactoryBase) getClient() es.Client {
 }
 
 // GetSpanReaderParams returns the SpanReaderParams which can be used to initialize the v1 and v2 readers.
-func (f *FactoryBase) GetSpanReaderParams() esSpanStore.SpanReaderParams {
-	return esSpanStore.SpanReaderParams{
+func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
+	return esspanstore.SpanReaderParams{
 		Client:              f.getClient,
 		MaxDocCount:         f.config.MaxDocCount,
 		MaxSpanAge:          f.config.MaxSpanAge,
@@ -120,13 +121,13 @@ func (f *FactoryBase) GetSpanReaderParams() esSpanStore.SpanReaderParams {
 		ReadAliasSuffix:     f.config.ReadAliasSuffix,
 		RemoteReadClusters:  f.config.RemoteReadClusters,
 		Logger:              f.logger,
-		Tracer:              f.tracer.Tracer("esSpanStore.SpanReader"),
+		Tracer:              f.tracer.Tracer("esspanstore.SpanReader"),
 	}
 }
 
 // GetSpanWriterParams returns the SpanWriterParams which can be used to initialize the v1 and v2 writers.
-func (f *FactoryBase) GetSpanWriterParams() esSpanStore.SpanWriterParams {
-	return esSpanStore.SpanWriterParams{
+func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
+	return esspanstore.SpanWriterParams{
 		Client:              f.getClient,
 		IndexPrefix:         f.config.Indices.IndexPrefix,
 		SpanIndex:           f.config.Indices.Spans,
@@ -142,9 +143,9 @@ func (f *FactoryBase) GetSpanWriterParams() esSpanStore.SpanWriterParams {
 	}
 }
 
-// GetDependencyStoreParams returns the esDepStorev2.Params which can be used to initialize the v1 and v2 dependency stores.
-func (f *FactoryBase) GetDependencyStoreParams() esDepStorev2.Params {
-	return esDepStorev2.Params{
+// GetDependencyStoreParams returns the esdepstorev2.Params which can be used to initialize the v1 and v2 dependency stores.
+func (f *FactoryBase) GetDependencyStoreParams() esdepstorev2.Params {
+	return esdepstorev2.Params{
 		Client:              f.getClient,
 		Logger:              f.logger,
 		IndexPrefix:         f.config.Indices.IndexPrefix,
@@ -155,7 +156,7 @@ func (f *FactoryBase) GetDependencyStoreParams() esDepStorev2.Params {
 }
 
 func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
-	params := esSampleStore.Params{
+	params := essamplestore.Params{
 		Client:                 f.getClient,
 		Logger:                 f.logger,
 		IndexPrefix:            f.config.Indices.IndexPrefix,
@@ -164,7 +165,7 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 		Lookback:               f.config.AdaptiveSamplingLookback,
 		MaxDocCount:            f.config.MaxDocCount,
 	}
-	store := esSampleStore.NewSamplingStore(params)
+	store := essamplestore.NewSamplingStore(params)
 
 	if f.config.CreateIndexTemplates {
 		mappingBuilder := f.mappingBuilderFromConfig(f.config)

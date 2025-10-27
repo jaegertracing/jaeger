@@ -102,6 +102,13 @@ func TestArchiveFactory(t *testing.T) {
 }
 
 func TestFactoryInitializeErr(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	defer server.Close()
 	tests := []struct {
 		name        string
 		factory     *Factory
@@ -113,15 +120,18 @@ func TestFactoryInitializeErr(t *testing.T) {
 			expectedErr: "Servers: non zero value required",
 		},
 		{
-			name:        "server error",
-			factory:     NewFactory(),
-			expectedErr: "failed to create Elasticsearch client: health check timeout: Head \"http://127.0.0.1:9200\": dial tcp 127.0.0.1:9200: connect: connection refused: no Elasticsearch node available",
+			name: "server error",
+			factory: &Factory{Options: &Options{Config: namespaceConfig{Configuration: escfg.Configuration{
+				Servers:            []string{server.URL},
+				DisableHealthCheck: true,
+			}}}},
+			expectedErr: "failed to create Elasticsearch client",
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			err := test.factory.Initialize(metrics.NullFactory, zaptest.NewLogger(t))
-			require.EqualError(t, err, test.expectedErr)
+			require.ErrorContains(t, err, test.expectedErr)
 		})
 	}
 }

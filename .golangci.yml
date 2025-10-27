@@ -1,6 +1,6 @@
 version: "2"
 run:
-  go: "1.23"
+  go: "1.24"
 linters:
   enable:
     - asciicheck
@@ -22,12 +22,12 @@ linters:
     - nolintlint
     - perfsprint
     - revive
+    - staticcheck
     - testifylint
     - usestdlibvars
     - usetesting
   disable:
     - errcheck
-    - staticcheck
   settings:
     depguard:
       rules:
@@ -63,6 +63,20 @@ linters:
               desc: Use github.com/jaegertracing/jaeger-idl/model/v1
             - pkg: github.com/jaegertracing/jaeger/internal/proto-gen/api_v2$
               desc: Use github.com/jaegertracing/jaeger-idl/proto-gen/api_v2
+    gocritic:
+      disabled-checks:
+        - appendAssign
+        - commentedOutCode
+        - deferInLoop
+        - dupArg
+        - exitAfterDefer
+        - hugeParam
+        - importShadow
+        - paramTypeCombine # WON'T FIX
+        - returnAfterHttpError
+        - todoCommentWithoutDetail
+        - unnamedResult
+      enable-all: true
     gosec:
       excludes:
         - G104
@@ -88,6 +102,9 @@ linters:
         - name: line-length-limit
           arguments:
             - 80
+          disabled: true
+        # this should be enabled after fixing or disabling in a few packages
+        - name: package-directory-mismatch
           disabled: true
         # would be ok if we could exclude the test files, but otherwise too noisy
         - name: add-constant
@@ -123,13 +140,7 @@ linters:
         - name: argument-limit
           disabled: true
         # maybe enable, needs invesitgation of the impact
-        - name: import-alias-naming
-          disabled: true
-        # maybe enable, needs invesitgation of the impact
         - name: get-return
-          disabled: true
-        # investigate, could be real bugs. But didn't recent Go version changed loop variables semantics?
-        - name: range-val-address
           disabled: true
         # this is idiocy, promotes less readable code. Don't enable.
         - name: var-declaration
@@ -143,6 +154,13 @@ linters:
         # this rule conflicts with nolintlint which does insist on no-space in //nolint
         - name: comment-spacings
           disabled: true
+    staticcheck:
+      checks:
+        - all
+        - -QF1008 # Omit embedded fields from selector expression
+        - -SA1019 # Using a deprecated function, variable, constant or field
+        - -ST1003 # Poorly chosen identifier
+        - -ST1005 # Incorrectly formatted error string
     testifylint:
       enable-all: true
   exclusions:
@@ -164,15 +182,6 @@ linters:
       - linters:
           - staticcheck
         path: internal/grpctest/
-      - linters:
-          - gocritic
-        text: dupArg
-      - linters:
-          - gocritic
-        text: exitAfterDefer
-      - linters:
-          - gocritic
-        text: appendAssign
     paths:
       - .*.pb.go$
       - mocks

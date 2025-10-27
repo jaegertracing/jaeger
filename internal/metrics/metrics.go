@@ -6,6 +6,7 @@ package metrics
 
 import (
 	"fmt"
+	"maps"
 	"reflect"
 	"strconv"
 	"strings"
@@ -44,9 +45,7 @@ func Init(m any, factory Factory, globalTags map[string]string) error {
 	t := v.Type()
 	for i := 0; i < t.NumField(); i++ {
 		tags := make(map[string]string)
-		for k, v := range globalTags {
-			tags[k] = v
-		}
+		maps.Copy(tags, globalTags)
 		var buckets []float64
 		field := t.Field(i)
 		metric := field.Tag.Get("metric")
@@ -54,8 +53,7 @@ func Init(m any, factory Factory, globalTags map[string]string) error {
 			return fmt.Errorf("Field %s is missing a tag 'metric'", field.Name)
 		}
 		if tagString := field.Tag.Get("tags"); tagString != "" {
-			tagPairs := strings.Split(tagString, ",")
-			for _, tagPair := range tagPairs {
+			for tagPair := range strings.SplitSeq(tagString, ",") {
 				tag := strings.Split(tagPair, "=")
 				if len(tag) != 2 {
 					return fmt.Errorf(

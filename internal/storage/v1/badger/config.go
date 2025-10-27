@@ -16,8 +16,11 @@ const (
 	defaultMetricsUpdateInterval time.Duration = 10 * time.Second
 	defaultTTL                   time.Duration = time.Hour * 72
 	defaultDataDir               string        = string(os.PathSeparator) + "data"
-	defaultValueDir              string        = defaultDataDir + string(os.PathSeparator) + "values"
-	defaultKeysDir               string        = defaultDataDir + string(os.PathSeparator) + "keys"
+)
+
+var (
+	defaultValueDir string = filepath.Join(defaultDataDir, "values")
+	defaultKeysDir  string = filepath.Join(defaultDataDir, "keys")
 )
 
 // Config is badger's internal configuration data.

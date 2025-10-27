@@ -395,7 +395,7 @@ func (*APIHandler) filterDependenciesByService(
 	dependencies []model.DependencyLink,
 	service string,
 ) []model.DependencyLink {
-	if len(service) == 0 {
+	if service == "" {
 		return dependencies
 	}
 

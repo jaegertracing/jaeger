@@ -8,7 +8,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
-	promExporter "go.opentelemetry.io/otel/exporters/prometheus"
+	promexporter "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/sdk/metric"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
@@ -28,7 +28,7 @@ func setupPrometheusFactory() metrics.Factory {
 
 func setupOTELFactory(b *testing.B) metrics.Factory {
 	registry := prometheus.NewRegistry()
-	exporter, err := promExporter.New(promExporter.WithRegisterer(registry))
+	exporter, err := promexporter.New(promexporter.WithRegisterer(registry))
 	require.NoError(b, err)
 	meterProvider := metric.NewMeterProvider(
 		metric.WithReader(exporter),

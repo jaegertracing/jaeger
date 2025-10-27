@@ -14,6 +14,7 @@ import (
 	"sort"
 
 	"github.com/dgraph-io/badger/v4"
+	"golang.org/x/exp/maps"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
@@ -421,10 +422,7 @@ func (r *TraceReader) durationQueries(plan *executionPlan, query *spanstore.Trac
 
 func mergeJoinIds(left, right [][]byte) [][]byte {
 	// len(left) or len(right) is the maximum, whichever is the smallest
-	allocateSize := len(left)
-	if len(right) < allocateSize {
-		allocateSize = len(right)
-	}
+	allocateSize := min(len(right), len(left))
 
 	merged := make([][]byte, 0, allocateSize)
 
@@ -622,7 +620,7 @@ func scanRangeFunction(it *badger.Iterator, indexEndValue []byte) bool {
 
 // preloadServices fills the cache with services after extracting from badger
 func (r *TraceReader) preloadServices() []string {
-	var services []string
+	services := map[string]struct{}{}
 	r.store.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		it := txn.NewIterator(opts)
@@ -635,12 +633,12 @@ func (r *TraceReader) preloadServices() []string {
 			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
 			serviceName := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
 			keyTTL := it.Item().ExpiresAt()
-			services = append(services, serviceName)
+			services[serviceName] = struct{}{}
 			r.cache.AddService(serviceName, keyTTL)
 		}
 		return nil
 	})
-	return services
+	return maps.Keys(services)
 }
 
 // preloadOperations extract all operations for a specified service

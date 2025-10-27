@@ -7,14 +7,14 @@ import (
 	"github.com/asaskevich/govalidator"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
 
-	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
+	queryapp "github.com/jaegertracing/jaeger/cmd/query/app"
 )
 
 var _ xconfmap.Validator = (*Config)(nil)
 
 // Config represents the configuration for jaeger-query,
 type Config struct {
-	queryApp.QueryOptions `mapstructure:",squash"`
+	queryapp.QueryOptions `mapstructure:",squash"`
 	// Storage holds configuration related to the various data stores that are to be queried.
 	Storage Storage `mapstructure:"storage"`
 }

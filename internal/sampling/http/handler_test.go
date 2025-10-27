@@ -19,7 +19,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
-	tSampling092 "github.com/jaegertracing/jaeger/internal/sampling/http/thrift-0.9.2"
+	tsampling092 "github.com/jaegertracing/jaeger/internal/sampling/http/thrift-0.9.2"
 	p2json "github.com/jaegertracing/jaeger/internal/uimodel/converter/v1/json"
 )
 
@@ -104,7 +104,7 @@ func testGorillaHTTPHandler(t *testing.T, basePath string) {
 				require.NoError(t, err)
 				assert.Equal(t, test.expOutput, string(body))
 				if test.endpoint == "/" {
-					objResp := &tSampling092.SamplingStrategyResponse{}
+					objResp := &tsampling092.SamplingStrategyResponse{}
 					require.NoError(t, json.Unmarshal(body, objResp))
 					assert.EqualValues(t,
 						ts.samplingProvider.samplingResponse.GetStrategyType(),
@@ -149,7 +149,7 @@ func testHTTPHandler(t *testing.T, basePath string) {
 				require.NoError(t, err)
 				assert.Equal(t, test.expOutput, string(body))
 				if test.endpoint == "/" {
-					objResp := &tSampling092.SamplingStrategyResponse{}
+					objResp := &tsampling092.SamplingStrategyResponse{}
 					require.NoError(t, json.Unmarshal(body, objResp))
 					assert.EqualValues(t,
 						ts.samplingProvider.samplingResponse.GetStrategyType(),
@@ -244,7 +244,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 			withServer("", probabilistic(0.001), withGorilla, func(ts *testServer) {
 				handler := ts.handler
 
-				req := httptest.NewRequest(http.MethodGet, "http://localhost:80/?service=X", nil)
+				req := httptest.NewRequest(http.MethodGet, "http://localhost:80/?service=X", http.NoBody)
 				w := &mockWriter{header: make(http.Header)}
 				handler.serveSamplingHTTP(w, req, handler.encodeThriftLegacy)
 

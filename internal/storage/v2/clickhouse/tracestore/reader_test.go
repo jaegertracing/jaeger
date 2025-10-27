@@ -10,87 +10,24 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/testdata"
 )
 
-type testDriver struct {
-	driver.Conn
-
-	t             *testing.T
-	rows          driver.Rows
-	expectedQuery string
-	err           error
-}
-
-func (t *testDriver) Query(_ context.Context, query string, _ ...any) (driver.Rows, error) {
-	require.Equal(t.t, t.expectedQuery, query)
-	return t.rows, t.err
-}
-
-type testRows[T any] struct {
-	driver.Rows
-
-	data     []T
-	index    int
-	scanErr  error
-	scanFn   func(dest any, src T) error
-	closeErr error
-}
-
-func (tr *testRows[T]) Close() error {
-	return tr.closeErr
-}
-
-func (tr *testRows[T]) Next() bool {
-	return tr.index < len(tr.data)
-}
-
-func (tr *testRows[T]) ScanStruct(dest any) error {
-	if tr.scanErr != nil {
-		return tr.scanErr
-	}
-	if tr.index >= len(tr.data) {
-		return errors.New("no more rows")
-	}
-	if tr.scanFn == nil {
-		return errors.New("scanFn is not provided")
-	}
-	err := tr.scanFn(dest, tr.data[tr.index])
-	tr.index++
-	return err
-}
-
-func (tr *testRows[T]) Scan(dest ...any) error {
-	if tr.scanErr != nil {
-		return tr.scanErr
-	}
-	if tr.index >= len(tr.data) {
-		return errors.New("no more rows")
-	}
-	if tr.scanFn == nil {
-		return errors.New("scanFn is not provided")
-	}
-	err := tr.scanFn(dest, tr.data[tr.index])
-	tr.index++
-	return err
-}
-
-func scanSpanRowFn() func(dest any, src testdata.SpanRow) error {
-	return func(dest any, src testdata.SpanRow) error {
+func scanSpanRowFn() func(dest any, src *dbmodel.SpanRow) error {
+	return func(dest any, src *dbmodel.SpanRow) error {
 		ptrs, ok := dest.([]any)
 		if !ok {
 			return fmt.Errorf("expected []any for dest, got %T", dest)
 		}
-		if len(ptrs) != 18 {
-			return fmt.Errorf("expected 18 destination arguments, got %d", len(ptrs))
+		if len(ptrs) != 68 {
+			return fmt.Errorf("expected 68 destination arguments, got %d", len(ptrs))
 		}
 
 		values := []any{
@@ -103,15 +40,65 @@ func scanSpanRowFn() func(dest any, src testdata.SpanRow) error {
 			&src.StartTime,
 			&src.StatusCode,
 			&src.StatusMessage,
-			&src.RawDuration,
+			&src.Duration,
+			&src.Attributes.BoolKeys,
+			&src.Attributes.BoolValues,
+			&src.Attributes.DoubleKeys,
+			&src.Attributes.DoubleValues,
+			&src.Attributes.IntKeys,
+			&src.Attributes.IntValues,
+			&src.Attributes.StrKeys,
+			&src.Attributes.StrValues,
+			&src.Attributes.ComplexKeys,
+			&src.Attributes.ComplexValues,
 			&src.EventNames,
 			&src.EventTimestamps,
+			&src.EventAttributes.BoolKeys,
+			&src.EventAttributes.BoolValues,
+			&src.EventAttributes.DoubleKeys,
+			&src.EventAttributes.DoubleValues,
+			&src.EventAttributes.IntKeys,
+			&src.EventAttributes.IntValues,
+			&src.EventAttributes.StrKeys,
+			&src.EventAttributes.StrValues,
+			&src.EventAttributes.ComplexKeys,
+			&src.EventAttributes.ComplexValues,
 			&src.LinkTraceIDs,
 			&src.LinkSpanIDs,
 			&src.LinkTraceStates,
+			&src.LinkAttributes.BoolKeys,
+			&src.LinkAttributes.BoolValues,
+			&src.LinkAttributes.DoubleKeys,
+			&src.LinkAttributes.DoubleValues,
+			&src.LinkAttributes.IntKeys,
+			&src.LinkAttributes.IntValues,
+			&src.LinkAttributes.StrKeys,
+			&src.LinkAttributes.StrValues,
+			&src.LinkAttributes.ComplexKeys,
+			&src.LinkAttributes.ComplexValues,
 			&src.ServiceName,
+			&src.ResourceAttributes.BoolKeys,
+			&src.ResourceAttributes.BoolValues,
+			&src.ResourceAttributes.DoubleKeys,
+			&src.ResourceAttributes.DoubleValues,
+			&src.ResourceAttributes.IntKeys,
+			&src.ResourceAttributes.IntValues,
+			&src.ResourceAttributes.StrKeys,
+			&src.ResourceAttributes.StrValues,
+			&src.ResourceAttributes.ComplexKeys,
+			&src.ResourceAttributes.ComplexValues,
 			&src.ScopeName,
 			&src.ScopeVersion,
+			&src.ScopeAttributes.BoolKeys,
+			&src.ScopeAttributes.BoolValues,
+			&src.ScopeAttributes.DoubleKeys,
+			&src.ScopeAttributes.DoubleValues,
+			&src.ScopeAttributes.IntKeys,
+			&src.ScopeAttributes.IntValues,
+			&src.ScopeAttributes.StrKeys,
+			&src.ScopeAttributes.StrValues,
+			&src.ScopeAttributes.ComplexKeys,
+			&src.ScopeAttributes.ComplexValues,
 		}
 
 		for i := range ptrs {
@@ -124,16 +111,16 @@ func scanSpanRowFn() func(dest any, src testdata.SpanRow) error {
 func TestGetTraces_Success(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     []testdata.SpanRow
+		data     []*dbmodel.SpanRow
 		expected []ptrace.Traces
 	}{
 		{
 			name: "single span",
-			data: testdata.SingleSpan,
+			data: singleSpan,
 		},
 		{
 			name: "multiple spans",
-			data: testdata.MultipleSpans,
+			data: multipleSpans,
 		},
 	}
 
@@ -141,8 +128,8 @@ func TestGetTraces_Success(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			conn := &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectSpansByTraceID,
-				rows: &testRows[testdata.SpanRow]{
+				expectedQuery: sql.SelectSpansByTraceID,
+				rows: &testRows[*dbmodel.SpanRow]{
 					data:   tt.data,
 					scanFn: scanSpanRowFn(),
 				},
@@ -150,12 +137,12 @@ func TestGetTraces_Success(t *testing.T) {
 
 			reader := NewReader(conn)
 			getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
-				TraceID: testdata.TraceID,
+				TraceID: traceID,
 			})
 			traces, err := jiter.FlattenWithErrors(getTracesIter)
 
 			require.NoError(t, err)
-			testdata.RequireTracesEqual(t, tt.data, traces)
+			requireTracesEqual(t, tt.data, traces)
 		})
 	}
 }
@@ -170,7 +157,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 			name: "QueryError",
 			driver: &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectSpansByTraceID,
+				expectedQuery: sql.SelectSpansByTraceID,
 				err:           assert.AnError,
 			},
 			expectedErr: "failed to query trace",
@@ -179,9 +166,9 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 			name: "ScanError",
 			driver: &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectSpansByTraceID,
-				rows: &testRows[testdata.SpanRow]{
-					data:    testdata.SingleSpan,
+				expectedQuery: sql.SelectSpansByTraceID,
+				rows: &testRows[*dbmodel.SpanRow]{
+					data:    singleSpan,
 					scanErr: assert.AnError,
 				},
 			},
@@ -191,9 +178,9 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 			name: "CloseError",
 			driver: &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectSpansByTraceID,
-				rows: &testRows[testdata.SpanRow]{
-					data:     testdata.SingleSpan,
+				expectedQuery: sql.SelectSpansByTraceID,
+				rows: &testRows[*dbmodel.SpanRow]{
+					data:     singleSpan,
 					scanFn:   scanSpanRowFn(),
 					closeErr: assert.AnError,
 				},
@@ -206,7 +193,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			reader := NewReader(test.driver)
 			iter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
-				TraceID: testdata.TraceID,
+				TraceID: traceID,
 			})
 			_, err := jiter.FlattenWithErrors(iter)
 			require.ErrorContains(t, err, test.expectedErr)
@@ -217,7 +204,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 func TestGetTraces_ScanErrorContinues(t *testing.T) {
 	scanCalled := 0
 
-	scanFn := func(dest any, src testdata.SpanRow) error {
+	scanFn := func(dest any, src *dbmodel.SpanRow) error {
 		scanCalled++
 		if scanCalled == 1 {
 			return assert.AnError // simulate scan error on the first row
@@ -227,41 +214,41 @@ func TestGetTraces_ScanErrorContinues(t *testing.T) {
 
 	conn := &testDriver{
 		t:             t,
-		expectedQuery: sqlSelectSpansByTraceID,
-		rows: &testRows[testdata.SpanRow]{
-			data:   testdata.MultipleSpans,
+		expectedQuery: sql.SelectSpansByTraceID,
+		rows: &testRows[*dbmodel.SpanRow]{
+			data:   multipleSpans,
 			scanFn: scanFn,
 		},
 	}
 
 	reader := NewReader(conn)
 	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
-		TraceID: testdata.TraceID,
+		TraceID: traceID,
 	})
 
-	expected := testdata.MultipleSpans[1:] // skip the first span which caused the error
+	expected := multipleSpans[1:] // skip the first span which caused the error
 	for trace, err := range getTracesIter {
 		if err != nil {
 			require.ErrorIs(t, err, assert.AnError)
 			continue
 		}
-		testdata.RequireTracesEqual(t, expected, trace)
+		requireTracesEqual(t, expected, trace)
 	}
 }
 
 func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	conn := &testDriver{
 		t:             t,
-		expectedQuery: sqlSelectSpansByTraceID,
-		rows: &testRows[testdata.SpanRow]{
-			data:   testdata.MultipleSpans,
+		expectedQuery: sql.SelectSpansByTraceID,
+		rows: &testRows[*dbmodel.SpanRow]{
+			data:   multipleSpans,
 			scanFn: scanSpanRowFn(),
 		},
 	}
 
 	reader := NewReader(conn)
 	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
-		TraceID: testdata.TraceID,
+		TraceID: traceID,
 	})
 
 	var gotTraces []ptrace.Traces
@@ -272,7 +259,7 @@ func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	})
 
 	require.Len(t, gotTraces, 1)
-	testdata.RequireTracesEqual(t, testdata.MultipleSpans[0:1], gotTraces)
+	requireTracesEqual(t, multipleSpans[0:1], gotTraces)
 }
 
 func TestGetServices(t *testing.T) {
@@ -286,7 +273,7 @@ func TestGetServices(t *testing.T) {
 			name: "successfully returns services",
 			conn: &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectAllServices,
+				expectedQuery: sql.SelectServices,
 				rows: &testRows[dbmodel.Service]{
 					data: []dbmodel.Service{
 						{Name: "serviceA"},
@@ -309,7 +296,7 @@ func TestGetServices(t *testing.T) {
 			name: "query error",
 			conn: &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectAllServices,
+				expectedQuery: sql.SelectServices,
 				err:           assert.AnError,
 			},
 			expectError: "failed to query services",
@@ -318,7 +305,7 @@ func TestGetServices(t *testing.T) {
 			name: "scan error",
 			conn: &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectAllServices,
+				expectedQuery: sql.SelectServices,
 				rows: &testRows[dbmodel.Service]{
 					data: []dbmodel.Service{
 						{Name: "serviceA"},
@@ -368,7 +355,7 @@ func TestGetOperations(t *testing.T) {
 			name: "successfully returns operations for all kinds",
 			conn: &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectOperationsAllKinds,
+				expectedQuery: sql.SelectOperationsAllKinds,
 				rows: &testRows[dbmodel.Operation]{
 					data: []dbmodel.Operation{
 						{Name: "operationA"},
@@ -404,7 +391,7 @@ func TestGetOperations(t *testing.T) {
 			name: "successfully returns operations by kind",
 			conn: &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectOperationsByKind,
+				expectedQuery: sql.SelectOperationsByKind,
 				rows: &testRows[dbmodel.Operation]{
 					data: []dbmodel.Operation{
 						{Name: "operationA", SpanKind: "server"},
@@ -444,7 +431,7 @@ func TestGetOperations(t *testing.T) {
 			name: "query error",
 			conn: &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectOperationsAllKinds,
+				expectedQuery: sql.SelectOperationsAllKinds,
 				err:           assert.AnError,
 			},
 			expectError: "failed to query operations",
@@ -453,7 +440,7 @@ func TestGetOperations(t *testing.T) {
 			name: "scan error",
 			conn: &testDriver{
 				t:             t,
-				expectedQuery: sqlSelectOperationsAllKinds,
+				expectedQuery: sql.SelectOperationsAllKinds,
 				rows: &testRows[dbmodel.Operation]{
 					data: []dbmodel.Operation{
 						{Name: "operationA"},
@@ -489,4 +476,18 @@ func TestGetOperations(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFindTraces(t *testing.T) {
+	reader := NewReader(&testDriver{})
+	require.Panics(t, func() {
+		reader.FindTraces(context.Background(), tracestore.TraceQueryParams{})
+	})
+}
+
+func TestFindTraceIDs(t *testing.T) {
+	reader := NewReader(&testDriver{})
+	require.Panics(t, func() {
+		reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
+	})
 }

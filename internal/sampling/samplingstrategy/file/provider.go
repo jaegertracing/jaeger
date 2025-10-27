@@ -95,7 +95,7 @@ func (h *samplingProvider) downloadSamplingStrategies(samplingURL string) ([]byt
 
 	ctx, cx := context.WithTimeout(context.Background(), time.Second)
 	defer cx()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, samplingURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, samplingURL, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("cannot construct HTTP request: %w", err)
 	}

@@ -24,13 +24,16 @@ jobs:
       matrix:
         runtime: [docker, k8s]
         jaeger-version: [v1, v2]
+        exclude:
+          - runtime: k8s
+            jaeger-version: v1
           
     steps:
     - uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-    - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
+    - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       with:
         submodules: true
 
@@ -38,9 +41,9 @@ jobs:
       run: |
         git fetch --prune --unshallow --tags
 
-    - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+    - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
       with:
-        go-version: 1.24.x
+        go-version: 1.25.x
 
     - uses: ./.github/actions/setup-node.js
 
@@ -64,10 +67,6 @@ jobs:
       with:
         version: 'latest'
   
-    - name: Install Kustomize
-      if: matrix.runtime == 'k8s'
-      uses: imranismail/setup-kustomize@2ba527d4d055ab63514ba50a99456fc35684947f # v2
-
     - name: Create k8s Kind Cluster
       if: matrix.runtime == 'k8s'
       uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1

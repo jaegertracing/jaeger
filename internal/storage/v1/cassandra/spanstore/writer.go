@@ -17,7 +17,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
-	casMetrics "github.com/jaegertracing/jaeger/internal/storage/cassandra/metrics"
+	casmetrics "github.com/jaegertracing/jaeger/internal/storage/cassandra/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 )
 
@@ -69,11 +69,11 @@ type (
 )
 
 type spanWriterMetrics struct {
-	traces                *casMetrics.Table
-	tagIndex              *casMetrics.Table
-	serviceNameIndex      *casMetrics.Table
-	serviceOperationIndex *casMetrics.Table
-	durationIndex         *casMetrics.Table
+	traces                *casmetrics.Table
+	tagIndex              *casmetrics.Table
+	serviceNameIndex      *casmetrics.Table
+	serviceOperationIndex *casmetrics.Table
+	durationIndex         *casmetrics.Table
 }
 
 // SpanWriter handles all writes to Cassandra for the Jaeger data model
@@ -109,11 +109,11 @@ func NewSpanWriter(
 		serviceNamesWriter:   serviceNamesStorage.Write,
 		operationNamesWriter: operationNamesStorage.Write,
 		writerMetrics: spanWriterMetrics{
-			traces:                casMetrics.NewTable(metricsFactory, "traces"),
-			tagIndex:              casMetrics.NewTable(metricsFactory, "tag_index"),
-			serviceNameIndex:      casMetrics.NewTable(metricsFactory, "service_name_index"),
-			serviceOperationIndex: casMetrics.NewTable(metricsFactory, "service_operation_index"),
-			durationIndex:         casMetrics.NewTable(metricsFactory, "duration_index"),
+			traces:                casmetrics.NewTable(metricsFactory, "traces"),
+			tagIndex:              casmetrics.NewTable(metricsFactory, "tag_index"),
+			serviceNameIndex:      casmetrics.NewTable(metricsFactory, "service_name_index"),
+			serviceOperationIndex: casmetrics.NewTable(metricsFactory, "service_operation_index"),
+			durationIndex:         casmetrics.NewTable(metricsFactory, "duration_index"),
 		},
 		logger:          logger,
 		tagIndexSkipped: tagIndexSkipped,
@@ -243,7 +243,7 @@ func (s *SpanWriter) indexByDuration(span *dbmodel.Span, startTime time.Time) er
 }
 
 func (s *SpanWriter) indexByService(span *dbmodel.Span) error {
-	//nolint: gosec // G115
+	//nolint:gosec // G115
 	bucketNo := uint64(span.SpanHash) % defaultNumBuckets
 	query := s.session.Query(serviceNameIndex)
 	q := query.Bind(span.Process.ServiceName, bucketNo, span.StartTime, span.TraceID)

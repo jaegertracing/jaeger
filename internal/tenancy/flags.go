@@ -33,7 +33,7 @@ func InitFromViper(v *viper.Viper) Options {
 	p.Enabled = v.GetBool(flagTenancyEnabled)
 	p.Header = v.GetString(flagTenancyHeader)
 	tenants := v.GetString(flagValidTenants)
-	if len(tenants) != 0 {
+	if tenants != "" {
 		p.Tenants = strings.Split(tenants, ",")
 	} else {
 		p.Tenants = []string{}

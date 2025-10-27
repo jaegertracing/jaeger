@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"reflect"
 	"testing"
@@ -968,9 +969,9 @@ func TestFindTraceIDs(t *testing.T) {
 
 func TestReturnSearchFunc_DefaultCase(t *testing.T) {
 	r := &spanReaderTest{}
-	
+
 	result, err := returnSearchFunc("unknownAggregationType", r)
-	
+
 	assert.Nil(t, result)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Specify services, operations, traceIDs only")
@@ -1371,9 +1372,7 @@ func TestTagsMap(t *testing.T) {
 				},
 			}
 			spanTags := make(map[string]any)
-			for k, v := range test.fieldTags {
-				spanTags[k] = v
-			}
+			maps.Copy(spanTags, test.fieldTags)
 			span := &dbmodel.Span{
 				Process: dbmodel.Process{
 					Tag:  test.fieldTags,

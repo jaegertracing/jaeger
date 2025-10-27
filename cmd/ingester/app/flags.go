@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/internal/storage/kafka/auth"
-	kafkaConsumer "github.com/jaegertracing/jaeger/internal/storage/kafka/consumer"
+	kafkaconsumer "github.com/jaegertracing/jaeger/internal/storage/kafka/consumer"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/kafka"
 )
 
@@ -64,7 +64,7 @@ const (
 
 // Options stores the configuration options for the Ingester
 type Options struct {
-	kafkaConsumer.Configuration `mapstructure:",squash"`
+	kafkaconsumer.Configuration `mapstructure:",squash"`
 	Parallelism                 int           `mapstructure:"parallelism"`
 	Encoding                    string        `mapstructure:"encoding"`
 	DeadlockInterval            time.Duration `mapstructure:"deadlock_interval"`
@@ -105,7 +105,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
 		KafkaConsumerConfigPrefix+SuffixEncoding,
 		DefaultEncoding,
-		fmt.Sprintf(`The encoding of spans ("%s") consumed from kafka`, strings.Join(kafka.AllEncodings, "\", \"")))
+		fmt.Sprintf(`The encoding of spans (%q) consumed from kafka`, strings.Join(kafka.AllEncodings, "\", \"")))
 	flagSet.String(
 		KafkaConsumerConfigPrefix+SuffixRackID,
 		"",

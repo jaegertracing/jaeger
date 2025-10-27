@@ -6,6 +6,7 @@ package queue
 
 import (
 	"fmt"
+	"maps"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -43,7 +44,7 @@ func helper(t *testing.T, startConsumers func(q *BoundedQueue[string], consumerF
 
 		// block further processing until startLock is released
 		startLock.Lock()
-		//nolint:staticcheck // empty section is ok
+		//nolint:gocritic,staticcheck // empty section is ok
 		startLock.Unlock()
 	})
 
@@ -138,9 +139,7 @@ func (s *consumerState) snapshot() map[string]bool {
 	s.Lock()
 	defer s.Unlock()
 	out := make(map[string]bool)
-	for k, v := range s.consumed {
-		out[k] = v
-	}
+	maps.Copy(out, s.consumed)
 	return out
 }
 
@@ -326,7 +325,7 @@ func BenchmarkBoundedQueue(b *testing.B) {
 	q.StartConsumers(10, func( /* item */ any) {})
 	defer q.Stop()
 
-	for n := 0; n < b.N; n++ {
+	for n := 0; b.Loop(); n++ {
 		q.Produce(n)
 	}
 }
@@ -339,7 +338,7 @@ func BenchmarkBoundedQueueWithFactory(b *testing.B) {
 	})
 	defer q.Stop()
 
-	for n := 0; n < b.N; n++ {
+	for n := 0; b.Loop(); n++ {
 		q.Produce(n)
 	}
 }

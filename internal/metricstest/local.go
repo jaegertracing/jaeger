@@ -5,6 +5,7 @@
 package metricstest
 
 import (
+	"maps"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -80,9 +81,7 @@ func (b *Backend) runLoop(collectionInterval time.Duration) {
 		case <-ticker.C:
 			b.tm.Lock()
 			timers := make(map[string]*localBackendTimer, len(b.timers))
-			for timerName, timer := range b.timers {
-				timers[timerName] = timer
-			}
+			maps.Copy(timers, b.timers)
 			b.tm.Unlock()
 
 			for _, t := range timers {
@@ -210,9 +209,7 @@ func (b *Backend) Snapshot() (counters, gauges map[string]int64) {
 
 	b.tm.Lock()
 	timers := make(map[string]*localBackendTimer)
-	for timerName, timer := range b.timers {
-		timers[timerName] = timer
-	}
+	maps.Copy(timers, b.timers)
 	b.tm.Unlock()
 
 	for timerName, timer := range timers {
@@ -226,9 +223,7 @@ func (b *Backend) Snapshot() (counters, gauges map[string]int64) {
 
 	b.hm.Lock()
 	histograms := make(map[string]*localBackendHistogram)
-	for histogramName, histogram := range b.histograms {
-		histograms[histogramName] = histogram
-	}
+	maps.Copy(histograms, b.histograms)
 	b.hm.Unlock()
 
 	for histogramName, histogram := range histograms {
@@ -304,84 +299,80 @@ func NewFactory(collectionInterval time.Duration) *Factory {
 }
 
 // appendTags adds the tags to the namespace tags and returns a combined map.
-func (l *Factory) appendTags(tags map[string]string) map[string]string {
+func (f *Factory) appendTags(tags map[string]string) map[string]string {
 	newTags := make(map[string]string)
-	for k, v := range l.tags {
-		newTags[k] = v
-	}
-	for k, v := range tags {
-		newTags[k] = v
-	}
+	maps.Copy(newTags, f.tags)
+	maps.Copy(newTags, tags)
 	return newTags
 }
 
-func (l *Factory) newNamespace(name string) string {
-	if l.namespace == "" {
+func (f *Factory) newNamespace(name string) string {
+	if f.namespace == "" {
 		return name
 	}
 
 	if name == "" {
-		return l.namespace
+		return f.namespace
 	}
 
-	return l.namespace + "." + name
+	return f.namespace + "." + name
 }
 
 // Counter returns a local stats counter
-func (l *Factory) Counter(options metrics.Options) metrics.Counter {
+func (f *Factory) Counter(options metrics.Options) metrics.Counter {
 	return &localCounter{
 		stats{
-			name:         l.newNamespace(options.Name),
-			tags:         l.appendTags(options.Tags),
-			localBackend: l.Backend,
+			name:         f.newNamespace(options.Name),
+			tags:         f.appendTags(options.Tags),
+			localBackend: f.Backend,
 		},
 	}
 }
 
 // Timer returns a local stats timer.
-func (l *Factory) Timer(options metrics.TimerOptions) metrics.Timer {
+func (f *Factory) Timer(options metrics.TimerOptions) metrics.Timer {
 	return &localTimer{
 		stats{
-			name:            l.newNamespace(options.Name),
-			tags:            l.appendTags(options.Tags),
+			name:            f.newNamespace(options.Name),
+			tags:            f.appendTags(options.Tags),
 			durationBuckets: options.Buckets,
-			localBackend:    l.Backend,
+			localBackend:    f.Backend,
 		},
 	}
 }
 
 // Gauge returns a local stats gauge.
-func (l *Factory) Gauge(options metrics.Options) metrics.Gauge {
+func (f *Factory) Gauge(options metrics.Options) metrics.Gauge {
 	return &localGauge{
 		stats{
-			name:         l.newNamespace(options.Name),
-			tags:         l.appendTags(options.Tags),
-			localBackend: l.Backend,
+			name:         f.newNamespace(options.Name),
+			tags:         f.appendTags(options.Tags),
+			localBackend: f.Backend,
 		},
 	}
 }
 
 // Histogram returns a local stats histogram.
-func (l *Factory) Histogram(options metrics.HistogramOptions) metrics.Histogram {
+func (f *Factory) Histogram(options metrics.HistogramOptions) metrics.Histogram {
 	return &localHistogram{
 		stats{
-			name:         l.newNamespace(options.Name),
-			tags:         l.appendTags(options.Tags),
+			name:         f.newNamespace(options.Name),
+			tags:         f.appendTags(options.Tags),
 			buckets:      options.Buckets,
-			localBackend: l.Backend,
+			localBackend: f.Backend,
 		},
 	}
 }
 
 // Namespace returns a new namespace.
-func (l *Factory) Namespace(scope metrics.NSOptions) metrics.Factory {
+func (f *Factory) Namespace(scope metrics.NSOptions) metrics.Factory {
 	return &Factory{
-		namespace: l.newNamespace(scope.Name),
-		tags:      l.appendTags(scope.Tags),
-		Backend:   l.Backend,
+		namespace: f.newNamespace(scope.Name),
+		tags:      f.appendTags(scope.Tags),
+		Backend:   f.Backend,
 	}
 }
 
-func (l *Factory) Stop() {
-	l.Backend.Stop()
+func (f *Factory) Stop() {
+	f.Backend.Stop()
 }

@@ -5,9 +5,12 @@ package remotesampling
 
 import (
 	"context"
+	"errors"
 	"io"
+	"net"
 	"net/http"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,6 +21,7 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/configmiddleware"
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/extension"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
@@ -258,4 +262,248 @@ func TestDependencies(t *testing.T) {
 	}, cfg)
 	require.NoError(t, err)
 	assert.Equal(t, []component.ID{jaegerstorage.ID}, ext.(*rsExtension).Dependencies())
+}
+
+// TestStartFileBasedProviderError tests error handling in file-based provider startup
+func TestStartFileBasedProviderError(t *testing.T) {
+	factory := NewFactory()
+	cfg := factory.CreateDefaultConfig().(*Config)
+
+	cfg.File = &FileConfig{
+		Path:                       "/nonexistent/directory/file.json",
+		ReloadInterval:             0,
+		DefaultSamplingProbability: 0.1,
+	}
+	cfg.Adaptive = nil
+	cfg.HTTP = nil
+	cfg.GRPC = nil
+
+	ext, err := factory.Create(context.Background(), extension.Settings{
+		ID:                ID,
+		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
+	}, cfg)
+	require.NoError(t, err)
+
+	err = ext.Start(context.Background(), nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create the local file strategy store")
+}
+
+// TestStartAdaptiveProviderCreateStoreError tests error handling in adaptive provider startup
+func TestStartAdaptiveProviderCreateStoreError(t *testing.T) {
+	factory := NewFactory()
+	cfg := factory.CreateDefaultConfig().(*Config)
+	cfg.File = nil
+	cfg.Adaptive = &AdaptiveConfig{
+		SamplingStore: "nonexistent-store",
+		Options:       adaptive.DefaultOptions(),
+	}
+	cfg.HTTP = nil
+	cfg.GRPC = nil
+
+	ext, err := factory.Create(context.Background(), extension.Settings{
+		ID:                ID,
+		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
+	}, cfg)
+	require.NoError(t, err)
+
+	err = ext.Start(context.Background(), makeStorageExtension(t, "foobar"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to obtain sampling store factory")
+}
+
+// TestServerStartupErrors tests various server startup error scenarios
+func TestServerStartupErrors(t *testing.T) {
+	t.Run("HTTP server with invalid endpoint", func(t *testing.T) {
+		factory := NewFactory()
+		cfg := factory.CreateDefaultConfig().(*Config)
+		cfg.File = &FileConfig{Path: filepath.Join("..", "..", "..", "sampling-strategies.json")}
+		cfg.Adaptive = nil
+		cfg.HTTP = &confighttp.ServerConfig{
+			Endpoint: "invalid://endpoint",
+		}
+		cfg.GRPC = nil
+
+		ext, err := factory.Create(context.Background(), extension.Settings{
+			ID:                ID,
+			TelemetrySettings: componenttest.NewNopTelemetrySettings(),
+		}, cfg)
+		require.NoError(t, err)
+
+		err = ext.Start(context.Background(), makeStorageExtension(t, "foobar"))
+		require.Error(t, err)
+
+		_ = ext.Shutdown(context.Background())
+	})
+
+	t.Run("gRPC server with invalid endpoint", func(t *testing.T) {
+		factory := NewFactory()
+		cfg := factory.CreateDefaultConfig().(*Config)
+		cfg.File = &FileConfig{Path: filepath.Join("..", "..", "..", "sampling-strategies.json")}
+		cfg.Adaptive = nil
+		cfg.HTTP = nil
+		cfg.GRPC = &configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  "invalid://endpoint",
+				Transport: "tcp",
+			},
+		}
+
+		ext, err := factory.Create(context.Background(), extension.Settings{
+			ID:                ID,
+			TelemetrySettings: componenttest.NewNopTelemetrySettings(),
+		}, cfg)
+		require.NoError(t, err)
+
+		// This should trigger an error in Start() -> startGRPCServer()
+		err = ext.Start(context.Background(), makeStorageExtension(t, "foobar"))
+		require.Error(t, err)
+
+		_ = ext.Shutdown(context.Background())
+	})
+
+	t.Run("HTTP middleware not found error", func(t *testing.T) {
+		factory := NewFactory()
+		cfg := factory.CreateDefaultConfig().(*Config)
+		cfg.File = &FileConfig{Path: filepath.Join("..", "..", "..", "sampling-strategies.json")}
+		cfg.Adaptive = nil
+		cfg.HTTP = &confighttp.ServerConfig{
+			Endpoint: "localhost:0",
+			Middlewares: []configmiddleware.Config{
+				{ID: component.MustNewIDWithName("nonexistent", "middleware")},
+			},
+		}
+		cfg.GRPC = nil
+
+		ext, err := factory.Create(context.Background(), extension.Settings{
+			ID:                ID,
+			TelemetrySettings: componenttest.NewNopTelemetrySettings(),
+		}, cfg)
+		require.NoError(t, err)
+
+		// This should trigger the specific error from configmiddleware.go line 64-65:
+		// return nil, fmt.Errorf("failed to resolve middleware %q: %w", m.ID, errMiddlewareNotFound)
+		err = ext.Start(context.Background(), makeStorageExtension(t, "foobar"))
+		require.Error(t, err)
+
+		require.Contains(t, err.Error(), "failed to start sampling http server")
+		require.Contains(t, err.Error(), "failed to resolve middleware")
+		require.Contains(t, err.Error(), "nonexistent/middleware")
+		require.Contains(t, err.Error(), "middleware not found")
+
+		_ = ext.Shutdown(context.Background())
+	})
+
+	t.Run("gRPC middleware not found error", func(t *testing.T) {
+		factory := NewFactory()
+		cfg := factory.CreateDefaultConfig().(*Config)
+		cfg.File = &FileConfig{Path: filepath.Join("..", "..", "..", "sampling-strategies.json")}
+		cfg.Adaptive = nil
+		cfg.HTTP = nil
+		cfg.GRPC = &configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  "localhost:0",
+				Transport: "tcp",
+			},
+			Middlewares: []configmiddleware.Config{
+				{ID: component.MustNewIDWithName("nonexistent", "grpc-middleware")},
+			},
+		}
+
+		ext, err := factory.Create(context.Background(), extension.Settings{
+			ID:                ID,
+			TelemetrySettings: componenttest.NewNopTelemetrySettings(),
+		}, cfg)
+		require.NoError(t, err)
+
+		// This should trigger the specific error from configmiddleware.go line 83-84:
+		// return nil, fmt.Errorf("failed to resolve middleware %q: %w", m.ID, errMiddlewareNotFound)
+		// called via gRPC ToServer() -> getGrpcServerOptions() -> GetGRPCServerOptions()
+		err = ext.Start(context.Background(), makeStorageExtension(t, "foobar"))
+		require.Error(t, err)
+
+		require.Contains(t, err.Error(), "failed to start sampling gRPC server")
+		require.Contains(t, err.Error(), "failed to get gRPC server options from middleware")
+		require.Contains(t, err.Error(), "failed to resolve middleware")
+		require.Contains(t, err.Error(), "nonexistent/grpc-middleware")
+		require.Contains(t, err.Error(), "middleware not found")
+
+		_ = ext.Shutdown(context.Background())
+	})
+}
+
+// TestShutdownWithProviderError tests shutdown when strategy provider fails to close
+func TestShutdownWithProviderError(t *testing.T) {
+	t.Run("error from strategy provider", func(t *testing.T) {
+		ext := &rsExtension{
+			cfg:       &Config{},
+			telemetry: componenttest.NewNopTelemetrySettings(),
+		}
+
+		ext.strategyProvider = &mockFailingProvider{}
+
+		err := ext.Shutdown(context.Background())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "mock provider close error")
+	})
+
+	t.Run("error from HTTP server shutdown", func(t *testing.T) {
+		ext := &rsExtension{
+			cfg:       &Config{},
+			telemetry: componenttest.NewNopTelemetrySettings(),
+		}
+
+		// Create a server that will have active connections during shutdown
+		srv := &http.Server{
+			Addr: ":0", // use dynamic port
+			Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				// Simulate a slow request that will still be running during shutdown
+				time.Sleep(100 * time.Millisecond)
+				w.Write([]byte("done"))
+			}),
+		}
+
+		ln, err := net.Listen("tcp", srv.Addr)
+		require.NoError(t, err)
+		defer ln.Close()
+
+		ext.httpServer = srv
+
+		go srv.Serve(ln)
+
+		var wg sync.WaitGroup
+		wg.Add(1)
+
+		// Fire off a request that will still be running during shutdown
+		go func() {
+			defer wg.Done()
+			client := &http.Client{Timeout: 200 * time.Millisecond}
+			_, _ = client.Get("http://" + ln.Addr().String())
+		}()
+
+		// Give the handler time to start processing the request
+		time.Sleep(10 * time.Millisecond)
+
+		// Use a very short timeout context so shutdown fails due to active connections
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
+		defer cancel()
+
+		err = ext.Shutdown(ctx)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "context deadline exceeded")
+
+		wg.Wait()
+		_ = srv.Shutdown(context.Background())
+	})
+}
+
+// mockFailingProvider is a mock that always fails on Close()
+type mockFailingProvider struct{}
+
+func (*mockFailingProvider) GetSamplingStrategy(_ context.Context, _ string) (*api_v2.SamplingStrategyResponse, error) {
+	return &api_v2.SamplingStrategyResponse{}, nil
+}
+
+func (*mockFailingProvider) Close() error {
+	return errors.New("mock provider close error")
 }

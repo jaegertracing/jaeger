@@ -6,6 +6,7 @@ package otelmetrics
 import (
 	"context"
 	"log"
+	"maps"
 	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -32,8 +33,7 @@ func NewFactory(meterProvider metric.MeterProvider) metrics.Factory {
 }
 
 func (f *otelFactory) Counter(opts metrics.Options) metrics.Counter {
-	name := CounterNamingConvention(f.subScope(opts.Name))
-	counter, err := f.meter.Int64Counter(name)
+	counter, err := f.meter.Int64Counter(f.subScope(opts.Name))
 	if err != nil {
 		log.Printf("Error creating OTEL counter: %v", err)
 		return metrics.NullCounter
@@ -115,12 +115,8 @@ func (f *otelFactory) normalize(v string) string {
 
 func (f *otelFactory) mergeTags(tags map[string]string) map[string]string {
 	merged := make(map[string]string)
-	for k, v := range f.tags {
-		merged[k] = v
-	}
-	for k, v := range tags {
-		merged[k] = v
-	}
+	maps.Copy(merged, f.tags)
+	maps.Copy(merged, tags)
 	return merged
 }
 
@@ -130,11 +126,4 @@ func attributeSetOption(tags map[string]string) metric.MeasurementOption {
 		attributes = append(attributes, attribute.String(k, v))
 	}
 	return metric.WithAttributes(attributes...)
-}
-
-func CounterNamingConvention(name string) string {
-	if !strings.HasSuffix(name, "_total") {
-		name += "_total"
-	}
-	return name
 }

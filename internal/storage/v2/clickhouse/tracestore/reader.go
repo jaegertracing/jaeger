@@ -7,47 +7,16 @@ import (
 	"context"
 	"fmt"
 	"iter"
-	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
-const (
-	sqlSelectSpansByTraceID = `
-	SELECT
-		id,
-		trace_id,
-		trace_state,
-		parent_span_id,
-		name,
-		kind,
-		start_time,
-		status_code,
-		status_message,
-		duration,
-		events.name,
-		events.timestamp,
-		links.trace_id,
-		links.span_id,
-		links.trace_state,
-		service_name,
-		scope_name,
-		scope_version
-	FROM spans
-	WHERE
-		trace_id = ?`
-	sqlSelectAllServices        = `SELECT DISTINCT name FROM services`
-	sqlSelectOperationsAllKinds = `SELECT name, span_kind
-	FROM operations
-	WHERE service_name = ?`
-	sqlSelectOperationsByKind = `SELECT name, span_kind
-	FROM operations
-	WHERE service_name = ? AND span_kind = ?`
-)
+var _ tracestore.Reader = (*Reader)(nil)
 
 type Reader struct {
 	conn driver.Conn
@@ -68,7 +37,7 @@ func (r *Reader) GetTraces(
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		for _, traceID := range traceIDs {
-			rows, err := r.conn.Query(ctx, sqlSelectSpansByTraceID, traceID.TraceID)
+			rows, err := r.conn.Query(ctx, sql.SelectSpansByTraceID, traceID.TraceID)
 			if err != nil {
 				yield(nil, fmt.Errorf("failed to query trace: %w", err))
 				return
@@ -76,7 +45,7 @@ func (r *Reader) GetTraces(
 
 			done := false
 			for rows.Next() {
-				span, err := scanSpanRow(rows)
+				span, err := dbmodel.ScanRow(rows)
 				if err != nil {
 					if !yield(nil, fmt.Errorf("failed to scan span row: %w", err)) {
 						done = true
@@ -85,7 +54,7 @@ func (r *Reader) GetTraces(
 					continue
 				}
 
-				trace := dbmodel.FromDBModel(span)
+				trace := dbmodel.FromRow(span)
 				if !yield([]ptrace.Traces{trace}, nil) {
 					done = true
 					break
@@ -104,72 +73,8 @@ func (r *Reader) GetTraces(
 	}
 }
 
-func scanSpanRow(rows driver.Rows) (dbmodel.Span, error) {
-	var (
-		span            dbmodel.Span
-		rawDuration     int64
-		eventNames      []string
-		eventTimestamps []time.Time
-		linkTraceIDs    []string
-		linkSpanIDs     []string
-		linkTraceStates []string
-	)
-
-	err := rows.Scan(
-		&span.ID,
-		&span.TraceID,
-		&span.TraceState,
-		&span.ParentSpanID,
-		&span.Name,
-		&span.Kind,
-		&span.StartTime,
-		&span.StatusCode,
-		&span.StatusMessage,
-		&rawDuration,
-		&eventNames,
-		&eventTimestamps,
-		&linkTraceIDs,
-		&linkSpanIDs,
-		&linkTraceStates,
-		&span.ServiceName,
-		&span.ScopeName,
-		&span.ScopeVersion,
-	)
-	if err != nil {
-		return span, err
-	}
-
-	span.Duration = time.Duration(rawDuration)
-	span.Events = buildEvents(eventNames, eventTimestamps)
-	span.Links = buildLinks(linkTraceIDs, linkSpanIDs, linkTraceStates)
-	return span, nil
-}
-
-func buildEvents(names []string, timestamps []time.Time) []dbmodel.Event {
-	var events []dbmodel.Event
-	for i := 0; i < len(names) && i < len(timestamps); i++ {
-		events = append(events, dbmodel.Event{
-			Name:      names[i],
-			Timestamp: timestamps[i],
-		})
-	}
-	return events
-}
-
-func buildLinks(traceIDs, spanIDs, states []string) []dbmodel.Link {
-	var links []dbmodel.Link
-	for i := 0; i < len(traceIDs) && i < len(spanIDs) && i < len(states); i++ {
-		links = append(links, dbmodel.Link{
-			TraceID:    traceIDs[i],
-			SpanID:     spanIDs[i],
-			TraceState: states[i],
-		})
-	}
-	return links
-}
-
 func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
-	rows, err := r.conn.Query(ctx, sqlSelectAllServices)
+	rows, err := r.conn.Query(ctx, sql.SelectServices)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query services: %w", err)
 	}
@@ -193,9 +98,9 @@ func (r *Reader) GetOperations(
 	var rows driver.Rows
 	var err error
 	if query.SpanKind == "" {
-		rows, err = r.conn.Query(ctx, sqlSelectOperationsAllKinds, query.ServiceName)
+		rows, err = r.conn.Query(ctx, sql.SelectOperationsAllKinds, query.ServiceName)
 	} else {
-		rows, err = r.conn.Query(ctx, sqlSelectOperationsByKind, query.ServiceName, query.SpanKind)
+		rows, err = r.conn.Query(ctx, sql.SelectOperationsByKind, query.ServiceName, query.SpanKind)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to query operations: %w", err)
@@ -208,10 +113,25 @@ func (r *Reader) GetOperations(
 		if err := rows.ScanStruct(&operation); err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
-		operations = append(operations, tracestore.Operation{
+		o := tracestore.Operation{
 			Name:     operation.Name,
 			SpanKind: operation.SpanKind,
-		})
+		}
+		operations = append(operations, o)
 	}
 	return operations, nil
+}
+
+func (*Reader) FindTraces(
+	context.Context,
+	tracestore.TraceQueryParams,
+) iter.Seq2[[]ptrace.Traces, error] {
+	panic("not implemented")
+}
+
+func (*Reader) FindTraceIDs(
+	context.Context,
+	tracestore.TraceQueryParams,
+) iter.Seq2[[]tracestore.FoundTraceID, error] {
+	panic("not implemented")
 }

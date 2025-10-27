@@ -42,10 +42,12 @@ func initTokenAuthWithTime(tokenAuth *TokenAuthentication, scheme string, logger
 
 	// Context-based token setup
 	if tokenAuth.AllowFromContext {
-		if scheme == "Bearer" {
+		switch scheme {
+		case "Bearer":
 			fromCtx = bearertoken.GetBearerToken
-		} else if scheme == "APIKey" {
+		case "APIKey":
 			fromCtx = apikey.GetAPIKey
+		default:
 		}
 	}
 

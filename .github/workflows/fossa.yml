@@ -26,11 +26,11 @@ jobs:
         with:
           egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-      - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
-      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: 1.24.x
+          go-version: 1.25.x
 
       - name: Add GOPATH
         run: |
@@ -39,7 +39,7 @@ jobs:
           echo "$GOPATH/bin" >>"$GITHUB_PATH"
 
       - name: Run FOSSA scan and upload report
-        uses: fossa-contrib/fossa-action@cdc5065bcdee31a32e47d4585df72d66e8e941c2 # v3.0.0
+        uses: fossa-contrib/fossa-action@3d2ef181b1820d6dcd1972f86a767d18167fa19b # v3.0.1
         with:
           # FOSSA Push-Only API Token
           fossa-api-key: 304657e2357ba57b416b94e6b119131b

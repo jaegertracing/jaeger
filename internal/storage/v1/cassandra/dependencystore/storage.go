@@ -15,7 +15,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
-	casMetrics "github.com/jaegertracing/jaeger/internal/storage/cassandra/metrics"
+	casmetrics "github.com/jaegertracing/jaeger/internal/storage/cassandra/metrics"
 )
 
 // Version determines which version of the dependencies table to use.
@@ -48,7 +48,7 @@ var errInvalidVersion = errors.New("invalid version")
 // DependencyStore handles all queries and insertions to Cassandra dependencies
 type DependencyStore struct {
 	session                  cassandra.Session
-	dependenciesTableMetrics *casMetrics.Table
+	dependenciesTableMetrics *casmetrics.Table
 	logger                   *zap.Logger
 	version                  Version
 }
@@ -65,7 +65,7 @@ func NewDependencyStore(
 	}
 	return &DependencyStore{
 		session:                  session,
-		dependenciesTableMetrics: casMetrics.NewTable(metricsFactory, "dependencies"),
+		dependenciesTableMetrics: casmetrics.NewTable(metricsFactory, "dependencies"),
 		logger:                   logger,
 		version:                  version,
 	}, nil
@@ -78,7 +78,7 @@ func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.D
 		deps[i] = Dependency{
 			Parent: d.Parent,
 			Child:  d.Child,
-			//nolint: gosec // G115
+			//nolint:gosec // G115
 			CallCount: int64(d.CallCount),
 			Source:    string(d.Source),
 		}
@@ -118,7 +118,7 @@ func (s *DependencyStore) GetDependencies(_ context.Context, endTs time.Time, lo
 			dl := model.DependencyLink{
 				Parent: dependency.Parent,
 				Child:  dependency.Child,
-				//nolint: gosec // G115
+				//nolint:gosec // G115
 				CallCount: uint64(dependency.CallCount),
 				Source:    dependency.Source,
 			}.ApplyDefaults()

@@ -11,10 +11,11 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
-	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
+	queryapp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jtracer"
@@ -35,7 +36,7 @@ var (
 
 type server struct {
 	config      *Config
-	server      *queryApp.Server
+	server      *queryapp.Server
 	telset      component.TelemetrySettings
 	closeTracer func(ctx context.Context) error
 }
@@ -54,25 +55,30 @@ func (*server) Dependencies() []component.ID {
 }
 
 func (s *server) Start(ctx context.Context, host component.Host) error {
-	// TODO OTel-collector does not initialize the tracer currently
-	// https://github.com/open-telemetry/opentelemetry-collector/issues/7532
-	//nolint
-	tracerProvider, err := jtracer.New("jaeger")
-	if err != nil {
-		return fmt.Errorf("could not initialize a tracer: %w", err)
-	}
-	// make sure to close the tracer if subsequent code exists with error
+	var tp trace.TracerProvider
 	success := false
-	defer func(ctx context.Context) {
-		if success {
-			s.closeTracer = tracerProvider.Close
-		} else {
-			tracerProvider.Close(ctx)
+	tp = jtracer.NoOp().OTEL
+	if s.config.EnableTracing {
+		// TODO OTel-collector does not initialize the tracer currently
+		// https://github.com/open-telemetry/opentelemetry-collector/issues/7532
+		//nolint
+		tracerProvider, err := jtracer.New("jaeger")
+		if err != nil {
+			return fmt.Errorf("could not initialize a tracer: %w", err)
 		}
-	}(ctx)
+		tp = tracerProvider.OTEL
+		// make sure to close the tracer if subsequent code exists with error
+		defer func(ctx context.Context) {
+			if success {
+				s.closeTracer = tracerProvider.Close
+			} else {
+				tracerProvider.Close(ctx)
+			}
+		}(ctx)
+	}
 
 	telset := telemetry.FromOtelComponent(s.telset, host)
-	telset.TracerProvider = tracerProvider.OTEL
+	telset.TracerProvider = tp
 	telset.Metrics = telset.Metrics.
 		Namespace(metrics.NSOptions{Name: "jaeger"}).
 		Namespace(metrics.NSOptions{Name: "query"})
@@ -113,7 +119,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 
 	tm := tenancy.NewManager(&s.config.Tenancy)
 
-	s.server, err = queryApp.NewServer(
+	s.server, err = queryapp.NewServer(
 		ctx,
 		// TODO propagate healthcheck updates up to the collector's runtime
 		qs,

@@ -1,0 +1,126 @@
+# official schema for otel demo is at https://raw.githubusercontent.com/open-telemetry/opentelemetry-helm-charts/main/charts/opentelemetry-demo/values.yaml
+
+# Keep bundled infra disabled (we deploy Jaeger/OpenSearch separately)
+jaeger:
+  enabled: false
+prometheus:
+  enabled: false
+grafana:
+  enabled: false
+opensearch:
+  enabled: false
+
+# Preserve default.env (to keep OTEL_SERVICE_NAME and OTEL_COLLECTOR_NAME) and override only what we need
+default:
+  envOverrides:
+    # Narrower service namespace + explicit environment tag
+    - name: OTEL_RESOURCE_ATTRIBUTES
+      value: service.name=$(OTEL_SERVICE_NAME),service.namespace=otel-demo,deployment.environment=oke-dev
+    # Send OTLP over HTTP by default and disable metrics/logs exporters (traces only)
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://otel-collector:4318
+    - name: OTEL_EXPORTER_OTLP_PROTOCOL
+      value: http/protobuf
+    - name: OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
+      value: http/protobuf
+    - name: OTEL_LOGS_EXPORTER
+      value: none
+    - name: OTEL_METRICS_EXPORTER
+      value: none
+    - name: OTEL_TRACES_EXPORTER
+      value: otlp
+
+components:
+  accounting:
+    initContainers:
+      - name: wait-for-kafka
+        image: docker.io/busybox:latest
+        command: ["sh", "-c", "until nc -z -v -w30 kafka 9092; do echo waiting for kafka; sleep 2; done;"]
+
+  cart:
+    initContainers:
+      - name: wait-for-valkey-cart
+        image: docker.io/busybox:latest
+        command: ["sh", "-c", "until nc -z -v -w30 valkey-cart 6379; do echo waiting for valkey-cart; sleep 2; done;"]
+
+  checkout:
+    initContainers:
+      - name: wait-for-kafka
+        image: docker.io/busybox:latest
+        command: ["sh", "-c", "until nc -z -v -w30 kafka 9092; do echo waiting for kafka; sleep 2; done;"]
+
+  fraud-detection:
+    initContainers:
+      - name: wait-for-kafka
+        image: docker.io/busybox:latest
+        command: ["sh", "-c", "until nc -z -v -w30 kafka 9092; do echo waiting for kafka; sleep 2; done;"]
+
+  flagd:
+    initContainers:
+      - name: init-config
+        image: docker.io/busybox:latest
+        command: ["sh", "-c", "cp /config-ro/demo.flagd.json /config-rw/demo.flagd.json && cat /config-rw/demo.flagd.json"]
+        volumeMounts:
+          - mountPath: /config-ro
+            name: config-ro
+          - mountPath: /config-rw
+            name: config-rw
+
+  load-generator:
+    envOverrides:
+      - name: LOCUST_USERS
+        value: "5"
+      - name: LOCUST_SPAWN_RATE
+        value: "2"
+
+  valkey-cart:
+    imageOverride:
+      repository: docker.io/valkey/valkey
+      tag: "8.1.3-alpine"
+
+# Override Collector config to export traces to Jaeger only and drop demo metrics/logs
+opentelemetry-collector:
+  image:
+    repository: docker.io/otel/opentelemetry-collector-contrib
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc: {}
+          http:
+            cors:
+              allowed_origins:
+                - http://*
+                - https://*
+      httpcheck/frontend-proxy: null
+      redis: null
+    processors:
+      memory_limiter: {}
+      k8sattributes: {}
+      resource:
+        attributes:
+          - key: service.instance.id
+            from_attribute: k8s.pod.uid
+            action: insert
+      transform: null
+      batch: {}
+    connectors:
+      spanmetrics: null
+    exporters:
+      otlp/jaeger:
+        endpoint: jaeger-collector.jaeger.svc.cluster.local:4317
+        tls:
+          insecure: true
+      opensearch: null
+      otlphttp/prometheus: null
+      debug: null
+      otlp: null
+    service:
+      telemetry: null
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, k8sattributes, resource, batch]
+          exporters: [otlp/jaeger]
+        metrics: null
+        logs: null

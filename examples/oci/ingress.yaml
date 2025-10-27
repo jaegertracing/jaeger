@@ -14,7 +14,7 @@ spec:
     - host: demo.jaegertracing.io
       http:
         paths:
-          - path: /
+          - path: /jaeger
             pathType: Prefix
             backend:
               service:
@@ -35,3 +35,31 @@ spec:
                 name: jaeger-hotrod
                 port:
                   number: 80
+
+---
+# Separate Ingress to redirect / -> external site
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jaeger-root-redirect
+  annotations:
+    cert-manager.io/issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/permanent-redirect: https://www.jaegertracing.io/demo/
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - demo.jaegertracing.io
+      secretName: demo-jaeger-tls
+  rules:
+    - host: demo.jaegertracing.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              # Backend is ignored due to redirect annotation; must be valid
+              service:
+                name: jaeger-query
+                port:
+                  number: 16686

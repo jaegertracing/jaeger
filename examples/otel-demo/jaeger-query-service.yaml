@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger-query-clusterip
+  namespace: jaeger
+  labels:
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: query
+    app.kubernetes.io/instance: jaeger
+spec:
+  type: ClusterIP
+  ports:
+    - name: jaeger-query
+      port: 16686
+      targetPort: 16686
+      protocol: TCP
+    - name: jaeger-admin
+      port: 16685
+      targetPort: 16685
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: all-in-one
+    app.kubernetes.io/instance: jaeger

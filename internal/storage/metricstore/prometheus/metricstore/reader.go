@@ -15,6 +15,7 @@ import (
 
 	"github.com/prometheus/client_golang/api"
 	promapi "github.com/prometheus/client_golang/api/prometheus/v1"
+	"go.opentelemetry.io/collector/extension/extensionauth"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -80,33 +81,33 @@ func (p promClient) URL(ep string, args map[string]string) *url.URL {
 	return u
 }
 
-func createPromClient(cfg config.Configuration) (api.Client, error) {
-	roundTripper, err := getHTTPRoundTripper(&cfg)
+func createPromClient(cfg config.Configuration, httpAuth extensionauth.HTTPClient) (api.Client, error) {
+	roundTripper, err := getHTTPRoundTripper(&cfg, httpAuth)
 	if err != nil {
 		return nil, err
 	}
 
-	client, err := api.NewClient(api.Config{
+	promConfig := api.Config{
 		Address:      cfg.ServerURL,
 		RoundTripper: roundTripper,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize prometheus client: %w", err)
 	}
 
-	customClient := promClient{
+	client, err := api.NewClient(promConfig)
+	if err != nil {
+		return nil, err
+	}
+	return promClient{
 		Client:      client,
 		extraParams: cfg.ExtraQueryParams,
-	}
-
-	return customClient, nil
+	}, nil
 }
 
-// NewMetricsReader returns a new MetricsReader.
-func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace.TracerProvider) (*MetricsReader, error) {
+// NewMetricsReader returns a new MetricsReader with optional HTTP authentication.
+// Pass nil for httpAuth if authentication is not required.
+func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace.TracerProvider, httpAuth extensionauth.HTTPClient) (*MetricsReader, error) {
 	const operationLabel = "span_name"
 
-	promClient, err := createPromClient(cfg)
+	promClient, err := createPromClient(cfg, httpAuth)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +137,7 @@ func (m MetricsReader) GetLatencies(ctx context.Context, requestParams *metricst
 		buildPromQuery: func(p promQueryParams) string {
 			return fmt.Sprintf(
 				// Note: p.spanKindFilter can be ""; trailing commas are okay within a timeseries selection.
-				`histogram_quantile(%.2f, sum(rate(%s_bucket{service_name =~ "%s", %s}[%s])) by (%s))`,
+				`histogram_quantile(%.2f, sum(rate(%s_bucket{service_name =~ %q, %s}[%s])) by (%s))`,
 				requestParams.Quantile,
 				m.latencyMetricName,
 				p.serviceFilter,
@@ -179,7 +180,7 @@ func (m MetricsReader) GetCallRates(ctx context.Context, requestParams *metricst
 		buildPromQuery: func(p promQueryParams) string {
 			return fmt.Sprintf(
 				// Note: p.spanKindFilter can be ""; trailing commas are okay within a timeseries selection.
-				`sum(rate(%s{service_name =~ "%s", %s}[%s])) by (%s)`,
+				`sum(rate(%s{service_name =~ %q, %s}[%s])) by (%s)`,
 				m.callsMetricName,
 				p.serviceFilter,
 				p.spanKindFilter,
@@ -213,7 +214,7 @@ func (m MetricsReader) GetErrorRates(ctx context.Context, requestParams *metrics
 		buildPromQuery: func(p promQueryParams) string {
 			return fmt.Sprintf(
 				// Note: p.spanKindFilter can be ""; trailing commas are okay within a timeseries selection.
-				`sum(rate(%s{service_name =~ "%s", status_code = "STATUS_CODE_ERROR", %s}[%s])) by (%s) / sum(rate(%s{service_name =~ "%s", %s}[%s])) by (%s)`,
+				`sum(rate(%s{service_name =~ %q, status_code = "STATUS_CODE_ERROR", %s}[%s])) by (%s) / sum(rate(%s{service_name =~ %q, %s}[%s])) by (%s)`,
 				m.callsMetricName, p.serviceFilter, p.spanKindFilter, p.rate, p.groupBy,
 				m.callsMetricName, p.serviceFilter, p.spanKindFilter, p.rate, p.groupBy,
 			)
@@ -306,7 +307,7 @@ func (m MetricsReader) buildPromQuery(metricsParams metricsQueryParams) string {
 
 	spanKindFilter := ""
 	if len(metricsParams.SpanKinds) > 0 {
-		spanKindFilter = fmt.Sprintf(`span_kind =~ "%s"`, strings.Join(metricsParams.SpanKinds, "|"))
+		spanKindFilter = fmt.Sprintf(`span_kind =~ %q`, strings.Join(metricsParams.SpanKinds, "|"))
 	}
 	promParams := promQueryParams{
 		serviceFilter:  strings.Join(metricsParams.ServiceNames, "|"),
@@ -345,7 +346,7 @@ func logErrorToSpan(span trace.Span, err error) {
 	span.SetStatus(codes.Error, err.Error())
 }
 
-func getHTTPRoundTripper(c *config.Configuration) (rt http.RoundTripper, err error) {
+func getHTTPRoundTripper(c *config.Configuration, httpAuth extensionauth.HTTPClient) (rt http.RoundTripper, err error) {
 	ctlsConfig, err := c.TLS.LoadTLSConfig(context.Background())
 	if err != nil {
 		return nil, err
@@ -379,7 +380,7 @@ func getHTTPRoundTripper(c *config.Configuration) (rt http.RoundTripper, err err
 	if c.TokenOverrideFromContext {
 		fromCtxFn = bearertoken.GetBearerToken
 	}
-	return &auth.RoundTripper{
+	base := &auth.RoundTripper{
 		Transport: httpTransport,
 		Auths: []auth.Method{
 			{
@@ -388,5 +389,9 @@ func getHTTPRoundTripper(c *config.Configuration) (rt http.RoundTripper, err err
 				FromCtx: fromCtxFn,
 			},
 		},
-	}, nil
+	}
+	if httpAuth == nil {
+		return base, nil
+	}
+	return httpAuth.RoundTripper(base)
 }

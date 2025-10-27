@@ -6,6 +6,48 @@ import sys
 from difflib import unified_diff
 from bisect import insort
 from prometheus_client.parser import text_string_to_metric_families
+import re
+
+# Configuration for transient labels that should be normalized during comparison
+TRANSIENT_LABEL_PATTERNS = {
+    'kafka': {
+        'topic': {
+            'pattern': r'jaeger-spans-\d+',
+            'replacement': 'jaeger-spans-'
+        }
+    },
+    # Add more patterns here as needed
+    # Example:
+    # 'elasticsearch': {
+    #     'index': {
+    #         'pattern': r'jaeger-\d{4}-\d{2}-\d{2}',
+    #         'replacement': 'jaeger-YYYY-MM-DD'
+    #     }
+    # }
+}
+
+def suppress_transient_labels(metric_name, labels):
+    """
+    Suppresses transient labels in metrics based on configured patterns.
+    
+    Args:
+        metric_name: The name of the metric
+        labels: Dictionary of labels for the metric
+        
+    Returns:
+        Dictionary of labels with transient values normalized
+    """
+    labels_copy = labels.copy()
+    
+    for service_pattern, label_configs in TRANSIENT_LABEL_PATTERNS.items():
+        if service_pattern in metric_name:
+            for label_name, pattern_config in label_configs.items():
+                if label_name in labels_copy:
+                    pattern = pattern_config['pattern']
+                    replacement = pattern_config['replacement']
+                    labels_copy[label_name] = re.sub(pattern, replacement, labels_copy[label_name])
+    
+    return labels_copy
 
 def read_metric_file(file_path):
     with open(file_path, 'r') as f:
@@ -18,6 +60,9 @@ def parse_metrics(content):
             labels = dict(sample.labels)
             #simply pop undesirable metric labels
             labels.pop('service_instance_id',None)
+            
+            labels = suppress_transient_labels(sample.name, labels)
+            
             label_pairs = sorted(labels.items(), key=lambda x: x[0])
             label_str = ','.join(f'{k}="{v}"' for k,v in label_pairs)
             metric = f"{family.name}{{{label_str}}}"

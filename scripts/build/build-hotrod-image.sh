@@ -3,7 +3,7 @@
 # Copyright (c) 2024 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-set -euf -o pipefail
+set -exuf -o pipefail
 
 print_help() {
   echo "Usage: $0 [-h] [-l] [-o] [-p platforms] [-v jaeger_version]"
@@ -75,8 +75,7 @@ dump_logs() {
 
   echo "::group:: Logs"
   if [ "$runtime" == "k8s" ]; then
-    kubectl logs -n example-hotrod -l app=example-hotrod
-    kubectl logs -n example-hotrod -l app=jaeger
+    kubectl logs -l app.kubernetes.io/name=jaeger
   else
     docker compose -f "$compose_file" logs
   fi
@@ -95,7 +94,8 @@ teardown() {
     if [[ -n "${JAEGER_PORT_FWD_PID:-}" ]]; then
       kill "$JAEGER_PORT_FWD_PID" || true
     fi
-    kubectl delete namespace example-hotrod --ignore-not-found=true
+    helm uninstall jaeger --ignore-not-found || true
+    helm uninstall prometheus --ignore-not-found || true
   else
     docker compose -f "$docker_compose_file" down
   fi
@@ -132,12 +132,29 @@ if [[ "${runtime}" == "k8s" ]]; then
   fi
 
   echo '::group:: run on Kubernetes'
-  kustomize build ./examples/hotrod/kubernetes | kubectl apply -n example-hotrod -f -
-  kubectl wait --for=condition=available --timeout=180s -n example-hotrod deployment/example-hotrod
+  echo '::group:: Loading images into Kind cluster'
   
-  kubectl port-forward -n example-hotrod service/example-hotrod 8080:frontend &
+  docker pull localhost:5000/jaegertracing/jaeger:"${GITHUB_SHA}"
+  docker pull localhost:5000/jaegertracing/example-hotrod:"${GITHUB_SHA}"
+  
+  # Get the actual cluster name
+  CLUSTER_NAME=$(kind get clusters | head -n1)
+  if [[ -n "$CLUSTER_NAME" ]]; then
+    echo "Loading images into '$CLUSTER_NAME' cluster..."
+    kind load docker-image localhost:5000/jaegertracing/jaeger:"${GITHUB_SHA}" --name "$CLUSTER_NAME"
+    kind load docker-image localhost:5000/jaegertracing/example-hotrod:"${GITHUB_SHA}" --name "$CLUSTER_NAME"
+  else
+    echo "No Kind clusters found!"
+    exit 1
+  fi
+  
+  bash ./examples/oci/deploy-all.sh local "${GITHUB_SHA}"
+  kubectl wait --for=condition=available --timeout=180s deployment/jaeger-hotrod
+  kubectl wait --for=condition=available --timeout=180s deployment/jaeger
+
+  kubectl port-forward svc/jaeger-hotrod 8080:80 &
   HOTROD_PORT_FWD_PID=$!
-  kubectl port-forward -n example-hotrod service/jaeger 16686:frontend &
+  kubectl port-forward svc/jaeger-query 16686:16686 &
   JAEGER_PORT_FWD_PID=$!
   echo '::endgroup::'
 
@@ -147,22 +164,30 @@ else
   echo '::endgroup::'
 fi
 
+if [[ "${runtime}" == "k8s" ]]; then
+  HOTROD_URL="http://localhost:8080/hotrod"
+  JAEGER_QUERY_URL="http://localhost:16686/jaeger"
+else
+  HOTROD_URL="http://localhost:8080"
+  JAEGER_QUERY_URL="http://localhost:16686"
+fi
+
 i=0
-while [[ "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080)" != "200" && $i -lt 30 ]]; do
+while [[ "$(curl -s -o /dev/null -w '%{http_code}' ${HOTROD_URL})" != "200" && $i -lt 30 ]]; do
   sleep 1
   i=$((i+1))
 done
 
 echo '::group:: check HTML'
 echo 'Check that home page contains text Rides On Demand'
-body=$(curl localhost:8080)
+body=$(curl ${HOTROD_URL})
 if [[ $body != *"Rides On Demand"* ]]; then
   echo "String \"Rides On Demand\" is not present on the index page"
   exit 1
 fi
 echo '::endgroup::'
 
-response=$(curl -i -X POST "http://localhost:8080/dispatch?customer=123")
+response=$(curl -i -X POST "${HOTROD_URL}/dispatch?customer=123")
 TRACE_ID=$(echo "$response" | grep -Fi "Traceresponse:" | awk '{print $2}' | cut -d '-' -f 2)
 
 if [ -n "$TRACE_ID" ]; then
@@ -172,7 +197,6 @@ else
   exit 1
 fi
 
-JAEGER_QUERY_URL="http://localhost:16686"
 EXPECTED_SPANS=35
 MAX_RETRIES=30
 SLEEP_INTERVAL=3
@@ -208,3 +232,4 @@ success="true"
 # Ensure the image is published after successful test (maybe with -l flag if on a pull request).
 # This is where all those multi-platform binaries we built earlier are utilized.
 bash scripts/build/build-upload-a-docker-image.sh "${FLAGS[@]}" -c example-hotrod -d examples/hotrod -p "${platforms}"
+
