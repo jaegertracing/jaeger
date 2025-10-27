@@ -51,11 +51,34 @@ type TraceBackend struct {
 	ClickHouse    *clickhouse.Configuration `mapstructure:"clickhouse"`
 }
 
+// AuthConfig represents authentication configuration for metric backends.
+//
+// The Authenticator field expects the ID (name) of an HTTP authenticator
+// extension that is registered in the running binary and implements
+// go.opentelemetry.io/collector/extension/extensionauth.HTTPClient.
+//
+// Valid values:
+//   - "sigv4auth" in the stock Jaeger binary (built-in).
+//   - Any other extension name is valid only if that authenticator extension
+//     is included in the build; otherwise Jaeger will error at startup when
+//     resolving the extension.
+//   - Empty/omitted means no auth (default behavior).
+type AuthConfig struct {
+	// Authenticator is the name (ID) of the HTTP authenticator extension to use.
+	Authenticator string `mapstructure:"authenticator"`
+}
+
+// PrometheusConfiguration wraps the base Prometheus configuration with auth support.
+type PrometheusConfiguration struct {
+	promcfg.Configuration `mapstructure:",squash"`
+	Auth                  *AuthConfig `mapstructure:"auth,omitempty"`
+}
+
 // MetricBackend contains configuration for a single metric storage backend.
 type MetricBackend struct {
-	Prometheus    *promcfg.Configuration `mapstructure:"prometheus"`
-	Elasticsearch *escfg.Configuration   `mapstructure:"elasticsearch"`
-	Opensearch    *escfg.Configuration   `mapstructure:"opensearch"`
+	Prometheus    *PrometheusConfiguration `mapstructure:"prometheus"`
+	Elasticsearch *escfg.Configuration     `mapstructure:"elasticsearch"`
+	Opensearch    *escfg.Configuration     `mapstructure:"opensearch"`
 }
 
 // Unmarshal implements confmap.Unmarshaler. This allows us to provide
@@ -118,7 +141,9 @@ func (cfg *MetricBackend) Unmarshal(conf *confmap.Conf) error {
 	// apply defaults
 	if conf.IsSet("prometheus") {
 		v := prometheus.DefaultConfig()
-		cfg.Prometheus = &v
+		cfg.Prometheus = &PrometheusConfiguration{
+			Configuration: v,
+		}
 	}
 
 	if conf.IsSet("elasticsearch") {

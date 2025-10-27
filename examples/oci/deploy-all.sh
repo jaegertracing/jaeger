@@ -75,6 +75,7 @@ if [[ "$MODE" == "local" ]]; then
     --set allInOne.enabled=true \
     --set storage.type=memory \
     --set hotrod.enabled=true \
+    --set global.imageRegistry="" \
     --set allInOne.image.repository="localhost:5000/jaegertracing/jaeger" \
     --set allInOne.image.tag="${IMAGE_TAG}"  \
     --set allInOne.image.pullPolicy="Never" \
@@ -90,7 +91,7 @@ else
     --set provisionDataStore.cassandra=false \
     --set allInOne.enabled=true \
     --set storage.type=memory \
-    --set allInOne.image.repository="docker.io/jaegertracing/jaeger" \
+    --set allInOne.image.repository="jaegertracing/jaeger" \
     --set-file userconfig="./config.yaml" \
     --set-file uiconfig="./ui-config.json" \
     -f ./jaeger-values.yaml

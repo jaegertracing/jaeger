@@ -729,8 +729,7 @@ func BenchmarkInternalTracesToDbSpans(b *testing.B) {
 	td, err := unmarshaller.UnmarshalTraces(data)
 	require.NoError(b, err)
 
-	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
+	for b.Loop() {
 		batches := ToDBModel(td)
 		assert.NotEmpty(b, batches)
 	}

@@ -45,7 +45,7 @@ func (r *Reader) GetTraces(
 
 			done := false
 			for rows.Next() {
-				span, err := scanSpanRow(rows)
+				span, err := dbmodel.ScanRow(rows)
 				if err != nil {
 					if !yield(nil, fmt.Errorf("failed to scan span row: %w", err)) {
 						done = true
@@ -54,7 +54,7 @@ func (r *Reader) GetTraces(
 					continue
 				}
 
-				trace := dbmodel.FromDBModel(span)
+				trace := dbmodel.FromRow(span)
 				if !yield([]ptrace.Traces{trace}, nil) {
 					done = true
 					break

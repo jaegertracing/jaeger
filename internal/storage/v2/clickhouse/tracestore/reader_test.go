@@ -20,55 +20,85 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
-func scanSpanRowFn() func(dest any, src *spanRow) error {
-	return func(dest any, src *spanRow) error {
+func scanSpanRowFn() func(dest any, src *dbmodel.SpanRow) error {
+	return func(dest any, src *dbmodel.SpanRow) error {
 		ptrs, ok := dest.([]any)
 		if !ok {
 			return fmt.Errorf("expected []any for dest, got %T", dest)
 		}
-		if len(ptrs) != 38 {
-			return fmt.Errorf("expected 38 destination arguments, got %d", len(ptrs))
+		if len(ptrs) != 68 {
+			return fmt.Errorf("expected 68 destination arguments, got %d", len(ptrs))
 		}
 
 		values := []any{
-			&src.id,
-			&src.traceID,
-			&src.traceState,
-			&src.parentSpanID,
-			&src.name,
-			&src.kind,
-			&src.startTime,
-			&src.statusCode,
-			&src.statusMessage,
-			&src.rawDuration,
-			&src.boolAttributeKeys,
-			&src.boolAttributeValues,
-			&src.doubleAttributeKeys,
-			&src.doubleAttributeValues,
-			&src.intAttributeKeys,
-			&src.intAttributeValues,
-			&src.strAttributeKeys,
-			&src.strAttributeValues,
-			&src.complexAttributeKeys,
-			&src.complexAttributeValues,
-			&src.eventNames,
-			&src.eventTimestamps,
-			&src.eventBoolAttributeKeys,
-			&src.eventBoolAttributeValues,
-			&src.eventDoubleAttributeKeys,
-			&src.eventDoubleAttributeValues,
-			&src.eventIntAttributeKeys,
-			&src.eventIntAttributeValues,
-			&src.eventStrAttributeKeys,
-			&src.eventStrAttributeValues,
-			&src.eventComplexAttributeKeys,
-			&src.eventComplexAttributeValues,
-			&src.linkTraceIDs,
-			&src.linkSpanIDs,
-			&src.linkTraceStates,
-			&src.serviceName,
-			&src.scopeName,
-			&src.scopeVersion,
+			&src.ID,
+			&src.TraceID,
+			&src.TraceState,
+			&src.ParentSpanID,
+			&src.Name,
+			&src.Kind,
+			&src.StartTime,
+			&src.StatusCode,
+			&src.StatusMessage,
+			&src.Duration,
+			&src.Attributes.BoolKeys,
+			&src.Attributes.BoolValues,
+			&src.Attributes.DoubleKeys,
+			&src.Attributes.DoubleValues,
+			&src.Attributes.IntKeys,
+			&src.Attributes.IntValues,
+			&src.Attributes.StrKeys,
+			&src.Attributes.StrValues,
+			&src.Attributes.ComplexKeys,
+			&src.Attributes.ComplexValues,
+			&src.EventNames,
+			&src.EventTimestamps,
+			&src.EventAttributes.BoolKeys,
+			&src.EventAttributes.BoolValues,
+			&src.EventAttributes.DoubleKeys,
+			&src.EventAttributes.DoubleValues,
+			&src.EventAttributes.IntKeys,
+			&src.EventAttributes.IntValues,
+			&src.EventAttributes.StrKeys,
+			&src.EventAttributes.StrValues,
+			&src.EventAttributes.ComplexKeys,
+			&src.EventAttributes.ComplexValues,
+			&src.LinkTraceIDs,
+			&src.LinkSpanIDs,
+			&src.LinkTraceStates,
+			&src.LinkAttributes.BoolKeys,
+			&src.LinkAttributes.BoolValues,
+			&src.LinkAttributes.DoubleKeys,
+			&src.LinkAttributes.DoubleValues,
+			&src.LinkAttributes.IntKeys,
+			&src.LinkAttributes.IntValues,
+			&src.LinkAttributes.StrKeys,
+			&src.LinkAttributes.StrValues,
+			&src.LinkAttributes.ComplexKeys,
+			&src.LinkAttributes.ComplexValues,
+			&src.ServiceName,
+			&src.ResourceAttributes.BoolKeys,
+			&src.ResourceAttributes.BoolValues,
+			&src.ResourceAttributes.DoubleKeys,
+			&src.ResourceAttributes.DoubleValues,
+			&src.ResourceAttributes.IntKeys,
+			&src.ResourceAttributes.IntValues,
+			&src.ResourceAttributes.StrKeys,
+			&src.ResourceAttributes.StrValues,
+			&src.ResourceAttributes.ComplexKeys,
+			&src.ResourceAttributes.ComplexValues,
+			&src.ScopeName,
+			&src.ScopeVersion,
+			&src.ScopeAttributes.BoolKeys,
+			&src.ScopeAttributes.BoolValues,
+			&src.ScopeAttributes.DoubleKeys,
+			&src.ScopeAttributes.DoubleValues,
+			&src.ScopeAttributes.IntKeys,
+			&src.ScopeAttributes.IntValues,
+			&src.ScopeAttributes.StrKeys,
+			&src.ScopeAttributes.StrValues,
+			&src.ScopeAttributes.ComplexKeys,
+			&src.ScopeAttributes.ComplexValues,
 		}
 
 		for i := range ptrs {
@@ -81,7 +111,7 @@ func scanSpanRowFn() func(dest any, src *spanRow) error {
 func TestGetTraces_Success(t *testing.T) {
 	tests := []struct {
 		name     string
-		data     []*spanRow
+		data     []*dbmodel.SpanRow
 		expected []ptrace.Traces
 	}{
 		{
@@ -99,7 +129,7 @@ func TestGetTraces_Success(t *testing.T) {
 			conn := &testDriver{
 				t:             t,
 				expectedQuery: sql.SelectSpansByTraceID,
-				rows: &testRows[*spanRow]{
+				rows: &testRows[*dbmodel.SpanRow]{
 					data:   tt.data,
 					scanFn: scanSpanRowFn(),
 				},
@@ -137,7 +167,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 			driver: &testDriver{
 				t:             t,
 				expectedQuery: sql.SelectSpansByTraceID,
-				rows: &testRows[*spanRow]{
+				rows: &testRows[*dbmodel.SpanRow]{
 					data:    singleSpan,
 					scanErr: assert.AnError,
 				},
@@ -149,7 +179,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 			driver: &testDriver{
 				t:             t,
 				expectedQuery: sql.SelectSpansByTraceID,
-				rows: &testRows[*spanRow]{
+				rows: &testRows[*dbmodel.SpanRow]{
 					data:     singleSpan,
 					scanFn:   scanSpanRowFn(),
 					closeErr: assert.AnError,
@@ -174,7 +204,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 func TestGetTraces_ScanErrorContinues(t *testing.T) {
 	scanCalled := 0
 
-	scanFn := func(dest any, src *spanRow) error {
+	scanFn := func(dest any, src *dbmodel.SpanRow) error {
 		scanCalled++
 		if scanCalled == 1 {
 			return assert.AnError // simulate scan error on the first row
@@ -185,7 +215,7 @@ func TestGetTraces_ScanErrorContinues(t *testing.T) {
 	conn := &testDriver{
 		t:             t,
 		expectedQuery: sql.SelectSpansByTraceID,
-		rows: &testRows[*spanRow]{
+		rows: &testRows[*dbmodel.SpanRow]{
 			data:   multipleSpans,
 			scanFn: scanFn,
 		},
@@ -210,7 +240,7 @@ func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	conn := &testDriver{
 		t:             t,
 		expectedQuery: sql.SelectSpansByTraceID,
-		rows: &testRows[*spanRow]{
+		rows: &testRows[*dbmodel.SpanRow]{
 			data:   multipleSpans,
 			scanFn: scanSpanRowFn(),
 		},

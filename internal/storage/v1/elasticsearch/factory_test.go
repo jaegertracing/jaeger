@@ -317,9 +317,17 @@ func TestESStorageFactoryWithConfig(t *testing.T) {
 
 func TestESStorageFactoryWithConfigError(t *testing.T) {
 	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	}))
+	defer server.Close()
 	cfg := escfg.Configuration{
-		Servers:  []string{"http://127.0.0.1:65535"},
-		LogLevel: "error",
+		Servers:            []string{server.URL},
+		DisableHealthCheck: true,
+		LogLevel:           "error",
 	}
 	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop())
 	require.ErrorContains(t, err, "failed to create Elasticsearch client")

@@ -422,10 +422,7 @@ func (r *TraceReader) durationQueries(plan *executionPlan, query *spanstore.Trac
 
 func mergeJoinIds(left, right [][]byte) [][]byte {
 	// len(left) or len(right) is the maximum, whichever is the smallest
-	allocateSize := len(left)
-	if len(right) < allocateSize {
-		allocateSize = len(right)
-	}
+	allocateSize := min(len(right), len(left))
 
 	merged := make([][]byte, 0, allocateSize)
 

@@ -239,10 +239,7 @@ func applySlidingWindow(mf *metrics.MetricFamily, lookback int, processor func(m
 		processedPoints := make([]*metrics.MetricPoint, 0, len(points))
 
 		for i, currentPoint := range points {
-			start := i - lookback + 1
-			if start < 0 {
-				start = 0
-			}
+			start := max(i-lookback+1, 0)
 			window := points[start : i+1]
 			resultValue := processor(metric, window)
 
