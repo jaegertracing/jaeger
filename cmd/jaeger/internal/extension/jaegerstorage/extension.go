@@ -226,7 +226,6 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		case cfg.Prometheus != nil:
 			promTelset := telset
 			promTelset.Metrics = scopedMetricsFactory(metricStorageName, "prometheus", "metricstore")
-
 			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Prometheus.Authentication, "prometheus metrics", metricStorageName)
 			if authErr != nil {
 				return authErr
