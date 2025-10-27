@@ -77,7 +77,6 @@ This issue tracks the release of Jaeger ${cmd_v1} / ${cmd_v2}.
 ### Tagging
 
 After merging the PR, create signed tags and push them:
-After merging the PR, create signed tags and push them:
 
 ```bash
 bash ./scripts/release/prepare.sh ${cmd_v1} ${cmd_v2} --create-tags
