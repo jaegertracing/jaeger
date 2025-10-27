@@ -265,7 +265,7 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 
 		// The deserialization in the ping implementation may succeed even if the response
 		// contains no relevant properties and we may get empty values in that case.
-		if len(pingResult.Version.Number) == 0 {
+		if pingResult.Version.Number == "" {
 			return nil, fmt.Errorf("ElasticSearch server %s returned invalid ping response", c.Servers[0])
 		}
 

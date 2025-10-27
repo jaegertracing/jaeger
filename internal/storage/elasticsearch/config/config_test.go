@@ -506,6 +506,7 @@ func TestNewClient(t *testing.T) {
 		})
 	}
 }
+
 func TestNewClientPingErrorHandling(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -537,7 +538,7 @@ func TestNewClientPingErrorHandling(t *testing.T) {
 			statusCode:     200,
 			expectedError:  "invalid ping response",
 		},
-		
+
 		{
 			name:           "ping returns valid 200 status with version",
 			serverResponse: mockEsServerResponseWithVersion0,
@@ -556,8 +557,8 @@ func TestNewClientPingErrorHandling(t *testing.T) {
 			defer testServer.Close()
 
 			config := &Configuration{
-				Servers: []string{testServer.URL},
-				LogLevel: "error",
+				Servers:            []string{testServer.URL},
+				LogLevel:           "error",
 				DisableHealthCheck: true,
 			}
 
@@ -579,7 +580,6 @@ func TestNewClientPingErrorHandling(t *testing.T) {
 	}
 }
 
-
 func TestNewClientVersionDetection(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -594,7 +594,7 @@ func TestNewClientVersionDetection(t *testing.T) {
                     "Number": "7.x.1"
                 }
             }`),
-			expectedVersion: 7, 
+			expectedVersion: 7,
 			expectedError:   "",
 		},
 		{
@@ -619,15 +619,15 @@ func TestNewClientVersionDetection(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-				res.WriteHeader(200)
+			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, _ *http.Request) {
+				res.WriteHeader(http.StatusOK)
 				res.Write(test.serverResponse)
 			}))
 			defer testServer.Close()
 
 			config := &Configuration{
-				Servers: []string{testServer.URL},
-				LogLevel: "error",
+				Servers:            []string{testServer.URL},
+				LogLevel:           "error",
 				DisableHealthCheck: true,
 			}
 
