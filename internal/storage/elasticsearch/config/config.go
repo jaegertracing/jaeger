@@ -250,26 +250,25 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 		logger: logger,
 	}
 
-	bulkProc, err := rawClient.BulkProcessor().
-		Before(func(id int64, _ /* requests */ []elastic.BulkableRequest) {
-			bcb.startTimes.Store(id, time.Now())
-		}).
-		After(bcb.invoke).
-		BulkSize(c.BulkProcessing.MaxBytes).
-		Workers(c.BulkProcessing.Workers).
-		BulkActions(c.BulkProcessing.MaxActions).
-		FlushInterval(c.BulkProcessing.FlushInterval).
-		Do(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	if c.Version == 0 {
 		// Determine ElasticSearch Version
-		pingResult, _, err := rawClient.Ping(c.Servers[0]).Do(ctx)
+		pingResult, pingStatus, err := rawClient.Ping(c.Servers[0]).Do(ctx)
 		if err != nil {
 			return nil, err
 		}
+
+		// Non-2xx responses aren't reported as errors by the ping code (7.0.32 version of
+		// the elastic client).
+		if pingStatus < 200 || pingStatus >= 300 {
+			return nil, fmt.Errorf("ElasticSearch server %s returned HTTP %d, expected 2xx", c.Servers[0], pingStatus)
+		}
+
+		// The deserialization in the ping implementation may succeed even if the response
+		// contains no relevant properties and we may get empty values in that case.
+		if pingResult.Version.Number == "" {
+			return nil, fmt.Errorf("ElasticSearch server %s returned invalid ping response", c.Servers[0])
+		}
+
 		esVersion, err := strconv.Atoi(string(pingResult.Version.Number[0]))
 		if err != nil {
 			return nil, err
@@ -300,6 +299,20 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 		if err != nil {
 			return nil, fmt.Errorf("error creating v8 client: %w", err)
 		}
+	}
+
+	bulkProc, err := rawClient.BulkProcessor().
+		Before(func(id int64, _ /* requests */ []elastic.BulkableRequest) {
+			bcb.startTimes.Store(id, time.Now())
+		}).
+		After(bcb.invoke).
+		BulkSize(c.BulkProcessing.MaxBytes).
+		Workers(c.BulkProcessing.Workers).
+		BulkActions(c.BulkProcessing.MaxActions).
+		FlushInterval(c.BulkProcessing.FlushInterval).
+		Do(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	return eswrapper.WrapESClient(rawClient, bulkProc, c.Version, rawClientV8), nil

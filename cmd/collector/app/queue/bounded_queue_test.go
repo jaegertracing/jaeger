@@ -325,7 +325,7 @@ func BenchmarkBoundedQueue(b *testing.B) {
 	q.StartConsumers(10, func( /* item */ any) {})
 	defer q.Stop()
 
-	for n := 0; n < b.N; n++ {
+	for n := 0; b.Loop(); n++ {
 		q.Produce(n)
 	}
 }
@@ -338,7 +338,7 @@ func BenchmarkBoundedQueueWithFactory(b *testing.B) {
 	})
 	defer q.Stop()
 
-	for n := 0; n < b.N; n++ {
+	for n := 0; b.Loop(); n++ {
 		q.Produce(n)
 	}
 }

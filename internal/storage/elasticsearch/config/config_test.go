@@ -507,6 +507,149 @@ func TestNewClient(t *testing.T) {
 	}
 }
 
+func TestNewClientPingErrorHandling(t *testing.T) {
+	tests := []struct {
+		name           string
+		serverResponse []byte
+		statusCode     int
+		expectedError  string
+	}{
+		{
+			name:           "ping returns 404 status",
+			serverResponse: mockEsServerResponseWithVersion0,
+			statusCode:     404,
+			expectedError:  "ElasticSearch server",
+		},
+		{
+			name:           "ping returns 500 status",
+			serverResponse: mockEsServerResponseWithVersion0,
+			statusCode:     500,
+			expectedError:  "ElasticSearch server",
+		},
+		{
+			name:           "ping returns 300 status",
+			serverResponse: mockEsServerResponseWithVersion0,
+			statusCode:     300,
+			expectedError:  "ElasticSearch server",
+		},
+		{
+			name:           "ping returns empty version number",
+			serverResponse: []byte(`{"Version": {"Number": ""}}`),
+			statusCode:     200,
+			expectedError:  "invalid ping response",
+		},
+
+		{
+			name:           "ping returns valid 200 status with version",
+			serverResponse: mockEsServerResponseWithVersion0,
+			statusCode:     200,
+			expectedError:  "",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+				assert.Contains(t, []string{http.MethodGet, http.MethodHead}, req.Method)
+				res.WriteHeader(test.statusCode)
+				res.Write(test.serverResponse)
+			}))
+			defer testServer.Close()
+
+			config := &Configuration{
+				Servers:            []string{testServer.URL},
+				LogLevel:           "error",
+				DisableHealthCheck: true,
+			}
+
+			logger := zap.NewNop()
+			metricsFactory := metrics.NullFactory
+			client, err := NewClient(context.Background(), config, logger, metricsFactory)
+
+			if test.expectedError != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), test.expectedError)
+				require.Nil(t, client)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, client)
+				err = client.Close()
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestNewClientVersionDetection(t *testing.T) {
+	tests := []struct {
+		name            string
+		serverResponse  []byte
+		expectedVersion uint
+		expectedError   string
+	}{
+		{
+			name: "version number with letters",
+			serverResponse: []byte(`{
+                "Version": {
+                    "Number": "7.x.1"
+                }
+            }`),
+			expectedVersion: 7,
+			expectedError:   "",
+		},
+		{
+			name: "empty version number should fail validation",
+			serverResponse: []byte(`{
+                "Version": {
+                    "Number": ""
+                }
+            }`),
+			expectedError: "invalid ping response",
+		},
+		{
+			name: "version number as numeric should fail JSON parsing",
+			serverResponse: []byte(`{
+                "Version": {
+                    "Number": 7
+                }
+            }`),
+			expectedError: "cannot unmarshal number",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, _ *http.Request) {
+				res.WriteHeader(http.StatusOK)
+				res.Write(test.serverResponse)
+			}))
+			defer testServer.Close()
+
+			config := &Configuration{
+				Servers:            []string{testServer.URL},
+				LogLevel:           "error",
+				DisableHealthCheck: true,
+			}
+
+			logger := zap.NewNop()
+			metricsFactory := metrics.NullFactory
+			client, err := NewClient(context.Background(), config, logger, metricsFactory)
+
+			if test.expectedError != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), test.expectedError)
+				require.Nil(t, client)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, client)
+				assert.Equal(t, test.expectedVersion, config.Version)
+				err = client.Close()
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestApplyDefaults(t *testing.T) {
 	source := &Configuration{
 		RemoteReadClusters: []string{"cluster1", "cluster2"},
