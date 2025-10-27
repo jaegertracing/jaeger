@@ -80,7 +80,6 @@ After merging the PR, create signed tags and push them:
 
 ```bash
 bash ./scripts/release/prepare.sh ${cmd_v1} ${cmd_v2} --create-tags
-References: #7496
 EOF
 )
 
