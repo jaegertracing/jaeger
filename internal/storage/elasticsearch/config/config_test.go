@@ -564,7 +564,7 @@ func TestNewClientPingErrorHandling(t *testing.T) {
 
 			logger := zap.NewNop()
 			metricsFactory := metrics.NullFactory
-			client, err := NewClient(context.Background(), config, logger, metricsFactory)
+			client, err := NewClient(context.Background(), config, logger, metricsFactory, nil)
 
 			if test.expectedError != "" {
 				require.Error(t, err)
@@ -633,7 +633,7 @@ func TestNewClientVersionDetection(t *testing.T) {
 
 			logger := zap.NewNop()
 			metricsFactory := metrics.NullFactory
-			client, err := NewClient(context.Background(), config, logger, metricsFactory)
+			client, err := NewClient(context.Background(), config, logger, metricsFactory, nil)
 
 			if test.expectedError != "" {
 				require.Error(t, err)

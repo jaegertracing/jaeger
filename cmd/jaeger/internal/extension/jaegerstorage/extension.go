@@ -189,7 +189,12 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 			if authErr != nil {
 				return authErr
 			}
-			factory, err = es.NewFactory(ctx, *cfg.Elasticsearch, esTelset, httpAuth)
+			factory, err = es.NewFactory(
+				ctx,
+				*cfg.Elasticsearch,
+				esTelset,
+				httpAuth,
+			)
 
 		case cfg.Opensearch != nil:
 			osTelset := telset
@@ -198,7 +203,11 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 			if authErr != nil {
 				return authErr
 			}
-			factory, err = es.NewFactory(ctx, *cfg.Opensearch, osTelset, httpAuth)
+			factory, err = es.NewFactory(ctx,
+				*cfg.Opensearch,
+				osTelset,
+				httpAuth,
+			)
 
 		case cfg.ClickHouse != nil:
 			chTelset := telset
@@ -232,6 +241,7 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 			}
 
 			metricStoreFactory, err = prometheus.NewFactoryWithConfig(
+				ctx,
 				cfg.Prometheus.Configuration,
 				promTelset,
 				httpAuth,
@@ -247,7 +257,12 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 			if authErr != nil {
 				return authErr
 			}
-			metricStoreFactory, err = esmetrics.NewFactory(ctx, *cfg.Elasticsearch, esTelset, httpAuth)
+			metricStoreFactory, err = esmetrics.NewFactory(
+				ctx,
+				*cfg.Elasticsearch,
+				esTelset,
+				httpAuth,
+			)
 
 		case cfg.Opensearch != nil:
 			osTelset := telset
@@ -256,7 +271,11 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 			if authErr != nil {
 				return authErr
 			}
-			metricStoreFactory, err = esmetrics.NewFactory(ctx, *cfg.Opensearch, osTelset, httpAuth)
+			metricStoreFactory, err = esmetrics.NewFactory(ctx,
+				*cfg.Opensearch,
+				osTelset,
+				httpAuth,
+			)
 
 		default:
 			err = fmt.Errorf("no metric backend configuration provided for '%s'", metricStorageName)
