@@ -15,6 +15,7 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -30,6 +31,21 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
+
+var enableHTTPStreaming *featuregate.Gate
+
+func init() {
+	enableHTTPStreaming = featuregate.GlobalRegistry().MustRegister(
+		"jaeger.query.http.streaming",
+		featuregate.StageAlpha,
+		featuregate.WithRegisterDescription(
+			"Enable HTTP streaming for /api/v3 endpoints using NDJSON format with chunked transfer encoding",
+		),
+		featuregate.WithRegisterReferenceURL(
+			"https://github.com/jaegertracing/jaeger/issues/6467",
+		),
+	)
+}
 
 const (
 	paramTraceID        = "trace_id" // get trace by ID
@@ -150,6 +166,13 @@ func (h *HTTPGateway) returnTraces(traces []ptrace.Traces, err error, w http.Res
 }
 
 func (h *HTTPGateway) streamTraces(tracesIter func(yield func([]ptrace.Traces, error) bool), w http.ResponseWriter) {
+	// Check feature gate FIRST - if disabled, use non-streaming behavior
+	if !enableHTTPStreaming.IsEnabled() {
+		traces, err := jiter.FlattenWithErrors(tracesIter)
+		h.returnTraces(traces, err, w)
+		return
+	}
+
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		traces, err := jiter.FlattenWithErrors(tracesIter)
@@ -158,8 +181,6 @@ func (h *HTTPGateway) streamTraces(tracesIter func(yield func([]ptrace.Traces, e
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("Transfer-Encoding", "chunked")
 
 	tracesFound := false
 	hasError := false
@@ -199,6 +220,7 @@ func (h *HTTPGateway) streamTraces(tracesIter func(yield func([]ptrace.Traces, e
 				w.WriteHeader(http.StatusOK)
 				headerWritten = true
 			} else {
+				// Write newline separator between messages (grpc-web style NDJSON)
 				if _, err := w.Write([]byte("\n")); err != nil {
 					h.Logger.Error("Failed to write newline separator", zap.Error(err))
 					return false

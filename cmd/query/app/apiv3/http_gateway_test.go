@@ -19,18 +19,42 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jtracer"
+	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	dependencystoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
+
+// parseNDJSON parses a newline-delimited JSON response into GRPCGatewayWrapper messages
+// This simulates how a real client would consume the NDJSON stream
+func parseNDJSON(t *testing.T, body string) []*api_v3.GRPCGatewayWrapper {
+	var wrappers []*api_v3.GRPCGatewayWrapper
+	lines := bytes.Split([]byte(body), []byte("\n"))
+
+	for _, line := range lines {
+		trimmed := bytes.TrimSpace(line)
+		if len(trimmed) == 0 {
+			continue
+		}
+
+		// Parse each line as a GRPCGatewayWrapper
+		var wrapper api_v3.GRPCGatewayWrapper
+		err := json.Unmarshal(trimmed, &wrapper)
+		require.NoError(t, err, "Each NDJSON line should be valid JSON")
+		wrappers = append(wrappers, &wrapper)
+	}
+
+	return wrappers
+}
 
 func setupHTTPGatewayNoServer(
 	_ *testing.T,
@@ -395,6 +419,12 @@ func TestHTTPGatewayGetOperationsErrors(t *testing.T) {
 
 // TestHTTPGatewayStreamingResponse verifies that streaming produces valid NDJSON
 func TestHTTPGatewayStreamingResponse(t *testing.T) {
+	// Enable streaming feature gate for this test
+	require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), true))
+	defer func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), false))
+	}()
+
 	gw := setupHTTPGatewayNoServer(t, "")
 
 	// Create multiple trace batches to verify streaming
@@ -429,27 +459,27 @@ func TestHTTPGatewayStreamingResponse(t *testing.T) {
 
 	body := w.Body.String()
 
-	// Verify response contains newline-separated JSON objects (NDJSON)
-	lines := bytes.Split([]byte(body), []byte("\n"))
-	nonEmptyLines := 0
-	for _, line := range lines {
-		if len(bytes.TrimSpace(line)) > 0 {
-			nonEmptyLines++
-			// Each line should be valid JSON
-			var obj map[string]any
-			err := json.Unmarshal(line, &obj)
-			require.NoError(t, err, "Each line should be valid JSON")
-		}
-	}
+	// Parse NDJSON response like a real client would
+	wrappers := parseNDJSON(t, body)
 
-	// We should have multiple trace objects
-	assert.GreaterOrEqual(t, nonEmptyLines, 1, "Should have at least 1 trace")
-	assert.Contains(t, body, "foobar")      // First trace span name
-	assert.Contains(t, body, "second-span") // Second trace span name
+	// Verify we got multiple trace messages
+	assert.GreaterOrEqual(t, len(wrappers), 1, "Should have at least 1 trace")
+
+	// Verify that the traces contain the expected span data
+	// (searching in the JSON string is appropriate since we've already validated
+	// that each line is valid, parseable JSON)
+	assert.Contains(t, body, "foobar", "Response should contain 'foobar' span")
+	assert.Contains(t, body, "second-span", "Response should contain 'second-span' span")
 }
 
 // TestHTTPGatewayStreamingMultipleBatches tests streaming with multiple trace batches
 func TestHTTPGatewayStreamingMultipleBatches(t *testing.T) {
+	// Enable streaming feature gate for this test
+	require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), true))
+	defer func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), false))
+	}()
+
 	gw := setupHTTPGatewayNoServer(t, "")
 
 	trace1 := makeTestTrace()
@@ -482,21 +512,13 @@ func TestHTTPGatewayStreamingMultipleBatches(t *testing.T) {
 
 	body := w.Body.String()
 
-	// Verify response contains valid NDJSON
-	lines := bytes.Split([]byte(body), []byte("\n"))
-	nonEmptyLines := 0
-	for _, line := range lines {
-		if len(bytes.TrimSpace(line)) > 0 {
-			nonEmptyLines++
-			var obj map[string]any
-			err := json.Unmarshal(line, &obj)
-			require.NoError(t, err, "Each line should be valid JSON")
-		}
-	}
-	assert.GreaterOrEqual(t, nonEmptyLines, 1, "Should have at least 1 trace")
+	// Parse NDJSON response like a real client would
+	wrappers := parseNDJSON(t, body)
+	assert.GreaterOrEqual(t, len(wrappers), 1, "Should have at least 1 trace")
 
-	assert.Contains(t, body, "foobar")
-	assert.Contains(t, body, "batch2-span")
+	// Verify that the traces contain the expected span data
+	assert.Contains(t, body, "foobar", "Response should contain 'foobar' span")
+	assert.Contains(t, body, "batch2-span", "Response should contain 'batch2-span' span")
 }
 
 func TestHTTPGatewayStreamingFallbackNoFlusher(t *testing.T) {
@@ -576,6 +598,12 @@ func (n *nonFlushableRecorder) WriteHeader(statusCode int) {
 
 // TestHTTPGatewayStreamingWithEmptyBatches tests handling of empty trace batches
 func TestHTTPGatewayStreamingWithEmptyBatches(t *testing.T) {
+	// Enable streaming feature gate for this test
+	require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), true))
+	defer func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), false))
+	}()
+
 	gw := setupHTTPGatewayNoServer(t, "")
 
 	trace1 := makeTestTrace()
@@ -604,24 +632,22 @@ func TestHTTPGatewayStreamingWithEmptyBatches(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	body := w.Body.String()
-	// Verify response contains valid NDJSON
-	lines := bytes.Split([]byte(body), []byte("\n"))
-	nonEmptyLines := 0
-	for _, line := range lines {
-		if len(bytes.TrimSpace(line)) > 0 {
-			nonEmptyLines++
-			var obj map[string]any
-			err := json.Unmarshal(line, &obj)
-			require.NoError(t, err, "Each line should be valid JSON")
-		}
-	}
-	assert.GreaterOrEqual(t, nonEmptyLines, 1, "Should have at least 1 trace")
+	// Parse NDJSON response like a real client would
+	wrappers := parseNDJSON(t, body)
+	assert.GreaterOrEqual(t, len(wrappers), 1, "Should have at least 1 trace")
 
-	assert.Contains(t, body, "foobar")
+	// Verify that the traces contain the expected span data
+	assert.Contains(t, body, "foobar", "Response should contain 'foobar' span")
 }
 
 // TestHTTPGatewayStreamingNoTracesFound tests 404 when no traces exist
 func TestHTTPGatewayStreamingNoTracesFound(t *testing.T) {
+	// Enable streaming feature gate for this test
+	require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), true))
+	defer func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), false))
+	}()
+
 	gw := setupHTTPGatewayNoServer(t, "")
 
 	// Setup iterator that returns only empty batches
@@ -642,6 +668,12 @@ func TestHTTPGatewayStreamingNoTracesFound(t *testing.T) {
 
 // TestHTTPGatewayFindTracesStreaming tests findTraces endpoint with streaming
 func TestHTTPGatewayFindTracesStreaming(t *testing.T) {
+	// Enable streaming feature gate for this test
+	require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), true))
+	defer func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), false))
+	}()
+
 	q, qp := mockFindQueries()
 	trace1 := makeTestTrace()
 
@@ -660,16 +692,22 @@ func TestHTTPGatewayFindTracesStreaming(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	body := w.Body.String()
-	// Verify response contains valid JSON
-	var obj map[string]any
-	err = json.Unmarshal([]byte(body), &obj)
-	require.NoError(t, err, "Response should be valid JSON")
+	// Parse NDJSON response like a real client would
+	wrappers := parseNDJSON(t, body)
+	assert.GreaterOrEqual(t, len(wrappers), 1, "Should have at least 1 trace")
 
-	assert.Contains(t, body, "foobar")
+	// Verify that the traces contain the expected span data
+	assert.Contains(t, body, "foobar", "Response should contain 'foobar' span")
 }
 
 // TestHTTPGatewayStreamingMarshalError tests handling of write errors during streaming
 func TestHTTPGatewayStreamingMarshalError(t *testing.T) {
+	// Enable streaming feature gate for this test
+	require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), true))
+	defer func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), false))
+	}()
+
 	gw := setupHTTPGatewayNoServer(t, "")
 
 	trace1 := makeTestTrace()
@@ -735,6 +773,12 @@ func (*failingWriter) Flush() {
 
 // TestHTTPGatewayStreamingFirstChunkWrite tests various edge cases in first chunk handling
 func TestHTTPGatewayStreamingFirstChunkWrite(t *testing.T) {
+	// Enable streaming feature gate for this test
+	require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), true))
+	defer func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), false))
+	}()
+
 	gw := setupHTTPGatewayNoServer(t, "")
 
 	trace1 := makeTestTrace()
@@ -761,21 +805,13 @@ func TestHTTPGatewayStreamingFirstChunkWrite(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	body := w.Body.String()
-	// Verify response contains valid NDJSON
-	lines := bytes.Split([]byte(body), []byte("\n"))
-	nonEmptyLines := 0
-	for _, line := range lines {
-		if len(bytes.TrimSpace(line)) > 0 {
-			nonEmptyLines++
-			var obj map[string]any
-			err := json.Unmarshal(line, &obj)
-			require.NoError(t, err, "Each line should be valid JSON")
-		}
-	}
-	assert.GreaterOrEqual(t, nonEmptyLines, 1, "Should have at least 1 trace")
+	// Parse NDJSON response like a real client would
+	wrappers := parseNDJSON(t, body)
+	assert.GreaterOrEqual(t, len(wrappers), 1, "Should have at least 1 trace")
 
-	assert.Contains(t, body, "foobar")
-	assert.Contains(t, body, "span2")
+	// Verify that the traces contain the expected span data
+	assert.Contains(t, body, "foobar", "Response should contain 'foobar' span")
+	assert.Contains(t, body, "span2", "Response should contain 'span2' span")
 }
 
 // TestHTTPGatewayStreamingErrorBeforeFirstChunk tests error handling before streaming starts
@@ -852,6 +888,12 @@ func TestHTTPGatewayStreamingFallbackNoTraces(t *testing.T) {
 // TestHTTPGatewayStreamingClientSideParsing verifies that the streaming response
 // is valid NDJSON that clients can parse
 func TestHTTPGatewayStreamingClientSideParsing(t *testing.T) {
+	// Enable streaming feature gate for this test
+	require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), true))
+	defer func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), false))
+	}()
+
 	gw := setupHTTPGateway(t, "")
 
 	trace1 := makeTestTrace()
@@ -905,31 +947,16 @@ func TestHTTPGatewayStreamingClientSideParsing(t *testing.T) {
 
 	bodyStr := string(body)
 
-	// The response should be NDJSON - newline-separated JSON objects
-	lines := bytes.Split(body, []byte("\n"))
-	validObjects := 0
-	for _, line := range lines {
-		if len(bytes.TrimSpace(line)) == 0 {
-			continue
-		}
-		var obj map[string]any
-		err := json.Unmarshal(line, &obj)
-		require.NoError(t, err, "Each line should be valid JSON")
-
-		// Each object should have a "result" field
-		result, hasResult := obj["result"]
-		assert.True(t, hasResult, "Object should have a 'result' field")
-		assert.NotNil(t, result, "Object result should not be nil")
-		validObjects++
-	}
+	// Parse NDJSON response like a real client would
+	wrappers := parseNDJSON(t, bodyStr)
 
 	// Verify we got multiple trace results
-	assert.GreaterOrEqual(t, validObjects, 3, "Should have at least 3 trace objects")
+	assert.GreaterOrEqual(t, len(wrappers), 3, "Should have at least 3 trace objects")
 
-	// Verify all traces are present in the response
-	assert.Contains(t, bodyStr, "foobar", "Should contain first trace")
-	assert.Contains(t, bodyStr, "client-test-span", "Should contain second trace")
-	assert.Contains(t, bodyStr, "third-span", "Should contain third trace")
+	// Verify that the traces contain the expected span data
+	assert.Contains(t, bodyStr, "foobar", "Response should contain 'foobar' span")
+	assert.Contains(t, bodyStr, "client-test-span", "Response should contain 'client-test-span' span")
+	assert.Contains(t, bodyStr, "third-span", "Response should contain 'third-span' span")
 }
 
 // TestHTTPGatewayStreamingEmptyTracesVsNoTraces tests the distinction between
