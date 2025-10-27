@@ -239,16 +239,12 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 			if authErr != nil {
 				return authErr
 			}
-
 			metricStoreFactory, err = prometheus.NewFactoryWithConfig(
 				ctx,
 				cfg.Prometheus.Configuration,
 				promTelset,
 				httpAuth,
 			)
-			if err != nil {
-				return fmt.Errorf("failed to initialize metrics storage '%s': %w", metricStorageName, err)
-			}
 
 		case cfg.Elasticsearch != nil:
 			esTelset := telset
