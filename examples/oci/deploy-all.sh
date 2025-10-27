@@ -75,6 +75,7 @@ if [[ "$MODE" == "local" ]]; then
     --set allInOne.enabled=true \
     --set storage.type=memory \
     --set hotrod.enabled=true \
+    --set global.imageRegistry="" \
     --set allInOne.image.repository="localhost:5000/jaegertracing/jaeger" \
     --set allInOne.image.tag="${IMAGE_TAG}"  \
     --set allInOne.image.pullPolicy="Never" \
