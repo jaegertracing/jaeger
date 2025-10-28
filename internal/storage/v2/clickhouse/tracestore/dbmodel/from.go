@@ -12,6 +12,7 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/pdata/xpdata"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
@@ -169,7 +170,8 @@ func putAttributes(
 		attrs.PutStr(storedAttrs.StrKeys[i], storedAttrs.StrValues[i])
 	}
 	for i := 0; i < len(storedAttrs.ComplexKeys); i++ {
-		if strings.HasPrefix(storedAttrs.ComplexKeys[i], "@bytes@") {
+		switch {
+		case strings.HasPrefix(storedAttrs.ComplexKeys[i], "@bytes@"):
 			decoded, err := base64.StdEncoding.DecodeString(storedAttrs.ComplexValues[i])
 			if err != nil {
 				jptrace.AddWarnings(spanForWarnings, fmt.Sprintf("failed to decode bytes attribute %q: %s", storedAttrs.ComplexKeys[i], err.Error()))
@@ -177,6 +179,59 @@ func putAttributes(
 			}
 			k := strings.TrimPrefix(storedAttrs.ComplexKeys[i], "@bytes@")
 			attrs.PutEmptyBytes(k).FromRaw(decoded)
+		case strings.HasPrefix(storedAttrs.ComplexKeys[i], "@slice@"):
+			decoded, err := base64.StdEncoding.DecodeString(storedAttrs.ComplexValues[i])
+			if err != nil {
+				jptrace.AddWarnings(
+					spanForWarnings,
+					fmt.Sprintf("failed to decode slice attribute %q: %s",
+						storedAttrs.ComplexKeys[i],
+						err.Error(),
+					),
+				)
+				continue
+			}
+			k := strings.TrimPrefix(storedAttrs.ComplexKeys[i], "@slice@")
+			m := &xpdata.JSONUnmarshaler{}
+			val, err := m.UnmarshalValue(decoded)
+			if err != nil {
+				jptrace.AddWarnings(
+					spanForWarnings,
+					fmt.Sprintf(
+						"failed to unmarshal slice attribute %q: %s",
+						storedAttrs.ComplexKeys[i],
+						err.Error(),
+					),
+				)
+				continue
+			}
+			attrs.PutEmptySlice(k).FromRaw(val.Slice().AsRaw())
+		case strings.HasPrefix(storedAttrs.ComplexKeys[i], "@map@"):
+			decoded, err := base64.StdEncoding.DecodeString(storedAttrs.ComplexValues[i])
+			if err != nil {
+				jptrace.AddWarnings(
+					spanForWarnings,
+					fmt.Sprintf("failed to decode map attribute %q: %s",
+						storedAttrs.ComplexKeys[i],
+						err.Error(),
+					),
+				)
+				continue
+			}
+			k := strings.TrimPrefix(storedAttrs.ComplexKeys[i], "@map@")
+			m := &xpdata.JSONUnmarshaler{}
+			val, err := m.UnmarshalValue(decoded)
+			if err != nil {
+				jptrace.AddWarnings(
+					spanForWarnings,
+					fmt.Sprintf("failed to unmarshal map attribute %q: %s",
+						storedAttrs.ComplexKeys[i],
+						err.Error(),
+					),
+				)
+				continue
+			}
+			attrs.PutEmptyMap(k).FromRaw(val.Map().AsRaw())
 		}
 	}
 }

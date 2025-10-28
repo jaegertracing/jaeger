@@ -11,6 +11,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
+	"go.opentelemetry.io/collector/pdata/xpdata"
 )
 
 // ToRow converts an OpenTelemetry Span along with its Resource and Scope to a
@@ -124,7 +125,26 @@ func extractAttributes(attrs pcommon.Map) (out struct {
 			encoded := base64.StdEncoding.EncodeToString(v.Bytes().AsRaw())
 			out.complexKeys = append(out.complexKeys, key)
 			out.complexValues = append(out.complexValues, encoded)
-		// TODO: support array and map types
+		case pcommon.ValueTypeSlice:
+			key := "@slice@" + k
+			m := &xpdata.JSONMarshaler{}
+			b, err := m.MarshalValue(v)
+			if err != nil {
+				break
+			}
+			encoded := base64.StdEncoding.EncodeToString(b)
+			out.complexKeys = append(out.complexKeys, key)
+			out.complexValues = append(out.complexValues, encoded)
+		case pcommon.ValueTypeMap:
+			key := "@array@" + k
+			m := &xpdata.JSONMarshaler{}
+			b, err := m.MarshalValue(v)
+			if err != nil {
+				break
+			}
+			encoded := base64.StdEncoding.EncodeToString(b)
+			out.complexKeys = append(out.complexKeys, key)
+			out.complexValues = append(out.complexValues, encoded)
 		default:
 		}
 		return true
