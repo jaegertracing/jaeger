@@ -8,10 +8,10 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/pdata/xpdata"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
-	"go.opentelemetry.io/collector/pdata/xpdata"
 )
 
 // ToRow converts an OpenTelemetry Span along with its Resource and Scope to a
