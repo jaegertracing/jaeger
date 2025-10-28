@@ -1712,7 +1712,7 @@ func TestApplyDefaultsCustomHeaders(t *testing.T) {
 }
 
 func TestNewClientWithCustomHeaders(t *testing.T) {
-	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, _ *http.Request) {
 		res.WriteHeader(http.StatusOK)
 		res.Write(mockEsServerResponseWithVersion8)
 	}))
