@@ -40,6 +40,9 @@ extensions:
         elasticsearch:
           server_urls:
             - http://localhost:9200
+          # custom_headers:
+          #   Host: "my-opensearch-domain.us-east-1.es.amazonaws.com"
+          #   X-Custom-Header: "custom-value"
           indices:
             index_prefix: "jaeger-main"
             spans:
