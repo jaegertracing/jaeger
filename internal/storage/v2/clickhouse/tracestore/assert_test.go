@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/pdata/xpdata"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
@@ -126,6 +127,29 @@ func requireComplexAttrs(t *testing.T, expectedKeys []string, expectedVals []str
 			decoded, err := base64.StdEncoding.DecodeString(expectedVals[i])
 			require.NoError(t, err)
 			require.Equal(t, decoded, val.Bytes().AsRaw())
+		case strings.HasPrefix(k, "@map@"):
+			key := strings.TrimPrefix(expectedKeys[i], "@map@")
+			val, ok := attrs.Get(key)
+			require.True(t, ok)
+			decoded, err := base64.StdEncoding.DecodeString(expectedVals[i])
+			require.NoError(t, err)
+
+			m := &xpdata.JSONUnmarshaler{}
+			expectedVal, err := m.UnmarshalValue(decoded)
+			require.NoError(t, err)
+			require.True(t, expectedVal.Map().Equal(val.Map()))
+		case strings.HasPrefix(k, "@slice@"):
+			key := strings.TrimPrefix(expectedKeys[i], "@slice@")
+			val, ok := attrs.Get(key)
+
+			require.True(t, ok)
+			decoded, err := base64.StdEncoding.DecodeString(expectedVals[i])
+			require.NoError(t, err)
+
+			m := &xpdata.JSONUnmarshaler{}
+			expectedVal, err := m.UnmarshalValue(decoded)
+			require.NoError(t, err)
+			require.True(t, expectedVal.Slice().Equal(val.Slice()))
 		default:
 			t.Fatalf("unsupported complex attribute key: %s", k)
 		}

@@ -125,7 +125,7 @@ func extractAttributes(attrs pcommon.Map) *Attributes {
 			out.ComplexKeys = append(out.ComplexKeys, key)
 			out.ComplexValues = append(out.ComplexValues, encoded)
 		case pcommon.ValueTypeMap:
-			key := "@array@" + k
+			key := "@map@" + k
 			m := &xpdata.JSONMarshaler{}
 			b, err := m.MarshalValue(v)
 			if err != nil {
