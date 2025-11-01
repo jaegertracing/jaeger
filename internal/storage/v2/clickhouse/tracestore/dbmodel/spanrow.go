@@ -19,12 +19,12 @@ import (
 //     Keys for this type are prefixed with `@bytes@`.
 //
 //   - pcommon.ValueTypeSlice:
-//     Represents an OTLP slice (array). The value is first serialized to JSON, then
-//     Base64-encoded before storage. Keys for this type are prefixed with `@slice@`.
+//     Represents an OTLP slice (array). The value is serialized to JSON and stored
+//     as a string. Keys for this type are prefixed with `@slice@`.
 //
 //   - pcommon.ValueTypeMap:
-//     Represents an OTLP map. The value is first serialized to JSON, then
-//     Base64-encoded before storage. Keys for this type are prefixed with `@map@`.
+//     Represents an OTLP map. The value is serialized to JSON and stored
+//     as a string. Keys for this type are prefixed with `@map@`.
 type SpanRow struct {
 	// --- Span ---
 	ID              string
