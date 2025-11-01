@@ -5,6 +5,7 @@ package dbmodel
 
 import (
 	"encoding/base64"
+	"fmt"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -119,6 +120,10 @@ func extractAttributes(attrs pcommon.Map) *Attributes {
 			m := &xpdata.JSONMarshaler{}
 			b, err := m.MarshalValue(v)
 			if err != nil {
+				out.StrKeys = append(out.StrKeys, jptrace.WarningsAttribute)
+				out.StrValues = append(
+					out.StrValues,
+					fmt.Sprintf("failed to marshal slice attribute \"%s\": %v", k, err))
 				break
 			}
 			out.ComplexKeys = append(out.ComplexKeys, key)
@@ -128,6 +133,10 @@ func extractAttributes(attrs pcommon.Map) *Attributes {
 			m := &xpdata.JSONMarshaler{}
 			b, err := m.MarshalValue(v)
 			if err != nil {
+				out.StrKeys = append(out.StrKeys, jptrace.WarningsAttribute)
+				out.StrValues = append(
+					out.StrValues,
+					fmt.Sprintf("failed to marshal map attribute \"%s\": %v", k, err))
 				break
 			}
 			out.ComplexKeys = append(out.ComplexKeys, key)
