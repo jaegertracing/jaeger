@@ -180,20 +180,9 @@ func putAttributes(
 			k := strings.TrimPrefix(storedAttrs.ComplexKeys[i], "@bytes@")
 			attrs.PutEmptyBytes(k).FromRaw(decoded)
 		case strings.HasPrefix(storedAttrs.ComplexKeys[i], "@slice@"):
-			decoded, err := base64.StdEncoding.DecodeString(storedAttrs.ComplexValues[i])
-			if err != nil {
-				jptrace.AddWarnings(
-					spanForWarnings,
-					fmt.Sprintf("failed to decode slice attribute %q: %s",
-						storedAttrs.ComplexKeys[i],
-						err.Error(),
-					),
-				)
-				continue
-			}
 			k := strings.TrimPrefix(storedAttrs.ComplexKeys[i], "@slice@")
 			m := &xpdata.JSONUnmarshaler{}
-			val, err := m.UnmarshalValue(decoded)
+			val, err := m.UnmarshalValue([]byte(storedAttrs.ComplexValues[i]))
 			if err != nil {
 				jptrace.AddWarnings(
 					spanForWarnings,
@@ -207,20 +196,9 @@ func putAttributes(
 			}
 			attrs.PutEmptySlice(k).FromRaw(val.Slice().AsRaw())
 		case strings.HasPrefix(storedAttrs.ComplexKeys[i], "@map@"):
-			decoded, err := base64.StdEncoding.DecodeString(storedAttrs.ComplexValues[i])
-			if err != nil {
-				jptrace.AddWarnings(
-					spanForWarnings,
-					fmt.Sprintf("failed to decode map attribute %q: %s",
-						storedAttrs.ComplexKeys[i],
-						err.Error(),
-					),
-				)
-				continue
-			}
 			k := strings.TrimPrefix(storedAttrs.ComplexKeys[i], "@map@")
 			m := &xpdata.JSONUnmarshaler{}
-			val, err := m.UnmarshalValue(decoded)
+			val, err := m.UnmarshalValue([]byte(storedAttrs.ComplexValues[i]))
 			if err != nil {
 				jptrace.AddWarnings(
 					spanForWarnings,

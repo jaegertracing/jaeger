@@ -42,8 +42,8 @@ var singleSpan = []*dbmodel.SpanRow{
 			},
 			ComplexValues: []string{
 				"eyJuYW1lIjoidGVzdCJ9",
-				"eyJrdmxpc3RWYWx1ZSI6eyJ2YWx1ZXMiOlt7ImtleSI6ImtleTEiLCJ2YWx1ZSI6eyJzdHJpbmdWYWx1ZSI6InZhbHVlMSJ9fV19fQ==",
-				"eyJhcnJheVZhbHVlIjp7InZhbHVlcyI6W3sic3RyaW5nVmFsdWUiOiJ0YWcxIn0seyJzdHJpbmdWYWx1ZSI6InRhZzIifSx7InN0cmluZ1ZhbHVlIjoidGFnMyJ9XX19",
+				"{\"kvlistValue\":{\"values\":[{\"key\":\"key\",\"value\":{\"stringValue\":\"value\"}}]}}",
+				"{\"arrayValue\":{\"values\":[{\"intValue\":\"1\"},{\"intValue\":\"2\"},{\"intValue\":\"3\"}]}}",
 			},
 		},
 		EventNames:      []string{"login"},
@@ -67,8 +67,8 @@ var singleSpan = []*dbmodel.SpanRow{
 			ComplexValues: [][]string{
 				{
 					"eyJ1c2VyX2lkIjoxMjM0NX0=",
-					"eyJrdmxpc3RWYWx1ZSI6eyJ2YWx1ZXMiOlt7ImtleSI6ImtleTEiLCJ2YWx1ZSI6eyJzdHJpbmdWYWx1ZSI6InZhbHVlMSJ9fV19fQ==",
-					"eyJhcnJheVZhbHVlIjp7InZhbHVlcyI6W3sic3RyaW5nVmFsdWUiOiJ0YWcxIn0seyJzdHJpbmdWYWx1ZSI6InRhZzIifSx7InN0cmluZ1ZhbHVlIjoidGFnMyJ9XX19",
+					"{\"kvlistValue\":{\"values\":[{\"key\":\"key\",\"value\":{\"stringValue\":\"value\"}}]}}",
+					"{\"arrayValue\":{\"values\":[{\"intValue\":\"1\"},{\"intValue\":\"2\"},{\"intValue\":\"3\"}]}}",
 				},
 			},
 		},
@@ -94,8 +94,8 @@ var singleSpan = []*dbmodel.SpanRow{
 			ComplexValues: [][]string{
 				{
 					"eyJsaW5rX2lkIjoxfQ==",
-					"eyJrdmxpc3RWYWx1ZSI6eyJ2YWx1ZXMiOlt7ImtleSI6ImtleTEiLCJ2YWx1ZSI6eyJzdHJpbmdWYWx1ZSI6InZhbHVlMSJ9fV19fQ==",
-					"eyJhcnJheVZhbHVlIjp7InZhbHVlcyI6W3sic3RyaW5nVmFsdWUiOiJ0YWcxIn0seyJzdHJpbmdWYWx1ZSI6InRhZzIifSx7InN0cmluZ1ZhbHVlIjoidGFnMyJ9XX19",
+					"{\"kvlistValue\":{\"values\":[{\"key\":\"key\",\"value\":{\"stringValue\":\"value\"}}]}}",
+					"{\"arrayValue\":{\"values\":[{\"intValue\":\"1\"},{\"intValue\":\"2\"},{\"intValue\":\"3\"}]}}",
 				},
 			},
 		},
@@ -116,8 +116,8 @@ var singleSpan = []*dbmodel.SpanRow{
 			},
 			ComplexValues: []string{
 				"eyJkZXBsb3ltZW50IjoicHJvZCJ9",
-				"eyJrdmxpc3RWYWx1ZSI6eyJ2YWx1ZXMiOlt7ImtleSI6ImtleTEiLCJ2YWx1ZSI6eyJzdHJpbmdWYWx1ZSI6InZhbHVlMSJ9fV19fQ==",
-				"eyJhcnJheVZhbHVlIjp7InZhbHVlcyI6W3sic3RyaW5nVmFsdWUiOiJ0YWcxIn0seyJzdHJpbmdWYWx1ZSI6InRhZzIifSx7InN0cmluZ1ZhbHVlIjoidGFnMyJ9XX19",
+				"{\"kvlistValue\":{\"values\":[{\"key\":\"key\",\"value\":{\"stringValue\":\"value\"}}]}}",
+				"{\"arrayValue\":{\"values\":[{\"intValue\":\"1\"},{\"intValue\":\"2\"},{\"intValue\":\"3\"}]}}",
 			},
 		},
 		ScopeName:    "auth-scope",
@@ -138,8 +138,8 @@ var singleSpan = []*dbmodel.SpanRow{
 			},
 			ComplexValues: []string{
 				"eyJzY29wZV90eXBlIjoiYXV0aGVudGljYXRpb24ifQ==",
-				"eyJrdmxpc3RWYWx1ZSI6eyJ2YWx1ZXMiOlt7ImtleSI6ImtleTEiLCJ2YWx1ZSI6eyJzdHJpbmdWYWx1ZSI6InZhbHVlMSJ9fV19fQ==",
-				"eyJhcnJheVZhbHVlIjp7InZhbHVlcyI6W3sic3RyaW5nVmFsdWUiOiJ0YWcxIn0seyJzdHJpbmdWYWx1ZSI6InRhZzIifSx7InN0cmluZ1ZhbHVlIjoidGFnMyJ9XX19",
+				"{\"kvlistValue\":{\"values\":[{\"key\":\"key\",\"value\":{\"stringValue\":\"value\"}}]}}",
+				"{\"arrayValue\":{\"values\":[{\"intValue\":\"1\"},{\"intValue\":\"2\"},{\"intValue\":\"3\"}]}}",
 			},
 		},
 	},
@@ -172,8 +172,8 @@ var multipleSpans = []*dbmodel.SpanRow{
 			},
 			ComplexValues: []string{
 				"eyJuYW1lIjoidGVzdCJ9",
-				"eyJrdmxpc3RWYWx1ZSI6eyJ2YWx1ZXMiOlt7ImtleSI6ImtleTEiLCJ2YWx1ZSI6eyJzdHJpbmdWYWx1ZSI6InZhbHVlMSJ9fV19fQ==",
-				"eyJhcnJheVZhbHVlIjp7InZhbHVlcyI6W3sic3RyaW5nVmFsdWUiOiJ0YWcxIn0seyJzdHJpbmdWYWx1ZSI6InRhZzIifSx7InN0cmluZ1ZhbHVlIjoidGFnMyJ9XX19",
+				"{\"kvlistValue\":{\"values\":[{\"key\":\"key\",\"value\":{\"stringValue\":\"value\"}}]}}",
+				"{\"arrayValue\":{\"values\":[{\"intValue\":\"1\"},{\"intValue\":\"2\"},{\"intValue\":\"3\"}]}}",
 			},
 		},
 		EventNames:      []string{"login"},
@@ -197,8 +197,8 @@ var multipleSpans = []*dbmodel.SpanRow{
 			ComplexValues: [][]string{
 				{
 					"eyJ1c2VyX2lkIjoxMjM0NX0=",
-					"eyJrdmxpc3RWYWx1ZSI6eyJ2YWx1ZXMiOlt7ImtleSI6ImtleTEiLCJ2YWx1ZSI6eyJzdHJpbmdWYWx1ZSI6InZhbHVlMSJ9fV19fQ==",
-					"eyJhcnJheVZhbHVlIjp7InZhbHVlcyI6W3sic3RyaW5nVmFsdWUiOiJ0YWcxIn0seyJzdHJpbmdWYWx1ZSI6InRhZzIifSx7InN0cmluZ1ZhbHVlIjoidGFnMyJ9XX19",
+					"{\"kvlistValue\":{\"values\":[{\"key\":\"key\",\"value\":{\"stringValue\":\"value\"}}]}}",
+					"{\"arrayValue\":{\"values\":[{\"intValue\":\"1\"},{\"intValue\":\"2\"},{\"intValue\":\"3\"}]}}",
 				},
 			},
 		},
@@ -224,8 +224,8 @@ var multipleSpans = []*dbmodel.SpanRow{
 			ComplexValues: [][]string{
 				{
 					"eyJsaW5rX2lkIjoxfQ==",
-					"eyJrdmxpc3RWYWx1ZSI6eyJ2YWx1ZXMiOlt7ImtleSI6ImtleTEiLCJ2YWx1ZSI6eyJzdHJpbmdWYWx1ZSI6InZhbHVlMSJ9fV19fQ==",
-					"eyJhcnJheVZhbHVlIjp7InZhbHVlcyI6W3sic3RyaW5nVmFsdWUiOiJ0YWcxIn0seyJzdHJpbmdWYWx1ZSI6InRhZzIifSx7InN0cmluZ1ZhbHVlIjoidGFnMyJ9XX19",
+					"{\"kvlistValue\":{\"values\":[{\"key\":\"key\",\"value\":{\"stringValue\":\"value\"}}]}}",
+					"{\"arrayValue\":{\"values\":[{\"intValue\":\"1\"},{\"intValue\":\"2\"},{\"intValue\":\"3\"}]}}",
 				},
 			},
 		},
@@ -246,8 +246,8 @@ var multipleSpans = []*dbmodel.SpanRow{
 			},
 			ComplexValues: []string{
 				"eyJkZXBsb3ltZW50IjoicHJvZCJ9",
-				"eyJrdmxpc3RWYWx1ZSI6eyJ2YWx1ZXMiOlt7ImtleSI6ImtleTEiLCJ2YWx1ZSI6eyJzdHJpbmdWYWx1ZSI6InZhbHVlMSJ9fV19fQ==",
-				"eyJhcnJheVZhbHVlIjp7InZhbHVlcyI6W3sic3RyaW5nVmFsdWUiOiJ0YWcxIn0seyJzdHJpbmdWYWx1ZSI6InRhZzIifSx7InN0cmluZ1ZhbHVlIjoidGFnMyJ9XX19",
+				"{\"kvlistValue\":{\"values\":[{\"key\":\"key\",\"value\":{\"stringValue\":\"value\"}}]}}",
+				"{\"arrayValue\":{\"values\":[{\"intValue\":\"1\"},{\"intValue\":\"2\"},{\"intValue\":\"3\"}]}}",
 			},
 		},
 		ScopeName:    "auth-scope",
@@ -268,8 +268,8 @@ var multipleSpans = []*dbmodel.SpanRow{
 			},
 			ComplexValues: []string{
 				"eyJzY29wZV90eXBlIjoiYXV0aGVudGljYXRpb24ifQ==",
-				"eyJrdmxpc3RWYWx1ZSI6eyJ2YWx1ZXMiOlt7ImtleSI6ImtleTEiLCJ2YWx1ZSI6eyJzdHJpbmdWYWx1ZSI6InZhbHVlMSJ9fV19fQ==",
-				"eyJhcnJheVZhbHVlIjp7InZhbHVlcyI6W3sic3RyaW5nVmFsdWUiOiJ0YWcxIn0seyJzdHJpbmdWYWx1ZSI6InRhZzIifSx7InN0cmluZ1ZhbHVlIjoidGFnMyJ9XX19",
+				"{\"kvlistValue\":{\"values\":[{\"key\":\"key\",\"value\":{\"stringValue\":\"value\"}}]}}",
+				"{\"arrayValue\":{\"values\":[{\"intValue\":\"1\"},{\"intValue\":\"2\"},{\"intValue\":\"3\"}]}}",
 			},
 		},
 	},
@@ -300,8 +300,8 @@ var multipleSpans = []*dbmodel.SpanRow{
 			},
 			ComplexValues: []string{
 				"UExBTiBTRUxFQ1Q=",
-				"eyJrdmxpc3RWYWx1ZSI6eyJ2YWx1ZXMiOlt7ImtleSI6ImtleTEiLCJ2YWx1ZSI6eyJzdHJpbmdWYWx1ZSI6InZhbHVlMSJ9fV19fQ==",
-				"eyJhcnJheVZhbHVlIjp7InZhbHVlcyI6W3sic3RyaW5nVmFsdWUiOiJ0YWcxIn0seyJzdHJpbmdWYWx1ZSI6InRhZzIifSx7InN0cmluZ1ZhbHVlIjoidGFnMyJ9XX19",
+				"{\"kvlistValue\":{\"values\":[{\"key\":\"key\",\"value\":{\"stringValue\":\"value\"}}]}}",
+				"{\"arrayValue\":{\"values\":[{\"intValue\":\"1\"},{\"intValue\":\"2\"},{\"intValue\":\"3\"}]}}",
 			},
 		},
 		EventNames:      []string{"query-start", "query-end"},
@@ -328,8 +328,8 @@ var multipleSpans = []*dbmodel.SpanRow{
 			ComplexValues: [][]string{
 				{
 					"eyJxdWVyeV9pZCI6MTIzfQ==",
-					"eyJrdmxpc3RWYWx1ZSI6eyJ2YWx1ZXMiOlt7ImtleSI6ImtleTEiLCJ2YWx1ZSI6eyJzdHJpbmdWYWx1ZSI6InZhbHVlMSJ9fV19fQ==",
-					"eyJhcnJheVZhbHVlIjp7InZhbHVlcyI6W3sic3RyaW5nVmFsdWUiOiJ0YWcxIn0seyJzdHJpbmdWYWx1ZSI6InRhZzIifSx7InN0cmluZ1ZhbHVlIjoidGFnMyJ9XX19",
+					"{\"kvlistValue\":{\"values\":[{\"key\":\"key\",\"value\":{\"stringValue\":\"value\"}}]}}",
+					"{\"arrayValue\":{\"values\":[{\"intValue\":\"1\"},{\"intValue\":\"2\"},{\"intValue\":\"3\"}]}}",
 				},
 				{
 					"eyJyb3dfY291bnQiOjE1MH0=",
@@ -358,8 +358,8 @@ var multipleSpans = []*dbmodel.SpanRow{
 			ComplexValues: [][]string{
 				{
 					"eyJkYl9jb250ZXh0IjoidXNlcmRiIn0=",
-					"eyJrdmxpc3RWYWx1ZSI6eyJ2YWx1ZXMiOlt7ImtleSI6ImtleTEiLCJ2YWx1ZSI6eyJzdHJpbmdWYWx1ZSI6InZhbHVlMSJ9fV19fQ==",
-					"eyJhcnJheVZhbHVlIjp7InZhbHVlcyI6W3sic3RyaW5nVmFsdWUiOiJ0YWcxIn0seyJzdHJpbmdWYWx1ZSI6InRhZzIifSx7InN0cmluZ1ZhbHVlIjoidGFnMyJ9XX19",
+					"{\"kvlistValue\":{\"values\":[{\"key\":\"key\",\"value\":{\"stringValue\":\"value\"}}]}}",
+					"{\"arrayValue\":{\"values\":[{\"intValue\":\"1\"},{\"intValue\":\"2\"},{\"intValue\":\"3\"}]}}",
 				},
 			},
 		},
@@ -380,8 +380,8 @@ var multipleSpans = []*dbmodel.SpanRow{
 			},
 			ComplexValues: []string{
 				"eyJkYl90eXBlIjoicG9zdGdyZXNxbCJ9",
-				"eyJrdmxpc3RWYWx1ZSI6eyJ2YWx1ZXMiOlt7ImtleSI6ImtleTEiLCJ2YWx1ZSI6eyJzdHJpbmdWYWx1ZSI6InZhbHVlMSJ9fV19fQ==",
-				"eyJhcnJheVZhbHVlIjp7InZhbHVlcyI6W3sic3RyaW5nVmFsdWUiOiJ0YWcxIn0seyJzdHJpbmdWYWx1ZSI6InRhZzIifSx7InN0cmluZ1ZhbHVlIjoidGFnMyJ9XX19",
+				"{\"kvlistValue\":{\"values\":[{\"key\":\"key\",\"value\":{\"stringValue\":\"value\"}}]}}",
+				"{\"arrayValue\":{\"values\":[{\"intValue\":\"1\"},{\"intValue\":\"2\"},{\"intValue\":\"3\"}]}}",
 			},
 		},
 		ScopeName:    "db-scope",
@@ -402,8 +402,8 @@ var multipleSpans = []*dbmodel.SpanRow{
 			},
 			ComplexValues: []string{
 				"eyJzY29wZV90eXBlIjoiZGF0YWJhc2UifQ==",
-				"eyJrdmxpc3RWYWx1ZSI6eyJ2YWx1ZXMiOlt7ImtleSI6ImtleTEiLCJ2YWx1ZSI6eyJzdHJpbmdWYWx1ZSI6InZhbHVlMSJ9fV19fQ==",
-				"eyJhcnJheVZhbHVlIjp7InZhbHVlcyI6W3sic3RyaW5nVmFsdWUiOiJ0YWcxIn0seyJzdHJpbmdWYWx1ZSI6InRhZzIifSx7InN0cmluZ1ZhbHVlIjoidGFnMyJ9XX19",
+				"{\"kvlistValue\":{\"values\":[{\"key\":\"key\",\"value\":{\"stringValue\":\"value\"}}]}}",
+				"{\"arrayValue\":{\"values\":[{\"intValue\":\"1\"},{\"intValue\":\"2\"},{\"intValue\":\"3\"}]}}",
 			},
 		},
 	},

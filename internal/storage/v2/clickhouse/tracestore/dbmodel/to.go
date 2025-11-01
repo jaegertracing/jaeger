@@ -121,9 +121,8 @@ func extractAttributes(attrs pcommon.Map) *Attributes {
 			if err != nil {
 				break
 			}
-			encoded := base64.StdEncoding.EncodeToString(b)
 			out.ComplexKeys = append(out.ComplexKeys, key)
-			out.ComplexValues = append(out.ComplexValues, encoded)
+			out.ComplexValues = append(out.ComplexValues, string(b))
 		case pcommon.ValueTypeMap:
 			key := "@map@" + k
 			m := &xpdata.JSONMarshaler{}
@@ -131,9 +130,8 @@ func extractAttributes(attrs pcommon.Map) *Attributes {
 			if err != nil {
 				break
 			}
-			encoded := base64.StdEncoding.EncodeToString(b)
 			out.ComplexKeys = append(out.ComplexKeys, key)
-			out.ComplexValues = append(out.ComplexValues, encoded)
+			out.ComplexValues = append(out.ComplexValues, string(b))
 		default:
 		}
 		return true

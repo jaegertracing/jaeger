@@ -102,33 +102,21 @@ func TestPutAttributes_Warnings(t *testing.T) {
 			expectedWarnContains: "failed to decode bytes attribute \"@bytes@bytes-key\"",
 		},
 		{
-			name:                 "slice attribute with invalid base64",
-			complexKeys:          []string{"@slice@slice-key"},
-			complexValues:        []string{"invalid-base64"},
-			expectedWarnContains: "failed to decode slice attribute \"@slice@slice-key\"",
-		},
-		{
 			name:                 "failed to unmarshal slice attribute",
 			complexKeys:          []string{"@slice@slice-key"},
-			complexValues:        []string{"dGVzdA=="},
+			complexValues:        []string{"notjson"},
 			expectedWarnContains: "failed to unmarshal slice attribute \"@slice@slice-key\"",
-		},
-		{
-			name:                 "map attribute with invalid base64",
-			complexKeys:          []string{"@map@map-key"},
-			complexValues:        []string{"invalid-base64"},
-			expectedWarnContains: "failed to decode map attribute \"@map@map-key\"",
 		},
 		{
 			name:                 "failed to unmarshal map attribute",
 			complexKeys:          []string{"@map@map-key"},
-			complexValues:        []string{"dGVzdA=="},
+			complexValues:        []string{"notjson"},
 			expectedWarnContains: "failed to unmarshal map attribute \"@map@map-key\"",
 		},
 		{
 			name:                 "unsupported complex attribute key",
 			complexKeys:          []string{"unsupported"},
-			complexValues:        []string{"dGVzdA=="},
+			complexValues:        []string{"{\"kvlistValue\":{\"values\":[{\"key\":\"key\",\"value\":{\"stringValue\":\"value\"}}]}}"},
 			expectedWarnContains: "unsupported complex attribute key: \"unsupported\"",
 		},
 	}

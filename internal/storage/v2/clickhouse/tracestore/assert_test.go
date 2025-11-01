@@ -131,23 +131,18 @@ func requireComplexAttrs(t *testing.T, expectedKeys []string, expectedVals []str
 			key := strings.TrimPrefix(expectedKeys[i], "@map@")
 			val, ok := attrs.Get(key)
 			require.True(t, ok)
-			decoded, err := base64.StdEncoding.DecodeString(expectedVals[i])
-			require.NoError(t, err)
 
 			m := &xpdata.JSONUnmarshaler{}
-			expectedVal, err := m.UnmarshalValue(decoded)
+			expectedVal, err := m.UnmarshalValue([]byte(expectedVals[i]))
 			require.NoError(t, err)
 			require.True(t, expectedVal.Map().Equal(val.Map()))
 		case strings.HasPrefix(k, "@slice@"):
 			key := strings.TrimPrefix(expectedKeys[i], "@slice@")
 			val, ok := attrs.Get(key)
-
 			require.True(t, ok)
-			decoded, err := base64.StdEncoding.DecodeString(expectedVals[i])
-			require.NoError(t, err)
 
 			m := &xpdata.JSONUnmarshaler{}
-			expectedVal, err := m.UnmarshalValue(decoded)
+			expectedVal, err := m.UnmarshalValue([]byte(expectedVals[i]))
 			require.NoError(t, err)
 			require.True(t, expectedVal.Slice().Equal(val.Slice()))
 		default:

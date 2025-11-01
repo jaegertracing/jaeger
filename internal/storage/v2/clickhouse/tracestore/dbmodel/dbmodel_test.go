@@ -126,17 +126,15 @@ func createTestSpanRow(t *testing.T, now time.Time, duration time.Duration) *Spa
 	vm := pcommon.NewValueMap()
 	vm.Map().PutStr("key", "value")
 	m := &xpdata.JSONMarshaler{}
-	buf, err := m.MarshalValue(vm)
+	vmJSON, err := m.MarshalValue(vm)
 	require.NoError(t, err)
-	encodedMap := base64.StdEncoding.EncodeToString(buf)
 
 	vs := pcommon.NewValueSlice()
 	vs.Slice().AppendEmpty().SetInt(1)
 	vs.Slice().AppendEmpty().SetInt(2)
 	vs.Slice().AppendEmpty().SetInt(3)
-	buf, err = m.MarshalValue(vs)
+	vsJSON, err := m.MarshalValue(vs)
 	require.NoError(t, err)
-	encodedSlice := base64.StdEncoding.EncodeToString(buf)
 
 	return &SpanRow{
 		ID:            "0000000000000001",
@@ -159,7 +157,7 @@ func createTestSpanRow(t *testing.T, now time.Time, duration time.Duration) *Spa
 			StrKeys:       []string{"string_attr"},
 			StrValues:     []string{"string_value"},
 			ComplexKeys:   []string{"@bytes@bytes_attr", "@map@map_attr", "@slice@slice_attr"},
-			ComplexValues: []string{encodedBytes, encodedMap, encodedSlice},
+			ComplexValues: []string{encodedBytes, string(vmJSON), string(vsJSON)},
 		},
 		EventNames:      []string{"test-event"},
 		EventTimestamps: []time.Time{now},
@@ -173,7 +171,7 @@ func createTestSpanRow(t *testing.T, now time.Time, duration time.Duration) *Spa
 			StrKeys:       [][]string{{"string_attr"}},
 			StrValues:     [][]string{{"string_value"}},
 			ComplexKeys:   [][]string{{"@bytes@bytes_attr", "@map@map_attr", "@slice@slice_attr"}},
-			ComplexValues: [][]string{{encodedBytes, encodedMap, encodedSlice}},
+			ComplexValues: [][]string{{encodedBytes, string(vmJSON), string(vsJSON)}},
 		},
 		LinkTraceIDs:    []string{"00000000000000000000000000000003"},
 		LinkSpanIDs:     []string{"0000000000000004"},
@@ -188,7 +186,7 @@ func createTestSpanRow(t *testing.T, now time.Time, duration time.Duration) *Spa
 			StrKeys:       [][]string{{"string_attr"}},
 			StrValues:     [][]string{{"string_value"}},
 			ComplexKeys:   [][]string{{"@bytes@bytes_attr", "@map@map_attr", "@slice@slice_attr"}},
-			ComplexValues: [][]string{{encodedBytes, encodedMap, encodedSlice}},
+			ComplexValues: [][]string{{encodedBytes, string(vmJSON), string(vsJSON)}},
 		},
 		ServiceName: "test-service",
 		ResourceAttributes: Attributes{
@@ -201,7 +199,7 @@ func createTestSpanRow(t *testing.T, now time.Time, duration time.Duration) *Spa
 			StrKeys:       []string{"service.name", "string_attr"},
 			StrValues:     []string{"test-service", "string_value"},
 			ComplexKeys:   []string{"@bytes@bytes_attr", "@map@map_attr", "@slice@slice_attr"},
-			ComplexValues: []string{encodedBytes, encodedMap, encodedSlice},
+			ComplexValues: []string{encodedBytes, string(vmJSON), string(vsJSON)},
 		},
 		ScopeName:    "test-scope",
 		ScopeVersion: "v1.0.0",
@@ -215,7 +213,7 @@ func createTestSpanRow(t *testing.T, now time.Time, duration time.Duration) *Spa
 			StrKeys:       []string{"string_attr"},
 			StrValues:     []string{"string_value"},
 			ComplexKeys:   []string{"@bytes@bytes_attr", "@map@map_attr", "@slice@slice_attr"},
-			ComplexValues: []string{encodedBytes, encodedMap, encodedSlice},
+			ComplexValues: []string{encodedBytes, string(vmJSON), string(vsJSON)},
 		},
 	}
 }
