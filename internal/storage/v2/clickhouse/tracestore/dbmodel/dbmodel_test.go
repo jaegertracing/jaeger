@@ -134,8 +134,7 @@ func createTestSpanRow(t *testing.T, now time.Time, duration time.Duration) *Spa
 	vs.Slice().AppendEmpty().SetInt(1)
 	vs.Slice().AppendEmpty().SetInt(2)
 	vs.Slice().AppendEmpty().SetInt(3)
-	mSlice := &xpdata.JSONMarshaler{}
-	buf, err = mSlice.MarshalValue(vs)
+	buf, err = m.MarshalValue(vs)
 	require.NoError(t, err)
 	encodedSlice := base64.StdEncoding.EncodeToString(buf)
 
