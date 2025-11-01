@@ -123,7 +123,7 @@ func extractAttributes(attrs pcommon.Map) *Attributes {
 				out.StrKeys = append(out.StrKeys, jptrace.WarningsAttribute)
 				out.StrValues = append(
 					out.StrValues,
-					fmt.Sprintf("failed to marshal slice attribute \"%s\": %v", k, err))
+					fmt.Sprintf("failed to marshal slice attribute %q: %v", k, err))
 				break
 			}
 			out.ComplexKeys = append(out.ComplexKeys, key)
@@ -136,7 +136,7 @@ func extractAttributes(attrs pcommon.Map) *Attributes {
 				out.StrKeys = append(out.StrKeys, jptrace.WarningsAttribute)
 				out.StrValues = append(
 					out.StrValues,
-					fmt.Sprintf("failed to marshal map attribute \"%s\": %v", k, err))
+					fmt.Sprintf("failed to marshal map attribute %q: %v", k, err))
 				break
 			}
 			out.ComplexKeys = append(out.ComplexKeys, key)
