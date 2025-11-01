@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/pdata/xpdata"
 
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
@@ -32,7 +33,7 @@ func TestRoundTrip(t *testing.T) {
 	})
 
 	t.Run("FromRow->ToRow", func(t *testing.T) {
-		spanRow := createTestSpanRow(now, duration)
+		spanRow := createTestSpanRow(t, now, duration)
 
 		trace := FromRow(spanRow)
 		rs := trace.ResourceSpans().At(0).Resource()
@@ -114,10 +115,30 @@ func addTestAttributes(attrs pcommon.Map) {
 	attrs.PutInt("int_attr", 42)
 	attrs.PutStr("string_attr", "string_value")
 	attrs.PutEmptyBytes("bytes_attr").FromRaw([]byte("bytes_value"))
+	attrs.PutEmptyMap("map_attr").FromRaw(map[string]any{"key": "value"})
+	attrs.PutEmptySlice("slice_attr").FromRaw([]any{1, 2, 3})
 }
 
-func createTestSpanRow(now time.Time, duration time.Duration) *SpanRow {
+func createTestSpanRow(t *testing.T, now time.Time, duration time.Duration) *SpanRow {
+	t.Helper()
 	encodedBytes := base64.StdEncoding.EncodeToString([]byte("bytes_value"))
+
+	vm := pcommon.NewValueMap()
+	vm.Map().PutStr("key", "value")
+	m := &xpdata.JSONMarshaler{}
+	buf, err := m.MarshalValue(vm)
+	require.NoError(t, err)
+	encodedMap := base64.StdEncoding.EncodeToString(buf)
+
+	vs := pcommon.NewValueSlice()
+	vs.Slice().AppendEmpty().SetInt(1)
+	vs.Slice().AppendEmpty().SetInt(2)
+	vs.Slice().AppendEmpty().SetInt(3)
+	mSlice := &xpdata.JSONMarshaler{}
+	buf, err = mSlice.MarshalValue(vs)
+	require.NoError(t, err)
+	encodedSlice := base64.StdEncoding.EncodeToString(buf)
+
 	return &SpanRow{
 		ID:            "0000000000000001",
 		TraceID:       "00000000000000000000000000000001",
@@ -138,8 +159,8 @@ func createTestSpanRow(now time.Time, duration time.Duration) *SpanRow {
 			IntValues:     []int64{42},
 			StrKeys:       []string{"string_attr"},
 			StrValues:     []string{"string_value"},
-			ComplexKeys:   []string{"@bytes@bytes_attr"},
-			ComplexValues: []string{encodedBytes},
+			ComplexKeys:   []string{"@bytes@bytes_attr", "@map@map_attr", "@slice@slice_attr"},
+			ComplexValues: []string{encodedBytes, encodedMap, encodedSlice},
 		},
 		EventNames:      []string{"test-event"},
 		EventTimestamps: []time.Time{now},
@@ -152,8 +173,8 @@ func createTestSpanRow(now time.Time, duration time.Duration) *SpanRow {
 			IntValues:     [][]int64{{42}},
 			StrKeys:       [][]string{{"string_attr"}},
 			StrValues:     [][]string{{"string_value"}},
-			ComplexKeys:   [][]string{{"@bytes@bytes_attr"}},
-			ComplexValues: [][]string{{encodedBytes}},
+			ComplexKeys:   [][]string{{"@bytes@bytes_attr", "@map@map_attr", "@slice@slice_attr"}},
+			ComplexValues: [][]string{{encodedBytes, encodedMap, encodedSlice}},
 		},
 		LinkTraceIDs:    []string{"00000000000000000000000000000003"},
 		LinkSpanIDs:     []string{"0000000000000004"},
@@ -167,8 +188,8 @@ func createTestSpanRow(now time.Time, duration time.Duration) *SpanRow {
 			IntValues:     [][]int64{{42}},
 			StrKeys:       [][]string{{"string_attr"}},
 			StrValues:     [][]string{{"string_value"}},
-			ComplexKeys:   [][]string{{"@bytes@bytes_attr"}},
-			ComplexValues: [][]string{{encodedBytes}},
+			ComplexKeys:   [][]string{{"@bytes@bytes_attr", "@map@map_attr", "@slice@slice_attr"}},
+			ComplexValues: [][]string{{encodedBytes, encodedMap, encodedSlice}},
 		},
 		ServiceName: "test-service",
 		ResourceAttributes: Attributes{
@@ -180,8 +201,8 @@ func createTestSpanRow(now time.Time, duration time.Duration) *SpanRow {
 			IntValues:     []int64{42},
 			StrKeys:       []string{"service.name", "string_attr"},
 			StrValues:     []string{"test-service", "string_value"},
-			ComplexKeys:   []string{"@bytes@bytes_attr"},
-			ComplexValues: []string{encodedBytes},
+			ComplexKeys:   []string{"@bytes@bytes_attr", "@map@map_attr", "@slice@slice_attr"},
+			ComplexValues: []string{encodedBytes, encodedMap, encodedSlice},
 		},
 		ScopeName:    "test-scope",
 		ScopeVersion: "v1.0.0",
@@ -194,8 +215,8 @@ func createTestSpanRow(now time.Time, duration time.Duration) *SpanRow {
 			IntValues:     []int64{42},
 			StrKeys:       []string{"string_attr"},
 			StrValues:     []string{"string_value"},
-			ComplexKeys:   []string{"@bytes@bytes_attr"},
-			ComplexValues: []string{encodedBytes},
+			ComplexKeys:   []string{"@bytes@bytes_attr", "@map@map_attr", "@slice@slice_attr"},
+			ComplexValues: []string{encodedBytes, encodedMap, encodedSlice},
 		},
 	}
 }

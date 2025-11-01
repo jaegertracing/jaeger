@@ -18,7 +18,7 @@ func TestFromRow(t *testing.T) {
 	now := time.Now().UTC()
 	duration := 2 * time.Second
 
-	spanRow := createTestSpanRow(now, duration)
+	spanRow := createTestSpanRow(t, now, duration)
 
 	expected := createTestTrace(now, duration)
 
