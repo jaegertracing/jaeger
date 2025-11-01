@@ -232,6 +232,11 @@ func putAttributes(
 				continue
 			}
 			attrs.PutEmptyMap(k).FromRaw(val.Map().AsRaw())
+		default:
+			jptrace.AddWarnings(
+				spanForWarnings,
+				fmt.Sprintf("unsupported complex attribute key: %q", storedAttrs.ComplexKeys[i]),
+			)
 		}
 	}
 }

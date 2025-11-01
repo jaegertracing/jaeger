@@ -125,6 +125,12 @@ func TestPutAttributes_Warnings(t *testing.T) {
 			complexValues:        []string{"dGVzdA=="},
 			expectedWarnContains: "failed to unmarshal map attribute \"@map@map-key\"",
 		},
+		{
+			name:                 "unsupported complex attribute key",
+			complexKeys:          []string{"unsupported"},
+			complexValues:        []string{"dGVzdA=="},
+			expectedWarnContains: "unsupported complex attribute key: \"unsupported\"",
+		},
 	}
 
 	for _, tt := range tests {
