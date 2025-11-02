@@ -5,9 +5,11 @@ package dbmodel
 
 import (
 	"encoding/base64"
+	"fmt"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/pdata/xpdata"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
@@ -53,30 +55,30 @@ func ToRow(
 
 func appendAttributes(dest *Attributes, attrs pcommon.Map) {
 	a := extractAttributes(attrs)
-	dest.BoolKeys = append(dest.BoolKeys, a.boolKeys...)
-	dest.BoolValues = append(dest.BoolValues, a.boolValues...)
-	dest.DoubleKeys = append(dest.DoubleKeys, a.doubleKeys...)
-	dest.DoubleValues = append(dest.DoubleValues, a.doubleValues...)
-	dest.IntKeys = append(dest.IntKeys, a.intKeys...)
-	dest.IntValues = append(dest.IntValues, a.intValues...)
-	dest.StrKeys = append(dest.StrKeys, a.strKeys...)
-	dest.StrValues = append(dest.StrValues, a.strValues...)
-	dest.ComplexKeys = append(dest.ComplexKeys, a.complexKeys...)
-	dest.ComplexValues = append(dest.ComplexValues, a.complexValues...)
+	dest.BoolKeys = append(dest.BoolKeys, a.BoolKeys...)
+	dest.BoolValues = append(dest.BoolValues, a.BoolValues...)
+	dest.DoubleKeys = append(dest.DoubleKeys, a.DoubleKeys...)
+	dest.DoubleValues = append(dest.DoubleValues, a.DoubleValues...)
+	dest.IntKeys = append(dest.IntKeys, a.IntKeys...)
+	dest.IntValues = append(dest.IntValues, a.IntValues...)
+	dest.StrKeys = append(dest.StrKeys, a.StrKeys...)
+	dest.StrValues = append(dest.StrValues, a.StrValues...)
+	dest.ComplexKeys = append(dest.ComplexKeys, a.ComplexKeys...)
+	dest.ComplexValues = append(dest.ComplexValues, a.ComplexValues...)
 }
 
 func appendAttributes2D(dest *Attributes2D, attrs pcommon.Map) {
 	a := extractAttributes(attrs)
-	dest.BoolKeys = append(dest.BoolKeys, a.boolKeys)
-	dest.BoolValues = append(dest.BoolValues, a.boolValues)
-	dest.DoubleKeys = append(dest.DoubleKeys, a.doubleKeys)
-	dest.DoubleValues = append(dest.DoubleValues, a.doubleValues)
-	dest.IntKeys = append(dest.IntKeys, a.intKeys)
-	dest.IntValues = append(dest.IntValues, a.intValues)
-	dest.StrKeys = append(dest.StrKeys, a.strKeys)
-	dest.StrValues = append(dest.StrValues, a.strValues)
-	dest.ComplexKeys = append(dest.ComplexKeys, a.complexKeys)
-	dest.ComplexValues = append(dest.ComplexValues, a.complexValues)
+	dest.BoolKeys = append(dest.BoolKeys, a.BoolKeys)
+	dest.BoolValues = append(dest.BoolValues, a.BoolValues)
+	dest.DoubleKeys = append(dest.DoubleKeys, a.DoubleKeys)
+	dest.DoubleValues = append(dest.DoubleValues, a.DoubleValues)
+	dest.IntKeys = append(dest.IntKeys, a.IntKeys)
+	dest.IntValues = append(dest.IntValues, a.IntValues)
+	dest.StrKeys = append(dest.StrKeys, a.StrKeys)
+	dest.StrValues = append(dest.StrValues, a.StrValues)
+	dest.ComplexKeys = append(dest.ComplexKeys, a.ComplexKeys)
+	dest.ComplexValues = append(dest.ComplexValues, a.ComplexValues)
 }
 
 func (sr *SpanRow) appendEvent(event ptrace.SpanEvent) {
@@ -92,39 +94,53 @@ func (sr *SpanRow) appendLink(link ptrace.SpanLink) {
 	appendAttributes2D(&sr.LinkAttributes, link.Attributes())
 }
 
-func extractAttributes(attrs pcommon.Map) (out struct {
-	boolKeys      []string
-	boolValues    []bool
-	doubleKeys    []string
-	doubleValues  []float64
-	intKeys       []string
-	intValues     []int64
-	strKeys       []string
-	strValues     []string
-	complexKeys   []string
-	complexValues []string
-},
-) {
+func extractAttributes(attrs pcommon.Map) *Attributes {
+	out := &Attributes{}
 	attrs.Range(func(k string, v pcommon.Value) bool {
 		switch v.Type() {
 		case pcommon.ValueTypeBool:
-			out.boolKeys = append(out.boolKeys, k)
-			out.boolValues = append(out.boolValues, v.Bool())
+			out.BoolKeys = append(out.BoolKeys, k)
+			out.BoolValues = append(out.BoolValues, v.Bool())
 		case pcommon.ValueTypeDouble:
-			out.doubleKeys = append(out.doubleKeys, k)
-			out.doubleValues = append(out.doubleValues, v.Double())
+			out.DoubleKeys = append(out.DoubleKeys, k)
+			out.DoubleValues = append(out.DoubleValues, v.Double())
 		case pcommon.ValueTypeInt:
-			out.intKeys = append(out.intKeys, k)
-			out.intValues = append(out.intValues, v.Int())
+			out.IntKeys = append(out.IntKeys, k)
+			out.IntValues = append(out.IntValues, v.Int())
 		case pcommon.ValueTypeStr:
-			out.strKeys = append(out.strKeys, k)
-			out.strValues = append(out.strValues, v.Str())
+			out.StrKeys = append(out.StrKeys, k)
+			out.StrValues = append(out.StrValues, v.Str())
 		case pcommon.ValueTypeBytes:
 			key := "@bytes@" + k
 			encoded := base64.StdEncoding.EncodeToString(v.Bytes().AsRaw())
-			out.complexKeys = append(out.complexKeys, key)
-			out.complexValues = append(out.complexValues, encoded)
-		// TODO: support array and map types
+			out.ComplexKeys = append(out.ComplexKeys, key)
+			out.ComplexValues = append(out.ComplexValues, encoded)
+		case pcommon.ValueTypeSlice:
+			key := "@slice@" + k
+			m := &xpdata.JSONMarshaler{}
+			b, err := m.MarshalValue(v)
+			if err != nil {
+				out.StrKeys = append(out.StrKeys, jptrace.WarningsAttribute)
+				out.StrValues = append(
+					out.StrValues,
+					fmt.Sprintf("failed to marshal slice attribute %q: %v", k, err))
+				break
+			}
+			out.ComplexKeys = append(out.ComplexKeys, key)
+			out.ComplexValues = append(out.ComplexValues, string(b))
+		case pcommon.ValueTypeMap:
+			key := "@map@" + k
+			m := &xpdata.JSONMarshaler{}
+			b, err := m.MarshalValue(v)
+			if err != nil {
+				out.StrKeys = append(out.StrKeys, jptrace.WarningsAttribute)
+				out.StrValues = append(
+					out.StrValues,
+					fmt.Sprintf("failed to marshal map attribute %q: %v", k, err))
+				break
+			}
+			out.ComplexKeys = append(out.ComplexKeys, key)
+			out.ComplexValues = append(out.ComplexValues, string(b))
 		default:
 		}
 		return true
