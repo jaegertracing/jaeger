@@ -183,6 +183,55 @@ func TestHTTPGatewayFindTracesEmptyResponse(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "No traces found")
 }
 
+func TestHTTPGatewayFindTracesWithAttributes(t *testing.T) {
+	time1 := time.Now().UTC().Truncate(time.Nanosecond)
+	time2 := time1.Add(-time.Second).UTC().Truncate(time.Nanosecond)
+
+	q := url.Values{}
+	q.Set(paramServiceName, "foo")
+	q.Set(paramTimeMin, time1.Format(time.RFC3339Nano))
+	q.Set(paramTimeMax, time2.Format(time.RFC3339Nano))
+	q.Set(paramNumTraces, "10")
+	q.Set(paramAttributes, `{"http.status_code":"200", "error":"true"}`)
+
+	expectedAttrs := pcommon.NewMap()
+	expectedAttrs.PutStr("http.status_code", "200")
+	expectedAttrs.PutStr("error", "true")
+
+	qp := tracestore.TraceQueryParams{
+		ServiceName:   "foo",
+		OperationName: "",
+		Attributes:    expectedAttrs,
+		StartTimeMin:  time1,
+		StartTimeMax:  time2,
+		DurationMin:   0,
+		DurationMax:   0,
+		SearchDepth:   10,
+	}
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	testTrace := ptrace.NewTraces()
+	rs := testTrace.ResourceSpans().AppendEmpty()
+	ss := rs.ScopeSpans().AppendEmpty()
+	ss.Spans().AppendEmpty().SetName("test-span")
+
+	gw.reader.
+		On("FindTraces", matchContext, qp).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{testTrace}, nil)
+		})).Once()
+
+	gw.router.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusOK, w.Code)
+	gw.reader.AssertExpectations(t)
+}
+
+
 func TestHTTPGatewayGetTraceMalformedInputErrors(t *testing.T) {
 	testCases := []struct {
 		name          string
@@ -327,6 +376,15 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 				paramQueryRawTraces: "foobar",
 			},
 			expErr: paramQueryRawTraces,
+		},
+		{
+			name: "bad attributes json",
+			params: map[string]string{
+				paramTimeMin:    goodTime,
+				paramTimeMax:    goodTime,
+				paramAttributes: `{"key":"value"`,
+			},
+			expErr: paramAttributes,
 		},
 	}
 	for _, tc := range testCases {
