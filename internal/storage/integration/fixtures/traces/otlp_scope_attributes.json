@@ -1,0 +1,63 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {"stringValue": "otlp-test-service"}
+          },
+          {
+            "key": "service.version",
+            "value": {"stringValue": "1.0.0"}
+          },
+          {
+            "key": "deployment.environment",
+            "value": {"stringValue": "test"}
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "test-instrumentation-library",
+            "version": "2.1.0",
+            "attributes": [
+              {
+                "key": "otel.scope.name",
+                "value": {"stringValue": "custom-tracer"}
+              },
+              {
+                "key": "instrumentation.provider",
+                "value": {"stringValue": "opentelemetry"}
+              }
+            ]
+          },
+          "spans": [
+            {
+              "traceId": "00000000000000000000000000000020",
+              "spanId": "0000000000000010",
+              "name": "otlp-scope-test-operation",
+              "kind": 2,
+              "startTimeUnixNano": "1485445591639875000",
+              "endTimeUnixNano": "1485445591739875000",
+              "attributes": [
+                {
+                  "key": "http.method",
+                  "value": {"stringValue": "GET"}
+                },
+                {
+                  "key": "http.status_code",
+                  "value": {"intValue": "200"}
+                }
+              ],
+              "status": {
+                "code": 0
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
@@ -368,7 +369,10 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 			trace, ok := allTraceFixtures[traceFixture]
 			if !ok {
 				trace = s.getTraceFixture(t, traceFixture)
-				s.writeTrace(t, trace)
+				trace = s.getTraceFixture(t, traceFixture)
+				otelTraces := v1adapter.V1TraceToOtelTrace(trace)
+				s.writeTrace(t, otelTraces)
+
 				allTraceFixtures[traceFixture] = trace
 			}
 			expected = append(expected, trace)
@@ -409,21 +413,23 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.T
 	return traces
 }
 
-func (s *StorageIntegration) writeTrace(t *testing.T, trace *model.Trace) {
-	t.Logf("%-23s Writing trace with %d spans", time.Now().Format("2006-01-02 15:04:05.999"), len(trace.Spans))
+func (s *StorageIntegration) writeTrace(t *testing.T, traces ptrace.Traces) {
+	spanCount := traces.SpanCount()
+	t.Logf("%-23s Writing trace with %d spans", time.Now().Format("2006-01-02 15:04:05.999"), spanCount)
 	ctx, cx := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cx()
-	otelTraces := v1adapter.V1TraceToOtelTrace(trace)
-	err := s.TraceWriter.WriteTraces(ctx, otelTraces)
+	err := s.TraceWriter.WriteTraces(ctx, traces)
 	require.NoError(t, err, "Not expecting error when writing trace to storage")
 
-	t.Logf("%-23s Finished writing trace with %d spans", time.Now().Format("2006-01-02 15:04:05.999"), len(trace.Spans))
+	t.Logf("%-23s Finished writing trace with %d spans", time.Now().Format("2006-01-02 15:04:05.999"), spanCount)
 }
 
 func (s *StorageIntegration) loadParseAndWriteExampleTrace(t *testing.T) *model.Trace {
-	trace := s.getTraceFixture(t, "example_trace")
-	s.writeTrace(t, trace)
-	return trace
+	traces := s.getTraceFixtureOTLP(t, "example_trace")
+	s.writeTrace(t, traces)
+	// Convert back to v1 for backward compatibility with tests that still need it
+	v1Trace := v1adapter.V1TraceFromOtelTrace(traces)
+	return v1Trace
 }
 
 func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
@@ -446,8 +452,26 @@ func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
 		newSpan.StartTime = newSpan.StartTime.Add(time.Second * time.Duration(i+1))
 		trace.Spans[i] = newSpan
 	}
-	s.writeTrace(t, trace)
+	// Convert to OTLP for writing
+	otelTraces := v1adapter.V1TraceToOtelTrace(trace)
+	s.writeTrace(t, otelTraces)
 	return trace
+}
+
+func (*StorageIntegration) getTraceFixtureOTLP(t *testing.T, fixture string) ptrace.Traces {
+	fileName := fmt.Sprintf("fixtures/traces/%s.json", fixture)
+	return getTraceFixtureExactOTLP(t, fileName)
+}
+
+func getTraceFixtureExactOTLP(t *testing.T, fileName string) ptrace.Traces {
+	unmarshaler := &ptrace.JSONUnmarshaler{}
+	inStr, err := fixtures.ReadFile(fileName)
+	require.NoError(t, err, "Failed to read fixture file: %s", fileName)
+
+	traces, err := unmarshaler.UnmarshalTraces(correctTime(inStr))
+	require.NoError(t, err, "Failed to unmarshal OTLP traces from %s", fileName)
+
+	return traces
 }
 
 func (*StorageIntegration) getTraceFixture(t *testing.T, fixture string) *model.Trace {

@@ -1,0 +1,64 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {"stringValue": "span-links-service"}
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "span-links-test",
+            "version": "1.0.0",
+            "attributes": [
+              {
+                "key": "otel.scope.test",
+                "value": {"stringValue": "true"}
+              }
+            ]
+          },
+          "spans": [
+            {
+              "traceId": "00000000000000000000000000000040",
+              "spanId": "0000000000000030",
+              "name": "parent-span-with-links",
+              "kind": 1,
+              "startTimeUnixNano": "1485445591639875000",
+              "endTimeUnixNano": "1485445591939875000",
+              "attributes": [],
+              "links": [
+                {
+                  "traceId": "00000000000000000000000000000050",
+                  "spanId": "0000000000000040",
+                  "attributes": [
+                    {
+                      "key": "link.type",
+                      "value": {"stringValue": "parent_link"}
+                    }
+                  ]
+                },
+                {
+                  "traceId": "00000000000000000000000000000060",
+                  "spanId": "0000000000000050",
+                  "attributes": [
+                    {
+                      "key": "link.type",
+                      "value": {"stringValue": "sibling_link"}
+                    }
+                  ]
+                }
+              ],
+              "status": {
+                "code": 0
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
