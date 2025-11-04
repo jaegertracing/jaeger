@@ -18,7 +18,7 @@ func TestFromRow(t *testing.T) {
 	now := time.Now().UTC()
 	duration := 2 * time.Second
 
-	spanRow := createTestSpanRow(now, duration)
+	spanRow := createTestSpanRow(t, now, duration)
 
 	expected := createTestTrace(now, duration)
 
@@ -89,23 +89,55 @@ func TestFromRow_DecodeID(t *testing.T) {
 }
 
 func TestPutAttributes_Warnings(t *testing.T) {
-	t.Run("bytes attribute with invalid base64", func(t *testing.T) {
-		span := ptrace.NewSpan()
-		attributes := pcommon.NewMap()
+	tests := []struct {
+		name                 string
+		complexKeys          []string
+		complexValues        []string
+		expectedWarnContains string
+	}{
+		{
+			name:                 "bytes attribute with invalid base64",
+			complexKeys:          []string{"@bytes@bytes-key"},
+			complexValues:        []string{"invalid-base64"},
+			expectedWarnContains: "failed to decode bytes attribute \"@bytes@bytes-key\"",
+		},
+		{
+			name:                 "failed to unmarshal slice attribute",
+			complexKeys:          []string{"@slice@slice-key"},
+			complexValues:        []string{"notjson"},
+			expectedWarnContains: "failed to unmarshal slice attribute \"@slice@slice-key\"",
+		},
+		{
+			name:                 "failed to unmarshal map attribute",
+			complexKeys:          []string{"@map@map-key"},
+			complexValues:        []string{"notjson"},
+			expectedWarnContains: "failed to unmarshal map attribute \"@map@map-key\"",
+		},
+		{
+			name:                 "unsupported complex attribute key",
+			complexKeys:          []string{"unsupported"},
+			complexValues:        []string{"{\"kvlistValue\":{\"values\":[{\"key\":\"key\",\"value\":{\"stringValue\":\"value\"}}]}}"},
+			expectedWarnContains: "unsupported complex attribute key: \"unsupported\"",
+		},
+	}
 
-		putAttributes(
-			attributes,
-			&Attributes{
-				ComplexKeys:   []string{"@bytes@bytes-key"},
-				ComplexValues: []string{"invalid-base64"},
-			},
-			span,
-		)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			attributes := pcommon.NewMap()
 
-		_, ok := attributes.Get("bytes-key")
-		require.False(t, ok)
-		warnings := jptrace.GetWarnings(span)
-		require.Len(t, warnings, 1)
-		require.Contains(t, warnings[0], "failed to decode bytes attribute \"@bytes@bytes-key\"")
-	})
+			putAttributes(
+				attributes,
+				&Attributes{
+					ComplexKeys:   tt.complexKeys,
+					ComplexValues: tt.complexValues,
+				},
+				span,
+			)
+
+			warnings := jptrace.GetWarnings(span)
+			require.Len(t, warnings, 1)
+			require.Contains(t, warnings[0], tt.expectedWarnContains)
+		})
+	}
 }
