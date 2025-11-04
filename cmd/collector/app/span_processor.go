@@ -13,6 +13,7 @@ import (
 
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
@@ -247,12 +248,77 @@ func (sp *spanProcessor) ProcessSpans(ctx context.Context, batch processor.Batch
 	batch.GetSpans(func(spans []*model.Span) {
 		batchOks, batchErr = sp.processSpans(ctx, batch, spans)
 	}, func(traces ptrace.Traces) {
-		// TODO verify if the context will survive all the way to the consumer threads.
 		ctx := tenancy.WithTenant(ctx, batch.GetTenant())
 
-		// the exporter will eventually call pushTraces from consumer threads.
+		spanCounts := sp.metrics.GetCountsForFormat(batch.GetSpanFormat(), batch.GetInboundTransport())
+		var estimatedBytes int64
+
+		resourceSpans := traces.ResourceSpans()
+		for i := 0; i < resourceSpans.Len(); i++ {
+			rs := resourceSpans.At(i)
+			resource := rs.Resource()
+
+			resource.Attributes().Range(func(k string, v pcommon.Value) bool {
+				estimatedBytes += int64(len(k))
+				switch v.Type() {
+				case pcommon.ValueTypeStr:
+					estimatedBytes += int64(len(v.Str()))
+				case pcommon.ValueTypeBytes:
+					estimatedBytes += int64(len(v.Bytes().AsRaw()))
+				default:
+					estimatedBytes += 8
+				}
+				return true
+			})
+
+			scopeSpans := rs.ScopeSpans()
+			for j := 0; j < scopeSpans.Len(); j++ {
+				ss := scopeSpans.At(j)
+				spans := ss.Spans()
+
+				for k := 0; k < spans.Len(); k++ {
+					span := spans.At(k)
+
+					spanCounts.ReceivedBySvc.ForSpanV2(resource, span)
+
+					estimatedBytes += int64(len(span.Name()))
+
+					span.Attributes().Range(func(k string, v pcommon.Value) bool {
+						estimatedBytes += int64(len(k))
+						switch v.Type() {
+						case pcommon.ValueTypeStr:
+							estimatedBytes += int64(len(v.Str()))
+						case pcommon.ValueTypeBytes:
+							estimatedBytes += int64(len(v.Bytes().AsRaw()))
+						default:
+							estimatedBytes += 8
+						}
+						return true
+					})
+				}
+			}
+		}
+
+		sp.metrics.SpansBytes.Update(estimatedBytes)
+
 		if err := sp.otelExporter.ConsumeTraces(ctx, traces); err != nil {
 			batchErr = err
+
+			sp.metrics.SpansDropped.Inc(int64(traces.SpanCount()))
+
+			resourceSpans := traces.ResourceSpans()
+			for i := 0; i < resourceSpans.Len(); i++ {
+				rs := resourceSpans.At(i)
+				resource := rs.Resource()
+				scopeSpans := rs.ScopeSpans()
+				for j := 0; j < scopeSpans.Len(); j++ {
+					ss := scopeSpans.At(j)
+					spans := ss.Spans()
+					for k := 0; k < spans.Len(); k++ {
+						spanCounts.RejectedBySvc.ForSpanV2(resource, spans.At(k))
+					}
+				}
+			}
 		} else {
 			batchOks = make([]bool, traces.SpanCount())
 			for i := range batchOks {
