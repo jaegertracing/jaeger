@@ -19,7 +19,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
-	casMetrics "github.com/jaegertracing/jaeger/internal/storage/cassandra/metrics"
+	casmetrics "github.com/jaegertracing/jaeger/internal/storage/cassandra/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 )
 
@@ -45,8 +45,8 @@ type probabilityAndQPS struct {
 type serviceOperationData map[string]map[string]*probabilityAndQPS
 
 type samplingStoreMetrics struct {
-	operationThroughput *casMetrics.Table
-	probabilities       *casMetrics.Table
+	operationThroughput *casmetrics.Table
+	probabilities       *casmetrics.Table
 }
 
 // SamplingStore handles all insertions and queries for sampling data to and from Cassandra
@@ -61,8 +61,8 @@ func New(session cassandra.Session, factory metrics.Factory, logger *zap.Logger)
 	return &SamplingStore{
 		session: session,
 		metrics: samplingStoreMetrics{
-			operationThroughput: casMetrics.NewTable(factory, "operation_throughput"),
-			probabilities:       casMetrics.NewTable(factory, "probabilities"),
+			operationThroughput: casmetrics.NewTable(factory, "operation_throughput"),
+			probabilities:       casmetrics.NewTable(factory, "probabilities"),
 		},
 		logger: logger,
 	}
@@ -235,7 +235,7 @@ func (s *SamplingStore) appendThroughput(throughput *[]*model.Throughput) func(c
 
 func parseProbabilitiesSet(probabilitiesStr string) map[string]struct{} {
 	ret := map[string]struct{}{}
-	for _, probability := range strings.Split(probabilitiesStr, ",") {
+	for probability := range strings.SplitSeq(probabilitiesStr, ",") {
 		if probability != "" {
 			ret[probability] = struct{}{}
 		}

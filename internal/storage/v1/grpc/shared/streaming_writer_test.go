@@ -14,16 +14,16 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage_v1"
-	grpcMocks "github.com/jaegertracing/jaeger/internal/proto-gen/storage_v1/mocks"
+	grpcmocks "github.com/jaegertracing/jaeger/internal/proto-gen/storage_v1/mocks"
 )
 
 type streamingSpanWriterTest struct {
 	client              *streamingSpanWriter
-	streamingSpanWriter *grpcMocks.StreamingSpanWriterPluginClient
+	streamingSpanWriter *grpcmocks.StreamingSpanWriterPluginClient
 }
 
 func withStreamingWriterGRPCClient(fn func(r *streamingSpanWriterTest)) {
-	streamingWriterClient := new(grpcMocks.StreamingSpanWriterPluginClient)
+	streamingWriterClient := new(grpcmocks.StreamingSpanWriterPluginClient)
 	r := &streamingSpanWriterTest{
 		client:              newStreamingSpanWriter(streamingWriterClient),
 		streamingSpanWriter: streamingWriterClient,
@@ -33,7 +33,7 @@ func withStreamingWriterGRPCClient(fn func(r *streamingSpanWriterTest)) {
 
 func TestStreamClientWriteSpan(t *testing.T) {
 	withStreamingWriterGRPCClient(func(r *streamingSpanWriterTest) {
-		stream := new(grpcMocks.StreamingSpanWriterPlugin_WriteSpanStreamClient)
+		stream := new(grpcmocks.StreamingSpanWriterPlugin_WriteSpanStreamClient)
 		stream.On("Send", &storage_v1.WriteSpanRequest{Span: &mockTraceSpans[0]}).Return(io.EOF).Once().
 			On("Send", &storage_v1.WriteSpanRequest{Span: &mockTraceSpans[0]}).Return(nil).Twice()
 		r.streamingSpanWriter.On("WriteSpanStream", mock.Anything).Return(nil, status.Error(codes.DeadlineExceeded, "timeout")).Once().
@@ -62,7 +62,7 @@ func TestStreamClientWriteSpan(t *testing.T) {
 
 func TestStreamClientClose(t *testing.T) {
 	withStreamingWriterGRPCClient(func(r *streamingSpanWriterTest) {
-		stream := new(grpcMocks.StreamingSpanWriterPlugin_WriteSpanStreamClient)
+		stream := new(grpcmocks.StreamingSpanWriterPlugin_WriteSpanStreamClient)
 		stream.On("CloseAndRecv").Return(&storage_v1.WriteSpanResponse{}, nil).Once()
 		r.client.streamPool <- stream
 
@@ -78,7 +78,7 @@ func TestStreamClientClose(t *testing.T) {
 
 func TestStreamClientCloseFail(t *testing.T) {
 	withStreamingWriterGRPCClient(func(r *streamingSpanWriterTest) {
-		stream := new(grpcMocks.StreamingSpanWriterPlugin_WriteSpanStreamClient)
+		stream := new(grpcmocks.StreamingSpanWriterPlugin_WriteSpanStreamClient)
 		stream.On("CloseAndRecv").Return(nil, status.Error(codes.DeadlineExceeded, "timeout")).Twice()
 		r.client.streamPool <- stream
 

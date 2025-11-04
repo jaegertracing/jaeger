@@ -13,7 +13,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/consumer"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
 	"github.com/jaegertracing/jaeger/internal/metrics"
-	kafkaConsumer "github.com/jaegertracing/jaeger/internal/storage/kafka/consumer"
+	kafkaconsumer "github.com/jaegertracing/jaeger/internal/storage/kafka/consumer"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/kafka"
 )
@@ -39,7 +39,7 @@ func CreateConsumer(logger *zap.Logger, metricsFactory metrics.Factory, spanWrit
 	}
 	proc := processor.NewSpanProcessor(spParams)
 
-	consumerConfig := kafkaConsumer.Configuration{
+	consumerConfig := kafkaconsumer.Configuration{
 		Brokers:              options.Brokers,
 		Topic:                options.Topic,
 		InitialOffset:        options.InitialOffset,

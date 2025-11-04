@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
-	api_v1 "github.com/jaegertracing/jaeger-idl/thrift-gen/sampling"
+	apiv1 "github.com/jaegertracing/jaeger-idl/thrift-gen/sampling"
 	thriftconv "github.com/jaegertracing/jaeger/internal/converter/thrift/jaeger"
 )
 
@@ -24,18 +24,18 @@ func TestSamplingStrategyResponseToJSON_Error(t *testing.T) {
 // the same string as Thrift-based JSON marshaler.
 func TestSamplingStrategyResponseToJSON(t *testing.T) {
 	t.Run("probabilistic", func(t *testing.T) {
-		s := &api_v1.SamplingStrategyResponse{
-			StrategyType: api_v1.SamplingStrategyType_PROBABILISTIC,
-			ProbabilisticSampling: &api_v1.ProbabilisticSamplingStrategy{
+		s := &apiv1.SamplingStrategyResponse{
+			StrategyType: apiv1.SamplingStrategyType_PROBABILISTIC,
+			ProbabilisticSampling: &apiv1.ProbabilisticSamplingStrategy{
 				SamplingRate: 0.42,
 			},
 		}
 		compareProtoAndThriftJSON(t, s)
 	})
 	t.Run("rateLimiting", func(t *testing.T) {
-		s := &api_v1.SamplingStrategyResponse{
-			StrategyType: api_v1.SamplingStrategyType_RATE_LIMITING,
-			RateLimitingSampling: &api_v1.RateLimitingSamplingStrategy{
+		s := &apiv1.SamplingStrategyResponse{
+			StrategyType: apiv1.SamplingStrategyType_RATE_LIMITING,
+			RateLimitingSampling: &apiv1.RateLimitingSamplingStrategy{
 				MaxTracesPerSecond: 42,
 			},
 		}
@@ -43,21 +43,21 @@ func TestSamplingStrategyResponseToJSON(t *testing.T) {
 	})
 	t.Run("operationSampling", func(t *testing.T) {
 		a := 11.2 // we need a pointer to value
-		s := &api_v1.SamplingStrategyResponse{
-			OperationSampling: &api_v1.PerOperationSamplingStrategies{
+		s := &apiv1.SamplingStrategyResponse{
+			OperationSampling: &apiv1.PerOperationSamplingStrategies{
 				DefaultSamplingProbability:       0.42,
 				DefaultUpperBoundTracesPerSecond: &a,
 				DefaultLowerBoundTracesPerSecond: 2,
-				PerOperationStrategies: []*api_v1.OperationSamplingStrategy{
+				PerOperationStrategies: []*apiv1.OperationSamplingStrategy{
 					{
 						Operation: "foo",
-						ProbabilisticSampling: &api_v1.ProbabilisticSamplingStrategy{
+						ProbabilisticSampling: &apiv1.ProbabilisticSamplingStrategy{
 							SamplingRate: 0.42,
 						},
 					},
 					{
 						Operation: "bar",
-						ProbabilisticSampling: &api_v1.ProbabilisticSamplingStrategy{
+						ProbabilisticSampling: &apiv1.ProbabilisticSamplingStrategy{
 							SamplingRate: 0.42,
 						},
 					},
@@ -68,7 +68,7 @@ func TestSamplingStrategyResponseToJSON(t *testing.T) {
 	})
 }
 
-func compareProtoAndThriftJSON(t *testing.T, thriftObj *api_v1.SamplingStrategyResponse) {
+func compareProtoAndThriftJSON(t *testing.T, thriftObj *apiv1.SamplingStrategyResponse) {
 	protoObj, err := thriftconv.ConvertSamplingResponseToDomain(thriftObj)
 	require.NoError(t, err)
 

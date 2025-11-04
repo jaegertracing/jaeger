@@ -40,6 +40,9 @@ jobs:
   query:
     uses: ./.github/workflows/ci-e2e-query.yml
 
+  clickhouse:
+    uses: ./.github/workflows/ci-e2e-clickhouse.yml
+
   upload_pr_number:
     name: Save and Upload PR Number as Artifact
     runs-on: ubuntu-latest

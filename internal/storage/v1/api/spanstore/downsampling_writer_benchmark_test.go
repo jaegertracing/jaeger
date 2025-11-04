@@ -28,9 +28,9 @@ func BenchmarkDownSamplingWriter_WriteSpan(b *testing.B) {
 		Ratio:    0.5,
 		HashSalt: "jaeger-test",
 	})
-	b.ResetTimer()
+
 	b.ReportAllocs()
-	for it := 0; it < b.N; it++ {
+	for b.Loop() {
 		c.WriteSpan(context.Background(), span)
 	}
 }
@@ -46,10 +46,10 @@ func BenchmarkDownSamplingWriter_HashBytes(b *testing.B) {
 	for i := 0; i < 16; i++ {
 		ba[i] = byte(i)
 	}
-	b.ResetTimer()
+
 	b.ReportAllocs()
 	h := c.sampler.hasherPool.Get().(*hasher)
-	for it := 0; it < b.N; it++ {
+	for b.Loop() {
 		h.hashBytes()
 	}
 	c.sampler.hasherPool.Put(h)
@@ -66,7 +66,7 @@ func BenchmarkDownsamplingWriter_RandomHash(b *testing.B) {
 	}
 	c := NewDownsamplingWriter(&noopWriteSpanStore{}, downsamplingOptions)
 	h := c.sampler.hasherPool.Get().(*hasher)
-	for it := 0; it < b.N; it++ {
+	for b.Loop() {
 		countSmallerThanRatio = 0
 		for i := 0; i < numberActions; i++ {
 			low := rand.Uint64()

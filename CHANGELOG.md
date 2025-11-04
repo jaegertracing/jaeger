@@ -21,7 +21,55 @@ copy from UI changelog
 
 </details>
 
-next release v1.73.0 / v2.10.0 (2025-09-02)
+v1.74.0 / v2.11.0 (2025-10-01)
+-------------------------------
+
+### Backend Changes
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Make enabletracing param work correctly in jaeger-v2 query extension ([@Frapschen](https://github.com/Frapschen) in [#7226](https://github.com/jaegertracing/jaeger/pull/7226))
+
+#### 🚧 Experimental Features
+
+* [clickhouse] implement factory with minimal configuration ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7518](https://github.com/jaegertracing/jaeger/pull/7518))
+* [clickhouse] implement writer for clickhouse storage ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7514](https://github.com/jaegertracing/jaeger/pull/7514))
+* [clickhouse] add attributes for event in clickhouse storage ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7512](https://github.com/jaegertracing/jaeger/pull/7512))
+* [clickhouse] add column for storing complex attributes ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7510](https://github.com/jaegertracing/jaeger/pull/7510))
+* [clickhouse] add attributes to span table for clickhouse storage ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7503](https://github.com/jaegertracing/jaeger/pull/7503))
+
+#### ⚙️ Refactoring
+
+* Move clickhouse queries to sql files with embed directive ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7523](https://github.com/jaegertracing/jaeger/pull/7523))
+* Use maps.copy for cleaner map handling ([@quantpoet](https://github.com/quantpoet) in [#7513](https://github.com/jaegertracing/jaeger/pull/7513))
+
+
+### 📊 UI Changes
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Replace dependency react-window ([@Parship999](https://github.com/Parship999) in [#3070](https://github.com/jaegertracing/jaeger-ui/pull/3070))
+* Fix the flaky test in tracepage/index.test.js ([@Parship999](https://github.com/Parship999) in [#3089](https://github.com/jaegertracing/jaeger-ui/pull/3089))
+* Fix top bar tab order ([@mdwyer6](https://github.com/mdwyer6) in [#3067](https://github.com/jaegertracing/jaeger-ui/pull/3067))
+* Expand the logs automatically ([@Parship999](https://github.com/Parship999) in [#3054](https://github.com/jaegertracing/jaeger-ui/pull/3054))
+
+#### ⚙️ Refactoring
+
+* Convert tracediff component from class to functional component ([@Parship999](https://github.com/Parship999) in [#3099](https://github.com/jaegertracing/jaeger-ui/pull/3099))
+* Remove the history instance from the app component ([@Parship999](https://github.com/Parship999) in [#3100](https://github.com/jaegertracing/jaeger-ui/pull/3100))
+* Update to modern jsx transform ([@Parship999](https://github.com/Parship999) in [#3097](https://github.com/jaegertracing/jaeger-ui/pull/3097))
+* Fix some eslint warnings ([@Parship999](https://github.com/Parship999) in [#3096](https://github.com/jaegertracing/jaeger-ui/pull/3096))
+* Convert servicesview/index to functional component ([@Parship999](https://github.com/Parship999) in [#3004](https://github.com/jaegertracing/jaeger-ui/pull/3004))
+* Convert filteredlist/index.tsx from class to functional component ([@Parship999](https://github.com/Parship999) in [#3083](https://github.com/jaegertracing/jaeger-ui/pull/3083))
+* Fix some lint warnings ([@Parship999](https://github.com/Parship999) in [#3090](https://github.com/jaegertracing/jaeger-ui/pull/3090))
+* Convert searchresults/diffselection to functional component and improved testcases ([@JeevaRamanathan](https://github.com/JeevaRamanathan) in [#3076](https://github.com/jaegertracing/jaeger-ui/pull/3076))
+* Convert tracediff/tracediffheader {cohorttable, tracediffheader} to functional component ([@JeevaRamanathan](https://github.com/JeevaRamanathan) in [#3082](https://github.com/jaegertracing/jaeger-ui/pull/3082))
+* Convert seachresults{resultitem, resultitemtitle} to functional components ([@JeevaRamanathan](https://github.com/JeevaRamanathan) in [#3071](https://github.com/jaegertracing/jaeger-ui/pull/3071))
+* Tighten tracearchive type to more strictly enforce correct state ([@tklever](https://github.com/tklever) in [#623](https://github.com/jaegertracing/jaeger-ui/pull/623))
+
+
+
+v1.73.0 / v2.10.0 (2025-09-02)
 -------------------------------
 
 ### Backend Changes

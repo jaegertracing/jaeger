@@ -38,7 +38,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
 	zc "github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
-	cFlags "github.com/jaegertracing/jaeger/cmd/collector/app/flags"
+	cflags "github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	zipkinsanitizer "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
@@ -823,8 +823,8 @@ func TestSpanProcessorWithOnDroppedSpanOption(t *testing.T) {
 	assert.Equal(t, []string{"op3"}, droppedOperations)
 }
 
-func optionsWithPorts(portHttp string, portGrpc string) *cFlags.CollectorOptions {
-	opts := &cFlags.CollectorOptions{
+func optionsWithPorts(portHttp string, portGrpc string) *cflags.CollectorOptions {
+	opts := &cflags.CollectorOptions{
 		OTLP: struct {
 			Enabled bool
 			GRPC    configgrpc.ServerConfig

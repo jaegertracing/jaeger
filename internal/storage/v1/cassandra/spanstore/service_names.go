@@ -13,7 +13,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/cache"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
-	casMetrics "github.com/jaegertracing/jaeger/internal/storage/cassandra/metrics"
+	casmetrics "github.com/jaegertracing/jaeger/internal/storage/cassandra/metrics"
 )
 
 const (
@@ -27,7 +27,7 @@ type ServiceNamesStorage struct {
 	writeCacheTTL time.Duration
 	InsertStmt    string
 	QueryStmt     string
-	metrics       *casMetrics.Table
+	metrics       *casmetrics.Table
 	serviceNames  cache.Cache
 	logger        *zap.Logger
 }
@@ -43,7 +43,7 @@ func NewServiceNamesStorage(
 		session:       session,
 		InsertStmt:    insertServiceName,
 		QueryStmt:     queryServiceNames,
-		metrics:       casMetrics.NewTable(metricsFactory, "service_names"),
+		metrics:       casmetrics.NewTable(metricsFactory, "service_names"),
 		writeCacheTTL: writeCacheTTL,
 		logger:        logger,
 		serviceNames: cache.NewLRUWithOptions(

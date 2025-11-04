@@ -18,7 +18,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
-	casMetrics "github.com/jaegertracing/jaeger/internal/storage/cassandra/metrics"
+	casmetrics "github.com/jaegertracing/jaeger/internal/storage/cassandra/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
@@ -85,12 +85,12 @@ type serviceNamesReader func() ([]string, error)
 type operationNamesReader func(query spanstore.OperationQueryParameters) ([]spanstore.Operation, error)
 
 type spanReaderMetrics struct {
-	readTraces                 *casMetrics.Table
-	queryTrace                 *casMetrics.Table
-	queryTagIndex              *casMetrics.Table
-	queryDurationIndex         *casMetrics.Table
-	queryServiceOperationIndex *casMetrics.Table
-	queryServiceNameIndex      *casMetrics.Table
+	readTraces                 *casmetrics.Table
+	queryTrace                 *casmetrics.Table
+	queryTagIndex              *casmetrics.Table
+	queryDurationIndex         *casmetrics.Table
+	queryServiceOperationIndex *casmetrics.Table
+	queryServiceNameIndex      *casmetrics.Table
 }
 
 // SpanReader can query for and load traces from Cassandra.
@@ -121,12 +121,12 @@ func NewSpanReader(
 		serviceNamesReader:   serviceNamesStorage.GetServices,
 		operationNamesReader: operationNamesStorage.GetOperations,
 		metrics: spanReaderMetrics{
-			readTraces:                 casMetrics.NewTable(readFactory, "read_traces"),
-			queryTrace:                 casMetrics.NewTable(readFactory, "query_traces"),
-			queryTagIndex:              casMetrics.NewTable(readFactory, "tag_index"),
-			queryDurationIndex:         casMetrics.NewTable(readFactory, "duration_index"),
-			queryServiceOperationIndex: casMetrics.NewTable(readFactory, "service_operation_index"),
-			queryServiceNameIndex:      casMetrics.NewTable(readFactory, "service_name_index"),
+			readTraces:                 casmetrics.NewTable(readFactory, "read_traces"),
+			queryTrace:                 casmetrics.NewTable(readFactory, "query_traces"),
+			queryTagIndex:              casmetrics.NewTable(readFactory, "tag_index"),
+			queryDurationIndex:         casmetrics.NewTable(readFactory, "duration_index"),
+			queryServiceOperationIndex: casmetrics.NewTable(readFactory, "service_operation_index"),
+			queryServiceNameIndex:      casmetrics.NewTable(readFactory, "service_name_index"),
 		},
 		logger: logger,
 		tracer: tracer,
@@ -401,7 +401,7 @@ func (s *SpanReader) queryByService(ctx context.Context, tq *spanstore.TraceQuer
 	return s.executeQuery(span, query, s.metrics.queryServiceNameIndex)
 }
 
-func (s *SpanReader) executeQuery(span trace.Span, query cassandra.Query, tableMetrics *casMetrics.Table) (dbmodel.UniqueTraceIDs, error) {
+func (s *SpanReader) executeQuery(span trace.Span, query cassandra.Query, tableMetrics *casmetrics.Table) (dbmodel.UniqueTraceIDs, error) {
 	start := time.Now()
 	i := query.Iter()
 	retMe := dbmodel.UniqueTraceIDs{}

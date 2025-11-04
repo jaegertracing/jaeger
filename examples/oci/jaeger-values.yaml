@@ -1,6 +1,9 @@
+global:
+  imageRegistry: docker.io
 hotrod:
   enabled: true
   image:
+    repository: jaegertracing/example-hotrod
     tag: "1.72.0"
   args:
     - all

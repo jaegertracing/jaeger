@@ -5,7 +5,7 @@ SHELL := /bin/bash
 JAEGER_IMPORT_PATH = github.com/jaegertracing/jaeger
 
 # PLATFORMS is a list of all supported platforms
-PLATFORMS="linux/amd64,linux/arm64,linux/s390x,linux/ppc64le,darwin/amd64,darwin/arm64,windows/amd64"
+PLATFORMS="linux/amd64,linux/arm64,linux/s390x,linux/ppc64le,linux/riscv64,darwin/amd64,darwin/arm64,windows/amd64"
 LINUX_PLATFORMS=$(shell echo "$(PLATFORMS)" | tr ',' '\n' | grep linux | tr '\n' ',' | sed 's/,$$/\n/')
 
 # SRC_ROOT is the top of the source tree.
@@ -52,8 +52,10 @@ GO=go
 GOOS ?= $(shell $(GO) env GOOS)
 GOARCH ?= $(shell $(GO) env GOARCH)
 
-# go test does not support -race flag on s390x architecture
+# go test does not support -race flag on s390x and riscv64 architectures
 ifeq ($(GOARCH), s390x)
+	RACE=
+else ifeq ($(GOARCH), riscv64)
 	RACE=
 else
 	RACE=-race
@@ -150,7 +152,7 @@ fmt: $(GOFUMPT)
 	@./scripts/lint/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC)
 
 .PHONY: lint
-lint: lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go
+lint: lint-fmt lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go
 
 .PHONY: lint-license
 lint-license:
@@ -173,6 +175,14 @@ lint-imports:
 	@echo Verifying that all Go files have correctly ordered imports
 	@./scripts/lint/import-order-cleanup.py -o stdout -t $(ALL_SRC) > $(IMPORT_LOG)
 	@[ ! -s "$(IMPORT_LOG)" ] || (echo "Import ordering failures, run 'make fmt'" | cat - $(IMPORT_LOG) && false)
+
+.PHONY: lint-fmt
+lint-fmt: $(GOFUMPT)
+	@echo Verifying that all Go files are formatted with gofmt and gofumpt
+	@rm -f $(FMT_LOG)
+	@$(GOFMT) -d -e -s $(ALL_SRC) > $(FMT_LOG) || true
+	@$(GOFUMPT) -d -e $(ALL_SRC) >> $(FMT_LOG) || true
+	@[ ! -s "$(FMT_LOG)" ] || (echo "Formatting check failed. Please run 'make fmt'" && head -100 $(FMT_LOG) && false)
 
 .PHONY: lint-semconv
 lint-semconv:

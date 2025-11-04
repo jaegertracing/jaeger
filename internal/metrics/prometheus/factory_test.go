@@ -8,23 +8,23 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	promModel "github.com/prometheus/client_model/go"
+	prommodel "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
-	promMetrics "github.com/jaegertracing/jaeger/internal/metrics/prometheus"
+	prommetrics "github.com/jaegertracing/jaeger/internal/metrics/prometheus"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 func TestOptions(t *testing.T) {
-	f1 := promMetrics.New()
+	f1 := prommetrics.New()
 	assert.NotNil(t, f1)
 }
 
 func TestSeparator(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
-	f1 := promMetrics.New(promMetrics.WithRegisterer(registry), promMetrics.WithSeparator(promMetrics.SeparatorColon))
+	f1 := prommetrics.New(prommetrics.WithRegisterer(registry), prommetrics.WithSeparator(prommetrics.SeparatorColon))
 	c1 := f1.Namespace(metrics.NSOptions{
 		Name: "bender",
 	}).Counter(metrics.Options{
@@ -41,7 +41,7 @@ func TestSeparator(t *testing.T) {
 
 func TestCounter(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
-	f1 := promMetrics.New(promMetrics.WithRegisterer(registry))
+	f1 := prommetrics.New(prommetrics.WithRegisterer(registry))
 	fDummy := f1.Namespace(metrics.NSOptions{})
 	f2 := fDummy.Namespace(metrics.NSOptions{
 		Name: "bender",
@@ -83,7 +83,7 @@ func TestCounter(t *testing.T) {
 
 func TestCounterDefaultHelp(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
-	f1 := promMetrics.New(promMetrics.WithRegisterer(registry))
+	f1 := prommetrics.New(prommetrics.WithRegisterer(registry))
 	c1 := f1.Counter(metrics.Options{
 		Name: "rodriguez",
 		Tags: map[string]string{"x": "y"},
@@ -98,8 +98,8 @@ func TestCounterDefaultHelp(t *testing.T) {
 
 func TestCounterNotValidLabel(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
-	f1 := promMetrics.New(
-		promMetrics.WithRegisterer(registry),
+	f1 := prommetrics.New(
+		prommetrics.WithRegisterer(registry),
 	)
 	c1 := f1.Counter(metrics.Options{
 		Name: "ilia",
@@ -110,7 +110,7 @@ func TestCounterNotValidLabel(t *testing.T) {
 
 func TestGauge(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
-	f1 := promMetrics.New(promMetrics.WithRegisterer(registry))
+	f1 := prommetrics.New(prommetrics.WithRegisterer(registry))
 	f2 := f1.Namespace(metrics.NSOptions{
 		Name: "bender",
 		Tags: map[string]string{"a": "b"},
@@ -152,7 +152,7 @@ func TestGauge(t *testing.T) {
 
 func TestGaugeDefaultHelp(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
-	f1 := promMetrics.New(promMetrics.WithRegisterer(registry))
+	f1 := prommetrics.New(prommetrics.WithRegisterer(registry))
 	g1 := f1.Gauge(metrics.Options{
 		Name: "rodriguez",
 		Tags: map[string]string{"x": "y"},
@@ -167,8 +167,8 @@ func TestGaugeDefaultHelp(t *testing.T) {
 
 func TestGaugeNotValidLabel(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
-	f1 := promMetrics.New(
-		promMetrics.WithRegisterer(registry),
+	f1 := prommetrics.New(
+		prommetrics.WithRegisterer(registry),
 	)
 	c1 := f1.Gauge(metrics.Options{
 		Name: "ilia",
@@ -179,7 +179,7 @@ func TestGaugeNotValidLabel(t *testing.T) {
 
 func TestTimer(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
-	f1 := promMetrics.New(promMetrics.WithRegisterer(registry))
+	f1 := prommetrics.New(prommetrics.WithRegisterer(registry))
 	f2 := f1.Namespace(metrics.NSOptions{
 		Name: "bender",
 		Tags: map[string]string{"a": "b"},
@@ -243,7 +243,7 @@ func TestTimer(t *testing.T) {
 
 func TestTimerDefaultHelp(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
-	f1 := promMetrics.New(promMetrics.WithRegisterer(registry))
+	f1 := prommetrics.New(prommetrics.WithRegisterer(registry))
 	t1 := f1.Timer(metrics.TimerOptions{
 		Name: "rodriguez",
 		Tags: map[string]string{"x": "y"},
@@ -258,8 +258,8 @@ func TestTimerDefaultHelp(t *testing.T) {
 
 func TestTimerNotValidLabel(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
-	f1 := promMetrics.New(
-		promMetrics.WithRegisterer(registry),
+	f1 := prommetrics.New(
+		prommetrics.WithRegisterer(registry),
 	)
 	c1 := f1.Timer(metrics.TimerOptions{
 		Name: "ilia",
@@ -270,7 +270,7 @@ func TestTimerNotValidLabel(t *testing.T) {
 
 func TestTimerCustomBuckets(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
-	f1 := promMetrics.New(promMetrics.WithRegisterer(registry), promMetrics.WithBuckets([]float64{1.5}))
+	f1 := prommetrics.New(prommetrics.WithRegisterer(registry), prommetrics.WithBuckets([]float64{1.5}))
 	// dot and dash in the metric name will be replaced with underscore
 	t1 := f1.Timer(metrics.TimerOptions{
 		Name:    "bender.bending-rodriguez",
@@ -291,7 +291,7 @@ func TestTimerCustomBuckets(t *testing.T) {
 
 func TestTimerDefaultBuckets(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
-	f1 := promMetrics.New(promMetrics.WithRegisterer(registry), promMetrics.WithBuckets([]float64{1.5, 2}))
+	f1 := prommetrics.New(prommetrics.WithRegisterer(registry), prommetrics.WithBuckets([]float64{1.5, 2}))
 	// dot and dash in the metric name will be replaced with underscore
 	t1 := f1.Timer(metrics.TimerOptions{
 		Name:    "bender.bending-rodriguez",
@@ -312,7 +312,7 @@ func TestTimerDefaultBuckets(t *testing.T) {
 
 func TestHistogram(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
-	f1 := promMetrics.New(promMetrics.WithRegisterer(registry))
+	f1 := prommetrics.New(prommetrics.WithRegisterer(registry))
 	f2 := f1.Namespace(metrics.NSOptions{
 		Name: "bender",
 		Tags: map[string]string{"a": "b"},
@@ -376,7 +376,7 @@ func TestHistogram(t *testing.T) {
 
 func TestHistogramDefaultHelp(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
-	f1 := promMetrics.New(promMetrics.WithRegisterer(registry))
+	f1 := prommetrics.New(prommetrics.WithRegisterer(registry))
 	t1 := f1.Histogram(metrics.HistogramOptions{
 		Name: "rodriguez",
 		Tags: map[string]string{"x": "y"},
@@ -391,7 +391,7 @@ func TestHistogramDefaultHelp(t *testing.T) {
 
 func TestHistogramCustomBuckets(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
-	f1 := promMetrics.New(promMetrics.WithRegisterer(registry))
+	f1 := prommetrics.New(prommetrics.WithRegisterer(registry))
 	// dot and dash in the metric name will be replaced with underscore
 	t1 := f1.Histogram(metrics.HistogramOptions{
 		Name:    "bender.bending-rodriguez",
@@ -412,8 +412,8 @@ func TestHistogramCustomBuckets(t *testing.T) {
 
 func TestHistogramNotValidLabel(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
-	f1 := promMetrics.New(
-		promMetrics.WithRegisterer(registry),
+	f1 := prommetrics.New(
+		prommetrics.WithRegisterer(registry),
 	)
 	c1 := f1.Histogram(metrics.HistogramOptions{
 		Name: "ilia",
@@ -424,7 +424,7 @@ func TestHistogramNotValidLabel(t *testing.T) {
 
 func TestHistogramDefaultBuckets(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
-	f1 := promMetrics.New(promMetrics.WithRegisterer(registry), promMetrics.WithBuckets([]float64{1.5}))
+	f1 := prommetrics.New(prommetrics.WithRegisterer(registry), prommetrics.WithBuckets([]float64{1.5}))
 	// dot and dash in the metric name will be replaced with underscore
 	t1 := f1.Histogram(metrics.HistogramOptions{
 		Name:    "bender.bending-rodriguez",
@@ -443,7 +443,7 @@ func TestHistogramDefaultBuckets(t *testing.T) {
 	assert.Len(t, m1.GetHistogram().GetBucket(), 1)
 }
 
-func findMetric(t *testing.T, snapshot []*promModel.MetricFamily, name string, tags map[string]string) *promModel.Metric {
+func findMetric(t *testing.T, snapshot []*prommodel.MetricFamily, name string, tags map[string]string) *prommodel.Metric {
 	for _, mf := range snapshot {
 		if mf.GetName() != name {
 			continue

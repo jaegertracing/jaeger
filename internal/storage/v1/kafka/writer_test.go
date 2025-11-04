@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	saramaMocks "github.com/Shopify/sarama/mocks"
+	saramamocks "github.com/Shopify/sarama/mocks"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -54,7 +54,7 @@ var (
 )
 
 type spanWriterTest struct {
-	producer       *saramaMocks.AsyncProducer
+	producer       *saramamocks.AsyncProducer
 	marshaller     *mocks.Marshaller
 	metricsFactory *metricstest.Factory
 
@@ -69,7 +69,7 @@ func withSpanWriter(t *testing.T, fn func(span *model.Span, w *spanWriterTest)) 
 	defer serviceMetrics.Stop()
 	saramaConfig := sarama.NewConfig()
 	saramaConfig.Producer.Return.Successes = true
-	producer := saramaMocks.NewAsyncProducer(t, saramaConfig)
+	producer := saramamocks.NewAsyncProducer(t, saramaConfig)
 	marshaller := &mocks.Marshaller{}
 	marshaller.On("Marshal", mock.AnythingOfType("*model.Span")).Return([]byte{}, nil)
 

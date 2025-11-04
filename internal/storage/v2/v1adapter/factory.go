@@ -6,41 +6,41 @@ package v1adapter
 import (
 	"io"
 
-	storage_v1 "github.com/jaegertracing/jaeger/internal/storage/v1"
+	storagev1 "github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 type Factory struct {
-	ss storage_v1.Factory
+	ss storagev1.Factory
 }
 
-func NewFactory(ss storage_v1.Factory) tracestore.Factory {
+func NewFactory(ss storagev1.Factory) tracestore.Factory {
 	factory := &Factory{
 		ss: ss,
 	}
 
 	var (
-		purger, isPurger   = ss.(storage_v1.Purger)
-		sampler, isSampler = ss.(storage_v1.SamplingStoreFactory)
+		purger, isPurger   = ss.(storagev1.Purger)
+		sampler, isSampler = ss.(storagev1.SamplingStoreFactory)
 	)
 
 	switch {
 	case isSampler && isPurger:
 		return struct {
 			*Factory
-			storage_v1.Purger
-			storage_v1.SamplingStoreFactory
+			storagev1.Purger
+			storagev1.SamplingStoreFactory
 		}{factory, purger, sampler}
 	case isPurger:
 		return struct {
 			*Factory
-			storage_v1.Purger
+			storagev1.Purger
 		}{factory, purger}
 	case isSampler:
 		return struct {
 			*Factory
-			storage_v1.SamplingStoreFactory
+			storagev1.SamplingStoreFactory
 		}{factory, sampler}
 	default:
 		return factory

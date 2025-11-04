@@ -10,8 +10,8 @@ import (
 	"net/http"
 	"strings"
 
-	esV8 "github.com/elastic/go-elasticsearch/v9"
-	esV8api "github.com/elastic/go-elasticsearch/v9/esapi"
+	esv8 "github.com/elastic/go-elasticsearch/v9"
+	esv8api "github.com/elastic/go-elasticsearch/v9/esapi"
 	"github.com/olivere/elastic/v7"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
@@ -24,7 +24,7 @@ type ClientWrapper struct {
 	client      *elastic.Client
 	bulkService *elastic.BulkProcessor
 	esVersion   uint
-	clientV8    *esV8.Client
+	clientV8    *esv8.Client
 }
 
 // GetVersion returns the ElasticSearch Version
@@ -33,7 +33,7 @@ func (c ClientWrapper) GetVersion() uint {
 }
 
 // WrapESClient creates a ESClient out of *elastic.Client.
-func WrapESClient(client *elastic.Client, s *elastic.BulkProcessor, esVersion uint, clientV8 *esV8.Client) ClientWrapper {
+func WrapESClient(client *elastic.Client, s *elastic.BulkProcessor, esVersion uint, clientV8 *esv8.Client) ClientWrapper {
 	return ClientWrapper{
 		client:      client,
 		bulkService: s,
@@ -173,7 +173,7 @@ func (c TemplateCreateServiceWrapper) Do(ctx context.Context) (*elastic.IndicesP
 
 // TemplateCreatorWrapperV8 implements es.TemplateCreateService.
 type TemplateCreatorWrapperV8 struct {
-	indicesV8       *esV8api.Indices
+	indicesV8       *esv8api.Indices
 	templateName    string
 	templateMapping string
 }

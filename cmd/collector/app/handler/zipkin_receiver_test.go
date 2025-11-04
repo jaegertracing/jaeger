@@ -26,7 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/flags"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
-	zipkin_proto3 "github.com/jaegertracing/jaeger/internal/proto-gen/zipkin"
+	zipkinproto3 "github.com/jaegertracing/jaeger/internal/proto-gen/zipkin"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
@@ -60,7 +60,7 @@ func TestZipkinReceiver(t *testing.T) {
 	}
 
 	makeProto := func(data []byte) []byte {
-		var spans zipkin_proto3.ListOfSpans
+		var spans zipkinproto3.ListOfSpans
 		require.NoError(t, gogojsonpb.Unmarshal(bytes.NewReader(data), &spans))
 		out, err := gogoproto.Marshal(&spans)
 		require.NoError(t, err)

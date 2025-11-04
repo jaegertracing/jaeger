@@ -5,7 +5,6 @@ package badger
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -44,18 +43,13 @@ func TestNewFac(t *testing.T) {
 }
 
 func TestBadgerStorageFactoryWithConfig(t *testing.T) {
+	t.Parallel()
 	cfg := badger.Config{}
 	_, err := NewFactory(cfg, metrics.NullFactory, zaptest.NewLogger(t))
 	require.ErrorContains(t, err, "Error Creating Dir: \"\" err: mkdir : no such file or directory")
 
-	tmp := os.TempDir()
-	defer os.Remove(tmp)
 	cfg = badger.Config{
-		Directories: badger.Directories{
-			Keys:   tmp,
-			Values: tmp,
-		},
-		Ephemeral:             false,
+		Ephemeral:             true,
 		MaintenanceInterval:   5,
 		MetricsUpdateInterval: 10,
 	}

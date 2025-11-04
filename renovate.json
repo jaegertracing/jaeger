@@ -55,6 +55,9 @@
         "go.opentelemetry.io/otel/**",
         "go.opentelemetry.io/contrib/**",
         "github.com/open-telemetry/opentelemetry-go-contrib/**"
+      ],
+      "schedule": [
+        "on friday"
       ]
     },
     {
@@ -64,6 +67,9 @@
       ],
       "matchPackageNames": [
         "go.opentelemetry.io/collector{/,}**"
+      ],
+      "schedule": [
+        "on friday"
       ]
     },
     {
@@ -73,6 +79,9 @@
       ],
       "matchPackageNames": [
         "github.com/open-telemetry/opentelemetry-collector-contrib{/,}**"
+      ],
+      "schedule": [
+        "on friday"
       ]
     },
     {

@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
-	casConfig "github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
+	casconfig "github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	cassandrav1 "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/cassandra"
@@ -47,14 +47,14 @@ func (s *CassandraStorageIntegration) cleanUp(t *testing.T) {
 func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 	username := os.Getenv("CASSANDRA_USERNAME")
 	password := os.Getenv("CASSANDRA_PASSWORD")
-	cfg := casConfig.Configuration{
-		Schema: casConfig.Schema{
+	cfg := casconfig.Configuration{
+		Schema: casconfig.Schema{
 			Keyspace: "jaeger_v1_dc1",
 		},
-		Connection: casConfig.Connection{
+		Connection: casconfig.Connection{
 			Servers: []string{"127.0.0.1"},
-			Authenticator: casConfig.Authenticator{
-				Basic: casConfig.BasicAuthenticator{
+			Authenticator: casconfig.Authenticator{
+				Basic: casconfig.BasicAuthenticator{
 					Username:              username,
 					Password:              password,
 					AllowedAuthenticators: []string{"org.apache.cassandra.auth.PasswordAuthenticator"},
@@ -65,7 +65,7 @@ func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 			},
 		},
 	}
-	defCfg := casConfig.DefaultConfiguration()
+	defCfg := casconfig.DefaultConfiguration()
 	cfg.ApplyDefaults(&defCfg)
 	opts := cassandrav1.Options{
 		NamespaceConfig: cassandrav1.NamespaceConfig{Configuration: cfg},

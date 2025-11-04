@@ -103,6 +103,9 @@ linters:
           arguments:
             - 80
           disabled: true
+        # this should be enabled after fixing or disabling in a few packages
+        - name: package-directory-mismatch
+          disabled: true
         # would be ok if we could exclude the test files, but otherwise too noisy
         - name: add-constant
           disabled: true
@@ -137,13 +140,7 @@ linters:
         - name: argument-limit
           disabled: true
         # maybe enable, needs invesitgation of the impact
-        - name: import-alias-naming
-          disabled: true
-        # maybe enable, needs invesitgation of the impact
         - name: get-return
-          disabled: true
-        # investigate, could be real bugs. But didn't recent Go version changed loop variables semantics?
-        - name: range-val-address
           disabled: true
         # this is idiocy, promotes less readable code. Don't enable.
         - name: var-declaration

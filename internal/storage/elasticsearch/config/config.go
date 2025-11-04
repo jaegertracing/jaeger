@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/asaskevich/govalidator"
-	esV8 "github.com/elastic/go-elasticsearch/v9"
+	esv8 "github.com/elastic/go-elasticsearch/v9"
 	"github.com/olivere/elastic/v7"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
@@ -111,6 +111,10 @@ type Configuration struct {
 	// HTTPCompression can be set to false to disable gzip compression for requests to ElasticSearch
 	HTTPCompression bool `mapstructure:"http_compression"`
 
+	// CustomHeaders contains custom HTTP headers to be sent with every request to Elasticsearch.
+	// This is useful for scenarios like AWS SigV4 proxy authentication where specific headers
+	// (like Host) need to be set for proper request signing.
+	CustomHeaders map[string]string `mapstructure:"custom_headers"`
 	// ---- elasticsearch client related configs ----
 	BulkProcessing BulkProcessing `mapstructure:"bulk_processing"`
 	// Version contains the major Elasticsearch version. If this field is not specified,
@@ -250,26 +254,25 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 		logger: logger,
 	}
 
-	bulkProc, err := rawClient.BulkProcessor().
-		Before(func(id int64, _ /* requests */ []elastic.BulkableRequest) {
-			bcb.startTimes.Store(id, time.Now())
-		}).
-		After(bcb.invoke).
-		BulkSize(c.BulkProcessing.MaxBytes).
-		Workers(c.BulkProcessing.Workers).
-		BulkActions(c.BulkProcessing.MaxActions).
-		FlushInterval(c.BulkProcessing.FlushInterval).
-		Do(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	if c.Version == 0 {
 		// Determine ElasticSearch Version
-		pingResult, _, err := rawClient.Ping(c.Servers[0]).Do(ctx)
+		pingResult, pingStatus, err := rawClient.Ping(c.Servers[0]).Do(ctx)
 		if err != nil {
 			return nil, err
 		}
+
+		// Non-2xx responses aren't reported as errors by the ping code (7.0.32 version of
+		// the elastic client).
+		if pingStatus < 200 || pingStatus >= 300 {
+			return nil, fmt.Errorf("ElasticSearch server %s returned HTTP %d, expected 2xx", c.Servers[0], pingStatus)
+		}
+
+		// The deserialization in the ping implementation may succeed even if the response
+		// contains no relevant properties and we may get empty values in that case.
+		if pingResult.Version.Number == "" {
+			return nil, fmt.Errorf("ElasticSearch server %s returned invalid ping response", c.Servers[0])
+		}
+
 		esVersion, err := strconv.Atoi(string(pingResult.Version.Number[0]))
 		if err != nil {
 			return nil, err
@@ -294,12 +297,26 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 		c.Version = uint(esVersion)
 	}
 
-	var rawClientV8 *esV8.Client
+	var rawClientV8 *esv8.Client
 	if c.Version >= 8 {
 		rawClientV8, err = newElasticsearchV8(ctx, c, logger)
 		if err != nil {
 			return nil, fmt.Errorf("error creating v8 client: %w", err)
 		}
+	}
+
+	bulkProc, err := rawClient.BulkProcessor().
+		Before(func(id int64, _ /* requests */ []elastic.BulkableRequest) {
+			bcb.startTimes.Store(id, time.Now())
+		}).
+		After(bcb.invoke).
+		BulkSize(c.BulkProcessing.MaxBytes).
+		Workers(c.BulkProcessing.Workers).
+		BulkActions(c.BulkProcessing.MaxActions).
+		FlushInterval(c.BulkProcessing.FlushInterval).
+		Do(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	return eswrapper.WrapESClient(rawClient, bulkProc, c.Version, rawClientV8), nil
@@ -351,8 +368,8 @@ func (bcb *bulkCallback) invoke(id int64, requests []elastic.BulkableRequest, re
 	}
 }
 
-func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logger) (*esV8.Client, error) {
-	var options esV8.Config
+func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logger) (*esv8.Client, error) {
+	var options esv8.Config
 	options.Addresses = c.Servers
 	if c.Authentication.BasicAuthentication.HasValue() {
 		basicAuth := c.Authentication.BasicAuthentication.Get()
@@ -361,12 +378,21 @@ func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logge
 	}
 	options.DiscoverNodesOnStart = c.Sniffing.Enabled
 	options.CompressRequestBody = c.HTTPCompression
+
+	if len(c.CustomHeaders) > 0 {
+		headers := make(http.Header)
+		for key, value := range c.CustomHeaders {
+			headers.Set(key, value)
+		}
+		options.Header = headers
+	}
+
 	transport, err := GetHTTPRoundTripper(ctx, c, logger)
 	if err != nil {
 		return nil, err
 	}
 	options.Transport = transport
-	return esV8.NewClient(options)
+	return esv8.NewClient(options)
 }
 
 func setDefaultIndexOptions(target, source *IndexOptions) {
@@ -479,6 +505,12 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	}
 	if !c.HTTPCompression {
 		c.HTTPCompression = source.HTTPCompression
+	}
+	if c.CustomHeaders == nil && len(source.CustomHeaders) > 0 {
+		c.CustomHeaders = make(map[string]string)
+		for k, v := range source.CustomHeaders {
+			c.CustomHeaders[k] = v
+		}
 	}
 }
 

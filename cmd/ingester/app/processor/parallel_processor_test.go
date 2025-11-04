@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
-	mockProcessor "github.com/jaegertracing/jaeger/cmd/ingester/app/processor/mocks"
+	mockprocessor "github.com/jaegertracing/jaeger/cmd/ingester/app/processor/mocks"
 )
 
 type fakeMessage struct{}
@@ -21,7 +21,7 @@ func (fakeMessage) Value() []byte {
 
 func TestNewParallelProcessor(t *testing.T) {
 	msg := &fakeMessage{}
-	mp := &mockProcessor.SpanProcessor{}
+	mp := &mockprocessor.SpanProcessor{}
 	mp.On("Process", msg).Return(nil)
 
 	pp := processor.NewParallelProcessor(mp, 1, zap.NewNop())

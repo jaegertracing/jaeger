@@ -18,8 +18,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
-	esDepStorev1 "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/dependencystore"
-	esSpanStore "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
+	esdepstorev1 "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/dependencystore"
+	esspanstore "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 )
 
 var ( // interface comformance checks
@@ -87,20 +87,20 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 	params := f.coreFactory.GetSpanReaderParams()
-	sr := esSpanStore.NewSpanReaderV1(params)
+	sr := esspanstore.NewSpanReaderV1(params)
 	return spanstoremetrics.NewReaderDecorator(sr, f.metricsFactory), nil
 }
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	params := f.coreFactory.GetSpanWriterParams()
-	wr := esSpanStore.NewSpanWriterV1(params)
+	wr := esspanstore.NewSpanWriterV1(params)
 	return wr, nil
 }
 
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	params := f.coreFactory.GetDependencyStoreParams()
-	return esDepStorev1.NewDependencyStoreV1(params), nil
+	return esdepstorev1.NewDependencyStoreV1(params), nil
 }
 
 func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {

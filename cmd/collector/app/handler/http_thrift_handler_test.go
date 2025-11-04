@@ -19,7 +19,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	jaegerClient "github.com/uber/jaeger-client-go"
+	jaegerclient "github.com/uber/jaeger-client-go"
 	"github.com/uber/jaeger-client-go/transport"
 
 	"github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
@@ -98,10 +98,10 @@ func TestViaClient(t *testing.T) {
 		transport.HTTPBatchSize(1),
 	)
 
-	tracer, closer := jaegerClient.NewTracer(
+	tracer, closer := jaegerclient.NewTracer(
 		"test",
-		jaegerClient.NewConstSampler(true),
-		jaegerClient.NewRemoteReporter(sender),
+		jaegerclient.NewConstSampler(true),
+		jaegerclient.NewRemoteReporter(sender),
 	)
 	defer closer.Close()
 
