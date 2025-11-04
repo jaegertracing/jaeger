@@ -369,7 +369,6 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 			trace, ok := allTraceFixtures[traceFixture]
 			if !ok {
 				trace = s.getTraceFixture(t, traceFixture)
-				trace = s.getTraceFixture(t, traceFixture)
 				otelTraces := v1adapter.V1TraceToOtelTrace(trace)
 				s.writeTrace(t, otelTraces)
 
@@ -425,12 +424,11 @@ func (s *StorageIntegration) writeTrace(t *testing.T, traces ptrace.Traces) {
 }
 
 func (s *StorageIntegration) loadParseAndWriteExampleTrace(t *testing.T) *model.Trace {
-    trace := s.getTraceFixture(t, "example_trace")  
-    otelTraces := v1adapter.V1TraceToOtelTrace(trace)  
-    s.writeTrace(t, otelTraces)  
-    return trace  
+	trace := s.getTraceFixture(t, "example_trace")
+	otelTraces := v1adapter.V1TraceToOtelTrace(trace)
+	s.writeTrace(t, otelTraces)
+	return trace
 }
-
 
 func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
 	t *testing.T,
@@ -456,22 +454,6 @@ func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
 	otelTraces := v1adapter.V1TraceToOtelTrace(trace)
 	s.writeTrace(t, otelTraces)
 	return trace
-}
-
-func (*StorageIntegration) getTraceFixtureOTLP(t *testing.T, fixture string) ptrace.Traces {
-	fileName := fmt.Sprintf("fixtures/traces/%s.json", fixture)
-	return getTraceFixtureExactOTLP(t, fileName)
-}
-
-func getTraceFixtureExactOTLP(t *testing.T, fileName string) ptrace.Traces {
-	unmarshaler := &ptrace.JSONUnmarshaler{}
-	inStr, err := fixtures.ReadFile(fileName)
-	require.NoError(t, err, "Failed to read fixture file: %s", fileName)
-
-	traces, err := unmarshaler.UnmarshalTraces(correctTime(inStr))
-	require.NoError(t, err, "Failed to unmarshal OTLP traces from %s", fileName)
-
-	return traces
 }
 
 func (*StorageIntegration) getTraceFixture(t *testing.T, fixture string) *model.Trace {
