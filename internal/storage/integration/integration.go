@@ -425,12 +425,12 @@ func (s *StorageIntegration) writeTrace(t *testing.T, traces ptrace.Traces) {
 }
 
 func (s *StorageIntegration) loadParseAndWriteExampleTrace(t *testing.T) *model.Trace {
-	traces := s.getTraceFixtureOTLP(t, "example_trace")
-	s.writeTrace(t, traces)
-	// Convert back to v1 for backward compatibility with tests that still need it
-	v1Trace := v1adapter.V1TraceFromOtelTrace(traces)
-	return v1Trace
+    trace := s.getTraceFixture(t, "example_trace")  
+    otelTraces := v1adapter.V1TraceToOtelTrace(trace)  
+    s.writeTrace(t, otelTraces)  
+    return trace  
 }
+
 
 func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
 	t *testing.T,
