@@ -1,0 +1,44 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {"stringValue": "resource-test-service"}
+          },
+          {
+            "key": "host.name",
+            "value": {"stringValue": "test-host-01"}
+          },
+          {
+            "key": "k8s.pod.name",
+            "value": {"stringValue": "test-pod-123"}
+          },
+          {
+            "key": "k8s.namespace.name",
+            "value": {"stringValue": "production"}
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "resource-test",
+            "version": "1.0.0"
+          },
+          "spans": [
+            {
+              "traceId": "00000000000000000000000000000030",
+              "spanId": "0000000000000020",
+              "name": "resource-attributes-operation",
+              "startTimeUnixNano": "1485445591639875000",
+              "endTimeUnixNano": "1485445591739875000",
+              "attributes": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
