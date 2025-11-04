@@ -1736,7 +1736,7 @@ func TestNewClientWithCustomHeaders(t *testing.T) {
 	logger := zap.NewNop()
 	metricsFactory := metrics.NullFactory
 
-	client, err := NewClient(context.Background(), &config, logger, metricsFactory)
+	client, err := NewClient(context.Background(), &config, logger, metricsFactory, nil)
 	require.NoError(t, err)
 	require.NotNil(t, client)
 

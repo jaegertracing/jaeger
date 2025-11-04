@@ -391,7 +391,6 @@ func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logge
 	}
 
 	transport, err := GetHTTPRoundTripper(ctx, c, logger, httpAuth)
-
 	if err != nil {
 		return nil, err
 	}
