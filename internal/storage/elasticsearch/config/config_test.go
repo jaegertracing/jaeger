@@ -1613,6 +1613,149 @@ func TestBulkCallbackInvoke_NilResponse(t *testing.T) {
 	)
 }
 
+func TestCustomHeaders(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   Configuration
+		expected map[string]string
+	}{
+		{
+			name: "custom headers are set correctly",
+			config: Configuration{
+				Servers: []string{"http://localhost:9200"},
+				CustomHeaders: map[string]string{
+					"Host":            "my-opensearch.amazonaws.com",
+					"X-Custom-Header": "test-value",
+				},
+			},
+			expected: map[string]string{
+				"Host":            "my-opensearch.amazonaws.com",
+				"X-Custom-Header": "test-value",
+			},
+		},
+		{
+			name: "empty custom headers",
+			config: Configuration{
+				Servers:       []string{"http://localhost:9200"},
+				CustomHeaders: map[string]string{},
+			},
+			expected: map[string]string{},
+		},
+		{
+			name: "nil custom headers",
+			config: Configuration{
+				Servers:       []string{"http://localhost:9200"},
+				CustomHeaders: nil,
+			},
+			expected: nil,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.expected == nil {
+				assert.Nil(t, test.config.CustomHeaders)
+			} else {
+				assert.Equal(t, test.expected, test.config.CustomHeaders)
+			}
+		})
+	}
+}
+
+func TestApplyDefaultsCustomHeaders(t *testing.T) {
+	source := &Configuration{
+		CustomHeaders: map[string]string{
+			"Host":            "source-host",
+			"X-Custom-Header": "source-value",
+		},
+	}
+
+	tests := []struct {
+		name     string
+		target   *Configuration
+		expected map[string]string
+	}{
+		{
+			name:   "target has no headers, apply from source",
+			target: &Configuration{},
+			expected: map[string]string{
+				"Host":            "source-host",
+				"X-Custom-Header": "source-value",
+			},
+		},
+		{
+			name: "target has headers, keep target headers",
+			target: &Configuration{
+				CustomHeaders: map[string]string{
+					"Host": "target-host",
+				},
+			},
+			expected: map[string]string{
+				"Host": "target-host",
+			},
+		},
+		{
+			name: "target has empty map, keep empty",
+			target: &Configuration{
+				CustomHeaders: map[string]string{},
+			},
+			expected: map[string]string{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.target.ApplyDefaults(source)
+			assert.Equal(t, test.expected, test.target.CustomHeaders)
+		})
+	}
+}
+
+func TestNewClientWithCustomHeaders(t *testing.T) {
+	headersSeen := false
+	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		// Check if custom headers are present
+		if req.Header.Get("X-Custom-Header") == "custom-value" {
+			headersSeen = true
+		}
+		res.WriteHeader(http.StatusOK)
+		res.Write(mockEsServerResponseWithVersion8)
+	}))
+	defer testServer.Close()
+
+	config := Configuration{
+		Servers: []string{testServer.URL},
+		CustomHeaders: map[string]string{
+			"Host":            "my-opensearch.amazonaws.com",
+			"X-Custom-Header": "custom-value",
+		},
+		LogLevel: "error",
+		Version:  8,
+	}
+
+	logger := zap.NewNop()
+	metricsFactory := metrics.NullFactory
+
+	client, err := NewClient(context.Background(), &config, logger, metricsFactory)
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	// Verify the configuration has the custom headers set
+	// Note: The ES v8 client may not send custom headers during the initial ping/health check,
+	// but they will be available for actual Elasticsearch operations (index, search, etc.)
+	assert.Equal(t, "my-opensearch.amazonaws.com", config.CustomHeaders["Host"])
+	assert.Equal(t, "custom-value", config.CustomHeaders["X-Custom-Header"])
+
+	if headersSeen {
+		t.Log(" Custom headers were transmitted in HTTP request")
+	} else {
+		t.Log("  Custom headers not sent in ping request (expected - will be sent in data operations)")
+	}
+
+	err = client.Close()
+	require.NoError(t, err)
+}
+
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
 }

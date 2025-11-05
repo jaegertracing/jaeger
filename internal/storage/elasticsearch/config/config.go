@@ -111,6 +111,10 @@ type Configuration struct {
 	// HTTPCompression can be set to false to disable gzip compression for requests to ElasticSearch
 	HTTPCompression bool `mapstructure:"http_compression"`
 
+	// CustomHeaders contains custom HTTP headers to be sent with every request to Elasticsearch.
+	// This is useful for scenarios like AWS SigV4 proxy authentication where specific headers
+	// (like Host) need to be set for proper request signing.
+	CustomHeaders map[string]string `mapstructure:"custom_headers"`
 	// ---- elasticsearch client related configs ----
 	BulkProcessing BulkProcessing `mapstructure:"bulk_processing"`
 	// Version contains the major Elasticsearch version. If this field is not specified,
@@ -374,6 +378,15 @@ func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logge
 	}
 	options.DiscoverNodesOnStart = c.Sniffing.Enabled
 	options.CompressRequestBody = c.HTTPCompression
+
+	if len(c.CustomHeaders) > 0 {
+		headers := make(http.Header)
+		for key, value := range c.CustomHeaders {
+			headers.Set(key, value)
+		}
+		options.Header = headers
+	}
+
 	transport, err := GetHTTPRoundTripper(ctx, c, logger)
 	if err != nil {
 		return nil, err
@@ -492,6 +505,12 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	}
 	if !c.HTTPCompression {
 		c.HTTPCompression = source.HTTPCompression
+	}
+	if c.CustomHeaders == nil && len(source.CustomHeaders) > 0 {
+		c.CustomHeaders = make(map[string]string)
+		for k, v := range source.CustomHeaders {
+			c.CustomHeaders[k] = v
+		}
 	}
 }
 
