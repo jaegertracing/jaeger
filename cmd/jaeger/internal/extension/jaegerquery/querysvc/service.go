@@ -197,6 +197,12 @@ func (qs QueryService) GetCapabilities() StorageCapabilities {
 	}
 }
 
+// GetDependencyReader returns the dependency store reader
+func (qs QueryService) GetDependencyReader() depstore.Reader {
+	return qs.dependencyReader
+}
+
+
 func (opts *QueryServiceOptions) hasArchiveStorage() bool {
 	return opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil
 }
