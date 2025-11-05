@@ -9,16 +9,22 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 )
 
-// SpanRow represents a single row in the ClickHouse `spans` table.
+// SpanRow represents a single record in the ClickHouse `spans` table.
 //
-// Complex attributes are attributes that are not of a primitive type and hence need special handling.
-// The following OTLP types are stored in the complex attributes fields:
-//   - AnyValue_BytesValue: This OTLP type is stored as a base64-encoded string. The key
-//     for this type will begin with `@bytes@`.
-//   - AnyValue_ArrayValue: This OTLP type is stored as a JSON-encoded string.
-//     The key for this type will begin with `@array@`.
-//   - AnyValue_KVListValue: This OTLP type is stored as a JSON-encoded string.
-//     The key for this type will begin with `@kvlist@`.
+// Complex attributes are non-primitive OTLP types that require special serialization
+// before being stored. These types are encoded as follows:
+//
+//   - pcommon.ValueTypeBytes:
+//     Represents raw byte data. The value is Base64-encoded and stored as a string.
+//     Keys for this type are prefixed with `@bytes@`.
+//
+//   - pcommon.ValueTypeSlice:
+//     Represents an OTLP slice (array). The value is serialized to JSON and stored
+//     as a string. Keys for this type are prefixed with `@slice@`.
+//
+//   - pcommon.ValueTypeMap:
+//     Represents an OTLP map. The value is serialized to JSON and stored
+//     as a string. Keys for this type are prefixed with `@map@`.
 type SpanRow struct {
 	// --- Span ---
 	ID              string

@@ -18,7 +18,7 @@ func TestToRow(t *testing.T) {
 	sc := createTestScope()
 	span := createTestSpan(now, duration)
 
-	expected := createTestSpanRow(now, duration)
+	expected := createTestSpanRow(t, now, duration)
 
 	row := ToRow(rs, sc, span)
 	require.Equal(t, expected, row)

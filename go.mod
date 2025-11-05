@@ -106,7 +106,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.38.0
 	go.opentelemetry.io/otel/sdk/metric v1.38.0
 	go.opentelemetry.io/otel/trace v1.38.0
-	go.opentelemetry.io/proto/otlp v1.8.0
+	go.opentelemetry.io/proto/otlp v1.9.0
 	go.uber.org/automaxprocs v1.6.0
 	go.uber.org/goleak v1.3.0
 	go.uber.org/zap v1.27.0
@@ -316,7 +316,7 @@ require (
 	go.opentelemetry.io/collector/internal/telemetry v0.138.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.138.0 // indirect
 	go.opentelemetry.io/collector/pdata/testdata v0.138.0 // indirect
-	go.opentelemetry.io/collector/pdata/xpdata v0.138.0 // indirect
+	go.opentelemetry.io/collector/pdata/xpdata v0.138.0
 	go.opentelemetry.io/collector/pipeline/xpipeline v0.138.0 // indirect
 	go.opentelemetry.io/collector/processor/processorhelper/xprocessorhelper v0.138.0 // indirect
 	go.opentelemetry.io/collector/processor/xprocessor v0.138.0 // indirect
@@ -351,3 +351,5 @@ require (
 )
 
 replace github.com/Shopify/sarama => github.com/Shopify/sarama v1.33.0
+
+replace github.com/jaegertracing/jaeger-idl => ./idl
