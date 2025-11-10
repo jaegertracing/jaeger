@@ -191,12 +191,14 @@ func stringSliceAsHeader(slice []string) (http.Header, error) {
 	return http.Header(header), nil
 }
 
-func mapHTTPHeaderToOTELHeaders(h http.Header) map[string]configopaque.String {
-	otelHeaders := make(map[string]configopaque.String)
+func mapHTTPHeaderToOTELHeaders(h http.Header) configopaque.MapList {
+	var otelHeaders configopaque.MapList
 	for key, values := range h {
-		otelHeaders[key] = configopaque.String(strings.Join(values, ","))
+		otelHeaders = append(otelHeaders, configopaque.Pair{
+			Name:  key,
+			Value: configopaque.String(strings.Join(values, ",")),
+		})
 	}
-
 	return otelHeaders
 }
 
