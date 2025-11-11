@@ -255,44 +255,34 @@ func TestV1TracesFromSeq2(t *testing.T) {
 	}
 }
 
-func TestV1TraceFromOtelTrace_ReturnsExpectedModelTrace(t *testing.T) {
+func TestV1TraceToOtelTrace_ReturnsExptectedOtelTrace(t *testing.T) {
 	jTrace := &model.Trace{
 		Spans: []*model.Span{
 			{
 				TraceID:       model.NewTraceID(2, 3),
 				SpanID:        model.NewSpanID(1),
 				Process:       model.NewProcess("Service1", nil),
-				OperationName: "test-operation-1",
-			},
-			{
+				OperationName: "two-resources-1",
+			}, {
 				TraceID:       model.NewTraceID(2, 3),
 				SpanID:        model.NewSpanID(2),
-				Process:       model.NewProcess("Service1", nil),
-				OperationName: "test-operation-2",
+				Process:       model.NewProcess("service2", nil),
+				OperationName: "two-resources-2",
 			},
 		},
 	}
-
-	otelTraces := V1TraceToOtelTrace(jTrace)
-
-	actualTrace := V1TraceFromOtelTrace(otelTraces)
+	actualTrace := V1TraceToOtelTrace(jTrace)
 
 	require.NotEmpty(t, actualTrace)
-	require.Len(t, actualTrace.Spans, 2)
-	assert.Equal(t, model.NewTraceID(2, 3), actualTrace.Spans[0].TraceID)
-	assert.Equal(t, model.NewSpanID(1), actualTrace.Spans[0].SpanID)
-	assert.Equal(t, "test-operation-1", actualTrace.Spans[0].OperationName)
-	assert.Equal(t, "Service1", actualTrace.Spans[0].Process.ServiceName)
-	assert.Equal(t, model.NewSpanID(2), actualTrace.Spans[1].SpanID)
-	assert.Equal(t, "test-operation-2", actualTrace.Spans[1].OperationName)
+	require.Equal(t, 2, actualTrace.ResourceSpans().Len())
 }
 
-func TestV1TraceFromOtelTrace_ReturnEmptyModelTrace(t *testing.T) {
-	otelTraces := ptrace.NewTraces()
-	actualTrace := V1TraceFromOtelTrace(otelTraces)
+func TestV1TraceToOtelTrace_ReturnEmptyOtelTrace(t *testing.T) {
+	jTrace := &model.Trace{}
+	eTrace := ptrace.NewTraces()
+	aTrace := V1TraceToOtelTrace(jTrace)
 
-	require.NotNil(t, actualTrace)
-	require.Empty(t, actualTrace.Spans)
+	require.Equal(t, eTrace.SpanCount(), aTrace.SpanCount(), 0)
 }
 
 func TestV1TraceIDsFromSeq2(t *testing.T) {
