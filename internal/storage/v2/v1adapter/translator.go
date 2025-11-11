@@ -90,11 +90,6 @@ func V1TraceToOtelTrace(jTrace *model.Trace) ptrace.Traces {
 	return V1BatchesToTraces(batches)
 }
 
-// V1TraceFromOtelTrace converts a single OTLP trace to v1 model.Trace
-func V1TraceFromOtelTrace(otelTrace ptrace.Traces) *model.Trace {
-	return modelTraceFromOtelTrace(otelTrace)
-}
-
 func createBatchesFromModelTrace(jTrace *model.Trace) []*model.Batch {
 	spans := jTrace.Spans
 
