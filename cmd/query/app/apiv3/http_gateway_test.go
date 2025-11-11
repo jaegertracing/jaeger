@@ -231,7 +231,6 @@ func TestHTTPGatewayFindTracesWithAttributes(t *testing.T) {
 	gw.reader.AssertExpectations(t)
 }
 
-
 func TestHTTPGatewayGetTraceMalformedInputErrors(t *testing.T) {
 	testCases := []struct {
 		name          string
@@ -259,7 +258,6 @@ func TestHTTPGatewayGetTraceMalformedInputErrors(t *testing.T) {
 			expectedError: "malformed parameter raw_traces",
 		},
 	}
-
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			gw := setupHTTPGatewayNoServer(t, "")

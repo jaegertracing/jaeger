@@ -209,32 +209,36 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 	h.returnTraces(traces, err, w)
 }
 
+func (h *HTTPGateway) parseAttributes(attrStr string, w http.ResponseWriter) (pcommon.Map, bool) {
+	attributes := pcommon.NewMap()
+	if attrStr == "" {
+		return attributes, false
+	}
+
+	var attrMap map[string]string
+	if err := json.Unmarshal([]byte(attrStr), &attrMap); err != nil {
+		err := fmt.Errorf("cannot parse attributes JSON: %w", err)
+		h.tryHandleError(w, err, http.StatusBadRequest)
+		return attributes, true
+	}
+
+	for k, v := range attrMap {
+		attributes.PutStr(k, v)
+	}
+	return attributes, false
+}
+
 func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) (*querysvc.TraceQueryParams, bool) {
-	// Parse attributes first
-	attributes := pcommon.NewMap() // Initialize empty map
-	attrStr := q.Get(paramAttributes)
-	if attrStr != "" {
-		var attrMap map[string]string
-		// The attributes are expected to be a JSON string map, e.g., {"key":"value"}
-		// This handles URL-encoded JSON like %7B%22driver%22%3A%22T751767C%22%7D
-		if err := json.Unmarshal([]byte(attrStr), &attrMap); err != nil {
-			// Pass the underlying JSON parsing error
-			err := fmt.Errorf("cannot parse attributes JSON: %w", err)
-			if h.tryParamError(w, err, paramAttributes) {
-				return nil, true
-			}
-		}
-		// Populate the pcommon.Map from the parsed map
-		for k, v := range attrMap {
-			attributes.PutStr(k, v)
-		}
+	attributes, failed := h.parseAttributes(q.Get(paramAttributes), w)
+	if failed {
+		return nil, true
 	}
 
 	queryParams := &querysvc.TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
 			ServiceName:   q.Get(paramServiceName),
 			OperationName: q.Get(paramOperationName),
-			Attributes:    attributes, 
+			Attributes:    attributes,
 		},
 	}
 
