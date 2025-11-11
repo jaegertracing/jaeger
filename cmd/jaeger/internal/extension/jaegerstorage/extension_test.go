@@ -446,40 +446,40 @@ func TestMetricStorageStartError(t *testing.T) {
 	}
 }
 
-func TestXYZsearch(t *testing.T) {
+func TestElasticsearch(t *testing.T) {
 	server := setupMockServer(t, getVersionResponse(t), http.StatusOK)
-	t.Run("Elasticsearch", func(t *testing.T) {
-		ext := makeStorageExtension(t, &Config{
-			TraceBackends: map[string]TraceBackend{
-				"foo": {
-					Elasticsearch: &escfg.Configuration{
-						Servers:  []string{server.URL},
-						LogLevel: "error",
-					},
+	ext := makeStorageExtension(t, &Config{
+		TraceBackends: map[string]TraceBackend{
+			"foo": {
+				Elasticsearch: &escfg.Configuration{
+					Servers:  []string{server.URL},
+					LogLevel: "error",
 				},
 			},
-		})
-		ctx := t.Context()
-		err := ext.Start(ctx, componenttest.NewNopHost())
-		require.NoError(t, err)
-		require.NoError(t, ext.Shutdown(ctx))
+		},
 	})
-	t.Run("OpenSearch", func(t *testing.T) {
-		ext := makeStorageExtension(t, &Config{
-			TraceBackends: map[string]TraceBackend{
-				"foo": {
-					Opensearch: &escfg.Configuration{
-						Servers:  []string{server.URL},
-						LogLevel: "error",
-					},
+	ctx := t.Context()
+	err := ext.Start(ctx, componenttest.NewNopHost())
+	require.NoError(t, err)
+	require.NoError(t, ext.Shutdown(ctx))
+}
+
+func TestOpenSearch(t *testing.T) {
+	server := setupMockServer(t, getVersionResponse(t), http.StatusOK)
+	ext := makeStorageExtension(t, &Config{
+		TraceBackends: map[string]TraceBackend{
+			"foo": {
+				Opensearch: &escfg.Configuration{
+					Servers:  []string{server.URL},
+					LogLevel: "error",
 				},
 			},
-		})
-		ctx := t.Context()
-		err := ext.Start(ctx, componenttest.NewNopHost())
-		require.NoError(t, err)
-		require.NoError(t, ext.Shutdown(ctx))
+		},
 	})
+	ctx := t.Context()
+	err := ext.Start(ctx, componenttest.NewNopHost())
+	require.NoError(t, err)
+	require.NoError(t, ext.Shutdown(ctx))
 }
 
 func TestCassandraError(t *testing.T) {
@@ -747,22 +747,23 @@ func (*mockNonHTTPExtension) Shutdown(context.Context) error {
 
 // Test resolveAuthenticator helper
 func TestResolveAuthenticator(t *testing.T) {
+	const (
+		backendType = "elasticsearch"
+		backendName = "test"
+	)
+
 	tests := []struct {
 		name        string
 		authCfg     escfg.Authentication
 		setupHost   func() component.Host
-		backendType string
-		backendName string
 		wantErr     bool
 		errContains string
 	}{
 		{
-			name:        "empty authenticator returns nil",
-			authCfg:     escfg.Authentication{},
-			setupHost:   componenttest.NewNopHost,
-			backendType: "elasticsearch",
-			backendName: "test",
-			wantErr:     false,
+			name:      "empty authenticator returns nil",
+			authCfg:   escfg.Authentication{},
+			setupHost: componenttest.NewNopHost,
+			wantErr:   false,
 		},
 		{
 			name: "valid authenticator",
@@ -775,9 +776,7 @@ func TestResolveAuthenticator(t *testing.T) {
 				return storagetest.NewStorageHost().
 					WithExtension(component.MustNewIDWithName("sigv4auth", "sigv4auth"), &mockHTTPAuthenticator{})
 			},
-			backendType: "elasticsearch",
-			backendName: "test",
-			wantErr:     false,
+			wantErr: false,
 		},
 		{
 			name: "authenticator not found",
@@ -787,8 +786,6 @@ func TestResolveAuthenticator(t *testing.T) {
 				},
 			},
 			setupHost:   componenttest.NewNopHost,
-			backendType: "elasticsearch",
-			backendName: "test",
 			wantErr:     true,
 			errContains: "failed to get HTTP authenticator for elasticsearch backend 'test'",
 		},
@@ -799,7 +796,7 @@ func TestResolveAuthenticator(t *testing.T) {
 			ext := &storageExt{telset: noopTelemetrySettings()}
 			host := tt.setupHost()
 
-			auth, err := ext.resolveAuthenticator(host, tt.authCfg, tt.backendType, tt.backendName)
+			auth, err := ext.resolveAuthenticator(host, tt.authCfg, backendType, backendName)
 
 			if tt.wantErr {
 				require.Error(t, err)
