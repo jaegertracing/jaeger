@@ -715,7 +715,7 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 		}
 	}
 
-	// NEW: Apply HTTP authenticator extension if configured (e.g., SigV4)
+	// Apply HTTP authenticator extension if configured (e.g., SigV4)
 	if httpAuth != nil {
 		wrappedRT, err := httpAuth.RoundTripper(roundTripper)
 		if err != nil {
