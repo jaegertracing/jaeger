@@ -1573,7 +1573,6 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 func TestGetHTTPRoundTripperWithHTTPAuthError(t *testing.T) {
 	ctx := context.Background()
 	logger := zap.NewNop()
-
 	// Create a mock httpAuth that will fail on RoundTripper wrapping
 	mockAuth := &mockFailingHTTPAuth{}
 
