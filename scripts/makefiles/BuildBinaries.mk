@@ -70,7 +70,6 @@ _build-a-binary-%:
 
 .PHONY: build-jaeger
 build-jaeger: BIN_NAME = jaeger
-build-jaeger: BUILD_INFO = $(BUILD_INFO_V2)
 build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
 	@ set -euf -o pipefail ; \
 	echo "Checking version of built binary" ; \
@@ -95,18 +94,22 @@ build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-all-in-one
 build-all-in-one: BIN_NAME = all-in-one
+build-all-in-one: BUILD_INFO = $(BUILD_INFO_V1)
 build-all-in-one: build-ui _build-a-binary-all-in-one$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-query
 build-query: BIN_NAME = query
+build-query: BUILD_INFO = $(BUILD_INFO_V1)
 build-query: build-ui _build-a-binary-query$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-collector
 build-collector: BIN_NAME = collector
+build-collector: BUILD_INFO = $(BUILD_INFO_V1)
 build-collector: _build-a-binary-collector$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-ingester
 build-ingester: BIN_NAME = ingester
+build-ingester: BUILD_INFO = $(BUILD_INFO_V1)
 build-ingester: _build-a-binary-ingester$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-remote-storage

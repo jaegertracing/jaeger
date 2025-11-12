@@ -16,5 +16,12 @@ endef
 define buildinfoflags
   -ldflags "-X $(call buildinfo,commitSHA,$(GIT_SHA)) -X $(call buildinfo,latestVersion,$(GIT_CLOSEST_TAG_$(1))) -X $(call buildinfo,date,$(DATE))"
 endef
-BUILD_INFO=$(call buildinfoflags,V1)
+BUILD_INFO_V1=$(call buildinfoflags,V1)
 BUILD_INFO_V2=$(call buildinfoflags,V2)
+
+# Default to V2 unless JAEGER_VERSION=1 is explicitly set
+ifeq ($(JAEGER_VERSION),1)
+BUILD_INFO=$(BUILD_INFO_V1)
+else
+BUILD_INFO=$(BUILD_INFO_V2)
+endif
