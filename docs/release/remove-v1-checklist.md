@@ -56,11 +56,6 @@ Files / targets assigned to this milestone (non-exhaustive — guidance to scan 
   - Default to v2 push/tags.
 - [ ] `scripts/utils/compute-tags.sh`  
   - Ensure default computed tags are v2-first.
-- [ ] `docker-compose/tail-sampling/Makefile`  
-  - Update to use v2 defaults (coordinate with Milestone 2).
-- [ ] `docker-compose/monitor/Makefile`  
-  - Update to use v2 defaults (coordinate with Milestone 2).
-- [ ] Any other small convenience Makefile targets and helper scripts that control build defaults.
 
 Implementation guidance
 - Make minimal edits: flip default variables so v2 is implied, leave an explicit override to v1.
