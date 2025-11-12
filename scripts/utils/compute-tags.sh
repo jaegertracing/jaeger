@@ -4,16 +4,54 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Compute major/minor/etc image tags based on the current branch
+# Milestone 1 change: Default to v2 tags unless VERSION is explicitly set to 1.
+# Support --include-legacy-v1 to append v1 tags after v2 tags.
 
 set -ef -o pipefail
 
-if [[ -z $QUIET ]]; then
+if [[ -z ${QUIET:-} ]]; then
   set -x
 fi
 
 set -u
 
-BASE_BUILD_IMAGE=${1:?'expecting Docker image name as argument, such as jaegertracing/jaeger'}
+# Parse arguments
+VERSION=""
+BASE_BUILD_IMAGE=""
+INCLUDE_LEGACY_V1=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --version)
+      shift
+      VERSION="$1"
+      shift
+      ;;
+    --branch)
+      shift
+      BRANCH="$1"
+      shift
+      ;;
+    --include-legacy-v1)
+      INCLUDE_LEGACY_V1=1
+      shift
+      ;;
+    *)
+      # Positional argument - the image name
+      if [[ -z "${BASE_BUILD_IMAGE}" ]]; then
+        BASE_BUILD_IMAGE="$1"
+      fi
+      shift
+      ;;
+  esac
+done
+
+# Set defaults
+if [[ -z "${VERSION}" ]]; then
+  VERSION="2"
+fi
+
+BASE_BUILD_IMAGE=${BASE_BUILD_IMAGE:?'expecting Docker image name as argument, such as jaegertracing/jaeger'}
 BRANCH=${BRANCH:?'expecting BRANCH env var'}
 GITHUB_SHA=${GITHUB_SHA:-$(git rev-parse HEAD)}
 

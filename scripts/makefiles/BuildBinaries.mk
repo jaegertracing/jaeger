@@ -1,6 +1,24 @@
 # Copyright (c) 2023 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
+# Default to v2 for most developer/CI convenience targets.
+# To override to v1 explicitly, set JAEGER_VERSION=1 on the command line.
+# Exceptions (remain v1 by default): build-all-in-one, build-query, build-collector, build-ingester.
+# Milestone 1 change: v2 is now the default for build targets unless an explicit override
+# or an exception target is requested. This keeps release/publish automation intact while
+# making the developer/CI convenience flows v2-first.
+
+# --- Begin minimal change ---
+# Default to v2 unless caller explicitly sets JAEGER_VERSION
+JAEGER_VERSION ?= 2
+
+# If any of the explicit v1-only convenience targets are being requested,
+# default those to v1 unless the caller explicitly set JAEGER_VERSION.
+ifneq ($(filter $(MAKECMDGOALS),build-all-in-one build-query build-collector build-ingester),)
+  JAEGER_VERSION ?= 1
+endif
+# --- End minimal change ---
+
 # This command expects $GOOS/$GOARCH env variables set to reflect the desired target platform.
 GOBUILD=echo "building binary for $$(go env GOOS)-$$(go env GOARCH)"; \
   CGO_ENABLED=0 installsuffix=cgo $(GO) build -trimpath

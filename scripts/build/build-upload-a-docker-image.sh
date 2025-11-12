@@ -3,10 +3,14 @@
 # Copyright (c) 2024 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
+# Milestone 1 change: Default to v2 for docker image builds.
+# To override to v1 explicitly, use --version 1 flag.
+# This keeps release/publish automation intact while making the developer/CI convenience flows v2-first.
+
 set -euf -o pipefail
 
 print_help() {
-  echo "Usage: $0 [-c] [-D] [-h] [-l] [-o] [-p platforms]"
+  echo "Usage: $0 [-c] [-D] [-h] [-l] [-o] [-p platforms] [--version VERSION] [--dry-run] [--include-legacy-v1]"
   echo "-h: Print help"
   echo "-b: add base_image and debug_image arguments to the build command"
   echo "-c: name of the component to build"
@@ -15,6 +19,9 @@ print_help() {
   echo "-o: overwrite image in the target remote repository even if the semver tag already exists"
   echo "-p: Comma-separated list of platforms to build for (default: all supported)"
   echo "-t: Release target (release|debug) if required by the Dockerfile"
+  echo "--version: Jaeger version (1 or 2, default: 2)"
+  echo "--dry-run: Dry run mode (not implemented yet)"
+  echo "--include-legacy-v1: Include legacy v1 tags in addition to v2 tags"
   exit 1
 }
 
@@ -27,7 +34,36 @@ platforms="linux/amd64"
 namespace="jaegertracing"
 overwrite='N'
 upload_readme='N'
+JAEGER_VERSION=""
+DRY_RUN=0
+INCLUDE_LEGACY_V1=0
 
+# Parse long options first
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --version)
+      shift
+      JAEGER_VERSION="$1"
+      shift
+      ;;
+    --dry-run)
+      DRY_RUN=1
+      shift
+      ;;
+    --include-legacy-v1)
+      INCLUDE_LEGACY_V1=1
+      shift
+      ;;
+    -*)
+      break
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+# Parse short options with getopts
 while getopts "bc:d:f:hlop:t:" opt; do
 	# shellcheck disable=SC2220 # we don't need a *) case
 	case "${opt}" in
@@ -60,6 +96,11 @@ while getopts "bc:d:f:hlop:t:" opt; do
 		;;
 	esac
 done
+
+# Default to v2 if not specified
+if [[ -z "${JAEGER_VERSION}" ]]; then
+  JAEGER_VERSION=2
+fi
 
 set -x
 
@@ -96,7 +137,11 @@ if [[ "${local_test_only}" = "Y" ]]; then
 else
     echo "::group:: compute tags ${component_name}"
     # shellcheck disable=SC2086
-    IFS=" " read -r -a IMAGE_TAGS <<< "$(bash scripts/utils/compute-tags.sh ${namespace}/${component_name})"
+    COMPUTE_TAGS_CMD="bash scripts/utils/compute-tags.sh --version ${JAEGER_VERSION} ${namespace}/${component_name}"
+    if [[ "${INCLUDE_LEGACY_V1}" -eq 1 ]]; then
+      COMPUTE_TAGS_CMD="${COMPUTE_TAGS_CMD} --include-legacy-v1"
+    fi
+    IFS=" " read -r -a IMAGE_TAGS <<< "$(${COMPUTE_TAGS_CMD})"
     echo "::endgroup::"
 
     # Only push multi-arch images to dockerhub/quay.io for main branch or for release tags vM.N.P{-rcX}
