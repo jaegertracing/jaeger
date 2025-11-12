@@ -1,9 +1,28 @@
 # Copyright (c) 2023 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
+# JAEGER_VERSION controls which version of build info is embedded in binaries.
+# Default is v2 (JAEGER_VERSION=2), except for four legacy targets that remain v1:
+#   - build-all-in-one
+#   - build-query
+#   - build-collector
+#   - build-ingester
+# To explicitly build v1 artifacts for other targets, set JAEGER_VERSION=1 when invoking make.
+# Example: JAEGER_VERSION=1 make build-jaeger
+
 # This command expects $GOOS/$GOARCH env variables set to reflect the desired target platform.
 GOBUILD=echo "building binary for $$(go env GOOS)-$$(go env GOARCH)"; \
   CGO_ENABLED=0 installsuffix=cgo $(GO) build -trimpath
+
+# Default JAEGER_VERSION to 2 unless building one of the four exception targets
+# or JAEGER_VERSION is explicitly set by the caller
+ifeq ($(JAEGER_VERSION),)
+  ifeq ($(filter $(MAKECMDGOALS),build-all-in-one build-query build-collector build-ingester),)
+    JAEGER_VERSION := 2
+  else
+    JAEGER_VERSION := 1
+  endif
+endif
 
 ifeq ($(DEBUG_BINARY),)
 	DISABLE_OPTIMIZATIONS =
@@ -43,34 +62,34 @@ build-examples:
 
 .PHONY: build-tracegen
 build-tracegen:
-	$(GOBUILD) $(BUILD_INFO) -o ./cmd/tracegen/tracegen-$(GOOS)-$(GOARCH) ./cmd/tracegen/
+	$(GOBUILD) $(BUILD_INFO_V$(JAEGER_VERSION)) -o ./cmd/tracegen/tracegen-$(GOOS)-$(GOARCH) ./cmd/tracegen/
 
 .PHONY: build-anonymizer
 build-anonymizer:
-	$(GOBUILD) $(BUILD_INFO) -o ./cmd/anonymizer/anonymizer-$(GOOS)-$(GOARCH) ./cmd/anonymizer/
+	$(GOBUILD) $(BUILD_INFO_V$(JAEGER_VERSION)) -o ./cmd/anonymizer/anonymizer-$(GOOS)-$(GOARCH) ./cmd/anonymizer/
 
 .PHONY: build-esmapping-generator
 build-esmapping-generator:
-	$(GOBUILD) $(BUILD_INFO) -o ./cmd/esmapping-generator/esmapping-generator-$(GOOS)-$(GOARCH) ./cmd/esmapping-generator/
+	$(GOBUILD) $(BUILD_INFO_V$(JAEGER_VERSION)) -o ./cmd/esmapping-generator/esmapping-generator-$(GOOS)-$(GOARCH) ./cmd/esmapping-generator/
 
 .PHONY: build-es-index-cleaner
 build-es-index-cleaner:
-	$(GOBUILD) $(BUILD_INFO) -o ./cmd/es-index-cleaner/es-index-cleaner-$(GOOS)-$(GOARCH) ./cmd/es-index-cleaner/
+	$(GOBUILD) $(BUILD_INFO_V$(JAEGER_VERSION)) -o ./cmd/es-index-cleaner/es-index-cleaner-$(GOOS)-$(GOARCH) ./cmd/es-index-cleaner/
 
 .PHONY: build-es-rollover
 build-es-rollover:
-	$(GOBUILD) $(BUILD_INFO) -o ./cmd/es-rollover/es-rollover-$(GOOS)-$(GOARCH) ./cmd/es-rollover/
+	$(GOBUILD) $(BUILD_INFO_V$(JAEGER_VERSION)) -o ./cmd/es-rollover/es-rollover-$(GOOS)-$(GOARCH) ./cmd/es-rollover/
 
-# Requires variables: $(BIN_NAME) $(BIN_PATH) $(GO_TAGS) $(DISABLE_OPTIMIZATIONS) $(SUFFIX) $(GOOS) $(GOARCH) $(BUILD_INFO)
+# Requires variables: $(BIN_NAME) $(BIN_PATH) $(GO_TAGS) $(DISABLE_OPTIMIZATIONS) $(SUFFIX) $(GOOS) $(GOARCH)
 # Other targets can depend on this one but with a unique suffix to ensure it is always executed.
+# BUILD_INFO is selected based on JAEGER_VERSION (v1 or v2).
 BIN_PATH = ./cmd/$(BIN_NAME)
 .PHONY: _build-a-binary
 _build-a-binary-%:
-	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) $(GO_TAGS) -o $(BIN_PATH)/$(BIN_NAME)$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) $(BIN_PATH)
+	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) $(GO_TAGS) -o $(BIN_PATH)/$(BIN_NAME)$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO_V$(JAEGER_VERSION)) $(BIN_PATH)
 
 .PHONY: build-jaeger
 build-jaeger: BIN_NAME = jaeger
-build-jaeger: BUILD_INFO = $(BUILD_INFO_V2)
 build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
 	@ set -euf -o pipefail ; \
 	echo "Checking version of built binary" ; \

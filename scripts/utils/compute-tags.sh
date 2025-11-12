@@ -4,6 +4,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Compute major/minor/etc image tags based on the current branch
+#
+# Default behavior changed: produces v2-first tags unless JAEGER_VERSION=1 is explicitly set.
+# To generate v1-only tags: JAEGER_VERSION=1 ./compute-tags.sh <image-name>
+# To generate v2-first tags (default): ./compute-tags.sh <image-name> or JAEGER_VERSION=2 ...
+#
+# When JAEGER_VERSION=2 (or unset), v2 tags are produced first.
+# When JAEGER_VERSION=1, v1 tags are produced.
 
 set -ef -o pipefail
 
@@ -16,6 +23,7 @@ set -u
 BASE_BUILD_IMAGE=${1:?'expecting Docker image name as argument, such as jaegertracing/jaeger'}
 BRANCH=${BRANCH:?'expecting BRANCH env var'}
 GITHUB_SHA=${GITHUB_SHA:-$(git rev-parse HEAD)}
+JAEGER_VERSION=${JAEGER_VERSION:-2}
 
 # accumulate output in this variable
 IMAGE_TAGS=""
