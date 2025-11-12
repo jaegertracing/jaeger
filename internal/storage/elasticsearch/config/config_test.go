@@ -1646,7 +1646,7 @@ func TestGetHTTPRoundTripperWithHTTPAuthSuccess(t *testing.T) {
 // Mock successful HTTP authenticator
 type mockSuccessfulHTTPAuth struct{}
 
-func (m *mockSuccessfulHTTPAuth) RoundTripper(rt http.RoundTripper) (http.RoundTripper, error) {
+func (*mockSuccessfulHTTPAuth) RoundTripper(rt http.RoundTripper) (http.RoundTripper, error) {
 	return &mockWrappedRoundTripper{base: rt}, nil
 }
 
