@@ -138,12 +138,12 @@ if [[ "${local_test_only}" = "Y" ]]; then
     PUSHTAG="type=image,push=true"
 else
     echo "::group:: compute tags ${component_name}"
-    # shellcheck disable=SC2086
     # Pass JAEGER_VERSION and INCLUDE_LEGACY_V1 to compute-tags.sh via environment
     COMPUTE_TAGS_ARGS="${namespace}/${component_name}"
     if [[ "$INCLUDE_LEGACY_V1" == "1" ]]; then
         COMPUTE_TAGS_ARGS="--include-legacy-v1 ${COMPUTE_TAGS_ARGS}"
     fi
+    # shellcheck disable=SC2086
     IFS=" " read -r -a IMAGE_TAGS <<< "$(VERSION=${JAEGER_VERSION} INCLUDE_LEGACY_V1=${INCLUDE_LEGACY_V1} bash scripts/utils/compute-tags.sh ${COMPUTE_TAGS_ARGS})"
     echo "::endgroup::"
 
