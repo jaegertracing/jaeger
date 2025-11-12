@@ -14,8 +14,8 @@ This environment supports the following backend components, depending on the cho
 - **Common Components**:
 
     - [MicroSim](https://github.com/yurishkuro/microsim): A program to simulate traces.
-    - [Jaeger All-in-one](https://www.jaegertracing.io/docs/1.24/getting-started/#all-in-one): The full Jaeger stack in a single container image.
-    - [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/): A vendor-agnostic integration layer for traces and metrics. For the Prometheus option, it receives Jaeger spans, forwards them to Jaeger All-in-one, and aggregates metrics from span data (see [spanmetrics connector documentation][spanmetricsconnectorreadme]).
+    - [Jaeger](https://www.jaegertracing.io/docs/latest/getting-started/): The full Jaeger stack in a single container image.
+    - [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/): A vendor-agnostic integration layer for traces and metrics. For the Prometheus option, it receives Jaeger spans, forwards them to Jaeger, and aggregates metrics from span data (see [spanmetrics connector documentation][spanmetricsconnectorreadme]).
 
 - **For Prometheus as metrics backend**:
 
@@ -35,13 +35,11 @@ flowchart LR
     MG --> ExpMetrics
     Batch --> ExpTraces
     ExpMetrics -->|metrics| Prometheus[(Prometheus)]
-    ExpTraces -->|traces| Jaeger[Jaeger
-     Collector]
+    ExpTraces -->|traces| Jaeger[Jaeger]
     Prometheus -.-> JaegerUI
     Jaeger --> Storage[(Storage)]
     Storage -.-> JaegerUI[Jaeger
-     Query
-     and UI]
+     UI]
 
     style Prometheus fill:red,color:white
     style Jaeger fill:blue,color:white
@@ -89,11 +87,7 @@ docker compose -f docker-compose-elasticsearch.yml up
 docker compose -f docker-compose-opensearch.yml up
 ```
 
-**Jaeger v1 (Prometheus only)**
 
-```shell
-docker compose -f docker-compose-v1.yml up
-```
 
 **Tips:**
 - Let the application run for a couple of minutes to ensure there is enough time series data to plot in the dashboard.
@@ -110,12 +104,6 @@ To use an official published image of Jaeger, specify the version via environmen
 
 ```shell
 JAEGER_VERSION=2.0.0 docker compose -f docker-compose.yml up
-```
-
-or for Jaeger v1:
-
-```shell
-JAEGER_VERSION=1.62.0 docker compose -f docker-compose-v1.yml up  
 ```
 
 ## Development
@@ -153,7 +141,7 @@ Generate a specific number of traces with:
 docker run --env OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="http://jaeger:4318/v1/traces" \
   --network monitor_backend \
   --rm \
-  jaegertracing/jaeger-tracegen:1.49 \
+  jaegertracing/jaeger-tracegen:latest \
     -trace-exporter otlp-http \
     -traces 1
 ```
@@ -164,7 +152,7 @@ Or, emit traces over a period of time with:
 docker run --env OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="http://jaeger:4318/v1/traces" \
   --network monitor_backend \
   --rm \
-  jaegertracing/jaeger-tracegen:1.49 \
+  jaegertracing/jaeger-tracegen:latest \
     -trace-exporter otlp-http \
     -duration 5s
 ```
