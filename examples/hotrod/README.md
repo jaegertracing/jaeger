@@ -26,7 +26,7 @@ As of Jaeger v1.42.0 this application was upgraded to use the OpenTelemetry SDK 
 * Download `docker-compose.yml` from https://github.com/jaegertracing/jaeger/blob/main/examples/hotrod/docker-compose.yml
 * Optional: find the latest Jaeger version (see https://www.jaegertracing.io/download/) and pass it via environment variable `JAEGER_VERSION`. Otherwise `docker compose` will use the `latest` tag, which is fine for the first time you download the images, but once they are in your local registry the `latest` tag is never updated and you may be running stale (and possibly incompatible) verions of Jaeger and the HotROD app.
 * Run Jaeger backend and HotROD demo, e.g.:
-  * `JAEGER_VERSION=1.52 docker compose -f path-to-yml-file up`
+  * `JAEGER_VERSION=2.0.0 docker compose -f path-to-yml-file up`
 * Access Jaeger UI at http://localhost:16686 and HotROD app at http://localhost:8080
 * Shutdown / cleanup with `docker compose -f path-to-yml-file down`
 
@@ -48,7 +48,7 @@ Access Jaeger UI at http://localhost:16686 and HotROD app at http://localhost:80
 
 ### Run Jaeger backend
 
-An all-in-one Jaeger backend is packaged as a Docker container with in-memory storage.
+Jaeger backend is packaged as a Docker container with in-memory storage.
 
 ```bash
 docker run \
@@ -57,7 +57,7 @@ docker run \
   -p4318:4318 \
   -p16686:16686 \
   -p14268:14268 \
-  jaegertracing/all-in-one:latest
+  jaegertracing/jaeger:latest
 ```
 
 Jaeger UI can be accessed at http://localhost:16686.
