@@ -20,7 +20,7 @@ print_help() {
   echo "-p: Comma-separated list of platforms to build for (default: all supported)"
   echo "-t: Release target (release|debug) if required by the Dockerfile"
   echo "--version: Jaeger version (1 or 2, default: 2)"
-  echo "--dry-run: Dry run mode (not implemented yet)"
+  echo "--dry-run: Dry run mode (parsed but not implemented yet; for future use)"
   echo "--include-legacy-v1: Include legacy v1 tags in addition to v2 tags"
   exit 1
 }
@@ -55,10 +55,12 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     -*)
+      # Unknown option starting with dash - let getopts handle it
       break
       ;;
     *)
-      shift
+      # Not a long option - let getopts handle remaining args
+      break
       ;;
   esac
 done

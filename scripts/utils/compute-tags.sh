@@ -9,7 +9,10 @@
 
 set -ef -o pipefail
 
-if [[ -z ${QUIET:-} ]]; then
+# Set QUIET default before enabling set -u
+QUIET=${QUIET:-}
+
+if [[ -z $QUIET ]]; then
   set -x
 fi
 
