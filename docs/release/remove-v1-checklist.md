@@ -1,483 +1,188 @@
-# Remove v1 Release Logic - Migration Checklist
+# Remove v1 release logic — incremental milestone checklist (updated)
 
-**Related Issue:** [#7497](https://github.com/jaegertracing/jaeger/issues/7497)  
-**Owner/Reviewer:** @yurishkuro  
-**Created:** 2025-11-12
+Owner: @yurishkuro  
+Related: https://github.com/jaegertracing/jaeger/issues/7497  
+Prepared: 2025-11-12
 
-## Purpose and Scope
+## Summary
 
-This checklist provides a comprehensive plan to remove all v1 release logic from the Jaeger repository and transition to v2-only releases. This is a **clean-cut removal** with no feature flags or backwards compatibility maintained in the release infrastructure.
+We will perform a clean, audited migration from dual v1/v2 releases to v2-only releases. The migration is split into small, testable milestones so we do not break the ability to produce v1 artifacts until we intentionally stop publishing them.
 
-### Goals
+This document is an update to the previously merged checklist and reflects the agreed milestone ordering and file allocations:
 
-1. **Simplify Release Process**: Eliminate dual v1/v2 release paths to reduce complexity and maintenance burden
-2. **Reduce Technical Debt**: Remove legacy v1 release infrastructure that is no longer needed
-3. **Streamline CI/CD**: Simplify build and deployment pipelines by removing v1-specific logic
-4. **Update Documentation**: Ensure all docs reflect v2-first approach
-5. **Modernize Defaults**: Update all examples and docker-compose files to use v2 images by default
+- Milestone 0 — Coordination / snapshot (already done)
+- Milestone 1 — REMOVE ALL USAGE of v1 artifacts everywhere that could be invoked by maintainers or CI (non-breaking to release/publish)
+- Milestone 2 — STOP PUBLISHING v1 artifacts (release/publish changes)
+- Milestone 3 — Release notes & user-facing scripts (docs and helper finalization)
+- Milestone 4 — Cleanup remaining references (examples, tests, docs)
+- Milestone 5 — Final removal and prune (policy-based post-sunset)
 
-### Repository Analysis
-
-A comprehensive repository scan identified **475+ occurrences** of 'v1' across scripts, makefiles, CI workflows, and documentation. This checklist covers all files that MUST be updated to complete the migration. Not every line mentioning v1 needs changes (e.g., historical changelog entries), but all files listed below require review and modification.
-
----
-
-## Rollout Plan
-
-### Phase 1: Update Scripts and Build Infrastructure (Weeks 1-2)
-- Update all build scripts to use v2 version computation only
-- Modify Makefiles to remove v1 targets and variables
-- Update CI workflows to publish v2 artifacts only
-- Test release process in staging/dry-run mode
-
-### Phase 2: Production Releases with v2-Only (Weeks 3-4)
-- Perform first production release using v2-only infrastructure
-- Monitor release process and fix any issues
-- Update documentation to reflect new process
-
-### Phase 3: Cleanup and Final Removal (2026)
-- Remove v1 Docker images from registry after deprecation period
-- Archive old v1 release artifacts
-- Final cleanup of any remaining v1 references
+Notes:
+- "Remove usage" (Milestone 1) means update any convenience targets, examples, dev Makefiles, CI test helper scripts and READMEs that would cause contributors or CI to pick or run v1 artifacts by default. Do not change the core release/publish automation that we still need to be able to produce v1 artifacts until Milestone 2 (except where those core pieces are strictly only dev convenience and not needed for releases).
+- "Stop publishing" (Milestone 2) is the step where we change release automation so v1 artifacts are no longer produced/uploaded.
 
 ---
 
-## Prioritized File Checklist
+## Milestone 0 — Coordination (done)
 
-### Critical Priority (Must Change First)
-
-These files directly control the release process and version computation. Changes here are required before any release can be made with v2-only logic.
-
-#### Build and Version Management
-
-- [ ] **scripts/makefiles/BuildInfo.mk**
-  - Remove `GIT_CLOSEST_TAG_V1` variable definition
-  - Remove `BUILD_INFO` variable (keep `BUILD_INFO_V2` only)
-  - Update to use only v2 version computation
-  - Command: Remove lines computing `GIT_CLOSEST_TAG_V1` and change `BUILD_INFO` references to `BUILD_INFO_V2`
-
-- [ ] **scripts/utils/compute-version.sh**
-  - Remove v1 version computation logic
-  - Make script default to v2 or remove version parameter
-  - Ensure script only returns v2 semver tags
-  - Command: `# Remove v1 branch/case from version computation logic`
-
-- [ ] **scripts/utils/compute-tags.sh**
-  - Update to compute only v2 tags
-  - Remove any v1 tag filtering or computation
-  - Command: `# Filter for v2.* tags only, remove v1.* logic`
-
-#### Core Build Makefiles
-
-- [ ] **Makefile**
-  - Remove `echo-v1` target (line ~97-99)
-  - Update any references to `GIT_CLOSEST_TAG_V1` to use `GIT_CLOSEST_TAG_V2`
-  - Verify no other v1-specific targets exist
-  - Command: Remove target definition and update variable references
-
-- [ ] **scripts/makefiles/BuildBinaries.mk**
-  - Update binary build targets to use `BUILD_INFO_V2` only
-  - Remove any v1-specific build flags or targets
-  - Ensure all binaries are built with v2 version information
-  - Command: `# Replace BUILD_INFO with BUILD_INFO_V2 in go build commands`
-
-#### Release Scripts
-
-- [ ] **scripts/release/start.sh**
-  - Update to prompt for v2 version only
-  - Remove v1 version input and validation
-  - Update generated release checklist template to be v2-only
-  - Command: `# Remove v1.x.x version prompts, keep only v2.x.x`
-
-- [ ] **scripts/release/formatter.py**
-  - Update version formatting logic to handle v2 only
-  - Remove v1 version string parsing/formatting
-  - Command: `# Remove v1 version format patterns from regex/parsing`
-
-- [ ] **scripts/release/draft.py**
-  - Update draft release creation to use v2 version
-  - Remove v1 tag references from draft content
-  - Command: `# Update tag parsing to only look for v2.* tags`
-
-- [ ] **scripts/release/notes.py**
-  - Update release notes generation for v2 only
-  - Remove v1 version references from note templates
-  - Command: `# Filter release notes to v2 versions only`
-
-### High Priority (CI/CD and Deployment)
-
-These files control automated builds and deployments. Must be updated before running automated releases.
-
-#### GitHub Actions Workflows
-
-- [ ] **.github/workflows/ci-release.yml**
-  - Remove v1 tag publish steps
-  - Update to publish only v2 Docker images
-  - Remove v1 artifact creation and upload
-  - Update release job to tag and push v2 only
-  - Command: `# Remove steps with v1 tags/versions, keep v2 steps only`
-
-- [ ] **.github/workflows/ci-docker-build.yml**
-  - Update Docker build to use v2 version tags
-  - Remove v1 image tag generation
-  - Ensure only v2 images are built for PRs/branches
-  - Command: `# Update docker tag logic to use VERSION_V2, remove VERSION_V1`
-
-- [ ] **.github/workflows/ci-docker-hotrod.yml**
-  - Update hotrod example image builds to use v2 versioning
-  - Remove v1 tag references
-  - Command: `# Use v2 version for hotrod image tags`
-
-#### Package and Deploy Scripts
-
-- [ ] **scripts/build/package-deploy.sh**
-  - Update to package only v2 binaries
-  - Remove v1 versioning from package names
-  - Update artifact paths to use VERSION_V2
-  - Command: `# Change VERSION_V1 to VERSION_V2 in package names and paths`
-
-- [ ] **scripts/build/build-upload-a-docker-image.sh**
-  - Update to build and tag v2 images only
-  - Remove v1 tag logic
-  - Ensure only v2 semantic version tags are applied
-  - Command: `# Remove v1 tag references, use v2 version for all tags`
-
-### Medium Priority (Documentation and Examples)
-
-These files affect user-facing documentation and examples. Should be updated before public announcement.
-
-#### Release Documentation
-
-- [ ] **RELEASE.md**
-  - Update release process to describe v2-only workflow
-  - Remove references to "v1.x.x / v2.x.x" dual versioning (line ~5, 17-18, etc.)
-  - Update instructions to use v2 version tags only
-  - Update commands to push only `v2.x.x` tags (line ~40-42)
-  - Command: `sed -i 's/v1\.x\.x \/ v2\.x\.x/v2.x.x/g' RELEASE.md` and manually review
-
-- [ ] **CHANGELOG.md**
-  - Update template at top to use v2 version only (line ~11)
-  - Keep historical v1 entries intact for reference
-  - Future releases should use v2.x.x format only
-  - Command: `# Update next release template to "next release v2.x.x (yyyy-mm-dd)"`
-
-- [ ] **CONTRIBUTING.md**
-  - Review and update any release process references
-  - Ensure contributor docs reflect v2-only approach
-  - Update version examples to use v2.x.x format
-  - Command: `# Search and update version examples to v2.x.x`
-
-#### Examples and Docker Compose
-
-- [ ] **docker-compose/monitor/Makefile**
-  - Update to pull v2 Jaeger images by default
-  - Remove v1 version references
-  - Command: `# Update JAEGER_VERSION to default to v2 tag or latest v2`
-
-- [ ] **docker-compose/tail-sampling/Makefile**
-  - Update to use v2 Jaeger images
-  - Remove v1 image tag references
-  - Command: `# Update JAEGER_VERSION to use v2 tags`
-
-- [ ] **examples/otel-demo/deploy-all.sh**
-  - Update deployment script to use v2 Jaeger images
-  - Remove v1 version logic
-  - Command: `# Update image tags to use v2 versions`
-
-### Low Priority (Auxiliary and Testing)
-
-These files are less critical but should be updated for consistency and to avoid confusion.
-
-#### Testing and Scripts
-
-- [ ] **scripts/e2e/elasticsearch.sh**
-  - Update e2e tests to default to v2 binaries
-  - Remove v1 test targets
-  - Command: `# Update test script to use v2 binary paths/versions`
-
-- [ ] **scripts/utils/compare_metrics.py**
-  - Update version parsing if used for metrics comparison
-  - Ensure only v2 metrics are compared
-  - Command: `# Update version regex to match v2.x.x only`
-
-- [ ] **scripts/lint/check-go-version.sh**
-  - Review for any v1 version checks
-  - Update if script validates version formats
-  - Command: `# Verify no v1 version format checks remain`
-
-#### Additional Files to Review
-
-- [ ] **scripts/release/*** (scan all files in directory)
-  - Review all other scripts in release directory
-  - Update any remaining v1 references
-  - Command: `grep -r "v1" scripts/release/ | grep -v ".git" | grep -v "binary"`
-
-- [ ] **docs/release/remove-v1-checklist.md** (this file)
-  - Mark all items complete when done
-  - Archive or move to completed-migrations folder after completion
+- Create a rollback snapshot branch/tag: `pre-remove-v1-YYYY-MM-DD`.
+- Baseline checklist merged: `docs/release/remove-v1-checklist.md`.
 
 ---
 
-## Detailed Change Instructions by File
+## Milestone 1 — REMOVE ALL USAGE of v1 artifacts (non-breaking to release/publish)
 
-### 1. scripts/makefiles/BuildInfo.mk
+Goal
+- Ensure no scripts, automated tests, documentation examples, or convenience targets that maintainers or CI use will pull, build, or reference v1 artifacts by default.
+- Do NOT change core release/publishing workflows that are required to produce v1 artifacts (those belong to Milestone 2).
 
-**Current state:** Defines both `GIT_CLOSEST_TAG_V1` and `GIT_CLOSEST_TAG_V2`, plus `BUILD_INFO` and `BUILD_INFO_V2`
+Acceptance criteria
+- CI test jobs & documented maintainer commands do not reference v1 by default.
+- Developer convenience targets and READMEs used in release/test flows are updated to v2 or removed.
+- Release/publish scripts remain able to produce v1 artifacts (unchanged in this milestone).
 
-**Changes required:**
-```bash
-# Remove these lines:
-GIT_CLOSEST_TAG_V1 = $(eval GIT_CLOSEST_TAG_V1 := $(shell scripts/utils/compute-version.sh v1))$(GIT_CLOSEST_TAG_V1)
-BUILD_INFO=$(call buildinfoflags,V1)
+Files assigned to Milestone 1 (update usage only)
+- [ ] `docker-compose/tail-sampling/Makefile`  
+  - Replace `JAEGER_VERSION=1...` convenience defaults with v2 or remove v1 convenience targets.
+- [ ] `docker-compose/monitor/Makefile`  
+  - Update dev convenience targets and README examples to use v2 by default.
+- [ ] `examples/otel-demo/deploy-all.sh`  
+  - If the script is referenced by CI/docs, default to v2 (or make v1 explicit/legacy).
+- [ ] `examples/*` and README example lines that are invoked by CI or referenced in release docs  
+  - Update documented example commands to v2.
+- [ ] small convenience Makefile targets / scripts referenced in documentation or used by CI tests (identify by scan)  
+  - Replace v1 defaults with v2; remove legacy v1 targets where appropriate.
+- [ ] `scripts/e2e/*` (only test helpers invoked by CI, if they default to v1)  
+  - Update defaults used by CI test jobs to v2 (but do not modify release/publish scripts).
+- [ ] `scripts/utils/compare_metrics.py` (if used in tests or example automation)  
+  - Make v2 metrics the default for compare helpers invoked by CI.
+- [ ] Any other example/demo helpers that are used by CI or are part of the documented maintainer workflow (identify & update).
 
-# Keep only:
-GIT_CLOSEST_TAG_V2 = $(eval GIT_CLOSEST_TAG_V2 := $(shell scripts/utils/compute-version.sh v2))$(GIT_CLOSEST_TAG_V2)
-BUILD_INFO_V2=$(call buildinfoflags,V2)
+Implementation guidance
+- Make minimal edits: change default literals, remove v1 convenience targets, update README example lines.
+- Avoid touching core release code paths (packaging, workflows that create upload actions, top-level make targets used by release automation).
 
-# Or rename BUILD_INFO_V2 back to BUILD_INFO if preferred
-```
-
-### 2. Makefile
-
-**Current state:** Contains `echo-v1` target at line 97-99
-
-**Changes required:**
-```bash
-# Remove target:
-.PHONY: echo-v1
-echo-v1:
-	@echo "$(GIT_CLOSEST_TAG_V1)"
-
-# Optional: Add echo-version that uses v2 only if needed
-.PHONY: echo-version
-echo-version:
-	@echo "$(GIT_CLOSEST_TAG_V2)"
-```
-
-### 3. scripts/utils/compute-version.sh
-
-**Changes required:**
-- Remove v1 branch in version computation logic
-- Make script accept only v2 or remove parameter entirely
-- Update git describe commands to filter v2.* tags only
-
-```bash
-# Update tag filtering:
-git describe --tags --match="v2.*" --abbrev=0
-# Remove any --match="v1.*" logic
-```
-
-### 4. CI Workflows (.github/workflows/*.yml)
-
-**Changes required:**
-- Remove steps that build/push v1 tags
-- Update Docker tag logic to use only v2 versions
-- Remove v1 artifact uploads
-- Update matrix builds to use VERSION_V2 only
-
-```yaml
-# Example change in ci-release.yml:
-# Remove:
-- name: Publish v1 Docker images
-  run: |
-    make docker-push VERSION=${VERSION_V1}
-
-# Keep only:
-- name: Publish v2 Docker images
-  run: |
-    make docker-push VERSION=${VERSION_V2}
-```
-
-### 5. scripts/release/*.py and *.sh
-
-**Changes required:**
-- Update version input prompts to request v2 version only
-- Remove v1 version parsing and validation
-- Update release note templates to single version format
-- Update tag filtering to v2.* only
-
-```python
-# Example in formatter.py:
-# Change version regex from:
-VERSION_PATTERN = r'v[12]\.\d+\.\d+'
-# To:
-VERSION_PATTERN = r'v2\.\d+\.\d+'
-```
-
-### 6. RELEASE.md
-
-**Changes required:**
-- Update all references from "v1.x.x / v2.x.x" to just "v2.x.x"
-- Update tag commands to push single v2 tag
-- Simplify release instructions
-
-```bash
-# Old:
-git tag v1.x.x -s
-git tag v2.x.x -s
-git push upstream v1.x.x v2.x.x
-
-# New:
-git tag v2.x.x -s
-git push upstream v2.x.x
-```
+Milestone 1 testing
+- Run CI test jobs (staging) and ensure they don't pull v1 images by default.
+- Run example/demo commands from docs and confirm they use v2.
+- Sanity-check that release automation still can build v1 artifacts (no changes to release publish workflows in this milestone).
 
 ---
 
-## Quality Assurance and Testing
+## Milestone 2 — STOP PUBLISHING v1 artifacts (release/publish changes)
 
-### Pre-Deployment Testing
+Goal
+- Change packaging and CI release automation so v1 artifacts are not built/pushed/uploaded for official releases.
 
-1. **Dry-Run Release Process**
-   - [ ] Run `scripts/release/start.sh` and verify it prompts for v2 version only
-   - [ ] Check that `make echo-version` (or equivalent) returns v2 version
-   - [ ] Verify `make draft-release` creates v2-only draft
+Acceptance criteria
+- Performing a release with a v2 tag (dry-run in a fork or staging) results in only v2 artifacts being published.
+- No v1 images/binaries are uploaded to registries or GitHub Releases.
 
-2. **Build Verification**
-   - [ ] Run `make build-all-platforms` and verify binaries contain v2 version
-   - [ ] Check `jaeger-collector --version` and similar for v2 version string
-   - [ ] Verify no v1 version information in built artifacts
+Files assigned to Milestone 2 (publish removal)
+- [ ] `.github/workflows/ci-release.yml`  
+  - Remove steps that create/upload v1 release artifacts; ensure upload steps use v2 artifact names only.
+- [ ] `.github/workflows/ci-docker-build.yml` (publish-related steps)  
+  - Do not push v1 tags for official releases; push only v2.
+- [ ] `.github/workflows/ci-docker-hotrod.yml` (if it participates in release publish)  
+  - Ensure demo/image publishing uses v2 tags only.
+- [ ] `scripts/build/build-upload-a-docker-image.sh`  
+  - Remove v1 push logic and ensure push paths (for releases) only push v2 tags.
+- [ ] `scripts/build/package-deploy.sh`  
+  - Stop packaging/uploading `VERSION_V1` artifacts; upload only v2 artifacts. Remove checks that required both versions.
+- [ ] `scripts/utils/compute-tags.sh`  
+  - Ensure the computed publish tags for release flows are v2-only; remove v1 tag generation on release branch.
+- [ ] any other upload/publish helper invoked by the release workflow  
+  - Remove v1 publish behavior.
 
-3. **Docker Image Testing**
-   - [ ] Build Docker images locally and verify tags are v2-only
-   - [ ] Inspect image labels for version metadata
-   - [ ] Test image functionality with v2 version
+Implementation guidance
+- These changes can safely alter the ability to publish v1 artifacts because we will have validated Milestone 1 first.
+- Keep changes explicit and reversible. Test on a fork/staging release.
 
-4. **CI Workflow Testing**
-   - [ ] Trigger CI workflows on test branch
-   - [ ] Verify only v2 artifacts are created
-   - [ ] Check Docker Hub for correct v2 tags (if pushing to test registry)
-
-5. **Documentation Review**
-   - [ ] Review all updated docs for accuracy
-   - [ ] Verify example commands work with v2 versions
-   - [ ] Check that no outdated v1 references remain in user-facing docs
-
-### Post-Deployment Validation
-
-1. **First v2-Only Release**
-   - [ ] Monitor release workflow execution
-   - [ ] Verify v2 tag is created correctly
-   - [ ] Check Docker Hub for v2 images published
-   - [ ] Download and test published binaries
-
-2. **Community Communication**
-   - [ ] Announce v2-only release approach on mailing list
-   - [ ] Update migration guides if necessary
-   - [ ] Monitor for user issues or confusion
+Milestone 2 testing
+- Run the CI release workflow on a fork with a v2 tag (dry-run) and verify only v2 artifacts are uploaded.
+- Verify Docker registry and GitHub Release contents.
 
 ---
 
-## Rollback Strategy
+## Milestone 3 — Release notes & user-facing scripts
 
-### If Issues Arise During Migration
+Goal
+- Update user-facing release docs and helper scripts so maintainers have a clean v2-only flow and instructions.
 
-1. **Before First Release:**
-   - Revert commits to restore v1/v2 dual release logic
-   - No production impact as release hasn't occurred
+Files assigned to Milestone 3
+- [ ] `RELEASE.md`  
+  - Update instructions to be v2-only (replace "tag v1 & v2" with v2-only).
+- [ ] `CHANGELOG.md` (and any tools that parse its headers)  
+  - Ensure automated changelog tooling extracts v2 headers correctly; be tolerant of legacy format for a short transition time.
+- [ ] `scripts/release/start.sh`  
+  - Finalize prompts to v2-only (after Milestone 2).
+- [ ] `scripts/release/draft.py`  
+  - Draft v2-only GitHub releases; update headers and `gh release` invocations to use v2 tag.
 
-2. **After First v2-Only Release:**
-   - If critical issues found, can manually create v1 tags from old commits if needed
-   - Old release scripts still available in git history
-   - Docker images can be manually built and pushed with v1 tags as fallback
-
-3. **Recovery Commands:**
-```bash
-# Restore previous BuildInfo.mk:
-git checkout HEAD~1 scripts/makefiles/BuildInfo.mk
-
-# Manually create v1 tag if needed:
-git tag v1.x.x <commit-sha> -s
-git push upstream v1.x.x
-```
-
-### Communication Plan
-
-- Notify team via Slack #jaeger-release channel before starting changes
-- Document any issues encountered during first v2-only release
-- Prepare rollback PR in advance if high-risk changes needed
+Testing
+- Run `start.sh -d` and `draft.py` in dry-run to validate v2-first outputs.
+- Validate maintainers can follow `RELEASE.md` to produce a v2 release.
 
 ---
 
-## Timeline and Milestones
+## Milestone 4 — Cleanup remaining references (many small PRs)
 
-### Week 1-2: Preparation Phase
-- [ ] Review and approve this checklist
-- [ ] Assign owner for implementation
-- [ ] Create tracking issue for implementation
-- [ ] Set up test environment for dry-run releases
+Goal
+- Sweep the repo and clean remaining `v1` references in examples, tests, CONTRIBUTING.md, and other non-critical areas. Split into small PRs.
 
-### Week 3-4: Implementation Phase
-- [ ] Complete Critical Priority changes
-- [ ] Complete High Priority changes
-- [ ] Test release process end-to-end
-- [ ] Complete Medium Priority changes
+Files / areas
+- [ ] `scripts/e2e/elasticsearch.sh` (finalize v2 default)
+- [ ] `scripts/utils/compare_metrics.py` (final cleanup)
+- [ ] `CONTRIBUTING.md` (document v2 as primary; note v1 status)
+- [ ] any remaining docker-compose examples, READMEs and sample scripts
+- [ ] any other files found by repo-wide `v1` sweep
 
-### Week 5: Validation and Release Phase
-- [ ] Final QA and testing
-- [ ] Perform first v2-only production release
-- [ ] Monitor for issues
-- [ ] Complete Low Priority changes
-
-### 2026: Cleanup Phase
-- [ ] Remove v1 Docker images from registry after deprecation
-- [ ] Archive old release artifacts
-- [ ] Final documentation cleanup
-- [ ] Mark project complete
+Testing
+- Run examples, e2e, and developer quickstarts; verify expected behavior.
 
 ---
 
-## Success Criteria
+## Milestone 5 — Final removal and prune (policy-based)
 
-- ✅ All release scripts and build files use v2 versioning only
-- ✅ CI/CD workflows publish v2 artifacts exclusively
-- ✅ Documentation accurately reflects v2-only approach
-- ✅ First v2-only release completes successfully
-- ✅ No user-facing breaking changes or confusion
-- ✅ Release process is simpler and faster than before
-- ✅ Team understands new v2-only workflow
+Goal
+- After the sunset/support window ends, remove v1-only code, CI shards, docs and directories.
 
----
-
-## Additional Notes
-
-### Historical Context
-
-The v1/v2 dual release approach was necessary during the transition period when Jaeger had both v1 (classic backend) and v2 (OTEL-based) architectures. With v2 now stable and v1 deprecated, maintaining dual releases adds unnecessary complexity.
-
-### Dependencies
-
-- Ensure v1 is officially deprecated before starting this work
-- Coordinate with documentation team for updates
-- Notify community of upcoming changes to release process
-
-### Related Work
-
-- This checklist focuses on build/release infrastructure only
-- Separate work may be needed to update deployment docs
-- Runtime configuration changes are out of scope
-
-### Questions or Issues
-
-For questions about this migration, contact:
-- Owner: @yurishkuro
-- Team channel: #jaeger-release
-- Related issue: #7497
+Action
+- Delete v1-only directories and targets; remove legacy CI workflows and scripts.
+- Announce removal and update docs/website.
 
 ---
 
-## Checklist Status
+## PR strategy (recommended)
 
-**Overall Progress:** 0% (0/43 files updated)
-
-**By Priority:**
-- Critical: 0/11 complete
-- High: 0/6 complete  
-- Medium: 0/5 complete
-- Low: 0/4 complete
-- Meta: 0/1 complete
+- Keep PRs small and focused.
+  - PR A — Milestone 1: `chore/remove-v1-usage` — change convenience targets and examples (non-breaking). Include test plan: run CI tests, local smoke tests for example flows.
+  - PR B — Milestone 2: `chore/remove-v1-publish` — change release/publish workflows and packaging scripts. Test on fork with dry-run release.
+  - PR C — Milestone 3: docs & helper finalization.
+  - PR D+ — Milestone 4: many small PRs for examples/tests cleanup.
+- Each PR must include:
+  - short description of changes,
+  - explicit test plan (how to dry-run/validate),
+  - reviewer list (CI/release owners & @yurishkuro).
 
 ---
 
-*Last updated: 2025-11-12*  
-*Next review: After first 5 critical files are completed*
+## QA & rollback
+
+- Always create a rollback snapshot branch before changing publishing logic: `pre-remove-v1-YYYY-MM-DD`.
+- For each PR:
+  - run CI tests in a fork/staging,
+  - run the release dry-run (for Milestone 2 PR),
+  - perform a quick sanity check of docs and examples.
+- If an urgent re-publish of v1 is required after removal, revert the Milestone 2 PR(s) and re-run the legacy snapshot branch to produce missing artifacts.
+
+---
+
+## Next actions
+
+Pick one:
+- A) I will prepare a draft PR for **Milestone 1** (`chore/remove-v1-usage`) that implements the minimal, safe changes to convenience Makefiles and example scripts and add a testing plan. (Recommended first step.)
+- B) I will prepare patch diffs for review (no PRs).
+- C) You assign tasks to your team and I provide review guidance and diffs on demand.
+
+Please confirm which path you prefer.
