@@ -16,14 +16,18 @@
 #
 # All other targets default to v2.
 
+# Check if user explicitly set JAEGER_VERSION via environment or command line
+# If not set, we'll determine the default based on the target
+JAEGER_VERSION_EXPLICIT := $(origin JAEGER_VERSION)
+
 # Default to v2 for most targets
 JAEGER_VERSION ?= 2
 
 # Check if any of the exception targets are in MAKECMDGOALS
 # and override JAEGER_VERSION to 1 for those targets if not explicitly set by user
 ifneq ($(filter build-all-in-one build-query build-collector build-ingester,$(MAKECMDGOALS)),)
-  # Only override if JAEGER_VERSION was not explicitly set
-  ifeq ($(origin JAEGER_VERSION),file)
+  # Only override if JAEGER_VERSION was not explicitly set (i.e., origin is undefined or file)
+  ifneq ($(filter undefined file,$(JAEGER_VERSION_EXPLICIT)),)
     JAEGER_VERSION = 1
   endif
 endif
