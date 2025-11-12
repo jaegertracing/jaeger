@@ -58,6 +58,11 @@ BASE_BUILD_IMAGE=${BASE_BUILD_IMAGE:?'expecting Docker image name as argument, s
 BRANCH=${BRANCH:?'expecting BRANCH env var'}
 GITHUB_SHA=${GITHUB_SHA:-$(git rev-parse HEAD)}
 
+# NOTE: VERSION and INCLUDE_LEGACY_V1 parameters are parsed and available for future use.
+# Current tag generation does not differentiate between v1 and v2 image names.
+# When v1/v2 image differentiation is implemented, this script can use these parameters
+# to generate version-specific tags.
+
 # accumulate output in this variable
 IMAGE_TAGS=""
 

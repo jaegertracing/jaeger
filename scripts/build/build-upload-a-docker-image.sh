@@ -104,6 +104,9 @@ if [[ -z "${JAEGER_VERSION}" ]]; then
   JAEGER_VERSION=2
 fi
 
+# NOTE: DRY_RUN and INCLUDE_LEGACY_V1 are parsed and available for future use.
+# These flags will be fully implemented when v1/v2 differentiation is complete.
+
 set -x
 
 if [ -n "${target_arg}" ]; then
