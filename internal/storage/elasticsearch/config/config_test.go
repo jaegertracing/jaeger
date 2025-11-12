@@ -5,6 +5,7 @@ package config
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -1566,6 +1567,32 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Test GetHTTPRoundTripper with httpAuth error
+func TestGetHTTPRoundTripperWithHTTPAuthError(t *testing.T) {
+	ctx := context.Background()
+	logger := zap.NewNop()
+
+	// Create a mock httpAuth that will fail on RoundTripper wrapping
+	mockAuth := &mockFailingHTTPAuth{}
+
+	c := &Configuration{
+		Servers:  []string{"http://localhost:9200"},
+		LogLevel: "error",
+		TLS:      configtls.ClientConfig{Insecure: true},
+	}
+
+	_, err := GetHTTPRoundTripper(ctx, c, logger, mockAuth)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to wrap round tripper with HTTP authenticator")
+}
+
+// Mock failing HTTP authenticator
+type mockFailingHTTPAuth struct{}
+
+func (m *mockFailingHTTPAuth) RoundTripper(rt http.RoundTripper) (http.RoundTripper, error) {
+	return nil, fmt.Errorf("mock authenticator error")
 }
 
 func TestLoadTokenFromFile(t *testing.T) {

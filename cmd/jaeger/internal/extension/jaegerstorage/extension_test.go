@@ -932,3 +932,55 @@ func TestElasticsearchWithWrongAuthenticatorType(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "does not implement extensionauth.HTTPClient")
 }
+
+// Test Elasticsearch metrics backend with invalid authenticator
+func TestElasticsearchMetricsWithInvalidAuthenticator(t *testing.T) {
+	mockServer := setupMockServer(t, getVersionResponse(t), http.StatusOK)
+
+	config := &Config{
+		MetricBackends: map[string]MetricBackend{
+			"elasticsearch": {
+				Elasticsearch: &escfg.Configuration{
+					Servers:  []string{mockServer.URL},
+					LogLevel: "error",
+					Authentication: escfg.Authentication{
+						Config: configauth.Config{
+							AuthenticatorID: component.MustNewID("nonexistent"),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	ext := makeStorageExtension(t, config)
+	err := ext.Start(t.Context(), componenttest.NewNopHost())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to get HTTP authenticator")
+}
+
+// Test OpenSearch metrics backend with invalid authenticator
+func TestOpenSearchMetricsWithInvalidAuthenticator(t *testing.T) {
+	mockServer := setupMockServer(t, getVersionResponse(t), http.StatusOK)
+
+	config := &Config{
+		MetricBackends: map[string]MetricBackend{
+			"opensearch": {
+				Opensearch: &escfg.Configuration{
+					Servers:  []string{mockServer.URL},
+					LogLevel: "error",
+					Authentication: escfg.Authentication{
+						Config: configauth.Config{
+							AuthenticatorID: component.MustNewID("nonexistent"),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	ext := makeStorageExtension(t, config)
+	err := ext.Start(t.Context(), componenttest.NewNopHost())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to get HTTP authenticator")
+}
