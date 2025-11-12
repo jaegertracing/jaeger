@@ -9,13 +9,13 @@
 # making the developer/CI convenience flows v2-first.
 
 # --- Begin minimal change ---
-# Default to v2 unless caller explicitly sets JAEGER_VERSION
-JAEGER_VERSION ?= 2
-
 # If any of the explicit v1-only convenience targets are being requested,
 # default those to v1 unless the caller explicitly set JAEGER_VERSION.
 ifneq ($(filter $(MAKECMDGOALS),build-all-in-one build-query build-collector build-ingester),)
   JAEGER_VERSION ?= 1
+else
+  # Default to v2 for all other targets unless caller explicitly sets JAEGER_VERSION
+  JAEGER_VERSION ?= 2
 endif
 # --- End minimal change ---
 
