@@ -1,6 +1,40 @@
 # Copyright (c) 2023 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
+# Milestone 1: Re-number build targets to use v2 by default
+# 
+# By default, binaries are built with v2 version info (JAEGER_VERSION=2).
+# To override and build v1 binaries, set JAEGER_VERSION=1 in the environment
+# or when invoking make, e.g.:
+#   JAEGER_VERSION=1 make build-all-in-one
+#
+# Exception targets that still default to v1:
+#   - build-all-in-one
+#   - build-query
+#   - build-collector
+#   - build-ingester
+#
+# All other targets default to v2.
+
+# Default to v2 for most targets
+JAEGER_VERSION ?= 2
+
+# Check if any of the exception targets are in MAKECMDGOALS
+# and override JAEGER_VERSION to 1 for those targets if not explicitly set by user
+ifneq ($(filter build-all-in-one build-query build-collector build-ingester,$(MAKECMDGOALS)),)
+  # Only override if JAEGER_VERSION was not explicitly set
+  ifeq ($(origin JAEGER_VERSION),file)
+    JAEGER_VERSION = 1
+  endif
+endif
+
+# Select BUILD_INFO based on JAEGER_VERSION
+ifeq ($(JAEGER_VERSION),1)
+  BUILD_INFO_DEFAULT = $(BUILD_INFO)
+else
+  BUILD_INFO_DEFAULT = $(BUILD_INFO_V2)
+endif
+
 # This command expects $GOOS/$GOARCH env variables set to reflect the desired target platform.
 GOBUILD=echo "building binary for $$(go env GOOS)-$$(go env GOARCH)"; \
   CGO_ENABLED=0 installsuffix=cgo $(GO) build -trimpath
@@ -43,34 +77,34 @@ build-examples:
 
 .PHONY: build-tracegen
 build-tracegen:
-	$(GOBUILD) $(BUILD_INFO) -o ./cmd/tracegen/tracegen-$(GOOS)-$(GOARCH) ./cmd/tracegen/
+	$(GOBUILD) $(BUILD_INFO_DEFAULT) -o ./cmd/tracegen/tracegen-$(GOOS)-$(GOARCH) ./cmd/tracegen/
 
 .PHONY: build-anonymizer
 build-anonymizer:
-	$(GOBUILD) $(BUILD_INFO) -o ./cmd/anonymizer/anonymizer-$(GOOS)-$(GOARCH) ./cmd/anonymizer/
+	$(GOBUILD) $(BUILD_INFO_DEFAULT) -o ./cmd/anonymizer/anonymizer-$(GOOS)-$(GOARCH) ./cmd/anonymizer/
 
 .PHONY: build-esmapping-generator
 build-esmapping-generator:
-	$(GOBUILD) $(BUILD_INFO) -o ./cmd/esmapping-generator/esmapping-generator-$(GOOS)-$(GOARCH) ./cmd/esmapping-generator/
+	$(GOBUILD) $(BUILD_INFO_DEFAULT) -o ./cmd/esmapping-generator/esmapping-generator-$(GOOS)-$(GOARCH) ./cmd/esmapping-generator/
 
 .PHONY: build-es-index-cleaner
 build-es-index-cleaner:
-	$(GOBUILD) $(BUILD_INFO) -o ./cmd/es-index-cleaner/es-index-cleaner-$(GOOS)-$(GOARCH) ./cmd/es-index-cleaner/
+	$(GOBUILD) $(BUILD_INFO_DEFAULT) -o ./cmd/es-index-cleaner/es-index-cleaner-$(GOOS)-$(GOARCH) ./cmd/es-index-cleaner/
 
 .PHONY: build-es-rollover
 build-es-rollover:
-	$(GOBUILD) $(BUILD_INFO) -o ./cmd/es-rollover/es-rollover-$(GOOS)-$(GOARCH) ./cmd/es-rollover/
+	$(GOBUILD) $(BUILD_INFO_DEFAULT) -o ./cmd/es-rollover/es-rollover-$(GOOS)-$(GOARCH) ./cmd/es-rollover/
 
-# Requires variables: $(BIN_NAME) $(BIN_PATH) $(GO_TAGS) $(DISABLE_OPTIMIZATIONS) $(SUFFIX) $(GOOS) $(GOARCH) $(BUILD_INFO)
+# Requires variables: $(BIN_NAME) $(BIN_PATH) $(GO_TAGS) $(DISABLE_OPTIMIZATIONS) $(SUFFIX) $(GOOS) $(GOARCH) $(BUILD_INFO_TO_USE)
 # Other targets can depend on this one but with a unique suffix to ensure it is always executed.
 BIN_PATH = ./cmd/$(BIN_NAME)
 .PHONY: _build-a-binary
 _build-a-binary-%:
-	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) $(GO_TAGS) -o $(BIN_PATH)/$(BIN_NAME)$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) $(BIN_PATH)
+	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) $(GO_TAGS) -o $(BIN_PATH)/$(BIN_NAME)$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO_TO_USE) $(BIN_PATH)
 
 .PHONY: build-jaeger
 build-jaeger: BIN_NAME = jaeger
-build-jaeger: BUILD_INFO = $(BUILD_INFO_V2)
+build-jaeger: BUILD_INFO_TO_USE = $(BUILD_INFO_DEFAULT)
 build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
 	@ set -euf -o pipefail ; \
 	echo "Checking version of built binary" ; \
@@ -79,7 +113,11 @@ build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
 	if [ "$(GOOS)" == "$$REAL_GOOS" ] && [ "$(GOARCH)" == "$$REAL_GOARCH" ]; then \
 		./cmd/jaeger/jaeger-$(GOOS)-$(GOARCH) version 2>/dev/null ; \
 		echo "" ; \
-		want=$(GIT_CLOSEST_TAG_V2) ; \
+		if [ "$(JAEGER_VERSION)" == "1" ]; then \
+			want=$(GIT_CLOSEST_TAG_V1) ; \
+		else \
+			want=$(GIT_CLOSEST_TAG_V2) ; \
+		fi ; \
 		have=$$(./cmd/jaeger/jaeger-$(GOOS)-$(GOARCH) version 2>/dev/null | jq -r .gitVersion) ; \
 		if [ "$$want" == "$$have" ]; then \
 			echo "🟢 versions match: want=$$want, have=$$have" ; \
@@ -95,22 +133,27 @@ build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-all-in-one
 build-all-in-one: BIN_NAME = all-in-one
+build-all-in-one: BUILD_INFO_TO_USE = $(BUILD_INFO)
 build-all-in-one: build-ui _build-a-binary-all-in-one$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-query
 build-query: BIN_NAME = query
+build-query: BUILD_INFO_TO_USE = $(BUILD_INFO)
 build-query: build-ui _build-a-binary-query$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-collector
 build-collector: BIN_NAME = collector
+build-collector: BUILD_INFO_TO_USE = $(BUILD_INFO)
 build-collector: _build-a-binary-collector$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-ingester
 build-ingester: BIN_NAME = ingester
+build-ingester: BUILD_INFO_TO_USE = $(BUILD_INFO)
 build-ingester: _build-a-binary-ingester$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-remote-storage
 build-remote-storage: BIN_NAME = remote-storage
+build-remote-storage: BUILD_INFO_TO_USE = $(BUILD_INFO_DEFAULT)
 build-remote-storage: _build-a-binary-remote-storage$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-binaries-linux-amd64

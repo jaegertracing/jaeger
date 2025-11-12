@@ -3,10 +3,23 @@
 # Copyright (c) 2024 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
+# Milestone 1: Default to v2 docker image tags
+#
+# By default, docker images are tagged with v2-style tags (no -v1 suffix).
+# To build v1-style images, set JAEGER_VERSION=1 or VERSION=1 in the environment,
+# or pass --version 1 as an argument.
+# To include both v2 and legacy v1 tags, set INCLUDE_LEGACY_V1=1 or pass --include-legacy-v1.
+#
+# Usage:
+#   build-upload-a-docker-image.sh [options]
+#   JAEGER_VERSION=1 build-upload-a-docker-image.sh [options]
+#   build-upload-a-docker-image.sh --version 1 [options]
+#   build-upload-a-docker-image.sh --include-legacy-v1 [options]
+
 set -euf -o pipefail
 
 print_help() {
-  echo "Usage: $0 [-c] [-D] [-h] [-l] [-o] [-p platforms]"
+  echo "Usage: $0 [-c] [-D] [-h] [-l] [-o] [-p platforms] [--version <1|2>] [--include-legacy-v1] [--dry-run]"
   echo "-h: Print help"
   echo "-b: add base_image and debug_image arguments to the build command"
   echo "-c: name of the component to build"
@@ -15,10 +28,19 @@ print_help() {
   echo "-o: overwrite image in the target remote repository even if the semver tag already exists"
   echo "-p: Comma-separated list of platforms to build for (default: all supported)"
   echo "-t: Release target (release|debug) if required by the Dockerfile"
+  echo "--version <1|2>: Explicitly set JAEGER_VERSION (default: 2)"
+  echo "--include-legacy-v1: Include legacy v1 tags when building v2 images"
+  echo "--dry-run: Perform dry run without pushing images"
   exit 1
 }
 
 echo "BRANCH=${BRANCH:?'expecting BRANCH env var'}"
+
+# Default to v2 unless explicitly set
+export JAEGER_VERSION=${JAEGER_VERSION:-${VERSION:-2}}
+export INCLUDE_LEGACY_V1=${INCLUDE_LEGACY_V1:-0}
+DRY_RUN='N'
+
 base_debug_img_arg=""
 docker_file_arg="Dockerfile"
 target_arg=""
@@ -27,6 +49,27 @@ platforms="linux/amd64"
 namespace="jaegertracing"
 overwrite='N'
 upload_readme='N'
+
+# Parse long options first
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --version)
+      export JAEGER_VERSION="$2"
+      shift 2
+      ;;
+    --include-legacy-v1)
+      export INCLUDE_LEGACY_V1=1
+      shift
+      ;;
+    --dry-run)
+      DRY_RUN='Y'
+      shift
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
 
 while getopts "bc:d:f:hlop:t:" opt; do
 	# shellcheck disable=SC2220 # we don't need a *) case
@@ -96,19 +139,29 @@ if [[ "${local_test_only}" = "Y" ]]; then
 else
     echo "::group:: compute tags ${component_name}"
     # shellcheck disable=SC2086
-    IFS=" " read -r -a IMAGE_TAGS <<< "$(bash scripts/utils/compute-tags.sh ${namespace}/${component_name})"
+    # Pass JAEGER_VERSION and INCLUDE_LEGACY_V1 to compute-tags.sh via environment
+    COMPUTE_TAGS_ARGS="${namespace}/${component_name}"
+    if [[ "$INCLUDE_LEGACY_V1" == "1" ]]; then
+        COMPUTE_TAGS_ARGS="--include-legacy-v1 ${COMPUTE_TAGS_ARGS}"
+    fi
+    IFS=" " read -r -a IMAGE_TAGS <<< "$(VERSION=${JAEGER_VERSION} INCLUDE_LEGACY_V1=${INCLUDE_LEGACY_V1} bash scripts/utils/compute-tags.sh ${COMPUTE_TAGS_ARGS})"
     echo "::endgroup::"
 
     # Only push multi-arch images to dockerhub/quay.io for main branch or for release tags vM.N.P{-rcX}
     if [[ "$BRANCH" == "main" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$ ]]; then
-	    echo "will build docker images and upload to dockerhub/quay.io, BRANCH=$BRANCH"
-	    bash scripts/utils/docker-login.sh
-	    PUSHTAG="type=image,push=true"
-	    upload_comment=" and uploading"
-	    if [[ "$overwrite" == 'N' ]]; then
-	      check_overwrite "${IMAGE_TAGS[@]}"
+	    if [[ "$DRY_RUN" == "Y" ]]; then
+	        echo "DRY RUN: would build docker images and upload to dockerhub/quay.io, BRANCH=$BRANCH"
+	        PUSHTAG="type=image,push=false"
+	    else
+	        echo "will build docker images and upload to dockerhub/quay.io, BRANCH=$BRANCH"
+	        bash scripts/utils/docker-login.sh
+	        PUSHTAG="type=image,push=true"
+	        upload_comment=" and uploading"
+	        if [[ "$overwrite" == 'N' ]]; then
+	          check_overwrite "${IMAGE_TAGS[@]}"
+	        fi
+	        upload_readme='Y'
 	    fi
-	    upload_readme='Y'
     else
 	    echo 'skipping docker images upload, because not on tagged release or main branch'
 	    PUSHTAG="type=image,push=false"
