@@ -1620,6 +1620,45 @@ func (*mockFailingHTTPAuthWrapper) RoundTripper(_ http.RoundTripper) (http.Round
 	return nil, errors.New("wrapping error")
 }
 
+// Test GetHTTPRoundTripper with successful httpAuth wrapping
+func TestGetHTTPRoundTripperWithHTTPAuthSuccess(t *testing.T) {
+	ctx := context.Background()
+	logger := zap.NewNop()
+
+	// Create a mock httpAuth that will succeed
+	mockAuth := &mockSuccessfulHTTPAuth{}
+
+	c := &Configuration{
+		Servers:  []string{"http://localhost:9200"},
+		LogLevel: "error",
+		TLS:      configtls.ClientConfig{Insecure: true},
+	}
+
+	rt, err := GetHTTPRoundTripper(ctx, c, logger, mockAuth)
+
+	require.NoError(t, err)
+	require.NotNil(t, rt)
+	wrappedRT, ok := rt.(*mockWrappedRoundTripper)
+	require.True(t, ok, "Should be wrapped round tripper")
+	require.NotNil(t, wrappedRT)
+}
+
+// Mock successful HTTP authenticator
+type mockSuccessfulHTTPAuth struct{}
+
+func (m *mockSuccessfulHTTPAuth) RoundTripper(rt http.RoundTripper) (http.RoundTripper, error) {
+	return &mockWrappedRoundTripper{base: rt}, nil
+}
+
+// Mock wrapped round tripper
+type mockWrappedRoundTripper struct {
+	base http.RoundTripper
+}
+
+func (m *mockWrappedRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return m.base.RoundTrip(req)
+}
+
 func TestLoadTokenFromFile(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		const token = "test-token"
