@@ -65,6 +65,7 @@ func (gw *testGateway) execRequest(t *testing.T, url string) ([]byte, int) {
 
 func (*testGateway) verifySnapshot(t *testing.T, body []byte) []byte {
 	// reformat JSON body with indentation, to make diffing easier
+	// Note: body may contain multiple newline-separated JSON objects for streaming responses
 	var data any
 	require.NoError(t, json.Unmarshal(body, &data), "response: %s", string(body))
 	body, err := json.MarshalIndent(data, "", "  ")
@@ -168,6 +169,7 @@ func (gw *testGateway) getTracesAndVerify(t *testing.T, url string, expectedTrac
 
 	var response api_v3.GRPCGatewayWrapper
 	parseResponse(t, body, &response)
+
 	td := response.Result.ToTraces()
 	assert.Equal(t, 1, td.SpanCount())
 	traceID := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()

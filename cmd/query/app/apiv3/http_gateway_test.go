@@ -4,6 +4,8 @@
 package apiv3
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"iter"
@@ -17,18 +19,42 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jtracer"
+	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	dependencystoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
+
+// parseNDJSON parses a newline-delimited JSON response into GRPCGatewayWrapper messages
+// This simulates how a real client would consume the NDJSON stream
+func parseNDJSON(t *testing.T, body string) []*api_v3.GRPCGatewayWrapper {
+	var wrappers []*api_v3.GRPCGatewayWrapper
+	lines := bytes.Split([]byte(body), []byte("\n"))
+
+	for _, line := range lines {
+		trimmed := bytes.TrimSpace(line)
+		if len(trimmed) == 0 {
+			continue
+		}
+
+		// Parse each line as a GRPCGatewayWrapper
+		var wrapper api_v3.GRPCGatewayWrapper
+		err := json.Unmarshal(trimmed, &wrapper)
+		require.NoError(t, err, "Each NDJSON line should be valid JSON")
+		wrappers = append(wrappers, &wrapper)
+	}
+
+	return wrappers
+}
 
 func setupHTTPGatewayNoServer(
 	_ *testing.T,
@@ -389,4 +415,660 @@ func TestHTTPGatewayGetOperationsErrors(t *testing.T) {
 	w := httptest.NewRecorder()
 	gw.router.ServeHTTP(w, r)
 	assert.Contains(t, w.Body.String(), assert.AnError.Error())
+}
+
+// TestHTTPGatewayStreamingResponse verifies that streaming produces valid NDJSON
+func TestHTTPGatewayStreamingResponse(t *testing.T) {
+	// Enable streaming feature gate for this test
+	require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), true))
+	defer func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), false))
+	}()
+
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	// Create multiple trace batches to verify streaming
+	trace1 := makeTestTrace()
+	trace2 := ptrace.NewTraces()
+	resources := trace2.ResourceSpans().AppendEmpty()
+	scopes := resources.ScopeSpans().AppendEmpty()
+	spanB := scopes.Spans().AppendEmpty()
+	spanB.SetName("second-span")
+	spanB.SetTraceID(traceID)
+	spanB.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 3}))
+
+	// Setup iterator that returns multiple batches
+	gw.reader.
+		On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			// Yield first batch
+			if !yield([]ptrace.Traces{trace1}, nil) {
+				return
+			}
+			// Yield second batch
+			yield([]ptrace.Traces{trace2}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+
+	body := w.Body.String()
+
+	// Parse NDJSON response like a real client would
+	wrappers := parseNDJSON(t, body)
+
+	// Verify we got multiple trace messages
+	assert.GreaterOrEqual(t, len(wrappers), 1, "Should have at least 1 trace")
+
+	// Verify that the traces contain the expected span data
+	// (searching in the JSON string is appropriate since we've already validated
+	// that each line is valid, parseable JSON)
+	assert.Contains(t, body, "foobar", "Response should contain 'foobar' span")
+	assert.Contains(t, body, "second-span", "Response should contain 'second-span' span")
+}
+
+// TestHTTPGatewayStreamingMultipleBatches tests streaming with multiple trace batches
+func TestHTTPGatewayStreamingMultipleBatches(t *testing.T) {
+	// Enable streaming feature gate for this test
+	require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), true))
+	defer func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), false))
+	}()
+
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	trace1 := makeTestTrace()
+	trace2 := ptrace.NewTraces()
+	resources := trace2.ResourceSpans().AppendEmpty()
+	scopes := resources.ScopeSpans().AppendEmpty()
+	spanB := scopes.Spans().AppendEmpty()
+	spanB.SetName("batch2-span")
+	spanB.SetTraceID(traceID)
+	spanB.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 4}))
+
+	gw.reader.
+		On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			if !yield([]ptrace.Traces{trace1}, nil) {
+				return
+			}
+			if !yield([]ptrace.Traces{trace2}, nil) {
+				return
+			}
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	body := w.Body.String()
+
+	// Parse NDJSON response like a real client would
+	wrappers := parseNDJSON(t, body)
+	assert.GreaterOrEqual(t, len(wrappers), 1, "Should have at least 1 trace")
+
+	// Verify that the traces contain the expected span data
+	assert.Contains(t, body, "foobar", "Response should contain 'foobar' span")
+	assert.Contains(t, body, "batch2-span", "Response should contain 'batch2-span' span")
+}
+
+func TestHTTPGatewayStreamingFallbackNoFlusher(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	trace1 := makeTestTrace()
+	gw.reader.
+		On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{trace1}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+	require.NoError(t, err)
+
+	// Use a custom ResponseWriter that doesn't implement http.Flusher
+	w := &nonFlushableRecorder{ResponseWriter: httptest.NewRecorder()}
+	gw.router.ServeHTTP(w, r)
+
+	// Should still work but fall back to buffered response
+	assert.Equal(t, http.StatusOK, w.ResponseWriter.(*httptest.ResponseRecorder).Code)
+	assert.Contains(t, w.ResponseWriter.(*httptest.ResponseRecorder).Body.String(), "foobar")
+}
+
+// TestHTTPGatewayStreamingFallbackMultipleTraces tests fallback with multiple traces
+func TestHTTPGatewayStreamingFallbackMultipleTraces(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	trace1 := makeTestTrace()
+	trace2 := ptrace.NewTraces()
+	resources := trace2.ResourceSpans().AppendEmpty()
+	scopes := resources.ScopeSpans().AppendEmpty()
+	spanB := scopes.Spans().AppendEmpty()
+	spanB.SetName("fallback-span")
+	spanB.SetTraceID(traceID)
+	spanB.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 6}))
+
+	gw.reader.
+		On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			// Multiple traces to test the combining logic in returnTraces
+			if !yield([]ptrace.Traces{trace1}, nil) {
+				return
+			}
+			yield([]ptrace.Traces{trace2}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+	require.NoError(t, err)
+
+	// Use a non-flushable writer to trigger fallback path
+	w := &nonFlushableRecorder{ResponseWriter: httptest.NewRecorder()}
+	gw.router.ServeHTTP(w, r)
+
+	// Should combine multiple traces and return them
+	assert.Equal(t, http.StatusOK, w.ResponseWriter.(*httptest.ResponseRecorder).Code)
+	body := w.ResponseWriter.(*httptest.ResponseRecorder).Body.String()
+	assert.Contains(t, body, "foobar")
+	assert.Contains(t, body, "fallback-span")
+}
+
+type nonFlushableRecorder struct {
+	http.ResponseWriter
+}
+
+func (n *nonFlushableRecorder) Header() http.Header {
+	return n.ResponseWriter.Header()
+}
+
+func (n *nonFlushableRecorder) Write(b []byte) (int, error) {
+	return n.ResponseWriter.Write(b)
+}
+
+func (n *nonFlushableRecorder) WriteHeader(statusCode int) {
+	n.ResponseWriter.WriteHeader(statusCode)
+}
+
+// TestHTTPGatewayStreamingWithEmptyBatches tests handling of empty trace batches
+func TestHTTPGatewayStreamingWithEmptyBatches(t *testing.T) {
+	// Enable streaming feature gate for this test
+	require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), true))
+	defer func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), false))
+	}()
+
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	trace1 := makeTestTrace()
+
+	// Setup iterator that returns empty batches mixed with real data
+	gw.reader.
+		On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			// Yield empty batch (should be skipped)
+			if !yield([]ptrace.Traces{}, nil) {
+				return
+			}
+			// Yield real batch
+			if !yield([]ptrace.Traces{trace1}, nil) {
+				return
+			}
+			// Another empty batch
+			yield([]ptrace.Traces{}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	body := w.Body.String()
+	// Parse NDJSON response like a real client would
+	wrappers := parseNDJSON(t, body)
+	assert.GreaterOrEqual(t, len(wrappers), 1, "Should have at least 1 trace")
+
+	// Verify that the traces contain the expected span data
+	assert.Contains(t, body, "foobar", "Response should contain 'foobar' span")
+}
+
+// TestHTTPGatewayStreamingNoTracesFound tests 404 when no traces exist
+func TestHTTPGatewayStreamingNoTracesFound(t *testing.T) {
+	// Enable streaming feature gate for this test
+	require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), true))
+	defer func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), false))
+	}()
+
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	// Setup iterator that returns only empty batches
+	gw.reader.
+		On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Contains(t, w.Body.String(), "No traces found")
+}
+
+// TestHTTPGatewayFindTracesStreaming tests findTraces endpoint with streaming
+func TestHTTPGatewayFindTracesStreaming(t *testing.T) {
+	// Enable streaming feature gate for this test
+	require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), true))
+	defer func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), false))
+	}()
+
+	q, qp := mockFindQueries()
+	trace1 := makeTestTrace()
+
+	gw := setupHTTPGatewayNoServer(t, "")
+	gw.reader.
+		On("FindTraces", matchContext, qp).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{trace1}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	body := w.Body.String()
+	// Parse NDJSON response like a real client would
+	wrappers := parseNDJSON(t, body)
+	assert.GreaterOrEqual(t, len(wrappers), 1, "Should have at least 1 trace")
+
+	// Verify that the traces contain the expected span data
+	assert.Contains(t, body, "foobar", "Response should contain 'foobar' span")
+}
+
+// TestHTTPGatewayStreamingMarshalError tests handling of write errors during streaming
+func TestHTTPGatewayStreamingMarshalError(t *testing.T) {
+	// Enable streaming feature gate for this test
+	require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), true))
+	defer func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), false))
+	}()
+
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	trace1 := makeTestTrace()
+
+	gw.reader.
+		On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{trace1}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+	require.NoError(t, err)
+
+	// Use a logger to capture error logs
+	logger, log := testutils.NewLogger()
+	q := querysvc.NewQueryService(gw.reader,
+		&dependencystoremocks.Reader{},
+		querysvc.QueryServiceOptions{},
+	)
+	hgw := &HTTPGateway{
+		QueryService: q,
+		Logger:       logger,
+		Tracer:       jtracer.NoOp().OTEL,
+	}
+	gw.router = &mux.Router{}
+	hgw.RegisterRoutes(gw.router)
+
+	// Use a ResponseWriter that fails immediately on first write
+	w := &failingWriter{
+		ResponseRecorder: httptest.NewRecorder(),
+		failImmediately:  true,
+	}
+	gw.router.ServeHTTP(w, r)
+
+	// Should log error for failing to marshal trace chunk (first write operation)
+	assert.Contains(t, log.String(), "Failed to marshal trace chunk")
+}
+
+// failingWriter is a ResponseWriter that simulates write failures
+type failingWriter struct {
+	*httptest.ResponseRecorder
+	writeCount      int
+	failAfterBytes  int
+	failImmediately bool
+}
+
+func (f *failingWriter) Write(b []byte) (int, error) {
+	f.writeCount++
+	if f.failImmediately && f.writeCount == 1 {
+		// Fail on first write (marshal output)
+		return 0, assert.AnError
+	}
+	if f.failAfterBytes > 0 && f.writeCount == 2 {
+		// Fail on second write (separator)
+		return 0, assert.AnError
+	}
+	return f.ResponseRecorder.Write(b)
+}
+
+func (*failingWriter) Flush() {
+	// Implement Flusher interface
+}
+
+// TestHTTPGatewayStreamingFirstChunkWrite tests various edge cases in first chunk handling
+func TestHTTPGatewayStreamingFirstChunkWrite(t *testing.T) {
+	// Enable streaming feature gate for this test
+	require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), true))
+	defer func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), false))
+	}()
+
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	trace1 := makeTestTrace()
+	trace2 := ptrace.NewTraces()
+	resources := trace2.ResourceSpans().AppendEmpty()
+	scopes := resources.ScopeSpans().AppendEmpty()
+	spanB := scopes.Spans().AppendEmpty()
+	spanB.SetName("span2")
+	spanB.SetTraceID(traceID)
+	spanB.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 5}))
+
+	gw.reader.
+		On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			// Multiple traces to ensure we test the iteration logic
+			yield([]ptrace.Traces{trace1, trace2}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	body := w.Body.String()
+	// Parse NDJSON response like a real client would
+	wrappers := parseNDJSON(t, body)
+	assert.GreaterOrEqual(t, len(wrappers), 1, "Should have at least 1 trace")
+
+	// Verify that the traces contain the expected span data
+	assert.Contains(t, body, "foobar", "Response should contain 'foobar' span")
+	assert.Contains(t, body, "span2", "Response should contain 'span2' span")
+}
+
+// TestHTTPGatewayStreamingErrorBeforeFirstChunk tests error handling before streaming starts
+func TestHTTPGatewayStreamingErrorBeforeFirstChunk(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	// Setup iterator that returns error immediately
+	gw.reader.
+		On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield(nil, assert.AnError)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+
+	// Should return 500 error since streaming hasn't started
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), assert.AnError.Error())
+}
+
+// TestHTTPGatewayStreamingFallbackError tests fallback path with errors
+func TestHTTPGatewayStreamingFallbackError(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	// Mock reader to return error
+	gw.reader.
+		On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield(nil, assert.AnError)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+	require.NoError(t, err)
+
+	// Use a non-flushing writer to trigger fallback
+	w := &nonFlushingWriter{ResponseRecorder: httptest.NewRecorder()}
+	gw.router.ServeHTTP(w, r)
+
+	// Should return 500 error via returnTraces fallback path
+	assert.Equal(t, http.StatusInternalServerError, w.ResponseRecorder.Code)
+}
+
+// nonFlushingWriter simulates a ResponseWriter without Flusher interface
+type nonFlushingWriter struct {
+	*httptest.ResponseRecorder
+}
+
+// TestHTTPGatewayStreamingFallbackNoTraces tests fallback path with no traces (404)
+func TestHTTPGatewayStreamingFallbackNoTraces(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	// Mock reader to return empty traces
+	gw.reader.
+		On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(_ func([]ptrace.Traces, error) bool) {
+			// Return empty - no traces found
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+	require.NoError(t, err)
+
+	// Use a non-flushing writer to trigger fallback path
+	w := &nonFlushingWriter{ResponseRecorder: httptest.NewRecorder()}
+	gw.router.ServeHTTP(w, r)
+
+	// Should return 404 via returnTraces fallback path
+	assert.Equal(t, http.StatusNotFound, w.ResponseRecorder.Code)
+	assert.Contains(t, w.ResponseRecorder.Body.String(), "No traces found")
+}
+
+// TestHTTPGatewayStreamingClientSideParsing verifies that the streaming response
+// is valid NDJSON that clients can parse
+func TestHTTPGatewayStreamingClientSideParsing(t *testing.T) {
+	// Enable streaming feature gate for this test
+	require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), true))
+	defer func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(enableHTTPStreaming.ID(), false))
+	}()
+
+	gw := setupHTTPGateway(t, "")
+
+	trace1 := makeTestTrace()
+
+	trace2 := ptrace.NewTraces()
+	resources2 := trace2.ResourceSpans().AppendEmpty()
+	scopes2 := resources2.ScopeSpans().AppendEmpty()
+	spanB := scopes2.Spans().AppendEmpty()
+	spanB.SetName("client-test-span")
+	spanB.SetTraceID(pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2})) // Different trace ID
+	spanB.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 7}))
+
+	trace3 := ptrace.NewTraces()
+	resources3 := trace3.ResourceSpans().AppendEmpty()
+	scopes3 := resources3.ScopeSpans().AppendEmpty()
+	spanC := scopes3.Spans().AppendEmpty()
+	spanC.SetName("third-span")
+	spanC.SetTraceID(pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3})) // Different trace ID
+	spanC.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 8}))
+
+	gw.reader.
+		On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			if !yield([]ptrace.Traces{trace1}, nil) {
+				return
+			}
+			if !yield([]ptrace.Traces{trace2}, nil) {
+				return
+			}
+			yield([]ptrace.Traces{trace3}, nil)
+		})).Once()
+
+	resp, err := http.Get(gw.url + "/api/v3/traces/1")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+
+	body := make([]byte, 0)
+	buf := make([]byte, 1024)
+	for {
+		n, err := resp.Body.Read(buf)
+		if n > 0 {
+			body = append(body, buf[:n]...)
+		}
+		if err != nil {
+			break
+		}
+	}
+
+	bodyStr := string(body)
+
+	// Parse NDJSON response like a real client would
+	wrappers := parseNDJSON(t, bodyStr)
+
+	// Verify we got multiple trace results
+	assert.GreaterOrEqual(t, len(wrappers), 3, "Should have at least 3 trace objects")
+
+	// Verify that the traces contain the expected span data
+	assert.Contains(t, bodyStr, "foobar", "Response should contain 'foobar' span")
+	assert.Contains(t, bodyStr, "client-test-span", "Response should contain 'client-test-span' span")
+	assert.Contains(t, bodyStr, "third-span", "Response should contain 'third-span' span")
+}
+
+// TestHTTPGatewayStreamingEmptyTracesVsNoTraces tests the distinction between
+// "query matched but traces are empty" vs "query matched nothing"
+func TestHTTPGatewayStreamingEmptyTracesVsNoTraces(t *testing.T) {
+	t.Run("empty traces with data afterwards", func(t *testing.T) {
+		// This simulates traces exist but some batches are empty
+		gw := setupHTTPGatewayNoServer(t, "")
+		trace1 := makeTestTrace()
+
+		gw.reader.
+			On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+			Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+				if !yield([]ptrace.Traces{}, nil) {
+					return
+				}
+				if !yield([]ptrace.Traces{}, nil) {
+					return
+				}
+				yield([]ptrace.Traces{trace1}, nil)
+			})).Once()
+
+		r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+		require.NoError(t, err)
+		w := httptest.NewRecorder()
+		gw.router.ServeHTTP(w, r)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "foobar")
+	})
+
+	t.Run("only empty traces - no actual data", func(t *testing.T) {
+		// This simulates "query matched nothing" or "all traces are empty"
+		gw := setupHTTPGatewayNoServer(t, "")
+
+		gw.reader.
+			On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+			Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+				if !yield([]ptrace.Traces{}, nil) {
+					return
+				}
+				if !yield([]ptrace.Traces{}, nil) {
+					return
+				}
+				yield([]ptrace.Traces{}, nil)
+			})).Once()
+
+		r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+		require.NoError(t, err)
+		w := httptest.NewRecorder()
+		gw.router.ServeHTTP(w, r)
+
+		// Should return 404 because tracesFound remains false
+		assert.Equal(t, http.StatusNotFound, w.Code)
+		assert.Contains(t, w.Body.String(), "No traces found")
+	})
+
+	t.Run("no iterations at all", func(t *testing.T) {
+		// Case 3: Iterator never yields anything (different from yielding empty arrays)
+		gw := setupHTTPGatewayNoServer(t, "")
+
+		gw.reader.
+			On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+			Return(iter.Seq2[[]ptrace.Traces, error](func(_ func([]ptrace.Traces, error) bool) {
+				// Iterator completes without yielding anything
+			})).Once()
+
+		r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+		require.NoError(t, err)
+		w := httptest.NewRecorder()
+		gw.router.ServeHTTP(w, r)
+
+		// Should return 404 because no traces were found
+		assert.Equal(t, http.StatusNotFound, w.Code)
+		assert.Contains(t, w.Body.String(), "No traces found")
+	})
+}
+
+// TestHTTPGatewayStreamingSingleTraceValidJSON verifies that a single trace
+// with streaming support returns valid JSON (not NDJSON)
+func TestHTTPGatewayStreamingSingleTraceValidJSON(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	trace1 := makeTestTrace()
+	gw.reader.
+		On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{trace1}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces/1", http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	body := w.Body.String()
+
+	// Critical: Single trace should be parseable as standard JSON
+	var response map[string]any
+	err = json.Unmarshal([]byte(body), &response)
+	require.NoError(t, err, "Single trace response should be valid JSON")
+
+	// Should have result field
+	result, hasResult := response["result"]
+	assert.True(t, hasResult, "Response should have 'result' field")
+	assert.NotNil(t, result, "Result should not be nil")
+
+	// Should NOT contain newlines (not NDJSON)
+	assert.NotContains(t, body, "}\n{", "Single trace should not have NDJSON format")
+
+	// Verify content
+	assert.Contains(t, body, "foobar")
 }

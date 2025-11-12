@@ -15,6 +15,7 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -30,6 +31,21 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
+
+var enableHTTPStreaming *featuregate.Gate
+
+func init() {
+	enableHTTPStreaming = featuregate.GlobalRegistry().MustRegister(
+		"jaeger.query.http.streaming",
+		featuregate.StageAlpha,
+		featuregate.WithRegisterDescription(
+			"Enable HTTP streaming for /api/v3 endpoints using NDJSON format with chunked transfer encoding",
+		),
+		featuregate.WithRegisterReferenceURL(
+			"https://github.com/jaegertracing/jaeger/issues/6467",
+		),
+	)
+}
 
 const (
 	paramTraceID        = "trace_id" // get trace by ID
@@ -137,8 +153,7 @@ func (h *HTTPGateway) returnTraces(traces []ptrace.Traces, err error, w http.Res
 		http.Error(w, string(resp), http.StatusNotFound)
 		return
 	}
-	// TODO: the response should be streamed back to the client
-	// https://github.com/jaegertracing/jaeger/issues/6467
+
 	combinedTrace := ptrace.NewTraces()
 	for _, t := range traces {
 		resources := t.ResourceSpans()
@@ -148,6 +163,93 @@ func (h *HTTPGateway) returnTraces(traces []ptrace.Traces, err error, w http.Res
 		}
 	}
 	h.returnTrace(combinedTrace, w)
+}
+
+func (h *HTTPGateway) streamTraces(tracesIter func(yield func([]ptrace.Traces, error) bool), w http.ResponseWriter) {
+	// Check feature gate FIRST - if disabled, use non-streaming behavior
+	if !enableHTTPStreaming.IsEnabled() {
+		traces, err := jiter.FlattenWithErrors(tracesIter)
+		h.returnTraces(traces, err, w)
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		traces, err := jiter.FlattenWithErrors(tracesIter)
+		h.returnTraces(traces, err, w)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	tracesFound := false
+	hasError := false
+	headerWritten := false
+
+	tracesIter(func(traces []ptrace.Traces, err error) bool {
+		if err != nil {
+			if !headerWritten {
+				h.tryHandleError(w, err, http.StatusInternalServerError)
+			} else {
+				h.Logger.Error("Error while streaming traces", zap.Error(err))
+			}
+			hasError = true
+			return false
+		}
+
+		if len(traces) == 0 {
+			return true
+		}
+
+		tracesFound = true
+
+		for _, td := range traces {
+			combinedTrace := ptrace.NewTraces()
+			resources := td.ResourceSpans()
+			for i := 0; i < resources.Len(); i++ {
+				resource := resources.At(i)
+				resource.CopyTo(combinedTrace.ResourceSpans().AppendEmpty())
+			}
+
+			tracesData := jptrace.TracesData(combinedTrace)
+			response := &api_v3.GRPCGatewayWrapper{
+				Result: &tracesData,
+			}
+
+			if !headerWritten {
+				w.WriteHeader(http.StatusOK)
+				headerWritten = true
+			} else {
+				// Write newline separator between messages (grpc-web style NDJSON)
+				if _, err := w.Write([]byte("\n")); err != nil {
+					h.Logger.Error("Failed to write newline separator", zap.Error(err))
+					return false
+				}
+			}
+
+			marshaler := jsonpb.Marshaler{}
+			if err := marshaler.Marshal(w, response); err != nil {
+				h.Logger.Error("Failed to marshal trace chunk", zap.Error(err))
+				return false
+			}
+
+			flusher.Flush()
+		}
+
+		return true
+	})
+
+	if !tracesFound && !hasError {
+		errorResponse := api_v3.GRPCGatewayError{
+			Error: &api_v3.GRPCGatewayError_GRPCGatewayErrorDetails{
+				HttpCode: http.StatusNotFound,
+				Message:  "No traces found",
+			},
+		}
+		resp, _ := json.Marshal(&errorResponse)
+		http.Error(w, string(resp), http.StatusNotFound)
+		return
+	}
 }
 
 func (*HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWriter) {
@@ -193,8 +295,7 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 		request.RawTraces = rawTraces
 	}
 	getTracesIter := h.QueryService.GetTraces(r.Context(), request)
-	trc, err := jiter.FlattenWithErrors(getTracesIter)
-	h.returnTraces(trc, err, w)
+	h.streamTraces(getTracesIter, w)
 }
 
 func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
@@ -204,8 +305,7 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 	}
 
 	findTracesIter := h.QueryService.FindTraces(r.Context(), *queryParams)
-	traces, err := jiter.FlattenWithErrors(findTracesIter)
-	h.returnTraces(traces, err, w)
+	h.streamTraces(findTracesIter, w)
 }
 
 func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) (*querysvc.TraceQueryParams, bool) {
