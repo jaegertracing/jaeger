@@ -4,7 +4,6 @@
 package prometheus
 
 import (
-	"context"
 	"flag"
 
 	"github.com/spf13/viper"
@@ -68,7 +67,6 @@ func (f *Factory) CreateMetricsReader() (metricstore.Reader, error) {
 // NewFactoryWithConfig creates a new Factory with configuration and optional HTTP authenticator.
 // Pass nil for httpAuth if authentication is not required.
 func NewFactoryWithConfig(
-	_ context.Context,
 	cfg config.Configuration,
 	telset telemetry.Settings,
 	httpAuth extensionauth.HTTPClient,

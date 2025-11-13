@@ -240,7 +240,6 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 				return authErr
 			}
 			metricStoreFactory, err = prometheus.NewFactoryWithConfig(
-				ctx,
 				cfg.Prometheus.Configuration,
 				promTelset,
 				httpAuth,
