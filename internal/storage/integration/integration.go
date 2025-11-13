@@ -633,6 +633,72 @@ func (s *StorageIntegration) insertThroughput(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// === OTLP v2 API Tests ===
+
+func (s *StorageIntegration) testOTLPScopePreservation(t *testing.T) {
+	s.skipIfNeeded(t)
+	defer s.cleanUp(t)
+
+	t.Log("Testing OTLP InstrumentationScope preservation through v2 API")
+
+	traces := s.loadOTLPFixture(t, "otlp_scope_attributes")
+
+	s.writeTrace(t, traces)
+
+	traceID := extractTraceID(t, traces)
+
+	var readTraces []*model.Trace
+	found := s.waitForCondition(t, func(t *testing.T) bool {
+		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: traceID})
+		var err error
+		readTraces, err = v1adapter.V1TracesFromSeq2(iterTraces)
+		if err != nil {
+			t.Log(err)
+			return false
+		}
+		return len(readTraces) > 0
+	})
+
+	require.True(t, found, "Failed to retrieve written trace")
+	require.NotEmpty(t, readTraces, "Should retrieve written trace")
+
+	// Convert back to ptrace to validate Scope metadata
+	retrievedTrace := v1adapter.V1TraceToOtelTrace(readTraces[0])
+	require.Greater(t, retrievedTrace.ResourceSpans().Len(), 0, "Should have resource spans")
+
+	scopeSpans := retrievedTrace.ResourceSpans().At(0).ScopeSpans()
+	require.Greater(t, scopeSpans.Len(), 0, "Should have scope spans")
+
+	scope := scopeSpans.At(0).Scope()
+	assert.Equal(t, "test-instrumentation-library", scope.Name(), "Scope name should be preserved")
+	assert.Equal(t, "2.1.0", scope.Version(), "Scope version should be preserved")
+
+	t.Log(" OTLP InstrumentationScope metadata preserved successfully")
+}
+
+// loadOTLPFixture loads an OTLP trace fixture by name from the fixtures directory.
+func (s *StorageIntegration) loadOTLPFixture(t *testing.T, fixtureName string) ptrace.Traces {
+	fileName := fmt.Sprintf("fixtures/traces/%s.json", fixtureName)
+	data, err := fixtures.ReadFile(fileName)
+	require.NoError(t, err, "Failed to read OTLP fixture %s", fileName)
+
+	unmarshaler := &ptrace.JSONUnmarshaler{}
+	traces, err := unmarshaler.UnmarshalTraces(data)
+	require.NoError(t, err, "Failed to unmarshal OTLP fixture %s", fixtureName)
+
+	return traces
+}
+
+// extractTraceID extracts the first trace ID from ptrace.Traces for retrieval testing.
+func extractTraceID(t *testing.T, traces ptrace.Traces) pcommon.TraceID {
+	require.Greater(t, traces.ResourceSpans().Len(), 0, "Trace must have resource spans")
+	rs := traces.ResourceSpans().At(0)
+	require.Greater(t, rs.ScopeSpans().Len(), 0, "Resource must have scope spans")
+	ss := rs.ScopeSpans().At(0)
+	require.Greater(t, ss.Spans().Len(), 0, "Scope must have spans")
+	return ss.Spans().At(0).TraceID()
+}
+
 // RunAll runs all integration tests
 func (s *StorageIntegration) RunAll(t *testing.T) {
 	s.RunSpanStoreTests(t)
@@ -649,4 +715,5 @@ func (s *StorageIntegration) RunSpanStoreTests(t *testing.T) {
 	t.Run("GetLargeTrace", s.testGetLargeTrace)
 	t.Run("GetTraceWithDuplicateSpans", s.testGetTraceWithDuplicates)
 	t.Run("FindTraces", s.testFindTraces)
+	t.Run("OTLPScopePreservation", s.testOTLPScopePreservation)
 }
