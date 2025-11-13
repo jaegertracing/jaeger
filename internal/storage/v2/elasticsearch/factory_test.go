@@ -54,13 +54,13 @@ func TestESStorageFactoryWithConfig(t *testing.T) {
 		Servers:  []string{server.URL},
 		LogLevel: "error",
 	}
-	factory, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
+	factory, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
 	require.NoError(t, err)
 	factory.Close()
 }
 
 func TestESStorageFactoryErr(t *testing.T) {
-	f, err := NewFactory(context.Background(), escfg.Configuration{}, telemetry.NoopSettings())
+	f, err := NewFactory(context.Background(), escfg.Configuration{}, telemetry.NoopSettings(), nil)
 	require.ErrorContains(t, err, "failed to create Elasticsearch client: no servers specified")
 	require.Nil(t, f)
 }
@@ -110,7 +110,7 @@ func TestAlwaysIncludesRequiredTags(t *testing.T) {
 				LogLevel: "error",
 				Tags:     tt.tagsConfig,
 			}
-			factory, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
+			factory, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
 			require.NoError(t, err)
 			defer factory.Close()
 

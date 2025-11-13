@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/extension"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
@@ -394,10 +395,10 @@ func TestStartError(t *testing.T) {
 }
 
 func TestMetricStorageStartError(t *testing.T) {
-	expectedError := "failed to initialize metrics storage 'foo'"
 	tests := []struct {
-		name   string
-		config *Config
+		name          string
+		config        *Config
+		expectedError string
 	}{
 		{
 			name: "Prometheus backend initialization error",
@@ -410,6 +411,7 @@ func TestMetricStorageStartError(t *testing.T) {
 					},
 				},
 			},
+			expectedError: "failed to initialize metrics storage 'foo'",
 		},
 		{
 			name: "Elasticsearch backend initialization error",
@@ -420,6 +422,7 @@ func TestMetricStorageStartError(t *testing.T) {
 					},
 				},
 			},
+			expectedError: "Servers: non zero value required",
 		},
 		{
 			name: "OpenSearch backend initialization error",
@@ -430,6 +433,7 @@ func TestMetricStorageStartError(t *testing.T) {
 					},
 				},
 			},
+			expectedError: "Servers: non zero value required",
 		},
 	}
 
@@ -437,15 +441,21 @@ func TestMetricStorageStartError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ext := makeStorageExtension(t, tt.config)
 			err := ext.Start(t.Context(), componenttest.NewNopHost())
-			require.ErrorContains(t, err, expectedError)
+			require.ErrorContains(t, err, tt.expectedError)
 		})
 	}
 }
 
-func testElasticsearchOrOpensearch(t *testing.T, cfg TraceBackend) {
+func TestElasticsearch(t *testing.T) {
+	server := setupMockServer(t, getVersionResponse(t), http.StatusOK)
 	ext := makeStorageExtension(t, &Config{
 		TraceBackends: map[string]TraceBackend{
-			"foo": cfg,
+			"foo": {
+				Elasticsearch: &escfg.Configuration{
+					Servers:  []string{server.URL},
+					LogLevel: "error",
+				},
+			},
 		},
 	})
 	ctx := t.Context()
@@ -454,24 +464,22 @@ func testElasticsearchOrOpensearch(t *testing.T, cfg TraceBackend) {
 	require.NoError(t, ext.Shutdown(ctx))
 }
 
-func TestXYZsearch(t *testing.T) {
+func TestOpenSearch(t *testing.T) {
 	server := setupMockServer(t, getVersionResponse(t), http.StatusOK)
-	t.Run("Elasticsearch", func(t *testing.T) {
-		testElasticsearchOrOpensearch(t, TraceBackend{
-			Elasticsearch: &escfg.Configuration{
-				Servers:  []string{server.URL},
-				LogLevel: "error",
+	ext := makeStorageExtension(t, &Config{
+		TraceBackends: map[string]TraceBackend{
+			"foo": {
+				Opensearch: &escfg.Configuration{
+					Servers:  []string{server.URL},
+					LogLevel: "error",
+				},
 			},
-		})
+		},
 	})
-	t.Run("OpenSearch", func(t *testing.T) {
-		testElasticsearchOrOpensearch(t, TraceBackend{
-			Opensearch: &escfg.Configuration{
-				Servers:  []string{server.URL},
-				LogLevel: "error",
-			},
-		})
-	})
+	ctx := t.Context()
+	err := ext.Start(ctx, componenttest.NewNopHost())
+	require.NoError(t, err)
+	require.NoError(t, ext.Shutdown(ctx))
 }
 
 func TestCassandraError(t *testing.T) {
@@ -644,14 +652,16 @@ func TestMetricBackendWithAuthenticator(t *testing.T) {
 						Configuration: promcfg.Configuration{
 							ServerURL: mockServer.URL,
 						},
-						Auth: &AuthConfig{
-							Authenticator: "sigv4auth",
+						Authentication: escfg.Authentication{
+							Config: configauth.Config{
+								AuthenticatorID: component.MustNewID("sigv4auth"),
+							},
 						},
 					},
 				},
 			},
 		})).
-		WithExtension(component.MustNewIDWithName("sigv4auth", "sigv4auth"), mockAuth)
+		WithExtension(component.MustNewID("sigv4auth"), mockAuth)
 
 	ext := host.GetExtensions()[ID]
 	require.NoError(t, ext.Start(t.Context(), host))
@@ -676,8 +686,10 @@ func TestMetricBackendWithInvalidAuthenticator(t *testing.T) {
 					Configuration: promcfg.Configuration{
 						ServerURL: mockServer.URL,
 					},
-					Auth: &AuthConfig{
-						Authenticator: "nonexistent",
+					Authentication: escfg.Authentication{
+						Config: configauth.Config{
+							AuthenticatorID: component.MustNewID("sigv4auth"),
+						},
 					},
 				},
 			},
@@ -731,4 +743,315 @@ func (*mockNonHTTPExtension) Start(context.Context, component.Host) error {
 
 func (*mockNonHTTPExtension) Shutdown(context.Context) error {
 	return nil
+}
+
+// Test resolveAuthenticator helper
+func TestResolveAuthenticator(t *testing.T) {
+	const (
+		backendType = "elasticsearch"
+		backendName = "test"
+	)
+
+	tests := []struct {
+		name        string
+		authCfg     escfg.Authentication
+		setupHost   func() component.Host
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:      "empty authenticator returns nil",
+			authCfg:   escfg.Authentication{},
+			setupHost: componenttest.NewNopHost,
+			wantErr:   false,
+		},
+		{
+			name: "valid authenticator",
+			authCfg: escfg.Authentication{
+				Config: configauth.Config{
+					AuthenticatorID: component.MustNewID("sigv4auth"),
+				},
+			},
+			setupHost: func() component.Host {
+				return storagetest.NewStorageHost().
+					WithExtension(component.MustNewIDWithName("sigv4auth", "sigv4auth"), &mockHTTPAuthenticator{})
+			},
+			wantErr: false,
+		},
+		{
+			name: "authenticator not found",
+			authCfg: escfg.Authentication{
+				Config: configauth.Config{
+					AuthenticatorID: component.MustNewID("notfound"),
+				},
+			},
+			setupHost:   componenttest.NewNopHost,
+			wantErr:     true,
+			errContains: "failed to get HTTP authenticator for elasticsearch backend 'test'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ext := &storageExt{telset: noopTelemetrySettings()}
+			host := tt.setupHost()
+
+			auth, err := ext.resolveAuthenticator(host, tt.authCfg, backendType, backendName)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.errContains)
+				return
+			}
+			require.NoError(t, err)
+			// Check if authenticator ID is empty
+			if tt.authCfg.AuthenticatorID.String() == "" {
+				require.Nil(t, auth)
+			} else {
+				require.NotNil(t, auth)
+			}
+		})
+	}
+}
+
+// Test getAuthenticator with empty authenticator name
+func TestGetAuthenticatorEmptyName(t *testing.T) {
+	cfg := &Config{}
+	ext := newStorageExt(cfg, noopTelemetrySettings())
+
+	host := componenttest.NewNopHost()
+
+	// Call with empty authenticator name
+	auth, err := ext.getAuthenticator(host, "")
+
+	require.NoError(t, err)
+	require.Nil(t, auth)
+}
+
+// Test Elasticsearch with valid authenticator integration
+func TestElasticsearchWithAuthenticator(t *testing.T) {
+	mockServer := setupMockServer(t, getVersionResponse(t), http.StatusOK)
+	mockAuth := &mockHTTPAuthenticator{}
+
+	cfg := &Config{
+		TraceBackends: map[string]TraceBackend{
+			"elasticsearch": {
+				Elasticsearch: &escfg.Configuration{
+					Servers:  []string{mockServer.URL},
+					LogLevel: "error",
+					Authentication: escfg.Authentication{
+						Config: configauth.Config{
+							AuthenticatorID: component.MustNewID("sigv4auth"),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	ext := makeStorageExtension(t, cfg)
+	host := storagetest.NewStorageHost().
+		WithExtension(ID, ext).
+		WithExtension(component.MustNewID("sigv4auth"), mockAuth)
+
+	err := ext.Start(t.Context(), host)
+	require.NoError(t, err)
+	require.NoError(t, ext.Shutdown(t.Context()))
+}
+
+// Test OpenSearch with valid authenticator integration
+func TestOpenSearchWithAuthenticator(t *testing.T) {
+	mockServer := setupMockServer(t, getVersionResponse(t), http.StatusOK)
+	mockAuth := &mockHTTPAuthenticator{}
+
+	cfg := &Config{
+		TraceBackends: map[string]TraceBackend{
+			"opensearch": {
+				Opensearch: &escfg.Configuration{
+					Servers:  []string{mockServer.URL},
+					LogLevel: "error",
+					Authentication: escfg.Authentication{
+						Config: configauth.Config{
+							AuthenticatorID: component.MustNewID("sigv4auth"),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	ext := makeStorageExtension(t, cfg)
+	host := storagetest.NewStorageHost().
+		WithExtension(ID, ext).
+		WithExtension(component.MustNewID("sigv4auth"), mockAuth)
+
+	err := ext.Start(t.Context(), host)
+	require.NoError(t, err)
+	require.NoError(t, ext.Shutdown(t.Context()))
+}
+
+// Test Elasticsearch with missing authenticator
+func TestElasticsearchWithMissingAuthenticator(t *testing.T) {
+	mockServer := setupMockServer(t, getVersionResponse(t), http.StatusOK)
+
+	cfg := &Config{
+		TraceBackends: map[string]TraceBackend{
+			"elasticsearch": {
+				Elasticsearch: &escfg.Configuration{
+					Servers:  []string{mockServer.URL},
+					LogLevel: "error",
+					Authentication: escfg.Authentication{
+						Config: configauth.Config{
+							AuthenticatorID: component.MustNewID("nonexistent"),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	ext := makeStorageExtension(t, cfg)
+	err := ext.Start(t.Context(), componenttest.NewNopHost())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to get HTTP authenticator")
+}
+
+// Test OpenSearch trace backend with missing authenticator
+func TestOpenSearchTraceWithMissingAuthenticator(t *testing.T) {
+	mockServer := setupMockServer(t, getVersionResponse(t), http.StatusOK)
+
+	cfg := &Config{
+		TraceBackends: map[string]TraceBackend{
+			"opensearch": {
+				Opensearch: &escfg.Configuration{
+					Servers:  []string{mockServer.URL},
+					LogLevel: "error",
+					Authentication: escfg.Authentication{
+						Config: configauth.Config{
+							AuthenticatorID: component.MustNewID("nonexistent"),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	ext := makeStorageExtension(t, cfg)
+	err := ext.Start(t.Context(), componenttest.NewNopHost())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to get HTTP authenticator")
+}
+
+// Test Elasticsearch with wrong authenticator type
+func TestElasticsearchWithWrongAuthenticatorType(t *testing.T) {
+	mockServer := setupMockServer(t, getVersionResponse(t), http.StatusOK)
+	wrongAuth := &mockNonHTTPExtension{}
+
+	cfg := &Config{
+		TraceBackends: map[string]TraceBackend{
+			"elasticsearch": {
+				Elasticsearch: &escfg.Configuration{
+					Servers:  []string{mockServer.URL},
+					LogLevel: "error",
+					Authentication: escfg.Authentication{
+						Config: configauth.Config{
+							AuthenticatorID: component.MustNewID("wrongtype"),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	ext := makeStorageExtension(t, cfg)
+	host := storagetest.NewStorageHost().
+		WithExtension(ID, ext).
+		WithExtension(component.MustNewID("wrongtype"), wrongAuth)
+
+	err := ext.Start(t.Context(), host)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "does not implement extensionauth.HTTPClient")
+}
+
+// Test OpenSearch with wrong authenticator type
+func TestOpenSearchWithWrongAuthenticatorType(t *testing.T) {
+	mockServer := setupMockServer(t, getVersionResponse(t), http.StatusOK)
+	wrongAuth := &mockNonHTTPExtension{}
+
+	cfg := &Config{
+		TraceBackends: map[string]TraceBackend{
+			"opensearch": {
+				Opensearch: &escfg.Configuration{
+					Servers:  []string{mockServer.URL},
+					LogLevel: "error",
+					Authentication: escfg.Authentication{
+						Config: configauth.Config{
+							AuthenticatorID: component.MustNewID("wrongtype"),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	ext := makeStorageExtension(t, cfg)
+	host := storagetest.NewStorageHost().
+		WithExtension(ID, ext).
+		WithExtension(component.MustNewID("wrongtype"), wrongAuth)
+
+	err := ext.Start(t.Context(), host)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "does not implement extensionauth.HTTPClient")
+}
+
+// Test Elasticsearch metrics backend with invalid authenticator
+func TestElasticsearchMetricsWithInvalidAuthenticator(t *testing.T) {
+	mockServer := setupMockServer(t, getVersionResponse(t), http.StatusOK)
+
+	config := &Config{
+		MetricBackends: map[string]MetricBackend{
+			"elasticsearch": {
+				Elasticsearch: &escfg.Configuration{
+					Servers:  []string{mockServer.URL},
+					LogLevel: "error",
+					Authentication: escfg.Authentication{
+						Config: configauth.Config{
+							AuthenticatorID: component.MustNewID("nonexistent"),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	ext := makeStorageExtension(t, config)
+	err := ext.Start(t.Context(), componenttest.NewNopHost())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to get HTTP authenticator")
+}
+
+// Test OpenSearch metrics backend with invalid authenticator
+func TestOpenSearchMetricsWithInvalidAuthenticator(t *testing.T) {
+	mockServer := setupMockServer(t, getVersionResponse(t), http.StatusOK)
+
+	config := &Config{
+		MetricBackends: map[string]MetricBackend{
+			"opensearch": {
+				Opensearch: &escfg.Configuration{
+					Servers:  []string{mockServer.URL},
+					LogLevel: "error",
+					Authentication: escfg.Authentication{
+						Config: configauth.Config{
+							AuthenticatorID: component.MustNewID("nonexistent"),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	ext := makeStorageExtension(t, config)
+	err := ext.Start(t.Context(), componenttest.NewNopHost())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to get HTTP authenticator")
 }

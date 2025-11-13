@@ -51,27 +51,9 @@ type TraceBackend struct {
 	ClickHouse    *clickhouse.Configuration `mapstructure:"clickhouse"`
 }
 
-// AuthConfig represents authentication configuration for metric backends.
-//
-// The Authenticator field expects the ID (name) of an HTTP authenticator
-// extension that is registered in the running binary and implements
-// go.opentelemetry.io/collector/extension/extensionauth.HTTPClient.
-//
-// Valid values:
-//   - "sigv4auth" in the stock Jaeger binary (built-in).
-//   - Any other extension name is valid only if that authenticator extension
-//     is included in the build; otherwise Jaeger will error at startup when
-//     resolving the extension.
-//   - Empty/omitted means no auth (default behavior).
-type AuthConfig struct {
-	// Authenticator is the name (ID) of the HTTP authenticator extension to use.
-	Authenticator string `mapstructure:"authenticator"`
-}
-
-// PrometheusConfiguration wraps the base Prometheus configuration with auth support.
 type PrometheusConfiguration struct {
-	promcfg.Configuration `mapstructure:",squash"`
-	Auth                  *AuthConfig `mapstructure:"auth,omitempty"`
+	Configuration  promcfg.Configuration `mapstructure:",squash"`
+	Authentication escfg.Authentication  `mapstructure:"auth"`
 }
 
 // MetricBackend contains configuration for a single metric storage backend.

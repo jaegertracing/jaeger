@@ -116,7 +116,7 @@ metric_backends:
 `)
 	cfg := createDefaultConfig().(*Config)
 	require.NoError(t, conf.Unmarshal(cfg))
-	assert.NotEmpty(t, cfg.MetricBackends["some_metrics_storage"].Prometheus.ServerURL)
+	assert.NotEmpty(t, cfg.MetricBackends["some_metrics_storage"].Prometheus.Configuration.ServerURL)
 }
 
 func TestConfigDefaultElasticsearchAsMetricsBackend(t *testing.T) {
