@@ -75,7 +75,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		}
 		cfg.UseReadWriteAliases = true
 	}
-	coreFactory, err := NewFactoryBase(context.Background(), *cfg, metricsFactory, logger)
+	coreFactory, err := NewFactoryBase(context.Background(), *cfg, metricsFactory, logger, nil)
 	if err != nil {
 		return err
 	}
