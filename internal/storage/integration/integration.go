@@ -641,7 +641,7 @@ func (s *StorageIntegration) testOTLPScopePreservation(t *testing.T) {
 
 	t.Log("Testing OTLP InstrumentationScope preservation through v2 API")
 
-	traces := s.loadOTLPFixture(t, "otlp_scope_attributes")
+	traces := loadOTLPFixture(t, "otlp_scope_attributes")
 
 	s.writeTrace(t, traces)
 
@@ -664,10 +664,10 @@ func (s *StorageIntegration) testOTLPScopePreservation(t *testing.T) {
 
 	// Convert back to ptrace to validate Scope metadata
 	retrievedTrace := v1adapter.V1TraceToOtelTrace(readTraces[0])
-	require.Greater(t, retrievedTrace.ResourceSpans().Len(), 0, "Should have resource spans")
+	require.Positive(t, retrievedTrace.ResourceSpans().Len(), "Should have resource spans")
 
 	scopeSpans := retrievedTrace.ResourceSpans().At(0).ScopeSpans()
-	require.Greater(t, scopeSpans.Len(), 0, "Should have scope spans")
+	require.Positive(t, scopeSpans.Len(), "Should have scope spans")
 
 	scope := scopeSpans.At(0).Scope()
 	assert.Equal(t, "test-instrumentation-library", scope.Name(), "Scope name should be preserved")
@@ -677,7 +677,7 @@ func (s *StorageIntegration) testOTLPScopePreservation(t *testing.T) {
 }
 
 // loadOTLPFixture loads an OTLP trace fixture by name from the fixtures directory.
-func (s *StorageIntegration) loadOTLPFixture(t *testing.T, fixtureName string) ptrace.Traces {
+func loadOTLPFixture(t *testing.T, fixtureName string) ptrace.Traces {
 	fileName := fmt.Sprintf("fixtures/traces/%s.json", fixtureName)
 	data, err := fixtures.ReadFile(fileName)
 	require.NoError(t, err, "Failed to read OTLP fixture %s", fileName)
@@ -691,11 +691,11 @@ func (s *StorageIntegration) loadOTLPFixture(t *testing.T, fixtureName string) p
 
 // extractTraceID extracts the first trace ID from ptrace.Traces for retrieval testing.
 func extractTraceID(t *testing.T, traces ptrace.Traces) pcommon.TraceID {
-	require.Greater(t, traces.ResourceSpans().Len(), 0, "Trace must have resource spans")
+	require.Positive(t, traces.ResourceSpans().Len(), "Trace must have resource spans")
 	rs := traces.ResourceSpans().At(0)
-	require.Greater(t, rs.ScopeSpans().Len(), 0, "Resource must have scope spans")
+	require.Positive(t, rs.ScopeSpans().Len(), "Resource must have scope spans")
 	ss := rs.ScopeSpans().At(0)
-	require.Greater(t, ss.Spans().Len(), 0, "Scope must have spans")
+	require.Positive(t, ss.Spans().Len(), "Scope must have spans")
 	return ss.Spans().At(0).TraceID()
 }
 
