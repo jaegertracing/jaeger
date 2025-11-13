@@ -117,7 +117,7 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	cfg.ServiceCacheTTL = 1 * time.Second
 	cfg.Indices.IndexPrefix = indexPrefix
 	var err error
-	f, err := esv2.NewFactory(context.Background(), cfg, telemetry.NoopSettings())
+	f, err := esv2.NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, f.Close())
@@ -128,7 +128,7 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	acfg.UseReadWriteAliases = true
 	acfg.Tags.AllAsFields = allTagsAsFields
 	acfg.Indices.IndexPrefix = indexPrefix
-	af, err := esv2.NewFactory(context.Background(), acfg, telemetry.NoopSettings())
+	af, err := esv2.NewFactory(context.Background(), acfg, telemetry.NoopSettings(), nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, af.Close())
