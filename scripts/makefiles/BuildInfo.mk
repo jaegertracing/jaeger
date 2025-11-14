@@ -19,9 +19,5 @@ endef
 BUILD_INFO_V1=$(call buildinfoflags,V1)
 BUILD_INFO_V2=$(call buildinfoflags,V2)
 
-# Default to V2 unless JAEGER_VERSION=1 is explicitly set
-ifeq ($(JAEGER_VERSION),1)
-BUILD_INFO=$(BUILD_INFO_V1)
-else
+# Default to V2
 BUILD_INFO=$(BUILD_INFO_V2)
-endif
