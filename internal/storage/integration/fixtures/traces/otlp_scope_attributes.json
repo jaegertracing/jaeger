@@ -21,17 +21,7 @@
         {
           "scope": {
             "name": "test-instrumentation-library",
-            "version": "2.1.0",
-            "attributes": [
-              {
-                "key": "otel.scope.name",
-                "value": {"stringValue": "custom-tracer"}
-              },
-              {
-                "key": "instrumentation.provider",
-                "value": {"stringValue": "opentelemetry"}
-              }
-            ]
+            "version": "2.1.0"
           },
           "spans": [
             {
