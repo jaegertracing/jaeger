@@ -273,6 +273,12 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 }
 
 func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
+	// NOTE: duration queries are handled via the duration_index and are executed
+	// as a partition-scoped, time-bucketed scan. Because the Cassandra
+	// duration_index is partitioned by (service_name, operation_name, bucket)
+	// and duration is a clustering column, we issue equality queries on the
+	// partition keys and range-scan on duration inside those partitions.
+	// See ADR: docs/adr/cassandra-find-traces-duration.md for rationale and details.
 	if traceQuery.DurationMin != 0 || traceQuery.DurationMax != 0 {
 		return s.queryByDuration(ctx, traceQuery)
 	}
