@@ -261,3 +261,9 @@ var CreateOperationsTable string
 
 //go:embed create_operations_mv.sql
 var CreateOperationsMaterializedView string
+
+//go:embed create_service_name_index.sql
+var CreateServiceNameIndex string
+
+//go:embed create_span_name_index.sql
+var CreateSpanNameIndex string
