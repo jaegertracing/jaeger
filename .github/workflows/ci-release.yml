@@ -89,8 +89,8 @@ jobs:
       # use ./.github/actions/setup-branch here because it may set
       # BRANCH=main when the workflow is triggered manually.
       #
-      # TODO this currently utilizes 1.x version tag, which is ok for v1
-      # binaries, but for tools/utils we may need to change in the future.
+      # By default we set the BRANCH variable to v2 tag.
+      # Some v1 binaries will override to v1 inside scripts/build/build-upload-docker-images.sh.
       run: |
         BRANCH=$(make echo-v1)
         echo Validate that the latest tag ${BRANCH} is in semver format
@@ -130,7 +130,7 @@ jobs:
 
     - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
 
-    - name: Build and upload all container images
+    - name: Build and upload most container images
       # -B skips building the binaries since we already did that above
       run: |
         bash scripts/build/build-upload-docker-images.sh -B \

@@ -63,12 +63,18 @@ fi
 make "$baseimg_target" LINUX_PLATFORMS="$platforms"
 
 # build/upload raw and debug images of Jaeger backend components
+# Version overrides: collector query ingester are v1 components.
 for component in collector query ingester remote-storage
 do
-  bash scripts/build/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c "jaeger-${component}" -d "cmd/${component}" -p "${platforms}" -t release
+  if [[ "$component" == "remote-storage" ]]; then
+    branch=${BRANCH}
+  else
+    branch=$(make echo-v1)
+  fi
+  BRANCH=${branch} bash scripts/build/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c "jaeger-${component}" -d "cmd/${component}" -p "${platforms}" -t release
   # do not need debug image built for PRs
   if [[ "${add_debugger}" == "Y" ]]; then
-    bash scripts/build/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c "jaeger-${component}-debug" -d "cmd/${component}" -t debug
+    BRANCH=${branch} bash scripts/build/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c "jaeger-${component}-debug" -d "cmd/${component}" -t debug
   fi
 done
 
