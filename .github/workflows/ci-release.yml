@@ -92,7 +92,7 @@ jobs:
       # By default we set the BRANCH variable to v2 tag.
       # Some v1 binaries will override to v1 inside scripts/build/build-upload-docker-images.sh.
       run: |
-        BRANCH=$(make echo-v1)
+        BRANCH=$(make echo-v2)
         echo Validate that the latest tag ${BRANCH} is in semver format
         echo ${BRANCH} | grep -E '^v[0-9]+.[0-9]+.[0-9]+$'
         echo "BRANCH=${BRANCH}" >> ${GITHUB_ENV}
