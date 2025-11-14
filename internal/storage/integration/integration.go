@@ -673,7 +673,7 @@ func (s *StorageIntegration) testOTLPScopePreservation(t *testing.T) {
 	assert.Equal(t, "test-instrumentation-library", scope.Name(), "Scope name should be preserved")
 	assert.Equal(t, "2.1.0", scope.Version(), "Scope version should be preserved")
 
-	t.Log(" OTLP InstrumentationScope metadata preserved successfully")
+	t.Log("OTLP InstrumentationScope metadata preserved successfully")
 }
 
 // loadOTLPFixture loads an OTLP trace fixture by name from the fixtures directory.
@@ -686,7 +686,64 @@ func loadOTLPFixture(t *testing.T, fixtureName string) ptrace.Traces {
 	traces, err := unmarshaler.UnmarshalTraces(data)
 	require.NoError(t, err, "Failed to unmarshal OTLP fixture %s", fixtureName)
 
+	normalizeOTLPTimestamps(traces)
+
 	return traces
+}
+
+// normalizeOTLPTimestamps shifts all span timestamps so they fall within a recent
+// time window (relative to time.Now). This keeps the test data inside the
+// time range that storage backends query when resolving traces by ID.
+func normalizeOTLPTimestamps(traces ptrace.Traces) {
+	// Find the first span to establish the original start time.
+	resourceSpans := traces.ResourceSpans()
+	if resourceSpans.Len() == 0 {
+		return
+	}
+
+	var (
+		firstStart time.Time
+		found      bool
+	)
+
+	for i := 0; i < resourceSpans.Len() && !found; i++ {
+		rs := resourceSpans.At(i)
+		scopeSpans := rs.ScopeSpans()
+		for j := 0; j < scopeSpans.Len() && !found; j++ {
+			ss := scopeSpans.At(j)
+			spans := ss.Spans()
+			if spans.Len() == 0 {
+				continue
+			}
+			firstStart = spans.At(0).StartTimestamp().AsTime()
+			found = !firstStart.IsZero()
+		}
+	}
+
+	if !found {
+		return
+	}
+
+	// Target the recent past so indices and time-range queries include the data.
+	// Using "now - 1m" avoids clock skew issues but keeps the trace very recent.
+	targetStart := time.Now().Add(-time.Minute).UTC()
+	delta := targetStart.Sub(firstStart)
+
+	for i := 0; i < resourceSpans.Len(); i++ {
+		rs := resourceSpans.At(i)
+		scopeSpans := rs.ScopeSpans()
+		for j := 0; j < scopeSpans.Len(); j++ {
+			ss := scopeSpans.At(j)
+			spans := ss.Spans()
+			for k := 0; k < spans.Len(); k++ {
+				span := spans.At(k)
+				start := span.StartTimestamp().AsTime().Add(delta)
+				end := span.EndTimestamp().AsTime().Add(delta)
+				span.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
+				span.SetEndTimestamp(pcommon.NewTimestampFromTime(end))
+			}
+		}
+	}
 }
 
 // extractTraceID extracts the first trace ID from ptrace.Traces for retrieval testing.
