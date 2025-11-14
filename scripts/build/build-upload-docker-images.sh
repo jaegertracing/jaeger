@@ -67,7 +67,7 @@ make "$baseimg_target" LINUX_PLATFORMS="$platforms"
 for component in collector query ingester remote-storage
 do
   if [[ "$component" == "remote-storage" ]]; then
-    branch=${BRANCH}
+    branch=${BRANCH:-$(make echo-v2)}
   else
     branch=$(make echo-v1)
   fi
