@@ -5,10 +5,12 @@ package tracestore
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"iter"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -129,9 +131,55 @@ func (*Reader) FindTraces(
 	panic("not implemented")
 }
 
-func (*Reader) FindTraceIDs(
-	context.Context,
-	tracestore.TraceQueryParams,
+func (r *Reader) FindTraceIDs(
+	ctx context.Context,
+	query tracestore.TraceQueryParams,
 ) iter.Seq2[[]tracestore.FoundTraceID, error] {
-	panic("not implemented")
+	return func(yield func([]tracestore.FoundTraceID, error) bool) {
+		q := sql.SearchTraceIDs
+		args := []any{}
+
+		if query.ServiceName != "" {
+			q += " AND service_name = ?"
+			args = append(args, query.ServiceName)
+		}
+		if query.OperationName != "" {
+			q += " AND name = ?"
+			args = append(args, query.OperationName)
+		}
+		if query.SearchDepth > 0 {
+			q += " LIMIT ?"
+			args = append(args, query.SearchDepth)
+		}
+
+		rows, err := r.conn.Query(ctx, q, args...)
+		if err != nil {
+			yield(nil, fmt.Errorf("failed to query trace IDs: %w", err))
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var traceID string
+			if err := rows.Scan(&traceID); err != nil {
+				if !yield(nil, fmt.Errorf("failed to scan row: %w", err)) {
+					return
+				}
+				continue
+			}
+
+			b, err := hex.DecodeString(traceID)
+			if err != nil {
+				if !yield(nil, fmt.Errorf("failed to decode trace ID: %w", err)) {
+					return
+				}
+				continue
+			}
+
+			if !yield([]tracestore.FoundTraceID{{TraceID: pcommon.TraceID(b)}}, nil) {
+				return
+			}
+		}
+
+	}
 }
