@@ -125,6 +125,20 @@ func TestNewFactory_Errors(t *testing.T) {
 			},
 			expectedError: "failed to create operations materialized view",
 		},
+		{
+			name: "service name index creation error",
+			failureConfig: clickhousetest.FailureConfig{
+				sql.CreateServiceNameIndex: errors.New("service name index creation error"),
+			},
+			expectedError: "failed to create service name index",
+		},
+		{
+			name: "span name index creation error",
+			failureConfig: clickhousetest.FailureConfig{
+				sql.CreateSpanNameIndex: errors.New("span name index creation error"),
+			},
+			expectedError: "failed to create span name index",
+		},
 	}
 
 	for _, tt := range tests {

@@ -73,6 +73,8 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 			{"services materialized view", sql.CreateServicesMaterializedView},
 			{"operations table", sql.CreateOperationsTable},
 			{"operations materialized view", sql.CreateOperationsMaterializedView},
+			{"service name index", sql.CreateServiceNameIndex},
+			{"span name index", sql.CreateSpanNameIndex},
 		}
 
 		for _, schema := range schemas {

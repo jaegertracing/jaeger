@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/jiter"
@@ -104,6 +105,26 @@ func scanSpanRowFn() func(dest any, src *dbmodel.SpanRow) error {
 		for i := range ptrs {
 			reflect.ValueOf(ptrs[i]).Elem().Set(reflect.ValueOf(values[i]).Elem())
 		}
+		return nil
+	}
+}
+
+func scanTraceIDFn() func(dest any, src string) error {
+	return func(dest any, src string) error {
+		ptrs, ok := dest.([]any)
+		if !ok {
+			return fmt.Errorf("expected []any for dest, got %T", dest)
+		}
+		if len(ptrs) != 1 {
+			return fmt.Errorf("expected 1 destination argument, got %d", len(ptrs))
+		}
+
+		ptr, ok := ptrs[0].(*string)
+		if !ok {
+			return fmt.Errorf("expected *string for dest[0], got %T", ptrs[0])
+		}
+
+		*ptr = src
 		return nil
 	}
 }
@@ -486,8 +507,78 @@ func TestFindTraces(t *testing.T) {
 }
 
 func TestFindTraceIDs(t *testing.T) {
-	reader := NewReader(&testDriver{})
-	require.Panics(t, func() {
-		reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
-	})
+	driver := &testDriver{
+		t:             t,
+		expectedQuery: sql.SearchTraceIDs,
+		rows: &testRows[string]{
+			data: []string{
+				"00000000000000000000000000000001",
+				"00000000000000000000000000000002",
+			},
+			scanFn: scanTraceIDFn(),
+		},
+	}
+	reader := NewReader(driver)
+	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
+	ids, err := jiter.FlattenWithErrors(iter)
+	require.NoError(t, err)
+	require.Equal(t, []tracestore.FoundTraceID{
+		{
+			TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}),
+		},
+		{
+			TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}),
+		},
+	}, ids)
+}
+
+func TestFindTraceIDs_ErrorCases(t *testing.T) {
+	tests := []struct {
+		name        string
+		driver      *testDriver
+		expectedErr string
+	}{
+		{
+			name: "QueryError",
+			driver: &testDriver{
+				t:             t,
+				expectedQuery: sql.SearchTraceIDs,
+				err:           assert.AnError,
+			},
+			expectedErr: "failed to query trace IDs",
+		},
+		{
+			name: "ScanError",
+			driver: &testDriver{
+				t:             t,
+				expectedQuery: sql.SearchTraceIDs,
+				rows: &testRows[string]{
+					data:    []string{"0000000000000001", "0000000000000002"},
+					scanErr: assert.AnError,
+				},
+			},
+			expectedErr: "failed to scan row",
+		},
+		{
+			name: "DecodeError",
+			driver: &testDriver{
+				t:             t,
+				expectedQuery: sql.SearchTraceIDs,
+				rows: &testRows[string]{
+					data:   []string{"0x"},
+					scanFn: scanTraceIDFn(),
+				},
+			},
+			expectedErr: "failed to decode trace ID",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			reader := NewReader(test.driver)
+			iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
+			_, err := jiter.FlattenWithErrors(iter)
+			require.ErrorContains(t, err, test.expectedErr)
+		})
+	}
 }
