@@ -94,6 +94,7 @@ linters:
       errorf: true
       sprintf1: true
       strconcat: true
+      concat-loop: true
     revive:
       severity: error
       enable-all-rules: true
