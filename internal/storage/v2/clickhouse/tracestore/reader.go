@@ -44,6 +44,7 @@ func (r *Reader) GetTraces(
 				yield(nil, fmt.Errorf("failed to query trace: %w", err))
 				return
 			}
+			defer rows.Close()
 
 			done := false
 			for rows.Next() {
@@ -180,6 +181,5 @@ func (r *Reader) FindTraceIDs(
 				return
 			}
 		}
-
 	}
 }
