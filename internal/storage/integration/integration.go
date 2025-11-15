@@ -634,7 +634,6 @@ func (s *StorageIntegration) insertThroughput(t *testing.T) {
 }
 
 // === OTLP v2 API Tests ===
-
 func (s *StorageIntegration) testOTLPScopePreservation(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
@@ -691,11 +690,7 @@ func loadOTLPFixture(t *testing.T, fixtureName string) ptrace.Traces {
 	return traces
 }
 
-// normalizeOTLPTimestamps shifts all span timestamps so they fall within a recent
-// time window (relative to time.Now). This keeps the test data inside the
-// time range that storage backends query when resolving traces by ID.
 func normalizeOTLPTimestamps(traces ptrace.Traces) {
-	// Find the first span to establish the original start time.
 	resourceSpans := traces.ResourceSpans()
 	if resourceSpans.Len() == 0 {
 		return
@@ -724,8 +719,6 @@ func normalizeOTLPTimestamps(traces ptrace.Traces) {
 		return
 	}
 
-	// Target the recent past so indices and time-range queries include the data.
-	// Using "now - 1m" avoids clock skew issues but keeps the trace very recent.
 	targetStart := time.Now().Add(-time.Minute).UTC()
 	delta := targetStart.Sub(firstStart)
 
