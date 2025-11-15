@@ -754,6 +754,78 @@ func TestGetDependencies_WrongSpanId(t *testing.T) {
 	assert.Empty(t, deps)
 }
 
+func TestFindTraces_FirstClassFields(t *testing.T) {
+	store, err := NewStore(v1.Configuration{MaxTraces: 10})
+	require.NoError(t, err)
+
+	td := ptrace.NewTraces()
+	rs := td.ResourceSpans().AppendEmpty()
+	ss := rs.ScopeSpans().AppendEmpty()
+	span := ss.Spans().AppendEmpty()
+
+	traceID := fromString(t, "00000000000000010000000000000000")
+	span.SetTraceID(traceID)
+	span.SetSpanID(spanIdFromString(t, "0000000000000001"))
+	span.SetKind(ptrace.SpanKindServer)
+	span.Status().SetCode(ptrace.StatusCodeError)
+	span.TraceState().FromRaw("user=test,env=prod")
+
+	ss.Scope().SetName("test-scope")
+	ss.Scope().SetVersion("1.0.0")
+
+	err = store.WriteTraces(context.Background(), td)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name        string
+		key         string
+		value       string
+		expectFound bool
+	}{
+		{"ScopeName", "scope.name", "test-scope", true},
+		{"ScopeVersion", "scope.version", "1.0.0", true},
+		{"SpanKind (lowercase)", "span.kind", "server", true},
+		{"SpanKind (uppercase)", "span.kind", "SERVER", true},
+		{"SpanStatus (uppercase)", "span.status", "ERROR", true},
+		{"SpanStatus (lowercase)", "span.status", "error", true},
+		{"SpanTraceState", "span.tracestate", "user=test,env=prod", true},
+		{"SpanStatus OK (not found)", "span.status", "OK", false},
+		{"Wrong ScopeName", "scope.name", "wrong-scope", false},
+		{"Wrong TraceState", "span.tracestate", "user=prod", false},
+		{"Regular Tag (not a field)", "http.method", "GET", false},
+		{"SpanStatus Invalid (not found)", "span.status", "FOO_BAR_INVALID", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			attrs := pcommon.NewMap()
+			attrs.PutStr(tt.key, tt.value)
+
+			params := tracestore.TraceQueryParams{
+				Attributes:  attrs,
+				SearchDepth: 10,
+			}
+
+			iter := store.FindTraces(context.Background(), params)
+			found := 0
+			for traces, err := range iter {
+				require.NoError(t, err)
+				for i := 0; i < len(traces); i++ {
+					if traces[i].ResourceSpans().Len() > 0 {
+						found++
+					}
+				}
+			}
+
+			if tt.expectFound {
+				assert.Equal(t, 1, found, "Expected to find 1 trace for key=%s, value=%s", tt.key, tt.value)
+			} else {
+				assert.Equal(t, 0, found, "Expected to find 0 traces for key=%s, value=%s", tt.key, tt.value)
+			}
+		})
+	}
+}
+
 func writeTenTraces(t *testing.T, store *Store) {
 	for i := 1; i < 10; i++ {
 		traceID := fromString(t, fmt.Sprintf("000000000000000%d0000000000000000", i))
