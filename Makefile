@@ -100,6 +100,11 @@ echo-v1:
 
 .PHONY: echo-v2
 echo-v2:
+
+.PHONY: build-riscv64
+build-riscv64:
+	@echo "Building for RISC-V 64-bit..."
+	@bash scripts/build-riscv64.sh
 	@echo "$(GIT_CLOSEST_TAG_V2)"
 
 .PHONY: echo-platforms
