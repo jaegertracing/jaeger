@@ -639,11 +639,8 @@ func (s *StorageIntegration) testOTLPScopePreservation(t *testing.T) {
 	defer s.cleanUp(t)
 
 	t.Log("Testing OTLP InstrumentationScope preservation through v2 API")
-
 	traces := loadOTLPFixture(t, "otlp_scope_attributes")
-
 	s.writeTrace(t, traces)
-
 	traceID := extractTraceID(t, traces)
 
 	var readTraces []*model.Trace
