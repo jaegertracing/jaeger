@@ -224,7 +224,7 @@ func validTrace(td ptrace.Traces, query tracestore.TraceQueryParams) bool {
 		}
 		for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
 			for _, span := range scopeSpan.Spans().All() {
-				if validSpan(resourceSpan.Resource().Attributes(), scopeSpan.Scope().Attributes(), span, query) {
+				if validSpan(resourceSpan.Resource().Attributes(), scopeSpan.Scope(), span, query) {
 					return true
 				}
 			}
@@ -237,7 +237,7 @@ func validResource(resource pcommon.Resource, query tracestore.TraceQueryParams)
 	return query.ServiceName == "" || query.ServiceName == getServiceNameFromResource(resource)
 }
 
-func validSpan(resourceAttributes, scopeAttributes pcommon.Map, span ptrace.Span, query tracestore.TraceQueryParams) bool {
+func validSpan(resourceAttributes pcommon.Map, scope pcommon.InstrumentationScope, span ptrace.Span, query tracestore.TraceQueryParams) bool {
 	if errAttribute, ok := query.Attributes.Get(errorAttribute); ok {
 		if errAttribute.Bool() && span.Status().Code() != ptrace.StatusCodeError {
 			return false
@@ -264,7 +264,7 @@ func validSpan(resourceAttributes, scopeAttributes pcommon.Map, span ptrace.Span
 		return false
 	}
 	for key, val := range query.Attributes.All() {
-		if key != errorAttribute && !findKeyValInTrace(key, val, resourceAttributes, scopeAttributes, span) {
+		if key != errorAttribute && !findKeyValInTrace(key, val, resourceAttributes, scope, span) {
 			return false
 		}
 	}
@@ -278,8 +278,39 @@ func matchAttributes(key string, val pcommon.Value, attrs pcommon.Map) bool {
 	return false
 }
 
-func findKeyValInTrace(key string, val pcommon.Value, resourceAttributes pcommon.Map, scopeAttributes pcommon.Map, span ptrace.Span) bool {
-	tagsMatched := matchAttributes(key, val, span.Attributes()) || matchAttributes(key, val, scopeAttributes) || matchAttributes(key, val, resourceAttributes)
+func mapStatusCode(s string) (ptrace.StatusCode, bool) {
+	switch strings.ToUpper(s) {
+	case "ERROR":
+		return ptrace.StatusCodeError, true
+	case "OK":
+		return ptrace.StatusCodeOk, true
+	case "UNSET":
+		return ptrace.StatusCodeUnset, true
+	default:
+		return ptrace.StatusCodeUnset, false
+	}
+}
+
+func findKeyValInTrace(key string, val pcommon.Value, resourceAttributes pcommon.Map, scope pcommon.InstrumentationScope, span ptrace.Span) bool {
+	switch key {
+	case "scope.name":
+		return scope.Name() == val.AsString()
+	case "scope.version":
+		return scope.Version() == val.AsString()
+	case "span.kind":
+		return strings.EqualFold(span.Kind().String(), val.AsString())
+	case "span.status":
+		code, ok := mapStatusCode(val.AsString())
+		return ok && code == span.Status().Code()
+	case "span.tracestate":
+
+		ts := pcommon.NewTraceState()
+		ts.FromRaw(val.AsString())
+
+		return ts.AsRaw() == span.TraceState().AsRaw()
+	}
+
+	tagsMatched := matchAttributes(key, val, span.Attributes()) || matchAttributes(key, val, scope.Attributes()) || matchAttributes(key, val, resourceAttributes)
 	if tagsMatched {
 		return true
 	}
