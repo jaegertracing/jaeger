@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/jiter"
@@ -503,6 +504,32 @@ func TestFindTraces(t *testing.T) {
 	require.Panics(t, func() {
 		reader.FindTraces(context.Background(), tracestore.TraceQueryParams{})
 	})
+}
+
+func TestFindTraceIDs(t *testing.T) {
+	driver := &testDriver{
+		t:             t,
+		expectedQuery: sql.SearchTraceIDs,
+		rows: &testRows[string]{
+			data: []string{
+				"00000000000000000000000000000001",
+				"00000000000000000000000000000002",
+			},
+			scanFn: scanTraceIDFn(),
+		},
+	}
+	reader := NewReader(driver)
+	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
+	ids, err := jiter.FlattenWithErrors(iter)
+	require.NoError(t, err)
+	require.Equal(t, []tracestore.FoundTraceID{
+		{
+			TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}),
+		},
+		{
+			TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}),
+		},
+	}, ids)
 }
 
 func TestFindTraceIDs_ErrorCases(t *testing.T) {
