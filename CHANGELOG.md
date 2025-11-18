@@ -21,6 +21,73 @@ copy from UI changelog
 
 </details>
 
+v1.75.0 / v2.12.0 (2025-11-18)
+-------------------------------
+
+### Backend Changes
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Feat(storage): add sigv4 authentication support for elasticsearch/opensearch storage backends ([@SoumyaRaikwar](https://github.com/SoumyaRaikwar) in [#7611](https://github.com/jaegertracing/jaeger/pull/7611))
+* Add custom http headers support for elasticsearch/opensearch storage ([@SoumyaRaikwar](https://github.com/SoumyaRaikwar) in [#7628](https://github.com/jaegertracing/jaeger/pull/7628))
+* Handle es ping failures more gracefully ([@neoandmatrix](https://github.com/neoandmatrix) in [#7626](https://github.com/jaegertracing/jaeger/pull/7626))
+* Feat(metrics): sigv4 http auth support for prometheus metric backend ([@SoumyaRaikwar](https://github.com/SoumyaRaikwar) in [#7520](https://github.com/jaegertracing/jaeger/pull/7520))
+* Add riscv64 binary support ([@gouthamhusky](https://github.com/gouthamhusky) in [#7569](https://github.com/jaegertracing/jaeger/pull/7569))
+* Store service names in map to compact duplicates ([@aidandj](https://github.com/aidandj) in [#7551](https://github.com/jaegertracing/jaeger/pull/7551))
+* Enable adaptive sampling in cassandra ci setup ([@SomilJain0112](https://github.com/SomilJain0112) in [#7539](https://github.com/jaegertracing/jaeger/pull/7539))
+
+#### 🚧 Experimental Features
+
+* [clickhouse] add handling for complex attributes to clickhouse storage ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7627](https://github.com/jaegertracing/jaeger/pull/7627))
+* [demo] add global image registry ([@danish9039](https://github.com/danish9039) in [#7620](https://github.com/jaegertracing/jaeger/pull/7620))
+* [refactor][clickhouse] add round-trip tests for clickhouse's `dbmodel` package ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7622](https://github.com/jaegertracing/jaeger/pull/7622))
+* [clickhouse] add attributes for scope ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7619](https://github.com/jaegertracing/jaeger/pull/7619))
+* [refactor][clickhouse] add attributes for resource ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7616](https://github.com/jaegertracing/jaeger/pull/7616))
+* Add clean,deploy and port-forward scripts and values for jaeger + opensearch + otel demo ([@danish9039](https://github.com/danish9039) in [#7516](https://github.com/jaegertracing/jaeger/pull/7516))
+* [clickhouse][refactor] group attributes into structs ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7603](https://github.com/jaegertracing/jaeger/pull/7603))
+* [clickhouse][refactor] remove indirection in database model ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7602](https://github.com/jaegertracing/jaeger/pull/7602))
+* [clickhouse] append link in writer ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7601](https://github.com/jaegertracing/jaeger/pull/7601))
+* [clickhouse] remove unused function ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7600](https://github.com/jaegertracing/jaeger/pull/7600))
+* [clickhouse] append event in writer ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7558](https://github.com/jaegertracing/jaeger/pull/7558))
+* Used fully qualified names for images ([@danish9039](https://github.com/danish9039) in [#7553](https://github.com/jaegertracing/jaeger/pull/7553))
+* [clickhouse] add span attributes to writer ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7541](https://github.com/jaegertracing/jaeger/pull/7541))
+* [clickhouse] integrate clickhouse into storage extension ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7524](https://github.com/jaegertracing/jaeger/pull/7524))
+
+#### 👷 CI Improvements
+
+* Enable range-val-address linter ([@neoandmatrix](https://github.com/neoandmatrix) in [#7593](https://github.com/jaegertracing/jaeger/pull/7593))
+* Enable switch linter ([@neoandmatrix](https://github.com/neoandmatrix) in [#7573](https://github.com/jaegertracing/jaeger/pull/7573))
+* Skip delve for riscv64 arch ([@gouthamhusky](https://github.com/gouthamhusky) in [#7571](https://github.com/jaegertracing/jaeger/pull/7571))
+* Enable lint rule: import-alias-naming ([@alkak95](https://github.com/alkak95) in [#7565](https://github.com/jaegertracing/jaeger/pull/7565))
+* Fix bug in make lint ([@SomilJain0112](https://github.com/SomilJain0112) in [#7563](https://github.com/jaegertracing/jaeger/pull/7563))
+* Do not run metrics diff workflow except on prs ([@yurishkuro](https://github.com/yurishkuro) in [#7554](https://github.com/jaegertracing/jaeger/pull/7554))
+* Define dockerhub_username env var ([@yurishkuro](https://github.com/yurishkuro) in [#7538](https://github.com/jaegertracing/jaeger/pull/7538))
+* Fix: resolve docker hub authentication issues in upload-docker-readme.sh ([@SomilJain0112](https://github.com/SomilJain0112) in [#7536](https://github.com/jaegertracing/jaeger/pull/7536))
+
+#### ⚙️ Refactoring
+
+* [refactor]: use the built-in max to simplify the code ([@zhetaicheleba](https://github.com/zhetaicheleba) in [#7624](https://github.com/jaegertracing/jaeger/pull/7624))
+* Speed up es tests ([@yurishkuro](https://github.com/yurishkuro) in [#7606](https://github.com/jaegertracing/jaeger/pull/7606))
+* [refactor]: replace split in loops with more efficient splitseq ([@pennylees](https://github.com/pennylees) in [#7588](https://github.com/jaegertracing/jaeger/pull/7588))
+
+
+### 📊 UI Changes
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Fix: clicking dots and ddg button ([@Parship12](https://github.com/Parship12) in [#3149](https://github.com/jaegertracing/jaeger-ui/pull/3149))
+* Fix in-trace span search ([@Parship12](https://github.com/Parship12) in [#3132](https://github.com/jaegertracing/jaeger-ui/pull/3132))
+* Fix: trace id search input on the search page ([@Parship12](https://github.com/Parship12) in [#3124](https://github.com/jaegertracing/jaeger-ui/pull/3124))
+
+#### ⚙️ Refactoring
+
+* Convert tracepage {spanbarrow, spantreeoffset, opnode} to functional ([@JeevaRamanathan](https://github.com/JeevaRamanathan) in [#3136](https://github.com/jaegertracing/jaeger-ui/pull/3136))
+* Convert searchresults/index to functional component ([@Parship12](https://github.com/Parship12) in [#3138](https://github.com/jaegertracing/jaeger-ui/pull/3138))
+* Remove history from tracediff component ([@Parship12](https://github.com/Parship12) in [#3135](https://github.com/jaegertracing/jaeger-ui/pull/3135))
+* Remove history instances from traces.tsx ([@Parship12](https://github.com/Parship12) in [#3110](https://github.com/jaegertracing/jaeger-ui/pull/3110))
+* Convert tracepage {timelinecollapser} to functional component ([@JeevaRamanathan](https://github.com/JeevaRamanathan) in [#3108](https://github.com/jaegertracing/jaeger-ui/pull/3108))
+
+
 v1.74.0 / v2.11.0 (2025-10-01)
 -------------------------------
 
