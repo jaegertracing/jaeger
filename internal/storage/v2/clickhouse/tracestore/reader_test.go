@@ -509,7 +509,7 @@ func TestFindTraces(t *testing.T) {
 func TestFindTraceIDs(t *testing.T) {
 	driver := &testDriver{
 		t:             t,
-		expectedQuery: sql.SearchTraceIDs,
+		expectedQuery: `SELECT DISTINCT trace_id FROM spans WHERE 1=1 AND service_name = ? AND name = ? LIMIT ?`,
 		rows: &testRows[string]{
 			data: []string{
 				"00000000000000000000000000000001",
@@ -519,7 +519,11 @@ func TestFindTraceIDs(t *testing.T) {
 		},
 	}
 	reader := NewReader(driver)
-	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
+	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+		ServiceName:   "serviceA",
+		OperationName: "operationA",
+		SearchDepth:   5,
+	})
 	ids, err := jiter.FlattenWithErrors(iter)
 	require.NoError(t, err)
 	require.Equal(t, []tracestore.FoundTraceID{
