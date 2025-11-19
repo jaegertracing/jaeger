@@ -536,6 +536,37 @@ func TestFindTraceIDs(t *testing.T) {
 	}, ids)
 }
 
+func TestFindTraceIDs_YieldFalseOnSuccessStopsIteration(t *testing.T) {
+	conn := &testDriver{
+		t:             t,
+		expectedQuery: sql.SearchTraceIDs,
+		rows: &testRows[string]{
+			data: []string{
+				"00000000000000000000000000000001",
+				"00000000000000000000000000000002",
+			},
+			scanFn: scanTraceIDFn(),
+		},
+	}
+
+	reader := NewReader(conn)
+	findTraceIDsIter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
+
+	var gotTraceIDs []tracestore.FoundTraceID
+	findTraceIDsIter(func(traceIDs []tracestore.FoundTraceID, err error) bool {
+		require.NoError(t, err)
+		gotTraceIDs = append(gotTraceIDs, traceIDs...)
+		return false // stop iteration after the first trace ID
+	})
+
+	require.Len(t, gotTraceIDs, 1)
+	require.Equal(t, []tracestore.FoundTraceID{
+		{
+			TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}),
+		},
+	}, gotTraceIDs)
+}
+
 func TestFindTraceIDs_ScanErrorContinues(t *testing.T) {
 	scanCalled := 0
 
