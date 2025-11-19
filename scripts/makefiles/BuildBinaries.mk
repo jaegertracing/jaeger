@@ -144,10 +144,6 @@ build-binaries-linux-arm64:
 build-binaries-linux-ppc64le:
 	GOOS=linux GOARCH=ppc64le $(MAKE) _build-platform-binaries
 
-.PHONY: build-binaries-linux-riscv64
-build-binaries-linux-riscv64:
-	GOOS=linux GOARCH=riscv64 $(MAKE) _build-platform-binaries
-
 # build all binaries for one specific platform GOOS/GOARCH
 .PHONY: _build-platform-binaries
 _build-platform-binaries: \
