@@ -608,6 +608,49 @@ func TestFindTraceIDs_ScanErrorContinues(t *testing.T) {
 	}
 }
 
+func TestFindTraceIDs_DecodeErrorContinues(t *testing.T) {
+	conn := &testDriver{
+		t:             t,
+		expectedQuery: sql.SearchTraceIDs,
+		rows: &testRows[string]{
+			data: []string{
+				"00000000000000000000000000000001",
+				"0x",
+				"invalid",
+				"00000000000000000000000000000002",
+			},
+			scanFn: scanTraceIDFn(),
+		},
+	}
+
+	reader := NewReader(conn)
+	findTraceIDsIter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
+
+	expectedValidTraceIDs := []tracestore.FoundTraceID{
+		{
+			TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}),
+		},
+		{
+			TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}),
+		},
+	}
+
+	var gotTraceIDs []tracestore.FoundTraceID
+	var errorCount int
+
+	for traceID, err := range findTraceIDsIter {
+		if err != nil {
+			require.ErrorContains(t, err, "failed to decode trace ID")
+			errorCount++
+			continue
+		}
+		gotTraceIDs = append(gotTraceIDs, traceID...)
+	}
+
+	require.Equal(t, 2, errorCount)
+	require.Equal(t, expectedValidTraceIDs, gotTraceIDs)
+}
+
 func TestFindTraceIDs_ErrorCases(t *testing.T) {
 	tests := []struct {
 		name        string
