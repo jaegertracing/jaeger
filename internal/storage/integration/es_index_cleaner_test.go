@@ -221,9 +221,10 @@ func createEsIndices(client *elastic.Client, indices []string) error {
 }
 
 func runEsCleaner(days int, envs []string) error {
-	var dockerEnv string
+	var dockerEnv strings.Builder
 	for _, e := range envs {
-		dockerEnv += " -e " + e
+		dockerEnv.WriteString(" -e ")
+		dockerEnv.WriteString(e)
 	}
 	args := fmt.Sprintf("docker run %s --rm --net=host %s %d http://%s", dockerEnv, indexCleanerImage, days, queryHostPort)
 	cmd := exec.Command("/bin/sh", "-c", args)
@@ -233,9 +234,10 @@ func runEsCleaner(days int, envs []string) error {
 }
 
 func runEsRollover(action string, envs []string, adaptiveSampling bool) error {
-	var dockerEnv string
+	var dockerEnv strings.Builder
 	for _, e := range envs {
-		dockerEnv += " -e " + e
+		dockerEnv.WriteString(" -e ")
+		dockerEnv.WriteString(e)
 	}
 	args := fmt.Sprintf("docker run %s --rm --net=host %s %s --adaptive-sampling=%t http://%s", dockerEnv, rolloverImage, action, adaptiveSampling, queryHostPort)
 	cmd := exec.Command("/bin/sh", "-c", args)
