@@ -223,10 +223,11 @@ func (i *IndicesClient) IndexExists(index string) (bool, error) {
 }
 
 func (*IndicesClient) aliasesString(aliases []Alias) string {
-	concatAliases := ""
+	var builder strings.Builder
 	for _, alias := range aliases {
-		concatAliases += fmt.Sprintf("[index: %s, alias: %s],", alias.Index, alias.Name)
+		builder.WriteString(fmt.Sprintf("[index: %s, alias: %s],", alias.Index, alias.Name))
 	}
+	concatAliases := builder.String()
 	return strings.Trim(concatAliases, ",")
 }
 

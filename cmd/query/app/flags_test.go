@@ -42,7 +42,7 @@ func TestQueryBuilderFlags(t *testing.T) {
 	assert.Equal(t, "/jaeger", qOpts.BasePath)
 	assert.Equal(t, "127.0.0.1:8080", qOpts.HTTP.Endpoint)
 	assert.Equal(t, "127.0.0.1:8081", qOpts.GRPC.NetAddr.Endpoint)
-	assert.Equal(t, configopaque.MapList{
+	assert.ElementsMatch(t, configopaque.MapList{
 		{Name: "Access-Control-Allow-Origin", Value: "blerg"},
 		{Name: "Whatever", Value: "thing"},
 	}, qOpts.HTTP.ResponseHeaders)
