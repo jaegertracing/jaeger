@@ -87,7 +87,7 @@ func TestConfigurationApplyDefaults(t *testing.T) {
 	config := &Configuration{}
 	config.applyDefaults()
 
-	require.Equal(t, defualtProtocol, config.Protocol)
+	require.Equal(t, defaultProtocol, config.Protocol)
 	require.Equal(t, defaultDatabase, config.Database)
 	require.Equal(t, defaultSearchDepth, config.DefaultSearchDepth)
 	require.Equal(t, defaultMaxSearchDepth, config.MaxSearchDepth)

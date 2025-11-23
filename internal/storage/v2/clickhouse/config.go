@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	defualtProtocol       = "native"
+	defaultProtocol       = "native"
 	defaultDatabase       = "jaeger"
 	defaultSearchDepth    = 100
 	defaultMaxSearchDepth = 10000
