@@ -40,6 +40,11 @@ jobs:
       with:
         gh_token: ${{ secrets.GITHUB_TOKEN }}
 
+    - name: Clean Go cache for gotip
+      run: |
+        go clean -cache
+        go clean -modcache
+
     - name: Run unit tests
       run: make test-ci
 
