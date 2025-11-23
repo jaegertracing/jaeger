@@ -21,6 +21,14 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
+var (
+	testReaderConfig = ReaderConfig{
+		DefaultSearchDepth: 100,
+		MaxSearchDepth:     1000,
+	}
+	testSearchQuery = sql.SearchTraceIDs + " LIMIT ?"
+)
+
 func scanSpanRowFn() func(dest any, src *dbmodel.SpanRow) error {
 	return func(dest any, src *dbmodel.SpanRow) error {
 		ptrs, ok := dest.([]any)
@@ -156,7 +164,7 @@ func TestGetTraces_Success(t *testing.T) {
 				},
 			}
 
-			reader := NewReader(conn)
+			reader := NewReader(conn, testReaderConfig)
 			getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
 				TraceID: traceID,
 			})
@@ -212,7 +220,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			reader := NewReader(test.driver)
+			reader := NewReader(test.driver, testReaderConfig)
 			iter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
 				TraceID: traceID,
 			})
@@ -242,7 +250,7 @@ func TestGetTraces_ScanErrorContinues(t *testing.T) {
 		},
 	}
 
-	reader := NewReader(conn)
+	reader := NewReader(conn, testReaderConfig)
 	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
 		TraceID: traceID,
 	})
@@ -267,7 +275,7 @@ func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 		},
 	}
 
-	reader := NewReader(conn)
+	reader := NewReader(conn, testReaderConfig)
 	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
 		TraceID: traceID,
 	})
@@ -350,7 +358,7 @@ func TestGetServices(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			reader := NewReader(test.conn)
+			reader := NewReader(test.conn, testReaderConfig)
 
 			result, err := reader.GetServices(context.Background())
 
@@ -485,7 +493,7 @@ func TestGetOperations(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			reader := NewReader(test.conn)
+			reader := NewReader(test.conn, testReaderConfig)
 
 			result, err := reader.GetOperations(context.Background(), test.query)
 
@@ -500,7 +508,7 @@ func TestGetOperations(t *testing.T) {
 }
 
 func TestFindTraces(t *testing.T) {
-	reader := NewReader(&testDriver{})
+	reader := NewReader(&testDriver{}, testReaderConfig)
 	require.Panics(t, func() {
 		reader.FindTraces(context.Background(), tracestore.TraceQueryParams{})
 	})
@@ -518,7 +526,7 @@ func TestFindTraceIDs(t *testing.T) {
 			scanFn: scanTraceIDFn(),
 		},
 	}
-	reader := NewReader(driver)
+	reader := NewReader(driver, testReaderConfig)
 	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
 		ServiceName:   "serviceA",
 		OperationName: "operationA",
@@ -539,7 +547,7 @@ func TestFindTraceIDs(t *testing.T) {
 func TestFindTraceIDs_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	conn := &testDriver{
 		t:             t,
-		expectedQuery: sql.SearchTraceIDs,
+		expectedQuery: testSearchQuery,
 		rows: &testRows[string]{
 			data: []string{
 				"00000000000000000000000000000001",
@@ -549,7 +557,7 @@ func TestFindTraceIDs_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 		},
 	}
 
-	reader := NewReader(conn)
+	reader := NewReader(conn, testReaderConfig)
 	findTraceIDsIter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
 
 	var gotTraceIDs []tracestore.FoundTraceID
@@ -580,7 +588,7 @@ func TestFindTraceIDs_ScanErrorContinues(t *testing.T) {
 
 	conn := &testDriver{
 		t:             t,
-		expectedQuery: sql.SearchTraceIDs,
+		expectedQuery: testSearchQuery,
 		rows: &testRows[string]{
 			data: []string{
 				"00000000000000000000000000000001",
@@ -590,7 +598,7 @@ func TestFindTraceIDs_ScanErrorContinues(t *testing.T) {
 		},
 	}
 
-	reader := NewReader(conn)
+	reader := NewReader(conn, testReaderConfig)
 	findTraceIDsIter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
 
 	expected := []tracestore.FoundTraceID{
@@ -611,7 +619,7 @@ func TestFindTraceIDs_ScanErrorContinues(t *testing.T) {
 func TestFindTraceIDs_DecodeErrorContinues(t *testing.T) {
 	conn := &testDriver{
 		t:             t,
-		expectedQuery: sql.SearchTraceIDs,
+		expectedQuery: testSearchQuery,
 		rows: &testRows[string]{
 			data: []string{
 				"00000000000000000000000000000001",
@@ -623,7 +631,7 @@ func TestFindTraceIDs_DecodeErrorContinues(t *testing.T) {
 		},
 	}
 
-	reader := NewReader(conn)
+	reader := NewReader(conn, ReaderConfig{})
 	findTraceIDsIter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
 
 	expectedValidTraceIDs := []tracestore.FoundTraceID{
@@ -661,7 +669,7 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 			name: "QueryError",
 			driver: &testDriver{
 				t:             t,
-				expectedQuery: sql.SearchTraceIDs,
+				expectedQuery: testSearchQuery,
 				err:           assert.AnError,
 			},
 			expectedErr: "failed to query trace IDs",
@@ -670,7 +678,7 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 			name: "ScanError",
 			driver: &testDriver{
 				t:             t,
-				expectedQuery: sql.SearchTraceIDs,
+				expectedQuery: testSearchQuery,
 				rows: &testRows[string]{
 					data:    []string{"0000000000000001", "0000000000000002"},
 					scanErr: assert.AnError,
@@ -682,7 +690,7 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 			name: "DecodeError",
 			driver: &testDriver{
 				t:             t,
-				expectedQuery: sql.SearchTraceIDs,
+				expectedQuery: testSearchQuery,
 				rows: &testRows[string]{
 					data:   []string{"0x"},
 					scanFn: scanTraceIDFn(),
@@ -694,7 +702,7 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			reader := NewReader(test.driver)
+			reader := NewReader(test.driver, ReaderConfig{})
 			iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
 			_, err := jiter.FlattenWithErrors(iter)
 			require.ErrorContains(t, err, test.expectedErr)
