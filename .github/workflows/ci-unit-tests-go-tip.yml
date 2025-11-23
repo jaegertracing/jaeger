@@ -30,6 +30,7 @@ jobs:
       uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
       with:
         go-version: 1.25.x
+        cache: false
 
     - name: Install test deps
       # even though the same target runs from test-ci, running it separately makes for cleaner log in GH workflow
@@ -40,11 +41,12 @@ jobs:
       with:
         gh_token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Clean Go cache for gotip
+    - name: Clean Go cache and rebuild stdlib for gotip
       run: |
         go clean -cache
         go clean -modcache
-
+        go install std
+        
     - name: Run unit tests
       run: make test-ci
 
