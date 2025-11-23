@@ -26,7 +26,7 @@ var (
 		DefaultSearchDepth: 100,
 		MaxSearchDepth:     1000,
 	}
-	testSearchQuery = sql.SearchTraceIDs + " LIMIT ?"
+	testSearchTraceIDsQuery = sql.SearchTraceIDs + " LIMIT ?"
 )
 
 func scanSpanRowFn() func(dest any, src *dbmodel.SpanRow) error {
@@ -544,10 +544,30 @@ func TestFindTraceIDs(t *testing.T) {
 	}, ids)
 }
 
+func TestFindTraceIDs_SearchDepthExceedsMax(t *testing.T) {
+	driver := &testDriver{
+		t:             t,
+		expectedQuery: testSearchTraceIDsQuery,
+		rows: &testRows[string]{
+			data: []string{
+				"00000000000000000000000000000001",
+				"00000000000000000000000000000002",
+			},
+			scanFn: scanTraceIDFn(),
+		},
+	}
+	reader := NewReader(driver, testReaderConfig)
+	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+		SearchDepth: 10000,
+	})
+	_, err := jiter.FlattenWithErrors(iter)
+	require.ErrorContains(t, err, "search depth 10000 exceeds maximum allowed 1000")
+}
+
 func TestFindTraceIDs_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	conn := &testDriver{
 		t:             t,
-		expectedQuery: testSearchQuery,
+		expectedQuery: testSearchTraceIDsQuery,
 		rows: &testRows[string]{
 			data: []string{
 				"00000000000000000000000000000001",
@@ -588,7 +608,7 @@ func TestFindTraceIDs_ScanErrorContinues(t *testing.T) {
 
 	conn := &testDriver{
 		t:             t,
-		expectedQuery: testSearchQuery,
+		expectedQuery: testSearchTraceIDsQuery,
 		rows: &testRows[string]{
 			data: []string{
 				"00000000000000000000000000000001",
@@ -619,7 +639,7 @@ func TestFindTraceIDs_ScanErrorContinues(t *testing.T) {
 func TestFindTraceIDs_DecodeErrorContinues(t *testing.T) {
 	conn := &testDriver{
 		t:             t,
-		expectedQuery: testSearchQuery,
+		expectedQuery: testSearchTraceIDsQuery,
 		rows: &testRows[string]{
 			data: []string{
 				"00000000000000000000000000000001",
@@ -669,7 +689,7 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 			name: "QueryError",
 			driver: &testDriver{
 				t:             t,
-				expectedQuery: testSearchQuery,
+				expectedQuery: testSearchTraceIDsQuery,
 				err:           assert.AnError,
 			},
 			expectedErr: "failed to query trace IDs",
@@ -678,7 +698,7 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 			name: "ScanError",
 			driver: &testDriver{
 				t:             t,
-				expectedQuery: testSearchQuery,
+				expectedQuery: testSearchTraceIDsQuery,
 				rows: &testRows[string]{
 					data:    []string{"0000000000000001", "0000000000000002"},
 					scanErr: assert.AnError,
@@ -690,7 +710,7 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 			name: "DecodeError",
 			driver: &testDriver{
 				t:             t,
-				expectedQuery: testSearchQuery,
+				expectedQuery: testSearchTraceIDsQuery,
 				rows: &testRows[string]{
 					data:   []string{"0x"},
 					scanFn: scanTraceIDFn(),
