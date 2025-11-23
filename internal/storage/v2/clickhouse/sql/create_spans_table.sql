@@ -46,9 +46,7 @@ CREATE TABLE
         scope_double_attributes Nested (key String, value Float64),
         scope_int_attributes Nested (key String, value Int64),
         scope_str_attributes Nested (key String, value String),
-        scope_complex_attributes Nested (key String, value String),
-        INDEX idx_span_name name TYPE set(0) GRANULARITY 1,
-        INDEX idx_service_name service_name TYPE set(0) GRANULARITY 1
+        scope_complex_attributes Nested (key String, value String)
     ) ENGINE = MergeTree
 ORDER BY
     (trace_id)
