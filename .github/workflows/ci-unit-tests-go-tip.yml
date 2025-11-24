@@ -14,7 +14,8 @@ permissions:
 
 jobs:
   unit-tests-go-tip:
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-all-workflows')
+    # Temporarily removed condition to test in PR - will restore before merge
+    # if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-all-workflows')
     permissions:
       checks: write
     runs-on: ubuntu-latest
@@ -45,10 +46,13 @@ jobs:
       run: |
         go clean -cache
         go clean -modcache
-        go install std
-        
+      env:
+        GOTOOLCHAIN: auto
+
     - name: Run unit tests
       run: make test-ci
+      env:
+        GOTOOLCHAIN: auto
 
     - name: Lint
       run: echo skip linting on Go tip
