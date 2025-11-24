@@ -62,25 +62,20 @@ runs:
         set -euo pipefail
         $GOROOT/bin/go version
         GOPATH="$HOME/gotip"
-        GOCACHE="$GOPATH/cache"
-        GOMODCACHE="$GOPATH/pkg/mod"
         PATH="$GOROOT/bin:$GOPATH/bin:$PATH"
-        echo "GOROOT=$GOROOT" >> $GITHUB_ENV
         echo "GOPATH=$GOPATH" >> $GITHUB_ENV
-        echo "GOCACHE=$GOCACHE" >> $GITHUB_ENV
-        echo "GOMODCACHE=$GOMODCACHE" >> $GITHUB_ENV
         echo "PATH=$PATH" >> $GITHUB_ENV
-        # Override GOTOOLCHAIN=local set by previous go setup to ensure gotip is used
-        echo "GOTOOLCHAIN=auto" >> $GITHUB_ENV
+        # Unset GOTOOLCHAIN to ensure gotip is used, not pinned to a stable version
+        echo "GOTOOLCHAIN=" >> $GITHUB_ENV
         # Remove any stale go binaries from previous toolchain installations
-        # Use command -v to detect old go dynamically instead of hardcoding paths
-        if command -v go &>/dev/null; then
-          OLD_GO=$(command -v go)
-          if [ "$OLD_GO" != "$GOROOT/bin/go" ]; then
-            echo "Removing old go binary at: $OLD_GO"
-            rm -f "$OLD_GO" || true
+        # This prevents shadowing of gotip's go binary
+        for go_path in /opt/hostedtoolcache/go/*/x64/bin/go /home/runner/go/bin/go; do
+          if [ -x "$go_path" ] 2>/dev/null; then
+            echo "Removing old go binary: $go_path"
+            rm -f "$go_path" || true
           fi
-        fi
+        done
+
 
     - name: Check Go Version
       shell: bash

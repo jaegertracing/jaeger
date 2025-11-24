@@ -46,9 +46,14 @@ jobs:
       run: |
         go clean -cache
         go clean -modcache
+      env:
+        GOTOOLCHAIN: auto
+
 
     - name: Run unit tests
       run: make test-ci
+      env:
+        GOTOOLCHAIN: auto
 
     - name: Lint
       run: echo skip linting on Go tip
