@@ -70,6 +70,8 @@ runs:
         echo "GOCACHE=$GOCACHE" >> $GITHUB_ENV
         echo "GOMODCACHE=$GOMODCACHE" >> $GITHUB_ENV
         echo "PATH=$PATH" >> $GITHUB_ENV
+        # Override GOTOOLCHAIN=local set by previous go setup to ensure gotip is used
+        echo "GOTOOLCHAIN=auto" >> $GITHUB_ENV
         # Remove any stale go binaries from previous toolchain installations
         # Use command -v to detect old go dynamically instead of hardcoding paths
         if command -v go &>/dev/null; then
