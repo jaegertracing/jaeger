@@ -58,7 +58,7 @@ def should_exclude_metric(metric_name, labels):
                 return True
                 
     
-    return False, None
+    return False
 
 
 def suppress_transient_labels(metric_name, labels):
