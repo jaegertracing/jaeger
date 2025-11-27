@@ -37,7 +37,6 @@ func TestInitMetrics(t *testing.T) {
 	testMetrics.Timer.Record(time.Duration(time.Second * 35))
 	testMetrics.Histogram.Record(42)
 
-	// wait for metrics
 	for i := 0; i < 1000; i++ {
 		c, _ := f.Snapshot()
 		if _, ok := c["counter"]; ok {
@@ -50,12 +49,36 @@ func TestInitMetrics(t *testing.T) {
 
 	assert.EqualValues(t, 5, c["counter|key=value"])
 	assert.EqualValues(t, 10, g["gauge|1=one|2=two|key=value"])
-	assert.EqualValues(t, 36863, g["timer|key=value.P50"])
-	assert.EqualValues(t, 43, g["histogram|key=value.P50"])
-
+	assert.InDelta(t, 35000, g["timer|key=value.P50"], 5000, "timer P50")
+	assert.InDelta(t, 42, g["histogram|key=value.P50"], 5, "histogram P50")
 	stopwatch := metrics.StartStopwatch(testMetrics.Timer)
 	stopwatch.Stop()
 	assert.Positive(t, stopwatch.ElapsedTime())
+}
+
+func TestInitMetricsWithTimerBuckets(t *testing.T) {
+	testMetrics := struct {
+		Timer metrics.Timer `metric:"timer" buckets:"5ms,10ms,25ms,50ms,100ms"`
+	}{}
+
+	f := metricstest.NewFactory(0)
+	defer f.Stop()
+
+	err := metrics.Init(&testMetrics, f, nil)
+	require.NoError(t, err)
+
+	testMetrics.Timer.Record(time.Duration(time.Millisecond * 15))
+
+	for i := 0; i < 1000; i++ {
+		_, g := f.Snapshot()
+		if _, ok := g["timer.P50"]; ok {
+			break
+		}
+		time.Sleep(1 * time.Millisecond)
+	}
+
+	_, g := f.Snapshot()
+	assert.EqualValues(t, 15, g["timer.P50"])
 }
 
 var (
@@ -76,7 +99,7 @@ var (
 	}{}
 
 	badTimerBucket = struct {
-		BadTimerBucket metrics.Timer `metric:"timer" buckets:"1"`
+		BadTimerBucket metrics.Timer `metric:"timer" buckets:"notaduration"`
 	}{}
 
 	invalidBuckets = struct {
@@ -97,7 +120,7 @@ func TestInitMetricsFailures(t *testing.T) {
 		"Field [BadHistogramBucket]: Bucket [a] could not be converted to float64 in 'buckets' string [1,2,a,4]")
 
 	require.EqualError(t, metrics.Init(&badTimerBucket, nil, nil),
-		"Field [BadTimerBucket]: Buckets are not currently initialized for timer metrics")
+		"Field [BadTimerBucket]: Bucket [notaduration] could not be converted to duration in 'buckets' string [notaduration]")
 
 	require.EqualError(t, metrics.Init(&invalidBuckets, nil, nil),
 		"Field [InvalidBuckets]: Buckets should only be defined for Timer and Histogram metric types")

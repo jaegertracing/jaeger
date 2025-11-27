@@ -77,7 +77,15 @@ func (f *otelFactory) Histogram(opts metrics.HistogramOptions) metrics.Histogram
 
 func (f *otelFactory) Timer(opts metrics.TimerOptions) metrics.Timer {
 	name := f.subScope(opts.Name)
-	timer, err := f.meter.Float64Histogram(name, metric.WithUnit("s"))
+	histogramOpts := []metric.Float64HistogramOption{metric.WithUnit("s")}
+	if len(opts.Buckets) > 0 {
+		boundaries := make([]float64, len(opts.Buckets))
+		for i, d := range opts.Buckets {
+			boundaries[i] = d.Seconds()
+		}
+		histogramOpts = append(histogramOpts, metric.WithExplicitBucketBoundaries(boundaries...))
+	}
+	timer, err := f.meter.Float64Histogram(name, histogramOpts...)
 	if err != nil {
 		log.Printf("Error creating OTEL timer: %v", err)
 		return metrics.NullTimer

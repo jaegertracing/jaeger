@@ -10,36 +10,48 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // MustInit initializes the passed in metrics and initializes its fields using the passed in factory.
-//
-// It uses reflection to initialize a struct containing metrics fields
-// by assigning new Counter/Gauge/Timer values with the metric name retrieved
-// from the `metric` tag and stats tags retrieved from the `tags` tag.
-//
-// Note: all fields of the struct must be exported, have a `metric` tag, and be
-// of type Counter or Gauge or Timer.
-//
-// Errors during Init lead to a panic.
-func MustInit(metrics any, factory Factory, globalTags map[string]string) {
-	if err := Init(metrics, factory, globalTags); err != nil {
-		panic(err.Error())
+// It uses reflection to find all the members of the struct and their tags. It then
+// uses the factory to initialize the metrics and assigns the pointers to the struct fields.
+// It panics if there is an error initializing the metrics.
+func MustInit(m any, factory Factory, globalTags map[string]string) {
+	if err := Init(m, factory, globalTags); err != nil {
+		panic(err)
 	}
 }
 
-// Init does the same as MustInit, but returns an error instead of
-// panicking.
+var (
+	counterPtrType   = reflect.TypeOf((*Counter)(nil)).Elem()
+	gaugePtrType     = reflect.TypeOf((*Gauge)(nil)).Elem()
+	timerPtrType     = reflect.TypeOf((*Timer)(nil)).Elem()
+	histogramPtrType = reflect.TypeOf((*Histogram)(nil)).Elem()
+)
+
+func parseBuckets[T any](bucketString, fieldName, typeName string, parse func(string) (T, error)) ([]T, error) {
+	bucketValues := strings.Split(bucketString, ",")
+	buckets := make([]T, 0, len(bucketValues))
+	for _, bucket := range bucketValues {
+		val, err := parse(bucket)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"Field [%s]: Bucket [%s] could not be converted to %s in 'buckets' string [%s]",
+				fieldName, bucket, typeName, bucketString)
+		}
+		buckets = append(buckets, val)
+	}
+	return buckets, nil
+}
+
+// Init initializes the passed in metrics and initializes its fields using the passed in factory.
+// It uses reflection to find all the members of the struct and their tags. It then
+// uses the factory to initialize the metrics and assigns the pointers to the struct fields.
 func Init(m any, factory Factory, globalTags map[string]string) error {
-	// Allow user to opt out of reporting metrics by passing in nil.
 	if factory == nil {
 		factory = NullFactory
 	}
-
-	counterPtrType := reflect.TypeOf((*Counter)(nil)).Elem()
-	gaugePtrType := reflect.TypeOf((*Gauge)(nil)).Elem()
-	timerPtrType := reflect.TypeOf((*Timer)(nil)).Elem()
-	histogramPtrType := reflect.TypeOf((*Histogram)(nil)).Elem()
 
 	v := reflect.ValueOf(m).Elem()
 	t := v.Type()
@@ -47,6 +59,7 @@ func Init(m any, factory Factory, globalTags map[string]string) error {
 		tags := make(map[string]string)
 		maps.Copy(tags, globalTags)
 		var buckets []float64
+		var timerBuckets []time.Duration
 		field := t.Field(i)
 		metric := field.Tag.Get("metric")
 		if metric == "" {
@@ -66,20 +79,18 @@ func Init(m any, factory Factory, globalTags map[string]string) error {
 		if bucketString := field.Tag.Get("buckets"); bucketString != "" {
 			switch {
 			case field.Type.AssignableTo(timerPtrType):
-				// TODO: Parse timer duration buckets
-				return fmt.Errorf(
-					"Field [%s]: Buckets are not currently initialized for timer metrics",
-					field.Name)
+				var err error
+				timerBuckets, err = parseBuckets(bucketString, field.Name, "duration", time.ParseDuration)
+				if err != nil {
+					return err
+				}
 			case field.Type.AssignableTo(histogramPtrType):
-				bucketValues := strings.Split(bucketString, ",")
-				for _, bucket := range bucketValues {
-					b, err := strconv.ParseFloat(bucket, 64)
-					if err != nil {
-						return fmt.Errorf(
-							"Field [%s]: Bucket [%s] could not be converted to float64 in 'buckets' string [%s]",
-							field.Name, bucket, bucketString)
-					}
-					buckets = append(buckets, b)
+				var err error
+				buckets, err = parseBuckets(bucketString, field.Name, "float64", func(s string) (float64, error) {
+					return strconv.ParseFloat(s, 64)
+				})
+				if err != nil {
+					return err
 				}
 			default:
 				return fmt.Errorf(
@@ -103,11 +114,11 @@ func Init(m any, factory Factory, globalTags map[string]string) error {
 				Help: help,
 			})
 		case field.Type.AssignableTo(timerPtrType):
-			// TODO: Add buckets once parsed (see TODO above)
 			obj = factory.Timer(TimerOptions{
-				Name: metric,
-				Tags: tags,
-				Help: help,
+				Name:    metric,
+				Tags:    tags,
+				Help:    help,
+				Buckets: timerBuckets,
 			})
 		case field.Type.AssignableTo(histogramPtrType):
 			obj = factory.Histogram(HistogramOptions{

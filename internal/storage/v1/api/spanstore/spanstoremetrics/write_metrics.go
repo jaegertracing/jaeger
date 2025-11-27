@@ -15,8 +15,8 @@ type WriteMetrics struct {
 	Attempts   metrics.Counter `metric:"attempts"`
 	Inserts    metrics.Counter `metric:"inserts"`
 	Errors     metrics.Counter `metric:"errors"`
-	LatencyOk  metrics.Timer   `metric:"latency-ok"`
-	LatencyErr metrics.Timer   `metric:"latency-err"`
+	LatencyOk  metrics.Timer   `metric:"latency-ok" buckets:"5ms,10ms,25ms,50ms,100ms,250ms,500ms,1s,2s,5s,10s"`
+	LatencyErr metrics.Timer   `metric:"latency-err" buckets:"5ms,10ms,25ms,50ms,100ms,250ms,500ms,1s,2s,5s,10s"`
 }
 
 // NewWriter takes a metrics scope and creates a metrics struct
