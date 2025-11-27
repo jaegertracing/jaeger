@@ -273,6 +273,8 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 }
 
 func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
+	// See docs/adr/cassandra-find-traces-duration.md for rationale: duration queries use the duration_index
+	// and are handled as a separate path. Other query parameters (like tags) are ignored when duration is specified.
 	if traceQuery.DurationMin != 0 || traceQuery.DurationMax != 0 {
 		return s.queryByDuration(ctx, traceQuery)
 	}
