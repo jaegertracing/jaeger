@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
@@ -368,7 +369,9 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 			trace, ok := allTraceFixtures[traceFixture]
 			if !ok {
 				trace = s.getTraceFixture(t, traceFixture)
-				s.writeTrace(t, trace)
+				otelTraces := v1adapter.V1TraceToOtelTrace(trace)
+				s.writeTrace(t, otelTraces)
+
 				allTraceFixtures[traceFixture] = trace
 			}
 			expected = append(expected, trace)
@@ -409,20 +412,21 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.T
 	return traces
 }
 
-func (s *StorageIntegration) writeTrace(t *testing.T, trace *model.Trace) {
-	t.Logf("%-23s Writing trace with %d spans", time.Now().Format("2006-01-02 15:04:05.999"), len(trace.Spans))
+func (s *StorageIntegration) writeTrace(t *testing.T, traces ptrace.Traces) {
+	spanCount := traces.SpanCount()
+	t.Logf("%-23s Writing trace with %d spans", time.Now().Format("2006-01-02 15:04:05.999"), spanCount)
 	ctx, cx := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cx()
-	otelTraces := v1adapter.V1TraceToOtelTrace(trace)
-	err := s.TraceWriter.WriteTraces(ctx, otelTraces)
+	err := s.TraceWriter.WriteTraces(ctx, traces)
 	require.NoError(t, err, "Not expecting error when writing trace to storage")
 
-	t.Logf("%-23s Finished writing trace with %d spans", time.Now().Format("2006-01-02 15:04:05.999"), len(trace.Spans))
+	t.Logf("%-23s Finished writing trace with %d spans", time.Now().Format("2006-01-02 15:04:05.999"), spanCount)
 }
 
 func (s *StorageIntegration) loadParseAndWriteExampleTrace(t *testing.T) *model.Trace {
 	trace := s.getTraceFixture(t, "example_trace")
-	s.writeTrace(t, trace)
+	otelTraces := v1adapter.V1TraceToOtelTrace(trace)
+	s.writeTrace(t, otelTraces)
 	return trace
 }
 
@@ -446,7 +450,9 @@ func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
 		newSpan.StartTime = newSpan.StartTime.Add(time.Second * time.Duration(i+1))
 		trace.Spans[i] = newSpan
 	}
-	s.writeTrace(t, trace)
+	// Convert to OTLP for writing
+	otelTraces := v1adapter.V1TraceToOtelTrace(trace)
+	s.writeTrace(t, otelTraces)
 	return trace
 }
 
@@ -627,6 +633,119 @@ func (s *StorageIntegration) insertThroughput(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// === OTLP v2 API Tests ===
+func (s *StorageIntegration) testOTLPScopePreservation(t *testing.T) {
+	s.skipIfNeeded(t)
+	defer s.cleanUp(t)
+
+	t.Log("Testing OTLP InstrumentationScope preservation through v2 API")
+	traces := loadOTLPFixture(t, "otlp_scope_attributes")
+	s.writeTrace(t, traces)
+	traceID := extractTraceID(t, traces)
+
+	var readTraces []*model.Trace
+	found := s.waitForCondition(t, func(t *testing.T) bool {
+		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: traceID})
+		var err error
+		readTraces, err = v1adapter.V1TracesFromSeq2(iterTraces)
+		if err != nil {
+			t.Log(err)
+			return false
+		}
+		return len(readTraces) > 0
+	})
+
+	require.True(t, found, "Failed to retrieve written trace")
+	require.NotEmpty(t, readTraces, "Should retrieve written trace")
+
+	// Convert back to ptrace to validate Scope metadata
+	retrievedTrace := v1adapter.V1TraceToOtelTrace(readTraces[0])
+	require.Positive(t, retrievedTrace.ResourceSpans().Len(), "Should have resource spans")
+
+	scopeSpans := retrievedTrace.ResourceSpans().At(0).ScopeSpans()
+	require.Positive(t, scopeSpans.Len(), "Should have scope spans")
+
+	scope := scopeSpans.At(0).Scope()
+	assert.Equal(t, "test-instrumentation-library", scope.Name(), "Scope name should be preserved")
+	assert.Equal(t, "2.1.0", scope.Version(), "Scope version should be preserved")
+
+	t.Log("OTLP InstrumentationScope metadata preserved successfully")
+}
+
+// loadOTLPFixture loads an OTLP trace fixture by name from the fixtures directory.
+func loadOTLPFixture(t *testing.T, fixtureName string) ptrace.Traces {
+	fileName := fmt.Sprintf("fixtures/traces/%s.json", fixtureName)
+	data, err := fixtures.ReadFile(fileName)
+	require.NoError(t, err, "Failed to read OTLP fixture %s", fileName)
+
+	unmarshaler := &ptrace.JSONUnmarshaler{}
+	traces, err := unmarshaler.UnmarshalTraces(data)
+	require.NoError(t, err, "Failed to unmarshal OTLP fixture %s", fixtureName)
+
+	normalizeOTLPTimestamps(traces)
+
+	return traces
+}
+
+func normalizeOTLPTimestamps(traces ptrace.Traces) {
+	resourceSpans := traces.ResourceSpans()
+	if resourceSpans.Len() == 0 {
+		return
+	}
+
+	var (
+		firstStart time.Time
+		found      bool
+	)
+
+	for i := 0; i < resourceSpans.Len() && !found; i++ {
+		rs := resourceSpans.At(i)
+		scopeSpans := rs.ScopeSpans()
+		for j := 0; j < scopeSpans.Len() && !found; j++ {
+			ss := scopeSpans.At(j)
+			spans := ss.Spans()
+			if spans.Len() == 0 {
+				continue
+			}
+			firstStart = spans.At(0).StartTimestamp().AsTime()
+			found = !firstStart.IsZero()
+		}
+	}
+
+	if !found {
+		return
+	}
+
+	targetStart := time.Now().Add(-time.Minute).UTC()
+	delta := targetStart.Sub(firstStart)
+
+	for i := 0; i < resourceSpans.Len(); i++ {
+		rs := resourceSpans.At(i)
+		scopeSpans := rs.ScopeSpans()
+		for j := 0; j < scopeSpans.Len(); j++ {
+			ss := scopeSpans.At(j)
+			spans := ss.Spans()
+			for k := 0; k < spans.Len(); k++ {
+				span := spans.At(k)
+				start := span.StartTimestamp().AsTime().Add(delta)
+				end := span.EndTimestamp().AsTime().Add(delta)
+				span.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
+				span.SetEndTimestamp(pcommon.NewTimestampFromTime(end))
+			}
+		}
+	}
+}
+
+// extractTraceID extracts the first trace ID from ptrace.Traces for retrieval testing.
+func extractTraceID(t *testing.T, traces ptrace.Traces) pcommon.TraceID {
+	require.Positive(t, traces.ResourceSpans().Len(), "Trace must have resource spans")
+	rs := traces.ResourceSpans().At(0)
+	require.Positive(t, rs.ScopeSpans().Len(), "Resource must have scope spans")
+	ss := rs.ScopeSpans().At(0)
+	require.Positive(t, ss.Spans().Len(), "Scope must have spans")
+	return ss.Spans().At(0).TraceID()
+}
+
 // RunAll runs all integration tests
 func (s *StorageIntegration) RunAll(t *testing.T) {
 	s.RunSpanStoreTests(t)
@@ -643,4 +762,5 @@ func (s *StorageIntegration) RunSpanStoreTests(t *testing.T) {
 	t.Run("GetLargeTrace", s.testGetLargeTrace)
 	t.Run("GetTraceWithDuplicateSpans", s.testGetTraceWithDuplicates)
 	t.Run("FindTraces", s.testFindTraces)
+	t.Run("OTLPScopePreservation", s.testOTLPScopePreservation)
 }
