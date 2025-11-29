@@ -12,6 +12,8 @@ runs:
         echo "Branch: ${{ github.event.pull_request.head.ref }}"
 
         if [ "${{ github.event.pull_request.head.repo.fork }}" == "true" ] && [ "${{ github.event.pull_request.head.ref }}" == 'main' ]; then
-          echo "PRs from the main branch of forked repositories are not allowed."
+          echo "Error 🛑: PRs from the main branch of forked repositories are not allowed."
+          echo "  Please create a named branch and resubmit the PR."
+          echo "  See https://github.com/jaegertracing/jaeger/blob/main/CONTRIBUTING_GUIDELINES.md#branches"
           exit 1
         fi
