@@ -3,7 +3,15 @@
 # Copyright (c) 2024 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
+# This script builds and optionally uploads a Docker image.
+# Default behavior changed: now produces v2 artifacts unless JAEGER_VERSION=1 is explicitly set.
+# To build v1 artifacts: JAEGER_VERSION=1 ./build-upload-a-docker-image.sh ...
+# To build v2 artifacts (default): ./build-upload-a-docker-image.sh ... or JAEGER_VERSION=2 ...
+
 set -euf -o pipefail
+
+# Default to v2 unless explicitly overridden
+JAEGER_VERSION=${JAEGER_VERSION:-2}
 
 print_help() {
   echo "Usage: $0 [-c] [-D] [-h] [-l] [-o] [-p platforms]"
@@ -96,7 +104,7 @@ if [[ "${local_test_only}" = "Y" ]]; then
 else
     echo "::group:: compute tags ${component_name}"
     # shellcheck disable=SC2086
-    IFS=" " read -r -a IMAGE_TAGS <<< "$(bash scripts/utils/compute-tags.sh ${namespace}/${component_name})"
+    IFS=" " read -r -a IMAGE_TAGS <<< "$(JAEGER_VERSION=${JAEGER_VERSION} bash scripts/utils/compute-tags.sh ${namespace}/${component_name})"
     echo "::endgroup::"
 
     # Only push multi-arch images to dockerhub/quay.io for main branch or for release tags vM.N.P{-rcX}
