@@ -45,7 +45,6 @@ function stage-platform-files-v1 {
     cp "./cmd/query/query-${PLATFORM}"            "${PACKAGE_STAGING_DIR}/jaeger-query${FILE_EXTENSION}"
     cp "./cmd/collector/collector-${PLATFORM}"    "${PACKAGE_STAGING_DIR}/jaeger-collector${FILE_EXTENSION}"
     cp "./cmd/ingester/ingester-${PLATFORM}"      "${PACKAGE_STAGING_DIR}/jaeger-ingester${FILE_EXTENSION}"
-    cp "./examples/hotrod/hotrod-${PLATFORM}"     "${PACKAGE_STAGING_DIR}/example-hotrod${FILE_EXTENSION}"
 }
 
 function stage-platform-files-v2 {
@@ -78,7 +77,7 @@ function package {
     local -r FILE_EXTENSION=${3:-}
     local -r PACKAGE_NAME_V1=jaeger-${VERSION_V1}-$PLATFORM
     local -r PACKAGE_NAME_V2=jaeger-${VERSION_V2}-$PLATFORM
-    local -r TOOLS_PACKAGE_NAME=jaeger-tools-${VERSION_V1}-$PLATFORM
+    local -r TOOLS_PACKAGE_NAME=jaeger-tools-${VERSION_V2}-$PLATFORM
 
     echo "Packaging binaries for $PLATFORM"
 

@@ -16,5 +16,8 @@ endef
 define buildinfoflags
   -ldflags "-X $(call buildinfo,commitSHA,$(GIT_SHA)) -X $(call buildinfo,latestVersion,$(GIT_CLOSEST_TAG_$(1))) -X $(call buildinfo,date,$(DATE))"
 endef
-BUILD_INFO=$(call buildinfoflags,V1)
+BUILD_INFO_V1=$(call buildinfoflags,V1)
 BUILD_INFO_V2=$(call buildinfoflags,V2)
+
+# Default to V2
+BUILD_INFO=$(BUILD_INFO_V2)
