@@ -29,7 +29,7 @@ if ! current_version_v1=$(make "echo-v1"); then
 fi
 
 # removing the v so that in the line "New version: v1.66.1", v cannot be removed with backspace
-clean_version="${current_version_v1#v}" 
+clean_version="${current_version_v1#v}"
 
 IFS='.' read -r major minor patch <<< "$clean_version"
 
@@ -45,7 +45,7 @@ if ! current_version_v2=$(make "echo-v2"); then
 fi
 
 # removing the v so that in the line "New version: v1.66.1", v cannot be removed with backspace
-clean_version="${current_version_v2#v}" 
+clean_version="${current_version_v2#v}"
 
 IFS='.' read -r major minor patch <<< "$clean_version"
 
@@ -60,22 +60,39 @@ echo "Using new version: ${new_version}"
 
 
 
-TMPFILE=$(mktemp "/tmp/DOC_RELEASE.XXXXXX") 
-wget -O "$TMPFILE" https://raw.githubusercontent.com/jaegertracing/documentation/main/RELEASE.md
+cmd_v1="v${user_version_v1}"
+cmd_v2="v${user_version_v2}"
 
-# Ensure the UI Release checklist is up to date.
-make init-submodules
+issue_body=$(cat << EOF
+## Prepare Jaeger Release ${cmd_v1} / ${cmd_v2}
 
-issue_body=$(python scripts/release/formatter.py "${TMPFILE}" "${user_version_v1}" "${user_version_v2}")
+This issue tracks the release of Jaeger ${cmd_v1} / ${cmd_v2}.
+
+**Automated option**: Run \`bash ./scripts/release/prepare.sh ${cmd_v1} ${cmd_v2}\` to automatically create the PR with changelog updates.
+
+**Manual option**: Follow the [manual release preparation steps](https://github.com/jaegertracing/jaeger/blob/main/RELEASE.md#manual-release-preparation-steps) in \`RELEASE.md\`.
+
+---
+
+### Tagging
+
+After merging the PR, create signed tags and push them:
+
+```bash
+bash ./scripts/release/prepare.sh ${cmd_v1} ${cmd_v2} --create-tags
+EOF
+)
 
 if $dry_run; then
-  echo "${issue_body}"
+  printf "%s\n" "${issue_body}"
+  exit 0
 else
-  gh issue create -R jaegertracing/jaeger --title "Prepare Jaeger Release ${new_version}" --body "$issue_body"
+  issue_output=$(gh issue create -R jaegertracing/jaeger --title "Prepare Jaeger Release ${new_version}" --body "$issue_body")
+  issue_number=$(echo "$issue_output" | grep -o '#[0-9]*' | head -1)
+  echo "Created tracking issue: $issue_output"
+  echo ""
+  echo "Next step: Run the following command:"
+  echo "bash ./scripts/release/prepare.sh ${cmd_v1} ${cmd_v2}"
 fi
-
-rm "${TMPFILE}"
-
-exit 1;
 
 

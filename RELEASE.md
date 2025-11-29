@@ -78,6 +78,35 @@ Maintenance branches should follow naming convention: `release-major.minor` (e.g
    * Once the release tag is created, the `ci-release` workflow will kick in and deploy the artifacts for the patch release.
 5. Do not perform a new release of the documentation since the major.minor is not changing. The one change that may be useful is bumping the `binariesLatest` variable in the `config.toml` file ([example](https://github.com/jaegertracing/documentation/commit/eacb52f332a7e069c254e652a6b4a58ea5a07b32)).
 
+## Manual Release Preparation Steps
+
+If you prefer to manually create the release PR instead of using the automated script, follow these steps:
+
+1. Update CHANGELOG.md to include:
+    * A new section with the header `1.x.x / 2.x.x (YYYY-MM-DD)` (copy the template at the top)
+    * A curated list of notable changes and links to PRs. Do not simply dump git log, select the changes that affect the users.
+      To obtain the list of all changes run `make changelog`.
+    * The section can be split into sub-section if necessary, e.g. UI Changes, Backend Changes, Bug Fixes, etc.
+
+2. Update the UI submodule to the latest version:
+    ```bash
+    git submodule init
+    git submodule update
+    pushd jaeger-ui
+    git checkout main
+    git pull
+    git checkout {new_ui_version} # e.g. v1.5.0
+    popd
+    ```
+    * If there are only dependency bumps, indicate this with "Dependencies upgrades only" ([example](https://github.com/jaegertracing/jaeger-ui/pull/2431/files)).
+    * If there are no changes, indicate this with "No changes" ([example](https://github.com/jaegertracing/jaeger/pull/4131/files)).
+
+3. Rotate the release managers table placing yourself at the bottom. The date should be the first Wednesday of the month.
+
+4. Commit your changes and create a pull request.
+
+5. Add label `changelog:skip` to the pull request.
+
 ## Release managers
 
 A Release Manager is the person responsible for ensuring that a new version of Jaeger is released. This person will coordinate the required changes, including to the related components such as UI, IDL, and jaeger-lib and will address any problems that might happen during the release, making sure that the documentation above is correct.
