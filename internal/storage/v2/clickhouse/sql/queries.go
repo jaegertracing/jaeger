@@ -206,6 +206,13 @@ WHERE
     trace_id = ?
 `
 
+// SearchTraceIDs is the base SQL fragment used by FindTraceIDs.
+//
+// The query begins with a no-op predicate (`WHERE 1=1`) so that additional
+// filters can be appended unconditionally using `AND` without needing to check
+// whether this is the first WHERE clause.
+const SearchTraceIDs = `SELECT DISTINCT trace_id FROM spans WHERE 1=1`
+
 const SelectServices = `
 SELECT DISTINCT
     name
