@@ -52,6 +52,7 @@ type (
 		spanKindFilter string
 		serviceFilter  string
 		rate           string
+		tagFilters     []string
 	}
 
 	metricsQueryParams struct {
@@ -129,25 +130,56 @@ func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace
 
 // GetLatencies gets the latency metrics for the given set of latency query parameters.
 func (m MetricsReader) GetLatencies(ctx context.Context, requestParams *metricstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
+	const queryTemplate = `histogram_quantile(%.2f, sum(rate(%s{%s}[%s])) by (%s))`
 	metricsParams := metricsQueryParams{
 		BaseQueryParameters: requestParams.BaseQueryParameters,
 		groupByHistBucket:   true,
 		metricName:          "service_latencies",
 		metricDesc:          fmt.Sprintf("%.2fth quantile latency, grouped by service", requestParams.Quantile),
 		buildPromQuery: func(p promQueryParams) string {
-			return fmt.Sprintf(
-				// Note: p.spanKindFilter can be ""; trailing commas are okay within a timeseries selection.
-				`histogram_quantile(%.2f, sum(rate(%s_bucket{service_name =~ %q, %s}[%s])) by (%s))`,
-				requestParams.Quantile,
-				m.latencyMetricName,
-				p.serviceFilter,
-				p.spanKindFilter,
-				p.rate,
-				p.groupBy,
-			)
+			// Build filter string including service_name, span_kind, and tags
+			// For histogram quantile queries, we need to use the _bucket metric
+			bucketMetricName := m.latencyMetricName + "_bucket"
+			return m.promQlQuery(p, queryTemplate, bucketMetricName, requestParams.Quantile)
 		},
 	}
 	return m.executeQuery(ctx, metricsParams)
+}
+
+func (MetricsReader) promQlQuery(p promQueryParams, queryTemplate string, metricName string, quantile ...float64) string {
+	filters := []string{fmt.Sprintf(`service_name =~ %q`, p.serviceFilter)}
+
+	if p.spanKindFilter != "" {
+		filters = append(filters, p.spanKindFilter)
+	}
+
+	// Add tag filters if there are any
+	if len(p.tagFilters) > 0 {
+		filters = append(filters, p.tagFilters...)
+	}
+
+	filterStr := strings.Join(filters, ", ")
+
+	// If quantile is provided, format the query with quantile parameter
+	if len(quantile) > 0 {
+		return fmt.Sprintf(
+			queryTemplate,
+			quantile[0],
+			metricName,
+			filterStr,
+			p.rate,
+			p.groupBy,
+		)
+	}
+
+	// For non-quantile queries (call rates, error rates)
+	return fmt.Sprintf(
+		queryTemplate,
+		metricName,
+		filterStr,
+		p.rate,
+		p.groupBy,
+	)
 }
 
 func buildFullLatencyMetricName(cfg config.Configuration) string {
@@ -173,20 +205,13 @@ func buildFullLatencyMetricName(cfg config.Configuration) string {
 
 // GetCallRates gets the call rate metrics for the given set of call rate query parameters.
 func (m MetricsReader) GetCallRates(ctx context.Context, requestParams *metricstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
+	const queryTemplate = `sum(rate(%s{%s}[%s])) by (%s)`
 	metricsParams := metricsQueryParams{
 		BaseQueryParameters: requestParams.BaseQueryParameters,
 		metricName:          "service_call_rate",
 		metricDesc:          "calls/sec, grouped by service",
 		buildPromQuery: func(p promQueryParams) string {
-			return fmt.Sprintf(
-				// Note: p.spanKindFilter can be ""; trailing commas are okay within a timeseries selection.
-				`sum(rate(%s{service_name =~ %q, %s}[%s])) by (%s)`,
-				m.callsMetricName,
-				p.serviceFilter,
-				p.spanKindFilter,
-				p.rate,
-				p.groupBy,
-			)
+			return m.promQlQuery(p, queryTemplate, m.callsMetricName)
 		},
 	}
 	return m.executeQuery(ctx, metricsParams)
@@ -212,11 +237,28 @@ func (m MetricsReader) GetErrorRates(ctx context.Context, requestParams *metrics
 		metricName:          "service_error_rate",
 		metricDesc:          "error rate, computed as a fraction of errors/sec over calls/sec, grouped by service",
 		buildPromQuery: func(p promQueryParams) string {
+			// Build base filters for all queries (service_name)
+			baseFilters := []string{fmt.Sprintf(`service_name =~ %q`, p.serviceFilter)}
+
+			// Add span_kind filter
+			if p.spanKindFilter != "" {
+				baseFilters = append(baseFilters, p.spanKindFilter)
+			}
+
+			// Add tag filters if there are any
+			if len(p.tagFilters) > 0 {
+				baseFilters = append(baseFilters, p.tagFilters...)
+			}
+			// Add status_code filter only for error rate numerator, must be right after service_name to match test expectations
+			errorFilters := append([]string{}, baseFilters...)
+			errorFilters = append(errorFilters, `status_code = "STATUS_CODE_ERROR"`)
+			errorFilterStr := strings.Join(errorFilters, ", ")
+			baseFilterStr := strings.Join(baseFilters, ", ")
+
 			return fmt.Sprintf(
-				// Note: p.spanKindFilter can be ""; trailing commas are okay within a timeseries selection.
-				`sum(rate(%s{service_name =~ %q, status_code = "STATUS_CODE_ERROR", %s}[%s])) by (%s) / sum(rate(%s{service_name =~ %q, %s}[%s])) by (%s)`,
-				m.callsMetricName, p.serviceFilter, p.spanKindFilter, p.rate, p.groupBy,
-				m.callsMetricName, p.serviceFilter, p.spanKindFilter, p.rate, p.groupBy,
+				`sum(rate(%s{%s}[%s])) by (%s) / sum(rate(%s{%s}[%s])) by (%s)`,
+				m.callsMetricName, errorFilterStr, p.rate, p.groupBy,
+				m.callsMetricName, baseFilterStr, p.rate, p.groupBy,
 			)
 		},
 	}
@@ -309,11 +351,23 @@ func (m MetricsReader) buildPromQuery(metricsParams metricsQueryParams) string {
 	if len(metricsParams.SpanKinds) > 0 {
 		spanKindFilter = fmt.Sprintf(`span_kind =~ %q`, strings.Join(metricsParams.SpanKinds, "|"))
 	}
+
+	// Build tag filters
+	var tagFilters []string
+	if len(metricsParams.Tags) > 0 {
+		for k, v := range metricsParams.Tags {
+			// Escape dots in key names for Prometheus compatibility
+			escapedKey := strings.ReplaceAll(k, ".", "_")
+			tagFilters = append(tagFilters, fmt.Sprintf(`%s=%q`, escapedKey, v))
+		}
+	}
+
 	promParams := promQueryParams{
 		serviceFilter:  strings.Join(metricsParams.ServiceNames, "|"),
 		spanKindFilter: spanKindFilter,
 		rate:           promqlDurationString(metricsParams.RatePer),
 		groupBy:        strings.Join(groupBy, ","),
+		tagFilters:     tagFilters,
 	}
 	return metricsParams.buildPromQuery(promParams)
 }

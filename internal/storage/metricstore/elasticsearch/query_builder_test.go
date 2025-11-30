@@ -51,6 +51,7 @@ func TestBuildBoolQuery(t *testing.T) {
 	params := metricstore.BaseQueryParameters{
 		ServiceNames: []string{"service1", "service2"},
 		SpanKinds:    []string{"client", "server"},
+		Tags:         map[string]string{"http.status_code": "200"},
 	}
 
 	boolQuery := qb.BuildBoolQuery(params, commonTimeRange)
@@ -63,7 +64,7 @@ func TestBuildBoolQuery(t *testing.T) {
 	boolClause := queryMap["bool"].(map[string]any)
 	filterClause := boolClause["filter"].([]any)
 
-	require.Len(t, filterClause, 3) // services, span kinds, time range
+	require.Len(t, filterClause, 4) // services, span kinds, time range
 }
 
 func TestBuildLatenciesAggregation(t *testing.T) {
