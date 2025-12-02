@@ -221,3 +221,53 @@ func TestDefaultQueryOptions(t *testing.T) {
 	require.Equal(t, ":16685", qo.GRPC.NetAddr.Endpoint)
 	require.EqualValues(t, "tcp", qo.GRPC.NetAddr.Transport)
 }
+
+func TestQueryOptionsMaxTraceSizeValidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		flags       []string
+		expectError bool
+		expected    int
+	}{
+		{
+			name:        "default value",
+			flags:       []string{},
+			expectError: false,
+			expected:    0,
+		},
+		{
+			name:        "valid positive value",
+			flags:       []string{"--query.max-trace-size=1000"},
+			expectError: false,
+			expected:    1000,
+		},
+		{
+			name:        "valid zero value",
+			flags:       []string{"--query.max-trace-size=0"},
+			expectError: false,
+			expected:    0,
+		},
+		{
+			name:        "negative value should error",
+			flags:       []string{"--query.max-trace-size=-1"},
+			expectError: true,
+			expected:    0,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			v, command := config.Viperize(AddFlags)
+			command.ParseFlags(test.flags)
+			qOpts, err := new(QueryOptions).InitFromViper(v, zap.NewNop())
+
+			if test.expectError {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "query.max-trace-size must be non-negative")
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.expected, qOpts.MaxTraceSize)
+			}
+		})
+	}
+}
