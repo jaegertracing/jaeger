@@ -62,6 +62,7 @@ func TestAllInOne(t *testing.T) {
 	t.Run("verifyGetTraceAPI", verifyGetTraceAPI)
 	t.Run("verifyGetSamplingStrategyAPI", verifyGetSamplingStrategyAPI)
 	t.Run("verifyGetServicesAPIV3", verifyGetServicesAPIV3)
+	t.Run("checkDeepDependencies", checkDeepDependencies)
 }
 
 func healthCheck(t *testing.T) {
@@ -189,4 +190,13 @@ func verifyGetServicesAPIV3(t *testing.T) {
 	require.NoError(t, json.Unmarshal(body, &servicesResponse))
 	require.Len(t, servicesResponse.Services, 1)
 	assert.Contains(t, servicesResponse.Services[0], "jaeger")
+}
+
+func checkDeepDependencies(t *testing.T) {
+	_, body := httpGet(t, queryAddr+"/analytics/v1/dependencies?service=test")
+	var response struct {
+		Dependencies []any `json:"dependencies"`
+	}
+	require.NoError(t, json.Unmarshal(body, &response))
+	assert.NotEmpty(t, response.Dependencies)
 }
