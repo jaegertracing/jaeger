@@ -286,7 +286,7 @@ builds:
 
 # Archive configuration
 archives:
-  # V1 archives
+  # V1 archives - includes v1 components
   - id: jaeger-v1
     formats: [tar.gz]
     name_template: "jaeger-{{ .Env.VERSION_V1_CLEAN }}-{{ .Os }}-{{ .Arch }}"
@@ -295,6 +295,8 @@ archives:
         formats: [zip]
     files:
       - none*  # Don't include extra files
+    # Deprecated but still works - builds field
+    # In future versions, this should be replaced with filtering by build IDs
     builds:
       - all-in-one
       - query
@@ -302,7 +304,7 @@ archives:
       - ingester
       - hotrod
 
-  # V2 archives
+  # V2 archives - includes v2 jaeger binary
   - id: jaeger-v2
     formats: [tar.gz]
     name_template: "jaeger-{{ .Env.VERSION_V2_CLEAN }}-{{ .Os }}-{{ .Arch }}"
@@ -315,7 +317,7 @@ archives:
       - jaeger
       - hotrod
 
-  # Tools archives
+  # Tools archives - includes ES tools
   - id: jaeger-tools
     formats: [tar.gz]
     name_template: "jaeger-tools-{{ .Env.VERSION_V1_CLEAN }}-{{ .Os }}-{{ .Arch }}"
