@@ -138,7 +138,7 @@ func createGRPCServer(
 	)
 	return options.GRPC.ToServer(
 		ctx,
-		telset.Host,
+		telset.Host.GetExtensions(),
 		component.TelemetrySettings{
 			Logger:         telset.Logger,
 			TracerProvider: telset.TracerProvider,
@@ -209,7 +209,7 @@ func createHTTPServer(
 	handler = recoveryhandler.NewRecoveryHandler(telset.Logger, true)(handler)
 	hs, err := queryOpts.HTTP.ToServer(
 		ctx,
-		telset.Host,
+		telset.Host.GetExtensions(),
 		component.TelemetrySettings{
 			Logger:         telset.Logger,
 			TracerProvider: telset.TracerProvider,

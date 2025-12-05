@@ -117,7 +117,7 @@ func createGRPCServer(
 
 	opts.NetAddr.Transport = confignet.TransportTypeTCP
 	server, err := opts.ToServer(ctx,
-		telset.Host,
+		telset.Host.GetExtensions(),
 		telset.ToOtelComponent(),
 		configgrpc.WithGrpcServerOption(grpc.ChainUnaryInterceptor(unaryInterceptors...)),
 		configgrpc.WithGrpcServerOption(grpc.ChainStreamInterceptor(streamInterceptors...)),
