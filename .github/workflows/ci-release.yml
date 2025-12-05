@@ -84,18 +84,25 @@ jobs:
         echo "docker_flags=${docker_flags[@]}" >> $GITHUB_OUTPUT
         cat $GITHUB_OUTPUT
 
-    - name: Export BRANCH variable and validate it is a semver
-      # Many scripts depend on BRANCH variable. We do not want to
-      # use ./.github/actions/setup-branch here because it may set
-      # BRANCH=main when the workflow is triggered manually.
-      #
-      # TODO this currently utilizes 1.x version tag, which is ok for v1
-      # binaries, but for tools/utils we may need to change in the future.
+    - name: Export version variables
+      # Set version variables for goreleaser
       run: |
-        BRANCH=$(make echo-v1)
-        echo Validate that the latest tag ${BRANCH} is in semver format
-        echo ${BRANCH} | grep -E '^v[0-9]+.[0-9]+.[0-9]+$'
-        echo "BRANCH=${BRANCH}" >> ${GITHUB_ENV}
+        VERSION_V1=$(make echo-v1)
+        VERSION_V2=$(make echo-v2)
+        echo Validate that the latest tags are in semver format
+        echo ${VERSION_V1} | grep -E '^v[0-9]+.[0-9]+.[0-9]+$'
+        echo ${VERSION_V2} | grep -E '^v[0-9]+.[0-9]+.[0-9]+(-rc[0-9]+)?$'
+        # Export both vX.Y.Z and X.Y.Z formats
+        echo "VERSION_V1=${VERSION_V1}" >> ${GITHUB_ENV}
+        echo "VERSION_V2=${VERSION_V2}" >> ${GITHUB_ENV}
+        echo "VERSION_V1_CLEAN=$(echo ${VERSION_V1} | sed 's/^v//')" >> ${GITHUB_ENV}
+        echo "VERSION_V2_CLEAN=$(echo ${VERSION_V2} | sed 's/^v//')" >> ${GITHUB_ENV}
+        # Keep BRANCH for docker images
+        echo "BRANCH=${VERSION_V1}" >> ${GITHUB_ENV}
+
+    - name: Build UI
+      # UI must be built before running goreleaser since it embeds the UI
+      run: make build-ui
 
     - name: Configure GPG Key
       if: ${{ inputs.dry_run != true }}
@@ -104,29 +111,18 @@ jobs:
         gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
         passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
-    - name: Build all binaries
-      run: make build-all-platforms PLATFORMS=${{ steps.params.outputs.platforms }}
-
-    - name: Package binaries
-      run: |
-        bash scripts/build/package-deploy.sh \
-          -p ${{ steps.params.outputs.platforms }} \
-          ${{ steps.params.outputs.gpg_key_override }}
-
-    - name: Upload binaries
-      if: ${{ inputs.dry_run != true }}
-      uses: svenstaro/upload-release-action@5e35e583720436a2cc5f9682b6f55657101c1ea1 # 2.11.1
+    - name: Run GoReleaser
+      uses: goreleaser/goreleaser-action@7ec5c2b0c6cdda6e8bbb49444bc797dd33d74dd8 # v5.0.0
       with:
-        file: '{deploy/*.tar.gz,deploy/*.zip,deploy/*.sha256sum.txt,deploy/*.asc}'
-        file_glob: true
-        overwrite: ${{ inputs.overwrite }}
-        tag: ${{ env.BRANCH }}
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Delete the release artifacts after uploading them.
-      run: |
-        rm -rf deploy || true
-        df -h /
+        distribution: goreleaser
+        version: latest
+        args: release --clean ${{ inputs.dry_run == true && '--skip=publish --skip=sign' || '' }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        VERSION_V1: ${{ env.VERSION_V1 }}
+        VERSION_V2: ${{ env.VERSION_V2 }}
+        VERSION_V1_CLEAN: ${{ env.VERSION_V1_CLEAN }}
+        VERSION_V2_CLEAN: ${{ env.VERSION_V2_CLEAN }}
 
     - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
 
