@@ -5,7 +5,6 @@
 package spanstore
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -18,13 +17,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra/mocks"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
+
+var traceId = [16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
 
 type spanWriterTest struct {
 	session   *mocks.Session
@@ -43,7 +42,7 @@ func withSpanWriter(t *testing.T, writeCacheTTL time.Duration, fn func(w *spanWr
 	query.On("Exec").Return(nil)
 	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
-	writer, err := NewSpanWriter(session, writeCacheTTL, metricsFactory, logger, options...)
+	writer, err := NewSpanWriter(session, writeCacheTTL, metricsFactory, logger, applyOptions(options...))
 	require.NoError(t, err)
 	w := &spanWriterTest{
 		session:   session,
@@ -53,8 +52,6 @@ func withSpanWriter(t *testing.T, writeCacheTTL time.Duration, fn func(w *spanWr
 	}
 	fn(w)
 }
-
-var _ spanstore.Writer = &SpanWriter{} // check API conformance
 
 func TestNewSpanWriter(t *testing.T) {
 	t.Run("test span writer creation", func(t *testing.T) {
@@ -76,7 +73,7 @@ func TestNewSpanWriter(t *testing.T) {
 		logger, _ := testutils.NewLogger()
 		metricsFactory := metricstest.NewFactory(0)
 
-		_, err := NewSpanWriter(session, 0, metricsFactory, logger)
+		_, err := NewSpanWriter(session, 0, metricsFactory, logger, Options{})
 
 		assert.EqualError(t, err, "neither table operation_names_v2 nor operation_names exist")
 	})
@@ -179,19 +176,21 @@ func TestSpanWriter(t *testing.T) {
 		testCase := tc // capture loop var
 		t.Run(testCase.caption, func(t *testing.T) {
 			withSpanWriter(t, 0, func(w *spanWriterTest) {
-				span := &model.Span{
-					TraceID:       model.NewTraceID(0, 1),
+				span := &dbmodel.Span{
+					TraceID:       traceId,
 					OperationName: "operation-a",
-					Tags: model.KeyValues{
-						model.String("x", "y"),
-						model.String("json", `{"x":"y"}`), // string tag with json value will not be inserted
+					Tags: []dbmodel.KeyValue{
+						{
+							Key:         "x",
+							ValueString: "y",
+						},
 					},
-					Process: &model.Process{
+					Process: dbmodel.Process{
 						ServiceName: "service-a",
 					},
 				}
 				if testCase.firehose {
-					span.Flags = model.FirehoseFlag
+					span.Flags = dbmodel.FirehoseFlag
 				}
 
 				spanQuery := &mocks.Query{}
@@ -228,7 +227,18 @@ func TestSpanWriter(t *testing.T) {
 
 				w.writer.serviceNamesWriter = func(_ /* serviceName */ string) error { return testCase.serviceNameError }
 				w.writer.operationNamesWriter = func(_ dbmodel.Operation) error { return testCase.serviceNameError }
-				err := w.writer.WriteSpan(context.Background(), span)
+				err := w.writer.WriteSpan(span, []dbmodel.TagInsertion{
+					{
+						ServiceName: "service-a",
+						TagKey:      "x",
+						TagValue:    "y",
+					},
+					{
+						ServiceName: "service-a",
+						TagKey:      "json",
+						TagValue:    `{"x":"y"}`,
+					},
+				})
 
 				if testCase.expectedError == "" {
 					require.NoError(t, err)
@@ -318,9 +328,9 @@ func TestStorageMode_IndexOnly(t *testing.T) {
 	withSpanWriter(t, 0, func(w *spanWriterTest) {
 		w.writer.serviceNamesWriter = func(_ /* serviceName */ string) error { return nil }
 		w.writer.operationNamesWriter = func(_ dbmodel.Operation) error { return nil }
-		span := &model.Span{
-			TraceID: model.NewTraceID(0, 1),
-			Process: &model.Process{
+		span := &dbmodel.Span{
+			TraceID: traceId,
+			Process: dbmodel.Process{
 				ServiceName: "service-a",
 			},
 		}
@@ -341,7 +351,7 @@ func TestStorageMode_IndexOnly(t *testing.T) {
 		w.session.On("Query", serviceOperationIndex).Return(serviceOperationNameQuery)
 		w.session.On("Query", durationIndex).Return(durationNoOperationQuery).Once()
 
-		err := w.writer.WriteSpan(context.Background(), span)
+		err := w.writer.WriteSpan(span, []dbmodel.TagInsertion{})
 
 		require.NoError(t, err)
 		serviceNameQuery.AssertExpectations(t)
@@ -361,13 +371,13 @@ func TestStorageMode_IndexOnly_WithFilter(t *testing.T) {
 		w.writer.indexFilter = filterEverything
 		w.writer.serviceNamesWriter = func(_ /* serviceName */ string) error { return nil }
 		w.writer.operationNamesWriter = func(_ dbmodel.Operation) error { return nil }
-		span := &model.Span{
-			TraceID: model.NewTraceID(0, 1),
-			Process: &model.Process{
+		span := &dbmodel.Span{
+			TraceID: traceId,
+			Process: dbmodel.Process{
 				ServiceName: "service-a",
 			},
 		}
-		err := w.writer.WriteSpan(context.Background(), span)
+		err := w.writer.WriteSpan(span, []dbmodel.TagInsertion{})
 		require.NoError(t, err)
 		w.session.AssertExpectations(t)
 		w.session.AssertNotCalled(t, "Query", serviceOperationIndex, mock.Anything)
@@ -391,13 +401,11 @@ func TestStorageMode_IndexOnly_FirehoseSpan(t *testing.T) {
 			operationWritten.Store(&operation)
 			return nil
 		}
-		span := &model.Span{
-			TraceID:       model.NewTraceID(0, 1),
+		span := &dbmodel.Span{
+			TraceID:       traceId,
 			OperationName: "package-delivery",
-			Process: &model.Process{
-				ServiceName: "planet-express",
-			},
-			Flags: model.Flags(8),
+			ServiceName:   "planet-express",
+			Flags:         int32(8),
 		}
 
 		serviceNameQuery := &mocks.Query{}
@@ -414,7 +422,7 @@ func TestStorageMode_IndexOnly_FirehoseSpan(t *testing.T) {
 		w.session.On("Query", serviceNameIndex).Return(serviceNameQuery)
 		w.session.On("Query", serviceOperationIndex).Return(serviceOperationNameQuery)
 
-		err := w.writer.WriteSpan(context.Background(), span)
+		err := w.writer.WriteSpan(span, []dbmodel.TagInsertion{})
 		require.NoError(t, err)
 		w.session.AssertExpectations(t)
 		w.session.AssertNotCalled(t, "Query", tagIndex, mock.Anything)
@@ -434,9 +442,9 @@ func TestStorageMode_StoreWithoutIndexing(t *testing.T) {
 			assert.Fail(t, "Non indexing store shouldn't index")
 			return nil
 		}
-		span := &model.Span{
-			TraceID: model.NewTraceID(0, 1),
-			Process: &model.Process{
+		span := &dbmodel.Span{
+			TraceID: traceId,
+			Process: dbmodel.Process{
 				ServiceName: "service-a",
 			},
 		}
@@ -444,7 +452,7 @@ func TestStorageMode_StoreWithoutIndexing(t *testing.T) {
 		spanQuery.On("Exec").Return(nil)
 		w.session.On("Query", insertSpan, mock.Anything).Return(spanQuery)
 
-		err := w.writer.WriteSpan(context.Background(), span)
+		err := w.writer.WriteSpan(span, []dbmodel.TagInsertion{})
 
 		require.NoError(t, err)
 		spanQuery.AssertExpectations(t)
