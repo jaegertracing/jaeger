@@ -182,7 +182,7 @@ make generate-mocks       # Generate test mocks
 # Cleanup
 make clean                # Clean build artifacts
 
-# UI Development (requires Node.js 6+)
+# UI Development (requires Node.js - see jaeger-ui/.nvmrc for version)
 make build-ui            # Build UI assets
 
 # Docker
