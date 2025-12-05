@@ -16,16 +16,16 @@ builds:
     binary: jaeger
     env:
       - CGO_ENABLED=0
-    goos:
+    goos: &common_goos
       - linux
       - darwin
       - windows
-    goarch:
+    goarch: &common_goarch
       - amd64
       - arm64
       - s390x
       - ppc64le
-    ignore:
+    ignore: &common_ignore
       - goos: darwin
         goarch: s390x
       - goos: darwin
@@ -47,27 +47,10 @@ builds:
     binary: jaeger-all-in-one
     env:
       - CGO_ENABLED=0
-    goos:
-      - linux
-      - darwin
-      - windows
-    goarch:
-      - amd64
-      - arm64
-      - s390x
-      - ppc64le
-    ignore:
-      - goos: darwin
-        goarch: s390x
-      - goos: darwin
-        goarch: ppc64le
-      - goos: windows
-        goarch: s390x
-      - goos: windows
-        goarch: ppc64le
-      - goos: windows
-        goarch: arm64
-    ldflags:
+    goos: *common_goos
+    goarch: *common_goarch
+    ignore: *common_ignore
+    ldflags: &ldflags_v1
       - -X github.com/jaegertracing/jaeger/internal/version.commitSHA={{.FullCommit}}
       - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Env.VERSION_V1}}
       - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
@@ -77,90 +60,30 @@ builds:
     binary: jaeger-query
     env:
       - CGO_ENABLED=0
-    goos:
-      - linux
-      - darwin
-      - windows
-    goarch:
-      - amd64
-      - arm64
-      - s390x
-      - ppc64le
-    ignore:
-      - goos: darwin
-        goarch: s390x
-      - goos: darwin
-        goarch: ppc64le
-      - goos: windows
-        goarch: s390x
-      - goos: windows
-        goarch: ppc64le
-      - goos: windows
-        goarch: arm64
-    ldflags:
-      - -X github.com/jaegertracing/jaeger/internal/version.commitSHA={{.FullCommit}}
-      - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Env.VERSION_V1}}
-      - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
+    goos: *common_goos
+    goarch: *common_goarch
+    ignore: *common_ignore
+    ldflags: *ldflags_v1
 
   - id: collector
     main: ./cmd/collector
     binary: jaeger-collector
     env:
       - CGO_ENABLED=0
-    goos:
-      - linux
-      - darwin
-      - windows
-    goarch:
-      - amd64
-      - arm64
-      - s390x
-      - ppc64le
-    ignore:
-      - goos: darwin
-        goarch: s390x
-      - goos: darwin
-        goarch: ppc64le
-      - goos: windows
-        goarch: s390x
-      - goos: windows
-        goarch: ppc64le
-      - goos: windows
-        goarch: arm64
-    ldflags:
-      - -X github.com/jaegertracing/jaeger/internal/version.commitSHA={{.FullCommit}}
-      - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Env.VERSION_V1}}
-      - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
+    goos: *common_goos
+    goarch: *common_goarch
+    ignore: *common_ignore
+    ldflags: *ldflags_v1
 
   - id: ingester
     main: ./cmd/ingester
     binary: jaeger-ingester
     env:
       - CGO_ENABLED=0
-    goos:
-      - linux
-      - darwin
-      - windows
-    goarch:
-      - amd64
-      - arm64
-      - s390x
-      - ppc64le
-    ignore:
-      - goos: darwin
-        goarch: s390x
-      - goos: darwin
-        goarch: ppc64le
-      - goos: windows
-        goarch: s390x
-      - goos: windows
-        goarch: ppc64le
-      - goos: windows
-        goarch: arm64
-    ldflags:
-      - -X github.com/jaegertracing/jaeger/internal/version.commitSHA={{.FullCommit}}
-      - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Env.VERSION_V1}}
-      - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
+    goos: *common_goos
+    goarch: *common_goarch
+    ignore: *common_ignore
+    ldflags: *ldflags_v1
 
   # Tool binaries
   - id: es-index-cleaner
@@ -168,90 +91,30 @@ builds:
     binary: jaeger-es-index-cleaner
     env:
       - CGO_ENABLED=0
-    goos:
-      - linux
-      - darwin
-      - windows
-    goarch:
-      - amd64
-      - arm64
-      - s390x
-      - ppc64le
-    ignore:
-      - goos: darwin
-        goarch: s390x
-      - goos: darwin
-        goarch: ppc64le
-      - goos: windows
-        goarch: s390x
-      - goos: windows
-        goarch: ppc64le
-      - goos: windows
-        goarch: arm64
-    ldflags:
-      - -X github.com/jaegertracing/jaeger/internal/version.commitSHA={{.FullCommit}}
-      - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Env.VERSION_V1}}
-      - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
+    goos: *common_goos
+    goarch: *common_goarch
+    ignore: *common_ignore
+    ldflags: *ldflags_v1
 
   - id: es-rollover
     main: ./cmd/es-rollover
     binary: jaeger-es-rollover
     env:
       - CGO_ENABLED=0
-    goos:
-      - linux
-      - darwin
-      - windows
-    goarch:
-      - amd64
-      - arm64
-      - s390x
-      - ppc64le
-    ignore:
-      - goos: darwin
-        goarch: s390x
-      - goos: darwin
-        goarch: ppc64le
-      - goos: windows
-        goarch: s390x
-      - goos: windows
-        goarch: ppc64le
-      - goos: windows
-        goarch: arm64
-    ldflags:
-      - -X github.com/jaegertracing/jaeger/internal/version.commitSHA={{.FullCommit}}
-      - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Env.VERSION_V1}}
-      - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
+    goos: *common_goos
+    goarch: *common_goarch
+    ignore: *common_ignore
+    ldflags: *ldflags_v1
 
   - id: esmapping-generator
     main: ./cmd/esmapping-generator
     binary: jaeger-esmapping-generator
     env:
       - CGO_ENABLED=0
-    goos:
-      - linux
-      - darwin
-      - windows
-    goarch:
-      - amd64
-      - arm64
-      - s390x
-      - ppc64le
-    ignore:
-      - goos: darwin
-        goarch: s390x
-      - goos: darwin
-        goarch: ppc64le
-      - goos: windows
-        goarch: s390x
-      - goos: windows
-        goarch: ppc64le
-      - goos: windows
-        goarch: arm64
-    ldflags:
-      - -X github.com/jaegertracing/jaeger/internal/version.commitSHA={{.FullCommit}}
-      - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Env.VERSION_V1}}
-      - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
+    goos: *common_goos
+    goarch: *common_goarch
+    ignore: *common_ignore
+    ldflags: *ldflags_v1
 
   # Example application
   - id: hotrod
@@ -259,30 +122,10 @@ builds:
     binary: example-hotrod
     env:
       - CGO_ENABLED=0
-    goos:
-      - linux
-      - darwin
-      - windows
-    goarch:
-      - amd64
-      - arm64
-      - s390x
-      - ppc64le
-    ignore:
-      - goos: darwin
-        goarch: s390x
-      - goos: darwin
-        goarch: ppc64le
-      - goos: windows
-        goarch: s390x
-      - goos: windows
-        goarch: ppc64le
-      - goos: windows
-        goarch: arm64
-    ldflags:
-      - -X github.com/jaegertracing/jaeger/internal/version.commitSHA={{.FullCommit}}
-      - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Env.VERSION_V1}}
-      - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
+    goos: *common_goos
+    goarch: *common_goarch
+    ignore: *common_ignore
+    ldflags: *ldflags_v1
 
 # Archive configuration
 # Note: The 'builds' field is deprecated in GoReleaser v2.
