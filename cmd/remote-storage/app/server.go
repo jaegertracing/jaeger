@@ -9,6 +9,7 @@ import (
 	"net"
 	"sync"
 
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confignet"
@@ -116,8 +117,12 @@ func createGRPCServer(
 	}
 
 	opts.NetAddr.Transport = confignet.TransportTypeTCP
+	var extensions map[component.ID]component.Component
+	if telset.Host != nil {
+		extensions = telset.Host.GetExtensions()
+	}
 	server, err := opts.ToServer(ctx,
-		telset.Host,
+		extensions,
 		telset.ToOtelComponent(),
 		configgrpc.WithGrpcServerOption(grpc.ChainUnaryInterceptor(unaryInterceptors...)),
 		configgrpc.WithGrpcServerOption(grpc.ChainStreamInterceptor(streamInterceptors...)),
