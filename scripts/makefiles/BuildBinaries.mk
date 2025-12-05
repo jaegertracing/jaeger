@@ -94,19 +94,6 @@ build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 
 
-
-.PHONY: build-query
-build-query: BIN_NAME = query
-build-query: build-ui _build-a-binary-query$(SUFFIX)-$(GOOS)-$(GOARCH)
-
-.PHONY: build-collector
-build-collector: BIN_NAME = collector
-build-collector: _build-a-binary-collector$(SUFFIX)-$(GOOS)-$(GOARCH)
-
-.PHONY: build-ingester
-build-ingester: BIN_NAME = ingester
-build-ingester: _build-a-binary-ingester$(SUFFIX)-$(GOOS)-$(GOARCH)
-
 .PHONY: build-remote-storage
 build-remote-storage: BIN_NAME = remote-storage
 build-remote-storage: _build-a-binary-remote-storage$(SUFFIX)-$(GOOS)-$(GOARCH)
