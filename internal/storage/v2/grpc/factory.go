@@ -66,7 +66,7 @@ func NewFactory(
 		for _, opt := range opts {
 			clientOpts = append(clientOpts, configgrpc.WithGrpcDialOption(opt))
 		}
-		return gcs.ToClientConn(ctx, f.telset.Host, telset, clientOpts...)
+		return gcs.ToClientConn(ctx, f.telset.Host.GetExtensions(), telset, clientOpts...)
 	}
 
 	if err := f.initializeConnections(readerTelset, writerTelset, &cfg.ClientConfig, &writerConfig, newClientFn); err != nil {
