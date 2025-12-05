@@ -55,18 +55,18 @@ require (
 	go.opentelemetry.io/collector/config/configauth v1.47.0
 	go.opentelemetry.io/collector/config/configgrpc v0.141.0
 	go.opentelemetry.io/collector/config/confighttp v0.141.0
-	go.opentelemetry.io/collector/config/confighttp/xconfighttp v0.140.0
+	go.opentelemetry.io/collector/config/confighttp/xconfighttp v0.141.0
 	go.opentelemetry.io/collector/config/confignet v1.47.0
 	go.opentelemetry.io/collector/config/configopaque v1.47.0
 	go.opentelemetry.io/collector/config/configoptional v1.47.0
 	go.opentelemetry.io/collector/config/configretry v1.47.0
 	go.opentelemetry.io/collector/config/configtls v1.47.0
 	go.opentelemetry.io/collector/confmap v1.47.0
-	go.opentelemetry.io/collector/confmap/provider/envprovider v1.46.0
+	go.opentelemetry.io/collector/confmap/provider/envprovider v1.47.0
 	go.opentelemetry.io/collector/confmap/provider/fileprovider v1.47.0
-	go.opentelemetry.io/collector/confmap/provider/httpprovider v1.46.0
-	go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.46.0
-	go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.46.0
+	go.opentelemetry.io/collector/confmap/provider/httpprovider v1.47.0
+	go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.47.0
+	go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.47.0
 	go.opentelemetry.io/collector/confmap/xconfmap v0.141.0
 	go.opentelemetry.io/collector/connector v0.141.0
 	go.opentelemetry.io/collector/connector/forwardconnector v0.141.0
