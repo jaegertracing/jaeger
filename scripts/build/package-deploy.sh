@@ -43,7 +43,6 @@ function stage-platform-files {
     local -r FILE_EXTENSION=${3:-}
 
     cp "./cmd/jaeger/jaeger-${PLATFORM}"          "${PACKAGE_STAGING_DIR}/jaeger${FILE_EXTENSION}"
-    cp "./cmd/all-in-one/all-in-one-${PLATFORM}"  "${PACKAGE_STAGING_DIR}/jaeger-all-in-one${FILE_EXTENSION}"
     cp "./examples/hotrod/hotrod-${PLATFORM}"     "${PACKAGE_STAGING_DIR}/example-hotrod${FILE_EXTENSION}"
 }
 

@@ -136,22 +136,11 @@ jobs:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
-    - name: Build, test, and publish all-in-one image
-      run: |
-        BRANCH=$(make echo-v2) \
-        bash scripts/build/build-all-in-one-image.sh \
-          ${{ steps.params.outputs.docker_flags }} \
-          all-in-one
-      env:
-        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
-
     - name: Build, test, and publish jaeger image
       run: |
         BRANCH=$(make echo-v2) \
         bash scripts/build/build-all-in-one-image.sh \
-          ${{ steps.params.outputs.docker_flags }} \
-          jaeger
+          ${{ steps.params.outputs.docker_flags }}
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
