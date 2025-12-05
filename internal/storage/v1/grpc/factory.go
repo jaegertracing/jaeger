@@ -102,7 +102,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		for _, opt := range opts {
 			clientOpts = append(clientOpts, configgrpc.WithGrpcDialOption(opt))
 		}
-		return f.options.Config.ToClientConn(context.Background(), f.telset.Host, telset, clientOpts...)
+		return f.options.Config.ToClientConn(context.Background(), f.telset.Host.GetExtensions(), telset, clientOpts...)
 	}
 
 	var err error
