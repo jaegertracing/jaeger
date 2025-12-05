@@ -8,11 +8,6 @@ version: 2
 
 project_name: jaeger
 
-# Disable automatic git tagging and release since we handle this in the workflow
-git:
-  ignore_tags:
-    - '*'
-
 # Build configuration
 builds:
   # V2 binaries
@@ -349,13 +344,12 @@ signs:
       - "${artifact}"
     artifacts: all
 
-# Release configuration
+# Release configuration  
 release:
   github:
     owner: jaegertracing
     name: jaeger
   draft: false
   prerelease: auto
-  mode: append
-  header: |
-    ## Jaeger Release {{ .Env.VERSION_V1 }} / {{ .Env.VERSION_V2 }}
+  mode: replace  # Replace artifacts if they exist
+  make_latest: true

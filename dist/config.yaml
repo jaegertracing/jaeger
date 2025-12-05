@@ -1,0 +1,660 @@
+version: 2
+project_name: jaeger
+release:
+  github:
+    owner: jaegertracing
+    name: jaeger
+  prerelease: auto
+  make_latest: "true"
+  name_template: '{{.Tag}}'
+  mode: replace
+builds:
+  - id: jaeger
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - s390x
+      - ppc64le
+    goamd64:
+      - v1
+    go386:
+      - sse2
+    goarm:
+      - "6"
+    goarm64:
+      - v8.0
+    gomips:
+      - hardfloat
+    goppc64:
+      - power8
+    goriscv64:
+      - rva20u64
+    targets:
+      - linux_amd64_v1
+      - linux_arm64_v8.0
+      - linux_s390x
+      - linux_ppc64le_power8
+      - darwin_amd64_v1
+      - darwin_arm64_v8.0
+      - windows_amd64_v1
+    ignore:
+      - goos: darwin
+        goarch: s390x
+      - goos: darwin
+        goarch: ppc64le
+      - goos: windows
+        goarch: s390x
+      - goos: windows
+        goarch: ppc64le
+      - goos: windows
+        goarch: arm64
+    dir: .
+    main: ./cmd/jaeger
+    binary: jaeger
+    builder: go
+    tool: go
+    command: build
+    ldflags:
+      - -X github.com/jaegertracing/jaeger/internal/version.commitSHA={{.FullCommit}}
+      - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Env.VERSION_V2}}
+      - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
+    env:
+      - CGO_ENABLED=0
+  - id: all-in-one
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - s390x
+      - ppc64le
+    goamd64:
+      - v1
+    go386:
+      - sse2
+    goarm:
+      - "6"
+    goarm64:
+      - v8.0
+    gomips:
+      - hardfloat
+    goppc64:
+      - power8
+    goriscv64:
+      - rva20u64
+    targets:
+      - linux_amd64_v1
+      - linux_arm64_v8.0
+      - linux_s390x
+      - linux_ppc64le_power8
+      - darwin_amd64_v1
+      - darwin_arm64_v8.0
+      - windows_amd64_v1
+    ignore:
+      - goos: darwin
+        goarch: s390x
+      - goos: darwin
+        goarch: ppc64le
+      - goos: windows
+        goarch: s390x
+      - goos: windows
+        goarch: ppc64le
+      - goos: windows
+        goarch: arm64
+    dir: .
+    main: ./cmd/all-in-one
+    binary: jaeger-all-in-one
+    builder: go
+    tool: go
+    command: build
+    ldflags:
+      - -X github.com/jaegertracing/jaeger/internal/version.commitSHA={{.FullCommit}}
+      - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Env.VERSION_V1}}
+      - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
+    env:
+      - CGO_ENABLED=0
+  - id: query
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - s390x
+      - ppc64le
+    goamd64:
+      - v1
+    go386:
+      - sse2
+    goarm:
+      - "6"
+    goarm64:
+      - v8.0
+    gomips:
+      - hardfloat
+    goppc64:
+      - power8
+    goriscv64:
+      - rva20u64
+    targets:
+      - linux_amd64_v1
+      - linux_arm64_v8.0
+      - linux_s390x
+      - linux_ppc64le_power8
+      - darwin_amd64_v1
+      - darwin_arm64_v8.0
+      - windows_amd64_v1
+    ignore:
+      - goos: darwin
+        goarch: s390x
+      - goos: darwin
+        goarch: ppc64le
+      - goos: windows
+        goarch: s390x
+      - goos: windows
+        goarch: ppc64le
+      - goos: windows
+        goarch: arm64
+    dir: .
+    main: ./cmd/query
+    binary: jaeger-query
+    builder: go
+    tool: go
+    command: build
+    ldflags:
+      - -X github.com/jaegertracing/jaeger/internal/version.commitSHA={{.FullCommit}}
+      - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Env.VERSION_V1}}
+      - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
+    env:
+      - CGO_ENABLED=0
+  - id: collector
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - s390x
+      - ppc64le
+    goamd64:
+      - v1
+    go386:
+      - sse2
+    goarm:
+      - "6"
+    goarm64:
+      - v8.0
+    gomips:
+      - hardfloat
+    goppc64:
+      - power8
+    goriscv64:
+      - rva20u64
+    targets:
+      - linux_amd64_v1
+      - linux_arm64_v8.0
+      - linux_s390x
+      - linux_ppc64le_power8
+      - darwin_amd64_v1
+      - darwin_arm64_v8.0
+      - windows_amd64_v1
+    ignore:
+      - goos: darwin
+        goarch: s390x
+      - goos: darwin
+        goarch: ppc64le
+      - goos: windows
+        goarch: s390x
+      - goos: windows
+        goarch: ppc64le
+      - goos: windows
+        goarch: arm64
+    dir: .
+    main: ./cmd/collector
+    binary: jaeger-collector
+    builder: go
+    tool: go
+    command: build
+    ldflags:
+      - -X github.com/jaegertracing/jaeger/internal/version.commitSHA={{.FullCommit}}
+      - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Env.VERSION_V1}}
+      - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
+    env:
+      - CGO_ENABLED=0
+  - id: ingester
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - s390x
+      - ppc64le
+    goamd64:
+      - v1
+    go386:
+      - sse2
+    goarm:
+      - "6"
+    goarm64:
+      - v8.0
+    gomips:
+      - hardfloat
+    goppc64:
+      - power8
+    goriscv64:
+      - rva20u64
+    targets:
+      - linux_amd64_v1
+      - linux_arm64_v8.0
+      - linux_s390x
+      - linux_ppc64le_power8
+      - darwin_amd64_v1
+      - darwin_arm64_v8.0
+      - windows_amd64_v1
+    ignore:
+      - goos: darwin
+        goarch: s390x
+      - goos: darwin
+        goarch: ppc64le
+      - goos: windows
+        goarch: s390x
+      - goos: windows
+        goarch: ppc64le
+      - goos: windows
+        goarch: arm64
+    dir: .
+    main: ./cmd/ingester
+    binary: jaeger-ingester
+    builder: go
+    tool: go
+    command: build
+    ldflags:
+      - -X github.com/jaegertracing/jaeger/internal/version.commitSHA={{.FullCommit}}
+      - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Env.VERSION_V1}}
+      - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
+    env:
+      - CGO_ENABLED=0
+  - id: es-index-cleaner
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - s390x
+      - ppc64le
+    goamd64:
+      - v1
+    go386:
+      - sse2
+    goarm:
+      - "6"
+    goarm64:
+      - v8.0
+    gomips:
+      - hardfloat
+    goppc64:
+      - power8
+    goriscv64:
+      - rva20u64
+    targets:
+      - linux_amd64_v1
+      - linux_arm64_v8.0
+      - linux_s390x
+      - linux_ppc64le_power8
+      - darwin_amd64_v1
+      - darwin_arm64_v8.0
+      - windows_amd64_v1
+    ignore:
+      - goos: darwin
+        goarch: s390x
+      - goos: darwin
+        goarch: ppc64le
+      - goos: windows
+        goarch: s390x
+      - goos: windows
+        goarch: ppc64le
+      - goos: windows
+        goarch: arm64
+    dir: .
+    main: ./cmd/es-index-cleaner
+    binary: jaeger-es-index-cleaner
+    builder: go
+    tool: go
+    command: build
+    ldflags:
+      - -X github.com/jaegertracing/jaeger/internal/version.commitSHA={{.FullCommit}}
+      - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Env.VERSION_V1}}
+      - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
+    env:
+      - CGO_ENABLED=0
+  - id: es-rollover
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - s390x
+      - ppc64le
+    goamd64:
+      - v1
+    go386:
+      - sse2
+    goarm:
+      - "6"
+    goarm64:
+      - v8.0
+    gomips:
+      - hardfloat
+    goppc64:
+      - power8
+    goriscv64:
+      - rva20u64
+    targets:
+      - linux_amd64_v1
+      - linux_arm64_v8.0
+      - linux_s390x
+      - linux_ppc64le_power8
+      - darwin_amd64_v1
+      - darwin_arm64_v8.0
+      - windows_amd64_v1
+    ignore:
+      - goos: darwin
+        goarch: s390x
+      - goos: darwin
+        goarch: ppc64le
+      - goos: windows
+        goarch: s390x
+      - goos: windows
+        goarch: ppc64le
+      - goos: windows
+        goarch: arm64
+    dir: .
+    main: ./cmd/es-rollover
+    binary: jaeger-es-rollover
+    builder: go
+    tool: go
+    command: build
+    ldflags:
+      - -X github.com/jaegertracing/jaeger/internal/version.commitSHA={{.FullCommit}}
+      - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Env.VERSION_V1}}
+      - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
+    env:
+      - CGO_ENABLED=0
+  - id: esmapping-generator
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - s390x
+      - ppc64le
+    goamd64:
+      - v1
+    go386:
+      - sse2
+    goarm:
+      - "6"
+    goarm64:
+      - v8.0
+    gomips:
+      - hardfloat
+    goppc64:
+      - power8
+    goriscv64:
+      - rva20u64
+    targets:
+      - linux_amd64_v1
+      - linux_arm64_v8.0
+      - linux_s390x
+      - linux_ppc64le_power8
+      - darwin_amd64_v1
+      - darwin_arm64_v8.0
+      - windows_amd64_v1
+    ignore:
+      - goos: darwin
+        goarch: s390x
+      - goos: darwin
+        goarch: ppc64le
+      - goos: windows
+        goarch: s390x
+      - goos: windows
+        goarch: ppc64le
+      - goos: windows
+        goarch: arm64
+    dir: .
+    main: ./cmd/esmapping-generator
+    binary: jaeger-esmapping-generator
+    builder: go
+    tool: go
+    command: build
+    ldflags:
+      - -X github.com/jaegertracing/jaeger/internal/version.commitSHA={{.FullCommit}}
+      - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Env.VERSION_V1}}
+      - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
+    env:
+      - CGO_ENABLED=0
+  - id: hotrod
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - s390x
+      - ppc64le
+    goamd64:
+      - v1
+    go386:
+      - sse2
+    goarm:
+      - "6"
+    goarm64:
+      - v8.0
+    gomips:
+      - hardfloat
+    goppc64:
+      - power8
+    goriscv64:
+      - rva20u64
+    targets:
+      - linux_amd64_v1
+      - linux_arm64_v8.0
+      - linux_s390x
+      - linux_ppc64le_power8
+      - darwin_amd64_v1
+      - darwin_arm64_v8.0
+      - windows_amd64_v1
+    ignore:
+      - goos: darwin
+        goarch: s390x
+      - goos: darwin
+        goarch: ppc64le
+      - goos: windows
+        goarch: s390x
+      - goos: windows
+        goarch: ppc64le
+      - goos: windows
+        goarch: arm64
+    dir: .
+    main: ./examples/hotrod/main.go
+    binary: example-hotrod
+    builder: go
+    tool: go
+    command: build
+    ldflags:
+      - -X github.com/jaegertracing/jaeger/internal/version.commitSHA={{.FullCommit}}
+      - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Env.VERSION_V1}}
+      - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
+    env:
+      - CGO_ENABLED=0
+archives:
+  - id: jaeger-v1
+    ids:
+      - all-in-one
+      - query
+      - collector
+      - ingester
+      - hotrod
+    builds_info:
+      mode: 493
+    name_template: jaeger-{{ .Env.VERSION_V1_CLEAN }}-{{ .Os }}-{{ .Arch }}
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - src: none*
+    builds:
+      - all-in-one
+      - query
+      - collector
+      - ingester
+      - hotrod
+  - id: jaeger-v2
+    ids:
+      - jaeger
+      - hotrod
+    builds_info:
+      mode: 493
+    name_template: jaeger-{{ .Env.VERSION_V2_CLEAN }}-{{ .Os }}-{{ .Arch }}
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - src: none*
+    builds:
+      - jaeger
+      - hotrod
+  - id: jaeger-tools
+    ids:
+      - es-index-cleaner
+      - es-rollover
+      - esmapping-generator
+    builds_info:
+      mode: 493
+    name_template: jaeger-tools-{{ .Env.VERSION_V1_CLEAN }}-{{ .Os }}-{{ .Arch }}
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - src: none*
+    builds:
+      - es-index-cleaner
+      - es-rollover
+      - esmapping-generator
+snapshot:
+  version_template: '{{ .Version }}-SNAPSHOT-{{ .ShortCommit }}'
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+docker_digest:
+  name_template: digests.txt
+changelog:
+  format: '{{ .SHA }} {{ .Message }}'
+dist: dist
+signs:
+  - id: default
+    cmd: gpg
+    args:
+      - --armor
+      - --detach-sign
+      - ${artifact}
+    signature: ${artifact}.asc
+    artifacts: all
+env_files:
+  github_token: ~/.config/goreleaser/github_token
+  gitlab_token: ~/.config/goreleaser/gitlab_token
+  gitea_token: ~/.config/goreleaser/gitea_token
+source:
+  name_template: '{{ .ProjectName }}-{{ .Version }}'
+  format: tar.gz
+gomod:
+  gobinary: go
+announce:
+  twitter:
+    message_template: '{{ .ProjectName }} {{ .Tag }} is out! Check it out at {{ .ReleaseURL }}'
+  mastodon:
+    message_template: '{{ .ProjectName }} {{ .Tag }} is out! Check it out at {{ .ReleaseURL }}'
+    server: ""
+  reddit:
+    title_template: '{{ .ProjectName }} {{ .Tag }} is out!'
+    url_template: '{{ .ReleaseURL }}'
+  slack:
+    message_template: '{{ .ProjectName }} {{ .Tag }} is out! Check it out at {{ .ReleaseURL }}'
+    username: GoReleaser
+  discord:
+    message_template: '{{ .ProjectName }} {{ .Tag }} is out! Check it out at {{ .ReleaseURL }}'
+    author: GoReleaser
+    color: "3888754"
+    icon_url: https://goreleaser.com/static/avatar.png
+  teams:
+    title_template: '{{ .ProjectName }} {{ .Tag }} is out!'
+    message_template: '{{ .ProjectName }} {{ .Tag }} is out! Check it out at {{ .ReleaseURL }}'
+    color: '#2D313E'
+    icon_url: https://goreleaser.com/static/avatar.png
+  smtp:
+    subject_template: '{{ .ProjectName }} {{ .Tag }} is out!'
+    body_template: 'You can view details from: {{ .ReleaseURL }}'
+  mattermost:
+    message_template: '{{ .ProjectName }} {{ .Tag }} is out! Check it out at {{ .ReleaseURL }}'
+    title_template: '{{ .ProjectName }} {{ .Tag }} is out!'
+    username: GoReleaser
+  linkedin:
+    message_template: '{{ .ProjectName }} {{ .Tag }} is out! Check it out at {{ .ReleaseURL }}'
+  telegram:
+    message_template: '{{ mdv2escape .ProjectName }} {{ mdv2escape .Tag }} is out{{ mdv2escape "!" }} Check it out at {{ mdv2escape .ReleaseURL }}'
+    parse_mode: MarkdownV2
+  webhook:
+    message_template: '{ "message": "{{ .ProjectName }} {{ .Tag }} is out! Check it out at {{ .ReleaseURL }}"}'
+    content_type: application/json; charset=utf-8
+    expected_status_codes:
+      - 200
+      - 201
+      - 202
+      - 204
+  opencollective:
+    title_template: '{{ .Tag }}'
+    message_template: '{{ .ProjectName }} {{ .Tag }} is out!<br/>Check it out at <a href="{{ .ReleaseURL }}">{{ .ReleaseURL }}</a>'
+  bluesky:
+    message_template: '{{ .ProjectName }} {{ .Tag }} is out! Check it out at {{ .ReleaseURL }}'
+  discourse:
+    title_template: '{{ .ProjectName }} {{ .Tag }} is out!'
+    message_template: '{{ .ProjectName }} {{ .Tag }} is out! Check it out at {{ .ReleaseURL }}'
+    username: system
+git:
+  tag_sort: -version:refname
+mcp:
+  github:
+    name: ""
+    title: ""
+    auth:
+      type: none
+github_urls:
+  download: https://github.com
+gitlab_urls:
+  download: https://gitlab.com
