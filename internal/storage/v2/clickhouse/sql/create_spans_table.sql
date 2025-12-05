@@ -46,5 +46,7 @@ CREATE TABLE
         scope_double_attributes Nested (key String, value Float64),
         scope_int_attributes Nested (key String, value Int64),
         scope_str_attributes Nested (key String, value String),
-        scope_complex_attributes Nested (key String, value String),
-    ) ENGINE = MergeTree PRIMARY KEY (trace_id)
+        scope_complex_attributes Nested (key String, value String)
+    ) ENGINE = MergeTree
+ORDER BY
+    (trace_id)
