@@ -95,6 +95,7 @@ build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-all-in-one
 build-all-in-one: BIN_NAME = all-in-one
+build-all-in-one: BUILD_INFO = $(BUILD_INFO_V2)
 build-all-in-one: build-ui _build-a-binary-all-in-one$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-query
@@ -149,9 +150,6 @@ build-binaries-linux-ppc64le:
 _build-platform-binaries: \
 		build-jaeger \
 		build-all-in-one \
-		build-collector \
-		build-query \
-		build-ingester \
 		build-remote-storage \
 		build-examples \
 		build-tracegen \
@@ -167,9 +165,6 @@ _build-platform-binaries: \
 _build-platform-binaries-debug:
 _build-platform-binaries-debug: \
 	build-jaeger \
-	build-collector \
-	build-query \
-	build-ingester \
 	build-remote-storage \
 	build-all-in-one
 

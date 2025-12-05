@@ -6,26 +6,31 @@
 set -euf -o pipefail
 
 print_help() {
-  echo "Usage: $0 [-b binary] [-D] [-h] [-l] [-o] [-p platforms] <jaeger_version>"
+  echo "Usage: $0 [-b binary] [-D] [-h] [-l] [-o] [-p platforms] [binary_name]"
+  echo "  -b: binary name to build (jaeger | all-in-one), optional if provided as positional arg"
   echo "  -D: Disable building of images with debugger"
   echo "  -h: Print help"
   echo "  -l: Enable local-only mode that only pushes images to local registry"
   echo "  -o: overwrite image in the target remote repository even if the semver tag already exists"
   echo "  -p: Comma-separated list of platforms to build for (default: all supported)"
-  echo "  jaeger_version:  major version, v1 | v2"
+  echo "  binary_name:  binary to build, jaeger | all-in-one (default: all-in-one)"
   exit 1
 }
 
 add_debugger='Y'
 platforms="$(make echo-linux-platforms)"
 FLAGS=()
+BINARY=""
 
 # this script doesn't use BRANCH and GITHUB_SHA itself, but its dependency scripts do.
 export BRANCH=${BRANCH?'env var is required'}
 export GITHUB_SHA=${GITHUB_SHA:-$(git rev-parse HEAD)}
 
-while getopts "Dhlop:" opt; do
+while getopts "b:Dhlop:" opt; do
 	case "${opt}" in
+	b)
+		BINARY=${OPTARG}
+		;;
 	D)
 		add_debugger='N'
 		;;
@@ -48,24 +53,26 @@ done
 # remove flags, leave only positional args
 shift $((OPTIND - 1))
 
-if [[ $# -eq 0 ]]; then
-  echo "Jaeger major version is required as argument"
-  print_help
+# If BINARY not set via -b flag, check positional argument, default to all-in-one
+if [[ -z "$BINARY" ]]; then
+  if [[ $# -gt 0 ]]; then
+    BINARY=$1
+  else
+    BINARY='all-in-one'
+  fi
 fi
 
-case $1 in
-  v1)
-    BINARY='all-in-one'
+case $BINARY in
+  all-in-one)
     sampling_port=14268
     export HEALTHCHECK_V2=false
     ;;
-  v2)
-    BINARY='jaeger'
+  jaeger)
     sampling_port=5778
     export HEALTHCHECK_V2=true
     ;;
   *)
-    echo "Jaeger major version is required as argument"
+    echo "Invalid binary name: $BINARY (must be 'jaeger' or 'all-in-one')"
     print_help
 esac
 

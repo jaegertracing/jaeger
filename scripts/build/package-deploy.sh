@@ -33,27 +33,17 @@ while getopts "hk:p:" opt; do
   esac
 done
 
-# stage-platform-files stages the different the platform ($1) into the package
+# stage-platform-files-v2 stages the different the platform ($1) into the package
 # staging dir ($2). If you pass in a file extension ($3) it will be used when
-# copying on the source
-function stage-platform-files-v1 {
-    local -r PLATFORM=$1
-    local -r PACKAGE_STAGING_DIR=$2
-    local -r FILE_EXTENSION=${3:-}
+# copying on the source (v2 function renamed for consistency)
 
-    cp "./cmd/all-in-one/all-in-one-${PLATFORM}"  "${PACKAGE_STAGING_DIR}/jaeger-all-in-one${FILE_EXTENSION}"
-    cp "./cmd/query/query-${PLATFORM}"            "${PACKAGE_STAGING_DIR}/jaeger-query${FILE_EXTENSION}"
-    cp "./cmd/collector/collector-${PLATFORM}"    "${PACKAGE_STAGING_DIR}/jaeger-collector${FILE_EXTENSION}"
-    cp "./cmd/ingester/ingester-${PLATFORM}"      "${PACKAGE_STAGING_DIR}/jaeger-ingester${FILE_EXTENSION}"
-    cp "./examples/hotrod/hotrod-${PLATFORM}"     "${PACKAGE_STAGING_DIR}/example-hotrod${FILE_EXTENSION}"
-}
-
-function stage-platform-files-v2 {
+function stage-platform-files {
     local -r PLATFORM=$1
     local -r PACKAGE_STAGING_DIR=$2
     local -r FILE_EXTENSION=${3:-}
 
     cp "./cmd/jaeger/jaeger-${PLATFORM}"          "${PACKAGE_STAGING_DIR}/jaeger${FILE_EXTENSION}"
+    cp "./cmd/all-in-one/all-in-one-${PLATFORM}"  "${PACKAGE_STAGING_DIR}/jaeger-all-in-one${FILE_EXTENSION}"
     cp "./examples/hotrod/hotrod-${PLATFORM}"     "${PACKAGE_STAGING_DIR}/example-hotrod${FILE_EXTENSION}"
 }
 
@@ -76,21 +66,19 @@ function package {
     local -r COMPRESSION=$1
     local -r PLATFORM=$2
     local -r FILE_EXTENSION=${3:-}
-    local -r PACKAGE_NAME_V1=jaeger-${VERSION_V1}-$PLATFORM
-    local -r PACKAGE_NAME_V2=jaeger-${VERSION_V2}-$PLATFORM
-    local -r TOOLS_PACKAGE_NAME=jaeger-tools-${VERSION_V1}-$PLATFORM
+    local -r PACKAGE_NAME=jaeger-${VERSION}-$PLATFORM
+    local -r TOOLS_PACKAGE_NAME=jaeger-tools-${VERSION}-$PLATFORM
 
     echo "Packaging binaries for $PLATFORM"
 
-    PACKAGES=("$PACKAGE_NAME_V1" "$PACKAGE_NAME_V2" "$TOOLS_PACKAGE_NAME")
+    PACKAGES=("$PACKAGE_NAME" "$TOOLS_PACKAGE_NAME")
     for d in "${PACKAGES[@]}"; do
       if [ -d "$d" ]; then
         rm -vrf "$d"
       fi
       mkdir "$d"
     done
-    stage-platform-files-v1 "$PLATFORM" "$PACKAGE_NAME_V1" "$FILE_EXTENSION"
-    stage-platform-files-v2 "$PLATFORM" "$PACKAGE_NAME_V2" "$FILE_EXTENSION"
+    stage-platform-files "$PLATFORM" "$PACKAGE_NAME" "$FILE_EXTENSION"
     stage-tool-platform-files "$PLATFORM" "$TOOLS_PACKAGE_NAME" "$FILE_EXTENSION"
     # Create a checksum file for all the files being packaged in the archive. Sorted by filename.
     for d in "${PACKAGES[@]}"; do
@@ -116,10 +104,9 @@ function package {
     done
 }
 
-VERSION_V1="$(make echo-v1 | perl -lne 'print $1 if /^v(\d+.\d+.\d+)$/' )"
-VERSION_V2="$(make echo-v2 | perl -lne 'print $1 if /^v(\d+.\d+.\d+(-rc\d+)?)$/' )"
-echo "Working on versions: $VERSION_V1 and $VERSION_V2"
-if [ -z "$VERSION_V1" ] || [ -z "$VERSION_V2" ]; then
+VERSION="$(make echo-v2 | perl -lne 'print $1 if /^v(\d+.\d+.\d+(-rc\d+)?)$/' )"
+echo "Working on version: $VERSION"
+if [ -z "$VERSION" ]; then
     # We want to halt if for some reason the version string is empty as this is an obvious error case
     >&2 echo 'Failed to detect a version string'
     exit 1
@@ -145,8 +132,7 @@ done
 find deploy \( ! -name '*sha256sum.txt' \) -type f -exec shasum -b -a 256 {} \; \
   | sed -r 's#(\w+\s+\*?)deploy/(.*)#\1\2#' \
   | sort -k2 \
-  | tee "./deploy/jaeger-${VERSION_V1}.sha256sum.txt" \
-  | tee "./deploy/jaeger-${VERSION_V2}.sha256sum.txt"
+  | tee "./deploy/jaeger-${VERSION}.sha256sum.txt"
 
 # Use gpg to sign the (g)zip files (excluding checksum files) into .asc files.
 if [[ "${gpg_key_id}" == "skip" ]]; then

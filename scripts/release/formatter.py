@@ -47,8 +47,7 @@ def fetch_content(file_name):
 def main():
     
     loc = sys.argv[1]
-    v1 = sys.argv[2]
-    v2 = sys.argv[3]
+    version = sys.argv[2]
     try:
         backend_file_name = "RELEASE.md"
         backend_section = fetch_content(backend_file_name)
@@ -72,11 +71,11 @@ def main():
     ui_section=replace_dash(ui_section)
     ui_section=replace_num(ui_section)
 
-    #Concrete version
+    #Concrete version - replace both v1 and v2 patterns with the single version
     v1_pattern = r'(?:X\.Y\.Z|1\.[0-9]+\.[0-9]+|1\.x\.x)'
-    ui_section, backend_section, doc_section = replace_version(ui_section, backend_section, doc_section, v1_pattern, v1)
+    ui_section, backend_section, doc_section = replace_version(ui_section, backend_section, doc_section, v1_pattern, version)
     v2_pattern = r'2.x.x'
-    ui_section, backend_section, doc_section = replace_version(ui_section, backend_section, doc_section, v2_pattern, v2)
+    ui_section, backend_section, doc_section = replace_version(ui_section, backend_section, doc_section, v2_pattern, version)
 
     print("# UI Release")
     print(ui_section)

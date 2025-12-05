@@ -23,39 +23,23 @@ while getopts "dh" opt; do
             ;;
     esac
 done
-if ! current_version_v1=$(make "echo-v1"); then
-  echo "Error: Failed to fetch current version from make echo-v1."
-  exit 1
-fi
-
-# removing the v so that in the line "New version: v1.66.1", v cannot be removed with backspace
-clean_version="${current_version_v1#v}" 
-
-IFS='.' read -r major minor patch <<< "$clean_version"
-
-minor=$((minor + 1))
-patch=0
-suggested_version="${major}.${minor}.${patch}"
-echo "Current v1 version: ${current_version_v1}"
-read -r -e -p "New version: v" -i "${suggested_version}" user_version_v1
-
-if ! current_version_v2=$(make "echo-v2"); then
+if ! current_version=$(make "echo-v2"); then
   echo "Error: Failed to fetch current version from make echo-v2."
   exit 1
 fi
 
-# removing the v so that in the line "New version: v1.66.1", v cannot be removed with backspace
-clean_version="${current_version_v2#v}" 
+# removing the v so that in the line "New version: v2.13.0", v cannot be removed with backspace
+clean_version="${current_version#v}" 
 
 IFS='.' read -r major minor patch <<< "$clean_version"
 
 minor=$((minor + 1))
 patch=0
 suggested_version="${major}.${minor}.${patch}"
-echo "Current v2 version: ${current_version_v2}"
-read -r -e -p "New version: v" -i "${suggested_version}" user_version_v2
+echo "Current version: ${current_version}"
+read -r -e -p "New version: v" -i "${suggested_version}" user_version
 
-new_version="v${user_version_v1} / v${user_version_v2}"
+new_version="v${user_version}"
 echo "Using new version: ${new_version}"
 
 
@@ -66,7 +50,7 @@ wget -O "$TMPFILE" https://raw.githubusercontent.com/jaegertracing/documentation
 # Ensure the UI Release checklist is up to date.
 make init-submodules
 
-issue_body=$(python scripts/release/formatter.py "${TMPFILE}" "${user_version_v1}" "${user_version_v2}")
+issue_body=$(python scripts/release/formatter.py "${TMPFILE}" "${user_version}")
 
 if $dry_run; then
   echo "${issue_body}"

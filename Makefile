@@ -94,7 +94,7 @@ test-and-lint: test fmt lint
 
 .PHONY: echo-v1
 echo-v1:
-	@echo "$(GIT_CLOSEST_TAG_V1)"
+	@echo "$(GIT_CLOSEST_TAG_V2)"
 
 .PHONY: echo-v2
 echo-v2:

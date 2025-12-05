@@ -31,7 +31,7 @@ jobs:
         go-version: 1.25.x
 
     - name: Print Jaeger version for no reason
-      run: make echo-v1 echo-v2
+      run: make echo-v2
 
     - run: make install-test-tools
 
