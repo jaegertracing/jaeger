@@ -71,11 +71,9 @@ def main():
     ui_section=replace_dash(ui_section)
     ui_section=replace_num(ui_section)
 
-    # Concrete version - replace both v1 and v2 patterns with the single version
-    v1_pattern = r'(?:X\.Y\.Z|1\.[0-9]+\.[0-9]+|1\.x\.x)'
-    ui_section, backend_section, doc_section = replace_version(ui_section, backend_section, doc_section, v1_pattern, version)
-    v2_pattern = r'2.x.x'
-    ui_section, backend_section, doc_section = replace_version(ui_section, backend_section, doc_section, v2_pattern, version)
+    # Concrete version - replace version patterns with the single version
+    version_pattern = r'(?:X\.Y\.Z|[0-9]+\.[0-9]+\.[0-9]+|[0-9]+\.x\.x)'
+    ui_section, backend_section, doc_section = replace_version(ui_section, backend_section, doc_section, version_pattern, version)
 
     print("# UI Release")
     print(ui_section)

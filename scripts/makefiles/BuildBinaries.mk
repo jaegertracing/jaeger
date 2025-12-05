@@ -78,7 +78,7 @@ build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
 	if [ "$(GOOS)" == "$$REAL_GOOS" ] && [ "$(GOARCH)" == "$$REAL_GOARCH" ]; then \
 		./cmd/jaeger/jaeger-$(GOOS)-$(GOARCH) version 2>/dev/null ; \
 		echo "" ; \
-		want=$(GIT_CLOSEST_TAG_V2) ; \
+		want=$(GIT_CLOSEST_TAG) ; \
 		have=$$(./cmd/jaeger/jaeger-$(GOOS)-$(GOARCH) version 2>/dev/null | jq -r .gitVersion) ; \
 		if [ "$$want" == "$$have" ]; then \
 			echo "🟢 versions match: want=$$want, have=$$have" ; \
