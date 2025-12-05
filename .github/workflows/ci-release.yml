@@ -111,12 +111,21 @@ jobs:
         gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
         passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
+    - name: Set GoReleaser arguments
+      id: goreleaser-args
+      run: |
+        if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+          echo "args=release --clean --skip=publish --skip=sign --snapshot" >> $GITHUB_OUTPUT
+        else
+          echo "args=release --clean" >> $GITHUB_OUTPUT
+        fi
+
     - name: Run GoReleaser
       uses: goreleaser/goreleaser-action@7ec5c2b0c6cdda6e8bbb49444bc797dd33d74dd8 # v5.0.0
       with:
         distribution: goreleaser
         version: latest
-        args: release --clean ${{ inputs.dry_run == true && '--skip=publish --skip=sign --snapshot' || '' }}
+        args: ${{ steps.goreleaser-args.outputs.args }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         VERSION_V1: ${{ env.VERSION_V1 }}
@@ -124,8 +133,8 @@ jobs:
         VERSION_V1_CLEAN: ${{ env.VERSION_V1_CLEAN }}
         VERSION_V2_CLEAN: ${{ env.VERSION_V2_CLEAN }}
 
-    - name: Upload binaries (dry run only)
-      # In dry run mode, manually upload artifacts since we skip publish in goreleaser
+    - name: Show artifacts (dry run only)
+      # In dry run mode, show artifacts since we skip publish in goreleaser
       if: ${{ inputs.dry_run == true }}
       run: |
         echo "Dry run mode - artifacts are in dist/ directory"

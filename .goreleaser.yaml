@@ -285,6 +285,9 @@ builds:
       - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
 
 # Archive configuration
+# Note: The 'builds' field is deprecated in GoReleaser v2.
+# TODO: Migrate to using build filters when goreleaser v2 stabilizes the new approach.
+# For now, 'builds' is still functional and simplifies creating separate archives.
 archives:
   # V1 archives - includes v1 components
   - id: jaeger-v1
@@ -295,8 +298,6 @@ archives:
         formats: [zip]
     files:
       - none*  # Don't include extra files
-    # Deprecated but still works - builds field
-    # In future versions, this should be replaced with filtering by build IDs
     builds:
       - all-in-one
       - query
@@ -346,7 +347,7 @@ signs:
       - "${artifact}"
     artifacts: all
 
-# Release configuration  
+# Release configuration
 release:
   github:
     owner: jaegertracing
