@@ -70,7 +70,6 @@ _build-a-binary-%:
 
 .PHONY: build-jaeger
 build-jaeger: BIN_NAME = jaeger
-build-jaeger: BUILD_INFO = $(BUILD_INFO_V2)
 build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
 	@ set -euf -o pipefail ; \
 	echo "Checking version of built binary" ; \
