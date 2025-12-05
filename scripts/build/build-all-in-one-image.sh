@@ -6,14 +6,14 @@
 set -euf -o pipefail
 
 print_help() {
-  echo "Usage: $0 [-b binary] [-D] [-h] [-l] [-o] [-p platforms] [binary_name]"
-  echo "  -b: binary name to build (jaeger | all-in-one), optional if provided as positional arg"
+  echo "Usage: $0 [-b binary_name] [-D] [-h] [-l] [-o] [-p platforms] [binary_name]"
+  echo "  -b: binary name to build (jaeger | all-in-one), can also be provided as positional arg"
   echo "  -D: Disable building of images with debugger"
   echo "  -h: Print help"
   echo "  -l: Enable local-only mode that only pushes images to local registry"
   echo "  -o: overwrite image in the target remote repository even if the semver tag already exists"
   echo "  -p: Comma-separated list of platforms to build for (default: all supported)"
-  echo "  binary_name:  binary to build, jaeger | all-in-one (default: all-in-one)"
+  echo "  binary_name: (optional positional) binary to build, jaeger | all-in-one (default: all-in-one)"
   exit 1
 }
 
