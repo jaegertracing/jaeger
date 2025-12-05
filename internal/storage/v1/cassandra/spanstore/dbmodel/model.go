@@ -15,11 +15,13 @@ const (
 	childOf     = "child-of"
 	followsFrom = "follows-from"
 
-	stringType  = "string"
-	boolType    = "bool"
-	int64Type   = "int64"
-	float64Type = "float64"
-	binaryType  = "binary"
+	stringType   = "string"
+	boolType     = "bool"
+	int64Type    = "int64"
+	float64Type  = "float64"
+	binaryType   = "binary"
+	spanKindKey  = "span.kind"
+	FirehoseFlag = int32(8)
 )
 
 // TraceID is a serializable form of model.TraceID
@@ -108,4 +110,17 @@ func (t TraceID) ToDomain() model.TraceID {
 // String returns hex string representation of the trace ID.
 func (t TraceID) String() string {
 	return t.ToDomain().String()
+}
+
+func GetSpanKind(ds *Span) string {
+	for _, tag := range ds.Tags {
+		if tag.Key == spanKindKey {
+			return tag.ValueString
+		}
+	}
+	return ""
+}
+
+func IsFirehoseEnabled(ds *Span) bool {
+	return ds.Flags&FirehoseFlag == FirehoseFlag
 }
