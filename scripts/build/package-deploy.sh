@@ -33,9 +33,9 @@ while getopts "hk:p:" opt; do
   esac
 done
 
-# stage-platform-files stages the platform ($1) files into the package
+# stage-platform-files stages files for the platform ($1) into the package
 # staging dir ($2). If you pass in a file extension ($3) it will be used when
-# copying on the source
+# copying the source files
 
 function stage-platform-files {
     local -r PLATFORM=$1

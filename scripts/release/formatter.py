@@ -71,7 +71,7 @@ def main():
     ui_section=replace_dash(ui_section)
     ui_section=replace_num(ui_section)
 
-    #Concrete version - replace both v1 and v2 patterns with the single version
+    # Concrete version - replace both v1 and v2 patterns with the single version
     v1_pattern = r'(?:X\.Y\.Z|1\.[0-9]+\.[0-9]+|1\.x\.x)'
     ui_section, backend_section, doc_section = replace_version(ui_section, backend_section, doc_section, v1_pattern, version)
     v2_pattern = r'2.x.x'
