@@ -67,7 +67,7 @@ func runMockElasticsearchServer(t *testing.T) *httptest.Server {
 }
 
 func runQueryService(t *testing.T, esURL string) *Server {
-	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
+	flagsSvc := flags.NewService(ports.RemoteStorageAdminHTTP)
 	flagsSvc.Logger = zaptest.NewLogger(t)
 
 	telset := telemetry.NoopSettings()

@@ -86,7 +86,7 @@ func TestAdminFailToServe(t *testing.T) {
 }
 
 func TestAdminWithFailedFlags(t *testing.T) {
-	adminServer := NewAdminServer(fmt.Sprintf(":%d", ports.CollectorAdminHTTP))
+	adminServer := NewAdminServer(fmt.Sprintf(":%d", ports.RemoteStorageAdminHTTP))
 	zapCore, _ := observer.New(zap.InfoLevel)
 	logger := zap.New(zapCore)
 	v, command := config.Viperize(adminServer.AddFlags)
@@ -124,7 +124,7 @@ func TestAdminServerTLS(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			adminServer := NewAdminServer(fmt.Sprintf(":%d", ports.CollectorAdminHTTP))
+			adminServer := NewAdminServer(fmt.Sprintf(":%d", ports.RemoteStorageAdminHTTP))
 
 			v, command := config.Viperize(adminServer.AddFlags)
 			err := command.ParseFlags(test.serverTLSFlags)
@@ -139,7 +139,7 @@ func TestAdminServerTLS(t *testing.T) {
 			clientTLSCfg, err0 := test.clientTLS.LoadTLSConfig(context.Background())
 			require.NoError(t, err0)
 			dialer := &net.Dialer{Timeout: 2 * time.Second}
-			conn, clientError := tls.DialWithDialer(dialer, "tcp", fmt.Sprintf("localhost:%d", ports.CollectorAdminHTTP), clientTLSCfg)
+			conn, clientError := tls.DialWithDialer(dialer, "tcp", fmt.Sprintf("localhost:%d", ports.RemoteStorageAdminHTTP), clientTLSCfg)
 			require.NoError(t, clientError)
 			require.NoError(t, conn.Close())
 
@@ -148,7 +148,7 @@ func TestAdminServerTLS(t *testing.T) {
 					TLSClientConfig: clientTLSCfg,
 				},
 			}
-			url := fmt.Sprintf("https://localhost:%d", ports.CollectorAdminHTTP)
+			url := fmt.Sprintf("https://localhost:%d", ports.RemoteStorageAdminHTTP)
 			req, err := http.NewRequest(http.MethodGet, url, http.NoBody)
 			require.NoError(t, err)
 			req.Close = true // avoid persistent connections which leak goroutines

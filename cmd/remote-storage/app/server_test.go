@@ -360,7 +360,7 @@ func TestServerGRPCTLS(t *testing.T) {
 					TLS: tls,
 				},
 			}
-			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
+			flagsSvc := flags.NewService(ports.RemoteStorageAdminHTTP)
 			flagsSvc.Logger = zap.NewNop()
 
 			reader := new(tracestoremocks.Reader)
@@ -418,7 +418,7 @@ func TestServerGRPCTLS(t *testing.T) {
 }
 
 func TestServerHandlesPortZero(t *testing.T) {
-	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
+	flagsSvc := flags.NewService(ports.RemoteStorageAdminHTTP)
 	zapCore, logs := observer.New(zap.InfoLevel)
 	flagsSvc.Logger = zap.New(zapCore)
 	telset := telemetry.Settings{
