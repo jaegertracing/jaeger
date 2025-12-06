@@ -23,9 +23,7 @@ make install-tools
 ```
 
 ### Build
-- **Binaries**: `make build-binaries` or specific targets like `make build-all-in-one`.
-- **UI**: `make build-ui` (requires Node.js).
-- **All-in-One**: `make run-all-in-one` (builds UI and runs backend).
+- **Binaries**: `make build-binaries` or specific targets like `make build-jaeger`.
 
 ### Test
 - **Unit Tests**: `make test` matches standard `go test` but includes tags for specific storages.
