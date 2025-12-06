@@ -60,6 +60,8 @@ Jaeger is a distributed tracing platform and a CNCF graduated project created by
 - **Jaeger v2**: Current direction - unified binary built on OTel Collector framework
 - Migration is ongoing - you'll see both v1 and v2 patterns in the codebase
 
+**For new contributions**: Prefer v2 patterns (OpenTelemetry Collector components) for new features. Only use v1 patterns when modifying existing v1 code or when specifically required for backward compatibility.
+
 ## Repository Structure
 
 ```
@@ -113,7 +115,7 @@ github.com/jaegertracing/jaeger
 - **Git**: For cloning and submodule management
 - **Make**: Build automation
 - **Docker**: Optional, for running integration tests with databases
-- **GNU sed**: Required on macOS (install with `brew install gnu-sed`)
+- **GNU sed**: Typically required on macOS (install with `brew install gnu-sed`; the Makefile attempts to use `gsed` automatically but installation is still needed)
 
 ### Initial Clone and Setup
 
@@ -1245,4 +1247,4 @@ git commit -s -m "feat: your change description"
 
 **Note**: This guide is specifically for AI coding agents working with this repository for the first time. Human contributors should primarily refer to [CONTRIBUTING.md](./CONTRIBUTING.md) and [CONTRIBUTING_GUIDELINES.md](./CONTRIBUTING_GUIDELINES.md) for official contribution guidelines.
 
-**Last Updated**: 2025-12 - This document evolves with the project. If you encounter errors not documented here, please update this file as part of your PR.
+**Last Updated**: December 2024 - This document evolves with the project. If you encounter errors not documented here, please update this file as part of your PR.
