@@ -13,6 +13,8 @@ storage:
           keys: /tmp/jaeger/badger/keys
           values: /tmp/jaeger/badger/values
         ephemeral: false
+        maintenance_interval: 5m
+        metrics_update_interval: 10s
         ttl:
           spans: 168h  # 7 days
 
