@@ -87,18 +87,14 @@ jobs:
     - name: Export version variables
       # Set version variables for goreleaser
       run: |
-        VERSION_V1=$(make echo-v1)
-        VERSION_V2=$(make echo-v2)
-        echo Validate that the latest tags are in semver format
-        echo ${VERSION_V1} | grep -E '^v[0-9]+.[0-9]+.[0-9]+$'
-        echo ${VERSION_V2} | grep -E '^v[0-9]+.[0-9]+.[0-9]+(-rc[0-9]+)?$'
+        VERSION=$(make echo-version)
+        echo Validate that the latest tag ${VERSION} is in semver format
+        echo ${VERSION} | grep -E '^v[0-9]+.[0-9]+.[0-9]+(-rc[0-9]+)?$'
         # Export both vX.Y.Z and X.Y.Z formats
-        echo "VERSION_V1=${VERSION_V1}" >> ${GITHUB_ENV}
-        echo "VERSION_V2=${VERSION_V2}" >> ${GITHUB_ENV}
-        echo "VERSION_V1_CLEAN=$(echo ${VERSION_V1} | sed 's/^v//')" >> ${GITHUB_ENV}
-        echo "VERSION_V2_CLEAN=$(echo ${VERSION_V2} | sed 's/^v//')" >> ${GITHUB_ENV}
+        echo "VERSION=${VERSION}" >> ${GITHUB_ENV}
+        echo "VERSION_CLEAN=$(echo ${VERSION} | sed 's/^v//')" >> ${GITHUB_ENV}
         # Keep BRANCH for docker images
-        echo "BRANCH=${VERSION_V1}" >> ${GITHUB_ENV}
+        echo "BRANCH=${VERSION}" >> ${GITHUB_ENV}
 
     - name: Build UI
       # UI must be built before running goreleaser since it embeds the UI
@@ -128,10 +124,8 @@ jobs:
         args: ${{ steps.goreleaser-args.outputs.args }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        VERSION_V1: ${{ env.VERSION_V1 }}
-        VERSION_V2: ${{ env.VERSION_V2 }}
-        VERSION_V1_CLEAN: ${{ env.VERSION_V1_CLEAN }}
-        VERSION_V2_CLEAN: ${{ env.VERSION_V2_CLEAN }}
+        VERSION: ${{ env.VERSION }}
+        VERSION_CLEAN: ${{ env.VERSION_CLEAN }}
 
     - name: Show artifacts (dry run only)
       # In dry run mode, show artifacts since we skip publish in goreleaser

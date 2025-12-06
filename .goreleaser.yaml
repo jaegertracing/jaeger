@@ -10,7 +10,7 @@ project_name: jaeger
 
 # Build configuration
 builds:
-  # V2 binaries
+  # Jaeger v2 binary
   - id: jaeger
     main: ./cmd/jaeger
     binary: jaeger
@@ -36,54 +36,10 @@ builds:
         goarch: ppc64le
       - goos: windows
         goarch: arm64
-    ldflags:
+    ldflags: &ldflags_version
       - -X github.com/jaegertracing/jaeger/internal/version.commitSHA={{.FullCommit}}
-      - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Env.VERSION_V2}}
+      - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Env.VERSION}}
       - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
-
-  # V1 binaries
-  - id: all-in-one
-    main: ./cmd/all-in-one
-    binary: jaeger-all-in-one
-    env:
-      - CGO_ENABLED=0
-    goos: *common_goos
-    goarch: *common_goarch
-    ignore: *common_ignore
-    ldflags: &ldflags_v1
-      - -X github.com/jaegertracing/jaeger/internal/version.commitSHA={{.FullCommit}}
-      - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Env.VERSION_V1}}
-      - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
-
-  - id: query
-    main: ./cmd/query
-    binary: jaeger-query
-    env:
-      - CGO_ENABLED=0
-    goos: *common_goos
-    goarch: *common_goarch
-    ignore: *common_ignore
-    ldflags: *ldflags_v1
-
-  - id: collector
-    main: ./cmd/collector
-    binary: jaeger-collector
-    env:
-      - CGO_ENABLED=0
-    goos: *common_goos
-    goarch: *common_goarch
-    ignore: *common_ignore
-    ldflags: *ldflags_v1
-
-  - id: ingester
-    main: ./cmd/ingester
-    binary: jaeger-ingester
-    env:
-      - CGO_ENABLED=0
-    goos: *common_goos
-    goarch: *common_goarch
-    ignore: *common_ignore
-    ldflags: *ldflags_v1
 
   # Tool binaries
   - id: es-index-cleaner
@@ -94,7 +50,7 @@ builds:
     goos: *common_goos
     goarch: *common_goarch
     ignore: *common_ignore
-    ldflags: *ldflags_v1
+    ldflags: *ldflags_version
 
   - id: es-rollover
     main: ./cmd/es-rollover
@@ -104,7 +60,7 @@ builds:
     goos: *common_goos
     goarch: *common_goarch
     ignore: *common_ignore
-    ldflags: *ldflags_v1
+    ldflags: *ldflags_version
 
   - id: esmapping-generator
     main: ./cmd/esmapping-generator
@@ -114,7 +70,7 @@ builds:
     goos: *common_goos
     goarch: *common_goarch
     ignore: *common_ignore
-    ldflags: *ldflags_v1
+    ldflags: *ldflags_version
 
   # Example application
   - id: hotrod
@@ -125,33 +81,17 @@ builds:
     goos: *common_goos
     goarch: *common_goarch
     ignore: *common_ignore
-    ldflags: *ldflags_v1
+    ldflags: *ldflags_version
 
 # Archive configuration
 # Note: The 'builds' field is deprecated in GoReleaser v2.
 # TODO: Migrate to using build filters when goreleaser v2 stabilizes the new approach.
 # For now, 'builds' is still functional and simplifies creating separate archives.
 archives:
-  # V1 archives - includes v1 components
-  - id: jaeger-v1
+  # Main Jaeger archive - includes jaeger binary and hotrod
+  - id: jaeger
     formats: [tar.gz]
-    name_template: "jaeger-{{ .Env.VERSION_V1_CLEAN }}-{{ .Os }}-{{ .Arch }}"
-    format_overrides:
-      - goos: windows
-        formats: [zip]
-    files:
-      - none*  # Don't include extra files
-    builds:
-      - all-in-one
-      - query
-      - collector
-      - ingester
-      - hotrod
-
-  # V2 archives - includes v2 jaeger binary
-  - id: jaeger-v2
-    formats: [tar.gz]
-    name_template: "jaeger-{{ .Env.VERSION_V2_CLEAN }}-{{ .Os }}-{{ .Arch }}"
+    name_template: "jaeger-{{ .Env.VERSION_CLEAN }}-{{ .Os }}-{{ .Arch }}"
     format_overrides:
       - goos: windows
         formats: [zip]
@@ -161,10 +101,10 @@ archives:
       - jaeger
       - hotrod
 
-  # Tools archives - includes ES tools
+  # Tools archive - includes ES tools
   - id: jaeger-tools
     formats: [tar.gz]
-    name_template: "jaeger-tools-{{ .Env.VERSION_V1_CLEAN }}-{{ .Os }}-{{ .Arch }}"
+    name_template: "jaeger-tools-{{ .Env.VERSION_CLEAN }}-{{ .Os }}-{{ .Arch }}"
     format_overrides:
       - goos: windows
         formats: [zip]
