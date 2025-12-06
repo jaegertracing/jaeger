@@ -26,8 +26,6 @@ type Options struct {
 	DefaultSamplingProbability float64
 }
 
-
-
 // InitFromViper initializes Options with properties from viper
 func (opts *Options) InitFromViper(v *viper.Viper) *Options {
 	opts.StrategiesFile = v.GetString(samplingStrategiesFile)

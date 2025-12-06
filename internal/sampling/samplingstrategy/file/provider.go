@@ -319,5 +319,3 @@ func (h *samplingProvider) parseStrategy(strategy *strategy) *api_v2.SamplingStr
 		return defaultStrategyResponse(h.options.DefaultSamplingProbability)
 	}
 }
-
-

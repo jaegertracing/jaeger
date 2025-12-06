@@ -117,8 +117,6 @@ func DefaultOptions() Options {
 	}
 }
 
-
-
 // InitFromViper initializes Options with properties from viper
 func (opts *Options) InitFromViper(v *viper.Viper) *Options {
 	opts.TargetSamplesPerSecond = v.GetFloat64(targetSamplesPerSecond)
