@@ -103,7 +103,7 @@ function package {
     done
 }
 
-VERSION="$(make echo-v2 | perl -lne 'print $1 if /^v(\d+.\d+.\d+(-rc\d+)?)$/' )"
+VERSION="$(make echo-version | perl -lne 'print $1 if /^v(\d+.\d+.\d+(-rc\d+)?)$/' )"
 echo "Working on version: $VERSION"
 if [ -z "$VERSION" ]; then
     # We want to halt if for some reason the version string is empty as this is an obvious error case

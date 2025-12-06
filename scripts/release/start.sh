@@ -23,8 +23,8 @@ while getopts "dh" opt; do
             ;;
     esac
 done
-if ! current_version=$(make "echo-v2"); then
-  echo "Error: Failed to fetch current version from make echo-v2."
+if ! current_version=$(make "echo-version"); then
+  echo "Error: Failed to fetch current version from make echo-version."
   exit 1
 fi
 

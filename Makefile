@@ -92,8 +92,8 @@ include scripts/makefiles/Windows.mk
 .PHONY: test-and-lint
 test-and-lint: test fmt lint
 
-.PHONY: echo-v2
-echo-v2:
+.PHONY: echo-version
+echo-version:
 	@echo "$(GIT_CLOSEST_TAG)"
 
 .PHONY: echo-platforms

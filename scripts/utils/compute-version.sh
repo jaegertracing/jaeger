@@ -9,10 +9,9 @@ set -euf -o pipefail
 SED=${SED:-sed}
 
 usage() {
-  echo "Usage: $0 [-s] [-v] <jaeger_version>"
+  echo "Usage: $0 [-s] [-v]"
   echo "  -s  split semver into 4 parts: semver major minor patch"
   echo "  -v  verbose"
-  echo "  jaeger_version:  major version, v1 | v2"
   exit 1
 }
 
@@ -33,22 +32,8 @@ done
 
 shift $((OPTIND - 1))
 
-# Default to v2 if no argument provided
-if [[ $# -eq 0 ]]; then
-  JAEGER_MAJOR=v2
-else
-  case $1 in
-    v1)
-      JAEGER_MAJOR=v1
-      ;;
-    v2)
-      JAEGER_MAJOR=v2
-      ;;
-    *)
-      echo "Jaeger major version is required as argument (v1 or v2)"
-      usage
-  esac
-fi
+# Always use v2
+JAEGER_MAJOR=v2
 
 print_result() {
   if [[ "$split" == "true" ]]; then

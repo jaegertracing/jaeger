@@ -89,7 +89,7 @@ jobs:
       # use ./.github/actions/setup-branch here because it may set
       # BRANCH=main when the workflow is triggered manually.
       run: |
-        BRANCH=$(make echo-v2)
+        BRANCH=$(make echo-version)
         echo Validate that the latest tag ${BRANCH} is in semver format
         echo ${BRANCH} | grep -E '^v[0-9]+.[0-9]+.[0-9]+(-rc[0-9]+)?$'
         echo "BRANCH=${BRANCH}" >> ${GITHUB_ENV}
