@@ -21,11 +21,6 @@ type LRU struct {
 	onEvict  EvictCallback
 }
 
-// NewLRU creates a new LRU cache with default options.
-func NewLRU(maxSize int) *LRU {
-	return NewLRUWithOptions(maxSize, nil)
-}
-
 // NewLRUWithOptions creates a new LRU cache with the given options.
 func NewLRUWithOptions(maxSize int, opts *Options) *LRU {
 	if opts == nil {
