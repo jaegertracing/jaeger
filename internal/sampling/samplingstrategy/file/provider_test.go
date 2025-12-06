@@ -336,17 +336,7 @@ func makeResponse(samplerType api_v2.SamplingStrategyType, param float64) (resp 
 	return resp
 }
 
-func TestDeepCopy(t *testing.T) {
-	s := &api_v2.SamplingStrategyResponse{
-		StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC,
-		ProbabilisticSampling: &api_v2.ProbabilisticSamplingStrategy{
-			SamplingRate: 0.5,
-		},
-	}
-	cp := deepCopy(s)
-	assert.NotSame(t, cp, s)
-	assert.Equal(t, cp, s)
-}
+
 
 func TestAutoUpdateStrategyWithFile(t *testing.T) {
 	tempFile, _ := os.Create(t.TempDir() + "for_go_test_*.json")

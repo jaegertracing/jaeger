@@ -65,11 +65,15 @@ func errTestStorage() error {
 	return errors.New("storage error")
 }
 
+type testProbabilityCalculator struct{}
+
+func (testProbabilityCalculator) Calculate(targetQPS, qps, oldProbability float64) float64 {
+	factor := targetQPS / qps
+	return oldProbability * factor
+}
+
 func testCalculator() calculationstrategy.ProbabilityCalculator {
-	return calculationstrategy.CalculateFunc(func(targetQPS, qps, oldProbability float64) float64 {
-		factor := targetQPS / qps
-		return oldProbability * factor
-	})
+	return testProbabilityCalculator{}
 }
 
 func TestAggregateThroughputInputsImmutability(t *testing.T) {

@@ -4,7 +4,6 @@
 package adaptive
 
 import (
-	"flag"
 	"time"
 
 	"github.com/spf13/viper"
@@ -118,42 +117,7 @@ func DefaultOptions() Options {
 	}
 }
 
-// AddFlags adds flags for Options
-func AddFlags(flagSet *flag.FlagSet) {
-	flagSet.Float64(targetSamplesPerSecond, defaultTargetSamplesPerSecond,
-		"The global target rate of samples per operation.",
-	)
-	flagSet.Float64(deltaTolerance, defaultDeltaTolerance,
-		"The acceptable amount of deviation between the observed samples-per-second and the desired (target) samples-per-second, expressed as a ratio.",
-	)
-	flagSet.Int(bucketsForCalculation, defaultBucketsForCalculation,
-		"This determines how much of the previous data is used in calculating the weighted QPS, ie. if BucketsForCalculation is 1, only the most recent data will be used in calculating the weighted QPS.",
-	)
-	flagSet.Duration(calculationInterval, defaultCalculationInterval,
-		"How often new sampling probabilities are calculated. Recommended to be greater than the polling interval of your clients.",
-	)
-	flagSet.Int(aggregationBuckets, defaultAggregationBuckets,
-		"Amount of historical data to keep in memory.",
-	)
-	flagSet.Duration(delay, defaultDelay,
-		"Determines how far back the most recent state is. Use this if you want to add some buffer time for the aggregation to finish.",
-	)
-	flagSet.Float64(initialSamplingProbability, defaultInitialSamplingProbability,
-		"The initial sampling probability for all new operations.",
-	)
-	flagSet.Float64(minSamplingProbability, defaultMinSamplingProbability,
-		"The minimum sampling probability for all operations.",
-	)
-	flagSet.Float64(minSamplesPerSecond, defaultMinSamplesPerSecond,
-		"The minimum number of traces that are sampled per second.",
-	)
-	flagSet.Duration(leaderLeaseRefreshInterval, defaultLeaderLeaseRefreshInterval,
-		"The duration to sleep if this processor is elected leader before attempting to renew the lease on the leader lock. This should be less than follower-lease-refresh-interval to reduce lock thrashing.",
-	)
-	flagSet.Duration(followerLeaseRefreshInterval, defaultFollowerLeaseRefreshInterval,
-		"The duration to sleep if this processor is a follower.",
-	)
-}
+
 
 // InitFromViper initializes Options with properties from viper
 func (opts *Options) InitFromViper(v *viper.Viper) *Options {
