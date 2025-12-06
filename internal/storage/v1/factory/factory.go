@@ -23,7 +23,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	es "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/kafka"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 )
 
@@ -32,7 +31,6 @@ const (
 	opensearchStorageType    = "opensearch"
 	elasticsearchStorageType = "elasticsearch"
 	memoryStorageType        = "memory"
-	kafkaStorageType         = "kafka"
 	grpcStorageType          = "grpc"
 	badgerStorageType        = "badger"
 	blackholeStorageType     = "blackhole"
@@ -53,7 +51,6 @@ var AllStorageTypes = []string{
 	opensearchStorageType,
 	elasticsearchStorageType,
 	memoryStorageType,
-	kafkaStorageType,
 	badgerStorageType,
 	blackholeStorageType,
 	grpcStorageType,
@@ -125,8 +122,6 @@ func (*Factory) getFactoryOfType(factoryType string) (storage.Factory, error) {
 		return es.NewFactory(), nil
 	case memoryStorageType:
 		return memory.NewFactory(), nil
-	case kafkaStorageType:
-		return kafka.NewFactory(), nil
 	case badgerStorageType:
 		return badger.NewFactory(), nil
 	case grpcStorageType:
