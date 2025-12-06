@@ -39,7 +39,7 @@ Jaeger is a distributed tracing platform and a CNCF graduated project created by
 
 ### Key Facts
 
-- **Primary Language**: Go 1.24+ (currently using Go 1.25.x in CI)
+- **Primary Language**: Go (exact version in go.mod)
 - **License**: Apache 2.0
 - **Project Status**: CNCF Graduated (October 2019)
 - **Architecture**: Jaeger v2 is built on OpenTelemetry Collector components
@@ -75,9 +75,9 @@ github.com/jaegertracing/jaeger
 │   ├── remote-storage/           # Remote storage gRPC server
 │   ├── tracegen/                 # Trace generator utility
 │   └── ...                       # Other utilities (anonymizer, es-index-cleaner, etc.)
-├── internal/                      # Internal packages (not importable externally)
+├── internal/                     # Internal packages (not importable externally)
 │   ├── storage/                  # Storage interfaces and implementations
-│   │   ├── v1/                   # V1 storage interfaces
+│   │   ├── v1/                   # Legacy V1 implementations not yet migrated to V2
 │   │   └── v2/                   # V2 storage interfaces (for OTel Collector)
 │   ├── sampling/                 # Sampling strategies
 │   ├── proto-gen/                # Generated protobuf code (DO NOT EDIT)
@@ -111,7 +111,7 @@ github.com/jaegertracing/jaeger
 
 ### Prerequisites
 
-- **Go 1.24+**: Check with `go version` (CI uses 1.25.x)
+- **Go**: Check with `go version`, must match `go.mod` file
 - **Git**: For cloning and submodule management
 - **Make**: Build automation
 - **Docker**: Optional, for running integration tests with databases
