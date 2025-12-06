@@ -11,8 +11,6 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 )
 
 func TestLoadConfigFromViper(t *testing.T) {
@@ -36,9 +34,9 @@ storage:
 			expectError: false,
 			validate: func(t *testing.T, cfg *Config) {
 				assert.Equal(t, ":17271", cfg.GRPC.HostPort)
-				assert.Len(t, cfg.Storage.Backends, 1)
-				assert.NotNil(t, cfg.Storage.Backends["default-storage"].Memory)
-				assert.Equal(t, 50000, cfg.Storage.Backends["default-storage"].Memory.MaxTraces)
+				assert.Len(t, cfg.Storage.TraceBackends, 1)
+				assert.NotNil(t, cfg.Storage.TraceBackends["default-storage"].Memory)
+				assert.Equal(t, 50000, cfg.Storage.TraceBackends["default-storage"].Memory.MaxTraces)
 				assert.Equal(t, "default-storage", cfg.GetStorageName())
 			},
 		},
@@ -59,8 +57,8 @@ storage:
 			expectError: false,
 			validate: func(t *testing.T, cfg *Config) {
 				assert.Equal(t, ":17272", cfg.GRPC.HostPort)
-				assert.Len(t, cfg.Storage.Backends, 1)
-				assert.NotNil(t, cfg.Storage.Backends["badger-storage"].Badger)
+				assert.Len(t, cfg.Storage.TraceBackends, 1)
+				assert.NotNil(t, cfg.Storage.TraceBackends["badger-storage"].Badger)
 				assert.Equal(t, "badger-storage", cfg.GetStorageName())
 			},
 		},
@@ -101,7 +99,7 @@ storage:
 `,
 			expectError: false,
 			validate: func(t *testing.T, cfg *Config) {
-				assert.Len(t, cfg.Storage.Backends, 2)
+				assert.Len(t, cfg.Storage.TraceBackends, 2)
 				// GetStorageName should return one of them (first in iteration order)
 				assert.Contains(t, []string{"memory-storage", "another-storage"}, cfg.GetStorageName())
 			},
@@ -160,45 +158,4 @@ storage:
 			}
 		})
 	}
-}
-
-func TestConfigValidation(t *testing.T) {
-	t.Run("no backends", func(t *testing.T) {
-		cfg := &Config{
-			Storage: StorageConfig{
-				Backends: map[string]TraceBackend{},
-			},
-		}
-		err := cfg.validateStorage()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "at least one storage backend is required")
-	})
-
-	t.Run("empty backend", func(t *testing.T) {
-		cfg := &Config{
-			Storage: StorageConfig{
-				Backends: map[string]TraceBackend{
-					"empty": {},
-				},
-			},
-		}
-		err := cfg.validateStorage()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "empty backend configuration")
-	})
-
-	t.Run("valid backend", func(t *testing.T) {
-		maxTraces := 1000
-		cfg := &Config{
-			Storage: StorageConfig{
-				Backends: map[string]TraceBackend{
-					"memory-storage": {
-						Memory: &memory.Configuration{MaxTraces: maxTraces},
-					},
-				},
-			},
-		}
-		err := cfg.validateStorage()
-		assert.NoError(t, err)
-	})
 }

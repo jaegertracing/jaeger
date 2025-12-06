@@ -1,17 +1,14 @@
 // Copyright (c) 2025 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package app
+package storageconfig
 
 import (
 	"context"
 	"errors"
 	"fmt"
 
-	"go.uber.org/zap"
-
 	"github.com/jaegertracing/jaeger/internal/metrics"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/cassandra"
@@ -22,24 +19,21 @@ import (
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
-// CreateStorageFactory creates a trace and dependency store factory from the storage configuration.
-// This reuses the factory creation logic from jaegerstorage extension but adapted for standalone use.
+// CreateStorageFactory creates a trace storage factory from the backend configuration.
+// This is extracted from jaegerstorage extension to be shared between jaeger and remote-storage.
 func CreateStorageFactory(
 	ctx context.Context,
-	storageName string,
-	cfg *StorageConfig,
+	name string,
+	backend TraceBackend,
 	telset telemetry.Settings,
-) (tracestore.Factory, depstore.Factory, error) {
-	backend, ok := cfg.Backends[storageName]
-	if !ok {
-		return nil, nil, fmt.Errorf("storage backend '%s' not found in configuration", storageName)
-	}
+) (tracestore.Factory, error) {
+	telset.Logger.Sugar().Infof("Initializing storage '%s'", name)
 
-	telset.Logger.Info("Initializing storage", zap.String("name", storageName))
+	// Create scoped metrics factory
 	telset.Metrics = telset.Metrics.Namespace(metrics.NSOptions{
 		Name: "storage",
 		Tags: map[string]string{
-			"name": storageName,
+			"name": name,
 			"role": "tracestore",
 		},
 	})
@@ -57,6 +51,7 @@ func CreateStorageFactory(
 	case backend.Cassandra != nil:
 		factory, err = cassandra.NewFactory(*backend.Cassandra, telset.Metrics, telset.Logger)
 	case backend.Elasticsearch != nil:
+		// Note: httpAuth is nil for remote-storage since it doesn't have access to auth extensions
 		factory, err = es.NewFactory(ctx, *backend.Elasticsearch, telset, nil)
 	case backend.Opensearch != nil:
 		factory, err = es.NewFactory(ctx, *backend.Opensearch, telset, nil)
@@ -67,13 +62,8 @@ func CreateStorageFactory(
 	}
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to initialize storage '%s': %w", storageName, err)
+		return nil, fmt.Errorf("failed to initialize storage '%s': %w", name, err)
 	}
 
-	depFactory, ok := factory.(depstore.Factory)
-	if !ok {
-		return nil, nil, fmt.Errorf("storage '%s' does not implement dependency store", storageName)
-	}
-
-	return factory, depFactory, nil
+	return factory, nil
 }
