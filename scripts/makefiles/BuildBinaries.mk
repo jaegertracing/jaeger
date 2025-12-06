@@ -1,9 +1,20 @@
 # Copyright (c) 2023 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-# This command expects $GOOS/$GOARCH env variables set to reflect the desired target platform.
-GOBUILD=echo "building binary for $$(go env GOOS)-$$(go env GOARCH)"; \
-  CGO_ENABLED=0 installsuffix=cgo $(GO) build -trimpath
+GOBUILD_EXEC := CGO_ENABLED=0 installsuffix=cgo $(GO) build -trimpath
+STYLE_BOLD_BLUE := \e[1m\e[34m
+STYLE_BOLD_ORANGE := \033[1m\033[38;5;208m
+STYLE_RESET := \e[39m\e[0m
+
+# This macro expects $GOOS/$GOARCH env variables set to reflect the desired target platform.
+# It also expects one argument: the name of the binary being built.
+define GOBUILD
+@printf "🚧 building binary '$(STYLE_BOLD_ORANGE)%s$(STYLE_RESET)' for $$(go env GOOS)-$$(go env GOARCH)\n" "$1"
+$(GOBUILD_EXEC)
+endef
+
+# GOBUILD=echo "$($(BUILD_ICON)) building binary for $$(go env GOOS)-$$(go env GOARCH)"; \
+#   CGO_ENABLED=0 installsuffix=cgo $(GO) build -trimpath
 
 ifeq ($(DEBUG_BINARY),)
 	DISABLE_OPTIMIZATIONS =
@@ -43,30 +54,30 @@ build-examples:
 
 .PHONY: build-tracegen
 build-tracegen:
-	$(GOBUILD) $(BUILD_INFO) -o ./cmd/tracegen/tracegen-$(GOOS)-$(GOARCH) ./cmd/tracegen/
+	$(call GOBUILD,tracegen) -o ./cmd/tracegen/tracegen-$(GOOS)-$(GOARCH) ./cmd/tracegen/
 
 .PHONY: build-anonymizer
 build-anonymizer:
-	$(GOBUILD) $(BUILD_INFO) -o ./cmd/anonymizer/anonymizer-$(GOOS)-$(GOARCH) ./cmd/anonymizer/
+	$(call GOBUILD,anonymizer) -o ./cmd/anonymizer/anonymizer-$(GOOS)-$(GOARCH) ./cmd/anonymizer/
 
 .PHONY: build-esmapping-generator
 build-esmapping-generator:
-	$(GOBUILD) $(BUILD_INFO) -o ./cmd/esmapping-generator/esmapping-generator-$(GOOS)-$(GOARCH) ./cmd/esmapping-generator/
+	$(call GOBUILD,esmapping-generator) -o ./cmd/esmapping-generator/esmapping-generator-$(GOOS)-$(GOARCH) ./cmd/esmapping-generator/
 
 .PHONY: build-es-index-cleaner
 build-es-index-cleaner:
-	$(GOBUILD) $(BUILD_INFO) -o ./cmd/es-index-cleaner/es-index-cleaner-$(GOOS)-$(GOARCH) ./cmd/es-index-cleaner/
+	$(call GOBUILD,es-index-cleaner) -o ./cmd/es-index-cleaner/es-index-cleaner-$(GOOS)-$(GOARCH) ./cmd/es-index-cleaner/
 
 .PHONY: build-es-rollover
 build-es-rollover:
-	$(GOBUILD) $(BUILD_INFO) -o ./cmd/es-rollover/es-rollover-$(GOOS)-$(GOARCH) ./cmd/es-rollover/
+	$(call GOBUILD,es-rollover) -o ./cmd/es-rollover/es-rollover-$(GOOS)-$(GOARCH) ./cmd/es-rollover/
 
 # Requires variables: $(BIN_NAME) $(BIN_PATH) $(GO_TAGS) $(DISABLE_OPTIMIZATIONS) $(SUFFIX) $(GOOS) $(GOARCH) $(BUILD_INFO)
 # Other targets can depend on this one but with a unique suffix to ensure it is always executed.
 BIN_PATH = ./cmd/$(BIN_NAME)
 .PHONY: _build-a-binary
 _build-a-binary-%:
-	$(GOBUILD) $(DISABLE_OPTIMIZATIONS) $(GO_TAGS) -o $(BIN_PATH)/$(BIN_NAME)$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) $(BIN_PATH)
+	$(call GOBUILD,$(BIN_PATH)) $(DISABLE_OPTIMIZATIONS) $(GO_TAGS) -o $(BIN_PATH)/$(BIN_NAME)$(SUFFIX)-$(GOOS)-$(GOARCH) $(BUILD_INFO) $(BIN_PATH)
 
 .PHONY: build-jaeger
 build-jaeger: BIN_NAME = jaeger
@@ -81,7 +92,7 @@ build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
 		want=$(GIT_CLOSEST_TAG) ; \
 		have=$$(./cmd/jaeger/jaeger-$(GOOS)-$(GOARCH) version 2>/dev/null | jq -r .gitVersion) ; \
 		if [ "$$want" == "$$have" ]; then \
-			echo "🟢 versions match: want=$$want, have=$$have" ; \
+			echo "☑️ versions match: want=$$want, have=$$have" ; \
 		else \
 			echo "❌ ERROR: version mismatch: want=$$want, have=$$have" ; \
 			false; \
@@ -91,11 +102,13 @@ build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
 		echo ".. see build-binaries-$(GOOS)-$(GOARCH)" ; \
 	fi
 
-
-
 .PHONY: build-remote-storage
 build-remote-storage: BIN_NAME = remote-storage
 build-remote-storage: _build-a-binary-remote-storage$(SUFFIX)-$(GOOS)-$(GOARCH)
+
+# build all binaries for the current platform
+.PHONY: build-binaries
+build-binaries: _build-platform-binaries
 
 .PHONY: build-binaries-linux-amd64
 build-binaries-linux-amd64:
