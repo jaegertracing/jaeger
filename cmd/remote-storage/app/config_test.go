@@ -170,7 +170,7 @@ func TestConfigValidation(t *testing.T) {
 			},
 		}
 		err := cfg.validateStorage()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "at least one storage backend is required")
 	})
 
@@ -183,7 +183,7 @@ func TestConfigValidation(t *testing.T) {
 			},
 		}
 		err := cfg.validateStorage()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "empty backend configuration")
 	})
 

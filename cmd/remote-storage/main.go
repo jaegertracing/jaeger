@@ -83,7 +83,7 @@ func main() {
 
 // v1ConfigureFlags configures legacy CLI flags (deprecated).
 func v1ConfigureFlags(v *viper.Viper, command *cobra.Command, svc *flags.Service) {
-	storageFactory, err := storage.NewFactory(storage.ConfigFromEnvAndCLI(os.Args, io.Discard))
+	storageFactory, err := storage.NewFactory(storage.ConfigFromEnvAndCLI(os.Args, os.Stderr))
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}
@@ -98,7 +98,7 @@ func v1ConfigureFlags(v *viper.Viper, command *cobra.Command, svc *flags.Service
 }
 
 // runWithYAMLConfig runs the service with YAML configuration.
-func runWithYAMLConfig(cmd *cobra.Command, v *viper.Viper, svc *flags.Service, configFile string) error {
+func runWithYAMLConfig(_ *cobra.Command, v *viper.Viper, svc *flags.Service, configFile string) error {
 	// Load configuration from YAML file
 	v.SetConfigFile(configFile)
 	if err := v.ReadInConfig(); err != nil {
@@ -181,7 +181,7 @@ func runWithYAMLConfig(cmd *cobra.Command, v *viper.Viper, svc *flags.Service, c
 }
 
 // runWithCLIFlags runs the service with legacy CLI flags (deprecated).
-func runWithCLIFlags(cmd *cobra.Command, v *viper.Viper, svc *flags.Service) error {
+func runWithCLIFlags(_ *cobra.Command, v *viper.Viper, svc *flags.Service) error {
 	// Print deprecation warning
 	fmt.Fprintln(os.Stderr, "WARNING: CLI flags for storage configuration are deprecated and will be removed in a future release.")
 	fmt.Fprintln(os.Stderr, "Please migrate to YAML configuration file using the --config flag.")
