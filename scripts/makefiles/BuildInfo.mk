@@ -5,7 +5,7 @@ GIT_SHA=$(shell git rev-parse HEAD)
 DATE=$(shell TZ=UTC0 git show --quiet --date='format-local:%Y-%m-%dT%H:%M:%SZ' --format="%cd")
 # Defer evaluation of semver tags until actually needed, using trick from StackOverflow:
 # https://stackoverflow.com/questions/44114466/how-to-declare-a-deferred-variable-that-is-computed-only-once-for-all
-GIT_CLOSEST_TAG = $(eval GIT_CLOSEST_TAG := $(shell scripts/utils/compute-version.sh v2))$(GIT_CLOSEST_TAG)
+GIT_CLOSEST_TAG = $(eval GIT_CLOSEST_TAG := $(shell scripts/utils/compute-version.sh))$(GIT_CLOSEST_TAG)
 
 # args: (1) - name, (2) - value
 define buildinfo

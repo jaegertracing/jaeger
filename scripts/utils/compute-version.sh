@@ -33,17 +33,22 @@ done
 
 shift $((OPTIND - 1))
 
-case $1 in
-  v1)
-    JAEGER_MAJOR=v1
-    ;;
-  v2)
-    JAEGER_MAJOR=v2
-    ;;
-  *)
-    echo "Jaeger major version is required as argument"
-    usage
-esac
+# Default to v2 if no argument provided
+if [[ $# -eq 0 ]]; then
+  JAEGER_MAJOR=v2
+else
+  case $1 in
+    v1)
+      JAEGER_MAJOR=v1
+      ;;
+    v2)
+      JAEGER_MAJOR=v2
+      ;;
+    *)
+      echo "Jaeger major version is required as argument (v1 or v2)"
+      usage
+  esac
+fi
 
 print_result() {
   if [[ "$split" == "true" ]]; then
