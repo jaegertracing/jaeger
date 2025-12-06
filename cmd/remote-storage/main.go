@@ -81,12 +81,13 @@ func main() {
 				logger.Fatal("Storage backend not found", zap.String("name", storageName))
 			}
 
-			// Create storage factory from configuration
-			traceFactory, err := storageconfig.CreateStorageFactory(
+			// Create storage factory from configuration (no auth resolver for remote-storage)
+			traceFactory, err := storageconfig.CreateTraceStorageFactory(
 				context.Background(),
 				storageName,
 				backend,
 				telset,
+				nil, // no auth resolver for remote-storage
 			)
 			if err != nil {
 				logger.Fatal("Failed to create storage factory", zap.Error(err))

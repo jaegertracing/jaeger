@@ -22,6 +22,7 @@ import (
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/internal/storageconfig"
 	"github.com/jaegertracing/jaeger/internal/config/promcfg"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
@@ -178,7 +179,7 @@ func TestGetSamplingStoreFactory(t *testing.T) {
 				t.Cleanup(func() { server.Close() })
 
 				ext := makeStorageExtension(t, &Config{
-					TraceBackends: map[string]TraceBackend{
+					TraceBackends: map[string]storageconfig.TraceBackend{
 						"foo": {
 							Elasticsearch: &escfg.Configuration{
 								Servers:  []string{server.URL},
@@ -242,7 +243,7 @@ func TestGetPurger(t *testing.T) {
 			expectedError: "storage 'foo' does not support purging",
 			setupFunc: func(t *testing.T) component.Component {
 				ext := makeStorageExtension(t, &Config{
-					TraceBackends: map[string]TraceBackend{
+					TraceBackends: map[string]storageconfig.TraceBackend{
 						"foo": {
 							GRPC: &grpc.Config{
 								ClientConfig: configgrpc.ClientConfig{
@@ -279,7 +280,7 @@ func TestGetPurger(t *testing.T) {
 
 func TestBadger(t *testing.T) {
 	ext := makeStorageExtension(t, &Config{
-		TraceBackends: map[string]TraceBackend{
+		TraceBackends: map[string]storageconfig.TraceBackend{
 			"foo": {
 				Badger: &badger.Config{
 					Ephemeral:             true,
@@ -297,7 +298,7 @@ func TestBadger(t *testing.T) {
 
 func TestGRPC(t *testing.T) {
 	ext := makeStorageExtension(t, &Config{
-		TraceBackends: map[string]TraceBackend{
+		TraceBackends: map[string]storageconfig.TraceBackend{
 			"foo": {
 				GRPC: &grpc.Config{
 					ClientConfig: configgrpc.ClientConfig{
@@ -385,7 +386,7 @@ func TestMetricsBackendCloseError(t *testing.T) {
 
 func TestStartError(t *testing.T) {
 	ext := makeStorageExtension(t, &Config{
-		TraceBackends: map[string]TraceBackend{
+		TraceBackends: map[string]storageconfig.TraceBackend{
 			"foo": {},
 		},
 	})
@@ -449,7 +450,7 @@ func TestMetricStorageStartError(t *testing.T) {
 func TestElasticsearch(t *testing.T) {
 	server := setupMockServer(t, getVersionResponse(t), http.StatusOK)
 	ext := makeStorageExtension(t, &Config{
-		TraceBackends: map[string]TraceBackend{
+		TraceBackends: map[string]storageconfig.TraceBackend{
 			"foo": {
 				Elasticsearch: &escfg.Configuration{
 					Servers:  []string{server.URL},
@@ -467,7 +468,7 @@ func TestElasticsearch(t *testing.T) {
 func TestOpenSearch(t *testing.T) {
 	server := setupMockServer(t, getVersionResponse(t), http.StatusOK)
 	ext := makeStorageExtension(t, &Config{
-		TraceBackends: map[string]TraceBackend{
+		TraceBackends: map[string]storageconfig.TraceBackend{
 			"foo": {
 				Opensearch: &escfg.Configuration{
 					Servers:  []string{server.URL},
@@ -486,7 +487,7 @@ func TestCassandraError(t *testing.T) {
 	// since we cannot successfully create storage factory for Cassandra
 	// without running a Cassandra server, we only test the error case.
 	ext := makeStorageExtension(t, &Config{
-		TraceBackends: map[string]TraceBackend{
+		TraceBackends: map[string]storageconfig.TraceBackend{
 			"cassandra": {
 				Cassandra: &cassandra.Options{},
 			},
@@ -501,7 +502,7 @@ func TestClickHouse(t *testing.T) {
 	testServer := clickhousetest.NewServer(clickhousetest.FailureConfig{})
 	t.Cleanup(testServer.Close)
 	ext := makeStorageExtension(t, &Config{
-		TraceBackends: map[string]TraceBackend{
+		TraceBackends: map[string]storageconfig.TraceBackend{
 			"foo": {
 				ClickHouse: &clickhouse.Configuration{
 					Protocol: "http",
@@ -542,7 +543,7 @@ func makeStorageExtension(t *testing.T, config *Config) component.Component {
 
 func TestStorageBackend_DefaultCases(t *testing.T) {
 	config := &Config{
-		TraceBackends: map[string]TraceBackend{
+		TraceBackends: map[string]storageconfig.TraceBackend{
 			"unconfigured": {},
 		},
 	}
@@ -567,7 +568,7 @@ func TestStorageBackend_DefaultCases(t *testing.T) {
 
 func startStorageExtension(t *testing.T, memstoreName string, promstoreName string) component.Component {
 	config := &Config{
-		TraceBackends: map[string]TraceBackend{
+		TraceBackends: map[string]storageconfig.TraceBackend{
 			memstoreName: {
 				Memory: &memory.Configuration{
 					MaxTraces: 10000,
@@ -834,7 +835,7 @@ func TestElasticsearchWithAuthenticator(t *testing.T) {
 	mockAuth := &mockHTTPAuthenticator{}
 
 	cfg := &Config{
-		TraceBackends: map[string]TraceBackend{
+		TraceBackends: map[string]storageconfig.TraceBackend{
 			"elasticsearch": {
 				Elasticsearch: &escfg.Configuration{
 					Servers:  []string{mockServer.URL},
@@ -865,7 +866,7 @@ func TestOpenSearchWithAuthenticator(t *testing.T) {
 	mockAuth := &mockHTTPAuthenticator{}
 
 	cfg := &Config{
-		TraceBackends: map[string]TraceBackend{
+		TraceBackends: map[string]storageconfig.TraceBackend{
 			"opensearch": {
 				Opensearch: &escfg.Configuration{
 					Servers:  []string{mockServer.URL},
@@ -895,7 +896,7 @@ func TestElasticsearchWithMissingAuthenticator(t *testing.T) {
 	mockServer := setupMockServer(t, getVersionResponse(t), http.StatusOK)
 
 	cfg := &Config{
-		TraceBackends: map[string]TraceBackend{
+		TraceBackends: map[string]storageconfig.TraceBackend{
 			"elasticsearch": {
 				Elasticsearch: &escfg.Configuration{
 					Servers:  []string{mockServer.URL},
@@ -921,7 +922,7 @@ func TestOpenSearchTraceWithMissingAuthenticator(t *testing.T) {
 	mockServer := setupMockServer(t, getVersionResponse(t), http.StatusOK)
 
 	cfg := &Config{
-		TraceBackends: map[string]TraceBackend{
+		TraceBackends: map[string]storageconfig.TraceBackend{
 			"opensearch": {
 				Opensearch: &escfg.Configuration{
 					Servers:  []string{mockServer.URL},
@@ -948,7 +949,7 @@ func TestElasticsearchWithWrongAuthenticatorType(t *testing.T) {
 	wrongAuth := &mockNonHTTPExtension{}
 
 	cfg := &Config{
-		TraceBackends: map[string]TraceBackend{
+		TraceBackends: map[string]storageconfig.TraceBackend{
 			"elasticsearch": {
 				Elasticsearch: &escfg.Configuration{
 					Servers:  []string{mockServer.URL},
@@ -979,7 +980,7 @@ func TestOpenSearchWithWrongAuthenticatorType(t *testing.T) {
 	wrongAuth := &mockNonHTTPExtension{}
 
 	cfg := &Config{
-		TraceBackends: map[string]TraceBackend{
+		TraceBackends: map[string]storageconfig.TraceBackend{
 			"opensearch": {
 				Opensearch: &escfg.Configuration{
 					Servers:  []string{mockServer.URL},

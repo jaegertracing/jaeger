@@ -21,7 +21,10 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
 )
 
-var _ confmap.Unmarshaler = (*TraceBackend)(nil)
+var (
+	_ confmap.Unmarshaler = (*TraceBackend)(nil)
+	_ confmap.Unmarshaler = (*MetricBackend)(nil)
+)
 
 // Config contains configuration(s) for Jaeger trace storage.
 type Config struct {
@@ -48,9 +51,13 @@ type MetricBackend struct {
 }
 
 type PrometheusConfiguration struct {
-	Configuration  interface{}          `mapstructure:",squash"`
+	Configuration  PrometheusConfig     `mapstructure:",squash"`
 	Authentication escfg.Authentication `mapstructure:"auth"`
 }
+
+// PrometheusConfig placeholder for prometheus configuration
+// We use interface{} in reality but define a type to make it clearer
+type PrometheusConfig interface{}
 
 // Unmarshal implements confmap.Unmarshaler. This allows us to provide
 // defaults for different configs.
@@ -82,6 +89,23 @@ func (cfg *TraceBackend) Unmarshal(conf *confmap.Conf) error {
 				Logs:        true,
 			},
 		}
+	}
+	if conf.IsSet("elasticsearch") {
+		v := es.DefaultConfig()
+		cfg.Elasticsearch = &v
+	}
+	if conf.IsSet("opensearch") {
+		v := es.DefaultConfig()
+		cfg.Opensearch = &v
+	}
+	return conf.Unmarshal(cfg)
+}
+
+// Unmarshal implements confmap.Unmarshaler for MetricBackend.
+func (cfg *MetricBackend) Unmarshal(conf *confmap.Conf) error {
+	// apply defaults - placeholder for prometheus config since it's defined elsewhere
+	if conf.IsSet("prometheus") {
+		cfg.Prometheus = &PrometheusConfiguration{}
 	}
 	if conf.IsSet("elasticsearch") {
 		v := es.DefaultConfig()

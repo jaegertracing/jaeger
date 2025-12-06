@@ -8,7 +8,10 @@ import (
 	"errors"
 	"fmt"
 
+	"go.opentelemetry.io/collector/extension/extensionauth"
+
 	"github.com/jaegertracing/jaeger/internal/metrics"
+	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/cassandra"
@@ -19,13 +22,19 @@ import (
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
-// CreateStorageFactory creates a trace storage factory from the backend configuration.
+// AuthResolver is a function type that resolves an authenticator by name.
+// This allows the jaegerstorage extension to provide its authenticator resolution logic.
+type AuthResolver func(authCfg escfg.Authentication, backendType, backendName string) (extensionauth.HTTPClient, error)
+
+// CreateTraceStorageFactory creates a trace storage factory from the backend configuration.
 // This is extracted from jaegerstorage extension to be shared between jaeger and remote-storage.
-func CreateStorageFactory(
+// authResolver is optional; if nil, no authentication will be configured for ES/OS backends.
+func CreateTraceStorageFactory(
 	ctx context.Context,
 	name string,
 	backend TraceBackend,
 	telset telemetry.Settings,
+	authResolver AuthResolver,
 ) (tracestore.Factory, error) {
 	telset.Logger.Sugar().Infof("Initializing storage '%s'", name)
 
@@ -51,10 +60,23 @@ func CreateStorageFactory(
 	case backend.Cassandra != nil:
 		factory, err = cassandra.NewFactory(*backend.Cassandra, telset.Metrics, telset.Logger)
 	case backend.Elasticsearch != nil:
-		// Note: httpAuth is nil for remote-storage since it doesn't have access to auth extensions
-		factory, err = es.NewFactory(ctx, *backend.Elasticsearch, telset, nil)
+		var httpAuth extensionauth.HTTPClient
+		if authResolver != nil {
+			httpAuth, err = authResolver(backend.Elasticsearch.Authentication, "elasticsearch", name)
+			if err != nil {
+				return nil, err
+			}
+		}
+		factory, err = es.NewFactory(ctx, *backend.Elasticsearch, telset, httpAuth)
 	case backend.Opensearch != nil:
-		factory, err = es.NewFactory(ctx, *backend.Opensearch, telset, nil)
+		var httpAuth extensionauth.HTTPClient
+		if authResolver != nil {
+			httpAuth, err = authResolver(backend.Opensearch.Authentication, "opensearch", name)
+			if err != nil {
+				return nil, err
+			}
+		}
+		factory, err = es.NewFactory(ctx, *backend.Opensearch, telset, httpAuth)
 	case backend.ClickHouse != nil:
 		factory, err = clickhouse.NewFactory(ctx, *backend.ClickHouse, telset)
 	default:

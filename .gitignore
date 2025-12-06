@@ -46,3 +46,4 @@ resource.syso
 test-results.json
 .metrics/
 .mockery.log
+cmd/jaeger/jaeger-test
