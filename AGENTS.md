@@ -31,7 +31,7 @@ When approaching this repository for the first time:
 4. **Use named branches**: CI will fail if you work on `main` branch - always create a feature branch
 5. **Sign commits**: Every commit must have DCO sign-off (`git commit -s`)
 6. **Test incrementally**: Run `make lint` and `make test` frequently to catch issues early
-7. **Understand the architecture**: Jaeger v2 is built on OpenTelemetry Collector - many patterns come from there
+7. **Understand the architecture**: Jaeger is built on OpenTelemetry Collector - many patterns come from there
 
 ## Project Overview
 
@@ -42,7 +42,7 @@ Jaeger is a distributed tracing platform and a CNCF graduated project created by
 - **Primary Language**: Go (exact version in go.mod)
 - **License**: Apache 2.0
 - **Project Status**: CNCF Graduated (October 2019)
-- **Architecture**: Jaeger v2 is built on OpenTelemetry Collector components
+- **Architecture**: Built on OpenTelemetry Collector components
 - **Code Quality**: 95% test coverage requirement with strict enforcement
 
 ### Key Technologies
@@ -54,31 +54,21 @@ Jaeger is a distributed tracing platform and a CNCF graduated project created by
 - **Data Formats**: Protocol Buffers (primary), Thrift (legacy compatibility)
 - **Testing**: testify/assert for assertions, race detector enabled by default
 
-### Project Evolution
-
-- **Jaeger v1**: Original architecture with separate Agent, Collector, Query components
-- **Jaeger v2**: Current direction - unified binary built on OTel Collector framework
-- Migration is ongoing - you'll see both v1 and v2 patterns in the codebase
-
-**For new contributions**: Prefer v2 patterns (OpenTelemetry Collector components) for new features. Only use v1 patterns when modifying existing v1 code or when specifically required for backward compatibility.
-
 ## Repository Structure
 
 ```
 github.com/jaegertracing/jaeger
 ├── cmd/                           # Binary executables (main packages)
 │   ├── all-in-one/               # Jaeger all-in-one for local testing
-│   ├── jaeger/                   # Jaeger V2 unified binary (NEW)
-│   ├── collector/                # V1 span collection component
-│   ├── query/                    # V1 query service and UI API
+│   ├── jaeger/                   # Jaeger unified binary
+│   ├── collector/                # Span collection component
+│   ├── query/                    # Query service and UI API
 │   ├── ingester/                 # Kafka-to-storage pipeline
 │   ├── remote-storage/           # Remote storage gRPC server
 │   ├── tracegen/                 # Trace generator utility
 │   └── ...                       # Other utilities (anonymizer, es-index-cleaner, etc.)
 ├── internal/                     # Internal packages (not importable externally)
 │   ├── storage/                  # Storage interfaces and implementations
-│   │   ├── v1/                   # Legacy V1 implementations not yet migrated to V2
-│   │   └── v2/                   # V2 storage interfaces (for OTel Collector)
 │   ├── sampling/                 # Sampling strategies
 │   ├── proto-gen/                # Generated protobuf code (DO NOT EDIT)
 │   └── ...                       # Various internal packages
@@ -139,23 +129,6 @@ go mod download
 #    First run will be slow as it downloads more dependencies
 make test
 ```
-
-### macOS-Specific Setup
-
-On macOS, the default `sed` doesn't support the same flags as GNU `sed`. You'll encounter errors in `make` targets if you don't have GNU sed installed.
-
-**Solution**:
-```bash
-# Install GNU sed
-brew install gnu-sed
-
-# Either add to PATH or set SED variable when running make
-export PATH="/opt/homebrew/opt/gnu-sed/libexec/gnubin:$PATH"
-# OR
-make SED=gsed test
-```
-
-The Makefile automatically tries to use `gsed` on macOS, but installation is still required.
 
 ## Development Workflow
 
@@ -282,65 +255,6 @@ Jaeger enforces a **95% code coverage** threshold. Every package with `.go` file
 **The `make test` target will FAIL if**:
 - Any package lacks a `*_test.go` file
 - A package has no tests and no `empty_test.go` or `.nocover` file
-
-### Three Ways to Satisfy Coverage Requirements
-
-#### Option 1: Write Real Tests (Preferred)
-
-Create `*_test.go` files with actual test functions:
-
-```go
-// my_package_test.go
-package mypackage
-
-import (
-    "testing"
-    
-    "github.com/stretchr/testify/assert"
-    "github.com/stretchr/testify/require"
-)
-
-func TestMyFunction(t *testing.T) {
-    // Use testify/assert for assertions
-    result := MyFunction("input")
-    assert.Equal(t, "expected", result)
-}
-```
-
-#### Option 2: Create empty_test.go (For Type-Only Packages)
-
-If a package only defines types/interfaces with no testable logic:
-
-```go
-// empty_test.go
-// Copyright (c) 2025 The Jaeger Authors.
-// SPDX-License-Identifier: Apache-2.0
-
-package mypackage
-
-import (
-    "testing"
-    
-    "github.com/jaegertracing/jaeger/internal/testutils"
-)
-
-func TestMain(m *testing.M) {
-    testutils.VerifyGoLeaks(m)
-}
-```
-
-**Note**: The `TestMain` with `VerifyGoLeaks` is the standard pattern used in Jaeger.
-
-#### Option 3: Create .nocover File (For Untestable Packages)
-
-If a package genuinely cannot be tested (e.g., requires external database, generated code):
-
-```bash
-# Create .nocover file with reason
-echo "requires external Cassandra database" > ./path/to/package/.nocover
-```
-
-**Important**: The `.nocover` file must contain a non-empty reason string explaining why tests are not possible.
 
 ### Test Organization Patterns
 
@@ -971,7 +885,7 @@ Design storage interfaces to work with the lowest common denominator.
 
 #### OpenTelemetry Collector Patterns
 
-Jaeger v2 is built on OTel Collector. Follow OTel patterns:
+Jaeger is built on OTel Collector. Follow OTel patterns:
 - Use `component.Config` for configuration
 - Implement `component.Factory` for components
 - Use feature gates for breaking changes (see CONTRIBUTING.md)
@@ -1078,27 +992,12 @@ func FindTraces(ctx context.Context, query TraceQuery, maxTraces int) ([]*Trace,
 
 ## Architecture Insights
 
-### Jaeger v1 vs v2 Architecture
-
-**Jaeger v1** (original architecture):
-- Separate binaries: jaeger-agent, jaeger-collector, jaeger-query, jaeger-ingester
-- Components communicate over gRPC/HTTP
-- Storage plugin interface for custom backends
-
-**Jaeger v2** (current direction):
-- Single `cmd/jaeger/` binary built on OpenTelemetry Collector
-- Uses OTel Collector's extension/receiver/processor/exporter model
-- More modular, easier to extend
-- Better integration with OpenTelemetry ecosystem
-
-**Current state**: Both v1 and v2 code exists in the repository. Don't be confused by seeing both patterns.
-
 ### Storage Architecture
 
 Jaeger supports multiple storage backends through plugin interfaces:
 
 ```
-SpanReader/SpanWriter interfaces (v1)
+SpanReader/SpanWriter interfaces
          ↓
    Implementation for:
    - Cassandra (./internal/storage/cassandra/)
