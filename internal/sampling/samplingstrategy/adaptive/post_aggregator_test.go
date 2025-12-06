@@ -65,8 +65,12 @@ func errTestStorage() error {
 	return errors.New("storage error")
 }
 
+// testProbabilityCalculator is a test implementation of ProbabilityCalculator
+// that calculates new probability by multiplying the old probability by the
+// ratio of target QPS to current QPS.
 type testProbabilityCalculator struct{}
 
+// Calculate implements the ProbabilityCalculator interface for testing.
 func (testProbabilityCalculator) Calculate(targetQPS, qps, oldProbability float64) float64 {
 	factor := targetQPS / qps
 	return oldProbability * factor
