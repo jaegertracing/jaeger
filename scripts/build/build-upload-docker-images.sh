@@ -75,7 +75,12 @@ build_image() {
     base_flags=(-b)
   fi
 
-  bash scripts/build/build-upload-a-docker-image.sh "${FLAGS[@]}" "${base_flags[@]}" -c "$component" -d "$dir" -p "${platforms}" -t release
+  local target_flags=()
+  if [[ "$use_base_image" == "true" ]]; then
+    target_flags=(-t release)
+  fi
+
+  bash scripts/build/build-upload-a-docker-image.sh "${FLAGS[@]}" "${base_flags[@]}" -c "$component" -d "$dir" -p "${platforms}" "${target_flags[@]}"
 
   if [[ "$build_debug" == "true" ]] && [[ "${add_debugger}" == "Y" ]]; then
     bash scripts/build/build-upload-a-docker-image.sh "${FLAGS[@]}" "${base_flags[@]}" -c "${component}-debug" -d "$dir" -t debug
