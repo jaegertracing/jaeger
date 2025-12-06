@@ -1,0 +1,22 @@
+# Example configuration for remote-storage service
+# This service exposes a gRPC API for remote storage backends
+# and allows sharing single-node storage implementations like memory or Badger.
+
+# Server configuration
+grpc:
+  host-port: :17271  # gRPC endpoint for remote storage API
+
+# Storage configuration using the same format as jaeger v2
+storage:
+  backends:
+    default-storage:
+      memory:
+        max_traces: 100000
+
+# Multi-tenancy configuration (optional)
+multi_tenancy:
+  enabled: false
+  # header: x-tenant
+  # tenants:
+  #   - tenant1
+  #   - tenant2
