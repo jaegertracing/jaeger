@@ -7,20 +7,6 @@ import (
 	"time"
 )
 
-const (
-	defaultTargetSamplesPerSecond       = 1
-	defaultDeltaTolerance               = 0.3
-	defaultBucketsForCalculation        = 1
-	defaultCalculationInterval          = time.Minute
-	defaultAggregationBuckets           = 10
-	defaultDelay                        = time.Minute * 2
-	defaultInitialSamplingProbability   = 0.001
-	defaultMinSamplingProbability       = 1e-5                                   // one in 100k requests
-	defaultMinSamplesPerSecond          = 1.0 / float64(time.Minute/time.Second) // once every 1 minute
-	defaultLeaderLeaseRefreshInterval   = 5 * time.Second
-	defaultFollowerLeaseRefreshInterval = 60 * time.Second
-)
-
 // Options holds configuration for the adaptive sampling strategy store.
 // The abbreviation SPS refers to "samples-per-second", which is the target
 // of the optimization/control implemented by the adaptive sampling.
@@ -89,16 +75,16 @@ type Options struct {
 
 func DefaultOptions() Options {
 	return Options{
-		TargetSamplesPerSecond:       defaultTargetSamplesPerSecond,
-		DeltaTolerance:               defaultDeltaTolerance,
-		BucketsForCalculation:        defaultBucketsForCalculation,
-		CalculationInterval:          defaultCalculationInterval,
-		AggregationBuckets:           defaultAggregationBuckets,
-		Delay:                        defaultDelay,
-		InitialSamplingProbability:   defaultInitialSamplingProbability,
-		MinSamplingProbability:       defaultMinSamplingProbability,
-		MinSamplesPerSecond:          defaultMinSamplesPerSecond,
-		LeaderLeaseRefreshInterval:   defaultLeaderLeaseRefreshInterval,
-		FollowerLeaseRefreshInterval: defaultFollowerLeaseRefreshInterval,
+		TargetSamplesPerSecond:       1,
+		DeltaTolerance:               0.3,
+		BucketsForCalculation:        1,
+		CalculationInterval:          time.Minute,
+		AggregationBuckets:           10,
+		Delay:                        time.Minute * 2,
+		InitialSamplingProbability:   0.001,
+		MinSamplingProbability:       1e-5,                                   // one in 100k requests
+		MinSamplesPerSecond:          1.0 / float64(time.Minute/time.Second), // once every 1 minute
+		LeaderLeaseRefreshInterval:   5 * time.Second,
+		FollowerLeaseRefreshInterval: 60 * time.Second,
 	}
 }

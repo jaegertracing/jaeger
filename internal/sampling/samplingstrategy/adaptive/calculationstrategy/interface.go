@@ -7,6 +7,3 @@ package calculationstrategy
 type ProbabilityCalculator interface {
 	Calculate(targetQPS, curQPS, prevProbability float64) (newProbability float64)
 }
-
-// CalculateFunc wraps a function of appropriate signature and makes a ProbabilityCalculator from it.
-type CalculateFunc func(targetQPS, curQPS, prevProbability float64) (newProbability float64)
