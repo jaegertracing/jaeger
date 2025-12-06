@@ -70,7 +70,6 @@ _build-a-binary-%:
 
 .PHONY: build-jaeger
 build-jaeger: BIN_NAME = jaeger
-build-jaeger: BUILD_INFO = $(BUILD_INFO_V2)
 build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
 	@ set -euf -o pipefail ; \
 	echo "Checking version of built binary" ; \
@@ -79,7 +78,7 @@ build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
 	if [ "$(GOOS)" == "$$REAL_GOOS" ] && [ "$(GOARCH)" == "$$REAL_GOARCH" ]; then \
 		./cmd/jaeger/jaeger-$(GOOS)-$(GOARCH) version 2>/dev/null ; \
 		echo "" ; \
-		want=$(GIT_CLOSEST_TAG_V2) ; \
+		want=$(GIT_CLOSEST_TAG) ; \
 		have=$$(./cmd/jaeger/jaeger-$(GOOS)-$(GOARCH) version 2>/dev/null | jq -r .gitVersion) ; \
 		if [ "$$want" == "$$have" ]; then \
 			echo "🟢 versions match: want=$$want, have=$$have" ; \
@@ -93,21 +92,6 @@ build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
 	fi
 
 
-.PHONY: build-all-in-one
-build-all-in-one: BIN_NAME = all-in-one
-build-all-in-one: build-ui _build-a-binary-all-in-one$(SUFFIX)-$(GOOS)-$(GOARCH)
-
-.PHONY: build-query
-build-query: BIN_NAME = query
-build-query: build-ui _build-a-binary-query$(SUFFIX)-$(GOOS)-$(GOARCH)
-
-.PHONY: build-collector
-build-collector: BIN_NAME = collector
-build-collector: _build-a-binary-collector$(SUFFIX)-$(GOOS)-$(GOARCH)
-
-.PHONY: build-ingester
-build-ingester: BIN_NAME = ingester
-build-ingester: _build-a-binary-ingester$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-remote-storage
 build-remote-storage: BIN_NAME = remote-storage
@@ -148,10 +132,6 @@ build-binaries-linux-ppc64le:
 .PHONY: _build-platform-binaries
 _build-platform-binaries: \
 		build-jaeger \
-		build-all-in-one \
-		build-collector \
-		build-query \
-		build-ingester \
 		build-remote-storage \
 		build-examples \
 		build-tracegen \
@@ -167,11 +147,7 @@ _build-platform-binaries: \
 _build-platform-binaries-debug:
 _build-platform-binaries-debug: \
 	build-jaeger \
-	build-collector \
-	build-query \
-	build-ingester \
-	build-remote-storage \
-	build-all-in-one
+	build-remote-storage
 
 .PHONY: build-all-platforms
 build-all-platforms:

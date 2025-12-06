@@ -23,9 +23,6 @@ jobs:
       fail-fast: false
       matrix:
         mode:
-        - name: v1
-          binary: all-in-one
-          metricstore: prometheus
         - name: v2
           binary: jaeger
           metricstore: prometheus
