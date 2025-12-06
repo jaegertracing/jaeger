@@ -12,7 +12,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
   cancel-in-progress: true
 
-# See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
 permissions:
   contents: read
 
@@ -20,10 +19,6 @@ jobs:
   all-in-one:
     runs-on: ubuntu-latest
     timeout-minutes: 30 # max + 3*std over the last 2600 runs
-    strategy:
-      fail-fast: false
-      matrix:
-        jaeger_version: [v1, v2]
 
     steps:
     - uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -62,9 +57,7 @@ jobs:
 
     - name: Build, test, and publish all-in-one image
       run: |
-        bash scripts/build/build-all-in-one-image.sh \
-          ${{ env.BUILD_FLAGS }} \
-          "${{ matrix.jaeger_version }}"
+        bash scripts/build/build-all-in-one-image.sh ${{ env.BUILD_FLAGS }} v2
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}

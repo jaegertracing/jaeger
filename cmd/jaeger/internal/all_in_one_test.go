@@ -2,7 +2,7 @@
 // Copyright (c) 2017 Uber Technologies, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package main
+package internal
 
 import (
 	"bytes"
@@ -38,7 +38,7 @@ const (
 
 var (
 	queryAddr    = fmt.Sprintf("http://%s:%d", host, ports.QueryHTTP)
-	samplingAddr = fmt.Sprintf("http://%s:%d", host, ports.CollectorHTTP)
+	samplingAddr = fmt.Sprintf("http://%s:%d", host, ports.CollectorV2SamplingHTTP)
 	healthAddr   = fmt.Sprintf("http://%s:%d/status", host, ports.CollectorV2HealthChecks)
 )
 
