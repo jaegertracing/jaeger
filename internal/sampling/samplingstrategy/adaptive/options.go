@@ -5,23 +5,9 @@ package adaptive
 
 import (
 	"time"
-
-	"github.com/spf13/viper"
 )
 
 const (
-	targetSamplesPerSecond       = "sampling.target-samples-per-second"
-	deltaTolerance               = "sampling.delta-tolerance"
-	bucketsForCalculation        = "sampling.buckets-for-calculation"
-	calculationInterval          = "sampling.calculation-interval"
-	aggregationBuckets           = "sampling.aggregation-buckets"
-	delay                        = "sampling.delay"
-	initialSamplingProbability   = "sampling.initial-sampling-probability"
-	minSamplingProbability       = "sampling.min-sampling-probability"
-	minSamplesPerSecond          = "sampling.min-samples-per-second"
-	leaderLeaseRefreshInterval   = "sampling.leader-lease-refresh-interval"
-	followerLeaseRefreshInterval = "sampling.follower-lease-refresh-interval"
-
 	defaultTargetSamplesPerSecond       = 1
 	defaultDeltaTolerance               = 0.3
 	defaultBucketsForCalculation        = 1
@@ -115,20 +101,4 @@ func DefaultOptions() Options {
 		LeaderLeaseRefreshInterval:   defaultLeaderLeaseRefreshInterval,
 		FollowerLeaseRefreshInterval: defaultFollowerLeaseRefreshInterval,
 	}
-}
-
-// InitFromViper initializes Options with properties from viper
-func (opts *Options) InitFromViper(v *viper.Viper) *Options {
-	opts.TargetSamplesPerSecond = v.GetFloat64(targetSamplesPerSecond)
-	opts.DeltaTolerance = v.GetFloat64(deltaTolerance)
-	opts.BucketsForCalculation = v.GetInt(bucketsForCalculation)
-	opts.CalculationInterval = v.GetDuration(calculationInterval)
-	opts.AggregationBuckets = v.GetInt(aggregationBuckets)
-	opts.Delay = v.GetDuration(delay)
-	opts.InitialSamplingProbability = v.GetFloat64(initialSamplingProbability)
-	opts.MinSamplingProbability = v.GetFloat64(minSamplingProbability)
-	opts.MinSamplesPerSecond = v.GetFloat64(minSamplesPerSecond)
-	opts.LeaderLeaseRefreshInterval = v.GetDuration(leaderLeaseRefreshInterval)
-	opts.FollowerLeaseRefreshInterval = v.GetDuration(followerLeaseRefreshInterval)
-	return opts
 }
