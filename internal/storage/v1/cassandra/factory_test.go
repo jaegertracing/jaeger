@@ -35,11 +35,6 @@ func TestCassandraFactory(t *testing.T) {
 			factoryFn: NewFactory,
 			namespace: primaryStorageNamespace,
 		},
-		{
-			name:      "CassandraArchiveFactory",
-			factoryFn: NewArchiveFactory,
-			namespace: archiveStorageNamespace,
-		},
 	}
 
 	for _, test := range tests {
@@ -231,7 +226,10 @@ func TestInheritSettingsFrom(t *testing.T) {
 	primaryFactory.config.Schema.Keyspace = "foo"
 	primaryFactory.config.Query.MaxRetryAttempts = 99
 
-	archiveFactory := NewArchiveFactory()
+	archiveFactory := &Factory{
+		Options: NewOptions(archiveStorageNamespace),
+	}
+
 	archiveFactory.config.Schema.Keyspace = "bar"
 
 	archiveFactory.InheritSettingsFrom(primaryFactory)

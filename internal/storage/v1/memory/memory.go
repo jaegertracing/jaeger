@@ -323,8 +323,8 @@ func flattenTags(span *model.Span) model.KeyValues {
 }
 
 // purge supports Purger interface.
-func (st *Store) purge(context.Context) {
-	st.mu.Lock()
-	st.perTenant = make(map[string]*Tenant)
-	st.mu.Unlock()
-}
+// func (st *Store) purge(context.Context) {
+// 	st.mu.Lock()
+// 	st.perTenant = make(map[string]*Tenant)
+// 	st.mu.Unlock()
+// }
