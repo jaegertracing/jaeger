@@ -16,7 +16,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/internal/docs"
-	"github.com/jaegertracing/jaeger/cmd/internal/env"
 	"github.com/jaegertracing/jaeger/cmd/internal/featuregate"
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/cmd/internal/printconfig"
@@ -138,7 +137,6 @@ func main() {
 	}
 
 	command.AddCommand(version.Command())
-	command.AddCommand(env.Command())
 	command.AddCommand(docs.Command(v))
 	command.AddCommand(status.Command(v, ports.RemoteStorageAdminHTTP))
 	command.AddCommand(printconfig.Command(v))
