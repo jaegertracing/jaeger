@@ -19,7 +19,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/remote-storage/app"
 	"github.com/jaegertracing/jaeger/internal/healthcheck"
-	memv1 "github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
@@ -48,7 +47,7 @@ func StartNewRemoteMemoryStorage(t *testing.T, port int) *RemoteMemoryStorage {
 	telset.ReportStatus = telemetry.HCAdapter(healthcheck.New())
 
 	traceFactory, err := memory.NewFactory(
-		memv1.Configuration{
+		memory.Configuration{
 			MaxTraces: 10000,
 		},
 		telset,
