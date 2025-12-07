@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jaegertracing/jaeger/internal/config/tlscfg"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
 )
 
@@ -55,12 +54,6 @@ func NewOptions(namespace string) *Options {
 	return options
 }
 
-func tlsFlagsConfig(namespace string) tlscfg.ClientFlagsConfig {
-	return tlscfg.ClientFlagsConfig{
-		Prefix: namespace,
-	}
-}
-
 func (opt *Options) GetConfig() config.Configuration {
 	return opt.NamespaceConfig.Configuration
 }
@@ -81,9 +74,4 @@ func (opt *Options) TagIndexWhitelist() []string {
 	}
 
 	return nil
-}
-
-// stripWhiteSpace removes all whitespace characters from a string
-func stripWhiteSpace(str string) string {
-	return strings.ReplaceAll(str, " ", "")
 }
