@@ -11,8 +11,10 @@ import (
 
 	"go.opentelemetry.io/collector/confmap"
 
+	"github.com/jaegertracing/jaeger/internal/config/promcfg"
 	cascfg "github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	es "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
@@ -51,13 +53,9 @@ type MetricBackend struct {
 }
 
 type PrometheusConfiguration struct {
-	Configuration  PrometheusConfig     `mapstructure:",squash"`
-	Authentication escfg.Authentication `mapstructure:"auth"`
+	Configuration  promcfg.Configuration `mapstructure:",squash"`
+	Authentication escfg.Authentication  `mapstructure:"auth"`
 }
-
-// PrometheusConfig placeholder for prometheus configuration
-// We use interface{} in reality but define a type to make it clearer
-type PrometheusConfig interface{}
 
 // Unmarshal implements confmap.Unmarshaler. This allows us to provide
 // defaults for different configs.
@@ -103,9 +101,12 @@ func (cfg *TraceBackend) Unmarshal(conf *confmap.Conf) error {
 
 // Unmarshal implements confmap.Unmarshaler for MetricBackend.
 func (cfg *MetricBackend) Unmarshal(conf *confmap.Conf) error {
-	// apply defaults - placeholder for prometheus config since it's defined elsewhere
+	// apply defaults
 	if conf.IsSet("prometheus") {
-		cfg.Prometheus = &PrometheusConfiguration{}
+		v := prometheus.DefaultConfig()
+		cfg.Prometheus = &PrometheusConfiguration{
+			Configuration: v,
+		}
 	}
 	if conf.IsSet("elasticsearch") {
 		v := es.DefaultConfig()

@@ -179,11 +179,13 @@ func TestGetSamplingStoreFactory(t *testing.T) {
 				t.Cleanup(func() { server.Close() })
 
 				ext := makeStorageExtension(t, &Config{
-					TraceBackends: map[string]storageconfig.TraceBackend{
-						"foo": {
-							Elasticsearch: &escfg.Configuration{
-								Servers:  []string{server.URL},
-								LogLevel: "error",
+					Config: storageconfig.Config{
+						TraceBackends: map[string]storageconfig.TraceBackend{
+							"foo": {
+								Elasticsearch: &escfg.Configuration{
+									Servers:  []string{server.URL},
+									LogLevel: "error",
+								},
 							},
 						},
 					},
@@ -243,11 +245,13 @@ func TestGetPurger(t *testing.T) {
 			expectedError: "storage 'foo' does not support purging",
 			setupFunc: func(t *testing.T) component.Component {
 				ext := makeStorageExtension(t, &Config{
-					TraceBackends: map[string]storageconfig.TraceBackend{
-						"foo": {
-							GRPC: &grpc.Config{
-								ClientConfig: configgrpc.ClientConfig{
-									Endpoint: "localhost:12345",
+					Config: storageconfig.Config{
+						TraceBackends: map[string]storageconfig.TraceBackend{
+							"foo": {
+								GRPC: &grpc.Config{
+									ClientConfig: configgrpc.ClientConfig{
+										Endpoint: "localhost:12345",
+									},
 								},
 							},
 						},
@@ -280,12 +284,14 @@ func TestGetPurger(t *testing.T) {
 
 func TestBadger(t *testing.T) {
 	ext := makeStorageExtension(t, &Config{
-		TraceBackends: map[string]storageconfig.TraceBackend{
-			"foo": {
-				Badger: &badger.Config{
-					Ephemeral:             true,
-					MaintenanceInterval:   5,
-					MetricsUpdateInterval: 10,
+		Config: storageconfig.Config{
+			TraceBackends: map[string]storageconfig.TraceBackend{
+				"foo": {
+					Badger: &badger.Config{
+						Ephemeral:             true,
+						MaintenanceInterval:   5,
+						MetricsUpdateInterval: 10,
+					},
 				},
 			},
 		},
@@ -298,11 +304,13 @@ func TestBadger(t *testing.T) {
 
 func TestGRPC(t *testing.T) {
 	ext := makeStorageExtension(t, &Config{
-		TraceBackends: map[string]storageconfig.TraceBackend{
-			"foo": {
-				GRPC: &grpc.Config{
-					ClientConfig: configgrpc.ClientConfig{
-						Endpoint: "localhost:12345",
+		Config: storageconfig.Config{
+			TraceBackends: map[string]storageconfig.TraceBackend{
+				"foo": {
+					GRPC: &grpc.Config{
+						ClientConfig: configgrpc.ClientConfig{
+							Endpoint: "localhost:12345",
+						},
 					},
 				},
 			},
@@ -323,11 +331,13 @@ func TestMetricBackends(t *testing.T) {
 		{
 			name: "Prometheus",
 			config: &Config{
-				MetricBackends: map[string]MetricBackend{
-					"foo": {
-						Prometheus: &PrometheusConfiguration{
-							Configuration: promcfg.Configuration{
-								ServerURL: mockServer.URL,
+				Config: storageconfig.Config{
+					MetricBackends: map[string]storageconfig.MetricBackend{
+						"foo": {
+							Prometheus: &storageconfig.PrometheusConfiguration{
+								Configuration: promcfg.Configuration{
+									ServerURL: mockServer.URL,
+								},
 							},
 						},
 					},
@@ -337,11 +347,13 @@ func TestMetricBackends(t *testing.T) {
 		{
 			name: "Elasticsearch",
 			config: &Config{
-				MetricBackends: map[string]MetricBackend{
-					"foo": {
-						Elasticsearch: &escfg.Configuration{
-							Servers:  []string{mockServer.URL},
-							LogLevel: "info",
+				Config: storageconfig.Config{
+					MetricBackends: map[string]storageconfig.MetricBackend{
+						"foo": {
+							Elasticsearch: &escfg.Configuration{
+								Servers:  []string{mockServer.URL},
+								LogLevel: "info",
+							},
 						},
 					},
 				},
@@ -350,11 +362,13 @@ func TestMetricBackends(t *testing.T) {
 		{
 			name: "OpenSearch",
 			config: &Config{
-				MetricBackends: map[string]MetricBackend{
-					"foo": {
-						Opensearch: &escfg.Configuration{
-							Servers:  []string{mockServer.URL},
-							LogLevel: "info",
+				Config: storageconfig.Config{
+					MetricBackends: map[string]storageconfig.MetricBackend{
+						"foo": {
+							Opensearch: &escfg.Configuration{
+								Servers:  []string{mockServer.URL},
+								LogLevel: "info",
+							},
 						},
 					},
 				},
@@ -386,8 +400,10 @@ func TestMetricsBackendCloseError(t *testing.T) {
 
 func TestStartError(t *testing.T) {
 	ext := makeStorageExtension(t, &Config{
-		TraceBackends: map[string]storageconfig.TraceBackend{
-			"foo": {},
+		Config: storageconfig.Config{
+			TraceBackends: map[string]storageconfig.TraceBackend{
+				"foo": {},
+			},
 		},
 	})
 	err := ext.Start(t.Context(), componenttest.NewNopHost())
@@ -404,10 +420,12 @@ func TestMetricStorageStartError(t *testing.T) {
 		{
 			name: "Prometheus backend initialization error",
 			config: &Config{
-				MetricBackends: map[string]MetricBackend{
-					"foo": {
-						Prometheus: &PrometheusConfiguration{
-							Configuration: promcfg.Configuration{},
+				Config: storageconfig.Config{
+					MetricBackends: map[string]storageconfig.MetricBackend{
+						"foo": {
+							Prometheus: &storageconfig.PrometheusConfiguration{
+								Configuration: promcfg.Configuration{},
+							},
 						},
 					},
 				},
@@ -417,9 +435,11 @@ func TestMetricStorageStartError(t *testing.T) {
 		{
 			name: "Elasticsearch backend initialization error",
 			config: &Config{
-				MetricBackends: map[string]MetricBackend{
-					"foo": {
-						Elasticsearch: &escfg.Configuration{},
+				Config: storageconfig.Config{
+					MetricBackends: map[string]storageconfig.MetricBackend{
+						"foo": {
+							Elasticsearch: &escfg.Configuration{},
+						},
 					},
 				},
 			},
@@ -428,9 +448,11 @@ func TestMetricStorageStartError(t *testing.T) {
 		{
 			name: "OpenSearch backend initialization error",
 			config: &Config{
-				MetricBackends: map[string]MetricBackend{
-					"foo": {
-						Opensearch: &escfg.Configuration{},
+				Config: storageconfig.Config{
+					MetricBackends: map[string]storageconfig.MetricBackend{
+						"foo": {
+							Opensearch: &escfg.Configuration{},
+						},
 					},
 				},
 			},
@@ -450,11 +472,13 @@ func TestMetricStorageStartError(t *testing.T) {
 func TestElasticsearch(t *testing.T) {
 	server := setupMockServer(t, getVersionResponse(t), http.StatusOK)
 	ext := makeStorageExtension(t, &Config{
-		TraceBackends: map[string]storageconfig.TraceBackend{
-			"foo": {
-				Elasticsearch: &escfg.Configuration{
-					Servers:  []string{server.URL},
-					LogLevel: "error",
+		Config: storageconfig.Config{
+			TraceBackends: map[string]storageconfig.TraceBackend{
+				"foo": {
+					Elasticsearch: &escfg.Configuration{
+						Servers:  []string{server.URL},
+						LogLevel: "error",
+					},
 				},
 			},
 		},
@@ -468,11 +492,13 @@ func TestElasticsearch(t *testing.T) {
 func TestOpenSearch(t *testing.T) {
 	server := setupMockServer(t, getVersionResponse(t), http.StatusOK)
 	ext := makeStorageExtension(t, &Config{
-		TraceBackends: map[string]storageconfig.TraceBackend{
-			"foo": {
-				Opensearch: &escfg.Configuration{
-					Servers:  []string{server.URL},
-					LogLevel: "error",
+		Config: storageconfig.Config{
+			TraceBackends: map[string]storageconfig.TraceBackend{
+				"foo": {
+					Opensearch: &escfg.Configuration{
+						Servers:  []string{server.URL},
+						LogLevel: "error",
+					},
 				},
 			},
 		},
@@ -487,9 +513,11 @@ func TestCassandraError(t *testing.T) {
 	// since we cannot successfully create storage factory for Cassandra
 	// without running a Cassandra server, we only test the error case.
 	ext := makeStorageExtension(t, &Config{
-		TraceBackends: map[string]storageconfig.TraceBackend{
-			"cassandra": {
-				Cassandra: &cassandra.Options{},
+		Config: storageconfig.Config{
+			TraceBackends: map[string]storageconfig.TraceBackend{
+				"cassandra": {
+					Cassandra: &cassandra.Options{},
+				},
 			},
 		},
 	})
@@ -502,12 +530,14 @@ func TestClickHouse(t *testing.T) {
 	testServer := clickhousetest.NewServer(clickhousetest.FailureConfig{})
 	t.Cleanup(testServer.Close)
 	ext := makeStorageExtension(t, &Config{
-		TraceBackends: map[string]storageconfig.TraceBackend{
-			"foo": {
-				ClickHouse: &clickhouse.Configuration{
-					Protocol: "http",
-					Addresses: []string{
-						testServer.Listener.Addr().String(),
+		Config: storageconfig.Config{
+			TraceBackends: map[string]storageconfig.TraceBackend{
+				"foo": {
+					ClickHouse: &clickhouse.Configuration{
+						Protocol: "http",
+						Addresses: []string{
+							testServer.Listener.Addr().String(),
+						},
 					},
 				},
 			},
@@ -543,8 +573,10 @@ func makeStorageExtension(t *testing.T, config *Config) component.Component {
 
 func TestStorageBackend_DefaultCases(t *testing.T) {
 	config := &Config{
-		TraceBackends: map[string]storageconfig.TraceBackend{
-			"unconfigured": {},
+		Config: storageconfig.Config{
+			TraceBackends: map[string]storageconfig.TraceBackend{
+				"unconfigured": {},
+			},
 		},
 	}
 
@@ -555,8 +587,10 @@ func TestStorageBackend_DefaultCases(t *testing.T) {
 	require.Contains(t, err.Error(), "empty configuration")
 
 	config = &Config{
-		MetricBackends: map[string]MetricBackend{
-			"unconfigured": {},
+		Config: storageconfig.Config{
+			MetricBackends: map[string]storageconfig.MetricBackend{
+				"unconfigured": {},
+			},
 		},
 	}
 
@@ -568,18 +602,20 @@ func TestStorageBackend_DefaultCases(t *testing.T) {
 
 func startStorageExtension(t *testing.T, memstoreName string, promstoreName string) component.Component {
 	config := &Config{
-		TraceBackends: map[string]storageconfig.TraceBackend{
-			memstoreName: {
-				Memory: &memory.Configuration{
-					MaxTraces: 10000,
+		Config: storageconfig.Config{
+			TraceBackends: map[string]storageconfig.TraceBackend{
+				memstoreName: {
+					Memory: &memory.Configuration{
+						MaxTraces: 10000,
+					},
 				},
 			},
-		},
-		MetricBackends: map[string]MetricBackend{
-			promstoreName: {
-				Prometheus: &PrometheusConfiguration{
-					Configuration: promcfg.Configuration{
-						ServerURL: "localhost:12345",
+			MetricBackends: map[string]storageconfig.MetricBackend{
+				promstoreName: {
+					Prometheus: &storageconfig.PrometheusConfiguration{
+						Configuration: promcfg.Configuration{
+							ServerURL: "localhost:12345",
+						},
 					},
 				},
 			},
@@ -647,15 +683,17 @@ func TestMetricBackendWithAuthenticator(t *testing.T) {
 
 	host := storagetest.NewStorageHost().
 		WithExtension(ID, makeStorageExtension(t, &Config{
-			MetricBackends: map[string]MetricBackend{
-				"prometheus": {
-					Prometheus: &PrometheusConfiguration{
-						Configuration: promcfg.Configuration{
-							ServerURL: mockServer.URL,
-						},
-						Authentication: escfg.Authentication{
-							Config: configauth.Config{
-								AuthenticatorID: component.MustNewID("sigv4auth"),
+			Config: storageconfig.Config{
+				MetricBackends: map[string]storageconfig.MetricBackend{
+					"prometheus": {
+						Prometheus: &storageconfig.PrometheusConfiguration{
+							Configuration: promcfg.Configuration{
+								ServerURL: mockServer.URL,
+							},
+							Authentication: escfg.Authentication{
+								Config: configauth.Config{
+									AuthenticatorID: component.MustNewID("sigv4auth"),
+								},
 							},
 						},
 					},
@@ -681,15 +719,17 @@ func TestMetricBackendWithInvalidAuthenticator(t *testing.T) {
 	mockServer := setupMockServer(t, getVersionResponse(t), http.StatusOK)
 
 	config := &Config{
-		MetricBackends: map[string]MetricBackend{
-			"prometheus": {
-				Prometheus: &PrometheusConfiguration{
-					Configuration: promcfg.Configuration{
-						ServerURL: mockServer.URL,
-					},
-					Authentication: escfg.Authentication{
-						Config: configauth.Config{
-							AuthenticatorID: component.MustNewID("sigv4auth"),
+		Config: storageconfig.Config{
+			MetricBackends: map[string]storageconfig.MetricBackend{
+				"prometheus": {
+					Prometheus: &storageconfig.PrometheusConfiguration{
+						Configuration: promcfg.Configuration{
+							ServerURL: mockServer.URL,
+						},
+						Authentication: escfg.Authentication{
+							Config: configauth.Config{
+								AuthenticatorID: component.MustNewID("sigv4auth"),
+							},
 						},
 					},
 				},
@@ -835,14 +875,16 @@ func TestElasticsearchWithAuthenticator(t *testing.T) {
 	mockAuth := &mockHTTPAuthenticator{}
 
 	cfg := &Config{
-		TraceBackends: map[string]storageconfig.TraceBackend{
-			"elasticsearch": {
-				Elasticsearch: &escfg.Configuration{
-					Servers:  []string{mockServer.URL},
-					LogLevel: "error",
-					Authentication: escfg.Authentication{
-						Config: configauth.Config{
-							AuthenticatorID: component.MustNewID("sigv4auth"),
+		Config: storageconfig.Config{
+			TraceBackends: map[string]storageconfig.TraceBackend{
+				"elasticsearch": {
+					Elasticsearch: &escfg.Configuration{
+						Servers:  []string{mockServer.URL},
+						LogLevel: "error",
+						Authentication: escfg.Authentication{
+							Config: configauth.Config{
+								AuthenticatorID: component.MustNewID("sigv4auth"),
+							},
 						},
 					},
 				},
@@ -866,14 +908,16 @@ func TestOpenSearchWithAuthenticator(t *testing.T) {
 	mockAuth := &mockHTTPAuthenticator{}
 
 	cfg := &Config{
-		TraceBackends: map[string]storageconfig.TraceBackend{
-			"opensearch": {
-				Opensearch: &escfg.Configuration{
-					Servers:  []string{mockServer.URL},
-					LogLevel: "error",
-					Authentication: escfg.Authentication{
-						Config: configauth.Config{
-							AuthenticatorID: component.MustNewID("sigv4auth"),
+		Config: storageconfig.Config{
+			TraceBackends: map[string]storageconfig.TraceBackend{
+				"opensearch": {
+					Opensearch: &escfg.Configuration{
+						Servers:  []string{mockServer.URL},
+						LogLevel: "error",
+						Authentication: escfg.Authentication{
+							Config: configauth.Config{
+								AuthenticatorID: component.MustNewID("sigv4auth"),
+							},
 						},
 					},
 				},
@@ -896,14 +940,16 @@ func TestElasticsearchWithMissingAuthenticator(t *testing.T) {
 	mockServer := setupMockServer(t, getVersionResponse(t), http.StatusOK)
 
 	cfg := &Config{
-		TraceBackends: map[string]storageconfig.TraceBackend{
-			"elasticsearch": {
-				Elasticsearch: &escfg.Configuration{
-					Servers:  []string{mockServer.URL},
-					LogLevel: "error",
-					Authentication: escfg.Authentication{
-						Config: configauth.Config{
-							AuthenticatorID: component.MustNewID("nonexistent"),
+		Config: storageconfig.Config{
+			TraceBackends: map[string]storageconfig.TraceBackend{
+				"elasticsearch": {
+					Elasticsearch: &escfg.Configuration{
+						Servers:  []string{mockServer.URL},
+						LogLevel: "error",
+						Authentication: escfg.Authentication{
+							Config: configauth.Config{
+								AuthenticatorID: component.MustNewID("nonexistent"),
+							},
 						},
 					},
 				},
@@ -922,14 +968,16 @@ func TestOpenSearchTraceWithMissingAuthenticator(t *testing.T) {
 	mockServer := setupMockServer(t, getVersionResponse(t), http.StatusOK)
 
 	cfg := &Config{
-		TraceBackends: map[string]storageconfig.TraceBackend{
-			"opensearch": {
-				Opensearch: &escfg.Configuration{
-					Servers:  []string{mockServer.URL},
-					LogLevel: "error",
-					Authentication: escfg.Authentication{
-						Config: configauth.Config{
-							AuthenticatorID: component.MustNewID("nonexistent"),
+		Config: storageconfig.Config{
+			TraceBackends: map[string]storageconfig.TraceBackend{
+				"opensearch": {
+					Opensearch: &escfg.Configuration{
+						Servers:  []string{mockServer.URL},
+						LogLevel: "error",
+						Authentication: escfg.Authentication{
+							Config: configauth.Config{
+								AuthenticatorID: component.MustNewID("nonexistent"),
+							},
 						},
 					},
 				},
@@ -949,14 +997,16 @@ func TestElasticsearchWithWrongAuthenticatorType(t *testing.T) {
 	wrongAuth := &mockNonHTTPExtension{}
 
 	cfg := &Config{
-		TraceBackends: map[string]storageconfig.TraceBackend{
-			"elasticsearch": {
-				Elasticsearch: &escfg.Configuration{
-					Servers:  []string{mockServer.URL},
-					LogLevel: "error",
-					Authentication: escfg.Authentication{
-						Config: configauth.Config{
-							AuthenticatorID: component.MustNewID("wrongtype"),
+		Config: storageconfig.Config{
+			TraceBackends: map[string]storageconfig.TraceBackend{
+				"elasticsearch": {
+					Elasticsearch: &escfg.Configuration{
+						Servers:  []string{mockServer.URL},
+						LogLevel: "error",
+						Authentication: escfg.Authentication{
+							Config: configauth.Config{
+								AuthenticatorID: component.MustNewID("wrongtype"),
+							},
 						},
 					},
 				},
@@ -980,14 +1030,16 @@ func TestOpenSearchWithWrongAuthenticatorType(t *testing.T) {
 	wrongAuth := &mockNonHTTPExtension{}
 
 	cfg := &Config{
-		TraceBackends: map[string]storageconfig.TraceBackend{
-			"opensearch": {
-				Opensearch: &escfg.Configuration{
-					Servers:  []string{mockServer.URL},
-					LogLevel: "error",
-					Authentication: escfg.Authentication{
-						Config: configauth.Config{
-							AuthenticatorID: component.MustNewID("wrongtype"),
+		Config: storageconfig.Config{
+			TraceBackends: map[string]storageconfig.TraceBackend{
+				"opensearch": {
+					Opensearch: &escfg.Configuration{
+						Servers:  []string{mockServer.URL},
+						LogLevel: "error",
+						Authentication: escfg.Authentication{
+							Config: configauth.Config{
+								AuthenticatorID: component.MustNewID("wrongtype"),
+							},
 						},
 					},
 				},
@@ -1010,14 +1062,16 @@ func TestElasticsearchMetricsWithInvalidAuthenticator(t *testing.T) {
 	mockServer := setupMockServer(t, getVersionResponse(t), http.StatusOK)
 
 	config := &Config{
-		MetricBackends: map[string]MetricBackend{
-			"elasticsearch": {
-				Elasticsearch: &escfg.Configuration{
-					Servers:  []string{mockServer.URL},
-					LogLevel: "error",
-					Authentication: escfg.Authentication{
-						Config: configauth.Config{
-							AuthenticatorID: component.MustNewID("nonexistent"),
+		Config: storageconfig.Config{
+			MetricBackends: map[string]storageconfig.MetricBackend{
+				"elasticsearch": {
+					Elasticsearch: &escfg.Configuration{
+						Servers:  []string{mockServer.URL},
+						LogLevel: "error",
+						Authentication: escfg.Authentication{
+							Config: configauth.Config{
+								AuthenticatorID: component.MustNewID("nonexistent"),
+							},
 						},
 					},
 				},
@@ -1036,14 +1090,16 @@ func TestOpenSearchMetricsWithInvalidAuthenticator(t *testing.T) {
 	mockServer := setupMockServer(t, getVersionResponse(t), http.StatusOK)
 
 	config := &Config{
-		MetricBackends: map[string]MetricBackend{
-			"opensearch": {
-				Opensearch: &escfg.Configuration{
-					Servers:  []string{mockServer.URL},
-					LogLevel: "error",
-					Authentication: escfg.Authentication{
-						Config: configauth.Config{
-							AuthenticatorID: component.MustNewID("nonexistent"),
+		Config: storageconfig.Config{
+			MetricBackends: map[string]storageconfig.MetricBackend{
+				"opensearch": {
+					Opensearch: &escfg.Configuration{
+						Servers:  []string{mockServer.URL},
+						LogLevel: "error",
+						Authentication: escfg.Authentication{
+							Config: configauth.Config{
+								AuthenticatorID: component.MustNewID("nonexistent"),
+							},
 						},
 					},
 				},

@@ -40,8 +40,10 @@ func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
 			TelemetrySettings: telemetrySettings,
 		},
 		&jaegerstorage.Config{
-			TraceBackends: map[string]storageconfig.TraceBackend{
-				memstoreName: {Memory: &memory.Configuration{MaxTraces: 10000}},
+			Config: storageconfig.Config{
+				TraceBackends: map[string]storageconfig.TraceBackend{
+					memstoreName: {Memory: &memory.Configuration{MaxTraces: 10000}},
+				},
 			},
 		},
 	)
