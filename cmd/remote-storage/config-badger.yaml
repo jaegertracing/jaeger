@@ -2,7 +2,9 @@
 
 # Server configuration
 grpc:
-  host-port: :17271  # gRPC endpoint for remote storage API
+  # Host:Port to listen on
+  endpoint: :17271
+
 
 # Storage configuration - Badger backend
 storage:

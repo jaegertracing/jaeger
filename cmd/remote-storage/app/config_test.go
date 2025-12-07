@@ -24,7 +24,7 @@ func TestLoadConfigFromViper(t *testing.T) {
 			name: "valid memory backend",
 			yamlConfig: `
 grpc:
-  host-port: :17271
+  endpoint: :17271
 storage:
   backends:
     default-storage:
@@ -44,7 +44,7 @@ storage:
 			name: "valid badger backend",
 			yamlConfig: `
 grpc:
-  host-port: :17272
+  endpoint: :17272
 storage:
   backends:
     badger-storage:
@@ -66,7 +66,7 @@ storage:
 			name: "missing storage backend",
 			yamlConfig: `
 grpc:
-  host-port: :17271
+  endpoint: :17271
 storage:
   backends: {}
 `,
@@ -76,7 +76,7 @@ storage:
 			name: "empty backend configuration",
 			yamlConfig: `
 grpc:
-  host-port: :17271
+  endpoint: :17271
 storage:
   backends:
     empty-storage: {}
@@ -87,7 +87,7 @@ storage:
 			name: "multiple backends should fail",
 			yamlConfig: `
 grpc:
-  host-port: :17271
+  endpoint: :17271
 storage:
   backends:
     memory-storage:
@@ -103,7 +103,7 @@ storage:
 			name: "with multi-tenancy enabled",
 			yamlConfig: `
 grpc:
-  host-port: :17271
+  endpoint: :17271
 multi_tenancy:
   enabled: true
   header: x-tenant

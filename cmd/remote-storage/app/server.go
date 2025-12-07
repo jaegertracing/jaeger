@@ -61,6 +61,10 @@ func NewServer(
 		return nil, err
 	}
 
+	// This is required because we are using the config to start the server.
+	// If the config is created manually (e.g. in tests), the transport might not be set.
+	cfg.GRPC.NetAddr.Transport = confignet.TransportTypeTCP
+
 	handler, err := createGRPCHandler(reader, writer, depReader)
 	if err != nil {
 		return nil, err
