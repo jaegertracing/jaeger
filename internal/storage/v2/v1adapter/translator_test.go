@@ -235,7 +235,7 @@ func TestV1TracesFromSeq2(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actualTraces, err := V1TracesFromSeq2(tc.seqTrace)
+			actualTraces, err := V1TracesFromSeq2(tc.seqTrace, 0)
 			require.Equal(t, tc.expectedErr, err)
 			require.Len(t, actualTraces, len(tc.expectedModelTraces))
 			if len(tc.expectedModelTraces) < 1 {
@@ -346,6 +346,227 @@ func TestV1TraceIDsFromSeq2(t *testing.T) {
 			actualIDs, err := V1TraceIDsFromSeq2(tc.seqTraceIDs)
 			require.Equal(t, tc.expectedError, err)
 			require.Equal(t, tc.expectedIDs, actualIDs)
+		})
+	}
+}
+
+func TestV1TracesFromSeq2WithLimit(t *testing.T) {
+	// Test the max trace size functionality
+	var (
+		processNoServiceName = "OTLPResourceNoServiceName"
+		startTime            = time.Unix(0, 0) // 1970-01-01T00:00:00Z, matches the default for otel span's start time
+	)
+
+	testCases := []struct {
+		name                string
+		maxTraceSize        int
+		expectedModelTraces []*model.Trace
+		seqTrace            iter.Seq2[[]ptrace.Traces, error]
+		expectedErr         error
+	}{
+		{
+			name:         "truncation in single chunk",
+			maxTraceSize: 2,
+			expectedModelTraces: []*model.Trace{
+				{
+					Spans: []*model.Span{
+						{
+							TraceID:       model.NewTraceID(2, 3),
+							SpanID:        model.NewSpanID(1),
+							OperationName: "op-success-a",
+							Process:       model.NewProcess(processNoServiceName, make([]model.KeyValue, 0)),
+							StartTime:     startTime,
+						},
+						{
+							TraceID:       model.NewTraceID(2, 3),
+							SpanID:        model.NewSpanID(2),
+							OperationName: "op-success-b",
+							Process:       model.NewProcess(processNoServiceName, make([]model.KeyValue, 0)),
+							StartTime:     startTime,
+						},
+					},
+				},
+			},
+			seqTrace: func(yield func([]ptrace.Traces, error) bool) {
+				testTrace := ptrace.NewTraces()
+				rSpans := testTrace.ResourceSpans().AppendEmpty()
+				sSpans := rSpans.ScopeSpans().AppendEmpty()
+				spans := sSpans.Spans()
+
+				modelTraceID := model.NewTraceID(2, 3)
+				// Add 3 spans but limit is 2
+				for i := 1; i <= 3; i++ {
+					span := spans.AppendEmpty()
+					span.SetTraceID(FromV1TraceID(modelTraceID))
+					span.SetName("op-success-" + string(rune('a'+i-1)))
+					span.SetSpanID(FromV1SpanID(model.NewSpanID(uint64(i))))
+				}
+
+				yield([]ptrace.Traces{testTrace}, nil)
+			},
+			expectedErr: nil,
+		},
+		{
+			name:         "truncation across chunks",
+			maxTraceSize: 2,
+			expectedModelTraces: []*model.Trace{
+				{
+					Spans: []*model.Span{
+						{
+							TraceID:       model.NewTraceID(2, 3),
+							SpanID:        model.NewSpanID(1),
+							OperationName: "op-chunk1-a",
+							Process:       model.NewProcess(processNoServiceName, make([]model.KeyValue, 0)),
+							StartTime:     startTime,
+						},
+						{
+							TraceID:       model.NewTraceID(2, 3),
+							SpanID:        model.NewSpanID(2),
+							OperationName: "op-chunk1-b",
+							Process:       model.NewProcess(processNoServiceName, make([]model.KeyValue, 0)),
+							StartTime:     startTime,
+						},
+					},
+				},
+			},
+			seqTrace: func(yield func([]ptrace.Traces, error) bool) {
+				// First chunk with 1 span
+				traceChunk1 := ptrace.NewTraces()
+				rSpans1 := traceChunk1.ResourceSpans().AppendEmpty()
+				sSpans1 := rSpans1.ScopeSpans().AppendEmpty()
+				spans1 := sSpans1.Spans()
+				modelTraceID := model.NewTraceID(2, 3)
+				span1 := spans1.AppendEmpty()
+				span1.SetTraceID(FromV1TraceID(modelTraceID))
+				span1.SetName("op-chunk1-a")
+				span1.SetSpanID(FromV1SpanID(model.NewSpanID(1)))
+
+				// Second chunk with 2 spans (total would be 3, but limit is 2)
+				traceChunk2 := ptrace.NewTraces()
+				rSpans2 := traceChunk2.ResourceSpans().AppendEmpty()
+				sSpans2 := rSpans2.ScopeSpans().AppendEmpty()
+				spans2 := sSpans2.Spans()
+				span2 := spans2.AppendEmpty()
+				span2.SetTraceID(FromV1TraceID(modelTraceID))
+				span2.SetName("op-chunk1-b")
+				span2.SetSpanID(FromV1SpanID(model.NewSpanID(2)))
+				span3 := spans2.AppendEmpty()
+				span3.SetTraceID(FromV1TraceID(modelTraceID))
+				span3.SetName("op-chunk1-c")
+				span3.SetSpanID(FromV1SpanID(model.NewSpanID(3)))
+
+				yield([]ptrace.Traces{traceChunk1}, nil)
+				yield([]ptrace.Traces{traceChunk2}, nil)
+			},
+			expectedErr: nil,
+		},
+		{
+			name:         "multiple traces - one exceeds limit, others should be processed",
+			maxTraceSize: 2,
+			expectedModelTraces: []*model.Trace{
+				{
+					Spans: []*model.Span{
+						{
+							TraceID:       model.NewTraceID(1, 1),
+							SpanID:        model.NewSpanID(1),
+							OperationName: "op-trace1-span1",
+							Process:       model.NewProcess(processNoServiceName, make([]model.KeyValue, 0)),
+							StartTime:     startTime,
+						},
+						{
+							TraceID:       model.NewTraceID(1, 1),
+							SpanID:        model.NewSpanID(2),
+							OperationName: "op-trace1-span2",
+							Process:       model.NewProcess(processNoServiceName, make([]model.KeyValue, 0)),
+							StartTime:     startTime,
+						},
+					},
+				},
+				{
+					Spans: []*model.Span{
+						{
+							TraceID:       model.NewTraceID(2, 2),
+							SpanID:        model.NewSpanID(3),
+							OperationName: "op-trace2-span1",
+							Process:       model.NewProcess(processNoServiceName, make([]model.KeyValue, 0)),
+							StartTime:     startTime,
+						},
+						{
+							TraceID:       model.NewTraceID(2, 2),
+							SpanID:        model.NewSpanID(4),
+							OperationName: "op-trace2-span2",
+							Process:       model.NewProcess(processNoServiceName, make([]model.KeyValue, 0)),
+							StartTime:     startTime,
+						},
+					},
+				},
+			},
+			seqTrace: func(yield func([]ptrace.Traces, error) bool) {
+				// First trace: 3 spans (exceeds limit of 2)
+				trace1 := ptrace.NewTraces()
+				rSpans1 := trace1.ResourceSpans().AppendEmpty()
+				sSpans1 := rSpans1.ScopeSpans().AppendEmpty()
+				spans1 := sSpans1.Spans()
+
+				modelTraceID1 := model.NewTraceID(1, 1)
+				span1 := spans1.AppendEmpty()
+				span1.SetTraceID(FromV1TraceID(modelTraceID1))
+				span1.SetName("op-trace1-span1")
+				span1.SetSpanID(FromV1SpanID(model.NewSpanID(1)))
+
+				span2 := spans1.AppendEmpty()
+				span2.SetTraceID(FromV1TraceID(modelTraceID1))
+				span2.SetName("op-trace1-span2")
+				span2.SetSpanID(FromV1SpanID(model.NewSpanID(2)))
+
+				span3 := spans1.AppendEmpty()
+				span3.SetTraceID(FromV1TraceID(modelTraceID1))
+				span3.SetName("op-trace1-span3")
+				span3.SetSpanID(FromV1SpanID(model.NewSpanID(3)))
+
+				// Second trace: 2 spans (within limit)
+				trace2 := ptrace.NewTraces()
+				rSpans2 := trace2.ResourceSpans().AppendEmpty()
+				sSpans2 := rSpans2.ScopeSpans().AppendEmpty()
+				spans2 := sSpans2.Spans()
+
+				modelTraceID2 := model.NewTraceID(2, 2)
+				span4 := spans2.AppendEmpty()
+				span4.SetTraceID(FromV1TraceID(modelTraceID2))
+				span4.SetName("op-trace2-span1")
+				span4.SetSpanID(FromV1SpanID(model.NewSpanID(4)))
+
+				span5 := spans2.AppendEmpty()
+				span5.SetTraceID(FromV1TraceID(modelTraceID2))
+				span5.SetName("op-trace2-span2")
+				span5.SetSpanID(FromV1SpanID(model.NewSpanID(5)))
+
+				// Yield both traces in sequence
+				yield([]ptrace.Traces{trace1}, nil)
+				yield([]ptrace.Traces{trace2}, nil)
+			},
+			expectedErr: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			actualTraces, err := V1TracesFromSeq2(tc.seqTrace, tc.maxTraceSize)
+			require.Equal(t, tc.expectedErr, err)
+			require.Len(t, actualTraces, len(tc.expectedModelTraces))
+			if len(tc.expectedModelTraces) < 1 {
+				return
+			}
+			for i, etrace := range tc.expectedModelTraces {
+				eSpans := etrace.Spans
+				aSpans := actualTraces[i].Spans
+				require.Len(t, aSpans, len(eSpans))
+				for j, espan := range eSpans {
+					assert.Equal(t, espan.TraceID, aSpans[j].TraceID)
+					assert.Equal(t, espan.OperationName, aSpans[j].OperationName)
+					assert.Equal(t, espan.Process, aSpans[j].Process)
+				}
+			}
 		})
 	}
 }

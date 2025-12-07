@@ -44,7 +44,13 @@ func V1BatchesToTraces(batches []*model.Batch) ptrace.Traces {
 }
 
 // V1TracesFromSeq2 converts an interator of ptrace.Traces chunks into v1 traces.
-func V1TracesFromSeq2(otelSeq iter.Seq2[[]ptrace.Traces, error]) ([]*model.Trace, error) {
+// If maxTraceSize > 0, traces exceeding that number of spans will be truncated.
+func V1TracesFromSeq2(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize int) ([]*model.Trace, error) {
+	// Apply size limiting if needed
+	if maxTraceSize > 0 {
+		otelSeq = applyTraceSizeLimit(otelSeq, maxTraceSize)
+	}
+
 	var (
 		jaegerTraces []*model.Trace
 		iterErr      error
@@ -61,6 +67,106 @@ func V1TracesFromSeq2(otelSeq iter.Seq2[[]ptrace.Traces, error]) ([]*model.Trace
 		return nil, iterErr
 	}
 	return jaegerTraces, nil
+}
+
+// applyTraceSizeLimit applies a per-trace span budget while consuming the iterator.
+// Once the budget is reached for a logical trace, remaining chunks of that trace are not yielded,
+// and if the current chunk exceeds the remaining budget it is truncated to the exact number of remaining spans.
+func applyTraceSizeLimit(otelSeq iter.Seq2[[]ptrace.Traces, error], maxTraceSize int) iter.Seq2[[]ptrace.Traces, error] {
+	return func(yield func([]ptrace.Traces, error) bool) {
+		spansProcessed := 0
+		currentTraceID := pcommon.NewTraceIDEmpty()
+		truncated := false
+
+		otelSeq(func(traces []ptrace.Traces, err error) bool {
+			if err != nil {
+				return yield(nil, err)
+			}
+
+			limited := make([]ptrace.Traces, 0, len(traces))
+			for _, tr := range traces {
+				// Single-pass: extract trace ID and count spans in one iteration
+				tid, spanCount := extractTraceIDAndCount(tr)
+				if tid != (pcommon.TraceID{}) && tid != currentTraceID {
+					currentTraceID = tid
+					spansProcessed = 0
+					truncated = false
+				}
+
+				if truncated {
+					// already reached limit for this trace; skip this trace
+					continue
+				}
+
+				if spansProcessed+spanCount > maxTraceSize {
+					remaining := maxTraceSize - spansProcessed
+					if remaining > 0 {
+						limited = append(limited, truncateTraceToLimit(tr, remaining))
+						spansProcessed += remaining
+					}
+					truncated = true
+					// Continue to next trace in the same batch
+					continue
+				}
+
+				limited = append(limited, tr)
+				spansProcessed += spanCount
+			}
+
+			if len(limited) > 0 {
+				if !yield(limited, nil) {
+					return false
+				}
+			}
+			return true // Always continue to process more batches
+		})
+	}
+}
+
+// extractTraceIDAndCount extracts the first trace ID and counts spans in a single pass.
+func extractTraceIDAndCount(tr ptrace.Traces) (pcommon.TraceID, int) {
+	tid := pcommon.NewTraceIDEmpty()
+	count := 0
+	rs := tr.ResourceSpans()
+	for i := 0; i < rs.Len(); i++ {
+		ss := rs.At(i).ScopeSpans()
+		for j := 0; j < ss.Len(); j++ {
+			spans := ss.At(j).Spans()
+			for k := 0; k < spans.Len(); k++ {
+				if tid == (pcommon.TraceID{}) {
+					tid = spans.At(k).TraceID()
+				}
+				count++
+			}
+		}
+	}
+	return tid, count
+}
+
+// truncateTraceToLimit returns a new ptrace.Traces containing at most remaining spans, preserving
+// resource and scope attributes for included spans only.
+func truncateTraceToLimit(tr ptrace.Traces, remaining int) ptrace.Traces {
+	out := ptrace.NewTraces()
+	rs := tr.ResourceSpans()
+	copied := 0
+	for i := 0; i < rs.Len() && copied < remaining; i++ {
+		inRes := rs.At(i)
+		outRes := out.ResourceSpans().AppendEmpty()
+		inRes.Resource().CopyTo(outRes.Resource())
+		ss := inRes.ScopeSpans()
+		for j := 0; j < ss.Len() && copied < remaining; j++ {
+			inScope := ss.At(j)
+			outScope := outRes.ScopeSpans().AppendEmpty()
+			inScope.Scope().CopyTo(outScope.Scope())
+			spans := inScope.Spans()
+			for k := 0; k < spans.Len() && copied < remaining; k++ {
+				span := spans.At(k)
+				span.CopyTo(outScope.Spans().AppendEmpty())
+				copied++
+			}
+		}
+	}
+	return out
 }
 
 func V1TraceIDsFromSeq2(traceIDsIter iter.Seq2[[]tracestore.FoundTraceID, error]) ([]model.TraceID, error) {
