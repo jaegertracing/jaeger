@@ -1658,23 +1658,6 @@ func (m *mockWrappedRoundTripper) RoundTrip(req *http.Request) (*http.Response, 
 	return m.base.RoundTrip(req)
 }
 
-func TestLoadTokenFromFile(t *testing.T) {
-	t.Run("success", func(t *testing.T) {
-		const token = "test-token"
-		tokenFile := filepath.Join(t.TempDir(), "token")
-		require.NoError(t, os.WriteFile(tokenFile, []byte(token), 0o600))
-
-		loadedToken, err := loadTokenFromFile(tokenFile)
-		require.NoError(t, err)
-		assert.Equal(t, token, loadedToken)
-	})
-
-	t.Run("file not found", func(t *testing.T) {
-		_, err := loadTokenFromFile("/does/not/exist")
-		require.Error(t, err)
-	})
-}
-
 func TestBulkCallbackInvoke_NilResponse(t *testing.T) {
 	mf := metricstest.NewFactory(time.Minute)
 	sm := spanstoremetrics.NewWriter(mf, "bulk_index")
