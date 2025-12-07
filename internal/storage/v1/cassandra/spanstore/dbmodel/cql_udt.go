@@ -29,44 +29,44 @@ func (t *TraceID) UnmarshalCQL(_ gocql.TypeInfo, data []byte) error {
 }
 
 // MarshalUDT handles marshalling a Tag.
-func (t *KeyValue) MarshalUDT(name string, info gocql.TypeInfo) ([]byte, error) {
+func (kv *KeyValue) MarshalUDT(name string, info gocql.TypeInfo) ([]byte, error) {
 	switch name {
 	case "key":
-		return gocql.Marshal(info, t.Key)
+		return gocql.Marshal(info, kv.Key)
 	case "value_type":
-		return gocql.Marshal(info, t.ValueType)
+		return gocql.Marshal(info, kv.ValueType)
 	case "value_string":
-		return gocql.Marshal(info, t.ValueString)
+		return gocql.Marshal(info, kv.ValueString)
 	case "value_bool":
-		return gocql.Marshal(info, t.ValueBool)
+		return gocql.Marshal(info, kv.ValueBool)
 	case "value_long":
-		return gocql.Marshal(info, t.ValueInt64)
+		return gocql.Marshal(info, kv.ValueInt64)
 	case "value_double":
-		return gocql.Marshal(info, t.ValueFloat64)
+		return gocql.Marshal(info, kv.ValueFloat64)
 	case "value_binary":
-		return gocql.Marshal(info, t.ValueBinary)
+		return gocql.Marshal(info, kv.ValueBinary)
 	default:
 		return nil, fmt.Errorf("unknown column for position: %q", name)
 	}
 }
 
 // UnmarshalUDT handles unmarshalling a Tag.
-func (t *KeyValue) UnmarshalUDT(name string, info gocql.TypeInfo, data []byte) error {
+func (kv *KeyValue) UnmarshalUDT(name string, info gocql.TypeInfo, data []byte) error {
 	switch name {
 	case "key":
-		return gocql.Unmarshal(info, data, &t.Key)
+		return gocql.Unmarshal(info, data, &kv.Key)
 	case "value_type":
-		return gocql.Unmarshal(info, data, &t.ValueType)
+		return gocql.Unmarshal(info, data, &kv.ValueType)
 	case "value_string":
-		return gocql.Unmarshal(info, data, &t.ValueString)
+		return gocql.Unmarshal(info, data, &kv.ValueString)
 	case "value_bool":
-		return gocql.Unmarshal(info, data, &t.ValueBool)
+		return gocql.Unmarshal(info, data, &kv.ValueBool)
 	case "value_long":
-		return gocql.Unmarshal(info, data, &t.ValueInt64)
+		return gocql.Unmarshal(info, data, &kv.ValueInt64)
 	case "value_double":
-		return gocql.Unmarshal(info, data, &t.ValueFloat64)
+		return gocql.Unmarshal(info, data, &kv.ValueFloat64)
 	case "value_binary":
-		return gocql.Unmarshal(info, data, &t.ValueBinary)
+		return gocql.Unmarshal(info, data, &kv.ValueBinary)
 	default:
 		return fmt.Errorf("unknown column for position: %q", name)
 	}

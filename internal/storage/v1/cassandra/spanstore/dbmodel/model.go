@@ -7,6 +7,9 @@ package dbmodel
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
+	"sort"
+	"strconv"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
@@ -51,6 +54,138 @@ type KeyValue struct {
 	ValueInt64   int64   `cql:"value_long"`   // using more natural column name for Cassandra
 	ValueFloat64 float64 `cql:"value_double"` // using more natural column name for Cassandra
 	ValueBinary  []byte  `cql:"value_binary"`
+}
+
+func (kv *KeyValue) Compare(that any) int {
+	if that == nil {
+		if kv == nil {
+			return 0
+		}
+		return 1
+	}
+	that1, ok := that.(*KeyValue)
+	if !ok {
+		that2, ok := that.(KeyValue)
+		if !ok {
+			return 1
+		}
+		that1 = &that2
+	}
+	if that1 == nil {
+		if kv == nil {
+			return 0
+		}
+		return 1
+	} else if kv == nil {
+		return -1
+	}
+	if kv.Key != that1.Key {
+		if kv.Key < that1.Key {
+			return -1
+		}
+		return 1
+	}
+	if kv.ValueType != that1.ValueType {
+		if kv.ValueType < that1.ValueType {
+			return -1
+		}
+		return 1
+	}
+	if kv.ValueString != that1.ValueString {
+		if kv.ValueString < that1.ValueString {
+			return -1
+		}
+		return 1
+	}
+	if kv.ValueBool != that1.ValueBool {
+		if !kv.ValueBool {
+			return -1
+		}
+		return 1
+	}
+	if kv.ValueInt64 != that1.ValueInt64 {
+		if kv.ValueInt64 < that1.ValueInt64 {
+			return -1
+		}
+		return 1
+	}
+	if kv.ValueFloat64 != that1.ValueFloat64 {
+		if kv.ValueFloat64 < that1.ValueFloat64 {
+			return -1
+		}
+		return 1
+	}
+	if c := bytes.Compare(kv.ValueBinary, that1.ValueBinary); c != 0 {
+		return c
+	}
+	return 0
+}
+
+func (kv *KeyValue) Equal(that any) bool {
+	if that == nil {
+		return kv == nil
+	}
+	that1, ok := that.(*KeyValue)
+	if !ok {
+		that2, ok := that.(KeyValue)
+		if !ok {
+			return false
+		}
+		that1 = &that2
+	}
+	if that1 == nil {
+		return kv == nil
+	} else if kv == nil {
+		return false
+	}
+	if kv.Key != that1.Key {
+		return false
+	}
+	if kv.ValueType != that1.ValueType {
+		return false
+	}
+	if kv.ValueString != that1.ValueString {
+		return false
+	}
+	if kv.ValueBool != that1.ValueBool {
+		return false
+	}
+	if kv.ValueInt64 != that1.ValueInt64 {
+		return false
+	}
+	if kv.ValueFloat64 != that1.ValueFloat64 {
+		return false
+	}
+	if !bytes.Equal(kv.ValueBinary, that1.ValueBinary) {
+		return false
+	}
+	return true
+}
+
+func (kv *KeyValue) AsString() string {
+	switch kv.ValueType {
+	case stringType:
+		return kv.ValueString
+	case boolType:
+		if kv.ValueBool {
+			return "true"
+		}
+		return "false"
+	case int64Type:
+		return strconv.FormatInt(kv.ValueInt64, 10)
+	case float64Type:
+		return strconv.FormatFloat(kv.ValueFloat64, 'g', 10, 64)
+	case binaryType:
+		return hex.EncodeToString(kv.ValueBinary)
+	default:
+		return "unknown type " + kv.ValueType
+	}
+}
+
+func SortKVs(kvs []KeyValue) {
+	sort.Slice(kvs, func(i, j int) bool {
+		return kvs[i].Compare(kvs[j]) < 0
+	})
 }
 
 // Log is the UDT representation of a Jaeger Log.

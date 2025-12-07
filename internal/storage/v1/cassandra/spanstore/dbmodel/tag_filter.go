@@ -4,15 +4,11 @@
 
 package dbmodel
 
-import (
-	"github.com/jaegertracing/jaeger-idl/model/v1"
-)
-
 // TagFilter filters out any tags that should not be indexed.
 type TagFilter interface {
-	FilterProcessTags(span *model.Span, processTags model.KeyValues) model.KeyValues
-	FilterTags(span *model.Span, tags model.KeyValues) model.KeyValues
-	FilterLogFields(span *model.Span, logFields model.KeyValues) model.KeyValues
+	FilterProcessTags(span *Span, processTags []KeyValue) []KeyValue
+	FilterTags(span *Span, tags []KeyValue) []KeyValue
+	FilterLogFields(span *Span, logFields []KeyValue) []KeyValue
 }
 
 // ChainedTagFilter applies multiple tag filters in serial fashion.
@@ -24,7 +20,7 @@ func NewChainedTagFilter(filters ...TagFilter) ChainedTagFilter {
 }
 
 // FilterProcessTags calls each FilterProcessTags.
-func (tf ChainedTagFilter) FilterProcessTags(span *model.Span, processTags model.KeyValues) model.KeyValues {
+func (tf ChainedTagFilter) FilterProcessTags(span *Span, processTags []KeyValue) []KeyValue {
 	for _, f := range tf {
 		processTags = f.FilterProcessTags(span, processTags)
 	}
@@ -32,7 +28,7 @@ func (tf ChainedTagFilter) FilterProcessTags(span *model.Span, processTags model
 }
 
 // FilterTags calls each FilterTags
-func (tf ChainedTagFilter) FilterTags(span *model.Span, tags model.KeyValues) model.KeyValues {
+func (tf ChainedTagFilter) FilterTags(span *Span, tags []KeyValue) []KeyValue {
 	for _, f := range tf {
 		tags = f.FilterTags(span, tags)
 	}
@@ -40,7 +36,7 @@ func (tf ChainedTagFilter) FilterTags(span *model.Span, tags model.KeyValues) mo
 }
 
 // FilterLogFields calls each FilterLogFields
-func (tf ChainedTagFilter) FilterLogFields(span *model.Span, logFields model.KeyValues) model.KeyValues {
+func (tf ChainedTagFilter) FilterLogFields(span *Span, logFields []KeyValue) []KeyValue {
 	for _, f := range tf {
 		logFields = f.FilterLogFields(span, logFields)
 	}
@@ -52,14 +48,14 @@ var DefaultTagFilter = tagFilterImpl{}
 
 type tagFilterImpl struct{}
 
-func (tagFilterImpl) FilterProcessTags(_ *model.Span, processTags model.KeyValues) model.KeyValues {
+func (tagFilterImpl) FilterProcessTags(_ *Span, processTags []KeyValue) []KeyValue {
 	return processTags
 }
 
-func (tagFilterImpl) FilterTags(_ *model.Span, tags model.KeyValues) model.KeyValues {
+func (tagFilterImpl) FilterTags(_ *Span, tags []KeyValue) []KeyValue {
 	return tags
 }
 
-func (tagFilterImpl) FilterLogFields(_ *model.Span, logFields model.KeyValues) model.KeyValues {
+func (tagFilterImpl) FilterLogFields(_ *Span, logFields []KeyValue) []KeyValue {
 	return logFields
 }
