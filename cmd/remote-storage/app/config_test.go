@@ -153,8 +153,7 @@ storage:
 			cfg, err := LoadConfigFromViper(v)
 
 			if tt.expectError != "" {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectError)
+				require.Contains(t, err.Error(), tt.expectError)
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, cfg)
