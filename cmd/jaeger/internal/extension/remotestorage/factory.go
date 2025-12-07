@@ -11,7 +11,6 @@ import (
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/extension"
 
-	"github.com/jaegertracing/jaeger/cmd/remote-storage/app"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -32,12 +31,10 @@ func NewFactory() extension.Factory {
 
 func createDefaultConfig() component.Config {
 	return &Config{
-		Config: app.Config{
-			GRPC: configgrpc.ServerConfig{
-				NetAddr: confignet.AddrConfig{
-					Endpoint:  ports.PortToHostPort(ports.RemoteStorageGRPC),
-					Transport: confignet.TransportTypeTCP,
-				},
+		ServerConfig: configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  ports.PortToHostPort(ports.RemoteStorageGRPC),
+				Transport: confignet.TransportTypeTCP,
 			},
 		},
 	}

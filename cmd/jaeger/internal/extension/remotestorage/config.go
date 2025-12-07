@@ -5,13 +5,15 @@ package remotestorage
 
 import (
 	"github.com/asaskevich/govalidator"
+	"go.opentelemetry.io/collector/config/configgrpc"
 
-	"github.com/jaegertracing/jaeger/cmd/remote-storage/app"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 type Config struct {
-	app.Config `mapstructure:",squash"`
-	Storage     string `mapstructure:"storage" valid:"required"`
+	configgrpc.ServerConfig `mapstructure:",squash"`
+	Tenancy                 tenancy.Options `mapstructure:"multi_tenancy"`
+	Storage                 string          `mapstructure:"storage" valid:"required"`
 }
 
 func (cfg *Config) Validate() error {

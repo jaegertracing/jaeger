@@ -32,7 +32,7 @@ import (
 
 // Server runs a gRPC server
 type Server struct {
-	cfg        Config
+	grpcCfg    configgrpc.ServerConfig
 	grpcConn   net.Listener
 	grpcServer *grpc.Server
 	stopped    sync.WaitGroup
@@ -42,7 +42,7 @@ type Server struct {
 // NewServer creates and initializes Server.
 func NewServer(
 	ctx context.Context,
-	cfg Config,
+	grpcCfg configgrpc.ServerConfig,
 	ts tracestore.Factory,
 	ds depstore.Factory,
 	tm *tenancy.Manager,
@@ -63,7 +63,7 @@ func NewServer(
 
 	// This is required because we are using the config to start the server.
 	// If the config is created manually (e.g. in tests), the transport might not be set.
-	cfg.GRPC.NetAddr.Transport = confignet.TransportTypeTCP
+	grpcCfg.NetAddr.Transport = confignet.TransportTypeTCP
 
 	handler, err := createGRPCHandler(reader, writer, depReader)
 	if err != nil {
@@ -72,13 +72,13 @@ func NewServer(
 
 	v2Handler := grpcstorage.NewHandler(reader, writer, depReader)
 
-	grpcServer, err := createGRPCServer(ctx, cfg.GRPC, tm, handler, v2Handler, telset)
+	grpcServer, err := createGRPCServer(ctx, grpcCfg, tm, handler, v2Handler, telset)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Server{
-		cfg:        cfg,
+		grpcCfg:    grpcCfg,
 		grpcServer: grpcServer,
 		telset:     telset,
 	}, nil
@@ -146,7 +146,7 @@ func createGRPCServer(
 // Start gRPC server concurrently
 func (s *Server) Start(ctx context.Context) error {
 	var err error
-	s.grpcConn, err = s.cfg.GRPC.NetAddr.Listen(ctx)
+	s.grpcConn, err = s.grpcCfg.NetAddr.Listen(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to listen on gRPC port: %w", err)
 	}
