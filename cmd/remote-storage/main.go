@@ -111,7 +111,7 @@ func main() {
 			// Create and start server
 			server, err := app.NewServer(
 				context.Background(),
-				*&cfg.GRPC,
+				cfg.GRPC,
 				traceFactory,
 				depFactory,
 				tm,
