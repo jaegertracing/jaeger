@@ -17,7 +17,7 @@ Configure remote-storage using a YAML configuration file with the `--config-file
 ```yaml
 # Server configuration
 grpc:
-  host-port: :17271  # gRPC endpoint for remote storage API
+  endpoint: :17271  # gRPC endpoint for remote storage API
 
 # Storage configuration
 storage:
@@ -33,7 +33,7 @@ multi_tenancy:
 
 #### Storage Backends
 
-The storage configuration follows the same format as the `jaeger_storage` extension in Jaeger v2. Supported backends include:
+The storage configuration follows the same format as the `jaeger_storage` extension in Jaeger v2. All official backends are supported.
 
 ##### Memory Storage
 ```yaml
