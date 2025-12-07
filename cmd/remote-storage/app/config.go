@@ -17,8 +17,8 @@ import (
 
 // Config represents the configuration for remote-storage service.
 type Config struct {
-	GRPC    GRPCConfig      `mapstructure:"grpc"`
-	Tenancy tenancy.Options `mapstructure:"multi_tenancy"`
+	GRPC    configgrpc.ServerConfig `mapstructure:"grpc"`
+	Tenancy tenancy.Options         `mapstructure:"multi_tenancy"`
 	// This configuration is the same as of the main `jaeger` binary,
 	// but only one backend should be defined.
 	Storage storageconfig.Config `mapstructure:"storage"`
@@ -27,18 +27,6 @@ type Config struct {
 // GRPCConfig holds gRPC server configuration.
 type GRPCConfig struct {
 	HostPort string `mapstructure:"host-port"`
-}
-
-// GetServerOptions returns Options for the server from the configuration.
-func (c *Config) GetServerOptions() *Options {
-	return &Options{
-		ServerConfig: configgrpc.ServerConfig{
-			NetAddr: confignet.AddrConfig{
-				Endpoint: c.GRPC.HostPort,
-			},
-		},
-		Tenancy: c.Tenancy,
-	}
 }
 
 // LoadConfigFromViper loads the configuration from Viper.
@@ -86,8 +74,11 @@ func (c *Config) GetStorageName() string {
 // This is used when no configuration file is provided.
 func DefaultConfig() *Config {
 	return &Config{
-		GRPC: GRPCConfig{
-			HostPort: ":17271",
+		GRPC: configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  ":17271",
+				Transport: confignet.TransportTypeTCP,
+			},
 		},
 		Storage: storageconfig.Config{
 			TraceBackends: map[string]storageconfig.TraceBackend{

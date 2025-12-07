@@ -33,7 +33,7 @@ storage:
 `,
 			expectError: false,
 			validate: func(t *testing.T, cfg *Config) {
-				assert.Equal(t, ":17271", cfg.GRPC.HostPort)
+				assert.Equal(t, ":17271", cfg.GRPC.NetAddr.Endpoint)
 				assert.Len(t, cfg.Storage.TraceBackends, 1)
 				assert.NotNil(t, cfg.Storage.TraceBackends["default-storage"].Memory)
 				assert.Equal(t, 50000, cfg.Storage.TraceBackends["default-storage"].Memory.MaxTraces)
@@ -56,7 +56,7 @@ storage:
 `,
 			expectError: false,
 			validate: func(t *testing.T, cfg *Config) {
-				assert.Equal(t, ":17272", cfg.GRPC.HostPort)
+				assert.Equal(t, ":17272", cfg.GRPC.NetAddr.Endpoint)
 				assert.Len(t, cfg.Storage.TraceBackends, 1)
 				assert.NotNil(t, cfg.Storage.TraceBackends["badger-storage"].Badger)
 				assert.Equal(t, "badger-storage", cfg.GetStorageName())

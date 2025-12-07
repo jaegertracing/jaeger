@@ -36,22 +36,13 @@ const serviceName = "jaeger-remote-storage"
 
 // loadConfig loads configuration from viper, or returns default configuration if no config file is provided.
 func loadConfig(v *viper.Viper, logger *zap.Logger) (*app.Config, error) {
-	// Try to load from viper first
-	cfg, err := app.LoadConfigFromViper(v)
-	if err == nil {
-		return cfg, nil
-	}
-
-	// If viper config is not available or invalid, check if we should use defaults
-	configFile := v.ConfigFileUsed()
-	if configFile == "" {
-		// No config file was provided, use defaults
+	// If viper config is not provided, use defaults
+	if v.ConfigFileUsed() == "" {
 		logger.Info("No configuration file provided, using default configuration (memory storage on :17271)")
 		return app.DefaultConfig(), nil
 	}
 
-	// Config file was provided but failed to load
-	return nil, err
+	return app.LoadConfigFromViper(v)
 }
 
 func main() {
@@ -84,8 +75,7 @@ func main() {
 				MeterProvider: noop.NewMeterProvider(),
 			}
 
-			serverOpts := cfg.GetServerOptions()
-			tm := tenancy.NewManager(&serverOpts.Tenancy)
+			tm := tenancy.NewManager(&cfg.Tenancy)
 			telset := baseTelset
 			telset.Metrics = metricsFactory
 
@@ -121,7 +111,7 @@ func main() {
 			// Create and start server
 			server, err := app.NewServer(
 				context.Background(),
-				serverOpts,
+				*cfg,
 				traceFactory,
 				depFactory,
 				tm,
@@ -159,7 +149,6 @@ func main() {
 		v,
 		command,
 		svc.AddFlags,
-		app.AddFlags,
 	)
 
 	if err := command.Execute(); err != nil {

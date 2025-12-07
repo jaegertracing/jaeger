@@ -28,9 +28,6 @@ type Service struct {
 	// AdminPort is the HTTP port number for admin server.
 	AdminPort int
 
-	// NoStorage indicates that storage-type CLI flag is not applicable
-	NoStorage bool
-
 	// Admin is the admin server that hosts the health check and metrics endpoints.
 	Admin *AdminServer
 
@@ -80,11 +77,7 @@ func NewService(adminPort int) *Service {
 // AddFlags registers CLI flags.
 func (s *Service) AddFlags(flagSet *flag.FlagSet) {
 	AddConfigFileFlag(flagSet)
-	if s.NoStorage {
-		AddLoggingFlags(flagSet)
-	} else {
-		AddFlags(flagSet)
-	}
+	AddLoggingFlags(flagSet)
 	metricsbuilder.AddFlags(flagSet)
 	s.Admin.AddFlags(flagSet)
 	featuregate.GlobalRegistry().RegisterFlags(flagSet)

@@ -43,8 +43,8 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 	createServer := func(factory *fakeFactory) (*Server, error) {
 		return NewServer(
 			context.Background(),
-			&Options{
-				ServerConfig: configgrpc.ServerConfig{
+			Config{
+				GRPC: configgrpc.ServerConfig{
 					NetAddr: confignet.AddrConfig{
 						Endpoint: ":0",
 					},
@@ -79,8 +79,8 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 
 func TestServerStart_BadPortErrors(t *testing.T) {
 	srv := &Server{
-		opts: &Options{
-			ServerConfig: configgrpc.ServerConfig{
+		cfg: Config{
+			GRPC: configgrpc.ServerConfig{
 				NetAddr: confignet.AddrConfig{
 					Endpoint: ":-1",
 				},
@@ -140,8 +140,8 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 
 	_, err := NewServer(
 		context.Background(),
-		&Options{
-			ServerConfig: configgrpc.ServerConfig{
+		Config{
+			GRPC: configgrpc.ServerConfig{
 				NetAddr: confignet.AddrConfig{
 					Endpoint: ":8081",
 				},
@@ -352,8 +352,8 @@ func TestServerGRPCTLS(t *testing.T) {
 			if test.TLS != nil {
 				tls = configoptional.Some(*test.TLS)
 			}
-			serverOptions := &Options{
-				ServerConfig: configgrpc.ServerConfig{
+			serverOptions := Config{
+				GRPC: configgrpc.ServerConfig{
 					NetAddr: confignet.AddrConfig{
 						Endpoint: ":0",
 					},
@@ -389,7 +389,7 @@ func TestServerGRPCTLS(t *testing.T) {
 			var clientError error
 			var client *grpcClient
 
-			if serverOptions.TLS.HasValue() {
+			if serverOptions.GRPC.TLS.HasValue() {
 				clientTLSCfg, err0 := test.clientTLS.LoadTLSConfig(context.Background())
 				require.NoError(t, err0)
 				creds := credentials.NewTLS(clientTLSCfg)
@@ -427,9 +427,11 @@ func TestServerHandlesPortZero(t *testing.T) {
 	}
 	server, err := NewServer(
 		context.Background(),
-		&Options{ServerConfig: configgrpc.ServerConfig{
-			NetAddr: confignet.AddrConfig{Endpoint: ":0"},
-		}},
+		Config{
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{Endpoint: ":0"},
+			},
+		},
 		&fakeFactory{},
 		&fakeFactory{},
 		tenancy.NewManager(&tenancy.Options{}),
