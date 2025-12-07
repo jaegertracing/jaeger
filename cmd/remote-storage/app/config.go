@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/collector/config/confignet"
 
 	"github.com/jaegertracing/jaeger/cmd/internal/storageconfig"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
