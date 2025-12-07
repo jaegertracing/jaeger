@@ -19,6 +19,7 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/cmd/internal/storageconfig"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/remotesampling"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
@@ -39,7 +40,7 @@ func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
 			TelemetrySettings: telemetrySettings,
 		},
 		&jaegerstorage.Config{
-			TraceBackends: map[string]jaegerstorage.TraceBackend{
+			TraceBackends: map[string]storageconfig.TraceBackend{
 				memstoreName: {Memory: &memory.Configuration{MaxTraces: 10000}},
 			},
 		},
