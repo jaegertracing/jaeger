@@ -13,6 +13,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/extension/extensionauth"
 	"go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
@@ -24,6 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
@@ -32,6 +35,7 @@ func getTelemetrySettings() telemetry.Settings {
 		Logger:        zap.NewNop(),
 		Metrics:       metrics.NullFactory,
 		MeterProvider: noop.NewMeterProvider(),
+		Host:          componenttest.NewNopHost(),
 	}
 }
 
@@ -107,12 +111,29 @@ func TestCreateTraceStorageFactory_Badger(t *testing.T) {
 }
 
 func TestCreateTraceStorageFactory_GRPC(t *testing.T) {
-	// GRPC factory creation path is tested via jaegerstorage extension tests
-	// because it requires component.Host for proper initialization.
-	// Direct factory creation with GRPC config would cause a panic as the
-	// grpc.NewFactory attempts to initialize connections immediately without a host.
-	// See cmd/jaeger/internal/extension/jaegerstorage/extension_test.go TestGRPC
-	t.Skip("GRPC factory tested via jaegerstorage extension - requires component.Host")
+	backend := TraceBackend{
+		GRPC: &grpc.Config{
+			ClientConfig: configgrpc.ClientConfig{
+				Endpoint: "localhost:12345",
+			},
+		},
+	}
+
+	factory, err := CreateTraceStorageFactory(
+		context.Background(),
+		"grpc-test",
+		backend,
+		getTelemetrySettings(),
+		nil,
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, factory)
+	t.Cleanup(func() {
+		if closer, ok := factory.(io.Closer); ok {
+			require.NoError(t, closer.Close())
+		}
+	})
 }
 
 func TestCreateTraceStorageFactory_Cassandra(t *testing.T) {
