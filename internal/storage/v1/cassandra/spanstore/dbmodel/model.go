@@ -56,9 +56,9 @@ type KeyValue struct {
 	ValueBinary  []byte  `cql:"value_binary"`
 }
 
-func (kv *KeyValue) Compare(that any) int {
+func (t *KeyValue) Compare(that any) int {
 	if that == nil {
-		if kv == nil {
+		if t == nil {
 			return 0
 		}
 		return 1
@@ -72,58 +72,58 @@ func (kv *KeyValue) Compare(that any) int {
 		that1 = &that2
 	}
 	if that1 == nil {
-		if kv == nil {
+		if t == nil {
 			return 0
 		}
 		return 1
-	} else if kv == nil {
+	} else if t == nil {
 		return -1
 	}
-	if kv.Key != that1.Key {
-		if kv.Key < that1.Key {
+	if t.Key != that1.Key {
+		if t.Key < that1.Key {
 			return -1
 		}
 		return 1
 	}
-	if kv.ValueType != that1.ValueType {
-		if kv.ValueType < that1.ValueType {
+	if t.ValueType != that1.ValueType {
+		if t.ValueType < that1.ValueType {
 			return -1
 		}
 		return 1
 	}
-	if kv.ValueString != that1.ValueString {
-		if kv.ValueString < that1.ValueString {
+	if t.ValueString != that1.ValueString {
+		if t.ValueString < that1.ValueString {
 			return -1
 		}
 		return 1
 	}
-	if kv.ValueBool != that1.ValueBool {
-		if !kv.ValueBool {
+	if t.ValueBool != that1.ValueBool {
+		if !t.ValueBool {
 			return -1
 		}
 		return 1
 	}
-	if kv.ValueInt64 != that1.ValueInt64 {
-		if kv.ValueInt64 < that1.ValueInt64 {
+	if t.ValueInt64 != that1.ValueInt64 {
+		if t.ValueInt64 < that1.ValueInt64 {
 			return -1
 		}
 		return 1
 	}
-	if kv.ValueFloat64 != that1.ValueFloat64 {
-		if kv.ValueFloat64 < that1.ValueFloat64 {
+	if t.ValueFloat64 != that1.ValueFloat64 {
+		if t.ValueFloat64 < that1.ValueFloat64 {
 			return -1
 		}
 		return 1
 	}
-	if c := bytes.Compare(kv.ValueBinary, that1.ValueBinary); c != 0 {
+	if c := bytes.Compare(t.ValueBinary, that1.ValueBinary); c != 0 {
 		return c
 	}
 	return 0
 }
 
-func (kv *KeyValue) Equal(that any) bool {
+func (t *KeyValue) Equal(that any) bool {
 	if that == nil {
-		return kv == nil
+		return t == nil
 	}
 	that1, ok := that.(*KeyValue)
 	if !ok {
@@ -134,51 +134,51 @@ func (kv *KeyValue) Equal(that any) bool {
 		that1 = &that2
 	}
 	if that1 == nil {
-		return kv == nil
-	} else if kv == nil {
+		return t == nil
+	} else if t == nil {
 		return false
 	}
-	if kv.Key != that1.Key {
+	if t.Key != that1.Key {
 		return false
 	}
-	if kv.ValueType != that1.ValueType {
+	if t.ValueType != that1.ValueType {
 		return false
 	}
-	if kv.ValueString != that1.ValueString {
+	if t.ValueString != that1.ValueString {
 		return false
 	}
-	if kv.ValueBool != that1.ValueBool {
+	if t.ValueBool != that1.ValueBool {
 		return false
 	}
-	if kv.ValueInt64 != that1.ValueInt64 {
+	if t.ValueInt64 != that1.ValueInt64 {
 		return false
 	}
-	if kv.ValueFloat64 != that1.ValueFloat64 {
+	if t.ValueFloat64 != that1.ValueFloat64 {
 		return false
 	}
-	if !bytes.Equal(kv.ValueBinary, that1.ValueBinary) {
+	if !bytes.Equal(t.ValueBinary, that1.ValueBinary) {
 		return false
 	}
 	return true
 }
 
-func (kv *KeyValue) AsString() string {
-	switch kv.ValueType {
+func (t *KeyValue) AsString() string {
+	switch t.ValueType {
 	case stringType:
-		return kv.ValueString
+		return t.ValueString
 	case boolType:
-		if kv.ValueBool {
+		if t.ValueBool {
 			return "true"
 		}
 		return "false"
 	case int64Type:
-		return strconv.FormatInt(kv.ValueInt64, 10)
+		return strconv.FormatInt(t.ValueInt64, 10)
 	case float64Type:
-		return strconv.FormatFloat(kv.ValueFloat64, 'g', 10, 64)
+		return strconv.FormatFloat(t.ValueFloat64, 'g', 10, 64)
 	case binaryType:
-		return hex.EncodeToString(kv.ValueBinary)
+		return hex.EncodeToString(t.ValueBinary)
 	default:
-		return "unknown type " + kv.ValueType
+		return "unknown type " + t.ValueType
 	}
 }
 
