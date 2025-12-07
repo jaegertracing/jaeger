@@ -32,7 +32,7 @@ import (
 
 // Server runs a gRPC server
 type Server struct {
-	opts       *Options
+	grpcCfg    configgrpc.ServerConfig
 	grpcConn   net.Listener
 	grpcServer *grpc.Server
 	stopped    sync.WaitGroup
@@ -42,7 +42,7 @@ type Server struct {
 // NewServer creates and initializes Server.
 func NewServer(
 	ctx context.Context,
-	options *Options,
+	grpcCfg configgrpc.ServerConfig,
 	ts tracestore.Factory,
 	ds depstore.Factory,
 	tm *tenancy.Manager,
@@ -61,6 +61,10 @@ func NewServer(
 		return nil, err
 	}
 
+	// This is required because we are using the config to start the server.
+	// If the config is created manually (e.g. in tests), the transport might not be set.
+	grpcCfg.NetAddr.Transport = confignet.TransportTypeTCP
+
 	handler, err := createGRPCHandler(reader, writer, depReader)
 	if err != nil {
 		return nil, err
@@ -68,13 +72,13 @@ func NewServer(
 
 	v2Handler := grpcstorage.NewHandler(reader, writer, depReader)
 
-	grpcServer, err := createGRPCServer(ctx, options, tm, handler, v2Handler, telset)
+	grpcServer, err := createGRPCServer(ctx, grpcCfg, tm, handler, v2Handler, telset)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Server{
-		opts:       options,
+		grpcCfg:    grpcCfg,
 		grpcServer: grpcServer,
 		telset:     telset,
 	}, nil
@@ -98,7 +102,7 @@ func createGRPCHandler(
 
 func createGRPCServer(
 	ctx context.Context,
-	opts *Options,
+	cfg configgrpc.ServerConfig,
 	tm *tenancy.Manager,
 	handler *shared.GRPCHandler,
 	v2Handler *grpcstorage.Handler,
@@ -116,12 +120,12 @@ func createGRPCServer(
 		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm))
 	}
 
-	opts.NetAddr.Transport = confignet.TransportTypeTCP
+	cfg.NetAddr.Transport = confignet.TransportTypeTCP
 	var extensions map[component.ID]component.Component
 	if telset.Host != nil {
 		extensions = telset.Host.GetExtensions()
 	}
-	server, err := opts.ToServer(ctx,
+	server, err := cfg.ToServer(ctx,
 		extensions,
 		telset.ToOtelComponent(),
 		configgrpc.WithGrpcServerOption(grpc.ChainUnaryInterceptor(unaryInterceptors...)),
@@ -142,7 +146,7 @@ func createGRPCServer(
 // Start gRPC server concurrently
 func (s *Server) Start(ctx context.Context) error {
 	var err error
-	s.grpcConn, err = s.opts.NetAddr.Listen(ctx)
+	s.grpcConn, err = s.grpcCfg.NetAddr.Listen(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to listen on gRPC port: %w", err)
 	}

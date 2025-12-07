@@ -43,11 +43,9 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 	createServer := func(factory *fakeFactory) (*Server, error) {
 		return NewServer(
 			context.Background(),
-			&Options{
-				ServerConfig: configgrpc.ServerConfig{
-					NetAddr: confignet.AddrConfig{
-						Endpoint: ":0",
-					},
+			configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint: ":0",
 				},
 			},
 			factory,
@@ -79,11 +77,9 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 
 func TestServerStart_BadPortErrors(t *testing.T) {
 	srv := &Server{
-		opts: &Options{
-			ServerConfig: configgrpc.ServerConfig{
-				NetAddr: confignet.AddrConfig{
-					Endpoint: ":-1",
-				},
+		grpcCfg: configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint: ":-1",
 			},
 		},
 	}
@@ -140,13 +136,11 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 
 	_, err := NewServer(
 		context.Background(),
-		&Options{
-			ServerConfig: configgrpc.ServerConfig{
-				NetAddr: confignet.AddrConfig{
-					Endpoint: ":8081",
-				},
-				TLS: configoptional.Some(tlsCfg),
+		configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint: ":8081",
 			},
+			TLS: configoptional.Some(tlsCfg),
 		},
 		&fakeFactory{},
 		&fakeFactory{},
@@ -352,13 +346,11 @@ func TestServerGRPCTLS(t *testing.T) {
 			if test.TLS != nil {
 				tls = configoptional.Some(*test.TLS)
 			}
-			serverOptions := &Options{
-				ServerConfig: configgrpc.ServerConfig{
-					NetAddr: confignet.AddrConfig{
-						Endpoint: ":0",
-					},
-					TLS: tls,
+			serverOptions := configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint: ":0",
 				},
+				TLS: tls,
 			}
 			flagsSvc := flags.NewService(ports.RemoteStorageAdminHTTP)
 			flagsSvc.Logger = zap.NewNop()
@@ -427,9 +419,9 @@ func TestServerHandlesPortZero(t *testing.T) {
 	}
 	server, err := NewServer(
 		context.Background(),
-		&Options{ServerConfig: configgrpc.ServerConfig{
+		configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{Endpoint: ":0"},
-		}},
+		},
 		&fakeFactory{},
 		&fakeFactory{},
 		tenancy.NewManager(&tenancy.Options{}),
