@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/configtls"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
@@ -32,6 +33,9 @@ func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 		grpc.Config{
 			ClientConfig: configgrpc.ClientConfig{
 				Endpoint: "localhost:17271",
+				TLS: configtls.ClientConfig{
+					Insecure: true,
+				},
 			},
 		},
 		telemetry.NoopSettings(),
