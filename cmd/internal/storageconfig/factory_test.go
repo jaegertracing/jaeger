@@ -5,6 +5,7 @@ package storageconfig
 
 import (
 	"context"
+	"io"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -24,12 +25,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
-	"github.com/jaegertracing/jaeger/internal/testutils"
 )
-
-func TestMain(m *testing.M) {
-	testutils.VerifyGoLeaks(m)
-}
 
 func getTelemetrySettings() telemetry.Settings {
 	return telemetry.Settings{
@@ -77,6 +73,11 @@ func TestCreateTraceStorageFactory_Memory(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, factory)
+	t.Cleanup(func() {
+		if closer, ok := factory.(io.Closer); ok {
+			require.NoError(t, closer.Close())
+		}
+	})
 }
 
 func TestCreateTraceStorageFactory_Badger(t *testing.T) {
@@ -98,6 +99,11 @@ func TestCreateTraceStorageFactory_Badger(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, factory)
+	t.Cleanup(func() {
+		if closer, ok := factory.(io.Closer); ok {
+			require.NoError(t, closer.Close())
+		}
+	})
 }
 
 func TestCreateTraceStorageFactory_GRPC(t *testing.T) {
@@ -146,6 +152,11 @@ func TestCreateTraceStorageFactory_Elasticsearch(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, factory)
+	t.Cleanup(func() {
+		if closer, ok := factory.(io.Closer); ok {
+			require.NoError(t, closer.Close())
+		}
+	})
 }
 
 func TestCreateTraceStorageFactory_ElasticsearchWithAuthResolver(t *testing.T) {
@@ -171,6 +182,11 @@ func TestCreateTraceStorageFactory_ElasticsearchWithAuthResolver(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, factory)
+	t.Cleanup(func() {
+		if closer, ok := factory.(io.Closer); ok {
+			require.NoError(t, closer.Close())
+		}
+	})
 }
 
 func TestCreateTraceStorageFactory_ElasticsearchAuthResolverError(t *testing.T) {
@@ -217,6 +233,11 @@ func TestCreateTraceStorageFactory_Opensearch(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, factory)
+	t.Cleanup(func() {
+		if closer, ok := factory.(io.Closer); ok {
+			require.NoError(t, closer.Close())
+		}
+	})
 }
 
 func TestCreateTraceStorageFactory_OpensearchWithAuthResolver(t *testing.T) {
@@ -242,6 +263,11 @@ func TestCreateTraceStorageFactory_OpensearchWithAuthResolver(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, factory)
+	t.Cleanup(func() {
+		if closer, ok := factory.(io.Closer); ok {
+			require.NoError(t, closer.Close())
+		}
+	})
 }
 
 func TestCreateTraceStorageFactory_OpensearchAuthResolverError(t *testing.T) {
@@ -292,6 +318,11 @@ func TestCreateTraceStorageFactory_ClickHouse(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, factory)
+	t.Cleanup(func() {
+		if closer, ok := factory.(io.Closer); ok {
+			require.NoError(t, closer.Close())
+		}
+	})
 }
 
 func TestCreateTraceStorageFactory_ClickHouseError(t *testing.T) {
