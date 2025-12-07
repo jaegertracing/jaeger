@@ -152,8 +152,8 @@ func TestServer_Start(t *testing.T) {
 				MeterProvider:  noopmetric.NewMeterProvider(),
 				TracerProvider: nooptrace.NewTracerProvider(),
 			}
-			tt.config.NetAddr.Endpoint = "localhost:0"
-			tt.config.NetAddr.Transport = confignet.TransportTypeTCP
+			tt.config.GRPC.NetAddr.Endpoint = "localhost:0"
+			tt.config.GRPC.NetAddr.Transport = confignet.TransportTypeTCP
 			server := newServer(tt.config, telemetrySettings)
 			err := server.Start(context.Background(), host)
 			if tt.expectedErr == "" {

@@ -32,8 +32,8 @@ func NewFactory() extension.Factory {
 
 func createDefaultConfig() component.Config {
 	return &Config{
-		Options: app.Options{
-			ServerConfig: configgrpc.ServerConfig{
+		Config: app.Config{
+			GRPC: configgrpc.ServerConfig{
 				NetAddr: confignet.AddrConfig{
 					Endpoint:  ports.PortToHostPort(ports.RemoteStorageGRPC),
 					Transport: confignet.TransportTypeTCP,

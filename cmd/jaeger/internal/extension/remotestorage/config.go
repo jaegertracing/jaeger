@@ -10,7 +10,7 @@ import (
 )
 
 type Config struct {
-	app.Options `mapstructure:",squash"`
+	app.Config `mapstructure:",squash"`
 	Storage     string `mapstructure:"storage" valid:"required"`
 }
 
