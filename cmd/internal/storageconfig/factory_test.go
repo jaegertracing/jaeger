@@ -11,7 +11,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/extension/extensionauth"
 	"go.opentelemetry.io/otel/metric/noop"
@@ -25,7 +24,12 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 )
+
+func TestMain(m *testing.M) {
+	testutils.VerifyGoLeaks(m)
+}
 
 func getTelemetrySettings() telemetry.Settings {
 	return telemetry.Settings{
@@ -119,8 +123,8 @@ func TestCreateTraceStorageFactory_Cassandra(t *testing.T) {
 	)
 
 	// Cassandra will fail without proper servers config, but we're testing the factory creation path
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to initialize storage 'cassandra-test'")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to initialize storage 'cassandra-test'")
 }
 
 func TestCreateTraceStorageFactory_Elasticsearch(t *testing.T) {
@@ -153,7 +157,7 @@ func TestCreateTraceStorageFactory_ElasticsearchWithAuthResolver(t *testing.T) {
 		},
 	}
 
-	authResolver := func(authCfg escfg.Authentication, backendType, backendName string) (extensionauth.HTTPClient, error) {
+	authResolver := func(_ escfg.Authentication, _, _ string) (extensionauth.HTTPClient, error) {
 		return nil, nil // No auth needed for this test
 	}
 
@@ -178,7 +182,7 @@ func TestCreateTraceStorageFactory_ElasticsearchAuthResolverError(t *testing.T) 
 		},
 	}
 
-	authResolver := func(authCfg escfg.Authentication, backendType, backendName string) (extensionauth.HTTPClient, error) {
+	authResolver := func(_ escfg.Authentication, _, _ string) (extensionauth.HTTPClient, error) {
 		return nil, errors.New("auth error")
 	}
 
@@ -190,8 +194,8 @@ func TestCreateTraceStorageFactory_ElasticsearchAuthResolverError(t *testing.T) 
 		authResolver,
 	)
 
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "auth error")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "auth error")
 }
 
 func TestCreateTraceStorageFactory_Opensearch(t *testing.T) {
@@ -224,7 +228,7 @@ func TestCreateTraceStorageFactory_OpensearchWithAuthResolver(t *testing.T) {
 		},
 	}
 
-	authResolver := func(authCfg escfg.Authentication, backendType, backendName string) (extensionauth.HTTPClient, error) {
+	authResolver := func(_ escfg.Authentication, _, _ string) (extensionauth.HTTPClient, error) {
 		return nil, nil // No auth needed for this test
 	}
 
@@ -249,7 +253,7 @@ func TestCreateTraceStorageFactory_OpensearchAuthResolverError(t *testing.T) {
 		},
 	}
 
-	authResolver := func(authCfg escfg.Authentication, backendType, backendName string) (extensionauth.HTTPClient, error) {
+	authResolver := func(_ escfg.Authentication, _, _ string) (extensionauth.HTTPClient, error) {
 		return nil, errors.New("auth error for opensearch")
 	}
 
@@ -261,8 +265,8 @@ func TestCreateTraceStorageFactory_OpensearchAuthResolverError(t *testing.T) {
 		authResolver,
 	)
 
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "auth error for opensearch")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "auth error for opensearch")
 }
 
 func TestCreateTraceStorageFactory_ClickHouse(t *testing.T) {
@@ -304,8 +308,8 @@ func TestCreateTraceStorageFactory_ClickHouseError(t *testing.T) {
 	)
 
 	// ClickHouse will fail without proper config, but we're testing the factory creation path
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to initialize storage 'clickhouse-test'")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to initialize storage 'clickhouse-test'")
 }
 
 func TestCreateTraceStorageFactory_EmptyBackend(t *testing.T) {
@@ -319,7 +323,7 @@ func TestCreateTraceStorageFactory_EmptyBackend(t *testing.T) {
 		nil,
 	)
 
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to initialize storage 'empty-test'")
-	assert.Contains(t, err.Error(), "empty configuration")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to initialize storage 'empty-test'")
+	require.Contains(t, err.Error(), "empty configuration")
 }
