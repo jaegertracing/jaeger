@@ -28,7 +28,7 @@ type Factory struct {
 	metricsFactory metrics.Factory
 }
 
-func NewFactory(cfg v1.Configuration, telset telemetry.Settings) (*Factory, error) {
+func NewFactory(cfg Configuration, telset telemetry.Settings) (*Factory, error) {
 	store, err := NewStore(cfg)
 	if err != nil {
 		return nil, err
