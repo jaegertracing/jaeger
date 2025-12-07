@@ -106,7 +106,7 @@ func main() {
 	command.AddCommand(version.Command())
 	command.AddCommand(env.Command())
 	command.AddCommand(docs.Command(v))
-	command.AddCommand(status.Command(v, ports.QueryAdminHTTP))
+	command.AddCommand(status.Command(v, ports.RemoteStorageAdminHTTP))
 	command.AddCommand(printconfig.Command(v))
 	command.AddCommand(featuregate.Command())
 

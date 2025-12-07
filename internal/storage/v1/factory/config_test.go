@@ -30,11 +30,11 @@ func TestFactoryConfigFromEnv(t *testing.T) {
 	assert.Equal(t, memoryStorageType, f.DependenciesStorageType)
 	assert.Equal(t, cassandraStorageType, f.SamplingStorageType)
 
-	t.Setenv(SpanStorageTypeEnvVar, elasticsearchStorageType+","+kafkaStorageType)
+	t.Setenv(SpanStorageTypeEnvVar, elasticsearchStorageType+","+badgerStorageType)
 
 	f = ConfigFromEnvAndCLI(nil, &bytes.Buffer{})
 	assert.Len(t, f.SpanWriterTypes, 2)
-	assert.Equal(t, []string{elasticsearchStorageType, kafkaStorageType}, f.SpanWriterTypes)
+	assert.Equal(t, []string{elasticsearchStorageType, badgerStorageType}, f.SpanWriterTypes)
 	assert.Equal(t, elasticsearchStorageType, f.SpanReaderType)
 
 	t.Setenv(SpanStorageTypeEnvVar, badgerStorageType)
