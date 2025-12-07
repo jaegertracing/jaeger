@@ -325,3 +325,20 @@ func TestKeyValueAsString(t *testing.T) {
 		})
 	}
 }
+
+func TestSortKVs(t *testing.T) {
+	kvs := []KeyValue{
+		{Key: "z", ValueType: "string", ValueString: "hello"},
+		{Key: "y", ValueType: "bool", ValueBool: true},
+		{Key: "x", ValueType: "int64", ValueInt64: 99},
+		{Key: "w", ValueType: "double", ValueFloat64: 1.23},
+		{Key: "m", ValueType: "binary", ValueBinary: []byte{1, 2, 3}},
+		{Key: "m", ValueType: "string", ValueString: "abc"},
+		{Key: "m", ValueType: "string", ValueString: "def"},
+	}
+	SortKVs(kvs)
+	want := []any{"binary", "string", "string", "double", "int64", "bool", "string"}
+	for i, kv := range kvs {
+		assert.Equal(t, want[i], kv.ValueType)
+	}
+}
