@@ -5,9 +5,9 @@ package storageconfig
 
 import (
 	"context"
-	"io"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
