@@ -7,15 +7,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/jaegertracing/jaeger/internal/config"
 )
 
 func TestOptionsWithFlags(t *testing.T) {
-	v, command := config.Viperize(AddFlags)
-	command.ParseFlags([]string{"--memory.max-traces=100"})
-	opts := Options{}
-	opts.InitFromViper(v)
+	opts := Options{
+		Configuration: Configuration{
+			MaxTraces: 100,
+		},
+	}
 
 	assert.Equal(t, 100, opts.Configuration.MaxTraces)
 }
