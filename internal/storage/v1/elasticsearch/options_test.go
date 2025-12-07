@@ -5,7 +5,6 @@
 package elasticsearch
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -175,10 +174,10 @@ func TestOptionsWithFlags(t *testing.T) {
 		},
 		Indices: escfg.Indices{
 			Spans: escfg.IndexOptions{
-				DateLayout: "2006010215",
+				DateLayout: "2006010215", // Go reference time formatted for hourly rollover (yyyy-MM-dd-HH)
 			},
 			Services: escfg.IndexOptions{
-				DateLayout: "20060102",
+				DateLayout: "20060102", // Go reference time formatted for daily rollover (yyyy-MM-dd)
 			},
 		},
 		UseILM:          true,
@@ -510,19 +509,22 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 			// Assert basic authentication details
 			if expectBasicAuth {
 				basicAuth := primary.Authentication.BasicAuthentication.Get()
-				assert.NotEmpty(t, basicAuth.Username+basicAuth.Password+basicAuth.PasswordFilePath, "at least one basic auth field should be set")
+				hasAtLeastOneField := basicAuth.Username != "" || basicAuth.Password != "" || basicAuth.PasswordFilePath != ""
+				assert.True(t, hasAtLeastOneField, "at least one basic auth field should be set")
 			}
 
 			// Assert bearer token authentication details
 			if expectBearerAuth {
 				bearerAuth := primary.Authentication.BearerTokenAuth.Get()
-				assert.NotEmpty(t, bearerAuth.FilePath+fmt.Sprint(bearerAuth.AllowFromContext), "at least one bearer auth field should be set")
+				hasAtLeastOneField := bearerAuth.FilePath != "" || bearerAuth.AllowFromContext
+				assert.True(t, hasAtLeastOneField, "at least one bearer auth field should be set")
 			}
 
 			// Assert API key authentication details
 			if expectAPIKeyAuth {
 				apiKeyAuth := primary.Authentication.APIKeyAuth.Get()
-				assert.NotEmpty(t, apiKeyAuth.FilePath+fmt.Sprint(apiKeyAuth.AllowFromContext), "at least one API key auth field should be set")
+				hasAtLeastOneField := apiKeyAuth.FilePath != "" || apiKeyAuth.AllowFromContext
+				assert.True(t, hasAtLeastOneField, "at least one API key auth field should be set")
 			}
 		})
 	}
