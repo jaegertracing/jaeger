@@ -5,7 +5,6 @@ package integration
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -19,12 +18,9 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/jaegertracing/jaeger/cmd/remote-storage/app"
-	"github.com/jaegertracing/jaeger/internal/config"
 	"github.com/jaegertracing/jaeger/internal/healthcheck"
-	"github.com/jaegertracing/jaeger/internal/metrics"
-	storage "github.com/jaegertracing/jaeger/internal/storage/v1/factory"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
+	memv1 "github.com/jaegertracing/jaeger/internal/storage/v1/memory"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
@@ -32,7 +28,7 @@ import (
 
 type RemoteMemoryStorage struct {
 	server         *app.Server
-	storageFactory *storage.Factory
+	storageFactory *memory.Factory
 }
 
 func StartNewRemoteMemoryStorage(t *testing.T, port int) *RemoteMemoryStorage {
@@ -45,22 +41,21 @@ func StartNewRemoteMemoryStorage(t *testing.T, port int) *RemoteMemoryStorage {
 	tm := tenancy.NewManager(&tenancy.Options{
 		Enabled: false,
 	})
-	storageFactory, err := storage.NewFactory(storage.ConfigFromEnvAndCLI(os.Args, os.Stderr))
-	require.NoError(t, err)
-
-	v, _ := config.Viperize(storageFactory.AddFlags)
-	storageFactory.InitFromViper(v, logger)
-	require.NoError(t, storageFactory.Initialize(metrics.NullFactory, logger))
 
 	t.Logf("Starting in-process remote storage server on %s", grpcCfg.NetAddr.Endpoint)
 	telset := telemetry.NoopSettings()
 	telset.Logger = logger
 	telset.ReportStatus = telemetry.HCAdapter(healthcheck.New())
 
-	traceFactory := v1adapter.NewFactory(storageFactory)
-	depFactory := traceFactory.(depstore.Factory)
+	traceFactory, err := memory.NewFactory(
+		memv1.Configuration{
+			MaxTraces: 10000,
+		},
+		telset,
+	)
+	require.NoError(t, err)
 
-	server, err := app.NewServer(context.Background(), grpcCfg, traceFactory, depFactory, tm, telset)
+	server, err := app.NewServer(context.Background(), grpcCfg, traceFactory, traceFactory, tm, telset)
 	require.NoError(t, err)
 	require.NoError(t, server.Start(context.Background()))
 
@@ -86,11 +81,10 @@ func StartNewRemoteMemoryStorage(t *testing.T, port int) *RemoteMemoryStorage {
 
 	return &RemoteMemoryStorage{
 		server:         server,
-		storageFactory: storageFactory,
+		storageFactory: traceFactory,
 	}
 }
 
 func (s *RemoteMemoryStorage) Close(t *testing.T) {
 	require.NoError(t, s.server.Close())
-	require.NoError(t, s.storageFactory.Close())
 }
