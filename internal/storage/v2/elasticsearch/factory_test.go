@@ -10,12 +10,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/metrics"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 

@@ -16,15 +16,6 @@ const (
 	grpcStorageType          = "grpc"
 	badgerStorageType        = "badger"
 	blackholeStorageType     = "blackhole"
-
-	downsamplingRatio    = "downsampling.ratio"
-	downsamplingHashSalt = "downsampling.hashsalt"
-	spanStorageType      = "span-storage-type"
-
-	// defaultDownsamplingRatio is the default downsampling ratio.
-	defaultDownsamplingRatio = 1.0
-	// defaultDownsamplingHashSalt is the default downsampling hashsalt.
-	defaultDownsamplingHashSalt = ""
 )
 
 // ArchiveStorage holds archive span reader and writer.

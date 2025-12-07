@@ -4,9 +4,6 @@
 package metricstore
 
 const (
-	// disabledStorageType is the storage type used when METRICS_STORAGE_TYPE is unset.
-	disabledStorageType = ""
-
 	prometheusStorageType = "prometheus"
 )
 
