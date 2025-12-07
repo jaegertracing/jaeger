@@ -5,7 +5,10 @@ package storageconfig
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,7 +23,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
@@ -30,6 +33,27 @@ func getTelemetrySettings() telemetry.Settings {
 		Metrics:       metrics.NullFactory,
 		MeterProvider: noop.NewMeterProvider(),
 	}
+}
+
+func setupMockServer(t *testing.T, response []byte, statusCode int) *httptest.Server {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(statusCode)
+		w.Write(response)
+	}))
+	require.NotNil(t, mockServer)
+	t.Cleanup(mockServer.Close)
+	return mockServer
+}
+
+func getVersionResponse(t *testing.T) []byte {
+	versionResponse, e := json.Marshal(map[string]any{
+		"Version": map[string]any{
+			"Number": "7",
+		},
+	})
+	require.NoError(t, e)
+	return versionResponse
 }
 
 func TestCreateTraceStorageFactory_Memory(t *testing.T) {
@@ -73,23 +97,12 @@ func TestCreateTraceStorageFactory_Badger(t *testing.T) {
 }
 
 func TestCreateTraceStorageFactory_GRPC(t *testing.T) {
-	t.Skip("GRPC factory requires complex setup and proper gRPC server - tested in integration tests")
-	cfg := grpc.DefaultConfig()
-	cfg.ClientConfig.Endpoint = "localhost:17271"
-	backend := TraceBackend{
-		GRPC: &cfg,
-	}
-
-	_, err := CreateTraceStorageFactory(
-		context.Background(),
-		"grpc-test",
-		backend,
-		getTelemetrySettings(),
-		nil,
-	)
-	if err != nil {
-		assert.Contains(t, err.Error(), "grpc-test")
-	}
+	// GRPC factory creation path is tested via jaegerstorage extension tests
+	// because it requires component.Host for proper initialization.
+	// Direct factory creation with GRPC config would cause a panic as the
+	// grpc.NewFactory attempts to initialize connections immediately without a host.
+	// See cmd/jaeger/internal/extension/jaegerstorage/extension_test.go TestGRPC
+	t.Skip("GRPC factory tested via jaegerstorage extension - requires component.Host")
 }
 
 func TestCreateTraceStorageFactory_Cassandra(t *testing.T) {
@@ -111,22 +124,173 @@ func TestCreateTraceStorageFactory_Cassandra(t *testing.T) {
 }
 
 func TestCreateTraceStorageFactory_Elasticsearch(t *testing.T) {
-	t.Skip("Elasticsearch factory tries to connect to ES instance - tested in integration tests")
+	server := setupMockServer(t, getVersionResponse(t), http.StatusOK)
+	backend := TraceBackend{
+		Elasticsearch: &escfg.Configuration{
+			Servers:  []string{server.URL},
+			LogLevel: "error",
+		},
+	}
+
+	factory, err := CreateTraceStorageFactory(
+		context.Background(),
+		"es-test",
+		backend,
+		getTelemetrySettings(),
+		nil,
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, factory)
 }
 
 func TestCreateTraceStorageFactory_ElasticsearchWithAuthResolver(t *testing.T) {
-	t.Skip("Elasticsearch factory tries to connect to ES instance - tested in integration tests")
+	server := setupMockServer(t, getVersionResponse(t), http.StatusOK)
+	backend := TraceBackend{
+		Elasticsearch: &escfg.Configuration{
+			Servers:  []string{server.URL},
+			LogLevel: "error",
+		},
+	}
+
+	authResolver := func(authCfg escfg.Authentication, backendType, backendName string) (extensionauth.HTTPClient, error) {
+		return nil, nil // No auth needed for this test
+	}
+
+	factory, err := CreateTraceStorageFactory(
+		context.Background(),
+		"es-test",
+		backend,
+		getTelemetrySettings(),
+		authResolver,
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, factory)
+}
+
+func TestCreateTraceStorageFactory_ElasticsearchAuthResolverError(t *testing.T) {
+	server := setupMockServer(t, getVersionResponse(t), http.StatusOK)
+	backend := TraceBackend{
+		Elasticsearch: &escfg.Configuration{
+			Servers:  []string{server.URL},
+			LogLevel: "error",
+		},
+	}
+
+	authResolver := func(authCfg escfg.Authentication, backendType, backendName string) (extensionauth.HTTPClient, error) {
+		return nil, errors.New("auth error")
+	}
+
+	_, err := CreateTraceStorageFactory(
+		context.Background(),
+		"es-test",
+		backend,
+		getTelemetrySettings(),
+		authResolver,
+	)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "auth error")
 }
 
 func TestCreateTraceStorageFactory_Opensearch(t *testing.T) {
-	t.Skip("OpenSearch factory tries to connect to OS instance - tested in integration tests")
+	server := setupMockServer(t, getVersionResponse(t), http.StatusOK)
+	backend := TraceBackend{
+		Opensearch: &escfg.Configuration{
+			Servers:  []string{server.URL},
+			LogLevel: "error",
+		},
+	}
+
+	factory, err := CreateTraceStorageFactory(
+		context.Background(),
+		"os-test",
+		backend,
+		getTelemetrySettings(),
+		nil,
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, factory)
 }
 
 func TestCreateTraceStorageFactory_OpensearchWithAuthResolver(t *testing.T) {
-	t.Skip("OpenSearch factory tries to connect to OS instance - tested in integration tests")
+	server := setupMockServer(t, getVersionResponse(t), http.StatusOK)
+	backend := TraceBackend{
+		Opensearch: &escfg.Configuration{
+			Servers:  []string{server.URL},
+			LogLevel: "error",
+		},
+	}
+
+	authResolver := func(authCfg escfg.Authentication, backendType, backendName string) (extensionauth.HTTPClient, error) {
+		return nil, nil // No auth needed for this test
+	}
+
+	factory, err := CreateTraceStorageFactory(
+		context.Background(),
+		"os-test",
+		backend,
+		getTelemetrySettings(),
+		authResolver,
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, factory)
+}
+
+func TestCreateTraceStorageFactory_OpensearchAuthResolverError(t *testing.T) {
+	server := setupMockServer(t, getVersionResponse(t), http.StatusOK)
+	backend := TraceBackend{
+		Opensearch: &escfg.Configuration{
+			Servers:  []string{server.URL},
+			LogLevel: "error",
+		},
+	}
+
+	authResolver := func(authCfg escfg.Authentication, backendType, backendName string) (extensionauth.HTTPClient, error) {
+		return nil, errors.New("auth error for opensearch")
+	}
+
+	_, err := CreateTraceStorageFactory(
+		context.Background(),
+		"os-test",
+		backend,
+		getTelemetrySettings(),
+		authResolver,
+	)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "auth error for opensearch")
 }
 
 func TestCreateTraceStorageFactory_ClickHouse(t *testing.T) {
+	testServer := clickhousetest.NewServer(clickhousetest.FailureConfig{})
+	t.Cleanup(testServer.Close)
+
+	backend := TraceBackend{
+		ClickHouse: &clickhouse.Configuration{
+			Protocol: "http",
+			Addresses: []string{
+				testServer.Listener.Addr().String(),
+			},
+		},
+	}
+
+	factory, err := CreateTraceStorageFactory(
+		context.Background(),
+		"clickhouse-test",
+		backend,
+		getTelemetrySettings(),
+		nil,
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, factory)
+}
+
+func TestCreateTraceStorageFactory_ClickHouseError(t *testing.T) {
 	backend := TraceBackend{
 		ClickHouse: &clickhouse.Configuration{},
 	}
@@ -158,28 +322,4 @@ func TestCreateTraceStorageFactory_EmptyBackend(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to initialize storage 'empty-test'")
 	assert.Contains(t, err.Error(), "empty configuration")
-}
-
-func TestCreateTraceStorageFactory_AuthResolverError(t *testing.T) {
-	backend := TraceBackend{
-		Elasticsearch: &escfg.Configuration{
-			Servers:  []string{"http://localhost:9200"},
-			LogLevel: "error",
-		},
-	}
-
-	authResolver := func(authCfg escfg.Authentication, backendType, backendName string) (extensionauth.HTTPClient, error) {
-		return nil, errors.New("auth error")
-	}
-
-	_, err := CreateTraceStorageFactory(
-		context.Background(),
-		"es-test",
-		backend,
-		getTelemetrySettings(),
-		authResolver,
-	)
-
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "auth error")
 }
