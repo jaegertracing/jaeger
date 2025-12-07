@@ -24,11 +24,6 @@ type Config struct {
 	Storage storageconfig.Config `mapstructure:"storage"`
 }
 
-// GRPCConfig holds gRPC server configuration.
-type GRPCConfig struct {
-	HostPort string `mapstructure:"host-port"`
-}
-
 // LoadConfigFromViper loads the configuration from Viper.
 func LoadConfigFromViper(v *viper.Viper) (*Config, error) {
 	cfg := &Config{}
