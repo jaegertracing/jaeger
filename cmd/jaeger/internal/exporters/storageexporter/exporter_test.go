@@ -19,6 +19,7 @@ import (
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap/zaptest"
 
+	"github.com/jaegertracing/jaeger/cmd/internal/storageconfig"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
@@ -177,8 +178,10 @@ func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
 			TelemetrySettings: telemetrySettings,
 		},
 		&jaegerstorage.Config{
-			TraceBackends: map[string]jaegerstorage.TraceBackend{
-				memstoreName: {Memory: &memory.Configuration{MaxTraces: 10000}},
+			Config: storageconfig.Config{
+				TraceBackends: map[string]storageconfig.TraceBackend{
+					memstoreName: {Memory: &memory.Configuration{MaxTraces: 10000}},
+				},
 			},
 		},
 	)

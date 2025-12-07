@@ -29,7 +29,7 @@ backends:
 `)
 	cfg := createDefaultConfig().(*Config)
 	require.NoError(t, conf.Unmarshal(cfg))
-	require.EqualError(t, cfg.Validate(), "at least one storage is required")
+	require.EqualError(t, cfg.Validate(), "at least one storage backend is required")
 }
 
 func TestConfigValidateEmptyBackend(t *testing.T) {
