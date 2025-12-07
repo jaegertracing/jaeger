@@ -27,6 +27,9 @@ func TestWriteTraces(t *testing.T) {
 	f := badger.NewFactory()
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, f.Close())
+	}()
 
 	spanWriter, err := f.CreateSpanWriter()
 	require.NoError(t, err)
