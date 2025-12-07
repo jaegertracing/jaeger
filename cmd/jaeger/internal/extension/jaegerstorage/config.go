@@ -19,7 +19,9 @@ var (
 	_ confmap.Unmarshaler = (*MetricBackend)(nil)
 )
 
-// Config extends the shared storage configuration with metric backends.
+// Config contains the storage configuration for jaegerstorage extension.
+// It uses the same TraceBackends structure as cmd/internal/storageconfig but adds
+// jaeger-specific MetricBackends for Prometheus support.
 type Config struct {
 	TraceBackends  map[string]storageconfig.TraceBackend `mapstructure:"backends"`
 	MetricBackends map[string]MetricBackend              `mapstructure:"metric_backends"`

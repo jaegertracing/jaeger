@@ -84,7 +84,7 @@ storage:
 			expectError: true,
 		},
 		{
-			name: "multiple backends",
+			name: "multiple backends should fail",
 			yamlConfig: `
 grpc:
   host-port: :17271
@@ -97,12 +97,7 @@ storage:
       memory:
         max_traces: 20000
 `,
-			expectError: false,
-			validate: func(t *testing.T, cfg *Config) {
-				assert.Len(t, cfg.Storage.TraceBackends, 2)
-				// GetStorageName should return one of them (first in iteration order)
-				assert.Contains(t, []string{"memory-storage", "another-storage"}, cfg.GetStorageName())
-			},
+			expectError: true,
 		},
 		{
 			name: "with multi-tenancy enabled",

@@ -11,13 +11,16 @@ import (
 	"go.opentelemetry.io/collector/config/confignet"
 
 	"github.com/jaegertracing/jaeger/cmd/internal/storageconfig"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 // Config represents the configuration for remote-storage service.
 type Config struct {
-	GRPC    GRPCConfig           `mapstructure:"grpc"`
-	Tenancy tenancy.Options      `mapstructure:"multi_tenancy"`
+	GRPC    GRPCConfig      `mapstructure:"grpc"`
+	Tenancy tenancy.Options `mapstructure:"multi_tenancy"`
+	// This configuration is the same as of the main `jaeger` binary,
+	// but only one backend should be defined.
 	Storage storageconfig.Config `mapstructure:"storage"`
 }
 
@@ -48,11 +51,26 @@ func LoadConfigFromViper(v *viper.Viper) (*Config, error) {
 	}
 
 	// Validate storage configuration
-	if err := cfg.Storage.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid storage configuration: %w", err)
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
 
 	return cfg, nil
+}
+
+// Validate validates the configuration.
+func (c *Config) Validate() error {
+	// Validate storage configuration
+	if err := c.Storage.Validate(); err != nil {
+		return err
+	}
+
+	// Ensure only one backend is defined for remote-storage
+	if len(c.Storage.TraceBackends) > 1 {
+		return fmt.Errorf("remote-storage only supports a single storage backend, but %d were configured", len(c.Storage.TraceBackends))
+	}
+
+	return nil
 }
 
 // GetStorageName returns the name of the first configured storage backend.
@@ -62,4 +80,23 @@ func (c *Config) GetStorageName() string {
 		return name
 	}
 	return ""
+}
+
+// DefaultConfig returns a default configuration with memory storage.
+// This is used when no configuration file is provided.
+func DefaultConfig() *Config {
+	return &Config{
+		GRPC: GRPCConfig{
+			HostPort: ":17271",
+		},
+		Storage: storageconfig.Config{
+			TraceBackends: map[string]storageconfig.TraceBackend{
+				"memory": {
+					Memory: &memory.Configuration{
+						MaxTraces: 1_000_000,
+					},
+				},
+			},
+		},
+	}
 }
