@@ -74,14 +74,6 @@ func NewFactory() *Factory {
 	}
 }
 
-func NewArchiveFactory() *Factory {
-	return &Factory{
-		tracer:           otel.GetTracerProvider(),
-		Options:          NewOptions(archiveStorageNamespace),
-		sessionBuilderFn: NewSession,
-	}
-}
-
 // AddFlags implements storage.Configurable
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 	f.Options.AddFlags(flagSet)

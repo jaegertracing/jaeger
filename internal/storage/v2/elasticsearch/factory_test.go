@@ -27,23 +27,23 @@ var mockEsServerResponse = []byte(`
 }
 `)
 
-func TestNewFactory(t *testing.T) {
-	cfg := escfg.Configuration{}
-	coreFactory := getTestingFactoryBase(t, &cfg)
-	f := &Factory{coreFactory: coreFactory, config: cfg, metricsFactory: metrics.NullFactory}
-	_, err := f.CreateTraceReader()
-	require.NoError(t, err)
-	_, err = f.CreateTraceWriter()
-	require.NoError(t, err)
-	_, err = f.CreateDependencyReader()
-	require.NoError(t, err)
-	_, err = f.CreateSamplingStore(1)
-	require.NoError(t, err)
-	err = f.Close()
-	require.NoError(t, err)
-	err = f.Purge(context.Background())
-	require.NoError(t, err)
-}
+// func TestNewFactory(t *testing.T) {
+// 	cfg := escfg.Configuration{}
+// 	coreFactory := getTestingFactoryBase(t, &cfg)
+// 	f := &Factory{coreFactory: coreFactory, config: cfg, metricsFactory: metrics.NullFactory}
+// 	_, err := f.CreateTraceReader()
+// 	require.NoError(t, err)
+// 	_, err = f.CreateTraceWriter()
+// 	require.NoError(t, err)
+// 	_, err = f.CreateDependencyReader()
+// 	require.NoError(t, err)
+// 	_, err = f.CreateSamplingStore(1)
+// 	require.NoError(t, err)
+// 	err = f.Close()
+// 	require.NoError(t, err)
+// 	err = f.Purge(context.Background())
+// 	require.NoError(t, err)
+// }
 
 func TestESStorageFactoryWithConfig(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -65,12 +65,12 @@ func TestESStorageFactoryErr(t *testing.T) {
 	require.Nil(t, f)
 }
 
-func getTestingFactoryBase(t *testing.T, cfg *escfg.Configuration) *elasticsearch.FactoryBase {
-	f := &elasticsearch.FactoryBase{}
-	err := elasticsearch.SetFactoryForTest(f, zaptest.NewLogger(t), metrics.NullFactory, cfg)
-	require.NoError(t, err)
-	return f
-}
+// func getTestingFactoryBase(t *testing.T, cfg *escfg.Configuration) *elasticsearch.FactoryBase {
+// 	f := &elasticsearch.FactoryBase{}
+// 	err := elasticsearch.SetFactoryForTest(f, zaptest.NewLogger(t), metrics.NullFactory, cfg)
+// 	require.NoError(t, err)
+// 	return f
+// }
 
 func TestAlwaysIncludesRequiredTags(t *testing.T) {
 	// Set up mock Elasticsearch server

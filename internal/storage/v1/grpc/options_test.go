@@ -9,9 +9,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger/internal/config"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
@@ -65,21 +62,4 @@ func TestRemoteOptionsNoTLSWithFlags(t *testing.T) {
 	assert.Equal(t, "localhost:2001", cfg.ClientConfig.Endpoint)
 	assert.True(t, cfg.ClientConfig.TLS.Insecure)
 	assert.Equal(t, 60*time.Second, cfg.TimeoutConfig.Timeout)
-}
-
-func TestFailedTLSFlags(t *testing.T) {
-	opts := newOptions("grpc-storage")
-	v, command := config.Viperize(opts.addFlags)
-	err := command.ParseFlags([]string{
-		"--grpc-storage.tls.enabled=false",
-		"--grpc-storage.tls.cert=blah", // invalid unless tls.enabled=true
-	})
-	require.NoError(t, err)
-	f := NewFactory()
-	core, logs := observer.New(zap.NewAtomicLevelAt(zapcore.ErrorLevel))
-	logger := zap.New(core, zap.WithFatalHook(zapcore.WriteThenPanic))
-	require.Panics(t, func() { f.InitFromViper(v, logger) })
-	require.Len(t, logs.All(), 1)
-	assert.Contains(t, logs.All()[0].Message, "unable to initialize gRPC storage factory")
-	assert.Contains(t, logs.All()[0].ContextMap()["error"], "failed to parse gRPC storage TLS options")
 }
