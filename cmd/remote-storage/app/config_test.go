@@ -17,7 +17,7 @@ func TestLoadConfigFromViper(t *testing.T) {
 	tests := []struct {
 		name        string
 		yamlConfig  string
-		expectError bool
+		expectError string
 		validate    func(*testing.T, *Config)
 	}{
 		{
@@ -31,7 +31,6 @@ storage:
       memory:
         max_traces: 50000
 `,
-			expectError: false,
 			validate: func(t *testing.T, cfg *Config) {
 				assert.Equal(t, ":17271", cfg.GRPC.NetAddr.Endpoint)
 				assert.Len(t, cfg.Storage.TraceBackends, 1)
@@ -39,6 +38,19 @@ storage:
 				assert.Equal(t, 50000, cfg.Storage.TraceBackends["default-storage"].Memory.MaxTraces)
 				assert.Equal(t, "default-storage", cfg.GetStorageName())
 			},
+		},
+		{
+			name: "valid memory backend",
+			yamlConfig: `
+grpc:
+  endpoint: :17271
+storage:
+  backends:
+    default-storage:
+      memory:
+        max_traces: NOT-A-NUMBER
+`,
+			expectError: "memory.max_traces",
 		},
 		{
 			name: "valid badger backend",
@@ -54,7 +66,6 @@ storage:
           values: /tmp/test-values
         ephemeral: true
 `,
-			expectError: false,
 			validate: func(t *testing.T, cfg *Config) {
 				assert.Equal(t, ":17272", cfg.GRPC.NetAddr.Endpoint)
 				assert.Len(t, cfg.Storage.TraceBackends, 1)
@@ -70,7 +81,7 @@ grpc:
 storage:
   backends: {}
 `,
-			expectError: true,
+			expectError: "at least one storage backend is required",
 		},
 		{
 			name: "empty backend configuration",
@@ -81,7 +92,7 @@ storage:
   backends:
     empty-storage: {}
 `,
-			expectError: true,
+			expectError: "at least one storage backend is required",
 		},
 		{
 			name: "multiple backends should fail",
@@ -97,7 +108,7 @@ storage:
       memory:
         max_traces: 20000
 `,
-			expectError: true,
+			expectError: "remote-storage only supports a single storage backend",
 		},
 		{
 			name: "with multi-tenancy enabled",
@@ -116,7 +127,6 @@ storage:
       memory:
         max_traces: 10000
 `,
-			expectError: false,
 			validate: func(t *testing.T, cfg *Config) {
 				assert.True(t, cfg.Tenancy.Enabled)
 				assert.Equal(t, "x-tenant", cfg.Tenancy.Header)
@@ -142,15 +152,25 @@ storage:
 			// Load config from Viper
 			cfg, err := LoadConfigFromViper(v)
 
-			if tt.expectError {
+			if tt.expectError != "" {
 				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectError)
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, cfg)
-				if tt.validate != nil {
-					tt.validate(t, cfg)
-				}
+			}
+			if tt.validate != nil {
+				tt.validate(t, cfg)
 			}
 		})
 	}
+}
+
+func TestDefaultConfig(t *testing.T) {
+	cfg := DefaultConfig()
+	require.NotNil(t, cfg)
+	require.Equal(t, ":17271", cfg.GRPC.NetAddr.Endpoint)
+	require.Len(t, cfg.Storage.TraceBackends, 1)
+	require.NotNil(t, cfg.Storage.TraceBackends["memory"].Memory)
+	require.Equal(t, "memory", cfg.GetStorageName())
 }
