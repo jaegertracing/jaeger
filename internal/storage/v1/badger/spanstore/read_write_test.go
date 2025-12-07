@@ -368,6 +368,7 @@ func TestPersist(t *testing.T) {
 
 	p := func(t *testing.T, dir string, test func(t *testing.T, sw spanstore.Writer, sr spanstore.Reader)) {
 		f := badger.NewFactory()
+		f.Config.Ephemeral = false
 		f.Config.Directories.Keys = dir
 		f.Config.Directories.Values = dir
 		err := f.Initialize(metrics.NullFactory, zap.NewNop())
