@@ -10,7 +10,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
-	v1 "github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/tracestoremetrics"
@@ -52,11 +51,11 @@ func (f *Factory) CreateDependencyReader() (depstore.Reader, error) {
 }
 
 func (*Factory) CreateSamplingStore(buckets int) (samplingstore.Store, error) {
-	return v1.NewSamplingStore(buckets), nil
+	return NewSamplingStore(buckets), nil
 }
 
 func (*Factory) CreateLock() (distributedlock.Lock, error) {
-	return &v1.Lock{}, nil
+	return &Lock{}, nil
 }
 
 func (f *Factory) Purge(_ context.Context) error {
