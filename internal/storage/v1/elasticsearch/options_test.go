@@ -202,14 +202,30 @@ func TestOptionsWithFlags(t *testing.T) {
 
 func TestAuthenticationConditionalCreation(t *testing.T) {
 	testCases := []struct {
-		name   string
-		config escfg.Configuration
+		name                           string
+		config                         escfg.Configuration
+		expectBasicAuth                bool
+		expectBearerAuth               bool
+		expectAPIKeyAuth               bool
+		expectedUsername               string
+		expectedPassword               string
+		expectedPasswordFilePath       string
+		expectedPasswordReloadInterval time.Duration
+		expectedTokenPath              string
+		expectedBearerFromContext      bool
+		expectedBearerReloadInterval   time.Duration
+		expectedAPIKeyFilePath         string
+		expectedAPIKeyFromContext      bool
+		expectedAPIKeyReloadInterval   time.Duration
 	}{
 		{
 			name: "no authentication flags",
 			config: escfg.Configuration{
 				Authentication: escfg.Authentication{},
 			},
+			expectBasicAuth:  false,
+			expectBearerAuth: false,
+			expectAPIKeyAuth: false,
 		},
 		{
 			name: "only username provided",
@@ -221,6 +237,11 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 					}),
 				},
 			},
+			expectBasicAuth:                true,
+			expectBearerAuth:               false,
+			expectAPIKeyAuth:               false,
+			expectedUsername:               "testuser",
+			expectedPasswordReloadInterval: 10 * time.Second,
 		},
 		{
 			name: "only password provided",
@@ -232,6 +253,11 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 					}),
 				},
 			},
+			expectBasicAuth:                true,
+			expectBearerAuth:               false,
+			expectAPIKeyAuth:               false,
+			expectedPassword:               "testpass",
+			expectedPasswordReloadInterval: 10 * time.Second,
 		},
 		{
 			name: "only token file provided",
@@ -244,6 +270,12 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 					}),
 				},
 			},
+			expectBasicAuth:              false,
+			expectBearerAuth:             true,
+			expectAPIKeyAuth:             false,
+			expectedTokenPath:            "/path/to/token",
+			expectedBearerFromContext:    false,
+			expectedBearerReloadInterval: 10 * time.Second,
 		},
 		{
 			name: "username and password provided",
@@ -256,6 +288,12 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 					}),
 				},
 			},
+			expectBasicAuth:                true,
+			expectBearerAuth:               false,
+			expectAPIKeyAuth:               false,
+			expectedUsername:               "testuser",
+			expectedPassword:               "testpass",
+			expectedPasswordReloadInterval: 10 * time.Second,
 		},
 		{
 			name: "only bearer token context propagation enabled",
@@ -267,6 +305,11 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 					}),
 				},
 			},
+			expectBasicAuth:              false,
+			expectBearerAuth:             true,
+			expectAPIKeyAuth:             false,
+			expectedBearerFromContext:    true,
+			expectedBearerReloadInterval: 10 * time.Second,
 		},
 		{
 			name: "both token file and context propagation enabled",
@@ -279,6 +322,12 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 					}),
 				},
 			},
+			expectBasicAuth:              false,
+			expectBearerAuth:             true,
+			expectAPIKeyAuth:             false,
+			expectedTokenPath:            "/path/to/token",
+			expectedBearerFromContext:    true,
+			expectedBearerReloadInterval: 10 * time.Second,
 		},
 		{
 			name: "bearer token with custom reload interval",
@@ -291,6 +340,12 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 					}),
 				},
 			},
+			expectBasicAuth:              false,
+			expectBearerAuth:             true,
+			expectAPIKeyAuth:             false,
+			expectedTokenPath:            "/path/to/token",
+			expectedBearerFromContext:    true,
+			expectedBearerReloadInterval: 45 * time.Second,
 		},
 		{
 			name: "API key all options with zero reload interval",
@@ -303,6 +358,12 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 					}),
 				},
 			},
+			expectBasicAuth:              false,
+			expectBearerAuth:             false,
+			expectAPIKeyAuth:             true,
+			expectedAPIKeyFilePath:       "/path/to/keyfile",
+			expectedAPIKeyFromContext:    true,
+			expectedAPIKeyReloadInterval: 0 * time.Second,
 		},
 		{
 			name: "API key with non-zero reload interval",
@@ -315,6 +376,12 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 					}),
 				},
 			},
+			expectBasicAuth:              false,
+			expectBearerAuth:             false,
+			expectAPIKeyAuth:             true,
+			expectedAPIKeyFilePath:       "/path/to/keyfile",
+			expectedAPIKeyFromContext:    true,
+			expectedAPIKeyReloadInterval: 30 * time.Second,
 		},
 		{
 			name: "only API key file provided",
@@ -327,6 +394,12 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 					}),
 				},
 			},
+			expectBasicAuth:              false,
+			expectBearerAuth:             false,
+			expectAPIKeyAuth:             true,
+			expectedAPIKeyFilePath:       "/path/to/key",
+			expectedAPIKeyFromContext:    false,
+			expectedAPIKeyReloadInterval: 10 * time.Second,
 		},
 		{
 			name: "only API key context propagation enabled",
@@ -338,6 +411,11 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 					}),
 				},
 			},
+			expectBasicAuth:              false,
+			expectBearerAuth:             false,
+			expectAPIKeyAuth:             true,
+			expectedAPIKeyFromContext:    true,
+			expectedAPIKeyReloadInterval: 10 * time.Second,
 		},
 		{
 			name: "both API key file and context enabled",
@@ -350,6 +428,12 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 					}),
 				},
 			},
+			expectBasicAuth:              false,
+			expectBearerAuth:             false,
+			expectAPIKeyAuth:             true,
+			expectedAPIKeyFilePath:       "/path/to/key",
+			expectedAPIKeyFromContext:    true,
+			expectedAPIKeyReloadInterval: 10 * time.Second,
 		},
 		{
 			name: "all API key options provided",
@@ -362,6 +446,12 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 					}),
 				},
 			},
+			expectBasicAuth:              false,
+			expectBearerAuth:             false,
+			expectAPIKeyAuth:             true,
+			expectedAPIKeyFilePath:       "/path/to/key",
+			expectedAPIKeyFromContext:    true,
+			expectedAPIKeyReloadInterval: 60 * time.Second,
 		},
 		{
 			name: "basic auth and API key both enabled",
@@ -378,6 +468,14 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 					}),
 				},
 			},
+			expectBasicAuth:                true,
+			expectBearerAuth:               false,
+			expectAPIKeyAuth:               true,
+			expectedUsername:               "testuser",
+			expectedPassword:               "testpass",
+			expectedPasswordReloadInterval: 10 * time.Second,
+			expectedAPIKeyFilePath:         "/path/to/key",
+			expectedAPIKeyReloadInterval:   10 * time.Second,
 		},
 		{
 			name: "bearer token and API key both enabled",
@@ -394,6 +492,14 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 					}),
 				},
 			},
+			expectBasicAuth:              false,
+			expectBearerAuth:             true,
+			expectAPIKeyAuth:             true,
+			expectedTokenPath:            "/path/to/token",
+			expectedBearerFromContext:    false,
+			expectedBearerReloadInterval: 10 * time.Second,
+			expectedAPIKeyFromContext:    true,
+			expectedAPIKeyReloadInterval: 10 * time.Second,
 		},
 		{
 			name: "basic auth password reload interval disabled",
@@ -406,6 +512,12 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 					}),
 				},
 			},
+			expectBasicAuth:                true,
+			expectBearerAuth:               false,
+			expectAPIKeyAuth:               false,
+			expectedUsername:               "testuser",
+			expectedPasswordFilePath:       "/path/to/password",
+			expectedPasswordReloadInterval: 0 * time.Second,
 		},
 		{
 			name: "bearer token reload interval disabled",
@@ -417,6 +529,11 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 					}),
 				},
 			},
+			expectBasicAuth:              false,
+			expectBearerAuth:             true,
+			expectAPIKeyAuth:             false,
+			expectedTokenPath:            "/path/to/token",
+			expectedBearerReloadInterval: 0 * time.Second,
 		},
 		{
 			name: "all three authentication methods enabled",
@@ -439,6 +556,18 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 					}),
 				},
 			},
+			expectBasicAuth:                true,
+			expectBearerAuth:               true,
+			expectAPIKeyAuth:               true,
+			expectedUsername:               "testuser",
+			expectedPassword:               "testpass",
+			expectedPasswordReloadInterval: 10 * time.Second,
+			expectedTokenPath:              "/path/to/token",
+			expectedBearerFromContext:      true,
+			expectedBearerReloadInterval:   25 * time.Second,
+			expectedAPIKeyFilePath:         "/path/to/key",
+			expectedAPIKeyFromContext:      true,
+			expectedAPIKeyReloadInterval:   30 * time.Second,
 		},
 		{
 			name: "basic auth with custom reload interval (non-zero)",
@@ -451,6 +580,12 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 					}),
 				},
 			},
+			expectBasicAuth:                true,
+			expectBearerAuth:               false,
+			expectAPIKeyAuth:               false,
+			expectedUsername:               "testuser",
+			expectedPasswordFilePath:       "/path/to/password",
+			expectedPasswordReloadInterval: 15 * time.Second,
 		},
 		{
 			name: "bearer token with custom reload interval (non-zero)",
@@ -462,6 +597,11 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 					}),
 				},
 			},
+			expectBasicAuth:              false,
+			expectBearerAuth:             true,
+			expectAPIKeyAuth:             false,
+			expectedTokenPath:            "/path/to/token",
+			expectedBearerReloadInterval: 20 * time.Second,
 		},
 	}
 
@@ -470,33 +610,33 @@ func TestAuthenticationConditionalCreation(t *testing.T) {
 			primary := tc.config
 
 			// Assert authentication method presence
-			expectBasicAuth := primary.Authentication.BasicAuthentication.HasValue()
-			expectBearerAuth := primary.Authentication.BearerTokenAuth.HasValue()
-			expectAPIKeyAuth := primary.Authentication.APIKeyAuth.HasValue()
-
-			assert.Equal(t, expectBasicAuth, primary.Authentication.BasicAuthentication.HasValue())
-			assert.Equal(t, expectBearerAuth, primary.Authentication.BearerTokenAuth.HasValue())
-			assert.Equal(t, expectAPIKeyAuth, primary.Authentication.APIKeyAuth.HasValue())
+			assert.Equal(t, tc.expectBasicAuth, primary.Authentication.BasicAuthentication.HasValue())
+			assert.Equal(t, tc.expectBearerAuth, primary.Authentication.BearerTokenAuth.HasValue())
+			assert.Equal(t, tc.expectAPIKeyAuth, primary.Authentication.APIKeyAuth.HasValue())
 
 			// Assert basic authentication details
-			if expectBasicAuth {
+			if tc.expectBasicAuth {
 				basicAuth := primary.Authentication.BasicAuthentication.Get()
-				hasAtLeastOneField := basicAuth.Username != "" || basicAuth.Password != "" || basicAuth.PasswordFilePath != ""
-				assert.True(t, hasAtLeastOneField, "at least one basic auth field should be set")
+				assert.Equal(t, tc.expectedUsername, basicAuth.Username)
+				assert.Equal(t, tc.expectedPassword, basicAuth.Password)
+				assert.Equal(t, tc.expectedPasswordFilePath, basicAuth.PasswordFilePath)
+				assert.Equal(t, tc.expectedPasswordReloadInterval, basicAuth.ReloadInterval)
 			}
 
 			// Assert bearer token authentication details
-			if expectBearerAuth {
+			if tc.expectBearerAuth {
 				bearerAuth := primary.Authentication.BearerTokenAuth.Get()
-				hasAtLeastOneField := bearerAuth.FilePath != "" || bearerAuth.AllowFromContext
-				assert.True(t, hasAtLeastOneField, "at least one bearer auth field should be set")
+				assert.Equal(t, tc.expectedTokenPath, bearerAuth.FilePath)
+				assert.Equal(t, tc.expectedBearerFromContext, bearerAuth.AllowFromContext)
+				assert.Equal(t, tc.expectedBearerReloadInterval, bearerAuth.ReloadInterval)
 			}
 
 			// Assert API key authentication details
-			if expectAPIKeyAuth {
+			if tc.expectAPIKeyAuth {
 				apiKeyAuth := primary.Authentication.APIKeyAuth.Get()
-				hasAtLeastOneField := apiKeyAuth.FilePath != "" || apiKeyAuth.AllowFromContext
-				assert.True(t, hasAtLeastOneField, "at least one API key auth field should be set")
+				assert.Equal(t, tc.expectedAPIKeyFilePath, apiKeyAuth.FilePath)
+				assert.Equal(t, tc.expectedAPIKeyFromContext, apiKeyAuth.AllowFromContext)
+				assert.Equal(t, tc.expectedAPIKeyReloadInterval, apiKeyAuth.ReloadInterval)
 			}
 		})
 	}
