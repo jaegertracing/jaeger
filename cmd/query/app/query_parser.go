@@ -139,7 +139,6 @@ func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParamet
 		if val == "ERROR" {
 			tags["error"] = "true"
 		}
-		delete(tags, otelsemconv.OtelStatusCode)
 	}
 
 	limitParam := r.FormValue(limitParam)
