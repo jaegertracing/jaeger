@@ -231,7 +231,7 @@ func (ext *rsExtension) startHTTPServer(ctx context.Context, host component.Host
 	handler.RegisterRoutesWithHTTP(httpMux)
 
 	var err error
-	if ext.httpServer, err = ext.cfg.HTTP.ToServer(ctx, host, ext.telemetry, httpMux); err != nil {
+	if ext.httpServer, err = ext.cfg.HTTP.ToServer(ctx, host.GetExtensions(), ext.telemetry, httpMux); err != nil {
 		return err
 	}
 
@@ -259,7 +259,7 @@ func (ext *rsExtension) startHTTPServer(ctx context.Context, host component.Host
 
 func (ext *rsExtension) startGRPCServer(ctx context.Context, host component.Host) error {
 	var err error
-	if ext.grpcServer, err = ext.cfg.GRPC.ToServer(ctx, host, ext.telemetry); err != nil {
+	if ext.grpcServer, err = ext.cfg.GRPC.ToServer(ctx, host.GetExtensions(), ext.telemetry); err != nil {
 		return err
 	}
 
