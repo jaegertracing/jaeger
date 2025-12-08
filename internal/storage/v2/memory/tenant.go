@@ -13,7 +13,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	v1 "github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -23,7 +22,7 @@ var errInvalidMaxTraces = errors.New("max traces must be greater than zero")
 // Tenant is an in-memory store of traces for a single tenant
 type Tenant struct {
 	mu     sync.RWMutex
-	config *v1.Configuration
+	config *Configuration
 
 	ids        map[pcommon.TraceID]int // maps trace id to index in traces[]
 	traces     []traceAndId            // ring buffer to store traces
@@ -47,7 +46,7 @@ func (t traceAndId) traceIsBetweenStartAndEnd(startTime time.Time, endTime time.
 	return t.startTime.After(startTime) && t.endTime.Before(endTime)
 }
 
-func newTenant(cfg *v1.Configuration) *Tenant {
+func newTenant(cfg *Configuration) *Tenant {
 	return &Tenant{
 		config:     cfg,
 		ids:        make(map[pcommon.TraceID]int),
