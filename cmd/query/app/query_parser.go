@@ -19,6 +19,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 const (
@@ -132,6 +133,13 @@ func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParamet
 	tags, err := p.parseTags(r.Form[tagParam], r.Form[tagsParam])
 	if err != nil {
 		return nil, err
+	}
+
+	if val, ok := tags[otelsemconv.OtelStatusCode]; ok {
+		if val == "ERROR" {
+			tags["error"] = "true"
+		}
+		delete(tags, otelsemconv.OtelStatusCode)
 	}
 
 	limitParam := r.FormValue(limitParam)
