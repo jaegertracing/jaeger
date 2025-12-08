@@ -26,15 +26,6 @@ jobs:
 
     - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
 
-    - name: Set up stable Go for tools
-      uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
-      with:
-        go-version: 1.25.x
-
-    - name: Install test deps
-      # even though the same target runs from test-ci, running it separately makes for cleaner log in GH workflow
-      run: make install-test-tools
-
     - name: Install Go Tip
       uses: ./.github/actions/setup-go-tip
       with:
@@ -48,5 +39,4 @@ jobs:
     - name: Run unit tests
       run: make test-ci
 
-    - name: Lint
-      run: echo skip linting on Go tip
+
