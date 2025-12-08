@@ -54,7 +54,6 @@ require (
 	go.opentelemetry.io/collector/config/confighttp v0.141.0
 	go.opentelemetry.io/collector/config/confighttp/xconfighttp v0.141.0
 	go.opentelemetry.io/collector/config/confignet v1.47.0
-	go.opentelemetry.io/collector/config/configopaque v1.47.0
 	go.opentelemetry.io/collector/config/configoptional v1.47.0
 	go.opentelemetry.io/collector/config/configretry v1.47.0
 	go.opentelemetry.io/collector/config/configtls v1.47.0
@@ -142,6 +141,7 @@ require (
 	github.com/twmb/franz-go/pkg/kadm v1.17.1 // indirect
 	github.com/xdg-go/scram v1.2.0 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
+	go.opentelemetry.io/collector/config/configopaque v1.47.0 // indirect
 	go.opentelemetry.io/collector/semconv v0.128.1-0.20250610090210-188191247685 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	golang.org/x/oauth2 v0.32.0 // indirect
