@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   unit-tests-go-tip:
-
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-all-workflows')
     permissions:
       checks: write
     runs-on: ubuntu-latest
