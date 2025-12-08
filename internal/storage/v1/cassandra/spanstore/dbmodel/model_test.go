@@ -112,8 +112,8 @@ func TestKeyValueCompare(t *testing.T) {
 		},
 		{
 			name:   "ValueFloat64Mismatch",
-			kv1:    &KeyValue{Key: "k", ValueType: "double", ValueFloat64: 1.5},
-			kv2:    &KeyValue{Key: "k", ValueType: "double", ValueFloat64: 0.5},
+			kv1:    &KeyValue{Key: "k", ValueType: "float64", ValueFloat64: 1.5},
+			kv2:    &KeyValue{Key: "k", ValueType: "float64", ValueFloat64: 0.5},
 			result: 1,
 		},
 		{
@@ -127,6 +127,12 @@ func TestKeyValueCompare(t *testing.T) {
 			kv1:    &KeyValue{Key: "k", ValueType: "binary", ValueBinary: []byte{1, 2, 3}},
 			kv2:    &KeyValue{Key: "k", ValueType: "binary", ValueBinary: []byte{1, 2, 3}},
 			result: 0,
+		},
+		{
+			name:   "UnknownType",
+			kv1:    &KeyValue{Key: "k", ValueType: "random", ValueString: "hello"},
+			kv2:    &KeyValue{Key: "k", ValueType: "random", ValueString: "hellobig"},
+			result: -1,
 		},
 	}
 	for _, tc := range tests {
@@ -225,8 +231,8 @@ func TestKeyValueEqual(t *testing.T) {
 		},
 		{
 			name:   "ValueFloat64Mismatch",
-			kv1:    &KeyValue{Key: "k", ValueType: "double", ValueFloat64: 1.5},
-			kv2:    &KeyValue{Key: "k", ValueType: "double", ValueFloat64: 0.5},
+			kv1:    &KeyValue{Key: "k", ValueType: "float64", ValueFloat64: 1.5},
+			kv2:    &KeyValue{Key: "k", ValueType: "float64", ValueFloat64: 0.5},
 			result: false,
 		},
 		{

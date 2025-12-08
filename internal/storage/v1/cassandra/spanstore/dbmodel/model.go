@@ -56,6 +56,46 @@ type KeyValue struct {
 	ValueBinary  []byte  `cql:"value_binary"`
 }
 
+func (t *KeyValue) compareValues(that *KeyValue) int {
+	switch t.ValueType {
+	case stringType:
+		if t.ValueString != that.ValueString {
+			if t.ValueString < that.ValueString {
+				return -1
+			}
+			return 1
+		}
+	case boolType:
+		if t.ValueBool != that.ValueBool {
+			if !t.ValueBool {
+				return -1
+			}
+			return 1
+		}
+	case int64Type:
+		if t.ValueInt64 != that.ValueInt64 {
+			if t.ValueInt64 < that.ValueInt64 {
+				return -1
+			}
+			return 1
+		}
+	case float64Type:
+		if t.ValueFloat64 != that.ValueFloat64 {
+			if t.ValueFloat64 < that.ValueFloat64 {
+				return -1
+			}
+			return 1
+		}
+	case binaryType:
+		if c := bytes.Compare(t.ValueBinary, that.ValueBinary); c != 0 {
+			return c
+		}
+	default:
+		return -1 // theoretical case, not stating them equal but placing the base pointer before other
+	}
+	return 0
+}
+
 func (t *KeyValue) Compare(that any) int {
 	if that == nil {
 		if t == nil {
@@ -91,34 +131,7 @@ func (t *KeyValue) Compare(that any) int {
 		}
 		return 1
 	}
-	if t.ValueString != that1.ValueString {
-		if t.ValueString < that1.ValueString {
-			return -1
-		}
-		return 1
-	}
-	if t.ValueBool != that1.ValueBool {
-		if !t.ValueBool {
-			return -1
-		}
-		return 1
-	}
-	if t.ValueInt64 != that1.ValueInt64 {
-		if t.ValueInt64 < that1.ValueInt64 {
-			return -1
-		}
-		return 1
-	}
-	if t.ValueFloat64 != that1.ValueFloat64 {
-		if t.ValueFloat64 < that1.ValueFloat64 {
-			return -1
-		}
-		return 1
-	}
-	if c := bytes.Compare(t.ValueBinary, that1.ValueBinary); c != 0 {
-		return c
-	}
-	return 0
+	return t.compareValues(that1)
 }
 
 func (t *KeyValue) Equal(that any) bool {
@@ -144,22 +157,7 @@ func (t *KeyValue) Equal(that any) bool {
 	if t.ValueType != that1.ValueType {
 		return false
 	}
-	if t.ValueString != that1.ValueString {
-		return false
-	}
-	if t.ValueBool != that1.ValueBool {
-		return false
-	}
-	if t.ValueInt64 != that1.ValueInt64 {
-		return false
-	}
-	if t.ValueFloat64 != that1.ValueFloat64 {
-		return false
-	}
-	if !bytes.Equal(t.ValueBinary, that1.ValueBinary) {
-		return false
-	}
-	return true
+	return t.compareValues(that1) == 0
 }
 
 func (t *KeyValue) AsString() string {
