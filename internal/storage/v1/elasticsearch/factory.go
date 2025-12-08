@@ -33,11 +33,6 @@ import (
 
 var _ io.Closer = (*FactoryBase)(nil)
 
-const (
-	primaryNamespace = "es"
-	archiveNamespace = "es-archive"
-)
-
 // FactoryBase implements storage.Factory for Elasticsearch backend.
 type FactoryBase struct {
 	metricsFactory metrics.Factory
