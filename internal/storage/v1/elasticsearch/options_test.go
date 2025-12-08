@@ -16,34 +16,6 @@ import (
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
-// basicAuth creates basic authentication component
-func basicAuth(username, password, passwordFilePath string, reloadInterval time.Duration) configoptional.Optional[escfg.BasicAuthentication] {
-	return configoptional.Some(escfg.BasicAuthentication{
-		Username:         username,
-		Password:         password,
-		PasswordFilePath: passwordFilePath,
-		ReloadInterval:   reloadInterval,
-	})
-}
-
-// bearerAuth creates bearer token authentication component
-func bearerAuth(filePath string, allowFromContext bool, reloadInterval time.Duration) configoptional.Optional[escfg.TokenAuthentication] {
-	return configoptional.Some(escfg.TokenAuthentication{
-		FilePath:         filePath,
-		AllowFromContext: allowFromContext,
-		ReloadInterval:   reloadInterval,
-	})
-}
-
-// apiKeyAuth creates api key authentication component
-func apiKeyAuth(filePath string, allowFromContext bool, reloadInterval time.Duration) configoptional.Optional[escfg.TokenAuthentication] {
-	return configoptional.Some(escfg.TokenAuthentication{
-		FilePath:         filePath,
-		AllowFromContext: allowFromContext,
-		ReloadInterval:   reloadInterval,
-	})
-}
-
 func getBasicAuthField(opt configoptional.Optional[escfg.BasicAuthentication], field string) any {
 	if !opt.HasValue() {
 		return ""
