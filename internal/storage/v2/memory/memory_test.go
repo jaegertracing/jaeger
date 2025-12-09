@@ -20,7 +20,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	v1 "github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	conventions "github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
@@ -28,7 +27,7 @@ import (
 )
 
 func TestNewStore_DefaultConfig(t *testing.T) {
-	store, err := NewStore(v1.Configuration{
+	store, err := NewStore(Configuration{
 		MaxTraces: 10,
 	})
 	require.NoError(t, err)
@@ -173,7 +172,7 @@ func TestFindTraces_WrongQuery(t *testing.T) {
 			},
 		},
 	}
-	store, err := NewStore(v1.Configuration{
+	store, err := NewStore(Configuration{
 		MaxTraces: 10,
 	})
 	require.NoError(t, err)
@@ -231,7 +230,7 @@ func TestFindTracesAttributesMatching(t *testing.T) {
 			},
 		},
 	}
-	store, err := NewStore(v1.Configuration{
+	store, err := NewStore(Configuration{
 		MaxTraces: 10,
 	})
 	require.NoError(t, err)
@@ -260,7 +259,7 @@ func TestFindTracesAttributesMatching(t *testing.T) {
 }
 
 func TestFindTraces_MaxTraces(t *testing.T) {
-	store, err := NewStore(v1.Configuration{
+	store, err := NewStore(Configuration{
 		MaxTraces: 10,
 	})
 	require.NoError(t, err)
@@ -300,7 +299,7 @@ func TestFindTraces_MaxTraces(t *testing.T) {
 }
 
 func TestFindTraces_AttributesFoundInEvents(t *testing.T) {
-	store, err := NewStore(v1.Configuration{
+	store, err := NewStore(Configuration{
 		MaxTraces: 10,
 	})
 	require.NoError(t, err)
@@ -329,7 +328,7 @@ func TestFindTraces_AttributesFoundInEvents(t *testing.T) {
 }
 
 func TestFindTraces_ErrorStatusNotMatched(t *testing.T) {
-	store, err := NewStore(v1.Configuration{
+	store, err := NewStore(Configuration{
 		MaxTraces: 10,
 	})
 	require.NoError(t, err)
@@ -401,7 +400,7 @@ func testInvalidSearchDepth(t *testing.T, fxn func(store *Store, params tracesto
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			store, err := NewStore(v1.Configuration{
+			store, err := NewStore(Configuration{
 				MaxTraces: 10,
 			})
 			require.NoError(t, err)
@@ -414,7 +413,7 @@ func testInvalidSearchDepth(t *testing.T, fxn func(store *Store, params tracesto
 }
 
 func TestFindTraces_StatusCode(t *testing.T) {
-	store, err := NewStore(v1.Configuration{
+	store, err := NewStore(Configuration{
 		MaxTraces: 10,
 	})
 	traceId1 := fromString(t, "00000000000000010000000000000000")
@@ -491,7 +490,7 @@ func TestGetOperationsWithKind(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.spanKind.String(), func(t *testing.T) {
-			store, err := NewStore(v1.Configuration{
+			store, err := NewStore(Configuration{
 				MaxTraces: 10,
 			})
 			require.NoError(t, err)
@@ -516,7 +515,7 @@ func TestGetOperationsWithKind(t *testing.T) {
 }
 
 func TestGetTraces_IterBreak(t *testing.T) {
-	store, err := NewStore(v1.Configuration{
+	store, err := NewStore(Configuration{
 		MaxTraces: 10,
 	})
 	require.NoError(t, err)
@@ -538,7 +537,7 @@ func TestGetTraces_IterBreak(t *testing.T) {
 }
 
 func TestWriteTraces_WriteTwoBatches(t *testing.T) {
-	store, err := NewStore(v1.Configuration{
+	store, err := NewStore(Configuration{
 		MaxTraces: 10,
 	})
 	require.NoError(t, err)
@@ -558,7 +557,7 @@ func TestWriteTraces_WriteTwoBatches(t *testing.T) {
 }
 
 func TestWriteTraces_WriteTraceWithTwoResourceSpans(t *testing.T) {
-	store, err := NewStore(v1.Configuration{
+	store, err := NewStore(Configuration{
 		MaxTraces: 10,
 	})
 	require.NoError(t, err)
@@ -582,7 +581,7 @@ func TestWriteTraces_WriteTraceWithTwoResourceSpans(t *testing.T) {
 
 func TestNewStore_TracesLimit(t *testing.T) {
 	maxTraces := 8
-	store, err := NewStore(v1.Configuration{
+	store, err := NewStore(Configuration{
 		MaxTraces: maxTraces,
 	})
 	require.NoError(t, err)
@@ -595,7 +594,7 @@ func TestNewStore_TracesLimit(t *testing.T) {
 
 func TestNewStore_ReverseChronologicalOrder(t *testing.T) {
 	maxTraces := 8
-	store, err := NewStore(v1.Configuration{
+	store, err := NewStore(Configuration{
 		MaxTraces: maxTraces,
 	})
 	require.NoError(t, err)
@@ -617,13 +616,13 @@ func TestNewStore_ReverseChronologicalOrder(t *testing.T) {
 }
 
 func TestInvalidMaxTracesErr(t *testing.T) {
-	store, err := NewStore(v1.Configuration{})
+	store, err := NewStore(Configuration{})
 	require.ErrorContains(t, err, errInvalidMaxTraces.Error())
 	assert.Nil(t, store)
 }
 
 func TestGetDependencies(t *testing.T) {
-	store, err := NewStore(v1.Configuration{
+	store, err := NewStore(Configuration{
 		MaxTraces: 10,
 	})
 	require.NoError(t, err)
@@ -695,7 +694,7 @@ func TestGetDependencies(t *testing.T) {
 }
 
 func TestGetDependencies_Err(t *testing.T) {
-	store, err := NewStore(v1.Configuration{
+	store, err := NewStore(Configuration{
 		MaxTraces: 10,
 	})
 	require.NoError(t, err)
@@ -712,7 +711,7 @@ func TestGetDependencies_Err(t *testing.T) {
 }
 
 func TestGetDependencies_EmptyParentSpanId(t *testing.T) {
-	store, err := NewStore(v1.Configuration{
+	store, err := NewStore(Configuration{
 		MaxTraces: 10,
 	})
 	require.NoError(t, err)
@@ -733,7 +732,7 @@ func TestGetDependencies_EmptyParentSpanId(t *testing.T) {
 }
 
 func TestGetDependencies_WrongSpanId(t *testing.T) {
-	store, err := NewStore(v1.Configuration{
+	store, err := NewStore(Configuration{
 		MaxTraces: 10,
 	})
 	require.NoError(t, err)

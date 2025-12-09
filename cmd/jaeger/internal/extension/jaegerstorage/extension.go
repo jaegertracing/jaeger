@@ -13,18 +13,13 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/extension/extensionauth"
 
+	"github.com/jaegertracing/jaeger/cmd/internal/storageconfig"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	esmetrics "github.com/jaegertracing/jaeger/internal/storage/metricstore/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/badger"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/cassandra"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse"
-	es "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
@@ -159,69 +154,18 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		})
 	}
 	for storageName, cfg := range s.config.TraceBackends {
-		s.telset.Logger.Sugar().Infof("Initializing storage '%s'", storageName)
-		var factory tracestore.Factory
-		err := errors.New("empty configuration")
-		switch {
-		case cfg.Memory != nil:
-			memTelset := telset
-			memTelset.Metrics = scopedMetricsFactory(storageName, "memory", "tracestore")
-			factory, err = memory.NewFactory(*cfg.Memory, memTelset)
-		case cfg.Badger != nil:
-			factory, err = badger.NewFactory(
-				*cfg.Badger,
-				scopedMetricsFactory(storageName, "badger", "tracestore"),
-				s.telset.Logger)
-		case cfg.GRPC != nil:
-			grpcTelset := telset
-			grpcTelset.Metrics = scopedMetricsFactory(storageName, "grpc", "tracestore")
-			factory, err = grpc.NewFactory(ctx, *cfg.GRPC, grpcTelset)
-		case cfg.Cassandra != nil:
-			factory, err = cassandra.NewFactory(
-				*cfg.Cassandra,
-				scopedMetricsFactory(storageName, "cassandra", "tracestore"),
-				s.telset.Logger,
-			)
-		case cfg.Elasticsearch != nil:
-			esTelset := telset
-			esTelset.Metrics = scopedMetricsFactory(storageName, "elasticsearch", "tracestore")
-			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Elasticsearch.Authentication, "elasticsearch", storageName)
-			if authErr != nil {
-				return authErr
-			}
-			factory, err = es.NewFactory(
-				ctx,
-				*cfg.Elasticsearch,
-				esTelset,
-				httpAuth,
-			)
-
-		case cfg.Opensearch != nil:
-			osTelset := telset
-			osTelset.Metrics = scopedMetricsFactory(storageName, "opensearch", "tracestore")
-			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Opensearch.Authentication, "opensearch", storageName)
-			if authErr != nil {
-				return authErr
-			}
-			factory, err = es.NewFactory(ctx,
-				*cfg.Opensearch,
-				osTelset,
-				httpAuth,
-			)
-
-		case cfg.ClickHouse != nil:
-			chTelset := telset
-			chTelset.Metrics = scopedMetricsFactory(storageName, "clickhouse", "tracestore")
-			factory, err = clickhouse.NewFactory(
-				ctx,
-				*cfg.ClickHouse,
-				chTelset,
-			)
-		default:
-			// default case
-		}
+		// Use shared factory creation logic with auth resolver
+		factory, err := storageconfig.CreateTraceStorageFactory(
+			ctx,
+			storageName,
+			cfg,
+			telset,
+			func(authCfg config.Authentication, backendType, backendName string) (extensionauth.HTTPClient, error) {
+				return s.resolveAuthenticator(host, authCfg, backendType, backendName)
+			},
+		)
 		if err != nil {
-			return fmt.Errorf("failed to initialize storage '%s': %w", storageName, err)
+			return err
 		}
 
 		s.factories[storageName] = factory

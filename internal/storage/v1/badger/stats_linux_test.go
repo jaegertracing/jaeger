@@ -10,19 +10,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/config"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 )
 
 func TestDiskStatisticsUpdate(t *testing.T) {
 	f := NewFactory()
-	cfg := DefaultConfig()
-	v, command := config.Viperize(cfg.AddFlags)
-	command.ParseFlags([]string{
-		"--badger.ephemeral=true",
-		"--badger.consistency=false",
-	})
-	f.InitFromViper(v, zap.NewNop())
+	f.Config.Ephemeral = true
+	f.Config.SyncWrites = false
 	mFactory := metricstest.NewFactory(0)
 	err := f.Initialize(mFactory, zap.NewNop())
 	require.NoError(t, err)

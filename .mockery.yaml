@@ -6,12 +6,6 @@ filename: mocks.go
 template-data:
   boilerplate-file: .mockery.header.txt
 packages:
-  github.com/jaegertracing/jaeger/cmd/ingester/app/consumer:
-    interfaces:
-      Message: {}
-  github.com/jaegertracing/jaeger/cmd/ingester/app/processor:
-    interfaces:
-      SpanProcessor: {}
   github.com/jaegertracing/jaeger/crossdock/services:
     interfaces:
       CollectorService: {}
@@ -39,9 +33,6 @@ packages:
   github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client:
     config:
       all: true
-  github.com/jaegertracing/jaeger/internal/storage/kafka/consumer:
-    interfaces:
-      Consumer: {}
   github.com/jaegertracing/jaeger/internal/storage/v1:
     config:
       all: true
@@ -67,10 +58,6 @@ packages:
   github.com/jaegertracing/jaeger/internal/storage/v1/grpc/shared:
     interfaces:
       PluginCapabilities: {}
-  github.com/jaegertracing/jaeger/internal/storage/v1/kafka:
-    interfaces:
-      Marshaller: {}
-      Unmarshaller: {}
   github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore:
     config:
       all: true

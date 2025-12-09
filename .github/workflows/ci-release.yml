@@ -53,7 +53,7 @@ jobs:
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-    - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
       with:
         submodules: true
 
@@ -88,13 +88,10 @@ jobs:
       # Many scripts depend on BRANCH variable. We do not want to
       # use ./.github/actions/setup-branch here because it may set
       # BRANCH=main when the workflow is triggered manually.
-      #
-      # TODO this currently utilizes 1.x version tag, which is ok for v1
-      # binaries, but for tools/utils we may need to change in the future.
       run: |
-        BRANCH=$(make echo-v1)
+        BRANCH=$(make echo-version)
         echo Validate that the latest tag ${BRANCH} is in semver format
-        echo ${BRANCH} | grep -E '^v[0-9]+.[0-9]+.[0-9]+$'
+        echo ${BRANCH} | grep -E '^v[0-9]+.[0-9]+.[0-9]+(-rc[0-9]+)?$'
         echo "BRANCH=${BRANCH}" >> ${GITHUB_ENV}
 
     - name: Configure GPG Key
@@ -139,22 +136,10 @@ jobs:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
-    - name: Build, test, and publish all-in-one v1 image
+    - name: Build, test, and publish jaeger image
       run: |
-        BRANCH=$(make echo-v1) \
         bash scripts/build/build-all-in-one-image.sh \
-          ${{ steps.params.outputs.docker_flags }} \
-          v1
-      env:
-        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
-
-    - name: Build, test, and publish v2 image
-      run: |
-        BRANCH=$(make echo-v2) \
-        bash scripts/build/build-all-in-one-image.sh \
-          ${{ steps.params.outputs.docker_flags }} \
-          v2
+          ${{ steps.params.outputs.docker_flags }}
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
@@ -182,6 +167,5 @@ jobs:
       with:
         file: jaeger-SBOM.spdx.json
         overwrite: ${{ inputs.overwrite }}
-        # TODO this will only work for 1.x artifacts
         tag: ${{ env.BRANCH }}
         repo_token: ${{ secrets.GITHUB_TOKEN }}

@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/storagecleaner"
 	"github.com/jaegertracing/jaeger/internal/storage/integration"

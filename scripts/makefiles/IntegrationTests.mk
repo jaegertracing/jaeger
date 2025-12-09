@@ -6,7 +6,7 @@ JAEGER_V2_STORAGE_PKGS = ./cmd/jaeger/internal/integration
 
 .PHONY: all-in-one-integration-test
 all-in-one-integration-test:
-	TEST_MODE=integration $(GOTEST) ./cmd/all-in-one/
+	TEST_MODE=integration $(GOTEST) ./cmd/jaeger/internal/all_in_one_test.go
 
 # A general integration tests for jaeger-v2 storage backends,
 # these tests placed at `./cmd/jaeger/internal/integration/*_test.go`.

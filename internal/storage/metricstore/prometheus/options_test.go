@@ -9,35 +9,23 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/internal/config"
+	config "github.com/jaegertracing/jaeger/internal/config/promcfg"
 )
 
 func TestCLI(t *testing.T) {
-	opts := NewOptions()
-	v, command := config.Viperize(opts.AddFlags)
-	err := command.ParseFlags([]string{
-		"--prometheus.query.extra-query-params=key1=value1",
-	})
-	require.NoError(t, err)
+	opts := Options{
+		Configuration: config.Configuration{
+			ExtraQueryParams: map[string]string{"key1": "value1"},
+		},
+	}
 
-	err = opts.InitFromViper(v)
-	require.NoError(t, err)
 	assert.Equal(t, map[string]string{"key1": "value1"}, opts.ExtraQueryParams)
 }
 
 func TestCLIError(t *testing.T) {
-	opts := NewOptions()
-	v, command := config.Viperize(opts.AddFlags)
-
-	err := command.ParseFlags([]string{
-		"--prometheus.query.extra-query-params=key1",
-	})
-	require.NoError(t, err)
-
-	err = opts.InitFromViper(v)
-	require.ErrorContains(t, err, "failed to parse extra query params: failed to parse 'key1'. Expected format: 'param1=value1,param2=value2'")
+	_, err := parseKV("key1")
+	assert.ErrorContains(t, err, "failed to parse 'key1'. Expected format: 'param1=value1,param2=value2'")
 }
 
 func TestParseKV(t *testing.T) {

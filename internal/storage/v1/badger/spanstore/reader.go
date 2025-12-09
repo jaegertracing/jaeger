@@ -438,6 +438,7 @@ func mergeJoinIds(left, right [][]byte) [][]byte {
 			l++
 		default:
 			// Left matches right (case 0) - merge
+			// #nosec G602 loop condition ensures l < len(left)
 			merged = append(merged, left[l])
 			// Advance both
 			l++

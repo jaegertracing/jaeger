@@ -136,9 +136,13 @@ func createGRPCServer(
 		configgrpc.WithGrpcServerOption(grpc.ChainUnaryInterceptor(unaryInterceptors...)),
 		configgrpc.WithGrpcServerOption(grpc.ChainStreamInterceptor(streamInterceptors...)),
 	)
+	var extensions map[component.ID]component.Component
+	if telset.Host != nil {
+		extensions = telset.Host.GetExtensions()
+	}
 	return options.GRPC.ToServer(
 		ctx,
-		telset.Host,
+		extensions,
 		component.TelemetrySettings{
 			Logger:         telset.Logger,
 			TracerProvider: telset.TracerProvider,
@@ -207,9 +211,13 @@ func createHTTPServer(
 ) (*httpServer, error) {
 	handler, staticHandlerCloser := initRouter(querySvc, v2QuerySvc, metricsQuerySvc, queryOpts, tm, telset)
 	handler = recoveryhandler.NewRecoveryHandler(telset.Logger, true)(handler)
+	var extensions map[component.ID]component.Component
+	if telset.Host != nil {
+		extensions = telset.Host.GetExtensions()
+	}
 	hs, err := queryOpts.HTTP.ToServer(
 		ctx,
-		telset.Host,
+		extensions,
 		component.TelemetrySettings{
 			Logger:         telset.Logger,
 			TracerProvider: telset.TracerProvider,

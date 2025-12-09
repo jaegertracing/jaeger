@@ -21,9 +21,6 @@ import (
 func TestAddFlags(*testing.T) {
 	s := NewService(0)
 	s.AddFlags(new(flag.FlagSet))
-
-	s.NoStorage = true
-	s.AddFlags(new(flag.FlagSet))
 }
 
 func TestStartErrors(t *testing.T) {

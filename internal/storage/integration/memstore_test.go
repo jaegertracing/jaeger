@@ -7,10 +7,11 @@ package integration
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
@@ -19,13 +20,21 @@ type MemStorageIntegrationTestSuite struct {
 	logger *zap.Logger
 }
 
-func (s *MemStorageIntegrationTestSuite) initialize(_ *testing.T) {
+func (s *MemStorageIntegrationTestSuite) initialize(t *testing.T) {
 	s.logger, _ = testutils.NewLogger()
+	telset := telemetry.NoopSettings()
+	telset.Logger = s.logger
 
-	store := memory.NewStore()
+	f, err := memory.NewFactory(memory.Configuration{MaxTraces: 10000}, telset)
+	require.NoError(t, err)
+	traceReader, err := f.CreateTraceReader()
+	require.NoError(t, err)
+	traceWriter, err := f.CreateTraceWriter()
+	require.NoError(t, err)
+
 	s.SamplingStore = memory.NewSamplingStore(2)
-	s.TraceReader = v1adapter.NewTraceReader(store)
-	s.TraceWriter = v1adapter.NewTraceWriter(store)
+	s.TraceReader = traceReader
+	s.TraceWriter = traceWriter
 
 	// TODO DependencyWriter is not implemented in memory store
 

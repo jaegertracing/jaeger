@@ -28,9 +28,6 @@ type Service struct {
 	// AdminPort is the HTTP port number for admin server.
 	AdminPort int
 
-	// NoStorage indicates that storage-type CLI flag is not applicable
-	NoStorage bool
-
 	// Admin is the admin server that hosts the health check and metrics endpoints.
 	Admin *AdminServer
 
@@ -41,29 +38,6 @@ type Service struct {
 	MetricsFactory metrics.Factory
 
 	signalsChannel chan os.Signal
-}
-
-func PrintV1EOL() {
-	fmt.Fprintln(os.Stderr, (`
-*******************************************************************************
-
-🛑  WARNING: End-of-life Notice for Jaeger v1
-
-You are currently running a v1 version of Jaeger, which is deprecated and will
-reach end-of-life on December 31st, 2025. This means there will be no further
-development, bug fixes, or security patches for v1 after this date.
-
-We strongly recommend migrating to Jaeger v2 for continued support and access
-to new features.
-
-For detailed migration instructions, please refer to the official Jaeger
-documentation:  https://www.jaegertracing.io/docs/latest/migration/
-
-Tracking issue: https://github.com/jaegertracing/jaeger/issues/6321
-
-🛑  WARNING: End-of-life Notice for Jaeger v1
-
-*******************************************************************************`))
 }
 
 // NewService creates a new Service.
@@ -80,11 +54,7 @@ func NewService(adminPort int) *Service {
 // AddFlags registers CLI flags.
 func (s *Service) AddFlags(flagSet *flag.FlagSet) {
 	AddConfigFileFlag(flagSet)
-	if s.NoStorage {
-		AddLoggingFlags(flagSet)
-	} else {
-		AddFlags(flagSet)
-	}
+	AddLoggingFlags(flagSet)
 	metricsbuilder.AddFlags(flagSet)
 	s.Admin.AddFlags(flagSet)
 	featuregate.GlobalRegistry().RegisterFlags(flagSet)

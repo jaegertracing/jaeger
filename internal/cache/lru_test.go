@@ -53,7 +53,7 @@ func TestLRU(t *testing.T) {
 }
 
 func TestCompareAndSwap(t *testing.T) {
-	cache := NewLRU(2)
+	cache := NewLRUWithOptions(2, nil)
 
 	item, ok := cache.CompareAndSwap("A", nil, "Foo")
 	assert.True(t, ok)
@@ -129,7 +129,7 @@ func TestDefaultClock(t *testing.T) {
 }
 
 func TestLRUCacheConcurrentAccess(*testing.T) {
-	cache := NewLRU(5)
+	cache := NewLRUWithOptions(5, nil)
 	values := map[string]string{
 		"A": "foo",
 		"B": "bar",

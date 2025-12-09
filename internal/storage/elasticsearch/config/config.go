@@ -727,14 +727,6 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 	return roundTripper, nil
 }
 
-func loadTokenFromFile(path string) (string, error) {
-	b, err := os.ReadFile(filepath.Clean(path))
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimRight(string(b), "\r\n"), nil
-}
-
 func (c *Configuration) Validate() error {
 	_, err := govalidator.ValidateStruct(c)
 	if err != nil {

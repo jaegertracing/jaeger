@@ -23,17 +23,14 @@ jobs:
       fail-fast: false
       matrix:
         runtime: [docker, k8s]
-        jaeger-version: [v1, v2]
-        exclude:
-          - runtime: k8s
-            jaeger-version: v1
+        jaeger-version: [v2]
           
     steps:
     - uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-    - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
       with:
         submodules: true
 
