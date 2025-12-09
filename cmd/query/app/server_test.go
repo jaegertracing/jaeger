@@ -393,7 +393,7 @@ func TestServerHTTPTLS(t *testing.T) {
 					TLS: optionalFromPtr(tlsGrpc),
 				},
 			}
-			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
+			flagsSvc := flags.NewService(ports.RemoteStorageAdminHTTP)
 			flagsSvc.Logger = zaptest.NewLogger(t)
 			telset := initTelSet(flagsSvc.Logger, jtracer.NoOp(), flagsSvc.HC())
 			querySvc := makeQuerySvc()
@@ -501,7 +501,7 @@ func TestServerGRPCTLS(t *testing.T) {
 					TLS: optionalFromPtr(test.TLS),
 				},
 			}
-			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
+			flagsSvc := flags.NewService(ports.RemoteStorageAdminHTTP)
 			flagsSvc.Logger = zaptest.NewLogger(t)
 
 			querySvc := makeQuerySvc()
@@ -628,7 +628,7 @@ func TestServerInUseHostPort(t *testing.T) {
 }
 
 func TestServerGracefulExit(t *testing.T) {
-	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
+	flagsSvc := flags.NewService(ports.RemoteStorageAdminHTTP)
 
 	zapCore, logs := observer.New(zap.ErrorLevel)
 	assert.Equal(t, 0, logs.Len(), "Expected initial ObservedLogs to have zero length.")
@@ -676,7 +676,7 @@ func TestServerGracefulExit(t *testing.T) {
 }
 
 func TestServerHandlesPortZero(t *testing.T) {
-	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
+	flagsSvc := flags.NewService(ports.RemoteStorageAdminHTTP)
 	zapCore, logs := observer.New(zap.InfoLevel)
 	flagsSvc.Logger = zap.New(zapCore)
 

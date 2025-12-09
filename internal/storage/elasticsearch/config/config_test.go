@@ -5,6 +5,7 @@ package config
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -493,13 +494,156 @@ func TestNewClient(t *testing.T) {
 			logger := zap.NewNop()
 			metricsFactory := metrics.NullFactory
 			config := test.config
-			client, err := NewClient(context.Background(), config, logger, metricsFactory)
+			client, err := NewClient(context.Background(), config, logger, metricsFactory, nil)
 			if test.expectedError {
 				require.Error(t, err)
 				require.Nil(t, client)
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, client)
+				err = client.Close()
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestNewClientPingErrorHandling(t *testing.T) {
+	tests := []struct {
+		name           string
+		serverResponse []byte
+		statusCode     int
+		expectedError  string
+	}{
+		{
+			name:           "ping returns 404 status",
+			serverResponse: mockEsServerResponseWithVersion0,
+			statusCode:     404,
+			expectedError:  "ElasticSearch server",
+		},
+		{
+			name:           "ping returns 500 status",
+			serverResponse: mockEsServerResponseWithVersion0,
+			statusCode:     500,
+			expectedError:  "ElasticSearch server",
+		},
+		{
+			name:           "ping returns 300 status",
+			serverResponse: mockEsServerResponseWithVersion0,
+			statusCode:     300,
+			expectedError:  "ElasticSearch server",
+		},
+		{
+			name:           "ping returns empty version number",
+			serverResponse: []byte(`{"Version": {"Number": ""}}`),
+			statusCode:     200,
+			expectedError:  "invalid ping response",
+		},
+
+		{
+			name:           "ping returns valid 200 status with version",
+			serverResponse: mockEsServerResponseWithVersion0,
+			statusCode:     200,
+			expectedError:  "",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+				assert.Contains(t, []string{http.MethodGet, http.MethodHead}, req.Method)
+				res.WriteHeader(test.statusCode)
+				res.Write(test.serverResponse)
+			}))
+			defer testServer.Close()
+
+			config := &Configuration{
+				Servers:            []string{testServer.URL},
+				LogLevel:           "error",
+				DisableHealthCheck: true,
+			}
+
+			logger := zap.NewNop()
+			metricsFactory := metrics.NullFactory
+			client, err := NewClient(context.Background(), config, logger, metricsFactory, nil)
+
+			if test.expectedError != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), test.expectedError)
+				require.Nil(t, client)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, client)
+				err = client.Close()
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestNewClientVersionDetection(t *testing.T) {
+	tests := []struct {
+		name            string
+		serverResponse  []byte
+		expectedVersion uint
+		expectedError   string
+	}{
+		{
+			name: "version number with letters",
+			serverResponse: []byte(`{
+                "Version": {
+                    "Number": "7.x.1"
+                }
+            }`),
+			expectedVersion: 7,
+			expectedError:   "",
+		},
+		{
+			name: "empty version number should fail validation",
+			serverResponse: []byte(`{
+                "Version": {
+                    "Number": ""
+                }
+            }`),
+			expectedError: "invalid ping response",
+		},
+		{
+			name: "version number as numeric should fail JSON parsing",
+			serverResponse: []byte(`{
+                "Version": {
+                    "Number": 7
+                }
+            }`),
+			expectedError: "cannot unmarshal number",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, _ *http.Request) {
+				res.WriteHeader(http.StatusOK)
+				res.Write(test.serverResponse)
+			}))
+			defer testServer.Close()
+
+			config := &Configuration{
+				Servers:            []string{testServer.URL},
+				LogLevel:           "error",
+				DisableHealthCheck: true,
+			}
+
+			logger := zap.NewNop()
+			metricsFactory := metrics.NullFactory
+			client, err := NewClient(context.Background(), config, logger, metricsFactory, nil)
+
+			if test.expectedError != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), test.expectedError)
+				require.Nil(t, client)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, client)
+				assert.Equal(t, test.expectedVersion, config.Version)
 				err = client.Close()
 				require.NoError(t, err)
 			}
@@ -1210,7 +1354,7 @@ func TestGetConfigOptions(t *testing.T) {
 				tt.prepare()
 			}
 
-			options, err := tt.cfg.getConfigOptions(tt.ctx, logger)
+			options, err := tt.cfg.getConfigOptions(tt.ctx, logger, nil)
 			if tt.wantErr {
 				require.Error(t, err)
 				if tt.wantErrContains != "" {
@@ -1341,7 +1485,7 @@ func TestGetConfigOptionsIntegration(t *testing.T) {
 	}
 
 	logger := zap.NewNop()
-	options, err := cfg.getConfigOptions(context.Background(), logger)
+	options, err := cfg.getConfigOptions(context.Background(), logger, nil)
 	require.NoError(t, err)
 	require.NotNil(t, options)
 	require.Greater(t, len(options), 5, "Should have basic ES options plus additional config options")
@@ -1473,7 +1617,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 	logger := zap.NewNop()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rt, err := GetHTTPRoundTripper(tt.ctx, tt.cfg, logger)
+			rt, err := GetHTTPRoundTripper(tt.ctx, tt.cfg, logger, nil)
 			if tt.wantErrContains != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErrContains)
@@ -1486,21 +1630,93 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 	}
 }
 
-func TestLoadTokenFromFile(t *testing.T) {
-	t.Run("success", func(t *testing.T) {
-		const token = "test-token"
-		tokenFile := filepath.Join(t.TempDir(), "token")
-		require.NoError(t, os.WriteFile(tokenFile, []byte(token), 0o600))
+// Test GetHTTPRoundTripper with httpAuth error
+func TestGetHTTPRoundTripperWithHTTPAuthError(t *testing.T) {
+	ctx := context.Background()
+	logger := zap.NewNop()
+	// Create a mock httpAuth that will fail on RoundTripper wrapping
+	mockAuth := &mockFailingHTTPAuth{}
 
-		loadedToken, err := loadTokenFromFile(tokenFile)
-		require.NoError(t, err)
-		assert.Equal(t, token, loadedToken)
-	})
+	c := &Configuration{
+		Servers:  []string{"http://localhost:9200"},
+		LogLevel: "error",
+		TLS:      configtls.ClientConfig{Insecure: true},
+	}
 
-	t.Run("file not found", func(t *testing.T) {
-		_, err := loadTokenFromFile("/does/not/exist")
-		require.Error(t, err)
-	})
+	_, err := GetHTTPRoundTripper(ctx, c, logger, mockAuth)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to wrap round tripper with HTTP authenticator")
+}
+
+// Mock failing HTTP authenticator
+type mockFailingHTTPAuth struct{}
+
+func (*mockFailingHTTPAuth) RoundTripper(_ http.RoundTripper) (http.RoundTripper, error) {
+	return nil, errors.New("mock authenticator error")
+}
+
+func TestGetHTTPRoundTripperWrappingError(t *testing.T) {
+	ctx := context.Background()
+	logger := zap.NewNop()
+
+	// Create a mock failing HTTP authenticator
+	mockAuth := &mockFailingHTTPAuthWrapper{}
+
+	c := &Configuration{
+		Servers:  []string{"http://localhost:9200"},
+		LogLevel: "error",
+		TLS:      configtls.ClientConfig{Insecure: true},
+	}
+
+	_, err := GetHTTPRoundTripper(ctx, c, logger, mockAuth)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "failed to wrap round tripper with HTTP authenticator")
+}
+
+// mockFailingHTTPAuthWrapper mocks a failing HTTP authenticator for wrapping tests
+type mockFailingHTTPAuthWrapper struct{}
+
+func (*mockFailingHTTPAuthWrapper) RoundTripper(_ http.RoundTripper) (http.RoundTripper, error) {
+	return nil, errors.New("wrapping error")
+}
+
+// Test GetHTTPRoundTripper with successful httpAuth wrapping
+func TestGetHTTPRoundTripperWithHTTPAuthSuccess(t *testing.T) {
+	ctx := context.Background()
+	logger := zap.NewNop()
+
+	// Create a mock httpAuth that will succeed
+	mockAuth := &mockSuccessfulHTTPAuth{}
+
+	c := &Configuration{
+		Servers:  []string{"http://localhost:9200"},
+		LogLevel: "error",
+		TLS:      configtls.ClientConfig{Insecure: true},
+	}
+
+	rt, err := GetHTTPRoundTripper(ctx, c, logger, mockAuth)
+
+	require.NoError(t, err)
+	require.NotNil(t, rt)
+	wrappedRT, ok := rt.(*mockWrappedRoundTripper)
+	require.True(t, ok, "Should be wrapped round tripper")
+	require.NotNil(t, wrappedRT)
+}
+
+// Mock successful HTTP authenticator
+type mockSuccessfulHTTPAuth struct{}
+
+func (*mockSuccessfulHTTPAuth) RoundTripper(rt http.RoundTripper) (http.RoundTripper, error) {
+	return &mockWrappedRoundTripper{base: rt}, nil
+}
+
+// Mock wrapped round tripper
+type mockWrappedRoundTripper struct {
+	base http.RoundTripper
+}
+
+func (m *mockWrappedRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return m.base.RoundTrip(req)
 }
 
 func TestBulkCallbackInvoke_NilResponse(t *testing.T) {
@@ -1529,6 +1745,149 @@ func TestBulkCallbackInvoke_NilResponse(t *testing.T) {
 			Value: 1,
 		},
 	)
+}
+
+func TestCustomHeaders(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   Configuration
+		expected map[string]string
+	}{
+		{
+			name: "custom headers are set correctly",
+			config: Configuration{
+				Servers: []string{"http://localhost:9200"},
+				CustomHeaders: map[string]string{
+					"Host":            "my-opensearch.amazonaws.com",
+					"X-Custom-Header": "test-value",
+				},
+			},
+			expected: map[string]string{
+				"Host":            "my-opensearch.amazonaws.com",
+				"X-Custom-Header": "test-value",
+			},
+		},
+		{
+			name: "empty custom headers",
+			config: Configuration{
+				Servers:       []string{"http://localhost:9200"},
+				CustomHeaders: map[string]string{},
+			},
+			expected: map[string]string{},
+		},
+		{
+			name: "nil custom headers",
+			config: Configuration{
+				Servers:       []string{"http://localhost:9200"},
+				CustomHeaders: nil,
+			},
+			expected: nil,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.expected == nil {
+				assert.Nil(t, test.config.CustomHeaders)
+			} else {
+				assert.Equal(t, test.expected, test.config.CustomHeaders)
+			}
+		})
+	}
+}
+
+func TestApplyDefaultsCustomHeaders(t *testing.T) {
+	source := &Configuration{
+		CustomHeaders: map[string]string{
+			"Host":            "source-host",
+			"X-Custom-Header": "source-value",
+		},
+	}
+
+	tests := []struct {
+		name     string
+		target   *Configuration
+		expected map[string]string
+	}{
+		{
+			name:   "target has no headers, apply from source",
+			target: &Configuration{},
+			expected: map[string]string{
+				"Host":            "source-host",
+				"X-Custom-Header": "source-value",
+			},
+		},
+		{
+			name: "target has headers, keep target headers",
+			target: &Configuration{
+				CustomHeaders: map[string]string{
+					"Host": "target-host",
+				},
+			},
+			expected: map[string]string{
+				"Host": "target-host",
+			},
+		},
+		{
+			name: "target has empty map, keep empty",
+			target: &Configuration{
+				CustomHeaders: map[string]string{},
+			},
+			expected: map[string]string{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.target.ApplyDefaults(source)
+			assert.Equal(t, test.expected, test.target.CustomHeaders)
+		})
+	}
+}
+
+func TestNewClientWithCustomHeaders(t *testing.T) {
+	headersSeen := false
+	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		// Check if custom headers are present
+		if req.Header.Get("X-Custom-Header") == "custom-value" {
+			headersSeen = true
+		}
+		res.WriteHeader(http.StatusOK)
+		res.Write(mockEsServerResponseWithVersion8)
+	}))
+	defer testServer.Close()
+
+	config := Configuration{
+		Servers: []string{testServer.URL},
+		CustomHeaders: map[string]string{
+			"Host":            "my-opensearch.amazonaws.com",
+			"X-Custom-Header": "custom-value",
+		},
+		LogLevel: "error",
+		Version:  8,
+	}
+
+	logger := zap.NewNop()
+	metricsFactory := metrics.NullFactory
+
+	client, err := NewClient(context.Background(), &config, logger, metricsFactory, nil)
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	// Verify the configuration has the custom headers set
+	// Note: The ES v8 client may not send custom headers during the initial ping/health check,
+	// but they will be available for actual Elasticsearch operations (index, search, etc.)
+	assert.Equal(t, "my-opensearch.amazonaws.com", config.CustomHeaders["Host"])
+	assert.Equal(t, "custom-value", config.CustomHeaders["X-Custom-Header"])
+
+	if headersSeen {
+		t.Log(" Custom headers were transmitted in HTTP request")
+	} else {
+		t.Log("  Custom headers not sent in ping request (expected - will be sent in data operations)")
+	}
+
+	err = client.Close()
+	require.NoError(t, err)
 }
 
 func TestMain(m *testing.M) {

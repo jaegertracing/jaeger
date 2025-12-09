@@ -25,6 +25,42 @@ import (
 	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 )
 
+var (
+	mockTraceID  = model.NewTraceID(0, 123456)
+	mockTraceID2 = model.NewTraceID(0, 123457)
+
+	mockTraceSpans = []model.Span{
+		{
+			TraceID: mockTraceID,
+			SpanID:  model.NewSpanID(1),
+			Process: &model.Process{},
+		},
+		{
+			TraceID: mockTraceID,
+			SpanID:  model.NewSpanID(2),
+			Process: &model.Process{},
+		},
+	}
+
+	mockTracesSpans = []model.Span{
+		{
+			TraceID: mockTraceID,
+			SpanID:  model.NewSpanID(1),
+			Process: &model.Process{},
+		},
+		{
+			TraceID: mockTraceID,
+			SpanID:  model.NewSpanID(2),
+			Process: &model.Process{},
+		},
+		{
+			TraceID: mockTraceID2,
+			SpanID:  model.NewSpanID(1),
+			Process: &model.Process{},
+		},
+	}
+)
+
 type mockStoragePlugin struct {
 	spanReader   *spanstoremocks.Reader
 	spanWriter   *spanstoremocks.Writer

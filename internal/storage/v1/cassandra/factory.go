@@ -7,10 +7,8 @@ package cassandra
 import (
 	"context"
 	"errors"
-	"flag"
 	"io"
 
-	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -44,7 +42,6 @@ var ( // interface comformance checks
 	_ storage.Purger               = (*Factory)(nil)
 	_ storage.SamplingStoreFactory = (*Factory)(nil)
 	_ io.Closer                    = (*Factory)(nil)
-	_ storage.Configurable         = (*Factory)(nil)
 	_ storage.Inheritable          = (*Factory)(nil)
 	_ storage.ArchiveCapable       = (*Factory)(nil)
 )
@@ -72,25 +69,6 @@ func NewFactory() *Factory {
 		Options:          NewOptions(primaryStorageNamespace),
 		sessionBuilderFn: NewSession,
 	}
-}
-
-func NewArchiveFactory() *Factory {
-	return &Factory{
-		tracer:           otel.GetTracerProvider(),
-		Options:          NewOptions(archiveStorageNamespace),
-		sessionBuilderFn: NewSession,
-	}
-}
-
-// AddFlags implements storage.Configurable
-func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
-	f.Options.AddFlags(flagSet)
-}
-
-// InitFromViper implements storage.Configurable
-func (f *Factory) InitFromViper(v *viper.Viper, _ *zap.Logger) {
-	f.Options.InitFromViper(v)
-	f.ConfigureFromOptions(f.Options)
 }
 
 // InitFromOptions initializes factory from options.

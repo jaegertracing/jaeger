@@ -37,7 +37,7 @@ and open a pull request (PR).
 We do not assign issues to contributors. It is almost never the case that multiple
 people jump on the same issue, and practice showed that occasionally people who ask
 for an issue to be assigned to them later have a change in priorities and are unable
-to find time to finish it, which leaves the issue in limbo. 
+to find time to finish it, which leaves the issue in limbo.
 So if you have a desire to work on an issue, feel free to mention it in the comment and just submit a PR.
 
 ### Creating a pull request
@@ -49,7 +49,7 @@ If you are new to GitHub's contribution workflow, we recommend the following set
     * After you clone your forked repo, running below command
       ```bash
       git remote -v
-      ``` 
+      ```
       will show `origin`, e.g. `origin git@github.com:{username}/jaeger.git`
     * Add `upstream` remote:
       ```bash
@@ -59,7 +59,7 @@ If you are new to GitHub's contribution workflow, we recommend the following set
       ```bash
       git fetch upstream main
       ```
-    * Repoint your main branch: 
+    * Repoint your main branch:
       ```bash
       git branch --set-upstream-to=upstream/main main
       ```
@@ -70,7 +70,7 @@ Once you're ready to make changes:
   * Commit your changes, making sure **each commit is signed** ([see below](#certificate-of-origin---sign-your-work)):
     ```bash
     git commit -s -m "Your commit message"
-    ``` 
+    ```
   * You do not need to squash the commits, it will happen once the PR is merged into the official repo (but each individual commit must be signed).
   * When satisfied, push the changes. Git will likely ask for upstream destination, so you push commits like this:
     ```bash
@@ -100,19 +100,8 @@ The easiest way is to copy the header from one of the existing source files and
 make sure the year is current and the copyright says "The Jaeger Authors".
 
 ```
-// Copyright (c) 2018 The Jaeger Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// Copyright (c) 2025 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
 ```
 
 ## Certificate of Origin - Sign your work
@@ -193,5 +182,4 @@ git push --force
 
 ## Branches
 
-Upstream repository should contain only maintenance branches (e.g. `release-1.0`). For feature
-branches use forked repository.
+Before submitting a PR make sure to create a named branch in your forked repository. Our CI will fail if you submit a PR from the `main` branch. If that happens, just create a new branch and re-submit the PR from that branch.

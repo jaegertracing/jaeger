@@ -24,19 +24,19 @@ jobs:
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-    - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
 
     - name: Install Go Tip
       uses: ./.github/actions/setup-go-tip
       with:
         gh_token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Install test deps
-      # even though the same target runs from test-ci, running it separately makes for cleaner log in GH workflow
-      run: make install-test-tools
+    - name: Clean Go cache for gotip
+      run: |
+        go clean -cache
+        go clean -modcache
 
     - name: Run unit tests
       run: make test-ci
 
-    - name: Lint
-      run: echo skip linting on Go tip
+

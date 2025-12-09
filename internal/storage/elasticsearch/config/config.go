@@ -21,8 +21,10 @@ import (
 	"github.com/asaskevich/govalidator"
 	esv8 "github.com/elastic/go-elasticsearch/v9"
 	"github.com/olivere/elastic/v7"
+	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/extension/extensionauth"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zapgrpc"
@@ -111,6 +113,10 @@ type Configuration struct {
 	// HTTPCompression can be set to false to disable gzip compression for requests to ElasticSearch
 	HTTPCompression bool `mapstructure:"http_compression"`
 
+	// CustomHeaders contains custom HTTP headers to be sent with every request to Elasticsearch.
+	// This is useful for scenarios like AWS SigV4 proxy authentication where specific headers
+	// (like Host) need to be set for proper request signing.
+	CustomHeaders map[string]string `mapstructure:"custom_headers"`
 	// ---- elasticsearch client related configs ----
 	BulkProcessing BulkProcessing `mapstructure:"bulk_processing"`
 	// Version contains the major Elasticsearch version. If this field is not specified,
@@ -229,6 +235,7 @@ type Authentication struct {
 	BasicAuthentication configoptional.Optional[BasicAuthentication] `mapstructure:"basic"`
 	BearerTokenAuth     configoptional.Optional[TokenAuthentication] `mapstructure:"bearer_token"`
 	APIKeyAuth          configoptional.Optional[TokenAuthentication] `mapstructure:"api_key"`
+	configauth.Config   `mapstructure:",squash"`
 }
 
 type BasicAuthentication struct {
@@ -252,11 +259,11 @@ type BasicAuthentication struct {
 // https://www.elastic.co/guide/en/elasticsearch/reference/current/token-authentication-services.html.
 
 // NewClient creates a new ElasticSearch client
-func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
+func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metricsFactory metrics.Factory, httpAuth extensionauth.HTTPClient) (es.Client, error) {
 	if len(c.Servers) < 1 {
 		return nil, errors.New("no servers specified")
 	}
-	options, err := c.getConfigOptions(ctx, logger)
+	options, err := c.getConfigOptions(ctx, logger, httpAuth)
 	if err != nil {
 		return nil, err
 	}
@@ -271,26 +278,25 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 		logger: logger,
 	}
 
-	bulkProc, err := rawClient.BulkProcessor().
-		Before(func(id int64, _ /* requests */ []elastic.BulkableRequest) {
-			bcb.startTimes.Store(id, time.Now())
-		}).
-		After(bcb.invoke).
-		BulkSize(c.BulkProcessing.MaxBytes).
-		Workers(c.BulkProcessing.Workers).
-		BulkActions(c.BulkProcessing.MaxActions).
-		FlushInterval(c.BulkProcessing.FlushInterval).
-		Do(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	if c.Version == 0 {
 		// Determine ElasticSearch Version
-		pingResult, _, err := rawClient.Ping(c.Servers[0]).Do(ctx)
+		pingResult, pingStatus, err := rawClient.Ping(c.Servers[0]).Do(ctx)
 		if err != nil {
 			return nil, err
 		}
+
+		// Non-2xx responses aren't reported as errors by the ping code (7.0.32 version of
+		// the elastic client).
+		if pingStatus < 200 || pingStatus >= 300 {
+			return nil, fmt.Errorf("ElasticSearch server %s returned HTTP %d, expected 2xx", c.Servers[0], pingStatus)
+		}
+
+		// The deserialization in the ping implementation may succeed even if the response
+		// contains no relevant properties and we may get empty values in that case.
+		if pingResult.Version.Number == "" {
+			return nil, fmt.Errorf("ElasticSearch server %s returned invalid ping response", c.Servers[0])
+		}
+
 		esVersion, err := strconv.Atoi(string(pingResult.Version.Number[0]))
 		if err != nil {
 			return nil, err
@@ -317,10 +323,24 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 
 	var rawClientV8 *esv8.Client
 	if c.Version >= 8 {
-		rawClientV8, err = newElasticsearchV8(ctx, c, logger)
+		rawClientV8, err = newElasticsearchV8(ctx, c, logger, httpAuth)
 		if err != nil {
 			return nil, fmt.Errorf("error creating v8 client: %w", err)
 		}
+	}
+
+	bulkProc, err := rawClient.BulkProcessor().
+		Before(func(id int64, _ /* requests */ []elastic.BulkableRequest) {
+			bcb.startTimes.Store(id, time.Now())
+		}).
+		After(bcb.invoke).
+		BulkSize(c.BulkProcessing.MaxBytes).
+		Workers(c.BulkProcessing.Workers).
+		BulkActions(c.BulkProcessing.MaxActions).
+		FlushInterval(c.BulkProcessing.FlushInterval).
+		Do(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	return eswrapper.WrapESClient(rawClient, bulkProc, c.Version, rawClientV8), nil
@@ -372,7 +392,7 @@ func (bcb *bulkCallback) invoke(id int64, requests []elastic.BulkableRequest, re
 	}
 }
 
-func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logger) (*esv8.Client, error) {
+func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (*esv8.Client, error) {
 	var options esv8.Config
 	options.Addresses = c.Servers
 	if c.Authentication.BasicAuthentication.HasValue() {
@@ -382,7 +402,16 @@ func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logge
 	}
 	options.DiscoverNodesOnStart = c.Sniffing.Enabled
 	options.CompressRequestBody = c.HTTPCompression
-	transport, err := GetHTTPRoundTripper(ctx, c, logger)
+
+	if len(c.CustomHeaders) > 0 {
+		headers := make(http.Header)
+		for key, value := range c.CustomHeaders {
+			headers.Set(key, value)
+		}
+		options.Header = headers
+	}
+
+	transport, err := GetHTTPRoundTripper(ctx, c, logger, httpAuth)
 	if err != nil {
 		return nil, err
 	}
@@ -501,6 +530,12 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if !c.HTTPCompression {
 		c.HTTPCompression = source.HTTPCompression
 	}
+	if c.CustomHeaders == nil && len(source.CustomHeaders) > 0 {
+		c.CustomHeaders = make(map[string]string)
+		for k, v := range source.CustomHeaders {
+			c.CustomHeaders[k] = v
+		}
+	}
 }
 
 // RolloverFrequencyAsNegativeDuration returns the index rollover frequency duration for the given frequency string
@@ -558,7 +593,7 @@ func (c *Configuration) getESOptions(disableHealthCheck bool) []elastic.ClientOp
 }
 
 // getConfigOptions wraps the configs to feed to the ElasticSearch client init
-func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
+func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger, httpAuth extensionauth.HTTPClient) ([]elastic.ClientOptionFunc, error) {
 	// (has problems on AWS OpenSearch) see https://github.com/jaegertracing/jaeger/pull/7212
 	// Disable health check only in the following cases:
 	// 1. When health check is explicitly disabled
@@ -579,7 +614,7 @@ func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger
 	// Get base Elasticsearch options using the helper function
 	options := c.getESOptions(disableHealthCheck)
 	// Configure HTTP transport with TLS and authentication
-	transport, err := GetHTTPRoundTripper(ctx, c, logger)
+	transport, err := GetHTTPRoundTripper(ctx, c, logger, httpAuth)
 	if err != nil {
 		return nil, err
 	}
@@ -634,8 +669,9 @@ func addLoggerOptions(options []elastic.ClientOptionFunc, logLevel string, logge
 	return options, nil
 }
 
-// GetHTTPRoundTripper returns configured http.RoundTripper.
-func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logger) (http.RoundTripper, error) {
+// GetHTTPRoundTripper returns configured http.RoundTripper with optional HTTP authenticator.
+// Pass nil for httpAuth if authentication is not required.
+func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (http.RoundTripper, error) {
 	// Configure base transport.
 	transport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
@@ -700,15 +736,16 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 		}
 	}
 
-	return roundTripper, nil
-}
-
-func loadTokenFromFile(path string) (string, error) {
-	b, err := os.ReadFile(filepath.Clean(path))
-	if err != nil {
-		return "", err
+	// Apply HTTP authenticator extension if configured (e.g., SigV4)
+	if httpAuth != nil {
+		wrappedRT, err := httpAuth.RoundTripper(roundTripper)
+		if err != nil {
+			return nil, fmt.Errorf("failed to wrap round tripper with HTTP authenticator: %w", err)
+		}
+		return wrappedRT, nil
 	}
-	return strings.TrimRight(string(b), "\r\n"), nil
+
+	return roundTripper, nil
 }
 
 func (c *Configuration) Validate() error {

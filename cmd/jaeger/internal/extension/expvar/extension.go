@@ -40,7 +40,7 @@ func newExtension(config *Config, telset component.TelemetrySettings) *expvarExt
 }
 
 func (c *expvarExtension) Start(ctx context.Context, host component.Host) error {
-	server, err := c.config.ToServer(ctx, host, c.telset, expvar.Handler())
+	server, err := c.config.ToServer(ctx, host.GetExtensions(), c.telset, expvar.Handler())
 	if err != nil {
 		return err
 	}

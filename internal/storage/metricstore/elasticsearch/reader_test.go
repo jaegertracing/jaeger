@@ -174,7 +174,7 @@ func tracerProvider(t *testing.T) (trace.TracerProvider, *tracetest.InMemoryExpo
 }
 
 func clientProvider(t *testing.T, c *config.Configuration, logger *zap.Logger, metricsFactory esmetrics.Factory) es.Client {
-	client, err := config.NewClient(context.Background(), c, logger, metricsFactory)
+	client, err := config.NewClient(context.Background(), c, logger, metricsFactory, nil)
 	require.NoError(t, err)
 	require.NotNil(t, client)
 	t.Cleanup(func() {

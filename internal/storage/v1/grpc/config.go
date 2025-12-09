@@ -4,6 +4,8 @@
 package grpc
 
 import (
+	"time"
+
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 
@@ -16,13 +18,12 @@ type Config struct {
 	Tenancy                      tenancy.Options `mapstructure:"multi_tenancy"`
 	configgrpc.ClientConfig      `mapstructure:",squash"`
 	exporterhelper.TimeoutConfig `mapstructure:",squash"`
-	enabled                      bool
 }
 
 func DefaultConfig() Config {
 	return Config{
 		TimeoutConfig: exporterhelper.TimeoutConfig{
-			Timeout: defaultConnectionTimeout,
+			Timeout: time.Duration(5 * time.Second),
 		},
 	}
 }

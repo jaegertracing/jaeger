@@ -15,77 +15,10 @@ import (
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
-	viperize "github.com/jaegertracing/jaeger/internal/config"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra/mocks"
-	"github.com/jaegertracing/jaeger/internal/testutils"
 )
-
-func TestCassandraFactory(t *testing.T) {
-	logger, _ := testutils.NewLogger()
-
-	tests := []struct {
-		name      string
-		factoryFn func() *Factory
-		namespace string
-	}{
-		{
-			name:      "CassandraFactory",
-			factoryFn: NewFactory,
-			namespace: primaryStorageNamespace,
-		},
-		{
-			name:      "CassandraArchiveFactory",
-			factoryFn: NewArchiveFactory,
-			namespace: archiveStorageNamespace,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			f := test.factoryFn()
-			require.Equal(t, test.namespace, f.Options.namespace)
-			v, command := viperize.Viperize(f.AddFlags)
-			command.ParseFlags([]string{})
-			f.InitFromViper(v, zap.NewNop())
-
-			MockSession(f, nil, errors.New("made-up primary error"))
-			require.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up primary error")
-
-			var (
-				session = &mocks.Session{}
-				query   = &mocks.Query{}
-			)
-			session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
-			session.On("Close").Return()
-			query.On("Exec").Return(nil)
-
-			MockSession(f, session, nil)
-			require.NoError(t, f.Initialize(metrics.NullFactory, logger))
-
-			_, err := f.CreateSpanReader()
-			require.NoError(t, err)
-
-			_, err = f.CreateSpanWriter()
-			require.NoError(t, err)
-
-			_, err = f.CreateDependencyReader()
-			require.NoError(t, err)
-
-			MockSession(f, session, nil)
-			require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-
-			_, err = f.CreateLock()
-			require.NoError(t, err)
-
-			_, err = f.CreateSamplingStore(0)
-			require.NoError(t, err)
-
-			require.NoError(t, f.Close())
-		})
-	}
-}
 
 func TestCreateSpanReaderError(t *testing.T) {
 	session := &mocks.Session{}
@@ -103,72 +36,6 @@ func TestCreateSpanReaderError(t *testing.T) {
 	r, err := f.CreateSpanReader()
 	require.Error(t, err)
 	require.Nil(t, r)
-}
-
-func TestExclusiveWhitelistBlacklist(t *testing.T) {
-	f := NewFactory()
-	v, command := viperize.Viperize(f.AddFlags)
-	command.ParseFlags([]string{
-		"--cassandra.index.tag-whitelist=a,b,c",
-		"--cassandra.index.tag-blacklist=a,b,c",
-	})
-	f.InitFromViper(v, zap.NewNop())
-
-	var (
-		session = &mocks.Session{}
-		query   = &mocks.Query{}
-	)
-	session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
-	query.On("Exec").Return(nil)
-	MockSession(f, session, nil)
-
-	_, err := f.CreateSpanWriter()
-	require.EqualError(t, err, "only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
-
-	MockSession(f, session, nil)
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-}
-
-func TestWriterOptions(t *testing.T) {
-	opts := NewOptions("cassandra")
-	v, command := viperize.Viperize(opts.AddFlags)
-	command.ParseFlags([]string{"--cassandra.index.tag-whitelist=a,b,c"})
-	opts.InitFromViper(v)
-
-	options, _ := writerOptions(opts)
-	assert.Len(t, options, 1)
-
-	opts = NewOptions("cassandra")
-	v, command = viperize.Viperize(opts.AddFlags)
-	command.ParseFlags([]string{"--cassandra.index.tag-blacklist=a,b,c"})
-	opts.InitFromViper(v)
-
-	options, _ = writerOptions(opts)
-	assert.Len(t, options, 1)
-
-	opts = NewOptions("cassandra")
-	v, command = viperize.Viperize(opts.AddFlags)
-	command.ParseFlags([]string{"--cassandra.index.tags=false"})
-	opts.InitFromViper(v)
-
-	options, _ = writerOptions(opts)
-	assert.Len(t, options, 1)
-
-	opts = NewOptions("cassandra")
-	v, command = viperize.Viperize(opts.AddFlags)
-	command.ParseFlags([]string{"--cassandra.index.tags=false", "--cassandra.index.tag-blacklist=a,b,c"})
-	opts.InitFromViper(v)
-
-	options, _ = writerOptions(opts)
-	assert.Len(t, options, 1)
-
-	opts = NewOptions("cassandra")
-	v, command = viperize.Viperize(opts.AddFlags)
-	command.ParseFlags([]string{""})
-	opts.InitFromViper(v)
-
-	options, _ = writerOptions(opts)
-	assert.Empty(t, options)
 }
 
 func TestConfigureFromOptions(t *testing.T) {
@@ -231,7 +98,10 @@ func TestInheritSettingsFrom(t *testing.T) {
 	primaryFactory.config.Schema.Keyspace = "foo"
 	primaryFactory.config.Query.MaxRetryAttempts = 99
 
-	archiveFactory := NewArchiveFactory()
+	archiveFactory := &Factory{
+		Options: NewOptions(archiveStorageNamespace),
+	}
+
 	archiveFactory.config.Schema.Keyspace = "bar"
 
 	archiveFactory.InheritSettingsFrom(primaryFactory)

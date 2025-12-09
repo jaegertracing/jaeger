@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 
 	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/extension/extensionauth"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -32,18 +33,13 @@ import (
 
 var _ io.Closer = (*FactoryBase)(nil)
 
-const (
-	primaryNamespace = "es"
-	archiveNamespace = "es-archive"
-)
-
 // FactoryBase implements storage.Factory for Elasticsearch backend.
 type FactoryBase struct {
 	metricsFactory metrics.Factory
 	logger         *zap.Logger
 	tracer         trace.TracerProvider
 
-	newClientFn func(ctx context.Context, c *config.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error)
+	newClientFn func(ctx context.Context, c *config.Configuration, logger *zap.Logger, metricsFactory metrics.Factory, httpAuth extensionauth.HTTPClient) (es.Client, error)
 
 	config *config.Configuration
 
@@ -61,6 +57,7 @@ func NewFactoryBase(
 	cfg config.Configuration,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
+	httpAuth extensionauth.HTTPClient,
 ) (*FactoryBase, error) {
 	f := &FactoryBase{
 		config:      &cfg,
@@ -76,7 +73,7 @@ func NewFactoryBase(
 	}
 	f.tags = tags
 
-	client, err := f.newClientFn(ctx, f.config, logger, metricsFactory)
+	client, err := f.newClientFn(ctx, f.config, logger, metricsFactory, httpAuth)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Elasticsearch client: %w", err)
 	}
@@ -225,7 +222,7 @@ func (f *FactoryBase) onClientPasswordChange(cfg *config.Configuration, client *
 		PasswordFilePath: "", // avoid error that both are set
 	})
 
-	newClient, err := f.newClientFn(context.Background(), &newCfg, f.logger, mf)
+	newClient, err := f.newClientFn(context.Background(), &newCfg, f.logger, mf, nil)
 	if err != nil {
 		f.logger.Error("failed to recreate Elasticsearch client with new password", zap.Error(err))
 		return
