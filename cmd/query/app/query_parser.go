@@ -136,7 +136,7 @@ func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParamet
 	}
 
 	if val, ok := tags[otelsemconv.OtelStatusCode]; ok {
-		if val == "ERROR" {
+		if strings.EqualFold(val, "ERROR") {
 			tags["error"] = "true"
 		}
 	}

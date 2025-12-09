@@ -69,6 +69,21 @@ func TestParseTraceQuery(t *testing.T) {
 			},
 		},
 		{
+			"x?service=service&start=0&end=0&operation=operation&limit=200&tag=otel.status_code:Error", noErr,
+			&traceQueryParameters{
+				TraceQueryParameters: querysvc.TraceQueryParameters{
+					TraceQueryParameters: spanstore.TraceQueryParameters{
+						ServiceName:   "service",
+						OperationName: "operation",
+						StartTimeMin:  time.Unix(0, 0),
+						StartTimeMax:  time.Unix(0, 0),
+						NumTraces:     200,
+						Tags:          map[string]string{"error": "true", "otel.status_code": "Error"},
+					},
+				},
+			},
+		},
+		{
 			"x?service=service&start=0&end=0&operation=operation&limit=200&tag=otel.status_code:OK", noErr,
 			&traceQueryParameters{
 				TraceQueryParameters: querysvc.TraceQueryParameters{
