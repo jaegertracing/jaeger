@@ -1,4 +1,4 @@
-{
+\{
   "resourceSpans": [
     {
       "resource": {
@@ -13,13 +13,7 @@
         {
           "scope": {
             "name": "span-links-test",
-            "version": "1.0.0",
-            "attributes": [
-              {
-                "key": "otel.scope.test",
-                "value": {"stringValue": "true"}
-              }
-            ]
+            "version": "1.0.0"
           },
           "spans": [
             {
@@ -33,23 +27,11 @@
               "links": [
                 {
                   "traceId": "00000000000000000000000000000050",
-                  "spanId": "0000000000000040",
-                  "attributes": [
-                    {
-                      "key": "link.type",
-                      "value": {"stringValue": "parent_link"}
-                    }
-                  ]
+                  "spanId": "0000000000000040"
                 },
                 {
                   "traceId": "00000000000000000000000000000060",
-                  "spanId": "0000000000000050",
-                  "attributes": [
-                    {
-                      "key": "link.type",
-                      "value": {"stringValue": "sibling_link"}
-                    }
-                  ]
+                  "spanId": "0000000000000050"
                 }
               ],
               "status": {

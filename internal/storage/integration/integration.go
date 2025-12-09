@@ -644,10 +644,10 @@ func (s *StorageIntegration) testOTLPScopePreservation(t *testing.T) {
 
 	t.Log("Testing OTLP InstrumentationScope preservation through v2 API")
 
-	traces := loadOTLPFixture(t, "otlp_scope_attributes")
-	traceID := extractTraceID(t, traces)
+	expectedTraces := loadOTLPFixture(t, "otlp_scope_attributes")
+	traceID := extractTraceID(t, expectedTraces)
 
-	s.writeTrace(t, traces)
+	s.writeTrace(t, expectedTraces)
 
 	var retrievedTraces ptrace.Traces
 
@@ -655,7 +655,6 @@ func (s *StorageIntegration) testOTLPScopePreservation(t *testing.T) {
 		ctx := context.Background()
 		iter := s.TraceReader.GetTraces(ctx, tracestore.GetTraceParams{TraceID: traceID})
 
-		// tr is []ptrace.Traces (slice of traces)
 		for trSlice, err := range iter {
 			if err != nil {
 				t.Logf("Error iterating traces: %v", err)
@@ -673,19 +672,24 @@ func (s *StorageIntegration) testOTLPScopePreservation(t *testing.T) {
 	require.True(t, found, "Failed to retrieve written OTLP trace")
 	require.Positive(t, retrievedTraces.SpanCount(), "Retrieved trace should have spans")
 
-	// Validate OTLP InstrumentationScope metadata directly
+	// Validate full trace structure
 	require.Positive(t, retrievedTraces.ResourceSpans().Len(), "Should have resource spans")
 
-	rs := retrievedTraces.ResourceSpans().At(0)
-	require.Positive(t, rs.ScopeSpans().Len(), "Should have scope spans")
+	expectedRS := expectedTraces.ResourceSpans().At(0)
+	retrievedRS := retrievedTraces.ResourceSpans().At(0)
 
-	scopeSpans := rs.ScopeSpans().At(0)
-	scope := scopeSpans.Scope()
+	require.Positive(t, retrievedRS.ScopeSpans().Len(), "Should have scope spans")
 
-	assert.Equal(t, "test-instrumentation-library", scope.Name())
-	assert.Equal(t, "2.1.0", scope.Version())
+	expectedScope := expectedRS.ScopeSpans().At(0).Scope()
+	retrievedScope := retrievedRS.ScopeSpans().At(0).Scope()
 
-	t.Log("OTLP InstrumentationScope metadata preserved successfully")
+	// Assert scope metadata
+	assert.Equal(t, expectedScope.Name(), retrievedScope.Name(),
+		"InstrumentationScope name should be preserved")
+	assert.Equal(t, expectedScope.Version(), retrievedScope.Version(),
+		"InstrumentationScope version should be preserved")
+
+	t.Log("✓ OTLP InstrumentationScope metadata preserved successfully")
 }
 
 func (s *StorageIntegration) testOTLPSpanLinks(t *testing.T) {
@@ -698,14 +702,14 @@ func (s *StorageIntegration) testOTLPSpanLinks(t *testing.T) {
 
 	t.Log("Testing OTLP span links preservation through v2 API")
 
-	traces := loadOTLPFixture(t, "otlp_span_links")
-	traceID := extractTraceID(t, traces)
+	expectedTraces := loadOTLPFixture(t, "otlp_span_links")
+	traceID := extractTraceID(t, expectedTraces)
 
-	originalSpan := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
-	expectedLinkCount := originalSpan.Links().Len()
+	expectedSpan := expectedTraces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+	expectedLinkCount := expectedSpan.Links().Len()
 	require.Greater(t, expectedLinkCount, 0, "Fixture should have span links")
 
-	s.writeTrace(t, traces)
+	s.writeTrace(t, expectedTraces)
 
 	var retrievedTraces ptrace.Traces
 	found := s.waitForCondition(t, func(t *testing.T) bool {
@@ -731,15 +735,18 @@ func (s *StorageIntegration) testOTLPSpanLinks(t *testing.T) {
 	retrievedSpan := retrievedTraces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
 	actualLinkCount := retrievedSpan.Links().Len()
 
-	assert.Equal(t, expectedLinkCount, actualLinkCount)
+	// Assert link count
+	assert.Equal(t, expectedLinkCount, actualLinkCount, "Span links count should match")
 
-	if actualLinkCount > 0 {
-		link := retrievedSpan.Links().At(0)
-		linkType, exists := link.Attributes().Get("link.type")
-		assert.True(t, exists)
-		if exists {
-			t.Logf("Span link attribute preserved: link.type = %s", linkType.Str())
-		}
+	// Verify each link is preserved correctly
+	for i := 0; i < expectedLinkCount; i++ {
+		expectedLink := expectedSpan.Links().At(i)
+		actualLink := retrievedSpan.Links().At(i)
+
+		assert.Equal(t, expectedLink.TraceID(), actualLink.TraceID(),
+			"Link %d TraceID should match", i)
+		assert.Equal(t, expectedLink.SpanID(), actualLink.SpanID(),
+			"Link %d SpanID should match", i)
 	}
 
 	t.Log("OTLP span links preserved successfully")
