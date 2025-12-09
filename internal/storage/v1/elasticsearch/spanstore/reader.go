@@ -144,9 +144,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 
 	maxSpanAge := p.MaxSpanAge
 	// Setting the maxSpanAge to a large duration will ensure all spans in the "read" alias are accessible by queries (query window = [now - maxSpanAge, now]).
-	// Queries that don't specify a start and end time will use this maxSpanAge, querying all data.
-	useAliasMode := p.UseReadWriteAliases || (p.SpanReadAlias != "" && p.ServiceReadAlias != "")
-	if useAliasMode {
+	if p.UseReadWriteAliases {
 		maxSpanAge = dawnOfTimeSpanAge
 	}
 
@@ -171,7 +169,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		timeRangeIndices:        LoggingTimeRangeIndexFn(p.Logger, timeRangeFn),
 		sourceFn:                getSourceFn(p.MaxDocCount),
 		maxDocCount:             p.MaxDocCount,
-		useReadWriteAliases:     useAliasMode,
+		useReadWriteAliases:     p.UseReadWriteAliases,
 		logger:                  p.Logger,
 		tracer:                  p.Tracer,
 		dotReplacer:             dbmodel.NewDotReplacer(p.TagDotReplacement),

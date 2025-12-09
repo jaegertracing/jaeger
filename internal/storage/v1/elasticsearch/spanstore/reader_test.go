@@ -166,15 +166,6 @@ func TestNewSpanReader(t *testing.T) {
 			maxSpanAge: time.Hour * 24 * 365 * 50,
 		},
 		{
-			name: "explicit read aliases",
-			params: SpanReaderParams{
-				MaxSpanAge:       time.Hour * 72,
-				SpanReadAlias:    "custom-span-read-alias",
-				ServiceReadAlias: "custom-service-read-alias",
-			},
-			maxSpanAge: time.Hour * 24 * 365 * 50,
-		},
-		{
 			name: "explicit read aliases with UseReadWriteAliases",
 			params: SpanReaderParams{
 				MaxSpanAge:          time.Hour * 72,
