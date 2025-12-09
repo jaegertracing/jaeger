@@ -61,6 +61,12 @@ func TestKeyValueCompare(t *testing.T) {
 			result: -1,
 		},
 		{
+			name:   "TypedNil_vs_TypedNil",
+			kv1:    (*KeyValue)(nil),
+			kv2:    (*KeyValue)(nil),
+			result: 0,
+		},
+		{
 			name:   "Value_vs_TypedNil",
 			kv1:    &KeyValue{Key: "k", ValueType: "string"},
 			kv2:    (*KeyValue)(nil),
