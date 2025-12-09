@@ -40,7 +40,7 @@ func TestCreateSpanReaderError(t *testing.T) {
 
 func TestConfigureFromOptions(t *testing.T) {
 	f := NewFactory()
-	o := NewOptions("foo")
+	o := NewOptions()
 	f.ConfigureFromOptions(o)
 	assert.Equal(t, o, f.Options)
 	assert.Equal(t, o.GetConfig(), f.config)
@@ -99,7 +99,7 @@ func TestInheritSettingsFrom(t *testing.T) {
 	primaryFactory.config.Query.MaxRetryAttempts = 99
 
 	archiveFactory := &Factory{
-		Options: NewOptions(archiveStorageNamespace),
+		Options: NewOptions(),
 	}
 
 	archiveFactory.config.Schema.Keyspace = "bar"
@@ -112,28 +112,19 @@ func TestInheritSettingsFrom(t *testing.T) {
 
 func TestIsArchiveCapable(t *testing.T) {
 	tests := []struct {
-		name      string
-		namespace string
-		enabled   bool
-		expected  bool
+		name           string
+		archiveEnabled bool
+		expected       bool
 	}{
 		{
-			name:      "archive capable",
-			namespace: "cassandra-archive",
-			enabled:   true,
-			expected:  true,
+			name:           "archive capable",
+			archiveEnabled: true,
+			expected:       true,
 		},
 		{
-			name:      "not capable",
-			namespace: "cassandra-archive",
-			enabled:   false,
-			expected:  false,
-		},
-		{
-			name:      "capable + wrong namespace",
-			namespace: "cassandra",
-			enabled:   true,
-			expected:  false,
+			name:           "not capable",
+			archiveEnabled: false,
+			expected:       false,
 		},
 	}
 
@@ -141,10 +132,7 @@ func TestIsArchiveCapable(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			factory := &Factory{
 				Options: &Options{
-					NamespaceConfig: NamespaceConfig{
-						namespace: test.namespace,
-						Enabled:   test.enabled,
-					},
+					ArchiveEnabled: test.archiveEnabled,
 				},
 			}
 			result := factory.IsArchiveCapable()
