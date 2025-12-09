@@ -5,15 +5,7 @@
         "attributes": [
           {
             "key": "service.name",
-            "value": {"stringValue": "otlp-test-service"}
-          },
-          {
-            "key": "service.version",
-            "value": {"stringValue": "1.0.0"}
-          },
-          {
-            "key": "deployment.environment",
-            "value": {"stringValue": "test"}
+            "value": {"stringValue": "scope-test-service"}
           }
         ]
       },
@@ -21,24 +13,26 @@
         {
           "scope": {
             "name": "test-instrumentation-library",
-            "version": "2.1.0"
+            "version": "2.1.0",
+            "attributes": [
+              {
+                "key": "otel.scope.name",
+                "value": {"stringValue": "test-scope"}
+              }
+            ]
           },
           "spans": [
             {
               "traceId": "00000000000000000000000000000020",
-              "spanId": "0000000000000010",
-              "name": "otlp-scope-test-operation",
-              "kind": 2,
+              "spanId": "0000000000000020",
+              "name": "span-with-scope-metadata",
+              "kind": 1,
               "startTimeUnixNano": "1485445591639875000",
-              "endTimeUnixNano": "1485445591739875000",
+              "endTimeUnixNano": "1485445591939875000",
               "attributes": [
                 {
-                  "key": "http.method",
-                  "value": {"stringValue": "GET"}
-                },
-                {
-                  "key": "http.status_code",
-                  "value": {"intValue": 200}
+                  "key": "test.attribute",
+                  "value": {"stringValue": "test-value"}
                 }
               ],
               "status": {
