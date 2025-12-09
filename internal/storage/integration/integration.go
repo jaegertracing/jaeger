@@ -707,7 +707,7 @@ func (s *StorageIntegration) testOTLPSpanLinks(t *testing.T) {
 
 	expectedSpan := expectedTraces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
 	expectedLinkCount := expectedSpan.Links().Len()
-	require.Greater(t, expectedLinkCount, 0, "Fixture should have span links")
+	require.Positive(t, expectedLinkCount, 0, "Fixture should have span links")
 
 	s.writeTrace(t, expectedTraces)
 
