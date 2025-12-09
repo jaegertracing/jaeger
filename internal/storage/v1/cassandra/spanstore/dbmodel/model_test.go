@@ -43,6 +43,12 @@ func TestKeyValueCompare(t *testing.T) {
 			result: -1,
 		},
 		{
+			name:   "Pointer_vs_Value",
+			kv1:    &KeyValue{Key: "k", ValueType: "string"},
+			kv2:    KeyValue{Key: "m", ValueType: "string"},
+			result: -1,
+		},
+		{
 			name:   "Value_vs_Nil",
 			kv1:    &KeyValue{Key: "k", ValueType: "string"},
 			kv2:    nil,
@@ -99,22 +105,40 @@ func TestKeyValueCompare(t *testing.T) {
 			result: 1,
 		},
 		{
-			name:   "ValueBoolMismatch",
+			name:   "ValueBoolMismatch_After",
 			kv1:    &KeyValue{Key: "k", ValueType: "bool", ValueBool: true},
 			kv2:    &KeyValue{Key: "k", ValueType: "bool", ValueBool: false},
 			result: 1,
 		},
 		{
-			name:   "ValueInt64Mismatch",
+			name:   "ValueBoolMismatch_Before",
+			kv1:    &KeyValue{Key: "k", ValueType: "bool", ValueBool: false},
+			kv2:    &KeyValue{Key: "k", ValueType: "bool", ValueBool: true},
+			result: -1,
+		},
+		{
+			name:   "ValueInt64Mismatch_Before",
+			kv1:    &KeyValue{Key: "k", ValueType: "int64", ValueInt64: 123},
+			kv2:    &KeyValue{Key: "k", ValueType: "int64", ValueInt64: 1234},
+			result: -1,
+		},
+		{
+			name:   "ValueInt64Mismatch_After",
 			kv1:    &KeyValue{Key: "k", ValueType: "int64", ValueInt64: 10},
 			kv2:    &KeyValue{Key: "k", ValueType: "int64", ValueInt64: 5},
 			result: 1,
 		},
 		{
-			name:   "ValueFloat64Mismatch",
+			name:   "ValueFloat64Mismatch_After",
 			kv1:    &KeyValue{Key: "k", ValueType: "float64", ValueFloat64: 1.5},
 			kv2:    &KeyValue{Key: "k", ValueType: "float64", ValueFloat64: 0.5},
 			result: 1,
+		},
+		{
+			name:   "ValueFloat64Mismatch_Before",
+			kv1:    &KeyValue{Key: "k", ValueType: "float64", ValueFloat64: 0.5},
+			kv2:    &KeyValue{Key: "k", ValueType: "float64", ValueFloat64: 1.5},
+			result: -1,
 		},
 		{
 			name:   "ValueBinaryMismatch",

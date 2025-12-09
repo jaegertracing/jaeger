@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
@@ -59,11 +60,8 @@ type KeyValue struct {
 func (t *KeyValue) compareValues(that *KeyValue) int {
 	switch t.ValueType {
 	case stringType:
-		if t.ValueString != that.ValueString {
-			if t.ValueString < that.ValueString {
-				return -1
-			}
-			return 1
+		if cmp := strings.Compare(t.ValueString, that.ValueString); cmp != 0 {
+			return cmp
 		}
 	case boolType:
 		if t.ValueBool != that.ValueBool {
@@ -120,44 +118,20 @@ func (t *KeyValue) Compare(that any) int {
 		return -1
 	}
 	if t.Key != that1.Key {
-		if t.Key < that1.Key {
-			return -1
+		if cmp := strings.Compare(t.Key, that1.Key); cmp != 0 {
+			return cmp
 		}
-		return 1
 	}
 	if t.ValueType != that1.ValueType {
-		if t.ValueType < that1.ValueType {
-			return -1
+		if cmp := strings.Compare(t.ValueType, that1.ValueType); cmp != 0 {
+			return cmp
 		}
-		return 1
 	}
 	return t.compareValues(that1)
 }
 
 func (t *KeyValue) Equal(that any) bool {
-	if that == nil {
-		return t == nil
-	}
-	that1, ok := that.(*KeyValue)
-	if !ok {
-		that2, ok := that.(KeyValue)
-		if !ok {
-			return false
-		}
-		that1 = &that2
-	}
-	if that1 == nil {
-		return t == nil
-	} else if t == nil {
-		return false
-	}
-	if t.Key != that1.Key {
-		return false
-	}
-	if t.ValueType != that1.ValueType {
-		return false
-	}
-	return t.compareValues(that1) == 0
+	return t.Compare(that) == 0
 }
 
 func (t *KeyValue) AsString() string {
