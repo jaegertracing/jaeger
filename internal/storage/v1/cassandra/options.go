@@ -15,9 +15,10 @@ import (
 // to bind them to command line flag and apply overlays, so that some configurations
 // (e.g. archive) may be underspecified and infer the rest of its parameters from primary.
 type Options struct {
-	NamespaceConfig        `mapstructure:",squash"`
+	config.Configuration   `mapstructure:",squash"`
 	SpanStoreWriteCacheTTL time.Duration `mapstructure:"span_store_write_cache_ttl"`
 	Index                  IndexConfig   `mapstructure:"index"`
+	ArchiveEnabled         bool          `mapstructure:"-"`
 }
 
 // IndexConfig configures indexing.
@@ -30,32 +31,20 @@ type IndexConfig struct {
 	TagWhiteList string `mapstructure:"tag_whitelist"`
 }
 
-// the Servers field in config.Configuration is a list, which we cannot represent with flags.
-// This struct adds a plain string field that can be bound to flags and is then parsed when
-// preparing the actual config.Configuration.
-type NamespaceConfig struct {
-	config.Configuration `mapstructure:",squash"`
-	namespace            string
-	Enabled              bool `mapstructure:"-"`
-}
-
 // NewOptions creates a new Options struct.
-func NewOptions(namespace string) *Options {
+func NewOptions() *Options {
 	// TODO all default values should be defined via cobra flags
 	options := &Options{
-		NamespaceConfig: NamespaceConfig{
-			Configuration: config.DefaultConfiguration(),
-			namespace:     namespace,
-			Enabled:       true,
-		},
+		Configuration:          config.DefaultConfiguration(),
 		SpanStoreWriteCacheTTL: time.Hour * 12,
+		ArchiveEnabled:         false,
 	}
 
 	return options
 }
 
 func (opt *Options) GetConfig() config.Configuration {
-	return opt.NamespaceConfig.Configuration
+	return opt.Configuration
 }
 
 // TagIndexBlacklist returns the list of blacklisted tags

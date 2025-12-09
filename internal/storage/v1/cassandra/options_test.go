@@ -11,7 +11,7 @@ import (
 )
 
 func TestOptions(t *testing.T) {
-	opts := NewOptions("foo")
+	opts := NewOptions()
 	primary := opts.GetConfig()
 	assert.NotEmpty(t, primary.Schema.Keyspace)
 	assert.NotEmpty(t, primary.Connection.Servers)

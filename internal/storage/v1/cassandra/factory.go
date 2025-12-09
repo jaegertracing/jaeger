@@ -32,11 +32,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 )
 
-const (
-	primaryStorageNamespace = "cassandra"
-	archiveStorageNamespace = "cassandra-archive"
-)
-
 var ( // interface comformance checks
 	_ storage.Factory              = (*Factory)(nil)
 	_ storage.Purger               = (*Factory)(nil)
@@ -66,7 +61,7 @@ type Factory struct {
 func NewFactory() *Factory {
 	return &Factory{
 		tracer:           otel.GetTracerProvider(),
-		Options:          NewOptions(primaryStorageNamespace),
+		Options:          NewOptions(),
 		sessionBuilderFn: NewSession,
 	}
 }
@@ -231,6 +226,5 @@ func (f *Factory) InheritSettingsFrom(other storage.Factory) {
 }
 
 func (f *Factory) IsArchiveCapable() bool {
-	return f.Options.NamespaceConfig.namespace == archiveStorageNamespace &&
-		f.Options.NamespaceConfig.Enabled
+	return f.Options.ArchiveEnabled
 }

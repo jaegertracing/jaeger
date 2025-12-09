@@ -20,9 +20,7 @@ import (
 func TestNewFactoryWithConfig(t *testing.T) {
 	t.Run("valid configuration", func(t *testing.T) {
 		opts := &cassandra.Options{
-			NamespaceConfig: cassandra.NamespaceConfig{
-				Configuration: config.DefaultConfiguration(),
-			},
+			Configuration: config.DefaultConfiguration(),
 		}
 		f := cassandra.NewFactory()
 		b := &withConfigBuilder{
@@ -38,9 +36,7 @@ func TestNewFactoryWithConfig(t *testing.T) {
 	t.Run("connection error", func(t *testing.T) {
 		expErr := errors.New("made-up error")
 		opts := &cassandra.Options{
-			NamespaceConfig: cassandra.NamespaceConfig{
-				Configuration: config.DefaultConfiguration(),
-			},
+			Configuration: config.DefaultConfiguration(),
 		}
 		f := cassandra.NewFactory()
 		b := &withConfigBuilder{
@@ -62,7 +58,7 @@ func TestNewFactoryWithConfig(t *testing.T) {
 
 func TestNewFactory(t *testing.T) {
 	v1Factory := cassandra.NewFactory()
-	v1Factory.Options = cassandra.NewOptions("primary")
+	v1Factory.Options = cassandra.NewOptions()
 	var (
 		session = &mocks.Session{}
 		query   = &mocks.Query{}
@@ -113,9 +109,7 @@ func TestCreateTraceReaderError(t *testing.T) {
 func TestCreateTraceWriterErr(t *testing.T) {
 	v1Factory := cassandra.NewFactory()
 	v1Factory.Options = &cassandra.Options{
-		NamespaceConfig: cassandra.NamespaceConfig{
-			Configuration: config.DefaultConfiguration(),
-		},
+		Configuration: config.DefaultConfiguration(),
 		Index: cassandra.IndexConfig{
 			TagBlackList: "a,b,c",
 			TagWhiteList: "a,b,c",
