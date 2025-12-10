@@ -71,17 +71,23 @@ jobs:
       id: params
       run: |
         docker_flags=()
+        goreleaser_args=()
         if [[ "${{ inputs.dry_run }}" == "true" ]]; then
           docker_flags=("${docker_flags[@]}" -l -p linux/amd64)
           echo "platforms=linux/amd64" >> $GITHUB_OUTPUT
           echo "gpg_key_override=-k skip" >> $GITHUB_OUTPUT
+          # For dry run, skip signing and only build snapshot
+          goreleaser_args=("${goreleaser_args[@]}" --snapshot --skip=sign)
         else
           echo "platforms=$(make echo-platforms)" >> $GITHUB_OUTPUT
+          # For real release, use full goreleaser with signing
+          goreleaser_args=("${goreleaser_args[@]}")
         fi
         if [[ "${{ inputs.overwrite }}" == "true" ]]; then
           docker_flags=("${docker_flags[@]}" -o)
         fi
         echo "docker_flags=${docker_flags[@]}" >> $GITHUB_OUTPUT
+        echo "goreleaser_args=${goreleaser_args[@]}" >> $GITHUB_OUTPUT
         cat $GITHUB_OUTPUT
 
     - name: Export BRANCH variable and validate it is a semver
@@ -96,41 +102,33 @@ jobs:
 
     - name: Configure GPG Key
       if: ${{ inputs.dry_run != true }}
+      id: import_gpg
       uses: crazy-max/ghaction-import-gpg@e89d40939c28e39f97cf32126055eeae86ba74ec # v6.3.0
       with:
         gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
         passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
-    - name: Build all binaries
-      run: make build-all-platforms PLATFORMS=${{ steps.params.outputs.platforms }}
-
-    - name: Package binaries
-      run: |
-        bash scripts/build/package-deploy.sh \
-          -p ${{ steps.params.outputs.platforms }} \
-          ${{ steps.params.outputs.gpg_key_override }}
-
-    - name: Upload binaries
-      if: ${{ inputs.dry_run != true }}
-      uses: svenstaro/upload-release-action@5e35e583720436a2cc5f9682b6f55657101c1ea1 # 2.11.1
+    - name: Run GoReleaser
+      uses: goreleaser/goreleaser-action@9c615fef8b1bc3cf0eb46d69e502bb97fa8c9387 # v6.1.1
       with:
-        file: '{deploy/*.tar.gz,deploy/*.zip,deploy/*.sha256sum.txt,deploy/*.asc}'
-        file_glob: true
-        overwrite: ${{ inputs.overwrite }}
-        tag: ${{ env.BRANCH }}
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        distribution: goreleaser
+        version: '~> v2'
+        args: release --clean ${{ steps.params.outputs.goreleaser_args }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
 
     - name: Delete the release artifacts after uploading them.
       run: |
-        rm -rf deploy || true
+        rm -rf dist || true
         df -h /
 
     - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
 
     - name: Build and upload all container images
-      # -B skips building the binaries since we already did that above
+      # Note: Docker scripts rebuild binaries as they need specific naming
       run: |
-        bash scripts/build/build-upload-docker-images.sh -B \
+        bash scripts/build/build-upload-docker-images.sh \
           ${{ steps.params.outputs.docker_flags }}
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
