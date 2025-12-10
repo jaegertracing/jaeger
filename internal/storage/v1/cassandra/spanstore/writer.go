@@ -5,7 +5,6 @@
 package spanstore
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -14,7 +13,6 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
 	casmetrics "github.com/jaegertracing/jaeger/internal/storage/cassandra/metrics"
@@ -68,6 +66,11 @@ type (
 	operationNamesWriter func(operation dbmodel.Operation) error
 )
 
+type CoreSpanWriter interface {
+	WriteSpan(span *dbmodel.Span, insertions []dbmodel.TagInsertion) error
+	Close() error
+}
+
 type spanWriterMetrics struct {
 	traces                *casmetrics.Table
 	tagIndex              *casmetrics.Table
@@ -84,7 +87,6 @@ type SpanWriter struct {
 	writerMetrics        spanWriterMetrics
 	logger               *zap.Logger
 	tagIndexSkipped      metrics.Counter
-	tagFilter            dbmodel.TagFilter
 	storageMode          storageMode
 	indexFilter          dbmodel.IndexFilter
 }
@@ -95,7 +97,7 @@ func NewSpanWriter(
 	writeCacheTTL time.Duration,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
-	options ...Option,
+	opts Options,
 ) (*SpanWriter, error) {
 	serviceNamesStorage := NewServiceNamesStorage(session, writeCacheTTL, metricsFactory, logger)
 	operationNamesStorage, err := NewOperationNamesStorage(session, writeCacheTTL, metricsFactory, logger)
@@ -103,7 +105,6 @@ func NewSpanWriter(
 		return nil, err
 	}
 	tagIndexSkipped := metricsFactory.Counter(metrics.Options{Name: "tag_index_skipped", Tags: nil})
-	opts := applyOptions(options...)
 	return &SpanWriter{
 		session:              session,
 		serviceNamesWriter:   serviceNamesStorage.Write,
@@ -117,7 +118,6 @@ func NewSpanWriter(
 		},
 		logger:          logger,
 		tagIndexSkipped: tagIndexSkipped,
-		tagFilter:       opts.tagFilter,
 		storageMode:     opts.storageMode,
 		indexFilter:     opts.indexFilter,
 	}, nil
@@ -130,22 +130,21 @@ func (s *SpanWriter) Close() error {
 }
 
 // WriteSpan saves the span into Cassandra
-func (s *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
-	ds := dbmodel.FromDomain(span)
+func (s *SpanWriter) WriteSpan(ds *dbmodel.Span, insertions []dbmodel.TagInsertion) error {
 	if s.storageMode&storeFlag == storeFlag {
-		if err := s.writeSpan(span, ds); err != nil {
+		if err := s.writeSpan(ds); err != nil {
 			return err
 		}
 	}
 	if s.storageMode&indexFlag == indexFlag {
-		if err := s.writeIndexes(span, ds); err != nil {
+		if err := s.writeIndexes(ds, insertions); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (s *SpanWriter) writeSpan(_ *model.Span, ds *dbmodel.Span) error {
+func (s *SpanWriter) writeSpan(ds *dbmodel.Span) error {
 	mainQuery := s.session.Query(
 		insertSpan,
 		ds.TraceID,
@@ -167,11 +166,11 @@ func (s *SpanWriter) writeSpan(_ *model.Span, ds *dbmodel.Span) error {
 	return nil
 }
 
-func (s *SpanWriter) writeIndexes(span *model.Span, ds *dbmodel.Span) error {
-	spanKind, _ := span.GetSpanKind() // if not found it returns ""
+func (s *SpanWriter) writeIndexes(ds *dbmodel.Span, insertions []dbmodel.TagInsertion) error {
+	spanKind := dbmodel.GetSpanKind(ds) // if not found it returns ""
 	if err := s.saveServiceNameAndOperationName(dbmodel.Operation{
 		ServiceName:   ds.ServiceName,
-		SpanKind:      string(spanKind),
+		SpanKind:      spanKind,
 		OperationName: ds.OperationName,
 	}); err != nil {
 		// should this be a soft failure?
@@ -190,24 +189,24 @@ func (s *SpanWriter) writeIndexes(span *model.Span, ds *dbmodel.Span) error {
 		}
 	}
 
-	if span.Flags.IsFirehoseEnabled() {
+	if dbmodel.IsFirehoseEnabled(ds) {
 		return nil // skipping expensive indexing
 	}
 
-	if err := s.indexByTags(span, ds); err != nil {
+	if err := s.indexByTags(ds, insertions); err != nil {
 		return s.logError(ds, err, "Failed to index tags", s.logger)
 	}
 
 	if s.indexFilter(ds, dbmodel.DurationIndex) {
-		if err := s.indexByDuration(ds, span.StartTime); err != nil {
+		if err := s.indexByDuration(ds, epochMicrosecondsAsTime(ds.StartTime)); err != nil {
 			return s.logError(ds, err, "Failed to index duration", s.logger)
 		}
 	}
 	return nil
 }
 
-func (s *SpanWriter) indexByTags(span *model.Span, ds *dbmodel.Span) error {
-	for _, v := range dbmodel.GetAllUniqueTags(span, s.tagFilter) {
+func (s *SpanWriter) indexByTags(ds *dbmodel.Span, insertions []dbmodel.TagInsertion) error {
+	for _, v := range insertions {
 		// we should introduce retries or just ignore failures imo, retrying each individual tag insertion might be better
 		// we should consider bucketing.
 		if s.shouldIndexTag(v) {
@@ -285,4 +284,10 @@ func (s *SpanWriter) saveServiceNameAndOperationName(operation dbmodel.Operation
 		return err
 	}
 	return s.operationNamesWriter(operation)
+}
+
+func epochMicrosecondsAsTime(ts int64) time.Time {
+	seconds := ts / 1000000
+	nanos := 1000 * (ts % 1000000)
+	return time.Unix(seconds, nanos).UTC()
 }

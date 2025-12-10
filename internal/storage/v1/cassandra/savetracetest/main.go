@@ -45,7 +45,7 @@ func main() {
 	if err != nil {
 		logger.Fatal("Failed to initialize tracer", zap.Error(err))
 	}
-	spanStore, err := cspanstore.NewSpanWriter(cqlSession, time.Hour*12, noScope, logger)
+	spanStore, err := cspanstore.NewSpanWriterV1(cqlSession, time.Hour*12, noScope, logger)
 	if err != nil {
 		logger.Fatal("Failed to create span writer", zap.Error(err))
 	}
