@@ -10,6 +10,20 @@ import re
 
 # Configuration for transient labels that should be normalized during comparison
 TRANSIENT_LABEL_PATTERNS = {
+    'GLOBAL': {
+        'otel_scope_version': {
+            'pattern': r'.*',
+            'replacement': 'version'
+        },
+        'k8s_namespace_name': {
+            'pattern': r'.*',
+            'replacement': 'namespace'
+        },
+        'namespace': {
+            'pattern': r'.*',
+            'replacement': 'namespace'
+        }
+    },
     'kafka': {
         'topic': {
             'pattern': r'jaeger-spans-\d+',
@@ -38,8 +52,17 @@ def suppress_transient_labels(metric_name, labels):
         Dictionary of labels with transient values normalized
     """
     labels_copy = labels.copy()
+
+    # Apply global patterns first
+    if 'GLOBAL' in TRANSIENT_LABEL_PATTERNS:
+        for label_name, pattern_config in TRANSIENT_LABEL_PATTERNS['GLOBAL'].items():
+            if label_name in labels_copy:
+                # For global patterns, directly replace the value
+                labels_copy[label_name] = pattern_config['replacement']
     
     for service_pattern, label_configs in TRANSIENT_LABEL_PATTERNS.items():
+        if service_pattern == 'GLOBAL':
+            continue
         if service_pattern in metric_name:
             for label_name, pattern_config in label_configs.items():
                 if label_name in labels_copy:
