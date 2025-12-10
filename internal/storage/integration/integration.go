@@ -368,14 +368,14 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 		for _, traceFixture := range queryTestCase.ExpectedFixtures {
 			trace, ok := allTraceFixtures[traceFixture]
 			if !ok {
-				trace = s.getTraceFixture(t, traceFixture)
-				otelTraces := v1adapter.V1TraceToOtelTrace(trace)
+				otelTraces := s.getTraceFixture(t, traceFixture)
 				s.writeTrace(t, otelTraces)
-
+				trace = s.getTraceFixtureV1(t, traceFixture)
 				allTraceFixtures[traceFixture] = trace
 			}
 			expected = append(expected, trace)
 		}
+
 		expectedTracesPerTestCase = append(expectedTracesPerTestCase, expected)
 	}
 	for i, queryTestCase := range s.Fixtures {
@@ -424,10 +424,9 @@ func (s *StorageIntegration) writeTrace(t *testing.T, traces ptrace.Traces) {
 }
 
 func (s *StorageIntegration) loadParseAndWriteExampleTrace(t *testing.T) *model.Trace {
-	trace := s.getTraceFixture(t, "example_trace")
-	otelTraces := v1adapter.V1TraceToOtelTrace(trace)
+	otelTraces := s.getTraceFixture(t, "example_trace")
 	s.writeTrace(t, otelTraces)
-	return trace
+	return s.getTraceFixtureV1(t, "example_trace")
 }
 
 func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
@@ -435,7 +434,7 @@ func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
 	totalCount int,
 	dupFreq int,
 ) *model.Trace {
-	trace := s.getTraceFixture(t, "example_trace")
+	trace := s.getTraceFixtureV1(t, "example_trace")
 	repeatedSpan := trace.Spans[0]
 	trace.Spans = make([]*model.Span, totalCount)
 	for i := range totalCount {
@@ -445,7 +444,7 @@ func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
 		case dupFreq > 0 && i > 0 && i%dupFreq == 0:
 			newSpan.SpanID = repeatedSpan.SpanID
 		default:
-			newSpan.SpanID = model.SpanID(uint64(i) + 1) //nolint:gosec // G115
+			newSpan.SpanID = model.SpanID(uint64(i) + 1)
 		}
 		newSpan.StartTime = newSpan.StartTime.Add(time.Second * time.Duration(i+1))
 		trace.Spans[i] = newSpan
@@ -456,9 +455,16 @@ func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
 	return trace
 }
 
-func (*StorageIntegration) getTraceFixture(t *testing.T, fixture string) *model.Trace {
+// getTraceFixtureV1 returns v1 model.Trace for comparison purposes
+func (*StorageIntegration) getTraceFixtureV1(t *testing.T, fixture string) *model.Trace {
 	fileName := fmt.Sprintf("fixtures/traces/%s.json", fixture)
 	return getTraceFixtureExact(t, fileName)
+}
+
+// getTraceFixture returns OTLP traces ready for v2 API
+func (s *StorageIntegration) getTraceFixture(t *testing.T, fixture string) ptrace.Traces {
+	v1Trace := s.getTraceFixtureV1(t, fixture)
+	return v1adapter.V1TraceToOtelTrace(v1Trace)
 }
 
 func getTraceFixtureExact(t *testing.T, fileName string) *model.Trace {
