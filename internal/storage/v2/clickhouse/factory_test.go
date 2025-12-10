@@ -125,6 +125,20 @@ func TestNewFactory_Errors(t *testing.T) {
 			},
 			expectedError: "failed to create operations materialized view",
 		},
+		{
+			name: "trace id timestamps table creation error",
+			failureConfig: clickhousetest.FailureConfig{
+				sql.CreateTraceIDTimestampsTable: errors.New("trace id timestamps table creation error"),
+			},
+			expectedError: "failed to create trace id timestamps table",
+		},
+		{
+			name: "trace id timestamps materialized view creation error",
+			failureConfig: clickhousetest.FailureConfig{
+				sql.CreateTraceIDTimestampsMaterializedView: errors.New("trace id timestamps materialized view creation error"),
+			},
+			expectedError: "failed to create trace id timestamps materialized view",
+		},
 	}
 
 	for _, tt := range tests {
