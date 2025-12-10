@@ -276,59 +276,30 @@ builds:
 archives:
   # Main jaeger and hotrod archive
   - id: jaeger
-    builds:
-      - jaeger
-      - hotrod
+    formats: [tar.gz]
     name_template: "jaeger-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
-    format_overrides:
-      - goos: windows
-        format: zip
     files:
       - none*  # Don't include any extra files
+    format_overrides:
+      - goos: windows
+        formats: [zip, tar.gz]
+    ids:
+      - jaeger
+      - hotrod
 
   # Tools archive
   - id: jaeger-tools
-    builds:
+    formats: [tar.gz]
+    name_template: "jaeger-tools-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    files:
+      - none*  # Don't include any extra files
+    format_overrides:
+      - goos: windows
+        formats: [zip, tar.gz]
+    ids:
       - es-index-cleaner
       - es-rollover
       - esmapping-generator
-    name_template: "jaeger-tools-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
-    format_overrides:
-      - goos: windows
-        format: zip
-    files:
-      - none*  # Don't include any extra files
-
-  # Standalone binaries for tools not in main packages
-  - id: remote-storage
-    builds:
-      - remote-storage
-    name_template: "jaeger-remote-storage-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
-    format_overrides:
-      - goos: windows
-        format: zip
-    files:
-      - none*
-
-  - id: tracegen
-    builds:
-      - tracegen
-    name_template: "jaeger-tracegen-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
-    format_overrides:
-      - goos: windows
-        format: zip
-    files:
-      - none*
-
-  - id: anonymizer
-    builds:
-      - anonymizer
-    name_template: "jaeger-anonymizer-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
-    format_overrides:
-      - goos: windows
-        format: zip
-    files:
-      - none*
 
 checksum:
   name_template: "jaeger-{{ .Version }}.sha256sum.txt"
@@ -357,5 +328,4 @@ release:
   # Use append mode to work with existing releases
   mode: append
 
-snapshot:
-  name_template: "{{ incpatch .Version }}-next"
+snapshot: {}
