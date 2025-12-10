@@ -444,7 +444,7 @@ func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
 		case dupFreq > 0 && i > 0 && i%dupFreq == 0:
 			newSpan.SpanID = repeatedSpan.SpanID
 		default:
-			newSpan.SpanID = model.SpanID(uint64(i) + 1)
+			newSpan.SpanID = model.SpanID(uint64(i) + 1) //nolint:gosec // G115
 		}
 		newSpan.StartTime = newSpan.StartTime.Add(time.Second * time.Duration(i+1))
 		trace.Spans[i] = newSpan
