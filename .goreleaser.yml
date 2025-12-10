@@ -1,0 +1,361 @@
+# Copyright (c) 2024 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+version: 2
+
+before:
+  hooks:
+    # Build UI assets before building binaries
+    - make build-ui
+
+builds:
+  # Main Jaeger binary (v2)
+  - id: jaeger
+    main: ./cmd/jaeger
+    binary: jaeger
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -X github.com/jaegertracing/jaeger/internal/version.commitSHA={{.FullCommit}}
+      - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Tag}}
+      - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - s390x
+      - ppc64le
+    ignore:
+      - goos: darwin
+        goarch: s390x
+      - goos: darwin
+        goarch: ppc64le
+      - goos: windows
+        goarch: arm64
+      - goos: windows
+        goarch: s390x
+      - goos: windows
+        goarch: ppc64le
+
+  # Remote Storage binary
+  - id: remote-storage
+    main: ./cmd/remote-storage
+    binary: remote-storage
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -X github.com/jaegertracing/jaeger/internal/version.commitSHA={{.FullCommit}}
+      - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Tag}}
+      - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - s390x
+      - ppc64le
+    ignore:
+      - goos: darwin
+        goarch: s390x
+      - goos: darwin
+        goarch: ppc64le
+      - goos: windows
+        goarch: arm64
+      - goos: windows
+        goarch: s390x
+      - goos: windows
+        goarch: ppc64le
+
+  # Tracegen tool
+  - id: tracegen
+    main: ./cmd/tracegen
+    binary: tracegen
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -X github.com/jaegertracing/jaeger/internal/version.commitSHA={{.FullCommit}}
+      - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Tag}}
+      - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - s390x
+      - ppc64le
+    ignore:
+      - goos: darwin
+        goarch: s390x
+      - goos: darwin
+        goarch: ppc64le
+      - goos: windows
+        goarch: arm64
+      - goos: windows
+        goarch: s390x
+      - goos: windows
+        goarch: ppc64le
+
+  # Anonymizer tool
+  - id: anonymizer
+    main: ./cmd/anonymizer
+    binary: anonymizer
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -X github.com/jaegertracing/jaeger/internal/version.commitSHA={{.FullCommit}}
+      - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Tag}}
+      - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - s390x
+      - ppc64le
+    ignore:
+      - goos: darwin
+        goarch: s390x
+      - goos: darwin
+        goarch: ppc64le
+      - goos: windows
+        goarch: arm64
+      - goos: windows
+        goarch: s390x
+      - goos: windows
+        goarch: ppc64le
+
+  # ES Mapping Generator tool
+  - id: esmapping-generator
+    main: ./cmd/esmapping-generator
+    binary: esmapping-generator
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -X github.com/jaegertracing/jaeger/internal/version.commitSHA={{.FullCommit}}
+      - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Tag}}
+      - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - s390x
+      - ppc64le
+    ignore:
+      - goos: darwin
+        goarch: s390x
+      - goos: darwin
+        goarch: ppc64le
+      - goos: windows
+        goarch: arm64
+      - goos: windows
+        goarch: s390x
+      - goos: windows
+        goarch: ppc64le
+
+  # ES Index Cleaner tool
+  - id: es-index-cleaner
+    main: ./cmd/es-index-cleaner
+    binary: es-index-cleaner
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -X github.com/jaegertracing/jaeger/internal/version.commitSHA={{.FullCommit}}
+      - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Tag}}
+      - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - s390x
+      - ppc64le
+    ignore:
+      - goos: darwin
+        goarch: s390x
+      - goos: darwin
+        goarch: ppc64le
+      - goos: windows
+        goarch: arm64
+      - goos: windows
+        goarch: s390x
+      - goos: windows
+        goarch: ppc64le
+
+  # ES Rollover tool
+  - id: es-rollover
+    main: ./cmd/es-rollover
+    binary: es-rollover
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -X github.com/jaegertracing/jaeger/internal/version.commitSHA={{.FullCommit}}
+      - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Tag}}
+      - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - s390x
+      - ppc64le
+    ignore:
+      - goos: darwin
+        goarch: s390x
+      - goos: darwin
+        goarch: ppc64le
+      - goos: windows
+        goarch: arm64
+      - goos: windows
+        goarch: s390x
+      - goos: windows
+        goarch: ppc64le
+
+  # HotROD example application
+  - id: hotrod
+    main: ./examples/hotrod/main.go
+    binary: example-hotrod
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -X github.com/jaegertracing/jaeger/internal/version.commitSHA={{.FullCommit}}
+      - -X github.com/jaegertracing/jaeger/internal/version.latestVersion={{.Tag}}
+      - -X github.com/jaegertracing/jaeger/internal/version.date={{.Date}}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - s390x
+      - ppc64le
+    ignore:
+      - goos: darwin
+        goarch: s390x
+      - goos: darwin
+        goarch: ppc64le
+      - goos: windows
+        goarch: arm64
+      - goos: windows
+        goarch: s390x
+      - goos: windows
+        goarch: ppc64le
+
+archives:
+  # Main jaeger and hotrod archive
+  - id: jaeger
+    builds:
+      - jaeger
+      - hotrod
+    name_template: "jaeger-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - none*  # Don't include any extra files
+
+  # Tools archive
+  - id: jaeger-tools
+    builds:
+      - es-index-cleaner
+      - es-rollover
+      - esmapping-generator
+    name_template: "jaeger-tools-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - none*  # Don't include any extra files
+
+  # Standalone binaries for tools not in main packages
+  - id: remote-storage
+    builds:
+      - remote-storage
+    name_template: "jaeger-remote-storage-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - none*
+
+  - id: tracegen
+    builds:
+      - tracegen
+    name_template: "jaeger-tracegen-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - none*
+
+  - id: anonymizer
+    builds:
+      - anonymizer
+    name_template: "jaeger-anonymizer-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - none*
+
+checksum:
+  name_template: "jaeger-{{ .Version }}.sha256sum.txt"
+  algorithm: sha256
+
+signs:
+  - cmd: gpg
+    args:
+      - "--batch"
+      - "--local-user"
+      - "{{ .Env.GPG_FINGERPRINT }}"
+      - "--output"
+      - "${signature}"
+      - "--detach-sign"
+      - "${artifact}"
+    artifacts: all
+    signature: "${artifact}.asc"
+
+changelog:
+  disable: true
+
+release:
+  # We create the GitHub release manually before running this workflow
+  disable: false
+  prerelease: auto
+  # Use append mode to work with existing releases
+  mode: append
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"

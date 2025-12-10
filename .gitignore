@@ -40,6 +40,7 @@ __pycache__
 .asset-manifest.json
 deploy/
 deploy-staging/
+dist/
 sha256sum.combined.txt
 resource.syso
 .gocache
