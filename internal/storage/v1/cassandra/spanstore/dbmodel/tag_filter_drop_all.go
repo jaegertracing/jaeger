@@ -3,10 +3,6 @@
 
 package dbmodel
 
-import (
-	"github.com/jaegertracing/jaeger-idl/model/v1"
-)
-
 // TagFilterDropAll filters all fields of a given type.
 type TagFilterDropAll struct {
 	dropTags        bool
@@ -24,25 +20,25 @@ func NewTagFilterDropAll(dropTags bool, dropProcessTags bool, dropLogs bool) *Ta
 }
 
 // FilterProcessTags implements TagFilter
-func (f *TagFilterDropAll) FilterProcessTags(_ *model.Span, processTags model.KeyValues) model.KeyValues {
+func (f *TagFilterDropAll) FilterProcessTags(_ *Span, processTags []KeyValue) []KeyValue {
 	if f.dropProcessTags {
-		return model.KeyValues{}
+		return []KeyValue{}
 	}
 	return processTags
 }
 
 // FilterTags implements TagFilter
-func (f *TagFilterDropAll) FilterTags(_ *model.Span, tags model.KeyValues) model.KeyValues {
+func (f *TagFilterDropAll) FilterTags(_ *Span, tags []KeyValue) []KeyValue {
 	if f.dropTags {
-		return model.KeyValues{}
+		return []KeyValue{}
 	}
 	return tags
 }
 
 // FilterLogFields implements TagFilter
-func (f *TagFilterDropAll) FilterLogFields(_ *model.Span, logFields model.KeyValues) model.KeyValues {
+func (f *TagFilterDropAll) FilterLogFields(_ *Span, logFields []KeyValue) []KeyValue {
 	if f.dropLogs {
-		return model.KeyValues{}
+		return []KeyValue{}
 	}
 	return logFields
 }
