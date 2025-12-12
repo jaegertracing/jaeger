@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/extension/extensionauth"
 	"go.opentelemetry.io/otel/metric/noop"
+	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
@@ -32,10 +33,11 @@ import (
 
 func getTelemetrySettings() telemetry.Settings {
 	return telemetry.Settings{
-		Logger:        zap.NewNop(),
-		Metrics:       metrics.NullFactory,
-		MeterProvider: noop.NewMeterProvider(),
-		Host:          componenttest.NewNopHost(),
+		Logger:         zap.NewNop(),
+		Metrics:        metrics.NullFactory,
+		MeterProvider:  noop.NewMeterProvider(),
+		TracerProvider: nooptrace.NewTracerProvider(),
+		Host:           componenttest.NewNopHost(),
 	}
 }
 

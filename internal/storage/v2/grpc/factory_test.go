@@ -16,6 +16,8 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
+	"go.opentelemetry.io/otel/metric/noop"
+	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/internal/telemetry"
@@ -128,8 +130,14 @@ func TestInitializeConnections_ClientError(t *testing.T) {
 		return nil, assert.AnError
 	}
 	err = f.initializeConnections(
-		component.TelemetrySettings{},
-		component.TelemetrySettings{},
+		component.TelemetrySettings{
+			MeterProvider:  noop.NewMeterProvider(),
+			TracerProvider: nooptrace.NewTracerProvider(),
+		},
+		component.TelemetrySettings{
+			MeterProvider:  noop.NewMeterProvider(),
+			TracerProvider: nooptrace.NewTracerProvider(),
+		},
 		&configgrpc.ClientConfig{},
 		&configgrpc.ClientConfig{},
 		newClientFn,

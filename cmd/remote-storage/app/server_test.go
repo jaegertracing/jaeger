@@ -16,6 +16,8 @@ import (
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/otel/metric/noop"
+	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 	"google.golang.org/grpc"
@@ -130,8 +132,10 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 		},
 	}
 	telset := telemetry.Settings{
-		Logger:       zap.NewNop(),
-		ReportStatus: telemetry.HCAdapter(healthcheck.New()),
+		Logger:         zap.NewNop(),
+		MeterProvider:  noop.NewMeterProvider(),
+		TracerProvider: nooptrace.NewTracerProvider(),
+		ReportStatus:   telemetry.HCAdapter(healthcheck.New()),
 	}
 
 	_, err := NewServer(
@@ -364,8 +368,10 @@ func TestServerGRPCTLS(t *testing.T) {
 
 			tm := tenancy.NewManager(&tenancy.Options{Enabled: true})
 			telset := telemetry.Settings{
-				Logger:       flagsSvc.Logger,
-				ReportStatus: telemetry.HCAdapter(flagsSvc.HC()),
+				Logger:         flagsSvc.Logger,
+				MeterProvider:  noop.NewMeterProvider(),
+				TracerProvider: nooptrace.NewTracerProvider(),
+				ReportStatus:   telemetry.HCAdapter(flagsSvc.HC()),
 			}
 			server, err := NewServer(
 				context.Background(),
@@ -414,8 +420,10 @@ func TestServerHandlesPortZero(t *testing.T) {
 	zapCore, logs := observer.New(zap.InfoLevel)
 	flagsSvc.Logger = zap.New(zapCore)
 	telset := telemetry.Settings{
-		Logger:       flagsSvc.Logger,
-		ReportStatus: telemetry.HCAdapter(flagsSvc.HC()),
+		Logger:         flagsSvc.Logger,
+		MeterProvider:  noop.NewMeterProvider(),
+		TracerProvider: nooptrace.NewTracerProvider(),
+		ReportStatus:   telemetry.HCAdapter(flagsSvc.HC()),
 	}
 	server, err := NewServer(
 		context.Background(),
