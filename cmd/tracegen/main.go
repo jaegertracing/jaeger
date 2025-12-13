@@ -8,6 +8,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/go-logr/zapr"
@@ -66,77 +68,100 @@ func main() {
 }
 
 func createTracers(cfg *tracegen.Config, logger *zap.Logger) ([]trace.Tracer, func(context.Context) error) {
-	if cfg.Services < 1 {
-		cfg.Services = 1
-	}
-	var shutdown []func(context.Context) error
-	var tracers []trace.Tracer
-	for s := 0; s < cfg.Services; s++ {
-		svc := cfg.Service
-		if cfg.Services > 1 {
-			svc = fmt.Sprintf("%s-%02d", svc, s)
-		}
+    if cfg.Services < 1 {
+        cfg.Services = 1
+    }
+    var shutdown []func(context.Context) error
+    var tracers []trace.Tracer
 
-		exp, err := createOtelExporter(cfg.TraceExporter)
-		if err != nil {
-			logger.Sugar().Fatalf("cannot create trace exporter %s: %s", cfg.TraceExporter, err)
-		}
-		logger.Sugar().Infof("using %s trace exporter for service %s", cfg.TraceExporter, svc)
+    var file *os.File
+    exporterType := cfg.TraceExporter
 
-		res, err := resource.New(
-			context.Background(),
-			resource.WithSchemaURL(otelsemconv.SchemaURL),
-			resource.WithAttributes(otelsemconv.ServiceNameAttribute(svc)),
-			resource.WithTelemetrySDK(),
-			resource.WithHost(),
-			resource.WithOSType(),
-		)
-		if err != nil {
-			logger.Sugar().Fatalf("resource creation failed: %s", err)
-		}
+    if strings.HasPrefix(cfg.TraceExporter, "file:") {
+        filename := strings.TrimPrefix(cfg.TraceExporter, "file:")
+        var err error
+        file, err = os.Create(filename)
+        if err != nil {
+            logger.Sugar().Fatalf("cannot create output file %s: %s", filename, err)
+        }
+        exporterType = "stdout"
+    }
 
-		opts := []sdktrace.TracerProviderOption{
-			sdktrace.WithBatcher(exp, sdktrace.WithBlocking()),
-			sdktrace.WithResource(res),
-		}
-		if flagAdaptiveSamplingEndpoint != "" {
-			jaegerRemoteSampler := jaegerremote.New(
-				svc,
-				jaegerremote.WithSamplingServerURL(flagAdaptiveSamplingEndpoint),
-				jaegerremote.WithSamplingRefreshInterval(5*time.Second),
-				jaegerremote.WithInitialSampler(sdktrace.TraceIDRatioBased(0.5)),
+    for s := 0; s < cfg.Services; s++ {
+        svc := cfg.Service
+        if cfg.Services > 1 {
+            svc = fmt.Sprintf("%s-%02d", svc, s)
+        }
+
+        exp, err := createOtelExporter(exporterType, file)
+        if err != nil {
+            logger.Sugar().Fatalf("cannot create trace exporter %s: %s", cfg.TraceExporter, err)
+        }
+        logger.Sugar().Infof("using %s trace exporter for service %s", cfg.TraceExporter, svc)
+
+        res, err := resource.New(
+            context.Background(),
+            resource.WithSchemaURL(otelsemconv.SchemaURL),
+            resource.WithAttributes(otelsemconv.ServiceNameAttribute(svc)),
+            resource.WithTelemetrySDK(),
+            resource.WithHost(),
+            resource.WithOSType(),
+        )
+        if err != nil {
+            logger.Sugar().Fatalf("resource creation failed: %s", err)
+        }
+
+        opts := []sdktrace.TracerProviderOption{
+            sdktrace.WithBatcher(exp, sdktrace.WithBlocking()),
+            sdktrace.WithResource(res),
+        }
+        if flagAdaptiveSamplingEndpoint != "" {
+            jaegerRemoteSampler := jaegerremote.New(
+                svc,
+                jaegerremote.WithSamplingServerURL(flagAdaptiveSamplingEndpoint),
+                jaegerremote.WithSamplingRefreshInterval(5*time.Second),
+                jaegerremote.WithInitialSampler(sdktrace.TraceIDRatioBased(0.5)),
 			)
-			opts = append(opts, sdktrace.WithSampler(jaegerRemoteSampler))
-			logger.Sugar().Infof("using adaptive sampling URL: %s", flagAdaptiveSamplingEndpoint)
-		}
-		tp := sdktrace.NewTracerProvider(opts...)
-		tracers = append(tracers, tp.Tracer(cfg.Service))
-		shutdown = append(shutdown, tp.Shutdown)
-	}
-	return tracers, func(ctx context.Context) error {
-		var errs []error
-		for _, f := range shutdown {
-			errs = append(errs, f(ctx))
-		}
-		return errors.Join(errs...)
-	}
+            opts = append(opts, sdktrace.WithSampler(jaegerRemoteSampler))
+            logger.Sugar().Infof("using adaptive sampling URL: %s", flagAdaptiveSamplingEndpoint)
+        }
+        tp := sdktrace.NewTracerProvider(opts...)
+        tracers = append(tracers, tp.Tracer(cfg.Service))
+        shutdown = append(shutdown, tp.Shutdown)
+    }
+
+    if file != nil {
+        shutdown = append(shutdown, func(_ context.Context) error {
+            return file.Close()
+        })
+    }
+
+    return tracers, func(ctx context.Context) error {
+        var errs []error
+        for _, f := range shutdown {
+            errs = append(errs, f(ctx))
+        }
+        return errors.Join(errs...)
+    }
 }
 
-func createOtelExporter(exporterType string) (sdktrace.SpanExporter, error) {
+func createOtelExporter(exporterType string, fileWriter *os.File) (sdktrace.SpanExporter, error) {
+	if fileWriter != nil {
+		return stdouttrace.New(
+			stdouttrace.WithWriter(fileWriter),
+		)
+	}
+
 	var exporter sdktrace.SpanExporter
 	var err error
 	switch exporterType {
 	case "jaeger":
 		return nil, errors.New("jaeger exporter is no longer supported, please use otlp")
 	case "otlp", "otlp-http":
-		client := otlptracehttp.NewClient(
-			otlptracehttp.WithInsecure(),
-		)
+		client := otlptracehttp.NewClient(otlptracehttp.WithInsecure())
 		exporter, err = otlptrace.New(context.Background(), client)
 	case "otlp-grpc":
-		client := otlptracegrpc.NewClient(
-			otlptracegrpc.WithInsecure(),
-		)
+		client := otlptracegrpc.NewClient(otlptracegrpc.WithInsecure())
 		exporter, err = otlptrace.New(context.Background(), client)
 	case "stdout":
 		exporter, err = stdouttrace.New()
