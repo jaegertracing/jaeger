@@ -1,0 +1,47 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {"stringValue": "scope-test-service"}
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "test-instrumentation-library",
+            "version": "2.1.0",
+            "attributes": [
+              {
+                "key": "otel.scope.name",
+                "value": {"stringValue": "test-scope"}
+              }
+            ]
+          },
+          "spans": [
+            {
+              "traceId": "00000000000000000000000000000020",
+              "spanId": "0000000000000020",
+              "name": "span-with-scope-metadata",
+              "kind": 1,
+              "startTimeUnixNano": "1485445591639875000",
+              "endTimeUnixNano": "1485445591939875000",
+              "attributes": [
+                {
+                  "key": "test.attribute",
+                  "value": {"stringValue": "test-value"}
+                }
+              ],
+              "status": {
+                "code": 0
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
