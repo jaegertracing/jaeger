@@ -5,16 +5,15 @@
 package integration
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/configtls"
 
-	"github.com/jaegertracing/jaeger/internal/config"
-	"github.com/jaegertracing/jaeger/internal/metrics"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 	"github.com/jaegertracing/jaeger/ports"
 )
@@ -27,25 +26,27 @@ type GRPCStorageIntegrationTestSuite struct {
 }
 
 func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
-	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
 	s.remoteStorage = StartNewRemoteMemoryStorage(t, ports.RemoteStorageGRPC)
 
-	initFactory := func(f *grpc.Factory, flags []string) {
-		v, command := config.Viperize(f.AddFlags)
-		require.NoError(t, command.ParseFlags(flags))
-		f.InitFromViper(v, logger)
-		require.NoError(t, f.Initialize(metrics.NullFactory, logger))
-	}
-	f := grpc.NewFactory()
-	initFactory(f, s.flags)
+	f, err := grpc.NewFactory(
+		context.Background(),
+		grpc.Config{
+			ClientConfig: configgrpc.ClientConfig{
+				Endpoint: "localhost:17271",
+				TLS: configtls.ClientConfig{
+					Insecure: true,
+				},
+			},
+		},
+		telemetry.NoopSettings(),
+	)
+	require.NoError(t, err)
 	s.factory = f
 
-	spanWriter, err := f.CreateSpanWriter()
+	s.TraceWriter, err = f.CreateTraceWriter()
 	require.NoError(t, err)
-	s.TraceWriter = v1adapter.NewTraceWriter(spanWriter)
-	spanReader, err := f.CreateSpanReader()
+	s.TraceReader, err = f.CreateTraceReader()
 	require.NoError(t, err)
-	s.TraceReader = v1adapter.NewTraceReader(spanReader)
 
 	// TODO DependencyWriter is not implemented in grpc store
 

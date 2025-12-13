@@ -9,6 +9,9 @@ services:
     # https://cassandra.apache.org/doc/stable/cassandra/operating/security.html#authentication
     command: >
       /bin/sh -c "echo 'authenticator: PasswordAuthenticator' >> /etc/cassandra/cassandra.yaml && docker-entrypoint.sh cassandra -f"
+    environment:
+      - CASSANDRA_DC=dc1
+      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
     networks:
       - cassandra-net
     healthcheck:

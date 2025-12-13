@@ -261,3 +261,9 @@ var CreateOperationsTable string
 
 //go:embed create_operations_mv.sql
 var CreateOperationsMaterializedView string
+
+//go:embed create_trace_id_timestamps_table.sql
+var CreateTraceIDTimestampsTable string
+
+//go:embed create_trace_id_timestamps_mv.sql
+var CreateTraceIDTimestampsMaterializedView string

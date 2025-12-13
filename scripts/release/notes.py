@@ -50,7 +50,7 @@ categories = [
     {'title': '#### ⛔ Breaking Changes', 'label': 'changelog:breaking-change'},
     {'title': '#### ✨ New Features', 'label': 'changelog:new-feature'},
     {'title': '#### 🐞 Bug fixes, Minor Improvements', 'label': 'changelog:bugfix-or-minor-feature'},
-    {'title': '#### 🚧 Experimental Features', 'label': 'changelog:exprimental'},
+    {'title': '#### 🚧 Experimental Features', 'label': 'changelog:experimental'},
     {'title': '#### 👷 CI Improvements', 'label': 'changelog:ci'},
     {'title': '#### ⚙️ Refactoring', 'label': 'changelog:refactoring'},
     {'title': None, 'label': 'changelog:test'},

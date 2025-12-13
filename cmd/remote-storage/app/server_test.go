@@ -43,11 +43,9 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 	createServer := func(factory *fakeFactory) (*Server, error) {
 		return NewServer(
 			context.Background(),
-			&Options{
-				ServerConfig: configgrpc.ServerConfig{
-					NetAddr: confignet.AddrConfig{
-						Endpoint: ":0",
-					},
+			configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint: ":0",
 				},
 			},
 			factory,
@@ -79,11 +77,9 @@ func TestNewServer_CreateStorageErrors(t *testing.T) {
 
 func TestServerStart_BadPortErrors(t *testing.T) {
 	srv := &Server{
-		opts: &Options{
-			ServerConfig: configgrpc.ServerConfig{
-				NetAddr: confignet.AddrConfig{
-					Endpoint: ":-1",
-				},
+		grpcCfg: configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint: ":-1",
 			},
 		},
 	}
@@ -133,20 +129,17 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 			KeyFile:  "invalid/path",
 		},
 	}
-	telset := telemetry.Settings{
-		Logger:       zap.NewNop(),
-		ReportStatus: telemetry.HCAdapter(healthcheck.New()),
-	}
+	telset := telemetry.NoopSettings()
+	telset.Logger = zap.NewNop()
+	telset.ReportStatus = telemetry.HCAdapter(healthcheck.New())
 
 	_, err := NewServer(
 		context.Background(),
-		&Options{
-			ServerConfig: configgrpc.ServerConfig{
-				NetAddr: confignet.AddrConfig{
-					Endpoint: ":8081",
-				},
-				TLS: configoptional.Some(tlsCfg),
+		configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint: ":8081",
 			},
+			TLS: configoptional.Some(tlsCfg),
 		},
 		&fakeFactory{},
 		&fakeFactory{},
@@ -352,15 +345,13 @@ func TestServerGRPCTLS(t *testing.T) {
 			if test.TLS != nil {
 				tls = configoptional.Some(*test.TLS)
 			}
-			serverOptions := &Options{
-				ServerConfig: configgrpc.ServerConfig{
-					NetAddr: confignet.AddrConfig{
-						Endpoint: ":0",
-					},
-					TLS: tls,
+			serverOptions := configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint: ":0",
 				},
+				TLS: tls,
 			}
-			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
+			flagsSvc := flags.NewService(ports.RemoteStorageAdminHTTP)
 			flagsSvc.Logger = zap.NewNop()
 
 			reader := new(tracestoremocks.Reader)
@@ -371,10 +362,9 @@ func TestServerGRPCTLS(t *testing.T) {
 			reader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil)
 
 			tm := tenancy.NewManager(&tenancy.Options{Enabled: true})
-			telset := telemetry.Settings{
-				Logger:       flagsSvc.Logger,
-				ReportStatus: telemetry.HCAdapter(flagsSvc.HC()),
-			}
+			telset := telemetry.NoopSettings()
+			telset.Logger = flagsSvc.Logger
+			telset.ReportStatus = telemetry.HCAdapter(flagsSvc.HC())
 			server, err := NewServer(
 				context.Background(),
 				serverOptions,
@@ -418,18 +408,17 @@ func TestServerGRPCTLS(t *testing.T) {
 }
 
 func TestServerHandlesPortZero(t *testing.T) {
-	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
+	flagsSvc := flags.NewService(ports.RemoteStorageAdminHTTP)
 	zapCore, logs := observer.New(zap.InfoLevel)
 	flagsSvc.Logger = zap.New(zapCore)
-	telset := telemetry.Settings{
-		Logger:       flagsSvc.Logger,
-		ReportStatus: telemetry.HCAdapter(flagsSvc.HC()),
-	}
+	telset := telemetry.NoopSettings()
+	telset.Logger = flagsSvc.Logger
+	telset.ReportStatus = telemetry.HCAdapter(flagsSvc.HC())
 	server, err := NewServer(
 		context.Background(),
-		&Options{ServerConfig: configgrpc.ServerConfig{
+		configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{Endpoint: ":0"},
-		}},
+		},
 		&fakeFactory{},
 		&fakeFactory{},
 		tenancy.NewManager(&tenancy.Options{}),

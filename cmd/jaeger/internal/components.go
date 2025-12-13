@@ -7,6 +7,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckv2extension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/sigv4authextension"
@@ -33,6 +34,7 @@ import (
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/nopreceiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
+	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/exporters/storageexporter"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/expvar"
@@ -64,7 +66,9 @@ func defaultBuilders() builders {
 
 func (b builders) build() (otelcol.Factories, error) {
 	var err error
-	factories := otelcol.Factories{}
+	factories := otelcol.Factories{
+		Telemetry: otelconftelemetry.NewFactory(),
+	}
 
 	factories.Extensions, err = b.extension(
 		// standard
@@ -73,6 +77,7 @@ func (b builders) build() (otelcol.Factories, error) {
 		zpagesextension.NewFactory(),
 
 		// add-ons
+		basicauthextension.NewFactory(),
 		sigv4authextension.NewFactory(),
 		jaegerquery.NewFactory(),
 		jaegerstorage.NewFactory(),

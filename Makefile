@@ -5,7 +5,7 @@ SHELL := /bin/bash
 JAEGER_IMPORT_PATH = github.com/jaegertracing/jaeger
 
 # PLATFORMS is a list of all supported platforms
-PLATFORMS="linux/amd64,linux/arm64,linux/s390x,linux/ppc64le,linux/riscv64,darwin/amd64,darwin/arm64,windows/amd64"
+PLATFORMS="linux/amd64,linux/arm64,linux/s390x,linux/ppc64le,darwin/amd64,darwin/arm64,windows/amd64"
 LINUX_PLATFORMS=$(shell echo "$(PLATFORMS)" | tr ',' '\n' | grep linux | tr '\n' ',' | sed 's/,$$/\n/')
 
 # SRC_ROOT is the top of the source tree.
@@ -40,6 +40,7 @@ ALL_SRC = $(shell find . -name '*.go' \
 # All .sh or .py or Makefile or .mk files that should be auto-formatted and linted.
 SCRIPTS_SRC = $(shell find . \( -name '*.sh' -o -name '*.py' -o -name '*.mk' -o -name 'Makefile*' -o -name 'Dockerfile*' \) \
 						-not -path './.git/*' \
+						-not -path './vendor/*' \
 						-not -path './idl/*' \
 						-not -path './jaeger-ui/*' \
 						-type f | \
@@ -52,10 +53,8 @@ GO=go
 GOOS ?= $(shell $(GO) env GOOS)
 GOARCH ?= $(shell $(GO) env GOARCH)
 
-# go test does not support -race flag on s390x and riscv64 architectures
+# go test does not support -race flag on s390x architecture
 ifeq ($(GOARCH), s390x)
-	RACE=
-else ifeq ($(GOARCH), riscv64)
 	RACE=
 else
 	RACE=-race
@@ -94,13 +93,9 @@ include scripts/makefiles/Windows.mk
 .PHONY: test-and-lint
 test-and-lint: test fmt lint
 
-.PHONY: echo-v1
-echo-v1:
-	@echo "$(GIT_CLOSEST_TAG_V1)"
-
-.PHONY: echo-v2
-echo-v2:
-	@echo "$(GIT_CLOSEST_TAG_V2)"
+.PHONY: echo-version
+echo-version:
+	@echo "$(GIT_CLOSEST_TAG)"
 
 .PHONY: echo-platforms
 echo-platforms:

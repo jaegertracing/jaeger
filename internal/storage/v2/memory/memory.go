@@ -13,7 +13,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	v1 "github.com/jaegertracing/jaeger/internal/storage/v1/memory"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	conventions "github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
@@ -29,18 +28,18 @@ type Store struct {
 	mu sync.RWMutex
 	// Each tenant gets a copy of default config.
 	// In the future this can be extended to contain per-tenant configuration.
-	defaultConfig v1.Configuration
-	perTenant     map[string]*Tenant
+	cfg       Configuration
+	perTenant map[string]*Tenant
 }
 
 // NewStore creates an in-memory store
-func NewStore(cfg v1.Configuration) (*Store, error) {
+func NewStore(cfg Configuration) (*Store, error) {
 	if cfg.MaxTraces <= 0 {
 		return nil, errInvalidMaxTraces
 	}
 	return &Store{
-		defaultConfig: cfg,
-		perTenant:     make(map[string]*Tenant),
+		cfg:       cfg,
+		perTenant: make(map[string]*Tenant),
 	}, nil
 }
 
@@ -54,7 +53,7 @@ func (st *Store) getTenant(tenantID string) *Tenant {
 		defer st.mu.Unlock()
 		tenant, ok = st.perTenant[tenantID]
 		if !ok {
-			tenant = newTenant(&st.defaultConfig)
+			tenant = newTenant(&st.cfg)
 			st.perTenant[tenantID] = tenant
 		}
 	}

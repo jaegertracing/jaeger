@@ -16,10 +16,9 @@ import (
 )
 
 const (
-	spanStorageType = "span-storage.type" // deprecated
-	logLevel        = "log-level"
-	logEncoding     = "log-encoding" // json or console
-	configFile      = "config-file"
+	logLevel    = "log-level"
+	logEncoding = "log-encoding" // json or console
+	configFile  = "config-file"
 )
 
 // AddConfigFileFlag adds flags for ExternalConfFlags
@@ -90,12 +89,6 @@ type SharedFlags struct {
 type logging struct {
 	Level    string
 	Encoding string
-}
-
-// AddFlags adds flags for SharedFlags
-func AddFlags(flagSet *flag.FlagSet) {
-	flagSet.String(spanStorageType, "", "(deprecated) please use SPAN_STORAGE_TYPE environment variable. Run this binary with the 'env' command for help.")
-	AddLoggingFlags(flagSet)
 }
 
 // AddLoggingFlag adds logging flag for SharedFlags
