@@ -127,9 +127,10 @@ func TestInitializeConnections_ClientError(t *testing.T) {
 	newClientFn := func(_ component.TelemetrySettings, _ *configgrpc.ClientConfig, _ ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
 		return nil, assert.AnError
 	}
+	noopTelset := telemetry.NoopSettings().ToOtelComponent()
 	err = f.initializeConnections(
-		component.TelemetrySettings{},
-		component.TelemetrySettings{},
+		noopTelset,
+		noopTelset,
 		&configgrpc.ClientConfig{},
 		&configgrpc.ClientConfig{},
 		newClientFn,

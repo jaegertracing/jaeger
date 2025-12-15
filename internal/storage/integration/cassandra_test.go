@@ -68,13 +68,14 @@ func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 	defCfg := casconfig.DefaultConfiguration()
 	cfg.ApplyDefaults(&defCfg)
 	opts := cassandrav1.Options{
-		NamespaceConfig: cassandrav1.NamespaceConfig{Configuration: cfg},
+		Configuration: cfg,
 		Index: cassandrav1.IndexConfig{
 			Logs:        true,
 			Tags:        true,
 			ProcessTags: true,
 		},
 		SpanStoreWriteCacheTTL: time.Hour * 12,
+		ArchiveEnabled:         false,
 	}
 	f, err := cassandra.NewFactory(opts, metrics.NullFactory, zaptest.NewLogger(t))
 	require.NoError(t, err)
