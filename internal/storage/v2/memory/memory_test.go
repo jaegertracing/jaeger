@@ -821,14 +821,13 @@ func TestFindTraces_OTLPFields(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Create test traces with different OTLP field values
 	traceID1 := fromString(t, "00000000000000010000000000000000")
 	traceID2 := fromString(t, "00000000000000020000000000000000")
 
-	// Trace 1: ERROR status, SERVER kind, scope "my-scope" v1.0.0
 	td1 := ptrace.NewTraces()
 	rs1 := td1.ResourceSpans().AppendEmpty()
 	rs1.Resource().Attributes().PutStr(conventions.ServiceNameKey, "service1")
+	rs1.Resource().Attributes().PutStr("deployment.environment", "production")
 	ss1 := rs1.ScopeSpans().AppendEmpty()
 	ss1.Scope().SetName("my-scope")
 	ss1.Scope().SetVersion("1.0.0")
@@ -841,10 +840,10 @@ func TestFindTraces_OTLPFields(t *testing.T) {
 	span1.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now()))
 	span1.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(time.Second)))
 
-	// Trace 2: OK status, CLIENT kind, scope "other-scope" v2.0.0
 	td2 := ptrace.NewTraces()
 	rs2 := td2.ResourceSpans().AppendEmpty()
 	rs2.Resource().Attributes().PutStr(conventions.ServiceNameKey, "service2")
+	rs2.Resource().Attributes().PutStr("deployment.environment", "staging")
 	ss2 := rs2.ScopeSpans().AppendEmpty()
 	ss2.Scope().SetName("other-scope")
 	ss2.Scope().SetVersion("2.0.0")
@@ -882,6 +881,12 @@ func TestFindTraces_OTLPFields(t *testing.T) {
 			expectedIDs:    []pcommon.TraceID{traceID2},
 		},
 		{
+			name:           "Filter by span.status=UNSET (no match)",
+			queryAttrs:     map[string]string{"span.status": "UNSET"},
+			expectedTraces: 0,
+			expectedIDs:    []pcommon.TraceID{},
+		},
+		{
 			name:           "Filter by span.kind=SERVER",
 			queryAttrs:     map[string]string{"span.kind": "SERVER"},
 			expectedTraces: 1,
@@ -894,8 +899,32 @@ func TestFindTraces_OTLPFields(t *testing.T) {
 			expectedIDs:    []pcommon.TraceID{traceID2},
 		},
 		{
+			name:           "Filter by span.kind=INTERNAL (no match)",
+			queryAttrs:     map[string]string{"span.kind": "INTERNAL"},
+			expectedTraces: 0,
+			expectedIDs:    []pcommon.TraceID{},
+		},
+		{
 			name:           "Filter by scope.name=my-scope",
 			queryAttrs:     map[string]string{"scope.name": "my-scope"},
+			expectedTraces: 1,
+			expectedIDs:    []pcommon.TraceID{traceID1},
+		},
+		{
+			name:           "Filter by scope.name=other-scope",
+			queryAttrs:     map[string]string{"scope.name": "other-scope"},
+			expectedTraces: 1,
+			expectedIDs:    []pcommon.TraceID{traceID2},
+		},
+		{
+			name:           "Filter by scope.name (no match)",
+			queryAttrs:     map[string]string{"scope.name": "nonexistent"},
+			expectedTraces: 0,
+			expectedIDs:    []pcommon.TraceID{},
+		},
+		{
+			name:           "Filter by scope.version=1.0.0",
+			queryAttrs:     map[string]string{"scope.version": "1.0.0"},
 			expectedTraces: 1,
 			expectedIDs:    []pcommon.TraceID{traceID1},
 		},
@@ -904,6 +933,30 @@ func TestFindTraces_OTLPFields(t *testing.T) {
 			queryAttrs:     map[string]string{"scope.version": "2.0.0"},
 			expectedTraces: 1,
 			expectedIDs:    []pcommon.TraceID{traceID2},
+		},
+		{
+			name:           "Filter by scope.version (no match)",
+			queryAttrs:     map[string]string{"scope.version": "99.0.0"},
+			expectedTraces: 0,
+			expectedIDs:    []pcommon.TraceID{},
+		},
+		{
+			name:           "Filter by resource.deployment.environment=production",
+			queryAttrs:     map[string]string{"resource.deployment.environment": "production"},
+			expectedTraces: 1,
+			expectedIDs:    []pcommon.TraceID{traceID1},
+		},
+		{
+			name:           "Filter by resource.deployment.environment=staging",
+			queryAttrs:     map[string]string{"resource.deployment.environment": "staging"},
+			expectedTraces: 1,
+			expectedIDs:    []pcommon.TraceID{traceID2},
+		},
+		{
+			name:           "Filter by resource.deployment.environment (no match)",
+			queryAttrs:     map[string]string{"resource.deployment.environment": "development"},
+			expectedTraces: 0,
+			expectedIDs:    []pcommon.TraceID{},
 		},
 		{
 			name:           "Combined: span.status=ERROR AND span.kind=SERVER",
@@ -916,6 +969,12 @@ func TestFindTraces_OTLPFields(t *testing.T) {
 			queryAttrs:     map[string]string{"span.status": "ERROR", "span.kind": "CLIENT"},
 			expectedTraces: 0,
 			expectedIDs:    []pcommon.TraceID{},
+		},
+		{
+			name:           "Combined: scope.name AND scope.version",
+			queryAttrs:     map[string]string{"scope.name": "my-scope", "scope.version": "1.0.0"},
+			expectedTraces: 1,
+			expectedIDs:    []pcommon.TraceID{traceID1},
 		},
 		{
 			name:           "No OTLP filters (backward compatibility)",
@@ -944,9 +1003,8 @@ func TestFindTraces_OTLPFields(t *testing.T) {
 				foundTraces = append(foundTraces, traces...)
 			}
 
-			assert.Len(t, tt.expectedTraces, len(foundTraces),
-				"Expected %d traces, got %d for query: %v",
-				tt.expectedTraces, len(foundTraces), tt.queryAttrs)
+			assert.Len(t, foundTraces, tt.expectedTraces,
+				"query: %v", tt.queryAttrs)
 
 			if tt.expectedTraces > 0 {
 				for i, expectedID := range tt.expectedIDs {
