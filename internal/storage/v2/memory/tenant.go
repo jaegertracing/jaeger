@@ -223,7 +223,7 @@ func validTrace(td ptrace.Traces, query tracestore.TraceQueryParams) bool {
 		}
 		for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
 			for _, span := range scopeSpan.Spans().All() {
-				if validSpan(resourceSpan.Resource().Attributes(), scopeSpan.Scope().Attributes(), span, query) {
+				if validSpan(resourceSpan.Resource().Attributes(), scopeSpan.Scope(), span, query) {
 					return true
 				}
 			}
@@ -236,18 +236,11 @@ func validResource(resource pcommon.Resource, query tracestore.TraceQueryParams)
 	return query.ServiceName == "" || query.ServiceName == getServiceNameFromResource(resource)
 }
 
-func validSpan(resourceAttributes, scopeAttributes pcommon.Map, span ptrace.Span, query tracestore.TraceQueryParams) bool {
-	if errAttribute, ok := query.Attributes.Get(errorAttribute); ok {
-		if errAttribute.Bool() && span.Status().Code() != ptrace.StatusCodeError {
-			return false
-		}
-		if !errAttribute.Bool() && span.Status().Code() != ptrace.StatusCodeOk {
-			return false
-		}
-	}
+func validSpan(resourceAttributes pcommon.Map, scope pcommon.InstrumentationScope, span ptrace.Span, query tracestore.TraceQueryParams) bool {
 	if query.OperationName != "" && query.OperationName != span.Name() {
 		return false
 	}
+
 	startTime := span.StartTimestamp().AsTime()
 	if !query.StartTimeMin.IsZero() && startTime.Before(query.StartTimeMin) {
 		return false
@@ -262,11 +255,63 @@ func validSpan(resourceAttributes, scopeAttributes pcommon.Map, span ptrace.Span
 	if query.DurationMax != 0 && duration > query.DurationMax {
 		return false
 	}
-	for key, val := range query.Attributes.All() {
-		if key != errorAttribute && !findKeyValInTrace(key, val, resourceAttributes, scopeAttributes, span) {
+
+	if errAttribute, ok := query.Attributes.Get(errorAttribute); ok {
+		if errAttribute.Bool() && span.Status().Code() != ptrace.StatusCodeError {
+			return false
+		}
+		if !errAttribute.Bool() && span.Status().Code() != ptrace.StatusCodeOk {
 			return false
 		}
 	}
+
+	if statusAttr, ok := query.Attributes.Get("span.status"); ok {
+		expectedStatus := spanStatusFromString(statusAttr.AsString())
+		if expectedStatus != span.Status().Code() {
+			return false
+		}
+	}
+
+	if kindAttr, ok := query.Attributes.Get("span.kind"); ok {
+		expectedKind := spanKindFromString(kindAttr.AsString())
+		if expectedKind != span.Kind() {
+			return false
+		}
+	}
+
+	if scopeNameAttr, ok := query.Attributes.Get("scope.name"); ok {
+		if scopeNameAttr.AsString() != scope.Name() {
+			return false
+		}
+	}
+
+	if scopeVersionAttr, ok := query.Attributes.Get("scope.version"); ok {
+		if scopeVersionAttr.AsString() != scope.Version() {
+			return false
+		}
+	}
+
+	for key, val := range query.Attributes.All() {
+		if strings.HasPrefix(key, "resource.") {
+			resourceKey := strings.TrimPrefix(key, "resource.")
+			if !matchAttributes(resourceKey, val, resourceAttributes) {
+				return false
+			}
+		}
+	}
+
+	for key, val := range query.Attributes.All() {
+		if key == errorAttribute ||
+			strings.HasPrefix(key, "span.") ||
+			strings.HasPrefix(key, "scope.") ||
+			strings.HasPrefix(key, "resource.") {
+			continue
+		}
+		if !findKeyValInTrace(key, val, resourceAttributes, scope.Attributes(), span) {
+			return false
+		}
+	}
+
 	return true
 }
 
@@ -295,4 +340,32 @@ func fromOTELSpanKind(kind ptrace.SpanKind) string {
 		return ""
 	}
 	return strings.ToLower(kind.String())
+}
+
+func spanStatusFromString(statusStr string) ptrace.StatusCode {
+	switch strings.ToUpper(statusStr) {
+	case "OK":
+		return ptrace.StatusCodeOk
+	case "ERROR":
+		return ptrace.StatusCodeError
+	default:
+		return ptrace.StatusCodeUnset
+	}
+}
+
+func spanKindFromString(kindStr string) ptrace.SpanKind {
+	switch strings.ToUpper(kindStr) {
+	case "CLIENT":
+		return ptrace.SpanKindClient
+	case "SERVER":
+		return ptrace.SpanKindServer
+	case "PRODUCER":
+		return ptrace.SpanKindProducer
+	case "CONSUMER":
+		return ptrace.SpanKindConsumer
+	case "INTERNAL":
+		return ptrace.SpanKindInternal
+	default:
+		return ptrace.SpanKindUnspecified
+	}
 }
