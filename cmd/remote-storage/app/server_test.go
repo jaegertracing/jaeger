@@ -129,10 +129,9 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 			KeyFile:  "invalid/path",
 		},
 	}
-	telset := telemetry.Settings{
-		Logger:       zap.NewNop(),
-		ReportStatus: telemetry.HCAdapter(healthcheck.New()),
-	}
+	telset := telemetry.NoopSettings()
+	telset.Logger = zap.NewNop()
+	telset.ReportStatus = telemetry.HCAdapter(healthcheck.New())
 
 	_, err := NewServer(
 		context.Background(),
@@ -363,10 +362,9 @@ func TestServerGRPCTLS(t *testing.T) {
 			reader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil)
 
 			tm := tenancy.NewManager(&tenancy.Options{Enabled: true})
-			telset := telemetry.Settings{
-				Logger:       flagsSvc.Logger,
-				ReportStatus: telemetry.HCAdapter(flagsSvc.HC()),
-			}
+			telset := telemetry.NoopSettings()
+			telset.Logger = flagsSvc.Logger
+			telset.ReportStatus = telemetry.HCAdapter(flagsSvc.HC())
 			server, err := NewServer(
 				context.Background(),
 				serverOptions,
@@ -413,10 +411,9 @@ func TestServerHandlesPortZero(t *testing.T) {
 	flagsSvc := flags.NewService(ports.RemoteStorageAdminHTTP)
 	zapCore, logs := observer.New(zap.InfoLevel)
 	flagsSvc.Logger = zap.New(zapCore)
-	telset := telemetry.Settings{
-		Logger:       flagsSvc.Logger,
-		ReportStatus: telemetry.HCAdapter(flagsSvc.HC()),
-	}
+	telset := telemetry.NoopSettings()
+	telset.Logger = flagsSvc.Logger
+	telset.ReportStatus = telemetry.HCAdapter(flagsSvc.HC())
 	server, err := NewServer(
 		context.Background(),
 		configgrpc.ServerConfig{
