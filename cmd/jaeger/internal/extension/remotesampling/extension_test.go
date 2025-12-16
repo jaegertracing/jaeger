@@ -76,7 +76,7 @@ func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
 	return host
 }
 
-func makeStorageExtensionWithBadSamplingStore(_ *testing.T, storageName string) component.Host {
+func makeStorageExtensionWithBadSamplingStore(storageName string) component.Host {
 	ext := &fakeStorageExtensionForTest{
 		storageName: storageName,
 		failOn:      "CreateSamplingStore",
@@ -86,7 +86,7 @@ func makeStorageExtensionWithBadSamplingStore(_ *testing.T, storageName string) 
 	return host
 }
 
-func makeStorageExtensionWithBadLock(_ *testing.T, storageName string) component.Host {
+func makeStorageExtensionWithBadLock(storageName string) component.Host {
 	ext := &fakeStorageExtensionForTest{
 		storageName: storageName,
 		failOn:      "CreateLock",
@@ -244,7 +244,8 @@ func TestStartAdaptiveStrategyProviderErrors(t *testing.T) {
 }
 
 func TestStartAdaptiveStrategyProviderCreateStoreError(t *testing.T) {
-	storageHost := makeStorageExtensionWithBadSamplingStore(t, "failstore")
+	// storage extension has the requested store name but its factory fails on CreateSamplingStore
+	storageHost := makeStorageExtensionWithBadSamplingStore("failstore")
 
 	ext := &rsExtension{
 		cfg: &Config{
@@ -263,7 +264,7 @@ func TestStartAdaptiveStrategyProviderCreateStoreError(t *testing.T) {
 }
 
 func TestStartAdaptiveStrategyProviderCreateLockError(t *testing.T) {
-	storageHost := makeStorageExtensionWithBadLock(t, "lockerror")
+	storageHost := makeStorageExtensionWithBadLock("lockerror")
 
 	ext := &rsExtension{
 		cfg: &Config{
