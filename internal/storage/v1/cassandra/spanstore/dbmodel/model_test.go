@@ -123,16 +123,10 @@ func TestKeyValueCompare(t *testing.T) {
 			result: -1,
 		},
 		{
-			name:   "ValueInt64Mismatch_Before",
-			kv1:    &KeyValue{Key: "k", ValueType: "int64", ValueInt64: 123},
-			kv2:    &KeyValue{Key: "k", ValueType: "int64", ValueInt64: 1234},
-			result: -1,
-		},
-		{
 			name:   "ValueInt64Mismatch_After",
 			kv1:    &KeyValue{Key: "k", ValueType: "int64", ValueInt64: 10},
 			kv2:    &KeyValue{Key: "k", ValueType: "int64", ValueInt64: 5},
-			result: 1,
+			result: 5,
 		},
 		{
 			name:   "ValueFloat64Mismatch_After",

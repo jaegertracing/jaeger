@@ -60,9 +60,7 @@ type KeyValue struct {
 func (t *KeyValue) compareValues(that *KeyValue) int {
 	switch t.ValueType {
 	case stringType:
-		if cmp := strings.Compare(t.ValueString, that.ValueString); cmp != 0 {
-			return cmp
-		}
+		return strings.Compare(t.ValueString, that.ValueString)
 	case boolType:
 		if t.ValueBool != that.ValueBool {
 			if !t.ValueBool {
@@ -71,12 +69,7 @@ func (t *KeyValue) compareValues(that *KeyValue) int {
 			return 1
 		}
 	case int64Type:
-		if t.ValueInt64 != that.ValueInt64 {
-			if t.ValueInt64 < that.ValueInt64 {
-				return -1
-			}
-			return 1
-		}
+		return int(t.ValueInt64 - that.ValueInt64)
 	case float64Type:
 		if t.ValueFloat64 != that.ValueFloat64 {
 			if t.ValueFloat64 < that.ValueFloat64 {
@@ -85,9 +78,7 @@ func (t *KeyValue) compareValues(that *KeyValue) int {
 			return 1
 		}
 	case binaryType:
-		if c := bytes.Compare(t.ValueBinary, that.ValueBinary); c != 0 {
-			return c
-		}
+		return bytes.Compare(t.ValueBinary, that.ValueBinary)
 	default:
 		return -1 // theoretical case, not stating them equal but placing the base pointer before other
 	}
@@ -117,15 +108,11 @@ func (t *KeyValue) Compare(that any) int {
 	} else if t == nil {
 		return -1
 	}
-	if t.Key != that1.Key {
-		if cmp := strings.Compare(t.Key, that1.Key); cmp != 0 {
-			return cmp
-		}
+	if cmp := strings.Compare(t.Key, that1.Key); cmp != 0 {
+		return cmp
 	}
-	if t.ValueType != that1.ValueType {
-		if cmp := strings.Compare(t.ValueType, that1.ValueType); cmp != 0 {
-			return cmp
-		}
+	if cmp := strings.Compare(t.ValueType, that1.ValueType); cmp != 0 {
+		return cmp
 	}
 	return t.compareValues(that1)
 }
