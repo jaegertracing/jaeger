@@ -3,6 +3,7 @@ structname: '{{.InterfaceName}}'
 pkgname: mocks
 template: testify
 filename: mocks.go
+include-auto-generated: true
 template-data:
   boilerplate-file: .mockery.header.txt
 packages:
