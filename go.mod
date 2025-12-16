@@ -237,7 +237,6 @@ require (
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/mostynb/go-grpc-compression v1.2.3 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.142.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.142.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.142.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.142.0 // indirect
