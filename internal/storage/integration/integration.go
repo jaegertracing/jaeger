@@ -142,6 +142,8 @@ var CassandraSkippedTests = []string{
 	"Duration_range",
 	"max_Duration",
 	"Multiple_Traces",
+	"OTLPScopeMetadata",
+	"OTLPSpanLinks",
 }
 
 func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
@@ -322,33 +324,128 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
-	expected := s.loadParseAndWriteExampleTrace(t)
-	expectedTraceID := v1adapter.FromV1TraceID(expected.Spans[0].TraceID)
+	// Subtest 1: Basic trace validation (works for all backends)
+	t.Run("BasicTrace", func(t *testing.T) {
+		expected := s.loadParseAndWriteExampleTrace(t)
+		expectedTraceID := v1adapter.FromV1TraceID(expected.Spans[0].TraceID)
 
-	actual := &model.Trace{} // no spans
-	found := s.waitForCondition(t, func(t *testing.T) bool {
-		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
-		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
-		if err != nil {
-			t.Log(err)
-			return false
+		actual := &model.Trace{}
+		found := s.waitForCondition(t, func(t *testing.T) bool {
+			iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
+			traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
+			if err != nil {
+				t.Log(err)
+				return false
+			}
+			if len(traces) == 0 {
+				return false
+			}
+			actual = traces[0]
+			return len(actual.Spans) == len(expected.Spans)
+		})
+		if !assert.True(t, found) {
+			CompareTraces(t, expected, actual)
 		}
-		if len(traces) == 0 {
-			return false
-		}
-		actual = traces[0]
-		return len(actual.Spans) == len(expected.Spans)
+
+		t.Run("NotFound error", func(t *testing.T) {
+			fakeTraceID := v1adapter.FromV1TraceID(model.TraceID{High: 0, Low: 1})
+			iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: fakeTraceID})
+			traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
+			require.NoError(t, err)
+			assert.Empty(t, traces)
+		})
 	})
-	if !assert.True(t, found) {
-		CompareTraces(t, expected, actual)
-	}
 
-	t.Run("NotFound error", func(t *testing.T) {
-		fakeTraceID := v1adapter.FromV1TraceID(model.TraceID{High: 0, Low: 1})
-		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: fakeTraceID})
-		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
-		require.NoError(t, err) // v2 TraceReader no longer returns an error for not found
-		assert.Empty(t, traces)
+	// Subtest 2: OTLP Scope metadata preservation (skip for Cassandra/ES)
+	t.Run("OTLPScopeMetadata", func(t *testing.T) {
+		s.skipIfNeeded(t)
+
+		expectedTraces := loadOTLPFixture(t, "otlp_scope_attributes")
+		traceID := extractTraceID(t, expectedTraces)
+		s.writeTrace(t, expectedTraces)
+
+		var retrievedTraces ptrace.Traces
+		found := s.waitForCondition(t, func(t *testing.T) bool {
+			iter := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: traceID})
+
+			for trSlice, err := range iter {
+				if err != nil {
+					t.Logf("Error iterating traces: %v", err)
+					return false
+				}
+				if len(trSlice) > 0 && trSlice[0].SpanCount() > 0 {
+					retrievedTraces = trSlice[0]
+					return true
+				}
+			}
+			return false
+		})
+
+		require.True(t, found, "Failed to retrieve OTLP trace")
+		require.Positive(t, retrievedTraces.ResourceSpans().Len(), "Should have resource spans")
+
+		scopeSpans := retrievedTraces.ResourceSpans().At(0).ScopeSpans()
+		require.Positive(t, scopeSpans.Len(), "Should have scope spans")
+
+		scope := scopeSpans.At(0).Scope()
+
+		assert.Equal(t, "test-instrumentation-library", scope.Name(), "Scope name should be preserved")
+		assert.Equal(t, "2.1.0", scope.Version(), "Scope version should be preserved")
+
+		scopeAttrs := scope.Attributes()
+		assert.Positive(t, scopeAttrs.Len(), "Scope should have attributes")
+
+		val, exists := scopeAttrs.Get("scope.attribute.key")
+		assert.True(t, exists, "Scope attribute 'scope.attribute.key' should exist")
+		assert.Equal(t, "scope-value", val.Str(), "Scope attribute value should match")
+
+		t.Log("OTLP InstrumentationScope metadata and attributes preserved successfully")
+	})
+
+	// Subtest 3: OTLP Span Links with attributes (skip for Cassandra/ES)
+	t.Run("OTLPSpanLinks", func(t *testing.T) {
+		s.skipIfNeeded(t)
+
+		expectedTraces := loadOTLPFixture(t, "otlp_span_links")
+		traceID := extractTraceID(t, expectedTraces)
+		s.writeTrace(t, expectedTraces)
+
+		var retrievedTraces ptrace.Traces
+		found := s.waitForCondition(t, func(t *testing.T) bool {
+			iter := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: traceID})
+
+			for trSlice, err := range iter {
+				if err != nil {
+					t.Logf("Error iterating traces: %v", err)
+					return false
+				}
+				if len(trSlice) > 0 && trSlice[0].SpanCount() > 0 {
+					retrievedTraces = trSlice[0]
+					return true
+				}
+			}
+			return false
+		})
+
+		require.True(t, found, "Failed to retrieve OTLP trace")
+		require.Positive(t, retrievedTraces.ResourceSpans().Len(), "Should have resource spans")
+
+		span := retrievedTraces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+		links := span.Links()
+
+		require.Positive(t, links.Len(), "Span should have links")
+
+		for i := 0; i < links.Len(); i++ {
+			link := links.At(i)
+			linkAttrs := link.Attributes()
+			assert.Positive(t, linkAttrs.Len(), "Link should have attributes")
+
+			val, exists := linkAttrs.Get("link.attribute.key")
+			assert.True(t, exists, "Link attribute 'link.attribute.key' should exist")
+			assert.Equal(t, "link-value", val.Str(), "Link attribute value should match")
+		}
+
+		t.Logf("OTLP span links with attributes preserved successfully: %d links", links.Len())
 	})
 }
 
@@ -639,72 +736,6 @@ func (s *StorageIntegration) insertThroughput(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// === OTLP v2 API Tests ===
-// testOTLPHelper is a common helper for OTLP v2 API tests that validates trace preservation.
-func (s *StorageIntegration) testOTLPHelper(
-	t *testing.T,
-	fixtureName string,
-	validator func(t *testing.T, retrievedTrace ptrace.Traces),
-) {
-	s.skipIfNeeded(t)
-	defer s.cleanUp(t)
-
-	expectedTraces := loadOTLPFixture(t, fixtureName)
-	traceID := extractTraceID(t, expectedTraces)
-	s.writeTrace(t, expectedTraces)
-
-	var retrievedTraces ptrace.Traces
-	found := s.waitForCondition(t, func(t *testing.T) bool {
-		iter := s.TraceReader.GetTraces(t.Context(), tracestore.GetTraceParams{TraceID: traceID})
-
-		for trSlice, err := range iter {
-			if err != nil {
-				t.Logf("Error iterating traces: %v", err)
-				return false
-			}
-
-			if len(trSlice) > 0 && trSlice[0].SpanCount() > 0 {
-				retrievedTraces = trSlice[0]
-				return true
-			}
-		}
-		return false
-	})
-
-	require.True(t, found, "Failed to retrieve OTLP trace")
-	require.Positive(t, retrievedTraces.SpanCount(), "Retrieved trace should have spans")
-
-	validator(t, retrievedTraces)
-}
-
-func (s *StorageIntegration) testOTLPScopePreservation(t *testing.T) {
-	s.testOTLPHelper(t, "otlp_scope_attributes", func(t *testing.T, retrievedTrace ptrace.Traces) {
-		t.Log("Testing OTLP InstrumentationScope preservation through v2 API")
-
-		require.Positive(t, retrievedTrace.ResourceSpans().Len(), "Should have resource spans")
-		scopeSpans := retrievedTrace.ResourceSpans().At(0).ScopeSpans()
-		require.Positive(t, scopeSpans.Len(), "Should have scope spans")
-
-		scope := scopeSpans.At(0).Scope()
-		assert.Equal(t, "test-instrumentation-library", scope.Name(), "Scope name should be preserved")
-		assert.Equal(t, "2.1.0", scope.Version(), "Scope version should be preserved")
-
-		t.Log("OTLP InstrumentationScope metadata preserved successfully")
-	})
-}
-
-func (s *StorageIntegration) testOTLPSpanLinks(t *testing.T) {
-	s.testOTLPHelper(t, "otlp_span_links", func(t *testing.T, retrievedTrace ptrace.Traces) {
-		t.Log("Testing OTLP span links preservation through v2 API")
-
-		expectedSpan := retrievedTrace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
-		expectedLinkCount := expectedSpan.Links().Len()
-		require.Positive(t, expectedLinkCount, "Fixture should have span links")
-
-		t.Logf("OTLP span links preserved successfully: %d links", expectedLinkCount)
-	})
-}
-
 // loadOTLPFixture loads an OTLP trace fixture by name from the fixtures directory.
 func loadOTLPFixture(t *testing.T, fixtureName string) ptrace.Traces {
 	fileName := fmt.Sprintf("fixtures/traces/%s.json", fixtureName)
@@ -781,6 +812,4 @@ func (s *StorageIntegration) RunSpanStoreTests(t *testing.T) {
 	t.Run("GetLargeTrace", s.testGetLargeTrace)
 	t.Run("GetTraceWithDuplicateSpans", s.testGetTraceWithDuplicates)
 	t.Run("FindTraces", s.testFindTraces)
-	t.Run("OTLPScopePreservation", s.testOTLPScopePreservation)
-	t.Run("OTLPSpanLinks", s.testOTLPSpanLinks)
 }

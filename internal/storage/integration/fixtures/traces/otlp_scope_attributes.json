@@ -5,7 +5,7 @@
         "attributes": [
           {
             "key": "service.name",
-            "value": {"stringValue": "scope-test-service"}
+            "value": { "stringValue": "otlp-test-service" }
           }
         ]
       },
@@ -16,28 +16,25 @@
             "version": "2.1.0",
             "attributes": [
               {
-                "key": "test.scope.attribute",
-                "value": {"stringValue": "test-scope"}
+                "key": "scope.attribute.key",
+                "value": { "stringValue": "scope-value" }
               }
             ]
           },
           "spans": [
             {
-              "traceId": "00000000000000000000000000000020",
-              "spanId": "0000000000000020",
-              "name": "span-with-scope-metadata",
-              "kind": 1,
-              "startTimeUnixNano": "1485445591639875000",
-              "endTimeUnixNano": "1485445591939875000",
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "0000000000000001",
+              "name": "test-span-with-scope-attributes",
+              "kind": 2,
+              "startTimeUnixNano": "1485467191639875000",
+              "endTimeUnixNano": "1485467191639875000",
               "attributes": [
                 {
-                  "key": "test.attribute",
-                  "value": {"stringValue": "test-value"}
+                  "key": "span.attribute",
+                  "value": { "stringValue": "test-value" }
                 }
-              ],
-              "status": {
-                "code": 0
-              }
+              ]
             }
           ]
         }

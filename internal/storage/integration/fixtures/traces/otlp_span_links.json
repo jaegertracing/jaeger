@@ -5,38 +5,36 @@
         "attributes": [
           {
             "key": "service.name",
-            "value": {"stringValue": "span-links-service"}
+            "value": { "stringValue": "otlp-link-test-service" }
           }
         ]
       },
       "scopeSpans": [
         {
           "scope": {
-            "name": "span-links-test",
+            "name": "test-instrumentation-library",
             "version": "1.0.0"
           },
           "spans": [
             {
-              "traceId": "00000000000000000000000000000040",
-              "spanId": "0000000000000030",
-              "name": "parent-span-with-links",
-              "kind": 1,
-              "startTimeUnixNano": "1485445591639875000",
-              "endTimeUnixNano": "1485445591939875000",
-              "attributes": [],
+              "traceId": "00000000000000000000000000000002",
+              "spanId": "0000000000000002",
+              "name": "test-span-with-links",
+              "kind": 2,
+              "startTimeUnixNano": "1485467191639875000",
+              "endTimeUnixNano": "1485467191639875000",
               "links": [
                 {
-                  "traceId": "00000000000000000000000000000050",
-                  "spanId": "0000000000000040"
-                },
-                {
-                  "traceId": "00000000000000000000000000000060",
-                  "spanId": "0000000000000050"
+                  "traceId": "00000000000000000000000000000003",
+                  "spanId": "0000000000000003",
+                  "attributes": [
+                    {
+                      "key": "link.attribute.key",
+                      "value": { "stringValue": "link-value" }
+                    }
+                  ]
                 }
-              ],
-              "status": {
-                "code": 0
-              }
+              ]
             }
           ]
         }
