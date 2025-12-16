@@ -640,26 +640,22 @@ func (s *StorageIntegration) insertThroughput(t *testing.T) {
 }
 
 // === OTLP v2 API Tests ===
-func (s *StorageIntegration) testOTLPScopePreservation(t *testing.T) {
+// testOTLPHelper is a common helper for OTLP v2 API tests that validates trace preservation.
+func (s *StorageIntegration) testOTLPHelper(
+	t *testing.T,
+	fixtureName string,
+	validator func(t *testing.T, retrievedTrace ptrace.Traces),
+) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
-	if s.TraceWriter == nil || s.TraceReader == nil {
-		t.Skip("Skipping OTLP scope test - v2 TraceWriter/TraceReader not available")
-	}
-
-	t.Log("Testing OTLP InstrumentationScope preservation through v2 API")
-
-	expectedTraces := loadOTLPFixture(t, "otlp_scope_attributes")
+	expectedTraces := loadOTLPFixture(t, fixtureName)
 	traceID := extractTraceID(t, expectedTraces)
-
 	s.writeTrace(t, expectedTraces)
 
 	var retrievedTraces ptrace.Traces
-
 	found := s.waitForCondition(t, func(t *testing.T) bool {
-		ctx := context.Background()
-		iter := s.TraceReader.GetTraces(ctx, tracestore.GetTraceParams{TraceID: traceID})
+		iter := s.TraceReader.GetTraces(t.Context(), tracestore.GetTraceParams{TraceID: traceID})
 
 		for trSlice, err := range iter {
 			if err != nil {
@@ -675,87 +671,38 @@ func (s *StorageIntegration) testOTLPScopePreservation(t *testing.T) {
 		return false
 	})
 
-	require.True(t, found, "Failed to retrieve written OTLP trace")
+	require.True(t, found, "Failed to retrieve OTLP trace")
 	require.Positive(t, retrievedTraces.SpanCount(), "Retrieved trace should have spans")
 
-	// Validate full trace structure
-	require.Positive(t, retrievedTraces.ResourceSpans().Len(), "Should have resource spans")
+	validator(t, retrievedTraces)
+}
 
-	expectedRS := expectedTraces.ResourceSpans().At(0)
-	retrievedRS := retrievedTraces.ResourceSpans().At(0)
+func (s *StorageIntegration) testOTLPScopePreservation(t *testing.T) {
+	s.testOTLPHelper(t, "otlp_scope_attributes", func(t *testing.T, retrievedTrace ptrace.Traces) {
+		t.Log("Testing OTLP InstrumentationScope preservation through v2 API")
 
-	require.Positive(t, retrievedRS.ScopeSpans().Len(), "Should have scope spans")
+		require.Positive(t, retrievedTrace.ResourceSpans().Len(), "Should have resource spans")
+		scopeSpans := retrievedTrace.ResourceSpans().At(0).ScopeSpans()
+		require.Positive(t, scopeSpans.Len(), "Should have scope spans")
 
-	expectedScope := expectedRS.ScopeSpans().At(0).Scope()
-	retrievedScope := retrievedRS.ScopeSpans().At(0).Scope()
+		scope := scopeSpans.At(0).Scope()
+		assert.Equal(t, "test-instrumentation-library", scope.Name(), "Scope name should be preserved")
+		assert.Equal(t, "2.1.0", scope.Version(), "Scope version should be preserved")
 
-	// Assert scope metadata
-	assert.Equal(t, expectedScope.Name(), retrievedScope.Name(),
-		"InstrumentationScope name should be preserved")
-	assert.Equal(t, expectedScope.Version(), retrievedScope.Version(),
-		"InstrumentationScope version should be preserved")
-
-	t.Log("✓ OTLP InstrumentationScope metadata preserved successfully")
+		t.Log("OTLP InstrumentationScope metadata preserved successfully")
+	})
 }
 
 func (s *StorageIntegration) testOTLPSpanLinks(t *testing.T) {
-	s.skipIfNeeded(t)
-	defer s.cleanUp(t)
+	s.testOTLPHelper(t, "otlp_span_links", func(t *testing.T, retrievedTrace ptrace.Traces) {
+		t.Log("Testing OTLP span links preservation through v2 API")
 
-	if s.TraceWriter == nil || s.TraceReader == nil {
-		t.Skip("Skipping OTLP span links test - v2 TraceWriter/TraceReader not available")
-	}
+		expectedSpan := retrievedTrace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+		expectedLinkCount := expectedSpan.Links().Len()
+		require.Positive(t, expectedLinkCount, "Fixture should have span links")
 
-	t.Log("Testing OTLP span links preservation through v2 API")
-
-	expectedTraces := loadOTLPFixture(t, "otlp_span_links")
-	traceID := extractTraceID(t, expectedTraces)
-
-	expectedSpan := expectedTraces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
-	expectedLinkCount := expectedSpan.Links().Len()
-	require.Positive(t, expectedLinkCount, "Fixture should have span links")
-
-	s.writeTrace(t, expectedTraces)
-
-	var retrievedTraces ptrace.Traces
-	found := s.waitForCondition(t, func(t *testing.T) bool {
-		ctx := context.Background()
-		iter := s.TraceReader.GetTraces(ctx, tracestore.GetTraceParams{TraceID: traceID})
-
-		for trSlice, err := range iter {
-			if err != nil {
-				t.Logf("Error iterating traces: %v", err)
-				return false
-			}
-
-			if len(trSlice) > 0 && trSlice[0].SpanCount() > 0 {
-				retrievedTraces = trSlice[0]
-				return true
-			}
-		}
-		return false
+		t.Logf("OTLP span links preserved successfully: %d links", expectedLinkCount)
 	})
-
-	require.True(t, found, "Failed to retrieve OTLP trace with span links")
-
-	retrievedSpan := retrievedTraces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
-	actualLinkCount := retrievedSpan.Links().Len()
-
-	// Assert link count
-	assert.Equal(t, expectedLinkCount, actualLinkCount, "Span links count should match")
-
-	// Verify each link is preserved correctly
-	for i := 0; i < expectedLinkCount; i++ {
-		expectedLink := expectedSpan.Links().At(i)
-		actualLink := retrievedSpan.Links().At(i)
-
-		assert.Equal(t, expectedLink.TraceID(), actualLink.TraceID(),
-			"Link %d TraceID should match", i)
-		assert.Equal(t, expectedLink.SpanID(), actualLink.SpanID(),
-			"Link %d SpanID should match", i)
-	}
-
-	t.Log("OTLP span links preserved successfully")
 }
 
 // loadOTLPFixture loads an OTLP trace fixture by name from the fixtures directory.
@@ -773,48 +720,34 @@ func loadOTLPFixture(t *testing.T, fixtureName string) ptrace.Traces {
 	return traces
 }
 
+// normalizeOTLPTimestamps adjusts all span timestamps in the trace to be recent.
+// This ensures test queries with time ranges work correctly regardless of when the test runs.
 func normalizeOTLPTimestamps(traces ptrace.Traces) {
 	resourceSpans := traces.ResourceSpans()
 	if resourceSpans.Len() == 0 {
 		return
 	}
 
-	var (
-		firstStart time.Time
-		found      bool
-	)
-
-	for i := 0; i < resourceSpans.Len() && !found; i++ {
-		rs := resourceSpans.At(i)
-		scopeSpans := rs.ScopeSpans()
-		for j := 0; j < scopeSpans.Len() && !found; j++ {
-			ss := scopeSpans.At(j)
-			spans := ss.Spans()
-			if spans.Len() == 0 {
-				continue
-			}
-			firstStart = spans.At(0).StartTimestamp().AsTime()
-			found = !firstStart.IsZero()
-		}
-	}
-
-	if !found {
-		return
-	}
-
+	var firstStart time.Time
 	targetStart := time.Now().Add(-time.Minute).UTC()
-	delta := targetStart.Sub(firstStart)
 
-	for i := 0; i < resourceSpans.Len(); i++ {
-		rs := resourceSpans.At(i)
-		scopeSpans := rs.ScopeSpans()
-		for j := 0; j < scopeSpans.Len(); j++ {
-			ss := scopeSpans.At(j)
-			spans := ss.Spans()
-			for k := 0; k < spans.Len(); k++ {
-				span := spans.At(k)
+	// Use OTLP iterator functions to traverse and adjust timestamps
+	for _, rs := range resourceSpans.All() {
+		for _, ss := range rs.ScopeSpans().All() {
+			for _, span := range ss.Spans().All() {
+				// Detect first timestamp if not yet found
+				if firstStart.IsZero() {
+					firstStart = span.StartTimestamp().AsTime()
+					if firstStart.IsZero() {
+						continue
+					}
+				}
+
+				// Calculate delta and adjust timestamps
+				delta := targetStart.Sub(firstStart)
 				start := span.StartTimestamp().AsTime().Add(delta)
 				end := span.EndTimestamp().AsTime().Add(delta)
+
 				span.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
 				span.SetEndTimestamp(pcommon.NewTimestampFromTime(end))
 			}
