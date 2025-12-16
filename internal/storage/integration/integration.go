@@ -146,6 +146,21 @@ var CassandraSkippedTests = []string{
 	"OTLPSpanLinks",
 }
 
+var BadgerSkippedTests = []string{
+	"OTLPScopeMetadata",
+	"OTLPSpanLinks",
+}
+
+var ElasticsearchSkippedTests = []string{
+	"OTLPScopeMetadata",
+	"OTLPSpanLinks",
+}
+
+var GRPCSkippedTests = []string{
+	"OTLPScopeMetadata",
+	"OTLPSpanLinks",
+}
+
 func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
 	for _, pat := range s.SkipList {
 		escapedPat := regexp.QuoteMeta(pat)

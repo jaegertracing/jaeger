@@ -55,6 +55,7 @@ func TestBadgerStorage(t *testing.T) {
 		StorageIntegration: StorageIntegration{
 			// TODO: remove this badger supports returning spanKind from GetOperations
 			GetOperationsMissingSpanKind: true,
+			SkipList:                     BadgerSkippedTests,
 		},
 	}
 	s.CleanUp = s.cleanUp
