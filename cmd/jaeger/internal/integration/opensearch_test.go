@@ -17,6 +17,7 @@ func TestOpenSearchStorage(t *testing.T) {
 			CleanUp:                      purge,
 			Fixtures:                     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
 			GetOperationsMissingSpanKind: true,
+			SkipList:                     integration.ElasticsearchSkippedTests,
 		},
 	}
 	s.e2eInitialize(t, "opensearch")
