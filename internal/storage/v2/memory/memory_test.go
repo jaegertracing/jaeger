@@ -814,3 +814,281 @@ func loadTraces(t *testing.T, name string) ptrace.Traces {
 	require.NoError(t, err)
 	return td
 }
+
+func TestFindTraces_OTLPFields(t *testing.T) {
+	store, err := NewStore(Configuration{
+		MaxTraces: 100,
+	})
+	require.NoError(t, err)
+
+	traceID1 := fromString(t, "00000000000000010000000000000000")
+	traceID2 := fromString(t, "00000000000000020000000000000000")
+	traceID3 := fromString(t, "00000000000000030000000000000000")
+	traceID4 := fromString(t, "00000000000000040000000000000000")
+	traceID5 := fromString(t, "00000000000000050000000000000000")
+
+	// Trace 1: ERROR status, SERVER kind, scope "my-scope" v1.0.0, resource.deployment.environment=production
+	td1 := ptrace.NewTraces()
+	rs1 := td1.ResourceSpans().AppendEmpty()
+	rs1.Resource().Attributes().PutStr(conventions.ServiceNameKey, "service1")
+	rs1.Resource().Attributes().PutStr("deployment.environment", "production")
+	ss1 := rs1.ScopeSpans().AppendEmpty()
+	ss1.Scope().SetName("my-scope")
+	ss1.Scope().SetVersion("1.0.0")
+	span1 := ss1.Spans().AppendEmpty()
+	span1.SetTraceID(traceID1)
+	span1.SetSpanID(spanIdFromString(t, "0000000000000001"))
+	span1.SetName("operation1")
+	span1.SetKind(ptrace.SpanKindServer)
+	span1.Status().SetCode(ptrace.StatusCodeError)
+	span1.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+	span1.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(time.Second)))
+
+	// Trace 2: OK status, CLIENT kind, scope "other-scope" v2.0.0, resource.deployment.environment=staging
+	td2 := ptrace.NewTraces()
+	rs2 := td2.ResourceSpans().AppendEmpty()
+	rs2.Resource().Attributes().PutStr(conventions.ServiceNameKey, "service2")
+	rs2.Resource().Attributes().PutStr("deployment.environment", "staging")
+	ss2 := rs2.ScopeSpans().AppendEmpty()
+	ss2.Scope().SetName("other-scope")
+	ss2.Scope().SetVersion("2.0.0")
+	span2 := ss2.Spans().AppendEmpty()
+	span2.SetTraceID(traceID2)
+	span2.SetSpanID(spanIdFromString(t, "0000000000000002"))
+	span2.SetName("operation2")
+	span2.SetKind(ptrace.SpanKindClient)
+	span2.Status().SetCode(ptrace.StatusCodeOk)
+	span2.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+	span2.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(time.Second)))
+
+	// Trace 3: PRODUCER kind with UNSET status
+	td3 := ptrace.NewTraces()
+	rs3 := td3.ResourceSpans().AppendEmpty()
+	rs3.Resource().Attributes().PutStr(conventions.ServiceNameKey, "service3")
+	ss3 := rs3.ScopeSpans().AppendEmpty()
+	span3 := ss3.Spans().AppendEmpty()
+	span3.SetTraceID(traceID3)
+	span3.SetSpanID(spanIdFromString(t, "0000000000000003"))
+	span3.SetName("operation3")
+	span3.SetKind(ptrace.SpanKindProducer)
+	span3.Status().SetCode(ptrace.StatusCodeUnset)
+	span3.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+	span3.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(time.Second)))
+
+	// Trace 4: CONSUMER kind with UNSET status
+	td4 := ptrace.NewTraces()
+	rs4 := td4.ResourceSpans().AppendEmpty()
+	rs4.Resource().Attributes().PutStr(conventions.ServiceNameKey, "service4")
+	ss4 := rs4.ScopeSpans().AppendEmpty()
+	span4 := ss4.Spans().AppendEmpty()
+	span4.SetTraceID(traceID4)
+	span4.SetSpanID(spanIdFromString(t, "0000000000000004"))
+	span4.SetName("operation4")
+	span4.SetKind(ptrace.SpanKindConsumer)
+	span4.Status().SetCode(ptrace.StatusCodeUnset)
+	span4.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+	span4.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(time.Second)))
+
+	// Trace 5: INTERNAL kind with UNSET status
+	td5 := ptrace.NewTraces()
+	rs5 := td5.ResourceSpans().AppendEmpty()
+	rs5.Resource().Attributes().PutStr(conventions.ServiceNameKey, "service5")
+	ss5 := rs5.ScopeSpans().AppendEmpty()
+	span5 := ss5.Spans().AppendEmpty()
+	span5.SetTraceID(traceID5)
+	span5.SetSpanID(spanIdFromString(t, "0000000000000005"))
+	span5.SetName("operation5")
+	span5.SetKind(ptrace.SpanKindInternal)
+	span5.Status().SetCode(ptrace.StatusCodeUnset)
+	span5.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+	span5.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(time.Second)))
+
+	// Write traces
+	err = store.WriteTraces(context.Background(), td1)
+	require.NoError(t, err)
+	err = store.WriteTraces(context.Background(), td2)
+	require.NoError(t, err)
+	err = store.WriteTraces(context.Background(), td3)
+	require.NoError(t, err)
+	err = store.WriteTraces(context.Background(), td4)
+	require.NoError(t, err)
+	err = store.WriteTraces(context.Background(), td5)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name           string
+		queryAttrs     map[string]string
+		expectedTraces int
+		expectedIDs    []pcommon.TraceID
+	}{
+		{
+			name:           "Filter by span.status=ERROR",
+			queryAttrs:     map[string]string{"span.status": "ERROR"},
+			expectedTraces: 1,
+			expectedIDs:    []pcommon.TraceID{traceID1},
+		},
+		{
+			name:           "Filter by span.status=OK",
+			queryAttrs:     map[string]string{"span.status": "OK"},
+			expectedTraces: 1,
+			expectedIDs:    []pcommon.TraceID{traceID2},
+		},
+		{
+			name:           "Filter by span.status=UNSET",
+			queryAttrs:     map[string]string{"span.status": "UNSET"},
+			expectedTraces: 3,
+			expectedIDs:    []pcommon.TraceID{traceID5, traceID4, traceID3},
+		},
+		{
+			name:           "Filter by span.kind=SERVER",
+			queryAttrs:     map[string]string{"span.kind": "SERVER"},
+			expectedTraces: 1,
+			expectedIDs:    []pcommon.TraceID{traceID1},
+		},
+		{
+			name:           "Filter by span.kind=CLIENT",
+			queryAttrs:     map[string]string{"span.kind": "CLIENT"},
+			expectedTraces: 1,
+			expectedIDs:    []pcommon.TraceID{traceID2},
+		},
+		{
+			name:           "Filter by span.kind=PRODUCER",
+			queryAttrs:     map[string]string{"span.kind": "PRODUCER"},
+			expectedTraces: 1,
+			expectedIDs:    []pcommon.TraceID{traceID3},
+		},
+		{
+			name:           "Filter by span.kind=CONSUMER",
+			queryAttrs:     map[string]string{"span.kind": "CONSUMER"},
+			expectedTraces: 1,
+			expectedIDs:    []pcommon.TraceID{traceID4},
+		},
+		{
+			name:           "Filter by span.kind=INTERNAL",
+			queryAttrs:     map[string]string{"span.kind": "INTERNAL"},
+			expectedTraces: 1,
+			expectedIDs:    []pcommon.TraceID{traceID5},
+		},
+		{
+			name:           "Filter by span.kind=UNSPECIFIED (no match)",
+			queryAttrs:     map[string]string{"span.kind": "UNSPECIFIED"},
+			expectedTraces: 0,
+			expectedIDs:    []pcommon.TraceID{},
+		},
+		{
+			name:           "Filter by span.kind=INVALID (default/unknown)",
+			queryAttrs:     map[string]string{"span.kind": "INVALID"},
+			expectedTraces: 0,
+			expectedIDs:    []pcommon.TraceID{},
+		},
+		{
+			name:           "Filter by scope.name=my-scope",
+			queryAttrs:     map[string]string{"scope.name": "my-scope"},
+			expectedTraces: 1,
+			expectedIDs:    []pcommon.TraceID{traceID1},
+		},
+		{
+			name:           "Filter by scope.name=other-scope",
+			queryAttrs:     map[string]string{"scope.name": "other-scope"},
+			expectedTraces: 1,
+			expectedIDs:    []pcommon.TraceID{traceID2},
+		},
+		{
+			name:           "Filter by scope.name (no match)",
+			queryAttrs:     map[string]string{"scope.name": "nonexistent"},
+			expectedTraces: 0,
+			expectedIDs:    []pcommon.TraceID{},
+		},
+		{
+			name:           "Filter by scope.version=1.0.0",
+			queryAttrs:     map[string]string{"scope.version": "1.0.0"},
+			expectedTraces: 1,
+			expectedIDs:    []pcommon.TraceID{traceID1},
+		},
+		{
+			name:           "Filter by scope.version=2.0.0",
+			queryAttrs:     map[string]string{"scope.version": "2.0.0"},
+			expectedTraces: 1,
+			expectedIDs:    []pcommon.TraceID{traceID2},
+		},
+		{
+			name:           "Filter by scope.version (no match)",
+			queryAttrs:     map[string]string{"scope.version": "99.0.0"},
+			expectedTraces: 0,
+			expectedIDs:    []pcommon.TraceID{},
+		},
+		{
+			name:           "Filter by resource.deployment.environment=production",
+			queryAttrs:     map[string]string{"resource.deployment.environment": "production"},
+			expectedTraces: 1,
+			expectedIDs:    []pcommon.TraceID{traceID1},
+		},
+		{
+			name:           "Filter by resource.deployment.environment=staging",
+			queryAttrs:     map[string]string{"resource.deployment.environment": "staging"},
+			expectedTraces: 1,
+			expectedIDs:    []pcommon.TraceID{traceID2},
+		},
+		{
+			name:           "Filter by resource.deployment.environment (no match)",
+			queryAttrs:     map[string]string{"resource.deployment.environment": "development"},
+			expectedTraces: 0,
+			expectedIDs:    []pcommon.TraceID{},
+		},
+		{
+			name:           "Combined: span.status=ERROR AND span.kind=SERVER",
+			queryAttrs:     map[string]string{"span.status": "ERROR", "span.kind": "SERVER"},
+			expectedTraces: 1,
+			expectedIDs:    []pcommon.TraceID{traceID1},
+		},
+		{
+			name:           "No match: span.status=ERROR AND span.kind=CLIENT",
+			queryAttrs:     map[string]string{"span.status": "ERROR", "span.kind": "CLIENT"},
+			expectedTraces: 0,
+			expectedIDs:    []pcommon.TraceID{},
+		},
+		{
+			name:           "Combined: scope.name AND scope.version",
+			queryAttrs:     map[string]string{"scope.name": "my-scope", "scope.version": "1.0.0"},
+			expectedTraces: 1,
+			expectedIDs:    []pcommon.TraceID{traceID1},
+		},
+		{
+			name:           "No OTLP filters (backward compatibility)",
+			queryAttrs:     map[string]string{},
+			expectedTraces: 5,
+			expectedIDs:    []pcommon.TraceID{traceID5, traceID4, traceID3, traceID2, traceID1}, // Reverse chronological
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			attrs := pcommon.NewMap()
+			for k, v := range tt.queryAttrs {
+				attrs.PutStr(k, v)
+			}
+
+			query := tracestore.TraceQueryParams{
+				Attributes:  attrs,
+				SearchDepth: 100,
+			}
+
+			iter := store.FindTraces(context.Background(), query)
+			var foundTraces []ptrace.Traces
+			for traces, err := range iter {
+				require.NoError(t, err)
+				foundTraces = append(foundTraces, traces...)
+			}
+
+			assert.Len(t, foundTraces, tt.expectedTraces,
+				"query: %v", tt.queryAttrs)
+
+			if tt.expectedTraces > 0 {
+				for i, expectedID := range tt.expectedIDs {
+					actualID := foundTraces[i].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
+					assert.Equal(t, expectedID, actualID)
+				}
+			}
+		})
+	}
+}
