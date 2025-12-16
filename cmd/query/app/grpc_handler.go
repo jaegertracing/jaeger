@@ -16,7 +16,6 @@ import (
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	_ "github.com/jaegertracing/jaeger/internal/gogocodec" // force gogo codec registration
-	"github.com/jaegertracing/jaeger/internal/jtracer"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 )
 
@@ -35,14 +34,12 @@ var (
 type GRPCHandler struct {
 	queryService *querysvc.QueryService
 	logger       *zap.Logger
-	tracer       *jtracer.JTracer
 	nowFn        func() time.Time
 }
 
 // GRPCHandlerOptions contains optional members of GRPCHandler.
 type GRPCHandlerOptions struct {
 	Logger *zap.Logger
-	Tracer *jtracer.JTracer
 	NowFn  func() time.Time
 }
 
@@ -54,10 +51,6 @@ func NewGRPCHandler(queryService *querysvc.QueryService,
 		options.Logger = zap.NewNop()
 	}
 
-	if options.Tracer == nil {
-		options.Tracer = jtracer.NoOp()
-	}
-
 	if options.NowFn == nil {
 		options.NowFn = time.Now
 	}
@@ -65,7 +58,6 @@ func NewGRPCHandler(queryService *querysvc.QueryService,
 	return &GRPCHandler{
 		queryService: queryService,
 		logger:       options.Logger,
-		tracer:       options.Tracer,
 		nowFn:        options.NowFn,
 	}
 }
