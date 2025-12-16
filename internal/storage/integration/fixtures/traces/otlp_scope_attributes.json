@@ -16,7 +16,7 @@
             "version": "2.1.0",
             "attributes": [
               {
-                "key": "otel.scope.name",
+                "key": "test.scope.attribute",
                 "value": {"stringValue": "test-scope"}
               }
             ]
