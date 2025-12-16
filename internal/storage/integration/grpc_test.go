@@ -69,9 +69,6 @@ func TestGRPCRemoteStorage(t *testing.T) {
 		testutils.VerifyGoLeaksOnce(t)
 	})
 	s := &GRPCStorageIntegrationTestSuite{
-		StorageIntegration: StorageIntegration{
-			SkipList: GRPCSkippedTests,
-		},
 		flags: []string{
 			"--grpc-storage.server=localhost:17271",
 			"--grpc-storage.tls.enabled=false",
