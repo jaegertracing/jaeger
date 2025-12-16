@@ -19,9 +19,9 @@ var (
 
 // Config defines configuration for jaeger_storage_exporter.
 type Config struct {
-	TraceStorage string                                                `mapstructure:"trace_storage" valid:"required"`
+	TraceStorage string                                                   `mapstructure:"trace_storage" valid:"required"`
 	QueueConfig  configoptional.Optional[exporterhelper.QueueBatchConfig] `mapstructure:"queue" valid:"optional"`
-	RetryConfig  configretry.BackOffConfig                             `mapstructure:"retry_on_failure"`
+	RetryConfig  configretry.BackOffConfig                                `mapstructure:"retry_on_failure"`
 }
 
 func (cfg *Config) Validate() error {
