@@ -11,8 +11,10 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter"
+	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -43,7 +45,8 @@ func createTraceWriter(logger *zap.Logger, port int) (*traceWriter, error) {
 	cfg.ClientConfig.Endpoint = fmt.Sprintf("localhost:%d", port)
 	cfg.TimeoutConfig.Timeout = 30 * time.Second
 	cfg.RetryConfig.Enabled = false
-	cfg.QueueConfig.Enabled = false
+	// Disable queue by setting it to None (no value present)
+	cfg.QueueConfig = configoptional.None[exporterhelper.QueueBatchConfig]()
 	cfg.ClientConfig.TLS = configtls.ClientConfig{
 		Insecure: true,
 	}
