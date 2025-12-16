@@ -3,7 +3,6 @@ structname: '{{.InterfaceName}}'
 pkgname: mocks
 template: testify
 filename: mocks.go
-include-auto-generated: true
 template-data:
   boilerplate-file: .mockery.header.txt
 packages:
@@ -20,6 +19,7 @@ packages:
   github.com/jaegertracing/jaeger/internal/proto-gen/storage_v1:
     config:
       all: true
+      include-auto-generated: true
   github.com/jaegertracing/jaeger/internal/storage/cassandra:
     config:
       template-data:
