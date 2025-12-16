@@ -265,48 +265,63 @@ func validSpan(resourceAttributes pcommon.Map, scope pcommon.InstrumentationScop
 		}
 	}
 
-	if statusAttr, ok := query.Attributes.Get("span.status"); ok {
-		expectedStatus := spanStatusFromString(statusAttr.AsString())
-		if expectedStatus != span.Status().Code() {
-			return false
-		}
-	}
-
-	if kindAttr, ok := query.Attributes.Get("span.kind"); ok {
-		expectedKind := spanKindFromString(kindAttr.AsString())
-		if expectedKind != span.Kind() {
-			return false
-		}
-	}
-
-	if scopeNameAttr, ok := query.Attributes.Get("scope.name"); ok {
-		if scopeNameAttr.AsString() != scope.Name() {
-			return false
-		}
-	}
-
-	if scopeVersionAttr, ok := query.Attributes.Get("scope.version"); ok {
-		if scopeVersionAttr.AsString() != scope.Version() {
-			return false
-		}
-	}
-
 	for key, val := range query.Attributes.All() {
+		if key == errorAttribute {
+			continue
+		}
+
+		if strings.HasPrefix(key, "span.") {
+			fieldName := strings.TrimPrefix(key, "span.")
+			switch fieldName {
+			case "status":
+				expectedStatus := spanStatusFromString(val.AsString())
+				if expectedStatus != span.Status().Code() {
+					return false
+				}
+				continue
+			case "kind":
+				expectedKind := spanKindFromString(val.AsString())
+				if expectedKind != span.Kind() {
+					return false
+				}
+				continue
+			default:
+				if !matchAttributes(fieldName, val, span.Attributes()) {
+					return false
+				}
+				continue
+			}
+		}
+
+		if strings.HasPrefix(key, "scope.") {
+			fieldName := strings.TrimPrefix(key, "scope.")
+			switch fieldName {
+			case "name":
+				if val.AsString() != scope.Name() {
+					return false
+				}
+				continue
+			case "version":
+				if val.AsString() != scope.Version() {
+					return false
+				}
+				continue
+			default:
+				if !matchAttributes(fieldName, val, scope.Attributes()) {
+					return false
+				}
+				continue
+			}
+		}
+
 		if strings.HasPrefix(key, "resource.") {
 			resourceKey := strings.TrimPrefix(key, "resource.")
 			if !matchAttributes(resourceKey, val, resourceAttributes) {
 				return false
 			}
-		}
-	}
-
-	for key, val := range query.Attributes.All() {
-		if key == errorAttribute ||
-			strings.HasPrefix(key, "span.") ||
-			strings.HasPrefix(key, "scope.") ||
-			strings.HasPrefix(key, "resource.") {
 			continue
 		}
+
 		if !findKeyValInTrace(key, val, resourceAttributes, scope.Attributes(), span) {
 			return false
 		}

@@ -823,7 +823,11 @@ func TestFindTraces_OTLPFields(t *testing.T) {
 
 	traceID1 := fromString(t, "00000000000000010000000000000000")
 	traceID2 := fromString(t, "00000000000000020000000000000000")
+	traceID3 := fromString(t, "00000000000000030000000000000000")
+	traceID4 := fromString(t, "00000000000000040000000000000000")
+	traceID5 := fromString(t, "00000000000000050000000000000000")
 
+	// Trace 1: ERROR status, SERVER kind, scope "my-scope" v1.0.0, resource.deployment.environment=production
 	td1 := ptrace.NewTraces()
 	rs1 := td1.ResourceSpans().AppendEmpty()
 	rs1.Resource().Attributes().PutStr(conventions.ServiceNameKey, "service1")
@@ -840,6 +844,7 @@ func TestFindTraces_OTLPFields(t *testing.T) {
 	span1.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now()))
 	span1.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(time.Second)))
 
+	// Trace 2: OK status, CLIENT kind, scope "other-scope" v2.0.0, resource.deployment.environment=staging
 	td2 := ptrace.NewTraces()
 	rs2 := td2.ResourceSpans().AppendEmpty()
 	rs2.Resource().Attributes().PutStr(conventions.ServiceNameKey, "service2")
@@ -856,10 +861,58 @@ func TestFindTraces_OTLPFields(t *testing.T) {
 	span2.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now()))
 	span2.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(time.Second)))
 
+	// Trace 3: PRODUCER kind with UNSET status
+	td3 := ptrace.NewTraces()
+	rs3 := td3.ResourceSpans().AppendEmpty()
+	rs3.Resource().Attributes().PutStr(conventions.ServiceNameKey, "service3")
+	ss3 := rs3.ScopeSpans().AppendEmpty()
+	span3 := ss3.Spans().AppendEmpty()
+	span3.SetTraceID(traceID3)
+	span3.SetSpanID(spanIdFromString(t, "0000000000000003"))
+	span3.SetName("operation3")
+	span3.SetKind(ptrace.SpanKindProducer)
+	span3.Status().SetCode(ptrace.StatusCodeUnset)
+	span3.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+	span3.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(time.Second)))
+
+	// Trace 4: CONSUMER kind with UNSET status
+	td4 := ptrace.NewTraces()
+	rs4 := td4.ResourceSpans().AppendEmpty()
+	rs4.Resource().Attributes().PutStr(conventions.ServiceNameKey, "service4")
+	ss4 := rs4.ScopeSpans().AppendEmpty()
+	span4 := ss4.Spans().AppendEmpty()
+	span4.SetTraceID(traceID4)
+	span4.SetSpanID(spanIdFromString(t, "0000000000000004"))
+	span4.SetName("operation4")
+	span4.SetKind(ptrace.SpanKindConsumer)
+	span4.Status().SetCode(ptrace.StatusCodeUnset)
+	span4.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+	span4.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(time.Second)))
+
+	// Trace 5: INTERNAL kind with UNSET status
+	td5 := ptrace.NewTraces()
+	rs5 := td5.ResourceSpans().AppendEmpty()
+	rs5.Resource().Attributes().PutStr(conventions.ServiceNameKey, "service5")
+	ss5 := rs5.ScopeSpans().AppendEmpty()
+	span5 := ss5.Spans().AppendEmpty()
+	span5.SetTraceID(traceID5)
+	span5.SetSpanID(spanIdFromString(t, "0000000000000005"))
+	span5.SetName("operation5")
+	span5.SetKind(ptrace.SpanKindInternal)
+	span5.Status().SetCode(ptrace.StatusCodeUnset)
+	span5.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+	span5.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(time.Second)))
+
 	// Write traces
 	err = store.WriteTraces(context.Background(), td1)
 	require.NoError(t, err)
 	err = store.WriteTraces(context.Background(), td2)
+	require.NoError(t, err)
+	err = store.WriteTraces(context.Background(), td3)
+	require.NoError(t, err)
+	err = store.WriteTraces(context.Background(), td4)
+	require.NoError(t, err)
+	err = store.WriteTraces(context.Background(), td5)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -881,10 +934,10 @@ func TestFindTraces_OTLPFields(t *testing.T) {
 			expectedIDs:    []pcommon.TraceID{traceID2},
 		},
 		{
-			name:           "Filter by span.status=UNSET (no match)",
+			name:           "Filter by span.status=UNSET",
 			queryAttrs:     map[string]string{"span.status": "UNSET"},
-			expectedTraces: 0,
-			expectedIDs:    []pcommon.TraceID{},
+			expectedTraces: 3,
+			expectedIDs:    []pcommon.TraceID{traceID5, traceID4, traceID3},
 		},
 		{
 			name:           "Filter by span.kind=SERVER",
@@ -899,8 +952,32 @@ func TestFindTraces_OTLPFields(t *testing.T) {
 			expectedIDs:    []pcommon.TraceID{traceID2},
 		},
 		{
-			name:           "Filter by span.kind=INTERNAL (no match)",
+			name:           "Filter by span.kind=PRODUCER",
+			queryAttrs:     map[string]string{"span.kind": "PRODUCER"},
+			expectedTraces: 1,
+			expectedIDs:    []pcommon.TraceID{traceID3},
+		},
+		{
+			name:           "Filter by span.kind=CONSUMER",
+			queryAttrs:     map[string]string{"span.kind": "CONSUMER"},
+			expectedTraces: 1,
+			expectedIDs:    []pcommon.TraceID{traceID4},
+		},
+		{
+			name:           "Filter by span.kind=INTERNAL",
 			queryAttrs:     map[string]string{"span.kind": "INTERNAL"},
+			expectedTraces: 1,
+			expectedIDs:    []pcommon.TraceID{traceID5},
+		},
+		{
+			name:           "Filter by span.kind=UNSPECIFIED (no match)",
+			queryAttrs:     map[string]string{"span.kind": "UNSPECIFIED"},
+			expectedTraces: 0,
+			expectedIDs:    []pcommon.TraceID{},
+		},
+		{
+			name:           "Filter by span.kind=INVALID (default/unknown)",
+			queryAttrs:     map[string]string{"span.kind": "INVALID"},
 			expectedTraces: 0,
 			expectedIDs:    []pcommon.TraceID{},
 		},
@@ -979,8 +1056,8 @@ func TestFindTraces_OTLPFields(t *testing.T) {
 		{
 			name:           "No OTLP filters (backward compatibility)",
 			queryAttrs:     map[string]string{},
-			expectedTraces: 2,
-			expectedIDs:    []pcommon.TraceID{traceID2, traceID1}, // Reverse chronological
+			expectedTraces: 5,
+			expectedIDs:    []pcommon.TraceID{traceID5, traceID4, traceID3, traceID2, traceID1}, // Reverse chronological
 		},
 	}
 
