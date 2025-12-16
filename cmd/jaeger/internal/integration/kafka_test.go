@@ -51,16 +51,6 @@ func TestKafkaStorage(t *testing.T) {
 			collector.e2eInitialize(t, "kafka")
 			t.Log("Collector initialized")
 
-			// Determine skip list based on encoding
-			var skipList []string
-			if test.encoding == "jaeger_proto" || test.encoding == "jaeger_json" {
-				// Jaeger format doesn't support OTLP-specific fields
-				skipList = []string{
-					"OTLPScopeMetadata",
-					"OTLPSpanLinks",
-				}
-			}
-
 			ingester := &E2EStorageIntegration{
 				BinaryName:      "jaeger-v2-ingester",
 				ConfigFile:      "../../config-kafka-ingester.yaml",
@@ -68,11 +58,9 @@ func TestKafkaStorage(t *testing.T) {
 				StorageIntegration: integration.StorageIntegration{
 					CleanUp:                      purge,
 					GetDependenciesReturnsSource: true,
-					SkipList:                     skipList,
 				},
 				EnvVarOverrides: envVarOverrides,
 			}
-
 			ingester.e2eInitialize(t, "kafka")
 			t.Log("Ingester initialized")
 

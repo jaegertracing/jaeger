@@ -32,8 +32,7 @@ func TestGRPCStorage(t *testing.T) {
 		ConfigFile:         "../../config-remote-storage.yaml",
 		SkipStorageCleaner: true,
 		StorageIntegration: integration.StorageIntegration{
-			CleanUp:  purge,
-			SkipList: integration.GRPCSkippedTests,
+			CleanUp: purge,
 		},
 		PropagateEnvVars: []string{
 			"REMOTE_STORAGE_ENDPOINT",
