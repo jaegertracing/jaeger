@@ -21,9 +21,9 @@ import (
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
-	"go.opentelemetry.io/otel/trace"
+	traceapi "go.opentelemetry.io/otel/trace"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
@@ -50,7 +50,7 @@ import (
 
 var testCertKeyLocation = "../../../internal/config/tlscfg/testdata"
 
-func initTelSet(logger *zap.Logger, tracerProvider trace.TracerProvider, hc *healthcheck.HealthCheck) telemetry.Settings {
+func initTelSet(logger *zap.Logger, tracerProvider traceapi.TracerProvider, hc *healthcheck.HealthCheck) telemetry.Settings {
 	telset := telemetry.NoopSettings()
 	telset.Logger = logger
 	telset.TracerProvider = tracerProvider
@@ -844,9 +844,9 @@ func TestServerHTTP_TracesRequest(t *testing.T) {
 			}
 
 			exporter := tracetest.NewInMemoryExporter()
-			tracerProvider := sdktrace.NewTracerProvider(
-				sdktrace.WithSyncer(exporter),
-				sdktrace.WithSampler(sdktrace.AlwaysSample()),
+			tracerProvider := tracesdk.NewTracerProvider(
+				tracesdk.WithSyncer(exporter),
+				tracesdk.WithSampler(tracesdk.AlwaysSample()),
 			)
 			t.Cleanup(func() {
 				require.NoError(t, tracerProvider.Shutdown(context.Background()))
