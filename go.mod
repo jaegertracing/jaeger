@@ -7,7 +7,6 @@ toolchain go1.25.5
 require (
 	github.com/ClickHouse/ch-go v0.69.0
 	github.com/ClickHouse/clickhouse-go/v2 v2.40.3
-	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/apache/thrift v0.22.0
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
 	github.com/crossdock/crossdock-go v0.0.0-20160816171116-049aabb0122b
@@ -119,6 +118,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.2 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.5.0 // indirect
 	github.com/GehirnInc/crypt v0.0.0-20230320061759-8cc1b52080c5 // indirect
+	github.com/HdrHistogram/hdrhistogram-go v1.1.2 // indirect
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.1 // indirect
