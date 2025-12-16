@@ -132,6 +132,27 @@ type Configuration struct {
 	// Use this option with Elasticsearch rollover API. It requires an external component
 	// to create aliases before startup and then performing its management.
 	UseReadWriteAliases bool `mapstructure:"use_aliases"`
+	// SpanReadAlias specifies the exact alias name to use for reading spans.
+	// When set, Jaeger will use this alias directly without any modifications.
+	// This allows integration with existing Elasticsearch setups that have custom alias names.
+	// Can only be used with UseReadWriteAliases=true.
+	// Example: "my-custom-span-reader"
+	SpanReadAlias string `mapstructure:"span_read_alias"`
+	// SpanWriteAlias specifies the exact alias name to use for writing spans.
+	// When set, Jaeger will use this alias directly without any modifications.
+	// Can only be used with UseReadWriteAliases=true.
+	// Example: "my-custom-span-writer"
+	SpanWriteAlias string `mapstructure:"span_write_alias"`
+	// ServiceReadAlias specifies the exact alias name to use for reading services.
+	// When set, Jaeger will use this alias directly without any modifications.
+	// Can only be used with UseReadWriteAliases=true.
+	// Example: "my-custom-service-reader"
+	ServiceReadAlias string `mapstructure:"service_read_alias"`
+	// ServiceWriteAlias specifies the exact alias name to use for writing services.
+	// When set, Jaeger will use this alias directly without any modifications.
+	// Can only be used with UseReadWriteAliases=true.
+	// Example: "my-custom-service-writer"
+	ServiceWriteAlias string `mapstructure:"service_write_alias"`
 	// ReadAliasSuffix is the suffix to append to the index name used for reading.
 	// This configuration only exists to provide backwards compatibility for jaeger-v1
 	// which is why it is not exposed as a configuration option for jaeger-v2
@@ -738,5 +759,26 @@ func (c *Configuration) Validate() error {
 	if c.CreateIndexTemplates && c.UseILM {
 		return errors.New("when UseILM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app")
 	}
+
+	// Validate explicit alias settings require UseReadWriteAliases
+	hasAnyExplicitAlias := c.SpanReadAlias != "" || c.SpanWriteAlias != "" ||
+		c.ServiceReadAlias != "" || c.ServiceWriteAlias != ""
+
+	if hasAnyExplicitAlias && !c.UseReadWriteAliases {
+		return errors.New("explicit aliases (span_read_alias, span_write_alias, service_read_alias, service_write_alias) require UseReadWriteAliases to be true")
+	}
+
+	// Validate that if any alias is set, all four should be set (for consistency)
+	hasSpanAliases := c.SpanReadAlias != "" || c.SpanWriteAlias != ""
+	hasServiceAliases := c.ServiceReadAlias != "" || c.ServiceWriteAlias != ""
+
+	if hasSpanAliases && (c.SpanReadAlias == "" || c.SpanWriteAlias == "") {
+		return errors.New("both span_read_alias and span_write_alias must be set together")
+	}
+
+	if hasServiceAliases && (c.ServiceReadAlias == "" || c.ServiceWriteAlias == "") {
+		return errors.New("both service_read_alias and service_write_alias must be set together")
+	}
+
 	return nil
 }

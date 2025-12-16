@@ -98,7 +98,7 @@ type withConfigBuilder struct {
 
 func (b *withConfigBuilder) build() (*cassandra.Factory, error) {
 	b.f.ConfigureFromOptions(b.opts)
-	if err := b.opts.NamespaceConfig.Validate(); err != nil {
+	if err := b.opts.Configuration.Validate(); err != nil {
 		return nil, err
 	}
 	err := b.initializer(b.metricsFactory, b.logger)

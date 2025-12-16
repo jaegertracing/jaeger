@@ -76,16 +76,14 @@ func (cfg *TraceBackend) Unmarshal(conf *confmap.Conf) error {
 	}
 	if conf.IsSet("cassandra") {
 		cfg.Cassandra = &cassandra.Options{
-			NamespaceConfig: cassandra.NamespaceConfig{
-				Configuration: cascfg.DefaultConfiguration(),
-				Enabled:       true,
-			},
+			Configuration:          cascfg.DefaultConfiguration(),
 			SpanStoreWriteCacheTTL: 12 * time.Hour,
 			Index: cassandra.IndexConfig{
 				Tags:        true,
 				ProcessTags: true,
 				Logs:        true,
 			},
+			ArchiveEnabled: false,
 		}
 	}
 	if conf.IsSet("elasticsearch") {
