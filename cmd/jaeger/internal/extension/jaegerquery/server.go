@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
 	"go.opentelemetry.io/otel/trace"
+	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
@@ -55,24 +56,24 @@ func (*server) Dependencies() []component.ID {
 }
 
 func (s *server) Start(ctx context.Context, host component.Host) error {
-	var tp trace.TracerProvider
+	var tp trace.TracerProvider = nooptrace.NewTracerProvider()
 	success := false
-	tp = jtracer.NoOp().OTEL
 	if s.config.EnableTracing {
 		// TODO OTel-collector does not initialize the tracer currently
 		// https://github.com/open-telemetry/opentelemetry-collector/issues/7532
 		//nolint
-		tracerProvider, err := jtracer.New("jaeger")
+		tracerProvider, tracerCloser, err := jtracer.NewProvider(ctx, "jaeger")
 		if err != nil {
 			return fmt.Errorf("could not initialize a tracer: %w", err)
 		}
-		tp = tracerProvider.OTEL
-		// make sure to close the tracer if subsequent code exists with error
+		tp = tracerProvider
+		// Store closer for tracer if this function exists successfully,
+		// otherwise call the closer right away.
 		defer func(ctx context.Context) {
 			if success {
-				s.closeTracer = tracerProvider.Close
+				s.closeTracer = tracerCloser
 			} else {
-				tracerProvider.Close(ctx)
+				tracerCloser(ctx)
 			}
 		}(ctx)
 	}
