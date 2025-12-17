@@ -1,3 +1,7 @@
+# This config is needed because config-kafka-ingester.yaml uses memory storage,
+# but this docker-compose setup uses jaeger-remote-storage (grpc).
+# Based on config-kafka-ingester.yaml with grpc storage backend.
+
 service:
   extensions: [jaeger_storage, healthcheckv2]
   pipelines:
@@ -9,17 +13,17 @@ service:
     resource:
       service.name: jaeger_ingester
     logs:
-      level: debug
+      level: info
 
 extensions:
   healthcheckv2:
     use_v2: true
     http:
-      endpoint: 0.0.0.0:14270
+      endpoint: 0.0.0.0:14133
 
   jaeger_storage:
     backends:
-      remote_storage:
+      some_storage:
         grpc:
           endpoint: jaeger-remote-storage:17271
           tls:
@@ -30,8 +34,8 @@ receivers:
     brokers:
       - kafka:9092
     traces:
-      topic: jaeger-spans
-      encoding: otlp_proto
+      topic: ${env:KAFKA_TOPIC:-jaeger-spans}
+      encoding: ${env:KAFKA_ENCODING:-otlp_proto}
     initial_offset: earliest
 
 processors:
@@ -39,4 +43,4 @@ processors:
 
 exporters:
   jaeger_storage_exporter:
-    trace_storage: remote_storage
+    trace_storage: some_storage

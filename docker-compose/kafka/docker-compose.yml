@@ -45,9 +45,12 @@ services:
   jaeger-collector:
     image: cr.jaegertracing.io/jaegertracing/jaeger:latest
     volumes:
-      - ./jaeger-v2-collector-config.yaml:/etc/jaeger/config.yaml
+      - ../../cmd/jaeger/config-kafka-collector.yaml:/etc/jaeger/config.yaml
     command:
       - "--config=/etc/jaeger/config.yaml"
+    environment:
+      - KAFKA_TOPIC=jaeger-spans
+      - KAFKA_ENCODING=otlp_proto
     ports:
       - 4318:4318
       - 14250:14250
@@ -65,11 +68,14 @@ services:
   jaeger-ingester:
     image: cr.jaegertracing.io/jaegertracing/jaeger:latest
     volumes:
-      - ./jaeger-v2-ingester-config.yaml:/etc/jaeger/config.yaml
+      - ./jaeger-ingester-remote-storage.yaml:/etc/jaeger/config.yaml
     command:
       - "--config=/etc/jaeger/config.yaml"
+    environment:
+      - KAFKA_TOPIC=jaeger-spans
+      - KAFKA_ENCODING=otlp_proto
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:14270/ || exit 1"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:14133/ || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 3
@@ -87,7 +93,8 @@ services:
   jaeger-query:
     image: cr.jaegertracing.io/jaegertracing/jaeger:latest
     volumes:
-      - ./jaeger-v2-query-config.yaml:/etc/jaeger/config.yaml
+      - ../../cmd/jaeger/config-query.yaml:/etc/jaeger/config.yaml
+      - ../../cmd/jaeger:/cmd/jaeger:ro
     command:
       - "--config=/etc/jaeger/config.yaml"
     environment:

@@ -12,9 +12,11 @@ services:
     restart: unless-stopped
     image: cr.jaegertracing.io/jaegertracing/jaeger:${JAEGER_VERSION:-latest}
     volumes:
-      - ./jaeger-v2-config.yaml:/etc/jaeger/config.yaml
+      - ../../cmd/jaeger/config-cassandra.yaml:/etc/jaeger/config.yaml
     command:
       - "--config=/etc/jaeger/config.yaml"
+    environment:
+      - CASSANDRA_CONTACT_POINTS=scylladb:9042
     ports:
       - 16686:16686
       - 16687:16687

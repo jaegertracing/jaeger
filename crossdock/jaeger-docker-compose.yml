@@ -11,7 +11,7 @@ services:
     jaeger:
       image: cr.jaegertracing.io/jaegertracing/jaeger
       volumes:
-        - ./jaeger-v2-config.yaml:/etc/jaeger/config.yaml
+        - ./jaeger-grpc-storage.yaml:/etc/jaeger/config.yaml
       command:
         - "--config=/etc/jaeger/config.yaml"
       ports:

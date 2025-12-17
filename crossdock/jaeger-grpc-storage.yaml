@@ -1,3 +1,10 @@
+# This config is needed for crossdock testing which requires:
+# - jaeger receivers (thrift, grpc) for legacy agent testing
+# - zipkin receiver for zipkin compatibility testing  
+# - grpc storage backend to jaeger-remote-storage
+# No existing config in cmd/jaeger/ provides this combination.
+# Based on config.yaml with grpc storage instead of memory.
+
 service:
   extensions: [jaeger_storage, jaeger_query, healthcheckv2]
   pipelines:
@@ -15,15 +22,14 @@ extensions:
   healthcheckv2:
     use_v2: true
     http:
-      endpoint: 0.0.0.0:14269
 
   jaeger_query:
     storage:
-      traces: remote_storage
+      traces: some_storage
 
   jaeger_storage:
     backends:
-      remote_storage:
+      some_storage:
         grpc:
           endpoint: jaeger-remote-storage:17271
           tls:
@@ -38,20 +44,15 @@ receivers:
   jaeger:
     protocols:
       grpc:
-        endpoint: 0.0.0.0:14250
       thrift_binary:
-        endpoint: 0.0.0.0:6832
       thrift_compact:
-        endpoint: 0.0.0.0:6831
       thrift_http:
-        endpoint: 0.0.0.0:14268
 
   zipkin:
-    endpoint: 0.0.0.0:9411
 
 processors:
   batch:
 
 exporters:
   jaeger_storage_exporter:
-    trace_storage: remote_storage
+    trace_storage: some_storage
