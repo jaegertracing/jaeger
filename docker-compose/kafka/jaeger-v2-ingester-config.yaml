@@ -1,0 +1,42 @@
+service:
+  extensions: [jaeger_storage, healthcheckv2]
+  pipelines:
+    traces:
+      receivers: [kafka]
+      processors: [batch]
+      exporters: [jaeger_storage_exporter]
+  telemetry:
+    resource:
+      service.name: jaeger_ingester
+    logs:
+      level: debug
+
+extensions:
+  healthcheckv2:
+    use_v2: true
+    http:
+      endpoint: 0.0.0.0:14270
+
+  jaeger_storage:
+    backends:
+      remote_storage:
+        grpc:
+          endpoint: jaeger-remote-storage:17271
+          tls:
+            insecure: true
+
+receivers:
+  kafka:
+    brokers:
+      - kafka:9092
+    traces:
+      topic: jaeger-spans
+      encoding: otlp_proto
+    initial_offset: earliest
+
+processors:
+  batch:
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: remote_storage

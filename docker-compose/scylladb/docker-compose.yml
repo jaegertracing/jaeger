@@ -8,28 +8,18 @@ networks:
   jaeger-scylladb:
 
 services:
-  collector:
+  jaeger:
     restart: unless-stopped
-    image: cr.jaegertracing.io/jaegertracing/jaeger-collector:${JAEGER_VERSION:-latest}
-    environment:
-      SPAN_STORAGE_TYPE: cassandra
-      CASSANDRA_SERVERS: scylladb
-      CASSANDRA_KEYSPACE: jaeger_v1_test
-    networks:
-      - jaeger-scylladb
-    depends_on:
-      - cassandra-schema
-
-  web:
-    image: cr.jaegertracing.io/jaegertracing/jaeger-query:${JAEGER_VERSION:-latest}
-    restart: unless-stopped
+    image: cr.jaegertracing.io/jaegertracing/jaeger:${JAEGER_VERSION:-latest}
+    volumes:
+      - ./jaeger-v2-config.yaml:/etc/jaeger/config.yaml
+    command:
+      - "--config=/etc/jaeger/config.yaml"
     ports:
       - 16686:16686
       - 16687:16687
-    environment:
-      SPAN_STORAGE_TYPE: cassandra
-      CASSANDRA_SERVERS: scylladb
-      CASSANDRA_KEYSPACE: jaeger_v1_test
+      - 4317:4317
+      - 4318:4318
     networks:
       - jaeger-scylladb
     depends_on:
@@ -89,8 +79,8 @@ services:
       - 8080:8080
     command: [ "all" ]
     environment:
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://collector:4318
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
     networks:
       - jaeger-scylladb
     depends_on:
-      - collector
+      - jaeger

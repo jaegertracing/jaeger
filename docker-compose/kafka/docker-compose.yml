@@ -43,15 +43,14 @@ services:
       retries: 3
 
   jaeger-collector:
-    image: cr.jaegertracing.io/jaegertracing/jaeger-collector@sha256:7c94da406b6e186c756e257bca9954fca3c8be1b5e0b05f377f4dacdf0bcce06
+    image: cr.jaegertracing.io/jaegertracing/jaeger:latest
+    volumes:
+      - ./jaeger-v2-collector-config.yaml:/etc/jaeger/config.yaml
     command:
-      - "--log-level=debug"
+      - "--config=/etc/jaeger/config.yaml"
     ports:
       - 4318:4318
       - 14250:14250
-    environment:
-      - SPAN_STORAGE_TYPE=kafka
-      - KAFKA_PRODUCER_BROKERS=kafka:9092
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:14269/ || exit 1"]
       interval: 5s
@@ -64,13 +63,11 @@ services:
       - kafka
 
   jaeger-ingester:
-    image: cr.jaegertracing.io/jaegertracing/jaeger-ingester@sha256:351bd49e53490a43dcde1639c549c420cca44c522d24f493d17ef75d133170df
+    image: cr.jaegertracing.io/jaegertracing/jaeger:latest
+    volumes:
+      - ./jaeger-v2-ingester-config.yaml:/etc/jaeger/config.yaml
     command:
-      - "--grpc-storage.server=jaeger-remote-storage:17271"
-      - "--log-level=debug"
-    environment:
-      - SPAN_STORAGE_TYPE=grpc
-      - KAFKA_CONSUMER_BROKERS=kafka:9092
+      - "--config=/etc/jaeger/config.yaml"
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:14270/ || exit 1"]
       interval: 5s
@@ -88,12 +85,12 @@ services:
       - jaeger-remote-storage
 
   jaeger-query:
-    image: cr.jaegertracing.io/jaegertracing/jaeger-query@sha256:e3dd18391fc04065d8edf5efbbefe33f3e865b7f6175e81a2ee284085a73f63d
+    image: cr.jaegertracing.io/jaegertracing/jaeger:latest
+    volumes:
+      - ./jaeger-v2-query-config.yaml:/etc/jaeger/config.yaml
     command:
-      - "--grpc-storage.server=jaeger-remote-storage:17271"
-      - "--log-level=debug"
+      - "--config=/etc/jaeger/config.yaml"
     environment:
-      - SPAN_STORAGE_TYPE=grpc
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger-collector:4318
     ports:
       - "16686:16686"

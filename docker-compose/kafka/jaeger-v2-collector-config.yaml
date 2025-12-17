@@ -1,0 +1,44 @@
+service:
+  extensions: [healthcheckv2]
+  pipelines:
+    traces:
+      receivers: [otlp, jaeger]
+      processors: [batch]
+      exporters: [kafka]
+  telemetry:
+    resource:
+      service.name: jaeger_collector
+    logs:
+      level: debug
+
+extensions:
+  healthcheckv2:
+    use_v2: true
+    http:
+      endpoint: 0.0.0.0:14269
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+  jaeger:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:14250
+      thrift_binary:
+      thrift_compact:
+      thrift_http:
+
+processors:
+  batch:
+
+exporters:
+  kafka:
+    brokers:
+      - kafka:9092
+    traces:
+      topic: jaeger-spans
+      encoding: otlp_proto

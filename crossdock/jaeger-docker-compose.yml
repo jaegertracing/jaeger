@@ -8,34 +8,19 @@ services:
       ports:
         - "17271:17271"
 
-    jaeger-collector:
-      image: cr.jaegertracing.io/jaegertracing/jaeger-collector
+    jaeger:
+      image: cr.jaegertracing.io/jaegertracing/jaeger
+      volumes:
+        - ./jaeger-v2-config.yaml:/etc/jaeger/config.yaml
       command:
-        - "--grpc-storage.server=jaeger-remote-storage:17271"
-        - "--collector.zipkin.host-port=:9411"
-        - "--log-level=debug"
+        - "--config=/etc/jaeger/config.yaml"
       ports:
+        - "16686:16686"
+        - "16687"
         - "14269"
         - "14268:14268"
         - "14250"
         - "9411:9411"
-      environment:
-        - SPAN_STORAGE_TYPE=grpc
-        - LOG_LEVEL=debug
-      restart: on-failure
-      depends_on:
-        - jaeger-remote-storage
-
-    jaeger-query:
-      image: cr.jaegertracing.io/jaegertracing/jaeger-query
-      command:
-        - "--grpc-storage.server=jaeger-remote-storage:17271"
-        - "--log-level=debug"
-      ports:
-        - "16686:16686"
-        - "16687"
-      environment:
-        - SPAN_STORAGE_TYPE=grpc
       restart: on-failure
       depends_on:
         - jaeger-remote-storage
