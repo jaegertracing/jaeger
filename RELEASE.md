@@ -14,32 +14,33 @@ Create an issue with the checklist for the release by running `bash scripts/rele
 
 <!-- BEGIN_CHECKLIST -->
 
-1. Create a PR "Prepare release v1.x.x / v2.x.x" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/6826)) by updating CHANGELOG.md to include:
-    * A new section with the header `v1.x.x / v2.x.x (YYYY-MM-DD)` (copy the template at the top)
-    * A curated list of notable changes and links to PRs. Do not simply dump git log, select the changes that affect the users.
-      To obtain the list of all changes run `make changelog`.
-    * The section can be split into sub-section if necessary, e.g. UI Changes, Backend Changes, Bug Fixes, etc.
-    * Then upgrade the submodule versions and finally commit. For example:
-        ```
-        git submodule init
-        git submodule update
-        pushd jaeger-ui
-        git checkout main
-        git pull
-        git checkout v1.x.x  # use the new version
-        popd
-        ```
-      * If there are only dependency bumps, indicate this with "Dependencies upgrades only" ([example](https://github.com/jaegertracing/jaeger-ui/pull/2431/files)).
-      * If there are no changes, indicate this with "No changes" ([example](https://github.com/jaegertracing/jaeger/pull/4131/files)).
-    * Rotate the below release managers table placing yourself at the bottom. The date should be the first Wednesday of the month.
-    * Add label `changelog:skip` to the pull request.
-2. After the PR is merged, create new release tags:
+1. Create a PR "Prepare release vX.Y.Z" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/6826)).
+    * **Automated**: `make prepare-release VERSION=X.Y.Z`
+      * Updates CHANGELOG.md (generates content via `make changelog`)
+      * Upgrades jaeger-ui submodule to the corresponding version
+      * Rotates release managers table
+      * Creates PR with label `changelog:skip`
+    * **Manual**: Update CHANGELOG.md to include:
+      * A new section with the header `vX.Y.Z (YYYY-MM-DD)` (copy the template at the top)
+      * A curated list of notable changes and links to PRs. Run `make changelog` to generate.
+      * Then upgrade the submodule versions:
+          ```
+          git submodule init
+          git submodule update
+          pushd jaeger-ui
+          git checkout main
+          git pull
+          git checkout vX.Y.Z  # use the new version
+          popd
+          ```
+      * Rotate the release managers table placing yourself at the bottom.
+      * Add label `changelog:skip` to the pull request.
+2. After the PR is merged, create new release tag (command is in the PR description if using automation):
     ```
     git checkout main
     git pull
-    git tag v1.x.x -s  # use the new version
-    git tag v2.x.x -s  # use the new version
-    git push upstream v1.x.x v2.x.x
+    git tag vX.Y.Z -s -m "Release vX.Y.Z" # use the new version
+    git push upstream vX.Y.Z
     ```
 3. Create a release on Github:
     * Automated:

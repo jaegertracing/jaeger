@@ -213,6 +213,15 @@ changelog:
 draft-release:
 	./scripts/release/draft.py
 
+.PHONY: prepare-release
+prepare-release:
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Usage: make prepare-release VERSION=x.x.x"; \
+		echo "Example: make prepare-release VERSION=2.14.0"; \
+		exit 1; \
+	fi
+	./scripts/release/prepare.sh $(VERSION)
+
 .PHONY: test-ci
 test-ci: GOTEST := $(GOTEST_QUIET)
 test-ci: build-examples cover

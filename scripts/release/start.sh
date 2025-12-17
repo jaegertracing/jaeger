@@ -52,6 +52,15 @@ make init-submodules
 
 issue_body=$(python scripts/release/formatter.py "${TMPFILE}" "${user_version}")
 
+automation_note="To automate the Backend Release preparation, run:
+\`\`\`bash
+make prepare-release VERSION=${user_version}
+\`\`\`
+
+---
+"
+issue_body="${automation_note}${issue_body}"
+
 if $dry_run; then
   echo "${issue_body}"
 else
@@ -59,7 +68,5 @@ else
 fi
 
 rm "${TMPFILE}"
-
-exit 1;
 
 
