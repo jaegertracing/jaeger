@@ -94,7 +94,7 @@ services:
     image: cr.jaegertracing.io/jaegertracing/jaeger:latest
     volumes:
       - ../../cmd/jaeger/config-query.yaml:/etc/jaeger/config.yaml
-      - ../../cmd/jaeger:/cmd/jaeger:ro
+      - ../../cmd/jaeger/config-ui.json:/cmd/jaeger/config-ui.json:ro
     command:
       - "--config=/etc/jaeger/config.yaml"
     environment:
