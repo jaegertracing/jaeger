@@ -4,17 +4,21 @@ on:
   push:
     branches: [main]
 
+  workflow_dispatch:
+
   # We normally don't want this workflow to run on PRs, only on main branch.
-  # But to allow testing of this workflow itself, add `run-all-workflows` label.
+  # Unless the workflow file itself or the setup action is modified.
   pull_request:
     branches: [main]
+    paths:
+      - '.github/workflows/ci-unit-tests-go-tip.yml'
+      - '.github/actions/setup-go-tip/**'
 
 permissions:
   contents: read
 
 jobs:
   unit-tests-go-tip:
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-all-workflows')
     permissions:
       checks: write
     runs-on: ubuntu-latest

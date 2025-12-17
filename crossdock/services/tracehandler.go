@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/crossdock/crossdock-go"
-	"github.com/uber/jaeger-client-go"
 	"go.uber.org/zap"
 
 	ui "github.com/jaegertracing/jaeger/internal/uimodel"
@@ -28,6 +27,11 @@ const (
 	samplerTypeKey  = "sampler.type"
 
 	epsilon = 0.00000001
+
+	// Sampler type constants (originally from jaeger-client-go)
+	samplerTypeConst         = "const"
+	samplerTypeRemote        = "remote"
+	samplerTypeProbabilistic = "probabilistic"
 )
 
 var defaultProbabilities = []float64{1.0, 0.001, 0.5}
@@ -78,7 +82,7 @@ func NewTraceHandler(query QueryService, agent CollectorService, logger *zap.Log
 // EndToEndTest creates a trace by hitting a client service and validates the trace
 func (h *TraceHandler) EndToEndTest(t crossdock.T) {
 	operation := generateRandomString()
-	request := h.createTraceRequest(jaeger.SamplerTypeConst, operation, 1)
+	request := h.createTraceRequest(samplerTypeConst, operation, 1)
 	service := t.Param(servicesParam)
 	h.logger.Info("Starting EndToEnd test", zap.String("service", service))
 
@@ -100,7 +104,7 @@ func (h *TraceHandler) EndToEndTest(t crossdock.T) {
 // new traces were indeed sampled with a calculated probability by checking span tags.
 func (h *TraceHandler) AdaptiveSamplingTest(t crossdock.T) {
 	operation := generateRandomString()
-	request := h.createTraceRequest(jaeger.SamplerTypeRemote, operation, 10)
+	request := h.createTraceRequest(samplerTypeRemote, operation, 10)
 	service := t.Param(servicesParam)
 	h.logger.Info("Starting AdaptiveSampling test", zap.String("service", service))
 
@@ -170,8 +174,8 @@ func validateAdaptiveSamplingTraces(expected *traceRequest, actual []*ui.Trace) 
 		if err != nil {
 			return fmt.Errorf("%s tag value is not a float: %s", samplerParamKey, samplerParam)
 		}
-		if samplerType != jaeger.SamplerTypeProbabilistic {
-			return fmt.Errorf("%s tag value should be '%s'", samplerTypeKey, jaeger.SamplerTypeProbabilistic)
+		if samplerType != samplerTypeProbabilistic {
+			return fmt.Errorf("%s tag value should be '%s'", samplerTypeKey, samplerTypeProbabilistic)
 		}
 		if isDefaultProbability(probability) {
 			return errors.New("adaptive sampling probability not used")
