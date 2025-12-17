@@ -4,36 +4,31 @@ on:
   push:
     branches: [main]
 
+  workflow_dispatch:
+
   # We normally don't want this workflow to run on PRs, only on main branch.
-  # But to allow testing of this workflow itself, add `run-all-workflows` label.
+  # Unless the workflow file itself or the setup action is modified.
   pull_request:
     branches: [main]
+    paths:
+      - '.github/workflows/ci-unit-tests-go-tip.yml'
+      - '.github/actions/setup-go-tip/**'
 
 permissions:
   contents: read
 
 jobs:
   unit-tests-go-tip:
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-all-workflows')
     permissions:
       checks: write
     runs-on: ubuntu-latest
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
     - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
-
-    - name: Set up stable Go for tools
-      uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
-      with:
-        go-version: 1.25.x
-
-    - name: Install test deps
-      # even though the same target runs from test-ci, running it separately makes for cleaner log in GH workflow
-      run: make install-test-tools
 
     - name: Install Go Tip
       uses: ./.github/actions/setup-go-tip
@@ -48,5 +43,4 @@ jobs:
     - name: Run unit tests
       run: make test-ci
 
-    - name: Lint
-      run: echo skip linting on Go tip
+

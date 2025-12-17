@@ -33,11 +33,6 @@ import (
 
 var _ io.Closer = (*FactoryBase)(nil)
 
-const (
-	primaryNamespace = "es"
-	archiveNamespace = "es-archive"
-)
-
 // FactoryBase implements storage.Factory for Elasticsearch backend.
 type FactoryBase struct {
 	metricsFactory metrics.Factory
@@ -122,6 +117,8 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 		UseReadWriteAliases: f.config.UseReadWriteAliases,
 		ReadAliasSuffix:     f.config.ReadAliasSuffix,
 		RemoteReadClusters:  f.config.RemoteReadClusters,
+		SpanReadAlias:       f.config.SpanReadAlias,
+		ServiceReadAlias:    f.config.ServiceReadAlias,
 		Logger:              f.logger,
 		Tracer:              f.tracer.Tracer("esspanstore.SpanReader"),
 	}
@@ -139,6 +136,8 @@ func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
 		TagDotReplacement:   f.config.Tags.DotReplacement,
 		UseReadWriteAliases: f.config.UseReadWriteAliases,
 		WriteAliasSuffix:    f.config.WriteAliasSuffix,
+		SpanWriteAlias:      f.config.SpanWriteAlias,
+		ServiceWriteAlias:   f.config.ServiceWriteAlias,
 		Logger:              f.logger,
 		MetricsFactory:      f.metricsFactory,
 		ServiceCacheTTL:     f.config.ServiceCacheTTL,

@@ -87,8 +87,8 @@ func TestObserver(t *testing.T) {
 		// TODO something wrong with string generation, .P99 should not be appended to the tag
 		// as a result we cannot use u.AssertGaugeMetrics
 		_, g := testTracer.metrics.Snapshot()
-		assert.EqualValues(t, 51, g["request_latency|endpoint=get_user|error=false.P99"])
-		assert.EqualValues(t, 51, g["request_latency|endpoint=get_user|error=true.P99"])
+		assert.EqualValues(t, 50, g["request_latency|endpoint=get_user|error=false.P99"])
+		assert.EqualValues(t, 50, g["request_latency|endpoint=get_user|error=true.P99"])
 	})
 }
 

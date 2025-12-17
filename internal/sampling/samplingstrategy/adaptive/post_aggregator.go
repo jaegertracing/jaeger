@@ -26,8 +26,6 @@ const (
 
 	// The number of past entries for samplingCache the leader keeps in memory
 	serviceCacheSize = 25
-
-	defaultResourceName = "sampling_store_leader"
 )
 
 var (

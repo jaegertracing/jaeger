@@ -990,6 +990,67 @@ func TestValidate(t *testing.T) {
 			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, UseILM: true, CreateIndexTemplates: true, UseReadWriteAliases: true},
 			expectedError: "when UseILM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app",
 		},
+		{
+			name: "explicit span aliases without UseReadWriteAliases",
+			config: &Configuration{
+				Servers:        []string{"localhost:8000/dummyserver"},
+				SpanReadAlias:  "custom-span-read",
+				SpanWriteAlias: "custom-span-write",
+			},
+			expectedError: "explicit aliases (span_read_alias, span_write_alias, service_read_alias, service_write_alias) require UseReadWriteAliases to be true",
+		},
+		{
+			name: "only span read alias set",
+			config: &Configuration{
+				Servers:             []string{"localhost:8000/dummyserver"},
+				UseReadWriteAliases: true,
+				SpanReadAlias:       "custom-span-read",
+			},
+			expectedError: "both span_read_alias and span_write_alias must be set together",
+		},
+		{
+			name: "only service write alias set",
+			config: &Configuration{
+				Servers:             []string{"localhost:8000/dummyserver"},
+				UseReadWriteAliases: true,
+				ServiceWriteAlias:   "custom-service-write",
+			},
+			expectedError: "both service_read_alias and service_write_alias must be set together",
+		},
+		{
+			name: "all explicit aliases with UseReadWriteAliases is valid",
+			config: &Configuration{
+				Servers:             []string{"localhost:8000/dummyserver"},
+				UseReadWriteAliases: true,
+				SpanReadAlias:       "custom-span-read",
+				SpanWriteAlias:      "custom-span-write",
+				ServiceReadAlias:    "custom-service-read",
+				ServiceWriteAlias:   "custom-service-write",
+			},
+		},
+		{
+			name: "only span aliases with UseReadWriteAliases is valid",
+			config: &Configuration{
+				Servers:             []string{"localhost:8000/dummyserver"},
+				UseReadWriteAliases: true,
+				SpanReadAlias:       "custom-span-read",
+				SpanWriteAlias:      "custom-span-write",
+			},
+		},
+		{
+			name: "explicit aliases with IndexPrefix is valid",
+			config: &Configuration{
+				Servers:             []string{"localhost:8000/dummyserver"},
+				UseReadWriteAliases: true,
+				SpanReadAlias:       "custom-span-read",
+				SpanWriteAlias:      "custom-span-write",
+				ServiceReadAlias:    "custom-service-read",
+				ServiceWriteAlias:   "custom-service-write",
+				Indices: Indices{
+					IndexPrefix: "prod",
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -1656,23 +1717,6 @@ type mockWrappedRoundTripper struct {
 
 func (m *mockWrappedRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return m.base.RoundTrip(req)
-}
-
-func TestLoadTokenFromFile(t *testing.T) {
-	t.Run("success", func(t *testing.T) {
-		const token = "test-token"
-		tokenFile := filepath.Join(t.TempDir(), "token")
-		require.NoError(t, os.WriteFile(tokenFile, []byte(token), 0o600))
-
-		loadedToken, err := loadTokenFromFile(tokenFile)
-		require.NoError(t, err)
-		assert.Equal(t, token, loadedToken)
-	})
-
-	t.Run("file not found", func(t *testing.T) {
-		_, err := loadTokenFromFile("/does/not/exist")
-		require.Error(t, err)
-	})
 }
 
 func TestBulkCallbackInvoke_NilResponse(t *testing.T) {

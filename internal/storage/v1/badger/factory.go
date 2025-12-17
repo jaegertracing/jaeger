@@ -7,14 +7,12 @@ import (
 	"context"
 	"errors"
 	"expvar"
-	"flag"
 	"io"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
-	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/distributedlock"
@@ -39,7 +37,6 @@ const (
 var ( // interface comformance checks
 	_ storage.Factory              = (*Factory)(nil)
 	_ io.Closer                    = (*Factory)(nil)
-	_ storage.Configurable         = (*Factory)(nil)
 	_ storage.Purger               = (*Factory)(nil)
 	_ storage.SamplingStoreFactory = (*Factory)(nil)
 )
@@ -77,22 +74,6 @@ func NewFactory() *Factory {
 		Config:          DefaultConfig(),
 		maintenanceDone: make(chan bool),
 	}
-}
-
-// AddFlags implements storage.Configurable
-func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
-	f.Config.AddFlags(flagSet)
-}
-
-// InitFromViper implements storage.Configurable
-func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
-	f.Config.InitFromViper(v, logger)
-	f.configure(f.Config)
-}
-
-// configure initializes Factory from supplied Config.
-func (f *Factory) configure(config *Config) {
-	f.Config = config
 }
 
 // Initialize implements storage.Factory

@@ -40,6 +40,7 @@ ALL_SRC = $(shell find . -name '*.go' \
 # All .sh or .py or Makefile or .mk files that should be auto-formatted and linted.
 SCRIPTS_SRC = $(shell find . \( -name '*.sh' -o -name '*.py' -o -name '*.mk' -o -name 'Makefile*' -o -name 'Dockerfile*' \) \
 						-not -path './.git/*' \
+						-not -path './vendor/*' \
 						-not -path './idl/*' \
 						-not -path './jaeger-ui/*' \
 						-type f | \
@@ -79,7 +80,6 @@ COLORIZE ?= | $(SED) 's/PASS/✅ PASS/g' | $(SED) 's/FAIL/❌ FAIL/g' | $(SED) '
 
 include scripts/makefiles/BuildBinaries.mk
 include scripts/makefiles/BuildInfo.mk
-include scripts/makefiles/Crossdock.mk
 include scripts/makefiles/Docker.mk
 include scripts/makefiles/IntegrationTests.mk
 include scripts/makefiles/Protobuf.mk
@@ -92,13 +92,9 @@ include scripts/makefiles/Windows.mk
 .PHONY: test-and-lint
 test-and-lint: test fmt lint
 
-.PHONY: echo-v1
-echo-v1:
-	@echo "$(GIT_CLOSEST_TAG_V1)"
-
-.PHONY: echo-v2
-echo-v2:
-	@echo "$(GIT_CLOSEST_TAG_V2)"
+.PHONY: echo-version
+echo-version:
+	@echo "$(GIT_CLOSEST_TAG)"
 
 .PHONY: echo-platforms
 echo-platforms:
