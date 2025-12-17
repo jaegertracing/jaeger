@@ -57,5 +57,30 @@ services:
             - JAEGER_COLLECTOR_HC_HOST_PORT=jaeger-collector:${JAEGER_COLLECTOR_HC_PORT}
             - JAEGER_COLLECTOR_HOST_PORT=jaeger-collector:${JAEGER_COLLECTOR_HOST_PORT}
         depends_on:
-            - jaeger-query
-            - jaeger-collector
+            - jaeger
+
+    jaeger-remote-storage:
+      image: cr.jaegertracing.io/jaegertracing/jaeger-remote-storage
+      command:
+        - "--log-level=debug"
+      environment:
+        - SPAN_STORAGE_TYPE=memory
+      ports:
+        - "17271:17271"
+
+    jaeger:
+      image: cr.jaegertracing.io/jaegertracing/jaeger
+      volumes:
+        - ./jaeger-grpc-storage.yaml:/etc/jaeger/config.yaml
+      command:
+        - "--config=/etc/jaeger/config.yaml"
+      ports:
+        - "16686:16686"
+        - "16687"
+        - "14269"
+        - "14268:14268"
+        - "14250"
+        - "9411:9411"
+      restart: on-failure
+      depends_on:
+        - jaeger-remote-storage
