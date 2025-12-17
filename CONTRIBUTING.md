@@ -103,6 +103,7 @@ github.com/jaegertracing/jaeger
     tracegen/               - Utility to generate a steady flow of simple traces
     es-index-cleaner/       - Utility to purge old indices from Elasticsearch
     es-rollover/            - Utility to manage Elastic Search indices
+  crossdock/                - Cross-repo integration test configuration
   examples/
     grafana-integration/    - Demo application that combine Jaeger, Grafana, Loki, Prometheus to demonstrate logs, metrics and traces correlation
     hotrod/                 - Demo application that demonstrates the use of tracing instrumentation

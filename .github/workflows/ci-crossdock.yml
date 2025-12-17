@@ -1,0 +1,54 @@
+name: CIT Crossdock
+
+on:
+  merge_group:
+  push:
+    branches: [main]
+
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
+  cancel-in-progress: true
+
+# See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
+permissions:
+  contents: read
+
+jobs:
+  crossdock:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+
+    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      with:
+        submodules: true
+
+    - name: Fetch git tags
+      run: |
+        git fetch --prune --unshallow --tags
+
+    - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+      with:
+        go-version: 1.25.x
+
+    - uses: ./.github/actions/setup-branch
+
+    - run: make install-ci
+
+    - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+
+    - name: Build, test, and publish crossdock image
+      run: bash scripts/build/build-crossdock.sh
+      env:
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+
+    - name: Output crossdock logs
+      run: make crossdock-logs
+      if: ${{ failure() }}
