@@ -30,11 +30,11 @@ func TestBlacklistFilter(t *testing.T) {
 	for _, test := range tt {
 		var inputKVs []KeyValue
 		for _, i := range test.input {
-			inputKVs = append(inputKVs, KeyValue{Key: i, ValueType: stringType, ValueString: ""})
+			inputKVs = append(inputKVs, KeyValue{Key: i, ValueType: StringType, ValueString: ""})
 		}
 		var expectedKVs []KeyValue
 		for _, e := range test.expected {
-			expectedKVs = append(expectedKVs, KeyValue{Key: e, ValueType: stringType, ValueString: ""})
+			expectedKVs = append(expectedKVs, KeyValue{Key: e, ValueType: StringType, ValueString: ""})
 		}
 		SortKVs(expectedKVs)
 
@@ -78,11 +78,11 @@ func TestWhitelistFilter(t *testing.T) {
 	for _, test := range tt {
 		var inputKVs []KeyValue
 		for _, i := range test.input {
-			inputKVs = append(inputKVs, KeyValue{Key: i, ValueType: stringType, ValueString: ""})
+			inputKVs = append(inputKVs, KeyValue{Key: i, ValueType: StringType, ValueString: ""})
 		}
 		var expectedKVs []KeyValue
 		for _, e := range test.expected {
-			expectedKVs = append(expectedKVs, KeyValue{Key: e, ValueType: stringType, ValueString: ""})
+			expectedKVs = append(expectedKVs, KeyValue{Key: e, ValueType: StringType, ValueString: ""})
 		}
 		SortKVs(expectedKVs)
 
