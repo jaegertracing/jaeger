@@ -50,7 +50,7 @@ if [ -d "jaeger-ui" ] && [ "$(ls -A jaeger-ui)" ]; then
         git checkout "${UI_VERSION}"
     else
         echo "Warning: UI version ${UI_VERSION} not found"
-        read -p "Enter UI version to use (or Enter to skip): " UI_INPUT
+        read -r -p "Enter UI version to use (or Enter to skip): " UI_INPUT
         if [ -n "$UI_INPUT" ]; then
             git checkout "$UI_INPUT"
         else
