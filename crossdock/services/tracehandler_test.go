@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-client-go"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/crossdock/services/mocks"
@@ -32,10 +31,10 @@ var testTrace = ui.Trace{
 
 func TestCreateTraceRequest(t *testing.T) {
 	handler := NewTraceHandler(nil, nil, zap.NewNop())
-	req := handler.createTraceRequest(jaeger.SamplerTypeConst, "op", 23)
+	req := handler.createTraceRequest(samplerTypeConst, "op", 23)
 	assert.Equal(t, "op", req.Operation)
 	assert.Equal(t, 23, req.Count)
-	assert.Equal(t, jaeger.SamplerTypeConst, req.Type)
+	assert.Equal(t, samplerTypeConst, req.Type)
 	assert.Len(t, req.Tags, 1)
 }
 
