@@ -70,7 +70,7 @@ func TestUDTTestCase(t *testing.T) {
 		},
 		{
 			// Type is omitted (zero value), should default to TypeVarchar
-			Name:  "InvalidFieldTyep",
+			Name:  "InvalidFieldType",
 			ValIn: []byte("test"),
 			Err:   true,
 		},
