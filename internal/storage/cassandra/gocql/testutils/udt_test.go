@@ -6,7 +6,7 @@ package testutils_test
 import (
 	"testing"
 
-	"github.com/gocql/gocql"
+	gocql "github.com/apache/cassandra-gocql-driver/v2"
 
 	gocqlutils "github.com/jaegertracing/jaeger/internal/storage/cassandra/gocql/testutils"
 	"github.com/jaegertracing/jaeger/internal/testutils"

@@ -6,9 +6,8 @@ package testutils
 
 import (
 	"testing"
-	"unsafe"
 
-	"github.com/gocql/gocql"
+	gocql "github.com/apache/cassandra-gocql-driver/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,17 +33,13 @@ func (testCase UDTTestCase) Run(t *testing.T) {
 	for _, ff := range testCase.Fields {
 		field := ff // capture loop var
 		t.Run(testCase.ObjName+"-"+field.Name, func(t *testing.T) {
-			// To test MarshalUDT we need a gocql.NativeType struct whose fields private.
-			// Instead we create a structural copy that we cast to gocql.NativeType using unsafe.Pointer
-			nt := struct {
-				proto byte
-				typ   gocql.Type
-				_     string
-			}{
-				proto: 0x03,
-				typ:   field.Type,
+			// Create TypeInfo using NewNativeType
+			// For error test cases with invalid type, use TypeVarchar as a default
+			fieldType := field.Type
+			if fieldType == 0 {
+				fieldType = gocql.TypeVarchar
 			}
-			typeInfo := *(*gocql.NativeType)(unsafe.Pointer(&nt)) /* nolint #nosec */
+			typeInfo := gocql.NewNativeType(0x03, fieldType, "")
 			data, err := testCase.Obj.MarshalUDT(field.Name, typeInfo)
 			if field.Err {
 				require.Error(t, err)

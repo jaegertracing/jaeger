@@ -5,7 +5,7 @@
 package gocql
 
 import (
-	"github.com/gocql/gocql"
+	gocql "github.com/apache/cassandra-gocql-driver/v2"
 
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
 )
