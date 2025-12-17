@@ -93,9 +93,8 @@ def parse_metrics(content):
     for family in text_string_to_metric_families(content):
         for sample in family.samples:
             labels = dict(sample.labels)
-            
-            should_exclude= should_exclude_metric(sample.name, labels)
-            if should_exclude:
+
+            if should_exclude_metric(sample.name, labels):
                 continue
 
             labels.pop('service_instance_id', None)
