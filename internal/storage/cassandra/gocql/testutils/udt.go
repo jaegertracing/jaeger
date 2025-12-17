@@ -34,12 +34,7 @@ func (testCase UDTTestCase) Run(t *testing.T) {
 		field := ff // capture loop var
 		t.Run(testCase.ObjName+"-"+field.Name, func(t *testing.T) {
 			// Create TypeInfo using NewNativeType
-			// For error test cases with invalid type, use TypeVarchar as a default
-			fieldType := field.Type
-			if fieldType == 0 {
-				fieldType = gocql.TypeVarchar
-			}
-			typeInfo := gocql.NewNativeType(0x03, fieldType, "")
+			typeInfo := gocql.NewNativeType(0x03, field.Type, "")
 			data, err := testCase.Obj.MarshalUDT(field.Name, typeInfo)
 			if field.Err {
 				require.Error(t, err)
