@@ -1,48 +1,65 @@
 {
-  "spans": [
+  "resourceSpans": [
     {
-      "traceId": "AAAAAAAAAAAAAAAAAAAABA==",
-      "spanId": "AAAAAAAAAAE=",
-      "operationName": "placeholder",
-      "references": [],
-      "startTime": "2017-01-26T16:46:31.639875Z",
-      "duration": "5000ns",
-      "tags": [
-        {
-          "key": "sameplacetag4",
-          "vType": "BOOL",
-          "vBool": true
-        },
-        {
-          "key": "sameplacetag3",
-          "vType": "FLOAT64",
-          "vFloat64": 72.5
-        }
-      ],
-      "process": {
-        "serviceName": "query04-service",
-        "tags": [
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "query04-service"
+            }
+          },
           {
             "key": "sameplacetag1",
-            "vType": "STRING",
-            "vStr": "sameplacevalue"
+            "value": {
+              "stringValue": "sameplacevalue"
+            }
           }
         ]
       },
-      "logs": [
+      "scopeSpans": [
         {
-          "timestamp": "2017-01-26T16:46:31.639875Z",
-          "fields": [
+          "scope": {},
+          "spans": [
             {
-              "key": "sameplacetag2",
-              "vType": "INT64",
-              "vInt64": 123
+              "traceId": "00000000000000000000000000000004",
+              "spanId": "0000000000000001",
+              "name": "placeholder",
+              "startTimeUnixNano": "1485449191639875000",
+              "endTimeUnixNano": "1485449191639880000",
+              "attributes": [
+                {
+                  "key": "sameplacetag4",
+                  "value": {
+                    "boolValue": true
+                  }
+                },
+                {
+                  "key": "sameplacetag3",
+                  "value": {
+                    "doubleValue": 72.5
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1485449191639875000",
+                  "attributes": [
+                    {
+                      "key": "sameplacetag2",
+                      "value": {
+                        "intValue": 123
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1485449191639875000"
+                }
+              ],
+              "status": {}
             }
           ]
-        },
-        {
-          "timestamp": "2017-01-26T16:46:31.639875Z",
-          "fields": []
         }
       ]
     }

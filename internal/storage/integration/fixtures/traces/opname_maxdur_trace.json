@@ -1,45 +1,46 @@
 {
-  "spans": [
+  "resourceSpans": [
     {
-      "traceId": "AAAAAAAAAAAAAAAAAAAABw==",
-      "spanId": "AAAAAAAAAAM=",
-      "operationName": "query07-operation",
-      "tags": [],
-      "references": [
-        {
-          "refType": "CHILD_OF",
-          "traceId": "AAAAAAAAAAAAAAAAAAAABw==",
-          "spanId": "AAAAAAAAAAI="
-        }
-      ],
-      "startTime": "2017-01-26T16:46:31.639875Z",
-      "duration": "1000ns",
-      "process": {
-        "serviceName": "query07-service",
-        "tags": []
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "query07-service"
+            }
+          }
+        ]
       },
-      "logs": []
-    },
-    {
-      "traceId": "AAAAAAAAAAAAAAAAAAAABw==",
-      "spanId": "AAAAAAAAAAI=",
-      "operationName": "query07-operation",
-      "references": [],
-      "startTime": "2017-01-26T16:46:31.639875Z",
-      "duration": "2000ns",
-      "tags": [],
-      "process": {
-        "serviceName": "query07-service",
-        "tags": []
-      },
-      "logs": [
+      "scopeSpans": [
         {
-          "timestamp": "2017-01-26T16:46:31.639875Z",
-          "fields": []
-        },
-        {
-          "timestamp": "2017-01-26T16:46:31.639875Z",
-          "fields": []
+          "scope": {},
+          "spans": [
+            {
+              "traceId": "00000000000000000000000000000007",
+              "spanId": "0000000000000003",
+              "parentSpanId": "0000000000000002",
+              "name": "query07-operation",
+              "startTimeUnixNano": "1485449191639875000",
+              "endTimeUnixNano": "1485449191639876000",
+              "status": {}
+            },
+            {
+              "traceId": "00000000000000000000000000000007",
+              "spanId": "0000000000000002",
+              "name": "query07-operation",
+              "startTimeUnixNano": "1485449191639875000",
+              "endTimeUnixNano": "1485449191639877000",
+              "events": [
+                {
+                  "timeUnixNano": "1485449191639875000"
+                },
+                {
+                  "timeUnixNano": "1485449191639875000"
+                }
+              ],
+              "status": {}
+            }
+          ]
         }
       ]
     }

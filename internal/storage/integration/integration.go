@@ -552,17 +552,29 @@ func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
 	return trace
 }
 
-// getTraceFixtureV1 returns v1 model.Trace for comparison purposes
-func (*StorageIntegration) getTraceFixtureV1(t *testing.T, fixture string) *model.Trace {
-	fileName := fmt.Sprintf("fixtures/traces/%s.json", fixture)
-	return getTraceFixtureExact(t, fileName)
-}
-
 // getTraceFixture returns OTLP traces ready for v2 API
 func (s *StorageIntegration) getTraceFixture(t *testing.T, fixture string) ptrace.Traces {
-	v1Trace := s.getTraceFixtureV1(t, fixture)
-	return v1adapter.V1TraceToOtelTrace(v1Trace)
+    return loadOTLPFixture(t, fixture)
 }
+
+// getTraceFixtureV1 returns v1 model.Trace for comparison purposes
+func (s *StorageIntegration) getTraceFixtureV1(t *testing.T, fixture string) *model.Trace {
+    // Load OTLP fixture
+    otelTraces := loadOTLPFixture(t, fixture)
+    
+    // Create an iterator that yields the single trace
+    iter := func(yield func([]ptrace.Traces, error) bool) {
+        yield([]ptrace.Traces{otelTraces}, nil)
+    }
+    
+    // Use V1TracesFromSeq2 to convert
+    traces, err := v1adapter.V1TracesFromSeq2(iter)
+    require.NoError(t, err, "Failed to convert OTLP to v1 trace")
+    require.Len(t, traces, 1, "Expected exactly one trace in fixture")
+    
+    return traces[0]
+}
+
 
 func getTraceFixtureExact(t *testing.T, fileName string) *model.Trace {
 	var trace model.Trace

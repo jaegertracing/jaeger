@@ -1,47 +1,65 @@
 {
-  "spans": [
+  "resourceSpans": [
     {
-      "traceId": "AAAAAAAAAAAAAAAAAAAAFw==",
-      "spanId": "AAAAAAAAAAQ=",
-      "operationName": "query17-operation",
-      "references": [],
-      "startTime": "2017-01-26T16:46:31.639875Z",
-      "duration": "5000ns",
-      "tags": [
-        {
-          "key": "sameplacetag3",
-          "vType": "FLOAT64",
-          "vFloat64": 72.5
-        }
-      ],
-      "process": {
-        "serviceName": "query17-service",
-        "tags": [
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "query17-service"
+            }
+          },
           {
             "key": "sameplacetag1",
-            "vType": "STRING",
-            "vStr": "sameplacevalue"
+            "value": {
+              "stringValue": "sameplacevalue"
+            }
           }
         ]
       },
-      "logs": [
+      "scopeSpans": [
         {
-          "timestamp": "2017-01-26T16:46:31.639875Z",
-          "fields": [
+          "scope": {},
+          "spans": [
             {
-              "key": "sameplacetag2",
-              "vType": "INT64",
-              "vInt64": 123
-            }
-          ]
-        },
-        {
-          "timestamp": "2017-01-26T16:46:31.639875Z",
-          "fields": [
-            {
-              "key": "sameplacetag4",
-              "vType": "BOOL",
-              "vBool": true
+              "traceId": "00000000000000000000000000000017",
+              "spanId": "0000000000000004",
+              "name": "query17-operation",
+              "startTimeUnixNano": "1485449191639875000",
+              "endTimeUnixNano": "1485449191639880000",
+              "attributes": [
+                {
+                  "key": "sameplacetag3",
+                  "value": {
+                    "doubleValue": 72.5
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1485449191639875000",
+                  "attributes": [
+                    {
+                      "key": "sameplacetag2",
+                      "value": {
+                        "intValue": 123
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1485449191639875000",
+                  "attributes": [
+                    {
+                      "key": "sameplacetag4",
+                      "value": {
+                        "boolValue": true
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {}
             }
           ]
         }

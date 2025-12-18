@@ -5,7 +5,9 @@
         "attributes": [
           {
             "key": "service.name",
-            "value": { "stringValue": "otlp-link-test-service" }
+            "value": {
+              "stringValue": "otlp-link-test-service"
+            }
           }
         ]
       },
@@ -30,11 +32,14 @@
                   "attributes": [
                     {
                       "key": "link.attribute.key",
-                      "value": { "stringValue": "link-value" }
+                      "value": {
+                        "stringValue": "link-value"
+                      }
                     }
                   ]
                 }
-              ]
+              ],
+              "status": {}
             }
           ]
         }

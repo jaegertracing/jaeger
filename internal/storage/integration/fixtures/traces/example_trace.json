@@ -1,125 +1,141 @@
 {
-  "spans": [
+  "resourceSpans": [
     {
-      "traceId": "AAAAAAAAAAAAAAAAAAAAEQ==",
-      "spanId": "AAAAAAAAAAM=",
-      "operationName": "example-operation-1",
-      "references": [],
-      "startTime": "2017-01-26T16:46:31.639875Z",
-      "duration": "100000ns",
-      "tags": [],
-      "process": {
-        "serviceName": "example-service-1",
-        "tags": []
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "example-service-1"
+            }
+          }
+        ]
       },
-      "logs": [
+      "scopeSpans": [
         {
-          "timestamp": "2017-01-26T16:46:31.639875Z",
-          "fields": []
-        },
-        {
-          "timestamp": "2017-01-26T16:46:31.639875Z",
-          "fields": []
+          "scope": {},
+          "spans": [
+            {
+              "traceId": "00000000000000000000000000000011",
+              "spanId": "0000000000000003",
+              "name": "example-operation-1",
+              "startTimeUnixNano": "1485449191639875000",
+              "endTimeUnixNano": "1485449191639975000",
+              "events": [
+                {
+                  "timeUnixNano": "1485449191639875000"
+                },
+                {
+                  "timeUnixNano": "1485449191639875000"
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "00000000000000000000000000000011",
+              "spanId": "0000000000000006",
+              "name": "example-operation-3",
+              "kind": 2,
+              "startTimeUnixNano": "1485449191639875000",
+              "endTimeUnixNano": "1485449191639975000",
+              "events": [
+                {
+                  "timeUnixNano": "1485449191639875000"
+                },
+                {
+                  "timeUnixNano": "1485449191639875000"
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "00000000000000000000000000000011",
+              "spanId": "0000000000000007",
+              "name": "example-operation-4",
+              "kind": 3,
+              "startTimeUnixNano": "1485449191639875000",
+              "endTimeUnixNano": "1485449191639975000",
+              "events": [
+                {
+                  "timeUnixNano": "1485449191639875000"
+                },
+                {
+                  "timeUnixNano": "1485449191639875000"
+                }
+              ],
+              "status": {}
+            }
+          ]
         }
       ]
     },
     {
-      "traceId": "AAAAAAAAAAAAAAAAAAAAEQ==",
-      "spanId": "AAAAAAAAAAQ=",
-      "operationName": "example-operation-2",
-      "references": [],
-      "startTime": "2017-01-26T16:46:31.639875Z",
-      "duration": "100000ns",
-      "tags": [],
-      "process": {
-        "serviceName": "example-service-2",
-        "tags": []
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "example-service-2"
+            }
+          }
+        ]
       },
-      "logs": [
+      "scopeSpans": [
         {
-          "timestamp": "2017-01-26T16:46:31.639875Z",
-          "fields": []
-        },
-        {
-          "timestamp": "2017-01-26T16:46:31.639875Z",
-          "fields": []
+          "scope": {},
+          "spans": [
+            {
+              "traceId": "00000000000000000000000000000011",
+              "spanId": "0000000000000004",
+              "name": "example-operation-2",
+              "startTimeUnixNano": "1485449191639875000",
+              "endTimeUnixNano": "1485449191639975000",
+              "events": [
+                {
+                  "timeUnixNano": "1485449191639875000"
+                },
+                {
+                  "timeUnixNano": "1485449191639875000"
+                }
+              ],
+              "status": {}
+            }
+          ]
         }
       ]
     },
     {
-      "traceId": "AAAAAAAAAAAAAAAAAAAAEQ==",
-      "spanId": "AAAAAAAAAAU=",
-      "operationName": "example-operation-1",
-      "references": [],
-      "startTime": "2017-01-26T16:46:31.639875Z",
-      "duration": "100000ns",
-      "tags": [],
-      "process": {
-        "serviceName": "example-service-3",
-        "tags": []
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "example-service-3"
+            }
+          }
+        ]
       },
-      "logs": [
+      "scopeSpans": [
         {
-          "timestamp": "2017-01-26T16:46:31.639875Z",
-          "fields": []
-        },
-        {
-          "timestamp": "2017-01-26T16:46:31.639875Z",
-          "fields": []
-        }
-      ]
-    },
-    {
-      "traceId": "AAAAAAAAAAAAAAAAAAAAEQ==",
-      "spanId": "AAAAAAAAAAY=",
-      "operationName": "example-operation-3",
-      "references": [],
-      "startTime": "2017-01-26T16:46:31.639875Z",
-      "duration": "100000ns",
-      "tags": [{
-        "key": "span.kind",
-        "vType": "STRING",
-        "vStr": "server"
-      }],
-      "process": {
-        "serviceName": "example-service-1",
-        "tags": []
-      },
-      "logs": [
-        {
-          "timestamp": "2017-01-26T16:46:31.639875Z",
-          "fields": []
-        },
-        {
-          "timestamp": "2017-01-26T16:46:31.639875Z",
-          "fields": []
-        }
-      ]
-    },
-    {
-      "traceId": "AAAAAAAAAAAAAAAAAAAAEQ==",
-      "spanId": "AAAAAAAAAAc=",
-      "operationName": "example-operation-4",
-      "references": [],
-      "startTime": "2017-01-26T16:46:31.639875Z",
-      "duration": "100000ns",
-      "tags": [{
-        "key": "span.kind",
-        "vType": "STRING",
-        "vStr": "client"
-      }],
-      "process": {
-        "serviceName": "example-service-1",
-        "tags": []
-      },
-      "logs": [
-        {
-          "timestamp": "2017-01-26T16:46:31.639875Z",
-          "fields": []
-        },
-        {
-          "timestamp": "2017-01-26T16:46:31.639875Z",
-          "fields": []
+          "scope": {},
+          "spans": [
+            {
+              "traceId": "00000000000000000000000000000011",
+              "spanId": "0000000000000005",
+              "name": "example-operation-1",
+              "startTimeUnixNano": "1485449191639875000",
+              "endTimeUnixNano": "1485449191639975000",
+              "events": [
+                {
+                  "timeUnixNano": "1485449191639875000"
+                },
+                {
+                  "timeUnixNano": "1485449191639875000"
+                }
+              ],
+              "status": {}
+            }
+          ]
         }
       ]
     }

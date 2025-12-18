@@ -5,7 +5,9 @@
         "attributes": [
           {
             "key": "service.name",
-            "value": { "stringValue": "otlp-test-service" }
+            "value": {
+              "stringValue": "otlp-test-service"
+            }
           }
         ]
       },
@@ -17,7 +19,9 @@
             "attributes": [
               {
                 "key": "scope.attribute.key",
-                "value": { "stringValue": "scope-value" }
+                "value": {
+                  "stringValue": "scope-value"
+                }
               }
             ]
           },
@@ -32,9 +36,12 @@
               "attributes": [
                 {
                   "key": "span.attribute",
-                  "value": { "stringValue": "test-value" }
+                  "value": {
+                    "stringValue": "test-value"
+                  }
                 }
-              ]
+              ],
+              "status": {}
             }
           ]
         }
