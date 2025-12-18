@@ -36,7 +36,6 @@ METRIC_EXCLUSION_RULES = {
     
 }
 
-
 def should_exclude_metric(metric_name, labels):
     """
     Determines if a metric should be excluded from comparison based on configured rules.
@@ -56,8 +55,6 @@ def should_exclude_metric(metric_name, labels):
             pattern = rule_config['pattern']
             if label in labels and re.match(pattern, labels[label]):
                 return True
-                
-    
     return False
 
 
@@ -90,12 +87,13 @@ def read_metric_file(file_path):
     
 def parse_metrics(content):
     metrics = []
+    metrics_exclusion_count = 0
     for family in text_string_to_metric_families(content):
         for sample in family.samples:
             labels = dict(sample.labels)
 
             if should_exclude_metric(sample.name, labels):
-                continue
+                metrics_exclusion_count += 1
 
             labels.pop('service_instance_id', None)
             labels = suppress_transient_labels(sample.name, labels)
@@ -105,7 +103,7 @@ def parse_metrics(content):
             metric = f"{family.name}{{{label_str}}}"
             insort(metrics , metric)
         
-    return metrics
+    return metrics,metrics_exclusion_count
 
 
 def generate_diff(file1_content, file2_content):
@@ -114,12 +112,12 @@ def generate_diff(file1_content, file2_content):
     if isinstance(file2_content, list):
         file2_content = ''.join(file2_content)
 
-    metrics1 = parse_metrics(file1_content)
-    metrics2 = parse_metrics(file2_content)
+    metrics1,excluded_metrics_count1 = parse_metrics(file1_content)
+    metrics2,excluded_metrics_count2 = parse_metrics(file2_content)
 
     diff = unified_diff(metrics1, metrics2,lineterm='',n=0)
     
-    return '\n'.join(diff)
+    return '\n'.join(diff)+'\n'+ str(excluded_metrics_count1+excluded_metrics_count2)
 
 def write_diff_file(diff_lines, output_path):
     

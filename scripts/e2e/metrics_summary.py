@@ -21,7 +21,7 @@ def parse_metrics(content):
 def parse_diff_file(diff_path):
     """
     Parses a unified diff file and categorizes changes into added, removed, and modified metrics.
-    Also captures the raw diff sections for each metric.
+    Also captures the raw diff sections for each metric and the exclusion count.
     """
     changes = {
         'added': defaultdict(list),
@@ -31,6 +31,7 @@ def parse_diff_file(diff_path):
 
     # Store raw diff sections for each metric - just collect all lines related to each metric
     raw_diff_sections = defaultdict(list)
+    exclusion_count = 0
 
     with open(diff_path, 'r') as f:
         lines = f.readlines()
@@ -41,6 +42,9 @@ def parse_diff_file(diff_path):
         original_line = line.rstrip()
         stripped = line.strip()
 
+        if stripped.isdigit() and current_metric is None:
+            exclusion_count = int(stripped)
+            continue
         # Skip diff headers
         if stripped.startswith('+++') or stripped.startswith('---'):
             continue
@@ -75,7 +79,7 @@ def parse_diff_file(diff_path):
             'removed': changes['removed'].pop(metric)
         }
 
-    return changes, raw_diff_sections
+    return changes, raw_diff_sections, exclusion_count
 
 def extract_metric_name(line):
     """Extracts metric name from a metric line, matching the diff generation format"""
@@ -97,7 +101,7 @@ def get_raw_diff_sample(raw_lines, max_lines=7):
 
     return sample_lines
 
-def generate_diff_summary(changes, raw_diff_sections):
+def generate_diff_summary(changes, raw_diff_sections, exclusion_count):
     """
     Generates a markdown summary from the parsed diff changes with raw diff samples.
     """
@@ -111,7 +115,8 @@ def generate_diff_summary(changes, raw_diff_sections):
     summary.append(f"**Total Changes:** {total_added + total_removed + total_modified}\n")
     summary.append(f"- 🆕 Added: {total_added} metrics")
     summary.append(f"- ❌ Removed: {total_removed} metrics")
-    summary.append(f"- 🔄 Modified: {total_modified} metrics\n")
+    summary.append(f"- 🔄 Modified: {total_modified} metrics")
+    summary.append(f"- 🚫 Excluded: {exclusion_count} metrics\n")
 
     # Added metrics
     if changes['added']:
@@ -170,15 +175,16 @@ def main():
 
     args = parser.parse_args()
 
-    changes, raw_diff_sections = parse_diff_file(args.diff)
-    summary = generate_diff_summary(changes, raw_diff_sections)
+    changes, raw_diff_sections, exclusion_count = parse_diff_file(args.diff)
+    summary = generate_diff_summary(changes, raw_diff_sections, exclusion_count)
 
     with open(args.output, 'w') as f:
         f.write(summary)
 
     print(f"Generated diff summary with {len(changes['added'])} additions, "
-          f"{len(changes['removed'])} removals and "
-          f"{len(changes['modified'])} modifications")
+          f"{len(changes['removed'])} removals, "
+          f"{len(changes['modified'])} modifications and "
+          f"{exclusion_count} exclusions")
     print(f"Summary saved to {args.output}")
 
 if __name__ == '__main__':
