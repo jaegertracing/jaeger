@@ -1,14 +1,34 @@
 # Jaeger Overall Release Process
 
-Create an issue with the checklist for the release by running `bash scripts/release/start.sh`.
+## Start Here: Create Release Issue
 
-1. Determine new version numbers for v1.x.x and v2.x.x
-2. Perform UI release according to https://github.com/jaegertracing/jaeger-ui/blob/main/RELEASE.md
-3. Perform Backend release (see below)
-4. [Publish documentation](https://github.com/jaegertracing/documentation/blob/main/RELEASE.md) for the new version on `jaegertracing.io`.
+**This is the main entry point for the release process.**
+
+Run the following command to create a release issue with the full checklist:
+
+```bash
+bash scripts/release/start.sh
+```
+
+This script will:
+- Automatically determine the next version number (e.g., v2.14.0)
+- Create a GitHub issue with the complete release checklist
+- Include the exact automation commands with the correct version numbers
+
+Example output:
+```
+Current version: v2.13.0
+New version: v2.14.0
+```
+
+## Release Steps
+
+1. Perform UI release according to https://github.com/jaegertracing/jaeger-ui/blob/main/RELEASE.md
+2. Perform Backend release (see below)
+3. [Publish documentation](https://github.com/jaegertracing/documentation/blob/main/RELEASE.md) for the new version on `jaegertracing.io`.
    1. Check that [jaegertracing.io](https://www.jaegertracing.io/docs/latest) redirects to the new documentation release version URL.
    2. For monitoring and troubleshooting, refer to the [jaegertracing/documentation Github Actions tab](https://github.com/jaegertracing/documentation/actions).
-5. Announce the release on the [mailing list](https://groups.google.com/g/jaeger-tracing), [slack](https://cloud-native.slack.com/archives/CGG7NFUJ3), and [twitter](https://twitter.com/JaegerTracing?lang=en).
+4. Announce the release on the [mailing list](https://groups.google.com/g/jaeger-tracing), [slack](https://cloud-native.slack.com/archives/CGG7NFUJ3), and [twitter](https://twitter.com/JaegerTracing?lang=en).
 
 # Jaeger Backend Release Process
 
@@ -53,7 +73,7 @@ Create an issue with the checklist for the release by running `bash scripts/rele
    and run it manually using Run Workflow button on the right.
    1. For monitoring and troubleshooting, open the logs of the workflow run from above URL.
    2. Check the images are available on [Docker Hub](https://hub.docker.com/r/jaegertracing/)
-      and binaries are uploaded [to the release]()https://github.com/jaegertracing/jaeger/releases.
+      and binaries are uploaded [to the release](https://github.com/jaegertracing/jaeger/releases)
 
 <!-- END_CHECKLIST -->
 

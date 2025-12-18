@@ -3,6 +3,25 @@
 # Copyright (c) 2025 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
+# This script automates the Jaeger release preparation process.
+# It creates a pull request with all the changes necessary for release:
+#   1. Update CHANGELOG.md with the new version and auto-generated release notes.
+#   2. Update the jaeger-ui submodule to the corresponding version
+#   3. Rotate the release managers table in RELEASE.md
+#   4. Create a PR with the 'changelog:skip' label
+#   5. Include exact tag commands in the PR description for post-merge execution.
+#
+# Use:
+#   bash scripts/release/prepare.sh <version>
+#   OR
+#   make prepare-release VERSION=<version>
+#
+# Example:
+#   bash scripts/release/prepare.sh 2.14.0
+#   make prepare-release VERSION=2.14.0
+#
+# After the PR is merged, follow the tag commands in the PR description.
+
 set -euo pipefail
 
 for tool in gh git python3; do
@@ -23,6 +42,7 @@ VERSION="${VERSION#v}"
 
 echo "Preparing release for v${VERSION}"
 
+# Verify we are on main branch
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 if [ "$CURRENT_BRANCH" != "main" ]; then
     echo "Warning: Not on main branch (current: ${CURRENT_BRANCH})"
@@ -35,9 +55,11 @@ fi
 
 git fetch origin
 
+# Create a new branch
 BRANCH_NAME="prepare-release-v${VERSION}"
 git checkout -b "${BRANCH_NAME}"
 
+# Update UI submodule
 echo "Updating UI submodule..."
 git submodule init
 git submodule update
@@ -46,9 +68,11 @@ UI_VERSION="v${VERSION}"
 if [ -d "jaeger-ui" ] && [ "$(ls -A jaeger-ui)" ]; then
     pushd jaeger-ui > /dev/null
     git fetch origin
+    # Try to checkout the matching UI version tag
     if git rev-parse "${UI_VERSION}" >/dev/null 2>&1; then
         git checkout "${UI_VERSION}"
     else
+        # UI version not found
         echo "Warning: UI version ${UI_VERSION} not found"
         read -r -p "Enter UI version to use (or Enter to skip): " UI_INPUT
         if [ -n "$UI_INPUT" ]; then
@@ -61,10 +85,12 @@ if [ -d "jaeger-ui" ] && [ "$(ls -A jaeger-ui)" ]; then
     git add jaeger-ui
 fi
 
+# Generate changelog entries and update CHANGELOG.md
 echo "Updating CHANGELOG.md..."
 RELEASE_DATE=$(date +%Y-%m-%d)
 CHANGELOG_CONTENT=$(python3 scripts/release/notes.py --exclude-dependabot 2>/dev/null || echo "")
 
+# Insert new version section into CHANGELOG.md
 python3 - <<EOF "$VERSION" "$RELEASE_DATE" "$CHANGELOG_CONTENT"
 import sys
 
@@ -147,6 +173,7 @@ if match:
         print("Rotated release managers table")
 EOF
 
+# Stage RELEASE.md if it was modified
 git diff --quiet RELEASE.md || git add RELEASE.md
 
 git commit -m "Prepare release v${VERSION}
@@ -182,6 +209,7 @@ make draft-release
 
 Trigger the [Publish Release](https://github.com/jaegertracing/jaeger/actions/workflows/ci-release.yml) workflow on GitHub."
 
+# Create the PR
 gh pr create \
     --title "Prepare release v${VERSION}" \
     --body "$PR_BODY" \
