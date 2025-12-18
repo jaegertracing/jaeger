@@ -45,9 +45,14 @@ func NewSchemaCreator(session cassandra.Session, schema config.Schema) *Creator 
 }
 
 func (sc *Creator) constructTemplateParams() templateParams {
+	replicationConfig := fmt.Sprintf("{'class': 'SimpleStrategy', 'replication_factor': '%d'}", sc.schema.ReplicationFactor)
+	if sc.schema.Datacenter != "" {
+		replicationConfig = fmt.Sprintf("{'class': 'NetworkTopologyStrategy', '%s': '%d' }", sc.schema.Datacenter, sc.schema.ReplicationFactor)
+	}
+
 	return templateParams{
 		Keyspace:                  sc.schema.Keyspace,
-		Replication:               fmt.Sprintf("{'class': 'NetworkTopologyStrategy', 'replication_factor': '%v' }", sc.schema.ReplicationFactor),
+		Replication:               replicationConfig,
 		CompactionWindowInMinutes: int64(sc.schema.CompactionWindow / time.Minute),
 		TraceTTLInSeconds:         int64(sc.schema.TraceTTL / time.Second),
 		DependenciesTTLInSeconds:  int64(sc.schema.DependenciesTTL / time.Second),

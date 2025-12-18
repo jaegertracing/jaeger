@@ -4,4 +4,4 @@ SELECT
 FROM
     spans
 GROUP BY
-    service_name
+    service_name;

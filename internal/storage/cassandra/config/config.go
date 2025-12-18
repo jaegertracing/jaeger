@@ -10,8 +10,9 @@ import (
 	"fmt"
 	"time"
 
+	gocql "github.com/apache/cassandra-gocql-driver/v2"
+	"github.com/apache/cassandra-gocql-driver/v2/snappy"
 	"github.com/asaskevich/govalidator"
-	"github.com/gocql/gocql"
 	"go.opentelemetry.io/collector/config/configtls"
 )
 
@@ -189,7 +190,7 @@ func (c *Configuration) NewCluster() (*gocql.ClusterConfig, error) {
 	}
 
 	if !c.Schema.DisableCompression {
-		cluster.Compressor = gocql.SnappyCompressor{}
+		cluster.Compressor = &snappy.SnappyCompressor{}
 	}
 
 	if c.Query.Consistency == "" {

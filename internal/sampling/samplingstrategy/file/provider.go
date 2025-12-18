@@ -6,7 +6,6 @@ package file
 import (
 	"bytes"
 	"context"
-	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -319,14 +318,4 @@ func (h *samplingProvider) parseStrategy(strategy *strategy) *api_v2.SamplingStr
 		h.logger.Warn("Failed to parse sampling strategy", zap.Any("strategy", strategy))
 		return defaultStrategyResponse(h.options.DefaultSamplingProbability)
 	}
-}
-
-func deepCopy(s *api_v2.SamplingStrategyResponse) *api_v2.SamplingStrategyResponse {
-	var buf bytes.Buffer
-	enc := gob.NewEncoder(&buf)
-	dec := gob.NewDecoder(&buf)
-	enc.Encode(*s)
-	var copyValue api_v2.SamplingStrategyResponse
-	dec.Decode(&copyValue)
-	return &copyValue
 }

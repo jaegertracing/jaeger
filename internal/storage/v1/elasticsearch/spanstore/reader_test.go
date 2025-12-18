@@ -165,6 +165,16 @@ func TestNewSpanReader(t *testing.T) {
 			},
 			maxSpanAge: time.Hour * 24 * 365 * 50,
 		},
+		{
+			name: "explicit read aliases with UseReadWriteAliases",
+			params: SpanReaderParams{
+				MaxSpanAge:          time.Hour * 72,
+				UseReadWriteAliases: true,
+				SpanReadAlias:       "production-traces-read",
+				ServiceReadAlias:    "production-services-read",
+			},
+			maxSpanAge: time.Hour * 24 * 365 * 50,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -243,6 +253,26 @@ func TestSpanReaderIndices(t *testing.T) {
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", UseReadWriteAliases: true, ReadAliasSuffix: "archive",
 			},
 			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + "archive", "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + "archive"},
+		},
+		{
+			params: SpanReaderParams{
+				SpanIndex:        spanIndexOpts,
+				ServiceIndex:     serviceIndexOpts,
+				SpanReadAlias:    "custom-span-read-alias",
+				ServiceReadAlias: "custom-service-read-alias",
+			},
+			indices: []string{"custom-span-read-alias", "custom-service-read-alias"},
+		},
+		{
+			params: SpanReaderParams{
+				SpanIndex:           spanIndexOpts,
+				ServiceIndex:        serviceIndexOpts,
+				IndexPrefix:         "foo:",
+				UseReadWriteAliases: true,
+				SpanReadAlias:       "production-traces-read",
+				ServiceReadAlias:    "production-services-read",
+			},
+			indices: []string{"production-traces-read", "production-services-read"},
 		},
 		{
 			params: SpanReaderParams{

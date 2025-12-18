@@ -3,10 +3,6 @@
 
 package dbmodel
 
-import (
-	"github.com/jaegertracing/jaeger-idl/model/v1"
-)
-
 // ExactMatchTagFilter filters out all tags in its tags slice
 type ExactMatchTagFilter struct {
 	tags        map[string]struct{}
@@ -38,22 +34,22 @@ func NewWhitelistFilter(tags []string) ExactMatchTagFilter {
 }
 
 // FilterProcessTags implements TagFilter
-func (tf ExactMatchTagFilter) FilterProcessTags(_ *model.Span, processTags model.KeyValues) model.KeyValues {
+func (tf ExactMatchTagFilter) FilterProcessTags(_ *Span, processTags []KeyValue) []KeyValue {
 	return tf.filter(processTags)
 }
 
 // FilterTags implements TagFilter
-func (tf ExactMatchTagFilter) FilterTags(_ *model.Span, tags model.KeyValues) model.KeyValues {
+func (tf ExactMatchTagFilter) FilterTags(_ *Span, tags []KeyValue) []KeyValue {
 	return tf.filter(tags)
 }
 
 // FilterLogFields implements TagFilter
-func (tf ExactMatchTagFilter) FilterLogFields(_ *model.Span, logFields model.KeyValues) model.KeyValues {
+func (tf ExactMatchTagFilter) FilterLogFields(_ *Span, logFields []KeyValue) []KeyValue {
 	return tf.filter(logFields)
 }
 
-func (tf ExactMatchTagFilter) filter(tags model.KeyValues) model.KeyValues {
-	var filteredTags model.KeyValues
+func (tf ExactMatchTagFilter) filter(tags []KeyValue) []KeyValue {
+	var filteredTags []KeyValue
 	for _, t := range tags {
 		if _, ok := tf.tags[t.Key]; ok == !tf.dropMatches {
 			filteredTags = append(filteredTags, t)

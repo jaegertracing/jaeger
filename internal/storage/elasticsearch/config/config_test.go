@@ -5,6 +5,7 @@ package config
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -493,7 +494,7 @@ func TestNewClient(t *testing.T) {
 			logger := zap.NewNop()
 			metricsFactory := metrics.NullFactory
 			config := test.config
-			client, err := NewClient(context.Background(), config, logger, metricsFactory)
+			client, err := NewClient(context.Background(), config, logger, metricsFactory, nil)
 			if test.expectedError {
 				require.Error(t, err)
 				require.Nil(t, client)
@@ -564,7 +565,7 @@ func TestNewClientPingErrorHandling(t *testing.T) {
 
 			logger := zap.NewNop()
 			metricsFactory := metrics.NullFactory
-			client, err := NewClient(context.Background(), config, logger, metricsFactory)
+			client, err := NewClient(context.Background(), config, logger, metricsFactory, nil)
 
 			if test.expectedError != "" {
 				require.Error(t, err)
@@ -633,7 +634,7 @@ func TestNewClientVersionDetection(t *testing.T) {
 
 			logger := zap.NewNop()
 			metricsFactory := metrics.NullFactory
-			client, err := NewClient(context.Background(), config, logger, metricsFactory)
+			client, err := NewClient(context.Background(), config, logger, metricsFactory, nil)
 
 			if test.expectedError != "" {
 				require.Error(t, err)
@@ -989,6 +990,67 @@ func TestValidate(t *testing.T) {
 			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, UseILM: true, CreateIndexTemplates: true, UseReadWriteAliases: true},
 			expectedError: "when UseILM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app",
 		},
+		{
+			name: "explicit span aliases without UseReadWriteAliases",
+			config: &Configuration{
+				Servers:        []string{"localhost:8000/dummyserver"},
+				SpanReadAlias:  "custom-span-read",
+				SpanWriteAlias: "custom-span-write",
+			},
+			expectedError: "explicit aliases (span_read_alias, span_write_alias, service_read_alias, service_write_alias) require UseReadWriteAliases to be true",
+		},
+		{
+			name: "only span read alias set",
+			config: &Configuration{
+				Servers:             []string{"localhost:8000/dummyserver"},
+				UseReadWriteAliases: true,
+				SpanReadAlias:       "custom-span-read",
+			},
+			expectedError: "both span_read_alias and span_write_alias must be set together",
+		},
+		{
+			name: "only service write alias set",
+			config: &Configuration{
+				Servers:             []string{"localhost:8000/dummyserver"},
+				UseReadWriteAliases: true,
+				ServiceWriteAlias:   "custom-service-write",
+			},
+			expectedError: "both service_read_alias and service_write_alias must be set together",
+		},
+		{
+			name: "all explicit aliases with UseReadWriteAliases is valid",
+			config: &Configuration{
+				Servers:             []string{"localhost:8000/dummyserver"},
+				UseReadWriteAliases: true,
+				SpanReadAlias:       "custom-span-read",
+				SpanWriteAlias:      "custom-span-write",
+				ServiceReadAlias:    "custom-service-read",
+				ServiceWriteAlias:   "custom-service-write",
+			},
+		},
+		{
+			name: "only span aliases with UseReadWriteAliases is valid",
+			config: &Configuration{
+				Servers:             []string{"localhost:8000/dummyserver"},
+				UseReadWriteAliases: true,
+				SpanReadAlias:       "custom-span-read",
+				SpanWriteAlias:      "custom-span-write",
+			},
+		},
+		{
+			name: "explicit aliases with IndexPrefix is valid",
+			config: &Configuration{
+				Servers:             []string{"localhost:8000/dummyserver"},
+				UseReadWriteAliases: true,
+				SpanReadAlias:       "custom-span-read",
+				SpanWriteAlias:      "custom-span-write",
+				ServiceReadAlias:    "custom-service-read",
+				ServiceWriteAlias:   "custom-service-write",
+				Indices: Indices{
+					IndexPrefix: "prod",
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -1292,7 +1354,7 @@ func TestGetConfigOptions(t *testing.T) {
 				tt.prepare()
 			}
 
-			options, err := tt.cfg.getConfigOptions(tt.ctx, logger)
+			options, err := tt.cfg.getConfigOptions(tt.ctx, logger, nil)
 			if tt.wantErr {
 				require.Error(t, err)
 				if tt.wantErrContains != "" {
@@ -1423,7 +1485,7 @@ func TestGetConfigOptionsIntegration(t *testing.T) {
 	}
 
 	logger := zap.NewNop()
-	options, err := cfg.getConfigOptions(context.Background(), logger)
+	options, err := cfg.getConfigOptions(context.Background(), logger, nil)
 	require.NoError(t, err)
 	require.NotNil(t, options)
 	require.Greater(t, len(options), 5, "Should have basic ES options plus additional config options")
@@ -1555,7 +1617,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 	logger := zap.NewNop()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rt, err := GetHTTPRoundTripper(tt.ctx, tt.cfg, logger)
+			rt, err := GetHTTPRoundTripper(tt.ctx, tt.cfg, logger, nil)
 			if tt.wantErrContains != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErrContains)
@@ -1568,21 +1630,93 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 	}
 }
 
-func TestLoadTokenFromFile(t *testing.T) {
-	t.Run("success", func(t *testing.T) {
-		const token = "test-token"
-		tokenFile := filepath.Join(t.TempDir(), "token")
-		require.NoError(t, os.WriteFile(tokenFile, []byte(token), 0o600))
+// Test GetHTTPRoundTripper with httpAuth error
+func TestGetHTTPRoundTripperWithHTTPAuthError(t *testing.T) {
+	ctx := context.Background()
+	logger := zap.NewNop()
+	// Create a mock httpAuth that will fail on RoundTripper wrapping
+	mockAuth := &mockFailingHTTPAuth{}
 
-		loadedToken, err := loadTokenFromFile(tokenFile)
-		require.NoError(t, err)
-		assert.Equal(t, token, loadedToken)
-	})
+	c := &Configuration{
+		Servers:  []string{"http://localhost:9200"},
+		LogLevel: "error",
+		TLS:      configtls.ClientConfig{Insecure: true},
+	}
 
-	t.Run("file not found", func(t *testing.T) {
-		_, err := loadTokenFromFile("/does/not/exist")
-		require.Error(t, err)
-	})
+	_, err := GetHTTPRoundTripper(ctx, c, logger, mockAuth)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to wrap round tripper with HTTP authenticator")
+}
+
+// Mock failing HTTP authenticator
+type mockFailingHTTPAuth struct{}
+
+func (*mockFailingHTTPAuth) RoundTripper(_ http.RoundTripper) (http.RoundTripper, error) {
+	return nil, errors.New("mock authenticator error")
+}
+
+func TestGetHTTPRoundTripperWrappingError(t *testing.T) {
+	ctx := context.Background()
+	logger := zap.NewNop()
+
+	// Create a mock failing HTTP authenticator
+	mockAuth := &mockFailingHTTPAuthWrapper{}
+
+	c := &Configuration{
+		Servers:  []string{"http://localhost:9200"},
+		LogLevel: "error",
+		TLS:      configtls.ClientConfig{Insecure: true},
+	}
+
+	_, err := GetHTTPRoundTripper(ctx, c, logger, mockAuth)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "failed to wrap round tripper with HTTP authenticator")
+}
+
+// mockFailingHTTPAuthWrapper mocks a failing HTTP authenticator for wrapping tests
+type mockFailingHTTPAuthWrapper struct{}
+
+func (*mockFailingHTTPAuthWrapper) RoundTripper(_ http.RoundTripper) (http.RoundTripper, error) {
+	return nil, errors.New("wrapping error")
+}
+
+// Test GetHTTPRoundTripper with successful httpAuth wrapping
+func TestGetHTTPRoundTripperWithHTTPAuthSuccess(t *testing.T) {
+	ctx := context.Background()
+	logger := zap.NewNop()
+
+	// Create a mock httpAuth that will succeed
+	mockAuth := &mockSuccessfulHTTPAuth{}
+
+	c := &Configuration{
+		Servers:  []string{"http://localhost:9200"},
+		LogLevel: "error",
+		TLS:      configtls.ClientConfig{Insecure: true},
+	}
+
+	rt, err := GetHTTPRoundTripper(ctx, c, logger, mockAuth)
+
+	require.NoError(t, err)
+	require.NotNil(t, rt)
+	wrappedRT, ok := rt.(*mockWrappedRoundTripper)
+	require.True(t, ok, "Should be wrapped round tripper")
+	require.NotNil(t, wrappedRT)
+}
+
+// Mock successful HTTP authenticator
+type mockSuccessfulHTTPAuth struct{}
+
+func (*mockSuccessfulHTTPAuth) RoundTripper(rt http.RoundTripper) (http.RoundTripper, error) {
+	return &mockWrappedRoundTripper{base: rt}, nil
+}
+
+// Mock wrapped round tripper
+type mockWrappedRoundTripper struct {
+	base http.RoundTripper
+}
+
+func (m *mockWrappedRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return m.base.RoundTrip(req)
 }
 
 func TestBulkCallbackInvoke_NilResponse(t *testing.T) {
@@ -1736,7 +1870,7 @@ func TestNewClientWithCustomHeaders(t *testing.T) {
 	logger := zap.NewNop()
 	metricsFactory := metrics.NullFactory
 
-	client, err := NewClient(context.Background(), &config, logger, metricsFactory)
+	client, err := NewClient(context.Background(), &config, logger, metricsFactory, nil)
 	require.NoError(t, err)
 	require.NotNil(t, client)
 

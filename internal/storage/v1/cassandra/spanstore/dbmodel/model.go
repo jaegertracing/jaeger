@@ -7,6 +7,10 @@ package dbmodel
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
+	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
@@ -51,6 +55,96 @@ type KeyValue struct {
 	ValueInt64   int64   `cql:"value_long"`   // using more natural column name for Cassandra
 	ValueFloat64 float64 `cql:"value_double"` // using more natural column name for Cassandra
 	ValueBinary  []byte  `cql:"value_binary"`
+}
+
+func (t *KeyValue) compareValues(that *KeyValue) int {
+	switch t.ValueType {
+	case stringType:
+		return strings.Compare(t.ValueString, that.ValueString)
+	case boolType:
+		if t.ValueBool != that.ValueBool {
+			if !t.ValueBool {
+				return -1
+			}
+			return 1
+		}
+	case int64Type:
+		return int(t.ValueInt64 - that.ValueInt64)
+	case float64Type:
+		if t.ValueFloat64 != that.ValueFloat64 {
+			if t.ValueFloat64 < that.ValueFloat64 {
+				return -1
+			}
+			return 1
+		}
+	case binaryType:
+		return bytes.Compare(t.ValueBinary, that.ValueBinary)
+	default:
+		return -1 // theoretical case, not stating them equal but placing the base pointer before other
+	}
+	return 0
+}
+
+func (t *KeyValue) Compare(that any) int {
+	if that == nil {
+		if t == nil {
+			return 0
+		}
+		return 1
+	}
+	that1, ok := that.(*KeyValue)
+	if !ok {
+		that2, ok := that.(KeyValue)
+		if !ok {
+			return 1
+		}
+		that1 = &that2
+	}
+	if that1 == nil {
+		if t == nil {
+			return 0
+		}
+		return 1
+	} else if t == nil {
+		return -1
+	}
+	if cmp := strings.Compare(t.Key, that1.Key); cmp != 0 {
+		return cmp
+	}
+	if cmp := strings.Compare(t.ValueType, that1.ValueType); cmp != 0 {
+		return cmp
+	}
+	return t.compareValues(that1)
+}
+
+func (t *KeyValue) Equal(that any) bool {
+	return t.Compare(that) == 0
+}
+
+func (t *KeyValue) AsString() string {
+	switch t.ValueType {
+	case stringType:
+		return t.ValueString
+	case boolType:
+		if t.ValueBool {
+			return "true"
+		}
+		return "false"
+	case int64Type:
+		return strconv.FormatInt(t.ValueInt64, 10)
+	case float64Type:
+		return strconv.FormatFloat(t.ValueFloat64, 'g', 10, 64)
+	case binaryType:
+		return hex.EncodeToString(t.ValueBinary)
+	default:
+		return "unknown type " + t.ValueType
+	}
+}
+
+func SortKVs(kvs []KeyValue) {
+	sort.Slice(kvs, func(i, j int) bool {
+		return kvs[i].Compare(kvs[j]) < 0
+	})
 }
 
 // Log is the UDT representation of a Jaeger Log.

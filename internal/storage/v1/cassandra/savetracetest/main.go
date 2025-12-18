@@ -41,15 +41,16 @@ func main() {
 	if err != nil {
 		logger.Fatal("Cannot create Cassandra session", zap.Error(err))
 	}
-	tracer, err := jtracer.New("savetracetest")
+	tracerProvider, tracerCloser, err := jtracer.NewProvider(context.Background(), "savetracetest")
 	if err != nil {
 		logger.Fatal("Failed to initialize tracer", zap.Error(err))
 	}
+	defer tracerCloser(context.Background())
 	spanStore, err := cspanstore.NewSpanWriter(cqlSession, time.Hour*12, noScope, logger)
 	if err != nil {
 		logger.Fatal("Failed to create span writer", zap.Error(err))
 	}
-	spanReader, err := cspanstore.NewSpanReader(cqlSession, noScope, logger, tracer.OTEL.Tracer("cspanstore.SpanReader"))
+	spanReader, err := cspanstore.NewSpanReader(cqlSession, noScope, logger, tracerProvider.Tracer("cspanstore.SpanReader"))
 	if err != nil {
 		logger.Fatal("Failed to create span reader", zap.Error(err))
 	}

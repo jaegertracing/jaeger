@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/gocql/gocql"
+	gocql "github.com/apache/cassandra-gocql-driver/v2"
 )
 
 // ErrTraceIDWrongLength is an error that occurs when cassandra has a TraceID that's not 128 bits long

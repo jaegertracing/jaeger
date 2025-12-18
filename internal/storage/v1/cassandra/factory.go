@@ -7,10 +7,8 @@ package cassandra
 import (
 	"context"
 	"errors"
-	"flag"
 	"io"
 
-	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -34,17 +32,11 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 )
 
-const (
-	primaryStorageNamespace = "cassandra"
-	archiveStorageNamespace = "cassandra-archive"
-)
-
 var ( // interface comformance checks
 	_ storage.Factory              = (*Factory)(nil)
 	_ storage.Purger               = (*Factory)(nil)
 	_ storage.SamplingStoreFactory = (*Factory)(nil)
 	_ io.Closer                    = (*Factory)(nil)
-	_ storage.Configurable         = (*Factory)(nil)
 	_ storage.Inheritable          = (*Factory)(nil)
 	_ storage.ArchiveCapable       = (*Factory)(nil)
 )
@@ -69,28 +61,9 @@ type Factory struct {
 func NewFactory() *Factory {
 	return &Factory{
 		tracer:           otel.GetTracerProvider(),
-		Options:          NewOptions(primaryStorageNamespace),
+		Options:          NewOptions(),
 		sessionBuilderFn: NewSession,
 	}
-}
-
-func NewArchiveFactory() *Factory {
-	return &Factory{
-		tracer:           otel.GetTracerProvider(),
-		Options:          NewOptions(archiveStorageNamespace),
-		sessionBuilderFn: NewSession,
-	}
-}
-
-// AddFlags implements storage.Configurable
-func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
-	f.Options.AddFlags(flagSet)
-}
-
-// InitFromViper implements storage.Configurable
-func (f *Factory) InitFromViper(v *viper.Viper, _ *zap.Logger) {
-	f.Options.InitFromViper(v)
-	f.ConfigureFromOptions(f.Options)
 }
 
 // InitFromOptions initializes factory from options.
@@ -253,6 +226,5 @@ func (f *Factory) InheritSettingsFrom(other storage.Factory) {
 }
 
 func (f *Factory) IsArchiveCapable() bool {
-	return f.Options.NamespaceConfig.namespace == archiveStorageNamespace &&
-		f.Options.NamespaceConfig.Enabled
+	return f.Options.ArchiveEnabled
 }

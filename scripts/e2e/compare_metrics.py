@@ -26,6 +26,41 @@ TRANSIENT_LABEL_PATTERNS = {
     # }
 }
 
+METRIC_EXCLUSION_RULES = {
+    # excluding HTTP 5xx responses as these can be flaky
+    'http_5xx_errors': {
+        'condition': 'label_match',
+        'label': 'http_response_status_code',
+        'pattern': r'^5\d{2}$',
+    },
+    
+}
+
+
+def should_exclude_metric(metric_name, labels):
+    """
+    Determines if a metric should be excluded from comparison based on configured rules.
+    
+    Args:
+        metric_name: The name of the metric
+        labels: Dictionary of labels for the metric
+        
+    Returns:
+        tuple: (should_exclude: bool, reason: str or None)
+    """
+    for rule_name, rule_config in METRIC_EXCLUSION_RULES.items():
+        condition = rule_config['condition']
+        
+        if condition == 'label_match':
+            label = rule_config['label']
+            pattern = rule_config['pattern']
+            if label in labels and re.match(pattern, labels[label]):
+                return True
+                
+    
+    return False
+
+
 def suppress_transient_labels(metric_name, labels):
     """
     Suppresses transient labels in metrics based on configured patterns.
@@ -58,9 +93,11 @@ def parse_metrics(content):
     for family in text_string_to_metric_families(content):
         for sample in family.samples:
             labels = dict(sample.labels)
-            #simply pop undesirable metric labels
-            labels.pop('service_instance_id',None)
-            
+
+            if should_exclude_metric(sample.name, labels):
+                continue
+
+            labels.pop('service_instance_id', None)
             labels = suppress_transient_labels(sample.name, labels)
             
             label_pairs = sorted(labels.items(), key=lambda x: x[0])

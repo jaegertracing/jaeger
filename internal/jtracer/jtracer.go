@@ -16,44 +16,26 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
-	nooptrace "go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
-type JTracer struct {
-	OTEL   trace.TracerProvider
-	closer func(ctx context.Context) error
-}
-
 var once sync.Once
 
-func New(serviceName string) (*JTracer, error) {
-	return newHelper(serviceName, initOTEL)
+func NewProvider(ctx context.Context, serviceName string) (trace.TracerProvider, func(ctx context.Context) error, error) {
+	return newProviderHelper(ctx, serviceName, initOTEL)
 }
 
-func newHelper(
+func newProviderHelper(
+	ctx context.Context,
 	serviceName string,
 	tracerProvider func(ctx context.Context, svc string) (*sdktrace.TracerProvider, error),
-) (*JTracer, error) {
-	ctx := context.Background()
+) (trace.TracerProvider, func(ctx context.Context) error, error) {
 	provider, err := tracerProvider(ctx, serviceName)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-
-	return &JTracer{
-		OTEL: provider,
-		closer: func(ctx context.Context) error {
-			return provider.Shutdown(ctx)
-		},
-	}, nil
-}
-
-func NoOp() *JTracer {
-	return &JTracer{
-		OTEL: nooptrace.NewTracerProvider(),
-	}
+	return provider, provider.Shutdown, nil
 }
 
 // initOTEL initializes OTEL Tracer
@@ -124,12 +106,4 @@ func otelExporter(ctx context.Context) (sdktrace.SpanExporter, error) {
 		defaultGRPCOptions()...,
 	)
 	return otlptrace.New(ctx, client)
-}
-
-// Shutdown the tracerProvider to clean up resources
-func (jt *JTracer) Close(ctx context.Context) error {
-	if jt.closer != nil {
-		return jt.closer(ctx)
-	}
-	return nil
 }

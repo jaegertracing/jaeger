@@ -26,8 +26,6 @@ const (
 
 	// The number of past entries for samplingCache the leader keeps in memory
 	serviceCacheSize = 25
-
-	defaultResourceName = "sampling_store_leader"
 )
 
 var (
@@ -293,6 +291,7 @@ func (p *PostAggregator) calculateWeightedQPS(allQPS []float64) float64 {
 	weights := p.weightVectorCache.GetWeights(len(allQPS))
 	var qps float64
 	for i := 0; i < len(allQPS); i++ {
+		// #nosec G602 GetWeights always returns a slice of the same length as allQPS
 		qps += allQPS[i] * weights[i]
 	}
 	return qps

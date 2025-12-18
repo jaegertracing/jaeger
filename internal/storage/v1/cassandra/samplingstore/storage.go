@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gocql/gocql"
+	gocql "github.com/apache/cassandra-gocql-driver/v2"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"

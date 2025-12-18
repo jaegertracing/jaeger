@@ -4,21 +4,17 @@
 
 package dbmodel
 
-import (
-	"github.com/jaegertracing/jaeger-idl/model/v1"
-)
-
 // GetAllUniqueTags creates a list of all unique tags from a set of filtered tags.
-func GetAllUniqueTags(span *model.Span, tagFilter TagFilter) []TagInsertion {
-	allTags := append(model.KeyValues{}, tagFilter.FilterProcessTags(span, span.Process.Tags)...)
+func GetAllUniqueTags(span *Span, tagFilter TagFilter) []TagInsertion {
+	allTags := append([]KeyValue{}, tagFilter.FilterProcessTags(span, span.Process.Tags)...)
 	allTags = append(allTags, tagFilter.FilterTags(span, span.Tags)...)
 	for _, log := range span.Logs {
 		allTags = append(allTags, tagFilter.FilterLogFields(span, log.Fields)...)
 	}
-	allTags.Sort()
+	SortKVs(allTags)
 	uniqueTags := make([]TagInsertion, 0, len(allTags))
 	for i := range allTags {
-		if allTags[i].VType == model.BinaryType {
+		if allTags[i].ValueType == binaryType {
 			continue // do not index binary tags
 		}
 		if i > 0 && allTags[i-1].Equal(&allTags[i]) {

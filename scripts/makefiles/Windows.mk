@@ -60,21 +60,16 @@ endef
 
 .PHONY: _build-syso
 _build-syso: $(GOVERSIONINFO)
-	$(eval SEMVER_ALL := $(shell scripts/utils/compute-version.sh -s v1))
+	$(eval SEMVER_ALL := $(shell scripts/utils/compute-version.sh -s))
 	$(eval SEMVER_MAJOR := $(word 2, $(SEMVER_ALL)))
 	$(eval SEMVER_MINOR := $(word 3, $(SEMVER_ALL)))
 	$(eval SEMVER_PATCH := $(word 4, $(SEMVER_ALL)))
-	$(call _build_syso_macro,Jaeger Collector,cmd/collector)
-	$(call _build_syso_macro,Jaeger Query,cmd/query)
-	$(call _build_syso_macro,Jaeger Ingester,cmd/ingester)
+	$(call _build_syso_macro,Jaeger,cmd/jaeger)
 	$(call _build_syso_macro,Jaeger Remote Storage,cmd/remote-storage)
-	$(call _build_syso_macro,Jaeger All-In-One,cmd/all-in-one)
 	$(call _build_syso_macro,Jaeger Tracegen,cmd/tracegen)
 	$(call _build_syso_macro,Jaeger Anonymizer,cmd/anonymizer)
 	$(call _build_syso_macro,Jaeger ES-Index-Cleaner,cmd/es-index-cleaner)
 	$(call _build_syso_macro,Jaeger ES-Rollover,cmd/es-rollover)
-	# TODO in the future this should be in v2
-	$(call _build_syso_macro,Jaeger V2,cmd/jaeger)
 
 .PHONY: _clean-syso
 _clean-syso:

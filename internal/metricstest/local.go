@@ -6,11 +6,10 @@ package metricstest
 
 import (
 	"maps"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/HdrHistogram/hdrhistogram-go"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
 )
@@ -18,6 +17,38 @@ import (
 // This is intentionally very similar to github.com/codahale/metrics, the
 // main difference being that counters/gauges are scoped to the provider
 // rather than being global (to facilitate testing).
+
+// numeric is a constraint that permits int64 and float64.
+type numeric interface {
+	~int64 | ~float64
+}
+
+// simpleHistogram is a simple histogram that stores all observations
+// and computes percentiles from a sorted list. It uses generics to
+// support both int64 (for timers) and float64 (for histograms).
+type simpleHistogram[T numeric] struct {
+	sync.Mutex
+	observations []T
+}
+
+func (h *simpleHistogram[T]) record(v T) {
+	h.Lock()
+	defer h.Unlock()
+	h.observations = append(h.observations, v)
+}
+
+func (h *simpleHistogram[T]) valueAtPercentile(q float64) int64 {
+	h.Lock()
+	defer h.Unlock()
+	if len(h.observations) == 0 {
+		return 0
+	}
+	sorted := slices.Clone(h.observations)
+	slices.Sort(sorted)
+
+	idx := int(float64(len(sorted)-1) * q / 100.0)
+	return int64(sorted[idx])
+}
 
 // A Backend is a metrics provider which aggregates data in-vm, and
 // allows exporting snapshots to shove the data into a remote collector
@@ -28,33 +59,23 @@ type Backend struct {
 	hm         sync.Mutex
 	counters   map[string]*int64
 	gauges     map[string]*int64
-	timers     map[string]*localBackendTimer
-	histograms map[string]*localBackendHistogram
-	stop       chan struct{}
-	wg         sync.WaitGroup
+	timers     map[string]*simpleHistogram[int64]
+	histograms map[string]*simpleHistogram[float64]
 	TagsSep    string
 	TagKVSep   string
 }
 
 // NewBackend returns a new Backend. The collectionInterval is the histogram
 // time window for each timer.
-func NewBackend(collectionInterval time.Duration) *Backend {
-	b := &Backend{
+func NewBackend(_ time.Duration) *Backend {
+	return &Backend{
 		counters:   make(map[string]*int64),
 		gauges:     make(map[string]*int64),
-		timers:     make(map[string]*localBackendTimer),
-		histograms: make(map[string]*localBackendHistogram),
-		stop:       make(chan struct{}),
+		timers:     make(map[string]*simpleHistogram[int64]),
+		histograms: make(map[string]*simpleHistogram[float64]),
 		TagsSep:    "|",
 		TagKVSep:   "=",
 	}
-	if collectionInterval == 0 {
-		// Use one histogram time window for all timers
-		return b
-	}
-	b.wg.Add(1)
-	go b.runLoop(collectionInterval)
-	return b
 }
 
 // Clear discards accumulated stats
@@ -69,31 +90,8 @@ func (b *Backend) Clear() {
 	defer b.hm.Unlock()
 	b.counters = make(map[string]*int64)
 	b.gauges = make(map[string]*int64)
-	b.timers = make(map[string]*localBackendTimer)
-	b.histograms = make(map[string]*localBackendHistogram)
-}
-
-func (b *Backend) runLoop(collectionInterval time.Duration) {
-	defer b.wg.Done()
-	ticker := time.NewTicker(collectionInterval)
-	for {
-		select {
-		case <-ticker.C:
-			b.tm.Lock()
-			timers := make(map[string]*localBackendTimer, len(b.timers))
-			maps.Copy(timers, b.timers)
-			b.tm.Unlock()
-
-			for _, t := range timers {
-				t.Lock()
-				t.hist.Rotate()
-				t.Unlock()
-			}
-		case <-b.stop:
-			ticker.Stop()
-			return
-		}
-	}
+	b.timers = make(map[string]*simpleHistogram[int64])
+	b.histograms = make(map[string]*simpleHistogram[float64])
 }
 
 // IncCounter increments a counter value
@@ -124,60 +122,40 @@ func (b *Backend) UpdateGauge(name string, tags map[string]string, value int64) 
 	atomic.StoreInt64(gauge, value)
 }
 
-// RecordHistogram records a timing duration
+// RecordHistogram records a histogram value
 func (b *Backend) RecordHistogram(name string, tags map[string]string, v float64) {
 	name = GetKey(name, tags, b.TagsSep, b.TagKVSep)
 	histogram := b.findOrCreateHistogram(name)
-	histogram.Lock()
-	histogram.hist.Current.RecordValue(int64(v))
-	histogram.Unlock()
+	histogram.record(v)
 }
 
-func (b *Backend) findOrCreateHistogram(name string) *localBackendHistogram {
+func (b *Backend) findOrCreateHistogram(name string) *simpleHistogram[float64] {
 	b.hm.Lock()
 	defer b.hm.Unlock()
-	if t, ok := b.histograms[name]; ok {
-		return t
+	if h, ok := b.histograms[name]; ok {
+		return h
 	}
-
-	t := &localBackendHistogram{
-		hist: hdrhistogram.NewWindowed(5, 0, int64((5*time.Minute)/time.Millisecond), 1),
-	}
-	b.histograms[name] = t
-	return t
-}
-
-type localBackendHistogram struct {
-	sync.Mutex
-	hist *hdrhistogram.WindowedHistogram
+	h := &simpleHistogram[float64]{}
+	b.histograms[name] = h
+	return h
 }
 
 // RecordTimer records a timing duration
 func (b *Backend) RecordTimer(name string, tags map[string]string, d time.Duration) {
 	name = GetKey(name, tags, b.TagsSep, b.TagKVSep)
 	timer := b.findOrCreateTimer(name)
-	timer.Lock()
-	timer.hist.Current.RecordValue(int64(d / time.Millisecond))
-	timer.Unlock()
+	timer.record(int64(d / time.Millisecond))
 }
 
-func (b *Backend) findOrCreateTimer(name string) *localBackendTimer {
+func (b *Backend) findOrCreateTimer(name string) *simpleHistogram[int64] {
 	b.tm.Lock()
 	defer b.tm.Unlock()
 	if t, ok := b.timers[name]; ok {
 		return t
 	}
-
-	t := &localBackendTimer{
-		hist: hdrhistogram.NewWindowed(5, 0, int64((5*time.Minute)/time.Millisecond), 1),
-	}
+	t := &simpleHistogram[int64]{}
 	b.timers[name] = t
 	return t
-}
-
-type localBackendTimer struct {
-	sync.Mutex
-	hist *hdrhistogram.WindowedHistogram
 }
 
 var percentiles = map[string]float64{
@@ -208,41 +186,32 @@ func (b *Backend) Snapshot() (counters, gauges map[string]int64) {
 	}
 
 	b.tm.Lock()
-	timers := make(map[string]*localBackendTimer)
+	timers := make(map[string]*simpleHistogram[int64])
 	maps.Copy(timers, b.timers)
 	b.tm.Unlock()
 
 	for timerName, timer := range timers {
-		timer.Lock()
-		hist := timer.hist.Merge()
-		timer.Unlock()
 		for name, q := range percentiles {
-			gauges[timerName+"."+name] = hist.ValueAtQuantile(q)
+			gauges[timerName+"."+name] = timer.valueAtPercentile(q)
 		}
 	}
 
 	b.hm.Lock()
-	histograms := make(map[string]*localBackendHistogram)
+	histograms := make(map[string]*simpleHistogram[float64])
 	maps.Copy(histograms, b.histograms)
 	b.hm.Unlock()
 
 	for histogramName, histogram := range histograms {
-		histogram.Lock()
-		hist := histogram.hist.Merge()
-		histogram.Unlock()
 		for name, q := range percentiles {
-			gauges[histogramName+"."+name] = hist.ValueAtQuantile(q)
+			gauges[histogramName+"."+name] = histogram.valueAtPercentile(q)
 		}
 	}
 
 	return counters, gauges
 }
 
-// Stop cleanly closes the background goroutine spawned by NewBackend.
-func (b *Backend) Stop() {
-	close(b.stop)
-	b.wg.Wait()
-}
+// Stop is a no-op for this simple backend (no background goroutines).
+func (*Backend) Stop() {}
 
 type stats struct {
 	name            string

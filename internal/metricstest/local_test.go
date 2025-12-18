@@ -97,25 +97,25 @@ func TestLocalMetrics(t *testing.T) {
 	}, c)
 
 	assert.Equal(t, map[string]int64{
-		"bar-latency.P50":  278527,
-		"bar-latency.P75":  278527,
-		"bar-latency.P90":  442367,
-		"bar-latency.P95":  442367,
-		"bar-latency.P99":  442367,
-		"bar-latency.P999": 442367,
-		"foo-latency.P50":  6143,
-		"foo-latency.P75":  12287,
-		"foo-latency.P90":  36863,
-		"foo-latency.P95":  36863,
-		"foo-latency.P99":  36863,
-		"foo-latency.P999": 36863,
+		"bar-latency.P50":  274000,
+		"bar-latency.P75":  432000,
+		"bar-latency.P90":  432000,
+		"bar-latency.P95":  432000,
+		"bar-latency.P99":  432000,
+		"bar-latency.P999": 432000,
+		"foo-latency.P50":  6000,
+		"foo-latency.P75":  12000,
+		"foo-latency.P90":  12000,
+		"foo-latency.P95":  12000,
+		"foo-latency.P99":  12000,
+		"foo-latency.P999": 12000,
 		"my-gauge":         43,
-		"my-histo.P50":     43,
-		"my-histo.P75":     335,
-		"my-histo.P90":     335,
-		"my-histo.P95":     335,
-		"my-histo.P99":     335,
-		"my-histo.P999":    335,
+		"my-histo.P50":     42,
+		"my-histo.P75":     42,
+		"my-histo.P90":     42,
+		"my-histo.P95":     42,
+		"my-histo.P99":     42,
+		"my-histo.P999":    42,
 		"other-gauge":      74,
 	}, g)
 
@@ -126,39 +126,20 @@ func TestLocalMetrics(t *testing.T) {
 }
 
 func TestLocalMetricsInterval(t *testing.T) {
-	refreshInterval := time.Millisecond
-	const relativeCheckFrequency = 5 // check 5 times per refreshInterval
-	const maxChecks = 2 * relativeCheckFrequency
-	checkInterval := (refreshInterval * relativeCheckFrequency) / maxChecks
-
-	f := NewFactory(refreshInterval)
+	f := NewFactory(time.Millisecond)
 	defer f.Stop()
 
 	f.Timer(metrics.TimerOptions{
 		Name: "timer",
-	}).Record(1)
+	}).Record(time.Millisecond * 100)
 
 	f.tm.Lock()
 	timer := f.timers["timer"]
 	f.tm.Unlock()
-	assert.NotNil(t, timer)
+	require.NotNil(t, timer)
 
-	// timer.hist.Current is modified on every Rotate(), which is called by Backend after every refreshInterval
-	getCurr := func() any {
-		timer.Lock()
-		defer timer.Unlock()
-		return timer.hist.Current
-	}
-
-	curr := getCurr()
-
-	// wait for twice as long as the refresh interval
-	for i := 0; i < maxChecks; i++ {
-		time.Sleep(checkInterval)
-
-		if getCurr() != curr {
-			return
-		}
-	}
-	t.Fail()
+	timer.Lock()
+	assert.Len(t, timer.observations, 1)
+	assert.Equal(t, int64(100), timer.observations[0])
+	timer.Unlock()
 }

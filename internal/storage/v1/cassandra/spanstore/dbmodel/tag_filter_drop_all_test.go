@@ -7,73 +7,63 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 var _ TagFilter = &TagFilterDropAll{} // Check API compliance
 
 func TestDropAll(t *testing.T) {
-	sampleTags := model.KeyValues{
-		model.String(someStringTagKey, someStringTagValue),
-		model.Bool(someBoolTagKey, someBoolTagValue),
-		model.Int64(someLongTagKey, someLongTagValue),
-		model.Float64(someDoubleTagKey, someDoubleTagValue),
-		model.Binary(someBinaryTagKey, someBinaryTagValue),
-	}
-
 	tt := []struct {
 		filter              *TagFilterDropAll
-		expectedTags        model.KeyValues
-		expectedProcessTags model.KeyValues
-		expectedLogs        model.KeyValues
+		expectedTags        []KeyValue
+		expectedProcessTags []KeyValue
+		expectedLogs        []KeyValue
 	}{
 		{
 			filter:              NewTagFilterDropAll(false, false, false),
-			expectedTags:        sampleTags,
-			expectedProcessTags: sampleTags,
-			expectedLogs:        sampleTags,
+			expectedTags:        someDBTags,
+			expectedProcessTags: someDBTags,
+			expectedLogs:        someDBTags,
 		},
 		{
 			filter:              NewTagFilterDropAll(true, false, false),
-			expectedTags:        model.KeyValues{},
-			expectedProcessTags: sampleTags,
-			expectedLogs:        sampleTags,
+			expectedTags:        []KeyValue{},
+			expectedProcessTags: someDBTags,
+			expectedLogs:        someDBTags,
 		},
 		{
 			filter:              NewTagFilterDropAll(false, true, false),
-			expectedTags:        sampleTags,
-			expectedProcessTags: model.KeyValues{},
-			expectedLogs:        sampleTags,
+			expectedTags:        someDBTags,
+			expectedProcessTags: []KeyValue{},
+			expectedLogs:        someDBTags,
 		},
 		{
 			filter:              NewTagFilterDropAll(false, false, true),
-			expectedTags:        sampleTags,
-			expectedProcessTags: sampleTags,
-			expectedLogs:        model.KeyValues{},
+			expectedTags:        someDBTags,
+			expectedProcessTags: someDBTags,
+			expectedLogs:        []KeyValue{},
 		},
 		{
 			filter:              NewTagFilterDropAll(true, false, true),
-			expectedTags:        model.KeyValues{},
-			expectedProcessTags: sampleTags,
-			expectedLogs:        model.KeyValues{},
+			expectedTags:        []KeyValue{},
+			expectedProcessTags: someDBTags,
+			expectedLogs:        []KeyValue{},
 		},
 		{
 			filter:              NewTagFilterDropAll(true, true, true),
-			expectedTags:        model.KeyValues{},
-			expectedProcessTags: model.KeyValues{},
-			expectedLogs:        model.KeyValues{},
+			expectedTags:        []KeyValue{},
+			expectedProcessTags: []KeyValue{},
+			expectedLogs:        []KeyValue{},
 		},
 	}
 
 	for _, test := range tt {
-		actualTags := test.filter.FilterTags(nil, sampleTags)
+		actualTags := test.filter.FilterTags(nil, someDBTags)
 		assert.Equal(t, test.expectedTags, actualTags)
 
-		actualProcessTags := test.filter.FilterProcessTags(nil, sampleTags)
+		actualProcessTags := test.filter.FilterProcessTags(nil, someDBTags)
 		assert.Equal(t, test.expectedProcessTags, actualProcessTags)
 
-		actualLogs := test.filter.FilterLogFields(nil, sampleTags)
+		actualLogs := test.filter.FilterLogFields(nil, someDBTags)
 		assert.Equal(t, test.expectedLogs, actualLogs)
 	}
 }

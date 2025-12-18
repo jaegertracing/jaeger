@@ -8,16 +8,10 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
-
-	"github.com/jaegertracing/jaeger/internal/config"
 )
 
 func TestDefaultConfigParsing(t *testing.T) {
 	cfg := DefaultConfig()
-	v, command := config.Viperize(cfg.AddFlags)
-	command.ParseFlags([]string{})
-	cfg.InitFromViper(v, zap.NewNop())
 
 	assert.True(t, cfg.Ephemeral)
 	assert.False(t, cfg.SyncWrites)
@@ -25,16 +19,18 @@ func TestDefaultConfigParsing(t *testing.T) {
 }
 
 func TestParseConfig(t *testing.T) {
-	cfg := DefaultConfig()
-	v, command := config.Viperize(cfg.AddFlags)
-	command.ParseFlags([]string{
-		"--badger.ephemeral=false",
-		"--badger.consistency=true",
-		"--badger.directory-key=/var/lib/badger",
-		"--badger.directory-value=/mnt/slow/badger",
-		"--badger.span-store-ttl=168h",
-	})
-	cfg.InitFromViper(v, zap.NewNop())
+	cfg := &Config{
+		Ephemeral:  false,
+		SyncWrites: true,
+		TTL: TTL{
+			Spans: 168 * time.Hour,
+		},
+		Directories: Directories{
+			Keys:   "/var/lib/badger",
+			Values: "/mnt/slow/badger",
+		},
+		ReadOnly: false,
+	}
 
 	assert.False(t, cfg.Ephemeral)
 	assert.True(t, cfg.SyncWrites)
@@ -46,10 +42,6 @@ func TestParseConfig(t *testing.T) {
 
 func TestReadOnlyConfig(t *testing.T) {
 	cfg := DefaultConfig()
-	v, command := config.Viperize(cfg.AddFlags)
-	command.ParseFlags([]string{
-		"--badger.read-only=true",
-	})
-	cfg.InitFromViper(v, zap.NewNop())
+	cfg.ReadOnly = true
 	assert.True(t, cfg.ReadOnly)
 }

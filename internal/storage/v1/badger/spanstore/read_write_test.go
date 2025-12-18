@@ -19,7 +19,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/config"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
@@ -369,26 +368,14 @@ func TestPersist(t *testing.T) {
 
 	p := func(t *testing.T, dir string, test func(t *testing.T, sw spanstore.Writer, sr spanstore.Reader)) {
 		f := badger.NewFactory()
+		f.Config.Ephemeral = false
+		f.Config.Directories.Keys = dir
+		f.Config.Directories.Values = dir
+		err := f.Initialize(metrics.NullFactory, zap.NewNop())
+		require.NoError(t, err)
 		defer func() {
 			require.NoError(t, f.Close())
 		}()
-
-		cfg := badger.DefaultConfig()
-		v, command := config.Viperize(cfg.AddFlags)
-
-		keyParam := "--badger.directory-key=" + dir
-		valueParam := "--badger.directory-value=" + dir
-
-		command.ParseFlags([]string{
-			"--badger.ephemeral=false",
-			"--badger.consistency=false",
-			keyParam,
-			valueParam,
-		})
-		f.InitFromViper(v, zap.NewNop())
-
-		err := f.Initialize(metrics.NullFactory, zap.NewNop())
-		require.NoError(t, err)
 
 		sw, err := f.CreateSpanWriter()
 		require.NoError(t, err)
@@ -434,20 +421,13 @@ func TestPersist(t *testing.T) {
 // Opens a badger db and runs a test on it.
 func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader)) {
 	f := badger.NewFactory()
+	f.Config.Ephemeral = true
+	f.Config.SyncWrites = false
+	err := f.Initialize(metrics.NullFactory, zap.NewNop())
+	require.NoError(tb, err)
 	defer func() {
 		require.NoError(tb, f.Close())
 	}()
-
-	cfg := badger.DefaultConfig()
-	v, command := config.Viperize(cfg.AddFlags)
-	command.ParseFlags([]string{
-		"--badger.ephemeral=true",
-		"--badger.consistency=false",
-	})
-	f.InitFromViper(v, zap.NewNop())
-
-	err := f.Initialize(metrics.NullFactory, zap.NewNop())
-	require.NoError(tb, err)
 
 	sw, err := f.CreateSpanWriter()
 	require.NoError(tb, err)
@@ -598,26 +578,22 @@ func BenchmarkServiceIndexLimitFetch(b *testing.B) {
 func runLargeFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader)) {
 	assertion := require.New(tb)
 	f := badger.NewFactory()
-	cfg := badger.DefaultConfig()
-	v, command := config.Viperize(cfg.AddFlags)
 
 	dir := filepath.Join(tb.TempDir(), "badger-testRun")
 	err := os.MkdirAll(dir, 0o700)
 	assertion.NoError(err)
-	keyParam := "--badger.directory-key=" + dir
-	valueParam := "--badger.directory-value=" + dir
-
-	command.ParseFlags([]string{
-		"--badger.ephemeral=false",
-		"--badger.consistency=false", // Consistency is false as default to reduce effect of disk speed
-		keyParam,
-		valueParam,
-	})
-
-	f.InitFromViper(v, zap.NewNop())
+	f.Config.Directories.Keys = dir
+	f.Config.Directories.Values = dir
+	f.Config.Ephemeral = false
+	f.Config.SyncWrites = false
 
 	err = f.Initialize(metrics.NullFactory, zap.NewNop())
 	assertion.NoError(err)
+	defer func() {
+		err := f.Close()
+		os.RemoveAll(dir)
+		require.NoError(tb, err)
+	}()
 
 	sw, err := f.CreateSpanWriter()
 	assertion.NoError(err)
@@ -625,11 +601,6 @@ func runLargeFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Wr
 	sr, err := f.CreateSpanReader()
 	assertion.NoError(err)
 
-	defer func() {
-		err := f.Close()
-		os.RemoveAll(dir)
-		require.NoError(tb, err)
-	}()
 	test(tb, sw, sr)
 }
 

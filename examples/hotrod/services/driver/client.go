@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -27,7 +28,10 @@ type Client struct {
 func NewClient(tracerProvider trace.TracerProvider, logger log.Factory, hostPort string) *Client {
 	conn, err := grpc.NewClient(hostPort,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithStatsHandler(otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(tracerProvider))),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler(
+			otelgrpc.WithTracerProvider(tracerProvider),
+			otelgrpc.WithMeterProvider(noop.NewMeterProvider()),
+		)),
 	)
 	if err != nil {
 		logger.Bg().Fatal("Cannot create gRPC connection", zap.Error(err))
