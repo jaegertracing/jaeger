@@ -93,23 +93,6 @@ func TestNewSessionErrors(t *testing.T) {
 	})
 }
 
-func TestInheritSettingsFrom(t *testing.T) {
-	primaryFactory := NewFactory()
-	primaryFactory.config.Schema.Keyspace = "foo"
-	primaryFactory.config.Query.MaxRetryAttempts = 99
-
-	archiveFactory := &Factory{
-		Options: NewOptions(),
-	}
-
-	archiveFactory.config.Schema.Keyspace = "bar"
-
-	archiveFactory.InheritSettingsFrom(primaryFactory)
-
-	require.Equal(t, "bar", archiveFactory.config.Schema.Keyspace)
-	require.Equal(t, 99, archiveFactory.config.Query.MaxRetryAttempts)
-}
-
 func TestIsArchiveCapable(t *testing.T) {
 	tests := []struct {
 		name           string
