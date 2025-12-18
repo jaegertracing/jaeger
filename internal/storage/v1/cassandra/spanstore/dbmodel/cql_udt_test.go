@@ -9,7 +9,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/gocql/gocql"
+	gocql "github.com/apache/cassandra-gocql-driver/v2"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
@@ -67,7 +67,8 @@ func TestDBModelUDTMarshall(t *testing.T) {
 			ObjName: "Log",
 			Fields: []testutils.UDTField{
 				{Name: "ts", Type: gocql.TypeBigInt, ValIn: []byte{0, 0, 0, 0, 0, 0, 0, 123}, Err: false},
-				{Name: "fields", Type: gocql.TypeAscii, Err: true}, // for coverage only
+				// Wrong type TypeAscii for an array field
+				{Name: "fields", Type: gocql.TypeAscii, ValIn: []byte{}, Err: true},
 				{Name: "wrong-field", Err: true},
 			},
 		},
@@ -88,7 +89,8 @@ func TestDBModelUDTMarshall(t *testing.T) {
 			ObjName: "Process",
 			Fields: []testutils.UDTField{
 				{Name: "service_name", Type: gocql.TypeAscii, ValIn: []byte("google"), Err: false},
-				{Name: "tags", Type: gocql.TypeAscii, Err: true}, // for coverage only
+				// Wrong type TypeAscii for an array field
+				{Name: "tags", Type: gocql.TypeAscii, ValIn: []byte{}, Err: true},
 				{Name: "wrong-field", Err: true},
 			},
 		},
