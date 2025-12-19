@@ -220,7 +220,7 @@ prepare-release:
 		echo "Example: make prepare-release VERSION=2.14.0"; \
 		exit 1; \
 	fi
-	./scripts/release/prepare.sh $(VERSION)
+	bash ./scripts/release/prepare.sh $(VERSION)
 
 .PHONY: test-ci
 test-ci: GOTEST := $(GOTEST_QUIET)
