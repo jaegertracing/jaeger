@@ -13,12 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/metrics"
-	"github.com/jaegertracing/jaeger/internal/storage/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
@@ -448,17 +444,6 @@ func TestGetCapabilitiesWithSupportsArchive(t *testing.T) {
 	}
 	assert.Equal(t, expectedStorageCapabilities, tqs.queryService.GetCapabilities())
 }
-
-type fakeStorageFactory1 struct{}
-
-func (*fakeStorageFactory1) Initialize(metrics.Factory, *zap.Logger) error {
-	return nil
-}
-func (*fakeStorageFactory1) CreateSpanReader() (spanstore.Reader, error)             { return nil, nil }
-func (*fakeStorageFactory1) CreateSpanWriter() (spanstore.Writer, error)             { return nil, nil }
-func (*fakeStorageFactory1) CreateDependencyReader() (dependencystore.Reader, error) { return nil, nil }
-
-var _ storage.Factory = new(fakeStorageFactory1)
 
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
