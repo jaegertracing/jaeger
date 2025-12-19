@@ -60,4 +60,5 @@ fi
 
 rm "${TMPFILE}"
 
+exit 1;
 
