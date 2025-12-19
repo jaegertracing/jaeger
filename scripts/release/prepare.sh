@@ -53,7 +53,14 @@ if [ "$CURRENT_BRANCH" != "main" ]; then
     fi
 fi
 
-git fetch origin
+# fetch from upstream if it exist, otherwise fetch from origin
+if git remote | grep -q '^upstream$'; then
+    echo "Fetching from upstream..."
+    git fetch upstream
+else
+    echo "Fetching from origin..."
+    git fetch origin
+fi
 
 # Create a new branch
 BRANCH_NAME="prepare-release-v${VERSION}"
@@ -64,26 +71,31 @@ echo "Updating UI submodule..."
 git submodule init
 git submodule update
 
-UI_VERSION="v${VERSION}"
-if [ -d "jaeger-ui" ] && [ "$(ls -A jaeger-ui)" ]; then
-    pushd jaeger-ui > /dev/null
-    git fetch origin
-    # Try to checkout the matching UI version tag
-    if git rev-parse "${UI_VERSION}" >/dev/null 2>&1; then
-        git checkout "${UI_VERSION}"
-    else
-        # UI version not found
-        echo "Warning: UI version ${UI_VERSION} not found"
-        read -r -p "Enter UI version to use (or Enter to skip): " UI_INPUT
-        if [ -n "$UI_INPUT" ]; then
-            git checkout "$UI_INPUT"
-        else
-            git checkout main && git pull
-        fi
-    fi
-    popd > /dev/null
-    git add jaeger-ui
+# Verify if the directory exists and is not empty
+if [ ! -d "jaeger-ui" ] || [ ! "$(ls -A jaeger-ui)" ]; then
+    echo "Error: jaeger-ui directory does not exist or is empty"
+    echo "Please ensure the jaeger-ui submodule is properly initialized"
+    exit 1
 fi
+
+UI_VERSION="v${VERSION}"
+pushd jaeger-ui > /dev/null
+git fetch origin
+# Try to checkout the matching UI version tag
+if git rev-parse "${UI_VERSION}" >/dev/null 2>&1; then
+    git checkout "${UI_VERSION}"
+else
+    # UI version not found
+    echo "Warning: UI version ${UI_VERSION} not found"
+    read -r -p "Enter UI version to use (or Enter to skip): " UI_INPUT
+    if [ -n "$UI_INPUT" ]; then
+        git checkout "$UI_INPUT"
+    else
+        git checkout main && git pull
+    fi
+fi
+popd > /dev/null
+git add jaeger-ui
 
 # Generate changelog entries and update CHANGELOG.md
 echo "Updating CHANGELOG.md..."

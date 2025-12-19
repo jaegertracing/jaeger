@@ -1,8 +1,8 @@
 # Jaeger Overall Release Process
 
-## 1️⃣ Start Here: Create Release Issue
+## 1️⃣ Start Here: Create Release Issue 📋
 
-**This is the main entry point for the release process.**
+**⭐ This is the main entry point for the release process. ⭐**
 
 Run the following command to create a release issue with the full checklist:
 
@@ -24,7 +24,7 @@ Creating issue in jaegertracing/jaeger
 https://github.com/jaegertracing/jaeger/issues/7757
 ```
 
-## Release Steps
+## 📝 Release Steps
 
 1. Perform UI release according to https://github.com/jaegertracing/jaeger-ui/blob/main/RELEASE.md
 2. Perform Backend release (see below)
@@ -33,7 +33,7 @@ https://github.com/jaegertracing/jaeger/issues/7757
    2. For monitoring and troubleshooting, refer to the [jaegertracing/documentation Github Actions tab](https://github.com/jaegertracing/documentation/actions).
 4. Announce the release on the [mailing list](https://groups.google.com/g/jaeger-tracing), [slack](https://cloud-native.slack.com/archives/CGG7NFUJ3), and [twitter](https://twitter.com/JaegerTracing?lang=en).
 
-# Jaeger Backend Release Process
+# ⚙️ Jaeger Backend Release Process
 
 <!-- BEGIN_CHECKLIST -->
 
@@ -80,7 +80,7 @@ https://github.com/jaegertracing/jaeger/issues/7757
 
 <!-- END_CHECKLIST -->
 
-## Manual release
+## 🛠️ Manual release
 
     * Manual:
        * Title "Prepare Release v1.x.x / v2.x.x"
@@ -92,7 +92,7 @@ https://github.com/jaegertracing/jaeger/issues/7757
          except the New Contributors section. Change the header to `### 👏 New Contributors`,
          then copy the main changelog above it. [Example](https://github.com/jaegertracing/jaeger/releases/tag/v1.55.0).
 
-## Patch Release
+## 🔧 Patch Release
 
 Sometimes we need to do a patch release, e.g. to fix a newly introduced bug. If the main branch already contains newer changes, it is recommended that a patch release is done from a version branch.
 
@@ -106,7 +106,7 @@ Maintenance branches should follow naming convention: `release-major.minor` (e.g
    * Once the release tag is created, the `ci-release` workflow will kick in and deploy the artifacts for the patch release.
 5. Do not perform a new release of the documentation since the major.minor is not changing. The one change that may be useful is bumping the `binariesLatest` variable in the `config.toml` file ([example](https://github.com/jaegertracing/documentation/commit/eacb52f332a7e069c254e652a6b4a58ea5a07b32)).
 
-## Release managers
+## 👥 Release managers
 
 A Release Manager is the person responsible for ensuring that a new version of Jaeger is released. This person will coordinate the required changes, including to the related components such as UI, IDL, and jaeger-lib and will address any problems that might happen during the release, making sure that the documentation above is correct.
 
