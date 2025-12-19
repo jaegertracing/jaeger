@@ -289,7 +289,7 @@ func TestKeyValueAsString(t *testing.T) {
 			name: "StringType",
 			kv: KeyValue{
 				Key:         "k",
-				ValueType:   stringType,
+				ValueType:   StringType,
 				ValueString: "hello",
 			},
 			expect: "hello",
@@ -298,7 +298,7 @@ func TestKeyValueAsString(t *testing.T) {
 			name: "BoolTrue",
 			kv: KeyValue{
 				Key:       "k",
-				ValueType: boolType,
+				ValueType: BoolType,
 				ValueBool: true,
 			},
 			expect: "true",
@@ -307,7 +307,7 @@ func TestKeyValueAsString(t *testing.T) {
 			name: "BoolFalse",
 			kv: KeyValue{
 				Key:       "k",
-				ValueType: boolType,
+				ValueType: BoolType,
 				ValueBool: false,
 			},
 			expect: "false",
@@ -316,7 +316,7 @@ func TestKeyValueAsString(t *testing.T) {
 			name: "Int64Type",
 			kv: KeyValue{
 				Key:        "k",
-				ValueType:  int64Type,
+				ValueType:  Int64Type,
 				ValueInt64: 12345,
 			},
 			expect: "12345",
@@ -325,7 +325,7 @@ func TestKeyValueAsString(t *testing.T) {
 			name: "Float64Type",
 			kv: KeyValue{
 				Key:          "k",
-				ValueType:    float64Type,
+				ValueType:    Float64Type,
 				ValueFloat64: 12.34,
 			},
 			expect: "12.34",
@@ -334,7 +334,7 @@ func TestKeyValueAsString(t *testing.T) {
 			name: "BinaryType",
 			kv: KeyValue{
 				Key:         "k",
-				ValueType:   binaryType,
+				ValueType:   BinaryType,
 				ValueBinary: []byte{0xAB, 0xCD, 0xEF},
 			},
 			expect: "abcdef",

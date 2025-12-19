@@ -5,7 +5,6 @@
 package spanstore
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -76,6 +75,11 @@ type spanWriterMetrics struct {
 	durationIndex         *casmetrics.Table
 }
 
+type CoreSpanWriter interface {
+	WriteSpan(span *dbmodel.Span) error
+	Close() error
+}
+
 // SpanWriter handles all writes to Cassandra for the Jaeger data model
 type SpanWriter struct {
 	session              cassandra.Session
@@ -130,22 +134,21 @@ func (s *SpanWriter) Close() error {
 }
 
 // WriteSpan saves the span into Cassandra
-func (s *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
-	ds := dbmodel.FromDomain(span)
+func (s *SpanWriter) WriteSpan(span *dbmodel.Span) error {
 	if s.storageMode&storeFlag == storeFlag {
-		if err := s.writeSpan(span, ds); err != nil {
+		if err := s.writeSpan(span); err != nil {
 			return err
 		}
 	}
 	if s.storageMode&indexFlag == indexFlag {
-		if err := s.writeIndexes(span, ds); err != nil {
+		if err := s.writeIndexes(span); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (s *SpanWriter) writeSpan(_ *model.Span, ds *dbmodel.Span) error {
+func (s *SpanWriter) writeSpan(ds *dbmodel.Span) error {
 	mainQuery := s.session.Query(
 		insertSpan,
 		ds.TraceID,
@@ -167,11 +170,11 @@ func (s *SpanWriter) writeSpan(_ *model.Span, ds *dbmodel.Span) error {
 	return nil
 }
 
-func (s *SpanWriter) writeIndexes(span *model.Span, ds *dbmodel.Span) error {
-	spanKind, _ := span.GetSpanKind() // if not found it returns ""
+func (s *SpanWriter) writeIndexes(ds *dbmodel.Span) error {
+	spanKind := dbmodel.GetSpanKind(ds) // if not found it returns ""
 	if err := s.saveServiceNameAndOperationName(dbmodel.Operation{
 		ServiceName:   ds.ServiceName,
-		SpanKind:      string(spanKind),
+		SpanKind:      spanKind,
 		OperationName: ds.OperationName,
 	}); err != nil {
 		// should this be a soft failure?
@@ -190,16 +193,13 @@ func (s *SpanWriter) writeIndexes(span *model.Span, ds *dbmodel.Span) error {
 		}
 	}
 
-	if span.Flags.IsFirehoseEnabled() {
-		return nil // skipping expensive indexing
-	}
-
 	if err := s.indexByTags(ds); err != nil {
 		return s.logError(ds, err, "Failed to index tags", s.logger)
 	}
 
 	if s.indexFilter(ds, dbmodel.DurationIndex) {
-		if err := s.indexByDuration(ds, span.StartTime); err != nil {
+		//nolint:gosec // G115
+		if err := s.indexByDuration(ds, model.EpochMicrosecondsAsTime(uint64(ds.StartTime))); err != nil {
 			return s.logError(ds, err, "Failed to index duration", s.logger)
 		}
 	}

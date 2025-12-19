@@ -46,27 +46,27 @@ var (
 	someDBTags   = []KeyValue{
 		{
 			Key:         someStringTagKey,
-			ValueType:   stringType,
+			ValueType:   StringType,
 			ValueString: someStringTagValue,
 		},
 		{
 			Key:       someBoolTagKey,
-			ValueType: boolType,
+			ValueType: BoolType,
 			ValueBool: someBoolTagValue,
 		},
 		{
 			Key:        someLongTagKey,
-			ValueType:  int64Type,
+			ValueType:  Int64Type,
 			ValueInt64: someLongTagValue,
 		},
 		{
 			Key:          someDoubleTagKey,
-			ValueType:    float64Type,
+			ValueType:    Float64Type,
 			ValueFloat64: someDoubleTagValue,
 		},
 		{
 			Key:         someBinaryTagKey,
-			ValueType:   binaryType,
+			ValueType:   BinaryType,
 			ValueBinary: someBinaryTagValue,
 		},
 	}
