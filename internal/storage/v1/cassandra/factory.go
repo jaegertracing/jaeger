@@ -24,12 +24,14 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 	cdepstore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/dependencystore"
 	csamplingstore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/schema"
 	cspanstore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/tracestoremetrics"
+	ctracestore "github.com/jaegertracing/jaeger/internal/storage/v2/cassandra/tracestore"
 )
 
 var ( // interface comformance checks
@@ -126,13 +128,18 @@ func NewSession(c *config.Configuration) (cassandra.Session, error) {
 	return createSession(c)
 }
 
-// CreateSpanReader creates a spanstore.Reader.
-func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	sr, err := cspanstore.NewSpanReader(f.session, f.metricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
+// CreateSpanReader implements storage.Factory
+func (*Factory) CreateSpanReader() (spanstore.Reader, error) {
+	return nil, errors.New("not implemented")
+}
+
+// CreateTraceReader returns the v2 tracereader
+func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
+	corereader, err := cspanstore.NewSpanReader(f.session, f.metricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
 	if err != nil {
 		return nil, err
 	}
-	return spanstoremetrics.NewReaderDecorator(sr, f.metricsFactory), nil
+	return tracestoremetrics.NewReaderDecorator(ctracestore.NewTraceReader(corereader), f.metricsFactory), nil
 }
 
 // CreateSpanWriter creates a spanstore.Writer.

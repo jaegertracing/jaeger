@@ -31,11 +31,7 @@ func NewFactory(opts cassandra.Options, metricsFactory metrics.Factory, logger *
 }
 
 func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
-	reader, err := f.v1Factory.CreateSpanReader()
-	if err != nil {
-		return nil, err
-	}
-	return v1adapter.NewTraceReader(reader), nil
+	return f.v1Factory.CreateTraceReader()
 }
 
 func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {

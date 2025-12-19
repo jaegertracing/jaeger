@@ -17,8 +17,8 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra/mocks"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
@@ -184,17 +184,17 @@ func TestOperationNamesStorageGetServices(t *testing.T) {
 		name          string
 		schemaVersion schemaVersion
 		expErr        error
-		expRes        []spanstore.Operation
+		expRes        []dbmodel.Operation
 	}{
 		{
 			name:          "test old schema without error",
 			schemaVersion: previousVersion,
-			expRes:        []spanstore.Operation{{Name: "foo"}},
+			expRes:        []dbmodel.Operation{{OperationName: "foo"}},
 		},
 		{
 			name:          "test new schema without error",
 			schemaVersion: latestVersion,
-			expRes:        []spanstore.Operation{{SpanKind: "foo", Name: "bar"}},
+			expRes:        []dbmodel.Operation{{SpanKind: "foo", OperationName: "bar"}},
 		},
 		{name: "test old schema with scan error", schemaVersion: previousVersion, expErr: scanError},
 		{name: "test new schema with scan error", schemaVersion: latestVersion, expErr: scanError},
@@ -230,7 +230,7 @@ func TestOperationNamesStorageGetServices(t *testing.T) {
 				query.On("Iter").Return(iter)
 
 				s.session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
-				services, err := s.storage.GetOperations(spanstore.OperationQueryParameters{
+				services, err := s.storage.GetOperations(tracestore.OperationQueryParams{
 					ServiceName: "service-a",
 				})
 				if test.expErr == nil {
