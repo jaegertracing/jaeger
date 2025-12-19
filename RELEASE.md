@@ -1,6 +1,6 @@
 # Jaeger Overall Release Process
 
-## Start Here: Create Release Issue
+## 1️⃣ Start Here: Create Release Issue
 
 **This is the main entry point for the release process.**
 
