@@ -19,6 +19,9 @@ Example output:
 ```
 Current version: v2.13.0
 New version: v2.14.0
+...
+Creating issue in jaegertracing/jaeger
+https://github.com/jaegertracing/jaeger/issues/7757
 ```
 
 ## Release Steps
