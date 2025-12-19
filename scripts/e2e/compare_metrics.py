@@ -94,6 +94,7 @@ def parse_metrics(content):
 
             if should_exclude_metric(sample.name, labels):
                 metrics_exclusion_count += 1
+                continue
 
             labels.pop('service_instance_id', None)
             labels = suppress_transient_labels(sample.name, labels)
@@ -116,8 +117,9 @@ def generate_diff(file1_content, file2_content):
     metrics2,excluded_metrics_count2 = parse_metrics(file2_content)
 
     diff = unified_diff(metrics1, metrics2,lineterm='',n=0)
+    total_excluded = excluded_metrics_count1 + excluded_metrics_count2
     
-    return '\n'.join(diff)+'\n'+ str(excluded_metrics_count1+excluded_metrics_count2)
+    return '\n'.join(diff)+(f'{total_excluded}' if total_excluded > 0 else '')
 
 def write_diff_file(diff_lines, output_path):
     
