@@ -262,7 +262,6 @@ func TestWriteSpanInternal(t *testing.T) {
 		indexName := "jaeger-1995-04-21"
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(spanType)).Return(indexService)
-		indexService.On("Id", mock.AnythingOfType("string")).Return(indexService)
 		indexService.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexService)
 		indexService.On("Add")
 
@@ -283,7 +282,6 @@ func TestWriteSpanInternalError(t *testing.T) {
 		indexName := "jaeger-1995-04-21"
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(spanType)).Return(indexService)
-		indexService.On("Id", mock.AnythingOfType("string")).Return(indexService)
 		indexService.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexService)
 		indexService.On("Add")
 
@@ -296,31 +294,6 @@ func TestWriteSpanInternalError(t *testing.T) {
 
 		w.writer.writeSpan(indexName, jsonSpan)
 		indexService.AssertNumberOfCalls(t, "Add", 1)
-	})
-}
-
-func TestWriteSpanWithSpanID(t *testing.T) {
-	withSpanWriter(func(w *spanWriterTest) {
-		indexService := &mocks.IndexService{}
-
-		indexName := "jaeger-1995-04-21"
-		expectedSpanID := "test-span-id-123"
-		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
-		indexService.On("Type", stringMatcher(spanType)).Return(indexService)
-		indexService.On("Id", expectedSpanID).Return(indexService)
-		indexService.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexService)
-		indexService.On("Add")
-
-		w.client.On("Index").Return(indexService)
-
-		jsonSpan := &dbmodel.Span{
-			TraceID: dbmodel.TraceID("test-trace-id"),
-			SpanID:  dbmodel.SpanID(expectedSpanID),
-		}
-
-		w.writer.writeSpan(indexName, jsonSpan)
-		indexService.AssertNumberOfCalls(t, "Add", 1)
-		indexService.AssertCalled(t, "Id", expectedSpanID)
 	})
 }
 

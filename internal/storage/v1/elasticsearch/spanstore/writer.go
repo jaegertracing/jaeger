@@ -165,7 +165,7 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
 }
 
 func (s *SpanWriter) writeSpan(indexName string, jsonSpan *dbmodel.Span) {
-	s.client().Index().Index(indexName).Type(spanType).Id(string(jsonSpan.SpanID)).BodyJson(&jsonSpan).Add()
+	s.client().Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan).Add()
 }
 
 func (s *SpanWriter) splitElevatedTags(keyValues []dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any) {
