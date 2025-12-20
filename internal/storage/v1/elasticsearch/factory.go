@@ -33,7 +33,7 @@ import (
 
 var _ io.Closer = (*FactoryBase)(nil)
 
-// FactoryBase implements storage.Factory for Elasticsearch backend.
+// FactoryBase for Elasticsearch backend.
 type FactoryBase struct {
 	metricsFactory metrics.Factory
 	logger         *zap.Logger

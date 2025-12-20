@@ -33,15 +33,13 @@ import (
 )
 
 var ( // interface comformance checks
-	_ storage.Factory              = (*Factory)(nil)
 	_ storage.Purger               = (*Factory)(nil)
 	_ storage.SamplingStoreFactory = (*Factory)(nil)
 	_ io.Closer                    = (*Factory)(nil)
-	_ storage.Inheritable          = (*Factory)(nil)
 	_ storage.ArchiveCapable       = (*Factory)(nil)
 )
 
-// Factory implements storage.Factory for Cassandra backend.
+// Factory for Cassandra backend.
 type Factory struct {
 	Options *Options
 
@@ -72,7 +70,7 @@ func (f *Factory) ConfigureFromOptions(o *Options) {
 	f.config = o.GetConfig()
 }
 
-// Initialize implements storage.Factory
+// Initialize performs internal initialization of the factory.
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory = metricsFactory
 	f.logger = logger
@@ -128,7 +126,7 @@ func NewSession(c *config.Configuration) (cassandra.Session, error) {
 	return createSession(c)
 }
 
-// CreateSpanReader implements storage.Factory
+// CreateSpanReader creates a spanstore.Reader.
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 	sr, err := cspanstore.NewSpanReader(f.session, f.metricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
 	if err != nil {
@@ -137,7 +135,7 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 	return spanstoremetrics.NewReaderDecorator(sr, f.metricsFactory), nil
 }
 
-// CreateSpanWriter implements storage.Factory
+// CreateSpanWriter creates a spanstore.Writer.
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	options, err := writerOptions(f.Options)
 	if err != nil {
@@ -146,7 +144,7 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	return cspanstore.NewSpanWriter(f.session, f.Options.SpanStoreWriteCacheTTL, f.metricsFactory, f.logger, options...)
 }
 
-// CreateDependencyReader implements storage.Factory
+// CreateDependencyReader creates a dependencystore.Reader.
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	version := cdepstore.GetDependencyVersion(f.session)
 	return cdepstore.NewDependencyStore(f.session, f.metricsFactory, f.logger, version)
@@ -217,12 +215,6 @@ func (f *Factory) Close() error {
 
 func (f *Factory) Purge(_ context.Context) error {
 	return f.session.Query("TRUNCATE traces").Exec()
-}
-
-func (f *Factory) InheritSettingsFrom(other storage.Factory) {
-	if otherFactory, ok := other.(*Factory); ok {
-		f.config.ApplyDefaults(&otherFactory.config)
-	}
 }
 
 func (f *Factory) IsArchiveCapable() bool {
