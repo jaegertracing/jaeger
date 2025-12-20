@@ -30,18 +30,7 @@ func (t *TraceReader) GetServices(ctx context.Context) ([]string, error) {
 }
 
 func (t *TraceReader) GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
-	operations, err := t.reader.GetOperations(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]tracestore.Operation, len(operations))
-	for i, operation := range operations {
-		result[i] = tracestore.Operation{
-			Name:     operation.OperationName,
-			SpanKind: operation.SpanKind,
-		}
-	}
-	return result, nil
+	return t.reader.GetOperations(ctx, query)
 }
 
 func (t *TraceReader) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {

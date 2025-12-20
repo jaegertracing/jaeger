@@ -111,13 +111,13 @@ func TestSpanReaderGetServices(t *testing.T) {
 
 func TestSpanReaderGetOperations(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		expectedOperations := []dbmodel.Operation{
+		expectedOperations := []tracestore.Operation{
 			{
-				OperationName: "operation-a",
-				SpanKind:      "server",
+				Name:     "operation-a",
+				SpanKind: "server",
 			},
 		}
-		r.reader.operationNamesReader = func(_ tracestore.OperationQueryParams) ([]dbmodel.Operation, error) {
+		r.reader.operationNamesReader = func(_ tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
 			return expectedOperations, nil
 		}
 		s, err := r.reader.GetOperations(context.Background(),

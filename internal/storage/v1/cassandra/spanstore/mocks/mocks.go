@@ -14,7 +14,6 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -183,23 +182,23 @@ func (_c *CoreSpanReader_FindTraces_Call) RunAndReturn(run func(ctx context.Cont
 }
 
 // GetOperations provides a mock function for the type CoreSpanReader
-func (_mock *CoreSpanReader) GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]dbmodel.Operation, error) {
+func (_mock *CoreSpanReader) GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
 	ret := _mock.Called(ctx, query)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetOperations")
 	}
 
-	var r0 []dbmodel.Operation
+	var r0 []tracestore.Operation
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, tracestore.OperationQueryParams) ([]dbmodel.Operation, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, tracestore.OperationQueryParams) ([]tracestore.Operation, error)); ok {
 		return returnFunc(ctx, query)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, tracestore.OperationQueryParams) []dbmodel.Operation); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, tracestore.OperationQueryParams) []tracestore.Operation); ok {
 		r0 = returnFunc(ctx, query)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]dbmodel.Operation)
+			r0 = ret.Get(0).([]tracestore.Operation)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func(context.Context, tracestore.OperationQueryParams) error); ok {
@@ -240,12 +239,12 @@ func (_c *CoreSpanReader_GetOperations_Call) Run(run func(ctx context.Context, q
 	return _c
 }
 
-func (_c *CoreSpanReader_GetOperations_Call) Return(operations []dbmodel.Operation, err error) *CoreSpanReader_GetOperations_Call {
+func (_c *CoreSpanReader_GetOperations_Call) Return(operations []tracestore.Operation, err error) *CoreSpanReader_GetOperations_Call {
 	_c.Call.Return(operations, err)
 	return _c
 }
 
-func (_c *CoreSpanReader_GetOperations_Call) RunAndReturn(run func(ctx context.Context, query tracestore.OperationQueryParams) ([]dbmodel.Operation, error)) *CoreSpanReader_GetOperations_Call {
+func (_c *CoreSpanReader_GetOperations_Call) RunAndReturn(run func(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error)) *CoreSpanReader_GetOperations_Call {
 	_c.Call.Return(run)
 	return _c
 }

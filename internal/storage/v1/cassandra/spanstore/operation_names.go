@@ -42,7 +42,7 @@ type tableMeta struct {
 	getOperations    func(
 		s *OperationNamesStorage,
 		query tracestore.OperationQueryParams,
-	) ([]dbmodel.Operation, error)
+	) ([]tracestore.Operation, error)
 }
 
 func (t *tableMeta) materialize() {
@@ -145,7 +145,7 @@ func (s *OperationNamesStorage) Write(operation dbmodel.Operation) error {
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (s *OperationNamesStorage) GetOperations(
 	query tracestore.OperationQueryParams,
-) ([]dbmodel.Operation, error) {
+) ([]tracestore.Operation, error) {
 	return s.table.getOperations(s, query)
 }
 
@@ -158,14 +158,14 @@ func tableExist(session cassandra.Session, tableName string) bool {
 func getOperationsV1(
 	s *OperationNamesStorage,
 	query tracestore.OperationQueryParams,
-) ([]dbmodel.Operation, error) {
+) ([]tracestore.Operation, error) {
 	iter := s.session.Query(s.table.queryStmt, query.ServiceName).Iter()
 
 	var operation string
-	var operations []dbmodel.Operation
+	var operations []tracestore.Operation
 	for iter.Scan(&operation) {
-		operations = append(operations, dbmodel.Operation{
-			OperationName: operation,
+		operations = append(operations, tracestore.Operation{
+			Name: operation,
 		})
 	}
 	if err := iter.Close(); err != nil {
@@ -179,7 +179,7 @@ func getOperationsV1(
 func getOperationsV2(
 	s *OperationNamesStorage,
 	query tracestore.OperationQueryParams,
-) ([]dbmodel.Operation, error) {
+) ([]tracestore.Operation, error) {
 	var casQuery cassandra.Query
 	if query.SpanKind == "" {
 		// Get operations for all spanKind
@@ -192,11 +192,11 @@ func getOperationsV2(
 
 	var operationName string
 	var spanKind string
-	var operations []dbmodel.Operation
+	var operations []tracestore.Operation
 	for iter.Scan(&spanKind, &operationName) {
-		operations = append(operations, dbmodel.Operation{
-			OperationName: operationName,
-			SpanKind:      spanKind,
+		operations = append(operations, tracestore.Operation{
+			Name:     operationName,
+			SpanKind: spanKind,
 		})
 	}
 	if err := iter.Close(); err != nil {

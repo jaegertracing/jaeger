@@ -184,17 +184,17 @@ func TestOperationNamesStorageGetServices(t *testing.T) {
 		name          string
 		schemaVersion schemaVersion
 		expErr        error
-		expRes        []dbmodel.Operation
+		expRes        []tracestore.Operation
 	}{
 		{
 			name:          "test old schema without error",
 			schemaVersion: previousVersion,
-			expRes:        []dbmodel.Operation{{OperationName: "foo"}},
+			expRes:        []tracestore.Operation{{Name: "foo"}},
 		},
 		{
 			name:          "test new schema without error",
 			schemaVersion: latestVersion,
-			expRes:        []dbmodel.Operation{{SpanKind: "foo", OperationName: "bar"}},
+			expRes:        []tracestore.Operation{{SpanKind: "foo", Name: "bar"}},
 		},
 		{name: "test old schema with scan error", schemaVersion: previousVersion, expErr: scanError},
 		{name: "test new schema with scan error", schemaVersion: latestVersion, expErr: scanError},

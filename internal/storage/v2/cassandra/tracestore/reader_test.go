@@ -18,7 +18,6 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -52,25 +51,6 @@ func TestGetOperationsErr(t *testing.T) {
 
 func TestGetOperations(t *testing.T) {
 	reader := mocks.CoreSpanReader{}
-	ops := []dbmodel.Operation{
-		{
-			ServiceName:   "service-1",
-			SpanKind:      "some kind",
-			OperationName: "operation-1",
-		},
-		{
-			ServiceName:   "service-1",
-			SpanKind:      "some kind",
-			OperationName: "operation-2",
-		},
-	}
-	reader.On("GetOperations", mock.Anything, mock.Anything).Return(ops, nil)
-	tracereader := &TraceReader{reader: &reader}
-	got, err := tracereader.GetOperations(context.Background(), tracestore.OperationQueryParams{
-		ServiceName: "service-1",
-		SpanKind:    "some kind",
-	})
-	require.NoError(t, err)
 	expected := []tracestore.Operation{
 		{
 			Name:     "operation-1",
@@ -81,6 +61,13 @@ func TestGetOperations(t *testing.T) {
 			SpanKind: "some kind",
 		},
 	}
+	reader.On("GetOperations", mock.Anything, mock.Anything).Return(expected, nil)
+	tracereader := &TraceReader{reader: &reader}
+	got, err := tracereader.GetOperations(context.Background(), tracestore.OperationQueryParams{
+		ServiceName: "service-1",
+		SpanKind:    "some kind",
+	})
+	require.NoError(t, err)
 	require.Equal(t, expected, got)
 }
 

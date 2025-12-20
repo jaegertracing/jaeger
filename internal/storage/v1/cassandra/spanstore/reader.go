@@ -83,7 +83,7 @@ var (
 
 type serviceNamesReader func() ([]string, error)
 
-type operationNamesReader func(query tracestore.OperationQueryParams) ([]dbmodel.Operation, error)
+type operationNamesReader func(query tracestore.OperationQueryParams) ([]tracestore.Operation, error)
 
 type spanReaderMetrics struct {
 	readTraces                 *casmetrics.Table
@@ -96,7 +96,7 @@ type spanReaderMetrics struct {
 
 type CoreSpanReader interface {
 	GetServices(ctx context.Context) ([]string, error)
-	GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]dbmodel.Operation, error)
+	GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error)
 	GetTrace(ctx context.Context, query spanstore.GetTraceParameters) (*model.Trace, error)
 	FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error)
 	FindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]model.TraceID, error)
@@ -151,7 +151,7 @@ func (s *SpanReader) GetServices(context.Context) ([]string, error) {
 func (s *SpanReader) GetOperations(
 	_ context.Context,
 	query tracestore.OperationQueryParams,
-) ([]dbmodel.Operation, error) {
+) ([]tracestore.Operation, error) {
 	return s.operationNamesReader(query)
 }
 
