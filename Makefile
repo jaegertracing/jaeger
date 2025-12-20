@@ -80,7 +80,6 @@ COLORIZE ?= | $(SED) 's/PASS/✅ PASS/g' | $(SED) 's/FAIL/❌ FAIL/g' | $(SED) '
 
 include scripts/makefiles/BuildBinaries.mk
 include scripts/makefiles/BuildInfo.mk
-include scripts/makefiles/Crossdock.mk
 include scripts/makefiles/Docker.mk
 include scripts/makefiles/IntegrationTests.mk
 include scripts/makefiles/Protobuf.mk

@@ -19,10 +19,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
-	"github.com/jaegertracing/jaeger/internal/jtracer"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	dependencystoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -46,7 +46,7 @@ func setupHTTPGatewayNoServer(
 	hgw := &HTTPGateway{
 		QueryService: q,
 		Logger:       zap.NewNop(),
-		Tracer:       jtracer.NoOp().OTEL,
+		Tracer:       nooptrace.NewTracerProvider(),
 	}
 
 	gw.router = &mux.Router{}

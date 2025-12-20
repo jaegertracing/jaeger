@@ -35,13 +35,12 @@ const (
 )
 
 var ( // interface comformance checks
-	_ storage.Factory              = (*Factory)(nil)
 	_ io.Closer                    = (*Factory)(nil)
 	_ storage.Purger               = (*Factory)(nil)
 	_ storage.SamplingStoreFactory = (*Factory)(nil)
 )
 
-// Factory implements storage.Factory for Badger backend.
+// Factory for Badger backend.
 type Factory struct {
 	Config         *Config
 	store          *badger.DB
@@ -76,7 +75,7 @@ func NewFactory() *Factory {
 	}
 }
 
-// Initialize implements storage.Factory
+// Initialize performs internal initialization of the factory.
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.logger = logger
 	f.metricsFactory = metricsFactory
@@ -136,18 +135,18 @@ func initializeDir(path string) {
 	}
 }
 
-// CreateSpanReader implements storage.Factory
+// CreateSpanReader creates a spanstore.Reader.
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 	tr := badgerstore.NewTraceReader(f.store, f.cache, true)
 	return spanstoremetrics.NewReaderDecorator(tr, f.metricsFactory), nil
 }
 
-// CreateSpanWriter implements storage.Factory
+// CreateSpanWriter creates a spanstore.Writer.
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	return badgerstore.NewSpanWriter(f.store, f.cache, f.Config.TTL.Spans), nil
 }
 
-// CreateDependencyReader implements storage.Factory
+// CreateDependencyReader creates a dependencystore.Reader.
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	sr, _ := f.CreateSpanReader() // err is always nil
 	return depstore.NewDependencyStore(sr), nil

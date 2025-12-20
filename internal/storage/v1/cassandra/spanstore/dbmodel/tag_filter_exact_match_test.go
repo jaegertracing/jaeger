@@ -7,8 +7,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 func TestBlacklistFilter(t *testing.T) {
@@ -30,31 +28,31 @@ func TestBlacklistFilter(t *testing.T) {
 	}
 
 	for _, test := range tt {
-		var inputKVs model.KeyValues
+		var inputKVs []KeyValue
 		for _, i := range test.input {
-			inputKVs = append(inputKVs, model.String(i, ""))
+			inputKVs = append(inputKVs, KeyValue{Key: i, ValueType: stringType, ValueString: ""})
 		}
-		var expectedKVs model.KeyValues
+		var expectedKVs []KeyValue
 		for _, e := range test.expected {
-			expectedKVs = append(expectedKVs, model.String(e, ""))
+			expectedKVs = append(expectedKVs, KeyValue{Key: e, ValueType: stringType, ValueString: ""})
 		}
-		expectedKVs.Sort()
+		SortKVs(expectedKVs)
 
 		tf := NewBlacklistFilter(test.filter)
 		actualKVs := tf.filter(inputKVs)
-		actualKVs.Sort()
+		SortKVs(actualKVs)
 		assert.Equal(t, expectedKVs, actualKVs)
 
 		actualKVs = tf.FilterLogFields(nil, inputKVs)
-		actualKVs.Sort()
+		SortKVs(actualKVs)
 		assert.Equal(t, expectedKVs, actualKVs)
 
 		actualKVs = tf.FilterProcessTags(nil, inputKVs)
-		actualKVs.Sort()
+		SortKVs(actualKVs)
 		assert.Equal(t, expectedKVs, actualKVs)
 
 		actualKVs = tf.FilterTags(nil, inputKVs)
-		actualKVs.Sort()
+		SortKVs(actualKVs)
 		assert.Equal(t, expectedKVs, actualKVs)
 	}
 }
@@ -78,31 +76,31 @@ func TestWhitelistFilter(t *testing.T) {
 	}
 
 	for _, test := range tt {
-		var inputKVs model.KeyValues
+		var inputKVs []KeyValue
 		for _, i := range test.input {
-			inputKVs = append(inputKVs, model.String(i, ""))
+			inputKVs = append(inputKVs, KeyValue{Key: i, ValueType: stringType, ValueString: ""})
 		}
-		var expectedKVs model.KeyValues
+		var expectedKVs []KeyValue
 		for _, e := range test.expected {
-			expectedKVs = append(expectedKVs, model.String(e, ""))
+			expectedKVs = append(expectedKVs, KeyValue{Key: e, ValueType: stringType, ValueString: ""})
 		}
-		expectedKVs.Sort()
+		SortKVs(expectedKVs)
 
 		tf := NewWhitelistFilter(test.filter)
 		actualKVs := tf.filter(inputKVs)
-		actualKVs.Sort()
+		SortKVs(actualKVs)
 		assert.Equal(t, expectedKVs, actualKVs)
 
 		actualKVs = tf.FilterLogFields(nil, inputKVs)
-		actualKVs.Sort()
+		SortKVs(actualKVs)
 		assert.Equal(t, expectedKVs, actualKVs)
 
 		actualKVs = tf.FilterProcessTags(nil, inputKVs)
-		actualKVs.Sort()
+		SortKVs(actualKVs)
 		assert.Equal(t, expectedKVs, actualKVs)
 
 		actualKVs = tf.FilterTags(nil, inputKVs)
-		actualKVs.Sort()
+		SortKVs(actualKVs)
 		assert.Equal(t, expectedKVs, actualKVs)
 	}
 }

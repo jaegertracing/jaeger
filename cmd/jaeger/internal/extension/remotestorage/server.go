@@ -41,22 +41,23 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	// TODO OTel-collector does not initialize the tracer currently
 	// https://github.com/open-telemetry/opentelemetry-collector/issues/7532
 	//nolint
-	tracerProvider, err := jtracer.New("jaeger")
+	tracerProvider, tracerCloser, err := jtracer.NewProvider(ctx, "jaeger")
 	if err != nil {
 		return fmt.Errorf("could not initialize a tracer: %w", err)
 	}
-	// make sure to close the tracer if subsequent code exists with error
+	// Store closer for tracer if this function exists successfully,
+	// otherwise call the closer right away.
 	success := false
 	defer func(ctx context.Context) {
 		if success {
-			s.closeTracer = tracerProvider.Close
+			s.closeTracer = tracerCloser
 		} else {
-			tracerProvider.Close(ctx)
+			tracerCloser(ctx)
 		}
 	}(ctx)
 
 	telset := telemetry.FromOtelComponent(s.telset, host)
-	telset.TracerProvider = tracerProvider.OTEL
+	telset.TracerProvider = tracerProvider
 	telset.Metrics = telset.Metrics.
 		Namespace(metrics.NSOptions{Name: "jaeger"}).
 		Namespace(metrics.NSOptions{Name: "remote_storage"})

@@ -6,7 +6,7 @@ package testutils_test
 import (
 	"testing"
 
-	"github.com/gocql/gocql"
+	gocql "github.com/apache/cassandra-gocql-driver/v2"
 
 	gocqlutils "github.com/jaegertracing/jaeger/internal/storage/cassandra/gocql/testutils"
 	"github.com/jaegertracing/jaeger/internal/testutils"
@@ -65,6 +65,12 @@ func TestUDTTestCase(t *testing.T) {
 		{
 			Name:  "InvalidField",
 			Type:  gocql.TypeBigInt,
+			ValIn: []byte("test"),
+			Err:   true,
+		},
+		{
+			// Type is omitted (zero value), should default to TypeVarchar
+			Name:  "InvalidFieldType",
 			ValIn: []byte("test"),
 			Err:   true,
 		},
