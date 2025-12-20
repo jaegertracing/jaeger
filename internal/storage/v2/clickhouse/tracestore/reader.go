@@ -141,6 +141,23 @@ func (*Reader) FindTraces(
 	panic("not implemented")
 }
 
+func readRowIntoTraceID(rows driver.Rows) ([]tracestore.FoundTraceID, error) {
+	var str string
+
+	if err := rows.Scan(&str); err != nil {
+		return nil, fmt.Errorf("failed to scan row: %w", err)
+	}
+
+	b, err := hex.DecodeString(str)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode trace ID: %w", err)
+	}
+
+	return []tracestore.FoundTraceID{
+		{TraceID: pcommon.TraceID(b)},
+	}, nil
+}
+
 func (r *Reader) FindTraceIDs(
 	ctx context.Context,
 	query tracestore.TraceQueryParams,
@@ -176,23 +193,8 @@ func (r *Reader) FindTraceIDs(
 		defer rows.Close()
 
 		for rows.Next() {
-			var traceID string
-			if err := rows.Scan(&traceID); err != nil {
-				if !yield(nil, fmt.Errorf("failed to scan row: %w", err)) {
-					return
-				}
-				continue
-			}
-
-			b, err := hex.DecodeString(traceID)
-			if err != nil {
-				if !yield(nil, fmt.Errorf("failed to decode trace ID: %w", err)) {
-					return
-				}
-				continue
-			}
-
-			if !yield([]tracestore.FoundTraceID{{TraceID: pcommon.TraceID(b)}}, nil) {
+			traceID, err := readRowIntoTraceID(rows)
+			if !yield(traceID, err) {
 				return
 			}
 		}
