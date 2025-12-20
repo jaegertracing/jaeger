@@ -9,7 +9,9 @@ import (
 
 // DedupeBySpanHash returns an adjuster that removes all but one span with the same hashcode.
 // This is useful for when spans are duplicated in archival storage, as happens with
-// ElasticSearch archival.
+// ElasticSearch archival when the span storage was not using explicit document IDs.
+// Note: As of the fix that uses span IDs as document IDs, new data should not have duplicates,
+// but this adjuster is still useful for historical data.
 func DedupeBySpanHash() Adjuster {
 	return Func(func(trace *model.Trace) {
 		deduper := &spanHashDeduper{trace: trace}
