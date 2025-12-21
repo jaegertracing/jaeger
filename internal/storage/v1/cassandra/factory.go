@@ -29,9 +29,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/schema"
 	cspanstore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/tracestoremetrics"
-	ctracestore "github.com/jaegertracing/jaeger/internal/storage/v2/cassandra/tracestore"
 )
 
 var ( // interface comformance checks
@@ -133,15 +130,6 @@ func (*Factory) CreateSpanReader() (spanstore.Reader, error) {
 	return nil, errors.New("not implemented")
 }
 
-// CreateTraceReader returns the v2 tracereader
-func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
-	corereader, err := cspanstore.NewSpanReader(f.session, f.metricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
-	if err != nil {
-		return nil, err
-	}
-	return tracestoremetrics.NewReaderDecorator(ctracestore.NewTraceReader(corereader), f.metricsFactory), nil
-}
-
 // CreateSpanWriter creates a spanstore.Writer.
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	options, err := writerOptions(f.Options)
@@ -226,4 +214,12 @@ func (f *Factory) Purge(_ context.Context) error {
 
 func (f *Factory) IsArchiveCapable() bool {
 	return f.Options.ArchiveEnabled
+}
+
+func (f *Factory) GetSession() cassandra.Session {
+	return f.session
+}
+
+func (f *Factory) GetTracer() trace.TracerProvider {
+	return f.tracer
 }
