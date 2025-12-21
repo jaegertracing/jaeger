@@ -11,6 +11,13 @@ import (
 	"go.opentelemetry.io/collector/config/configoptional"
 )
 
+const (
+	defaultProtocol       = "native"
+	defaultDatabase       = "jaeger"
+	defaultSearchDepth    = 1000
+	defaultMaxSearchDepth = 10000
+)
+
 type Configuration struct {
 	// Protocol is the protocol to use to connect to ClickHouse.
 	// Supported values are "native" and "http". Default is "native".
@@ -25,6 +32,13 @@ type Configuration struct {
 	DialTimeout time.Duration `mapstructure:"dial_timeout"`
 	// CreateSchema, if set to true, will create the ClickHouse schema if it does not exist.
 	CreateSchema bool `mapstructure:"create_schema"`
+	// DefaultSearchDepth is the default search depth for queries.
+	// This is the maximum number of trace IDs that will be returned when searching for traces
+	// if a limit is not specified in the query.
+	DefaultSearchDepth int `mapstructure:"default_search_depth"`
+	// MaxSearchDepth is the maximum allowed search depth for queries.
+	// This limits the number of trace IDs that can be returned when searching for traces.
+	MaxSearchDepth int `mapstructure:"max_search_depth"`
 	// TODO: add more settings
 }
 
@@ -36,4 +50,19 @@ type Authentication struct {
 func (cfg *Configuration) Validate() error {
 	_, err := govalidator.ValidateStruct(cfg)
 	return err
+}
+
+func (cfg *Configuration) applyDefaults() {
+	if cfg.Protocol == "" {
+		cfg.Protocol = "native"
+	}
+	if cfg.Database == "" {
+		cfg.Database = defaultDatabase
+	}
+	if cfg.DefaultSearchDepth == 0 {
+		cfg.DefaultSearchDepth = defaultSearchDepth
+	}
+	if cfg.MaxSearchDepth == 0 {
+		cfg.MaxSearchDepth = defaultMaxSearchDepth
+	}
 }

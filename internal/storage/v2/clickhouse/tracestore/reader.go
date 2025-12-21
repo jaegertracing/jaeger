@@ -5,10 +5,12 @@ package tracestore
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"iter"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -18,8 +20,18 @@ import (
 
 var _ tracestore.Reader = (*Reader)(nil)
 
+type ReaderConfig struct {
+	// DefaultSearchDepth is the default number of trace IDs to return when searching for traces.
+	// This value is used when the SearchDepth field in TraceQueryParams is not set.
+	DefaultSearchDepth int
+	// MaxSearchDepth is the maximum number of trace IDs that can be returned when searching for traces.
+	// This value is used to limit the SearchDepth field in TraceQueryParams.
+	MaxSearchDepth int
+}
+
 type Reader struct {
-	conn driver.Conn
+	conn   driver.Conn
+	config ReaderConfig
 }
 
 // NewReader returns a new Reader instance that uses the given ClickHouse connection
@@ -27,8 +39,8 @@ type Reader struct {
 //
 // The provided connection is used exclusively for reading traces, meaning it is safe
 // to enable instrumentation on the connection without risk of recursively generating traces.
-func NewReader(conn driver.Conn) *Reader {
-	return &Reader{conn: conn}
+func NewReader(conn driver.Conn, cfg ReaderConfig) *Reader {
+	return &Reader{conn: conn, config: cfg}
 }
 
 func (r *Reader) GetTraces(
@@ -129,9 +141,62 @@ func (*Reader) FindTraces(
 	panic("not implemented")
 }
 
-func (*Reader) FindTraceIDs(
-	context.Context,
-	tracestore.TraceQueryParams,
+func readRowIntoTraceID(rows driver.Rows) ([]tracestore.FoundTraceID, error) {
+	var str string
+
+	if err := rows.Scan(&str); err != nil {
+		return nil, fmt.Errorf("failed to scan row: %w", err)
+	}
+
+	b, err := hex.DecodeString(str)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode trace ID: %w", err)
+	}
+
+	return []tracestore.FoundTraceID{
+		{TraceID: pcommon.TraceID(b)},
+	}, nil
+}
+
+func (r *Reader) FindTraceIDs(
+	ctx context.Context,
+	query tracestore.TraceQueryParams,
 ) iter.Seq2[[]tracestore.FoundTraceID, error] {
-	panic("not implemented")
+	return func(yield func([]tracestore.FoundTraceID, error) bool) {
+		q := sql.SearchTraceIDs
+		args := []any{}
+
+		if query.ServiceName != "" {
+			q += " AND service_name = ?"
+			args = append(args, query.ServiceName)
+		}
+		if query.OperationName != "" {
+			q += " AND name = ?"
+			args = append(args, query.OperationName)
+		}
+		q += " LIMIT ?"
+		if query.SearchDepth > 0 {
+			if query.SearchDepth > r.config.MaxSearchDepth {
+				yield(nil, fmt.Errorf("search depth %d exceeds maximum allowed %d", query.SearchDepth, r.config.MaxSearchDepth))
+				return
+			}
+			args = append(args, query.SearchDepth)
+		} else {
+			args = append(args, r.config.DefaultSearchDepth)
+		}
+
+		rows, err := r.conn.Query(ctx, q, args...)
+		if err != nil {
+			yield(nil, fmt.Errorf("failed to query trace IDs: %w", err))
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			traceID, err := readRowIntoTraceID(rows)
+			if !yield(traceID, err) {
+				return
+			}
+		}
+	}
 }
