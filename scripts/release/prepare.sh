@@ -53,14 +53,27 @@ if [ "$CURRENT_BRANCH" != "main" ]; then
     fi
 fi
 
-# fetch from upstream if it exist, otherwise fetch from origin
-if git remote | grep -q '^upstream$'; then
-    echo "Fetching from upstream..."
-    git fetch upstream
-else
-    echo "Fetching from origin..."
-    git fetch origin
+# find by checking URL patterns
+OFFICIAL_REPO_PATTERN='(github\.com[:/])jaegertracing/jaeger(\.git)?$'
+OFFICIAL_REMOTE=""
+
+for remote in $(git remote); do
+    remote_url=$(git remote get-url "$remote" 2>/dev/null || true)
+    if echo "$remote_url" | grep -Eq "$OFFICIAL_REPO_PATTERN"; then
+        OFFICIAL_REMOTE="$remote"
+        break
+    fi
+done
+
+if [ -z "$OFFICIAL_REMOTE" ]; then
+    echo "Error: could not find a remote pointing to jaegertracing/jaeger"
+    echo "Available remotes:"
+    git remote -v
+    exit 1
 fi
+
+echo "Fetching from official repo: $OFFICIAL_REMOTE"
+git fetch "$OFFICIAL_REMOTE"
 
 # Create a new branch
 BRANCH_NAME="prepare-release-v${VERSION}"
