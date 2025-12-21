@@ -41,11 +41,19 @@ func NewFactory(opts cassandra.Options, metricsFactory metrics.Factory, logger *
 }
 
 func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
-	corereader, err := cspanstore.NewSpanReader(f.v1Factory.GetSession(), f.metricsFactory, f.logger, f.v1Factory.GetTracer().Tracer("cSpanStore.SpanReader"))
+	corereader, err := cspanstore.NewSpanReader(
+		f.v1Factory.GetSession(),
+		f.metricsFactory,
+		f.logger,
+		f.v1Factory.GetTracer().Tracer("cSpanStore.SpanReader"),
+	)
 	if err != nil {
 		return nil, err
 	}
-	return tracestoremetrics.NewReaderDecorator(ctracestore.NewTraceReader(corereader), f.metricsFactory), nil
+	return tracestoremetrics.NewReaderDecorator(
+		ctracestore.NewTraceReader(corereader),
+		f.metricsFactory,
+	), nil
 }
 
 func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
