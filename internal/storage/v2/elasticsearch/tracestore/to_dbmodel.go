@@ -93,6 +93,9 @@ func resourceToDbProcess(resource pcommon.Resource) dbmodel.Process {
 
 func appendTagsFromAttributes(dest []dbmodel.KeyValue, attrs pcommon.Map) []dbmodel.KeyValue {
 	for key, attr := range attrs.All() {
+		if key == conventions.OtelStatusCode {
+			continue
+		}
 		dest = append(dest, attributeToDbTag(key, attr))
 	}
 	return dest
