@@ -33,7 +33,7 @@ func TestGetServices(t *testing.T) {
 
 func TestGetOperationsErr(t *testing.T) {
 	reader := mocks.CoreSpanReader{}
-	reader.On("GetOperations", mock.Anything, mock.Anything).Return(nil, errors.New("error"))
+	reader.On("GetOperationsV2", mock.Anything, mock.Anything).Return(nil, errors.New("error"))
 	tracereader := &TraceReader{reader: &reader}
 	got, err := tracereader.GetOperations(context.Background(), tracestore.OperationQueryParams{
 		ServiceName: "service-1",
@@ -55,7 +55,7 @@ func TestGetOperations(t *testing.T) {
 			SpanKind: "some kind",
 		},
 	}
-	reader.On("GetOperations", mock.Anything, mock.Anything).Return(expected, nil)
+	reader.On("GetOperationsV2", mock.Anything, mock.Anything).Return(expected, nil)
 	tracereader := &TraceReader{reader: &reader}
 	got, err := tracereader.GetOperations(context.Background(), tracestore.OperationQueryParams{
 		ServiceName: "service-1",
