@@ -17,6 +17,7 @@ import (
 
 var _ tracestore.Reader = (*TraceReader)(nil)
 
+// TraceReader adapts a v1 spanstore.Reader to the v2 tracestore.Reader interface.
 type TraceReader struct {
 	spanReader spanstore.Reader
 }
