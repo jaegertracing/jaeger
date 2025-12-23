@@ -19,6 +19,12 @@ import (
 func TestNewTraceReader(t *testing.T) {
 	reader := NewTraceReader(&mocks.CoreSpanReader{})
 	assert.NotNil(t, reader)
+	traceids := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
+	assert.NotNil(t, traceids)
+	trace := reader.GetTraces(context.Background(), tracestore.GetTraceParams{})
+	assert.NotNil(t, trace)
+	traces := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{})
+	assert.NotNil(t, traces)
 }
 
 func TestGetServices(t *testing.T) {

@@ -471,3 +471,9 @@ func TestTraceQueryParameterValidation(t *testing.T) {
 	err = validateQuery(tsp)
 	require.EqualError(t, err, ErrStartAndEndTimeNotSet.Error())
 }
+
+func TestGetOperations(t *testing.T) {
+	reader := SpanReader{}
+	_, err := reader.GetOperations(context.Background(), spanstore.OperationQueryParameters{})
+	require.ErrorContains(t, err, "not implemented")
+}
