@@ -120,7 +120,7 @@ func TestSpanReaderGetOperations(t *testing.T) {
 		r.reader.operationNamesReader = func(_ tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
 			return expectedOperations, nil
 		}
-		s, err := r.reader.GetOperations(context.Background(),
+		s, err := r.reader.GetOperationsV2(context.Background(),
 			tracestore.OperationQueryParams{ServiceName: "service-x", SpanKind: "server"})
 		require.NoError(t, err)
 		assert.Equal(t, expectedOperations, s)

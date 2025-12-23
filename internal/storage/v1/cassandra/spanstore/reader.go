@@ -96,7 +96,8 @@ type spanReaderMetrics struct {
 
 type CoreSpanReader interface {
 	GetServices(ctx context.Context) ([]string, error)
-	GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error)
+	GetOperations(ctx context.Context, query spanstore.OperationQueryParameters) ([]spanstore.Operation, error)
+	GetOperationsV2(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error)
 	GetTrace(ctx context.Context, query spanstore.GetTraceParameters) (*model.Trace, error)
 	FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error)
 	FindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]model.TraceID, error)
@@ -148,7 +149,14 @@ func (s *SpanReader) GetServices(context.Context) ([]string, error) {
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
-func (s *SpanReader) GetOperations(
+func (*SpanReader) GetOperations(
+	_ context.Context,
+	_ spanstore.OperationQueryParameters,
+) ([]spanstore.Operation, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s *SpanReader) GetOperationsV2(
 	_ context.Context,
 	query tracestore.OperationQueryParams,
 ) ([]tracestore.Operation, error) {
