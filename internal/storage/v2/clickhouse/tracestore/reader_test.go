@@ -12,12 +12,21 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
+)
+
+var (
+	testReaderConfig = ReaderConfig{
+		DefaultSearchDepth: 100,
+		MaxSearchDepth:     1000,
+	}
+	testSearchTraceIDsQuery = sql.SearchTraceIDs + " LIMIT ?"
 )
 
 func scanSpanRowFn() func(dest any, src *dbmodel.SpanRow) error {
@@ -108,6 +117,26 @@ func scanSpanRowFn() func(dest any, src *dbmodel.SpanRow) error {
 	}
 }
 
+func scanTraceIDFn() func(dest any, src string) error {
+	return func(dest any, src string) error {
+		ptrs, ok := dest.([]any)
+		if !ok {
+			return fmt.Errorf("expected []any for dest, got %T", dest)
+		}
+		if len(ptrs) != 1 {
+			return fmt.Errorf("expected 1 destination argument, got %d", len(ptrs))
+		}
+
+		ptr, ok := ptrs[0].(*string)
+		if !ok {
+			return fmt.Errorf("expected *string for dest[0], got %T", ptrs[0])
+		}
+
+		*ptr = src
+		return nil
+	}
+}
+
 func TestGetTraces_Success(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -135,7 +164,7 @@ func TestGetTraces_Success(t *testing.T) {
 				},
 			}
 
-			reader := NewReader(conn)
+			reader := NewReader(conn, testReaderConfig)
 			getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
 				TraceID: traceID,
 			})
@@ -191,7 +220,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			reader := NewReader(test.driver)
+			reader := NewReader(test.driver, testReaderConfig)
 			iter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
 				TraceID: traceID,
 			})
@@ -221,7 +250,7 @@ func TestGetTraces_ScanErrorContinues(t *testing.T) {
 		},
 	}
 
-	reader := NewReader(conn)
+	reader := NewReader(conn, testReaderConfig)
 	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
 		TraceID: traceID,
 	})
@@ -246,7 +275,7 @@ func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 		},
 	}
 
-	reader := NewReader(conn)
+	reader := NewReader(conn, testReaderConfig)
 	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
 		TraceID: traceID,
 	})
@@ -329,7 +358,7 @@ func TestGetServices(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			reader := NewReader(test.conn)
+			reader := NewReader(test.conn, testReaderConfig)
 
 			result, err := reader.GetServices(context.Background())
 
@@ -464,7 +493,7 @@ func TestGetOperations(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			reader := NewReader(test.conn)
+			reader := NewReader(test.conn, testReaderConfig)
 
 			result, err := reader.GetOperations(context.Background(), test.query)
 
@@ -479,15 +508,224 @@ func TestGetOperations(t *testing.T) {
 }
 
 func TestFindTraces(t *testing.T) {
-	reader := NewReader(&testDriver{})
+	reader := NewReader(&testDriver{}, testReaderConfig)
 	require.Panics(t, func() {
 		reader.FindTraces(context.Background(), tracestore.TraceQueryParams{})
 	})
 }
 
 func TestFindTraceIDs(t *testing.T) {
-	reader := NewReader(&testDriver{})
-	require.Panics(t, func() {
-		reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
+	driver := &testDriver{
+		t:             t,
+		expectedQuery: `SELECT DISTINCT trace_id FROM spans WHERE 1=1 AND service_name = ? AND name = ? LIMIT ?`,
+		rows: &testRows[string]{
+			data: []string{
+				"00000000000000000000000000000001",
+				"00000000000000000000000000000002",
+			},
+			scanFn: scanTraceIDFn(),
+		},
+	}
+	reader := NewReader(driver, testReaderConfig)
+	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+		ServiceName:   "serviceA",
+		OperationName: "operationA",
+		SearchDepth:   5,
 	})
+	ids, err := jiter.FlattenWithErrors(iter)
+	require.NoError(t, err)
+	require.Equal(t, []tracestore.FoundTraceID{
+		{
+			TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}),
+		},
+		{
+			TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}),
+		},
+	}, ids)
+}
+
+func TestFindTraceIDs_SearchDepthExceedsMax(t *testing.T) {
+	driver := &testDriver{
+		t:             t,
+		expectedQuery: testSearchTraceIDsQuery,
+		rows: &testRows[string]{
+			data: []string{
+				"00000000000000000000000000000001",
+				"00000000000000000000000000000002",
+			},
+			scanFn: scanTraceIDFn(),
+		},
+	}
+	reader := NewReader(driver, testReaderConfig)
+	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+		SearchDepth: 10000,
+	})
+	_, err := jiter.FlattenWithErrors(iter)
+	require.ErrorContains(t, err, "search depth 10000 exceeds maximum allowed 1000")
+}
+
+func TestFindTraceIDs_YieldFalseOnSuccessStopsIteration(t *testing.T) {
+	conn := &testDriver{
+		t:             t,
+		expectedQuery: testSearchTraceIDsQuery,
+		rows: &testRows[string]{
+			data: []string{
+				"00000000000000000000000000000001",
+				"00000000000000000000000000000002",
+			},
+			scanFn: scanTraceIDFn(),
+		},
+	}
+
+	reader := NewReader(conn, testReaderConfig)
+	findTraceIDsIter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
+
+	var gotTraceIDs []tracestore.FoundTraceID
+	findTraceIDsIter(func(traceIDs []tracestore.FoundTraceID, err error) bool {
+		require.NoError(t, err)
+		gotTraceIDs = append(gotTraceIDs, traceIDs...)
+		return false // stop iteration after the first trace ID
+	})
+
+	require.Len(t, gotTraceIDs, 1)
+	require.Equal(t, []tracestore.FoundTraceID{
+		{
+			TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}),
+		},
+	}, gotTraceIDs)
+}
+
+func TestFindTraceIDs_ScanErrorContinues(t *testing.T) {
+	scanCalled := 0
+
+	scanFn := func(dest any, src string) error {
+		scanCalled++
+		if scanCalled == 1 {
+			return assert.AnError // simulate scan error on the first row
+		}
+		return scanTraceIDFn()(dest, src)
+	}
+
+	conn := &testDriver{
+		t:             t,
+		expectedQuery: testSearchTraceIDsQuery,
+		rows: &testRows[string]{
+			data: []string{
+				"00000000000000000000000000000001",
+				"00000000000000000000000000000002",
+			},
+			scanFn: scanFn,
+		},
+	}
+
+	reader := NewReader(conn, testReaderConfig)
+	findTraceIDsIter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
+
+	expected := []tracestore.FoundTraceID{
+		{
+			TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}),
+		},
+	}
+
+	for traceID, err := range findTraceIDsIter {
+		if err != nil {
+			require.ErrorIs(t, err, assert.AnError)
+			continue
+		}
+		require.Equal(t, expected, traceID)
+	}
+}
+
+func TestFindTraceIDs_DecodeErrorContinues(t *testing.T) {
+	conn := &testDriver{
+		t:             t,
+		expectedQuery: testSearchTraceIDsQuery,
+		rows: &testRows[string]{
+			data: []string{
+				"00000000000000000000000000000001",
+				"0x",
+				"invalid",
+				"00000000000000000000000000000002",
+			},
+			scanFn: scanTraceIDFn(),
+		},
+	}
+
+	reader := NewReader(conn, ReaderConfig{})
+	findTraceIDsIter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
+
+	expectedValidTraceIDs := []tracestore.FoundTraceID{
+		{
+			TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}),
+		},
+		{
+			TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}),
+		},
+	}
+
+	var gotTraceIDs []tracestore.FoundTraceID
+	var errorCount int
+
+	for traceID, err := range findTraceIDsIter {
+		if err != nil {
+			require.ErrorContains(t, err, "failed to decode trace ID")
+			errorCount++
+			continue
+		}
+		gotTraceIDs = append(gotTraceIDs, traceID...)
+	}
+
+	require.Equal(t, 2, errorCount)
+	require.Equal(t, expectedValidTraceIDs, gotTraceIDs)
+}
+
+func TestFindTraceIDs_ErrorCases(t *testing.T) {
+	tests := []struct {
+		name        string
+		driver      *testDriver
+		expectedErr string
+	}{
+		{
+			name: "QueryError",
+			driver: &testDriver{
+				t:             t,
+				expectedQuery: testSearchTraceIDsQuery,
+				err:           assert.AnError,
+			},
+			expectedErr: "failed to query trace IDs",
+		},
+		{
+			name: "ScanError",
+			driver: &testDriver{
+				t:             t,
+				expectedQuery: testSearchTraceIDsQuery,
+				rows: &testRows[string]{
+					data:    []string{"0000000000000001", "0000000000000002"},
+					scanErr: assert.AnError,
+				},
+			},
+			expectedErr: "failed to scan row",
+		},
+		{
+			name: "DecodeError",
+			driver: &testDriver{
+				t:             t,
+				expectedQuery: testSearchTraceIDsQuery,
+				rows: &testRows[string]{
+					data:   []string{"0x"},
+					scanFn: scanTraceIDFn(),
+				},
+			},
+			expectedErr: "failed to decode trace ID",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			reader := NewReader(test.driver, ReaderConfig{})
+			iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
+			_, err := jiter.FlattenWithErrors(iter)
+			require.ErrorContains(t, err, test.expectedErr)
+		})
+	}
 }
