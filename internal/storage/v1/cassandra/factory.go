@@ -24,7 +24,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 	cdepstore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/dependencystore"
 	csamplingstore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/schema"
@@ -126,13 +125,9 @@ func NewSession(c *config.Configuration) (cassandra.Session, error) {
 	return createSession(c)
 }
 
-// CreateSpanReader creates a spanstore.Reader.
-func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	sr, err := cspanstore.NewSpanReader(f.session, f.metricsFactory, f.logger, f.tracer.Tracer("cSpanStore.SpanReader"))
-	if err != nil {
-		return nil, err
-	}
-	return spanstoremetrics.NewReaderDecorator(sr, f.metricsFactory), nil
+// CreateSpanReader implements storage.Factory
+func (*Factory) CreateSpanReader() (spanstore.Reader, error) {
+	return nil, errors.New("not implemented")
 }
 
 // CreateSpanWriter creates a spanstore.Writer.
@@ -219,4 +214,12 @@ func (f *Factory) Purge(_ context.Context) error {
 
 func (f *Factory) IsArchiveCapable() bool {
 	return f.Options.ArchiveEnabled
+}
+
+func (f *Factory) GetSession() cassandra.Session {
+	return f.session
+}
+
+func (f *Factory) GetTracer() trace.TracerProvider {
+	return f.tracer
 }
