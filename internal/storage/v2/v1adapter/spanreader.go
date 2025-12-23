@@ -17,10 +17,20 @@ var _ spanstore.Reader = (*SpanReader)(nil)
 
 var errTooManyTracesFound = errors.New("too many traces found")
 
-// SpanReader wraps a tracestore.Reader so that it can be downgraded to implement
-// the v1 spanstore.Reader interface.
+// SpanReader adapts a v2 tracestore.Reader to the v1 spanstore.Reader interface.
 type SpanReader struct {
 	traceReader tracestore.Reader
+}
+
+// GetV1Reader adapts a v2 tracestore.Reader to the v1 spanstore.Reader interface.
+// If the passed reader is already a v1 adapter, it returns the underlying v1 spanstore.Reader.
+func GetV1Reader(reader tracestore.Reader) spanstore.Reader {
+	if tr, ok := reader.(*TraceReader); ok {
+		return tr.spanReader
+	}
+	return &SpanReader{
+		traceReader: reader,
+	}
 }
 
 func (sr *SpanReader) GetTrace(ctx context.Context, query spanstore.GetTraceParameters) (*model.Trace, error) {
