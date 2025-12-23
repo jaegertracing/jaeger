@@ -16,6 +16,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
 func TestNewFactoryWithConfig(t *testing.T) {
@@ -52,7 +53,7 @@ func TestNewFactoryWithConfig(t *testing.T) {
 	})
 	t.Run("invalid configuration", func(t *testing.T) {
 		cfg := cassandra.Options{}
-		_, err := NewFactory(cfg, metrics.NullFactory, zap.NewNop())
+		_, err := NewFactory(cfg, telemetry.NoopSettings())
 		require.ErrorContains(t, err, "Servers: non zero value required")
 	})
 }

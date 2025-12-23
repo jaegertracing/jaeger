@@ -18,6 +18,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/tracestoremetrics"
 	ctracestore "github.com/jaegertracing/jaeger/internal/storage/v2/cassandra/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
 type Factory struct {
@@ -27,10 +28,10 @@ type Factory struct {
 }
 
 // NewFactory creates and initializes the factory
-func NewFactory(opts cassandra.Options, metricsFactory metrics.Factory, logger *zap.Logger) (*Factory, error) {
+func NewFactory(opts cassandra.Options, telset telemetry.Settings) (*Factory, error) {
 	f := &Factory{
-		metricsFactory: metricsFactory,
-		logger:         logger,
+		metricsFactory: telset.Metrics,
+		logger:         telset.Logger,
 	}
 	baseFactory, err := newFactoryWithConfig(opts, f.metricsFactory, f.logger)
 	if err != nil {
