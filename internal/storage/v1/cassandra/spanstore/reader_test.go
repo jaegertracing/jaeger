@@ -25,6 +25,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
@@ -71,8 +72,6 @@ func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 	fn(r)
 }
 
-var _ spanstore.Reader = &SpanReader{} // check API conformance
-
 func TestNewSpanReader(t *testing.T) {
 	t.Run("test span reader creation", func(t *testing.T) {
 		withSpanReader(t, func(r *spanReaderTest) {
@@ -112,17 +111,17 @@ func TestSpanReaderGetServices(t *testing.T) {
 
 func TestSpanReaderGetOperations(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		expectedOperations := []spanstore.Operation{
+		expectedOperations := []tracestore.Operation{
 			{
 				Name:     "operation-a",
 				SpanKind: "server",
 			},
 		}
-		r.reader.operationNamesReader = func(_ spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
+		r.reader.operationNamesReader = func(_ tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
 			return expectedOperations, nil
 		}
-		s, err := r.reader.GetOperations(context.Background(),
-			spanstore.OperationQueryParameters{ServiceName: "service-x", SpanKind: "server"})
+		s, err := r.reader.GetOperationsV2(context.Background(),
+			tracestore.OperationQueryParams{ServiceName: "service-x", SpanKind: "server"})
 		require.NoError(t, err)
 		assert.Equal(t, expectedOperations, s)
 	})
@@ -471,4 +470,10 @@ func TestTraceQueryParameterValidation(t *testing.T) {
 	tsp.StartTimeMax = time.Time{}
 	err = validateQuery(tsp)
 	require.EqualError(t, err, ErrStartAndEndTimeNotSet.Error())
+}
+
+func TestGetOperations(t *testing.T) {
+	reader := SpanReader{}
+	_, err := reader.GetOperations(context.Background(), spanstore.OperationQueryParameters{})
+	require.ErrorContains(t, err, "not implemented")
 }

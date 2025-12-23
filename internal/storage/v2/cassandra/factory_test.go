@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
@@ -68,7 +69,7 @@ func TestNewFactory(t *testing.T) {
 	query.On("Exec").Return(nil)
 	cassandra.MockSession(v1Factory, session, nil)
 	require.NoError(t, v1Factory.Initialize(metrics.NullFactory, zap.NewNop()))
-	f := &Factory{v1Factory: v1Factory}
+	f := createFactory(t, v1Factory)
 	_, err := f.CreateTraceWriter()
 	require.NoError(t, err)
 
@@ -100,7 +101,7 @@ func TestCreateTraceReaderError(t *testing.T) {
 	v1Factory := cassandra.NewFactory()
 	cassandra.MockSession(v1Factory, session, nil)
 	require.NoError(t, v1Factory.Initialize(metrics.NullFactory, zap.NewNop()))
-	f := &Factory{v1Factory: v1Factory}
+	f := createFactory(t, v1Factory)
 	r, err := f.CreateTraceReader()
 	require.ErrorContains(t, err, "neither table operation_names_v2 nor operation_names exist")
 	require.Nil(t, r)
@@ -123,7 +124,15 @@ func TestCreateTraceWriterErr(t *testing.T) {
 	query.On("Exec").Return(nil)
 	cassandra.MockSession(v1Factory, session, nil)
 	require.NoError(t, v1Factory.Initialize(metrics.NullFactory, zap.NewNop()))
-	f := &Factory{v1Factory: v1Factory}
+	f := createFactory(t, v1Factory)
 	_, err := f.CreateTraceWriter()
 	require.ErrorContains(t, err, "only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
+}
+
+func createFactory(t *testing.T, v1Factory *cassandra.Factory) *Factory {
+	return &Factory{
+		v1Factory:      v1Factory,
+		metricsFactory: metrics.NullFactory,
+		logger:         zaptest.NewLogger(t),
+	}
 }

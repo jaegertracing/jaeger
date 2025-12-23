@@ -17,17 +17,9 @@ import (
 
 var _ tracestore.Reader = (*TraceReader)(nil)
 
+// TraceReader adapts a v1 spanstore.Reader to the v2 tracestore.Reader interface.
 type TraceReader struct {
 	spanReader spanstore.Reader
-}
-
-func GetV1Reader(reader tracestore.Reader) spanstore.Reader {
-	if tr, ok := reader.(*TraceReader); ok {
-		return tr.spanReader
-	}
-	return &SpanReader{
-		traceReader: reader,
-	}
 }
 
 func NewTraceReader(spanReader spanstore.Reader) *TraceReader {

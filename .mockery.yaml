@@ -65,3 +65,6 @@ packages:
   github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore:
     config:
       all: true
+  github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore:
+    interfaces:
+      CoreSpanReader: {}
