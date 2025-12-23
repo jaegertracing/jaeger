@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
@@ -193,11 +194,13 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 					StartTimeMin: time.Now().Add(-2 * time.Hour),
 					StartTimeMax: time.Now(),
 				})
-				traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
+				otlpTraces, err := CollectOTLPTraces(iterTraces)
 				if err != nil {
 					t.Log(err)
 					continue
 				}
+				traces := OTLPTracesToV1Slice(otlpTraces)
+
 				for _, trace := range traces {
 					for _, span := range trace.Spans {
 						t.Logf("span: Service: %s, TraceID: %s, Operation: %s", service, span.TraceID, span.OperationName)
@@ -229,20 +232,26 @@ func (s *StorageIntegration) helperTestGetTrace(
 	expected := s.writeLargeTraceWithDuplicateSpanIds(t, traceSize, duplicateCount)
 	expectedTraceID := v1adapter.FromV1TraceID(expected.Spans[0].TraceID)
 
-	actual := &model.Trace{} // no spans
+	var actualOTLP ptrace.Traces
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
-		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
+		otlpTraces, err := CollectOTLPTraces(iterTraces)
 		if err != nil {
 			t.Logf("Error loading trace: %v", err)
 			return false
 		}
-		if len(traces) == 0 {
+		if len(otlpTraces) == 0 {
 			return false
 		}
-		actual = traces[0]
-		return len(actual.Spans) >= len(expected.Spans)
+		actualOTLP = otlpTraces[0]
+
+		if actualOTLP.SpanCount() == 0 {
+			return false
+		}
+		return actualOTLP.SpanCount() >= len(expected.Spans)
 	})
+
+	actual := GetFirstTrace(actualOTLP)
 
 	t.Logf("%-23s Loaded trace, expected=%d, actual=%d", time.Now().Format("2006-01-02 15:04:05.999"), len(expected.Spans), len(actual.Spans))
 	if !assert.True(t, found, "error loading trace, expected=%d, actual=%d", len(expected.Spans), len(actual.Spans)) {
@@ -324,20 +333,23 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	expected := s.loadParseAndWriteExampleTrace(t)
 	expectedTraceID := v1adapter.FromV1TraceID(expected.Spans[0].TraceID)
 
-	actual := &model.Trace{} // no spans
-	found := s.waitForCondition(t, func(t *testing.T) bool {
+	var actualOTLP ptrace.Traces
+	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
-		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
+		otlpTraces, err := CollectOTLPTraces(iterTraces)
 		if err != nil {
-			t.Log(err)
+			t.Logf("Error loading trace: %v", err)
 			return false
 		}
-		if len(traces) == 0 {
+		if len(otlpTraces) == 0 {
 			return false
 		}
-		actual = traces[0]
-		return len(actual.Spans) == len(expected.Spans)
+		actualOTLP = otlpTraces[0]
+		return actualOTLP.SpanCount() == len(expected.Spans)
 	})
+
+	actual := GetFirstTrace(actualOTLP)
+
 	if !assert.True(t, found) {
 		CompareTraces(t, expected, actual)
 	}
@@ -345,8 +357,11 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	t.Run("NotFound error", func(t *testing.T) {
 		fakeTraceID := v1adapter.FromV1TraceID(model.TraceID{High: 0, Low: 1})
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: fakeTraceID})
-		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
-		require.NoError(t, err) // v2 TraceReader no longer returns an error for not found
+
+		otlpTraces, err := CollectOTLPTraces(iterTraces)
+		require.NoError(t, err)
+
+		traces := OTLPTracesToV1Slice(otlpTraces)
 		assert.Empty(t, traces)
 	})
 }
@@ -386,26 +401,36 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 }
 
 func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.TraceQueryParams, expected []*model.Trace) []*model.Trace {
-	var traces []*model.Trace
+	var otlpTraces []ptrace.Traces
 	found := s.waitForCondition(t, func(t *testing.T) bool {
-		var err error
 		iterTraces := s.TraceReader.FindTraces(context.Background(), *query)
-		traces, err = v1adapter.V1TracesFromSeq2(iterTraces)
+		otlpTraces = nil
+		var err error
+		otlpTraces, err = CollectOTLPTraces(iterTraces)
 		if err != nil {
 			t.Log(err)
 			return false
 		}
-		if len(expected) != len(traces) {
-			t.Logf("Expecting certain number of traces: expected: %d, actual: %d", len(expected), len(traces))
+
+		if len(expected) != len(otlpTraces) {
+			t.Logf("Expecting certain number of traces: expected: %d, actual: %d", len(expected), len(otlpTraces))
 			return false
 		}
-		if spanCount(expected) != spanCount(traces) {
-			t.Logf("Excepting certain number of spans: expected: %d, actual: %d", spanCount(expected), spanCount(traces))
+
+		actualSpanCount := 0
+		for _, trace := range otlpTraces {
+			actualSpanCount += trace.SpanCount()
+		}
+
+		if spanCount(expected) != actualSpanCount {
+			t.Logf("Excepting certain number of spans: expected: %d, actual: %d", spanCount(expected), actualSpanCount)
 			return false
 		}
 		return true
 	})
 	require.True(t, found)
+
+	traces := OTLPTracesToV1Slice(otlpTraces)
 	return traces
 }
 
