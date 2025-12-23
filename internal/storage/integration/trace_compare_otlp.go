@@ -13,7 +13,6 @@ import (
 )
 
 // GetFirstTrace extracts the first trace from OTLP traces
-// GetFirstTrace extracts the first trace from OTLP traces
 func GetFirstTrace(traces ptrace.Traces) *model.Trace {
 	if traces.SpanCount() == 0 {
 		return &model.Trace{}
@@ -25,9 +24,7 @@ func GetFirstTrace(traces ptrace.Traces) *model.Trace {
 
 	trace := &model.Trace{}
 	for _, batch := range batches {
-		// Each span in the batch needs to have its own copy of Process
 		for _, span := range batch.Spans {
-			// Create a deep copy of the Process for each span
 			if batch.Process != nil {
 				processCopy := model.Process{
 					ServiceName: batch.Process.ServiceName,
