@@ -4,8 +4,6 @@
 package integration
 
 import (
-	"iter"
-
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
@@ -48,18 +46,6 @@ func GetFirstTrace(traces ptrace.Traces) *model.Trace {
 		trace.Spans = append(trace.Spans, batch.Spans...)
 	}
 	return trace
-}
-
-// CollectOTLPTraces collects all traces from an iterator into a slice
-func CollectOTLPTraces(iterTraces iter.Seq2[[]ptrace.Traces, error]) ([]ptrace.Traces, error) {
-	var allTraces []ptrace.Traces
-	for traces, err := range iterTraces {
-		if err != nil {
-			return nil, err
-		}
-		allTraces = append(allTraces, traces...)
-	}
-	return allTraces, nil
 }
 
 // OTLPTracesToV1Slice converts OTLP traces to v1 slice for comparison
