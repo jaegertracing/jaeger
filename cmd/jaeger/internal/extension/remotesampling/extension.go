@@ -92,41 +92,44 @@ func GetAdaptiveSamplingComponents(host component.Host) (*AdaptiveSamplingCompon
 	if ext.adaptiveStore == nil || ext.distLock == nil {
 		return nil, fmt.Errorf("extension '%s' is not configured for adaptive sampling", compID)
 	}
+	adaptiveCfg := ext.cfg.Adaptive.Get()
 	return &AdaptiveSamplingComponents{
 		SamplingStore: ext.adaptiveStore,
 		DistLock:      ext.distLock,
-		Options:       &ext.cfg.Adaptive.Options,
+		Options:       &adaptiveCfg.Options,
 	}, nil
 }
 
 func (ext *rsExtension) Start(ctx context.Context, host component.Host) error {
-	if ext.cfg.File != nil {
+	if ext.cfg.File.HasValue() {
+		fileCfg := ext.cfg.File.Get()
 		ext.telemetry.Logger.Info(
 			"Starting file-based sampling strategy provider",
-			zap.String("path", ext.cfg.File.Path),
+			zap.String("path", fileCfg.Path),
 		)
 		if err := ext.startFileBasedStrategyProvider(ctx); err != nil {
 			return err
 		}
 	}
 
-	if ext.cfg.Adaptive != nil {
+	if ext.cfg.Adaptive.HasValue() {
+		adaptiveCfg := ext.cfg.Adaptive.Get()
 		ext.telemetry.Logger.Info(
 			"Starting adaptive sampling strategy provider",
-			zap.String("sampling_store", ext.cfg.Adaptive.SamplingStore),
+			zap.String("sampling_store", adaptiveCfg.SamplingStore),
 		)
 		if err := ext.startAdaptiveStrategyProvider(host); err != nil {
 			return err
 		}
 	}
 
-	if ext.cfg.HTTP != nil {
+	if ext.cfg.HTTP.HasValue() {
 		if err := ext.startHTTPServer(ctx, host); err != nil {
 			return fmt.Errorf("failed to start sampling http server: %w", err)
 		}
 	}
 
-	if ext.cfg.GRPC != nil {
+	if ext.cfg.GRPC.HasValue() {
 		if err := ext.startGRPCServer(ctx, host); err != nil {
 			return fmt.Errorf("failed to start sampling gRPC server: %w", err)
 		}
@@ -157,10 +160,11 @@ func (ext *rsExtension) Shutdown(ctx context.Context) error {
 }
 
 func (ext *rsExtension) startFileBasedStrategyProvider(_ context.Context) error {
+	fileCfg := ext.cfg.File.Get()
 	opts := file.Options{
-		StrategiesFile:             ext.cfg.File.Path,
-		ReloadInterval:             ext.cfg.File.ReloadInterval,
-		DefaultSamplingProbability: ext.cfg.File.DefaultSamplingProbability,
+		StrategiesFile:             fileCfg.Path,
+		ReloadInterval:             fileCfg.ReloadInterval,
+		DefaultSamplingProbability: fileCfg.DefaultSamplingProbability,
 	}
 
 	//nolint:contextcheck // contextcheck linter complains about next line that context is not passed.
@@ -174,14 +178,15 @@ func (ext *rsExtension) startFileBasedStrategyProvider(_ context.Context) error 
 }
 
 func (ext *rsExtension) startAdaptiveStrategyProvider(host component.Host) error {
-	storageName := ext.cfg.Adaptive.SamplingStore
+	adaptiveCfg := ext.cfg.Adaptive.Get()
+	storageName := adaptiveCfg.SamplingStore
 
 	storeFactory, err := jaegerstorage.GetSamplingStoreFactory(storageName, host)
 	if err != nil {
 		return fmt.Errorf("failed to obtain sampling store factory: %w", err)
 	}
 
-	store, err := storeFactory.CreateSamplingStore(ext.cfg.Adaptive.AggregationBuckets)
+	store, err := storeFactory.CreateSamplingStore(adaptiveCfg.AggregationBuckets)
 	if err != nil {
 		return fmt.Errorf("failed to create the sampling store: %w", err)
 	}
@@ -195,8 +200,8 @@ func (ext *rsExtension) startAdaptiveStrategyProvider(host component.Host) error
 
 		ep := leaderelection.NewElectionParticipant(lock, defaultResourceName,
 			leaderelection.ElectionParticipantOptions{
-				LeaderLeaseRefreshInterval:   ext.cfg.Adaptive.LeaderLeaseRefreshInterval,
-				FollowerLeaseRefreshInterval: ext.cfg.Adaptive.FollowerLeaseRefreshInterval,
+				LeaderLeaseRefreshInterval:   adaptiveCfg.LeaderLeaseRefreshInterval,
+				FollowerLeaseRefreshInterval: adaptiveCfg.FollowerLeaseRefreshInterval,
 				Logger:                       ext.telemetry.Logger,
 			})
 		if err := ep.Start(); err != nil {
@@ -205,7 +210,7 @@ func (ext *rsExtension) startAdaptiveStrategyProvider(host component.Host) error
 		ext.distLock = ep
 	}
 
-	provider := adaptive.NewProvider(ext.cfg.Adaptive.Options, ext.telemetry.Logger, ext.distLock, store)
+	provider := adaptive.NewProvider(adaptiveCfg.Options, ext.telemetry.Logger, ext.distLock, store)
 	if err := provider.Start(); err != nil {
 		return fmt.Errorf("failed to start the adaptive strategy store: %w", err)
 	}
@@ -230,17 +235,18 @@ func (ext *rsExtension) startHTTPServer(ctx context.Context, host component.Host
 	httpMux := http.NewServeMux()
 	handler.RegisterRoutesWithHTTP(httpMux)
 
+	httpCfg := ext.cfg.HTTP.Get()
 	var err error
-	if ext.httpServer, err = ext.cfg.HTTP.ToServer(ctx, host.GetExtensions(), ext.telemetry, httpMux); err != nil {
+	if ext.httpServer, err = httpCfg.ToServer(ctx, host.GetExtensions(), ext.telemetry, httpMux); err != nil {
 		return err
 	}
 
 	ext.telemetry.Logger.Info(
 		"Starting remote sampling HTTP server",
-		zap.String("endpoint", ext.cfg.HTTP.Endpoint),
+		zap.String("endpoint", httpCfg.Endpoint),
 	)
 	var hln net.Listener
-	if hln, err = ext.cfg.HTTP.ToListener(ctx); err != nil {
+	if hln, err = httpCfg.ToListener(ctx); err != nil {
 		return err
 	}
 
@@ -258,8 +264,9 @@ func (ext *rsExtension) startHTTPServer(ctx context.Context, host component.Host
 }
 
 func (ext *rsExtension) startGRPCServer(ctx context.Context, host component.Host) error {
+	grpcCfg := ext.cfg.GRPC.Get()
 	var err error
-	if ext.grpcServer, err = ext.cfg.GRPC.ToServer(ctx, host.GetExtensions(), ext.telemetry); err != nil {
+	if ext.grpcServer, err = grpcCfg.ToServer(ctx, host.GetExtensions(), ext.telemetry); err != nil {
 		return err
 	}
 
@@ -271,10 +278,10 @@ func (ext *rsExtension) startGRPCServer(ctx context.Context, host component.Host
 
 	ext.telemetry.Logger.Info(
 		"Starting remote sampling GRPC server",
-		zap.String("endpoint", ext.cfg.GRPC.NetAddr.Endpoint),
+		zap.String("endpoint", grpcCfg.NetAddr.Endpoint),
 	)
 	var gln net.Listener
-	if gln, err = ext.cfg.GRPC.NetAddr.Listen(ctx); err != nil {
+	if gln, err = grpcCfg.NetAddr.Listen(ctx); err != nil {
 		return err
 	}
 

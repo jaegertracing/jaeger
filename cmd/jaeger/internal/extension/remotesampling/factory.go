@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/extension"
 
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
@@ -34,23 +35,23 @@ func NewFactory() extension.Factory {
 
 func createDefaultConfig() component.Config {
 	return &Config{
-		HTTP: &confighttp.ServerConfig{
+		HTTP: configoptional.Some(confighttp.ServerConfig{
 			Endpoint: ports.PortToHostPort(ports.CollectorV2SamplingHTTP),
-		},
-		GRPC: &configgrpc.ServerConfig{
+		}),
+		GRPC: configoptional.Some(configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{
 				Endpoint:  ports.PortToHostPort(ports.CollectorV2SamplingGRPC),
 				Transport: confignet.TransportTypeTCP,
 			},
-		},
-		File: &FileConfig{
+		}),
+		File: configoptional.Some(FileConfig{
 			Path:                       "", // path needs to be specified
 			DefaultSamplingProbability: file.DefaultSamplingProbability,
-		},
-		Adaptive: &AdaptiveConfig{
+		}),
+		Adaptive: configoptional.Some(AdaptiveConfig{
 			SamplingStore: "", // storage name needs to be specified
 			Options:       adaptive.DefaultOptions(),
-		},
+		}),
 	}
 }
 
