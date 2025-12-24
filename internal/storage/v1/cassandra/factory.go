@@ -217,7 +217,3 @@ func (f *Factory) IsArchiveCapable() bool {
 func (f *Factory) GetSession() cassandra.Session {
 	return f.session
 }
-
-func (f *Factory) GetTracer() trace.TracerProvider {
-	return f.tracer
-}
