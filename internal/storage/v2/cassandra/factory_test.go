@@ -9,6 +9,8 @@ import (
 
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
@@ -30,7 +32,7 @@ func TestNewFactoryWithConfig(t *testing.T) {
 			opts:           opts,
 			metricsFactory: metrics.NullFactory,
 			logger:         zap.NewNop(),
-			initializer:    func(_ metrics.Factory, _ *zap.Logger) error { return nil },
+			initializer:    func(_ metrics.Factory, _ *zap.Logger, _ trace.TracerProvider) error { return nil },
 		}
 		_, err := b.build()
 		require.NoError(t, err)
@@ -46,7 +48,7 @@ func TestNewFactoryWithConfig(t *testing.T) {
 			opts:           opts,
 			metricsFactory: metrics.NullFactory,
 			logger:         zap.NewNop(),
-			initializer:    func(_ metrics.Factory, _ *zap.Logger) error { return expErr },
+			initializer:    func(_ metrics.Factory, _ *zap.Logger, _ trace.TracerProvider) error { return expErr },
 		}
 		_, err := b.build()
 		require.ErrorIs(t, err, expErr)
@@ -69,7 +71,7 @@ func TestNewFactory(t *testing.T) {
 	session.On("Close").Return()
 	query.On("Exec").Return(nil)
 	cassandra.MockSession(v1Factory, session, nil)
-	require.NoError(t, v1Factory.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.NoError(t, v1Factory.Initialize(metrics.NullFactory, zap.NewNop(), noop.NewTracerProvider()))
 	f := createFactory(t, v1Factory)
 	_, err := f.CreateTraceWriter()
 	require.NoError(t, err)
@@ -101,7 +103,7 @@ func TestCreateTraceReaderError(t *testing.T) {
 	query.On("Exec").Return(errors.New("table does not exist"))
 	v1Factory := cassandra.NewFactory()
 	cassandra.MockSession(v1Factory, session, nil)
-	require.NoError(t, v1Factory.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.NoError(t, v1Factory.Initialize(metrics.NullFactory, zap.NewNop(), noop.NewTracerProvider()))
 	f := createFactory(t, v1Factory)
 	r, err := f.CreateTraceReader()
 	require.ErrorContains(t, err, "neither table operation_names_v2 nor operation_names exist")
@@ -124,7 +126,7 @@ func TestCreateTraceWriterErr(t *testing.T) {
 	session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
 	query.On("Exec").Return(nil)
 	cassandra.MockSession(v1Factory, session, nil)
-	require.NoError(t, v1Factory.Initialize(metrics.NullFactory, zap.NewNop()))
+	require.NoError(t, v1Factory.Initialize(metrics.NullFactory, zap.NewNop(), noop.NewTracerProvider()))
 	f := createFactory(t, v1Factory)
 	_, err := f.CreateTraceWriter()
 	require.ErrorContains(t, err, "only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
@@ -135,5 +137,6 @@ func createFactory(t *testing.T, v1Factory *cassandra.Factory) *Factory {
 		v1Factory:      v1Factory,
 		metricsFactory: metrics.NullFactory,
 		logger:         zaptest.NewLogger(t),
+		tracer:         noop.NewTracerProvider(),
 	}
 }
