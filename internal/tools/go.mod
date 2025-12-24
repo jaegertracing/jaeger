@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/golangci/golangci-lint/v2 v2.7.2
 	github.com/josephspurrier/goversioninfo v1.5.0
-	github.com/vektra/mockery/v3 v3.5.0
+	github.com/vektra/mockery/v3 v3.6.1
 	mvdan.cc/gofumpt v0.9.2
 )
 
@@ -122,7 +122,7 @@ require (
 	github.com/knadh/koanf/providers/file v1.1.2 // indirect
 	github.com/knadh/koanf/providers/posflag v0.1.0 // indirect
 	github.com/knadh/koanf/providers/structs v0.1.0 // indirect
-	github.com/knadh/koanf/v2 v2.2.1 // indirect
+	github.com/knadh/koanf/v2 v2.3.0 // indirect
 	github.com/kulti/thelper v0.7.1 // indirect
 	github.com/kunwardeep/paralleltest v1.0.15 // indirect
 	github.com/lasiar/canonicalheader v1.1.2 // indirect
@@ -223,7 +223,7 @@ require (
 	golang.org/x/mod v0.30.0 // indirect
 	golang.org/x/sync v0.18.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
-	golang.org/x/term v0.29.0 // indirect
+	golang.org/x/term v0.32.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
 	golang.org/x/tools v0.39.0 // indirect
 	google.golang.org/protobuf v1.36.8 // indirect

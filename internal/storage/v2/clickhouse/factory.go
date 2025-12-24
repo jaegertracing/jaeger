@@ -35,6 +35,7 @@ type Factory struct {
 }
 
 func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Settings) (*Factory, error) {
+	cfg.applyDefaults()
 	f := &Factory{
 		config: cfg,
 		telset: telset,
@@ -88,7 +89,10 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 }
 
 func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
-	return chtracestore.NewReader(f.conn), nil
+	return chtracestore.NewReader(f.conn, chtracestore.ReaderConfig{
+		DefaultSearchDepth: f.config.DefaultSearchDepth,
+		MaxSearchDepth:     f.config.MaxSearchDepth,
+	}), nil
 }
 
 func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {

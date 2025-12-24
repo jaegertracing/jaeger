@@ -34,7 +34,6 @@ import (
 	deepdependencies "github.com/jaegertracing/jaeger/cmd/query/app/ddg"
 	"github.com/jaegertracing/jaeger/cmd/query/app/qualitymetrics"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	"github.com/jaegertracing/jaeger/internal/jtracer"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
 	metricsmocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/mocks"
@@ -335,10 +334,11 @@ func TestGetTrace(t *testing.T) {
 				sdktrace.WithSyncer(exporter),
 				sdktrace.WithSampler(sdktrace.AlwaysSample()),
 			)
-			jTracer := jtracer.JTracer{OTEL: tracerProvider}
-			defer tracerProvider.Shutdown(context.Background())
+			t.Cleanup(func() {
+				require.NoError(t, tracerProvider.Shutdown(context.Background()))
+			})
 
-			ts := initializeTestServer(t, HandlerOptions.Tracer(jTracer.OTEL))
+			ts := initializeTestServer(t, HandlerOptions.Tracer(tracerProvider))
 
 			ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), spanstore.GetTraceParameters{TraceID: model.NewTraceID(0, 0x123456abc)}).
 				Return(makeMockTrace(t), nil).Once()

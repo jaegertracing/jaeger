@@ -24,7 +24,6 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	"github.com/jaegertracing/jaeger/internal/jtracer"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
@@ -129,7 +128,7 @@ type grpcClient struct {
 	conn *grpc.ClientConn
 }
 
-func newGRPCServer(t *testing.T, q *querysvc.QueryService, logger *zap.Logger, tracer *jtracer.JTracer, tenancyMgr *tenancy.Manager) (*grpc.Server, net.Addr) {
+func newGRPCServer(t *testing.T, q *querysvc.QueryService, logger *zap.Logger, tenancyMgr *tenancy.Manager) (*grpc.Server, net.Addr) {
 	lis, _ := net.Listen("tcp", ":0")
 	var grpcOpts []grpc.ServerOption
 	if tenancyMgr.Enabled {
@@ -141,7 +140,6 @@ func newGRPCServer(t *testing.T, q *querysvc.QueryService, logger *zap.Logger, t
 	grpcServer := grpc.NewServer(grpcOpts...)
 	grpcHandler := NewGRPCHandler(q, GRPCHandlerOptions{
 		Logger: logger,
-		Tracer: tracer,
 		NowFn: func() time.Time {
 			return now
 		},
@@ -629,10 +627,7 @@ func initializeTenantedTestServerGRPC(t *testing.T, tm *tenancy.Manager) *grpcSe
 			ArchiveSpanWriter: archiveSpanWriter,
 		})
 
-	logger := zap.NewNop()
-	tracer := jtracer.NoOp()
-
-	server, addr := newGRPCServer(t, q, logger, tracer, tm)
+	server, addr := newGRPCServer(t, q, zap.NewNop(), tm)
 
 	return &grpcServer{
 		server:            server,
@@ -881,6 +876,5 @@ func TestNewGRPCHandlerWithEmptyOptions(t *testing.T) {
 	handler := NewGRPCHandler(q, GRPCHandlerOptions{})
 
 	assert.NotNil(t, handler.logger)
-	assert.NotNil(t, handler.tracer)
 	assert.NotNil(t, handler.nowFn)
 }

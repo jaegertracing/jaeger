@@ -7,7 +7,7 @@ package dependencystore
 import (
 	"fmt"
 
-	"github.com/gocql/gocql"
+	gocql "github.com/apache/cassandra-gocql-driver/v2"
 )
 
 // Dependency is the UDT representation of a Jaeger Dependency.
