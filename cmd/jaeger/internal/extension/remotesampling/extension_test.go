@@ -258,12 +258,12 @@ func TestStartAdaptiveStrategyProviderCreateStoreError(t *testing.T) {
 
 	ext := &rsExtension{
 		cfg: &Config{
-			Adaptive: &AdaptiveConfig{
+			Adaptive: configoptional.Some(AdaptiveConfig{
 				SamplingStore: "failstore",
 				Options: adaptive.Options{
 					AggregationBuckets: 10,
 				},
-			},
+			}),
 		},
 		telemetry: componenttest.NewNopTelemetrySettings(),
 	}
@@ -277,12 +277,12 @@ func TestStartAdaptiveStrategyProviderCreateLockError(t *testing.T) {
 
 	ext := &rsExtension{
 		cfg: &Config{
-			Adaptive: &AdaptiveConfig{
+			Adaptive: configoptional.Some(AdaptiveConfig{
 				SamplingStore: "lockerror",
 				Options: adaptive.Options{
 					AggregationBuckets: 10,
 				},
-			},
+			}),
 		},
 		telemetry: componenttest.NewNopTelemetrySettings(),
 	}
