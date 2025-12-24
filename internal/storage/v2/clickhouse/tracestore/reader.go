@@ -174,6 +174,14 @@ func (r *Reader) FindTraceIDs(
 			q += " AND name = ?"
 			args = append(args, query.OperationName)
 		}
+		if query.DurationMin > 0 {
+			q += " AND duration >= ?"
+			args = append(args, query.DurationMin.Nanoseconds())
+		}
+		if query.DurationMax > 0 {
+			q += " AND duration <= ?"
+			args = append(args, query.DurationMax.Nanoseconds())
+		}
 		q += " LIMIT ?"
 		if query.SearchDepth > 0 {
 			if query.SearchDepth > r.config.MaxSearchDepth {

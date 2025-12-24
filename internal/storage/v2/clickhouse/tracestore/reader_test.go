@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -516,8 +517,11 @@ func TestFindTraces(t *testing.T) {
 
 func TestFindTraceIDs(t *testing.T) {
 	driver := &testDriver{
-		t:             t,
-		expectedQuery: `SELECT DISTINCT trace_id FROM spans WHERE 1=1 AND service_name = ? AND name = ? LIMIT ?`,
+		t: t,
+		expectedQuery: `SELECT DISTINCT trace_id FROM spans WHERE 1=1 ` +
+			`AND service_name = ? AND name = ? ` +
+			`AND duration >= ? AND duration <= ? ` +
+			`LIMIT ?`,
 		rows: &testRows[string]{
 			data: []string{
 				"00000000000000000000000000000001",
@@ -530,6 +534,8 @@ func TestFindTraceIDs(t *testing.T) {
 	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
 		ServiceName:   "serviceA",
 		OperationName: "operationA",
+		DurationMin:   1 * time.Nanosecond,
+		DurationMax:   1 * time.Second,
 		SearchDepth:   5,
 	})
 	ids, err := jiter.FlattenWithErrors(iter)
