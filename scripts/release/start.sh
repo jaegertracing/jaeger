@@ -59,6 +59,3 @@ else
 fi
 
 rm "${TMPFILE}"
-
-exit 1;
-
