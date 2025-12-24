@@ -122,9 +122,9 @@ func makeRemoteSamplingExtension(t *testing.T, cfg component.Config) component.H
 func TestStartFileBasedProvider(t *testing.T) {
 	factory := NewFactory()
 	cfg := factory.CreateDefaultConfig().(*Config)
-	fileCfg := *cfg.File.Get()
-	fileCfg.Path = filepath.Join("..", "..", "..", "sampling-strategies.json")
-	cfg.File = configoptional.Some(fileCfg)
+	cfg.File = configoptional.Some(FileConfig{
+		Path: filepath.Join("..", "..", "..", "sampling-strategies.json"),
+	})
 	cfg.Adaptive = configoptional.None[AdaptiveConfig]()
 	cfg.HTTP = configoptional.None[confighttp.ServerConfig]()
 	cfg.GRPC = configoptional.None[configgrpc.ServerConfig]()
@@ -143,9 +143,9 @@ func TestStartFileBasedProvider(t *testing.T) {
 func TestStartHTTP(t *testing.T) {
 	factory := NewFactory()
 	cfg := factory.CreateDefaultConfig().(*Config)
-	fileCfg := *cfg.File.Get()
-	fileCfg.Path = filepath.Join("..", "..", "..", "sampling-strategies.json")
-	cfg.File = configoptional.Some(fileCfg)
+	cfg.File = configoptional.Some(FileConfig{
+		Path: filepath.Join("..", "..", "..", "sampling-strategies.json"),
+	})
 	cfg.Adaptive = configoptional.None[AdaptiveConfig]()
 	cfg.HTTP = configoptional.Some(confighttp.ServerConfig{
 		Endpoint: "0.0.0.0:12345",
@@ -184,9 +184,9 @@ func TestStartHTTP(t *testing.T) {
 func TestStartGRPC(t *testing.T) {
 	factory := NewFactory()
 	cfg := factory.CreateDefaultConfig().(*Config)
-	fileCfg := *cfg.File.Get()
-	fileCfg.Path = filepath.Join("..", "..", "..", "sampling-strategies.json")
-	cfg.File = configoptional.Some(fileCfg)
+	cfg.File = configoptional.Some(FileConfig{
+		Path: filepath.Join("..", "..", "..", "sampling-strategies.json"),
+	})
 	cfg.Adaptive = configoptional.None[AdaptiveConfig]()
 	cfg.HTTP = configoptional.None[confighttp.ServerConfig]()
 	cfg.GRPC = configoptional.Some(configgrpc.ServerConfig{
@@ -222,9 +222,10 @@ func TestStartAdaptiveProvider(t *testing.T) {
 	factory := NewFactory()
 	cfg := factory.CreateDefaultConfig().(*Config)
 	cfg.File = configoptional.None[FileConfig]()
-	adaptiveCfg := *cfg.Adaptive.Get()
-	adaptiveCfg.SamplingStore = "foobar"
-	cfg.Adaptive = configoptional.Some(adaptiveCfg)
+	cfg.Adaptive = configoptional.Some(AdaptiveConfig{
+		SamplingStore: "foobar",
+		Options:       adaptive.DefaultOptions(),
+	})
 	cfg.HTTP = configoptional.None[confighttp.ServerConfig]()
 	cfg.GRPC = configoptional.None[configgrpc.ServerConfig]()
 	require.NoError(t, cfg.Validate())
