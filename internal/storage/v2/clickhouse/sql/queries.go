@@ -211,7 +211,17 @@ WHERE
 // The query begins with a no-op predicate (`WHERE 1=1`) so that additional
 // filters can be appended unconditionally using `AND` without needing to check
 // whether this is the first WHERE clause.
-const SearchTraceIDs = `SELECT DISTINCT trace_id FROM spans WHERE 1=1`
+//
+// The query joins with trace_id_timestamps to retrieve the start and end times
+// for each trace ID.
+const SearchTraceIDs = `
+SELECT DISTINCT
+    s.trace_id,
+    t.start,
+    t.end
+FROM spans s
+LEFT JOIN trace_id_timestamps t ON s.trace_id = t.trace_id
+WHERE 1=1`
 
 const SelectServices = `
 SELECT DISTINCT
