@@ -182,12 +182,16 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 	return store, nil
 }
 
+const defaultILMPolicyName = "jaeger-ilm-policy"
+
 func (f *FactoryBase) mappingBuilderFromConfig(cfg *config.Configuration) mappings.MappingBuilder {
 	return mappings.MappingBuilder{
 		TemplateBuilder: f.templateBuilder,
 		Indices:         cfg.Indices,
 		EsVersion:       cfg.Version,
 		UseILM:          cfg.UseILM,
+		UseDataStream:   cfg.UseDataStream,
+		ILMPolicyName:   cfg.Indices.IndexPrefix.Apply(defaultILMPolicyName),
 	}
 }
 
