@@ -11,7 +11,7 @@ require (
 	github.com/apache/thrift v0.22.0
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
 	github.com/dgraph-io/badger/v4 v4.9.0
-	github.com/elastic/go-elasticsearch/v9 v9.1.0
+	github.com/elastic/go-elasticsearch/v9 v9.2.1
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-logr/zapr v1.3.0
 	github.com/gogo/protobuf v1.3.2
@@ -183,7 +183,7 @@ require (
 	github.com/eapache/go-xerial-snappy v0.0.0-20230731223053-c322873962e3 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
 	github.com/ebitengine/purego v0.9.1 // indirect
-	github.com/elastic/elastic-transport-go/v8 v8.7.0 // indirect
+	github.com/elastic/elastic-transport-go/v8 v8.8.0 // indirect
 	github.com/elastic/go-grok v0.3.1 // indirect
 	github.com/elastic/lunes v0.2.0 // indirect
 	github.com/expr-lang/expr v1.17.7 // indirect
