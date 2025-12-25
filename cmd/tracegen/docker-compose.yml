@@ -1,6 +1,6 @@
 services:
     jaeger:
-      image: cr.jaegertracing.io/jaegertracing/jaeger:latest@sha256:d5e5fe1c2b2f663b07c28c6f7cc5a6e61aef076752dab8df8eeb6b0f5494c94b # v2.12.0
+      image: cr.jaegertracing.io/jaegertracing/jaeger:2.13.0@sha256:d5e5fe1c2b2f663b07c28c6f7cc5a6e61aef076752dab8df8eeb6b0f5494c94b
       ports:
         - '16686:16686'
         - '4318:4318'
