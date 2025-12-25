@@ -195,6 +195,15 @@ func (r *Reader) FindTraceIDs(
 			q += " AND s.duration <= ?"
 			args = append(args, query.DurationMax.Nanoseconds())
 		}
+		if !query.StartTimeMin.IsZero() {
+			q += " AND s.start_time >= ?"
+			args = append(args, query.StartTimeMin)
+		}
+		if !query.StartTimeMax.IsZero() {
+			q += " AND s.start_time <= ?"
+			args = append(args, query.StartTimeMax)
+		}
+
 		q += " LIMIT ?"
 		if query.SearchDepth > 0 {
 			if query.SearchDepth > r.config.MaxSearchDepth {

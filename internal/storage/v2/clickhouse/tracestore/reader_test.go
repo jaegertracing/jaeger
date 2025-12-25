@@ -550,7 +550,7 @@ SELECT DISTINCT
     t.end
 FROM spans s
 LEFT JOIN trace_id_timestamps t ON s.trace_id = t.trace_id
-WHERE 1=1 AND s.service_name = ? AND s.name = ? AND s.duration >= ? AND s.duration <= ? LIMIT ?`,
+WHERE 1=1 AND s.service_name = ? AND s.name = ? AND s.duration >= ? AND s.duration <= ? AND s.start_time >= ? AND s.start_time <= ? LIMIT ?`,
 		rows: &testRows[[]any]{
 			data:   testTraceIDsData,
 			scanFn: scanTraceIDFn(),
@@ -562,6 +562,8 @@ WHERE 1=1 AND s.service_name = ? AND s.name = ? AND s.duration >= ? AND s.durati
 		OperationName: "operationA",
 		DurationMin:   1 * time.Nanosecond,
 		DurationMax:   1 * time.Second,
+		StartTimeMin:  now.Add(-1 * time.Hour),
+		StartTimeMax:  now,
 		SearchDepth:   5,
 	})
 	ids, err := jiter.FlattenWithErrors(iter)
