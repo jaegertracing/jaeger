@@ -111,7 +111,7 @@ update_changelog() {
     
     echo "Updating CHANGELOG.md..."
     release_date=$(date +%Y-%m-%d)
-    changelog_content=$(python3 scripts/release/notes.py --exclude-dependabot 2>/dev/null || echo "")
+    changelog_content=$(make changelog)
     
     python3 scripts/release/update-changelog.py "$version" --date "$release_date" --content "$changelog_content"
     git add CHANGELOG.md
