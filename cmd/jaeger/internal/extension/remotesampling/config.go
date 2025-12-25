@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
-	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
 	"go.opentelemetry.io/collector/featuregate"
 
@@ -25,9 +25,8 @@ var (
 )
 
 var (
-	_ component.Config    = (*Config)(nil)
-	_ xconfmap.Validator  = (*Config)(nil)
-	_ confmap.Unmarshaler = (*Config)(nil)
+	_ component.Config   = (*Config)(nil)
+	_ xconfmap.Validator = (*Config)(nil)
 
 	_ = featuregate.GlobalRegistry().MustRegister(
 		"jaeger.sampling.includeDefaultOpStrategies",
@@ -40,10 +39,10 @@ var (
 )
 
 type Config struct {
-	File     *FileConfig              `mapstructure:"file"`
-	Adaptive *AdaptiveConfig          `mapstructure:"adaptive"`
-	HTTP     *confighttp.ServerConfig `mapstructure:"http"`
-	GRPC     *configgrpc.ServerConfig `mapstructure:"grpc"`
+	File     configoptional.Optional[FileConfig]              `mapstructure:"file"`
+	Adaptive configoptional.Optional[AdaptiveConfig]          `mapstructure:"adaptive"`
+	HTTP     configoptional.Optional[confighttp.ServerConfig] `mapstructure:"http"`
+	GRPC     configoptional.Optional[configgrpc.ServerConfig] `mapstructure:"grpc"`
 }
 
 type FileConfig struct {
@@ -62,51 +61,34 @@ type AdaptiveConfig struct {
 	adaptive.Options `mapstructure:",squash"`
 }
 
-// Unmarshal is a custom unmarshaler that allows the factory to provide default values
-// for nested configs (like GRPC endpoint) yes still reset the pointers to nil if the
-// config did not contain the corresponding sections.
-// This is a workaround for the lack of opional fields support in OTEL confmap.
-// Issue: https://github.com/open-telemetry/opentelemetry-collector/issues/10266
-func (cfg *Config) Unmarshal(conf *confmap.Conf) error {
-	// first load the config normally
-	err := conf.Unmarshal(cfg)
-	if err != nil {
-		return err
-	}
-
-	// use string names of fields to see if they are set in the confmap
-	if !conf.IsSet("file") {
-		cfg.File = nil
-	}
-
-	if !conf.IsSet("adaptive") {
-		cfg.Adaptive = nil
-	}
-
-	if !conf.IsSet("grpc") {
-		cfg.GRPC = nil
-	}
-
-	if !conf.IsSet("http") {
-		cfg.HTTP = nil
-	}
-
-	return nil
-}
-
 func (cfg *Config) Validate() error {
-	if cfg.File == nil && cfg.Adaptive == nil {
+	if !cfg.File.HasValue() && !cfg.Adaptive.HasValue() {
 		return errNoProvider
 	}
 
-	if cfg.File != nil && cfg.Adaptive != nil {
+	if cfg.File.HasValue() && cfg.Adaptive.HasValue() {
 		return errMultipleProviders
 	}
 
-	if cfg.File != nil && cfg.File.ReloadInterval < 0 {
-		return errNegativeInterval
+	if cfg.File.HasValue() {
+		fileCfg := cfg.File.Get()
+		if fileCfg.ReloadInterval < 0 {
+			return errNegativeInterval
+		}
+		// validate file config fields
+		_, err := govalidator.ValidateStruct(fileCfg)
+		if err != nil {
+			return err
+		}
 	}
 
-	_, err := govalidator.ValidateStruct(cfg)
-	return err
+	if cfg.Adaptive.HasValue() {
+		// Validate adaptive config fields
+		_, err := govalidator.ValidateStruct(cfg.Adaptive.Get())
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
