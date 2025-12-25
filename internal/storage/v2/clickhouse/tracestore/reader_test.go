@@ -36,8 +36,8 @@ var (
 		},
 		{
 			traceIDHex2,
-			now.Add(-30 * time.Minute),
-			now,
+			time.Time{},
+			time.Time{},
 		},
 	}
 )
@@ -574,8 +574,6 @@ WHERE 1=1 AND s.service_name = ? AND s.name = ? AND s.duration >= ? AND s.durati
 		},
 		{
 			TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}),
-			Start:   now.Add(-30 * time.Minute),
-			End:     now,
 		},
 	}, ids)
 }
@@ -664,8 +662,6 @@ func TestFindTraceIDs_ScanErrorContinues(t *testing.T) {
 	expected := []tracestore.FoundTraceID{
 		{
 			TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}),
-			Start:   now.Add(-30 * time.Minute),
-			End:     now,
 		},
 	}
 
@@ -712,8 +708,6 @@ func TestFindTraceIDs_DecodeErrorContinues(t *testing.T) {
 		},
 		{
 			TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}),
-			Start:   now.Add(-30 * time.Minute),
-			End:     now,
 		},
 	}
 
