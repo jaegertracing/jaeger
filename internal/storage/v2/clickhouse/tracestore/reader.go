@@ -204,6 +204,21 @@ func (r *Reader) FindTraceIDs(
 			args = append(args, query.StartTimeMax)
 		}
 
+		if query.Attributes.Len() > 0 {
+			query.Attributes.Range(func(k string, v pcommon.Value) bool {
+				if v.Type() == pcommon.ValueTypeStr {
+					val := v.Str()
+					q += " AND ("
+					q += "arrayExists((key, value) -> key = ? AND value = ?, s.str_attributes.key, s.str_attributes.value)"
+					q += " OR "
+					q += "arrayExists((key, value) -> key = ? AND value = ?, s.resource_str_attributes.key, s.resource_str_attributes.value)"
+					q += ")"
+					args = append(args, k, val, k, val)
+				}
+				return true
+			})
+		}
+
 		q += " LIMIT ?"
 		if query.SearchDepth > 0 {
 			if query.SearchDepth > r.config.MaxSearchDepth {
