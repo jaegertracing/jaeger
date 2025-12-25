@@ -20,26 +20,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
-
-func TestGetV1Reader(t *testing.T) {
-	t.Run("wrapped v1 reader", func(t *testing.T) {
-		reader := new(spanstoremocks.Reader)
-		traceReader := &TraceReader{
-			spanReader: reader,
-		}
-		v1Reader := GetV1Reader(traceReader)
-		require.Equal(t, reader, v1Reader)
-	})
-
-	t.Run("native v2 reader", func(t *testing.T) {
-		reader := new(tracestoremocks.Reader)
-		v1Reader := GetV1Reader(reader)
-		require.IsType(t, &SpanReader{}, v1Reader)
-		require.Equal(t, reader, v1Reader.(*SpanReader).traceReader)
-	})
-}
 
 func TestTraceReader_GetTracesDelegatesSuccessResponse(t *testing.T) {
 	sr := new(spanstoremocks.Reader)

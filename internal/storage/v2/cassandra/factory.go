@@ -6,36 +6,58 @@ package cassandra
 import (
 	"context"
 
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/distributedlock"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
+	cspanstore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/tracestoremetrics"
+	ctracestore "github.com/jaegertracing/jaeger/internal/storage/v2/cassandra/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
 type Factory struct {
-	v1Factory *cassandra.Factory
+	metricsFactory metrics.Factory
+	logger         *zap.Logger
+	v1Factory      *cassandra.Factory
+	tracer         trace.TracerProvider
 }
 
 // NewFactory creates and initializes the factory
-func NewFactory(opts cassandra.Options, metricsFactory metrics.Factory, logger *zap.Logger) (*Factory, error) {
-	factory, err := newFactoryWithConfig(opts, metricsFactory, logger)
+func NewFactory(opts cassandra.Options, telset telemetry.Settings) (*Factory, error) {
+	f := &Factory{
+		metricsFactory: telset.Metrics,
+		logger:         telset.Logger,
+		tracer:         telset.TracerProvider,
+	}
+	baseFactory, err := newFactoryWithConfig(opts, f.metricsFactory, f.logger, f.tracer)
 	if err != nil {
 		return nil, err
 	}
-	return &Factory{v1Factory: factory}, nil
+	f.v1Factory = baseFactory
+	return f, nil
 }
 
 func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
-	reader, err := f.v1Factory.CreateSpanReader()
+	corereader, err := cspanstore.NewSpanReader(
+		f.v1Factory.GetSession(),
+		f.metricsFactory,
+		f.logger,
+		f.tracer.Tracer("cSpanStore.SpanReader"),
+	)
 	if err != nil {
 		return nil, err
 	}
-	return v1adapter.NewTraceReader(reader), nil
+	return tracestoremetrics.NewReaderDecorator(
+		ctracestore.NewTraceReader(corereader),
+		f.metricsFactory,
+	), nil
 }
 
 func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
@@ -75,6 +97,7 @@ func newFactoryWithConfig(
 	opts cassandra.Options,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
+	tracer trace.TracerProvider,
 ) (*cassandra.Factory, error) {
 	f := cassandra.NewFactory()
 	// use this to help with testing
@@ -83,6 +106,7 @@ func newFactoryWithConfig(
 		opts:           &opts,
 		metricsFactory: metricsFactory,
 		logger:         logger,
+		tracer:         tracer,
 		initializer:    f.Initialize, // this can be mocked in tests
 	}
 	return b.build()
@@ -93,7 +117,8 @@ type withConfigBuilder struct {
 	opts           *cassandra.Options
 	metricsFactory metrics.Factory
 	logger         *zap.Logger
-	initializer    func(metricsFactory metrics.Factory, logger *zap.Logger) error
+	tracer         trace.TracerProvider
+	initializer    func(metricsFactory metrics.Factory, logger *zap.Logger, tracer trace.TracerProvider) error
 }
 
 func (b *withConfigBuilder) build() (*cassandra.Factory, error) {
@@ -101,7 +126,7 @@ func (b *withConfigBuilder) build() (*cassandra.Factory, error) {
 	if err := b.opts.Configuration.Validate(); err != nil {
 		return nil, err
 	}
-	err := b.initializer(b.metricsFactory, b.logger)
+	err := b.initializer(b.metricsFactory, b.logger, b.tracer)
 	if err != nil {
 		return nil, err
 	}
