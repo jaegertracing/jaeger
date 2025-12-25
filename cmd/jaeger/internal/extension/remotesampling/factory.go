@@ -35,10 +35,10 @@ func NewFactory() extension.Factory {
 
 func createDefaultConfig() component.Config {
 	return &Config{
-		HTTP: configoptional.Some(confighttp.ServerConfig{
+		HTTP: configoptional.Default(confighttp.ServerConfig{
 			Endpoint: ports.PortToHostPort(ports.CollectorV2SamplingHTTP),
 		}),
-		GRPC: configoptional.Some(configgrpc.ServerConfig{
+		GRPC: configoptional.Default(configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{
 				Endpoint:  ports.PortToHostPort(ports.CollectorV2SamplingGRPC),
 				Transport: confignet.TransportTypeTCP,
