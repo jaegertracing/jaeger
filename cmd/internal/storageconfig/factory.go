@@ -58,7 +58,7 @@ func CreateTraceStorageFactory(
 	case backend.GRPC != nil:
 		factory, err = grpc.NewFactory(ctx, *backend.GRPC, telset)
 	case backend.Cassandra != nil:
-		factory, err = cassandra.NewFactory(*backend.Cassandra, telset.Metrics, telset.Logger)
+		factory, err = cassandra.NewFactory(*backend.Cassandra, telset)
 	case backend.Elasticsearch != nil:
 		var httpAuth extensionauth.HTTPClient
 		if authResolver != nil {
