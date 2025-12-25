@@ -16,8 +16,8 @@ def rotate_release_managers() -> None:
         content = f.read()
     
     # Find the release managers table
-    table_pattern = r'(\|\| Version \| Release Manager \| Tentative release date \|\n\|\|---------|-----------------|------------------------\|(?:\n\|\|[^\n]+\|)*)'
-    match = re.search(table_pattern, content)
+    table_pattern = r'(\| Version \| Release Manager \| Tentative release date \|\n\|-+\|.*\|\n(?:\|.*\|.*\|\n)+)'
+    match = re.search(table_pattern, content, re.MULTILINE)
     
     if not match:
         print("Error: Could not find release managers table", file=sys.stderr)

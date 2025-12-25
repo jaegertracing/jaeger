@@ -149,25 +149,9 @@ create_pull_request() {
 - [x] Updated jaeger-ui submodule to v${version}
 - [x] Rotated release managers table in RELEASE.md
 
-## After this PR is merged
-Run the following commands to create and push the release tag:
-
-\`\`\`bash
-git checkout main
-git pull
-git tag v${version} -s -m \"Release v${version}\"
-git push upstream v${version}
-\`\`\`
-
-Then create the release on GitHub:
-
-\`\`\`bash
-make draft-release
-\`\`\`
-
-Trigger the [Publish Release](https://github.com/jaegertracing/jaeger/actions/workflows/ci-release.yml) workflow on GitHub."
+After this PR is merged, continue with the release process as outlined in the release issue."
     
-# Create the PR
+    # Create the PR
     gh pr create \
         --title "Prepare release v${version}" \
         --body "$pr_body" \
