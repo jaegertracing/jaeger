@@ -168,6 +168,9 @@ type Configuration struct {
 	// Read more about ILM at
 	// https://www.jaegertracing.io/docs/deployment/#enabling-ilm-support
 	UseILM bool `mapstructure:"use_ilm"`
+	// UseDataStream, if set to true, will use Elasticsearch data streams for storing traces.
+	// This requires Elasticsearch 7.9+.
+	UseDataStream bool `mapstructure:"use_data_stream"`
 
 	// ---- jaeger-specific configs ----
 	// MaxDocCount Defines maximum number of results to fetch from storage per query.
@@ -535,6 +538,9 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 		for k, v := range source.CustomHeaders {
 			c.CustomHeaders[k] = v
 		}
+	}
+	if !c.UseDataStream {
+		c.UseDataStream = source.UseDataStream
 	}
 }
 
