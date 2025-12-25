@@ -153,7 +153,7 @@ jobs:
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
     - name: Generate SBOM
-      uses: anchore/sbom-action@e11c554f704a0b820cbf8c51673f6945e0731532 # v0.20.0
+      uses: anchore/sbom-action@a930d0ac434e3182448fe678398ba5713717112a # v0.21.0
       with:
         output-file: jaeger-SBOM.spdx.json
         upload-release-assets: false
