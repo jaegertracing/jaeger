@@ -1,10 +1,8 @@
 # Jaeger Overall Release Process
 
-## 1️⃣ Start Here: Create Release Issue 📋
+## ⭐ Start Here: Create Tracking Issue for Release ⭐
 
-**⭐ This is the main entry point for the release process. ⭐**
-
-Run the following command to create a release issue with the full checklist:
+Run the following command to create a tracking issue with the full checklist:
 
 ```bash
 bash scripts/release/start.sh
@@ -26,12 +24,11 @@ https://github.com/jaegertracing/jaeger/issues/7757
 
 ## 📝 Release Steps
 
+Follow the checklist in the created tracking issue. The high level steps are:
+
 1. Perform UI release according to https://github.com/jaegertracing/jaeger-ui/blob/main/RELEASE.md
 2. Perform Backend release (see below)
 3. [Publish documentation](https://github.com/jaegertracing/documentation/blob/main/RELEASE.md) for the new version on `jaegertracing.io`.
-   1. Check that [jaegertracing.io](https://www.jaegertracing.io/docs/latest) redirects to the new documentation release version URL.
-   2. For monitoring and troubleshooting, refer to the [jaegertracing/documentation Github Actions tab](https://github.com/jaegertracing/documentation/actions).
-4. Announce the release on the [mailing list](https://groups.google.com/g/jaeger-tracing), [slack](https://cloud-native.slack.com/archives/CGG7NFUJ3), and [twitter](https://twitter.com/JaegerTracing?lang=en).
 
 # ⚙️ Jaeger Backend Release Process
 
@@ -43,25 +40,7 @@ https://github.com/jaegertracing/jaeger/issues/7757
       * Upgrades jaeger-ui submodule to the corresponding version
       * Rotates release managers table
       * Creates PR with label `changelog:skip`
-    * **Manual**: Update CHANGELOG.md to include:
-      * A new section with the header `vX.Y.Z (YYYY-MM-DD)` (copy the template at the top)
-      * A curated list of notable changes and links to PRs. Do not simply dump git log, select the changes that affect the users.
-        To obtain the list of all changes run `make changelog`.
-      * The section can be split into sub-section if necessary, e.g. UI Changes, Backend Changes, Bug Fixes, etc.
-      * Then upgrade the submodule versions and finally commit. For example:
-          ```
-          git submodule init
-          git submodule update
-          pushd jaeger-ui
-          git checkout main
-          git pull
-          git checkout vX.Y.Z  # use the new version
-          popd
-          ```
-        * If there are only dependency bumps, indicate this with "Dependencies upgrades only" ([example](https://github.com/jaegertracing/jaeger-ui/pull/2431/files)).
-        * If there are no changes, indicate this with "No changes" ([example](https://github.com/jaegertracing/jaeger/pull/4131/files)).
-      * Rotate the below release managers table placing yourself at the bottom. The date should be the first Wednesday of the month.
-      * Add label `changelog:skip` to the pull request.
+    * Manual: See [Manual release pull request](https://github.com/jaegertracing/jaeger/blob/main/RELEASE.md#manual-release-pull-request).
 2. After the PR is merged, create new release tag (command is in the PR description if using automation):
     ```
     git checkout main
@@ -70,9 +49,9 @@ https://github.com/jaegertracing/jaeger/issues/7757
     git push upstream vX.Y.Z
     ```
 3. Create a release on Github:
-    * Automated:
-       * `make draft-release`
-4. Go to [Publish Release](https://github.com/jaegertracing/jaeger/actions/workflows/ci-release.yml) workflow on GitHub
+    * **Automated**:  `make draft-release`
+    * Manual: See [Manual release](https://github.com/jaegertracing/jaeger/blob/main/RELEASE.md#manual-release).
+4. Go to [Publish Release workflow](https://github.com/jaegertracing/jaeger/actions/workflows/ci-release.yml) on GitHub
    and run it manually using Run Workflow button on the right.
    1. For monitoring and troubleshooting, open the logs of the workflow run from above URL.
    2. Check the images are available on [Docker Hub](https://hub.docker.com/r/jaegertracing/)
@@ -80,17 +59,43 @@ https://github.com/jaegertracing/jaeger/issues/7757
 
 <!-- END_CHECKLIST -->
 
-## 🛠️ Manual release
+## Manual release pull request
 
-    * Manual:
-       * Title "Prepare Release v1.x.x / v2.x.x"
-       * Tag `v1.x.x` (note the `v` prefix) and choose appropriate branch (usually `main`)
-       * Copy the new CHANGELOG.md section into the release notes
-       * Extra: GitHub has a button "generate release notes". Those are not formatted as we want,
-         but it has a nice feature of explicitly listing first-time contributors.
-         Before doing the previous step, you can click that button and then remove everything
-         except the New Contributors section. Change the header to `### 👏 New Contributors`,
-         then copy the main changelog above it. [Example](https://github.com/jaegertracing/jaeger/releases/tag/v1.55.0).
+Create a PR "Prepare release vX.Y.Z" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/6826)).
+
+  * Update CHANGELOG.md to include:
+    * A new section with the header `vX.Y.Z (YYYY-MM-DD)` (copy the template at the top)
+    * A curated list of notable changes and links to PRs. Do not simply dump git log, select the changes that affect the users.
+      To obtain the list of all changes run `make changelog`.
+    * The section can be split into sub-section if necessary, e.g. UI Changes, Backend Changes, Bug Fixes, etc.
+  * Then upgrade the submodule versions and finally commit. For example:
+      ```
+      git submodule init
+      git submodule update
+      pushd jaeger-ui
+      git checkout main
+      git pull
+      git checkout vX.Y.Z  # use the new version
+      popd
+      ```
+      * If there are only dependency bumps, indicate this with "Dependencies upgrades only" ([example](https://github.com/jaegertracing/jaeger-ui/pull/2431/files)).
+      * If there are no changes, indicate this with "No changes" ([example](https://github.com/jaegertracing/jaeger/pull/4131/files)).
+  * Rotate the below release managers table placing yourself at the bottom. The date should be the first Wednesday of the month.
+  * Commit, push and open a PR.
+  * Add label `changelog:skip` to the pull request.
+
+## Manual release
+
+Create a release on [GitHub Releases](https://github.com/jaegertracing/jaeger/releases/):
+
+  * Title "Prepare Release v2.x.x"
+  * Tag `v2.x.x` (note the `v` prefix) and choose appropriate branch (usually `main`)
+  * Copy the new CHANGELOG.md section into the release notes
+  * Extra: GitHub has a button "generate release notes". Those are not formatted as we want,
+    but it has a nice feature of explicitly listing first-time contributors.
+    Before doing the previous step, you can click that button and then remove everything
+    except the New Contributors section. Change the header to `### 👏 New Contributors`,
+    then copy the main changelog above it. [Example](https://github.com/jaegertracing/jaeger/releases/tag/v1.55.0).
 
 ## 🔧 Patch Release
 
