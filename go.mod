@@ -6,7 +6,7 @@ toolchain go1.25.5
 
 require (
 	github.com/ClickHouse/ch-go v0.69.0
-	github.com/ClickHouse/clickhouse-go/v2 v2.40.3
+	github.com/ClickHouse/clickhouse-go/v2 v2.42.0
 	github.com/apache/cassandra-gocql-driver/v2 v2.0.0
 	github.com/apache/thrift v0.22.0
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
@@ -249,7 +249,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus v0.142.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.142.0 // indirect
 	github.com/openzipkin/zipkin-go v0.4.3 // indirect
-	github.com/paulmach/orb v0.11.1 // indirect
+	github.com/paulmach/orb v0.12.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
