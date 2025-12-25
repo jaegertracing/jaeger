@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"iter"
+	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -142,19 +143,31 @@ func (*Reader) FindTraces(
 }
 
 func readRowIntoTraceID(rows driver.Rows) ([]tracestore.FoundTraceID, error) {
-	var str string
+	var traceIDHex string
+	var start, end time.Time
 
-	if err := rows.Scan(&str); err != nil {
+	if err := rows.Scan(&traceIDHex, &start, &end); err != nil {
 		return nil, fmt.Errorf("failed to scan row: %w", err)
 	}
 
-	b, err := hex.DecodeString(str)
+	b, err := hex.DecodeString(traceIDHex)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode trace ID: %w", err)
 	}
 
+	traceID := tracestore.FoundTraceID{
+		TraceID: pcommon.TraceID(b),
+	}
+
+	if !start.IsZero() {
+		traceID.Start = start
+	}
+	if !end.IsZero() {
+		traceID.End = end
+	}
+
 	return []tracestore.FoundTraceID{
-		{TraceID: pcommon.TraceID(b)},
+		traceID,
 	}, nil
 }
 
@@ -167,19 +180,19 @@ func (r *Reader) FindTraceIDs(
 		args := []any{}
 
 		if query.ServiceName != "" {
-			q += " AND service_name = ?"
+			q += " AND s.service_name = ?"
 			args = append(args, query.ServiceName)
 		}
 		if query.OperationName != "" {
-			q += " AND name = ?"
+			q += " AND s.name = ?"
 			args = append(args, query.OperationName)
 		}
 		if query.DurationMin > 0 {
-			q += " AND duration >= ?"
+			q += " AND s.duration >= ?"
 			args = append(args, query.DurationMin.Nanoseconds())
 		}
 		if query.DurationMax > 0 {
-			q += " AND duration <= ?"
+			q += " AND s.duration <= ?"
 			args = append(args, query.DurationMax.Nanoseconds())
 		}
 		q += " LIMIT ?"
