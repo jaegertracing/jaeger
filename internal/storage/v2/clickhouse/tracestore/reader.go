@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"iter"
+	"strings"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
@@ -176,44 +177,16 @@ func (r *Reader) FindTraceIDs(
 	query tracestore.TraceQueryParams,
 ) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	return func(yield func([]tracestore.FoundTraceID, error) bool) {
-		q := sql.SearchTraceIDs
-		args := []any{}
-
-		if query.ServiceName != "" {
-			q += " AND s.service_name = ?"
-			args = append(args, query.ServiceName)
+		limit := query.SearchDepth
+		if limit == 0 {
+			limit = r.config.DefaultSearchDepth
 		}
-		if query.OperationName != "" {
-			q += " AND s.name = ?"
-			args = append(args, query.OperationName)
-		}
-		if query.DurationMin > 0 {
-			q += " AND s.duration >= ?"
-			args = append(args, query.DurationMin.Nanoseconds())
-		}
-		if query.DurationMax > 0 {
-			q += " AND s.duration <= ?"
-			args = append(args, query.DurationMax.Nanoseconds())
-		}
-		if !query.StartTimeMin.IsZero() {
-			q += " AND s.start_time >= ?"
-			args = append(args, query.StartTimeMin)
-		}
-		if !query.StartTimeMax.IsZero() {
-			q += " AND s.start_time <= ?"
-			args = append(args, query.StartTimeMax)
+		if limit > r.config.MaxSearchDepth {
+			yield(nil, fmt.Errorf("search depth %d exceeds maximum allowed %d", limit, r.config.MaxSearchDepth))
+			return
 		}
 
-		q += " LIMIT ?"
-		if query.SearchDepth > 0 {
-			if query.SearchDepth > r.config.MaxSearchDepth {
-				yield(nil, fmt.Errorf("search depth %d exceeds maximum allowed %d", query.SearchDepth, r.config.MaxSearchDepth))
-				return
-			}
-			args = append(args, query.SearchDepth)
-		} else {
-			args = append(args, r.config.DefaultSearchDepth)
-		}
+		q, args := buildFindTraceIDsQuery(query, limit)
 
 		rows, err := r.conn.Query(ctx, q, args...)
 		if err != nil {
@@ -229,4 +202,54 @@ func (r *Reader) FindTraceIDs(
 			}
 		}
 	}
+}
+
+func buildFindTraceIDsQuery(query tracestore.TraceQueryParams, limit int) (string, []any) {
+	var q strings.Builder
+	q.WriteString(sql.SearchTraceIDs)
+	args := []any{}
+
+	if query.ServiceName != "" {
+		q.WriteString(" AND s.service_name = ?")
+		args = append(args, query.ServiceName)
+	}
+	if query.OperationName != "" {
+		q.WriteString(" AND s.name = ?")
+		args = append(args, query.OperationName)
+	}
+	if query.DurationMin > 0 {
+		q.WriteString(" AND s.duration >= ?")
+		args = append(args, query.DurationMin.Nanoseconds())
+	}
+	if query.DurationMax > 0 {
+		q.WriteString(" AND s.duration <= ?")
+		args = append(args, query.DurationMax.Nanoseconds())
+	}
+	if !query.StartTimeMin.IsZero() {
+		q.WriteString(" AND s.start_time >= ?")
+		args = append(args, query.StartTimeMin)
+	}
+	if !query.StartTimeMax.IsZero() {
+		q.WriteString(" AND s.start_time <= ?")
+		args = append(args, query.StartTimeMax)
+	}
+
+	for key, attr := range query.Attributes.All() {
+		switch attr.Type() {
+		case pcommon.ValueTypeStr:
+			val := attr.Str()
+			q.WriteString(" AND (")
+			q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.str_attributes.key, s.str_attributes.value)")
+			q.WriteString(" OR ")
+			q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.resource_str_attributes.key, s.resource_str_attributes.value)")
+			q.WriteString(")")
+			args = append(args, key, val, key, val)
+		default:
+		}
+	}
+
+	q.WriteString(" LIMIT ?")
+	args = append(args, limit)
+
+	return q.String(), args
 }

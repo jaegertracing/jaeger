@@ -550,13 +550,24 @@ SELECT DISTINCT
     t.end
 FROM spans s
 LEFT JOIN trace_id_timestamps t ON s.trace_id = t.trace_id
-WHERE 1=1 AND s.service_name = ? AND s.name = ? AND s.duration >= ? AND s.duration <= ? AND s.start_time >= ? AND s.start_time <= ? LIMIT ?`,
+WHERE 1=1` +
+			` AND s.service_name = ?` +
+			` AND s.name = ?` +
+			` AND s.duration >= ?` +
+			` AND s.duration <= ?` +
+			` AND s.start_time >= ?` +
+			` AND s.start_time <= ?` +
+			` AND (arrayExists((key, value) -> key = ? AND value = ?, s.str_attributes.key, s.str_attributes.value)` +
+			` OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_str_attributes.key, s.resource_str_attributes.value))` +
+			` LIMIT ?`,
 		rows: &testRows[[]any]{
 			data:   testTraceIDsData,
 			scanFn: scanTraceIDFn(),
 		},
 	}
 	reader := NewReader(driver, testReaderConfig)
+	attributes := pcommon.NewMap()
+	attributes.PutStr("http.method", "GET")
 	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
 		ServiceName:   "serviceA",
 		OperationName: "operationA",
@@ -564,6 +575,7 @@ WHERE 1=1 AND s.service_name = ? AND s.name = ? AND s.duration >= ? AND s.durati
 		DurationMax:   1 * time.Second,
 		StartTimeMin:  now.Add(-1 * time.Hour),
 		StartTimeMax:  now,
+		Attributes:    attributes,
 		SearchDepth:   5,
 	})
 	ids, err := jiter.FlattenWithErrors(iter)
@@ -619,7 +631,9 @@ func TestFindTraceIDs_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	}
 
 	reader := NewReader(conn, testReaderConfig)
-	findTraceIDsIter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
+	findTraceIDsIter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+	})
 
 	var gotTraceIDs []tracestore.FoundTraceID
 	findTraceIDsIter(func(traceIDs []tracestore.FoundTraceID, err error) bool {
@@ -659,7 +673,9 @@ func TestFindTraceIDs_ScanErrorContinues(t *testing.T) {
 	}
 
 	reader := NewReader(conn, testReaderConfig)
-	findTraceIDsIter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
+	findTraceIDsIter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+	})
 
 	expected := []tracestore.FoundTraceID{
 		{
@@ -700,7 +716,9 @@ func TestFindTraceIDs_DecodeErrorContinues(t *testing.T) {
 	}
 
 	reader := NewReader(conn, ReaderConfig{})
-	findTraceIDsIter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
+	findTraceIDsIter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+	})
 
 	expectedValidTraceIDs := []tracestore.FoundTraceID{
 		{
@@ -779,7 +797,9 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			reader := NewReader(test.driver, ReaderConfig{})
-			iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
+			iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+				Attributes: pcommon.NewMap(),
+			})
 			_, err := jiter.FlattenWithErrors(iter)
 			require.ErrorContains(t, err, test.expectedErr)
 		})
