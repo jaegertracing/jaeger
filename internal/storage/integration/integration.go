@@ -195,13 +195,13 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 					StartTimeMin: time.Now().Add(-2 * time.Hour),
 					StartTimeMax: time.Now(),
 				})
-				traces, err := jiter.FlattenWithErrors(iterTraces)
+				traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
 				if err != nil {
 					t.Log(err)
 					continue
 				}
 
-				for _, trace := range OTLPTracesToV1Slice(traces) {
+				for _, trace := range traces {
 					for _, span := range trace.Spans {
 						t.Logf("span: Service: %s, TraceID: %s, Operation: %s", service, span.TraceID, span.OperationName)
 					}
