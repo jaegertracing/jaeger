@@ -571,7 +571,7 @@ func BenchmarkProtoBatchToInternalTraces(b *testing.B) {
 	}
 }
 
-func TestToDbModel_Fixtures(t *testing.T) {
+func TestProtoToTraces_Fixtures(t *testing.T) {
 	tracesStr, batchStr := loadFixtures(t, 1)
 	var batch model.Batch
 	err := json.Unmarshal(batchStr, &batch)
