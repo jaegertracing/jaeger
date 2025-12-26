@@ -270,5 +270,5 @@ func buildFindTraceIDsQuery(query tracestore.TraceQueryParams, limit int) (strin
 	q.WriteString(" LIMIT ?")
 	args = append(args, limit)
 
-	return q.String(), args
+	return q.String(), args, nil
 }
