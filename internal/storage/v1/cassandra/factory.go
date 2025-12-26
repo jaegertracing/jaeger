@@ -9,7 +9,6 @@ import (
 	"errors"
 	"io"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -57,7 +56,6 @@ type Factory struct {
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
 	return &Factory{
-		tracer:           otel.GetTracerProvider(),
 		Options:          NewOptions(),
 		sessionBuilderFn: NewSession,
 	}
@@ -70,10 +68,10 @@ func (f *Factory) ConfigureFromOptions(o *Options) {
 }
 
 // Initialize performs internal initialization of the factory.
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger, tracer trace.TracerProvider) error {
 	f.metricsFactory = metricsFactory
 	f.logger = logger
-
+	f.tracer = tracer
 	session, err := f.sessionBuilderFn(&f.config)
 	if err != nil {
 		return err
@@ -218,8 +216,4 @@ func (f *Factory) IsArchiveCapable() bool {
 
 func (f *Factory) GetSession() cassandra.Session {
 	return f.session
-}
-
-func (f *Factory) GetTracer() trace.TracerProvider {
-	return f.tracer
 }

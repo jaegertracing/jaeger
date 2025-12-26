@@ -12,14 +12,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configtls"
-	"go.uber.org/zap/zaptest"
 
-	"github.com/jaegertracing/jaeger/internal/metrics"
 	casconfig "github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	cassandrav1 "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
@@ -77,7 +76,7 @@ func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 		SpanStoreWriteCacheTTL: time.Hour * 12,
 		ArchiveEnabled:         false,
 	}
-	f, err := cassandra.NewFactory(opts, metrics.NullFactory, zaptest.NewLogger(t))
+	f, err := cassandra.NewFactory(opts, telemetry.NoopSettings())
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, f.Close())

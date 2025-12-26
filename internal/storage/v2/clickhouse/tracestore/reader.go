@@ -8,6 +8,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"iter"
+	"strings"
+	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -142,19 +144,31 @@ func (*Reader) FindTraces(
 }
 
 func readRowIntoTraceID(rows driver.Rows) ([]tracestore.FoundTraceID, error) {
-	var str string
+	var traceIDHex string
+	var start, end time.Time
 
-	if err := rows.Scan(&str); err != nil {
+	if err := rows.Scan(&traceIDHex, &start, &end); err != nil {
 		return nil, fmt.Errorf("failed to scan row: %w", err)
 	}
 
-	b, err := hex.DecodeString(str)
+	b, err := hex.DecodeString(traceIDHex)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode trace ID: %w", err)
 	}
 
+	traceID := tracestore.FoundTraceID{
+		TraceID: pcommon.TraceID(b),
+	}
+
+	if !start.IsZero() {
+		traceID.Start = start
+	}
+	if !end.IsZero() {
+		traceID.End = end
+	}
+
 	return []tracestore.FoundTraceID{
-		{TraceID: pcommon.TraceID(b)},
+		traceID,
 	}, nil
 }
 
@@ -163,27 +177,16 @@ func (r *Reader) FindTraceIDs(
 	query tracestore.TraceQueryParams,
 ) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	return func(yield func([]tracestore.FoundTraceID, error) bool) {
-		q := sql.SearchTraceIDs
-		args := []any{}
+		limit := query.SearchDepth
+		if limit == 0 {
+			limit = r.config.DefaultSearchDepth
+		}
+		if limit > r.config.MaxSearchDepth {
+			yield(nil, fmt.Errorf("search depth %d exceeds maximum allowed %d", limit, r.config.MaxSearchDepth))
+			return
+		}
 
-		if query.ServiceName != "" {
-			q += " AND service_name = ?"
-			args = append(args, query.ServiceName)
-		}
-		if query.OperationName != "" {
-			q += " AND name = ?"
-			args = append(args, query.OperationName)
-		}
-		q += " LIMIT ?"
-		if query.SearchDepth > 0 {
-			if query.SearchDepth > r.config.MaxSearchDepth {
-				yield(nil, fmt.Errorf("search depth %d exceeds maximum allowed %d", query.SearchDepth, r.config.MaxSearchDepth))
-				return
-			}
-			args = append(args, query.SearchDepth)
-		} else {
-			args = append(args, r.config.DefaultSearchDepth)
-		}
+		q, args := buildFindTraceIDsQuery(query, limit)
 
 		rows, err := r.conn.Query(ctx, q, args...)
 		if err != nil {
@@ -199,4 +202,54 @@ func (r *Reader) FindTraceIDs(
 			}
 		}
 	}
+}
+
+func buildFindTraceIDsQuery(query tracestore.TraceQueryParams, limit int) (string, []any) {
+	var q strings.Builder
+	q.WriteString(sql.SearchTraceIDs)
+	args := []any{}
+
+	if query.ServiceName != "" {
+		q.WriteString(" AND s.service_name = ?")
+		args = append(args, query.ServiceName)
+	}
+	if query.OperationName != "" {
+		q.WriteString(" AND s.name = ?")
+		args = append(args, query.OperationName)
+	}
+	if query.DurationMin > 0 {
+		q.WriteString(" AND s.duration >= ?")
+		args = append(args, query.DurationMin.Nanoseconds())
+	}
+	if query.DurationMax > 0 {
+		q.WriteString(" AND s.duration <= ?")
+		args = append(args, query.DurationMax.Nanoseconds())
+	}
+	if !query.StartTimeMin.IsZero() {
+		q.WriteString(" AND s.start_time >= ?")
+		args = append(args, query.StartTimeMin)
+	}
+	if !query.StartTimeMax.IsZero() {
+		q.WriteString(" AND s.start_time <= ?")
+		args = append(args, query.StartTimeMax)
+	}
+
+	for key, attr := range query.Attributes.All() {
+		switch attr.Type() {
+		case pcommon.ValueTypeStr:
+			val := attr.Str()
+			q.WriteString(" AND (")
+			q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.str_attributes.key, s.str_attributes.value)")
+			q.WriteString(" OR ")
+			q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.resource_str_attributes.key, s.resource_str_attributes.value)")
+			q.WriteString(")")
+			args = append(args, key, val, key, val)
+		default:
+		}
+	}
+
+	q.WriteString(" LIMIT ?")
+	args = append(args, limit)
+
+	return q.String(), args
 }
