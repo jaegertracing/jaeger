@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"iter"
+	"strings"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
@@ -185,7 +186,7 @@ func (r *Reader) FindTraceIDs(
 			return
 		}
 
-		q, args := r.buildFindTraceIDsQuery(query, limit)
+		q, args := buildFindTraceIDsQuery(query, limit)
 
 		rows, err := r.conn.Query(ctx, q, args...)
 		if err != nil {
@@ -203,49 +204,52 @@ func (r *Reader) FindTraceIDs(
 	}
 }
 
-func (r *Reader) buildFindTraceIDsQuery(query tracestore.TraceQueryParams, limit int) (string, []any) {
-	q := sql.SearchTraceIDs
+func buildFindTraceIDsQuery(query tracestore.TraceQueryParams, limit int) (string, []any) {
+	var q strings.Builder
+	q.WriteString(sql.SearchTraceIDs)
 	args := []any{}
 
 	if query.ServiceName != "" {
-		q += " AND s.service_name = ?"
+		q.WriteString(" AND s.service_name = ?")
 		args = append(args, query.ServiceName)
 	}
 	if query.OperationName != "" {
-		q += " AND s.name = ?"
+		q.WriteString(" AND s.name = ?")
 		args = append(args, query.OperationName)
 	}
 	if query.DurationMin > 0 {
-		q += " AND s.duration >= ?"
+		q.WriteString(" AND s.duration >= ?")
 		args = append(args, query.DurationMin.Nanoseconds())
 	}
 	if query.DurationMax > 0 {
-		q += " AND s.duration <= ?"
+		q.WriteString(" AND s.duration <= ?")
 		args = append(args, query.DurationMax.Nanoseconds())
 	}
 	if !query.StartTimeMin.IsZero() {
-		q += " AND s.start_time >= ?"
+		q.WriteString(" AND s.start_time >= ?")
 		args = append(args, query.StartTimeMin)
 	}
 	if !query.StartTimeMax.IsZero() {
-		q += " AND s.start_time <= ?"
+		q.WriteString(" AND s.start_time <= ?")
 		args = append(args, query.StartTimeMax)
 	}
 
 	for key, attr := range query.Attributes.All() {
-		if attr.Type() == pcommon.ValueTypeStr {
+		switch attr.Type() {
+		case pcommon.ValueTypeStr:
 			val := attr.Str()
-			q += " AND ("
-			q += "arrayExists((key, value) -> key = ? AND value = ?, s.str_attributes.key, s.str_attributes.value)"
-			q += " OR "
-			q += "arrayExists((key, value) -> key = ? AND value = ?, s.resource_str_attributes.key, s.resource_str_attributes.value)"
-			q += ")"
+			q.WriteString(" AND (")
+			q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.str_attributes.key, s.str_attributes.value)")
+			q.WriteString(" OR ")
+			q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.resource_str_attributes.key, s.resource_str_attributes.value)")
+			q.WriteString(")")
 			args = append(args, key, val, key, val)
+		default:
 		}
 	}
 
-	q += " LIMIT ?"
+	q.WriteString(" LIMIT ?")
 	args = append(args, limit)
 
-	return q, args
+	return q.String(), args
 }
