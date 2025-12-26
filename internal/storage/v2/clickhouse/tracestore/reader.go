@@ -186,7 +186,11 @@ func (r *Reader) FindTraceIDs(
 			return
 		}
 
-		q, args := buildFindTraceIDsQuery(query, limit)
+		q, args, err := buildFindTraceIDsQuery(query, limit)
+		if err != nil {
+			yield(nil, fmt.Errorf("failed to build query: %w", err))
+			return
+		}
 
 		rows, err := r.conn.Query(ctx, q, args...)
 		if err != nil {
@@ -204,7 +208,7 @@ func (r *Reader) FindTraceIDs(
 	}
 }
 
-func buildFindTraceIDsQuery(query tracestore.TraceQueryParams, limit int) (string, []any) {
+func buildFindTraceIDsQuery(query tracestore.TraceQueryParams, limit int) (string, []any, error) {
 	var q strings.Builder
 	q.WriteString(sql.SearchTraceIDs)
 	args := []any{}
@@ -252,7 +256,7 @@ func buildFindTraceIDsQuery(query tracestore.TraceQueryParams, limit int) (strin
 			attrType = "str"
 			val = attr.Str()
 		default:
-			continue
+			return "", nil, fmt.Errorf("unsupported attribute type %v for key %s", attr.Type(), key)
 		}
 
 		q.WriteString(" AND (")
