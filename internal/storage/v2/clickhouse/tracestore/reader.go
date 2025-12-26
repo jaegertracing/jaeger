@@ -176,59 +176,16 @@ func (r *Reader) FindTraceIDs(
 	query tracestore.TraceQueryParams,
 ) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	return func(yield func([]tracestore.FoundTraceID, error) bool) {
-		q := sql.SearchTraceIDs
-		args := []any{}
-
-		if query.ServiceName != "" {
-			q += " AND s.service_name = ?"
-			args = append(args, query.ServiceName)
+		limit := query.SearchDepth
+		if limit == 0 {
+			limit = r.config.DefaultSearchDepth
 		}
-		if query.OperationName != "" {
-			q += " AND s.name = ?"
-			args = append(args, query.OperationName)
-		}
-		if query.DurationMin > 0 {
-			q += " AND s.duration >= ?"
-			args = append(args, query.DurationMin.Nanoseconds())
-		}
-		if query.DurationMax > 0 {
-			q += " AND s.duration <= ?"
-			args = append(args, query.DurationMax.Nanoseconds())
-		}
-		if !query.StartTimeMin.IsZero() {
-			q += " AND s.start_time >= ?"
-			args = append(args, query.StartTimeMin)
-		}
-		if !query.StartTimeMax.IsZero() {
-			q += " AND s.start_time <= ?"
-			args = append(args, query.StartTimeMax)
+		if limit > r.config.MaxSearchDepth {
+			yield(nil, fmt.Errorf("search depth %d exceeds maximum allowed %d", limit, r.config.MaxSearchDepth))
+			return
 		}
 
-		if query.Attributes.Len() > 0 {
-			query.Attributes.Range(func(k string, v pcommon.Value) bool {
-				if v.Type() == pcommon.ValueTypeStr {
-					val := v.Str()
-					q += " AND ("
-					q += "arrayExists((key, value) -> key = ? AND value = ?, s.str_attributes.key, s.str_attributes.value)"
-					q += " OR "
-					q += "arrayExists((key, value) -> key = ? AND value = ?, s.resource_str_attributes.key, s.resource_str_attributes.value)"
-					q += ")"
-					args = append(args, k, val, k, val)
-				}
-				return true
-			})
-		}
-
-		q += " LIMIT ?"
-		if query.SearchDepth > 0 {
-			if query.SearchDepth > r.config.MaxSearchDepth {
-				yield(nil, fmt.Errorf("search depth %d exceeds maximum allowed %d", query.SearchDepth, r.config.MaxSearchDepth))
-				return
-			}
-			args = append(args, query.SearchDepth)
-		} else {
-			args = append(args, r.config.DefaultSearchDepth)
-		}
+		q, args := r.buildFindTraceIDsQuery(query, limit)
 
 		rows, err := r.conn.Query(ctx, q, args...)
 		if err != nil {
@@ -244,4 +201,54 @@ func (r *Reader) FindTraceIDs(
 			}
 		}
 	}
+}
+
+func (r *Reader) buildFindTraceIDsQuery(query tracestore.TraceQueryParams, limit int) (string, []any) {
+	q := sql.SearchTraceIDs
+	args := []any{}
+
+	if query.ServiceName != "" {
+		q += " AND s.service_name = ?"
+		args = append(args, query.ServiceName)
+	}
+	if query.OperationName != "" {
+		q += " AND s.name = ?"
+		args = append(args, query.OperationName)
+	}
+	if query.DurationMin > 0 {
+		q += " AND s.duration >= ?"
+		args = append(args, query.DurationMin.Nanoseconds())
+	}
+	if query.DurationMax > 0 {
+		q += " AND s.duration <= ?"
+		args = append(args, query.DurationMax.Nanoseconds())
+	}
+	if !query.StartTimeMin.IsZero() {
+		q += " AND s.start_time >= ?"
+		args = append(args, query.StartTimeMin)
+	}
+	if !query.StartTimeMax.IsZero() {
+		q += " AND s.start_time <= ?"
+		args = append(args, query.StartTimeMax)
+	}
+
+	if query.Attributes.Len() > 0 {
+		query.Attributes.Range(func(k string, v pcommon.Value) bool {
+			if v.Type() == pcommon.ValueTypeStr {
+				val := v.Str()
+				q += " AND ("
+				q += "arrayExists((key, value) -> key = ? AND value = ?, s.str_attributes.key, s.str_attributes.value)"
+				q += " OR "
+				q += "arrayExists((key, value) -> key = ? AND value = ?, s.resource_str_attributes.key, s.resource_str_attributes.value)"
+				q += ")"
+				args = append(args, k, val, k, val)
+			}
+			return true
+		})
+	}
+
+	q += " LIMIT ?"
+	args = append(args, limit)
+
+	return q, args
 }
