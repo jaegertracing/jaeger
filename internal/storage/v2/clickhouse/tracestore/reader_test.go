@@ -631,7 +631,9 @@ func TestFindTraceIDs_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	}
 
 	reader := NewReader(conn, testReaderConfig)
-	findTraceIDsIter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
+	findTraceIDsIter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+	})
 
 	var gotTraceIDs []tracestore.FoundTraceID
 	findTraceIDsIter(func(traceIDs []tracestore.FoundTraceID, err error) bool {
@@ -671,7 +673,9 @@ func TestFindTraceIDs_ScanErrorContinues(t *testing.T) {
 	}
 
 	reader := NewReader(conn, testReaderConfig)
-	findTraceIDsIter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
+	findTraceIDsIter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+	})
 
 	expected := []tracestore.FoundTraceID{
 		{
@@ -712,7 +716,9 @@ func TestFindTraceIDs_DecodeErrorContinues(t *testing.T) {
 	}
 
 	reader := NewReader(conn, ReaderConfig{})
-	findTraceIDsIter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
+	findTraceIDsIter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+	})
 
 	expectedValidTraceIDs := []tracestore.FoundTraceID{
 		{
@@ -791,7 +797,9 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			reader := NewReader(test.driver, ReaderConfig{})
-			iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
+			iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+				Attributes: pcommon.NewMap(),
+			})
 			_, err := jiter.FlattenWithErrors(iter)
 			require.ErrorContains(t, err, test.expectedErr)
 		})
