@@ -5,6 +5,7 @@ package tracestore
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"iter"
@@ -14,6 +15,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/pdata/xpdata"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
@@ -208,6 +210,17 @@ func (r *Reader) FindTraceIDs(
 	}
 }
 
+// marshalValueForQuery is a small test seam to allow injecting marshal errors
+// for complex attributes in unit tests. In production it uses xpdata.JSONMarshaler.
+var marshalValueForQuery = func(v pcommon.Value) (string, error) {
+	m := &xpdata.JSONMarshaler{}
+	b, err := m.MarshalValue(v)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
 func buildFindTraceIDsQuery(query tracestore.TraceQueryParams, limit int) (string, []any, error) {
 	var q strings.Builder
 	q.WriteString(sql.SearchTraceIDs)
@@ -255,6 +268,26 @@ func buildFindTraceIDsQuery(query tracestore.TraceQueryParams, limit int) (strin
 		case pcommon.ValueTypeStr:
 			attrType = "str"
 			val = attr.Str()
+		case pcommon.ValueTypeBytes:
+			attrType = "complex"
+			key = "@bytes@" + key
+			val = base64.StdEncoding.EncodeToString(attr.Bytes().AsRaw())
+		case pcommon.ValueTypeSlice:
+			attrType = "complex"
+			key = "@slice@" + key
+			b, err := marshalValueForQuery(attr)
+			if err != nil {
+				return "", nil, fmt.Errorf("failed to marshal slice attribute %q: %w", key, err)
+			}
+			val = b
+		case pcommon.ValueTypeMap:
+			attrType = "complex"
+			key = "@map@" + key
+			b, err := marshalValueForQuery(attr)
+			if err != nil {
+				return "", nil, fmt.Errorf("failed to marshal map attribute %q: %w", key, err)
+			}
+			val = b
 		default:
 			return "", nil, fmt.Errorf("unsupported attribute type %v for key %s", attr.Type(), key)
 		}

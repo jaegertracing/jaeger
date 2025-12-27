@@ -565,6 +565,12 @@ WHERE 1=1` +
 			` OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_int_attributes.key, s.resource_int_attributes.value))` +
 			` AND (arrayExists((key, value) -> key = ? AND value = ?, s.str_attributes.key, s.str_attributes.value)` +
 			` OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_str_attributes.key, s.resource_str_attributes.value))` +
+			` AND (arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)` +
+			` OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value))` +
+			` AND (arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)` +
+			` OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value))` +
+			` AND (arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)` +
+			` OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value))` +
 			` LIMIT ?`,
 		rows: &testRows[[]any]{
 			data:   testTraceIDsData,
@@ -577,6 +583,14 @@ WHERE 1=1` +
 	attributes.PutDouble("response_time", 0.123)
 	attributes.PutInt("attempt_count", 1)
 	attributes.PutStr("http.method", "GET")
+	b := attributes.PutEmptyBytes("file.checksum")
+	s := attributes.PutEmptySlice("http.headers")
+	m := attributes.PutEmptyMap("http.cookies")
+
+	b.FromRaw([]byte{0x12, 0x34, 0x56, 0x78})
+	s.AppendEmpty().SetStr("header1: value1")
+	m.PutStr("session_id", "abc123")
+
 	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
 		ServiceName:   "serviceA",
 		OperationName: "operationA",
@@ -813,4 +827,34 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 			require.ErrorContains(t, err, test.expectedErr)
 		})
 	}
+}
+
+func TestBuildFindTraceIDsQuery_MarshalErrors(t *testing.T) {
+	orig := marshalValueForQuery
+	t.Cleanup(func() { marshalValueForQuery = orig })
+	marshalValueForQuery = func(pcommon.Value) (string, error) {
+		return "", assert.AnError
+	}
+
+	t.Run("marshal slice error", func(t *testing.T) {
+		attrs := pcommon.NewMap()
+		s := attrs.PutEmptySlice("bad_slice")
+		s.AppendEmpty()
+
+		_, _, err := buildFindTraceIDsQuery(tracestore.TraceQueryParams{Attributes: attrs}, 10)
+
+		require.Error(t, err)
+		require.ErrorContains(t, err, "failed to marshal slice attribute")
+	})
+
+	t.Run("marshal map error", func(t *testing.T) {
+		attrs := pcommon.NewMap()
+		m := attrs.PutEmptyMap("bad_map")
+		m.PutEmpty("key")
+
+		_, _, err := buildFindTraceIDsQuery(tracestore.TraceQueryParams{Attributes: attrs}, 10)
+
+		require.Error(t, err)
+		require.ErrorContains(t, err, "failed to marshal map attribute")
+	})
 }
