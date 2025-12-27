@@ -117,6 +117,10 @@ func (t *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQu
 func toDBTraceQueryParams(query tracestore.TraceQueryParams) dbmodel.TraceQueryParameters {
 	tags := make(map[string]string)
 	for key, val := range query.Attributes.All() {
+		if key == "otel.status_code" && val.AsString() == "ERROR" {
+			tags["error"] = "true"
+			continue
+		}
 		tags[key] = val.AsString()
 	}
 	return dbmodel.TraceQueryParameters{
