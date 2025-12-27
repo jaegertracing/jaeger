@@ -14,6 +14,7 @@ concurrency:
 
 permissions:
   contents: read
+  packages: read  # This allows the runner to pull from GHCR
 
 jobs:
   all-in-one:
@@ -36,6 +37,13 @@ jobs:
       with:
         go-version: 1.25.x
 
+    - name: Log in to GHCR
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
     - uses: ./.github/actions/setup-node.js
 
     - uses: ./.github/actions/setup-branch
@@ -48,7 +56,7 @@ jobs:
       run: |
         case ${GITHUB_EVENT_NAME} in
           pull_request|merge_group)
-            echo "BUILD_FLAGS=-l -D -p linux/$(go env GOARCH)" >> ${GITHUB_ENV}
+            echo "BUILD_FLAGS=-l -p linux/$(go env GOARCH)" >> ${GITHUB_ENV}
             ;;
           *)
             echo "BUILD_FLAGS=" >> ${GITHUB_ENV}
