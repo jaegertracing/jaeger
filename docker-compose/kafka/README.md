@@ -2,6 +2,8 @@
 
 This `docker compose` environment provides a sample configuration of Jaeger deployment utilizing collector-Kafka-ingester pipeline with jaeger-v2 unified binary. Storage is provided by the `jaeger-remote-storage` service running memstore.
 
+The setup uses **Apache Kafka 3.9.0** running in KRaft mode.
+
 Jaeger UI can be accessed at http://localhost:16686/, as usual, and refreshing the screen should produce internal traces.
 
 ```mermaid
@@ -11,10 +13,8 @@ graph LR
     I --> S[jaeger-remote-storage]
     UI[jaeger v2<br>query mode<br>Jaeger UI] --> S
     S --> MemStore
-    KafkaBroker --> ZooKeeper
-    subgraph Kafka
+    subgraph Kafka KRaft
         KafkaBroker
-        ZooKeeper
     end
     subgraph Shared Storage
         S
