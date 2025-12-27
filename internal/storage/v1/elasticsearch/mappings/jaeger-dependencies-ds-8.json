@@ -1,0 +1,23 @@
+{
+  "priority": {{ .Priority }},
+  "index_patterns": "{{ .IndexPrefix }}jaeger-dependencies-ds",
+  "data_stream": {},
+  "template": {
+    "settings": {
+      "index.number_of_shards": {{ .Shards }},
+      "index.number_of_replicas": {{ .Replicas }},
+      "index.mapping.nested_fields.limit": 50,
+      "index.requests.cache.enable": true,
+      "index.default_pipeline": "jaeger-dependencies-ds-timestamp",
+      "index.lifecycle.name": "{{ .ILMPolicyName }}"
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date",
+          "format": "epoch_millis"
+        }
+      }
+    }
+  }
+}

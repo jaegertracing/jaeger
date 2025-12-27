@@ -33,12 +33,14 @@ type MappingBuilder struct {
 	Indices         config.Indices
 	EsVersion       uint
 	UseILM          bool
+	UseDataStream   bool
 	ILMPolicyName   string
 }
 
 // templateParams holds parameters required to render an elasticsearch index template
 type templateParams struct {
 	UseILM        bool
+	UseDataStream bool
 	ILMPolicyName string
 	IndexPrefix   string
 	Shards        int64
@@ -49,6 +51,7 @@ type templateParams struct {
 func (mb MappingBuilder) getMappingTemplateOptions(mappingType MappingType) templateParams {
 	mappingOpts := templateParams{}
 	mappingOpts.UseILM = mb.UseILM
+	mappingOpts.UseDataStream = mb.UseDataStream
 	mappingOpts.ILMPolicyName = mb.ILMPolicyName
 
 	switch mappingType {
@@ -113,6 +116,9 @@ func MappingTypeFromString(val string) (MappingType, error) {
 func (mb *MappingBuilder) GetMapping(mappingType MappingType) (string, error) {
 	templateOpts := mb.getMappingTemplateOptions(mappingType)
 	esVersion := min(mb.EsVersion, 8) // Elasticsearch v9 uses the same template as v8
+	if mb.UseDataStream && esVersion >= 8 {
+		return mb.renderMapping(fmt.Sprintf("%s-ds-%d.json", mappingType.String(), esVersion), templateOpts)
+	}
 	return mb.renderMapping(fmt.Sprintf("%s-%d.json", mappingType.String(), esVersion), templateOpts)
 }
 
