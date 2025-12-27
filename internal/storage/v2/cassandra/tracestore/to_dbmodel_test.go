@@ -7,6 +7,10 @@
 package tracestore
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -266,156 +270,82 @@ func TestAttributesToJaegerProtoTags_MapType(t *testing.T) {
 	require.Equal(t, expected, got)
 }
 
-func TestInternalTracesToJaegerProto(t *testing.T) {
-	tests := []struct {
-		name string
-		td   ptrace.Traces
-		jb   *model.Batch
-	}{
-		{
-			name: "empty",
-			td:   ptrace.NewTraces(),
-		},
-
-		{
-			name: "no-spans",
-			td:   generateTracesResourceOnly(),
-			jb: &model.Batch{
-				Process: generateProtoProcess(),
-			},
-		},
-
-		{
-			name: "no-resource-attrs",
-			td:   generateTracesResourceOnlyWithNoAttrs(),
-		},
-
-		{
-			name: "one-span-no-resources",
-			td:   generateTracesOneSpanNoResourceWithTraceState(),
-			jb: &model.Batch{
-				Process: &model.Process{
-					ServiceName: noServiceName,
-				},
-				Spans: []*model.Span{
-					generateProtoSpanWithTraceState(),
-				},
-			},
-		},
-		{
-			name: "library-info",
-			td:   generateTracesWithLibraryInfo(),
-			jb: &model.Batch{
-				Process: &model.Process{
-					ServiceName: noServiceName,
-				},
-				Spans: []*model.Span{
-					generateProtoSpanWithLibraryInfo("io.opentelemetry.test"),
-				},
-			},
-		},
-		{
-			name: "two-spans-child-parent",
-			td:   generateTracesTwoSpansChildParent(),
-			jb: &model.Batch{
-				Process: &model.Process{
-					ServiceName: noServiceName,
-				},
-				Spans: []*model.Span{
-					generateProtoSpan(),
-					generateProtoChildSpan(),
-				},
-			},
-		},
-
-		{
-			name: "two-spans-with-follower",
-			td:   generateTracesTwoSpansWithFollower(),
-			jb: &model.Batch{
-				Process: &model.Process{
-					ServiceName: noServiceName,
-				},
-				Spans: []*model.Span{
-					generateProtoSpan(),
-					generateProtoFollowerSpan(),
-				},
-			},
-		},
-
-		{
-			name: "span-with-span-event-attribute",
-			td:   generateTracesOneSpanNoResourceWithEventAttribute(),
-			jb: &model.Batch{
-				Process: &model.Process{
-					ServiceName: noServiceName,
-				},
-				Spans: []*model.Span{
-					generateJProtoSpanWithEventAttribute(),
-				},
-			},
-		},
-		{
-			name: "a-spans-with-two-parent",
-			td:   generateTracesSpanWithTwoParents(),
-			jb: &model.Batch{
-				Process: &model.Process{
-					ServiceName: noServiceName,
-				},
-				Spans: []*model.Span{
-					generateProtoSpan(),
-					generateProtoFollowerSpan(),
-					generateProtoTwoParentsSpan(),
-				},
-			},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			jbs := ProtoFromTraces(test.td)
-			if test.jb == nil {
-				assert.Empty(t, jbs)
-			} else {
-				require.Len(t, jbs, 1)
-				assert.Equal(t, test.jb, jbs[0])
-			}
-		})
-	}
-}
-
-func generateTracesOneSpanNoResourceWithEventAttribute() ptrace.Traces {
-	td := generateTracesOneSpanNoResource()
-	event := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Events().At(0)
-	event.SetName("must-be-ignorred")
-	event.Attributes().PutStr("event", "must-be-used-instead-of-event-name")
-	return td
-}
-
-func generateJProtoSpanWithEventAttribute() *model.Span {
-	span := generateProtoSpan()
-	span.Logs[0].Fields = []model.KeyValue{
-		{
-			Key:   "span-event-attr",
-			VType: model.ValueType_STRING,
-			VStr:  "span-event-attr-val",
-		},
-		{
-			Key:   eventNameAttr,
-			VType: model.ValueType_STRING,
-			VStr:  "must-be-used-instead-of-event-name",
-		},
-	}
-	return span
-}
-
 func BenchmarkInternalTracesToJaegerProto(b *testing.B) {
-	td := generateTracesTwoSpansChildParent()
-	resource := generateTracesResourceOnly().ResourceSpans().At(0).Resource()
-	resource.CopyTo(td.ResourceSpans().At(0).Resource())
+	unmarshaller := ptrace.JSONUnmarshaler{}
+	data, err := os.ReadFile("fixtures/otel_traces_01.json")
+	require.NoError(b, err)
+	td, err := unmarshaller.UnmarshalTraces(data)
+	require.NoError(b, err)
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		batches := ProtoFromTraces(td)
 		assert.NotEmpty(b, batches)
+	}
+}
+
+func TestProtoFromTraces_Fixtures(t *testing.T) {
+	tracesData, spansData := loadFixtures(t, 1)
+	unmarshaller := ptrace.JSONUnmarshaler{}
+	expectedTd, err := unmarshaller.UnmarshalTraces(tracesData)
+	require.NoError(t, err)
+	batches := ProtoFromTraces(expectedTd)
+	assert.Len(t, batches, 1)
+	testSpans(t, spansData, batches[0])
+	actualTd, err := ProtoToTraces(batches)
+	require.NoError(t, err)
+	testTraces(t, tracesData, actualTd)
+}
+
+func writeActualData(t *testing.T, name string, data []byte) {
+	var prettyJson bytes.Buffer
+	err := json.Indent(&prettyJson, data, "", "  ")
+	require.NoError(t, err)
+	path := "fixtures/actual_" + name + ".json"
+	err = os.WriteFile(path, prettyJson.Bytes(), 0o644)
+	require.NoError(t, err)
+	t.Log("Saved the actual " + name + " to " + path)
+}
+
+// Loads and returns domain model and JSON model fixtures with given number i.
+func loadFixtures(t *testing.T, i int) (tracesData []byte, spansData []byte) {
+	tracesData = loadTraces(t, i)
+	spansData = loadSpans(t, i)
+	return tracesData, spansData
+}
+
+func loadTraces(t *testing.T, i int) []byte {
+	inTraces := fmt.Sprintf("fixtures/otel_traces_%02d.json", i)
+	tracesData, err := os.ReadFile(inTraces)
+	require.NoError(t, err)
+	return tracesData
+}
+
+func loadSpans(t *testing.T, i int) []byte {
+	inSpans := fmt.Sprintf("fixtures/cas_%02d.json", i)
+	spansData, err := os.ReadFile(inSpans)
+	require.NoError(t, err)
+	return spansData
+}
+
+func testTraces(t *testing.T, expectedTraces []byte, actualTraces ptrace.Traces) {
+	unmarshaller := ptrace.JSONUnmarshaler{}
+	expectedTd, err := unmarshaller.UnmarshalTraces(expectedTraces)
+	require.NoError(t, err)
+	if !assert.Equal(t, expectedTd, actualTraces) {
+		marshaller := ptrace.JSONMarshaler{}
+		actualTd, err := marshaller.MarshalTraces(actualTraces)
+		require.NoError(t, err)
+		writeActualData(t, "traces", actualTd)
+	}
+}
+
+func testSpans(t *testing.T, expectedSpan []byte, actualBatch *model.Batch) {
+	buf := &bytes.Buffer{}
+	enc := json.NewEncoder(buf)
+	enc.SetIndent("", "  ")
+	require.NoError(t, enc.Encode(actualBatch))
+	if !assert.Equal(t, string(expectedSpan), buf.String()) {
+		writeActualData(t, "spans", buf.Bytes())
 	}
 }
