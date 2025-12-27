@@ -108,8 +108,7 @@ build_test_upload_with_debugger() {
   bash scripts/build/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c "${BINARY}-debug" -d "cmd/${BINARY}" -p "${platforms}" -t debug
 }
 
-# TODO @nocommit
-# build_test_upload
+build_test_upload
 
 if [[ "${add_debugger}" == "Y" ]]; then
   build_test_upload_with_debugger
