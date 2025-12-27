@@ -138,11 +138,47 @@ func (r *Reader) GetOperations(
 	return operations, nil
 }
 
-func (*Reader) FindTraces(
-	context.Context,
-	tracestore.TraceQueryParams,
+func (r *Reader) FindTraces(
+	ctx context.Context,
+	query tracestore.TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
-	panic("not implemented")
+	return func(yield func([]ptrace.Traces, error) bool) {
+		limit := query.SearchDepth
+		if limit == 0 {
+			limit = r.config.DefaultSearchDepth
+		}
+		if limit > r.config.MaxSearchDepth {
+			yield(nil, fmt.Errorf("search depth %d exceeds maximum allowed %d", limit, r.config.MaxSearchDepth))
+			return
+		}
+
+		q, args, err := buildSearchQuery(sql.SearchTraces, query, limit)
+		if err != nil {
+			yield(nil, fmt.Errorf("failed to build query: %w", err))
+			return
+		}
+
+		rows, err := r.conn.Query(ctx, q, args...)
+		if err != nil {
+			yield(nil, fmt.Errorf("failed to query trace IDs: %w", err))
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			span, err := dbmodel.ScanRow(rows)
+			if err != nil {
+				if !yield(nil, fmt.Errorf("failed to scan span row: %w", err)) {
+					break
+				}
+				continue
+			}
+			trace := dbmodel.FromRow(span)
+			if !yield([]ptrace.Traces{trace}, nil) {
+				break
+			}
+		}
+	}
 }
 
 func readRowIntoTraceID(rows driver.Rows) ([]tracestore.FoundTraceID, error) {
@@ -188,7 +224,7 @@ func (r *Reader) FindTraceIDs(
 			return
 		}
 
-		q, args, err := buildFindTraceIDsQuery(query, limit)
+		q, args, err := buildSearchQuery(sql.SearchTraceIDs, query, limit)
 		if err != nil {
 			yield(nil, fmt.Errorf("failed to build query: %w", err))
 			return
@@ -221,37 +257,37 @@ var marshalValueForQuery = func(v pcommon.Value) (string, error) {
 	return string(b), nil
 }
 
-func buildFindTraceIDsQuery(query tracestore.TraceQueryParams, limit int) (string, []any, error) {
+func buildSearchQuery(baseQuery string, params tracestore.TraceQueryParams, limit int) (string, []any, error) {
 	var q strings.Builder
-	q.WriteString(sql.SearchTraceIDs)
+	q.WriteString(baseQuery)
 	args := []any{}
 
-	if query.ServiceName != "" {
+	if params.ServiceName != "" {
 		q.WriteString(" AND s.service_name = ?")
-		args = append(args, query.ServiceName)
+		args = append(args, params.ServiceName)
 	}
-	if query.OperationName != "" {
+	if params.OperationName != "" {
 		q.WriteString(" AND s.name = ?")
-		args = append(args, query.OperationName)
+		args = append(args, params.OperationName)
 	}
-	if query.DurationMin > 0 {
+	if params.DurationMin > 0 {
 		q.WriteString(" AND s.duration >= ?")
-		args = append(args, query.DurationMin.Nanoseconds())
+		args = append(args, params.DurationMin.Nanoseconds())
 	}
-	if query.DurationMax > 0 {
+	if params.DurationMax > 0 {
 		q.WriteString(" AND s.duration <= ?")
-		args = append(args, query.DurationMax.Nanoseconds())
+		args = append(args, params.DurationMax.Nanoseconds())
 	}
-	if !query.StartTimeMin.IsZero() {
+	if !params.StartTimeMin.IsZero() {
 		q.WriteString(" AND s.start_time >= ?")
-		args = append(args, query.StartTimeMin)
+		args = append(args, params.StartTimeMin)
 	}
-	if !query.StartTimeMax.IsZero() {
+	if !params.StartTimeMax.IsZero() {
 		q.WriteString(" AND s.start_time <= ?")
-		args = append(args, query.StartTimeMax)
+		args = append(args, params.StartTimeMax)
 	}
 
-	for key, attr := range query.Attributes.All() {
+	for key, attr := range params.Attributes.All() {
 		var attrType string
 		var val any
 
