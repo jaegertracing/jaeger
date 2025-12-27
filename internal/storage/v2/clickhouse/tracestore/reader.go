@@ -186,7 +186,11 @@ func (r *Reader) FindTraceIDs(
 			return
 		}
 
-		q, args := buildFindTraceIDsQuery(query, limit)
+		q, args, err := buildFindTraceIDsQuery(query, limit)
+		if err != nil {
+			yield(nil, fmt.Errorf("failed to build query: %w", err))
+			return
+		}
 
 		rows, err := r.conn.Query(ctx, q, args...)
 		if err != nil {
@@ -204,7 +208,7 @@ func (r *Reader) FindTraceIDs(
 	}
 }
 
-func buildFindTraceIDsQuery(query tracestore.TraceQueryParams, limit int) (string, []any) {
+func buildFindTraceIDsQuery(query tracestore.TraceQueryParams, limit int) (string, []any, error) {
 	var q strings.Builder
 	q.WriteString(sql.SearchTraceIDs)
 	args := []any{}
@@ -235,21 +239,36 @@ func buildFindTraceIDsQuery(query tracestore.TraceQueryParams, limit int) (strin
 	}
 
 	for key, attr := range query.Attributes.All() {
+		var attrType string
+		var val any
+
 		switch attr.Type() {
+		case pcommon.ValueTypeBool:
+			attrType = "bool"
+			val = attr.Bool()
+		case pcommon.ValueTypeDouble:
+			attrType = "double"
+			val = attr.Double()
+		case pcommon.ValueTypeInt:
+			attrType = "int"
+			val = attr.Int()
 		case pcommon.ValueTypeStr:
-			val := attr.Str()
-			q.WriteString(" AND (")
-			q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.str_attributes.key, s.str_attributes.value)")
-			q.WriteString(" OR ")
-			q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.resource_str_attributes.key, s.resource_str_attributes.value)")
-			q.WriteString(")")
-			args = append(args, key, val, key, val)
+			attrType = "str"
+			val = attr.Str()
 		default:
+			return "", nil, fmt.Errorf("unsupported attribute type %v for key %s", attr.Type(), key)
 		}
+
+		q.WriteString(" AND (")
+		q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s." + attrType + "_attributes.key, s." + attrType + "_attributes.value)")
+		q.WriteString(" OR ")
+		q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.resource_" + attrType + "_attributes.key, s.resource_" + attrType + "_attributes.value)")
+		q.WriteString(")")
+		args = append(args, key, val, key, val)
 	}
 
 	q.WriteString(" LIMIT ?")
 	args = append(args, limit)
 
-	return q.String(), args
+	return q.String(), args, nil
 }
