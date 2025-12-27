@@ -832,7 +832,7 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 func TestBuildFindTraceIDsQuery_MarshalErrors(t *testing.T) {
 	orig := marshalValueForQuery
 	t.Cleanup(func() { marshalValueForQuery = orig })
-	marshalValueForQuery = func(v pcommon.Value) (string, error) {
+	marshalValueForQuery = func(pcommon.Value) (string, error) {
 		return "", assert.AnError
 	}
 
