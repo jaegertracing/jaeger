@@ -57,29 +57,13 @@ type SpanRow struct {
 }
 
 type Attributes struct {
-	BoolKeys      []string
-	BoolValues    []bool
-	DoubleKeys    []string
-	DoubleValues  []float64
-	IntKeys       []string
-	IntValues     []int64
-	StrKeys       []string
-	StrValues     []string
-	ComplexKeys   []string
-	ComplexValues []string
+	Keys   []string
+	Values []string
 }
 
 type Attributes2D struct {
-	BoolKeys      [][]string
-	BoolValues    [][]bool
-	DoubleKeys    [][]string
-	DoubleValues  [][]float64
-	IntKeys       [][]string
-	IntValues     [][]int64
-	StrKeys       [][]string
-	StrValues     [][]string
-	ComplexKeys   [][]string
-	ComplexValues [][]string
+	Keys   [][]string
+	Values [][]string
 }
 
 func ScanRow(rows driver.Rows) (*SpanRow, error) {
@@ -95,64 +79,24 @@ func ScanRow(rows driver.Rows) (*SpanRow, error) {
 		&sr.StatusCode,
 		&sr.StatusMessage,
 		&sr.Duration,
-		&sr.Attributes.BoolKeys,
-		&sr.Attributes.BoolValues,
-		&sr.Attributes.DoubleKeys,
-		&sr.Attributes.DoubleValues,
-		&sr.Attributes.IntKeys,
-		&sr.Attributes.IntValues,
-		&sr.Attributes.StrKeys,
-		&sr.Attributes.StrValues,
-		&sr.Attributes.ComplexKeys,
-		&sr.Attributes.ComplexValues,
+		&sr.Attributes.Keys,
+		&sr.Attributes.Values,
 		&sr.EventNames,
 		&sr.EventTimestamps,
-		&sr.EventAttributes.BoolKeys,
-		&sr.EventAttributes.BoolValues,
-		&sr.EventAttributes.DoubleKeys,
-		&sr.EventAttributes.DoubleValues,
-		&sr.EventAttributes.IntKeys,
-		&sr.EventAttributes.IntValues,
-		&sr.EventAttributes.StrKeys,
-		&sr.EventAttributes.StrValues,
-		&sr.EventAttributes.ComplexKeys,
-		&sr.EventAttributes.ComplexValues,
+		&sr.EventAttributes.Keys,
+		&sr.EventAttributes.Values,
 		&sr.LinkTraceIDs,
 		&sr.LinkSpanIDs,
 		&sr.LinkTraceStates,
-		&sr.LinkAttributes.BoolKeys,
-		&sr.LinkAttributes.BoolValues,
-		&sr.LinkAttributes.DoubleKeys,
-		&sr.LinkAttributes.DoubleValues,
-		&sr.LinkAttributes.IntKeys,
-		&sr.LinkAttributes.IntValues,
-		&sr.LinkAttributes.StrKeys,
-		&sr.LinkAttributes.StrValues,
-		&sr.LinkAttributes.ComplexKeys,
-		&sr.LinkAttributes.ComplexValues,
+		&sr.LinkAttributes.Keys,
+		&sr.LinkAttributes.Values,
 		&sr.ServiceName,
-		&sr.ResourceAttributes.BoolKeys,
-		&sr.ResourceAttributes.BoolValues,
-		&sr.ResourceAttributes.DoubleKeys,
-		&sr.ResourceAttributes.DoubleValues,
-		&sr.ResourceAttributes.IntKeys,
-		&sr.ResourceAttributes.IntValues,
-		&sr.ResourceAttributes.StrKeys,
-		&sr.ResourceAttributes.StrValues,
-		&sr.ResourceAttributes.ComplexKeys,
-		&sr.ResourceAttributes.ComplexValues,
+		&sr.ResourceAttributes.Keys,
+		&sr.ResourceAttributes.Values,
 		&sr.ScopeName,
 		&sr.ScopeVersion,
-		&sr.ScopeAttributes.BoolKeys,
-		&sr.ScopeAttributes.BoolValues,
-		&sr.ScopeAttributes.DoubleKeys,
-		&sr.ScopeAttributes.DoubleValues,
-		&sr.ScopeAttributes.IntKeys,
-		&sr.ScopeAttributes.IntValues,
-		&sr.ScopeAttributes.StrKeys,
-		&sr.ScopeAttributes.StrValues,
-		&sr.ScopeAttributes.ComplexKeys,
-		&sr.ScopeAttributes.ComplexValues,
+		&sr.ScopeAttributes.Keys,
+		&sr.ScopeAttributes.Values,
 	)
 	if err != nil {
 		return nil, err
