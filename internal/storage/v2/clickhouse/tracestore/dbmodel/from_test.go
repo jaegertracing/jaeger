@@ -91,32 +91,37 @@ func TestFromRow_DecodeID(t *testing.T) {
 func TestPutAttributes_Warnings(t *testing.T) {
 	tests := []struct {
 		name                 string
-		complexKeys          []string
-		complexValues        []string
+		keys                 []string
+		values               []string
+		types                []string
 		expectedWarnContains string
 	}{
 		{
 			name:                 "bytes attribute with invalid base64",
-			complexKeys:          []string{"@bytes@bytes-key"},
-			complexValues:        []string{"invalid-base64"},
+			keys:                 []string{"bytes-key"},
+			values:               []string{"invalid-base64"},
+			types:                []string{pcommon.ValueTypeBytes.String()},
 			expectedWarnContains: "failed to decode bytes attribute \"@bytes@bytes-key\"",
 		},
 		{
 			name:                 "failed to unmarshal slice attribute",
-			complexKeys:          []string{"@slice@slice-key"},
-			complexValues:        []string{"notjson"},
+			keys:                 []string{"slice-key"},
+			values:               []string{"notjson"},
+			types:                []string{pcommon.ValueTypeSlice.String()},
 			expectedWarnContains: "failed to unmarshal slice attribute \"@slice@slice-key\"",
 		},
 		{
 			name:                 "failed to unmarshal map attribute",
-			complexKeys:          []string{"@map@map-key"},
-			complexValues:        []string{"notjson"},
+			keys:                 []string{"map-key"},
+			values:               []string{"notjson"},
+			types:                []string{pcommon.ValueTypeMap.String()},
 			expectedWarnContains: "failed to unmarshal map attribute \"@map@map-key\"",
 		},
 		{
 			name:                 "unsupported complex attribute key",
-			complexKeys:          []string{"unsupported"},
-			complexValues:        []string{"{\"kvlistValue\":{\"values\":[{\"key\":\"key\",\"value\":{\"stringValue\":\"value\"}}]}}"},
+			keys:                 []string{"unsupported"},
+			values:               []string{"{\"kvlistValue\":{\"values\":[{\"key\":\"key\",\"value\":{\"stringValue\":\"value\"}}]}}"},
+			types:                []string{pcommon.ValueTypeMap.String()},
 			expectedWarnContains: "unsupported complex attribute key: \"unsupported\"",
 		},
 	}
@@ -129,8 +134,8 @@ func TestPutAttributes_Warnings(t *testing.T) {
 			putAttributes(
 				attributes,
 				&Attributes{
-					ComplexKeys:   tt.complexKeys,
-					ComplexValues: tt.complexValues,
+					Keys:   tt.keys,
+					Values: tt.values,
 				},
 				span,
 			)

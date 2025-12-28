@@ -7,7 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"strings"
+	"strconv"
 	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -137,16 +137,9 @@ func putAttributes2D(
 	putAttributes(
 		attrs,
 		&Attributes{
-			BoolKeys:      storedAttrs.BoolKeys[idx],
-			BoolValues:    storedAttrs.BoolValues[idx],
-			DoubleKeys:    storedAttrs.DoubleKeys[idx],
-			DoubleValues:  storedAttrs.DoubleValues[idx],
-			IntKeys:       storedAttrs.IntKeys[idx],
-			IntValues:     storedAttrs.IntValues[idx],
-			StrKeys:       storedAttrs.StrKeys[idx],
-			StrValues:     storedAttrs.StrValues[idx],
-			ComplexKeys:   storedAttrs.ComplexKeys[idx],
-			ComplexValues: storedAttrs.ComplexValues[idx],
+			Keys:   storedAttrs.Keys[idx],
+			Values: storedAttrs.Values[idx],
+			Types:  storedAttrs.Types[idx],
 		},
 		spanForWarnings,
 	)
@@ -157,63 +150,75 @@ func putAttributes(
 	storedAttrs *Attributes,
 	spanForWarnings ptrace.Span,
 ) {
-	for i := 0; i < len(storedAttrs.BoolKeys); i++ {
-		attrs.PutBool(storedAttrs.BoolKeys[i], storedAttrs.BoolValues[i])
-	}
-	for i := 0; i < len(storedAttrs.DoubleKeys); i++ {
-		attrs.PutDouble(storedAttrs.DoubleKeys[i], storedAttrs.DoubleValues[i])
-	}
-	for i := 0; i < len(storedAttrs.IntKeys); i++ {
-		attrs.PutInt(storedAttrs.IntKeys[i], storedAttrs.IntValues[i])
-	}
-	for i := 0; i < len(storedAttrs.StrKeys); i++ {
-		attrs.PutStr(storedAttrs.StrKeys[i], storedAttrs.StrValues[i])
-	}
-	for i := 0; i < len(storedAttrs.ComplexKeys); i++ {
-		switch {
-		case strings.HasPrefix(storedAttrs.ComplexKeys[i], "@bytes@"):
-			decoded, err := base64.StdEncoding.DecodeString(storedAttrs.ComplexValues[i])
+	for i := 0; i < len(storedAttrs.Keys); i++ {
+		switch storedAttrs.Types[i] {
+		case pcommon.ValueTypeBool.String():
+			if storedAttrs.Values[i] == "true" {
+				attrs.PutBool(storedAttrs.Keys[i], true)
+			} else {
+				attrs.PutBool(storedAttrs.Keys[i], false)
+			}
+		case pcommon.ValueTypeDouble.String():
+			f, err := strconv.ParseFloat(storedAttrs.Values[i], 64)
 			if err != nil {
-				jptrace.AddWarnings(spanForWarnings, fmt.Sprintf("failed to decode bytes attribute %q: %s", storedAttrs.ComplexKeys[i], err.Error()))
+				jptrace.AddWarnings(
+					spanForWarnings,
+					fmt.Sprintf("failed to parse double attribute %q: %s", storedAttrs.Keys[i], err.Error()),
+				)
 				continue
 			}
-			k := strings.TrimPrefix(storedAttrs.ComplexKeys[i], "@bytes@")
-			attrs.PutEmptyBytes(k).FromRaw(decoded)
-		case strings.HasPrefix(storedAttrs.ComplexKeys[i], "@slice@"):
-			k := strings.TrimPrefix(storedAttrs.ComplexKeys[i], "@slice@")
+			attrs.PutDouble(storedAttrs.Keys[i], f)
+		case pcommon.ValueTypeInt.String():
+			v, err := strconv.ParseInt(storedAttrs.Values[i], 10, 64)
+			if err != nil {
+				jptrace.AddWarnings(
+					spanForWarnings,
+					fmt.Sprintf("failed to parse int attribute %q: %s", storedAttrs.Keys[i], err.Error()),
+				)
+				continue
+			}
+			attrs.PutInt(storedAttrs.Keys[i], v)
+		case pcommon.ValueTypeStr.String():
+			attrs.PutStr(storedAttrs.Keys[i], storedAttrs.Values[i])
+		case pcommon.ValueTypeBytes.String():
+			decoded, err := base64.StdEncoding.DecodeString(storedAttrs.Values[i])
+			if err != nil {
+				jptrace.AddWarnings(spanForWarnings, fmt.Sprintf("failed to decode bytes attribute %q: %s", storedAttrs.Keys[i], err.Error()))
+				continue
+			}
+			attrs.PutEmptyBytes(storedAttrs.Keys[i]).FromRaw(decoded)
+		case pcommon.ValueTypeSlice.String():
 			m := &xpdata.JSONUnmarshaler{}
-			val, err := m.UnmarshalValue([]byte(storedAttrs.ComplexValues[i]))
+			val, err := m.UnmarshalValue([]byte(storedAttrs.Values[i]))
 			if err != nil {
 				jptrace.AddWarnings(
 					spanForWarnings,
 					fmt.Sprintf(
 						"failed to unmarshal slice attribute %q: %s",
-						storedAttrs.ComplexKeys[i],
+						storedAttrs.Keys[i],
 						err.Error(),
 					),
 				)
 				continue
 			}
-			attrs.PutEmptySlice(k).FromRaw(val.Slice().AsRaw())
-		case strings.HasPrefix(storedAttrs.ComplexKeys[i], "@map@"):
-			k := strings.TrimPrefix(storedAttrs.ComplexKeys[i], "@map@")
+			attrs.PutEmptySlice(storedAttrs.Keys[i]).FromRaw(val.Slice().AsRaw())
+		case pcommon.ValueTypeMap.String():
 			m := &xpdata.JSONUnmarshaler{}
-			val, err := m.UnmarshalValue([]byte(storedAttrs.ComplexValues[i]))
+			val, err := m.UnmarshalValue([]byte(storedAttrs.Values[i]))
 			if err != nil {
 				jptrace.AddWarnings(
 					spanForWarnings,
 					fmt.Sprintf("failed to unmarshal map attribute %q: %s",
-						storedAttrs.ComplexKeys[i],
+						storedAttrs.Keys[i],
 						err.Error(),
 					),
 				)
-				continue
 			}
-			attrs.PutEmptyMap(k).FromRaw(val.Map().AsRaw())
+			attrs.PutEmptyMap(storedAttrs.Keys[i]).FromRaw(val.Map().AsRaw())
 		default:
 			jptrace.AddWarnings(
 				spanForWarnings,
-				fmt.Sprintf("unsupported complex attribute key: %q", storedAttrs.ComplexKeys[i]),
+				fmt.Sprintf("unsupported attribute type: %q", storedAttrs.Types[i]),
 			)
 		}
 	}

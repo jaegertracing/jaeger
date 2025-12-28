@@ -55,30 +55,16 @@ func ToRow(
 
 func appendAttributes(dest *Attributes, attrs pcommon.Map) {
 	a := extractAttributes(attrs)
-	dest.BoolKeys = append(dest.BoolKeys, a.BoolKeys...)
-	dest.BoolValues = append(dest.BoolValues, a.BoolValues...)
-	dest.DoubleKeys = append(dest.DoubleKeys, a.DoubleKeys...)
-	dest.DoubleValues = append(dest.DoubleValues, a.DoubleValues...)
-	dest.IntKeys = append(dest.IntKeys, a.IntKeys...)
-	dest.IntValues = append(dest.IntValues, a.IntValues...)
-	dest.StrKeys = append(dest.StrKeys, a.StrKeys...)
-	dest.StrValues = append(dest.StrValues, a.StrValues...)
-	dest.ComplexKeys = append(dest.ComplexKeys, a.ComplexKeys...)
-	dest.ComplexValues = append(dest.ComplexValues, a.ComplexValues...)
+	dest.Keys = append(dest.Keys, a.Keys...)
+	dest.Values = append(dest.Values, a.Values...)
+	dest.Types = append(dest.Types, a.Types...)
 }
 
 func appendAttributes2D(dest *Attributes2D, attrs pcommon.Map) {
 	a := extractAttributes(attrs)
-	dest.BoolKeys = append(dest.BoolKeys, a.BoolKeys)
-	dest.BoolValues = append(dest.BoolValues, a.BoolValues)
-	dest.DoubleKeys = append(dest.DoubleKeys, a.DoubleKeys)
-	dest.DoubleValues = append(dest.DoubleValues, a.DoubleValues)
-	dest.IntKeys = append(dest.IntKeys, a.IntKeys)
-	dest.IntValues = append(dest.IntValues, a.IntValues)
-	dest.StrKeys = append(dest.StrKeys, a.StrKeys)
-	dest.StrValues = append(dest.StrValues, a.StrValues)
-	dest.ComplexKeys = append(dest.ComplexKeys, a.ComplexKeys)
-	dest.ComplexValues = append(dest.ComplexValues, a.ComplexValues)
+	dest.Keys = append(dest.Keys, a.Keys)
+	dest.Values = append(dest.Values, a.Values)
+	dest.Types = append(dest.Types, a.Types)
 }
 
 func (sr *SpanRow) appendEvent(event ptrace.SpanEvent) {
@@ -98,49 +84,44 @@ func extractAttributes(attrs pcommon.Map) *Attributes {
 	out := &Attributes{}
 	attrs.Range(func(k string, v pcommon.Value) bool {
 		switch v.Type() {
-		case pcommon.ValueTypeBool:
-			out.BoolKeys = append(out.BoolKeys, k)
-			out.BoolValues = append(out.BoolValues, v.Bool())
-		case pcommon.ValueTypeDouble:
-			out.DoubleKeys = append(out.DoubleKeys, k)
-			out.DoubleValues = append(out.DoubleValues, v.Double())
-		case pcommon.ValueTypeInt:
-			out.IntKeys = append(out.IntKeys, k)
-			out.IntValues = append(out.IntValues, v.Int())
-		case pcommon.ValueTypeStr:
-			out.StrKeys = append(out.StrKeys, k)
-			out.StrValues = append(out.StrValues, v.Str())
+		case pcommon.ValueTypeBool, pcommon.ValueTypeDouble, pcommon.ValueTypeInt, pcommon.ValueTypeStr:
+			out.Keys = append(out.Keys, k)
+			out.Values = append(out.Values, v.AsString())
+			out.Types = append(out.Types, v.Type().String())
 		case pcommon.ValueTypeBytes:
-			key := "@bytes@" + k
 			encoded := base64.StdEncoding.EncodeToString(v.Bytes().AsRaw())
-			out.ComplexKeys = append(out.ComplexKeys, key)
-			out.ComplexValues = append(out.ComplexValues, encoded)
+			out.Keys = append(out.Keys, k)
+			out.Values = append(out.Values, encoded)
+			out.Types = append(out.Types, v.Type().String())
 		case pcommon.ValueTypeSlice:
-			key := "@slice@" + k
 			m := &xpdata.JSONMarshaler{}
 			b, err := m.MarshalValue(v)
 			if err != nil {
-				out.StrKeys = append(out.StrKeys, jptrace.WarningsAttribute)
-				out.StrValues = append(
-					out.StrValues,
+				out.Keys = append(out.Keys, jptrace.WarningsAttribute)
+				out.Values = append(
+					out.Values,
 					fmt.Sprintf("failed to marshal slice attribute %q: %v", k, err))
+				out.Types = append(out.Types, pcommon.ValueTypeStr.String())
 				break
 			}
-			out.ComplexKeys = append(out.ComplexKeys, key)
-			out.ComplexValues = append(out.ComplexValues, string(b))
+			out.Keys = append(out.Keys, k)
+			out.Values = append(out.Values, string(b))
+			out.Types = append(out.Types, v.Type().String())
 		case pcommon.ValueTypeMap:
 			key := "@map@" + k
 			m := &xpdata.JSONMarshaler{}
 			b, err := m.MarshalValue(v)
 			if err != nil {
-				out.StrKeys = append(out.StrKeys, jptrace.WarningsAttribute)
-				out.StrValues = append(
-					out.StrValues,
+				out.Keys = append(out.Keys, jptrace.WarningsAttribute)
+				out.Values = append(
+					out.Values,
 					fmt.Sprintf("failed to marshal map attribute %q: %v", k, err))
+				out.Types = append(out.Types, pcommon.ValueTypeStr.String())
 				break
 			}
-			out.ComplexKeys = append(out.ComplexKeys, key)
-			out.ComplexValues = append(out.ComplexValues, string(b))
+			out.Keys = append(out.Keys, key)
+			out.Values = append(out.Values, string(b))
+			out.Types = append(out.Types, v.Type().String())
 		default:
 		}
 		return true
