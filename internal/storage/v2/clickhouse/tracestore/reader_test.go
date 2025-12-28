@@ -750,6 +750,26 @@ func TestFindTraces_ErrorCases(t *testing.T) {
 	}
 }
 
+func TestFindTraces_BuildQueryError(t *testing.T) {
+	orig := marshalValueForQuery
+	t.Cleanup(func() { marshalValueForQuery = orig })
+
+	marshalValueForQuery = func(pcommon.Value) (string, error) {
+		return "", assert.AnError
+	}
+
+	attrs := pcommon.NewMap()
+	attrs.PutEmptySlice("bad_slice").AppendEmpty()
+
+	reader := NewReader(&testDriver{t: t}, testReaderConfig)
+	iter := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
+		Attributes:  attrs,
+		SearchDepth: 1,
+	})
+	_, err := jiter.FlattenWithErrors(iter)
+	require.ErrorContains(t, err, "failed to build query")
+}
+
 func TestFindTraceIDs(t *testing.T) {
 	driver := &testDriver{
 		t: t,
@@ -1030,6 +1050,26 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 			require.ErrorContains(t, err, test.expectedErr)
 		})
 	}
+}
+
+func TestFindTraceIDs_BuildQueryError(t *testing.T) {
+	orig := marshalValueForQuery
+	t.Cleanup(func() { marshalValueForQuery = orig })
+
+	marshalValueForQuery = func(pcommon.Value) (string, error) {
+		return "", assert.AnError
+	}
+
+	attrs := pcommon.NewMap()
+	attrs.PutEmptyMap("bad_map").PutEmpty("key")
+
+	reader := NewReader(&testDriver{t: t}, testReaderConfig)
+	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+		Attributes:  attrs,
+		SearchDepth: 1,
+	})
+	_, err := jiter.FlattenWithErrors(iter)
+	require.ErrorContains(t, err, "failed to build query")
 }
 
 func TestBuildSearchQuery_MarshalErrors(t *testing.T) {
