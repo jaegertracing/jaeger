@@ -23,10 +23,13 @@ type GRPCStorageIntegrationTestSuite struct {
 	flags         []string
 	factory       *grpc.Factory
 	remoteStorage *RemoteMemoryStorage
+	t             *testing.T
 }
 
-func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
-	s.remoteStorage = StartNewRemoteMemoryStorage(t, ports.RemoteStorageGRPC)
+// ─── Lifecycle helpers (logic-only) ───────────────────────────────────────────
+
+func (s *GRPCStorageIntegrationTestSuite) initialize() error {
+	s.remoteStorage = StartNewRemoteMemoryStorage(nil, ports.RemoteStorageGRPC)
 
 	f, err := grpc.NewFactory(
 		context.Background(),
@@ -40,41 +43,66 @@ func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 		},
 		telemetry.NoopSettings(),
 	)
-	require.NoError(t, err)
+	if err != nil {
+		return err
+	}
+
 	s.factory = f
 
-	s.TraceWriter, err = f.CreateTraceWriter()
-	require.NoError(t, err)
-	s.TraceReader, err = f.CreateTraceReader()
-	require.NoError(t, err)
+	if s.TraceWriter, err = f.CreateTraceWriter(); err != nil {
+		return err
+	}
+	if s.TraceReader, err = f.CreateTraceReader(); err != nil {
+		return err
+	}
 
 	// TODO DependencyWriter is not implemented in grpc store
-
-	s.CleanUp = s.cleanUp
+	return nil
 }
 
-func (s *GRPCStorageIntegrationTestSuite) close(t *testing.T) {
-	require.NoError(t, s.factory.Close())
-	s.remoteStorage.Close(t)
+func (s *GRPCStorageIntegrationTestSuite) close() error {
+	if err := s.factory.Close(); err != nil {
+		return err
+	}
+	s.remoteStorage.Close(s.t)
+	return nil
 }
 
-func (s *GRPCStorageIntegrationTestSuite) cleanUp(t *testing.T) {
-	s.close(t)
-	s.initialize(t)
+// cleanUp preserves the original semantics:
+// close everything, then re-initialize
+func (s *GRPCStorageIntegrationTestSuite) cleanUp() error {
+	if err := s.close(); err != nil {
+		return err
+	}
+	return s.initialize()
 }
+
+// ─── Test entry point ─────────────────────────────────────────────────────────
 
 func TestGRPCRemoteStorage(t *testing.T) {
 	SkipUnlessEnv(t, "grpc")
+
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnce(t)
 	})
+
 	s := &GRPCStorageIntegrationTestSuite{
 		flags: []string{
 			"--grpc-storage.server=localhost:17271",
 			"--grpc-storage.tls.enabled=false",
 		},
+		t: t,
 	}
-	s.initialize(t)
-	defer s.close(t)
+
+	require.NoError(t, s.initialize())
+	t.Cleanup(func() {
+		require.NoError(t, s.close())
+	})
+
+	// Adapt lifecycle cleanup to StorageIntegration expectations
+	s.CleanUp = func(t *testing.T) {
+		require.NoError(t, s.cleanUp())
+	}
+
 	s.RunAll(t)
 }

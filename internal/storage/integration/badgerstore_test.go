@@ -63,7 +63,6 @@ func TestBadgerStorage(t *testing.T) {
 			GetOperationsMissingSpanKind: true,
 		},
 	}
-	// wrap cleanup for test usage
 	t.Cleanup(func() {
 		require.NoError(t, s.cleanUp())
 	})
