@@ -15,17 +15,6 @@ func TestClickHouseStorage(t *testing.T) {
 		ConfigFile: "../../config-clickhouse.yaml",
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp: purge,
-			SkipList: []string{
-				"Tags_in_one_spot_-_Tags",
-				"Tags_in_one_spot_-_Logs",
-				"Tags_in_one_spot_-_Process",
-				"Tags_in_different_spots",
-				"Tags_+_Operation_name",
-				"Tags_+_Operation_name_+_max_Duration",
-				"Tags_+_Operation_name_+_Duration_range",
-				"Tags_+_Duration_range",
-				"Tags_+_max_Duration",
-			},
 		},
 	}
 	s.e2eInitialize(t, "clickhouse")
