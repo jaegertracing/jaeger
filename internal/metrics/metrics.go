@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // MustInit initializes the passed in metrics and initializes its fields using the passed in factory.
@@ -36,58 +37,54 @@ func Init(m any, factory Factory, globalTags map[string]string) error {
 		factory = NullFactory
 	}
 
-	counterPtrType := reflect.TypeOf((*Counter)(nil)).Elem()
-	gaugePtrType := reflect.TypeOf((*Gauge)(nil)).Elem()
-	timerPtrType := reflect.TypeOf((*Timer)(nil)).Elem()
-	histogramPtrType := reflect.TypeOf((*Histogram)(nil)).Elem()
-
 	v := reflect.ValueOf(m).Elem()
 	t := v.Type()
 	for i := 0; i < t.NumField(); i++ {
 		tags := make(map[string]string)
 		maps.Copy(tags, globalTags)
-		var buckets []float64
+
 		field := t.Field(i)
 		metric := field.Tag.Get("metric")
 		if metric == "" {
 			return fmt.Errorf("Field %s is missing a tag 'metric'", field.Name)
 		}
 		if tagString := field.Tag.Get("tags"); tagString != "" {
-			for tagPair := range strings.SplitSeq(tagString, ",") {
-				tag := strings.Split(tagPair, "=")
-				if len(tag) != 2 {
-					return fmt.Errorf(
-						"Field [%s]: Tag [%s] is not of the form key=value in 'tags' string [%s]",
-						field.Name, tagPair, tagString)
+			tagPairs := strings.Split(tagString, ",")
+			for _, pair := range tagPairs {
+				kv := strings.Split(pair, "=")
+				if len(kv) == 2 {
+					tags[kv[0]] = kv[1]
 				}
-				tags[tag[0]] = tag[1]
-			}
-		}
-		if bucketString := field.Tag.Get("buckets"); bucketString != "" {
-			switch {
-			case field.Type.AssignableTo(timerPtrType):
-				// TODO: Parse timer duration buckets
-				return fmt.Errorf(
-					"Field [%s]: Buckets are not currently initialized for timer metrics",
-					field.Name)
-			case field.Type.AssignableTo(histogramPtrType):
-				bucketValues := strings.Split(bucketString, ",")
-				for _, bucket := range bucketValues {
-					b, err := strconv.ParseFloat(bucket, 64)
-					if err != nil {
-						return fmt.Errorf(
-							"Field [%s]: Bucket [%s] could not be converted to float64 in 'buckets' string [%s]",
-							field.Name, bucket, bucketString)
-					}
-					buckets = append(buckets, b)
-				}
-			default:
-				return fmt.Errorf(
-					"Field [%s]: Buckets should only be defined for Timer and Histogram metric types",
-					field.Name)
 			}
 		}
 		help := field.Tag.Get("help")
+
+		var buckets []float64
+		var durationBuckets []time.Duration
+		var err error
+
+		bucketTag := field.Tag.Get("buckets")
+
+		switch {
+		case field.Type.AssignableTo(timerPtrType):
+			if bucketTag != "" {
+				durationBuckets, err = parseBuckets(bucketTag, time.ParseDuration)
+				if err != nil {
+					return fmt.Errorf("Field [%s]: %w", field.Name, err)
+				}
+			}
+		case field.Type.AssignableTo(histogramPtrType):
+			if bucketTag != "" {
+				buckets, err = parseBuckets(bucketTag, func(s string) (float64, error) {
+					return strconv.ParseFloat(s, 64)
+				})
+				if err != nil {
+					return fmt.Errorf("Field [%s]: %w", field.Name, err)
+				}
+			}
+		default:
+		}
+
 		var obj any
 		switch {
 		case field.Type.AssignableTo(counterPtrType):
@@ -103,11 +100,11 @@ func Init(m any, factory Factory, globalTags map[string]string) error {
 				Help: help,
 			})
 		case field.Type.AssignableTo(timerPtrType):
-			// TODO: Add buckets once parsed (see TODO above)
 			obj = factory.Timer(TimerOptions{
-				Name: metric,
-				Tags: tags,
-				Help: help,
+				Name:    metric,
+				Tags:    tags,
+				Help:    help,
+				Buckets: durationBuckets,
 			})
 		case field.Type.AssignableTo(histogramPtrType):
 			obj = factory.Histogram(HistogramOptions{
@@ -116,12 +113,47 @@ func Init(m any, factory Factory, globalTags map[string]string) error {
 				Help:    help,
 				Buckets: buckets,
 			})
+		case field.Type.Kind() == reflect.Ptr && field.Type.Elem().Kind() == reflect.Struct:
+			nestedMetrics := reflect.New(field.Type.Elem()).Interface()
+			// Explicitly using NSOptions here
+			if err := Init(nestedMetrics, factory.Namespace(NSOptions{
+				Name: metric,
+				Tags: tags,
+			}), nil); err != nil {
+				return err
+			}
+			obj = nestedMetrics
 		default:
 			return fmt.Errorf(
-				"Field %s is not a pointer to timer, gauge, or counter",
+				"Field %s is not a pointer to timer, gauge, counter, histogram or struct",
 				field.Name)
 		}
-		v.Field(i).Set(reflect.ValueOf(obj))
+		if obj != nil {
+			v.Field(i).Set(reflect.ValueOf(obj))
+		}
 	}
 	return nil
 }
+
+func parseBuckets[T any](tag string, parse func(string) (T, error)) ([]T, error) {
+	if tag == "" {
+		return nil, nil
+	}
+	parts := strings.Split(tag, ",")
+	results := make([]T, 0, len(parts))
+	for _, part := range parts {
+		val, err := parse(strings.TrimSpace(part))
+		if err != nil {
+			return nil, fmt.Errorf("bucket [%s] could not be parsed: %w", part, err)
+		}
+		results = append(results, val)
+	}
+	return results, nil
+}
+
+var (
+	counterPtrType   = reflect.TypeOf((*Counter)(nil)).Elem()
+	gaugePtrType     = reflect.TypeOf((*Gauge)(nil)).Elem()
+	timerPtrType     = reflect.TypeOf((*Timer)(nil)).Elem()
+	histogramPtrType = reflect.TypeOf((*Histogram)(nil)).Elem()
+)
