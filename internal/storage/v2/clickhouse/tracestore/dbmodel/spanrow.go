@@ -59,11 +59,13 @@ type SpanRow struct {
 type Attributes struct {
 	Keys   []string
 	Values []string
+	Types  []string
 }
 
 type Attributes2D struct {
 	Keys   [][]string
 	Values [][]string
+	Types  [][]string
 }
 
 func ScanRow(rows driver.Rows) (*SpanRow, error) {
@@ -81,22 +83,27 @@ func ScanRow(rows driver.Rows) (*SpanRow, error) {
 		&sr.Duration,
 		&sr.Attributes.Keys,
 		&sr.Attributes.Values,
+		&sr.Attributes.Types,
 		&sr.EventNames,
 		&sr.EventTimestamps,
 		&sr.EventAttributes.Keys,
 		&sr.EventAttributes.Values,
+		&sr.EventAttributes.Types,
 		&sr.LinkTraceIDs,
 		&sr.LinkSpanIDs,
 		&sr.LinkTraceStates,
 		&sr.LinkAttributes.Keys,
 		&sr.LinkAttributes.Values,
+		&sr.LinkAttributes.Types,
 		&sr.ServiceName,
 		&sr.ResourceAttributes.Keys,
 		&sr.ResourceAttributes.Values,
+		&sr.ResourceAttributes.Types,
 		&sr.ScopeName,
 		&sr.ScopeVersion,
 		&sr.ScopeAttributes.Keys,
 		&sr.ScopeAttributes.Values,
+		&sr.ScopeAttributes.Types,
 	)
 	if err != nil {
 		return nil, err
