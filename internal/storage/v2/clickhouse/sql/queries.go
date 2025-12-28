@@ -199,7 +199,7 @@ SELECT
     scope_str_attributes.key,
     scope_str_attributes.value,
     scope_complex_attributes.key,
-    scope_complex_attributes.value,
+    scope_complex_attributes.value
 FROM
     spans
 WHERE
@@ -280,10 +280,9 @@ SELECT
     scope_str_attributes.key,
     scope_str_attributes.value,
     scope_complex_attributes.key,
-    scope_complex_attributes.value,
+    scope_complex_attributes.value
 FROM
     spans s
-WHERE 1=1
 `
 
 // SearchTraceIDs is the base SQL fragment used by FindTraceIDs.

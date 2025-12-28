@@ -152,15 +152,15 @@ func (r *Reader) FindTraces(
 			return
 		}
 
-		q, args, err := buildSearchQuery(sql.SearchTraces, query, limit)
+		traceIDsQuery, args, err := buildSearchTraceIDsQuery(query, limit)
 		if err != nil {
 			yield(nil, fmt.Errorf("failed to build query: %w", err))
 			return
 		}
 
-		rows, err := r.conn.Query(ctx, q, args...)
+		rows, err := r.conn.Query(ctx, buildFindTracesQuery(traceIDsQuery), args...)
 		if err != nil {
-			yield(nil, fmt.Errorf("failed to query trace IDs: %w", err))
+			yield(nil, fmt.Errorf("failed to query traces: %w", err))
 			return
 		}
 		defer rows.Close()
@@ -224,7 +224,7 @@ func (r *Reader) FindTraceIDs(
 			return
 		}
 
-		q, args, err := buildSearchQuery(sql.SearchTraceIDs, query, limit)
+		q, args, err := buildSearchTraceIDsQuery(query, limit)
 		if err != nil {
 			yield(nil, fmt.Errorf("failed to build query: %w", err))
 			return
@@ -257,9 +257,13 @@ var marshalValueForQuery = func(v pcommon.Value) (string, error) {
 	return string(b), nil
 }
 
-func buildSearchQuery(baseQuery string, params tracestore.TraceQueryParams, limit int) (string, []any, error) {
+func buildFindTracesQuery(traceIDsQuery string) string {
+	return sql.SearchTraces + "WHERE s.trace_id IN (SELECT trace_id FROM (" + traceIDsQuery + "))"
+}
+
+func buildSearchTraceIDsQuery(params tracestore.TraceQueryParams, limit int) (string, []any, error) {
 	var q strings.Builder
-	q.WriteString(baseQuery)
+	q.WriteString(sql.SearchTraceIDs)
 	args := []any{}
 
 	if params.ServiceName != "" {
