@@ -48,94 +48,41 @@ func TestWriter_Success(t *testing.T) {
 	for i, expected := range multipleSpans {
 		row := conn.batch.appended[i]
 
-		require.Equal(t, expected.ID, row[0])                        // SpanID
-		require.Equal(t, expected.TraceID, row[1])                   // TraceID
-		require.Equal(t, expected.TraceState, row[2])                // TraceState
-		require.Equal(t, expected.ParentSpanID, row[3])              // ParentSpanID
-		require.Equal(t, expected.Name, row[4])                      // Name
-		require.Equal(t, strings.ToLower(expected.Kind), row[5])     // Kind
-		require.Equal(t, expected.StartTime, row[6])                 // StartTimestamp
-		require.Equal(t, expected.StatusCode, row[7])                // Status code
-		require.Equal(t, expected.StatusMessage, row[8])             // Status message
-		require.EqualValues(t, expected.Duration, row[9])            // Duration
-		require.Equal(t, expected.Attributes.BoolKeys, row[10])      // Bool attribute keys
-		require.Equal(t, expected.Attributes.BoolValues, row[11])    // Bool attribute values
-		require.Equal(t, expected.Attributes.DoubleKeys, row[12])    // Double attribute keys
-		require.Equal(t, expected.Attributes.DoubleValues, row[13])  // Double attribute values
-		require.Equal(t, expected.Attributes.IntKeys, row[14])       // Int attribute keys
-		require.Equal(t, expected.Attributes.IntValues, row[15])     // Int attribute values
-		require.Equal(t, expected.Attributes.StrKeys, row[16])       // Str attribute keys
-		require.Equal(t, expected.Attributes.StrValues, row[17])     // Str attribute values
-		require.Equal(t, expected.Attributes.ComplexKeys, row[18])   // Complex attribute keys
-		require.Equal(t, expected.Attributes.ComplexValues, row[19]) // Complex attribute values
-		require.Equal(t, expected.EventNames, row[20])               // Event names
-		require.Equal(t, expected.EventTimestamps, row[21])          // Event timestamps
+		require.Equal(t, expected.ID, row[0])                    // SpanID
+		require.Equal(t, expected.TraceID, row[1])               // TraceID
+		require.Equal(t, expected.TraceState, row[2])            // TraceState
+		require.Equal(t, expected.ParentSpanID, row[3])          // ParentSpanID
+		require.Equal(t, expected.Name, row[4])                  // Name
+		require.Equal(t, strings.ToLower(expected.Kind), row[5]) // Kind
+		require.Equal(t, expected.StartTime, row[6])             // StartTimestamp
+		require.Equal(t, expected.StatusCode, row[7])            // Status code
+		require.Equal(t, expected.StatusMessage, row[8])         // Status message
+		require.EqualValues(t, expected.Duration, row[9])        // Duration
+		require.Equal(t, expected.Attributes.Keys, row[10])      // Attribute keys
+		require.Equal(t, expected.Attributes.Values, row[11])    // Attribute values
+		require.Equal(t, expected.Attributes.Types, row[12])     // Attribute types
+		require.Equal(t, expected.EventNames, row[13])           // Event names
+		require.Equal(t, expected.EventTimestamps, row[14])      // Event timestamps
 		require.Equal(t,
-			toTuple(expected.EventAttributes.BoolKeys, expected.EventAttributes.BoolValues),
-			row[22],
-		) // Event bool attributes
+			toTuple(expected.EventAttributes.Keys, expected.EventAttributes.Values, expected.EventAttributes.Types),
+			row[15],
+		) // Event attributes
+		require.Equal(t, expected.LinkTraceIDs, row[16])    // Link TraceIDs
+		require.Equal(t, expected.LinkSpanIDs, row[17])     // Link SpanIDs
+		require.Equal(t, expected.LinkTraceStates, row[18]) // Link TraceStates
 		require.Equal(t,
-			toTuple(expected.EventAttributes.DoubleKeys, expected.EventAttributes.DoubleValues),
-			row[23],
-		) // Event double attributes
-		require.Equal(t,
-			toTuple(expected.EventAttributes.IntKeys, expected.EventAttributes.IntValues),
-			row[24],
-		) // Event int attributes
-		require.Equal(t,
-			toTuple(expected.EventAttributes.StrKeys, expected.EventAttributes.StrValues),
-			row[25],
-		) // Event str attributes
-		require.Equal(t,
-			toTuple(expected.EventAttributes.ComplexKeys, expected.EventAttributes.ComplexValues),
-			row[26],
-		) // Event complex attributes
-		require.Equal(t, expected.LinkTraceIDs, row[27])    // Link TraceIDs
-		require.Equal(t, expected.LinkSpanIDs, row[28])     // Link SpanIDs
-		require.Equal(t, expected.LinkTraceStates, row[29]) // Link TraceStates
-		require.Equal(t,
-			toTuple(expected.LinkAttributes.BoolKeys, expected.LinkAttributes.BoolValues),
-			row[30],
-		) // Link bool attributes
-		require.Equal(t,
-			toTuple(expected.LinkAttributes.DoubleKeys, expected.LinkAttributes.DoubleValues),
-			row[31],
-		) // Link double attributes
-		require.Equal(t,
-			toTuple(expected.LinkAttributes.IntKeys, expected.LinkAttributes.IntValues),
-			row[32],
-		) // Link int attributes
-		require.Equal(t,
-			toTuple(expected.LinkAttributes.StrKeys, expected.LinkAttributes.StrValues),
-			row[33],
-		) // Link str attributes
-		require.Equal(t,
-			toTuple(expected.LinkAttributes.ComplexKeys, expected.LinkAttributes.ComplexValues),
-			row[34],
-		) // Link complex attributes
-		require.Equal(t, expected.ServiceName, row[35])                      // Service name
-		require.Equal(t, expected.ResourceAttributes.BoolKeys, row[36])      // Resource bool attribute keys
-		require.Equal(t, expected.ResourceAttributes.BoolValues, row[37])    // Resource bool attribute values
-		require.Equal(t, expected.ResourceAttributes.DoubleKeys, row[38])    // Resource double attribute keys
-		require.Equal(t, expected.ResourceAttributes.DoubleValues, row[39])  // Resource double attribute values
-		require.Equal(t, expected.ResourceAttributes.IntKeys, row[40])       // Resource int attribute keys
-		require.Equal(t, expected.ResourceAttributes.IntValues, row[41])     // Resource int attribute values
-		require.Equal(t, expected.ResourceAttributes.StrKeys, row[42])       // Resource str attribute keys
-		require.Equal(t, expected.ResourceAttributes.StrValues, row[43])     // Resource str attribute values
-		require.Equal(t, expected.ResourceAttributes.ComplexKeys, row[44])   // Resource complex attribute keys
-		require.Equal(t, expected.ResourceAttributes.ComplexValues, row[45]) // Resource complex attribute values
-		require.Equal(t, expected.ScopeName, row[46])                        // Scope name
-		require.Equal(t, expected.ScopeVersion, row[47])                     // Scope version
-		require.Equal(t, expected.ScopeAttributes.BoolKeys, row[48])         // Scope bool attribute keys
-		require.Equal(t, expected.ScopeAttributes.BoolValues, row[49])       // Scope bool attribute values
-		require.Equal(t, expected.ScopeAttributes.DoubleKeys, row[50])       // Scope double attribute keys
-		require.Equal(t, expected.ScopeAttributes.DoubleValues, row[51])     // Scope double attribute values
-		require.Equal(t, expected.ScopeAttributes.IntKeys, row[52])          // Scope int attribute keys
-		require.Equal(t, expected.ScopeAttributes.IntValues, row[53])        // Scope int attribute values
-		require.Equal(t, expected.ScopeAttributes.StrKeys, row[54])          // Scope str attribute keys
-		require.Equal(t, expected.ScopeAttributes.StrValues, row[55])        // Scope str attribute values
-		require.Equal(t, expected.ScopeAttributes.ComplexKeys, row[56])      // Scope complex attribute keys
-		require.Equal(t, expected.ScopeAttributes.ComplexValues, row[57])    // Scope complex attribute values
+			toTuple(expected.LinkAttributes.Keys, expected.LinkAttributes.Values, expected.LinkAttributes.Types),
+			row[19],
+		) // Link attributes
+		require.Equal(t, expected.ServiceName, row[20])               // Service name
+		require.Equal(t, expected.ResourceAttributes.Keys, row[21])   // Resource attribute keys
+		require.Equal(t, expected.ResourceAttributes.Values, row[22]) // Resource attribute values
+		require.Equal(t, expected.ResourceAttributes.Types, row[23])  // Resource attribute types
+		require.Equal(t, expected.ScopeName, row[24])                 // Scope name
+		require.Equal(t, expected.ScopeVersion, row[25])              // Scope version
+		require.Equal(t, expected.ScopeAttributes.Keys, row[26])      // Scope attribute keys
+		require.Equal(t, expected.ScopeAttributes.Values, row[27])    // Scope attribute values
+		require.Equal(t, expected.ScopeAttributes.Types, row[28])     // Scope attribute types
 	}
 }
 
@@ -184,27 +131,31 @@ func TestToTuple(t *testing.T) {
 		name     string
 		keys     [][]string
 		values   [][]int
+		types    [][]string
 		expected [][][]any
 	}{
 		{
 			name:     "empty slices",
 			keys:     [][]string{},
 			values:   [][]int{},
+			types:    [][]string{},
 			expected: [][][]any{},
 		},
 		{
 			name:     "single empty inner slice",
 			keys:     [][]string{{}},
 			values:   [][]int{{}},
+			types:    [][]string{{}},
 			expected: [][][]any{{}},
 		},
 		{
 			name:   "single element",
 			keys:   [][]string{{"key1"}},
 			values: [][]int{{42}},
+			types:  [][]string{{"int"}},
 			expected: [][][]any{
 				{
-					{"key1", 42},
+					{"key1", 42, "int"},
 				},
 			},
 		},
@@ -212,11 +163,12 @@ func TestToTuple(t *testing.T) {
 			name:   "multiple elements in single slice",
 			keys:   [][]string{{"key1", "key2", "key3"}},
 			values: [][]int{{10, 20, 30}},
+			types:  [][]string{{"int", "int", "int"}},
 			expected: [][][]any{
 				{
-					{"key1", 10},
-					{"key2", 20},
-					{"key3", 30},
+					{"key1", 10, "int"},
+					{"key2", 20, "int"},
+					{"key3", 30, "int"},
 				},
 			},
 		},
@@ -224,18 +176,19 @@ func TestToTuple(t *testing.T) {
 			name:   "multiple slices with multiple elements",
 			keys:   [][]string{{"key1", "key2"}, {"key3"}, {"key4", "key5", "key6"}},
 			values: [][]int{{1, 2}, {3}, {4, 5, 6}},
+			types:  [][]string{{"int", "int"}, {"int"}, {"int", "int", "int"}},
 			expected: [][][]any{
 				{
-					{"key1", 1},
-					{"key2", 2},
+					{"key1", 1, "int"},
+					{"key2", 2, "int"},
 				},
 				{
-					{"key3", 3},
+					{"key3", 3, "int"},
 				},
 				{
-					{"key4", 4},
-					{"key5", 5},
-					{"key6", 6},
+					{"key4", 4, "int"},
+					{"key5", 5, "int"},
+					{"key6", 6, "int"},
 				},
 			},
 		},
@@ -243,7 +196,7 @@ func TestToTuple(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := toTuple(tt.keys, tt.values)
+			result := toTuple(tt.keys, tt.values, tt.types)
 			require.Equal(t, tt.expected, result)
 		})
 	}
