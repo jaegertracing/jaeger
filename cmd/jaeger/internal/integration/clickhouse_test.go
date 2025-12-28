@@ -23,6 +23,8 @@ func TestClickHouseStorage(t *testing.T) {
 				"Tags_+_Operation_name",
 				"Tags_+_Operation_name_+_max_Duration",
 				"Tags_+_Operation_name_+_Duration_range",
+				"Tags_+_Duration_range",
+				"Tags_+_max_Duration",
 			},
 		},
 	}
