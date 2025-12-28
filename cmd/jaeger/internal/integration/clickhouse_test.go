@@ -18,7 +18,7 @@ func TestClickHouseStorage(t *testing.T) {
 			SkipList: []string{
 				"Tags_in_one_spot_-_Tags",
 				"Tags_in_one_spot_-_Logs",
-				"Tags_in_one_spot_-_Logs",
+				"Tags_in_one_spot_-_Process",
 				"Tags_in_different_spots",
 			},
 		},
