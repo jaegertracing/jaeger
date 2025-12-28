@@ -1,5 +1,5 @@
 // Copyright (c) 2019 The Jaeger Authors.
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package integration
@@ -35,17 +35,20 @@ func newCassandraStorageIntegration() *CassandraStorageIntegration {
 			SkipList: CassandraSkippedTests,
 		},
 	}
-	s.CleanUp = s.cleanUp
+	s.CleanUp = func(t *testing.T) {
+		require.NoError(t, s.cleanUp())
+	}
 	return s
 }
 
-func (s *CassandraStorageIntegration) cleanUp(t *testing.T) {
-	require.NoError(t, s.factory.Purge(context.Background()))
+func (s *CassandraStorageIntegration) cleanUp() error {
+	return s.factory.Purge(context.Background())
 }
 
-func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
+func (s *CassandraStorageIntegration) initializeCassandra() error {
 	username := os.Getenv("CASSANDRA_USERNAME")
 	password := os.Getenv("CASSANDRA_PASSWORD")
+
 	cfg := casconfig.Configuration{
 		Schema: casconfig.Schema{
 			Keyspace: "jaeger_v1_dc1",
@@ -64,8 +67,10 @@ func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 			},
 		},
 	}
+
 	defCfg := casconfig.DefaultConfiguration()
 	cfg.ApplyDefaults(&defCfg)
+
 	opts := cassandrav1.Options{
 		Configuration: cfg,
 		Index: cassandrav1.IndexConfig{
@@ -76,41 +81,54 @@ func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
 		SpanStoreWriteCacheTTL: time.Hour * 12,
 		ArchiveEnabled:         false,
 	}
+
 	f, err := cassandra.NewFactory(opts, telemetry.NoopSettings())
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, f.Close())
-	})
+	if err != nil {
+		return err
+	}
+
 	s.factory = f
-	s.TraceWriter, err = f.CreateTraceWriter()
-	require.NoError(t, err)
-	s.TraceReader, err = f.CreateTraceReader()
-	require.NoError(t, err)
-	s.SamplingStore, err = f.CreateSamplingStore(0)
-	require.NoError(t, err)
-	s.initializeDependencyReaderAndWriter(t, f)
+
+	if s.TraceWriter, err = f.CreateTraceWriter(); err != nil {
+		return err
+	}
+	if s.TraceReader, err = f.CreateTraceReader(); err != nil {
+		return err
+	}
+	if s.SamplingStore, err = f.CreateSamplingStore(0); err != nil {
+		return err
+	}
+
+	return s.initializeDependencyReaderAndWriter(f)
 }
 
-func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(t *testing.T, f *cassandra.Factory) {
-	var err error
+func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(f *cassandra.Factory) error {
 	dependencyReader, err := f.CreateDependencyReader()
-	require.NoError(t, err)
+	if err != nil {
+		return err
+	}
 	s.DependencyReader = dependencyReader
 
-	// TODO: Update this when the factory interface has CreateDependencyWriter
-	if dependencyWriter, ok := dependencyReader.(dependencystore.Writer); !ok {
-		t.Log("DependencyWriter not implemented ")
-	} else {
+	if dependencyWriter, ok := dependencyReader.(dependencystore.Writer); ok {
 		s.DependencyWriter = v1adapter.NewDependencyWriter(dependencyWriter)
 	}
+
+	return nil
 }
 
 func TestCassandraStorage(t *testing.T) {
 	SkipUnlessEnv(t, "cassandra")
+
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnce(t)
 	})
+
 	s := newCassandraStorageIntegration()
-	s.initializeCassandra(t)
+
+	require.NoError(t, s.initializeCassandra())
+	t.Cleanup(func() {
+		require.NoError(t, s.factory.Close())
+	})
+
 	s.RunAll(t)
 }
