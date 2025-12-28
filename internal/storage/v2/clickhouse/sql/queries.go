@@ -20,6 +20,7 @@ INSERT INTO
         duration,
         attributes.key,
         attributes.value,
+        attributes.type,
         events.name,
         events.timestamp,
         events.attributes,
@@ -30,10 +31,12 @@ INSERT INTO
         service_name,
         resource_attributes.key,
         resource_attributes.value,
+        resource_attributes.type,
         scope_name,
         scope_version,
         scope_attributes.key,
-        scope_attributes.value
+        scope_attributes.value,
+        scope_attributes.type,
     )
 VALUES
     (
@@ -62,7 +65,10 @@ VALUES
         ?,
         ?,
         ?,
-        ?
+        ?,
+        ?,
+        ?,
+        ?,
     )
 `
 
@@ -80,22 +86,27 @@ SELECT
     duration,
     attributes.key,
     attributes.value,
+    attributes.type,
     events.name,
     events.timestamp,
     events.attributes.key,
     events.attributes.value,
+    events.attributes.type,
     links.trace_id,
     links.span_id,
     links.trace_state,
     links.attributes.key,
     links.attributes.value,
+    links.attributes.type,
     service_name,
     resource_attributes.key,
     resource_attributes.value,
+    resource_attributes.type,
     scope_name,
     scope_version,
     scope_attributes.key,
     scope_attributes.value,
+    scope_attributes.type
 FROM
     spans
 WHERE
@@ -121,22 +132,27 @@ SELECT
     duration,
     attributes.key,
     attributes.value,
+    attributes.type,
     events.name,
     events.timestamp,
     events.attributes.key,
     events.attributes.value,
+    events.attributes.type,
     links.trace_id,
     links.span_id,
     links.trace_state,
     links.attributes.key,
     links.attributes.value,
+    links.attributes.type,
     service_name,
     resource_attributes.key,
     resource_attributes.value,
+    resource_attributes.type,
     scope_name,
     scope_version,
     scope_attributes.key,
     scope_attributes.value,
+    scope_attributes.type
 FROM
     spans s
 WHERE 1=1
