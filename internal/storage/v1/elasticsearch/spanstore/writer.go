@@ -38,6 +38,7 @@ type SpanWriter struct {
 	allTagsAsFields   bool
 	tagDotReplacement string
 	tagKeysAsFields   map[string]bool
+	useDataStream     bool
 }
 
 // CoreSpanWriter is a DB-Level abstraction which directly deals with database level operations
@@ -64,6 +65,7 @@ type SpanWriterParams struct {
 	SpanWriteAlias      string
 	ServiceWriteAlias   string
 	ServiceCacheTTL     time.Duration
+	UseDataStream       bool
 }
 
 // NewSpanWriter creates a new SpanWriter for use
@@ -87,7 +89,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		tags[k] = true
 	}
 
-	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheTTL)
+	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheTTL, p.UseDataStream)
 	return &SpanWriter{
 		client:            p.Client,
 		logger:            p.Logger,
@@ -97,6 +99,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		tagKeysAsFields:   tags,
 		allTagsAsFields:   p.AllTagsAsFields,
 		tagDotReplacement: p.TagDotReplacement,
+		useDataStream:     p.UseDataStream,
 	}
 }
 
@@ -112,12 +115,25 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServ
 	}
 
 	// Otherwise, use the standard prefix + suffix approach
-	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
-	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
+	spanIndexBase := spanIndexBaseName
+	serviceIndexBase := serviceIndexBaseName
+	if p.UseDataStream {
+		spanIndexBase = "jaeger-ds-span"
+		serviceIndexBase = "jaeger-ds-service"
+	}
+
+	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBase)
+	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBase)
 
 	if p.UseReadWriteAliases {
 		return func(_ time.Time) (string, string) {
 			return spanIndexPrefix + writeAlias, serviceIndexPrefix + writeAlias
+		}
+	}
+
+	if p.UseDataStream {
+		return func(_ time.Time) (string, string) {
+			return spanIndexPrefix, serviceIndexPrefix
 		}
 	}
 
@@ -165,7 +181,11 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
 }
 
 func (s *SpanWriter) writeSpan(indexName string, jsonSpan *dbmodel.Span) {
-	s.client().Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan).Add()
+	il := s.client().Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan)
+	if s.useDataStream {
+		il.OpType("create")
+	}
+	il.Add()
 }
 
 func (s *SpanWriter) splitElevatedTags(keyValues []dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any) {

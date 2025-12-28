@@ -117,7 +117,7 @@ func (mb *MappingBuilder) GetMapping(mappingType MappingType) (string, error) {
 	templateOpts := mb.getMappingTemplateOptions(mappingType)
 	esVersion := min(mb.EsVersion, 8) // Elasticsearch v9 uses the same template as v8
 	if mb.UseDataStream && esVersion >= 8 {
-		return mb.renderMapping(fmt.Sprintf("%s-ds-%d.json", mappingType.String(), esVersion), templateOpts)
+		return mb.renderMapping(fmt.Sprintf("jaeger-ds-%s-%d.json", mappingType.String()[7:], esVersion), templateOpts)
 	}
 	return mb.renderMapping(fmt.Sprintf("%s-%d.json", mappingType.String(), esVersion), templateOpts)
 }

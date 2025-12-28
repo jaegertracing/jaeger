@@ -1,6 +1,6 @@
 {
   "priority": 500,
-  "index_patterns": "test-jaeger-span-ds",
+  "index_patterns": "test-jaeger-ds-span",
   "data_stream": {},
   "template": {
     "settings": {
@@ -8,7 +8,7 @@
       "index.number_of_replicas": 3,
       "index.mapping.nested_fields.limit": 50,
       "index.requests.cache.enable": true,
-      "index.default_pipeline": "jaeger-span-ds-timestamp",
+      "index.default_pipeline": "jaeger-ds-span-timestamp",
       "index.lifecycle.name": "jaeger-test-policy"
     },
     "mappings": {

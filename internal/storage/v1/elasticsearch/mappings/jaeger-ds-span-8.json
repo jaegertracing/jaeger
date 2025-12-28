@@ -1,14 +1,14 @@
 {
   "priority": {{ .Priority }},
-  "index_patterns": "{{ .IndexPrefix }}jaeger-span-ds",
-  "data_stream": { },
+  "index_patterns": "{{ .IndexPrefix }}jaeger-ds-span",
+  "data_stream": {},
   "template": {
     "settings": {
       "index.number_of_shards": {{ .Shards }},
       "index.number_of_replicas": {{ .Replicas }},
       "index.mapping.nested_fields.limit": 50,
       "index.requests.cache.enable": true,
-      "index.default_pipeline": "jaeger-span-ds-timestamp",
+      "index.default_pipeline": "jaeger-ds-span-timestamp",
       "index.lifecycle.name": "{{ .ILMPolicyName }}"
     },
     "mappings": {
