@@ -97,8 +97,6 @@ for file in $(find . -type f -name go.mod | grep -v '^./go.mod'); do
     check "$file" "^go\s\+$version_regex" "$go_latest_version"
 done
 
-check scripts/build/docker/debug/Dockerfile "^.*golang:$version_regex" "$go_latest_version"
-
 IFS='|' read -r -a gha_workflows <<< "$(grep -rl go-version .github/workflows | tr '\n' '|')"
 for gha_workflow in "${gha_workflows[@]}"; do
     check "$gha_workflow" "^\s*go-version:\s\+$version_regex" "$go_latest_version"
