@@ -152,7 +152,7 @@ func (r *Reader) FindTraces(
 			return
 		}
 
-		traceIDsQuery, args, err := buildSearchTraceIDsQuery(query, limit)
+		traceIDsQuery, args, err := buildFindTraceIDsQuery(query, limit)
 		if err != nil {
 			yield(nil, fmt.Errorf("failed to build query: %w", err))
 			return
@@ -224,7 +224,7 @@ func (r *Reader) FindTraceIDs(
 			return
 		}
 
-		q, args, err := buildSearchTraceIDsQuery(query, limit)
+		q, args, err := buildFindTraceIDsQuery(query, limit)
 		if err != nil {
 			yield(nil, fmt.Errorf("failed to build query: %w", err))
 			return
@@ -261,37 +261,37 @@ func buildFindTracesQuery(traceIDsQuery string) string {
 	return sql.SelectSpansQuery + " WHERE s.trace_id IN (SELECT trace_id FROM (" + traceIDsQuery + "))"
 }
 
-func buildSearchTraceIDsQuery(params tracestore.TraceQueryParams, limit int) (string, []any, error) {
+func buildFindTraceIDsQuery(query tracestore.TraceQueryParams, limit int) (string, []any, error) {
 	var q strings.Builder
 	q.WriteString(sql.SearchTraceIDs)
 	args := []any{}
 
-	if params.ServiceName != "" {
+	if query.ServiceName != "" {
 		q.WriteString(" AND s.service_name = ?")
-		args = append(args, params.ServiceName)
+		args = append(args, query.ServiceName)
 	}
-	if params.OperationName != "" {
+	if query.OperationName != "" {
 		q.WriteString(" AND s.name = ?")
-		args = append(args, params.OperationName)
+		args = append(args, query.OperationName)
 	}
-	if params.DurationMin > 0 {
+	if query.DurationMin > 0 {
 		q.WriteString(" AND s.duration >= ?")
-		args = append(args, params.DurationMin.Nanoseconds())
+		args = append(args, query.DurationMin.Nanoseconds())
 	}
-	if params.DurationMax > 0 {
+	if query.DurationMax > 0 {
 		q.WriteString(" AND s.duration <= ?")
-		args = append(args, params.DurationMax.Nanoseconds())
+		args = append(args, query.DurationMax.Nanoseconds())
 	}
-	if !params.StartTimeMin.IsZero() {
+	if !query.StartTimeMin.IsZero() {
 		q.WriteString(" AND s.start_time >= ?")
-		args = append(args, params.StartTimeMin)
+		args = append(args, query.StartTimeMin)
 	}
-	if !params.StartTimeMax.IsZero() {
+	if !query.StartTimeMax.IsZero() {
 		q.WriteString(" AND s.start_time <= ?")
-		args = append(args, params.StartTimeMax)
+		args = append(args, query.StartTimeMax)
 	}
 
-	for key, attr := range params.Attributes.All() {
+	for key, attr := range query.Attributes.All() {
 		var attrType string
 		var val any
 
