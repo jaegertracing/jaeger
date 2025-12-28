@@ -11,6 +11,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/storagetest"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
@@ -102,18 +103,21 @@ func TestTraceProcessor(t *testing.T) {
 	traceProcessor := newTraceProcessor(*config, telemetrySettings)
 
 	rsCfg := &remotesampling.Config{
-		Adaptive: &remotesampling.AdaptiveConfig{
+		Adaptive: configoptional.Some(remotesampling.AdaptiveConfig{
 			SamplingStore: "foobar",
 			Options:       adaptive.DefaultOptions(),
-		},
+		}),
 	}
 	host := makeRemoteSamplingExtension(t, rsCfg)
 
-	rsCfg.Adaptive.Options.AggregationBuckets = 0
+	adaptiveCfg := *rsCfg.Adaptive.Get()
+	adaptiveCfg.Options.AggregationBuckets = 0
+	rsCfg.Adaptive = configoptional.Some(adaptiveCfg)
 	err := traceProcessor.start(context.Background(), host)
 	require.ErrorContains(t, err, "AggregationBuckets must be greater than 0")
 
-	rsCfg.Adaptive.Options = adaptive.DefaultOptions()
+	adaptiveCfg.Options = adaptive.DefaultOptions()
+	rsCfg.Adaptive = configoptional.Some(adaptiveCfg)
 	require.NoError(t, traceProcessor.start(context.Background(), host))
 
 	twww := makeTracesOneSpan()

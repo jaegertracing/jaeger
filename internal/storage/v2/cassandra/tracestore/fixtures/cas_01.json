@@ -1,0 +1,98 @@
+{
+  "spans": [
+    {
+      "trace_id": "AAAAAAAAAAEAAAAAAAAAAA==",
+      "span_id": "AAAAAAAAAAI=",
+      "operation_name": "test-general-conversion",
+      "references": [
+        {
+          "trace_id": "AAAAAAAAAAEAAAAAAAAAAA==",
+          "span_id": "AAAAAAAAAAM="
+        },
+        {
+          "trace_id": "AAAAAAAAAAEAAAAAAAAAAA==",
+          "span_id": "AAAAAAAAAAQ=",
+          "ref_type": 1
+        },
+        {
+          "trace_id": "AAAAAAAAAP8AAAAAAAAAAA==",
+          "span_id": "AAAAAAAAAP8="
+        }
+      ],
+      "flags": 0,
+      "start_time": "2017-01-26T21:46:31.639875Z",
+      "duration": 5000,
+      "tags": [
+        {
+          "key": "otel.scope.name",
+          "v_str": "testing-library"
+        },
+        {
+          "key": "otel.scope.version",
+          "v_str": "1.1.1"
+        },
+        {
+          "key": "peer.service",
+          "v_str": "service-y"
+        },
+        {
+          "key": "peer.ipv4",
+          "v_type": 2,
+          "v_int64": 23456
+        },
+        {
+          "key": "blob",
+          "v_type": 4,
+          "v_binary": "AAAwOQ=="
+        },
+        {
+          "key": "temperature",
+          "v_type": 3,
+          "v_float64": 72.5
+        },
+        {
+          "key": "otel.status_code",
+          "v_str": "ERROR"
+        },
+        {
+          "key": "error",
+          "v_type": 1,
+          "v_bool": true
+        }
+      ],
+      "logs": [
+        {
+          "timestamp": "2017-01-26T21:46:31.639875Z",
+          "fields": [
+            {
+              "key": "event",
+              "v_str": "testing-event"
+            },
+            {
+              "key": "event-x",
+              "v_str": "event-y"
+            }
+          ]
+        },
+        {
+          "timestamp": "2017-01-26T21:46:31.639875Z",
+          "fields": [
+            {
+              "key": "x",
+              "v_str": "y"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "process": {
+    "service_name": "service-x",
+    "tags": [
+      {
+        "key": "sdk.version",
+        "v_str": "1.2.1"
+      }
+    ]
+  }
+}

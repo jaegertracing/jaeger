@@ -13,9 +13,6 @@ define GOBUILD
 $(GOBUILD_EXEC)
 endef
 
-# GOBUILD=echo "$($(BUILD_ICON)) building binary for $$(go env GOOS)-$$(go env GOARCH)"; \
-#   CGO_ENABLED=0 installsuffix=cgo $(GO) build -trimpath
-
 ifeq ($(DEBUG_BINARY),)
 	DISABLE_OPTIMIZATIONS =
 	SUFFIX =
@@ -26,6 +23,7 @@ else
 	TARGET = debug
 endif
 
+.PHONY: build-ui
 build-ui: cmd/query/app/ui/actual/index.html.gz
 
 cmd/query/app/ui/actual/index.html.gz: jaeger-ui/packages/jaeger-ui/build/index.html

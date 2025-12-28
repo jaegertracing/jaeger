@@ -36,6 +36,7 @@ jobs:
     permissions:
       contents: write
       deployments: write
+      packages: read  # This allows the runner to pull from GHCR
     if: github.repository == 'jaegertracing/jaeger'
     runs-on: jaeger-linux-amd64-32core-1200GB_SSD
 
@@ -125,6 +126,13 @@ jobs:
         rm -rf deploy || true
         df -h /
 
+    - name: Log in to GHCR
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
     - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
 
     - name: Build and upload all container images
@@ -153,7 +161,7 @@ jobs:
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
     - name: Generate SBOM
-      uses: anchore/sbom-action@e11c554f704a0b820cbf8c51673f6945e0731532 # v0.20.0
+      uses: anchore/sbom-action@a930d0ac434e3182448fe678398ba5713717112a # v0.21.0
       with:
         output-file: jaeger-SBOM.spdx.json
         upload-release-assets: false

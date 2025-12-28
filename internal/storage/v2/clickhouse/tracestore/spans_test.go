@@ -13,6 +13,11 @@ import (
 
 var traceID = pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1})
 
+var (
+	traceIDHex1 = "00000000000000000000000000000001"
+	traceIDHex2 = "00000000000000000000000000000002"
+)
+
 var now = time.Date(2025, 6, 14, 10, 0, 0, 0, time.UTC)
 
 var singleSpan = []*dbmodel.SpanRow{
