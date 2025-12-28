@@ -20,33 +20,53 @@ type MemStorageIntegrationTestSuite struct {
 	logger *zap.Logger
 }
 
-func (s *MemStorageIntegrationTestSuite) initialize(t *testing.T) {
-	s.logger, _ = testutils.NewLogger()
+func (s *MemStorageIntegrationTestSuite) initialize() error {
+	logger, _ := testutils.NewLogger()
+	s.logger = logger
+
 	telset := telemetry.NoopSettings()
 	telset.Logger = s.logger
 
-	f, err := memory.NewFactory(memory.Configuration{MaxTraces: 10000}, telset)
-	require.NoError(t, err)
-	traceReader, err := f.CreateTraceReader()
-	require.NoError(t, err)
-	traceWriter, err := f.CreateTraceWriter()
-	require.NoError(t, err)
+	f, err := memory.NewFactory(
+		memory.Configuration{MaxTraces: 10000},
+		telset,
+	)
+	if err != nil {
+		return err
+	}
+
+	s.TraceReader, err = f.CreateTraceReader()
+	if err != nil {
+		return err
+	}
+
+	s.TraceWriter, err = f.CreateTraceWriter()
+	if err != nil {
+		return err
+	}
 
 	s.SamplingStore = memory.NewSamplingStore(2)
-	s.TraceReader = traceReader
-	s.TraceWriter = traceWriter
 
 	// TODO DependencyWriter is not implemented in memory store
 
-	s.CleanUp = s.initialize
+	return nil
 }
 
 func TestMemoryStorage(t *testing.T) {
 	SkipUnlessEnv(t, "memory")
+
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnce(t)
 	})
+
 	s := &MemStorageIntegrationTestSuite{}
-	s.initialize(t)
+
+	require.NoError(t, s.initialize())
+
+	// REQUIRED by StorageIntegration contract, even if no-op
+	s.CleanUp = func(t *testing.T) {
+		// no-op
+	}
+
 	s.RunAll(t)
 }
