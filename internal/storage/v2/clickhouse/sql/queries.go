@@ -337,6 +337,8 @@ const TruncateServices = `TRUNCATE TABLE services`
 
 const TruncateOperations = `TRUNCATE TABLE operations`
 
+const TruncateTraceIDTimestamps = `TRUNCATE TABLE trace_id_timestamps`
+
 //go:embed create_spans_table.sql
 var CreateSpansTable string
 

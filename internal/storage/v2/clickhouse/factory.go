@@ -115,6 +115,7 @@ func (f *Factory) Purge(ctx context.Context) error {
 		{"spans", sql.TruncateSpans},
 		{"services", sql.TruncateServices},
 		{"operations", sql.TruncateOperations},
+		{"trace_id_timestamps", sql.TruncateTraceIDTimestamps},
 	}
 
 	for _, table := range tables {
