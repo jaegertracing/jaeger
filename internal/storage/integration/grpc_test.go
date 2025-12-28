@@ -27,7 +27,14 @@ type GRPCStorageIntegrationTestSuite struct {
 }
 
 func (s *GRPCStorageIntegrationTestSuite) initialize() error {
-	s.remoteStorage = StartNewRemoteMemoryStorage(nil, ports.RemoteStorageGRPC)
+	remoteStorage, err := StartNewRemoteMemoryStorage(
+		ports.RemoteStorageGRPC,
+		nil, // no-op logger is fine for non-test context
+	)
+	if err != nil {
+		return err
+	}
+	s.remoteStorage = remoteStorage
 
 	f, err := grpc.NewFactory(
 		context.Background(),
@@ -58,11 +65,12 @@ func (s *GRPCStorageIntegrationTestSuite) initialize() error {
 	return nil
 }
 
+
 func (s *GRPCStorageIntegrationTestSuite) close() error {
 	if err := s.factory.Close(); err != nil {
 		return err
 	}
-	s.remoteStorage.Close(s.t)
+	s.remoteStorage.Close()
 	return nil
 }
 

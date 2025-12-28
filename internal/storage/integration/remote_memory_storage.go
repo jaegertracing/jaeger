@@ -5,14 +5,12 @@ package integration
 
 import (
 	"context"
-	"testing"
+	"fmt"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -30,60 +28,83 @@ type RemoteMemoryStorage struct {
 	storageFactory *memory.Factory
 }
 
-func StartNewRemoteMemoryStorage(t *testing.T, port int) *RemoteMemoryStorage {
-	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
+func StartNewRemoteMemoryStorage(port int, logger *zap.Logger) (*RemoteMemoryStorage, error) {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+
 	grpcCfg := configgrpc.ServerConfig{
 		NetAddr: confignet.AddrConfig{
 			Endpoint: ports.PortToHostPort(port),
 		},
 	}
-	tm := tenancy.NewManager(&tenancy.Options{
-		Enabled: false,
-	})
 
-	t.Logf("Starting in-process remote storage server on %s", grpcCfg.NetAddr.Endpoint)
+	tm := tenancy.NewManager(&tenancy.Options{Enabled: false})
+
+	logger.Info("starting in-process remote storage server",
+		zap.String("endpoint", grpcCfg.NetAddr.Endpoint),
+	)
+
 	telset := telemetry.NoopSettings()
 	telset.Logger = logger
 	telset.ReportStatus = telemetry.HCAdapter(healthcheck.New())
 
 	traceFactory, err := memory.NewFactory(
-		memory.Configuration{
-			MaxTraces: 10000,
-		},
+		memory.Configuration{MaxTraces: 10000},
 		telset,
 	)
-	require.NoError(t, err)
+	if err != nil {
+		return nil, err
+	}
 
-	server, err := app.NewServer(context.Background(), grpcCfg, traceFactory, traceFactory, tm, telset)
-	require.NoError(t, err)
-	require.NoError(t, server.Start(context.Background()))
+	server, err := app.NewServer(
+		context.Background(),
+		grpcCfg,
+		traceFactory,
+		traceFactory,
+		tm,
+		telset,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := server.Start(context.Background()); err != nil {
+		return nil, err
+	}
 
 	conn, err := grpc.NewClient(
 		grpcCfg.NetAddr.Endpoint,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
-	require.NoError(t, err)
-	defer conn.Close()
-	healthClient := grpc_health_v1.NewHealthClient(conn)
-	require.Eventually(t, func() bool {
-		req := &grpc_health_v1.HealthCheckRequest{}
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
-		defer cancel()
-		resp, err := healthClient.Check(ctx, req)
-		if err != nil {
-			t.Logf("remote storage server is not ready: err=%v", err)
-			return false
-		}
-		t.Logf("remote storage server status: %v", resp.Status)
-		return resp.GetStatus() == grpc_health_v1.HealthCheckResponse_SERVING
-	}, 30*time.Second, time.Second, "failed to ensure remote storage server is ready")
-
-	return &RemoteMemoryStorage{
-		server:         server,
-		storageFactory: traceFactory,
+	if err != nil {
+		return nil, err
 	}
+	defer conn.Close()
+
+	healthClient := grpc_health_v1.NewHealthClient(conn)
+
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		resp, err := healthClient.Check(ctx, &grpc_health_v1.HealthCheckRequest{})
+		cancel()
+
+		if err == nil && resp.GetStatus() == grpc_health_v1.HealthCheckResponse_SERVING {
+			logger.Info("remote storage server is ready")
+			return &RemoteMemoryStorage{
+				server:         server,
+				storageFactory: traceFactory,
+			}, nil
+		}
+
+		logger.Debug("remote storage server not ready yet", zap.Error(err))
+		time.Sleep(time.Second)
+	}
+
+	return nil, fmt.Errorf("remote storage server did not become ready in time")
 }
 
-func (s *RemoteMemoryStorage) Close(t *testing.T) {
-	require.NoError(t, s.server.Close())
+func (s *RemoteMemoryStorage) Close() error {
+	return s.server.Close()
 }
