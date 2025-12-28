@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/olivere/elastic/v7"
@@ -34,6 +35,7 @@ type SamplingStore struct {
 	maxDocCount            int
 	indexRolloverFrequency time.Duration
 	lookback               time.Duration
+	useDataStream          bool
 }
 
 type Params struct {
@@ -44,6 +46,7 @@ type Params struct {
 	IndexRolloverFrequency time.Duration
 	Lookback               time.Duration
 	MaxDocCount            int
+	UseDataStream          bool
 }
 
 func NewSamplingStore(p Params) *SamplingStore {
@@ -55,25 +58,30 @@ func NewSamplingStore(p Params) *SamplingStore {
 		maxDocCount:            p.MaxDocCount,
 		indexRolloverFrequency: p.IndexRolloverFrequency,
 		lookback:               p.Lookback,
+		useDataStream:          p.UseDataStream,
 	}
 }
 
 func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
 	ts := time.Now()
-	indexName := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, ts)
+	indexName := s.getWriteIndex(ts)
 	for _, eachThroughput := range dbmodel.FromThroughputs(throughput) {
-		s.client().Index().Index(indexName).Type(throughputType).
+		il := s.client().Index().Index(indexName).Type(throughputType).
 			BodyJson(&dbmodel.TimeThroughput{
 				Timestamp:  ts,
 				Throughput: eachThroughput,
-			}).Add()
+			})
+		if s.useDataStream {
+			il.OpType("create")
+		}
+		il.Add()
 	}
 	return nil
 }
 
 func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
 	ctx := context.Background()
-	indices := getReadIndices(s.samplingIndexPrefix, s.indexDateLayout, start, end, s.indexRolloverFrequency)
+	indices := s.getReadIndices(start, end)
 	searchResult, err := s.client().Search(indices...).
 		Size(s.maxDocCount).
 		Query(buildTSQuery(start, end)).
@@ -95,14 +103,13 @@ func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput
 	return dbmodel.ToThroughputs(outThroughputs), nil
 }
 
-func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
+func (s *SamplingStore) InsertProbabilitiesAndQPS(_ string,
 	probabilities model.ServiceOperationProbabilities,
 	qps model.ServiceOperationQPS,
 ) error {
 	ts := time.Now()
 	writeIndexName := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, ts)
 	val := dbmodel.ProbabilitiesAndQPS{
-		Hostname:      hostname,
 		Probabilities: probabilities,
 		QPS:           qps,
 	}
@@ -110,10 +117,17 @@ func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
 	return nil
 }
 
+func (s *SamplingStore) getWriteIndex(ts time.Time) string {
+	if s.useDataStream {
+		return strings.Replace(s.samplingIndexPrefix, "jaeger-sampling", "jaeger-ds-sampling", 1)
+	}
+	return indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, ts)
+}
+
 func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
 	ctx := context.Background()
 	clientFn := s.client()
-	indices, err := getLatestIndices(s.samplingIndexPrefix, s.indexDateLayout, clientFn, s.indexRolloverFrequency, s.lookback)
+	indices, err := s.getLatestIndices()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get latest indices: %w", err)
 	}
@@ -145,20 +159,29 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 }
 
 func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time, pandqps dbmodel.ProbabilitiesAndQPS) {
-	s.client().Index().Index(indexName).Type(probabilitiesType).
+	il := s.client().Index().Index(indexName).Type(probabilitiesType).
 		BodyJson(&dbmodel.TimeProbabilitiesAndQPS{
 			Timestamp:           ts,
 			ProbabilitiesAndQPS: pandqps,
-		}).Add()
+		})
+	if s.useDataStream {
+		il.OpType("create")
+	}
+	il.Add()
 }
 
-func getLatestIndices(indexPrefix, indexDateLayout string, clientFn es.Client, rollover time.Duration, maxDuration time.Duration) ([]string, error) {
+func (s *SamplingStore) getLatestIndices() ([]string, error) {
+	if s.useDataStream {
+		dsIndex := strings.Replace(s.samplingIndexPrefix, "jaeger-sampling", "jaeger-ds-sampling", 1)
+		return []string{dsIndex, s.samplingIndexPrefix + "*"}, nil
+	}
+	clientFn := s.client()
 	ctx := context.Background()
 	now := time.Now().UTC()
-	earliest := now.Add(-maxDuration)
-	earliestIndex := indexWithDate(indexPrefix, indexDateLayout, earliest)
+	earliest := now.Add(-s.lookback)
+	earliestIndex := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, earliest)
 	for {
-		currentIndex := indexWithDate(indexPrefix, indexDateLayout, now)
+		currentIndex := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, now)
 		exists, err := clientFn.IndexExists(currentIndex).Do(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to check index existence: %w", err)
@@ -169,18 +192,22 @@ func getLatestIndices(indexPrefix, indexDateLayout string, clientFn es.Client, r
 		if currentIndex == earliestIndex {
 			return nil, errors.New("falied to find latest index")
 		}
-		now = now.Add(rollover) // rollover is negative
+		now = now.Add(s.indexRolloverFrequency) // rollover is negative
 	}
 }
 
-func getReadIndices(indexName, indexDateLayout string, startTime time.Time, endTime time.Time, rollover time.Duration) []string {
+func (s *SamplingStore) getReadIndices(startTime time.Time, endTime time.Time) []string {
+	if s.useDataStream {
+		dsIndex := strings.Replace(s.samplingIndexPrefix, "jaeger-sampling", "jaeger-ds-sampling", 1)
+		return []string{dsIndex, s.samplingIndexPrefix + "*"}
+	}
 	var indices []string
-	firstIndex := indexWithDate(indexName, indexDateLayout, startTime)
-	currentIndex := indexWithDate(indexName, indexDateLayout, endTime)
+	firstIndex := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, startTime)
+	currentIndex := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, endTime)
 	for currentIndex != firstIndex {
 		indices = append(indices, currentIndex)
-		endTime = endTime.Add(rollover) // rollover is negative
-		currentIndex = indexWithDate(indexName, indexDateLayout, endTime)
+		endTime = endTime.Add(s.indexRolloverFrequency) // rollover is negative
+		currentIndex = indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, endTime)
 	}
 	indices = append(indices, firstIndex)
 	return indices

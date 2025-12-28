@@ -99,7 +99,12 @@ func TestGetReadIndices(t *testing.T) {
 			"prefix-jaeger-sampling-2024-02-10",
 		}
 		rollover := -time.Hour * 24
-		indices := getReadIndices("prefix-jaeger-sampling-", "2006-01-02", test.start, test.end, rollover)
+		s := &SamplingStore{
+			samplingIndexPrefix:    "prefix-jaeger-sampling-",
+			indexDateLayout:        "2006-01-02",
+			indexRolloverFrequency: rollover,
+		}
+		indices := s.getReadIndices(test.start, test.end)
 		assert.Equal(t, expectedIndices, indices)
 	})
 }
@@ -118,7 +123,7 @@ func TestGetLatestIndices(t *testing.T) {
 			name:            "with index",
 			indexDateLayout: "2006-01-02",
 			maxDuration:     24 * time.Hour,
-			expectedIndices: []string{indexWithDate("", "2006-01-02", time.Now().UTC())},
+			expectedIndices: []string{"jaeger-sampling-" + time.Now().UTC().Format("2006-01-02")},
 			expectedError:   "",
 			indexExist:      true,
 		},
@@ -145,8 +150,7 @@ func TestGetLatestIndices(t *testing.T) {
 				indexService := &mocks.IndicesExistsService{}
 				w.client.On("IndexExists", mock.Anything).Return(indexService)
 				indexService.On("Do", mock.Anything).Return(test.indexExist, test.IndexExistError)
-				clientFnMock := w.storage.client()
-				actualIndices, err := getLatestIndices("", test.indexDateLayout, clientFnMock, -24*time.Hour, test.maxDuration)
+				actualIndices, err := w.storage.getLatestIndices()
 				if test.expectedError != "" {
 					require.EqualError(t, err, test.expectedError)
 					assert.Nil(t, actualIndices)
@@ -440,6 +444,41 @@ func stringMatcher(q string) any {
 		return strings.Contains(s, q)
 	}
 	return mock.MatchedBy(matchFunc)
+}
+
+func TestGetReadIndices_UseDataStream(t *testing.T) {
+	s := &SamplingStore{
+		samplingIndexPrefix: "jaeger-sampling-",
+		useDataStream:       true,
+	}
+	expected := []string{"jaeger-ds-sampling-", "jaeger-sampling-*"}
+	assert.Equal(t, expected, s.getReadIndices(time.Now(), time.Now()))
+
+	s.samplingIndexPrefix = "foo-jaeger-sampling-"
+	expected = []string{"foo-jaeger-ds-sampling-", "foo-jaeger-sampling-*"}
+	assert.Equal(t, expected, s.getReadIndices(time.Now(), time.Now()))
+}
+
+func TestGetLatestIndices_UseDataStream(t *testing.T) {
+	s := &SamplingStore{
+		samplingIndexPrefix: "jaeger-sampling-",
+		useDataStream:       true,
+	}
+	expected := []string{"jaeger-ds-sampling-", "jaeger-sampling-*"}
+	indices, err := s.getLatestIndices()
+	require.NoError(t, err)
+	assert.Equal(t, expected, indices)
+}
+
+func TestGetWriteIndex_UseDataStream(t *testing.T) {
+	s := &SamplingStore{
+		samplingIndexPrefix: "jaeger-sampling-",
+		useDataStream:       true,
+	}
+	assert.Equal(t, "jaeger-ds-sampling-", s.getWriteIndex(time.Now()))
+
+	s.samplingIndexPrefix = "foo-jaeger-sampling-"
+	assert.Equal(t, "foo-jaeger-ds-sampling-", s.getWriteIndex(time.Now()))
 }
 
 func TestMain(m *testing.M) {

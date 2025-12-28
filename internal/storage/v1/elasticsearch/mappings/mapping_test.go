@@ -80,10 +80,11 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 			require.NoError(t, err)
 			var wantbytes []byte
 			fileSuffix := fmt.Sprintf("-%d", tt.esVersion)
+			fileName := templateName + fileSuffix + ".json"
 			if tt.useDataStream {
-				fileSuffix = fmt.Sprintf("-ds-%d", tt.esVersion)
+				fileName = fmt.Sprintf("jaeger-ds-%s-%d.json", templateName[7:], tt.esVersion)
 			}
-			wantbytes, err = FIXTURES.ReadFile("fixtures/" + templateName + fileSuffix + ".json")
+			wantbytes, err = FIXTURES.ReadFile("fixtures/" + fileName)
 			if tt.useDataStream && tt.mapping != SpanMapping {
 				// We currently only have fixture for SpanMapping with DataStream
 				// Skip verifying content for others if fixture missing, or create correct expectation.
@@ -134,16 +135,17 @@ func TestMappingBuilderLoadMapping(t *testing.T) {
 		{name: "jaeger-span-6.json"},
 		{name: "jaeger-span-7.json"},
 		{name: "jaeger-span-8.json"},
-		{name: "jaeger-span-ds-8.json"},
+		{name: "jaeger-span-8.json"},
+		{name: "jaeger-ds-span-8.json"},
 		{name: "jaeger-service-6.json"},
 		{name: "jaeger-service-7.json"},
 		{name: "jaeger-service-8.json"},
-		{name: "jaeger-service-ds-8.json"},
+		{name: "jaeger-ds-service-8.json"},
 		{name: "jaeger-dependencies-6.json"},
 		{name: "jaeger-dependencies-7.json"},
 		{name: "jaeger-dependencies-8.json"},
-		{name: "jaeger-dependencies-ds-8.json"},
-		{name: "jaeger-sampling-ds-8.json"},
+		{name: "jaeger-ds-dependencies-8.json"},
+		{name: "jaeger-ds-sampling-8.json"},
 	}
 	for _, test := range tests {
 		mapping := loadMapping(test.name)

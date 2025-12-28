@@ -315,6 +315,19 @@ func TestSpanReaderIndices(t *testing.T) {
 				"cluster_two:" + serviceIndexBaseName + "read",
 			},
 		},
+		{
+			params: SpanReaderParams{
+				UseDataStream: true,
+			},
+			indices: []string{"jaeger-ds-span", "jaeger-span*", "jaeger-ds-service", "jaeger-service*"},
+		},
+		{
+			params: SpanReaderParams{
+				IndexPrefix:   "foo:",
+				UseDataStream: true,
+			},
+			indices: []string{"foo:-jaeger-ds-span", "foo:-jaeger-span*", "foo:-jaeger-ds-service", "foo:-jaeger-service*"},
+		},
 	}
 	for _, testCase := range testCases {
 		testCase.params.Client = clientFn

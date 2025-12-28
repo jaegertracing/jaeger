@@ -1,6 +1,6 @@
 {
   "priority": {{ .Priority }},
-  "index_patterns": "{{ .IndexPrefix }}jaeger-service-ds",
+  "index_patterns": "{{ .IndexPrefix }}jaeger-ds-service",
   "data_stream": {},
   "template": {
     "settings": {
@@ -8,7 +8,7 @@
       "index.number_of_replicas": {{ .Replicas }},
       "index.mapping.nested_fields.limit": 50,
       "index.requests.cache.enable": true,
-      "index.default_pipeline": "jaeger-service-ds-timestamp",
+      "index.default_pipeline": "jaeger-ds-service-timestamp",
       "index.lifecycle.name": "{{ .ILMPolicyName }}"
     },
     "mappings": {

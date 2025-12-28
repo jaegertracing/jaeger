@@ -1019,6 +1019,59 @@ func (_c *IndexService_Add_Call) RunAndReturn(run func()) *IndexService_Add_Call
 	return _c
 }
 
+// OpType provides a mock function for the type IndexService
+func (_mock *IndexService) OpType(opType string) elasticsearch.IndexService {
+	ret := _mock.Called(opType)
+
+	if len(ret) == 0 {
+		panic("no return value specified for OpType")
+	}
+
+	var r0 elasticsearch.IndexService
+	if returnFunc, ok := ret.Get(0).(func(string) elasticsearch.IndexService); ok {
+		r0 = returnFunc(opType)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(elasticsearch.IndexService)
+		}
+	}
+	return r0
+}
+
+// IndexService_OpType_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'OpType'
+type IndexService_OpType_Call struct {
+	*mock.Call
+}
+
+// OpType is a helper method to define mock.On call
+//   - opType string
+func (_e *IndexService_Expecter) OpType(opType interface{}) *IndexService_OpType_Call {
+	return &IndexService_OpType_Call{Call: _e.mock.On("OpType", opType)}
+}
+
+func (_c *IndexService_OpType_Call) Run(run func(opType string)) *IndexService_OpType_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *IndexService_OpType_Call) Return(indexService elasticsearch.IndexService) *IndexService_OpType_Call {
+	_c.Call.Return(indexService)
+	return _c
+}
+
+func (_c *IndexService_OpType_Call) RunAndReturn(run func(opType string) elasticsearch.IndexService) *IndexService_OpType_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // BodyJson provides a mock function for the type IndexService
 func (_mock *IndexService) BodyJson(body any) elasticsearch.IndexService {
 	ret := _mock.Called(body)

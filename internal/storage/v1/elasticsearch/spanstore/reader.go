@@ -128,6 +128,7 @@ type SpanReaderParams struct {
 	ServiceReadAlias    string
 	Logger              *zap.Logger
 	Tracer              trace.Tracer
+	UseDataStream       bool
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
@@ -136,10 +137,18 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	serviceIndexPrefix := p.ServiceReadAlias
 
 	if spanIndexPrefix == "" {
-		spanIndexPrefix = p.IndexPrefix.Apply(spanIndexBaseName)
+		spanIndexBase := spanIndexBaseName
+		if p.UseDataStream {
+			spanIndexBase = "jaeger-ds-span"
+		}
+		spanIndexPrefix = p.IndexPrefix.Apply(spanIndexBase)
 	}
 	if serviceIndexPrefix == "" {
-		serviceIndexPrefix = p.IndexPrefix.Apply(serviceIndexBaseName)
+		serviceIndexBase := serviceIndexBaseName
+		if p.UseDataStream {
+			serviceIndexBase = "jaeger-ds-service"
+		}
+		serviceIndexPrefix = p.IndexPrefix.Apply(serviceIndexBase)
 	}
 
 	maxSpanAge := p.MaxSpanAge
@@ -149,19 +158,29 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	}
 
 	var timeRangeFn TimeRangeIndexFn
-	if p.SpanReadAlias != "" && p.ServiceReadAlias != "" {
+	switch {
+	case p.SpanReadAlias != "" && p.ServiceReadAlias != "":
 		// When using explicit aliases, return them directly without any date logic
 		timeRangeFn = func(indexPrefix string, _ string, _ time.Time, _ time.Time, _ time.Duration) []string {
 			return []string{indexPrefix}
 		}
-	} else {
+	case p.UseDataStream:
+		// When using Data Streams, return the Data Stream name and a wildcard for legacy indices to support migration.
+		// For example, it will return ["jaeger-ds-span", "jaeger-span-*"].
+		timeRangeFn = func(indexPrefix string, _ string, _ time.Time, _ time.Time, _ time.Duration) []string {
+			// indexPrefix is already prefixed with the Data Stream base name (e.g. "jaeger-ds-span")
+			// We want to replace "-ds-" with "-" to get the legacy pattern.
+			legacyPattern := strings.Replace(indexPrefix, "-ds-", "-", 1) + "*"
+			return []string{indexPrefix, legacyPattern}
+		}
+	default:
 		timeRangeFn = TimeRangeIndicesFn(p.UseReadWriteAliases, p.ReadAliasSuffix, p.RemoteReadClusters)
 	}
 
 	return &SpanReader{
 		client:                  p.Client,
 		maxSpanAge:              maxSpanAge,
-		serviceOperationStorage: NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics
+		serviceOperationStorage: NewServiceOperationStorage(p.Client, p.Logger, 0, p.UseDataStream), // the decorator takes care of metrics
 		spanIndexPrefix:         spanIndexPrefix,
 		serviceIndexPrefix:      serviceIndexPrefix,
 		spanIndex:               p.SpanIndex,
