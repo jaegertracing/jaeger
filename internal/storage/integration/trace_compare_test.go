@@ -4,27 +4,31 @@
 package integration
 
 import (
+	"fmt"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
+func verifyDedupeSpans(trace *model.Trace) error {
+	dedupeSpans(trace)
+
+	if len(trace.Spans) != 2 {
+		return fmt.Errorf("expected 2 spans after dedupe, got %d", len(trace.Spans))
+	}
+	return nil
+}
+
 func TestDedupeSpans(t *testing.T) {
 	trace := &model.Trace{
 		Spans: []*model.Span{
-			{
-				SpanID: 1,
-			},
-			{
-				SpanID: 1,
-			},
-			{
-				SpanID: 2,
-			},
+			{SpanID: 1},
+			{SpanID: 1},
+			{SpanID: 2},
 		},
 	}
-	dedupeSpans(trace)
-	assert.Len(t, trace.Spans, 2)
+
+	if err := verifyDedupeSpans(trace); err != nil {
+		t.Fatal(err)
+	}
 }

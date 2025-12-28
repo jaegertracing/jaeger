@@ -10,10 +10,14 @@ import (
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
-func TestMain(m *testing.M) {
-	if os.Getenv("STORAGE") == "elasticsearch" || os.Getenv("STORAGE") == "opensearch" {
+func runTestMain(m *testing.M, storage string) {
+	if storage == "elasticsearch" || storage == "opensearch" {
 		testutils.VerifyGoLeaksForES(m)
 	} else {
 		testutils.VerifyGoLeaks(m)
 	}
+}
+
+func TestMain(m *testing.M) {
+	runTestMain(m, os.Getenv("STORAGE"))
 }

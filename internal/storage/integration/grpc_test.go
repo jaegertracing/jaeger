@@ -26,8 +26,6 @@ type GRPCStorageIntegrationTestSuite struct {
 	t             *testing.T
 }
 
-// ─── Lifecycle helpers (logic-only) ───────────────────────────────────────────
-
 func (s *GRPCStorageIntegrationTestSuite) initialize() error {
 	s.remoteStorage = StartNewRemoteMemoryStorage(nil, ports.RemoteStorageGRPC)
 
@@ -68,16 +66,12 @@ func (s *GRPCStorageIntegrationTestSuite) close() error {
 	return nil
 }
 
-// cleanUp preserves the original semantics:
-// close everything, then re-initialize
 func (s *GRPCStorageIntegrationTestSuite) cleanUp() error {
 	if err := s.close(); err != nil {
 		return err
 	}
 	return s.initialize()
 }
-
-// ─── Test entry point ─────────────────────────────────────────────────────────
 
 func TestGRPCRemoteStorage(t *testing.T) {
 	SkipUnlessEnv(t, "grpc")
@@ -99,7 +93,6 @@ func TestGRPCRemoteStorage(t *testing.T) {
 		require.NoError(t, s.close())
 	})
 
-	// Adapt lifecycle cleanup to StorageIntegration expectations
 	s.CleanUp = func(t *testing.T) {
 		require.NoError(t, s.cleanUp())
 	}
