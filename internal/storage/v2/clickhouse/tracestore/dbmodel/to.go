@@ -108,7 +108,6 @@ func extractAttributes(attrs pcommon.Map) *Attributes {
 			out.Values = append(out.Values, string(b))
 			out.Types = append(out.Types, v.Type().String())
 		case pcommon.ValueTypeMap:
-			key := "@map@" + k
 			m := &xpdata.JSONMarshaler{}
 			b, err := m.MarshalValue(v)
 			if err != nil {
@@ -119,7 +118,7 @@ func extractAttributes(attrs pcommon.Map) *Attributes {
 				out.Types = append(out.Types, pcommon.ValueTypeStr.String())
 				break
 			}
-			out.Keys = append(out.Keys, key)
+			out.Keys = append(out.Keys, k)
 			out.Values = append(out.Values, string(b))
 			out.Types = append(out.Types, v.Type().String())
 		default:

@@ -288,37 +288,21 @@ func buildSearchQuery(baseQuery string, params tracestore.TraceQueryParams, limi
 	}
 
 	for key, attr := range params.Attributes.All() {
-		var attrType string
-		var val any
+		t := attr.Type()
+		var val string
 
-		switch attr.Type() {
-		case pcommon.ValueTypeBool:
-			attrType = "bool"
-			val = attr.Bool()
-		case pcommon.ValueTypeDouble:
-			attrType = "double"
-			val = attr.Double()
-		case pcommon.ValueTypeInt:
-			attrType = "int"
-			val = attr.Int()
-		case pcommon.ValueTypeStr:
-			attrType = "str"
-			val = attr.Str()
+		switch t {
+		case pcommon.ValueTypeBool, pcommon.ValueTypeDouble, pcommon.ValueTypeInt, pcommon.ValueTypeStr:
+			val = attr.AsString()
 		case pcommon.ValueTypeBytes:
-			attrType = "complex"
-			key = "@bytes@" + key
 			val = base64.StdEncoding.EncodeToString(attr.Bytes().AsRaw())
 		case pcommon.ValueTypeSlice:
-			attrType = "complex"
-			key = "@slice@" + key
 			b, err := marshalValueForQuery(attr)
 			if err != nil {
 				return "", nil, fmt.Errorf("failed to marshal slice attribute %q: %w", key, err)
 			}
 			val = b
 		case pcommon.ValueTypeMap:
-			attrType = "complex"
-			key = "@map@" + key
 			b, err := marshalValueForQuery(attr)
 			if err != nil {
 				return "", nil, fmt.Errorf("failed to marshal map attribute %q: %w", key, err)
@@ -329,9 +313,9 @@ func buildSearchQuery(baseQuery string, params tracestore.TraceQueryParams, limi
 		}
 
 		q.WriteString(" AND (")
-		q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s." + attrType + "_attributes.key, s." + attrType + "_attributes.value)")
+		q.WriteString("arrayExists((key, value, type) -> key = ? AND value = ? AND type = ?, s.attributes.key, s.attributes.value, s.attributes.type)")
 		q.WriteString(" OR ")
-		q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.resource_" + attrType + "_attributes.key, s.resource_" + attrType + "_attributes.value)")
+		q.WriteString("arrayExists((key, value, type) -> key = ? AND value = ? AND type = ?, s.resource_attributes.key, s.resource_attributes.value, s.resource_attributes.type)")
 		q.WriteString(")")
 		args = append(args, key, val, key, val)
 	}
