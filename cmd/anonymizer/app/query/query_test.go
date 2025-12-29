@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -21,13 +20,9 @@ import (
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	_ "github.com/jaegertracing/jaeger/internal/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 )
 
 var (
-	matchContext            = mock.AnythingOfType("*context.valueCtx")
-	matchGetTraceParameters = mock.AnythingOfType("spanstore.GetTraceParameters")
-
 	mockInvalidTraceID = "xyz"
 	mockTraceID        = model.NewTraceID(0, 123456)
 
@@ -60,33 +55,28 @@ var errUninitializedTraceID = status.Error(codes.InvalidArgument, "uninitialized
 // UnimplementedQueryServiceServer for other methods.
 type testGRPCHandler struct {
 	api_v2.UnimplementedQueryServiceServer
-	spanReader spanstore.Reader
+	returnTrace *model.Trace
+	returnError error
 }
 
-// GetTrace implements the gRPC GetTrace method by reading from the span reader.
-// This is a minimal implementation copied from cmd/query/app/grpc_handler.go
-// for the purpose of the anonymizer test.
+// GetTrace implements the gRPC GetTrace method by returning test data directly.
 func (g *testGRPCHandler) GetTrace(r *api_v2.GetTraceRequest, stream api_v2.QueryService_GetTraceServer) error {
 	if r.TraceID == (model.TraceID{}) {
 		return errUninitializedTraceID
 	}
-	query := spanstore.GetTraceParameters{
-		TraceID:   r.TraceID,
-		StartTime: r.StartTime,
-		EndTime:   r.EndTime,
+	if g.returnError != nil {
+		if errors.Is(g.returnError, spanstore.ErrTraceNotFound) {
+			return status.Errorf(codes.NotFound, "%s: %v", msgTraceNotFound, g.returnError)
+		}
+		return status.Errorf(codes.Internal, "failed to fetch spans from the backend: %v", g.returnError)
 	}
-	trace, err := g.spanReader.GetTrace(stream.Context(), query)
-	if errors.Is(err, spanstore.ErrTraceNotFound) {
-		return status.Errorf(codes.NotFound, "%s: %v", msgTraceNotFound, err)
+	if g.returnTrace == nil {
+		return status.Errorf(codes.NotFound, "%s", msgTraceNotFound)
 	}
-	if err != nil {
-		return status.Errorf(codes.Internal, "failed to fetch spans from the backend: %v", err)
-	}
-	return g.sendSpanChunks(trace.Spans, stream.Send)
+	return g.sendSpanChunks(g.returnTrace.Spans, stream.Send)
 }
 
 // sendSpanChunks sends spans in chunks to the client.
-// This is copied from cmd/query/app/grpc_handler.go for the purpose of the anonymizer test.
 func (g *testGRPCHandler) sendSpanChunks(spans []*model.Span, sendFn func(*api_v2.SpansResponseChunk) error) error {
 	chunk := make([]model.Span, 0, len(spans))
 	for i := 0; i < len(spans); i += maxSpanCountInChunk {
@@ -102,17 +92,13 @@ func (g *testGRPCHandler) sendSpanChunks(spans []*model.Span, sendFn func(*api_v
 }
 
 type testServer struct {
-	address    net.Addr
-	server     *grpc.Server
-	spanReader *spanstoremocks.Reader
+	address net.Addr
+	server  *grpc.Server
+	handler *testGRPCHandler
 }
 
 func newTestServer(t *testing.T) *testServer {
-	spanReader := &spanstoremocks.Reader{}
-
-	h := &testGRPCHandler{
-		spanReader: spanReader,
-	}
+	h := &testGRPCHandler{}
 
 	server := grpc.NewServer()
 	api_v2.RegisterQueryServiceServer(server, h)
@@ -135,9 +121,9 @@ func newTestServer(t *testing.T) *testServer {
 	})
 
 	return &testServer{
-		server:     server,
-		address:    lis.Addr(),
-		spanReader: spanReader,
+		server:  server,
+		address: lis.Addr(),
+		handler: h,
 	}
 }
 
@@ -160,13 +146,8 @@ func TestQueryTrace(t *testing.T) {
 	t.Run("No error", func(t *testing.T) {
 		startTime := time.Date(1970, time.January, 1, 0, 0, 0, 1000, time.UTC)
 		endTime := time.Date(1970, time.January, 1, 0, 0, 0, 2000, time.UTC)
-		expectedGetTraceParameters := spanstore.GetTraceParameters{
-			TraceID:   mockTraceID,
-			StartTime: startTime,
-			EndTime:   endTime,
-		}
-		s.spanReader.On("GetTrace", matchContext, expectedGetTraceParameters).Return(
-			mockTraceGRPC, nil).Once()
+		s.handler.returnTrace = mockTraceGRPC
+		s.handler.returnError = nil
 
 		spans, err := q.QueryTrace(mockTraceID.String(), startTime, endTime)
 		require.NoError(t, err)
@@ -179,8 +160,8 @@ func TestQueryTrace(t *testing.T) {
 	})
 
 	t.Run("Trace not found", func(t *testing.T) {
-		s.spanReader.On("GetTrace", matchContext, matchGetTraceParameters).Return(
-			nil, spanstore.ErrTraceNotFound).Once()
+		s.handler.returnTrace = nil
+		s.handler.returnError = spanstore.ErrTraceNotFound
 
 		spans, err := q.QueryTrace(mockTraceID.String(), time.Time{}, time.Time{})
 		assert.Nil(t, spans)
