@@ -85,6 +85,7 @@ require (
 	go.opentelemetry.io/collector/receiver v1.48.0
 	go.opentelemetry.io/collector/receiver/nopreceiver v0.142.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.142.0
+	go.opentelemetry.io/collector/semconv v0.128.1-0.20250610090210-188191247685
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.64.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.64.0
 	go.opentelemetry.io/contrib/samplers/jaegerremote v0.33.0
@@ -140,7 +141,6 @@ require (
 	github.com/xdg-go/scram v1.2.0 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	go.opentelemetry.io/collector/config/configopaque v1.48.0 // indirect
-	go.opentelemetry.io/collector/semconv v0.128.1-0.20250610090210-188191247685 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	golang.org/x/oauth2 v0.32.0 // indirect
 	golang.org/x/time v0.13.0 // indirect
@@ -238,7 +238,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.142.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil v0.142.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersignal v0.142.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils v0.142.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils v0.142.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/configkafka v0.142.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/topic v0.142.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.142.0 // indirect
