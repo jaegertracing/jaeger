@@ -4,6 +4,7 @@
 package query
 
 import (
+	"errors"
 	"net"
 	"sync"
 	"testing"
@@ -13,15 +14,14 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
-	"github.com/jaegertracing/jaeger/cmd/query/app"
-	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	_ "github.com/jaegertracing/jaeger/internal/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
-	dependencystoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
 
 var (
@@ -48,6 +48,59 @@ var (
 	}
 )
 
+const (
+	maxSpanCountInChunk = 10
+	msgTraceNotFound    = "trace not found"
+)
+
+var errUninitializedTraceID = status.Error(codes.InvalidArgument, "uninitialized TraceID is not allowed")
+
+// testGRPCHandler is a minimal implementation of api_v2.QueryServiceServer
+// for testing purposes. It only implements GetTrace, using the embedded
+// UnimplementedQueryServiceServer for other methods.
+type testGRPCHandler struct {
+	api_v2.UnimplementedQueryServiceServer
+	spanReader spanstore.Reader
+}
+
+// GetTrace implements the gRPC GetTrace method by reading from the span reader.
+// This is a minimal implementation copied from cmd/query/app/grpc_handler.go
+// for the purpose of the anonymizer test.
+func (g *testGRPCHandler) GetTrace(r *api_v2.GetTraceRequest, stream api_v2.QueryService_GetTraceServer) error {
+	if r.TraceID == (model.TraceID{}) {
+		return errUninitializedTraceID
+	}
+	query := spanstore.GetTraceParameters{
+		TraceID:   r.TraceID,
+		StartTime: r.StartTime,
+		EndTime:   r.EndTime,
+	}
+	trace, err := g.spanReader.GetTrace(stream.Context(), query)
+	if errors.Is(err, spanstore.ErrTraceNotFound) {
+		return status.Errorf(codes.NotFound, "%s: %v", msgTraceNotFound, err)
+	}
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to fetch spans from the backend: %v", err)
+	}
+	return g.sendSpanChunks(trace.Spans, stream.Send)
+}
+
+// sendSpanChunks sends spans in chunks to the client.
+// This is copied from cmd/query/app/grpc_handler.go for the purpose of the anonymizer test.
+func (g *testGRPCHandler) sendSpanChunks(spans []*model.Span, sendFn func(*api_v2.SpansResponseChunk) error) error {
+	chunk := make([]model.Span, 0, len(spans))
+	for i := 0; i < len(spans); i += maxSpanCountInChunk {
+		chunk = chunk[:0]
+		for j := i; j < len(spans) && j < i+maxSpanCountInChunk; j++ {
+			chunk = append(chunk, *spans[j])
+		}
+		if err := sendFn(&api_v2.SpansResponseChunk{Spans: chunk}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 type testServer struct {
 	address    net.Addr
 	server     *grpc.Server
@@ -56,14 +109,10 @@ type testServer struct {
 
 func newTestServer(t *testing.T) *testServer {
 	spanReader := &spanstoremocks.Reader{}
-	traceReader := v1adapter.NewTraceReader(spanReader)
 
-	q := querysvc.NewQueryService(
-		traceReader,
-		&dependencystoremocks.Reader{},
-		querysvc.QueryServiceOptions{},
-	)
-	h := app.NewGRPCHandler(q, app.GRPCHandlerOptions{})
+	h := &testGRPCHandler{
+		spanReader: spanReader,
+	}
 
 	server := grpc.NewServer()
 	api_v2.RegisterQueryServiceServer(server, h)
