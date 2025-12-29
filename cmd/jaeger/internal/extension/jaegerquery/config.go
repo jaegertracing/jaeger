@@ -35,7 +35,7 @@ type Config struct {
 	Storage Storage `mapstructure:"storage"`
 	// BasePath is the base path for all HTTP routes.
 	BasePath string `mapstructure:"base_path"`
-	// UIConfig contains configuration related to the Jaeger UIConfig.
+	// UIConfig contains configuration related to the Jaeger UI.
 	UIConfig UIConfig `mapstructure:"ui"`
 	// BearerTokenPropagation activate/deactivate bearer token propagation to storage.
 	BearerTokenPropagation bool `mapstructure:"bearer_token_propagation"`
