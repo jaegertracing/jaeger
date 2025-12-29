@@ -1,0 +1,119 @@
+CREATE MATERIALIZED VIEW IF NOT EXISTS attribute_metadata_mv TO attribute_metadata AS
+SELECT
+    attribute_key,
+    storage_type
+FROM
+    (
+        SELECT
+            arrayJoin(bool_attributes.key) AS attribute_key,
+            'bool' AS storage_type
+        FROM
+            spans
+        WHERE
+            length(bool_attributes.key) > 0
+        UNION ALL
+        SELECT
+            arrayJoin(double_attributes.key) AS attribute_key,
+            'double' AS storage_type
+        FROM
+            spans
+        WHERE
+            length(double_attributes.key) > 0
+        UNION ALL
+        SELECT
+            arrayJoin(int_attributes.key) AS attribute_key,
+            'int' AS storage_type
+        FROM
+            spans
+        WHERE
+            length(int_attributes.key) > 0
+        UNION ALL
+        SELECT
+            arrayJoin(str_attributes.key) AS attribute_key,
+            'str' AS storage_type
+        FROM
+            spans
+        WHERE
+            length(str_attributes.key) > 0
+        UNION ALL
+        SELECT
+            CASE
+                WHEN startsWith(key, '@bytes@') THEN substring(key, 8)
+                WHEN startsWith(key, '@map@') THEN substring(key, 6)
+                WHEN startsWith(key, '@slice@') THEN substring(key, 8)
+                ELSE key
+            END AS attribute_key,
+            CASE
+                WHEN startsWith(key, '@bytes@') THEN 'bytes'
+                WHEN startsWith(key, '@map@') THEN 'map'
+                WHEN startsWith(key, '@slice@') THEN 'slice'
+                ELSE ''
+            END AS storage_type
+        FROM
+            (
+                SELECT
+                    arrayJoin(complex_attributes.key) AS key
+                FROM
+                    spans
+                WHERE
+                    length(complex_attributes.key) > 0
+            )
+        UNION ALL
+        SELECT
+            arrayJoin(resource_bool_attributes.key) AS attribute_key,
+            'bool' AS storage_type
+        FROM
+            spans
+        WHERE
+            length(resource_bool_attributes.key) > 0
+        UNION ALL
+        SELECT
+            arrayJoin(resource_double_attributes.key) AS attribute_key,
+            'double' AS storage_type
+        FROM
+            spans
+        WHERE
+            length(resource_double_attributes.key) > 0
+        UNION ALL
+        SELECT
+            arrayJoin(resource_int_attributes.key) AS attribute_key,
+            'int' AS storage_type
+        FROM
+            spans
+        WHERE
+            length(resource_int_attributes.key) > 0
+        UNION ALL
+        SELECT
+            arrayJoin(resource_str_attributes.key) AS attribute_key,
+            'str' AS storage_type
+        FROM
+            spans
+        WHERE
+            length(resource_str_attributes.key) > 0
+        UNION ALL
+        SELECT
+            CASE
+                WHEN startsWith(key, '@bytes@') THEN substring(key, 8)
+                WHEN startsWith(key, '@map@') THEN substring(key, 6)
+                WHEN startsWith(key, '@slice@') THEN substring(key, 8)
+                ELSE key
+            END AS attribute_key,
+            CASE
+                WHEN startsWith(key, '@bytes@') THEN 'bytes'
+                WHEN startsWith(key, '@map@') THEN 'map'
+                WHEN startsWith(key, '@slice@') THEN 'slice'
+                ELSE ''
+            END AS storage_type
+        FROM
+            (
+                SELECT
+                    arrayJoin(resource_complex_attributes.key) AS key
+                FROM
+                    spans
+                WHERE
+                    length(resource_complex_attributes.key) > 0
+            )
+    )
+GROUP BY
+    attribute_key,
+    storage_type;
