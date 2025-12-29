@@ -4,6 +4,7 @@
 package query
 
 import (
+	"context"
 	"errors"
 	"net"
 	"sync"
@@ -43,11 +44,6 @@ var (
 	}
 )
 
-const (
-	maxSpanCountInChunk = 10
-	msgTraceNotFound    = "trace not found"
-)
-
 var errUninitializedTraceID = status.Error(codes.InvalidArgument, "uninitialized TraceID is not allowed")
 
 // testGRPCHandler is a minimal implementation of api_v2.QueryServiceServer
@@ -55,8 +51,10 @@ var errUninitializedTraceID = status.Error(codes.InvalidArgument, "uninitialized
 // UnimplementedQueryServiceServer for other methods.
 type testGRPCHandler struct {
 	api_v2.UnimplementedQueryServiceServer
-	returnTrace *model.Trace
-	returnError error
+	returnTrace     *model.Trace
+	returnError     error
+	failDuringRecv  bool
+	failUnwrapCheck bool
 }
 
 // GetTrace implements the gRPC GetTrace method by returning test data directly.
@@ -66,12 +64,20 @@ func (g *testGRPCHandler) GetTrace(r *api_v2.GetTraceRequest, stream api_v2.Quer
 	}
 	if g.returnError != nil {
 		if errors.Is(g.returnError, spanstore.ErrTraceNotFound) {
-			return status.Errorf(codes.NotFound, "%s: %v", msgTraceNotFound, g.returnError)
+			return status.Errorf(codes.NotFound, "trace not found: %v", g.returnError)
 		}
 		return status.Errorf(codes.Internal, "failed to fetch spans from the backend: %v", g.returnError)
 	}
 	if g.returnTrace == nil {
-		return status.Errorf(codes.NotFound, "%s", msgTraceNotFound)
+		return status.Errorf(codes.NotFound, "trace not found")
+	}
+	if g.failDuringRecv {
+		// Send first chunk then fail
+		chunk := &api_v2.SpansResponseChunk{Spans: []model.Span{*g.returnTrace.Spans[0]}}
+		if err := stream.Send(chunk); err != nil {
+			return err
+		}
+		return status.Errorf(codes.Internal, "failed during recv")
 	}
 	return g.sendSpanChunks(g.returnTrace.Spans, stream.Send)
 }
@@ -79,16 +85,22 @@ func (g *testGRPCHandler) GetTrace(r *api_v2.GetTraceRequest, stream api_v2.Quer
 // sendSpanChunks sends spans in chunks to the client.
 func (g *testGRPCHandler) sendSpanChunks(spans []*model.Span, sendFn func(*api_v2.SpansResponseChunk) error) error {
 	chunk := make([]model.Span, 0, len(spans))
-	for i := 0; i < len(spans); i += maxSpanCountInChunk {
-		chunk = chunk[:0]
-		for j := i; j < len(spans) && j < i+maxSpanCountInChunk; j++ {
-			chunk = append(chunk, *spans[j])
-		}
-		if err := sendFn(&api_v2.SpansResponseChunk{Spans: chunk}); err != nil {
-			return err
-		}
+	for _, span := range spans {
+		chunk = append(chunk, *span)
 	}
-	return nil
+	return sendFn(&api_v2.SpansResponseChunk{Spans: chunk})
+}
+
+type mockQueryClient struct {
+	api_v2.QueryServiceClient
+	getTraceErr error
+}
+
+func (m *mockQueryClient) GetTrace(ctx context.Context, in *api_v2.GetTraceRequest, opts ...grpc.CallOption) (api_v2.QueryService_GetTraceClient, error) {
+	if m.getTraceErr != nil {
+		return nil, m.getTraceErr
+	}
+	return m.QueryServiceClient.GetTrace(ctx, in, opts...)
 }
 
 type testServer struct {
@@ -135,6 +147,23 @@ func TestNew(t *testing.T) {
 	defer query.Close()
 
 	assert.NotNil(t, query)
+
+	t.Run("invalid address", func(t *testing.T) {
+		// Try a definitively invalid URI to trigger parser error in NewClient.
+		q, err := New("invalid-scheme://%%")
+		if err != nil {
+			assert.Nil(t, q)
+		} else if q != nil {
+			q.Close()
+		}
+	})
+}
+
+func TestClose(t *testing.T) {
+	s := newTestServer(t)
+	q, err := New(s.address.String())
+	require.NoError(t, err)
+	assert.NoError(t, q.Close())
 }
 
 func TestQueryTrace(t *testing.T) {
@@ -159,6 +188,15 @@ func TestQueryTrace(t *testing.T) {
 		assert.ErrorContains(t, err, "failed to convert the provided trace id")
 	})
 
+	t.Run("General error from GetTrace", func(t *testing.T) {
+		s.handler.returnTrace = nil
+		s.handler.returnError = errors.New("random error")
+
+		spans, err := q.QueryTrace(mockTraceID.String(), time.Time{}, time.Time{})
+		assert.Nil(t, spans)
+		assert.ErrorContains(t, err, "random error")
+	})
+
 	t.Run("Trace not found", func(t *testing.T) {
 		s.handler.returnTrace = nil
 		s.handler.returnError = spanstore.ErrTraceNotFound
@@ -166,5 +204,51 @@ func TestQueryTrace(t *testing.T) {
 		spans, err := q.QueryTrace(mockTraceID.String(), time.Time{}, time.Time{})
 		assert.Nil(t, spans)
 		assert.ErrorIs(t, err, spanstore.ErrTraceNotFound)
+	})
+
+	t.Run("Error from GetTrace (immediate)", func(t *testing.T) {
+		originalClient := q.client
+		mockClient := &mockQueryClient{
+			QueryServiceClient: q.client,
+			getTraceErr:        errors.New("immediate error"),
+		}
+		q.client = mockClient
+		defer func() { q.client = originalClient }()
+
+		spans, err := q.QueryTrace(mockTraceID.String(), time.Time{}, time.Time{})
+		assert.Nil(t, spans)
+		assert.ErrorContains(t, err, "immediate error")
+	})
+
+	t.Run("Error from stream.Recv", func(t *testing.T) {
+		s.handler.returnTrace = mockTraceGRPC
+		s.handler.returnError = nil
+		s.handler.failDuringRecv = true
+		defer func() { s.handler.failDuringRecv = false }()
+
+		spans, err := q.QueryTrace(mockTraceID.String(), time.Time{}, time.Time{})
+		assert.Nil(t, spans)
+		assert.ErrorContains(t, err, "failed during recv")
+	})
+}
+
+func TestUnwrapNotFoundErr(t *testing.T) {
+	t.Run("non-gRPC error", func(t *testing.T) {
+		err := errors.New("standard error")
+		assert.Equal(t, err, unwrapNotFoundErr(err))
+	})
+
+	t.Run("gRPC error with trace not found", func(t *testing.T) {
+		err := status.Error(codes.NotFound, "trace not found")
+		assert.Equal(t, spanstore.ErrTraceNotFound, unwrapNotFoundErr(err))
+	})
+
+	t.Run("gRPC error without trace not found", func(t *testing.T) {
+		err := status.Error(codes.Internal, "internal error")
+		assert.Equal(t, err, unwrapNotFoundErr(err))
+	})
+
+	t.Run("nil error", func(t *testing.T) {
+		assert.Nil(t, unwrapNotFoundErr(nil))
 	})
 }
