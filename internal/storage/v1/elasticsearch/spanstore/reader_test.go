@@ -101,6 +101,7 @@ func tracerProvider(t *testing.T) (trace.TracerProvider, *tracetest.InMemoryExpo
 
 func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 	client := &mocks.Client{}
+	client.On("GetVersion").Return(uint(7))
 	tracer, exp, closer := tracerProvider(t)
 	defer closer()
 	logger, logBuffer := testutils.NewLogger()
@@ -123,6 +124,7 @@ func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 
 func withArchiveSpanReader(t *testing.T, readAlias bool, readAliasSuffix string, fn func(r *spanReaderTest)) {
 	client := &mocks.Client{}
+	client.On("GetVersion").Return(uint(7))
 	tracer, exp, closer := tracerProvider(t)
 	defer closer()
 	logger, logBuffer := testutils.NewLogger()
@@ -178,8 +180,13 @@ func TestNewSpanReader(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			client := &mocks.Client{}
+			client.On("GetVersion").Return(uint(7))
+
 			params := test.params
+			params.Client = func() es.Client { return client }
 			params.Logger = zaptest.NewLogger(t)
+
 			reader := NewSpanReader(params)
 			require.NotNil(t, reader)
 			assert.Equal(t, test.maxSpanAge, reader.maxSpanAge)
@@ -188,8 +195,6 @@ func TestNewSpanReader(t *testing.T) {
 }
 
 func TestSpanReaderIndices(t *testing.T) {
-	client := &mocks.Client{}
-	clientFn := func() es.Client { return client }
 	date := time.Date(2019, 10, 10, 5, 0, 0, 0, time.UTC)
 
 	spanDataLayout := "2006-01-02-15"
@@ -205,27 +210,31 @@ func TestSpanReaderIndices(t *testing.T) {
 	serviceIndexOpts := config.IndexOptions{DateLayout: serviceDataLayout}
 
 	testCases := []struct {
-		indices []string
-		params  SpanReaderParams
+		indices   []string
+		params    SpanReaderParams
+		esVersion uint
 	}{
 		{
 			params: SpanReaderParams{
 				SpanIndex:    spanIndexOpts,
 				ServiceIndex: serviceIndexOpts,
 			},
-			indices: []string{spanIndexBaseName + spanDataLayoutFormat, serviceIndexBaseName + serviceDataLayoutFormat},
+			indices:   []string{spanIndexBaseName + spanDataLayoutFormat, serviceIndexBaseName + serviceDataLayoutFormat},
+			esVersion: 7,
 		},
 		{
 			params: SpanReaderParams{
 				UseReadWriteAliases: true,
 			},
-			indices: []string{spanIndexBaseName + "read", serviceIndexBaseName + "read"},
+			indices:   []string{spanIndexBaseName + "read", serviceIndexBaseName + "read"},
+			esVersion: 7,
 		},
 		{
 			params: SpanReaderParams{
 				ReadAliasSuffix: "archive", // ignored because ReadWriteAliases is false
 			},
-			indices: []string{spanIndexBaseName, serviceIndexBaseName},
+			indices:   []string{spanIndexBaseName, serviceIndexBaseName},
+			esVersion: 7,
 		},
 		{
 			params: SpanReaderParams{
@@ -233,26 +242,30 @@ func TestSpanReaderIndices(t *testing.T) {
 				ServiceIndex: serviceIndexOpts,
 				IndexPrefix:  "foo:",
 			},
-			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + spanDataLayoutFormat, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + serviceDataLayoutFormat},
+			indices:   []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + spanDataLayoutFormat, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + serviceDataLayoutFormat},
+			esVersion: 7,
 		},
 		{
 			params: SpanReaderParams{
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", UseReadWriteAliases: true,
 			},
-			indices: []string{"foo:-" + spanIndexBaseName + "read", "foo:-" + serviceIndexBaseName + "read"},
+			indices:   []string{"foo:-" + spanIndexBaseName + "read", "foo:-" + serviceIndexBaseName + "read"},
+			esVersion: 7,
 		},
 		{
 			params: SpanReaderParams{
 				ReadAliasSuffix:     "archive",
 				UseReadWriteAliases: true,
 			},
-			indices: []string{spanIndexBaseName + "archive", serviceIndexBaseName + "archive"},
+			indices:   []string{spanIndexBaseName + "archive", serviceIndexBaseName + "archive"},
+			esVersion: 7,
 		},
 		{
 			params: SpanReaderParams{
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", UseReadWriteAliases: true, ReadAliasSuffix: "archive",
 			},
-			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + "archive", "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + "archive"},
+			indices:   []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + "archive", "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + "archive"},
+			esVersion: 7,
 		},
 		{
 			params: SpanReaderParams{
@@ -261,7 +274,8 @@ func TestSpanReaderIndices(t *testing.T) {
 				SpanReadAlias:    "custom-span-read-alias",
 				ServiceReadAlias: "custom-service-read-alias",
 			},
-			indices: []string{"custom-span-read-alias", "custom-service-read-alias"},
+			indices:   []string{"custom-span-read-alias", "custom-service-read-alias"},
+			esVersion: 7,
 		},
 		{
 			params: SpanReaderParams{
@@ -272,7 +286,8 @@ func TestSpanReaderIndices(t *testing.T) {
 				SpanReadAlias:       "production-traces-read",
 				ServiceReadAlias:    "production-services-read",
 			},
-			indices: []string{"production-traces-read", "production-services-read"},
+			indices:   []string{"production-traces-read", "production-services-read"},
+			esVersion: 7,
 		},
 		{
 			params: SpanReaderParams{
@@ -288,6 +303,7 @@ func TestSpanReaderIndices(t *testing.T) {
 				"cluster_one:" + serviceIndexBaseName + serviceDataLayoutFormat,
 				"cluster_two:" + serviceIndexBaseName + serviceDataLayoutFormat,
 			},
+			esVersion: 7,
 		},
 		{
 			params: SpanReaderParams{
@@ -301,6 +317,7 @@ func TestSpanReaderIndices(t *testing.T) {
 				"cluster_one:" + serviceIndexBaseName + "archive",
 				"cluster_two:" + serviceIndexBaseName + "archive",
 			},
+			esVersion: 7,
 		},
 		{
 			params: SpanReaderParams{
@@ -314,23 +331,25 @@ func TestSpanReaderIndices(t *testing.T) {
 				"cluster_one:" + serviceIndexBaseName + "read",
 				"cluster_two:" + serviceIndexBaseName + "read",
 			},
+			esVersion: 7,
+		},
+		{
+			params:    SpanReaderParams{},
+			indices:   []string{"jaeger-ds-span", "jaeger-span*", "jaeger-ds-service", "jaeger-service*"},
+			esVersion: 8,
 		},
 		{
 			params: SpanReaderParams{
-				UseDataStream: true,
+				IndexPrefix: "foo:",
 			},
-			indices: []string{"jaeger-ds-span", "jaeger-span*", "jaeger-ds-service", "jaeger-service*"},
-		},
-		{
-			params: SpanReaderParams{
-				IndexPrefix:   "foo:",
-				UseDataStream: true,
-			},
-			indices: []string{"foo:-jaeger-ds-span", "foo:-jaeger-span*", "foo:-jaeger-ds-service", "foo:-jaeger-service*"},
+			indices:   []string{"foo:-jaeger-ds-span", "foo:-jaeger-span*", "foo:-jaeger-ds-service", "foo:-jaeger-service*"},
+			esVersion: 8,
 		},
 	}
 	for _, testCase := range testCases {
-		testCase.params.Client = clientFn
+		client := &mocks.Client{}
+		client.On("GetVersion").Return(testCase.esVersion)
+		testCase.params.Client = func() es.Client { return client }
 		testCase.params.Logger = logger
 		testCase.params.Tracer = tracer.Tracer("test")
 		r := NewSpanReader(testCase.params)
@@ -1401,7 +1420,10 @@ func TestTagsMap(t *testing.T) {
 		{fieldTags: map[string]any{"binary:binary": []byte("foo")}, expected: dbmodel.KeyValue{Key: "binary.binary", Value: []byte("foo"), Type: dbmodel.BinaryType}},
 		{fieldTags: map[string]any{"unsupported": struct{}{}}, expected: dbmodel.KeyValue{Key: "unsupported", Value: fmt.Sprintf("invalid tag type in %+v", struct{}{}), Type: dbmodel.StringType}},
 	}
+	client := &mocks.Client{}
+	client.On("GetVersion").Return(uint(7))
 	reader := NewSpanReader(SpanReaderParams{
+		Client:            func() es.Client { return client },
 		TagDotReplacement: ":",
 		Logger:            zap.NewNop(),
 	})

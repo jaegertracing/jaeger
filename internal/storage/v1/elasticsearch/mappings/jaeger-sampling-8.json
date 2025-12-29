@@ -1,6 +1,7 @@
 {
   "priority": {{ .Priority }},
-  "index_patterns": "{{ .IndexPrefix }}jaeger-sampling-*",
+  "index_patterns": "{{ .IndexPrefix }}jaeger-sampling",
+  "data_stream": {},
   "template": {
     {{- if .UseILM }}
     "aliases": {
@@ -11,7 +12,7 @@
       "index.number_of_shards": {{ .Shards }},
       "index.number_of_replicas": {{ .Replicas }},
       "index.mapping.nested_fields.limit": 50,
-      "index.requests.cache.enable": false
+      "index.requests.cache.enable": true
       {{- if .UseILM }},
       "lifecycle": {
         "name": "{{ .ILMPolicyName }}",

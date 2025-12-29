@@ -38,7 +38,6 @@ type SpanWriter struct {
 	allTagsAsFields   bool
 	tagDotReplacement string
 	tagKeysAsFields   map[string]bool
-	useDataStream     bool
 }
 
 // CoreSpanWriter is a DB-Level abstraction which directly deals with database level operations
@@ -65,7 +64,6 @@ type SpanWriterParams struct {
 	SpanWriteAlias      string
 	ServiceWriteAlias   string
 	ServiceCacheTTL     time.Duration
-	UseDataStream       bool
 }
 
 // NewSpanWriter creates a new SpanWriter for use
@@ -89,24 +87,34 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		tags[k] = true
 	}
 
-	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheTTL, p.UseDataStream)
+	// We can't check the version here because the client might not be ready.
+	// However, SpanWriter is lazy, so we can check it when we need it?
+	// Actually, NewSpanWriter is not lazy about creating ServiceOperationStorage.
+	// But p.Client is a factory function.
+	// Let's assume we can get a client instance here to check version?
+	// p.Client() creates a NEW client or returns existing?
+	// Looking at factory.go: f.getClient returns the stored client.
+
+	client := p.Client()
+	useDataStream := client.GetVersion() >= 8
+
+	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheTTL)
 	return &SpanWriter{
 		client:            p.Client,
 		logger:            p.Logger,
 		writerMetrics:     spanstoremetrics.NewWriter(p.MetricsFactory, "spans"),
 		serviceWriter:     serviceOperationStorage.Write,
-		spanServiceIndex:  getSpanAndServiceIndexFn(p, writeAliasSuffix),
+		spanServiceIndex:  getSpanAndServiceIndexFn(p, writeAliasSuffix, useDataStream),
 		tagKeysAsFields:   tags,
 		allTagsAsFields:   p.AllTagsAsFields,
 		tagDotReplacement: p.TagDotReplacement,
-		useDataStream:     p.UseDataStream,
 	}
 }
 
 // spanAndServiceIndexFn returns names of span and service indices
 type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
 
-func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServiceIndexFn {
+func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string, useDataStream bool) spanAndServiceIndexFn {
 	// If explicit write aliases are provided, use them directly without modification
 	if p.SpanWriteAlias != "" && p.ServiceWriteAlias != "" {
 		return func(_ time.Time) (string, string) {
@@ -117,7 +125,7 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServ
 	// Otherwise, use the standard prefix + suffix approach
 	spanIndexBase := spanIndexBaseName
 	serviceIndexBase := serviceIndexBaseName
-	if p.UseDataStream {
+	if useDataStream {
 		spanIndexBase = "jaeger-ds-span"
 		serviceIndexBase = "jaeger-ds-service"
 	}
@@ -131,7 +139,7 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServ
 		}
 	}
 
-	if p.UseDataStream {
+	if useDataStream {
 		return func(_ time.Time) (string, string) {
 			return spanIndexPrefix, serviceIndexPrefix
 		}
@@ -182,10 +190,11 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
 
 func (s *SpanWriter) writeSpan(indexName string, jsonSpan *dbmodel.Span) {
 	il := s.client().Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan)
-	if s.useDataStream {
-		il.OpType("create")
+	opType := ""
+	if s.client().GetVersion() >= 8 {
+		opType = "create"
 	}
-	il.Add()
+	il.Add(opType)
 }
 
 func (s *SpanWriter) splitElevatedTags(keyValues []dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any) {
