@@ -5,6 +5,7 @@
 package spanstore
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -207,6 +208,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 		serviceIndexExists bool
 		expectedError      string
 		expectedLogs       []string
+		esVersion          uint
 	}{
 		{
 			caption:            "span insertion error",
@@ -214,11 +216,24 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 			expectedError:      "",
 			expectedLogs:       []string{"Wrote span to ES index"},
 		},
+		{
+			caption:            "ES 8 span insertion",
+			serviceIndexExists: false,
+			expectedError:      "",
+			expectedLogs:       []string{"Wrote span to ES index"},
+			esVersion:          8,
+		},
 	}
 	for _, tc := range testCases {
 		testCase := tc
 		t.Run(testCase.caption, func(t *testing.T) {
 			withSpanWriter(func(w *spanWriterTest) {
+				esVersion := uint(7)
+				if testCase.esVersion != 0 {
+					esVersion = testCase.esVersion
+				}
+				w.client.On("GetVersion").Return(esVersion)
+
 				date, err := time.Parse(time.RFC3339, "1995-04-21T22:08:41+00:00")
 				require.NoError(t, err)
 
@@ -248,11 +263,11 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 
 				indexServicePut.On("Id", stringMatcher(serviceHash)).Return(indexServicePut)
 				indexServicePut.On("BodyJson", mock.AnythingOfType("dbmodel.Service")).Return(indexServicePut)
-				indexServicePut.On("Add")
+				indexServicePut.On("Add", mock.Anything)
 
 				indexSpanPut.On("Id", mock.AnythingOfType("string")).Return(indexSpanPut)
 				indexSpanPut.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexSpanPut)
-				indexSpanPut.On("Add")
+				indexSpanPut.On("Add", mock.Anything)
 
 				w.client.On("Index").Return(indexService)
 
@@ -289,23 +304,36 @@ func TestSpanIndexName(t *testing.T) {
 }
 
 func TestWriteSpanInternal(t *testing.T) {
-	withSpanWriter(func(w *spanWriterTest) {
-		indexService := &mocks.IndexService{}
+	testCases := []struct {
+		caption   string
+		esVersion uint
+	}{
+		{caption: "ES 7 version", esVersion: 7},
+		{caption: "ES 8 version", esVersion: 8},
+	}
+	for _, tc := range testCases {
+		testCase := tc
+		t.Run(testCase.caption, func(t *testing.T) {
+			withSpanWriter(func(w *spanWriterTest) {
+				w.client.On("GetVersion").Return(testCase.esVersion)
+				indexService := &mocks.IndexService{}
 
-		indexName := "jaeger-1995-04-21"
-		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
-		indexService.On("Type", stringMatcher(spanType)).Return(indexService)
-		indexService.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexService)
-		indexService.On("Add")
+				indexName := "jaeger-1995-04-21"
+				indexService.On("Index", stringMatcher(indexName)).Return(indexService)
+				indexService.On("Type", stringMatcher(spanType)).Return(indexService)
+				indexService.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexService)
+				indexService.On("Add", mock.Anything)
 
-		w.client.On("Index").Return(indexService)
+				w.client.On("Index").Return(indexService)
 
-		jsonSpan := &dbmodel.Span{}
+				jsonSpan := &dbmodel.Span{}
 
-		w.writer.writeSpan(indexName, jsonSpan)
-		indexService.AssertNumberOfCalls(t, "Add", 1)
-		assert.Empty(t, w.logBuffer.String())
-	})
+				w.writer.writeSpan(indexName, jsonSpan)
+				indexService.AssertNumberOfCalls(t, "Add", 1)
+				assert.Empty(t, w.logBuffer.String())
+			})
+		})
+	}
 }
 
 func TestWriteSpanInternalError(t *testing.T) {
@@ -316,7 +344,7 @@ func TestWriteSpanInternalError(t *testing.T) {
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(spanType)).Return(indexService)
 		indexService.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexService)
-		indexService.On("Add")
+		indexService.On("Add", mock.Anything)
 
 		w.client.On("Index").Return(indexService)
 
@@ -376,7 +404,7 @@ func TestSpanWriterParamsTTL(t *testing.T) {
 			indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
 			indexService.On("Id", stringMatcher(serviceHash)).Return(indexService)
 			indexService.On("BodyJson", mock.AnythingOfType("dbmodel.Service")).Return(indexService)
-			indexService.On("Add")
+			indexService.On("Add", mock.Anything)
 
 			client.On("Index").Return(indexService)
 
@@ -509,6 +537,39 @@ func TestNewSpanTags(t *testing.T) {
 			assert.Equal(t, test.expected.Process.Tags, mSpan.Process.Tags)
 		})
 	}
+}
+
+func TestNewSpanWriterV1(t *testing.T) {
+	client := &mocks.Client{}
+	client.On("GetVersion").Return(uint(7))
+	params := SpanWriterParams{
+		Client:         func() es.Client { return client },
+		Logger:         zap.NewNop(),
+		MetricsFactory: metricstest.NewFactory(0),
+	}
+	w := NewSpanWriterV1(params)
+	assert.NotNil(t, w)
+
+	span := &model.Span{
+		TraceID: model.NewTraceID(1, 2),
+		SpanID:  model.NewSpanID(3),
+		Process: &model.Process{ServiceName: "foo"},
+	}
+
+	indexService := &mocks.IndexService{}
+	indexService.On("Index", mock.MatchedBy(func(_ string) bool { return true })).Return(indexService)
+	indexService.On("Type", mock.MatchedBy(func(_ string) bool { return true })).Return(indexService)
+	indexService.On("Id", mock.MatchedBy(func(_ string) bool { return true })).Return(indexService)
+	indexService.On("BodyJson", mock.Anything).Return(indexService)
+	indexService.On("Add", mock.Anything)
+	client.On("Index").Return(indexService)
+
+	err := w.WriteSpan(context.Background(), span)
+	require.NoError(t, err)
+
+	client.On("Close").Return(nil)
+	err = w.Close()
+	require.NoError(t, err)
 }
 
 // stringMatcher can match a string argument when it contains a specific substring q

@@ -1,6 +1,6 @@
 {
   "priority": {{ .Priority }},
-  "index_patterns": "{{ .IndexPrefix }}jaeger-sampling",
+  "index_patterns": ["{{ .IndexPrefix }}jaeger-sampling*", "{{ .IndexPrefix }}jaeger-ds-sampling*"],
   "data_stream": {},
   "template": {
     {{- if .UseILM }}
