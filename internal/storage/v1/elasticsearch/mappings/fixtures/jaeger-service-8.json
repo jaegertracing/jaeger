@@ -1,6 +1,7 @@
 {
   "priority": 501,
-  "index_patterns": "test-jaeger-service-*",
+  "index_patterns": "test-jaeger-service",
+  "data_stream": {},
   "template": {
     "aliases": {
       "test-jaeger-service-read": {}
@@ -10,6 +11,7 @@
       "index.number_of_replicas": 3,
       "index.mapping.nested_fields.limit": 50,
       "index.requests.cache.enable": true,
+      "index.default_pipeline": "jaeger-ds-service-timestamp",
       "lifecycle": {
         "name": "jaeger-test-policy",
         "rollover_alias": "test-jaeger-service-write"
@@ -37,6 +39,10 @@
         }
       ],
       "properties": {
+        "@timestamp": {
+          "type": "date",
+          "format": "epoch_millis"
+        },
         "serviceName": {
           "type": "keyword",
           "ignore_above": 256

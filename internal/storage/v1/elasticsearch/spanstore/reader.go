@@ -79,7 +79,8 @@ var (
 
 	_ CoreSpanReader = (*SpanReader)(nil) // check API conformance
 
-	disableLegacyIDs *featuregate.Gate
+	disableLegacyIDs  *featuregate.Gate
+	readLegacyIndices *featuregate.Gate
 )
 
 func init() {
@@ -90,6 +91,13 @@ func init() {
 		featuregate.WithRegisterToVersion("v2.8.0"),
 		featuregate.WithRegisterDescription("Legacy trace ids are the ids that used to be rendered with leading 0s omitted. Setting this gate to false will force the reader to search for the spans with trace ids having leading zeroes"),
 		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/1578"))
+
+	readLegacyIndices = featuregate.GlobalRegistry().MustRegister(
+		"jaeger.es.readLegacyWithDataStream",
+		featuregate.StageBeta,
+		featuregate.WithRegisterFromVersion("v2.6.0"),
+		featuregate.WithRegisterDescription("When enabled, the Elasticsearch reader will query both data streams and legacy indices for migration."),
+		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/pull/7768"))
 }
 
 // SpanReader can query for and load traces from ElasticSearch
@@ -128,7 +136,6 @@ type SpanReaderParams struct {
 	ServiceReadAlias    string
 	Logger              *zap.Logger
 	Tracer              trace.Tracer
-	UseDataStream       bool
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
@@ -136,16 +143,19 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	spanIndexPrefix := p.SpanReadAlias
 	serviceIndexPrefix := p.ServiceReadAlias
 
+	client := p.Client()
+	useDataStream := client.GetVersion() >= 8
+
 	if spanIndexPrefix == "" {
 		spanIndexBase := spanIndexBaseName
-		if p.UseDataStream {
+		if useDataStream {
 			spanIndexBase = "jaeger-ds-span"
 		}
 		spanIndexPrefix = p.IndexPrefix.Apply(spanIndexBase)
 	}
 	if serviceIndexPrefix == "" {
 		serviceIndexBase := serviceIndexBaseName
-		if p.UseDataStream {
+		if useDataStream {
 			serviceIndexBase = "jaeger-ds-service"
 		}
 		serviceIndexPrefix = p.IndexPrefix.Apply(serviceIndexBase)
@@ -164,14 +174,18 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		timeRangeFn = func(indexPrefix string, _ string, _ time.Time, _ time.Time, _ time.Duration) []string {
 			return []string{indexPrefix}
 		}
-	case p.UseDataStream:
+	case useDataStream:
 		// When using Data Streams, return the Data Stream name and a wildcard for legacy indices to support migration.
 		// For example, it will return ["jaeger-ds-span", "jaeger-span-*"].
 		timeRangeFn = func(indexPrefix string, _ string, _ time.Time, _ time.Time, _ time.Duration) []string {
-			// indexPrefix is already prefixed with the Data Stream base name (e.g. "jaeger-ds-span")
-			// We want to replace "-ds-" with "-" to get the legacy pattern.
-			legacyPattern := strings.Replace(indexPrefix, "-ds-", "-", 1) + "*"
-			return []string{indexPrefix, legacyPattern}
+			indices := []string{indexPrefix}
+			if readLegacyIndices.IsEnabled() {
+				// indexPrefix is already prefixed with the Data Stream base name (e.g. "jaeger-ds-span")
+				// We want to replace "-ds-" with "-" to get the legacy pattern.
+				legacyPattern := strings.Replace(indexPrefix, "-ds-", "-", 1) + "*"
+				indices = append(indices, legacyPattern)
+			}
+			return indices
 		}
 	default:
 		timeRangeFn = TimeRangeIndicesFn(p.UseReadWriteAliases, p.ReadAliasSuffix, p.RemoteReadClusters)
@@ -180,7 +194,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	return &SpanReader{
 		client:                  p.Client,
 		maxSpanAge:              maxSpanAge,
-		serviceOperationStorage: NewServiceOperationStorage(p.Client, p.Logger, 0, p.UseDataStream), // the decorator takes care of metrics
+		serviceOperationStorage: NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics
 		spanIndexPrefix:         spanIndexPrefix,
 		serviceIndexPrefix:      serviceIndexPrefix,
 		spanIndex:               p.SpanIndex,

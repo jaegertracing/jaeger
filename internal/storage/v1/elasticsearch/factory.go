@@ -121,7 +121,6 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 		ServiceReadAlias:    f.config.ServiceReadAlias,
 		Logger:              f.logger,
 		Tracer:              f.tracer.Tracer("esspanstore.SpanReader"),
-		UseDataStream:       f.config.UseDataStream,
 	}
 }
 
@@ -142,7 +141,6 @@ func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
 		Logger:              f.logger,
 		MetricsFactory:      f.metricsFactory,
 		ServiceCacheTTL:     f.config.ServiceCacheTTL,
-		UseDataStream:       f.config.UseDataStream,
 	}
 }
 
@@ -155,7 +153,6 @@ func (f *FactoryBase) GetDependencyStoreParams() esdepstorev2.Params {
 		IndexDateLayout:     f.config.Indices.Dependencies.DateLayout,
 		MaxDocCount:         f.config.MaxDocCount,
 		UseReadWriteAliases: f.config.UseReadWriteAliases,
-		UseDataStream:       f.config.UseDataStream,
 	}
 }
 
@@ -168,7 +165,6 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 		IndexRolloverFrequency: config.RolloverFrequencyAsNegativeDuration(f.config.Indices.Sampling.RolloverFrequency),
 		Lookback:               f.config.AdaptiveSamplingLookback,
 		MaxDocCount:            f.config.MaxDocCount,
-		UseDataStream:          f.config.UseDataStream,
 	}
 	store := essamplestore.NewSamplingStore(params)
 
@@ -194,7 +190,6 @@ func (f *FactoryBase) mappingBuilderFromConfig(cfg *config.Configuration) mappin
 		Indices:         cfg.Indices,
 		EsVersion:       cfg.Version,
 		UseILM:          cfg.UseILM,
-		UseDataStream:   cfg.UseDataStream,
 		ILMPolicyName:   cfg.Indices.IndexPrefix.Apply(defaultILMPolicyName),
 	}
 }

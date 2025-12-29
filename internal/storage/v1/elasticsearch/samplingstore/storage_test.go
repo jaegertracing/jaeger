@@ -446,41 +446,6 @@ func stringMatcher(q string) any {
 	return mock.MatchedBy(matchFunc)
 }
 
-func TestGetReadIndices_UseDataStream(t *testing.T) {
-	s := &SamplingStore{
-		samplingIndexPrefix: "jaeger-sampling-",
-		useDataStream:       true,
-	}
-	expected := []string{"jaeger-ds-sampling-", "jaeger-sampling-*"}
-	assert.Equal(t, expected, s.getReadIndices(time.Now(), time.Now()))
-
-	s.samplingIndexPrefix = "foo-jaeger-sampling-"
-	expected = []string{"foo-jaeger-ds-sampling-", "foo-jaeger-sampling-*"}
-	assert.Equal(t, expected, s.getReadIndices(time.Now(), time.Now()))
-}
-
-func TestGetLatestIndices_UseDataStream(t *testing.T) {
-	s := &SamplingStore{
-		samplingIndexPrefix: "jaeger-sampling-",
-		useDataStream:       true,
-	}
-	expected := []string{"jaeger-ds-sampling-", "jaeger-sampling-*"}
-	indices, err := s.getLatestIndices()
-	require.NoError(t, err)
-	assert.Equal(t, expected, indices)
-}
-
-func TestGetWriteIndex_UseDataStream(t *testing.T) {
-	s := &SamplingStore{
-		samplingIndexPrefix: "jaeger-sampling-",
-		useDataStream:       true,
-	}
-	assert.Equal(t, "jaeger-ds-sampling-", s.getWriteIndex(time.Now()))
-
-	s.samplingIndexPrefix = "foo-jaeger-sampling-"
-	assert.Equal(t, "foo-jaeger-ds-sampling-", s.getWriteIndex(time.Now()))
-}
-
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
 }

@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/olivere/elastic/v7"
@@ -35,7 +34,6 @@ type SamplingStore struct {
 	maxDocCount            int
 	indexRolloverFrequency time.Duration
 	lookback               time.Duration
-	useDataStream          bool
 }
 
 type Params struct {
@@ -46,7 +44,6 @@ type Params struct {
 	IndexRolloverFrequency time.Duration
 	Lookback               time.Duration
 	MaxDocCount            int
-	UseDataStream          bool
 }
 
 func NewSamplingStore(p Params) *SamplingStore {
@@ -58,7 +55,6 @@ func NewSamplingStore(p Params) *SamplingStore {
 		maxDocCount:            p.MaxDocCount,
 		indexRolloverFrequency: p.IndexRolloverFrequency,
 		lookback:               p.Lookback,
-		useDataStream:          p.UseDataStream,
 	}
 }
 
@@ -71,10 +67,7 @@ func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
 				Timestamp:  ts,
 				Throughput: eachThroughput,
 			})
-		if s.useDataStream {
-			il.OpType("create")
-		}
-		il.Add()
+		il.Add("")
 	}
 	return nil
 }
@@ -118,9 +111,6 @@ func (s *SamplingStore) InsertProbabilitiesAndQPS(_ string,
 }
 
 func (s *SamplingStore) getWriteIndex(ts time.Time) string {
-	if s.useDataStream {
-		return strings.Replace(s.samplingIndexPrefix, "jaeger-sampling", "jaeger-ds-sampling", 1)
-	}
 	return indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, ts)
 }
 
@@ -164,17 +154,10 @@ func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time,
 			Timestamp:           ts,
 			ProbabilitiesAndQPS: pandqps,
 		})
-	if s.useDataStream {
-		il.OpType("create")
-	}
-	il.Add()
+	il.Add("")
 }
 
 func (s *SamplingStore) getLatestIndices() ([]string, error) {
-	if s.useDataStream {
-		dsIndex := strings.Replace(s.samplingIndexPrefix, "jaeger-sampling", "jaeger-ds-sampling", 1)
-		return []string{dsIndex, s.samplingIndexPrefix + "*"}, nil
-	}
 	clientFn := s.client()
 	ctx := context.Background()
 	now := time.Now().UTC()
@@ -197,10 +180,6 @@ func (s *SamplingStore) getLatestIndices() ([]string, error) {
 }
 
 func (s *SamplingStore) getReadIndices(startTime time.Time, endTime time.Time) []string {
-	if s.useDataStream {
-		dsIndex := strings.Replace(s.samplingIndexPrefix, "jaeger-sampling", "jaeger-ds-sampling", 1)
-		return []string{dsIndex, s.samplingIndexPrefix + "*"}
-	}
 	var indices []string
 	firstIndex := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, startTime)
 	currentIndex := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, endTime)

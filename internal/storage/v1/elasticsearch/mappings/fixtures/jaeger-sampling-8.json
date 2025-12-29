@@ -1,6 +1,7 @@
 {
   "priority": 503,
-  "index_patterns": "test-jaeger-sampling-*",
+  "index_patterns": "test-jaeger-sampling",
+  "data_stream": {},
   "template": {
     "aliases": {
       "test-jaeger-sampling-read": {}

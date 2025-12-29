@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/olivere/elastic/v7"
@@ -44,7 +43,6 @@ type DependencyStore struct {
 	indexDateLayout       string
 	maxDocCount           int
 	useReadWriteAliases   bool
-	useDataStream         bool
 }
 
 // DependencyStoreParams holds constructor parameters for NewDependencyStore
@@ -55,7 +53,6 @@ type Params struct {
 	IndexDateLayout     string
 	MaxDocCount         int
 	UseReadWriteAliases bool
-	UseDataStream       bool
 }
 
 // NewDependencyStore returns a DependencyStore
@@ -67,7 +64,6 @@ func NewDependencyStore(p Params) *DependencyStore {
 		indexDateLayout:       p.IndexDateLayout,
 		maxDocCount:           p.MaxDocCount,
 		useReadWriteAliases:   p.UseReadWriteAliases,
-		useDataStream:         p.UseDataStream,
 	}
 }
 
@@ -93,10 +89,7 @@ func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, depe
 			Timestamp:    ts,
 			Dependencies: dependencies,
 		})
-	if s.useDataStream {
-		il.OpType("create")
-	}
-	il.Add()
+	il.Add("")
 }
 
 // GetDependencies returns all interservice dependencies
@@ -132,10 +125,6 @@ func (s *DependencyStore) getReadIndices(ts time.Time, lookback time.Duration) [
 	if s.useReadWriteAliases {
 		return []string{s.dependencyIndexPrefix + "read"}
 	}
-	if s.useDataStream {
-		dsIndex := strings.Replace(s.dependencyIndexPrefix, "jaeger-dependencies", "jaeger-ds-dependencies", 1)
-		return []string{dsIndex, s.dependencyIndexPrefix + "*"}
-	}
 	var indices []string
 	firstIndex := indexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts.Add(-lookback))
 	currentIndex := indexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts)
@@ -154,9 +143,6 @@ func indexWithDate(indexNamePrefix, indexDateLayout string, date time.Time) stri
 func (s *DependencyStore) getWriteIndex(ts time.Time) string {
 	if s.useReadWriteAliases {
 		return s.dependencyIndexPrefix + "write"
-	}
-	if s.useDataStream {
-		return strings.Replace(s.dependencyIndexPrefix, "jaeger-dependencies", "jaeger-ds-dependencies", 1)
 	}
 	return indexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts)
 }
