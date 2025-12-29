@@ -36,7 +36,7 @@ const (
 
 // Snapshots can be regenerated via:
 //
-//	REGENERATE_SNAPSHOTS=true go test -v ./cmd/query/app/apiv3/...
+//	REGENERATE_SNAPSHOTS=true go test -v ./cmd/jaeger/internal/extension/jaegerquery/internal/apiv3/...
 var (
 	regenerateSnapshots = os.Getenv("REGENERATE_SNAPSHOTS") == "true"
 	traceID             = pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1})

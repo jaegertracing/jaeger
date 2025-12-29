@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/cmd/query/app/ui/testdata"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/ui/testdata"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
