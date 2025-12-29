@@ -24,11 +24,9 @@ func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnceForES(t)
 	})
-	client, err := createESClient(t, getESHttpClient(t))
+	client, err := createESClient(getESHttpClient(t))
 	require.NoError(t, err)
-	require.NoError(t, err)
-	// make sure ES is clean
-	cleanES(t, client, defaultILMPolicyName)
+	require.NoError(t, cleanES(client, defaultILMPolicyName))
 	envVars := []string{"ES_USE_ILM=true"}
 	// Run the ES rollover test with adaptive sampling disabled (set to false).
 	err = runEsRollover("init", envVars, false)
@@ -43,16 +41,14 @@ func TestIndexRollover_Idempotency(t *testing.T) {
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnceForES(t)
 	})
-	client, err := createESClient(t, getESHttpClient(t))
+	client, err := createESClient(getESHttpClient(t))
 	require.NoError(t, err)
 	// Make sure that es is clean before the test!
-	cleanES(t, client, defaultILMPolicyName)
-	err = runEsRollover("init", []string{}, false)
-	require.NoError(t, err)
+	require.NoError(t, cleanES(client, defaultILMPolicyName))
 	// Run again and it should return without any error
-	err = runEsRollover("init", []string{}, false)
-	require.NoError(t, err)
-	cleanES(t, client, defaultILMPolicyName)
+	require.NoError(t, runEsRollover("init", []string{}, false))
+	require.NoError(t, runEsRollover("init", []string{}, false))
+	require.NoError(t, cleanES(client, defaultILMPolicyName))
 }
 
 func TestIndexRollover_CreateIndicesWithILM(t *testing.T) {
@@ -72,15 +68,12 @@ func TestIndexRollover_CreateIndicesWithILM(t *testing.T) {
 }
 
 func runCreateIndicesWithILM(t *testing.T, ilmPolicyName string) {
-	client, err := createESClient(t, getESHttpClient(t))
+	client, err := createESClient(getESHttpClient(t))
 	require.NoError(t, err)
 	esVersion, err := getVersion(client)
 	require.NoError(t, err)
 
-	envVars := []string{
-		"ES_USE_ILM=true",
-	}
-
+	envVars := []string{"ES_USE_ILM=true"}
 	if ilmPolicyName != defaultILMPolicyName {
 		envVars = append(envVars, "ES_ILM_POLICY_NAME="+ilmPolicyName)
 	}
@@ -106,19 +99,20 @@ func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, prefix st
 		expectedIndices = append(expectedIndices, "jaeger-sampling-000001")
 	}
 	// make sure ES is cleaned before test
-	cleanES(t, client, ilmPolicyName)
+	require.NoError(t, cleanES(client, ilmPolicyName))
 	v8Client, err := createESV8Client(getESHttpClient(t).Transport)
 	require.NoError(t, err)
 	// make sure ES is cleaned after test
-	defer cleanES(t, client, ilmPolicyName)
-	defer cleanESIndexTemplates(t, client, v8Client, prefix)
-	err = createILMPolicy(client, ilmPolicyName)
-	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, cleanES(client, ilmPolicyName))
+		require.NoError(t, cleanESIndexTemplates(client, v8Client, prefix))
+	})
+	require.NoError(t, createILMPolicy(client, ilmPolicyName))
 
 	if prefix != "" {
 		prefix += "-"
 	}
-	var expected, expectedWriteAliases, actualWriteAliases []string
+	var expected, expectedWriteAliases []string
 	for _, index := range expectedIndices {
 		expected = append(expected, prefix+index)
 	}
@@ -127,8 +121,7 @@ func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, prefix st
 	}
 
 	// Run rollover with given EnvVars
-	err = runEsRollover("init", envVars, adaptiveSampling)
-	require.NoError(t, err)
+	require.NoError(t, runEsRollover("init", envVars, adaptiveSampling))
 
 	indices, err := client.IndexNames()
 	require.NoError(t, err)
@@ -137,6 +130,7 @@ func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, prefix st
 	settings, err := client.IndexGetSettings(expected...).FlatSettings(true).Do(context.Background())
 	require.NoError(t, err)
 	// Check ILM Policy is attached and Get rollover alias attached
+	var actualWriteAliases []string
 	for _, v := range settings {
 		assert.Equal(t, ilmPolicyName, v.Settings["index.lifecycle.name"])
 		actualWriteAliases = append(actualWriteAliases, v.Settings["index.lifecycle.rollover_alias"].(string))
@@ -164,17 +158,21 @@ func createILMPolicy(client *elastic.Client, policyName string) error {
 	return err
 }
 
-func cleanES(t *testing.T, client *elastic.Client, policyName string) {
-	_, err := client.DeleteIndex("*").Do(context.Background())
-	require.NoError(t, err)
+func cleanES(client *elastic.Client, policyName string) error {
+	if _, err := client.DeleteIndex("*").Do(context.Background()); err != nil {
+		return err
+	}
+
 	esVersion, err := getVersion(client)
-	require.NoError(t, err)
+	if err != nil {
+		return err
+	}
 	if esVersion >= 7 {
 		_, err = client.XPackIlmDeleteLifecycle().Policy(policyName).Do(context.Background())
 		if err != nil && !elastic.IsNotFound(err) {
-			assert.Fail(t, "Not able to clean up ILM Policy")
+			return err
 		}
 	}
 	_, err = client.IndexDeleteTemplate("*").Do(context.Background())
-	require.NoError(t, err)
+	return err
 }
