@@ -143,7 +143,7 @@ proto-zipkin:
 	$(call proto_compile, $(PROTO_GEN)/zipkin, idl/proto/zipkin.proto, -Iidl/proto)
 
 # The API v3 service uses official OTEL type opentelemetry.proto.trace.v1.TracesData,
-# which at runtime is mapped to a custom type in cmd/query/app/internal/api_v3/traces.go
+# which at runtime is mapped to a custom type in cmd/jaeger/internal/extension/jaegerquery/internal/internal/api_v3/traces.go
 # Unfortunately, gogoproto.customtype annotation cannot be applied to a method's return type,
 # only to fields in a struct, so we use regex search/replace to swap it.
 # Note that the .pb.go types must be generated into the same internal package $(API_V3_PATH)
