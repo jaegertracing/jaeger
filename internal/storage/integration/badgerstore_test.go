@@ -28,7 +28,7 @@ func (s *BadgerIntegrationStorage) initialize() error {
 	s.factory, err = badger.NewFactory(
 		*cfg,
 		metrics.NullFactory,
-		zap.NewNop(), // logger for non-test usage
+		zap.NewNop(),
 	)
 	if err != nil {
 		return err

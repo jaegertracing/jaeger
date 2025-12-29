@@ -76,37 +76,43 @@ func (s *ESStorageIntegration) getVersion() (uint, error) {
 	return uint(esVersion), nil
 }
 
-func (s *ESStorageIntegration) initializeES(t *testing.T, c *http.Client, allTagsAsFields bool) {
+func (s *ESStorageIntegration) initializeES(c *http.Client, allTagsAsFields bool) error {
 	rawClient, err := elastic.NewClient(
 		elastic.SetURL(queryURL),
 		elastic.SetSniff(false),
-		elastic.SetHttpClient(c))
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		rawClient.Stop()
-	})
+		elastic.SetHttpClient(c),
+	)
+	if err != nil {
+		return err
+	}
 	s.client = rawClient
 	s.v8Client, err = elasticsearch8.NewClient(elasticsearch8.Config{
 		Addresses:            []string{queryURL},
 		DiscoverNodesOnStart: false,
 		Transport:            c.Transport,
 	})
-	require.NoError(t, err)
-
-	s.initSpanstore(t, allTagsAsFields)
-
-	s.CleanUp = func(t *testing.T) {
-		s.esCleanUp(t)
+	if err != nil {
+		return err
 	}
-	s.esCleanUp(t)
+
+	if err := s.initSpanstore(allTagsAsFields); err != nil {
+		return err
+	}
+
+	return s.esCleanUp()
 }
 
-func (s *ESStorageIntegration) esCleanUp(t *testing.T) {
-	require.NoError(t, s.factory.Purge(context.Background()))
-	require.NoError(t, s.archiveFactory.Purge(context.Background()))
+func (s *ESStorageIntegration) esCleanUp() error {
+	if err := s.factory.Purge(context.Background()); err != nil {
+		return err
+	}
+	if err := s.archiveFactory.Purge(context.Background()); err != nil {
+		return err
+	}
+	return nil
 }
 
-func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool) {
+func (s *ESStorageIntegration) initSpanstore(allTagsAsFields bool) error {
 	cfg := es.DefaultConfig()
 	cfg.CreateIndexTemplates = true
 	cfg.BulkProcessing = escfg.BulkProcessing{
@@ -114,14 +120,13 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 		FlushInterval: time.Nanosecond,
 	}
 	cfg.Tags.AllAsFields = allTagsAsFields
-	cfg.ServiceCacheTTL = 1 * time.Second
+	cfg.ServiceCacheTTL = time.Second
 	cfg.Indices.IndexPrefix = indexPrefix
-	var err error
+
 	f, err := esv2.NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, f.Close())
-	})
+	if err != nil {
+		return err
+	}
 	acfg := es.DefaultConfig()
 	acfg.ReadAliasSuffix = archiveAliasSuffix
 	acfg.WriteAliasSuffix = archiveAliasSuffix
@@ -129,25 +134,63 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	acfg.Tags.AllAsFields = allTagsAsFields
 	acfg.Indices.IndexPrefix = indexPrefix
 	af, err := esv2.NewFactory(context.Background(), acfg, telemetry.NoopSettings(), nil)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, af.Close())
-	})
+	if err != nil {
+		return err
+	}
 	s.factory = f
 	s.archiveFactory = af
-	s.TraceWriter, err = f.CreateTraceWriter()
-	require.NoError(t, err)
-	s.TraceReader, err = f.CreateTraceReader()
-	require.NoError(t, err)
-	s.ArchiveTraceReader, err = af.CreateTraceReader()
-	require.NoError(t, err)
-	s.ArchiveTraceWriter, err = af.CreateTraceWriter()
-	require.NoError(t, err)
-	s.DependencyReader, err = f.CreateDependencyReader()
-	require.NoError(t, err)
+	if s.TraceWriter, err = f.CreateTraceWriter(); err != nil {
+		return err
+	}
+	if s.TraceReader, err = f.CreateTraceReader(); err != nil {
+		return err
+	}
+	if s.ArchiveTraceWriter, err = af.CreateTraceWriter(); err != nil {
+		return err
+	}
+	if s.ArchiveTraceReader, err = af.CreateTraceReader(); err != nil {
+		return err
+	}
+	if s.DependencyReader, err = f.CreateDependencyReader(); err != nil {
+		return err
+	}
 	s.DependencyWriter = s.DependencyReader.(depstore.Writer)
-	s.SamplingStore, err = f.CreateSamplingStore(1)
-	require.NoError(t, err)
+
+	if s.SamplingStore, err = f.CreateSamplingStore(1); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *ESStorageIntegration) cleanESIndexTemplates(prefix string) error {
+	version, err := s.getVersion()
+	if err != nil {
+		return err
+	}
+
+	if version > 7 {
+		p := prefix
+		if p != "" {
+			p += "-"
+		}
+		if _, err = s.v8Client.Indices.DeleteIndexTemplate(p + spanTemplateName); err != nil {
+			return err
+		}
+		if _, err = s.v8Client.Indices.DeleteIndexTemplate(p + serviceTemplateName); err != nil {
+			return err
+		}
+		if _, err = s.v8Client.Indices.DeleteIndexTemplate(p + dependenciesTemplateName); err != nil {
+			return err
+		}
+	} else {
+		_, err = s.client.IndexDeleteTemplate("*").Do(context.Background())
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func healthCheck(c *http.Client) error {
@@ -172,7 +215,13 @@ func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
 			GetOperationsMissingSpanKind: true,
 		},
 	}
-	s.initializeES(t, c, allTagsAsFields)
+	require.NoError(t, s.initializeES(c, allTagsAsFields))
+	s.CleanUp = func(t *testing.T) {
+		require.NoError(t, s.esCleanUp())
+		require.NoError(t, s.factory.Close())
+		require.NoError(t, s.archiveFactory.Close())
+		s.client.Stop()
+	}
 	s.RunAll(t)
 	t.Run("ArchiveTrace", s.testArchiveTrace)
 }
@@ -199,47 +248,20 @@ func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 	c := getESHttpClient(t)
 	require.NoError(t, healthCheck(c))
 	s := &ESStorageIntegration{}
-	s.initializeES(t, c, true)
+	require.NoError(t, s.initializeES(c, true))
 	esVersion, err := s.getVersion()
 	require.NoError(t, err)
 	// TODO abstract this into pkg/es/client.IndexManagementLifecycleAPI
 	if esVersion == 6 || esVersion == 7 {
-		serviceTemplateExists, err := s.client.IndexTemplateExists(indexPrefix + "-jaeger-service").Do(context.Background())
+		ok, err := s.client.IndexTemplateExists(indexPrefix + "-jaeger-service").Do(context.Background())
 		require.NoError(t, err)
-		assert.True(t, serviceTemplateExists)
-		spanTemplateExists, err := s.client.IndexTemplateExists(indexPrefix + "-jaeger-span").Do(context.Background())
-		require.NoError(t, err)
-		assert.True(t, spanTemplateExists)
+		assert.True(t, ok)
 	} else {
-		serviceTemplateExistsResponse, err := s.v8Client.API.Indices.ExistsIndexTemplate(indexPrefix + "-jaeger-service")
+		resp, err := s.v8Client.API.Indices.ExistsIndexTemplate(indexPrefix + "-jaeger-service")
 		require.NoError(t, err)
-		assert.Equal(t, 200, serviceTemplateExistsResponse.StatusCode)
-		spanTemplateExistsResponse, err := s.v8Client.API.Indices.ExistsIndexTemplate(indexPrefix + "-jaeger-span")
-		require.NoError(t, err)
-		assert.Equal(t, 200, spanTemplateExistsResponse.StatusCode)
+		assert.Equal(t, 200, resp.StatusCode)
 	}
-	s.cleanESIndexTemplates(t, indexPrefix)
-}
-
-func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string) error {
-	version, err := s.getVersion()
-	require.NoError(t, err)
-	if version > 7 {
-		prefixWithSeparator := prefix
-		if prefix != "" {
-			prefixWithSeparator += "-"
-		}
-		_, err := s.v8Client.Indices.DeleteIndexTemplate(prefixWithSeparator + spanTemplateName)
-		require.NoError(t, err)
-		_, err = s.v8Client.Indices.DeleteIndexTemplate(prefixWithSeparator + serviceTemplateName)
-		require.NoError(t, err)
-		_, err = s.v8Client.Indices.DeleteIndexTemplate(prefixWithSeparator + dependenciesTemplateName)
-		require.NoError(t, err)
-	} else {
-		_, err := s.client.IndexDeleteTemplate("*").Do(context.Background())
-		require.NoError(t, err)
-	}
-	return nil
+	require.NoError(t, s.cleanESIndexTemplates(indexPrefix))
 }
 
 // testArchiveTrace validates that a trace with a start time older than maxSpanAge
@@ -267,9 +289,8 @@ func (s *ESStorageIntegration) testArchiveTrace(t *testing.T) {
 
 	var actual *model.Trace
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
-		var err error
-		iterTraces := s.ArchiveTraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: v1adapter.FromV1TraceID(tID)})
-		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
+		iter := s.ArchiveTraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: v1adapter.FromV1TraceID(tID)})
+		traces, err := v1adapter.V1TracesFromSeq2(iter)
 		if len(traces) == 0 {
 			return false
 		}
