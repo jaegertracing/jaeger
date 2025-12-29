@@ -51,10 +51,9 @@ var errUninitializedTraceID = status.Error(codes.InvalidArgument, "uninitialized
 // UnimplementedQueryServiceServer for other methods.
 type testGRPCHandler struct {
 	api_v2.UnimplementedQueryServiceServer
-	returnTrace     *model.Trace
-	returnError     error
-	failDuringRecv  bool
-	failUnwrapCheck bool
+	returnTrace    *model.Trace
+	returnError    error
+	failDuringRecv bool
 }
 
 // GetTrace implements the gRPC GetTrace method by returning test data directly.
@@ -83,7 +82,7 @@ func (g *testGRPCHandler) GetTrace(r *api_v2.GetTraceRequest, stream api_v2.Quer
 }
 
 // sendSpanChunks sends spans in chunks to the client.
-func (g *testGRPCHandler) sendSpanChunks(spans []*model.Span, sendFn func(*api_v2.SpansResponseChunk) error) error {
+func (*testGRPCHandler) sendSpanChunks(spans []*model.Span, sendFn func(*api_v2.SpansResponseChunk) error) error {
 	chunk := make([]model.Span, 0, len(spans))
 	for _, span := range spans {
 		chunk = append(chunk, *span)
@@ -249,6 +248,6 @@ func TestUnwrapNotFoundErr(t *testing.T) {
 	})
 
 	t.Run("nil error", func(t *testing.T) {
-		assert.Nil(t, unwrapNotFoundErr(nil))
+		assert.NoError(t, unwrapNotFoundErr(nil))
 	})
 }
