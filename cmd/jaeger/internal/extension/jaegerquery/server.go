@@ -126,7 +126,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		qs,
 		v2qs,
 		mqs,
-		s.config.ToQueryOptions(),
+		&s.config.QueryOptions,
 		tm,
 		telset,
 	)
