@@ -1,14 +1,13 @@
 {
   "priority": {{ .Priority }},
-  "index_patterns": "{{ .IndexPrefix }}jaeger-span",
+  "index_patterns": ["{{ .IndexPrefix }}jaeger-span*", "{{ .IndexPrefix }}jaeger-ds-span*"],
   "data_stream": {},
   "template": {
-
-    {{- if .UseILM}}
+    {{- if .UseILM }}
     "aliases": {
       "{{ .IndexPrefix }}jaeger-span-read": {}
     },
-    {{- end}}
+    {{- end }}
     "settings": {
       "index.number_of_shards": {{ .Shards }},
       "index.number_of_replicas": {{ .Replicas }},

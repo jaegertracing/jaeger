@@ -1,6 +1,6 @@
 {
   "priority": {{ .Priority }},
-  "index_patterns": "{{ .IndexPrefix }}jaeger-dependencies",
+  "index_patterns": ["{{ .IndexPrefix }}jaeger-dependencies*", "{{ .IndexPrefix }}jaeger-ds-dependencies*"],
   "data_stream": {},
   "template": {
     {{- if .UseILM }}

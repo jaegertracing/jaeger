@@ -1,6 +1,6 @@
 {
   "priority": {{ .Priority }},
-  "index_patterns": "{{ .IndexPrefix }}jaeger-service",
+  "index_patterns": ["{{ .IndexPrefix }}jaeger-service*", "{{ .IndexPrefix }}jaeger-ds-service*"],
   "data_stream": {},
   "template": {
     {{- if .UseILM }}
