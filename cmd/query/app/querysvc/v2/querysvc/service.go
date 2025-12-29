@@ -6,6 +6,7 @@ package querysvc
 import (
 	"context"
 	"errors"
+	"fmt"
 	"iter"
 	"time"
 
@@ -29,6 +30,9 @@ type QueryServiceOptions struct {
 	ArchiveTraceWriter tracestore.Writer
 	// MaxClockSkewAdjust is the maximum duration by which to adjust a span.
 	MaxClockSkewAdjust time.Duration
+	// MaxTraceSize is the max no. of spans allowed per trace.
+	// If a trace has more spans than this, it will be truncated and a warning will be present.
+	MaxTraceSize int
 }
 
 // StorageCapabilities is a feature flag for query service
@@ -200,10 +204,168 @@ func (qs QueryService) receiveTraces(
 	if rawTraces {
 		seq(processTraces)
 	} else {
-		jptrace.AggregateTraces(seq)(func(trace ptrace.Traces, err error) bool {
-			return processTraces([]ptrace.Traces{trace}, err)
-		})
+		if qs.options.MaxTraceSize > 0 {
+			qs.aggregateTracesWithLimit(seq)(func(trace ptrace.Traces, err error) bool { // apply max trace size limit
+				return processTraces([]ptrace.Traces{trace}, err)
+			})
+		} else {
+			jptrace.AggregateTraces(seq)(func(trace ptrace.Traces, err error) bool {
+				return processTraces([]ptrace.Traces{trace}, err)
+			})
+		}
 	}
 
 	return foundTraceIDs, proceed
+}
+
+// It stops aggregating once the limit is reached for a trace and adds a warning.
+func (qs QueryService) aggregateTracesWithLimit(
+	tracesSeq iter.Seq2[[]ptrace.Traces, error],
+) iter.Seq2[ptrace.Traces, error] {
+	return func(yield func(trace ptrace.Traces, err error) bool) {
+		currentTrace := ptrace.NewTraces()
+		currentTraceID := pcommon.NewTraceIDEmpty()
+		spanCount := 0
+		truncated := false
+		skipCurrentTrace := false
+
+		tracesSeq(func(traces []ptrace.Traces, err error) bool {
+			if err != nil {
+				yield(ptrace.NewTraces(), err)
+				return false
+			}
+			for _, trace := range traces {
+				resources := trace.ResourceSpans()
+				if resources.Len() == 0 {
+					continue
+				}
+
+				scopes := resources.At(0).ScopeSpans()
+				if scopes.Len() == 0 {
+					continue
+				}
+
+				spans := scopes.At(0).Spans()
+				if spans.Len() == 0 {
+					continue
+				}
+
+				traceID := spans.At(0).TraceID()
+
+				if currentTraceID != traceID {
+					if currentTrace.ResourceSpans().Len() > 0 {
+						if truncated {
+							qs.addTruncationWarning(currentTrace)
+						}
+						if !yield(currentTrace, nil) {
+							return false
+						}
+					}
+					currentTrace = ptrace.NewTraces()
+					currentTraceID = traceID
+					spanCount = 0
+					truncated = false
+					skipCurrentTrace = false
+				}
+
+				// If already truncated, skip remaining
+				if skipCurrentTrace {
+					continue
+				}
+
+				// Count spans in incoming trace
+				incomingSpanCount := 0
+				for i := 0; i < resources.Len(); i++ {
+					res := resources.At(i)
+					for j := 0; j < res.ScopeSpans().Len(); j++ {
+						incomingSpanCount += res.ScopeSpans().At(j).Spans().Len()
+					}
+				}
+
+				// Check if adding these spans would exceed the limit
+				if spanCount+incomingSpanCount > qs.options.MaxTraceSize {
+					remaining := qs.options.MaxTraceSize - spanCount
+					if remaining > 0 {
+						qs.copySpansUpToLimit(trace, currentTrace, remaining)
+						spanCount = qs.options.MaxTraceSize
+					}
+					truncated = true
+					skipCurrentTrace = true
+					continue
+				}
+
+				// add all spans from this batch
+				mergeTraces(trace, currentTrace)
+				spanCount += incomingSpanCount
+			}
+			return true
+		})
+
+		// for last trace if it exists
+		if currentTrace.ResourceSpans().Len() > 0 {
+			if truncated {
+				qs.addTruncationWarning(currentTrace)
+			}
+			yield(currentTrace, nil)
+		}
+	}
+}
+
+// copies up to 'limit' spans from src to dest.
+func (QueryService) copySpansUpToLimit(src, dest ptrace.Traces, limit int) {
+	copied := 0
+	resources := src.ResourceSpans()
+
+	for i := 0; i < resources.Len() && copied < limit; i++ {
+		srcResource := resources.At(i)
+		destResource := dest.ResourceSpans().AppendEmpty()
+		srcResource.Resource().CopyTo(destResource.Resource())
+		destResource.SetSchemaUrl(srcResource.SchemaUrl())
+
+		scopes := srcResource.ScopeSpans()
+		for j := 0; j < scopes.Len() && copied < limit; j++ {
+			srcScope := scopes.At(j)
+			destScope := destResource.ScopeSpans().AppendEmpty()
+			srcScope.Scope().CopyTo(destScope.Scope())
+			destScope.SetSchemaUrl(srcScope.SchemaUrl())
+
+			spans := srcScope.Spans()
+			for k := 0; k < spans.Len() && copied < limit; k++ {
+				spans.At(k).CopyTo(destScope.Spans().AppendEmpty())
+				copied++
+			}
+		}
+	}
+}
+
+// add a warning to the first span of the trace
+func (qs QueryService) addTruncationWarning(trace ptrace.Traces) {
+	resources := trace.ResourceSpans()
+	if resources.Len() == 0 {
+		return
+	}
+
+	scopes := resources.At(0).ScopeSpans()
+	if scopes.Len() == 0 {
+		return
+	}
+
+	spans := scopes.At(0).Spans()
+	if spans.Len() == 0 {
+		return
+	}
+
+	firstSpan := spans.At(0)
+	jptrace.AddWarnings(firstSpan,
+		fmt.Sprintf("trace has more than %d spans, showing first %d spans only",
+			qs.options.MaxTraceSize, qs.options.MaxTraceSize))
+}
+
+// merge src trace into dest trace.
+func mergeTraces(src, dest ptrace.Traces) {
+	resources := src.ResourceSpans()
+	for i := 0; i < resources.Len(); i++ {
+		resource := resources.At(i)
+		resource.CopyTo(dest.ResourceSpans().AppendEmpty())
+	}
 }
