@@ -6,6 +6,7 @@ package integration
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/kr/pretty"
@@ -15,25 +16,100 @@ import (
 )
 
 // CompareSliceOfTraces compares two trace slices
-func CompareSliceOfTraces(t *testing.T, expected []*model.Trace, actual []*model.Trace) {
-	require.Len(t, actual, len(expected), "Unequal number of expected vs. actual traces")
+func compareSliceOfTraces(expected []*model.Trace, actual []*model.Trace) error {
+	if len(actual) != len(expected) {
+		return fmt.Errorf("unequal number of expected vs actual traces: expected=%d actual=%d",
+			len(expected), len(actual))
+	}
+
 	model.SortTraces(expected)
 	model.SortTraces(actual)
+
 	for i := range expected {
-		checkSize(t, expected[i], actual[i])
-	}
-	if diff := pretty.Diff(expected, actual); len(diff) > 0 {
-		for _, d := range diff {
-			t.Logf("Expected and actual differ: %s\n", d)
+		if err := checkSizeLogic(expected[i], actual[i]); err != nil {
+			return err
 		}
-		out, err := json.Marshal(actual)
-		out2, err2 := json.Marshal(expected)
-		require.NoError(t, err)
-		require.NoError(t, err2)
-		t.Logf("Actual traces: %s", string(out))
-		t.Logf("Expected traces: %s", string(out2))
-		t.Fail()
 	}
+
+	if diff := pretty.Diff(expected, actual); len(diff) > 0 {
+		outActual, err := json.Marshal(actual)
+		if err != nil {
+			return err
+		}
+		outExpected, err := json.Marshal(expected)
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf(
+			"expected and actual traces differ:\n%s\nactual=%s\nexpected=%s",
+			diff, outActual, outExpected,
+		)
+	}
+
+	return nil
+}
+
+
+// CompareTraces compares two traces
+func compareTraces(expected *model.Trace, actual *model.Trace) error {
+	if expected.Spans == nil {
+		if actual.Spans != nil {
+			return fmt.Errorf("expected nil spans, got non-nil")
+		}
+		return nil
+	}
+
+	if actual == nil || actual.Spans == nil {
+		return fmt.Errorf("actual trace or spans is nil")
+	}
+
+	// some storage implementations may retry writing spans and end up with duplicates
+	countBefore := len(actual.Spans)
+	dedupeSpans(actual)
+	_ = countBefore
+
+	model.SortTrace(expected)
+	model.SortTrace(actual)
+
+	return checkSizeLogic(expected, actual)
+}
+
+func checkSizeLogic(expected *model.Trace, actual *model.Trace) error {
+	if len(actual.Spans) != len(expected.Spans) {
+		return fmt.Errorf("span count mismatch: expected=%d actual=%d",
+			len(expected.Spans), len(actual.Spans))
+	}
+
+	for i := range expected.Spans {
+		expectedSpan := expected.Spans[i]
+		actualSpan := actual.Spans[i]
+
+		if len(actualSpan.Tags) != len(expectedSpan.Tags) {
+			return fmt.Errorf("tag count mismatch at span %d", i)
+		}
+		if len(actualSpan.Logs) != len(expectedSpan.Logs) {
+			return fmt.Errorf("log count mismatch at span %d", i)
+		}
+		if expectedSpan.Process != nil && actualSpan.Process != nil {
+			if len(actualSpan.Process.Tags) != len(expectedSpan.Process.Tags) {
+				return fmt.Errorf("process tag count mismatch at span %d", i)
+			}
+		}
+	}
+
+	return nil
+}
+
+func CompareSliceOfTraces(t *testing.T, expected []*model.Trace, actual []*model.Trace) {
+	require.NoError(t, compareSliceOfTraces(expected, actual))
+}
+
+func CompareTraces(t *testing.T, expected *model.Trace, actual *model.Trace) {
+	require.NoError(t, compareTraces(expected, actual))
+}
+
+func checkSize(t *testing.T, expected *model.Trace, actual *model.Trace) {
+	require.NoError(t, checkSizeLogic(expected, actual))
 }
 
 // trace.Spans may contain spans with the same SpanID. Remove duplicates
@@ -48,48 +124,4 @@ func dedupeSpans(trace *model.Trace) {
 		}
 	}
 	trace.Spans = newSpans
-}
-
-// CompareTraces compares two traces
-func CompareTraces(t *testing.T, expected *model.Trace, actual *model.Trace) {
-	if expected.Spans == nil {
-		require.Nil(t, actual.Spans)
-		return
-	}
-	require.NotNil(t, actual)
-	require.NotNil(t, actual.Spans)
-
-	// some storage implementation may retry writing of spans and end up with duplicates.
-	countBefore := len(actual.Spans)
-	dedupeSpans(actual)
-	if countAfter := len(actual.Spans); countAfter != countBefore {
-		t.Logf("Removed spans with duplicate span IDs; before=%d, after=%d", countBefore, countAfter)
-	}
-
-	model.SortTrace(expected)
-	model.SortTrace(actual)
-	checkSize(t, expected, actual)
-
-	if diff := pretty.Diff(expected, actual); len(diff) > 0 {
-		for _, d := range diff {
-			t.Logf("Expected and actual differ: %v\n", d)
-		}
-		out, err := json.Marshal(actual)
-		require.NoError(t, err)
-		t.Logf("Actual trace: %s", string(out))
-		t.Fail()
-	}
-}
-
-func checkSize(t *testing.T, expected *model.Trace, actual *model.Trace) {
-	require.Len(t, actual.Spans, len(expected.Spans))
-	for i := range expected.Spans {
-		expectedSpan := expected.Spans[i]
-		actualSpan := actual.Spans[i]
-		require.Len(t, actualSpan.Tags, len(expectedSpan.Tags))
-		require.Len(t, actualSpan.Logs, len(expectedSpan.Logs))
-		if expectedSpan.Process != nil && actualSpan.Process != nil {
-			require.Len(t, actualSpan.Process.Tags, len(expectedSpan.Process.Tags))
-		}
-	}
 }
