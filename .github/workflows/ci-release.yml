@@ -36,6 +36,7 @@ jobs:
     permissions:
       contents: write
       deployments: write
+      packages: read  # This allows the runner to pull from GHCR
     if: github.repository == 'jaegertracing/jaeger'
     runs-on: jaeger-linux-amd64-32core-1200GB_SSD
 
@@ -124,6 +125,13 @@ jobs:
       run: |
         rm -rf deploy || true
         df -h /
+
+    - name: Log in to GHCR
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
     - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
 
