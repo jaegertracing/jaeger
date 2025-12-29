@@ -1,12 +1,12 @@
 CREATE MATERIALIZED VIEW IF NOT EXISTS attribute_metadata_mv TO attribute_metadata AS
 SELECT
     attribute_key,
-    storage_type
+    type
 FROM
     (
         SELECT
             arrayJoin(bool_attributes.key) AS attribute_key,
-            'bool' AS storage_type
+            'bool' AS type
         FROM
             spans
         WHERE
@@ -14,7 +14,7 @@ FROM
         UNION ALL
         SELECT
             arrayJoin(double_attributes.key) AS attribute_key,
-            'double' AS storage_type
+            'double' AS type
         FROM
             spans
         WHERE
@@ -22,7 +22,7 @@ FROM
         UNION ALL
         SELECT
             arrayJoin(int_attributes.key) AS attribute_key,
-            'int' AS storage_type
+            'int' AS type
         FROM
             spans
         WHERE
@@ -30,7 +30,7 @@ FROM
         UNION ALL
         SELECT
             arrayJoin(str_attributes.key) AS attribute_key,
-            'str' AS storage_type
+            'str' AS type
         FROM
             spans
         WHERE
@@ -48,7 +48,7 @@ FROM
                 WHEN startsWith(key, '@map@') THEN 'map'
                 WHEN startsWith(key, '@slice@') THEN 'slice'
                 ELSE ''
-            END AS storage_type
+            END AS type
         FROM
             (
                 SELECT
@@ -61,7 +61,7 @@ FROM
         UNION ALL
         SELECT
             arrayJoin(resource_bool_attributes.key) AS attribute_key,
-            'bool' AS storage_type
+            'bool' AS type
         FROM
             spans
         WHERE
@@ -69,7 +69,7 @@ FROM
         UNION ALL
         SELECT
             arrayJoin(resource_double_attributes.key) AS attribute_key,
-            'double' AS storage_type
+            'double' AS type
         FROM
             spans
         WHERE
@@ -77,7 +77,7 @@ FROM
         UNION ALL
         SELECT
             arrayJoin(resource_int_attributes.key) AS attribute_key,
-            'int' AS storage_type
+            'int' AS type
         FROM
             spans
         WHERE
@@ -85,7 +85,7 @@ FROM
         UNION ALL
         SELECT
             arrayJoin(resource_str_attributes.key) AS attribute_key,
-            'str' AS storage_type
+            'str' AS type
         FROM
             spans
         WHERE
@@ -103,7 +103,7 @@ FROM
                 WHEN startsWith(key, '@map@') THEN 'map'
                 WHEN startsWith(key, '@slice@') THEN 'slice'
                 ELSE ''
-            END AS storage_type
+            END AS type
         FROM
             (
                 SELECT
@@ -116,4 +116,4 @@ FROM
     )
 GROUP BY
     attribute_key,
-    storage_type;
+    type;
