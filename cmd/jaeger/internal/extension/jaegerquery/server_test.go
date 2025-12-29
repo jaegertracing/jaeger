@@ -23,7 +23,6 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
-	"github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
@@ -198,9 +197,7 @@ func TestServerStart(t *testing.T) {
 		{
 			name: "start with Tracing",
 			config: &Config{
-				QueryOptions: app.QueryOptions{
-					EnableTracing: true,
-				},
+				EnableTracing: true,
 			},
 		},
 	}

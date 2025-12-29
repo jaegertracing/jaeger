@@ -8,8 +8,6 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
-
-	"github.com/jaegertracing/jaeger/cmd/query/app"
 )
 
 // componentType is the name of this extension in configuration.
@@ -23,12 +21,10 @@ func NewFactory() extension.Factory {
 }
 
 func createDefaultConfig() component.Config {
-	queryOptions := app.DefaultQueryOptions()
+	cfg := DefaultConfig()
 	// Tracing is off by default in v1, but we want it on for v2
-	queryOptions.EnableTracing = true
-	return &Config{
-		QueryOptions: queryOptions,
-	}
+	cfg.EnableTracing = true
+	return &cfg
 }
 
 // createExtension creates the extension based on this config.
