@@ -116,7 +116,7 @@ echo-all-srcs:
 clean:
 	rm -rf cover*.out .cover/ cover.html $(FMT_LOG) $(IMPORT_LOG) \
 		jaeger-ui/packages/jaeger-ui/build
-	find ./cmd/query/app/ui/actual -type f -name '*.gz' -delete
+	find ./cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual -type f -name '*.gz' -delete
 	GOCACHE=$(GOCACHE) go clean -cache -testcache
 	bash scripts/build/clean-binaries.sh
 
