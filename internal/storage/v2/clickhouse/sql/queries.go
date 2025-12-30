@@ -224,28 +224,28 @@ LEFT JOIN trace_id_timestamps t ON s.trace_id = t.trace_id
 WHERE 1=1`
 
 const SelectServices = `
-SELECT DISTINCT
+SELECT
     name
 FROM
-    services
+    services FINAL
 `
 
 const SelectOperationsAllKinds = `
-SELECT DISTINCT
+SELECT
     name,
     span_kind
 FROM
-    operations
+    operations FINAL
 WHERE
     service_name = ?
 `
 
 const SelectOperationsByKind = `
-SELECT DISTINCT
+SELECT
     name,
     span_kind
 FROM
-    operations
+    operations FINAL
 WHERE
     service_name = ?
     AND span_kind = ?
