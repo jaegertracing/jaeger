@@ -66,10 +66,9 @@ func dbSpanToSpan(dbspan *dbmodel.Span, span ptrace.Span) {
 	span.SetTraceID(pcommon.TraceID(dbspan.TraceID))
 	span.SetSpanID(idutils.UInt64ToSpanID(uint64(dbspan.SpanID)))
 	span.SetName(dbspan.OperationName)
+	span.SetFlags(uint32(dbspan.Flags))
 	span.SetStartTimestamp(pcommon.Timestamp(dbspan.StartTime))
-	startTime := model.EpochMicrosecondsAsTime(uint64(dbspan.StartTime))
-	duration := model.MicrosecondsAsDuration(uint64(dbspan.Duration))
-	span.SetEndTimestamp(pcommon.NewTimestampFromTime(startTime.Add(duration)))
+	span.SetEndTimestamp(pcommon.Timestamp(dbspan.StartTime + dbspan.Duration*1000))
 
 	parentSpanID := dbspan.ParentID
 	if parentSpanID != 0 {
