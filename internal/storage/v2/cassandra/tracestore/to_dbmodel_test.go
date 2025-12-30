@@ -13,7 +13,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -21,6 +20,7 @@ import (
 	conventions "go.opentelemetry.io/collector/semconv/v1.9.0"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 )
 
 func TestGetTagFromStatusCode(t *testing.T) {
