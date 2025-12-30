@@ -128,6 +128,26 @@ func (h *Handler) GetOperations(ctx context.Context, request *api_v3.GetOperatio
 	}, nil
 }
 
+func (h *grpcHandler) GetDependencies(ctx context.Context, req *query_service.GetDependenciesRequest) (*query_service.DependenciesResponse, error) {
+	endTs := time.Unix(0, req.EndTimeNanos)
+	lookback := time.Duration(req.LookbackNanos) * time.Nanosecond
+
+	deps, err := h.traceQueryManager.GetDependencies(ctx, endTs, lookback)
+	if err != nil {
+		return nil, err
+	}
+
+	protoDeps := make([]*query_service.Dependency, 0, len(deps))
+	for _, dep := range deps {
+		protoDeps = append(protoDeps, &query_service.Dependency{
+			Parent:    dep.Parent,
+			Child:     dep.Child,
+			CallCount: uint64(dep.CallCount),
+		})
+	}
+	return &query_service.DependenciesResponse{Dependencies: protoDeps}, nil
+}
+
 func receiveTraces(
 	seq iter.Seq2[[]ptrace.Traces, error],
 	sendFn func(*jptrace.TracesData) error,
