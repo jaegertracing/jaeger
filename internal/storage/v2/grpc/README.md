@@ -35,7 +35,7 @@ From the Jaeger GitHub Releases page, download the tools archive for your platfo
 Extract the archive and locate the binary:
 
 ```bash
-jaeger-storage-integration-test
+jaeger-storage-integration-tester
 ```
 
 ### Step 2: Run the Integration Tests
