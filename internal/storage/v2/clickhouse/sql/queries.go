@@ -257,6 +257,10 @@ const TruncateServices = `TRUNCATE TABLE services`
 
 const TruncateOperations = `TRUNCATE TABLE operations`
 
+const TruncateTraceIDTimestamps = `TRUNCATE TABLE trace_id_timestamps`
+
+const TruncateAttributeMetadata = `TRUNCATE TABLE attribute_metadata`
+
 //go:embed create_spans_table.sql
 var CreateSpansTable string
 
@@ -277,3 +281,9 @@ var CreateTraceIDTimestampsTable string
 
 //go:embed create_trace_id_timestamps_mv.sql
 var CreateTraceIDTimestampsMaterializedView string
+
+//go:embed create_attribute_metadata_table.sql
+var CreateAttributeMetadataTable string
+
+//go:embed create_attribute_metadata_mv.sql
+var CreateAttributeMetadataMaterializedView string
