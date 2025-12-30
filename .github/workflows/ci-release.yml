@@ -118,7 +118,7 @@ jobs:
 
     - name: Upload storage integration test binary
       if: ${{ inputs.dry_run != true }}
-      uses: svenstaro/upload-release-action@5e35e583720436a2cc5f9682b6f55657101c1ea1 # same action already used
+      uses: svenstaro/upload-release-action@5e35e583720436a2cc5f9682b6f55657101c1ea1 # 2.11.1
       with:
         file: jaeger-storage-integration-tests
         asset_name: jaeger-storage-integration-tests-linux-amd64
