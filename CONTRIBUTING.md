@@ -93,13 +93,13 @@ These are general guidelines on how to organize source code in this repository.
 ```
 github.com/jaegertracing/jaeger
   cmd/                      - All binaries go here
-    jaeger/                 - The main Jaeger binary (V2) that combines collector, query, and ingester
+    jaeger/                 - The main Jaeger binary (v2) that combines collector, query, and ingester
     anonymizer/             - Utility to anonymize traces from Jaeger query and save to file
     tracegen/               - Utility to generate a steady flow of simple traces
     es-index-cleaner/       - Utility to purge old indices from Elasticsearch
     es-rollover/            - Utility to manage Elastic Search indices
     esmapping-generator/    - Utility to generate Elasticsearch mapping
-    remote-storage/         - Component to enable sharing single-node storage implementations via Remote Storage API
+    remote-storage/         - Component to enable sharing single-node storage implementations via Remote Storage API v2
   examples/
     grafana-integration/    - Demo application combining Jaeger, Grafana, Loki, Prometheus
     hotrod/                 - Demo application demonstrating tracing instrumentation
@@ -111,8 +111,8 @@ github.com/jaegertracing/jaeger
   internal/                 - Internal modules that make up Jaeger
     storage/                - Trace/Metrics Storage interfaces and implementations
       metricstore/          - Metrics Storage interface and implementations (e.g. Prometheus, Elasticsearch)
-      v1/                   - V1 Trace Storage interfaces and implementations (Cassandra, Elasticsearch, Badger, gRPC, etc.)
-      v2/                   - V2 Trace Storage interfaces and implementations (ClickHouse, etc.)
+      v1/                   - Trace Storage v1 interfaces and implementations (Cassandra, Elasticsearch, Badger, etc.)
+      v2/                   - Trace Storage v2 interfaces and implementations (gRPC, ClickHouse, etc.)
   monitoring/               - Jaeger monitoring assets (e.g. jaeger-mixin)
   ports/                    - Centralized port definitions
   scripts/                  - Miscellaneous project scripts, e.g. github action and license update script

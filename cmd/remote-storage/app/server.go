@@ -16,6 +16,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
@@ -112,6 +113,7 @@ func createGRPCServer(
 	reflection.Register(server)
 
 	v2Handler.Register(server, healthServer)
+	grpc_health_v1.RegisterHealthServer(server, healthServer)
 
 	return server, nil
 }
