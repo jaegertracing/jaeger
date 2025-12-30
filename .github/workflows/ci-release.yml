@@ -105,26 +105,11 @@ jobs:
     - name: Build all binaries
       run: make build-all-platforms PLATFORMS=${{ steps.params.outputs.platforms }}
 
-    - name: Build storage integration test binary
-      run: |
-        go test -c ./internal/storage/integration \
-          -o jaeger-storage-integration-tests
-
     - name: Package binaries
       run: |
         bash scripts/build/package-deploy.sh \
           -p ${{ steps.params.outputs.platforms }} \
           ${{ steps.params.outputs.gpg_key_override }}
-
-    - name: Upload storage integration test binary
-      if: ${{ inputs.dry_run != true }}
-      uses: svenstaro/upload-release-action@5e35e583720436a2cc5f9682b6f55657101c1ea1 # 2.11.1
-      with:
-        file: jaeger-storage-integration-tests
-        asset_name: jaeger-storage-integration-tests-linux-amd64
-        overwrite: ${{ inputs.overwrite }}
-        tag: ${{ env.BRANCH }}
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Upload binaries
       if: ${{ inputs.dry_run != true }}
