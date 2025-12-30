@@ -20,15 +20,22 @@ ensuring a clean state before each test run.
 
 ## Certifying compliance
 
-To verify that your remote storage backend works correctly with Jaeger, you can run the integration tests provided by the Jaeger project.
+To verify that your remote storage backend works correctly with Jaeger, you can run the **official storage integration test binary** published with Jaeger releases.
 
-### Step 1: Clone the Jaeger Repository
+This approach does **not require cloning the Jaeger repository** and is suitable for CI environments with restricted network access.
 
-Begin by cloning the Jaeger repository to your local machine:
+### Step 1: Download the integration test binary
+
+From the Jaeger GitHub Releases page, download the tools archive for your platform:
+
+- Linux: `jaeger-tools-<version>-linux-amd64.tar.gz`
+- macOS: `jaeger-tools-<version>-darwin-arm64.tar.gz`
+- Windows: `jaeger-tools-<version>-windows-amd64.zip`
+
+Extract the archive and locate the binary:
 
 ```bash
-git clone https://github.com/jaegertracing/jaeger.git
-cd jaeger
+jaeger-storage-integration-test
 ```
 
 ### Step 2: Run the Integration Tests
@@ -41,7 +48,7 @@ CUSTOM_STORAGE=true \
 REMOTE_STORAGE_ENDPOINT=${MY_REMOTE_STORAGE_ENDPOINT} \
 REMOTE_STORAGE_WRITER_ENDPOINT=${MY_REMOTE_STORAGE_WRITER_ENDPOINT} \
 PURGER_ENDPOINT=${MY_PURGER_ENDPOINT} \
-make jaeger-v2-storage-integration-test
+./jaeger-storage-integration-test
 ```
 
 The diagram below demonstrates the architecture of the gRPC storage integration test.
