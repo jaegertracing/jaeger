@@ -223,6 +223,8 @@ FROM spans s
 LEFT JOIN trace_id_timestamps t ON s.trace_id = t.trace_id
 WHERE 1=1`
 
+// We use FINAL to ensure ClickHouse fully merges the data before returning the result.
+// See https://clickhouse.com/docs/sql-reference/statements/select/from#final-modifier
 const SelectServices = `
 SELECT
     name
