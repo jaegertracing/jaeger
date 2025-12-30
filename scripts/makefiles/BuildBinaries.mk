@@ -105,9 +105,9 @@ build-remote-storage: BIN_NAME = remote-storage
 build-remote-storage: _build-a-binary-remote-storage$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 .PHONY: build-storage-integration-test
-build-storage-integration-test:
+build-storage-integration-tester:
 	go test -c ./internal/storage/integration \
-		-o ./cmd/storage-integration-test/jaeger-storage-integration-test$(SUFFIX)-$(GOOS)-$(GOARCH)
+		-o ./cmd/remote-storage/jaeger-storage-integration-tester$(SUFFIX)-$(GOOS)-$(GOARCH)
 
 # build all binaries for the current platform
 .PHONY: build-binaries
