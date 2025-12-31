@@ -224,24 +224,26 @@ LEFT JOIN trace_id_timestamps t ON s.trace_id = t.trace_id
 WHERE 1=1`
 
 const SelectServices = `
-SELECT DISTINCT
+SELECT
     name
 FROM
     services
+GROUP BY name
 `
 
 const SelectOperationsAllKinds = `
-SELECT DISTINCT
+SELECT
     name,
     span_kind
 FROM
     operations
 WHERE
     service_name = ?
+GROUP BY name, span_kind
 `
 
 const SelectOperationsByKind = `
-SELECT DISTINCT
+SELECT
     name,
     span_kind
 FROM
@@ -249,6 +251,7 @@ FROM
 WHERE
     service_name = ?
     AND span_kind = ?
+GROUP BY name, span_kind
 `
 
 const TruncateSpans = `TRUNCATE TABLE spans`
