@@ -254,6 +254,13 @@ WHERE
 GROUP BY name, span_kind
 `
 
+const SelectAttributeMetadata = `
+SELECT
+    type,
+    level
+FROM
+    attribute_metadata`
+
 const TruncateSpans = `TRUNCATE TABLE spans`
 
 const TruncateServices = `TRUNCATE TABLE services`

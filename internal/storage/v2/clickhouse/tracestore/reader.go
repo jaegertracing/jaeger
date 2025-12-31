@@ -243,6 +243,28 @@ func buildFindTracesQuery(traceIDsQuery string) string {
 	return sql.SelectSpansQuery + " WHERE s.trace_id IN (SELECT trace_id FROM (" + traceIDsQuery + ")) ORDER BY s.trace_id"
 }
 
+func buildSelectAttributeMetadataQuery(attributes pcommon.Map) (string, []string) {
+	var q strings.Builder
+	q.WriteString(sql.SelectAttributeMetadata)
+	args := []string{}
+
+	var placeholders []string
+	for key, attr := range attributes.All() {
+		if attr.Type() == pcommon.ValueTypeStr {
+			placeholders = append(placeholders, "?")
+			args = append(args, key)
+		}
+	}
+
+	if len(placeholders) > 0 {
+		q.WriteString("WHERE attribute_key IN (")
+		q.WriteString(strings.Join(placeholders, ", "))
+		q.WriteString(") ")
+	}
+	q.WriteString(" GROUP BY type, level")
+	return q.String(), args
+}
+
 func (r *Reader) buildFindTraceIDsQuery(query tracestore.TraceQueryParams) (string, []any, error) {
 	limit := query.SearchDepth
 	if limit == 0 {
