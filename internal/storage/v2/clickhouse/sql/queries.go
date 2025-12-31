@@ -130,7 +130,7 @@ VALUES
     )
 `
 
-const SelectSpansByTraceID = `
+const SelectSpansQuery = `
 SELECT
     id,
     trace_id,
@@ -199,12 +199,12 @@ SELECT
     scope_str_attributes.key,
     scope_str_attributes.value,
     scope_complex_attributes.key,
-    scope_complex_attributes.value,
+    scope_complex_attributes.value
 FROM
-    spans
-WHERE
-    trace_id = ?
+    spans s
 `
+
+const SelectSpansByTraceID = SelectSpansQuery + " WHERE s.trace_id = ?"
 
 // SearchTraceIDs is the base SQL fragment used by FindTraceIDs.
 //
