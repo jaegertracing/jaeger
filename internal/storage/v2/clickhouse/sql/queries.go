@@ -223,13 +223,12 @@ FROM spans s
 LEFT JOIN trace_id_timestamps t ON s.trace_id = t.trace_id
 WHERE 1=1`
 
-// We use FINAL to ensure ClickHouse fully merges the data before returning the result.
-// See https://clickhouse.com/docs/sql-reference/statements/select/from#final-modifier
 const SelectServices = `
 SELECT
     name
 FROM
-    services FINAL
+    services
+GROUP BY name
 `
 
 const SelectOperationsAllKinds = `
@@ -237,9 +236,10 @@ SELECT
     name,
     span_kind
 FROM
-    operations FINAL
+    operations
 WHERE
     service_name = ?
+GROUP BY name, span_kind
 `
 
 const SelectOperationsByKind = `
@@ -247,10 +247,11 @@ SELECT
     name,
     span_kind
 FROM
-    operations FINAL
+    operations
 WHERE
     service_name = ?
     AND span_kind = ?
+GROUP BY name, span_kind
 `
 
 const TruncateSpans = `TRUNCATE TABLE spans`
