@@ -28,6 +28,7 @@ var (
 		MaxSearchDepth:     1000,
 	}
 	testSearchTraceIDsQuery = sql.SearchTraceIDs + " LIMIT ?"
+	testFindTracesQuery     = buildFindTracesQuery(testSearchTraceIDsQuery)
 	testTraceIDsData        = [][]any{
 		{
 			traceIDHex1,
@@ -533,24 +534,249 @@ func TestGetOperations(t *testing.T) {
 	}
 }
 
-func TestFindTraces(t *testing.T) {
-	reader := NewReader(&testDriver{}, testReaderConfig)
-	require.Panics(t, func() {
-		reader.FindTraces(context.Background(), tracestore.TraceQueryParams{})
+func TestFindTraces_Success(t *testing.T) {
+	tests := []struct {
+		name string
+		data []*dbmodel.SpanRow
+	}{
+		{
+			name: "single span",
+			data: singleSpan,
+		},
+		{
+			name: "multiple spans",
+			data: multipleSpans,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conn := &testDriver{
+				t:             t,
+				expectedQuery: testFindTracesQuery,
+				rows: &testRows[*dbmodel.SpanRow]{
+					data:   tt.data,
+					scanFn: scanSpanRowFn(),
+				},
+			}
+
+			reader := NewReader(conn, testReaderConfig)
+			findTracesIter := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
+				Attributes: pcommon.NewMap(),
+			})
+			traces, err := jiter.FlattenWithErrors(findTracesIter)
+
+			require.NoError(t, err)
+			requireTracesEqual(t, tt.data, traces)
+		})
+	}
+}
+
+func TestFindTraces_WithFilters(t *testing.T) {
+	conn := &testDriver{
+		t: t,
+		expectedQuery: buildFindTracesQuery(
+			sql.SearchTraceIDs +
+				" AND s.service_name = ?" +
+				" AND s.name = ?" +
+				" AND s.duration >= ?" +
+				" AND s.duration <= ?" +
+				" AND s.start_time >= ?" +
+				" AND s.start_time <= ?" +
+				" AND (arrayExists((key, value) -> key = ? AND value = ?, s.bool_attributes.key, s.bool_attributes.value)" +
+				" OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_bool_attributes.key, s.resource_bool_attributes.value))" +
+				" AND (arrayExists((key, value) -> key = ? AND value = ?, s.double_attributes.key, s.double_attributes.value)" +
+				" OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_double_attributes.key, s.resource_double_attributes.value))" +
+				" AND (arrayExists((key, value) -> key = ? AND value = ?, s.int_attributes.key, s.int_attributes.value)" +
+				" OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_int_attributes.key, s.resource_int_attributes.value))" +
+				" AND (arrayExists((key, value) -> key = ? AND value = ?, s.str_attributes.key, s.str_attributes.value)" +
+				" OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_str_attributes.key, s.resource_str_attributes.value))" +
+				" AND (arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)" +
+				" OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value))" +
+				" AND (arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)" +
+				" OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value))" +
+				" AND (arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)" +
+				" OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value))" +
+				" LIMIT ?",
+		),
+		rows: &testRows[*dbmodel.SpanRow]{
+			data:   multipleSpans,
+			scanFn: scanSpanRowFn(),
+		},
+	}
+
+	reader := NewReader(conn, testReaderConfig)
+	attributes := pcommon.NewMap()
+	attributes.PutBool("login_successful", true)
+	attributes.PutDouble("response_time", 0.123)
+	attributes.PutInt("attempt_count", 1)
+	attributes.PutStr("http.method", "GET")
+	b := attributes.PutEmptyBytes("file.checksum")
+	s := attributes.PutEmptySlice("http.headers")
+	m := attributes.PutEmptyMap("http.cookies")
+
+	b.FromRaw([]byte{0x12, 0x34, 0x56, 0x78})
+	s.AppendEmpty().SetStr("header1: value1")
+	m.PutStr("session_id", "abc123")
+
+	iter := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
+		ServiceName:   "serviceA",
+		OperationName: "operationA",
+		DurationMin:   1 * time.Nanosecond,
+		DurationMax:   1 * time.Second,
+		StartTimeMin:  now.Add(-1 * time.Hour),
+		StartTimeMax:  now,
+		Attributes:    attributes,
+		SearchDepth:   5,
 	})
+	traces, err := jiter.FlattenWithErrors(iter)
+	require.NoError(t, err)
+	requireTracesEqual(t, multipleSpans, traces)
+}
+
+func TestFindTraces_SearchDepthExceedsMax(t *testing.T) {
+	driver := &testDriver{
+		t: t,
+		rows: &testRows[*dbmodel.SpanRow]{
+			data:   singleSpan,
+			scanFn: scanSpanRowFn(),
+		},
+	}
+	reader := NewReader(driver, testReaderConfig)
+	iter := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
+		SearchDepth: 10000,
+		Attributes:  pcommon.NewMap(),
+	})
+	_, err := jiter.FlattenWithErrors(iter)
+	require.ErrorContains(t, err, "search depth 10000 exceeds maximum allowed 1000")
+}
+
+func TestFindTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
+	conn := &testDriver{
+		t:             t,
+		expectedQuery: testFindTracesQuery,
+		rows: &testRows[*dbmodel.SpanRow]{
+			data:   multipleSpans,
+			scanFn: scanSpanRowFn(),
+		},
+	}
+
+	reader := NewReader(conn, testReaderConfig)
+	findTracesIter := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+	})
+
+	var gotTraces []ptrace.Traces
+	findTracesIter(func(traces []ptrace.Traces, err error) bool {
+		require.NoError(t, err)
+		gotTraces = append(gotTraces, traces...)
+		return false // stop iteration after the first span
+	})
+
+	require.Len(t, gotTraces, 1)
+	requireTracesEqual(t, multipleSpans[0:1], gotTraces)
+}
+
+func TestFindTraces_ScanErrorContinues(t *testing.T) {
+	scanCalled := 0
+
+	scanFn := func(dest any, src *dbmodel.SpanRow) error {
+		scanCalled++
+		if scanCalled == 1 {
+			return assert.AnError // simulate scan error on the first row
+		}
+		return scanSpanRowFn()(dest, src)
+	}
+
+	conn := &testDriver{
+		t:             t,
+		expectedQuery: testFindTracesQuery,
+		rows: &testRows[*dbmodel.SpanRow]{
+			data:   multipleSpans,
+			scanFn: scanFn,
+		},
+	}
+
+	reader := NewReader(conn, testReaderConfig)
+	findTracesIter := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+	})
+
+	expected := multipleSpans[1:] // skip the first span which caused the error
+	for trace, err := range findTracesIter {
+		if err != nil {
+			require.ErrorIs(t, err, assert.AnError)
+			continue
+		}
+		requireTracesEqual(t, expected, trace)
+	}
+}
+
+func TestFindTraces_ErrorCases(t *testing.T) {
+	tests := []struct {
+		name        string
+		driver      *testDriver
+		expectedErr string
+	}{
+		{
+			name: "QueryError",
+			driver: &testDriver{
+				t:             t,
+				expectedQuery: testFindTracesQuery,
+				err:           assert.AnError,
+			},
+			expectedErr: "failed to query traces",
+		},
+		{
+			name: "ScanError",
+			driver: &testDriver{
+				t:             t,
+				expectedQuery: testFindTracesQuery,
+				rows: &testRows[*dbmodel.SpanRow]{
+					data:    singleSpan,
+					scanErr: assert.AnError,
+				},
+			},
+			expectedErr: "failed to scan span row",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			reader := NewReader(test.driver, testReaderConfig)
+			iter := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
+				Attributes: pcommon.NewMap(),
+			})
+			_, err := jiter.FlattenWithErrors(iter)
+			require.ErrorContains(t, err, test.expectedErr)
+		})
+	}
+}
+
+func TestFindTraces_BuildQueryError(t *testing.T) {
+	orig := marshalValueForQuery
+	t.Cleanup(func() { marshalValueForQuery = orig })
+
+	marshalValueForQuery = func(pcommon.Value) (string, error) {
+		return "", assert.AnError
+	}
+
+	attrs := pcommon.NewMap()
+	attrs.PutEmptySlice("bad_slice").AppendEmpty()
+
+	reader := NewReader(&testDriver{t: t}, testReaderConfig)
+	iter := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
+		Attributes:  attrs,
+		SearchDepth: 1,
+	})
+	_, err := jiter.FlattenWithErrors(iter)
+	require.ErrorContains(t, err, "failed to build query")
 }
 
 func TestFindTraceIDs(t *testing.T) {
 	driver := &testDriver{
 		t: t,
-		expectedQuery: `
-SELECT DISTINCT
-    s.trace_id,
-    t.start,
-    t.end
-FROM spans s
-LEFT JOIN trace_id_timestamps t ON s.trace_id = t.trace_id
-WHERE 1=1` +
+		expectedQuery: sql.SearchTraceIDs +
 			` AND s.service_name = ?` +
 			` AND s.name = ?` +
 			` AND s.duration >= ?` +
@@ -829,7 +1055,27 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 	}
 }
 
-func TestBuildFindTraceIDsQuery_MarshalErrors(t *testing.T) {
+func TestFindTraceIDs_BuildQueryError(t *testing.T) {
+	orig := marshalValueForQuery
+	t.Cleanup(func() { marshalValueForQuery = orig })
+
+	marshalValueForQuery = func(pcommon.Value) (string, error) {
+		return "", assert.AnError
+	}
+
+	attrs := pcommon.NewMap()
+	attrs.PutEmptyMap("bad_map").PutEmpty("key")
+
+	reader := NewReader(&testDriver{t: t}, testReaderConfig)
+	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+		Attributes:  attrs,
+		SearchDepth: 1,
+	})
+	_, err := jiter.FlattenWithErrors(iter)
+	require.ErrorContains(t, err, "failed to build query")
+}
+
+func TestBuildSearchTraceIDsQuery_MarshalErrors(t *testing.T) {
 	orig := marshalValueForQuery
 	t.Cleanup(func() { marshalValueForQuery = orig })
 	marshalValueForQuery = func(pcommon.Value) (string, error) {
@@ -841,7 +1087,8 @@ func TestBuildFindTraceIDsQuery_MarshalErrors(t *testing.T) {
 		s := attrs.PutEmptySlice("bad_slice")
 		s.AppendEmpty()
 
-		_, _, err := buildFindTraceIDsQuery(tracestore.TraceQueryParams{Attributes: attrs}, 10)
+		reader := NewReader(&testDriver{t: t}, testReaderConfig)
+		_, _, err := reader.buildFindTraceIDsQuery(tracestore.TraceQueryParams{Attributes: attrs})
 
 		require.Error(t, err)
 		require.ErrorContains(t, err, "failed to marshal slice attribute")
@@ -852,7 +1099,8 @@ func TestBuildFindTraceIDsQuery_MarshalErrors(t *testing.T) {
 		m := attrs.PutEmptyMap("bad_map")
 		m.PutEmpty("key")
 
-		_, _, err := buildFindTraceIDsQuery(tracestore.TraceQueryParams{Attributes: attrs}, 10)
+		reader := NewReader(&testDriver{t: t}, testReaderConfig)
+		_, _, err := reader.buildFindTraceIDsQuery(tracestore.TraceQueryParams{Attributes: attrs})
 
 		require.Error(t, err)
 		require.ErrorContains(t, err, "failed to marshal map attribute")
