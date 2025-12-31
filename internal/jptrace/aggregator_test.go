@@ -134,3 +134,79 @@ func TestAggregateTraces_RespectsEarlyReturn(t *testing.T) {
 
 	require.Equal(t, trace1, lastResult)
 }
+
+func TestAggregateTracesWithLimit(t *testing.T) {
+	createTrace := func(traceID byte, spanCount int) ptrace.Traces {
+		trace := ptrace.NewTraces()
+		spans := trace.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+		for i := 0; i < spanCount; i++ {
+			span := spans.AppendEmpty()
+			span.SetTraceID(pcommon.TraceID([16]byte{traceID}))
+		}
+		return trace
+	}
+
+	tests := []struct {
+		name           string
+		maxSize        int
+		inputSpans     int
+		expectedSpans  int
+		expectTruncate bool
+	}{
+		{"no_limit", 0, 5, 5, false},
+		{"under_limit", 10, 5, 5, false},
+		{"over_limit", 3, 5, 3, true},
+		{"exact_limit", 5, 5, 5, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tracesSeq := func(yield func([]ptrace.Traces, error) bool) {
+				yield([]ptrace.Traces{createTrace(1, tt.inputSpans)}, nil)
+			}
+
+			var result []ptrace.Traces
+			AggregateTracesWithLimit(tracesSeq, tt.maxSize)(func(trace ptrace.Traces, _ error) bool {
+				result = append(result, trace)
+				return true
+			})
+
+			require.Len(t, result, 1)
+			assert.Equal(t, tt.expectedSpans, countSpans(result[0]))
+			assert.Equal(t, tt.expectTruncate, IsTraceTruncated(result[0]))
+		})
+	}
+}
+
+func TestCountSpans(t *testing.T) {
+	trace := ptrace.NewTraces()
+	r1 := trace.ResourceSpans().AppendEmpty()
+	r1.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	r1.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	r2 := trace.ResourceSpans().AppendEmpty()
+	r2.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+
+	assert.Equal(t, 3, countSpans(trace))
+}
+
+func TestCopySpansUpToLimit(t *testing.T) {
+	src := ptrace.NewTraces()
+	spans := src.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+	for i := 0; i < 5; i++ {
+		spans.AppendEmpty().SetName("span")
+	}
+
+	dest := ptrace.NewTraces()
+	copySpansUpToLimit(src, dest, 3)
+
+	assert.Equal(t, 3, countSpans(dest))
+}
+
+func TestMarkAndCheckTruncated(t *testing.T) {
+	trace := ptrace.NewTraces()
+	trace.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+
+	assert.False(t, IsTraceTruncated(trace))
+	markTraceTruncated(trace)
+	assert.True(t, IsTraceTruncated(trace))
+}
