@@ -240,7 +240,7 @@ var marshalValueForQuery = func(v pcommon.Value) (string, error) {
 }
 
 func buildFindTracesQuery(traceIDsQuery string) string {
-	return sql.SelectSpansQuery + " WHERE s.trace_id IN (SELECT trace_id FROM (" + traceIDsQuery + "))"
+	return sql.SelectSpansQuery + " WHERE s.trace_id IN (SELECT trace_id FROM (" + traceIDsQuery + ")) ORDER BY s.trace_id"
 }
 
 func (r *Reader) buildFindTraceIDsQuery(query tracestore.TraceQueryParams) (string, []any, error) {
