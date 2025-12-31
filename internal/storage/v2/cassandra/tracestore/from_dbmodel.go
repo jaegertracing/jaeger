@@ -65,14 +65,19 @@ func dbProcessToResource(process dbmodel.Process, resource pcommon.Resource) {
 
 func dbSpanToSpan(dbspan *dbmodel.Span, span ptrace.Span) {
 	span.SetTraceID(pcommon.TraceID(dbspan.TraceID))
+	//nolint:gosec // G115 // dbspan.SpanID is guaranteed non-negative by schema constraints
 	span.SetSpanID(idutils.UInt64ToSpanID(uint64(dbspan.SpanID)))
 	span.SetName(dbspan.OperationName)
+	//nolint:gosec // G115 // dbspan.Flags is guaranteed non-negative (epoch microseconds) by schema constraints
 	span.SetFlags(uint32(dbspan.Flags))
-	span.SetStartTimestamp(pcommon.Timestamp(dbspan.StartTime))
-	span.SetEndTimestamp(pcommon.Timestamp(dbspan.StartTime + dbspan.Duration*1000))
+	//nolint:gosec // G115 // dbspan.StartTime is guaranteed non-negative (epoch microseconds) by schema constraints
+	span.SetStartTimestamp(pcommon.Timestamp(uint64(dbspan.StartTime)))
+	//nolint:gosec // G115 // dbspan.StartTime and dbspan.Duration is guaranteed non-negative by schema constraints
+	span.SetEndTimestamp(pcommon.Timestamp(uint64(dbspan.StartTime + dbspan.Duration*1000)))
 
 	parentSpanID := dbspan.ParentID
 	if parentSpanID != 0 {
+		//nolint:gosec // G115 // dbspan.ParentID is guaranteed non-negative (epoch microseconds) by schema constraints
 		span.SetParentSpanID(idutils.UInt64ToSpanID(uint64(parentSpanID)))
 	}
 
@@ -270,8 +275,8 @@ func dbLogsToSpanEvents(logs []dbmodel.Log, events ptrace.SpanEventSlice) {
 		} else {
 			event = events.AppendEmpty()
 		}
-
-		event.SetTimestamp(pcommon.Timestamp(log.Timestamp))
+		//nolint:gosec // G115 // dblog.Timestamp is guaranteed non-negative (epoch microseconds) by schema constraints
+		event.SetTimestamp(pcommon.Timestamp(uint64(log.Timestamp)))
 		if len(log.Fields) == 0 {
 			continue
 		}
@@ -300,6 +305,7 @@ func dbReferencesToSpanLinks(refs []dbmodel.SpanRef, excludeParentID int64, span
 
 		link := spanLinks.AppendEmpty()
 		link.SetTraceID(pcommon.TraceID(ref.TraceID))
+		//nolint:gosec // G115 // dbspan.SpanID is guaranteed non-negative by schema constraints
 		link.SetSpanID(idutils.UInt64ToSpanID(uint64(ref.SpanID)))
 		link.Attributes().PutStr(conventions.AttributeOpentracingRefType, dbRefTypeToAttribute(ref.RefType))
 	}

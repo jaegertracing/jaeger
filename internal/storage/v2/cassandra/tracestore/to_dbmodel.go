@@ -136,14 +136,17 @@ func spanToDbSpan(span ptrace.Span, scope pcommon.InstrumentationScope, process 
 		SpanID:        spanIDToDbSpanId(span.SpanID()),
 		OperationName: span.Name(),
 		Refs:          dbReferences,
-		StartTime:     int64(span.StartTimestamp()),
-		Duration:      int64(model.DurationAsMicroseconds(span.EndTimestamp().AsTime().Sub(startTime))),
-		Tags:          getDbTags(span, scope),
-		Logs:          spanEventsToDbLogs(span.Events()),
-		Process:       process,
-		Flags:         int32(span.Flags()),
-		ServiceName:   process.ServiceName,
-		ParentID:      spanIDToDbSpanId(span.ParentSpanID()),
+		//nolint:gosec // G115 // span.StartTime is guaranteed non-negative by schema constraints
+		StartTime: int64(span.StartTimestamp()),
+		//nolint:gosec // G115 // span.EndTime - span.StartTime is guaranteed non-negative by schema constraints
+		Duration: int64(model.DurationAsMicroseconds(span.EndTimestamp().AsTime().Sub(startTime))),
+		Tags:     getDbTags(span, scope),
+		Logs:     spanEventsToDbLogs(span.Events()),
+		Process:  process,
+		//nolint:gosec // G115 // span.Flags is guaranteed non-negative by schema constraints
+		Flags:       int32(span.Flags()),
+		ServiceName: process.ServiceName,
+		ParentID:    spanIDToDbSpanId(span.ParentSpanID()),
 	}
 }
 
@@ -200,6 +203,7 @@ func getDbTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmodel.K
 }
 
 func spanIDToDbSpanId(spanID pcommon.SpanID) int64 {
+	//nolint:gosec // G115 // pcommon.SpanID is guaranteed non-negative by schema constraints
 	return int64(binary.BigEndian.Uint64(spanID[:]))
 }
 
@@ -266,6 +270,7 @@ func spanEventsToDbLogs(events ptrace.SpanEventSlice) []dbmodel.Log {
 		}
 		fields = appendTagsFromAttributes(fields, event.Attributes())
 		logs = append(logs, dbmodel.Log{
+			//nolint:gosec // G115 // Timestamp is guaranteed non-negative by schema constraints
 			Timestamp: int64(event.Timestamp()),
 			Fields:    fields,
 		})
