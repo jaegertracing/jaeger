@@ -104,7 +104,7 @@ build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
 build-remote-storage: BIN_NAME = remote-storage
 build-remote-storage: _build-a-binary-remote-storage$(SUFFIX)-$(GOOS)-$(GOARCH)
 
-.PHONY: build-storage-integration-test
+.PHONY: build-storage-integration-tester
 build-storage-integration-tester:
 	go test -c ./internal/storage/integration \
 		-o ./cmd/remote-storage/jaeger-storage-integration-tester$(SUFFIX)-$(GOOS)-$(GOARCH)
@@ -149,7 +149,7 @@ build-binaries-linux-ppc64le:
 _build-platform-binaries: \
 		build-jaeger \
 		build-remote-storage \
-		build-storage-integration-test \
+		build-storage-integration-tester \
 		build-examples \
 		build-tracegen \
 		build-anonymizer \
