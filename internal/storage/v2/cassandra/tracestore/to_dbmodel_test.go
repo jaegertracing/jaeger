@@ -287,10 +287,10 @@ func TestEdgeCases(t *testing.T) {
 			},
 			expected: true,
 			testFunc: func(traces ptrace.Traces) any {
-				spans := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
-				spanScope := traces.ResourceSpans().At(0).ScopeSpans().At(0).Scope()
-				modelSpan := spanToDbSpan(spans, spanScope, dbmodel.Process{})
-				return len(modelSpan.Tags) == 0
+				traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+				traces.ResourceSpans().At(0).ScopeSpans().At(0).Scope()
+				modelSpan := ToDBModel(traces)[0]
+				return len(modelSpan.Tags) == 0 && len(modelSpan.Process.Tags) == 0 && modelSpan.Process.ServiceName == noServiceName
 			},
 			description: "Empty span attributes should result in no tags",
 		},
@@ -298,13 +298,12 @@ func TestEdgeCases(t *testing.T) {
 			name: "resource spans with no scope spans",
 			setupTraces: func() ptrace.Traces {
 				traces := ptrace.NewTraces()
-				traces.ResourceSpans().AppendEmpty()
+				traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty()
 				return traces
 			},
 			expected: true,
 			testFunc: func(traces ptrace.Traces) any {
-				resourceSpans := traces.ResourceSpans().At(0)
-				dbSpans := resourceSpansToDbSpans(resourceSpans)
+				dbSpans := ToDBModel(traces)
 				return len(dbSpans) == 0
 			},
 			description: "Resource spans with no scope spans should return empty slice",
