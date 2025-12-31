@@ -624,161 +624,223 @@ func TestGetCapabilities(t *testing.T) {
 	}
 }
 
-func TestMaxTraceSize_UnderLimit(t *testing.T) {
-	// 3 spans
-	trace := ptrace.NewTraces()
-	resources := trace.ResourceSpans().AppendEmpty()
-	scopes := resources.ScopeSpans().AppendEmpty()
-	for i := 0; i < 3; i++ {
-		span := scopes.Spans().AppendEmpty()
-		span.SetTraceID(testTraceID)
-		span.SetSpanID(pcommon.SpanID([8]byte{byte(i + 1)}))
-		span.SetName(fmt.Sprintf("span-%d", i))
+func TestMaxTraceSize(t *testing.T) {
+	testTraceID2 := pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17})
+
+	tests := []struct {
+		name          string
+		maxTraceSize  int
+		createTraces  func() iter.Seq2[[]ptrace.Traces, error]
+		expectedSpans int
+		expectWarning bool
+		traceIDs      []tracestore.GetTraceParams
+		expectedCount int // expected number of traces
+	}{
+		{
+			name:         "no_limit",
+			maxTraceSize: 0, // 0 means no limit
+			createTraces: func() iter.Seq2[[]ptrace.Traces, error] {
+				return iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+					trace := ptrace.NewTraces()
+					spans := trace.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+					for i := 0; i < 5; i++ {
+						span := spans.AppendEmpty()
+						span.SetTraceID(testTraceID)
+						span.SetSpanID(pcommon.SpanID([8]byte{byte(i + 1)}))
+					}
+					yield([]ptrace.Traces{trace}, nil)
+				})
+			},
+			expectedSpans: 5,
+			expectWarning: false,
+			traceIDs:      []tracestore.GetTraceParams{{TraceID: testTraceID}},
+			expectedCount: 1,
+		},
+		{
+			name:         "under_limit",
+			maxTraceSize: 5,
+			createTraces: func() iter.Seq2[[]ptrace.Traces, error] {
+				return iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+					trace := ptrace.NewTraces()
+					spans := trace.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+					for i := 0; i < 3; i++ {
+						span := spans.AppendEmpty()
+						span.SetTraceID(testTraceID)
+						span.SetSpanID(pcommon.SpanID([8]byte{byte(i + 1)}))
+					}
+					yield([]ptrace.Traces{trace}, nil)
+				})
+			},
+			expectedSpans: 3,
+			expectWarning: false,
+			traceIDs:      []tracestore.GetTraceParams{{TraceID: testTraceID}},
+			expectedCount: 1,
+		},
+		{
+			name:         "over_limit",
+			maxTraceSize: 3,
+			createTraces: func() iter.Seq2[[]ptrace.Traces, error] {
+				return iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+					trace1 := ptrace.NewTraces()
+					spans1 := trace1.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+					for i := 0; i < 3; i++ {
+						span := spans1.AppendEmpty()
+						span.SetTraceID(testTraceID)
+						span.SetSpanID(pcommon.SpanID([8]byte{byte(i + 1)}))
+					}
+					if !yield([]ptrace.Traces{trace1}, nil) {
+						return
+					}
+					trace2 := ptrace.NewTraces()
+					spans2 := trace2.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+					for i := 3; i < 5; i++ {
+						span := spans2.AppendEmpty()
+						span.SetTraceID(testTraceID)
+						span.SetSpanID(pcommon.SpanID([8]byte{byte(i + 1)}))
+					}
+					yield([]ptrace.Traces{trace2}, nil)
+				})
+			},
+			expectedSpans: 3,
+			expectWarning: true,
+			traceIDs:      []tracestore.GetTraceParams{{TraceID: testTraceID}},
+			expectedCount: 1,
+		},
+		{
+			name:         "exactly_at_limit",
+			maxTraceSize: 3,
+			createTraces: func() iter.Seq2[[]ptrace.Traces, error] {
+				return iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+					trace := ptrace.NewTraces()
+					spans := trace.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+					for i := 0; i < 3; i++ {
+						span := spans.AppendEmpty()
+						span.SetTraceID(testTraceID)
+						span.SetSpanID(pcommon.SpanID([8]byte{byte(i + 1)}))
+					}
+					yield([]ptrace.Traces{trace}, nil)
+				})
+			},
+			expectedSpans: 3,
+			expectWarning: false,
+			traceIDs:      []tracestore.GetTraceParams{{TraceID: testTraceID}},
+			expectedCount: 1,
+		},
+		{
+			name:         "partial_copy_and_skip",
+			maxTraceSize: 3,
+			createTraces: func() iter.Seq2[[]ptrace.Traces, error] {
+				return iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+					// 2 spans
+					trace1 := ptrace.NewTraces()
+					spans1 := trace1.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+					for i := 0; i < 2; i++ {
+						span := spans1.AppendEmpty()
+						span.SetTraceID(testTraceID)
+						span.SetSpanID(pcommon.SpanID([8]byte{byte(i + 1)}))
+					}
+					if !yield([]ptrace.Traces{trace1}, nil) {
+						return
+					}
+					// 3 spans (partial copy)
+					trace2 := ptrace.NewTraces()
+					spans2 := trace2.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+					for i := 2; i < 5; i++ {
+						span := spans2.AppendEmpty()
+						span.SetTraceID(testTraceID)
+						span.SetSpanID(pcommon.SpanID([8]byte{byte(i + 1)}))
+					}
+					if !yield([]ptrace.Traces{trace2}, nil) {
+						return
+					}
+					// 2 spans (skipped)
+					trace3 := ptrace.NewTraces()
+					spans3 := trace3.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+					for i := 5; i < 7; i++ {
+						span := spans3.AppendEmpty()
+						span.SetTraceID(testTraceID)
+						span.SetSpanID(pcommon.SpanID([8]byte{byte(i + 1)}))
+					}
+					yield([]ptrace.Traces{trace3}, nil)
+				})
+			},
+			expectedSpans: 3,
+			expectWarning: true,
+			traceIDs:      []tracestore.GetTraceParams{{TraceID: testTraceID}},
+			expectedCount: 1,
+		},
+		{
+			name:         "multiple_traces_in_stream",
+			maxTraceSize: 5,
+			createTraces: func() iter.Seq2[[]ptrace.Traces, error] {
+				return iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+					// Trace 1: 3 spans
+					trace1 := ptrace.NewTraces()
+					spans1 := trace1.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+					for i := 0; i < 3; i++ {
+						span := spans1.AppendEmpty()
+						span.SetTraceID(testTraceID)
+						span.SetSpanID(pcommon.SpanID([8]byte{byte(i + 1)}))
+					}
+					if !yield([]ptrace.Traces{trace1}, nil) {
+						return
+					}
+					// Trace 2: 2 spans
+					trace2 := ptrace.NewTraces()
+					spans2 := trace2.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+					for i := 0; i < 2; i++ {
+						span := spans2.AppendEmpty()
+						span.SetTraceID(testTraceID2)
+						span.SetSpanID(pcommon.SpanID([8]byte{byte(i + 10)}))
+					}
+					yield([]ptrace.Traces{trace2}, nil)
+				})
+			},
+			expectedSpans: -1, // not checking total, will check per-trace
+			expectWarning: false,
+			traceIDs:      []tracestore.GetTraceParams{{TraceID: testTraceID}, {TraceID: testTraceID2}},
+			expectedCount: 2,
+		},
 	}
 
-	responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
-		yield([]ptrace.Traces{trace}, nil)
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			traceReader := &tracestoremocks.Reader{}
+			dependencyStorage := &depstoremocks.Reader{}
+			options := QueryServiceOptions{
+				MaxTraceSize: tt.maxTraceSize,
+			}
+			tqs := &testQueryService{}
+			tqs.queryService = NewQueryService(traceReader, dependencyStorage, options)
 
-	traceReader := &tracestoremocks.Reader{}
-	dependencyStorage := &depstoremocks.Reader{}
-	options := QueryServiceOptions{
-		MaxTraceSize: 5, // limit is 5, but trace has only 3 spans
+			params := GetTraceParams{
+				TraceIDs: tt.traceIDs,
+			}
+			traceReader.On("GetTraces", mock.Anything, params.TraceIDs).
+				Return(tt.createTraces()).Once()
+
+			getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
+			gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
+			require.NoError(t, err)
+			require.Len(t, gotTraces, tt.expectedCount)
+
+			if tt.expectedSpans >= 0 {
+				// Count total spans
+				totalSpans := 0
+				resources := gotTraces[0].ResourceSpans()
+				for i := 0; i < resources.Len(); i++ {
+					scopes := resources.At(i).ScopeSpans()
+					for j := 0; j < scopes.Len(); j++ {
+						totalSpans += scopes.At(j).Spans().Len()
+					}
+				}
+				require.Equal(t, tt.expectedSpans, totalSpans)
+
+				// Check warning
+				firstSpan := resources.At(0).ScopeSpans().At(0).Spans().At(0)
+				_, hasWarning := firstSpan.Attributes().Get("@jaeger@warnings")
+				assert.Equal(t, tt.expectWarning, hasWarning)
+			}
+		})
 	}
-	tqs := &testQueryService{}
-	tqs.queryService = NewQueryService(traceReader, dependencyStorage, options)
-
-	params := GetTraceParams{
-		TraceIDs: []tracestore.GetTraceParams{{TraceID: testTraceID}},
-	}
-	traceReader.On("GetTraces", mock.Anything, params.TraceIDs).
-		Return(responseIter).Once()
-
-	getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
-	gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
-	require.NoError(t, err)
-	require.Len(t, gotTraces, 1)
-
-	gotSpans := gotTraces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans()
-	require.Equal(t, 3, gotSpans.Len())
-
-	// no warning should be present
-	firstSpan := gotSpans.At(0)
-	_, hasWarning := firstSpan.Attributes().Get("@jaeger@warnings")
-	require.False(t, hasWarning)
-}
-
-func TestMaxTraceSize_OverLimit(t *testing.T) {
-	// 5 spans split across 2 batches
-	trace1 := ptrace.NewTraces()
-	resources1 := trace1.ResourceSpans().AppendEmpty()
-	scopes1 := resources1.ScopeSpans().AppendEmpty()
-	for i := 0; i < 3; i++ {
-		span := scopes1.Spans().AppendEmpty()
-		span.SetTraceID(testTraceID)
-		span.SetSpanID(pcommon.SpanID([8]byte{byte(i + 1)}))
-		span.SetName(fmt.Sprintf("span-%d", i))
-	}
-
-	trace2 := ptrace.NewTraces()
-	resources2 := trace2.ResourceSpans().AppendEmpty()
-	scopes2 := resources2.ScopeSpans().AppendEmpty()
-	for i := 3; i < 5; i++ {
-		span := scopes2.Spans().AppendEmpty()
-		span.SetTraceID(testTraceID)
-		span.SetSpanID(pcommon.SpanID([8]byte{byte(i + 1)}))
-		span.SetName(fmt.Sprintf("span-%d", i))
-	}
-
-	responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
-		if !yield([]ptrace.Traces{trace1}, nil) {
-			return
-		}
-		yield([]ptrace.Traces{trace2}, nil)
-	})
-
-	traceReader := &tracestoremocks.Reader{}
-	dependencyStorage := &depstoremocks.Reader{}
-	options := QueryServiceOptions{
-		MaxTraceSize: 3, // Limit is 3, but trace has 5 spans total
-	}
-	tqs := &testQueryService{}
-	tqs.queryService = NewQueryService(traceReader, dependencyStorage, options)
-
-	params := GetTraceParams{
-		TraceIDs: []tracestore.GetTraceParams{{TraceID: testTraceID}},
-	}
-	traceReader.On("GetTraces", mock.Anything, params.TraceIDs).
-		Return(responseIter).Once()
-
-	getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
-	gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
-	require.NoError(t, err)
-	require.Len(t, gotTraces, 1)
-
-	// count total spans in the result
-	totalSpans := 0
-	resources := gotTraces[0].ResourceSpans()
-	for i := 0; i < resources.Len(); i++ {
-		scopes := resources.At(i).ScopeSpans()
-		for j := 0; j < scopes.Len(); j++ {
-			totalSpans += scopes.At(j).Spans().Len()
-		}
-	}
-
-	// Only 3 spans should be present(the limit)
-	require.Equal(t, 3, totalSpans)
-
-	// there should be a warning for the first span
-	firstSpan := resources.At(0).ScopeSpans().At(0).Spans().At(0)
-	warningsAttr, hasWarning := firstSpan.Attributes().Get("@jaeger@warnings")
-	require.True(t, hasWarning)
-	require.Equal(t, pcommon.ValueTypeSlice, warningsAttr.Type())
-	warnings := warningsAttr.Slice()
-	require.Positive(t, warnings.Len())
-	require.Contains(t, warnings.At(warnings.Len()-1).Str(), "trace has more than 3 spans")
-}
-
-func TestMaxTraceSize_ExactlyAtLimit(t *testing.T) {
-	// 3 spans
-	trace := ptrace.NewTraces()
-	resources := trace.ResourceSpans().AppendEmpty()
-	scopes := resources.ScopeSpans().AppendEmpty()
-	for i := 0; i < 3; i++ {
-		span := scopes.Spans().AppendEmpty()
-		span.SetTraceID(testTraceID)
-		span.SetSpanID(pcommon.SpanID([8]byte{byte(i + 1)}))
-		span.SetName(fmt.Sprintf("span-%d", i))
-	}
-
-	responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
-		yield([]ptrace.Traces{trace}, nil)
-	})
-
-	traceReader := &tracestoremocks.Reader{}
-	dependencyStorage := &depstoremocks.Reader{}
-	options := QueryServiceOptions{
-		MaxTraceSize: 3, // Limit is exactly 3, trace has 3 spans
-	}
-	tqs := &testQueryService{}
-	tqs.queryService = NewQueryService(traceReader, dependencyStorage, options)
-
-	params := GetTraceParams{
-		TraceIDs: []tracestore.GetTraceParams{{TraceID: testTraceID}},
-	}
-	traceReader.On("GetTraces", mock.Anything, params.TraceIDs).
-		Return(responseIter).Once()
-
-	getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
-	gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
-	require.NoError(t, err)
-	require.Len(t, gotTraces, 1)
-
-	gotSpans := gotTraces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans()
-	// all 3 spans should be present
-	require.Equal(t, 3, gotSpans.Len())
-
-	firstSpan := gotSpans.At(0)
-	_, hasWarning := firstSpan.Attributes().Get("@jaeger@warnings")
-	require.False(t, hasWarning)
 }
