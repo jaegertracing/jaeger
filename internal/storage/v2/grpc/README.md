@@ -48,7 +48,7 @@ CUSTOM_STORAGE=true \
 REMOTE_STORAGE_ENDPOINT=${MY_REMOTE_STORAGE_ENDPOINT} \
 REMOTE_STORAGE_WRITER_ENDPOINT=${MY_REMOTE_STORAGE_WRITER_ENDPOINT} \
 PURGER_ENDPOINT=${MY_PURGER_ENDPOINT} \
-./jaeger-storage-integration-test
+./jaeger-storage-integration-tester
 ```
 
 The diagram below demonstrates the architecture of the gRPC storage integration test.
