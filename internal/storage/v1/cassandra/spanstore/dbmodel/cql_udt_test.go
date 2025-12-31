@@ -36,7 +36,7 @@ func TestDBModelUDTMarshall(t *testing.T) {
 	}
 
 	spanRef := &SpanRef{
-		RefType: "ChildOf",
+		RefType: "childOf",
 		TraceID: TraceIDFromDomain(model.NewTraceID(0, 1)),
 		SpanID:  123,
 	}
@@ -77,7 +77,7 @@ func TestDBModelUDTMarshall(t *testing.T) {
 			New:     func() gocql.UDTUnmarshaler { return &SpanRef{} },
 			ObjName: "SpanRef",
 			Fields: []testutils.UDTField{
-				{Name: "ref_type", Type: gocql.TypeAscii, ValIn: []byte("ChildOf"), Err: false},
+				{Name: "ref_type", Type: gocql.TypeAscii, ValIn: []byte("childOf"), Err: false},
 				{Name: "trace_id", Type: gocql.TypeBlob, ValIn: []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}, Err: false},
 				{Name: "span_id", Type: gocql.TypeBigInt, ValIn: []byte{0, 0, 0, 0, 0, 0, 0, 123}, Err: false},
 				{Name: "wrong-field", Err: true},
