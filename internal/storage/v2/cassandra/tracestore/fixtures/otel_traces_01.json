@@ -110,8 +110,10 @@
                 }
               ],
               "status": {
-                "code": 2
-              }
+                "code": 2,
+                "message": "random-message"
+              },
+              "traceState": "some-state"
             }
           ]
         }

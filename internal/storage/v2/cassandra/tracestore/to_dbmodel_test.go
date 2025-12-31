@@ -268,6 +268,68 @@ func TestToDbModel_Fixtures(t *testing.T) {
 	testTraces(t, tracesData, actualTd)
 }
 
+func TestEdgeCases(t *testing.T) {
+	tests := []struct {
+		name        string
+		setupTraces func() ptrace.Traces
+		expected    any
+		testFunc    func(ptrace.Traces) any
+		description string
+	}{
+		{
+			name: "empty span attributes",
+			setupTraces: func() ptrace.Traces {
+				traces := ptrace.NewTraces()
+				spans := traces.ResourceSpans().AppendEmpty()
+				scopeSpans := spans.ScopeSpans().AppendEmpty()
+				scopeSpans.Spans().AppendEmpty()
+				return traces
+			},
+			expected: true,
+			testFunc: func(traces ptrace.Traces) any {
+				spans := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+				spanScope := traces.ResourceSpans().At(0).ScopeSpans().At(0).Scope()
+				modelSpan := spanToDbSpan(spans, spanScope, dbmodel.Process{})
+				return len(modelSpan.Tags) == 0
+			},
+			description: "Empty span attributes should result in no tags",
+		},
+		{
+			name: "resource spans with no scope spans",
+			setupTraces: func() ptrace.Traces {
+				traces := ptrace.NewTraces()
+				traces.ResourceSpans().AppendEmpty()
+				return traces
+			},
+			expected: true,
+			testFunc: func(traces ptrace.Traces) any {
+				resourceSpans := traces.ResourceSpans().At(0)
+				dbSpans := resourceSpansToDbSpans(resourceSpans)
+				return len(dbSpans) == 0
+			},
+			description: "Resource spans with no scope spans should return empty slice",
+		},
+		{
+			name:        "traces with no resource spans",
+			setupTraces: ptrace.NewTraces,
+			expected:    true,
+			testFunc: func(traces ptrace.Traces) any {
+				dbSpans := ToDBModel(traces)
+				return dbSpans == nil
+			},
+			description: "Traces with no resource spans should return nil",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			traces := tt.setupTraces()
+			result := tt.testFunc(traces)
+			assert.Equal(t, tt.expected, result, tt.description)
+		})
+	}
+}
+
 func writeActualData(t *testing.T, name string, data []byte) {
 	var prettyJson bytes.Buffer
 	err := json.Indent(&prettyJson, data, "", "  ")

@@ -86,6 +86,24 @@
       "ValueInt64": 0,
       "ValueFloat64": 0,
       "ValueBinary": null
+    },
+    {
+      "Key": "otel.status_description",
+      "ValueType": "string",
+      "ValueString": "random-message",
+      "ValueBool": false,
+      "ValueInt64": 0,
+      "ValueFloat64": 0,
+      "ValueBinary": null
+    },
+    {
+      "Key": "w3c.tracestate",
+      "ValueType": "string",
+      "ValueString": "some-state",
+      "ValueBool": false,
+      "ValueInt64": 0,
+      "ValueFloat64": 0,
+      "ValueBinary": null
     }
   ],
   "Logs": [
