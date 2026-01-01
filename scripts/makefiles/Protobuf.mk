@@ -80,7 +80,7 @@ define proto_compile
 endef
 
 .PHONY: proto
-proto: proto-storage-v1 \
+proto: \
 	proto-storage-v2 \
 	proto-hotrod \
 	proto-zipkin \
@@ -101,14 +101,6 @@ patch-api-v2:
 proto-openmetrics:
 	$(call print_caption, Processing OpenMetrics Protos)
 	$(foreach file,$(OPENMETRICS_PROTO_FILES),$(call proto_compile, $(PROTO_GEN)/api_v2/metrics, $(file)))
-
-.PHONY: proto-storage-v1
-proto-storage-v1:
-	$(call proto_compile, $(PROTO_GEN)/storage_v1, internal/storage/v1/grpc/proto/storage.proto, -Iinternal/storage/v1/grpc/proto)
-	$(PROTOC) \
-		-Iinternal/storage/v1/grpc/proto \
-		--go_out=$(PWD)/internal/storage/v1/grpc/proto/ \
-		internal/storage/v1/grpc/proto/storage_test.proto
 
 STORAGE_V2_PATH=$(PROTO_GEN)/storage/v2
 STORAGE_V2_PATCHED_DIR=$(PROTO_GEN)/.patched/storage_v2
