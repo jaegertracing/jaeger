@@ -310,11 +310,12 @@ func buildSelectAttributeMetadataQuery(attributes pcommon.Map) (string, []any) {
 	}
 
 	if len(placeholders) > 0 {
-		q.WriteString("WHERE attribute_key IN (")
+		q.WriteString(" WHERE attribute_key IN (")
 		q.WriteString(strings.Join(placeholders, ", "))
-		q.WriteString(") ")
+		q.WriteString(")")
 	}
-	q.WriteString(" GROUP BY type, level")
+	q.WriteString(" GROUP BY attribute_key, type, level")
+	fmt.Println(q.String())
 	return q.String(), args
 }
 

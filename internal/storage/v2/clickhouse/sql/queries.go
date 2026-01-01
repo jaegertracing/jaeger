@@ -256,6 +256,7 @@ GROUP BY name, span_kind
 
 const SelectAttributeMetadata = `
 SELECT
+    attribute_key,
     type,
     level
 FROM
