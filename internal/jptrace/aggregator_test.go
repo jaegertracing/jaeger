@@ -186,7 +186,7 @@ func TestCopySpansUpToLimit(t *testing.T) {
 	}
 
 	dest := ptrace.NewTraces()
-	copySpansUpToLimit(src, dest, 3)
+	copySpansUpToLimit(dest, src, 3)
 
 	assert.Equal(t, 3, dest.SpanCount())
 }

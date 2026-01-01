@@ -49,7 +49,7 @@ func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSi
 					spanCount = trace.SpanCount()
 					if maxSize > 0 && spanCount > maxSize {
 						currentTrace = ptrace.NewTraces()
-						copySpansUpToLimit(trace, currentTrace, maxSize)
+						copySpansUpToLimit(currentTrace, trace, maxSize)
 						spanCount = maxSize
 						markTraceTruncated(currentTrace)
 					}
@@ -84,32 +84,30 @@ func mergeTraces(src, dest ptrace.Traces, maxSize int, spanCount *int) bool {
 	// partial copy
 	remaining := maxSize - *spanCount
 	if remaining > 0 {
-		copySpansUpToLimit(src, dest, remaining)
+		copySpansUpToLimit(dest, src, remaining)
 		*spanCount = maxSize
 	}
 	return true
 }
 
-func copySpansUpToLimit(src, dest ptrace.Traces, limit int) {
+func copySpansUpToLimit(dest, src ptrace.Traces, limit int) {
 	copied := 0
-	resources := src.ResourceSpans()
 
-	for i := 0; i < resources.Len() && copied < limit; i++ {
-		srcResource := resources.At(i)
+	for _, srcResource := range src.ResourceSpans().All() {
 		destResource := dest.ResourceSpans().AppendEmpty()
 		srcResource.Resource().CopyTo(destResource.Resource())
 		destResource.SetSchemaUrl(srcResource.SchemaUrl())
 
-		scopes := srcResource.ScopeSpans()
-		for j := 0; j < scopes.Len() && copied < limit; j++ {
-			srcScope := scopes.At(j)
+		for _, srcScope := range srcResource.ScopeSpans().All() {
 			destScope := destResource.ScopeSpans().AppendEmpty()
 			srcScope.Scope().CopyTo(destScope.Scope())
 			destScope.SetSchemaUrl(srcScope.SchemaUrl())
 
-			spans := srcScope.Spans()
-			for k := 0; k < spans.Len() && copied < limit; k++ {
-				spans.At(k).CopyTo(destScope.Spans().AppendEmpty())
+			for _, span := range srcScope.Spans().All() {
+				if copied >= limit {
+					return
+				}
+				span.CopyTo(destScope.Spans().AppendEmpty())
 				copied++
 			}
 		}
