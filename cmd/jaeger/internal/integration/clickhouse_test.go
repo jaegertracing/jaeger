@@ -15,6 +15,15 @@ func TestClickHouseStorage(t *testing.T) {
 		ConfigFile: "../../config-clickhouse.yaml",
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp: purge,
+			SkipList: []string{
+				// The following tests are skipped because ClickHouse does not support
+				// querying event attributes yet.
+				"Tags_in_one_spot_-_Logs",
+				"Tags_in_different_spots",
+				"Tags_+_Operation_name_+_Duration_range",
+				"Multi-spot_Tags_+_Operation_name",
+				"Multi-spot_Tags_+_Operation_name_+_max_Duration",
+			},
 		},
 	}
 	s.e2eInitialize(t, "clickhouse")
