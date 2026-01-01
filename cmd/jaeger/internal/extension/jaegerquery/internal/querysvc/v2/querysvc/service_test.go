@@ -624,6 +624,7 @@ func TestGetCapabilities(t *testing.T) {
 	}
 }
 
+// Consolidate Underlimit, Overlimit and Exactly at limit tests
 func TestMaxTraceSize(t *testing.T) {
 	tests := []struct {
 		name           string
