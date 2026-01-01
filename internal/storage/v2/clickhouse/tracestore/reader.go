@@ -315,7 +315,6 @@ func buildSelectAttributeMetadataQuery(attributes pcommon.Map) (string, []any) {
 		q.WriteString(")")
 	}
 	q.WriteString(" GROUP BY attribute_key, type, level")
-	fmt.Println(q.String())
 	return q.String(), args
 }
 
@@ -363,6 +362,7 @@ func (r *Reader) buildFindTraceIDsQuery(
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to get attribute metadata: %w", err)
 	}
+	fmt.Printf("Attribute metadata: %+v\n", attributeMetadata)
 	if err := r.buildAttributeConditions(&q, &args, query.Attributes, attributeMetadata); err != nil {
 		return "", nil, err
 	}
@@ -475,6 +475,7 @@ func (r *Reader) buildMapAttributeCondition(q *strings.Builder, args *[]any, key
 func (r *Reader) buildStringAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value, metadata attributeMetadata) error {
 	levelTypes, ok := metadata[key]
 	if !ok {
+		fmt.Printf("no metadata found for key: %s\n", key)
 		return errAttributeMetadataNotFound
 	}
 
