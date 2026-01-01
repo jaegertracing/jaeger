@@ -36,7 +36,7 @@ func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSi
 				traceID := resources.At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 				if currentTraceID == traceID {
 					if !skipCurrentTrace {
-						truncated := mergeTraces(trace, currentTrace, maxSize, &spanCount)
+						spanCount = mergeTraces(trace, currentTrace, maxSize, spanCount)
 						if truncated {
 							markTraceTruncated(currentTrace)
 							skipCurrentTrace = true
