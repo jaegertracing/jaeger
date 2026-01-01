@@ -12,11 +12,11 @@ package dbmodel
 // different spans store it with different types.
 type AttributeMetadata struct {
 	// AttributeKey is the name of the attribute (e.g., "http.status", "service.name")
-	AttributeKey string
+	AttributeKey string `ch:"attribute_key"`
 	// Type is the data type of the attribute value.
 	// One of: "bool", "double", "int", "str", "bytes", "map", "slice"
-	Type string
+	Type string `ch:"type"`
 	// Level is the scope level where this attribute appears.
 	// One of: "span", "resource", "scope"
-	Level string
+	Level string `ch:"level"`
 }
