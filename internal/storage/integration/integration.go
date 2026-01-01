@@ -528,33 +528,38 @@ func loadAndParseJSON(t *testing.T, path string, object any) {
 }
 
 func correctTimeForTraces(trace ptrace.Traces) {
-	now := time.Now().UTC()
-	year, month, day := now.AddDate(0, 0, -1).Date()
-	converter := recentDateConverter{year: year, month: month, day: day}
+	normalizer := newDateOffsetNormalizer(-1)
 	for _, resourceSpan := range trace.ResourceSpans().All() {
 		for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
 			for _, span := range scopeSpan.Spans().All() {
-				span.SetStartTimestamp(converter.changeToRecentDate(span.StartTimestamp()))
-				span.SetEndTimestamp(converter.changeToRecentDate(span.EndTimestamp()))
+				span.SetStartTimestamp(normalizer.normalize(span.StartTimestamp()))
+				span.SetEndTimestamp(normalizer.normalize(span.EndTimestamp()))
 				for _, event := range span.Events().All() {
-					event.SetTimestamp(converter.changeToRecentDate(event.Timestamp()))
+					event.SetTimestamp(normalizer.normalize(event.Timestamp()))
 				}
 			}
 		}
 	}
 }
 
-type recentDateConverter struct {
+type dateOffsetNormalizer struct {
 	year, day int
 	month     time.Month
 }
 
-func (r *recentDateConverter) changeToRecentDate(t pcommon.Timestamp) pcommon.Timestamp {
+func newDateOffsetNormalizer(dayOffset int) dateOffsetNormalizer {
+	now := time.Now().UTC()
+	d := dateOffsetNormalizer{}
+	d.year, d.month, d.day = now.AddDate(0, 0, dayOffset).Date()
+	return d
+}
+
+func (d dateOffsetNormalizer) normalize(t pcommon.Timestamp) pcommon.Timestamp {
 	tm := t.AsTime()
 	newTm := time.Date(
-		r.year,
-		r.month,
-		r.day,
+		d.year,
+		d.month,
+		d.day,
 		tm.Hour(),
 		tm.Minute(),
 		tm.Second(),
