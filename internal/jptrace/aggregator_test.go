@@ -172,21 +172,10 @@ func TestAggregateTracesWithLimit(t *testing.T) {
 			})
 
 			require.Len(t, result, 1)
-			assert.Equal(t, tt.expectedSpans, countSpans(result[0]))
+			assert.Equal(t, tt.expectedSpans, result[0].SpanCount())
 			assert.Equal(t, tt.expectTruncate, IsTraceTruncated(result[0]))
 		})
 	}
-}
-
-func TestCountSpans(t *testing.T) {
-	trace := ptrace.NewTraces()
-	r1 := trace.ResourceSpans().AppendEmpty()
-	r1.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-	r1.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-	r2 := trace.ResourceSpans().AppendEmpty()
-	r2.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-
-	assert.Equal(t, 3, countSpans(trace))
 }
 
 func TestCopySpansUpToLimit(t *testing.T) {
@@ -199,7 +188,7 @@ func TestCopySpansUpToLimit(t *testing.T) {
 	dest := ptrace.NewTraces()
 	copySpansUpToLimit(src, dest, 3)
 
-	assert.Equal(t, 3, countSpans(dest))
+	assert.Equal(t, 3, dest.SpanCount())
 }
 
 func TestMarkAndCheckTruncated(t *testing.T) {

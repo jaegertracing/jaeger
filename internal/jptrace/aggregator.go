@@ -24,7 +24,6 @@ func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSi
 		currentTrace := ptrace.NewTraces()
 		currentTraceID := pcommon.NewTraceIDEmpty()
 		spanCount := 0
-		skipCurrentTrace := false
 
 		tracesSeq(func(traces []ptrace.Traces, err error) bool {
 			if err != nil {
@@ -35,12 +34,9 @@ func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSi
 				resources := trace.ResourceSpans()
 				traceID := resources.At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 				if currentTraceID == traceID {
-					if !skipCurrentTrace {
-						spanCount = mergeTraces(trace, currentTrace, maxSize, spanCount)
-						if truncated {
-							markTraceTruncated(currentTrace)
-							skipCurrentTrace = true
-						}
+					truncated := mergeTraces(trace, currentTrace, maxSize, &spanCount)
+					if truncated {
+						markTraceTruncated(currentTrace)
 					}
 				} else {
 					if currentTrace.ResourceSpans().Len() > 0 {
@@ -50,14 +46,12 @@ func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSi
 					}
 					currentTrace = trace
 					currentTraceID = traceID
-					spanCount = countSpans(trace)
-					skipCurrentTrace = false
+					spanCount = trace.SpanCount()
 					if maxSize > 0 && spanCount > maxSize {
 						currentTrace = ptrace.NewTraces()
 						copySpansUpToLimit(trace, currentTrace, maxSize)
 						spanCount = maxSize
 						markTraceTruncated(currentTrace)
-						skipCurrentTrace = true
 					}
 				}
 			}
@@ -70,19 +64,14 @@ func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSi
 }
 
 func mergeTraces(src, dest ptrace.Traces, maxSize int, spanCount *int) bool {
-	if maxSize <= 0 {
-		// No limit, merge all
-		resources := src.ResourceSpans()
-		for i := 0; i < resources.Len(); i++ {
-			resource := resources.At(i)
-			resource.CopyTo(dest.ResourceSpans().AppendEmpty())
-		}
-		return false
+	// early exit if already at max
+	if maxSize > 0 && *spanCount >= maxSize {
+		return true
 	}
 
-	// with limit
-	incomingCount := countSpans(src)
-	if *spanCount+incomingCount <= maxSize {
+	incomingCount := src.SpanCount()
+	// check if we can merge all spans without exceeding limit
+	if maxSize <= 0 || *spanCount+incomingCount <= maxSize {
 		resources := src.ResourceSpans()
 		for i := 0; i < resources.Len(); i++ {
 			resource := resources.At(i)
@@ -99,18 +88,6 @@ func mergeTraces(src, dest ptrace.Traces, maxSize int, spanCount *int) bool {
 		*spanCount = maxSize
 	}
 	return true
-}
-
-func countSpans(trace ptrace.Traces) int {
-	count := 0
-	resources := trace.ResourceSpans()
-	for i := 0; i < resources.Len(); i++ {
-		scopes := resources.At(i).ScopeSpans()
-		for j := 0; j < scopes.Len(); j++ {
-			count += scopes.At(j).Spans().Len()
-		}
-	}
-	return count
 }
 
 func copySpansUpToLimit(src, dest ptrace.Traces, limit int) {
@@ -140,37 +117,22 @@ func copySpansUpToLimit(src, dest ptrace.Traces, limit int) {
 }
 
 func markTraceTruncated(trace ptrace.Traces) {
-	resources := trace.ResourceSpans()
-	if resources.Len() == 0 {
-		return
-	}
-	scopes := resources.At(0).ScopeSpans()
-	if scopes.Len() == 0 {
-		return
-	}
-	spans := scopes.At(0).Spans()
-	if spans.Len() == 0 {
-		return
-	}
-	firstSpan := spans.At(0)
+	// direct access to first span (if truncated, it must exist)
+	firstSpan := trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
 	firstSpan.Attributes().PutBool(truncationMarkerKey, true)
 }
 
 // check if a trace has marked as truncated
 func IsTraceTruncated(trace ptrace.Traces) bool {
-	resources := trace.ResourceSpans()
-	if resources.Len() == 0 {
-		return false
+	for i := 0; i < trace.ResourceSpans().Len(); i++ {
+		scopes := trace.ResourceSpans().At(i).ScopeSpans()
+		for j := 0; j < scopes.Len(); j++ {
+			spans := scopes.At(j).Spans()
+			if spans.Len() > 0 {
+				val, exists := spans.At(0).Attributes().Get(truncationMarkerKey)
+				return exists && val.Bool()
+			}
+		}
 	}
-	scopes := resources.At(0).ScopeSpans()
-	if scopes.Len() == 0 {
-		return false
-	}
-	spans := scopes.At(0).Spans()
-	if spans.Len() == 0 {
-		return false
-	}
-	firstSpan := spans.At(0)
-	val, exists := firstSpan.Attributes().Get(truncationMarkerKey)
-	return exists && val.Bool()
+	return false
 }
