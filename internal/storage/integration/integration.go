@@ -257,10 +257,10 @@ func (s *StorageIntegration) helperTestGetTrace(
 		}
 		return spanCounter >= expected.SpanCount()
 	})
-
-	t.Logf("%-23s Loaded trace, expected=%d, actual=%d", time.Now().Format("2006-01-02 15:04:05.999"), expected.SpanCount(), spanCount(actual))
-	if !assert.True(t, found, "error loading trace, expected=%d, actual=%d", expected.SpanCount(), spanCount(actual)) {
-		CompareSliceOfTraces(t, []ptrace.Traces{expected}, actual)
+	actualTraces := fromTraceSlice(actual)
+	t.Logf("%-23s Loaded trace, expected=%d, actual=%d", time.Now().Format("2006-01-02 15:04:05.999"), expected.SpanCount(), actualTraces.SpanCount())
+	if !assert.True(t, found, "error loading trace, expected=%d, actual=%d", expected.SpanCount(), actualTraces.SpanCount()) {
+		CompareTraces(t, expected, actualTraces)
 		return
 	}
 
@@ -366,7 +366,7 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 		return spanCounter == expected.SpanCount()
 	})
 	if !assert.True(t, found) {
-		CompareSliceOfTraces(t, []ptrace.Traces{expected}, actual)
+		CompareTraces(t, expected, fromTraceSlice(actual))
 	}
 
 	t.Run("NotFound error", func(t *testing.T) {
@@ -407,7 +407,7 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 			s.skipIfNeeded(t)
 			expected := expectedTracesPerTestCase[i]
 			actual := s.findTracesByQuery(t, queryTestCase.Query.ToTraceQueryParams(), expected)
-			CompareSliceOfTraces(t, expected, actual)
+			CompareTraces(t, fromTraceSlice(expected), fromTraceSlice(actual))
 		})
 	}
 }
@@ -470,16 +470,18 @@ func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
 			newSpan.SetSpanID(repeatedSpan.SpanID())
 		default:
 			var spanId [8]byte
+			//nolint:gosec // G115 // Span ID is always positive
 			binary.BigEndian.PutUint64(spanId[:], uint64(i+1))
 			newSpan.SetSpanID(spanId)
 		}
 		newSpan.SetStartTimestamp(pcommon.NewTimestampFromTime(newSpan.StartTimestamp().AsTime().Add(time.Second * time.Duration(i+1))))
+		newSpan.SetEndTimestamp(pcommon.NewTimestampFromTime(newSpan.EndTimestamp().AsTime().Add(time.Second * time.Duration(i+1))))
 		if spans.Len() <= i {
 			spans.AppendEmpty()
 		}
 		newSpan.CopyTo(spans.At(i))
 	}
-	normaliseTracePerStorage(trace)
+	trace = normaliseTracePerStorage(trace)
 	s.writeTrace(t, trace)
 	return trace
 }
@@ -498,16 +500,17 @@ func getTraceFixtureExact(t *testing.T, fileName string, isOtelTrace bool) ptrac
 		loadAndParseJSONPB(t, fileName, &trace)
 		traces = v1adapter.V1TraceToOtelTrace(&trace)
 	}
-	normaliseTracePerStorage(traces)
+	return normaliseTracePerStorage(traces)
+}
+
+func normaliseTracePerStorage(traces ptrace.Traces) ptrace.Traces {
+	if os.Getenv("STORAGE") == "elasticsearch" {
+		return getNormalisedTraces(traces)
+	}
 	return traces
 }
 
-func normaliseTracePerStorage(traces ptrace.Traces) {
-	if os.Getenv("STORAGE") == "elasticsearch" {
-		traces = getNormalisedTraces(traces)
-	}
-}
-
+// getNormalisedTraces normalise traces and assign one resource span to one span
 func getNormalisedTraces(td ptrace.Traces) ptrace.Traces {
 	normalizedTraces := ptrace.NewTraces()
 	normalizedTraces.ResourceSpans().EnsureCapacity(td.SpanCount())
@@ -744,6 +747,16 @@ func (s *StorageIntegration) insertThroughput(t *testing.T) {
 	}
 	err := s.SamplingStore.InsertThroughput(throughputs)
 	require.NoError(t, err)
+}
+
+func fromTraceSlice(traceSlice []ptrace.Traces) ptrace.Traces {
+	equivalentTrace := ptrace.NewTraces()
+	for _, trace := range traceSlice {
+		for _, resourceSpan := range trace.ResourceSpans().All() {
+			resourceSpan.CopyTo(equivalentTrace.ResourceSpans().AppendEmpty())
+		}
+	}
+	return equivalentTrace
 }
 
 // RunAll runs all integration tests

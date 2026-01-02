@@ -17,14 +17,15 @@ import (
 	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	es "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	esv2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
@@ -249,34 +250,38 @@ func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string
 func (s *ESStorageIntegration) testArchiveTrace(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
-	tID := pcommon.TraceID{0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 2, 2}
-	expected := ptrace.NewTraces()
-	resourceSpan := expected.ResourceSpans().AppendEmpty()
-	resourceSpan.Resource().Attributes().PutStr("service.name", "archived_service")
-	span := resourceSpan.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-	span.SetName("archive_span")
-	span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(-maxSpanAge * 5).Truncate(time.Microsecond)))
-	span.SetTraceID(tID)
-	span.SetSpanID(pcommon.SpanID{0, 0, 0, 0, 0, 0, 5, 5})
+	tID := model.NewTraceID(uint64(11), uint64(22))
+	expected := &model.Trace{
+		Spans: []*model.Span{
+			{
+				OperationName: "archive_span",
+				StartTime:     time.Now().Add(-maxSpanAge * 5).Truncate(time.Microsecond),
+				TraceID:       tID,
+				SpanID:        model.NewSpanID(55),
+				References:    []model.SpanRef{},
+				Process:       model.NewProcess("archived_service", model.KeyValues{}),
+			},
+		},
+	}
+	expectedTrace := v1adapter.V1TraceToOtelTrace(expected)
+	require.NoError(t, s.ArchiveTraceWriter.WriteTraces(context.Background(), expectedTrace))
 
-	require.NoError(t, s.ArchiveTraceWriter.WriteTraces(context.Background(), expected))
-
-	var actual []ptrace.Traces
+	var actual ptrace.Traces
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
-		iterTraces := s.ArchiveTraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: tID})
-		spanCounter := 0
-		for traces, err := range iterTraces {
-			require.NoError(t, err)
-			actual = append(actual, traces...)
-			for _, trace := range traces {
-				spanCounter += trace.SpanCount()
+		iterTraces := s.ArchiveTraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: v1adapter.FromV1TraceID(tID)})
+		var otelTraceSlice []ptrace.Traces
+		for traceSlice, err := range iterTraces {
+			if err != nil {
+				return false
 			}
+			otelTraceSlice = append(otelTraceSlice, traceSlice...)
 		}
-		if len(actual) == 0 {
+		if len(otelTraceSlice) == 0 {
 			return false
 		}
-		return spanCounter == 1
+		actual = fromTraceSlice(otelTraceSlice)
+		return actual.SpanCount() == 1
 	})
 	require.True(t, found)
-	CompareSliceOfTraces(t, []ptrace.Traces{expected}, actual)
+	CompareTraces(t, expectedTrace, actual)
 }
