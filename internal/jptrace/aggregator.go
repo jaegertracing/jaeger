@@ -125,8 +125,7 @@ func IsTraceTruncated(trace ptrace.Traces) bool {
 	for i := 0; i < trace.ResourceSpans().Len(); i++ {
 		scopes := trace.ResourceSpans().At(i).ScopeSpans()
 		for j := 0; j < scopes.Len(); j++ {
-			spans := scopes.At(j).Spans()
-			if spans.Len() > 0 {
+			for _, span := range scope.Spans().All()
 				val, exists := spans.At(0).Attributes().Get(truncationMarkerKey)
 				return exists && val.Bool()
 			}
