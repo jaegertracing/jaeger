@@ -4,8 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-# Copyright (c) 2026 The Jaeger Authors.
-# SPDX-License-Identifier: Apache-2.0
+
 
 # Install jsonnet and jb if not present
 if ! command -v jsonnet &> /dev/null; then
