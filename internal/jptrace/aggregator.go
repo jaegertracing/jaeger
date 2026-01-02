@@ -63,7 +63,7 @@ func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSi
 	}
 }
 
-func mergeTraces(src, dest ptrace.Traces, maxSize int, spanCount *int) bool {
+func mergeTraces(dest, src ptrace.Traces, maxSize int, spanCount *int) bool {
 	// early exit if already at max
 	if maxSize > 0 && *spanCount >= maxSize {
 		return true
