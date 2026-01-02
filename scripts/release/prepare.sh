@@ -63,8 +63,9 @@ fetch_from_official_remote() {
 # Create a new branch
 create_release_branch() {
     local version=$1
-    local branch_name="prepare-release-v${version}-$(date +%s)"
-    
+    local branch_name    
+    branch_name="prepare-release-v${version}-$(date +%s)"
+
     git checkout -b "${branch_name}"
     echo "$branch_name"
 }

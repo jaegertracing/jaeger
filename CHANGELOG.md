@@ -25,8 +25,8 @@ v2.14.0 (2026-01-01)
 -------------------------------
 
 TL;DR: Two significant changes in this release:
-  1. ⛔ Starting from this release Jaeger will no longer release v1 artifacts.
-     All remaining artifacts are now released under v2.x.x versions.
+  1. ⛔ Starting from this release the legacy v1 components `query`, `collector`, and `ingester`
+     are no longer published. All the remaining v1 utilities are now published as v2.x.x versions.
   2. ✨ The UI now officially supports dark theme and the theme selector is enabled by default.
 
 ### Backend Changes
