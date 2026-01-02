@@ -455,9 +455,16 @@ func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
 	dupFreq int,
 ) ptrace.Traces {
 	trace := s.getTraceFixture(t, "example_trace", false)
-	spans := trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans()
-	repeatedSpan := trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
-	spans.EnsureCapacity(totalCount)
+	repeatedResourceSpan := trace.ResourceSpans().At(0)
+	repeatedScopeSpan := repeatedResourceSpan.ScopeSpans().At(0)
+	repeatedSpans := repeatedScopeSpan.Spans()
+	repeatedSpan := repeatedSpans.At(0)
+	newResourceSpan := ptrace.NewResourceSpans()
+	newScopeSpan := newResourceSpan.ScopeSpans().AppendEmpty()
+	repeatedResourceSpan.Resource().CopyTo(newResourceSpan.Resource())
+	repeatedScopeSpan.Scope().CopyTo(newScopeSpan.Scope())
+	newSpans := newScopeSpan.Spans()
+	newSpans.EnsureCapacity(totalCount)
 	for i := range totalCount {
 		newSpan := ptrace.NewSpan()
 		repeatedSpan.CopyTo(newSpan)
@@ -466,20 +473,19 @@ func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
 			newSpan.SetSpanID(repeatedSpan.SpanID())
 		default:
 			var spanId [8]byte
-			//nolint:gosec // G115 // Span ID is always positive
+			//nolint:gosec // G115 // i is always positive
 			binary.BigEndian.PutUint64(spanId[:], uint64(i+1))
 			newSpan.SetSpanID(spanId)
 		}
 		newSpan.SetStartTimestamp(pcommon.NewTimestampFromTime(newSpan.StartTimestamp().AsTime().Add(time.Second * time.Duration(i+1))))
 		newSpan.SetEndTimestamp(pcommon.NewTimestampFromTime(newSpan.EndTimestamp().AsTime().Add(time.Second * time.Duration(i+1))))
-		if spans.Len() <= i {
-			spans.AppendEmpty()
-		}
-		newSpan.CopyTo(spans.At(i))
+		newSpan.CopyTo(newSpans.AppendEmpty())
 	}
-	trace = normaliseTracePerStorage(trace)
-	s.writeTrace(t, trace)
-	return trace
+	newTrace := ptrace.NewTraces()
+	newResourceSpan.CopyTo(newTrace.ResourceSpans().AppendEmpty())
+	newTrace = normaliseTracePerStorage(newTrace)
+	s.writeTrace(t, newTrace)
+	return newTrace
 }
 
 func (*StorageIntegration) getTraceFixture(t *testing.T, fixture string, isOtelTrace bool) ptrace.Traces {
@@ -500,7 +506,8 @@ func getTraceFixtureExact(t *testing.T, fileName string, isOtelTrace bool) ptrac
 }
 
 func normaliseTracePerStorage(traces ptrace.Traces) ptrace.Traces {
-	if os.Getenv("STORAGE") == "elasticsearch" || os.Getenv("STORAGE") == "opensearch" || os.Getenv("STORAGE") == "clickhouse" {
+	storage := os.Getenv("STORAGE")
+	if storage == "elasticsearch" || storage == "opensearch" || storage == "clickhouse" || storage == "kafka" {
 		return getNormalisedTraces(traces)
 	}
 	return traces
