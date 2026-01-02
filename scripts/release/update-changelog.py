@@ -14,29 +14,6 @@ import os
 import sys
 
 
-def get_template_content():
-    """
-    Returns:
-        str: The template content (without the version header)
-    """
-    with open('CHANGELOG.md', 'r') as f:
-        lines = f.readlines()
-    
-    in_template = False
-    template_content = []
-    
-    for line in lines:
-        if '<summary>next release template</summary>' in line:
-            in_template = True
-            continue
-        if '</details>' in line and in_template:
-            break
-        if in_template and not line.startswith('vX.Y.Z') and not line.startswith('---'): # Skip the version line and separator line
-            template_content.append(line)
-    
-    return ''.join(template_content)
-
-
 def extract_version_content(changelog_path: str, version: str) -> str:
     """
     Extracts the content of a specific version section from a changelog file.
@@ -66,7 +43,7 @@ def extract_version_content(changelog_path: str, version: str) -> str:
     return ''.join(content).strip()
 
 
-def update_changelog(version: str, release_date: str, changelog_content: str = "", ui_changelog: str = None) -> None:
+def update_changelog(version: str, release_date: str, changelog_content: str, ui_changelog: str = None) -> None:
     with open('CHANGELOG.md', 'r') as f:
         lines = f.readlines()
 
@@ -85,16 +62,11 @@ def update_changelog(version: str, release_date: str, changelog_content: str = "
     new_section = []
     new_section.append(f"\nv{version} ({release_date})\n")
     new_section.append("-" * 31 + "\n")
-    new_section.append("\n")
-    
-    if changelog_content:
-        new_section.append(changelog_content)
-        if not changelog_content.endswith('\n'):
-            new_section.append("\n")
-    else:
-        # Use the template content from CHANGELOG.md
-        template = get_template_content()
-        new_section.append(template)
+    if not changelog_content.startswith('\n'):
+        new_section.append("\n")
+    new_section.append(changelog_content)
+    if not changelog_content.endswith('\n'):
+        new_section.append("\n")
     
     if ui_changelog:
         ui_content = extract_version_content(ui_changelog, version)
@@ -130,7 +102,7 @@ def main():
         "--content",
         type=str,
         help="Changelog content (default: placeholder text)",
-        default=""
+        default=None
     )
     parser.add_argument(
         "--ui-changelog",

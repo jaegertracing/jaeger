@@ -111,7 +111,7 @@ update_changelog() {
     
     echo "Updating CHANGELOG.md..."
     release_date=$(date +%Y-%m-%d)
-    changelog_content=$(make changelog)
+    changelog_content=$(make -s changelog)
     
     python3 scripts/release/update-changelog.py "$version" --date "$release_date" --content "$changelog_content" --ui-changelog jaeger-ui/CHANGELOG.md
     git add CHANGELOG.md
@@ -127,7 +127,7 @@ rotate_release_managers() {
 commit_changes() {
     local version=$1
     
-    git commit -m "Prepare release v${version}
+    git commit -s -m "Prepare release v${version}
 
 - Updated CHANGELOG.md with release notes
 - Updated jaeger-ui submodule
