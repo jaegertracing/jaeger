@@ -34,10 +34,7 @@ func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSi
 				resources := trace.ResourceSpans()
 				traceID := resources.At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 				if currentTraceID == traceID {
-					truncated := mergeTraces(trace, currentTrace, maxSize, &spanCount)
-					if truncated {
-						markTraceTruncated(currentTrace)
-					}
+					mergeTraces(currentTrace, trace, maxSize, &spanCount)
 				} else {
 					if currentTrace.ResourceSpans().Len() > 0 {
 						if !yield(currentTrace, nil) {
@@ -49,9 +46,8 @@ func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSi
 					spanCount = trace.SpanCount()
 					if maxSize > 0 && spanCount > maxSize {
 						currentTrace = ptrace.NewTraces()
-						copySpansUpToLimit(currentTrace, trace, maxSize)
-						spanCount = maxSize
-						markTraceTruncated(currentTrace)
+						spanCount = 0
+						mergeTraces(currentTrace, trace, maxSize, &spanCount)
 					}
 				}
 			}
@@ -66,6 +62,7 @@ func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSi
 func mergeTraces(dest, src ptrace.Traces, maxSize int, spanCount *int) bool {
 	// early exit if already at max
 	if maxSize > 0 && *spanCount >= maxSize {
+		markTraceTruncated(dest)
 		return true
 	}
 
@@ -87,6 +84,7 @@ func mergeTraces(dest, src ptrace.Traces, maxSize int, spanCount *int) bool {
 		copySpansUpToLimit(dest, src, remaining)
 		*spanCount = maxSize
 	}
+	markTraceTruncated(dest)
 	return true
 }
 
@@ -94,11 +92,17 @@ func copySpansUpToLimit(dest, src ptrace.Traces, limit int) {
 	copied := 0
 
 	for _, srcResource := range src.ResourceSpans().All() {
+		if copied >= limit {
+			return
+		}
 		destResource := dest.ResourceSpans().AppendEmpty()
 		srcResource.Resource().CopyTo(destResource.Resource())
 		destResource.SetSchemaUrl(srcResource.SchemaUrl())
 
 		for _, srcScope := range srcResource.ScopeSpans().All() {
+			if copied >= limit {
+				return
+			}
 			destScope := destResource.ScopeSpans().AppendEmpty()
 			srcScope.Scope().CopyTo(destScope.Scope())
 			destScope.SetSchemaUrl(srcScope.SchemaUrl())
@@ -122,10 +126,10 @@ func markTraceTruncated(trace ptrace.Traces) {
 
 // check if a trace has marked as truncated
 func IsTraceTruncated(trace ptrace.Traces) bool {
-	for i := 0; i < trace.ResourceSpans().Len(); i++ {
-		scopes := trace.ResourceSpans().At(i).ScopeSpans()
-		for j := 0; j < scopes.Len(); j++ {
-			for _, span := range scope.Spans().All()
+	for _, resource := range trace.ResourceSpans().All() {
+		for _, scope := range resource.ScopeSpans().All() {
+			spans := scope.Spans()
+			if spans.Len() > 0 {
 				val, exists := spans.At(0).Attributes().Get(truncationMarkerKey)
 				return exists && val.Bool()
 			}
