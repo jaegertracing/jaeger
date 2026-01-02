@@ -21,6 +21,79 @@ copy from UI changelog
 
 </details>
 
+v2.14.0 (2026-01-01)
+-------------------------------
+
+
+### Backend Changes
+
+#### ⛔ Breaking Changes
+
+* Remove storage/v1/grpc ([@yurishkuro](https://github.com/yurishkuro) in [#7806](https://github.com/jaegertracing/jaeger/pull/7806))
+* Migrate remote-storage to yaml configuration with shared storageconfig package ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#7704](https://github.com/jaegertracing/jaeger/pull/7704))
+* Remove v1 collector, query, and all-in-one ([@yurishkuro](https://github.com/yurishkuro) in [#7702](https://github.com/jaegertracing/jaeger/pull/7702))
+* Remove v1/ingester and all kafka related code ([@yurishkuro](https://github.com/yurishkuro) in [#7701](https://github.com/jaegertracing/jaeger/pull/7701))
+* Eliminate v1 binary references and sunset deprecated components ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#7695](https://github.com/jaegertracing/jaeger/pull/7695))
+* Fix otel collector v0.141.0 api breaking changes for toserver/toclientconn and kafka receiver/exporter ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#7694](https://github.com/jaegertracing/jaeger/pull/7694))
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Migrate docker-compose files to jaeger-v2 unified binary ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#7747](https://github.com/jaegertracing/jaeger/pull/7747))
+* Memory: support otlp first-class fields in search ([@SoumyaRaikwar](https://github.com/SoumyaRaikwar) in [#7728](https://github.com/jaegertracing/jaeger/pull/7728))
+* Added indexspanalias and indexservicealias for explicit aliases ([@SomilJain0112](https://github.com/SomilJain0112) in [#7550](https://github.com/jaegertracing/jaeger/pull/7550))
+* Fix: update replication strategy configuration in schema template ([@danish9039](https://github.com/danish9039) in [#7726](https://github.com/jaegertracing/jaeger/pull/7726))
+
+#### 🚧 Experimental Features
+
+* [fix][clickhouse] optimize service and operation retrieval queries ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7808](https://github.com/jaegertracing/jaeger/pull/7808))
+* [clickhouse] implement findtraces for clickhouse storage ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7795](https://github.com/jaegertracing/jaeger/pull/7795))
+* [clickhouse] create materialized view to store attribute metadata ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7798](https://github.com/jaegertracing/jaeger/pull/7798))
+* [clickhouse] update findtraceids to filter by complex attributes ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7792](https://github.com/jaegertracing/jaeger/pull/7792))
+* [clickhouse] update `findtraceids` to filter by other primitive attributes ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7789](https://github.com/jaegertracing/jaeger/pull/7789))
+* [cassandra][v2] copy jaeger<->otlp translator from otel contrib ([@Manik2708](https://github.com/Manik2708) in [#7765](https://github.com/jaegertracing/jaeger/pull/7765))
+* [clickhouse] update `findtraceids` to filter by string attributes ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7788](https://github.com/jaegertracing/jaeger/pull/7788))
+* [clickhouse] update `findtraceids` to filter by timestamp ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7787](https://github.com/jaegertracing/jaeger/pull/7787))
+* [clickhouse] update findtraceids to populate start and end timestamps ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7770](https://github.com/jaegertracing/jaeger/pull/7770))
+* [clickhouse] update `findtraceids` to filter by duration ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7767](https://github.com/jaegertracing/jaeger/pull/7767))
+* [clickhouse] implement findtraceids for clickhouse storage for primitive parameters ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7648](https://github.com/jaegertracing/jaeger/pull/7648))
+* [clickhouse] add `trace_id_timestamps` table with materialized view ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7723](https://github.com/jaegertracing/jaeger/pull/7723))
+* [fix][clickhouse] remove `name` column from ordering key for operations table ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7714](https://github.com/jaegertracing/jaeger/pull/7714))
+
+#### 👷 CI Improvements
+
+* Fix ci for debug build of all-in-one ([@yurishkuro](https://github.com/yurishkuro) in [#7794](https://github.com/jaegertracing/jaeger/pull/7794))
+* Use pre-built base image with debugger ([@yurishkuro](https://github.com/yurishkuro) in [#7793](https://github.com/jaegertracing/jaeger/pull/7793))
+* Ci: exclude http 5xx metrics from comparisons ([@neoandmatrix](https://github.com/neoandmatrix) in [#7671](https://github.com/jaegertracing/jaeger/pull/7671))
+* Remove crossdock ([@yurishkuro](https://github.com/yurishkuro) in [#7750](https://github.com/jaegertracing/jaeger/pull/7750))
+* Fine-tune when go-tip workflow runs ([@yurishkuro](https://github.com/yurishkuro) in [#7749](https://github.com/jaegertracing/jaeger/pull/7749))
+* Fix: remove tool installation from go tip workflow ([@chinmay3012](https://github.com/chinmay3012) in [#7716](https://github.com/jaegertracing/jaeger/pull/7716))
+* Add "unused" linter ([@yurishkuro](https://github.com/yurishkuro) in [#7697](https://github.com/jaegertracing/jaeger/pull/7697))
+
+#### ⚙️ Refactoring
+
+* Move query ([@yurishkuro](https://github.com/yurishkuro) in [#7803](https://github.com/jaegertracing/jaeger/pull/7803))
+* Use otel optional for optional config fields ([@Parship12](https://github.com/Parship12) in [#7766](https://github.com/jaegertracing/jaeger/pull/7766))
+* [cassandra][v2] refactor factory signatures to use telemetry settings ([@Manik2708](https://github.com/Manik2708) in [#7764](https://github.com/jaegertracing/jaeger/pull/7764))
+* [storage][cassandra][v2] implement `getservices` and `getoperations` ([@Manik2708](https://github.com/Manik2708) in [#7754](https://github.com/jaegertracing/jaeger/pull/7754))
+* Remove unused factory and inheritable interfaces from v1 storage ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#7755](https://github.com/jaegertracing/jaeger/pull/7755))
+* Remove dependency on jaeger-client-go ([@yurishkuro](https://github.com/yurishkuro) in [#7745](https://github.com/jaegertracing/jaeger/pull/7745))
+* Remove direct dependency on hdrhistogram-go ([@jaegertracingbot](https://github.com/jaegertracingbot) in [#7742](https://github.com/jaegertracing/jaeger/pull/7742))
+* Cleanup and simplify jtracer package ([@yurishkuro](https://github.com/yurishkuro) in [#7739](https://github.com/jaegertracing/jaeger/pull/7739))
+* [cassandra] refactor `tagfilter` to accept `dbmodel.span` ([@Manik2708](https://github.com/Manik2708) in [#7707](https://github.com/jaegertracing/jaeger/pull/7707))
+* [clickhouse] add indexes for spans table in clickhouse storage ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#7715](https://github.com/jaegertracing/jaeger/pull/7715))
+* Remove deprecated namespace concept from cassandra storage options ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#7719](https://github.com/jaegertracing/jaeger/pull/7719))
+* Remove viperize from storage backend tests ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#7712](https://github.com/jaegertracing/jaeger/pull/7712))
+* Remove unused shared/grpc_client ([@yurishkuro](https://github.com/yurishkuro) in [#7713](https://github.com/jaegertracing/jaeger/pull/7713))
+* Delete v1/memory storage implementaiton ([@yurishkuro](https://github.com/yurishkuro) in [#7711](https://github.com/jaegertracing/jaeger/pull/7711))
+* Delete more dead code ([@yurishkuro](https://github.com/yurishkuro) in [#7710](https://github.com/jaegertracing/jaeger/pull/7710))
+* Remove v1 storage factories ([@yurishkuro](https://github.com/yurishkuro) in [#7708](https://github.com/jaegertracing/jaeger/pull/7708))
+* Upgrade grpc integration test to use v2 memory storage ([@yurishkuro](https://github.com/yurishkuro) in [#7709](https://github.com/jaegertracing/jaeger/pull/7709))
+* Remove unused factory pattern code from sampling strategy packages ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#7705](https://github.com/jaegertracing/jaeger/pull/7705))
+* Remove some dead code ([@yurishkuro](https://github.com/yurishkuro) in [#7706](https://github.com/jaegertracing/jaeger/pull/7706))
+
+
+### 📊 UI Changes
+
 v1.76.0 / v2.13.0 (2025-12-03)
 -------------------------------
 
