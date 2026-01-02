@@ -43,6 +43,7 @@ SCRIPTS_SRC = $(shell find . \( -name '*.sh' -o -name '*.py' -o -name '*.mk' -o 
 						-not -path './vendor/*' \
 						-not -path './idl/*' \
 						-not -path './jaeger-ui/*' \
+						-not -path './monitoring/jaeger-mixin/vendor/*' \
 						-type f | \
 					sort)
 
@@ -146,7 +147,7 @@ fmt: $(GOFUMPT)
 	@./scripts/lint/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC)
 
 .PHONY: lint
-lint: lint-fmt lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go
+lint: lint-fmt lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go lint-monitoring
 
 .PHONY: lint-license
 lint-license:
@@ -253,3 +254,7 @@ repro-check:
 	$(MAKE) clean
 	$(MAKE) build-all-platforms
 	shasum -b -a 256 --strict --check ./sha256sum.combined.txt
+
+.PHONY: lint-monitoring
+lint-monitoring:
+	@./scripts/lint/lint-monitoring.sh

@@ -56,76 +56,8 @@ local g = (import 'grafana-builder/grafana.libsonnet') + {
 
 {
   grafanaDashboards+: {
+
     'jaeger.json':
-      g.dashboard('Jaeger')
-      .addRow(
-        g.row('Services')
-        .addPanel(
-          g.panel('span creation rate') +
-          g.qpsPanelErrTotal('jaeger_tracer_reporter_spans_total{result=~"dropped|err"}', 'jaeger_tracer_reporter_spans_total') +
-          g.stack
-        )
-        .addPanel(
-          g.panel('% spans dropped') +
-          g.queryPanel('sum(rate(jaeger_tracer_reporter_spans_total{result=~"dropped|err"}[1m])) by (namespace) / sum(rate(jaeger_tracer_reporter_spans_total[1m])) by (namespace)', '{{namespace}}') +
-          { yaxes: g.yaxes({ format: 'percentunit', max: 1 }) } +
-          g.stack
-        )
-      )
-      .addRow(
-        g.row('Agent')
-        .addPanel(
-          g.panel('batch ingest rate') +
-          g.qpsPanelErrTotal('jaeger_agent_reporter_batches_failures_total', 'jaeger_agent_reporter_batches_submitted_total') +
-          g.stack
-        )
-        .addPanel(
-          g.panel('% batches dropped') +
-          g.queryPanel('sum(rate(jaeger_agent_reporter_batches_failures_total[1m])) by (cluster) / sum(rate(jaeger_agent_reporter_batches_submitted_total[1m])) by (cluster)', '{{cluster}}') +
-          { yaxes: g.yaxes({ format: 'percentunit', max: 1 }) } +
-          g.stack
-        )
-      )
-      .addRow(
-        g.row('Collector')
-        .addPanel(
-          g.panel('span ingest rate') +
-          g.qpsPanelErrTotal('jaeger_collector_spans_dropped_total', 'jaeger_collector_spans_received_total') +
-          g.stack
-        )
-        .addPanel(
-          g.panel('% spans dropped') +
-          g.queryPanel('sum(rate(jaeger_collector_spans_dropped_total[1m])) by (instance) / sum(rate(jaeger_collector_spans_received_total[1m])) by (instance)', '{{instance}}') +
-          { yaxes: g.yaxes({ format: 'percentunit', max: 1 }) } +
-          g.stack
-        )
-      )
-      .addRow(
-        g.row('Collector Queue')
-        .addPanel(
-          g.panel('span queue length') +
-          g.queryPanel('jaeger_collector_queue_length', '{{instance}}') +
-          g.stack
-        )
-        .addPanel(
-          g.panel('span queue time - 95 percentile') +
-          g.queryPanel('histogram_quantile(0.95, sum(rate(jaeger_collector_in_queue_latency_bucket[1m])) by (le, instance))', '{{instance}}')
-        )
-      )
-      .addRow(
-        g.row('Query')
-        .addPanel(
-          g.panel('qps') +
-          g.qpsPanelErrTotal('jaeger_query_requests_total{result="err"}', 'jaeger_query_requests_total') +
-          g.stack
-        )
-        .addPanel(
-          g.panel('latency - 99 percentile') +
-          g.queryPanel('histogram_quantile(0.99, sum(rate(jaeger_query_latency_bucket[1m])) by (le, instance))', '{{instance}}') +
-          g.stack
-        )
-      ),
-    'jaeger-v2.json':
       g.dashboard('Jaeger V2')
       .addRow(
         g.row('Collector (Receivers)')

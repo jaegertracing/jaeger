@@ -1,4 +1,4 @@
-local dashboard = (import 'mixin.libsonnet').grafanaDashboards['jaeger-v2.json'];
+local dashboard = (import 'mixin.libsonnet').grafanaDashboards['jaeger.json'];
 
 {
   testTitle: std.assertEqual(dashboard.title, 'Jaeger V2'),
