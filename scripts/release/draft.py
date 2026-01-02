@@ -7,34 +7,40 @@ import argparse
 import re
 import subprocess
 
-generic_release_header_pattern = re.compile(
-    r".*v?(1\.\d+\.\d+)", flags=0
-)
-
-jaeger_release_header_pattern = re.compile(
-    r".*v?(1\.\d+\.\d+) */ *v?(2\.\d+\.\d+) \(\d{4}-\d{2}-\d{2}\)", flags=0
-)
+version_pattern = re.compile(r"v?(\d+\.\d+\.\d+)")
 
 underline_pattern = re.compile(r"^[-]+$", flags=0)
 
 
-def main(title, repo):
-    changelog_text, version_v1, version_v2 = get_changelog(repo)
+def main(title, repo, dry_run=False):
+    changelog_text, version = get_changelog(repo)
+    header = f"{title} v{version}"
+    tag = f"v{version}"
+    full_repo = f"jaegertracing/{repo}"
+
+    if dry_run:
+        print("Dry run: skipping release creation.")
+        print(f"Repository: {full_repo}")
+        print(f"Tag:        {tag}")
+        print(f"Title:      {header}")
+        print("Changelog:")
+        print("-" * 20)
+        print(changelog_text)
+        print("-" * 20)
+        return
+
     print(changelog_text)
-    header = f"{title} v{version_v1}"
-    if repo == "jaeger":
-        header += f" / v{version_v2}"
     output_string = subprocess.check_output(
         [
             "gh",
             "release",
             "create",
-            f"v{version_v1}",
+            tag,
             "--draft",
             "--title",
             header,
             "--repo",
-            f"jaegertracing/{repo}",
+            full_repo,
             "-F",
             "-",
         ],
@@ -46,26 +52,23 @@ def main(title, repo):
 
 
 def get_changelog(repo):
+# ... (rest of get_changelog remains the same)
     changelog_text = ""
     in_changelog_text = False
-    version_v1 = ""
-    version_v2 = ""
+    version = ""
     with open("CHANGELOG.md") as f:
         for line in f:
-            release_header_match = generic_release_header_pattern.match(line)
+            versions = version_pattern.findall(line)
 
-            if release_header_match:
-                # Found the first release.
+            if versions:
+                # Found the first release headers.
                 if in_changelog_text:
                     # Found the next release.
                     break
                 else:
-                    if repo == "jaeger":
-                        jaeger_release_match = jaeger_release_header_pattern.match(line)
-                        version_v1 = jaeger_release_match.group(1)
-                        version_v2 = jaeger_release_match.group(2)
-                    else:
-                        version_v1 = release_header_match.group(1)
+                    # If both v1 and v2 are present, pick v2 (usually the last one).
+                    # If only one version is present, pick it.
+                    version = versions[-1]
                     in_changelog_text = True
             else:
                 underline_match = underline_pattern.match(line)
@@ -74,7 +77,7 @@ def get_changelog(repo):
                 elif in_changelog_text:
                     changelog_text += line
 
-    return changelog_text, version_v1, version_v2
+    return changelog_text, version
 
 
 if __name__ == "__main__":
@@ -94,7 +97,13 @@ if __name__ == "__main__":
         default="jaeger",
         help="The repository name where the draft release will be created. (default: jaeger)",
     )
+    parser.add_argument(
+        "-d",
+        "--dry-run",
+        action="store_true",
+        help="Print the release details without creating it.",
+    )
 
     args = parser.parse_args()
 
-    main(args.title, args.repo)
+    main(args.title, args.repo, args.dry_run)
