@@ -112,7 +112,7 @@ This repository contains also a pre-built dashboard for Grafana and alert rules 
 - [Dashboard](./dashboard-for-grafana.json)
 - [Alerts](./prometheus_alerts.yml)
 
-_IMPORTANT_: the metrics that are used by default by the dashboard are compatible with the components deployed as part of the production strategy, where each component is deployed individually. Some metric names differ from the ones used in the all-in-one strategy. Adjust your dashboard to reflect your scenario.
+
 
 ## Background
 
