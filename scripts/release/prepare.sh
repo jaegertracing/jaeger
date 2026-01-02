@@ -63,7 +63,7 @@ fetch_from_official_remote() {
 # Create a new branch
 create_release_branch() {
     local version=$1
-    local branch_name="prepare-release-v${version}"
+    local branch_name="prepare-release-v${version}-$(date +%s)"
     
     git checkout -b "${branch_name}"
     echo "$branch_name"
@@ -113,7 +113,7 @@ update_changelog() {
     release_date=$(date +%Y-%m-%d)
     changelog_content=$(make changelog)
     
-    python3 scripts/release/update-changelog.py "$version" --date "$release_date" --content "$changelog_content"
+    python3 scripts/release/update-changelog.py "$version" --date "$release_date" --content "$changelog_content" --ui-changelog jaeger-ui/CHANGELOG.md
     git add CHANGELOG.md
 }
 

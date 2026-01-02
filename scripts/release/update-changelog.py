@@ -10,6 +10,7 @@ placeholder text.
 """
 
 import argparse
+import os
 import sys
 
 
@@ -36,10 +37,39 @@ def get_template_content():
     return ''.join(template_content)
 
 
-def update_changelog(version: str, release_date: str, changelog_content: str = "") -> None:
+def extract_version_content(changelog_path: str, version: str) -> str:
+    """
+    Extracts the content of a specific version section from a changelog file.
+    """
+    if not os.path.exists(changelog_path):
+        return ""
+
+    with open(changelog_path, 'r') as f:
+        lines = f.readlines()
+
+    start_line = -1
+    v_header = f"## v{version}"
+    for i, line in enumerate(lines):
+        if line.startswith(v_header):
+            start_line = i + 1
+            break
+
+    if start_line == -1:
+        return ""
+
+    content = []
+    for i in range(start_line, len(lines)):
+        if lines[i].startswith('## v'):
+            break
+        content.append(lines[i])
+
+    return ''.join(content).strip()
+
+
+def update_changelog(version: str, release_date: str, changelog_content: str = "", ui_changelog: str = None) -> None:
     with open('CHANGELOG.md', 'r') as f:
         lines = f.readlines()
-    
+
     # Find the template section end
     template_end = -1
     for i, line in enumerate(lines):
@@ -66,6 +96,13 @@ def update_changelog(version: str, release_date: str, changelog_content: str = "
         template = get_template_content()
         new_section.append(template)
     
+    if ui_changelog:
+        ui_content = extract_version_content(ui_changelog, version)
+        if ui_content:
+            new_section.append("\n### 📊 UI Changes\n\n")
+            new_section.append(ui_content)
+            new_section.append("\n")
+
     with open('CHANGELOG.md', 'w') as f: # Write the updated CHANGELOG.md
         f.writelines(lines[:template_end])
         f.writelines(new_section)
@@ -95,6 +132,12 @@ def main():
         help="Changelog content (default: placeholder text)",
         default=""
     )
+    parser.add_argument(
+        "--ui-changelog",
+        type=str,
+        help="Path to the UI changelog file to extract notes from",
+        default=None
+    )
     
     args = parser.parse_args()
     
@@ -102,7 +145,7 @@ def main():
     from datetime import date
     release_date = args.date if args.date else date.today().strftime("%Y-%m-%d")
     
-    update_changelog(args.version, release_date, args.content)
+    update_changelog(args.version, release_date, args.content, args.ui_changelog)
 
 
 if __name__ == "__main__":
