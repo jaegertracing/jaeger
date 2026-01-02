@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"embed"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -468,7 +469,9 @@ func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
 		case dupFreq > 0 && i > 0 && i%dupFreq == 0:
 			newSpan.SetSpanID(repeatedSpan.SpanID())
 		default:
-			newSpan.SetSpanID([8]byte{0, 0, 0, 0, 0, 0, 0, byte(i + 1)})
+			var spanId [8]byte
+			binary.BigEndian.PutUint64(spanId[:], uint64(i+1))
+			newSpan.SetSpanID(spanId)
 		}
 		newSpan.SetStartTimestamp(pcommon.NewTimestampFromTime(newSpan.StartTimestamp().AsTime().Add(time.Second * time.Duration(i+1))))
 		if spans.Len() <= i {
@@ -476,6 +479,7 @@ func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
 		}
 		newSpan.CopyTo(spans.At(i))
 	}
+	normaliseTracePerStorage(trace)
 	s.writeTrace(t, trace)
 	return trace
 }
@@ -486,12 +490,42 @@ func (*StorageIntegration) getTraceFixture(t *testing.T, fixture string, isOtelT
 }
 
 func getTraceFixtureExact(t *testing.T, fileName string, isOtelTrace bool) ptrace.Traces {
+	var traces ptrace.Traces
 	if isOtelTrace {
-		return loadAndParseTraces(t, fileName)
+		traces = loadAndParseTraces(t, fileName)
+	} else {
+		var trace model.Trace
+		loadAndParseJSONPB(t, fileName, &trace)
+		traces = v1adapter.V1TraceToOtelTrace(&trace)
 	}
-	var trace model.Trace
-	loadAndParseJSONPB(t, fileName, &trace)
-	return v1adapter.V1TraceToOtelTrace(&trace)
+	normaliseTracePerStorage(traces)
+	return traces
+}
+
+func normaliseTracePerStorage(traces ptrace.Traces) {
+	if os.Getenv("STORAGE") == "elasticsearch" {
+		traces = getNormalisedTraces(traces)
+	}
+}
+
+func getNormalisedTraces(td ptrace.Traces) ptrace.Traces {
+	normalizedTraces := ptrace.NewTraces()
+	normalizedTraces.ResourceSpans().EnsureCapacity(td.SpanCount())
+	for _, resourceSpan := range td.ResourceSpans().All() {
+		resource := resourceSpan.Resource()
+		for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
+			scope := scopeSpan.Scope()
+			for _, span := range scopeSpan.Spans().All() {
+				normalizedResourceSpan := normalizedTraces.ResourceSpans().AppendEmpty()
+				resource.CopyTo(normalizedResourceSpan.Resource())
+				normalizedScopeSpan := normalizedResourceSpan.ScopeSpans().AppendEmpty()
+				scope.CopyTo(normalizedScopeSpan.Scope())
+				normalizedSpan := normalizedScopeSpan.Spans().AppendEmpty()
+				span.CopyTo(normalizedSpan)
+			}
+		}
+	}
+	return normalizedTraces
 }
 
 func loadAndParseTraces(t *testing.T, fileName string) ptrace.Traces {
