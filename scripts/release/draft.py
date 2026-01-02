@@ -7,8 +7,7 @@ import argparse
 import re
 import subprocess
 
-version_pattern = re.compile(r"v?(\d+\.\d+\.\d+)")
-header_pattern = re.compile(r"^v?\d+\.\d+\.\d+")
+version_pattern = re.compile(r"^[# ]*v?(\d+\.\d+\.\d+)")
 
 underline_pattern = re.compile(r"^[-]+$", flags=0)
 
@@ -61,7 +60,7 @@ def get_changelog(repo):
         for line in f:
             versions = version_pattern.findall(line)
 
-            if versions and header_pattern.match(line):
+            if versions:
                 # Found the first release headers.
                 if in_changelog_text:
                     # Found the next release.
