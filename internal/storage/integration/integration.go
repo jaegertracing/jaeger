@@ -504,7 +504,7 @@ func getTraceFixtureExact(t *testing.T, fileName string, isOtelTrace bool) ptrac
 }
 
 func normaliseTracePerStorage(traces ptrace.Traces) ptrace.Traces {
-	if os.Getenv("STORAGE") == "elasticsearch" {
+	if os.Getenv("STORAGE") == "elasticsearch" || os.Getenv("STORAGE") == "opensearch" || os.Getenv("STORAGE") == "clickhouse" {
 		return getNormalisedTraces(traces)
 	}
 	return traces
