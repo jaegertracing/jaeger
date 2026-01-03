@@ -27,6 +27,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	samplemodel "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
@@ -226,7 +227,7 @@ func (s *StorageIntegration) helperTestGetTrace(
 	traceSize int,
 	duplicateCount int,
 	testName string,
-	validator func(t *testing.T, actual []ptrace.Traces),
+	validator func(t *testing.T, actual ptrace.Traces),
 ) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
@@ -236,31 +237,20 @@ func (s *StorageIntegration) helperTestGetTrace(
 	expected := s.writeLargeTraceWithDuplicateSpanIds(t, traceSize, duplicateCount)
 	expectedTraceID := expected.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 
-	actual := []ptrace.Traces{} // no spans
+	actual := ptrace.Traces{}
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
-		length := 0
-		spanCounter := 0
-		for traces, err := range iterTraces {
-			if err != nil {
-				t.Logf("Error loading trace: %v", err)
-				return false
-			}
-			actual = append(actual, traces...)
-			for _, trace := range traces {
-				length++
-				spanCounter += trace.SpanCount()
-			}
-		}
-		if length == 0 {
+		trceSlice, err := jiter.CollectWithErrors(iterTraces)
+		if err != nil {
+			t.Logf("Error loading trace: %v", err)
 			return false
 		}
-		return spanCounter >= expected.SpanCount()
+		actual = mergeTraces(trceSlice)
+		return actual.SpanCount() >= expected.SpanCount()
 	})
-	actualTraces := fromTraceSlice(actual)
-	t.Logf("%-23s Loaded trace, expected=%d, actual=%d", time.Now().Format("2006-01-02 15:04:05.999"), expected.SpanCount(), actualTraces.SpanCount())
-	if !assert.True(t, found, "error loading trace, expected=%d, actual=%d", expected.SpanCount(), actualTraces.SpanCount()) {
-		CompareTraces(t, expected, actualTraces)
+	t.Logf("%-23s Loaded trace, expected=%d, actual=%d", time.Now().Format("2006-01-02 15:04:05.999"), expected.SpanCount(), actual.SpanCount())
+	if !assert.True(t, found, "error loading trace, expected=%d, actual=%d", expected.SpanCount(), actual.SpanCount()) {
+		CompareTraces(t, expected, actual)
 		return
 	}
 
@@ -274,18 +264,16 @@ func (s *StorageIntegration) testGetLargeTrace(t *testing.T) {
 }
 
 func (s *StorageIntegration) testGetTraceWithDuplicates(t *testing.T) {
-	validator := func(t *testing.T, actual []ptrace.Traces) {
+	validator := func(t *testing.T, actual ptrace.Traces) {
 		duplicateCount := 0
 		seenIDs := make(map[pcommon.SpanID]int)
 
-		for _, traces := range actual {
-			for _, resourceSpan := range traces.ResourceSpans().All() {
-				for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
-					for _, span := range scopeSpan.Spans().All() {
-						seenIDs[span.SpanID()]++
-						if seenIDs[span.SpanID()] > 1 {
-							duplicateCount++
-						}
+		for _, resourceSpan := range actual.ResourceSpans().All() {
+			for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
+				for _, span := range scopeSpan.Spans().All() {
+					seenIDs[span.SpanID()]++
+					if seenIDs[span.SpanID()] > 1 {
+						duplicateCount++
 					}
 				}
 			}
@@ -344,29 +332,19 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	expected := s.loadParseAndWriteExampleTrace(t)
 	expectedTraceID := expected.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 
-	actual := []ptrace.Traces{} // no spans
+	actual := ptrace.Traces{} // no spans
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
-		length := 0
-		spanCounter := 0
-		for traces, err := range iterTraces {
-			if err != nil {
-				t.Log(err)
-				return false
-			}
-			actual = append(actual, traces...)
-			for _, trace := range traces {
-				length++
-				spanCounter += trace.SpanCount()
-			}
-		}
-		if length == 0 {
+		traceSlice, err := jiter.CollectWithErrors(iterTraces)
+		if err != nil {
+			t.Log(err)
 			return false
 		}
-		return spanCounter == expected.SpanCount()
+		actual = mergeTraces(traceSlice)
+		return actual.SpanCount() == expected.SpanCount()
 	})
 	if !assert.True(t, found) {
-		CompareTraces(t, expected, fromTraceSlice(actual))
+		CompareTraces(t, expected, actual)
 	}
 
 	t.Run("NotFound error", func(t *testing.T) {
@@ -406,25 +384,25 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 		t.Run(queryTestCase.Caption, func(t *testing.T) {
 			s.skipIfNeeded(t)
 			expected := expectedTracesPerTestCase[i]
-			actual := s.findTracesByQuery(t, queryTestCase.Query.ToTraceQueryParams(), expected)
-			CompareTraces(t, fromTraceSlice(expected), fromTraceSlice(actual))
+			expectedTrace := mergeTraces([][]ptrace.Traces{expected})
+			actual := s.findTracesByQuery(t, queryTestCase.Query.ToTraceQueryParams(), expectedTrace)
+			CompareTraces(t, expectedTrace, actual)
 		})
 	}
 }
 
-func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.TraceQueryParams, expected []ptrace.Traces) []ptrace.Traces {
-	var traces []ptrace.Traces
+func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.TraceQueryParams, expected ptrace.Traces) ptrace.Traces {
+	var traces ptrace.Traces
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		iterTraces := s.TraceReader.FindTraces(context.Background(), *query)
-		for trace, err := range iterTraces {
-			if err != nil {
-				t.Log(err)
-				return false
-			}
-			traces = append(traces, trace...)
+		traceSlice, err := jiter.CollectWithErrors(iterTraces)
+		if err != nil {
+			t.Log(err)
+			return false
 		}
-		if spanCount(expected) != spanCount(traces) {
-			t.Logf("Excepting certain number of spans: expected: %d, actual: %d", spanCount(expected), spanCount(traces))
+		traces = mergeTraces(traceSlice)
+		if expected.SpanCount() != traces.SpanCount() {
+			t.Logf("Excepting certain number of spans: expected: %d, actual: %d", expected.SpanCount(), traces.SpanCount())
 			return false
 		}
 		return true
@@ -620,14 +598,6 @@ func correctTime(jsonData []byte) []byte {
 	return []byte(retString)
 }
 
-func spanCount(traces []ptrace.Traces) int {
-	var count int
-	for _, trace := range traces {
-		count += trace.SpanCount()
-	}
-	return count
-}
-
 // === DependencyStore Integration Tests ===
 
 func (s *StorageIntegration) testGetDependencies(t *testing.T) {
@@ -752,11 +722,13 @@ func (s *StorageIntegration) insertThroughput(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func fromTraceSlice(traceSlice []ptrace.Traces) ptrace.Traces {
+func mergeTraces(traceIter [][]ptrace.Traces) ptrace.Traces {
 	equivalentTrace := ptrace.NewTraces()
-	for _, trace := range traceSlice {
-		for _, resourceSpan := range trace.ResourceSpans().All() {
-			resourceSpan.CopyTo(equivalentTrace.ResourceSpans().AppendEmpty())
+	for _, traceSlice := range traceIter {
+		for _, trace := range traceSlice {
+			for _, resourceSpan := range trace.ResourceSpans().All() {
+				resourceSpan.CopyTo(equivalentTrace.ResourceSpans().AppendEmpty())
+			}
 		}
 	}
 	return equivalentTrace
