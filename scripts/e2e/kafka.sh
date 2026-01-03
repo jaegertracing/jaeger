@@ -123,7 +123,7 @@ teardown_kafka() {
 
 is_kafka_ready() {
   docker compose -f "${compose_file}" \
-    exec kafka /opt/bitnami/kafka/bin/kafka-topics.sh \
+    exec kafka /opt/kafka/bin/kafka-topics.sh \
     --list \
     --bootstrap-server localhost:9092 \
     >/dev/null 2>&1
