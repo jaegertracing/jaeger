@@ -14,7 +14,7 @@ func GetAllUniqueTags(span *Span, tagFilter TagFilter) []TagInsertion {
 	SortKVs(allTags)
 	uniqueTags := make([]TagInsertion, 0, len(allTags))
 	for i := range allTags {
-		if allTags[i].ValueType == binaryType {
+		if allTags[i].ValueType == BinaryType {
 			continue // do not index binary tags
 		}
 		if i > 0 && allTags[i-1].Equal(&allTags[i]) {
