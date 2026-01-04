@@ -34,11 +34,11 @@ func verifyQuerySnapshot(t *testing.T, query string) {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatalf("failed to create snapshot directory: %v", err)
 		}
-		os.WriteFile(snapshotFile, []byte(query), 0o644)
+		os.WriteFile(snapshotFile, []byte(query+"\n"), 0o644)
 	}
 	snapshot, err := os.ReadFile(snapshotFile)
 	require.NoError(t, err)
-	assert.Equal(t, string(snapshot), query, "comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.")
+	assert.Equal(t, strings.TrimSpace(string(snapshot)), query, "comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.")
 }
 
 type testBatch struct {
