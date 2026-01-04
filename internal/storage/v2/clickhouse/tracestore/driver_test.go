@@ -30,7 +30,6 @@ func verifyQuerySnapshot(t *testing.T, query string) {
 	snapshotFile := filepath.Join(snapshotLocation, testName+".sql")
 	query = strings.TrimSpace(query)
 	if regenerateSnapshots {
-		// Create directory if it doesn't exist
 		dir := filepath.Dir(snapshotFile)
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatalf("failed to create snapshot directory: %v", err)
