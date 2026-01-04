@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
@@ -31,9 +30,8 @@ func tracesFromSpanRows(rows []*dbmodel.SpanRow) ptrace.Traces {
 
 func TestWriter_Success(t *testing.T) {
 	conn := &testDriver{
-		t:             t,
-		expectedQuery: sql.InsertSpan,
-		batch:         &testBatch{t: t},
+		t:     t,
+		batch: &testBatch{t: t},
 	}
 	w := NewWriter(conn)
 
@@ -42,6 +40,7 @@ func TestWriter_Success(t *testing.T) {
 	err := w.WriteTraces(context.Background(), td)
 	require.NoError(t, err)
 
+	verifyQuerySnapshot(t, conn.recordedQuery)
 	require.True(t, conn.batch.sendCalled)
 	require.Len(t, conn.batch.appended, len(multipleSpans))
 
@@ -141,10 +140,9 @@ func TestWriter_Success(t *testing.T) {
 
 func TestWriter_PrepareBatchError(t *testing.T) {
 	conn := &testDriver{
-		t:             t,
-		expectedQuery: sql.InsertSpan,
-		err:           assert.AnError,
-		batch:         &testBatch{t: t},
+		t:     t,
+		err:   assert.AnError,
+		batch: &testBatch{t: t},
 	}
 	w := NewWriter(conn)
 	err := w.WriteTraces(context.Background(), tracesFromSpanRows(multipleSpans))
@@ -155,9 +153,8 @@ func TestWriter_PrepareBatchError(t *testing.T) {
 
 func TestWriter_AppendBatchError(t *testing.T) {
 	conn := &testDriver{
-		t:             t,
-		expectedQuery: sql.InsertSpan,
-		batch:         &testBatch{t: t, appendErr: assert.AnError},
+		t:     t,
+		batch: &testBatch{t: t, appendErr: assert.AnError},
 	}
 	w := NewWriter(conn)
 	err := w.WriteTraces(context.Background(), tracesFromSpanRows(multipleSpans))
@@ -168,9 +165,8 @@ func TestWriter_AppendBatchError(t *testing.T) {
 
 func TestWriter_SendError(t *testing.T) {
 	conn := &testDriver{
-		t:             t,
-		expectedQuery: sql.InsertSpan,
-		batch:         &testBatch{t: t, sendErr: assert.AnError},
+		t:     t,
+		batch: &testBatch{t: t, sendErr: assert.AnError},
 	}
 	w := NewWriter(conn)
 	err := w.WriteTraces(context.Background(), tracesFromSpanRows(multipleSpans))
