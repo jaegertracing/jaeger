@@ -5,6 +5,7 @@
 package spanstore
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -34,6 +35,7 @@ type spanWriterTest struct {
 
 func withSpanWriter(fn func(w *spanWriterTest)) {
 	client := &mocks.Client{}
+	client.On("GetVersion").Return(uint(7))
 	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
 	w := &spanWriterTest{
@@ -67,22 +69,25 @@ func TestSpanWriterIndices(t *testing.T) {
 	serviceIndexOpts := config.IndexOptions{DateLayout: serviceDataLayout}
 
 	testCases := []struct {
-		indices []string
-		params  SpanWriterParams
+		indices   []string
+		params    SpanWriterParams
+		esVersion uint
 	}{
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts,
 			},
-			indices: []string{spanIndexBaseName + spanDataLayoutFormat, serviceIndexBaseName + serviceDataLayoutFormat},
+			indices:   []string{spanIndexBaseName + spanDataLayoutFormat, serviceIndexBaseName + serviceDataLayoutFormat},
+			esVersion: 7,
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, UseReadWriteAliases: true,
 			},
-			indices: []string{spanIndexBaseName + "write", serviceIndexBaseName + "write"},
+			indices:   []string{spanIndexBaseName + "write", serviceIndexBaseName + "write"},
+			esVersion: 7,
 		},
 		{
 			params: SpanWriterParams{
@@ -90,35 +95,40 @@ func TestSpanWriterIndices(t *testing.T) {
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts,
 				WriteAliasSuffix: "archive", // ignored because UseReadWriteAliases is false
 			},
-			indices: []string{spanIndexBaseName + spanDataLayoutFormat, serviceIndexBaseName + serviceDataLayoutFormat},
+			indices:   []string{spanIndexBaseName + spanDataLayoutFormat, serviceIndexBaseName + serviceDataLayoutFormat},
+			esVersion: 7,
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:",
 			},
-			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + spanDataLayoutFormat, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + serviceDataLayoutFormat},
+			indices:   []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + spanDataLayoutFormat, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + serviceDataLayoutFormat},
+			esVersion: 7,
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", UseReadWriteAliases: true,
 			},
-			indices: []string{"foo:-" + spanIndexBaseName + "write", "foo:-" + serviceIndexBaseName + "write"},
+			indices:   []string{"foo:-" + spanIndexBaseName + "write", "foo:-" + serviceIndexBaseName + "write"},
+			esVersion: 7,
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, WriteAliasSuffix: "archive", UseReadWriteAliases: true,
 			},
-			indices: []string{spanIndexBaseName + "archive", serviceIndexBaseName + "archive"},
+			indices:   []string{spanIndexBaseName + "archive", serviceIndexBaseName + "archive"},
+			esVersion: 7,
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", WriteAliasSuffix: "archive", UseReadWriteAliases: true,
 			},
-			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + "archive", "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + "archive"},
+			indices:   []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + "archive", "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + "archive"},
+			esVersion: 7,
 		},
 		{
 			params: SpanWriterParams{
@@ -127,7 +137,8 @@ func TestSpanWriterIndices(t *testing.T) {
 				UseReadWriteAliases: true,
 				SpanWriteAlias:      "custom-span-write-alias", ServiceWriteAlias: "custom-service-write-alias",
 			},
-			indices: []string{"custom-span-write-alias", "custom-service-write-alias"},
+			indices:   []string{"custom-span-write-alias", "custom-service-write-alias"},
+			esVersion: 7,
 		},
 		{
 			params: SpanWriterParams{
@@ -138,7 +149,8 @@ func TestSpanWriterIndices(t *testing.T) {
 				ServiceWriteAlias:   "custom-service-write-alias",
 				WriteAliasSuffix:    "archive", // Ignored when explicit aliases are used
 			},
-			indices: []string{"custom-span-write-alias", "custom-service-write-alias"},
+			indices:   []string{"custom-span-write-alias", "custom-service-write-alias"},
+			esVersion: 7,
 		},
 		{
 			params: SpanWriterParams{
@@ -148,10 +160,31 @@ func TestSpanWriterIndices(t *testing.T) {
 				SpanWriteAlias:      "production-traces-write",
 				ServiceWriteAlias:   "production-services-write",
 			},
-			indices: []string{"production-traces-write", "production-services-write"},
+			indices:   []string{"production-traces-write", "production-services-write"},
+			esVersion: 7,
+		},
+		{
+			params: SpanWriterParams{
+				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts,
+			},
+			indices:   []string{"jaeger-ds-span", "jaeger-ds-service"},
+			esVersion: 8,
+		},
+		{
+			params: SpanWriterParams{
+				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:",
+			},
+			indices:   []string{"foo:-jaeger-ds-span", "foo:-jaeger-ds-service"},
+			esVersion: 8,
 		},
 	}
 	for _, testCase := range testCases {
+		client := &mocks.Client{}
+		client.On("GetVersion").Return(testCase.esVersion)
+		testCase.params.Client = func() es.Client { return client }
+
 		w := NewSpanWriter(testCase.params)
 		spanIndexName, serviceIndexName := w.spanServiceIndex(date)
 		assert.Equal(t, []string{spanIndexName, serviceIndexName}, testCase.indices)
@@ -160,6 +193,7 @@ func TestSpanWriterIndices(t *testing.T) {
 
 func TestClientClose(t *testing.T) {
 	withSpanWriter(func(w *spanWriterTest) {
+		w.client.On("GetVersion").Return(uint(7))
 		w.client.On("Close").Return(nil)
 		w.writer.Close()
 		w.client.AssertNumberOfCalls(t, "Close", 1)
@@ -174,6 +208,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 		serviceIndexExists bool
 		expectedError      string
 		expectedLogs       []string
+		esVersion          uint
 	}{
 		{
 			caption:            "span insertion error",
@@ -181,11 +216,24 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 			expectedError:      "",
 			expectedLogs:       []string{"Wrote span to ES index"},
 		},
+		{
+			caption:            "ES 8 span insertion",
+			serviceIndexExists: false,
+			expectedError:      "",
+			expectedLogs:       []string{"Wrote span to ES index"},
+			esVersion:          8,
+		},
 	}
 	for _, tc := range testCases {
 		testCase := tc
 		t.Run(testCase.caption, func(t *testing.T) {
 			withSpanWriter(func(w *spanWriterTest) {
+				esVersion := uint(7)
+				if testCase.esVersion != 0 {
+					esVersion = testCase.esVersion
+				}
+				w.client.On("GetVersion").Return(esVersion)
+
 				date, err := time.Parse(time.RFC3339, "1995-04-21T22:08:41+00:00")
 				require.NoError(t, err)
 
@@ -215,11 +263,11 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 
 				indexServicePut.On("Id", stringMatcher(serviceHash)).Return(indexServicePut)
 				indexServicePut.On("BodyJson", mock.AnythingOfType("dbmodel.Service")).Return(indexServicePut)
-				indexServicePut.On("Add")
+				indexServicePut.On("Add", mock.Anything)
 
 				indexSpanPut.On("Id", mock.AnythingOfType("string")).Return(indexSpanPut)
 				indexSpanPut.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexSpanPut)
-				indexSpanPut.On("Add")
+				indexSpanPut.On("Add", mock.Anything)
 
 				w.client.On("Index").Return(indexService)
 
@@ -256,23 +304,36 @@ func TestSpanIndexName(t *testing.T) {
 }
 
 func TestWriteSpanInternal(t *testing.T) {
-	withSpanWriter(func(w *spanWriterTest) {
-		indexService := &mocks.IndexService{}
+	testCases := []struct {
+		caption   string
+		esVersion uint
+	}{
+		{caption: "ES 7 version", esVersion: 7},
+		{caption: "ES 8 version", esVersion: 8},
+	}
+	for _, tc := range testCases {
+		testCase := tc
+		t.Run(testCase.caption, func(t *testing.T) {
+			withSpanWriter(func(w *spanWriterTest) {
+				w.client.On("GetVersion").Return(testCase.esVersion)
+				indexService := &mocks.IndexService{}
 
-		indexName := "jaeger-1995-04-21"
-		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
-		indexService.On("Type", stringMatcher(spanType)).Return(indexService)
-		indexService.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexService)
-		indexService.On("Add")
+				indexName := "jaeger-1995-04-21"
+				indexService.On("Index", stringMatcher(indexName)).Return(indexService)
+				indexService.On("Type", stringMatcher(spanType)).Return(indexService)
+				indexService.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexService)
+				indexService.On("Add", mock.Anything)
 
-		w.client.On("Index").Return(indexService)
+				w.client.On("Index").Return(indexService)
 
-		jsonSpan := &dbmodel.Span{}
+				jsonSpan := &dbmodel.Span{}
 
-		w.writer.writeSpan(indexName, jsonSpan)
-		indexService.AssertNumberOfCalls(t, "Add", 1)
-		assert.Empty(t, w.logBuffer.String())
-	})
+				w.writer.writeSpan(indexName, jsonSpan)
+				indexService.AssertNumberOfCalls(t, "Add", 1)
+				assert.Empty(t, w.logBuffer.String())
+			})
+		})
+	}
 }
 
 func TestWriteSpanInternalError(t *testing.T) {
@@ -283,7 +344,7 @@ func TestWriteSpanInternalError(t *testing.T) {
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(spanType)).Return(indexService)
 		indexService.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexService)
-		indexService.On("Add")
+		indexService.On("Add", mock.Anything)
 
 		w.client.On("Index").Return(indexService)
 
@@ -320,6 +381,7 @@ func TestSpanWriterParamsTTL(t *testing.T) {
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
 			client := &mocks.Client{}
+			client.On("GetVersion").Return(uint(7))
 			params := SpanWriterParams{
 				Client:          func() es.Client { return client },
 				Logger:          logger,
@@ -342,7 +404,7 @@ func TestSpanWriterParamsTTL(t *testing.T) {
 			indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
 			indexService.On("Id", stringMatcher(serviceHash)).Return(indexService)
 			indexService.On("BodyJson", mock.AnythingOfType("dbmodel.Service")).Return(indexService)
-			indexService.On("Add")
+			indexService.On("Add", mock.Anything)
 
 			client.On("Index").Return(indexService)
 
@@ -380,7 +442,10 @@ func TestTagMap(t *testing.T) {
 		},
 	}
 	dbSpan := dbmodel.Span{Tags: tags, Process: dbmodel.Process{Tags: tags}}
+	client := &mocks.Client{}
+	client.On("GetVersion").Return(uint(7))
 	converter := NewSpanWriter(SpanWriterParams{
+		Client:            func() es.Client { return client },
 		Logger:            zap.NewNop(),
 		MetricsFactory:    metrics.NullFactory,
 		AllTagsAsFields:   false,
@@ -459,6 +524,9 @@ func TestNewSpanTags(t *testing.T) {
 				Process: dbmodel.Process{Tags: []dbmodel.KeyValue{{Key: "bar", Value: "baz", Type: dbmodel.StringType}}},
 			}
 			params := test.params
+			client := &mocks.Client{}
+			client.On("GetVersion").Return(uint(7))
+			params.Client = func() es.Client { return client }
 			params.Logger = zap.NewNop()
 			params.MetricsFactory = metrics.NullFactory
 			writer := NewSpanWriter(params)
@@ -469,6 +537,39 @@ func TestNewSpanTags(t *testing.T) {
 			assert.Equal(t, test.expected.Process.Tags, mSpan.Process.Tags)
 		})
 	}
+}
+
+func TestNewSpanWriterV1(t *testing.T) {
+	client := &mocks.Client{}
+	client.On("GetVersion").Return(uint(7))
+	params := SpanWriterParams{
+		Client:         func() es.Client { return client },
+		Logger:         zap.NewNop(),
+		MetricsFactory: metricstest.NewFactory(0),
+	}
+	w := NewSpanWriterV1(params)
+	assert.NotNil(t, w)
+
+	span := &model.Span{
+		TraceID: model.NewTraceID(1, 2),
+		SpanID:  model.NewSpanID(3),
+		Process: &model.Process{ServiceName: "foo"},
+	}
+
+	indexService := &mocks.IndexService{}
+	indexService.On("Index", mock.MatchedBy(func(_ string) bool { return true })).Return(indexService)
+	indexService.On("Type", mock.MatchedBy(func(_ string) bool { return true })).Return(indexService)
+	indexService.On("Id", mock.MatchedBy(func(_ string) bool { return true })).Return(indexService)
+	indexService.On("BodyJson", mock.Anything).Return(indexService)
+	indexService.On("Add", mock.Anything)
+	client.On("Index").Return(indexService)
+
+	err := w.WriteSpan(context.Background(), span)
+	require.NoError(t, err)
+
+	client.On("Close").Return(nil)
+	err = w.Close()
+	require.NoError(t, err)
 }
 
 // stringMatcher can match a string argument when it contains a specific substring q
