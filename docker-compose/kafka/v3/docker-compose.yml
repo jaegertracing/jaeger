@@ -4,16 +4,18 @@ services:
     hostname: kafka
     ports:
       - "9092:9092"
+      - "9093:9093"
+      - "9095:9095"
     volumes:
       - kafka-data:/var/lib/kafka/data
     environment:
       # KRaft settings (no ZooKeeper needed)
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-      # Listeners - PLAINTEXT for e2e testing
-      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9094
+
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
@@ -22,8 +24,8 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      # Cluster ID for KRaft
-      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qg
+      # CLUSTER_ID for KRaft
+      CLUSTER_ID: test_kafka_cluster_id
     healthcheck:
       test:
         [

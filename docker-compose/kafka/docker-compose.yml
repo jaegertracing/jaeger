@@ -21,7 +21,7 @@ services:
     command:
       - "--config=/etc/jaeger/config.yaml"
     environment:
-      - KAFKA_BROKERS=kafka:9092
+      - KAFKA_BROKER=kafka:9092
       - KAFKA_TOPIC=jaeger-spans
       - KAFKA_ENCODING=otlp_proto
     ports:
@@ -45,7 +45,7 @@ services:
     command:
       - "--config=/etc/jaeger/config.yaml"
     environment:
-      - KAFKA_BROKERS=kafka:9092
+      - KAFKA_BROKER=kafka:9092
       - KAFKA_TOPIC=jaeger-spans
       - KAFKA_ENCODING=otlp_proto
     healthcheck:
