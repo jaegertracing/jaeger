@@ -1,6 +1,6 @@
 services:
   kafka:
-    image: apache/kafka:3.9.0
+    image: apache/kafka:3.9.0@sha256:fbc7d7c428e3755cf36518d4976596002477e4c052d1f80b5b9eafd06d0fff2f
     hostname: kafka
     ports:
       - "9092:9092"
