@@ -4,8 +4,6 @@ services:
     hostname: kafka
     ports:
       - "9092:9092"
-      - "9093:9093"
-      - "9095:9095"
     volumes:
       - kafka-data:/var/lib/kafka/data
     environment:
