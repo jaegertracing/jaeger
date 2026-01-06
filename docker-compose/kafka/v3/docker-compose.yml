@@ -1,53 +1,34 @@
-version: "3"
 services:
   kafka:
-    image: bitnami/kafka:3.9.0@sha256:55df55bfc7ed5980447387620afa3498eab3985a4d8c731013d82b3fa8b43bff
-    user: "0:0" # Run as root to avoid permission issues
+    image: apache/kafka:3.9.0
+    hostname: kafka
     ports:
       - "9092:9092"
-      - "9093:9093"
-      - "9094:9094"
-      - "9095:9095"
     volumes:
-      - ../../../internal/config/tlscfg/testdata:/bitnami/kafka/config/certs
-      - kafka-data:/bitnami
+      - kafka-data:/var/lib/kafka/data
     environment:
-      # KRaft settings
-      - KAFKA_CFG_NODE_ID=1
-      - KAFKA_CFG_PROCESS_ROLES=controller,broker
-      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@localhost:9096
-      # Listeners
-      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9096,SASL_SSL://:9093,SASL_PLAINTEXT://:9095
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://127.0.0.1:9092,SASL_SSL://127.0.0.1:9093,SASL_PLAINTEXT://127.0.0.1:9095
-      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,SASL_SSL:SASL_SSL,SASL_PLAINTEXT:SASL_PLAINTEXT
-      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
-      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
-      # SASL Configuration
-      - KAFKA_CFG_SASL_ENABLED_MECHANISMS=PLAIN
-      - KAFKA_CLIENT_USERS=admin
-      - KAFKA_CLIENT_PASSWORDS=admin-secret
-      # SSL Configuration
-      - KAFKA_TLS_TYPE=JKS
-      - KAFKA_CFG_SSL_KEYSTORE_LOCATION=/bitnami/kafka/config/certs/kafka.keystore.jks
-      - KAFKA_CFG_SSL_KEYSTORE_PASSWORD=kafkapass123
-      - KAFKA_CFG_SSL_KEY_PASSWORD=kafkapass123
-      - KAFKA_CFG_SSL_TRUSTSTORE_LOCATION=/bitnami/kafka/config/certs/kafka.truststore.jks
-      - KAFKA_CFG_SSL_TRUSTSTORE_PASSWORD=kafkapass123
-      # Allow plaintext listener for development
-      - ALLOW_PLAINTEXT_LISTENER=yes
-      # Debug mode for more verbose logs
-      - BITNAMI_DEBUG=true
+      # KRaft settings (no ZooKeeper needed)
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9094
+
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       # Additional settings
-      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
-      # Force skip KRaft initialization if already done
-      - KAFKA_SKIP_KRAFT_STORAGE_INITIALIZATION=yes
-      # KRaft cluster ID
-      - KAFKA_KRAFT_CLUSTER_ID=MkU3OEVBNTcwNTJENDM2Qg
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      # CLUSTER_ID for KRaft
+      CLUSTER_ID: test_kafka_cluster_id
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "kafka-topics.sh --list --bootstrap-server localhost:9092",
+          "/opt/kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:9092",
         ]
       interval: 30s
       timeout: 10s
