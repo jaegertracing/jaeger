@@ -6,11 +6,40 @@ package tracestore
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+const (
+	snapshotLocation = "./snapshots/"
+)
+
+// Snapshots can be regenerated via:
+//
+//	REGENERATE_SNAPSHOTS=true go test -v ./internal/storage/v2/clickhouse/tracestore/...
+var regenerateSnapshots = os.Getenv("REGENERATE_SNAPSHOTS") == "true"
+
+func verifyQuerySnapshot(t *testing.T, query string) {
+	testName := t.Name()
+	snapshotFile := filepath.Join(snapshotLocation, testName+".sql")
+	query = strings.TrimSpace(query)
+	if regenerateSnapshots {
+		dir := filepath.Dir(snapshotFile)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("failed to create snapshot directory: %v", err)
+		}
+		os.WriteFile(snapshotFile, []byte(query+"\n"), 0o644)
+	}
+	snapshot, err := os.ReadFile(snapshotFile)
+	require.NoError(t, err)
+	assert.Equal(t, strings.TrimSpace(string(snapshot)), query, "comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.")
+}
 
 type testBatch struct {
 	driver.Batch
@@ -46,13 +75,13 @@ type testDriver struct {
 
 	t             *testing.T
 	rows          driver.Rows
-	expectedQuery string
 	err           error
 	batch         *testBatch
+	recordedQuery string
 }
 
 func (t *testDriver) Query(_ context.Context, query string, _ ...any) (driver.Rows, error) {
-	require.Equal(t.t, t.expectedQuery, query)
+	t.recordedQuery = query
 	return t.rows, t.err
 }
 
@@ -109,7 +138,7 @@ func (t *testDriver) PrepareBatch(
 	query string,
 	_ ...driver.PrepareBatchOption,
 ) (driver.Batch, error) {
-	require.Equal(t.t, t.expectedQuery, query)
+	t.recordedQuery = query
 	if t.err != nil {
 		return nil, t.err
 	}
