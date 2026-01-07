@@ -36,14 +36,17 @@ def parse_diff_file(diff_path):
     with open(diff_path, 'r') as f:
         lines = f.readlines()
 
-    current_metric = None
+    content = ''.join(lines)
+    print(f"Diff file content (last 200 chars): {content[-500:]}")
 
+    current_metric = None
     for line in lines:
         original_line = line.rstrip()
         stripped = line.strip()
 
         if stripped.isdigit() and current_metric is None:
             exclusion_count = int(stripped)
+            print(f"Parsed exclusion count: {exclusion_count}")
             continue
         # Skip diff headers
         if stripped.startswith('+++') or stripped.startswith('---'):
