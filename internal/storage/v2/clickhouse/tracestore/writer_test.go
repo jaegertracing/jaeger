@@ -159,7 +159,6 @@ func TestWriter_PrepareBatchError(t *testing.T) {
 	err := w.WriteTraces(context.Background(), tracesFromSpanRows(multipleSpans))
 	require.ErrorContains(t, err, "failed to prepare batch")
 	require.ErrorIs(t, err, assert.AnError)
-	require.False(t, false) // batch is nil, so no sendCalled check
 }
 
 func TestWriter_AppendBatchError(t *testing.T) {
