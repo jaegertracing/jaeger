@@ -1,26 +1,12 @@
 name: Publish release
 
 on:
-  # Disable auto-run, once we sunset 1.x components we might go back to auto-release.
-  #
-  # release:
-  #   types:
-  #     - published
+  release:
+    types:
+      - published
 
   workflow_dispatch:
     inputs:
-      # Disable version inputs for now, the build always uses the latest tags.
-      #
-      # version_v1:
-      #   required: true
-      #   type: string
-      #   description: Version number for 1.x components. Don't include a leading `v`.
-
-      # version_v2:
-      #   required: true
-      #   type: string
-      #   description: Version number for 2.x components. Don't include a leading `v`.
-
       dry_run:
         required: true
         type: boolean
@@ -127,7 +113,7 @@ jobs:
         df -h /
 
     - name: Log in to GHCR
-      uses: docker/login-action@v3
+      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
