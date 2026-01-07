@@ -119,7 +119,7 @@ def generate_diff(file1_content, file2_content):
     diff = unified_diff(metrics1, metrics2,lineterm='',n=0)
     total_excluded = excluded_metrics_count1 + excluded_metrics_count2
     
-    return '\n'.join(diff)+(f'{total_excluded}' if total_excluded > 0 else '')
+    return '\n'.join(diff)+(f'\n{total_excluded}' if total_excluded > 0 else '')
 
 def write_diff_file(diff_lines, output_path):
     
