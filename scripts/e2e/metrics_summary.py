@@ -36,23 +36,19 @@ def parse_diff_file(diff_path):
     with open(diff_path, 'r') as f:
         lines = f.readlines()
 
-    content = ''.join(lines)
-    print(f"Diff file content (last 200 chars): {content[-500:]}")
-
     current_metric = None
     for line in lines:
-        original_line = line.rstrip()
-        stripped = line.strip()
+        original_line = line.rstrip('\n')
+        stripped = original_line.strip()
 
-        if stripped.isdigit() and current_metric is None:
-            exclusion_count = int(stripped)
-            print(f"Parsed exclusion count: {exclusion_count}")
+        if stripped.startswith('Metrics excluded from A: ') or stripped.startswith('Metrics excluded from B: '):
+            count_str = stripped.split(': ')[1]
+            exclusion_count += int(count_str)
             continue
         # Skip diff headers
         if stripped.startswith('+++') or stripped.startswith('---'):
             continue
-
-        # Check if this line contains a metric change
+        # Check if this line contains a metric change    
         if stripped.startswith('+') or stripped.startswith('-'):
             metric_name = extract_metric_name(stripped[1:].strip())
             if metric_name:
