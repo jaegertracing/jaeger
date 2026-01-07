@@ -44,13 +44,13 @@ echo "Using new version: ${new_version}"
 
 
 
-TMPFILE=$(mktemp "/tmp/DOC_RELEASE.XXXXXX") 
-wget -O "$TMPFILE" https://raw.githubusercontent.com/jaegertracing/documentation/main/RELEASE.md
+DOCS_TEMPLATE=$(mktemp "/tmp/DOC_RELEASE.XXXXXX")
+wget -O "$DOCS_TEMPLATE" https://raw.githubusercontent.com/jaegertracing/documentation/main/RELEASE.md
 
-# Ensure the UI Release checklist is up to date.
-make init-submodules
+UI_TMPFILE=$(mktemp "/tmp/UI_RELEASE.XXXXXX")
+wget -O "$UI_TMPFILE" https://raw.githubusercontent.com/jaegertracing/jaeger-ui/main/RELEASE.md
 
-issue_body=$(python scripts/release/formatter.py "${TMPFILE}" "${user_version}")
+issue_body=$(python scripts/release/formatter.py "${user_version}" "${UI_TMPFILE}" "${DOCS_TEMPLATE}")
 
 if $dry_run; then
   echo "${issue_body}"
@@ -58,8 +58,4 @@ else
   gh issue create -R jaegertracing/jaeger --title "Prepare Jaeger Release ${new_version}" --body "$issue_body"
 fi
 
-rm "${TMPFILE}"
-
-exit 1;
-
-
+rm "${DOCS_TEMPLATE}" "${UI_TMPFILE}"

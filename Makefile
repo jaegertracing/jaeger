@@ -116,7 +116,7 @@ echo-all-srcs:
 clean:
 	rm -rf cover*.out .cover/ cover.html $(FMT_LOG) $(IMPORT_LOG) \
 		jaeger-ui/packages/jaeger-ui/build
-	find ./cmd/query/app/ui/actual -type f -name '*.gz' -delete
+	find ./cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual -type f -name '*.gz' -delete
 	GOCACHE=$(GOCACHE) go clean -cache -testcache
 	bash scripts/build/clean-binaries.sh
 
@@ -206,11 +206,20 @@ run-all-in-one: build-ui
 
 .PHONY: changelog
 changelog:
-	./scripts/release/notes.py --exclude-dependabot --verbose
+	@./scripts/release/notes.py --exclude-dependabot --verbose
 
 .PHONY: draft-release
 draft-release:
 	./scripts/release/draft.py
+
+.PHONY: prepare-release
+prepare-release:
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Usage: make prepare-release VERSION=x.x.x"; \
+		echo "Example: make prepare-release VERSION=2.14.0"; \
+		exit 1; \
+	fi
+	bash ./scripts/release/prepare.sh $(VERSION)
 
 .PHONY: test-ci
 test-ci: GOTEST := $(GOTEST_QUIET)

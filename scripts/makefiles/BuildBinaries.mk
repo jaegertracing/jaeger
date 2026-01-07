@@ -13,9 +13,6 @@ define GOBUILD
 $(GOBUILD_EXEC)
 endef
 
-# GOBUILD=echo "$($(BUILD_ICON)) building binary for $$(go env GOOS)-$$(go env GOARCH)"; \
-#   CGO_ENABLED=0 installsuffix=cgo $(GO) build -trimpath
-
 ifeq ($(DEBUG_BINARY),)
 	DISABLE_OPTIMIZATIONS =
 	SUFFIX =
@@ -26,16 +23,17 @@ else
 	TARGET = debug
 endif
 
-build-ui: cmd/query/app/ui/actual/index.html.gz
+.PHONY: build-ui
+build-ui: cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual/index.html.gz
 
-cmd/query/app/ui/actual/index.html.gz: jaeger-ui/packages/jaeger-ui/build/index.html
+cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual/index.html.gz: jaeger-ui/packages/jaeger-ui/build/index.html
 	# do not delete dot-files
-	rm -rf cmd/query/app/ui/actual/*
-	cp -r jaeger-ui/packages/jaeger-ui/build/* cmd/query/app/ui/actual/
-	find cmd/query/app/ui/actual -type f | grep -v .gitignore | xargs gzip --no-name
+	rm -rf cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual/*
+	cp -r jaeger-ui/packages/jaeger-ui/build/* cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual/
+	find cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual -type f | grep -v .gitignore | xargs gzip --no-name
 	# copy the timestamp for index.html.gz from the original file
-	touch -t $$(date -r jaeger-ui/packages/jaeger-ui/build/index.html '+%Y%m%d%H%M.%S') cmd/query/app/ui/actual/index.html.gz
-	ls -lF cmd/query/app/ui/actual/
+	touch -t $$(date -r jaeger-ui/packages/jaeger-ui/build/index.html '+%Y%m%d%H%M.%S') cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual/index.html.gz
+	ls -lF cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual/
 
 jaeger-ui/packages/jaeger-ui/build/index.html:
 	$(MAKE) rebuild-ui

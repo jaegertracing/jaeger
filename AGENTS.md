@@ -35,6 +35,13 @@ make install-tools
 - **Linting**: If `make lint` fails, try `make fmt` to fix formatting issues automatically.
 - **Submodules**: Be aware that `jaeger-ui` and `idl` are submodules. Modifications there might require PRs to their respective repositories.
 - **Context**: Refer to `CONTRIBUTING.md` for human-centric guidelines like DCO signing and PR etiquette.
+- **Permissions**: run test, lint, format, and build commands without asking for permission:
+  - `make test`
+  - `make lint`
+  - `make fmt`
+  - `go test ...`
+  - `go build ...`
+
 
 ## Do Not Edit
 The following files are auto-generated. Do not edit them manually:

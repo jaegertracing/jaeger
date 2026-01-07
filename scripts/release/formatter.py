@@ -46,8 +46,10 @@ def fetch_content(file_name):
 
 def main():
     
-    loc = sys.argv[1]
-    version = sys.argv[2]
+    version = sys.argv[1]
+    ui_filename = sys.argv[2]
+    loc = sys.argv[3]
+
     try:
         backend_file_name = "RELEASE.md"
         backend_section = fetch_content(backend_file_name)
@@ -63,7 +65,6 @@ def main():
     doc_section=replace_dash(doc_section)
 
     try:
-        ui_filename = "jaeger-ui/RELEASE.md"
         ui_section = fetch_content(ui_filename)
     except Exception as e:
         sys.exit(f"Failed to extract UI section: {e}")
