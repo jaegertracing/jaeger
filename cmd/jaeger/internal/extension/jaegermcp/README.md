@@ -7,7 +7,7 @@ This extension implements a Model Context Protocol (MCP) server for Jaeger, enab
 The MCP server provides a structured way for AI agents to interact with Jaeger's trace data using progressive disclosure:
 - **Search** → Find traces matching specific criteria
 - **Map** → Visualize trace structure without loading full attribute data  
-- **Diagnose** → Identify critical execution paths that contributed to latency
+- **Diagnose** → Identify critical execution paths that contributed to latency or errors
 - **Inspect** → Load full details only for specific, suspicious spans
 
 This approach prevents context-window exhaustion in LLMs and enables more efficient trace analysis.
@@ -32,10 +32,6 @@ extensions:
     http:
       endpoint: "0.0.0.0:4320"
     
-    # Storage configuration (references jaegerstorage extension)
-    storage:
-      traces: "some_storage"
-    
     # Server identification for MCP protocol
     server_name: "jaeger"
     server_version: "dev"
@@ -47,7 +43,7 @@ extensions:
 
 ## Dependencies
 
-This extension depends on the [jaeger_storage](../jaegerstorage/) extension to access trace data.
+This extension depends on the [jaeger_query](../jaegerquery/) extension to access trace data.
 
 ## Development Status
 

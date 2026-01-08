@@ -1,4 +1,4 @@
-// Copyright (c) 2025 The Jaeger Authors.
+// Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package jaegermcp
@@ -16,16 +16,13 @@ func TestValidate(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name:        "Empty config - missing storage",
+			name:        "Empty config - valid",
 			config:      &Config{},
-			expectError: true,
+			expectError: false,
 		},
 		{
 			name: "Valid config",
 			config: &Config{
-				Storage: Storage{
-					Traces: "some-storage",
-				},
 				MaxSpanDetailsPerRequest: 20,
 				MaxSearchResults:         100,
 			},
@@ -34,9 +31,6 @@ func TestValidate(t *testing.T) {
 		{
 			name: "Invalid MaxSpanDetailsPerRequest (too high)",
 			config: &Config{
-				Storage: Storage{
-					Traces: "some-storage",
-				},
 				MaxSpanDetailsPerRequest: 101,
 				MaxSearchResults:         100,
 			},
@@ -45,9 +39,6 @@ func TestValidate(t *testing.T) {
 		{
 			name: "Invalid MaxSearchResults (too high)",
 			config: &Config{
-				Storage: Storage{
-					Traces: "some-storage",
-				},
 				MaxSpanDetailsPerRequest: 20,
 				MaxSearchResults:         1001,
 			},

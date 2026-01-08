@@ -1,4 +1,4 @@
-// Copyright (c) 2025 The Jaeger Authors.
+// Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package jaegermcp
@@ -14,9 +14,6 @@ type Config struct {
 	// HTTP contains the HTTP server configuration for the MCP protocol endpoint.
 	HTTP confighttp.ServerConfig `mapstructure:"http"`
 
-	// Storage holds configuration related to the trace storage.
-	Storage Storage `mapstructure:"storage"`
-
 	// ServerName is the name of the MCP server for protocol identification.
 	ServerName string `mapstructure:"server_name"`
 
@@ -28,12 +25,6 @@ type Config struct {
 
 	// MaxSearchResults limits the number of trace search results.
 	MaxSearchResults int `mapstructure:"max_search_results" valid:"range(1|1000)"`
-}
-
-// Storage holds the trace storage configuration.
-type Storage struct {
-	// Traces contains the name of the trace storage that is being queried.
-	Traces string `mapstructure:"traces" valid:"required"`
 }
 
 // Validate checks if the configuration is valid.
