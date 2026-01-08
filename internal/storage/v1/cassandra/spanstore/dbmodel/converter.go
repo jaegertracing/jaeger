@@ -18,21 +18,21 @@ const (
 
 var (
 	dbToDomainRefMap = map[string]model.SpanRefType{
-		childOf:     model.SpanRefType_CHILD_OF,
-		followsFrom: model.SpanRefType_FOLLOWS_FROM,
+		ChildOf:     model.SpanRefType_CHILD_OF,
+		FollowsFrom: model.SpanRefType_FOLLOWS_FROM,
 	}
 
 	domainToDBRefMap = map[model.SpanRefType]string{
-		model.SpanRefType_CHILD_OF:     childOf,
-		model.SpanRefType_FOLLOWS_FROM: followsFrom,
+		model.SpanRefType_CHILD_OF:     ChildOf,
+		model.SpanRefType_FOLLOWS_FROM: FollowsFrom,
 	}
 
 	domainToDBValueTypeMap = map[model.ValueType]string{
-		model.StringType:  stringType,
-		model.BoolType:    boolType,
-		model.Int64Type:   int64Type,
-		model.Float64Type: float64Type,
-		model.BinaryType:  binaryType,
+		model.StringType:  StringType,
+		model.BoolType:    BoolType,
+		model.Int64Type:   Int64Type,
+		model.Float64Type: Float64Type,
+		model.BinaryType:  BinaryType,
 	}
 )
 
@@ -152,15 +152,15 @@ func (c converter) fromDBWarnings(tags []KeyValue) ([]string, error) {
 
 func (converter) fromDBTag(tag *KeyValue) (model.KeyValue, error) {
 	switch tag.ValueType {
-	case stringType:
+	case StringType:
 		return model.String(tag.Key, tag.ValueString), nil
-	case boolType:
+	case BoolType:
 		return model.Bool(tag.Key, tag.ValueBool), nil
-	case int64Type:
+	case Int64Type:
 		return model.Int64(tag.Key, tag.ValueInt64), nil
-	case float64Type:
+	case Float64Type:
 		return model.Float64(tag.Key, tag.ValueFloat64), nil
-	case binaryType:
+	case BinaryType:
 		return model.Binary(tag.Key, tag.ValueBinary), nil
 	default:
 		return model.KeyValue{}, fmt.Errorf("invalid ValueType in %+v", tag)
