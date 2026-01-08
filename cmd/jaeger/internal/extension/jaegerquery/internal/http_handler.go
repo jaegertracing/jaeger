@@ -251,7 +251,7 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 		for k, v := range tQuery.Tags {
 			attrs.PutStr(k, v)
 		}
-		queryParams := v2querysvc.TraceQueryParams{
+		queryParams := querysvc.TraceQueryParams{
 			TraceQueryParams: tracestore.TraceQueryParams{
 				ServiceName:   tQuery.ServiceName,
 				OperationName: tQuery.OperationName,
@@ -293,7 +293,7 @@ func (aH *APIHandler) tracesByIDs(ctx context.Context, traceQuery *traceQueryPar
 	retMe := make([]*model.Trace, 0, len(traceQuery.traceIDs))
 	for _, traceID := range traceQuery.traceIDs {
 		// Convert to v2 query params
-		query := v2querysvc.GetTraceParams{
+		query := querysvc.GetTraceParams{
 			TraceIDs: []tracestore.GetTraceParams{
 				{
 					TraceID: v1adapter.FromV1TraceID(traceID),
@@ -469,8 +469,8 @@ func (aH *APIHandler) parseBool(w http.ResponseWriter, r *http.Request, boolKey 
 	return false, true
 }
 
-func (aH *APIHandler) parseGetTraceParameters(w http.ResponseWriter, r *http.Request) (v2querysvc.GetTraceParams, bool) {
-	var query v2querysvc.GetTraceParams
+func (aH *APIHandler) parseGetTraceParameters(w http.ResponseWriter, r *http.Request) (querysvc.GetTraceParams, bool) {
+	var query querysvc.GetTraceParams
 	traceID, ok := aH.parseTraceID(w, r)
 	if !ok {
 		return query, false
