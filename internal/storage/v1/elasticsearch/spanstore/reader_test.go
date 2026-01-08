@@ -334,13 +334,16 @@ func TestSpanReaderIndices(t *testing.T) {
 			esVersion: 7,
 		},
 		{
-			params:    SpanReaderParams{},
+			params: SpanReaderParams{
+				UseDataStream: true,
+			},
 			indices:   []string{"jaeger.span", "jaeger-span-*", "jaeger.service", "jaeger-service-*"},
 			esVersion: 8,
 		},
 		{
 			params: SpanReaderParams{
-				IndexPrefix: "foo:",
+				IndexPrefix:   "foo:",
+				UseDataStream: true,
 			},
 			indices:   []string{"foo:-jaeger.span", "foo:-jaeger-span-*", "foo:-jaeger.service", "foo:-jaeger-service-*"},
 			esVersion: 8,
