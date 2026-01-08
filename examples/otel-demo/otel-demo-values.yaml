@@ -15,7 +15,7 @@ default:
   envOverrides:
     # Narrower service namespace + explicit environment tag
     - name: OTEL_RESOURCE_ATTRIBUTES
-      value: service.name=$(OTEL_SERVICE_NAME),service.namespace=otel-demo,deployment.environment=oke-dev
+      value: service.namespace=otel-demo,deployment.environment=oke-dev
     # Send OTLP over HTTP by default and disable metrics/logs exporters (traces only)
     - name: OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://otel-collector:4318
@@ -73,6 +73,11 @@ components:
       - name: LOCUST_SPAWN_RATE
         value: "2"
 
+  frontend:
+    envOverrides:
+      - name: OTEL_SERVICE_NAME
+        value: otelstore-frontend-ui
+
   valkey-cart:
     imageOverride:
       repository: docker.io/valkey/valkey
@@ -102,13 +107,12 @@ opentelemetry-collector:
           - key: service.instance.id
             from_attribute: k8s.pod.uid
             action: insert
-      transform: null
       batch: {}
     connectors:
       spanmetrics: null
     exporters:
       otlp/jaeger:
-        endpoint: jaeger-collector.jaeger.svc.cluster.local:4317
+        endpoint: jaeger.jaeger.svc.cluster.local:4317
         tls:
           insecure: true
       opensearch: null

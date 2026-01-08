@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger-hotrod
+  namespace: jaeger
+  labels:
+    app: jaeger-hotrod
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jaeger-hotrod
+  template:
+    metadata:
+      labels:
+        app: jaeger-hotrod
+    spec:
+      containers:
+      - name: jaeger-hotrod
+        image: docker.io/jaegertracing/example-hotrod:1.72.0
+        imagePullPolicy: IfNotPresent
+        args: ["all", "--jaeger-ui=https://jaeger.demo.jaegertracing.io"]
+        env:
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://jaeger:4318"
+        - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+          value: "http://jaeger:4318/v1/traces"
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1  
+kind: Service
+metadata:
+  name: jaeger-hotrod
+  namespace: jaeger
+  labels:
+    app: jaeger-hotrod
+spec:
+  selector:
+    app: jaeger-hotrod
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http

@@ -27,9 +27,11 @@ spec:
               service:
                 name: jaeger-hotrod
                 port:
-                  number: 80
+                  number: 8080
   tls:
     - hosts:
         - jaeger.demo.jaegertracing.io
+      secretName: jaeger-ui-only-tls
+    - hosts:
         - hotrod.demo.jaegertracing.io
-      secretName: jaeger-demo-tls
+      secretName: hotrod-ui-only-tls
