@@ -18,7 +18,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
@@ -27,9 +26,7 @@ var (
 		DefaultSearchDepth: 100,
 		MaxSearchDepth:     1000,
 	}
-	testSearchTraceIDsQuery = sql.SearchTraceIDs + " LIMIT ?"
-	testFindTracesQuery     = buildFindTracesQuery(testSearchTraceIDsQuery)
-	testTraceIDsData        = [][]any{
+	testTraceIDsData = [][]any{
 		{
 			traceIDHex1,
 			now.Add(-1 * time.Hour),
@@ -183,8 +180,7 @@ func TestGetTraces_Success(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			conn := &testDriver{
-				t:             t,
-				expectedQuery: sql.SelectSpansByTraceID,
+				t: t,
 				rows: &testRows[*dbmodel.SpanRow]{
 					data:   tt.data,
 					scanFn: scanSpanRowFn(),
@@ -198,6 +194,7 @@ func TestGetTraces_Success(t *testing.T) {
 			traces, err := jiter.FlattenWithErrors(getTracesIter)
 
 			require.NoError(t, err)
+			verifyQuerySnapshot(t, conn.recordedQuery)
 			requireTracesEqual(t, tt.data, traces)
 		})
 	}
@@ -212,17 +209,15 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 		{
 			name: "QueryError",
 			driver: &testDriver{
-				t:             t,
-				expectedQuery: sql.SelectSpansByTraceID,
-				err:           assert.AnError,
+				t:   t,
+				err: assert.AnError,
 			},
 			expectedErr: "failed to query trace",
 		},
 		{
 			name: "ScanError",
 			driver: &testDriver{
-				t:             t,
-				expectedQuery: sql.SelectSpansByTraceID,
+				t: t,
 				rows: &testRows[*dbmodel.SpanRow]{
 					data:    singleSpan,
 					scanErr: assert.AnError,
@@ -233,8 +228,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 		{
 			name: "CloseError",
 			driver: &testDriver{
-				t:             t,
-				expectedQuery: sql.SelectSpansByTraceID,
+				t: t,
 				rows: &testRows[*dbmodel.SpanRow]{
 					data:     singleSpan,
 					scanFn:   scanSpanRowFn(),
@@ -269,8 +263,7 @@ func TestGetTraces_ScanErrorContinues(t *testing.T) {
 	}
 
 	conn := &testDriver{
-		t:             t,
-		expectedQuery: sql.SelectSpansByTraceID,
+		t: t,
 		rows: &testRows[*dbmodel.SpanRow]{
 			data:   multipleSpans,
 			scanFn: scanFn,
@@ -294,8 +287,7 @@ func TestGetTraces_ScanErrorContinues(t *testing.T) {
 
 func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	conn := &testDriver{
-		t:             t,
-		expectedQuery: sql.SelectSpansByTraceID,
+		t: t,
 		rows: &testRows[*dbmodel.SpanRow]{
 			data:   multipleSpans,
 			scanFn: scanSpanRowFn(),
@@ -328,8 +320,7 @@ func TestGetServices(t *testing.T) {
 		{
 			name: "successfully returns services",
 			conn: &testDriver{
-				t:             t,
-				expectedQuery: sql.SelectServices,
+				t: t,
 				rows: &testRows[dbmodel.Service]{
 					data: []dbmodel.Service{
 						{Name: "serviceA"},
@@ -351,17 +342,15 @@ func TestGetServices(t *testing.T) {
 		{
 			name: "query error",
 			conn: &testDriver{
-				t:             t,
-				expectedQuery: sql.SelectServices,
-				err:           assert.AnError,
+				t:   t,
+				err: assert.AnError,
 			},
 			expectError: "failed to query services",
 		},
 		{
 			name: "scan error",
 			conn: &testDriver{
-				t:             t,
-				expectedQuery: sql.SelectServices,
+				t: t,
 				rows: &testRows[dbmodel.Service]{
 					data: []dbmodel.Service{
 						{Name: "serviceA"},
@@ -393,6 +382,7 @@ func TestGetServices(t *testing.T) {
 				require.ErrorContains(t, err, test.expectError)
 			} else {
 				require.NoError(t, err)
+				verifyQuerySnapshot(t, test.conn.recordedQuery)
 				require.Equal(t, test.expected, result)
 			}
 		})
@@ -410,8 +400,7 @@ func TestGetOperations(t *testing.T) {
 		{
 			name: "successfully returns operations for all kinds",
 			conn: &testDriver{
-				t:             t,
-				expectedQuery: sql.SelectOperationsAllKinds,
+				t: t,
 				rows: &testRows[dbmodel.Operation]{
 					data: []dbmodel.Operation{
 						{Name: "operationA"},
@@ -446,8 +435,7 @@ func TestGetOperations(t *testing.T) {
 		{
 			name: "successfully returns operations by kind",
 			conn: &testDriver{
-				t:             t,
-				expectedQuery: sql.SelectOperationsByKind,
+				t: t,
 				rows: &testRows[dbmodel.Operation]{
 					data: []dbmodel.Operation{
 						{Name: "operationA", SpanKind: "server"},
@@ -486,17 +474,15 @@ func TestGetOperations(t *testing.T) {
 		{
 			name: "query error",
 			conn: &testDriver{
-				t:             t,
-				expectedQuery: sql.SelectOperationsAllKinds,
-				err:           assert.AnError,
+				t:   t,
+				err: assert.AnError,
 			},
 			expectError: "failed to query operations",
 		},
 		{
 			name: "scan error",
 			conn: &testDriver{
-				t:             t,
-				expectedQuery: sql.SelectOperationsAllKinds,
+				t: t,
 				rows: &testRows[dbmodel.Operation]{
 					data: []dbmodel.Operation{
 						{Name: "operationA"},
@@ -528,6 +514,7 @@ func TestGetOperations(t *testing.T) {
 				require.ErrorContains(t, err, test.expectError)
 			} else {
 				require.NoError(t, err)
+				verifyQuerySnapshot(t, test.conn.recordedQuery)
 				require.Equal(t, test.expected, result)
 			}
 		})
@@ -552,8 +539,7 @@ func TestFindTraces_Success(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			conn := &testDriver{
-				t:             t,
-				expectedQuery: testFindTracesQuery,
+				t: t,
 				rows: &testRows[*dbmodel.SpanRow]{
 					data:   tt.data,
 					scanFn: scanSpanRowFn(),
@@ -567,6 +553,7 @@ func TestFindTraces_Success(t *testing.T) {
 			traces, err := jiter.FlattenWithErrors(findTracesIter)
 
 			require.NoError(t, err)
+			verifyQuerySnapshot(t, conn.recordedQuery)
 			requireTracesEqual(t, tt.data, traces)
 		})
 	}
@@ -575,30 +562,6 @@ func TestFindTraces_Success(t *testing.T) {
 func TestFindTraces_WithFilters(t *testing.T) {
 	conn := &testDriver{
 		t: t,
-		expectedQuery: buildFindTracesQuery(
-			sql.SearchTraceIDs +
-				" AND s.service_name = ?" +
-				" AND s.name = ?" +
-				" AND s.duration >= ?" +
-				" AND s.duration <= ?" +
-				" AND s.start_time >= ?" +
-				" AND s.start_time <= ?" +
-				" AND (arrayExists((key, value) -> key = ? AND value = ?, s.bool_attributes.key, s.bool_attributes.value)" +
-				" OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_bool_attributes.key, s.resource_bool_attributes.value))" +
-				" AND (arrayExists((key, value) -> key = ? AND value = ?, s.double_attributes.key, s.double_attributes.value)" +
-				" OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_double_attributes.key, s.resource_double_attributes.value))" +
-				" AND (arrayExists((key, value) -> key = ? AND value = ?, s.int_attributes.key, s.int_attributes.value)" +
-				" OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_int_attributes.key, s.resource_int_attributes.value))" +
-				" AND (arrayExists((key, value) -> key = ? AND value = ?, s.str_attributes.key, s.str_attributes.value)" +
-				" OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_str_attributes.key, s.resource_str_attributes.value))" +
-				" AND (arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)" +
-				" OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value))" +
-				" AND (arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)" +
-				" OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value))" +
-				" AND (arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)" +
-				" OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value))" +
-				" LIMIT ?",
-		),
 		rows: &testRows[*dbmodel.SpanRow]{
 			data:   multipleSpans,
 			scanFn: scanSpanRowFn(),
@@ -631,6 +594,7 @@ func TestFindTraces_WithFilters(t *testing.T) {
 	})
 	traces, err := jiter.FlattenWithErrors(iter)
 	require.NoError(t, err)
+	verifyQuerySnapshot(t, conn.recordedQuery)
 	requireTracesEqual(t, multipleSpans, traces)
 }
 
@@ -653,8 +617,7 @@ func TestFindTraces_SearchDepthExceedsMax(t *testing.T) {
 
 func TestFindTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	conn := &testDriver{
-		t:             t,
-		expectedQuery: testFindTracesQuery,
+		t: t,
 		rows: &testRows[*dbmodel.SpanRow]{
 			data:   multipleSpans,
 			scanFn: scanSpanRowFn(),
@@ -689,8 +652,7 @@ func TestFindTraces_ScanErrorContinues(t *testing.T) {
 	}
 
 	conn := &testDriver{
-		t:             t,
-		expectedQuery: testFindTracesQuery,
+		t: t,
 		rows: &testRows[*dbmodel.SpanRow]{
 			data:   multipleSpans,
 			scanFn: scanFn,
@@ -721,17 +683,15 @@ func TestFindTraces_ErrorCases(t *testing.T) {
 		{
 			name: "QueryError",
 			driver: &testDriver{
-				t:             t,
-				expectedQuery: testFindTracesQuery,
-				err:           assert.AnError,
+				t:   t,
+				err: assert.AnError,
 			},
 			expectedErr: "failed to query traces",
 		},
 		{
 			name: "ScanError",
 			driver: &testDriver{
-				t:             t,
-				expectedQuery: testFindTracesQuery,
+				t: t,
 				rows: &testRows[*dbmodel.SpanRow]{
 					data:    singleSpan,
 					scanErr: assert.AnError,
@@ -776,28 +736,6 @@ func TestFindTraces_BuildQueryError(t *testing.T) {
 func TestFindTraceIDs(t *testing.T) {
 	driver := &testDriver{
 		t: t,
-		expectedQuery: sql.SearchTraceIDs +
-			` AND s.service_name = ?` +
-			` AND s.name = ?` +
-			` AND s.duration >= ?` +
-			` AND s.duration <= ?` +
-			` AND s.start_time >= ?` +
-			` AND s.start_time <= ?` +
-			` AND (arrayExists((key, value) -> key = ? AND value = ?, s.bool_attributes.key, s.bool_attributes.value)` +
-			` OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_bool_attributes.key, s.resource_bool_attributes.value))` +
-			` AND (arrayExists((key, value) -> key = ? AND value = ?, s.double_attributes.key, s.double_attributes.value)` +
-			` OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_double_attributes.key, s.resource_double_attributes.value))` +
-			` AND (arrayExists((key, value) -> key = ? AND value = ?, s.int_attributes.key, s.int_attributes.value)` +
-			` OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_int_attributes.key, s.resource_int_attributes.value))` +
-			` AND (arrayExists((key, value) -> key = ? AND value = ?, s.str_attributes.key, s.str_attributes.value)` +
-			` OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_str_attributes.key, s.resource_str_attributes.value))` +
-			` AND (arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)` +
-			` OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value))` +
-			` AND (arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)` +
-			` OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value))` +
-			` AND (arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)` +
-			` OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value))` +
-			` LIMIT ?`,
 		rows: &testRows[[]any]{
 			data:   testTraceIDsData,
 			scanFn: scanTraceIDFn(),
@@ -829,6 +767,7 @@ func TestFindTraceIDs(t *testing.T) {
 	})
 	ids, err := jiter.FlattenWithErrors(iter)
 	require.NoError(t, err)
+	verifyQuerySnapshot(t, driver.recordedQuery)
 	require.Equal(t, []tracestore.FoundTraceID{
 		{
 			TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}),
@@ -843,8 +782,7 @@ func TestFindTraceIDs(t *testing.T) {
 
 func TestFindTraceIDs_SearchDepthExceedsMax(t *testing.T) {
 	driver := &testDriver{
-		t:             t,
-		expectedQuery: testSearchTraceIDsQuery,
+		t: t,
 		rows: &testRows[[]any]{
 			data: [][]any{
 				{
@@ -871,8 +809,7 @@ func TestFindTraceIDs_SearchDepthExceedsMax(t *testing.T) {
 
 func TestFindTraceIDs_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	conn := &testDriver{
-		t:             t,
-		expectedQuery: testSearchTraceIDsQuery,
+		t: t,
 		rows: &testRows[[]any]{
 			data:   testTraceIDsData,
 			scanFn: scanTraceIDFn(),
@@ -913,8 +850,7 @@ func TestFindTraceIDs_ScanErrorContinues(t *testing.T) {
 	}
 
 	conn := &testDriver{
-		t:             t,
-		expectedQuery: testSearchTraceIDsQuery,
+		t: t,
 		rows: &testRows[[]any]{
 			data:   testTraceIDsData,
 			scanFn: scanFn,
@@ -943,8 +879,7 @@ func TestFindTraceIDs_ScanErrorContinues(t *testing.T) {
 
 func TestFindTraceIDs_DecodeErrorContinues(t *testing.T) {
 	conn := &testDriver{
-		t:             t,
-		expectedQuery: testSearchTraceIDsQuery,
+		t: t,
 		rows: &testRows[[]any]{
 			data: [][]any{
 				testTraceIDsData[0],
@@ -1005,17 +940,15 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 		{
 			name: "QueryError",
 			driver: &testDriver{
-				t:             t,
-				expectedQuery: testSearchTraceIDsQuery,
-				err:           assert.AnError,
+				t:   t,
+				err: assert.AnError,
 			},
 			expectedErr: "failed to query trace IDs",
 		},
 		{
 			name: "ScanError",
 			driver: &testDriver{
-				t:             t,
-				expectedQuery: testSearchTraceIDsQuery,
+				t: t,
 				rows: &testRows[[]any]{
 					data:    testTraceIDsData,
 					scanErr: assert.AnError,
@@ -1026,8 +959,7 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 		{
 			name: "DecodeError",
 			driver: &testDriver{
-				t:             t,
-				expectedQuery: testSearchTraceIDsQuery,
+				t: t,
 				rows: &testRows[[]any]{
 					data: [][]any{
 						{
