@@ -20,6 +20,51 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 )
 
+// startTestServer creates and starts a test server with a random available port.
+// It waits for the server to be ready and registers shutdown via t.Cleanup().
+// Returns the started server and its address.
+func startTestServer(t *testing.T) (*server, string) {
+	t.Helper()
+
+	host := componenttest.NewNopHost()
+	telset := componenttest.NewNopTelemetrySettings()
+
+	config := &Config{
+		HTTP: confighttp.ServerConfig{
+			Endpoint: "localhost:0", // OS will assign a free port
+		},
+		ServerName:               "jaeger",
+		ServerVersion:            "1.0.0",
+		MaxSpanDetailsPerRequest: 20,
+		MaxSearchResults:         100,
+	}
+
+	server := newServer(config, telset)
+	err := server.Start(context.Background(), host)
+	require.NoError(t, err)
+
+	// Register cleanup
+	t.Cleanup(func() {
+		err := server.Shutdown(context.Background())
+		assert.NoError(t, err)
+	})
+
+	// Get the actual address the server is listening on
+	addr := server.listener.Addr().String()
+
+	// Wait for server to be ready
+	assert.Eventually(t, func() bool {
+		resp, err := http.Get(fmt.Sprintf("http://%s/health", addr))
+		if err != nil {
+			return false
+		}
+		defer resp.Body.Close()
+		return resp.StatusCode == http.StatusOK
+	}, 1*time.Second, 10*time.Millisecond, "Server should be ready")
+
+	return server, addr
+}
+
 func TestServerLifecycle(t *testing.T) {
 	// Since we're not actually accessing storage in Phase 1,
 	// we just need a basic host for the lifecycle test
@@ -83,40 +128,7 @@ func TestServerStartFailsWithInvalidEndpoint(t *testing.T) {
 }
 
 func TestServerHealthEndpoint(t *testing.T) {
-	host := componenttest.NewNopHost()
-	telset := componenttest.NewNopTelemetrySettings()
-
-	// Use a random available port
-	config := &Config{
-		HTTP: confighttp.ServerConfig{
-			Endpoint: "localhost:0", // OS will assign a free port
-		},
-		ServerName:               "jaeger",
-		ServerVersion:            "1.0.0",
-		MaxSpanDetailsPerRequest: 20,
-		MaxSearchResults:         100,
-	}
-
-	server := newServer(config, telset)
-	err := server.Start(context.Background(), host)
-	require.NoError(t, err)
-	defer func() {
-		err := server.Shutdown(context.Background())
-		assert.NoError(t, err)
-	}()
-
-	// Get the actual address the server is listening on
-	addr := server.listener.Addr().String()
-
-	// Wait for server to be ready using assert.Eventually
-	assert.Eventually(t, func() bool {
-		resp, err := http.Get(fmt.Sprintf("http://%s/health", addr))
-		if err != nil {
-			return false
-		}
-		defer resp.Body.Close()
-		return resp.StatusCode == http.StatusOK
-	}, 1*time.Second, 10*time.Millisecond, "Server should be ready")
+	_, addr := startTestServer(t)
 
 	// Test the health endpoint
 	resp, err := http.Get(fmt.Sprintf("http://%s/health", addr))
@@ -130,40 +142,7 @@ func TestServerHealthEndpoint(t *testing.T) {
 }
 
 func TestServerMCPEndpoint(t *testing.T) {
-	host := componenttest.NewNopHost()
-	telset := componenttest.NewNopTelemetrySettings()
-
-	// Use a random available port
-	config := &Config{
-		HTTP: confighttp.ServerConfig{
-			Endpoint: "localhost:0", // OS will assign a free port
-		},
-		ServerName:               "jaeger",
-		ServerVersion:            "1.0.0",
-		MaxSpanDetailsPerRequest: 20,
-		MaxSearchResults:         100,
-	}
-
-	server := newServer(config, telset)
-	err := server.Start(context.Background(), host)
-	require.NoError(t, err)
-	defer func() {
-		err := server.Shutdown(context.Background())
-		assert.NoError(t, err)
-	}()
-
-	// Get the actual address the server is listening on
-	addr := server.listener.Addr().String()
-
-	// Wait for server to be ready
-	assert.Eventually(t, func() bool {
-		resp, err := http.Get(fmt.Sprintf("http://%s/health", addr))
-		if err != nil {
-			return false
-		}
-		defer resp.Body.Close()
-		return resp.StatusCode == http.StatusOK
-	}, 1*time.Second, 10*time.Millisecond, "Server should be ready")
+	_, addr := startTestServer(t)
 
 	// Test the MCP endpoint with a GET request
 	// According to MCP Streamable HTTP spec, GET should return session info or error
