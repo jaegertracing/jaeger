@@ -6,7 +6,6 @@ package querysvc
 import (
 	"context"
 	"errors"
-	"fmt"
 	"iter"
 	"time"
 
@@ -205,37 +204,9 @@ func (qs QueryService) receiveTraces(
 		seq(processTraces)
 	} else {
 		jptrace.AggregateTracesWithLimit(seq, qs.options.MaxTraceSize)(func(trace ptrace.Traces, err error) bool {
-			// Add warning if trace was truncated
-			if err == nil && qs.options.MaxTraceSize > 0 && jptrace.IsTraceTruncated(trace) {
-				qs.addTruncationWarning(trace)
-			}
 			return processTraces([]ptrace.Traces{trace}, err)
 		})
 	}
 
 	return foundTraceIDs, proceed
-}
-
-// add a warning to the first span of the trace
-func (qs QueryService) addTruncationWarning(trace ptrace.Traces) {
-	resources := trace.ResourceSpans()
-	if resources.Len() == 0 {
-		return
-	}
-
-	scopes := resources.At(0).ScopeSpans()
-	if scopes.Len() == 0 {
-		return
-	}
-
-	spans := scopes.At(0).Spans()
-	if spans.Len() == 0 {
-		return
-	}
-
-	firstSpan := spans.At(0)
-	firstSpan.Attributes().Remove("@jaeger@truncated")
-	jptrace.AddWarnings(firstSpan,
-		fmt.Sprintf("trace has more than %d spans, showing first %d spans only",
-			qs.options.MaxTraceSize, qs.options.MaxTraceSize))
 }

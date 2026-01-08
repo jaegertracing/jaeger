@@ -4,6 +4,7 @@
 package jptrace
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -173,7 +174,14 @@ func TestAggregateTracesWithLimit(t *testing.T) {
 
 			require.Len(t, result, 1)
 			assert.Equal(t, tt.expectedSpans, result[0].SpanCount())
-			assert.Equal(t, tt.expectTruncate, IsTraceTruncated(result[0]))
+
+			// Check for truncation warning
+			if tt.expectTruncate {
+				firstSpan := result[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+				warnings := GetWarnings(firstSpan)
+				assert.NotEmpty(t, warnings, "expected truncation warning")
+				assert.Contains(t, warnings[len(warnings)-1], fmt.Sprintf("trace has more than %d spans", tt.maxSize))
+			}
 		})
 	}
 }
@@ -193,9 +201,11 @@ func TestCopySpansUpToLimit(t *testing.T) {
 
 func TestMarkAndCheckTruncated(t *testing.T) {
 	trace := ptrace.NewTraces()
-	trace.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-
-	assert.False(t, IsTraceTruncated(trace))
-	markTraceTruncated(trace)
-	assert.True(t, IsTraceTruncated(trace))
+	firstSpan := trace.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	assert.Empty(t, GetWarnings(firstSpan))
+	markTraceTruncated(trace, 10)
+	// Now should have truncation warning
+	warnings := GetWarnings(firstSpan)
+	assert.NotEmpty(t, warnings)
+	assert.Contains(t, warnings[0], "trace has more than 10 spans")
 }

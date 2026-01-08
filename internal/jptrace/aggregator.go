@@ -4,13 +4,12 @@
 package jptrace
 
 import (
+	"fmt"
 	"iter"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
-
-const truncationMarkerKey = "@jaeger@truncated"
 
 // AggregateTraces aggregates a sequence of trace batches into individual traces.
 //
@@ -62,7 +61,7 @@ func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSi
 func mergeTraces(dest, src ptrace.Traces, maxSize int, spanCount *int) bool {
 	// early exit if already at max
 	if maxSize > 0 && *spanCount >= maxSize {
-		markTraceTruncated(dest)
+		markTraceTruncated(dest, maxSize)
 		return true
 	}
 
@@ -84,7 +83,7 @@ func mergeTraces(dest, src ptrace.Traces, maxSize int, spanCount *int) bool {
 		copySpansUpToLimit(dest, src, remaining)
 		*spanCount = maxSize
 	}
-	markTraceTruncated(dest)
+	markTraceTruncated(dest, maxSize)
 	return true
 }
 
@@ -118,22 +117,9 @@ func copySpansUpToLimit(dest, src ptrace.Traces, limit int) {
 	}
 }
 
-func markTraceTruncated(trace ptrace.Traces) {
+func markTraceTruncated(trace ptrace.Traces, maxSize int) {
 	// direct access to first span (if truncated, it must exist)
 	firstSpan := trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
-	firstSpan.Attributes().PutBool(truncationMarkerKey, true)
-}
-
-// check if a trace has marked as truncated
-func IsTraceTruncated(trace ptrace.Traces) bool {
-	for _, resource := range trace.ResourceSpans().All() {
-		for _, scope := range resource.ScopeSpans().All() {
-			spans := scope.Spans()
-			if spans.Len() > 0 {
-				val, exists := spans.At(0).Attributes().Get(truncationMarkerKey)
-				return exists && val.Bool()
-			}
-		}
-	}
-	return false
+	AddWarnings(firstSpan,
+		fmt.Sprintf("trace has more than %d spans, showing first %d spans only", maxSize, maxSize))
 }
