@@ -151,4 +151,3 @@ func (s *server) healthTool(
 		"version": s.getServerVersion(),
 	}, nil
 }
-
