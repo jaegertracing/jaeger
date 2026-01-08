@@ -103,7 +103,7 @@ check_service_health() {
 }
 
 # Function to check if all services are healthy
-wait_for_services() {
+wait_for_services_to_be_healthy() {
   echo "Waiting for services to be up and running..."
 
   case "$METRICSTORE" in
@@ -119,6 +119,100 @@ wait_for_services() {
   esac
 
   check_service_health "Jaeger" "http://localhost:16686"
+}
+
+get_expected_operations_of_service() {
+  # Which span names do we expect from which service? 
+  # See https://github.com/yurishkuro/microsim/blob/main/config/hotrod.go
+  local service=$1
+  case "$service" in
+    "driver")
+      echo "/FindNearest"
+      ;;
+    "customer")
+      echo "/customer"
+      ;;
+    "mysql")
+      echo "/sql_select"
+      ;;
+    "redis")
+      echo "/FindDriverIDs /GetDriver"
+      ;;
+    "frontend")
+      echo "/dispatch"
+      ;;
+    "route")
+      echo "/GetShortestRoute"
+      ;;
+    "ui")
+      echo "/"
+      ;;
+    *)
+      echo ""
+      ;;
+  esac
+}
+
+# Validate that found operations match expected operations for a service
+validate_operations_for_service() {
+  local service=$1
+  local found_operations=$2
+  
+  local expected_operations
+  expected_operations=$(get_expected_operations_of_service "$service")
+  
+  # If no expected operations defined for this service, skip validation
+  if [[ -z "$expected_operations" ]]; then
+    return 0
+  fi
+  
+  # Log expected and found operations
+  if [[ -n "$found_operations" ]]; then
+    echo "Expected operations for service '$service': [$expected_operations] | Found operations: [$found_operations]"
+  else
+    echo "Expected operations for service '$service': [$expected_operations] | Found operations: []"
+  fi
+  
+  # If no operations found, that's an error
+  if [[ -z "$found_operations" ]]; then
+    echo "❌ ERROR: No operations found for service '$service', but expected: [$expected_operations]"
+    return 1
+  fi
+  
+  # Parse comma-separated operations (format: "op1, op2, op3")
+  # Convert to space-separated and normalize whitespace
+  local found_ops_list
+  found_ops_list=$(echo "$found_operations" | sed 's/,/ /g' | tr -s ' ' | sed 's/^ *//;s/ *$//')
+  
+  # Check each found operation against expected ones
+  local found_op
+  for found_op in $found_ops_list; do
+    # Remove any leading/trailing spaces
+    found_op=$(echo "$found_op" | sed 's/^ *//;s/ *$//')
+    
+    # Skip empty operations
+    if [[ -z "$found_op" ]]; then
+      continue
+    fi
+    
+    # Check if this operation is in the expected list
+    local is_expected=false
+    local expected_op
+    for expected_op in $expected_operations; do
+      if [[ "$found_op" == "$expected_op" ]]; then
+        is_expected=true
+        break
+      fi
+    done
+    
+    if [[ "$is_expected" == "false" ]]; then
+      echo "❌ ERROR: Unexpected operation '$found_op' found for service '$service'. Expected operations: [$expected_operations]"
+      return 1
+    fi
+  done
+  
+  echo "✅ Operation validation passed for service '$service'"
+  return 0
 }
 
 # Function to validate the service metrics
@@ -159,6 +253,19 @@ validate_service_metrics() {
     response=$(curl -s "$url")
     if ! assert_labels_set_equals "$response" "operation service_name" ; then
       return 1
+    fi
+    
+    # Validate operations from this service are what we expect.
+    echo "Checking operations for service: $service"
+    local operations
+    operations=$(extract_operations "$response")
+    if [[ -n "$operations" ]]; then
+      # Validate that found operations match expected ones
+      if ! validate_operations_for_service "$service" "$operations" "calls"; then
+        return 1
+      fi
+    else
+      echo "❌ ERROR No operations found yet for service '${service}'. We expected to find some."
     fi
 
     ### Validate Errors Rate metrics
@@ -221,6 +328,27 @@ assert_labels_set_equals() {
   return 0
 }
 
+extract_operations() {
+  local response=$1
+  # Extract all unique operation names from all metrics in the response
+  # Each metric has labels array, and when groupByOperation=true, each metric has a label with name=="operation"
+  local operations
+  operations=$(echo "$response" | jq -r '
+    if .metrics and (.metrics | length > 0) then
+      [.metrics[] | .labels[] | select(.name=="operation") | .value] | unique | sort | .[]
+    else
+      empty
+    end' 2>/dev/null)
+  
+  if [[ -z "$operations" ]]; then
+    echo ""
+    return 0
+  fi
+  
+  # Return operations as a comma-separated list
+  echo "$operations" | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g'
+}
+
 count_zero_metrics_point() {
   echo "$1" | jq -r '[.metrics[0].metricPoints[].gaugeValue.doubleValue | select(. == 0)] | length'
 }
@@ -268,7 +396,7 @@ teardown_services() {
 main() {
   (cd docker-compose/monitor && make build BINARY="$BINARY" && make $make_target DOCKER_COMPOSE_ARGS="-d")
 
-  wait_for_services
+  wait_for_services_to_be_healthy
   check_spm
   success="true"
 }
