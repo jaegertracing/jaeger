@@ -116,7 +116,7 @@ func (s *SamplingStore) InsertProbabilitiesAndQPS(_ string,
 	qps model.ServiceOperationQPS,
 ) error {
 	ts := time.Now()
-	writeIndexName := config.IndexWithDate(s.samplingIndexPrefix, s.indexDateLayout, ts)
+	writeIndexName := s.getWriteIndex(ts)
 	val := dbmodel.ProbabilitiesAndQPS{
 		Probabilities: probabilities,
 		QPS:           qps,

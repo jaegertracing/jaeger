@@ -581,3 +581,10 @@ func stringMatcher(q string) any {
 	}
 	return mock.MatchedBy(matchFunc)
 }
+
+func TestDeprecatedIndexWithDate(t *testing.T) {
+	// this test covers the deprecated function in index_utils.go to ensure code coverage
+	date := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	name := indexWithDate("jaeger-span-", "2006-01-02", date)
+	assert.Equal(t, "jaeger-span-2025-01-01", name)
+}
