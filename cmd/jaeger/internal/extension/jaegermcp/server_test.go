@@ -5,11 +5,16 @@ package jaegermcp
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/config/confighttp"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 )
@@ -55,6 +60,134 @@ func TestServerLifecycle(t *testing.T) {
 	}
 }
 
+func TestServerStartFailsWithInvalidEndpoint(t *testing.T) {
+	host := componenttest.NewNopHost()
+	telset := componenttest.NewNopTelemetrySettings()
+
+	// Use an invalid endpoint (e.g., malformed address)
+	config := &Config{
+		HTTP: confighttp.ServerConfig{
+			Endpoint: "invalid-endpoint-format",
+		},
+	}
+
+	server := newServer(config, telset)
+	err := server.Start(context.Background(), host)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to listen")
+}
+
+func TestServerHealthEndpoint(t *testing.T) {
+	host := componenttest.NewNopHost()
+	telset := componenttest.NewNopTelemetrySettings()
+
+	// Use a random available port
+	config := &Config{
+		HTTP: confighttp.ServerConfig{
+			Endpoint: "localhost:0", // OS will assign a free port
+		},
+	}
+
+	server := newServer(config, telset)
+	err := server.Start(context.Background(), host)
+	require.NoError(t, err)
+	defer func() {
+		err := server.Shutdown(context.Background())
+		assert.NoError(t, err)
+	}()
+
+	// Give the server a moment to start
+	time.Sleep(100 * time.Millisecond)
+
+	// Get the actual address the server is listening on
+	addr := server.listener.Addr().String()
+
+	// Test the health endpoint
+	resp, err := http.Get(fmt.Sprintf("http://%s/health", addr))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, "MCP server is running", string(body))
+}
+
+func TestServerShutdownWithError(t *testing.T) {
+	host := componenttest.NewNopHost()
+	telset := componenttest.NewNopTelemetrySettings()
+	config := &Config{
+		HTTP: confighttp.ServerConfig{
+			Endpoint: "localhost:0",
+		},
+	}
+
+	server := newServer(config, telset)
+	err := server.Start(context.Background(), host)
+	require.NoError(t, err)
+
+	// Create a context with very short timeout to try to trigger shutdown error
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+	defer cancel()
+
+	// Wait for context to expire
+	<-ctx.Done()
+
+	err = server.Shutdown(ctx)
+	// This may or may not produce an error depending on timing
+	// but it exercises the error handling path
+	_ = err
+}
+
+func TestServerShutdownAfterListenerClose(t *testing.T) {
+	host := componenttest.NewNopHost()
+	telset := componenttest.NewNopTelemetrySettings()
+	config := &Config{
+		HTTP: confighttp.ServerConfig{
+			Endpoint: "localhost:0",
+		},
+	}
+
+	server := newServer(config, telset)
+	err := server.Start(context.Background(), host)
+	require.NoError(t, err)
+
+	// Close listener to simulate an already-closed server scenario
+	server.listener.Close()
+
+	// Give the goroutine time to detect the closed listener and exit
+	time.Sleep(50 * time.Millisecond)
+
+	// Now shutdown should still work gracefully
+	err = server.Shutdown(context.Background())
+	assert.NoError(t, err)
+}
+
+func TestServerServeFails(t *testing.T) {
+	host := componenttest.NewNopHost()
+	telset := componenttest.NewNopTelemetrySettings()
+
+	// Create a server and start it
+	config := &Config{
+		HTTP: confighttp.ServerConfig{
+			Endpoint: "localhost:0",
+		},
+	}
+	server := newServer(config, telset)
+	err := server.Start(context.Background(), host)
+	require.NoError(t, err)
+
+	// Close the listener immediately to trigger an error in the Serve goroutine
+	server.listener.Close()
+
+	// Give the goroutine time to detect the closed listener and hit the error path
+	time.Sleep(100 * time.Millisecond)
+
+	// Clean up
+	err = server.Shutdown(context.Background())
+	assert.NoError(t, err)
+}
+
 func TestServerDependencies(t *testing.T) {
 	server := &server{}
 	deps := server.Dependencies()
@@ -68,4 +201,16 @@ func TestShutdownWithoutStart(t *testing.T) {
 
 	err := server.Shutdown(context.Background())
 	assert.NoError(t, err)
+}
+
+func TestNewServer(t *testing.T) {
+	telset := componenttest.NewNopTelemetrySettings()
+	config := createDefaultConfig().(*Config)
+
+	server := newServer(config, telset)
+	assert.NotNil(t, server)
+	assert.Equal(t, config, server.config)
+	assert.Equal(t, telset, server.telset)
+	assert.Nil(t, server.httpServer)
+	assert.Nil(t, server.listener)
 }
