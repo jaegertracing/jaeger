@@ -5,6 +5,7 @@ package jaegermcp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -34,6 +35,7 @@ func TestServerLifecycle(t *testing.T) {
 			config: &Config{
 				HTTP:                     createDefaultConfig().(*Config).HTTP,
 				ServerName:               "jaeger",
+				ServerVersion:            "1.0.0",
 				MaxSpanDetailsPerRequest: 20,
 				MaxSearchResults:         100,
 			},
@@ -90,6 +92,7 @@ func TestServerHealthEndpoint(t *testing.T) {
 			Endpoint: "localhost:0", // OS will assign a free port
 		},
 		ServerName:               "jaeger",
+		ServerVersion:            "1.0.0",
 		MaxSpanDetailsPerRequest: 20,
 		MaxSearchResults:         100,
 	}
@@ -102,11 +105,18 @@ func TestServerHealthEndpoint(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	// Give the server a moment to start
-	time.Sleep(100 * time.Millisecond)
-
 	// Get the actual address the server is listening on
 	addr := server.listener.Addr().String()
+
+	// Wait for server to be ready using assert.Eventually
+	assert.Eventually(t, func() bool {
+		resp, err := http.Get(fmt.Sprintf("http://%s/health", addr))
+		if err != nil {
+			return false
+		}
+		defer resp.Body.Close()
+		return resp.StatusCode == http.StatusOK
+	}, 1*time.Second, 10*time.Millisecond, "Server should be ready")
 
 	// Test the health endpoint
 	resp, err := http.Get(fmt.Sprintf("http://%s/health", addr))
@@ -129,6 +139,7 @@ func TestServerMCPEndpoint(t *testing.T) {
 			Endpoint: "localhost:0", // OS will assign a free port
 		},
 		ServerName:               "jaeger",
+		ServerVersion:            "1.0.0",
 		MaxSpanDetailsPerRequest: 20,
 		MaxSearchResults:         100,
 	}
@@ -141,21 +152,39 @@ func TestServerMCPEndpoint(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	// Give the server a moment to start
-	time.Sleep(100 * time.Millisecond)
-
 	// Get the actual address the server is listening on
 	addr := server.listener.Addr().String()
 
-	// Test that the MCP endpoint is available (even if we don't test the full protocol)
-	// Just verify that the endpoint exists and responds to HTTP
+	// Wait for server to be ready
+	assert.Eventually(t, func() bool {
+		resp, err := http.Get(fmt.Sprintf("http://%s/health", addr))
+		if err != nil {
+			return false
+		}
+		defer resp.Body.Close()
+		return resp.StatusCode == http.StatusOK
+	}, 1*time.Second, 10*time.Millisecond, "Server should be ready")
+
+	// Test the MCP endpoint with a GET request
+	// According to MCP Streamable HTTP spec, GET should return session info or error
 	resp, err := http.Get(fmt.Sprintf("http://%s/mcp", addr))
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	// The MCP endpoint should respond (even if it's an error for GET without proper protocol)
-	// Just verify it's not 404
+	// The MCP endpoint should not return 404 (it exists)
 	assert.NotEqual(t, http.StatusNotFound, resp.StatusCode)
+
+	// Read and validate the response body if it's JSON
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	// If the response is JSON, it should be valid JSON
+	// The MCP spec indicates GET without session ID may return an error or session info
+	if resp.Header.Get("Content-Type") == "application/json" {
+		var result map[string]any
+		err := json.Unmarshal(body, &result)
+		assert.NoError(t, err, "Response should be valid JSON")
+	}
 }
 
 func TestServerShutdownWithError(t *testing.T) {

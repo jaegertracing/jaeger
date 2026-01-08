@@ -61,8 +61,10 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 	// Initialize MCP server with implementation details
 	impl := &mcp.Implementation{
 		Name:    s.config.ServerName,
-		Version: s.getServerVersion(),
+		Version: s.config.ServerVersion,
 	}
+	// Pass nil for ServerOptions to use default settings.
+	// Custom options (e.g., logging, handlers) can be added in Phase 2 if needed.
 	s.mcpServer = mcp.NewServer(impl, nil)
 
 	// Register a placeholder health tool for Phase 1 Part 2
@@ -129,13 +131,11 @@ func (s *server) Shutdown(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
-// getServerVersion returns the server version from config or build info.
-func (s *server) getServerVersion() string {
-	if s.config.ServerVersion != "" {
-		return s.config.ServerVersion
-	}
-	// Default to a placeholder version for Phase 1
-	return "1.0.0"
+// HealthToolOutput is the strongly-typed output for the health tool.
+type HealthToolOutput struct {
+	Status  string `json:"status" jsonschema:"Server status (ok/error)"`
+	Server  string `json:"server" jsonschema:"Server name"`
+	Version string `json:"version" jsonschema:"Server version"`
 }
 
 // healthTool is a placeholder MCP tool that checks server health.
@@ -144,10 +144,10 @@ func (s *server) healthTool(
 	_ context.Context,
 	_ *mcp.CallToolRequest,
 	_ struct{},
-) (*mcp.CallToolResult, map[string]string, error) {
-	return nil, map[string]string{
-		"status":  "ok",
-		"server":  s.config.ServerName,
-		"version": s.getServerVersion(),
+) (*mcp.CallToolResult, HealthToolOutput, error) {
+	return nil, HealthToolOutput{
+		Status:  "ok",
+		Server:  s.config.ServerName,
+		Version: s.config.ServerVersion,
 	}, nil
 }

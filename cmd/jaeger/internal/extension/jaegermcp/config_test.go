@@ -16,13 +16,17 @@ func TestValidate(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name:        "Empty config - valid",
-			config:      &Config{},
-			expectError: false,
+			name: "Empty config - invalid (missing ServerVersion)",
+			config: &Config{
+				MaxSpanDetailsPerRequest: 20,
+				MaxSearchResults:         100,
+			},
+			expectError: true,
 		},
 		{
 			name: "Valid config",
 			config: &Config{
+				ServerVersion:            "1.0.0",
 				MaxSpanDetailsPerRequest: 20,
 				MaxSearchResults:         100,
 			},
@@ -31,6 +35,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "Invalid MaxSpanDetailsPerRequest (too high)",
 			config: &Config{
+				ServerVersion:            "1.0.0",
 				MaxSpanDetailsPerRequest: 101,
 				MaxSearchResults:         100,
 			},
@@ -39,6 +44,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "Invalid MaxSearchResults (too high)",
 			config: &Config{
+				ServerVersion:            "1.0.0",
 				MaxSpanDetailsPerRequest: 20,
 				MaxSearchResults:         1001,
 			},
