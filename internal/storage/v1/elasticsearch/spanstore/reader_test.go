@@ -27,7 +27,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	"github.com/jaegertracing/jaeger/internal/testutils"
@@ -206,8 +206,8 @@ func TestSpanReaderIndices(t *testing.T) {
 	tracer, _, closer := tracerProvider(t)
 	defer closer()
 
-	spanIndexOpts := config.IndexOptions{DateLayout: spanDataLayout}
-	serviceIndexOpts := config.IndexOptions{DateLayout: serviceDataLayout}
+	spanIndexOpts := cfg.IndexOptions{DateLayout: spanDataLayout}
+	serviceIndexOpts := cfg.IndexOptions{DateLayout: serviceDataLayout}
 
 	testCases := []struct {
 		indices   []string
@@ -242,7 +242,7 @@ func TestSpanReaderIndices(t *testing.T) {
 				ServiceIndex: serviceIndexOpts,
 				IndexPrefix:  "foo:",
 			},
-			indices:   []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + spanDataLayoutFormat, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + serviceDataLayoutFormat},
+			indices:   []string{"foo:" + cfg.IndexPrefixSeparator + spanIndexBaseName + spanDataLayoutFormat, "foo:" + cfg.IndexPrefixSeparator + serviceIndexBaseName + serviceDataLayoutFormat},
 			esVersion: 7,
 		},
 		{
@@ -264,7 +264,7 @@ func TestSpanReaderIndices(t *testing.T) {
 			params: SpanReaderParams{
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", UseReadWriteAliases: true, ReadAliasSuffix: "archive",
 			},
-			indices:   []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + "archive", "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + "archive"},
+			indices:   []string{"foo:" + cfg.IndexPrefixSeparator + spanIndexBaseName + "archive", "foo:" + cfg.IndexPrefixSeparator + serviceIndexBaseName + "archive"},
 			esVersion: 7,
 		},
 		{
@@ -646,24 +646,24 @@ func TestSpanReaderFindIndices(t *testing.T) {
 			startTime: today.Add(-time.Millisecond),
 			endTime:   today,
 			expected: []string{
-				indexWithDate(spanIndexBaseName, dateLayout, today),
+				cfg.IndexWithDate(spanIndexBaseName, dateLayout, today),
 			},
 		},
 		{
 			startTime: today.Add(-13 * time.Hour),
 			endTime:   today,
 			expected: []string{
-				indexWithDate(spanIndexBaseName, dateLayout, today),
-				indexWithDate(spanIndexBaseName, dateLayout, yesterday),
+				cfg.IndexWithDate(spanIndexBaseName, dateLayout, today),
+				cfg.IndexWithDate(spanIndexBaseName, dateLayout, yesterday),
 			},
 		},
 		{
 			startTime: today.Add(-48 * time.Hour),
 			endTime:   today,
 			expected: []string{
-				indexWithDate(spanIndexBaseName, dateLayout, today),
-				indexWithDate(spanIndexBaseName, dateLayout, yesterday),
-				indexWithDate(spanIndexBaseName, dateLayout, twoDaysAgo),
+				cfg.IndexWithDate(spanIndexBaseName, dateLayout, today),
+				cfg.IndexWithDate(spanIndexBaseName, dateLayout, yesterday),
+				cfg.IndexWithDate(spanIndexBaseName, dateLayout, twoDaysAgo),
 			},
 		},
 	}
@@ -675,9 +675,9 @@ func TestSpanReaderFindIndices(t *testing.T) {
 	})
 }
 
-func TestSpanReader_indexWithDate(t *testing.T) {
+func TestSpanReader_IndexWithDate(t *testing.T) {
 	withSpanReader(t, func(_ *spanReaderTest) {
-		actual := indexWithDate(spanIndexBaseName, "2006-01-02", time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
+		actual := cfg.IndexWithDate(spanIndexBaseName, "2006-01-02", time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
 		assert.Equal(t, "jaeger-span-1995-04-21", actual)
 	})
 }

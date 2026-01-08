@@ -65,10 +65,15 @@ func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *dbmodel.Span
 
 	cacheKey := hashCode(service)
 	if !keyInCache(cacheKey, s.serviceCache) {
-		il := s.client().Index().Index(indexName).Type(serviceType).Id(cacheKey).BodyJson(service)
+		il := s.client().Index().Index(indexName).Type(serviceType).BodyJson(service)
 		opType := ""
 		if s.useDataStream || s.client().GetVersion() >= 8 {
 			opType = "create"
+			if !s.useDataStream {
+				il.Id(cacheKey)
+			}
+		} else {
+			il.Id(cacheKey)
 		}
 		il.Add(opType)
 		writeCache(cacheKey, s.serviceCache)

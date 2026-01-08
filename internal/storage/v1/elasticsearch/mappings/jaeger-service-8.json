@@ -1,7 +1,14 @@
 {
   "priority": {{ .Priority }},
-  "index_patterns": ["{{ .IndexPrefix }}jaeger-service*", "{{ .IndexPrefix }}jaeger.service*"],
+  "index_patterns": [
+    "{{ .IndexPrefix }}jaeger-service*"
+    {{- if .UseDataStream }},
+    "{{ .IndexPrefix }}jaeger.service*"
+    {{- end }}
+  ],
+  {{- if .UseDataStream }}
   "data_stream": {},
+  {{- end }}
   "template": {
     {{- if .UseILM }}
     "aliases": {

@@ -1,8 +1,10 @@
 {
   "priority": 500,
   "index_patterns": [
-    "test-jaeger-span*"
+    "test-jaeger-span*",
+    "test-jaeger.span*"
   ],
+  "data_stream": {},
   "template": {
     "aliases": {
       "test-jaeger-span-read": {}

@@ -1,10 +1,14 @@
 {
   "priority": {{ .Priority }},
   "index_patterns": [
-    "{{ .IndexPrefix }}jaeger-sampling*",
+    "{{ .IndexPrefix }}jaeger-sampling*"
+    {{- if .UseDataStream }},
     "{{ .IndexPrefix }}jaeger.sampling*"
+    {{- end }}
   ],
+  {{- if .UseDataStream }}
   "data_stream": {},
+  {{- end }}
   "template": {
     {{- if .UseILM }}
     "aliases": {

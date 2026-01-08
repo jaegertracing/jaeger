@@ -1,8 +1,10 @@
 {
   "priority": 501,
   "index_patterns": [
-    "test-jaeger-service*"
+    "test-jaeger-service*",
+    "test-jaeger.service*"
   ],
+  "data_stream": {},
   "template": {
     "aliases": {
       "test-jaeger-service-read": {}

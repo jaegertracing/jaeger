@@ -19,7 +19,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
@@ -45,8 +45,8 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 		writer: NewSpanWriter(SpanWriterParams{
 			Client: func() es.Client { return client },
 			Logger: logger, MetricsFactory: metricsFactory,
-			SpanIndex:    config.IndexOptions{DateLayout: "2006-01-02"},
-			ServiceIndex: config.IndexOptions{DateLayout: "2006-01-02"},
+			SpanIndex:    cfg.IndexOptions{DateLayout: "2006-01-02"},
+			ServiceIndex: cfg.IndexOptions{DateLayout: "2006-01-02"},
 		}),
 	}
 	fn(w)
@@ -65,8 +65,8 @@ func TestSpanWriterIndices(t *testing.T) {
 	spanDataLayoutFormat := date.UTC().Format(spanDataLayout)
 	serviceDataLayoutFormat := date.UTC().Format(serviceDataLayout)
 
-	spanIndexOpts := config.IndexOptions{DateLayout: spanDataLayout}
-	serviceIndexOpts := config.IndexOptions{DateLayout: serviceDataLayout}
+	spanIndexOpts := cfg.IndexOptions{DateLayout: spanDataLayout}
+	serviceIndexOpts := cfg.IndexOptions{DateLayout: serviceDataLayout}
 
 	testCases := []struct {
 		indices   []string
@@ -103,7 +103,7 @@ func TestSpanWriterIndices(t *testing.T) {
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:",
 			},
-			indices:   []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + spanDataLayoutFormat, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + serviceDataLayoutFormat},
+			indices:   []string{"foo:" + cfg.IndexPrefixSeparator + spanIndexBaseName + spanDataLayoutFormat, "foo:" + cfg.IndexPrefixSeparator + serviceIndexBaseName + serviceDataLayoutFormat},
 			esVersion: 7,
 		},
 		{
@@ -127,7 +127,7 @@ func TestSpanWriterIndices(t *testing.T) {
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", WriteAliasSuffix: "archive", UseReadWriteAliases: true,
 			},
-			indices:   []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + "archive", "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + "archive"},
+			indices:   []string{"foo:" + cfg.IndexPrefixSeparator + spanIndexBaseName + "archive", "foo:" + cfg.IndexPrefixSeparator + serviceIndexBaseName + "archive"},
 			esVersion: 7,
 		},
 		{
@@ -299,8 +299,8 @@ func TestSpanIndexName(t *testing.T) {
 	span := &model.Span{
 		StartTime: date,
 	}
-	spanIndexName := indexWithDate(spanIndexBaseName, "2006-01-02", span.StartTime)
-	serviceIndexName := indexWithDate(serviceIndexBaseName, "2006-01-02", span.StartTime)
+	spanIndexName := cfg.IndexWithDate(spanIndexBaseName, "2006-01-02", span.StartTime)
+	serviceIndexName := cfg.IndexWithDate(serviceIndexBaseName, "2006-01-02", span.StartTime)
 	assert.Equal(t, "jaeger-span-1995-04-21", spanIndexName)
 	assert.Equal(t, "jaeger-service-1995-04-21", serviceIndexName)
 }

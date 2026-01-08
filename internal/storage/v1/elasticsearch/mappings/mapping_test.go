@@ -72,6 +72,7 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 					Sampling:     samplingOps,
 				},
 				EsVersion:     tt.esVersion,
+				UseDataStream: tt.useDataStream,
 				UseILM:        true,
 				ILMPolicyName: "jaeger-test-policy",
 			}
@@ -79,6 +80,9 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 			require.NoError(t, err)
 			var wantbytes []byte
 			fileSuffix := fmt.Sprintf("-%d", tt.esVersion)
+			if tt.useDataStream {
+				fileSuffix += "-ds"
+			}
 			fileName := templateName + fileSuffix + ".json"
 			wantbytes, err = FIXTURES.ReadFile("fixtures/" + fileName)
 			require.NoError(t, err)

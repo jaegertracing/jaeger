@@ -176,15 +176,11 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		}
 	case useDataStream:
 		// When using Data Streams, return the Data Stream name and a wildcard for legacy indices to support migration.
-		// For example, it will return ["jaeger-ds-span", "jaeger-span-*"].
+		// For example, it will return ["jaeger.span", "jaeger-span-*"].
 		timeRangeFn = func(indexPrefix string, _ string, _ time.Time, _ time.Time, _ time.Duration) []string {
 			indices := []string{indexPrefix}
 			if readLegacyIndices.IsEnabled() {
-				// indexPrefix is the Data Stream name (e.g. "jaeger.span")
-				// We want to replace "." with "-" to get the legacy prefix base (e.g. "jaeger-span")
-				// and then append "-*" to match all legacy indices.
-				legacyPattern := strings.Replace(indexPrefix, ".", "-", 1) + "-*"
-				indices = append(indices, legacyPattern)
+				indices = append(indices, cfg.GetDataStreamLegacyWildcard(indexPrefix))
 			}
 			return indices
 		}
@@ -282,14 +278,14 @@ func getSourceFn(maxDocCount int) sourceFn {
 // timeRangeIndices returns the array of indices that we need to query, based on query params
 func timeRangeIndices(indexName, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string {
 	var indices []string
-	firstIndex := indexWithDate(indexName, indexDateLayout, startTime)
-	currentIndex := indexWithDate(indexName, indexDateLayout, endTime)
+	firstIndex := cfg.IndexWithDate(indexName, indexDateLayout, startTime)
+	currentIndex := cfg.IndexWithDate(indexName, indexDateLayout, endTime)
 	for currentIndex != firstIndex && endTime.After(startTime) {
 		if len(indices) == 0 || indices[len(indices)-1] != currentIndex {
 			indices = append(indices, currentIndex)
 		}
 		endTime = endTime.Add(reduceDuration)
-		currentIndex = indexWithDate(indexName, indexDateLayout, endTime)
+		currentIndex = cfg.IndexWithDate(indexName, indexDateLayout, endTime)
 	}
 	indices = append(indices, firstIndex)
 	return indices

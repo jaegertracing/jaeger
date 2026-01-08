@@ -1,7 +1,14 @@
 {
   "priority": {{ .Priority }},
-  "index_patterns": ["{{ .IndexPrefix }}jaeger-span*", "{{ .IndexPrefix }}jaeger.span*"],
+  "index_patterns": [
+    "{{ .IndexPrefix }}jaeger-span*"
+    {{- if .UseDataStream }},
+    "{{ .IndexPrefix }}jaeger.span*"
+    {{- end }}
+  ],
+  {{- if .UseDataStream }}
   "data_stream": {},
+  {{- end }}
   "template": {
     {{- if .UseILM }}
     "aliases": {

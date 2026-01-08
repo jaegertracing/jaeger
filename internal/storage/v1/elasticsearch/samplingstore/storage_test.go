@@ -47,6 +47,7 @@ func withEsSampling(indexPrefix config.IndexPrefix, indexDateLayout string, maxD
 			MaxDocCount:     maxDocCount,
 		}),
 	}
+	w.client.On("GetVersion").Return(uint(7)).Maybe()
 	fn(w)
 }
 
@@ -179,7 +180,7 @@ func TestInsertThroughput(t *testing.T) {
 				{Service: "our-svc", Operation: "op2"},
 			}
 			fixedTime := time.Now()
-			indexName := indexWithDate("", "2006-01-02", fixedTime)
+			indexName := config.IndexWithDate("", "2006-01-02", fixedTime)
 			writeService := &mocks.IndexService{}
 			w.client.On("Index").Return(writeService)
 			writeService.On("Index", stringMatcher(indexName)).Return(writeService)
@@ -213,7 +214,7 @@ func TestInsertProbabilitiesAndQPS(t *testing.T) {
 				QPS:           samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}},
 			}
 			fixedTime := time.Now()
-			indexName := indexWithDate("", "2006-01-02", fixedTime)
+			indexName := config.IndexWithDate("", "2006-01-02", fixedTime)
 			writeService := &mocks.IndexService{}
 			w.client.On("Index").Return(writeService)
 			writeService.On("Index", stringMatcher(indexName)).Return(writeService)

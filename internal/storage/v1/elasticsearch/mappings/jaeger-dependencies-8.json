@@ -1,10 +1,14 @@
 {
   "priority": {{ .Priority }},
   "index_patterns": [
-    "{{ .IndexPrefix }}jaeger-dependencies*",
+    "{{ .IndexPrefix }}jaeger-dependencies*"
+    {{- if .UseDataStream }},
     "{{ .IndexPrefix }}jaeger.dependencies*"
+    {{- end }}
   ],
+  {{- if .UseDataStream }}
   "data_stream": {},
+  {{- end }}
   "template": {
     {{- if .UseILM }}
     "aliases": {

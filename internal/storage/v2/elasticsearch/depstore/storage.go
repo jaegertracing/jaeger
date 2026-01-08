@@ -43,6 +43,7 @@ type DependencyStore struct {
 	indexDateLayout       string
 	maxDocCount           int
 	useReadWriteAliases   bool
+	useDataStream         bool
 }
 
 // DependencyStoreParams holds constructor parameters for NewDependencyStore
@@ -53,17 +54,23 @@ type Params struct {
 	IndexDateLayout     string
 	MaxDocCount         int
 	UseReadWriteAliases bool
+	UseDataStream       bool
 }
 
 // NewDependencyStore returns a DependencyStore
 func NewDependencyStore(p Params) *DependencyStore {
+	dependencyIndexBase := dependencyIndexBaseName
+	if p.UseDataStream {
+		dependencyIndexBase = "jaeger.dependencies"
+	}
 	return &DependencyStore{
 		client:                p.Client,
 		logger:                p.Logger,
-		dependencyIndexPrefix: p.IndexPrefix.Apply(dependencyIndexBaseName),
+		dependencyIndexPrefix: p.IndexPrefix.Apply(dependencyIndexBase),
 		indexDateLayout:       p.IndexDateLayout,
 		maxDocCount:           p.MaxDocCount,
 		useReadWriteAliases:   p.UseReadWriteAliases,
+		useDataStream:         p.UseDataStream,
 	}
 }
 
@@ -89,7 +96,11 @@ func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, depe
 			Timestamp:    ts,
 			Dependencies: dependencies,
 		})
-	il.Add("")
+	opType := ""
+	if s.useDataStream || s.client().GetVersion() >= 8 {
+		opType = "create"
+	}
+	il.Add(opType)
 }
 
 // GetDependencies returns all interservice dependencies
@@ -122,16 +133,22 @@ func buildTSQuery(endTs time.Time, lookback time.Duration) elastic.Query {
 }
 
 func (s *DependencyStore) getReadIndices(ts time.Time, lookback time.Duration) []string {
+	if s.useDataStream {
+		indices := []string{s.dependencyIndexPrefix}
+		// Always include legacy wildcard for migration support
+		indices = append(indices, config.GetDataStreamLegacyWildcard(s.dependencyIndexPrefix))
+		return indices
+	}
 	if s.useReadWriteAliases {
 		return []string{s.dependencyIndexPrefix + "read"}
 	}
 	var indices []string
-	firstIndex := indexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts.Add(-lookback))
-	currentIndex := indexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts)
+	firstIndex := config.IndexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts.Add(-lookback))
+	currentIndex := config.IndexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts)
 	for currentIndex != firstIndex {
 		indices = append(indices, currentIndex)
 		ts = ts.Add(-24 * time.Hour)
-		currentIndex = indexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts)
+		currentIndex = config.IndexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts)
 	}
 	return append(indices, firstIndex)
 }
@@ -141,8 +158,11 @@ func indexWithDate(indexNamePrefix, indexDateLayout string, date time.Time) stri
 }
 
 func (s *DependencyStore) getWriteIndex(ts time.Time) string {
+	if s.useDataStream {
+		return s.dependencyIndexPrefix
+	}
 	if s.useReadWriteAliases {
 		return s.dependencyIndexPrefix + "write"
 	}
-	return indexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts)
+	return config.IndexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts)
 }

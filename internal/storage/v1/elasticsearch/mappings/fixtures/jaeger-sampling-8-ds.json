@@ -1,11 +1,13 @@
 {
-  "priority": 502,
+  "priority": 503,
   "index_patterns": [
-    "test-jaeger-dependencies*"
+    "test-jaeger-sampling*",
+    "test-jaeger.sampling*"
   ],
+  "data_stream": {},
   "template": {
     "aliases": {
-      "test-jaeger-dependencies-read": {}
+      "test-jaeger-sampling-read": {}
     },
     "settings": {
       "index.number_of_shards": 3,
@@ -14,7 +16,7 @@
       "index.requests.cache.enable": true,
       "lifecycle": {
         "name": "jaeger-test-policy",
-        "rollover_alias": "test-jaeger-dependencies-write"
+        "rollover_alias": "test-jaeger-sampling-write"
       }
     },
     "mappings": {}
