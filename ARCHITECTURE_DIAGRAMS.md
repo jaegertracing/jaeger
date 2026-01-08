@@ -81,11 +81,11 @@ INEFFICIENCY: Extra adapter layer and service for API v2
 ┌─────────────────────────────────────────────────────────┐
 │                     server.go                           │
 │                                                         │
-│  traceReader (v2) ──> v2 QueryService ──┬──> API v3    │
-│                                          │              │
-│                                          └──> API v2    │
-│                                               (with     │
-│                                               conversion)│
+│  v2 QueryService ──┬──> API v3 ──> Client (v3)         │
+│         ↑          │                                    │
+│         │          └──> API v2 ──> Client (v2)         │
+│         │               (with conversion)               │
+│  traceReader (v2)                                       │
 └─────────────────────────────────────────────────────────┘
 
 BENEFIT: Single QueryService instance, simpler architecture
@@ -174,22 +174,19 @@ CLARITY: Clear separation of concerns
 
 ### Current (Before)
 ```
-Storage v2 → v1adapter → v1 QueryService → API v2 Handler → Client
-    ↓
-    └──────> v2 QueryService ────────────> API v3 Handler → Client
+Client (v2) → API v2 Handler → v1 QueryService → v1adapter → Storage v2
+Client (v3) → API v3 Handler → v2 QueryService ───────────> Storage v2
 
-TWO PATHS from same storage!
+TWO QueryService instances from same storage!
 ```
 
 ### Proposed (After)
 ```
-                         ┌─> v2adapter → API v2 Handler → Client
-                         │
-Storage v2 → v2 QueryService
-                         │
-                         └─────────────> API v3 Handler → Client
+Client (v2) → API v2 Handler → v1adapter conversion ┐
+                                                     ├─> v2 QueryService → Storage v2
+Client (v3) → API v3 Handler ────────────────────────┘
 
-ONE PATH with conversion at the edge!
+ONE QueryService instance with conversion at API edge!
 ```
 
 ## Conversion Points

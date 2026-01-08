@@ -25,70 +25,15 @@ This document provides detailed technical guidance for implementing the v1 Query
 
 ## Detailed Implementation Steps
 
-### Step 1: Create Conversion Utilities
+### Step 1: Understand Existing Conversion Utilities
 
-Create new file: `cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2adapter/converter.go`
+The `internal/storage/v2/v1adapter` package already contains the conversion utilities we need:
 
-```go
-package v2adapter
+- `V1TracesFromSeq2(iter.Seq2[[]ptrace.Traces, error]) ([]*model.Trace, error)` - Converts iterator to v1 traces
+- `V1BatchesFromTraces(ptrace.Traces) []*model.Batch` - Converts ptrace to v1 batches
+- Other helper functions for trace and span ID conversions
 
-import (
-    "iter"
-    
-    "go.opentelemetry.io/collector/pdata/ptrace"
-    "github.com/jaegertracing/jaeger-idl/model/v1"
-    "github.com/jaegertracing/jaeger/internal/jptrace"
-)
-
-// V2TracesToV1Trace converts OpenTelemetry traces to Jaeger v1 trace model.
-// It aggregates multiple ptrace.Traces into a single model.Trace.
-func V2TracesToV1Trace(traces []ptrace.Traces) (*model.Trace, error) {
-    // Use existing jptrace utilities to convert
-    // Aggregate all spans from all traces
-    var allSpans []*model.Span
-    for _, trace := range traces {
-        v1Trace, err := jptrace.V1TraceFromPTrace(trace)
-        if err != nil {
-            return nil, err
-        }
-        if v1Trace != nil {
-            allSpans = append(allSpans, v1Trace.Spans...)
-        }
-    }
-    return &model.Trace{Spans: allSpans}, nil
-}
-
-// IteratorToV1Traces converts an iterator of ptrace.Traces to a slice of v1 Traces.
-func IteratorToV1Traces(iter iter.Seq2[[]ptrace.Traces, error]) ([]*model.Trace, error) {
-    var traces []*model.Trace
-    var firstErr error
-    
-    for ptraces, err := range iter {
-        if err != nil {
-            if firstErr == nil {
-                firstErr = err
-            }
-            continue
-        }
-        for _, ptrace := range ptraces {
-            v1Trace, err := jptrace.V1TraceFromPTrace(ptrace)
-            if err != nil {
-                if firstErr == nil {
-                    firstErr = err
-                }
-                continue
-            }
-            if v1Trace != nil {
-                traces = append(traces, v1Trace)
-            }
-        }
-    }
-    
-    return traces, firstErr
-}
-```
-
-Create tests: `cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2adapter/converter_test.go`
+**No new converter package needed!** We'll use these existing utilities.
 
 ### Step 2: Update GRPCHandler
 
@@ -138,8 +83,8 @@ func (g *GRPCHandler) GetTrace(r *api_v2.GetTraceRequest, stream api_v2.QuerySer
     // Get traces using v2 QueryService
     getTracesIter := g.queryService.GetTraces(stream.Context(), query)
     
-    // Convert iterator to v1 traces
-    traces, err := v2adapter.IteratorToV1Traces(getTracesIter)
+    // Convert iterator to v1 traces using existing v1adapter utility
+    traces, err := v1adapter.V1TracesFromSeq2(getTracesIter)
     if err != nil {
         g.logger.Error("failed to retrieve or convert traces", zap.Error(err))
         return status.Errorf(codes.Internal, "failed to retrieve or convert traces: %v", err)
@@ -184,8 +129,8 @@ func (g *GRPCHandler) FindTraces(r *api_v2.FindTracesRequest, stream api_v2.Quer
     // Find traces using v2 QueryService
     findTracesIter := g.queryService.FindTraces(stream.Context(), queryParams)
     
-    // Convert and stream traces
-    traces, err := v2adapter.IteratorToV1Traces(findTracesIter)
+    // Convert and stream traces using existing v1adapter utility
+    traces, err := v1adapter.V1TracesFromSeq2(findTracesIter)
     if err != nil {
         g.logger.Error("failed when searching for traces", zap.Error(err))
         return status.Errorf(codes.Internal, "failed when searching for traces: %v", err)
