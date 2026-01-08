@@ -12,6 +12,6 @@ import (
 // IndexWithDate returns index name with date
 //
 // Deprecated: use cfg.IndexWithDate instead
-func indexWithDate(indexPrefix, indexDateLayout string, date time.Time) string { //nolint:unused // proxy for user visibility while using centralized logic
+func indexWithDate(indexPrefix, indexDateLayout string, date time.Time) string {
 	return cfg.IndexWithDate(indexPrefix, indexDateLayout, date)
 }
