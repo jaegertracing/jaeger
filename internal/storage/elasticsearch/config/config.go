@@ -164,10 +164,14 @@ type Configuration struct {
 	// CreateIndexTemplates, if set to true, creates index templates at application startup.
 	// This configuration should be set to false when templates are installed manually.
 	CreateIndexTemplates bool `mapstructure:"create_mappings"`
-	// Option to enable Index Lifecycle Management (ILM) for Jaeger span and service indices.
-	// Read more about ILM at
 	// https://www.jaegertracing.io/docs/deployment/#enabling-ilm-support
 	UseILM bool `mapstructure:"use_ilm"`
+
+	// Option to enable Index State Management (ISM) for Jaeger span and service indices (OpenSearch).
+	UseISM bool `mapstructure:"use_ism"`
+
+	// UseDataStream, if set to true, enables the data stream support (ES 8+ or OpenSearch potentially).
+	UseDataStream bool `mapstructure:"use_data_stream"`
 
 	// ---- jaeger-specific configs ----
 	// MaxDocCount Defines maximum number of results to fetch from storage per query.
@@ -180,6 +184,16 @@ type Configuration struct {
 	// latest adaptive sampling probabilities.
 	AdaptiveSamplingLookback time.Duration `mapstructure:"adaptive_sampling_lookback"`
 	Tags                     TagsAsFields  `mapstructure:"tags_as_fields"`
+	// EnableLogsDB, if set to true, will enable the logsdb mode in Elasticsearch indices (ES 8.17+).
+	// This mode provides significant disk space savings for telemetry data.
+	EnableLogsDB bool `mapstructure:"enabled_logsdb"`
+
+	// EnableIngestPipeline enables the default ingest pipeline setting in index templates.
+	EnableIngestPipeline bool `mapstructure:"enabled_ingest_pipeline"`
+	// IngestPipelineName specifies the name of the ingest pipeline to be used.
+	// This is only applicable if EnableIngestPipeline is true.
+	IngestPipelineName string `mapstructure:"ingest_pipeline_name"`
+
 	// Enabled, if set to true, enables the namespace for storage pointed to by this configuration.
 	Enabled bool `mapstructure:"-"`
 }
@@ -758,6 +772,12 @@ func (c *Configuration) Validate() error {
 	}
 	if c.CreateIndexTemplates && c.UseILM {
 		return errors.New("when UseILM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app")
+	}
+	if c.UseISM && !c.UseReadWriteAliases {
+		return errors.New("UseISM must always be used in conjunction with UseReadWriteAliases to ensure ES writers and readers refer to the single index mapping")
+	}
+	if c.CreateIndexTemplates && c.UseISM {
+		return errors.New("when UseISM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app")
 	}
 
 	// Validate explicit alias settings require UseReadWriteAliases

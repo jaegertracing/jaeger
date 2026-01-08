@@ -1,6 +1,6 @@
 {
   "priority": {{ .Priority }},
-  "index_patterns": ["{{ .IndexPrefix }}jaeger-service*", "{{ .IndexPrefix }}jaeger-ds-service*"],
+  "index_patterns": ["{{ .IndexPrefix }}jaeger-service*", "{{ .IndexPrefix }}jaeger.service*"],
   "data_stream": {},
   "template": {
     {{- if .UseILM }}
@@ -12,13 +12,21 @@
       "index.number_of_shards": {{ .Shards }},
       "index.number_of_replicas": {{ .Replicas }},
       "index.mapping.nested_fields.limit": 50,
-      "index.requests.cache.enable": true,
+      "index.requests.cache.enable": true
+      {{- if .EnableIngestPipeline }},
       "index.default_pipeline": "jaeger-ds-service-timestamp"
+      {{- end }}
+      {{- if .EnableLogsDB }},
+      "index.mode": "logsdb"
+      {{- end }}
       {{- if .UseILM }},
       "lifecycle": {
         "name": "{{ .ILMPolicyName }}",
         "rollover_alias": "{{ .IndexPrefix }}jaeger-service-write"
       }
+      {{- end }}
+      {{- if .UseISM }},
+      "plugins.index_state_management.policy_id": "jaeger-ism-policy"
       {{- end }}
     },
     "mappings": {

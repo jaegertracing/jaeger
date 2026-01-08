@@ -29,27 +29,36 @@ const (
 
 // MappingBuilder holds common parameters required to render an elasticsearch index template
 type MappingBuilder struct {
-	TemplateBuilder es.TemplateBuilder
-	Indices         config.Indices
-	EsVersion       uint
-	UseILM          bool
-	ILMPolicyName   string
+	TemplateBuilder      es.TemplateBuilder
+	Indices              config.Indices
+	EsVersion            uint
+	UseILM               bool
+	UseISM               bool
+	ILMPolicyName        string
+	EnableLogsDB         bool
+	EnableIngestPipeline bool
 }
 
 // templateParams holds parameters required to render an elasticsearch index template
 type templateParams struct {
-	UseILM        bool
-	ILMPolicyName string
-	IndexPrefix   string
-	Shards        int64
-	Replicas      int64
-	Priority      int64
+	UseILM               bool
+	UseISM               bool
+	ILMPolicyName        string
+	IndexPrefix          string
+	Shards               int64
+	Replicas             int64
+	Priority             int64
+	EnableLogsDB         bool
+	EnableIngestPipeline bool
 }
 
 func (mb MappingBuilder) getMappingTemplateOptions(mappingType MappingType) templateParams {
 	mappingOpts := templateParams{}
 	mappingOpts.UseILM = mb.UseILM
+	mappingOpts.UseISM = mb.UseISM
 	mappingOpts.ILMPolicyName = mb.ILMPolicyName
+	mappingOpts.EnableLogsDB = mb.EnableLogsDB
+	mappingOpts.EnableIngestPipeline = mb.EnableIngestPipeline
 
 	switch mappingType {
 	case SpanMapping:

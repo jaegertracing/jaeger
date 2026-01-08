@@ -167,16 +167,18 @@ func TestSpanWriterIndices(t *testing.T) {
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts,
+				UseDataStream: true,
 			},
-			indices:   []string{"jaeger-ds-span", "jaeger-ds-service"},
+			indices:   []string{"jaeger.span", "jaeger.service"},
 			esVersion: 8,
 		},
 		{
 			params: SpanWriterParams{
 				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:",
+				UseDataStream: true,
 			},
-			indices:   []string{"foo:-jaeger-ds-span", "foo:-jaeger-ds-service"},
+			indices:   []string{"foo:-jaeger.span", "foo:-jaeger.service"},
 			esVersion: 8,
 		},
 	}

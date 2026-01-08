@@ -423,6 +423,70 @@ func TestGetMappingTemplateOptions_DefaultCase(t *testing.T) {
 	assert.Equal(t, "test-policy", opts.ILMPolicyName)
 }
 
+func TestMappingBuilderGetMapping_LogsDB(t *testing.T) {
+	tests := []struct {
+		enableLogsDB bool
+	}{
+		{enableLogsDB: true},
+		{enableLogsDB: false},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("EnableLogsDB=%v", tt.enableLogsDB), func(t *testing.T) {
+			mb := &MappingBuilder{
+				TemplateBuilder: es.TextTemplateBuilder{},
+				Indices: config.Indices{
+					Spans: config.IndexOptions{Shards: 3, Replicas: ptr(int64(3))},
+				},
+				EsVersion:    8,
+				EnableLogsDB: tt.enableLogsDB,
+			}
+			got, err := mb.GetMapping(SpanMapping)
+			require.NoError(t, err)
+			if tt.enableLogsDB {
+				assert.Contains(t, got, "\"index.mode\": \"logsdb\"")
+			} else {
+				assert.NotContains(t, got, "\"index.mode\": \"logsdb\"")
+			}
+		})
+	}
+}
+
+func TestMappingBuilderGetMapping_IngestPipeline(t *testing.T) {
+	tests := []struct {
+		mapping              MappingType
+		enableIngestPipeline bool
+	}{
+		{mapping: SpanMapping, enableIngestPipeline: true},
+		{mapping: SpanMapping, enableIngestPipeline: false},
+		{mapping: ServiceMapping, enableIngestPipeline: true},
+		{mapping: ServiceMapping, enableIngestPipeline: false},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%s-EnableIngestPipeline=%v", tt.mapping, tt.enableIngestPipeline), func(t *testing.T) {
+			mb := &MappingBuilder{
+				TemplateBuilder: es.TextTemplateBuilder{},
+				Indices: config.Indices{
+					Spans:    config.IndexOptions{Shards: 3, Replicas: ptr(int64(3))},
+					Services: config.IndexOptions{Shards: 3, Replicas: ptr(int64(3))},
+				},
+				EsVersion:            8,
+				EnableIngestPipeline: tt.enableIngestPipeline,
+			}
+			got, err := mb.GetMapping(tt.mapping)
+			require.NoError(t, err)
+			pipeline := "jaeger-ds-span-timestamp"
+			if tt.mapping == ServiceMapping {
+				pipeline = "jaeger-ds-service-timestamp"
+			}
+			if tt.enableIngestPipeline {
+				assert.Contains(t, got, fmt.Sprintf("\"index.default_pipeline\": %q", pipeline))
+			} else {
+				assert.NotContains(t, got, "\"index.default_pipeline\":")
+			}
+		})
+	}
+}
+
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
 }

@@ -29,9 +29,10 @@ const (
 
 // ServiceOperationStorage stores service to operation pairs.
 type ServiceOperationStorage struct {
-	client       func() es.Client
-	logger       *zap.Logger
-	serviceCache cache.Cache
+	client        func() es.Client
+	logger        *zap.Logger
+	serviceCache  cache.Cache
+	useDataStream bool
 }
 
 // NewServiceOperationStorage returns a new ServiceOperationStorage.
@@ -39,6 +40,7 @@ func NewServiceOperationStorage(
 	client func() es.Client,
 	logger *zap.Logger,
 	cacheTTL time.Duration,
+	useDataStream bool,
 ) *ServiceOperationStorage {
 	return &ServiceOperationStorage{
 		client: client,
@@ -49,6 +51,7 @@ func NewServiceOperationStorage(
 				TTL: cacheTTL,
 			},
 		),
+		useDataStream: useDataStream,
 	}
 }
 
@@ -64,7 +67,7 @@ func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *dbmodel.Span
 	if !keyInCache(cacheKey, s.serviceCache) {
 		il := s.client().Index().Index(indexName).Type(serviceType).Id(cacheKey).BodyJson(service)
 		opType := ""
-		if s.client().GetVersion() >= 8 {
+		if s.useDataStream || s.client().GetVersion() >= 8 {
 			opType = "create"
 		}
 		il.Add(opType)

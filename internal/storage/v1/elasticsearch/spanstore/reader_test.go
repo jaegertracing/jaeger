@@ -335,14 +335,14 @@ func TestSpanReaderIndices(t *testing.T) {
 		},
 		{
 			params:    SpanReaderParams{},
-			indices:   []string{"jaeger-ds-span", "jaeger-span*", "jaeger-ds-service", "jaeger-service*"},
+			indices:   []string{"jaeger.span", "jaeger-span-*", "jaeger.service", "jaeger-service-*"},
 			esVersion: 8,
 		},
 		{
 			params: SpanReaderParams{
 				IndexPrefix: "foo:",
 			},
-			indices:   []string{"foo:-jaeger-ds-span", "foo:-jaeger-span*", "foo:-jaeger-ds-service", "foo:-jaeger-service*"},
+			indices:   []string{"foo:-jaeger.span", "foo:-jaeger-span-*", "foo:-jaeger.service", "foo:-jaeger-service-*"},
 			esVersion: 8,
 		},
 	}

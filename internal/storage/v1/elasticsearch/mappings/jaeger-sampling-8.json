@@ -1,6 +1,9 @@
 {
   "priority": {{ .Priority }},
-  "index_patterns": ["{{ .IndexPrefix }}jaeger-sampling*", "{{ .IndexPrefix }}jaeger-ds-sampling*"],
+  "index_patterns": [
+    "{{ .IndexPrefix }}jaeger-sampling*",
+    "{{ .IndexPrefix }}jaeger.sampling*"
+  ],
   "data_stream": {},
   "template": {
     {{- if .UseILM }}
@@ -13,11 +16,17 @@
       "index.number_of_replicas": {{ .Replicas }},
       "index.mapping.nested_fields.limit": 50,
       "index.requests.cache.enable": true
+      {{- if .EnableLogsDB }},
+      "index.mode": "logsdb"
+      {{- end }}
       {{- if .UseILM }},
       "lifecycle": {
         "name": "{{ .ILMPolicyName }}",
         "rollover_alias": "{{ .IndexPrefix }}jaeger-sampling-write"
       }
+      {{- end }}
+      {{- if .UseISM }},
+      "plugins.index_state_management.policy_id": "jaeger-ism-policy"
       {{- end }}
     },
     "mappings": {}

@@ -38,6 +38,7 @@ type SpanWriter struct {
 	allTagsAsFields   bool
 	tagDotReplacement string
 	tagKeysAsFields   map[string]bool
+	useDataStream     bool
 }
 
 // CoreSpanWriter is a DB-Level abstraction which directly deals with database level operations
@@ -60,6 +61,7 @@ type SpanWriterParams struct {
 	TagKeysAsFields     []string
 	TagDotReplacement   string
 	UseReadWriteAliases bool
+	UseDataStream       bool
 	WriteAliasSuffix    string
 	SpanWriteAlias      string
 	ServiceWriteAlias   string
@@ -95,10 +97,10 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 	// p.Client() creates a NEW client or returns existing?
 	// Looking at factory.go: f.getClient returns the stored client.
 
-	client := p.Client()
-	useDataStream := client.GetVersion() >= 8
+	// We rely on factory to populate p.UseDataStream based on config or version detection.
+	useDataStream := p.UseDataStream
 
-	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheTTL)
+	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheTTL, useDataStream)
 	return &SpanWriter{
 		client:            p.Client,
 		logger:            p.Logger,
@@ -108,6 +110,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		tagKeysAsFields:   tags,
 		allTagsAsFields:   p.AllTagsAsFields,
 		tagDotReplacement: p.TagDotReplacement,
+		useDataStream:     useDataStream,
 	}
 }
 
@@ -126,8 +129,8 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string, useDataStre
 	spanIndexBase := spanIndexBaseName
 	serviceIndexBase := serviceIndexBaseName
 	if useDataStream {
-		spanIndexBase = "jaeger-ds-span"
-		serviceIndexBase = "jaeger-ds-service"
+		spanIndexBase = "jaeger.span"
+		serviceIndexBase = "jaeger.service"
 	}
 
 	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBase)
@@ -191,7 +194,7 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
 func (s *SpanWriter) writeSpan(indexName string, jsonSpan *dbmodel.Span) {
 	il := s.client().Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan)
 	opType := ""
-	if s.client().GetVersion() >= 8 {
+	if s.useDataStream || s.client().GetVersion() >= 8 {
 		opType = "create"
 	}
 	il.Add(opType)

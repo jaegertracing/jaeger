@@ -131,6 +131,7 @@ type SpanReaderParams struct {
 	TagDotReplacement   string
 	ReadAliasSuffix     string
 	UseReadWriteAliases bool
+	UseDataStream       bool
 	RemoteReadClusters  []string
 	SpanReadAlias       string
 	ServiceReadAlias    string
@@ -143,20 +144,19 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	spanIndexPrefix := p.SpanReadAlias
 	serviceIndexPrefix := p.ServiceReadAlias
 
-	client := p.Client()
-	useDataStream := client.GetVersion() >= 8
+	useDataStream := p.UseDataStream
 
 	if spanIndexPrefix == "" {
 		spanIndexBase := spanIndexBaseName
 		if useDataStream {
-			spanIndexBase = "jaeger-ds-span"
+			spanIndexBase = "jaeger.span"
 		}
 		spanIndexPrefix = p.IndexPrefix.Apply(spanIndexBase)
 	}
 	if serviceIndexPrefix == "" {
 		serviceIndexBase := serviceIndexBaseName
 		if useDataStream {
-			serviceIndexBase = "jaeger-ds-service"
+			serviceIndexBase = "jaeger.service"
 		}
 		serviceIndexPrefix = p.IndexPrefix.Apply(serviceIndexBase)
 	}
@@ -180,9 +180,10 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		timeRangeFn = func(indexPrefix string, _ string, _ time.Time, _ time.Time, _ time.Duration) []string {
 			indices := []string{indexPrefix}
 			if readLegacyIndices.IsEnabled() {
-				// indexPrefix is already prefixed with the Data Stream base name (e.g. "jaeger-ds-span")
-				// We want to replace "-ds-" with "-" to get the legacy pattern.
-				legacyPattern := strings.Replace(indexPrefix, "-ds-", "-", 1) + "*"
+				// indexPrefix is the Data Stream name (e.g. "jaeger.span")
+				// We want to replace "." with "-" to get the legacy prefix base (e.g. "jaeger-span")
+				// and then append "-*" to match all legacy indices.
+				legacyPattern := strings.Replace(indexPrefix, ".", "-", 1) + "-*"
 				indices = append(indices, legacyPattern)
 			}
 			return indices
@@ -194,7 +195,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	return &SpanReader{
 		client:                  p.Client,
 		maxSpanAge:              maxSpanAge,
-		serviceOperationStorage: NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics
+		serviceOperationStorage: NewServiceOperationStorage(p.Client, p.Logger, 0, p.UseDataStream), // the decorator takes care of metrics
 		spanIndexPrefix:         spanIndexPrefix,
 		serviceIndexPrefix:      serviceIndexPrefix,
 		spanIndex:               p.SpanIndex,
