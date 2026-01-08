@@ -255,6 +255,7 @@ main() {
   helm upgrade --install opensearch-dashboards opensearch/opensearch-dashboards \
     --namespace opensearch \
     --version "${OPENSEARCH_DASHBOARDS_VERSION}" \
+    --set image.tag="${OPENSEARCH_DASHBOARDS_VERSION}" \
     -f "$SCRIPT_DIR/opensearch-dashboard-values.yaml" \
     --wait --timeout 10m
   wait_for_deployment opensearch opensearch-dashboards "${ROLLOUT_TIMEOUT}s"

@@ -1,6 +1,5 @@
 image:
   repository: docker.io/opensearchproject/opensearch-dashboards
-  tag: "3.3.0"
 
 opensearchHosts: "http://opensearch-cluster-single:9200"
 
