@@ -141,8 +141,8 @@ func (g *GRPCHandler) GetTrace(r *api_v2.GetTraceRequest, stream api_v2.QuerySer
     // Convert iterator to v1 traces
     traces, err := v2adapter.IteratorToV1Traces(getTracesIter)
     if err != nil {
-        g.logger.Error("failed to fetch spans from the backend", zap.Error(err))
-        return status.Errorf(codes.Internal, "failed to fetch spans from the backend: %v", err)
+        g.logger.Error("failed to retrieve or convert traces", zap.Error(err))
+        return status.Errorf(codes.Internal, "failed to retrieve or convert traces: %v", err)
     }
     if len(traces) == 0 {
         g.logger.Warn(msgTraceNotFound, zap.Stringer("id", r.TraceID))
@@ -364,7 +364,8 @@ func NewServer(
     }
 
     return &Server{
-        querySvc:     nil,  // Can remove this field later
+        querySvc:     nil,  // TODO: Remove this field in a follow-up cleanup PR
+                            // Setting to nil to avoid using v1 QueryService accidentally
         queryOptions: options,
         grpcServer:   grpcServer,
         httpServer:   httpServer,
@@ -503,7 +504,7 @@ Before merging, verify:
 
 After successful migration:
 1. Mark v1 QueryService as deprecated
-2. Remove `Server.querySvc` field (currently unused after this change)
+2. **Remove `Server.querySvc` field** - no longer needed after this change
 3. Consider removing v1 QueryService entirely in next major version
 4. Update storage layer documentation
 5. Simplify storage adapter layer if possible
