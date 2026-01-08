@@ -1,0 +1,45 @@
+// Copyright (c) 2025 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
+package jaegermcp
+
+import (
+	"github.com/asaskevich/govalidator"
+	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/confmap/xconfmap"
+)
+
+// Config represents the configuration for the Jaeger MCP server extension.
+type Config struct {
+	// HTTP contains the HTTP server configuration for the MCP protocol endpoint.
+	HTTP confighttp.ServerConfig `mapstructure:"http"`
+
+	// Storage holds configuration related to the trace storage.
+	Storage Storage `mapstructure:"storage"`
+
+	// ServerName is the name of the MCP server for protocol identification.
+	ServerName string `mapstructure:"server_name"`
+
+	// ServerVersion is the version of the MCP server.
+	ServerVersion string `mapstructure:"server_version"`
+
+	// MaxSpanDetailsPerRequest limits the number of spans that can be fetched in a single request.
+	MaxSpanDetailsPerRequest int `mapstructure:"max_span_details_per_request" valid:"range(1|100)"`
+
+	// MaxSearchResults limits the number of trace search results.
+	MaxSearchResults int `mapstructure:"max_search_results" valid:"range(1|1000)"`
+}
+
+// Storage holds the trace storage configuration.
+type Storage struct {
+	// Traces contains the name of the trace storage that is being queried.
+	Traces string `mapstructure:"traces" valid:"required"`
+}
+
+// Validate checks if the configuration is valid.
+func (cfg *Config) Validate() error {
+	_, err := govalidator.ValidateStruct(cfg)
+	return err
+}
+
+var _ xconfmap.Validator = (*Config)(nil)
