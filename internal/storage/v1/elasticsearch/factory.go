@@ -116,7 +116,7 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 		TagDotReplacement:   f.config.Tags.DotReplacement,
 		UseReadWriteAliases: f.config.UseReadWriteAliases,
 		ReadAliasSuffix:     f.config.ReadAliasSuffix,
-		UseDataStream:       f.config.UseDataStream || f.config.Version >= 8,
+		UseDataStream:       f.config.UseDataStream,
 		RemoteReadClusters:  f.config.RemoteReadClusters,
 		SpanReadAlias:       f.config.SpanReadAlias,
 		ServiceReadAlias:    f.config.ServiceReadAlias,
