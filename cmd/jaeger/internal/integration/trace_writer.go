@@ -28,7 +28,7 @@ var (
 	_ tracestore.Writer = (*traceWriter)(nil)
 	_ io.Closer         = (*traceWriter)(nil)
 
-	MaxChunkSize = 35 // max chunk size otel kafka export can handle safely.
+	MaxChunkSize = 5 // max chunk size otel kafka export can handle safely.
 )
 
 // traceWriter utilizes the OTLP exporter to send span data to the Jaeger-v2 receiver
