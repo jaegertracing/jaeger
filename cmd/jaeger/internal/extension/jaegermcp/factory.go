@@ -9,6 +9,9 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/extension"
+
+	"github.com/jaegertracing/jaeger/internal/version"
+	"github.com/jaegertracing/jaeger/ports"
 )
 
 // componentType is the name of this extension in configuration.
@@ -31,10 +34,10 @@ func NewFactory() extension.Factory {
 func createDefaultConfig() component.Config {
 	return &Config{
 		HTTP: confighttp.ServerConfig{
-			Endpoint: "0.0.0.0:4320",
+			Endpoint: ports.PortToHostPort(ports.MCPHTTP),
 		},
 		ServerName:               "jaeger",
-		ServerVersion:            "dev",
+		ServerVersion:            version.Get().GitVersion,
 		MaxSpanDetailsPerRequest: 20,
 		MaxSearchResults:         100,
 	}

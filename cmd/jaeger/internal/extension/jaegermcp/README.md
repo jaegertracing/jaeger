@@ -12,6 +12,8 @@ The MCP server provides a structured way for AI agents to interact with Jaeger's
 
 This approach prevents context-window exhaustion in LLMs and enables more efficient trace analysis.
 
+**Note:** The current implementation uses Streamable HTTP transport only. MCP stdio transport is not supported.
+
 ## Status
 
 🚧 **Phase 1: Foundation (In Progress)** - Extension scaffold and lifecycle management
@@ -30,11 +32,11 @@ extensions:
   jaeger_mcp:
     # HTTP endpoint for MCP protocol (Streamable HTTP transport)
     http:
-      endpoint: "0.0.0.0:4320"
+      endpoint: "0.0.0.0:16687"
     
     # Server identification for MCP protocol
     server_name: "jaeger"
-    server_version: "dev"
+    # server_version will default to the build version
     
     # Limits
     max_span_details_per_request: 20
@@ -43,7 +45,7 @@ extensions:
 
 ## Dependencies
 
-This extension depends on the [jaeger_query](../jaegerquery/) extension to access trace data.
+This extension depends on the [jaeger_query](../jaegerquery/) extension to access trace data. The `jaeger_query` extension must be configured in the service extensions list.
 
 ## Development Status
 
