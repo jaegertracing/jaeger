@@ -27,11 +27,11 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/apiv3"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc"
 	v2querysvc "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/recoveryhandler"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
@@ -53,7 +53,7 @@ type Server struct {
 func NewServer(
 	ctx context.Context,
 	v2QuerySvc *v2querysvc.QueryService,
-	metricsQuerySvc querysvc.MetricsQueryService,
+	metricsQuerySvc metricstore.Reader,
 	options *QueryOptions,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
@@ -158,7 +158,7 @@ var _ io.Closer = (*httpServer)(nil)
 
 func initRouter(
 	v2QuerySvc *v2querysvc.QueryService,
-	metricsQuerySvc querysvc.MetricsQueryService,
+	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
 	tenancyMgr *tenancy.Manager,
 	telset telemetry.Settings,
@@ -169,10 +169,8 @@ func initRouter(
 		HandlerOptions.MetricsQueryService(metricsQuerySvc),
 	}
 
-	// Create v1 adapter for HTTP handler
-	v1QuerySvc := querysvc.NewQueryServiceV2Adapter(v2QuerySvc)
 	apiHandler := NewAPIHandler(
-		v1QuerySvc,
+		v2QuerySvc,
 		apiHandlerOptions...)
 	r := NewRouter()
 	if queryOpts.BasePath != "/" {
@@ -186,7 +184,7 @@ func initRouter(
 	}).RegisterRoutes(r)
 
 	apiHandler.RegisterRoutes(r)
-	staticHandlerCloser := RegisterStaticHandler(r, telset.Logger, queryOpts, v1QuerySvc.GetCapabilities())
+	staticHandlerCloser := RegisterStaticHandler(r, telset.Logger, queryOpts, v2QuerySvc.GetCapabilities())
 
 	var handler http.Handler = r
 	if queryOpts.BearerTokenPropagation {
@@ -202,7 +200,7 @@ func initRouter(
 func createHTTPServer(
 	ctx context.Context,
 	v2QuerySvc *v2querysvc.QueryService,
-	metricsQuerySvc querysvc.MetricsQueryService,
+	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
