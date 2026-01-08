@@ -32,7 +32,10 @@ func TestServerLifecycle(t *testing.T) {
 		{
 			name: "successful start and shutdown",
 			config: &Config{
-				HTTP: createDefaultConfig().(*Config).HTTP,
+				HTTP:                     createDefaultConfig().(*Config).HTTP,
+				ServerName:               "jaeger",
+				MaxSpanDetailsPerRequest: 20,
+				MaxSearchResults:         100,
 			},
 			expectedError: "",
 		},
@@ -86,6 +89,9 @@ func TestServerHealthEndpoint(t *testing.T) {
 		HTTP: confighttp.ServerConfig{
 			Endpoint: "localhost:0", // OS will assign a free port
 		},
+		ServerName:               "jaeger",
+		MaxSpanDetailsPerRequest: 20,
+		MaxSearchResults:         100,
 	}
 
 	server := newServer(config, telset)
@@ -111,6 +117,45 @@ func TestServerHealthEndpoint(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	assert.Equal(t, "MCP server is running", string(body))
+}
+
+func TestServerMCPEndpoint(t *testing.T) {
+	host := componenttest.NewNopHost()
+	telset := componenttest.NewNopTelemetrySettings()
+
+	// Use a random available port
+	config := &Config{
+		HTTP: confighttp.ServerConfig{
+			Endpoint: "localhost:0", // OS will assign a free port
+		},
+		ServerName:               "jaeger",
+		MaxSpanDetailsPerRequest: 20,
+		MaxSearchResults:         100,
+	}
+
+	server := newServer(config, telset)
+	err := server.Start(context.Background(), host)
+	require.NoError(t, err)
+	defer func() {
+		err := server.Shutdown(context.Background())
+		assert.NoError(t, err)
+	}()
+
+	// Give the server a moment to start
+	time.Sleep(100 * time.Millisecond)
+
+	// Get the actual address the server is listening on
+	addr := server.listener.Addr().String()
+
+	// Test that the MCP endpoint is available (even if we don't test the full protocol)
+	// Just verify that the endpoint exists and responds to HTTP
+	resp, err := http.Get(fmt.Sprintf("http://%s/mcp", addr))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	// The MCP endpoint should respond (even if it's an error for GET without proper protocol)
+	// Just verify it's not 404
+	assert.NotEqual(t, http.StatusNotFound, resp.StatusCode)
 }
 
 func TestServerShutdownWithError(t *testing.T) {
