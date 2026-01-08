@@ -38,21 +38,19 @@ import (
 
 // Server runs HTTP, Mux and a grpc server
 type Server struct {
-	querySvc     *querysvc.QueryService
 	queryOptions *QueryOptions
-
-	grpcConn   net.Listener
-	httpConn   net.Listener
-	grpcServer *grpc.Server
-	httpServer *httpServer
-	bgFinished sync.WaitGroup
-	telset     telemetry.Settings
+	grpcConn     net.Listener
+	httpConn     net.Listener
+	grpcServer   *grpc.Server
+	httpServer   *httpServer
+	bgFinished   sync.WaitGroup
+	telset       telemetry.Settings
 }
 
 // NewServer creates and initializes Server
 func NewServer(
 	ctx context.Context,
-	v2QuerySvc *querysvc.QueryService,
+	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	options *QueryOptions,
 	tm *tenancy.Manager,
@@ -76,14 +74,13 @@ func NewServer(
 	if err != nil {
 		return nil, err
 	}
-	registerGRPCHandlers(grpcServer, v2QuerySvc, telset)
-	httpServer, err := createHTTPServer(ctx, v2QuerySvc, metricsQuerySvc, options, tm, telset)
+	registerGRPCHandlers(grpcServer, querySvc, telset)
+	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, tm, telset)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Server{
-		querySvc:     nil, // Deprecated: v1 QueryService no longer used
 		queryOptions: options,
 		grpcServer:   grpcServer,
 		httpServer:   httpServer,
@@ -93,15 +90,15 @@ func NewServer(
 
 func registerGRPCHandlers(
 	server *grpc.Server,
-	v2QuerySvc *querysvc.QueryService,
+	querySvc *querysvc.QueryService,
 	telset telemetry.Settings,
 ) {
 	reflection.Register(server)
-	handler := NewGRPCHandler(v2QuerySvc, GRPCHandlerOptions{Logger: telset.Logger})
+	handler := NewGRPCHandler(querySvc, GRPCHandlerOptions{Logger: telset.Logger})
 	healthServer := health.NewServer()
 
 	api_v2.RegisterQueryServiceServer(server, handler)
-	api_v3.RegisterQueryServiceServer(server, &apiv3.Handler{QueryService: v2QuerySvc})
+	api_v3.RegisterQueryServiceServer(server, &apiv3.Handler{QueryService: querySvc})
 
 	healthServer.SetServingStatus("jaeger.api_v2.QueryService", grpc_health_v1.HealthCheckResponse_SERVING)
 	healthServer.SetServingStatus("jaeger.api_v2.metrics.MetricsQueryService", grpc_health_v1.HealthCheckResponse_SERVING)
@@ -157,7 +154,7 @@ type httpServer struct {
 var _ io.Closer = (*httpServer)(nil)
 
 func initRouter(
-	v2QuerySvc *querysvc.QueryService,
+	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
 	tenancyMgr *tenancy.Manager,
@@ -170,7 +167,7 @@ func initRouter(
 	}
 
 	apiHandler := NewAPIHandler(
-		v2QuerySvc,
+		querySvc,
 		apiHandlerOptions...)
 	r := NewRouter()
 	if queryOpts.BasePath != "/" {
@@ -178,13 +175,13 @@ func initRouter(
 	}
 
 	(&apiv3.HTTPGateway{
-		QueryService: v2QuerySvc,
+		QueryService: querySvc,
 		Logger:       telset.Logger,
 		Tracer:       telset.TracerProvider,
 	}).RegisterRoutes(r)
 
 	apiHandler.RegisterRoutes(r)
-	staticHandlerCloser := RegisterStaticHandler(r, telset.Logger, queryOpts, v2QuerySvc.GetCapabilities())
+	staticHandlerCloser := RegisterStaticHandler(r, telset.Logger, queryOpts, querySvc.GetCapabilities())
 
 	var handler http.Handler = r
 	if queryOpts.BearerTokenPropagation {
@@ -199,13 +196,13 @@ func initRouter(
 
 func createHTTPServer(
 	ctx context.Context,
-	v2QuerySvc *querysvc.QueryService,
+	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*httpServer, error) {
-	handler, staticHandlerCloser := initRouter(v2QuerySvc, metricsQuerySvc, queryOpts, tm, telset)
+	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
 	handler = recoveryhandler.NewRecoveryHandler(telset.Logger, true)(handler)
 	var extensions map[component.ID]component.Component
 	if telset.Host != nil {

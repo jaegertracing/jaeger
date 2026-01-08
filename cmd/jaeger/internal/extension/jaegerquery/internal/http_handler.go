@@ -17,7 +17,6 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
@@ -26,7 +25,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	deepdependencies "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/ddg"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/qualitymetrics"
-	querysvc "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
@@ -175,7 +174,7 @@ func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
-	operationNames := getUniqueOperationNamesV2(operations)
+	operationNames := getUniqueOperationNames(operations)
 	structuredRes := structuredResponse{
 		Data:  operationNames,
 		Total: len(operationNames),
@@ -247,22 +246,9 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		// Convert to v2 query params and call v2 QueryService
-		attrs := pcommon.NewMap()
-		for k, v := range tQuery.Tags {
-			attrs.PutStr(k, v)
-		}
 		queryParams := querysvc.TraceQueryParams{
-			TraceQueryParams: tracestore.TraceQueryParams{
-				ServiceName:   tQuery.ServiceName,
-				OperationName: tQuery.OperationName,
-				Attributes:    attrs,
-				StartTimeMin:  tQuery.StartTimeMin,
-				StartTimeMax:  tQuery.StartTimeMax,
-				DurationMin:   tQuery.DurationMin,
-				DurationMax:   tQuery.DurationMax,
-				SearchDepth:   tQuery.NumTraces,
-			},
-			RawTraces: tQuery.RawTraces,
+			TraceQueryParams: tQuery.TraceQueryParams,
+			RawTraces:        tQuery.RawTraces,
 		}
 		findTracesIter := aH.queryService.FindTraces(r.Context(), queryParams)
 		tracesFromStorage, err = v1adapter.V1TracesFromSeq2(findTracesIter)
@@ -314,7 +300,7 @@ func (aH *APIHandler) tracesByIDs(ctx context.Context, traceQuery *traceQueryPar
 				TraceID: ui.TraceID(traceID.String()),
 			})
 		} else if len(traces) > 0 {
-			retMe = append(retMe, traces[0])
+			retMe = append(retMe, traces...)
 		}
 	}
 	return retMe, traceErrors, nil

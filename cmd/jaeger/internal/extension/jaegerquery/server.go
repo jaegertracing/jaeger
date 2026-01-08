@@ -99,13 +99,13 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("cannot create dependencies reader: %w", err)
 	}
 
-	v2opts := querysvc.QueryServiceOptions{
+	opts := querysvc.QueryServiceOptions{
 		MaxClockSkewAdjust: s.config.MaxClockSkewAdjust,
 	}
-	if err := s.addArchiveStorage(&v2opts, host); err != nil {
+	if err := s.addArchiveStorage(&opts, host); err != nil {
 		return err
 	}
-	v2qs := querysvc.NewQueryService(traceReader, depReader, v2opts)
+	qs := querysvc.NewQueryService(traceReader, depReader, opts)
 
 	mqs, err := s.createMetricReader(host)
 	if err != nil {
@@ -116,7 +116,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 
 	s.server, err = queryapp.NewServer(
 		ctx,
-		v2qs,
+		qs,
 		mqs,
 		&s.config.QueryOptions,
 		tm,
