@@ -52,7 +52,6 @@ type Server struct {
 // NewServer creates and initializes Server
 func NewServer(
 	ctx context.Context,
-	querySvc *querysvc.QueryService,
 	v2QuerySvc *v2querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
 	options *QueryOptions,
@@ -77,14 +76,14 @@ func NewServer(
 	if err != nil {
 		return nil, err
 	}
-	registerGRPCHandlers(grpcServer, querySvc, v2QuerySvc, telset)
-	httpServer, err := createHTTPServer(ctx, querySvc, v2QuerySvc, metricsQuerySvc, options, tm, telset)
+	registerGRPCHandlers(grpcServer, v2QuerySvc, telset)
+	httpServer, err := createHTTPServer(ctx, v2QuerySvc, metricsQuerySvc, options, tm, telset)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Server{
-		querySvc:     querySvc,
+		querySvc:     nil, // Deprecated: v1 QueryService no longer used
 		queryOptions: options,
 		grpcServer:   grpcServer,
 		httpServer:   httpServer,
@@ -94,12 +93,11 @@ func NewServer(
 
 func registerGRPCHandlers(
 	server *grpc.Server,
-	querySvc *querysvc.QueryService,
 	v2QuerySvc *v2querysvc.QueryService,
 	telset telemetry.Settings,
 ) {
 	reflection.Register(server)
-	handler := NewGRPCHandler(querySvc, GRPCHandlerOptions{Logger: telset.Logger})
+	handler := NewGRPCHandler(v2QuerySvc, GRPCHandlerOptions{Logger: telset.Logger})
 	healthServer := health.NewServer()
 
 	api_v2.RegisterQueryServiceServer(server, handler)
@@ -159,7 +157,6 @@ type httpServer struct {
 var _ io.Closer = (*httpServer)(nil)
 
 func initRouter(
-	querySvc *querysvc.QueryService,
 	v2QuerySvc *v2querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
 	queryOpts *QueryOptions,
@@ -172,8 +169,10 @@ func initRouter(
 		HandlerOptions.MetricsQueryService(metricsQuerySvc),
 	}
 
+	// Create v1 adapter for HTTP handler
+	v1QuerySvc := querysvc.NewQueryServiceV2Adapter(v2QuerySvc)
 	apiHandler := NewAPIHandler(
-		querySvc,
+		v1QuerySvc,
 		apiHandlerOptions...)
 	r := NewRouter()
 	if queryOpts.BasePath != "/" {
@@ -187,7 +186,7 @@ func initRouter(
 	}).RegisterRoutes(r)
 
 	apiHandler.RegisterRoutes(r)
-	staticHandlerCloser := RegisterStaticHandler(r, telset.Logger, queryOpts, querySvc.GetCapabilities())
+	staticHandlerCloser := RegisterStaticHandler(r, telset.Logger, queryOpts, v1QuerySvc.GetCapabilities())
 
 	var handler http.Handler = r
 	if queryOpts.BearerTokenPropagation {
@@ -202,14 +201,13 @@ func initRouter(
 
 func createHTTPServer(
 	ctx context.Context,
-	querySvc *querysvc.QueryService,
 	v2QuerySvc *v2querysvc.QueryService,
 	metricsQuerySvc querysvc.MetricsQueryService,
 	queryOpts *QueryOptions,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*httpServer, error) {
-	handler, staticHandlerCloser := initRouter(querySvc, v2QuerySvc, metricsQuerySvc, queryOpts, tm, telset)
+	handler, staticHandlerCloser := initRouter(v2QuerySvc, metricsQuerySvc, queryOpts, tm, telset)
 	handler = recoveryhandler.NewRecoveryHandler(telset.Logger, true)(handler)
 	var extensions map[component.ID]component.Component
 	if telset.Host != nil {

@@ -39,6 +39,7 @@ type QueryService struct {
 	dependencyReader depstore.Reader
 	adjuster         adjuster.Adjuster
 	options          QueryServiceOptions
+	v2adapter        *queryServiceV2Adapter // When set, delegates to v2 QueryService
 }
 
 // GetTraceParameters defines the parameters for querying a single trace from the query service.
@@ -68,6 +69,9 @@ func NewQueryService(traceReader tracestore.Reader, dependencyReader depstore.Re
 
 // GetTrace is the queryService implementation of spanstore.Reader.GetTrace
 func (qs QueryService) GetTrace(ctx context.Context, query GetTraceParameters) (*model.Trace, error) {
+	if qs.v2adapter != nil {
+		return qs.v2adapter.GetTrace(ctx, query)
+	}
 	trace, err := qs.spanReader.GetTrace(ctx, query.GetTraceParameters)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		if qs.options.ArchiveSpanReader == nil {
@@ -86,6 +90,9 @@ func (qs QueryService) GetTrace(ctx context.Context, query GetTraceParameters) (
 
 // GetServices is the queryService implementation of spanstore.Reader.GetServices
 func (qs QueryService) GetServices(ctx context.Context) ([]string, error) {
+	if qs.v2adapter != nil {
+		return qs.v2adapter.GetServices(ctx)
+	}
 	return qs.spanReader.GetServices(ctx)
 }
 
@@ -94,11 +101,17 @@ func (qs QueryService) GetOperations(
 	ctx context.Context,
 	query spanstore.OperationQueryParameters,
 ) ([]spanstore.Operation, error) {
+	if qs.v2adapter != nil {
+		return qs.v2adapter.GetOperations(ctx, query)
+	}
 	return qs.spanReader.GetOperations(ctx, query)
 }
 
 // FindTraces is the queryService implementation of spanstore.Reader.FindTraces
 func (qs QueryService) FindTraces(ctx context.Context, query *TraceQueryParameters) ([]*model.Trace, error) {
+	if qs.v2adapter != nil {
+		return qs.v2adapter.FindTraces(ctx, query)
+	}
 	traces, err := qs.spanReader.FindTraces(ctx, &query.TraceQueryParameters)
 	if err != nil {
 		return nil, err
@@ -113,6 +126,9 @@ func (qs QueryService) FindTraces(ctx context.Context, query *TraceQueryParamete
 
 // ArchiveTrace is the queryService utility to archive traces.
 func (qs QueryService) ArchiveTrace(ctx context.Context, query spanstore.GetTraceParameters) error {
+	if qs.v2adapter != nil {
+		return qs.v2adapter.ArchiveTrace(ctx, query)
+	}
 	if qs.options.ArchiveSpanWriter == nil {
 		return errNoArchiveSpanStorage
 	}
@@ -138,6 +154,9 @@ func (qs QueryService) adjust(trace *model.Trace) {
 
 // GetDependencies implements dependencystore.Reader.GetDependencies
 func (qs QueryService) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+	if qs.v2adapter != nil {
+		return qs.v2adapter.GetDependencies(ctx, endTs, lookback)
+	}
 	return qs.dependencyReader.GetDependencies(ctx, depstore.QueryParameters{
 		StartTime: endTs.Add(-lookback),
 		EndTime:   endTs,
@@ -146,6 +165,9 @@ func (qs QueryService) GetDependencies(ctx context.Context, endTs time.Time, loo
 
 // GetCapabilities returns the features supported by the query service.
 func (qs QueryService) GetCapabilities() StorageCapabilities {
+	if qs.v2adapter != nil {
+		return qs.v2adapter.GetCapabilities()
+	}
 	return StorageCapabilities{
 		ArchiveStorage: qs.options.hasArchiveStorage(),
 	}

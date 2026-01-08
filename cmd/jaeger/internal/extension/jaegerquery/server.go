@@ -101,16 +101,12 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("cannot create dependencies reader: %w", err)
 	}
 
-	opts := querysvc.QueryServiceOptions{
-		MaxClockSkewAdjust: s.config.MaxClockSkewAdjust,
-	}
 	v2opts := v2querysvc.QueryServiceOptions{
 		MaxClockSkewAdjust: s.config.MaxClockSkewAdjust,
 	}
-	if err := s.addArchiveStorage(&opts, &v2opts, host); err != nil {
+	if err := s.addArchiveStorage(&v2opts, host); err != nil {
 		return err
 	}
-	qs := querysvc.NewQueryService(traceReader, depReader, opts)
 	v2qs := v2querysvc.NewQueryService(traceReader, depReader, v2opts)
 
 	mqs, err := s.createMetricReader(host)
@@ -122,8 +118,6 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 
 	s.server, err = queryapp.NewServer(
 		ctx,
-		// TODO propagate healthcheck updates up to the collector's runtime
-		qs,
 		v2qs,
 		mqs,
 		&s.config.QueryOptions,
@@ -143,7 +137,6 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 }
 
 func (s *server) addArchiveStorage(
-	opts *querysvc.QueryServiceOptions,
 	v2opts *v2querysvc.QueryServiceOptions,
 	host component.Host,
 ) error {
@@ -164,12 +157,6 @@ func (s *server) addArchiveStorage(
 
 	v2opts.ArchiveTraceReader = traceReader
 	v2opts.ArchiveTraceWriter = traceWriter
-
-	spanReader := v1adapter.GetV1Reader(traceReader)
-	spanWriter := v1adapter.GetV1Writer(traceWriter)
-
-	opts.ArchiveSpanReader = spanReader
-	opts.ArchiveSpanWriter = spanWriter
 
 	return nil
 }

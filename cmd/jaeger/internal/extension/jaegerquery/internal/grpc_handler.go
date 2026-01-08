@@ -5,18 +5,19 @@ package app
 
 import (
 	"context"
-	"errors"
 	"time"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc"
+	v2querysvc "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
 	_ "github.com/jaegertracing/jaeger/internal/gogocodec" // force gogo codec registration
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
 
 const (
@@ -32,7 +33,7 @@ var (
 
 // GRPCHandler implements the gRPC endpoint of the query service.
 type GRPCHandler struct {
-	queryService *querysvc.QueryService
+	queryService *v2querysvc.QueryService
 	logger       *zap.Logger
 	nowFn        func() time.Time
 }
@@ -44,7 +45,7 @@ type GRPCHandlerOptions struct {
 }
 
 // NewGRPCHandler returns a GRPCHandler.
-func NewGRPCHandler(queryService *querysvc.QueryService,
+func NewGRPCHandler(queryService *v2querysvc.QueryService,
 	options GRPCHandlerOptions,
 ) *GRPCHandler {
 	if options.Logger == nil {
@@ -72,24 +73,27 @@ func (g *GRPCHandler) GetTrace(r *api_v2.GetTraceRequest, stream api_v2.QuerySer
 	if r.TraceID == (model.TraceID{}) {
 		return errUninitializedTraceID
 	}
-	query := querysvc.GetTraceParameters{
-		GetTraceParameters: spanstore.GetTraceParameters{
-			TraceID:   r.TraceID,
-			StartTime: r.StartTime,
-			EndTime:   r.EndTime,
+	query := v2querysvc.GetTraceParams{
+		TraceIDs: []tracestore.GetTraceParams{
+			{
+				TraceID: v1adapter.FromV1TraceID(r.TraceID),
+				Start:   r.StartTime,
+				End:     r.EndTime,
+			},
 		},
 		RawTraces: r.RawTraces,
 	}
-	trace, err := g.queryService.GetTrace(stream.Context(), query)
-	if errors.Is(err, spanstore.ErrTraceNotFound) {
-		g.logger.Warn(msgTraceNotFound, zap.Stringer("id", r.TraceID), zap.Error(err))
-		return status.Errorf(codes.NotFound, "%s: %v", msgTraceNotFound, err)
-	}
+	getTracesIter := g.queryService.GetTraces(stream.Context(), query)
+	traces, err := v1adapter.V1TracesFromSeq2(getTracesIter)
 	if err != nil {
 		g.logger.Error("failed to fetch spans from the backend", zap.Error(err))
 		return status.Errorf(codes.Internal, "failed to fetch spans from the backend: %v", err)
 	}
-	return g.sendSpanChunks(trace.Spans, stream.Send)
+	if len(traces) == 0 {
+		g.logger.Warn(msgTraceNotFound, zap.Stringer("id", r.TraceID))
+		return status.Errorf(codes.NotFound, "%s", msgTraceNotFound)
+	}
+	return g.sendSpanChunks(traces[0].Spans, stream.Send)
 }
 
 // ArchiveTrace is the gRPC handler to archive traces.
@@ -100,17 +104,13 @@ func (g *GRPCHandler) ArchiveTrace(ctx context.Context, r *api_v2.ArchiveTraceRe
 	if r.TraceID == (model.TraceID{}) {
 		return nil, errUninitializedTraceID
 	}
-	query := spanstore.GetTraceParameters{
-		TraceID:   r.TraceID,
-		StartTime: r.StartTime,
-		EndTime:   r.EndTime,
+	query := tracestore.GetTraceParams{
+		TraceID: v1adapter.FromV1TraceID(r.TraceID),
+		Start:   r.StartTime,
+		End:     r.EndTime,
 	}
 
 	err := g.queryService.ArchiveTrace(ctx, query)
-	if errors.Is(err, spanstore.ErrTraceNotFound) {
-		g.logger.Warn(msgTraceNotFound, zap.Stringer("id", r.TraceID), zap.Error(err))
-		return nil, status.Errorf(codes.NotFound, "%s: %v", msgTraceNotFound, err)
-	}
 	if err != nil {
 		g.logger.Error("failed to archive trace", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to archive trace: %v", err)
@@ -128,20 +128,21 @@ func (g *GRPCHandler) FindTraces(r *api_v2.FindTracesRequest, stream api_v2.Quer
 	if query == nil {
 		return status.Errorf(codes.InvalidArgument, "missing query")
 	}
-	queryParams := querysvc.TraceQueryParameters{
-		TraceQueryParameters: spanstore.TraceQueryParameters{
+	queryParams := v2querysvc.TraceQueryParams{
+		TraceQueryParams: tracestore.TraceQueryParams{
 			ServiceName:   query.ServiceName,
 			OperationName: query.OperationName,
-			Tags:          query.Tags,
+			Attributes:    convertTagsToAttributes(query.Tags),
 			StartTimeMin:  query.StartTimeMin,
 			StartTimeMax:  query.StartTimeMax,
 			DurationMin:   query.DurationMin,
 			DurationMax:   query.DurationMax,
-			NumTraces:     int(query.SearchDepth),
+			SearchDepth:   int(query.SearchDepth),
 		},
 		RawTraces: query.RawTraces,
 	}
-	traces, err := g.queryService.FindTraces(stream.Context(), &queryParams)
+	findTracesIter := g.queryService.FindTraces(stream.Context(), queryParams)
+	traces, err := v1adapter.V1TracesFromSeq2(findTracesIter)
 	if err != nil {
 		g.logger.Error("failed when searching for traces", zap.Error(err))
 		return status.Errorf(codes.Internal, "failed when searching for traces: %v", err)
@@ -152,6 +153,14 @@ func (g *GRPCHandler) FindTraces(r *api_v2.FindTracesRequest, stream api_v2.Quer
 		}
 	}
 	return nil
+}
+
+func convertTagsToAttributes(tags map[string]string) pcommon.Map {
+	attrs := pcommon.NewMap()
+	for k, v := range tags {
+		attrs.PutStr(k, v)
+	}
+	return attrs
 }
 
 func (g *GRPCHandler) sendSpanChunks(spans []*model.Span, sendFn func(*api_v2.SpansResponseChunk) error) error {
@@ -188,7 +197,7 @@ func (g *GRPCHandler) GetOperations(
 	if r == nil {
 		return nil, errNilRequest
 	}
-	operations, err := g.queryService.GetOperations(ctx, spanstore.OperationQueryParameters{
+	operations, err := g.queryService.GetOperations(ctx, tracestore.OperationQueryParams{
 		ServiceName: r.Service,
 		SpanKind:    r.SpanKind,
 	})
@@ -207,7 +216,7 @@ func (g *GRPCHandler) GetOperations(
 	return &api_v2.GetOperationsResponse{
 		Operations: result,
 		// TODO: remove OperationNames after all clients are updated
-		OperationNames: getUniqueOperationNames(operations),
+		OperationNames: getUniqueOperationNamesV2(operations),
 	}, nil
 }
 
