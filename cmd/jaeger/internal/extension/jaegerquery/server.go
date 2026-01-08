@@ -135,7 +135,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 }
 
 func (s *server) addArchiveStorage(
-	v2opts *querysvc.QueryServiceOptions,
+	opts *querysvc.QueryServiceOptions,
 	host component.Host,
 ) error {
 	if s.config.Storage.TracesArchive == "" {
@@ -153,8 +153,8 @@ func (s *server) addArchiveStorage(
 		return nil
 	}
 
-	v2opts.ArchiveTraceReader = traceReader
-	v2opts.ArchiveTraceWriter = traceWriter
+	opts.ArchiveTraceReader = traceReader
+	opts.ArchiveTraceWriter = traceWriter
 
 	return nil
 }

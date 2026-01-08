@@ -236,7 +236,7 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 
 	var uiErrors []structuredError
 	var tracesFromStorage []*model.Trace
-	if len(tQuery.traceIDs) > 0 {
+	if len(tQuery.TraceIDs) > 0 {
 		tracesFromStorage, uiErrors, err = aH.tracesByIDs(
 			r.Context(),
 			tQuery,
@@ -276,8 +276,8 @@ func (*APIHandler) tracesToResponse(traces []*model.Trace, uiErrors []structured
 
 func (aH *APIHandler) tracesByIDs(ctx context.Context, traceQuery *traceQueryParameters) ([]*model.Trace, []structuredError, error) {
 	var traceErrors []structuredError
-	retMe := make([]*model.Trace, 0, len(traceQuery.traceIDs))
-	for _, traceID := range traceQuery.traceIDs {
+	retMe := make([]*model.Trace, 0, len(traceQuery.TraceIDs))
+	for _, traceID := range traceQuery.TraceIDs {
 		// Convert to v2 query params
 		query := querysvc.GetTraceParams{
 			TraceIDs: []tracestore.GetTraceParams{

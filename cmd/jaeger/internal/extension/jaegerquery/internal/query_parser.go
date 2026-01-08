@@ -63,7 +63,7 @@ type (
 	traceQueryParameters struct {
 		tracestore.TraceQueryParams
 		RawTraces bool
-		traceIDs  []model.TraceID
+		TraceIDs  []model.TraceID
 	}
 
 	dependenciesQueryParameters struct {
@@ -181,7 +181,7 @@ func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParamet
 			DurationMax:   maxDuration,
 		},
 		RawTraces: raw,
-		traceIDs:  traceIDs,
+		TraceIDs:  traceIDs,
 	}
 
 	if err := p.validateQuery(traceQuery); err != nil {
@@ -368,7 +368,7 @@ func mapSpanKindsToOpenTelemetry(spanKinds []string) ([]string, error) {
 }
 
 func (*queryParser) validateQuery(traceQuery *traceQueryParameters) error {
-	if len(traceQuery.traceIDs) == 0 && traceQuery.ServiceName == "" {
+	if len(traceQuery.TraceIDs) == 0 && traceQuery.ServiceName == "" {
 		return errServiceParameterRequired
 	}
 	if traceQuery.DurationMin != 0 && traceQuery.DurationMax != 0 {
