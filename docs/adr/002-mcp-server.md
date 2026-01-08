@@ -50,8 +50,11 @@ Jaeger already provides most of the backend functionality needed:
 Following the pattern established by `jaegerquery`, the MCP server will be implemented as an OpenTelemetry Collector extension. This provides:
 - Lifecycle management (Start/Shutdown)
 - Configuration validation
-- Dependency injection via `jaegerstorage` extension
+- Dependency injection via `jaegerquery` extension
 - Separate HTTP/SSE endpoint for MCP protocol
+
+> [!NOTE]
+> **Phase 2 Requirement**: The MCP extension will need to retrieve the `QueryService` instance from the `jaegerquery` extension. This will require `jaegerquery` to expose `QueryService` through an Extension interface, similar to how `jaegerstorage` exposes storage factories via the `jaegerstorage.Extension` interface and `GetTraceStoreFactory()` helper function. See `cmd/jaeger/internal/exporters/storageexporter/exporter.go:35` for reference implementation pattern.
 
 ## Decision
 
