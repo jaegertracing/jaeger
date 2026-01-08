@@ -27,7 +27,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/apiv3"
-	v2querysvc "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
+	querysvc "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/recoveryhandler"
@@ -52,7 +52,7 @@ type Server struct {
 // NewServer creates and initializes Server
 func NewServer(
 	ctx context.Context,
-	v2QuerySvc *v2querysvc.QueryService,
+	v2QuerySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	options *QueryOptions,
 	tm *tenancy.Manager,
@@ -93,7 +93,7 @@ func NewServer(
 
 func registerGRPCHandlers(
 	server *grpc.Server,
-	v2QuerySvc *v2querysvc.QueryService,
+	v2QuerySvc *querysvc.QueryService,
 	telset telemetry.Settings,
 ) {
 	reflection.Register(server)
@@ -157,7 +157,7 @@ type httpServer struct {
 var _ io.Closer = (*httpServer)(nil)
 
 func initRouter(
-	v2QuerySvc *v2querysvc.QueryService,
+	v2QuerySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
 	tenancyMgr *tenancy.Manager,
@@ -199,7 +199,7 @@ func initRouter(
 
 func createHTTPServer(
 	ctx context.Context,
-	v2QuerySvc *v2querysvc.QueryService,
+	v2QuerySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
 	tm *tenancy.Manager,

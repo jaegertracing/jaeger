@@ -26,7 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	deepdependencies "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/ddg"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/qualitymetrics"
-	v2querysvc "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
+	querysvc "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
@@ -76,7 +76,7 @@ func NewRouter() *mux.Router {
 
 // APIHandler implements the query service public API by registering routes at httpPrefix
 type APIHandler struct {
-	queryService        *v2querysvc.QueryService
+	queryService        *querysvc.QueryService
 	metricsQueryService metricstore.Reader
 	queryParser         queryParser
 	basePath            string
@@ -86,7 +86,7 @@ type APIHandler struct {
 }
 
 // NewAPIHandler returns an APIHandler
-func NewAPIHandler(queryService *v2querysvc.QueryService, options ...HandlerOption) *APIHandler {
+func NewAPIHandler(queryService *querysvc.QueryService, options ...HandlerOption) *APIHandler {
 	aH := &APIHandler{
 		queryService: queryService,
 		queryParser: queryParser{

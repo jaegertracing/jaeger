@@ -23,8 +23,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc"
-	v2querysvc "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
+	querysvc "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
@@ -130,15 +129,6 @@ type grpcClient struct {
 	conn *grpc.ClientConn
 }
 
-// createV2QueryServiceFromV1 creates a fake v2 QueryService for testing.
-// For tests, we create a minimal v2 service that wraps v1 storage mocks.
-// The actual v1 mocked behavior will be tested through the v1 adapter path.
-func createV2QueryServiceFromV1(v1qs *querysvc.QueryService) *v2querysvc.QueryService {
-	// For tests, create an empty v2 QueryService
-	// Tests will validate behavior through the legacy v1 adapter conversion path
-	return &v2querysvc.QueryService{}
-}
-
 func newGRPCServer(t *testing.T, q *querysvc.QueryService, logger *zap.Logger, tenancyMgr *tenancy.Manager) (*grpc.Server, net.Addr) {
 	lis, _ := net.Listen("tcp", ":0")
 	var grpcOpts []grpc.ServerOption
@@ -149,10 +139,7 @@ func newGRPCServer(t *testing.T, q *querysvc.QueryService, logger *zap.Logger, t
 		)
 	}
 	grpcServer := grpc.NewServer(grpcOpts...)
-	// Create a v2 QueryService mock that wraps the v1 QueryService for testing
-	// This is a test-only workaround to avoid rewriting all test mocks
-	v2qs := createV2QueryServiceFromV1(q)
-	grpcHandler := NewGRPCHandler(v2qs, GRPCHandlerOptions{
+	grpcHandler := NewGRPCHandler(q, GRPCHandlerOptions{
 		Logger: logger,
 		NowFn: func() time.Time {
 			return now

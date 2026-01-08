@@ -14,7 +14,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
-	v2querysvc "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
+	querysvc "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
 	_ "github.com/jaegertracing/jaeger/internal/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
@@ -33,7 +33,7 @@ var (
 
 // GRPCHandler implements the gRPC endpoint of the query service.
 type GRPCHandler struct {
-	queryService *v2querysvc.QueryService
+	queryService *querysvc.QueryService
 	logger       *zap.Logger
 	nowFn        func() time.Time
 }
@@ -45,7 +45,7 @@ type GRPCHandlerOptions struct {
 }
 
 // NewGRPCHandler returns a GRPCHandler.
-func NewGRPCHandler(queryService *v2querysvc.QueryService,
+func NewGRPCHandler(queryService *querysvc.QueryService,
 	options GRPCHandlerOptions,
 ) *GRPCHandler {
 	if options.Logger == nil {
@@ -73,7 +73,7 @@ func (g *GRPCHandler) GetTrace(r *api_v2.GetTraceRequest, stream api_v2.QuerySer
 	if r.TraceID == (model.TraceID{}) {
 		return errUninitializedTraceID
 	}
-	query := v2querysvc.GetTraceParams{
+	query := querysvc.GetTraceParams{
 		TraceIDs: []tracestore.GetTraceParams{
 			{
 				TraceID: v1adapter.FromV1TraceID(r.TraceID),
@@ -128,7 +128,7 @@ func (g *GRPCHandler) FindTraces(r *api_v2.FindTracesRequest, stream api_v2.Quer
 	if query == nil {
 		return status.Errorf(codes.InvalidArgument, "missing query")
 	}
-	queryParams := v2querysvc.TraceQueryParams{
+	queryParams := querysvc.TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
 			ServiceName:   query.ServiceName,
 			OperationName: query.OperationName,
