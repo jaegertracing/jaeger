@@ -18,7 +18,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
-	v2querysvc "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
 )
 
 var (
@@ -33,7 +33,7 @@ type server struct {
 	httpServer *http.Server
 	listener   net.Listener
 	mcpServer  *mcp.Server
-	queryAPI   *v2querysvc.QueryService
+	queryAPI   *querysvc.QueryService
 }
 
 // newServer creates a new MCP server instance.
@@ -60,7 +60,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("cannot get jaegerquery extension: %w", err)
 	}
 
-	s.queryAPI = queryExt.V2QueryService()
+	s.queryAPI = queryExt.QueryService()
 
 	s.telset.Logger.Info("Successfully retrieved v2 QueryService from jaegerquery extension")
 

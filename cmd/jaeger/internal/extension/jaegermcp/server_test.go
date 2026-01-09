@@ -23,7 +23,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
-	v2querysvc "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -33,8 +33,8 @@ type mockQueryExtension struct {
 	extension.Extension
 }
 
-func (m *mockQueryExtension) V2QueryService() *v2querysvc.QueryService {
-	return v2querysvc.NewQueryService(&mockTraceReader{}, &mockDepReader{}, v2querysvc.QueryServiceOptions{})
+func (m *mockQueryExtension) QueryService() *querysvc.QueryService {
+	return querysvc.NewQueryService(&mockTraceReader{}, &mockDepReader{}, querysvc.QueryServiceOptions{})
 }
 
 // mockTraceReader implements tracestore.Reader for testing

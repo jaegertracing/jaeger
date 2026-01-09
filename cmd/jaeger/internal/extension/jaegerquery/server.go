@@ -210,7 +210,7 @@ func (s *server) Shutdown(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
-// V2QueryService returns the v2 query service instance.
-func (s *server) V2QueryService() *querysvc.QueryService {
+// QueryService returns the v2 query service instance.
+func (s *server) QueryService() *querysvc.QueryService {
 	return s.qs
 }

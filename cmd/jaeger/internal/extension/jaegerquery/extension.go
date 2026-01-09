@@ -16,8 +16,8 @@ import (
 // It allows other extensions to access the query service.
 type Extension interface {
 	extension.Extension
-	// V2QueryService returns the v2 query service.
-	V2QueryService() *v2querysvc.QueryService
+	// QueryService returns the v2 query service.
+	QueryService() *v2querysvc.QueryService
 }
 
 // GetExtension retrieves the jaegerquery extension from the host.
