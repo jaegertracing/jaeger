@@ -16,7 +16,7 @@ import (
 	"go.uber.org/zap"
 
 	queryapp "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal"
-	querysvc "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/internal/jtracer"
 	"github.com/jaegertracing/jaeger/internal/metrics"
@@ -116,6 +116,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 
 	s.server, err = queryapp.NewServer(
 		ctx,
+		// TODO propagate healthcheck updates up to the collector's runtime
 		qs,
 		mqs,
 		&s.config.QueryOptions,
