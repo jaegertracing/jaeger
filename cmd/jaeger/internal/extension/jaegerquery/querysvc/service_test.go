@@ -279,7 +279,7 @@ func TestGetTraces_SplitTraceInArchiveStorage(t *testing.T) {
 
 	// Verify the trace was properly aggregated
 	require.Equal(t, 2, gotTraces[0].ResourceSpans().Len(), "expected 2 resource spans after aggregation")
-	
+
 	gotSpan1 := gotTraces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
 	require.Equal(t, testTraceID, gotSpan1.TraceID())
 	require.EqualValues(t, [8]byte{1}, gotSpan1.SpanID())
