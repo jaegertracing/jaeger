@@ -85,6 +85,17 @@ func NewQueryService(
 // GetTraces retrieves traces with given trace IDs from the primary reader,
 // and if any of them are not found it then queries the archive reader.
 // The iterator is single-use: once consumed, it cannot be used again.
+//
+// Returned iterator behavior:
+//   - When RawTraces is false (default), each returned ptrace.Traces object contains
+//     a complete, aggregated trace. If the underlying storage returns a trace split
+//     across multiple consecutive ptrace.Traces chunks (per tracestore.Reader contract),
+//     they will be aggregated into a single ptrace.Traces object.
+//   - When RawTraces is true, ptrace.Traces chunks are returned as-is from storage
+//     without aggregation or adjustment. A single trace may be split across multiple
+//     consecutive ptrace.Traces objects.
+//   - Archive reader traces (if any) are processed the same way and yielded after
+//     all primary reader traces.
 func (qs QueryService) GetTraces(
 	ctx context.Context,
 	params GetTraceParams,
@@ -118,6 +129,17 @@ func (qs QueryService) GetOperations(
 	return qs.traceReader.GetOperations(ctx, query)
 }
 
+// FindTraces searches for traces matching the query parameters.
+// The iterator is single-use: once consumed, it cannot be used again.
+//
+// Returned iterator behavior:
+//   - When RawTraces is false (default), each returned ptrace.Traces object contains
+//     a complete, aggregated trace. If the underlying storage returns a trace split
+//     across multiple consecutive ptrace.Traces chunks (per tracestore.Reader contract),
+//     they will be aggregated into a single ptrace.Traces object.
+//   - When RawTraces is true, ptrace.Traces chunks are returned as-is from storage
+//     without aggregation or adjustment. A single trace may be split across multiple
+//     consecutive ptrace.Traces objects.
 func (qs QueryService) FindTraces(
 	ctx context.Context,
 	query TraceQueryParams,
