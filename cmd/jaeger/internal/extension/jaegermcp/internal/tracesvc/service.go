@@ -7,11 +7,12 @@ import (
 	"context"
 	"iter"
 
+	"go.opentelemetry.io/collector/pdata/ptrace"
+
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 // TraceService provides a wrapper around the Jaeger storage readers for MCP tools.
@@ -66,5 +67,3 @@ func (ts *TraceService) FindTracesV2(ctx context.Context, params tracestore.Trac
 func (ts *TraceService) GetDependencies(ctx context.Context, params depstore.QueryParameters) ([]model.DependencyLink, error) {
 	return ts.depReader.GetDependencies(ctx, params)
 }
-
-

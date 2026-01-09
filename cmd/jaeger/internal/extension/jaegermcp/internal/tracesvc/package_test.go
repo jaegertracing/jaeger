@@ -3,8 +3,12 @@
 
 package tracesvc
 
-import "testing"
+import (
+	"testing"
 
-func TestMain(_ *testing.M) {
-	// This file exists to satisfy linter requirements
+	"github.com/jaegertracing/jaeger/internal/testutils"
+)
+
+func TestMain(m *testing.M) {
+	testutils.VerifyGoLeaks(m)
 }

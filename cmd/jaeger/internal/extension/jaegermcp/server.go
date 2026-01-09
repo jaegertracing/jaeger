@@ -28,12 +28,12 @@ var (
 
 // server implements the Jaeger MCP extension.
 type server struct {
-	config      *Config
-	telset      component.TelemetrySettings
-	httpServer  *http.Server
-	listener    net.Listener
-	mcpServer   *mcp.Server
-	traceSvc    *tracesvc.TraceService
+	config     *Config
+	telset     component.TelemetrySettings
+	httpServer *http.Server
+	listener   net.Listener
+	mcpServer  *mcp.Server
+	traceSvc   *tracesvc.TraceService
 }
 
 // newServer creates a new MCP server instance.
