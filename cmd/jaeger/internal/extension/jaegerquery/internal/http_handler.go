@@ -17,6 +17,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
@@ -277,34 +278,46 @@ func (*APIHandler) tracesToResponse(traces []*model.Trace, uiErrors []structured
 func (aH *APIHandler) tracesByIDs(ctx context.Context, traceQuery *traceQueryParameters) ([]*model.Trace, []structuredError, error) {
 	var traceErrors []structuredError
 	retMe := make([]*model.Trace, 0, len(traceQuery.TraceIDs))
-	for _, traceID := range traceQuery.TraceIDs {
-		// Convert to v2 query params
-		query := querysvc.GetTraceParams{
-			TraceIDs: []tracestore.GetTraceParams{
-				{
-					TraceID: v1adapter.FromV1TraceID(traceID),
-					Start:   traceQuery.StartTimeMin,
-					End:     traceQuery.StartTimeMax,
-				},
-			},
-			RawTraces: traceQuery.RawTraces,
+	if len(traceQuery.TraceIDs) == 0 {
+		return nil, nil, nil
+	}
+
+	ids := make([]tracestore.GetTraceParams, len(traceQuery.TraceIDs))
+	requestedIDs := make(map[pcommon.TraceID]model.TraceID)
+	for i, traceID := range traceQuery.TraceIDs {
+		v2ID := v1adapter.FromV1TraceID(traceID)
+		ids[i] = tracestore.GetTraceParams{
+			TraceID: v2ID,
+			Start:   traceQuery.StartTimeMin,
+			End:     traceQuery.StartTimeMax,
 		}
-		getTracesIter := aH.queryService.GetTraces(ctx, query)
-		traces, err := v1adapter.V1TracesFromSeq2(getTracesIter)
-		if err != nil {
-			if !errors.Is(err, spanstore.ErrTraceNotFound) {
-				return nil, nil, err
-			}
-			traceErrors = append(traceErrors, structuredError{
-				Msg:     err.Error(),
-				TraceID: ui.TraceID(traceID.String()),
-			})
-		} else if len(traces) > 0 {
-			retMe = append(retMe, traces...)
-		} else {
+		requestedIDs[v2ID] = traceID
+	}
+
+	query := querysvc.GetTraceParams{
+		TraceIDs:  ids,
+		RawTraces: traceQuery.RawTraces,
+	}
+
+	getTracesIter := aH.queryService.GetTraces(ctx, query)
+	traces, err := v1adapter.V1TracesFromSeq2(getTracesIter)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	foundIDs := make(map[pcommon.TraceID]struct{})
+	for _, trace := range traces {
+		if len(trace.Spans) > 0 {
+			retMe = append(retMe, trace)
+			foundIDs[v1adapter.FromV1TraceID(trace.Spans[0].TraceID)] = struct{}{}
+		}
+	}
+
+	for v2ID, v1ID := range requestedIDs {
+		if _, ok := foundIDs[v2ID]; !ok {
 			traceErrors = append(traceErrors, structuredError{
 				Msg:     spanstore.ErrTraceNotFound.Error(),
-				TraceID: ui.TraceID(traceID.String()),
+				TraceID: ui.TraceID(v1ID.String()),
 			})
 		}
 	}
