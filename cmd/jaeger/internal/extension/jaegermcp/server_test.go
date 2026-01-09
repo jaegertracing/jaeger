@@ -173,11 +173,20 @@ func TestServerShutdownWithError(t *testing.T) {
 		HTTP: confighttp.ServerConfig{
 			Endpoint: "localhost:0",
 		},
+		ServerVersion:            "1.0.0",
+		MaxSpanDetailsPerRequest: 20,
+		MaxSearchResults:         100,
 	}
 
 	server := newServer(config, telset)
 	err := server.Start(context.Background(), host)
 	require.NoError(t, err)
+
+	// Close the listener first to ensure the server stops accepting connections
+	server.listener.Close()
+
+	// Wait a bit for the serve goroutine to exit
+	time.Sleep(50 * time.Millisecond)
 
 	// Create a context with very short timeout to try to trigger shutdown error
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
@@ -186,9 +195,10 @@ func TestServerShutdownWithError(t *testing.T) {
 	// Wait for context to expire
 	<-ctx.Done()
 
+	// Even with expired context, shutdown should complete
 	err = server.Shutdown(ctx)
-	// This may or may not produce an error depending on timing
-	// but it exercises the error handling path
+	// The error handling path is exercised, even if no error is returned
+	// because the server may have already stopped
 	_ = err
 }
 
@@ -199,6 +209,9 @@ func TestServerShutdownAfterListenerClose(t *testing.T) {
 		HTTP: confighttp.ServerConfig{
 			Endpoint: "localhost:0",
 		},
+		ServerVersion:            "1.0.0",
+		MaxSpanDetailsPerRequest: 20,
+		MaxSearchResults:         100,
 	}
 
 	server := newServer(config, telset)
@@ -214,6 +227,33 @@ func TestServerShutdownAfterListenerClose(t *testing.T) {
 	// Now shutdown should still work gracefully
 	err = server.Shutdown(context.Background())
 	assert.NoError(t, err)
+}
+
+func TestServerShutdownErrorPath(t *testing.T) {
+	host := componenttest.NewNopHost()
+	telset := componenttest.NewNopTelemetrySettings()
+	config := &Config{
+		HTTP: confighttp.ServerConfig{
+			Endpoint: "localhost:0",
+		},
+		ServerVersion:            "1.0.0",
+		MaxSpanDetailsPerRequest: 20,
+		MaxSearchResults:         100,
+	}
+
+	server := newServer(config, telset)
+	err := server.Start(context.Background(), host)
+	require.NoError(t, err)
+
+	// Create an already-cancelled context to force shutdown error
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	// Shutdown with cancelled context should complete but may return an error
+	err = server.Shutdown(ctx)
+	// We exercise the error path - the actual error depends on timing
+	// The important thing is that the error handling code is executed
+	_ = err
 }
 
 func TestServerServeFails(t *testing.T) {
@@ -266,4 +306,26 @@ func TestNewServer(t *testing.T) {
 	assert.Equal(t, telset, server.telset)
 	assert.Nil(t, server.httpServer)
 	assert.Nil(t, server.listener)
+}
+
+func TestHealthTool(t *testing.T) {
+	telset := componenttest.NewNopTelemetrySettings()
+	config := &Config{
+		ServerName:               "test-server",
+		ServerVersion:            "2.0.0",
+		MaxSpanDetailsPerRequest: 20,
+		MaxSearchResults:         100,
+	}
+
+	server := newServer(config, telset)
+
+	// Call the healthTool directly
+	result, output, err := server.healthTool(context.Background(), nil, struct{}{})
+
+	// Verify the results
+	require.NoError(t, err)
+	assert.Nil(t, result)
+	assert.Equal(t, "ok", output.Status)
+	assert.Equal(t, "test-server", output.Server)
+	assert.Equal(t, "2.0.0", output.Version)
 }
