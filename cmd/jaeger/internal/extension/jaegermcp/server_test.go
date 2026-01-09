@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"iter"
 	"net/http"
 	"testing"
 	"time"
@@ -19,13 +18,11 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/extension"
-	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
+	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
 
 // mockQueryExtension implements jaegerquery.Extension for testing
@@ -34,37 +31,7 @@ type mockQueryExtension struct {
 }
 
 func (m *mockQueryExtension) QueryService() *querysvc.QueryService {
-	return querysvc.NewQueryService(&mockTraceReader{}, &mockDepReader{}, querysvc.QueryServiceOptions{})
-}
-
-// mockTraceReader implements tracestore.Reader for testing
-type mockTraceReader struct{}
-
-func (m *mockTraceReader) GetTraces(_ context.Context, _ ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
-	return func(yield func([]ptrace.Traces, error) bool) {}
-}
-
-func (m *mockTraceReader) GetServices(_ context.Context) ([]string, error) {
-	return []string{"test-service"}, nil
-}
-
-func (m *mockTraceReader) GetOperations(_ context.Context, _ tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
-	return []tracestore.Operation{}, nil
-}
-
-func (m *mockTraceReader) FindTraces(_ context.Context, _ tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
-	return func(yield func([]ptrace.Traces, error) bool) {}
-}
-
-func (m *mockTraceReader) FindTraceIDs(_ context.Context, _ tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
-	return func(yield func([]tracestore.FoundTraceID, error) bool) {}
-}
-
-// mockDepReader implements depstore.Reader for testing
-type mockDepReader struct{}
-
-func (m *mockDepReader) GetDependencies(_ context.Context, _ depstore.QueryParameters) ([]model.DependencyLink, error) {
-	return []model.DependencyLink{}, nil
+	return querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
 }
 
 // mockHost implements component.Host with a jaegerquery extension

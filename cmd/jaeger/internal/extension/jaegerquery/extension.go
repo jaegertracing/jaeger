@@ -22,11 +22,6 @@ type Extension interface {
 
 // GetExtension retrieves the jaegerquery extension from the host.
 func GetExtension(host component.Host) (Extension, error) {
-	return findExtension(host)
-}
-
-// findExtension locates the jaegerquery extension in the host.
-func findExtension(host component.Host) (Extension, error) {
 	var id component.ID
 	var comp component.Component
 	for i, ext := range host.GetExtensions() {
