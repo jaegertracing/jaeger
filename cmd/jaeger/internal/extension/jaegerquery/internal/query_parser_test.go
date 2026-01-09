@@ -13,9 +13,10 @@ import (
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -47,130 +48,140 @@ func TestParseTraceQuery(t *testing.T) {
 					StartTimeMin:  time.Unix(0, 0),
 					StartTimeMax:  time.Unix(0, 0),
 					SearchDepth:   200,
+					Attributes:    jptrace.PlainMapToPcommonMap(map[string]string{"k": "v", "x": "y"}),
 				},
 			},
 		},
 		// tags=JSON with a non-string value 123
 		{`x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tags={"x":123}`, "malformed 'tags' parameter, cannot unmarshal JSON: json: cannot unmarshal number into Go value of type string", nil},
-			// tags=JSON
-			{
-				`x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tags={"x":"y"}`, noErr,
-				&traceQueryParameters{
-					TraceQueryParams: tracestore.TraceQueryParams{
-						ServiceName:   "service",
-						OperationName: "operation",
-						StartTimeMin:  time.Unix(0, 0),
-						StartTimeMax:  time.Unix(0, 0),
-						SearchDepth:   200,
-					},
-				},
-				// tags=url_encode(JSON)
-				{
-					`x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tags=%7B%22x%22%3A%22y%22%7D`, noErr,
-					&traceQueryParameters{
-						TraceQueryParams: tracestore.TraceQueryParams{
-							ServiceName:   "service",
-							OperationName: "operation",
-							StartTimeMin:  time.Unix(0, 0),
-							StartTimeMax:  time.Unix(0, 0),
-							SearchDepth:   200,
-						},
-					},
-					{
-						"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=10s&maxDuration=20s", noErr,
-						&traceQueryParameters{
-							TraceQueryParams: tracestore.TraceQueryParams{
-								ServiceName:   "service",
-								OperationName: "operation",
-								StartTimeMin:  time.Unix(0, 0),
-								StartTimeMax:  time.Unix(0, 0),
-								SearchDepth:   200,
-								DurationMin:   10 * time.Second,
-								DurationMax:   20 * time.Second,
-							},
-						},
-						{
-							"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=10s", noErr,
-							&traceQueryParameters{
-								TraceQueryParams: tracestore.TraceQueryParams{
-									ServiceName:   "service",
-									OperationName: "operation",
-									StartTimeMin:  time.Unix(0, 0),
-									StartTimeMax:  time.Unix(0, 0),
-									SearchDepth:   200,
-									DurationMin:   10 * time.Second,
-								},
-							},
-							// trace ID in upper/lower case
-							{
-								"x?traceID=1f00&traceID=1E00", noErr,
-								&traceQueryParameters{
-									TraceQueryParams: tracestore.TraceQueryParams{
-										SearchDepth:  100,
-										StartTimeMin: timeNow,
-										StartTimeMax: timeNow,
-									},
-								},
-								traceIDs: []model.TraceID{
-									model.NewTraceID(0, 0x1f00),
-									model.NewTraceID(0, 0x1e00),
-								},
-							},
-						},
-						{
-							"x?traceID=100&traceID=x200", `cannot parse traceID param: strconv.ParseUint: parsing "x200": invalid syntax`,
-							&traceQueryParameters{
-								TraceQueryParams: tracestore.TraceQueryParams{
-									StartTimeMin: time.Unix(0, 0),
-									StartTimeMax: time.Unix(0, 0),
-									SearchDepth:  100,
-								},
-							},
-							traceIDs: []model.TraceID{
-								model.NewTraceID(0, 0x100),
-								model.NewTraceID(0, 0x200),
-							},
-						},
-					},
-					// raw traces
-					{
-						"x?service=service&start=0&end=0&raw=true", noErr,
-						&traceQueryParameters{
-							TraceQueryParams: tracestore.TraceQueryParams{
-								ServiceName:  "service",
-								StartTimeMin: time.Unix(0, 0),
-								StartTimeMax: time.Unix(0, 0),
-								SearchDepth:  100,
-							},
-							RawTraces: true,
-						},
-					},
-				},
-				{
-					"x?service=service&start=0&end=0&raw=false", noErr,
-					&traceQueryParameters{
-						TraceQueryParams: tracestore.TraceQueryParams{
-							ServiceName:  "service",
-							StartTimeMin: time.Unix(0, 0),
-							StartTimeMax: time.Unix(0, 0),
-							SearchDepth:  100,
-						},
-						RawTraces: false,
-					},
+		// tags=JSON
+		{
+			`x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tags={"x":"y"}`, noErr,
+			&traceQueryParameters{
+				TraceQueryParams: tracestore.TraceQueryParams{
+					ServiceName:   "service",
+					OperationName: "operation",
+					StartTimeMin:  time.Unix(0, 0),
+					StartTimeMax:  time.Unix(0, 0),
+					SearchDepth:   200,
+					Attributes:    jptrace.PlainMapToPcommonMap(map[string]string{"k": "v", "x": "y"}),
 				},
 			},
-			{
-				"x?service=service&start=0&end=0&raw=foobar", "unable to parse param 'raw'",
-				&traceQueryParameters{
-					TraceQueryParams: tracestore.TraceQueryParams{
-						ServiceName:  "service",
-						StartTimeMin: time.Unix(0, 0),
-						StartTimeMax: time.Unix(0, 0),
-						SearchDepth:  100,
-					},
-					RawTraces: false,
+		},
+		// tags=url_encode(JSON)
+		{
+			`x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tags=%7B%22x%22%3A%22y%22%7D`, noErr,
+			&traceQueryParameters{
+				TraceQueryParams: tracestore.TraceQueryParams{
+					ServiceName:   "service",
+					OperationName: "operation",
+					StartTimeMin:  time.Unix(0, 0),
+					StartTimeMax:  time.Unix(0, 0),
+					SearchDepth:   200,
+					Attributes:    jptrace.PlainMapToPcommonMap(map[string]string{"k": "v", "x": "y"}),
 				},
 			},
+		},
+		{
+			"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=10s&maxDuration=20s", noErr,
+			&traceQueryParameters{
+				TraceQueryParams: tracestore.TraceQueryParams{
+					ServiceName:   "service",
+					OperationName: "operation",
+					StartTimeMin:  time.Unix(0, 0),
+					StartTimeMax:  time.Unix(0, 0),
+					SearchDepth:   200,
+					DurationMin:   10 * time.Second,
+					DurationMax:   20 * time.Second,
+					Attributes:    pcommon.NewMap(),
+				},
+			},
+		},
+		{
+			"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=10s", noErr,
+			&traceQueryParameters{
+				TraceQueryParams: tracestore.TraceQueryParams{
+					ServiceName:   "service",
+					OperationName: "operation",
+					StartTimeMin:  time.Unix(0, 0),
+					StartTimeMax:  time.Unix(0, 0),
+					SearchDepth:   200,
+					DurationMin:   10 * time.Second,
+					Attributes:    pcommon.NewMap(),
+				},
+			},
+		},
+		// trace ID in upper/lower case
+		{
+			"x?traceID=1f00&traceID=1E00", noErr,
+			&traceQueryParameters{
+				TraceQueryParams: tracestore.TraceQueryParams{
+					SearchDepth:  100,
+					StartTimeMin: timeNow,
+					StartTimeMax: timeNow,
+					Attributes:   pcommon.NewMap(),
+				},
+				TraceIDs: []model.TraceID{
+					model.NewTraceID(0, 0x1f00),
+					model.NewTraceID(0, 0x1e00),
+				},
+			},
+		},
+		{
+			"x?traceID=100&traceID=x200", `cannot parse traceID param: strconv.ParseUint: parsing "x200": invalid syntax`,
+			&traceQueryParameters{
+				TraceQueryParams: tracestore.TraceQueryParams{
+					StartTimeMin: time.Unix(0, 0),
+					StartTimeMax: time.Unix(0, 0),
+					SearchDepth:  100,
+					Attributes:   pcommon.NewMap(),
+				},
+				TraceIDs: []model.TraceID{
+					model.NewTraceID(0, 0x100),
+					model.NewTraceID(0, 0x200),
+				},
+			},
+		},
+		// raw traces
+		{
+			"x?service=service&start=0&end=0&raw=true", noErr,
+			&traceQueryParameters{
+				TraceQueryParams: tracestore.TraceQueryParams{
+					ServiceName:  "service",
+					StartTimeMin: time.Unix(0, 0),
+					StartTimeMax: time.Unix(0, 0),
+					SearchDepth:  100,
+					Attributes:   pcommon.NewMap(),
+				},
+				RawTraces: true,
+			},
+		},
+		{
+			"x?service=service&start=0&end=0&raw=false", noErr,
+			&traceQueryParameters{
+				TraceQueryParams: tracestore.TraceQueryParams{
+					ServiceName:  "service",
+					StartTimeMin: time.Unix(0, 0),
+					StartTimeMax: time.Unix(0, 0),
+					SearchDepth:  100,
+					Attributes:   pcommon.NewMap(),
+				},
+				RawTraces: false,
+			},
+		},
+		{
+			"x?service=service&start=0&end=0&raw=foobar", "unable to parse param 'raw'",
+			&traceQueryParameters{
+				TraceQueryParams: tracestore.TraceQueryParams{
+					ServiceName:  "service",
+					StartTimeMin: time.Unix(0, 0),
+					StartTimeMax: time.Unix(0, 0),
+					SearchDepth:  100,
+					Attributes:   pcommon.NewMap(),
+				},
+				RawTraces: false,
+			},
+		},
 	}
 	for _, tc := range tests {
 		test := tc // capture loop var

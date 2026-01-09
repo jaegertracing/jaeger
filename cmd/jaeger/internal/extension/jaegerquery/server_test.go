@@ -23,8 +23,7 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	app "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc"
-	v2querysvc "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
@@ -259,7 +258,6 @@ func TestServerAddArchiveStorage(t *testing.T) {
 	tests := []struct {
 		name           string
 		qSvcOpts       *querysvc.QueryServiceOptions
-		v2qSvcOpts     *v2querysvc.QueryServiceOptions
 		config         *Config
 		extension      component.Component
 		expectedOutput string
@@ -269,7 +267,6 @@ func TestServerAddArchiveStorage(t *testing.T) {
 			name:           "Archive storage unset",
 			config:         &Config{},
 			qSvcOpts:       &querysvc.QueryServiceOptions{},
-			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
 			expectedOutput: `{"level":"info","msg":"Archive storage not configured"}` + "\n",
 			expectedErr:    "",
 		},
@@ -281,7 +278,6 @@ func TestServerAddArchiveStorage(t *testing.T) {
 				},
 			},
 			qSvcOpts:       &querysvc.QueryServiceOptions{},
-			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
 			expectedOutput: "",
 			expectedErr:    "cannot find traces archive storage factory: cannot find extension",
 		},
@@ -293,7 +289,6 @@ func TestServerAddArchiveStorage(t *testing.T) {
 				},
 			},
 			qSvcOpts:       &querysvc.QueryServiceOptions{},
-			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
 			extension:      fakeStorageExt{},
 			expectedOutput: "Cannot init traces archive storage reader",
 			expectedErr:    "",
@@ -306,7 +301,6 @@ func TestServerAddArchiveStorage(t *testing.T) {
 				},
 			},
 			qSvcOpts:       &querysvc.QueryServiceOptions{},
-			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
 			extension:      fakeStorageExt{},
 			expectedOutput: "Cannot init traces archive storage writer",
 			expectedErr:    "",
@@ -319,7 +313,6 @@ func TestServerAddArchiveStorage(t *testing.T) {
 				},
 			},
 			qSvcOpts:       &querysvc.QueryServiceOptions{},
-			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
 			extension:      fakeStorageExt{},
 			expectedOutput: "",
 			expectedErr:    "",
@@ -338,7 +331,7 @@ func TestServerAddArchiveStorage(t *testing.T) {
 			if tt.extension != nil {
 				host = storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, tt.extension)
 			}
-			err := server.addArchiveStorage(tt.qSvcOpts, tt.v2qSvcOpts, host)
+			err := server.addArchiveStorage(tt.qSvcOpts, host)
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
 			} else {
