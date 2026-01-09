@@ -17,8 +17,8 @@ import (
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/tracesvc"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
+	v2querysvc "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
 )
 
 var (
@@ -33,7 +33,7 @@ type server struct {
 	httpServer *http.Server
 	listener   net.Listener
 	mcpServer  *mcp.Server
-	traceSvc   *tracesvc.TraceService
+	queryAPI   *v2querysvc.QueryService
 }
 
 // newServer creates a new MCP server instance.
@@ -54,20 +54,15 @@ func (*server) Dependencies() []component.ID {
 func (s *server) Start(ctx context.Context, host component.Host) error {
 	s.telset.Logger.Info("Starting Jaeger MCP server", zap.String("endpoint", s.config.HTTP.Endpoint))
 
-	// Get storage readers from jaegerquery extension
+	// Get v2 QueryService from jaegerquery extension
 	queryExt, err := jaegerquery.GetExtension(host)
 	if err != nil {
 		return fmt.Errorf("cannot get jaegerquery extension: %w", err)
 	}
 
-	// Create internal trace service layer for MCP tools
-	s.traceSvc = tracesvc.NewTraceService(
-		queryExt.V1SpanReader(),
-		queryExt.V2TraceReader(),
-		queryExt.DependencyReader(),
-	)
+	s.queryAPI = queryExt.V2QueryService()
 
-	s.telset.Logger.Info("Successfully created trace service from jaegerquery extension")
+	s.telset.Logger.Info("Successfully retrieved v2 QueryService from jaegerquery extension")
 
 	// Initialize MCP server with implementation details
 	impl := &mcp.Implementation{

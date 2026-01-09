@@ -95,7 +95,6 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	if err != nil {
 		return fmt.Errorf("cannot create trace reader: %w", err)
 	}
-	s.v2TraceReader = traceReader
 
 	df, ok := tf.(depstore.Factory)
 	if !ok {
@@ -105,7 +104,6 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	if err != nil {
 		return fmt.Errorf("cannot create dependencies reader: %w", err)
 	}
-	s.depReader = depReader
 
 	opts := querysvc.QueryServiceOptions{
 		MaxClockSkewAdjust: s.config.MaxClockSkewAdjust,
@@ -212,17 +210,7 @@ func (s *server) Shutdown(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
-// V1SpanReader returns the v1 span reader instance.
-func (s *server) V1SpanReader() spanstore.Reader {
-	return s.v1SpanReader
-}
-
-// V2TraceReader returns the v2 trace reader instance.
-func (s *server) V2TraceReader() tracestore.Reader {
-	return s.v2TraceReader
-}
-
-// DependencyReader returns the dependency reader instance.
-func (s *server) DependencyReader() depstore.Reader {
-	return s.depReader
+// V2QueryService returns the v2 query service instance.
+func (s *server) V2QueryService() *querysvc.QueryService {
+	return s.qs
 }

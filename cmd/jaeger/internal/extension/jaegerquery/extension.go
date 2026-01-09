@@ -9,21 +9,15 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	v2querysvc "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
 )
 
 // Extension is the interface that the jaegerquery extension implements.
-// It allows other extensions to access the storage readers.
+// It allows other extensions to access the query service.
 type Extension interface {
 	extension.Extension
-	// V1SpanReader returns the v1 span reader.
-	V1SpanReader() spanstore.Reader
-	// V2TraceReader returns the v2 trace reader.
-	V2TraceReader() tracestore.Reader
-	// DependencyReader returns the dependency reader.
-	DependencyReader() depstore.Reader
+	// V2QueryService returns the v2 query service.
+	V2QueryService() *v2querysvc.QueryService
 }
 
 // GetExtension retrieves the jaegerquery extension from the host.

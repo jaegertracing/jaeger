@@ -23,7 +23,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	v2querysvc "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -33,39 +33,8 @@ type mockQueryExtension struct {
 	extension.Extension
 }
 
-func (m *mockQueryExtension) V1SpanReader() spanstore.Reader {
-	return &mockSpanReader{}
-}
-
-func (m *mockQueryExtension) V2TraceReader() tracestore.Reader {
-	return &mockTraceReader{}
-}
-
-func (m *mockQueryExtension) DependencyReader() depstore.Reader {
-	return &mockDepReader{}
-}
-
-// mockSpanReader implements spanstore.Reader for testing
-type mockSpanReader struct{}
-
-func (m *mockSpanReader) GetServices(_ context.Context) ([]string, error) {
-	return []string{"test-service"}, nil
-}
-
-func (m *mockSpanReader) GetOperations(_ context.Context, _ spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
-	return []spanstore.Operation{{Name: "test-op"}}, nil
-}
-
-func (m *mockSpanReader) GetTrace(_ context.Context, _ spanstore.GetTraceParameters) (*model.Trace, error) {
-	return &model.Trace{}, nil
-}
-
-func (m *mockSpanReader) FindTraces(_ context.Context, _ *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
-	return []*model.Trace{}, nil
-}
-
-func (m *mockSpanReader) FindTraceIDs(_ context.Context, _ *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
-	return []model.TraceID{}, nil
+func (m *mockQueryExtension) V2QueryService() *v2querysvc.QueryService {
+	return v2querysvc.NewQueryService(&mockTraceReader{}, &mockDepReader{}, v2querysvc.QueryServiceOptions{})
 }
 
 // mockTraceReader implements tracestore.Reader for testing
