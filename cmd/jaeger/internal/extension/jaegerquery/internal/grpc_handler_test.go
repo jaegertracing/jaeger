@@ -624,8 +624,8 @@ func initializeTenantedTestServerGRPC(t *testing.T, tm *tenancy.Manager) *grpcSe
 		v1adapter.NewTraceReader(spanReader),
 		dependencyReader,
 		querysvc.QueryServiceOptions{
-			ArchiveSpanReader: archiveSpanReader,
-			ArchiveSpanWriter: archiveSpanWriter,
+			ArchiveTraceReader: v1adapter.NewTraceReader(archiveSpanReader),
+			ArchiveTraceWriter: v1adapter.NewTraceWriter(archiveSpanWriter),
 		})
 
 	server, addr := newGRPCServer(t, q, zap.NewNop(), tm)

@@ -747,7 +747,7 @@ func TestServerHTTPTenancy(t *testing.T) {
 	querySvc := makeQuerySvc()
 	querySvc.spanReader.On("FindTraces", mock.Anything, mock.Anything).Return([]*model.Trace{mockTrace}, nil).Once()
 	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider(), healthcheck.New())
-	server, err := NewServer(context.Background(), &querysvc.QueryService{},
+	server, err := NewServer(context.Background(), querySvc.qs,
 		nil, serverOptions, tenancyMgr, telset)
 	require.NoError(t, err)
 	require.NoError(t, server.Start(context.Background()))

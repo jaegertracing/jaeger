@@ -523,7 +523,7 @@ func TestSearchTraceBadTimeWindow(t *testing.T) {
 func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
 	archiveReadMock := &spanstoremocks.Reader{}
 	ts := initializeTestServerWithOptions(t, &tenancy.Manager{}, querysvc.QueryServiceOptions{
-		ArchiveSpanReader: archiveReadMock,
+		ArchiveTraceReader: v1adapter.NewTraceReader(archiveReadMock),
 	})
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 		Return(nil, spanstore.ErrTraceNotFound).Twice()
@@ -540,7 +540,7 @@ func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
 func TestSearchByTraceIDSuccessWithArchiveAndTimeWindow(t *testing.T) {
 	archiveReadMock := &spanstoremocks.Reader{}
 	ts := initializeTestServerWithOptions(t, &tenancy.Manager{}, querysvc.QueryServiceOptions{
-		ArchiveSpanReader: archiveReadMock,
+		ArchiveTraceReader: v1adapter.NewTraceReader(archiveReadMock),
 	})
 	expectedQuery := spanstore.GetTraceParameters{
 		TraceID:   mockTraceID,

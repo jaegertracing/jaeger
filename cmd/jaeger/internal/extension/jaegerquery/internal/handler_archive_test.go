@@ -17,6 +17,7 @@ import (
 	querysvc "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
 
 func TestGetArchivedTrace_NotFound(t *testing.T) {
@@ -45,7 +46,14 @@ func TestGetArchivedTrace_NotFound(t *testing.T) {
 				require.EqualError(t, err,
 					`404 error from server: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":404,"msg":"trace not found"}]}`+"\n",
 				)
-			}, querysvc.QueryServiceOptions{ArchiveSpanReader: tc.reader}) // nil is ok
+			}, querysvc.QueryServiceOptions{
+				ArchiveTraceReader: func() *v1adapter.TraceReader {
+					if tc.reader != nil {
+						return v1adapter.NewTraceReader(tc.reader)
+					}
+					return nil
+				}(),
+			}) // nil is ok
 		})
 	}
 }
@@ -65,7 +73,7 @@ func TestGetArchivedTraceSuccess(t *testing.T) {
 		assert.Empty(t, response.Errors)
 		assert.Len(t, response.Traces, 1)
 		assert.Equal(t, traceID.String(), string(response.Traces[0].TraceID))
-	}, querysvc.QueryServiceOptions{ArchiveSpanReader: mockReader})
+	}, querysvc.QueryServiceOptions{ArchiveTraceReader: v1adapter.NewTraceReader(mockReader)})
 }
 
 // Test failure in parsing trace ID.
@@ -91,7 +99,7 @@ func TestArchiveTrace_TraceNotFound(t *testing.T) {
 		var response structuredResponse
 		err := postJSON(ts.server.URL+"/api/archive/"+mockTraceID.String(), []string{}, &response)
 		require.EqualError(t, err, `404 error from server: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":404,"msg":"trace not found"}]}`+"\n")
-	}, querysvc.QueryServiceOptions{ArchiveSpanReader: mockReader, ArchiveSpanWriter: mockWriter})
+	}, querysvc.QueryServiceOptions{ArchiveTraceReader: v1adapter.NewTraceReader(mockReader), ArchiveTraceWriter: v1adapter.NewTraceWriter(mockWriter)})
 }
 
 func TestArchiveTrace_NoStorage(t *testing.T) {
@@ -112,7 +120,7 @@ func TestArchiveTrace_Success(t *testing.T) {
 		var response structuredResponse
 		err := postJSON(ts.server.URL+"/api/archive/"+mockTraceID.String(), []string{}, &response)
 		require.NoError(t, err)
-	}, querysvc.QueryServiceOptions{ArchiveSpanWriter: mockWriter})
+	}, querysvc.QueryServiceOptions{ArchiveTraceWriter: v1adapter.NewTraceWriter(mockWriter)})
 }
 
 func TestArchiveTrace_SucessWithTimeWindow(t *testing.T) {
@@ -130,7 +138,7 @@ func TestArchiveTrace_SucessWithTimeWindow(t *testing.T) {
 		var response structuredTraceResponse
 		err := postJSON(ts.server.URL+"/api/archive/"+mockTraceID.String()+"?start=1&end=2", []string{}, &response)
 		require.NoError(t, err)
-	}, querysvc.QueryServiceOptions{ArchiveSpanWriter: mockWriter})
+	}, querysvc.QueryServiceOptions{ArchiveTraceWriter: v1adapter.NewTraceWriter(mockWriter)})
 }
 
 func TestArchiveTrace_WriteErrors(t *testing.T) {
@@ -143,7 +151,7 @@ func TestArchiveTrace_WriteErrors(t *testing.T) {
 		var response structuredResponse
 		err := postJSON(ts.server.URL+"/api/archive/"+mockTraceID.String(), []string{}, &response)
 		require.EqualError(t, err, `500 error from server: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":500,"msg":"cannot save\ncannot save"}]}`+"\n")
-	}, querysvc.QueryServiceOptions{ArchiveSpanWriter: mockWriter})
+	}, querysvc.QueryServiceOptions{ArchiveTraceWriter: v1adapter.NewTraceWriter(mockWriter)})
 }
 
 func TestArchiveTrace_BadTimeWindow(t *testing.T) {
@@ -173,7 +181,7 @@ func TestArchiveTrace_BadTimeWindow(t *testing.T) {
 				require.Error(t, err)
 				require.ErrorContains(t, err, "400 error from server")
 				require.ErrorContains(t, err, "unable to parse param")
-			}, querysvc.QueryServiceOptions{ArchiveSpanWriter: mockWriter})
+			}, querysvc.QueryServiceOptions{ArchiveTraceWriter: v1adapter.NewTraceWriter(mockWriter)})
 		})
 	}
 }
