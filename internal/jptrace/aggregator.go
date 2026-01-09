@@ -4,6 +4,7 @@
 package jptrace
 
 import (
+	"fmt"
 	"iter"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -14,9 +15,14 @@ import (
 //
 // The `tracesSeq` input must adhere to the chunking requirements of tracestore.Reader.GetTraces.
 func AggregateTraces(tracesSeq iter.Seq2[[]ptrace.Traces, error]) iter.Seq2[ptrace.Traces, error] {
+	return AggregateTracesWithLimit(tracesSeq, 0)
+}
+
+func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSize int) iter.Seq2[ptrace.Traces, error] {
 	return func(yield func(trace ptrace.Traces, err error) bool) {
 		currentTrace := ptrace.NewTraces()
 		currentTraceID := pcommon.NewTraceIDEmpty()
+		spanCount := 0
 
 		tracesSeq(func(traces []ptrace.Traces, err error) bool {
 			if err != nil {
@@ -27,7 +33,7 @@ func AggregateTraces(tracesSeq iter.Seq2[[]ptrace.Traces, error]) iter.Seq2[ptra
 				resources := trace.ResourceSpans()
 				traceID := resources.At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 				if currentTraceID == traceID {
-					mergeTraces(trace, currentTrace)
+					mergeTraces(currentTrace, trace, maxSize, &spanCount)
 				} else {
 					if currentTrace.ResourceSpans().Len() > 0 {
 						if !yield(currentTrace, nil) {
@@ -36,6 +42,12 @@ func AggregateTraces(tracesSeq iter.Seq2[[]ptrace.Traces, error]) iter.Seq2[ptra
 					}
 					currentTrace = trace
 					currentTraceID = traceID
+					spanCount = trace.SpanCount()
+					if maxSize > 0 && spanCount > maxSize {
+						currentTrace = ptrace.NewTraces()
+						spanCount = 0
+						mergeTraces(currentTrace, trace, maxSize, &spanCount)
+					}
 				}
 			}
 			return true
@@ -46,10 +58,68 @@ func AggregateTraces(tracesSeq iter.Seq2[[]ptrace.Traces, error]) iter.Seq2[ptra
 	}
 }
 
-func mergeTraces(src, dest ptrace.Traces) {
-	resources := src.ResourceSpans()
-	for i := 0; i < resources.Len(); i++ {
-		resource := resources.At(i)
-		resource.CopyTo(dest.ResourceSpans().AppendEmpty())
+func mergeTraces(dest, src ptrace.Traces, maxSize int, spanCount *int) bool {
+	// early exit if already at max
+	if maxSize > 0 && *spanCount >= maxSize {
+		markTraceTruncated(dest, maxSize)
+		return true
 	}
+
+	incomingCount := src.SpanCount()
+	// check if we can merge all spans without exceeding limit
+	if maxSize <= 0 || *spanCount+incomingCount <= maxSize {
+		resources := src.ResourceSpans()
+		for i := 0; i < resources.Len(); i++ {
+			resource := resources.At(i)
+			resource.CopyTo(dest.ResourceSpans().AppendEmpty())
+		}
+		*spanCount += incomingCount
+		return false
+	}
+
+	// partial copy
+	remaining := maxSize - *spanCount
+	if remaining > 0 {
+		copySpansUpToLimit(dest, src, remaining)
+		*spanCount = maxSize
+	}
+	markTraceTruncated(dest, maxSize)
+	return true
+}
+
+func copySpansUpToLimit(dest, src ptrace.Traces, limit int) {
+	copied := 0
+
+	for _, srcResource := range src.ResourceSpans().All() {
+		if copied >= limit {
+			return
+		}
+		destResource := dest.ResourceSpans().AppendEmpty()
+		srcResource.Resource().CopyTo(destResource.Resource())
+		destResource.SetSchemaUrl(srcResource.SchemaUrl())
+
+		for _, srcScope := range srcResource.ScopeSpans().All() {
+			if copied >= limit {
+				return
+			}
+			destScope := destResource.ScopeSpans().AppendEmpty()
+			srcScope.Scope().CopyTo(destScope.Scope())
+			destScope.SetSchemaUrl(srcScope.SchemaUrl())
+
+			for _, span := range srcScope.Spans().All() {
+				if copied >= limit {
+					return
+				}
+				span.CopyTo(destScope.Spans().AppendEmpty())
+				copied++
+			}
+		}
+	}
+}
+
+func markTraceTruncated(trace ptrace.Traces, maxSize int) {
+	// direct access to first span (if truncated, it must exist)
+	firstSpan := trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+	AddWarnings(firstSpan,
+		fmt.Sprintf("trace has more than %d spans, showing first %d spans only", maxSize, maxSize))
 }
