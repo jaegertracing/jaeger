@@ -32,16 +32,16 @@ func NewFactory() extension.Factory {
 
 // createDefaultConfig creates the default configuration for the extension.
 func createDefaultConfig() component.Config {
-	version := version.Get().GitVersion
-	if version == "" {
-		version = "dev"
+	ver := version.Get().GitVersion
+	if ver == "" {
+		ver = "dev"
 	}
 	return &Config{
 		HTTP: confighttp.ServerConfig{
 			Endpoint: ports.PortToHostPort(ports.MCPHTTP),
 		},
 		ServerName:               "jaeger",
-		ServerVersion:            version,
+		ServerVersion:            ver,
 		MaxSpanDetailsPerRequest: 20,
 		MaxSearchResults:         100,
 	}
