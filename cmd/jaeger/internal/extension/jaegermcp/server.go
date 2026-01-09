@@ -63,9 +63,9 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		Name:    s.config.ServerName,
 		Version: s.config.ServerVersion,
 	}
-	// Pass nil for ServerOptions to use default settings.
+	// Pass empty ServerOptions to use default settings.
 	// Custom options (e.g., logging, handlers) can be added in Phase 2 if needed.
-	s.mcpServer = mcp.NewServer(impl, nil)
+	s.mcpServer = mcp.NewServer(impl, &mcp.ServerOptions{})
 
 	// Register a placeholder health tool for Phase 1 Part 2
 	// Actual MCP tools will be implemented in Phase 2

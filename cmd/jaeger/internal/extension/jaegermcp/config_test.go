@@ -16,15 +16,15 @@ func TestValidate(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name: "Empty config - invalid (missing ServerVersion)",
+			name: "Empty config - valid (ServerVersion auto-filled)",
 			config: &Config{
 				MaxSpanDetailsPerRequest: 20,
 				MaxSearchResults:         100,
 			},
-			expectError: true,
+			expectError: false,
 		},
 		{
-			name: "Valid config",
+			name: "Valid config with ServerVersion",
 			config: &Config{
 				ServerVersion:            "1.0.0",
 				MaxSpanDetailsPerRequest: 20,
