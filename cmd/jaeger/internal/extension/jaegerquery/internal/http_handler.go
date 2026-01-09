@@ -306,10 +306,10 @@ func (aH *APIHandler) tracesByIDs(ctx context.Context, traceQuery *traceQueryPar
 	}
 
 	foundIDs := make(map[pcommon.TraceID]struct{})
-	for _, trace := range traces {
-		if len(trace.Spans) > 0 {
-			retMe = append(retMe, trace)
-			foundIDs[v1adapter.FromV1TraceID(trace.Spans[0].TraceID)] = struct{}{}
+	for _, tr := range traces {
+		if len(tr.Spans) > 0 {
+			retMe = append(retMe, tr)
+			foundIDs[v1adapter.FromV1TraceID(tr.Spans[0].TraceID)] = struct{}{}
 		}
 	}
 
