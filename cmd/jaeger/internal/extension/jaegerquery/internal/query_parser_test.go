@@ -196,10 +196,21 @@ func TestParseTraceQuery(t *testing.T) {
 			actualQuery, err := parser.parseTraceQueryParams(request)
 			if test.errMsg == "" {
 				require.NoError(t, err)
-				if !assert.Equal(t, test.expectedQuery, actualQuery) {
-					for _, s := range pretty.Diff(test.expectedQuery, actualQuery) {
-						t.Log(s)
+				if test.expectedQuery != nil {
+					assert.Equal(t, test.expectedQuery.TraceIDs, actualQuery.TraceIDs)
+					assert.Equal(t, test.expectedQuery.Attributes.AsRaw(), actualQuery.Attributes.AsRaw())
+					// Create copies for remaining fields comparison
+					expectedCopy := *test.expectedQuery
+					actualCopy := *actualQuery
+					expectedCopy.Attributes = pcommon.NewMap()
+					actualCopy.Attributes = pcommon.NewMap()
+					if !assert.Equal(t, &expectedCopy, &actualCopy) {
+						for _, s := range pretty.Diff(&expectedCopy, &actualCopy) {
+							t.Log(s)
+						}
 					}
+				} else {
+					assert.Nil(t, actualQuery)
 				}
 			} else {
 				matched, matcherr := regexp.MatchString(test.errMsg, err.Error())

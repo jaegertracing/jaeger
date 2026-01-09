@@ -72,12 +72,12 @@ var (
 			{
 				TraceID: mockTraceID,
 				SpanID:  model.NewSpanID(1),
-				Process: &model.Process{},
+				Process: &model.Process{ServiceName: "service"},
 			},
 			{
 				TraceID: mockTraceID,
 				SpanID:  model.NewSpanID(2),
-				Process: &model.Process{},
+				Process: &model.Process{ServiceName: "service"},
 			},
 		},
 		Warnings: []string{},
@@ -306,12 +306,12 @@ func TestWriteJSON(t *testing.T) {
 
 func TestGetTrace(t *testing.T) {
 	testCases := []struct {
-		suffix      string
-		numSpanRefs int
+		suffix   string
+		numSpans int
 	}{
-		{suffix: "", numSpanRefs: 0},
-		{suffix: "?raw=true", numSpanRefs: 1}, // bad span reference is not filtered out
-		{suffix: "?raw=false", numSpanRefs: 0},
+		{suffix: "", numSpans: 2},
+		{suffix: "?raw=true", numSpans: 3},
+		{suffix: "?raw=false", numSpans: 2},
 	}
 
 	makeMockTrace := func(t *testing.T) *model.Trace {
@@ -320,9 +320,9 @@ func TestGetTrace(t *testing.T) {
 		require.NoError(t, err)
 		var trace model.Trace
 		require.NoError(t, jsonpb.Unmarshal(out, &trace))
-		trace.Spans[1].References = []model.SpanRef{
-			{TraceID: model.NewTraceID(0, 0)},
-		}
+		// Add a duplicate span (same as Spans[0])
+		dupSpan := *trace.Spans[0]
+		trace.Spans = append(trace.Spans, &dupSpan)
 		return &trace
 	}
 
@@ -349,8 +349,7 @@ func TestGetTrace(t *testing.T) {
 			assert.Empty(t, response.Errors)
 
 			traces := extractTraces(t, &response)
-			assert.Len(t, traces[0].Spans, 2)
-			assert.Len(t, traces[0].Spans[1].References, testCase.numSpanRefs)
+			assert.Len(t, traces[0].Spans, testCase.numSpans)
 		})
 	}
 }

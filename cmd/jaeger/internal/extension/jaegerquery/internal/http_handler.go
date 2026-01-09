@@ -301,6 +301,11 @@ func (aH *APIHandler) tracesByIDs(ctx context.Context, traceQuery *traceQueryPar
 			})
 		} else if len(traces) > 0 {
 			retMe = append(retMe, traces...)
+		} else {
+			traceErrors = append(traceErrors, structuredError{
+				Msg:     spanstore.ErrTraceNotFound.Error(),
+				TraceID: ui.TraceID(traceID.String()),
+			})
 		}
 	}
 	return retMe, traceErrors, nil

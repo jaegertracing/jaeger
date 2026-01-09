@@ -17,6 +17,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
 
@@ -47,7 +48,7 @@ func TestGetArchivedTrace_NotFound(t *testing.T) {
 					`404 error from server: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":404,"msg":"trace not found"}]}`+"\n",
 				)
 			}, querysvc.QueryServiceOptions{
-				ArchiveTraceReader: func() *v1adapter.TraceReader {
+				ArchiveTraceReader: func() tracestore.Reader {
 					if tc.reader != nil {
 						return v1adapter.NewTraceReader(tc.reader)
 					}
