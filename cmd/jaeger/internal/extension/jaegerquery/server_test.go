@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
@@ -393,4 +395,41 @@ func TestServerAddMetricsStorage(t *testing.T) {
 			assert.Contains(t, buf.String(), tt.expectedOutput)
 		})
 	}
+}
+
+func TestQueryService(t *testing.T) {
+	host := storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, fakeStorageExt{})
+	config := &Config{
+		QueryOptions: app.QueryOptions{
+			HTTP: confighttp.ServerConfig{
+				Endpoint: "localhost:0",
+			},
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  "localhost:0",
+					Transport: confignet.TransportTypeTCP,
+				},
+			},
+		},
+		Storage: Storage{
+			TracesPrimary: "jaeger_storage",
+		},
+	}
+
+	telemetrySettings := component.TelemetrySettings{
+		Logger:         zaptest.NewLogger(t),
+		MeterProvider:  noopmetric.NewMeterProvider(),
+		TracerProvider: nooptrace.NewTracerProvider(),
+	}
+
+	server := newServer(config, telemetrySettings)
+	err := server.Start(context.Background(), host)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, server.Shutdown(context.Background()))
+	}()
+
+	// Test QueryService method
+	qs := server.QueryService()
+	require.NotNil(t, qs, "QueryService should not be nil")
 }

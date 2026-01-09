@@ -31,6 +31,7 @@ import (
 var (
 	_ extension.Extension             = (*server)(nil)
 	_ extensioncapabilities.Dependent = (*server)(nil)
+	_ Extension                       = (*server)(nil)
 )
 
 type server struct {
@@ -38,6 +39,7 @@ type server struct {
 	server      *queryapp.Server
 	telset      component.TelemetrySettings
 	closeTracer func(ctx context.Context) error
+	qs          *querysvc.QueryService
 }
 
 func newServer(config *Config, otel component.TelemetrySettings) *server {
@@ -106,6 +108,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return err
 	}
 	qs := querysvc.NewQueryService(traceReader, depReader, opts)
+	s.qs = qs
 
 	mqs, err := s.createMetricReader(host)
 	if err != nil {
@@ -202,4 +205,9 @@ func (s *server) Shutdown(ctx context.Context) error {
 		errs = append(errs, s.closeTracer(ctx))
 	}
 	return errors.Join(errs...)
+}
+
+// QueryService returns the v2 query service instance.
+func (s *server) QueryService() *querysvc.QueryService {
+	return s.qs
 }

@@ -18,6 +18,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 )
 
 var (
@@ -32,6 +33,7 @@ type server struct {
 	httpServer *http.Server
 	listener   net.Listener
 	mcpServer  *mcp.Server
+	queryAPI   *querysvc.QueryService
 }
 
 // newServer creates a new MCP server instance.
@@ -52,11 +54,13 @@ func (*server) Dependencies() []component.ID {
 func (s *server) Start(ctx context.Context, host component.Host) error {
 	s.telset.Logger.Info("Starting Jaeger MCP server", zap.String("endpoint", s.config.HTTP.Endpoint))
 
-	// TODO Phase 2 (part 2): Get QueryService from jaegerquery extension
-	// This will require jaegerquery to expose QueryService through an Extension interface,
-	// similar to how jaegerstorage exposes storage factories.
-	// For now, we just verify that jaegerquery extension is available.
-	_ = host
+	// Get v2 QueryService from jaegerquery extension
+	queryExt, err := jaegerquery.GetExtension(host)
+	if err != nil {
+		return fmt.Errorf("cannot get %s extension: %w", jaegerquery.ID, err)
+	}
+	s.queryAPI = queryExt.QueryService()
+	s.telset.Logger.Info("Successfully retrieved v2 QueryService from jaegerquery extension")
 
 	// Initialize MCP server with implementation details
 	impl := &mcp.Implementation{

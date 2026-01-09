@@ -14,11 +14,44 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/extension"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
+	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
+
+// mockQueryExtension implements jaegerquery.Extension for testing
+type mockQueryExtension struct {
+	extension.Extension
+}
+
+func (*mockQueryExtension) QueryService() *querysvc.QueryService {
+	return querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+}
+
+// mockHost implements component.Host with a jaegerquery extension
+type mockHost struct {
+	component.Host
+	queryExt jaegerquery.Extension
+}
+
+func newMockHost() *mockHost {
+	return &mockHost{
+		Host:     componenttest.NewNopHost(),
+		queryExt: &mockQueryExtension{},
+	}
+}
+
+func (m *mockHost) GetExtensions() map[component.ID]component.Component {
+	return map[component.ID]component.Component{
+		jaegerquery.ID: m.queryExt,
+	}
+}
 
 // startTestServer creates and starts a test server with a random available port.
 // It waits for the server to be ready and registers shutdown via t.Cleanup().
@@ -26,7 +59,7 @@ import (
 func startTestServer(t *testing.T) (*server, string) {
 	t.Helper()
 
-	host := componenttest.NewNopHost()
+	host := newMockHost()
 	telset := componenttest.NewNopTelemetrySettings()
 
 	config := &Config{
@@ -68,7 +101,7 @@ func startTestServer(t *testing.T) (*server, string) {
 func TestServerLifecycle(t *testing.T) {
 	// Since we're not actually accessing storage in Phase 1,
 	// we just need a basic host for the lifecycle test
-	host := componenttest.NewNopHost()
+	host := newMockHost()
 
 	tests := []struct {
 		name          string
@@ -110,8 +143,56 @@ func TestServerLifecycle(t *testing.T) {
 	}
 }
 
+func TestServerQueryServiceRetrieval(t *testing.T) {
+	// Test that Start method properly retrieves QueryService from jaegerquery extension
+	host := newMockHost()
+	config := &Config{
+		HTTP:                     createDefaultConfig().(*Config).HTTP,
+		ServerName:               "jaeger",
+		ServerVersion:            "1.0.0",
+		MaxSpanDetailsPerRequest: 20,
+		MaxSearchResults:         100,
+	}
+
+	telset := componenttest.NewNopTelemetrySettings()
+	server := newServer(config, telset)
+	require.NotNil(t, server)
+
+	// Test Start - this should retrieve QueryService
+	err := server.Start(context.Background(), host)
+	require.NoError(t, err)
+
+	// Verify queryAPI was set
+	require.NotNil(t, server.queryAPI, "queryAPI should be set after Start")
+
+	// Test Shutdown
+	err = server.Shutdown(context.Background())
+	assert.NoError(t, err)
+}
+
+func TestServerStartFailsWithoutQueryExtension(t *testing.T) {
+	// Test that Start method fails when jaegerquery extension is not available
+	host := componenttest.NewNopHost() // No jaegerquery extension
+	config := &Config{
+		HTTP:                     createDefaultConfig().(*Config).HTTP,
+		ServerName:               "jaeger",
+		ServerVersion:            "1.0.0",
+		MaxSpanDetailsPerRequest: 20,
+		MaxSearchResults:         100,
+	}
+
+	telset := componenttest.NewNopTelemetrySettings()
+	server := newServer(config, telset)
+	require.NotNil(t, server)
+
+	// Test Start - should fail without jaegerquery extension
+	err := server.Start(context.Background(), host)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot find extension")
+}
+
 func TestServerStartFailsWithInvalidEndpoint(t *testing.T) {
-	host := componenttest.NewNopHost()
+	host := newMockHost()
 	telset := componenttest.NewNopTelemetrySettings()
 
 	// Use an invalid endpoint (e.g., malformed address)
@@ -167,7 +248,7 @@ func TestServerMCPEndpoint(t *testing.T) {
 }
 
 func TestServerShutdownWithError(t *testing.T) {
-	host := componenttest.NewNopHost()
+	host := newMockHost()
 	telset := componenttest.NewNopTelemetrySettings()
 	config := &Config{
 		HTTP: confighttp.ServerConfig{
@@ -203,7 +284,7 @@ func TestServerShutdownWithError(t *testing.T) {
 }
 
 func TestServerShutdownAfterListenerClose(t *testing.T) {
-	host := componenttest.NewNopHost()
+	host := newMockHost()
 	telset := componenttest.NewNopTelemetrySettings()
 	config := &Config{
 		HTTP: confighttp.ServerConfig{
@@ -230,7 +311,7 @@ func TestServerShutdownAfterListenerClose(t *testing.T) {
 }
 
 func TestServerShutdownErrorPath(t *testing.T) {
-	host := componenttest.NewNopHost()
+	host := newMockHost()
 	telset := componenttest.NewNopTelemetrySettings()
 	config := &Config{
 		HTTP: confighttp.ServerConfig{
@@ -257,7 +338,7 @@ func TestServerShutdownErrorPath(t *testing.T) {
 }
 
 func TestServerServeFails(t *testing.T) {
-	host := componenttest.NewNopHost()
+	host := newMockHost()
 	telset := componenttest.NewNopTelemetrySettings()
 
 	// Create a server and start it
