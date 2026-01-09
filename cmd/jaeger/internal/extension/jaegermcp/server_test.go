@@ -30,7 +30,7 @@ type mockQueryExtension struct {
 	extension.Extension
 }
 
-func (m *mockQueryExtension) QueryService() *querysvc.QueryService {
+func (*mockQueryExtension) QueryService() *querysvc.QueryService {
 	return querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
 }
 

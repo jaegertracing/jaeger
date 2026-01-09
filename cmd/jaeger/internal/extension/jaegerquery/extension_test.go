@@ -88,7 +88,7 @@ type mockHostWrongType struct {
 	component.Host
 }
 
-func (m *mockHostWrongType) GetExtensions() map[component.ID]component.Component {
+func (*mockHostWrongType) GetExtensions() map[component.ID]component.Component {
 	// Return a component that's not an Extension
 	return map[component.ID]component.Component{
 		ID: &wrongTypeComponent{},
@@ -98,10 +98,10 @@ func (m *mockHostWrongType) GetExtensions() map[component.ID]component.Component
 // wrongTypeComponent implements component.Component but not Extension
 type wrongTypeComponent struct{}
 
-func (w *wrongTypeComponent) Start(_ context.Context, _ component.Host) error {
+func (*wrongTypeComponent) Start(_ context.Context, _ component.Host) error {
 	return nil
 }
 
-func (w *wrongTypeComponent) Shutdown(_ context.Context) error {
+func (*wrongTypeComponent) Shutdown(_ context.Context) error {
 	return nil
 }
