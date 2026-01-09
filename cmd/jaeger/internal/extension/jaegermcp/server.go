@@ -57,11 +57,9 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	// Get v2 QueryService from jaegerquery extension
 	queryExt, err := jaegerquery.GetExtension(host)
 	if err != nil {
-		return fmt.Errorf("cannot get jaegerquery extension: %w", err)
+		return fmt.Errorf("cannot get %s extension: %w", jaegerquery.ID, err)
 	}
-
 	s.queryAPI = queryExt.QueryService()
-
 	s.telset.Logger.Info("Successfully retrieved v2 QueryService from jaegerquery extension")
 
 	// Initialize MCP server with implementation details
