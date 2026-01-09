@@ -1174,3 +1174,17 @@ func TestSearchTenancyFlowTenantHTTP(t *testing.T) {
 	assert.Empty(t, responseMegacorp.Errors)
 	assert.Nil(t, responseMegacorp.Data)
 }
+
+func TestNewAPIHandler_Defaults(t *testing.T) {
+aH := NewAPIHandler(&querysvc.QueryService{})
+assert.NotNil(t, aH.logger)
+assert.NotNil(t, aH.tracer)
+}
+
+func TestTracesByIDs_EmptyIDs(t *testing.T) {
+	aH := &APIHandler{}
+	traces, errs, err := aH.tracesByIDs(context.Background(), &traceQueryParameters{})
+	assert.Nil(t, traces)
+	assert.Nil(t, errs)
+	assert.NoError(t, err)
+}

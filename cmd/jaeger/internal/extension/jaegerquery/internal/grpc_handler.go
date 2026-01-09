@@ -87,10 +87,6 @@ func (g *GRPCHandler) GetTrace(r *api_v2.GetTraceRequest, stream api_v2.QuerySer
 	getTracesIter := g.queryService.GetTraces(stream.Context(), query)
 	traces, err := v1adapter.V1TracesFromSeq2(getTracesIter)
 	if err != nil {
-		if errors.Is(err, spanstore.ErrTraceNotFound) {
-			g.logger.Warn(msgTraceNotFound, zap.Stringer("id", r.TraceID))
-			return status.Errorf(codes.NotFound, "%s", msgTraceNotFound)
-		}
 		g.logger.Error("failed to fetch spans from the backend", zap.Error(err))
 		return status.Errorf(codes.Internal, "failed to fetch spans from the backend: %v", err)
 	}

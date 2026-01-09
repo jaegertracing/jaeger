@@ -19,6 +19,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/adjuster"
 	"github.com/jaegertracing/jaeger/internal/jiter"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -557,6 +558,18 @@ func TestArchiveTrace(t *testing.T) {
 					Return(nil).Once()
 			},
 			expectedError: nil,
+		},
+		{
+			name:    "trace not found",
+			options: []testOption{withArchiveTraceWriter()},
+			setupMocks: func(tqs *testQueryService) {
+				responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+					yield([]ptrace.Traces{}, nil)
+				})
+				tqs.traceReader.On("GetTraces", mock.Anything, paramsTraceIDs).
+					Return(responseIter).Once()
+			},
+			expectedError: spanstore.ErrTraceNotFound,
 		},
 	}
 
