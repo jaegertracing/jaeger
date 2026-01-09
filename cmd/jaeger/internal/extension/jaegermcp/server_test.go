@@ -8,17 +8,114 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"iter"
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/extension"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
+
+// mockQueryExtension implements jaegerquery.Extension for testing
+type mockQueryExtension struct {
+	extension.Extension
+}
+
+func (m *mockQueryExtension) V1SpanReader() spanstore.Reader {
+	return &mockSpanReader{}
+}
+
+func (m *mockQueryExtension) V2TraceReader() tracestore.Reader {
+	return &mockTraceReader{}
+}
+
+func (m *mockQueryExtension) DependencyReader() depstore.Reader {
+	return &mockDepReader{}
+}
+
+// mockSpanReader implements spanstore.Reader for testing
+type mockSpanReader struct{}
+
+func (m *mockSpanReader) GetServices(_ context.Context) ([]string, error) {
+	return []string{"test-service"}, nil
+}
+
+func (m *mockSpanReader) GetOperations(_ context.Context, _ spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
+	return []spanstore.Operation{{Name: "test-op"}}, nil
+}
+
+func (m *mockSpanReader) GetTrace(_ context.Context, _ spanstore.GetTraceParameters) (*model.Trace, error) {
+	return &model.Trace{}, nil
+}
+
+func (m *mockSpanReader) FindTraces(_ context.Context, _ *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+	return []*model.Trace{}, nil
+}
+
+func (m *mockSpanReader) FindTraceIDs(_ context.Context, _ *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+	return []model.TraceID{}, nil
+}
+
+// mockTraceReader implements tracestore.Reader for testing
+type mockTraceReader struct{}
+
+func (m *mockTraceReader) GetTraces(_ context.Context, _ ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
+	return func(yield func([]ptrace.Traces, error) bool) {}
+}
+
+func (m *mockTraceReader) GetServices(_ context.Context) ([]string, error) {
+	return []string{"test-service"}, nil
+}
+
+func (m *mockTraceReader) GetOperations(_ context.Context, _ tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
+	return []tracestore.Operation{}, nil
+}
+
+func (m *mockTraceReader) FindTraces(_ context.Context, _ tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+	return func(yield func([]ptrace.Traces, error) bool) {}
+}
+
+func (m *mockTraceReader) FindTraceIDs(_ context.Context, _ tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
+	return func(yield func([]tracestore.FoundTraceID, error) bool) {}
+}
+
+// mockDepReader implements depstore.Reader for testing
+type mockDepReader struct{}
+
+func (m *mockDepReader) GetDependencies(_ context.Context, _ depstore.QueryParameters) ([]model.DependencyLink, error) {
+	return []model.DependencyLink{}, nil
+}
+
+// mockHost implements component.Host with a jaegerquery extension
+type mockHost struct {
+	component.Host
+	queryExt jaegerquery.Extension
+}
+
+func newMockHost() *mockHost {
+	return &mockHost{
+		Host:     componenttest.NewNopHost(),
+		queryExt: &mockQueryExtension{},
+	}
+}
+
+func (m *mockHost) GetExtensions() map[component.ID]component.Component {
+	return map[component.ID]component.Component{
+		jaegerquery.ID: m.queryExt,
+	}
+}
 
 // startTestServer creates and starts a test server with a random available port.
 // It waits for the server to be ready and registers shutdown via t.Cleanup().
@@ -26,7 +123,7 @@ import (
 func startTestServer(t *testing.T) (*server, string) {
 	t.Helper()
 
-	host := componenttest.NewNopHost()
+	host := newMockHost()
 	telset := componenttest.NewNopTelemetrySettings()
 
 	config := &Config{
@@ -68,7 +165,7 @@ func startTestServer(t *testing.T) (*server, string) {
 func TestServerLifecycle(t *testing.T) {
 	// Since we're not actually accessing storage in Phase 1,
 	// we just need a basic host for the lifecycle test
-	host := componenttest.NewNopHost()
+	host := newMockHost()
 
 	tests := []struct {
 		name          string
@@ -111,7 +208,7 @@ func TestServerLifecycle(t *testing.T) {
 }
 
 func TestServerStartFailsWithInvalidEndpoint(t *testing.T) {
-	host := componenttest.NewNopHost()
+	host := newMockHost()
 	telset := componenttest.NewNopTelemetrySettings()
 
 	// Use an invalid endpoint (e.g., malformed address)
@@ -167,7 +264,7 @@ func TestServerMCPEndpoint(t *testing.T) {
 }
 
 func TestServerShutdownWithError(t *testing.T) {
-	host := componenttest.NewNopHost()
+	host := newMockHost()
 	telset := componenttest.NewNopTelemetrySettings()
 	config := &Config{
 		HTTP: confighttp.ServerConfig{
@@ -203,7 +300,7 @@ func TestServerShutdownWithError(t *testing.T) {
 }
 
 func TestServerShutdownAfterListenerClose(t *testing.T) {
-	host := componenttest.NewNopHost()
+	host := newMockHost()
 	telset := componenttest.NewNopTelemetrySettings()
 	config := &Config{
 		HTTP: confighttp.ServerConfig{
@@ -230,7 +327,7 @@ func TestServerShutdownAfterListenerClose(t *testing.T) {
 }
 
 func TestServerShutdownErrorPath(t *testing.T) {
-	host := componenttest.NewNopHost()
+	host := newMockHost()
 	telset := componenttest.NewNopTelemetrySettings()
 	config := &Config{
 		HTTP: confighttp.ServerConfig{
@@ -257,7 +354,7 @@ func TestServerShutdownErrorPath(t *testing.T) {
 }
 
 func TestServerServeFails(t *testing.T) {
-	host := componenttest.NewNopHost()
+	host := newMockHost()
 	telset := componenttest.NewNopTelemetrySettings()
 
 	// Create a server and start it

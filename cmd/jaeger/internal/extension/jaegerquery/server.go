@@ -22,6 +22,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
@@ -31,13 +32,18 @@ import (
 var (
 	_ extension.Extension             = (*server)(nil)
 	_ extensioncapabilities.Dependent = (*server)(nil)
+	_ Extension                       = (*server)(nil)
 )
 
 type server struct {
-	config      *Config
-	server      *queryapp.Server
-	telset      component.TelemetrySettings
-	closeTracer func(ctx context.Context) error
+	config        *Config
+	server        *queryapp.Server
+	telset        component.TelemetrySettings
+	closeTracer   func(ctx context.Context) error
+	qs            *querysvc.QueryService
+	v1SpanReader  spanstore.Reader
+	v2TraceReader tracestore.Reader
+	depReader     depstore.Reader
 }
 
 func newServer(config *Config, otel component.TelemetrySettings) *server {
@@ -89,6 +95,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	if err != nil {
 		return fmt.Errorf("cannot create trace reader: %w", err)
 	}
+	s.v2TraceReader = traceReader
 
 	df, ok := tf.(depstore.Factory)
 	if !ok {
@@ -98,6 +105,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	if err != nil {
 		return fmt.Errorf("cannot create dependencies reader: %w", err)
 	}
+	s.depReader = depReader
 
 	opts := querysvc.QueryServiceOptions{
 		MaxClockSkewAdjust: s.config.MaxClockSkewAdjust,
@@ -202,4 +210,19 @@ func (s *server) Shutdown(ctx context.Context) error {
 		errs = append(errs, s.closeTracer(ctx))
 	}
 	return errors.Join(errs...)
+}
+
+// V1SpanReader returns the v1 span reader instance.
+func (s *server) V1SpanReader() spanstore.Reader {
+	return s.v1SpanReader
+}
+
+// V2TraceReader returns the v2 trace reader instance.
+func (s *server) V2TraceReader() tracestore.Reader {
+	return s.v2TraceReader
+}
+
+// DependencyReader returns the dependency reader instance.
+func (s *server) DependencyReader() depstore.Reader {
+	return s.depReader
 }
