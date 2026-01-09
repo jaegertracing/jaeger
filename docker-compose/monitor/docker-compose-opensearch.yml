@@ -27,6 +27,8 @@ services:
       - "./jaeger-ui.json:/etc/jaeger/jaeger-ui.json"
       - "../../cmd/jaeger/config-spm-opensearch.yaml:/etc/jaeger/config.yml"
     command: ["--config", "/etc/jaeger/config.yml"]
+    environment:
+      - SPANMETRICS_FLUSH_INTERVAL=${SPANMETRICS_FLUSH_INTERVAL:-60s}
     ports:
       - "16686:16686" # Jaeger UI http://localhost:16686
       - "8888:8888"
