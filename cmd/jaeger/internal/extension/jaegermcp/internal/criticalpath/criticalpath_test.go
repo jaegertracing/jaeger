@@ -76,7 +76,7 @@ func TestComputeCriticalPath_Test1(t *testing.T) {
 	// 4. Span D: 20-40μs (span D execution)
 	// 5. Span C: 1-20μs (before span D starts)
 
-	expected := []CriticalPathSection{
+	expected := []Section{
 		{SpanID: "0000000000000001", SectionStart: 60, SectionEnd: 101},
 		{SpanID: "0000000000000003", SectionStart: 50, SectionEnd: 60},
 		{SpanID: "0000000000000001", SectionStart: 40, SectionEnd: 50},
@@ -84,7 +84,7 @@ func TestComputeCriticalPath_Test1(t *testing.T) {
 		{SpanID: "0000000000000001", SectionStart: 1, SectionEnd: 20},
 	}
 
-	assert.Equal(t, len(expected), len(criticalPath), "Number of critical path sections should match")
+	assert.Len(t, criticalPath, len(expected), "Number of critical path sections should match")
 
 	for i, section := range criticalPath {
 		assert.Equal(t, expected[i].SpanID, section.SpanID, "Section %d: SpanID should match", i)

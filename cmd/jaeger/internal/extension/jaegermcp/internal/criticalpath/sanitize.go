@@ -67,7 +67,8 @@ func sanitizeOverFlowingChildren(spanMap map[pcommon.SpanID]CPSpan) map[pcommon.
 			continue
 		}
 
-		if childEndTime <= parentSpan.StartTime {
+		switch {
+		case childEndTime <= parentSpan.StartTime:
 			// child outside of parent range => drop the child span
 			//                      |----parent----|
 			//       |----child--|
@@ -82,14 +83,14 @@ func sanitizeOverFlowingChildren(spanMap map[pcommon.SpanID]CPSpan) map[pcommon.
 			}
 			parentSpan.ChildSpanIDs = filteredChildren
 			spanMap[parentSpan.SpanID] = parentSpan
-		} else if childEndTime <= parentEndTime {
+		case childEndTime <= parentEndTime:
 			// child start before parent, truncate is needed
 			//      |----parent----|
 			//   |----child--|
 			span.StartTime = parentSpan.StartTime
 			span.Duration = childEndTime - parentSpan.StartTime
 			spanMap[span.SpanID] = span
-		} else {
+		default:
 			// child start before parent and end after parent, truncate is needed
 			//      |----parent----|
 			//  |---------child---------|

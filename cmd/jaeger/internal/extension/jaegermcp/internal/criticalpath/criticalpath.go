@@ -5,14 +5,13 @@ package criticalpath
 
 import (
 	"errors"
-	"fmt"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
-// CriticalPathSection represents a section of the critical path
-type CriticalPathSection struct {
+// Section represents a section of the critical path
+type Section struct {
 	SpanID       string `json:"span_id"`
 	SectionStart uint64 `json:"section_start"` // in microseconds
 	SectionEnd   uint64 `json:"section_end"`   // in microseconds
@@ -45,9 +44,9 @@ type CriticalPathSection struct {
 func computeCriticalPath(
 	spanMap map[pcommon.SpanID]CPSpan,
 	spanID pcommon.SpanID,
-	criticalPath []CriticalPathSection,
+	criticalPath []Section,
 	returningChildStartTime *uint64,
-) []CriticalPathSection {
+) []Section {
 	currentSpan, ok := spanMap[spanID]
 	if !ok {
 		return criticalPath
@@ -55,7 +54,7 @@ func computeCriticalPath(
 
 	lastFinishingChildSpan := findLastFinishingChildSpan(spanMap, currentSpan, returningChildStartTime)
 
-	var spanCriticalSection CriticalPathSection
+	var spanCriticalSection Section
 
 	if lastFinishingChildSpan != nil {
 		// There is a last finishing child
@@ -64,7 +63,7 @@ func computeCriticalPath(
 			endTime = *returningChildStartTime
 		}
 
-		spanCriticalSection = CriticalPathSection{
+		spanCriticalSection = Section{
 			SpanID:       currentSpan.SpanID.String(),
 			SectionStart: lastFinishingChildSpan.StartTime + lastFinishingChildSpan.Duration,
 			SectionEnd:   endTime,
@@ -83,7 +82,7 @@ func computeCriticalPath(
 			endTime = *returningChildStartTime
 		}
 
-		spanCriticalSection = CriticalPathSection{
+		spanCriticalSection = Section{
 			SpanID:       currentSpan.SpanID.String(),
 			SectionStart: currentSpan.StartTime,
 			SectionEnd:   endTime,
@@ -106,7 +105,7 @@ func computeCriticalPath(
 }
 
 // ComputeCriticalPath computes the critical path for a given trace
-func ComputeCriticalPath(traces ptrace.Traces) ([]CriticalPathSection, error) {
+func ComputeCriticalPath(traces ptrace.Traces) ([]Section, error) {
 	// Find the root span (the one with no parent)
 	var rootSpanID pcommon.SpanID
 	found := false
@@ -136,7 +135,7 @@ func ComputeCriticalPath(traces ptrace.Traces) ([]CriticalPathSection, error) {
 		return nil, errors.New("empty trace")
 	}
 
-	var criticalPath []CriticalPathSection
+	var criticalPath []Section
 
 	// Apply the algorithm
 	defer func() {
@@ -150,7 +149,7 @@ func ComputeCriticalPath(traces ptrace.Traces) ([]CriticalPathSection, error) {
 	criticalPath = computeCriticalPath(sanitizedSpanMap, rootSpanID, criticalPath, nil)
 
 	if criticalPath == nil {
-		return nil, fmt.Errorf("error while computing critical path for trace")
+		return nil, errors.New("error while computing critical path for trace")
 	}
 
 	return criticalPath, nil
