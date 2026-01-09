@@ -108,6 +108,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return err
 	}
 	qs := querysvc.NewQueryService(traceReader, depReader, opts)
+	s.qs = qs
 
 	mqs, err := s.createMetricReader(host)
 	if err != nil {

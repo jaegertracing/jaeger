@@ -143,6 +143,54 @@ func TestServerLifecycle(t *testing.T) {
 	}
 }
 
+func TestServerQueryServiceRetrieval(t *testing.T) {
+	// Test that Start method properly retrieves QueryService from jaegerquery extension
+	host := newMockHost()
+	config := &Config{
+		HTTP:                     createDefaultConfig().(*Config).HTTP,
+		ServerName:               "jaeger",
+		ServerVersion:            "1.0.0",
+		MaxSpanDetailsPerRequest: 20,
+		MaxSearchResults:         100,
+	}
+
+	telset := componenttest.NewNopTelemetrySettings()
+	server := newServer(config, telset)
+	require.NotNil(t, server)
+
+	// Test Start - this should retrieve QueryService
+	err := server.Start(context.Background(), host)
+	require.NoError(t, err)
+
+	// Verify queryAPI was set
+	require.NotNil(t, server.queryAPI, "queryAPI should be set after Start")
+
+	// Test Shutdown
+	err = server.Shutdown(context.Background())
+	assert.NoError(t, err)
+}
+
+func TestServerStartFailsWithoutQueryExtension(t *testing.T) {
+	// Test that Start method fails when jaegerquery extension is not available
+	host := componenttest.NewNopHost() // No jaegerquery extension
+	config := &Config{
+		HTTP:                     createDefaultConfig().(*Config).HTTP,
+		ServerName:               "jaeger",
+		ServerVersion:            "1.0.0",
+		MaxSpanDetailsPerRequest: 20,
+		MaxSearchResults:         100,
+	}
+
+	telset := componenttest.NewNopTelemetrySettings()
+	server := newServer(config, telset)
+	require.NotNil(t, server)
+
+	// Test Start - should fail without jaegerquery extension
+	err := server.Start(context.Background(), host)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot find extension")
+}
+
 func TestServerStartFailsWithInvalidEndpoint(t *testing.T) {
 	host := newMockHost()
 	telset := componenttest.NewNopTelemetrySettings()
