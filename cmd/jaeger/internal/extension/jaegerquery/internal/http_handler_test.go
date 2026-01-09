@@ -1176,9 +1176,9 @@ func TestSearchTenancyFlowTenantHTTP(t *testing.T) {
 }
 
 func TestNewAPIHandler_Defaults(t *testing.T) {
-aH := NewAPIHandler(&querysvc.QueryService{})
-assert.NotNil(t, aH.logger)
-assert.NotNil(t, aH.tracer)
+	aH := NewAPIHandler(&querysvc.QueryService{})
+	assert.NotNil(t, aH.logger)
+	assert.NotNil(t, aH.tracer)
 }
 
 func TestTracesByIDs_EmptyIDs(t *testing.T) {
