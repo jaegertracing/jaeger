@@ -18,7 +18,7 @@ type Config struct {
 	ServerName string `mapstructure:"server_name"`
 
 	// ServerVersion is the version of the MCP server.
-	ServerVersion string `mapstructure:"server_version"`
+	ServerVersion string `mapstructure:"server_version" valid:"required"`
 
 	// MaxSpanDetailsPerRequest limits the number of spans that can be fetched in a single request.
 	MaxSpanDetailsPerRequest int `mapstructure:"max_span_details_per_request" valid:"range(1|100)"`
@@ -29,6 +29,9 @@ type Config struct {
 
 // Validate checks if the configuration is valid.
 func (cfg *Config) Validate() error {
+	// if cfg.ServerVersion == "" {
+	// 	cfg.ServerVersion = version.Get().GitVersion
+	// }
 	_, err := govalidator.ValidateStruct(cfg)
 	return err
 }
