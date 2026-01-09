@@ -23,7 +23,7 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	app "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
