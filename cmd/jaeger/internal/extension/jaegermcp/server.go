@@ -49,7 +49,7 @@ func (*server) Dependencies() []component.ID {
 }
 
 // Start initializes and starts the MCP server.
-func (s *server) Start(_ context.Context, host component.Host) error {
+func (s *server) Start(ctx context.Context, host component.Host) error {
 	s.telset.Logger.Info("Starting Jaeger MCP server", zap.String("endpoint", s.config.HTTP.Endpoint))
 
 	// TODO Phase 2 (part 2): Get QueryService from jaegerquery extension
@@ -74,8 +74,9 @@ func (s *server) Start(_ context.Context, host component.Host) error {
 		Description: "Check if the Jaeger MCP server is running",
 	}, s.healthTool)
 
-	// Set up TCP listener
-	listener, err := net.Listen("tcp", s.config.HTTP.Endpoint)
+	// Set up TCP listener with context
+	lc := net.ListenConfig{}
+	listener, err := lc.Listen(ctx, "tcp", s.config.HTTP.Endpoint)
 	if err != nil {
 		return fmt.Errorf("failed to listen on %s: %w", s.config.HTTP.Endpoint, err)
 	}
