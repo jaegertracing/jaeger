@@ -16,8 +16,7 @@ import (
 	"go.uber.org/zap"
 
 	queryapp "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc"
-	v2querysvc "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/internal/jtracer"
 	"github.com/jaegertracing/jaeger/internal/metrics"
@@ -25,7 +24,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
@@ -104,14 +102,10 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	opts := querysvc.QueryServiceOptions{
 		MaxClockSkewAdjust: s.config.MaxClockSkewAdjust,
 	}
-	v2opts := v2querysvc.QueryServiceOptions{
-		MaxClockSkewAdjust: s.config.MaxClockSkewAdjust,
-	}
-	if err := s.addArchiveStorage(&opts, &v2opts, host); err != nil {
+	if err := s.addArchiveStorage(&opts, host); err != nil {
 		return err
 	}
 	qs := querysvc.NewQueryService(traceReader, depReader, opts)
-	v2qs := v2querysvc.NewQueryService(traceReader, depReader, v2opts)
 
 	mqs, err := s.createMetricReader(host)
 	if err != nil {
@@ -124,7 +118,6 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		ctx,
 		// TODO propagate healthcheck updates up to the collector's runtime
 		qs,
-		v2qs,
 		mqs,
 		&s.config.QueryOptions,
 		tm,
@@ -144,7 +137,6 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 
 func (s *server) addArchiveStorage(
 	opts *querysvc.QueryServiceOptions,
-	v2opts *v2querysvc.QueryServiceOptions,
 	host component.Host,
 ) error {
 	if s.config.Storage.TracesArchive == "" {
@@ -162,14 +154,8 @@ func (s *server) addArchiveStorage(
 		return nil
 	}
 
-	v2opts.ArchiveTraceReader = traceReader
-	v2opts.ArchiveTraceWriter = traceWriter
-
-	spanReader := v1adapter.GetV1Reader(traceReader)
-	spanWriter := v1adapter.GetV1Writer(traceWriter)
-
-	opts.ArchiveSpanReader = spanReader
-	opts.ArchiveSpanWriter = spanWriter
+	opts.ArchiveTraceReader = traceReader
+	opts.ArchiveTraceWriter = traceWriter
 
 	return nil
 }

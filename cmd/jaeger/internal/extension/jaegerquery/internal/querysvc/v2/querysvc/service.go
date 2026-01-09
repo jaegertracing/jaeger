@@ -15,6 +15,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/adjuster"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -137,13 +138,17 @@ func (qs QueryService) ArchiveTrace(ctx context.Context, query tracestore.GetTra
 	getTracesIter := qs.GetTraces(
 		ctx, GetTraceParams{TraceIDs: []tracestore.GetTraceParams{query}},
 	)
-	var archiveErr error
+	var (
+		found      bool
+		archiveErr error
+	)
 	getTracesIter(func(traces []ptrace.Traces, err error) bool {
 		if err != nil {
 			archiveErr = err
 			return false
 		}
 		for _, trace := range traces {
+			found = true
 			err = qs.options.ArchiveTraceWriter.WriteTraces(ctx, trace)
 			if err != nil {
 				archiveErr = errors.Join(archiveErr, err)
@@ -151,6 +156,9 @@ func (qs QueryService) ArchiveTrace(ctx context.Context, query tracestore.GetTra
 		}
 		return true
 	})
+	if archiveErr == nil && !found {
+		return spanstore.ErrTraceNotFound
+	}
 	return archiveErr
 }
 
