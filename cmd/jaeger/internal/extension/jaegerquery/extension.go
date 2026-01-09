@@ -9,7 +9,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 
-	v2querysvc "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 )
 
 // Extension is the interface that the jaegerquery extension implements.
@@ -17,7 +17,7 @@ import (
 type Extension interface {
 	extension.Extension
 	// QueryService returns the v2 query service.
-	QueryService() *v2querysvc.QueryService
+	QueryService() *querysvc.QueryService
 }
 
 // GetExtension retrieves the jaegerquery extension from the host.

@@ -13,7 +13,7 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/extension"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 )
 
 // mockExtension implements Extension for testing

@@ -22,7 +22,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
@@ -36,14 +35,11 @@ var (
 )
 
 type server struct {
-	config        *Config
-	server        *queryapp.Server
-	telset        component.TelemetrySettings
-	closeTracer   func(ctx context.Context) error
-	qs            *querysvc.QueryService
-	v1SpanReader  spanstore.Reader
-	v2TraceReader tracestore.Reader
-	depReader     depstore.Reader
+	config      *Config
+	server      *queryapp.Server
+	telset      component.TelemetrySettings
+	closeTracer func(ctx context.Context) error
+	qs          *querysvc.QueryService
 }
 
 func newServer(config *Config, otel component.TelemetrySettings) *server {
