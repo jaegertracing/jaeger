@@ -603,10 +603,8 @@ func TestConvertAttributeValue(t *testing.T) {
 			expected: []byte{1, 2, 3},
 		},
 		{
-			name: "empty value",
-			setup: func() pcommon.Value {
-				return pcommon.NewValueEmpty()
-			},
+			name:     "empty value",
+			setup:    pcommon.NewValueEmpty,
 			expected: nil,
 		},
 	}
