@@ -95,12 +95,20 @@ func TestGetTagFromStatusMsg(t *testing.T) {
 	}, got)
 }
 
-func Test_resourceToJaegerProtoProcess_WhenOnlyServiceNameIsPresent(t *testing.T) {
+func Test_resourceToDbProcess_WhenOnlyServiceNameIsPresent(t *testing.T) {
 	traces := ptrace.NewTraces()
 	spans := traces.ResourceSpans().AppendEmpty()
 	spans.Resource().Attributes().PutStr(otelsemconv.ServiceNameKey, "service")
 	process := resourceToDbProcess(spans.Resource())
 	assert.Equal(t, "service", process.ServiceName)
+}
+
+func Test_resourceToDbProcess_DefaultServiceName(t *testing.T) {
+	traces := ptrace.NewTraces()
+	spans := traces.ResourceSpans().AppendEmpty()
+	spans.Resource().Attributes().PutStr("some attribute", "some value")
+	process := resourceToDbProcess(spans.Resource())
+	assert.Equal(t, noServiceName, process.ServiceName)
 }
 
 func TestGetTagFromSpanKind(t *testing.T) {
@@ -314,9 +322,9 @@ func TestEdgeCases(t *testing.T) {
 			expected:    true,
 			testFunc: func(traces ptrace.Traces) any {
 				dbSpans := ToDBModel(traces)
-				return dbSpans == nil
+				return len(dbSpans) == 0
 			},
-			description: "Traces with no resource spans should return nil",
+			description: "Traces with no resource spans should return empty slice",
 		},
 	}
 

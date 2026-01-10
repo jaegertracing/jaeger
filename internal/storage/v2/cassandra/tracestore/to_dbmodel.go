@@ -76,8 +76,8 @@ func resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans) []dbmodel.Span {
 func resourceToDbProcess(resource pcommon.Resource) dbmodel.Process {
 	process := dbmodel.Process{}
 	attrs := resource.Attributes()
+	process.ServiceName = noServiceName
 	if attrs.Len() == 0 {
-		process.ServiceName = noServiceName
 		return process
 	}
 	tags := make([]dbmodel.KeyValue, 0, attrs.Len())

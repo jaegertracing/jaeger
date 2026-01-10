@@ -465,7 +465,6 @@ func TestFromDbModel_Fixtures(t *testing.T) {
 	err := json.Unmarshal(batchStr, &batch)
 	require.NoError(t, err)
 	td := FromDBModel([]dbmodel.Span{batch})
-	require.NoError(t, err)
 	testTraces(t, tracesStr, td)
 	batches := ToDBModel(td)
 	assert.Len(t, batches, 1)
