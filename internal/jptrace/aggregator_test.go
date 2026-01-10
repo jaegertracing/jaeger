@@ -134,3 +134,33 @@ func TestAggregateTraces_RespectsEarlyReturn(t *testing.T) {
 
 	require.Equal(t, trace1, lastResult)
 }
+
+func TestAggregateTraces_HandlesEmptyTraces(t *testing.T) {
+	emptyTrace := ptrace.NewTraces() // No resource spans
+
+	traceWithNoSpans := ptrace.NewTraces()
+	traceWithNoSpans.ResourceSpans().AppendEmpty() // Has resource spans but no scope spans
+
+	traceWithNoSpans2 := ptrace.NewTraces()
+	rs := traceWithNoSpans2.ResourceSpans().AppendEmpty()
+	rs.ScopeSpans().AppendEmpty() // Has scope spans but no spans
+
+	trace1 := ptrace.NewTraces()
+	rs1 := trace1.ResourceSpans().AppendEmpty()
+	ss1 := rs1.ScopeSpans().AppendEmpty()
+	span1 := ss1.Spans().AppendEmpty()
+	span1.SetTraceID(pcommon.TraceID([16]byte{1}))
+
+	tracesSeq := func(yield func([]ptrace.Traces, error) bool) {
+		yield([]ptrace.Traces{emptyTrace, traceWithNoSpans, traceWithNoSpans2, trace1}, nil)
+	}
+
+	var result []ptrace.Traces
+	AggregateTraces(tracesSeq)(func(trace ptrace.Traces, _ error) bool {
+		result = append(result, trace)
+		return true
+	})
+
+	require.Len(t, result, 1)
+	require.Equal(t, trace1, result[0])
+}

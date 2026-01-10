@@ -35,6 +35,7 @@ func TestNewFactory_NonEmptyAuthenticator(t *testing.T) {
 func TestNewFactory(t *testing.T) {
 	lis, err := net.Listen("tcp", ":0")
 	require.NoError(t, err, "failed to listen")
+	t.Cleanup(func() { require.NoError(t, lis.Close()) })
 
 	cfg := Config{
 		ClientConfig: configgrpc.ClientConfig{
@@ -58,9 +59,11 @@ func TestNewFactory(t *testing.T) {
 func TestNewFactory_WriteEndpointOverride(t *testing.T) {
 	readListener, err := net.Listen("tcp", ":0")
 	require.NoError(t, err, "failed to listen")
+	t.Cleanup(func() { require.NoError(t, readListener.Close()) })
 
 	writeListener, err := net.Listen("tcp", ":0")
 	require.NoError(t, err, "failed to listen")
+	t.Cleanup(func() { require.NoError(t, writeListener.Close()) })
 
 	cfg := Config{
 		ClientConfig: configgrpc.ClientConfig{

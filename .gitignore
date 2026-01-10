@@ -25,6 +25,8 @@ cmd/agent/agent
 cmd/agent/agent-*
 cmd/anonymizer/anonymizer
 cmd/anonymizer/anonymizer-*
+cmd/jaeger/jaeger
+cmd/jaeger/jaeger-*
 cmd/jaeger/internal/integration/results
 cmd/remote-storage/remote-storage
 cmd/remote-storage/remote-storage-*

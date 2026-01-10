@@ -9,13 +9,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 func Test_getUniqueOperationNames(t *testing.T) {
 	assert.Equal(t, []string(nil), getUniqueOperationNames(nil))
 
-	operations := []spanstore.Operation{
+	operations := []tracestore.Operation{
 		{Name: "operation1", SpanKind: "server"},
 		{Name: "operation1", SpanKind: "client"},
 		{Name: "operation2"},
