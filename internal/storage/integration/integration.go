@@ -560,33 +560,6 @@ func correctTimeForTraces(trace ptrace.Traces) {
 	}
 }
 
-type dateOffsetNormalizer struct {
-	year, day int
-	month     time.Month
-}
-
-func newDateOffsetNormalizer(dayOffset int) dateOffsetNormalizer {
-	now := time.Now().UTC()
-	d := dateOffsetNormalizer{}
-	d.year, d.month, d.day = now.AddDate(0, 0, dayOffset).Date()
-	return d
-}
-
-func (d dateOffsetNormalizer) normalize(t pcommon.Timestamp) pcommon.Timestamp {
-	tm := t.AsTime()
-	newTm := time.Date(
-		d.year,
-		d.month,
-		d.day,
-		tm.Hour(),
-		tm.Minute(),
-		tm.Second(),
-		tm.Nanosecond(),
-		tm.Location(),
-	)
-	return pcommon.NewTimestampFromTime(newTm)
-}
-
 // required, because we want to only query on recent traces, so we replace all the dates with recent dates.
 func correctTime(jsonData []byte) []byte {
 	jsonString := string(jsonData)
