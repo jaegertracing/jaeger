@@ -25,20 +25,26 @@ type queryServiceGetTracesInterface interface {
 	GetTraces(ctx context.Context, params querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error]
 }
 
-// GetSpanDetailsHandler implements the get_span_details MCP tool.
-type GetSpanDetailsHandler struct {
+// getSpanDetailsHandler implements the get_span_details MCP tool.
+// This tool fetches full OTLP details (attributes, events, links, status) for specific spans
+// within a trace, allowing deep inspection of individual span data for debugging and analysis.
+// Based on ADR 002 Phase 2 Step 5.
+type getSpanDetailsHandler struct {
 	queryService queryServiceGetTracesInterface
 }
 
-// NewGetSpanDetailsHandler creates a new get_span_details handler.
-func NewGetSpanDetailsHandler(queryService *querysvc.QueryService) *GetSpanDetailsHandler {
-	return &GetSpanDetailsHandler{
+// NewGetSpanDetailsHandler creates a new get_span_details handler and returns the handler function.
+func NewGetSpanDetailsHandler(
+	queryService *querysvc.QueryService,
+) mcp.ToolHandlerFor[types.GetSpanDetailsInput, types.GetSpanDetailsOutput] {
+	h := &getSpanDetailsHandler{
 		queryService: queryService,
 	}
+	return h.handle
 }
 
-// Handle processes the get_span_details tool request.
-func (h *GetSpanDetailsHandler) Handle(
+// handle processes the get_span_details tool request.
+func (h *getSpanDetailsHandler) handle(
 	ctx context.Context,
 	_ *mcp.CallToolRequest,
 	input types.GetSpanDetailsInput,
@@ -52,24 +58,16 @@ func (h *GetSpanDetailsHandler) Handle(
 		return nil, types.GetSpanDetailsOutput{}, errors.New("span_ids is required and must not be empty")
 	}
 
-	// Parse trace ID
-	traceID, err := parseTraceID(input.TraceID)
+	// Build query parameters
+	params, err := h.buildQuery(input)
 	if err != nil {
-		return nil, types.GetSpanDetailsOutput{}, fmt.Errorf("invalid trace_id: %w", err)
+		return nil, types.GetSpanDetailsOutput{}, err
 	}
 
 	// Create span ID set for efficient lookup
 	spanIDSet := make(map[string]struct{}, len(input.SpanIDs))
 	for _, spanID := range input.SpanIDs {
 		spanIDSet[spanID] = struct{}{}
-	}
-
-	// Fetch trace
-	params := querysvc.GetTraceParams{
-		TraceIDs: []tracestore.GetTraceParams{
-			{TraceID: traceID},
-		},
-		RawTraces: false, // We want adjusted traces
 	}
 
 	tracesIter := h.queryService.GetTraces(ctx, params)
@@ -125,6 +123,21 @@ func (h *GetSpanDetailsHandler) Handle(
 	}
 
 	return nil, output, nil
+}
+
+// buildQuery converts GetSpanDetailsInput to querysvc.GetTraceParams.
+func (h *getSpanDetailsHandler) buildQuery(input types.GetSpanDetailsInput) (querysvc.GetTraceParams, error) {
+	traceID, err := parseTraceID(input.TraceID)
+	if err != nil {
+		return querysvc.GetTraceParams{}, fmt.Errorf("invalid trace_id: %w", err)
+	}
+
+	return querysvc.GetTraceParams{
+		TraceIDs: []tracestore.GetTraceParams{
+			{TraceID: traceID},
+		},
+		RawTraces: false, // We want adjusted traces
+	}, nil
 }
 
 // buildSpanDetail constructs a SpanDetail from a ptrace.Span.

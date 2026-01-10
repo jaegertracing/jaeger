@@ -57,13 +57,13 @@ func TestGetTraceErrorsHandler_Handle_Success(t *testing.T) {
 		},
 	}
 
-	handler := &GetTraceErrorsHandler{queryService: mock}
+	handler := &getTraceErrorsHandler{queryService: mock}
 
 	input := types.GetTraceErrorsInput{
 		TraceID: traceID,
 	}
 
-	_, output, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
 	assert.Equal(t, traceID, output.TraceID)
@@ -112,13 +112,13 @@ func TestGetTraceErrorsHandler_Handle_NoErrors(t *testing.T) {
 		},
 	}
 
-	handler := &GetTraceErrorsHandler{queryService: mock}
+	handler := &getTraceErrorsHandler{queryService: mock}
 
 	input := types.GetTraceErrorsInput{
 		TraceID: traceID,
 	}
 
-	_, output, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
 	assert.Equal(t, traceID, output.TraceID)
@@ -153,13 +153,13 @@ func TestGetTraceErrorsHandler_Handle_SingleError(t *testing.T) {
 		},
 	}
 
-	handler := &GetTraceErrorsHandler{queryService: mock}
+	handler := &getTraceErrorsHandler{queryService: mock}
 
 	input := types.GetTraceErrorsInput{
 		TraceID: traceID,
 	}
 
-	_, output, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
 	assert.Equal(t, traceID, output.TraceID)
@@ -177,7 +177,7 @@ func TestGetTraceErrorsHandler_Handle_MissingTraceID(t *testing.T) {
 		TraceID: "",
 	}
 
-	_, _, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "trace_id is required")
@@ -190,7 +190,7 @@ func TestGetTraceErrorsHandler_Handle_InvalidTraceID(t *testing.T) {
 		TraceID: "invalid-trace-id",
 	}
 
-	_, _, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid trace_id")
@@ -205,13 +205,13 @@ func TestGetTraceErrorsHandler_Handle_TraceNotFound(t *testing.T) {
 		},
 	}
 
-	handler := &GetTraceErrorsHandler{queryService: mock}
+	handler := &getTraceErrorsHandler{queryService: mock}
 
 	input := types.GetTraceErrorsInput{
 		TraceID: "12345678901234567890123456789012",
 	}
 
-	_, _, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "trace not found")
@@ -227,13 +227,13 @@ func TestGetTraceErrorsHandler_Handle_QueryError(t *testing.T) {
 		},
 	}
 
-	handler := &GetTraceErrorsHandler{queryService: mock}
+	handler := &getTraceErrorsHandler{queryService: mock}
 
 	input := types.GetTraceErrorsInput{
 		TraceID: "12345678901234567890123456789012",
 	}
 
-	_, _, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	// Should return an error directly
 	require.Error(t, err)
@@ -262,13 +262,13 @@ func TestGetTraceErrorsHandler_Handle_MultipleIterations(t *testing.T) {
 		},
 	}
 
-	handler := &GetTraceErrorsHandler{queryService: mock}
+	handler := &getTraceErrorsHandler{queryService: mock}
 
 	input := types.GetTraceErrorsInput{
 		TraceID: traceID,
 	}
 
-	_, output, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	// Should succeed and return both error spans
 	require.NoError(t, err)
@@ -310,13 +310,13 @@ func TestGetTraceErrorsHandler_Handle_AllSpansHaveErrors(t *testing.T) {
 		},
 	}
 
-	handler := &GetTraceErrorsHandler{queryService: mock}
+	handler := &getTraceErrorsHandler{queryService: mock}
 
 	input := types.GetTraceErrorsInput{
 		TraceID: traceID,
 	}
 
-	_, output, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
 	assert.Equal(t, traceID, output.TraceID)
@@ -357,13 +357,13 @@ func TestGetTraceErrorsHandler_Handle_ErrorSpanAttributes(t *testing.T) {
 		},
 	}
 
-	handler := &GetTraceErrorsHandler{queryService: mock}
+	handler := &getTraceErrorsHandler{queryService: mock}
 
 	input := types.GetTraceErrorsInput{
 		TraceID: traceID,
 	}
 
-	_, output, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
 	assert.Len(t, output.Spans, 1)
@@ -405,13 +405,13 @@ func TestGetTraceErrorsHandler_Handle_ErrorSpanWithEvents(t *testing.T) {
 		},
 	}
 
-	handler := &GetTraceErrorsHandler{queryService: mock}
+	handler := &getTraceErrorsHandler{queryService: mock}
 
 	input := types.GetTraceErrorsInput{
 		TraceID: traceID,
 	}
 
-	_, output, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
 	assert.Len(t, output.Spans, 1)

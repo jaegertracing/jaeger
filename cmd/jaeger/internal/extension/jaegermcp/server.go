@@ -146,21 +146,21 @@ func (s *server) registerTools() {
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "search_traces",
 		Description: "Find traces matching service, time, attributes, and duration criteria. Returns trace summary only.",
-	}, searchTracesHandler.Handle)
+	}, searchTracesHandler)
 
 	// Get span details tool
 	getSpanDetailsHandler := handlers.NewGetSpanDetailsHandler(s.queryAPI)
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_span_details",
 		Description: "Fetch full details (attributes, events, links, status) for specific spans.",
-	}, getSpanDetailsHandler.Handle)
+	}, getSpanDetailsHandler)
 
 	// Get trace errors tool
 	getTraceErrorsHandler := handlers.NewGetTraceErrorsHandler(s.queryAPI)
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_trace_errors",
 		Description: "Get full details for all spans with error status.",
-	}, getTraceErrorsHandler.Handle)
+	}, getTraceErrorsHandler)
 }
 
 // HealthToolOutput is the strongly-typed output for the health tool.

@@ -71,7 +71,7 @@ func TestSearchTracesHandler_Handle_Success(t *testing.T) {
 	testTrace := createTestTrace("trace123", "frontend", "/api/checkout", false)
 
 	// Test buildTraceSummary directly
-	summary := buildTraceSummary(testTrace, false)
+	summary := buildTraceSummary(testTrace)
 
 	assert.Equal(t, "frontend", summary.RootService)
 	assert.Equal(t, "/api/checkout", summary.RootOperation)
@@ -83,7 +83,7 @@ func TestSearchTracesHandler_Handle_Success(t *testing.T) {
 func TestSearchTracesHandler_BuildSummary_WithErrors(t *testing.T) {
 	testTrace := createTestTrace("trace456", "payment", "/process", true)
 
-	summary := buildTraceSummary(testTrace, false)
+	summary := buildTraceSummary(testTrace)
 
 	assert.Equal(t, "payment", summary.RootService)
 	assert.Equal(t, "/process", summary.RootOperation)
@@ -105,7 +105,7 @@ func TestSearchTracesHandler_Handle_FullWorkflow(t *testing.T) {
 		},
 	}
 
-	handler := &SearchTracesHandler{queryService: mock}
+	handler := &searchTracesHandler{queryService: mock}
 
 	input := types.SearchTracesInput{
 		StartTimeMin:  "-1h",
@@ -113,7 +113,7 @@ func TestSearchTracesHandler_Handle_FullWorkflow(t *testing.T) {
 		OperationName: "/get-cart",
 	}
 
-	_, output, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
 	require.Len(t, output.Traces, 1)
@@ -132,7 +132,7 @@ func TestSearchTracesHandler_Handle_WithStartTimeMax(t *testing.T) {
 		},
 	}
 
-	handler := &SearchTracesHandler{queryService: mock}
+	handler := &searchTracesHandler{queryService: mock}
 
 	input := types.SearchTracesInput{
 		StartTimeMin: "-2h",
@@ -140,7 +140,7 @@ func TestSearchTracesHandler_Handle_WithStartTimeMax(t *testing.T) {
 		ServiceName:  "test-service",
 	}
 
-	_, output, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
 	require.Len(t, output.Traces, 1)
@@ -159,7 +159,7 @@ func TestSearchTracesHandler_Handle_WithDurations(t *testing.T) {
 		},
 	}
 
-	handler := &SearchTracesHandler{queryService: mock}
+	handler := &searchTracesHandler{queryService: mock}
 
 	input := types.SearchTracesInput{
 		StartTimeMin: "-1h",
@@ -168,7 +168,7 @@ func TestSearchTracesHandler_Handle_WithDurations(t *testing.T) {
 		DurationMax:  "10s",
 	}
 
-	_, output, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
 	require.Len(t, output.Traces, 1)
@@ -189,7 +189,7 @@ func TestSearchTracesHandler_Handle_WithAttributes(t *testing.T) {
 		},
 	}
 
-	handler := &SearchTracesHandler{queryService: mock}
+	handler := &searchTracesHandler{queryService: mock}
 
 	input := types.SearchTracesInput{
 		StartTimeMin: "-1h",
@@ -199,7 +199,7 @@ func TestSearchTracesHandler_Handle_WithAttributes(t *testing.T) {
 		},
 	}
 
-	_, output, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
 	require.Len(t, output.Traces, 1)
@@ -207,17 +207,22 @@ func TestSearchTracesHandler_Handle_WithAttributes(t *testing.T) {
 
 func TestSearchTracesHandler_Handle_WithErrorsFilter(t *testing.T) {
 	errorTrace := createTestTrace("trace666", "error-service", "/error", true)
-	okTrace := createTestTrace("trace555", "error-service", "/ok", false)
 
 	mock := &mockQueryService{
-		findTracesFunc: func(_ context.Context, _ querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+		findTracesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+			// Verify that error attribute filter is added
+			val, ok := query.Attributes.Get("error")
+			assert.True(t, ok)
+			assert.Equal(t, "true", val.Str())
+
 			return func(yield func([]ptrace.Traces, error) bool) {
-				yield([]ptrace.Traces{errorTrace, okTrace}, nil)
+				// Return only error traces (simulating storage filtering)
+				yield([]ptrace.Traces{errorTrace}, nil)
 			}
 		},
 	}
 
-	handler := &SearchTracesHandler{queryService: mock}
+	handler := &searchTracesHandler{queryService: mock}
 
 	input := types.SearchTracesInput{
 		StartTimeMin: "-1h",
@@ -225,7 +230,7 @@ func TestSearchTracesHandler_Handle_WithErrorsFilter(t *testing.T) {
 		WithErrors:   true,
 	}
 
-	_, output, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
 	// Only error trace should be returned
@@ -245,7 +250,7 @@ func TestSearchTracesHandler_Handle_SearchDepthDefault(t *testing.T) {
 		},
 	}
 
-	handler := &SearchTracesHandler{queryService: mock}
+	handler := &searchTracesHandler{queryService: mock}
 
 	input := types.SearchTracesInput{
 		StartTimeMin: "-1h",
@@ -253,7 +258,7 @@ func TestSearchTracesHandler_Handle_SearchDepthDefault(t *testing.T) {
 		SearchDepth:  0, // Should use default
 	}
 
-	_, _, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 	require.NoError(t, err)
 }
 
@@ -269,7 +274,7 @@ func TestSearchTracesHandler_Handle_SearchDepthMax(t *testing.T) {
 		},
 	}
 
-	handler := &SearchTracesHandler{queryService: mock}
+	handler := &searchTracesHandler{queryService: mock}
 
 	input := types.SearchTracesInput{
 		StartTimeMin: "-1h",
@@ -277,7 +282,7 @@ func TestSearchTracesHandler_Handle_SearchDepthMax(t *testing.T) {
 		SearchDepth:  200, // Should be capped at 100
 	}
 
-	_, _, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 	require.NoError(t, err)
 }
 
@@ -295,14 +300,14 @@ func TestSearchTracesHandler_Handle_QueryError(t *testing.T) {
 		},
 	}
 
-	handler := &SearchTracesHandler{queryService: mock}
+	handler := &searchTracesHandler{queryService: mock}
 
 	input := types.SearchTracesInput{
 		StartTimeMin: "-1h",
 		ServiceName:  "test",
 	}
 
-	_, output, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	// Should not return an error - instead returns partial results with Error field
 	require.NoError(t, err)
@@ -332,14 +337,14 @@ func TestSearchTracesHandler_Handle_PartialResults(t *testing.T) {
 		},
 	}
 
-	handler := &SearchTracesHandler{queryService: mock}
+	handler := &searchTracesHandler{queryService: mock}
 
 	input := types.SearchTracesInput{
 		StartTimeMin: "-1h",
 		ServiceName:  "test",
 	}
 
-	_, output, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	// Should not return an error - instead returns partial results with Error field
 	require.NoError(t, err)
@@ -358,7 +363,7 @@ func TestSearchTracesHandler_Handle_MissingServiceName(t *testing.T) {
 		// Missing ServiceName
 	}
 
-	_, _, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "service_name is required")
@@ -372,7 +377,7 @@ func TestSearchTracesHandler_Handle_InvalidTimeFormat(t *testing.T) {
 		ServiceName:  "test",
 	}
 
-	_, _, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid start_time_min")
@@ -387,7 +392,7 @@ func TestSearchTracesHandler_Handle_InvalidStartTimeMax(t *testing.T) {
 		ServiceName:  "test",
 	}
 
-	_, _, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid start_time_max")
@@ -402,7 +407,7 @@ func TestSearchTracesHandler_Handle_InvalidDurationMin(t *testing.T) {
 		DurationMin:  "invalid-duration",
 	}
 
-	_, _, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid duration_min")
@@ -417,7 +422,7 @@ func TestSearchTracesHandler_Handle_InvalidDurationMax(t *testing.T) {
 		DurationMax:  "invalid-duration",
 	}
 
-	_, _, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid duration_max")
@@ -433,7 +438,7 @@ func TestSearchTracesHandler_Handle_DurationMaxLessThanMin(t *testing.T) {
 		DurationMax:  "5s",
 	}
 
-	_, _, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "duration_max must be greater than duration_min")

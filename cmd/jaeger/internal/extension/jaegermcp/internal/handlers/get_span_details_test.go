@@ -179,14 +179,14 @@ func TestGetSpanDetailsHandler_Handle_Success(t *testing.T) {
 		},
 	}
 
-	handler := &GetSpanDetailsHandler{queryService: mock}
+	handler := &getSpanDetailsHandler{queryService: mock}
 
 	input := types.GetSpanDetailsInput{
 		TraceID: traceID,
 		SpanIDs: []string{spanIDToHex(spanID1), spanIDToHex(spanID2)},
 	}
 
-	_, output, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
 	assert.Equal(t, traceID, output.TraceID)
@@ -241,14 +241,14 @@ func TestGetSpanDetailsHandler_Handle_SingleSpan(t *testing.T) {
 		},
 	}
 
-	handler := &GetSpanDetailsHandler{queryService: mock}
+	handler := &getSpanDetailsHandler{queryService: mock}
 
 	input := types.GetSpanDetailsInput{
 		TraceID: traceID,
 		SpanIDs: []string{spanIDToHex(spanID)},
 	}
 
-	_, output, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
 	assert.Equal(t, traceID, output.TraceID)
@@ -275,14 +275,14 @@ func TestGetSpanDetailsHandler_Handle_FiltersBySpanIDs(t *testing.T) {
 		},
 	}
 
-	handler := &GetSpanDetailsHandler{queryService: mock}
+	handler := &getSpanDetailsHandler{queryService: mock}
 
 	input := types.GetSpanDetailsInput{
 		TraceID: traceID,
 		SpanIDs: []string{spanIDToHex("span001"), spanIDToHex("span003")}, // Only request span001 and span003
 	}
 
-	_, output, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
 	assert.Len(t, output.Spans, 2)
@@ -304,7 +304,7 @@ func TestGetSpanDetailsHandler_Handle_MissingTraceID(t *testing.T) {
 		SpanIDs: []string{spanIDToHex("span001")},
 	}
 
-	_, _, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "trace_id is required")
@@ -318,7 +318,7 @@ func TestGetSpanDetailsHandler_Handle_MissingSpanIDs(t *testing.T) {
 		SpanIDs: []string{},
 	}
 
-	_, _, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "span_ids is required")
@@ -332,7 +332,7 @@ func TestGetSpanDetailsHandler_Handle_InvalidTraceID(t *testing.T) {
 		SpanIDs: []string{spanIDToHex("span001")},
 	}
 
-	_, _, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid trace_id")
@@ -347,14 +347,14 @@ func TestGetSpanDetailsHandler_Handle_TraceNotFound(t *testing.T) {
 		},
 	}
 
-	handler := &GetSpanDetailsHandler{queryService: mock}
+	handler := &getSpanDetailsHandler{queryService: mock}
 
 	input := types.GetSpanDetailsInput{
 		TraceID: "12345678901234567890123456789012",
 		SpanIDs: []string{spanIDToHex("span001")},
 	}
 
-	_, _, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "trace not found")
@@ -370,14 +370,14 @@ func TestGetSpanDetailsHandler_Handle_QueryError(t *testing.T) {
 		},
 	}
 
-	handler := &GetSpanDetailsHandler{queryService: mock}
+	handler := &getSpanDetailsHandler{queryService: mock}
 
 	input := types.GetSpanDetailsInput{
 		TraceID: "12345678901234567890123456789012",
 		SpanIDs: []string{spanIDToHex("span001")},
 	}
 
-	_, _, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	// Should return an error directly
 	require.Error(t, err)
@@ -405,14 +405,14 @@ func TestGetSpanDetailsHandler_Handle_PartialResults(t *testing.T) {
 		},
 	}
 
-	handler := &GetSpanDetailsHandler{queryService: mock}
+	handler := &getSpanDetailsHandler{queryService: mock}
 
 	input := types.GetSpanDetailsInput{
 		TraceID: traceID,
 		SpanIDs: []string{spanIDToHex(spanID1)},
 	}
 
-	_, _, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	// Should return an error directly
 	require.Error(t, err)
@@ -443,14 +443,14 @@ func TestGetSpanDetailsHandler_Handle_MultipleIterations(t *testing.T) {
 		},
 	}
 
-	handler := &GetSpanDetailsHandler{queryService: mock}
+	handler := &getSpanDetailsHandler{queryService: mock}
 
 	input := types.GetSpanDetailsInput{
 		TraceID: traceID,
 		SpanIDs: []string{spanIDToHex(spanID1), spanIDToHex(spanID2)},
 	}
 
-	_, output, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	// Should succeed and return both spans
 	require.NoError(t, err)
@@ -484,14 +484,14 @@ func TestGetSpanDetailsHandler_Handle_WithParentSpanID(t *testing.T) {
 		},
 	}
 
-	handler := &GetSpanDetailsHandler{queryService: mock}
+	handler := &getSpanDetailsHandler{queryService: mock}
 
 	input := types.GetSpanDetailsInput{
 		TraceID: traceID,
 		SpanIDs: []string{spanIDToHex(childSpanID)},
 	}
 
-	_, output, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
 	assert.Len(t, output.Spans, 1)
@@ -515,14 +515,14 @@ func TestGetSpanDetailsHandler_Handle_NoMatchingSpans(t *testing.T) {
 		},
 	}
 
-	handler := &GetSpanDetailsHandler{queryService: mock}
+	handler := &getSpanDetailsHandler{queryService: mock}
 
 	input := types.GetSpanDetailsInput{
 		TraceID: traceID,
 		SpanIDs: []string{spanIDToHex("nonexistent_span")}, // Request a span that doesn't exist
 	}
 
-	_, output, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
 	assert.Empty(t, output.Spans) // No spans should be returned

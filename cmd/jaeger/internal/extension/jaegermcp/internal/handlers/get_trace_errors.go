@@ -17,20 +17,26 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-// GetTraceErrorsHandler implements the get_trace_errors MCP tool.
-type GetTraceErrorsHandler struct {
+// getTraceErrorsHandler implements the get_trace_errors MCP tool.
+// This tool retrieves all spans with error status from a specific trace, returning full
+// OTLP span details including attributes, events, and links for error analysis.
+// Based on ADR 002 Phase 2 Step 6.
+type getTraceErrorsHandler struct {
 	queryService queryServiceGetTracesInterface
 }
 
-// NewGetTraceErrorsHandler creates a new get_trace_errors handler.
-func NewGetTraceErrorsHandler(queryService *querysvc.QueryService) *GetTraceErrorsHandler {
-	return &GetTraceErrorsHandler{
+// NewGetTraceErrorsHandler creates a new get_trace_errors handler and returns the handler function.
+func NewGetTraceErrorsHandler(
+	queryService *querysvc.QueryService,
+) mcp.ToolHandlerFor[types.GetTraceErrorsInput, types.GetTraceErrorsOutput] {
+	h := &getTraceErrorsHandler{
 		queryService: queryService,
 	}
+	return h.handle
 }
 
-// Handle processes the get_trace_errors tool request.
-func (h *GetTraceErrorsHandler) Handle(
+// handle processes the get_trace_errors tool request.
+func (h *getTraceErrorsHandler) handle(
 	ctx context.Context,
 	_ *mcp.CallToolRequest,
 	input types.GetTraceErrorsInput,
@@ -40,18 +46,10 @@ func (h *GetTraceErrorsHandler) Handle(
 		return nil, types.GetTraceErrorsOutput{}, errors.New("trace_id is required")
 	}
 
-	// Parse trace ID
-	traceID, err := parseTraceID(input.TraceID)
+	// Build query parameters
+	params, err := h.buildQuery(input)
 	if err != nil {
-		return nil, types.GetTraceErrorsOutput{}, fmt.Errorf("invalid trace_id: %w", err)
-	}
-
-	// Fetch trace
-	params := querysvc.GetTraceParams{
-		TraceIDs: []tracestore.GetTraceParams{
-			{TraceID: traceID},
-		},
-		RawTraces: false, // We want adjusted traces
+		return nil, types.GetTraceErrorsOutput{}, err
 	}
 
 	tracesIter := h.queryService.GetTraces(ctx, params)
@@ -103,4 +101,19 @@ func (h *GetTraceErrorsHandler) Handle(
 	}
 
 	return nil, output, nil
+}
+
+// buildQuery converts GetTraceErrorsInput to querysvc.GetTraceParams.
+func (h *getTraceErrorsHandler) buildQuery(input types.GetTraceErrorsInput) (querysvc.GetTraceParams, error) {
+	traceID, err := parseTraceID(input.TraceID)
+	if err != nil {
+		return querysvc.GetTraceParams{}, fmt.Errorf("invalid trace_id: %w", err)
+	}
+
+	return querysvc.GetTraceParams{
+		TraceIDs: []tracestore.GetTraceParams{
+			{TraceID: traceID},
+		},
+		RawTraces: false, // We want adjusted traces
+	}, nil
 }

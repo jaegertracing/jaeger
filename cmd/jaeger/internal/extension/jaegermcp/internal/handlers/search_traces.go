@@ -31,26 +31,32 @@ type queryServiceInterface interface {
 	FindTraces(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error]
 }
 
-// SearchTracesHandler implements the search_traces MCP tool.
-type SearchTracesHandler struct {
+// searchTracesHandler implements the search_traces MCP tool.
+// This tool searches for traces matching service, time, attributes, and duration criteria.
+// It returns trace summaries (metadata only) without full span details, optimized for
+// browsing and filtering large result sets. Based on ADR 002 Phase 2 Step 4.
+type searchTracesHandler struct {
 	queryService queryServiceInterface
 }
 
-// NewSearchTracesHandler creates a new search_traces handler.
-func NewSearchTracesHandler(queryService *querysvc.QueryService) *SearchTracesHandler {
-	return &SearchTracesHandler{
+// NewSearchTracesHandler creates a new search_traces handler and returns the handler function.
+func NewSearchTracesHandler(
+	queryService *querysvc.QueryService,
+) mcp.ToolHandlerFor[types.SearchTracesInput, types.SearchTracesOutput] {
+	h := &searchTracesHandler{
 		queryService: queryService,
 	}
+	return h.handle
 }
 
-// Handle processes the search_traces tool request.
-func (h *SearchTracesHandler) Handle(
+// handle processes the search_traces tool request.
+func (h *searchTracesHandler) handle(
 	ctx context.Context,
 	_ *mcp.CallToolRequest,
 	input types.SearchTracesInput,
 ) (*mcp.CallToolResult, types.SearchTracesOutput, error) {
 	// Build trace query parameters
-	query, err := buildTraceQueryParams(input)
+	query, err := h.buildQuery(input)
 	if err != nil {
 		return nil, types.SearchTracesOutput{}, err
 	}
@@ -73,13 +79,7 @@ func (h *SearchTracesHandler) Handle(
 			return true
 		}
 
-		summary := buildTraceSummary(trace, input.WithErrors)
-
-		// Filter by error status if requested
-		if input.WithErrors && !summary.HasErrors {
-			return true
-		}
-
+		summary := buildTraceSummary(trace)
 		summaries = append(summaries, summary)
 		return true
 	})
@@ -94,8 +94,8 @@ func (h *SearchTracesHandler) Handle(
 	return nil, output, nil
 }
 
-// buildTraceQueryParams converts SearchTracesInput to querysvc.TraceQueryParams.
-func buildTraceQueryParams(input types.SearchTracesInput) (querysvc.TraceQueryParams, error) {
+// buildQuery converts SearchTracesInput to querysvc.TraceQueryParams.
+func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysvc.TraceQueryParams, error) {
 	// Parse and validate input
 	startTimeMin, err := parseTimeParam(input.StartTimeMin)
 	if err != nil {
@@ -151,6 +151,11 @@ func buildTraceQueryParams(input types.SearchTracesInput) (querysvc.TraceQueryPa
 		attributes.PutStr(key, value)
 	}
 
+	// If WithErrors is requested, add error attribute filter
+	if input.WithErrors {
+		attributes.PutStr("error", "true")
+	}
+
 	return querysvc.TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
 			ServiceName:   input.ServiceName,
@@ -167,7 +172,7 @@ func buildTraceQueryParams(input types.SearchTracesInput) (querysvc.TraceQueryPa
 }
 
 // buildTraceSummary constructs a TraceSummary from ptrace.Traces.
-func buildTraceSummary(trace ptrace.Traces, _ bool) types.TraceSummary {
+func buildTraceSummary(trace ptrace.Traces) types.TraceSummary {
 	var summary types.TraceSummary
 	var rootSpan ptrace.Span
 	var rootServiceName string
@@ -214,10 +219,10 @@ func buildTraceSummary(trace ptrace.Traces, _ bool) types.TraceSummary {
 		return true
 	})
 
-	// Calculate duration in microseconds
-	var durationUs int64
+	// Calculate duration
+	var duration time.Duration
 	if !minStartTime.IsZero() && !maxEndTime.IsZero() {
-		durationUs = maxEndTime.Sub(minStartTime).Microseconds()
+		duration = maxEndTime.Sub(minStartTime)
 	}
 
 	// Extract root span information
@@ -229,7 +234,7 @@ func buildTraceSummary(trace ptrace.Traces, _ bool) types.TraceSummary {
 	// Build summary
 	summary.TraceID = traceID.String()
 	summary.StartTime = minStartTime.Format(time.RFC3339)
-	summary.DurationUs = durationUs
+	summary.DurationUs = duration.Microseconds()
 	summary.SpanCount = spanCount
 	summary.ServiceCount = len(services)
 	summary.HasErrors = hasErrors
