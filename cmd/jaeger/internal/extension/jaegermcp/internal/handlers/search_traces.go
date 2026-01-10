@@ -69,12 +69,12 @@ func (h *searchTracesHandler) handle(
 
 	// Process results
 	var summaries []types.TraceSummary
-	var processErr error
+	var processErrs []error
 
 	for trace, err := range aggregatedIter {
 		if err != nil {
 			// Store error but continue processing to return partial results
-			processErr = err
+			processErrs = append(processErrs, err)
 			continue
 		}
 
@@ -84,9 +84,9 @@ func (h *searchTracesHandler) handle(
 
 	output := types.SearchTracesOutput{Traces: summaries}
 
-	// If we encountered an error during processing, include it in the output
-	if processErr != nil {
-		output.Error = fmt.Sprintf("partial results returned due to error: %v", processErr)
+	// If we encountered errors during processing, include them in the output
+	if len(processErrs) > 0 {
+		output.Error = fmt.Sprintf("partial results returned due to error: %v", errors.Join(processErrs...))
 	}
 
 	return nil, output, nil

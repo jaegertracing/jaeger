@@ -593,6 +593,22 @@ func TestConvertAttributeValue(t *testing.T) {
 				"key2": int64(123),
 			},
 		},
+		{
+			name: "bytes value",
+			setup: func() pcommon.Value {
+				v := pcommon.NewValueBytes()
+				v.Bytes().FromRaw([]byte{1, 2, 3})
+				return v
+			},
+			expected: []byte{1, 2, 3},
+		},
+		{
+			name: "empty value",
+			setup: func() pcommon.Value {
+				return pcommon.NewValueEmpty()
+			},
+			expected: nil,
+		},
 	}
 
 	for _, tt := range tests {
@@ -616,8 +632,13 @@ func TestParseTraceID(t *testing.T) {
 			wantError: false,
 		},
 		{
-			name:      "invalid trace ID",
+			name:      "invalid trace ID - wrong length",
 			input:     "invalid",
+			wantError: true,
+		},
+		{
+			name:      "invalid trace ID - non-hex characters",
+			input:     "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ",
 			wantError: true,
 		},
 		{

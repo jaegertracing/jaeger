@@ -5,6 +5,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"iter"
@@ -48,16 +49,7 @@ func (h *getSpanDetailsHandler) handle(
 	_ *mcp.CallToolRequest,
 	input types.GetSpanDetailsInput,
 ) (*mcp.CallToolResult, types.GetSpanDetailsOutput, error) {
-	// Validate input
-	if input.TraceID == "" {
-		return nil, types.GetSpanDetailsOutput{}, errors.New("trace_id is required")
-	}
-
-	if len(input.SpanIDs) == 0 {
-		return nil, types.GetSpanDetailsOutput{}, errors.New("span_ids is required and must not be empty")
-	}
-
-	// Build query parameters
+	// Build query parameters (includes validation)
 	params, err := h.buildQuery(input)
 	if err != nil {
 		return nil, types.GetSpanDetailsOutput{}, err
@@ -76,14 +68,12 @@ func (h *getSpanDetailsHandler) handle(
 
 	// Collect spans matching the requested span IDs
 	var spanDetails []types.SpanDetail
-	var processErr error
 	traceFound := false
 
 	for trace, err := range aggregatedIter {
 		if err != nil {
-			// For singular lookups, store error and break
-			processErr = err
-			break
+			// For singular lookups, return error directly
+			return nil, types.GetSpanDetailsOutput{}, fmt.Errorf("failed to get trace: %w", err)
 		}
 
 		traceFound = true
@@ -103,11 +93,6 @@ func (h *getSpanDetailsHandler) handle(
 		}
 	}
 
-	// If we encountered an error, return it directly
-	if processErr != nil {
-		return nil, types.GetSpanDetailsOutput{}, fmt.Errorf("failed to get trace: %w", processErr)
-	}
-
 	if !traceFound {
 		return nil, types.GetSpanDetailsOutput{}, errors.New("trace not found")
 	}
@@ -122,6 +107,15 @@ func (h *getSpanDetailsHandler) handle(
 
 // buildQuery converts GetSpanDetailsInput to querysvc.GetTraceParams.
 func (*getSpanDetailsHandler) buildQuery(input types.GetSpanDetailsInput) (querysvc.GetTraceParams, error) {
+	// Validate input
+	if input.TraceID == "" {
+		return querysvc.GetTraceParams{}, errors.New("trace_id is required")
+	}
+
+	if len(input.SpanIDs) == 0 {
+		return querysvc.GetTraceParams{}, errors.New("span_ids is required and must not be empty")
+	}
+
 	traceID, err := parseTraceID(input.TraceID)
 	if err != nil {
 		return querysvc.GetTraceParams{}, fmt.Errorf("invalid trace_id: %w", err)
@@ -150,38 +144,25 @@ func buildSpanDetail(pos jptrace.SpanIterPos, span ptrace.Span) types.SpanDetail
 	}
 
 	// Convert attributes
-	attributes := make(map[string]any)
-	for k, v := range span.Attributes().All() {
-		attributes[k] = convertAttributeValue(v)
-	}
+	attributes := attributesToMap(span.Attributes())
 
 	// Convert events
 	var events []types.SpanEvent
 	for _, event := range span.Events().All() {
-		eventAttrs := make(map[string]any)
-		for k, v := range event.Attributes().All() {
-			eventAttrs[k] = convertAttributeValue(v)
-		}
-
 		events = append(events, types.SpanEvent{
 			Name:       event.Name(),
 			Timestamp:  event.Timestamp().AsTime().Format(time.RFC3339Nano),
-			Attributes: eventAttrs,
+			Attributes: attributesToMap(event.Attributes()),
 		})
 	}
 
 	// Convert links
 	var links []types.SpanLink
 	for _, link := range span.Links().All() {
-		linkAttrs := make(map[string]any)
-		for k, v := range link.Attributes().All() {
-			linkAttrs[k] = convertAttributeValue(v)
-		}
-
 		links = append(links, types.SpanLink{
 			TraceID:    link.TraceID().String(),
 			SpanID:     link.SpanID().String(),
-			Attributes: linkAttrs,
+			Attributes: attributesToMap(link.Attributes()),
 		})
 	}
 
@@ -207,6 +188,15 @@ func buildSpanDetail(pos jptrace.SpanIterPos, span ptrace.Span) types.SpanDetail
 		Events:       events,
 		Links:        links,
 	}
+}
+
+// attributesToMap converts pcommon.Map attributes to a Go map[string]any.
+func attributesToMap(attrs pcommon.Map) map[string]any {
+	result := make(map[string]any)
+	for k, v := range attrs.All() {
+		result[k] = convertAttributeValue(v)
+	}
+	return result
 }
 
 // convertAttributeValue converts a pcommon.Value to a Go any type.
@@ -243,21 +233,17 @@ func convertAttributeValue(v pcommon.Value) any {
 
 // parseTraceID parses a trace ID string into a pcommon.TraceID.
 func parseTraceID(traceIDStr string) (pcommon.TraceID, error) {
-	var traceID pcommon.TraceID
 	// Parse hex string - TraceID is 16 bytes (32 hex characters)
 	if len(traceIDStr) != 32 {
 		return pcommon.TraceID{}, fmt.Errorf("trace ID must be 32 hex characters, got %d", len(traceIDStr))
 	}
 
-	// Convert hex string to bytes
-	for i := 0; i < 16; i++ {
-		var b byte
-		_, err := fmt.Sscanf(traceIDStr[i*2:i*2+2], "%02x", &b)
-		if err != nil {
-			return pcommon.TraceID{}, fmt.Errorf("invalid hex character at position %d: %w", i*2, err)
-		}
-		traceID[i] = b
+	var traceID pcommon.TraceID
+	bytes, err := hex.DecodeString(traceIDStr)
+	if err != nil {
+		return pcommon.TraceID{}, fmt.Errorf("invalid hex string: %w", err)
 	}
 
+	copy(traceID[:], bytes)
 	return traceID, nil
 }
