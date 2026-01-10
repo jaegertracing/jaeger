@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"strings"
 	"time"
 
@@ -25,9 +26,14 @@ const (
 	maxSearchLimit     = 100
 )
 
+// queryServiceInterface defines the interface we need from QueryService for testing
+type queryServiceInterface interface {
+	FindTraces(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error]
+}
+
 // SearchTracesHandler implements the search_traces MCP tool.
 type SearchTracesHandler struct {
-	queryService *querysvc.QueryService
+	queryService queryServiceInterface
 }
 
 // NewSearchTracesHandler creates a new search_traces handler.
@@ -83,13 +89,13 @@ func (h *SearchTracesHandler) Handle(
 		return nil, types.SearchTracesOutput{}, errors.New("duration_max must be greater than duration_min")
 	}
 
-	// Set default and max limits
-	limit := input.Limit
-	if limit <= 0 {
-		limit = defaultSearchLimit
+	// Set default and max search depth
+	searchDepth := input.SearchDepth
+	if searchDepth <= 0 {
+		searchDepth = defaultSearchLimit
 	}
-	if limit > maxSearchLimit {
-		limit = maxSearchLimit
+	if searchDepth > maxSearchLimit {
+		searchDepth = maxSearchLimit
 	}
 
 	// Convert attributes map to pcommon.Map
@@ -108,7 +114,7 @@ func (h *SearchTracesHandler) Handle(
 			StartTimeMax:  startTimeMax,
 			DurationMin:   durationMin,
 			DurationMax:   durationMax,
-			SearchDepth:   limit,
+			SearchDepth:   searchDepth,
 		},
 		RawTraces: false, // We want adjusted traces
 	}

@@ -32,8 +32,11 @@ type SearchTracesInput struct {
 	// DurationMax is the maximum duration filter (optional).
 	DurationMax string `json:"duration_max,omitempty" jsonschema:"Maximum duration filter (e.g. 10s 1m)"`
 
-	// Limit is the maximum number of results to return (default: 10, max: 100).
-	Limit int `json:"limit,omitempty" jsonschema:"Maximum number of results to return (default: 10 max: 100)"`
+	// SearchDepth defines the maximum search depth. Depending on the backend storage implementation,
+	// this may behave like an SQL LIMIT clause. However, some implementations might not support
+	// precise limits, and a larger value generally results in more traces being returned.
+	// Default: 10, max: 100.
+	SearchDepth int `json:"search_depth,omitempty" jsonschema:"Maximum search depth (default: 10 max: 100)"`
 }
 
 // SearchTracesOutput defines the output of the search_traces MCP tool.

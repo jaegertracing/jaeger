@@ -78,11 +78,10 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		Description: "Check if the Jaeger MCP server is running",
 	}, s.healthTool)
 
-	// Register search_traces tool (Phase 2 Step 4)
 	searchTracesHandler := handlers.NewSearchTracesHandler(s.queryAPI)
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "search_traces",
-		Description: "Find traces matching service, time, attributes, and duration criteria. Returns metadata only.",
+		Description: "Find traces matching service, time, attributes, and duration criteria. Returns trace summary only.",
 	}, searchTracesHandler.Handle)
 
 	// Set up TCP listener with context
