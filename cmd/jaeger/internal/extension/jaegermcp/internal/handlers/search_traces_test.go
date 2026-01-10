@@ -79,13 +79,7 @@ func TestSearchTracesHandler_Handle_FullWorkflow(t *testing.T) {
 func TestSearchTracesHandler_Handle_WithStartTimeMax(t *testing.T) {
 	testTrace := createTestTrace("trace999", "test-service", "/test", false)
 
-	mock := &mockQueryService{
-		findTracesFunc: func(_ context.Context, _ querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
-			return func(yield func([]ptrace.Traces, error) bool) {
-				yield([]ptrace.Traces{testTrace}, nil)
-			}
-		},
-	}
+	mock := newMockFindTraces(testTrace)
 
 	handler := &searchTracesHandler{queryService: mock}
 

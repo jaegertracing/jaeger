@@ -22,7 +22,7 @@ import (
 // Helper types and functions are defined in test_helpers.go
 
 func TestGetSpanDetailsHandler_Handle_Success(t *testing.T) {
-	traceID := "12345678901234567890123456789012"
+	traceID := testTraceID
 	spanID1 := "span001"
 	spanID2 := "span002"
 
@@ -101,7 +101,7 @@ func TestGetSpanDetailsHandler_Handle_Success(t *testing.T) {
 }
 
 func TestGetSpanDetailsHandler_Handle_SingleSpan(t *testing.T) {
-	traceID := "12345678901234567890123456789012"
+	traceID := testTraceID
 	spanID := "span001"
 
 	spanConfigs := []spanConfig{
@@ -131,7 +131,7 @@ func TestGetSpanDetailsHandler_Handle_SingleSpan(t *testing.T) {
 }
 
 func TestGetSpanDetailsHandler_Handle_FiltersBySpanIDs(t *testing.T) {
-	traceID := "12345678901234567890123456789012"
+	traceID := testTraceID
 
 	spanConfigs := []spanConfig{
 		{spanID: "span001", operation: "/api/test1"},
@@ -182,7 +182,7 @@ func TestGetSpanDetailsHandler_Handle_MissingSpanIDs(t *testing.T) {
 	handler := NewGetSpanDetailsHandler(nil)
 
 	input := types.GetSpanDetailsInput{
-		TraceID: "12345678901234567890123456789012",
+		TraceID: testTraceID,
 		SpanIDs: []string{},
 	}
 
@@ -212,7 +212,7 @@ func TestGetSpanDetailsHandler_Handle_TraceNotFound(t *testing.T) {
 	handler := &getSpanDetailsHandler{queryService: mock}
 
 	input := types.GetSpanDetailsInput{
-		TraceID: "12345678901234567890123456789012",
+		TraceID: testTraceID,
 		SpanIDs: []string{spanIDToHex("span001")},
 	}
 
@@ -228,7 +228,7 @@ func TestGetSpanDetailsHandler_Handle_QueryError(t *testing.T) {
 	handler := &getSpanDetailsHandler{queryService: mock}
 
 	input := types.GetSpanDetailsInput{
-		TraceID: "12345678901234567890123456789012",
+		TraceID: testTraceID,
 		SpanIDs: []string{spanIDToHex("span001")},
 	}
 
@@ -241,7 +241,7 @@ func TestGetSpanDetailsHandler_Handle_QueryError(t *testing.T) {
 }
 
 func TestGetSpanDetailsHandler_Handle_PartialResults(t *testing.T) {
-	traceID := "12345678901234567890123456789012"
+	traceID := testTraceID
 	spanID1 := "span001"
 
 	// Create trace with one span
@@ -278,7 +278,7 @@ func TestGetSpanDetailsHandler_Handle_PartialResults(t *testing.T) {
 }
 
 func TestGetSpanDetailsHandler_Handle_MultipleIterations(t *testing.T) {
-	traceID := "12345678901234567890123456789012"
+	traceID := testTraceID
 	spanID1 := "span001"
 	spanID2 := "span002"
 
@@ -315,7 +315,7 @@ func TestGetSpanDetailsHandler_Handle_MultipleIterations(t *testing.T) {
 }
 
 func TestGetSpanDetailsHandler_Handle_WithParentSpanID(t *testing.T) {
-	traceID := "12345678901234567890123456789012"
+	traceID := testTraceID
 	parentSpanID := "parent001"
 	childSpanID := "child001"
 
@@ -350,7 +350,7 @@ func TestGetSpanDetailsHandler_Handle_WithParentSpanID(t *testing.T) {
 }
 
 func TestGetSpanDetailsHandler_Handle_NoMatchingSpans(t *testing.T) {
-	traceID := "12345678901234567890123456789012"
+	traceID := testTraceID
 
 	spanConfigs := []spanConfig{
 		{spanID: "span001", operation: "/api/test"},

@@ -19,7 +19,7 @@ import (
 )
 
 func TestGetTraceErrorsHandler_Handle_Success(t *testing.T) {
-	traceID := "12345678901234567890123456789012"
+	traceID := testTraceID
 
 	spanConfigs := []spanConfig{
 		{
@@ -81,7 +81,7 @@ func TestGetTraceErrorsHandler_Handle_Success(t *testing.T) {
 }
 
 func TestGetTraceErrorsHandler_Handle_NoErrors(t *testing.T) {
-	traceID := "12345678901234567890123456789012"
+	traceID := testTraceID
 
 	spanConfigs := []spanConfig{
 		{
@@ -115,7 +115,7 @@ func TestGetTraceErrorsHandler_Handle_NoErrors(t *testing.T) {
 }
 
 func TestGetTraceErrorsHandler_Handle_SingleError(t *testing.T) {
-	traceID := "12345678901234567890123456789012"
+	traceID := testTraceID
 
 	spanConfigs := []spanConfig{
 		{
@@ -184,7 +184,7 @@ func TestGetTraceErrorsHandler_Handle_TraceNotFound(t *testing.T) {
 	handler := &getTraceErrorsHandler{queryService: mock}
 
 	input := types.GetTraceErrorsInput{
-		TraceID: "12345678901234567890123456789012",
+		TraceID: testTraceID,
 	}
 
 	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
@@ -199,7 +199,7 @@ func TestGetTraceErrorsHandler_Handle_QueryError(t *testing.T) {
 	handler := &getTraceErrorsHandler{queryService: mock}
 
 	input := types.GetTraceErrorsInput{
-		TraceID: "12345678901234567890123456789012",
+		TraceID: testTraceID,
 	}
 
 	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
@@ -210,7 +210,7 @@ func TestGetTraceErrorsHandler_Handle_QueryError(t *testing.T) {
 }
 
 func TestGetTraceErrorsHandler_Handle_MultipleIterations(t *testing.T) {
-	traceID := "12345678901234567890123456789012"
+	traceID := testTraceID
 
 	// Create traces with error spans that will be merged
 	testTrace1 := createTestTraceWithSpans(traceID, []spanConfig{
@@ -245,7 +245,7 @@ func TestGetTraceErrorsHandler_Handle_MultipleIterations(t *testing.T) {
 }
 
 func TestGetTraceErrorsHandler_Handle_AllSpansHaveErrors(t *testing.T) {
-	traceID := "12345678901234567890123456789012"
+	traceID := testTraceID
 
 	spanConfigs := []spanConfig{
 		{
@@ -293,7 +293,7 @@ func TestGetTraceErrorsHandler_Handle_AllSpansHaveErrors(t *testing.T) {
 }
 
 func TestGetTraceErrorsHandler_Handle_ErrorSpanAttributes(t *testing.T) {
-	traceID := "12345678901234567890123456789012"
+	traceID := testTraceID
 
 	spanConfigs := []spanConfig{
 		{
@@ -331,7 +331,7 @@ func TestGetTraceErrorsHandler_Handle_ErrorSpanAttributes(t *testing.T) {
 }
 
 func TestGetTraceErrorsHandler_Handle_ErrorSpanWithEvents(t *testing.T) {
-	traceID := "12345678901234567890123456789012"
+	traceID := testTraceID
 
 	spanConfigs := []spanConfig{
 		{
