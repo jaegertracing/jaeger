@@ -17,8 +17,9 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/adjuster"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/adjuster"
 	"github.com/jaegertracing/jaeger/internal/jiter"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -231,6 +232,119 @@ func TestGetTraces_TraceInArchiveStorage(t *testing.T) {
 	require.EqualValues(t, [8]byte{1}, gotSpans.At(0).SpanID())
 	require.Equal(t, testTraceID, gotSpans.At(1).TraceID())
 	require.EqualValues(t, [8]byte{2}, gotSpans.At(1).SpanID())
+}
+
+func TestGetTraces_SplitTraceInArchiveStorage(t *testing.T) {
+	tqs := initializeTestService(withArchiveTraceReader())
+
+	params := GetTraceParams{
+		TraceIDs: []tracestore.GetTraceParams{{TraceID: testTraceID}},
+	}
+
+	// Primary reader returns no traces
+	tqs.traceReader.On("GetTraces", mock.Anything, params.TraceIDs).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{}, nil)
+		})).Once()
+
+	// Archive reader returns the trace split across two chunks
+	tqs.archiveTraceReader.On("GetTraces", mock.Anything, params.TraceIDs).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			// First chunk with span 1
+			traceChunk1 := ptrace.NewTraces()
+			resources1 := traceChunk1.ResourceSpans().AppendEmpty()
+			scopes1 := resources1.ScopeSpans().AppendEmpty()
+			span1 := scopes1.Spans().AppendEmpty()
+			span1.SetTraceID(testTraceID)
+			span1.SetSpanID(pcommon.SpanID([8]byte{1}))
+			span1.SetName("span1")
+
+			// Second chunk with span 2 (same trace ID)
+			traceChunk2 := ptrace.NewTraces()
+			resources2 := traceChunk2.ResourceSpans().AppendEmpty()
+			scopes2 := resources2.ScopeSpans().AppendEmpty()
+			span2 := scopes2.Spans().AppendEmpty()
+			span2.SetTraceID(testTraceID)
+			span2.SetSpanID(pcommon.SpanID([8]byte{2}))
+			span2.SetName("span2")
+
+			// Yield both chunks in the same batch
+			yield([]ptrace.Traces{traceChunk1, traceChunk2}, nil)
+		})).Once()
+
+	getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
+	gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
+	require.NoError(t, err)
+	require.Len(t, gotTraces, 1, "expected one aggregated trace")
+
+	// Verify the trace was properly aggregated
+	require.Equal(t, 2, gotTraces[0].ResourceSpans().Len(), "expected 2 resource spans after aggregation")
+
+	gotSpan1 := gotTraces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+	require.Equal(t, testTraceID, gotSpan1.TraceID())
+	require.EqualValues(t, [8]byte{1}, gotSpan1.SpanID())
+	require.Equal(t, "span1", gotSpan1.Name())
+
+	gotSpan2 := gotTraces[0].ResourceSpans().At(1).ScopeSpans().At(0).Spans().At(0)
+	require.Equal(t, testTraceID, gotSpan2.TraceID())
+	require.EqualValues(t, [8]byte{2}, gotSpan2.SpanID())
+	require.Equal(t, "span2", gotSpan2.Name())
+}
+
+func TestGetTraces_SplitTraceInArchiveStorageWithRawTraces(t *testing.T) {
+	tqs := initializeTestService(withArchiveTraceReader())
+
+	params := GetTraceParams{
+		TraceIDs:  []tracestore.GetTraceParams{{TraceID: testTraceID}},
+		RawTraces: true, // Request raw traces without aggregation
+	}
+
+	// Primary reader returns no traces
+	tqs.traceReader.On("GetTraces", mock.Anything, params.TraceIDs).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{}, nil)
+		})).Once()
+
+	// Archive reader returns the trace split across two chunks
+	tqs.archiveTraceReader.On("GetTraces", mock.Anything, params.TraceIDs).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			// First chunk with span 1
+			traceChunk1 := ptrace.NewTraces()
+			resources1 := traceChunk1.ResourceSpans().AppendEmpty()
+			scopes1 := resources1.ScopeSpans().AppendEmpty()
+			span1 := scopes1.Spans().AppendEmpty()
+			span1.SetTraceID(testTraceID)
+			span1.SetSpanID(pcommon.SpanID([8]byte{1}))
+			span1.SetName("span1")
+
+			// Second chunk with span 2 (same trace ID)
+			traceChunk2 := ptrace.NewTraces()
+			resources2 := traceChunk2.ResourceSpans().AppendEmpty()
+			scopes2 := resources2.ScopeSpans().AppendEmpty()
+			span2 := scopes2.Spans().AppendEmpty()
+			span2.SetTraceID(testTraceID)
+			span2.SetSpanID(pcommon.SpanID([8]byte{2}))
+			span2.SetName("span2")
+
+			// Yield both chunks in the same batch
+			yield([]ptrace.Traces{traceChunk1, traceChunk2}, nil)
+		})).Once()
+
+	getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
+	gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
+	require.NoError(t, err)
+	require.Len(t, gotTraces, 2, "expected two separate trace chunks with RawTraces=true")
+
+	// Verify chunks are NOT aggregated when RawTraces is true
+	gotSpan1 := gotTraces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+	require.Equal(t, testTraceID, gotSpan1.TraceID())
+	require.EqualValues(t, [8]byte{1}, gotSpan1.SpanID())
+	require.Equal(t, "span1", gotSpan1.Name())
+
+	gotSpan2 := gotTraces[1].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+	require.Equal(t, testTraceID, gotSpan2.TraceID())
+	require.EqualValues(t, [8]byte{2}, gotSpan2.SpanID())
+	require.Equal(t, "span2", gotSpan2.Name())
 }
 
 func TestGetServices(t *testing.T) {
@@ -557,6 +671,18 @@ func TestArchiveTrace(t *testing.T) {
 					Return(nil).Once()
 			},
 			expectedError: nil,
+		},
+		{
+			name:    "trace not found",
+			options: []testOption{withArchiveTraceWriter()},
+			setupMocks: func(tqs *testQueryService) {
+				responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+					yield([]ptrace.Traces{}, nil)
+				})
+				tqs.traceReader.On("GetTraces", mock.Anything, paramsTraceIDs).
+					Return(responseIter).Once()
+			},
+			expectedError: spanstore.ErrTraceNotFound,
 		},
 	}
 

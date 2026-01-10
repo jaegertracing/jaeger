@@ -24,12 +24,15 @@ func AggregateTraces(tracesSeq iter.Seq2[[]ptrace.Traces, error]) iter.Seq2[ptra
 				return false
 			}
 			for _, trace := range traces {
+				if trace.SpanCount() == 0 {
+					continue
+				}
 				resources := trace.ResourceSpans()
 				traceID := resources.At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 				if currentTraceID == traceID {
 					mergeTraces(trace, currentTrace)
 				} else {
-					if currentTrace.ResourceSpans().Len() > 0 {
+					if currentTrace.SpanCount() > 0 {
 						if !yield(currentTrace, nil) {
 							return false
 						}
@@ -40,7 +43,7 @@ func AggregateTraces(tracesSeq iter.Seq2[[]ptrace.Traces, error]) iter.Seq2[ptra
 			}
 			return true
 		})
-		if currentTrace.ResourceSpans().Len() > 0 {
+		if currentTrace.SpanCount() > 0 {
 			yield(currentTrace, nil)
 		}
 	}
