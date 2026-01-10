@@ -84,6 +84,18 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		Description: "Find traces matching service, time, attributes, and duration criteria. Returns trace summary only.",
 	}, searchTracesHandler.Handle)
 
+	getSpanDetailsHandler := handlers.NewGetSpanDetailsHandler(s.queryAPI)
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "get_span_details",
+		Description: "Fetch full details (attributes, events, links, status) for specific spans.",
+	}, getSpanDetailsHandler.Handle)
+
+	getTraceErrorsHandler := handlers.NewGetTraceErrorsHandler(s.queryAPI)
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "get_trace_errors",
+		Description: "Get full details for all spans with error status.",
+	}, getTraceErrorsHandler.Handle)
+
 	// Set up TCP listener with context
 	lc := net.ListenConfig{}
 	listener, err := lc.Listen(ctx, "tcp", s.config.HTTP.Endpoint)
