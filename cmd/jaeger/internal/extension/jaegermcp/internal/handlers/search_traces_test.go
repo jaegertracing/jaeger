@@ -314,6 +314,44 @@ func TestSearchTracesHandler_Handle_QueryError(t *testing.T) {
 	assert.Contains(t, output.Error, "database connection failed")
 }
 
+func TestSearchTracesHandler_Handle_PartialResults(t *testing.T) {
+	// Create test traces
+	testTrace1 := createTestTrace("trace001", "test-service", "/api/test1", false)
+	testTrace2 := createTestTrace("trace002", "test-service", "/api/test2", false)
+	testTrace3 := createTestTrace("trace003", "test-service", "/api/test3", false)
+
+	mock := &mockQueryService{
+		findTracesFunc: func(_ context.Context, _ querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+			return func(yield func([]ptrace.Traces, error) bool) {
+				// Yield first batch successfully
+				yield([]ptrace.Traces{testTrace1}, nil)
+				// Yield error in the middle
+				yield(nil, errors.New("temporary failure"))
+				// Yield remaining batches successfully
+				yield([]ptrace.Traces{testTrace2}, nil)
+				yield([]ptrace.Traces{testTrace3}, nil)
+			}
+		},
+	}
+
+	handler := &SearchTracesHandler{queryService: mock}
+
+	input := types.SearchTracesInput{
+		StartTimeMin: "-1h",
+		ServiceName:  "test",
+	}
+
+	_, output, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	// Should not return an error - instead returns partial results with Error field
+	require.NoError(t, err)
+	// Should have all 3 traces since we continue processing after error
+	assert.Len(t, output.Traces, 3)
+	assert.NotEmpty(t, output.Error)
+	assert.Contains(t, output.Error, "partial results")
+	assert.Contains(t, output.Error, "temporary failure")
+}
+
 func TestSearchTracesHandler_Handle_MissingServiceName(t *testing.T) {
 	handler := NewSearchTracesHandler(nil)
 

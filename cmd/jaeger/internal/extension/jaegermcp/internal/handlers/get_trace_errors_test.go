@@ -258,6 +258,52 @@ func TestGetTraceErrorsHandler_Handle_QueryError(t *testing.T) {
 	assert.Contains(t, output.Error, "database connection failed")
 }
 
+func TestGetTraceErrorsHandler_Handle_PartialResults(t *testing.T) {
+	traceID := "12345678901234567890123456789012"
+
+	// Create traces with error spans
+	testTrace1 := createTestTraceWithSpans(traceID, []spanConfig{
+		{spanID: "span001", operation: "/api/error1", hasError: true, errorMessage: "Error 1"},
+	})
+	testTrace2 := createTestTraceWithSpans(traceID, []spanConfig{
+		{spanID: "span002", operation: "/api/error2", hasError: true, errorMessage: "Error 2"},
+	})
+	testTrace3 := createTestTraceWithSpans(traceID, []spanConfig{
+		{spanID: "span003", operation: "/api/error3", hasError: true, errorMessage: "Error 3"},
+	})
+
+	mock := &mockQueryServiceForGetTraces{
+		getTracesFunc: func(_ context.Context, _ querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
+			return func(yield func([]ptrace.Traces, error) bool) {
+				// Yield first batch successfully
+				yield([]ptrace.Traces{testTrace1}, nil)
+				// Yield error in the middle
+				yield(nil, errors.New("temporary failure"))
+				// Yield remaining batches successfully
+				yield([]ptrace.Traces{testTrace2}, nil)
+				yield([]ptrace.Traces{testTrace3}, nil)
+			}
+		},
+	}
+
+	handler := &GetTraceErrorsHandler{queryService: mock}
+
+	input := types.GetTraceErrorsInput{
+		TraceID: traceID,
+	}
+
+	_, output, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	// Should not return an error - instead returns partial results with Error field
+	require.NoError(t, err)
+	// Should have all 3 error spans since we continue processing after error
+	assert.Equal(t, 3, output.ErrorCount)
+	assert.Len(t, output.Spans, 3)
+	assert.NotEmpty(t, output.Error)
+	assert.Contains(t, output.Error, "partial results")
+	assert.Contains(t, output.Error, "temporary failure")
+}
+
 func TestGetTraceErrorsHandler_Handle_AllSpansHaveErrors(t *testing.T) {
 	traceID := "12345678901234567890123456789012"
 

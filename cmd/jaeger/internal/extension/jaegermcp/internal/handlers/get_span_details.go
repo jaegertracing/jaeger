@@ -84,8 +84,9 @@ func (h *GetSpanDetailsHandler) Handle(
 	tracesIter(func(traces []ptrace.Traces, err error) bool {
 		if err != nil {
 			// Store error but continue processing to return partial results
+			// Returning true allows the iterator to continue with remaining items
 			processErr = err
-			return false
+			return true
 		}
 
 		for _, trace := range traces {
