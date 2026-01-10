@@ -199,7 +199,7 @@ func TestAggregateTraces_DoesNotYieldAfterConsumerStops(t *testing.T) {
 	aggregatedSeq := AggregateTraces(tracesSeq)
 
 	// Consumer stops after first yield
-	aggregatedSeq(func(trace ptrace.Traces, _ error) bool {
+	aggregatedSeq(func(_ ptrace.Traces, _ error) bool {
 		yieldCount++
 		return false // Stop iteration after first trace
 	})
