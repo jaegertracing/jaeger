@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
@@ -29,9 +30,14 @@ func tracesFromSpanRows(rows []*dbmodel.SpanRow) ptrace.Traces {
 }
 
 func TestWriter_Success(t *testing.T) {
+	b := &testBatch{t: t}
 	conn := &testDriver{
-		t:     t,
-		batch: &testBatch{t: t},
+		t: t,
+		batchResponses: map[string]*testBatchResponse{
+			sql.InsertSpan: {
+				batch: b,
+			},
+		},
 	}
 	w := NewWriter(conn)
 
@@ -40,12 +46,13 @@ func TestWriter_Success(t *testing.T) {
 	err := w.WriteTraces(context.Background(), td)
 	require.NoError(t, err)
 
-	verifyQuerySnapshot(t, conn.recordedQuery)
-	require.True(t, conn.batch.sendCalled)
-	require.Len(t, conn.batch.appended, len(multipleSpans))
+	require.Len(t, conn.recordedQueries, 1)
+	verifyQuerySnapshot(t, conn.recordedQueries[0])
+	require.True(t, b.sendCalled)
+	require.Len(t, b.appended, len(multipleSpans))
 
 	for i, expected := range multipleSpans {
-		row := conn.batch.appended[i]
+		row := b.appended[i]
 
 		require.Equal(t, expected.ID, row[0])                        // SpanID
 		require.Equal(t, expected.TraceID, row[1])                   // TraceID
@@ -140,39 +147,52 @@ func TestWriter_Success(t *testing.T) {
 
 func TestWriter_PrepareBatchError(t *testing.T) {
 	conn := &testDriver{
-		t:     t,
-		err:   assert.AnError,
-		batch: &testBatch{t: t},
+		t: t,
+		batchResponses: map[string]*testBatchResponse{
+			sql.InsertSpan: {
+				batch: nil,
+				err:   assert.AnError,
+			},
+		},
 	}
 	w := NewWriter(conn)
 	err := w.WriteTraces(context.Background(), tracesFromSpanRows(multipleSpans))
 	require.ErrorContains(t, err, "failed to prepare batch")
 	require.ErrorIs(t, err, assert.AnError)
-	require.False(t, conn.batch.sendCalled)
 }
 
 func TestWriter_AppendBatchError(t *testing.T) {
+	b := &testBatch{t: t, appendErr: assert.AnError}
 	conn := &testDriver{
-		t:     t,
-		batch: &testBatch{t: t, appendErr: assert.AnError},
+		t: t,
+		batchResponses: map[string]*testBatchResponse{
+			sql.InsertSpan: {
+				batch: b,
+			},
+		},
 	}
 	w := NewWriter(conn)
 	err := w.WriteTraces(context.Background(), tracesFromSpanRows(multipleSpans))
 	require.ErrorContains(t, err, "failed to append span to batch")
 	require.ErrorIs(t, err, assert.AnError)
-	require.False(t, conn.batch.sendCalled)
+	require.False(t, b.sendCalled)
 }
 
 func TestWriter_SendError(t *testing.T) {
+	b := &testBatch{t: t, sendErr: assert.AnError}
 	conn := &testDriver{
-		t:     t,
-		batch: &testBatch{t: t, sendErr: assert.AnError},
+		t: t,
+		batchResponses: map[string]*testBatchResponse{
+			sql.InsertSpan: {
+				batch: b,
+			},
+		},
 	}
 	w := NewWriter(conn)
 	err := w.WriteTraces(context.Background(), tracesFromSpanRows(multipleSpans))
 	require.ErrorContains(t, err, "failed to send batch")
 	require.ErrorIs(t, err, assert.AnError)
-	require.False(t, conn.batch.sendCalled)
+	require.False(t, b.sendCalled)
 }
 
 func TestToTuple(t *testing.T) {

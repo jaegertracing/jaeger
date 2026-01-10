@@ -15,10 +15,9 @@ import (
 	"time"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 const (
@@ -62,8 +61,9 @@ type (
 	}
 
 	traceQueryParameters struct {
-		querysvc.TraceQueryParameters
-		traceIDs []model.TraceID
+		tracestore.TraceQueryParams
+		RawTraces bool
+		TraceIDs  []model.TraceID
 	}
 
 	dependenciesQueryParameters struct {
@@ -170,20 +170,18 @@ func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParamet
 	}
 
 	traceQuery := &traceQueryParameters{
-		TraceQueryParameters: querysvc.TraceQueryParameters{
-			TraceQueryParameters: spanstore.TraceQueryParameters{
-				ServiceName:   service,
-				OperationName: operation,
-				StartTimeMin:  startTime,
-				StartTimeMax:  endTime,
-				Tags:          tags,
-				NumTraces:     limit,
-				DurationMin:   minDuration,
-				DurationMax:   maxDuration,
-			},
-			RawTraces: raw,
+		TraceQueryParams: tracestore.TraceQueryParams{
+			ServiceName:   service,
+			OperationName: operation,
+			StartTimeMin:  startTime,
+			StartTimeMax:  endTime,
+			Attributes:    convertTagsToAttributes(tags),
+			SearchDepth:   limit,
+			DurationMin:   minDuration,
+			DurationMax:   maxDuration,
 		},
-		traceIDs: traceIDs,
+		RawTraces: raw,
+		TraceIDs:  traceIDs,
 	}
 
 	if err := p.validateQuery(traceQuery); err != nil {
@@ -370,7 +368,7 @@ func mapSpanKindsToOpenTelemetry(spanKinds []string) ([]string, error) {
 }
 
 func (*queryParser) validateQuery(traceQuery *traceQueryParameters) error {
-	if len(traceQuery.traceIDs) == 0 && traceQuery.ServiceName == "" {
+	if len(traceQuery.TraceIDs) == 0 && traceQuery.ServiceName == "" {
 		return errServiceParameterRequired
 	}
 	if traceQuery.DurationMin != 0 && traceQuery.DurationMax != 0 {

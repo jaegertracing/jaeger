@@ -17,6 +17,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
@@ -25,11 +26,13 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	deepdependencies "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/ddg"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/qualitymetrics"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	ui "github.com/jaegertracing/jaeger/internal/uimodel"
 	uiconv "github.com/jaegertracing/jaeger/internal/uimodel/converter/v1/json"
 )
@@ -74,7 +77,7 @@ func NewRouter() *mux.Router {
 // APIHandler implements the query service public API by registering routes at httpPrefix
 type APIHandler struct {
 	queryService        *querysvc.QueryService
-	metricsQueryService querysvc.MetricsQueryService
+	metricsQueryService metricstore.Reader
 	queryParser         queryParser
 	basePath            string
 	apiPrefix           string
@@ -163,7 +166,7 @@ func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request
 	service, _ := url.QueryUnescape(vars[serviceParam])
 	// for backwards compatibility, we will retrieve operations with all span kind
 	operations, err := aH.queryService.GetOperations(r.Context(),
-		spanstore.OperationQueryParameters{
+		tracestore.OperationQueryParams{
 			ServiceName: service,
 			// include all kinds
 			SpanKind: "",
@@ -206,7 +209,7 @@ func (aH *APIHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 	spanKind := r.FormValue(spanKindParam)
 	operations, err := aH.queryService.GetOperations(
 		r.Context(),
-		spanstore.OperationQueryParameters{ServiceName: service, SpanKind: spanKind},
+		tracestore.OperationQueryParams{ServiceName: service, SpanKind: spanKind},
 	)
 
 	if aH.handleError(w, err, http.StatusInternalServerError) {
@@ -234,7 +237,7 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 
 	var uiErrors []structuredError
 	var tracesFromStorage []*model.Trace
-	if len(tQuery.traceIDs) > 0 {
+	if len(tQuery.TraceIDs) > 0 {
 		tracesFromStorage, uiErrors, err = aH.tracesByIDs(
 			r.Context(),
 			tQuery,
@@ -243,7 +246,13 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		tracesFromStorage, err = aH.queryService.FindTraces(r.Context(), &tQuery.TraceQueryParameters)
+		// Convert to v2 query params and call v2 QueryService
+		queryParams := querysvc.TraceQueryParams{
+			TraceQueryParams: tQuery.TraceQueryParams,
+			RawTraces:        tQuery.RawTraces,
+		}
+		findTracesIter := aH.queryService.FindTraces(r.Context(), queryParams)
+		tracesFromStorage, err = v1adapter.V1TracesFromSeq2(findTracesIter)
 		if aH.handleError(w, err, http.StatusInternalServerError) {
 			return
 		}
@@ -268,26 +277,48 @@ func (*APIHandler) tracesToResponse(traces []*model.Trace, uiErrors []structured
 
 func (aH *APIHandler) tracesByIDs(ctx context.Context, traceQuery *traceQueryParameters) ([]*model.Trace, []structuredError, error) {
 	var traceErrors []structuredError
-	retMe := make([]*model.Trace, 0, len(traceQuery.traceIDs))
-	for _, traceID := range traceQuery.traceIDs {
-		query := querysvc.GetTraceParameters{
-			GetTraceParameters: spanstore.GetTraceParameters{
-				TraceID:   traceID,
-				StartTime: traceQuery.StartTimeMin,
-				EndTime:   traceQuery.StartTimeMax,
-			},
-			RawTraces: traceQuery.RawTraces,
+	retMe := make([]*model.Trace, 0, len(traceQuery.TraceIDs))
+	if len(traceQuery.TraceIDs) == 0 {
+		return nil, nil, nil
+	}
+
+	ids := make([]tracestore.GetTraceParams, len(traceQuery.TraceIDs))
+	requestedIDs := make(map[pcommon.TraceID]model.TraceID)
+	for i, traceID := range traceQuery.TraceIDs {
+		v2ID := v1adapter.FromV1TraceID(traceID)
+		ids[i] = tracestore.GetTraceParams{
+			TraceID: v2ID,
+			Start:   traceQuery.StartTimeMin,
+			End:     traceQuery.StartTimeMax,
 		}
-		if trc, err := aH.queryService.GetTrace(ctx, query); err != nil {
-			if !errors.Is(err, spanstore.ErrTraceNotFound) {
-				return nil, nil, err
-			}
+		requestedIDs[v2ID] = traceID
+	}
+
+	query := querysvc.GetTraceParams{
+		TraceIDs:  ids,
+		RawTraces: traceQuery.RawTraces,
+	}
+
+	getTracesIter := aH.queryService.GetTraces(ctx, query)
+	traces, err := v1adapter.V1TracesFromSeq2(getTracesIter)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	foundIDs := make(map[pcommon.TraceID]struct{})
+	for _, tr := range traces {
+		if len(tr.Spans) > 0 {
+			retMe = append(retMe, tr)
+			foundIDs[v1adapter.FromV1TraceID(tr.Spans[0].TraceID)] = struct{}{}
+		}
+	}
+
+	for v2ID, v1ID := range requestedIDs {
+		if _, ok := foundIDs[v2ID]; !ok {
 			traceErrors = append(traceErrors, structuredError{
-				Msg:     err.Error(),
-				TraceID: ui.TraceID(traceID.String()),
+				Msg:     spanstore.ErrTraceNotFound.Error(),
+				TraceID: ui.TraceID(v1ID.String()),
 			})
-		} else {
-			retMe = append(retMe, trc)
 		}
 	}
 	return retMe, traceErrors, nil
@@ -442,8 +473,8 @@ func (aH *APIHandler) parseBool(w http.ResponseWriter, r *http.Request, boolKey 
 	return false, true
 }
 
-func (aH *APIHandler) parseGetTraceParameters(w http.ResponseWriter, r *http.Request) (querysvc.GetTraceParameters, bool) {
-	query := querysvc.GetTraceParameters{}
+func (aH *APIHandler) parseGetTraceParameters(w http.ResponseWriter, r *http.Request) (querysvc.GetTraceParams, bool) {
+	var query querysvc.GetTraceParams
 	traceID, ok := aH.parseTraceID(w, r)
 	if !ok {
 		return query, false
@@ -460,9 +491,13 @@ func (aH *APIHandler) parseGetTraceParameters(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return query, false
 	}
-	query.TraceID = traceID
-	query.StartTime = startTime
-	query.EndTime = endTime
+	query.TraceIDs = []tracestore.GetTraceParams{
+		{
+			TraceID: v1adapter.FromV1TraceID(traceID),
+			Start:   startTime,
+			End:     endTime,
+		},
+	}
 	query.RawTraces = raw
 	return query, true
 }
@@ -475,9 +510,10 @@ func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	trc, err := aH.queryService.GetTrace(r.Context(), query)
-	if errors.Is(err, spanstore.ErrTraceNotFound) {
-		aH.handleError(w, err, http.StatusNotFound)
+	getTracesIter := aH.queryService.GetTraces(r.Context(), query)
+	traces, err := v1adapter.V1TracesFromSeq2(getTracesIter)
+	if errors.Is(err, spanstore.ErrTraceNotFound) || (err == nil && len(traces) == 0) {
+		aH.handleError(w, spanstore.ErrTraceNotFound, http.StatusNotFound)
 		return
 	}
 	if aH.handleError(w, err, http.StatusInternalServerError) {
@@ -485,7 +521,7 @@ func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var uiErrors []structuredError
-	structuredRes := aH.tracesToResponse([]*model.Trace{trc}, uiErrors)
+	structuredRes := aH.tracesToResponse(traces, uiErrors)
 	aH.writeJSON(w, r, structuredRes)
 }
 
@@ -498,7 +534,7 @@ func (aH *APIHandler) archiveTrace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// QueryService.ArchiveTrace can now archive this traceID.
-	err := aH.queryService.ArchiveTrace(r.Context(), query.GetTraceParameters)
+	err := aH.queryService.ArchiveTrace(r.Context(), query.TraceIDs[0])
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		aH.handleError(w, err, http.StatusNotFound)
 		return

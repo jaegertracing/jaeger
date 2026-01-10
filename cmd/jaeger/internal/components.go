@@ -38,6 +38,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/exporters/storageexporter"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/expvar"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/remotesampling"
@@ -79,6 +80,7 @@ func (b builders) build() (otelcol.Factories, error) {
 		// add-ons
 		basicauthextension.NewFactory(),
 		sigv4authextension.NewFactory(),
+		jaegermcp.NewFactory(),
 		jaegerquery.NewFactory(),
 		jaegerstorage.NewFactory(),
 		remotesampling.NewFactory(),

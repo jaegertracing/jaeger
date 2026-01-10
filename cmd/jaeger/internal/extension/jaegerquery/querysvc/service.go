@@ -13,8 +13,9 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/adjuster"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/adjuster"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -84,6 +85,17 @@ func NewQueryService(
 // GetTraces retrieves traces with given trace IDs from the primary reader,
 // and if any of them are not found it then queries the archive reader.
 // The iterator is single-use: once consumed, it cannot be used again.
+//
+// Returned iterator behavior:
+//   - When RawTraces is false (default), each returned ptrace.Traces object contains
+//     a complete, aggregated trace. If the underlying storage returns a trace split
+//     across multiple consecutive ptrace.Traces chunks (per tracestore.Reader contract),
+//     they will be aggregated into a single ptrace.Traces object.
+//   - When RawTraces is true, ptrace.Traces chunks are returned as-is from storage
+//     without aggregation or adjustment. A single trace may be split across multiple
+//     consecutive ptrace.Traces objects.
+//   - Archive reader traces (if any) are processed the same way and yielded after
+//     all primary reader traces.
 func (qs QueryService) GetTraces(
 	ctx context.Context,
 	params GetTraceParams,
@@ -117,6 +129,17 @@ func (qs QueryService) GetOperations(
 	return qs.traceReader.GetOperations(ctx, query)
 }
 
+// FindTraces searches for traces matching the query parameters.
+// The iterator is single-use: once consumed, it cannot be used again.
+//
+// Returned iterator behavior:
+//   - When RawTraces is false (default), each returned ptrace.Traces object contains
+//     a complete, aggregated trace. If the underlying storage returns a trace split
+//     across multiple consecutive ptrace.Traces chunks (per tracestore.Reader contract),
+//     they will be aggregated into a single ptrace.Traces object.
+//   - When RawTraces is true, ptrace.Traces chunks are returned as-is from storage
+//     without aggregation or adjustment. A single trace may be split across multiple
+//     consecutive ptrace.Traces objects.
 func (qs QueryService) FindTraces(
 	ctx context.Context,
 	query TraceQueryParams,
@@ -137,13 +160,17 @@ func (qs QueryService) ArchiveTrace(ctx context.Context, query tracestore.GetTra
 	getTracesIter := qs.GetTraces(
 		ctx, GetTraceParams{TraceIDs: []tracestore.GetTraceParams{query}},
 	)
-	var archiveErr error
+	var (
+		found      bool
+		archiveErr error
+	)
 	getTracesIter(func(traces []ptrace.Traces, err error) bool {
 		if err != nil {
 			archiveErr = err
 			return false
 		}
 		for _, trace := range traces {
+			found = true
 			err = qs.options.ArchiveTraceWriter.WriteTraces(ctx, trace)
 			if err != nil {
 				archiveErr = errors.Join(archiveErr, err)
@@ -151,6 +178,9 @@ func (qs QueryService) ArchiveTrace(ctx context.Context, query tracestore.GetTra
 		}
 		return true
 	})
+	if archiveErr == nil && !found {
+		return spanstore.ErrTraceNotFound
+	}
 	return archiveErr
 }
 

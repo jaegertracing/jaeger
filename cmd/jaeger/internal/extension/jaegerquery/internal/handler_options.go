@@ -10,7 +10,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
 
 // HandlerOption is a function that sets some option on the APIHandler
@@ -58,7 +58,7 @@ func (handlerOptions) Tracer(tracer trace.TracerProvider) HandlerOption {
 }
 
 // MetricsQueryService creates a HandlerOption that initializes MetricsQueryService.
-func (handlerOptions) MetricsQueryService(mqs querysvc.MetricsQueryService) HandlerOption {
+func (handlerOptions) MetricsQueryService(mqs metricstore.Reader) HandlerOption {
 	return func(apiHandler *APIHandler) {
 		apiHandler.metricsQueryService = mqs
 	}

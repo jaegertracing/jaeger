@@ -70,19 +70,35 @@ func (*testBatch) Close() error {
 	return nil
 }
 
+type testQueryResponse struct {
+	rows driver.Rows
+	err  error
+}
+
+type testBatchResponse struct {
+	batch *testBatch
+	err   error
+}
+
 type testDriver struct {
 	driver.Conn
 
-	t             *testing.T
-	rows          driver.Rows
-	err           error
-	batch         *testBatch
-	recordedQuery string
+	t               *testing.T
+	queryResponses  map[string]*testQueryResponse
+	batchResponses  map[string]*testBatchResponse
+	recordedQueries []string
 }
 
 func (t *testDriver) Query(_ context.Context, query string, _ ...any) (driver.Rows, error) {
-	t.recordedQuery = query
-	return t.rows, t.err
+	t.recordedQueries = append(t.recordedQueries, query)
+
+	for querySubstring, response := range t.queryResponses {
+		if strings.Contains(query, querySubstring) {
+			return response.rows, response.err
+		}
+	}
+
+	return nil, nil
 }
 
 type testRows[T any] struct {
@@ -138,9 +154,13 @@ func (t *testDriver) PrepareBatch(
 	query string,
 	_ ...driver.PrepareBatchOption,
 ) (driver.Batch, error) {
-	t.recordedQuery = query
-	if t.err != nil {
-		return nil, t.err
+	t.recordedQueries = append(t.recordedQueries, query)
+
+	for querySubstring, response := range t.batchResponses {
+		if strings.Contains(query, querySubstring) {
+			return response.batch, response.err
+		}
 	}
-	return t.batch, nil
+
+	return nil, nil
 }

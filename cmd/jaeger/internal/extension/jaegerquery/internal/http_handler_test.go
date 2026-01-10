@@ -33,7 +33,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	deepdependencies "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/ddg"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/qualitymetrics"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
 	metricsmocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/mocks"
@@ -72,12 +72,12 @@ var (
 			{
 				TraceID: mockTraceID,
 				SpanID:  model.NewSpanID(1),
-				Process: &model.Process{},
+				Process: &model.Process{ServiceName: "service"},
 			},
 			{
 				TraceID: mockTraceID,
 				SpanID:  model.NewSpanID(2),
-				Process: &model.Process{},
+				Process: &model.Process{ServiceName: "service"},
 			},
 		},
 		Warnings: []string{},
@@ -306,12 +306,12 @@ func TestWriteJSON(t *testing.T) {
 
 func TestGetTrace(t *testing.T) {
 	testCases := []struct {
-		suffix      string
-		numSpanRefs int
+		suffix   string
+		numSpans int
 	}{
-		{suffix: "", numSpanRefs: 0},
-		{suffix: "?raw=true", numSpanRefs: 1}, // bad span reference is not filtered out
-		{suffix: "?raw=false", numSpanRefs: 0},
+		{suffix: "", numSpans: 2},
+		{suffix: "?raw=true", numSpans: 3},
+		{suffix: "?raw=false", numSpans: 2},
 	}
 
 	makeMockTrace := func(t *testing.T) *model.Trace {
@@ -320,9 +320,9 @@ func TestGetTrace(t *testing.T) {
 		require.NoError(t, err)
 		var trace model.Trace
 		require.NoError(t, jsonpb.Unmarshal(out, &trace))
-		trace.Spans[1].References = []model.SpanRef{
-			{TraceID: model.NewTraceID(0, 0)},
-		}
+		// Add a duplicate span (same as Spans[0])
+		dupSpan := *trace.Spans[0]
+		trace.Spans = append(trace.Spans, &dupSpan)
 		return &trace
 	}
 
@@ -349,8 +349,7 @@ func TestGetTrace(t *testing.T) {
 			assert.Empty(t, response.Errors)
 
 			traces := extractTraces(t, &response)
-			assert.Len(t, traces[0].Spans, 2)
-			assert.Len(t, traces[0].Spans[1].References, testCase.numSpanRefs)
+			assert.Len(t, traces[0].Spans, testCase.numSpans)
 		})
 	}
 }
@@ -459,8 +458,8 @@ func TestSearchSuccess(t *testing.T) {
 
 func TestSearchByTraceIDSuccess(t *testing.T) {
 	ts := initializeTestServer(t)
-	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
-		Return(mockTrace, nil).Twice()
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.MatchedBy(func(p spanstore.GetTraceParameters) bool { return p.TraceID == model.NewTraceID(0, 1) })).Return(&model.Trace{Spans: []*model.Span{{TraceID: model.NewTraceID(0, 1), SpanID: model.NewSpanID(1), Process: &model.Process{ServiceName: "service"}}}}, nil).Once()
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.MatchedBy(func(p spanstore.GetTraceParameters) bool { return p.TraceID == model.NewTraceID(0, 2) })).Return(&model.Trace{Spans: []*model.Span{{TraceID: model.NewTraceID(0, 2), SpanID: model.NewSpanID(2), Process: &model.Process{ServiceName: "service"}}}}, nil).Once()
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces?traceID=1&traceID=2`, &response)
@@ -483,9 +482,9 @@ func TestSearchByTraceIDWithTimeWindowSuccess(t *testing.T) {
 		EndTime:   time.UnixMicro(2),
 	}
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), expectedQuery1).
-		Return(mockTrace, nil)
+		Return(&model.Trace{Spans: []*model.Span{{TraceID: expectedQuery1.TraceID, SpanID: model.NewSpanID(1), Process: &model.Process{ServiceName: "service"}}}}, nil)
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), expectedQuery2).
-		Return(mockTrace, nil)
+		Return(&model.Trace{Spans: []*model.Span{{TraceID: expectedQuery2.TraceID, SpanID: model.NewSpanID(2), Process: &model.Process{ServiceName: "service"}}}}, nil)
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces?traceID=`+mockTraceID.String()+`&traceID=`+traceId2.String()+`&start=1&end=2`, &response)
@@ -523,12 +522,16 @@ func TestSearchTraceBadTimeWindow(t *testing.T) {
 func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
 	archiveReadMock := &spanstoremocks.Reader{}
 	ts := initializeTestServerWithOptions(t, &tenancy.Manager{}, querysvc.QueryServiceOptions{
-		ArchiveSpanReader: archiveReadMock,
+		ArchiveTraceReader: v1adapter.NewTraceReader(archiveReadMock),
 	})
 	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
 		Return(nil, spanstore.ErrTraceNotFound).Twice()
-	archiveReadMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
-		Return(mockTrace, nil).Twice()
+	archiveReadMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.MatchedBy(func(p spanstore.GetTraceParameters) bool {
+		return p.TraceID == model.NewTraceID(0, 1)
+	})).Return(&model.Trace{Spans: []*model.Span{{TraceID: model.NewTraceID(0, 1), SpanID: model.NewSpanID(1), Process: &model.Process{ServiceName: "service"}}}}, nil).Once()
+	archiveReadMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.MatchedBy(func(p spanstore.GetTraceParameters) bool {
+		return p.TraceID == model.NewTraceID(0, 2)
+	})).Return(&model.Trace{Spans: []*model.Span{{TraceID: model.NewTraceID(0, 2), SpanID: model.NewSpanID(2), Process: &model.Process{ServiceName: "service"}}}}, nil).Once()
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces?traceID=1&traceID=2`, &response)
@@ -540,7 +543,7 @@ func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
 func TestSearchByTraceIDSuccessWithArchiveAndTimeWindow(t *testing.T) {
 	archiveReadMock := &spanstoremocks.Reader{}
 	ts := initializeTestServerWithOptions(t, &tenancy.Manager{}, querysvc.QueryServiceOptions{
-		ArchiveSpanReader: archiveReadMock,
+		ArchiveTraceReader: v1adapter.NewTraceReader(archiveReadMock),
 	})
 	expectedQuery := spanstore.GetTraceParameters{
 		TraceID:   mockTraceID,
@@ -1077,8 +1080,8 @@ func TestSearchTenancyHTTP(t *testing.T) {
 	ts := initializeTestServerWithOptions(t,
 		tenancy.NewManager(&tenancyOptions),
 		querysvc.QueryServiceOptions{})
-	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("spanstore.GetTraceParameters")).
-		Return(mockTrace, nil).Twice()
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.MatchedBy(func(p spanstore.GetTraceParameters) bool { return p.TraceID == model.NewTraceID(0, 1) })).Return(&model.Trace{Spans: []*model.Span{{TraceID: model.NewTraceID(0, 1), SpanID: model.NewSpanID(1), Process: &model.Process{ServiceName: "service"}}}}, nil).Once()
+	ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.MatchedBy(func(p spanstore.GetTraceParameters) bool { return p.TraceID == model.NewTraceID(0, 2) })).Return(&model.Trace{Spans: []*model.Span{{TraceID: model.NewTraceID(0, 2), SpanID: model.NewSpanID(2), Process: &model.Process{ServiceName: "service"}}}}, nil).Once()
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces?traceID=1&traceID=2`, &response)
@@ -1133,7 +1136,18 @@ func TestSearchTenancyFlowTenantHTTP(t *testing.T) {
 			return false
 		}
 		return true
-	}), mock.AnythingOfType("spanstore.GetTraceParameters")).Return(mockTrace, nil).Twice()
+	}), mock.MatchedBy(func(p spanstore.GetTraceParameters) bool {
+		return p.TraceID == model.NewTraceID(0, 1)
+	})).Return(&model.Trace{Spans: []*model.Span{{TraceID: model.NewTraceID(0, 1), SpanID: model.NewSpanID(1), Process: &model.Process{ServiceName: "service"}}}}, nil).Once()
+	ts.spanReader.On("GetTrace", mock.MatchedBy(func(v any) bool {
+		ctx, ok := v.(context.Context)
+		if !ok || tenancy.GetTenant(ctx) != "acme" {
+			return false
+		}
+		return true
+	}), mock.MatchedBy(func(p spanstore.GetTraceParameters) bool {
+		return p.TraceID == model.NewTraceID(0, 2)
+	})).Return(&model.Trace{Spans: []*model.Span{{TraceID: model.NewTraceID(0, 2), SpanID: model.NewSpanID(2), Process: &model.Process{ServiceName: "service"}}}}, nil).Once()
 	ts.spanReader.On("GetTrace", mock.MatchedBy(func(v any) bool {
 		ctx, ok := v.(context.Context)
 		if !ok || tenancy.GetTenant(ctx) != "megacorp" {
@@ -1159,4 +1173,18 @@ func TestSearchTenancyFlowTenantHTTP(t *testing.T) {
 	require.ErrorContains(t, err, "storage error")
 	assert.Empty(t, responseMegacorp.Errors)
 	assert.Nil(t, responseMegacorp.Data)
+}
+
+func TestNewAPIHandler_Defaults(t *testing.T) {
+	aH := NewAPIHandler(&querysvc.QueryService{})
+	assert.NotNil(t, aH.logger)
+	assert.NotNil(t, aH.tracer)
+}
+
+func TestTracesByIDs_EmptyIDs(t *testing.T) {
+	aH := &APIHandler{}
+	traces, errs, err := aH.tracesByIDs(context.Background(), &traceQueryParameters{})
+	assert.Nil(t, traces)
+	assert.Nil(t, errs)
+	assert.NoError(t, err)
 }
