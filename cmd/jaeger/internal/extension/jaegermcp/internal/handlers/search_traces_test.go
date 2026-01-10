@@ -29,7 +29,7 @@ func (m *mockQueryService) FindTraces(ctx context.Context, query querysvc.TraceQ
 	if m.findTracesFunc != nil {
 		return m.findTracesFunc(ctx, query)
 	}
-	return func(yield func([]ptrace.Traces, error) bool) {}
+	return func(_ func([]ptrace.Traces, error) bool) {}
 }
 
 // createTestTrace creates a sample trace for testing
