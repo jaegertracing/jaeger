@@ -491,21 +491,21 @@ cmd/jaeger/internal/extension/jaegermcp/
 
 ### Phase 2: Basic Tools
 
-3. **Storage Integration**
+3. **Storage Integration** ✅
    - Connect to `jaegerstorage` extension for trace reader access
    - Create internal service layer for trace operations
 
-4. **Implement `search_traces` Tool**
+4. **Implement `search_traces` Tool** ✅
    - Wrap `QueryService.FindTraces()`
    - Transform response to MCP-optimized format (metadata only)
    - Add input validation and error handling
 
-5. **Implement `get_span_details` Tool**
+5. **Implement `get_span_details` Tool** ✅
    - Wrap `QueryService.GetTrace()`
    - Filter to requested span IDs only
    - Return full OTLP attribute data
 
-6. **Implement `get_trace_errors` Tool**
+6. **Implement `get_trace_errors` Tool** ✅
    - Wrap `QueryService.GetTrace()`
    - Filter to spans with error status
    - Return full OTLP attribute data
