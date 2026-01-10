@@ -28,7 +28,6 @@ type queryServiceGetTracesInterface interface {
 // getSpanDetailsHandler implements the get_span_details MCP tool.
 // This tool fetches full OTLP details (attributes, events, links, status) for specific spans
 // within a trace, allowing deep inspection of individual span data for debugging and analysis.
-// Based on ADR 002 Phase 2 Step 5.
 type getSpanDetailsHandler struct {
 	queryService queryServiceGetTracesInterface
 }
@@ -80,17 +79,17 @@ func (h *getSpanDetailsHandler) handle(
 	var processErr error
 	traceFound := false
 
-	aggregatedIter(func(trace ptrace.Traces, err error) bool {
+	for trace, err := range aggregatedIter {
 		if err != nil {
-			// For singular lookups, store error and abort
+			// For singular lookups, store error and break
 			processErr = err
-			return false
+			break
 		}
 
 		traceFound = true
 
 		// Iterate through all spans in the trace
-		jptrace.SpanIter(trace)(func(pos jptrace.SpanIterPos, span ptrace.Span) bool {
+		for pos, span := range jptrace.SpanIter(trace) {
 			spanIDStr := span.SpanID().String()
 
 			// Check if this span ID is in the requested set
@@ -101,12 +100,8 @@ func (h *getSpanDetailsHandler) handle(
 				// Remove from set to track which spans we've found
 				delete(spanIDSet, spanIDStr)
 			}
-
-			return true
-		})
-
-		return true
-	})
+		}
+	}
 
 	// If we encountered an error, return it directly
 	if processErr != nil {
@@ -126,7 +121,7 @@ func (h *getSpanDetailsHandler) handle(
 }
 
 // buildQuery converts GetSpanDetailsInput to querysvc.GetTraceParams.
-func (h *getSpanDetailsHandler) buildQuery(input types.GetSpanDetailsInput) (querysvc.GetTraceParams, error) {
+func (*getSpanDetailsHandler) buildQuery(input types.GetSpanDetailsInput) (querysvc.GetTraceParams, error) {
 	traceID, err := parseTraceID(input.TraceID)
 	if err != nil {
 		return querysvc.GetTraceParams{}, fmt.Errorf("invalid trace_id: %w", err)
@@ -156,20 +151,17 @@ func buildSpanDetail(pos jptrace.SpanIterPos, span ptrace.Span) types.SpanDetail
 
 	// Convert attributes
 	attributes := make(map[string]any)
-	span.Attributes().Range(func(k string, v pcommon.Value) bool {
+	for k, v := range span.Attributes().All() {
 		attributes[k] = convertAttributeValue(v)
-		return true
-	})
+	}
 
 	// Convert events
 	var events []types.SpanEvent
-	for i := 0; i < span.Events().Len(); i++ {
-		event := span.Events().At(i)
+	for _, event := range span.Events().All() {
 		eventAttrs := make(map[string]any)
-		event.Attributes().Range(func(k string, v pcommon.Value) bool {
+		for k, v := range event.Attributes().All() {
 			eventAttrs[k] = convertAttributeValue(v)
-			return true
-		})
+		}
 
 		events = append(events, types.SpanEvent{
 			Name:       event.Name(),
@@ -180,13 +172,11 @@ func buildSpanDetail(pos jptrace.SpanIterPos, span ptrace.Span) types.SpanDetail
 
 	// Convert links
 	var links []types.SpanLink
-	for i := 0; i < span.Links().Len(); i++ {
-		link := span.Links().At(i)
+	for _, link := range span.Links().All() {
 		linkAttrs := make(map[string]any)
-		link.Attributes().Range(func(k string, v pcommon.Value) bool {
+		for k, v := range link.Attributes().All() {
 			linkAttrs[k] = convertAttributeValue(v)
-			return true
-		})
+		}
 
 		links = append(links, types.SpanLink{
 			TraceID:    link.TraceID().String(),
@@ -242,10 +232,9 @@ func convertAttributeValue(v pcommon.Value) any {
 	case pcommon.ValueTypeMap:
 		m := v.Map()
 		result := make(map[string]any)
-		m.Range(func(k string, v pcommon.Value) bool {
+		for k, v := range m.All() {
 			result[k] = convertAttributeValue(v)
-			return true
-		})
+		}
 		return result
 	default:
 		return nil

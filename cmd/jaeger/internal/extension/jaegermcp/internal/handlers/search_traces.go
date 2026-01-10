@@ -34,7 +34,7 @@ type queryServiceInterface interface {
 // searchTracesHandler implements the search_traces MCP tool.
 // This tool searches for traces matching service, time, attributes, and duration criteria.
 // It returns trace summaries (metadata only) without full span details, optimized for
-// browsing and filtering large result sets. Based on ADR 002 Phase 2 Step 4.
+// browsing and filtering large result sets.
 type searchTracesHandler struct {
 	queryService queryServiceInterface
 }
@@ -71,18 +71,16 @@ func (h *searchTracesHandler) handle(
 	var summaries []types.TraceSummary
 	var processErr error
 
-	aggregatedIter(func(trace ptrace.Traces, err error) bool {
+	for trace, err := range aggregatedIter {
 		if err != nil {
 			// Store error but continue processing to return partial results
-			// Returning true allows the iterator to continue with remaining items
 			processErr = err
-			return true
+			continue
 		}
 
 		summary := buildTraceSummary(trace)
 		summaries = append(summaries, summary)
-		return true
-	})
+	}
 
 	output := types.SearchTracesOutput{Traces: summaries}
 
@@ -95,7 +93,7 @@ func (h *searchTracesHandler) handle(
 }
 
 // buildQuery converts SearchTracesInput to querysvc.TraceQueryParams.
-func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysvc.TraceQueryParams, error) {
+func (*searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysvc.TraceQueryParams, error) {
 	// Parse and validate input
 	startTimeMin, err := parseTimeParam(input.StartTimeMin)
 	if err != nil {
@@ -183,7 +181,7 @@ func buildTraceSummary(trace ptrace.Traces) types.TraceSummary {
 	spanCount := 0
 
 	// Iterate through all spans in the trace
-	jptrace.SpanIter(trace)(func(pos jptrace.SpanIterPos, span ptrace.Span) bool {
+	for pos, span := range jptrace.SpanIter(trace) {
 		spanCount++
 		traceID = span.TraceID()
 
@@ -215,9 +213,7 @@ func buildTraceSummary(trace ptrace.Traces) types.TraceSummary {
 		if span.Status().Code() == ptrace.StatusCodeError {
 			hasErrors = true
 		}
-
-		return true
-	})
+	}
 
 	// Calculate duration
 	var duration time.Duration

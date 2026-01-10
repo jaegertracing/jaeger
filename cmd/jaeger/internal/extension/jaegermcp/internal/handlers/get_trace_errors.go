@@ -20,7 +20,6 @@ import (
 // getTraceErrorsHandler implements the get_trace_errors MCP tool.
 // This tool retrieves all spans with error status from a specific trace, returning full
 // OTLP span details including attributes, events, and links for error analysis.
-// Based on ADR 002 Phase 2 Step 6.
 type getTraceErrorsHandler struct {
 	queryService queryServiceGetTracesInterface
 }
@@ -41,12 +40,7 @@ func (h *getTraceErrorsHandler) handle(
 	_ *mcp.CallToolRequest,
 	input types.GetTraceErrorsInput,
 ) (*mcp.CallToolResult, types.GetTraceErrorsOutput, error) {
-	// Validate input
-	if input.TraceID == "" {
-		return nil, types.GetTraceErrorsOutput{}, errors.New("trace_id is required")
-	}
-
-	// Build query parameters
+	// Build query parameters (includes validation)
 	params, err := h.buildQuery(input)
 	if err != nil {
 		return nil, types.GetTraceErrorsOutput{}, err
@@ -62,28 +56,24 @@ func (h *getTraceErrorsHandler) handle(
 	var processErr error
 	traceFound := false
 
-	aggregatedIter(func(trace ptrace.Traces, err error) bool {
+	for trace, err := range aggregatedIter {
 		if err != nil {
-			// For singular lookups, store error and abort
+			// For singular lookups, store error and break
 			processErr = err
-			return false
+			break
 		}
 
 		traceFound = true
 
 		// Iterate through all spans in the trace
-		jptrace.SpanIter(trace)(func(pos jptrace.SpanIterPos, span ptrace.Span) bool {
+		for pos, span := range jptrace.SpanIter(trace) {
 			// Check if span has error status
 			if span.Status().Code() == ptrace.StatusCodeError {
 				detail := buildSpanDetail(pos, span)
 				errorSpans = append(errorSpans, detail)
 			}
-
-			return true
-		})
-
-		return true
-	})
+		}
+	}
 
 	// If we encountered an error, return it directly
 	if processErr != nil {
@@ -104,7 +94,12 @@ func (h *getTraceErrorsHandler) handle(
 }
 
 // buildQuery converts GetTraceErrorsInput to querysvc.GetTraceParams.
-func (h *getTraceErrorsHandler) buildQuery(input types.GetTraceErrorsInput) (querysvc.GetTraceParams, error) {
+func (*getTraceErrorsHandler) buildQuery(input types.GetTraceErrorsInput) (querysvc.GetTraceParams, error) {
+	// Validate input
+	if input.TraceID == "" {
+		return querysvc.GetTraceParams{}, errors.New("trace_id is required")
+	}
+
 	traceID, err := parseTraceID(input.TraceID)
 	if err != nil {
 		return querysvc.GetTraceParams{}, fmt.Errorf("invalid trace_id: %w", err)

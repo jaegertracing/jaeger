@@ -398,7 +398,9 @@ func TestGetSpanDetailsHandler_Handle_PartialResults(t *testing.T) {
 		getTracesFunc: func(_ context.Context, _ querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
 			return func(yield func([]ptrace.Traces, error) bool) {
 				// Yield first batch successfully
-				yield([]ptrace.Traces{testTrace1}, nil)
+				if !yield([]ptrace.Traces{testTrace1}, nil) {
+					return // Stop if consumer doesn't want more
+				}
 				// Yield error - for singular lookups this should abort
 				yield(nil, errors.New("database connection failed"))
 			}
