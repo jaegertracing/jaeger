@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -20,15 +21,20 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
 
+// TraceGetter is an interface for retrieving traces
+type TraceGetter interface {
+	GetTraces(ctx context.Context, params querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error]
+}
+
 // GetCriticalPathHandler handles the get_critical_path MCP tool
 type GetCriticalPathHandler struct {
-	queryService *querysvc.QueryService
+	traceGetter TraceGetter
 }
 
 // NewGetCriticalPathHandler creates a new handler for get_critical_path tool
 func NewGetCriticalPathHandler(queryService *querysvc.QueryService) *GetCriticalPathHandler {
 	return &GetCriticalPathHandler{
-		queryService: queryService,
+		traceGetter: queryService,
 	}
 }
 
@@ -64,7 +70,7 @@ func (h *GetCriticalPathHandler) Handle(
 	var trace ptrace.Traces
 	var found bool
 
-	for traces, err := range h.queryService.GetTraces(ctx, getTraceParams) {
+	for traces, err := range h.traceGetter.GetTraces(ctx, getTraceParams) {
 		if err != nil {
 			return nil, types.GetCriticalPathOutput{}, fmt.Errorf("failed to get trace: %w", err)
 		}
