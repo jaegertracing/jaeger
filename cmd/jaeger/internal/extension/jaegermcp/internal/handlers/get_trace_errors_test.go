@@ -218,9 +218,24 @@ func TestGetTraceErrorsHandler_Handle_TraceNotFound(t *testing.T) {
 }
 
 func TestGetTraceErrorsHandler_Handle_QueryError(t *testing.T) {
+	traceID := "12345678901234567890123456789012"
+
+	// Create a trace with an error span, but return it before the error
+	spanConfigs := []spanConfig{
+		{
+			spanID:       "span001",
+			operation:    "/api/error",
+			hasError:     true,
+			errorMessage: "Test error",
+		},
+	}
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+
 	mock := &mockQueryServiceForGetTraces{
 		getTracesFunc: func(_ context.Context, _ querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
 			return func(yield func([]ptrace.Traces, error) bool) {
+				// Yield the trace first, then an error
+				yield([]ptrace.Traces{testTrace}, nil)
 				yield(nil, errors.New("database connection failed"))
 			}
 		},
@@ -229,14 +244,18 @@ func TestGetTraceErrorsHandler_Handle_QueryError(t *testing.T) {
 	handler := &GetTraceErrorsHandler{queryService: mock}
 
 	input := types.GetTraceErrorsInput{
-		TraceID: "12345678901234567890123456789012",
+		TraceID: traceID,
 	}
 
-	_, _, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get trace")
-	assert.Contains(t, err.Error(), "database connection failed")
+	// Should not return an error - instead returns partial results with Error field
+	require.NoError(t, err)
+	assert.Equal(t, 1, output.ErrorCount)
+	assert.Len(t, output.Spans, 1)
+	assert.NotEmpty(t, output.Error)
+	assert.Contains(t, output.Error, "partial results")
+	assert.Contains(t, output.Error, "database connection failed")
 }
 
 func TestGetTraceErrorsHandler_Handle_AllSpansHaveErrors(t *testing.T) {

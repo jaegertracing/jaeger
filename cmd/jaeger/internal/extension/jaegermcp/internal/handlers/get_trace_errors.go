@@ -47,6 +47,8 @@ func (h *GetTraceErrorsHandler) Handle(
 	}
 
 	// Fetch trace
+	// RawTraces=false means each returned ptrace.Traces contains a complete, aggregated trace
+	// (not split across multiple consecutive ptrace.Traces objects).
 	params := querysvc.GetTraceParams{
 		TraceIDs: []tracestore.GetTraceParams{
 			{TraceID: traceID},
@@ -63,6 +65,7 @@ func (h *GetTraceErrorsHandler) Handle(
 
 	tracesIter(func(traces []ptrace.Traces, err error) bool {
 		if err != nil {
+			// Store error but continue processing to return partial results
 			processErr = err
 			return false
 		}
@@ -84,10 +87,6 @@ func (h *GetTraceErrorsHandler) Handle(
 		return true
 	})
 
-	if processErr != nil {
-		return nil, types.GetTraceErrorsOutput{}, fmt.Errorf("failed to get trace: %w", processErr)
-	}
-
 	if !traceFound {
 		return nil, types.GetTraceErrorsOutput{}, errors.New("trace not found")
 	}
@@ -96,6 +95,11 @@ func (h *GetTraceErrorsHandler) Handle(
 		TraceID:    input.TraceID,
 		ErrorCount: len(errorSpans),
 		Spans:      errorSpans,
+	}
+
+	// If we encountered an error during processing, include it in the output
+	if processErr != nil {
+		output.Error = fmt.Sprintf("partial results returned due to error: %v", processErr)
 	}
 
 	return nil, output, nil

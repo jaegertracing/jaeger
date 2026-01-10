@@ -8,14 +8,16 @@ type GetSpanDetailsInput struct {
 	// TraceID is the unique identifier for the trace (required).
 	TraceID string `json:"trace_id" jsonschema:"Unique identifier for the trace"`
 
-	// SpanIDs is a list of span IDs to fetch details for (required, max 20).
-	SpanIDs []string `json:"span_ids" jsonschema:"List of span IDs to fetch details for (max 20)"`
+	// SpanIDs is a list of span IDs to fetch details for (required).
+	// It is recommended to limit this to 20 spans or fewer for optimal performance.
+	SpanIDs []string `json:"span_ids" jsonschema:"List of span IDs to fetch details for. Recommended to limit to 20 spans or fewer"`
 }
 
 // GetSpanDetailsOutput defines the output of the get_span_details MCP tool.
 type GetSpanDetailsOutput struct {
 	TraceID string       `json:"trace_id" jsonschema:"Unique identifier for the trace"`
 	Spans   []SpanDetail `json:"spans" jsonschema:"List of span details"`
+	Error   string       `json:"error,omitempty" jsonschema:"Error message if partial results were returned"`
 }
 
 // SpanDetail contains full OTLP span data including attributes, events, and links.
@@ -35,7 +37,7 @@ type SpanDetail struct {
 
 // SpanStatus represents the status of a span.
 type SpanStatus struct {
-	Code    string `json:"code" jsonschema:"Status code (UNSET OK ERROR)"`
+	Code    string `json:"code" jsonschema:"Status code (Unset Ok Error)"`
 	Message string `json:"message,omitempty" jsonschema:"Status message"`
 }
 

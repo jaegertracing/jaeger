@@ -128,6 +128,7 @@ func (h *SearchTracesHandler) Handle(
 
 	tracesIter(func(traces []ptrace.Traces, err error) bool {
 		if err != nil {
+			// Store error but continue processing to return partial results
 			processErr = err
 			return false
 		}
@@ -135,6 +136,7 @@ func (h *SearchTracesHandler) Handle(
 		for _, trace := range traces {
 			summary, err := buildTraceSummary(trace, input.WithErrors)
 			if err != nil {
+				// Store error but continue processing to return partial results
 				processErr = err
 				return false
 			}
@@ -150,11 +152,14 @@ func (h *SearchTracesHandler) Handle(
 		return true
 	})
 
+	output := types.SearchTracesOutput{Traces: summaries}
+
+	// If we encountered an error during processing, include it in the output
 	if processErr != nil {
-		return nil, types.SearchTracesOutput{}, fmt.Errorf("failed to search traces: %w", processErr)
+		output.Error = fmt.Sprintf("partial results returned due to error: %v", processErr)
 	}
 
-	return nil, types.SearchTracesOutput{Traces: summaries}, nil
+	return nil, output, nil
 }
 
 // buildTraceSummary constructs a TraceSummary from ptrace.Traces.

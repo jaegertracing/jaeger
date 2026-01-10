@@ -20,10 +20,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-const (
-	maxSpanDetailsPerRequest = 20
-)
-
 // queryServiceGetTracesInterface defines the interface we need from QueryService for get_span_details
 type queryServiceGetTracesInterface interface {
 	GetTraces(ctx context.Context, params querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error]
@@ -56,10 +52,6 @@ func (h *GetSpanDetailsHandler) Handle(
 		return nil, types.GetSpanDetailsOutput{}, errors.New("span_ids is required and must not be empty")
 	}
 
-	if len(input.SpanIDs) > maxSpanDetailsPerRequest {
-		return nil, types.GetSpanDetailsOutput{}, fmt.Errorf("span_ids must not exceed %d spans", maxSpanDetailsPerRequest)
-	}
-
 	// Parse trace ID
 	traceID, err := parseTraceID(input.TraceID)
 	if err != nil {
@@ -73,6 +65,8 @@ func (h *GetSpanDetailsHandler) Handle(
 	}
 
 	// Fetch trace
+	// RawTraces=false means each returned ptrace.Traces contains a complete, aggregated trace
+	// (not split across multiple consecutive ptrace.Traces objects).
 	params := querysvc.GetTraceParams{
 		TraceIDs: []tracestore.GetTraceParams{
 			{TraceID: traceID},
@@ -89,6 +83,7 @@ func (h *GetSpanDetailsHandler) Handle(
 
 	tracesIter(func(traces []ptrace.Traces, err error) bool {
 		if err != nil {
+			// Store error but continue processing to return partial results
 			processErr = err
 			return false
 		}
@@ -115,10 +110,6 @@ func (h *GetSpanDetailsHandler) Handle(
 		return true
 	})
 
-	if processErr != nil {
-		return nil, types.GetSpanDetailsOutput{}, fmt.Errorf("failed to get trace: %w", processErr)
-	}
-
 	if !traceFound {
 		return nil, types.GetSpanDetailsOutput{}, errors.New("trace not found")
 	}
@@ -126,6 +117,11 @@ func (h *GetSpanDetailsHandler) Handle(
 	output := types.GetSpanDetailsOutput{
 		TraceID: input.TraceID,
 		Spans:   spanDetails,
+	}
+
+	// If we encountered an error during processing, include it in the output
+	if processErr != nil {
+		output.Error = fmt.Sprintf("partial results returned due to error: %v", processErr)
 	}
 
 	return nil, output, nil

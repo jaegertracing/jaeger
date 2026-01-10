@@ -284,9 +284,14 @@ func TestSearchTracesHandler_Handle_SearchDepthMax(t *testing.T) {
 }
 
 func TestSearchTracesHandler_Handle_QueryError(t *testing.T) {
+	// Create a test trace to return before the error
+	testTrace := createTestTrace("trace123", "test-service", "/api/test", false)
+
 	mock := &mockQueryService{
 		findTracesFunc: func(_ context.Context, _ querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
 			return func(yield func([]ptrace.Traces, error) bool) {
+				// Yield one trace first, then an error
+				yield([]ptrace.Traces{testTrace}, nil)
 				yield(nil, errors.New("database connection failed"))
 			}
 		},
@@ -299,11 +304,14 @@ func TestSearchTracesHandler_Handle_QueryError(t *testing.T) {
 		ServiceName:  "test",
 	}
 
-	_, _, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to search traces")
-	assert.Contains(t, err.Error(), "database connection failed")
+	// Should not return an error - instead returns partial results with Error field
+	require.NoError(t, err)
+	assert.Len(t, output.Traces, 1)
+	assert.NotEmpty(t, output.Error)
+	assert.Contains(t, output.Error, "partial results")
+	assert.Contains(t, output.Error, "database connection failed")
 }
 
 func TestSearchTracesHandler_Handle_MissingServiceName(t *testing.T) {

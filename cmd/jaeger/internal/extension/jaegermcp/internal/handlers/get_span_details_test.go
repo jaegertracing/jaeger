@@ -324,26 +324,6 @@ func TestGetSpanDetailsHandler_Handle_MissingSpanIDs(t *testing.T) {
 	assert.Contains(t, err.Error(), "span_ids is required")
 }
 
-func TestGetSpanDetailsHandler_Handle_TooManySpanIDs(t *testing.T) {
-	handler := NewGetSpanDetailsHandler(nil)
-
-	// Create 21 span IDs (exceeds max of 20)
-	spanIDs := make([]string, 21)
-	for i := 0; i < 21; i++ {
-		spanIDs[i] = "span" + string(rune(i))
-	}
-
-	input := types.GetSpanDetailsInput{
-		TraceID: "12345678901234567890123456789012",
-		SpanIDs: spanIDs,
-	}
-
-	_, _, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "span_ids must not exceed 20 spans")
-}
-
 func TestGetSpanDetailsHandler_Handle_InvalidTraceID(t *testing.T) {
 	handler := NewGetSpanDetailsHandler(nil)
 
@@ -381,9 +361,23 @@ func TestGetSpanDetailsHandler_Handle_TraceNotFound(t *testing.T) {
 }
 
 func TestGetSpanDetailsHandler_Handle_QueryError(t *testing.T) {
+	traceID := "12345678901234567890123456789012"
+	spanID := "span001"
+
+	// Create a trace with one span, but return it before the error
+	spanConfigs := []spanConfig{
+		{
+			spanID:    spanID,
+			operation: "/api/test",
+		},
+	}
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+
 	mock := &mockQueryServiceForGetTraces{
 		getTracesFunc: func(_ context.Context, _ querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
 			return func(yield func([]ptrace.Traces, error) bool) {
+				// Yield the trace first, then an error
+				yield([]ptrace.Traces{testTrace}, nil)
 				yield(nil, errors.New("database connection failed"))
 			}
 		},
@@ -392,15 +386,18 @@ func TestGetSpanDetailsHandler_Handle_QueryError(t *testing.T) {
 	handler := &GetSpanDetailsHandler{queryService: mock}
 
 	input := types.GetSpanDetailsInput{
-		TraceID: "12345678901234567890123456789012",
-		SpanIDs: []string{spanIDToHex("span001")},
+		TraceID: traceID,
+		SpanIDs: []string{spanIDToHex(spanID)},
 	}
 
-	_, _, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get trace")
-	assert.Contains(t, err.Error(), "database connection failed")
+	// Should not return an error - instead returns partial results with Error field
+	require.NoError(t, err)
+	assert.Len(t, output.Spans, 1)
+	assert.NotEmpty(t, output.Error)
+	assert.Contains(t, output.Error, "partial results")
+	assert.Contains(t, output.Error, "database connection failed")
 }
 
 func TestGetSpanDetailsHandler_Handle_WithParentSpanID(t *testing.T) {

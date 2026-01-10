@@ -438,13 +438,17 @@ cmd/jaeger/internal/extension/jaegermcp/
     │   └── criticalpath_test.go
     ├── handlers/        # MCP tool handlers
     │   ├── search_traces.go
+    │   ├── search_traces_test.go
     │   ├── get_trace_topology.go
     │   ├── get_critical_path.go
     │   ├── get_span_details.go
+    │   ├── get_span_details_test.go
     │   ├── get_trace_errors.go
-    │   └── handlers_test.go
-    └── types/           # Response types for MCP tools
-        └── types.go
+    │   └── get_trace_errors_test.go
+    └── types/           # Response types for MCP tools (one file per handler)
+        ├── search_traces.go
+        ├── get_span_details.go
+        └── get_trace_errors.go
 ```
 
 ## Consequences
