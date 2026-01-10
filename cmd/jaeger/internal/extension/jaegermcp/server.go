@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/handlers"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 )
@@ -71,12 +72,17 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	// Custom options (e.g., logging, handlers) can be added in Phase 2 if needed.
 	s.mcpServer = mcp.NewServer(impl, &mcp.ServerOptions{})
 
-	// Register a placeholder health tool for Phase 1 Part 2
-	// Actual MCP tools will be implemented in Phase 2
+	// Register MCP tools
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "health",
 		Description: "Check if the Jaeger MCP server is running",
 	}, s.healthTool)
+
+	searchTracesHandler := handlers.NewSearchTracesHandler(s.queryAPI)
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "search_traces",
+		Description: "Find traces matching service, time, attributes, and duration criteria. Returns trace summary only.",
+	}, searchTracesHandler.Handle)
 
 	// Set up TCP listener with context
 	lc := net.ListenConfig{}
