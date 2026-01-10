@@ -30,7 +30,7 @@ func AggregateTraces(tracesSeq iter.Seq2[[]ptrace.Traces, error]) iter.Seq2[ptra
 				resources := trace.ResourceSpans()
 				traceID := resources.At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 				if currentTraceID == traceID {
-					mergeTraces(trace, currentTrace)
+					MergeTraces(currentTrace, trace)
 				} else {
 					if currentTrace.SpanCount() > 0 {
 						if !yield(currentTrace, nil) {
@@ -49,16 +49,12 @@ func AggregateTraces(tracesSeq iter.Seq2[[]ptrace.Traces, error]) iter.Seq2[ptra
 	}
 }
 
-func mergeTraces(src, dest ptrace.Traces) {
+// MergeTraces merges src trace into dest trace.
+// This is useful when multiple iterations return parts of the same trace.
+func MergeTraces(dest, src ptrace.Traces) {
 	resources := src.ResourceSpans()
 	for i := 0; i < resources.Len(); i++ {
 		resource := resources.At(i)
 		resource.CopyTo(dest.ResourceSpans().AppendEmpty())
 	}
-}
-
-// MergeTraces merges src trace into dest trace.
-// This is useful when multiple iterations return parts of the same trace.
-func MergeTraces(dest, src ptrace.Traces) {
-	mergeTraces(src, dest)
 }

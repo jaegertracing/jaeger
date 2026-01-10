@@ -49,24 +49,71 @@ func (h *SearchTracesHandler) Handle(
 	_ *mcp.CallToolRequest,
 	input types.SearchTracesInput,
 ) (*mcp.CallToolResult, types.SearchTracesOutput, error) {
+	// Build trace query parameters
+	query, err := buildTraceQueryParams(input)
+	if err != nil {
+		return nil, types.SearchTracesOutput{}, err
+	}
+
+	// Execute search
+	tracesIter := h.queryService.FindTraces(ctx, query)
+
+	// Wrap with AggregateTraces to ensure each ptrace.Traces contains a complete trace
+	aggregatedIter := jptrace.AggregateTraces(tracesIter)
+
+	// Process results
+	var summaries []types.TraceSummary
+	var processErr error
+
+	aggregatedIter(func(trace ptrace.Traces, err error) bool {
+		if err != nil {
+			// Store error but continue processing to return partial results
+			// Returning true allows the iterator to continue with remaining items
+			processErr = err
+			return true
+		}
+
+		summary := buildTraceSummary(trace, input.WithErrors)
+
+		// Filter by error status if requested
+		if input.WithErrors && !summary.HasErrors {
+			return true
+		}
+
+		summaries = append(summaries, summary)
+		return true
+	})
+
+	output := types.SearchTracesOutput{Traces: summaries}
+
+	// If we encountered an error during processing, include it in the output
+	if processErr != nil {
+		output.Error = fmt.Sprintf("partial results returned due to error: %v", processErr)
+	}
+
+	return nil, output, nil
+}
+
+// buildTraceQueryParams converts SearchTracesInput to querysvc.TraceQueryParams.
+func buildTraceQueryParams(input types.SearchTracesInput) (querysvc.TraceQueryParams, error) {
 	// Parse and validate input
 	startTimeMin, err := parseTimeParam(input.StartTimeMin)
 	if err != nil {
-		return nil, types.SearchTracesOutput{}, fmt.Errorf("invalid start_time_min: %w", err)
+		return querysvc.TraceQueryParams{}, fmt.Errorf("invalid start_time_min: %w", err)
 	}
 
 	var startTimeMax time.Time
 	if input.StartTimeMax != "" {
 		startTimeMax, err = parseTimeParam(input.StartTimeMax)
 		if err != nil {
-			return nil, types.SearchTracesOutput{}, fmt.Errorf("invalid start_time_max: %w", err)
+			return querysvc.TraceQueryParams{}, fmt.Errorf("invalid start_time_max: %w", err)
 		}
 	} else {
 		startTimeMax = time.Now()
 	}
 
 	if input.ServiceName == "" {
-		return nil, types.SearchTracesOutput{}, errors.New("service_name is required")
+		return querysvc.TraceQueryParams{}, errors.New("service_name is required")
 	}
 
 	// Parse duration parameters
@@ -74,19 +121,19 @@ func (h *SearchTracesHandler) Handle(
 	if input.DurationMin != "" {
 		durationMin, err = time.ParseDuration(input.DurationMin)
 		if err != nil {
-			return nil, types.SearchTracesOutput{}, fmt.Errorf("invalid duration_min: %w", err)
+			return querysvc.TraceQueryParams{}, fmt.Errorf("invalid duration_min: %w", err)
 		}
 	}
 	if input.DurationMax != "" {
 		durationMax, err = time.ParseDuration(input.DurationMax)
 		if err != nil {
-			return nil, types.SearchTracesOutput{}, fmt.Errorf("invalid duration_max: %w", err)
+			return querysvc.TraceQueryParams{}, fmt.Errorf("invalid duration_max: %w", err)
 		}
 	}
 
 	// Validate duration range
 	if durationMin > 0 && durationMax > 0 && durationMax < durationMin {
-		return nil, types.SearchTracesOutput{}, errors.New("duration_max must be greater than duration_min")
+		return querysvc.TraceQueryParams{}, errors.New("duration_max must be greater than duration_min")
 	}
 
 	// Set default and max search depth
@@ -104,8 +151,7 @@ func (h *SearchTracesHandler) Handle(
 		attributes.PutStr(key, value)
 	}
 
-	// Build trace query parameters
-	query := querysvc.TraceQueryParams{
+	return querysvc.TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
 			ServiceName:   input.ServiceName,
 			OperationName: input.OperationName,
@@ -117,55 +163,11 @@ func (h *SearchTracesHandler) Handle(
 			SearchDepth:   searchDepth,
 		},
 		RawTraces: false, // We want adjusted traces
-	}
-
-	// Execute search
-	tracesIter := h.queryService.FindTraces(ctx, query)
-
-	// Process results
-	var summaries []types.TraceSummary
-	var processErr error
-
-	tracesIter(func(traces []ptrace.Traces, err error) bool {
-		if err != nil {
-			// Store error but continue processing to return partial results
-			// Returning true allows the iterator to continue with remaining items
-			processErr = err
-			return true
-		}
-
-		for _, trace := range traces {
-			summary, err := buildTraceSummary(trace, input.WithErrors)
-			if err != nil {
-				// Store error but continue processing to return partial results
-				// Returning true allows the iterator to continue with remaining items
-				processErr = err
-				return true
-			}
-
-			// Filter by error status if requested
-			if input.WithErrors && !summary.HasErrors {
-				continue
-			}
-
-			summaries = append(summaries, summary)
-		}
-
-		return true
-	})
-
-	output := types.SearchTracesOutput{Traces: summaries}
-
-	// If we encountered an error during processing, include it in the output
-	if processErr != nil {
-		output.Error = fmt.Sprintf("partial results returned due to error: %v", processErr)
-	}
-
-	return nil, output, nil
+	}, nil
 }
 
 // buildTraceSummary constructs a TraceSummary from ptrace.Traces.
-func buildTraceSummary(trace ptrace.Traces, _ bool) (types.TraceSummary, error) {
+func buildTraceSummary(trace ptrace.Traces, _ bool) types.TraceSummary {
 	var summary types.TraceSummary
 	var rootSpan ptrace.Span
 	var rootServiceName string
@@ -212,10 +214,10 @@ func buildTraceSummary(trace ptrace.Traces, _ bool) (types.TraceSummary, error) 
 		return true
 	})
 
-	// Calculate duration
-	var durationMs int64
+	// Calculate duration in microseconds
+	var durationUs int64
 	if !minStartTime.IsZero() && !maxEndTime.IsZero() {
-		durationMs = maxEndTime.Sub(minStartTime).Milliseconds()
+		durationUs = maxEndTime.Sub(minStartTime).Microseconds()
 	}
 
 	// Extract root span information
@@ -227,12 +229,12 @@ func buildTraceSummary(trace ptrace.Traces, _ bool) (types.TraceSummary, error) 
 	// Build summary
 	summary.TraceID = traceID.String()
 	summary.StartTime = minStartTime.Format(time.RFC3339)
-	summary.DurationMs = durationMs
+	summary.DurationUs = durationUs
 	summary.SpanCount = spanCount
 	summary.ServiceCount = len(services)
 	summary.HasErrors = hasErrors
 
-	return summary, nil
+	return summary
 }
 
 // parseTimeParam parses time parameters supporting RFC3339 and relative time formats.

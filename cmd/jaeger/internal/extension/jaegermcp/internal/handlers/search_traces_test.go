@@ -71,8 +71,7 @@ func TestSearchTracesHandler_Handle_Success(t *testing.T) {
 	testTrace := createTestTrace("trace123", "frontend", "/api/checkout", false)
 
 	// Test buildTraceSummary directly
-	summary, err := buildTraceSummary(testTrace, false)
-	require.NoError(t, err)
+	summary := buildTraceSummary(testTrace, false)
 
 	assert.Equal(t, "frontend", summary.RootService)
 	assert.Equal(t, "/api/checkout", summary.RootOperation)
@@ -84,9 +83,8 @@ func TestSearchTracesHandler_Handle_Success(t *testing.T) {
 func TestSearchTracesHandler_BuildSummary_WithErrors(t *testing.T) {
 	testTrace := createTestTrace("trace456", "payment", "/process", true)
 
-	summary, err := buildTraceSummary(testTrace, false)
+	summary := buildTraceSummary(testTrace, false)
 
-	require.NoError(t, err)
 	assert.Equal(t, "payment", summary.RootService)
 	assert.Equal(t, "/process", summary.RootOperation)
 	assert.True(t, summary.HasErrors)

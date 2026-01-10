@@ -65,8 +65,6 @@ func (h *GetSpanDetailsHandler) Handle(
 	}
 
 	// Fetch trace
-	// RawTraces=false means each returned ptrace.Traces contains a complete, aggregated trace
-	// (not split across multiple consecutive ptrace.Traces objects).
 	params := querysvc.GetTraceParams{
 		TraceIDs: []tracestore.GetTraceParams{
 			{TraceID: traceID},
@@ -76,28 +74,38 @@ func (h *GetSpanDetailsHandler) Handle(
 
 	tracesIter := h.queryService.GetTraces(ctx, params)
 
+	// Wrap with AggregateTraces to ensure each ptrace.Traces contains a complete trace
+	aggregatedIter := jptrace.AggregateTraces(tracesIter)
+
 	// Collect spans matching the requested span IDs
 	var spanDetails []types.SpanDetail
 	var processErr error
 	traceFound := false
-	aggregatedTrace := ptrace.NewTraces()
 
-	tracesIter(func(traces []ptrace.Traces, err error) bool {
+	aggregatedIter(func(trace ptrace.Traces, err error) bool {
 		if err != nil {
 			// For singular lookups, store error and abort
 			processErr = err
 			return false
 		}
 
-		for _, trace := range traces {
-			traceFound = true
-			// Merge this trace into our aggregated trace in case of multiple iterations
-			if aggregatedTrace.SpanCount() == 0 {
-				trace.CopyTo(aggregatedTrace)
-			} else {
-				jptrace.MergeTraces(aggregatedTrace, trace)
+		traceFound = true
+
+		// Iterate through all spans in the trace
+		jptrace.SpanIter(trace)(func(pos jptrace.SpanIterPos, span ptrace.Span) bool {
+			spanIDStr := span.SpanID().String()
+
+			// Check if this span ID is in the requested set
+			if _, found := spanIDSet[spanIDStr]; found {
+				detail := buildSpanDetail(pos, span)
+				spanDetails = append(spanDetails, detail)
+
+				// Remove from set to track which spans we've found
+				delete(spanIDSet, spanIDStr)
 			}
-		}
+
+			return true
+		})
 
 		return true
 	})
@@ -110,22 +118,6 @@ func (h *GetSpanDetailsHandler) Handle(
 	if !traceFound {
 		return nil, types.GetSpanDetailsOutput{}, errors.New("trace not found")
 	}
-
-	// Iterate through all spans in the aggregated trace
-	jptrace.SpanIter(aggregatedTrace)(func(pos jptrace.SpanIterPos, span ptrace.Span) bool {
-		spanIDStr := span.SpanID().String()
-
-		// Check if this span ID is in the requested set
-		if _, found := spanIDSet[spanIDStr]; found {
-			detail := buildSpanDetail(pos, span)
-			spanDetails = append(spanDetails, detail)
-
-			// Remove from set to track which spans we've found
-			delete(spanIDSet, spanIDStr)
-		}
-
-		return true
-	})
 
 	output := types.GetSpanDetailsOutput{
 		TraceID: input.TraceID,

@@ -47,8 +47,6 @@ func (h *GetTraceErrorsHandler) Handle(
 	}
 
 	// Fetch trace
-	// RawTraces=false means each returned ptrace.Traces contains a complete, aggregated trace
-	// (not split across multiple consecutive ptrace.Traces objects).
 	params := querysvc.GetTraceParams{
 		TraceIDs: []tracestore.GetTraceParams{
 			{TraceID: traceID},
@@ -58,28 +56,33 @@ func (h *GetTraceErrorsHandler) Handle(
 
 	tracesIter := h.queryService.GetTraces(ctx, params)
 
+	// Wrap with AggregateTraces to ensure each ptrace.Traces contains a complete trace
+	aggregatedIter := jptrace.AggregateTraces(tracesIter)
+
 	// Collect spans with error status
 	var errorSpans []types.SpanDetail
 	var processErr error
 	traceFound := false
-	aggregatedTrace := ptrace.NewTraces()
 
-	tracesIter(func(traces []ptrace.Traces, err error) bool {
+	aggregatedIter(func(trace ptrace.Traces, err error) bool {
 		if err != nil {
 			// For singular lookups, store error and abort
 			processErr = err
 			return false
 		}
 
-		for _, trace := range traces {
-			traceFound = true
-			// Merge this trace into our aggregated trace in case of multiple iterations
-			if aggregatedTrace.SpanCount() == 0 {
-				trace.CopyTo(aggregatedTrace)
-			} else {
-				jptrace.MergeTraces(aggregatedTrace, trace)
+		traceFound = true
+
+		// Iterate through all spans in the trace
+		jptrace.SpanIter(trace)(func(pos jptrace.SpanIterPos, span ptrace.Span) bool {
+			// Check if span has error status
+			if span.Status().Code() == ptrace.StatusCodeError {
+				detail := buildSpanDetail(pos, span)
+				errorSpans = append(errorSpans, detail)
 			}
-		}
+
+			return true
+		})
 
 		return true
 	})
@@ -92,17 +95,6 @@ func (h *GetTraceErrorsHandler) Handle(
 	if !traceFound {
 		return nil, types.GetTraceErrorsOutput{}, errors.New("trace not found")
 	}
-
-	// Iterate through all spans in the aggregated trace
-	jptrace.SpanIter(aggregatedTrace)(func(pos jptrace.SpanIterPos, span ptrace.Span) bool {
-		// Check if span has error status
-		if span.Status().Code() == ptrace.StatusCodeError {
-			detail := buildSpanDetail(pos, span)
-			errorSpans = append(errorSpans, detail)
-		}
-
-		return true
-	})
 
 	output := types.GetTraceErrorsOutput{
 		TraceID:    input.TraceID,
