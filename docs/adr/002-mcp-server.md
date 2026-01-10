@@ -475,14 +475,14 @@ cmd/jaeger/internal/extension/jaegermcp/
 
 ### Phase 1: Foundation
 
-1. **Extension Scaffold**
+1. **Extension Scaffold** ✅
    - Create `jaegermcp` extension directory structure
    - Implement `config.go` with configuration validation
    - Implement `factory.go` following `jaegerquery` pattern
    - Implement `server.go` with lifecycle management
    - Wire extension into component registration
 
-2. **MCP Server Setup**
+2. **MCP Server Setup** ✅
    - Add `github.com/modelcontextprotocol/go-sdk` dependency
    - Initialize MCP server with Streamable HTTP transport
    - Implement server start/shutdown with graceful cleanup
