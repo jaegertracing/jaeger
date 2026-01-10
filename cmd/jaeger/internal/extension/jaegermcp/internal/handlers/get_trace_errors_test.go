@@ -49,13 +49,7 @@ func TestGetTraceErrorsHandler_Handle_Success(t *testing.T) {
 
 	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
 
-	mock := &mockQueryServiceForGetTraces{
-		getTracesFunc: func(_ context.Context, _ querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
-			return func(yield func([]ptrace.Traces, error) bool) {
-				yield([]ptrace.Traces{testTrace}, nil)
-			}
-		},
-	}
+	mock := newMockYieldingTraces(testTrace)
 
 	handler := &getTraceErrorsHandler{queryService: mock}
 
@@ -104,13 +98,7 @@ func TestGetTraceErrorsHandler_Handle_NoErrors(t *testing.T) {
 
 	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
 
-	mock := &mockQueryServiceForGetTraces{
-		getTracesFunc: func(_ context.Context, _ querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
-			return func(yield func([]ptrace.Traces, error) bool) {
-				yield([]ptrace.Traces{testTrace}, nil)
-			}
-		},
-	}
+	mock := newMockYieldingTraces(testTrace)
 
 	handler := &getTraceErrorsHandler{queryService: mock}
 
@@ -145,13 +133,7 @@ func TestGetTraceErrorsHandler_Handle_SingleError(t *testing.T) {
 
 	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
 
-	mock := &mockQueryServiceForGetTraces{
-		getTracesFunc: func(_ context.Context, _ querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
-			return func(yield func([]ptrace.Traces, error) bool) {
-				yield([]ptrace.Traces{testTrace}, nil)
-			}
-		},
-	}
+	mock := newMockYieldingTraces(testTrace)
 
 	handler := &getTraceErrorsHandler{queryService: mock}
 
@@ -197,13 +179,7 @@ func TestGetTraceErrorsHandler_Handle_InvalidTraceID(t *testing.T) {
 }
 
 func TestGetTraceErrorsHandler_Handle_TraceNotFound(t *testing.T) {
-	mock := &mockQueryServiceForGetTraces{
-		getTracesFunc: func(_ context.Context, _ querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
-			return func(_ func([]ptrace.Traces, error) bool) {
-				// Don't yield any traces
-			}
-		},
-	}
+	mock := newMockYieldingEmpty()
 
 	handler := &getTraceErrorsHandler{queryService: mock}
 
@@ -218,14 +194,7 @@ func TestGetTraceErrorsHandler_Handle_TraceNotFound(t *testing.T) {
 }
 
 func TestGetTraceErrorsHandler_Handle_QueryError(t *testing.T) {
-	mock := &mockQueryServiceForGetTraces{
-		getTracesFunc: func(_ context.Context, _ querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
-			return func(yield func([]ptrace.Traces, error) bool) {
-				// Yield error immediately
-				yield(nil, errors.New("database connection failed"))
-			}
-		},
-	}
+	mock := newMockYieldingError(errors.New("database connection failed"))
 
 	handler := &getTraceErrorsHandler{queryService: mock}
 
@@ -251,7 +220,7 @@ func TestGetTraceErrorsHandler_Handle_MultipleIterations(t *testing.T) {
 		{spanID: "span002", operation: "/api/error2", hasError: true, errorMessage: "Error 2"},
 	})
 
-	mock := &mockQueryServiceForGetTraces{
+	mock := &mockQueryService{
 		getTracesFunc: func(_ context.Context, _ querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
 			return func(yield func([]ptrace.Traces, error) bool) {
 				// Yield multiple batches successfully - they should be merged
@@ -301,13 +270,7 @@ func TestGetTraceErrorsHandler_Handle_AllSpansHaveErrors(t *testing.T) {
 
 	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
 
-	mock := &mockQueryServiceForGetTraces{
-		getTracesFunc: func(_ context.Context, _ querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
-			return func(yield func([]ptrace.Traces, error) bool) {
-				yield([]ptrace.Traces{testTrace}, nil)
-			}
-		},
-	}
+	mock := newMockYieldingTraces(testTrace)
 
 	handler := &getTraceErrorsHandler{queryService: mock}
 
@@ -348,13 +311,7 @@ func TestGetTraceErrorsHandler_Handle_ErrorSpanAttributes(t *testing.T) {
 
 	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
 
-	mock := &mockQueryServiceForGetTraces{
-		getTracesFunc: func(_ context.Context, _ querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
-			return func(yield func([]ptrace.Traces, error) bool) {
-				yield([]ptrace.Traces{testTrace}, nil)
-			}
-		},
-	}
+	mock := newMockYieldingTraces(testTrace)
 
 	handler := &getTraceErrorsHandler{queryService: mock}
 
@@ -396,13 +353,7 @@ func TestGetTraceErrorsHandler_Handle_ErrorSpanWithEvents(t *testing.T) {
 
 	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
 
-	mock := &mockQueryServiceForGetTraces{
-		getTracesFunc: func(_ context.Context, _ querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
-			return func(yield func([]ptrace.Traces, error) bool) {
-				yield([]ptrace.Traces{testTrace}, nil)
-			}
-		},
-	}
+	mock := newMockYieldingTraces(testTrace)
 
 	handler := &getTraceErrorsHandler{queryService: mock}
 

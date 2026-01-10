@@ -8,7 +8,6 @@ import (
 	"errors"
 	"iter"
 	"testing"
-	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -20,120 +19,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 )
 
-// mockQueryServiceForGetTraces is a mock implementation for GetTraces
-type mockQueryServiceForGetTraces struct {
-	getTracesFunc func(ctx context.Context, params querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error]
-}
-
-func (m *mockQueryServiceForGetTraces) GetTraces(ctx context.Context, params querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
-	if m.getTracesFunc != nil {
-		return m.getTracesFunc(ctx, params)
-	}
-	return func(_ func([]ptrace.Traces, error) bool) {}
-}
-
-// createTestTraceWithSpans creates a trace with multiple spans for testing
-func createTestTraceWithSpans(traceID string, spanConfigs []spanConfig) ptrace.Traces {
-	traces := ptrace.NewTraces()
-	resourceSpans := traces.ResourceSpans().AppendEmpty()
-
-	// Set service name in resource attributes
-	resourceSpans.Resource().Attributes().PutStr("service.name", "test-service")
-
-	scopeSpans := resourceSpans.ScopeSpans().AppendEmpty()
-
-	tid := pcommon.TraceID{}
-	copy(tid[:], traceID)
-
-	for i := range spanConfigs {
-		config := &spanConfigs[i]
-		span := scopeSpans.Spans().AppendEmpty()
-
-		// Set trace ID
-		span.SetTraceID(tid)
-
-		// Set span ID - convert string to bytes
-		sid := pcommon.SpanID{}
-		copy(sid[:], config.spanID)
-		span.SetSpanID(sid)
-
-		// Set parent span ID if provided
-		if config.parentSpanID != "" {
-			psid := pcommon.SpanID{}
-			copy(psid[:], config.parentSpanID)
-			span.SetParentSpanID(psid)
-		}
-
-		span.SetName(config.operation)
-		span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(-5 * time.Second)))
-		span.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now()))
-
-		// Set status
-		if config.hasError {
-			span.Status().SetCode(ptrace.StatusCodeError)
-			span.Status().SetMessage(config.errorMessage)
-		} else {
-			span.Status().SetCode(ptrace.StatusCodeOk)
-		}
-
-		// Add attributes if provided
-		for k, v := range config.attributes {
-			span.Attributes().PutStr(k, v)
-		}
-
-		// Add events if provided
-		for _, evt := range config.events {
-			event := span.Events().AppendEmpty()
-			event.SetName(evt.name)
-			event.SetTimestamp(pcommon.NewTimestampFromTime(time.Now()))
-			for k, v := range evt.attributes {
-				event.Attributes().PutStr(k, v)
-			}
-		}
-
-		// Add links if provided
-		for _, lnk := range config.links {
-			link := span.Links().AppendEmpty()
-			linkTid := pcommon.TraceID{}
-			copy(linkTid[:], lnk.traceID)
-			link.SetTraceID(linkTid)
-			linkSid := pcommon.SpanID{}
-			copy(linkSid[:], lnk.spanID)
-			link.SetSpanID(linkSid)
-		}
-	}
-
-	return traces
-}
-
-// spanIDToHex converts a span ID (8 bytes copied from string) to hex string format
-// This matches what pcommon.SpanID.String() returns
-func spanIDToHex(spanID string) string {
-	sid := pcommon.SpanID{}
-	copy(sid[:], spanID)
-	return sid.String()
-}
-
-type spanConfig struct {
-	spanID       string
-	parentSpanID string
-	operation    string
-	hasError     bool
-	errorMessage string
-	attributes   map[string]string
-	events       []eventConfig
-	links        []linkConfig
-}
-
-type eventConfig struct {
-	name       string
-	attributes map[string]string
-}
-
-type linkConfig struct {
-	traceID string
-	spanID  string
-}
+// Helper types and functions are defined in test_helpers.go
 
 func TestGetSpanDetailsHandler_Handle_Success(t *testing.T) {
 	traceID := "12345678901234567890123456789012"
@@ -171,13 +57,7 @@ func TestGetSpanDetailsHandler_Handle_Success(t *testing.T) {
 
 	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
 
-	mock := &mockQueryServiceForGetTraces{
-		getTracesFunc: func(_ context.Context, _ querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
-			return func(yield func([]ptrace.Traces, error) bool) {
-				yield([]ptrace.Traces{testTrace}, nil)
-			}
-		},
-	}
+	mock := newMockYieldingTraces(testTrace)
 
 	handler := &getSpanDetailsHandler{queryService: mock}
 
@@ -233,13 +113,7 @@ func TestGetSpanDetailsHandler_Handle_SingleSpan(t *testing.T) {
 
 	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
 
-	mock := &mockQueryServiceForGetTraces{
-		getTracesFunc: func(_ context.Context, _ querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
-			return func(yield func([]ptrace.Traces, error) bool) {
-				yield([]ptrace.Traces{testTrace}, nil)
-			}
-		},
-	}
+	mock := newMockYieldingTraces(testTrace)
 
 	handler := &getSpanDetailsHandler{queryService: mock}
 
@@ -267,13 +141,7 @@ func TestGetSpanDetailsHandler_Handle_FiltersBySpanIDs(t *testing.T) {
 
 	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
 
-	mock := &mockQueryServiceForGetTraces{
-		getTracesFunc: func(_ context.Context, _ querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
-			return func(yield func([]ptrace.Traces, error) bool) {
-				yield([]ptrace.Traces{testTrace}, nil)
-			}
-		},
-	}
+	mock := newMockYieldingTraces(testTrace)
 
 	handler := &getSpanDetailsHandler{queryService: mock}
 
@@ -339,13 +207,7 @@ func TestGetSpanDetailsHandler_Handle_InvalidTraceID(t *testing.T) {
 }
 
 func TestGetSpanDetailsHandler_Handle_TraceNotFound(t *testing.T) {
-	mock := &mockQueryServiceForGetTraces{
-		getTracesFunc: func(_ context.Context, _ querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
-			return func(_ func([]ptrace.Traces, error) bool) {
-				// Don't yield any traces
-			}
-		},
-	}
+	mock := newMockYieldingEmpty()
 
 	handler := &getSpanDetailsHandler{queryService: mock}
 
@@ -361,14 +223,7 @@ func TestGetSpanDetailsHandler_Handle_TraceNotFound(t *testing.T) {
 }
 
 func TestGetSpanDetailsHandler_Handle_QueryError(t *testing.T) {
-	mock := &mockQueryServiceForGetTraces{
-		getTracesFunc: func(_ context.Context, _ querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
-			return func(yield func([]ptrace.Traces, error) bool) {
-				// Yield error immediately
-				yield(nil, errors.New("database connection failed"))
-			}
-		},
-	}
+	mock := newMockYieldingError(errors.New("database connection failed"))
 
 	handler := &getSpanDetailsHandler{queryService: mock}
 
@@ -394,7 +249,7 @@ func TestGetSpanDetailsHandler_Handle_PartialResults(t *testing.T) {
 		{spanID: spanID1, operation: "/api/test1"},
 	})
 
-	mock := &mockQueryServiceForGetTraces{
+	mock := &mockQueryService{
 		getTracesFunc: func(_ context.Context, _ querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
 			return func(yield func([]ptrace.Traces, error) bool) {
 				// Yield first batch successfully
@@ -435,7 +290,7 @@ func TestGetSpanDetailsHandler_Handle_MultipleIterations(t *testing.T) {
 		{spanID: spanID2, operation: "/api/test2"},
 	})
 
-	mock := &mockQueryServiceForGetTraces{
+	mock := &mockQueryService{
 		getTracesFunc: func(_ context.Context, _ querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
 			return func(yield func([]ptrace.Traces, error) bool) {
 				// Yield multiple batches successfully - they should be merged
@@ -478,13 +333,7 @@ func TestGetSpanDetailsHandler_Handle_WithParentSpanID(t *testing.T) {
 
 	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
 
-	mock := &mockQueryServiceForGetTraces{
-		getTracesFunc: func(_ context.Context, _ querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
-			return func(yield func([]ptrace.Traces, error) bool) {
-				yield([]ptrace.Traces{testTrace}, nil)
-			}
-		},
-	}
+	mock := newMockYieldingTraces(testTrace)
 
 	handler := &getSpanDetailsHandler{queryService: mock}
 
@@ -509,13 +358,7 @@ func TestGetSpanDetailsHandler_Handle_NoMatchingSpans(t *testing.T) {
 
 	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
 
-	mock := &mockQueryServiceForGetTraces{
-		getTracesFunc: func(_ context.Context, _ querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
-			return func(yield func([]ptrace.Traces, error) bool) {
-				yield([]ptrace.Traces{testTrace}, nil)
-			}
-		},
-	}
+	mock := newMockYieldingTraces(testTrace)
 
 	handler := &getSpanDetailsHandler{queryService: mock}
 

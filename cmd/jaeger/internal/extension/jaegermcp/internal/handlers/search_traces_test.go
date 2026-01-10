@@ -13,58 +13,13 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/types"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 )
 
-// mockQueryService is a mock implementation of QueryService for testing
-type mockQueryService struct {
-	findTracesFunc func(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error]
-}
-
-func (m *mockQueryService) FindTraces(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
-	if m.findTracesFunc != nil {
-		return m.findTracesFunc(ctx, query)
-	}
-	return func(_ func([]ptrace.Traces, error) bool) {}
-}
-
-// createTestTrace creates a sample trace for testing
-func createTestTrace(traceID string, serviceName string, operationName string, hasError bool) ptrace.Traces {
-	traces := ptrace.NewTraces()
-	resourceSpans := traces.ResourceSpans().AppendEmpty()
-
-	// Set service name in resource attributes
-	resourceSpans.Resource().Attributes().PutStr("service.name", serviceName)
-
-	scopeSpans := resourceSpans.ScopeSpans().AppendEmpty()
-	span := scopeSpans.Spans().AppendEmpty()
-
-	// Set trace ID
-	tid := pcommon.TraceID{}
-	copy(tid[:], traceID)
-	span.SetTraceID(tid)
-
-	// Set span ID (root span has empty parent)
-	span.SetSpanID(pcommon.SpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8}))
-	span.SetParentSpanID(pcommon.SpanID{}) // Empty parent = root span
-
-	span.SetName(operationName)
-	span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(-5 * time.Second)))
-	span.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now()))
-
-	if hasError {
-		span.Status().SetCode(ptrace.StatusCodeError)
-		span.Status().SetMessage("Test error")
-	} else {
-		span.Status().SetCode(ptrace.StatusCodeOk)
-	}
-
-	return traces
-}
+// mockQueryService and createTestTrace are defined in test_helpers.go
 
 func TestSearchTracesHandler_Handle_Success(t *testing.T) {
 	// Create test data
