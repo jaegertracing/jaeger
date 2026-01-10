@@ -461,7 +461,7 @@ func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
 	}
 	newTrace := ptrace.NewTraces()
 	newResourceSpan.CopyTo(newTrace.ResourceSpans().AppendEmpty())
-	newTrace = normaliseTracePerStorage(newTrace)
+	newTrace = normalizeTracePerStorage(newTrace)
 	s.writeTrace(t, newTrace)
 	return newTrace
 }
@@ -480,19 +480,19 @@ func getTraceFixtureExact(t *testing.T, fileName string, isOtelTrace bool) ptrac
 		loadAndParseJSONPB(t, fileName, &trace)
 		traces = v1adapter.V1TraceToOtelTrace(&trace)
 	}
-	return normaliseTracePerStorage(traces)
+	return normalizeTracePerStorage(traces)
 }
 
-func normaliseTracePerStorage(traces ptrace.Traces) ptrace.Traces {
+func normalizeTracePerStorage(traces ptrace.Traces) ptrace.Traces {
 	storage := os.Getenv("STORAGE")
 	if storage == "elasticsearch" || storage == "opensearch" || storage == "clickhouse" || storage == "kafka" {
-		return getNormalisedTraces(traces)
+		return getNormalizedTraces(traces)
 	}
 	return traces
 }
 
-// getNormalisedTraces normalise traces and assign one resource span to one span
-func getNormalisedTraces(td ptrace.Traces) ptrace.Traces {
+// getNormalizedTraces normalise traces and assign one resource span to one span
+func getNormalizedTraces(td ptrace.Traces) ptrace.Traces {
 	normalizedTraces := ptrace.NewTraces()
 	normalizedTraces.ResourceSpans().EnsureCapacity(td.SpanCount())
 	for _, resourceSpan := range td.ResourceSpans().All() {
