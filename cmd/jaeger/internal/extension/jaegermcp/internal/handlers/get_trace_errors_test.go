@@ -235,9 +235,8 @@ func TestGetTraceErrorsHandler_Handle_QueryError(t *testing.T) {
 
 	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
-	// Should return an error directly
+	// Should return the error directly
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get trace")
 	assert.Contains(t, err.Error(), "database connection failed")
 }
 

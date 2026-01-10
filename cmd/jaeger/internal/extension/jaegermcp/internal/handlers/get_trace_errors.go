@@ -53,14 +53,11 @@ func (h *getTraceErrorsHandler) handle(
 
 	// Collect spans with error status
 	var errorSpans []types.SpanDetail
-	var processErr error
 	traceFound := false
 
 	for trace, err := range aggregatedIter {
 		if err != nil {
-			// For singular lookups, store error and break
-			processErr = err
-			break
+			return nil, types.GetTraceErrorsOutput{}, err
 		}
 
 		traceFound = true
@@ -73,11 +70,6 @@ func (h *getTraceErrorsHandler) handle(
 				errorSpans = append(errorSpans, detail)
 			}
 		}
-	}
-
-	// If we encountered an error, return it directly
-	if processErr != nil {
-		return nil, types.GetTraceErrorsOutput{}, fmt.Errorf("failed to get trace: %w", processErr)
 	}
 
 	if !traceFound {

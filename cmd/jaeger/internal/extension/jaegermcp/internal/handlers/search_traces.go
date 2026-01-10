@@ -33,7 +33,7 @@ type queryServiceInterface interface {
 
 // searchTracesHandler implements the search_traces MCP tool.
 // This tool searches for traces matching service, time, attributes, and duration criteria.
-// It returns trace summaries (metadata only) without full span details, optimized for
+// It returns trace summaries without full span details, optimized for
 // browsing and filtering large result sets.
 type searchTracesHandler struct {
 	queryService queryServiceInterface
