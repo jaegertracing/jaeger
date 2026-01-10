@@ -62,45 +62,52 @@ func (h *GetTraceErrorsHandler) Handle(
 	var errorSpans []types.SpanDetail
 	var processErr error
 	traceFound := false
+	aggregatedTrace := ptrace.NewTraces()
 
 	tracesIter(func(traces []ptrace.Traces, err error) bool {
 		if err != nil {
-			// Store error but continue processing to return partial results
-			// Returning true allows the iterator to continue with remaining items
+			// For singular lookups, store error and abort
 			processErr = err
-			return true
+			return false
 		}
 
 		for _, trace := range traces {
 			traceFound = true
-			// Iterate through all spans in the trace
-			jptrace.SpanIter(trace)(func(pos jptrace.SpanIterPos, span ptrace.Span) bool {
-				// Check if span has error status
-				if span.Status().Code() == ptrace.StatusCodeError {
-					detail := buildSpanDetail(pos, span)
-					errorSpans = append(errorSpans, detail)
-				}
-
-				return true
-			})
+			// Merge this trace into our aggregated trace in case of multiple iterations
+			if aggregatedTrace.SpanCount() == 0 {
+				trace.CopyTo(aggregatedTrace)
+			} else {
+				jptrace.MergeTraces(aggregatedTrace, trace)
+			}
 		}
 
 		return true
 	})
 
+	// If we encountered an error, return it directly
+	if processErr != nil {
+		return nil, types.GetTraceErrorsOutput{}, fmt.Errorf("failed to get trace: %w", processErr)
+	}
+
 	if !traceFound {
 		return nil, types.GetTraceErrorsOutput{}, errors.New("trace not found")
 	}
+
+	// Iterate through all spans in the aggregated trace
+	jptrace.SpanIter(aggregatedTrace)(func(pos jptrace.SpanIterPos, span ptrace.Span) bool {
+		// Check if span has error status
+		if span.Status().Code() == ptrace.StatusCodeError {
+			detail := buildSpanDetail(pos, span)
+			errorSpans = append(errorSpans, detail)
+		}
+
+		return true
+	})
 
 	output := types.GetTraceErrorsOutput{
 		TraceID:    input.TraceID,
 		ErrorCount: len(errorSpans),
 		Spans:      errorSpans,
-	}
-
-	// If we encountered an error during processing, include it in the output
-	if processErr != nil {
-		output.Error = fmt.Sprintf("partial results returned due to error: %v", processErr)
 	}
 
 	return nil, output, nil

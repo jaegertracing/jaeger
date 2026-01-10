@@ -56,3 +56,9 @@ func mergeTraces(src, dest ptrace.Traces) {
 		resource.CopyTo(dest.ResourceSpans().AppendEmpty())
 	}
 }
+
+// MergeTraces merges src trace into dest trace.
+// This is useful when multiple iterations return parts of the same trace.
+func MergeTraces(dest, src ptrace.Traces) {
+	mergeTraces(src, dest)
+}

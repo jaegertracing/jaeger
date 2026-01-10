@@ -17,7 +17,6 @@ type GetSpanDetailsInput struct {
 type GetSpanDetailsOutput struct {
 	TraceID string       `json:"trace_id" jsonschema:"Unique identifier for the trace"`
 	Spans   []SpanDetail `json:"spans" jsonschema:"List of span details"`
-	Error   string       `json:"error,omitempty" jsonschema:"Error message if partial results were returned"`
 }
 
 // SpanDetail contains full OTLP span data including attributes, events, and links.
@@ -28,7 +27,7 @@ type SpanDetail struct {
 	Service      string         `json:"service" jsonschema:"Service name from resource attributes"`
 	Operation    string         `json:"operation" jsonschema:"Operation/span name"`
 	StartTime    string         `json:"start_time" jsonschema:"Span start time in RFC3339 format"`
-	DurationMs   int64          `json:"duration_ms" jsonschema:"Span duration in milliseconds"`
+	DurationUs   int64          `json:"duration_us" jsonschema:"Span duration in microseconds"`
 	Status       SpanStatus     `json:"status" jsonschema:"Span status information"`
 	Attributes   map[string]any `json:"attributes,omitempty" jsonschema:"Span attributes"`
 	Events       []SpanEvent    `json:"events,omitempty" jsonschema:"Span events"`

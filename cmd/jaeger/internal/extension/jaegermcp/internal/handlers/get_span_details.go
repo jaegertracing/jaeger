@@ -80,49 +80,56 @@ func (h *GetSpanDetailsHandler) Handle(
 	var spanDetails []types.SpanDetail
 	var processErr error
 	traceFound := false
+	aggregatedTrace := ptrace.NewTraces()
 
 	tracesIter(func(traces []ptrace.Traces, err error) bool {
 		if err != nil {
-			// Store error but continue processing to return partial results
-			// Returning true allows the iterator to continue with remaining items
+			// For singular lookups, store error and abort
 			processErr = err
-			return true
+			return false
 		}
 
 		for _, trace := range traces {
 			traceFound = true
-			// Iterate through all spans in the trace
-			jptrace.SpanIter(trace)(func(pos jptrace.SpanIterPos, span ptrace.Span) bool {
-				spanIDStr := span.SpanID().String()
-
-				// Check if this span ID is in the requested set
-				if _, found := spanIDSet[spanIDStr]; found {
-					detail := buildSpanDetail(pos, span)
-					spanDetails = append(spanDetails, detail)
-
-					// Remove from set to track which spans we've found
-					delete(spanIDSet, spanIDStr)
-				}
-
-				return true
-			})
+			// Merge this trace into our aggregated trace in case of multiple iterations
+			if aggregatedTrace.SpanCount() == 0 {
+				trace.CopyTo(aggregatedTrace)
+			} else {
+				jptrace.MergeTraces(aggregatedTrace, trace)
+			}
 		}
 
 		return true
 	})
 
+	// If we encountered an error, return it directly
+	if processErr != nil {
+		return nil, types.GetSpanDetailsOutput{}, fmt.Errorf("failed to get trace: %w", processErr)
+	}
+
 	if !traceFound {
 		return nil, types.GetSpanDetailsOutput{}, errors.New("trace not found")
 	}
 
+	// Iterate through all spans in the aggregated trace
+	jptrace.SpanIter(aggregatedTrace)(func(pos jptrace.SpanIterPos, span ptrace.Span) bool {
+		spanIDStr := span.SpanID().String()
+
+		// Check if this span ID is in the requested set
+		if _, found := spanIDSet[spanIDStr]; found {
+			detail := buildSpanDetail(pos, span)
+			spanDetails = append(spanDetails, detail)
+
+			// Remove from set to track which spans we've found
+			delete(spanIDSet, spanIDStr)
+		}
+
+		return true
+	})
+
 	output := types.GetSpanDetailsOutput{
 		TraceID: input.TraceID,
 		Spans:   spanDetails,
-	}
-
-	// If we encountered an error during processing, include it in the output
-	if processErr != nil {
-		output.Error = fmt.Sprintf("partial results returned due to error: %v", processErr)
 	}
 
 	return nil, output, nil
@@ -183,8 +190,8 @@ func buildSpanDetail(pos jptrace.SpanIterPos, span ptrace.Span) types.SpanDetail
 		})
 	}
 
-	// Calculate duration
-	durationMs := span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime()).Milliseconds()
+	// Calculate duration in microseconds
+	durationUs := span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime()).Microseconds()
 
 	// Get parent span ID
 	parentSpanID := ""
@@ -199,7 +206,7 @@ func buildSpanDetail(pos jptrace.SpanIterPos, span ptrace.Span) types.SpanDetail
 		Service:      serviceName,
 		Operation:    span.Name(),
 		StartTime:    span.StartTimestamp().AsTime().Format(time.RFC3339Nano),
-		DurationMs:   durationMs,
+		DurationUs:   durationUs,
 		Status:       status,
 		Attributes:   attributes,
 		Events:       events,

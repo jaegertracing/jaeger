@@ -361,23 +361,45 @@ func TestGetSpanDetailsHandler_Handle_TraceNotFound(t *testing.T) {
 }
 
 func TestGetSpanDetailsHandler_Handle_QueryError(t *testing.T) {
-	traceID := "12345678901234567890123456789012"
-	spanID := "span001"
-
-	// Create a trace with one span, but return it before the error
-	spanConfigs := []spanConfig{
-		{
-			spanID:    spanID,
-			operation: "/api/test",
+	mock := &mockQueryServiceForGetTraces{
+		getTracesFunc: func(_ context.Context, _ querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
+			return func(yield func([]ptrace.Traces, error) bool) {
+				// Yield error immediately
+				yield(nil, errors.New("database connection failed"))
+			}
 		},
 	}
-	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+
+	handler := &GetSpanDetailsHandler{queryService: mock}
+
+	input := types.GetSpanDetailsInput{
+		TraceID: "12345678901234567890123456789012",
+		SpanIDs: []string{spanIDToHex("span001")},
+	}
+
+	_, _, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	// Should return an error directly
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to get trace")
+	assert.Contains(t, err.Error(), "database connection failed")
+}
+
+func TestGetSpanDetailsHandler_Handle_PartialResults(t *testing.T) {
+	traceID := "12345678901234567890123456789012"
+	spanID1 := "span001"
+
+	// Create trace with one span
+	testTrace1 := createTestTraceWithSpans(traceID, []spanConfig{
+		{spanID: spanID1, operation: "/api/test1"},
+	})
 
 	mock := &mockQueryServiceForGetTraces{
 		getTracesFunc: func(_ context.Context, _ querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
 			return func(yield func([]ptrace.Traces, error) bool) {
-				// Yield the trace first, then an error
-				yield([]ptrace.Traces{testTrace}, nil)
+				// Yield first batch successfully
+				yield([]ptrace.Traces{testTrace1}, nil)
+				// Yield error - for singular lookups this should abort
 				yield(nil, errors.New("database connection failed"))
 			}
 		},
@@ -387,46 +409,36 @@ func TestGetSpanDetailsHandler_Handle_QueryError(t *testing.T) {
 
 	input := types.GetSpanDetailsInput{
 		TraceID: traceID,
-		SpanIDs: []string{spanIDToHex(spanID)},
+		SpanIDs: []string{spanIDToHex(spanID1)},
 	}
 
-	_, output, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, _, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
 
-	// Should not return an error - instead returns partial results with Error field
-	require.NoError(t, err)
-	assert.Len(t, output.Spans, 1)
-	assert.NotEmpty(t, output.Error)
-	assert.Contains(t, output.Error, "partial results")
-	assert.Contains(t, output.Error, "database connection failed")
+	// Should return an error directly
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to get trace")
+	assert.Contains(t, err.Error(), "database connection failed")
 }
 
-func TestGetSpanDetailsHandler_Handle_PartialResults(t *testing.T) {
+func TestGetSpanDetailsHandler_Handle_MultipleIterations(t *testing.T) {
 	traceID := "12345678901234567890123456789012"
 	spanID1 := "span001"
 	spanID2 := "span002"
-	spanID3 := "span003"
 
-	// Create traces with different spans
+	// Create traces with different spans that will be merged
 	testTrace1 := createTestTraceWithSpans(traceID, []spanConfig{
 		{spanID: spanID1, operation: "/api/test1"},
 	})
 	testTrace2 := createTestTraceWithSpans(traceID, []spanConfig{
 		{spanID: spanID2, operation: "/api/test2"},
 	})
-	testTrace3 := createTestTraceWithSpans(traceID, []spanConfig{
-		{spanID: spanID3, operation: "/api/test3"},
-	})
 
 	mock := &mockQueryServiceForGetTraces{
 		getTracesFunc: func(_ context.Context, _ querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
 			return func(yield func([]ptrace.Traces, error) bool) {
-				// Yield first batch successfully
+				// Yield multiple batches successfully - they should be merged
 				yield([]ptrace.Traces{testTrace1}, nil)
-				// Yield error in the middle
-				yield(nil, errors.New("temporary failure"))
-				// Yield remaining batches successfully
 				yield([]ptrace.Traces{testTrace2}, nil)
-				yield([]ptrace.Traces{testTrace3}, nil)
 			}
 		},
 	}
@@ -435,18 +447,14 @@ func TestGetSpanDetailsHandler_Handle_PartialResults(t *testing.T) {
 
 	input := types.GetSpanDetailsInput{
 		TraceID: traceID,
-		SpanIDs: []string{spanIDToHex(spanID1), spanIDToHex(spanID2), spanIDToHex(spanID3)},
+		SpanIDs: []string{spanIDToHex(spanID1), spanIDToHex(spanID2)},
 	}
 
 	_, output, err := handler.Handle(context.Background(), &mcp.CallToolRequest{}, input)
 
-	// Should not return an error - instead returns partial results with Error field
+	// Should succeed and return both spans
 	require.NoError(t, err)
-	// Should have all 3 spans since we continue processing after error
-	assert.Len(t, output.Spans, 3)
-	assert.NotEmpty(t, output.Error)
-	assert.Contains(t, output.Error, "partial results")
-	assert.Contains(t, output.Error, "temporary failure")
+	assert.Len(t, output.Spans, 2)
 }
 
 func TestGetSpanDetailsHandler_Handle_WithParentSpanID(t *testing.T) {
