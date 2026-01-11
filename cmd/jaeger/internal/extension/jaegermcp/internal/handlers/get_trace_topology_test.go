@@ -516,7 +516,7 @@ func TestGetTraceTopologyHandler_Handle_NoRootSpan(t *testing.T) {
 	require.NoError(t, err)
 	rootSpan := getRoot(t, output)
 	assert.Nil(t, rootSpan, "Should have no root span")
-	
+
 	orphans := getOrphans(t, output)
 	require.NotNil(t, orphans)
 	assert.Len(t, orphans, 2, "Should have 2 orphans")

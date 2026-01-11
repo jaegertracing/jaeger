@@ -17,10 +17,13 @@ type GetTraceTopologyInput struct {
 type GetTraceTopologyOutput struct {
 	TraceID string `json:"trace_id" jsonschema:"Unique identifier for the trace"`
 	// RootSpan is the root span of the trace tree. May be nil if trace has no root.
-	// Type is *SpanNode but declared as any to avoid JSON schema cycle detection.
+	// Declared as 'any' instead of '*SpanNode' because the MCP SDK's JSON schema
+	// generator detects a cycle in the SpanNode type (due to Children []*SpanNode),
+	// even when fields are marked with jsonschema:"-". Using 'any' bypasses type
+	// analysis entirely while maintaining runtime type safety.
 	RootSpan any `json:"root_span,omitempty"`
 	// Orphans contains spans whose parent span is missing from the trace.
-	// Type is []*SpanNode but declared as any to avoid JSON schema cycle detection.
+	// Declared as 'any' instead of '[]*SpanNode' for the same reason as RootSpan.
 	Orphans any `json:"orphans,omitempty"`
 }
 
