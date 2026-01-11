@@ -448,3 +448,31 @@ func TestParseTimeParam(t *testing.T) {
 		})
 	}
 }
+
+func TestSearchTracesHandler_Handle_DefaultStartTime(t *testing.T) {
+	testTrace := createTestTrace("traceDefault", "default-service", "/test", false)
+
+	mock := &mockQueryService{
+		findTracesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+			// Verify that start time was set (not zero), implying default was applied or computed
+			assert.False(t, query.StartTimeMin.IsZero())
+			// We can't easily verify exact -1h without mocking time.Now, but we know it should be approximately 1h ago
+			assert.WithinDuration(t, time.Now().Add(-1*time.Hour), query.StartTimeMin, 5*time.Second)
+			return func(yield func([]ptrace.Traces, error) bool) {
+				yield([]ptrace.Traces{testTrace}, nil)
+			}
+		},
+	}
+
+	handler := &searchTracesHandler{queryService: mock}
+
+	// Omit StartTimeMin to trigger default logic
+	input := types.SearchTracesInput{
+		ServiceName: "default-service",
+	}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	require.Len(t, output.Traces, 1)
+}
