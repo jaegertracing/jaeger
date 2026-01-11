@@ -16,7 +16,7 @@ type GetTraceTopologyInput struct {
 // GetTraceTopologyOutput defines the output of the get_trace_topology MCP tool.
 type GetTraceTopologyOutput struct {
 	TraceID string    `json:"trace_id" jsonschema:"Unique identifier for the trace"`
-	Root    *SpanNode `json:"root" jsonschema:"Root span node of the trace tree"`
+	Root    *SpanNode `json:"root" jsonschema:"-"`
 }
 
 // SpanNode represents a node in the trace tree structure.
