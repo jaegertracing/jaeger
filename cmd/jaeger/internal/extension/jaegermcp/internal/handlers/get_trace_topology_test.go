@@ -132,39 +132,49 @@ func TestGetTraceTopologyHandler_Handle_DepthLimit(t *testing.T) {
 	handler := &getTraceTopologyHandler{queryService: mock}
 
 	tests := []struct {
-		name         string
-		depth        int
-		expectRoot   bool
-		expectChild  bool
-		expectGchild bool
+		name                 string
+		depth                int
+		expectRoot           bool
+		expectChild          bool
+		expectGchild         bool
+		expectRootTruncated  int
+		expectChildTruncated int
 	}{
 		{
-			name:         "depth 0 returns full tree",
-			depth:        0,
-			expectRoot:   true,
-			expectChild:  true,
-			expectGchild: true,
+			name:                 "depth 0 returns full tree",
+			depth:                0,
+			expectRoot:           true,
+			expectChild:          true,
+			expectGchild:         true,
+			expectRootTruncated:  0,
+			expectChildTruncated: 0,
 		},
 		{
-			name:         "depth 1 returns only root",
-			depth:        1,
-			expectRoot:   true,
-			expectChild:  false,
-			expectGchild: false,
+			name:                 "depth 1 returns only root",
+			depth:                1,
+			expectRoot:           true,
+			expectChild:          false,
+			expectGchild:         false,
+			expectRootTruncated:  1, // 1 child truncated at root
+			expectChildTruncated: 0,
 		},
 		{
-			name:         "depth 2 returns root and children",
-			depth:        2,
-			expectRoot:   true,
-			expectChild:  true,
-			expectGchild: false,
+			name:                 "depth 2 returns root and children",
+			depth:                2,
+			expectRoot:           true,
+			expectChild:          true,
+			expectGchild:         false,
+			expectRootTruncated:  0,
+			expectChildTruncated: 1, // 1 grandchild truncated at child level
 		},
 		{
-			name:         "depth 3 returns full tree",
-			depth:        3,
-			expectRoot:   true,
-			expectChild:  true,
-			expectGchild: true,
+			name:                 "depth 3 returns full tree",
+			depth:                3,
+			expectRoot:           true,
+			expectChild:          true,
+			expectGchild:         true,
+			expectRootTruncated:  0,
+			expectChildTruncated: 0,
 		},
 	}
 
@@ -183,10 +193,16 @@ func TestGetTraceTopologyHandler_Handle_DepthLimit(t *testing.T) {
 			// Check root
 			assert.Equal(t, "/api/checkout", root.Operation)
 
+			// Check truncated children count at root level
+			assert.Equal(t, tt.expectRootTruncated, root.TruncatedChildren)
+
 			// Check children
 			if tt.expectChild {
 				assert.Len(t, root.Children, 1)
 				assert.Equal(t, "getCart", root.Children[0].Operation)
+
+				// Check truncated children count at child level
+				assert.Equal(t, tt.expectChildTruncated, root.Children[0].TruncatedChildren)
 
 				// Check grandchildren
 				if tt.expectGchild {

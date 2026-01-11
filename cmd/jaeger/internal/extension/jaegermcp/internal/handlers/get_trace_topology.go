@@ -185,7 +185,8 @@ func (h *getTraceTopologyHandler) buildTree(spans []*types.SpanNode, maxDepth in
 // limitDepth recursively limits the depth of the tree by removing children beyond maxDepth.
 func (h *getTraceTopologyHandler) limitDepth(node *types.SpanNode, currentDepth int, maxDepth int) {
 	if currentDepth >= maxDepth {
-		// Remove all children at this depth
+		// Count and remove all children at this depth
+		node.TruncatedChildren = len(node.Children)
 		node.Children = nil
 		return
 	}
