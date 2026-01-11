@@ -113,11 +113,11 @@ func TestGetServicesHandler_Success_WithRegexPattern(t *testing.T) {
 
 func TestGetServicesHandler_Success_WithLimit(t *testing.T) {
 	testServices := []string{
-		"service-1",
-		"service-2",
-		"service-3",
-		"service-4",
 		"service-5",
+		"service-3",
+		"service-1",
+		"service-4",
+		"service-2",
 	}
 
 	mock := &mockGetServicesQueryService{
@@ -136,17 +136,18 @@ func TestGetServicesHandler_Success_WithLimit(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, output.Services, 3)
+	// After sorting, should return first 3 alphabetically
 	assert.Equal(t, []string{"service-1", "service-2", "service-3"}, output.Services)
 }
 
 func TestGetServicesHandler_Success_WithPatternAndLimit(t *testing.T) {
 	testServices := []string{
+		"payment-staging",
 		"frontend-prod",
+		"cart-staging",
 		"frontend-staging",
 		"payment-prod",
-		"payment-staging",
 		"cart-prod",
-		"cart-staging",
 	}
 
 	mock := &mockGetServicesQueryService{
@@ -167,8 +168,8 @@ func TestGetServicesHandler_Success_WithPatternAndLimit(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, output.Services, 2)
-	// Should return first 2 matching services
-	assert.Equal(t, []string{"frontend-prod", "payment-prod"}, output.Services)
+	// After filtering and sorting, should return first 2 alphabetically
+	assert.Equal(t, []string{"cart-prod", "frontend-prod"}, output.Services)
 }
 
 func TestGetServicesHandler_Success_DefaultLimit(t *testing.T) {
