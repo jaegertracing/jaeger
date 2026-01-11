@@ -304,3 +304,9 @@ func TestGetServicesHandler_Success_CaseInsensitivePattern(t *testing.T) {
 	require.Len(t, output.Services, 1)
 	assert.Equal(t, "PAYMENT-SERVICE", output.Services[0])
 }
+
+func TestNewGetServicesHandler(t *testing.T) {
+	// Test that NewGetServicesHandler returns a valid handler function
+	handler := NewGetServicesHandler(nil)
+	assert.NotNil(t, handler)
+}
