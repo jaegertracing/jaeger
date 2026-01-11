@@ -16,7 +16,7 @@ type GetSpanDetailsInput struct {
 // GetSpanDetailsOutput defines the output of the get_span_details MCP tool.
 type GetSpanDetailsOutput struct {
 	TraceID string       `json:"trace_id" jsonschema:"Unique identifier for the trace"`
-	Spans   []SpanDetail `json:"spans" jsonschema:"List of span details"`
+	Spans   []SpanDetail `json:"spans,omitempty" jsonschema:"List of span details"`
 }
 
 // SpanDetail contains full OTLP span data including attributes, events, and links.
