@@ -689,7 +689,7 @@ func TestCORSPreflight(t *testing.T) {
 	addr := server.listener.Addr().String()
 	url := fmt.Sprintf("http://%s/mcp", addr)
 
-	req, err := http.NewRequest(http.MethodOptions, url, nil)
+	req, err := http.NewRequest(http.MethodOptions, url, http.NoBody)
 	require.NoError(t, err)
 	req.Header.Set("Origin", "http://localhost:3000")
 	req.Header.Set("Access-Control-Request-Method", "POST")
