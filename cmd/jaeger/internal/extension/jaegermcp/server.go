@@ -73,16 +73,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	s.mcpServer = mcp.NewServer(impl, &mcp.ServerOptions{})
 
 	// Register MCP tools
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "health",
-		Description: "Check if the Jaeger MCP server is running",
-	}, s.healthTool)
-
-	searchTracesHandler := handlers.NewSearchTracesHandler(s.queryAPI)
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "search_traces",
-		Description: "Find traces matching service, time, attributes, and duration criteria. Returns trace summary only.",
-	}, searchTracesHandler.Handle)
+	s.registerTools()
 
 	// Set up TCP listener with context
 	lc := net.ListenConfig{}
@@ -140,6 +131,36 @@ func (s *server) Shutdown(ctx context.Context) error {
 	}
 
 	return errors.Join(errs...)
+}
+
+// registerTools registers all MCP tools with the server.
+func (s *server) registerTools() {
+	// Health check tool
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "health",
+		Description: "Check if the Jaeger MCP server is running",
+	}, s.healthTool)
+
+	// Search traces tool
+	searchTracesHandler := handlers.NewSearchTracesHandler(s.queryAPI)
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "search_traces",
+		Description: "Find traces matching service, time, attributes, and duration criteria. Returns trace summary only.",
+	}, searchTracesHandler)
+
+	// Get span details tool
+	getSpanDetailsHandler := handlers.NewGetSpanDetailsHandler(s.queryAPI)
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "get_span_details",
+		Description: "Fetch full details (attributes, events, links, status) for specific spans.",
+	}, getSpanDetailsHandler)
+
+	// Get trace errors tool
+	getTraceErrorsHandler := handlers.NewGetTraceErrorsHandler(s.queryAPI)
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "get_trace_errors",
+		Description: "Get full details for all spans with error status.",
+	}, getTraceErrorsHandler)
 }
 
 // HealthToolOutput is the strongly-typed output for the health tool.
