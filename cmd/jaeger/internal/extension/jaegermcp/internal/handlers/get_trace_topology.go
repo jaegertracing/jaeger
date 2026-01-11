@@ -53,7 +53,7 @@ func (h *getTraceTopologyHandler) handle(
 	aggregatedIter := jptrace.AggregateTraces(tracesIter)
 
 	// Collect all spans from the trace
-	var spans []spanData
+	var spans []types.SpanNode
 	traceFound := false
 
 	for trace, err := range aggregatedIter {
@@ -65,7 +65,7 @@ func (h *getTraceTopologyHandler) handle(
 
 		// Iterate through all spans in the trace and collect them
 		for pos, span := range jptrace.SpanIter(trace) {
-			spanInfo := buildSpanData(pos, span)
+			spanInfo := buildSpanNode(pos, span)
 			spans = append(spans, spanInfo)
 		}
 	}
@@ -75,9 +75,9 @@ func (h *getTraceTopologyHandler) handle(
 	}
 
 	// Build the tree structure from flat span list
-	root := h.buildTree(spans, input.Depth)
-	if root == nil {
-		return nil, types.GetTraceTopologyOutput{}, errors.New("could not build trace tree: no root span found")
+	root, err := h.buildTree(spans, input.Depth)
+	if err != nil {
+		return nil, types.GetTraceTopologyOutput{}, err
 	}
 
 	output := types.GetTraceTopologyOutput{
@@ -108,19 +108,8 @@ func (*getTraceTopologyHandler) buildQuery(input types.GetTraceTopologyInput) (q
 	}, nil
 }
 
-// spanData holds the minimal data needed to build the tree structure.
-type spanData struct {
-	spanID       string
-	parentSpanID string
-	service      string
-	operation    string
-	startTime    time.Time
-	durationUs   int64
-	status       string
-}
-
-// buildSpanData extracts minimal span information needed for topology.
-func buildSpanData(pos jptrace.SpanIterPos, span ptrace.Span) spanData {
+// buildSpanNode extracts minimal span information needed for topology.
+func buildSpanNode(pos jptrace.SpanIterPos, span ptrace.Span) types.SpanNode {
 	// Get service name from resource attributes
 	serviceName := ""
 	if svc, ok := pos.Resource.Resource().Attributes().Get("service.name"); ok {
@@ -136,69 +125,63 @@ func buildSpanData(pos jptrace.SpanIterPos, span ptrace.Span) spanData {
 		parentSpanID = span.ParentSpanID().String()
 	}
 
-	return spanData{
-		spanID:       span.SpanID().String(),
-		parentSpanID: parentSpanID,
-		service:      serviceName,
-		operation:    span.Name(),
-		startTime:    span.StartTimestamp().AsTime(),
-		durationUs:   durationUs,
-		status:       span.Status().Code().String(),
+	return types.SpanNode{
+		SpanID:     span.SpanID().String(),
+		ParentID:   parentSpanID,
+		Service:    serviceName,
+		Operation:  span.Name(),
+		StartTime:  span.StartTimestamp().AsTime().Format(time.RFC3339Nano),
+		DurationUs: durationUs,
+		Status:     span.Status().Code().String(),
+		Children:   []types.SpanNode{},
 	}
 }
 
 // buildTree constructs a tree from a flat list of spans.
-func (h *getTraceTopologyHandler) buildTree(spans []spanData, maxDepth int) *types.SpanNode {
-	// Create a map of span ID to span data for quick lookup
-	spanMap := make(map[string]spanData)
-	for _, span := range spans {
-		spanMap[span.spanID] = span
+func (h *getTraceTopologyHandler) buildTree(spans []types.SpanNode, maxDepth int) (types.SpanNode, error) {
+	// Create a map of span ID to span for quick lookup
+	spanMap := make(map[string]types.SpanNode)
+	for i := range spans {
+		spanMap[spans[i].SpanID] = spans[i]
 	}
 
 	// Create a map of parent ID to children
 	childrenMap := make(map[string][]string)
 	var rootSpanID string
 
-	for _, span := range spans {
-		if span.parentSpanID == "" {
+	for i := range spans {
+		if spans[i].ParentID == "" {
 			// This is a root span
-			rootSpanID = span.spanID
+			rootSpanID = spans[i].SpanID
 		} else {
-			childrenMap[span.parentSpanID] = append(childrenMap[span.parentSpanID], span.spanID)
+			childrenMap[spans[i].ParentID] = append(childrenMap[spans[i].ParentID], spans[i].SpanID)
 		}
 	}
 
-	// If no root span found, return nil
+	// If no root span found, return error
 	if rootSpanID == "" {
-		return nil
+		return types.SpanNode{}, errors.New("could not build trace tree: no root span found")
 	}
 
 	// Build the tree recursively starting from the root
-	return h.buildNode(rootSpanID, spanMap, childrenMap, 1, maxDepth)
+	return h.buildNode(rootSpanID, spanMap, childrenMap, 1, maxDepth), nil
 }
 
 // buildNode recursively builds a SpanNode and its children.
 func (h *getTraceTopologyHandler) buildNode(
 	spanID string,
-	spanMap map[string]spanData,
+	spanMap map[string]types.SpanNode,
 	childrenMap map[string][]string,
 	currentDepth int,
 	maxDepth int,
-) *types.SpanNode {
+) types.SpanNode {
 	span, ok := spanMap[spanID]
 	if !ok {
-		return nil
+		return types.SpanNode{}
 	}
 
-	node := &types.SpanNode{
-		SpanID:     span.spanID,
-		Service:    span.service,
-		Operation:  span.operation,
-		StartTime:  span.startTime.Format(time.RFC3339Nano),
-		DurationUs: span.durationUs,
-		Status:     span.status,
-		Children:   []*types.SpanNode{},
-	}
+	node := span
+	node.Children = []types.SpanNode{}
 
 	// Check if we should include children based on maxDepth
 	// maxDepth of 0 means no limit, otherwise check if we've reached the limit
@@ -207,7 +190,7 @@ func (h *getTraceTopologyHandler) buildNode(
 		if childIDs, hasChildren := childrenMap[spanID]; hasChildren {
 			for _, childID := range childIDs {
 				childNode := h.buildNode(childID, spanMap, childrenMap, currentDepth+1, maxDepth)
-				if childNode != nil {
+				if childNode.SpanID != "" {
 					node.Children = append(node.Children, childNode)
 				}
 			}

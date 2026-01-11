@@ -5,7 +5,6 @@ package jaegermcp
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -19,7 +18,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/handlers"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/types"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 )
@@ -166,54 +164,10 @@ func (s *server) registerTools() {
 
 	// Get trace topology tool
 	getTraceTopologyHandler := handlers.NewGetTraceTopologyHandler(s.queryAPI)
-	// Note: We use s.mcpServer.AddTool directly instead of mcp.AddTool to avoid
-	// automatic schema generation which doesn't handle recursive types well.
-	// The output contains a tree structure (SpanNode with Children []*SpanNode)
-	// which causes cycle detection in the schema generator.
-	s.mcpServer.AddTool(&mcp.Tool{
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_trace_topology",
 		Description: "Get the structural tree of a trace showing parent-child relationships, timing, and error locations. Does NOT return attributes or logs.",
-		InputSchema: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"trace_id": map[string]any{
-					"type":        "string",
-					"description": "Unique identifier for the trace",
-				},
-				"depth": map[string]any{
-					"type":        "integer",
-					"description": "Maximum depth of the tree. 0 for full tree",
-				},
-			},
-			"required": []string{"trace_id"},
-		},
-	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		// Parse input manually
-		var input types.GetTraceTopologyInput
-		if err := json.Unmarshal(req.Params.Arguments, &input); err != nil {
-			return nil, fmt.Errorf("invalid input: %w", err)
-		}
-
-		// Call the handler
-		_, output, err := getTraceTopologyHandler(ctx, req, input)
-		if err != nil {
-			return nil, err
-		}
-
-		// Marshal output to JSON
-		outputJSON, err := json.Marshal(output)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal output: %w", err)
-		}
-
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: string(outputJSON),
-				},
-			},
-		}, nil
-	})
+	}, getTraceTopologyHandler)
 }
 
 // HealthToolOutput is the strongly-typed output for the health tool.

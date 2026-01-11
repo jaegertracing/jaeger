@@ -18,6 +18,14 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 )
 
+// getRoot is a test helper to extract the SpanNode from the any type in GetTraceTopologyOutput
+func getRoot(t *testing.T, output types.GetTraceTopologyOutput) types.SpanNode {
+	t.Helper()
+	root, ok := output.Root.(types.SpanNode)
+	require.True(t, ok, "Root should be a SpanNode")
+	return root
+}
+
 func TestGetTraceTopologyHandler_Handle_Success(t *testing.T) {
 	traceID := testTraceID
 	rootSpanID := "root001"
@@ -61,16 +69,16 @@ func TestGetTraceTopologyHandler_Handle_Success(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, traceID, output.TraceID)
-	require.NotNil(t, output.Root)
+	root := getRoot(t, output)
 
 	// Verify root span
-	assert.Equal(t, "/api/checkout", output.Root.Operation)
-	assert.Equal(t, "Ok", output.Root.Status)
-	assert.Len(t, output.Root.Children, 2)
+	assert.Equal(t, "/api/checkout", root.Operation)
+	assert.Equal(t, "Ok", root.Status)
+	assert.Len(t, root.Children, 2)
 
 	// Verify children are present (order not guaranteed)
-	operations := make(map[string]*types.SpanNode)
-	for _, child := range output.Root.Children {
+	operations := make(map[string]types.SpanNode)
+	for _, child := range root.Children {
 		operations[child.Operation] = child
 	}
 
@@ -156,25 +164,25 @@ func TestGetTraceTopologyHandler_Handle_DepthLimit(t *testing.T) {
 			_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 			require.NoError(t, err)
-			require.NotNil(t, output.Root)
+			root := getRoot(t, output)
 
 			// Check root
-			assert.Equal(t, "/api/checkout", output.Root.Operation)
+			assert.Equal(t, "/api/checkout", root.Operation)
 
 			// Check children
 			if tt.expectChild {
-				assert.Len(t, output.Root.Children, 1)
-				assert.Equal(t, "getCart", output.Root.Children[0].Operation)
+				assert.Len(t, root.Children, 1)
+				assert.Equal(t, "getCart", root.Children[0].Operation)
 
 				// Check grandchildren
 				if tt.expectGchild {
-					assert.Len(t, output.Root.Children[0].Children, 1)
-					assert.Equal(t, "queryDB", output.Root.Children[0].Children[0].Operation)
+					assert.Len(t, root.Children[0].Children, 1)
+					assert.Equal(t, "queryDB", root.Children[0].Children[0].Operation)
 				} else {
-					assert.Empty(t, output.Root.Children[0].Children)
+					assert.Empty(t, root.Children[0].Children)
 				}
 			} else {
-				assert.Empty(t, output.Root.Children)
+				assert.Empty(t, root.Children)
 			}
 		})
 	}
@@ -221,13 +229,13 @@ func TestGetTraceTopologyHandler_Handle_MultipleChildren(t *testing.T) {
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
-	require.NotNil(t, output.Root)
-	assert.Equal(t, "root", output.Root.Operation)
-	assert.Len(t, output.Root.Children, 3)
+	root := getRoot(t, output)
+	assert.Equal(t, "root", root.Operation)
+	assert.Len(t, root.Children, 3)
 
 	// Verify all children are present
 	operations := make(map[string]bool)
-	for _, child := range output.Root.Children {
+	for _, child := range root.Children {
 		operations[child.Operation] = true
 	}
 	assert.True(t, operations["child1"])
@@ -267,27 +275,30 @@ func TestGetTraceTopologyHandler_Handle_ComplexTree(t *testing.T) {
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
-	require.NotNil(t, output.Root)
+	root := getRoot(t, output)
 
 	// Verify structure
-	assert.Equal(t, "root", output.Root.Operation)
-	assert.Len(t, output.Root.Children, 2)
+	assert.Equal(t, "root", root.Operation)
+	assert.Len(t, root.Children, 2)
 
 	// Find A and B
-	var nodeA, nodeB *types.SpanNode
-	for _, child := range output.Root.Children {
+	var nodeA, nodeB types.SpanNode
+	var foundA, foundB bool
+	for _, child := range root.Children {
 		switch child.Operation {
 		case "A":
 			nodeA = child
+			foundA = true
 		case "B":
 			nodeB = child
+			foundB = true
 		default:
 			// ignore other operations
 		}
 	}
 
-	require.NotNil(t, nodeA)
-	require.NotNil(t, nodeB)
+	require.True(t, foundA)
+	require.True(t, foundB)
 
 	// Verify A's children (C and D)
 	assert.Len(t, nodeA.Children, 2)
@@ -329,9 +340,9 @@ func TestGetTraceTopologyHandler_Handle_SingleSpan(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, traceID, output.TraceID)
-	require.NotNil(t, output.Root)
-	assert.Equal(t, "/api/simple", output.Root.Operation)
-	assert.Empty(t, output.Root.Children)
+	root := getRoot(t, output)
+	assert.Equal(t, "/api/simple", root.Operation)
+	assert.Empty(t, root.Children)
 }
 
 func TestGetTraceTopologyHandler_Handle_NoAttributes(t *testing.T) {
@@ -365,12 +376,12 @@ func TestGetTraceTopologyHandler_Handle_NoAttributes(t *testing.T) {
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
-	require.NotNil(t, output.Root)
+	root := getRoot(t, output)
 
 	// Verify that the SpanNode doesn't have an Attributes field
 	// This is ensured by the type definition, but we verify the structure is correct
-	assert.Equal(t, "/api/test", output.Root.Operation)
-	assert.Equal(t, "Ok", output.Root.Status)
+	assert.Equal(t, "/api/test", root.Operation)
+	assert.Equal(t, "Ok", root.Status)
 }
 
 func TestGetTraceTopologyHandler_Handle_MissingTraceID(t *testing.T) {
@@ -462,10 +473,10 @@ func TestGetTraceTopologyHandler_Handle_MultipleIterations(t *testing.T) {
 
 	// Should succeed and build the complete tree
 	require.NoError(t, err)
-	require.NotNil(t, output.Root)
-	assert.Equal(t, "/api/root", output.Root.Operation)
-	assert.Len(t, output.Root.Children, 1)
-	assert.Equal(t, "/api/child", output.Root.Children[0].Operation)
+	root := getRoot(t, output)
+	assert.Equal(t, "/api/root", root.Operation)
+	assert.Len(t, root.Children, 1)
+	assert.Equal(t, "/api/child", root.Children[0].Operation)
 }
 
 func TestGetTraceTopologyHandler_Handle_NoRootSpan(t *testing.T) {
@@ -528,11 +539,11 @@ func TestGetTraceTopologyHandler_Handle_ErrorStatus(t *testing.T) {
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
-	require.NotNil(t, output.Root)
+	root := getRoot(t, output)
 
 	// Find the error span
-	assert.Len(t, output.Root.Children, 1)
-	errorNode := output.Root.Children[0]
+	assert.Len(t, root.Children, 1)
+	errorNode := root.Children[0]
 	assert.Equal(t, "processPayment", errorNode.Operation)
 	assert.Equal(t, "Error", errorNode.Status)
 }
@@ -562,9 +573,9 @@ func TestGetTraceTopologyHandler_Handle_PreservesTimingInfo(t *testing.T) {
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
-	require.NotNil(t, output.Root)
+	root := getRoot(t, output)
 
 	// Verify timing fields are present
-	assert.NotEmpty(t, output.Root.StartTime)
-	assert.NotZero(t, output.Root.DurationUs)
+	assert.NotEmpty(t, root.StartTime)
+	assert.NotZero(t, root.DurationUs)
 }
