@@ -68,7 +68,7 @@ func (h *searchTracesHandler) handle(
 	aggregatedIter := jptrace.AggregateTraces(tracesIter)
 
 	// Process results
-	var summaries []types.TraceSummary
+	summaries := []types.TraceSummary{}
 	var processErrs []error
 
 	for trace, err := range aggregatedIter {
