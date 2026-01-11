@@ -258,7 +258,7 @@ func TestSanitizeOverFlowingChildren(t *testing.T) {
 				inputCopy[k] = v
 			}
 
-			result := sanitizeOverFlowingChildren(inputCopy)
+			result := removeOverflowingChildren(inputCopy)
 			assert.Len(t, result, len(tt.expected), "unexpected number of spans")
 
 			for spanID, expectedSpan := range tt.expected {
@@ -298,7 +298,7 @@ func TestSanitizeOverFlowingChildren_ReferenceUpdate(t *testing.T) {
 		},
 	}
 
-	result := sanitizeOverFlowingChildren(input)
+	result := removeOverflowingChildren(input)
 
 	// Verify child span's reference has parent span pointer
 	childSpan := result[[8]byte{2}]

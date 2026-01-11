@@ -11,18 +11,18 @@ type GetCriticalPathInput struct {
 
 // GetCriticalPathOutput defines the output of the get_critical_path MCP tool.
 type GetCriticalPathOutput struct {
-	TraceID                string             `json:"trace_id" jsonschema:"Unique identifier for the trace"`
-	TotalDurationMs        uint64             `json:"total_duration_ms" jsonschema:"Total trace duration in milliseconds"`
-	CriticalPathDurationMs uint64             `json:"critical_path_duration_ms" jsonschema:"Total duration of critical path in milliseconds"`
-	Path                   []CriticalPathSpan `json:"path" jsonschema:"Ordered list of spans on the critical path"`
+	TraceID                string                `json:"trace_id" jsonschema:"Unique identifier for the trace"`
+	TotalDurationUs        uint64                `json:"total_duration_us" jsonschema:"Total trace duration in microseconds"`
+	CriticalPathDurationUs uint64                `json:"critical_path_duration_us" jsonschema:"Total duration of critical path in microseconds"`
+	Segments               []CriticalPathSegment `json:"segments" jsonschema:"Ordered list of span segments on the critical path"`
 }
 
-// CriticalPathSpan represents a span section on the critical path.
-type CriticalPathSpan struct {
-	SpanID         string `json:"span_id" jsonschema:"Unique identifier for the span"`
-	Service        string `json:"service" jsonschema:"Service name from resource attributes"`
-	Operation      string `json:"operation" jsonschema:"Operation/span name"`
-	SelfTimeMs     uint64 `json:"self_time_ms" jsonschema:"Time spent in this section in milliseconds"`
-	SectionStartMs uint64 `json:"section_start_ms" jsonschema:"Start time of this section relative to trace start in milliseconds"`
-	SectionEndMs   uint64 `json:"section_end_ms" jsonschema:"End time of this section relative to trace start in milliseconds"`
+// CriticalPathSegment represents a span segment on the critical path.
+type CriticalPathSegment struct {
+	SpanID        string `json:"span_id" jsonschema:"Unique identifier for the span"`
+	Service       string `json:"service" jsonschema:"Service name from resource attributes"`
+	Operation     string `json:"operation" jsonschema:"Operation/span name"`
+	SelfTimeUs    uint64 `json:"self_time_us" jsonschema:"Time spent in this segment in microseconds"`
+	StartOffsetUs uint64 `json:"start_offset_us" jsonschema:"Start time of this segment relative to trace start in microseconds"`
+	EndOffsetUs   uint64 `json:"end_offset_us" jsonschema:"End time of this segment relative to trace start in microseconds"`
 }

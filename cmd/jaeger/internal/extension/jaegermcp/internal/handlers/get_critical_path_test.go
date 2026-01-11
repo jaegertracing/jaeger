@@ -90,12 +90,12 @@ func TestGetCriticalPathHandler_Handle_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "00000000000000000000000000000001", output.TraceID)
-	assert.Positive(t, output.TotalDurationMs)
-	assert.Positive(t, output.CriticalPathDurationMs)
-	assert.NotEmpty(t, output.Path)
+	assert.Positive(t, output.TotalDurationUs)
+	assert.Positive(t, output.CriticalPathDurationUs)
+	assert.NotEmpty(t, output.Segments)
 
 	// Verify path contains span information
-	for _, span := range output.Path {
+	for _, span := range output.Segments {
 		assert.NotEmpty(t, span.SpanID)
 		assert.NotEmpty(t, span.Service)
 		assert.NotEmpty(t, span.Operation)
@@ -240,7 +240,7 @@ func TestGetCriticalPathHandler_Handle_MultipleServices(t *testing.T) {
 
 	// Verify multiple services are captured
 	services := make(map[string]bool)
-	for _, span := range output.Path {
+	for _, span := range output.Segments {
 		services[span.Service] = true
 	}
 	assert.NotEmpty(t, services, "should have service names")
@@ -274,7 +274,7 @@ func TestGetCriticalPathHandler_Handle_UnknownService(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify unknown service is used as fallback
-	for _, span := range output.Path {
+	for _, span := range output.Segments {
 		assert.Equal(t, "unknown", span.Service)
 	}
 }

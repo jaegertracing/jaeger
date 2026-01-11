@@ -7,11 +7,11 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
-// sanitizeOverFlowingChildren resolves overflowing child spans for each span.
+// removeOverflowingChildren removes or adjusts child spans that overflow their parent's time range.
 // An overflowing child span is one whose time range falls outside its parent span's time range.
 // The function adjusts the start time and duration of overflowing child spans
 // to ensure they fit within the time range of their parent span.
-func sanitizeOverFlowingChildren(spanMap map[pcommon.SpanID]CPSpan) map[pcommon.SpanID]CPSpan {
+func removeOverflowingChildren(spanMap map[pcommon.SpanID]CPSpan) map[pcommon.SpanID]CPSpan {
 	// Get all span IDs
 	spanIDs := make([]pcommon.SpanID, 0, len(spanMap))
 	for spanID := range spanMap {

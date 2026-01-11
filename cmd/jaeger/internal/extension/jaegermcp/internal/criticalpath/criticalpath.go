@@ -145,7 +145,7 @@ func ComputeCriticalPath(traces ptrace.Traces) ([]Section, error) {
 	}()
 
 	refinedSpanMap := getChildOfSpans(spanMap)
-	sanitizedSpanMap := sanitizeOverFlowingChildren(refinedSpanMap)
+	sanitizedSpanMap := removeOverflowingChildren(refinedSpanMap)
 	criticalPath = computeCriticalPath(sanitizedSpanMap, rootSpanID, criticalPath, nil)
 
 	if criticalPath == nil {

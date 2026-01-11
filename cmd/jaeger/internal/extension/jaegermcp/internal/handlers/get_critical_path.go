@@ -12,13 +12,11 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/criticalpath"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/types"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
 
 // queryServiceGetCriticalPathInterface defines the interface we need from QueryService for get_critical_path
@@ -49,47 +47,32 @@ func (h *getCriticalPathHandler) handle(
 	_ *mcp.CallToolRequest,
 	input types.GetCriticalPathInput,
 ) (*mcp.CallToolResult, types.GetCriticalPathOutput, error) {
-	// Validate input
-	if input.TraceID == "" {
-		return nil, types.GetCriticalPathOutput{}, errors.New("trace_id is required")
-	}
-
-	// Parse trace ID using v1 model parser
-	v1TraceID, err := model.TraceIDFromString(input.TraceID)
+	// Build query parameters (includes validation)
+	params, err := h.buildQuery(input)
 	if err != nil {
-		return nil, types.GetCriticalPathOutput{}, fmt.Errorf("invalid trace_id: %w", err)
+		return nil, types.GetCriticalPathOutput{}, err
 	}
 
-	// Convert to v2 TraceID
-	traceID := v1adapter.FromV1TraceID(v1TraceID)
+	tracesIter := h.queryService.GetTraces(ctx, params)
 
-	// Fetch the trace
-	getTraceParams := querysvc.GetTraceParams{
-		TraceIDs: []tracestore.GetTraceParams{
-			{TraceID: traceID},
-		},
-		RawTraces: false, // We want adjusted traces
-	}
+	// Wrap with AggregateTraces to ensure each ptrace.Traces contains a complete trace
+	aggregatedIter := jptrace.AggregateTraces(tracesIter)
 
-	// Get the trace iterator
 	var trace ptrace.Traces
-	var found bool
+	traceFound := false
 
-	for traces, err := range h.queryService.GetTraces(ctx, getTraceParams) {
+	for t, err := range aggregatedIter {
 		if err != nil {
 			return nil, types.GetCriticalPathOutput{}, fmt.Errorf("failed to get trace: %w", err)
 		}
 
-		// We expect only one trace since we're querying by a single trace ID
-		if len(traces) > 0 {
-			trace = traces[0]
-			found = true
-			break
-		}
+		traceFound = true
+		trace = t
+		break // We expect only one trace since we're querying by a single trace ID
 	}
 
-	if !found {
-		return nil, types.GetCriticalPathOutput{}, fmt.Errorf("trace not found: %s", input.TraceID)
+	if !traceFound {
+		return nil, types.GetCriticalPathOutput{}, errors.New("trace not found")
 	}
 
 	// Compute critical path
@@ -98,7 +81,39 @@ func (h *getCriticalPathHandler) handle(
 		return nil, types.GetCriticalPathOutput{}, fmt.Errorf("failed to compute critical path: %w", err)
 	}
 
-	// Build a map of spans for quick lookup and collect service names
+	// Build output
+	output := h.buildOutput(input.TraceID, trace, criticalPathSections)
+
+	return nil, output, nil
+}
+
+// buildQuery converts GetCriticalPathInput to querysvc.GetTraceParams.
+func (*getCriticalPathHandler) buildQuery(input types.GetCriticalPathInput) (querysvc.GetTraceParams, error) {
+	// Validate input
+	if input.TraceID == "" {
+		return querysvc.GetTraceParams{}, errors.New("trace_id is required")
+	}
+
+	traceID, err := parseTraceID(input.TraceID)
+	if err != nil {
+		return querysvc.GetTraceParams{}, fmt.Errorf("invalid trace_id: %w", err)
+	}
+
+	return querysvc.GetTraceParams{
+		TraceIDs: []tracestore.GetTraceParams{
+			{TraceID: traceID},
+		},
+		RawTraces: false, // We want adjusted traces
+	}, nil
+}
+
+// buildOutput constructs the GetCriticalPathOutput from the trace and critical path sections.
+func (*getCriticalPathHandler) buildOutput(
+	traceIDStr string,
+	trace ptrace.Traces,
+	criticalPathSections []criticalpath.Section,
+) types.GetCriticalPathOutput {
+	// Build a map of spans for quick lookup
 	spanMap := jptrace.SpanMap(trace, func(span ptrace.Span) string {
 		return span.SpanID().String()
 	})
@@ -136,7 +151,7 @@ func (h *getCriticalPathHandler) handle(
 	}
 
 	// Convert critical path sections to output format
-	path := make([]types.CriticalPathSpan, 0, len(criticalPathSections))
+	segments := make([]types.CriticalPathSegment, 0, len(criticalPathSections))
 	var criticalPathDuration uint64
 
 	for _, section := range criticalPathSections {
@@ -151,22 +166,20 @@ func (h *getCriticalPathHandler) handle(
 		selfTime := section.SectionEnd - section.SectionStart
 		criticalPathDuration += selfTime
 
-		path = append(path, types.CriticalPathSpan{
-			SpanID:         section.SpanID,
-			Service:        serviceName,
-			Operation:      span.Name(),
-			SelfTimeMs:     selfTime / 1000, // Convert microseconds to milliseconds
-			SectionStartMs: (section.SectionStart - traceStartTime) / 1000,
-			SectionEndMs:   (section.SectionEnd - traceStartTime) / 1000,
+		segments = append(segments, types.CriticalPathSegment{
+			SpanID:        section.SpanID,
+			Service:       serviceName,
+			Operation:     span.Name(),
+			SelfTimeUs:    selfTime,
+			StartOffsetUs: section.SectionStart - traceStartTime,
+			EndOffsetUs:   section.SectionEnd - traceStartTime,
 		})
 	}
 
-	output := types.GetCriticalPathOutput{
-		TraceID:                input.TraceID,
-		TotalDurationMs:        (traceEndTime - traceStartTime) / 1000,
-		CriticalPathDurationMs: criticalPathDuration / 1000,
-		Path:                   path,
+	return types.GetCriticalPathOutput{
+		TraceID:                traceIDStr,
+		TotalDurationUs:        traceEndTime - traceStartTime,
+		CriticalPathDurationUs: criticalPathDuration,
+		Segments:               segments,
 	}
-
-	return nil, output, nil
 }
