@@ -499,17 +499,23 @@ cmd/jaeger/internal/extension/jaegermcp/
    - Connect to `jaegerstorage` extension for trace reader access
    - Create internal service layer for trace operations
 
-4. **Implement `search_traces` Tool** ✅
+4. **Implement `get_services` Tool** ✅
+   - Wrap `QueryService.GetServices()`
+   - Support optional regex pattern filtering
+   - Apply configurable limit (default: 100)
+   - Return list of service names
+
+5. **Implement `search_traces` Tool** ✅
    - Wrap `QueryService.FindTraces()`
    - Transform response to MCP-optimized format (metadata only)
    - Add input validation and error handling
 
-5. **Implement `get_span_details` Tool** ✅
+6. **Implement `get_span_details` Tool** ✅
    - Wrap `QueryService.GetTrace()`
    - Filter to requested span IDs only
    - Return full OTLP attribute data
 
-6. **Implement `get_trace_errors` Tool** ✅
+7. **Implement `get_trace_errors` Tool** ✅
    - Wrap `QueryService.GetTrace()`
    - Filter to spans with error status
    - Return full OTLP attribute data
