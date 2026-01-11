@@ -518,7 +518,7 @@ cmd/jaeger/internal/extension/jaegermcp/
 
 ### Phase 3: Advanced Tools
 
-7. **Implement `get_trace_topology` Tool**
+7. **Implement `get_trace_topology` Tool** ✅
    - Fetch trace via `QueryService.GetTrace()`
    - Build tree structure from flat span list
    - **Strip attributes and events** before response

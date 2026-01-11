@@ -161,6 +161,13 @@ func (s *server) registerTools() {
 		Name:        "get_trace_errors",
 		Description: "Get full details for all spans with error status.",
 	}, getTraceErrorsHandler)
+
+	// Get trace topology tool
+	getTraceTopologyHandler := handlers.NewGetTraceTopologyHandler(s.queryAPI)
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "get_trace_topology",
+		Description: "Get the structural tree of a trace showing parent-child relationships, timing, and error locations. Does NOT return attributes or logs.",
+	}, getTraceTopologyHandler)
 }
 
 // HealthToolOutput is the strongly-typed output for the health tool.
