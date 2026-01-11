@@ -21,25 +21,30 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
 
-// TraceGetter is an interface for retrieving traces
-type TraceGetter interface {
+// queryServiceGetCriticalPathInterface defines the interface we need from QueryService for get_critical_path
+type queryServiceGetCriticalPathInterface interface {
 	GetTraces(ctx context.Context, params querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error]
 }
 
-// GetCriticalPathHandler handles the get_critical_path MCP tool
-type GetCriticalPathHandler struct {
-	traceGetter TraceGetter
+// getCriticalPathHandler implements the get_critical_path MCP tool.
+// This tool identifies the sequence of spans forming the critical latency path
+// (the blocking execution path) in a distributed trace.
+type getCriticalPathHandler struct {
+	queryService queryServiceGetCriticalPathInterface
 }
 
-// NewGetCriticalPathHandler creates a new handler for get_critical_path tool
-func NewGetCriticalPathHandler(queryService *querysvc.QueryService) *GetCriticalPathHandler {
-	return &GetCriticalPathHandler{
-		traceGetter: queryService,
+// NewGetCriticalPathHandler creates a new get_critical_path handler and returns the handler function.
+func NewGetCriticalPathHandler(
+	queryService *querysvc.QueryService,
+) mcp.ToolHandlerFor[types.GetCriticalPathInput, types.GetCriticalPathOutput] {
+	h := &getCriticalPathHandler{
+		queryService: queryService,
 	}
+	return h.handle
 }
 
-// Handle processes the get_critical_path tool request
-func (h *GetCriticalPathHandler) Handle(
+// handle processes the get_critical_path tool request.
+func (h *getCriticalPathHandler) handle(
 	ctx context.Context,
 	_ *mcp.CallToolRequest,
 	input types.GetCriticalPathInput,
@@ -70,7 +75,7 @@ func (h *GetCriticalPathHandler) Handle(
 	var trace ptrace.Traces
 	var found bool
 
-	for traces, err := range h.traceGetter.GetTraces(ctx, getTraceParams) {
+	for traces, err := range h.queryService.GetTraces(ctx, getTraceParams) {
 		if err != nil {
 			return nil, types.GetCriticalPathOutput{}, fmt.Errorf("failed to get trace: %w", err)
 		}

@@ -18,13 +18,13 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 )
 
-// mockTraceGetter is a mock implementation of TraceGetter for testing
-type mockTraceGetter struct {
+// mockGetCriticalPathQueryService is a mock implementation for testing get_critical_path
+type mockGetCriticalPathQueryService struct {
 	traces []ptrace.Traces
 	err    error
 }
 
-func (m *mockTraceGetter) GetTraces(
+func (m *mockGetCriticalPathQueryService) GetTraces(
 	_ context.Context,
 	_ querysvc.GetTraceParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
@@ -37,8 +37,8 @@ func (m *mockTraceGetter) GetTraces(
 	}
 }
 
-// createTestTrace creates a simple test trace with critical path
-func createTestTrace() ptrace.Traces {
+// createCriticalPathTestTrace creates a simple test trace with critical path
+func createCriticalPathTestTrace() ptrace.Traces {
 	traces := ptrace.NewTraces()
 	rs := traces.ResourceSpans().AppendEmpty()
 	rs.Resource().Attributes().PutStr("service.name", "test-service")
@@ -65,26 +65,28 @@ func createTestTrace() ptrace.Traces {
 }
 
 func TestNewGetCriticalPathHandler(t *testing.T) {
-	handler := &GetCriticalPathHandler{
-		traceGetter: &mockTraceGetter{},
+	mockQS := &mockGetCriticalPathQueryService{}
+	handler := &getCriticalPathHandler{
+		queryService: mockQS,
 	}
 	assert.NotNil(t, handler)
-	assert.NotNil(t, handler.traceGetter)
+	assert.NotNil(t, handler.queryService)
 }
 
 func TestGetCriticalPathHandler_Handle_Success(t *testing.T) {
-	traces := createTestTrace()
-	handler := &GetCriticalPathHandler{
-		traceGetter: &mockTraceGetter{
-			traces: []ptrace.Traces{traces},
-		},
+	traces := createCriticalPathTestTrace()
+	mockQS := &mockGetCriticalPathQueryService{
+		traces: []ptrace.Traces{traces},
+	}
+	handler := &getCriticalPathHandler{
+		queryService: mockQS,
 	}
 
 	input := types.GetCriticalPathInput{
 		TraceID: "00000000000000000000000000000001",
 	}
 
-	_, output, err := handler.Handle(context.Background(), nil, input)
+	_, output, err := handler.handle(context.Background(), nil, input)
 	require.NoError(t, err)
 
 	assert.Equal(t, "00000000000000000000000000000001", output.TraceID)
@@ -101,61 +103,65 @@ func TestGetCriticalPathHandler_Handle_Success(t *testing.T) {
 }
 
 func TestGetCriticalPathHandler_Handle_EmptyTraceID(t *testing.T) {
-	handler := &GetCriticalPathHandler{
-		traceGetter: &mockTraceGetter{},
+	mockQS := &mockGetCriticalPathQueryService{}
+	handler := &getCriticalPathHandler{
+		queryService: mockQS,
 	}
 
 	input := types.GetCriticalPathInput{
 		TraceID: "",
 	}
 
-	_, _, err := handler.Handle(context.Background(), nil, input)
+	_, _, err := handler.handle(context.Background(), nil, input)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "trace_id is required")
 }
 
 func TestGetCriticalPathHandler_Handle_InvalidTraceID(t *testing.T) {
-	handler := &GetCriticalPathHandler{
-		traceGetter: &mockTraceGetter{},
+	mockQS := &mockGetCriticalPathQueryService{}
+	handler := &getCriticalPathHandler{
+		queryService: mockQS,
 	}
 
 	input := types.GetCriticalPathInput{
 		TraceID: "invalid-trace-id",
 	}
 
-	_, _, err := handler.Handle(context.Background(), nil, input)
+	_, _, err := handler.handle(context.Background(), nil, input)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid trace_id")
 }
 
 func TestGetCriticalPathHandler_Handle_QueryServiceError(t *testing.T) {
-	handler := &GetCriticalPathHandler{
-		traceGetter: &mockTraceGetter{
-			err: errors.New("query service error"),
-		},
+	mockQS := &mockGetCriticalPathQueryService{
+		err: errors.New("query service error"),
+	}
+	handler := &getCriticalPathHandler{
+		queryService: mockQS,
 	}
 
 	input := types.GetCriticalPathInput{
 		TraceID: "00000000000000000000000000000001",
 	}
 
-	_, _, err := handler.Handle(context.Background(), nil, input)
+	_, _, err := handler.handle(context.Background(), nil, input)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get trace")
 }
 
 func TestGetCriticalPathHandler_Handle_TraceNotFound(t *testing.T) {
-	handler := &GetCriticalPathHandler{
-		traceGetter: &mockTraceGetter{
-			traces: []ptrace.Traces{}, // empty traces
-		},
+	mockQS := &mockGetCriticalPathQueryService{
+		traces: []ptrace.Traces{}, // empty traces
+	}
+	handler := &getCriticalPathHandler{
+		queryService: mockQS,
 	}
 
 	input := types.GetCriticalPathInput{
 		TraceID: "00000000000000000000000000000001",
 	}
 
-	_, _, err := handler.Handle(context.Background(), nil, input)
+	_, _, err := handler.handle(context.Background(), nil, input)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "trace not found")
 }
@@ -174,17 +180,18 @@ func TestGetCriticalPathHandler_Handle_InvalidTrace(t *testing.T) {
 	span.SetStartTimestamp(pcommon.Timestamp(1000))
 	span.SetEndTimestamp(pcommon.Timestamp(2000))
 
-	handler := &GetCriticalPathHandler{
-		traceGetter: &mockTraceGetter{
-			traces: []ptrace.Traces{traces},
-		},
+	mockQS := &mockGetCriticalPathQueryService{
+		traces: []ptrace.Traces{traces},
+	}
+	handler := &getCriticalPathHandler{
+		queryService: mockQS,
 	}
 
 	input := types.GetCriticalPathInput{
 		TraceID: "00000000000000000000000000000001",
 	}
 
-	_, _, err := handler.Handle(context.Background(), nil, input)
+	_, _, err := handler.handle(context.Background(), nil, input)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to compute critical path")
 }
@@ -217,17 +224,18 @@ func TestGetCriticalPathHandler_Handle_MultipleServices(t *testing.T) {
 	childSpan.SetEndTimestamp(pcommon.Timestamp(40000 * 1000))
 	childSpan.SetName("operation-b")
 
-	handler := &GetCriticalPathHandler{
-		traceGetter: &mockTraceGetter{
-			traces: []ptrace.Traces{traces},
-		},
+	mockQS := &mockGetCriticalPathQueryService{
+		traces: []ptrace.Traces{traces},
+	}
+	handler := &getCriticalPathHandler{
+		queryService: mockQS,
 	}
 
 	input := types.GetCriticalPathInput{
 		TraceID: "00000000000000000000000000000001",
 	}
 
-	_, output, err := handler.Handle(context.Background(), nil, input)
+	_, output, err := handler.handle(context.Background(), nil, input)
 	require.NoError(t, err)
 
 	// Verify multiple services are captured
@@ -251,17 +259,18 @@ func TestGetCriticalPathHandler_Handle_UnknownService(t *testing.T) {
 	rootSpan.SetEndTimestamp(pcommon.Timestamp(2000 * 1000))
 	rootSpan.SetName("operation")
 
-	handler := &GetCriticalPathHandler{
-		traceGetter: &mockTraceGetter{
-			traces: []ptrace.Traces{traces},
-		},
+	mockQS := &mockGetCriticalPathQueryService{
+		traces: []ptrace.Traces{traces},
+	}
+	handler := &getCriticalPathHandler{
+		queryService: mockQS,
 	}
 
 	input := types.GetCriticalPathInput{
 		TraceID: "00000000000000000000000000000001",
 	}
 
-	_, output, err := handler.Handle(context.Background(), nil, input)
+	_, output, err := handler.handle(context.Background(), nil, input)
 	require.NoError(t, err)
 
 	// Verify unknown service is used as fallback

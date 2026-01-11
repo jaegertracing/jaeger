@@ -18,7 +18,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/handlers"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/types"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 )
@@ -75,12 +74,6 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 
 	// Register MCP tools
 	s.registerTools()
-
-	// Register get_critical_path tool (Phase 3 Step 4)
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "get_critical_path",
-		Description: "Identify the sequence of spans forming the critical latency path (the blocking execution path).",
-	}, s.getCriticalPathTool)
 
 	// Set up TCP listener with context
 	lc := net.ListenConfig{}
@@ -182,6 +175,13 @@ func (s *server) registerTools() {
 		Name:        "get_trace_topology",
 		Description: "Get the structural tree of a trace showing parent-child relationships, timing, and error locations. Does NOT return attributes or logs.",
 	}, getTraceTopologyHandler)
+
+	// Get critical path tool
+	getCriticalPathHandler := handlers.NewGetCriticalPathHandler(s.queryAPI)
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "get_critical_path",
+		Description: "Identify the sequence of spans forming the critical latency path (the blocking execution path).",
+	}, getCriticalPathHandler)
 }
 
 // HealthToolOutput is the strongly-typed output for the health tool.
@@ -222,14 +222,4 @@ func corsMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
-}
-
-// getCriticalPathTool handles the get_critical_path MCP tool request
-func (s *server) getCriticalPathTool(
-	ctx context.Context,
-	req *mcp.CallToolRequest,
-	input types.GetCriticalPathInput,
-) (*mcp.CallToolResult, types.GetCriticalPathOutput, error) {
-	handler := handlers.NewGetCriticalPathHandler(s.queryAPI)
-	return handler.Handle(ctx, req, input)
 }
