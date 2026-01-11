@@ -486,7 +486,7 @@ func TestSearchTracesToolIntegration(t *testing.T) {
 	initReq := `{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0.0"}}}`
 
 	initHttpReq, err := http.NewRequest(
-		"POST",
+		http.MethodPost,
 		fmt.Sprintf("http://%s/mcp", addr),
 		bytes.NewReader([]byte(initReq)),
 	)
@@ -511,7 +511,7 @@ func TestSearchTracesToolIntegration(t *testing.T) {
 	toolReq := `{"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "search_traces", "arguments": {"service_name": "test-service", "start_time_min": "-1h"}}}`
 
 	req, err := http.NewRequest(
-		"POST",
+		http.MethodPost,
 		fmt.Sprintf("http://%s/mcp", addr),
 		bytes.NewReader([]byte(toolReq)),
 	)
@@ -536,9 +536,11 @@ func TestSearchTracesToolIntegration(t *testing.T) {
 	assert.NotContains(t, string(body2), `"traces":null`)
 
 	// Clean up MCP session to avoid goroutine leaks
-	deleteReq, _ := http.NewRequest("DELETE", fmt.Sprintf("http://%s/mcp", addr), nil)
+	deleteReq, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("http://%s/mcp", addr), http.NoBody)
+	require.NoError(t, err)
 	deleteReq.Header.Set("Mcp-Session-Id", sessionID)
-	http.DefaultClient.Do(deleteReq)
+	_, err = http.DefaultClient.Do(deleteReq)
+	require.NoError(t, err)
 }
 
 // TestSearchTracesToolEmptyResults verifies that empty results return [] not null
@@ -547,7 +549,7 @@ func TestSearchTracesToolEmptyResults(t *testing.T) {
 	mockReader := &tracestoremocks.Reader{}
 	mockReader.On("FindTraces", mock.Anything, mock.Anything).Return(
 		func(_ context.Context, _ tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
-			return func(yield func([]ptrace.Traces, error) bool) {
+			return func(_ func([]ptrace.Traces, error) bool) {
 				// Don't yield any traces
 			}
 		},
@@ -593,7 +595,7 @@ func TestSearchTracesToolEmptyResults(t *testing.T) {
 	initReq := `{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0.0"}}}`
 
 	initHttpReq, err := http.NewRequest(
-		"POST",
+		http.MethodPost,
 		fmt.Sprintf("http://%s/mcp", addr),
 		bytes.NewReader([]byte(initReq)),
 	)
@@ -613,7 +615,7 @@ func TestSearchTracesToolEmptyResults(t *testing.T) {
 	toolReq := `{"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "search_traces", "arguments": {"service_name": "nonexistent", "start_time_min": "-1h"}}}`
 
 	req, err := http.NewRequest(
-		"POST",
+		http.MethodPost,
 		fmt.Sprintf("http://%s/mcp", addr),
 		bytes.NewReader([]byte(toolReq)),
 	)
@@ -639,9 +641,11 @@ func TestSearchTracesToolEmptyResults(t *testing.T) {
 	assert.NotContains(t, bodyStr, `"traces": null`)
 
 	// Clean up MCP session to avoid goroutine leaks
-	deleteReq, _ := http.NewRequest("DELETE", fmt.Sprintf("http://%s/mcp", addr), nil)
+	deleteReq, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("http://%s/mcp", addr), http.NoBody)
+	require.NoError(t, err)
 	deleteReq.Header.Set("Mcp-Session-Id", sessionID)
-	http.DefaultClient.Do(deleteReq)
+	_, err = http.DefaultClient.Do(deleteReq)
+	require.NoError(t, err)
 }
 
 // createTestTraceForIntegration creates a simple trace for integration tests

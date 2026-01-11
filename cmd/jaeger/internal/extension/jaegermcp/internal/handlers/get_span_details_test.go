@@ -371,6 +371,42 @@ func TestGetSpanDetailsHandler_Handle_NoMatchingSpans(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Empty(t, output.Spans) // No spans should be returned
+	assert.Contains(t, output.Error, "spans not found")
+	assert.Contains(t, output.Error, spanIDToHex("nonexistent_span"))
+}
+
+func TestGetSpanDetailsHandler_Handle_PartialMissingSpans(t *testing.T) {
+	traceID := testTraceID
+	existingSpanID := "span001"
+	missingSpanID := "span002"
+
+	// Create trace with only one span
+	spanConfigs := []spanConfig{
+		{spanID: existingSpanID, operation: "/api/test"},
+	}
+
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+
+	mock := newMockYieldingTraces(testTrace)
+
+	handler := &getSpanDetailsHandler{queryService: mock}
+
+	input := types.GetSpanDetailsInput{
+		TraceID: traceID,
+		SpanIDs: []string{spanIDToHex(existingSpanID), spanIDToHex(missingSpanID)},
+	}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	assert.Len(t, output.Spans, 1)
+	assert.Equal(t, "/api/test", output.Spans[0].Operation)
+
+	// Verify error field contains missing span ID
+	assert.Contains(t, output.Error, "spans not found")
+	assert.Contains(t, output.Error, spanIDToHex(missingSpanID))
+	// Should NOT complain about the existing span
+	assert.NotContains(t, output.Error, spanIDToHex(existingSpanID))
 }
 
 func TestConvertAttributeValue(t *testing.T) {
