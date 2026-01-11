@@ -53,7 +53,7 @@ func (h *getTraceTopologyHandler) handle(
 	aggregatedIter := jptrace.AggregateTraces(tracesIter)
 
 	// Collect all spans from the trace
-	var spans []types.SpanNode
+	var spans []*types.SpanNode
 	traceFound := false
 
 	for trace, err := range aggregatedIter {
@@ -75,14 +75,12 @@ func (h *getTraceTopologyHandler) handle(
 	}
 
 	// Build the tree structure from flat span list
-	root, err := h.buildTree(spans, input.Depth)
-	if err != nil {
-		return nil, types.GetTraceTopologyOutput{}, err
-	}
+	rootSpan, orphans := h.buildTree(spans, input.Depth)
 
 	output := types.GetTraceTopologyOutput{
-		TraceID: input.TraceID,
-		Root:    root,
+		TraceID:  input.TraceID,
+		RootSpan: rootSpan,
+		Orphans:  orphans,
 	}
 
 	return nil, output, nil
@@ -109,15 +107,15 @@ func (*getTraceTopologyHandler) buildQuery(input types.GetTraceTopologyInput) (q
 }
 
 // buildSpanNode extracts minimal span information needed for topology.
-func buildSpanNode(pos jptrace.SpanIterPos, span ptrace.Span) types.SpanNode {
+func buildSpanNode(pos jptrace.SpanIterPos, span ptrace.Span) *types.SpanNode {
 	// Get service name from resource attributes
 	serviceName := ""
 	if svc, ok := pos.Resource.Resource().Attributes().Get("service.name"); ok {
 		serviceName = svc.Str()
 	}
 
-	// Calculate duration in microseconds
-	durationUs := span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime()).Microseconds()
+	// Calculate duration
+	duration := span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime())
 
 	// Get parent span ID
 	parentSpanID := ""
@@ -125,77 +123,75 @@ func buildSpanNode(pos jptrace.SpanIterPos, span ptrace.Span) types.SpanNode {
 		parentSpanID = span.ParentSpanID().String()
 	}
 
-	return types.SpanNode{
+	return &types.SpanNode{
 		SpanID:     span.SpanID().String(),
 		ParentID:   parentSpanID,
 		Service:    serviceName,
 		Operation:  span.Name(),
 		StartTime:  span.StartTimestamp().AsTime().Format(time.RFC3339Nano),
-		DurationUs: durationUs,
+		DurationUs: duration.Microseconds(),
 		Status:     span.Status().Code().String(),
-		Children:   []types.SpanNode{},
+		Children:   []*types.SpanNode{},
 	}
 }
 
 // buildTree constructs a tree from a flat list of spans.
-func (h *getTraceTopologyHandler) buildTree(spans []types.SpanNode, maxDepth int) (types.SpanNode, error) {
-	// Create a map of span ID to span for quick lookup
-	spanMap := make(map[string]types.SpanNode)
+// It returns the root span and a list of orphaned spans (spans whose parent is missing).
+func (h *getTraceTopologyHandler) buildTree(spans []*types.SpanNode, maxDepth int) (*types.SpanNode, []*types.SpanNode) {
+	// Create a map of span ID to span pointer for quick lookup
+	spanMap := make(map[string]*types.SpanNode)
 	for i := range spans {
 		spanMap[spans[i].SpanID] = spans[i]
 	}
 
-	// Create a map of parent ID to children
-	childrenMap := make(map[string][]string)
-	var rootSpanID string
+	var rootSpan *types.SpanNode
+	var orphans []*types.SpanNode
 
+	// Build parent-child relationships by connecting spans directly
 	for i := range spans {
 		if spans[i].ParentID == "" {
 			// This is a root span
-			rootSpanID = spans[i].SpanID
+			if rootSpan == nil {
+				rootSpan = spans[i]
+			} else {
+				// Multiple roots - treat additional roots as orphans
+				orphans = append(orphans, spans[i])
+			}
 		} else {
-			childrenMap[spans[i].ParentID] = append(childrenMap[spans[i].ParentID], spans[i].SpanID)
-		}
-	}
-
-	// If no root span found, return error
-	if rootSpanID == "" {
-		return types.SpanNode{}, errors.New("could not build trace tree: no root span found")
-	}
-
-	// Build the tree recursively starting from the root
-	return h.buildNode(rootSpanID, spanMap, childrenMap, 1, maxDepth), nil
-}
-
-// buildNode recursively builds a SpanNode and its children.
-func (h *getTraceTopologyHandler) buildNode(
-	spanID string,
-	spanMap map[string]types.SpanNode,
-	childrenMap map[string][]string,
-	currentDepth int,
-	maxDepth int,
-) types.SpanNode {
-	span, ok := spanMap[spanID]
-	if !ok {
-		return types.SpanNode{}
-	}
-
-	node := span
-	node.Children = []types.SpanNode{}
-
-	// Check if we should include children based on maxDepth
-	// maxDepth of 0 means no limit, otherwise check if we've reached the limit
-	if maxDepth == 0 || currentDepth < maxDepth {
-		// Add children if any
-		if childIDs, hasChildren := childrenMap[spanID]; hasChildren {
-			for _, childID := range childIDs {
-				childNode := h.buildNode(childID, spanMap, childrenMap, currentDepth+1, maxDepth)
-				if childNode.SpanID != "" {
-					node.Children = append(node.Children, childNode)
-				}
+			// Find parent and attach this span as a child
+			parent, parentExists := spanMap[spans[i].ParentID]
+			if parentExists {
+				parent.Children = append(parent.Children, spans[i])
+			} else {
+				// Parent not found - this is an orphan
+				orphans = append(orphans, spans[i])
 			}
 		}
 	}
 
-	return node
+	// Apply depth limiting if needed
+	if maxDepth > 0 && rootSpan != nil {
+		h.limitDepth(rootSpan, 1, maxDepth)
+	}
+	for _, orphan := range orphans {
+		if maxDepth > 0 {
+			h.limitDepth(orphan, 1, maxDepth)
+		}
+	}
+
+	return rootSpan, orphans
+}
+
+// limitDepth recursively limits the depth of the tree by removing children beyond maxDepth.
+func (h *getTraceTopologyHandler) limitDepth(node *types.SpanNode, currentDepth int, maxDepth int) {
+	if currentDepth >= maxDepth {
+		// Remove all children at this depth
+		node.Children = nil
+		return
+	}
+
+	// Recursively limit depth for children
+	for _, child := range node.Children {
+		h.limitDepth(child, currentDepth+1, maxDepth)
+	}
 }

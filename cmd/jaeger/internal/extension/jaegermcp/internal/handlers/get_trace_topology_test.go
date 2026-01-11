@@ -18,12 +18,26 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 )
 
-// getRoot is a test helper to extract the SpanNode from the any type in GetTraceTopologyOutput
-func getRoot(t *testing.T, output types.GetTraceTopologyOutput) types.SpanNode {
+// getRoot is a test helper to extract the RootSpan from GetTraceTopologyOutput
+func getRoot(t *testing.T, output types.GetTraceTopologyOutput) *types.SpanNode {
 	t.Helper()
-	root, ok := output.Root.(types.SpanNode)
-	require.True(t, ok, "Root should be a SpanNode")
+	if output.RootSpan == nil {
+		return nil
+	}
+	root, ok := output.RootSpan.(*types.SpanNode)
+	require.True(t, ok, "RootSpan should be a *SpanNode")
 	return root
+}
+
+// getOrphans is a test helper to extract orphans from GetTraceTopologyOutput
+func getOrphans(t *testing.T, output types.GetTraceTopologyOutput) []*types.SpanNode {
+	t.Helper()
+	if output.Orphans == nil {
+		return nil
+	}
+	orphans, ok := output.Orphans.([]*types.SpanNode)
+	require.True(t, ok, "Orphans should be []*SpanNode")
+	return orphans
 }
 
 func TestGetTraceTopologyHandler_Handle_Success(t *testing.T) {
@@ -77,7 +91,7 @@ func TestGetTraceTopologyHandler_Handle_Success(t *testing.T) {
 	assert.Len(t, root.Children, 2)
 
 	// Verify children are present (order not guaranteed)
-	operations := make(map[string]types.SpanNode)
+	operations := make(map[string]*types.SpanNode)
 	for _, child := range root.Children {
 		operations[child.Operation] = child
 	}
@@ -282,23 +296,20 @@ func TestGetTraceTopologyHandler_Handle_ComplexTree(t *testing.T) {
 	assert.Len(t, root.Children, 2)
 
 	// Find A and B
-	var nodeA, nodeB types.SpanNode
-	var foundA, foundB bool
+	var nodeA, nodeB *types.SpanNode
 	for _, child := range root.Children {
 		switch child.Operation {
 		case "A":
 			nodeA = child
-			foundA = true
 		case "B":
 			nodeB = child
-			foundB = true
 		default:
 			// ignore other operations
 		}
 	}
 
-	require.True(t, foundA)
-	require.True(t, foundB)
+	require.NotNil(t, nodeA)
+	require.NotNil(t, nodeB)
 
 	// Verify A's children (C and D)
 	assert.Len(t, nodeA.Children, 2)
@@ -483,7 +494,7 @@ func TestGetTraceTopologyHandler_Handle_NoRootSpan(t *testing.T) {
 	traceID := testTraceID
 
 	// Create a trace where all spans have parents (no root)
-	// This is an invalid trace, but we should handle it gracefully
+	// This is an invalid trace, but we should handle it gracefully by returning orphans
 	spanConfigs := []spanConfig{
 		{spanID: "child01", parentSpanID: "nonexistent", operation: "orphan1"},
 		{spanID: "child02", parentSpanID: "nonexistent", operation: "orphan2"},
@@ -500,10 +511,73 @@ func TestGetTraceTopologyHandler_Handle_NoRootSpan(t *testing.T) {
 		Depth:   0,
 	}
 
-	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no root span found")
+	require.NoError(t, err)
+	rootSpan := getRoot(t, output)
+	assert.Nil(t, rootSpan, "Should have no root span")
+	
+	orphans := getOrphans(t, output)
+	require.NotNil(t, orphans)
+	assert.Len(t, orphans, 2, "Should have 2 orphans")
+
+	// Verify orphans are present
+	operations := make(map[string]bool)
+	for _, orphan := range orphans {
+		operations[orphan.Operation] = true
+	}
+	assert.True(t, operations["orphan1"])
+	assert.True(t, operations["orphan2"])
+}
+
+func TestGetTraceTopologyHandler_Handle_WithOrphans(t *testing.T) {
+	traceID := testTraceID
+	rootSpanID := "root001"
+	childSpanID := "child01"
+	orphanSpanID := "orphan01"
+
+	spanConfigs := []spanConfig{
+		{
+			spanID:    rootSpanID,
+			operation: "/api/root",
+		},
+		{
+			spanID:       childSpanID,
+			parentSpanID: rootSpanID,
+			operation:    "child",
+		},
+		{
+			spanID:       orphanSpanID,
+			parentSpanID: "nonexistent",
+			operation:    "orphan",
+		},
+	}
+
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+
+	mock := newMockYieldingTraces(testTrace)
+
+	handler := &getTraceTopologyHandler{queryService: mock}
+
+	input := types.GetTraceTopologyInput{
+		TraceID: traceID,
+		Depth:   0,
+	}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	rootSpan := getRoot(t, output)
+	require.NotNil(t, rootSpan)
+	assert.Equal(t, "/api/root", rootSpan.Operation)
+	assert.Len(t, rootSpan.Children, 1)
+	assert.Equal(t, "child", rootSpan.Children[0].Operation)
+
+	// Verify orphan is present
+	orphans := getOrphans(t, output)
+	require.NotNil(t, orphans)
+	assert.Len(t, orphans, 1)
+	assert.Equal(t, "orphan", orphans[0].Operation)
 }
 
 func TestGetTraceTopologyHandler_Handle_ErrorStatus(t *testing.T) {
