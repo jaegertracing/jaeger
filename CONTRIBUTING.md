@@ -77,15 +77,8 @@ $ go run ./cmd/jaeger --config ./cmd/jaeger/config.yaml
 
 #### What does this command do?
 
-The `jaeger-ui` submodule, which was added from the Pre-requisites step above, contains
-the source code for the UI assets (requires Node.js 6+).
-
 The Jaeger binary runs with the default configuration file (config.yaml) that includes 
-the UI configuration via the `jaeger_query` extension.
-
-For v1, the assets must be compiled first with `make build-ui`, which runs Node.js build and then
-packages the assets into a Go file that is `.gitignore`-ed. `make run-all-in-one` essentially 
-runs Jaeger all-in-one (v1) by combining both of these steps into a single `make` command.
+the UI configuration via the `jaeger_query` extension. The `jaeger-ui` submodule, which was added from the Pre-requisites step above, contains the source code for the UI assets (requires Node.js 24+). The assets must be compiled first with `make build-ui`, which normally downloads them from the latest UI release, but can also build them from source.
 
 ## Project Structure
 
