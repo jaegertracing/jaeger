@@ -13,5 +13,5 @@ type GetTraceErrorsInput struct {
 type GetTraceErrorsOutput struct {
 	TraceID    string       `json:"trace_id" jsonschema:"Unique identifier for the trace"`
 	ErrorCount int          `json:"error_count" jsonschema:"Number of spans with error status"`
-	Spans      []SpanDetail `json:"spans" jsonschema:"List of error span details"`
+	Spans      []SpanDetail `json:"spans,omitempty" jsonschema:"List of error span details"`
 }

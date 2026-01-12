@@ -5,9 +5,9 @@ package types
 
 // SearchTracesInput defines the input parameters for the search_traces MCP tool.
 type SearchTracesInput struct {
-	// StartTimeMin is the start of time interval (required).
+	// StartTimeMin is the start of time interval (optional, defaults to "-1h").
 	// Supports RFC3339 or relative time (e.g., "-1h", "-30m").
-	StartTimeMin string `json:"start_time_min" jsonschema:"Start of time interval (RFC3339 or relative like -1h)"`
+	StartTimeMin string `json:"start_time_min,omitempty" jsonschema:"Start of time interval (RFC3339 or relative like -1h). Default: -1h"`
 
 	// StartTimeMax is the end of time interval (optional, defaults to "now").
 	// Supports RFC3339 or relative time (e.g., "now", "-1m").
@@ -41,7 +41,7 @@ type SearchTracesInput struct {
 
 // SearchTracesOutput defines the output of the search_traces MCP tool.
 type SearchTracesOutput struct {
-	Traces []TraceSummary `json:"traces" jsonschema:"List of trace summaries matching the search criteria"`
+	Traces []TraceSummary `json:"traces,omitempty" jsonschema:"List of trace summaries matching the search criteria"`
 	Error  string         `json:"error,omitempty" jsonschema:"Error message if partial results were returned"`
 }
 

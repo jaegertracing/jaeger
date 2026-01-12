@@ -102,6 +102,15 @@ func (h *getSpanDetailsHandler) handle(
 		Spans:   spanDetails,
 	}
 
+	// Report any span IDs that were not found
+	if len(spanIDSet) > 0 {
+		missingIDs := make([]string, 0, len(spanIDSet))
+		for spanID := range spanIDSet {
+			missingIDs = append(missingIDs, spanID)
+		}
+		output.Error = fmt.Sprintf("spans not found: %v", missingIDs)
+	}
+
 	return nil, output, nil
 }
 

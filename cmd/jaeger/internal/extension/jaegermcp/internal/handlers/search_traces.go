@@ -94,8 +94,14 @@ func (h *searchTracesHandler) handle(
 
 // buildQuery converts SearchTracesInput to querysvc.TraceQueryParams.
 func (*searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysvc.TraceQueryParams, error) {
+	// Use default start time if not provided
+	startTimeMinInput := input.StartTimeMin
+	if startTimeMinInput == "" {
+		startTimeMinInput = "-1h"
+	}
+
 	// Parse and validate input
-	startTimeMin, err := parseTimeParam(input.StartTimeMin)
+	startTimeMin, err := parseTimeParam(startTimeMinInput)
 	if err != nil {
 		return querysvc.TraceQueryParams{}, fmt.Errorf("invalid start_time_min: %w", err)
 	}
