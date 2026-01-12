@@ -6,6 +6,7 @@ package storageexporter
 import (
 	"github.com/asaskevich/govalidator"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configretry"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
@@ -18,9 +19,9 @@ var (
 
 // Config defines configuration for jaeger_storage_exporter.
 type Config struct {
-	TraceStorage string                          `mapstructure:"trace_storage" valid:"required"`
-	QueueConfig  exporterhelper.QueueBatchConfig `mapstructure:"queue" valid:"optional"`
-	RetryConfig  configretry.BackOffConfig       `mapstructure:"retry_on_failure"`
+	TraceStorage string                                                   `mapstructure:"trace_storage" valid:"required"`
+	QueueConfig  configoptional.Optional[exporterhelper.QueueBatchConfig] `mapstructure:"queue" valid:"optional"`
+	RetryConfig  configretry.BackOffConfig                                `mapstructure:"retry_on_failure"`
 }
 
 func (cfg *Config) Validate() error {

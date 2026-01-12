@@ -21,22 +21,18 @@ vendor/
 # Jaeger binaries
 examples/hotrod/hotrod
 examples/hotrod/hotrod-*
-cmd/all-in-one/all-in-one-*
 cmd/agent/agent
 cmd/agent/agent-*
 cmd/anonymizer/anonymizer
 cmd/anonymizer/anonymizer-*
-cmd/collector/collector
-cmd/collector/collector-*
-cmd/ingester/ingester
-cmd/ingester/ingester-*
+cmd/jaeger/jaeger
+cmd/jaeger/jaeger-*
 cmd/jaeger/internal/integration/results
 cmd/remote-storage/remote-storage
 cmd/remote-storage/remote-storage-*
 cmd/es-index-cleaner/es-index-cleaner-*
 cmd/es-rollover/es-rollover-*
-cmd/query/query
-cmd/query/query-*
+cmd/esmapping-generator/esmapping-generator-*
 cmd/tracegen/tracegen
 cmd/tracegen/tracegen-*
 crossdock/crossdock-*

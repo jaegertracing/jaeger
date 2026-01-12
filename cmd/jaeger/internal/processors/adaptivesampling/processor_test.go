@@ -11,6 +11,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/storagetest"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
@@ -19,10 +20,11 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/cmd/internal/storageconfig"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/remotesampling"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 )
 
 func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
@@ -39,8 +41,10 @@ func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
 			TelemetrySettings: telemetrySettings,
 		},
 		&jaegerstorage.Config{
-			TraceBackends: map[string]jaegerstorage.TraceBackend{
-				memstoreName: {Memory: &memory.Configuration{MaxTraces: 10000}},
+			Config: storageconfig.Config{
+				TraceBackends: map[string]storageconfig.TraceBackend{
+					memstoreName: {Memory: &memory.Configuration{MaxTraces: 10000}},
+				},
 			},
 		},
 	)
@@ -99,18 +103,21 @@ func TestTraceProcessor(t *testing.T) {
 	traceProcessor := newTraceProcessor(*config, telemetrySettings)
 
 	rsCfg := &remotesampling.Config{
-		Adaptive: &remotesampling.AdaptiveConfig{
+		Adaptive: configoptional.Some(remotesampling.AdaptiveConfig{
 			SamplingStore: "foobar",
 			Options:       adaptive.DefaultOptions(),
-		},
+		}),
 	}
 	host := makeRemoteSamplingExtension(t, rsCfg)
 
-	rsCfg.Adaptive.Options.AggregationBuckets = 0
+	adaptiveCfg := *rsCfg.Adaptive.Get()
+	adaptiveCfg.Options.AggregationBuckets = 0
+	rsCfg.Adaptive = configoptional.Some(adaptiveCfg)
 	err := traceProcessor.start(context.Background(), host)
 	require.ErrorContains(t, err, "AggregationBuckets must be greater than 0")
 
-	rsCfg.Adaptive.Options = adaptive.DefaultOptions()
+	adaptiveCfg.Options = adaptive.DefaultOptions()
+	rsCfg.Adaptive = configoptional.Some(adaptiveCfg)
 	require.NoError(t, traceProcessor.start(context.Background(), host))
 
 	twww := makeTracesOneSpan()

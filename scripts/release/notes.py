@@ -42,7 +42,7 @@ def num_commits_since_prev_tag(token, base_url, branch, verbose):
     num_commits = compare_results['behind_by']
 
     if verbose:
-        print(f"There are {num_commits} new commits since {prev_release_tag}")
+        eprint(f"There are {num_commits} new commits since {prev_release_tag}")
     return num_commits
 
 UNCATTEGORIZED = 'Uncategorized'
@@ -50,7 +50,7 @@ categories = [
     {'title': '#### ⛔ Breaking Changes', 'label': 'changelog:breaking-change'},
     {'title': '#### ✨ New Features', 'label': 'changelog:new-feature'},
     {'title': '#### 🐞 Bug fixes, Minor Improvements', 'label': 'changelog:bugfix-or-minor-feature'},
-    {'title': '#### 🚧 Experimental Features', 'label': 'changelog:exprimental'},
+    {'title': '#### 🚧 Experimental Features', 'label': 'changelog:experimental'},
     {'title': '#### 👷 CI Improvements', 'label': 'changelog:ci'},
     {'title': '#### ⚙️ Refactoring', 'label': 'changelog:refactoring'},
     {'title': None, 'label': 'changelog:test'},
@@ -62,10 +62,10 @@ categories = [
 def updateProgress(iteration, total_iterations):
     progress = (iteration + 1) / total_iterations
     percentage = progress * 100
-    sys.stdout.write('\r[' + '='*int(progress*50) + ' '*(50-int(progress*50)) + f'] {percentage:.2f}%')
-    sys.stdout.flush()
+    sys.stderr.write('\r[' + '='*int(progress*50) + ' '*(50-int(progress*50)) + f'] {percentage:.2f}%')
+    sys.stderr.flush()
     if iteration >= total_iterations - 1:
-        print()
+        eprint()
     return iteration + 1
 
 def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
@@ -88,8 +88,8 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
     commits = json.loads(urlopen(req).read())
 
     if verbose:
-        print(req.full_url)
-        print('Retrieved', len(commits), 'commits')
+        eprint(req.full_url)
+        eprint('Retrieved', len(commits), 'commits')
 
     # Load PR for each commit and print summary
     category_results = {category['title']: [] for category in categories}
@@ -103,13 +103,14 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
             progress_iterator = updateProgress(progress_iterator, num_commits)
 
         sha = commit['sha']
-        author = commit['author']['login']
+        author = commit['author']
+        author_login = author['login'] if author else 'unknown'
+        author_url = commit['author']['html_url'] if author else ''
 
         if exclude_dependabot and author == "dependabot[bot]":
             skipped_dependabot += 1
             continue
 
-        author_url = commit['author']['html_url']
         msg_lines = commit['commit']['message'].split('\n')
         msg = msg_lines[0].capitalize()
         req = Request(f"{commits_url}/{sha}/pulls")
@@ -124,7 +125,7 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
             short_sha = sha[:7]
             commit_url = commit['html_url']
 
-            result = f'* {msg} ([@{author}]({author_url}) in [{short_sha}]({commit_url}))'
+            result = f'* {msg} ([@{author_login}]({author_url}) in [{short_sha}]({commit_url}))'
             other_results.append(result)
             continue
 
@@ -149,7 +150,7 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
                     category = cat['title']
                     break
 
-        result = f'* {msg} ([@{author}]({author_url}) in [#{pull_id}]({pull_url}))'
+        result = f'* {msg} ([@{author_login}]({author_url}) in [#{pull_id}]({pull_url}))'
         if category == UNCATTEGORIZED:
             other_results.append(result)
         else:
@@ -168,12 +169,6 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
                 print(result)
             print()
 
-    if repo == 'jaeger':
-        print()
-        print('### 📊 UI Changes')
-        print()
-        main(token, 'jaeger-ui', 'main', None, exclude_dependabot, False)
-
     # Print pull requests in the 'UNCATTEGORIZED' category
     if other_results:
         print(f'### 💩💩💩 The following commits cannot be categorized (missing "changelog:*" labels):')
@@ -184,16 +179,16 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
 
     # Print warnings for commits with more than one changelog label
     if commits_with_multiple_labels:
-        print("Warnings: Commits with more than one changelog label found. Please fix them:\n")
+        eprint("Warnings: Commits with more than one changelog label found. Please fix them:\n")
         for sha, pull_id, labels in commits_with_multiple_labels:
             pr_url = f"https://github.com/jaegertracing/{repo}/pull/{pull_id}"
-            print(f"Commit {sha} associated with multiple changelog labels: {', '.join(labels)}")
-            print(f"Pull Request URL: {pr_url}\n")
+            eprint(f"Commit {sha} associated with multiple changelog labels: {', '.join(labels)}")
+            eprint(f"Pull Request URL: {pr_url}\n")
         print()
 
     if skipped_dependabot:
         if verbose:
-            print(f"(Skipped dependabot commits: {skipped_dependabot})")
+            eprint(f"(Skipped dependabot commits: {skipped_dependabot})")
 
 
 def get_pull_request_labels(token, repo, pull_number):

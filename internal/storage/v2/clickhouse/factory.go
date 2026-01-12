@@ -35,6 +35,7 @@ type Factory struct {
 }
 
 func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Settings) (*Factory, error) {
+	cfg.applyDefaults()
 	f := &Factory{
 		config: cfg,
 		telset: telset,
@@ -73,6 +74,10 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 			{"services materialized view", sql.CreateServicesMaterializedView},
 			{"operations table", sql.CreateOperationsTable},
 			{"operations materialized view", sql.CreateOperationsMaterializedView},
+			{"trace id timestamps table", sql.CreateTraceIDTimestampsTable},
+			{"trace id timestamps materialized view", sql.CreateTraceIDTimestampsMaterializedView},
+			{"attribute metadata table", sql.CreateAttributeMetadataTable},
+			{"attribute metadata materialized view", sql.CreateAttributeMetadataMaterializedView},
 		}
 
 		for _, schema := range schemas {
@@ -86,7 +91,10 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 }
 
 func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
-	return chtracestore.NewReader(f.conn), nil
+	return chtracestore.NewReader(f.conn, chtracestore.ReaderConfig{
+		DefaultSearchDepth: f.config.DefaultSearchDepth,
+		MaxSearchDepth:     f.config.MaxSearchDepth,
+	}), nil
 }
 
 func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
@@ -109,6 +117,8 @@ func (f *Factory) Purge(ctx context.Context) error {
 		{"spans", sql.TruncateSpans},
 		{"services", sql.TruncateServices},
 		{"operations", sql.TruncateOperations},
+		{"trace_id_timestamps", sql.TruncateTraceIDTimestamps},
+		{"attribute_metadata", sql.TruncateAttributeMetadata},
 	}
 
 	for _, table := range tables {

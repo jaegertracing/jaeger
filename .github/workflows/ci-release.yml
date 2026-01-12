@@ -1,26 +1,12 @@
 name: Publish release
 
 on:
-  # Disable auto-run, once we sunset 1.x components we might go back to auto-release.
-  #
-  # release:
-  #   types:
-  #     - published
+  release:
+    types:
+      - published
 
   workflow_dispatch:
     inputs:
-      # Disable version inputs for now, the build always uses the latest tags.
-      #
-      # version_v1:
-      #   required: true
-      #   type: string
-      #   description: Version number for 1.x components. Don't include a leading `v`.
-
-      # version_v2:
-      #   required: true
-      #   type: string
-      #   description: Version number for 2.x components. Don't include a leading `v`.
-
       dry_run:
         required: true
         type: boolean
@@ -36,6 +22,7 @@ jobs:
     permissions:
       contents: write
       deployments: write
+      packages: read  # This allows the runner to pull from GHCR
     if: github.repository == 'jaegertracing/jaeger'
     runs-on: jaeger-linux-amd64-32core-1200GB_SSD
 
@@ -49,11 +36,11 @@ jobs:
         sudo rm -rf /usr/local/lib/android || true
         df -h /
 
-    - uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+    - uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-    - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
       with:
         submodules: true
 
@@ -61,7 +48,7 @@ jobs:
       run: |
         git fetch --prune --unshallow --tags
 
-    - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+    - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
       with:
         go-version: 1.25.x
 
@@ -88,13 +75,10 @@ jobs:
       # Many scripts depend on BRANCH variable. We do not want to
       # use ./.github/actions/setup-branch here because it may set
       # BRANCH=main when the workflow is triggered manually.
-      #
-      # TODO this currently utilizes 1.x version tag, which is ok for v1
-      # binaries, but for tools/utils we may need to change in the future.
       run: |
-        BRANCH=$(make echo-v1)
+        BRANCH=$(make echo-version)
         echo Validate that the latest tag ${BRANCH} is in semver format
-        echo ${BRANCH} | grep -E '^v[0-9]+.[0-9]+.[0-9]+$'
+        echo ${BRANCH} | grep -E '^v[0-9]+.[0-9]+.[0-9]+(-rc[0-9]+)?$'
         echo "BRANCH=${BRANCH}" >> ${GITHUB_ENV}
 
     - name: Configure GPG Key
@@ -128,7 +112,14 @@ jobs:
         rm -rf deploy || true
         df -h /
 
-    - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+    - name: Log in to GHCR
+      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
 
     - name: Build and upload all container images
       # -B skips building the binaries since we already did that above
@@ -139,22 +130,10 @@ jobs:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
-    - name: Build, test, and publish all-in-one v1 image
+    - name: Build, test, and publish jaeger image
       run: |
-        BRANCH=$(make echo-v1) \
         bash scripts/build/build-all-in-one-image.sh \
-          ${{ steps.params.outputs.docker_flags }} \
-          v1
-      env:
-        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
-
-    - name: Build, test, and publish v2 image
-      run: |
-        BRANCH=$(make echo-v2) \
-        bash scripts/build/build-all-in-one-image.sh \
-          ${{ steps.params.outputs.docker_flags }} \
-          v2
+          ${{ steps.params.outputs.docker_flags }}
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
@@ -168,7 +147,7 @@ jobs:
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
 
     - name: Generate SBOM
-      uses: anchore/sbom-action@e11c554f704a0b820cbf8c51673f6945e0731532 # v0.20.0
+      uses: anchore/sbom-action@a930d0ac434e3182448fe678398ba5713717112a # v0.21.0
       with:
         output-file: jaeger-SBOM.spdx.json
         upload-release-assets: false
@@ -182,6 +161,5 @@ jobs:
       with:
         file: jaeger-SBOM.spdx.json
         overwrite: ${{ inputs.overwrite }}
-        # TODO this will only work for 1.x artifacts
         tag: ${{ env.BRANCH }}
         repo_token: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,25 @@
+# Example configuration for remote-storage service with Badger backend
+
+# Server configuration
+grpc:
+  # Host:Port to listen on
+  endpoint: :17271
+
+
+# Storage configuration - Badger backend
+storage:
+  backends:
+    badger-storage:
+      badger:
+        directories:
+          keys: /tmp/jaeger/badger/keys
+          values: /tmp/jaeger/badger/values
+        ephemeral: false
+        maintenance_interval: 5m
+        metrics_update_interval: 10s
+        ttl:
+          spans: 168h  # 7 days
+
+# Multi-tenancy configuration (optional)
+multi_tenancy:
+  enabled: false

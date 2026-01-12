@@ -46,9 +46,10 @@ def fetch_content(file_name):
 
 def main():
     
-    loc = sys.argv[1]
-    v1 = sys.argv[2]
-    v2 = sys.argv[3]
+    version = sys.argv[1]
+    ui_filename = sys.argv[2]
+    loc = sys.argv[3]
+
     try:
         backend_file_name = "RELEASE.md"
         backend_section = fetch_content(backend_file_name)
@@ -64,7 +65,6 @@ def main():
     doc_section=replace_dash(doc_section)
 
     try:
-        ui_filename = "jaeger-ui/RELEASE.md"
         ui_section = fetch_content(ui_filename)
     except Exception as e:
         sys.exit(f"Failed to extract UI section: {e}")
@@ -72,11 +72,9 @@ def main():
     ui_section=replace_dash(ui_section)
     ui_section=replace_num(ui_section)
 
-    #Concrete version
-    v1_pattern = r'(?:X\.Y\.Z|1\.[0-9]+\.[0-9]+|1\.x\.x)'
-    ui_section, backend_section, doc_section = replace_version(ui_section, backend_section, doc_section, v1_pattern, v1)
-    v2_pattern = r'2.x.x'
-    ui_section, backend_section, doc_section = replace_version(ui_section, backend_section, doc_section, v2_pattern, v2)
+    # Concrete version - replace version patterns with the single version
+    version_pattern = r'(?:X\.Y\.Z|[0-9]+\.[0-9]+\.[0-9]+|[0-9]+\.x\.x)'
+    ui_section, backend_section, doc_section = replace_version(ui_section, backend_section, doc_section, version_pattern, version)
 
     print("# UI Release")
     print(ui_section)

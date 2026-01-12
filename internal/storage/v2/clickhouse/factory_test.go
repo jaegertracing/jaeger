@@ -5,12 +5,12 @@ package clickhouse
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
 
@@ -86,44 +86,72 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "ping error",
 			failureConfig: clickhousetest.FailureConfig{
-				clickhousetest.PingQuery: errors.New("ping error"),
+				clickhousetest.PingQuery: assert.AnError,
 			},
 			expectedError: "failed to ping ClickHouse",
 		},
 		{
 			name: "spans table creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateSpansTable: errors.New("spans table creation error"),
+				sql.CreateSpansTable: assert.AnError,
 			},
 			expectedError: "failed to create spans table",
 		},
 		{
 			name: "services table creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateServicesTable: errors.New("services table creation error"),
+				sql.CreateServicesTable: assert.AnError,
 			},
 			expectedError: "failed to create services table",
 		},
 		{
 			name: "services materialized view creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateServicesMaterializedView: errors.New("services materialized view creation error"),
+				sql.CreateServicesMaterializedView: assert.AnError,
 			},
 			expectedError: "failed to create services materialized view",
 		},
 		{
 			name: "operations table creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateOperationsTable: errors.New("operations table creation error"),
+				sql.CreateOperationsTable: assert.AnError,
 			},
 			expectedError: "failed to create operations table",
 		},
 		{
 			name: "operations materialized view creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateOperationsMaterializedView: errors.New("operations materialized view creation error"),
+				sql.CreateOperationsMaterializedView: assert.AnError,
 			},
 			expectedError: "failed to create operations materialized view",
+		},
+		{
+			name: "trace id timestamps table creation error",
+			failureConfig: clickhousetest.FailureConfig{
+				sql.CreateTraceIDTimestampsTable: assert.AnError,
+			},
+			expectedError: "failed to create trace id timestamps table",
+		},
+		{
+			name: "trace id timestamps materialized view creation error",
+			failureConfig: clickhousetest.FailureConfig{
+				sql.CreateTraceIDTimestampsMaterializedView: assert.AnError,
+			},
+			expectedError: "failed to create trace id timestamps materialized view",
+		},
+		{
+			name: "attribute metadata table creation error",
+			failureConfig: clickhousetest.FailureConfig{
+				sql.CreateAttributeMetadataTable: assert.AnError,
+			},
+			expectedError: "failed to create attribute metadata table",
+		},
+		{
+			name: "attribute metadata materialized view creation error",
+			failureConfig: clickhousetest.FailureConfig{
+				sql.CreateAttributeMetadataMaterializedView: assert.AnError,
+			},
+			expectedError: "failed to create attribute metadata materialized view",
 		},
 	}
 
@@ -157,23 +185,37 @@ func TestPurge(t *testing.T) {
 		{
 			name: "truncate spans table error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.TruncateSpans: errors.New("truncate spans table error"),
+				sql.TruncateSpans: assert.AnError,
 			},
 			expectedError: "failed to purge spans",
 		},
 		{
 			name: "truncate services table error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.TruncateServices: errors.New("truncate services table error"),
+				sql.TruncateServices: assert.AnError,
 			},
 			expectedError: "failed to purge services",
 		},
 		{
 			name: "truncate operations table error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.TruncateOperations: errors.New("truncate operations table error"),
+				sql.TruncateOperations: assert.AnError,
 			},
 			expectedError: "failed to purge operations",
+		},
+		{
+			name: "truncate trace_id_timestamps table error",
+			failureConfig: clickhousetest.FailureConfig{
+				sql.TruncateTraceIDTimestamps: assert.AnError,
+			},
+			expectedError: "failed to purge trace_id_timestamps",
+		},
+		{
+			name: "truncate attribute_metadata table error",
+			failureConfig: clickhousetest.FailureConfig{
+				sql.TruncateAttributeMetadata: assert.AnError,
+			},
+			expectedError: "failed to purge attribute_metadata",
 		},
 	}
 

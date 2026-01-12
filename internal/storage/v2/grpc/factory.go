@@ -66,7 +66,7 @@ func NewFactory(
 		for _, opt := range opts {
 			clientOpts = append(clientOpts, configgrpc.WithGrpcDialOption(opt))
 		}
-		return gcs.ToClientConn(ctx, f.telset.Host, telset, clientOpts...)
+		return gcs.ToClientConn(ctx, f.telset.Host.GetExtensions(), telset, clientOpts...)
 	}
 
 	if err := f.initializeConnections(readerTelset, writerTelset, &cfg.ClientConfig, &writerConfig, newClientFn); err != nil {
@@ -136,7 +136,10 @@ func (f *Factory) initializeConnections(
 
 	createConn := func(telset component.TelemetrySettings, gcs *configgrpc.ClientConfig) (*grpc.ClientConn, error) {
 		opts := append(baseOpts, grpc.WithStatsHandler(
-			otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(telset.TracerProvider)),
+			otelgrpc.NewClientHandler(
+				otelgrpc.WithTracerProvider(telset.TracerProvider),
+				otelgrpc.WithMeterProvider(telset.MeterProvider),
+			),
 		))
 		return newClient(telset, gcs, opts...)
 	}
@@ -147,6 +150,7 @@ func (f *Factory) initializeConnections(
 	}
 	writerConn, err := createConn(writerTelset, writerConfig)
 	if err != nil {
+		_ = readerConn.Close()
 		return fmt.Errorf("error creating writer client connection: %w", err)
 	}
 

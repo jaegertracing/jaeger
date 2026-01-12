@@ -3,6 +3,6 @@ CREATE TABLE IF NOT EXISTS
         service_name String,
         name String,
         span_kind String
-    ) ENGINE = ReplacingMergeTree
+    ) ENGINE = AggregatingMergeTree
 ORDER BY
-    (service_name, name, span_kind);
+    (service_name, span_kind);

@@ -1,6 +1,6 @@
 services:
   clickhouse:
-    image: clickhouse/clickhouse-server:25.9.2
+    image: clickhouse/clickhouse-server:25.12.1@sha256:7234d193fbeb3a375f21f0bb99040396f68bb2e82cada4f4947d7fcf9638bbf3
     container_name: clickhouse
     environment:
       - CLICKHOUSE_USER=default

@@ -5,7 +5,7 @@ SHELL := /bin/bash
 JAEGER_IMPORT_PATH = github.com/jaegertracing/jaeger
 
 # PLATFORMS is a list of all supported platforms
-PLATFORMS="linux/amd64,linux/arm64,linux/s390x,linux/ppc64le,linux/riscv64,darwin/amd64,darwin/arm64,windows/amd64"
+PLATFORMS="linux/amd64,linux/arm64,linux/s390x,linux/ppc64le,darwin/amd64,darwin/arm64,windows/amd64"
 LINUX_PLATFORMS=$(shell echo "$(PLATFORMS)" | tr ',' '\n' | grep linux | tr '\n' ',' | sed 's/,$$/\n/')
 
 # SRC_ROOT is the top of the source tree.
@@ -40,6 +40,7 @@ ALL_SRC = $(shell find . -name '*.go' \
 # All .sh or .py or Makefile or .mk files that should be auto-formatted and linted.
 SCRIPTS_SRC = $(shell find . \( -name '*.sh' -o -name '*.py' -o -name '*.mk' -o -name 'Makefile*' -o -name 'Dockerfile*' \) \
 						-not -path './.git/*' \
+						-not -path './vendor/*' \
 						-not -path './idl/*' \
 						-not -path './jaeger-ui/*' \
 						-type f | \
@@ -52,10 +53,8 @@ GO=go
 GOOS ?= $(shell $(GO) env GOOS)
 GOARCH ?= $(shell $(GO) env GOARCH)
 
-# go test does not support -race flag on s390x and riscv64 architectures
+# go test does not support -race flag on s390x architecture
 ifeq ($(GOARCH), s390x)
-	RACE=
-else ifeq ($(GOARCH), riscv64)
 	RACE=
 else
 	RACE=-race
@@ -81,7 +80,6 @@ COLORIZE ?= | $(SED) 's/PASS/✅ PASS/g' | $(SED) 's/FAIL/❌ FAIL/g' | $(SED) '
 
 include scripts/makefiles/BuildBinaries.mk
 include scripts/makefiles/BuildInfo.mk
-include scripts/makefiles/Crossdock.mk
 include scripts/makefiles/Docker.mk
 include scripts/makefiles/IntegrationTests.mk
 include scripts/makefiles/Protobuf.mk
@@ -94,13 +92,9 @@ include scripts/makefiles/Windows.mk
 .PHONY: test-and-lint
 test-and-lint: test fmt lint
 
-.PHONY: echo-v1
-echo-v1:
-	@echo "$(GIT_CLOSEST_TAG_V1)"
-
-.PHONY: echo-v2
-echo-v2:
-	@echo "$(GIT_CLOSEST_TAG_V2)"
+.PHONY: echo-version
+echo-version:
+	@echo "$(GIT_CLOSEST_TAG)"
 
 .PHONY: echo-platforms
 echo-platforms:
@@ -122,7 +116,7 @@ echo-all-srcs:
 clean:
 	rm -rf cover*.out .cover/ cover.html $(FMT_LOG) $(IMPORT_LOG) \
 		jaeger-ui/packages/jaeger-ui/build
-	find ./cmd/query/app/ui/actual -type f -name '*.gz' -delete
+	find ./cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual -type f -name '*.gz' -delete
 	GOCACHE=$(GOCACHE) go clean -cache -testcache
 	bash scripts/build/clean-binaries.sh
 
@@ -212,11 +206,20 @@ run-all-in-one: build-ui
 
 .PHONY: changelog
 changelog:
-	./scripts/release/notes.py --exclude-dependabot --verbose
+	@./scripts/release/notes.py --exclude-dependabot --verbose
 
 .PHONY: draft-release
 draft-release:
 	./scripts/release/draft.py
+
+.PHONY: prepare-release
+prepare-release:
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Usage: make prepare-release VERSION=x.x.x"; \
+		echo "Example: make prepare-release VERSION=2.14.0"; \
+		exit 1; \
+	fi
+	bash ./scripts/release/prepare.sh $(VERSION)
 
 .PHONY: test-ci
 test-ci: GOTEST := $(GOTEST_QUIET)

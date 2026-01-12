@@ -24,6 +24,7 @@ linters:
     - revive
     - staticcheck
     - testifylint
+    - unused
     - usestdlibvars
     - usetesting
   disable:

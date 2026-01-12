@@ -35,4 +35,5 @@ if [[ "$last_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]];  then
 fi
 
 # do a regular full build
+nvm use
 npm ci && cd packages/jaeger-ui && npm run build

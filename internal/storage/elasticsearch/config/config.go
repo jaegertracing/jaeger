@@ -21,8 +21,10 @@ import (
 	"github.com/asaskevich/govalidator"
 	esv8 "github.com/elastic/go-elasticsearch/v9"
 	"github.com/olivere/elastic/v7"
+	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/extension/extensionauth"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zapgrpc"
@@ -130,6 +132,27 @@ type Configuration struct {
 	// Use this option with Elasticsearch rollover API. It requires an external component
 	// to create aliases before startup and then performing its management.
 	UseReadWriteAliases bool `mapstructure:"use_aliases"`
+	// SpanReadAlias specifies the exact alias name to use for reading spans.
+	// When set, Jaeger will use this alias directly without any modifications.
+	// This allows integration with existing Elasticsearch setups that have custom alias names.
+	// Can only be used with UseReadWriteAliases=true.
+	// Example: "my-custom-span-reader"
+	SpanReadAlias string `mapstructure:"span_read_alias"`
+	// SpanWriteAlias specifies the exact alias name to use for writing spans.
+	// When set, Jaeger will use this alias directly without any modifications.
+	// Can only be used with UseReadWriteAliases=true.
+	// Example: "my-custom-span-writer"
+	SpanWriteAlias string `mapstructure:"span_write_alias"`
+	// ServiceReadAlias specifies the exact alias name to use for reading services.
+	// When set, Jaeger will use this alias directly without any modifications.
+	// Can only be used with UseReadWriteAliases=true.
+	// Example: "my-custom-service-reader"
+	ServiceReadAlias string `mapstructure:"service_read_alias"`
+	// ServiceWriteAlias specifies the exact alias name to use for writing services.
+	// When set, Jaeger will use this alias directly without any modifications.
+	// Can only be used with UseReadWriteAliases=true.
+	// Example: "my-custom-service-writer"
+	ServiceWriteAlias string `mapstructure:"service_write_alias"`
 	// ReadAliasSuffix is the suffix to append to the index name used for reading.
 	// This configuration only exists to provide backwards compatibility for jaeger-v1
 	// which is why it is not exposed as a configuration option for jaeger-v2
@@ -212,6 +235,7 @@ type Authentication struct {
 	BasicAuthentication configoptional.Optional[BasicAuthentication] `mapstructure:"basic"`
 	BearerTokenAuth     configoptional.Optional[TokenAuthentication] `mapstructure:"bearer_token"`
 	APIKeyAuth          configoptional.Optional[TokenAuthentication] `mapstructure:"api_key"`
+	configauth.Config   `mapstructure:",squash"`
 }
 
 type BasicAuthentication struct {
@@ -235,11 +259,11 @@ type BasicAuthentication struct {
 // https://www.elastic.co/guide/en/elasticsearch/reference/current/token-authentication-services.html.
 
 // NewClient creates a new ElasticSearch client
-func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
+func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metricsFactory metrics.Factory, httpAuth extensionauth.HTTPClient) (es.Client, error) {
 	if len(c.Servers) < 1 {
 		return nil, errors.New("no servers specified")
 	}
-	options, err := c.getConfigOptions(ctx, logger)
+	options, err := c.getConfigOptions(ctx, logger, httpAuth)
 	if err != nil {
 		return nil, err
 	}
@@ -299,7 +323,7 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 
 	var rawClientV8 *esv8.Client
 	if c.Version >= 8 {
-		rawClientV8, err = newElasticsearchV8(ctx, c, logger)
+		rawClientV8, err = newElasticsearchV8(ctx, c, logger, httpAuth)
 		if err != nil {
 			return nil, fmt.Errorf("error creating v8 client: %w", err)
 		}
@@ -368,7 +392,7 @@ func (bcb *bulkCallback) invoke(id int64, requests []elastic.BulkableRequest, re
 	}
 }
 
-func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logger) (*esv8.Client, error) {
+func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (*esv8.Client, error) {
 	var options esv8.Config
 	options.Addresses = c.Servers
 	if c.Authentication.BasicAuthentication.HasValue() {
@@ -387,7 +411,7 @@ func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logge
 		options.Header = headers
 	}
 
-	transport, err := GetHTTPRoundTripper(ctx, c, logger)
+	transport, err := GetHTTPRoundTripper(ctx, c, logger, httpAuth)
 	if err != nil {
 		return nil, err
 	}
@@ -569,7 +593,7 @@ func (c *Configuration) getESOptions(disableHealthCheck bool) []elastic.ClientOp
 }
 
 // getConfigOptions wraps the configs to feed to the ElasticSearch client init
-func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
+func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger, httpAuth extensionauth.HTTPClient) ([]elastic.ClientOptionFunc, error) {
 	// (has problems on AWS OpenSearch) see https://github.com/jaegertracing/jaeger/pull/7212
 	// Disable health check only in the following cases:
 	// 1. When health check is explicitly disabled
@@ -590,7 +614,7 @@ func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger
 	// Get base Elasticsearch options using the helper function
 	options := c.getESOptions(disableHealthCheck)
 	// Configure HTTP transport with TLS and authentication
-	transport, err := GetHTTPRoundTripper(ctx, c, logger)
+	transport, err := GetHTTPRoundTripper(ctx, c, logger, httpAuth)
 	if err != nil {
 		return nil, err
 	}
@@ -645,8 +669,9 @@ func addLoggerOptions(options []elastic.ClientOptionFunc, logLevel string, logge
 	return options, nil
 }
 
-// GetHTTPRoundTripper returns configured http.RoundTripper.
-func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logger) (http.RoundTripper, error) {
+// GetHTTPRoundTripper returns configured http.RoundTripper with optional HTTP authenticator.
+// Pass nil for httpAuth if authentication is not required.
+func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (http.RoundTripper, error) {
 	// Configure base transport.
 	transport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
@@ -711,15 +736,16 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 		}
 	}
 
-	return roundTripper, nil
-}
-
-func loadTokenFromFile(path string) (string, error) {
-	b, err := os.ReadFile(filepath.Clean(path))
-	if err != nil {
-		return "", err
+	// Apply HTTP authenticator extension if configured (e.g., SigV4)
+	if httpAuth != nil {
+		wrappedRT, err := httpAuth.RoundTripper(roundTripper)
+		if err != nil {
+			return nil, fmt.Errorf("failed to wrap round tripper with HTTP authenticator: %w", err)
+		}
+		return wrappedRT, nil
 	}
-	return strings.TrimRight(string(b), "\r\n"), nil
+
+	return roundTripper, nil
 }
 
 func (c *Configuration) Validate() error {
@@ -733,5 +759,26 @@ func (c *Configuration) Validate() error {
 	if c.CreateIndexTemplates && c.UseILM {
 		return errors.New("when UseILM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app")
 	}
+
+	// Validate explicit alias settings require UseReadWriteAliases
+	hasAnyExplicitAlias := c.SpanReadAlias != "" || c.SpanWriteAlias != "" ||
+		c.ServiceReadAlias != "" || c.ServiceWriteAlias != ""
+
+	if hasAnyExplicitAlias && !c.UseReadWriteAliases {
+		return errors.New("explicit aliases (span_read_alias, span_write_alias, service_read_alias, service_write_alias) require UseReadWriteAliases to be true")
+	}
+
+	// Validate that if any alias is set, all four should be set (for consistency)
+	hasSpanAliases := c.SpanReadAlias != "" || c.SpanWriteAlias != ""
+	hasServiceAliases := c.ServiceReadAlias != "" || c.ServiceWriteAlias != ""
+
+	if hasSpanAliases && (c.SpanReadAlias == "" || c.SpanWriteAlias == "") {
+		return errors.New("both span_read_alias and span_write_alias must be set together")
+	}
+
+	if hasServiceAliases && (c.ServiceReadAlias == "" || c.ServiceWriteAlias == "") {
+		return errors.New("both service_read_alias and service_write_alias must be set together")
+	}
+
 	return nil
 }

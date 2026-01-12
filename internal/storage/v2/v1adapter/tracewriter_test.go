@@ -13,29 +13,41 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
 
 func TestWriteTraces(t *testing.T) {
-	memstore := memory.NewStore()
+	f := badger.NewFactory()
+	err := f.Initialize(metrics.NullFactory, zap.NewNop())
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, f.Close())
+	}()
+
+	spanWriter, err := f.CreateSpanWriter()
+	require.NoError(t, err)
+	spanReader, err := f.CreateSpanReader()
+	require.NoError(t, err)
 	traceWriter := &TraceWriter{
-		spanWriter: memstore,
+		spanWriter: spanWriter,
 	}
 
 	td := makeTraces()
-	err := traceWriter.WriteTraces(context.Background(), td)
+	err = traceWriter.WriteTraces(context.Background(), td)
 	require.NoError(t, err)
 
 	tdID := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 	traceID, err := model.TraceIDFromBytes(tdID[:])
 	require.NoError(t, err)
 	query := spanstore.GetTraceParameters{TraceID: traceID}
-	trace, err := memstore.GetTrace(context.Background(), query)
+	trace, err := spanReader.GetTrace(context.Background(), query)
 	require.NoError(t, err)
 	require.NotNil(t, trace)
 	assert.Len(t, trace.Spans, 1)

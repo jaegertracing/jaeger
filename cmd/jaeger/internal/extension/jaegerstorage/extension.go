@@ -13,17 +13,13 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/extension/extensionauth"
 
+	"github.com/jaegertracing/jaeger/cmd/internal/storageconfig"
 	"github.com/jaegertracing/jaeger/internal/metrics"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	esmetrics "github.com/jaegertracing/jaeger/internal/storage/metricstore/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/badger"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/cassandra"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse"
-	es "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
@@ -135,9 +131,9 @@ func findExtension(host component.Host) (Extension, error) {
 	return ext, nil
 }
 
-func newStorageExt(config *Config, telset component.TelemetrySettings) *storageExt {
+func newStorageExt(cfg *Config, telset component.TelemetrySettings) *storageExt {
 	return &storageExt{
-		config:           config,
+		config:           cfg,
 		telset:           telset,
 		factories:        make(map[string]tracestore.Factory),
 		metricsFactories: make(map[string]storage.MetricStoreFactory),
@@ -158,58 +154,18 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		})
 	}
 	for storageName, cfg := range s.config.TraceBackends {
-		s.telset.Logger.Sugar().Infof("Initializing storage '%s'", storageName)
-		var factory tracestore.Factory
-		err := errors.New("empty configuration")
-		switch {
-		case cfg.Memory != nil:
-			memTelset := telset
-			memTelset.Metrics = scopedMetricsFactory(storageName, "memory", "tracestore")
-			factory, err = memory.NewFactory(*cfg.Memory, memTelset)
-		case cfg.Badger != nil:
-			factory, err = badger.NewFactory(
-				*cfg.Badger,
-				scopedMetricsFactory(storageName, "badger", "tracestore"),
-				s.telset.Logger)
-		case cfg.GRPC != nil:
-			grpcTelset := telset
-			grpcTelset.Metrics = scopedMetricsFactory(storageName, "grpc", "tracestore")
-			factory, err = grpc.NewFactory(ctx, *cfg.GRPC, grpcTelset)
-		case cfg.Cassandra != nil:
-			factory, err = cassandra.NewFactory(
-				*cfg.Cassandra,
-				scopedMetricsFactory(storageName, "cassandra", "tracestore"),
-				s.telset.Logger,
-			)
-		case cfg.Elasticsearch != nil:
-			esTelset := telset
-			esTelset.Metrics = scopedMetricsFactory(storageName, "elasticsearch", "tracestore")
-			factory, err = es.NewFactory(
-				ctx,
-				*cfg.Elasticsearch,
-				esTelset,
-			)
-		case cfg.Opensearch != nil:
-			osTelset := telset
-			osTelset.Metrics = scopedMetricsFactory(storageName, "opensearch", "tracestore")
-			factory, err = es.NewFactory(
-				ctx,
-				*cfg.Opensearch,
-				osTelset,
-			)
-		case cfg.ClickHouse != nil:
-			chTelset := telset
-			chTelset.Metrics = scopedMetricsFactory(storageName, "clickhouse", "tracestore")
-			factory, err = clickhouse.NewFactory(
-				ctx,
-				*cfg.ClickHouse,
-				chTelset,
-			)
-		default:
-			// default case
-		}
+		// Use shared factory creation logic with auth resolver
+		factory, err := storageconfig.CreateTraceStorageFactory(
+			ctx,
+			storageName,
+			cfg,
+			telset,
+			func(authCfg config.Authentication, backendType, backendName string) (extensionauth.HTTPClient, error) {
+				return s.resolveAuthenticator(host, authCfg, backendType, backendName)
+			},
+		)
 		if err != nil {
-			return fmt.Errorf("failed to initialize storage '%s': %w", storageName, err)
+			return err
 		}
 
 		s.factories[storageName] = factory
@@ -223,46 +179,43 @@ func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 		case cfg.Prometheus != nil:
 			promTelset := telset
 			promTelset.Metrics = scopedMetricsFactory(metricStorageName, "prometheus", "metricstore")
-
-			// Resolve authenticator if configured
-			var httpAuthenticator extensionauth.HTTPClient
-			if cfg.Prometheus.Auth != nil && cfg.Prometheus.Auth.Authenticator != "" {
-				httpAuthenticator, err = s.getAuthenticator(host, cfg.Prometheus.Auth.Authenticator)
-				if err != nil {
-					return fmt.Errorf("failed to get HTTP authenticator '%s' for metric storage '%s': %w",
-						cfg.Prometheus.Auth.Authenticator, metricStorageName, err)
-				}
-				s.telset.Logger.Sugar().Infof("HTTP auth configured for metric storage '%s' with authenticator '%s'",
-					metricStorageName, cfg.Prometheus.Auth.Authenticator)
+			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Prometheus.Authentication, "prometheus metrics", metricStorageName)
+			if authErr != nil {
+				return authErr
 			}
-
-			// Create factory with optional authenticator (nil if not configured)
 			metricStoreFactory, err = prometheus.NewFactoryWithConfig(
 				cfg.Prometheus.Configuration,
 				promTelset,
-				httpAuthenticator,
+				httpAuth,
 			)
-			if err != nil {
-				return fmt.Errorf("failed to initialize metrics storage '%s': %w", metricStorageName, err)
-			}
 
 		case cfg.Elasticsearch != nil:
 			esTelset := telset
 			esTelset.Metrics = scopedMetricsFactory(metricStorageName, "elasticsearch", "metricstore")
+			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Elasticsearch.Authentication, "elasticsearch metrics", metricStorageName)
+			if authErr != nil {
+				return authErr
+			}
 			metricStoreFactory, err = esmetrics.NewFactory(
 				ctx,
 				*cfg.Elasticsearch,
 				esTelset,
+				httpAuth,
 			)
 
 		case cfg.Opensearch != nil:
 			osTelset := telset
 			osTelset.Metrics = scopedMetricsFactory(metricStorageName, "opensearch", "metricstore")
-			metricStoreFactory, err = esmetrics.NewFactory(
-				ctx,
+			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Opensearch.Authentication, "opensearch metrics", metricStorageName)
+			if authErr != nil {
+				return authErr
+			}
+			metricStoreFactory, err = esmetrics.NewFactory(ctx,
 				*cfg.Opensearch,
 				osTelset,
+				httpAuth,
 			)
+
 		default:
 			err = fmt.Errorf("no metric backend configuration provided for '%s'", metricStorageName)
 		}
@@ -305,11 +258,14 @@ func (s *storageExt) MetricStorageFactory(name string) (storage.MetricStoreFacto
 	return mf, ok
 }
 
-// getAuthenticator retrieves an HTTP authenticator extension from the host by name
-// authentication extension ID, or nil if no extension is configured.
+// getAuthenticator retrieves an HTTP authenticator extension from the host by name.
 func (*storageExt) getAuthenticator(host component.Host, authenticatorName string) (extensionauth.HTTPClient, error) {
+	if authenticatorName == "" {
+		return nil, nil
+	}
+
 	for id, ext := range host.GetExtensions() {
-		if id.Name() == authenticatorName {
+		if id.String() == authenticatorName || id.Name() == authenticatorName {
 			if httpAuth, ok := ext.(extensionauth.HTTPClient); ok {
 				return httpAuth, nil
 			}
@@ -317,4 +273,19 @@ func (*storageExt) getAuthenticator(host component.Host, authenticatorName strin
 		}
 	}
 	return nil, fmt.Errorf("authenticator extension '%s' not found", authenticatorName)
+}
+
+// resolveAuthenticator is a helper to resolve and validate HTTP authenticator for a backend
+func (s *storageExt) resolveAuthenticator(host component.Host, authCfg config.Authentication, backendType, backendName string) (extensionauth.HTTPClient, error) {
+	if authCfg.AuthenticatorID.String() == "" {
+		return nil, nil
+	}
+
+	httpAuth, err := s.getAuthenticator(host, authCfg.AuthenticatorID.String())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get HTTP authenticator for %s backend '%s': %w", backendType, backendName, err)
+	}
+	s.telset.Logger.Sugar().Infof("HTTP auth configured for %s backend '%s' with authenticator '%s'",
+		backendType, backendName, authCfg.AuthenticatorID.String())
+	return httpAuth, nil
 }

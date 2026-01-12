@@ -17,33 +17,31 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        jaeger-version: [v1, v2]
         kafka-version: ["3.x"]
-    name: kafka ${{matrix.kafka-version }} ${{ matrix.jaeger-version }}
+    name: kafka ${{ matrix.kafka-version }} v2
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-    - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
 
-    - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+    - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
       with:
         go-version: 1.25.x
 
     - name: Run kafka integration tests
       id: test-execution
-      run: bash scripts/e2e/kafka.sh -j ${{ matrix.jaeger-version }} -v ${{ matrix.kafka-version }}
+      run: bash scripts/e2e/kafka.sh -v ${{ matrix.kafka-version }}
         
     - uses: ./.github/actions/verify-metrics-snapshot
-      if: matrix.jaeger-version == 'v2'
       with:
         snapshot: metrics_snapshot_kafka
-        artifact_key: metrics_snapshot_kafka_${{ matrix.jaeger-version }}
+        artifact_key: metrics_snapshot_kafka_v2
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:
         files: cover.out
-        flags: kafka-${{ matrix.kafka-version }}-${{ matrix.jaeger-version }}
+        flags: kafka-${{ matrix.kafka-version }}-v2

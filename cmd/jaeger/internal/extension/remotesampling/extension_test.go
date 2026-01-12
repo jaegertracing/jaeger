@@ -23,6 +23,7 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configmiddleware"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/extension"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
@@ -32,9 +33,16 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
+	"github.com/jaegertracing/jaeger/cmd/internal/storageconfig"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
+	"github.com/jaegertracing/jaeger/internal/distributedlock"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/memory"
+	"github.com/jaegertracing/jaeger/internal/storage/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
+	samplingstoremodel "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 )
 
 func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
@@ -50,9 +58,13 @@ func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
 			ID:                jaegerstorage.ID,
 			TelemetrySettings: telemetrySettings,
 		},
-		&jaegerstorage.Config{TraceBackends: map[string]jaegerstorage.TraceBackend{
-			memstoreName: {Memory: &memory.Configuration{MaxTraces: 10000}},
-		}},
+		&jaegerstorage.Config{
+			Config: storageconfig.Config{
+				TraceBackends: map[string]storageconfig.TraceBackend{
+					memstoreName: {Memory: &memory.Configuration{MaxTraces: 10000}},
+				},
+			},
+		},
 	)
 	require.NoError(t, err)
 
@@ -62,6 +74,26 @@ func makeStorageExtension(t *testing.T, memstoreName string) component.Host {
 	err = storageExtension.Start(context.Background(), host)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, storageExtension.Shutdown(context.Background())) })
+	return host
+}
+
+func makeStorageExtensionWithBadSamplingStore(storageName string) component.Host {
+	ext := &fakeStorageExtensionForTest{
+		storageName: storageName,
+		failOn:      "CreateSamplingStore",
+	}
+	host := storagetest.NewStorageHost()
+	host.WithExtension(jaegerstorage.ID, ext)
+	return host
+}
+
+func makeStorageExtensionWithBadLock(storageName string) component.Host {
+	ext := &fakeStorageExtensionForTest{
+		storageName: storageName,
+		failOn:      "CreateLock",
+	}
+	host := storagetest.NewStorageHost()
+	host.WithExtension(jaegerstorage.ID, ext)
 	return host
 }
 
@@ -90,10 +122,12 @@ func makeRemoteSamplingExtension(t *testing.T, cfg component.Config) component.H
 func TestStartFileBasedProvider(t *testing.T) {
 	factory := NewFactory()
 	cfg := factory.CreateDefaultConfig().(*Config)
-	cfg.File.Path = filepath.Join("..", "..", "..", "sampling-strategies.json")
-	cfg.Adaptive = nil
-	cfg.HTTP = nil
-	cfg.GRPC = nil
+	cfg.File = configoptional.Some(FileConfig{
+		Path: filepath.Join("..", "..", "..", "sampling-strategies.json"),
+	})
+	cfg.Adaptive = configoptional.None[AdaptiveConfig]()
+	cfg.HTTP = configoptional.None[confighttp.ServerConfig]()
+	cfg.GRPC = configoptional.None[configgrpc.ServerConfig]()
 	require.NoError(t, cfg.Validate())
 
 	ext, err := factory.Create(context.Background(), extension.Settings{
@@ -109,12 +143,14 @@ func TestStartFileBasedProvider(t *testing.T) {
 func TestStartHTTP(t *testing.T) {
 	factory := NewFactory()
 	cfg := factory.CreateDefaultConfig().(*Config)
-	cfg.File.Path = filepath.Join("..", "..", "..", "sampling-strategies.json")
-	cfg.Adaptive = nil
-	cfg.HTTP = &confighttp.ServerConfig{
+	cfg.File = configoptional.Some(FileConfig{
+		Path: filepath.Join("..", "..", "..", "sampling-strategies.json"),
+	})
+	cfg.Adaptive = configoptional.None[AdaptiveConfig]()
+	cfg.HTTP = configoptional.Some(confighttp.ServerConfig{
 		Endpoint: "0.0.0.0:12345",
-	}
-	cfg.GRPC = nil
+	})
+	cfg.GRPC = configoptional.None[configgrpc.ServerConfig]()
 	require.NoError(t, cfg.Validate())
 
 	ext, err := factory.Create(context.Background(), extension.Settings{
@@ -148,15 +184,17 @@ func TestStartHTTP(t *testing.T) {
 func TestStartGRPC(t *testing.T) {
 	factory := NewFactory()
 	cfg := factory.CreateDefaultConfig().(*Config)
-	cfg.File.Path = filepath.Join("..", "..", "..", "sampling-strategies.json")
-	cfg.Adaptive = nil
-	cfg.HTTP = nil
-	cfg.GRPC = &configgrpc.ServerConfig{
+	cfg.File = configoptional.Some(FileConfig{
+		Path: filepath.Join("..", "..", "..", "sampling-strategies.json"),
+	})
+	cfg.Adaptive = configoptional.None[AdaptiveConfig]()
+	cfg.HTTP = configoptional.None[confighttp.ServerConfig]()
+	cfg.GRPC = configoptional.Some(configgrpc.ServerConfig{
 		NetAddr: confignet.AddrConfig{
 			Endpoint:  "0.0.0.0:12346",
 			Transport: "tcp",
 		},
-	}
+	})
 	require.NoError(t, cfg.Validate())
 
 	ext, err := factory.Create(context.Background(), extension.Settings{
@@ -183,10 +221,13 @@ func TestStartGRPC(t *testing.T) {
 func TestStartAdaptiveProvider(t *testing.T) {
 	factory := NewFactory()
 	cfg := factory.CreateDefaultConfig().(*Config)
-	cfg.File = nil
-	cfg.Adaptive.SamplingStore = "foobar"
-	cfg.HTTP = nil
-	cfg.GRPC = nil
+	cfg.File = configoptional.None[FileConfig]()
+	cfg.Adaptive = configoptional.Some(AdaptiveConfig{
+		SamplingStore: "foobar",
+		Options:       adaptive.DefaultOptions(),
+	})
+	cfg.HTTP = configoptional.None[confighttp.ServerConfig]()
+	cfg.GRPC = configoptional.None[configgrpc.ServerConfig]()
 	require.NoError(t, cfg.Validate())
 
 	ext, err := factory.Create(context.Background(), extension.Settings{
@@ -203,26 +244,65 @@ func TestStartAdaptiveStrategyProviderErrors(t *testing.T) {
 	host := storagetest.NewStorageHost()
 	ext := &rsExtension{
 		cfg: &Config{
-			Adaptive: &AdaptiveConfig{
+			Adaptive: configoptional.Some(AdaptiveConfig{
 				SamplingStore: "foobar",
-			},
+			}),
 		},
 	}
 	err := ext.startAdaptiveStrategyProvider(host)
 	require.ErrorContains(t, err, "failed to obtain sampling store factory")
 }
 
+func TestStartAdaptiveStrategyProviderCreateStoreError(t *testing.T) {
+	// storage extension has the requested store name but its factory fails on CreateSamplingStore
+	storageHost := makeStorageExtensionWithBadSamplingStore("failstore")
+
+	ext := &rsExtension{
+		cfg: &Config{
+			Adaptive: configoptional.Some(AdaptiveConfig{
+				SamplingStore: "failstore",
+				Options: adaptive.Options{
+					AggregationBuckets: 10,
+				},
+			}),
+		},
+		telemetry: componenttest.NewNopTelemetrySettings(),
+	}
+	err := ext.startAdaptiveStrategyProvider(storageHost)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to create the sampling store")
+}
+
+func TestStartAdaptiveStrategyProviderCreateLockError(t *testing.T) {
+	storageHost := makeStorageExtensionWithBadLock("lockerror")
+
+	ext := &rsExtension{
+		cfg: &Config{
+			Adaptive: configoptional.Some(AdaptiveConfig{
+				SamplingStore: "lockerror",
+				Options: adaptive.Options{
+					AggregationBuckets: 10,
+				},
+			}),
+		},
+		telemetry: componenttest.NewNopTelemetrySettings(),
+	}
+	err := ext.startAdaptiveStrategyProvider(storageHost)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to create the distributed lock")
+}
+
 func TestGetAdaptiveSamplingComponents(t *testing.T) {
 	// Success case
 	host := makeRemoteSamplingExtension(t, &Config{
-		Adaptive: &AdaptiveConfig{
+		Adaptive: configoptional.Some(AdaptiveConfig{
 			SamplingStore: "foobar",
 			Options: adaptive.Options{
 				FollowerLeaseRefreshInterval: 1,
 				LeaderLeaseRefreshInterval:   1,
 				AggregationBuckets:           1,
 			},
-		},
+		}),
 	})
 
 	comps, err := GetAdaptiveSamplingComponents(host)
@@ -238,6 +318,79 @@ type wrongExtension struct{}
 
 func (*wrongExtension) Start(context.Context, component.Host) error { return nil }
 func (*wrongExtension) Shutdown(context.Context) error              { return nil }
+
+type fakeStorageExtensionForTest struct {
+	storageName string
+	failOn      string
+}
+
+func (*fakeStorageExtensionForTest) Start(context.Context, component.Host) error { return nil }
+func (*fakeStorageExtensionForTest) Shutdown(context.Context) error              { return nil }
+
+func (f *fakeStorageExtensionForTest) TraceStorageFactory(name string) (tracestore.Factory, bool) {
+	if name == f.storageName {
+		return &fakeSamplingStoreFactory{failOn: f.failOn}, true
+	}
+	return nil, false
+}
+
+func (*fakeStorageExtensionForTest) MetricStorageFactory(string) (storage.MetricStoreFactory, bool) {
+	return nil, false
+}
+
+type fakeSamplingStoreFactory struct {
+	failOn string
+}
+
+func (*fakeSamplingStoreFactory) CreateTraceReader() (tracestore.Reader, error) {
+	return &tracestoremocks.Reader{}, nil
+}
+
+func (*fakeSamplingStoreFactory) CreateTraceWriter() (tracestore.Writer, error) {
+	return &tracestoremocks.Writer{}, nil
+}
+
+func (f *fakeSamplingStoreFactory) CreateSamplingStore(int) (samplingstore.Store, error) {
+	if f.failOn == "CreateSamplingStore" {
+		return nil, errors.New("mock error creating sampling store")
+	}
+	return &samplingStoreMock{}, nil
+}
+
+func (f *fakeSamplingStoreFactory) CreateLock() (distributedlock.Lock, error) {
+	if f.failOn == "CreateLock" {
+		return nil, errors.New("mock error creating lock")
+	}
+	return &lockMock{}, nil
+}
+
+type samplingStoreMock struct{}
+
+func (*samplingStoreMock) GetThroughput(time.Time, time.Time) ([]*samplingstoremodel.Throughput, error) {
+	return nil, nil
+}
+
+func (*samplingStoreMock) GetLatestProbabilities() (samplingstoremodel.ServiceOperationProbabilities, error) {
+	return nil, nil
+}
+
+func (*samplingStoreMock) InsertThroughput([]*samplingstoremodel.Throughput) error {
+	return nil
+}
+
+func (*samplingStoreMock) InsertProbabilitiesAndQPS(string, samplingstoremodel.ServiceOperationProbabilities, samplingstoremodel.ServiceOperationQPS) error {
+	return nil
+}
+
+type lockMock struct{}
+
+func (*lockMock) Acquire(string, time.Duration) (bool, error) {
+	return true, nil
+}
+
+func (*lockMock) Forfeit(string) (bool, error) {
+	return true, nil
+}
 
 func TestGetAdaptiveSamplingComponentsErrors(t *testing.T) {
 	host := makeRemoteSamplingExtension(t, &Config{})
@@ -269,14 +422,14 @@ func TestStartFileBasedProviderError(t *testing.T) {
 	factory := NewFactory()
 	cfg := factory.CreateDefaultConfig().(*Config)
 
-	cfg.File = &FileConfig{
+	cfg.File = configoptional.Some(FileConfig{
 		Path:                       "/nonexistent/directory/file.json",
 		ReloadInterval:             0,
 		DefaultSamplingProbability: 0.1,
-	}
-	cfg.Adaptive = nil
-	cfg.HTTP = nil
-	cfg.GRPC = nil
+	})
+	cfg.Adaptive = configoptional.None[AdaptiveConfig]()
+	cfg.HTTP = configoptional.None[confighttp.ServerConfig]()
+	cfg.GRPC = configoptional.None[configgrpc.ServerConfig]()
 
 	ext, err := factory.Create(context.Background(), extension.Settings{
 		ID:                ID,
@@ -293,13 +446,13 @@ func TestStartFileBasedProviderError(t *testing.T) {
 func TestStartAdaptiveProviderCreateStoreError(t *testing.T) {
 	factory := NewFactory()
 	cfg := factory.CreateDefaultConfig().(*Config)
-	cfg.File = nil
-	cfg.Adaptive = &AdaptiveConfig{
+	cfg.File = configoptional.None[FileConfig]()
+	cfg.Adaptive = configoptional.Some(AdaptiveConfig{
 		SamplingStore: "nonexistent-store",
 		Options:       adaptive.DefaultOptions(),
-	}
-	cfg.HTTP = nil
-	cfg.GRPC = nil
+	})
+	cfg.HTTP = configoptional.None[confighttp.ServerConfig]()
+	cfg.GRPC = configoptional.None[configgrpc.ServerConfig]()
 
 	ext, err := factory.Create(context.Background(), extension.Settings{
 		ID:                ID,
@@ -317,12 +470,12 @@ func TestServerStartupErrors(t *testing.T) {
 	t.Run("HTTP server with invalid endpoint", func(t *testing.T) {
 		factory := NewFactory()
 		cfg := factory.CreateDefaultConfig().(*Config)
-		cfg.File = &FileConfig{Path: filepath.Join("..", "..", "..", "sampling-strategies.json")}
-		cfg.Adaptive = nil
-		cfg.HTTP = &confighttp.ServerConfig{
+		cfg.File = configoptional.Some(FileConfig{Path: filepath.Join("..", "..", "..", "sampling-strategies.json")})
+		cfg.Adaptive = configoptional.None[AdaptiveConfig]()
+		cfg.HTTP = configoptional.Some(confighttp.ServerConfig{
 			Endpoint: "invalid://endpoint",
-		}
-		cfg.GRPC = nil
+		})
+		cfg.GRPC = configoptional.None[configgrpc.ServerConfig]()
 
 		ext, err := factory.Create(context.Background(), extension.Settings{
 			ID:                ID,
@@ -339,15 +492,15 @@ func TestServerStartupErrors(t *testing.T) {
 	t.Run("gRPC server with invalid endpoint", func(t *testing.T) {
 		factory := NewFactory()
 		cfg := factory.CreateDefaultConfig().(*Config)
-		cfg.File = &FileConfig{Path: filepath.Join("..", "..", "..", "sampling-strategies.json")}
-		cfg.Adaptive = nil
-		cfg.HTTP = nil
-		cfg.GRPC = &configgrpc.ServerConfig{
+		cfg.File = configoptional.Some(FileConfig{Path: filepath.Join("..", "..", "..", "sampling-strategies.json")})
+		cfg.Adaptive = configoptional.None[AdaptiveConfig]()
+		cfg.HTTP = configoptional.None[confighttp.ServerConfig]()
+		cfg.GRPC = configoptional.Some(configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{
 				Endpoint:  "invalid://endpoint",
 				Transport: "tcp",
 			},
-		}
+		})
 
 		ext, err := factory.Create(context.Background(), extension.Settings{
 			ID:                ID,
@@ -365,15 +518,15 @@ func TestServerStartupErrors(t *testing.T) {
 	t.Run("HTTP middleware not found error", func(t *testing.T) {
 		factory := NewFactory()
 		cfg := factory.CreateDefaultConfig().(*Config)
-		cfg.File = &FileConfig{Path: filepath.Join("..", "..", "..", "sampling-strategies.json")}
-		cfg.Adaptive = nil
-		cfg.HTTP = &confighttp.ServerConfig{
+		cfg.File = configoptional.Some(FileConfig{Path: filepath.Join("..", "..", "..", "sampling-strategies.json")})
+		cfg.Adaptive = configoptional.None[AdaptiveConfig]()
+		cfg.HTTP = configoptional.Some(confighttp.ServerConfig{
 			Endpoint: "localhost:0",
 			Middlewares: []configmiddleware.Config{
 				{ID: component.MustNewIDWithName("nonexistent", "middleware")},
 			},
-		}
-		cfg.GRPC = nil
+		})
+		cfg.GRPC = configoptional.None[configgrpc.ServerConfig]()
 
 		ext, err := factory.Create(context.Background(), extension.Settings{
 			ID:                ID,
@@ -397,10 +550,10 @@ func TestServerStartupErrors(t *testing.T) {
 	t.Run("gRPC middleware not found error", func(t *testing.T) {
 		factory := NewFactory()
 		cfg := factory.CreateDefaultConfig().(*Config)
-		cfg.File = &FileConfig{Path: filepath.Join("..", "..", "..", "sampling-strategies.json")}
-		cfg.Adaptive = nil
-		cfg.HTTP = nil
-		cfg.GRPC = &configgrpc.ServerConfig{
+		cfg.File = configoptional.Some(FileConfig{Path: filepath.Join("..", "..", "..", "sampling-strategies.json")})
+		cfg.Adaptive = configoptional.None[AdaptiveConfig]()
+		cfg.HTTP = configoptional.None[confighttp.ServerConfig]()
+		cfg.GRPC = configoptional.Some(configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{
 				Endpoint:  "localhost:0",
 				Transport: "tcp",
@@ -408,7 +561,7 @@ func TestServerStartupErrors(t *testing.T) {
 			Middlewares: []configmiddleware.Config{
 				{ID: component.MustNewIDWithName("nonexistent", "grpc-middleware")},
 			},
-		}
+		})
 
 		ext, err := factory.Create(context.Background(), extension.Settings{
 			ID:                ID,

@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/confmap"
 )
 
@@ -25,59 +26,59 @@ func Test_Validate(t *testing.T) {
 		{
 			name: "Both providers specified",
 			config: &Config{
-				File:     &FileConfig{Path: "test-path"},
-				Adaptive: &AdaptiveConfig{SamplingStore: "test-store"},
+				File:     configoptional.Some(FileConfig{Path: "test-path"}),
+				Adaptive: configoptional.Some(AdaptiveConfig{SamplingStore: "test-store"}),
 			},
 			expectedErr: "only one sampling strategy provider can be specified, 'adaptive' or 'file'",
 		},
 		{
 			name: "Only File provider specified",
 			config: &Config{
-				File: &FileConfig{Path: "test-path"},
+				File: configoptional.Some(FileConfig{Path: "test-path"}),
 			},
 			expectedErr: "",
 		},
 		{
 			name: "Only Adaptive provider specified",
 			config: &Config{
-				Adaptive: &AdaptiveConfig{SamplingStore: "test-store"},
+				Adaptive: configoptional.Some(AdaptiveConfig{SamplingStore: "test-store"}),
 			},
 			expectedErr: "",
 		},
 		{
 			name: "File provider can have empty file path",
 			config: &Config{
-				File: &FileConfig{Path: ""},
+				File: configoptional.Some(FileConfig{Path: ""}),
 			},
 			expectedErr: "",
 		},
 		{
 			name: "File provider has negative reload interval",
 			config: &Config{
-				File: &FileConfig{Path: "", ReloadInterval: -1},
+				File: configoptional.Some(FileConfig{Path: "", ReloadInterval: -1}),
 			},
 			expectedErr: "must be a positive value",
 		},
 		{
 			name: "File provider has negative default sampling probability",
 			config: &Config{
-				File: &FileConfig{Path: "", DefaultSamplingProbability: -0.5},
+				File: configoptional.Some(FileConfig{Path: "", DefaultSamplingProbability: -0.5}),
 			},
-			expectedErr: "File.DefaultSamplingProbability: -0.5 does not validate as range(0|1)",
+			expectedErr: "DefaultSamplingProbability: -0.5 does not validate as range(0|1)",
 		},
 		{
 			name: "File provider has default sampling probability greater than 1",
 			config: &Config{
-				File: &FileConfig{Path: "", DefaultSamplingProbability: 1.5},
+				File: configoptional.Some(FileConfig{Path: "", DefaultSamplingProbability: 1.5}),
 			},
-			expectedErr: "File.DefaultSamplingProbability: 1.5 does not validate as range(0|1)",
+			expectedErr: "DefaultSamplingProbability: 1.5 does not validate as range(0|1)",
 		},
 		{
 			name: "Invalid Adaptive provider",
 			config: &Config{
-				Adaptive: &AdaptiveConfig{SamplingStore: ""},
+				Adaptive: configoptional.Some(AdaptiveConfig{SamplingStore: ""}),
 			},
-			expectedErr: "Adaptive.SamplingStore: non zero value required",
+			expectedErr: "SamplingStore: non zero value required",
 		},
 	}
 
@@ -108,7 +109,7 @@ func Test_Unmarshal(t *testing.T) {
 				},
 			},
 			expectedCfg: &Config{
-				File: &FileConfig{Path: "test-path"},
+				File: configoptional.Some(FileConfig{Path: "test-path"}),
 			},
 			expectedErr: "",
 		},
@@ -120,7 +121,7 @@ func Test_Unmarshal(t *testing.T) {
 				},
 			},
 			expectedCfg: &Config{
-				Adaptive: &AdaptiveConfig{SamplingStore: "test-store"},
+				Adaptive: configoptional.Some(AdaptiveConfig{SamplingStore: "test-store"}),
 			},
 			expectedErr: "",
 		},
@@ -143,7 +144,7 @@ func Test_Unmarshal(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			conf := confmap.NewFromStringMap(tt.input)
 			var cfg Config
-			err := cfg.Unmarshal(conf)
+			err := conf.Unmarshal(&cfg)
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
 				assert.Equal(t, tt.expectedCfg, &cfg)

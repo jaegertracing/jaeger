@@ -130,7 +130,7 @@ VALUES
     )
 `
 
-const SelectSpansByTraceID = `
+const SelectSpansQuery = `
 SELECT
     id,
     trace_id,
@@ -199,32 +199,51 @@ SELECT
     scope_str_attributes.key,
     scope_str_attributes.value,
     scope_complex_attributes.key,
-    scope_complex_attributes.value,
+    scope_complex_attributes.value
 FROM
-    spans
-WHERE
-    trace_id = ?
+    spans s
 `
 
-const SelectServices = `
+const SelectSpansByTraceID = SelectSpansQuery + " WHERE s.trace_id = ?"
+
+// SearchTraceIDs is the base SQL fragment used by FindTraceIDs.
+//
+// The query begins with a no-op predicate (`WHERE 1=1`) so that additional
+// filters can be appended unconditionally using `AND` without needing to check
+// whether this is the first WHERE clause.
+//
+// The query joins with trace_id_timestamps to retrieve the start and end times
+// for each trace ID.
+const SearchTraceIDs = `
 SELECT DISTINCT
+    s.trace_id,
+    t.start,
+    t.end
+FROM spans s
+LEFT JOIN trace_id_timestamps t ON s.trace_id = t.trace_id
+WHERE 1=1`
+
+const SelectServices = `
+SELECT
     name
 FROM
     services
+GROUP BY name
 `
 
 const SelectOperationsAllKinds = `
-SELECT DISTINCT
+SELECT
     name,
     span_kind
 FROM
     operations
 WHERE
     service_name = ?
+GROUP BY name, span_kind
 `
 
 const SelectOperationsByKind = `
-SELECT DISTINCT
+SELECT
     name,
     span_kind
 FROM
@@ -232,6 +251,7 @@ FROM
 WHERE
     service_name = ?
     AND span_kind = ?
+GROUP BY name, span_kind
 `
 
 const TruncateSpans = `TRUNCATE TABLE spans`
@@ -239,6 +259,10 @@ const TruncateSpans = `TRUNCATE TABLE spans`
 const TruncateServices = `TRUNCATE TABLE services`
 
 const TruncateOperations = `TRUNCATE TABLE operations`
+
+const TruncateTraceIDTimestamps = `TRUNCATE TABLE trace_id_timestamps`
+
+const TruncateAttributeMetadata = `TRUNCATE TABLE attribute_metadata`
 
 //go:embed create_spans_table.sql
 var CreateSpansTable string
@@ -254,3 +278,15 @@ var CreateOperationsTable string
 
 //go:embed create_operations_mv.sql
 var CreateOperationsMaterializedView string
+
+//go:embed create_trace_id_timestamps_table.sql
+var CreateTraceIDTimestampsTable string
+
+//go:embed create_trace_id_timestamps_mv.sql
+var CreateTraceIDTimestampsMaterializedView string
+
+//go:embed create_attribute_metadata_table.sql
+var CreateAttributeMetadataTable string
+
+//go:embed create_attribute_metadata_mv.sql
+var CreateAttributeMetadataMaterializedView string
