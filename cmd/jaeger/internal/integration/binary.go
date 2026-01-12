@@ -58,14 +58,16 @@ func (b *Binary) Start(t *testing.T) {
 		t.Logf("Waiting for %s to exit", b.Name)
 		b.Process.Wait()
 		t.Logf("%s exited", b.Name)
-		if t.Failed() {
+		// Dump logs if test failed, or if running in GitHub Actions where
+		// t.Failed() may not return true when the test times out with a panic.
+		if t.Failed() || os.Getenv("GITHUB_ACTIONS") == "true" {
 			b.dumpLogs(t, outFile, errFile)
 		}
 	})
 
 	// Wait for the binary to start and become ready to serve requests.
 	require.Eventually(t, func() bool { return b.doHealthCheck(t) },
-		60*time.Second, 3*time.Second, "%s did not start", b.Name)
+		time.Minute, time.Second, "%s did not start", b.Name)
 	t.Logf("%s is ready", b.Name)
 }
 
