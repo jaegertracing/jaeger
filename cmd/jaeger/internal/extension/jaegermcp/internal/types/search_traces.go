@@ -5,9 +5,9 @@ package types
 
 // SearchTracesInput defines the input parameters for the search_traces MCP tool.
 type SearchTracesInput struct {
-	// StartTimeMin is the start of time interval (required).
+	// StartTimeMin is the start of time interval (optional, defaults to "-1h").
 	// Supports RFC3339 or relative time (e.g., "-1h", "-30m").
-	StartTimeMin string `json:"start_time_min" jsonschema:"Start of time interval (RFC3339 or relative like -1h)"`
+	StartTimeMin string `json:"start_time_min,omitempty" jsonschema:"Start of time interval (RFC3339 or relative like -1h). Default: -1h"`
 
 	// StartTimeMax is the end of time interval (optional, defaults to "now").
 	// Supports RFC3339 or relative time (e.g., "now", "-1m").
@@ -41,7 +41,8 @@ type SearchTracesInput struct {
 
 // SearchTracesOutput defines the output of the search_traces MCP tool.
 type SearchTracesOutput struct {
-	Traces []TraceSummary `json:"traces" jsonschema:"List of trace summaries matching the search criteria"`
+	Traces []TraceSummary `json:"traces,omitempty" jsonschema:"List of trace summaries matching the search criteria"`
+	Error  string         `json:"error,omitempty" jsonschema:"Error message if partial results were returned"`
 }
 
 // TraceSummary contains lightweight metadata about a single trace.
@@ -50,7 +51,7 @@ type TraceSummary struct {
 	RootService   string `json:"root_service" jsonschema:"Service name of the root span"`
 	RootOperation string `json:"root_operation" jsonschema:"Operation name of the root span"`
 	StartTime     string `json:"start_time" jsonschema:"Trace start time in RFC3339 format"`
-	DurationMs    int64  `json:"duration_ms" jsonschema:"Total trace duration in milliseconds"`
+	DurationUs    int64  `json:"duration_us" jsonschema:"Total trace duration in microseconds"`
 	SpanCount     int    `json:"span_count" jsonschema:"Total number of spans in the trace"`
 	ServiceCount  int    `json:"service_count" jsonschema:"Number of unique services in the trace"`
 	HasErrors     bool   `json:"has_errors" jsonschema:"Whether the trace contains any error spans"`
