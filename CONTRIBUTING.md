@@ -75,11 +75,6 @@ We are currently using `gofumpt`, which is installed automatically by `make inst
 $ go run ./cmd/jaeger --config ./cmd/jaeger/config.yaml
 ```
 
-For legacy Jaeger v1 (all-in-one):
-```
-$ make run-all-in-one
-```
-
 #### What does this command do?
 
 The `jaeger-ui` submodule, which was added from the Pre-requisites step above, contains
