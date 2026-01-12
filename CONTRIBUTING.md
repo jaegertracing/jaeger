@@ -80,7 +80,7 @@ $ go run ./cmd/jaeger --config ./cmd/jaeger/config.yaml
 The `jaeger-ui` submodule, which was added from the Pre-requisites step above, contains
 the source code for the UI assets (requires Node.js 6+).
 
-For v2, the Jaeger binary runs with the default configuration file (config.yaml) that includes 
+The Jaeger binary runs with the default configuration file (config.yaml) that includes 
 the UI configuration via the `jaeger_query` extension.
 
 For v1, the assets must be compiled first with `make build-ui`, which runs Node.js build and then
