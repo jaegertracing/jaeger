@@ -135,6 +135,13 @@ func (s *server) Shutdown(ctx context.Context) error {
 
 // registerTools registers all MCP tools with the server.
 func (s *server) registerTools() {
+	// Get services tool (at the top - required for search_traces)
+	getServicesHandler := handlers.NewGetServicesHandler(s.queryAPI)
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "get_services",
+		Description: "List available service names. Use this first to discover valid service names for search_traces.",
+	}, getServicesHandler)
+
 	// Health check tool
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "health",
