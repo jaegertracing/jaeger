@@ -71,7 +71,6 @@ We are currently using `gofumpt`, which is installed automatically by `make inst
 
 ### Running local build with the UI
 
-For Jaeger v2:
 ```
 $ go run ./cmd/jaeger --config ./cmd/jaeger/config.yaml
 ```
