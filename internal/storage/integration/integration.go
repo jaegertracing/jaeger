@@ -240,12 +240,12 @@ func (s *StorageIntegration) helperTestGetTrace(
 	actual := ptrace.Traces{}
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
-		trceSlice, err := jiter.CollectWithErrors(iterTraces)
+		traceSlice, err := jiter.CollectWithErrors(iterTraces)
 		if err != nil {
 			t.Logf("Error loading trace: %v", err)
 			return false
 		}
-		actual = mergeTraces(trceSlice)
+		actual = mergeTraces(traceSlice)
 		return actual.SpanCount() >= expected.SpanCount()
 	})
 	t.Logf("%-23s Loaded trace, expected=%d, actual=%d", time.Now().Format("2006-01-02 15:04:05.999"), expected.SpanCount(), actual.SpanCount())
@@ -545,8 +545,10 @@ func loadAndParseJSON(t *testing.T, path string, object any) {
 	require.NoError(t, err, "Not expecting error when unmarshaling fixture %s", path)
 }
 
+// Required, because we want to only query recent traces,
+// so we replace all the dates with recent dates.
 func correctTimeForTraces(trace ptrace.Traces) {
-	normalizer := newDateOffsetNormalizer(-1)
+	normalizer := newDateOffsetNormalizer(time.Now().UTC().AddDate(0, 0, -1))
 	for _, resourceSpan := range trace.ResourceSpans().All() {
 		for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
 			for _, span := range scopeSpan.Spans().All() {

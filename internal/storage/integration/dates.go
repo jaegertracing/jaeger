@@ -20,10 +20,9 @@ type dateOffsetNormalizer struct {
 	month     time.Month
 }
 
-func newDateOffsetNormalizer(dayOffset int) dateOffsetNormalizer {
-	now := time.Now().UTC()
+func newDateOffsetNormalizer(tm time.Time) dateOffsetNormalizer {
 	d := dateOffsetNormalizer{}
-	d.year, d.month, d.day = now.AddDate(0, 0, dayOffset).Date()
+	d.year, d.month, d.day = tm.Date()
 	return d
 }
 

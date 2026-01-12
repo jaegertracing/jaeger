@@ -19,10 +19,10 @@ func Test_dateOffsetNormalizer(t *testing.T) {
 	)
 	origTs := pcommon.NewTimestampFromTime(origTime)
 	dayOffset := -2
-	normalizer := newDateOffsetNormalizer(dayOffset)
+	expectedDate := time.Now().UTC().AddDate(0, 0, dayOffset)
+	normalizer := newDateOffsetNormalizer(expectedDate)
 	normalizedTs := normalizer.normalize(origTs)
 	normalizedTime := normalizedTs.AsTime()
-	expectedDate := time.Now().UTC().AddDate(0, 0, dayOffset)
 	expectedTime := time.Date(
 		expectedDate.Year(),
 		expectedDate.Month(),
