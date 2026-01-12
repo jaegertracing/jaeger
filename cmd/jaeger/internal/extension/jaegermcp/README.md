@@ -16,7 +16,7 @@ This approach prevents context-window exhaustion in LLMs and enables more effici
 
 ## Status
 
-🚧 **Phase 1: Foundation (In Progress)** - Extension scaffold and lifecycle management
+✅ **Phase 1: Foundation (Complete)** - Extension scaffold, lifecycle management, and MCP SDK integration
 
 Future phases will add:
 - Phase 2: Basic MCP tools (search, span details, errors)
@@ -54,5 +54,6 @@ Phase 1 implements:
 - ✅ Configuration validation
 - ✅ Factory implementation
 - ✅ Server lifecycle management
-- ✅ Basic health endpoint
-- 🚧 MCP SDK integration (coming in Phase 2)
+- ✅ MCP SDK integration
+- ✅ Streamable HTTP transport
+- ✅ Basic health tool (placeholder for Phase 2)
