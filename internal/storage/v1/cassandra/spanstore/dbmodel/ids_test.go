@@ -15,6 +15,8 @@ func TestTraceIDJSONRoundTrip(t *testing.T) {
 	original := TraceID{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
 	b, err := json.Marshal(original)
 	require.NoError(t, err)
+	expectedStr := "\"AAAAAAAAAAAAAAAAAAAAAQ==\""
+	assert.Equal(t, expectedStr, string(b))
 	var decoded TraceID
 	err = json.Unmarshal(b, &decoded)
 	require.NoError(t, err)
