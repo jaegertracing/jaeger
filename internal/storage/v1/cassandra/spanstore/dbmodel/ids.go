@@ -6,7 +6,6 @@ package dbmodel
 import (
 	"encoding/base64"
 	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
@@ -25,7 +24,12 @@ func (t TraceID) ToDomain() model.TraceID {
 
 // String returns hex string representation of the trace ID.
 func (t TraceID) String() string {
-	return hex.EncodeToString(t[:])
+	traceIDHigh := binary.BigEndian.Uint64(t[:8])
+	traceIDLow := binary.BigEndian.Uint64(t[8:])
+	if traceIDHigh == 0 {
+		return fmt.Sprintf("%016x", traceIDLow)
+	}
+	return fmt.Sprintf("%016x%016x", traceIDHigh, traceIDLow)
 }
 
 // MarshalJSON converts trace id into a base64 string enclosed in quotes.
