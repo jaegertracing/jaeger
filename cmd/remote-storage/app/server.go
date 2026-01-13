@@ -16,16 +16,13 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/grpc/shared"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	grpcstorage "github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
@@ -65,14 +62,9 @@ func NewServer(
 	// If the config is created manually (e.g. in tests), the transport might not be set.
 	grpcCfg.NetAddr.Transport = confignet.TransportTypeTCP
 
-	handler, err := createGRPCHandler(reader, writer, depReader)
-	if err != nil {
-		return nil, err
-	}
-
 	v2Handler := grpcstorage.NewHandler(reader, writer, depReader)
 
-	grpcServer, err := createGRPCServer(ctx, grpcCfg, tm, handler, v2Handler, telset)
+	grpcServer, err := createGRPCServer(ctx, grpcCfg, tm, v2Handler, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -84,27 +76,10 @@ func NewServer(
 	}, nil
 }
 
-func createGRPCHandler(
-	reader tracestore.Reader,
-	writer tracestore.Writer,
-	depReader depstore.Reader,
-) (*shared.GRPCHandler, error) {
-	impl := &shared.GRPCHandlerStorageImpl{
-		SpanReader:          func() spanstore.Reader { return v1adapter.GetV1Reader(reader) },
-		SpanWriter:          func() spanstore.Writer { return v1adapter.GetV1Writer(writer) },
-		DependencyReader:    func() dependencystore.Reader { return v1adapter.GetV1DependencyReader(depReader) },
-		StreamingSpanWriter: func() spanstore.Writer { return nil },
-	}
-
-	handler := shared.NewGRPCHandler(impl)
-	return handler, nil
-}
-
 func createGRPCServer(
 	ctx context.Context,
 	cfg configgrpc.ServerConfig,
 	tm *tenancy.Manager,
-	handler *shared.GRPCHandler,
 	v2Handler *grpcstorage.Handler,
 	telset telemetry.Settings,
 ) (*grpc.Server, error) {
@@ -137,8 +112,8 @@ func createGRPCServer(
 	healthServer := health.NewServer()
 	reflection.Register(server)
 
-	handler.Register(server, healthServer)
 	v2Handler.Register(server, healthServer)
+	grpc_health_v1.RegisterHealthServer(server, healthServer)
 
 	return server, nil
 }

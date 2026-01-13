@@ -94,5 +94,6 @@ COPY jaeger-debug-linux-$TARGETARCH /cmd/jaeger/jaeger-linux
 COPY sampling-strategies.json /cmd/jaeger/sampling-strategies.json
 
 VOLUME ["/tmp"]
-ENTRYPOINT ["/go/bin/dlv", "exec", "/cmd/jaeger/jaeger-linux", "--headless", "--listen=:12345", "--api-version=2", "--accept-multiclient", "--log", "--"]
+# Launch Jaeger under Delve debugger in headless mode but without pausing on start (--continue).
+ENTRYPOINT ["/go/bin/dlv", "exec", "/cmd/jaeger/jaeger-linux", "--continue", "--headless", "--listen=:12345", "--api-version=2", "--accept-multiclient", "--log", "--"]
 USER ${USER_UID}

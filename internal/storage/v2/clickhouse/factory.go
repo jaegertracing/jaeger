@@ -76,6 +76,8 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 			{"operations materialized view", sql.CreateOperationsMaterializedView},
 			{"trace id timestamps table", sql.CreateTraceIDTimestampsTable},
 			{"trace id timestamps materialized view", sql.CreateTraceIDTimestampsMaterializedView},
+			{"attribute metadata table", sql.CreateAttributeMetadataTable},
+			{"attribute metadata materialized view", sql.CreateAttributeMetadataMaterializedView},
 		}
 
 		for _, schema := range schemas {
@@ -115,6 +117,8 @@ func (f *Factory) Purge(ctx context.Context) error {
 		{"spans", sql.TruncateSpans},
 		{"services", sql.TruncateServices},
 		{"operations", sql.TruncateOperations},
+		{"trace_id_timestamps", sql.TruncateTraceIDTimestamps},
+		{"attribute_metadata", sql.TruncateAttributeMetadata},
 	}
 
 	for _, table := range tables {

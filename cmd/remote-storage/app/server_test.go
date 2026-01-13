@@ -22,14 +22,12 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/internal/healthcheck"
-	"github.com/jaegertracing/jaeger/internal/proto-gen/storage_v1"
+	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
-	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
@@ -147,39 +145,6 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 		telset,
 	)
 	assert.ErrorContains(t, err, "failed to load TLS config")
-}
-
-func TestCreateGRPCHandler(t *testing.T) {
-	reader := new(tracestoremocks.Reader)
-	writer := new(tracestoremocks.Writer)
-	depReader := new(depstoremocks.Reader)
-
-	h, err := createGRPCHandler(reader, writer, depReader)
-	require.NoError(t, err)
-
-	writer.On("WriteTraces", mock.Anything, mock.Anything).Return(errors.New("writer error"))
-	_, err = h.WriteSpan(context.Background(), &storage_v1.WriteSpanRequest{
-		Span: &model.Span{
-			TraceID: model.NewTraceID(1, 1),
-			SpanID:  model.NewSpanID(1),
-			Process: &model.Process{
-				ServiceName: "test",
-			},
-		},
-	})
-	require.ErrorContains(t, err, "writer error")
-
-	depReader.On(
-		"GetDependencies",
-		mock.Anything, // context
-		mock.Anything, // time
-		mock.Anything, // lookback
-	).Return(nil, errors.New("deps error"))
-	_, err = h.GetDependencies(context.Background(), &storage_v1.GetDependenciesRequest{})
-	require.ErrorContains(t, err, "deps error")
-
-	err = h.WriteSpanStream(nil)
-	assert.ErrorContains(t, err, "not implemented")
 }
 
 var testCases = []struct {
@@ -315,7 +280,7 @@ var testCases = []struct {
 }
 
 type grpcClient struct {
-	storage_v1.SpanReaderPluginClient
+	storage.TraceReaderClient
 
 	conn *grpc.ClientConn
 }
@@ -333,8 +298,8 @@ func newGRPCClient(t *testing.T, addr string, creds credentials.TransportCredent
 	require.NoError(t, err)
 
 	return &grpcClient{
-		SpanReaderPluginClient: storage_v1.NewSpanReaderPluginClient(conn),
-		conn:                   conn,
+		TraceReaderClient: storage.NewTraceReaderClient(conn),
+		conn:              conn,
 	}
 }
 
@@ -392,7 +357,7 @@ func TestServerGRPCTLS(t *testing.T) {
 			defer cancel()
 
 			ctx = tenancy.WithTenant(ctx, "foo")
-			res, clientError := client.GetServices(ctx, &storage_v1.GetServicesRequest{})
+			res, clientError := client.GetServices(ctx, &storage.GetServicesRequest{})
 
 			if test.expectClientError {
 				require.Error(t, clientError)
@@ -445,11 +410,12 @@ func validateGRPCServer(t *testing.T, hostPort string) {
 	grpctest.ReflectionServiceValidator{
 		HostPort: hostPort,
 		ExpectedServices: []string{
-			"jaeger.storage.v1.SpanReaderPlugin",
-			"jaeger.storage.v1.SpanWriterPlugin",
-			"jaeger.storage.v1.DependenciesReaderPlugin",
-			"jaeger.storage.v1.PluginCapabilities",
-			"jaeger.storage.v1.StreamingSpanWriterPlugin",
+			// writer
+			"opentelemetry.proto.collector.trace.v1.TraceService",
+			// reader
+			"jaeger.storage.v2.TraceReader",
+			"jaeger.storage.v2.DependencyReader",
+			// health
 			"grpc.health.v1.Health",
 		},
 	}.Execute(t)

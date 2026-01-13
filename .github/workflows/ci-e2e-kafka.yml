@@ -17,9 +17,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        jaeger-version: [v2]
         kafka-version: ["3.x"]
-    name: kafka ${{matrix.kafka-version }} ${{ matrix.jaeger-version }}
+    name: kafka ${{ matrix.kafka-version }} v2
     steps:
     - name: Harden Runner
       uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
@@ -34,16 +33,15 @@ jobs:
 
     - name: Run kafka integration tests
       id: test-execution
-      run: bash scripts/e2e/kafka.sh -j ${{ matrix.jaeger-version }} -v ${{ matrix.kafka-version }}
+      run: bash scripts/e2e/kafka.sh -v ${{ matrix.kafka-version }}
         
     - uses: ./.github/actions/verify-metrics-snapshot
-      if: matrix.jaeger-version == 'v2'
       with:
         snapshot: metrics_snapshot_kafka
-        artifact_key: metrics_snapshot_kafka_${{ matrix.jaeger-version }}
+        artifact_key: metrics_snapshot_kafka_v2
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:
         files: cover.out
-        flags: kafka-${{ matrix.kafka-version }}-${{ matrix.jaeger-version }}
+        flags: kafka-${{ matrix.kafka-version }}-v2

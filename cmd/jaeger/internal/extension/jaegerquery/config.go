@@ -7,7 +7,7 @@ import (
 	"github.com/asaskevich/govalidator"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
 
-	queryapp "github.com/jaegertracing/jaeger/cmd/query/app"
+	queryapp "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal"
 )
 
 var _ xconfmap.Validator = (*Config)(nil)

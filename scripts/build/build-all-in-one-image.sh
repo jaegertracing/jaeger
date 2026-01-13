@@ -57,19 +57,7 @@ set -x
 # be overrided by passing architecture value to the script:
 # `GOARCH=<target arch> ./scripts/build/build-all-in-one-image.sh`.
 GOARCH=${GOARCH:-$(go env GOARCH)}
-repo="jaegertracing/${BINARY}"
-
-# verify Node.js version
-expected_version="v$(cat jaeger-ui/.nvmrc)"
-version=$(node --version)
-major_version=${version%.*.*}
-
-if [ "$major_version" = "$expected_version" ] ; then
-  echo "Node version is as expected: $version"
-else
-  echo "ERROR: installed Node version $version doesn't match expected version $expected_version"
-  exit 1
-fi
+image="jaegertracing/${BINARY}"
 
 make build-ui
 
@@ -89,35 +77,39 @@ run_integration_test() {
   docker kill "$CID"
 }
 
-# Loop through each platform (separated by commas)
-for platform in $(echo "$platforms" | tr ',' ' '); do
-  arch=${platform##*/}  # Remove everything before the last slash
-  make "build-${BINARY}" GOOS=linux GOARCH="${arch}"
-done
+build_test_upload() {
+  # Loop through each platform (separated by commas)
+  for platform in $(echo "$platforms" | tr ',' ' '); do
+    arch=${platform##*/}  # Remove everything before the last slash
+    make "build-${BINARY}" GOOS=linux GOARCH="${arch}"
+  done
 
-baseimg_target='create-baseimg-debugimg'
-if [[ "${add_debugger}" == "N" ]]; then
-  baseimg_target='create-baseimg'
-fi
-make "$baseimg_target" LINUX_PLATFORMS="$platforms"
+  make create-baseimg LINUX_PLATFORMS="$platforms"
 
-# build all-in-one image locally for integration test (the explicit -l switch)
-bash scripts/build/build-upload-a-docker-image.sh -l -b -c "${BINARY}" -d "cmd/${BINARY}" -p "${platforms}" -t release
+  # build all-in-one image locally for integration test (the explicit -l switch)
+  bash scripts/build/build-upload-a-docker-image.sh -l -b -c "${BINARY}" -d "cmd/${BINARY}" -p "${platforms}" -t release
 
-run_integration_test "localhost:5000/$repo"
+  run_integration_test "localhost:5000/$image"
 
-# build all-in-one image and upload to dockerhub/quay.io
-bash scripts/build/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c "${BINARY}" -d "cmd/${BINARY}" -p "${platforms}" -t release
+  # build all-in-one image and upload to dockerhub/quay.io
+  bash scripts/build/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c "${BINARY}" -d "cmd/${BINARY}" -p "${platforms}" -t release
+}
 
-# build debug image if requested
-if [[ "${add_debugger}" == "Y" ]]; then
+build_test_upload_with_debugger() {
   make "build-${BINARY}" GOOS=linux GOARCH="$GOARCH" DEBUG_BINARY=1
-  repo="${repo}-debug"
+
+  make create-baseimg-debugimg LINUX_PLATFORMS="$platforms"
 
   # build locally for integration test (the -l switch)
-  bash scripts/build/build-upload-a-docker-image.sh -l -b -c "${BINARY}-debug" -d "cmd/${BINARY}" -t debug
-  run_integration_test "localhost:5000/$repo"
+  bash scripts/build/build-upload-a-docker-image.sh -l -b -c "${BINARY}-debug" -d "cmd/${BINARY}" -p "${platforms}" -t release -t debug
+  run_integration_test "localhost:5000/${image}-debug"
 
   # build & upload official image
-  bash scripts/build/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c "${BINARY}-debug" -d "cmd/${BINARY}" -t debug
+  bash scripts/build/build-upload-a-docker-image.sh "${FLAGS[@]}" -b -c "${BINARY}-debug" -d "cmd/${BINARY}" -p "${platforms}" -t debug
+}
+
+build_test_upload
+
+if [[ "${add_debugger}" == "Y" ]]; then
+  build_test_upload_with_debugger
 fi

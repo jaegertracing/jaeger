@@ -169,12 +169,6 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
                 print(result)
             print()
 
-    if repo == 'jaeger':
-        print()
-        print('### 📊 UI Changes')
-        print()
-        main(token, 'jaeger-ui', 'main', None, exclude_dependabot, False)
-
     # Print pull requests in the 'UNCATTEGORIZED' category
     if other_results:
         print(f'### 💩💩💩 The following commits cannot be categorized (missing "changelog:*" labels):')

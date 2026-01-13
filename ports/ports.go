@@ -19,6 +19,8 @@ const (
 	QueryGRPC = 16685
 	// QueryHTTP is the default port for UI and Query API (e.g. /api/* endpoints)
 	QueryHTTP = 16686
+	// MCPHTTP is the default port for MCP (Model Context Protocol) server HTTP endpoint
+	MCPHTTP = 16687
 
 	// RemoteStorageGRPC is the default port of GRPC requests for Remote Storage
 	RemoteStorageGRPC = 17271
