@@ -50,8 +50,11 @@ Jaeger already provides most of the backend functionality needed:
 Following the pattern established by `jaegerquery`, the MCP server will be implemented as an OpenTelemetry Collector extension. This provides:
 - Lifecycle management (Start/Shutdown)
 - Configuration validation
-- Dependency injection via `jaegerstorage` extension
+- Dependency injection via `jaegerquery` extension
 - Separate HTTP/SSE endpoint for MCP protocol
+
+> [!NOTE]
+> **Phase 2 Requirement**: The MCP extension will need to retrieve the `QueryService` instance from the `jaegerquery` extension. This will require `jaegerquery` to expose `QueryService` through an Extension interface, similar to how `jaegerstorage` exposes storage factories via the `jaegerstorage.Extension` interface and `GetTraceStoreFactory()` helper function. See `cmd/jaeger/internal/exporters/storageexporter/exporter.go:35` for reference implementation pattern.
 
 ## Decision
 
@@ -435,13 +438,17 @@ cmd/jaeger/internal/extension/jaegermcp/
     │   └── criticalpath_test.go
     ├── handlers/        # MCP tool handlers
     │   ├── search_traces.go
+    │   ├── search_traces_test.go
     │   ├── get_trace_topology.go
     │   ├── get_critical_path.go
     │   ├── get_span_details.go
+    │   ├── get_span_details_test.go
     │   ├── get_trace_errors.go
-    │   └── handlers_test.go
-    └── types/           # Response types for MCP tools
-        └── types.go
+    │   └── get_trace_errors_test.go
+    └── types/           # Response types for MCP tools (one file per handler)
+        ├── search_traces.go
+        ├── get_span_details.go
+        └── get_trace_errors.go
 ```
 
 ## Consequences
@@ -472,14 +479,14 @@ cmd/jaeger/internal/extension/jaegermcp/
 
 ### Phase 1: Foundation
 
-1. **Extension Scaffold**
+1. **Extension Scaffold** ✅
    - Create `jaegermcp` extension directory structure
    - Implement `config.go` with configuration validation
    - Implement `factory.go` following `jaegerquery` pattern
    - Implement `server.go` with lifecycle management
    - Wire extension into component registration
 
-2. **MCP Server Setup**
+2. **MCP Server Setup** ✅
    - Add `github.com/modelcontextprotocol/go-sdk` dependency
    - Initialize MCP server with Streamable HTTP transport
    - Implement server start/shutdown with graceful cleanup
@@ -488,21 +495,27 @@ cmd/jaeger/internal/extension/jaegermcp/
 
 ### Phase 2: Basic Tools
 
-3. **Storage Integration**
+3. **Storage Integration** ✅
    - Connect to `jaegerstorage` extension for trace reader access
    - Create internal service layer for trace operations
 
-4. **Implement `search_traces` Tool**
+4. **Implement `get_services` Tool** ✅
+   - Wrap `QueryService.GetServices()`
+   - Support optional regex pattern filtering
+   - Apply configurable limit (default: 100)
+   - Return list of service names
+
+5. **Implement `search_traces` Tool** ✅
    - Wrap `QueryService.FindTraces()`
    - Transform response to MCP-optimized format (metadata only)
    - Add input validation and error handling
 
-5. **Implement `get_span_details` Tool**
+6. **Implement `get_span_details` Tool** ✅
    - Wrap `QueryService.GetTrace()`
    - Filter to requested span IDs only
    - Return full OTLP attribute data
 
-6. **Implement `get_trace_errors` Tool**
+7. **Implement `get_trace_errors` Tool** ✅
    - Wrap `QueryService.GetTrace()`
    - Filter to spans with error status
    - Return full OTLP attribute data
@@ -511,7 +524,7 @@ cmd/jaeger/internal/extension/jaegermcp/
 
 ### Phase 3: Advanced Tools
 
-7. **Implement `get_trace_topology` Tool**
+7. **Implement `get_trace_topology` Tool** ✅
    - Fetch trace via `QueryService.GetTrace()`
    - Build tree structure from flat span list
    - **Strip attributes and events** before response
