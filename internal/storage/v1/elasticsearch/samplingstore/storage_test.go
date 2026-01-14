@@ -47,7 +47,6 @@ func withEsSampling(indexPrefix config.IndexPrefix, indexDateLayout string, maxD
 			MaxDocCount:     maxDocCount,
 		}),
 	}
-	w.client.On("GetVersion").Return(uint(7)).Maybe()
 	fn(w)
 }
 
@@ -100,12 +99,7 @@ func TestGetReadIndices(t *testing.T) {
 			"prefix-jaeger-sampling-2024-02-10",
 		}
 		rollover := -time.Hour * 24
-		s := &SamplingStore{
-			samplingIndexPrefix:    "prefix-jaeger-sampling-",
-			indexDateLayout:        "2006-01-02",
-			indexRolloverFrequency: rollover,
-		}
-		indices := s.getReadIndices(test.start, test.end)
+		indices := getReadIndices("prefix-jaeger-sampling-", "2006-01-02", test.start, test.end, rollover)
 		assert.Equal(t, expectedIndices, indices)
 	})
 }
@@ -124,7 +118,7 @@ func TestGetLatestIndices(t *testing.T) {
 			name:            "with index",
 			indexDateLayout: "2006-01-02",
 			maxDuration:     24 * time.Hour,
-			expectedIndices: []string{"jaeger-sampling-" + time.Now().UTC().Format("2006-01-02")},
+			expectedIndices: []string{indexWithDate("", "2006-01-02", time.Now().UTC())},
 			expectedError:   "",
 			indexExist:      true,
 		},
@@ -151,7 +145,8 @@ func TestGetLatestIndices(t *testing.T) {
 				indexService := &mocks.IndicesExistsService{}
 				w.client.On("IndexExists", mock.Anything).Return(indexService)
 				indexService.On("Do", mock.Anything).Return(test.indexExist, test.IndexExistError)
-				actualIndices, err := w.storage.getLatestIndices()
+				clientFnMock := w.storage.client()
+				actualIndices, err := getLatestIndices("", test.indexDateLayout, clientFnMock, -24*time.Hour, test.maxDuration)
 				if test.expectedError != "" {
 					require.EqualError(t, err, test.expectedError)
 					assert.Nil(t, actualIndices)
@@ -180,7 +175,7 @@ func TestInsertThroughput(t *testing.T) {
 				{Service: "our-svc", Operation: "op2"},
 			}
 			fixedTime := time.Now()
-			indexName := config.IndexWithDate("", "2006-01-02", fixedTime)
+			indexName := indexWithDate("", "2006-01-02", fixedTime)
 			writeService := &mocks.IndexService{}
 			w.client.On("Index").Return(writeService)
 			writeService.On("Index", stringMatcher(indexName)).Return(writeService)
@@ -214,7 +209,7 @@ func TestInsertProbabilitiesAndQPS(t *testing.T) {
 				QPS:           samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}},
 			}
 			fixedTime := time.Now()
-			indexName := config.IndexWithDate("", "2006-01-02", fixedTime)
+			indexName := indexWithDate("", "2006-01-02", fixedTime)
 			writeService := &mocks.IndexService{}
 			w.client.On("Index").Return(writeService)
 			writeService.On("Index", stringMatcher(indexName)).Return(writeService)

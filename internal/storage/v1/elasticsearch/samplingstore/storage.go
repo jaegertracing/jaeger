@@ -50,7 +50,7 @@ func NewSamplingStore(p Params) *SamplingStore {
 	return &SamplingStore{
 		client:                 p.Client,
 		logger:                 p.Logger,
-		samplingIndexPrefix:    p.IndexPrefix.Apply(samplingIndexBaseName) + config.IndexPrefixSeparator,
+		samplingIndexPrefix:    p.PrefixedIndexName() + config.IndexPrefixSeparator,
 		indexDateLayout:        p.IndexDateLayout,
 		maxDocCount:            p.MaxDocCount,
 		indexRolloverFrequency: p.IndexRolloverFrequency,
@@ -60,20 +60,20 @@ func NewSamplingStore(p Params) *SamplingStore {
 
 func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
 	ts := time.Now()
-	indexName := s.getWriteIndex(ts)
+	indexName := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, ts)
 	for _, eachThroughput := range dbmodel.FromThroughputs(throughput) {
 		s.client().Index().Index(indexName).Type(throughputType).
 			BodyJson(&dbmodel.TimeThroughput{
 				Timestamp:  ts,
 				Throughput: eachThroughput,
-			}).Add("")
+			}).Add()
 	}
 	return nil
 }
 
 func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
 	ctx := context.Background()
-	indices := s.getReadIndices(start, end)
+	indices := getReadIndices(s.samplingIndexPrefix, s.indexDateLayout, start, end, s.indexRolloverFrequency)
 	searchResult, err := s.client().Search(indices...).
 		Size(s.maxDocCount).
 		Query(buildTSQuery(start, end)).
@@ -95,13 +95,14 @@ func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput
 	return dbmodel.ToThroughputs(outThroughputs), nil
 }
 
-func (s *SamplingStore) InsertProbabilitiesAndQPS(_ string,
+func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
 	probabilities model.ServiceOperationProbabilities,
 	qps model.ServiceOperationQPS,
 ) error {
 	ts := time.Now()
-	writeIndexName := s.getWriteIndex(ts)
+	writeIndexName := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, ts)
 	val := dbmodel.ProbabilitiesAndQPS{
+		Hostname:      hostname,
 		Probabilities: probabilities,
 		QPS:           qps,
 	}
@@ -109,14 +110,10 @@ func (s *SamplingStore) InsertProbabilitiesAndQPS(_ string,
 	return nil
 }
 
-func (s *SamplingStore) getWriteIndex(ts time.Time) string {
-	return config.IndexWithDate(s.samplingIndexPrefix, s.indexDateLayout, ts)
-}
-
 func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
 	ctx := context.Background()
 	clientFn := s.client()
-	indices, err := s.getLatestIndices()
+	indices, err := getLatestIndices(s.samplingIndexPrefix, s.indexDateLayout, clientFn, s.indexRolloverFrequency, s.lookback)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get latest indices: %w", err)
 	}
@@ -152,17 +149,16 @@ func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time,
 		BodyJson(&dbmodel.TimeProbabilitiesAndQPS{
 			Timestamp:           ts,
 			ProbabilitiesAndQPS: pandqps,
-		}).Add("")
+		}).Add()
 }
 
-func (s *SamplingStore) getLatestIndices() ([]string, error) {
-	clientFn := s.client()
+func getLatestIndices(indexPrefix, indexDateLayout string, clientFn es.Client, rollover time.Duration, maxDuration time.Duration) ([]string, error) {
 	ctx := context.Background()
 	now := time.Now().UTC()
-	earliest := now.Add(-s.lookback)
-	earliestIndex := config.IndexWithDate(s.samplingIndexPrefix, s.indexDateLayout, earliest)
+	earliest := now.Add(-maxDuration)
+	earliestIndex := indexWithDate(indexPrefix, indexDateLayout, earliest)
 	for {
-		currentIndex := config.IndexWithDate(s.samplingIndexPrefix, s.indexDateLayout, now)
+		currentIndex := indexWithDate(indexPrefix, indexDateLayout, now)
 		exists, err := clientFn.IndexExists(currentIndex).Do(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to check index existence: %w", err)
@@ -173,18 +169,18 @@ func (s *SamplingStore) getLatestIndices() ([]string, error) {
 		if currentIndex == earliestIndex {
 			return nil, errors.New("falied to find latest index")
 		}
-		now = now.Add(s.indexRolloverFrequency) // rollover is negative
+		now = now.Add(rollover) // rollover is negative
 	}
 }
 
-func (s *SamplingStore) getReadIndices(startTime time.Time, endTime time.Time) []string {
+func getReadIndices(indexName, indexDateLayout string, startTime time.Time, endTime time.Time, rollover time.Duration) []string {
 	var indices []string
-	firstIndex := config.IndexWithDate(s.samplingIndexPrefix, s.indexDateLayout, startTime)
-	currentIndex := config.IndexWithDate(s.samplingIndexPrefix, s.indexDateLayout, endTime)
+	firstIndex := indexWithDate(indexName, indexDateLayout, startTime)
+	currentIndex := indexWithDate(indexName, indexDateLayout, endTime)
 	for currentIndex != firstIndex {
 		indices = append(indices, currentIndex)
-		endTime = endTime.Add(s.indexRolloverFrequency) // rollover is negative
-		currentIndex = config.IndexWithDate(s.samplingIndexPrefix, s.indexDateLayout, endTime)
+		endTime = endTime.Add(rollover) // rollover is negative
+		currentIndex = indexWithDate(indexName, indexDateLayout, endTime)
 	}
 	indices = append(indices, firstIndex)
 	return indices
@@ -196,4 +192,8 @@ func (p *Params) PrefixedIndexName() string {
 
 func buildTSQuery(start, end time.Time) elastic.Query {
 	return esquery.NewRangeQuery("timestamp").Gte(start).Lte(end)
+}
+
+func indexWithDate(indexNamePrefix, indexDateLayout string, date time.Time) string {
+	return indexNamePrefix + date.UTC().Format(indexDateLayout)
 }

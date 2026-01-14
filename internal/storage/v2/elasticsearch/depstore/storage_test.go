@@ -72,8 +72,7 @@ func TestNewSpanReaderIndexPrefix(t *testing.T) {
 			MaxDocCount:     defaultMaxDocCount,
 		})
 
-		expected := testCase.expected + dependencyIndexBaseName + config.IndexPrefixSeparator
-		assert.Equal(t, expected, r.dependencyIndexPrefix)
+		assert.Equal(t, testCase.expected+dependencyIndexBaseName, r.dependencyIndexPrefix)
 	}
 }
 
@@ -90,23 +89,17 @@ func TestWriteDependencies(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		withDepStorage("", "2006-01-02", defaultMaxDocCount, func(r *depStorageTest) {
-
 			fixedTime := time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC)
-			indexName := config.IndexWithDate("", "2006-01-02", fixedTime)
-
+			indexName := indexWithDate("", "2006-01-02", fixedTime)
 			writeService := &mocks.IndexService{}
-			indicesExistsService := &mocks.IndicesExistsService{}
 
 			r.client.On("Index").Return(writeService)
 			r.client.On("GetVersion").Return(testCase.esVersion)
-			r.client.On("IndexExists", stringMatcher(indexName)).Return(indicesExistsService)
-			indicesExistsService.On("Do", mock.Anything).Return(true, nil)
 
 			writeService.On("Index", stringMatcher(indexName)).Return(writeService)
 			writeService.On("Type", stringMatcher(dependencyType)).Return(writeService)
 			writeService.On("BodyJson", mock.Anything).Return(writeService)
-			opType := ""
-			writeService.On("Add", stringMatcher(opType)).Return(nil, testCase.writeError)
+			writeService.On("Add", mock.Anything).Return(nil, testCase.writeError)
 			err := r.storage.WriteDependencies(fixedTime, []dbmodel.DependencyLink{})
 			if testCase.expectedError != "" {
 				require.EqualError(t, err, testCase.expectedError)

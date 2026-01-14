@@ -45,6 +45,9 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 		{mapping: DependenciesMapping, esVersion: 8},
 		{mapping: DependenciesMapping, esVersion: 7},
 		{mapping: DependenciesMapping, esVersion: 6},
+		{mapping: SamplingMapping, esVersion: 8},
+		{mapping: SamplingMapping, esVersion: 7},
+		{mapping: SamplingMapping, esVersion: 6},
 	}
 	for _, tt := range tests {
 		templateName := tt.mapping.String()

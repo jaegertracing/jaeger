@@ -1,8 +1,6 @@
 {
   "priority": 502,
-  "index_patterns": [
-    "test-jaeger-dependencies*"
-  ],
+  "index_patterns": "test-jaeger-dependencies-*",
   "template": {
     "aliases": {
       "test-jaeger-dependencies-read": {}
