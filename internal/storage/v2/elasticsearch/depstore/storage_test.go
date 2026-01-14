@@ -55,14 +55,12 @@ var _ CoreDependencyStore = &DependencyStore{} // check API conformance
 
 func TestNewSpanReaderIndexPrefix(t *testing.T) {
 	testCases := []struct {
-		prefix        config.IndexPrefix
-		expected      string
-		useDataStream bool
+		prefix   config.IndexPrefix
+		expected string
 	}{
 		{prefix: "", expected: ""},
 		{prefix: "foo", expected: "foo-"},
 		{prefix: ":", expected: ":-"},
-		{prefix: "foo", expected: "foo-jaeger.dependencies", useDataStream: true},
 	}
 	for _, testCase := range testCases {
 		client := &mocks.Client{}
@@ -72,13 +70,9 @@ func TestNewSpanReaderIndexPrefix(t *testing.T) {
 			IndexPrefix:     testCase.prefix,
 			IndexDateLayout: "2006-01-02",
 			MaxDocCount:     defaultMaxDocCount,
-			UseDataStream:   testCase.useDataStream,
 		})
 
-		expected := testCase.expected
-		if !testCase.useDataStream {
-			expected += dependencyIndexBaseName
-		}
+		expected := testCase.expected + dependencyIndexBaseName + config.IndexPrefixSeparator
 		assert.Equal(t, expected, r.dependencyIndexPrefix)
 	}
 }
@@ -88,41 +82,30 @@ func TestWriteDependencies(t *testing.T) {
 		writeError    error
 		expectedError string
 		esVersion     uint
-		useDataStream bool
 	}{
 		{
 			expectedError: "",
 			esVersion:     7,
 		},
-		{
-			expectedError: "",
-			esVersion:     8,
-			useDataStream: true,
-		},
 	}
 	for _, testCase := range testCases {
 		withDepStorage("", "2006-01-02", defaultMaxDocCount, func(r *depStorageTest) {
-			r.storage.useDataStream = testCase.useDataStream // manually set for test scope
-			if testCase.useDataStream {
-				r.storage.dependencyIndexPrefix = "jaeger.dependencies"
-			}
+
 			fixedTime := time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC)
-			indexName := indexWithDate("", "2006-01-02", fixedTime)
-			if testCase.useDataStream {
-				indexName = "jaeger.dependencies"
-			}
+			indexName := config.IndexWithDate("", "2006-01-02", fixedTime)
+
 			writeService := &mocks.IndexService{}
+			indicesExistsService := &mocks.IndicesExistsService{}
 
 			r.client.On("Index").Return(writeService)
 			r.client.On("GetVersion").Return(testCase.esVersion)
+			r.client.On("IndexExists", stringMatcher(indexName)).Return(indicesExistsService)
+			indicesExistsService.On("Do", mock.Anything).Return(true, nil)
 
 			writeService.On("Index", stringMatcher(indexName)).Return(writeService)
 			writeService.On("Type", stringMatcher(dependencyType)).Return(writeService)
 			writeService.On("BodyJson", mock.Anything).Return(writeService)
 			opType := ""
-			if testCase.useDataStream {
-				opType = "create"
-			}
 			writeService.On("Add", stringMatcher(opType)).Return(nil, testCase.writeError)
 			err := r.storage.WriteDependencies(fixedTime, []dbmodel.DependencyLink{})
 			if testCase.expectedError != "" {
@@ -264,14 +247,6 @@ func TestGetReadIndices(t *testing.T) {
 				"foo" + config.IndexPrefixSeparator + dependencyIndexBaseName + fixedTime.Format("2006-01-02"),
 			},
 		},
-		{
-			params:   Params{IndexPrefix: "", IndexDateLayout: "2006-01-02", UseDataStream: true},
-			lookback: 0,
-			indices: []string{
-				"jaeger.dependencies",
-				"jaeger-dependencies-*",
-			},
-		},
 	}
 	for _, testCase := range testCases {
 		s := NewDependencyStore(testCase.params)
@@ -293,10 +268,6 @@ func TestGetWriteIndex(t *testing.T) {
 		{
 			params:     Params{IndexPrefix: "", IndexDateLayout: "2006-01-02", UseReadWriteAliases: false},
 			writeIndex: dependencyIndexBaseName + fixedTime.Format("2006-01-02"),
-		},
-		{
-			params:     Params{IndexPrefix: "", IndexDateLayout: "2006-01-02", UseDataStream: true},
-			writeIndex: "jaeger.dependencies",
 		},
 	}
 	for _, testCase := range testCases {
