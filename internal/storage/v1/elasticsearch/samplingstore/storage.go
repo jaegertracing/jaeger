@@ -34,7 +34,6 @@ type SamplingStore struct {
 	maxDocCount            int
 	indexRolloverFrequency time.Duration
 	lookback               time.Duration
-	useDataStream          bool
 }
 
 type Params struct {
@@ -45,27 +44,17 @@ type Params struct {
 	IndexRolloverFrequency time.Duration
 	Lookback               time.Duration
 	MaxDocCount            int
-	UseDataStream          bool
 }
 
 func NewSamplingStore(p Params) *SamplingStore {
-	samplingIndexBase := samplingIndexBaseName
-	if p.UseDataStream {
-		samplingIndexBase = "jaeger.sampling"
-	}
-	prefix := p.IndexPrefix.Apply(samplingIndexBase)
-	if !p.UseDataStream {
-		prefix += config.IndexPrefixSeparator
-	}
 	return &SamplingStore{
 		client:                 p.Client,
 		logger:                 p.Logger,
-		samplingIndexPrefix:    prefix,
+		samplingIndexPrefix:    p.IndexPrefix.Apply(samplingIndexBaseName) + config.IndexPrefixSeparator,
 		indexDateLayout:        p.IndexDateLayout,
 		maxDocCount:            p.MaxDocCount,
 		indexRolloverFrequency: p.IndexRolloverFrequency,
 		lookback:               p.Lookback,
-		useDataStream:          p.UseDataStream,
 	}
 }
 
@@ -73,16 +62,11 @@ func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
 	ts := time.Now()
 	indexName := s.getWriteIndex(ts)
 	for _, eachThroughput := range dbmodel.FromThroughputs(throughput) {
-		il := s.client().Index().Index(indexName).Type(throughputType).
+		s.client().Index().Index(indexName).Type(throughputType).
 			BodyJson(&dbmodel.TimeThroughput{
 				Timestamp:  ts,
 				Throughput: eachThroughput,
-			})
-		opType := ""
-		if s.useDataStream || s.client().GetVersion() >= 8 {
-			opType = "create"
-		}
-		il.Add(opType)
+			}).Add("")
 	}
 	return nil
 }
@@ -126,9 +110,6 @@ func (s *SamplingStore) InsertProbabilitiesAndQPS(_ string,
 }
 
 func (s *SamplingStore) getWriteIndex(ts time.Time) string {
-	if s.useDataStream {
-		return s.samplingIndexPrefix
-	}
 	return config.IndexWithDate(s.samplingIndexPrefix, s.indexDateLayout, ts)
 }
 
@@ -167,24 +148,14 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 }
 
 func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time, pandqps dbmodel.ProbabilitiesAndQPS) {
-	il := s.client().Index().Index(indexName).Type(probabilitiesType).
+	s.client().Index().Index(indexName).Type(probabilitiesType).
 		BodyJson(&dbmodel.TimeProbabilitiesAndQPS{
 			Timestamp:           ts,
 			ProbabilitiesAndQPS: pandqps,
-		})
-	opType := ""
-	if s.useDataStream || s.client().GetVersion() >= 8 {
-		opType = "create"
-	}
-	il.Add(opType)
+		}).Add("")
 }
 
 func (s *SamplingStore) getLatestIndices() ([]string, error) {
-	if s.useDataStream {
-		indices := []string{s.samplingIndexPrefix}
-		indices = append(indices, config.GetDataStreamLegacyWildcard(s.samplingIndexPrefix))
-		return indices, nil
-	}
 	clientFn := s.client()
 	ctx := context.Background()
 	now := time.Now().UTC()
@@ -207,11 +178,6 @@ func (s *SamplingStore) getLatestIndices() ([]string, error) {
 }
 
 func (s *SamplingStore) getReadIndices(startTime time.Time, endTime time.Time) []string {
-	if s.useDataStream {
-		indices := []string{s.samplingIndexPrefix}
-		indices = append(indices, config.GetDataStreamLegacyWildcard(s.samplingIndexPrefix))
-		return indices
-	}
 	var indices []string
 	firstIndex := config.IndexWithDate(s.samplingIndexPrefix, s.indexDateLayout, startTime)
 	currentIndex := config.IndexWithDate(s.samplingIndexPrefix, s.indexDateLayout, endTime)

@@ -155,7 +155,6 @@ func (f *FactoryBase) GetDependencyStoreParams() esdepstorev2.Params {
 		IndexDateLayout:     f.config.Indices.Dependencies.DateLayout,
 		MaxDocCount:         f.config.MaxDocCount,
 		UseReadWriteAliases: f.config.UseReadWriteAliases,
-		UseDataStream:       f.config.UseDataStream,
 	}
 }
 
@@ -168,7 +167,6 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 		IndexRolloverFrequency: config.RolloverFrequencyAsNegativeDuration(f.config.Indices.Sampling.RolloverFrequency),
 		Lookback:               f.config.AdaptiveSamplingLookback,
 		MaxDocCount:            f.config.MaxDocCount,
-		UseDataStream:          f.config.UseDataStream,
 	}
 	store := essamplestore.NewSamplingStore(params)
 
