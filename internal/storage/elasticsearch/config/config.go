@@ -167,9 +167,6 @@ type Configuration struct {
 	// https://www.jaegertracing.io/docs/deployment/#enabling-ilm-support
 	UseILM bool `mapstructure:"use_ilm"`
 
-	// Option to enable Index State Management (ISM) for Jaeger span and service indices (OpenSearch).
-	UseISM bool `mapstructure:"use_ism"`
-
 	// UseDataStream, if set to true, enables the data stream support (ES 8+ or OpenSearch potentially).
 	UseDataStream bool `mapstructure:"use_data_stream"`
 
@@ -184,9 +181,6 @@ type Configuration struct {
 	// latest adaptive sampling probabilities.
 	AdaptiveSamplingLookback time.Duration `mapstructure:"adaptive_sampling_lookback"`
 	Tags                     TagsAsFields  `mapstructure:"tags_as_fields"`
-	// EnableLogsDB, if set to true, will enable the logsdb mode in Elasticsearch indices (ES 8.17+).
-	// This mode provides significant disk space savings for telemetry data.
-	EnableLogsDB bool `mapstructure:"enabled_logsdb"`
 
 	// EnableIngestPipeline enables the default ingest pipeline setting in index templates.
 	EnableIngestPipeline bool `mapstructure:"enabled_ingest_pipeline"`
@@ -773,12 +767,6 @@ func (c *Configuration) Validate() error {
 	if c.CreateIndexTemplates && c.UseILM {
 		return errors.New("when UseILM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app")
 	}
-	if c.UseISM && !c.UseReadWriteAliases {
-		return errors.New("UseISM must always be used in conjunction with UseReadWriteAliases to ensure ES writers and readers refer to the single index mapping")
-	}
-	if c.CreateIndexTemplates && c.UseISM {
-		return errors.New("when UseISM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app")
-	}
 
 	// Validate explicit alias settings require UseReadWriteAliases
 	hasAnyExplicitAlias := c.SpanReadAlias != "" || c.SpanWriteAlias != "" ||
@@ -801,4 +789,19 @@ func (c *Configuration) Validate() error {
 	}
 
 	return nil
+}
+
+// IndexWithDate returns the index name with date suffix.
+func IndexWithDate(indexName, dateLayout string, date time.Time) string {
+	if strings.HasSuffix(indexName, "-") {
+		return indexName + date.UTC().Format(dateLayout)
+	}
+	return indexName + "-" + date.UTC().Format(dateLayout)
+}
+
+// GetDataStreamLegacyWildcard returns the legacy wildcard pattern for a data stream.
+// It replaces the first dot with a dash and appends a wildcard.
+// Example: jaeger.span -> jaeger-span-*
+func GetDataStreamLegacyWildcard(dataStreamName string) string {
+	return strings.Replace(dataStreamName, ".", "-", 1) + "-*"
 }

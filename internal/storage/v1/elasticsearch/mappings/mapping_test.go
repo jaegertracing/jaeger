@@ -31,11 +31,9 @@ func ptr[T any](v T) *T {
 
 func TestMappingBuilderGetMapping(t *testing.T) {
 	tests := []struct {
-		mapping       MappingType
-		esVersion     uint
-		useDataStream bool
+		mapping   MappingType
+		esVersion uint
 	}{
-		{mapping: SpanMapping, esVersion: 8, useDataStream: true},
 		{mapping: SpanMapping, esVersion: 8},
 		{mapping: SpanMapping, esVersion: 7},
 		{mapping: SpanMapping, esVersion: 6},
@@ -45,15 +43,11 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 		{mapping: DependenciesMapping, esVersion: 8},
 		{mapping: DependenciesMapping, esVersion: 7},
 		{mapping: DependenciesMapping, esVersion: 6},
-		{mapping: SamplingMapping, esVersion: 8},
-		{mapping: SamplingMapping, esVersion: 7},
-		{mapping: SamplingMapping, esVersion: 6},
 	}
 	for _, tt := range tests {
 		templateName := tt.mapping.String()
-		testName := fmt.Sprintf("%s-%d-ds-%v", templateName, tt.esVersion, tt.useDataStream)
 
-		t.Run(testName, func(t *testing.T) {
+		t.Run(templateName, func(t *testing.T) {
 			defaultOpts := func(p int64) config.IndexOptions {
 				return config.IndexOptions{
 					Shards:   3,
@@ -75,7 +69,6 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 					Sampling:     samplingOps,
 				},
 				EsVersion:     tt.esVersion,
-				UseDataStream: tt.useDataStream,
 				UseILM:        true,
 				ILMPolicyName: "jaeger-test-policy",
 			}
@@ -83,14 +76,10 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 			require.NoError(t, err)
 			var wantbytes []byte
 			fileSuffix := fmt.Sprintf("-%d", tt.esVersion)
-			if tt.useDataStream {
-				fileSuffix += "-ds"
-			}
-			fileName := templateName + fileSuffix + ".json"
-			wantbytes, err = FIXTURES.ReadFile("fixtures/" + fileName)
+			wantbytes, err = FIXTURES.ReadFile("fixtures/" + templateName + fileSuffix + ".json")
 			require.NoError(t, err)
 			want := string(wantbytes)
-			assert.JSONEq(t, want, got)
+			assert.Equal(t, want, got)
 		})
 	}
 }
@@ -135,13 +124,9 @@ func TestMappingBuilderLoadMapping(t *testing.T) {
 		{name: "jaeger-dependencies-6.json"},
 		{name: "jaeger-dependencies-7.json"},
 		{name: "jaeger-dependencies-8.json"},
-		{name: "jaeger-sampling-6.json"},
-		{name: "jaeger-sampling-7.json"},
 	}
 	for _, test := range tests {
 		mapping := loadMapping(test.name)
-		// Since we can't easily open embedded files in test via os.Open if they are not on disk (but they are on disk),
-		// this test expects files to exist on disk relative to this test file.
 		f, err := os.Open("./" + test.name)
 		require.NoError(t, err)
 		b, err := io.ReadAll(f)
@@ -428,70 +413,6 @@ func TestGetMappingTemplateOptions_DefaultCase(t *testing.T) {
 	assert.Equal(t, int64(0), opts.Priority)
 	assert.True(t, opts.UseILM)
 	assert.Equal(t, "test-policy", opts.ILMPolicyName)
-}
-
-func TestMappingBuilderGetMapping_LogsDB(t *testing.T) {
-	tests := []struct {
-		enableLogsDB bool
-	}{
-		{enableLogsDB: true},
-		{enableLogsDB: false},
-	}
-	for _, tt := range tests {
-		t.Run(fmt.Sprintf("EnableLogsDB=%v", tt.enableLogsDB), func(t *testing.T) {
-			mb := &MappingBuilder{
-				TemplateBuilder: es.TextTemplateBuilder{},
-				Indices: config.Indices{
-					Spans: config.IndexOptions{Shards: 3, Replicas: ptr(int64(3))},
-				},
-				EsVersion:    8,
-				EnableLogsDB: tt.enableLogsDB,
-			}
-			got, err := mb.GetMapping(SpanMapping)
-			require.NoError(t, err)
-			if tt.enableLogsDB {
-				assert.Contains(t, got, "\"index.mode\": \"logsdb\"")
-			} else {
-				assert.NotContains(t, got, "\"index.mode\": \"logsdb\"")
-			}
-		})
-	}
-}
-
-func TestMappingBuilderGetMapping_IngestPipeline(t *testing.T) {
-	tests := []struct {
-		mapping              MappingType
-		enableIngestPipeline bool
-	}{
-		{mapping: SpanMapping, enableIngestPipeline: true},
-		{mapping: SpanMapping, enableIngestPipeline: false},
-		{mapping: ServiceMapping, enableIngestPipeline: true},
-		{mapping: ServiceMapping, enableIngestPipeline: false},
-	}
-	for _, tt := range tests {
-		t.Run(fmt.Sprintf("%s-EnableIngestPipeline=%v", tt.mapping, tt.enableIngestPipeline), func(t *testing.T) {
-			mb := &MappingBuilder{
-				TemplateBuilder: es.TextTemplateBuilder{},
-				Indices: config.Indices{
-					Spans:    config.IndexOptions{Shards: 3, Replicas: ptr(int64(3))},
-					Services: config.IndexOptions{Shards: 3, Replicas: ptr(int64(3))},
-				},
-				EsVersion:            8,
-				EnableIngestPipeline: tt.enableIngestPipeline,
-			}
-			got, err := mb.GetMapping(tt.mapping)
-			require.NoError(t, err)
-			pipeline := "jaeger-ds-span-timestamp"
-			if tt.mapping == ServiceMapping {
-				pipeline = "jaeger-ds-service-timestamp"
-			}
-			if tt.enableIngestPipeline {
-				assert.Contains(t, got, fmt.Sprintf("\"index.default_pipeline\": %q", pipeline))
-			} else {
-				assert.NotContains(t, got, "\"index.default_pipeline\":")
-			}
-		})
-	}
 }
 
 func TestMain(m *testing.M) {

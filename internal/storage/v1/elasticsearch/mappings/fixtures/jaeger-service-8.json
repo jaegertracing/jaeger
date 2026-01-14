@@ -1,8 +1,6 @@
 {
   "priority": 501,
-  "index_patterns": [
-    "test-jaeger-service*"
-  ],
+  "index_patterns": "test-jaeger-service-*",
   "template": {
     "aliases": {
       "test-jaeger-service-read": {}
@@ -39,10 +37,6 @@
         }
       ],
       "properties": {
-        "@timestamp": {
-          "type": "date",
-          "format": "epoch_millis"
-        },
         "serviceName": {
           "type": "keyword",
           "ignore_above": 256

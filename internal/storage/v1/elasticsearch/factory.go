@@ -192,9 +192,7 @@ func (f *FactoryBase) mappingBuilderFromConfig(cfg *config.Configuration) mappin
 		Indices:              cfg.Indices,
 		EsVersion:            cfg.Version,
 		UseILM:               cfg.UseILM,
-		UseISM:               cfg.UseISM,
 		ILMPolicyName:        cfg.Indices.IndexPrefix.Apply(defaultILMPolicyName),
-		EnableLogsDB:         cfg.EnableLogsDB,
 		EnableIngestPipeline: cfg.EnableIngestPipeline,
 		UseDataStream:        cfg.UseDataStream,
 	}
