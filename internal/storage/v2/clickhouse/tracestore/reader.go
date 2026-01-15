@@ -138,11 +138,38 @@ func (r *Reader) GetOperations(
 	return operations, nil
 }
 
-func (*Reader) FindTraces(
-	context.Context,
-	tracestore.TraceQueryParams,
+func (r *Reader) FindTraces(
+	ctx context.Context,
+	query tracestore.TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
-	panic("not implemented")
+	return func(yield func([]ptrace.Traces, error) bool) {
+		traceIDsQuery, args, err := r.buildFindTraceIDsQuery(query)
+		if err != nil {
+			yield(nil, fmt.Errorf("failed to build query: %w", err))
+			return
+		}
+
+		rows, err := r.conn.Query(ctx, buildFindTracesQuery(traceIDsQuery), args...)
+		if err != nil {
+			yield(nil, fmt.Errorf("failed to query traces: %w", err))
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			span, err := dbmodel.ScanRow(rows)
+			if err != nil {
+				if !yield(nil, fmt.Errorf("failed to scan span row: %w", err)) {
+					break
+				}
+				continue
+			}
+			trace := dbmodel.FromRow(span)
+			if !yield([]ptrace.Traces{trace}, nil) {
+				break
+			}
+		}
+	}
 }
 
 func readRowIntoTraceID(rows driver.Rows) ([]tracestore.FoundTraceID, error) {
@@ -179,16 +206,7 @@ func (r *Reader) FindTraceIDs(
 	query tracestore.TraceQueryParams,
 ) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	return func(yield func([]tracestore.FoundTraceID, error) bool) {
-		limit := query.SearchDepth
-		if limit == 0 {
-			limit = r.config.DefaultSearchDepth
-		}
-		if limit > r.config.MaxSearchDepth {
-			yield(nil, fmt.Errorf("search depth %d exceeds maximum allowed %d", limit, r.config.MaxSearchDepth))
-			return
-		}
-
-		q, args, err := buildFindTraceIDsQuery(query, limit)
+		q, args, err := r.buildFindTraceIDsQuery(query)
 		if err != nil {
 			yield(nil, fmt.Errorf("failed to build query: %w", err))
 			return
@@ -221,7 +239,19 @@ var marshalValueForQuery = func(v pcommon.Value) (string, error) {
 	return string(b), nil
 }
 
-func buildFindTraceIDsQuery(query tracestore.TraceQueryParams, limit int) (string, []any, error) {
+func buildFindTracesQuery(traceIDsQuery string) string {
+	return sql.SelectSpansQuery + " WHERE s.trace_id IN (SELECT trace_id FROM (" + traceIDsQuery + ")) ORDER BY s.trace_id"
+}
+
+func (r *Reader) buildFindTraceIDsQuery(query tracestore.TraceQueryParams) (string, []any, error) {
+	limit := query.SearchDepth
+	if limit == 0 {
+		limit = r.config.DefaultSearchDepth
+	}
+	if limit > r.config.MaxSearchDepth {
+		return "", nil, fmt.Errorf("search depth %d exceeds maximum allowed %d", limit, r.config.MaxSearchDepth)
+	}
+
 	var q strings.Builder
 	q.WriteString(sql.SearchTraceIDs)
 	args := []any{}
