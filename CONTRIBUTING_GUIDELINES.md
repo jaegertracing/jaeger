@@ -107,7 +107,7 @@ Your limit of **simultaneous open PRs** is based on your history with this proje
 
 ### Why We Do This
 
-Large-scale or complex refactors—especially those assisted by AI—require significant effort to review. A high volume of PRs from new contributors often leads to:
+AI tools have dramatically reduced the cost of creating pull requests, but the burden on maintainers for reviewing them remains the same. Large-scale or complex refactors require significant effort to review, and a high volume of PRs from new contributors often leads to:
 
 * **Review Bottlenecks:** Quality reviews take time. A flood of PRs prevents us from giving any single PR the attention it deserves.
 * **Context Fragmentation:** Refactoring legacy code requires deep understanding. We prefer to work with you on one area of the code at a time to ensure the architectural direction is correct.
