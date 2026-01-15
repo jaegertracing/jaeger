@@ -6,7 +6,6 @@ package storageconfig
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"time"
 
 	"go.opentelemetry.io/collector/confmap"
@@ -123,6 +122,9 @@ func (cfg *TraceBackend) Validate() error {
 	if cfg.ClickHouse != nil {
 		backends = append(backends, "clickhouse")
 	}
+	if len(backends) == 0 {
+		return errors.New("empty configuration")
+	}
 	if len(backends) > 1 {
 		return fmt.Errorf("multiple backends types found for trace storage: %v", backends)
 	}
@@ -160,6 +162,9 @@ func (cfg *MetricBackend) Validate() error {
 	if cfg.Opensearch != nil {
 		backends = append(backends, "opensearch")
 	}
+	if len(backends) == 0 {
+		return errors.New("empty configuration")
+	}
 	if len(backends) > 1 {
 		return fmt.Errorf("multiple backends types found for metric storage: %v", backends)
 	}
@@ -172,10 +177,6 @@ func (c *Config) Validate() error {
 		return errors.New("at least one storage backend is required")
 	}
 	for name, b := range c.TraceBackends {
-		empty := TraceBackend{}
-		if reflect.DeepEqual(b, empty) {
-			return fmt.Errorf("empty backend configuration for storage '%s'", name)
-		}
 		if err := b.Validate(); err != nil {
 			return fmt.Errorf("trace storage '%s': %w", name, err)
 		}

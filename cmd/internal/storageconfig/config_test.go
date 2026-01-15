@@ -65,7 +65,7 @@ func TestConfigValidate(t *testing.T) {
 				},
 			},
 			expectError: true,
-			errorMsg:    "empty backend configuration for storage 'empty'",
+			errorMsg:    "trace storage 'empty': empty configuration",
 		},
 		{
 			name: "valid metric backend",
