@@ -6,9 +6,7 @@ package storageconfig
 import (
 	"errors"
 	"fmt"
-	"maps"
 	"reflect"
-	"slices"
 	"time"
 
 	"go.opentelemetry.io/collector/confmap"
@@ -62,27 +60,21 @@ type PrometheusConfiguration struct {
 // Unmarshal implements confmap.Unmarshaler. This allows us to provide
 // defaults for different configs.
 func (cfg *TraceBackend) Unmarshal(conf *confmap.Conf) error {
-	// currently this is the most reliable place to validate that only one backend is configured
-	found := map[string]struct{}{}
 	// apply defaults
 	if conf.IsSet("memory") {
-		found["memory"] = struct{}{}
 		cfg.Memory = &memory.Configuration{
 			MaxTraces: 1_000_000,
 		}
 	}
 	if conf.IsSet("badger") {
-		found["badger"] = struct{}{}
 		v := badger.DefaultConfig()
 		cfg.Badger = v
 	}
 	if conf.IsSet("grpc") {
-		found["grpc"] = struct{}{}
 		v := grpc.DefaultConfig()
 		cfg.GRPC = &v
 	}
 	if conf.IsSet("cassandra") {
-		found["cassandra"] = struct{}{}
 		cfg.Cassandra = &cassandra.Options{
 			Configuration:          cascfg.DefaultConfiguration(),
 			SpanStoreWriteCacheTTL: 12 * time.Hour,
@@ -95,53 +87,83 @@ func (cfg *TraceBackend) Unmarshal(conf *confmap.Conf) error {
 		}
 	}
 	if conf.IsSet("elasticsearch") {
-		found["elasticsearch"] = struct{}{}
 		v := es.DefaultConfig()
 		cfg.Elasticsearch = &v
 	}
 	if conf.IsSet("opensearch") {
-		found["opensearch"] = struct{}{}
 		v := es.DefaultConfig()
 		cfg.Opensearch = &v
 	}
 	if conf.IsSet("clickhouse") {
-		found["clickhouse"] = struct{}{}
 		cfg.ClickHouse = &clickhouse.Configuration{}
-	}
-	if len(found) > 1 {
-		names := slices.Collect(maps.Keys(found))
-		return fmt.Errorf("multiple backends types found for trace storage: %v", names)
 	}
 	return conf.Unmarshal(cfg)
 }
 
+func (cfg *TraceBackend) Validate() error {
+	var backends []string
+	if cfg.Memory != nil {
+		backends = append(backends, "memory")
+	}
+	if cfg.Badger != nil {
+		backends = append(backends, "badger")
+	}
+	if cfg.GRPC != nil {
+		backends = append(backends, "grpc")
+	}
+	if cfg.Cassandra != nil {
+		backends = append(backends, "cassandra")
+	}
+	if cfg.Elasticsearch != nil {
+		backends = append(backends, "elasticsearch")
+	}
+	if cfg.Opensearch != nil {
+		backends = append(backends, "opensearch")
+	}
+	if cfg.ClickHouse != nil {
+		backends = append(backends, "clickhouse")
+	}
+	if len(backends) > 1 {
+		return fmt.Errorf("multiple backends types found for trace storage: %v", backends)
+	}
+	return nil
+}
+
 // Unmarshal implements confmap.Unmarshaler for MetricBackend.
 func (cfg *MetricBackend) Unmarshal(conf *confmap.Conf) error {
-	// currently this is the most reliable place to validate that only one backend is configured
-	found := map[string]struct{}{}
 	// apply defaults
 	if conf.IsSet("prometheus") {
-		found["prometheus"] = struct{}{}
 		v := prometheus.DefaultConfig()
 		cfg.Prometheus = &PrometheusConfiguration{
 			Configuration: v,
 		}
 	}
 	if conf.IsSet("elasticsearch") {
-		found["elasticsearch"] = struct{}{}
 		v := es.DefaultConfig()
 		cfg.Elasticsearch = &v
 	}
 	if conf.IsSet("opensearch") {
-		found["opensearch"] = struct{}{}
 		v := es.DefaultConfig()
 		cfg.Opensearch = &v
 	}
-	if len(found) > 1 {
-		names := slices.Collect(maps.Keys(found))
-		return fmt.Errorf("multiple backends types found for metric storage: %v", names)
-	}
 	return conf.Unmarshal(cfg)
+}
+
+func (cfg *MetricBackend) Validate() error {
+	var backends []string
+	if cfg.Prometheus != nil {
+		backends = append(backends, "prometheus")
+	}
+	if cfg.Elasticsearch != nil {
+		backends = append(backends, "elasticsearch")
+	}
+	if cfg.Opensearch != nil {
+		backends = append(backends, "opensearch")
+	}
+	if len(backends) > 1 {
+		return fmt.Errorf("multiple backends types found for metric storage: %v", backends)
+	}
+	return nil
 }
 
 // Validate validates the storage configuration.
@@ -154,8 +176,14 @@ func (c *Config) Validate() error {
 		if reflect.DeepEqual(b, empty) {
 			return fmt.Errorf("empty backend configuration for storage '%s'", name)
 		}
+		if err := b.Validate(); err != nil {
+			return fmt.Errorf("trace storage '%s': %w", name, err)
+		}
 	}
-	// TODO: we need to validate that only one backend type is configured for each
-	// storage name in each category (trace and metric).
+	for name, b := range c.MetricBackends {
+		if err := b.Validate(); err != nil {
+			return fmt.Errorf("metric storage '%s': %w", name, err)
+		}
+	}
 	return nil
 }

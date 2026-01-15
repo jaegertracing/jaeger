@@ -272,6 +272,9 @@ func TestTraceBackendExclusive(t *testing.T) {
 				})
 				var tb TraceBackend
 				err := tb.Unmarshal(conf)
+				require.NoError(t, err)
+
+				err = tb.Validate()
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), "multiple backends types found")
 			})
@@ -292,6 +295,9 @@ func TestMetricBackendExclusive(t *testing.T) {
 				})
 				var mb MetricBackend
 				err := mb.Unmarshal(conf)
+				require.NoError(t, err)
+
+				err = mb.Validate()
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), "multiple backends types found")
 			})
