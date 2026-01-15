@@ -94,14 +94,29 @@ Each PR should have:
 By contributing your code, you agree to license your contribution under the
 terms of the [Apache License](./LICENSE).
 
+### Copyright Header
+
 If you are adding a new file it should have a header like below. In some
 languages, e.g. Python, you may need to change the comments to start with `#`.
 The easiest way is to copy the header from one of the existing source files and
 make sure the year is current and the copyright says "The Jaeger Authors".
 
 ```
-// Copyright (c) 2025 The Jaeger Authors.
+// Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
+```
+
+**Never remove existing copyright headers**. 
+
+Some files may have other copyright headers, such as:
+```
+// Copyright (c) 2017 Uber Technologies, Inc.
+```
+
+If you are modifying such a file you may add Jaeger copyright on top:
+```
+// Copyright (c) 2026 The Jaeger Authors.
+// Copyright (c) 2017 Uber Technologies, Inc.
 ```
 
 ## Certificate of Origin - Sign your work
