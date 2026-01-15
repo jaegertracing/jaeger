@@ -6,6 +6,7 @@ package app
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"iter"
 	"net"
@@ -15,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -190,20 +192,24 @@ func withServerAndClient(t *testing.T, actualTest func(server *grpcServer, clien
 }
 
 func TestGetTraceSuccessGRPC(t *testing.T) {
+	var traceID pcommon.TraceID
+	binary.BigEndian.PutUint64(traceID[:8], mockTraceID.High)
+	binary.BigEndian.PutUint64(traceID[8:], mockTraceID.Low)
+
 	inputs := []struct {
-		expectedQuery spanstore.GetTraceParameters
+		expectedQuery []tracestore.GetTraceParams
 		request       api_v2.GetTraceRequest
 	}{
 		{
-			spanstore.GetTraceParameters{TraceID: mockTraceID},
+			[]tracestore.GetTraceParams{{TraceID: traceID}},
 			api_v2.GetTraceRequest{TraceID: mockTraceID},
 		},
 		{
-			spanstore.GetTraceParameters{
-				TraceID:   mockTraceID,
-				StartTime: startTime,
-				EndTime:   endTime,
-			},
+			[]tracestore.GetTraceParams{{
+				TraceID: traceID,
+				Start:   startTime,
+				End:     endTime,
+			}},
 			api_v2.GetTraceRequest{
 				TraceID:   mockTraceID,
 				StartTime: startTime,
@@ -214,7 +220,7 @@ func TestGetTraceSuccessGRPC(t *testing.T) {
 
 	for _, input := range inputs {
 		withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-			server.traceReader.On("GetTraces", mock.Anything, mock.Anything).
+			server.traceReader.On("GetTraces", mock.Anything, input.expectedQuery).
 				Return(traceIterator(mockTrace, nil)).Once()
 
 			res, err := client.GetTrace(context.Background(), &input.request)
@@ -252,8 +258,14 @@ func TestGetTraceEmptyTraceIDFailure_GRPC(t *testing.T) {
 }
 
 func TestGetTraceDBFailureGRPC(t *testing.T) {
+	var traceID pcommon.TraceID
+	binary.BigEndian.PutUint64(traceID[:8], mockTraceID.High)
+	binary.BigEndian.PutUint64(traceID[8:], mockTraceID.Low)
+
+	expectedQuery := []tracestore.GetTraceParams{{TraceID: traceID}}
+
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-		server.traceReader.On("GetTraces", mock.Anything, mock.Anything).
+		server.traceReader.On("GetTraces", mock.Anything, expectedQuery).
 			Return(traceIterator(nil, errStorageGRPC)).Once()
 
 		res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
@@ -268,11 +280,16 @@ func TestGetTraceDBFailureGRPC(t *testing.T) {
 }
 
 func TestGetTraceNotFoundGRPC(t *testing.T) {
+	var traceID pcommon.TraceID
+	binary.BigEndian.PutUint64(traceID[:8], mockTraceID.High)
+	binary.BigEndian.PutUint64(traceID[8:], mockTraceID.Low)
+	expectedQuery := []tracestore.GetTraceParams{{TraceID: traceID}}
+
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-		server.traceReader.On("GetTraces", mock.Anything, mock.Anything).
+		server.traceReader.On("GetTraces", mock.Anything, expectedQuery).
 			Return(traceIterator(nil, nil)).Once()
 
-		server.archiveTraceReader.On("GetTraces", mock.Anything, mock.Anything).
+		server.archiveTraceReader.On("GetTraces", mock.Anything, expectedQuery).
 			Return(traceIterator(nil, nil)).Once()
 
 		res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
@@ -678,7 +695,7 @@ func TestSearchTenancyGRPC(t *testing.T) {
 		Enabled: true,
 	})
 	withTenantedServerAndClient(t, tm, func(server *grpcServer, client *grpcClient) {
-		server.traceReader.On("GetTraces", mock.Anything, mock.Anything).
+		server.traceReader.On("GetTraces", mock.Anything, mock.AnythingOfType("[]tracestore.GetTraceParams")).
 			Return(traceIterator(mockTrace, nil)).Once()
 
 		// First try without tenancy header
