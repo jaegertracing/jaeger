@@ -12,6 +12,7 @@ We gratefully welcome improvements to documentation as well as to code.
 Table of Contents:
 
 * [Making a Change](#making-a-change)
+* [Pull Request Limits for New Contributors](#pull-request-limits-for-new-contributors)
 * [License](#license)
 * [Certificate of Origin - Sign your work](#certificate-of-origin---sign-your-work)
 * [Branches](#branches)
@@ -88,6 +89,38 @@ Each PR should have:
   * Use the imperative mood in the title
 * A description of the problem it is solving. It could be simply a reference to the corresponding issue, e.g. `Resolves #123`.
 * A summary of changes made to solve the problem. Explain _what_ and _why_ instead of _how_.
+
+## Pull Request Limits for New Contributors
+
+To ensure high-quality code reviews and long-term codebase stability, we limit the number of simultaneous open PRs for new contributors.
+
+### The Policy
+
+Your limit of **simultaneous open PRs** is based on your history with this project:
+
+| Merged PRs in this project | Max Simultaneous Open PRs |
+| :--- | :--- |
+| **0** (First-time contributor) | **1** |
+| **1** merged PR | **2** |
+| **2** merged PRs | **3** |
+| **3+** merged PRs | **Unlimited** |
+
+### Why We Do This
+
+Large-scale or complex refactors—especially those assisted by AI—require significant effort to review. A high volume of PRs from new contributors often leads to:
+
+* **Review Bottlenecks:** Quality reviews take time. A flood of PRs prevents us from giving any single PR the attention it deserves.
+* **Context Fragmentation:** Refactoring legacy code requires deep understanding. We prefer to work with you on one area of the code at a time to ensure the architectural direction is correct.
+* **Reduced Noise:** This policy helps us distinguish between intentional improvements and automated "bulk" refactors that may introduce subtle regressions.
+
+### How to Proceed
+
+If you reach your limit, please focus on addressing feedback and merging your existing PR(s) before opening new ones. PRs opened in excess of these limits may be labeled as **on-hold** or closed to keep our backlog manageable.
+
+### Tips for Success
+
+* **Verify AI Output:** If you use AI tools to assist in refactoring, you are responsible for manually verifying every line. We expect contributors to be able to explain the "why" behind every change.
+* **Small over Large:** Smaller, atomic PRs are much more likely to be merged quickly than large refactors.
 
 ## License
 
