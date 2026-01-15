@@ -126,7 +126,7 @@ func (cfg *TraceBackend) Validate() error {
 		return errors.New("empty configuration")
 	}
 	if len(backends) > 1 {
-		return fmt.Errorf("multiple backends types found for trace storage: %v", backends)
+		return fmt.Errorf("multiple backend types found for trace storage: %v", backends)
 	}
 	return nil
 }
@@ -166,7 +166,7 @@ func (cfg *MetricBackend) Validate() error {
 		return errors.New("empty configuration")
 	}
 	if len(backends) > 1 {
-		return fmt.Errorf("multiple backends types found for metric storage: %v", backends)
+		return fmt.Errorf("multiple backend types found for metric storage: %v", backends)
 	}
 	return nil
 }
