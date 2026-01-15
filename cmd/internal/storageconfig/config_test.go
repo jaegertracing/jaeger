@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
 
+	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 )
 
@@ -64,6 +66,47 @@ func TestConfigValidate(t *testing.T) {
 			},
 			expectError: true,
 			errorMsg:    "empty backend configuration for storage 'empty'",
+		},
+		{
+			name: "valid metric backend",
+			config: Config{
+				TraceBackends: map[string]TraceBackend{
+					"memory": {Memory: &memory.Configuration{}},
+				},
+				MetricBackends: map[string]MetricBackend{
+					"prometheus": {Prometheus: &PrometheusConfiguration{}},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "invalid trace backend",
+			config: Config{
+				TraceBackends: map[string]TraceBackend{
+					"invalid": {
+						Memory: &memory.Configuration{},
+						Badger: &badger.Config{},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "trace storage 'invalid': multiple backends types found",
+		},
+		{
+			name: "invalid metric backend",
+			config: Config{
+				TraceBackends: map[string]TraceBackend{
+					"memory": {Memory: &memory.Configuration{}},
+				},
+				MetricBackends: map[string]MetricBackend{
+					"invalid": {
+						Prometheus:    &PrometheusConfiguration{},
+						Elasticsearch: &escfg.Configuration{},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "metric storage 'invalid': multiple backends types found",
 		},
 	}
 
