@@ -76,7 +76,10 @@ func NewQueryService(
 		traceReader:      traceReader,
 		dependencyReader: dependencyReader,
 		adjuster: adjuster.Sequence(
-			adjuster.StandardAdjusters(options.MaxClockSkewAdjust)...,
+			adjuster.StandardAdjusters(
+				options.MaxClockSkewAdjust, 
+				options.MaxTraceSize,
+			)...,
 		),
 		options: options,
 	}

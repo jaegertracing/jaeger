@@ -1,4 +1,4 @@
-// Copyright (c) 2019,2020 The Jaeger Authors.
+// Copyright (cQueryOptions ) 2019,2020 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package app
