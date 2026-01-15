@@ -4,6 +4,8 @@
 package storageconfig
 
 import (
+	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -242,5 +244,57 @@ func TestMetricBackendUnmarshal(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func getStorageKeys(t reflect.Type) []string {
+	var keys []string
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		tag := field.Tag.Get("mapstructure")
+		if tag != "" && tag != ",squash" {
+			keys = append(keys, tag)
+		}
+	}
+	return keys
+}
+
+func TestTraceBackendExclusive(t *testing.T) {
+	keys := getStorageKeys(reflect.TypeOf(TraceBackend{}))
+	for i := range keys {
+		for j := i + 1; j < len(keys); j++ {
+			key1 := keys[i]
+			key2 := keys[j]
+			t.Run(fmt.Sprintf("%s+%s", key1, key2), func(t *testing.T) {
+				conf := confmap.NewFromStringMap(map[string]any{
+					key1: map[string]any{},
+					key2: map[string]any{},
+				})
+				var tb TraceBackend
+				err := tb.Unmarshal(conf)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "multiple backends types found")
+			})
+		}
+	}
+}
+
+func TestMetricBackendExclusive(t *testing.T) {
+	keys := getStorageKeys(reflect.TypeOf(MetricBackend{}))
+	for i := 0; i < len(keys); i++ {
+		for j := i + 1; j < len(keys); j++ {
+			key1 := keys[i]
+			key2 := keys[j]
+			t.Run(fmt.Sprintf("%s+%s", key1, key2), func(t *testing.T) {
+				conf := confmap.NewFromStringMap(map[string]any{
+					key1: map[string]any{},
+					key2: map[string]any{},
+				})
+				var mb MetricBackend
+				err := mb.Unmarshal(conf)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "multiple backends types found")
+			})
+		}
 	}
 }

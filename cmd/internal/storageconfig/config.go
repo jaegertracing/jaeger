@@ -77,6 +77,7 @@ func (cfg *TraceBackend) Unmarshal(conf *confmap.Conf) error {
 		cfg.Badger = v
 	}
 	if conf.IsSet("grpc") {
+		found["grpc"] = struct{}{}
 		v := grpc.DefaultConfig()
 		cfg.GRPC = &v
 	}
@@ -102,6 +103,10 @@ func (cfg *TraceBackend) Unmarshal(conf *confmap.Conf) error {
 		found["opensearch"] = struct{}{}
 		v := es.DefaultConfig()
 		cfg.Opensearch = &v
+	}
+	if conf.IsSet("clickhouse") {
+		found["clickhouse"] = struct{}{}
+		cfg.ClickHouse = &clickhouse.Configuration{}
 	}
 	if len(found) > 1 {
 		names := slices.Collect(maps.Keys(found))
@@ -150,5 +155,7 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("empty backend configuration for storage '%s'", name)
 		}
 	}
+	// TODO: we need to validate that only one backend type is configured for each
+	// storage name in each category (trace and metric).
 	return nil
 }
