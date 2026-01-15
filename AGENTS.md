@@ -2,6 +2,13 @@
 
 This file provides guidance for AI agents working on the Jaeger repository. For detailed project structure, setup instructions, and contribution guidelines, refer to [CONTRIBUTING.md](./CONTRIBUTING.md).
 
+## Setup
+
+If checking out a fresh repository, initialize submodules:
+```bash
+git submodule update --init --recursive
+```
+
 ## Required Workflow
 
 **Before considering any task complete**, you MUST verify:
