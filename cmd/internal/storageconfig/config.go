@@ -6,7 +6,9 @@ package storageconfig
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"reflect"
+	"slices"
 	"time"
 
 	"go.opentelemetry.io/collector/confmap"
@@ -60,13 +62,17 @@ type PrometheusConfiguration struct {
 // Unmarshal implements confmap.Unmarshaler. This allows us to provide
 // defaults for different configs.
 func (cfg *TraceBackend) Unmarshal(conf *confmap.Conf) error {
+	// currently this is the most reliable place to validate that only one backend is configured
+	found := map[string]struct{}{}
 	// apply defaults
 	if conf.IsSet("memory") {
+		found["memory"] = struct{}{}
 		cfg.Memory = &memory.Configuration{
 			MaxTraces: 1_000_000,
 		}
 	}
 	if conf.IsSet("badger") {
+		found["badger"] = struct{}{}
 		v := badger.DefaultConfig()
 		cfg.Badger = v
 	}
@@ -75,6 +81,7 @@ func (cfg *TraceBackend) Unmarshal(conf *confmap.Conf) error {
 		cfg.GRPC = &v
 	}
 	if conf.IsSet("cassandra") {
+		found["cassandra"] = struct{}{}
 		cfg.Cassandra = &cassandra.Options{
 			Configuration:          cascfg.DefaultConfiguration(),
 			SpanStoreWriteCacheTTL: 12 * time.Hour,
@@ -87,32 +94,47 @@ func (cfg *TraceBackend) Unmarshal(conf *confmap.Conf) error {
 		}
 	}
 	if conf.IsSet("elasticsearch") {
+		found["elasticsearch"] = struct{}{}
 		v := es.DefaultConfig()
 		cfg.Elasticsearch = &v
 	}
 	if conf.IsSet("opensearch") {
+		found["opensearch"] = struct{}{}
 		v := es.DefaultConfig()
 		cfg.Opensearch = &v
+	}
+	if len(found) > 1 {
+		names := slices.Collect(maps.Keys(found))
+		return fmt.Errorf("multiple backends types found for trace storage: %v", names)
 	}
 	return conf.Unmarshal(cfg)
 }
 
 // Unmarshal implements confmap.Unmarshaler for MetricBackend.
 func (cfg *MetricBackend) Unmarshal(conf *confmap.Conf) error {
+	// currently this is the most reliable place to validate that only one backend is configured
+	found := map[string]struct{}{}
 	// apply defaults
 	if conf.IsSet("prometheus") {
+		found["prometheus"] = struct{}{}
 		v := prometheus.DefaultConfig()
 		cfg.Prometheus = &PrometheusConfiguration{
 			Configuration: v,
 		}
 	}
 	if conf.IsSet("elasticsearch") {
+		found["elasticsearch"] = struct{}{}
 		v := es.DefaultConfig()
 		cfg.Elasticsearch = &v
 	}
 	if conf.IsSet("opensearch") {
+		found["opensearch"] = struct{}{}
 		v := es.DefaultConfig()
 		cfg.Opensearch = &v
+	}
+	if len(found) > 1 {
+		names := slices.Collect(maps.Keys(found))
+		return fmt.Errorf("multiple backends types found for metric storage: %v", names)
 	}
 	return conf.Unmarshal(cfg)
 }
