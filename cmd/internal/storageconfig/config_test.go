@@ -4,12 +4,16 @@
 package storageconfig
 
 import (
+	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
 
+	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 )
 
@@ -61,7 +65,48 @@ func TestConfigValidate(t *testing.T) {
 				},
 			},
 			expectError: true,
-			errorMsg:    "empty backend configuration for storage 'empty'",
+			errorMsg:    "trace storage 'empty': empty configuration",
+		},
+		{
+			name: "valid metric backend",
+			config: Config{
+				TraceBackends: map[string]TraceBackend{
+					"memory": {Memory: &memory.Configuration{}},
+				},
+				MetricBackends: map[string]MetricBackend{
+					"prometheus": {Prometheus: &PrometheusConfiguration{}},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "invalid trace backend",
+			config: Config{
+				TraceBackends: map[string]TraceBackend{
+					"invalid": {
+						Memory: &memory.Configuration{},
+						Badger: &badger.Config{},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "trace storage 'invalid': multiple backend types found",
+		},
+		{
+			name: "invalid metric backend",
+			config: Config{
+				TraceBackends: map[string]TraceBackend{
+					"memory": {Memory: &memory.Configuration{}},
+				},
+				MetricBackends: map[string]MetricBackend{
+					"invalid": {
+						Prometheus:    &PrometheusConfiguration{},
+						Elasticsearch: &escfg.Configuration{},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "metric storage 'invalid': multiple backend types found",
 		},
 	}
 
@@ -242,5 +287,63 @@ func TestMetricBackendUnmarshal(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func getStorageKeys(t reflect.Type) []string {
+	var keys []string
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		tag := field.Tag.Get("mapstructure")
+		if tag != "" && tag != ",squash" {
+			keys = append(keys, tag)
+		}
+	}
+	return keys
+}
+
+func TestTraceBackendExclusive(t *testing.T) {
+	keys := getStorageKeys(reflect.TypeOf(TraceBackend{}))
+	for i := range keys {
+		for j := i + 1; j < len(keys); j++ {
+			key1 := keys[i]
+			key2 := keys[j]
+			t.Run(fmt.Sprintf("%s+%s", key1, key2), func(t *testing.T) {
+				conf := confmap.NewFromStringMap(map[string]any{
+					key1: map[string]any{},
+					key2: map[string]any{},
+				})
+				var tb TraceBackend
+				err := tb.Unmarshal(conf)
+				require.NoError(t, err)
+
+				err = tb.Validate()
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "multiple backend types found")
+			})
+		}
+	}
+}
+
+func TestMetricBackendExclusive(t *testing.T) {
+	keys := getStorageKeys(reflect.TypeOf(MetricBackend{}))
+	for i := 0; i < len(keys); i++ {
+		for j := i + 1; j < len(keys); j++ {
+			key1 := keys[i]
+			key2 := keys[j]
+			t.Run(fmt.Sprintf("%s+%s", key1, key2), func(t *testing.T) {
+				conf := confmap.NewFromStringMap(map[string]any{
+					key1: map[string]any{},
+					key2: map[string]any{},
+				})
+				var mb MetricBackend
+				err := mb.Unmarshal(conf)
+				require.NoError(t, err)
+
+				err = mb.Validate()
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "multiple backend types found")
+			})
+		}
 	}
 }

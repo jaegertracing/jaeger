@@ -6,7 +6,6 @@ package storageconfig
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"time"
 
 	"go.opentelemetry.io/collector/confmap"
@@ -94,7 +93,42 @@ func (cfg *TraceBackend) Unmarshal(conf *confmap.Conf) error {
 		v := es.DefaultConfig()
 		cfg.Opensearch = &v
 	}
+	if conf.IsSet("clickhouse") {
+		cfg.ClickHouse = &clickhouse.Configuration{}
+	}
 	return conf.Unmarshal(cfg)
+}
+
+func (cfg *TraceBackend) Validate() error {
+	var backends []string
+	if cfg.Memory != nil {
+		backends = append(backends, "memory")
+	}
+	if cfg.Badger != nil {
+		backends = append(backends, "badger")
+	}
+	if cfg.GRPC != nil {
+		backends = append(backends, "grpc")
+	}
+	if cfg.Cassandra != nil {
+		backends = append(backends, "cassandra")
+	}
+	if cfg.Elasticsearch != nil {
+		backends = append(backends, "elasticsearch")
+	}
+	if cfg.Opensearch != nil {
+		backends = append(backends, "opensearch")
+	}
+	if cfg.ClickHouse != nil {
+		backends = append(backends, "clickhouse")
+	}
+	if len(backends) == 0 {
+		return errors.New("empty configuration")
+	}
+	if len(backends) > 1 {
+		return fmt.Errorf("multiple backend types found for trace storage: %v", backends)
+	}
+	return nil
 }
 
 // Unmarshal implements confmap.Unmarshaler for MetricBackend.
@@ -117,15 +151,39 @@ func (cfg *MetricBackend) Unmarshal(conf *confmap.Conf) error {
 	return conf.Unmarshal(cfg)
 }
 
+func (cfg *MetricBackend) Validate() error {
+	var backends []string
+	if cfg.Prometheus != nil {
+		backends = append(backends, "prometheus")
+	}
+	if cfg.Elasticsearch != nil {
+		backends = append(backends, "elasticsearch")
+	}
+	if cfg.Opensearch != nil {
+		backends = append(backends, "opensearch")
+	}
+	if len(backends) == 0 {
+		return errors.New("empty configuration")
+	}
+	if len(backends) > 1 {
+		return fmt.Errorf("multiple backend types found for metric storage: %v", backends)
+	}
+	return nil
+}
+
 // Validate validates the storage configuration.
 func (c *Config) Validate() error {
 	if len(c.TraceBackends) == 0 {
 		return errors.New("at least one storage backend is required")
 	}
 	for name, b := range c.TraceBackends {
-		empty := TraceBackend{}
-		if reflect.DeepEqual(b, empty) {
-			return fmt.Errorf("empty backend configuration for storage '%s'", name)
+		if err := b.Validate(); err != nil {
+			return fmt.Errorf("trace storage '%s': %w", name, err)
+		}
+	}
+	for name, b := range c.MetricBackends {
+		if err := b.Validate(); err != nil {
+			return fmt.Errorf("metric storage '%s': %w", name, err)
 		}
 	}
 	return nil
