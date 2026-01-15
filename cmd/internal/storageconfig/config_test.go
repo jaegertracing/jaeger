@@ -90,7 +90,7 @@ func TestConfigValidate(t *testing.T) {
 				},
 			},
 			expectError: true,
-			errorMsg:    "trace storage 'invalid': multiple backends types found",
+			errorMsg:    "trace storage 'invalid': multiple backend types found",
 		},
 		{
 			name: "invalid metric backend",
@@ -106,7 +106,7 @@ func TestConfigValidate(t *testing.T) {
 				},
 			},
 			expectError: true,
-			errorMsg:    "metric storage 'invalid': multiple backends types found",
+			errorMsg:    "metric storage 'invalid': multiple backend types found",
 		},
 	}
 
@@ -319,7 +319,7 @@ func TestTraceBackendExclusive(t *testing.T) {
 
 				err = tb.Validate()
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), "multiple backends types found")
+				assert.Contains(t, err.Error(), "multiple backend types found")
 			})
 		}
 	}
@@ -342,7 +342,7 @@ func TestMetricBackendExclusive(t *testing.T) {
 
 				err = mb.Validate()
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), "multiple backends types found")
+				assert.Contains(t, err.Error(), "multiple backend types found")
 			})
 		}
 	}
