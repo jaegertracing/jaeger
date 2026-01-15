@@ -22,6 +22,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 func TestTraceReader_GetServices(t *testing.T) {
@@ -250,6 +251,73 @@ func Test_NewTraceReader(t *testing.T) {
 		Logger: zap.NewNop(),
 	})
 	assert.IsType(t, &spanstore.SpanReader{}, reader.spanReader)
+}
+
+func TestTraceReader_FindTraceIDs_OTLPQueryTranslation(t *testing.T) {
+	tests := []struct {
+		name        string
+		queryAttr   string
+		queryVal    string
+		expectedTag string
+		expectedVal string
+	}{
+		{
+			name:        "scope.name translation",
+			queryAttr:   "scope.name",
+			queryVal:    "my-scope",
+			expectedTag: otelsemconv.AttributeOtelScopeName,
+			expectedVal: "my-scope",
+		},
+		{
+			name:        "scope.version translation",
+			queryAttr:   "scope.version",
+			queryVal:    "1.0.0",
+			expectedTag: otelsemconv.AttributeOtelScopeVersion,
+			expectedVal: "1.0.0",
+		},
+		{
+			name:        "resource attribute translation",
+			queryAttr:   "resource.service.instance.id",
+			queryVal:    "instance-1",
+			expectedTag: "service.instance.id",
+			expectedVal: "instance-1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			coreReader := &mocks.CoreSpanReader{}
+			reader := TraceReader{spanReader: coreReader}
+
+			attrs := pcommon.NewMap()
+			attrs.PutStr(tt.queryAttr, tt.queryVal)
+
+			traceQueryParams := tracestore.TraceQueryParams{
+				Attributes: attrs,
+				// Add dummy time/duration to satisfy validation if any (V1 reader has defaults)
+				StartTimeMin: time.Now().Add(-1 * time.Hour),
+				StartTimeMax: time.Now(),
+			}
+
+			expectedDBParams := mock.MatchedBy(func(p dbmodel.TraceQueryParameters) bool {
+				if val, ok := p.Tags[tt.expectedTag]; ok {
+					return val == tt.expectedVal
+				}
+				if _, ok := p.Tags[tt.queryAttr]; ok {
+					return false
+				}
+				return false
+			})
+
+			coreReader.On("FindTraceIDs", mock.Anything, expectedDBParams).Return([]dbmodel.TraceID{}, nil)
+
+			for _, err := range reader.FindTraceIDs(context.Background(), traceQueryParams) {
+				require.NoError(t, err)
+			}
+
+			coreReader.AssertExpectations(t)
+		})
+	}
 }
 
 func fromDBTraceId(t *testing.T, traceID dbmodel.TraceID) tracestore.FoundTraceID {
