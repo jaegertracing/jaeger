@@ -752,7 +752,7 @@ func TestSearchTenancyGRPCExplicitList(t *testing.T) {
 		Tenants: []string{"mercury", "venus", "mars"},
 	})
 	withTenantedServerAndClient(t, tm, func(server *grpcServer, client *grpcClient) {
-		server.traceReader.On("GetTraces", mock.Anything, mock.Anything).
+		server.traceReader.On("GetTraces", mock.Anything, mock.AnythingOfType("[]tracestore.GetTraceParams")).
 			Return(traceIterator(mockTrace, nil)).Once()
 
 		for _, tc := range []struct {
