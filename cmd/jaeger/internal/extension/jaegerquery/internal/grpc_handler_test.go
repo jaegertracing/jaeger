@@ -28,7 +28,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	// "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	depsmocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
@@ -299,20 +299,24 @@ func TestGetTraceNilRequestOnHandlerGRPC(t *testing.T) {
 }
 
 func TestArchiveTraceSuccessGRPC(t *testing.T) {
+	var traceID pcommon.TraceID
+	binary.BigEndian.PutUint64(traceID[:8], mockTraceID.High)
+	binary.BigEndian.PutUint64(traceID[8:], mockTraceID.Low)
+
 	inputs := []struct {
-		expectedQuery spanstore.GetTraceParameters
+		expectedQuery []tracestore.GetTraceParams
 		request       api_v2.ArchiveTraceRequest
 	}{
 		{
-			spanstore.GetTraceParameters{TraceID: mockTraceID},
+			[]tracestore.GetTraceParams{{TraceID: traceID}},
 			api_v2.ArchiveTraceRequest{TraceID: mockTraceID},
 		},
 		{
-			spanstore.GetTraceParameters{
-				TraceID:   mockTraceID,
-				StartTime: startTime,
-				EndTime:   endTime,
-			},
+			[]tracestore.GetTraceParams{{
+				TraceID: traceID,
+				Start:   startTime,
+				End:     endTime,
+			}},
 			api_v2.ArchiveTraceRequest{
 				TraceID:   mockTraceID,
 				StartTime: startTime,
@@ -322,7 +326,7 @@ func TestArchiveTraceSuccessGRPC(t *testing.T) {
 	}
 	for _, input := range inputs {
 		withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-			server.traceReader.On("GetTraces", mock.Anything, mock.Anything).
+			server.traceReader.On("GetTraces", mock.Anything, input.expectedQuery).
 				Return(traceIterator(mockTrace, nil)).Once()
 			server.archiveTraceWriter.On("WriteTraces", mock.Anything, mock.Anything).
 				Return(nil).Once()
