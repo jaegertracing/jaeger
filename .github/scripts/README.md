@@ -102,7 +102,7 @@ FORMAT=csv node list-open-prs-by-author.js > prs.csv
 
 The script will display:
 
-1. **History Audit**: List of first 10 merged PRs by the user
+1. **History Audit**: Summary of merged PR count (up to 3 merged PRs for quota calculation)
 2. **Current Stats**: Merged count, calculated quota, and open PR count
 3. **Processing Actions**: Each PR being blocked/unblocked
 4. **Summary**: Total counts of blocked, unblocked, and unchanged PRs
@@ -112,7 +112,7 @@ The script will display:
 ```
 === Processing Quota for: @newuser ===
 
-📜 History Audit (First 10 Merged PRs):
+📜 History Audit:
   No merged PRs found.
 
 📊 Current Stats:
@@ -156,7 +156,7 @@ The script applies the following quota rules:
 | 0 | 1 |
 | 1 | 2 |
 | 2 | 3 |
-| 3+ | Unlimited (100) |
+| 3+ | 10 |
 
 ## Troubleshooting
 
@@ -191,7 +191,7 @@ If you hit rate limits, wait for the limit to reset or use a different token.
 
 ## How It Works
 
-1. **Fetches all PRs** by the target author from the repository
+1. **Fetches PRs** by the target author (all open PRs + up to 3 merged PRs for quota calculation)
 2. **Calculates quota** based on the number of merged PRs
 3. **Identifies open PRs** and sorts them by creation date (oldest first)
 4. **Applies labels** to PRs based on quota:

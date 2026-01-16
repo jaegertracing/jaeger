@@ -1,7 +1,7 @@
 name: PR Quota Manager
 
 on:
-  pull_request:
+  pull_request_target:  # Runs with write permissions even for fork PRs
     types: [opened, closed, reopened, synchronize]  # synchronize = new commits pushed
   workflow_dispatch:
     inputs:
