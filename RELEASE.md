@@ -10,7 +10,46 @@ Create an issue with the checklist for the release by running `bash scripts/rele
    2. For monitoring and troubleshooting, refer to the [jaegertracing/documentation Github Actions tab](https://github.com/jaegertracing/documentation/actions).
 5. Announce the release on the [mailing list](https://groups.google.com/g/jaeger-tracing), [slack](https://cloud-native.slack.com/archives/CGG7NFUJ3), and [twitter](https://twitter.com/JaegerTracing?lang=en).
 
+# Verifying Release Signatures
+
+All Jaeger releases are cryptographically signed. Users should verify signatures before using release artifacts.
+
+## Signed Artifacts
+
+| Artifact Type | Signing Method |
+|---------------|----------------|
+| Git tags | GPG signed (`git tag -s`) |
+| Binary archives | GPG detached signatures (`.asc` files) |
+| Container images | Available on Docker Hub and Quay.io |
+| SBOM | Included with each release |
+
+## Verifying Binary Signatures
+
+1. **Import the Jaeger GPG public key** (see [SECURITY.md](SECURITY.md#our-public-key)):
+   ```bash
+   gpg --keyserver keyserver.ubuntu.com --recv-keys C043A4D2B3F2AC31
+   ```
+
+2. **Download the release artifact and its signature**:
+   ```bash
+   wget https://github.com/jaegertracing/jaeger/releases/download/v2.0.0/jaeger-2.0.0-linux-amd64.tar.gz
+   wget https://github.com/jaegertracing/jaeger/releases/download/v2.0.0/jaeger-2.0.0-linux-amd64.tar.gz.asc
+   ```
+
+3. **Verify the signature**:
+   ```bash
+   gpg --verify jaeger-2.0.0-linux-amd64.tar.gz.asc jaeger-2.0.0-linux-amd64.tar.gz
+   ```
+
+## Verifying Git Tag Signatures
+
+```bash
+git fetch --tags
+git tag -v v2.0.0
+```
+
 # Jaeger Backend Release Process
+
 
 <!-- BEGIN_CHECKLIST -->
 

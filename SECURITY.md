@@ -124,3 +124,15 @@ oF+qZY4uEvqFvYo8
 ## Securing a Jaeger installation
 
 If you are looking to secure your Jaeger installation, check out our documentation on the topic: [Securing Jaeger Installation](https://www.jaegertracing.io/docs/latest/security/).
+
+## Security Documentation
+
+For more detailed security information, see:
+
+| Document | Description |
+|----------|-------------|
+| [THREAT-MODEL.md](THREAT-MODEL.md) | Threat model and trust boundaries |
+| [ASSURANCE-CASE.md](ASSURANCE-CASE.md) | Security assurance case |
+| [SECURITY-ARCHITECTURE.md](SECURITY-ARCHITECTURE.md) | TLS and cryptographic practices |
+| [Self-Assessment](docs/security/self-assessment.md) | CNCF TAG Security self-assessment |
+| [RELEASE.md](RELEASE.md#verifying-release-signatures) | Release signature verification |
