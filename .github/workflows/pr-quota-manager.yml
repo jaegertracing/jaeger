@@ -37,8 +37,14 @@ jobs:
           github-token: ${{ secrets.PR_QUOTA_MANAGER_PAT || github.token }}
           script: |
             const handler = require('./.github/scripts/pr-quota-manager.js')
-            // For push events, use a test username; for PR events, use PR author; for manual, use input
-            const username = context.payload.pull_request?.user?.login || context.payload.inputs?.username || 'yurishkuro'
+            // For PR events, use PR author; for manual runs, use input. Fail if no username can be determined.
+            const prUser = context.payload.pull_request?.user?.login
+            const inputUser = context.payload.inputs?.username
+            const username = prUser || inputUser
+            if (!username) {
+              core.setFailed('Unable to determine username for quota processing. Aborting.')
+              return
+            }
             const owner = context.repo.owner
             const repo = context.repo.repo
             const dryRun = context.payload.inputs?.dryRun || false
