@@ -53,18 +53,18 @@ func (*mockStorageExt) Shutdown(context.Context) error {
 	panic("not implemented")
 }
 
-func (m *mockStorageExt) TraceStorageFactory(name string) (tracestore.Factory, bool) {
+func (m *mockStorageExt) TraceStorageFactory(name string) (tracestore.Factory, error) {
 	if m.name == name {
-		return m.factory, true
+		return m.factory, nil
 	}
-	return nil, false
+	return nil, errors.New("storage not found")
 }
 
-func (m *mockStorageExt) MetricStorageFactory(name string) (storage.MetricStoreFactory, bool) {
+func (m *mockStorageExt) MetricStorageFactory(name string) (storage.MetricStoreFactory, error) {
 	if m.name == name {
-		return m.metricsFactory, true
+		return m.metricsFactory, nil
 	}
-	return nil, false
+	return nil, errors.New("metric storage not found")
 }
 
 func TestStorageCleanerExtension(t *testing.T) {
