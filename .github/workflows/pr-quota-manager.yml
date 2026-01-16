@@ -33,7 +33,8 @@ jobs:
       - name: Process PR Quota
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.PR_QUOTA_MANAGER_PAT }}
+          # Use custom PAT if available (not available for fork PRs), otherwise use default token
+          github-token: ${{ secrets.PR_QUOTA_MANAGER_PAT || github.token }}
           script: |
             const handler = require('./.github/scripts/pr-quota-manager.js')
             // For push events, use a test username; for PR events, use PR author; for manual, use input
