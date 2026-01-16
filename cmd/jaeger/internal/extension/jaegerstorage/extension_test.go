@@ -449,7 +449,7 @@ func TestMetricStorageStartError(t *testing.T) {
 				require.ErrorContains(t, err, tt.expectedError)
 			} else {
 				// If Start() succeeds, error should occur when accessing factory
-				storageExt := ext.(*storageExt)
+				storageExt := ext.(Extension)
 				_, err := storageExt.MetricStorageFactory("foo")
 				require.ErrorContains(t, err, tt.expectedError)
 			}
@@ -511,7 +511,7 @@ func TestCassandraError(t *testing.T) {
 		require.ErrorContains(t, err, "Servers: non zero value required")
 	} else {
 		// If Start() succeeds, error should occur when accessing factory
-		storageExt := ext.(*storageExt)
+		storageExt := ext.(Extension)
 		_, err := storageExt.TraceStorageFactory("cassandra")
 		require.ErrorContains(t, err, "failed to initialize storage 'cassandra'")
 		require.ErrorContains(t, err, "Servers: non zero value required")
@@ -723,7 +723,7 @@ func TestMetricBackendWithInvalidAuthenticator(t *testing.T) {
 	require.NoError(t, err)
 
 	// Error should occur when accessing factory
-	storageExt := ext.(*storageExt)
+	storageExt := ext.(Extension)
 	_, err = storageExt.MetricStorageFactory("prometheus")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to get HTTP authenticator")
@@ -937,7 +937,7 @@ func TestElasticsearchWithMissingAuthenticator(t *testing.T) {
 	require.NoError(t, err)
 
 	// Error should occur when accessing factory
-	storageExt := ext.(*storageExt)
+	storageExt := ext.(Extension)
 	_, err = storageExt.TraceStorageFactory("elasticsearch")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to get HTTP authenticator")
@@ -967,7 +967,7 @@ func TestOpenSearchTraceWithMissingAuthenticator(t *testing.T) {
 	require.NoError(t, err)
 
 	// Error should occur when accessing factory
-	storageExt := ext.(*storageExt)
+	storageExt := ext.(Extension)
 	_, err = storageExt.TraceStorageFactory("opensearch")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to get HTTP authenticator")
@@ -1002,7 +1002,7 @@ func TestElasticsearchWithWrongAuthenticatorType(t *testing.T) {
 	require.NoError(t, err)
 
 	// Error should occur when accessing factory
-	storageExt := ext.(*storageExt)
+	storageExt := ext.(Extension)
 	_, err = storageExt.TraceStorageFactory("elasticsearch")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "does not implement extensionauth.HTTPClient")
@@ -1037,7 +1037,7 @@ func TestOpenSearchWithWrongAuthenticatorType(t *testing.T) {
 	require.NoError(t, err)
 
 	// Error should occur when accessing factory
-	storageExt := ext.(*storageExt)
+	storageExt := ext.(Extension)
 	_, err = storageExt.TraceStorageFactory("opensearch")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "does not implement extensionauth.HTTPClient")
@@ -1067,7 +1067,7 @@ func TestElasticsearchMetricsWithInvalidAuthenticator(t *testing.T) {
 	require.NoError(t, err)
 
 	// Error should occur when accessing factory
-	storageExt := ext.(*storageExt)
+	storageExt := ext.(Extension)
 	_, err = storageExt.MetricStorageFactory("elasticsearch")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to get HTTP authenticator")
@@ -1097,7 +1097,7 @@ func TestOpenSearchMetricsWithInvalidAuthenticator(t *testing.T) {
 	require.NoError(t, err)
 
 	// Error should occur when accessing factory
-	storageExt := ext.(*storageExt)
+	storageExt := ext.(Extension)
 	_, err = storageExt.MetricStorageFactory("opensearch")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to get HTTP authenticator")

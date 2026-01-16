@@ -36,6 +36,7 @@ type storageExt struct {
 	config           *Config
 	telset           component.TelemetrySettings
 	host             component.Host
+	telsetForFactory telemetry.Settings
 	factories        map[string]tracestore.Factory
 	metricsFactories map[string]storage.MetricStoreFactory
 	factoryMu        sync.Mutex
@@ -50,7 +51,10 @@ func getStorageFactory(name string, host component.Host) (tracestore.Factory, er
 	}
 	f, err := ext.TraceStorageFactory(name)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf(
+			"cannot find definition of storage '%s' in the configuration for extension '%s': %w",
+			name, componentType, err,
+		)
 	}
 	return f, nil
 }
@@ -64,7 +68,10 @@ func GetMetricStorageFactory(name string, host component.Host) (storage.MetricSt
 	}
 	mf, err := ext.MetricStorageFactory(name)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf(
+			"cannot find metric storage '%s' declared by '%s' extension: %w",
+			name, componentType, err,
+		)
 	}
 	return mf, nil
 }
@@ -140,6 +147,11 @@ func newStorageExt(cfg *Config, telset component.TelemetrySettings) *storageExt 
 func (s *storageExt) Start(ctx context.Context, host component.Host) error {
 	s.host = host
 
+	// Create telset once for use in lazy factory initialization
+	telset := telemetry.FromOtelComponent(s.telset, host)
+	telset.Metrics = telset.Metrics.Namespace(metrics.NSOptions{Name: "jaeger"})
+	s.telsetForFactory = telset
+
 	// Validate configurations early to catch errors at startup
 	for name, cfg := range s.config.TraceBackends {
 		if err := cfg.Validate(); err != nil {
@@ -194,14 +206,11 @@ func (s *storageExt) TraceStorageFactory(name string) (tracestore.Factory, error
 	}
 
 	// Create factory on demand
-	telset := telemetry.FromOtelComponent(s.telset, s.host)
-	telset.Metrics = telset.Metrics.Namespace(metrics.NSOptions{Name: "jaeger"})
-
 	factory, err := storageconfig.CreateTraceStorageFactory(
 		context.Background(),
 		name,
 		cfg,
-		telset,
+		s.telsetForFactory,
 		func(authCfg config.Authentication, backendType, backendName string) (extensionauth.HTTPClient, error) {
 			return s.resolveAuthenticator(s.host, authCfg, backendType, backendName)
 		},
@@ -214,28 +223,8 @@ func (s *storageExt) TraceStorageFactory(name string) (tracestore.Factory, error
 	return factory, nil
 }
 
-func (s *storageExt) MetricStorageFactory(name string) (storage.MetricStoreFactory, error) {
-	s.factoryMu.Lock()
-	defer s.factoryMu.Unlock()
-
-	// Return cached factory if already created
-	if mf, ok := s.metricsFactories[name]; ok {
-		return mf, nil
-	}
-
-	// Check if configuration exists
-	cfg, ok := s.config.MetricBackends[name]
-	if !ok {
-		return nil, fmt.Errorf(
-			"metric storage '%s' not declared in '%s' extension configuration",
-			name, componentType,
-		)
-	}
-
-	// Create factory on demand
-	telset := telemetry.FromOtelComponent(s.telset, s.host)
-	telset.Metrics = telset.Metrics.Namespace(metrics.NSOptions{Name: "jaeger"})
-
+// createMetricStorageFactory is a helper function to create a metric storage factory
+func (s *storageExt) createMetricStorageFactory(name string, cfg storageconfig.MetricBackend, telset telemetry.Settings) (storage.MetricStoreFactory, error) {
 	scopedMetricsFactory := func(name, kind, role string) metrics.Factory {
 		return telset.Metrics.Namespace(metrics.NSOptions{
 			Name: "storage",
@@ -299,6 +288,33 @@ func (s *storageExt) MetricStorageFactory(name string) (storage.MetricStoreFacto
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize metrics storage '%s': %w", name, err)
+	}
+
+	return metricStoreFactory, nil
+}
+
+func (s *storageExt) MetricStorageFactory(name string) (storage.MetricStoreFactory, error) {
+	s.factoryMu.Lock()
+	defer s.factoryMu.Unlock()
+
+	// Return cached factory if already created
+	if mf, ok := s.metricsFactories[name]; ok {
+		return mf, nil
+	}
+
+	// Check if configuration exists
+	cfg, ok := s.config.MetricBackends[name]
+	if !ok {
+		return nil, fmt.Errorf(
+			"metric storage '%s' not declared in '%s' extension configuration",
+			name, componentType,
+		)
+	}
+
+	// Create factory on demand using helper
+	metricStoreFactory, err := s.createMetricStorageFactory(name, cfg, s.telsetForFactory)
+	if err != nil {
+		return nil, err
 	}
 
 	s.metricsFactories[name] = metricStoreFactory
