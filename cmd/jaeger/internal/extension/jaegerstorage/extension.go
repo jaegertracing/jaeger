@@ -16,6 +16,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/internal/storageconfig"
 	"github.com/jaegertracing/jaeger/internal/metrics"
+	otelmetrics "github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	esmetrics "github.com/jaegertracing/jaeger/internal/storage/metricstore/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus"
@@ -34,9 +35,7 @@ type Extension interface {
 
 type storageExt struct {
 	config           *Config
-	telset           component.TelemetrySettings
-	host             component.Host
-	telsetForFactory telemetry.Settings
+	telset           telemetry.Settings
 	factories        map[string]tracestore.Factory
 	metricsFactories map[string]storage.MetricStoreFactory
 	factoryMu        sync.Mutex
@@ -136,21 +135,24 @@ func findExtension(host component.Host) (Extension, error) {
 }
 
 func newStorageExt(cfg *Config, telset component.TelemetrySettings) *storageExt {
+	// Initialize telemetry.Settings with host=nil, will be set in Start()
+	tset := telemetry.Settings{
+		Logger:         telset.Logger,
+		MeterProvider:  telset.MeterProvider,
+		TracerProvider: telset.TracerProvider,
+	}
 	return &storageExt{
 		config:           cfg,
-		telset:           telset,
+		telset:           tset,
 		factories:        make(map[string]tracestore.Factory),
 		metricsFactories: make(map[string]storage.MetricStoreFactory),
 	}
 }
 
-func (s *storageExt) Start(ctx context.Context, host component.Host) error {
-	s.host = host
-
-	// Create telset once for use in lazy factory initialization
-	telset := telemetry.FromOtelComponent(s.telset, host)
-	telset.Metrics = telset.Metrics.Namespace(metrics.NSOptions{Name: "jaeger"})
-	s.telsetForFactory = telset
+func (s *storageExt) Start(_ context.Context, host component.Host) error {
+	// Set host in telset for use in lazy factory initialization
+	s.telset.Host = host
+	s.telset.Metrics = otelmetrics.NewFactory(s.telset.MeterProvider).Namespace(metrics.NSOptions{Name: "jaeger"})
 
 	// Validate configurations early to catch errors at startup
 	for name, cfg := range s.config.TraceBackends {
@@ -210,9 +212,9 @@ func (s *storageExt) TraceStorageFactory(name string) (tracestore.Factory, error
 		context.Background(),
 		name,
 		cfg,
-		s.telsetForFactory,
+		s.telset,
 		func(authCfg config.Authentication, backendType, backendName string) (extensionauth.HTTPClient, error) {
-			return s.resolveAuthenticator(s.host, authCfg, backendType, backendName)
+			return s.resolveAuthenticator(s.telset.Host, authCfg, backendType, backendName)
 		},
 	)
 	if err != nil {
@@ -244,7 +246,7 @@ func (s *storageExt) createMetricStorageFactory(name string, cfg storageconfig.M
 	case cfg.Prometheus != nil:
 		promTelset := telset
 		promTelset.Metrics = scopedMetricsFactory(name, "prometheus", "metricstore")
-		httpAuth, authErr := s.resolveAuthenticator(s.host, cfg.Prometheus.Authentication, "prometheus metrics", name)
+		httpAuth, authErr := s.resolveAuthenticator(s.telset.Host, cfg.Prometheus.Authentication, "prometheus metrics", name)
 		if authErr != nil {
 			return nil, authErr
 		}
@@ -257,7 +259,7 @@ func (s *storageExt) createMetricStorageFactory(name string, cfg storageconfig.M
 	case cfg.Elasticsearch != nil:
 		esTelset := telset
 		esTelset.Metrics = scopedMetricsFactory(name, "elasticsearch", "metricstore")
-		httpAuth, authErr := s.resolveAuthenticator(s.host, cfg.Elasticsearch.Authentication, "elasticsearch metrics", name)
+		httpAuth, authErr := s.resolveAuthenticator(s.telset.Host, cfg.Elasticsearch.Authentication, "elasticsearch metrics", name)
 		if authErr != nil {
 			return nil, authErr
 		}
@@ -271,7 +273,7 @@ func (s *storageExt) createMetricStorageFactory(name string, cfg storageconfig.M
 	case cfg.Opensearch != nil:
 		osTelset := telset
 		osTelset.Metrics = scopedMetricsFactory(name, "opensearch", "metricstore")
-		httpAuth, authErr := s.resolveAuthenticator(s.host, cfg.Opensearch.Authentication, "opensearch metrics", name)
+		httpAuth, authErr := s.resolveAuthenticator(s.telset.Host, cfg.Opensearch.Authentication, "opensearch metrics", name)
 		if authErr != nil {
 			return nil, authErr
 		}
@@ -312,7 +314,7 @@ func (s *storageExt) MetricStorageFactory(name string) (storage.MetricStoreFacto
 	}
 
 	// Create factory on demand using helper
-	metricStoreFactory, err := s.createMetricStorageFactory(name, cfg, s.telsetForFactory)
+	metricStoreFactory, err := s.createMetricStorageFactory(name, cfg, s.telset)
 	if err != nil {
 		return nil, err
 	}

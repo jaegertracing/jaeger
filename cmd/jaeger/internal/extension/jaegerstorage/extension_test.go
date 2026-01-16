@@ -34,6 +34,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
 type errorFactory struct {
@@ -820,7 +821,12 @@ func TestResolveAuthenticator(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ext := &storageExt{telset: noopTelemetrySettings()}
+			telset := telemetry.Settings{
+				Logger:         zap.L(),
+				TracerProvider: nooptrace.NewTracerProvider(),
+				MeterProvider:  noopmetric.NewMeterProvider(),
+			}
+			ext := &storageExt{telset: telset}
 			host := tt.setupHost()
 
 			auth, err := ext.resolveAuthenticator(host, tt.authCfg, backendType, backendName)
