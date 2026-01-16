@@ -159,7 +159,8 @@ For detailed threat analysis, see [THREAT-MODEL.md](THREAT-MODEL.md).
 
 ## References
 
-- [SECURITY.md](SECURITY.md) - Vulnerability reporting
-- [THREAT-MODEL.md](THREAT-MODEL.md) - Detailed threat analysis
-- [SECURITY-ARCHITECTURE.md](SECURITY-ARCHITECTURE.md) - Cryptographic practices
+- [SECURITY.md](../../SECURITY.md) - Vulnerability reporting
+- [Threat Model](threat-model.md) - Detailed threat analysis
+- [Security Architecture](architecture.md) - Cryptographic practices
 - [Securing Jaeger Installation](https://www.jaegertracing.io/docs/latest/security/)
+

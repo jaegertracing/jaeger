@@ -162,8 +162,8 @@ Jaeger is a distributed tracing platform that collects, processes, and visualize
 
 ## References
 
-- [SECURITY.md](SECURITY.md) - Security policy and vulnerability reporting
-- [SECURITY-ARCHITECTURE.md](SECURITY-ARCHITECTURE.md) - Cryptographic practices
-- [ASSURANCE-CASE.md](ASSURANCE-CASE.md) - Security assurance case
+- [SECURITY.md](../../SECURITY.md) - Security policy and vulnerability reporting
+- [Security Architecture](architecture.md) - Cryptographic practices
+- [Assurance Case](assurance-case.md) - Security assurance case
 - [Securing Jaeger Installation](https://www.jaegertracing.io/docs/latest/security/)
 - [OSSF Threat Modeling Standards](https://github.com/ossf/security-insights-spec/tree/main/docs/threat-model)

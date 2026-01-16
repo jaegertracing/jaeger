@@ -131,8 +131,9 @@ For more detailed security information, see:
 
 | Document | Description |
 |----------|-------------|
-| [THREAT-MODEL.md](THREAT-MODEL.md) | Threat model and trust boundaries |
-| [ASSURANCE-CASE.md](ASSURANCE-CASE.md) | Security assurance case |
-| [SECURITY-ARCHITECTURE.md](SECURITY-ARCHITECTURE.md) | TLS and cryptographic practices |
+| [Threat Model](docs/security/threat-model.md) | Threat model and trust boundaries |
+| [Assurance Case](docs/security/assurance-case.md) | Security assurance case |
+| [Security Architecture](docs/security/architecture.md) | TLS and cryptographic practices |
 | [Self-Assessment](docs/security/self-assessment.md) | CNCF TAG Security self-assessment |
 | [RELEASE.md](RELEASE.md#verifying-release-signatures) | Release signature verification |
+
