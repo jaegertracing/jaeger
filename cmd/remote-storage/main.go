@@ -67,10 +67,24 @@ func main() {
 				logger.Fatal("Failed to load configuration", zap.Error(err))
 			}
 
+			// Create health check host using OTEL healthcheckv2 extension
+			hcHost, err := telemetry.NewHealthCheckHost(
+				context.Background(),
+				telemetry.NoopSettings().ToOtelComponent(),
+				":13133", // default healthcheck port
+			)
+			if err != nil {
+				logger.Fatal("Failed to create health check host", zap.Error(err))
+			}
+			if err := hcHost.Start(context.Background()); err != nil {
+				logger.Fatal("Failed to start health check server", zap.Error(err))
+			}
+			svc.HC = hcHost // Store for RunAndThen to use
+
 			baseTelset := telemetry.Settings{
 				Logger:        svc.Logger,
 				Metrics:       baseFactory,
-				ReportStatus:  telemetry.HCAdapter(svc.HC()),
+				Host:          hcHost,
 				MeterProvider: noop.NewMeterProvider(),
 			}
 
@@ -130,6 +144,9 @@ func main() {
 					if err := closer.Close(); err != nil {
 						logger.Error("Failed to close storage factory", zap.Error(err))
 					}
+				}
+				if err := hcHost.Shutdown(context.Background()); err != nil {
+					logger.Error("Failed to shutdown health check host", zap.Error(err))
 				}
 			})
 			return nil

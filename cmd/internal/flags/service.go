@@ -17,9 +17,9 @@ import (
 	"go.uber.org/zap/zapgrpc"
 	"google.golang.org/grpc/grpclog"
 
-	"github.com/jaegertracing/jaeger/internal/healthcheck"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metrics/metricsbuilder"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -28,8 +28,11 @@ type Service struct {
 	// AdminPort is the HTTP port number for admin server.
 	AdminPort int
 
-	// Admin is the admin server that hosts the health check and metrics endpoints.
+	// Admin is the admin server that hosts the metrics endpoints.
 	Admin *AdminServer
+
+	// HC is the health check host that runs the OTEL healthcheckv2 extension.
+	HC *telemetry.HealthCheckHost
 
 	// Logger is initialized after parsing Viper flags like --log-level.
 	Logger *zap.Logger
@@ -108,20 +111,19 @@ func (s *Service) Start(v *viper.Viper) error {
 	return nil
 }
 
-// HC returns the reference to HeathCheck.
-func (s *Service) HC() *healthcheck.HealthCheck {
-	return s.Admin.HC()
-}
-
 // RunAndThen sets the health check to Ready and blocks until SIGTERM is received.
-// If then runs the shutdown function and exits.
+// It then runs the shutdown function and exits.
 func (s *Service) RunAndThen(shutdown func()) {
-	s.HC().Ready()
+	if s.HC != nil {
+		s.HC.Ready()
+	}
 
 	<-s.signalsChannel
 
 	s.Logger.Info("Shutting down")
-	s.HC().Set(healthcheck.Unavailable)
+	if s.HC != nil {
+		s.HC.SetUnavailable()
+	}
 
 	if shutdown != nil {
 		shutdown()

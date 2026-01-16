@@ -5,6 +5,7 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -18,7 +19,6 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/jaegertracing/jaeger/cmd/remote-storage/app"
-	"github.com/jaegertracing/jaeger/internal/healthcheck"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
@@ -28,6 +28,7 @@ import (
 type RemoteMemoryStorage struct {
 	server         *app.Server
 	storageFactory *memory.Factory
+	hcHost         *telemetry.HealthCheckHost
 }
 
 func StartNewRemoteMemoryStorage(t *testing.T, port int) *RemoteMemoryStorage {
@@ -44,7 +45,16 @@ func StartNewRemoteMemoryStorage(t *testing.T, port int) *RemoteMemoryStorage {
 	t.Logf("Starting in-process remote storage server on %s", grpcCfg.NetAddr.Endpoint)
 	telset := telemetry.NoopSettings()
 	telset.Logger = logger
-	telset.ReportStatus = telemetry.HCAdapter(healthcheck.New())
+
+	// Create health check host on a unique port for tests
+	hcHost, err := telemetry.NewHealthCheckHost(
+		context.Background(),
+		telset.ToOtelComponent(),
+		fmt.Sprintf(":%d", port+1000), // offset to avoid conflicts
+	)
+	require.NoError(t, err)
+	require.NoError(t, hcHost.Start(context.Background()))
+	telset.Host = hcHost
 
 	traceFactory, err := memory.NewFactory(
 		memory.Configuration{
@@ -81,9 +91,11 @@ func StartNewRemoteMemoryStorage(t *testing.T, port int) *RemoteMemoryStorage {
 	return &RemoteMemoryStorage{
 		server:         server,
 		storageFactory: traceFactory,
+		hcHost:         hcHost,
 	}
 }
 
 func (s *RemoteMemoryStorage) Close(t *testing.T) {
 	require.NoError(t, s.server.Close())
+	require.NoError(t, s.hcHost.Shutdown(context.Background()))
 }

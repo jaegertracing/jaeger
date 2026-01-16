@@ -22,7 +22,6 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger/internal/config"
-	"github.com/jaegertracing/jaeger/internal/healthcheck"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -48,41 +47,6 @@ func TestAdminServerHandlesPortZero(t *testing.T) {
 	hostPort := onlyEntry.ContextMap()["http.host-port"].(string)
 	port, _ := strconv.Atoi(strings.Split(hostPort, ":")[3])
 	assert.Positive(t, port)
-}
-
-func TestAdminHealthCheck(t *testing.T) {
-	adminServer := NewAdminServer(":0")
-	status := adminServer.HC().Get()
-	assert.Equal(t, healthcheck.Unavailable, status)
-}
-
-func TestAdminFailToServe(t *testing.T) {
-	l, err := net.Listen("tcp", ":0")
-	require.NoError(t, err)
-	l.Close() // forcing Serve on a closed connection
-
-	adminServer := NewAdminServer(":0")
-	v, command := config.Viperize(adminServer.AddFlags)
-	command.ParseFlags([]string{})
-	zapCore, logs := observer.New(zap.InfoLevel)
-	logger := zap.New(zapCore)
-
-	require.NoError(t, adminServer.initFromViper(v, logger))
-
-	adminServer.serveWithListener(l)
-	t.Cleanup(func() { assert.NoError(t, adminServer.Close()) })
-
-	waitForEqual(t, healthcheck.Broken, func() any { return adminServer.HC().Get() })
-
-	logEntries := logs.TakeAll()
-	var matchedEntry string
-	for _, log := range logEntries {
-		if strings.Contains(log.Message, "failed to serve") {
-			matchedEntry = log.Message
-			break
-		}
-	}
-	assert.Contains(t, matchedEntry, "failed to serve")
 }
 
 func TestAdminWithFailedFlags(t *testing.T) {

@@ -22,9 +22,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
-	"github.com/jaegertracing/jaeger/internal/healthcheck"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
@@ -32,7 +30,6 @@ import (
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
-	"github.com/jaegertracing/jaeger/ports"
 )
 
 var testCertKeyLocation = "../../../internal/config/tlscfg/testdata"
@@ -129,7 +126,6 @@ func TestNewServer_TLSConfigError(t *testing.T) {
 	}
 	telset := telemetry.NoopSettings()
 	telset.Logger = zap.NewNop()
-	telset.ReportStatus = telemetry.HCAdapter(healthcheck.New())
 
 	_, err := NewServer(
 		context.Background(),
@@ -316,8 +312,6 @@ func TestServerGRPCTLS(t *testing.T) {
 				},
 				TLS: tls,
 			}
-			flagsSvc := flags.NewService(ports.RemoteStorageAdminHTTP)
-			flagsSvc.Logger = zap.NewNop()
 
 			reader := new(tracestoremocks.Reader)
 			f := &fakeFactory{
@@ -328,8 +322,7 @@ func TestServerGRPCTLS(t *testing.T) {
 
 			tm := tenancy.NewManager(&tenancy.Options{Enabled: true})
 			telset := telemetry.NoopSettings()
-			telset.Logger = flagsSvc.Logger
-			telset.ReportStatus = telemetry.HCAdapter(flagsSvc.HC())
+			telset.Logger = zap.NewNop()
 			server, err := NewServer(
 				context.Background(),
 				serverOptions,
@@ -367,18 +360,15 @@ func TestServerGRPCTLS(t *testing.T) {
 			}
 			require.NoError(t, client.conn.Close())
 			server.Close()
-			assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
 		})
 	}
 }
 
 func TestServerHandlesPortZero(t *testing.T) {
-	flagsSvc := flags.NewService(ports.RemoteStorageAdminHTTP)
 	zapCore, logs := observer.New(zap.InfoLevel)
-	flagsSvc.Logger = zap.New(zapCore)
+	logger := zap.New(zapCore)
 	telset := telemetry.NoopSettings()
-	telset.Logger = flagsSvc.Logger
-	telset.ReportStatus = telemetry.HCAdapter(flagsSvc.HC())
+	telset.Logger = logger
 	server, err := NewServer(
 		context.Background(),
 		configgrpc.ServerConfig{
@@ -402,8 +392,6 @@ func TestServerHandlesPortZero(t *testing.T) {
 	validateGRPCServer(t, hostPort)
 
 	server.Close()
-
-	assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
 }
 
 func validateGRPCServer(t *testing.T, hostPort string) {
