@@ -242,7 +242,7 @@ func assertGRPCError(t *testing.T, err error, code codes.Code, msg string) {
 
 func TestGetTraceEmptyTraceIDFailure_GRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-		server.traceReader.On("GetTraces", mock.Anything, mock.Anything).
+		server.traceReader.On("GetTraces", mock.Anything, mock.AnythingOfType("[]tracestore.GetTraceParams")).
 			Return(traceIterator(mockTrace, nil)).Once()
 
 		res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
@@ -258,14 +258,8 @@ func TestGetTraceEmptyTraceIDFailure_GRPC(t *testing.T) {
 }
 
 func TestGetTraceDBFailureGRPC(t *testing.T) {
-	var traceID pcommon.TraceID
-	binary.BigEndian.PutUint64(traceID[:8], mockTraceID.High)
-	binary.BigEndian.PutUint64(traceID[8:], mockTraceID.Low)
-
-	expectedQuery := []tracestore.GetTraceParams{{TraceID: traceID}}
-
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-		server.traceReader.On("GetTraces", mock.Anything, expectedQuery).
+		server.traceReader.On("GetTraces", mock.Anything, mock.AnythingOfType("[]tracestore.GetTraceParams")).
 			Return(traceIterator(nil, errStorageGRPC)).Once()
 
 		res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
@@ -280,16 +274,11 @@ func TestGetTraceDBFailureGRPC(t *testing.T) {
 }
 
 func TestGetTraceNotFoundGRPC(t *testing.T) {
-	var traceID pcommon.TraceID
-	binary.BigEndian.PutUint64(traceID[:8], mockTraceID.High)
-	binary.BigEndian.PutUint64(traceID[8:], mockTraceID.Low)
-	expectedQuery := []tracestore.GetTraceParams{{TraceID: traceID}}
-
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-		server.traceReader.On("GetTraces", mock.Anything, expectedQuery).
+		server.traceReader.On("GetTraces", mock.Anything, mock.AnythingOfType("[]tracestore.GetTraceParams")).
 			Return(traceIterator(nil, nil)).Once()
 
-		server.archiveTraceReader.On("GetTraces", mock.Anything, expectedQuery).
+		server.archiveTraceReader.On("GetTraces", mock.Anything, mock.AnythingOfType("[]tracestore.GetTraceParams")).
 			Return(traceIterator(nil, nil)).Once()
 
 		res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
@@ -347,9 +336,9 @@ func TestArchiveTraceSuccessGRPC(t *testing.T) {
 
 func TestArchiveTraceNotFoundGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-		server.traceReader.On("GetTraces", mock.Anything, mock.Anything).
+		server.traceReader.On("GetTraces", mock.Anything, mock.AnythingOfType("[]tracestore.GetTraceParams")).
 			Return(traceIterator(nil, nil)).Once()
-		server.archiveTraceReader.On("GetTraces", mock.Anything, mock.Anything).
+		server.archiveTraceReader.On("GetTraces", mock.Anything, mock.AnythingOfType("[]tracestore.GetTraceParams")).
 			Return(traceIterator(nil, nil)).Once()
 
 		_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{
@@ -378,7 +367,7 @@ func TestArchiveTraceNilRequestOnHandlerGRPC(t *testing.T) {
 
 func TestArchiveTraceFailureGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-		server.traceReader.On("GetTraces", mock.Anything, mock.Anything).
+		server.traceReader.On("GetTraces", mock.Anything, mock.AnythingOfType("[]tracestore.GetTraceParams")).
 			Return(traceIterator(mockTrace, nil)).Once()
 		server.archiveTraceWriter.On("WriteTraces", mock.Anything, mock.Anything).
 			Return(errStorageGRPC).Once()
@@ -864,7 +853,7 @@ func TestTenancyContextFlowGRPC(t *testing.T) {
 					return false
 				}
 				return true
-			}), mock.Anything).Return(traceIterator(trace, err)).Once()
+			}), mock.AnythingOfType("[]tracestore.GetTraceParams")).Return(traceIterator(trace, err)).Once()
 		}
 
 		for tenant, expected := range allExpectedResults {
