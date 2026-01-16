@@ -328,7 +328,7 @@ func TestArchiveTraceSuccessGRPC(t *testing.T) {
 		withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 			server.traceReader.On("GetTraces", mock.Anything, input.expectedQuery).
 				Return(traceIterator(mockTrace, nil)).Once()
-			server.archiveTraceWriter.On("WriteTraces", mock.Anything, mock.Anything).
+			server.archiveTraceWriter.On("WriteTraces", mock.Anything, mock.AnythingOfType("ptrace.Traces")).
 				Return(nil).Once()
 
 			_, err := client.ArchiveTrace(context.Background(), &input.request)
@@ -373,7 +373,7 @@ func TestArchiveTraceFailureGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		server.traceReader.On("GetTraces", mock.Anything, mock.AnythingOfType("[]tracestore.GetTraceParams")).
 			Return(traceIterator(mockTrace, nil)).Once()
-		server.archiveTraceWriter.On("WriteTraces", mock.Anything, mock.Anything).
+		server.archiveTraceWriter.On("WriteTraces", mock.Anything, mock.AnythingOfType("ptrace.Traces")).
 			Return(errStorageGRPC).Once()
 
 		_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{
@@ -386,7 +386,7 @@ func TestArchiveTraceFailureGRPC(t *testing.T) {
 
 func TestFindTracesSuccessGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-		server.traceReader.On("FindTraces", mock.Anything, mock.Anything).
+		server.traceReader.On("FindTraces", mock.Anything, mock.AnythingOfType("tracestore.TraceQueryParams")).
 			Return(traceIterator(mockTraceGRPC, nil)).Once()
 
 		// Trace query parameters.
@@ -413,7 +413,7 @@ func TestFindTracesSuccessGRPC(t *testing.T) {
 
 func TestFindTracesSuccess_SpanStreamingGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-		server.traceReader.On("FindTraces", mock.Anything, mock.Anything).
+		server.traceReader.On("FindTraces", mock.Anything, mock.AnythingOfType("tracestore.TraceQueryParams")).
 			Return(traceIterator(mockLargeTraceGRPC, nil)).Once()
 
 		// Trace query parameters.
@@ -455,7 +455,7 @@ func TestFindTracesFailure_GRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		mockErrorGRPC := errors.New("whatsamattayou")
 
-		server.traceReader.On("FindTraces", mock.Anything, mock.Anything).
+		server.traceReader.On("FindTraces", mock.Anything, mock.AnythingOfType("tracestore.TraceQueryParams")).
 			Return(traceIterator(nil, mockErrorGRPC)).Once()
 
 		// Trace query parameters.
