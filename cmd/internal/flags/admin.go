@@ -32,14 +32,14 @@ var tlsAdminHTTPFlagsConfig = tlscfg.ServerFlagsConfig{
 	Prefix: "admin.http",
 }
 
-// AdminServer runs an HTTP server with admin endpoints, such as /metrics, /debug/pprof, etc.
-// Health checks are handled separately by HealthCheckHost.
+// AdminServer runs an HTTP server with admin endpoints, such as /metrics, /debug/pprof, health check, etc.
 type AdminServer struct {
 	logger    *zap.Logger
 	mux       *http.ServeMux
 	server    *http.Server
 	serverCfg confighttp.ServerConfig
 	stopped   sync.WaitGroup
+	hc        *HealthHost
 }
 
 // NewAdminServer creates a new admin server.
@@ -50,7 +50,15 @@ func NewAdminServer(hostPort string) *AdminServer {
 		serverCfg: confighttp.ServerConfig{
 			Endpoint: hostPort,
 		},
+		hc: NewHealthHost(),
 	}
+}
+
+// HC returns the health host for this admin server.
+// The health host implements component.Host and componentstatus.Reporter,
+// allowing it to be used with telemetry.Settings and componentstatus.ReportStatus.
+func (s *AdminServer) HC() *HealthHost {
+	return s.hc
 }
 
 // setLogger initializes logger.
@@ -95,6 +103,7 @@ func (s *AdminServer) Serve() error {
 }
 
 func (s *AdminServer) serveWithListener(l net.Listener) (err error) {
+	s.mux.Handle("/", s.hc.Handler())
 	version.RegisterHandler(s.mux, s.logger)
 	s.registerPprofHandlers()
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(s.logger, true)

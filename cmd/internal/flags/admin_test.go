@@ -27,6 +27,45 @@ import (
 
 var testCertKeyLocation = "../../../internal/config/tlscfg/testdata"
 
+func TestAdminServerHealthCheck(t *testing.T) {
+	adminServer := NewAdminServer(":0")
+
+	v, _ := config.Viperize(adminServer.AddFlags)
+	zapCore, logs := observer.New(zap.InfoLevel)
+	logger := zap.New(zapCore)
+	require.NoError(t, adminServer.initFromViper(v, logger))
+	require.NoError(t, adminServer.Serve())
+	defer adminServer.Close()
+
+	// Get the actual address from the log
+	message := logs.FilterMessage("Admin server started")
+	require.Equal(t, 1, message.Len())
+	hostPort := message.All()[0].ContextMap()["http.host-port"].(string)
+
+	// Health check should initially be unavailable
+	assert.Equal(t, Unavailable, adminServer.HC().Get())
+
+	// Set to ready
+	adminServer.HC().Ready()
+	assert.Equal(t, Ready, adminServer.HC().Get())
+
+	// Verify HTTP endpoint returns correct status
+	resp, err := http.Get(fmt.Sprintf("http://%s/", hostPort))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+
+	// Set to unavailable
+	adminServer.HC().SetUnavailable()
+	assert.Equal(t, Unavailable, adminServer.HC().Get())
+
+	// Verify HTTP endpoint returns 503
+	resp, err = http.Get(fmt.Sprintf("http://%s/", hostPort))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+}
+
 func TestAdminServerHandlesPortZero(t *testing.T) {
 	adminServer := NewAdminServer(":0")
 

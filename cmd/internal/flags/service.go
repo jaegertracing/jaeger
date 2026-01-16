@@ -19,7 +19,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metrics/metricsbuilder"
-	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -28,11 +27,8 @@ type Service struct {
 	// AdminPort is the HTTP port number for admin server.
 	AdminPort int
 
-	// Admin is the admin server that hosts the metrics endpoints.
+	// Admin is the admin server that hosts the health check and metrics endpoints.
 	Admin *AdminServer
-
-	// HC is the health check host that runs the OTEL healthcheckv2 extension.
-	HC *telemetry.HealthCheckHost
 
 	// Logger is initialized after parsing Viper flags like --log-level.
 	Logger *zap.Logger
@@ -114,16 +110,12 @@ func (s *Service) Start(v *viper.Viper) error {
 // RunAndThen sets the health check to Ready and blocks until SIGTERM is received.
 // It then runs the shutdown function and exits.
 func (s *Service) RunAndThen(shutdown func()) {
-	if s.HC != nil {
-		s.HC.Ready()
-	}
+	s.Admin.HC().Ready()
 
 	<-s.signalsChannel
 
 	s.Logger.Info("Shutting down")
-	if s.HC != nil {
-		s.HC.SetUnavailable()
-	}
+	s.Admin.HC().SetUnavailable()
 
 	if shutdown != nil {
 		shutdown()
