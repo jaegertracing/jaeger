@@ -3,6 +3,9 @@ name: PR Quota Manager
 on:
   pull_request:
     types: [opened, closed, reopened]
+  push:
+    branches:
+      - pr-quota-system  # Temporary: for testing
   workflow_dispatch:
     inputs:
       username:
@@ -36,7 +39,8 @@ jobs:
           github-token: ${{ secrets.PR_QUOTA_MANAGER_PAT }}
           script: |
             const handler = require('./.github/scripts/pr-quota-manager.js')
-            const username = context.payload.pull_request?.user?.login || context.payload.inputs?.username
+            // For push events, use a test username; for PR events, use PR author; for manual, use input
+            const username = context.payload.pull_request?.user?.login || context.payload.inputs?.username || 'yurishkuro'
             const owner = context.repo.owner
             const repo = context.repo.repo
             const dryRun = context.payload.inputs?.dryRun || false
