@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
@@ -27,15 +28,17 @@ var _ Extension = (*storageExt)(nil)
 
 type Extension interface {
 	extension.Extension
-	TraceStorageFactory(name string) (tracestore.Factory, bool)
-	MetricStorageFactory(name string) (storage.MetricStoreFactory, bool)
+	TraceStorageFactory(name string) (tracestore.Factory, error)
+	MetricStorageFactory(name string) (storage.MetricStoreFactory, error)
 }
 
 type storageExt struct {
 	config           *Config
 	telset           component.TelemetrySettings
+	host             component.Host
 	factories        map[string]tracestore.Factory
 	metricsFactories map[string]storage.MetricStoreFactory
+	factoryMu        sync.Mutex
 }
 
 // getStorageFactory locates the extension in Host and retrieves
@@ -45,12 +48,9 @@ func getStorageFactory(name string, host component.Host) (tracestore.Factory, er
 	if err != nil {
 		return nil, err
 	}
-	f, ok := ext.TraceStorageFactory(name)
-	if !ok {
-		return nil, fmt.Errorf(
-			"cannot find definition of storage '%s' in the configuration for extension '%s'",
-			name, componentType,
-		)
+	f, err := ext.TraceStorageFactory(name)
+	if err != nil {
+		return nil, err
 	}
 	return f, nil
 }
@@ -62,12 +62,9 @@ func GetMetricStorageFactory(name string, host component.Host) (storage.MetricSt
 	if err != nil {
 		return nil, err
 	}
-	mf, ok := ext.MetricStorageFactory(name)
-	if !ok {
-		return nil, fmt.Errorf(
-			"cannot find metric storage '%s' declared by '%s' extension",
-			name, componentType,
-		)
+	mf, err := ext.MetricStorageFactory(name)
+	if err != nil {
+		return nil, err
 	}
 	return mf, nil
 }
@@ -141,88 +138,18 @@ func newStorageExt(cfg *Config, telset component.TelemetrySettings) *storageExt 
 }
 
 func (s *storageExt) Start(ctx context.Context, host component.Host) error {
-	telset := telemetry.FromOtelComponent(s.telset, host)
-	telset.Metrics = telset.Metrics.Namespace(metrics.NSOptions{Name: "jaeger"})
-	scopedMetricsFactory := func(name, kind, role string) metrics.Factory {
-		return telset.Metrics.Namespace(metrics.NSOptions{
-			Name: "storage",
-			Tags: map[string]string{
-				"name": name,
-				"kind": kind,
-				"role": role,
-			},
-		})
+	s.host = host
+
+	// Validate configurations early to catch errors at startup
+	for name, cfg := range s.config.TraceBackends {
+		if err := cfg.Validate(); err != nil {
+			return fmt.Errorf("invalid configuration for trace storage '%s': %w", name, err)
+		}
 	}
-	for storageName, cfg := range s.config.TraceBackends {
-		// Use shared factory creation logic with auth resolver
-		factory, err := storageconfig.CreateTraceStorageFactory(
-			ctx,
-			storageName,
-			cfg,
-			telset,
-			func(authCfg config.Authentication, backendType, backendName string) (extensionauth.HTTPClient, error) {
-				return s.resolveAuthenticator(host, authCfg, backendType, backendName)
-			},
-		)
-		if err != nil {
-			return err
+	for name, cfg := range s.config.MetricBackends {
+		if err := cfg.Validate(); err != nil {
+			return fmt.Errorf("invalid configuration for metric storage '%s': %w", name, err)
 		}
-
-		s.factories[storageName] = factory
-	}
-
-	for metricStorageName, cfg := range s.config.MetricBackends {
-		s.telset.Logger.Sugar().Infof("Initializing metrics storage '%s'", metricStorageName)
-		var metricStoreFactory storage.MetricStoreFactory
-		var err error
-		switch {
-		case cfg.Prometheus != nil:
-			promTelset := telset
-			promTelset.Metrics = scopedMetricsFactory(metricStorageName, "prometheus", "metricstore")
-			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Prometheus.Authentication, "prometheus metrics", metricStorageName)
-			if authErr != nil {
-				return authErr
-			}
-			metricStoreFactory, err = prometheus.NewFactoryWithConfig(
-				cfg.Prometheus.Configuration,
-				promTelset,
-				httpAuth,
-			)
-
-		case cfg.Elasticsearch != nil:
-			esTelset := telset
-			esTelset.Metrics = scopedMetricsFactory(metricStorageName, "elasticsearch", "metricstore")
-			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Elasticsearch.Authentication, "elasticsearch metrics", metricStorageName)
-			if authErr != nil {
-				return authErr
-			}
-			metricStoreFactory, err = esmetrics.NewFactory(
-				ctx,
-				*cfg.Elasticsearch,
-				esTelset,
-				httpAuth,
-			)
-
-		case cfg.Opensearch != nil:
-			osTelset := telset
-			osTelset.Metrics = scopedMetricsFactory(metricStorageName, "opensearch", "metricstore")
-			httpAuth, authErr := s.resolveAuthenticator(host, cfg.Opensearch.Authentication, "opensearch metrics", metricStorageName)
-			if authErr != nil {
-				return authErr
-			}
-			metricStoreFactory, err = esmetrics.NewFactory(ctx,
-				*cfg.Opensearch,
-				osTelset,
-				httpAuth,
-			)
-
-		default:
-			err = fmt.Errorf("no metric backend configuration provided for '%s'", metricStorageName)
-		}
-		if err != nil {
-			return fmt.Errorf("failed to initialize metrics storage '%s': %w", metricStorageName, err)
-		}
-		s.metricsFactories[metricStorageName] = metricStoreFactory
 	}
 
 	return nil
@@ -248,14 +175,134 @@ func (s *storageExt) Shutdown(context.Context) error {
 	return errors.Join(errs...)
 }
 
-func (s *storageExt) TraceStorageFactory(name string) (tracestore.Factory, bool) {
-	f, ok := s.factories[name]
-	return f, ok
+func (s *storageExt) TraceStorageFactory(name string) (tracestore.Factory, error) {
+	s.factoryMu.Lock()
+	defer s.factoryMu.Unlock()
+
+	// Return cached factory if already created
+	if f, ok := s.factories[name]; ok {
+		return f, nil
+	}
+
+	// Check if configuration exists
+	cfg, ok := s.config.TraceBackends[name]
+	if !ok {
+		return nil, fmt.Errorf(
+			"storage '%s' not declared in '%s' extension configuration",
+			name, componentType,
+		)
+	}
+
+	// Create factory on demand
+	telset := telemetry.FromOtelComponent(s.telset, s.host)
+	telset.Metrics = telset.Metrics.Namespace(metrics.NSOptions{Name: "jaeger"})
+
+	factory, err := storageconfig.CreateTraceStorageFactory(
+		context.Background(),
+		name,
+		cfg,
+		telset,
+		func(authCfg config.Authentication, backendType, backendName string) (extensionauth.HTTPClient, error) {
+			return s.resolveAuthenticator(s.host, authCfg, backendType, backendName)
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize storage '%s': %w", name, err)
+	}
+
+	s.factories[name] = factory
+	return factory, nil
 }
 
-func (s *storageExt) MetricStorageFactory(name string) (storage.MetricStoreFactory, bool) {
-	mf, ok := s.metricsFactories[name]
-	return mf, ok
+func (s *storageExt) MetricStorageFactory(name string) (storage.MetricStoreFactory, error) {
+	s.factoryMu.Lock()
+	defer s.factoryMu.Unlock()
+
+	// Return cached factory if already created
+	if mf, ok := s.metricsFactories[name]; ok {
+		return mf, nil
+	}
+
+	// Check if configuration exists
+	cfg, ok := s.config.MetricBackends[name]
+	if !ok {
+		return nil, fmt.Errorf(
+			"metric storage '%s' not declared in '%s' extension configuration",
+			name, componentType,
+		)
+	}
+
+	// Create factory on demand
+	telset := telemetry.FromOtelComponent(s.telset, s.host)
+	telset.Metrics = telset.Metrics.Namespace(metrics.NSOptions{Name: "jaeger"})
+
+	scopedMetricsFactory := func(name, kind, role string) metrics.Factory {
+		return telset.Metrics.Namespace(metrics.NSOptions{
+			Name: "storage",
+			Tags: map[string]string{
+				"name": name,
+				"kind": kind,
+				"role": role,
+			},
+		})
+	}
+
+	s.telset.Logger.Sugar().Infof("Initializing metrics storage '%s'", name)
+	var metricStoreFactory storage.MetricStoreFactory
+	var err error
+
+	switch {
+	case cfg.Prometheus != nil:
+		promTelset := telset
+		promTelset.Metrics = scopedMetricsFactory(name, "prometheus", "metricstore")
+		httpAuth, authErr := s.resolveAuthenticator(s.host, cfg.Prometheus.Authentication, "prometheus metrics", name)
+		if authErr != nil {
+			return nil, authErr
+		}
+		metricStoreFactory, err = prometheus.NewFactoryWithConfig(
+			cfg.Prometheus.Configuration,
+			promTelset,
+			httpAuth,
+		)
+
+	case cfg.Elasticsearch != nil:
+		esTelset := telset
+		esTelset.Metrics = scopedMetricsFactory(name, "elasticsearch", "metricstore")
+		httpAuth, authErr := s.resolveAuthenticator(s.host, cfg.Elasticsearch.Authentication, "elasticsearch metrics", name)
+		if authErr != nil {
+			return nil, authErr
+		}
+		metricStoreFactory, err = esmetrics.NewFactory(
+			context.Background(),
+			*cfg.Elasticsearch,
+			esTelset,
+			httpAuth,
+		)
+
+	case cfg.Opensearch != nil:
+		osTelset := telset
+		osTelset.Metrics = scopedMetricsFactory(name, "opensearch", "metricstore")
+		httpAuth, authErr := s.resolveAuthenticator(s.host, cfg.Opensearch.Authentication, "opensearch metrics", name)
+		if authErr != nil {
+			return nil, authErr
+		}
+		metricStoreFactory, err = esmetrics.NewFactory(
+			context.Background(),
+			*cfg.Opensearch,
+			osTelset,
+			httpAuth,
+		)
+
+	default:
+		err = fmt.Errorf("no metric backend configuration provided for '%s'", name)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize metrics storage '%s': %w", name, err)
+	}
+
+	s.metricsFactories[name] = metricStoreFactory
+	return metricStoreFactory, nil
 }
 
 // getAuthenticator retrieves an HTTP authenticator extension from the host by name.
