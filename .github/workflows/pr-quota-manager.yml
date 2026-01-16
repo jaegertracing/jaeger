@@ -1,0 +1,51 @@
+name: PR Quota Manager
+
+on:
+  pull_request_target:  # Runs with write permissions even for fork PRs
+    types: [opened, closed, reopened, synchronize]  # synchronize = new commits pushed
+  workflow_dispatch:
+    inputs:
+      username:
+        description: 'GitHub username to process quota for'
+        required: true
+        type: string
+      dryRun:
+        description: 'Dry run mode - show actions without making changes'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: quota-${{ github.event.pull_request.user.login || github.event.inputs.username }}
+  cancel-in-progress: false
+
+jobs:
+  manage-quota:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Process PR Quota
+        uses: actions/github-script@v7
+        with:
+          # Use custom PAT if available (not available for fork PRs), otherwise use default token
+          github-token: ${{ secrets.PR_QUOTA_MANAGER_PAT || github.token }}
+          script: |
+            const handler = require('./.github/scripts/pr-quota-manager.js')
+            // For PR events, use PR author; for manual runs, use input. Fail if no username can be determined.
+            const prUser = context.payload.pull_request?.user?.login
+            const inputUser = context.payload.inputs?.username
+            const username = prUser || inputUser
+            if (!username) {
+              core.setFailed('Unable to determine username for quota processing. Aborting.')
+              return
+            }
+            const owner = context.repo.owner
+            const repo = context.repo.repo
+            const dryRun = context.payload.inputs?.dryRun || false
+            await handler({github, core, username, owner, repo, dryRun})
