@@ -2,10 +2,7 @@ name: PR Quota Manager
 
 on:
   pull_request:
-    types: [opened, closed, reopened]
-  push:
-    branches:
-      - pr-quota-system  # Temporary: for testing
+    types: [opened, closed, reopened, synchronize]  # synchronize = new commits pushed
   workflow_dispatch:
     inputs:
       username:
