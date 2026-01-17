@@ -36,6 +36,7 @@ const (
 	paramStartTime      = "start_time"
 	paramEndTime        = "end_time"
 	paramRawTraces      = "raw_traces"
+	paramLookBack       = "look_back"
 	paramServiceName    = "query.service_name" // find traces
 	paramOperationName  = "query.operation_name"
 	paramTimeMin        = "query.start_time_min"
@@ -45,10 +46,11 @@ const (
 	paramDurationMax    = "query.duration_max"
 	paramQueryRawTraces = "query.raw_traces"
 
-	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
-	routeFindTraces    = "/api/v3/traces"
-	routeGetServices   = "/api/v3/services"
-	routeGetOperations = "/api/v3/operations"
+	routeGetTrace        = "/api/v3/traces/{" + paramTraceID + "}"
+	routeFindTraces      = "/api/v3/traces"
+	routeGetServices     = "/api/v3/services"
+	routeGetOperations   = "/api/v3/operations"
+	routeGetDependencies = "/api/v3/dependencies"
 )
 
 // HTTPGateway exposes APIv3 HTTP endpoints.
@@ -65,6 +67,7 @@ func (h *HTTPGateway) RegisterRoutes(router *mux.Router) {
 	h.addRoute(router, h.findTraces, routeFindTraces).Methods(http.MethodGet)
 	h.addRoute(router, h.getServices, routeGetServices).Methods(http.MethodGet)
 	h.addRoute(router, h.getOperations, routeGetOperations).Methods(http.MethodGet)
+	h.addRoute(router, h.getDependencies, routeGetDependencies).Methods(http.MethodGet)
 }
 
 // addRoute adds a new endpoint to the router with given path and handler function.
@@ -295,6 +298,47 @@ func (h *HTTPGateway) getOperations(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	h.marshalResponse(&api_v3.GetOperationsResponse{Operations: apiOperations}, w)
+}
+
+func (h *HTTPGateway) getDependencies(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	endTsStr := query.Get(paramEndTime)
+	if endTsStr == "" {
+		h.tryHandleError(w, fmt.Errorf("%s is required", paramEndTime), http.StatusBadRequest)
+		return
+	}
+
+	endTs, err := time.Parse(time.RFC3339Nano, endTsStr)
+	if h.tryParamError(w, err, paramEndTime) {
+		return
+	}
+
+	lookbackStr := query.Get(paramLookBack)
+	if lookbackStr == "" {
+		h.tryHandleError(w, fmt.Errorf("%s is required", paramLookBack), http.StatusBadRequest)
+		return
+	}
+
+	lookback, err := time.ParseDuration(lookbackStr)
+	if h.tryParamError(w, err, paramLookBack) {
+		return
+	}
+
+	dep, err := h.QueryService.GetDependencies(r.Context(), endTs, lookback)
+	if h.tryHandleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+
+	dependencyLink := make([]*api_v3.DependencyLink, len(dep))
+
+	for i, v := range dep {
+		dependencyLink[i] = &api_v3.DependencyLink{
+			Parent:    v.Parent,
+			Child:     v.Child,
+			CallCount: v.CallCount,
+		}
+	}
+	h.marshalResponse(&api_v3.GetDependenciesResponse{Dependencies: dependencyLink}, w)
 }
 
 func spanNameHandler(spanName string, handler http.Handler) http.Handler {

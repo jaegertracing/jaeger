@@ -390,3 +390,62 @@ func TestHTTPGatewayGetOperationsErrors(t *testing.T) {
 	gw.router.ServeHTTP(w, r)
 	assert.Contains(t, w.Body.String(), assert.AnError.Error())
 }
+
+func TestHTTPGatewayGetDependenciesErrors(t *testing.T) {
+	goodEndTime := time.Now().UTC().Format(time.RFC3339Nano)
+	goodLookback := "1h"
+
+	testCases := []struct {
+		name   string
+		params map[string]string
+		expErr string
+	}{
+		{
+			name:   "missing end_time",
+			params: map[string]string{paramLookBack: goodLookback},
+			expErr: "end_time is required",
+		},
+		{
+			name:   "missing look_back",
+			params: map[string]string{paramEndTime: goodEndTime},
+			expErr: "look_back is required",
+		},
+		{
+			name: "bad end_time",
+			params: map[string]string{
+				paramEndTime:  "NaN",
+				paramLookBack: goodLookback,
+			},
+			expErr: paramEndTime, // "end_time"
+		},
+		{
+			name: "bad look_back",
+			params: map[string]string{
+				paramEndTime:  goodEndTime,
+				paramLookBack: "NaN",
+			},
+			expErr: paramLookBack,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			q := url.Values{}
+			for k, v := range tc.params {
+				q.Set(k, v)
+			}
+
+			r, err := http.NewRequest(
+				http.MethodGet,
+				"/api/v3/dependencies?"+q.Encode(),
+				http.NoBody,
+			)
+			require.NoError(t, err)
+
+			w := httptest.NewRecorder()
+			gw := setupHTTPGatewayNoServer(t, "")
+			gw.router.ServeHTTP(w, r)
+			assert.Contains(t, w.Body.String(), tc.expErr)
+		})
+	}
+}
