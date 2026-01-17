@@ -46,7 +46,7 @@ func TestFromOtelComponent(t *testing.T) {
 	telset.ReportStatus(componentstatus.NewFatalErrorEvent(errors.New("foobar")))
 }
 
-func TestReportStatus_NilHost(t *testing.T) {
+func TestReportStatus_NilHost(_ *testing.T) {
 	telset := telemetry.Settings{
 		Logger: zap.NewNop(),
 	}

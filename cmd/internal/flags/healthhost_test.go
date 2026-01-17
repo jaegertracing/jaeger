@@ -17,7 +17,7 @@ func TestHealthHost_Handler(t *testing.T) {
 	handler := hh.Handler()
 
 	// Initially unavailable - should return 503
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
@@ -38,7 +38,7 @@ func TestHealthHost_Handler(t *testing.T) {
 func TestHealthHost_Report(t *testing.T) {
 	hh := NewHealthHost()
 	handler := hh.Handler()
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 
 	// StatusOK should set Ready
 	hh.Report(componentstatus.NewEvent(componentstatus.StatusOK))
