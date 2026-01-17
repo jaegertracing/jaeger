@@ -16,7 +16,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/internal/storageconfig"
 	"github.com/jaegertracing/jaeger/internal/metrics"
-	otelmetrics "github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
+	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	esmetrics "github.com/jaegertracing/jaeger/internal/storage/metricstore/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus"
