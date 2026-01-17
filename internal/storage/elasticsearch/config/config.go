@@ -183,7 +183,7 @@ type Configuration struct {
 	Tags                     TagsAsFields  `mapstructure:"tags_as_fields"`
 
 	// EnableIngestPipeline enables the default ingest pipeline setting in index templates.
-	EnableIngestPipeline bool `mapstructure:"enabled_ingest_pipeline"`
+	EnableIngestPipeline bool `mapstructure:"enable_ingest_pipeline"`
 	// IngestPipelineName specifies the name of the ingest pipeline to be used.
 	// This is only applicable if EnableIngestPipeline is true.
 	IngestPipelineName string `mapstructure:"ingest_pipeline_name"`
