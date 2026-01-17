@@ -36,7 +36,6 @@ import (
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
-	"github.com/jaegertracing/jaeger/internal/healthcheck"
 	depsmocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
@@ -657,8 +656,8 @@ func TestServerGracefulExit(t *testing.T) {
 	zapCore, logs := observer.New(zap.ErrorLevel)
 	assert.Equal(t, 0, logs.Len(), "Expected initial ObservedLogs to have zero length.")
 
-	flagsSvc.Logger = zap.New(zapCore)
-	telset := initTelSet(flagsSvc.Logger, nooptrace.NewTracerProvider(), flagsSvc.HC())
+	logger := zap.New(zapCore)
+	telset := initTelSet(logger, nooptrace.NewTracerProvider())
 	traceReader := &tracestoremocks.Reader{}
 	traceReader.On("GetServices", mock.Anything).Return([]string{"test"}, nil)
 	qs := querysvc.NewQueryService(traceReader, &depsmocks.Reader{}, querysvc.QueryServiceOptions{})
@@ -773,7 +772,7 @@ func TestServerHTTPTenancy(t *testing.T) {
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 			yield([]ptrace.Traces{mockPTrace}, nil)
 		})).Once()
-	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider(), healthcheck.New())
+	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
 	server, err := NewServer(context.Background(), querySvc.qs,
 		nil, serverOptions, tenancyMgr, telset)
 	require.NoError(t, err)
@@ -869,7 +868,7 @@ func TestServerHTTP_TracesRequest(t *testing.T) {
 			})).Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 				yield([]ptrace.Traces{makeMockPTrace(t)}, nil)
 			})).Once()
-			telset := initTelSet(zaptest.NewLogger(t), tracerProvider, healthcheck.New())
+			telset := initTelSet(zaptest.NewLogger(t), tracerProvider)
 
 			server, err := NewServer(context.Background(), querySvc.qs,
 				nil, serverOptions, tenancyMgr, telset)
