@@ -46,7 +46,9 @@ func verifyQuerySnapshot(t *testing.T, queries ...string) {
 			if err := os.MkdirAll(dir, 0o755); err != nil {
 				t.Fatalf("failed to create snapshot directory: %v", err)
 			}
-			os.WriteFile(snapshotFile, []byte(query+"\n"), 0o644)
+			if err := os.WriteFile(snapshotFile, []byte(query+"\n"), 0o644); err != nil {
+				t.Fatalf("failed to write snapshot file: %v", err)
+			}
 		}
 		snapshot, err := os.ReadFile(snapshotFile)
 		require.NoError(t, err)
