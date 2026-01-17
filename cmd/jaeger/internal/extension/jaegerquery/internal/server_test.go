@@ -351,7 +351,7 @@ var mockPTrace = func() ptrace.Traces {
 	return trace
 }()
 
-func makeMockPTrace(t *testing.T) ptrace.Traces {
+func makeMockPTrace(_ *testing.T) ptrace.Traces {
 	trace := ptrace.NewTraces()
 	resources := trace.ResourceSpans().AppendEmpty()
 	resources.Resource().Attributes().PutStr("service.name", "service")
