@@ -6,9 +6,6 @@
   ],
   "data_stream": {},
   "template": {
-    "aliases": {
-      "test-jaeger-span-read": {}
-    },
     "settings": {
       "index.number_of_shards": 3,
       "index.number_of_replicas": 3,
