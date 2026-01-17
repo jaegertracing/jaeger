@@ -34,6 +34,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
 type errorFactory struct {
@@ -84,7 +85,7 @@ func TestStorageFactoryBadHostError(t *testing.T) {
 func TestStorageFactoryBadNameError(t *testing.T) {
 	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, "foo", ""))
 	_, err := getStorageFactory("bar", host)
-	require.ErrorContains(t, err, "cannot find definition of storage 'bar'")
+	require.ErrorContains(t, err, "not declared")
 }
 
 func TestMetricsFactoryBadHostError(t *testing.T) {
@@ -95,7 +96,7 @@ func TestMetricsFactoryBadHostError(t *testing.T) {
 func TestMetricsFactoryBadNameError(t *testing.T) {
 	host := storagetest.NewStorageHost().WithExtension(ID, startStorageExtension(t, "", "foo"))
 	_, err := GetMetricStorageFactory("bar", host)
-	require.ErrorContains(t, err, "cannot find metric storage 'bar'")
+	require.ErrorContains(t, err, "not declared")
 }
 
 func TestStorageExtensionType(t *testing.T) {
@@ -156,7 +157,7 @@ func TestGetSamplingStoreFactory(t *testing.T) {
 		{
 			name:          "NotFound",
 			storageName:   "nonexistingstorage",
-			expectedError: "cannot find definition of storage",
+			expectedError: "not declared",
 			setupFunc: func(t *testing.T) component.Component {
 				traceStoreFactory := "foo"
 				return startStorageExtension(t, traceStoreFactory, "bar")
@@ -231,7 +232,7 @@ func TestGetPurger(t *testing.T) {
 		{
 			name:          "NotFound",
 			storageName:   "nonexistingstorage",
-			expectedError: "cannot find definition of storage",
+			expectedError: "not declared",
 			setupFunc: func(t *testing.T) component.Component {
 				traceStoreFactory := "foo"
 				return startStorageExtension(t, traceStoreFactory, "bar")
@@ -391,7 +392,7 @@ func TestStartError(t *testing.T) {
 		},
 	})
 	err := ext.Start(t.Context(), componenttest.NewNopHost())
-	require.ErrorContains(t, err, "failed to initialize storage 'foo'")
+	require.ErrorContains(t, err, "invalid configuration for trace storage 'foo'")
 	require.ErrorContains(t, err, "empty configuration")
 }
 
@@ -441,8 +442,18 @@ func TestMetricStorageStartError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ext := makeStorageExtension(t, tt.config)
+			// With lazy initialization, Start() should not fail
+			// Instead, errors occur when accessing the factory
 			err := ext.Start(t.Context(), componenttest.NewNopHost())
-			require.ErrorContains(t, err, tt.expectedError)
+			if err != nil {
+				// Some backends may fail validation during Start()
+				require.ErrorContains(t, err, tt.expectedError)
+			} else {
+				// If Start() succeeds, error should occur when accessing factory
+				storageExt := ext.(Extension)
+				_, err := storageExt.MetricStorageFactory("foo")
+				require.ErrorContains(t, err, tt.expectedError)
+			}
 		})
 	}
 }
@@ -493,9 +504,19 @@ func TestCassandraError(t *testing.T) {
 			},
 		},
 	})
+	// With lazy initialization, Start() should not fail
+	// Instead, errors occur when accessing the factory
 	err := ext.Start(t.Context(), componenttest.NewNopHost())
-	require.ErrorContains(t, err, "failed to initialize storage 'cassandra'")
-	require.ErrorContains(t, err, "Servers: non zero value required")
+	if err != nil {
+		// Config validation may catch this during Start()
+		require.ErrorContains(t, err, "Servers: non zero value required")
+	} else {
+		// If Start() succeeds, error should occur when accessing factory
+		storageExt := ext.(Extension)
+		_, err := storageExt.TraceStorageFactory("cassandra")
+		require.ErrorContains(t, err, "failed to initialize storage 'cassandra'")
+		require.ErrorContains(t, err, "Servers: non zero value required")
+	}
 }
 
 func TestClickHouse(t *testing.T) {
@@ -563,7 +584,7 @@ func TestStorageBackend_DefaultCases(t *testing.T) {
 	ext = makeStorageExtension(t, config)
 	err = ext.Start(t.Context(), componenttest.NewNopHost())
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "no metric backend configuration provided")
+	require.Contains(t, err.Error(), "empty configuration")
 }
 
 func startStorageExtension(t *testing.T, memstoreName string, promstoreName string) component.Component {
@@ -698,7 +719,13 @@ func TestMetricBackendWithInvalidAuthenticator(t *testing.T) {
 	}
 
 	ext := makeStorageExtension(t, config)
+	// With lazy initialization, Start() should not fail
 	err := ext.Start(t.Context(), componenttest.NewNopHost())
+	require.NoError(t, err)
+
+	// Error should occur when accessing factory
+	storageExt := ext.(Extension)
+	_, err = storageExt.MetricStorageFactory("prometheus")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to get HTTP authenticator")
 }
@@ -794,7 +821,12 @@ func TestResolveAuthenticator(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ext := &storageExt{telset: noopTelemetrySettings()}
+			telset := telemetry.Settings{
+				Logger:         zap.L(),
+				TracerProvider: nooptrace.NewTracerProvider(),
+				MeterProvider:  noopmetric.NewMeterProvider(),
+			}
+			ext := &storageExt{telset: telset}
 			host := tt.setupHost()
 
 			auth, err := ext.resolveAuthenticator(host, tt.authCfg, backendType, backendName)
@@ -906,7 +938,13 @@ func TestElasticsearchWithMissingAuthenticator(t *testing.T) {
 			},
 		},
 	})
+	// With lazy initialization, Start() should not fail
 	err := ext.Start(t.Context(), componenttest.NewNopHost())
+	require.NoError(t, err)
+
+	// Error should occur when accessing factory
+	storageExt := ext.(Extension)
+	_, err = storageExt.TraceStorageFactory("elasticsearch")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to get HTTP authenticator")
 }
@@ -930,7 +968,13 @@ func TestOpenSearchTraceWithMissingAuthenticator(t *testing.T) {
 			},
 		},
 	})
+	// With lazy initialization, Start() should not fail
 	err := ext.Start(t.Context(), componenttest.NewNopHost())
+	require.NoError(t, err)
+
+	// Error should occur when accessing factory
+	storageExt := ext.(Extension)
+	_, err = storageExt.TraceStorageFactory("opensearch")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to get HTTP authenticator")
 }
@@ -959,7 +1003,13 @@ func TestElasticsearchWithWrongAuthenticatorType(t *testing.T) {
 		WithExtension(ID, ext).
 		WithExtension(component.MustNewID("wrongtype"), wrongAuth)
 
+	// With lazy initialization, Start() should not fail
 	err := ext.Start(t.Context(), host)
+	require.NoError(t, err)
+
+	// Error should occur when accessing factory
+	storageExt := ext.(Extension)
+	_, err = storageExt.TraceStorageFactory("elasticsearch")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "does not implement extensionauth.HTTPClient")
 }
@@ -988,7 +1038,13 @@ func TestOpenSearchWithWrongAuthenticatorType(t *testing.T) {
 		WithExtension(ID, ext).
 		WithExtension(component.MustNewID("wrongtype"), wrongAuth)
 
+	// With lazy initialization, Start() should not fail
 	err := ext.Start(t.Context(), host)
+	require.NoError(t, err)
+
+	// Error should occur when accessing factory
+	storageExt := ext.(Extension)
+	_, err = storageExt.TraceStorageFactory("opensearch")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "does not implement extensionauth.HTTPClient")
 }
@@ -1012,7 +1068,13 @@ func TestElasticsearchMetricsWithInvalidAuthenticator(t *testing.T) {
 			},
 		},
 	})
+	// With lazy initialization, Start() should not fail
 	err := ext.Start(t.Context(), componenttest.NewNopHost())
+	require.NoError(t, err)
+
+	// Error should occur when accessing factory
+	storageExt := ext.(Extension)
+	_, err = storageExt.MetricStorageFactory("elasticsearch")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to get HTTP authenticator")
 }
@@ -1036,7 +1098,137 @@ func TestOpenSearchMetricsWithInvalidAuthenticator(t *testing.T) {
 			},
 		},
 	})
+	// With lazy initialization, Start() should not fail
 	err := ext.Start(t.Context(), componenttest.NewNopHost())
+	require.NoError(t, err)
+
+	// Error should occur when accessing factory
+	storageExt := ext.(Extension)
+	_, err = storageExt.MetricStorageFactory("opensearch")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to get HTTP authenticator")
+}
+
+// TestLazyInitialization tests that factories are only created when accessed
+func TestLazyInitialization(t *testing.T) {
+	mockServer := setupMockServer(t, getVersionResponse(t), http.StatusOK)
+
+	config := storageconfig.Config{
+		TraceBackends: map[string]storageconfig.TraceBackend{
+			"memory1": {
+				Memory: &memory.Configuration{
+					MaxTraces: 10000,
+				},
+			},
+			"memory2": {
+				Memory: &memory.Configuration{
+					MaxTraces: 5000,
+				},
+			},
+			"elasticsearch": {
+				Elasticsearch: &escfg.Configuration{
+					Servers:  []string{mockServer.URL},
+					LogLevel: "error",
+				},
+			},
+		},
+	}
+
+	ext := makeStorageExtension(t, config)
+	storageExt := ext.(*storageExt)
+
+	// Start should succeed without initializing any factories
+	err := ext.Start(t.Context(), componenttest.NewNopHost())
+	require.NoError(t, err)
+
+	// Verify no factories have been created yet
+	storageExt.factoryMu.Lock()
+	require.Empty(t, storageExt.factories, "No factories should be initialized after Start()")
+	storageExt.factoryMu.Unlock()
+
+	// Access memory1 - should initialize only that factory
+	f1, err := storageExt.TraceStorageFactory("memory1")
+	require.NoError(t, err)
+	require.NotNil(t, f1)
+
+	storageExt.factoryMu.Lock()
+	require.Len(t, storageExt.factories, 1, "Only one factory should be initialized")
+	require.Contains(t, storageExt.factories, "memory1")
+	storageExt.factoryMu.Unlock()
+
+	// Access elasticsearch - should initialize another factory
+	f2, err := storageExt.TraceStorageFactory("elasticsearch")
+	require.NoError(t, err)
+	require.NotNil(t, f2)
+
+	storageExt.factoryMu.Lock()
+	require.Len(t, storageExt.factories, 2, "Two factories should be initialized")
+	require.Contains(t, storageExt.factories, "memory1")
+	require.Contains(t, storageExt.factories, "elasticsearch")
+	storageExt.factoryMu.Unlock()
+
+	// Access memory1 again - should return cached factory
+	f1Again, err := storageExt.TraceStorageFactory("memory1")
+	require.NoError(t, err)
+	require.Same(t, f1, f1Again, "Should return the same cached factory instance")
+
+	// memory2 should still not be initialized
+	storageExt.factoryMu.Lock()
+	require.NotContains(t, storageExt.factories, "memory2", "memory2 should not be initialized yet")
+	storageExt.factoryMu.Unlock()
+
+	require.NoError(t, ext.Shutdown(t.Context()))
+}
+
+// TestLazyInitializationMetrics tests lazy initialization for metric storage
+func TestLazyInitializationMetrics(t *testing.T) {
+	mockServer := setupMockServer(t, getVersionResponse(t), http.StatusOK)
+
+	config := storageconfig.Config{
+		MetricBackends: map[string]storageconfig.MetricBackend{
+			"prometheus1": {
+				Prometheus: &storageconfig.PrometheusConfiguration{
+					Configuration: promcfg.Configuration{
+						ServerURL: mockServer.URL,
+					},
+				},
+			},
+			"prometheus2": {
+				Prometheus: &storageconfig.PrometheusConfiguration{
+					Configuration: promcfg.Configuration{
+						ServerURL: mockServer.URL,
+					},
+				},
+			},
+		},
+	}
+
+	ext := makeStorageExtension(t, config)
+	storageExt := ext.(*storageExt)
+
+	// Start should succeed without initializing any factories
+	err := ext.Start(t.Context(), componenttest.NewNopHost())
+	require.NoError(t, err)
+
+	// Verify no factories have been created yet
+	storageExt.factoryMu.Lock()
+	require.Empty(t, storageExt.metricsFactories, "No metric factories should be initialized after Start()")
+	storageExt.factoryMu.Unlock()
+
+	// Access prometheus1 - should initialize only that factory
+	mf1, err := storageExt.MetricStorageFactory("prometheus1")
+	require.NoError(t, err)
+	require.NotNil(t, mf1)
+
+	storageExt.factoryMu.Lock()
+	require.Len(t, storageExt.metricsFactories, 1, "Only one metric factory should be initialized")
+	require.Contains(t, storageExt.metricsFactories, "prometheus1")
+	storageExt.factoryMu.Unlock()
+
+	// prometheus2 should still not be initialized
+	storageExt.factoryMu.Lock()
+	require.NotContains(t, storageExt.metricsFactories, "prometheus2", "prometheus2 should not be initialized yet")
+	storageExt.factoryMu.Unlock()
+
+	require.NoError(t, ext.Shutdown(t.Context()))
 }

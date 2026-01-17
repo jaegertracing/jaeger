@@ -4,6 +4,8 @@ This file provides guidance for AI agents working on the Jaeger repository. For 
 
 ## Setup
 
+The primary branch is called `main`, all PRs are merged into it.
+
 If checking out a fresh repository, initialize submodules:
 ```bash
 git submodule update --init --recursive
