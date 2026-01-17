@@ -11,8 +11,7 @@
       "index.number_of_replicas": 3,
       "index.mapping.nested_fields.limit": 50,
       "lifecycle": {
-        "name": "jaeger-test-policy",
-        "rollover_alias": "test-jaeger-span-write"
+        "name": "jaeger-test-policy"
       }
     },
     "mappings": {
