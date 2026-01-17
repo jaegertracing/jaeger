@@ -67,13 +67,15 @@ func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *dbmodel.Span
 	if !keyInCache(cacheKey, s.serviceCache) {
 		il := s.client().Index().Index(indexName).Type(serviceType).BodyJson(service)
 		opType := ""
-		if s.useDataStream || s.client().GetVersion() >= 8 {
+		if s.useDataStream {
+			// For data streams, let ES auto-generate IDs and use "create" opType.
 			opType = "create"
-			if !s.useDataStream {
-				il.Id(cacheKey)
-			}
 		} else {
+			// For non-data streams, always use a deterministic ID.
 			il.Id(cacheKey)
+			if s.client().GetVersion() >= 8 {
+				opType = "create"
+			}
 		}
 		il.Add(opType)
 		writeCache(cacheKey, s.serviceCache)
