@@ -6,9 +6,9 @@ package tracestore
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -39,7 +39,7 @@ func verifyQuerySnapshot(t *testing.T, queries ...string) {
 	testName := t.Name()
 	for i, query := range queries {
 		index := i + 1
-		snapshotFile := filepath.Join(snapshotLocation, testName+"_"+fmt.Sprintf("%d", index)+".sql")
+		snapshotFile := filepath.Join(snapshotLocation, testName+"_"+strconv.Itoa(index)+".sql")
 		query = strings.TrimSpace(query)
 		if regenerateSnapshots {
 			dir := filepath.Dir(snapshotFile)
