@@ -327,15 +327,15 @@ type fakeStorageExtensionForTest struct {
 func (*fakeStorageExtensionForTest) Start(context.Context, component.Host) error { return nil }
 func (*fakeStorageExtensionForTest) Shutdown(context.Context) error              { return nil }
 
-func (f *fakeStorageExtensionForTest) TraceStorageFactory(name string) (tracestore.Factory, bool) {
+func (f *fakeStorageExtensionForTest) TraceStorageFactory(name string) (tracestore.Factory, error) {
 	if name == f.storageName {
-		return &fakeSamplingStoreFactory{failOn: f.failOn}, true
+		return &fakeSamplingStoreFactory{failOn: f.failOn}, nil
 	}
-	return nil, false
+	return nil, errors.New("storage not found")
 }
 
-func (*fakeStorageExtensionForTest) MetricStorageFactory(string) (storage.MetricStoreFactory, bool) {
-	return nil, false
+func (*fakeStorageExtensionForTest) MetricStorageFactory(string) (storage.MetricStoreFactory, error) {
+	return nil, errors.New("metric storage not found")
 }
 
 type fakeSamplingStoreFactory struct {

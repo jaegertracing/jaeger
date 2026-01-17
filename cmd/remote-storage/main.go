@@ -70,7 +70,7 @@ func main() {
 			baseTelset := telemetry.Settings{
 				Logger:        svc.Logger,
 				Metrics:       baseFactory,
-				ReportStatus:  telemetry.HCAdapter(svc.HC()),
+				Host:          svc.Admin.Host(),
 				MeterProvider: noop.NewMeterProvider(),
 			}
 
