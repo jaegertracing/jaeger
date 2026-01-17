@@ -103,6 +103,7 @@ func (s *AdminServer) Serve() error {
 }
 
 func (s *AdminServer) serveWithListener(l net.Listener) (err error) {
+	s.logger.Info("Mounting health check on admin server", zap.String("route", "/"))
 	s.mux.Handle("/", s.hc.Handler())
 	version.RegisterHandler(s.mux, s.logger)
 	s.registerPprofHandlers()
@@ -129,6 +130,7 @@ func (s *AdminServer) serveWithListener(l net.Listener) (err error) {
 		err := s.server.Serve(l)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			s.logger.Error("failed to serve", zap.Error(err))
+			s.hc.SetUnavailable()
 		}
 	}()
 	wg.Wait() // wait for the server to start listening
