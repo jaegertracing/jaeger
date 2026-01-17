@@ -107,9 +107,6 @@ linters:
         # this should be enabled after fixing or disabling in a few packages
         - name: package-directory-mismatch
           disabled: true
-        # would be ok if we could exclude the test files, but otherwise too noisy
-        - name: add-constant
-          disabled: true
         # maybe enable in the future, needs more investigation
         - name: cognitive-complexity
           disabled: true
@@ -124,9 +121,6 @@ linters:
           disabled: true
         # wtf: "you have exceeded the maximum number of public struct declarations"
         - name: max-public-structs
-          disabled: true
-        # TBD - often triggered in tests
-        - name: unhandled-error
           disabled: true
         # often looks like a red herring, needs investigation
         - name: flag-parameter
@@ -183,6 +177,14 @@ linters:
       - linters:
           - staticcheck
         path: internal/grpctest/
+      - linters:
+          - revive
+        text: "add-constant"
+        path: _test\.go
+      - linters:
+          - revive
+        text: "unhandled-error"
+        path: _test\.go
     paths:
       - .*.pb.go$
       - mocks
