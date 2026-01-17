@@ -54,10 +54,10 @@ func NewAdminServer(hostPort string) *AdminServer {
 	}
 }
 
-// HC returns the health host for this admin server.
-// The health host implements component.Host and componentstatus.Reporter,
+// Host returns the health host for this admin server.
+// It implements component.Host and componentstatus.Reporter,
 // allowing it to be used with telemetry.Settings and componentstatus.ReportStatus.
-func (s *AdminServer) HC() *HealthHost {
+func (s *AdminServer) Host() *HealthHost {
 	return s.hc
 }
 

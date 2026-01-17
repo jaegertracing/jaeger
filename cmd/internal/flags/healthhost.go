@@ -11,25 +11,6 @@ import (
 	"go.opentelemetry.io/collector/component/componentstatus"
 )
 
-// HealthStatus represents the health state of the service.
-type HealthStatus int32
-
-const (
-	Unavailable HealthStatus = iota
-	Ready
-)
-
-func (s HealthStatus) String() string {
-	switch s {
-	case Ready:
-		return "ready"
-	case Unavailable:
-		return "unavailable"
-	default:
-		return "unknown"
-	}
-}
-
 var (
 	_ component.Host           = (*HealthHost)(nil)
 	_ componentstatus.Reporter = (*HealthHost)(nil)
@@ -38,10 +19,10 @@ var (
 // HealthHost implements component.Host and componentstatus.Reporter
 // and provides an HTTP handler for health checks.
 type HealthHost struct {
-	status atomic.Int32
+	ready atomic.Bool
 }
 
-// NewHealthHost creates a new HealthHost in Unavailable state.
+// NewHealthHost creates a new HealthHost in not-ready state.
 func NewHealthHost() *HealthHost {
 	return &HealthHost{}
 }
@@ -52,41 +33,30 @@ func (*HealthHost) GetExtensions() map[component.ID]component.Component {
 }
 
 // Report implements componentstatus.Reporter.
-// It maps OTEL component status to simple Ready/Unavailable health status.
 func (h *HealthHost) Report(event *componentstatus.Event) {
 	switch event.Status() {
 	case componentstatus.StatusOK, componentstatus.StatusRecoverableError:
-		h.Set(Ready)
+		h.Ready()
 	default:
-		h.Set(Unavailable)
+		h.SetUnavailable()
 	}
 }
 
-// Get returns the current health status.
-func (h *HealthHost) Get() HealthStatus {
-	return HealthStatus(h.status.Load())
-}
-
-// Set sets the health status.
-func (h *HealthHost) Set(status HealthStatus) {
-	h.status.Store(int32(status))
-}
-
-// Ready sets the status to Ready.
+// Ready sets the health status to ready.
 func (h *HealthHost) Ready() {
-	h.Set(Ready)
+	h.ready.Store(true)
 }
 
-// SetUnavailable sets the status to Unavailable.
+// SetUnavailable sets the health status to unavailable.
 func (h *HealthHost) SetUnavailable() {
-	h.Set(Unavailable)
+	h.ready.Store(false)
 }
 
 // Handler returns an HTTP handler for the health endpoint.
 // Returns 204 No Content when ready, 503 Service Unavailable otherwise.
 func (h *HealthHost) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		if h.Get() == Ready {
+		if h.ready.Load() {
 			w.WriteHeader(http.StatusNoContent)
 		} else {
 			w.WriteHeader(http.StatusServiceUnavailable)

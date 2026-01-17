@@ -42,27 +42,24 @@ func TestAdminServerHealthCheck(t *testing.T) {
 	require.Equal(t, 1, message.Len())
 	hostPort := message.All()[0].ContextMap()["http.host-port"].(string)
 
-	// Health check should initially be unavailable
-	assert.Equal(t, Unavailable, adminServer.HC().Get())
-
-	// Set to ready
-	adminServer.HC().Ready()
-	assert.Equal(t, Ready, adminServer.HC().Get())
-
-	// Verify HTTP endpoint returns correct status
+	// Health check should initially be unavailable (503)
 	resp, err := http.Get(fmt.Sprintf("http://%s/", hostPort))
 	require.NoError(t, err)
-	defer resp.Body.Close()
-	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	resp.Body.Close()
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 
-	// Set to unavailable
-	adminServer.HC().SetUnavailable()
-	assert.Equal(t, Unavailable, adminServer.HC().Get())
-
-	// Verify HTTP endpoint returns 503
+	// Set to ready - should return 204
+	adminServer.Host().Ready()
 	resp, err = http.Get(fmt.Sprintf("http://%s/", hostPort))
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	resp.Body.Close()
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+
+	// Set to unavailable - should return 503
+	adminServer.Host().SetUnavailable()
+	resp, err = http.Get(fmt.Sprintf("http://%s/", hostPort))
+	require.NoError(t, err)
+	resp.Body.Close()
 	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 }
 

@@ -12,70 +12,60 @@ import (
 	"go.opentelemetry.io/collector/component/componentstatus"
 )
 
-func TestHealthHost(t *testing.T) {
-	hh := NewHealthHost()
-
-	// Initially unavailable
-	assert.Equal(t, Unavailable, hh.Get())
-
-	// Set to Ready
-	hh.Ready()
-	assert.Equal(t, Ready, hh.Get())
-
-	// Set to Unavailable
-	hh.SetUnavailable()
-	assert.Equal(t, Unavailable, hh.Get())
-
-	// Set directly
-	hh.Set(Ready)
-	assert.Equal(t, Ready, hh.Get())
-}
-
-func TestHealthHost_Report(t *testing.T) {
-	hh := NewHealthHost()
-
-	// StatusOK should set Ready
-	hh.Report(componentstatus.NewEvent(componentstatus.StatusOK))
-	assert.Equal(t, Ready, hh.Get())
-
-	// StatusStopping should set Unavailable
-	hh.Report(componentstatus.NewEvent(componentstatus.StatusStopping))
-	assert.Equal(t, Unavailable, hh.Get())
-
-	// StatusRecoverableError should set Ready
-	hh.Report(componentstatus.NewRecoverableErrorEvent(nil))
-	assert.Equal(t, Ready, hh.Get())
-
-	// StatusFatalError should set Unavailable
-	hh.Report(componentstatus.NewFatalErrorEvent(nil))
-	assert.Equal(t, Unavailable, hh.Get())
-}
-
 func TestHealthHost_Handler(t *testing.T) {
 	hh := NewHealthHost()
 	handler := hh.Handler()
 
-	// When unavailable, should return 503
+	// Initially unavailable - should return 503
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 
-	// When ready, should return 204
+	// Set to ready - should return 204
 	hh.Ready()
 	w = httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusNoContent, w.Code)
+
+	// Set to unavailable - should return 503
+	hh.SetUnavailable()
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
+func TestHealthHost_Report(t *testing.T) {
+	hh := NewHealthHost()
+	handler := hh.Handler()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+
+	// StatusOK should set Ready
+	hh.Report(componentstatus.NewEvent(componentstatus.StatusOK))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusNoContent, w.Code)
+
+	// StatusStopping should set Unavailable
+	hh.Report(componentstatus.NewEvent(componentstatus.StatusStopping))
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+
+	// StatusRecoverableError should set Ready
+	hh.Report(componentstatus.NewRecoverableErrorEvent(nil))
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusNoContent, w.Code)
+
+	// StatusFatalError should set Unavailable
+	hh.Report(componentstatus.NewFatalErrorEvent(nil))
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 }
 
 func TestHealthHost_GetExtensions(t *testing.T) {
 	hh := NewHealthHost()
-	// Should return nil (no extensions)
 	assert.Nil(t, hh.GetExtensions())
-}
-
-func TestHealthStatus_String(t *testing.T) {
-	assert.Equal(t, "unavailable", Unavailable.String())
-	assert.Equal(t, "ready", Ready.String())
-	assert.Equal(t, "unknown", HealthStatus(99).String())
 }

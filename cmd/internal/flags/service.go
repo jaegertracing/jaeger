@@ -110,12 +110,12 @@ func (s *Service) Start(v *viper.Viper) error {
 // RunAndThen sets the health check to Ready and blocks until SIGTERM is received.
 // It then runs the shutdown function and exits.
 func (s *Service) RunAndThen(shutdown func()) {
-	s.Admin.HC().Ready()
+	s.Admin.Host().Ready()
 
 	<-s.signalsChannel
 
 	s.Logger.Info("Shutting down")
-	s.Admin.HC().SetUnavailable()
+	s.Admin.Host().SetUnavailable()
 
 	if shutdown != nil {
 		shutdown()
