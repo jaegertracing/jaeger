@@ -296,7 +296,7 @@ func (r *Reader) buildFindTraceIDsQuery(
 		attributeMetadata = am
 	}
 
-	if err := r.buildAttributeConditions(&q, &args, query.Attributes, attributeMetadata); err != nil {
+	if err := buildAttributeConditions(&q, &args, query.Attributes, attributeMetadata); err != nil {
 		return "", nil, err
 	}
 
@@ -316,7 +316,7 @@ func hasStringAttributes(attributes pcommon.Map) bool {
 	return false
 }
 
-func (r *Reader) buildAttributeConditions(q *strings.Builder, args *[]any, attributes pcommon.Map, metadata attributeMetadata) error {
+func buildAttributeConditions(q *strings.Builder, args *[]any, attributes pcommon.Map, metadata attributeMetadata) error {
 	for key, attr := range attributes.All() {
 		q.WriteString(" AND (")
 
