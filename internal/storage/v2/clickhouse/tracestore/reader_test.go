@@ -129,6 +129,17 @@ func scanSpanRowFn() func(dest any, src *dbmodel.SpanRow) error {
 	}
 }
 
+func scanAttributeMetadataFn() func(dest any, src dbmodel.AttributeMetadata) error {
+	return func(dest any, src dbmodel.AttributeMetadata) error {
+		ptr, ok := dest.(*dbmodel.AttributeMetadata)
+		if !ok {
+			return fmt.Errorf("expected *dbmodel.AttributeMetadata for dest, got %T", dest)
+		}
+		*ptr = src
+		return nil
+	}
+}
+
 func scanTraceIDFn() func(dest any, src []any) error {
 	return func(dest any, src []any) error {
 		ptrs, ok := dest.([]any)
@@ -201,7 +212,7 @@ func TestGetTraces_Success(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Len(t, conn.recordedQueries, 1)
-			verifyQuerySnapshot(t, conn.recordedQueries[0])
+			verifyQuerySnapshot(t, conn.recordedQueries...)
 			requireTracesEqual(t, tt.data, traces)
 		})
 	}
@@ -430,7 +441,7 @@ func TestGetServices(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.Len(t, test.conn.recordedQueries, 1)
-				verifyQuerySnapshot(t, test.conn.recordedQueries[0])
+				verifyQuerySnapshot(t, test.conn.recordedQueries...)
 				require.Equal(t, test.expected, result)
 			}
 		})
@@ -583,7 +594,7 @@ func TestGetOperations(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.Len(t, test.conn.recordedQueries, 1)
-				verifyQuerySnapshot(t, test.conn.recordedQueries[0])
+				verifyQuerySnapshot(t, test.conn.recordedQueries...)
 				require.Equal(t, test.expected, result)
 			}
 		})
@@ -628,7 +639,7 @@ func TestFindTraces_Success(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Len(t, conn.recordedQueries, 1)
-			verifyQuerySnapshot(t, conn.recordedQueries[0])
+			verifyQuerySnapshot(t, conn.recordedQueries...)
 			requireTracesEqual(t, tt.data, traces)
 		})
 	}
@@ -638,6 +649,18 @@ func TestFindTraces_WithFilters(t *testing.T) {
 	conn := &testDriver{
 		t: t,
 		queryResponses: map[string]*testQueryResponse{
+			sql.SelectAttributeMetadata: {
+				rows: &testRows[dbmodel.AttributeMetadata]{
+					data: []dbmodel.AttributeMetadata{
+						{
+							AttributeKey: "http.method",
+							Type:         "str",
+							Level:        "span",
+						},
+					},
+					scanFn: scanAttributeMetadataFn(),
+				},
+			},
 			sql.SelectSpansQuery: {
 				rows: &testRows[*dbmodel.SpanRow]{
 					data:   multipleSpans,
@@ -674,23 +697,14 @@ func TestFindTraces_WithFilters(t *testing.T) {
 	})
 	traces, err := jiter.FlattenWithErrors(iter)
 	require.NoError(t, err)
-	require.Len(t, conn.recordedQueries, 1)
-	verifyQuerySnapshot(t, conn.recordedQueries[0])
+	require.Len(t, conn.recordedQueries, 2)
+	verifyQuerySnapshot(t, conn.recordedQueries...)
 	requireTracesEqual(t, multipleSpans, traces)
 }
 
 func TestFindTraces_SearchDepthExceedsMax(t *testing.T) {
 	driver := &testDriver{
 		t: t,
-		queryResponses: map[string]*testQueryResponse{
-			sql.SelectSpansQuery: {
-				rows: &testRows[*dbmodel.SpanRow]{
-					data:   singleSpan,
-					scanFn: scanSpanRowFn(),
-				},
-				err: nil,
-			},
-		},
 	}
 	reader := NewReader(driver, testReaderConfig)
 	iter := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
@@ -843,6 +857,18 @@ func TestFindTraceIDs(t *testing.T) {
 	driver := &testDriver{
 		t: t,
 		queryResponses: map[string]*testQueryResponse{
+			sql.SelectAttributeMetadata: {
+				rows: &testRows[dbmodel.AttributeMetadata]{
+					data: []dbmodel.AttributeMetadata{
+						{
+							AttributeKey: "http.method",
+							Type:         "str",
+							Level:        "span",
+						},
+					},
+					scanFn: scanAttributeMetadataFn(),
+				},
+			},
 			sql.SearchTraceIDs: {
 				rows: &testRows[[]any]{
 					data:   testTraceIDsData,
@@ -878,8 +904,8 @@ func TestFindTraceIDs(t *testing.T) {
 	})
 	ids, err := jiter.FlattenWithErrors(iter)
 	require.NoError(t, err)
-	require.Len(t, driver.recordedQueries, 1)
-	verifyQuerySnapshot(t, driver.recordedQueries[0])
+	require.Len(t, driver.recordedQueries, 2)
+	verifyQuerySnapshot(t, driver.recordedQueries...)
 	require.Equal(t, []tracestore.FoundTraceID{
 		{
 			TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}),

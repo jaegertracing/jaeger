@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"iter"
 	"strconv"
@@ -211,9 +210,7 @@ func (r *Reader) FindTraceIDs(
 ) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	return func(yield func([]tracestore.FoundTraceID, error) bool) {
 		q, args, err := r.buildFindTraceIDsQuery(query)
-		if errors.Is(err, errAttributeMetadataNotFound) {
-			return
-		} else if err != nil {
+		if err != nil {
 			yield(nil, fmt.Errorf("failed to build query: %w", err))
 			return
 		}
@@ -289,11 +286,17 @@ func (r *Reader) buildFindTraceIDsQuery(
 		args = append(args, query.StartTimeMax)
 	}
 
-	attributeMetadata, err := r.getAttributeMetadata(query.Attributes)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to get attribute metadata: %w", err)
+	// Only query attribute metadata if requested and string attributes are present.
+	// Non-string attributes (bool/double/int/bytes/slice/map) don't require metadata.
+	var attributeMetadata attributeMetadata
+	if hasStringAttributes(query.Attributes) {
+		am, err := r.getAttributeMetadata(query.Attributes)
+		if err != nil {
+			return "", nil, fmt.Errorf("failed to get attribute metadata: %w", err)
+		}
+		attributeMetadata = am
 	}
-	fmt.Printf("Attribute metadata: %+v\n", attributeMetadata)
+
 	if err := r.buildAttributeConditions(&q, &args, query.Attributes, attributeMetadata); err != nil {
 		return "", nil, err
 	}
@@ -302,6 +305,16 @@ func (r *Reader) buildFindTraceIDsQuery(
 	args = append(args, limit)
 
 	return q.String(), args, nil
+}
+
+// hasStringAttributes returns true if any attribute in the map is of string type.
+func hasStringAttributes(attributes pcommon.Map) bool {
+	for _, attr := range attributes.All() {
+		if attr.Type() == pcommon.ValueTypeStr {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *Reader) buildAttributeConditions(q *strings.Builder, args *[]any, attributes pcommon.Map, metadata attributeMetadata) error {
@@ -405,9 +418,14 @@ func (r *Reader) buildMapAttributeCondition(q *strings.Builder, args *[]any, key
 // appropriate type for querying.
 func (r *Reader) buildStringAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value, metadata attributeMetadata) error {
 	levelTypes, ok := metadata[key]
+
+	// if no metadata found, assume string type
 	if !ok {
-		fmt.Printf("no metadata found for key: %s\n", key)
-		return errAttributeMetadataNotFound
+		q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.str_attributes.key, s.str_attributes.value)")
+		q.WriteString(" OR ")
+		q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.resource_str_attributes.key, s.resource_str_attributes.value)")
+		*args = append(*args, key, attr.Str(), key, attr.Str())
+		return nil
 	}
 
 	first := true
