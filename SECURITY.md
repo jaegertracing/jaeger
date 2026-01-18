@@ -121,9 +121,6 @@ oF+qZY4uEvqFvYo8
 [mailing-list]: https://groups.google.com/forum/#!forum/jaeger-tracing
 [slack-room]: https://cloud-native.slack.com/archives/CGG7NFUJ3
 
-## Securing a Jaeger installation
-
-If you are looking to secure your Jaeger installation, check out our documentation on the topic: [Securing Jaeger Installation](https://www.jaegertracing.io/docs/latest/security/).
 
 ## Security Documentation
 
@@ -136,4 +133,3 @@ For more detailed security information, see:
 | [Security Architecture](docs/security/architecture.md) | TLS and cryptographic practices |
 | [Self-Assessment](docs/security/self-assessment.md) | CNCF TAG Security self-assessment |
 | [Release Verification](docs/security/verifying-releases.md) | Release signature verification |
-
