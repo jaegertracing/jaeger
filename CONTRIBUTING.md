@@ -138,7 +138,7 @@ import (
 
 ## Testing guidelines
 
-**Policy**: All new functionality MUST include tests. Bug fixes SHOULD include regression tests that would have caught the bug. Pull requests without adequate test coverage will not be merged.
+**Policy**: All new functionality must include tests. Bug fixes should include regression tests that would have caught the bug, where feasible. Pull requests without adequate test coverage will not be merged.
 
 We strive to maintain as high code coverage as possible. The current repository limit is set at 95%,
 with some exclusions discussed below.

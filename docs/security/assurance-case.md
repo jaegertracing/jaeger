@@ -78,7 +78,7 @@ For detailed threat analysis, see [threat-model.md](threat-model.md).
 
 - **Implementation**: TLS certificate verification is enabled by default when TLS is configured
 - **Evidence**: `insecure_skip_verify` must be explicitly set to disable verification
-- **Note**: TLS itself is opt-in to simplify initial deployment
+- **Note**: TLS itself is opt-in to simplify initial testing and non-production deployments; for all production deployments, TLS (preferably mTLS where supported) MUST be enabled on all external and inter-service connections.
 
 ### Complete Mediation
 

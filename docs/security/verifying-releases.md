@@ -8,8 +8,16 @@ All Jaeger releases are cryptographically signed. Users should verify signatures
 |---------------|----------------|
 | Git tags | GPG signed (`git tag -s`) |
 | Binary archives | GPG detached signatures (`.asc` files) |
-| Container images | Available on Docker Hub and Quay.io |
+| Container images | Verify image digest from official Docker Hub and Quay.io repositories |
 | SBOM | Included with each release |
+
+## Verifying Container Image Authenticity
+
+Jaeger container images are published to official repositories on Docker Hub and Quay.io. To verify that you are using the intended image:
+
+1. Pull images from the official Jaeger organization repositories on Docker Hub or Quay.io.
+2. Use image digests (for example, `jaegertracing/all-in-one@sha256:<digest>`) rather than mutable tags where possible.
+3. Compare the digest you deploy with the expected digest published in your deployment configuration, automation, or release notes.
 
 ## Verifying Binary Signatures
 
