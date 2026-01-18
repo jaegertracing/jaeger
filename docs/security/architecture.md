@@ -10,7 +10,7 @@ Jaeger supports TLS for all its network communications, including span ingestion
 
 TLS can be configured for both clients and servers across all Jaeger components (Collector, Query, Ingester, Agent).
 
-- **Supported TLS Versions**: Jaeger supports TLS 1.0, 1.1, 1.2, and 1.3. Users can configure the minimum and maximum supported versions using the `--tls.min-version` and `--tls.max-version` flags or corresponding YAML configuration.
+- **Supported TLS Versions**: Jaeger can be configured to use TLS 1.2 and 1.3, and these are the only versions that should be used in production. Users should configure the minimum supported version as TLS 1.2 or higher using the `--tls.min-version` flag (or corresponding YAML configuration), with TLS 1.3 recommended where available. While TLS 1.0 and 1.1 may still be technically supported for legacy interoperability, they are deprecated, have known security weaknesses, and **must not be enabled in production environments**.
 - **Cipher Suites**: A custom list of allowed cipher suites can be configured to ensure only strong cryptographic algorithms are used.
 - **Certificate Management**:
     - **CA Certificate**: Can be provided to verify the server's or client's certificate.
@@ -30,7 +30,7 @@ Jaeger performs strict input validation to prevent injection attacks and ensure 
 - **OTLP and Protobuf**: Jaeger primarily uses structured data formats like OTLP (via gRPC and HTTP) and Protobuf for internal communication. These formats provide inherent protection against many common injection vulnerabilities.
 - **Schema Validation**: Inbound spans are validated against the defined schemas.
 - **Size Limits**:
-    - **GRPC Message Size**: Limits are enforced on the maximum size of incoming gRPC messages.
+    - **gRPC Message Size**: Limits are enforced on the maximum size of incoming gRPC messages.
     - **HTTP Request Size**: Limits are enforced for HTTP-based ingestion.
 - **Storage Queries**: Queries to storage backends (Elasticsearch, Cassandra, etc.) are constructed using parameterized queries or dedicated client libraries that prevent injection.
 
