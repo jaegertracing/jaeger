@@ -48,7 +48,7 @@
                "steppedLine": false,
                "targets": [
                   {
-                     "expr": "sum(rate(jaeger_tracer_reporter_spans_total{result=~\"dropped|err\"}[1m]))",
+                     "expr": "sum(rate(otelcol_receiver_refused_spans[1m]))",
                      "format": "time_series",
                      "intervalFactor": 2,
                      "legendFormat": "error",
@@ -56,7 +56,7 @@
                      "step": 10
                   },
                   {
-                     "expr": "sum(rate(jaeger_tracer_reporter_spans_total[1m])) - sum(rate(jaeger_tracer_reporter_spans_total{result=~\"dropped|err\"}[1m]))",
+                     "expr": "sum(rate(otelcol_receiver_accepted_spans[1m]))",
                      "format": "time_series",
                      "intervalFactor": 2,
                      "legendFormat": "success",
@@ -67,10 +67,10 @@
                "thresholds": [ ],
                "timeFrom": null,
                "timeShift": null,
-               "title": "span creation rate",
+               "title": "span ingest rate",
                "tooltip": {
                   "shared": true,
-                  "sort": 0,
+                  "sort": 2,
                   "value_type": "individual"
                },
                "type": "graph",
@@ -132,12 +132,10 @@
                "steppedLine": false,
                "targets": [
                   {
-                     "expr": "sum(rate(jaeger_tracer_reporter_spans_total{result=~\"dropped|err\"}[1m])) by (namespace) / sum(rate(jaeger_tracer_reporter_spans_total[1m])) by (namespace)",
+                     "expr": "sum(rate(otelcol_receiver_refused_spans[1m])) by (receiver) / (sum(rate(otelcol_receiver_accepted_spans[1m])) by (receiver) + sum(rate(otelcol_receiver_refused_spans[1m])) by (receiver))",
                      "format": "time_series",
-                     "intervalFactor": 2,
-                     "legendFormat": "{{namespace}}",
-                     "legendLink": null,
-                     "step": 10
+                     "legendFormat": "{{receiver}}",
+                     "legendLink": null
                   }
                ],
                "thresholds": [ ],
@@ -146,7 +144,7 @@
                "title": "% spans dropped",
                "tooltip": {
                   "shared": true,
-                  "sort": 0,
+                  "sort": 2,
                   "value_type": "individual"
                },
                "type": "graph",
@@ -181,7 +179,7 @@
          "repeatIteration": null,
          "repeatRowId": null,
          "showTitle": true,
-         "title": "Services",
+         "title": "Collector (Receivers)",
          "titleSize": "h6"
       },
       {
@@ -223,7 +221,7 @@
                "steppedLine": false,
                "targets": [
                   {
-                     "expr": "sum(rate(jaeger_agent_reporter_batches_failures_total[1m]))",
+                     "expr": "sum(rate(otelcol_exporter_send_failed_spans[1m]))",
                      "format": "time_series",
                      "intervalFactor": 2,
                      "legendFormat": "error",
@@ -231,7 +229,7 @@
                      "step": 10
                   },
                   {
-                     "expr": "sum(rate(jaeger_agent_reporter_batches_submitted_total[1m])) - sum(rate(jaeger_agent_reporter_batches_failures_total[1m]))",
+                     "expr": "sum(rate(otelcol_exporter_sent_spans[1m]))",
                      "format": "time_series",
                      "intervalFactor": 2,
                      "legendFormat": "success",
@@ -242,10 +240,10 @@
                "thresholds": [ ],
                "timeFrom": null,
                "timeShift": null,
-               "title": "batch ingest rate",
+               "title": "span export rate",
                "tooltip": {
                   "shared": true,
-                  "sort": 0,
+                  "sort": 2,
                   "value_type": "individual"
                },
                "type": "graph",
@@ -307,21 +305,19 @@
                "steppedLine": false,
                "targets": [
                   {
-                     "expr": "sum(rate(jaeger_agent_reporter_batches_failures_total[1m])) by (cluster) / sum(rate(jaeger_agent_reporter_batches_submitted_total[1m])) by (cluster)",
+                     "expr": "sum(rate(otelcol_exporter_send_failed_spans[1m])) by (exporter) / (sum(rate(otelcol_exporter_sent_spans[1m])) by (exporter) + sum(rate(otelcol_exporter_send_failed_spans[1m])) by (exporter))",
                      "format": "time_series",
-                     "intervalFactor": 2,
-                     "legendFormat": "{{cluster}}",
-                     "legendLink": null,
-                     "step": 10
+                     "legendFormat": "{{exporter}}",
+                     "legendLink": null
                   }
                ],
                "thresholds": [ ],
                "timeFrom": null,
                "timeShift": null,
-               "title": "% batches dropped",
+               "title": "% spans dropped",
                "tooltip": {
                   "shared": true,
-                  "sort": 0,
+                  "sort": 2,
                   "value_type": "individual"
                },
                "type": "graph",
@@ -356,7 +352,7 @@
          "repeatIteration": null,
          "repeatRowId": null,
          "showTitle": true,
-         "title": "Agent",
+         "title": "Exporters",
          "titleSize": "h6"
       },
       {
@@ -364,10 +360,7 @@
          "height": "250px",
          "panels": [
             {
-               "aliasColors": {
-                  "error": "#E24D42",
-                  "success": "#7EB26D"
-               },
+               "aliasColors": { },
                "bars": false,
                "dashLength": 10,
                "dashes": false,
@@ -393,34 +386,24 @@
                "renderer": "flot",
                "seriesOverrides": [ ],
                "spaceLength": 10,
-               "span": 6,
+               "span": 3,
                "stack": true,
                "steppedLine": false,
                "targets": [
                   {
-                     "expr": "sum(rate(jaeger_collector_spans_dropped_total[1m]))",
+                     "expr": "otelcol_exporter_queue_size",
                      "format": "time_series",
-                     "intervalFactor": 2,
-                     "legendFormat": "error",
-                     "refId": "A",
-                     "step": 10
-                  },
-                  {
-                     "expr": "sum(rate(jaeger_collector_spans_received_total[1m])) - sum(rate(jaeger_collector_spans_dropped_total[1m]))",
-                     "format": "time_series",
-                     "intervalFactor": 2,
-                     "legendFormat": "success",
-                     "refId": "B",
-                     "step": 10
+                     "legendFormat": "{{exporter}}",
+                     "legendLink": null
                   }
                ],
                "thresholds": [ ],
                "timeFrom": null,
                "timeShift": null,
-               "title": "span ingest rate",
+               "title": "queue size",
                "tooltip": {
                   "shared": true,
-                  "sort": 0,
+                  "sort": 2,
                   "value_type": "individual"
                },
                "type": "graph",
@@ -477,26 +460,24 @@
                "renderer": "flot",
                "seriesOverrides": [ ],
                "spaceLength": 10,
-               "span": 6,
+               "span": 3,
                "stack": true,
                "steppedLine": false,
                "targets": [
                   {
-                     "expr": "sum(rate(jaeger_collector_spans_dropped_total[1m])) by (instance) / sum(rate(jaeger_collector_spans_received_total[1m])) by (instance)",
+                     "expr": "histogram_quantile(0.50, sum(rate(otelcol_exporter_send_duration_bucket[1m])) by (le, exporter))",
                      "format": "time_series",
-                     "intervalFactor": 2,
-                     "legendFormat": "{{instance}}",
-                     "legendLink": null,
-                     "step": 10
+                     "legendFormat": "{{exporter}}",
+                     "legendLink": null
                   }
                ],
                "thresholds": [ ],
                "timeFrom": null,
                "timeShift": null,
-               "title": "% spans dropped",
+               "title": "latency - 50 percentile",
                "tooltip": {
                   "shared": true,
-                  "sort": 0,
+                  "sort": 2,
                   "value_type": "individual"
                },
                "type": "graph",
@@ -509,10 +490,10 @@
                },
                "yaxes": [
                   {
-                     "format": "percentunit",
+                     "format": "short",
                      "label": null,
                      "logBase": 1,
-                     "max": 1,
+                     "max": null,
                      "min": 0,
                      "show": true
                   },
@@ -525,19 +506,7 @@
                      "show": false
                   }
                ]
-            }
-         ],
-         "repeat": null,
-         "repeatIteration": null,
-         "repeatRowId": null,
-         "showTitle": true,
-         "title": "Collector",
-         "titleSize": "h6"
-      },
-      {
-         "collapse": false,
-         "height": "250px",
-         "panels": [
+            },
             {
                "aliasColors": { },
                "bars": false,
@@ -565,26 +534,24 @@
                "renderer": "flot",
                "seriesOverrides": [ ],
                "spaceLength": 10,
-               "span": 6,
+               "span": 3,
                "stack": true,
                "steppedLine": false,
                "targets": [
                   {
-                     "expr": "jaeger_collector_queue_length",
+                     "expr": "histogram_quantile(0.95, sum(rate(otelcol_exporter_send_duration_bucket[1m])) by (le, exporter))",
                      "format": "time_series",
-                     "intervalFactor": 2,
-                     "legendFormat": "{{instance}}",
-                     "legendLink": null,
-                     "step": 10
+                     "legendFormat": "{{exporter}}",
+                     "legendLink": null
                   }
                ],
                "thresholds": [ ],
                "timeFrom": null,
                "timeShift": null,
-               "title": "span queue length",
+               "title": "latency - 95 percentile",
                "tooltip": {
                   "shared": true,
-                  "sort": 0,
+                  "sort": 2,
                   "value_type": "individual"
                },
                "type": "graph",
@@ -620,7 +587,7 @@
                "dashLength": 10,
                "dashes": false,
                "datasource": "$datasource",
-               "fill": 1,
+               "fill": 10,
                "id": 8,
                "legend": {
                   "avg": false,
@@ -632,97 +599,6 @@
                   "values": false
                },
                "lines": true,
-               "linewidth": 1,
-               "links": [ ],
-               "nullPointMode": "null as zero",
-               "percentage": false,
-               "pointradius": 5,
-               "points": false,
-               "renderer": "flot",
-               "seriesOverrides": [ ],
-               "spaceLength": 10,
-               "span": 6,
-               "stack": false,
-               "steppedLine": false,
-               "targets": [
-                  {
-                     "expr": "histogram_quantile(0.95, sum(rate(jaeger_collector_in_queue_latency_bucket[1m])) by (le, instance))",
-                     "format": "time_series",
-                     "intervalFactor": 2,
-                     "legendFormat": "{{instance}}",
-                     "legendLink": null,
-                     "step": 10
-                  }
-               ],
-               "thresholds": [ ],
-               "timeFrom": null,
-               "timeShift": null,
-               "title": "span queue time - 95 percentile",
-               "tooltip": {
-                  "shared": true,
-                  "sort": 0,
-                  "value_type": "individual"
-               },
-               "type": "graph",
-               "xaxis": {
-                  "buckets": null,
-                  "mode": "time",
-                  "name": null,
-                  "show": true,
-                  "values": [ ]
-               },
-               "yaxes": [
-                  {
-                     "format": "short",
-                     "label": null,
-                     "logBase": 1,
-                     "max": null,
-                     "min": 0,
-                     "show": true
-                  },
-                  {
-                     "format": "short",
-                     "label": null,
-                     "logBase": 1,
-                     "max": null,
-                     "min": null,
-                     "show": false
-                  }
-               ]
-            }
-         ],
-         "repeat": null,
-         "repeatIteration": null,
-         "repeatRowId": null,
-         "showTitle": true,
-         "title": "Collector Queue",
-         "titleSize": "h6"
-      },
-      {
-         "collapse": false,
-         "height": "250px",
-         "panels": [
-            {
-               "aliasColors": {
-                  "error": "#E24D42",
-                  "success": "#7EB26D"
-               },
-               "bars": false,
-               "dashLength": 10,
-               "dashes": false,
-               "datasource": "$datasource",
-               "fill": 10,
-               "id": 9,
-               "legend": {
-                  "avg": false,
-                  "current": false,
-                  "max": false,
-                  "min": false,
-                  "show": true,
-                  "total": false,
-                  "values": false
-               },
-               "lines": true,
                "linewidth": 0,
                "links": [ ],
                "nullPointMode": "null as zero",
@@ -732,101 +608,15 @@
                "renderer": "flot",
                "seriesOverrides": [ ],
                "spaceLength": 10,
-               "span": 6,
+               "span": 3,
                "stack": true,
                "steppedLine": false,
                "targets": [
                   {
-                     "expr": "sum(rate(jaeger_query_requests_total{result=\"err\"}[1m]))",
+                     "expr": "histogram_quantile(0.99, sum(rate(otelcol_exporter_send_duration_bucket[1m])) by (le, exporter))",
                      "format": "time_series",
-                     "intervalFactor": 2,
-                     "legendFormat": "error",
-                     "refId": "A",
-                     "step": 10
-                  },
-                  {
-                     "expr": "sum(rate(jaeger_query_requests_total[1m])) - sum(rate(jaeger_query_requests_total{result=\"err\"}[1m]))",
-                     "format": "time_series",
-                     "intervalFactor": 2,
-                     "legendFormat": "success",
-                     "refId": "B",
-                     "step": 10
-                  }
-               ],
-               "thresholds": [ ],
-               "timeFrom": null,
-               "timeShift": null,
-               "title": "qps",
-               "tooltip": {
-                  "shared": true,
-                  "sort": 0,
-                  "value_type": "individual"
-               },
-               "type": "graph",
-               "xaxis": {
-                  "buckets": null,
-                  "mode": "time",
-                  "name": null,
-                  "show": true,
-                  "values": [ ]
-               },
-               "yaxes": [
-                  {
-                     "format": "short",
-                     "label": null,
-                     "logBase": 1,
-                     "max": null,
-                     "min": 0,
-                     "show": true
-                  },
-                  {
-                     "format": "short",
-                     "label": null,
-                     "logBase": 1,
-                     "max": null,
-                     "min": null,
-                     "show": false
-                  }
-               ]
-            },
-            {
-               "aliasColors": { },
-               "bars": false,
-               "dashLength": 10,
-               "dashes": false,
-               "datasource": "$datasource",
-               "fill": 10,
-               "id": 10,
-               "legend": {
-                  "avg": false,
-                  "current": false,
-                  "max": false,
-                  "min": false,
-                  "show": true,
-                  "total": false,
-                  "values": false
-               },
-               "lines": true,
-               "linewidth": 0,
-               "links": [ ],
-               "nullPointMode": "null as zero",
-               "percentage": false,
-               "pointradius": 5,
-               "points": false,
-               "renderer": "flot",
-               "seriesOverrides": [ ],
-               "spaceLength": 10,
-               "span": 6,
-               "stack": true,
-               "steppedLine": false,
-               "targets": [
-                  {
-                     "expr": "histogram_quantile(0.99, sum(rate(jaeger_query_latency_bucket[1m])) by (le, instance))",
-                     "format": "time_series",
-                     "intervalFactor": 2,
-                     "legendFormat": "{{instance}}",
-                     "legendLink": null,
-                     "step": 10
+                     "legendFormat": "{{exporter}}",
+                     "legendLink": null
                   }
                ],
                "thresholds": [ ],
@@ -835,7 +625,7 @@
                "title": "latency - 99 percentile",
                "tooltip": {
                   "shared": true,
-                  "sort": 0,
+                  "sort": 2,
                   "value_type": "individual"
                },
                "type": "graph",
@@ -870,7 +660,7 @@
          "repeatIteration": null,
          "repeatRowId": null,
          "showTitle": true,
-         "title": "Query",
+         "title": "Queue",
          "titleSize": "h6"
       }
    ],
@@ -881,11 +671,11 @@
       "list": [
          {
             "current": {
-               "text": "Prometheus",
-               "value": "Prometheus"
+               "text": "default",
+               "value": "default"
             },
             "hide": 0,
-            "label": null,
+            "label": "Data source",
             "name": "datasource",
             "options": [ ],
             "query": "prometheus",
@@ -925,7 +715,7 @@
       ]
    },
    "timezone": "utc",
-   "title": "Jaeger",
+   "title": "Jaeger V2",
    "uid": "",
    "version": 0
 }
