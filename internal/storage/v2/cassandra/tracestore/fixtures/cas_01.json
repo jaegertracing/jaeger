@@ -1,98 +1,232 @@
 {
-  "spans": [
+  "TraceID": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "SpanID": 2,
+  "ParentID": 3,
+  "OperationName": "test-general-conversion",
+  "Flags": 1,
+  "StartTime": 1485467191639875000,
+  "Duration": 5,
+  "Tags": [
     {
-      "trace_id": "AAAAAAAAAAEAAAAAAAAAAA==",
-      "span_id": "AAAAAAAAAAI=",
-      "operation_name": "test-general-conversion",
-      "references": [
+      "Key": "otel.scope.name",
+      "ValueType": "string",
+      "ValueString": "testing-library",
+      "ValueBool": false,
+      "ValueInt64": 0,
+      "ValueFloat64": 0,
+      "ValueBinary": null
+    },
+    {
+      "Key": "otel.scope.version",
+      "ValueType": "string",
+      "ValueString": "1.1.1",
+      "ValueBool": false,
+      "ValueInt64": 0,
+      "ValueFloat64": 0,
+      "ValueBinary": null
+    },
+    {
+      "Key": "peer.service",
+      "ValueType": "string",
+      "ValueString": "service-y",
+      "ValueBool": false,
+      "ValueInt64": 0,
+      "ValueFloat64": 0,
+      "ValueBinary": null
+    },
+    {
+      "Key": "peer.ipv4",
+      "ValueType": "int64",
+      "ValueString": "",
+      "ValueBool": false,
+      "ValueInt64": 23456,
+      "ValueFloat64": 0,
+      "ValueBinary": null
+    },
+    {
+      "Key": "blob",
+      "ValueType": "binary",
+      "ValueString": "",
+      "ValueBool": false,
+      "ValueInt64": 0,
+      "ValueFloat64": 0,
+      "ValueBinary": "AAAwOQ=="
+    },
+    {
+      "Key": "temperature",
+      "ValueType": "float64",
+      "ValueString": "",
+      "ValueBool": false,
+      "ValueInt64": 0,
+      "ValueFloat64": 72.5,
+      "ValueBinary": null
+    },
+    {
+      "Key": "otel.status_code",
+      "ValueType": "string",
+      "ValueString": "ERROR",
+      "ValueBool": false,
+      "ValueInt64": 0,
+      "ValueFloat64": 0,
+      "ValueBinary": null
+    },
+    {
+      "Key": "otel.status_description",
+      "ValueType": "string",
+      "ValueString": "random-message",
+      "ValueBool": false,
+      "ValueInt64": 0,
+      "ValueFloat64": 0,
+      "ValueBinary": null
+    },
+    {
+      "Key": "w3c.tracestate",
+      "ValueType": "string",
+      "ValueString": "some-state",
+      "ValueBool": false,
+      "ValueInt64": 0,
+      "ValueFloat64": 0,
+      "ValueBinary": null
+    }
+  ],
+  "Logs": [
+    {
+      "Timestamp": 1485467191639875000,
+      "Fields": [
         {
-          "trace_id": "AAAAAAAAAAEAAAAAAAAAAA==",
-          "span_id": "AAAAAAAAAAM="
+          "Key": "event",
+          "ValueType": "string",
+          "ValueString": "testing-event",
+          "ValueBool": false,
+          "ValueInt64": 0,
+          "ValueFloat64": 0,
+          "ValueBinary": null
         },
         {
-          "trace_id": "AAAAAAAAAAEAAAAAAAAAAA==",
-          "span_id": "AAAAAAAAAAQ=",
-          "ref_type": 1
-        },
-        {
-          "trace_id": "AAAAAAAAAP8AAAAAAAAAAA==",
-          "span_id": "AAAAAAAAAP8="
+          "Key": "event-x",
+          "ValueType": "string",
+          "ValueString": "event-y",
+          "ValueBool": false,
+          "ValueInt64": 0,
+          "ValueFloat64": 0,
+          "ValueBinary": null
         }
-      ],
-      "flags": 0,
-      "start_time": "2017-01-26T21:46:31.639875Z",
-      "duration": 5000,
-      "tags": [
+      ]
+    },
+    {
+      "Timestamp": 1485467191639875000,
+      "Fields": [
         {
-          "key": "otel.scope.name",
-          "v_str": "testing-library"
-        },
-        {
-          "key": "otel.scope.version",
-          "v_str": "1.1.1"
-        },
-        {
-          "key": "peer.service",
-          "v_str": "service-y"
-        },
-        {
-          "key": "peer.ipv4",
-          "v_type": 2,
-          "v_int64": 23456
-        },
-        {
-          "key": "blob",
-          "v_type": 4,
-          "v_binary": "AAAwOQ=="
-        },
-        {
-          "key": "temperature",
-          "v_type": 3,
-          "v_float64": 72.5
-        },
-        {
-          "key": "otel.status_code",
-          "v_str": "ERROR"
-        },
-        {
-          "key": "error",
-          "v_type": 1,
-          "v_bool": true
-        }
-      ],
-      "logs": [
-        {
-          "timestamp": "2017-01-26T21:46:31.639875Z",
-          "fields": [
-            {
-              "key": "event",
-              "v_str": "testing-event"
-            },
-            {
-              "key": "event-x",
-              "v_str": "event-y"
-            }
-          ]
-        },
-        {
-          "timestamp": "2017-01-26T21:46:31.639875Z",
-          "fields": [
-            {
-              "key": "x",
-              "v_str": "y"
-            }
-          ]
+          "Key": "x",
+          "ValueType": "string",
+          "ValueString": "y",
+          "ValueBool": false,
+          "ValueInt64": 0,
+          "ValueFloat64": 0,
+          "ValueBinary": null
         }
       ]
     }
   ],
-  "process": {
-    "service_name": "service-x",
-    "tags": [
+  "Refs": [
+    {
+      "RefType": "child-of",
+      "TraceID": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "SpanID": 3
+    },
+    {
+      "RefType": "follows-from",
+      "TraceID": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "SpanID": 4
+    },
+    {
+      "RefType": "child-of",
+      "TraceID": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        255,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "SpanID": 255
+    }
+  ],
+  "Process": {
+    "ServiceName": "service-x",
+    "Tags": [
       {
-        "key": "sdk.version",
-        "v_str": "1.2.1"
+        "Key": "sdk.version",
+        "ValueType": "string",
+        "ValueString": "1.2.1",
+        "ValueBool": false,
+        "ValueInt64": 0,
+        "ValueFloat64": 0,
+        "ValueBinary": null
       }
     ]
-  }
+  },
+  "ServiceName": "service-x",
+  "SpanHash": 0
 }
