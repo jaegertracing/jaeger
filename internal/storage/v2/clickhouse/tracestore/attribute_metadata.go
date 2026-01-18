@@ -38,9 +38,9 @@ type attributeMetadata map[string]map[string][]string
 //
 // Only string-typed attributes from the query are looked up, since other types
 // (bool, int, double, etc.) are already correctly typed in the query parameters.
-func (r *Reader) getAttributeMetadata(attributes pcommon.Map) (attributeMetadata, error) {
+func (r *Reader) getAttributeMetadata(ctx context.Context, attributes pcommon.Map) (attributeMetadata, error) {
 	query, args := buildSelectAttributeMetadataQuery(attributes)
-	rows, err := r.conn.Query(context.Background(), query, args...)
+	rows, err := r.conn.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query attribute metadata: %w", err)
 	}

@@ -25,8 +25,6 @@ import (
 
 var _ tracestore.Reader = (*Reader)(nil)
 
-var errAttributeMetadataNotFound = fmt.Errorf("attribute metadata not found for key")
-
 type ReaderConfig struct {
 	// DefaultSearchDepth is the default number of trace IDs to return when searching for traces.
 	// This value is used when the SearchDepth field in TraceQueryParams is not set.
@@ -146,7 +144,7 @@ func (r *Reader) FindTraces(
 	query tracestore.TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		traceIDsQuery, args, err := r.buildFindTraceIDsQuery(query)
+		traceIDsQuery, args, err := r.buildFindTraceIDsQuery(ctx, query)
 		if err != nil {
 			yield(nil, fmt.Errorf("failed to build query: %w", err))
 			return
@@ -209,7 +207,7 @@ func (r *Reader) FindTraceIDs(
 	query tracestore.TraceQueryParams,
 ) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	return func(yield func([]tracestore.FoundTraceID, error) bool) {
-		q, args, err := r.buildFindTraceIDsQuery(query)
+		q, args, err := r.buildFindTraceIDsQuery(ctx, query)
 		if err != nil {
 			yield(nil, fmt.Errorf("failed to build query: %w", err))
 			return
@@ -247,6 +245,7 @@ func buildFindTracesQuery(traceIDsQuery string) string {
 }
 
 func (r *Reader) buildFindTraceIDsQuery(
+	ctx context.Context,
 	query tracestore.TraceQueryParams,
 ) (string, []any, error) {
 	limit := query.SearchDepth
@@ -290,7 +289,7 @@ func (r *Reader) buildFindTraceIDsQuery(
 	// Non-string attributes (bool/double/int/bytes/slice/map) don't require metadata.
 	var attributeMetadata attributeMetadata
 	if hasStringAttributes(query.Attributes) {
-		am, err := r.getAttributeMetadata(query.Attributes)
+		am, err := r.getAttributeMetadata(ctx, query.Attributes)
 		if err != nil {
 			return "", nil, fmt.Errorf("failed to get attribute metadata: %w", err)
 		}
@@ -323,23 +322,23 @@ func (r *Reader) buildAttributeConditions(q *strings.Builder, args *[]any, attri
 
 		switch attr.Type() {
 		case pcommon.ValueTypeBool:
-			r.buildBoolAttributeCondition(q, args, key, attr)
+			buildBoolAttributeCondition(q, args, key, attr)
 		case pcommon.ValueTypeDouble:
-			r.buildDoubleAttributeCondition(q, args, key, attr)
+			buildDoubleAttributeCondition(q, args, key, attr)
 		case pcommon.ValueTypeInt:
-			r.buildIntAttributeCondition(q, args, key, attr)
+			buildIntAttributeCondition(q, args, key, attr)
 		case pcommon.ValueTypeStr:
-			if err := r.buildStringAttributeCondition(q, args, key, attr, metadata); err != nil {
+			if err := buildStringAttributeCondition(q, args, key, attr, metadata); err != nil {
 				return err
 			}
 		case pcommon.ValueTypeBytes:
-			r.buildBytesAttributeCondition(q, args, key, attr)
+			buildBytesAttributeCondition(q, args, key, attr)
 		case pcommon.ValueTypeSlice:
-			if err := r.buildSliceAttributeCondition(q, args, key, attr); err != nil {
+			if err := buildSliceAttributeCondition(q, args, key, attr); err != nil {
 				return err
 			}
 		case pcommon.ValueTypeMap:
-			if err := r.buildMapAttributeCondition(q, args, key, attr); err != nil {
+			if err := buildMapAttributeCondition(q, args, key, attr); err != nil {
 				return err
 			}
 		default:
@@ -352,28 +351,28 @@ func (r *Reader) buildAttributeConditions(q *strings.Builder, args *[]any, attri
 	return nil
 }
 
-func (r *Reader) buildBoolAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) {
+func buildBoolAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) {
 	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.bool_attributes.key, s.bool_attributes.value)")
 	q.WriteString(" OR ")
 	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.resource_bool_attributes.key, s.resource_bool_attributes.value)")
 	*args = append(*args, key, attr.Bool(), key, attr.Bool())
 }
 
-func (r *Reader) buildDoubleAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) {
+func buildDoubleAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) {
 	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.double_attributes.key, s.double_attributes.value)")
 	q.WriteString(" OR ")
 	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.resource_double_attributes.key, s.resource_double_attributes.value)")
 	*args = append(*args, key, attr.Double(), key, attr.Double())
 }
 
-func (r *Reader) buildIntAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) {
+func buildIntAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) {
 	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.int_attributes.key, s.int_attributes.value)")
 	q.WriteString(" OR ")
 	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.resource_int_attributes.key, s.resource_int_attributes.value)")
 	*args = append(*args, key, attr.Int(), key, attr.Int())
 }
 
-func (r *Reader) buildBytesAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) {
+func buildBytesAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) {
 	attrKey := "@bytes@" + key
 	val := base64.StdEncoding.EncodeToString(attr.Bytes().AsRaw())
 	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)")
@@ -382,7 +381,7 @@ func (r *Reader) buildBytesAttributeCondition(q *strings.Builder, args *[]any, k
 	*args = append(*args, attrKey, val, attrKey, val)
 }
 
-func (r *Reader) buildSliceAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) error {
+func buildSliceAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) error {
 	attrKey := "@slice@" + key
 	b, err := marshalValueForQuery(attr)
 	if err != nil {
@@ -395,7 +394,7 @@ func (r *Reader) buildSliceAttributeCondition(q *strings.Builder, args *[]any, k
 	return nil
 }
 
-func (r *Reader) buildMapAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) error {
+func buildMapAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) error {
 	attrKey := "@map@" + key
 	b, err := marshalValueForQuery(attr)
 	if err != nil {
@@ -416,7 +415,7 @@ func (r *Reader) buildMapAttributeCondition(q *strings.Builder, args *[]any, key
 // We must look up the attribute_metadata to determine the actual type(s) and
 // level(s) where this attribute is stored, then convert the string back to the
 // appropriate type for querying.
-func (r *Reader) buildStringAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value, metadata attributeMetadata) error {
+func buildStringAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value, metadata attributeMetadata) error {
 	levelTypes, ok := metadata[key]
 
 	// if no metadata found, assume string type
@@ -441,23 +440,23 @@ func (r *Reader) buildStringAttributeCondition(q *strings.Builder, args *[]any, 
 
 			switch t {
 			case "bool":
-				if b, err := strconv.ParseBool(attr.Str()); err == nil {
-					val = b
-				} else {
+				b, err := strconv.ParseBool(attr.Str())
+				if err != nil {
 					return fmt.Errorf("failed to parse bool attribute %q: %w", key, err)
 				}
+				val = b
 			case "double":
-				if f, err := strconv.ParseFloat(attr.Str(), 64); err == nil {
-					val = f
-				} else {
+				f, err := strconv.ParseFloat(attr.Str(), 64)
+				if err != nil {
 					return fmt.Errorf("failed to parse double attribute %q: %w", key, err)
 				}
+				val = f
 			case "int":
-				if i, err := strconv.ParseInt(attr.Str(), 10, 64); err == nil {
-					val = i
-				} else {
+				i, err := strconv.ParseInt(attr.Str(), 10, 64)
+				if err != nil {
 					return fmt.Errorf("failed to parse int attribute %q: %w", key, err)
 				}
+				val = i
 			case "str":
 				val = attr.Str()
 			case "bytes":
@@ -486,11 +485,12 @@ func (r *Reader) buildStringAttributeCondition(q *strings.Builder, args *[]any, 
 			}
 
 			var prefix string
-			if level == "resource" {
+			switch level {
+			case "resource":
 				prefix = "resource_"
-			} else if level == "scope" {
+			case "scope":
 				prefix = "scope_"
-			} else {
+			default:
 				prefix = ""
 			}
 

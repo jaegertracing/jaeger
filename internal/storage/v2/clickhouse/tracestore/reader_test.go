@@ -1193,7 +1193,7 @@ func TestBuildSearchTraceIDsQuery_MarshalErrors(t *testing.T) {
 		s.AppendEmpty()
 
 		reader := NewReader(&testDriver{t: t}, testReaderConfig)
-		_, _, err := reader.buildFindTraceIDsQuery(tracestore.TraceQueryParams{Attributes: attrs})
+		_, _, err := reader.buildFindTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{Attributes: attrs})
 
 		require.Error(t, err)
 		require.ErrorContains(t, err, "failed to marshal slice attribute")
@@ -1205,7 +1205,7 @@ func TestBuildSearchTraceIDsQuery_MarshalErrors(t *testing.T) {
 		m.PutEmpty("key")
 
 		reader := NewReader(&testDriver{t: t}, testReaderConfig)
-		_, _, err := reader.buildFindTraceIDsQuery(tracestore.TraceQueryParams{Attributes: attrs})
+		_, _, err := reader.buildFindTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{Attributes: attrs})
 
 		require.Error(t, err)
 		require.ErrorContains(t, err, "failed to marshal map attribute")
