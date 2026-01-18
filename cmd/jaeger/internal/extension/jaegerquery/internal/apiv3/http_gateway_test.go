@@ -328,6 +328,33 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 			},
 			expErr: paramQueryRawTraces,
 		},
+		{
+			name: "bad limit",
+			params: map[string]string{
+				paramTimeMin: goodTime,
+				paramTimeMax: goodTime,
+				"limit":      "NaN",
+			},
+			expErr: "limit",
+		},
+		{
+			name: "bad search_depth",
+			params: map[string]string{
+				paramTimeMin:   goodTime,
+				paramTimeMax:   goodTime,
+				"search_depth": "NaN",
+			},
+			expErr: "search_depth",
+		},
+		{
+			name: "bad attribute json",
+			params: map[string]string{
+				paramTimeMin: goodTime,
+				paramTimeMax: goodTime,
+				"attribute":  "{invalid_json",
+			},
+			expErr: "attribute",
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -360,6 +387,79 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 		gw.router.ServeHTTP(w, r)
 		assert.Contains(t, w.Body.String(), assert.AnError.Error())
 	})
+}
+
+func TestHTTPGatewayFindTracesWithParams(t *testing.T) {
+	time1 := time.Now().UTC().Truncate(time.Nanosecond)
+	time2 := time1.Add(-time.Second).UTC().Truncate(time.Nanosecond)
+
+	testCases := []struct {
+		name     string
+		params   map[string]string
+		expected func() tracestore.TraceQueryParams
+	}{
+		{
+			name: "with limit",
+			params: map[string]string{
+				paramTimeMin: time1.Format(time.RFC3339Nano),
+				paramTimeMax: time2.Format(time.RFC3339Nano),
+				"limit":      "50",
+			},
+			expected: func() tracestore.TraceQueryParams {
+				return tracestore.TraceQueryParams{
+					StartTimeMin: time1,
+					StartTimeMax: time2,
+					SearchDepth:  50,
+					Attributes:   pcommon.NewMap(),
+				}
+			},
+		},
+		{
+			name: "with attributes",
+			params: map[string]string{
+				paramTimeMin: time1.Format(time.RFC3339Nano),
+				paramTimeMax: time2.Format(time.RFC3339Nano),
+				"attribute":  `{"foo":"bar"}`,
+			},
+			expected: func() tracestore.TraceQueryParams {
+				m := pcommon.NewMap()
+				m.PutStr("foo", "bar")
+				return tracestore.TraceQueryParams{
+					StartTimeMin: time1,
+					StartTimeMax: time2,
+					Attributes:   m,
+				}
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			gw := setupHTTPGatewayNoServer(t, "")
+			expected := tc.expected()
+
+			gw.reader.
+				On("FindTraces", matchContext, expected).
+				Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+					yield([]ptrace.Traces{}, nil)
+				})).Once()
+
+			q := url.Values{}
+			for k, v := range tc.params {
+				q.Set(k, v)
+			}
+			r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
+			require.NoError(t, err)
+			w := httptest.NewRecorder()
+			gw.router.ServeHTTP(w, r)
+
+			// If status is not 200 (e.g. 404), it means the handler executed but found nothing, which is fine for parameter checking
+			// We just want to ensure 'FindTraces' was called with expected params
+			if w.Code == http.StatusInternalServerError || w.Code == http.StatusBadRequest {
+				t.Fatalf("Request failed with code %d: %s", w.Code, w.Body.String())
+			}
+		})
+	}
 }
 
 func TestHTTPGatewayGetServicesErrors(t *testing.T) {
