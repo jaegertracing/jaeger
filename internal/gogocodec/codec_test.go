@@ -72,8 +72,7 @@ func TestWireCompatibility(t *testing.T) {
 func TestUseGogo(t *testing.T) {
 	assert.False(t, useGogo(nil))
 
-	var span model.Span
-	assert.True(t, useGogo(reflect.TypeOf(span)))
+	assert.True(t, useGogo(reflect.TypeFor[model.Span]()))
 }
 
 func BenchmarkCodecUnmarshal25Spans(b *testing.B) {
