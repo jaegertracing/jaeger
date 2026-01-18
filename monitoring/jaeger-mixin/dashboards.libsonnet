@@ -98,5 +98,50 @@ local g = (import 'grafana-builder/grafana.libsonnet') + {
           g.stack
         )
       ),
+    'jaeger-v2.json':
+      g.dashboard('Jaeger V2')
+      .addRow(
+        g.row('Collector (Receivers)')
+        .addPanel(
+          g.panel('Span Ingest Rate') +
+          g.queryPanel('sum(rate(otelcol_receiver_accepted_spans[1m])) by (receiver)', '{{receiver}}')
+        )
+        .addPanel(
+          g.panel('% Spans Dropped') +
+          g.queryPanel('sum(rate(otelcol_receiver_refused_spans[1m])) by (receiver) / (sum(rate(otelcol_receiver_accepted_spans[1m])) by (receiver) + sum(rate(otelcol_receiver_refused_spans[1m])) by (receiver))', '{{receiver}}') +
+          { yaxes: g.yaxes({ format: 'percentunit', max: 1 }) }
+        )
+      )
+      .addRow(
+        g.row('Exporters')
+        .addPanel(
+          g.panel('Span Export Rate') +
+          g.queryPanel('sum(rate(otelcol_exporter_sent_spans[1m])) by (exporter)', '{{exporter}}')
+        )
+        .addPanel(
+          g.panel('Span Failure Rate') +
+          g.queryPanel('sum(rate(otelcol_exporter_send_failed_spans[1m])) by (exporter)', '{{exporter}}')
+        )
+        .addPanel(
+          g.panel('Queue Size') +
+          g.queryPanel('sum(otelcol_exporter_queue_size) by (exporter)', '{{exporter}}')
+        )
+        .addPanel(
+          g.panel('Export Latency - P95') +
+          g.queryPanel('histogram_quantile(0.95, sum(rate(otelcol_exporter_send_duration_bucket[1m])) by (le, exporter))', '{{exporter}}')
+        )
+      )
+      .addRow(
+        g.row('Query Service')
+        .addPanel(
+          g.panel('QPS') +
+          g.qpsPanelErrTotal('jaeger_query_requests_total{result="err"}', 'jaeger_query_requests_total') +
+          g.stack
+        )
+        .addPanel(
+          g.panel('Latency - P99') +
+          g.queryPanel('histogram_quantile(0.99, sum(rate(jaeger_query_latency_bucket[1m])) by (le))', 'P99')
+        )
+      ),
   },
 }
