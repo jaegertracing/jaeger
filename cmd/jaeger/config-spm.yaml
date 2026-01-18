@@ -41,6 +41,7 @@ extensions:
 
 connectors:
   spanmetrics:
+    metrics_flush_interval: ${env:SPANMETRICS_FLUSH_INTERVAL:-60s}
 
 receivers:
   otlp:
