@@ -5,7 +5,6 @@ package clickhouse
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -49,15 +48,10 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 		},
 		DialTimeout: f.config.DialTimeout,
 	}
-	if f.config.TLS.Insecure || f.config.TLS.Config.CAFile != "" || f.config.TLS.Config.CertFile != "" || f.config.TLS.Config.KeyFile != "" {
+	if !f.config.TLS.Insecure {
 		tlsCfg, err := f.config.TLS.LoadTLSConfig(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load ClickHouse TLS configuration: %w", err)
-		}
-		if tlsCfg == nil && f.config.TLS.Insecure {
-			tlsCfg = &tls.Config{
-				InsecureSkipVerify: true,
-			}
 		}
 		opts.TLS = tlsCfg
 	}

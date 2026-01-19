@@ -68,4 +68,10 @@ func (cfg *Configuration) applyDefaults() {
 	if cfg.MaxSearchDepth == 0 {
 		cfg.MaxSearchDepth = defaultMaxSearchDepth
 	}
+	// By default, connections are insecure (plain text).
+	// To enable TLS, users must explicitly set tls.insecure: false
+	// or provide other TLS settings.
+	if cfg.TLS.CAFile == "" && cfg.TLS.CertFile == "" && cfg.TLS.KeyFile == "" && !cfg.TLS.InsecureSkipVerify {
+		cfg.TLS.Insecure = true
+	}
 }

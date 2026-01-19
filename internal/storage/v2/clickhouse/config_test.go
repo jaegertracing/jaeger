@@ -102,4 +102,5 @@ func TestConfigurationApplyDefaults(t *testing.T) {
 	require.Equal(t, defaultDatabase, config.Database)
 	require.Equal(t, defaultSearchDepth, config.DefaultSearchDepth)
 	require.Equal(t, defaultMaxSearchDepth, config.MaxSearchDepth)
+	require.True(t, config.TLS.Insecure)
 }

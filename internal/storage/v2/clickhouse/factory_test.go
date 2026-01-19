@@ -253,7 +253,7 @@ func TestNewFactory_TLS(t *testing.T) {
 		expectedError string
 	}{
 		{
-			name: "valid tls with insecure true",
+			name: "plain text connection (insecure: true)",
 			cfg: Configuration{
 				Addresses: []string{"localhost:9000"},
 				TLS: configtls.ClientConfig{
@@ -262,10 +262,21 @@ func TestNewFactory_TLS(t *testing.T) {
 			},
 		},
 		{
+			name: "tls connection with insecure skip verify",
+			cfg: Configuration{
+				Addresses: []string{"localhost:9000"},
+				TLS: configtls.ClientConfig{
+					Insecure:           false,
+					InsecureSkipVerify: true,
+				},
+			},
+		},
+		{
 			name: "invalid tls config",
 			cfg: Configuration{
 				Addresses: []string{"localhost:9000"},
 				TLS: configtls.ClientConfig{
+					Insecure: false,
 					Config: configtls.Config{
 						CAFile: "/non/existent/path",
 					},
