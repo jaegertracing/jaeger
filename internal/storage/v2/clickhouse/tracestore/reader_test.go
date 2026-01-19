@@ -412,14 +412,6 @@ func TestGetServices(t *testing.T) {
 								{Name: "serviceB"},
 								{Name: "serviceC"},
 							},
-							scanFn: func(dest any, src dbmodel.Service) error {
-								svc, ok := dest.(*dbmodel.Service)
-								if !ok {
-									return errors.New("dest is not *dbmodel.Service")
-								}
-								*svc = src
-								return nil
-							},
 							scanErr: assert.AnError,
 						},
 						err: nil,
@@ -564,14 +556,6 @@ func TestGetOperations(t *testing.T) {
 								{Name: "operationA"},
 								{Name: "operationB"},
 								{Name: "operationC"},
-							},
-							scanFn: func(dest any, src dbmodel.Operation) error {
-								svc, ok := dest.(*dbmodel.Operation)
-								if !ok {
-									return errors.New("dest is not *dbmodel.Operation")
-								}
-								*svc = src
-								return nil
 							},
 							scanErr: assert.AnError,
 						},
