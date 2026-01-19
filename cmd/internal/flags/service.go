@@ -121,6 +121,10 @@ func (s *Service) RunAndThen(shutdown func()) {
 		shutdown()
 	}
 
-	s.Admin.Close()
+	err := s.Admin.Close()
+	if err != nil {
+		s.Logger.Error("Error during shutdown", zap.Error(err))
+		return
+	}
 	s.Logger.Info("Shutdown complete")
 }

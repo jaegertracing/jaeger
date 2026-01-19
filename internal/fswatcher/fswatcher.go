@@ -6,6 +6,7 @@ package fswatcher
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"io"
 	"os"
 	"path"
@@ -46,12 +47,12 @@ type FSWatcher struct {
 // indicate that the files were replaced, even if event.Name is not any of the
 // files we are monitoring. We check the hashes of the files to detect if they
 // were really changed.
-func New(filepaths []string, onChange func(), logger *zap.Logger) (*FSWatcher, error) {
+func New(filepaths []string, onChange func(), logger *zap.Logger) (w *FSWatcher, err error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err
 	}
-	w := &FSWatcher{
+	w = &FSWatcher{
 		watcher:            watcher,
 		logger:             logger,
 		fileHashContentMap: make(map[string]string),
@@ -59,7 +60,7 @@ func New(filepaths []string, onChange func(), logger *zap.Logger) (*FSWatcher, e
 	}
 
 	if err = w.setupWatchedPaths(filepaths); err != nil {
-		w.Close()
+		err = errors.Join(err, w.Close())
 		return nil, err
 	}
 
