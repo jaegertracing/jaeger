@@ -4,15 +4,14 @@
 package app
 
 import (
-	"bytes"
 	"context"
 	"fmt"
+	"iter"
 	"net"
 	"net/http"
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -21,6 +20,7 @@ import (
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	traceapi "go.opentelemetry.io/otel/trace"
@@ -34,26 +34,22 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
-	"github.com/jaegertracing/jaeger/cmd/internal/flags"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
-	"github.com/jaegertracing/jaeger/internal/healthcheck"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	depsmocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
-	"github.com/jaegertracing/jaeger/ports"
 )
 
 var testCertKeyLocation = "../../../../../../internal/config/tlscfg/testdata"
 
-func initTelSet(logger *zap.Logger, tracerProvider traceapi.TracerProvider, hc *healthcheck.HealthCheck) telemetry.Settings {
+func initTelSet(logger *zap.Logger, tracerProvider traceapi.TracerProvider) telemetry.Settings {
 	telset := telemetry.NoopSettings()
 	telset.Logger = logger
 	telset.TracerProvider = tracerProvider
-	telset.ReportStatus = telemetry.HCAdapter(hc)
 	return telset
 }
 
@@ -75,7 +71,7 @@ func TestCreateTLSServerSinglePortError(t *testing.T) {
 			KeyFile:  testCertKeyLocation + "/example-server-key.pem",
 		},
 	}
-	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider(), healthcheck.New())
+	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
 	_, err := NewServer(context.Background(), &querysvc.QueryService{}, nil,
 		&QueryOptions{
 			HTTP: confighttp.ServerConfig{Endpoint: ":8080", TLS: configoptional.Some(tlsCfg)},
@@ -93,7 +89,7 @@ func TestCreateTLSGrpcServerError(t *testing.T) {
 			KeyFile:  "invalid/path",
 		},
 	}
-	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider(), healthcheck.New())
+	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
 	_, err := NewServer(context.Background(), &querysvc.QueryService{}, nil,
 		&QueryOptions{
 			HTTP: confighttp.ServerConfig{Endpoint: ":8080"},
@@ -111,7 +107,7 @@ func TestStartTLSHttpServerError(t *testing.T) {
 			KeyFile:  "invalid/path",
 		},
 	}
-	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider(), healthcheck.New())
+	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
 	s, err := NewServer(context.Background(), &querysvc.QueryService{}, nil,
 		&QueryOptions{
 			HTTP: confighttp.ServerConfig{Endpoint: ":8080", TLS: configoptional.Some(tlsCfg)},
@@ -319,24 +315,40 @@ var testCases = []struct {
 
 type fakeQueryService struct {
 	qs               *querysvc.QueryService
-	spanReader       *spanstoremocks.Reader
+	traceReader      *tracestoremocks.Reader
 	dependencyReader *depsmocks.Reader
 	expectedServices []string
 }
 
 func makeQuerySvc() *fakeQueryService {
-	spanReader := &spanstoremocks.Reader{}
-	traceReader := v1adapter.NewTraceReader(spanReader)
+	traceReader := &tracestoremocks.Reader{}
 	dependencyReader := &depsmocks.Reader{}
 	expectedServices := []string{"test"}
-	spanReader.On("GetServices", mock.Anything).Return(expectedServices, nil)
+	traceReader.On("GetServices", mock.Anything).Return(expectedServices, nil)
 	qs := querysvc.NewQueryService(traceReader, dependencyReader, querysvc.QueryServiceOptions{})
 	return &fakeQueryService{
 		qs:               qs,
-		spanReader:       spanReader,
+		traceReader:      traceReader,
 		dependencyReader: dependencyReader,
 		expectedServices: expectedServices,
 	}
+}
+
+func makeMockPTrace() ptrace.Traces {
+	trace := ptrace.NewTraces()
+	resources := trace.ResourceSpans().AppendEmpty()
+	resources.Resource().Attributes().PutStr("service.name", "service")
+	scopes := resources.ScopeSpans().AppendEmpty()
+
+	span1 := scopes.Spans().AppendEmpty()
+	span1.SetTraceID(v1adapter.FromV1TraceID(model.NewTraceID(0, 0x123456abc)))
+	span1.SetSpanID(v1adapter.FromV1SpanID(model.NewSpanID(1)))
+
+	span2 := scopes.Spans().AppendEmpty()
+	span2.SetTraceID(v1adapter.FromV1TraceID(model.NewTraceID(0, 0x123456abc)))
+	span2.SetSpanID(v1adapter.FromV1SpanID(model.NewSpanID(2)))
+
+	return trace
 }
 
 func optionalFromPtr[T any](ptr *T) configoptional.Optional[T] {
@@ -393,9 +405,8 @@ func TestServerHTTPTLS(t *testing.T) {
 					TLS: optionalFromPtr(tlsGrpc),
 				},
 			}
-			flagsSvc := flags.NewService(ports.RemoteStorageAdminHTTP)
-			flagsSvc.Logger = zaptest.NewLogger(t)
-			telset := initTelSet(flagsSvc.Logger, nooptrace.NewTracerProvider(), flagsSvc.HC())
+			logger := zaptest.NewLogger(t)
+			telset := initTelSet(logger, nooptrace.NewTracerProvider())
 			querySvc := makeQuerySvc()
 			server, err := NewServer(context.Background(), querySvc.qs,
 				nil, serverOptions, tenancy.NewManager(&tenancy.Options{}),
@@ -414,7 +425,10 @@ func TestServerHTTPTLS(t *testing.T) {
 						TLSClientConfig: clientTLSCfg,
 					},
 				}
-				querySvc.spanReader.On("FindTraces", mock.Anything, mock.Anything).Return([]*model.Trace{mockTrace}, nil).Once()
+				querySvc.traceReader.On("FindTraces", mock.Anything, mock.Anything).
+					Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+						yield([]ptrace.Traces{makeMockPTrace()}, nil)
+					})).Once()
 				queryString := "/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms"
 				req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("https://%s/%s", server.HTTPAddr(), queryString), http.NoBody)
 				require.NoError(t, err)
@@ -501,11 +515,10 @@ func TestServerGRPCTLS(t *testing.T) {
 					TLS: optionalFromPtr(test.TLS),
 				},
 			}
-			flagsSvc := flags.NewService(ports.RemoteStorageAdminHTTP)
-			flagsSvc.Logger = zaptest.NewLogger(t)
+			logger := zaptest.NewLogger(t)
 
 			querySvc := makeQuerySvc()
-			telset := initTelSet(flagsSvc.Logger, nooptrace.NewTracerProvider(), flagsSvc.HC())
+			telset := initTelSet(logger, nooptrace.NewTracerProvider())
 			server, err := NewServer(context.Background(), querySvc.qs,
 				nil, serverOptions, tenancy.NewManager(&tenancy.Options{}),
 				telset)
@@ -532,9 +545,9 @@ func TestServerGRPCTLS(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
-			flagsSvc.Logger.Info("calling client.GetServices()")
+			logger.Info("calling client.GetServices()")
 			res, clientError := client.GetServices(ctx, &api_v2.GetServicesRequest{})
-			flagsSvc.Logger.Info("returned from GetServices()")
+			logger.Info("returned from GetServices()")
 
 			if test.expectClientError {
 				require.Error(t, clientError)
@@ -547,7 +560,7 @@ func TestServerGRPCTLS(t *testing.T) {
 }
 
 func TestServerBadHostPort(t *testing.T) {
-	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider(), healthcheck.New())
+	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
 	_, err := NewServer(context.Background(), &querysvc.QueryService{}, nil,
 		&QueryOptions{
 			BearerTokenPropagation: true,
@@ -589,7 +602,7 @@ func TestServerInUseHostPort(t *testing.T) {
 	conn, err := net.Listen("tcp", availableHostPort)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, conn.Close()) }()
-	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider(), healthcheck.New())
+	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
 	testCases := []struct {
 		name         string
 		httpHostPort string
@@ -627,16 +640,13 @@ func TestServerInUseHostPort(t *testing.T) {
 }
 
 func TestServerGracefulExit(t *testing.T) {
-	flagsSvc := flags.NewService(ports.RemoteStorageAdminHTTP)
-
 	zapCore, logs := observer.New(zap.ErrorLevel)
 	assert.Equal(t, 0, logs.Len(), "Expected initial ObservedLogs to have zero length.")
 
-	flagsSvc.Logger = zap.New(zapCore)
-	telset := initTelSet(flagsSvc.Logger, nooptrace.NewTracerProvider(), flagsSvc.HC())
-	spanReader := &spanstoremocks.Reader{}
-	spanReader.On("GetServices", mock.Anything).Return([]string{"test"}, nil)
-	traceReader := v1adapter.NewTraceReader(spanReader)
+	logger := zap.New(zapCore)
+	telset := initTelSet(logger, nooptrace.NewTracerProvider())
+	traceReader := &tracestoremocks.Reader{}
+	traceReader.On("GetServices", mock.Anything).Return([]string{"test"}, nil)
 	qs := querysvc.NewQueryService(traceReader, &depsmocks.Reader{}, querysvc.QueryServiceOptions{})
 	server, err := NewServer(context.Background(), qs, nil,
 		&QueryOptions{
@@ -675,12 +685,11 @@ func TestServerGracefulExit(t *testing.T) {
 }
 
 func TestServerHandlesPortZero(t *testing.T) {
-	flagsSvc := flags.NewService(ports.RemoteStorageAdminHTTP)
 	zapCore, logs := observer.New(zap.InfoLevel)
-	flagsSvc.Logger = zap.New(zapCore)
+	logger := zap.New(zapCore)
 
 	v2QuerySvc := &querysvc.QueryService{}
-	telset := initTelSet(flagsSvc.Logger, nooptrace.NewTracerProvider(), flagsSvc.HC())
+	telset := initTelSet(logger, nooptrace.NewTracerProvider())
 	server, err := NewServer(context.Background(), v2QuerySvc, nil,
 		&QueryOptions{
 			HTTP: confighttp.ServerConfig{
@@ -746,8 +755,11 @@ func TestServerHTTPTenancy(t *testing.T) {
 	}
 	tenancyMgr := tenancy.NewManager(&serverOptions.Tenancy)
 	querySvc := makeQuerySvc()
-	querySvc.spanReader.On("FindTraces", mock.Anything, mock.Anything).Return([]*model.Trace{mockTrace}, nil).Once()
-	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider(), healthcheck.New())
+	querySvc.traceReader.On("FindTraces", mock.Anything, mock.Anything).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{makeMockPTrace()}, nil)
+		})).Once()
+	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
 	server, err := NewServer(context.Background(), querySvc.qs,
 		nil, serverOptions, tenancyMgr, telset)
 	require.NoError(t, err)
@@ -791,18 +803,6 @@ func TestServerHTTPTenancy(t *testing.T) {
 }
 
 func TestServerHTTP_TracesRequest(t *testing.T) {
-	makeMockTrace := func(t *testing.T) *model.Trace {
-		out := new(bytes.Buffer)
-		err := new(jsonpb.Marshaler).Marshal(out, mockTrace)
-		require.NoError(t, err)
-		var trace model.Trace
-		require.NoError(t, jsonpb.Unmarshal(out, &trace))
-		trace.Spans[1].References = []model.SpanRef{
-			{TraceID: model.NewTraceID(0, 1), SpanID: model.NewSpanID(100)},
-		}
-		return &trace
-	}
-
 	tests := []struct {
 		name          string
 		httpEndpoint  string
@@ -850,9 +850,12 @@ func TestServerHTTP_TracesRequest(t *testing.T) {
 			})
 			tenancyMgr := tenancy.NewManager(&serverOptions.Tenancy)
 			querySvc := makeQuerySvc()
-			querySvc.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), spanstore.GetTraceParameters{TraceID: model.NewTraceID(0, 0x123456abc)}).
-				Return(makeMockTrace(t), nil).Once()
-			telset := initTelSet(zaptest.NewLogger(t), tracerProvider, healthcheck.New())
+			querySvc.traceReader.On("GetTraces", mock.Anything, mock.MatchedBy(func(params []tracestore.GetTraceParams) bool {
+				return len(params) == 1 && params[0].TraceID == v1adapter.FromV1TraceID(model.NewTraceID(0, 0x123456abc))
+			})).Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+				yield([]ptrace.Traces{makeMockPTrace()}, nil)
+			})).Once()
+			telset := initTelSet(zaptest.NewLogger(t), tracerProvider)
 
 			server, err := NewServer(context.Background(), querySvc.qs,
 				nil, serverOptions, tenancyMgr, telset)
