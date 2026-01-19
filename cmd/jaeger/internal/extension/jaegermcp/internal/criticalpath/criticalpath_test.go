@@ -143,3 +143,51 @@ func TestComputeCriticalPath_SingleSpan(t *testing.T) {
 	assert.Equal(t, uint64(1), criticalPath[0].SectionStart)
 	assert.Equal(t, uint64(101), criticalPath[0].SectionEnd)
 }
+
+func TestComputeCriticalPath_Internal_SpanNotFound(t *testing.T) {
+	// Test the case where spanID is not in spanMap (line 51)
+	spanMap := map[pcommon.SpanID]CPSpan{}
+	var spanID pcommon.SpanID = [8]byte{1}
+
+	result := computeCriticalPath(spanMap, spanID, nil, nil)
+	assert.Nil(t, result)
+}
+
+func TestComputeCriticalPath_Internal_LastFinishingChild_Recursive(t *testing.T) {
+	// Simple integration test for computeCriticalPath to verify recursion logic
+	// Parent -> Child
+	spanMap := map[pcommon.SpanID]CPSpan{
+		[8]byte{1}: {
+			SpanID:       [8]byte{1},
+			StartTime:    100,
+			Duration:     100,
+			ChildSpanIDs: []pcommon.SpanID{[8]byte{2}},
+		},
+		[8]byte{2}: {
+			SpanID:    [8]byte{2},
+			StartTime: 120,
+			Duration:  50,
+			References: []CPSpanReference{
+				{RefType: "CHILD_OF", SpanID: [8]byte{1}},
+			},
+		},
+	}
+
+	result := computeCriticalPath(spanMap, [8]byte{1}, nil, nil)
+	require.Len(t, result, 3)
+	// 1. span 1: 170-200 (after child ends)
+	// 2. span 2: 120-170
+	// 3. span 1: 100-120 (before child starts)
+}
+
+func TestFindLastFinishingChildSpan_MissingChild(t *testing.T) {
+	// Test findLastFinishingChildSpan with child ID in list but missing from map (find_lfc.go line 23)
+	parentSpan := CPSpan{
+		SpanID:       [8]byte{1},
+		ChildSpanIDs: []pcommon.SpanID{[8]byte{2}}, // Refers to missing span
+	}
+	spanMap := map[pcommon.SpanID]CPSpan{} // Empty map
+
+	result := findLastFinishingChildSpan(spanMap, parentSpan, nil)
+	assert.Nil(t, result)
+}

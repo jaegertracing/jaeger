@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/criticalpath"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/types"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 )
@@ -65,12 +66,9 @@ func createCriticalPathTestTrace() ptrace.Traces {
 }
 
 func TestNewGetCriticalPathHandler(t *testing.T) {
-	mockQS := &mockGetCriticalPathQueryService{}
-	handler := &getCriticalPathHandler{
-		queryService: mockQS,
-	}
+	// We can pass nil because we only check if it returns a handler function
+	handler := NewGetCriticalPathHandler(nil)
 	assert.NotNil(t, handler)
-	assert.NotNil(t, handler.queryService)
 }
 
 func TestGetCriticalPathHandler_Handle_Success(t *testing.T) {
@@ -277,4 +275,43 @@ func TestGetCriticalPathHandler_Handle_UnknownService(t *testing.T) {
 	for _, span := range output.Segments {
 		assert.Equal(t, "unknown", span.Service)
 	}
+}
+
+func TestGetCriticalPathHandler_BuildOutput_MissingSpan(t *testing.T) {
+	// Test buildOutput method directly to cover the case where a critical path section
+	// refers to a span ID that is not in the trace span map (get_critical_path.go line 159).
+
+	handler := &getCriticalPathHandler{}
+
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	ss := rs.ScopeSpans().AppendEmpty()
+	span := ss.Spans().AppendEmpty()
+	span.SetSpanID([8]byte{1})
+	span.SetTraceID([16]byte{1})
+	span.SetStartTimestamp(pcommon.Timestamp(1000 * 1000))
+	span.SetEndTimestamp(pcommon.Timestamp(2000 * 1000))
+	span.SetName("existing-span")
+
+	traceID := span.TraceID().String()
+
+	// Two sections: one for existing span, one for missing span
+	sections := []criticalpath.Section{
+		{
+			SpanID:       span.SpanID().String(),
+			SectionStart: 1000,
+			SectionEnd:   2000,
+		},
+		{
+			SpanID:       "missing-span-id", // This should be skipped
+			SectionStart: 3000,
+			SectionEnd:   4000,
+		},
+	}
+
+	output := handler.buildOutput(traceID, traces, sections)
+
+	// Should only have 1 segment for the existing span
+	assert.Len(t, output.Segments, 1)
+	assert.Equal(t, span.SpanID().String(), output.Segments[0].SpanID)
 }

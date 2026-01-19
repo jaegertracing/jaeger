@@ -305,3 +305,53 @@ func TestSanitizeOverFlowingChildren_ReferenceUpdate(t *testing.T) {
 	assert.NotNil(t, childSpan.References[0].Span, "reference should have parent span pointer")
 	assert.Equal(t, pcommon.SpanID([8]byte{1}), childSpan.References[0].Span.SpanID, "reference should point to correct parent")
 }
+
+func TestSanitizeOverFlowingChildren_MultipleChildren(t *testing.T) {
+	// Test loops that filter children (lines 48-50 and 80-82 in sanitize.go)
+	// We need a parent with multiple children, where one is removed and others stay.
+	input := map[pcommon.SpanID]CPSpan{
+		[8]byte{1}: {
+			SpanID:       [8]byte{1},
+			StartTime:    100,
+			Duration:     100, // 100-200
+			ChildSpanIDs: []pcommon.SpanID{[8]byte{2}, [8]byte{3}, [8]byte{4}},
+		},
+		[8]byte{2}: { // Valid child
+			SpanID:    [8]byte{2},
+			StartTime: 120,
+			Duration:  50, // 120-170
+			References: []CPSpanReference{
+				{RefType: "CHILD_OF", SpanID: [8]byte{1}},
+			},
+		},
+		[8]byte{3}: { // Invalid: starts after parent ends (line 40)
+			SpanID:    [8]byte{3},
+			StartTime: 250,
+			Duration:  50,
+			References: []CPSpanReference{
+				{RefType: "CHILD_OF", SpanID: [8]byte{1}},
+			},
+		},
+		[8]byte{4}: { // Invalid: ends before parent starts (line 71)
+			SpanID:    [8]byte{4},
+			StartTime: 50,
+			Duration:  20, // 50-70
+			References: []CPSpanReference{
+				{RefType: "CHILD_OF", SpanID: [8]byte{1}},
+			},
+		},
+	}
+
+	result := removeOverflowingChildren(input)
+
+	// Span 1 should have only Span 2 as child
+	parent := result[[8]byte{1}]
+	assert.Len(t, parent.ChildSpanIDs, 1)
+	assert.Equal(t, pcommon.SpanID([8]byte{2}), parent.ChildSpanIDs[0])
+
+	// Span 3 and 4 should be removed
+	_, ok3 := result[[8]byte{3}]
+	assert.False(t, ok3)
+	_, ok4 := result[[8]byte{4}]
+	assert.False(t, ok4)
+}
