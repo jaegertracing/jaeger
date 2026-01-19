@@ -6,12 +6,14 @@ package tracestore
 import (
 	"context"
 	"iter"
+	"strings"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 // TraceReader is a wrapper around spanstore.CoreSpanReader which return the output parallel to OTLP Models
@@ -117,7 +119,16 @@ func (t *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQu
 func toDBTraceQueryParams(query tracestore.TraceQueryParams) dbmodel.TraceQueryParameters {
 	tags := make(map[string]string)
 	for key, val := range query.Attributes.All() {
-		tags[key] = val.AsString()
+		switch {
+		case key == "scope.name":
+			tags[otelsemconv.AttributeOtelScopeName] = val.AsString()
+		case key == "scope.version":
+			tags[otelsemconv.AttributeOtelScopeVersion] = val.AsString()
+		case strings.HasPrefix(key, "resource."):
+			tags[strings.TrimPrefix(key, "resource.")] = val.AsString()
+		default:
+			tags[key] = val.AsString()
+		}
 	}
 	return dbmodel.TraceQueryParameters{
 		ServiceName:   query.ServiceName,
