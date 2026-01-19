@@ -334,20 +334,7 @@ func makeQuerySvc() *fakeQueryService {
 	}
 }
 
-var mockPTrace = func() ptrace.Traces {
-	trace := ptrace.NewTraces()
-	resources := trace.ResourceSpans().AppendEmpty()
-	resources.Resource().Attributes().PutStr("service.name", "service")
-	scopes := resources.ScopeSpans().AppendEmpty()
-
-	span := scopes.Spans().AppendEmpty()
-	span.SetTraceID(v1adapter.FromV1TraceID(model.NewTraceID(0, 123456)))
-	span.SetSpanID(v1adapter.FromV1SpanID(model.NewSpanID(1)))
-
-	return trace
-}()
-
-func makeMockPTrace(_ *testing.T) ptrace.Traces {
+func makeMockPTrace() ptrace.Traces {
 	trace := ptrace.NewTraces()
 	resources := trace.ResourceSpans().AppendEmpty()
 	resources.Resource().Attributes().PutStr("service.name", "service")
@@ -440,7 +427,7 @@ func TestServerHTTPTLS(t *testing.T) {
 				}
 				querySvc.traceReader.On("FindTraces", mock.Anything, mock.Anything).
 					Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
-						yield([]ptrace.Traces{mockPTrace}, nil)
+						yield([]ptrace.Traces{makeMockPTrace()}, nil)
 					})).Once()
 				queryString := "/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms"
 				req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("https://%s/%s", server.HTTPAddr(), queryString), http.NoBody)
@@ -770,7 +757,7 @@ func TestServerHTTPTenancy(t *testing.T) {
 	querySvc := makeQuerySvc()
 	querySvc.traceReader.On("FindTraces", mock.Anything, mock.Anything).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
-			yield([]ptrace.Traces{mockPTrace}, nil)
+			yield([]ptrace.Traces{makeMockPTrace()}, nil)
 		})).Once()
 	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
 	server, err := NewServer(context.Background(), querySvc.qs,
@@ -866,7 +853,7 @@ func TestServerHTTP_TracesRequest(t *testing.T) {
 			querySvc.traceReader.On("GetTraces", mock.Anything, mock.MatchedBy(func(params []tracestore.GetTraceParams) bool {
 				return len(params) == 1 && params[0].TraceID == v1adapter.FromV1TraceID(model.NewTraceID(0, 0x123456abc))
 			})).Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
-				yield([]ptrace.Traces{makeMockPTrace(t)}, nil)
+				yield([]ptrace.Traces{makeMockPTrace()}, nil)
 			})).Once()
 			telset := initTelSet(zaptest.NewLogger(t), tracerProvider)
 
