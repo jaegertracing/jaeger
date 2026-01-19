@@ -43,12 +43,12 @@ module.exports = async ({github, context, core}) => {
     // Check if commenter is the author
     if (commenter === prAuthor) {
       core.info(`Comment by author ${commenter}. Removing label if present.`);
-      await removeLabel(github, repoOwner, repoName, prNumber, LABEL_NAME);
+      await removeLabel(github, repoOwner, repoName, prNumber, LABEL_NAME, core);
     } 
     // Check if commenter is a maintainer (has write access)
-    else if (await isMaintainer(github, repoOwner, repoName, commenter)) {
+    else if (await isMaintainer(github, repoOwner, repoName, commenter, core)) {
        core.info(`Comment by maintainer ${commenter}. Adding label if missing.`);
-       await addLabel(github, repoOwner, repoName, prNumber, LABEL_NAME);
+       await addLabel(github, repoOwner, repoName, prNumber, LABEL_NAME, core);
     } else {
       core.info(`Comment by ${commenter} (not author or maintainer). No action taken.`);
     }
@@ -99,12 +99,12 @@ module.exports = async ({github, context, core}) => {
     }
 
     core.info(`Push by author detected. Removing label.`);
-    await removeLabel(github, repoOwner, repoName, prNumber, LABEL_NAME);
+    await removeLabel(github, repoOwner, repoName, prNumber, LABEL_NAME, core);
   }
 
 };
 
-async function addLabel(github, owner, repo, issueNumber, label) {
+async function addLabel(github, owner, repo, issueNumber, label, logger) {
   try {
     const { data: labels } = await github.rest.issues.listLabelsOnIssue({
       owner,
@@ -113,7 +113,7 @@ async function addLabel(github, owner, repo, issueNumber, label) {
     });
     
     if (labels.find(l => l.name === label)) {
-      console.log(`Label '${label}' already exists.`);
+      logger.info(`Label '${label}' already exists.`);
       return;
     }
 
@@ -123,13 +123,13 @@ async function addLabel(github, owner, repo, issueNumber, label) {
       issue_number: issueNumber,
       labels: [label],
     });
-    console.log(`Added label '${label}'.`);
+    logger.info(`Added label '${label}'.`);
   } catch (error) {
-    console.error(`Error adding label: ${error.message}`);
+    logger.error(`Error adding label: ${error.message}`);
   }
 }
 
-async function removeLabel(github, owner, repo, issueNumber, label) {
+async function removeLabel(github, owner, repo, issueNumber, label, logger) {
   try {
     const { data: labels } = await github.rest.issues.listLabelsOnIssue({
       owner,
@@ -138,7 +138,7 @@ async function removeLabel(github, owner, repo, issueNumber, label) {
     });
     
     if (!labels.find(l => l.name === label)) {
-      console.log(`Label '${label}' does not exist.`);
+      logger.info(`Label '${label}' does not exist.`);
       return;
     }
 
@@ -148,14 +148,14 @@ async function removeLabel(github, owner, repo, issueNumber, label) {
       issue_number: issueNumber,
       name: label,
     });
-    console.log(`Removed label '${label}'.`);
+    logger.info(`Removed label '${label}'.`);
   } catch (error) {
     // Ignore 404 if label not found (though check above should catch it)
-    console.error(`Error removing label: ${error.message}`);
+    logger.error(`Error removing label: ${error.message}`);
   }
 }
 
-async function isMaintainer(github, owner, repo, username) {
+async function isMaintainer(github, owner, repo, username, logger) {
   try {
     const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
       owner,
@@ -170,7 +170,7 @@ async function isMaintainer(github, owner, repo, username) {
     const permission = data.permission;
     return ['admin', 'maintain', 'write'].includes(permission);
   } catch (error) {
-    console.error(`Error checking permissions for ${username}: ${error.message}`);
+    logger.error(`Error checking permissions for ${username}: ${error.message}`);
     return false;
   }
 }
