@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"iter"
+	"strconv"
 	"strings"
 	"time"
 
@@ -143,7 +144,7 @@ func (r *Reader) FindTraces(
 	query tracestore.TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		traceIDsQuery, args, err := r.buildFindTraceIDsQuery(query)
+		traceIDsQuery, args, err := r.buildFindTraceIDsQuery(ctx, query)
 		if err != nil {
 			yield(nil, fmt.Errorf("failed to build query: %w", err))
 			return
@@ -206,7 +207,7 @@ func (r *Reader) FindTraceIDs(
 	query tracestore.TraceQueryParams,
 ) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	return func(yield func([]tracestore.FoundTraceID, error) bool) {
-		q, args, err := r.buildFindTraceIDsQuery(query)
+		q, args, err := r.buildFindTraceIDsQuery(ctx, query)
 		if err != nil {
 			yield(nil, fmt.Errorf("failed to build query: %w", err))
 			return
@@ -243,7 +244,10 @@ func buildFindTracesQuery(traceIDsQuery string) string {
 	return sql.SelectSpansQuery + " WHERE s.trace_id IN (SELECT trace_id FROM (" + traceIDsQuery + ")) ORDER BY s.trace_id"
 }
 
-func (r *Reader) buildFindTraceIDsQuery(query tracestore.TraceQueryParams) (string, []any, error) {
+func (r *Reader) buildFindTraceIDsQuery(
+	ctx context.Context,
+	query tracestore.TraceQueryParams,
+) (string, []any, error) {
 	limit := query.SearchDepth
 	if limit == 0 {
 		limit = r.config.DefaultSearchDepth
@@ -281,57 +285,213 @@ func (r *Reader) buildFindTraceIDsQuery(query tracestore.TraceQueryParams) (stri
 		args = append(args, query.StartTimeMax)
 	}
 
-	for key, attr := range query.Attributes.All() {
-		var attrType string
-		var val any
-
-		switch attr.Type() {
-		case pcommon.ValueTypeBool:
-			attrType = "bool"
-			val = attr.Bool()
-		case pcommon.ValueTypeDouble:
-			attrType = "double"
-			val = attr.Double()
-		case pcommon.ValueTypeInt:
-			attrType = "int"
-			val = attr.Int()
-		case pcommon.ValueTypeStr:
-			attrType = "str"
-			val = attr.Str()
-		case pcommon.ValueTypeBytes:
-			attrType = "complex"
-			key = "@bytes@" + key
-			val = base64.StdEncoding.EncodeToString(attr.Bytes().AsRaw())
-		case pcommon.ValueTypeSlice:
-			attrType = "complex"
-			key = "@slice@" + key
-			b, err := marshalValueForQuery(attr)
-			if err != nil {
-				return "", nil, fmt.Errorf("failed to marshal slice attribute %q: %w", key, err)
-			}
-			val = b
-		case pcommon.ValueTypeMap:
-			attrType = "complex"
-			key = "@map@" + key
-			b, err := marshalValueForQuery(attr)
-			if err != nil {
-				return "", nil, fmt.Errorf("failed to marshal map attribute %q: %w", key, err)
-			}
-			val = b
-		default:
-			return "", nil, fmt.Errorf("unsupported attribute type %v for key %s", attr.Type(), key)
+	// Only query attribute metadata if requested and string attributes are present.
+	// Non-string attributes (bool/double/int/bytes/slice/map) don't require metadata.
+	var attributeMetadata attributeMetadata
+	if hasStringAttributes(query.Attributes) {
+		am, err := r.getAttributeMetadata(ctx, query.Attributes)
+		if err != nil {
+			return "", nil, fmt.Errorf("failed to get attribute metadata: %w", err)
 		}
+		attributeMetadata = am
+	}
 
-		q.WriteString(" AND (")
-		q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s." + attrType + "_attributes.key, s." + attrType + "_attributes.value)")
-		q.WriteString(" OR ")
-		q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.resource_" + attrType + "_attributes.key, s.resource_" + attrType + "_attributes.value)")
-		q.WriteString(")")
-		args = append(args, key, val, key, val)
+	if err := buildAttributeConditions(&q, &args, query.Attributes, attributeMetadata); err != nil {
+		return "", nil, err
 	}
 
 	q.WriteString(" LIMIT ?")
 	args = append(args, limit)
 
 	return q.String(), args, nil
+}
+
+// hasStringAttributes returns true if any attribute in the map is of string type.
+func hasStringAttributes(attributes pcommon.Map) bool {
+	for _, attr := range attributes.All() {
+		if attr.Type() == pcommon.ValueTypeStr {
+			return true
+		}
+	}
+	return false
+}
+
+func buildAttributeConditions(q *strings.Builder, args *[]any, attributes pcommon.Map, metadata attributeMetadata) error {
+	for key, attr := range attributes.All() {
+		q.WriteString(" AND (")
+
+		switch attr.Type() {
+		case pcommon.ValueTypeBool:
+			buildBoolAttributeCondition(q, args, key, attr)
+		case pcommon.ValueTypeDouble:
+			buildDoubleAttributeCondition(q, args, key, attr)
+		case pcommon.ValueTypeInt:
+			buildIntAttributeCondition(q, args, key, attr)
+		case pcommon.ValueTypeStr:
+			if err := buildStringAttributeCondition(q, args, key, attr, metadata); err != nil {
+				return err
+			}
+		case pcommon.ValueTypeBytes:
+			buildBytesAttributeCondition(q, args, key, attr)
+		case pcommon.ValueTypeSlice:
+			if err := buildSliceAttributeCondition(q, args, key, attr); err != nil {
+				return err
+			}
+		case pcommon.ValueTypeMap:
+			if err := buildMapAttributeCondition(q, args, key, attr); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("unsupported attribute type %v for key %s", attr.Type(), key)
+		}
+
+		q.WriteString(")")
+	}
+
+	return nil
+}
+
+func buildBoolAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) {
+	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.bool_attributes.key, s.bool_attributes.value)")
+	q.WriteString(" OR ")
+	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.resource_bool_attributes.key, s.resource_bool_attributes.value)")
+	*args = append(*args, key, attr.Bool(), key, attr.Bool())
+}
+
+func buildDoubleAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) {
+	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.double_attributes.key, s.double_attributes.value)")
+	q.WriteString(" OR ")
+	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.resource_double_attributes.key, s.resource_double_attributes.value)")
+	*args = append(*args, key, attr.Double(), key, attr.Double())
+}
+
+func buildIntAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) {
+	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.int_attributes.key, s.int_attributes.value)")
+	q.WriteString(" OR ")
+	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.resource_int_attributes.key, s.resource_int_attributes.value)")
+	*args = append(*args, key, attr.Int(), key, attr.Int())
+}
+
+func buildBytesAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) {
+	attrKey := "@bytes@" + key
+	val := base64.StdEncoding.EncodeToString(attr.Bytes().AsRaw())
+	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)")
+	q.WriteString(" OR ")
+	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value)")
+	*args = append(*args, attrKey, val, attrKey, val)
+}
+
+func buildSliceAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) error {
+	attrKey := "@slice@" + key
+	b, err := marshalValueForQuery(attr)
+	if err != nil {
+		return fmt.Errorf("failed to marshal slice attribute %q: %w", key, err)
+	}
+	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)")
+	q.WriteString(" OR ")
+	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value)")
+	*args = append(*args, attrKey, b, attrKey, b)
+	return nil
+}
+
+func buildMapAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) error {
+	attrKey := "@map@" + key
+	b, err := marshalValueForQuery(attr)
+	if err != nil {
+		return fmt.Errorf("failed to marshal map attribute %q: %w", key, err)
+	}
+	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)")
+	q.WriteString(" OR ")
+	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value)")
+	*args = append(*args, attrKey, b, attrKey, b)
+	return nil
+}
+
+// buildStringAttributeCondition adds a condition for string attributes by looking up their
+// actual stored type(s) and level(s) from the attribute_metadata table.
+//
+// String attributes require special handling because the query service passes all
+// attributes as strings (via AsString()), regardless of their actual stored type.
+// We must look up the attribute_metadata to determine the actual type(s) and
+// level(s) where this attribute is stored, then convert the string back to the
+// appropriate type for querying.
+func buildStringAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value, metadata attributeMetadata) error {
+	levelTypes, ok := metadata[key]
+
+	// if no metadata found, assume string type
+	if !ok {
+		q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.str_attributes.key, s.str_attributes.value)")
+		q.WriteString(" OR ")
+		q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.resource_str_attributes.key, s.resource_str_attributes.value)")
+		*args = append(*args, key, attr.Str(), key, attr.Str())
+		return nil
+	}
+
+	first := true
+	for level, types := range levelTypes {
+		for _, t := range types {
+			if !first {
+				q.WriteString(" OR ")
+			}
+			first = false
+
+			attrKey := key
+			var val any
+
+			switch t {
+			case "bool":
+				b, err := strconv.ParseBool(attr.Str())
+				if err != nil {
+					return fmt.Errorf("failed to parse bool attribute %q: %w", key, err)
+				}
+				val = b
+			case "double":
+				f, err := strconv.ParseFloat(attr.Str(), 64)
+				if err != nil {
+					return fmt.Errorf("failed to parse double attribute %q: %w", key, err)
+				}
+				val = f
+			case "int":
+				i, err := strconv.ParseInt(attr.Str(), 10, 64)
+				if err != nil {
+					return fmt.Errorf("failed to parse int attribute %q: %w", key, err)
+				}
+				val = i
+			case "str":
+				val = attr.Str()
+			case "bytes":
+				attrKey = "@bytes@" + key
+				decoded, err := base64.StdEncoding.DecodeString(attr.Str())
+				if err != nil {
+					return fmt.Errorf("failed to decode bytes attribute %q: %w", key, err)
+				}
+				val = string(decoded)
+			// TODO: support map and slice
+			default:
+				return fmt.Errorf("unsupported attribute type %q for key %q", t, key)
+			}
+
+			var colType string
+			if t == "bytes" || t == "map" || t == "slice" {
+				colType = "complex"
+			} else {
+				colType = t
+			}
+
+			var prefix string
+			switch level {
+			case "resource":
+				prefix = "resource_"
+			case "scope":
+				prefix = "scope_"
+			default:
+				prefix = ""
+			}
+
+			q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s." + prefix + colType + "_attributes.key, s." + prefix + colType + "_attributes.value)")
+			*args = append(*args, attrKey, val)
+		}
+	}
+
+	return nil
 }

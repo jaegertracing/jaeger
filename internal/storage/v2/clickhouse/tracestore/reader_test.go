@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,7 +40,38 @@ var (
 			time.Time{},
 		},
 	}
+	testAttributeMetadata = []dbmodel.AttributeMetadata{
+		{AttributeKey: "span.flag", Type: "bool", Level: "span"},
+		{AttributeKey: "resource.latency", Type: "double", Level: "resource"},
+		{AttributeKey: "scope.attempt", Type: "int", Level: "scope"},
+		{AttributeKey: "http.method", Type: "str", Level: "span"},
+		{AttributeKey: "resource.checksum", Type: "bytes", Level: "resource"},
+	}
 )
+
+func buildTestAttributes() pcommon.Map {
+	attrs := pcommon.NewMap()
+	attrs.PutBool("login_successful", true)
+	attrs.PutDouble("response_time", 0.123)
+	attrs.PutInt("attempt_count", 1)
+	b := attrs.PutEmptyBytes("file.checksum")
+	s := attrs.PutEmptySlice("http.headers")
+	m := attrs.PutEmptyMap("http.cookies")
+
+	b.FromRaw([]byte{0x12, 0x34, 0x56, 0x78})
+	s.AppendEmpty().SetStr("header1: value1")
+	m.PutStr("session_id", "abc123")
+
+	// these attributes will require type lookup from attribute_metadata
+	attrs.PutStr("no.metadata", "nonexistent") // no metadata entry
+	attrs.PutStr("http.method", "GET")
+	attrs.PutStr("span.flag", "true")
+	attrs.PutStr("resource.latency", "0.5")
+	attrs.PutStr("scope.attempt", "7")
+	attrs.PutStr("resource.checksum", "EjRWeA==")
+
+	return attrs
+}
 
 func scanSpanRowFn() func(dest any, src *dbmodel.SpanRow) error {
 	return func(dest any, src *dbmodel.SpanRow) error {
@@ -129,6 +161,17 @@ func scanSpanRowFn() func(dest any, src *dbmodel.SpanRow) error {
 	}
 }
 
+func scanAttributeMetadataFn() func(dest any, src dbmodel.AttributeMetadata) error {
+	return func(dest any, src dbmodel.AttributeMetadata) error {
+		ptr, ok := dest.(*dbmodel.AttributeMetadata)
+		if !ok {
+			return fmt.Errorf("expected *dbmodel.AttributeMetadata for dest, got %T", dest)
+		}
+		*ptr = src
+		return nil
+	}
+}
+
 func scanTraceIDFn() func(dest any, src []any) error {
 	return func(dest any, src []any) error {
 		ptrs, ok := dest.([]any)
@@ -201,7 +244,7 @@ func TestGetTraces_Success(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Len(t, conn.recordedQueries, 1)
-			verifyQuerySnapshot(t, conn.recordedQueries[0])
+			verifyQuerySnapshot(t, conn.recordedQueries...)
 			requireTracesEqual(t, tt.data, traces)
 		})
 	}
@@ -401,14 +444,6 @@ func TestGetServices(t *testing.T) {
 								{Name: "serviceB"},
 								{Name: "serviceC"},
 							},
-							scanFn: func(dest any, src dbmodel.Service) error {
-								svc, ok := dest.(*dbmodel.Service)
-								if !ok {
-									return errors.New("dest is not *dbmodel.Service")
-								}
-								*svc = src
-								return nil
-							},
 							scanErr: assert.AnError,
 						},
 						err: nil,
@@ -430,7 +465,7 @@ func TestGetServices(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.Len(t, test.conn.recordedQueries, 1)
-				verifyQuerySnapshot(t, test.conn.recordedQueries[0])
+				verifyQuerySnapshot(t, test.conn.recordedQueries...)
 				require.Equal(t, test.expected, result)
 			}
 		})
@@ -554,14 +589,6 @@ func TestGetOperations(t *testing.T) {
 								{Name: "operationB"},
 								{Name: "operationC"},
 							},
-							scanFn: func(dest any, src dbmodel.Operation) error {
-								svc, ok := dest.(*dbmodel.Operation)
-								if !ok {
-									return errors.New("dest is not *dbmodel.Operation")
-								}
-								*svc = src
-								return nil
-							},
 							scanErr: assert.AnError,
 						},
 						err: nil,
@@ -583,7 +610,7 @@ func TestGetOperations(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.Len(t, test.conn.recordedQueries, 1)
-				verifyQuerySnapshot(t, test.conn.recordedQueries[0])
+				verifyQuerySnapshot(t, test.conn.recordedQueries...)
 				require.Equal(t, test.expected, result)
 			}
 		})
@@ -628,7 +655,7 @@ func TestFindTraces_Success(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Len(t, conn.recordedQueries, 1)
-			verifyQuerySnapshot(t, conn.recordedQueries[0])
+			verifyQuerySnapshot(t, conn.recordedQueries...)
 			requireTracesEqual(t, tt.data, traces)
 		})
 	}
@@ -638,6 +665,12 @@ func TestFindTraces_WithFilters(t *testing.T) {
 	conn := &testDriver{
 		t: t,
 		queryResponses: map[string]*testQueryResponse{
+			sql.SelectAttributeMetadata: {
+				rows: &testRows[dbmodel.AttributeMetadata]{
+					data:   testAttributeMetadata,
+					scanFn: scanAttributeMetadataFn(),
+				},
+			},
 			sql.SelectSpansQuery: {
 				rows: &testRows[*dbmodel.SpanRow]{
 					data:   multipleSpans,
@@ -649,18 +682,7 @@ func TestFindTraces_WithFilters(t *testing.T) {
 	}
 
 	reader := NewReader(conn, testReaderConfig)
-	attributes := pcommon.NewMap()
-	attributes.PutBool("login_successful", true)
-	attributes.PutDouble("response_time", 0.123)
-	attributes.PutInt("attempt_count", 1)
-	attributes.PutStr("http.method", "GET")
-	b := attributes.PutEmptyBytes("file.checksum")
-	s := attributes.PutEmptySlice("http.headers")
-	m := attributes.PutEmptyMap("http.cookies")
-
-	b.FromRaw([]byte{0x12, 0x34, 0x56, 0x78})
-	s.AppendEmpty().SetStr("header1: value1")
-	m.PutStr("session_id", "abc123")
+	attributes := buildTestAttributes()
 
 	iter := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
 		ServiceName:   "serviceA",
@@ -674,23 +696,14 @@ func TestFindTraces_WithFilters(t *testing.T) {
 	})
 	traces, err := jiter.FlattenWithErrors(iter)
 	require.NoError(t, err)
-	require.Len(t, conn.recordedQueries, 1)
-	verifyQuerySnapshot(t, conn.recordedQueries[0])
+	require.Len(t, conn.recordedQueries, 2)
+	verifyQuerySnapshot(t, conn.recordedQueries...)
 	requireTracesEqual(t, multipleSpans, traces)
 }
 
 func TestFindTraces_SearchDepthExceedsMax(t *testing.T) {
 	driver := &testDriver{
 		t: t,
-		queryResponses: map[string]*testQueryResponse{
-			sql.SelectSpansQuery: {
-				rows: &testRows[*dbmodel.SpanRow]{
-					data:   singleSpan,
-					scanFn: scanSpanRowFn(),
-				},
-				err: nil,
-			},
-		},
 	}
 	reader := NewReader(driver, testReaderConfig)
 	iter := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
@@ -843,6 +856,12 @@ func TestFindTraceIDs(t *testing.T) {
 	driver := &testDriver{
 		t: t,
 		queryResponses: map[string]*testQueryResponse{
+			sql.SelectAttributeMetadata: {
+				rows: &testRows[dbmodel.AttributeMetadata]{
+					data:   testAttributeMetadata,
+					scanFn: scanAttributeMetadataFn(),
+				},
+			},
 			sql.SearchTraceIDs: {
 				rows: &testRows[[]any]{
 					data:   testTraceIDsData,
@@ -853,18 +872,7 @@ func TestFindTraceIDs(t *testing.T) {
 		},
 	}
 	reader := NewReader(driver, testReaderConfig)
-	attributes := pcommon.NewMap()
-	attributes.PutBool("login_successful", true)
-	attributes.PutDouble("response_time", 0.123)
-	attributes.PutInt("attempt_count", 1)
-	attributes.PutStr("http.method", "GET")
-	b := attributes.PutEmptyBytes("file.checksum")
-	s := attributes.PutEmptySlice("http.headers")
-	m := attributes.PutEmptyMap("http.cookies")
-
-	b.FromRaw([]byte{0x12, 0x34, 0x56, 0x78})
-	s.AppendEmpty().SetStr("header1: value1")
-	m.PutStr("session_id", "abc123")
+	attributes := buildTestAttributes()
 
 	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
 		ServiceName:   "serviceA",
@@ -878,8 +886,8 @@ func TestFindTraceIDs(t *testing.T) {
 	})
 	ids, err := jiter.FlattenWithErrors(iter)
 	require.NoError(t, err)
-	require.Len(t, driver.recordedQueries, 1)
-	verifyQuerySnapshot(t, driver.recordedQueries[0])
+	require.Len(t, driver.recordedQueries, 2)
+	verifyQuerySnapshot(t, driver.recordedQueries...)
 	require.Equal(t, []tracestore.FoundTraceID{
 		{
 			TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}),
@@ -1154,7 +1162,7 @@ func TestFindTraceIDs_BuildQueryError(t *testing.T) {
 	require.ErrorContains(t, err, "failed to build query")
 }
 
-func TestBuildSearchTraceIDsQuery_MarshalErrors(t *testing.T) {
+func TestBuildFindTraceIDsQuery_MarshalErrors(t *testing.T) {
 	orig := marshalValueForQuery
 	t.Cleanup(func() { marshalValueForQuery = orig })
 	marshalValueForQuery = func(pcommon.Value) (string, error) {
@@ -1167,7 +1175,7 @@ func TestBuildSearchTraceIDsQuery_MarshalErrors(t *testing.T) {
 		s.AppendEmpty()
 
 		reader := NewReader(&testDriver{t: t}, testReaderConfig)
-		_, _, err := reader.buildFindTraceIDsQuery(tracestore.TraceQueryParams{Attributes: attrs})
+		_, _, err := reader.buildFindTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{Attributes: attrs})
 
 		require.Error(t, err)
 		require.ErrorContains(t, err, "failed to marshal slice attribute")
@@ -1179,9 +1187,87 @@ func TestBuildSearchTraceIDsQuery_MarshalErrors(t *testing.T) {
 		m.PutEmpty("key")
 
 		reader := NewReader(&testDriver{t: t}, testReaderConfig)
-		_, _, err := reader.buildFindTraceIDsQuery(tracestore.TraceQueryParams{Attributes: attrs})
+		_, _, err := reader.buildFindTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{Attributes: attrs})
 
 		require.Error(t, err)
 		require.ErrorContains(t, err, "failed to marshal map attribute")
 	})
+}
+
+func TestBuildFindTraceIDsQuery_AttributeMetadataError(t *testing.T) {
+	td := &testDriver{
+		t: t,
+		queryResponses: map[string]*testQueryResponse{
+			sql.SelectAttributeMetadata: {
+				rows: nil,
+				err:  assert.AnError,
+			},
+		},
+	}
+
+	reader := NewReader(td, testReaderConfig)
+	_, _, err := reader.buildFindTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{Attributes: buildTestAttributes()})
+	require.ErrorContains(t, err, "failed to get attribute metadata")
+}
+
+func TestBuildStringAttributeCondition_Errors(t *testing.T) {
+	cases := []struct {
+		name        string
+		attrValue   string
+		metadata    attributeMetadata
+		expectedErr string
+	}{
+		{
+			name:      "parse bool fails",
+			attrValue: "not-bool",
+			metadata: attributeMetadata{
+				"k": {"span": {"bool"}},
+			},
+			expectedErr: "failed to parse bool attribute",
+		},
+		{
+			name:      "parse double fails",
+			attrValue: "not-float",
+			metadata: attributeMetadata{
+				"k": {"span": {"double"}},
+			},
+			expectedErr: "failed to parse double attribute",
+		},
+		{
+			name:      "parse int fails",
+			attrValue: "not-int",
+			metadata: attributeMetadata{
+				"k": {"span": {"int"}},
+			},
+			expectedErr: "failed to parse int attribute",
+		},
+		{
+			name:      "decode bytes fails",
+			attrValue: "!not-base64!",
+			metadata: attributeMetadata{
+				"k": {"span": {"bytes"}},
+			},
+			expectedErr: "failed to decode bytes attribute",
+		},
+		{
+			name:      "unsupported type",
+			attrValue: "whatever",
+			metadata: attributeMetadata{
+				"k": {"span": {"unknown"}},
+			},
+			expectedErr: "unsupported attribute type",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			attr := pcommon.NewValueStr(tc.attrValue)
+			var q strings.Builder
+			var args []any
+
+			err := buildStringAttributeCondition(&q, &args, "k", attr, tc.metadata)
+			require.Error(t, err)
+			assert.ErrorContains(t, err, tc.expectedErr)
+		})
+	}
 }
