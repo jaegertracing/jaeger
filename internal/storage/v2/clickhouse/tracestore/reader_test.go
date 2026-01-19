@@ -63,6 +63,7 @@ func buildTestAttributes() pcommon.Map {
 	m.PutStr("session_id", "abc123")
 
 	// these attributes will require type lookup from attribute_metadata
+	attrs.PutStr("no.metadata", "nonexistent") // no metadata entry
 	attrs.PutStr("http.method", "GET")
 	attrs.PutStr("span.flag", "true")
 	attrs.PutStr("resource.latency", "0.5")
@@ -1161,7 +1162,7 @@ func TestFindTraceIDs_BuildQueryError(t *testing.T) {
 	require.ErrorContains(t, err, "failed to build query")
 }
 
-func TestBuildSearchTraceIDsQuery_MarshalErrors(t *testing.T) {
+func TestBuildFindTraceIDsQuery_MarshalErrors(t *testing.T) {
 	orig := marshalValueForQuery
 	t.Cleanup(func() { marshalValueForQuery = orig })
 	marshalValueForQuery = func(pcommon.Value) (string, error) {
@@ -1191,6 +1192,22 @@ func TestBuildSearchTraceIDsQuery_MarshalErrors(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorContains(t, err, "failed to marshal map attribute")
 	})
+}
+
+func TestBuildFindTraceIDsQuery_AttributeMetadataError(t *testing.T) {
+	td := &testDriver{
+		t: t,
+		queryResponses: map[string]*testQueryResponse{
+			sql.SelectAttributeMetadata: {
+				rows: nil,
+				err:  assert.AnError,
+			},
+		},
+	}
+
+	reader := NewReader(td, testReaderConfig)
+	_, _, err := reader.buildFindTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{Attributes: buildTestAttributes()})
+	require.ErrorContains(t, err, "failed to get attribute metadata")
 }
 
 func TestBuildStringAttributeCondition_Errors(t *testing.T) {
