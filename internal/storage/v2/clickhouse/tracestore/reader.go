@@ -466,12 +466,6 @@ func buildStringAttributeCondition(q *strings.Builder, args *[]any, key string, 
 					return fmt.Errorf("failed to decode bytes attribute %q: %w", key, err)
 				}
 				val = string(decoded)
-			case "map":
-				attrKey = "@map@" + key
-				val = attr.Str()
-			case "slice":
-				attrKey = "@slice@" + key
-				val = attr.Str()
 			// TODO: support map and slice
 			default:
 				return fmt.Errorf("unsupported attribute type %q for key %q", t, key)

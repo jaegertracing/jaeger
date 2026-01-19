@@ -40,7 +40,37 @@ var (
 			time.Time{},
 		},
 	}
+	testAttributeMetadata = []dbmodel.AttributeMetadata{
+		{AttributeKey: "span.flag", Type: "bool", Level: "span"},
+		{AttributeKey: "resource.latency", Type: "double", Level: "resource"},
+		{AttributeKey: "scope.attempt", Type: "int", Level: "scope"},
+		{AttributeKey: "http.method", Type: "str", Level: "span"},
+		{AttributeKey: "resource.checksum", Type: "bytes", Level: "resource"},
+	}
 )
+
+func buildTestAttributes() pcommon.Map {
+	attrs := pcommon.NewMap()
+	attrs.PutBool("login_successful", true)
+	attrs.PutDouble("response_time", 0.123)
+	attrs.PutInt("attempt_count", 1)
+	b := attrs.PutEmptyBytes("file.checksum")
+	s := attrs.PutEmptySlice("http.headers")
+	m := attrs.PutEmptyMap("http.cookies")
+
+	b.FromRaw([]byte{0x12, 0x34, 0x56, 0x78})
+	s.AppendEmpty().SetStr("header1: value1")
+	m.PutStr("session_id", "abc123")
+
+	// these attributes will require type lookup from attribute_metadata
+	attrs.PutStr("http.method", "GET")
+	attrs.PutStr("span.flag", "true")
+	attrs.PutStr("resource.latency", "0.5")
+	attrs.PutStr("scope.attempt", "7")
+	attrs.PutStr("resource.checksum", "EjRWeA==")
+
+	return attrs
+}
 
 func scanSpanRowFn() func(dest any, src *dbmodel.SpanRow) error {
 	return func(dest any, src *dbmodel.SpanRow) error {
@@ -636,13 +666,7 @@ func TestFindTraces_WithFilters(t *testing.T) {
 		queryResponses: map[string]*testQueryResponse{
 			sql.SelectAttributeMetadata: {
 				rows: &testRows[dbmodel.AttributeMetadata]{
-					data: []dbmodel.AttributeMetadata{
-						{
-							AttributeKey: "http.method",
-							Type:         "str",
-							Level:        "span",
-						},
-					},
+					data:   testAttributeMetadata,
 					scanFn: scanAttributeMetadataFn(),
 				},
 			},
@@ -657,18 +681,7 @@ func TestFindTraces_WithFilters(t *testing.T) {
 	}
 
 	reader := NewReader(conn, testReaderConfig)
-	attributes := pcommon.NewMap()
-	attributes.PutBool("login_successful", true)
-	attributes.PutDouble("response_time", 0.123)
-	attributes.PutInt("attempt_count", 1)
-	attributes.PutStr("http.method", "GET")
-	b := attributes.PutEmptyBytes("file.checksum")
-	s := attributes.PutEmptySlice("http.headers")
-	m := attributes.PutEmptyMap("http.cookies")
-
-	b.FromRaw([]byte{0x12, 0x34, 0x56, 0x78})
-	s.AppendEmpty().SetStr("header1: value1")
-	m.PutStr("session_id", "abc123")
+	attributes := buildTestAttributes()
 
 	iter := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
 		ServiceName:   "serviceA",
@@ -844,13 +857,7 @@ func TestFindTraceIDs(t *testing.T) {
 		queryResponses: map[string]*testQueryResponse{
 			sql.SelectAttributeMetadata: {
 				rows: &testRows[dbmodel.AttributeMetadata]{
-					data: []dbmodel.AttributeMetadata{
-						{
-							AttributeKey: "http.method",
-							Type:         "str",
-							Level:        "span",
-						},
-					},
+					data:   testAttributeMetadata,
 					scanFn: scanAttributeMetadataFn(),
 				},
 			},
@@ -864,18 +871,7 @@ func TestFindTraceIDs(t *testing.T) {
 		},
 	}
 	reader := NewReader(driver, testReaderConfig)
-	attributes := pcommon.NewMap()
-	attributes.PutBool("login_successful", true)
-	attributes.PutDouble("response_time", 0.123)
-	attributes.PutInt("attempt_count", 1)
-	attributes.PutStr("http.method", "GET")
-	b := attributes.PutEmptyBytes("file.checksum")
-	s := attributes.PutEmptySlice("http.headers")
-	m := attributes.PutEmptyMap("http.cookies")
-
-	b.FromRaw([]byte{0x12, 0x34, 0x56, 0x78})
-	s.AppendEmpty().SetStr("header1: value1")
-	m.PutStr("session_id", "abc123")
+	attributes := buildTestAttributes()
 
 	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
 		ServiceName:   "serviceA",
