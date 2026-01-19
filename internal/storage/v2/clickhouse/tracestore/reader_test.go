@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -1194,4 +1195,66 @@ func TestBuildSearchTraceIDsQuery_MarshalErrors(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorContains(t, err, "failed to marshal map attribute")
 	})
+}
+
+func TestBuildStringAttributeCondition_Errors(t *testing.T) {
+	cases := []struct {
+		name        string
+		attrValue   string
+		metadata    attributeMetadata
+		expectedErr string
+	}{
+		{
+			name:      "parse bool fails",
+			attrValue: "not-bool",
+			metadata: attributeMetadata{
+				"k": {"span": {"bool"}},
+			},
+			expectedErr: "failed to parse bool attribute",
+		},
+		{
+			name:      "parse double fails",
+			attrValue: "not-float",
+			metadata: attributeMetadata{
+				"k": {"span": {"double"}},
+			},
+			expectedErr: "failed to parse double attribute",
+		},
+		{
+			name:      "parse int fails",
+			attrValue: "not-int",
+			metadata: attributeMetadata{
+				"k": {"span": {"int"}},
+			},
+			expectedErr: "failed to parse int attribute",
+		},
+		{
+			name:      "decode bytes fails",
+			attrValue: "!not-base64!",
+			metadata: attributeMetadata{
+				"k": {"span": {"bytes"}},
+			},
+			expectedErr: "failed to decode bytes attribute",
+		},
+		{
+			name:      "unsupported type",
+			attrValue: "whatever",
+			metadata: attributeMetadata{
+				"k": {"span": {"unknown"}},
+			},
+			expectedErr: "unsupported attribute type",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			attr := pcommon.NewValueStr(tc.attrValue)
+			var q strings.Builder
+			var args []any
+
+			err := buildStringAttributeCondition(&q, &args, "k", attr, tc.metadata)
+			require.Error(t, err)
+			assert.ErrorContains(t, err, tc.expectedErr)
+		})
+	}
 }
