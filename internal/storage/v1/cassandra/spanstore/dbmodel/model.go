@@ -26,9 +26,6 @@ const (
 	binaryType  = "binary"
 )
 
-// TraceID is a serializable form of model.TraceID
-type TraceID [16]byte
-
 // Span is the database representation of a span.
 type Span struct {
 	TraceID       TraceID
@@ -50,11 +47,11 @@ type Span struct {
 type KeyValue struct {
 	Key          string  `cql:"key"`
 	ValueType    string  `cql:"value_type"`
-	ValueString  string  `cql:"value_string"`
-	ValueBool    bool    `cql:"value_bool"`
-	ValueInt64   int64   `cql:"value_long"`   // using more natural column name for Cassandra
-	ValueFloat64 float64 `cql:"value_double"` // using more natural column name for Cassandra
-	ValueBinary  []byte  `cql:"value_binary"`
+	ValueString  string  `cql:"value_string" json:"value_string,omitempty"`
+	ValueBool    bool    `cql:"value_bool" json:"value_bool,omitempty"`
+	ValueInt64   int64   `cql:"value_long" json:"value_long,omitempty"`     // using more natural column name for Cassandra
+	ValueFloat64 float64 `cql:"value_double" json:"value_double,omitempty"` // using more natural column name for Cassandra
+	ValueBinary  []byte  `cql:"value_binary" json:"value_binary,omitempty"`
 }
 
 func (t *KeyValue) compareValues(that *KeyValue) int {
@@ -190,16 +187,4 @@ func TraceIDFromDomain(traceID model.TraceID) TraceID {
 	binary.BigEndian.PutUint64(dbTraceID[:8], uint64(traceID.High))
 	binary.BigEndian.PutUint64(dbTraceID[8:], uint64(traceID.Low))
 	return dbTraceID
-}
-
-// ToDomain converts trace ID from db-serializable form to domain TradeID
-func (t TraceID) ToDomain() model.TraceID {
-	traceIDHigh := binary.BigEndian.Uint64(t[:8])
-	traceIDLow := binary.BigEndian.Uint64(t[8:])
-	return model.NewTraceID(traceIDHigh, traceIDLow)
-}
-
-// String returns hex string representation of the trace ID.
-func (t TraceID) String() string {
-	return t.ToDomain().String()
 }

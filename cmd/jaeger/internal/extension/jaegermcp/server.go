@@ -175,6 +175,13 @@ func (s *server) registerTools() {
 		Name:        "get_trace_topology",
 		Description: "Get the structural tree of a trace showing parent-child relationships, timing, and error locations. Does NOT return attributes or logs.",
 	}, getTraceTopologyHandler)
+
+	// Get critical path tool
+	getCriticalPathHandler := handlers.NewGetCriticalPathHandler(s.queryAPI)
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "get_critical_path",
+		Description: "Identify the sequence of spans forming the critical latency path (the blocking execution path).",
+	}, getCriticalPathHandler)
 }
 
 // HealthToolOutput is the strongly-typed output for the health tool.
