@@ -987,8 +987,8 @@ func (_m *IndexService) EXPECT() *IndexService_Expecter {
 }
 
 // Add provides a mock function for the type IndexService
-func (_mock *IndexService) Add() {
-	_mock.Called()
+func (_mock *IndexService) Add(opType string) {
+	_mock.Called(opType)
 	return
 }
 
@@ -998,13 +998,20 @@ type IndexService_Add_Call struct {
 }
 
 // Add is a helper method to define mock.On call
-func (_e *IndexService_Expecter) Add() *IndexService_Add_Call {
-	return &IndexService_Add_Call{Call: _e.mock.On("Add")}
+//   - opType string
+func (_e *IndexService_Expecter) Add(opType interface{}) *IndexService_Add_Call {
+	return &IndexService_Add_Call{Call: _e.mock.On("Add", opType)}
 }
 
-func (_c *IndexService_Add_Call) Run(run func()) *IndexService_Add_Call {
+func (_c *IndexService_Add_Call) Run(run func(opType string)) *IndexService_Add_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run()
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -1014,7 +1021,7 @@ func (_c *IndexService_Add_Call) Return() *IndexService_Add_Call {
 	return _c
 }
 
-func (_c *IndexService_Add_Call) RunAndReturn(run func()) *IndexService_Add_Call {
+func (_c *IndexService_Add_Call) RunAndReturn(run func(opType string)) *IndexService_Add_Call {
 	_c.Run(run)
 	return _c
 }
