@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Implemented -- https://github.com/jaegertracing/jaeger/pull/7887
 
 ## Context
 
