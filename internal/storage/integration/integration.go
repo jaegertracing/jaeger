@@ -23,10 +23,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
-	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	samplemodel "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
@@ -232,26 +230,24 @@ func (s *StorageIntegration) helperTestGetTrace(
 	expected := s.writeLargeTraceWithDuplicateSpanIds(t, traceSize, duplicateCount)
 	expectedTraceID := v1adapter.FromV1TraceID(expected.Spans[0].TraceID)
 
-	var actual ptrace.Traces
+	var trace *model.Trace
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
-		traces, err := jiter.FlattenWithErrors(iterTraces)
+		v1Traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
 		if err != nil {
 			t.Logf("Error loading trace: %v", err)
 			return false
 		}
-		if len(traces) == 0 {
+		if len(v1Traces) == 0 {
 			return false
 		}
-		actual = traces[0]
+		trace = v1Traces[0]
 
-		if actual.SpanCount() == 0 {
+		if len(trace.Spans) == 0 {
 			return false
 		}
-		return actual.SpanCount() >= len(expected.Spans)
+		return len(trace.Spans) >= len(expected.Spans)
 	})
-
-	trace := GetFirstTrace(actual)
 
 	t.Logf("%-23s Loaded trace, expected=%d, actual=%d",
 		time.Now().Format("2006-01-02 15:04:05.999"), len(expected.Spans), len(trace.Spans))
@@ -334,22 +330,20 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	expected := s.loadParseAndWriteExampleTrace(t)
 	expectedTraceID := v1adapter.FromV1TraceID(expected.Spans[0].TraceID)
 
-	var actual ptrace.Traces
+	var trace *model.Trace
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
-		traces, err := jiter.FlattenWithErrors(iterTraces)
+		v1Traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
 		if err != nil {
 			t.Logf("Error loading trace: %v", err)
 			return false
 		}
-		if len(traces) == 0 {
+		if len(v1Traces) == 0 {
 			return false
 		}
-		actual = traces[0]
-		return actual.SpanCount() == len(expected.Spans)
+		trace = v1Traces[0]
+		return len(trace.Spans) == len(expected.Spans)
 	})
-
-	trace := GetFirstTrace(actual)
 
 	if !assert.True(t, found) {
 		CompareTraces(t, expected, trace)
@@ -359,10 +353,9 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 		fakeTraceID := v1adapter.FromV1TraceID(model.TraceID{High: 0, Low: 1})
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: fakeTraceID})
 
-		traces, err := jiter.FlattenWithErrors(iterTraces)
+		v1Traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
 		require.NoError(t, err)
 
-		v1Traces := OTLPTracesToV1Slice(traces)
 		assert.Empty(t, v1Traces)
 	})
 }
@@ -402,12 +395,12 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 }
 
 func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.TraceQueryParams, expected []*model.Trace) []*model.Trace {
-	var traces []ptrace.Traces
+	var traces []*model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		iterTraces := s.TraceReader.FindTraces(context.Background(), *query)
 		traces = nil
 		var err error
-		traces, err = jiter.FlattenWithErrors(iterTraces)
+		traces, err = v1adapter.V1TracesFromSeq2(iterTraces)
 		if err != nil {
 			t.Log(err)
 			return false
@@ -418,10 +411,7 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.T
 			return false
 		}
 
-		actualSpanCount := 0
-		for _, trace := range traces {
-			actualSpanCount += trace.SpanCount()
-		}
+		actualSpanCount := spanCount(traces)
 
 		if spanCount(expected) != actualSpanCount {
 			t.Logf("Excepting certain number of spans: expected: %d, actual: %d", spanCount(expected), actualSpanCount)
@@ -431,7 +421,7 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.T
 	})
 	require.True(t, found)
 
-	return OTLPTracesToV1Slice(traces)
+	return traces
 }
 
 func (s *StorageIntegration) writeTrace(t *testing.T, trace *model.Trace) {
