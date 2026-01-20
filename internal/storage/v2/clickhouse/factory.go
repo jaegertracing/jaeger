@@ -4,10 +4,12 @@
 package clickhouse
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"text/template"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
@@ -65,11 +67,25 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 		)
 	}
 	if f.config.CreateSchema {
+		data := struct {
+			TTLSeconds int64
+		}{
+			TTLSeconds: int64(f.config.SpansTTL.Seconds()),
+		}
+		tmpl, err := template.New("create_spans_table").Parse(sql.CreateSpansTable)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse create_spans_table template: %w", err)
+		}
+		var queryBuf bytes.Buffer
+		if err := tmpl.Execute(&queryBuf, data); err != nil {
+			return nil, fmt.Errorf("failed to execute create_spans_table template: %w", err)
+		}
+		finalSpansQuery := queryBuf.String()
 		schemas := []struct {
 			name  string
 			query string
 		}{
-			{"spans table", sql.CreateSpansTable},
+			{"spans table", finalSpansQuery},
 			{"services table", sql.CreateServicesTable},
 			{"services materialized view", sql.CreateServicesMaterializedView},
 			{"operations table", sql.CreateOperationsTable},

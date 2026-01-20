@@ -4,8 +4,10 @@
 package clickhouse
 
 import (
+	"bytes"
 	"context"
 	"testing"
+	"text/template"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -78,6 +80,18 @@ func TestFactory(t *testing.T) {
 }
 
 func TestNewFactory_Errors(t *testing.T) {
+	renderDefaultSQL := func() string {
+		tmpl, err := template.New("test").Parse(sql.CreateSpansTable)
+		if err != nil {
+			panic(err)
+		}
+		var buf bytes.Buffer
+		if err := tmpl.Execute(&buf, struct{ TTLSeconds int64 }{0}); err != nil {
+			panic(err)
+		}
+		return buf.String()
+	}
+	defaultSpansTable := renderDefaultSQL()
 	tests := []struct {
 		name          string
 		failureConfig clickhousetest.FailureConfig
@@ -93,7 +107,7 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "spans table creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateSpansTable: assert.AnError,
+				defaultSpansTable: assert.AnError,
 			},
 			expectedError: "failed to create spans table",
 		},
