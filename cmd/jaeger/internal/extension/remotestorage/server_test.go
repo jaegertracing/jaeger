@@ -71,19 +71,19 @@ type fakeStorageExt struct{}
 
 var _ jaegerstorage.Extension = (*fakeStorageExt)(nil)
 
-func (fakeStorageExt) TraceStorageFactory(name string) (tracestore.Factory, bool) {
+func (fakeStorageExt) TraceStorageFactory(name string) (tracestore.Factory, error) {
 	switch name {
 	case "need-factory-error":
-		return nil, false
+		return nil, assert.AnError
 	case "without-dependency-storage":
-		return fakeTraceStorageFactory{name: name}, true
+		return fakeTraceStorageFactory{name: name}, nil
 	default:
-		return newFakeFactory(name), true
+		return newFakeFactory(name), nil
 	}
 }
 
-func (fakeStorageExt) MetricStorageFactory(string) (storage.MetricStoreFactory, bool) {
-	return nil, false
+func (fakeStorageExt) MetricStorageFactory(string) (storage.MetricStoreFactory, error) {
+	return nil, assert.AnError
 }
 
 func (fakeStorageExt) Start(context.Context, component.Host) error {
@@ -177,16 +177,16 @@ func TestServer_Start(t *testing.T) {
 func TestTraceStorageFactory_DefaultCase(t *testing.T) {
 	fakeExt := fakeStorageExt{}
 
-	factory, exists := fakeExt.TraceStorageFactory("unknown-factory-name")
+	factory, err := fakeExt.TraceStorageFactory("unknown-factory-name")
 
-	require.True(t, exists)
+	require.NoError(t, err)
 	require.NotNil(t, factory)
 
 	_, ok := factory.(*fakeFactory)
 	require.True(t, ok)
 
-	factory2, exists2 := fakeExt.TraceStorageFactory("another-unknown-name")
-	require.True(t, exists2)
+	factory2, err2 := fakeExt.TraceStorageFactory("another-unknown-name")
+	require.NoError(t, err2)
 	require.NotNil(t, factory2)
 	require.NotEqual(t, factory, factory2)
 }

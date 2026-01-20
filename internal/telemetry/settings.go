@@ -13,7 +13,6 @@ import (
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/healthcheck"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 )
@@ -23,31 +22,17 @@ type Settings struct {
 	Metrics        metrics.Factory
 	MeterProvider  metric.MeterProvider
 	TracerProvider trace.TracerProvider
-	ReportStatus   func(*componentstatus.Event) // TODO remove this
 	Host           component.Host
 }
 
-func HCAdapter(hc *healthcheck.HealthCheck) func(*componentstatus.Event) {
-	return func(event *componentstatus.Event) {
-		var hcStatus healthcheck.Status
-		//revive:disable
-		switch event.Status() {
-		case componentstatus.StatusOK:
-			hcStatus = healthcheck.Ready
-		case componentstatus.StatusStarting,
-			componentstatus.StatusRecoverableError,
-			componentstatus.StatusPermanentError,
-			componentstatus.StatusNone,
-			componentstatus.StatusStopping,
-			componentstatus.StatusStopped:
-			hcStatus = healthcheck.Unavailable
-		case componentstatus.StatusFatalError:
-			hcStatus = healthcheck.Broken
-		default:
-			hcStatus = healthcheck.Unavailable
-		}
-		hc.Set(hcStatus)
-		//revive:enable
+// ReportStatus reports a component status event.
+// If Host is set, it delegates to componentstatus.ReportStatus.
+// Otherwise, it logs the status as an info message.
+func (s Settings) ReportStatus(event *componentstatus.Event) {
+	if s.Host != nil {
+		componentstatus.ReportStatus(s.Host, event)
+	} else if s.Logger != nil {
+		s.Logger.Info("status", zap.Stringer("status", event.Status()))
 	}
 }
 
@@ -57,7 +42,6 @@ func NoopSettings() Settings {
 		Metrics:        metrics.NullFactory,
 		MeterProvider:  noopmetric.NewMeterProvider(),
 		TracerProvider: nooptrace.NewTracerProvider(),
-		ReportStatus:   func(*componentstatus.Event) {},
 		Host:           componenttest.NewNopHost(),
 	}
 }
@@ -68,10 +52,7 @@ func FromOtelComponent(telset component.TelemetrySettings, host component.Host) 
 		Metrics:        otelmetrics.NewFactory(telset.MeterProvider),
 		MeterProvider:  telset.MeterProvider,
 		TracerProvider: telset.TracerProvider,
-		ReportStatus: func(event *componentstatus.Event) {
-			componentstatus.ReportStatus(host, event)
-		},
-		Host: host,
+		Host:           host,
 	}
 }
 

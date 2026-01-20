@@ -10,36 +10,43 @@ placeholder text.
 """
 
 import argparse
+import os
 import sys
 
 
-def get_template_content():
+def extract_version_content(changelog_path: str, version: str) -> str:
     """
-    Returns:
-        str: The template content (without the version header)
+    Extracts the content of a specific version section from a changelog file.
     """
-    with open('CHANGELOG.md', 'r') as f:
+    if not os.path.exists(changelog_path):
+        return ""
+
+    with open(changelog_path, 'r') as f:
         lines = f.readlines()
-    
-    in_template = False
-    template_content = []
-    
-    for line in lines:
-        if '<summary>next release template</summary>' in line:
-            in_template = True
-            continue
-        if '</details>' in line and in_template:
+
+    start_line = -1
+    v_header = f"## v{version}"
+    for i, line in enumerate(lines):
+        if line.startswith(v_header):
+            start_line = i + 1
             break
-        if in_template and not line.startswith('vX.Y.Z') and not line.startswith('---'): # Skip the version line and separator line
-            template_content.append(line)
-    
-    return ''.join(template_content)
+
+    if start_line == -1:
+        return ""
+
+    content = []
+    for i in range(start_line, len(lines)):
+        if lines[i].startswith('## v'):
+            break
+        content.append(lines[i])
+
+    return ''.join(content).strip()
 
 
-def update_changelog(version: str, release_date: str, changelog_content: str = "") -> None:
+def update_changelog(version: str, release_date: str, changelog_content: str, ui_changelog: str = None) -> None:
     with open('CHANGELOG.md', 'r') as f:
         lines = f.readlines()
-    
+
     # Find the template section end
     template_end = -1
     for i, line in enumerate(lines):
@@ -55,17 +62,19 @@ def update_changelog(version: str, release_date: str, changelog_content: str = "
     new_section = []
     new_section.append(f"\nv{version} ({release_date})\n")
     new_section.append("-" * 31 + "\n")
-    new_section.append("\n")
+    if not changelog_content.startswith('\n'):
+        new_section.append("\n")
+    new_section.append(changelog_content)
+    if not changelog_content.endswith('\n'):
+        new_section.append("\n")
     
-    if changelog_content:
-        new_section.append(changelog_content)
-        if not changelog_content.endswith('\n'):
+    if ui_changelog:
+        ui_content = extract_version_content(ui_changelog, version)
+        if ui_content:
+            new_section.append("\n### 📊 UI Changes\n\n")
+            new_section.append(ui_content)
             new_section.append("\n")
-    else:
-        # Use the template content from CHANGELOG.md
-        template = get_template_content()
-        new_section.append(template)
-    
+
     with open('CHANGELOG.md', 'w') as f: # Write the updated CHANGELOG.md
         f.writelines(lines[:template_end])
         f.writelines(new_section)
@@ -93,7 +102,13 @@ def main():
         "--content",
         type=str,
         help="Changelog content (default: placeholder text)",
-        default=""
+        default=None
+    )
+    parser.add_argument(
+        "--ui-changelog",
+        type=str,
+        help="Path to the UI changelog file to extract notes from",
+        default=None
     )
     
     args = parser.parse_args()
@@ -102,7 +117,7 @@ def main():
     from datetime import date
     release_date = args.date if args.date else date.today().strftime("%Y-%m-%d")
     
-    update_changelog(args.version, release_date, args.content)
+    update_changelog(args.version, release_date, args.content, args.ui_changelog)
 
 
 if __name__ == "__main__":
