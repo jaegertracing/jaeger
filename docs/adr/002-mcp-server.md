@@ -530,7 +530,7 @@ cmd/jaeger/internal/extension/jaegermcp/
    - **Strip attributes and events** before response
    - Include timing and error flags
 
-8. **Port Critical Path Algorithm**
+8. **Port Critical Path Algorithm** ✅
    - Study TypeScript implementation in `jaeger-ui/packages/jaeger-ui/src/components/TracePage/CriticalPath/`
    - Implement equivalent Go algorithm in `internal/criticalpath/`
    - Key components:
@@ -539,7 +539,7 @@ cmd/jaeger/internal/extension/jaegermcp/
      - `computeCriticalPath()` - Main recursive algorithm
    - Add comprehensive unit tests with same test cases as UI
 
-9. **Implement `get_critical_path` Tool**
+9. **Implement `get_critical_path` Tool** ✅
    - Use critical path algorithm from step 8
    - Return ordered list of spans on critical path
    - Include timing breakdown
