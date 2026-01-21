@@ -77,13 +77,22 @@ tools:
       limit: integer (optional, default: 100) - Maximum number of services to return
     output: List of service names (strings)
 
+  - name: get_span_names
+    description: List available span names for a service. Useful for discovering valid span names before using search_traces.
+    input_schema:
+      service_name: string (required) - Filter by service name. Use get_services to discover valid names.
+      pattern: string (optional) - Optional regex pattern to filter span names
+      span_kind: string (optional) - Optional span kind filter (e.g., SERVER, CLIENT, PRODUCER, CONSUMER, INTERNAL)
+      limit: integer (optional, default: 100) - Maximum number of span names to return
+    output: List of span names with optional span kind information
+
   - name: search_traces
     description: Find traces matching service, time, attributes, and duration criteria. Returns metadata only.
     input_schema:
-      start_time_min: string (required) - Start of time interval. Supports RFC3339 or relative (e.g., "-1h", "-30m")
+      start_time_min: string (optional, default: "-1h") - Start of time interval. Supports RFC3339 or relative (e.g., "-1h", "-30m")
       start_time_max: string (optional) - End of time interval. Supports RFC3339 or relative (e.g., "now", "-1m"). Default: now
       service_name: string (required) - Filter by service name. Use get_services to discover valid names.
-      operation_name: string (optional) - Filter by operation/span name
+      span_name: string (optional) - Filter by span name. Use get_span_names to discover valid names.
       attributes: object (optional) - Key-value pairs to match against span/resource attributes (e.g., {"http.status_code": "500"})
       with_errors: boolean (optional) - If true, only return traces containing error spans
       duration_min: duration string (optional, e.g., "2s", "100ms")
@@ -504,6 +513,13 @@ cmd/jaeger/internal/extension/jaegermcp/
    - Support optional regex pattern filtering
    - Apply configurable limit (default: 100)
    - Return list of service names
+
+4b. **Implement `get_span_names` Tool** ✅
+   - Wrap `QueryService.GetOperations()`
+   - Support optional regex pattern filtering
+   - Support optional span kind filtering
+   - Apply configurable limit (default: 100)
+   - Return list of span names with span kind information
 
 5. **Implement `search_traces` Tool** ✅
    - Wrap `QueryService.FindTraces()`
