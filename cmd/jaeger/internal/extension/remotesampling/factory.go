@@ -36,7 +36,10 @@ func NewFactory() extension.Factory {
 func createDefaultConfig() component.Config {
 	return &Config{
 		HTTP: configoptional.Default(confighttp.ServerConfig{
-			Endpoint: ports.PortToHostPort(ports.CollectorV2SamplingHTTP),
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  ports.PortToHostPort(ports.CollectorV2SamplingHTTP),
+				Transport: confignet.TransportTypeTCP,
+			},
 		}),
 		GRPC: configoptional.Default(configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{
