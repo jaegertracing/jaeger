@@ -150,6 +150,7 @@ func (f *Factory) initializeConnections(
 	}
 	writerConn, err := createConn(writerTelset, writerConfig)
 	if err != nil {
+		_ = readerConn.Close()
 		return fmt.Errorf("error creating writer client connection: %w", err)
 	}
 

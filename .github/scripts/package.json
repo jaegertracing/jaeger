@@ -1,0 +1,34 @@
+{
+  "name": "pr-quota-manager",
+  "version": "1.0.0",
+  "description": "PR Quota Management System for limiting concurrent open PRs from new contributors",
+  "main": "pr-quota-manager.js",
+  "scripts": {
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "test:watch": "jest --watch"
+  },
+  "keywords": [
+    "github",
+    "pull-request",
+    "quota",
+    "management"
+  ],
+  "author": "Jaeger Team",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@octokit/rest": "^20.0.0"
+  },
+  "devDependencies": {
+    "jest": "29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "coveragePathIgnorePatterns": [
+      "/node_modules/"
+    ],
+    "collectCoverageFrom": [
+      "pr-quota-manager.js"
+    ]
+  }
+}

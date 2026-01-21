@@ -7,10 +7,12 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-func getUniqueOperationNames(operations []spanstore.Operation) []string {
+func getUniqueOperationNames(operations []tracestore.Operation) []string {
 	// only return unique operation names
 	set := make(map[string]struct{})
 	for _, operation := range operations {
@@ -21,6 +23,14 @@ func getUniqueOperationNames(operations []spanstore.Operation) []string {
 		operationNames = append(operationNames, operation)
 	}
 	return operationNames
+}
+
+func convertTagsToAttributes(tags map[string]string) pcommon.Map {
+	attrs := pcommon.NewMap()
+	for k, v := range tags {
+		attrs.PutStr(k, v)
+	}
+	return attrs
 }
 
 // getPortForAddr returns the port of an endpoint address.
