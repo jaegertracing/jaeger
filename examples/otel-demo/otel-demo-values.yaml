@@ -31,6 +31,11 @@ default:
       value: otlp
 
 components:
+  postgresql:
+    imageOverride:
+      repository: docker.io/library/postgres
+      tag: "14-alpine"
+      
   accounting:
     initContainers:
       - name: wait-for-kafka

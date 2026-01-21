@@ -8,9 +8,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROLLOUT_TIMEOUT="${ROLLOUT_TIMEOUT:-600}"
 
 # Versions
-OPENSEARCH_VERSION="${OPENSEARCH_VERSION:-3.3.2}"
-OPENSEARCH_DASHBOARDS_VERSION="${OPENSEARCH_DASHBOARDS_VERSION:-3.3.0}"
-JAEGER_CHART_VERSION="${JAEGER_CHART_VERSION:-4.2.3}"
+DEFAULT_OPENSEARCH_CHART_VERSION=3.3.2
+OPENSEARCH_CHART_VERSION="${OPENSEARCH_CHART_VERSION:-${DEFAULT_OPENSEARCH_CHART_VERSION}}"
+DEFAULT_OPENSEARCH_DASHBOARDS_CHART_VERSION=3.3.0
+OPENSEARCH_DASHBOARDS_CHART_VERSION="${OPENSEARCH_DASHBOARDS_CHART_VERSION:-${DEFAULT_OPENSEARCH_DASHBOARDS_CHART_VERSION}}"
+DEFAULT_JAEGER_CHART_VERSION=4.2.3
+JAEGER_CHART_VERSION="${JAEGER_CHART_VERSION:-${DEFAULT_JAEGER_CHART_VERSION}}"
 
 MODE="${1:-upgrade}"
 IMAGE_TAG="${2:-latest}"
@@ -28,9 +31,9 @@ case "$MODE" in
     echo "  clean    - Clean install (removes existing deployment first)"
     echo ""
     echo "Environment Variables:"
-    echo "  OPENSEARCH_VERSION             - Version of OpenSearch (default: 3.3.2)"
-    echo "  OPENSEARCH_DASHBOARDS_VERSION  - Version of OpenSearch Dashboards (default: 3.3.0)"
-    echo "  JAEGER_CHART_VERSION           - Version of Jaeger Helm Chart (default: 4.2.3)"
+    echo "  OPENSEARCH_CHART_VERSION       - Version of OpenSearch Helm Chart (default: $DEFAULT_OPENSEARCH_CHART_VERSION)"
+    echo "  OPENSEARCH_DASHBOARDS_CHART_VERSION - Version of OpenSearch Dashboards Helm Chart ($DEFAULT_OPENSEARCH_DASHBORED_CHART_VERSION)"
+    echo "  JAEGER_CHART_VERSION           - Version of Jaeger Helm Chart (default: $DEFAULT_JAEGER_CHART_VERSION)"
     echo ""
     echo "Examples:"
     echo "  $0                    # Upgrade mode with latest tag"
@@ -245,8 +248,7 @@ main() {
   log "Deploying OpenSearch"
   helm upgrade --install opensearch opensearch/opensearch \
     --namespace opensearch --create-namespace \
-    --version "${OPENSEARCH_VERSION}" \
-    --set image.tag="${OPENSEARCH_VERSION}" \
+    --version "${OPENSEARCH_CHART_VERSION}" \
     -f "$SCRIPT_DIR/opensearch-values.yaml" \
     --wait --timeout 10m
   wait_for_statefulset opensearch opensearch-cluster-single "${ROLLOUT_TIMEOUT}s"
@@ -254,8 +256,7 @@ main() {
   log "Deploying OpenSearch Dashboards"
   helm upgrade --install opensearch-dashboards opensearch/opensearch-dashboards \
     --namespace opensearch \
-    --version "${OPENSEARCH_DASHBOARDS_VERSION}" \
-    --set image.tag="${OPENSEARCH_DASHBOARDS_VERSION}" \
+    --version "${OPENSEARCH_DASHBOARDS_CHART_VERSION}" \
     -f "$SCRIPT_DIR/opensearch-dashboard-values.yaml" \
     --wait --timeout 10m
   wait_for_deployment opensearch opensearch-dashboards "${ROLLOUT_TIMEOUT}s"
@@ -322,8 +323,19 @@ main() {
     # Create a manual job from the cronjob template
     if kubectl create job --from=cronjob/jaeger-spark-dependencies "$JOB_NAME" -n jaeger; then
       log "Initial job '$JOB_NAME' triggered successfully"
+      
+      log "Waiting for initial Spark Dependencies job to complete (timeout: ${ROLLOUT_TIMEOUT}s)..."
+      if kubectl wait --for=condition=complete "job/$JOB_NAME" -n jaeger --timeout="${ROLLOUT_TIMEOUT}s"; then
+        log "Initial job '$JOB_NAME' completed successfully"
+      else
+        log "Initial job '$JOB_NAME' failed to complete or timed out"
+        kubectl describe job "$JOB_NAME" -n jaeger || true
+        kubectl logs "job/$JOB_NAME" -n jaeger || true
+        exit 1
+      fi
     else
       log " Failed to trigger initial job"
+      exit 1
     fi
   else
     log "Failed to deploy Spark Dependencies CronJob"

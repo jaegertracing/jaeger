@@ -31,10 +31,6 @@ hotrod:
       value: http/protobuf
     - name: OTEL_SERVICE_NAME
       value: hotrod-frontend
-    - name: OTEL_RESOURCE_ATTRIBUTES
-      value: service.name.prefix=hotrod-
-    - name: OTEL_LOG_LEVEL
-      value: debug
   
 
 query:
