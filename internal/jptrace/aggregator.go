@@ -23,20 +23,25 @@ func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSi
 		currentTrace := ptrace.NewTraces()
 		currentTraceID := pcommon.NewTraceIDEmpty()
 		spanCount := 0
+		cont := true
 
 		tracesSeq(func(traces []ptrace.Traces, err error) bool {
 			if err != nil {
-				yield(ptrace.NewTraces(), err)
+				cont = yield(ptrace.NewTraces(), err)
 				return false
 			}
 			for _, trace := range traces {
+				if trace.SpanCount() == 0 {
+					continue
+				}
 				resources := trace.ResourceSpans()
 				traceID := resources.At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 				if currentTraceID == traceID {
 					mergeTraces(currentTrace, trace, maxSize, &spanCount)
 				} else {
-					if currentTrace.ResourceSpans().Len() > 0 {
+					if currentTrace.SpanCount() > 0 {
 						if !yield(currentTrace, nil) {
+							cont = false
 							return false
 						}
 					}
@@ -52,7 +57,7 @@ func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSi
 			}
 			return true
 		})
-		if currentTrace.ResourceSpans().Len() > 0 {
+		if cont && currentTrace.SpanCount() > 0 {
 			yield(currentTrace, nil)
 		}
 	}
@@ -114,6 +119,16 @@ func copySpansUpToLimit(dest, src ptrace.Traces, limit int) {
 				copied++
 			}
 		}
+	}
+}
+
+// MergeTraces merges src trace into dest trace.
+// This is useful when multiple iterations return parts of the same trace.
+func MergeTraces(dest, src ptrace.Traces) {
+	resources := src.ResourceSpans()
+	for i := 0; i < resources.Len(); i++ {
+		resource := resources.At(i)
+		resource.CopyTo(dest.ResourceSpans().AppendEmpty())
 	}
 }
 

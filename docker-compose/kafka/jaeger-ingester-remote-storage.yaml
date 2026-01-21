@@ -32,7 +32,7 @@ extensions:
 receivers:
   kafka:
     brokers:
-      - kafka:9092
+      - ${env:KAFKA_BROKER:-kafka:9092}
     traces:
       topic: ${env:KAFKA_TOPIC:-jaeger-spans}
       encoding: ${env:KAFKA_ENCODING:-otlp_proto}

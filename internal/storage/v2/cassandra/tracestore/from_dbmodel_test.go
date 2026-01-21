@@ -18,9 +18,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 // Use timespamp with microsecond granularity to work well with jaeger thrift translation
@@ -129,7 +129,7 @@ func Test_translateHostnameAttr(t *testing.T) {
 	translateHostnameAttr(rss)
 	_, hostNameFound := rss.Get("hostname")
 	assert.False(t, hostNameFound)
-	convHostName, convHostNameFound := rss.Get(conventions.AttributeHostName)
+	convHostName, convHostNameFound := rss.Get(otelsemconv.HostNameKey)
 	assert.True(t, convHostNameFound)
 	assert.Equal(t, "testing", convHostName.AsString())
 }
@@ -355,7 +355,7 @@ func TestSetInternalSpanStatus(t *testing.T) {
 		{
 			name: "status.code is set as string",
 			attrs: map[string]any{
-				conventions.OtelStatusCode: statusOk,
+				otelsemconv.OtelStatusCode: statusOk,
 			},
 			status:           okStatus,
 			attrsModifiedLen: 0,
@@ -364,8 +364,8 @@ func TestSetInternalSpanStatus(t *testing.T) {
 			name: "status.code, status.message and error tags are set",
 			attrs: map[string]any{
 				tagError:                          true,
-				conventions.OtelStatusCode:        statusError,
-				conventions.OtelStatusDescription: "Error: Invalid argument",
+				otelsemconv.OtelStatusCode:        statusError,
+				otelsemconv.OtelStatusDescription: "Error: Invalid argument",
 			},
 			status:           errorStatusWithMessage,
 			attrsModifiedLen: 0,
@@ -373,7 +373,7 @@ func TestSetInternalSpanStatus(t *testing.T) {
 		{
 			name: "http.status_code tag is set as string",
 			attrs: map[string]any{
-				conventions.AttributeHTTPStatusCode: "404",
+				otelsemconv.HTTPResponseStatusCodeKey: "404",
 			},
 			status:           errorStatus,
 			attrsModifiedLen: 1,
@@ -381,9 +381,9 @@ func TestSetInternalSpanStatus(t *testing.T) {
 		{
 			name: "http.status_code, http.status_message and error tags are set",
 			attrs: map[string]any{
-				tagError:                            true,
-				conventions.AttributeHTTPStatusCode: 404,
-				tagHTTPStatusMsg:                    "HTTP 404: Not Found",
+				tagError:                              true,
+				otelsemconv.HTTPResponseStatusCodeKey: 404,
+				tagHTTPStatusMsg:                      "HTTP 404: Not Found",
 			},
 			status:           errorStatusWith404Message,
 			attrsModifiedLen: 2,
@@ -391,9 +391,9 @@ func TestSetInternalSpanStatus(t *testing.T) {
 		{
 			name: "status.code has precedence over http.status_code.",
 			attrs: map[string]any{
-				conventions.OtelStatusCode:          statusOk,
-				conventions.AttributeHTTPStatusCode: 500,
-				tagHTTPStatusMsg:                    "Server Error",
+				otelsemconv.OtelStatusCode:            statusOk,
+				otelsemconv.HTTPResponseStatusCodeKey: 500,
+				tagHTTPStatusMsg:                      "Server Error",
 			},
 			status:           okStatus,
 			attrsModifiedLen: 2,
@@ -401,8 +401,8 @@ func TestSetInternalSpanStatus(t *testing.T) {
 		{
 			name: "Ignore http.status_code == 200 if error set to true.",
 			attrs: map[string]any{
-				tagError:                            true,
-				conventions.AttributeHTTPStatusCode: http.StatusOK,
+				tagError:                              true,
+				otelsemconv.HTTPResponseStatusCodeKey: http.StatusOK,
 			},
 			status:           errorStatus,
 			attrsModifiedLen: 1,
@@ -410,9 +410,9 @@ func TestSetInternalSpanStatus(t *testing.T) {
 		{
 			name: "status.error has precedence over http.status_error.",
 			attrs: map[string]any{
-				conventions.OtelStatusCode:          statusError,
-				conventions.AttributeHTTPStatusCode: 500,
-				tagHTTPStatusMsg:                    "Server Error",
+				otelsemconv.OtelStatusCode:            statusError,
+				otelsemconv.HTTPResponseStatusCodeKey: 500,
+				tagHTTPStatusMsg:                      "Server Error",
 			},
 			status:           errorStatus,
 			attrsModifiedLen: 2,
@@ -421,8 +421,8 @@ func TestSetInternalSpanStatus(t *testing.T) {
 			name: "the 4xx range span status MUST be left unset in case of SpanKind.SERVER",
 			kind: ptrace.SpanKindServer,
 			attrs: map[string]any{
-				tagError:                            false,
-				conventions.AttributeHTTPStatusCode: 404,
+				tagError:                              false,
+				otelsemconv.HTTPResponseStatusCodeKey: 404,
 			},
 			status:           emptyStatus,
 			attrsModifiedLen: 2,
@@ -430,8 +430,8 @@ func TestSetInternalSpanStatus(t *testing.T) {
 		{
 			name: "whether tagHttpStatusMsg is set as string",
 			attrs: map[string]any{
-				conventions.AttributeHTTPStatusCode: 404,
-				tagHTTPStatusMsg:                    "HTTP 404: Not Found",
+				otelsemconv.HTTPResponseStatusCodeKey: 404,
+				tagHTTPStatusMsg:                      "HTTP 404: Not Found",
 			},
 			status:           errorStatusWith404Message,
 			attrsModifiedLen: 2,

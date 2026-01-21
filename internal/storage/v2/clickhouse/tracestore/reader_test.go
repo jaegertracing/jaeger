@@ -27,9 +27,7 @@ var (
 		DefaultSearchDepth: 100,
 		MaxSearchDepth:     1000,
 	}
-	testSearchTraceIDsQuery = sql.SearchTraceIDs + " LIMIT ?"
-	testFindTracesQuery     = buildFindTracesQuery(testSearchTraceIDsQuery)
-	testTraceIDsData        = [][]any{
+	testTraceIDsData = [][]any{
 		{
 			traceIDHex1,
 			now.Add(-1 * time.Hour),
@@ -183,11 +181,15 @@ func TestGetTraces_Success(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			conn := &testDriver{
-				t:             t,
-				expectedQuery: sql.SelectSpansByTraceID,
-				rows: &testRows[*dbmodel.SpanRow]{
-					data:   tt.data,
-					scanFn: scanSpanRowFn(),
+				t: t,
+				queryResponses: map[string]*testQueryResponse{
+					sql.SelectSpansByTraceID: {
+						rows: &testRows[*dbmodel.SpanRow]{
+							data:   tt.data,
+							scanFn: scanSpanRowFn(),
+						},
+						err: nil,
+					},
 				},
 			}
 
@@ -198,6 +200,8 @@ func TestGetTraces_Success(t *testing.T) {
 			traces, err := jiter.FlattenWithErrors(getTracesIter)
 
 			require.NoError(t, err)
+			require.Len(t, conn.recordedQueries, 1)
+			verifyQuerySnapshot(t, conn.recordedQueries[0])
 			requireTracesEqual(t, tt.data, traces)
 		})
 	}
@@ -212,20 +216,28 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 		{
 			name: "QueryError",
 			driver: &testDriver{
-				t:             t,
-				expectedQuery: sql.SelectSpansByTraceID,
-				err:           assert.AnError,
+				t: t,
+				queryResponses: map[string]*testQueryResponse{
+					sql.SelectSpansByTraceID: {
+						rows: nil,
+						err:  assert.AnError,
+					},
+				},
 			},
 			expectedErr: "failed to query trace",
 		},
 		{
 			name: "ScanError",
 			driver: &testDriver{
-				t:             t,
-				expectedQuery: sql.SelectSpansByTraceID,
-				rows: &testRows[*dbmodel.SpanRow]{
-					data:    singleSpan,
-					scanErr: assert.AnError,
+				t: t,
+				queryResponses: map[string]*testQueryResponse{
+					sql.SelectSpansByTraceID: {
+						rows: &testRows[*dbmodel.SpanRow]{
+							data:    singleSpan,
+							scanErr: assert.AnError,
+						},
+						err: nil,
+					},
 				},
 			},
 			expectedErr: "failed to scan span row",
@@ -233,12 +245,16 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 		{
 			name: "CloseError",
 			driver: &testDriver{
-				t:             t,
-				expectedQuery: sql.SelectSpansByTraceID,
-				rows: &testRows[*dbmodel.SpanRow]{
-					data:     singleSpan,
-					scanFn:   scanSpanRowFn(),
-					closeErr: assert.AnError,
+				t: t,
+				queryResponses: map[string]*testQueryResponse{
+					sql.SelectSpansByTraceID: {
+						rows: &testRows[*dbmodel.SpanRow]{
+							data:     singleSpan,
+							scanFn:   scanSpanRowFn(),
+							closeErr: assert.AnError,
+						},
+						err: nil,
+					},
 				},
 			},
 			expectedErr: "failed to close rows",
@@ -269,11 +285,15 @@ func TestGetTraces_ScanErrorContinues(t *testing.T) {
 	}
 
 	conn := &testDriver{
-		t:             t,
-		expectedQuery: sql.SelectSpansByTraceID,
-		rows: &testRows[*dbmodel.SpanRow]{
-			data:   multipleSpans,
-			scanFn: scanFn,
+		t: t,
+		queryResponses: map[string]*testQueryResponse{
+			sql.SelectSpansByTraceID: {
+				rows: &testRows[*dbmodel.SpanRow]{
+					data:   multipleSpans,
+					scanFn: scanFn,
+				},
+				err: nil,
+			},
 		},
 	}
 
@@ -294,11 +314,15 @@ func TestGetTraces_ScanErrorContinues(t *testing.T) {
 
 func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	conn := &testDriver{
-		t:             t,
-		expectedQuery: sql.SelectSpansByTraceID,
-		rows: &testRows[*dbmodel.SpanRow]{
-			data:   multipleSpans,
-			scanFn: scanSpanRowFn(),
+		t: t,
+		queryResponses: map[string]*testQueryResponse{
+			sql.SelectSpansByTraceID: {
+				rows: &testRows[*dbmodel.SpanRow]{
+					data:   multipleSpans,
+					scanFn: scanSpanRowFn(),
+				},
+				err: nil,
+			},
 		},
 	}
 
@@ -328,21 +352,25 @@ func TestGetServices(t *testing.T) {
 		{
 			name: "successfully returns services",
 			conn: &testDriver{
-				t:             t,
-				expectedQuery: sql.SelectServices,
-				rows: &testRows[dbmodel.Service]{
-					data: []dbmodel.Service{
-						{Name: "serviceA"},
-						{Name: "serviceB"},
-						{Name: "serviceC"},
-					},
-					scanFn: func(dest any, src dbmodel.Service) error {
-						svc, ok := dest.(*dbmodel.Service)
-						if !ok {
-							return errors.New("dest is not *dbmodel.Service")
-						}
-						*svc = src
-						return nil
+				t: t,
+				queryResponses: map[string]*testQueryResponse{
+					sql.SelectServices: {
+						rows: &testRows[dbmodel.Service]{
+							data: []dbmodel.Service{
+								{Name: "serviceA"},
+								{Name: "serviceB"},
+								{Name: "serviceC"},
+							},
+							scanFn: func(dest any, src dbmodel.Service) error {
+								svc, ok := dest.(*dbmodel.Service)
+								if !ok {
+									return errors.New("dest is not *dbmodel.Service")
+								}
+								*svc = src
+								return nil
+							},
+						},
+						err: nil,
 					},
 				},
 			},
@@ -351,32 +379,40 @@ func TestGetServices(t *testing.T) {
 		{
 			name: "query error",
 			conn: &testDriver{
-				t:             t,
-				expectedQuery: sql.SelectServices,
-				err:           assert.AnError,
+				t: t,
+				queryResponses: map[string]*testQueryResponse{
+					sql.SelectServices: {
+						rows: nil,
+						err:  assert.AnError,
+					},
+				},
 			},
 			expectError: "failed to query services",
 		},
 		{
 			name: "scan error",
 			conn: &testDriver{
-				t:             t,
-				expectedQuery: sql.SelectServices,
-				rows: &testRows[dbmodel.Service]{
-					data: []dbmodel.Service{
-						{Name: "serviceA"},
-						{Name: "serviceB"},
-						{Name: "serviceC"},
+				t: t,
+				queryResponses: map[string]*testQueryResponse{
+					sql.SelectServices: {
+						rows: &testRows[dbmodel.Service]{
+							data: []dbmodel.Service{
+								{Name: "serviceA"},
+								{Name: "serviceB"},
+								{Name: "serviceC"},
+							},
+							scanFn: func(dest any, src dbmodel.Service) error {
+								svc, ok := dest.(*dbmodel.Service)
+								if !ok {
+									return errors.New("dest is not *dbmodel.Service")
+								}
+								*svc = src
+								return nil
+							},
+							scanErr: assert.AnError,
+						},
+						err: nil,
 					},
-					scanFn: func(dest any, src dbmodel.Service) error {
-						svc, ok := dest.(*dbmodel.Service)
-						if !ok {
-							return errors.New("dest is not *dbmodel.Service")
-						}
-						*svc = src
-						return nil
-					},
-					scanErr: assert.AnError,
 				},
 			},
 			expectError: "failed to scan row",
@@ -393,6 +429,8 @@ func TestGetServices(t *testing.T) {
 				require.ErrorContains(t, err, test.expectError)
 			} else {
 				require.NoError(t, err)
+				require.Len(t, test.conn.recordedQueries, 1)
+				verifyQuerySnapshot(t, test.conn.recordedQueries[0])
 				require.Equal(t, test.expected, result)
 			}
 		})
@@ -410,21 +448,25 @@ func TestGetOperations(t *testing.T) {
 		{
 			name: "successfully returns operations for all kinds",
 			conn: &testDriver{
-				t:             t,
-				expectedQuery: sql.SelectOperationsAllKinds,
-				rows: &testRows[dbmodel.Operation]{
-					data: []dbmodel.Operation{
-						{Name: "operationA"},
-						{Name: "operationB"},
-						{Name: "operationC"},
-					},
-					scanFn: func(dest any, src dbmodel.Operation) error {
-						svc, ok := dest.(*dbmodel.Operation)
-						if !ok {
-							return errors.New("dest is not *dbmodel.Operation")
-						}
-						*svc = src
-						return nil
+				t: t,
+				queryResponses: map[string]*testQueryResponse{
+					sql.SelectOperationsAllKinds: {
+						rows: &testRows[dbmodel.Operation]{
+							data: []dbmodel.Operation{
+								{Name: "operationA"},
+								{Name: "operationB"},
+								{Name: "operationC"},
+							},
+							scanFn: func(dest any, src dbmodel.Operation) error {
+								svc, ok := dest.(*dbmodel.Operation)
+								if !ok {
+									return errors.New("dest is not *dbmodel.Operation")
+								}
+								*svc = src
+								return nil
+							},
+						},
+						err: nil,
 					},
 				},
 			},
@@ -446,21 +488,25 @@ func TestGetOperations(t *testing.T) {
 		{
 			name: "successfully returns operations by kind",
 			conn: &testDriver{
-				t:             t,
-				expectedQuery: sql.SelectOperationsByKind,
-				rows: &testRows[dbmodel.Operation]{
-					data: []dbmodel.Operation{
-						{Name: "operationA", SpanKind: "server"},
-						{Name: "operationB", SpanKind: "server"},
-						{Name: "operationC", SpanKind: "server"},
-					},
-					scanFn: func(dest any, src dbmodel.Operation) error {
-						svc, ok := dest.(*dbmodel.Operation)
-						if !ok {
-							return errors.New("dest is not *dbmodel.Operation")
-						}
-						*svc = src
-						return nil
+				t: t,
+				queryResponses: map[string]*testQueryResponse{
+					sql.SelectOperationsByKind: {
+						rows: &testRows[dbmodel.Operation]{
+							data: []dbmodel.Operation{
+								{Name: "operationA", SpanKind: "server"},
+								{Name: "operationB", SpanKind: "server"},
+								{Name: "operationC", SpanKind: "server"},
+							},
+							scanFn: func(dest any, src dbmodel.Operation) error {
+								svc, ok := dest.(*dbmodel.Operation)
+								if !ok {
+									return errors.New("dest is not *dbmodel.Operation")
+								}
+								*svc = src
+								return nil
+							},
+						},
+						err: nil,
 					},
 				},
 			},
@@ -486,32 +532,40 @@ func TestGetOperations(t *testing.T) {
 		{
 			name: "query error",
 			conn: &testDriver{
-				t:             t,
-				expectedQuery: sql.SelectOperationsAllKinds,
-				err:           assert.AnError,
+				t: t,
+				queryResponses: map[string]*testQueryResponse{
+					sql.SelectOperationsAllKinds: {
+						rows: nil,
+						err:  assert.AnError,
+					},
+				},
 			},
 			expectError: "failed to query operations",
 		},
 		{
 			name: "scan error",
 			conn: &testDriver{
-				t:             t,
-				expectedQuery: sql.SelectOperationsAllKinds,
-				rows: &testRows[dbmodel.Operation]{
-					data: []dbmodel.Operation{
-						{Name: "operationA"},
-						{Name: "operationB"},
-						{Name: "operationC"},
+				t: t,
+				queryResponses: map[string]*testQueryResponse{
+					sql.SelectOperationsAllKinds: {
+						rows: &testRows[dbmodel.Operation]{
+							data: []dbmodel.Operation{
+								{Name: "operationA"},
+								{Name: "operationB"},
+								{Name: "operationC"},
+							},
+							scanFn: func(dest any, src dbmodel.Operation) error {
+								svc, ok := dest.(*dbmodel.Operation)
+								if !ok {
+									return errors.New("dest is not *dbmodel.Operation")
+								}
+								*svc = src
+								return nil
+							},
+							scanErr: assert.AnError,
+						},
+						err: nil,
 					},
-					scanFn: func(dest any, src dbmodel.Operation) error {
-						svc, ok := dest.(*dbmodel.Operation)
-						if !ok {
-							return errors.New("dest is not *dbmodel.Operation")
-						}
-						*svc = src
-						return nil
-					},
-					scanErr: assert.AnError,
 				},
 			},
 			expectError: "failed to scan row",
@@ -528,6 +582,8 @@ func TestGetOperations(t *testing.T) {
 				require.ErrorContains(t, err, test.expectError)
 			} else {
 				require.NoError(t, err)
+				require.Len(t, test.conn.recordedQueries, 1)
+				verifyQuerySnapshot(t, test.conn.recordedQueries[0])
 				require.Equal(t, test.expected, result)
 			}
 		})
@@ -552,11 +608,15 @@ func TestFindTraces_Success(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			conn := &testDriver{
-				t:             t,
-				expectedQuery: testFindTracesQuery,
-				rows: &testRows[*dbmodel.SpanRow]{
-					data:   tt.data,
-					scanFn: scanSpanRowFn(),
+				t: t,
+				queryResponses: map[string]*testQueryResponse{
+					sql.SelectSpansQuery: {
+						rows: &testRows[*dbmodel.SpanRow]{
+							data:   tt.data,
+							scanFn: scanSpanRowFn(),
+						},
+						err: nil,
+					},
 				},
 			}
 
@@ -567,6 +627,8 @@ func TestFindTraces_Success(t *testing.T) {
 			traces, err := jiter.FlattenWithErrors(findTracesIter)
 
 			require.NoError(t, err)
+			require.Len(t, conn.recordedQueries, 1)
+			verifyQuerySnapshot(t, conn.recordedQueries[0])
 			requireTracesEqual(t, tt.data, traces)
 		})
 	}
@@ -575,33 +637,14 @@ func TestFindTraces_Success(t *testing.T) {
 func TestFindTraces_WithFilters(t *testing.T) {
 	conn := &testDriver{
 		t: t,
-		expectedQuery: buildFindTracesQuery(
-			sql.SearchTraceIDs +
-				" AND s.service_name = ?" +
-				" AND s.name = ?" +
-				" AND s.duration >= ?" +
-				" AND s.duration <= ?" +
-				" AND s.start_time >= ?" +
-				" AND s.start_time <= ?" +
-				" AND (arrayExists((key, value) -> key = ? AND value = ?, s.bool_attributes.key, s.bool_attributes.value)" +
-				" OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_bool_attributes.key, s.resource_bool_attributes.value))" +
-				" AND (arrayExists((key, value) -> key = ? AND value = ?, s.double_attributes.key, s.double_attributes.value)" +
-				" OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_double_attributes.key, s.resource_double_attributes.value))" +
-				" AND (arrayExists((key, value) -> key = ? AND value = ?, s.int_attributes.key, s.int_attributes.value)" +
-				" OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_int_attributes.key, s.resource_int_attributes.value))" +
-				" AND (arrayExists((key, value) -> key = ? AND value = ?, s.str_attributes.key, s.str_attributes.value)" +
-				" OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_str_attributes.key, s.resource_str_attributes.value))" +
-				" AND (arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)" +
-				" OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value))" +
-				" AND (arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)" +
-				" OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value))" +
-				" AND (arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)" +
-				" OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value))" +
-				" LIMIT ?",
-		),
-		rows: &testRows[*dbmodel.SpanRow]{
-			data:   multipleSpans,
-			scanFn: scanSpanRowFn(),
+		queryResponses: map[string]*testQueryResponse{
+			sql.SelectSpansQuery: {
+				rows: &testRows[*dbmodel.SpanRow]{
+					data:   multipleSpans,
+					scanFn: scanSpanRowFn(),
+				},
+				err: nil,
+			},
 		},
 	}
 
@@ -631,15 +674,22 @@ func TestFindTraces_WithFilters(t *testing.T) {
 	})
 	traces, err := jiter.FlattenWithErrors(iter)
 	require.NoError(t, err)
+	require.Len(t, conn.recordedQueries, 1)
+	verifyQuerySnapshot(t, conn.recordedQueries[0])
 	requireTracesEqual(t, multipleSpans, traces)
 }
 
 func TestFindTraces_SearchDepthExceedsMax(t *testing.T) {
 	driver := &testDriver{
 		t: t,
-		rows: &testRows[*dbmodel.SpanRow]{
-			data:   singleSpan,
-			scanFn: scanSpanRowFn(),
+		queryResponses: map[string]*testQueryResponse{
+			sql.SelectSpansQuery: {
+				rows: &testRows[*dbmodel.SpanRow]{
+					data:   singleSpan,
+					scanFn: scanSpanRowFn(),
+				},
+				err: nil,
+			},
 		},
 	}
 	reader := NewReader(driver, testReaderConfig)
@@ -653,11 +703,15 @@ func TestFindTraces_SearchDepthExceedsMax(t *testing.T) {
 
 func TestFindTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	conn := &testDriver{
-		t:             t,
-		expectedQuery: testFindTracesQuery,
-		rows: &testRows[*dbmodel.SpanRow]{
-			data:   multipleSpans,
-			scanFn: scanSpanRowFn(),
+		t: t,
+		queryResponses: map[string]*testQueryResponse{
+			sql.SelectSpansQuery: {
+				rows: &testRows[*dbmodel.SpanRow]{
+					data:   multipleSpans,
+					scanFn: scanSpanRowFn(),
+				},
+				err: nil,
+			},
 		},
 	}
 
@@ -689,11 +743,15 @@ func TestFindTraces_ScanErrorContinues(t *testing.T) {
 	}
 
 	conn := &testDriver{
-		t:             t,
-		expectedQuery: testFindTracesQuery,
-		rows: &testRows[*dbmodel.SpanRow]{
-			data:   multipleSpans,
-			scanFn: scanFn,
+		t: t,
+		queryResponses: map[string]*testQueryResponse{
+			sql.SelectSpansQuery: {
+				rows: &testRows[*dbmodel.SpanRow]{
+					data:   multipleSpans,
+					scanFn: scanFn,
+				},
+				err: nil,
+			},
 		},
 	}
 
@@ -721,20 +779,28 @@ func TestFindTraces_ErrorCases(t *testing.T) {
 		{
 			name: "QueryError",
 			driver: &testDriver{
-				t:             t,
-				expectedQuery: testFindTracesQuery,
-				err:           assert.AnError,
+				t: t,
+				queryResponses: map[string]*testQueryResponse{
+					sql.SelectSpansQuery: {
+						rows: nil,
+						err:  assert.AnError,
+					},
+				},
 			},
 			expectedErr: "failed to query traces",
 		},
 		{
 			name: "ScanError",
 			driver: &testDriver{
-				t:             t,
-				expectedQuery: testFindTracesQuery,
-				rows: &testRows[*dbmodel.SpanRow]{
-					data:    singleSpan,
-					scanErr: assert.AnError,
+				t: t,
+				queryResponses: map[string]*testQueryResponse{
+					sql.SelectSpansQuery: {
+						rows: &testRows[*dbmodel.SpanRow]{
+							data:    singleSpan,
+							scanErr: assert.AnError,
+						},
+						err: nil,
+					},
 				},
 			},
 			expectedErr: "failed to scan span row",
@@ -776,31 +842,14 @@ func TestFindTraces_BuildQueryError(t *testing.T) {
 func TestFindTraceIDs(t *testing.T) {
 	driver := &testDriver{
 		t: t,
-		expectedQuery: sql.SearchTraceIDs +
-			` AND s.service_name = ?` +
-			` AND s.name = ?` +
-			` AND s.duration >= ?` +
-			` AND s.duration <= ?` +
-			` AND s.start_time >= ?` +
-			` AND s.start_time <= ?` +
-			` AND (arrayExists((key, value) -> key = ? AND value = ?, s.bool_attributes.key, s.bool_attributes.value)` +
-			` OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_bool_attributes.key, s.resource_bool_attributes.value))` +
-			` AND (arrayExists((key, value) -> key = ? AND value = ?, s.double_attributes.key, s.double_attributes.value)` +
-			` OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_double_attributes.key, s.resource_double_attributes.value))` +
-			` AND (arrayExists((key, value) -> key = ? AND value = ?, s.int_attributes.key, s.int_attributes.value)` +
-			` OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_int_attributes.key, s.resource_int_attributes.value))` +
-			` AND (arrayExists((key, value) -> key = ? AND value = ?, s.str_attributes.key, s.str_attributes.value)` +
-			` OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_str_attributes.key, s.resource_str_attributes.value))` +
-			` AND (arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)` +
-			` OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value))` +
-			` AND (arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)` +
-			` OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value))` +
-			` AND (arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)` +
-			` OR arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value))` +
-			` LIMIT ?`,
-		rows: &testRows[[]any]{
-			data:   testTraceIDsData,
-			scanFn: scanTraceIDFn(),
+		queryResponses: map[string]*testQueryResponse{
+			sql.SearchTraceIDs: {
+				rows: &testRows[[]any]{
+					data:   testTraceIDsData,
+					scanFn: scanTraceIDFn(),
+				},
+				err: nil,
+			},
 		},
 	}
 	reader := NewReader(driver, testReaderConfig)
@@ -829,6 +878,8 @@ func TestFindTraceIDs(t *testing.T) {
 	})
 	ids, err := jiter.FlattenWithErrors(iter)
 	require.NoError(t, err)
+	require.Len(t, driver.recordedQueries, 1)
+	verifyQuerySnapshot(t, driver.recordedQueries[0])
 	require.Equal(t, []tracestore.FoundTraceID{
 		{
 			TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}),
@@ -843,22 +894,26 @@ func TestFindTraceIDs(t *testing.T) {
 
 func TestFindTraceIDs_SearchDepthExceedsMax(t *testing.T) {
 	driver := &testDriver{
-		t:             t,
-		expectedQuery: testSearchTraceIDsQuery,
-		rows: &testRows[[]any]{
-			data: [][]any{
-				{
-					"00000000000000000000000000000001",
-					time.Now().Add(-1 * time.Hour),
-					time.Now().Add(-1 * time.Minute),
+		t: t,
+		queryResponses: map[string]*testQueryResponse{
+			sql.SearchTraceIDs: {
+				rows: &testRows[[]any]{
+					data: [][]any{
+						{
+							"00000000000000000000000000000001",
+							time.Now().Add(-1 * time.Hour),
+							time.Now().Add(-1 * time.Minute),
+						},
+						{
+							"00000000000000000000000000000002",
+							time.Now().Add(-2 * time.Hour),
+							time.Now().Add(-2 * time.Minute),
+						},
+					},
+					scanFn: scanTraceIDFn(),
 				},
-				{
-					"00000000000000000000000000000002",
-					time.Now().Add(-2 * time.Hour),
-					time.Now().Add(-2 * time.Minute),
-				},
+				err: nil,
 			},
-			scanFn: scanTraceIDFn(),
 		},
 	}
 	reader := NewReader(driver, testReaderConfig)
@@ -871,11 +926,15 @@ func TestFindTraceIDs_SearchDepthExceedsMax(t *testing.T) {
 
 func TestFindTraceIDs_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	conn := &testDriver{
-		t:             t,
-		expectedQuery: testSearchTraceIDsQuery,
-		rows: &testRows[[]any]{
-			data:   testTraceIDsData,
-			scanFn: scanTraceIDFn(),
+		t: t,
+		queryResponses: map[string]*testQueryResponse{
+			sql.SearchTraceIDs: {
+				rows: &testRows[[]any]{
+					data:   testTraceIDsData,
+					scanFn: scanTraceIDFn(),
+				},
+				err: nil,
+			},
 		},
 	}
 
@@ -913,11 +972,15 @@ func TestFindTraceIDs_ScanErrorContinues(t *testing.T) {
 	}
 
 	conn := &testDriver{
-		t:             t,
-		expectedQuery: testSearchTraceIDsQuery,
-		rows: &testRows[[]any]{
-			data:   testTraceIDsData,
-			scanFn: scanFn,
+		t: t,
+		queryResponses: map[string]*testQueryResponse{
+			sql.SearchTraceIDs: {
+				rows: &testRows[[]any]{
+					data:   testTraceIDsData,
+					scanFn: scanFn,
+				},
+				err: nil,
+			},
 		},
 	}
 
@@ -943,24 +1006,28 @@ func TestFindTraceIDs_ScanErrorContinues(t *testing.T) {
 
 func TestFindTraceIDs_DecodeErrorContinues(t *testing.T) {
 	conn := &testDriver{
-		t:             t,
-		expectedQuery: testSearchTraceIDsQuery,
-		rows: &testRows[[]any]{
-			data: [][]any{
-				testTraceIDsData[0],
-				{
-					"0x",
-					time.Now().Add(-2 * time.Hour),
-					time.Now().Add(-2 * time.Minute),
+		t: t,
+		queryResponses: map[string]*testQueryResponse{
+			sql.SearchTraceIDs: {
+				rows: &testRows[[]any]{
+					data: [][]any{
+						testTraceIDsData[0],
+						{
+							"0x",
+							time.Now().Add(-2 * time.Hour),
+							time.Now().Add(-2 * time.Minute),
+						},
+						{
+							"invalid",
+							time.Now().Add(-3 * time.Hour),
+							time.Now().Add(-3 * time.Minute),
+						},
+						testTraceIDsData[1],
+					},
+					scanFn: scanTraceIDFn(),
 				},
-				{
-					"invalid",
-					time.Now().Add(-3 * time.Hour),
-					time.Now().Add(-3 * time.Minute),
-				},
-				testTraceIDsData[1],
+				err: nil,
 			},
-			scanFn: scanTraceIDFn(),
 		},
 	}
 
@@ -1005,20 +1072,28 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 		{
 			name: "QueryError",
 			driver: &testDriver{
-				t:             t,
-				expectedQuery: testSearchTraceIDsQuery,
-				err:           assert.AnError,
+				t: t,
+				queryResponses: map[string]*testQueryResponse{
+					sql.SearchTraceIDs: {
+						rows: nil,
+						err:  assert.AnError,
+					},
+				},
 			},
 			expectedErr: "failed to query trace IDs",
 		},
 		{
 			name: "ScanError",
 			driver: &testDriver{
-				t:             t,
-				expectedQuery: testSearchTraceIDsQuery,
-				rows: &testRows[[]any]{
-					data:    testTraceIDsData,
-					scanErr: assert.AnError,
+				t: t,
+				queryResponses: map[string]*testQueryResponse{
+					sql.SearchTraceIDs: {
+						rows: &testRows[[]any]{
+							data:    testTraceIDsData,
+							scanErr: assert.AnError,
+						},
+						err: nil,
+					},
 				},
 			},
 			expectedErr: "failed to scan row",
@@ -1026,17 +1101,21 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 		{
 			name: "DecodeError",
 			driver: &testDriver{
-				t:             t,
-				expectedQuery: testSearchTraceIDsQuery,
-				rows: &testRows[[]any]{
-					data: [][]any{
-						{
-							"0x",
-							time.Now().Add(-1 * time.Hour),
-							time.Now().Add(-1 * time.Minute),
+				t: t,
+				queryResponses: map[string]*testQueryResponse{
+					sql.SearchTraceIDs: {
+						rows: &testRows[[]any]{
+							data: [][]any{
+								{
+									"0x",
+									time.Now().Add(-1 * time.Hour),
+									time.Now().Add(-1 * time.Minute),
+								},
+							},
+							scanFn: scanTraceIDFn(),
 						},
+						err: nil,
 					},
-					scanFn: scanTraceIDFn(),
 				},
 			},
 			expectedErr: "failed to decode trace ID",

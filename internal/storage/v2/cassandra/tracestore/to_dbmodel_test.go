@@ -17,9 +17,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/collector/semconv/v1.9.0"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 func TestGetTagFromStatusCode(t *testing.T) {
@@ -32,7 +32,7 @@ func TestGetTagFromStatusCode(t *testing.T) {
 			name: "ok",
 			code: ptrace.StatusCodeOk,
 			tag: model.KeyValue{
-				Key:   conventions.OtelStatusCode,
+				Key:   otelsemconv.OtelStatusCode,
 				VType: model.ValueType_STRING,
 				VStr:  statusOk,
 			},
@@ -42,7 +42,7 @@ func TestGetTagFromStatusCode(t *testing.T) {
 			name: "error",
 			code: ptrace.StatusCodeError,
 			tag: model.KeyValue{
-				Key:   conventions.OtelStatusCode,
+				Key:   otelsemconv.OtelStatusCode,
 				VType: model.ValueType_STRING,
 				VStr:  statusError,
 			},
@@ -106,7 +106,7 @@ func TestGetTagFromStatusMsg(t *testing.T) {
 	got, ok := getTagFromStatusMsg("test-error")
 	assert.True(t, ok)
 	assert.Equal(t, model.KeyValue{
-		Key:   conventions.OtelStatusDescription,
+		Key:   otelsemconv.OtelStatusDescription,
 		VStr:  "test-error",
 		VType: model.ValueType_STRING,
 	}, got)
@@ -115,7 +115,7 @@ func TestGetTagFromStatusMsg(t *testing.T) {
 func Test_resourceToJaegerProtoProcess_WhenOnlyServiceNameIsPresent(t *testing.T) {
 	traces := ptrace.NewTraces()
 	spans := traces.ResourceSpans().AppendEmpty()
-	spans.Resource().Attributes().PutStr(conventions.AttributeServiceName, "service")
+	spans.Resource().Attributes().PutStr(otelsemconv.ServiceNameKey, "service")
 	process := resourceToJaegerProtoProcess(spans.Resource())
 	assert.Equal(t, "service", process.ServiceName)
 }
@@ -213,7 +213,7 @@ func TestAttributesToJaegerProtoTags(t *testing.T) {
 	attributes.PutStr("string-val", "abc")
 	attributes.PutDouble("double-val", 1.23)
 	attributes.PutEmptyBytes("bytes-val").FromRaw([]byte{1, 2, 3, 4})
-	attributes.PutStr(conventions.AttributeServiceName, "service-name")
+	attributes.PutStr(otelsemconv.ServiceNameKey, "service-name")
 
 	expected := []model.KeyValue{
 		{
@@ -242,7 +242,7 @@ func TestAttributesToJaegerProtoTags(t *testing.T) {
 			VBinary: []byte{1, 2, 3, 4},
 		},
 		{
-			Key:   conventions.AttributeServiceName,
+			Key:   otelsemconv.ServiceNameKey,
 			VType: model.ValueType_STRING,
 			VStr:  "service-name",
 		},

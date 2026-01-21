@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
@@ -23,8 +25,7 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	app "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc"
-	v2querysvc "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/querysvc/v2/querysvc"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
@@ -86,19 +87,19 @@ type fakeStorageExt struct{}
 
 var _ jaegerstorage.Extension = (*fakeStorageExt)(nil)
 
-func (fakeStorageExt) TraceStorageFactory(name string) (tracestore.Factory, bool) {
+func (fakeStorageExt) TraceStorageFactory(name string) (tracestore.Factory, error) {
 	if name == "need-factory-error" {
-		return nil, false
+		return nil, errors.New("test-error")
 	}
 
-	return fakeFactory{name: name}, true
+	return fakeFactory{name: name}, nil
 }
 
-func (fakeStorageExt) MetricStorageFactory(name string) (storage.MetricStoreFactory, bool) {
+func (fakeStorageExt) MetricStorageFactory(name string) (storage.MetricStoreFactory, error) {
 	if name == "need-factory-error" {
-		return nil, false
+		return nil, errors.New("test-error")
 	}
-	return fakeMetricsFactory{name: name}, true
+	return fakeMetricsFactory{name: name}, nil
 }
 
 func (fakeStorageExt) Start(context.Context, component.Host) error {
@@ -215,7 +216,8 @@ func TestServerStart(t *testing.T) {
 				MeterProvider:  noopmetric.NewMeterProvider(),
 				TracerProvider: nooptrace.NewTracerProvider(),
 			}
-			tt.config.HTTP.Endpoint = "localhost:0"
+			tt.config.HTTP.NetAddr.Endpoint = "localhost:0"
+			tt.config.HTTP.NetAddr.Transport = confignet.TransportTypeTCP
 			tt.config.GRPC.NetAddr.Endpoint = "localhost:0"
 			tt.config.GRPC.NetAddr.Transport = confignet.TransportTypeTCP
 			server := newServer(tt.config, telemetrySettings)
@@ -259,7 +261,6 @@ func TestServerAddArchiveStorage(t *testing.T) {
 	tests := []struct {
 		name           string
 		qSvcOpts       *querysvc.QueryServiceOptions
-		v2qSvcOpts     *v2querysvc.QueryServiceOptions
 		config         *Config
 		extension      component.Component
 		expectedOutput string
@@ -269,7 +270,6 @@ func TestServerAddArchiveStorage(t *testing.T) {
 			name:           "Archive storage unset",
 			config:         &Config{},
 			qSvcOpts:       &querysvc.QueryServiceOptions{},
-			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
 			expectedOutput: `{"level":"info","msg":"Archive storage not configured"}` + "\n",
 			expectedErr:    "",
 		},
@@ -281,7 +281,6 @@ func TestServerAddArchiveStorage(t *testing.T) {
 				},
 			},
 			qSvcOpts:       &querysvc.QueryServiceOptions{},
-			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
 			expectedOutput: "",
 			expectedErr:    "cannot find traces archive storage factory: cannot find extension",
 		},
@@ -293,7 +292,6 @@ func TestServerAddArchiveStorage(t *testing.T) {
 				},
 			},
 			qSvcOpts:       &querysvc.QueryServiceOptions{},
-			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
 			extension:      fakeStorageExt{},
 			expectedOutput: "Cannot init traces archive storage reader",
 			expectedErr:    "",
@@ -306,7 +304,6 @@ func TestServerAddArchiveStorage(t *testing.T) {
 				},
 			},
 			qSvcOpts:       &querysvc.QueryServiceOptions{},
-			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
 			extension:      fakeStorageExt{},
 			expectedOutput: "Cannot init traces archive storage writer",
 			expectedErr:    "",
@@ -319,7 +316,6 @@ func TestServerAddArchiveStorage(t *testing.T) {
 				},
 			},
 			qSvcOpts:       &querysvc.QueryServiceOptions{},
-			v2qSvcOpts:     &v2querysvc.QueryServiceOptions{},
 			extension:      fakeStorageExt{},
 			expectedOutput: "",
 			expectedErr:    "",
@@ -338,7 +334,7 @@ func TestServerAddArchiveStorage(t *testing.T) {
 			if tt.extension != nil {
 				host = storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, tt.extension)
 			}
-			err := server.addArchiveStorage(tt.qSvcOpts, tt.v2qSvcOpts, host)
+			err := server.addArchiveStorage(tt.qSvcOpts, host)
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
 			} else {
@@ -400,4 +396,44 @@ func TestServerAddMetricsStorage(t *testing.T) {
 			assert.Contains(t, buf.String(), tt.expectedOutput)
 		})
 	}
+}
+
+func TestQueryService(t *testing.T) {
+	host := storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, fakeStorageExt{})
+	config := &Config{
+		QueryOptions: app.QueryOptions{
+			HTTP: confighttp.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  "localhost:0",
+					Transport: confignet.TransportTypeTCP,
+				},
+			},
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  "localhost:0",
+					Transport: confignet.TransportTypeTCP,
+				},
+			},
+		},
+		Storage: Storage{
+			TracesPrimary: "jaeger_storage",
+		},
+	}
+
+	telemetrySettings := component.TelemetrySettings{
+		Logger:         zaptest.NewLogger(t),
+		MeterProvider:  noopmetric.NewMeterProvider(),
+		TracerProvider: nooptrace.NewTracerProvider(),
+	}
+
+	server := newServer(config, telemetrySettings)
+	err := server.Start(context.Background(), host)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, server.Shutdown(context.Background()))
+	}()
+
+	// Test QueryService method
+	qs := server.QueryService()
+	require.NotNil(t, qs, "QueryService should not be nil")
 }
