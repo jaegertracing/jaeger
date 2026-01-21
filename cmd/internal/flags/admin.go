@@ -15,6 +15,7 @@ import (
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -48,7 +49,10 @@ func NewAdminServer(hostPort string) *AdminServer {
 		logger: zap.NewNop(),
 		mux:    http.NewServeMux(),
 		serverCfg: confighttp.ServerConfig{
-			Endpoint: hostPort,
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  hostPort,
+				Transport: confignet.TransportTypeTCP,
+			},
 		},
 		hc: NewHealthHost(),
 	}
@@ -68,7 +72,7 @@ func (s *AdminServer) setLogger(logger *zap.Logger) {
 
 // AddFlags registers CLI flags.
 func (s *AdminServer) AddFlags(flagSet *flag.FlagSet) {
-	flagSet.String(adminHTTPHostPort, s.serverCfg.Endpoint, fmt.Sprintf("The host:port (e.g. 127.0.0.1%s or %s) for the admin server, including health check, /metrics, etc.", s.serverCfg.Endpoint, s.serverCfg.Endpoint))
+	flagSet.String(adminHTTPHostPort, s.serverCfg.NetAddr.Endpoint, fmt.Sprintf("The host:port (e.g. 127.0.0.1%s or %s) for the admin server, including health check, /metrics, etc.", s.serverCfg.NetAddr.Endpoint, s.serverCfg.NetAddr.Endpoint))
 	tlsAdminHTTPFlagsConfig.AddFlags(flagSet)
 }
 
@@ -81,7 +85,7 @@ func (s *AdminServer) initFromViper(v *viper.Viper, logger *zap.Logger) error {
 		return fmt.Errorf("failed to parse admin server TLS options: %w", err)
 	}
 
-	s.serverCfg.Endpoint = v.GetString(adminHTTPHostPort)
+	s.serverCfg.NetAddr.Endpoint = v.GetString(adminHTTPHostPort)
 	s.serverCfg.TLS = tlsAdminHTTP
 	return nil
 }
