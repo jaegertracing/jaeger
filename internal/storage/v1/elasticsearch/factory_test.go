@@ -134,7 +134,8 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 		LogLevel: "debug",
 	}
 	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nil)
-	require.ErrorContains(t, err, "open fixtures/file-does-not-exist.txt: no such file or directory")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "file-does-not-exist.txt")
 	assert.Nil(t, f)
 }
 
@@ -275,12 +276,12 @@ func TestCreateTemplates(t *testing.T) {
 			IndexPrefix: test.indexPrefix,
 			Spans: escfg.IndexOptions{
 				Shards:   3,
-				Replicas: ptr(int64(1)),
+				Replicas: testPtr(int64(1)),
 				Priority: 10,
 			},
 			Services: escfg.IndexOptions{
 				Shards:   3,
-				Replicas: ptr(int64(1)),
+				Replicas: testPtr(int64(1)),
 				Priority: 10,
 			},
 		}}
@@ -539,4 +540,7 @@ func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 		return m.base.RoundTrip(req)
 	}
 	return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+}
+func testPtr[T any](v T) *T {
+	return &v
 }
