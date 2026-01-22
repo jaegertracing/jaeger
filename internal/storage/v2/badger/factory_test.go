@@ -9,13 +9,17 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
 func TestNewFac(t *testing.T) {
-	f, err := NewFactory(*badger.DefaultConfig(), telemetry.NoopSettings())
+	telset := telemetry.NoopSettings()
+	telset.Logger = zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
+	f, err := NewFactory(*badger.DefaultConfig(), telset)
 	require.NoError(t, err)
 
 	_, err = f.CreateTraceReader()
