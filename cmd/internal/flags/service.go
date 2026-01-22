@@ -122,6 +122,8 @@ func (s *Service) RunAndThen(shutdown func()) error {
 	}
 
 	err := s.Admin.Close()
-	s.Logger.Info("Shutdown complete")
+	if err == nil {
+		s.Logger.Info("Shutdown complete")
+	}
 	return err
 }
