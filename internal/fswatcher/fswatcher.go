@@ -6,6 +6,7 @@ package fswatcher
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"io"
 	"os"
 	"path"
@@ -59,7 +60,7 @@ func New(filepaths []string, onChange func(), logger *zap.Logger) (*FSWatcher, e
 	}
 
 	if err = w.setupWatchedPaths(filepaths); err != nil {
-		w.Close()
+		err = errors.Join(err, w.Close())
 		return nil, err
 	}
 
