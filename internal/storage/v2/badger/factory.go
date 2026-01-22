@@ -6,15 +6,13 @@ package badger
 import (
 	"context"
 
-	"go.uber.org/zap"
-
 	"github.com/jaegertracing/jaeger/internal/distributedlock"
-	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
 type Factory struct {
@@ -23,12 +21,11 @@ type Factory struct {
 
 func NewFactory(
 	cfg badger.Config,
-	metricsFactory metrics.Factory,
-	logger *zap.Logger,
+	telset telemetry.Settings,
 ) (*Factory, error) {
 	v1Factory := badger.NewFactory()
 	v1Factory.Config = &cfg
-	err := v1Factory.Initialize(metricsFactory, logger)
+	err := v1Factory.Initialize(telset.Metrics, telset.Logger)
 	if err != nil {
 		return nil, err
 	}
