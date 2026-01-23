@@ -1,14 +1,15 @@
 {
-    "dependencies": [
-        {
-            "name": "grafana-builder",
-            "source": {
-                "git": {
-                    "remote": "https://github.com/grafana/jsonnet-libs",
-                    "subdir": "grafana-builder"
-                }
-            },
-            "version": "master"
+  "version": 1,
+  "dependencies": [
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/grafana/jsonnet-libs.git",
+          "subdir": "grafana-builder"
         }
-    ]
+      },
+      "version": "master"
+    }
+  ],
+  "legacyImports": true
 }

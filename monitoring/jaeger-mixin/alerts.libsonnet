@@ -1,11 +1,6 @@
-local percentErrs(metric, errSelectors) = '100 * sum(rate(%(metric)s{%(errSelectors)s}[1m])) by (instance, job, namespace) / sum(rate(%(metric)s[1m])) by (instance, job, namespace)' % {
-  metric: metric,
-  errSelectors: errSelectors,
-};
-
-local percentErrsWithTotal(metric_errs, metric_total) = '100 * sum(rate(%(metric_errs)s[1m])) by (instance, job, namespace) / sum(rate(%(metric_total)s[1m])) by (instance, job, namespace)' % {
-  metric_errs: metric_errs,
-  metric_total: metric_total,
+local percent(numerator, denominator) = '100 * %(numerator)s / %(denominator)s' % {
+  numerator: numerator,
+  denominator: denominator,
 };
 
 {
@@ -14,8 +9,8 @@ local percentErrsWithTotal(metric_errs, metric_total) = '100 * sum(rate(%(metric
       {
         name: 'jaeger_alerts',
         rules: [{
-          alert: 'JaegerHTTPServerErrs',
-          expr: percentErrsWithTotal('jaeger_agent_http_server_errors_total', 'jaeger_agent_http_server_total') + '> 1',
+          alert: 'OtelHttpServerErrors',
+          expr: '100 * sum(rate(otelcol_http_server_duration_count{http_status_code=~"5.."}[1m])) by (instance, job) / sum(rate(otelcol_http_server_duration_count[1m])) by (instance, job) > 1',
           'for': '15m',
           labels: {
             severity: 'warning',
@@ -26,87 +21,51 @@ local percentErrsWithTotal(metric_errs, metric_total) = '100 * sum(rate(%(metric
             |||,
           },
         }, {
-          alert: 'JaegerRPCRequestsErrors',
-          expr: percentErrs('jaeger_client_jaeger_rpc_http_requests', 'status_code=~"4xx|5xx"') + '> 1',
+          alert: 'OtelExporterQueueFull',
+          expr: '100 * otelcol_exporter_queue_size / otelcol_exporter_queue_capacity > 80',
           'for': '15m',
           labels: {
             severity: 'warning',
           },
           annotations: {
             message: |||
-              {{ $labels.job }} {{ $labels.instance }} is experiencing {{ printf "%.2f" $value }}% RPC HTTP errors.
+              {{ $labels.job }} {{ $labels.instance }} exporter queue is at {{ printf "%.2f" $value }} items (over 80% capacity).
             |||,
           },
         }, {
-          alert: 'JaegerClientSpansDropped',
-          expr: percentErrs('jaeger_reporter_spans', 'result=~"dropped|err"') + '> 1',
+          alert: 'OtelHighMemoryUsage',
+          expr: 'otelcol_process_memory_rss > 100000000',
           'for': '15m',
           labels: {
             severity: 'warning',
           },
           annotations: {
             message: |||
-              service {{ $labels.job }} {{ $labels.instance }} is dropping {{ printf "%.2f" $value }}% spans.
+              {{ $labels.job }} {{ $labels.instance }} memory usage is high at {{ humanize $value }} bytes.
             |||,
           },
         }, {
-          alert: 'JaegerAgentSpansDropped',
-          expr: percentErrsWithTotal('jaeger_agent_reporter_batches_failures_total', 'jaeger_agent_reporter_batches_submitted_total') + '> 1',
+          alert: 'OtelHighCpuUsage',
+          expr: 'rate(otelcol_process_cpu_seconds[5m]) > 0.8',
           'for': '15m',
           labels: {
             severity: 'warning',
           },
           annotations: {
             message: |||
-              agent {{ $labels.job }} {{ $labels.instance }} is dropping {{ printf "%.2f" $value }}% spans.
+              {{ $labels.job }} {{ $labels.instance }} CPU usage is high ({{ printf "%.2f" $value }} seconds of CPU time in 5m).
             |||,
           },
         }, {
-          alert: 'JaegerCollectorDroppingSpans',
-          expr: percentErrsWithTotal('jaeger_collector_spans_dropped_total', 'jaeger_collector_spans_received_total') + '> 1',
+          alert: 'OtelProcessorBatchHighCardinality',
+          expr: 'otelcol_processor_batch_metadata_cardinality > 1000',
           'for': '15m',
           labels: {
             severity: 'warning',
           },
           annotations: {
             message: |||
-              collector {{ $labels.job }} {{ $labels.instance }} is dropping {{ printf "%.2f" $value }}% spans.
-            |||,
-          },
-        }, {
-          alert: 'JaegerSamplingUpdateFailing',
-          expr: percentErrs('jaeger_sampler_queries', 'result="err"') + '> 1',
-          'for': '15m',
-          labels: {
-            severity: 'warning',
-          },
-          annotations: {
-            message: |||
-              {{ $labels.job }} {{ $labels.instance }} is failing {{ printf "%.2f" $value }}% in updating sampling policies.
-            |||,
-          },
-        }, {
-          alert: 'JaegerThrottlingUpdateFailing',
-          expr: percentErrs('jaeger_throttler_updates', 'result="err"') + '> 1',
-          'for': '15m',
-          labels: {
-            severity: 'warning',
-          },
-          annotations: {
-            message: |||
-              {{ $labels.job }} {{ $labels.instance }} is failing {{ printf "%.2f" $value }}% in updating throttling policies.
-            |||,
-          },
-        }, {
-          alert: 'JaegerQueryReqsFailing',
-          expr: percentErrs('jaeger_query_requests_total', 'result="err"') + '> 1',
-          'for': '15m',
-          labels: {
-            severity: 'warning',
-          },
-          annotations: {
-            message: |||
-              {{ $labels.job }} {{ $labels.instance }} is seeing {{ printf "%.2f" $value }}% query errors on {{ $labels.operation }}.
+              {{ $labels.job }} {{ $labels.instance }} has high metadata cardinality ({{ printf "%.0f" $value }} combinations).
             |||,
           },
         }],
