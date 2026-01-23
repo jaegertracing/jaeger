@@ -83,7 +83,7 @@ tools:
       start_time_min: string (required) - Start of time interval. Supports RFC3339 or relative (e.g., "-1h", "-30m")
       start_time_max: string (optional) - End of time interval. Supports RFC3339 or relative (e.g., "now", "-1m"). Default: now
       service_name: string (required) - Filter by service name. Use get_services to discover valid names.
-      operation_name: string (optional) - Filter by operation/span name
+      span_name: string (optional) - Filter by span name
       attributes: object (optional) - Key-value pairs to match against span/resource attributes (e.g., {"http.status_code": "500"})
       with_errors: boolean (optional) - If true, only return traces containing error spans
       duration_min: duration string (optional, e.g., "2s", "100ms")
@@ -151,7 +151,7 @@ Find traces matching criteria. Returns lightweight metadata only (no attributes/
   "start_time_min": "-1h",           // required: RFC3339 or relative
   "start_time_max": "now",           // optional: default "now"
   "service_name": "frontend",        // required
-  "operation_name": "/api/checkout", // optional
+  "span_name": "/api/checkout",      // optional
   "attributes": {                    // optional: match span/resource attributes
     "http.status_code": "500",
     "user.id": "12345"
@@ -170,7 +170,7 @@ Find traces matching criteria. Returns lightweight metadata only (no attributes/
     {
       "trace_id": "1a2b3c4d5e6f7890",
       "root_service": "frontend",
-      "root_operation": "/api/checkout",
+      "root_span_name": "/api/checkout",
       "start_time": "2024-01-15T10:30:00Z",
       "duration_ms": 2450,
       "span_count": 47,
@@ -201,7 +201,7 @@ Returns the structural skeleton of a trace—parent-child relationships, timing,
   "root": {
     "span_id": "span_A",
     "service": "frontend",
-    "operation": "/api/checkout",
+    "span_name": "/api/checkout",
     "start_time": "2024-01-15T10:30:00Z",
     "duration_ms": 2450,
     "status": "OK",
@@ -209,7 +209,7 @@ Returns the structural skeleton of a trace—parent-child relationships, timing,
       {
         "span_id": "span_B",
         "service": "cart-service",
-        "operation": "getCart",
+        "span_name": "getCart",
         "start_time": "2024-01-15T10:30:00.050Z",
         "duration_ms": 120,
         "status": "OK",
@@ -218,7 +218,7 @@ Returns the structural skeleton of a trace—parent-child relationships, timing,
       {
         "span_id": "span_C",
         "service": "payment-service",
-        "operation": "processPayment",
+        "span_name": "processPayment",
         "start_time": "2024-01-15T10:30:00.200Z",
         "duration_ms": 2200,
         "status": "ERROR",
@@ -226,7 +226,7 @@ Returns the structural skeleton of a trace—parent-child relationships, timing,
           {
             "span_id": "span_D",
             "service": "payment-gateway",
-            "operation": "chargeCard",
+            "span_name": "chargeCard",
             "start_time": "2024-01-15T10:30:00.250Z",
             "duration_ms": 2100,
             "status": "ERROR",
@@ -262,7 +262,7 @@ Returns the sequence of spans that form the critical latency path—the "blockin
     {
       "span_id": "span_A",
       "service": "frontend",
-      "operation": "/api/checkout",
+      "span_name": "/api/checkout",
       "self_time_ms": 50,
       "section_start_ms": 0,
       "section_end_ms": 50
@@ -270,7 +270,7 @@ Returns the sequence of spans that form the critical latency path—the "blockin
     {
       "span_id": "span_C",
       "service": "payment-service",
-      "operation": "processPayment",
+      "span_name": "processPayment",
       "self_time_ms": 100,
       "section_start_ms": 50,
       "section_end_ms": 150
@@ -278,7 +278,7 @@ Returns the sequence of spans that form the critical latency path—the "blockin
     {
       "span_id": "span_D",
       "service": "payment-gateway",
-      "operation": "chargeCard",
+      "span_name": "chargeCard",
       "self_time_ms": 2100,
       "section_start_ms": 150,
       "section_end_ms": 2250
@@ -286,7 +286,7 @@ Returns the sequence of spans that form the critical latency path—the "blockin
     {
       "span_id": "span_A",
       "service": "frontend",
-      "operation": "/api/checkout",
+      "span_name": "/api/checkout",
       "self_time_ms": 200,
       "section_start_ms": 2250,
       "section_end_ms": 2450
@@ -322,7 +322,7 @@ Fetch full OTLP span data for specific spans. Use this only after identifying su
       "trace_id": "1a2b3c4d5e6f7890",
       "parent_span_id": "span_A",
       "service": "payment-service",
-      "operation": "processPayment",
+      "span_name": "processPayment",
       "start_time": "2024-01-15T10:30:00.200Z",
       "duration_ms": 2200,
       "status": {
@@ -354,7 +354,7 @@ Fetch full OTLP span data for specific spans. Use this only after identifying su
       "trace_id": "1a2b3c4d5e6f7890",
       "parent_span_id": "span_C",
       "service": "payment-gateway",
-      "operation": "chargeCard",
+      "span_name": "chargeCard",
       "start_time": "2024-01-15T10:30:00.250Z",
       "duration_ms": 2100,
       "status": {

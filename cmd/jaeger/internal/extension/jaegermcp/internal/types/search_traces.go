@@ -16,8 +16,8 @@ type SearchTracesInput struct {
 	// ServiceName filters by service name (required).
 	ServiceName string `json:"service_name" jsonschema:"Filter by service name. Use get_services to discover valid names"`
 
-	// OperationName filters by operation/span name (optional).
-	OperationName string `json:"operation_name,omitempty" jsonschema:"Filter by operation/span name"`
+	// SpanName filters by span name (optional).
+	SpanName string `json:"span_name,omitempty" jsonschema:"Filter by span name"`
 
 	// Attributes contains key-value pairs to match against span/resource attributes (optional).
 	// Example: {"http.status_code": "500", "user.id": "12345"}
@@ -48,9 +48,9 @@ type SearchTracesOutput struct {
 // TraceSummary contains lightweight metadata about a single trace.
 type TraceSummary struct {
 	TraceID       string `json:"trace_id" jsonschema:"Unique identifier for the trace"`
-	RootService   string `json:"root_service" jsonschema:"Service name of the root span"`
-	RootOperation string `json:"root_operation" jsonschema:"Operation name of the root span"`
-	StartTime     string `json:"start_time" jsonschema:"Trace start time in RFC3339 format"`
+	RootService  string `json:"root_service" jsonschema:"Service name of the root span"`
+	RootSpanName string `json:"root_span_name" jsonschema:"Span name of the root span"`
+	StartTime    string `json:"start_time" jsonschema:"Trace start time in RFC3339 format"`
 	DurationUs    int64  `json:"duration_us" jsonschema:"Total trace duration in microseconds"`
 	SpanCount     int    `json:"span_count" jsonschema:"Total number of spans in the trace"`
 	ServiceCount  int    `json:"service_count" jsonschema:"Number of unique services in the trace"`
