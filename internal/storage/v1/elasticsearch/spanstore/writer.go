@@ -5,7 +5,6 @@
 package spanstore
 
 import (
-	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -16,6 +15,7 @@ import (
 	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
+	tagprocessor "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/processor"
 )
 
 const (
@@ -38,6 +38,7 @@ type SpanWriter struct {
 	allTagsAsFields   bool
 	tagDotReplacement string
 	tagKeysAsFields   map[string]bool
+	tagProcessor      *tagprocessor.TagProcessor
 }
 
 // CoreSpanWriter is a DB-Level abstraction which directly deals with database level operations
@@ -139,10 +140,10 @@ func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 }
 
 func (s *SpanWriter) convertNestedTagsToFieldTags(span *dbmodel.Span) {
-	processNestedTags, processFieldTags := s.splitElevatedTags(span.Process.Tags)
+	processNestedTags, processFieldTags := s.tagProcessor.SplitElevatedTags(span.Process.Tags, s.allTagsAsFields, s.tagKeysAsFields, s.tagDotReplacement)
 	span.Process.Tags = processNestedTags
 	span.Process.Tag = processFieldTags
-	nestedTags, fieldTags := s.splitElevatedTags(span.Tags)
+	nestedTags, fieldTags := s.tagProcessor.SplitElevatedTags(span.Tags, s.allTagsAsFields, s.tagKeysAsFields, s.tagDotReplacement)
 	span.Tags = nestedTags
 	span.Tag = fieldTags
 }
@@ -166,26 +167,4 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
 
 func (s *SpanWriter) writeSpan(indexName string, jsonSpan *dbmodel.Span) {
 	s.client().Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan).Add()
-}
-
-func (s *SpanWriter) splitElevatedTags(keyValues []dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any) {
-	if !s.allTagsAsFields && len(s.tagKeysAsFields) == 0 {
-		return keyValues, nil
-	}
-	var tagsMap map[string]any
-	var kvs []dbmodel.KeyValue
-	for _, kv := range keyValues {
-		if kv.Type != dbmodel.BinaryType && (s.allTagsAsFields || s.tagKeysAsFields[kv.Key]) {
-			if tagsMap == nil {
-				tagsMap = map[string]any{}
-			}
-			tagsMap[strings.ReplaceAll(kv.Key, ".", s.tagDotReplacement)] = kv.Value
-		} else {
-			kvs = append(kvs, kv)
-		}
-	}
-	if kvs == nil {
-		kvs = make([]dbmodel.KeyValue, 0)
-	}
-	return kvs, tagsMap
 }
