@@ -92,7 +92,7 @@ tools:
       start_time_min: string (optional, default: "-1h") - Start of time interval. Supports RFC3339 or relative (e.g., "-1h", "-30m")
       start_time_max: string (optional) - End of time interval. Supports RFC3339 or relative (e.g., "now", "-1m"). Default: now
       service_name: string (required) - Filter by service name. Use get_services to discover valid names.
-      span_name: string (optional) - Filter by span name. Use get_span_names to discover valid names.
+      operation_name: string (optional) - Filter by span name. Use get_span_names to discover valid names.
       attributes: object (optional) - Key-value pairs to match against span/resource attributes (e.g., {"http.status_code": "500"})
       with_errors: boolean (optional) - If true, only return traces containing error spans
       duration_min: duration string (optional, e.g., "2s", "100ms")
