@@ -84,7 +84,7 @@ tools:
       pattern: string (optional) - Optional regex pattern to filter span names
       span_kind: string (optional) - Optional span kind filter (e.g., SERVER, CLIENT, PRODUCER, CONSUMER, INTERNAL)
       limit: integer (optional, default: 100) - Maximum number of span names to return
-    output: List of span names with optional span kind information
+    output: List of span names with span kind information
 
   - name: search_traces
     description: Find traces matching service, time, attributes, and duration criteria. Returns metadata only.
