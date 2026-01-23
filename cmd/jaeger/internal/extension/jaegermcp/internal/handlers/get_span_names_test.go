@@ -149,8 +149,10 @@ func TestGetSpanNamesHandler_Handle(t *testing.T) {
 			input: types.GetSpanNamesInput{
 				ServiceName: "nonexistent",
 			},
-			mockOps:        []tracestore.Operation{},
-			expectedOutput: types.GetSpanNamesOutput{},
+			mockOps: []tracestore.Operation{},
+			expectedOutput: types.GetSpanNamesOutput{
+				SpanNames: []types.SpanNameInfo{},
+			},
 		},
 		{
 			name: "pattern matches nothing",
@@ -161,7 +163,9 @@ func TestGetSpanNamesHandler_Handle(t *testing.T) {
 			mockOps: []tracestore.Operation{
 				{Name: "GET /api/users", SpanKind: "SERVER"},
 			},
-			expectedOutput: types.GetSpanNamesOutput{},
+			expectedOutput: types.GetSpanNamesOutput{
+				SpanNames: []types.SpanNameInfo{},
+			},
 		},
 	}
 
@@ -192,6 +196,25 @@ func TestNewGetSpanNamesHandler(t *testing.T) {
 	// Test that NewGetSpanNamesHandler returns a valid handler function
 	handler := NewGetSpanNamesHandler(nil)
 	assert.NotNil(t, handler)
+}
+
+func TestGetSpanNamesOutput_EmptyArrayJSON(t *testing.T) {
+	// Test that empty span_names is serialized as [] not null in JSON
+	mock := &mockGetOperationsQueryService{
+		getOperationsFunc: func(_ context.Context, _ tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
+			return []tracestore.Operation{}, nil
+		},
+	}
+
+	handler := &getSpanNamesHandler{queryService: mock}
+	input := types.GetSpanNamesInput{ServiceName: "test-service"}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+	require.NoError(t, err)
+
+	// Verify the output has an empty slice, not nil
+	assert.NotNil(t, output.SpanNames)
+	assert.Empty(t, output.SpanNames)
 }
 
 // generateOperations creates n operations for testing

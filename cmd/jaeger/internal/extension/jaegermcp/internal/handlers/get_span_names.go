@@ -95,8 +95,8 @@ func (h *getSpanNamesHandler) handle(
 		filteredOps = filteredOps[:limit]
 	}
 
-	// Build output
-	var spanNames []types.SpanNameInfo
+	// Build output - initialize as empty slice to ensure JSON serialization as []
+	spanNames := make([]types.SpanNameInfo, 0, len(filteredOps))
 	for _, op := range filteredOps {
 		spanNames = append(spanNames, types.SpanNameInfo{
 			Name:     op.Name,
