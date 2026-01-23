@@ -163,7 +163,7 @@ func (*searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysvc.
 	return querysvc.TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
 			ServiceName:   input.ServiceName,
-			OperationName: input.OperationName,
+			OperationName: input.SpanName,
 			Attributes:    attributes,
 			StartTimeMin:  startTimeMin,
 			StartTimeMax:  startTimeMax,
@@ -229,7 +229,7 @@ func buildTraceSummary(trace ptrace.Traces) types.TraceSummary {
 
 	// Extract root span information
 	if rootSpan != (ptrace.Span{}) {
-		summary.RootOperation = rootSpan.Name()
+		summary.RootSpanName = rootSpan.Name()
 		summary.RootService = rootServiceName
 	}
 

@@ -12,7 +12,7 @@ import (
 
 func TestDefaultQueryOptions(t *testing.T) {
 	qo := DefaultQueryOptions()
-	require.Equal(t, ":16686", qo.HTTP.Endpoint)
+	require.Equal(t, ":16686", qo.HTTP.NetAddr.Endpoint)
 	require.Equal(t, ":16685", qo.GRPC.NetAddr.Endpoint)
 	require.EqualValues(t, "tcp", qo.GRPC.NetAddr.Transport)
 }

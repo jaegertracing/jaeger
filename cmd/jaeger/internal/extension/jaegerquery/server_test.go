@@ -216,7 +216,8 @@ func TestServerStart(t *testing.T) {
 				MeterProvider:  noopmetric.NewMeterProvider(),
 				TracerProvider: nooptrace.NewTracerProvider(),
 			}
-			tt.config.HTTP.Endpoint = "localhost:0"
+			tt.config.HTTP.NetAddr.Endpoint = "localhost:0"
+			tt.config.HTTP.NetAddr.Transport = confignet.TransportTypeTCP
 			tt.config.GRPC.NetAddr.Endpoint = "localhost:0"
 			tt.config.GRPC.NetAddr.Transport = confignet.TransportTypeTCP
 			server := newServer(tt.config, telemetrySettings)
@@ -402,7 +403,10 @@ func TestQueryService(t *testing.T) {
 	config := &Config{
 		QueryOptions: app.QueryOptions{
 			HTTP: confighttp.ServerConfig{
-				Endpoint: "localhost:0",
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  "localhost:0",
+					Transport: confignet.TransportTypeTCP,
+				},
 			},
 			GRPC: configgrpc.ServerConfig{
 				NetAddr: confignet.AddrConfig{

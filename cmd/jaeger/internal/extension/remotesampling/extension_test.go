@@ -148,7 +148,10 @@ func TestStartHTTP(t *testing.T) {
 	})
 	cfg.Adaptive = configoptional.None[AdaptiveConfig]()
 	cfg.HTTP = configoptional.Some(confighttp.ServerConfig{
-		Endpoint: "0.0.0.0:12345",
+		NetAddr: confignet.AddrConfig{
+			Endpoint:  "0.0.0.0:12345",
+			Transport: confignet.TransportTypeTCP,
+		},
 	})
 	cfg.GRPC = configoptional.None[configgrpc.ServerConfig]()
 	require.NoError(t, cfg.Validate())
@@ -473,7 +476,10 @@ func TestServerStartupErrors(t *testing.T) {
 		cfg.File = configoptional.Some(FileConfig{Path: filepath.Join("..", "..", "..", "sampling-strategies.json")})
 		cfg.Adaptive = configoptional.None[AdaptiveConfig]()
 		cfg.HTTP = configoptional.Some(confighttp.ServerConfig{
-			Endpoint: "invalid://endpoint",
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  "invalid://endpoint",
+				Transport: confignet.TransportTypeTCP,
+			},
 		})
 		cfg.GRPC = configoptional.None[configgrpc.ServerConfig]()
 
@@ -521,7 +527,10 @@ func TestServerStartupErrors(t *testing.T) {
 		cfg.File = configoptional.Some(FileConfig{Path: filepath.Join("..", "..", "..", "sampling-strategies.json")})
 		cfg.Adaptive = configoptional.None[AdaptiveConfig]()
 		cfg.HTTP = configoptional.Some(confighttp.ServerConfig{
-			Endpoint: "localhost:0",
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  "localhost:0",
+				Transport: confignet.TransportTypeTCP,
+			},
 			Middlewares: []configmiddleware.Config{
 				{ID: component.MustNewIDWithName("nonexistent", "middleware")},
 			},
