@@ -96,7 +96,7 @@ tools:
     input_schema:
       trace_id: string (required)
       depth: integer (optional, default: 3) - Maximum depth of the tree. 0 for full tree.
-    output: Tree structure with span metadata (id, service, operation, duration, error flag, children[])
+    output: Tree structure with span metadata (id, service, span_name, duration, error flag, children[])
 
   - name: get_critical_path
     description: Identify the sequence of spans forming the critical latency path (the blocking execution path).
