@@ -8,7 +8,7 @@ type GetSpanNamesInput struct {
 	// ServiceName filters by service name (required).
 	ServiceName string `json:"service_name" jsonschema:"Filter by service name (required). Use get_services to discover valid names"`
 
-	// Pattern is an optional regex pattern to filter span names (optional).
+	// Pattern is an optional regex pattern to filter span names.
 	Pattern string `json:"pattern,omitempty" jsonschema:"Optional regex pattern to filter span names"`
 
 	// SpanKind filters by span kind (optional, e.g., SERVER, CLIENT, PRODUCER, CONSUMER, INTERNAL).

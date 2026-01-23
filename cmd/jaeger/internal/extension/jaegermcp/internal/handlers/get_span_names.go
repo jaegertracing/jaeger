@@ -5,6 +5,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -47,7 +48,7 @@ func (h *getSpanNamesHandler) handle(
 ) (*mcp.CallToolResult, types.GetSpanNamesOutput, error) {
 	// Validate service name
 	if input.ServiceName == "" {
-		return nil, types.GetSpanNamesOutput{}, fmt.Errorf("service_name is required")
+		return nil, types.GetSpanNamesOutput{}, errors.New("service_name is required")
 	}
 
 	// Set default limit
@@ -73,7 +74,7 @@ func (h *getSpanNamesHandler) handle(
 	if input.Pattern != "" {
 		pattern, err := regexp.Compile(input.Pattern)
 		if err != nil {
-			return nil, types.GetSpanNamesOutput{}, fmt.Errorf("invalid regex pattern: %w", err)
+			return nil, types.GetSpanNamesOutput{}, fmt.Errorf("invalid pattern: %w", err)
 		}
 		for _, op := range operations {
 			if pattern.MatchString(op.Name) {

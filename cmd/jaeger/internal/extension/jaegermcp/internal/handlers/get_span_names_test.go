@@ -116,7 +116,7 @@ func TestGetSpanNamesHandler_Handle(t *testing.T) {
 				Pattern:     "[invalid",
 			},
 			mockOps:     []tracestore.Operation{},
-			expectedErr: "invalid regex pattern",
+			expectedErr: "invalid pattern",
 		},
 		{
 			name: "storage error",
