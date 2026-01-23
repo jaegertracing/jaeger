@@ -124,7 +124,7 @@ func main() {
 				logger.Fatal("Could not start servers", zap.Error(err))
 			}
 
-			svc.RunAndThen(func() {
+			return svc.RunAndThen(func() {
 				server.Close()
 				if closer, ok := traceFactory.(io.Closer); ok {
 					if err := closer.Close(); err != nil {
@@ -132,7 +132,6 @@ func main() {
 					}
 				}
 			})
-			return nil
 		},
 	}
 
