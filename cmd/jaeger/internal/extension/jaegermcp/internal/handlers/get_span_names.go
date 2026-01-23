@@ -96,12 +96,12 @@ func (h *getSpanNamesHandler) handle(
 	}
 
 	// Build output
-	spanNames := make([]types.SpanNameInfo, len(filteredOps))
-	for i, op := range filteredOps {
-		spanNames[i] = types.SpanNameInfo{
+	var spanNames []types.SpanNameInfo
+	for _, op := range filteredOps {
+		spanNames = append(spanNames, types.SpanNameInfo{
 			Name:     op.Name,
 			SpanKind: op.SpanKind,
-		}
+		})
 	}
 
 	return nil, types.GetSpanNamesOutput{SpanNames: spanNames}, nil

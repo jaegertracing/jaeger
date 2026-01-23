@@ -29,5 +29,5 @@ type SpanNameInfo struct {
 	Name string `json:"name" jsonschema:"Span name"`
 
 	// SpanKind is the span kind (e.g., SERVER, CLIENT).
-	SpanKind string `json:"span_kind,omitempty" jsonschema:"Span kind if available"`
+	SpanKind string `json:"span_kind" jsonschema:"Span kind if available"`
 }

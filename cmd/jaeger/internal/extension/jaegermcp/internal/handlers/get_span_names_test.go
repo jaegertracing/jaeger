@@ -31,13 +31,12 @@ func (m *mockGetOperationsQueryService) GetOperations(ctx context.Context, query
 
 func TestGetSpanNamesHandler_Handle(t *testing.T) {
 	tests := []struct {
-		name          string
-		input         types.GetSpanNamesInput
-		mockOps       []tracestore.Operation
-		mockErr       error
-		expectedCount int
-		expectedErr   string
-		expectedNames []string
+		name           string
+		input          types.GetSpanNamesInput
+		mockOps        []tracestore.Operation
+		mockErr        error
+		expectedOutput types.GetSpanNamesOutput
+		expectedErr    string
 	}{
 		{
 			name: "successful retrieval",
@@ -49,8 +48,13 @@ func TestGetSpanNamesHandler_Handle(t *testing.T) {
 				{Name: "GET /api/orders", SpanKind: "SERVER"},
 				{Name: "POST /api/checkout", SpanKind: "SERVER"},
 			},
-			expectedCount: 3,
-			expectedNames: []string{"GET /api/orders", "GET /api/users", "POST /api/checkout"},
+			expectedOutput: types.GetSpanNamesOutput{
+				SpanNames: []types.SpanNameInfo{
+					{Name: "GET /api/orders", SpanKind: "SERVER"},
+					{Name: "GET /api/users", SpanKind: "SERVER"},
+					{Name: "POST /api/checkout", SpanKind: "SERVER"},
+				},
+			},
 		},
 		{
 			name: "empty service name",
@@ -70,8 +74,12 @@ func TestGetSpanNamesHandler_Handle(t *testing.T) {
 				{Name: "GET /api/orders", SpanKind: "SERVER"},
 				{Name: "POST /api/checkout", SpanKind: "SERVER"},
 			},
-			expectedCount: 2,
-			expectedNames: []string{"GET /api/orders", "GET /api/users"},
+			expectedOutput: types.GetSpanNamesOutput{
+				SpanNames: []types.SpanNameInfo{
+					{Name: "GET /api/orders", SpanKind: "SERVER"},
+					{Name: "GET /api/users", SpanKind: "SERVER"},
+				},
+			},
 		},
 		{
 			name: "with span kind filter",
@@ -83,8 +91,12 @@ func TestGetSpanNamesHandler_Handle(t *testing.T) {
 				{Name: "call-backend", SpanKind: "CLIENT"},
 				{Name: "call-database", SpanKind: "CLIENT"},
 			},
-			expectedCount: 2,
-			expectedNames: []string{"call-backend", "call-database"},
+			expectedOutput: types.GetSpanNamesOutput{
+				SpanNames: []types.SpanNameInfo{
+					{Name: "call-backend", SpanKind: "CLIENT"},
+					{Name: "call-database", SpanKind: "CLIENT"},
+				},
+			},
 		},
 		{
 			name: "with limit",
@@ -98,16 +110,22 @@ func TestGetSpanNamesHandler_Handle(t *testing.T) {
 				{Name: "op3", SpanKind: "SERVER"},
 				{Name: "op4", SpanKind: "SERVER"},
 			},
-			expectedCount: 2,
-			expectedNames: []string{"op1", "op2"},
+			expectedOutput: types.GetSpanNamesOutput{
+				SpanNames: []types.SpanNameInfo{
+					{Name: "op1", SpanKind: "SERVER"},
+					{Name: "op2", SpanKind: "SERVER"},
+				},
+			},
 		},
 		{
 			name: "default limit 100",
 			input: types.GetSpanNamesInput{
 				ServiceName: "frontend",
 			},
-			mockOps:       generateOperations(150),
-			expectedCount: 100,
+			mockOps: generateOperations(150),
+			expectedOutput: types.GetSpanNamesOutput{
+				SpanNames: generateSpanNameInfos(100),
+			},
 		},
 		{
 			name: "invalid regex pattern",
@@ -131,8 +149,8 @@ func TestGetSpanNamesHandler_Handle(t *testing.T) {
 			input: types.GetSpanNamesInput{
 				ServiceName: "nonexistent",
 			},
-			mockOps:       []tracestore.Operation{},
-			expectedCount: 0,
+			mockOps:        []tracestore.Operation{},
+			expectedOutput: types.GetSpanNamesOutput{},
 		},
 		{
 			name: "pattern matches nothing",
@@ -143,7 +161,7 @@ func TestGetSpanNamesHandler_Handle(t *testing.T) {
 			mockOps: []tracestore.Operation{
 				{Name: "GET /api/users", SpanKind: "SERVER"},
 			},
-			expectedCount: 0,
+			expectedOutput: types.GetSpanNamesOutput{},
 		},
 	}
 
@@ -160,21 +178,12 @@ func TestGetSpanNamesHandler_Handle(t *testing.T) {
 			_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, tt.input)
 
 			if tt.expectedErr != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedErr)
+				require.ErrorContains(t, err, tt.expectedErr)
 				return
 			}
 
 			require.NoError(t, err)
-			assert.Len(t, output.SpanNames, tt.expectedCount)
-
-			if len(tt.expectedNames) > 0 {
-				actualNames := make([]string, len(output.SpanNames))
-				for i, sn := range output.SpanNames {
-					actualNames[i] = sn.Name
-				}
-				assert.Equal(t, tt.expectedNames, actualNames)
-			}
+			assert.Equal(t, tt.expectedOutput, output)
 		})
 	}
 }
@@ -195,4 +204,16 @@ func generateOperations(n int) []tracestore.Operation {
 		}
 	}
 	return ops
+}
+
+// generateSpanNameInfos creates n span name infos for testing
+func generateSpanNameInfos(n int) []types.SpanNameInfo {
+	infos := make([]types.SpanNameInfo, n)
+	for i := 0; i < n; i++ {
+		infos[i] = types.SpanNameInfo{
+			Name:     fmt.Sprintf("operation%03d", i),
+			SpanKind: "SERVER",
+		}
+	}
+	return infos
 }
