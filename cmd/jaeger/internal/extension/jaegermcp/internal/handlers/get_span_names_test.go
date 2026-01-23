@@ -180,8 +180,8 @@ func TestGetSpanNamesHandler_Handle(t *testing.T) {
 }
 
 func TestNewGetSpanNamesHandler(t *testing.T) {
-	mock := &mockGetOperationsQueryService{}
-	handler := &getSpanNamesHandler{queryService: mock}
+	// Test that NewGetSpanNamesHandler returns a valid handler function
+	handler := NewGetSpanNamesHandler(nil)
 	assert.NotNil(t, handler)
 }
 
