@@ -169,7 +169,7 @@ func (*getCriticalPathHandler) buildOutput(
 		segments = append(segments, types.CriticalPathSegment{
 			SpanID:        section.SpanID,
 			Service:       serviceName,
-			Operation:     span.Name(),
+			SpanName:      span.Name(),
 			SelfTimeUs:    selfTime,
 			StartOffsetUs: section.SectionStart - traceStartTime,
 			EndOffsetUs:   section.SectionEnd - traceStartTime,

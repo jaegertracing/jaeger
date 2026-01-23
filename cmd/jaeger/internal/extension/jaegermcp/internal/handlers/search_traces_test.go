@@ -29,7 +29,7 @@ func TestSearchTracesHandler_Handle_Success(t *testing.T) {
 	summary := buildTraceSummary(testTrace)
 
 	assert.Equal(t, "frontend", summary.RootService)
-	assert.Equal(t, "/api/checkout", summary.RootOperation)
+	assert.Equal(t, "/api/checkout", summary.RootSpanName)
 	assert.Equal(t, 1, summary.SpanCount)
 	assert.Equal(t, 1, summary.ServiceCount)
 	assert.False(t, summary.HasErrors)
@@ -41,7 +41,7 @@ func TestSearchTracesHandler_BuildSummary_WithErrors(t *testing.T) {
 	summary := buildTraceSummary(testTrace)
 
 	assert.Equal(t, "payment", summary.RootService)
-	assert.Equal(t, "/process", summary.RootOperation)
+	assert.Equal(t, "/process", summary.RootSpanName)
 	assert.True(t, summary.HasErrors)
 }
 
@@ -63,9 +63,9 @@ func TestSearchTracesHandler_Handle_FullWorkflow(t *testing.T) {
 	handler := &searchTracesHandler{queryService: mock}
 
 	input := types.SearchTracesInput{
-		StartTimeMin:  "-1h",
-		ServiceName:   "cart-service",
-		OperationName: "/get-cart",
+		StartTimeMin: "-1h",
+		ServiceName:  "cart-service",
+		SpanName:     "/get-cart",
 	}
 
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
@@ -73,7 +73,7 @@ func TestSearchTracesHandler_Handle_FullWorkflow(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, output.Traces, 1)
 	assert.Equal(t, "cart-service", output.Traces[0].RootService)
-	assert.Equal(t, "/get-cart", output.Traces[0].RootOperation)
+	assert.Equal(t, "/get-cart", output.Traces[0].RootSpanName)
 }
 
 func TestSearchTracesHandler_Handle_WithStartTimeMax(t *testing.T) {
