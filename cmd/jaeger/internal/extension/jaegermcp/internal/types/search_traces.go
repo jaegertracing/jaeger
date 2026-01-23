@@ -47,12 +47,12 @@ type SearchTracesOutput struct {
 
 // TraceSummary contains lightweight metadata about a single trace.
 type TraceSummary struct {
-	TraceID       string `json:"trace_id" jsonschema:"Unique identifier for the trace"`
+	TraceID      string `json:"trace_id" jsonschema:"Unique identifier for the trace"`
 	RootService  string `json:"root_service" jsonschema:"Service name of the root span"`
 	RootSpanName string `json:"root_span_name" jsonschema:"Span name of the root span"`
 	StartTime    string `json:"start_time" jsonschema:"Trace start time in RFC3339 format"`
-	DurationUs    int64  `json:"duration_us" jsonschema:"Total trace duration in microseconds"`
-	SpanCount     int    `json:"span_count" jsonschema:"Total number of spans in the trace"`
-	ServiceCount  int    `json:"service_count" jsonschema:"Number of unique services in the trace"`
-	HasErrors     bool   `json:"has_errors" jsonschema:"Whether the trace contains any error spans"`
+	DurationUs   int64  `json:"duration_us" jsonschema:"Total trace duration in microseconds"`
+	SpanCount    int    `json:"span_count" jsonschema:"Total number of spans in the trace"`
+	ServiceCount int    `json:"service_count" jsonschema:"Number of unique services in the trace"`
+	HasErrors    bool   `json:"has_errors" jsonschema:"Whether the trace contains any error spans"`
 }
