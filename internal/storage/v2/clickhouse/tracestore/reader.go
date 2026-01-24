@@ -430,7 +430,7 @@ func buildStringAttributeCondition(q *strings.Builder, args *[]any, key string, 
 	}
 
 	first := true
-	for level, types := range levelTypes {
+	appendLevel := func(types []string, prefix string) error {
 		for _, t := range types {
 			if !first {
 				q.WriteString(" OR ")
@@ -469,26 +469,25 @@ func buildStringAttributeCondition(q *strings.Builder, args *[]any, key string, 
 				return fmt.Errorf("unsupported attribute type %q for key %q", t, key)
 			}
 
-			var colType string
+			colType := t
 			if t == "bytes" || t == "map" || t == "slice" {
 				colType = "complex"
-			} else {
-				colType = t
-			}
-
-			var prefix string
-			switch level {
-			case "resource":
-				prefix = "resource_"
-			case "scope":
-				prefix = "scope_"
-			default:
-				prefix = ""
 			}
 
 			q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s." + prefix + colType + "_attributes.key, s." + prefix + colType + "_attributes.value)")
 			*args = append(*args, attrKey, val)
 		}
+		return nil
+	}
+
+	if err := appendLevel(levelTypes.resource, "resource_"); err != nil {
+		return err
+	}
+	if err := appendLevel(levelTypes.scope, "scope_"); err != nil {
+		return err
+	}
+	if err := appendLevel(levelTypes.span, ""); err != nil {
+		return err
 	}
 
 	return nil

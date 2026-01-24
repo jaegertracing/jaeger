@@ -84,6 +84,33 @@ func TestGetAttributeMetadata_ErrorCases(t *testing.T) {
 			},
 			expectedErr: "error iterating attribute metadata rows",
 		},
+		{
+			name: "UnknownLevelError",
+			driver: &testDriver{
+				t: t,
+				queryResponses: map[string]*testQueryResponse{
+					sql.SelectAttributeMetadata: {
+						rows: &testRows[dbmodel.AttributeMetadata]{
+							data: []dbmodel.AttributeMetadata{{
+								AttributeKey: "http.method",
+								Type:         "str",
+								Level:        "unknown",
+							}},
+							scanFn: func(dest any, src dbmodel.AttributeMetadata) error {
+								ptr, ok := dest.(*dbmodel.AttributeMetadata)
+								if !ok {
+									return assert.AnError
+								}
+								*ptr = src
+								return nil
+							},
+						},
+						err: nil,
+					},
+				},
+			},
+			expectedErr: "unknown attribute level",
+		},
 	}
 
 	for _, tt := range tests {

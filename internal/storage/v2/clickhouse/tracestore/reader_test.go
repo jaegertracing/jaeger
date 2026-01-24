@@ -1221,7 +1221,7 @@ func TestBuildStringAttributeCondition_Errors(t *testing.T) {
 			name:      "parse bool fails",
 			attrValue: "not-bool",
 			metadata: attributeMetadata{
-				"k": {"span": {"bool"}},
+				"k": {span: []string{"bool"}},
 			},
 			expectedErr: "failed to parse bool attribute",
 		},
@@ -1229,7 +1229,7 @@ func TestBuildStringAttributeCondition_Errors(t *testing.T) {
 			name:      "parse double fails",
 			attrValue: "not-float",
 			metadata: attributeMetadata{
-				"k": {"span": {"double"}},
+				"k": {span: []string{"double"}},
 			},
 			expectedErr: "failed to parse double attribute",
 		},
@@ -1237,7 +1237,7 @@ func TestBuildStringAttributeCondition_Errors(t *testing.T) {
 			name:      "parse int fails",
 			attrValue: "not-int",
 			metadata: attributeMetadata{
-				"k": {"span": {"int"}},
+				"k": {span: []string{"int"}},
 			},
 			expectedErr: "failed to parse int attribute",
 		},
@@ -1245,7 +1245,7 @@ func TestBuildStringAttributeCondition_Errors(t *testing.T) {
 			name:      "unsupported type",
 			attrValue: "whatever",
 			metadata: attributeMetadata{
-				"k": {"span": {"unknown"}},
+				"k": {span: []string{"unknown"}},
 			},
 			expectedErr: "unsupported attribute type",
 		},

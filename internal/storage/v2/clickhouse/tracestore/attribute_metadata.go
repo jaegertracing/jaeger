@@ -14,10 +14,15 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
-// attributeMetadata maps attribute keys to levels, and each level to a list of types.
-// Structure: attributeMetadata[key][level] = []type
-// Example: attributeMetadata["http.status"]["span"] = ["int", "str"]
-type attributeMetadata map[string]map[string][]string
+type levelAttributes struct {
+	resource []string
+	scope    []string
+	span     []string
+}
+
+// attributeMetadata maps attribute keys to their types per level.
+// Example: attributeMetadata["http.status"].span = ["int", "str"]
+type attributeMetadata map[string]levelAttributes
 
 // getAttributeMetadata retrieves the types stored in ClickHouse for attributes that arrive as strings.
 //
@@ -60,10 +65,18 @@ func (r *Reader) getAttributeMetadata(ctx context.Context, attributes pcommon.Ma
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 
-		if metadata[attrMeta.AttributeKey] == nil {
-			metadata[attrMeta.AttributeKey] = make(map[string][]string)
+		levels := metadata[attrMeta.AttributeKey]
+		switch attrMeta.Level {
+		case "resource":
+			levels.resource = append(levels.resource, attrMeta.Type)
+		case "scope":
+			levels.scope = append(levels.scope, attrMeta.Type)
+		case "span":
+			levels.span = append(levels.span, attrMeta.Type)
+		default:
+			return nil, fmt.Errorf("unknown attribute level %q", attrMeta.Level)
 		}
-		metadata[attrMeta.AttributeKey][attrMeta.Level] = append(metadata[attrMeta.AttributeKey][attrMeta.Level], attrMeta.Type)
+		metadata[attrMeta.AttributeKey] = levels
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating attribute metadata rows: %w", err)
