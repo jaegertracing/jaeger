@@ -44,11 +44,13 @@ const (
 	paramDurationMin    = "query.duration_min"
 	paramDurationMax    = "query.duration_max"
 	paramQueryRawTraces = "query.raw_traces"
+	paramLookback       = "lookback"
 
-	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
-	routeFindTraces    = "/api/v3/traces"
-	routeGetServices   = "/api/v3/services"
-	routeGetOperations = "/api/v3/operations"
+	routeGetTrace        = "/api/v3/traces/{" + paramTraceID + "}"
+	routeFindTraces      = "/api/v3/traces"
+	routeGetServices     = "/api/v3/services"
+	routeGetOperations   = "/api/v3/operations"
+	routeGetDependencies = "/api/v3/dependencies"
 )
 
 // HTTPGateway exposes APIv3 HTTP endpoints.
@@ -65,6 +67,7 @@ func (h *HTTPGateway) RegisterRoutes(router *mux.Router) {
 	h.addRoute(router, h.findTraces, routeFindTraces).Methods(http.MethodGet)
 	h.addRoute(router, h.getServices, routeGetServices).Methods(http.MethodGet)
 	h.addRoute(router, h.getOperations, routeGetOperations).Methods(http.MethodGet)
+	h.addRoute(router, h.getDependencies, routeGetDependencies).Methods(http.MethodGet)
 }
 
 // addRoute adds a new endpoint to the router with given path and handler function.
@@ -298,6 +301,59 @@ func (h *HTTPGateway) getOperations(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	h.marshalResponse(&api_v3.GetOperationsResponse{Operations: apiOperations}, w)
+}
+
+func (h *HTTPGateway) getDependencies(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	endTimeStr := q.Get(paramEndTime)
+	lookbackStr := q.Get(paramLookback)
+
+	if endTimeStr == "" || lookbackStr == "" {
+		err := fmt.Errorf("%s and %s are required", paramEndTime, paramLookback)
+		h.tryHandleError(w, err, http.StatusBadRequest)
+		return
+	}
+
+	endTime, err := time.Parse(time.RFC3339Nano, endTimeStr)
+	if h.tryParamError(w, err, paramEndTime) {
+		return
+	}
+
+	lookback, err := time.ParseDuration(lookbackStr)
+	if h.tryParamError(w, err, paramLookback) {
+		return
+	}
+
+	dependencies, err := h.QueryService.GetDependencies(r.Context(), endTime, lookback)
+	if h.tryHandleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+
+	// Return dependencies as JSON directly since api_v3 doesn't have GetDependencies proto yet
+	type dependencyLink struct {
+		Parent    string `json:"parent"`
+		Child     string `json:"child"`
+		CallCount uint64 `json:"callCount"`
+		Source    string `json:"source,omitempty"`
+	}
+
+	response := struct {
+		Dependencies []dependencyLink `json:"dependencies"`
+	}{
+		Dependencies: make([]dependencyLink, 0, len(dependencies)),
+	}
+
+	for _, dep := range dependencies {
+		response.Dependencies = append(response.Dependencies, dependencyLink{
+			Parent:    dep.Parent,
+			Child:     dep.Child,
+			CallCount: dep.CallCount,
+			Source:    dep.Source,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 func spanNameHandler(spanName string, handler http.Handler) http.Handler {
