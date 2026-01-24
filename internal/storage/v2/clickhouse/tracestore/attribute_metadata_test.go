@@ -122,3 +122,20 @@ func TestGetAttributeMetadata_ErrorCases(t *testing.T) {
 		})
 	}
 }
+
+func TestGetAttributeMetadata_NoStringAttributes(t *testing.T) {
+	attrs := pcommon.NewMap()
+	attrs.PutBool("some.bool", true)
+	attrs.PutInt("some.int", 42)
+	attrs.PutDouble("some.double", 3.14)
+
+	driver := &testDriver{
+		t: t,
+	}
+
+	reader := NewReader(driver, ReaderConfig{})
+	metadata, err := reader.getAttributeMetadata(t.Context(), attrs)
+	require.NoError(t, err)
+	assert.Empty(t, metadata)
+	assert.Empty(t, driver.recordedQueries)
+}

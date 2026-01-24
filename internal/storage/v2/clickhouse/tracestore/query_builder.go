@@ -50,16 +50,6 @@ func appendArrayExists(q *strings.Builder, indent int, prefix, colType string) {
 	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s." + prefix + colType + "_attributes.key, s." + prefix + colType + "_attributes.value)")
 }
 
-// hasStringAttributes returns true if any attribute in the map is of string type.
-func hasStringAttributes(attributes pcommon.Map) bool {
-	for _, attr := range attributes.All() {
-		if attr.Type() == pcommon.ValueTypeStr {
-			return true
-		}
-	}
-	return false
-}
-
 func buildFindTracesQuery(traceIDsQuery string) string {
 	inner := indentBlock("SELECT trace_id FROM (\n" + indentBlock(strings.TrimSpace(traceIDsQuery)) + "\n)")
 	base := strings.TrimRight(sql.SelectSpansQuery, "\n")
@@ -107,15 +97,9 @@ func (r *Reader) buildFindTraceIDsQuery(
 		args = append(args, query.StartTimeMax)
 	}
 
-	// Only query attribute metadata if requested and string attributes are present.
-	// Non-string attributes (bool/double/int/bytes/slice/map) don't require metadata.
-	var attributeMetadata attributeMetadata
-	if hasStringAttributes(query.Attributes) {
-		am, err := r.getAttributeMetadata(ctx, query.Attributes)
-		if err != nil {
-			return "", nil, fmt.Errorf("failed to get attribute metadata: %w", err)
-		}
-		attributeMetadata = am
+	attributeMetadata, err := r.getAttributeMetadata(ctx, query.Attributes)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to get attribute metadata: %w", err)
 	}
 
 	if err := buildAttributeConditions(&q, &args, query.Attributes, attributeMetadata); err != nil {

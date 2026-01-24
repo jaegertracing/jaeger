@@ -52,13 +52,18 @@ type attributeMetadata map[string]levelAttributes
 // that originated from the query API's string-only input format.
 func (r *Reader) getAttributeMetadata(ctx context.Context, attributes pcommon.Map) (attributeMetadata, error) {
 	query, args := buildSelectAttributeMetadataQuery(attributes)
+	metadata := make(attributeMetadata)
+	if len(args) == 0 {
+		// No string attributes to look up
+		return metadata, nil
+	}
+
 	rows, err := r.conn.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query attribute metadata: %w", err)
 	}
 	defer rows.Close()
 
-	metadata := make(attributeMetadata)
 	for rows.Next() {
 		var attrMeta dbmodel.AttributeMetadata
 		if err := rows.ScanStruct(&attrMeta); err != nil {
@@ -85,11 +90,9 @@ func (r *Reader) getAttributeMetadata(ctx context.Context, attributes pcommon.Ma
 }
 
 func buildSelectAttributeMetadataQuery(attributes pcommon.Map) (string, []any) {
-	var q strings.Builder
-	q.WriteString(sql.SelectAttributeMetadata)
 	args := []any{}
-
 	var placeholders []string
+
 	for key, attr := range attributes.All() {
 		if attr.Type() == pcommon.ValueTypeStr {
 			placeholders = append(placeholders, "?")
@@ -97,6 +100,8 @@ func buildSelectAttributeMetadataQuery(attributes pcommon.Map) (string, []any) {
 		}
 	}
 
+	var q strings.Builder
+	q.WriteString(sql.SelectAttributeMetadata)
 	if len(placeholders) > 0 {
 		q.WriteString(" WHERE attribute_key IN (")
 		q.WriteString(strings.Join(placeholders, ", "))
