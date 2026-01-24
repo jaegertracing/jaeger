@@ -56,6 +56,17 @@ func appendArrayExists(q *strings.Builder, indent int, prefix, colType string) {
 	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s." + prefix + colType + "_attributes.key, s." + prefix + colType + "_attributes.value)")
 }
 
+func appendStringAttributeFallback(q *strings.Builder, args *[]any, key string, attr pcommon.Value) {
+	appendArrayExists(q, 2, "", "str")
+	appendNewlineAndIndent(q, 2)
+	q.WriteString("OR ")
+	appendArrayExists(q, 2, "resource_", "str")
+	appendNewlineAndIndent(q, 2)
+	q.WriteString("OR ")
+	appendArrayExists(q, 2, "scope_", "str")
+	*args = append(*args, key, attr.Str(), key, attr.Str(), key, attr.Str())
+}
+
 func buildFindTracesQuery(traceIDsQuery string) string {
 	inner := indentBlock("SELECT trace_id FROM (\n" + indentBlock(strings.TrimSpace(traceIDsQuery)) + "\n)")
 	base := strings.TrimRight(sql.SelectSpansQuery, "\n")
@@ -130,9 +141,7 @@ func buildAttributeConditions(q *strings.Builder, args *[]any, attributes pcommo
 		case pcommon.ValueTypeInt:
 			buildIntAttributeCondition(q, args, key, attr)
 		case pcommon.ValueTypeStr:
-			if err := buildStringAttributeCondition(q, args, key, attr, metadata); err != nil {
-				return err
-			}
+			buildStringAttributeCondition(q, args, key, attr, metadata)
 		case pcommon.ValueTypeBytes:
 			buildBytesAttributeCondition(q, args, key, attr)
 		case pcommon.ValueTypeSlice:
@@ -257,53 +266,51 @@ func parseStringToTypedValue(key string, attr pcommon.Value, t string) (typedAtt
 // We must look up the attribute_metadata to determine the actual type(s) and
 // level(s) where this attribute is stored, then convert the string back to the
 // appropriate type for querying.
+//
+// If metadata exists but the value cannot be parsed as any of the metadata types,
+// we fall back to treating it as a string attribute.
 func buildStringAttributeCondition(
 	q *strings.Builder,
 	args *[]any,
 	key string,
 	attr pcommon.Value,
 	metadata attributeMetadata,
-) error {
+) {
 	levelTypes, ok := metadata[key]
 
 	// if no metadata found, assume string type
 	if !ok {
-		appendArrayExists(q, 2, "", "str")
-		appendNewlineAndIndent(q, 2)
-		q.WriteString("OR ")
-		appendArrayExists(q, 2, "resource_", "str")
-		appendNewlineAndIndent(q, 2)
-		q.WriteString("OR ")
-		appendArrayExists(q, 2, "scope_", "str")
-		*args = append(*args, key, attr.Str(), key, attr.Str(), key, attr.Str())
-		return nil
+		appendStringAttributeFallback(q, args, key, attr)
+		return
 	}
 
-	first := true
-	appendLevel := func(types []string, prefix string) error {
+	generatedCondition := false
+	appendLevel := func(types []string, prefix string) {
 		for _, t := range types {
-			if !first {
+			tav, err := parseStringToTypedValue(key, attr, t)
+			if err != nil {
+				// Skip types that can't parse this value
+				continue
+			}
+
+			if generatedCondition {
 				appendNewlineAndIndent(q, 2)
 				q.WriteString("OR ")
 			}
-			first = false
-
-			tav, err := parseStringToTypedValue(key, attr, t)
-			if err != nil {
-				return err
-			}
+			generatedCondition = true
 
 			appendArrayExists(q, 2, prefix, tav.columnType)
 			*args = append(*args, tav.attributeKey, tav.value)
 		}
-		return nil
 	}
 
-	if err := appendLevel(levelTypes.resource, "resource_"); err != nil {
-		return err
+	appendLevel(levelTypes.resource, "resource_")
+	appendLevel(levelTypes.scope, "scope_")
+	appendLevel(levelTypes.span, "")
+
+	// If no conditions were generated (all types failed to parse),
+	// fall back to treating it as a string attribute
+	if !generatedCondition {
+		appendStringAttributeFallback(q, args, key, attr)
 	}
-	if err := appendLevel(levelTypes.scope, "scope_"); err != nil {
-		return err
-	}
-	return appendLevel(levelTypes.span, "")
 }

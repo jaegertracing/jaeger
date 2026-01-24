@@ -63,60 +63,39 @@ func TestBuildFindTraceIDsQuery_AttributeMetadataError(t *testing.T) {
 	require.ErrorContains(t, err, "failed to get attribute metadata")
 }
 
-func TestBuildStringAttributeCondition_Errors(t *testing.T) {
+func TestBuildStringAttributeCondition_Fallbacks(t *testing.T) {
 	cases := []struct {
-		name        string
-		attrValue   string
-		metadata    attributeMetadata
-		expectedErr string
+		name      string
+		attrValue string
+		metadata  attributeMetadata
 	}{
 		{
-			name:      "parse bool fails",
+			name:      "parse bool fails falls back to str",
 			attrValue: "not-bool",
 			metadata: attributeMetadata{
 				"k": {span: []string{"bool"}},
 			},
-			expectedErr: "failed to parse bool attribute",
 		},
 		{
-			name:      "parse double fails",
+			name:      "parse double fails falls back to str",
 			attrValue: "not-float",
 			metadata: attributeMetadata{
 				"k": {span: []string{"double"}},
 			},
-			expectedErr: "failed to parse double attribute",
 		},
 		{
-			name:      "parse int fails",
+			name:      "parse int fails falls back to str",
 			attrValue: "not-int",
 			metadata: attributeMetadata{
 				"k": {span: []string{"int"}},
 			},
-			expectedErr: "failed to parse int attribute",
 		},
 		{
-			name:      "parse fails at resource level",
-			attrValue: "not-bool",
-			metadata: attributeMetadata{
-				"k": {resource: []string{"bool"}},
-			},
-			expectedErr: "failed to parse bool attribute",
-		},
-		{
-			name:      "parse fails at scope level",
-			attrValue: "not-int",
-			metadata: attributeMetadata{
-				"k": {scope: []string{"int"}},
-			},
-			expectedErr: "failed to parse int attribute",
-		},
-		{
-			name:      "unsupported type",
+			name:      "unsupported type falls back to str",
 			attrValue: "whatever",
 			metadata: attributeMetadata{
 				"k": {span: []string{"unknown"}},
 			},
-			expectedErr: "unsupported attribute type",
 		},
 	}
 
@@ -126,9 +105,31 @@ func TestBuildStringAttributeCondition_Errors(t *testing.T) {
 			var q strings.Builder
 			var args []any
 
-			err := buildStringAttributeCondition(&q, &args, "k", attr, tc.metadata)
-			require.Error(t, err)
-			assert.ErrorContains(t, err, tc.expectedErr)
+			buildStringAttributeCondition(&q, &args, "k", attr, tc.metadata)
+
+			query := q.String()
+			assert.Contains(t, query, "str_attributes")
+			assert.Contains(t, query, "resource_str_attributes")
+			assert.Contains(t, query, "scope_str_attributes")
+			assert.Len(t, args, 6)
 		})
 	}
+}
+
+func TestBuildStringAttributeCondition_MultipleTypes(t *testing.T) {
+	attr := pcommon.NewValueStr("123") // parses as both int and str
+	var q strings.Builder
+	var args []any
+
+	metadata := attributeMetadata{
+		"http.status": {span: []string{"int", "str"}},
+	}
+
+	buildStringAttributeCondition(&q, &args, "http.status", attr, metadata)
+
+	query := q.String()
+	assert.Contains(t, query, "int_attributes")
+	assert.Contains(t, query, "OR")
+	assert.Contains(t, query, "str_attributes")
+	assert.Len(t, args, 4) // two key-value pairs: one int, one str
 }
