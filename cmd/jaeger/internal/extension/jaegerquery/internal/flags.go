@@ -48,7 +48,10 @@ func DefaultQueryOptions() QueryOptions {
 	return QueryOptions{
 		MaxClockSkewAdjust: 0, // disabled by default
 		HTTP: confighttp.ServerConfig{
-			Endpoint: ports.PortToHostPort(ports.QueryHTTP),
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  ports.PortToHostPort(ports.QueryHTTP),
+				Transport: confignet.TransportTypeTCP,
+			},
 		},
 		GRPC: configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{

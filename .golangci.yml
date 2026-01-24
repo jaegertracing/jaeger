@@ -125,9 +125,6 @@ linters:
         # wtf: "you have exceeded the maximum number of public struct declarations"
         - name: max-public-structs
           disabled: true
-        # TBD - often triggered in tests
-        - name: unhandled-error
-          disabled: true
         # often looks like a red herring, needs investigation
         - name: flag-parameter
           disabled: true
@@ -183,6 +180,10 @@ linters:
       - linters:
           - staticcheck
         path: internal/grpctest/
+      - linters:
+          - revive
+        text: "unhandled-error"
+        path: _test\.go
     paths:
       - .*.pb.go$
       - mocks

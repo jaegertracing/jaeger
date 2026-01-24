@@ -164,3 +164,49 @@ func TestAggregateTraces_HandlesEmptyTraces(t *testing.T) {
 	require.Len(t, result, 1)
 	require.Equal(t, trace1, result[0])
 }
+
+func TestAggregateTraces_DoesNotYieldAfterConsumerStops(t *testing.T) {
+	// This test demonstrates why the `cont` variable is needed in AggregateTraces.
+	// Without it, the function would violate the iterator protocol by calling yield
+	// after the consumer has returned false.
+	//
+	// Setup: Create two separate traces with different IDs that will be yielded
+	// from separate batches. The consumer will stop after the first trace.
+	trace1 := ptrace.NewTraces()
+	resource1 := trace1.ResourceSpans().AppendEmpty()
+	scope1 := resource1.ScopeSpans().AppendEmpty()
+	span1 := scope1.Spans().AppendEmpty()
+	span1.SetTraceID(pcommon.TraceID([16]byte{1}))
+	span1.SetName("span1")
+
+	trace2 := ptrace.NewTraces()
+	resource2 := trace2.ResourceSpans().AppendEmpty()
+	scope2 := resource2.ScopeSpans().AppendEmpty()
+	span2 := scope2.Spans().AppendEmpty()
+	span2.SetTraceID(pcommon.TraceID([16]byte{2}))
+	span2.SetName("span2")
+
+	// Yield traces in separate batches - this ensures the final yield happens
+	// after the iterator completes, which is where the bug would manifest.
+	tracesSeq := func(yield func([]ptrace.Traces, error) bool) {
+		if !yield([]ptrace.Traces{trace1}, nil) {
+			return
+		}
+		yield([]ptrace.Traces{trace2}, nil)
+	}
+
+	var yieldCount int
+	aggregatedSeq := AggregateTraces(tracesSeq)
+
+	// Consumer stops after first yield
+	aggregatedSeq(func(_ ptrace.Traces, _ error) bool {
+		yieldCount++
+		return false // Stop iteration after first trace
+	})
+
+	// Without the `cont` variable, this would panic with:
+	// "runtime error: range function continued iteration after function for loop body returned false"
+	// The cont variable prevents the final yield (line 48-50 in aggregator.go) from
+	// being called after the consumer has already returned false.
+	require.Equal(t, 1, yieldCount, "yield should only be called once since consumer returned false")
+}

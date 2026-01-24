@@ -1,8 +1,8 @@
 header:
   schema-version: 1.0.0
-  last-updated: '2023-10-20'
-  last-reviewed: '2023-10-20'
-  expiration-date: '2024-10-20T01:00:00.000Z'
+  last-updated: '2026-01-16'
+  last-reviewed: '2026-01-16'
+  expiration-date: '2027-01-16T01:00:00.000Z'
   project-url: https://github.com/jaegertracing/jaeger/
   changelog: https://github.com/jaegertracing/jaeger/blob/main/CHANGELOG.md
   license: https://github.com/jaegertracing/jaeger/blob/main/LICENSE
@@ -32,6 +32,7 @@ security-artifacts:
   self-assessment:
     self-assessment-created: true
     evidence-url:
+    - https://tag-security.cncf.io/assessments/projects/jaeger/self-assessment/
     - https://github.com/cncf/tag-security/blob/main/assessments/projects/jaeger/self-assessment.md
 security-testing:
 - tool-type: sca

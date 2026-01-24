@@ -39,7 +39,7 @@ backends:
 `)
 	cfg := createDefaultConfig().(*Config)
 	require.NoError(t, conf.Unmarshal(cfg))
-	require.EqualError(t, cfg.Validate(), "empty backend configuration for storage 'some_storage'")
+	require.EqualError(t, cfg.Validate(), "trace storage 'some_storage': empty configuration")
 }
 
 func TestConfigDefaultMemory(t *testing.T) {

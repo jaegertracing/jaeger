@@ -18,12 +18,24 @@ This approach prevents context-window exhaustion in LLMs and enables more effici
 
 ✅ **Phase 1: Foundation (Complete)** - Extension scaffold, lifecycle management, and MCP SDK integration
 
+✅ **Phase 2: Storage Integration (Complete)** - Connection to jaegerquery extension for trace access
+
+🚧 **Phase 3: Advanced Tools (In Progress)** - Critical path analysis
+
 Future phases will add:
-- Phase 2: Basic MCP tools (search, span details, errors)
-- Phase 3: Advanced tools (topology, critical path)
+- Phase 2: Remaining basic MCP tools (search, span details, errors, get_services)
+- Phase 3: Remaining advanced tools (topology)
 - Phase 4: Documentation and observability
 
 See [ADR-002](../../../../docs/adr/002-mcp-server.md) for full design details.
+
+## Available Tools
+
+### Phase 1
+- ✅ `health` - Check server health and status
+
+### Phase 3
+- ✅ `get_critical_path` - Identify the sequence of spans forming the critical latency path
 
 ## Configuration
 
@@ -49,11 +61,18 @@ This extension depends on the [jaeger_query](../jaegerquery/) extension to acces
 
 ## Development Status
 
-Phase 1 implements:
+### Phase 1 (Complete)
 - ✅ Extension directory structure
 - ✅ Configuration validation
 - ✅ Factory implementation
 - ✅ Server lifecycle management
 - ✅ MCP SDK integration
 - ✅ Streamable HTTP transport
-- ✅ Basic health tool (placeholder for Phase 2)
+- ✅ Basic health tool
+
+### Phase 2 (Partial)
+- ✅ Storage integration with jaegerquery extension
+
+### Phase 3 (Partial)
+- ✅ Critical path algorithm ported from UI
+- ✅ `get_critical_path` tool implementation

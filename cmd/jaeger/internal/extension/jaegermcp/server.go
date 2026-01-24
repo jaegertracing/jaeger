@@ -53,7 +53,7 @@ func (*server) Dependencies() []component.ID {
 
 // Start initializes and starts the MCP server.
 func (s *server) Start(ctx context.Context, host component.Host) error {
-	s.telset.Logger.Info("Starting Jaeger MCP server", zap.String("endpoint", s.config.HTTP.Endpoint))
+	s.telset.Logger.Info("Starting Jaeger MCP server", zap.String("endpoint", s.config.HTTP.NetAddr.Endpoint))
 
 	// Get v2 QueryService from jaegerquery extension
 	queryExt, err := jaegerquery.GetExtension(host)
@@ -73,22 +73,13 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	s.mcpServer = mcp.NewServer(impl, &mcp.ServerOptions{})
 
 	// Register MCP tools
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "health",
-		Description: "Check if the Jaeger MCP server is running",
-	}, s.healthTool)
-
-	searchTracesHandler := handlers.NewSearchTracesHandler(s.queryAPI)
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "search_traces",
-		Description: "Find traces matching service, time, attributes, and duration criteria. Returns trace summary only.",
-	}, searchTracesHandler.Handle)
+	s.registerTools()
 
 	// Set up TCP listener with context
 	lc := net.ListenConfig{}
-	listener, err := lc.Listen(ctx, "tcp", s.config.HTTP.Endpoint)
+	listener, err := lc.Listen(ctx, "tcp", s.config.HTTP.NetAddr.Endpoint)
 	if err != nil {
-		return fmt.Errorf("failed to listen on %s: %w", s.config.HTTP.Endpoint, err)
+		return fmt.Errorf("failed to listen on %s: %w", s.config.HTTP.NetAddr.Endpoint, err)
 	}
 	s.listener = listener
 
@@ -111,7 +102,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	})
 
 	s.httpServer = &http.Server{
-		Handler:           mux,
+		Handler:           corsMiddleware(mux),
 		ReadHeaderTimeout: 30 * time.Second,
 	}
 
@@ -123,8 +114,8 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	}()
 
 	s.telset.Logger.Info("Jaeger MCP server started successfully",
-		zap.String("endpoint", s.config.HTTP.Endpoint),
-		zap.String("mcp_endpoint", "http://"+s.config.HTTP.Endpoint+"/mcp"))
+		zap.String("endpoint", s.config.HTTP.NetAddr.Endpoint),
+		zap.String("mcp_endpoint", "http://"+s.config.HTTP.NetAddr.Endpoint+"/mcp"))
 	return nil
 }
 
@@ -140,6 +131,64 @@ func (s *server) Shutdown(ctx context.Context) error {
 	}
 
 	return errors.Join(errs...)
+}
+
+// registerTools registers all MCP tools with the server.
+func (s *server) registerTools() {
+	// Get services tool (at the top - required for search_traces)
+	getServicesHandler := handlers.NewGetServicesHandler(s.queryAPI)
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "get_services",
+		Description: "List available service names. Use this first to discover valid service names for search_traces.",
+	}, getServicesHandler)
+
+	// Get span names tool (required for search_traces with span name filter)
+	getSpanNamesHandler := handlers.NewGetSpanNamesHandler(s.queryAPI)
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "get_span_names",
+		Description: "List available span names for a service. Supports regex filtering and span kind filtering.",
+	}, getSpanNamesHandler)
+
+	// Health check tool
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "health",
+		Description: "Check if the Jaeger MCP server is running",
+	}, s.healthTool)
+
+	// Search traces tool
+	searchTracesHandler := handlers.NewSearchTracesHandler(s.queryAPI)
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "search_traces",
+		Description: "Find traces matching service, time, attributes, and duration criteria. Returns trace summary only.",
+	}, searchTracesHandler)
+
+	// Get span details tool
+	getSpanDetailsHandler := handlers.NewGetSpanDetailsHandler(s.queryAPI)
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "get_span_details",
+		Description: "Fetch full details (attributes, events, links, status) for specific spans.",
+	}, getSpanDetailsHandler)
+
+	// Get trace errors tool
+	getTraceErrorsHandler := handlers.NewGetTraceErrorsHandler(s.queryAPI)
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "get_trace_errors",
+		Description: "Get full details for all spans with error status.",
+	}, getTraceErrorsHandler)
+
+	// Get trace topology tool
+	getTraceTopologyHandler := handlers.NewGetTraceTopologyHandler(s.queryAPI)
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "get_trace_topology",
+		Description: "Get the structural tree of a trace showing parent-child relationships, timing, and error locations. Does NOT return attributes or logs.",
+	}, getTraceTopologyHandler)
+
+	// Get critical path tool
+	getCriticalPathHandler := handlers.NewGetCriticalPathHandler(s.queryAPI)
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "get_critical_path",
+		Description: "Identify the sequence of spans forming the critical latency path (the blocking execution path).",
+	}, getCriticalPathHandler)
 }
 
 // HealthToolOutput is the strongly-typed output for the health tool.
@@ -161,4 +210,23 @@ func (s *server) healthTool(
 		Server:  s.config.ServerName,
 		Version: s.config.ServerVersion,
 	}, nil
+}
+
+// corsMiddleware wraps an http.Handler to add CORS headers.
+// This is required for browser-based MCP clients like the MCP Inspector.
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Accept, Mcp-Session-Id, Mcp-Protocol-Version, Last-Event-ID")
+		w.Header().Set("Access-Control-Expose-Headers", "Mcp-Session-Id")
+
+		// Handle preflight requests
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }

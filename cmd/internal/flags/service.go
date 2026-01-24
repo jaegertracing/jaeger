@@ -17,7 +17,6 @@ import (
 	"go.uber.org/zap/zapgrpc"
 	"google.golang.org/grpc/grpclog"
 
-	"github.com/jaegertracing/jaeger/internal/healthcheck"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metrics/metricsbuilder"
 	"github.com/jaegertracing/jaeger/ports"
@@ -108,25 +107,23 @@ func (s *Service) Start(v *viper.Viper) error {
 	return nil
 }
 
-// HC returns the reference to HeathCheck.
-func (s *Service) HC() *healthcheck.HealthCheck {
-	return s.Admin.HC()
-}
-
 // RunAndThen sets the health check to Ready and blocks until SIGTERM is received.
-// If then runs the shutdown function and exits.
-func (s *Service) RunAndThen(shutdown func()) {
-	s.HC().Ready()
+// It then runs the shutdown function and exits.
+func (s *Service) RunAndThen(shutdown func()) error {
+	s.Admin.Host().Ready()
 
 	<-s.signalsChannel
 
 	s.Logger.Info("Shutting down")
-	s.HC().Set(healthcheck.Unavailable)
+	s.Admin.Host().SetUnavailable()
 
 	if shutdown != nil {
 		shutdown()
 	}
 
-	s.Admin.Close()
-	s.Logger.Info("Shutdown complete")
+	err := s.Admin.Close()
+	if err == nil {
+		s.Logger.Info("Shutdown complete")
+	}
+	return err
 }

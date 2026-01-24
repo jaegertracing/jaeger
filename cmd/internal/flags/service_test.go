@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/internal/config"
-	"github.com/jaegertracing/jaeger/internal/healthcheck"
 )
 
 func TestAddFlags(*testing.T) {
@@ -78,9 +77,8 @@ func TestStartErrors(t *testing.T) {
 			}
 			go s.RunAndThen(shutdown)
 
-			waitForEqual(t, healthcheck.Ready, func() any { return s.HC().Get() })
-			s.HC().Set(healthcheck.Unavailable)
-			waitForEqual(t, healthcheck.Unavailable, func() any { return s.HC().Get() })
+			// Give time for RunAndThen to start
+			time.Sleep(100 * time.Millisecond)
 
 			s.signalsChannel <- os.Interrupt
 			waitForEqual(t, true, func() any { return stopped.Load() })

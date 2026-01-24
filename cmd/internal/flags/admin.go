@@ -15,11 +15,11 @@ import (
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
 	"github.com/jaegertracing/jaeger/internal/config/tlscfg"
-	"github.com/jaegertracing/jaeger/internal/healthcheck"
 	"github.com/jaegertracing/jaeger/internal/recoveryhandler"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/version"
@@ -33,42 +33,46 @@ var tlsAdminHTTPFlagsConfig = tlscfg.ServerFlagsConfig{
 	Prefix: "admin.http",
 }
 
-// AdminServer runs an HTTP server with admin endpoints, such as healthcheck at /, /metrics, etc.
+// AdminServer runs an HTTP server with admin endpoints, such as /metrics, /debug/pprof, health check, etc.
 type AdminServer struct {
 	logger    *zap.Logger
-	hc        *healthcheck.HealthCheck
 	mux       *http.ServeMux
 	server    *http.Server
 	serverCfg confighttp.ServerConfig
 	stopped   sync.WaitGroup
+	hc        *HealthHost
 }
 
 // NewAdminServer creates a new admin server.
 func NewAdminServer(hostPort string) *AdminServer {
 	return &AdminServer{
 		logger: zap.NewNop(),
-		hc:     healthcheck.New(),
 		mux:    http.NewServeMux(),
 		serverCfg: confighttp.ServerConfig{
-			Endpoint: hostPort,
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  hostPort,
+				Transport: confignet.TransportTypeTCP,
+			},
 		},
+		hc: NewHealthHost(),
 	}
 }
 
-// HC returns the reference to HeathCheck.
-func (s *AdminServer) HC() *healthcheck.HealthCheck {
+// Host returns the health host for this admin server.
+// It implements component.Host and componentstatus.Reporter,
+// allowing it to be used with telemetry.Settings and componentstatus.ReportStatus.
+func (s *AdminServer) Host() *HealthHost {
 	return s.hc
 }
 
 // setLogger initializes logger.
 func (s *AdminServer) setLogger(logger *zap.Logger) {
 	s.logger = logger
-	s.hc.SetLogger(logger)
 }
 
 // AddFlags registers CLI flags.
 func (s *AdminServer) AddFlags(flagSet *flag.FlagSet) {
-	flagSet.String(adminHTTPHostPort, s.serverCfg.Endpoint, fmt.Sprintf("The host:port (e.g. 127.0.0.1%s or %s) for the admin server, including health check, /metrics, etc.", s.serverCfg.Endpoint, s.serverCfg.Endpoint))
+	flagSet.String(adminHTTPHostPort, s.serverCfg.NetAddr.Endpoint, fmt.Sprintf("The host:port (e.g. 127.0.0.1%s or %s) for the admin server, including health check, /metrics, etc.", s.serverCfg.NetAddr.Endpoint, s.serverCfg.NetAddr.Endpoint))
 	tlsAdminHTTPFlagsConfig.AddFlags(flagSet)
 }
 
@@ -81,7 +85,7 @@ func (s *AdminServer) initFromViper(v *viper.Viper, logger *zap.Logger) error {
 		return fmt.Errorf("failed to parse admin server TLS options: %w", err)
 	}
 
-	s.serverCfg.Endpoint = v.GetString(adminHTTPHostPort)
+	s.serverCfg.NetAddr.Endpoint = v.GetString(adminHTTPHostPort)
 	s.serverCfg.TLS = tlsAdminHTTP
 	return nil
 }
@@ -130,14 +134,11 @@ func (s *AdminServer) serveWithListener(l net.Listener) (err error) {
 		err := s.server.Serve(l)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			s.logger.Error("failed to serve", zap.Error(err))
-			s.hc.Set(healthcheck.Broken)
+			s.hc.SetUnavailable()
 		}
 	}()
 	wg.Wait() // wait for the server to start listening
-	s.logger.Info(
-		"Admin server started",
-		zap.String("http.host-port", l.Addr().String()),
-		zap.Stringer("health-status", s.hc.Get()))
+	s.logger.Info("Admin server started", zap.String("http.host-port", l.Addr().String()))
 	return nil
 }
 

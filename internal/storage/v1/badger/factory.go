@@ -203,7 +203,7 @@ func (f *Factory) maintenance() {
 			}
 
 			f.metrics.LastMaintenanceRun.Update(t.UnixNano())
-			f.diskStatisticsUpdate()
+			_ = f.diskStatisticsUpdate()
 		}
 	}
 }
