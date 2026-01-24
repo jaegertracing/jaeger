@@ -240,8 +240,27 @@ var marshalValueForQuery = func(v pcommon.Value) (string, error) {
 	return string(b), nil
 }
 
+func appendNewlineAndIndent(q *strings.Builder, indent int) {
+	q.WriteString("\n")
+	for i := 0; i < indent; i++ {
+		q.WriteString("\t")
+	}
+}
+
+func indentBlock(s string) string {
+	return "\t" + strings.ReplaceAll(s, "\n", "\n\t")
+}
+
+func appendAnd(q *strings.Builder, cond string) {
+	appendNewlineAndIndent(q, 1)
+	q.WriteString("AND ")
+	q.WriteString(cond)
+}
+
 func buildFindTracesQuery(traceIDsQuery string) string {
-	return sql.SelectSpansQuery + " WHERE s.trace_id IN (SELECT trace_id FROM (" + traceIDsQuery + ")) ORDER BY s.trace_id"
+	inner := indentBlock("SELECT trace_id FROM (\n" + indentBlock(strings.TrimSpace(traceIDsQuery)) + "\n)")
+	base := strings.TrimRight(sql.SelectSpansQuery, "\n")
+	return base + "\nWHERE s.trace_id IN (\n" + inner + "\n)\nORDER BY s.trace_id"
 }
 
 func (r *Reader) buildFindTraceIDsQuery(
@@ -261,27 +280,27 @@ func (r *Reader) buildFindTraceIDsQuery(
 	args := []any{}
 
 	if query.ServiceName != "" {
-		q.WriteString(" AND s.service_name = ?")
+		appendAnd(&q, "s.service_name = ?")
 		args = append(args, query.ServiceName)
 	}
 	if query.OperationName != "" {
-		q.WriteString(" AND s.name = ?")
+		appendAnd(&q, "s.name = ?")
 		args = append(args, query.OperationName)
 	}
 	if query.DurationMin > 0 {
-		q.WriteString(" AND s.duration >= ?")
+		appendAnd(&q, "s.duration >= ?")
 		args = append(args, query.DurationMin.Nanoseconds())
 	}
 	if query.DurationMax > 0 {
-		q.WriteString(" AND s.duration <= ?")
+		appendAnd(&q, "s.duration <= ?")
 		args = append(args, query.DurationMax.Nanoseconds())
 	}
 	if !query.StartTimeMin.IsZero() {
-		q.WriteString(" AND s.start_time >= ?")
+		appendAnd(&q, "s.start_time >= ?")
 		args = append(args, query.StartTimeMin)
 	}
 	if !query.StartTimeMax.IsZero() {
-		q.WriteString(" AND s.start_time <= ?")
+		appendAnd(&q, "s.start_time <= ?")
 		args = append(args, query.StartTimeMax)
 	}
 
@@ -300,7 +319,7 @@ func (r *Reader) buildFindTraceIDsQuery(
 		return "", nil, err
 	}
 
-	q.WriteString(" LIMIT ?")
+	q.WriteString("\nLIMIT ?")
 	args = append(args, limit)
 
 	return q.String(), args, nil
@@ -318,7 +337,7 @@ func hasStringAttributes(attributes pcommon.Map) bool {
 
 func buildAttributeConditions(q *strings.Builder, args *[]any, attributes pcommon.Map, metadata attributeMetadata) error {
 	for key, attr := range attributes.All() {
-		q.WriteString(" AND (")
+		appendAnd(q, "(")
 
 		switch attr.Type() {
 		case pcommon.ValueTypeBool:
@@ -345,6 +364,7 @@ func buildAttributeConditions(q *strings.Builder, args *[]any, attributes pcommo
 			return fmt.Errorf("unsupported attribute type %v for key %s", attr.Type(), key)
 		}
 
+		appendNewlineAndIndent(q, 1)
 		q.WriteString(")")
 	}
 
@@ -352,22 +372,28 @@ func buildAttributeConditions(q *strings.Builder, args *[]any, attributes pcommo
 }
 
 func buildBoolAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) {
+	appendNewlineAndIndent(q, 2)
 	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.bool_attributes.key, s.bool_attributes.value)")
-	q.WriteString(" OR ")
+	appendNewlineAndIndent(q, 2)
+	q.WriteString("OR ")
 	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.resource_bool_attributes.key, s.resource_bool_attributes.value)")
 	*args = append(*args, key, attr.Bool(), key, attr.Bool())
 }
 
 func buildDoubleAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) {
+	appendNewlineAndIndent(q, 2)
 	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.double_attributes.key, s.double_attributes.value)")
-	q.WriteString(" OR ")
+	appendNewlineAndIndent(q, 2)
+	q.WriteString("OR ")
 	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.resource_double_attributes.key, s.resource_double_attributes.value)")
 	*args = append(*args, key, attr.Double(), key, attr.Double())
 }
 
 func buildIntAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) {
+	appendNewlineAndIndent(q, 2)
 	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.int_attributes.key, s.int_attributes.value)")
-	q.WriteString(" OR ")
+	appendNewlineAndIndent(q, 2)
+	q.WriteString("OR ")
 	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.resource_int_attributes.key, s.resource_int_attributes.value)")
 	*args = append(*args, key, attr.Int(), key, attr.Int())
 }
@@ -375,8 +401,10 @@ func buildIntAttributeCondition(q *strings.Builder, args *[]any, key string, att
 func buildBytesAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) {
 	attrKey := "@bytes@" + key
 	val := base64.StdEncoding.EncodeToString(attr.Bytes().AsRaw())
+	appendNewlineAndIndent(q, 2)
 	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)")
-	q.WriteString(" OR ")
+	appendNewlineAndIndent(q, 2)
+	q.WriteString("OR ")
 	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value)")
 	*args = append(*args, attrKey, val, attrKey, val)
 }
@@ -387,8 +415,10 @@ func buildSliceAttributeCondition(q *strings.Builder, args *[]any, key string, a
 	if err != nil {
 		return fmt.Errorf("failed to marshal slice attribute %q: %w", key, err)
 	}
+	appendNewlineAndIndent(q, 2)
 	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)")
-	q.WriteString(" OR ")
+	appendNewlineAndIndent(q, 2)
+	q.WriteString("OR ")
 	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value)")
 	*args = append(*args, attrKey, b, attrKey, b)
 	return nil
@@ -400,8 +430,10 @@ func buildMapAttributeCondition(q *strings.Builder, args *[]any, key string, att
 	if err != nil {
 		return fmt.Errorf("failed to marshal map attribute %q: %w", key, err)
 	}
+	appendNewlineAndIndent(q, 2)
 	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)")
-	q.WriteString(" OR ")
+	appendNewlineAndIndent(q, 2)
+	q.WriteString("OR ")
 	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value)")
 	*args = append(*args, attrKey, b, attrKey, b)
 	return nil
@@ -420,10 +452,13 @@ func buildStringAttributeCondition(q *strings.Builder, args *[]any, key string, 
 
 	// if no metadata found, assume string type
 	if !ok {
+		appendNewlineAndIndent(q, 2)
 		q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.str_attributes.key, s.str_attributes.value)")
-		q.WriteString(" OR ")
+		appendNewlineAndIndent(q, 2)
+		q.WriteString("OR ")
 		q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.resource_str_attributes.key, s.resource_str_attributes.value)")
-		q.WriteString(" OR ")
+		appendNewlineAndIndent(q, 2)
+		q.WriteString("OR ")
 		q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.scope_str_attributes.key, s.scope_str_attributes.value)")
 		*args = append(*args, key, attr.Str(), key, attr.Str(), key, attr.Str())
 		return nil
@@ -433,7 +468,8 @@ func buildStringAttributeCondition(q *strings.Builder, args *[]any, key string, 
 	appendLevel := func(types []string, prefix string) error {
 		for _, t := range types {
 			if !first {
-				q.WriteString(" OR ")
+				appendNewlineAndIndent(q, 2)
+				q.WriteString("OR ")
 			}
 			first = false
 
@@ -474,6 +510,7 @@ func buildStringAttributeCondition(q *strings.Builder, args *[]any, key string, 
 				colType = "complex"
 			}
 
+			appendNewlineAndIndent(q, 2)
 			q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s." + prefix + colType + "_attributes.key, s." + prefix + colType + "_attributes.value)")
 			*args = append(*args, attrKey, val)
 		}
