@@ -44,6 +44,7 @@ var (
 		{AttributeKey: "resource.latency", Type: "double", Level: "resource"},
 		{AttributeKey: "scope.attempt", Type: "int", Level: "scope"},
 		{AttributeKey: "http.method", Type: "str", Level: "span"},
+		{AttributeKey: "http.method", Type: "int", Level: "span"},
 		{AttributeKey: "resource.checksum", Type: "bytes", Level: "resource"},
 		{AttributeKey: "metadata", Type: "map", Level: "span"},
 		{AttributeKey: "tags", Type: "slice", Level: "span"},
