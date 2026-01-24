@@ -28,6 +28,12 @@ var marshalValueForQuery = func(v pcommon.Value) (string, error) {
 	return string(b), nil
 }
 
+type typedAttributeValue struct {
+	attributeKey string
+	value        any
+	columnType   string
+}
+
 func appendNewlineAndIndent(q *strings.Builder, indent int) {
 	q.WriteString("\n")
 	for i := 0; i < indent; i++ {
@@ -210,44 +216,33 @@ func buildMapAttributeCondition(q *strings.Builder, args *[]any, key string, att
 	return nil
 }
 
-func parseStringToTypedValue(
-	key string,
-	attr pcommon.Value,
-	t string,
-) (
-	attrKey string,
-	val any,
-	colType string,
-	err error,
-) {
-	attrKey = key
-
+func parseStringToTypedValue(key string, attr pcommon.Value, t string) (typedAttributeValue, error) {
 	switch t {
 	case "bool":
 		b, parseErr := strconv.ParseBool(attr.Str())
 		if parseErr != nil {
-			return "", nil, "", fmt.Errorf("failed to parse bool attribute %q: %w", key, parseErr)
+			return typedAttributeValue{}, fmt.Errorf("failed to parse bool attribute %q: %w", key, parseErr)
 		}
-		return key, b, "bool", nil
+		return typedAttributeValue{attributeKey: key, value: b, columnType: "bool"}, nil
 	case "double":
 		f, parseErr := strconv.ParseFloat(attr.Str(), 64)
 		if parseErr != nil {
-			return "", nil, "", fmt.Errorf("failed to parse double attribute %q: %w", key, parseErr)
+			return typedAttributeValue{}, fmt.Errorf("failed to parse double attribute %q: %w", key, parseErr)
 		}
-		return key, f, "double", nil
+		return typedAttributeValue{attributeKey: key, value: f, columnType: "double"}, nil
 	case "int":
 		i, parseErr := strconv.ParseInt(attr.Str(), 10, 64)
 		if parseErr != nil {
-			return "", nil, "", fmt.Errorf("failed to parse int attribute %q: %w", key, parseErr)
+			return typedAttributeValue{}, fmt.Errorf("failed to parse int attribute %q: %w", key, parseErr)
 		}
-		return key, i, "int", nil
+		return typedAttributeValue{attributeKey: key, value: i, columnType: "int"}, nil
 	case "str":
-		return key, attr.Str(), "str", nil
+		return typedAttributeValue{attributeKey: key, value: attr.Str(), columnType: "str"}, nil
 	case "bytes":
-		return "@bytes@" + key, attr.Str(), "complex", nil
+		return typedAttributeValue{attributeKey: "@bytes@" + key, value: attr.Str(), columnType: "complex"}, nil
 	// TODO: support map and slice
 	default:
-		return "", nil, "", fmt.Errorf("unsupported attribute type %q for key %q", t, key)
+		return typedAttributeValue{}, fmt.Errorf("unsupported attribute type %q for key %q", t, key)
 	}
 }
 
@@ -290,13 +285,13 @@ func buildStringAttributeCondition(
 			}
 			first = false
 
-			attrKey, val, colType, err := parseStringToTypedValue(key, attr, t)
+			tav, err := parseStringToTypedValue(key, attr, t)
 			if err != nil {
 				return err
 			}
 
-			appendArrayExists(q, 2, prefix, colType)
-			*args = append(*args, attrKey, val)
+			appendArrayExists(q, 2, prefix, tav.columnType)
+			*args = append(*args, tav.attributeKey, tav.value)
 		}
 		return nil
 	}
@@ -307,9 +302,5 @@ func buildStringAttributeCondition(
 	if err := appendLevel(levelTypes.scope, "scope_"); err != nil {
 		return err
 	}
-	if err := appendLevel(levelTypes.span, ""); err != nil {
-		return err
-	}
-
-	return nil
+	return appendLevel(levelTypes.span, "")
 }
