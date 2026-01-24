@@ -1242,14 +1242,6 @@ func TestBuildStringAttributeCondition_Errors(t *testing.T) {
 			expectedErr: "failed to parse int attribute",
 		},
 		{
-			name:      "decode bytes fails",
-			attrValue: "!not-base64!",
-			metadata: attributeMetadata{
-				"k": {"span": {"bytes"}},
-			},
-			expectedErr: "failed to decode bytes attribute",
-		},
-		{
 			name:      "unsupported type",
 			attrValue: "whatever",
 			metadata: attributeMetadata{

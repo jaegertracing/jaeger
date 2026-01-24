@@ -457,15 +457,8 @@ func buildStringAttributeCondition(q *strings.Builder, args *[]any, key string, 
 					return fmt.Errorf("failed to parse int attribute %q: %w", key, err)
 				}
 				val = i
-			case "str":
+			case "str", "bytes":
 				val = attr.Str()
-			case "bytes":
-				attrKey = "@bytes@" + key
-				decoded, err := base64.StdEncoding.DecodeString(attr.Str())
-				if err != nil {
-					return fmt.Errorf("failed to decode bytes attribute %q: %w", key, err)
-				}
-				val = string(decoded)
 			// TODO: support map and slice
 			default:
 				return fmt.Errorf("unsupported attribute type %q for key %q", t, key)
