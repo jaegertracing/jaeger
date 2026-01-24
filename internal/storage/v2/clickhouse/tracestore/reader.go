@@ -423,7 +423,9 @@ func buildStringAttributeCondition(q *strings.Builder, args *[]any, key string, 
 		q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.str_attributes.key, s.str_attributes.value)")
 		q.WriteString(" OR ")
 		q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.resource_str_attributes.key, s.resource_str_attributes.value)")
-		*args = append(*args, key, attr.Str(), key, attr.Str())
+		q.WriteString(" OR ")
+		q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s.scope_str_attributes.key, s.scope_str_attributes.value)")
+		*args = append(*args, key, attr.Str(), key, attr.Str(), key, attr.Str())
 		return nil
 	}
 
@@ -457,7 +459,10 @@ func buildStringAttributeCondition(q *strings.Builder, args *[]any, key string, 
 					return fmt.Errorf("failed to parse int attribute %q: %w", key, err)
 				}
 				val = i
-			case "str", "bytes":
+			case "str":
+				val = attr.Str()
+			case "bytes":
+				attrKey = "@bytes@" + key
 				val = attr.Str()
 			// TODO: support map and slice
 			default:
