@@ -8,6 +8,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -25,6 +27,31 @@ const (
 //
 // REGENERATE_SNAPSHOTS=true go test -v ./internal/storage/v2/clickhouse/tracestore/...
 var regenerateSnapshots = os.Getenv("REGENERATE_SNAPSHOTS") == "true"
+
+// normalizeQuery normalizes a SQL query for snapshot comparison by sorting OR conditions.
+// This handles non-deterministic map iteration in buildStringAttributeCondition.
+func normalizeQuery(query string) string {
+	query = strings.TrimSpace(query)
+
+	// Extract OR-separated conditions and sort them for deterministic comparison
+	// This regex captures the OR operators and conditions like:
+	// (arrayExists(...) OR arrayExists(...) OR arrayExists(...))
+	orPattern := regexp.MustCompile(`\([^()]*?arrayExists[^()]*?(?:\s+OR\s+arrayExists[^()]*?)+\)`)
+	query = orPattern.ReplaceAllStringFunc(query, func(match string) string {
+		// Remove outer parentheses
+		inner := strings.TrimPrefix(strings.TrimSuffix(match, ")"), "(")
+		// Split by OR, trim spaces, and sort
+		conditions := strings.Split(inner, " OR ")
+		for i := range conditions {
+			conditions[i] = strings.TrimSpace(conditions[i])
+		}
+		slices.Sort(conditions)
+		// Reconstruct with sorted conditions
+		return "(" + strings.Join(conditions, " OR ") + ")"
+	})
+
+	return query
+}
 
 // verifyQuerySnapshot verifies one or more SQL queries against their snapshot files.
 // Queries are indexed sequentially starting from 1, and snapshot files are named as:
@@ -52,7 +79,9 @@ func verifyQuerySnapshot(t *testing.T, queries ...string) {
 		}
 		snapshot, err := os.ReadFile(snapshotFile)
 		require.NoError(t, err)
-		assert.Equal(t, strings.TrimSpace(string(snapshot)), query, "comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.")
+		normalizedQuery := normalizeQuery(query)
+		normalizedSnapshot := normalizeQuery(string(snapshot))
+		assert.Equal(t, normalizedSnapshot, normalizedQuery, "comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.")
 	}
 }
 
