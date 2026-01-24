@@ -86,14 +86,14 @@ func TestGetTraceTopologyHandler_Handle_Success(t *testing.T) {
 	root := getRoot(t, output)
 
 	// Verify root span
-	assert.Equal(t, "/api/checkout", root.Operation)
+	assert.Equal(t, "/api/checkout", root.SpanName)
 	assert.Equal(t, "Ok", root.Status)
 	assert.Len(t, root.Children, 2)
 
 	// Verify children are present (order not guaranteed)
 	operations := make(map[string]*types.SpanNode)
 	for _, child := range root.Children {
-		operations[child.Operation] = child
+		operations[child.SpanName] = child
 	}
 
 	assert.Contains(t, operations, "getCart")
@@ -191,7 +191,7 @@ func TestGetTraceTopologyHandler_Handle_DepthLimit(t *testing.T) {
 			root := getRoot(t, output)
 
 			// Check root
-			assert.Equal(t, "/api/checkout", root.Operation)
+			assert.Equal(t, "/api/checkout", root.SpanName)
 
 			// Check truncated children count at root level
 			assert.Equal(t, tt.expectRootTruncated, root.TruncatedChildren)
@@ -199,7 +199,7 @@ func TestGetTraceTopologyHandler_Handle_DepthLimit(t *testing.T) {
 			// Check children
 			if tt.expectChild {
 				assert.Len(t, root.Children, 1)
-				assert.Equal(t, "getCart", root.Children[0].Operation)
+				assert.Equal(t, "getCart", root.Children[0].SpanName)
 
 				// Check truncated children count at child level
 				assert.Equal(t, tt.expectChildTruncated, root.Children[0].TruncatedChildren)
@@ -207,7 +207,7 @@ func TestGetTraceTopologyHandler_Handle_DepthLimit(t *testing.T) {
 				// Check grandchildren
 				if tt.expectGchild {
 					assert.Len(t, root.Children[0].Children, 1)
-					assert.Equal(t, "queryDB", root.Children[0].Children[0].Operation)
+					assert.Equal(t, "queryDB", root.Children[0].Children[0].SpanName)
 				} else {
 					assert.Empty(t, root.Children[0].Children)
 				}
@@ -260,13 +260,13 @@ func TestGetTraceTopologyHandler_Handle_MultipleChildren(t *testing.T) {
 
 	require.NoError(t, err)
 	root := getRoot(t, output)
-	assert.Equal(t, "root", root.Operation)
+	assert.Equal(t, "root", root.SpanName)
 	assert.Len(t, root.Children, 3)
 
 	// Verify all children are present
 	operations := make(map[string]bool)
 	for _, child := range root.Children {
-		operations[child.Operation] = true
+		operations[child.SpanName] = true
 	}
 	assert.True(t, operations["child1"])
 	assert.True(t, operations["child2"])
@@ -308,13 +308,13 @@ func TestGetTraceTopologyHandler_Handle_ComplexTree(t *testing.T) {
 	root := getRoot(t, output)
 
 	// Verify structure
-	assert.Equal(t, "root", root.Operation)
+	assert.Equal(t, "root", root.SpanName)
 	assert.Len(t, root.Children, 2)
 
 	// Find A and B
 	var nodeA, nodeB *types.SpanNode
 	for _, child := range root.Children {
-		switch child.Operation {
+		switch child.SpanName {
 		case "A":
 			nodeA = child
 		case "B":
@@ -331,14 +331,14 @@ func TestGetTraceTopologyHandler_Handle_ComplexTree(t *testing.T) {
 	assert.Len(t, nodeA.Children, 2)
 	operations := make(map[string]bool)
 	for _, child := range nodeA.Children {
-		operations[child.Operation] = true
+		operations[child.SpanName] = true
 	}
 	assert.True(t, operations["C"])
 	assert.True(t, operations["D"])
 
 	// Verify B's child (E)
 	assert.Len(t, nodeB.Children, 1)
-	assert.Equal(t, "E", nodeB.Children[0].Operation)
+	assert.Equal(t, "E", nodeB.Children[0].SpanName)
 }
 
 func TestGetTraceTopologyHandler_Handle_SingleSpan(t *testing.T) {
@@ -368,7 +368,7 @@ func TestGetTraceTopologyHandler_Handle_SingleSpan(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, traceID, output.TraceID)
 	root := getRoot(t, output)
-	assert.Equal(t, "/api/simple", root.Operation)
+	assert.Equal(t, "/api/simple", root.SpanName)
 	assert.Empty(t, root.Children)
 }
 
@@ -407,7 +407,7 @@ func TestGetTraceTopologyHandler_Handle_NoAttributes(t *testing.T) {
 
 	// Verify that the SpanNode doesn't have an Attributes field
 	// This is ensured by the type definition, but we verify the structure is correct
-	assert.Equal(t, "/api/test", root.Operation)
+	assert.Equal(t, "/api/test", root.SpanName)
 	assert.Equal(t, "Ok", root.Status)
 }
 
@@ -501,9 +501,9 @@ func TestGetTraceTopologyHandler_Handle_MultipleIterations(t *testing.T) {
 	// Should succeed and build the complete tree
 	require.NoError(t, err)
 	root := getRoot(t, output)
-	assert.Equal(t, "/api/root", root.Operation)
+	assert.Equal(t, "/api/root", root.SpanName)
 	assert.Len(t, root.Children, 1)
-	assert.Equal(t, "/api/child", root.Children[0].Operation)
+	assert.Equal(t, "/api/child", root.Children[0].SpanName)
 }
 
 func TestGetTraceTopologyHandler_Handle_NoRootSpan(t *testing.T) {
@@ -540,7 +540,7 @@ func TestGetTraceTopologyHandler_Handle_NoRootSpan(t *testing.T) {
 	// Verify orphans are present
 	operations := make(map[string]bool)
 	for _, orphan := range orphans {
-		operations[orphan.Operation] = true
+		operations[orphan.SpanName] = true
 	}
 	assert.True(t, operations["orphan1"])
 	assert.True(t, operations["orphan2"])
@@ -585,15 +585,15 @@ func TestGetTraceTopologyHandler_Handle_WithOrphans(t *testing.T) {
 	require.NoError(t, err)
 	rootSpan := getRoot(t, output)
 	require.NotNil(t, rootSpan)
-	assert.Equal(t, "/api/root", rootSpan.Operation)
+	assert.Equal(t, "/api/root", rootSpan.SpanName)
 	assert.Len(t, rootSpan.Children, 1)
-	assert.Equal(t, "child", rootSpan.Children[0].Operation)
+	assert.Equal(t, "child", rootSpan.Children[0].SpanName)
 
 	// Verify orphan is present
 	orphans := getOrphans(t, output)
 	require.NotNil(t, orphans)
 	assert.Len(t, orphans, 1)
-	assert.Equal(t, "orphan", orphans[0].Operation)
+	assert.Equal(t, "orphan", orphans[0].SpanName)
 }
 
 func TestGetTraceTopologyHandler_Handle_ErrorStatus(t *testing.T) {
@@ -634,7 +634,7 @@ func TestGetTraceTopologyHandler_Handle_ErrorStatus(t *testing.T) {
 	// Find the error span
 	assert.Len(t, root.Children, 1)
 	errorNode := root.Children[0]
-	assert.Equal(t, "processPayment", errorNode.Operation)
+	assert.Equal(t, "processPayment", errorNode.SpanName)
 	assert.Equal(t, "Error", errorNode.Status)
 }
 

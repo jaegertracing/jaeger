@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -85,7 +86,10 @@ func startTestServer(t *testing.T) (*server, string) {
 
 	config := &Config{
 		HTTP: confighttp.ServerConfig{
-			Endpoint: "localhost:0", // OS will assign a free port
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  "localhost:0", // OS will assign a free port
+				Transport: confignet.TransportTypeTCP,
+			},
 		},
 		ServerName:               "jaeger",
 		ServerVersion:            "1.0.0",
@@ -219,7 +223,10 @@ func TestServerStartFailsWithInvalidEndpoint(t *testing.T) {
 	// Use an invalid endpoint (e.g., malformed address)
 	config := &Config{
 		HTTP: confighttp.ServerConfig{
-			Endpoint: "invalid-endpoint-format",
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  "invalid-endpoint-format",
+				Transport: confignet.TransportTypeTCP,
+			},
 		},
 	}
 
@@ -273,7 +280,10 @@ func TestServerShutdownWithError(t *testing.T) {
 	telset := componenttest.NewNopTelemetrySettings()
 	config := &Config{
 		HTTP: confighttp.ServerConfig{
-			Endpoint: "localhost:0",
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  "localhost:0",
+				Transport: confignet.TransportTypeTCP,
+			},
 		},
 		ServerVersion:            "1.0.0",
 		MaxSpanDetailsPerRequest: 20,
@@ -309,7 +319,10 @@ func TestServerShutdownAfterListenerClose(t *testing.T) {
 	telset := componenttest.NewNopTelemetrySettings()
 	config := &Config{
 		HTTP: confighttp.ServerConfig{
-			Endpoint: "localhost:0",
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  "localhost:0",
+				Transport: confignet.TransportTypeTCP,
+			},
 		},
 		ServerVersion:            "1.0.0",
 		MaxSpanDetailsPerRequest: 20,
@@ -336,7 +349,10 @@ func TestServerShutdownErrorPath(t *testing.T) {
 	telset := componenttest.NewNopTelemetrySettings()
 	config := &Config{
 		HTTP: confighttp.ServerConfig{
-			Endpoint: "localhost:0",
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  "localhost:0",
+				Transport: confignet.TransportTypeTCP,
+			},
 		},
 		ServerVersion:            "1.0.0",
 		MaxSpanDetailsPerRequest: 20,
@@ -365,7 +381,10 @@ func TestServerServeFails(t *testing.T) {
 	// Create a server and start it
 	config := &Config{
 		HTTP: confighttp.ServerConfig{
-			Endpoint: "localhost:0",
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  "localhost:0",
+				Transport: confignet.TransportTypeTCP,
+			},
 		},
 	}
 	server := newServer(config, telset)
@@ -455,7 +474,10 @@ func TestSearchTracesToolIntegration(t *testing.T) {
 
 	config := &Config{
 		HTTP: confighttp.ServerConfig{
-			Endpoint: "localhost:0",
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  "localhost:0",
+				Transport: confignet.TransportTypeTCP,
+			},
 		},
 		ServerName:               "jaeger-test",
 		ServerVersion:            "1.0.0",
@@ -564,7 +586,10 @@ func TestSearchTracesToolEmptyResults(t *testing.T) {
 
 	config := &Config{
 		HTTP: confighttp.ServerConfig{
-			Endpoint: "localhost:0",
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  "localhost:0",
+				Transport: confignet.TransportTypeTCP,
+			},
 		},
 		ServerName:               "jaeger-test",
 		ServerVersion:            "1.0.0",
@@ -674,7 +699,10 @@ func createTestTraceForIntegration() ptrace.Traces {
 func TestCORSPreflight(t *testing.T) {
 	config := &Config{
 		HTTP: confighttp.ServerConfig{
-			Endpoint: "localhost:0",
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  "localhost:0",
+				Transport: confignet.TransportTypeTCP,
+			},
 		},
 		ServerName:    "jaeger-test",
 		ServerVersion: "1.0.0",
