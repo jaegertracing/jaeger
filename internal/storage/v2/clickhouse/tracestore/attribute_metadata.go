@@ -19,16 +19,23 @@ import (
 // Example: attributeMetadata["http.status"]["span"] = ["int", "str"]
 type attributeMetadata map[string]map[string][]string
 
-// getAttributeMetadata retrieves the types stored in ClickHouse for string attributes.
+// getAttributeMetadata retrieves the types stored in ClickHouse for attributes that arrive as strings.
 //
-// The query service forwards all attribute filters as strings (via AsString()), regardless
-// of their actual type. For example:
-//   - A bool attribute stored as true becomes the string "true"
-//   - An int attribute stored as 123 becomes the string "123"
+// Query Flow:
+// 1. HTTP/gRPC API receives tag filters as query parameters (e.g., ?tag=http.status:200)
+// 2. The query parser parses them into map[string]string
+// 3. The map gets converted to a pcommon.Map using PutStr() for all values
+// 4. This function receives those string-typed attributes and looks up their actual storage types
+//
+// The query APIs (both HTTP and gRPC) only accept string values for tag filters, regardless
+// of how attributes were originally stored in ClickHouse. For example:
+//   - A bool attribute stored as true arrives as the string "true"
+//   - An int attribute stored as 123 arrives as the string "123"
+//   - A string attribute stored as "ok" arrives as the string "ok"
 //
 // To query ClickHouse correctly, we need to:
 //  1. Look up the actual type(s) from the attribute_metadata table
-//  2. Convert the string back to the original type
+//  2. Convert the string back to the original type for filtering
 //  3. Query the appropriate typed column (bool_attributes, int_attributes, etc.)
 //
 // Since attributes can be stored with different types across different spans
@@ -36,8 +43,8 @@ type attributeMetadata map[string]map[string][]string
 // the metadata can return multiple types for a single key. We build OR conditions
 // to match any of the possible types.
 //
-// Only string-typed attributes from the query are looked up, since other types
-// (bool, int, double, etc.) are already correctly typed in the query parameters.
+// Only string-typed attributes from pcommon.Map are looked up since those are the ones
+// that originated from the query API's string-only input format.
 func (r *Reader) getAttributeMetadata(ctx context.Context, attributes pcommon.Map) (attributeMetadata, error) {
 	query, args := buildSelectAttributeMetadataQuery(attributes)
 	rows, err := r.conn.Query(ctx, query, args...)
