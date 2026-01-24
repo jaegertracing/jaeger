@@ -240,7 +240,10 @@ func parseStringToTypedValue(key string, attr pcommon.Value, t string) (typedAtt
 		return typedAttributeValue{attributeKey: key, value: attr.Str(), columnType: "str"}, nil
 	case "bytes":
 		return typedAttributeValue{attributeKey: "@bytes@" + key, value: attr.Str(), columnType: "complex"}, nil
-	// TODO: support map and slice
+	case "map":
+		return typedAttributeValue{attributeKey: "@map@" + key, value: attr.Str(), columnType: "complex"}, nil
+	case "slice":
+		return typedAttributeValue{attributeKey: "@slice@" + key, value: attr.Str(), columnType: "complex"}, nil
 	default:
 		return typedAttributeValue{}, fmt.Errorf("unsupported attribute type %q for key %q", t, key)
 	}

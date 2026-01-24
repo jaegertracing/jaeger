@@ -63,4 +63,10 @@ WHERE 1=1
 	AND (
 		arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value)
 	)
+	AND (
+		arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)
+	)
+	AND (
+		arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)
+	)
 LIMIT ?

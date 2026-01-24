@@ -45,6 +45,8 @@ var (
 		{AttributeKey: "scope.attempt", Type: "int", Level: "scope"},
 		{AttributeKey: "http.method", Type: "str", Level: "span"},
 		{AttributeKey: "resource.checksum", Type: "bytes", Level: "resource"},
+		{AttributeKey: "metadata", Type: "map", Level: "span"},
+		{AttributeKey: "tags", Type: "slice", Level: "span"},
 	}
 )
 
@@ -68,6 +70,8 @@ func buildTestAttributes() pcommon.Map {
 	attrs.PutStr("resource.latency", "0.5")
 	attrs.PutStr("scope.attempt", "7")
 	attrs.PutStr("resource.checksum", "EjRWeA==")
+	attrs.PutStr("metadata", "{\"kvlistValue\":{\"values\":[{\"key\":\"key\",\"value\":{\"stringValue\":\"value\"}}]}}")
+	attrs.PutStr("tags", "{\"arrayValue\":{\"values\":[{\"intValue\":\"1\"},{\"intValue\":\"2\"},{\"intValue\":\"3\"}]}}")
 
 	return attrs
 }
