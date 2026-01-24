@@ -95,6 +95,22 @@ func TestBuildStringAttributeCondition_Errors(t *testing.T) {
 			expectedErr: "failed to parse int attribute",
 		},
 		{
+			name:      "parse fails at resource level",
+			attrValue: "not-bool",
+			metadata: attributeMetadata{
+				"k": {resource: []string{"bool"}},
+			},
+			expectedErr: "failed to parse bool attribute",
+		},
+		{
+			name:      "parse fails at scope level",
+			attrValue: "not-int",
+			metadata: attributeMetadata{
+				"k": {scope: []string{"int"}},
+			},
+			expectedErr: "failed to parse int attribute",
+		},
+		{
 			name:      "unsupported type",
 			attrValue: "whatever",
 			metadata: attributeMetadata{
