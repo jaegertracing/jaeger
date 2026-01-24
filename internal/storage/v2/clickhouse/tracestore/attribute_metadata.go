@@ -65,6 +65,9 @@ func (r *Reader) getAttributeMetadata(ctx context.Context, attributes pcommon.Ma
 		}
 		metadata[attrMeta.AttributeKey][attrMeta.Level] = append(metadata[attrMeta.AttributeKey][attrMeta.Level], attrMeta.Type)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating attribute metadata rows: %w", err)
+	}
 	return metadata, nil
 }
 

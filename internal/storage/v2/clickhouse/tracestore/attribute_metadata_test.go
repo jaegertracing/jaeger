@@ -56,6 +56,34 @@ func TestGetAttributeMetadata_ErrorCases(t *testing.T) {
 			},
 			expectedErr: "failed to scan row",
 		},
+		{
+			name: "RowsIterationError",
+			driver: &testDriver{
+				t: t,
+				queryResponses: map[string]*testQueryResponse{
+					sql.SelectAttributeMetadata: {
+						rows: &testRows[dbmodel.AttributeMetadata]{
+							data: []dbmodel.AttributeMetadata{{
+								AttributeKey: "http.method",
+								Type:         "str",
+								Level:        "span",
+							}},
+							scanFn: func(dest any, src dbmodel.AttributeMetadata) error {
+								ptr, ok := dest.(*dbmodel.AttributeMetadata)
+								if !ok {
+									return assert.AnError
+								}
+								*ptr = src
+								return nil
+							},
+							rowsErr: assert.AnError,
+						},
+						err: nil,
+					},
+				},
+			},
+			expectedErr: "error iterating attribute metadata rows",
+		},
 	}
 
 	for _, tt := range tests {
