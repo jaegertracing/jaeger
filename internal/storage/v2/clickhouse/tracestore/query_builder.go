@@ -229,7 +229,7 @@ func parseStringToTypedValue(key string, attr pcommon.Value, t pcommon.ValueType
 	case pcommon.ValueTypeSlice:
 		return typedAttributeValue{key: "@slice@" + key, value: attr.Str(), valueType: t}, nil
 	default:
-		return typedAttributeValue{}, fmt.Errorf("unsupported attribute type %q for key %q", t, key)
+		return typedAttributeValue{}, fmt.Errorf("unsupported attribute type %v for key %q", t, key)
 	}
 }
 
