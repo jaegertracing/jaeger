@@ -73,28 +73,28 @@ func TestBuildStringAttributeCondition_Fallbacks(t *testing.T) {
 			name:      "parse bool fails falls back to str",
 			attrValue: "not-bool",
 			metadata: attributeMetadata{
-				"k": {span: []string{"bool"}},
+				"k": {span: []pcommon.ValueType{pcommon.ValueTypeBool}},
 			},
 		},
 		{
 			name:      "parse double fails falls back to str",
 			attrValue: "not-float",
 			metadata: attributeMetadata{
-				"k": {span: []string{"double"}},
+				"k": {span: []pcommon.ValueType{pcommon.ValueTypeDouble}},
 			},
 		},
 		{
 			name:      "parse int fails falls back to str",
 			attrValue: "not-int",
 			metadata: attributeMetadata{
-				"k": {span: []string{"int"}},
+				"k": {span: []pcommon.ValueType{pcommon.ValueTypeInt}},
 			},
 		},
 		{
 			name:      "unsupported type falls back to str",
 			attrValue: "whatever",
 			metadata: attributeMetadata{
-				"k": {span: []string{"unknown"}},
+				"k": {span: []pcommon.ValueType{pcommon.ValueTypeEmpty}},
 			},
 		},
 	}
@@ -122,7 +122,7 @@ func TestBuildStringAttributeCondition_MultipleTypes(t *testing.T) {
 	var args []any
 
 	metadata := attributeMetadata{
-		"http.status": {span: []string{"int", "str"}},
+		"http.status": {span: []pcommon.ValueType{pcommon.ValueTypeInt, pcommon.ValueTypeStr}},
 	}
 
 	buildStringAttributeCondition(&q, &args, "http.status", attr, metadata)

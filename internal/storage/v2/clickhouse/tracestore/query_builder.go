@@ -13,12 +13,13 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/xpdata"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 )
 
-// marshalValueForQuery is a small test seam to allow injecting marshal errors
-// for complex attributes in unit tests. In production it uses xpdata.JSONMarshaler.
+// marshalValueForQuery is a simpler wrapper around xpdata.JSONMarshaler.
+// It can be overridden in tests to simulate marshaling errors.
 var marshalValueForQuery = func(v pcommon.Value) (string, error) {
 	m := &xpdata.JSONMarshaler{}
 	b, err := m.MarshalValue(v)
@@ -29,9 +30,9 @@ var marshalValueForQuery = func(v pcommon.Value) (string, error) {
 }
 
 type typedAttributeValue struct {
-	attributeKey string
-	value        any
-	columnType   string
+	key       string
+	value     any
+	valueType pcommon.ValueType
 }
 
 func appendNewlineAndIndent(q *strings.Builder, indent int) {
@@ -51,19 +52,23 @@ func appendAnd(q *strings.Builder, cond string) {
 	q.WriteString(cond)
 }
 
-func appendArrayExists(q *strings.Builder, indent int, prefix, colType string) {
+func appendArrayExists(q *strings.Builder, indent int, prefix string, valueType pcommon.ValueType) {
+	strColumnType := jptrace.ValueTypeToString(valueType)
+	if valueType == pcommon.ValueTypeBytes || valueType == pcommon.ValueTypeMap || valueType == pcommon.ValueTypeSlice {
+		strColumnType = "complex"
+	}
 	appendNewlineAndIndent(q, indent)
-	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s." + prefix + colType + "_attributes.key, s." + prefix + colType + "_attributes.value)")
+	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s." + prefix + strColumnType + "_attributes.key, s." + prefix + strColumnType + "_attributes.value)")
 }
 
 func appendStringAttributeFallback(q *strings.Builder, args *[]any, key string, attr pcommon.Value) {
-	appendArrayExists(q, 2, "", "str")
+	appendArrayExists(q, 2, "", pcommon.ValueTypeStr)
 	appendNewlineAndIndent(q, 2)
 	q.WriteString("OR ")
-	appendArrayExists(q, 2, "resource_", "str")
+	appendArrayExists(q, 2, "resource_", pcommon.ValueTypeStr)
 	appendNewlineAndIndent(q, 2)
 	q.WriteString("OR ")
-	appendArrayExists(q, 2, "scope_", "str")
+	appendArrayExists(q, 2, "scope_", pcommon.ValueTypeStr)
 	*args = append(*args, key, attr.Str(), key, attr.Str(), key, attr.Str())
 }
 
@@ -164,36 +169,36 @@ func buildAttributeConditions(q *strings.Builder, args *[]any, attributes pcommo
 }
 
 func buildBoolAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) {
-	appendArrayExists(q, 2, "", "bool")
+	appendArrayExists(q, 2, "", pcommon.ValueTypeBool)
 	appendNewlineAndIndent(q, 2)
 	q.WriteString("OR ")
-	appendArrayExists(q, 2, "resource_", "bool")
+	appendArrayExists(q, 2, "resource_", pcommon.ValueTypeBool)
 	*args = append(*args, key, attr.Bool(), key, attr.Bool())
 }
 
 func buildDoubleAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) {
-	appendArrayExists(q, 2, "", "double")
+	appendArrayExists(q, 2, "", pcommon.ValueTypeDouble)
 	appendNewlineAndIndent(q, 2)
 	q.WriteString("OR ")
-	appendArrayExists(q, 2, "resource_", "double")
+	appendArrayExists(q, 2, "resource_", pcommon.ValueTypeDouble)
 	*args = append(*args, key, attr.Double(), key, attr.Double())
 }
 
 func buildIntAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) {
-	appendArrayExists(q, 2, "", "int")
+	appendArrayExists(q, 2, "", pcommon.ValueTypeInt)
 	appendNewlineAndIndent(q, 2)
 	q.WriteString("OR ")
-	appendArrayExists(q, 2, "resource_", "int")
+	appendArrayExists(q, 2, "resource_", pcommon.ValueTypeInt)
 	*args = append(*args, key, attr.Int(), key, attr.Int())
 }
 
 func buildBytesAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) {
 	attrKey := "@bytes@" + key
 	val := base64.StdEncoding.EncodeToString(attr.Bytes().AsRaw())
-	appendArrayExists(q, 2, "", "complex")
+	appendArrayExists(q, 2, "", pcommon.ValueTypeBytes)
 	appendNewlineAndIndent(q, 2)
 	q.WriteString("OR ")
-	appendArrayExists(q, 2, "resource_", "complex")
+	appendArrayExists(q, 2, "resource_", pcommon.ValueTypeBytes)
 	*args = append(*args, attrKey, val, attrKey, val)
 }
 
@@ -203,10 +208,10 @@ func buildSliceAttributeCondition(q *strings.Builder, args *[]any, key string, a
 	if err != nil {
 		return fmt.Errorf("failed to marshal slice attribute %q: %w", key, err)
 	}
-	appendArrayExists(q, 2, "", "complex")
+	appendArrayExists(q, 2, "", pcommon.ValueTypeSlice)
 	appendNewlineAndIndent(q, 2)
 	q.WriteString("OR ")
-	appendArrayExists(q, 2, "resource_", "complex")
+	appendArrayExists(q, 2, "resource_", pcommon.ValueTypeSlice)
 	*args = append(*args, attrKey, b, attrKey, b)
 	return nil
 }
@@ -217,42 +222,42 @@ func buildMapAttributeCondition(q *strings.Builder, args *[]any, key string, att
 	if err != nil {
 		return fmt.Errorf("failed to marshal map attribute %q: %w", key, err)
 	}
-	appendArrayExists(q, 2, "", "complex")
+	appendArrayExists(q, 2, "", pcommon.ValueTypeMap)
 	appendNewlineAndIndent(q, 2)
 	q.WriteString("OR ")
-	appendArrayExists(q, 2, "resource_", "complex")
+	appendArrayExists(q, 2, "resource_", pcommon.ValueTypeMap)
 	*args = append(*args, attrKey, b, attrKey, b)
 	return nil
 }
 
-func parseStringToTypedValue(key string, attr pcommon.Value, t string) (typedAttributeValue, error) {
+func parseStringToTypedValue(key string, attr pcommon.Value, t pcommon.ValueType) (typedAttributeValue, error) {
 	switch t {
-	case "bool":
+	case pcommon.ValueTypeBool:
 		b, parseErr := strconv.ParseBool(attr.Str())
 		if parseErr != nil {
 			return typedAttributeValue{}, fmt.Errorf("failed to parse bool attribute %q: %w", key, parseErr)
 		}
-		return typedAttributeValue{attributeKey: key, value: b, columnType: "bool"}, nil
-	case "double":
+		return typedAttributeValue{key: key, value: b, valueType: t}, nil
+	case pcommon.ValueTypeDouble:
 		f, parseErr := strconv.ParseFloat(attr.Str(), 64)
 		if parseErr != nil {
 			return typedAttributeValue{}, fmt.Errorf("failed to parse double attribute %q: %w", key, parseErr)
 		}
-		return typedAttributeValue{attributeKey: key, value: f, columnType: "double"}, nil
-	case "int":
+		return typedAttributeValue{key: key, value: f, valueType: t}, nil
+	case pcommon.ValueTypeInt:
 		i, parseErr := strconv.ParseInt(attr.Str(), 10, 64)
 		if parseErr != nil {
 			return typedAttributeValue{}, fmt.Errorf("failed to parse int attribute %q: %w", key, parseErr)
 		}
-		return typedAttributeValue{attributeKey: key, value: i, columnType: "int"}, nil
-	case "str":
-		return typedAttributeValue{attributeKey: key, value: attr.Str(), columnType: "str"}, nil
-	case "bytes":
-		return typedAttributeValue{attributeKey: "@bytes@" + key, value: attr.Str(), columnType: "complex"}, nil
-	case "map":
-		return typedAttributeValue{attributeKey: "@map@" + key, value: attr.Str(), columnType: "complex"}, nil
-	case "slice":
-		return typedAttributeValue{attributeKey: "@slice@" + key, value: attr.Str(), columnType: "complex"}, nil
+		return typedAttributeValue{key: key, value: i, valueType: t}, nil
+	case pcommon.ValueTypeStr:
+		return typedAttributeValue{key: key, value: attr.Str(), valueType: t}, nil
+	case pcommon.ValueTypeBytes:
+		return typedAttributeValue{key: "@bytes@" + key, value: attr.Str(), valueType: t}, nil
+	case pcommon.ValueTypeMap:
+		return typedAttributeValue{key: "@map@" + key, value: attr.Str(), valueType: t}, nil
+	case pcommon.ValueTypeSlice:
+		return typedAttributeValue{key: "@slice@" + key, value: attr.Str(), valueType: t}, nil
 	default:
 		return typedAttributeValue{}, fmt.Errorf("unsupported attribute type %q for key %q", t, key)
 	}
@@ -285,7 +290,7 @@ func buildStringAttributeCondition(
 	}
 
 	generatedCondition := false
-	appendLevel := func(types []string, prefix string) {
+	appendLevel := func(types []pcommon.ValueType, prefix string) {
 		for _, t := range types {
 			tav, err := parseStringToTypedValue(key, attr, t)
 			if err != nil {
@@ -299,8 +304,8 @@ func buildStringAttributeCondition(
 			}
 			generatedCondition = true
 
-			appendArrayExists(q, 2, prefix, tav.columnType)
-			*args = append(*args, tav.attributeKey, tav.value)
+			appendArrayExists(q, 2, prefix, tav.valueType)
+			*args = append(*args, tav.key, tav.value)
 		}
 	}
 
