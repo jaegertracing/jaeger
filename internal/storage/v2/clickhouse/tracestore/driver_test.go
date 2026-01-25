@@ -124,10 +124,15 @@ type testRows[T any] struct {
 	scanErr  error
 	scanFn   func(dest any, src T) error
 	closeErr error
+	rowsErr  error
 }
 
 func (tr *testRows[T]) Close() error {
 	return tr.closeErr
+}
+
+func (tr *testRows[T]) Err() error {
+	return tr.rowsErr
 }
 
 func (tr *testRows[T]) Next() bool {
