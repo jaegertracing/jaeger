@@ -105,7 +105,7 @@ func TestBuildStringAttributeCondition_Fallbacks(t *testing.T) {
 			var q strings.Builder
 			var args []any
 
-			buildStringAttributeCondition(&q, &args, "k", attr, tc.metadata)
+			args = buildStringAttributeCondition(&q, args, "k", attr, tc.metadata)
 
 			query := q.String()
 			assert.Contains(t, query, "str_attributes")
@@ -125,11 +125,11 @@ func TestBuildStringAttributeCondition_MultipleTypes(t *testing.T) {
 		"http.status": {span: []pcommon.ValueType{pcommon.ValueTypeInt, pcommon.ValueTypeStr}},
 	}
 
-	buildStringAttributeCondition(&q, &args, "http.status", attr, metadata)
+	args = buildStringAttributeCondition(&q, args, "http.status", attr, metadata)
 
 	query := q.String()
 	assert.Contains(t, query, "int_attributes")
 	assert.Contains(t, query, "OR")
 	assert.Contains(t, query, "str_attributes")
-	assert.Len(t, args, 4) // two key-value pairs: one int, one str
+	assert.Len(t, args, 4)
 }

@@ -61,7 +61,7 @@ func appendArrayExists(q *strings.Builder, indent int, prefix string, valueType 
 	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s." + prefix + strColumnType + "_attributes.key, s." + prefix + strColumnType + "_attributes.value)")
 }
 
-func appendStringAttributeFallback(q *strings.Builder, args *[]any, key string, attr pcommon.Value) {
+func appendStringAttributeFallback(q *strings.Builder, args []any, key string, attr pcommon.Value) []any {
 	appendArrayExists(q, 2, "", pcommon.ValueTypeStr)
 	appendNewlineAndIndent(q, 2)
 	q.WriteString("OR ")
@@ -69,7 +69,7 @@ func appendStringAttributeFallback(q *strings.Builder, args *[]any, key string, 
 	appendNewlineAndIndent(q, 2)
 	q.WriteString("OR ")
 	appendArrayExists(q, 2, "scope_", pcommon.ValueTypeStr)
-	*args = append(*args, key, attr.Str(), key, attr.Str(), key, attr.Str())
+	return append(args, key, attr.Str(), key, attr.Str(), key, attr.Str())
 }
 
 func buildFindTracesQuery(traceIDsQuery string) string {
@@ -124,7 +124,8 @@ func (r *Reader) buildFindTraceIDsQuery(
 		return "", nil, fmt.Errorf("failed to get attribute metadata: %w", err)
 	}
 
-	if err := buildAttributeConditions(&q, &args, query.Attributes, attributeMetadata); err != nil {
+	args, err = buildAttributeConditions(&q, args, query.Attributes, attributeMetadata)
+	if err != nil {
 		return "", nil, err
 	}
 
@@ -134,100 +135,69 @@ func (r *Reader) buildFindTraceIDsQuery(
 	return q.String(), args, nil
 }
 
-func buildAttributeConditions(q *strings.Builder, args *[]any, attributes pcommon.Map, metadata attributeMetadata) error {
+func buildAttributeConditions(q *strings.Builder, args []any, attributes pcommon.Map, metadata attributeMetadata) ([]any, error) {
 	for key, attr := range attributes.All() {
 		appendAnd(q, "(")
 
+		var err error
 		switch attr.Type() {
 		case pcommon.ValueTypeBool:
-			buildBoolAttributeCondition(q, args, key, attr)
+			args = buildSimpleAttributeCondition(q, args, key, pcommon.ValueTypeBool, attr.Bool())
 		case pcommon.ValueTypeDouble:
-			buildDoubleAttributeCondition(q, args, key, attr)
+			args = buildSimpleAttributeCondition(q, args, key, pcommon.ValueTypeDouble, attr.Double())
 		case pcommon.ValueTypeInt:
-			buildIntAttributeCondition(q, args, key, attr)
+			args = buildSimpleAttributeCondition(q, args, key, pcommon.ValueTypeInt, attr.Int())
 		case pcommon.ValueTypeStr:
-			buildStringAttributeCondition(q, args, key, attr, metadata)
+			args = buildStringAttributeCondition(q, args, key, attr, metadata)
 		case pcommon.ValueTypeBytes:
-			buildBytesAttributeCondition(q, args, key, attr)
+			args = buildBytesAttributeCondition(q, args, key, attr)
 		case pcommon.ValueTypeSlice:
-			if err := buildSliceAttributeCondition(q, args, key, attr); err != nil {
-				return err
+			args, err = buildSliceAttributeCondition(q, args, key, attr)
+			if err != nil {
+				return args, err
 			}
 		case pcommon.ValueTypeMap:
-			if err := buildMapAttributeCondition(q, args, key, attr); err != nil {
-				return err
+			args, err = buildMapAttributeCondition(q, args, key, attr)
+			if err != nil {
+				return args, err
 			}
 		default:
-			return fmt.Errorf("unsupported attribute type %v for key %s", attr.Type(), key)
+			return args, fmt.Errorf("unsupported attribute type %v for key %s", attr.Type(), key)
 		}
 
 		appendNewlineAndIndent(q, 1)
 		q.WriteString(")")
 	}
 
-	return nil
+	return args, nil
 }
 
-func buildBoolAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) {
-	appendArrayExists(q, 2, "", pcommon.ValueTypeBool)
+func buildSimpleAttributeCondition(q *strings.Builder, args []any, key string, valueType pcommon.ValueType, value any) []any {
+	appendArrayExists(q, 2, "", valueType)
 	appendNewlineAndIndent(q, 2)
 	q.WriteString("OR ")
-	appendArrayExists(q, 2, "resource_", pcommon.ValueTypeBool)
-	*args = append(*args, key, attr.Bool(), key, attr.Bool())
+	appendArrayExists(q, 2, "resource_", valueType)
+	return append(args, key, value, key, value)
 }
 
-func buildDoubleAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) {
-	appendArrayExists(q, 2, "", pcommon.ValueTypeDouble)
-	appendNewlineAndIndent(q, 2)
-	q.WriteString("OR ")
-	appendArrayExists(q, 2, "resource_", pcommon.ValueTypeDouble)
-	*args = append(*args, key, attr.Double(), key, attr.Double())
+func buildBytesAttributeCondition(q *strings.Builder, args []any, key string, attr pcommon.Value) []any {
+	return buildSimpleAttributeCondition(q, args, "@bytes@"+key, pcommon.ValueTypeBytes, base64.StdEncoding.EncodeToString(attr.Bytes().AsRaw()))
 }
 
-func buildIntAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) {
-	appendArrayExists(q, 2, "", pcommon.ValueTypeInt)
-	appendNewlineAndIndent(q, 2)
-	q.WriteString("OR ")
-	appendArrayExists(q, 2, "resource_", pcommon.ValueTypeInt)
-	*args = append(*args, key, attr.Int(), key, attr.Int())
-}
-
-func buildBytesAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) {
-	attrKey := "@bytes@" + key
-	val := base64.StdEncoding.EncodeToString(attr.Bytes().AsRaw())
-	appendArrayExists(q, 2, "", pcommon.ValueTypeBytes)
-	appendNewlineAndIndent(q, 2)
-	q.WriteString("OR ")
-	appendArrayExists(q, 2, "resource_", pcommon.ValueTypeBytes)
-	*args = append(*args, attrKey, val, attrKey, val)
-}
-
-func buildSliceAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) error {
-	attrKey := "@slice@" + key
+func buildSliceAttributeCondition(q *strings.Builder, args []any, key string, attr pcommon.Value) ([]any, error) {
 	b, err := marshalValueForQuery(attr)
 	if err != nil {
-		return fmt.Errorf("failed to marshal slice attribute %q: %w", key, err)
+		return args, fmt.Errorf("failed to marshal slice attribute %q: %w", key, err)
 	}
-	appendArrayExists(q, 2, "", pcommon.ValueTypeSlice)
-	appendNewlineAndIndent(q, 2)
-	q.WriteString("OR ")
-	appendArrayExists(q, 2, "resource_", pcommon.ValueTypeSlice)
-	*args = append(*args, attrKey, b, attrKey, b)
-	return nil
+	return buildSimpleAttributeCondition(q, args, "@slice@"+key, pcommon.ValueTypeSlice, b), nil
 }
 
-func buildMapAttributeCondition(q *strings.Builder, args *[]any, key string, attr pcommon.Value) error {
-	attrKey := "@map@" + key
+func buildMapAttributeCondition(q *strings.Builder, args []any, key string, attr pcommon.Value) ([]any, error) {
 	b, err := marshalValueForQuery(attr)
 	if err != nil {
-		return fmt.Errorf("failed to marshal map attribute %q: %w", key, err)
+		return args, fmt.Errorf("failed to marshal map attribute %q: %w", key, err)
 	}
-	appendArrayExists(q, 2, "", pcommon.ValueTypeMap)
-	appendNewlineAndIndent(q, 2)
-	q.WriteString("OR ")
-	appendArrayExists(q, 2, "resource_", pcommon.ValueTypeMap)
-	*args = append(*args, attrKey, b, attrKey, b)
-	return nil
+	return buildSimpleAttributeCondition(q, args, "@map@"+key, pcommon.ValueTypeMap, b), nil
 }
 
 func parseStringToTypedValue(key string, attr pcommon.Value, t pcommon.ValueType) (typedAttributeValue, error) {
@@ -276,17 +246,16 @@ func parseStringToTypedValue(key string, attr pcommon.Value, t pcommon.ValueType
 // we fall back to treating it as a string attribute.
 func buildStringAttributeCondition(
 	q *strings.Builder,
-	args *[]any,
+	args []any,
 	key string,
 	attr pcommon.Value,
 	metadata attributeMetadata,
-) {
+) []any {
 	levelTypes, ok := metadata[key]
 
 	// if no metadata found, assume string type
 	if !ok {
-		appendStringAttributeFallback(q, args, key, attr)
-		return
+		return appendStringAttributeFallback(q, args, key, attr)
 	}
 
 	generatedCondition := false
@@ -305,7 +274,7 @@ func buildStringAttributeCondition(
 			generatedCondition = true
 
 			appendArrayExists(q, 2, prefix, tav.valueType)
-			*args = append(*args, tav.key, tav.value)
+			args = append(args, tav.key, tav.value)
 		}
 	}
 
@@ -316,8 +285,9 @@ func buildStringAttributeCondition(
 	// If no conditions were generated (all types failed to parse),
 	// fall back to treating it as a string attribute
 	if !generatedCondition {
-		appendStringAttributeFallback(q, args, key, attr)
+		return appendStringAttributeFallback(q, args, key, attr)
 	}
+	return args
 }
 
 func buildSelectAttributeMetadataQuery(attributes pcommon.Map) (string, []any) {
