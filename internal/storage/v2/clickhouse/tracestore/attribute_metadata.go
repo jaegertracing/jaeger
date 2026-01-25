@@ -13,6 +13,9 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
+// attrTypes holds the value types for an attribute key at different levels.
+// These types are populated by the materialized view defined in
+// internal/storage/v2/clickhouse/sql/create_attribute_metadata_mv.sql
 type attrTypes struct {
 	resource []pcommon.ValueType
 	scope    []pcommon.ValueType
