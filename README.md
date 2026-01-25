@@ -8,7 +8,7 @@
 [![Project+Community stats][community-badge]][community-stats]
 [![FOSSA Status][fossa-img]][fossa]
 [![OpenSSF Scorecard][openssf-img]][openssf]
-[![OpenSSF Best Practices][openssf-bp-img]][openssf-bp] 
+[![OpenSSF Best Practices][openssf-bp-img]][openssf-bp]
 [![CLOMonitor][clomonitor-img]][clomonitor]
 [![Artifact Hub][artifacthub-img]][artifacthub]
 
@@ -159,8 +159,6 @@ Copyright (c) The Jaeger Authors. [Apache 2.0 License](./LICENSE).
 [clomonitor]: https://clomonitor.io/projects/cncf/jaeger
 [artifacthub-img]: https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/jaegertracing
 [artifacthub]: https://artifacthub.io/packages/search?repo=jaegertracing
-
-
 [community-badge]: https://img.shields.io/badge/Project+Community-stats-blue.svg
 [community-stats]: https://all.devstats.cncf.io/d/54/project-health?orgId=1&var-repogroup_name=Jaeger
 [hotrod-tutorial]: https://medium.com/jaegertracing/take-jaeger-for-a-hotrod-ride-233cf43e46c2
