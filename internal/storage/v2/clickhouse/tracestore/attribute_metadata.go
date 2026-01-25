@@ -10,14 +10,15 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
 type levelAttributes struct {
-	resource []string
-	scope    []string
-	span     []string
+	resource []pcommon.ValueType
+	scope    []pcommon.ValueType
+	span     []pcommon.ValueType
 }
 
 // attributeMetadata maps attribute keys to their types per level.
@@ -73,11 +74,11 @@ func (r *Reader) getAttributeMetadata(ctx context.Context, attributes pcommon.Ma
 		levels := metadata[attrMeta.AttributeKey]
 		switch attrMeta.Level {
 		case "resource":
-			levels.resource = append(levels.resource, attrMeta.Type)
+			levels.resource = append(levels.resource, jptrace.StringToValueType(attrMeta.Type))
 		case "scope":
-			levels.scope = append(levels.scope, attrMeta.Type)
+			levels.scope = append(levels.scope, jptrace.StringToValueType(attrMeta.Type))
 		case "span":
-			levels.span = append(levels.span, attrMeta.Type)
+			levels.span = append(levels.span, jptrace.StringToValueType(attrMeta.Type))
 		default:
 			return nil, fmt.Errorf("unknown attribute level %q", attrMeta.Level)
 		}
