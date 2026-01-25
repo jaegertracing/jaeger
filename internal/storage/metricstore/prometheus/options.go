@@ -37,7 +37,7 @@ const (
 	defaultMetricNamespace   = "traces_span_metrics"
 	defaultLatencyUnit       = "ms"
 	defaultNormalizeCalls    = false
-	defaultNormalizeDuration = false
+	defaultNormalizeDuration = true
 )
 
 // Options stores the configuration entries for this storage.
@@ -55,7 +55,7 @@ func DefaultConfig() config.Configuration {
 		MetricNamespace:   defaultMetricNamespace,
 		LatencyUnit:       defaultLatencyUnit,
 		NormalizeCalls:    defaultNormalizeCalls,
-		NormalizeDuration: defaultNormalizeCalls,
+		NormalizeDuration: defaultNormalizeDuration,
 	}
 }
 
