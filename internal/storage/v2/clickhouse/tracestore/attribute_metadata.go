@@ -53,7 +53,10 @@ type attributeMetadata map[string]attrTypes
 // Only string-typed attributes from pcommon.Map are looked up since those are the ones
 // that originated from the query API's string-only input format.
 func (r *Reader) getAttributeMetadata(ctx context.Context, attributes pcommon.Map) (attributeMetadata, error) {
-	query, args := buildSelectAttributeMetadataQuery(attributes)
+	q := newQueryBuilder()
+	q.appendSelectAttributeMetadataQuery(attributes)
+	query, args := q.build()
+
 	metadata := make(attributeMetadata)
 	if len(args) == 0 {
 		// No string attributes to look up

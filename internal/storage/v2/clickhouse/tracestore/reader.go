@@ -224,3 +224,52 @@ func (r *Reader) FindTraceIDs(
 		}
 	}
 }
+
+func (r *Reader) buildFindTraceIDsQuery(
+	ctx context.Context,
+	query tracestore.TraceQueryParams,
+) (string, []any, error) {
+	limit := query.SearchDepth
+	if limit == 0 {
+		limit = r.config.DefaultSearchDepth
+	}
+	if limit > r.config.MaxSearchDepth {
+		return "", nil, fmt.Errorf("search depth %d exceeds maximum allowed %d", limit, r.config.MaxSearchDepth)
+	}
+
+	q := newQueryBuilder()
+	q.write(sql.SearchTraceIDs)
+
+	if query.ServiceName != "" {
+		q.andArg("s.service_name = ?", query.ServiceName)
+	}
+	if query.OperationName != "" {
+		q.andArg("s.name = ?", query.OperationName)
+	}
+	if query.DurationMin > 0 {
+		q.andArg("s.duration >= ?", query.DurationMin.Nanoseconds())
+	}
+	if query.DurationMax > 0 {
+		q.andArg("s.duration <= ?", query.DurationMax.Nanoseconds())
+	}
+	if !query.StartTimeMin.IsZero() {
+		q.andArg("s.start_time >= ?", query.StartTimeMin)
+	}
+	if !query.StartTimeMax.IsZero() {
+		q.andArg("s.start_time <= ?", query.StartTimeMax)
+	}
+
+	attributeMetadata, err := r.getAttributeMetadata(ctx, query.Attributes)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to get attribute metadata: %w", err)
+	}
+
+	if err := q.appendAttributeConditions(query.Attributes, attributeMetadata); err != nil {
+		return "", nil, err
+	}
+
+	q.write("\nLIMIT ?").arg(limit)
+
+	queryStr, args := q.build()
+	return queryStr, args, nil
+}

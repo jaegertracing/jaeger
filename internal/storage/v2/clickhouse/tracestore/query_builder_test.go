@@ -4,7 +4,6 @@
 package tracestore
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -63,7 +62,7 @@ func TestBuildFindTraceIDsQuery_AttributeMetadataError(t *testing.T) {
 	require.ErrorContains(t, err, "failed to get attribute metadata")
 }
 
-func TestBuildStringAttributeCondition_Fallbacks(t *testing.T) {
+func TestAppendStringAttributeCondition_Fallbacks(t *testing.T) {
 	cases := []struct {
 		name      string
 		attrValue string
@@ -102,12 +101,11 @@ func TestBuildStringAttributeCondition_Fallbacks(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			attr := pcommon.NewValueStr(tc.attrValue)
-			var q strings.Builder
-			var args []any
+			q := newQueryBuilder()
 
-			args = buildStringAttributeCondition(&q, args, "k", attr, tc.metadata)
+			q.appendStringAttributeCondition("k", attr, tc.metadata)
 
-			query := q.String()
+			query, args := q.build()
 			assert.Contains(t, query, "str_attributes")
 			assert.Contains(t, query, "resource_str_attributes")
 			assert.Contains(t, query, "scope_str_attributes")
@@ -116,18 +114,17 @@ func TestBuildStringAttributeCondition_Fallbacks(t *testing.T) {
 	}
 }
 
-func TestBuildStringAttributeCondition_MultipleTypes(t *testing.T) {
+func TestAppendStringAttributeCondition_MultipleTypes(t *testing.T) {
 	attr := pcommon.NewValueStr("123") // parses as both int and str
-	var q strings.Builder
-	var args []any
+	q := newQueryBuilder()
 
 	metadata := attributeMetadata{
 		"http.status": {span: []pcommon.ValueType{pcommon.ValueTypeInt, pcommon.ValueTypeStr}},
 	}
 
-	args = buildStringAttributeCondition(&q, args, "http.status", attr, metadata)
+	q.appendStringAttributeCondition("http.status", attr, metadata)
 
-	query := q.String()
+	query, args := q.build()
 	assert.Contains(t, query, "int_attributes")
 	assert.Contains(t, query, "OR")
 	assert.Contains(t, query, "str_attributes")
