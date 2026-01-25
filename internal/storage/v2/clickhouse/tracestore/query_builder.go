@@ -291,8 +291,9 @@ func (q *queryBuilder) appendStringAttributeFallback(key string, attr pcommon.Va
 	q.arrayExistsArg(2, "scope_", pcommon.ValueTypeStr, key, attr.Str())
 }
 
-// appendSelectAttributeMetadataQuery builds the query for fetching attribute metadata.
-func (q *queryBuilder) appendSelectAttributeMetadataQuery(attributes pcommon.Map) {
+// buildSelectAttributeMetadataQuery builds the query for fetching attribute metadata.
+func buildSelectAttributeMetadataQuery(attributes pcommon.Map) (string, []any) {
+	q := newQueryBuilder()
 	q.write(sql.SelectAttributeMetadata)
 
 	var placeholders []string
@@ -312,4 +313,6 @@ func (q *queryBuilder) appendSelectAttributeMetadataQuery(attributes pcommon.Map
 	q.newline(1).write("attribute_key,")
 	q.newline(1).write("type,")
 	q.newline(1).write("level")
+
+	return q.build()
 }
