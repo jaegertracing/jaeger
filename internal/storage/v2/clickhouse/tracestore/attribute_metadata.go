@@ -13,7 +13,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
-type levelAttributes struct {
+type attrTypes struct {
 	resource []pcommon.ValueType
 	scope    []pcommon.ValueType
 	span     []pcommon.ValueType
@@ -21,7 +21,7 @@ type levelAttributes struct {
 
 // attributeMetadata maps attribute keys to their types per level.
 // Example: attributeMetadata["http.status"].span = ["int", "str"]
-type attributeMetadata map[string]levelAttributes
+type attributeMetadata map[string]attrTypes
 
 // getAttributeMetadata retrieves the types stored in ClickHouse for attributes that arrive as strings.
 //
