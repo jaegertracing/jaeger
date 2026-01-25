@@ -3,4 +3,10 @@ SELECT
     type,
     level
 FROM
-    attribute_metadata WHERE attribute_key IN (?, ?, ?, ?, ?, ?, ?, ?) GROUP BY attribute_key, type, level
+    attribute_metadata
+WHERE
+	attribute_key IN (?, ?, ?, ?, ?, ?, ?, ?)
+GROUP BY
+	attribute_key,
+	type,
+	level

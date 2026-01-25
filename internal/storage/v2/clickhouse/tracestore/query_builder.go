@@ -319,3 +319,35 @@ func buildStringAttributeCondition(
 		appendStringAttributeFallback(q, args, key, attr)
 	}
 }
+
+func buildSelectAttributeMetadataQuery(attributes pcommon.Map) (string, []any) {
+	args := []any{}
+	var placeholders []string
+
+	for key, attr := range attributes.All() {
+		if attr.Type() == pcommon.ValueTypeStr {
+			placeholders = append(placeholders, "?")
+			args = append(args, key)
+		}
+	}
+
+	var q strings.Builder
+	q.WriteString(sql.SelectAttributeMetadata)
+	if len(placeholders) > 0 {
+		appendNewlineAndIndent(&q, 0)
+		q.WriteString("WHERE")
+		appendNewlineAndIndent(&q, 1)
+		q.WriteString("attribute_key IN (")
+		q.WriteString(strings.Join(placeholders, ", "))
+		q.WriteString(")")
+	}
+	appendNewlineAndIndent(&q, 0)
+	q.WriteString("GROUP BY")
+	appendNewlineAndIndent(&q, 1)
+	q.WriteString("attribute_key,")
+	appendNewlineAndIndent(&q, 1)
+	q.WriteString("type,")
+	appendNewlineAndIndent(&q, 1)
+	q.WriteString("level")
+	return q.String(), args
+}

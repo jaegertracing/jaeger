@@ -6,12 +6,10 @@ package tracestore
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
@@ -88,26 +86,4 @@ func (r *Reader) getAttributeMetadata(ctx context.Context, attributes pcommon.Ma
 		return nil, fmt.Errorf("error iterating attribute metadata rows: %w", err)
 	}
 	return metadata, nil
-}
-
-func buildSelectAttributeMetadataQuery(attributes pcommon.Map) (string, []any) {
-	args := []any{}
-	var placeholders []string
-
-	for key, attr := range attributes.All() {
-		if attr.Type() == pcommon.ValueTypeStr {
-			placeholders = append(placeholders, "?")
-			args = append(args, key)
-		}
-	}
-
-	var q strings.Builder
-	q.WriteString(sql.SelectAttributeMetadata)
-	if len(placeholders) > 0 {
-		q.WriteString(" WHERE attribute_key IN (")
-		q.WriteString(strings.Join(placeholders, ", "))
-		q.WriteString(")")
-	}
-	q.WriteString(" GROUP BY attribute_key, type, level")
-	return q.String(), args
 }
