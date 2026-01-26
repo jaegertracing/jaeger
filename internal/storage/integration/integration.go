@@ -241,18 +241,19 @@ func (s *StorageIntegration) helperTestGetTrace(
 	var actual ptrace.Traces
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
-		traceSlice, err := toTraceSlice(iterTraces)
+		traces, err := toTraceSlice(iterTraces)
 		if err != nil {
 			t.Logf("Error loading trace: %v", err)
 			return false
 		}
-		if len(traceSlice) != 1 {
-			t.Logf("Expected 1 trace, found %d", len(traceSlice))
+		if len(traces) != 1 {
+			t.Logf("Expected 1 trace, found %d", len(traces))
 			return false
 		}
-		actual = traceSlice[0]
+		actual = traces[0]
 		return actual.SpanCount() >= expected.SpanCount()
 	})
+
 	t.Logf("%-23s Loaded trace, expected=%d, actual=%d", time.Now().Format("2006-01-02 15:04:05.999"), expected.SpanCount(), actual.SpanCount())
 	if !assert.True(t, found, "error loading trace, expected=%d, actual=%d", expected.SpanCount(), actual.SpanCount()) {
 		CompareTraces(t, expected, actual)
@@ -340,16 +341,16 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	actual := ptrace.Traces{} // no spans
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
-		traceSlice, err := toTraceSlice(iterTraces)
+		traces, err := toTraceSlice(iterTraces)
 		if err != nil {
 			t.Log(err)
 			return false
 		}
-		if len(traceSlice) != 1 {
-			t.Logf("Expected 1 trace, found %d", len(traceSlice))
+		if len(traces) != 1 {
+			t.Logf("Expected 1 trace, found %d", len(traces))
 			return false
 		}
-		actual = traceSlice[0]
+		actual = traces[0]
 		return actual.SpanCount() == expected.SpanCount()
 	})
 	if !assert.True(t, found) {
@@ -409,24 +410,19 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.T
 			t.Log(err)
 			return false
 		}
-		expectedSpanCount := spanCountFromSliceOfTraces(expected)
-		actualSpanCount := spanCountFromSliceOfTraces(traces)
-		if expectedSpanCount != actualSpanCount {
-			t.Logf("Excepting certain number of spans: expected: %d, actual: %d", expectedSpanCount, actualSpanCount)
+		if len(expected) != len(traces) {
+			t.Logf("Expecting certain number of traces: expected: %d, actual: %d", len(expected), len(traces))
+			return false
+		}
+
+		if spanCount(expected) != spanCount(traces) {
+			t.Logf("Excepting certain number of spans: expected: %d, actual: %d", spanCount(expected), spanCount(traces))
 			return false
 		}
 		return true
 	})
 	require.True(t, found)
 	return traces
-}
-
-func spanCountFromSliceOfTraces(traces []ptrace.Traces) int {
-	count := 0
-	for _, trace := range traces {
-		count += trace.SpanCount()
-	}
-	return count
 }
 
 func (s *StorageIntegration) writeTrace(t *testing.T, trace ptrace.Traces) {
@@ -531,6 +527,14 @@ func loadAndParseJSONPB(t *testing.T, path string, object proto.Message) {
 	require.NoError(t, err, "Not expecting error when loading fixture %s", path)
 	err = jsonpb.Unmarshal(bytes.NewReader(correctTime(inStr)), object)
 	require.NoError(t, err, "Not expecting error when unmarshaling fixture %s", path)
+}
+
+func spanCount(traces []ptrace.Traces) int {
+	count := 0
+	for _, trace := range traces {
+		count += trace.SpanCount()
+	}
+	return count
 }
 
 // LoadAndParseQueryTestCases loads and parses query test cases

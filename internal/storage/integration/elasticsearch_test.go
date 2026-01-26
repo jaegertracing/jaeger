@@ -269,14 +269,14 @@ func (s *ESStorageIntegration) testArchiveTrace(t *testing.T) {
 	var actual ptrace.Traces
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		iterTraces := s.ArchiveTraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: v1adapter.FromV1TraceID(tID)})
-		traceSlice, err := toTraceSlice(iterTraces)
+		traces, err := toTraceSlice(iterTraces)
 		if err != nil {
 			return false
 		}
-		if len(traceSlice) != 1 {
+		if len(traces) != 1 {
 			return false
 		}
-		actual = traceSlice[0]
+		actual = traces[0]
 		return true
 	})
 	require.True(t, found)
