@@ -118,6 +118,7 @@ func (t *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQu
 
 func toDBTraceQueryParams(query tracestore.TraceQueryParams) dbmodel.TraceQueryParameters {
 	tags := make(map[string]string)
+	processTags := make(map[string]string)
 	for key, val := range query.Attributes.All() {
 		switch {
 		case key == "scope.name":
@@ -125,7 +126,7 @@ func toDBTraceQueryParams(query tracestore.TraceQueryParams) dbmodel.TraceQueryP
 		case key == "scope.version":
 			tags[otelsemconv.AttributeOtelScopeVersion] = val.AsString()
 		case strings.HasPrefix(key, "resource."):
-			tags[strings.TrimPrefix(key, "resource.")] = val.AsString()
+			processTags[strings.TrimPrefix(key, "resource.")] = val.AsString()
 		default:
 			tags[key] = val.AsString()
 		}
@@ -136,6 +137,7 @@ func toDBTraceQueryParams(query tracestore.TraceQueryParams) dbmodel.TraceQueryP
 		StartTimeMin:  query.StartTimeMin,
 		StartTimeMax:  query.StartTimeMax,
 		Tags:          tags,
+		ProcessTags:   processTags,
 		NumTraces:     query.SearchDepth,
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,

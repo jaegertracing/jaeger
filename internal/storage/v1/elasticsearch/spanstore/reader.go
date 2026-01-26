@@ -642,6 +642,10 @@ func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParamet
 		tagQuery := s.buildTagQuery(k, v)
 		boolQuery.Must(tagQuery)
 	}
+	for k, v := range traceQuery.ProcessTags {
+		tagQuery := s.buildProcessTagQuery(k, v)
+		boolQuery.Must(tagQuery)
+	}
 	return boolQuery
 }
 
@@ -684,6 +688,21 @@ func (s *SpanReader) buildTagQuery(k string, v string) elastic.Query {
 
 	// but configuration can change over time
 	return elastic.NewBoolQuery().Should(queries...)
+}
+
+func (s *SpanReader) buildProcessTagQuery(k string, v string) elastic.Query {
+	// we only want to search in process tags
+	queries := make([]elastic.Query, len(objectTagFieldList)+len(nestedTagFieldList))
+	kd := s.dotReplacer.ReplaceDot(k)
+
+	// object tags: process.tag
+	queries[0] = s.buildObjectQuery(objectProcessTagsField, kd, v)
+
+	// nested tags: process.tags
+	queries[1] = s.buildNestedQuery(nestedProcessTagsField, k, v)
+
+	// slice down to actual size used
+	return elastic.NewBoolQuery().Should(queries[:2]...)
 }
 
 func (*SpanReader) buildNestedQuery(field string, k string, v string) elastic.Query {
