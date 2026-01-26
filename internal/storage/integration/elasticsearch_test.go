@@ -20,7 +20,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/jptrace"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	es "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
@@ -270,7 +269,7 @@ func (s *ESStorageIntegration) testArchiveTrace(t *testing.T) {
 	var actual ptrace.Traces
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		iterTraces := s.ArchiveTraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: v1adapter.FromV1TraceID(tID)})
-		traceSlice, err := toTraceSlice(jptrace.AggregateTraces(iterTraces))
+		traceSlice, err := toTraceSlice(iterTraces)
 		if err != nil {
 			return false
 		}

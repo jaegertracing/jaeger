@@ -241,7 +241,7 @@ func (s *StorageIntegration) helperTestGetTrace(
 	var actual ptrace.Traces
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
-		traceSlice, err := toTraceSlice(jptrace.AggregateTraces(iterTraces))
+		traceSlice, err := toTraceSlice(iterTraces)
 		if err != nil {
 			t.Logf("Error loading trace: %v", err)
 			return false
@@ -340,7 +340,7 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	actual := ptrace.Traces{} // no spans
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
-		traceSlice, err := toTraceSlice(jptrace.AggregateTraces(iterTraces))
+		traceSlice, err := toTraceSlice(iterTraces)
 		if err != nil {
 			t.Log(err)
 			return false
@@ -404,7 +404,7 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.T
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		iterTraces := s.TraceReader.FindTraces(context.Background(), *query)
 		var err error
-		traces, err = toTraceSlice(jptrace.AggregateTraces(iterTraces))
+		traces, err = toTraceSlice(iterTraces)
 		if err != nil {
 			t.Log(err)
 			return false
@@ -559,9 +559,10 @@ func correctTime(jsonData []byte) []byte {
 	return []byte(retString)
 }
 
-func toTraceSlice(traceIter iter.Seq2[ptrace.Traces, error]) ([]ptrace.Traces, error) {
+func toTraceSlice(tracesSeq iter.Seq2[[]ptrace.Traces, error]) ([]ptrace.Traces, error) {
 	traces := make([]ptrace.Traces, 0)
-	for trace, err := range traceIter {
+	aggregated := jptrace.AggregateTraces(tracesSeq)
+	for trace, err := range aggregated {
 		if err != nil {
 			return nil, err
 		}
