@@ -7,3 +7,6 @@ scrape_configs:
   - job_name: aggregated-trace-metrics
     static_configs:
     - targets: ['spm_metrics_source:8889']
+  - job_name: jaeger-collector-metrics
+    static_configs:
+    - targets: [ 'spm_metrics_source:8888' ]

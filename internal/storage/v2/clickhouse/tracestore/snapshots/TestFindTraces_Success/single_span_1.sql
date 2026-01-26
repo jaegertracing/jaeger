@@ -69,11 +69,16 @@ SELECT
     scope_complex_attributes.value
 FROM
     spans s
- WHERE s.trace_id IN (SELECT trace_id FROM (
-SELECT DISTINCT
-    s.trace_id,
-    t.start,
-    t.end
-FROM spans s
-LEFT JOIN trace_id_timestamps t ON s.trace_id = t.trace_id
-WHERE 1=1 LIMIT ?)) ORDER BY s.trace_id
+WHERE s.trace_id IN (
+	SELECT trace_id FROM (
+		SELECT DISTINCT
+		    s.trace_id,
+		    t.start,
+		    t.end
+		FROM spans s
+		LEFT JOIN trace_id_timestamps t ON s.trace_id = t.trace_id
+		WHERE 1=1
+		LIMIT ?
+	)
+)
+ORDER BY s.trace_id
