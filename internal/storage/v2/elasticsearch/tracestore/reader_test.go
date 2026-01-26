@@ -229,6 +229,7 @@ func TestTraceReader_FindTraceIDs_Error(t *testing.T) {
 			}
 			dbTraceQueryParams := dbmodel.TraceQueryParameters{
 				Tags:          map[string]string{"key1": "val1"},
+				ProcessTags:   map[string]string{},
 				StartTimeMin:  ts,
 				ServiceName:   "testing-service-name",
 				OperationName: "testing-operation-name",
