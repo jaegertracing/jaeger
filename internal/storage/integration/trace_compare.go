@@ -20,7 +20,6 @@ import (
 )
 
 // CompareSliceOfTraces compares two trace slices
-
 func CompareSliceOfTraces(t *testing.T, expected []ptrace.Traces, actual []ptrace.Traces) {
 	require.Len(t, expected, len(actual))
 	sortSliceOfTraces(expected)
