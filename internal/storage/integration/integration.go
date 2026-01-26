@@ -555,7 +555,7 @@ func correctTime(jsonData []byte) []byte {
 }
 
 func spanCount(traces []ptrace.Traces) int {
-	count := 0
+	var count int
 	for _, trace := range traces {
 		count += trace.SpanCount()
 	}
