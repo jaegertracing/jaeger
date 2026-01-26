@@ -300,6 +300,14 @@ func TestTraceReader_FindTraceIDs_OTLPQueryTranslation(t *testing.T) {
 			}
 
 			expectedDBParams := mock.MatchedBy(func(p dbmodel.TraceQueryParameters) bool {
+				// For resource attributes, check ProcessTags
+				if strings.HasPrefix(tt.queryAttr, "resource.") {
+					if val, ok := p.ProcessTags[tt.expectedTag]; ok {
+						return val == tt.expectedVal
+					}
+					return false
+				}
+				// For other attributes, check Tags
 				if val, ok := p.Tags[tt.expectedTag]; ok {
 					return val == tt.expectedVal
 				}
