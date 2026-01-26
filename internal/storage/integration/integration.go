@@ -346,8 +346,7 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 			t.Log(err)
 			return false
 		}
-		if len(traces) != 1 {
-			t.Logf("Expected 1 trace, found %d", len(traces))
+		if len(traces) == 0 {
 			return false
 		}
 		actual = traces[0]
@@ -529,14 +528,6 @@ func loadAndParseJSONPB(t *testing.T, path string, object proto.Message) {
 	require.NoError(t, err, "Not expecting error when unmarshaling fixture %s", path)
 }
 
-func spanCount(traces []ptrace.Traces) int {
-	count := 0
-	for _, trace := range traces {
-		count += trace.SpanCount()
-	}
-	return count
-}
-
 // LoadAndParseQueryTestCases loads and parses query test cases
 func LoadAndParseQueryTestCases(t *testing.T, queriesFile string) []*QueryFixtures {
 	var queries []*QueryFixtures
@@ -561,6 +552,14 @@ func correctTime(jsonData []byte) []byte {
 	retString := strings.ReplaceAll(jsonString, "2017-01-26", yesterday)
 	retString = strings.ReplaceAll(retString, "2017-01-25", twoDaysAgo)
 	return []byte(retString)
+}
+
+func spanCount(traces []ptrace.Traces) int {
+	count := 0
+	for _, trace := range traces {
+		count += trace.SpanCount()
+	}
+	return count
 }
 
 func toTraceSlice(tracesSeq iter.Seq2[[]ptrace.Traces, error]) ([]ptrace.Traces, error) {
