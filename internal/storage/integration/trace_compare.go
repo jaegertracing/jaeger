@@ -6,19 +6,40 @@ package integration
 
 import (
 	"bytes"
+	"sort"
 	"strings"
 	"testing"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest/ptracetest"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
+func CompareSliceOfTraces(t *testing.T, expected []ptrace.Traces, actual []ptrace.Traces) {
+	require.Len(t, expected, len(actual))
+	sortSliceOfTraces(expected)
+	sortSliceOfTraces(actual)
+	for i, trace := range actual {
+		if err := compareTraces(expected[i], trace); err != nil {
+			t.Logf("Actual trace and expected traces are not equal at index %d: %v", i, err)
+			t.Fail()
+		}
+	}
+}
+
 // CompareTraces compares two traces
 func CompareTraces(t *testing.T, expected ptrace.Traces, actual ptrace.Traces) {
+	if err := compareTraces(expected, actual); err != nil {
+		t.Logf("Actual trace and expected traces are not equal: %v", err)
+		t.Fail()
+	}
+}
+
+func compareTraces(expected ptrace.Traces, actual ptrace.Traces) error {
 	// CompareTracesOption also sort the resource, scope and ptrace.Spans but while sorting
 	// the resource and scope spans, it only compares the resource and scope. For example
 	// there could be two resource spans whose resource and scope are same but the spans
@@ -35,10 +56,7 @@ func CompareTraces(t *testing.T, expected ptrace.Traces, actual ptrace.Traces) {
 		ptracetest.IgnoreScopeSpansOrder(),
 		ptracetest.IgnoreSpansOrder(),
 	}
-	if err := ptracetest.CompareTraces(expected, actual, options...); err != nil {
-		t.Logf("Actual trace and expected traces are not equal: %v", err)
-		t.Fail()
-	}
+	return ptracetest.CompareTraces(expected, actual, options...)
 }
 
 // trace.Spans may contain spans with the same SpanID. Remove duplicates
@@ -148,4 +166,12 @@ func compareTimestamps(a, b pcommon.Timestamp) int {
 		return 1
 	}
 	return -1
+}
+
+func sortSliceOfTraces(traces []ptrace.Traces) {
+	sort.Slice(traces, func(i, j int) bool {
+		a := traces[i].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
+		b := traces[j].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
+		return compareTraceIDs(a, b) < 0
+	})
 }
