@@ -274,8 +274,11 @@ func (s *ESStorageIntegration) testArchiveTrace(t *testing.T) {
 		if err != nil {
 			return false
 		}
+		if len(traceSlice) != 1 {
+			return false
+		}
 		actual = traceSlice[0]
-		return actual.SpanCount() == 1
+		return true
 	})
 	require.True(t, found)
 	CompareTraces(t, expectedTrace, actual)
