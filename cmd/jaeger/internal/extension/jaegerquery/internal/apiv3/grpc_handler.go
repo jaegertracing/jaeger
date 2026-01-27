@@ -128,6 +128,11 @@ func (h *Handler) GetOperations(ctx context.Context, request *api_v3.GetOperatio
 	}, nil
 }
 
+func (*Handler) GetDependencies(context.Context, *api_v3.GetDependenciesRequest) (*api_v3.GetDependenciesResponse, error) {
+	// TODO implement this.
+	return nil, nil
+}
+
 func receiveTraces(
 	seq iter.Seq2[[]ptrace.Traces, error],
 	sendFn func(*jptrace.TracesData) error,
