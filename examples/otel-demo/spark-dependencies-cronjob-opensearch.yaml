@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: jaeger-spark-dependencies
+  namespace: jaeger
+spec:
+  schedule: "*/15 * * * *"
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: spark-dependencies
+            image: ghcr.io/jaegertracing/spark-dependencies/spark-dependencies:v0.7.2-opensearch
+            imagePullPolicy: IfNotPresent
+            env:
+            - name: STORAGE
+              value: "elasticsearch"
+            - name: OS_NODES
+              value: "opensearch-cluster-single.opensearch.svc.cluster.local:9200"
+            - name: OS_INDEX_PREFIX
+              value: "jaeger-main"
+            - name: SPARK_MASTER
+              value: "local[*]"
+            - name: JAVA_OPTS
+              value: "-Xmx1g -Xms512m"
+            - name: OS_NODES_WAN_ONLY
+              value: "true"
+            resources:
+              requests:
+                cpu: 200m
+                memory: 1Gi
+              limits:
+                cpu: 500m
+                memory: 2Gi
