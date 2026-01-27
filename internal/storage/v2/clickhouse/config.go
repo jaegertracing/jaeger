@@ -4,6 +4,7 @@
 package clickhouse
 
 import (
+	"errors"
 	"time"
 
 	"github.com/asaskevich/govalidator"
@@ -11,11 +12,14 @@ import (
 	"go.opentelemetry.io/collector/config/configoptional"
 )
 
+var errInvalidTTL = errors.New("trace_ttl must be 0 (disabled) or >= 1 second")
+
 const (
 	defaultProtocol       = "native"
 	defaultDatabase       = "jaeger"
 	defaultSearchDepth    = 1000
 	defaultMaxSearchDepth = 10000
+	minTTL                = time.Second
 )
 
 type Configuration struct {
@@ -30,8 +34,8 @@ type Configuration struct {
 	Auth Authentication `mapstructure:"auth"`
 	// DialTimeout is the timeout for establishing a connection to ClickHouse.
 	DialTimeout time.Duration `mapstructure:"dial_timeout"`
-	// CreateSchema, if set to true, will create the ClickHouse schema if it does not exist.
-	CreateSchema bool `mapstructure:"create_schema"`
+	// Schema contains schema-related configuration options.
+	Schema Schema `mapstructure:"schema"`
 	// DefaultSearchDepth is the default search depth for queries.
 	// This is the maximum number of trace IDs that will be returned when searching for traces
 	// if a limit is not specified in the query.
@@ -42,14 +46,35 @@ type Configuration struct {
 	// TODO: add more settings
 }
 
+// Schema contains schema-related configuration options.
+type Schema struct {
+	// Create, if set to true, will create the ClickHouse schema if it does not exist.
+	Create bool `mapstructure:"create"`
+	// TraceTTL is the TTL for trace data in ClickHouse.
+	// When set to a positive duration, trace data will be automatically deleted after this period.
+	// Set to 0 to disable TTL (default).
+	// Must be 0 or >= 1 second.
+	TraceTTL time.Duration `mapstructure:"trace_ttl"`
+}
+
 type Authentication struct {
 	Basic configoptional.Optional[basicauthextension.ClientAuthSettings] `mapstructure:"basic"`
 	// TODO: add JWT
 }
 
 func (cfg *Configuration) Validate() error {
-	_, err := govalidator.ValidateStruct(cfg)
-	return err
+	if _, err := govalidator.ValidateStruct(cfg); err != nil {
+		return err
+	}
+	if !isValidTTL(cfg.Schema.TraceTTL) {
+		return errInvalidTTL
+	}
+	return nil
+}
+
+// isValidTTL returns true if the TTL is valid (0 to disable, or >= 1 second).
+func isValidTTL(ttl time.Duration) bool {
+	return ttl == 0 || ttl >= minTTL
 }
 
 func (cfg *Configuration) applyDefaults() {

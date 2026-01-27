@@ -165,8 +165,10 @@ func TestNewFactory_Errors(t *testing.T) {
 				Addresses: []string{
 					srv.Listener.Addr().String(),
 				},
-				DialTimeout:  1 * time.Second,
-				CreateSchema: true,
+				DialTimeout: 1 * time.Second,
+				Schema: Schema{
+					Create: true,
+				},
 			}
 
 			f, err := NewFactory(context.Background(), cfg, telemetry.Settings{})
@@ -229,8 +231,10 @@ func TestPurge(t *testing.T) {
 				Addresses: []string{
 					srv.Listener.Addr().String(),
 				},
-				DialTimeout:  1 * time.Second,
-				CreateSchema: true,
+				DialTimeout: 1 * time.Second,
+				Schema: Schema{
+					Create: true,
+				},
 			}
 
 			f, err := NewFactory(context.Background(), cfg, telemetry.Settings{})
@@ -272,6 +276,115 @@ func TestGetProtocol(t *testing.T) {
 		t.Run(tt.protocol, func(t *testing.T) {
 			result := getProtocol(tt.protocol)
 			require.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestFactory_TTL(t *testing.T) {
+	tests := []struct {
+		name     string
+		traceTTL time.Duration
+	}{
+		{
+			name:     "TTL disabled",
+			traceTTL: 0,
+		},
+		{
+			name:     "TTL enabled with 24 hours",
+			traceTTL: 24 * time.Hour,
+		},
+		{
+			name:     "TTL enabled with 7 days",
+			traceTTL: 168 * time.Hour,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := clickhousetest.NewServer(clickhousetest.FailureConfig{})
+			defer srv.Close()
+
+			cfg := Configuration{
+				Protocol: "http",
+				Addresses: []string{
+					srv.Listener.Addr().String(),
+				},
+				Database: "default",
+				Schema: Schema{
+					Create:   true,
+					TraceTTL: tt.traceTTL,
+				},
+			}
+
+			f, err := NewFactory(context.Background(), cfg, telemetry.Settings{})
+			require.NoError(t, err)
+			require.NotNil(t, f)
+			require.NoError(t, f.Close())
+		})
+	}
+}
+
+func TestFactory_TTL_Errors(t *testing.T) {
+	tests := []struct {
+		name          string
+		traceTTL      time.Duration
+		failureConfig clickhousetest.FailureConfig
+		expectedError string
+	}{
+		{
+			name:     "spans TTL application error",
+			traceTTL: 24 * time.Hour,
+			failureConfig: clickhousetest.FailureConfig{
+				"ALTER TABLE spans MODIFY TTL start_time + INTERVAL 86400 SECOND": assert.AnError,
+			},
+			expectedError: "failed to apply TTL to spans",
+		},
+		{
+			name:     "trace_id_timestamps TTL application error",
+			traceTTL: 24 * time.Hour,
+			failureConfig: clickhousetest.FailureConfig{
+				"ALTER TABLE trace_id_timestamps MODIFY TTL start + INTERVAL 86400 SECOND": assert.AnError,
+			},
+			expectedError: "failed to apply TTL to trace_id_timestamps",
+		},
+		{
+			name:     "spans TTL removal error",
+			traceTTL: 0,
+			failureConfig: clickhousetest.FailureConfig{
+				sql.RemoveSpansTTL: assert.AnError,
+			},
+			expectedError: "failed to apply TTL to spans",
+		},
+		{
+			name:     "trace_id_timestamps TTL removal error",
+			traceTTL: 0,
+			failureConfig: clickhousetest.FailureConfig{
+				sql.RemoveTraceIDTimestampsTTL: assert.AnError,
+			},
+			expectedError: "failed to apply TTL to trace_id_timestamps",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := clickhousetest.NewServer(tt.failureConfig)
+			defer srv.Close()
+
+			cfg := Configuration{
+				Protocol: "http",
+				Addresses: []string{
+					srv.Listener.Addr().String(),
+				},
+				DialTimeout: 1 * time.Second,
+				Schema: Schema{
+					Create:   true,
+					TraceTTL: tt.traceTTL,
+				},
+			}
+
+			f, err := NewFactory(context.Background(), cfg, telemetry.Settings{})
+			require.ErrorContains(t, err, tt.expectedError)
+			require.Nil(t, f)
 		})
 	}
 }

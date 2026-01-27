@@ -42,7 +42,9 @@ extensions:
             basic:
               username: default
               password: password
-          create_schema: true
+          schema:
+            create: true
+            trace_ttl: 168h  # 7 days, set to 0 to disable
 
 receivers:
   otlp:
