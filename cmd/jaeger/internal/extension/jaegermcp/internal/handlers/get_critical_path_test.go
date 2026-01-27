@@ -96,7 +96,7 @@ func TestGetCriticalPathHandler_Handle_Success(t *testing.T) {
 	for _, span := range output.Segments {
 		assert.NotEmpty(t, span.SpanID)
 		assert.NotEmpty(t, span.Service)
-		assert.NotEmpty(t, span.Operation)
+		assert.NotEmpty(t, span.SpanName)
 	}
 }
 
