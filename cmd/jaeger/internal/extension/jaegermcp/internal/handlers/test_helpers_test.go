@@ -106,7 +106,7 @@ func newMockFindTraces(traces ...ptrace.Traces) *mockQueryService {
 }
 
 // createTestTrace creates a simple trace with a single span for testing
-func createTestTrace(traceID string, serviceName string, operationName string, hasError bool) ptrace.Traces {
+func createTestTrace(traceID string, serviceName string, spanName string, hasError bool) ptrace.Traces {
 	traces := ptrace.NewTraces()
 	resourceSpans := traces.ResourceSpans().AppendEmpty()
 
@@ -125,7 +125,7 @@ func createTestTrace(traceID string, serviceName string, operationName string, h
 	span.SetSpanID(pcommon.SpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8}))
 	span.SetParentSpanID(pcommon.SpanID{}) // Empty parent = root span
 
-	span.SetName(operationName)
+	span.SetName(spanName)
 	span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(-5 * time.Second)))
 	span.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now()))
 

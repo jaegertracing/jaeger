@@ -26,7 +26,7 @@ type SpanDetail struct {
 	TraceID      string         `json:"trace_id" jsonschema:"Trace identifier this span belongs to"`
 	ParentSpanID string         `json:"parent_span_id,omitempty" jsonschema:"Parent span identifier"`
 	Service      string         `json:"service" jsonschema:"Service name from resource attributes"`
-	Operation    string         `json:"operation" jsonschema:"Operation/span name"`
+	SpanName     string         `json:"span_name" jsonschema:"Span name"`
 	StartTime    string         `json:"start_time" jsonschema:"Span start time in RFC3339 format"`
 	DurationUs   int64          `json:"duration_us" jsonschema:"Span duration in microseconds"`
 	Status       SpanStatus     `json:"status" jsonschema:"Span status information"`
