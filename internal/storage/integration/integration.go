@@ -198,6 +198,7 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 					t.Log(err)
 					continue
 				}
+
 				for _, trace := range traces {
 					for _, span := range trace.Spans {
 						t.Logf("span: Service: %s, TraceID: %s, Operation: %s", service, span.TraceID, span.OperationName)
@@ -229,29 +230,34 @@ func (s *StorageIntegration) helperTestGetTrace(
 	expected := s.writeLargeTraceWithDuplicateSpanIds(t, traceSize, duplicateCount)
 	expectedTraceID := v1adapter.FromV1TraceID(expected.Spans[0].TraceID)
 
-	actual := &model.Trace{} // no spans
+	var trace *model.Trace
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
-		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
+		v1Traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
 		if err != nil {
 			t.Logf("Error loading trace: %v", err)
 			return false
 		}
-		if len(traces) == 0 {
+		if len(v1Traces) == 0 {
 			return false
 		}
-		actual = traces[0]
-		return len(actual.Spans) >= len(expected.Spans)
+		trace = v1Traces[0]
+
+		if len(trace.Spans) == 0 {
+			return false
+		}
+		return len(trace.Spans) >= len(expected.Spans)
 	})
 
-	t.Logf("%-23s Loaded trace, expected=%d, actual=%d", time.Now().Format("2006-01-02 15:04:05.999"), len(expected.Spans), len(actual.Spans))
-	if !assert.True(t, found, "error loading trace, expected=%d, actual=%d", len(expected.Spans), len(actual.Spans)) {
-		CompareTraces(t, expected, actual)
+	t.Logf("%-23s Loaded trace, expected=%d, actual=%d",
+		time.Now().Format("2006-01-02 15:04:05.999"), len(expected.Spans), len(trace.Spans))
+	if !assert.True(t, found, "error loading trace, expected=%d, actual=%d", len(expected.Spans), len(trace.Spans)) {
+		CompareTraces(t, expected, trace)
 		return
 	}
 
 	if validator != nil {
-		validator(t, actual)
+		validator(t, trace)
 	}
 }
 
@@ -324,30 +330,33 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	expected := s.loadParseAndWriteExampleTrace(t)
 	expectedTraceID := v1adapter.FromV1TraceID(expected.Spans[0].TraceID)
 
-	actual := &model.Trace{} // no spans
-	found := s.waitForCondition(t, func(t *testing.T) bool {
+	var trace *model.Trace
+	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
-		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
+		v1Traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
 		if err != nil {
-			t.Log(err)
+			t.Logf("Error loading trace: %v", err)
 			return false
 		}
-		if len(traces) == 0 {
+		if len(v1Traces) == 0 {
 			return false
 		}
-		actual = traces[0]
-		return len(actual.Spans) == len(expected.Spans)
+		trace = v1Traces[0]
+		return len(trace.Spans) == len(expected.Spans)
 	})
+
 	if !assert.True(t, found) {
-		CompareTraces(t, expected, actual)
+		CompareTraces(t, expected, trace)
 	}
 
 	t.Run("NotFound error", func(t *testing.T) {
 		fakeTraceID := v1adapter.FromV1TraceID(model.TraceID{High: 0, Low: 1})
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: fakeTraceID})
-		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
-		require.NoError(t, err) // v2 TraceReader no longer returns an error for not found
-		assert.Empty(t, traces)
+
+		v1Traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
+		require.NoError(t, err)
+
+		assert.Empty(t, v1Traces)
 	})
 }
 
@@ -388,24 +397,30 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.TraceQueryParams, expected []*model.Trace) []*model.Trace {
 	var traces []*model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
-		var err error
 		iterTraces := s.TraceReader.FindTraces(context.Background(), *query)
+		traces = nil
+		var err error
 		traces, err = v1adapter.V1TracesFromSeq2(iterTraces)
 		if err != nil {
 			t.Log(err)
 			return false
 		}
+
 		if len(expected) != len(traces) {
 			t.Logf("Expecting certain number of traces: expected: %d, actual: %d", len(expected), len(traces))
 			return false
 		}
-		if spanCount(expected) != spanCount(traces) {
-			t.Logf("Excepting certain number of spans: expected: %d, actual: %d", spanCount(expected), spanCount(traces))
+
+		actualSpanCount := spanCount(traces)
+
+		if spanCount(expected) != actualSpanCount {
+			t.Logf("Excepting certain number of spans: expected: %d, actual: %d", spanCount(expected), actualSpanCount)
 			return false
 		}
 		return true
 	})
 	require.True(t, found)
+
 	return traces
 }
 
