@@ -298,3 +298,11 @@ var CreateAttributeMetadataTable string
 
 //go:embed create_attribute_metadata_mv.sql
 var CreateAttributeMetadataMaterializedView string
+
+// AlterSpansTTLTemplate is the template for setting TTL on the spans table.
+// Use fmt.Sprintf to substitute the TTL seconds value.
+const AlterSpansTTLTemplate = `ALTER TABLE spans MODIFY TTL start_time + INTERVAL %d SECOND`
+
+// AlterTraceIDTimestampsTTLTemplate is the template for setting TTL on the trace_id_timestamps table.
+// Use fmt.Sprintf to substitute the TTL seconds value.
+const AlterTraceIDTimestampsTTLTemplate = `ALTER TABLE trace_id_timestamps MODIFY TTL start + INTERVAL %d SECOND`

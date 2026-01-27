@@ -5,6 +5,7 @@ package clickhouse
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -68,6 +69,36 @@ func TestValidate(t *testing.T) {
 				Protocol: "native",
 			},
 			wantErr: true,
+		},
+		{
+			name: "valid config with TTL disabled (zero)",
+			cfg: Configuration{
+				Addresses: []string{"localhost:9000"},
+				Schema: Schema{
+					TraceTTL: 0,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid config with TTL of 1 second",
+			cfg: Configuration{
+				Addresses: []string{"localhost:9000"},
+				Schema: Schema{
+					TraceTTL: time.Second,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid config with TTL of 7 days",
+			cfg: Configuration{
+				Addresses: []string{"localhost:9000"},
+				Schema: Schema{
+					TraceTTL: 168 * time.Hour,
+				},
+			},
+			wantErr: false,
 		},
 	}
 

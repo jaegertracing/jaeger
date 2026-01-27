@@ -58,3 +58,6 @@ CREATE TABLE
     ) ENGINE = MergeTree
 PARTITION BY toDate(start_time)
 ORDER BY (trace_id)
+{{- if .TTLSeconds }}
+TTL start_time + INTERVAL {{ .TTLSeconds }} SECOND
+{{- end }}

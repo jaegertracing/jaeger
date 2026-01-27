@@ -4,10 +4,13 @@
 package clickhouse
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"text/template"
+	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
@@ -64,17 +67,29 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 			conn.Close(),
 		)
 	}
-	if f.config.CreateSchema {
+	if f.config.Schema.Create {
+		ttlSeconds := int64(f.config.Schema.TraceTTL / time.Second)
+		templateData := map[string]any{"TTLSeconds": ttlSeconds}
+
+		spansTableQuery, err := executeTemplate("spans_table", sql.CreateSpansTable, templateData)
+		if err != nil {
+			return nil, errors.Join(err, conn.Close())
+		}
+		traceIDTimestampsQuery, err := executeTemplate("trace_id_timestamps_table", sql.CreateTraceIDTimestampsTable, templateData)
+		if err != nil {
+			return nil, errors.Join(err, conn.Close())
+		}
+
 		schemas := []struct {
 			name  string
 			query string
 		}{
-			{"spans table", sql.CreateSpansTable},
+			{"spans table", spansTableQuery},
 			{"services table", sql.CreateServicesTable},
 			{"services materialized view", sql.CreateServicesMaterializedView},
 			{"operations table", sql.CreateOperationsTable},
 			{"operations materialized view", sql.CreateOperationsMaterializedView},
-			{"trace id timestamps table", sql.CreateTraceIDTimestampsTable},
+			{"trace id timestamps table", traceIDTimestampsQuery},
 			{"trace id timestamps materialized view", sql.CreateTraceIDTimestampsMaterializedView},
 			{"attribute metadata table", sql.CreateAttributeMetadataTable},
 			{"attribute metadata materialized view", sql.CreateAttributeMetadataMaterializedView},
@@ -84,6 +99,11 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 			if err = conn.Exec(ctx, schema.query); err != nil {
 				return nil, errors.Join(fmt.Errorf("failed to create %s: %w", schema.name, err), conn.Close())
 			}
+		}
+	} else if f.config.Schema.TraceTTL > 0 {
+		// Apply TTL to existing tables when schema creation is disabled but TTL is configured
+		if err = f.applyTTL(ctx, conn); err != nil {
+			return nil, errors.Join(err, conn.Close())
 		}
 	}
 	f.conn = conn
@@ -134,4 +154,39 @@ func getProtocol(protocol string) clickhouse.Protocol {
 		return clickhouse.HTTP
 	}
 	return clickhouse.Native
+}
+
+// executeTemplate parses and executes a Go template with the provided data.
+func executeTemplate(name, templateSQL string, data map[string]any) (string, error) {
+	tmpl, err := template.New(name).Parse(templateSQL)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse %s template: %w", name, err)
+	}
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "", fmt.Errorf("failed to execute %s template: %w", name, err)
+	}
+	return buf.String(), nil
+}
+
+// applyTTL applies TTL settings to existing trace tables.
+// This is used when Schema.Create is false but TraceTTL is configured,
+// allowing users to update TTL on existing installations.
+func (f *Factory) applyTTL(ctx context.Context, conn driver.Conn) error {
+	seconds := int64(f.config.Schema.TraceTTL / time.Second)
+	tables := []struct {
+		name     string
+		template string
+	}{
+		{"spans", sql.AlterSpansTTLTemplate},
+		{"trace_id_timestamps", sql.AlterTraceIDTimestampsTTLTemplate},
+	}
+
+	for _, table := range tables {
+		query := fmt.Sprintf(table.template, seconds)
+		if err := conn.Exec(ctx, query); err != nil {
+			return fmt.Errorf("failed to apply TTL to %s: %w", table.name, err)
+		}
+	}
+	return nil
 }
