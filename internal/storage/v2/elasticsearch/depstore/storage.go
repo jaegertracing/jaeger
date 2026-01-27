@@ -88,7 +88,7 @@ func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, depe
 		BodyJson(&dbmodel.TimeDependencies{
 			Timestamp:    ts,
 			Dependencies: dependencies,
-		}).Add()
+		}).Add("")
 }
 
 // GetDependencies returns all interservice dependencies

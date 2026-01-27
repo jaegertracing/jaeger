@@ -1890,6 +1890,37 @@ func TestNewClientWithCustomHeaders(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestGetDataStreamLegacyWildcard(t *testing.T) {
+	tests := []struct {
+		name       string
+		dataStream string
+		expected   string
+	}{
+		{
+			name:       "jaeger span data stream",
+			dataStream: "jaeger.span",
+			expected:   "jaeger-span-*",
+		},
+		{
+			name:       "custom data stream",
+			dataStream: "custom.stream",
+			expected:   "custom-stream-*",
+		},
+		{
+			name:       "no dot",
+			dataStream: "nodot",
+			expected:   "nodot-*",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := GetDataStreamLegacyWildcard(tt.dataStream)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
 }

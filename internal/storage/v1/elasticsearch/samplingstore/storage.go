@@ -66,7 +66,7 @@ func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
 			BodyJson(&dbmodel.TimeThroughput{
 				Timestamp:  ts,
 				Throughput: eachThroughput,
-			}).Add()
+			}).Add("")
 	}
 	return nil
 }
@@ -149,7 +149,7 @@ func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time,
 		BodyJson(&dbmodel.TimeProbabilitiesAndQPS{
 			Timestamp:           ts,
 			ProbabilitiesAndQPS: pandqps,
-		}).Add()
+		}).Add("")
 }
 
 func getLatestIndices(indexPrefix, indexDateLayout string, clientFn es.Client, rollover time.Duration, maxDuration time.Duration) ([]string, error) {

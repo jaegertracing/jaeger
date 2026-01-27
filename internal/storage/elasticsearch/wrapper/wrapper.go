@@ -226,7 +226,10 @@ func (i IndexServiceWrapper) Type(typ string) es.IndexService {
 }
 
 // Add adds the request to bulk service
-func (i IndexServiceWrapper) Add() {
+func (i IndexServiceWrapper) Add(opType string) {
+	if opType != "" {
+		i.bulkIndexReq.OpType(opType)
+	}
 	i.bulkService.Add(i.bulkIndexReq)
 }
 
