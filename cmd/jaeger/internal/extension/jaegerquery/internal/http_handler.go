@@ -154,7 +154,7 @@ func (aH *APIHandler) getServices(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if services == nil {
+	if len(services) == 0 {
 		services = []string{}
 	}
 
