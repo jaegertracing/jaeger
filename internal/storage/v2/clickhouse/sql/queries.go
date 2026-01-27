@@ -298,3 +298,6 @@ var CreateAttributeMetadataTable string
 
 //go:embed create_attribute_metadata_mv.sql
 var CreateAttributeMetadataMaterializedView string
+
+//go:embed create_event_attribute_metadata_mv.sql
+var CreateEventAttributeMetadataMaterializedView string
