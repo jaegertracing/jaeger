@@ -1,0 +1,148 @@
+SELECT
+    id,
+    trace_id,
+    trace_state,
+    parent_span_id,
+    name,
+    kind,
+    start_time,
+    status_code,
+    status_message,
+    duration,
+    bool_attributes.key,
+    bool_attributes.value,
+    double_attributes.key,
+    double_attributes.value,
+    int_attributes.key,
+    int_attributes.value,
+    str_attributes.key,
+    str_attributes.value,
+    complex_attributes.key,
+    complex_attributes.value,
+    events.name,
+    events.timestamp,
+    events.bool_attributes.key,
+    events.bool_attributes.value,
+    events.double_attributes.key,
+    events.double_attributes.value,
+    events.int_attributes.key,
+    events.int_attributes.value,
+    events.str_attributes.key,
+    events.str_attributes.value,
+    events.complex_attributes.key,
+    events.complex_attributes.value,
+    links.trace_id,
+    links.span_id,
+    links.trace_state,
+    links.bool_attributes.key,
+    links.bool_attributes.value,
+    links.double_attributes.key,
+    links.double_attributes.value,
+    links.int_attributes.key,
+    links.int_attributes.value,
+    links.str_attributes.key,
+    links.str_attributes.value,
+    links.complex_attributes.key,
+    links.complex_attributes.value,
+    service_name,
+    resource_bool_attributes.key,
+    resource_bool_attributes.value,
+    resource_double_attributes.key,
+    resource_double_attributes.value,
+    resource_int_attributes.key,
+    resource_int_attributes.value,
+    resource_str_attributes.key,
+    resource_str_attributes.value,
+    resource_complex_attributes.key,
+    resource_complex_attributes.value,
+    scope_name,
+    scope_version,
+    scope_bool_attributes.key,
+    scope_bool_attributes.value,
+    scope_double_attributes.key,
+    scope_double_attributes.value,
+    scope_int_attributes.key,
+    scope_int_attributes.value,
+    scope_str_attributes.key,
+    scope_str_attributes.value,
+    scope_complex_attributes.key,
+    scope_complex_attributes.value
+FROM
+    spans s
+WHERE s.trace_id IN (
+	SELECT trace_id FROM (
+		SELECT DISTINCT
+		    s.trace_id,
+		    t.start,
+		    t.end
+		FROM spans s
+		LEFT JOIN trace_id_timestamps t ON s.trace_id = t.trace_id
+		WHERE 1=1
+			AND s.service_name = ?
+			AND s.name = ?
+			AND s.duration >= ?
+			AND s.duration <= ?
+			AND s.start_time >= ?
+			AND s.start_time <= ?
+			AND (
+				arrayExists((key, value) -> key = ? AND value = ?, s.bool_attributes.key, s.bool_attributes.value)
+				OR 
+				arrayExists((key, value) -> key = ? AND value = ?, s.resource_bool_attributes.key, s.resource_bool_attributes.value)
+			)
+			AND (
+				arrayExists((key, value) -> key = ? AND value = ?, s.double_attributes.key, s.double_attributes.value)
+				OR 
+				arrayExists((key, value) -> key = ? AND value = ?, s.resource_double_attributes.key, s.resource_double_attributes.value)
+			)
+			AND (
+				arrayExists((key, value) -> key = ? AND value = ?, s.int_attributes.key, s.int_attributes.value)
+				OR 
+				arrayExists((key, value) -> key = ? AND value = ?, s.resource_int_attributes.key, s.resource_int_attributes.value)
+			)
+			AND (
+				arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)
+				OR 
+				arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value)
+			)
+			AND (
+				arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)
+				OR 
+				arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value)
+			)
+			AND (
+				arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)
+				OR 
+				arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value)
+			)
+			AND (
+				arrayExists((key, value) -> key = ? AND value = ?, s.str_attributes.key, s.str_attributes.value)
+				OR 
+				arrayExists((key, value) -> key = ? AND value = ?, s.resource_str_attributes.key, s.resource_str_attributes.value)
+				OR 
+				arrayExists((key, value) -> key = ? AND value = ?, s.scope_str_attributes.key, s.scope_str_attributes.value)
+			)
+			AND (
+				arrayExists((key, value) -> key = ? AND value = ?, s.str_attributes.key, s.str_attributes.value)
+			)
+			AND (
+				arrayExists((key, value) -> key = ? AND value = ?, s.bool_attributes.key, s.bool_attributes.value)
+			)
+			AND (
+				arrayExists((key, value) -> key = ? AND value = ?, s.resource_double_attributes.key, s.resource_double_attributes.value)
+			)
+			AND (
+				arrayExists((key, value) -> key = ? AND value = ?, s.scope_int_attributes.key, s.scope_int_attributes.value)
+			)
+			AND (
+				arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value)
+			)
+			AND (
+				arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)
+			)
+			AND (
+				arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)
+			)
+		LIMIT ?
+	)
+)
+ORDER BY s.trace_id

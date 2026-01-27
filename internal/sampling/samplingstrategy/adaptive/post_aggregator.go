@@ -126,12 +126,11 @@ func newPostAggregator(
 }
 
 // Start initializes and starts the sampling postAggregator which regularly calculates sampling probabilities.
-func (p *PostAggregator) Start() error {
+func (p *PostAggregator) Start() {
 	p.logger.Info("starting adaptive sampling postAggregator")
 	// NB: the first tick will be slightly delayed by the initializeThroughput call.
 	p.lastCheckedTime = time.Now().Add(p.Delay * -1)
 	p.initializeThroughput(p.lastCheckedTime)
-	return nil
 }
 
 func (p *PostAggregator) isLeader() bool {
