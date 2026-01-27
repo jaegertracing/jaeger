@@ -23,6 +23,7 @@ func TestFactory(t *testing.T) {
 	tests := []struct {
 		name         string
 		createSchema bool
+		ttl          time.Duration
 	}{
 		{
 			name:         "without schema creation",
@@ -31,6 +32,11 @@ func TestFactory(t *testing.T) {
 		{
 			name:         "with schema creation",
 			createSchema: true,
+		},
+		{
+			name:         "with TTL and schema creation",
+			createSchema: true,
+			ttl:          168 * time.Hour, // 7 days
 		},
 	}
 
@@ -51,6 +57,8 @@ func TestFactory(t *testing.T) {
 						Password: "password",
 					}),
 				},
+				CreateSchema: tt.createSchema,
+				TTL:          tt.ttl,
 			}
 
 			f, err := NewFactory(context.Background(), cfg, telemetry.Settings{})
@@ -157,7 +165,19 @@ func TestNewFactory_Errors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			srv := clickhousetest.NewServer(tt.failureConfig)
+			// Render templates for failure config keys if they are templates
+			failures := make(clickhousetest.FailureConfig)
+			templateData := struct {
+				TTL int
+			}{
+				TTL: 0, // Tests in this loop use default TTL
+			}
+			for q, err := range tt.failureConfig {
+				rendered, _ := renderTemplate(q, templateData)
+				failures[rendered] = err
+			}
+
+			srv := clickhousetest.NewServer(failures)
 			defer srv.Close()
 
 			cfg := Configuration{

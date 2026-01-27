@@ -4,6 +4,7 @@
 package clickhouse
 
 import (
+	"errors"
 	"time"
 
 	"github.com/asaskevich/govalidator"
@@ -39,6 +40,9 @@ type Configuration struct {
 	// MaxSearchDepth is the maximum allowed search depth for queries.
 	// This limits the number of trace IDs that can be returned when searching for traces.
 	MaxSearchDepth int `mapstructure:"max_search_depth"`
+	// TTL specifies how long trace data should be retained before automatic deletion.
+	// When set to 0 (default), TTL is disabled and data is retained indefinitely.
+	TTL time.Duration `mapstructure:"ttl"`
 	// TODO: add more settings
 }
 
@@ -48,6 +52,9 @@ type Authentication struct {
 }
 
 func (cfg *Configuration) Validate() error {
+	if cfg.TTL < 0 {
+		return errors.New("TTL cannot be negative")
+	}
 	_, err := govalidator.ValidateStruct(cfg)
 	return err
 }
@@ -65,4 +72,13 @@ func (cfg *Configuration) applyDefaults() {
 	if cfg.MaxSearchDepth == 0 {
 		cfg.MaxSearchDepth = defaultMaxSearchDepth
 	}
+}
+
+// TTLDays returns the TTL value converted to days
+// INTERVAL syntax. Returns 0 if TTL is disabled or less than 24 hours.
+func (cfg *Configuration) TTLDays() int {
+	if cfg.TTL < 24*time.Hour {
+		return 0
+	}
+	return int(cfg.TTL / (24 * time.Hour))
 }

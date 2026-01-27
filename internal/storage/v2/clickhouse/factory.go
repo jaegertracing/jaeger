@@ -4,13 +4,16 @@
 package clickhouse
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"text/template"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
@@ -80,9 +83,35 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 			{"attribute metadata materialized view", sql.CreateAttributeMetadataMaterializedView},
 		}
 
+		templateData := struct {
+			TTL int
+		}{
+			TTL: f.config.TTLDays(),
+		}
+
 		for _, schema := range schemas {
-			if err = conn.Exec(ctx, schema.query); err != nil {
+			rendered, err := renderTemplate(schema.query, templateData)
+			if err != nil {
+				return nil, errors.Join(fmt.Errorf("failed to render %s: %w", schema.name, err), conn.Close())
+			}
+			if err = conn.Exec(ctx, rendered); err != nil {
 				return nil, errors.Join(fmt.Errorf("failed to create %s: %w", schema.name, err), conn.Close())
+			}
+		}
+
+		if templateData.TTL > 0 {
+			migrationQueries := []struct {
+				table string
+				col   string
+			}{
+				{"spans", "start_time"},
+				{"trace_id_timestamps", "end"},
+			}
+			for _, m := range migrationQueries {
+				query := fmt.Sprintf("ALTER TABLE %s MODIFY TTL %s + INTERVAL %d DAY", m.table, m.col, templateData.TTL)
+				if err = conn.Exec(ctx, query); err != nil {
+					f.telset.Logger.Warn("failed to migrate TTL", zap.String("table", m.table), zap.Error(err))
+				}
 			}
 		}
 	}
@@ -134,4 +163,16 @@ func getProtocol(protocol string) clickhouse.Protocol {
 		return clickhouse.HTTP
 	}
 	return clickhouse.Native
+}
+
+func renderTemplate(query string, data any) (string, error) {
+	tmpl, err := template.New("sql").Parse(query)
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
 }

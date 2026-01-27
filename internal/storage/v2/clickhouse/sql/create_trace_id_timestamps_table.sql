@@ -5,4 +5,7 @@ CREATE TABLE IF NOT EXISTS trace_id_timestamps
     end DateTime64(9)
 )
 ENGINE = MergeTree()
-ORDER BY (trace_id);
+ORDER BY (trace_id)
+{{- if .TTL }}
+TTL end + INTERVAL {{ .TTL }} DAY
+{{- end }};

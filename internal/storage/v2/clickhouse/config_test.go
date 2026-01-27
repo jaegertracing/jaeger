@@ -5,6 +5,7 @@ package clickhouse
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -69,6 +70,22 @@ func TestValidate(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "invalid config with negative TTL",
+			cfg: Configuration{
+				Addresses: []string{"localhost:9000"},
+				TTL:       -1 * time.Hour,
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid config with positive TTL",
+			cfg: Configuration{
+				Addresses: []string{"localhost:9000"},
+				TTL:       24 * time.Hour,
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -91,4 +108,45 @@ func TestConfigurationApplyDefaults(t *testing.T) {
 	require.Equal(t, defaultDatabase, config.Database)
 	require.Equal(t, defaultSearchDepth, config.DefaultSearchDepth)
 	require.Equal(t, defaultMaxSearchDepth, config.MaxSearchDepth)
+}
+
+func TestTTLDays(t *testing.T) {
+	tests := []struct {
+		name     string
+		ttl      time.Duration
+		expected int
+	}{
+		{
+			name:     "0 TTL",
+			ttl:      0,
+			expected: 0,
+		},
+		{
+			name:     "less than 24h",
+			ttl:      23 * time.Hour,
+			expected: 0,
+		},
+		{
+			name:     "exactly 24h",
+			ttl:      24 * time.Hour,
+			expected: 1,
+		},
+		{
+			name:     "more than 24h",
+			ttl:      48 * time.Hour,
+			expected: 2,
+		},
+		{
+			name:     "not a multiple of 24h",
+			ttl:      50 * time.Hour,
+			expected: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Configuration{TTL: tt.ttl}
+			require.Equal(t, tt.expected, cfg.TTLDays())
+		})
+	}
 }

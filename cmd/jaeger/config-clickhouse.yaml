@@ -43,6 +43,7 @@ extensions:
               username: default
               password: password
           create_schema: true
+          ttl: 168h
 
 receivers:
   otlp:
