@@ -695,7 +695,7 @@ func TestGetServicesEmpty(t *testing.T) {
 	require.NoError(t, err)
 
 	data := response.Data.([]any)
-	assert.Len(t, data, 0)
+	assert.Empty(t, data)
 }
 
 func TestGetServicesStorageFailure(t *testing.T) {
