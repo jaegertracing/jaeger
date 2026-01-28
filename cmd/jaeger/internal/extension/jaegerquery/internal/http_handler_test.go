@@ -685,7 +685,7 @@ func TestGetServicesSuccess(t *testing.T) {
 
 func TestGetServicesEmpty(t *testing.T) {
 	ts := initializeTestServer(t)
-	ts.spanReader.
+	ts.traceReader.
 		On("GetServices", mock.AnythingOfType("*context.valueCtx")).
 		Return(nil, nil).
 		Once()
