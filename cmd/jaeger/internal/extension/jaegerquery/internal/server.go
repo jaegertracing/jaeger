@@ -56,7 +56,7 @@ func NewServer(
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*Server, error) {
-	_, httpPort, err := net.SplitHostPort(options.HTTP.Endpoint)
+	_, httpPort, err := net.SplitHostPort(options.HTTP.NetAddr.Endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("invalid HTTP server host:port: %w", err)
 	}
@@ -284,14 +284,14 @@ func (s *Server) Start(ctx context.Context) error {
 	s.bgFinished.Add(1)
 	go func() {
 		defer s.bgFinished.Done()
-		s.telset.Logger.Info("Starting HTTP server", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTP.Endpoint))
+		s.telset.Logger.Info("Starting HTTP server", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTP.NetAddr.Endpoint))
 		err := s.httpServer.Serve(s.httpConn)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			s.telset.Logger.Error("Could not start HTTP server", zap.Error(err))
 			s.telset.ReportStatus(componentstatus.NewFatalErrorEvent(err))
 			return
 		}
-		s.telset.Logger.Info("HTTP server stopped", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTP.Endpoint))
+		s.telset.Logger.Info("HTTP server stopped", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTP.NetAddr.Endpoint))
 	}()
 
 	// Start GRPC server concurrently
