@@ -153,6 +153,11 @@ func (aH *APIHandler) getServices(w http.ResponseWriter, r *http.Request) {
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
+
+	if len(services) == 0 {
+		services = []string{}
+	}
+
 	structuredRes := structuredResponse{
 		Data:  services,
 		Total: len(services),
