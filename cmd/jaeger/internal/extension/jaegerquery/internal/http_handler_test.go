@@ -694,6 +694,7 @@ func TestGetServicesEmpty(t *testing.T) {
 	err := getJSON(ts.server.URL+"/api/services", &response)
 	require.NoError(t, err)
 
+	require.NotNil(t, response.Data)
 	data := response.Data.([]any)
 	assert.Empty(t, data)
 }
