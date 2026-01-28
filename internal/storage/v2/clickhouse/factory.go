@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
@@ -64,7 +65,7 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 			conn.Close(),
 		)
 	}
-	if f.config.CreateSchema {
+	if f.config.Schema.Create {
 		schemas := []struct {
 			name  string
 			query string
@@ -84,6 +85,10 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 			if err = conn.Exec(ctx, schema.query); err != nil {
 				return nil, errors.Join(fmt.Errorf("failed to create %s: %w", schema.name, err), conn.Close())
 			}
+		}
+
+		if err = f.applyTTL(ctx, conn); err != nil {
+			return nil, errors.Join(err, conn.Close())
 		}
 	}
 	f.conn = conn
@@ -134,4 +139,31 @@ func getProtocol(protocol string) clickhouse.Protocol {
 		return clickhouse.HTTP
 	}
 	return clickhouse.Native
+}
+
+// applyTTL applies or removes TTL settings for trace tables based on configuration.
+func (f *Factory) applyTTL(ctx context.Context, conn driver.Conn) error {
+	ttl := f.config.Schema.TraceTTL
+	tables := []struct {
+		name          string
+		applyTemplate string
+		removeQuery   string
+	}{
+		{"spans", sql.AlterSpansTTLTemplate, sql.RemoveSpansTTL},
+		{"trace_id_timestamps", sql.AlterTraceIDTimestampsTTLTemplate, sql.RemoveTraceIDTimestampsTTL},
+	}
+
+	for _, table := range tables {
+		var query string
+		if ttl > 0 {
+			seconds := int64(ttl / time.Second)
+			query = fmt.Sprintf(table.applyTemplate, seconds)
+		} else {
+			query = table.removeQuery
+		}
+		if err := conn.Exec(ctx, query); err != nil {
+			return fmt.Errorf("failed to apply TTL to %s: %w", table.name, err)
+		}
+	}
+	return nil
 }
