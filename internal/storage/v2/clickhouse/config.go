@@ -4,6 +4,7 @@
 package clickhouse
 
 import (
+	"errors"
 	"time"
 
 	"github.com/asaskevich/govalidator"
@@ -39,6 +40,9 @@ type Configuration struct {
 	// MaxSearchDepth is the maximum allowed search depth for queries.
 	// This limits the number of trace IDs that can be returned when searching for traces.
 	MaxSearchDepth int `mapstructure:"max_search_depth"`
+	// SpansTTL is the Time-To-Live for spans in the database.
+	// Data older than this will be automatically deleted. 0 means disabled.
+	SpansTTL time.Duration `mapstructure:"spans_ttl"`
 	// TODO: add more settings
 }
 
@@ -48,8 +52,14 @@ type Authentication struct {
 }
 
 func (cfg *Configuration) Validate() error {
-	_, err := govalidator.ValidateStruct(cfg)
-	return err
+	if _, err := govalidator.ValidateStruct(cfg); err != nil {
+		return err
+	}
+	// manual check for TTL
+	if cfg.SpansTTL < 0 {
+		return errors.New("spans_ttl must be a positive duration")
+	}
+	return nil
 }
 
 func (cfg *Configuration) applyDefaults() {
