@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configtls"
 )
 
 func TestValidate(t *testing.T) {
@@ -43,6 +44,16 @@ func TestValidate(t *testing.T) {
 			cfg: Configuration{
 				Protocol:  "native",
 				Addresses: []string{"localhost:9000", "localhost:9001"},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid config with tls",
+			cfg: Configuration{
+				Addresses: []string{"localhost:9000"},
+				TLS: configtls.ClientConfig{
+					Insecure: true,
+				},
 			},
 			wantErr: false,
 		},
@@ -91,4 +102,5 @@ func TestConfigurationApplyDefaults(t *testing.T) {
 	require.Equal(t, defaultDatabase, config.Database)
 	require.Equal(t, defaultSearchDepth, config.DefaultSearchDepth)
 	require.Equal(t, defaultMaxSearchDepth, config.MaxSearchDepth)
+	require.True(t, config.TLS.Insecure)
 }
