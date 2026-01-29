@@ -100,6 +100,7 @@ func TestConfiguration_Validate_TTL(t *testing.T) {
 		name        string
 		ttl         time.Duration
 		expectError bool
+		errorMsg    string
 	}{
 		{
 			name:        "Zero TTL (Disabled) is valid",
@@ -116,6 +117,12 @@ func TestConfiguration_Validate_TTL(t *testing.T) {
 			ttl:         -1 * time.Hour,
 			expectError: true,
 		},
+		{
+			name:        "Sub-second TTL is invalid",
+			ttl:         500 * time.Millisecond,
+			expectError: true,
+			errorMsg:    "spans_ttl must be at least 1 second",
+		},
 	}
 
 	for _, test := range tests {
@@ -127,7 +134,7 @@ func TestConfiguration_Validate_TTL(t *testing.T) {
 			err := cfg.Validate()
 			if test.expectError {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), "spans_ttl must be a positive duration")
+				assert.Contains(t, err.Error(), test.errorMsg)
 			} else {
 				require.NoError(t, err)
 			}

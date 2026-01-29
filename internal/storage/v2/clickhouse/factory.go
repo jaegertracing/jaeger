@@ -67,20 +67,31 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 		)
 	}
 	if f.config.CreateSchema {
-		data := struct {
-			TTLSeconds int64
-		}{
-			TTLSeconds: int64(f.config.SpansTTL.Seconds()),
-		}
-		tmpl, err := template.New("create_spans_table").Parse(sql.CreateSpansTable)
+		finalSpansQuery, err := loadTemplate(
+			"create_spans_table",
+			sql.CreateSpansTable,
+			struct {
+				TTLSeconds int64
+			}{
+				TTLSeconds: int64(f.config.SpansTTL.Seconds()),
+			},
+		)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse create_spans_table template: %w", err)
+			return nil, err
 		}
-		var queryBuf bytes.Buffer
-		if err := tmpl.Execute(&queryBuf, data); err != nil {
-			return nil, fmt.Errorf("failed to execute create_spans_table template: %w", err)
+		finalTraceIDTsQuery, err := loadTemplate(
+			"create_trace_id_timestamps_table",
+			sql.CreateTraceIDTimestampsTable,
+			struct {
+				TTLSeconds int64
+			}{
+				TTLSeconds: int64(f.config.SpansTTL.Seconds()),
+			},
+		)
+		if err != nil {
+			return nil, err
 		}
-		finalSpansQuery := queryBuf.String()
+
 		schemas := []struct {
 			name  string
 			query string
@@ -90,7 +101,7 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 			{"services materialized view", sql.CreateServicesMaterializedView},
 			{"operations table", sql.CreateOperationsTable},
 			{"operations materialized view", sql.CreateOperationsMaterializedView},
-			{"trace id timestamps table", sql.CreateTraceIDTimestampsTable},
+			{"trace id timestamps table", finalTraceIDTsQuery},
 			{"trace id timestamps materialized view", sql.CreateTraceIDTimestampsMaterializedView},
 			{"attribute metadata table", sql.CreateAttributeMetadataTable},
 			{"attribute metadata materialized view", sql.CreateAttributeMetadataMaterializedView},
@@ -150,4 +161,16 @@ func getProtocol(protocol string) clickhouse.Protocol {
 		return clickhouse.HTTP
 	}
 	return clickhouse.Native
+}
+
+func loadTemplate(name, tmplBody string, data any) (string, error) {
+	tmpl, err := template.New(name).Parse(tmplBody)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse %s template: %w", name, err)
+	}
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "", fmt.Errorf("failed to execute %s template: %w", name, err)
+	}
+	return buf.String(), nil
 }

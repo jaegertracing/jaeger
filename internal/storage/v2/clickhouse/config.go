@@ -59,6 +59,9 @@ func (cfg *Configuration) Validate() error {
 	if cfg.SpansTTL < 0 {
 		return errors.New("spans_ttl must be a positive duration")
 	}
+	if cfg.SpansTTL > 0 && cfg.SpansTTL < time.Second {
+		return errors.New("spans_ttl must be at least 1 second")
+	}
 	return nil
 }
 
