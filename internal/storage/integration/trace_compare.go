@@ -10,8 +10,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest/ptracetest"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil"
+	"github.com/pmezard/go-difflib/difflib"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -27,6 +29,7 @@ func CompareSliceOfTraces(t *testing.T, expected []ptrace.Traces, actual []ptrac
 	for i, trace := range actual {
 		if err := compareTraces(expected[i], trace); err != nil {
 			t.Logf("Actual trace and expected traces are not equal at index %d: %v", i, err)
+			t.Log(getDiff(t, expected[i], trace))
 			t.Fail()
 		}
 	}
@@ -36,6 +39,7 @@ func CompareSliceOfTraces(t *testing.T, expected []ptrace.Traces, actual []ptrac
 func CompareTraces(t *testing.T, expected ptrace.Traces, actual ptrace.Traces) {
 	if err := compareTraces(expected, actual); err != nil {
 		t.Logf("Actual trace and expected traces are not equal: %v", err)
+		t.Log(getDiff(t, expected, actual))
 		t.Fail()
 	}
 }
@@ -77,11 +81,23 @@ func dedupeSpans(trace *model.Trace) {
 func sortTrace(td ptrace.Traces) {
 	for i := 0; i < td.ResourceSpans().Len(); i++ {
 		resourceSpan := td.ResourceSpans().At(i)
+		sortAttributes(resourceSpan.Resource().Attributes())
 		for j := 0; j < resourceSpan.ScopeSpans().Len(); j++ {
 			scopeSpan := resourceSpan.ScopeSpans().At(j)
+			sortAttributes(scopeSpan.Scope().Attributes())
 			scopeSpan.Spans().Sort(func(a, b ptrace.Span) bool {
 				return compareSpans(a, b) < 0
 			})
+			for k := 0; k < scopeSpan.Spans().Len(); k++ {
+				span := scopeSpan.Spans().At(k)
+				sortAttributes(span.Attributes())
+				for _, events := range span.Events().All() {
+					sortAttributes(events.Attributes())
+				}
+				for _, link := range span.Links().All() {
+					sortAttributes(link.Attributes())
+				}
+			}
 		}
 		resourceSpan.ScopeSpans().Sort(func(a, b ptrace.ScopeSpans) bool {
 			return compareScopeSpans(a, b) < 0
@@ -175,4 +191,45 @@ func sortSliceOfTraces(traces []ptrace.Traces) {
 		b := traces[j].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 		return compareTraceIDs(a, b) < 0
 	})
+}
+
+func sortAttributes(attr pcommon.Map) {
+	keys := make([]string, 0, attr.Len())
+	keyVal := make(map[string]pcommon.Value, attr.Len())
+	attr.Range(func(k string, v pcommon.Value) bool {
+		keys = append(keys, k)
+		keyVal[k] = v
+		return true
+	})
+	sort.Strings(keys)
+	newMap := pcommon.NewMap()
+	for _, k := range keys {
+		val, _ := newMap.GetOrPutEmpty(k)
+		keyVal[k].CopyTo(val)
+	}
+	newMap.CopyTo(attr)
+}
+
+func getDiff(t *testing.T, expected ptrace.Traces, actual ptrace.Traces) string {
+	spewConfig := spew.ConfigState{
+		Indent:                  " ",
+		DisablePointerAddresses: true,
+		DisableCapacities:       true,
+		SortKeys:                true,
+		DisableMethods:          true,
+		MaxDepth:                10,
+	}
+	e := spewConfig.Sdump(expected)
+	a := spewConfig.Sdump(actual)
+	diff, err := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
+		A:        difflib.SplitLines(e),
+		B:        difflib.SplitLines(a),
+		FromFile: "Expected",
+		FromDate: "",
+		ToFile:   "Actual",
+		ToDate:   "",
+		Context:  1,
+	})
+	require.NoError(t, err)
+	return "\n\nDiff:\n" + diff
 }
