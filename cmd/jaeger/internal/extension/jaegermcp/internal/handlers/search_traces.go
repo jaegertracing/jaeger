@@ -101,19 +101,19 @@ func (*searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysvc.
 	}
 
 	// Parse and validate input
-	startTimeMin, err := parseTimeParam(startTimeMinInput)
+	minStartTime, err := parseTimeParam(startTimeMinInput)
 	if err != nil {
 		return querysvc.TraceQueryParams{}, fmt.Errorf("invalid start_time_min: %w", err)
 	}
 
-	var startTimeMax time.Time
+	var maxStartTime time.Time
 	if input.StartTimeMax != "" {
-		startTimeMax, err = parseTimeParam(input.StartTimeMax)
+		maxStartTime, err = parseTimeParam(input.StartTimeMax)
 		if err != nil {
 			return querysvc.TraceQueryParams{}, fmt.Errorf("invalid start_time_max: %w", err)
 		}
 	} else {
-		startTimeMax = time.Now()
+		maxStartTime = time.Now()
 	}
 
 	if input.ServiceName == "" {
@@ -165,8 +165,8 @@ func (*searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysvc.
 			ServiceName:   input.ServiceName,
 			OperationName: input.SpanName,
 			Attributes:    attributes,
-			StartTimeMin:  startTimeMin,
-			StartTimeMax:  startTimeMax,
+			StartTimeMin:  minStartTime,
+			StartTimeMax:  maxStartTime,
 			DurationMin:   durationMin,
 			DurationMax:   durationMax,
 			SearchDepth:   searchDepth,
