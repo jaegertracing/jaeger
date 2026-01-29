@@ -123,6 +123,13 @@ func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
 	aH.handleFunc(router, aH.transformOTLP, "/transform").Methods(http.MethodPost)
 	aH.handleFunc(router, aH.dependencies, "/dependencies").Methods(http.MethodGet)
 	aH.handleFunc(router, aH.deepDependencies, "/deep-dependencies").Methods(http.MethodGet)
+
+	// Register /analytics/v1/dependencies to match UI expectations
+	analyticsRoute := "/analytics/v1/dependencies"
+	var analyticsHandler http.Handler = http.HandlerFunc(aH.deepDependencies)
+	analyticsHandler = otelhttp.WithRouteTag(analyticsRoute, analyticsHandler)
+	analyticsHandler = spanNameHandler(analyticsRoute, analyticsHandler)
+	router.HandleFunc(analyticsRoute, analyticsHandler.ServeHTTP).Methods(http.MethodGet)
 	aH.handleFunc(router, aH.latencies, "/metrics/latencies").Methods(http.MethodGet)
 	aH.handleFunc(router, aH.calls, "/metrics/calls").Methods(http.MethodGet)
 	aH.handleFunc(router, aH.errors, "/metrics/errors").Methods(http.MethodGet)
