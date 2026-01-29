@@ -1,7 +1,7 @@
 -- In ClickHouse, 'events' are a nested array. If we processed span-level attributes and 
 -- event-level attributes in the same materialized view, the ARRAY JOIN on events would multiply 
 -- every span attribute by the number of events in that span.
-CREATE MATERIALIZED VIEW IF NOT EXISTS event_attributes_metadata_mv TO attribute_metadata AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS event_attribute_metadata_mv TO attribute_metadata AS
 SELECT
     tp.1 AS attribute_key,
     tp.2 AS type,

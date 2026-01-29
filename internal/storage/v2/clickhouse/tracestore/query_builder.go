@@ -69,7 +69,10 @@ func appendStringAttributeFallback(q *strings.Builder, args []any, key string, a
 	appendNewlineAndIndent(q, 2)
 	q.WriteString("OR ")
 	appendArrayExists(q, 2, "scope_", pcommon.ValueTypeStr)
-	return append(args, key, attr.Str(), key, attr.Str(), key, attr.Str())
+	appendNewlineAndIndent(q, 2)
+	q.WriteString("OR ")
+	appendArrayExists(q, 2, "event_", pcommon.ValueTypeStr)
+	return append(args, key, attr.Str(), key, attr.Str(), key, attr.Str(), key, attr.Str())
 }
 
 func buildFindTracesQuery(traceIDsQuery string) string {
@@ -177,7 +180,13 @@ func buildSimpleAttributeCondition(q *strings.Builder, args []any, key string, v
 	appendNewlineAndIndent(q, 2)
 	q.WriteString("OR ")
 	appendArrayExists(q, 2, "resource_", valueType)
-	return append(args, key, value, key, value)
+	appendNewlineAndIndent(q, 2)
+	q.WriteString("OR ")
+	appendArrayExists(q, 2, "scope_", valueType)
+	appendNewlineAndIndent(q, 2)
+	q.WriteString("OR ")
+	appendArrayExists(q, 2, "event_", valueType)
+	return append(args, key, value, key, value, key, value, key, value)
 }
 
 func buildBytesAttributeCondition(q *strings.Builder, args []any, key string, attr pcommon.Value) []any {
@@ -281,6 +290,7 @@ func buildStringAttributeCondition(
 	appendLevel(levelTypes.resource, "resource_")
 	appendLevel(levelTypes.scope, "scope_")
 	appendLevel(levelTypes.span, "")
+	appendLevel(levelTypes.event, "event_")
 
 	// If no conditions were generated (all types failed to parse),
 	// fall back to treating it as a string attribute
