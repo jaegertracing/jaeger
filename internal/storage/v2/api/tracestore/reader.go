@@ -84,12 +84,16 @@ type TraceQueryParams struct {
 	ServiceName   string
 	OperationName string
 	// Attributes must initialized with pcommon.NewMap() before use.
-	Attributes   pcommon.Map
-	StartTimeMin time.Time
-	StartTimeMax time.Time
-	DurationMin  time.Duration
-	DurationMax  time.Duration
-	SearchDepth  int
+	Attributes         pcommon.Map
+	ResourceAttributes pcommon.Map
+	ScopeAttributes    pcommon.Map
+	ScopeName          string
+	ScopeVersion       string
+	StartTimeMin       time.Time
+	StartTimeMax       time.Time
+	DurationMin        time.Duration
+	DurationMax        time.Duration
+	SearchDepth        int
 }
 
 // FoundTraceID is a wrapper around trace ID returned from FindTraceIDs
@@ -106,10 +110,27 @@ type FoundTraceID struct {
 }
 
 func (t *TraceQueryParams) ToSpanStoreQueryParameters() *spanstore.TraceQueryParameters {
+	tags := jptrace.PcommonMapToPlainMap(t.Attributes)
+	if t.ResourceAttributes != (pcommon.Map{}) {
+		for k, v := range jptrace.PcommonMapToPlainMap(t.ResourceAttributes) {
+			tags["resource."+k] = v
+		}
+	}
+	if t.ScopeAttributes != (pcommon.Map{}) {
+		for k, v := range jptrace.PcommonMapToPlainMap(t.ScopeAttributes) {
+			tags["scope."+k] = v
+		}
+	}
+	if t.ScopeName != "" {
+		tags["scope.name"] = t.ScopeName
+	}
+	if t.ScopeVersion != "" {
+		tags["scope.version"] = t.ScopeVersion
+	}
 	return &spanstore.TraceQueryParameters{
 		ServiceName:   t.ServiceName,
 		OperationName: t.OperationName,
-		Tags:          jptrace.PcommonMapToPlainMap(t.Attributes),
+		Tags:          tags,
 		StartTimeMin:  t.StartTimeMin,
 		StartTimeMax:  t.StartTimeMax,
 		DurationMin:   t.DurationMin,

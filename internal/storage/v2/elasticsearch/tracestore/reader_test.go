@@ -291,14 +291,23 @@ func TestTraceReader_FindTraceIDs_OTLPQueryTranslation(t *testing.T) {
 			coreReader := &mocks.CoreSpanReader{}
 			reader := TraceReader{spanReader: coreReader}
 
-			attrs := pcommon.NewMap()
-			attrs.PutStr(tt.queryAttr, tt.queryVal)
-
 			traceQueryParams := tracestore.TraceQueryParams{
-				Attributes: attrs,
+				Attributes:         pcommon.NewMap(),
+				ResourceAttributes: pcommon.NewMap(),
+				ScopeAttributes:    pcommon.NewMap(),
 				// Add dummy time/duration to satisfy validation if any (V1 reader has defaults)
 				StartTimeMin: time.Now().Add(-1 * time.Hour),
 				StartTimeMax: time.Now(),
+			}
+
+			if tt.queryAttr == "scope.name" {
+				traceQueryParams.ScopeName = tt.queryVal
+			} else if tt.queryAttr == "scope.version" {
+				traceQueryParams.ScopeVersion = tt.queryVal
+			} else if strings.HasPrefix(tt.queryAttr, "resource.") {
+				traceQueryParams.ResourceAttributes.PutStr(strings.TrimPrefix(tt.queryAttr, "resource."), tt.queryVal)
+			} else {
+				traceQueryParams.Attributes.PutStr(tt.queryAttr, tt.queryVal)
 			}
 
 			expectedDBParams := mock.MatchedBy(func(p dbmodel.TraceQueryParameters) bool {

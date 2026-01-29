@@ -6,8 +6,8 @@ package tracestore
 import (
 	"context"
 	"iter"
-	"strings"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
@@ -119,18 +119,35 @@ func (t *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQu
 func toDBTraceQueryParams(query tracestore.TraceQueryParams) dbmodel.TraceQueryParameters {
 	tags := make(map[string]string)
 	processTags := make(map[string]string)
-	for key, val := range query.Attributes.All() {
-		switch {
-		case key == "scope.name":
-			tags[otelsemconv.AttributeOtelScopeName] = val.AsString()
-		case key == "scope.version":
-			tags[otelsemconv.AttributeOtelScopeVersion] = val.AsString()
-		case strings.HasPrefix(key, "resource."):
-			processTags[strings.TrimPrefix(key, "resource.")] = val.AsString()
-		default:
-			tags[key] = val.AsString()
-		}
+
+	if query.Attributes != (pcommon.Map{}) {
+		query.Attributes.Range(func(k string, v pcommon.Value) bool {
+			tags[k] = v.AsString()
+			return true
+		})
 	}
+
+	if query.ResourceAttributes != (pcommon.Map{}) {
+		query.ResourceAttributes.Range(func(k string, v pcommon.Value) bool {
+			processTags[k] = v.AsString()
+			return true
+		})
+	}
+
+	if query.ScopeAttributes != (pcommon.Map{}) {
+		query.ScopeAttributes.Range(func(k string, v pcommon.Value) bool {
+			tags["scope."+k] = v.AsString()
+			return true
+		})
+	}
+
+	if query.ScopeName != "" {
+		tags[otelsemconv.AttributeOtelScopeName] = query.ScopeName
+	}
+	if query.ScopeVersion != "" {
+		tags[otelsemconv.AttributeOtelScopeVersion] = query.ScopeVersion
+	}
+
 	return dbmodel.TraceQueryParameters{
 		ServiceName:   query.ServiceName,
 		OperationName: query.OperationName,
