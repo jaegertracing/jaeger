@@ -42,7 +42,7 @@ var (
 	healthAddr   = fmt.Sprintf("http://%s:%d/status", host, ports.CollectorV2HealthChecks)
 )
 
-var traceID string // stores state exchanged between createTrace and getAPITrace
+var traceID string // stores state exchanged between createTrace and verifyGetTraceAPI
 
 var httpClient = &http.Client{
 	Timeout: time.Second,
@@ -59,9 +59,9 @@ func TestAllInOne(t *testing.T) {
 	t.Run("healthCheckV2", healthCheckV2)
 	t.Run("checkWebUI", checkWebUI)
 	t.Run("createTrace", createTrace)
-	t.Run("getAPITrace", getAPITrace)
-	t.Run("getSamplingStrategy", getSamplingStrategy)
-	t.Run("getServicesAPIV3", getServicesAPIV3)
+	t.Run("verifyGetTraceAPI", verifyGetTraceAPI)
+	t.Run("verifyGetSamplingStrategyAPI", verifyGetSamplingStrategyAPI)
+	t.Run("verifyGetServicesAPIV3", verifyGetServicesAPIV3)
 }
 
 func healthCheck(t *testing.T) {
@@ -152,7 +152,7 @@ type response struct {
 	Data []*ui.Trace `json:"data"`
 }
 
-func getAPITrace(t *testing.T) {
+func verifyGetTraceAPI(t *testing.T) {
 	var queryResponse response
 	for i := 0; i < 20; i++ {
 		_, body := httpGet(t, queryAddr+getTraceURL+traceID)
@@ -169,7 +169,7 @@ func getAPITrace(t *testing.T) {
 	require.Len(t, queryResponse.Data[0].Spans, 1)
 }
 
-func getSamplingStrategy(t *testing.T) {
+func verifyGetSamplingStrategyAPI(t *testing.T) {
 	// TODO should we test refreshing the strategy file?
 
 	r, body := httpGet(t, samplingAddr+getSamplingStrategyURL)
@@ -183,7 +183,7 @@ func getSamplingStrategy(t *testing.T) {
 	assert.InDelta(t, 1.0, queryResponse.ProbabilisticSampling.SamplingRate, 0.01)
 }
 
-func getServicesAPIV3(t *testing.T) {
+func verifyGetServicesAPIV3(t *testing.T) {
 	_, body := httpGet(t, queryAddr+getServicesAPIV3URL)
 
 	var servicesResponse struct {

@@ -36,7 +36,7 @@ func TestCreateDefaultConfig(t *testing.T) {
 	mcpCfg, ok := cfg.(*Config)
 	require.True(t, ok)
 
-	assert.Equal(t, ":16687", mcpCfg.HTTP.Endpoint)
+	assert.Equal(t, ":16687", mcpCfg.HTTP.NetAddr.Endpoint)
 	assert.Equal(t, "jaeger", mcpCfg.ServerName)
 	// server_version will be empty in tests since it's set at build time
 	assert.Equal(t, 20, mcpCfg.MaxSpanDetailsPerRequest)

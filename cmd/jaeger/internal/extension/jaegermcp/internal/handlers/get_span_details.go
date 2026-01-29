@@ -189,7 +189,7 @@ func buildSpanDetail(pos jptrace.SpanIterPos, span ptrace.Span) types.SpanDetail
 		TraceID:      span.TraceID().String(),
 		ParentSpanID: parentSpanID,
 		Service:      serviceName,
-		Operation:    span.Name(),
+		SpanName:     span.Name(),
 		StartTime:    span.StartTimestamp().AsTime().Format(time.RFC3339Nano),
 		DurationUs:   durationUs,
 		Status:       status,

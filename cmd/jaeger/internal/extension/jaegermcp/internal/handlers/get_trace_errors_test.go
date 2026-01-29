@@ -73,7 +73,7 @@ func TestGetTraceErrorsHandler_Handle_Success(t *testing.T) {
 	// Verify both error operations are present
 	operations := make(map[string]bool)
 	for _, span := range output.Spans {
-		operations[span.Operation] = true
+		operations[span.SpanName] = true
 	}
 	assert.True(t, operations["/api/error1"])
 	assert.True(t, operations["/api/error2"])
@@ -147,7 +147,7 @@ func TestGetTraceErrorsHandler_Handle_SingleError(t *testing.T) {
 	assert.Equal(t, traceID, output.TraceID)
 	assert.Equal(t, 1, output.ErrorCount)
 	assert.Len(t, output.Spans, 1)
-	assert.Equal(t, "/api/error", output.Spans[0].Operation)
+	assert.Equal(t, "/api/error", output.Spans[0].SpanName)
 	assert.Equal(t, "Error", output.Spans[0].Status.Code)
 	assert.Equal(t, "Single error", output.Spans[0].Status.Message)
 }
