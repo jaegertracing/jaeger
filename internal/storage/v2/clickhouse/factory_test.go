@@ -153,6 +153,13 @@ func TestNewFactory_Errors(t *testing.T) {
 			},
 			expectedError: "failed to create attribute metadata materialized view",
 		},
+		{
+			name: "event attribute metadata materialized view creation error",
+			failureConfig: clickhousetest.FailureConfig{
+				sql.CreateEventAttributeMetadataMaterializedView: assert.AnError,
+			},
+			expectedError: "failed to create event attribute metadata materialized view",
+		},
 	}
 
 	for _, tt := range tests {
