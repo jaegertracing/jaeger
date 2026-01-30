@@ -111,7 +111,8 @@ func TestBuildStringAttributeCondition_Fallbacks(t *testing.T) {
 			assert.Contains(t, query, "str_attributes")
 			assert.Contains(t, query, "resource_str_attributes")
 			assert.Contains(t, query, "scope_str_attributes")
-			assert.Len(t, args, 6)
+			assert.Contains(t, query, "events")
+			assert.Len(t, args, 8)
 		})
 	}
 }
