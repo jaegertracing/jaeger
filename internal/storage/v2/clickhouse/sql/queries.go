@@ -301,3 +301,6 @@ var CreateAttributeMetadataMaterializedView string
 
 //go:embed create_event_attribute_metadata_mv.sql
 var CreateEventAttributeMetadataMaterializedView string
+
+//go:embed create_link_attribute_metadata_mv.sql
+var CreateLinkAttributeMetadataMaterializedView string
