@@ -284,6 +284,13 @@ func TestTraceReader_FindTraceIDs_OTLPQueryTranslation(t *testing.T) {
 			expectedTag: "service.instance.id",
 			expectedVal: "instance-1",
 		},
+		{
+			name:        "scope attribute translation",
+			queryAttr:   "scope.custom.attr",
+			queryVal:    "custom-val",
+			expectedTag: "scope.custom.attr",
+			expectedVal: "custom-val",
+		},
 	}
 
 	for _, tt := range tests {
@@ -300,13 +307,16 @@ func TestTraceReader_FindTraceIDs_OTLPQueryTranslation(t *testing.T) {
 				StartTimeMax: time.Now(),
 			}
 
-			if tt.queryAttr == "scope.name" {
+			switch {
+			case tt.queryAttr == "scope.name":
 				traceQueryParams.ScopeName = tt.queryVal
-			} else if tt.queryAttr == "scope.version" {
+			case tt.queryAttr == "scope.version":
 				traceQueryParams.ScopeVersion = tt.queryVal
-			} else if strings.HasPrefix(tt.queryAttr, "resource.") {
+			case strings.HasPrefix(tt.queryAttr, "resource."):
 				traceQueryParams.ResourceAttributes.PutStr(strings.TrimPrefix(tt.queryAttr, "resource."), tt.queryVal)
-			} else {
+			case strings.HasPrefix(tt.queryAttr, "scope."):
+				traceQueryParams.ScopeAttributes.PutStr(strings.TrimPrefix(tt.queryAttr, "scope."), tt.queryVal)
+			default:
 				traceQueryParams.Attributes.PutStr(tt.queryAttr, tt.queryVal)
 			}
 
