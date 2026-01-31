@@ -271,13 +271,15 @@ func (s *ESStorageIntegration) testArchiveTrace(t *testing.T) {
 		iterTraces := s.ArchiveTraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: v1adapter.FromV1TraceID(tID)})
 		traces, err := toTraceSlice(iterTraces)
 		if err != nil {
+			t.Logf("Error loading trace: %v", err)
 			return false
 		}
-		if len(traces) != 1 {
+		if len(traces) == 0 {
 			return false
 		}
+		require.Len(t, traces, 1)
 		actual = traces[0]
-		return true
+		return actual.SpanCount() >= expectedTrace.SpanCount()
 	})
 	require.True(t, found)
 	CompareTraces(t, expectedTrace, actual)

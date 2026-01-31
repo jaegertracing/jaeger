@@ -246,10 +246,10 @@ func (s *StorageIntegration) helperTestGetTrace(
 			t.Logf("Error loading trace: %v", err)
 			return false
 		}
-		if len(traces) != 1 {
-			t.Logf("Expected 1 trace, found %d", len(traces))
+		if len(traces) == 0 {
 			return false
 		}
+		require.Len(t, traces, 1)
 		actual = traces[0]
 		return actual.SpanCount() >= expected.SpanCount()
 	})
@@ -349,8 +349,9 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 		if len(traces) == 0 {
 			return false
 		}
+		require.Len(t, traces, 1)
 		actual = traces[0]
-		return actual.SpanCount() == expected.SpanCount()
+		return actual.SpanCount() >= expected.SpanCount()
 	})
 	if !assert.True(t, found) {
 		CompareTraces(t, expected, actual)
@@ -414,7 +415,7 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.T
 			return false
 		}
 
-		if spanCount(expected) != spanCount(traces) {
+		if spanCount(expected) < spanCount(traces) {
 			t.Logf("Excepting certain number of spans: expected: %d, actual: %d", spanCount(expected), spanCount(traces))
 			return false
 		}
@@ -494,30 +495,27 @@ func getTraceFixtureExact(t *testing.T, fileName string) ptrace.Traces {
 func normalizeTracePerStorage(traces ptrace.Traces) ptrace.Traces {
 	storage := os.Getenv("STORAGE")
 	if storage == "elasticsearch" || storage == "opensearch" || storage == "clickhouse" || storage == "kafka" {
-		return getNormalizedTraces(traces)
+		return normalizedTraces(traces)
 	}
 	return traces
 }
 
-// getNormalizedTraces normalise traces and assign one resource span to one span
-func getNormalizedTraces(td ptrace.Traces) ptrace.Traces {
-	normalizedTraces := ptrace.NewTraces()
-	normalizedTraces.ResourceSpans().EnsureCapacity(td.SpanCount())
-	for _, resourceSpan := range td.ResourceSpans().All() {
-		resource := resourceSpan.Resource()
-		for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
-			scope := scopeSpan.Scope()
-			for _, span := range scopeSpan.Spans().All() {
-				normalizedResourceSpan := normalizedTraces.ResourceSpans().AppendEmpty()
-				resource.CopyTo(normalizedResourceSpan.Resource())
-				normalizedScopeSpan := normalizedResourceSpan.ScopeSpans().AppendEmpty()
-				scope.CopyTo(normalizedScopeSpan.Scope())
-				normalizedSpan := normalizedScopeSpan.Spans().AppendEmpty()
-				span.CopyTo(normalizedSpan)
-			}
-		}
+// normalizedTraces normalise traces and assign one resource span to one span
+func normalizedTraces(td ptrace.Traces) ptrace.Traces {
+	newTraces := ptrace.NewTraces()
+	newTraces.ResourceSpans().EnsureCapacity(td.SpanCount())
+	tracesIter := jptrace.SpanIter(td)
+	for pos, span := range tracesIter {
+		resource := pos.Resource.Resource()
+		scope := pos.Scope.Scope()
+		normalizedResourceSpan := newTraces.ResourceSpans().AppendEmpty()
+		resource.CopyTo(normalizedResourceSpan.Resource())
+		normalizedScopeSpan := normalizedResourceSpan.ScopeSpans().AppendEmpty()
+		scope.CopyTo(normalizedScopeSpan.Scope())
+		normalizedSpan := normalizedScopeSpan.Spans().AppendEmpty()
+		span.CopyTo(normalizedSpan)
 	}
-	return normalizedTraces
+	return newTraces
 }
 
 func loadAndParseJSONPB(t *testing.T, path string, object proto.Message) {

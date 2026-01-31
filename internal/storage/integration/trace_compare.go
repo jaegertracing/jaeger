@@ -85,9 +85,7 @@ func sortTrace(td ptrace.Traces) {
 		for j := 0; j < resourceSpan.ScopeSpans().Len(); j++ {
 			scopeSpan := resourceSpan.ScopeSpans().At(j)
 			sortAttributes(scopeSpan.Scope().Attributes())
-			scopeSpan.Spans().Sort(func(a, b ptrace.Span) bool {
-				return compareSpans(a, b) < 0
-			})
+			scopeSpan.Spans().Sort(compareSpans)
 			for k := 0; k < scopeSpan.Spans().Len(); k++ {
 				span := scopeSpan.Spans().At(k)
 				sortAttributes(span.Attributes())
@@ -99,97 +97,85 @@ func sortTrace(td ptrace.Traces) {
 				}
 			}
 		}
-		resourceSpan.ScopeSpans().Sort(func(a, b ptrace.ScopeSpans) bool {
-			return compareScopeSpans(a, b) < 0
-		})
+		resourceSpan.ScopeSpans().Sort(compareScopeSpans)
 	}
-	td.ResourceSpans().Sort(func(a, b ptrace.ResourceSpans) bool {
-		return compareResourceSpans(a, b) < 0
-	})
+	td.ResourceSpans().Sort(compareResourceSpans)
 }
 
-func compareResourceSpans(a, b ptrace.ResourceSpans) int {
+func compareResourceSpans(a, b ptrace.ResourceSpans) bool {
 	if lenComp := a.ScopeSpans().Len() - b.ScopeSpans().Len(); lenComp != 0 {
-		return lenComp
+		return lenComp < 0
 	}
-	if attrComp := compareAttributes(a.Resource().Attributes(), b.Resource().Attributes()); attrComp != 0 {
-		return attrComp
+	if !compareAttributes(a.Resource().Attributes(), b.Resource().Attributes()) {
+		return false
 	}
 	for i := 0; i < a.ScopeSpans().Len(); i++ {
 		aSpan := a.ScopeSpans().At(i)
 		bSpan := b.ScopeSpans().At(i)
-		if spanComp := compareScopeSpans(aSpan, bSpan); spanComp != 0 {
-			return spanComp
+		if !compareScopeSpans(aSpan, bSpan) {
+			return false
 		}
 	}
-	return 0
+	return true
 }
 
-func compareScopeSpans(a, b ptrace.ScopeSpans) int {
+func compareScopeSpans(a, b ptrace.ScopeSpans) bool {
 	aScope := a.Scope()
 	bScope := b.Scope()
 	if nameComp := strings.Compare(aScope.Name(), bScope.Name()); nameComp != 0 {
-		return nameComp
+		return nameComp < 0
 	}
 	if versionComp := strings.Compare(aScope.Version(), bScope.Version()); versionComp != 0 {
-		return versionComp
+		return versionComp < 0
 	}
 	if lenComp := a.Spans().Len() - b.Spans().Len(); lenComp != 0 {
-		return lenComp
+		return lenComp < 0
 	}
-	if attrComp := compareAttributes(aScope.Attributes(), bScope.Attributes()); attrComp != 0 {
-		return attrComp
+	if !compareAttributes(aScope.Attributes(), bScope.Attributes()) {
+		return false
 	}
 	for i := 0; i < a.Spans().Len(); i++ {
 		aSpan := a.Spans().At(i)
 		bSpan := b.Spans().At(i)
-		if spanComp := compareSpans(aSpan, bSpan); spanComp != 0 {
-			return spanComp
+		if !compareSpans(aSpan, bSpan) {
+			return false
 		}
 	}
-	return 0
+	return true
 }
 
-func compareSpans(a, b ptrace.Span) int {
-	traceIdComp := compareTraceIDs(a.TraceID(), b.TraceID())
-	if traceIdComp != 0 {
-		return traceIdComp
+func compareSpans(a, b ptrace.Span) bool {
+	if !compareTraceIDs(a.TraceID(), b.TraceID()) {
+		return false
 	}
-	if spanIdComp := compareSpanIDs(a.SpanID(), b.SpanID()); spanIdComp != 0 {
-		return spanIdComp
+	if !compareSpanIDs(a.SpanID(), b.SpanID()) {
+		return false
 	}
-	return compareTimestamps(a.StartTimestamp(), b.StartTimestamp())
+	if a.StartTimestamp() != b.StartTimestamp() {
+		return a.StartTimestamp() < b.StartTimestamp()
+	}
+	return true
 }
 
-func compareTraceIDs(a, b pcommon.TraceID) int {
-	return bytes.Compare(a[:], b[:])
+func compareTraceIDs(a, b pcommon.TraceID) bool {
+	return bytes.Compare(a[:], b[:]) < 0
 }
 
-func compareSpanIDs(a, b pcommon.SpanID) int {
-	return bytes.Compare(a[:], b[:])
+func compareSpanIDs(a, b pcommon.SpanID) bool {
+	return bytes.Compare(a[:], b[:]) < 0
 }
 
-func compareAttributes(a, b pcommon.Map) int {
+func compareAttributes(a, b pcommon.Map) bool {
 	aAttrs := pdatautil.MapHash(a)
 	bAttrs := pdatautil.MapHash(b)
-	return bytes.Compare(aAttrs[:], bAttrs[:])
-}
-
-func compareTimestamps(a, b pcommon.Timestamp) int {
-	if a == b {
-		return 0
-	}
-	if a > b {
-		return 1
-	}
-	return -1
+	return bytes.Compare(aAttrs[:], bAttrs[:]) < 0
 }
 
 func sortSliceOfTraces(traces []ptrace.Traces) {
 	sort.Slice(traces, func(i, j int) bool {
 		a := traces[i].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 		b := traces[j].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
-		return compareTraceIDs(a, b) < 0
+		return compareTraceIDs(a, b)
 	})
 }
 
