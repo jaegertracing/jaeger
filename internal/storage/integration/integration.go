@@ -412,7 +412,7 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.T
 			return false
 		}
 
-		if spanCount(traces) < spanCount(expected) {
+		if spanCount(expected) < spanCount(traces) {
 			t.Logf("Expecting certain number of spans: expected: %d, actual: %d", spanCount(expected), spanCount(traces))
 			return false
 		}
