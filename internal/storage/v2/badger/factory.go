@@ -11,6 +11,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	badgertracestore "github.com/jaegertracing/jaeger/internal/storage/v2/badger/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
@@ -35,7 +36,7 @@ func NewFactory(
 
 func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
 	v1Writer, _ := f.v1Factory.CreateSpanWriter() // error is always nil
-	return v1adapter.NewTraceWriter(v1Writer), nil
+	return badgertracestore.NewTraceWriter(v1Writer), nil
 }
 
 func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
