@@ -106,8 +106,8 @@ func compareResourceSpans(a, b ptrace.ResourceSpans) bool {
 	if lenComp := a.ScopeSpans().Len() - b.ScopeSpans().Len(); lenComp != 0 {
 		return lenComp < 0
 	}
-	if !compareAttributes(a.Resource().Attributes(), b.Resource().Attributes()) {
-		return false
+	if attrComp := compareAttributes(a.Resource().Attributes(), b.Resource().Attributes()); attrComp != 0 {
+		return attrComp < 0
 	}
 	for i := 0; i < a.ScopeSpans().Len(); i++ {
 		aSpan := a.ScopeSpans().At(i)
@@ -131,8 +131,8 @@ func compareScopeSpans(a, b ptrace.ScopeSpans) bool {
 	if lenComp := a.Spans().Len() - b.Spans().Len(); lenComp != 0 {
 		return lenComp < 0
 	}
-	if !compareAttributes(aScope.Attributes(), bScope.Attributes()) {
-		return false
+	if attrComp := compareAttributes(aScope.Attributes(), bScope.Attributes()); attrComp != 0 {
+		return attrComp < 0
 	}
 	for i := 0; i < a.Spans().Len(); i++ {
 		aSpan := a.Spans().At(i)
@@ -145,11 +145,11 @@ func compareScopeSpans(a, b ptrace.ScopeSpans) bool {
 }
 
 func compareSpans(a, b ptrace.Span) bool {
-	if !compareTraceIDs(a.TraceID(), b.TraceID()) {
-		return false
+	if traceIdComp := compareTraceIDs(a.TraceID(), b.TraceID()); traceIdComp != 0 {
+		return traceIdComp < 0
 	}
-	if !compareSpanIDs(a.SpanID(), b.SpanID()) {
-		return false
+	if spanIdComp := compareSpanIDs(a.SpanID(), b.SpanID()); spanIdComp != 0 {
+		return spanIdComp < 0
 	}
 	if a.StartTimestamp() != b.StartTimestamp() {
 		return a.StartTimestamp() < b.StartTimestamp()
@@ -157,32 +157,25 @@ func compareSpans(a, b ptrace.Span) bool {
 	return true
 }
 
-func compareTraceIDs(a, b pcommon.TraceID) bool {
-	return compareBytes(a[:], b[:])
+func compareTraceIDs(a, b pcommon.TraceID) int {
+	return bytes.Compare(a[:], b[:])
 }
 
-func compareSpanIDs(a, b pcommon.SpanID) bool {
-	return compareBytes(a[:], b[:])
+func compareSpanIDs(a, b pcommon.SpanID) int {
+	return bytes.Compare(a[:], b[:])
 }
 
-func compareAttributes(a, b pcommon.Map) bool {
+func compareAttributes(a, b pcommon.Map) int {
 	aAttrs := pdatautil.MapHash(a)
 	bAttrs := pdatautil.MapHash(b)
-	return compareBytes(aAttrs[:], bAttrs[:])
-}
-
-func compareBytes(a, b []byte) bool {
-	if comp := bytes.Compare(a, b); comp != 0 {
-		return comp < 0
-	}
-	return true
+	return bytes.Compare(aAttrs[:], bAttrs[:])
 }
 
 func sortSliceOfTraces(traces []ptrace.Traces) {
 	sort.Slice(traces, func(i, j int) bool {
 		a := traces[i].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 		b := traces[j].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
-		return compareTraceIDs(a, b)
+		return compareTraceIDs(a, b) < 0
 	})
 }
 
