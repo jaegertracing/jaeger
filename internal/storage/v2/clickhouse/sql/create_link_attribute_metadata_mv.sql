@@ -1,7 +1,3 @@
--- In ClickHouse, 'links' are a nested array. If we processed span-level attributes and 
--- link-level attributes in the same materialized view, the ARRAY JOIN on links would create 
--- a separate row for each link in each span, causing span-level attributes to be duplicated 
--- for every link.
 CREATE MATERIALIZED VIEW IF NOT EXISTS link_attribute_metadata_mv TO attribute_metadata AS
 SELECT
     tp.1 AS attribute_key,
