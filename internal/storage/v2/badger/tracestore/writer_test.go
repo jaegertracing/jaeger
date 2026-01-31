@@ -87,6 +87,31 @@ func TestWriteTracesMultipleSpans(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestWriteTracesWithClosedStore(t *testing.T) {
+	// Create a temporary badger factory for testing
+	f := badger.NewFactory()
+	telset := telemetry.NoopSettings()
+	err := f.Initialize(telset.Metrics, telset.Logger)
+	require.NoError(t, err)
+
+	// Create span writer
+	spanWriter, err := f.CreateSpanWriter()
+	require.NoError(t, err)
+
+	// Create the trace writer
+	traceWriter := NewTraceWriter(spanWriter)
+
+	// Close the factory to make writes fail
+	require.NoError(t, f.Close())
+
+	// Create test traces
+	td := makeTestTraces()
+
+	// Write traces should return error
+	err = traceWriter.WriteTraces(context.Background(), td)
+	require.Error(t, err)
+}
+
 // makeTestTraces creates a simple test trace for testing
 func makeTestTraces() ptrace.Traces {
 	td := ptrace.NewTraces()
