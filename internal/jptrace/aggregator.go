@@ -37,7 +37,7 @@ func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSi
 				resources := trace.ResourceSpans()
 				traceID := resources.At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 				if currentTraceID == traceID {
-					mergeTraces(currentTrace, trace, maxSize, &spanCount)
+					mergeTracesWithLimit(currentTrace, trace, maxSize, &spanCount)
 				} else {
 					if currentTrace.SpanCount() > 0 {
 						if !yield(currentTrace, nil) {
@@ -51,7 +51,7 @@ func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSi
 					if maxSize > 0 && spanCount > maxSize {
 						currentTrace = ptrace.NewTraces()
 						spanCount = 0
-						mergeTraces(currentTrace, trace, maxSize, &spanCount)
+						mergeTracesWithLimit(currentTrace, trace, maxSize, &spanCount)
 					}
 				}
 			}
@@ -63,7 +63,7 @@ func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSi
 	}
 }
 
-func mergeTraces(dest, src ptrace.Traces, maxSize int, spanCount *int) bool {
+func mergeTracesWithLimit(dest, src ptrace.Traces, maxSize int, spanCount *int) bool {
 	// early exit if already at max
 	if maxSize > 0 && *spanCount >= maxSize {
 		markTraceTruncated(dest, maxSize)
@@ -73,11 +73,7 @@ func mergeTraces(dest, src ptrace.Traces, maxSize int, spanCount *int) bool {
 	incomingCount := src.SpanCount()
 	// check if we can merge all spans without exceeding limit
 	if maxSize <= 0 || *spanCount+incomingCount <= maxSize {
-		resources := src.ResourceSpans()
-		for i := 0; i < resources.Len(); i++ {
-			resource := resources.At(i)
-			resource.CopyTo(dest.ResourceSpans().AppendEmpty())
-		}
+		MergeTraces(dest, src)
 		*spanCount += incomingCount
 		return false
 	}
@@ -133,8 +129,9 @@ func MergeTraces(dest, src ptrace.Traces) {
 }
 
 func markTraceTruncated(trace ptrace.Traces, maxSize int) {
-	// direct access to first span (if truncated, it must exist)
-	firstSpan := trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
-	AddWarnings(firstSpan,
-		fmt.Sprintf("trace has more than %d spans, showing first %d spans only", maxSize, maxSize))
+	SpanIter(trace)(func(_ SpanIterPos, span ptrace.Span) bool {
+		AddWarnings(span,
+			fmt.Sprintf("trace has more than %d spans, showing first %d spans only", maxSize, maxSize))
+		return false // stop after first span
+	})
 }
