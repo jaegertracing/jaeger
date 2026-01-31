@@ -137,9 +137,6 @@ linters:
         # definitely a good one, needs cleanup first
         - name: argument-limit
           disabled: true
-        # maybe enable, needs invesitgation of the impact
-        - name: get-return
-          disabled: true
         # this is idiocy, promotes less readable code. Don't enable.
         - name: var-declaration
           disabled: true
