@@ -203,12 +203,9 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 						continue
 					}
 					for _, trace := range traces {
-						for _, resourceSpan := range trace.ResourceSpans().All() {
-							for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
-								for _, span := range scopeSpan.Spans().All() {
-									t.Logf("span: Service: %s, TraceID: %s, Operation: %s", service, span.TraceID(), span.Name())
-								}
-							}
+						spanIter := jptrace.SpanIter(trace)
+						for _, span := range spanIter {
+							t.Logf("span: Service: %s, TraceID: %s, Operation: %s", service, span.TraceID(), span.Name())
 						}
 					}
 				}

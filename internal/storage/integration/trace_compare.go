@@ -158,17 +158,24 @@ func compareSpans(a, b ptrace.Span) bool {
 }
 
 func compareTraceIDs(a, b pcommon.TraceID) bool {
-	return bytes.Compare(a[:], b[:]) < 0
+	return compareBytes(a[:], b[:])
 }
 
 func compareSpanIDs(a, b pcommon.SpanID) bool {
-	return bytes.Compare(a[:], b[:]) < 0
+	return compareBytes(a[:], b[:])
 }
 
 func compareAttributes(a, b pcommon.Map) bool {
 	aAttrs := pdatautil.MapHash(a)
 	bAttrs := pdatautil.MapHash(b)
-	return bytes.Compare(aAttrs[:], bAttrs[:]) < 0
+	return compareBytes(aAttrs[:], bAttrs[:])
+}
+
+func compareBytes(a, b []byte) bool {
+	if comp := bytes.Compare(a, b); comp != 0 {
+		return comp < 0
+	}
+	return true
 }
 
 func sortSliceOfTraces(traces []ptrace.Traces) {
