@@ -4,10 +4,12 @@
 package clickhouse
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"text/template"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
@@ -65,11 +67,24 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 		)
 	}
 	if f.config.CreateSchema {
+		finalSpansQuery, err := loadTemplate(
+			"create_spans_table",
+			sql.CreateSpansTable,
+			struct {
+				TTLSeconds int64
+			}{
+				TTLSeconds: int64(f.config.SpansTTL.Seconds()),
+			},
+		)
+		if err != nil {
+			return nil, err
+		}
+
 		schemas := []struct {
 			name  string
 			query string
 		}{
-			{"spans table", sql.CreateSpansTable},
+			{"spans table", finalSpansQuery},
 			{"services table", sql.CreateServicesTable},
 			{"services materialized view", sql.CreateServicesMaterializedView},
 			{"operations table", sql.CreateOperationsTable},
@@ -134,4 +149,16 @@ func getProtocol(protocol string) clickhouse.Protocol {
 		return clickhouse.HTTP
 	}
 	return clickhouse.Native
+}
+
+func loadTemplate(name, tmplBody string, data any) (string, error) {
+	tmpl, err := template.New(name).Parse(tmplBody)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse %s template: %w", name, err)
+	}
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "", fmt.Errorf("failed to execute %s template: %w", name, err)
+	}
+	return buf.String(), nil
 }
