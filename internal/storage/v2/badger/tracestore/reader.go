@@ -37,9 +37,13 @@ func NewReader(db *badger.DB) *Reader {
 }
 
 // GetOperations returns all operation names for a given service.
+
 func (r *Reader) GetOperations(_ context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
 	if query.SpanKind != "" {
 		return nil, errors.New("badger storage does not support SpanKind filtering")
+	}
+	if query.ServiceName == "" {
+		return nil, errors.New("service name is required")
 	}
 
 	var operations []tracestore.Operation
