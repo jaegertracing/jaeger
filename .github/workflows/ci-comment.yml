@@ -6,6 +6,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  checks: write
 jobs:
   metrics-comparison:
     name: Compare Metrics
@@ -108,11 +109,49 @@ jobs:
         env:
           LINK_TO_ARTIFACT: "https://github.com/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}"
 
+      - name: Upload metrics comparison report as artifact
+        if: success() && steps.download-artifacts.outputs.pr_number
+        uses: actions/upload-artifact@ea165844305e4b11d771d9cf5d8d1b1a5d991f5a # v4
+        with:
+          name: metrics-comparison-report
+          path: ./.metrics/combined_summary.md
+          retention-days: 30
+
       - name: Post PR comment with combined metrics summary
-        if: steps.compare-metrics.outputs.DIFF_FOUND == 'true' && steps.download-artifacts.outputs.pr_number
+        if: steps.compare-metrics.outputs.TOTAL_CHANGES != '0' && steps.download-artifacts.outputs.pr_number
         uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3
         with:
           file-path: ./.metrics/combined_summary.md
           github-token: '${{ secrets.GITHUB_TOKEN }}'
           comment-tag: "## Metrics Comparison Summary"
           pr-number: ${{ steps.download-artifacts.outputs.pr_number }}
+
+      - name: Create check run for metrics comparison
+        if: success() && steps.download-artifacts.outputs.pr_number
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const headSha = context.payload.workflow_run.head_sha;
+            const totalChanges = parseInt('${{ steps.compare-metrics.outputs.TOTAL_CHANGES }}' || '0');
+            
+            const conclusion = totalChanges === 0 ? 'success' : 'failure';
+            const summary = totalChanges === 0 
+              ? '✅ No significant metric changes detected' 
+              : `❌ ${totalChanges} metric changes detected`;
+            
+            await github.rest.checks.create({
+              owner,
+              repo,
+              name: 'Metrics Comparison',
+              head_sha: headSha,
+              status: 'completed',
+              conclusion: conclusion,
+              output: {
+                title: 'Metrics Comparison Result',
+                summary: summary,
+                text: `Total changes across all snapshots: ${totalChanges}\n\nView the detailed report in the workflow artifacts.`
+              }
+            });
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

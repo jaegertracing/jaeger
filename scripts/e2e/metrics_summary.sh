@@ -7,8 +7,8 @@
 set -exo pipefail
 
 METRICS_DIR="./.metrics"
-DIFF_FOUND=false
 declare -a summary_files=()
+total_changes=0
 
 echo "Starting metrics diff processing in directory: $METRICS_DIR"
 echo "Directory structure:"
@@ -23,7 +23,6 @@ done
 # Process all diff files
 while IFS= read -r -d '' diff_file; do
     echo "Processing diff file: $diff_file"
-    DIFF_FOUND=true
 
     # Extract the base name (e.g., diff_metrics_snapshot_cassandra.txt -> metrics_snapshot_cassandra)
     base_name=$(basename "$diff_file" .txt)
@@ -43,44 +42,44 @@ while IFS= read -r -d '' diff_file; do
 done < <(find "$METRICS_DIR" -type f -name "diff_*.txt" -print0)
 
 # Output results
-if $DIFF_FOUND; then
-    echo "Metric differences detected"
-    echo "DIFF_FOUND=true" >> "$GITHUB_OUTPUT"
-
-    # Calculate total changes across all files
-    total_changes=0
+# Calculate total changes across all files
+total_changes=0
+if [ ${#summary_files[@]} -gt 0 ]; then
     for summary_file in "${summary_files[@]}"; do
         changes=$(grep -F "**Total Changes:**" "$summary_file" | awk '{print $3}')
         total_changes=$((total_changes + changes))
     done
-
-    # Combine all summaries into one
-    combined_file="$METRICS_DIR/combined_summary.md"
-    echo "## Metrics Comparison Summary" > "$combined_file"
-    {
-      echo ""
-      echo "Total changes across all snapshots: $total_changes"
-      echo ""
-      echo "<details>"
-      echo "<summary>Detailed changes per snapshot</summary>"
-      echo ""
-    } >> "$combined_file"
-
-    if [ ${#summary_files[@]} -gt 0 ]; then
-        for summary_file in "${summary_files[@]}"; do
-            echo "Appending $summary_file to combined summary"
-            {
-              echo "### $(basename "$summary_file" .md)"
-              cat "$summary_file"
-            } >> "$combined_file"
-            echo "" >> "$combined_file"
-        done
-    fi
-
-    echo "</details>" >> "$combined_file"
-    echo -e "\n\n➡️ [View full metrics file]($LINK_TO_ARTIFACT)" >> "$combined_file"
-else
-    echo "No metric differences detected"
 fi
+
+echo "Total changes across all snapshots: $total_changes"
+echo "TOTAL_CHANGES=$total_changes" >> "$GITHUB_OUTPUT"
+
+# Always generate combined summary report
+combined_file="$METRICS_DIR/combined_summary.md"
+echo "## Metrics Comparison Summary" > "$combined_file"
+{
+  echo ""
+  echo "Total changes across all snapshots: $total_changes"
+  echo ""
+  echo "<details>"
+  echo "<summary>Detailed changes per snapshot</summary>"
+  echo ""
+} >> "$combined_file"
+
+if [ ${#summary_files[@]} -gt 0 ]; then
+    for summary_file in "${summary_files[@]}"; do
+        echo "Appending $summary_file to combined summary"
+        {
+          echo "### $(basename "$summary_file" .md)"
+          cat "$summary_file"
+        } >> "$combined_file"
+        echo "" >> "$combined_file"
+    done
+else
+    echo "No diff files found" >> "$combined_file"
+fi
+
+echo "</details>" >> "$combined_file"
+echo -e "\n\n➡️ [View full metrics file]($LINK_TO_ARTIFACT)" >> "$combined_file"
 
 echo "Metrics diff processing completed"
