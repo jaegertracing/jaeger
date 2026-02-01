@@ -27,7 +27,7 @@ type onlyStringsFilter struct{}
 func (onlyStringsFilter) filterStringTags(tags []KeyValue) []KeyValue {
 	var ret []KeyValue
 	for _, tag := range tags {
-		if tag.ValueType == stringType {
+		if tag.ValueType == StringType {
 			ret = append(ret, tag)
 		}
 	}
@@ -47,7 +47,7 @@ func (f onlyStringsFilter) FilterLogFields(_ *Span, logFields []KeyValue) []KeyV
 }
 
 func TestChainedTagFilter(t *testing.T) {
-	expectedTags := []KeyValue{{Key: someStringTagKey, ValueType: stringType, ValueString: someStringTagValue}}
+	expectedTags := []KeyValue{{Key: someStringTagKey, ValueType: StringType, ValueString: someStringTagValue}}
 	filter := NewChainedTagFilter(DefaultTagFilter, onlyStringsFilter{})
 	filteredTags := filter.FilterProcessTags(nil, someDBTags)
 	compareTags(t, expectedTags, filteredTags)
