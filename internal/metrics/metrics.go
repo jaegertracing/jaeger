@@ -36,10 +36,10 @@ func Init(m any, factory Factory, globalTags map[string]string) error {
 		factory = NullFactory
 	}
 
-	counterPtrType := reflect.TypeOf((*Counter)(nil)).Elem()
-	gaugePtrType := reflect.TypeOf((*Gauge)(nil)).Elem()
-	timerPtrType := reflect.TypeOf((*Timer)(nil)).Elem()
-	histogramPtrType := reflect.TypeOf((*Histogram)(nil)).Elem()
+	counterPtrType := reflect.TypeFor[Counter]()
+	gaugePtrType := reflect.TypeFor[Gauge]()
+	timerPtrType := reflect.TypeFor[Timer]()
+	histogramPtrType := reflect.TypeFor[Histogram]()
 
 	v := reflect.ValueOf(m).Elem()
 	t := v.Type()
