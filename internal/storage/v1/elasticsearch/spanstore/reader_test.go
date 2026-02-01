@@ -1411,7 +1411,7 @@ func TestTagsMap(t *testing.T) {
 				Tag:  spanTags,
 				Tags: tags,
 			}
-			reader.mergeAllNestedAndElevatedTagsOfSpan(span)
+			reader.tagProcessor.MergeAllNestedAndElevatedTagsOfSpan(span)
 			tags = append(tags, test.expected)
 			assert.Empty(t, span.Tag)
 			assert.Empty(t, span.Process.Tag)
