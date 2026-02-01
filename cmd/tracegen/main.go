@@ -8,6 +8,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/go-logr/zapr"
@@ -37,7 +38,8 @@ func main() {
 	zc.Level = zap.NewAtomicLevelAt(zapcore.Level(-8)) // level used by OTEL's Debug()
 	logger, err := zc.Build()
 	if err != nil {
-		panic(err)
+		fmt.Fprintf(os.Stderr, "failed to create logger: %v\n", err)
+		os.Exit(1)
 	}
 	otel.SetLogger(zapr.NewLogger(logger))
 

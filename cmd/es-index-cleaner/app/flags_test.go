@@ -33,7 +33,8 @@ func TestBindFlags(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	c.InitFromViper(v)
+	err = c.InitFromViper(v)
+	require.NoError(t, err)
 	assert.Equal(t, "tenant1-", c.IndexPrefix)
 	assert.True(t, c.Rollover)
 	assert.True(t, c.Archive)
