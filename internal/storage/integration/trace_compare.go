@@ -79,17 +79,14 @@ func dedupeSpans(trace *model.Trace) {
 }
 
 func sortTrace(td ptrace.Traces) {
-	for i := 0; i < td.ResourceSpans().Len(); i++ {
-		resourceSpan := td.ResourceSpans().At(i)
+	for _, resourceSpan := range td.ResourceSpans().All() {
 		sortAttributes(resourceSpan.Resource().Attributes())
-		for j := 0; j < resourceSpan.ScopeSpans().Len(); j++ {
-			scopeSpan := resourceSpan.ScopeSpans().At(j)
+		for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
 			sortAttributes(scopeSpan.Scope().Attributes())
 			scopeSpan.Spans().Sort(func(a, b ptrace.Span) bool {
 				return compareSpans(a, b) < 0
 			})
-			for k := 0; k < scopeSpan.Spans().Len(); k++ {
-				span := scopeSpan.Spans().At(k)
+			for _, span := range scopeSpan.Spans().All() {
 				sortAttributes(span.Attributes())
 				for _, events := range span.Events().All() {
 					sortAttributes(events.Attributes())
