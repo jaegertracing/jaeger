@@ -1,0 +1,18 @@
+# Schemagen configuration for Jaeger
+# See: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/cmd/schemagen/README.md
+
+# Mappings tell schemagen how to treat specific selector expressions as
+# primitive schema fields. Each mapping converts the Go type into a scalar
+# schemaType and can also set the JSON Schema format.
+mappings:
+  time:
+    Duration:
+      schemaType: string
+      format: duration
+
+# Lists repositories that schemagen can make references to when
+# generating $ref pointers. If a repo is not listed here, schemagen
+# will use type "any".
+allowedRefs:
+  - go.opentelemetry.io/collector
+  - github.com/jaegertracing/jaeger

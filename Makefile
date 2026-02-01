@@ -235,6 +235,16 @@ generate-mocks: $(MOCKERY)
 	find . -path '*/mocks/*' -name '*.go' -type f -delete
 	$(MOCKERY) | tee .mockery.log
 
+.PHONY: generate-schemas
+generate-schemas:
+	@echo "Generating configuration schemas..."
+	@command -v schemagen >/dev/null 2>&1 || { echo "schemagen not found. Install with: go install github.com/open-telemetry/opentelemetry-collector-contrib/cmd/schemagen@latest"; exit 1; }
+	@for ext in cmd/jaeger/internal/extension/*/; do \
+		echo "  Generating schema for $$ext"; \
+		schemagen "$$ext" || exit 1; \
+	done
+	@echo "Schema generation complete."
+
 .PHONY: certs
 certs:
 	cd internal/config/tlscfg/testdata && ./gen-certs.sh
