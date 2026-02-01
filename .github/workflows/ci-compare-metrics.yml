@@ -134,6 +134,7 @@ jobs:
             const { owner, repo } = context.repo;
             const headSha = context.payload.workflow_run.head_sha;
             const totalChanges = parseInt('${{ steps.compare-metrics.outputs.TOTAL_CHANGES }}' || '0');
+            const artifactLink = 'https://github.com/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}';
             
             const conclusion = totalChanges === 0 ? 'success' : 'failure';
             const summary = totalChanges === 0 
@@ -150,7 +151,7 @@ jobs:
               output: {
                 title: 'Metrics Comparison Result',
                 summary: summary,
-                text: `Total changes across all snapshots: ${totalChanges}\n\nView the detailed report in the workflow artifacts.`
+                text: `Total changes across all snapshots: ${totalChanges}\n\n➡️ [View full metrics file](${artifactLink})`
               }
             });
         env:

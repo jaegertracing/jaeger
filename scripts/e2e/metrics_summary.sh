@@ -44,12 +44,15 @@ done < <(find "$METRICS_DIR" -type f -name "diff_*.txt" -print0)
 # Output results
 # Calculate total changes across all files
 total_changes=0
-if [ ${#summary_files[@]} -gt 0 ]; then
-    for summary_file in "${summary_files[@]}"; do
-        changes=$(grep -F "**Total Changes:**" "$summary_file" | awk '{print $3}')
-        total_changes=$((total_changes + changes))
-    done
+if [ ${#summary_files[@]} -eq 0 ]; then
+    echo "ERROR: No summary files were generated. Expected at least 8 diff files from CI." >&2
+    exit 1
 fi
+
+for summary_file in "${summary_files[@]}"; do
+    changes=$(grep -F "**Total Changes:**" "$summary_file" | awk '{print $3}')
+    total_changes=$((total_changes + changes))
+done
 
 echo "Total changes across all snapshots: $total_changes"
 echo "TOTAL_CHANGES=$total_changes" >> "$GITHUB_OUTPUT"
@@ -66,20 +69,17 @@ echo "## Metrics Comparison Summary" > "$combined_file"
   echo ""
 } >> "$combined_file"
 
-if [ ${#summary_files[@]} -gt 0 ]; then
-    for summary_file in "${summary_files[@]}"; do
-        echo "Appending $summary_file to combined summary"
-        {
-          echo "### $(basename "$summary_file" .md)"
-          cat "$summary_file"
-        } >> "$combined_file"
-        echo "" >> "$combined_file"
-    done
-else
-    echo "No diff files found" >> "$combined_file"
-fi
+for summary_file in "${summary_files[@]}"; do
+    echo "Appending $summary_file to combined summary"
+    {
+      echo "### $(basename "$summary_file" .md)"
+      cat "$summary_file"
+    } >> "$combined_file"
+    echo "" >> "$combined_file"
+done
 
 echo "</details>" >> "$combined_file"
 echo -e "\n\n➡️ [View full metrics file]($LINK_TO_ARTIFACT)" >> "$combined_file"
+
 
 echo "Metrics diff processing completed"
