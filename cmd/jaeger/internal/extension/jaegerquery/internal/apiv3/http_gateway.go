@@ -272,6 +272,9 @@ func (h *HTTPGateway) getServices(w http.ResponseWriter, r *http.Request) {
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}
+	if services == nil {
+		services = []string{}
+	}
 	h.marshalResponse(&api_v3.GetServicesResponse{
 		Services: services,
 	}, w)
