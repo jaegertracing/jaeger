@@ -6,7 +6,7 @@ services:
         - '4318:4318'
 
     tracegen:
-      image: cr.jaegertracing.io/jaegertracing/jaeger-tracegen:latest@sha256:ae42768cddedf514585fe19ddf8a422eb46a54d77f2481604c99397dd6b0c458
+      image: cr.jaegertracing.io/jaegertracing/jaeger-tracegen:2.14.1@sha256:ae42768cddedf514585fe19ddf8a422eb46a54d77f2481604c99397dd6b0c458
       environment:
         - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
       command: ["-duration", "10s", "-workers", "3", "-pause", "250ms"]
