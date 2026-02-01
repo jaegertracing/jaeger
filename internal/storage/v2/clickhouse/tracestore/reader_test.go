@@ -48,6 +48,7 @@ var (
 		{AttributeKey: "resource.checksum", Type: "bytes", Level: "resource"},
 		{AttributeKey: "metadata", Type: "map", Level: "span"},
 		{AttributeKey: "tags", Type: "slice", Level: "span"},
+		{AttributeKey: "event.attr", Type: "str", Level: "event"},
 	}
 )
 
@@ -73,6 +74,7 @@ func buildTestAttributes() pcommon.Map {
 	attrs.PutStr("resource.checksum", "EjRWeA==")
 	attrs.PutStr("metadata", "{\"kvlistValue\":{\"values\":[{\"key\":\"key\",\"value\":{\"stringValue\":\"value\"}}]}}")
 	attrs.PutStr("tags", "{\"arrayValue\":{\"values\":[{\"intValue\":\"1\"},{\"intValue\":\"2\"},{\"intValue\":\"3\"}]}}")
+	attrs.PutStr("event.attr", "event-value")
 
 	return attrs
 }

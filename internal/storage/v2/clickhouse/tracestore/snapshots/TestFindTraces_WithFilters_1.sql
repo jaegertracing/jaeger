@@ -5,7 +5,7 @@ SELECT
 FROM
     attribute_metadata
 WHERE
-	attribute_key IN (?, ?, ?, ?, ?, ?, ?, ?)
+	attribute_key IN (?, ?, ?, ?, ?, ?, ?, ?, ?)
 GROUP BY
 	attribute_key,
 	type,
