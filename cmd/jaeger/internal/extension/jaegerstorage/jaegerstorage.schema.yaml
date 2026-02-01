@@ -1,0 +1,9 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage
+title: jaegerstorage package
+$defs:
+  Config:
+    description: Config embeds the shared storage configuration.
+    type: object
+    allOf:
+      - $ref: github.com/jaegertracing/jaeger/cmd/internal/storageconfig#/$defs/Config
