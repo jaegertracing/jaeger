@@ -5,6 +5,7 @@ package tracestore
 
 import (
 	"context"
+	"errors"
 	"iter"
 
 	"github.com/dgraph-io/badger/v4"
@@ -37,6 +38,10 @@ func NewReader(db *badger.DB) *Reader {
 
 // GetOperations returns all operation names for a given service.
 func (r *Reader) GetOperations(_ context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
+	if query.SpanKind != "" {
+		return nil, errors.New("badger storage does not support SpanKind filtering")
+	}
+
 	var operations []tracestore.Operation
 
 	err := r.db.View(func(txn *badger.Txn) error {
@@ -45,11 +50,13 @@ func (r *Reader) GetOperations(_ context.Context, query tracestore.OperationQuer
 		prefix[0] = operationNameIndexKey
 		copy(prefix[1:], query.ServiceName)
 
-		it := txn.NewIterator(badger.DefaultIteratorOptions)
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchValues = false
+		it := txn.NewIterator(opts)
 		defer it.Close()
 
 		uniqueOps := make(map[string]struct{})
-		for it.Seek(prefix); it.ValidForPrefix((prefix)); it.Next() {
+		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
 			key := it.Item().Key()
 
 			// Key layout: [Prefix(1)][Service(N)][Operation(M)][Time(8)][TraceID(16)]
@@ -62,6 +69,8 @@ func (r *Reader) GetOperations(_ context.Context, query tracestore.OperationQuer
 					uniqueOps[opName] = struct{}{}
 					operations = append(operations, tracestore.Operation{
 						Name: opName,
+						// TODO: https://github.com/jaegertracing/jaeger/issues/1922
+						// SpanKind is not stored in Badger v1/v2 index
 					})
 				}
 			}

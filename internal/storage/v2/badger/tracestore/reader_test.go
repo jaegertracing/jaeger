@@ -31,7 +31,7 @@ func TestGetOperations(t *testing.T) {
 	// 2. Insert Dummy data
 	err = db.Update(func(txn *badger.Txn) error {
 		// Helper to create a key in the exact format:
-		// [0x82][ServiceName][Timestamp(8)][TraceID(16)]
+		// [0x82][ServiceName][OperationName][Timestamp(8)][TraceID(16)]
 		createKey := func(service, operation string, id uint64) []byte {
 			key := make([]byte, 1+len(service)+len(operation)+8+16)
 			key[0] = operationNameIndexKey
@@ -59,7 +59,7 @@ func TestGetOperations(t *testing.T) {
 
 	require.NoError(t, err)
 
-	// Verify GetOperations for "service-a"
+	// 3. Verify GetOperations for "service-a"
 	ops, err := reader.GetOperations(context.Background(),
 		tracestore.OperationQueryParams{
 			ServiceName: "service-a",
@@ -79,4 +79,12 @@ func TestGetOperations(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, ops, 1)
 	assert.Equal(t, "op-3", ops[0].Name)
+
+	// 5. Verify GetOperations for non-existent service
+	ops, err = reader.GetOperations(context.Background(),
+		tracestore.OperationQueryParams{
+			ServiceName: "service-c",
+		})
+	require.NoError(t, err)
+	assert.Empty(t, ops)
 }
