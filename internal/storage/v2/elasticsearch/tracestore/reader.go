@@ -7,11 +7,13 @@ import (
 	"context"
 	"iter"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 // TraceReader is a wrapper around spanstore.CoreSpanReader which return the output parallel to OTLP Models
@@ -116,15 +118,43 @@ func (t *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQu
 
 func toDBTraceQueryParams(query tracestore.TraceQueryParams) dbmodel.TraceQueryParameters {
 	tags := make(map[string]string)
-	for key, val := range query.Attributes.All() {
-		tags[key] = val.AsString()
+	processTags := make(map[string]string)
+
+	if query.Attributes != (pcommon.Map{}) {
+		query.Attributes.Range(func(k string, v pcommon.Value) bool {
+			tags[k] = v.AsString()
+			return true
+		})
 	}
+
+	if query.ResourceAttributes != (pcommon.Map{}) {
+		query.ResourceAttributes.Range(func(k string, v pcommon.Value) bool {
+			processTags[k] = v.AsString()
+			return true
+		})
+	}
+
+	if query.ScopeAttributes != (pcommon.Map{}) {
+		query.ScopeAttributes.Range(func(k string, v pcommon.Value) bool {
+			tags["scope."+k] = v.AsString()
+			return true
+		})
+	}
+
+	if query.ScopeName != "" {
+		tags[otelsemconv.AttributeOtelScopeName] = query.ScopeName
+	}
+	if query.ScopeVersion != "" {
+		tags[otelsemconv.AttributeOtelScopeVersion] = query.ScopeVersion
+	}
+
 	return dbmodel.TraceQueryParameters{
 		ServiceName:   query.ServiceName,
 		OperationName: query.OperationName,
 		StartTimeMin:  query.StartTimeMin,
 		StartTimeMax:  query.StartTimeMax,
 		Tags:          tags,
+		ProcessTags:   processTags,
 		NumTraces:     query.SearchDepth,
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,
