@@ -85,7 +85,9 @@ func sortTrace(td ptrace.Traces) {
 		for j := 0; j < resourceSpan.ScopeSpans().Len(); j++ {
 			scopeSpan := resourceSpan.ScopeSpans().At(j)
 			sortAttributes(scopeSpan.Scope().Attributes())
-			scopeSpan.Spans().Sort(compareSpans)
+			scopeSpan.Spans().Sort(func(a, b ptrace.Span) bool {
+				return compareSpans(a, b) < 0
+			})
 			for k := 0; k < scopeSpan.Spans().Len(); k++ {
 				span := scopeSpan.Spans().At(k)
 				sortAttributes(span.Attributes())
@@ -97,7 +99,9 @@ func sortTrace(td ptrace.Traces) {
 				}
 			}
 		}
-		resourceSpan.ScopeSpans().Sort(compareScopeSpans)
+		resourceSpan.ScopeSpans().Sort(func(a, b ptrace.ScopeSpans) bool {
+			return compareScopeSpans(a, b) < 0
+		})
 	}
 	td.ResourceSpans().Sort(compareResourceSpans)
 }
@@ -112,49 +116,59 @@ func compareResourceSpans(a, b ptrace.ResourceSpans) bool {
 	for i := 0; i < a.ScopeSpans().Len(); i++ {
 		aSpan := a.ScopeSpans().At(i)
 		bSpan := b.ScopeSpans().At(i)
-		if !compareScopeSpans(aSpan, bSpan) {
-			return false
+		if scopeComp := compareScopeSpans(aSpan, bSpan); scopeComp != 0 {
+			return scopeComp < 0
 		}
 	}
 	return true
 }
 
-func compareScopeSpans(a, b ptrace.ScopeSpans) bool {
+func compareScopeSpans(a, b ptrace.ScopeSpans) int {
 	aScope := a.Scope()
 	bScope := b.Scope()
 	if nameComp := strings.Compare(aScope.Name(), bScope.Name()); nameComp != 0 {
-		return nameComp < 0
+		return nameComp
 	}
 	if versionComp := strings.Compare(aScope.Version(), bScope.Version()); versionComp != 0 {
-		return versionComp < 0
+		return versionComp
 	}
 	if lenComp := a.Spans().Len() - b.Spans().Len(); lenComp != 0 {
-		return lenComp < 0
+		return lenComp
 	}
 	if attrComp := compareAttributes(aScope.Attributes(), bScope.Attributes()); attrComp != 0 {
-		return attrComp < 0
+		return attrComp
 	}
 	for i := 0; i < a.Spans().Len(); i++ {
 		aSpan := a.Spans().At(i)
 		bSpan := b.Spans().At(i)
-		if !compareSpans(aSpan, bSpan) {
-			return false
+		if spanComp := compareSpans(aSpan, bSpan); spanComp != 0 {
+			return spanComp
 		}
 	}
-	return true
+	return 0
 }
 
-func compareSpans(a, b ptrace.Span) bool {
+func compareSpans(a, b ptrace.Span) int {
 	if traceIdComp := compareTraceIDs(a.TraceID(), b.TraceID()); traceIdComp != 0 {
-		return traceIdComp < 0
+		return traceIdComp
 	}
 	if spanIdComp := compareSpanIDs(a.SpanID(), b.SpanID()); spanIdComp != 0 {
-		return spanIdComp < 0
+		return spanIdComp
 	}
-	if a.StartTimestamp() != b.StartTimestamp() {
-		return a.StartTimestamp() < b.StartTimestamp()
+	if timeStampComp := compareTimestamps(a.StartTimestamp(), b.StartTimestamp()); timeStampComp != 0 {
+		return timeStampComp
 	}
-	return true
+	return 0
+}
+
+func compareTimestamps(a, b pcommon.Timestamp) int {
+	if a == b {
+		return 0
+	}
+	if a > b {
+		return 1
+	}
+	return -1
 }
 
 func compareTraceIDs(a, b pcommon.TraceID) int {
