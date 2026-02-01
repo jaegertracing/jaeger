@@ -10,7 +10,7 @@ $defs:
         description: Storage holds configuration related to the various data stores that are to be queried.
         $ref: '#/$defs/Storage'
     allOf:
-      - $ref: '#/$defs/queryapp.QueryOptions'
+      - $ref: '#/$defs/app.QueryOptions'
   Storage:
     type: object
     properties:
