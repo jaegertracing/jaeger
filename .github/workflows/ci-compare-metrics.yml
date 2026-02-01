@@ -118,7 +118,7 @@ jobs:
           retention-days: 30
 
       - name: Post PR comment with combined metrics summary
-        if: steps.compare-metrics.outputs.TOTAL_CHANGES != '0' && steps.download-artifacts.outputs.pr_number
+        if: (steps.compare-metrics.outputs.TOTAL_CHANGES != '0' || steps.compare-metrics.outputs.HAS_ERROR == 'true') && steps.download-artifacts.outputs.pr_number
         uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3
         with:
           file-path: ./.metrics/combined_summary.md
@@ -134,12 +134,24 @@ jobs:
             const { owner, repo } = context.repo;
             const headSha = context.payload.workflow_run.head_sha;
             const totalChanges = parseInt('${{ steps.compare-metrics.outputs.TOTAL_CHANGES }}' || '0');
+            const hasError = '${{ steps.compare-metrics.outputs.HAS_ERROR }}' === 'true';
             const artifactLink = 'https://github.com/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}';
             
-            const conclusion = totalChanges === 0 ? 'success' : 'failure';
-            const summary = totalChanges === 0 
-              ? '✅ No significant metric changes detected' 
-              : `❌ ${totalChanges} metric changes detected`;
+            let conclusion, summary, text;
+            
+            if (hasError) {
+              conclusion = 'failure';
+              summary = '❌ Metrics comparison failed';
+              text = 'ERROR: No summary files were generated. Expected at least 8 diff files from CI.\n\nThis indicates a failure in the E2E test execution or metrics collection process.\n\n➡️ [View full metrics file](' + artifactLink + ')';
+            } else if (totalChanges === 0) {
+              conclusion = 'success';
+              summary = '✅ No significant metric changes detected';
+              text = `Total changes across all snapshots: ${totalChanges}\n\n➡️ [View full metrics file](${artifactLink})`;
+            } else {
+              conclusion = 'failure';
+              summary = `❌ ${totalChanges} metric changes detected`;
+              text = `Total changes across all snapshots: ${totalChanges}\n\n➡️ [View full metrics file](${artifactLink})`;
+            }
             
             await github.rest.checks.create({
               owner,
@@ -151,7 +163,7 @@ jobs:
               output: {
                 title: 'Metrics Comparison Result',
                 summary: summary,
-                text: `Total changes across all snapshots: ${totalChanges}\n\n➡️ [View full metrics file](${artifactLink})`
+                text: text
               }
             });
         env:
