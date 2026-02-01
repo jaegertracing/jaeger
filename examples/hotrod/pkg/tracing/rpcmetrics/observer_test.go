@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -84,11 +83,10 @@ func TestObserver(t *testing.T) {
 			u.ExpectedMetric{Name: "requests", Tags: endpointTags("get_user_override", "error", "false"), Value: 1},
 			u.ExpectedMetric{Name: "requests", Tags: endpointTags("get_user_client", "error", "false"), Value: 0},
 		)
-		// TODO something wrong with string generation, .P99 should not be appended to the tag
-		// as a result we cannot use u.AssertGaugeMetrics
-		_, g := testTracer.metrics.Snapshot()
-		assert.EqualValues(t, 50, g["request_latency|endpoint=get_user|error=false.P99"])
-		assert.EqualValues(t, 50, g["request_latency|endpoint=get_user|error=true.P99"])
+		testTracer.metrics.AssertTimerMetrics(t,
+			u.ExpectedTimerMetric{Name: "request_latency", Tags: endpointTags("get_user", "error", "false"), Percentile: "P99", Value: 50},
+			u.ExpectedTimerMetric{Name: "request_latency", Tags: endpointTags("get_user", "error", "true"), Percentile: "P99", Value: 50},
+		)
 	})
 }
 
