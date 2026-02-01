@@ -30,8 +30,8 @@ type Configuration struct {
 	Auth Authentication `mapstructure:"auth"`
 	// DialTimeout is the timeout for establishing a connection to ClickHouse.
 	DialTimeout time.Duration `mapstructure:"dial_timeout"`
-	// CreateSchema, if set to true, will create the ClickHouse schema if it does not exist.
-	CreateSchema bool `mapstructure:"create_schema"`
+	// Schema contains schema-related configuration options.
+	Schema Schema `mapstructure:"schema"`
 	// DefaultSearchDepth is the default search depth for queries.
 	// This is the maximum number of trace IDs that will be returned when searching for traces
 	// if a limit is not specified in the query.
@@ -42,14 +42,26 @@ type Configuration struct {
 	// TODO: add more settings
 }
 
+// Schema contains schema-related configuration options.
+type Schema struct {
+	// Create, if set to true, will create the ClickHouse schema if it does not exist.
+	Create bool `mapstructure:"create"`
+	// TraceTTL is the TTL for trace data in ClickHouse.
+	// When set to a positive duration, trace data will be automatically deleted after this period.
+	// Set to 0 to disable TTL (default).
+	TraceTTL time.Duration `mapstructure:"trace_ttl"`
+}
+
 type Authentication struct {
 	Basic configoptional.Optional[basicauthextension.ClientAuthSettings] `mapstructure:"basic"`
 	// TODO: add JWT
 }
 
 func (cfg *Configuration) Validate() error {
-	_, err := govalidator.ValidateStruct(cfg)
-	return err
+	if _, err := govalidator.ValidateStruct(cfg); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (cfg *Configuration) applyDefaults() {
