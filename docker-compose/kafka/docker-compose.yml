@@ -15,7 +15,7 @@ services:
       retries: 3
 
   jaeger-collector:
-    image: cr.jaegertracing.io/jaegertracing/jaeger:latest@sha256:d5e5fe1c2b2f663b07c28c6f7cc5a6e61aef076752dab8df8eeb6b0f5494c94b
+    image: cr.jaegertracing.io/jaegertracing/jaeger:2.14.1@sha256:d5e5fe1c2b2f663b07c28c6f7cc5a6e61aef076752dab8df8eeb6b0f5494c94b
     volumes:
       - ../../cmd/jaeger/config-kafka-collector.yaml:/etc/jaeger/config.yaml
     command:
@@ -39,7 +39,7 @@ services:
       - kafka
 
   jaeger-ingester:
-    image: cr.jaegertracing.io/jaegertracing/jaeger:latest@sha256:d5e5fe1c2b2f663b07c28c6f7cc5a6e61aef076752dab8df8eeb6b0f5494c94b
+    image: cr.jaegertracing.io/jaegertracing/jaeger:2.14.1@sha256:d5e5fe1c2b2f663b07c28c6f7cc5a6e61aef076752dab8df8eeb6b0f5494c94b
     volumes:
       - ./jaeger-ingester-remote-storage.yaml:/etc/jaeger/config.yaml
     command:
@@ -65,7 +65,7 @@ services:
       - jaeger-remote-storage
 
   jaeger-query:
-    image: cr.jaegertracing.io/jaegertracing/jaeger:latest@sha256:d5e5fe1c2b2f663b07c28c6f7cc5a6e61aef076752dab8df8eeb6b0f5494c94b
+    image: cr.jaegertracing.io/jaegertracing/jaeger:2.14.1@sha256:d5e5fe1c2b2f663b07c28c6f7cc5a6e61aef076752dab8df8eeb6b0f5494c94b
     volumes:
       - ../../cmd/jaeger/config-query.yaml:/etc/jaeger/config.yaml
       - ../../cmd/jaeger/config-ui.json:/cmd/jaeger/config-ui.json:ro
