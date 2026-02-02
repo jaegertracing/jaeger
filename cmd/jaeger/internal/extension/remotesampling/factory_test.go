@@ -16,7 +16,7 @@ import (
 func TestCreateDefaultConfig(t *testing.T) {
 	f := NewFactory()
 	cfg := f.CreateDefaultConfig()
-	assert.NotNil(t, cfg)
+	assert.NotNil(t, cfg, "failed to create default config")
 	assert.NoError(t, componenttest.CheckConfigStruct(cfg))
 }
 
