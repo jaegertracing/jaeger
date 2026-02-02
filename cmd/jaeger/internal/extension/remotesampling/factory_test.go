@@ -1,3 +1,6 @@
+// Copyright (c) 2025 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package remotesampling
 
 import (
@@ -5,41 +8,32 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.opentelemetry.io/collector/component"
+	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/extension"
 )
 
-func TestNewFactory(t *testing.T) {
-	// 1. Verify the factory can be created
+func TestCreateDefaultConfig(t *testing.T) {
 	f := NewFactory()
-	assert.NotNil(t, f)
-
-	// 2. Verify the Component Type
-	assert.Equal(t, ComponentType, f.Type())
-
-	// 3. Verify Default Configuration is not nil
 	cfg := f.CreateDefaultConfig()
 	assert.NotNil(t, cfg)
+	assert.NoError(t, componenttest.CheckConfigStruct(cfg))
+}
 
-	// 4. Verify CreateExtension logic
+func TestCreateExtension(t *testing.T) {
+	f := NewFactory()
+	cfg := f.CreateDefaultConfig()
 	ctx := context.Background()
 	params := extension.Settings{
-		ID: component.NewID(ComponentType),
-		TelemetrySettings: component.TelemetrySettings{
-			Logger: nil, // Logger is optional for this test
-		},
+		ID:                ID,
+		TelemetrySettings: componenttest.NewNopTelemetrySettings(),
 	}
 
-	// We attempt to create the extension. 
-	// Even if it returns an error (due to missing grpc config), 
-	// we just want to ensure it doesn't panic.
 	ext, err := f.Create(ctx, params, cfg)
-	
-	if err == nil {
-		assert.NotNil(t, ext)
-		assert.NoError(t, ext.Shutdown(ctx))
-	} else {
-		// If it errors, that's fine too, as long as it's a valid error
-		assert.Error(t, err)
-	}
+	require.NoError(t, err)
+	require.NotNil(t, ext)
+
+	t.Cleanup(func() {
+		require.NoError(t, ext.Shutdown(ctx))
+	})
 }
