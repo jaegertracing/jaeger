@@ -103,8 +103,7 @@ func TestExecuteAction(t *testing.T) {
 func TestExecuteAction_ConfigError(t *testing.T) {
 	v, command := config.Viperize(AddFlags)
 	cmdLine := []string{
-		"--es.tls.enabled=true",
-		"--es.tls.cert=/invalid/path/for/cert",
+		"--es.tls.ca=/nonexistent/ca.crt",
 	}
 	require.NoError(t, command.ParseFlags(cmdLine))
 	logger := zap.NewNop()
@@ -124,4 +123,5 @@ func TestExecuteAction_ConfigError(t *testing.T) {
 		}
 	})
 	require.Error(t, err)
+	assert.ErrorContains(t, err, "failed to initialize config")
 }
