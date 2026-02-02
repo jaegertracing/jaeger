@@ -132,6 +132,8 @@ func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndI
 		index := (t.mostRecent - i + n) % n
 		traceById := t.traces[index]
 		if traceById.id.IsEmpty() {
+			// Finding an empty ID means we reached a gap in the ring buffer
+			// that has not yet filled with trace.
 			break
 		}
 		if validTrace(traceById.trace, query) {
