@@ -1,7 +1,7 @@
-// Copyright (c) 2023 The Jaeger Authors.
+// Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package healthcheck
+package criticalpath
 
 import (
 	"testing"
