@@ -113,53 +113,6 @@ func (h *HTTPGateway) tryParamError(w http.ResponseWriter, err error, paramName 
 	return h.tryHandleError(w, fmt.Errorf("malformed parameter %s: %w", paramName, err), http.StatusBadRequest)
 }
 
-// isValidationError checks if an error is a validation/parameter error that should return 400 Bad Request.
-// Validation errors are typically from query parameter validation, not from the storage layer.
-func isValidationError(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	errMsg := err.Error()
-
-	// Check for known validation error patterns from storage layer
-	validationPatterns := []string{
-		"search depth must be greater than 0 and less than max traces",
-		"max traces must be greater than zero",
-		"start time is required",
-		"end time must be greater than start time",
-	}
-
-	for _, pattern := range validationPatterns {
-		if errors.Is(err, errors.New(pattern)) || errMsg == pattern {
-			return true
-		}
-	}
-
-	return false
-}
-
-// determineStatusCode determines the appropriate HTTP status code based on the error type.
-// Returns 400 Bad Request for validation/parameter errors, 500 Internal Server Error for others.
-func determineStatusCode(err error) int {
-	if err == nil {
-		return http.StatusOK
-	}
-
-	// Check for trace not found - should be 404
-	if errors.Is(err, spanstore.ErrTraceNotFound) {
-		return http.StatusNotFound
-	}
-
-	// Check for validation errors - should be 400
-	if isValidationError(err) {
-		return http.StatusBadRequest
-	}
-
-	// Default to 500 for internal errors
-	return http.StatusInternalServerError
-}
-
 func (h *HTTPGateway) returnTrace(td ptrace.Traces, w http.ResponseWriter) {
 	tracesData := jptrace.TracesData(td)
 	response := &api_v3.GRPCGatewayWrapper{
@@ -169,10 +122,9 @@ func (h *HTTPGateway) returnTrace(td ptrace.Traces, w http.ResponseWriter) {
 }
 
 func (h *HTTPGateway) returnTraces(traces []ptrace.Traces, err error, w http.ResponseWriter) {
-	// Distinguish between internal errors and bad parameters
-	if err != nil {
-		statusCode := determineStatusCode(err)
-		h.tryHandleError(w, err, statusCode)
+	// All HTTP parameter validation happens in parseFindTracesQuery() and getTrace().
+	// By this point, only storage layer errors should occur, which are internal errors.
+	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}
 	if len(traces) == 0 {
