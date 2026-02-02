@@ -99,3 +99,29 @@ func TestExecuteAction(t *testing.T) {
 		})
 	}
 }
+
+func TestExecuteAction_ConfigError(t *testing.T) {
+	v, command := config.Viperize(AddFlags)
+	cmdLine := []string{
+		"--es.tls.enabled=true",
+		"--es.tls.cert=/invalid/path/for/cert",
+	}
+	require.NoError(t, command.ParseFlags(cmdLine))
+	logger := zap.NewNop()
+	args := []string{
+		"https://localhost:9300",
+	}
+
+	err := ExecuteAction(ActionExecuteOptions{
+		Args:   args,
+		Viper:  v,
+		Logger: logger,
+	}, func(_ client.Client, _ Config) Action {
+		return &dummyAction{
+			TestFn: func() error {
+				return nil
+			},
+		}
+	})
+	require.Error(t, err)
+}

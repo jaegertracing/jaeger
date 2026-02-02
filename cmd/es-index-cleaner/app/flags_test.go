@@ -42,3 +42,21 @@ func TestBindFlags(t *testing.T) {
 	assert.Equal(t, "admin", c.Username)
 	assert.Equal(t, "admin", c.Password)
 }
+
+func TestInitFromViper_TLSError(t *testing.T) {
+	v := viper.New()
+	c := &Config{}
+	command := cobra.Command{}
+	flags := &flag.FlagSet{}
+	c.AddFlags(flags)
+	command.PersistentFlags().AddGoFlagSet(flags)
+	v.BindPFlags(command.PersistentFlags())
+
+	err := command.ParseFlags([]string{
+		"--es.tls.ca=/nonexistent/ca.crt",
+	})
+	require.NoError(t, err)
+
+	err = c.InitFromViper(v)
+	require.Error(t, err)
+}
