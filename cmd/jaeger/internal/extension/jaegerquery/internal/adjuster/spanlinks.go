@@ -32,14 +32,14 @@ func (la LinksAdjuster) Adjust(traces ptrace.Traces) {
 			spans := ss.Spans()
 			for k := 0; k < spans.Len(); k++ {
 				span := spans.At(k)
-				la.adjust(span)
+				la.adjustLinks(span)
 			}
 		}
 	}
 }
 
-// adjust removes invalid links from a span.
-func (la LinksAdjuster) adjust(span ptrace.Span) {
+// adjustLinks removes invalid links from a span.
+func (la LinksAdjuster) adjustLinks(span ptrace.Span) {
 	links := span.Links()
 	validLinks := ptrace.NewSpanLinkSlice()
 	for i := 0; i < links.Len(); i++ {
