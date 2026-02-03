@@ -20,7 +20,7 @@ The existing implementation in [`internal/storage/v2/elasticsearch/`](../../inte
 
 1. **Operational Overhead**: Managing rollover aliases and ILM policies requires significant operational knowledge.
 2. **Configuration Complexity**: Multiple interdependent flags (`UseILM`, `CreateAliases`, `IndexRolloverFrequencySpans`) create potential for misconfiguration.
-3. **Modern ES Features Unused**: Elasticsearch 7.9+ and OpenSearch 2.x+ natively support Data Streams, which simplify time-series data management.
+3. **Modern ES Features Unused**: Elasticsearch 7.9+ and OpenSearch 2.0+ natively support Data Streams, which simplify time-series data management.
 
 ### Data Streams Overview
 
