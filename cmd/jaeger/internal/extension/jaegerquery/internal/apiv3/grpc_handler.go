@@ -166,3 +166,25 @@ func receiveTraces(
 	}
 	return nil
 }
+
+// GetDependencies implements api_v3.QueryServiceServer's GetDependencies
+func (h *Handler) GetDependencies(ctx context.Context, req *api_v3.GetDependenciesRequest) (*api_v3.DependenciesResponse, error) {
+	startTime := req.GetStartTime()
+	endTime := req.GetEndTime()
+	lookback := endTime.Sub(startTime)
+
+	deps, err := h.QueryService.GetDependencies(ctx, endTime, lookback)
+	if err != nil {
+		return nil, err
+	}
+
+	protoDeps := make([]*api_v3.Dependency, 0, len(deps))
+	for _, dep := range deps {
+		protoDeps = append(protoDeps, &api_v3.Dependency{
+			Parent:    dep.Parent,
+			Child:     dep.Child,
+			CallCount: uint64(dep.CallCount),
+		})
+	}
+	return &api_v3.DependenciesResponse{Dependencies: protoDeps}, nil
+}
