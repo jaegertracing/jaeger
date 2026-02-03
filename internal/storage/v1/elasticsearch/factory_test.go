@@ -336,7 +336,7 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 
 func TestPasswordFromFile(t *testing.T) {
 	t.Cleanup(func() {
-		testutils.VerifyGoLeaksOnce(t)
+		testutils.VerifyGoLeaksOnceForES(t)
 	})
 	t.Run("primary client", func(t *testing.T) {
 		runPasswordFromFileTest(t)
@@ -447,7 +447,7 @@ func TestFactoryESClientsAreNil(t *testing.T) {
 }
 
 func TestPasswordFromFileErrors(t *testing.T) {
-	defer testutils.VerifyGoLeaksOnce(t)
+	defer testutils.VerifyGoLeaksOnceForES(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write(mockEsServerResponse)
 	}))
