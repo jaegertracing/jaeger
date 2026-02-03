@@ -104,7 +104,7 @@ func computeCriticalPath(
 	return criticalPath
 }
 
-// ComputeCriticalPath computes the critical path for a given trace
+// ComputeCriticalPathFromTraces computes the critical path for a given trace
 func ComputeCriticalPathFromTraces(traces ptrace.Traces) ([]Section, error) {
 	// Find the root span (the one with no parent)
 	var rootSpanID pcommon.SpanID

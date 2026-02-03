@@ -38,7 +38,7 @@ func (la LinksAdjuster) Adjust(traces ptrace.Traces) {
 	}
 }
 
-// adjust removes invalid links from a span.
+// adjustLinks removes invalid links from a span.
 func (la LinksAdjuster) adjustLinks(span ptrace.Span) {
 	links := span.Links()
 	validLinks := ptrace.NewSpanLinkSlice()
