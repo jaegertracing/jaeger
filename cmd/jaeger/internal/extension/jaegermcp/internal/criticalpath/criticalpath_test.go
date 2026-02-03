@@ -64,7 +64,7 @@ func createTestTrace1() ptrace.Traces {
 func TestComputeCriticalPath_Test1(t *testing.T) {
 	traces := createTestTrace1()
 
-	criticalPath, err := ComputeCriticalPath(traces)
+	criticalPath, err := ComputeCriticalPathFromTraces(traces)
 	require.NoError(t, err)
 	require.NotNil(t, criticalPath)
 
@@ -96,7 +96,7 @@ func TestComputeCriticalPath_Test1(t *testing.T) {
 func TestComputeCriticalPath_EmptyTrace(t *testing.T) {
 	traces := ptrace.NewTraces()
 
-	criticalPath, err := ComputeCriticalPath(traces)
+	criticalPath, err := ComputeCriticalPathFromTraces(traces)
 	require.Error(t, err)
 	assert.Nil(t, criticalPath)
 	assert.Contains(t, err.Error(), "no root span")
@@ -115,7 +115,7 @@ func TestComputeCriticalPath_NoRootSpan(t *testing.T) {
 	span.SetStartTimestamp(pcommon.Timestamp(1000))
 	span.SetEndTimestamp(pcommon.Timestamp(2000))
 
-	criticalPath, err := ComputeCriticalPath(traces)
+	criticalPath, err := ComputeCriticalPathFromTraces(traces)
 	require.Error(t, err)
 	assert.Nil(t, criticalPath)
 	assert.Contains(t, err.Error(), "no root span found")
@@ -134,7 +134,7 @@ func TestComputeCriticalPath_SingleSpan(t *testing.T) {
 	span.SetEndTimestamp(pcommon.Timestamp(101000)) // 101μs
 	span.SetName("single span")
 
-	criticalPath, err := ComputeCriticalPath(traces)
+	criticalPath, err := ComputeCriticalPathFromTraces(traces)
 	require.NoError(t, err)
 	require.Len(t, criticalPath, 1)
 

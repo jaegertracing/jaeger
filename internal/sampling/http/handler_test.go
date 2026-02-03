@@ -70,12 +70,12 @@ func withServer(
 
 func TestHTTPHandler(t *testing.T) {
 	testGorillaHTTPHandler(t, "")
-	testHTTPHandler(t, "")
+	runHTTPHandlerTest(t, "")
 }
 
 func TestHTTPHandlerWithBasePath(t *testing.T) {
 	testGorillaHTTPHandler(t, "/foo")
-	testHTTPHandler(t, "/foo")
+	runHTTPHandlerTest(t, "/foo")
 }
 
 func testGorillaHTTPHandler(t *testing.T, basePath string) {
@@ -127,7 +127,7 @@ func testGorillaHTTPHandler(t *testing.T, basePath string) {
 	})
 }
 
-func testHTTPHandler(t *testing.T, basePath string) {
+func runHTTPHandlerTest(t *testing.T, basePath string) {
 	withServer(basePath, rateLimiting(42), false, func(ts *testServer) {
 		tests := []struct {
 			endpoint  string

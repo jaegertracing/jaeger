@@ -350,7 +350,7 @@ func TestTraceReader_FindTraceIDs_OTLPQueryTranslation(t *testing.T) {
 }
 
 func fromDBTraceId(t *testing.T, traceID dbmodel.TraceID) tracestore.FoundTraceID {
-	traceId, err := fromDbTraceId(traceID)
+	traceId, err := convertTraceIDFromDB(traceID)
 	require.NoError(t, err)
 	return tracestore.FoundTraceID{
 		TraceID: traceId,

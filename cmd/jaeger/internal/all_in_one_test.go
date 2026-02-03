@@ -154,16 +154,13 @@ type response struct {
 
 func verifyGetTraceAPI(t *testing.T) {
 	var queryResponse response
-	for i := 0; i < 20; i++ {
+	require.Eventually(t, func() bool {
 		_, body := httpGet(t, queryAddr+getTraceURL+traceID)
-		require.NoError(t, json.Unmarshal(body, &queryResponse))
-
-		if len(queryResponse.Data) == 1 {
-			break
+		if err := json.Unmarshal(body, &queryResponse); err != nil {
+			return false
 		}
-		t.Logf("Trace %s not found (yet)", traceID)
-		time.Sleep(time.Second)
-	}
+		return len(queryResponse.Data) == 1
+	}, 20*time.Second, time.Second, "Trace %s not found", traceID)
 
 	require.Len(t, queryResponse.Data, 1)
 	require.Len(t, queryResponse.Data[0].Spans, 1)

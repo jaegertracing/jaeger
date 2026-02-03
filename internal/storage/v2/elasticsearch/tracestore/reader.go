@@ -103,7 +103,7 @@ func (t *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQu
 		}
 		otelTraceIds := make([]tracestore.FoundTraceID, 0, len(traceIds))
 		for _, traceId := range traceIds {
-			dbTraceId, err := fromDbTraceId(traceId)
+			dbTraceId, err := convertTraceIDFromDB(traceId)
 			if err != nil {
 				yield(nil, err)
 				return
