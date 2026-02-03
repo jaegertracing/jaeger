@@ -38,7 +38,7 @@ Implement a **Hybrid Indexing Model** for Jaeger's Elasticsearch storage:
 
 | Data Type | Storage Strategy | Rationale |
 |-----------|-----------------|-----------|
-| **Spans** | Data Streams (`jaeger-ds-span`) | High-volume, append-only, immutable time-series |
+| **Spans** | Data Streams (`jaeger-span-ds`) | High-volume, append-only, immutable time-series |
 | **Services** | Standard Indices | Requires deduplication and updates |
 | **Dependencies** | Standard Indices | Batch-computed, requires updates |
 
@@ -65,7 +65,7 @@ Data Streams use composable index templates:
 
 ```json
 {
-  "index_patterns": ["jaeger-ds-span"],
+  "index_patterns": ["jaeger-span-ds"],
   "data_stream": {},
   "composed_of": ["jaeger-span-mappings"],
   "template": {
@@ -126,7 +126,7 @@ Data Streams require a `@timestamp` field. An ingest pipeline copies `startTime`
 
 ### Phase 1: Core Support
 - Add `use_data_stream` configuration flag
-- Implement `jaeger-ds-span` index template
+- Implement `jaeger-span-ds` index template
 - Create timestamp ingest pipeline
 - Auto-detect ES vs OpenSearch for policy selection
 
