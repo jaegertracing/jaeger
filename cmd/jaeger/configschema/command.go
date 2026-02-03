@@ -57,10 +57,22 @@ func runGenerateSchema(outputFile string) error {
 		}
 		defer file.Close()
 		writer = file
-	} else {
-		writer = os.Stdout
+
+		// Print to file
+		printer := NewPrinter(FormatJSONPretty, writer)
+		if err := printer.Print(collection); err != nil {
+			return err
+		}
+
+		// Explicitly check close error for write operations
+		if err := file.Close(); err != nil {
+			return fmt.Errorf("failed to close output file: %w", err)
+		}
+		return nil
 	}
 
+	// Print to stdout
+	writer = os.Stdout
 	printer := NewPrinter(FormatJSONPretty, writer)
 	return printer.Print(collection)
 }
