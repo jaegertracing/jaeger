@@ -319,7 +319,7 @@ func TestLoadTemplate(t *testing.T) {
 		},
 		{
 			name:        "execution error",
-			tmplBody:    "Hello {{ .MissingField }}",
+			tmplBody:    "Hello {{ .Name.Invalid }}",
 			data:        struct{ Name string }{Name: "Jaeger"},
 			expectError: true,
 		},
