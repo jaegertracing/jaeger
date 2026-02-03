@@ -1,0 +1,4 @@
+# Ignore generated test files
+*.out
+*.test
+*.tmp
