@@ -86,9 +86,6 @@ type TraceQueryParams struct {
 	// Attributes must initialized with pcommon.NewMap() before use.
 	Attributes         pcommon.Map
 	ResourceAttributes pcommon.Map
-	ScopeAttributes    pcommon.Map
-	ScopeName          string
-	ScopeVersion       string
 	StartTimeMin       time.Time
 	StartTimeMax       time.Time
 	DurationMin        time.Duration
@@ -115,17 +112,6 @@ func (t *TraceQueryParams) ToSpanStoreQueryParameters() *spanstore.TraceQueryPar
 		for k, v := range jptrace.PcommonMapToPlainMap(t.ResourceAttributes) {
 			tags["resource."+k] = v
 		}
-	}
-	if t.ScopeAttributes.Len() > 0 {
-		for k, v := range jptrace.PcommonMapToPlainMap(t.ScopeAttributes) {
-			tags["scope."+k] = v
-		}
-	}
-	if t.ScopeName != "" {
-		tags["scope.name"] = t.ScopeName
-	}
-	if t.ScopeVersion != "" {
-		tags["scope.version"] = t.ScopeVersion
 	}
 	return &spanstore.TraceQueryParameters{
 		ServiceName:   t.ServiceName,

@@ -154,7 +154,8 @@ func TestTraceReader_FindTraces(t *testing.T) {
 	dbTrace2 := dbmodel.Trace{Spans: []dbmodel.Span{span}}
 	coreReader.On("FindTraces", mock.Anything, mock.Anything).Return([]dbmodel.Trace{dbTrace, dbTrace2}, nil)
 	traces := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
-		Attributes: pcommon.NewMap(),
+		Attributes:         pcommon.NewMap(),
+		ResourceAttributes: pcommon.NewMap(),
 	})
 	for td, err := range traces {
 		require.NoError(t, err)
@@ -167,7 +168,8 @@ func TestTraceReader_FindTraces(t *testing.T) {
 func TestTraceReader_FindTraces_Errors(t *testing.T) {
 	testTraceReaderGetTracesAndFindTracesErrors(t, "FindTraces", func(r TraceReader) iter.Seq2[[]ptrace.Traces, error] {
 		return r.FindTraces(context.Background(), tracestore.TraceQueryParams{
-			Attributes: pcommon.NewMap(),
+			Attributes:         pcommon.NewMap(),
+			ResourceAttributes: pcommon.NewMap(),
 		})
 	})
 }
@@ -186,7 +188,8 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 	}
 	coreReader.On("FindTraceIDs", mock.Anything, mock.Anything).Return(dbTraceIDs, nil)
 	for traceIds, err := range reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
-		Attributes: pcommon.NewMap(),
+		Attributes:         pcommon.NewMap(),
+		ResourceAttributes: pcommon.NewMap(),
 	}) {
 		require.NoError(t, err)
 		require.Equal(t, expected, traceIds)
@@ -218,14 +221,15 @@ func TestTraceReader_FindTraceIDs_Error(t *testing.T) {
 			attrs.PutStr("key1", "val1")
 			ts := time.Now()
 			traceQueryParams := tracestore.TraceQueryParams{
-				Attributes:    attrs,
-				StartTimeMin:  ts,
-				ServiceName:   "testing-service-name",
-				OperationName: "testing-operation-name",
-				StartTimeMax:  ts.Add(1 * time.Hour),
-				DurationMin:   1 * time.Hour,
-				DurationMax:   1 * time.Hour,
-				SearchDepth:   10,
+				Attributes:         attrs,
+				ResourceAttributes: pcommon.NewMap(),
+				StartTimeMin:       ts,
+				ServiceName:        "testing-service-name",
+				OperationName:      "testing-operation-name",
+				StartTimeMax:       ts.Add(1 * time.Hour),
+				DurationMin:        1 * time.Hour,
+				DurationMax:        1 * time.Hour,
+				SearchDepth:        10,
 			}
 			dbTraceQueryParams := dbmodel.TraceQueryParameters{
 				Tags:          map[string]string{"key1": "val1"},
@@ -301,7 +305,6 @@ func TestTraceReader_FindTraceIDs_OTLPQueryTranslation(t *testing.T) {
 			traceQueryParams := tracestore.TraceQueryParams{
 				Attributes:         pcommon.NewMap(),
 				ResourceAttributes: pcommon.NewMap(),
-				ScopeAttributes:    pcommon.NewMap(),
 				// Add dummy time/duration to satisfy validation if any (V1 reader has defaults)
 				StartTimeMin: time.Now().Add(-1 * time.Hour),
 				StartTimeMax: time.Now(),
@@ -309,13 +312,13 @@ func TestTraceReader_FindTraceIDs_OTLPQueryTranslation(t *testing.T) {
 
 			switch {
 			case tt.queryAttr == "scope.name":
-				traceQueryParams.ScopeName = tt.queryVal
+				traceQueryParams.Attributes.PutStr(otelsemconv.AttributeOtelScopeName, tt.queryVal)
 			case tt.queryAttr == "scope.version":
-				traceQueryParams.ScopeVersion = tt.queryVal
+				traceQueryParams.Attributes.PutStr(otelsemconv.AttributeOtelScopeVersion, tt.queryVal)
 			case strings.HasPrefix(tt.queryAttr, "resource."):
 				traceQueryParams.ResourceAttributes.PutStr(strings.TrimPrefix(tt.queryAttr, "resource."), tt.queryVal)
 			case strings.HasPrefix(tt.queryAttr, "scope."):
-				traceQueryParams.ScopeAttributes.PutStr(strings.TrimPrefix(tt.queryAttr, "scope."), tt.queryVal)
+				traceQueryParams.Attributes.PutStr("scope."+strings.TrimPrefix(tt.queryAttr, "scope."), tt.queryVal)
 			default:
 				traceQueryParams.Attributes.PutStr(tt.queryAttr, tt.queryVal)
 			}

@@ -13,7 +13,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 // TraceReader is a wrapper around spanstore.CoreSpanReader which return the output parallel to OTLP Models
@@ -132,20 +131,6 @@ func toDBTraceQueryParams(query tracestore.TraceQueryParams) dbmodel.TraceQueryP
 			processTags[k] = v.AsString()
 			return true
 		})
-	}
-
-	if query.ScopeAttributes.Len() > 0 {
-		query.ScopeAttributes.Range(func(k string, v pcommon.Value) bool {
-			tags["scope."+k] = v.AsString()
-			return true
-		})
-	}
-
-	if query.ScopeName != "" {
-		tags[otelsemconv.AttributeOtelScopeName] = query.ScopeName
-	}
-	if query.ScopeVersion != "" {
-		tags[otelsemconv.AttributeOtelScopeVersion] = query.ScopeVersion
 	}
 
 	return dbmodel.TraceQueryParameters{
