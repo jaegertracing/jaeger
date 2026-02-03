@@ -405,3 +405,36 @@ func TestHTTPGatewayGetServicesEmptyResponse(t *testing.T) {
 	assert.JSONEq(t, `{"services":[]}`, w.Body.String())
 	gw.reader.AssertExpectations(t)
 }
+
+func TestHTTPGatewayFindTracesWithAttributesAndLimit(t *testing.T) {
+	goodTimeV := time.Now().UTC().Truncate(time.Nanosecond)
+	goodTime := goodTimeV.Format(time.RFC3339Nano)
+
+	queryParams := tracestore.TraceQueryParams{
+		ServiceName:  "foo",
+		StartTimeMin: goodTimeV,
+		StartTimeMax: goodTimeV,
+		SearchDepth:  50,
+	}
+	attrs := pcommon.NewMap()
+	attrs.PutStr("key1", "value1")
+	attrs.PutStr("key2", "value2")
+	queryParams.Attributes = attrs
+
+	gw := setupHTTPGatewayNoServer(t, "")
+	gw.reader.
+		On("FindTraces", matchContext, queryParams).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{makeTestTrace()}, nil)
+		})).Once()
+
+	u := fmt.Sprintf("/api/v3/traces?query.service_name=foo&query.start_time_min=%s&query.start_time_max=%s&query.tag=key1:value1&query.tag=key2:value2&query.limit=50",
+		url.QueryEscape(goodTime), url.QueryEscape(goodTime))
+	r, err := http.NewRequest(http.MethodGet, u, http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+
+	gw.router.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusOK, w.Code)
+	gw.reader.AssertExpectations(t)
+}

@@ -10,12 +10,12 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
@@ -44,6 +44,8 @@ const (
 	paramDurationMin    = "query.duration_min"
 	paramDurationMax    = "query.duration_max"
 	paramQueryRawTraces = "query.raw_traces"
+	paramAttributes     = "query.tag"
+	paramLimit          = "query.limit"
 
 	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
 	routeFindTraces    = "/api/v3/traces"
@@ -213,9 +215,20 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 		TraceQueryParams: tracestore.TraceQueryParams{
 			ServiceName:   q.Get(paramServiceName),
 			OperationName: q.Get(paramOperationName),
-			Attributes:    pcommon.NewMap(), // most curiously not supported by grpc-gateway
 		},
 	}
+
+	tags := make(map[string]string)
+	for _, tag := range q[paramAttributes] {
+		keyAndValue := strings.Split(tag, ":")
+		if len(keyAndValue) <= 1 {
+			err := fmt.Errorf("malformed 'query.tag' parameter, expecting key:value, received: %s", tag)
+			h.tryHandleError(w, err, http.StatusBadRequest)
+			return nil, true
+		}
+		tags[keyAndValue[0]] = strings.Join(keyAndValue[1:], ":")
+	}
+	queryParams.Attributes = jptrace.PlainMapToPcommonMap(tags)
 
 	timeMin := q.Get(paramTimeMin)
 	timeMax := q.Get(paramTimeMax)
@@ -235,12 +248,16 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 	queryParams.StartTimeMin = timeMinParsed
 	queryParams.StartTimeMax = timeMaxParsed
 
-	if n := q.Get(paramNumTraces); n != "" {
-		numTraces, err := strconv.Atoi(n)
+	numTraces := q.Get(paramNumTraces)
+	if numTraces == "" {
+		numTraces = q.Get(paramLimit)
+	}
+	if numTraces != "" {
+		n, err := strconv.Atoi(numTraces)
 		if h.tryParamError(w, err, paramNumTraces) {
 			return nil, true
 		}
-		queryParams.SearchDepth = numTraces
+		queryParams.SearchDepth = n
 	}
 
 	if d := q.Get(paramDurationMin); d != "" {
