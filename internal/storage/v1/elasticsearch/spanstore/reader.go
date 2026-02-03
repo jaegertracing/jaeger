@@ -379,7 +379,7 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQ
 		traceQuery.NumTraces = defaultNumTraces
 	}
 
-	esTraceIDs, err := s.findTraceIDs(ctx, traceQuery)
+	esTraceIDs, err := s.findTraceIDsFromQuery(ctx, traceQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -510,7 +510,7 @@ func validateQuery(p dbmodel.TraceQueryParameters) error {
 	return nil
 }
 
-func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error) {
+func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error) {
 	ctx, childSpan := s.tracer.Start(ctx, "findTraceIDs")
 	defer childSpan.End()
 	//  Below is the JSON body to our HTTP GET request to ElasticSearch. This function creates this.
