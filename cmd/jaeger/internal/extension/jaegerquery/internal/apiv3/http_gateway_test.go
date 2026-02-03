@@ -390,3 +390,18 @@ func TestHTTPGatewayGetOperationsErrors(t *testing.T) {
 	gw.router.ServeHTTP(w, r)
 	assert.Contains(t, w.Body.String(), assert.AnError.Error())
 }
+
+func TestHTTPGatewayGetServicesEmptyResponse(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+	gw.reader.
+		On("GetServices", matchContext).
+		Return(nil, nil).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/services", http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.JSONEq(t, `{"services":[]}`, w.Body.String())
+	gw.reader.AssertExpectations(t)
+}
