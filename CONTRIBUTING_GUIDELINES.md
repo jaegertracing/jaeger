@@ -231,3 +231,40 @@ git push --force
 ## Branches
 
 Before submitting a PR make sure to create a named branch in your forked repository. Our CI will fail if you submit a PR from the `main` branch. If that happens, just create a new branch and re-submit the PR from that branch.
+
+## AI Usage Policy
+
+### Goals
+
+This policy exists to:
+
+- **Keep the effort balanced** – Before AI, contributors did most of the work (writing, testing, understanding). We want to keep it that way. AI should help you, not replace your effort.
+- **Protect maintainer time** – Large, low-quality AI-generated PRs shift the burden to reviewers. We want to avoid that.
+- **Ensure understanding** – Contributors should understand and be able to explain every change they submit.
+- **Keep conversations human** – Code review is a discussion between people, not bots.
+
+### What's okay
+
+- Using AI to help you understand the code
+- Using AI to write drafts of code, tests, or docs
+- Using AI to explore ideas or try different approaches
+- Saying "AI helped me write this" in your PR description
+
+### What's not okay
+
+- Copy-pasting AI output without reading or understanding it
+- Submitting code that doesn't compile or doesn't work
+- Submitting PRs without running tests first
+- Using AI to reply to review comments – reviewers want to talk to you, not a bot
+
+### Your responsibility
+
+- You own everything you submit, even if AI wrote it
+- You must understand your code well enough to explain it
+- You must run tests locally before opening or updating a PR
+- If AI wrote a big part of your PR, mention that in the PR description
+
+### Maintainer rights
+
+- Maintainers can close PRs that look like low-effort AI spam
+- Maintainers can ask questions if your replies sound auto-generated
