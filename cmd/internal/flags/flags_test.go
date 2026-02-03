@@ -9,10 +9,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseJaegerTags(t *testing.T) {
-	assert.Nil(t, ParseJaegerTags(""))
+	tags, err := ParseJaegerTags("")
+	require.NoError(t, err)
+	assert.Nil(t, tags)
 
 	jaegerTags := fmt.Sprintf("%s,%s,%s,%s,%s,%s",
 		"key=value",
@@ -34,14 +37,13 @@ func TestParseJaegerTags(t *testing.T) {
 		"envVar5": "",
 	}
 
-	assert.Equal(t, expectedTags, ParseJaegerTags(jaegerTags))
+	tags, err = ParseJaegerTags(jaegerTags)
+	require.NoError(t, err)
+	assert.Equal(t, expectedTags, tags)
 }
 
-func TestParseJaegerTagsPanic(t *testing.T) {
-	assert.PanicsWithValue(t,
-		"invalid Jaeger tag pair \"no-equals-sign\", expected key=value",
-		func() {
-			ParseJaegerTags("no-equals-sign")
-		},
-	)
+func TestParseJaegerTagsError(t *testing.T) {
+	_, err := ParseJaegerTags("no-equals-sign")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "invalid Jaeger tag pair")
 }
