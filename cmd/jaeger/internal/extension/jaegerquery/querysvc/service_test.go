@@ -750,6 +750,7 @@ func TestGetCapabilities(t *testing.T) {
 	}
 }
 
+<<<<<<< HEAD
 // Consolidate Underlimit, Overlimit and Exactly at limit tests
 func TestMaxTraceSize(t *testing.T) {
 	tests := []struct {
@@ -872,4 +873,19 @@ func TestMaxTraceSize(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestQueryServiceGetServicesReturnsEmptySlice(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	reader.
+		On("GetServices", mock.Anything).
+		Return(nil, nil).Once()
+
+	qs := NewQueryService(reader, nil, QueryServiceOptions{})
+
+	services, err := qs.GetServices(context.Background())
+
+	require.NoError(t, err)
+	require.NotNil(t, services)
+	require.Empty(t, services)
 }
