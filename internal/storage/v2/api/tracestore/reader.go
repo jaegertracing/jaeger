@@ -108,7 +108,7 @@ type FoundTraceID struct {
 
 func (t *TraceQueryParams) ToSpanStoreQueryParameters() *spanstore.TraceQueryParameters {
 	tags := jptrace.PcommonMapToPlainMap(t.Attributes)
-	if t.ResourceAttributes.Len() > 0 {
+	if t.ResourceAttributes != (pcommon.Map{}) && t.ResourceAttributes.Len() > 0 {
 		for k, v := range jptrace.PcommonMapToPlainMap(t.ResourceAttributes) {
 			tags["resource."+k] = v
 		}
