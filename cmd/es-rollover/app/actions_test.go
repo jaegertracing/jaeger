@@ -99,3 +99,29 @@ func TestExecuteAction(t *testing.T) {
 		})
 	}
 }
+
+func TestExecuteAction_ConfigError(t *testing.T) {
+	v, command := config.Viperize(AddFlags)
+	cmdLine := []string{
+		"--es.tls.ca=/nonexistent/ca.crt",
+	}
+	require.NoError(t, command.ParseFlags(cmdLine))
+	logger := zap.NewNop()
+	args := []string{
+		"https://localhost:9300",
+	}
+
+	err := ExecuteAction(ActionExecuteOptions{
+		Args:   args,
+		Viper:  v,
+		Logger: logger,
+	}, func(_ client.Client, _ Config) Action {
+		return &dummyAction{
+			TestFn: func() error {
+				return nil
+			},
+		}
+	})
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "failed to initialize config")
+}

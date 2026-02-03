@@ -75,7 +75,7 @@ func dbSpansToSpans(dbSpans []dbmodel.Span, resourceSpans ptrace.ResourceSpansSl
 }
 
 func dbSpanToSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
-	traceId, err := fromDbTraceId(dbSpan.TraceID)
+	traceId, err := convertTraceIDFromDB(dbSpan.TraceID)
 	if err != nil {
 		return err
 	}
@@ -417,7 +417,7 @@ func dbSpanRefsToSpanEvents(refs []dbmodel.Reference, excludeParentID dbmodel.Sp
 		}
 
 		link := spanLinks.AppendEmpty()
-		refTraceId, err := fromDbTraceId(ref.TraceID)
+		refTraceId, err := convertTraceIDFromDB(ref.TraceID)
 		if err != nil {
 			return err
 		}

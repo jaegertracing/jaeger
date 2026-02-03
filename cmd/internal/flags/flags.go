@@ -39,16 +39,16 @@ func TryLoadConfigFile(v *viper.Viper) error {
 }
 
 // ParseJaegerTags parses the Jaeger tags string into a map.
-func ParseJaegerTags(jaegerTags string) map[string]string {
+func ParseJaegerTags(jaegerTags string) (map[string]string, error) {
 	if jaegerTags == "" {
-		return nil
+		return nil, nil
 	}
 	tagPairs := strings.Split(string(jaegerTags), ",")
 	tags := make(map[string]string)
 	for _, p := range tagPairs {
 		kv := strings.SplitN(p, "=", 2)
 		if len(kv) != 2 {
-			panic(fmt.Sprintf("invalid Jaeger tag pair %q, expected key=value", p))
+			return nil, fmt.Errorf("invalid Jaeger tag pair %q, expected key=value", p)
 		}
 		k, v := strings.TrimSpace(kv[0]), strings.TrimSpace(kv[1])
 
@@ -77,7 +77,7 @@ func ParseJaegerTags(jaegerTags string) map[string]string {
 		tags[k] = v
 	}
 
-	return tags
+	return tags, nil
 }
 
 // SharedFlags holds flags configuration

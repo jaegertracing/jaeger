@@ -269,7 +269,7 @@ func TestWriteSpanInternal(t *testing.T) {
 
 		jsonSpan := &dbmodel.Span{}
 
-		w.writer.writeSpan(indexName, jsonSpan)
+		w.writer.writeSpanToIndex(indexName, jsonSpan)
 		indexService.AssertNumberOfCalls(t, "Add", 1)
 		assert.Empty(t, w.logBuffer.String())
 	})
@@ -292,7 +292,7 @@ func TestWriteSpanInternalError(t *testing.T) {
 			SpanID:  dbmodel.SpanID("0"),
 		}
 
-		w.writer.writeSpan(indexName, jsonSpan)
+		w.writer.writeSpanToIndex(indexName, jsonSpan)
 		indexService.AssertNumberOfCalls(t, "Add", 1)
 	})
 }
