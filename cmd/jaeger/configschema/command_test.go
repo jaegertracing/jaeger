@@ -17,7 +17,7 @@ func TestCollectConfigs(t *testing.T) {
 	configs := collectConfigs()
 
 	// Should have 6 Jaeger extensions
-	assert.Equal(t, 6, len(configs))
+	assert.Len(t, configs, 6)
 
 	// Check none are nil
 	for i, cfg := range configs {

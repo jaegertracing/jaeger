@@ -102,9 +102,9 @@ func TestIsFieldRequired(t *testing.T) {
 
 // Helper function
 func findField(fields []FieldInfo, name string) *FieldInfo {
-	for _, f := range fields {
-		if f.Name == name {
-			return &f
+	for i := range fields {
+		if fields[i].Name == name {
+			return &fields[i]
 		}
 	}
 	return nil

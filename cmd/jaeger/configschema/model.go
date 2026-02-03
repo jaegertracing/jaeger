@@ -19,7 +19,7 @@ type FieldInfo struct {
 	Type       string       `json:"type"`              // Type as string
 	Kind       reflect.Kind `json:"kind"`              // reflect.Kind
 	Comment    string       `json:"comment"`           // Extracted from comments
-	Default    interface{}  `json:"default,omitempty"` // Current value
+	Default    any          `json:"default,omitempty"` // Current value
 	Required   bool         `json:"required"`          // From tags
 	Omitempty  bool         `json:"omitempty"`         // From json tag
 	IsEmbedded bool         `json:"is_embedded"`       // Embedded struct

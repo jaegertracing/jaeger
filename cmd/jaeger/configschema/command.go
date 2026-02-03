@@ -27,7 +27,7 @@ func Command() *cobra.Command {
 		Short: "Generate configuration schema documentation",
 		Long: `Generates documentation for Jaeger-v2 configuration structures.
 Extracts field information, comments, and default values from Go structs.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return runGenerateSchema(outputFile)
 		},
 	}
@@ -66,8 +66,8 @@ func runGenerateSchema(outputFile string) error {
 }
 
 // collectConfigs returns all configuration objects to document
-func collectConfigs() []interface{} {
-	return []interface{}{
+func collectConfigs() []any {
+	return []any{
 		// Jaeger Query Service - UI and query endpoints
 		jaegerquery.NewFactory().CreateDefaultConfig(),
 

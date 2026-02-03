@@ -13,7 +13,7 @@ import (
 )
 
 // extractConfigInfo extracts metadata from config objects
-func extractConfigInfo(configs []interface{}) (*ConfigCollection, error) {
+func extractConfigInfo(configs []any) (*ConfigCollection, error) {
 	collection := &ConfigCollection{
 		Configs: make([]ConfigInfo, 0, len(configs)),
 	}
@@ -30,7 +30,7 @@ func extractConfigInfo(configs []interface{}) (*ConfigCollection, error) {
 }
 
 // traverseConfig extracts information from a single config object
-func traverseConfig(cfg interface{}) (*ConfigInfo, error) {
+func traverseConfig(cfg any) (*ConfigInfo, error) {
 	v := reflect.ValueOf(cfg)
 	t := reflect.TypeOf(cfg)
 
@@ -145,7 +145,7 @@ type ASTCache struct {
 }
 
 // buildASTCache loads packages and builds cache of type specs
-func buildASTCache(configs []interface{}) (*ASTCache, error) {
+func buildASTCache(configs []any) (*ASTCache, error) {
 	// Collect unique package paths
 	pkgPaths := make(map[string]bool)
 	for _, cfg := range configs {
@@ -249,7 +249,7 @@ func extractFieldComment(field *ast.Field) string {
 }
 
 // extractConfigInfoWithComments extracts info with comments
-func extractConfigInfoWithComments(configs []interface{}) (*ConfigCollection, error) {
+func extractConfigInfoWithComments(configs []any) (*ConfigCollection, error) {
 	// Build AST cache
 	cache, err := buildASTCache(configs)
 	if err != nil {
