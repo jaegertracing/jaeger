@@ -359,3 +359,47 @@ func fromDBTraceId(t *testing.T, traceID dbmodel.TraceID) tracestore.FoundTraceI
 		TraceID: traceId,
 	}
 }
+
+func TestTraceReader_FindTraces_WithAttributes(t *testing.T) {
+	coreReader := &mocks.CoreSpanReader{}
+	reader := TraceReader{spanReader: coreReader}
+
+	attrs := pcommon.NewMap()
+	attrs.PutStr("key1", "val1")
+
+	resAttrs := pcommon.NewMap()
+	resAttrs.PutStr("res1", "val1")
+
+	now := time.Now()
+	query := tracestore.TraceQueryParams{
+		ServiceName:        "service",
+		OperationName:      "operation",
+		Attributes:         attrs,
+		ResourceAttributes: resAttrs,
+		StartTimeMin:       now,
+		StartTimeMax:       now.Add(time.Hour),
+		DurationMin:        time.Minute,
+		DurationMax:        time.Hour,
+		SearchDepth:        100,
+	}
+
+	expectedDBParams := dbmodel.TraceQueryParameters{
+		ServiceName:   "service",
+		OperationName: "operation",
+		Tags:          map[string]string{"key1": "val1"},
+		ProcessTags:   map[string]string{"res1": "val1"},
+		StartTimeMin:  now,
+		StartTimeMax:  now.Add(time.Hour),
+		DurationMin:   time.Minute,
+		DurationMax:   time.Hour,
+		NumTraces:     100,
+	}
+
+	coreReader.On("FindTraces", mock.Anything, expectedDBParams).Return([]dbmodel.Trace{}, nil)
+
+	traces := reader.FindTraces(context.Background(), query)
+
+	for _, err := range traces {
+		require.NoError(t, err)
+	}
+}
