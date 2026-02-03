@@ -122,7 +122,11 @@ func (h *HTTPGateway) returnTrace(td ptrace.Traces, w http.ResponseWriter) {
 }
 
 func (h *HTTPGateway) returnTraces(traces []ptrace.Traces, err error, w http.ResponseWriter) {
-	// TODO how do we distinguish internal error from bad parameters?
+	// All parameter validation occurs earlier in getTrace() and parseFindTracesQuery()
+	// using tryParamError(), which returns 400 Bad Request for malformed parameters.
+	// By the time execution reaches this function, any error must originate from the
+	// storage layer (e.g., database connectivity, storage limits), which are legitimately
+	// internal server errors and should return 500.
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}

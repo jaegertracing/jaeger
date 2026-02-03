@@ -173,3 +173,59 @@ func (gw *testGateway) verifyGetTraces(t *testing.T, url string, expectedTraceID
 	traceID := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 	assert.Equal(t, expectedTraceID.String(), traceID.String())
 }
+
+// Test_errorHandling verifies that the API gateway correctly distinguishes
+// between parameter validation errors (400) and storage layer errors (500).
+func Test_errorHandling(t *testing.T) {
+	gw := setupHTTPGateway(t, "")
+	gw.setupRequest = func(*http.Request) {}
+
+	t.Run("storage_error_returns_500", func(t *testing.T) {
+		// Simulate storage failure (e.g., database connection error)
+		storageError := assert.AnError
+		query := []tracestore.GetTraceParams{{TraceID: traceID}}
+		gw.reader.
+			On("GetTraces", matchContext, query).
+			Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+				yield(nil, storageError)
+			})).Once()
+
+		_, statusCode := gw.execRequest(t, "/api/v3/traces/1")
+		assert.Equal(t, http.StatusInternalServerError, statusCode,
+			"Storage errors should return 500 Internal Server Error")
+	})
+
+	t.Run("no_traces_found_returns_404", func(t *testing.T) {
+		// When storage returns successfully but with no traces
+		query := []tracestore.GetTraceParams{{TraceID: traceID}}
+		gw.reader.
+			On("GetTraces", matchContext, query).
+			Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+				yield([]ptrace.Traces{}, nil)
+			})).Once()
+
+		body, statusCode := gw.execRequest(t, "/api/v3/traces/1")
+		assert.Equal(t, http.StatusNotFound, statusCode,
+			"Empty result set should return 404 Not Found")
+
+		var errorResp api_v3.GRPCGatewayError
+		parseResponse(t, body, &errorResp)
+		assert.Equal(t, int32(http.StatusNotFound), errorResp.Error.HttpCode)
+		assert.Contains(t, errorResp.Error.Message, "No traces found")
+	})
+
+	t.Run("invalid_trace_id_returns_400", func(t *testing.T) {
+		// Invalid trace ID format should be caught by parameter validation
+		// and return 400 Bad Request (handled by tryParamError)
+		_, statusCode := gw.execRequest(t, "/api/v3/traces/invalid-trace-id")
+		assert.Equal(t, http.StatusBadRequest, statusCode,
+			"Invalid trace ID format should return 400 Bad Request")
+	})
+
+	t.Run("invalid_time_parameter_returns_400", func(t *testing.T) {
+		// Invalid time format should be caught by parameter validation
+		_, statusCode := gw.execRequest(t, "/api/v3/traces?query.service_name=test&query.start_time_min=invalid-time")
+		assert.Equal(t, http.StatusBadRequest, statusCode,
+			"Invalid time format should return 400 Bad Request")
+	})
+}
