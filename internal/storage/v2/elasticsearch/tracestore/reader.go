@@ -120,21 +120,21 @@ func toDBTraceQueryParams(query tracestore.TraceQueryParams) dbmodel.TraceQueryP
 	tags := make(map[string]string)
 	processTags := make(map[string]string)
 
-	if query.Attributes != (pcommon.Map{}) {
+	if query.Attributes.Len() > 0 {
 		query.Attributes.Range(func(k string, v pcommon.Value) bool {
 			tags[k] = v.AsString()
 			return true
 		})
 	}
 
-	if query.ResourceAttributes != (pcommon.Map{}) {
+	if query.ResourceAttributes.Len() > 0 {
 		query.ResourceAttributes.Range(func(k string, v pcommon.Value) bool {
 			processTags[k] = v.AsString()
 			return true
 		})
 	}
 
-	if query.ScopeAttributes != (pcommon.Map{}) {
+	if query.ScopeAttributes.Len() > 0 {
 		query.ScopeAttributes.Range(func(k string, v pcommon.Value) bool {
 			tags["scope."+k] = v.AsString()
 			return true
