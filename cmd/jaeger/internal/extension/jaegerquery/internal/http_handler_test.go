@@ -683,6 +683,22 @@ func TestGetServicesSuccess(t *testing.T) {
 	assert.Equal(t, expectedServices, actualServices)
 }
 
+func TestGetServicesEmpty(t *testing.T) {
+	ts := initializeTestServer(t)
+	ts.traceReader.
+		On("GetServices", mock.AnythingOfType("*context.valueCtx")).
+		Return(nil, nil).
+		Once()
+
+	var response structuredResponse
+	err := getJSON(ts.server.URL+"/api/services", &response)
+	require.NoError(t, err)
+
+	require.NotNil(t, response.Data)
+	data := response.Data.([]any)
+	assert.Empty(t, data)
+}
+
 func TestGetServicesStorageFailure(t *testing.T) {
 	ts := initializeTestServer(t)
 	ts.traceReader.On("GetServices", mock.Anything).Return(nil, errStorage).Once()
