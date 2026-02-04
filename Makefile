@@ -253,3 +253,25 @@ repro-check:
 	$(MAKE) clean
 	$(MAKE) build-all-platforms
 	shasum -b -a 256 --strict --check ./sha256sum.combined.txt
+
+# Verify PR with proof for AI policy compliance
+# This target runs lint and tests, uploads logs to a Gist, and adds trailers to the commit.
+# Required for new contributors to prove tests were actually run locally.
+.PHONY: verify-with-proof
+verify-with-proof: lint test
+	@echo "✅ Lint and tests passed. Uploading proof to Gist..."
+	@$(MAKE) test > test.log 2>&1 || true
+	@COMMIT=$$(git log -1 --pretty=%H); \
+	GIST_URL=$$(gh gist create test.log -d "Test logs for Jaeger commit $$COMMIT" --public 2>/dev/null); \
+	if [ -z "$$GIST_URL" ]; then \
+		echo "❌ Failed to create Gist. Make sure 'gh' CLI is installed and authenticated."; \
+		exit 1; \
+	fi; \
+	MSG=$$(git log -1 --pretty=%B); \
+	NAME=$$(git config user.name); \
+	EMAIL=$$(git config user.email); \
+	git commit --amend --no-edit -m "$$MSG" -m "Tested-By: $$NAME <$$EMAIL>" -m "Test-Gist: $$GIST_URL"; \
+	echo "✅ Commit amended with Tested-By and Test-Gist trailers."; \
+	echo "   Gist URL: $$GIST_URL"; \
+	echo ""; \
+	echo "Now run: git push --force-with-lease"

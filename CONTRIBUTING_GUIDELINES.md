@@ -127,6 +127,37 @@ This policy exists to:
 - PRs that look like low-effort AI slop will be closed.
 - Repeated violators may be banned from the project.
 
+
+### Verification Workflow
+
+To ensure contributors have actually run tests locally, we use a verification system:
+
+**For all contributors:**
+- Your commit must include a `Tested-By:` trailer showing you ran tests.
+
+**For new contributors (first-time, external):**
+- You must also include a `Test-Gist:` trailer with a link to your test logs.
+- This proves you actually ran tests, not just copied a line.
+
+**How to do this:**
+
+Before pushing your PR, run:
+```bash
+make verify-with-proof
+```
+
+This command will:
+1. Run lint and tests locally.
+2. Upload your test logs to a GitHub Gist.
+3. Add `Tested-By:` and `Test-Gist:` trailers to your commit.
+
+Then push with:
+```bash
+git push --force-with-lease
+```
+
+**Note:** You need the GitHub CLI (`gh`) installed and authenticated. See [GitHub CLI](https://cli.github.com/) for installation instructions.
+
 ## Pull Request Limits for New Contributors
 
 To ensure high-quality code reviews and long-term codebase stability, we limit the number of simultaneous open PRs for new contributors.

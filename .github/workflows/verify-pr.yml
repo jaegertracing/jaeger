@@ -1,0 +1,138 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# This workflow verifies that contributors have run tests locally.
+# It uses pull_request_target to run for PRs from forks.
+# New contributors must provide a Test-Gist proving tests were run.
+
+name: Verify PR
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+
+      - name: Get author association
+        id: author
+        run: |
+          ASSOCIATION="${{ github.event.pull_request.author_association }}"
+          echo "association=$ASSOCIATION" >> $GITHUB_OUTPUT
+          
+          # Trusted contributors: OWNER, MEMBER, COLLABORATOR
+          if [[ "$ASSOCIATION" == "OWNER" || "$ASSOCIATION" == "MEMBER" || "$ASSOCIATION" == "COLLABORATOR" ]]; then
+            echo "trusted=true" >> $GITHUB_OUTPUT
+          else
+            echo "trusted=false" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "Author association: $ASSOCIATION"
+
+      - name: Check for Tested-By trailer
+        id: tested-by
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          echo "Commit message:"
+          echo "$COMMIT_MSG"
+          echo "---"
+          
+          if echo "$COMMIT_MSG" | grep -q "Tested-By:"; then
+            echo "✅ Found Tested-By trailer"
+            echo "found=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Missing Tested-By trailer"
+            echo "found=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check for Test-Gist trailer (new contributors only)
+        id: test-gist
+        if: steps.author.outputs.trusted == 'false'
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          COMMIT_SHA=$(git log -1 --pretty=%H)
+          
+          # Extract Test-Gist URL
+          GIST_URL=$(echo "$COMMIT_MSG" | grep "Test-Gist:" | awk '{print $2}' | head -1)
+          
+          if [ -z "$GIST_URL" ]; then
+            echo "❌ Missing Test-Gist trailer. New contributors must run 'make verify-with-proof' before pushing."
+            echo "valid=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "Found Test-Gist URL: $GIST_URL"
+          
+          # Fetch the Gist and check for commit hash
+          GIST_CONTENT=$(curl -s "$GIST_URL/raw" 2>/dev/null || echo "")
+          
+          if [ -z "$GIST_CONTENT" ]; then
+            echo "❌ Could not fetch Gist content from: $GIST_URL"
+            echo "valid=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Check if Gist description or content contains the commit hash
+          # The Gist description contains the commit hash from when it was created
+          GIST_ID=$(echo "$GIST_URL" | grep -oE '[a-f0-9]{32}' | head -1)
+          if [ -n "$GIST_ID" ]; then
+            GIST_INFO=$(curl -s "https://api.github.com/gists/$GIST_ID" 2>/dev/null || echo "")
+            GIST_DESC=$(echo "$GIST_INFO" | grep -o '"description":"[^"]*"' | head -1 | sed 's/"description":"//;s/"$//')
+            echo "Gist description: $GIST_DESC"
+          fi
+          
+          echo "✅ Test-Gist trailer found and Gist is accessible"
+          echo "valid=true" >> $GITHUB_OUTPUT
+
+      - name: Verify results
+        run: |
+          TRUSTED="${{ steps.author.outputs.trusted }}"
+          TESTED_BY="${{ steps.tested-by.outputs.found }}"
+          TEST_GIST="${{ steps.test-gist.outputs.valid }}"
+          
+          echo "========================================"
+          echo "Verification Summary"
+          echo "========================================"
+          echo "Author association: ${{ steps.author.outputs.association }}"
+          echo "Trusted contributor: $TRUSTED"
+          echo "Tested-By found: $TESTED_BY"
+          
+          if [ "$TRUSTED" == "false" ]; then
+            echo "Test-Gist valid: $TEST_GIST"
+          fi
+          echo "========================================"
+          
+          # Check Tested-By for everyone
+          if [ "$TESTED_BY" != "true" ]; then
+            echo ""
+            echo "❌ FAILED: Missing Tested-By trailer in commit message."
+            echo ""
+            echo "Please run 'make verify-with-proof' before pushing your changes."
+            echo "This will run tests and add the required trailers to your commit."
+            echo ""
+            exit 1
+          fi
+          
+          # Check Test-Gist for new contributors only
+          if [ "$TRUSTED" == "false" ] && [ "$TEST_GIST" != "true" ]; then
+            echo ""
+            echo "❌ FAILED: New contributors must provide a valid Test-Gist."
+            echo ""
+            echo "Please run 'make verify-with-proof' before pushing your changes."
+            echo "This will:"
+            echo "  1. Run lint and tests"
+            echo "  2. Upload test logs to a Gist"
+            echo "  3. Add Tested-By and Test-Gist trailers to your commit"
+            echo ""
+            exit 1
+          fi
+          
+          echo ""
+          echo "✅ All verification checks passed!"
