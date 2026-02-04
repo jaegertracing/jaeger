@@ -4,12 +4,20 @@
 # This workflow verifies that contributors have run tests locally.
 # It uses pull_request_target to run for PRs from forks.
 # New contributors must provide a Test-Gist proving tests were run.
+#
+# Note: Only the HEAD commit is checked. If a PR has multiple commits,
+# only the latest commit needs the trailers.
 
 name: Verify PR
 
 on:
   pull_request_target:
     types: [opened, synchronize, reopened]
+
+# Explicit permissions for security with pull_request_target
+permissions:
+  contents: read
+  pull-requests: read
 
 jobs:
   verify:
@@ -28,6 +36,8 @@ jobs:
           echo "association=$ASSOCIATION" >> $GITHUB_OUTPUT
           
           # Trusted contributors: OWNER, MEMBER, COLLABORATOR
+          # Note: CONTRIBUTOR (people with previously merged PRs but not members)
+          # are still required to provide Test-Gist proof.
           if [[ "$ASSOCIATION" == "OWNER" || "$ASSOCIATION" == "MEMBER" || "$ASSOCIATION" == "COLLABORATOR" ]]; then
             echo "trusted=true" >> $GITHUB_OUTPUT
           else
@@ -57,7 +67,7 @@ jobs:
         if: steps.author.outputs.trusted == 'false'
         run: |
           COMMIT_MSG=$(git log -1 --pretty=%B)
-          COMMIT_SHA=$(git log -1 --pretty=%H)
+          PR_HEAD_SHA="${{ github.event.pull_request.head.sha }}"
           
           # Extract Test-Gist URL
           GIST_URL=$(echo "$COMMIT_MSG" | grep "Test-Gist:" | awk '{print $2}' | head -1)
@@ -65,37 +75,87 @@ jobs:
           if [ -z "$GIST_URL" ]; then
             echo "❌ Missing Test-Gist trailer. New contributors must run 'make verify-with-proof' before pushing."
             echo "valid=false" >> $GITHUB_OUTPUT
-            exit 0
+            exit 1
           fi
           
           echo "Found Test-Gist URL: $GIST_URL"
           
-          # Fetch the Gist and check for commit hash
+          # Extract Gist ID from URL (handles both 20 and 32 character IDs)
+          GIST_ID=$(echo "$GIST_URL" | grep -oE '[0-9a-f]{20,32}' | tail -1)
+          
+          if [ -z "$GIST_ID" ]; then
+            echo "❌ Could not extract Gist ID from URL: $GIST_URL"
+            echo "valid=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          
+          echo "Gist ID: $GIST_ID"
+          
+          # Fetch Gist content
           GIST_CONTENT=$(curl -s "$GIST_URL/raw" 2>/dev/null || echo "")
           
           if [ -z "$GIST_CONTENT" ]; then
             echo "❌ Could not fetch Gist content from: $GIST_URL"
             echo "valid=false" >> $GITHUB_OUTPUT
-            exit 0
+            exit 1
           fi
           
-          # Check if Gist description or content contains the commit hash
-          # The Gist description contains the commit hash from when it was created
-          GIST_ID=$(echo "$GIST_URL" | grep -oE '[a-f0-9]{32}' | head -1)
-          if [ -n "$GIST_ID" ]; then
+          # Extract commit SHA from Gist content (first line should be "Commit SHA: <sha>")
+          GIST_SHA=$(echo "$GIST_CONTENT" | grep -oE "Commit SHA: [0-9a-f]{40}" | head -1 | awk '{print $3}')
+          
+          if [ -z "$GIST_SHA" ]; then
+            echo "⚠️ Could not find commit SHA in Gist content."
+            echo "   This may be an older format Gist. Checking Gist description..."
+            
+            # Fallback: check Gist description via API
             GIST_INFO=$(curl -s "https://api.github.com/gists/$GIST_ID" 2>/dev/null || echo "")
             GIST_DESC=$(echo "$GIST_INFO" | grep -o '"description":"[^"]*"' | head -1 | sed 's/"description":"//;s/"$//')
             echo "Gist description: $GIST_DESC"
+            
+            # Try to extract SHA from description
+            GIST_SHA=$(echo "$GIST_DESC" | grep -oE '[0-9a-f]{40}' | head -1)
           fi
           
-          echo "✅ Test-Gist trailer found and Gist is accessible"
+          if [ -n "$GIST_SHA" ]; then
+            echo "Gist SHA: $GIST_SHA"
+            echo "PR HEAD SHA: $PR_HEAD_SHA"
+            
+            if [ "$GIST_SHA" != "$PR_HEAD_SHA" ]; then
+              echo ""
+              echo "❌ FAILED: Gist SHA does not match PR head SHA."
+              echo "   This means you modified your commit after running 'make verify-with-proof'."
+              echo "   Please re-run 'make verify-with-proof' and push again."
+              echo "valid=false" >> $GITHUB_OUTPUT
+              exit 1
+            fi
+            
+            echo "✅ Gist SHA matches PR head SHA"
+          else
+            echo "⚠️ Could not verify commit SHA from Gist (older format)."
+            echo "   Gist is accessible, allowing PR to proceed."
+          fi
+          
+          echo "✅ Test-Gist trailer found and validated"
           echo "valid=true" >> $GITHUB_OUTPUT
+
+      - name: Set default test-gist output for trusted contributors
+        id: test-gist-default
+        if: steps.author.outputs.trusted == 'true'
+        run: |
+          echo "Trusted contributor - Test-Gist not required"
+          echo "valid=not-required" >> $GITHUB_OUTPUT
 
       - name: Verify results
         run: |
           TRUSTED="${{ steps.author.outputs.trusted }}"
           TESTED_BY="${{ steps.tested-by.outputs.found }}"
           TEST_GIST="${{ steps.test-gist.outputs.valid }}"
+          TEST_GIST_DEFAULT="${{ steps.test-gist-default.outputs.valid }}"
+          
+          # Use default value for trusted contributors
+          if [ "$TRUSTED" == "true" ]; then
+            TEST_GIST="$TEST_GIST_DEFAULT"
+          fi
           
           echo "========================================"
           echo "Verification Summary"
@@ -106,6 +166,8 @@ jobs:
           
           if [ "$TRUSTED" == "false" ]; then
             echo "Test-Gist valid: $TEST_GIST"
+          else
+            echo "Test-Gist: not required (trusted contributor)"
           fi
           echo "========================================"
           

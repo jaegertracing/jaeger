@@ -254,23 +254,57 @@ repro-check:
 	$(MAKE) build-all-platforms
 	shasum -b -a 256 --strict --check ./sha256sum.combined.txt
 
+
+# Test with log capture - runs tests once and captures output
+# Fails if tests fail (no masking with || true)
+.PHONY: test-with-log
+test-with-log:
+	@echo "Running tests and capturing logs..."
+	@$(MAKE) test 2>&1 | tee test.log; \
+	EXIT_CODE=$${PIPESTATUS[0]}; \
+	if [ $$EXIT_CODE -ne 0 ]; then \
+		echo "❌ Tests failed. See test.log for details."; \
+		exit $$EXIT_CODE; \
+	fi; \
+	echo "✅ Tests passed."
+
 # Verify PR with proof for AI policy compliance
 # This target runs lint and tests, uploads logs to a Gist, and adds trailers to the commit.
 # Required for new contributors to prove tests were actually run locally.
+#
+# Prerequisites:
+#   - GitHub CLI (gh) installed and authenticated: https://cli.github.com/
+#   - At least one commit on your branch
 .PHONY: verify-with-proof
-verify-with-proof: lint test
+verify-with-proof: lint test-with-log
+	@# Check that gh CLI is available
+	@if ! command -v gh >/dev/null 2>&1; then \
+		echo "❌ GitHub CLI (gh) not found. Install from: https://cli.github.com/"; \
+		exit 1; \
+	fi
+	@# Check that there's a commit to amend
+	@if ! git rev-parse --verify HEAD >/dev/null 2>&1; then \
+		echo "❌ No commit to amend. Please commit your changes first, then run 'make verify-with-proof'."; \
+		exit 1; \
+	fi
 	@echo "✅ Lint and tests passed. Uploading proof to Gist..."
-	@$(MAKE) test > test.log 2>&1 || true
-	@COMMIT=$$(git log -1 --pretty=%H); \
-	GIST_URL=$$(gh gist create test.log -d "Test logs for Jaeger commit $$COMMIT" --public 2>/dev/null); \
+	@COMMIT=$$(git rev-parse HEAD); \
+	echo "Commit SHA: $$COMMIT" > test.log.tmp; \
+	echo "---" >> test.log.tmp; \
+	cat test.log >> test.log.tmp; \
+	mv test.log.tmp test.log; \
+	GIST_URL=$$(gh gist create test.log -d "Test logs for Jaeger commit $$COMMIT" --public); \
 	if [ -z "$$GIST_URL" ]; then \
-		echo "❌ Failed to create Gist. Make sure 'gh' CLI is installed and authenticated."; \
+		echo "❌ Failed to create Gist. Make sure 'gh' CLI is authenticated."; \
+		rm -f test.log; \
 		exit 1; \
 	fi; \
-	MSG=$$(git log -1 --pretty=%B); \
 	NAME=$$(git config user.name); \
 	EMAIL=$$(git config user.email); \
-	git commit --amend --no-edit -m "$$MSG" -m "Tested-By: $$NAME <$$EMAIL>" -m "Test-Gist: $$GIST_URL"; \
+	git commit --amend --no-edit \
+		--trailer "Tested-By: $$NAME <$$EMAIL>" \
+		--trailer "Test-Gist: $$GIST_URL"; \
+	rm -f test.log; \
 	echo "✅ Commit amended with Tested-By and Test-Gist trailers."; \
 	echo "   Gist URL: $$GIST_URL"; \
 	echo ""; \

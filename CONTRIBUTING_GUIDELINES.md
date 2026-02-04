@@ -128,15 +128,21 @@ This policy exists to:
 - Repeated violators may be banned from the project.
 
 
+
 ### Verification Workflow
 
-To ensure contributors have actually run tests locally, we use a verification system:
+To ensure contributors have actually run tests locally, we use a verification system.
+
+**Prerequisites:**
+- [GitHub CLI (`gh`)](https://cli.github.com/) installed and authenticated
+- At least one commit on your branch
 
 **For all contributors:**
 - Your commit must include a `Tested-By:` trailer showing you ran tests.
 
 **For new contributors (first-time, external):**
 - You must also include a `Test-Gist:` trailer with a link to your test logs.
+- The Gist contains your commit SHA, proving the tests were run on that specific commit.
 - This proves you actually ran tests, not just copied a line.
 
 **How to do this:**
@@ -147,8 +153,8 @@ make verify-with-proof
 ```
 
 This command will:
-1. Run lint and tests locally.
-2. Upload your test logs to a GitHub Gist.
+1. Run lint and tests locally (fails if tests fail).
+2. Upload your test logs to a GitHub Gist (includes commit SHA).
 3. Add `Tested-By:` and `Test-Gist:` trailers to your commit.
 
 Then push with:
@@ -156,7 +162,8 @@ Then push with:
 git push --force-with-lease
 ```
 
-**Note:** You need the GitHub CLI (`gh`) installed and authenticated. See [GitHub CLI](https://cli.github.com/) for installation instructions.
+**Important:** If you modify your code after running `make verify-with-proof`, you must run it again. The CI verifies that the Gist's commit SHA matches your PR head.
+
 
 ## Pull Request Limits for New Contributors
 
