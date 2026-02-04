@@ -122,7 +122,6 @@ func (h *HTTPGateway) returnTrace(td ptrace.Traces, w http.ResponseWriter) {
 }
 
 func (h *HTTPGateway) returnTraces(traces []ptrace.Traces, err error, w http.ResponseWriter) {
-	// TODO how do we distinguish internal error from bad parameters?
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}
