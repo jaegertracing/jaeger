@@ -7,12 +7,13 @@ package tracing
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/httperr"
 )
 
 // HTTPClient wraps an http.Client with tracing instrumentation.
@@ -53,7 +54,7 @@ func (c *HTTPClient) GetJSON(ctx context.Context, _ string /* endpoint */, url s
 		if err != nil {
 			return err
 		}
-		return errors.New(string(body))
+		return httperr.NewHTTPError(res.StatusCode, string(body))
 	}
 
 	decoder := json.NewDecoder(res.Body)

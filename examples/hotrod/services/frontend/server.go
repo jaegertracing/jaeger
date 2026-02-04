@@ -110,9 +110,9 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO distinguish between user errors (such as invalid customer ID) and server failures
+	// Distinguish between user errors (such as invalid customer ID) and server failures
 	response, err := s.bestETA.Get(ctx, customerID)
-	if httperr.HandleError(w, err, http.StatusInternalServerError) {
+	if httperr.HandleErrorAuto(w, err) {
 		s.logger.For(ctx).Error("request failed", zap.Error(err))
 		return
 	}
