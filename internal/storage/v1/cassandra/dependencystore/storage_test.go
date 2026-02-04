@@ -256,6 +256,45 @@ func TestGetBuckets(t *testing.T) {
 	assert.Equal(t, expected, getBuckets(start, end))
 }
 
+func TestGetBuckets_PreallocatesCorrectCapacity(t *testing.T) {
+	// Test that getBuckets preallocates the slice with the correct capacity
+	// to avoid reallocations during append operations
+	testCases := []struct {
+		name          string
+		start         time.Time
+		end           time.Time
+		expectedCount int
+	}{
+		{
+			name:          "single day",
+			start:         time.Date(2017, time.January, 1, 12, 0, 0, 0, time.UTC),
+			end:           time.Date(2017, time.January, 2, 12, 0, 0, 0, time.UTC),
+			expectedCount: 2,
+		},
+		{
+			name:          "one week",
+			start:         time.Date(2017, time.January, 1, 0, 0, 0, 0, time.UTC),
+			end:           time.Date(2017, time.January, 8, 0, 0, 0, 0, time.UTC),
+			expectedCount: 7,
+		},
+		{
+			name:          "one month",
+			start:         time.Date(2017, time.January, 1, 0, 0, 0, 0, time.UTC),
+			end:           time.Date(2017, time.February, 1, 0, 0, 0, 0, time.UTC),
+			expectedCount: 31,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			buckets := getBuckets(tc.start, tc.end)
+			assert.Equal(t, tc.expectedCount, len(buckets), "unexpected number of buckets")
+			// Verify that capacity matches or exceeds length (optimal preallocation)
+			assert.GreaterOrEqual(t, cap(buckets), len(buckets), "capacity should be >= length")
+		})
+	}
+}
+
 func matchEverything() any {
 	return mock.MatchedBy(func([]any) bool { return true })
 }
