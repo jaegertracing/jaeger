@@ -44,18 +44,14 @@ func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
 		return err
 	}
 	entriesToStore = append(entriesToStore, entries)
-	err = s.store.Update(func(txn *badger.Txn) error {
+	return s.store.Update(func(txn *badger.Txn) error {
 		for i := range entriesToStore {
-			err = txn.SetEntry(entriesToStore[i])
-			if err != nil {
+			if err := txn.SetEntry(entriesToStore[i]); err != nil {
 				return err
 			}
 		}
-
 		return nil
 	})
-
-	return err
 }
 
 func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
@@ -109,19 +105,14 @@ func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
 		return err
 	}
 	entriesToStore = append(entriesToStore, entries)
-	err = s.store.Update(func(txn *badger.Txn) error {
-		// Write the entries
+	return s.store.Update(func(txn *badger.Txn) error {
 		for i := range entriesToStore {
-			err = txn.SetEntry(entriesToStore[i])
-			if err != nil {
+			if err := txn.SetEntry(entriesToStore[i]); err != nil {
 				return err
 			}
 		}
-
 		return nil
 	})
-
-	return err
 }
 
 // GetLatestProbabilities implements samplingstore.Reader#GetLatestProbabilities.
