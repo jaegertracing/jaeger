@@ -53,7 +53,7 @@ func TestHTTPGatewayGetDependencies(t *testing.T) {
 		},
 	}
 
-	depReader.On("GetDependencies", mock.Anything, mock.Anything).Return(expectedDeps, nil)
+	depReader.On("GetDependencies", mock.Anything, mock.Anything, mock.Anything).Return(expectedDeps, nil)
 
 	router := mux.NewRouter()
 	gateway.RegisterRoutes(router)
@@ -144,4 +144,38 @@ func TestHTTPGatewayGetDependenciesErrors(t *testing.T) {
 			assert.Equal(t, tt.expectedStatus, w.Code)
 		})
 	}
+}
+
+func TestHTTPGatewayGetDependencies_StorageError(t *testing.T) {
+	traceReader := &tracemocks.Reader{}
+	depReader := &depsmocks.Reader{}
+
+	querySvc := querysvc.NewQueryService(
+		traceReader,
+		depReader,
+		querysvc.QueryServiceOptions{},
+	)
+
+	gateway := &HTTPGateway{
+		QueryService: querySvc,
+		Logger:       zap.NewNop(),
+		Tracer:       noop.NewTracerProvider(),
+	}
+
+	depReader.On("GetDependencies", mock.Anything, mock.Anything, mock.Anything).Return(nil, assert.AnError)
+
+	router := mux.NewRouter()
+	gateway.RegisterRoutes(router)
+
+	endTime := time.Now().UTC()
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v3/dependencies?end_time="+endTime.Format(time.RFC3339Nano)+"&lookback=24h",
+		nil,
+	)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }

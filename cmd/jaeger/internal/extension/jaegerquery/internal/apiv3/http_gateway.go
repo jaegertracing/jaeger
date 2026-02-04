@@ -309,7 +309,15 @@ func (h *HTTPGateway) getDependencies(w http.ResponseWriter, r *http.Request) {
 	lookbackStr := q.Get(paramLookback)
 
 	if endTimeStr == "" || lookbackStr == "" {
-		err := fmt.Errorf("%s and %s are required", paramEndTime, paramLookback)
+		var err error
+		switch {
+		case endTimeStr == "" && lookbackStr == "":
+			err = fmt.Errorf("%s and %s are required", paramEndTime, paramLookback)
+		case endTimeStr == "":
+			err = fmt.Errorf("%s is required", paramEndTime)
+		default: // lookbackStr == ""
+			err = fmt.Errorf("%s is required", paramLookback)
+		}
 		h.tryHandleError(w, err, http.StatusBadRequest)
 		return
 	}
@@ -353,7 +361,9 @@ func (h *HTTPGateway) getDependencies(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		h.tryHandleError(w, fmt.Errorf("failed to encode dependencies response: %w", err), http.StatusInternalServerError)
+	}
 }
 
 func spanNameHandler(spanName string, handler http.Handler) http.Handler {
