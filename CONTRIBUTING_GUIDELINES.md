@@ -12,6 +12,7 @@ We gratefully welcome improvements to documentation as well as to code.
 Table of Contents:
 
 * [Making a Change](#making-a-change)
+* [AI Usage Policy](#ai-usage-policy)
 * [Pull Request Limits for New Contributors](#pull-request-limits-for-new-contributors)
 * [License](#license)
 * [Certificate of Origin - Sign your work](#certificate-of-origin---sign-your-work)
@@ -89,6 +90,42 @@ Each PR should have:
   * Use the imperative mood in the title
 * A description of the problem it is solving. It could be simply a reference to the corresponding issue, e.g. `Resolves #123`.
 * A summary of changes made to solve the problem. Explain _what_ and _why_ instead of _how_.
+
+## AI Usage Policy
+
+### Goals
+
+This policy exists to:
+
+- **Keep the effort balanced** – Before AI, contributors did most of the work (writing, testing, understanding). We want to keep it that way. AI should help you, not replace your effort.
+- **Protect maintainer time** – Large, low-quality AI-generated PRs shift the burden to reviewers. We want to avoid that.
+- **Ensure understanding** – Contributors should understand and be able to explain every change they submit.
+- **Keep conversations human** – Code review is a discussion between people, not bots.
+
+### Good use of AI
+
+- Using AI to help you understand the code.
+- Using AI to write drafts of code, tests, or docs.
+- Using AI to explore ideas or try different approaches.
+- Saying "AI helped me write this" in your PR description.
+
+### Disallowed use of AI
+
+- Copy-pasting AI output without reading or understanding it.
+- Submitting AI-generated code without testing.
+- Using AI to reply to review comments – reviewers want to talk to you, not a bot.
+
+### Your responsibility
+
+- You own everything you submit, even if AI wrote it.
+- You must understand your code well enough to explain it.
+- You must run tests locally before opening or updating a PR.
+- If AI wrote a big part of your PR, mention that in the PR description.
+
+### Enforcement
+
+- PRs that look like low-effort AI slop will be closed.
+- Repeated violators may be banned from the project.
 
 ## Pull Request Limits for New Contributors
 
