@@ -288,7 +288,7 @@ func TestGetBuckets_PreallocatesCorrectCapacity(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			buckets := getBuckets(tc.start, tc.end)
-			assert.Equal(t, tc.expectedCount, len(buckets), "unexpected number of buckets")
+			assert.Len(t, buckets, tc.expectedCount, "unexpected number of buckets")
 			// Verify that capacity matches or exceeds length (optimal preallocation)
 			assert.GreaterOrEqual(t, cap(buckets), len(buckets), "capacity should be >= length")
 		})
