@@ -6,7 +6,7 @@
 
 # Strip field_behavior annotations like [(google.api.field_behavior) = REQUIRED]
 s/ \[(google\.api\.field_behavior) = REQUIRED\]//g
-s/ \[(google\.api\.field_behavior) = OPTIONAL\]//g
+s/ \[(google\.api\.field_behavior) = \w+\]//g
 
 # Strip openapi.v3 property annotations (keep the field, remove the annotation block)
 /(openapi\.v3\.property)/,/^[[:space:]]*\];/d
