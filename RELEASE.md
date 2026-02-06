@@ -110,11 +110,11 @@ In order to ensure that knowledge about releasing Jaeger is spread among maintai
 
 Here are the release managers for future versions with the tentative release dates. The release dates are the first Wednesday of the month, and we might skip a release if not enough changes happened since the previous release. In such case, the next tentative release date is the first Wednesday of the subsequent month.
 
-| Version | Release Manager | Tentative release date |
-|---------|-----------------|------------------------|
-| 2.16.0  | @mahadzaryab1   | 5 March     2026       |
-| 2.17.0  | @albertteoh     | 1 April     2026       |
-| 2.18.0  | @pavolloffay    | 6 May       2026       |
-| 2.19.0  | @joe-elliott    | 3 June      2026       |
-| 2.14.0  | @yurishkuro     | 7 July      2026       |
-| 2.15.0  | @jkowall        | 5 August 2026     |
+| Version | Release Manager | Tentative release date    |
+|---------|-----------------|---------------------------|
+| 2.16.0  | @mahadzaryab1   | 4 March 2026              |
+| 2.17.0  | @albertteoh     | 1 April 2026              |
+| 2.18.0  | @pavolloffay    | 6 May 2026                |
+| 2.19.0  | @joe-elliott    | 3 June 2026               |
+| 2.20.0  | @yurishkuro     | 1 July 2026               |
+| 2.21.0  | @jkowall        | 5 August 2026             |

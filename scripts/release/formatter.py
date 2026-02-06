@@ -18,18 +18,27 @@ def extract_section_from_file(file_path, start_marker, end_marker):
     return text[start_index:end_index]
 
 def replace_star(text):
-    re_star = re.compile(r'(\n\s*)(\*)(\s)')
-    text = re_star.sub(r'\1\2 [ ]\3', text)
+    re_star = re.compile(r'(\n\s*)(\*)(\s)(`.*`)')
+    text = re_star.sub(r'\1\2 [ ]\3\n```bash\n\4\n```', text)
+    # Also handle items without commands but with stars
+    re_star_no_cmd = re.compile(r'(\n\s*)(\*)(\s)(?!`)')
+    text = re_star_no_cmd.sub(r'\1\2 [ ]\3', text)
     return text
 
 def replace_dash(text):
-    re_dash = re.compile(r'(\n\s*)(\-)')
-    text = re_dash.sub(r'\1* [ ]', text)
+    re_dash = re.compile(r'(\n\s*)(\-)(\s+)(`.*`)')
+    text = re_dash.sub(r'\1* [ ]\3\n```bash\n\4\n```', text)
+    # Also handle items without commands
+    re_dash_no_cmd = re.compile(r'(\n\s*)(\-)(\s+)(?!`)')
+    text = re_dash_no_cmd.sub(r'\1* [ ]\3', text)
     return text
 
 def replace_num(text):
-    re_num = re.compile(r'(\n\s*)([0-9]*\.)(\s)')
-    text = re_num.sub(r'\1* [ ]\3', text)
+    re_num = re.compile(r'(\n\s*)([0-9]*\.)(\s)(`.*`)')
+    text = re_num.sub(r'\1* [ ]\3\n```bash\n\4\n```', text)
+    # Also handle items without commands
+    re_num_no_cmd = re.compile(r'(\n\s*)([0-9]*\.)(\s)(?!`)')
+    text = re_num_no_cmd.sub(r'\1* [ ]\3', text)
     return text
 
 def replace_version(ui_text, backend_text, doc_text, pattern, ver):
