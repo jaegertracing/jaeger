@@ -4,9 +4,9 @@
 # Strip field_behavior import (not needed for backend)
 /import "google\/api\/field_behavior.proto";/d
 
-# Strip field_behavior annotations like [(google.api.field_behavior) = REQUIRED]
+# Strip field_behavior annotations like [(google.api.field_behavior) = REQUIRED/OPTIONAL]
 s/ \[(google\.api\.field_behavior) = REQUIRED\]//g
-s/ \[(google\.api\.field_behavior) = \w+\]//g
+s/ \[(google\.api\.field_behavior) = OPTIONAL\]//g
 
 # Strip openapi.v3 property annotations (keep the field, remove the annotation block)
 /(openapi\.v3\.property)/,/^[[:space:]]*\];/d
