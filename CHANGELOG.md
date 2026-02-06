@@ -82,7 +82,7 @@ v2.15.0 (2026-02-06)
 * [chore] move query service to higher location ([@yurishkuro](https://github.com/yurishkuro) in [#7854](https://github.com/jaegertracing/jaeger/pull/7854))
 * [chore] remove v1 queryservice package ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#7845](https://github.com/jaegertracing/jaeger/pull/7845))
 
-### 💩💩💩 The following commits cannot be categorized (missing "changelog:*" labels):
+### Documentation
 * [chore]: add ai usage policy for contributions ([@Sapthagiri777](https://github.com/Sapthagiri777) in [#7932](https://github.com/jaegertracing/jaeger/pull/7932))
 * Docs: add quick start section with docker command ([@njg7194](https://github.com/njg7194) in [#7945](https://github.com/jaegertracing/jaeger/pull/7945))
 * Add claude.md as symlink to agents.md ([@yurishkuro](https://github.com/yurishkuro) in [#7934](https://github.com/jaegertracing/jaeger/pull/7934))
@@ -93,8 +93,6 @@ v2.15.0 (2026-02-06)
 * Update contributing guidelines for copyright headers ([@yurishkuro](https://github.com/yurishkuro) in [#7877](https://github.com/jaegertracing/jaeger/pull/7877))
 * Update documentation defaults from v1 to v2 ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#7640](https://github.com/jaegertracing/jaeger/pull/7640))
 * Add mcp server adr ([@yurishkuro](https://github.com/yurishkuro) in [e91d028](https://github.com/jaegertracing/jaeger/commit/e91d0282d5f815ab90b7e01acf8bda5891cccfa7))
-### 💩💩💩 Please attach labels to these ^^^ PRs and rerun the script.
-### 💩💩💩 Do not include this section in the changelog.
 
 ### 📊 UI Changes
 
