@@ -45,6 +45,8 @@ type Server struct {
 	httpServer   *httpServer
 	bgFinished   sync.WaitGroup
 	telset       telemetry.Settings
+	healthStatus componentstatus.Status
+	statusMutex  sync.RWMutex
 }
 
 // NewServer creates and initializes Server
@@ -264,12 +266,14 @@ func (s *Server) initListener(ctx context.Context) error {
 	return nil
 }
 
-// Start http and gRPC servers concurrently
 func (s *Server) Start(ctx context.Context) error {
 	err := s.initListener(ctx)
 	if err != nil {
 		return fmt.Errorf("query server failed to initialize listener: %w", err)
 	}
+
+	// Report initial status as OK
+	s.reportHealthStatus(componentstatus.StatusOK)
 
 	var httpPort int
 	if port, err := getPortForAddr(s.httpConn.Addr()); err == nil {
@@ -288,6 +292,7 @@ func (s *Server) Start(ctx context.Context) error {
 		err := s.httpServer.Serve(s.httpConn)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			s.telset.Logger.Error("Could not start HTTP server", zap.Error(err))
+			s.reportHealthStatus(componentstatus.StatusFatalError)
 			s.telset.ReportStatus(componentstatus.NewFatalErrorEvent(err))
 			return
 		}
@@ -303,6 +308,7 @@ func (s *Server) Start(ctx context.Context) error {
 		err := s.grpcServer.Serve(s.grpcConn)
 		if err != nil {
 			s.telset.Logger.Error("Could not start GRPC server", zap.Error(err))
+			s.reportHealthStatus(componentstatus.StatusFatalError)
 			s.telset.ReportStatus(componentstatus.NewFatalErrorEvent(err))
 			return
 		}
@@ -317,6 +323,35 @@ func (s *Server) HTTPAddr() string {
 
 func (s *Server) GRPCAddr() string {
 	return s.grpcConn.Addr().String()
+}
+
+// reportHealthStatus reports the health status to the collector runtime.
+// This propagates health check updates up to the collector's runtime.
+func (s *Server) reportHealthStatus(status componentstatus.Status) {
+	s.statusMutex.Lock()
+	defer s.statusMutex.Unlock()
+
+	// Only report if status has changed
+	if s.healthStatus == status {
+		return
+	}
+
+	s.healthStatus = status
+
+	// Report status to the collector runtime via telemetry settings
+	var event *componentstatus.Event
+	switch status {
+	case componentstatus.StatusOK:
+		event = componentstatus.NewEvent(componentstatus.StatusOK)
+	case componentstatus.StatusRecoverableError:
+		event = componentstatus.NewRecoverableErrorEvent(nil)
+	case componentstatus.StatusFatalError:
+		event = componentstatus.NewEvent(componentstatus.StatusFatalError)
+	default:
+		return
+	}
+
+	s.telset.ReportStatus(event)
 }
 
 // Close stops HTTP, GRPC servers and closes the port listener.
@@ -334,5 +369,9 @@ func (s *Server) Close() error {
 	s.bgFinished.Wait()
 
 	s.telset.Logger.Info("Server stopped")
+
+	// Report shutdown status
+	s.reportHealthStatus(componentstatus.StatusFatalError)
+
 	return errors.Join(errs...)
 }

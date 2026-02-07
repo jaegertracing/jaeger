@@ -15,6 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componentstatus"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
@@ -928,6 +931,240 @@ func TestServerHTTP_TracesRequest(t *testing.T) {
 				assert.Empty(t, exporter.GetSpans(), "HTTP request was not traced")
 			}
 			require.NoError(t, resp.Body.Close())
+		})
+	}
+}
+
+// mockHost implements component.Host for testing health status reporting
+type mockHost struct {
+	component.Host
+	statusReports []string
+}
+
+func (m *mockHost) Report(event *componentstatus.Event) {
+	// Mock implementation for componentstatus.Reporter
+	if event != nil {
+		m.statusReports = append(m.statusReports, event.Status().String())
+	}
+}
+
+// TestHealthStatusReporting_InitialStatus verifies that StatusOK is reported when server starts
+func TestHealthStatusReporting_InitialStatus(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	telset := initTelSet(logger, nooptrace.NewTracerProvider())
+
+	// Create a mock host that tracks status reports using the proper pattern
+	mockHost := &mockHost{
+		Host:          componenttest.NewNopHost(),
+		statusReports: make([]string, 0),
+	}
+
+	// Override the telset Host to track reports
+	telset.Host = mockHost
+
+	srv := &Server{
+		queryOptions: &QueryOptions{
+			HTTP: confighttp.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  "localhost:0",
+					Transport: confignet.TransportTypeTCP,
+				},
+			},
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  "localhost:0",
+					Transport: confignet.TransportTypeTCP,
+				},
+			},
+		},
+		telset: telset,
+	}
+
+	// Verify initial health status is unset
+	assert.Equal(t, componentstatus.Status(0), srv.healthStatus)
+
+	// After calling reportHealthStatus, it should be set to StatusOK
+	srv.reportHealthStatus(componentstatus.StatusOK)
+	assert.Equal(t, componentstatus.StatusOK, srv.healthStatus)
+
+	// Verify status was reported
+	assert.Len(t, mockHost.statusReports, 1)
+	assert.Equal(t, "StatusOK", mockHost.statusReports[0])
+}
+
+// TestHealthStatusReporting_StatusChange verifies that status changes are reported
+func TestHealthStatusReporting_StatusChange(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	telset := initTelSet(logger, nooptrace.NewTracerProvider())
+
+	srv := &Server{
+		queryOptions: &QueryOptions{
+			HTTP: confighttp.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  "localhost:0",
+					Transport: confignet.TransportTypeTCP,
+				},
+			},
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  "localhost:0",
+					Transport: confignet.TransportTypeTCP,
+				},
+			},
+		},
+		telset: telset,
+	}
+
+	// Test status transitions
+	tests := []struct {
+		name             string
+		initialStatus    componentstatus.Status
+		newStatus        componentstatus.Status
+		shouldTransition bool
+	}{
+		{
+			name:             "OK to FatalError",
+			initialStatus:    componentstatus.StatusOK,
+			newStatus:        componentstatus.StatusFatalError,
+			shouldTransition: true,
+		},
+		{
+			name:             "FatalError to OK",
+			initialStatus:    componentstatus.StatusFatalError,
+			newStatus:        componentstatus.StatusOK,
+			shouldTransition: true,
+		},
+		{
+			name:             "OK to OK (no change)",
+			initialStatus:    componentstatus.StatusOK,
+			newStatus:        componentstatus.StatusOK,
+			shouldTransition: false,
+		},
+		{
+			name:             "RecoverableError to FatalError",
+			initialStatus:    componentstatus.StatusRecoverableError,
+			newStatus:        componentstatus.StatusFatalError,
+			shouldTransition: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv.healthStatus = tt.initialStatus
+			srv.reportHealthStatus(tt.newStatus)
+
+			if tt.shouldTransition {
+				assert.Equal(t, tt.newStatus, srv.healthStatus)
+			} else {
+				assert.Equal(t, tt.initialStatus, srv.healthStatus)
+			}
+		})
+	}
+}
+
+// TestHealthStatusReporting_ThreadSafety verifies that status reporting is thread-safe
+func TestHealthStatusReporting_ThreadSafety(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	telset := initTelSet(logger, nooptrace.NewTracerProvider())
+
+	srv := &Server{
+		queryOptions: &QueryOptions{
+			HTTP: confighttp.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  "localhost:0",
+					Transport: confignet.TransportTypeTCP,
+				},
+			},
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  "localhost:0",
+					Transport: confignet.TransportTypeTCP,
+				},
+			},
+		},
+		telset: telset,
+	}
+
+	// Simulate concurrent status updates
+	done := make(chan bool, 10)
+	statuses := []componentstatus.Status{
+		componentstatus.StatusOK,
+		componentstatus.StatusRecoverableError,
+		componentstatus.StatusFatalError,
+	}
+
+	for i := 0; i < 10; i++ {
+		go func(idx int) {
+			status := statuses[idx%len(statuses)]
+			srv.reportHealthStatus(status)
+			done <- true
+		}(i)
+	}
+
+	// Wait for all goroutines to complete
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+
+	// Verify that the final status is one of the valid statuses
+	assert.True(t,
+		srv.healthStatus == componentstatus.StatusOK ||
+			srv.healthStatus == componentstatus.StatusRecoverableError ||
+			srv.healthStatus == componentstatus.StatusFatalError,
+		"Final status should be one of the valid statuses")
+}
+
+// TestHealthStatusReporting_AllStatusTypes verifies all status types are handled
+func TestHealthStatusReporting_AllStatusTypes(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	telset := initTelSet(logger, nooptrace.NewTracerProvider())
+
+	srv := &Server{
+		queryOptions: &QueryOptions{
+			HTTP: confighttp.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  "localhost:0",
+					Transport: confignet.TransportTypeTCP,
+				},
+			},
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  "localhost:0",
+					Transport: confignet.TransportTypeTCP,
+				},
+			},
+		},
+		telset: telset,
+	}
+
+	tests := []struct {
+		name   string
+		status componentstatus.Status
+	}{
+		{
+			name:   "StatusOK",
+			status: componentstatus.StatusOK,
+		},
+		{
+			name:   "StatusRecoverableError",
+			status: componentstatus.StatusRecoverableError,
+		},
+		{
+			name:   "StatusFatalError",
+			status: componentstatus.StatusFatalError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Reset status
+			srv.healthStatus = 0
+
+			// Report status
+			srv.reportHealthStatus(tt.status)
+
+			// Verify status was set
+			assert.Equal(t, tt.status, srv.healthStatus)
 		})
 	}
 }
