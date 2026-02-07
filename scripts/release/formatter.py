@@ -72,6 +72,7 @@ def main():
     except Exception as e:
         sys.exit(f"Failed to extract documentation section: {e}")
     doc_section=replace_dash(doc_section)
+    doc_section = doc_section.replace("create a [pull request]", "automatically create a [pull request]")
 
     try:
         ui_section = fetch_content(ui_filename)
