@@ -1168,3 +1168,195 @@ func TestHealthStatusReporting_AllStatusTypes(t *testing.T) {
 		})
 	}
 }
+
+// TestServerStart_HealthStatusReporting verifies health status is reported during server startup
+func TestServerStart_HealthStatusReporting(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	telset := initTelSet(logger, nooptrace.NewTracerProvider())
+
+	// Create a mock host that tracks status reports
+	mockHost := &mockHost{
+		Host:          componenttest.NewNopHost(),
+		statusReports: make([]string, 0),
+	}
+	telset.Host = mockHost
+
+	srv := &Server{
+		queryOptions: &QueryOptions{
+			HTTP: confighttp.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  "localhost:0",
+					Transport: confignet.TransportTypeTCP,
+				},
+			},
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  "localhost:0",
+					Transport: confignet.TransportTypeTCP,
+				},
+			},
+		},
+		telset: telset,
+	}
+
+	// Verify initial health status is unset
+	assert.Equal(t, componentstatus.Status(0), srv.healthStatus)
+
+	// After calling reportHealthStatus with StatusOK, it should be set
+	srv.reportHealthStatus(componentstatus.StatusOK)
+	assert.Equal(t, componentstatus.StatusOK, srv.healthStatus)
+	assert.Len(t, mockHost.statusReports, 1)
+}
+
+// TestServerClose_HealthStatusReporting verifies health status is reported on shutdown
+func TestServerClose_HealthStatusReporting(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	telset := initTelSet(logger, nooptrace.NewTracerProvider())
+
+	// Create a mock host that tracks status reports
+	mockHost := &mockHost{
+		Host:          componenttest.NewNopHost(),
+		statusReports: make([]string, 0),
+	}
+	telset.Host = mockHost
+
+	srv := &Server{
+		queryOptions: &QueryOptions{
+			HTTP: confighttp.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  "localhost:0",
+					Transport: confignet.TransportTypeTCP,
+				},
+			},
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  "localhost:0",
+					Transport: confignet.TransportTypeTCP,
+				},
+			},
+		},
+		telset: telset,
+	}
+
+	// Set initial status to OK
+	srv.reportHealthStatus(componentstatus.StatusOK)
+	assert.Len(t, mockHost.statusReports, 1)
+
+	// Simulate close by reporting FatalError
+	srv.reportHealthStatus(componentstatus.StatusFatalError)
+	assert.Equal(t, componentstatus.StatusFatalError, srv.healthStatus)
+	assert.Len(t, mockHost.statusReports, 2)
+	assert.Equal(t, "StatusFatalError", mockHost.statusReports[1])
+}
+
+// TestReportHealthStatus_RecoverableError verifies RecoverableError status is handled
+func TestReportHealthStatus_RecoverableError(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	telset := initTelSet(logger, nooptrace.NewTracerProvider())
+
+	// Create a mock host that tracks status reports
+	mockHost := &mockHost{
+		Host:          componenttest.NewNopHost(),
+		statusReports: make([]string, 0),
+	}
+	telset.Host = mockHost
+
+	srv := &Server{
+		queryOptions: &QueryOptions{
+			HTTP: confighttp.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  "localhost:0",
+					Transport: confignet.TransportTypeTCP,
+				},
+			},
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  "localhost:0",
+					Transport: confignet.TransportTypeTCP,
+				},
+			},
+		},
+		telset: telset,
+	}
+
+	// Report RecoverableError status
+	srv.reportHealthStatus(componentstatus.StatusRecoverableError)
+	assert.Equal(t, componentstatus.StatusRecoverableError, srv.healthStatus)
+	assert.Len(t, mockHost.statusReports, 1)
+	assert.Equal(t, "StatusRecoverableError", mockHost.statusReports[0])
+}
+
+// TestReportHealthStatus_NoChangeNoReport verifies status is not reported if unchanged
+func TestReportHealthStatus_NoChangeNoReport(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	telset := initTelSet(logger, nooptrace.NewTracerProvider())
+
+	// Create a mock host that tracks status reports
+	mockHost := &mockHost{
+		Host:          componenttest.NewNopHost(),
+		statusReports: make([]string, 0),
+	}
+	telset.Host = mockHost
+
+	srv := &Server{
+		queryOptions: &QueryOptions{
+			HTTP: confighttp.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  "localhost:0",
+					Transport: confignet.TransportTypeTCP,
+				},
+			},
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  "localhost:0",
+					Transport: confignet.TransportTypeTCP,
+				},
+			},
+		},
+		telset: telset,
+	}
+
+	// Report OK status
+	srv.reportHealthStatus(componentstatus.StatusOK)
+	assert.Len(t, mockHost.statusReports, 1)
+
+	// Report OK status again - should not add another report
+	srv.reportHealthStatus(componentstatus.StatusOK)
+	assert.Len(t, mockHost.statusReports, 1, "Status should not be reported again if unchanged")
+}
+
+// TestReportHealthStatus_InvalidStatus verifies invalid status is handled gracefully
+func TestReportHealthStatus_InvalidStatus(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	telset := initTelSet(logger, nooptrace.NewTracerProvider())
+
+	// Create a mock host that tracks status reports
+	mockHost := &mockHost{
+		Host:          componenttest.NewNopHost(),
+		statusReports: make([]string, 0),
+	}
+	telset.Host = mockHost
+
+	srv := &Server{
+		queryOptions: &QueryOptions{
+			HTTP: confighttp.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  "localhost:0",
+					Transport: confignet.TransportTypeTCP,
+				},
+			},
+			GRPC: configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  "localhost:0",
+					Transport: confignet.TransportTypeTCP,
+				},
+			},
+		},
+		telset: telset,
+	}
+
+	// Report invalid status (999 is not a valid status)
+	srv.reportHealthStatus(componentstatus.Status(999))
+	// Should not crash and should not report
+	assert.Empty(t, mockHost.statusReports)
+}
