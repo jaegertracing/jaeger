@@ -365,9 +365,9 @@ func TestGetOperations(t *testing.T) {
 		{Name: "post", SpanKind: "server"},
 	}
 	expectedOperations := []tracestore.Operation{
-		{Name: "", SpanKind: "internal"},       // empty span kind should be set to "internal"
-		{Name: "get", SpanKind: "internal"},    // empty span kind should be set to "internal"
-		{Name: "post", SpanKind: "server"},     // non-empty span kind should be preserved
+		{Name: "", SpanKind: "internal"},    // empty span kind should be set to "internal"
+		{Name: "get", SpanKind: "internal"}, // empty span kind should be set to "internal"
+		{Name: "post", SpanKind: "server"},  // non-empty span kind should be preserved
 	}
 	operationQuery := tracestore.OperationQueryParams{ServiceName: "abc/trifle"}
 	tqs.traceReader.On(
