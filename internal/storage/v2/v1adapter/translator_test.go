@@ -19,7 +19,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-func TestProtoFromTraces_AddsWarnings(t *testing.T) {
+func TestV1BatchesFromTraces_AddsWarnings(t *testing.T) {
 	traces := ptrace.NewTraces()
 	rs1 := traces.ResourceSpans().AppendEmpty()
 	ss1 := rs1.ScopeSpans().AppendEmpty()
@@ -42,7 +42,7 @@ func TestProtoFromTraces_AddsWarnings(t *testing.T) {
 	span3.SetSpanID(pcommon.SpanID([8]byte{17, 18, 19, 20, 21, 22, 23, 24}))
 	jptrace.AddWarnings(span3, "test-warning-3")
 
-	batches := ProtoFromTraces(traces)
+	batches := V1BatchesFromTraces(traces)
 
 	assert.Len(t, batches, 2)
 
