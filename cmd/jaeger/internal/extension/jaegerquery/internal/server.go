@@ -308,9 +308,6 @@ func (s *Server) Start(ctx context.Context) error {
 		s.telset.Logger.Info("GRPC server stopped", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPC.NetAddr.Endpoint))
 	}()
 
-	// Report healthy status once servers are running
-	s.telset.ReportStatus(componentstatus.NewEvent(componentstatus.StatusOK))
-
 	return nil
 }
 
