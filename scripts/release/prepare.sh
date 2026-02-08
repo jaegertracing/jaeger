@@ -97,7 +97,6 @@ update_ui_submodule() {
         else
             echo "Skipping UI version update"
             git checkout main && git pull
-            return 0
         fi
     fi
 
