@@ -291,9 +291,13 @@ func (h *HTTPGateway) getOperations(w http.ResponseWriter, r *http.Request) {
 	}
 	apiOperations := make([]*api_v3.Operation, len(operations))
 	for i := range operations {
+		spanKind := operations[i].SpanKind
+		if spanKind == "" {
+			spanKind = string(model.SpanKindInternal)
+		}
 		apiOperations[i] = &api_v3.Operation{
 			Name:     operations[i].Name,
-			SpanKind: operations[i].SpanKind,
+			SpanKind: spanKind,
 		}
 	}
 	h.marshalResponse(&api_v3.GetOperationsResponse{Operations: apiOperations}, w)
