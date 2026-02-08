@@ -54,6 +54,10 @@ type StorageIntegration struct {
 	// TODO: remove this after all storage backends return spanKind from GetOperations
 	GetOperationsMissingSpanKind bool
 
+	// QueryServiceEnabled indicates that tests are going through QueryService layer
+	// which normalizes empty span kinds to "internal" per OpenTelemetry spec
+	QueryServiceEnabled bool
+
 	// TODO: remove this after all storage backends return Source column from GetDependencies
 
 	GetDependenciesReturnsSource bool
@@ -281,15 +285,25 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 
 	var expected []tracestore.Operation
 	if s.GetOperationsMissingSpanKind {
+		// Storage backends that don't support span kind at all (e.g., Elasticsearch, Badger)
 		expected = []tracestore.Operation{
 			{Name: "example-operation-1"},
 			{Name: "example-operation-3"},
 			{Name: "example-operation-4"},
 		}
-	} else {
-		// QueryService now ensures empty SpanKind is normalized to "internal"
+	} else if s.QueryServiceEnabled {
+		// Tests going through QueryService which normalizes empty span kind to "internal"
+		// The example trace has: operation-1 (no span kind), operation-3 (server), operation-4 (client)
 		expected = []tracestore.Operation{
 			{Name: "example-operation-1", SpanKind: "internal"},
+			{Name: "example-operation-3", SpanKind: "server"},
+			{Name: "example-operation-4", SpanKind: "client"},
+		}
+	} else {
+		// Tests directly against storage backend which returns span kinds as stored
+		// The example trace has: operation-1 (no span kind), operation-3 (server), operation-4 (client)
+		expected = []tracestore.Operation{
+			{Name: "example-operation-1", SpanKind: ""},
 			{Name: "example-operation-3", SpanKind: "server"},
 			{Name: "example-operation-4", SpanKind: "client"},
 		}

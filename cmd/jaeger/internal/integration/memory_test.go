@@ -15,7 +15,8 @@ func TestMemoryStorage(t *testing.T) {
 	s := &E2EStorageIntegration{
 		ConfigFile: "../../config.yaml",
 		StorageIntegration: integration.StorageIntegration{
-			CleanUp: purge,
+			CleanUp:             purge,
+			QueryServiceEnabled: true, // v2 tests use QueryService which normalizes span kinds
 		},
 	}
 	s.e2eInitialize(t, "memory")
