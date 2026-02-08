@@ -140,7 +140,7 @@ To ensure contributors have actually run tests locally, we use a verification sy
 **For all contributors:**
 - Your commit must include a `Tested-By:` trailer showing you ran tests.
 
-**For new contributors (first-time, external):**
+**For non-trusted contributors (not OWNER/MEMBER/COLLABORATOR):**
 - You must also include a `Test-Gist:` trailer with a link to your test logs.
 - The Gist contains your commit SHA, proving the tests were run on that specific commit.
 - This proves you actually ran tests, not just copied a line.
@@ -162,7 +162,7 @@ Then push with:
 git push --force-with-lease
 ```
 
-**Important:** If you modify your code after running `make verify-with-proof`, you must run it again. The CI verifies that the Gist's commit SHA matches your PR head.
+**Important:** If you modify your code after running `make verify-with-proof`, you must run it again. The CI will attempt to verify that the Gist's tree SHA matches your PR.
 
 
 ## Pull Request Limits for New Contributors

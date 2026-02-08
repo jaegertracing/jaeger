@@ -255,6 +255,7 @@ repro-check:
 	shasum -b -a 256 --strict --check ./sha256sum.combined.txt
 
 
+
 # Test with log capture - runs tests once and captures output
 # Fails if tests fail (no masking with || true)
 .PHONY: test-with-log
@@ -288,15 +289,16 @@ verify-with-proof: lint test-with-log
 		exit 1; \
 	fi
 	@echo "✅ Lint and tests passed. Uploading proof to Gist..."
-	@COMMIT=$$(git rev-parse HEAD); \
-	echo "Commit SHA: $$COMMIT" > test.log.tmp; \
+	@# Use tree SHA - it represents the code content and doesn't change when amending commit message
+	@TREE_SHA=$$(git rev-parse HEAD^{tree}); \
+	echo "Tree SHA: $$TREE_SHA" > test.log.tmp; \
 	echo "---" >> test.log.tmp; \
 	cat test.log >> test.log.tmp; \
 	mv test.log.tmp test.log; \
-	GIST_URL=$$(gh gist create test.log -d "Test logs for Jaeger commit $$COMMIT" --public); \
+	GIST_URL=$$(gh gist create test.log -d "Test logs for Jaeger tree $$TREE_SHA" --public); \
 	if [ -z "$$GIST_URL" ]; then \
 		echo "❌ Failed to create Gist. Make sure 'gh' CLI is authenticated."; \
-		rm -f test.log; \
+		echo "   test.log kept for manual inspection."; \
 		exit 1; \
 	fi; \
 	NAME=$$(git config user.name); \

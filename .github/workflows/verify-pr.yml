@@ -23,8 +23,13 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
+      - name: Harden GitHub Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
       - name: Checkout PR head
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 1
@@ -67,7 +72,8 @@ jobs:
         if: steps.author.outputs.trusted == 'false'
         run: |
           COMMIT_MSG=$(git log -1 --pretty=%B)
-          PR_HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          # Use tree SHA - it represents the code content and doesn't change with commit amend
+          PR_TREE_SHA=$(git rev-parse HEAD^{tree})
           
           # Extract Test-Gist URL
           GIST_URL=$(echo "$COMMIT_MSG" | grep "Test-Gist:" | awk '{print $2}' | head -1)
@@ -91,50 +97,47 @@ jobs:
           
           echo "Gist ID: $GIST_ID"
           
-          # Fetch Gist content
-          GIST_CONTENT=$(curl -s "$GIST_URL/raw" 2>/dev/null || echo "")
+          # Fetch Gist content securely using GitHub API (not user-provided URL)
+          GIST_CONTENT=$(curl -s "https://api.github.com/gists/$GIST_ID" | jq -r '.files | to_entries[0].value.content // empty')
           
           if [ -z "$GIST_CONTENT" ]; then
-            echo "❌ Could not fetch Gist content from: $GIST_URL"
+            echo "❌ Could not fetch Gist content for ID: $GIST_ID"
             echo "valid=false" >> $GITHUB_OUTPUT
             exit 1
           fi
           
-          # Extract commit SHA from Gist content (first line should be "Commit SHA: <sha>")
-          GIST_SHA=$(echo "$GIST_CONTENT" | grep -oE "Commit SHA: [0-9a-f]{40}" | head -1 | awk '{print $3}')
+          # Extract tree SHA from Gist content (first line should be "Tree SHA: <sha>")
+          GIST_TREE_SHA=$(echo "$GIST_CONTENT" | grep -oE "Tree SHA: [0-9a-f]{40}" | head -1 | awk '{print $3}')
           
-          if [ -z "$GIST_SHA" ]; then
-            echo "⚠️ Could not find commit SHA in Gist content."
-            echo "   This may be an older format Gist. Checking Gist description..."
+          if [ -z "$GIST_TREE_SHA" ]; then
+            echo "⚠️ Could not find tree SHA in Gist content."
+            echo "   This may be an older format Gist. Checking for commit SHA..."
             
-            # Fallback: check Gist description via API
-            GIST_INFO=$(curl -s "https://api.github.com/gists/$GIST_ID" 2>/dev/null || echo "")
-            GIST_DESC=$(echo "$GIST_INFO" | grep -o '"description":"[^"]*"' | head -1 | sed 's/"description":"//;s/"$//')
-            echo "Gist description: $GIST_DESC"
-            
-            # Try to extract SHA from description
-            GIST_SHA=$(echo "$GIST_DESC" | grep -oE '[0-9a-f]{40}' | head -1)
-          fi
-          
-          if [ -n "$GIST_SHA" ]; then
-            echo "Gist SHA: $GIST_SHA"
-            echo "PR HEAD SHA: $PR_HEAD_SHA"
-            
-            if [ "$GIST_SHA" != "$PR_HEAD_SHA" ]; then
-              echo ""
-              echo "❌ FAILED: Gist SHA does not match PR head SHA."
-              echo "   This means you modified your commit after running 'make verify-with-proof'."
-              echo "   Please re-run 'make verify-with-proof' and push again."
-              echo "valid=false" >> $GITHUB_OUTPUT
-              exit 1
+            # Fallback: check for old "Commit SHA:" format
+            GIST_COMMIT_SHA=$(echo "$GIST_CONTENT" | grep -oE "Commit SHA: [0-9a-f]{40}" | head -1 | awk '{print $3}')
+            if [ -n "$GIST_COMMIT_SHA" ]; then
+              echo "   Found old format with Commit SHA: $GIST_COMMIT_SHA"
+              echo "   Note: Old format cannot be verified against tree SHA."
             fi
             
-            echo "✅ Gist SHA matches PR head SHA"
-          else
-            echo "⚠️ Could not verify commit SHA from Gist (older format)."
-            echo "   Gist is accessible, allowing PR to proceed."
+            echo "⚠️ Cannot verify SHA match. Allowing PR to proceed."
+            echo "valid=true" >> $GITHUB_OUTPUT
+            exit 0
           fi
           
+          echo "Gist Tree SHA: $GIST_TREE_SHA"
+          echo "PR Tree SHA: $PR_TREE_SHA"
+          
+          if [ "$GIST_TREE_SHA" != "$PR_TREE_SHA" ]; then
+            echo ""
+            echo "❌ FAILED: Gist tree SHA does not match PR tree SHA."
+            echo "   This means your code changed after running 'make verify-with-proof'."
+            echo "   Please re-run 'make verify-with-proof' and push again."
+            echo "valid=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          
+          echo "✅ Gist tree SHA matches PR tree SHA"
           echo "✅ Test-Gist trailer found and validated"
           echo "valid=true" >> $GITHUB_OUTPUT
 
