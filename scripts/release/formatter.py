@@ -18,30 +18,21 @@ def extract_section_from_file(file_path, start_marker, end_marker):
     return text[start_index:end_index]
 
 def replace_star(text):
-    # Match star bullet with backtick command, capture command without backticks
-    re_star = re.compile(r'(\n\s*)(\*)(\s)`([^`]+)`')
-    text = re_star.sub(r'\1\2 [ ]\3\n```bash\n\4\n```', text)
-    # Handle items without commands but with stars (skip already converted)
-    re_star_no_cmd = re.compile(r'(\n\s*)(\*)(\s)(?!\[|`)')
-    text = re_star_no_cmd.sub(r'\1\2 [ ]\3', text)
+    """Convert star bullet points to checkbox format (* [ ])."""
+    re_star = re.compile(r'(\n\s*)(\*)(\s)(?!\[)')
+    text = re_star.sub(r'\1\2 [ ]\3', text)
     return text
 
 def replace_dash(text):
-    # Match dash bullet with backtick command, capture command without backticks
-    re_dash = re.compile(r'(\n\s*)(\-)(\s+)`([^`]+)`')
-    text = re_dash.sub(r'\1* [ ]\3\n```bash\n\4\n```', text)
-    # Handle items without commands (skip already converted)
-    re_dash_no_cmd = re.compile(r'(\n\s*)(\-)(\s+)(?!\[|`)')
-    text = re_dash_no_cmd.sub(r'\1* [ ]\3', text)
+    """Convert dash bullet points to checkbox format (* [ ])."""
+    re_dash = re.compile(r'(\n\s*)(\-)(\s+)(?!\[)')
+    text = re_dash.sub(r'\1* [ ]\3', text)
     return text
 
 def replace_num(text):
-    # Match numbered item with backtick command, capture command without backticks
-    re_num = re.compile(r'(\n\s*)([0-9]*\.)(\s)`([^`]+)`')
-    text = re_num.sub(r'\1* [ ]\3\n```bash\n\4\n```', text)
-    # Handle items without commands (skip already converted)
-    re_num_no_cmd = re.compile(r'(\n\s*)([0-9]*\.)(\s)(?!\[|`)')
-    text = re_num_no_cmd.sub(r'\1* [ ]\3', text)
+    """Convert numbered items to checkbox format (* [ ])."""
+    re_num = re.compile(r'(\n\s*)([0-9]*\.)(\s)(?!\[)')
+    text = re_num.sub(r'\1* [ ]\3', text)
     return text
 
 def replace_version(ui_text, backend_text, doc_text, pattern, ver):
