@@ -287,8 +287,9 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 			{Name: "example-operation-4"},
 		}
 	} else {
+		// QueryService now ensures empty SpanKind is normalized to "internal"
 		expected = []tracestore.Operation{
-			{Name: "example-operation-1", SpanKind: ""},
+			{Name: "example-operation-1", SpanKind: "internal"},
 			{Name: "example-operation-3", SpanKind: "server"},
 			{Name: "example-operation-4", SpanKind: "client"},
 		}
