@@ -45,7 +45,7 @@ Follow the checklist in the created tracking issue. The high level steps are:
   - Creates PR with label `changelog:skip`
 - Manual: See [Manual release pull request](https://github.com/jaegertracing/jaeger/blob/main/RELEASE.md#manual-release-pull-request).
 
-1. After the PR is merged, create a release on Github:
+1. After the PR is merged, create a release on GitHub:
 
 - **Automated**:  `make draft-release`
 - Manual: See [Manual release](https://github.com/jaegertracing/jaeger/blob/main/RELEASE.md#manual-release).

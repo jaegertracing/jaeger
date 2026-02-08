@@ -86,6 +86,9 @@ def rotate_release_managers() -> None:
     # Get the first row (the one to be rotated)
     first_row = data_lines[0]
     first_row_parts = [p.strip() for p in first_row.split('|') if p.strip()]
+    if len(first_row_parts) < 2:
+        print(f"Error: First data row is malformed (expected at least 2 columns): {first_row}", file=sys.stderr)
+        sys.exit(1)
     manager = first_row_parts[1]
 
     # Create the new row for the bottom
