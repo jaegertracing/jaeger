@@ -293,7 +293,7 @@ func (h *HTTPGateway) getOperations(w http.ResponseWriter, r *http.Request) {
 	for i := range operations {
 		spanKind := operations[i].SpanKind
 		if spanKind == "" {
-			spanKind = "internal"
+			spanKind = string(model.SpanKindInternal)
 		}
 		apiOperations[i] = &api_v3.Operation{
 			Name:     operations[i].Name,
