@@ -9,7 +9,7 @@ import (
 	"net/http"
 )
 
-// BadRequestError represents a user error (4xx status code)
+// BadRequestError represents a user error mapped to HTTP 400 (Bad Request)
 type BadRequestError struct {
 	message string
 }
@@ -46,7 +46,7 @@ func HandleError(w http.ResponseWriter, err error, statusCode int) bool {
 	if err == nil {
 		return false
 	}
-	http.Error(w, string(err.Error()), statusCode)
+	http.Error(w, err.Error(), statusCode)
 	return true
 }
 
