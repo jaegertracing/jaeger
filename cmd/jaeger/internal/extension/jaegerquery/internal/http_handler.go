@@ -180,10 +180,16 @@ func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
-	operationNames := getUniqueOperationNames(operations)
+	data := make([]ui.Operation, len(operations))
+	for i, operation := range operations {
+		data[i] = ui.Operation{
+			Name:     operation.Name,
+			SpanKind: operation.SpanKind,
+		}
+	}
 	structuredRes := structuredResponse{
-		Data:  operationNames,
-		Total: len(operationNames),
+		Data:  data,
+		Total: len(operations),
 	}
 	aH.writeJSON(w, r, &structuredRes)
 }

@@ -758,7 +758,6 @@ func TestGetOperationsStorageFailure(t *testing.T) {
 
 func TestGetOperationsLegacySuccess(t *testing.T) {
 	ts := initializeTestServer(t)
-	expectedOperationNames := []string{"", "get"}
 	expectedOperations := []tracestore.Operation{
 		{Name: ""},
 		{Name: "get", SpanKind: "server"},
@@ -770,11 +769,22 @@ func TestGetOperationsLegacySuccess(t *testing.T) {
 		mock.Anything,
 		mock.AnythingOfType("tracestore.OperationQueryParams")).Return(expectedOperations, nil).Once()
 
-	var response structuredResponse
+	var response struct {
+		Operations []ui.Operation    `json:"data"`
+		Total      int               `json:"total"`
+		Limit      int               `json:"limit"`
+		Offset     int               `json:"offset"`
+		Errors     []structuredError `json:"errors"`
+	}
+
 	err := getJSON(ts.server.URL+"/api/services/abc%2Ftrifle/operations", &response)
 
 	require.NoError(t, err)
-	assert.ElementsMatch(t, expectedOperationNames, response.Data.([]any))
+	assert.Len(t, response.Operations, len(expectedOperations))
+	for i, op := range response.Operations {
+		assert.Equal(t, expectedOperations[i].Name, op.Name)
+		assert.Equal(t, expectedOperations[i].SpanKind, op.SpanKind)
+	}
 }
 
 func TestGetOperationsLegacyStorageFailure(t *testing.T) {
