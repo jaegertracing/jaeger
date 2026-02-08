@@ -45,17 +45,17 @@ Follow the checklist in the created tracking issue. The high level steps are:
   - Creates PR with label `changelog:skip`
 - Manual: See [Manual release pull request](https://github.com/jaegertracing/jaeger/blob/main/RELEASE.md#manual-release-pull-request).
 
-2. After the PR is merged, create a release on Github:
+1. After the PR is merged, create a release on Github:
 
 - **Automated**:  `make draft-release`
 - Manual: See [Manual release](https://github.com/jaegertracing/jaeger/blob/main/RELEASE.md#manual-release).
 
-3. Once the release is created, the [Publish Release workflow](https://github.com/jaegertracing/jaeger/actions/workflows/ci-release.yml) will run to build artifacts.
+1. Once the release is created, the [Publish Release workflow](https://github.com/jaegertracing/jaeger/actions/workflows/ci-release.yml) will run to build artifacts.
 
 - Wait for the workflow to finish. For monitoring and troubleshooting, open the logs of the workflow run from above URL.
 - Check the images are available on [Docker Hub](https://hub.docker.com/r/jaegertracing/) and binaries are uploaded [to the release](https://github.com/jaegertracing/jaeger/releases).
 
-4. [Publish documentation](https://github.com/jaegertracing/documentation/blob/main/RELEASE.md): trigger the Release workflow on GitHub, it will automatically create a [pull request].
+1. [Publish documentation](https://github.com/jaegertracing/documentation/blob/main/RELEASE.md): trigger the Release workflow on GitHub, it will automatically create a pull request.
 
 <!-- END_CHECKLIST -->
 

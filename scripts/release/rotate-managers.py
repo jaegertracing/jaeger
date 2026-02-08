@@ -29,16 +29,6 @@ def get_next_first_wednesday(last_date_str: str) -> str:
     return first_wednesday.strftime("%-d %B %Y")
 
 
-def increment_version(version_str: str) -> str:
-    # version_str e.g. "2.14.0"
-    parts = version_str.strip().split('.')
-    if len(parts) != 3:
-        return version_str # fallback
-
-    major, minor, patch = map(int, parts)
-    return f"{major}.{minor + 1}.0"
-
-
 def rotate_release_managers() -> None:
     with open('RELEASE.md', 'r') as f:
         content = f.read()

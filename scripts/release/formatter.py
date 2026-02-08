@@ -18,26 +18,29 @@ def extract_section_from_file(file_path, start_marker, end_marker):
     return text[start_index:end_index]
 
 def replace_star(text):
-    re_star = re.compile(r'(\n\s*)(\*)(\s)(`.*`)')
+    # Match star bullet with backtick command, capture command without backticks
+    re_star = re.compile(r'(\n\s*)(\*)(\s)`([^`]+)`')
     text = re_star.sub(r'\1\2 [ ]\3\n```bash\n\4\n```', text)
-    # Also handle items without commands but with stars
-    re_star_no_cmd = re.compile(r'(\n\s*)(\*)(\s)(?!`)')
+    # Handle items without commands but with stars (skip already converted)
+    re_star_no_cmd = re.compile(r'(\n\s*)(\*)(\s)(?!\[|`)')
     text = re_star_no_cmd.sub(r'\1\2 [ ]\3', text)
     return text
 
 def replace_dash(text):
-    re_dash = re.compile(r'(\n\s*)(\-)(\s+)(`.*`)')
+    # Match dash bullet with backtick command, capture command without backticks
+    re_dash = re.compile(r'(\n\s*)(\-)(\s+)`([^`]+)`')
     text = re_dash.sub(r'\1* [ ]\3\n```bash\n\4\n```', text)
-    # Also handle items without commands
-    re_dash_no_cmd = re.compile(r'(\n\s*)(\-)(\s+)(?!`)')
+    # Handle items without commands (skip already converted)
+    re_dash_no_cmd = re.compile(r'(\n\s*)(\-)(\s+)(?!\[|`)')
     text = re_dash_no_cmd.sub(r'\1* [ ]\3', text)
     return text
 
 def replace_num(text):
-    re_num = re.compile(r'(\n\s*)([0-9]*\.)(\s)(`.*`)')
+    # Match numbered item with backtick command, capture command without backticks
+    re_num = re.compile(r'(\n\s*)([0-9]*\.)(\s)`([^`]+)`')
     text = re_num.sub(r'\1* [ ]\3\n```bash\n\4\n```', text)
-    # Also handle items without commands
-    re_num_no_cmd = re.compile(r'(\n\s*)([0-9]*\.)(\s)(?!`)')
+    # Handle items without commands (skip already converted)
+    re_num_no_cmd = re.compile(r'(\n\s*)([0-9]*\.)(\s)(?!\[|`)')
     text = re_num_no_cmd.sub(r'\1* [ ]\3', text)
     return text
 
@@ -65,6 +68,7 @@ def main():
     except Exception as e:
         sys.exit(f"Failed to extract backendSection: {e}")
     backend_section = replace_star(backend_section)
+    backend_section = replace_dash(backend_section)
     backend_section = replace_num(backend_section)
     try:
         doc_filename = loc
