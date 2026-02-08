@@ -78,6 +78,8 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 			{"trace id timestamps materialized view", sql.CreateTraceIDTimestampsMaterializedView},
 			{"attribute metadata table", sql.CreateAttributeMetadataTable},
 			{"attribute metadata materialized view", sql.CreateAttributeMetadataMaterializedView},
+			{"event attribute metadata materialized view", sql.CreateEventAttributeMetadataMaterializedView},
+			{"link attribute metadata materialized view", sql.CreateLinkAttributeMetadataMaterializedView},
 		}
 
 		for _, schema := range schemas {

@@ -52,24 +52,48 @@ func appendAnd(q *strings.Builder, cond string) {
 	q.WriteString(cond)
 }
 
+type arrayExistsFn func(q *strings.Builder, indent int, prefix string, valueType pcommon.ValueType)
+
 func appendArrayExists(q *strings.Builder, indent int, prefix string, valueType pcommon.ValueType) {
 	strColumnType := jptrace.ValueTypeToString(valueType)
 	if valueType == pcommon.ValueTypeBytes || valueType == pcommon.ValueTypeMap || valueType == pcommon.ValueTypeSlice {
 		strColumnType = "complex"
 	}
+	columnPrefix := ""
+	if prefix != "" {
+		columnPrefix = prefix + "_"
+	}
 	appendNewlineAndIndent(q, indent)
-	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s." + prefix + strColumnType + "_attributes.key, s." + prefix + strColumnType + "_attributes.value)")
+	q.WriteString("arrayExists((key, value) -> key = ? AND value = ?, s." + columnPrefix + strColumnType + "_attributes.key, s." + columnPrefix + strColumnType + "_attributes.value)")
+}
+
+// appendNestedArrayExists appends a condition that checks for a key-value pair in nested array attributes.
+// Events and links are stored as nested arrays within spans, so we need to use a nested arrayExists to search
+// through all items and their attributes.
+func appendNestedArrayExists(q *strings.Builder, indent int, nestedArray string, valueType pcommon.ValueType) {
+	strColumnType := jptrace.ValueTypeToString(valueType)
+	if valueType == pcommon.ValueTypeBytes || valueType == pcommon.ValueTypeMap || valueType == pcommon.ValueTypeSlice {
+		strColumnType = "complex"
+	}
+	appendNewlineAndIndent(q, indent)
+	q.WriteString("arrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x." + strColumnType + "_attributes.key, x." + strColumnType + "_attributes.value), s." + nestedArray + ")")
 }
 
 func appendStringAttributeFallback(q *strings.Builder, args []any, key string, attr pcommon.Value) []any {
 	appendArrayExists(q, 2, "", pcommon.ValueTypeStr)
 	appendNewlineAndIndent(q, 2)
 	q.WriteString("OR ")
-	appendArrayExists(q, 2, "resource_", pcommon.ValueTypeStr)
+	appendArrayExists(q, 2, "resource", pcommon.ValueTypeStr)
 	appendNewlineAndIndent(q, 2)
 	q.WriteString("OR ")
-	appendArrayExists(q, 2, "scope_", pcommon.ValueTypeStr)
-	return append(args, key, attr.Str(), key, attr.Str(), key, attr.Str())
+	appendArrayExists(q, 2, "scope", pcommon.ValueTypeStr)
+	appendNewlineAndIndent(q, 2)
+	q.WriteString("OR ")
+	appendNestedArrayExists(q, 2, "events", pcommon.ValueTypeStr)
+	appendNewlineAndIndent(q, 2)
+	q.WriteString("OR ")
+	appendNestedArrayExists(q, 2, "links", pcommon.ValueTypeStr)
+	return append(args, key, attr.Str(), key, attr.Str(), key, attr.Str(), key, attr.Str(), key, attr.Str())
 }
 
 func buildFindTracesQuery(traceIDsQuery string) string {
@@ -176,8 +200,14 @@ func buildSimpleAttributeCondition(q *strings.Builder, args []any, key string, v
 	appendArrayExists(q, 2, "", valueType)
 	appendNewlineAndIndent(q, 2)
 	q.WriteString("OR ")
-	appendArrayExists(q, 2, "resource_", valueType)
-	return append(args, key, value, key, value)
+	appendArrayExists(q, 2, "resource", valueType)
+	appendNewlineAndIndent(q, 2)
+	q.WriteString("OR ")
+	appendNestedArrayExists(q, 2, "events", valueType)
+	appendNewlineAndIndent(q, 2)
+	q.WriteString("OR ")
+	appendNestedArrayExists(q, 2, "links", valueType)
+	return append(args, key, value, key, value, key, value, key, value)
 }
 
 func buildBytesAttributeCondition(q *strings.Builder, args []any, key string, attr pcommon.Value) []any {
@@ -259,7 +289,7 @@ func buildStringAttributeCondition(
 	}
 
 	generatedCondition := false
-	appendLevel := func(types []pcommon.ValueType, prefix string) {
+	appendLevel := func(types []pcommon.ValueType, prefix string, fn arrayExistsFn) {
 		for _, t := range types {
 			tav, err := parseStringToTypedValue(key, attr, t)
 			if err != nil {
@@ -273,14 +303,16 @@ func buildStringAttributeCondition(
 			}
 			generatedCondition = true
 
-			appendArrayExists(q, 2, prefix, tav.valueType)
+			fn(q, 2, prefix, tav.valueType)
 			args = append(args, tav.key, tav.value)
 		}
 	}
 
-	appendLevel(levelTypes.resource, "resource_")
-	appendLevel(levelTypes.scope, "scope_")
-	appendLevel(levelTypes.span, "")
+	appendLevel(levelTypes.resource, "resource", appendArrayExists)
+	appendLevel(levelTypes.scope, "scope", appendArrayExists)
+	appendLevel(levelTypes.span, "", appendArrayExists)
+	appendLevel(levelTypes.event, "events", appendNestedArrayExists)
+	appendLevel(levelTypes.link, "links", appendNestedArrayExists)
 
 	// If no conditions were generated (all types failed to parse),
 	// fall back to treating it as a string attribute
