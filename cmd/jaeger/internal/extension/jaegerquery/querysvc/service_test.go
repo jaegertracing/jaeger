@@ -359,17 +359,26 @@ func TestGetServices(t *testing.T) {
 
 func TestGetOperations(t *testing.T) {
 	tqs := initializeTestService()
-	expected := []tracestore.Operation{{Name: "", SpanKind: ""}, {Name: "get", SpanKind: ""}}
+	storageOperations := []tracestore.Operation{
+		{Name: "", SpanKind: ""},
+		{Name: "get", SpanKind: ""},
+		{Name: "post", SpanKind: "server"},
+	}
+	expectedOperations := []tracestore.Operation{
+		{Name: "", SpanKind: "internal"},       // empty span kind should be set to "internal"
+		{Name: "get", SpanKind: "internal"},    // empty span kind should be set to "internal"
+		{Name: "post", SpanKind: "server"},     // non-empty span kind should be preserved
+	}
 	operationQuery := tracestore.OperationQueryParams{ServiceName: "abc/trifle"}
 	tqs.traceReader.On(
 		"GetOperations",
 		mock.Anything,
 		operationQuery,
-	).Return(expected, nil).Once()
+	).Return(storageOperations, nil).Once()
 
 	actualOperations, err := tqs.queryService.GetOperations(context.Background(), operationQuery)
 	require.NoError(t, err)
-	assert.Equal(t, expected, actualOperations)
+	assert.Equal(t, expectedOperations, actualOperations)
 }
 
 func TestFindTraces_Success(t *testing.T) {

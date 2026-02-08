@@ -275,6 +275,7 @@ func TestGetOperations(t *testing.T) {
 		[]tracestore.Operation{
 			{
 				Name: "get_users",
+				// SpanKind is intentionally not set to simulate storage that doesn't populate it
 			},
 		}, nil).Once()
 
@@ -282,7 +283,8 @@ func TestGetOperations(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []*api_v3.Operation{
 		{
-			Name: "get_users",
+			Name:     "get_users",
+			SpanKind: "internal", // QueryService should set empty span kind to "internal"
 		},
 	}, response.GetOperations())
 }

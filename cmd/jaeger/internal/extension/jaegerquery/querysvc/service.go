@@ -130,7 +130,18 @@ func (qs QueryService) GetOperations(
 	ctx context.Context,
 	query tracestore.OperationQueryParams,
 ) ([]tracestore.Operation, error) {
-	return qs.traceReader.GetOperations(ctx, query)
+	operations, err := qs.traceReader.GetOperations(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	// Ensure all operations have a span kind set.
+	// Per OpenTelemetry spec, if span kind is unspecified/empty, default to "internal".
+	for i := range operations {
+		if operations[i].SpanKind == "" {
+			operations[i].SpanKind = "internal"
+		}
+	}
+	return operations, nil
 }
 
 // FindTraces searches for traces matching the query parameters.
