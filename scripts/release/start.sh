@@ -50,7 +50,7 @@ wget -O "$DOCS_TEMPLATE" https://raw.githubusercontent.com/jaegertracing/documen
 UI_TMPFILE=$(mktemp "/tmp/UI_RELEASE.XXXXXX")
 wget -O "$UI_TMPFILE" https://raw.githubusercontent.com/jaegertracing/jaeger-ui/main/RELEASE.md
 
-issue_body=$(python scripts/release/formatter.py "${user_version}" "${UI_TMPFILE}" "${DOCS_TEMPLATE}")
+issue_body=$(python3 scripts/release/formatter.py "${user_version}" "${UI_TMPFILE}" "${DOCS_TEMPLATE}")
 
 if $dry_run; then
   echo "${issue_body}"
