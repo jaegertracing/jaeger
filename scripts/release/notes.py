@@ -87,6 +87,7 @@ categories = [
     {'title': '#### 🚧 Experimental Features', 'label': 'changelog:experimental'},
     {'title': '#### 👷 CI Improvements', 'label': 'changelog:ci'},
     {'title': '#### ⚙️ Refactoring', 'label': 'changelog:refactoring'},
+    {'title': '#### 📖 Documentation', 'label': 'changelog:documentation'},
     {'title': None, 'label': 'changelog:test'},
     {'title': None, 'label': 'changelog:skip'},
     {'title': None, 'label': 'changelog:dependencies'},
