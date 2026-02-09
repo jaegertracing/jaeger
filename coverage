@@ -1,0 +1,12 @@
+mode: set
+github.com/jaegertracing/jaeger/internal/version/build.go:36.17,42.2 1 1
+github.com/jaegertracing/jaeger/internal/version/build.go:45.66,57.2 5 1
+github.com/jaegertracing/jaeger/internal/version/build.go:59.31,64.2 1 1
+github.com/jaegertracing/jaeger/internal/version/command.go:15.31,22.63 3 1
+github.com/jaegertracing/jaeger/internal/version/command.go:22.63,24.18 2 1
+github.com/jaegertracing/jaeger/internal/version/command.go:24.18,26.5 1 0
+github.com/jaegertracing/jaeger/internal/version/command.go:27.4,28.14 2 1
+github.com/jaegertracing/jaeger/internal/version/handler.go:14.61,17.16 3 1
+github.com/jaegertracing/jaeger/internal/version/handler.go:17.16,19.3 1 0
+github.com/jaegertracing/jaeger/internal/version/handler.go:20.2,20.73 1 1
+github.com/jaegertracing/jaeger/internal/version/handler.go:20.73,23.3 2 1
