@@ -301,7 +301,7 @@ verify-with-proof: lint test-with-log
 	echo "---" >> test.log.tmp; \
 	cat test.log >> test.log.tmp; \
 	mv test.log.tmp test.log; \
-	GIST_URL=$$(gh gist create test.log -d "Test logs for Jaeger tree $$TREE_SHA" --public); \
+	GIST_URL=$$(gh gist create test.log -d "Test logs for Jaeger tree $$TREE_SHA"); \
 	if [ -z "$$GIST_URL" ]; then \
 		echo "❌ Failed to create Gist. Make sure 'gh' CLI is authenticated."; \
 		echo "   test.log kept for manual inspection."; \
