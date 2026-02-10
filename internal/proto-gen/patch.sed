@@ -9,7 +9,7 @@ s/ \[(google\.api\.field_behavior) = REQUIRED\]//g
 s/ \[(google\.api\.field_behavior) = OPTIONAL\]//g
 
 # Strip openapi.v3 property annotations (keep the field, remove the annotation block)
-/(openapi\.v3\.property)/,/^[[:space:]]*\];/d
+/^[[:space:]]*(openapi\.v3\.property)/,/^[[:space:]]*\];/d
 s/ \[$/;/
 
 0,/import "google\/protobuf\/.*.proto";/{
