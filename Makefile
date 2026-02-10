@@ -257,15 +257,21 @@ repro-check:
 
 
 # Test with log capture - runs tests once and captures output
-# Fails if tests fail (no masking with || true)
+# Fails if tests fail or if tee fails (checks both PIPESTATUS values)
 .PHONY: test-with-log
 test-with-log:
-	@set -o pipefail; echo "Running tests and capturing logs..."; \
+	@set -o pipefail; \
+	echo "Running tests and capturing logs..."; \
 	$(MAKE) test 2>&1 | tee test.log; \
-	EXIT_CODE=$${PIPESTATUS[0]}; \
-	if [ $$EXIT_CODE -ne 0 ]; then \
+	TEST_EXIT_CODE=$${PIPESTATUS[0]}; \
+	TEE_EXIT_CODE=$${PIPESTATUS[1]}; \
+	if [ $$TEST_EXIT_CODE -ne 0 ]; then \
 		echo "❌ Tests failed. See test.log for details."; \
-		exit $$EXIT_CODE; \
+		exit $$TEST_EXIT_CODE; \
+	fi; \
+	if [ $$TEE_EXIT_CODE -ne 0 ]; then \
+		echo "❌ Log capture failed (tee exited with $$TEE_EXIT_CODE). Test results may not be fully recorded."; \
+		exit $$TEE_EXIT_CODE; \
 	fi; \
 	echo "✅ Tests passed."
 
