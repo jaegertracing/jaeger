@@ -151,6 +151,13 @@ func receiveTraces(
 func (h *Handler) GetDependencies(ctx context.Context, req *api_v3.GetDependenciesRequest) (*api_v3.DependenciesResponse, error) {
 	startTime := req.GetStartTime()
 	endTime := req.GetEndTime()
+
+	if startTime.IsZero() || endTime.IsZero() {
+		return nil, status.Error(codes.InvalidArgument, "startTime and endTime must be non-zero")
+	}
+	if startTime.After(endTime) {
+		return nil, status.Error(codes.InvalidArgument, "startTime must be less than or equal to endTime")
+	}
 	lookback := endTime.Sub(startTime)
 
 	deps, err := h.QueryService.GetDependencies(ctx, endTime, lookback)
