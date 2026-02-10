@@ -17,15 +17,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 // CompareTraceSlices compares two trace slices
 func CompareTraceSlices(t *testing.T, expected []ptrace.Traces, actual []ptrace.Traces) {
 	require.Len(t, actual, len(expected))
-	sortSliceOfTraces(expected)
-	sortSliceOfTraces(actual)
+	sortTracesByTraceID(expected)
+	sortTracesByTraceID(actual)
 	for i, trace := range actual {
 		sortTrace(trace)
 		sortTrace(expected[i])
@@ -41,6 +39,7 @@ func CompareTraceSlices(t *testing.T, expected []ptrace.Traces, actual []ptrace.
 func CompareTraces(t *testing.T, expected ptrace.Traces, actual ptrace.Traces) {
 	sortTrace(actual)
 	sortTrace(expected)
+	dedupeSpans(actual)
 	if err := ptracetest.CompareTraces(expected, actual); err != nil {
 		t.Logf("Actual trace and expected traces are not equal: %v", err)
 		t.Log(getDiff(t, expected, actual))
@@ -48,20 +47,33 @@ func CompareTraces(t *testing.T, expected ptrace.Traces, actual ptrace.Traces) {
 	}
 }
 
-// trace.Spans may contain spans with the same SpanID. Remove duplicates
+// spans may contain spans with the same SpanID. Remove duplicates
 // and keep the first one. Use a map to keep track of the spans we've seen.
-func dedupeSpans(trace *model.Trace) {
-	seen := make(map[model.SpanID]bool)
-	var newSpans []*model.Span
-	for _, span := range trace.Spans {
-		if !seen[span.SpanID] {
-			seen[span.SpanID] = true
-			newSpans = append(newSpans, span)
+func dedupeSpans(trace ptrace.Traces) {
+	seen := make(map[pcommon.SpanID]bool)
+	newSpans := ptrace.NewResourceSpansSlice()
+	for _, resourceSpan := range trace.ResourceSpans().All() {
+		newResourceSpan := newSpans.AppendEmpty()
+		resourceSpan.Resource().CopyTo(newResourceSpan.Resource())
+		for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
+			newScopeSpan := newResourceSpan.ScopeSpans().AppendEmpty()
+			scopeSpan.Scope().CopyTo(newScopeSpan.Scope())
+			for _, span := range scopeSpan.Spans().All() {
+				if !seen[span.SpanID()] {
+					seen[span.SpanID()] = true
+					span.CopyTo(newScopeSpan.Spans().AppendEmpty())
+				}
+			}
 		}
 	}
-	trace.Spans = newSpans
+	newSpans.CopyTo(trace.ResourceSpans())
 }
 
+// sortTrace sorts the spans of a trace on the basis of resource,
+// scope, trace id, span id and start time of span. The limitation
+// of using sorting provided by ptracetest is: It can't sort
+// those resource and scope spans which have same pcommon.Resource
+// and pcommon.InstrumentationScope but different ptrace.Span
 func sortTrace(td ptrace.Traces) {
 	for _, resourceSpan := range td.ResourceSpans().All() {
 		sortAttributes(resourceSpan.Resource().Attributes())
@@ -113,11 +125,11 @@ func compareScopeSpans(a, b ptrace.ScopeSpans) int {
 	if versionComp := strings.Compare(aScope.Version(), bScope.Version()); versionComp != 0 {
 		return versionComp
 	}
-	if lenComp := a.Spans().Len() - b.Spans().Len(); lenComp != 0 {
-		return lenComp
-	}
 	if attrComp := compareAttributes(aScope.Attributes(), bScope.Attributes()); attrComp != 0 {
 		return attrComp
+	}
+	if lenComp := a.Spans().Len() - b.Spans().Len(); lenComp != 0 {
+		return lenComp
 	}
 	for i := 0; i < a.Spans().Len(); i++ {
 		aSpan := a.Spans().At(i)
@@ -129,6 +141,11 @@ func compareScopeSpans(a, b ptrace.ScopeSpans) int {
 	return 0
 }
 
+// compareSpans compares two spans on the basis of trace id, span id and
+// start time. It should not be used to directly compare spans because it
+// leaves some top level fields like status, kind and attributes. In integration
+// tests it is used for sorting spans only, not for span comparison. For span
+// comparison, ptracetest.CompareTraces is used.
 func compareSpans(a, b ptrace.Span) int {
 	if traceIdComp := compareTraceIDs(a.TraceID(), b.TraceID()); traceIdComp != 0 {
 		return traceIdComp
@@ -166,7 +183,7 @@ func compareAttributes(a, b pcommon.Map) int {
 	return bytes.Compare(aAttrs[:], bAttrs[:])
 }
 
-func sortSliceOfTraces(traces []ptrace.Traces) {
+func sortTracesByTraceID(traces []ptrace.Traces) {
 	sort.Slice(traces, func(i, j int) bool {
 		a := traces[i].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 		b := traces[j].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()

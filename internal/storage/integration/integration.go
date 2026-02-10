@@ -11,7 +11,6 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"iter"
 	"os"
 	"regexp"
 	"slices"
@@ -28,6 +27,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	samplemodel "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
@@ -203,8 +203,7 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 						continue
 					}
 					for _, trace := range traces {
-						spanIter := jptrace.SpanIter(trace)
-						for _, span := range spanIter {
+						for _, span := range jptrace.SpanIter(trace) {
 							t.Logf("span: Service: %s, TraceID: %s, Operation: %s", service, span.TraceID(), span.Name())
 						}
 					}
@@ -238,7 +237,7 @@ func (s *StorageIntegration) helperTestGetTrace(
 	var actual ptrace.Traces
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
-		traces, err := toTraceSlice(iterTraces)
+		traces, err := jiter.CollectWithErrors(jptrace.AggregateTraces(iterTraces))
 		if err != nil {
 			t.Logf("Error loading trace: %v", err)
 			return false
@@ -334,7 +333,7 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	actual := ptrace.Traces{} // no spans
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
-		traces, err := toTraceSlice(iterTraces)
+		traces, err := jiter.CollectWithErrors(jptrace.AggregateTraces(iterTraces))
 		if err != nil {
 			t.Log(err)
 			return false
@@ -398,7 +397,7 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.T
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		iterTraces := s.TraceReader.FindTraces(context.Background(), *query)
 		var err error
-		traces, err = toTraceSlice(iterTraces)
+		traces, err = jiter.CollectWithErrors(jptrace.AggregateTraces(iterTraces))
 		if err != nil {
 			t.Log(err)
 			return false
@@ -493,12 +492,17 @@ func normalizeTracePerStorage(traces ptrace.Traces) ptrace.Traces {
 	return traces
 }
 
-// normalizedTraces normalise traces and assign one resource span to one span
+// normalizedTraces assigns one resource span to one span. The fixtures
+// can have multiple spans under one resource/scope span but some
+// backends normalize traces for reducing complexity
+// (elasticsearch is one of the examples). The writer can
+// write traces without any normalization but reader will always
+// return normalized traces. Therefore, for comparing two spans
+// we need to normalize the expected fixtures.
 func normalizedTraces(td ptrace.Traces) ptrace.Traces {
 	newTraces := ptrace.NewTraces()
 	newTraces.ResourceSpans().EnsureCapacity(td.SpanCount())
-	tracesIter := jptrace.SpanIter(td)
-	for pos, span := range tracesIter {
+	for pos, span := range jptrace.SpanIter(td) {
 		resource := pos.Resource.Resource()
 		scope := pos.Scope.Scope()
 		normalizedResourceSpan := newTraces.ResourceSpans().AppendEmpty()
@@ -551,18 +555,6 @@ func spanCount(traces []ptrace.Traces) int {
 		count += trace.SpanCount()
 	}
 	return count
-}
-
-func toTraceSlice(tracesSeq iter.Seq2[[]ptrace.Traces, error]) ([]ptrace.Traces, error) {
-	traces := make([]ptrace.Traces, 0)
-	aggregated := jptrace.AggregateTraces(tracesSeq)
-	for trace, err := range aggregated {
-		if err != nil {
-			return nil, err
-		}
-		traces = append(traces, trace)
-	}
-	return traces, nil
 }
 
 // === DependencyStore Integration Tests ===
