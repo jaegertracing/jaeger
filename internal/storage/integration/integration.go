@@ -270,15 +270,11 @@ func (s *StorageIntegration) testGetTraceWithDuplicates(t *testing.T) {
 	validator := func(t *testing.T, actual ptrace.Traces) {
 		duplicateCount := 0
 		seenIDs := make(map[pcommon.SpanID]int)
-
-		for _, resourceSpan := range actual.ResourceSpans().All() {
-			for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
-				for _, span := range scopeSpan.Spans().All() {
-					seenIDs[span.SpanID()]++
-					if seenIDs[span.SpanID()] > 1 {
-						duplicateCount++
-					}
-				}
+		spanIter := jptrace.SpanIter(actual)
+		for _, span := range spanIter {
+			seenIDs[span.SpanID()]++
+			if seenIDs[span.SpanID()] > 1 {
+				duplicateCount++
 			}
 		}
 		assert.Positive(t, duplicateCount, "Duplicate SpanIDs should be present in the trace")
@@ -392,7 +388,7 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 			s.skipIfNeeded(t)
 			expected := expectedTracesPerTestCase[i]
 			actual := s.findTracesByQuery(t, queryTestCase.Query.ToTraceQueryParams(), expected)
-			CompareSliceOfTraces(t, expected, actual)
+			CompareTraceSlices(t, expected, actual)
 		})
 	}
 }
@@ -472,7 +468,7 @@ func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
 	}
 	newTrace := ptrace.NewTraces()
 	newResourceSpan.CopyTo(newTrace.ResourceSpans().AppendEmpty())
-	newTrace = normalizeTracePerStorage(newTrace)
+	newTrace = normalizedTraces(newTrace)
 	s.writeTrace(t, newTrace)
 	return newTrace
 }
@@ -486,15 +482,7 @@ func getTraceFixtureExact(t *testing.T, fileName string) ptrace.Traces {
 	var trace model.Trace
 	loadAndParseJSONPB(t, fileName, &trace)
 	traces := v1adapter.V1TraceToOtelTrace(&trace)
-	return normalizeTracePerStorage(traces)
-}
-
-func normalizeTracePerStorage(traces ptrace.Traces) ptrace.Traces {
-	storage := os.Getenv("STORAGE")
-	if storage == "elasticsearch" || storage == "opensearch" || storage == "clickhouse" || storage == "kafka" {
-		return normalizedTraces(traces)
-	}
-	return traces
+	return normalizedTraces(traces)
 }
 
 // normalizedTraces normalise traces and assign one resource span to one span

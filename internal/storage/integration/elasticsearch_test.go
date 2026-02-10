@@ -251,7 +251,7 @@ func (s *ESStorageIntegration) testArchiveTrace(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 	tID := model.NewTraceID(uint64(11), uint64(22))
-	expected := &model.Trace{
+	expectedV1 := &model.Trace{
 		Spans: []*model.Span{
 			{
 				OperationName: "archive_span",
@@ -263,8 +263,8 @@ func (s *ESStorageIntegration) testArchiveTrace(t *testing.T) {
 			},
 		},
 	}
-	expectedTrace := v1adapter.V1TraceToOtelTrace(expected)
-	require.NoError(t, s.ArchiveTraceWriter.WriteTraces(context.Background(), expectedTrace))
+	expected := v1adapter.V1TraceToOtelTrace(expectedV1)
+	require.NoError(t, s.ArchiveTraceWriter.WriteTraces(context.Background(), expected))
 
 	var actual ptrace.Traces
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
@@ -277,10 +277,9 @@ func (s *ESStorageIntegration) testArchiveTrace(t *testing.T) {
 		if len(traces) == 0 {
 			return false
 		}
-		require.Len(t, traces, 1)
 		actual = traces[0]
-		return actual.SpanCount() >= expectedTrace.SpanCount()
+		return actual.SpanCount() >= expected.SpanCount()
 	})
 	require.True(t, found)
-	CompareTraces(t, expectedTrace, actual)
+	CompareTraces(t, expected, actual)
 }

@@ -21,13 +21,15 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
-// CompareSliceOfTraces compares two trace slices
-func CompareSliceOfTraces(t *testing.T, expected []ptrace.Traces, actual []ptrace.Traces) {
+// CompareTraceSlices compares two trace slices
+func CompareTraceSlices(t *testing.T, expected []ptrace.Traces, actual []ptrace.Traces) {
 	require.Len(t, expected, len(actual))
 	sortSliceOfTraces(expected)
 	sortSliceOfTraces(actual)
 	for i, trace := range actual {
-		if err := compareTraces(expected[i], trace); err != nil {
+		sortTrace(trace)
+		sortTrace(expected[i])
+		if err := ptracetest.CompareTraces(expected[i], trace); err != nil {
 			t.Logf("Actual trace and expected traces are not equal at index %d: %v", i, err)
 			t.Log(getDiff(t, expected[i], trace))
 			t.Fail()
@@ -37,31 +39,13 @@ func CompareSliceOfTraces(t *testing.T, expected []ptrace.Traces, actual []ptrac
 
 // CompareTraces compares two traces
 func CompareTraces(t *testing.T, expected ptrace.Traces, actual ptrace.Traces) {
-	if err := compareTraces(expected, actual); err != nil {
+	sortTrace(actual)
+	sortTrace(expected)
+	if err := ptracetest.CompareTraces(expected, actual); err != nil {
 		t.Logf("Actual trace and expected traces are not equal: %v", err)
 		t.Log(getDiff(t, expected, actual))
 		t.Fail()
 	}
-}
-
-func compareTraces(expected ptrace.Traces, actual ptrace.Traces) error {
-	// CompareTracesOption also sort the resource, scope and ptrace.Spans but while sorting
-	// the resource and scope spans, it only compares the resource and scope. For example
-	// there could be two resource spans whose resource and scope are same but the spans
-	// of those resource spans differ. The ptracetest.IgnoreResourceSpansOrder() and
-	// ptracetest.IgnoreScopeSpansOrder() will not be able to sort these kinds of resource spans
-	// properly. From OTEL, this is logical because they expect resource span to differ only on
-	// basis of resource and attributes but in Jaeger, some backends like Elasticsearch assign one
-	// resource span per ptrace.Span, so there could be some resource spans which only differ
-	// on the underlying ptrace.Span. sortTrace sorts on the basis of the underlying spans too.
-	sortTrace(expected)
-	sortTrace(actual)
-	options := []ptracetest.CompareTracesOption{
-		ptracetest.IgnoreResourceSpansOrder(),
-		ptracetest.IgnoreScopeSpansOrder(),
-		ptracetest.IgnoreSpansOrder(),
-	}
-	return ptracetest.CompareTraces(expected, actual, options...)
 }
 
 // trace.Spans may contain spans with the same SpanID. Remove duplicates
