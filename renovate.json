@@ -125,6 +125,26 @@
         "patch"
       ],
       "enabled": false
+    },
+    {
+      "groupName": "All Jaeger Docker images",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "cr.jaegertracing.io/jaegertracing/jaeger",
+        "cr.jaegertracing.io/jaegertracing/jaeger-tracegen"
+      ]
+    },
+    {
+      "groupName": "All ClickHouse packages",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchPackageNames": [
+        "github.com/ClickHouse/ch-go",
+        "github.com/ClickHouse/clickhouse-go/v2"
+      ]
     }
   ]
 }
