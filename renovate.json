@@ -4,6 +4,7 @@
     "config:best-practices",
     ":gitSignOff"
   ],
+  "dependencyDashboard": true,
   "labels": [
     "changelog:dependencies"
   ],
