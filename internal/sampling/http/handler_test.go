@@ -5,6 +5,7 @@
 package http
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -168,6 +170,63 @@ func runHTTPHandlerTest(t *testing.T, basePath string) {
 		// handler must emit metrics
 		ts.metricsFactory.AssertCounterMetrics(t, metricstest.ExpectedMetric{Name: "http-server.requests", Tags: map[string]string{"type": "sampling-legacy"}, Value: 1})
 	})
+}
+
+// TestRegisterRoutesWithHTTP_OTelSDKCompatibility verifies that the response from
+// the RegisterRoutesWithHTTP endpoint can be parsed by the same jsonpb.Unmarshal
+// logic used in the OpenTelemetry Jaeger Remote Sampler SDK:
+// https://github.com/open-telemetry/opentelemetry-go-contrib/blob/main/samplers/jaegerremote/sampler_remote.go
+//
+// The SDK's Parse function does:
+//
+//	strategy := new(jaeger_api_v2.SamplingStrategyResponse)
+//	if err := jsonpb.Unmarshal(bytes.NewReader(response), strategy); err != nil { ... }
+//
+// Gogo's jsonpb module can parse both string-based and numeric enum formats.
+// Cf. https://github.com/open-telemetry/opentelemetry-go-contrib/issues/3184
+func TestRegisterRoutesWithHTTP_OTelSDKCompatibility(t *testing.T) {
+	tests := []struct {
+		name     string
+		response *api_v2.SamplingStrategyResponse
+	}{
+		{
+			name:     "rate limiting strategy",
+			response: rateLimiting(42),
+		},
+		{
+			name:     "probabilistic strategy",
+			response: probabilistic(0.5),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			withServer("", test.response, false, func(ts *testServer) {
+				resp, err := http.Get(ts.server.URL + "/?service=Y")
+				require.NoError(t, err)
+				assert.Equal(t, http.StatusOK, resp.StatusCode)
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				require.NoError(t, resp.Body.Close())
+
+				// Parse the response the same way as the OTel Jaeger Remote Sampler SDK.
+				// See: https://github.com/open-telemetry/opentelemetry-go-contrib/blob/main/samplers/jaegerremote/sampler_remote.go
+				strategy := new(api_v2.SamplingStrategyResponse)
+				require.NoError(t, jsonpb.Unmarshal(bytes.NewReader(body), strategy))
+
+				assert.Equal(t,
+					test.response.GetStrategyType(),
+					strategy.GetStrategyType())
+				// even though one of these strategies is nil, the generated code
+				// still allows to call next method on it and return default value.
+				assert.Equal(t,
+					test.response.GetProbabilisticSampling().GetSamplingRate(),
+					strategy.GetProbabilisticSampling().GetSamplingRate())
+				assert.Equal(t,
+					test.response.GetRateLimitingSampling().GetMaxTracesPerSecond(),
+					strategy.GetRateLimitingSampling().GetMaxTracesPerSecond())
+			})
+		})
+	}
 }
 
 func TestHTTPHandlerErrors(t *testing.T) {
