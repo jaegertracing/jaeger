@@ -269,8 +269,7 @@ func (s *StorageIntegration) testGetTraceWithDuplicates(t *testing.T) {
 	validator := func(t *testing.T, actual ptrace.Traces) {
 		duplicateCount := 0
 		seenIDs := make(map[pcommon.SpanID]int)
-		spanIter := jptrace.SpanIter(actual)
-		for _, span := range spanIter {
+		for _, span := range jptrace.SpanIter(actual) {
 			seenIDs[span.SpanID()]++
 			if seenIDs[span.SpanID()] > 1 {
 				duplicateCount++
@@ -407,7 +406,7 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.T
 			return false
 		}
 
-		if spanCount(expected) < spanCount(traces) {
+		if spanCount(expected) != spanCount(traces) {
 			t.Logf("Expecting certain number of spans: expected: %d, actual: %d", spanCount(expected), spanCount(traces))
 			return false
 		}
