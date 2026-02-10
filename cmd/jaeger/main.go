@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/cmd/internal/docs"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/configschema"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal"
 	"github.com/jaegertracing/jaeger/internal/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
@@ -21,6 +22,7 @@ func main() {
 	command.AddCommand(version.Command())
 	command.AddCommand(docs.Command(v))
 	command.AddCommand(mappings.Command())
+	command.AddCommand(configschema.Command())
 	config.AddFlags(
 		v,
 		command,
