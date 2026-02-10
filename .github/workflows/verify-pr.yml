@@ -110,19 +110,20 @@ jobs:
           GIST_TREE_SHA=$(echo "$GIST_CONTENT" | grep -oE "Tree SHA: [0-9a-f]{40}" | head -1 | awk '{print $3}')
           
           if [ -z "$GIST_TREE_SHA" ]; then
-            echo "⚠️ Could not find tree SHA in Gist content."
+            echo "❌ Could not find tree SHA in Gist content."
             echo "   This may be an older format Gist. Checking for commit SHA..."
             
             # Fallback: check for old "Commit SHA:" format
             GIST_COMMIT_SHA=$(echo "$GIST_CONTENT" | grep -oE "Commit SHA: [0-9a-f]{40}" | head -1 | awk '{print $3}')
             if [ -n "$GIST_COMMIT_SHA" ]; then
               echo "   Found old format with Commit SHA: $GIST_COMMIT_SHA"
-              echo "   Note: Old format cannot be verified against tree SHA."
+              echo "   Note: Old format cannot be verified against tree SHA and is no longer accepted."
             fi
             
-            echo "⚠️ Cannot verify SHA match. Allowing PR to proceed."
-            echo "valid=true" >> $GITHUB_OUTPUT
-            exit 0
+            echo "❌ Cannot verify SHA match. Failing verification."
+            echo "   Please re-run 'make verify-with-proof' to generate a Gist that includes the Tree SHA line."
+            echo "valid=false" >> $GITHUB_OUTPUT
+            exit 1
           fi
           
           echo "Gist Tree SHA: $GIST_TREE_SHA"
