@@ -23,7 +23,7 @@ import (
 
 // CompareTraceSlices compares two trace slices
 func CompareTraceSlices(t *testing.T, expected []ptrace.Traces, actual []ptrace.Traces) {
-	require.Len(t, expected, len(actual))
+	require.Len(t, actual, len(expected))
 	sortSliceOfTraces(expected)
 	sortSliceOfTraces(actual)
 	for i, trace := range actual {
@@ -101,7 +101,7 @@ func compareResourceSpans(a, b ptrace.ResourceSpans) bool {
 			return scopeComp < 0
 		}
 	}
-	return true
+	return false
 }
 
 func compareScopeSpans(a, b ptrace.ScopeSpans) int {
