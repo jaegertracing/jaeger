@@ -235,11 +235,45 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 	queryParams.StartTimeMax = timeMaxParsed
 
 	if n := q.Get(paramNumTraces); n != "" {
-		numTraces, err := strconv.Atoi(n)
-		if h.tryParamError(w, err, paramNumTraces) {
+		if err := h.parseSearchDepth(n, queryParams, paramNumTraces, w); err != nil {
 			return nil, true
 		}
-		queryParams.SearchDepth = numTraces
+	} else if n := q.Get("limit"); n != "" {
+		if err := h.parseSearchDepth(n, queryParams, "limit", w); err != nil {
+			return nil, true
+		}
+	} else if n := q.Get("search_depth"); n != "" {
+		if err := h.parseSearchDepth(n, queryParams, "search_depth", w); err != nil {
+			return nil, true
+		}
+	}
+
+	if a := q.Get("attribute"); a != "" {
+		var attrMap map[string]any
+		if err := json.Unmarshal([]byte(a), &attrMap); err != nil {
+			h.tryParamError(w, err, "attribute")
+			return nil, true
+		}
+		if err := queryParams.Attributes.FromRaw(attrMap); err != nil {
+			h.tryParamError(w, err, "attribute")
+			return nil, true
+		}
+	} else if a := q.Get("attributes"); a != "" { // support plural as alias? Issue 7594 mention 'query.attributes'
+		// The issue mentions `query.attributes` which might be passed as `attributes` in some contexts,
+		// but `attribute` seems to be the one discussed in linked PRs for consistency.
+		// Let's support `attribute` as primary based on typical rest patterns or check existing constants.
+		// Actually, the issue description says "parameters for attributes and limit".
+		// PR 7848 uses "attribute" parameter.
+		// Let's stick to "attribute" as per PR 7848 content if possible, or support both if unsure.
+		var attrMap map[string]any
+		if err := json.Unmarshal([]byte(a), &attrMap); err != nil {
+			h.tryParamError(w, err, "attributes")
+			return nil, true
+		}
+		if err := queryParams.Attributes.FromRaw(attrMap); err != nil {
+			h.tryParamError(w, err, "attributes")
+			return nil, true
+		}
 	}
 
 	if d := q.Get(paramDurationMin); d != "" {
@@ -301,6 +335,15 @@ func (h *HTTPGateway) getOperations(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	h.marshalResponse(&api_v3.GetOperationsResponse{Operations: apiOperations}, w)
+}
+
+func (h *HTTPGateway) parseSearchDepth(n string, queryParams *querysvc.TraceQueryParams, paramName string, w http.ResponseWriter) error {
+	numTraces, err := strconv.Atoi(n)
+	if h.tryParamError(w, err, paramName) {
+		return err
+	}
+	queryParams.SearchDepth = numTraces
+	return nil
 }
 
 func spanNameHandler(spanName string, handler http.Handler) http.Handler {
