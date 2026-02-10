@@ -32,13 +32,6 @@ type ClientConfigManager interface {
 type HandlerParams struct {
 	ConfigManager  ClientConfigManager // required
 	MetricsFactory metrics.Factory     // required
-
-	// BasePath will be used as a prefix for the endpoints, e.g. "/api"
-	BasePath string
-
-	// LegacySamplingEndpoint enables returning sampling strategy from "/" endpoint
-	// using Thrift 0.9.2 enum codes.
-	LegacySamplingEndpoint bool
 }
 
 // Handler implements endpoints for used by Jaeger clients to retrieve client configuration,
@@ -78,28 +71,18 @@ func NewHandler(params HandlerParams) *Handler {
 
 // RegisterRoutes registers configuration handlers with Gorilla Router.
 func (h *Handler) RegisterRoutes(router *mux.Router) {
-	prefix := h.params.BasePath
-	if h.params.LegacySamplingEndpoint {
-		router.HandleFunc(
-			prefix+"/",
-			func(w http.ResponseWriter, r *http.Request) {
-				h.serveSamplingHTTP(w, r, h.encodeThriftLegacy)
-			},
-		).Methods(http.MethodGet)
-	}
 	router.HandleFunc(
-		prefix+"/sampling",
+		"/sampling",
 		func(w http.ResponseWriter, r *http.Request) {
 			h.serveSamplingHTTP(w, r, h.encodeProto)
 		},
 	).Methods(http.MethodGet)
 }
 
-// RegisterRoutes registers configuration handlers with HTTP Router.
+// RegisterRoutesWithHTTP registers configuration handlers with HTTP Router.
 func (h *Handler) RegisterRoutesWithHTTP(router *http.ServeMux) {
-	prefix := h.params.BasePath
 	router.HandleFunc(
-		prefix+"/",
+		"/",
 		func(w http.ResponseWriter, r *http.Request) {
 			h.serveSamplingHTTP(w, r, h.encodeProto)
 		},

@@ -51,10 +51,9 @@ func withServer(
 		SamplingProvider: samplingProvider,
 	}
 	handler := NewHandler(HandlerParams{
-		ConfigManager:          cfgMgr,
-		MetricsFactory:         metricsFactory,
-		BasePath:               basePath,
-		LegacySamplingEndpoint: true,
+		ConfigManager:  cfgMgr,
+		MetricsFactory: metricsFactory,
+		BasePath:       basePath,
 	})
 
 	var server *httptest.Server
@@ -117,10 +116,9 @@ func testGorillaHTTPHandler(t *testing.T, basePath string) {
 			})
 		}
 		// handler must emit metrics
-		ts.metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
-			{Name: "http-server.requests", Tags: map[string]string{"type": "sampling"}, Value: 1},
-			{Name: "http-server.requests", Tags: map[string]string{"type": "sampling-legacy"}, Value: 1},
-		}...)
+		ts.metricsFactory.AssertCounterMetrics(t, metricstest.ExpectedMetric{
+			Name: "http-server.requests", Tags: map[string]string{"type": "sampling"}, Value: 1,
+		})
 	})
 }
 
@@ -240,22 +238,20 @@ func TestHTTPHandlerErrors(t *testing.T) {
 	for _, tc := range testCases {
 		testCase := tc // capture loop var
 		t.Run(testCase.description, func(t *testing.T) {
-			for _, withGorilla := range []bool{true, false} {
-				withServer("", testCase.mockSamplingResponse, withGorilla, func(ts *testServer) {
-					resp, err := http.Get(ts.server.URL + testCase.url)
+			withServer("", testCase.mockSamplingResponse, false, func(ts *testServer) {
+				resp, err := http.Get(ts.server.URL + testCase.url)
+				require.NoError(t, err)
+				assert.Equal(t, testCase.statusCode, resp.StatusCode)
+				if testCase.body != "" {
+					body, err := io.ReadAll(resp.Body)
 					require.NoError(t, err)
-					assert.Equal(t, testCase.statusCode, resp.StatusCode)
-					if testCase.body != "" {
-						body, err := io.ReadAll(resp.Body)
-						require.NoError(t, err)
-						assert.Equal(t, testCase.body, string(body))
-					}
+					assert.Equal(t, testCase.body, string(body))
+				}
 
-					if len(testCase.metrics) > 0 {
-						ts.metricsFactory.AssertCounterMetrics(t, testCase.metrics...)
-					}
-				})
-			}
+				if len(testCase.metrics) > 0 {
+					ts.metricsFactory.AssertCounterMetrics(t, testCase.metrics...)
+				}
+			})
 		})
 	}
 
