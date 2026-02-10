@@ -5,6 +5,7 @@
     ":gitSignOff"
   ],
   "dependencyDashboard": true,
+  "dependencyDashboardHeader": "Project settings are at https://developer.mend.io/",
   "labels": [
     "changelog:dependencies"
   ],
