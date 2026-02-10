@@ -23,22 +23,56 @@ from urllib.request import (
     urlopen,
     Request
 )
+from urllib.error import HTTPError
 
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
+def print_token_error():
+    """Print error message about GitHub token requirements."""
+    generate_token_url = "https://github.com/settings/tokens/new?description=GitHub%20Changelog%20Generator%20token"
+    eprint("\nError: Missing, invalid, or unauthorized GitHub token.")
+    eprint("\nPlease ensure your GitHub token:")
+    eprint("  1. Is valid and has not expired")
+    eprint("  2. Has 'repo' permissions (required to access repository data)")
+    eprint(f"\nTo generate a new token, visit: {generate_token_url}")
+    eprint("Make sure to select the 'repo' scope when creating the token.")
+    eprint("\nPlace the token in your --token-file and protect it: chmod 0600 <file>")
+    sys.exit(1)
+
+
+def github_api_request(url, token, additional_headers=None):
+    """Make a GitHub API request with error handling.
+
+    Args:
+        url: The API URL to request
+        token: GitHub personal access token
+        additional_headers: Optional dict of additional headers to add
+
+    Returns:
+        Parsed JSON response
+    """
+    try:
+        req = Request(url)
+        req.add_header('Authorization', f'token {token}')
+        if additional_headers:
+            for header, value in additional_headers.items():
+                req.add_header(header, value)
+        return json.loads(urlopen(req).read())
+    except HTTPError as e:
+        if e.code == 401:
+            print_token_error()
+        raise
+
+
 def num_commits_since_prev_tag(token, base_url, branch, verbose):
     tags_url = f"{base_url}/tags"
-    req = Request(tags_url)
-    req.add_header("Authorization", f"token {token}")
-    tags = json.loads(urlopen(req).read())
+    tags = github_api_request(tags_url, token)
     prev_release_tag = tags[0]['name']
     compare_url = f"{base_url}/compare/{branch}...{prev_release_tag}"
-    req = Request(compare_url)
-    req.add_header("Authorization", f"token {token}")
-    compare_results = json.loads(urlopen(req).read())
+    compare_results = github_api_request(compare_url, token)
     num_commits = compare_results['behind_by']
 
     if verbose:
@@ -53,6 +87,7 @@ categories = [
     {'title': '#### 🚧 Experimental Features', 'label': 'changelog:experimental'},
     {'title': '#### 👷 CI Improvements', 'label': 'changelog:ci'},
     {'title': '#### ⚙️ Refactoring', 'label': 'changelog:refactoring'},
+    {'title': '#### 📖 Documentation', 'label': 'changelog:documentation'},
     {'title': None, 'label': 'changelog:test'},
     {'title': None, 'label': 'changelog:skip'},
     {'title': None, 'label': 'changelog:dependencies'},
@@ -83,9 +118,7 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
 
     # Load commits
     data = urllib.parse.urlencode({'per_page': num_commits})
-    req = Request(commits_url + '?' + data)
-    req.add_header('Authorization', f'token {token}')
-    commits = json.loads(urlopen(req).read())
+    commits = github_api_request(commits_url + '?' + data, token)
 
     if verbose:
         eprint(req.full_url)
@@ -113,10 +146,7 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
 
         msg_lines = commit['commit']['message'].split('\n')
         msg = msg_lines[0].capitalize()
-        req = Request(f"{commits_url}/{sha}/pulls")
-        req.add_header('accept', accept_header)
-        req.add_header('Authorization', f'token {token}')
-        pulls = json.loads(urlopen(req).read())
+        pulls = github_api_request(f"{commits_url}/{sha}/pulls", token, {'accept': accept_header})
         if len(pulls) > 1:
             print(f"WARNING: More than one pull request for commit {sha}")
 
@@ -193,9 +223,7 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
 
 def get_pull_request_labels(token, repo, pull_number):
     labels_url = f"https://api.github.com/repos/jaegertracing/{repo}/issues/{pull_number}/labels"
-    req = Request(labels_url)
-    req.add_header('Authorization', f'token {token}')
-    labels = json.loads(urlopen(req).read())
+    labels = github_api_request(labels_url, token)
     return [label['name'] for label in labels]
 
 
@@ -218,21 +246,17 @@ if __name__ == "__main__":
                         help='Whether output debug logs. (default: false)')
 
     args = parser.parse_args()
-    generate_token_url = "https://github.com/settings/tokens/new?description=GitHub%20Changelog%20Generator%20token"
-    generate_err_msg = (f"Please generate a token from this URL: {generate_token_url} and "
-                        f"place it in the token-file. Protect the file so only you can read it: chmod 0600 <file>.")
-
     token_file = expanduser(args.token_file)
 
     if not os.path.exists(token_file):
-        eprint(f"No such token-file: {token_file}.\n{generate_err_msg}")
-        sys.exit(1)
+        eprint(f"No such token-file: {token_file}.")
+        print_token_error()
 
     with open(token_file, 'r') as file:
         token = file.read().replace('\n', '')
 
     if not token:
-        eprint(f"{token_file} is missing your personal github token.\n{generate_err_msg}")
-        sys.exit(1)
+        eprint(f"{token_file} is missing your personal github token.")
+        print_token_error()
 
     main(token, args.repo, args.branch, args.num_commits, args.exclude_dependabot, args.verbose)

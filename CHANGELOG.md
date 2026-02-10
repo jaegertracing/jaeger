@@ -21,6 +21,19 @@ copy from UI changelog
 
 </details>
 
+v2.15.1 (2026-02-08)
+-------------------------------
+
+### Backend Changes
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Default spankind in api/v3/operations ([@yurishkuro](https://github.com/yurishkuro) in [#7997](https://github.com/jaegertracing/jaeger/pull/7997))
+
+#### ⚙️ Refactoring
+
+* Remove deprecated protofromtraces wrapper in v1adapter ([@SamyakBorkar](https://github.com/SamyakBorkar) in [#7996](https://github.com/jaegertracing/jaeger/pull/7996))
+
 v2.15.0 (2026-02-06)
 -------------------------------
 
