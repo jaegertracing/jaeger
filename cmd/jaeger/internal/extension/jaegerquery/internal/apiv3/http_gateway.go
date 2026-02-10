@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -76,7 +77,7 @@ func (*HTTPGateway) addRoute(
 	_ ...any, /* args */
 ) *mux.Route {
 	var handler http.Handler = http.HandlerFunc(f)
-	handler = otelhttp.WithRouteTag(route, handler)
+	handler = routeTagHandler(handler)
 	handler = spanNameHandler(route, handler)
 	return router.HandleFunc(route, handler.ServeHTTP)
 }
@@ -307,6 +308,28 @@ func spanNameHandler(spanName string, handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		span := trace.SpanFromContext(r.Context())
 		span.SetName(spanName)
+		handler.ServeHTTP(w, r)
+	})
+}
+
+// routeTagHandler extracts the route pattern from Gorilla Mux and sets it
+// as the http.route attribute on the span and adds it to the metrics labeler.
+// This replaces the deprecated otelhttp.WithRouteTag function.
+func routeTagHandler(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Extract route template from Gorilla Mux
+		if route := mux.CurrentRoute(r); route != nil {
+			if pathTemplate, err := route.GetPathTemplate(); err == nil {
+				// Set http.route attribute on the span
+				span := trace.SpanFromContext(r.Context())
+				span.SetAttributes(attribute.String("http.route", pathTemplate))
+
+				// Add route to metrics labeler
+				if labeler, ok := otelhttp.LabelerFromContext(r.Context()); ok {
+					labeler.Add(attribute.String("http.route", pathTemplate))
+				}
+			}
+		}
 		handler.ServeHTTP(w, r)
 	})
 }
