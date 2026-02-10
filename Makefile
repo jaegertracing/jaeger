@@ -260,8 +260,8 @@ repro-check:
 # Fails if tests fail (no masking with || true)
 .PHONY: test-with-log
 test-with-log:
-	@echo "Running tests and capturing logs..."
-	@$(MAKE) test 2>&1 | tee test.log; \
+	@set -o pipefail; echo "Running tests and capturing logs..."; \
+	$(MAKE) test 2>&1 | tee test.log; \
 	EXIT_CODE=$${PIPESTATUS[0]}; \
 	if [ $$EXIT_CODE -ne 0 ]; then \
 		echo "❌ Tests failed. See test.log for details."; \
@@ -290,7 +290,7 @@ verify-with-proof: lint test-with-log
 	fi
 	@echo "✅ Lint and tests passed. Uploading proof to Gist..."
 	@# Use tree SHA - it represents the code content and doesn't change when amending commit message
-	@TREE_SHA=$$(git rev-parse HEAD^{tree}); \
+	@set -euo pipefail; TREE_SHA=$$(git rev-parse HEAD^{tree}); \
 	echo "Tree SHA: $$TREE_SHA" > test.log.tmp; \
 	echo "---" >> test.log.tmp; \
 	cat test.log >> test.log.tmp; \

@@ -142,7 +142,7 @@ To ensure contributors have actually run tests locally, we use a verification sy
 
 **For non-trusted contributors (not OWNER/MEMBER/COLLABORATOR):**
 - You must also include a `Test-Gist:` trailer with a link to your test logs.
-- The Gist contains your commit SHA, proving the tests were run on that specific commit.
+- The Gist contains your tree SHA, proving the tests were run on that specific commit.
 - This proves you actually ran tests, not just copied a line.
 
 **How to do this:**
@@ -154,7 +154,7 @@ make verify-with-proof
 
 This command will:
 1. Run lint and tests locally (fails if tests fail).
-2. Upload your test logs to a GitHub Gist (includes commit SHA).
+2. Upload your test logs to a GitHub Gist (includes tree SHA).
 3. Add `Tested-By:` and `Test-Gist:` trailers to your commit.
 
 Then push with:
