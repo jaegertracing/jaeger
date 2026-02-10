@@ -147,6 +147,8 @@ jobs:
         if: steps.author.outputs.trusted == 'true'
         run: |
           echo "Trusted contributor - Test-Gist not required"
+          # Note: This value is only used for reporting. The failure check below is guarded
+          # by TRUSTED == "false", so trusted contributors never rely on this being "true".
           echo "valid=not-required" >> $GITHUB_OUTPUT
 
       - name: Verify results
