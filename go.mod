@@ -5,10 +5,9 @@ go 1.24.6
 toolchain go1.25.5
 
 require (
-	github.com/ClickHouse/ch-go v0.69.0
-	github.com/ClickHouse/clickhouse-go/v2 v2.42.0
+	github.com/ClickHouse/ch-go v0.71.0
+	github.com/ClickHouse/clickhouse-go/v2 v2.43.0
 	github.com/apache/cassandra-gocql-driver/v2 v2.0.0
-	github.com/apache/thrift v0.22.0
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
 	github.com/dgraph-io/badger/v4 v4.9.0
 	github.com/elastic/go-elasticsearch/v9 v9.2.1
@@ -118,6 +117,7 @@ require (
 	github.com/GehirnInc/crypt v0.0.0-20230320061759-8cc1b52080c5 // indirect
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
+	github.com/apache/thrift v0.22.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.5 // indirect
 	github.com/dennwc/varint v1.0.0 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect
@@ -255,7 +255,7 @@ require (
 	github.com/openzipkin/zipkin-go v0.4.3 // indirect
 	github.com/paulmach/orb v0.12.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
-	github.com/pierrec/lz4/v4 v4.1.23 // indirect
+	github.com/pierrec/lz4/v4 v4.1.25 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
