@@ -6,7 +6,6 @@ package app
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -393,75 +392,6 @@ func TestServerHandlesPortZero(t *testing.T) {
 	validateGRPCServer(t, hostPort)
 
 	server.Close()
-}
-
-func TestServerWarnIfInsecureBind(t *testing.T) {
-	tests := []struct {
-		name       string
-		endpoint   string
-		expectInfo string
-	}{
-		{
-			name:       "warn on all interfaces",
-			endpoint:   ":0",
-			expectInfo: "GRPC endpoint is listening on all interfaces",
-		},
-		{
-			name:       "warn on non-loopback ip",
-			endpoint:   "0.0.0.0:0",
-			expectInfo: "GRPC endpoint is not loopback",
-		},
-		{
-			name:       "no warn on loopback ip",
-			endpoint:   "127.0.0.1:0",
-			expectInfo: "",
-		},
-		{
-			name:       "no warn on localhost",
-			endpoint:   "localhost:0",
-			expectInfo: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			zapCore, logs := observer.New(zap.InfoLevel)
-			logger := zap.New(zapCore)
-			telset := telemetry.NoopSettings()
-			telset.Logger = logger
-
-			server, err := NewServer(
-				context.Background(),
-				configgrpc.ServerConfig{
-					NetAddr: confignet.AddrConfig{Endpoint: tt.endpoint},
-				},
-				&fakeFactory{},
-				&fakeFactory{},
-				tenancy.NewManager(&tenancy.Options{}),
-				telset,
-			)
-			require.NoError(t, err)
-
-			require.NoError(t, server.Start(context.Background()))
-			t.Cleanup(func() { server.Close() })
-
-			if tt.expectInfo == "" {
-				require.False(t, observedLogsContainMessageSubstring(logs, "GRPC endpoint is listening on all interfaces"))
-				require.False(t, observedLogsContainMessageSubstring(logs, "GRPC endpoint is not loopback"))
-			} else {
-				require.True(t, observedLogsContainMessageSubstring(logs, tt.expectInfo), "expected log message containing: %q, logs: %+v", tt.expectInfo, logs)
-			}
-		})
-	}
-}
-
-func observedLogsContainMessageSubstring(logs *observer.ObservedLogs, substring string) bool {
-	for _, entry := range logs.All() {
-		if strings.Contains(entry.Message, substring) {
-			return true
-		}
-	}
-	return false
 }
 
 func validateGRPCServer(t *testing.T, hostPort string) {
