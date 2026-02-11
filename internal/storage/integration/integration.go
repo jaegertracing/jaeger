@@ -483,6 +483,15 @@ func getTraceFixtureExact(t *testing.T, fileName string) ptrace.Traces {
 	return normalizeTracePerStorage(traces)
 }
 
+// normalizeTracePerStorage holds the responsibility to identify the storage
+// type and normalize traces for them. Take an example that OTEL sent a trace
+// with the spec: [ResourceSpan1:[ScopeSpan1:[Span1,Span2]]], now
+// some backends like elasticsearch, opensearch, clickhouse stores them
+// in the form: [ResourceSpan1:[ScopeSpan1:[Span1]],ResourceSpan1:[ScopeSpan1:[Span2]]].
+// The trace will be returned in this same form. Therefore, the expected fixtures
+// are needed to be normalized in this form for comparing. Note that some backends still
+// use v1adapter inside them and they send the traces as sent by OTEL. These type of
+// storage backends are excluded here.
 func normalizeTracePerStorage(traces ptrace.Traces) ptrace.Traces {
 	storage := os.Getenv("STORAGE")
 	if storage == "elasticsearch" || storage == "opensearch" || storage == "clickhouse" || storage == "kafka" {
