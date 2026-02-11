@@ -233,7 +233,7 @@ func (ext *rsExtension) startHTTPServer(ctx context.Context, host component.Host
 		BasePath: "",
 	})
 	httpMux := http.NewServeMux()
-	handler.RegisterRoutesWithHTTP(httpMux)
+	handler.RegisterRoutes(httpMux)
 
 	httpCfg := ext.cfg.HTTP.Get()
 	var err error

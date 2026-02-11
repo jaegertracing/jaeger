@@ -152,7 +152,7 @@ func initializeTestServerWithOptions(
 	traceReader := &tracestoremocks.Reader{}
 	dependencyStorage := &depsmocks.Reader{}
 	qs := querysvc.NewQueryService(traceReader, dependencyStorage, queryOptions)
-	r := NewRouter()
+	r := http.NewServeMux()
 	apiHandler := NewAPIHandler(qs, options...)
 	apiHandler.RegisterRoutes(r)
 	ts := &testServer{
