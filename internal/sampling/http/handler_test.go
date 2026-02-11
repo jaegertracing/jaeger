@@ -132,7 +132,7 @@ func runHTTPHandlerTest(t *testing.T, basePath string) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		require.NoError(t, resp.Body.Close())
-		assert.Equal(t,
+		assert.JSONEq(t,
 			`{"strategyType":"RATE_LIMITING","rateLimitingSampling":{"maxTracesPerSecond":42}}`,
 			string(body))
 		objResp := parseSamplingResponse(t, body)
@@ -188,9 +188,10 @@ func TestRegisterRoutesWithHTTP_OTelSDKCompatibility(t *testing.T) {
 					objResp.GetStrategyType())
 				// even though one of these strategies is nil, the generated code
 				// still allows to call next method on it and return default value.
-				assert.Equal(t,
+				assert.InDelta(t,
 					test.response.GetProbabilisticSampling().GetSamplingRate(),
-					objResp.GetProbabilisticSampling().GetSamplingRate())
+					objResp.GetProbabilisticSampling().GetSamplingRate(),
+					0)
 				assert.Equal(t,
 					test.response.GetRateLimitingSampling().GetMaxTracesPerSecond(),
 					objResp.GetRateLimitingSampling().GetMaxTracesPerSecond())
