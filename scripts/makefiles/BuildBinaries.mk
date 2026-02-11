@@ -151,7 +151,10 @@ _build-platform-binaries: \
 		build-es-index-cleaner \
 		build-es-rollover
 # invoke make recursively such that DEBUG_BINARY=1 can take effect
+# skip debug builds if SKIP_DEBUG_BINARIES is set (e.g., during PRs to save CI time)
+ifndef SKIP_DEBUG_BINARIES
 	$(MAKE) _build-platform-binaries-debug GOOS=$(GOOS) GOARCH=$(GOARCH) DEBUG_BINARY=1
+endif
 
 # build binaries that support DEBUG release, for one specific platform GOOS/GOARCH
 .PHONY: _build-platform-binaries-debug
