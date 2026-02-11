@@ -17,7 +17,7 @@
   "author": "Jaeger Team",
   "license": "Apache-2.0",
   "dependencies": {
-    "@octokit/rest": "^20.0.0"
+    "@octokit/rest": "^22.0.0"
   },
   "devDependencies": {
     "jest": "29.7.0"
