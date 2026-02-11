@@ -269,6 +269,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 			assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
+			require.NoError(t, resp.Body.Close())
 			assert.Equal(t, "cannot marshall to JSON\n", string(body))
 			ts.metricsFactory.AssertCounterMetrics(t,
 				metricstest.ExpectedMetric{Name: "http-server.errors", Tags: map[string]string{"source": "thrift", "status": "5xx"}, Value: 1})
