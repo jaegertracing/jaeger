@@ -243,6 +243,8 @@ func (f *Factory) metricsCopier() {
 								}
 							}
 						})
+					default:
+						f.logger.Debug("skipping non-numeric badger expvar metric", zap.String("key", kv.Key))
 					}
 				}
 			})
@@ -268,6 +270,8 @@ func (f *Factory) registerBadgerExpvarMetrics(metricsFactory metrics.Factory) {
 						f.metrics.badgerMetrics[kv.Key] = g
 					}
 				})
+			default:
+				f.logger.Info("skipping non-numeric badger expvar metric", zap.String("key", kv.Key))
 			}
 		}
 	})
