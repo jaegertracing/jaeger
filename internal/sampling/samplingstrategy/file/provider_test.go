@@ -98,8 +98,8 @@ func TestStrategyStoreWithFile(t *testing.T) {
 	require.ErrorContains(t, err, "failed to read strategies file fileNotFound.json")
 
 	_, err = NewProvider(Options{StrategiesFile: "fixtures/bad_strategies.json", DefaultSamplingProbability: DefaultSamplingProbability}, zap.NewNop())
-	require.EqualError(t, err,
-		"failed to unmarshal strategies: json: cannot unmarshal string into Go value of type file.strategies")
+	require.ErrorContains(t, err,
+		"failed to unmarshal: json: cannot unmarshal string into Go value of type file.strategies")
 
 	// Test default strategy
 	logger, buf := testutils.NewLogger()
