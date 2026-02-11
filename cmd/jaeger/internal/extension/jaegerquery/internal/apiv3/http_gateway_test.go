@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -49,12 +48,10 @@ func setupHTTPGatewayNoServer(
 		QueryService: q,
 		Logger:       zap.NewNop(),
 		Tracer:       nooptrace.NewTracerProvider(),
+		BasePath:     basePath,
 	}
 
-	gw.router = &mux.Router{}
-	if basePath != "" && basePath != "/" {
-		gw.router = gw.router.PathPrefix(basePath).Subrouter()
-	}
+	gw.router = http.NewServeMux()
 	hgw.RegisterRoutes(gw.router)
 	return gw
 }
