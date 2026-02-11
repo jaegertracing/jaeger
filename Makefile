@@ -255,64 +255,12 @@ repro-check:
 
 
 
-# Test with log capture - runs tests once and captures output
-# Fails if tests fail or if tee fails (checks both PIPESTATUS values)
+# Test with log capture
 .PHONY: test-with-log
 test-with-log:
-	@set -o pipefail; \
-	echo "Running tests and capturing logs..."; \
-	$(MAKE) test 2>&1 | tee test.log; \
-	TEST_EXIT_CODE=$${PIPESTATUS[0]}; \
-	TEE_EXIT_CODE=$${PIPESTATUS[1]}; \
-	if [ $$TEST_EXIT_CODE -ne 0 ]; then \
-		echo "❌ Tests failed. See test.log for details."; \
-		exit $$TEST_EXIT_CODE; \
-	fi; \
-	if [ $$TEE_EXIT_CODE -ne 0 ]; then \
-		echo "❌ Log capture failed (tee exited with $$TEE_EXIT_CODE). Test results may not be fully recorded."; \
-		exit $$TEE_EXIT_CODE; \
-	fi; \
-	echo "✅ Tests passed."
+	@set -o pipefail; $(MAKE) test 2>&1 | tee .test.log
 
 # Verify PR with proof for AI policy compliance
-# This target runs lint and tests, uploads logs to a Gist, and adds trailers to the commit.
-# Required for new contributors to prove tests were actually run locally.
-#
-# Prerequisites:
-#   - GitHub CLI (gh) installed and authenticated: https://cli.github.com/
-#   - At least one commit on your branch
 .PHONY: verify-with-proof
 verify-with-proof: lint test-with-log
-	@# Check that gh CLI is available
-	@if ! command -v gh >/dev/null 2>&1; then \
-		echo "❌ GitHub CLI (gh) not found. Install from: https://cli.github.com/"; \
-		exit 1; \
-	fi
-	@# Check that there's a commit to amend
-	@if ! git rev-parse --verify HEAD >/dev/null 2>&1; then \
-		echo "❌ No commit to amend. Please commit your changes first, then run 'make verify-with-proof'."; \
-		exit 1; \
-	fi
-	@echo "✅ Lint and tests passed. Uploading proof to Gist..."
-	@# Use tree SHA - it represents the code content and doesn't change when amending commit message
-	@set -euo pipefail; TREE_SHA=$$(git rev-parse HEAD^{tree}); \
-	echo "Tree SHA: $$TREE_SHA" > test.log.tmp; \
-	echo "---" >> test.log.tmp; \
-	cat test.log >> test.log.tmp; \
-	mv test.log.tmp test.log; \
-	GIST_URL=$$(gh gist create test.log -d "Test logs for Jaeger tree $$TREE_SHA"); \
-	if [ -z "$$GIST_URL" ]; then \
-		echo "❌ Failed to create Gist. Make sure 'gh' CLI is authenticated."; \
-		echo "   test.log kept for manual inspection."; \
-		exit 1; \
-	fi; \
-	NAME=$$(git config user.name); \
-	EMAIL=$$(git config user.email); \
-	git commit --amend --no-edit \
-		--trailer "Tested-By: $$NAME <$$EMAIL>" \
-		--trailer "Test-Gist: $$GIST_URL"; \
-	rm -f test.log; \
-	echo "✅ Commit amended with Tested-By and Test-Gist trailers."; \
-	echo "   Gist URL: $$GIST_URL"; \
-	echo ""; \
-	echo "Now run: git push --force-with-lease"
+	@./scripts/verify-with-proof.sh
