@@ -8,13 +8,11 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -40,9 +38,7 @@ type testServer struct {
 }
 
 func withServer(
-	basePath string,
 	mockSamplingResponse *api_v2.SamplingStrategyResponse,
-	withGorilla bool,
 	testFn func(server *testServer),
 ) {
 	metricsFactory := metricstest.NewFactory(0)
@@ -51,22 +47,13 @@ func withServer(
 		SamplingProvider: samplingProvider,
 	}
 	handler := NewHandler(HandlerParams{
-		ConfigManager:          cfgMgr,
-		MetricsFactory:         metricsFactory,
-		BasePath:               basePath,
-		LegacySamplingEndpoint: true,
+		ConfigManager:  cfgMgr,
+		MetricsFactory: metricsFactory,
 	})
 
-	var server *httptest.Server
-	if withGorilla {
-		r := mux.NewRouter()
-		handler.RegisterRoutes(r)
-		server = httptest.NewServer(r)
-	} else {
-		httpMux := http.NewServeMux()
-		handler.RegisterRoutesWithHTTP(httpMux)
-		server = httptest.NewServer(httpMux)
-	}
+	httpMux := http.NewServeMux()
+	handler.RegisterRoutes(httpMux)
+	server := httptest.NewServer(httpMux)
 
 	defer server.Close()
 	testFn(&testServer{
@@ -78,55 +65,8 @@ func withServer(
 }
 
 func TestHTTPHandler(t *testing.T) {
-	testGorillaHTTPHandler(t, "")
-	runHTTPHandlerTest(t, "")
-}
-
-func TestHTTPHandlerWithBasePath(t *testing.T) {
-	testGorillaHTTPHandler(t, "/foo")
-	runHTTPHandlerTest(t, "/foo")
-}
-
-func testGorillaHTTPHandler(t *testing.T, basePath string) {
-	withServer(basePath, rateLimiting(42), true, func(ts *testServer) {
-		tests := []struct {
-			endpoint  string
-			expOutput string
-		}{
-			{
-				endpoint:  "/",
-				expOutput: `{"strategyType":1,"rateLimitingSampling":{"maxTracesPerSecond":42}}`,
-			},
-			{
-				endpoint:  "/sampling",
-				expOutput: `{"strategyType":"RATE_LIMITING","rateLimitingSampling":{"maxTracesPerSecond":42}}`,
-			},
-		}
-		for _, test := range tests {
-			t.Run("endpoint="+test.endpoint, func(t *testing.T) {
-				resp, err := http.Get(ts.server.URL + basePath + test.endpoint + "?service=Y")
-				require.NoError(t, err)
-				assert.Equal(t, http.StatusOK, resp.StatusCode)
-				body, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
-				err = resp.Body.Close()
-				require.NoError(t, err)
-				assert.Equal(t, test.expOutput, string(body))
-				objResp := parseSamplingResponse(t, body)
-				assert.Equal(t, ts.samplingProvider.samplingResponse, objResp)
-			})
-		}
-		// handler must emit metrics
-		ts.metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
-			{Name: "http-server.requests", Tags: map[string]string{"type": "sampling"}, Value: 1},
-			{Name: "http-server.requests", Tags: map[string]string{"type": "sampling-legacy"}, Value: 1},
-		}...)
-	})
-}
-
-func runHTTPHandlerTest(t *testing.T, basePath string) {
-	withServer(basePath, rateLimiting(42), false, func(ts *testServer) {
-		resp, err := http.Get(ts.server.URL + basePath + "/?service=Y")
+	withServer(rateLimiting(42), func(ts *testServer) {
+		resp, err := http.Get(ts.server.URL + "/?service=Y")
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		body, err := io.ReadAll(resp.Body)
@@ -144,8 +84,8 @@ func runHTTPHandlerTest(t *testing.T, basePath string) {
 	})
 }
 
-// TestRegisterRoutesWithHTTP_OTelSDKCompatibility verifies that the response from
-// the RegisterRoutesWithHTTP endpoint can be parsed by the same jsonpb.Unmarshal
+// TestOTelSDKCompatibility verifies that the response from
+// the RegisterRoutes endpoint can be parsed by the same jsonpb.Unmarshal
 // logic used in the OpenTelemetry Jaeger Remote Sampler SDK:
 // https://github.com/open-telemetry/opentelemetry-go-contrib/blob/main/samplers/jaegerremote/sampler_remote.go
 //
@@ -156,7 +96,7 @@ func runHTTPHandlerTest(t *testing.T, basePath string) {
 //
 // Gogo's jsonpb module can parse both string-based and numeric enum formats.
 // Cf. https://github.com/open-telemetry/opentelemetry-go-contrib/issues/3184
-func TestRegisterRoutesWithHTTP_OTelSDKCompatibility(t *testing.T) {
+func TestOTelSDKCompatibility(t *testing.T) {
 	tests := []struct {
 		name     string
 		response *api_v2.SamplingStrategyResponse
@@ -172,7 +112,7 @@ func TestRegisterRoutesWithHTTP_OTelSDKCompatibility(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			withServer("", test.response, false, func(ts *testServer) {
+			withServer(test.response, func(ts *testServer) {
 				resp, err := http.Get(ts.server.URL + "/?service=Y")
 				require.NoError(t, err)
 				assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -240,76 +180,46 @@ func TestHTTPHandlerErrors(t *testing.T) {
 	for _, tc := range testCases {
 		testCase := tc // capture loop var
 		t.Run(testCase.description, func(t *testing.T) {
-			for _, withGorilla := range []bool{true, false} {
-				withServer("", testCase.mockSamplingResponse, withGorilla, func(ts *testServer) {
-					resp, err := http.Get(ts.server.URL + testCase.url)
+			withServer(testCase.mockSamplingResponse, func(ts *testServer) {
+				resp, err := http.Get(ts.server.URL + testCase.url)
+				require.NoError(t, err)
+				defer resp.Body.Close()
+				assert.Equal(t, testCase.statusCode, resp.StatusCode)
+				if testCase.body != "" {
+					body, err := io.ReadAll(resp.Body)
 					require.NoError(t, err)
-					assert.Equal(t, testCase.statusCode, resp.StatusCode)
-					if testCase.body != "" {
-						body, err := io.ReadAll(resp.Body)
-						require.NoError(t, err)
-						assert.Equal(t, testCase.body, string(body))
-					}
+					assert.Equal(t, testCase.body, string(body))
+				}
 
-					if len(testCase.metrics) > 0 {
-						ts.metricsFactory.AssertCounterMetrics(t, testCase.metrics...)
-					}
-				})
-			}
+				if len(testCase.metrics) > 0 {
+					ts.metricsFactory.AssertCounterMetrics(t, testCase.metrics...)
+				}
+			})
 		})
 	}
 
-	t.Run("sampler marshalling error", func(t *testing.T) {
-		// Only Gorilla's "/" uses encodeThriftLegacy, which fails on NaN
-		// because json.Marshal does not support NaN.
-		// The HTTP mux uses encodeProto (jsonpb), which encodes NaN as "NaN" string.
-		withServer("", probabilistic(math.NaN()), true, func(ts *testServer) {
-			resp, err := http.Get(ts.server.URL + "?service=Y")
-			require.NoError(t, err)
-			assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-			body, err := io.ReadAll(resp.Body)
-			require.NoError(t, err)
-			require.NoError(t, resp.Body.Close())
-			assert.Equal(t, "cannot marshall to JSON\n", string(body))
-			ts.metricsFactory.AssertCounterMetrics(t,
-				metricstest.ExpectedMetric{Name: "http-server.errors", Tags: map[string]string{"source": "thrift", "status": "5xx"}, Value: 1})
-		})
-	})
-
 	t.Run("failure to write a response", func(t *testing.T) {
-		for _, withGorilla := range []bool{true, false} {
-			withServer("", probabilistic(0.001), withGorilla, func(ts *testServer) {
-				handler := ts.handler
+		withServer(probabilistic(0.001), func(ts *testServer) {
+			handler := ts.handler
 
-				req := httptest.NewRequest(http.MethodGet, "http://localhost:80/?service=X", http.NoBody)
-				w := &mockWriter{header: make(http.Header)}
-				handler.serveSamplingHTTP(w, req, handler.encodeThriftLegacy)
+			req := httptest.NewRequest(http.MethodGet, "http://localhost:80/?service=X", http.NoBody)
+			w := &mockWriter{header: make(http.Header)}
+			handler.serveSamplingHTTP(w, req, handler.encodeProto)
 
-				ts.metricsFactory.AssertCounterMetrics(t,
-					metricstest.ExpectedMetric{Name: "http-server.errors", Tags: map[string]string{"source": "write", "status": "5xx"}, Value: 1})
-			})
-		}
+			ts.metricsFactory.AssertCounterMetrics(t,
+				metricstest.ExpectedMetric{Name: "http-server.errors", Tags: map[string]string{"source": "write", "status": "5xx"}, Value: 1})
+		})
 	})
 }
 
 func TestEncodeErrors(t *testing.T) {
-	for _, withGorilla := range []bool{true, false} {
-		withServer("", nil, withGorilla, func(server *testServer) {
-			_, err := server.handler.encodeThriftLegacy(&api_v2.SamplingStrategyResponse{
-				StrategyType: -1,
-			})
-			require.ErrorContains(t, err, "ConvertSamplingResponseFromDomain failed")
-			server.metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
-				{Name: "http-server.errors", Tags: map[string]string{"source": "thrift", "status": "5xx"}, Value: 1},
-			}...)
-
-			_, err = server.handler.encodeProto(nil)
-			require.ErrorContains(t, err, "SamplingStrategyResponseToJSON failed")
-			server.metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
-				{Name: "http-server.errors", Tags: map[string]string{"source": "proto", "status": "5xx"}, Value: 1},
-			}...)
-		})
-	}
+	withServer(nil, func(server *testServer) {
+		_, err := server.handler.encodeProto(nil)
+		require.ErrorContains(t, err, "SamplingStrategyResponseToJSON failed")
+		server.metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
+			{Name: "http-server.errors", Tags: map[string]string{"source": "proto", "status": "5xx"}, Value: 1},
+		}...)
+	})
 }
 
 func rateLimiting(rate int32) *api_v2.SamplingStrategyResponse {
