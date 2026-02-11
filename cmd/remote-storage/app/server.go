@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 
 	"go.opentelemetry.io/collector/component"
@@ -125,6 +126,7 @@ func (s *Server) Start(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to listen on gRPC port: %w", err)
 	}
+	s.warnIfInsecureBind()
 	s.telset.Logger.Info("Starting GRPC server", zap.Stringer("addr", s.grpcConn.Addr()))
 	s.stopped.Add(1)
 	go func() {
@@ -136,6 +138,34 @@ func (s *Server) Start(ctx context.Context) error {
 	}()
 
 	return nil
+}
+
+func (s *Server) warnIfInsecureBind() {
+	endpoint := strings.TrimSpace(s.grpcCfg.NetAddr.Endpoint)
+	if endpoint == "" {
+		return
+	}
+
+	host, _, err := net.SplitHostPort(endpoint)
+	if err != nil {
+		return
+	}
+
+	// ":17271" listens on all interfaces.
+	if host == "" {
+		s.telset.Logger.Warn("GRPC endpoint is listening on all interfaces; ensure access is restricted by a network boundary", zap.String("endpoint", endpoint))
+		return
+	}
+
+	// treat "localhost" and loopback IPs as safe defaults.
+	if strings.EqualFold(host, "localhost") {
+		return
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		return
+	}
+
+	s.telset.Logger.Warn("GRPC endpoint is not loopback; ensure access is restricted by a network boundary", zap.String("endpoint", endpoint))
 }
 
 // Close stops http, GRPC servers and closes the port listener.

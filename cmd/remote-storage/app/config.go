@@ -71,7 +71,7 @@ func DefaultConfig() *Config {
 	return &Config{
 		GRPC: configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{
-				Endpoint:  ":17271",
+				Endpoint:  "127.0.0.1:17271",
 				Transport: confignet.TransportTypeTCP,
 			},
 		},
