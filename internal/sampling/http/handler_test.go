@@ -6,7 +6,6 @@ package http
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"io"
 	"math"
@@ -21,9 +20,17 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
-	tsampling092 "github.com/jaegertracing/jaeger/internal/sampling/http/thrift-0.9.2"
-	p2json "github.com/jaegertracing/jaeger/internal/uimodel/converter/v1/json"
 )
+
+// parseSamplingResponse parses a JSON sampling strategy response
+// using the same jsonpb.Unmarshal logic as the OTel Jaeger Remote Sampler SDK.
+// See: https://github.com/open-telemetry/opentelemetry-go-contrib/blob/main/samplers/jaegerremote/sampler_remote.go
+func parseSamplingResponse(t *testing.T, body []byte) *api_v2.SamplingStrategyResponse {
+	t.Helper()
+	strategy := new(api_v2.SamplingStrategyResponse)
+	require.NoError(t, jsonpb.Unmarshal(bytes.NewReader(body), strategy))
+	return strategy
+}
 
 type testServer struct {
 	metricsFactory   *metricstest.Factory
@@ -105,20 +112,8 @@ func testGorillaHTTPHandler(t *testing.T, basePath string) {
 				err = resp.Body.Close()
 				require.NoError(t, err)
 				assert.Equal(t, test.expOutput, string(body))
-				if test.endpoint == "/" {
-					objResp := &tsampling092.SamplingStrategyResponse{}
-					require.NoError(t, json.Unmarshal(body, objResp))
-					assert.EqualValues(t,
-						ts.samplingProvider.samplingResponse.GetStrategyType(),
-						objResp.GetStrategyType())
-					assert.EqualValues(t,
-						ts.samplingProvider.samplingResponse.GetRateLimitingSampling().GetMaxTracesPerSecond(),
-						objResp.GetRateLimitingSampling().GetMaxTracesPerSecond())
-				} else {
-					objResp, err := p2json.SamplingStrategyResponseFromJSON(body)
-					require.NoError(t, err)
-					assert.Equal(t, ts.samplingProvider.samplingResponse, objResp)
-				}
+				objResp := parseSamplingResponse(t, body)
+				assert.Equal(t, ts.samplingProvider.samplingResponse, objResp)
 			})
 		}
 		// handler must emit metrics
@@ -131,44 +126,21 @@ func testGorillaHTTPHandler(t *testing.T, basePath string) {
 
 func runHTTPHandlerTest(t *testing.T, basePath string) {
 	withServer(basePath, rateLimiting(42), false, func(ts *testServer) {
-		tests := []struct {
-			endpoint  string
-			expOutput string
-		}{
-			{
-				endpoint:  "/",
-				expOutput: `{"strategyType":1,"rateLimitingSampling":{"maxTracesPerSecond":42}}`,
-			},
-		}
-		for _, test := range tests {
-			t.Run("endpoint="+test.endpoint, func(t *testing.T) {
-				resp, err := http.Get(ts.server.URL + basePath + test.endpoint + "?service=Y")
-				require.NoError(t, err)
-				assert.Equal(t, http.StatusOK, resp.StatusCode)
-				body, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
-				err = resp.Body.Close()
-				require.NoError(t, err)
-				assert.Equal(t, test.expOutput, string(body))
-				if test.endpoint == "/" {
-					objResp := &tsampling092.SamplingStrategyResponse{}
-					require.NoError(t, json.Unmarshal(body, objResp))
-					assert.EqualValues(t,
-						ts.samplingProvider.samplingResponse.GetStrategyType(),
-						objResp.GetStrategyType())
-					assert.EqualValues(t,
-						ts.samplingProvider.samplingResponse.GetRateLimitingSampling().GetMaxTracesPerSecond(),
-						objResp.GetRateLimitingSampling().GetMaxTracesPerSecond())
-				} else {
-					objResp, err := p2json.SamplingStrategyResponseFromJSON(body)
-					require.NoError(t, err)
-					assert.Equal(t, ts.samplingProvider.samplingResponse, objResp)
-				}
-			})
-		}
+		resp, err := http.Get(ts.server.URL + basePath + "/?service=Y")
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+		assert.Equal(t,
+			`{"strategyType":"RATE_LIMITING","rateLimitingSampling":{"maxTracesPerSecond":42}}`,
+			string(body))
+		objResp := parseSamplingResponse(t, body)
+		assert.Equal(t, ts.samplingProvider.samplingResponse, objResp)
 
 		// handler must emit metrics
-		ts.metricsFactory.AssertCounterMetrics(t, metricstest.ExpectedMetric{Name: "http-server.requests", Tags: map[string]string{"type": "sampling-legacy"}, Value: 1})
+		ts.metricsFactory.AssertCounterMetrics(t,
+			metricstest.ExpectedMetric{Name: "http-server.requests", Tags: map[string]string{"type": "sampling"}, Value: 1})
 	})
 }
 
@@ -210,20 +182,18 @@ func TestRegisterRoutesWithHTTP_OTelSDKCompatibility(t *testing.T) {
 
 				// Parse the response the same way as the OTel Jaeger Remote Sampler SDK.
 				// See: https://github.com/open-telemetry/opentelemetry-go-contrib/blob/main/samplers/jaegerremote/sampler_remote.go
-				strategy := new(api_v2.SamplingStrategyResponse)
-				require.NoError(t, jsonpb.Unmarshal(bytes.NewReader(body), strategy))
-
+				objResp := parseSamplingResponse(t, body)
 				assert.Equal(t,
 					test.response.GetStrategyType(),
-					strategy.GetStrategyType())
+					objResp.GetStrategyType())
 				// even though one of these strategies is nil, the generated code
 				// still allows to call next method on it and return default value.
 				assert.Equal(t,
 					test.response.GetProbabilisticSampling().GetSamplingRate(),
-					strategy.GetProbabilisticSampling().GetSamplingRate())
+					objResp.GetProbabilisticSampling().GetSamplingRate())
 				assert.Equal(t,
 					test.response.GetRateLimitingSampling().GetMaxTracesPerSecond(),
-					strategy.GetRateLimitingSampling().GetMaxTracesPerSecond())
+					objResp.GetRateLimitingSampling().GetMaxTracesPerSecond())
 			})
 		})
 	}
@@ -265,16 +235,6 @@ func TestHTTPHandlerErrors(t *testing.T) {
 				{Name: "http-server.errors", Tags: map[string]string{"source": "collector-proxy", "status": "5xx"}, Value: 1},
 			},
 		},
-		{
-			description:          "sampler marshalling error",
-			mockSamplingResponse: probabilistic(math.NaN()),
-			url:                  "?service=Y",
-			statusCode:           http.StatusInternalServerError,
-			body:                 "cannot marshall to JSON\n",
-			metrics: []metricstest.ExpectedMetric{
-				{Name: "http-server.errors", Tags: map[string]string{"source": "thrift", "status": "5xx"}, Value: 1},
-			},
-		},
 	}
 	for _, tc := range testCases {
 		testCase := tc // capture loop var
@@ -297,6 +257,22 @@ func TestHTTPHandlerErrors(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("sampler marshalling error", func(t *testing.T) {
+		// Only Gorilla's "/" uses encodeThriftLegacy, which fails on NaN
+		// because json.Marshal does not support NaN.
+		// The HTTP mux uses encodeProto (jsonpb), which encodes NaN as "NaN" string.
+		withServer("", probabilistic(math.NaN()), true, func(ts *testServer) {
+			resp, err := http.Get(ts.server.URL + "?service=Y")
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			assert.Equal(t, "cannot marshall to JSON\n", string(body))
+			ts.metricsFactory.AssertCounterMetrics(t,
+				metricstest.ExpectedMetric{Name: "http-server.errors", Tags: map[string]string{"source": "thrift", "status": "5xx"}, Value: 1})
+		})
+	})
 
 	t.Run("failure to write a response", func(t *testing.T) {
 		for _, withGorilla := range []bool{true, false} {

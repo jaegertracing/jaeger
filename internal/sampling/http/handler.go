@@ -101,7 +101,7 @@ func (h *Handler) RegisterRoutesWithHTTP(router *http.ServeMux) {
 	router.HandleFunc(
 		prefix+"/",
 		func(w http.ResponseWriter, r *http.Request) {
-			h.serveSamplingHTTP(w, r, h.encodeThriftLegacy)
+			h.serveSamplingHTTP(w, r, h.encodeProto)
 		},
 	)
 }
