@@ -187,7 +187,7 @@ func initRouter(
 	if queryOpts.BasePath != "" && queryOpts.BasePath != "/" {
 		apiNotFoundPattern = queryOpts.BasePath + apiNotFoundPattern
 	}
-	r.HandleFunc(apiNotFoundPattern, func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc(apiNotFoundPattern, func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "404 page not found", http.StatusNotFound)
 	})
 

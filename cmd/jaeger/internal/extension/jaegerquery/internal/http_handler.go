@@ -590,14 +590,6 @@ func (aH *APIHandler) writeJSON(w http.ResponseWriter, r *http.Request, response
 	}
 }
 
-func spanNameHandler(spanName string, handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		span := trace.SpanFromContext(r.Context())
-		span.SetName(spanName)
-		handler.ServeHTTP(w, r)
-	})
-}
-
 func (aH *APIHandler) getQualityMetrics(w http.ResponseWriter, r *http.Request) {
 	data := qualitymetrics.GetSampleData()
 	aH.writeJSON(w, r, &data)
