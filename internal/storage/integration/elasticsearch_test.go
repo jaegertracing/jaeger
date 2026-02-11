@@ -232,11 +232,11 @@ func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string
 		if prefix != "" {
 			prefixWithSeparator += "-"
 		}
-		_, err := s.v8Client.Indices.DeleteIndexTemplate(prefixWithSeparator + spanTemplateName)
+		_, err := s.v8Client.Indices.DeleteIndexTemplate([]string{prefixWithSeparator + spanTemplateName})
 		require.NoError(t, err)
-		_, err = s.v8Client.Indices.DeleteIndexTemplate(prefixWithSeparator + serviceTemplateName)
+		_, err = s.v8Client.Indices.DeleteIndexTemplate([]string{prefixWithSeparator + serviceTemplateName})
 		require.NoError(t, err)
-		_, err = s.v8Client.Indices.DeleteIndexTemplate(prefixWithSeparator + dependenciesTemplateName)
+		_, err = s.v8Client.Indices.DeleteIndexTemplate([]string{prefixWithSeparator + dependenciesTemplateName})
 		require.NoError(t, err)
 	} else {
 		_, err := s.client.IndexDeleteTemplate("*").Do(context.Background())
