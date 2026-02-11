@@ -51,10 +51,9 @@ func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSi
 					if maxSize > 0 && spanCount > maxSize {
 						currentTrace = ptrace.NewTraces()
 						spanCount = 0
-						mergeTracesWithLimit(currentTrace, trace, maxSize, &spanCount)
 						copySpansUpToLimit(currentTrace, trace, maxSize)
 						spanCount = maxSize
-						markTraceTruncated(currentTrace)
+						markTraceTruncated(currentTrace, maxSize)
 					}
 				}
 			}
