@@ -309,15 +309,7 @@ func (h *HTTPGateway) getDependencies(w http.ResponseWriter, r *http.Request) {
 	lookbackStr := q.Get(paramLookback)
 
 	if endTimeStr == "" || lookbackStr == "" {
-		var err error
-		switch {
-		case endTimeStr == "" && lookbackStr == "":
-			err = fmt.Errorf("%s and %s are required", paramEndTime, paramLookback)
-		case endTimeStr == "":
-			err = fmt.Errorf("%s is required", paramEndTime)
-		default: // lookbackStr == ""
-			err = fmt.Errorf("%s is required", paramLookback)
-		}
+		err := fmt.Errorf("%s and %s are required", paramEndTime, paramLookback)
 		h.tryHandleError(w, err, http.StatusBadRequest)
 		return
 	}
