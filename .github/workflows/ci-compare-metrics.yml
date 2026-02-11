@@ -111,7 +111,7 @@ jobs:
 
       - name: Upload metrics comparison report as artifact
         if: success() && steps.download-artifacts.outputs.pr_number
-        uses: actions/upload-artifact@ea165844305e4b11d771d9cf5d8d1b1a5d991f5a # v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: metrics-comparison-report
           path: ./.metrics/combined_summary.md
