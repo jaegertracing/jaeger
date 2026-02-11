@@ -9,7 +9,7 @@ require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.43.0
 	github.com/apache/cassandra-gocql-driver/v2 v2.0.0
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
-	github.com/dgraph-io/badger/v4 v4.9.0
+	github.com/dgraph-io/badger/v4 v4.9.1
 	github.com/elastic/go-elasticsearch/v9 v9.2.1
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-logr/zapr v1.3.0
