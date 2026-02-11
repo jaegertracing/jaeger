@@ -183,6 +183,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 			withServer(testCase.mockSamplingResponse, func(ts *testServer) {
 				resp, err := http.Get(ts.server.URL + testCase.url)
 				require.NoError(t, err)
+				defer resp.Body.Close()
 				assert.Equal(t, testCase.statusCode, resp.StatusCode)
 				if testCase.body != "" {
 					body, err := io.ReadAll(resp.Body)
