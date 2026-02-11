@@ -17,6 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
 
 // CompareTraceSlices compares two trace slices
@@ -25,9 +27,8 @@ func CompareTraceSlices(t *testing.T, expected []ptrace.Traces, actual []ptrace.
 	sortTracesByTraceID(expected)
 	sortTracesByTraceID(actual)
 	for i, trace := range actual {
-		sortTrace(trace)
-		sortTrace(expected[i])
-		dedupeSpans(trace)
+		makeTraceReadyForComparison(trace)
+		makeTraceReadyForComparison(expected[i])
 		if err := ptracetest.CompareTraces(expected[i], trace); err != nil {
 			t.Logf("Actual trace and expected traces are not equal at index %d: %v", i, err)
 			t.Log(getDiff(t, expected[i], trace))
@@ -38,14 +39,19 @@ func CompareTraceSlices(t *testing.T, expected []ptrace.Traces, actual []ptrace.
 
 // CompareTraces compares two traces
 func CompareTraces(t *testing.T, expected ptrace.Traces, actual ptrace.Traces) {
-	sortTrace(actual)
-	sortTrace(expected)
-	dedupeSpans(actual)
+	makeTraceReadyForComparison(expected)
+	makeTraceReadyForComparison(actual)
 	if err := ptracetest.CompareTraces(expected, actual); err != nil {
 		t.Logf("Actual trace and expected traces are not equal: %v", err)
 		t.Log(getDiff(t, expected, actual))
 		t.Fail()
 	}
+}
+
+func makeTraceReadyForComparison(td ptrace.Traces) {
+	normalizeTrace(td)
+	sortTrace(td)
+	dedupeSpans(td)
 }
 
 // spans may contain spans with the same SpanID. Remove duplicates
@@ -207,6 +213,29 @@ func sortAttributes(attr pcommon.Map) {
 		keyVal[k].CopyTo(val)
 	}
 	newMap.CopyTo(attr)
+}
+
+// normalizeTrace assigns one resource span to one span. The fixtures
+// can have multiple spans under one resource/scope span but some
+// backends normalize traces for reducing complexity
+// (elasticsearch is one of the examples). The writer can
+// write traces without any normalization but reader will always
+// return normalized traces. Therefore, for comparing two spans
+// we need to normalize the expected fixtures.
+func normalizeTrace(td ptrace.Traces) {
+	normalizedResourceSpans := ptrace.NewResourceSpansSlice()
+	normalizedResourceSpans.EnsureCapacity(td.SpanCount())
+	for pos, span := range jptrace.SpanIter(td) {
+		resource := pos.Resource.Resource()
+		scope := pos.Scope.Scope()
+		normalizedResourceSpan := normalizedResourceSpans.AppendEmpty()
+		resource.CopyTo(normalizedResourceSpan.Resource())
+		normalizedScopeSpan := normalizedResourceSpan.ScopeSpans().AppendEmpty()
+		scope.CopyTo(normalizedScopeSpan.Scope())
+		normalizedSpan := normalizedScopeSpan.Spans().AppendEmpty()
+		span.CopyTo(normalizedSpan)
+	}
+	normalizedResourceSpans.CopyTo(td.ResourceSpans())
 }
 
 func getDiff(t *testing.T, expected ptrace.Traces, actual ptrace.Traces) string {

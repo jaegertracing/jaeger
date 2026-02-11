@@ -468,7 +468,6 @@ func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
 	}
 	newTrace := ptrace.NewTraces()
 	newResourceSpan.CopyTo(newTrace.ResourceSpans().AppendEmpty())
-	newTrace = normalizeTracePerStorage(newTrace)
 	s.writeTrace(t, newTrace)
 	return newTrace
 }
@@ -481,48 +480,7 @@ func (*StorageIntegration) getTraceFixture(t *testing.T, fixture string) ptrace.
 func getTraceFixtureExact(t *testing.T, fileName string) ptrace.Traces {
 	var trace model.Trace
 	loadAndParseJSONPB(t, fileName, &trace)
-	traces := v1adapter.V1TraceToOtelTrace(&trace)
-	return normalizeTracePerStorage(traces)
-}
-
-// normalizeTracePerStorage holds the responsibility to identify the storage
-// type and normalize traces for them. Take an example that OTEL sent a trace
-// with the spec: [ResourceSpan1:[ScopeSpan1:[Span1,Span2]]], now
-// some backends like elasticsearch, opensearch, clickhouse stores them
-// in the form: [ResourceSpan1:[ScopeSpan1:[Span1]],ResourceSpan1:[ScopeSpan1:[Span2]]].
-// The trace will be returned in this same form. Therefore, the expected fixtures
-// are needed to be normalized in this form for comparing. Note that some backends still
-// use v1adapter inside them and they send the traces as sent by OTEL. These type of
-// storage backends are excluded here.
-func normalizeTracePerStorage(traces ptrace.Traces) ptrace.Traces {
-	storage := os.Getenv("STORAGE")
-	if storage == "elasticsearch" || storage == "opensearch" || storage == "clickhouse" || storage == "kafka" {
-		return normalizedTraces(traces)
-	}
-	return traces
-}
-
-// normalizedTraces assigns one resource span to one span. The fixtures
-// can have multiple spans under one resource/scope span but some
-// backends normalize traces for reducing complexity
-// (elasticsearch is one of the examples). The writer can
-// write traces without any normalization but reader will always
-// return normalized traces. Therefore, for comparing two spans
-// we need to normalize the expected fixtures.
-func normalizedTraces(td ptrace.Traces) ptrace.Traces {
-	newTraces := ptrace.NewTraces()
-	newTraces.ResourceSpans().EnsureCapacity(td.SpanCount())
-	for pos, span := range jptrace.SpanIter(td) {
-		resource := pos.Resource.Resource()
-		scope := pos.Scope.Scope()
-		normalizedResourceSpan := newTraces.ResourceSpans().AppendEmpty()
-		resource.CopyTo(normalizedResourceSpan.Resource())
-		normalizedScopeSpan := normalizedResourceSpan.ScopeSpans().AppendEmpty()
-		scope.CopyTo(normalizedScopeSpan.Scope())
-		normalizedSpan := normalizedScopeSpan.Spans().AppendEmpty()
-		span.CopyTo(normalizedSpan)
-	}
-	return newTraces
+	return v1adapter.V1TraceToOtelTrace(&trace)
 }
 
 func loadAndParseJSONPB(t *testing.T, path string, object proto.Message) {
