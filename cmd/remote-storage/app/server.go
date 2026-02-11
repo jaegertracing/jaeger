@@ -153,7 +153,7 @@ func (s *Server) warnIfInsecureBind() {
 
 	// ":17271" listens on all interfaces.
 	if host == "" {
-		s.telset.Logger.Warn("GRPC endpoint is listening on all interfaces; ensure access is restricted by a network boundary", zap.String("endpoint", endpoint))
+		s.telset.Logger.Info("GRPC endpoint is listening on all interfaces (common in containers); ensure access is restricted by a network boundary", zap.String("endpoint", endpoint))
 		return
 	}
 
@@ -165,7 +165,7 @@ func (s *Server) warnIfInsecureBind() {
 		return
 	}
 
-	s.telset.Logger.Warn("GRPC endpoint is not loopback; ensure access is restricted by a network boundary", zap.String("endpoint", endpoint))
+	s.telset.Logger.Info("GRPC endpoint is not loopback; ensure access is restricted by a network boundary", zap.String("endpoint", endpoint))
 }
 
 // Close stops http, GRPC servers and closes the port listener.
