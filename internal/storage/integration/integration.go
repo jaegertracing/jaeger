@@ -234,7 +234,7 @@ func (s *StorageIntegration) helperTestGetTrace(
 	expected := s.writeLargeTraceWithDuplicateSpanIds(t, traceSize, duplicateCount)
 	expectedTraceID := expected.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 
-	var actual ptrace.Traces
+	actual := ptrace.NewTraces()
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
 		traces, err := jiter.CollectWithErrors(jptrace.AggregateTraces(iterTraces))

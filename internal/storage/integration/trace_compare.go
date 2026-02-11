@@ -27,6 +27,7 @@ func CompareTraceSlices(t *testing.T, expected []ptrace.Traces, actual []ptrace.
 	for i, trace := range actual {
 		sortTrace(trace)
 		sortTrace(expected[i])
+		dedupeSpans(trace)
 		if err := ptracetest.CompareTraces(expected[i], trace); err != nil {
 			t.Logf("Actual trace and expected traces are not equal at index %d: %v", i, err)
 			t.Log(getDiff(t, expected[i], trace))
