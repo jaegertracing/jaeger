@@ -1,4 +1,7 @@
 #!/bin/bash
+# Copyright (c) 2025 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # Verify PR with proof for AI policy compliance.
 # Uploads test logs to a Gist and adds trailers to the commit.
 
