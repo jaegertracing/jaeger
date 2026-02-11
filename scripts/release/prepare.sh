@@ -51,11 +51,11 @@ verify_on_main_branch() {
 # find by checking URL patterns
 fetch_from_official_remote() {
     local official_remote
-    
+
     if ! official_remote=$(bash scripts/utils/find-official-remote.sh); then
         exit 1
     fi
-    
+
     echo "Fetching from official repo: $official_remote"
     git fetch "$official_remote"
 }
@@ -63,7 +63,7 @@ fetch_from_official_remote() {
 # Create a new branch
 create_release_branch() {
     local version=$1
-    local branch_name    
+    local branch_name
     branch_name="prepare-release-v${version}-$(date +%s)"
 
     git checkout -b "${branch_name}"
@@ -74,7 +74,7 @@ create_release_branch() {
 update_ui_submodule() {
     local version=$1
     local ui_version="v${version}"
-    
+
     echo "Updating UI submodule..."
     make init-submodules
     # Verify if the directory exists and is not empty
@@ -82,7 +82,7 @@ update_ui_submodule() {
         echo "Error: jaeger-ui directory does not exist or is empty"
         exit 1
     fi
-    
+
     pushd jaeger-ui > /dev/null
     git fetch origin
     if git rev-parse "${ui_version}" >/dev/null 2>&1; then
@@ -91,7 +91,7 @@ update_ui_submodule() {
     else
         # UI version not found
         echo "Warning: UI version ${ui_version} not found"
-        read -r -p "Enter UI version to use (or Enter to skip): " ui_input
+        read -r -p "Enter UI version to use, e.g. ${ui_version} (or Enter to skip): " ui_input
         if [ -n "$ui_input" ]; then
             git checkout "$ui_input"
         else
@@ -99,7 +99,7 @@ update_ui_submodule() {
             git checkout main && git pull
         fi
     fi
-    
+
     popd > /dev/null
     git add jaeger-ui
 }
@@ -109,11 +109,11 @@ update_changelog() {
     local version=$1
     local release_date
     local changelog_content
-    
+
     echo "Updating CHANGELOG.md..."
     release_date=$(date +%Y-%m-%d)
     changelog_content=$(make -s changelog)
-    
+
     python3 scripts/release/update-changelog.py "$version" --date "$release_date" --content "$changelog_content" --ui-changelog jaeger-ui/CHANGELOG.md
     git add CHANGELOG.md
 }
@@ -127,7 +127,7 @@ rotate_release_managers() {
 
 commit_changes() {
     local version=$1
-    
+
     git commit -s -m "Prepare release v${version}
 
 - Updated CHANGELOG.md with release notes
@@ -142,7 +142,7 @@ push_branch() {
 
 create_pull_request() {
     local version=$1
-    
+
     local pr_body="This PR prepares the release for v${version}.
 
 ## Changes
@@ -151,7 +151,7 @@ create_pull_request() {
 - [x] Rotated release managers table in RELEASE.md
 
 After this PR is merged, continue with the release process as outlined in the release issue."
-    
+
     # Create the PR
     gh pr create \
         --title "Prepare release v${version}" \
@@ -166,25 +166,25 @@ main() {
         echo "Example: $0 2.14.0"
         exit 1
     fi
-    
+
     local version="${1#v}" # Remove 'v' prefix if present
-    
+
     echo "Preparing release for v${version}"
-    
+
     check_prerequisites
     verify_on_main_branch
     fetch_from_official_remote
-    
+
     local branch_name
     branch_name=$(create_release_branch "$version")
-    
+
     update_ui_submodule "$version"
     update_changelog "$version"
     rotate_release_managers
     commit_changes "$version"
     push_branch "$branch_name"
     create_pull_request "$version"
-    
+
     echo "Done. Review and merge the PR, then follow the instructions in the PR description."
 }
 

@@ -173,11 +173,13 @@ func TestStartHTTP(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
+	// The expected response uses ProtoJSON encoding of enums (strings, not numbers).
+	// Cf. https://github.com/jaegertracing/jaeger/pull/8014
 	expectedResponse := `{
         "probabilisticSampling": {
             "samplingRate": 0.8
         },
-        "strategyType": 0
+        "strategyType": "PROBABILISTIC"
     }`
 	require.JSONEq(t, expectedResponse, string(body))
 

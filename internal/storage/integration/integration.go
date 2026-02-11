@@ -79,7 +79,7 @@ type Query struct {
 	NumTraces     int
 }
 
-func (q *Query) ToTraceQueryParams() *tracestore.TraceQueryParams {
+func (q *Query) ToTraceQueryParams(t *testing.T) *tracestore.TraceQueryParams {
 	attributes := pcommon.NewMap()
 	for k, v := range q.Tags {
 		switch v := v.(type) {
@@ -91,6 +91,8 @@ func (q *Query) ToTraceQueryParams() *tracestore.TraceQueryParams {
 			attributes.PutDouble(k, v)
 		case bool:
 			attributes.PutBool(k, v)
+		default:
+			t.Fatalf("Unsupported tag value type: %T", v)
 		}
 	}
 
@@ -379,7 +381,7 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 		t.Run(queryTestCase.Caption, func(t *testing.T) {
 			s.skipIfNeeded(t)
 			expected := expectedTracesPerTestCase[i]
-			actual := s.findTracesByQuery(t, queryTestCase.Query.ToTraceQueryParams(), expected)
+			actual := s.findTracesByQuery(t, queryTestCase.Query.ToTraceQueryParams(t), expected)
 			CompareSliceOfTraces(t, expected, actual)
 		})
 	}
