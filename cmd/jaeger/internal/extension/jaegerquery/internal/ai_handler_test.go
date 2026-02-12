@@ -127,7 +127,7 @@ func TestAnalyzeTraceAISuccess(t *testing.T) {
 		},
 	)
 
-	body := `{"trace_id": "abc123def456", "question": "Why is this trace slow?"}`
+	body := `{"traceID": "abc123def456", "question": "Why is this trace slow?"}`
 	resp, err := http.Post(ts.URL+"/api/ai/analyze", "application/json", bytes.NewBufferString(body))
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -142,7 +142,7 @@ func TestAnalyzeTraceAISuccess(t *testing.T) {
 	// Data comes back as map[string]any from JSON decoding.
 	data, ok := result.Data.(map[string]any)
 	require.True(t, ok, "expected Data to be a map")
-	assert.Equal(t, "abc123def456", data["trace_id"])
+	assert.Equal(t, "abc123def456", data["traceID"])
 	assert.Contains(t, data["answer"], "database query")
 }
 
@@ -170,7 +170,7 @@ func TestAnalyzeTraceAIMissingTraceID(t *testing.T) {
 func TestAnalyzeTraceAIMissingQuestion(t *testing.T) {
 	ts := initializeAITestServer(t, &StubMCPClient{}, &StubLLMClient{})
 
-	body := `{"trace_id": "abc123"}`
+	body := `{"traceID": "abc123"}`
 	resp, err := http.Post(ts.URL+"/api/ai/analyze", "application/json", bytes.NewBufferString(body))
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -184,7 +184,7 @@ func TestAnalyzeTraceAIInternalError(t *testing.T) {
 		&mockLLMClient{response: "unused"},
 	)
 
-	body := `{"trace_id": "abc123", "question": "What happened?"}`
+	body := `{"traceID": "abc123", "question": "What happened?"}`
 	resp, err := http.Post(ts.URL+"/api/ai/analyze", "application/json", bytes.NewBufferString(body))
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -199,7 +199,7 @@ func TestAnalyzeTraceAINoAIService(t *testing.T) {
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
 
-	body := `{"trace_id": "abc123", "question": "Why slow?"}`
+	body := `{"traceID": "abc123", "question": "Why slow?"}`
 	resp, err := http.Post(ts.URL+"/api/ai/analyze", "application/json", bytes.NewBufferString(body))
 	require.NoError(t, err)
 	defer resp.Body.Close()

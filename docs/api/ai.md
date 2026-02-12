@@ -37,21 +37,21 @@ Analyze a trace using AI. Accepts a trace ID and a natural-language question.
 #### Request
 ```json
 {
-  "trace_id": "abc123def456789",
+  "traceID": "abc123def456789",
   "question": "Why is this trace slow?"
 }
 ```
 
 | Field      | Type   | Required | Description                              |
 |------------|--------|----------|------------------------------------------|
-| `trace_id` | string | Yes      | The trace ID to analyze.                 |
+| `traceID` | string | Yes      | The trace ID to analyze.                 |
 | `question` | string | Yes      | A natural-language question about the trace. |
 
 #### Response (Success)
 ```json
 {
   "data": {
-    "trace_id": "abc123def456789",
+    "traceID": "abc123def456789",
     "answer": "The payment-service is the primary bottleneck, consuming 120ms of the 177ms critical path."
   },
   "total": 1
@@ -64,7 +64,7 @@ Analyze a trace using AI. Accepts a trace ID and a natural-language question.
   "errors": [
     {
       "code": 400,
-      "msg": "trace_id is required"
+      "msg": "traceID is required"
     }
   ]
 }
@@ -73,7 +73,7 @@ Analyze a trace using AI. Accepts a trace ID and a natural-language question.
 | HTTP Status | When                                          |
 |-------------|-----------------------------------------------|
 | 200         | Analysis completed successfully.               |
-| 400         | Missing or invalid `trace_id` or `question`.   |
+| 400         | Missing or invalid `traceID` or `question`.   |
 | 501         | AI service is not configured.                  |
 | 500         | MCP server or LLM unavailable / internal error.|
 
