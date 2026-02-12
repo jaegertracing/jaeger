@@ -9,55 +9,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
 
 func TestClockSkewAdjuster(t *testing.T) {
-	type testSpan struct {
-		id, parent          [8]byte
-		startTime, duration int
-		events              []int // timestamps for logs
-		host                string
-		adjusted            int   // start time after adjustment
-		adjustedEvents      []int // adjusted log timestamps
-	}
-
-	toTime := func(t int) time.Time {
-		return time.Unix(0, (time.Duration(t) * time.Millisecond).Nanoseconds())
-	}
-
-	// helper function that constructs a trace from a list of span prototypes
-	makeTrace := func(spanPrototypes []testSpan) ptrace.Traces {
-		trace := ptrace.NewTraces()
-		for _, spanProto := range spanPrototypes {
-			traceID := pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 1})
-			span := ptrace.NewSpan()
-			span.SetTraceID(traceID)
-			span.SetSpanID(spanProto.id)
-			span.SetParentSpanID(spanProto.parent)
-			span.SetStartTimestamp(pcommon.NewTimestampFromTime(toTime(spanProto.startTime)))
-			span.SetEndTimestamp(pcommon.NewTimestampFromTime(toTime(spanProto.startTime + spanProto.duration)))
-
-			events := ptrace.NewSpanEventSlice()
-			for _, log := range spanProto.events {
-				event := events.AppendEmpty()
-				event.SetTimestamp(pcommon.NewTimestampFromTime(toTime(log)))
-				event.Attributes().PutStr("event", "some event")
-			}
-			events.CopyTo(span.Events())
-
-			resource := ptrace.NewResourceSpans()
-			resource.Resource().Attributes().PutEmptySlice("host.ip").AppendEmpty().SetStr(spanProto.host)
-
-			span.CopyTo(resource.ScopeSpans().AppendEmpty().Spans().AppendEmpty())
-			resource.CopyTo(trace.ResourceSpans().AppendEmpty())
-		}
-		return trace
-	}
-
 	testCases := []struct {
 		description string
 		trace       []testSpan
