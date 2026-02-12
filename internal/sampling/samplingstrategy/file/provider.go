@@ -18,6 +18,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
+	"github.com/jaegertracing/jaeger/internal/jio"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
 )
 
@@ -184,18 +185,12 @@ func (h *samplingProvider) updateSamplingStrategy(dataBytes []byte) error {
 	return nil
 }
 
-// TODO good candidate for a global util function
 func loadStrategies(loadFn strategyLoader) (*strategies, error) {
-	strategyBytes, err := loadFn()
+	s, err := jio.JSONLoad[*strategies](loadFn)
 	if err != nil {
 		return nil, err
 	}
-
-	var strategies *strategies
-	if err := json.Unmarshal(strategyBytes, &strategies); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal strategies: %w", err)
-	}
-	return strategies, nil
+	return *s, nil
 }
 
 func (h *samplingProvider) parseStrategies(strategies *strategies) {
