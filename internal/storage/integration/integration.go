@@ -120,10 +120,10 @@ func (q *Query) ToTraceQueryParams(t *testing.T) *tracestore.TraceQueryParams {
 // Queries are not necessarily numbered, but since each query requires a service name,
 // the service name is formatted "query##-service".
 type QueryFixtures struct {
-	Caption          string
-	Query            *Query
-	ExpectedFixtures []string
-	IsOtelTrace      bool
+	Caption             string
+	Query               *Query
+	ExpectedFixtures    []string
+	AllFixturesUpgraded bool
 }
 
 func (s *StorageIntegration) cleanUp(t *testing.T) {
@@ -376,7 +376,7 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 		for _, traceFixture := range queryTestCase.ExpectedFixtures {
 			trace, ok := allTraceFixtures[traceFixture]
 			if !ok {
-				trace = s.getTraceFixture(t, traceFixture, queryTestCase.IsOtelTrace)
+				trace = s.getTraceFixture(t, traceFixture, queryTestCase.AllFixturesUpgraded)
 				s.writeTrace(t, trace)
 				allTraceFixtures[traceFixture] = trace
 			}
