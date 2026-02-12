@@ -40,6 +40,7 @@ func CorrectMaxSize(maxTraceSize string) Adjuster {
 			// TODO: not sure if this is the right approach to handle big traces
 			// should we drop the trace instead of adding warnings to all spans?
 			// or should we add a warning to the root span only?
+			// or should i drop some spans from the trace to fit the max size?
 			resources := traces.ResourceSpans()
 			for i := range resources.Len() {
 				resource := resources.At(i)
