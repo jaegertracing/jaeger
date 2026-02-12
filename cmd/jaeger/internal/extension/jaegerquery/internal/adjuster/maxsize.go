@@ -30,7 +30,7 @@ func CorrectMaxSize(maxTraceSize string) Adjuster {
 		}
 
 		// no limit
-		if maxTraceSizeBytes == 0 {
+		if maxTraceSizeBytes <= 0 {
 			return
 		}
 
