@@ -15,12 +15,13 @@ func TestStandardAdjusters(t *testing.T) {
 	maxTraceSize := "512Mi"
 	adjusters := StandardAdjusters(maxTraceSize, maxClockSkewAdjust)
 
-	assert.Len(t, adjusters, 7, "Expected 7 adjusters")
+	assert.Len(t, adjusters, 8, "Expected 8 adjusters")
 	assert.IsType(t, DeduplicateClientServerSpanIDs(), adjusters[0])
 	assert.IsType(t, SortCollections(), adjusters[1])
 	assert.IsType(t, DeduplicateSpans(), adjusters[2])
-	assert.IsType(t, CorrectClockSkew(maxClockSkewAdjust), adjusters[3])
-	assert.IsType(t, NormalizeIPAttributes(), adjusters[4])
-	assert.IsType(t, MoveLibraryAttributes(), adjusters[5])
-	assert.IsType(t, RemoveEmptySpanLinks(), adjusters[6])
+	assert.IsType(t, CorrectMaxSize(maxTraceSize), adjusters[3])
+	assert.IsType(t, CorrectClockSkew(maxClockSkewAdjust), adjusters[4])
+	assert.IsType(t, NormalizeIPAttributes(), adjusters[5])
+	assert.IsType(t, MoveLibraryAttributes(), adjusters[6])
+	assert.IsType(t, RemoveEmptySpanLinks(), adjusters[7])
 }
