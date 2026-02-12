@@ -440,21 +440,31 @@ func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer,
 
 // Benchmarks intended for profiling
 
-func writeSpans(sw spanstore.Writer, tags []model.KeyValue, services, operations []string, traces, spans int, high uint64, tid time.Time) {
-	for i := 0; i < traces; i++ {
-		for j := 0; j < spans; j++ {
+type writeSpansParams struct {
+	tags       []model.KeyValue
+	services   []string
+	operations []string
+	traces     int
+	spans      int
+	high       uint64
+	tid        time.Time
+}
+
+func writeSpans(sw spanstore.Writer, p writeSpansParams) {
+	for i := 0; i < p.traces; i++ {
+		for j := 0; j < p.spans; j++ {
 			s := model.Span{
 				TraceID: model.TraceID{
 					Low:  uint64(i),
-					High: high,
+					High: p.high,
 				},
 				SpanID:        model.SpanID(j),
-				OperationName: operations[j],
+				OperationName: p.operations[j],
 				Process: &model.Process{
-					ServiceName: services[j],
+					ServiceName: p.services[j],
 				},
-				Tags:      tags,
-				StartTime: tid.Add(time.Duration(time.Millisecond)),
+				Tags:      p.tags,
+				StartTime: p.tid.Add(time.Duration(time.Millisecond)),
 				Duration:  time.Duration(time.Millisecond * time.Duration(i+j)),
 			}
 			_ = sw.WriteSpan(context.Background(), &s)
@@ -481,7 +491,15 @@ func BenchmarkWrites(b *testing.B) {
 
 		b.ResetTimer()
 		for a := 0; a < b.N; a++ {
-			writeSpans(sw, tags, services, operations, traces, spans, uint64(0), tid)
+			writeSpans(sw, writeSpansParams{
+				tags:       tags,
+				services:   services,
+				operations: operations,
+				traces:     traces,
+				spans:      spans,
+				high:       uint64(0),
+				tid:        tid,
+			})
 		}
 		b.StopTimer()
 	})
@@ -524,7 +542,15 @@ func makeReadBenchmark(b *testing.B, _ time.Time, params *spanstore.TraceQueryPa
 		tags, services, operations := makeWriteSupports(tagsCount, spans)
 
 		for h := 0; h < tracesTimes; h++ {
-			writeSpans(sw, tags, services, operations, traces, spans, uint64(h), tid)
+			writeSpans(sw, writeSpansParams{
+				tags:       tags,
+				services:   services,
+				operations: operations,
+				traces:     traces,
+				spans:      spans,
+				high:       uint64(h),
+				tid:        tid,
+			})
 		}
 
 		f, err := os.Create(outputFile)
