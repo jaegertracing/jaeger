@@ -1,20 +1,24 @@
+// Copyright (c) 2026 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package adjuster
 
 import (
 	"strconv"
 
 	"github.com/docker/go-units"
-	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
 
 const (
-	warningMaxTraceSize = "trace reached the maxium allowed size of %s bytes; trace size is %s bytes"
+	warningMaxTraceSize = "trace reached the maximum allowed size of %s bytes; trace size is %s bytes"
 )
 
 // CorrectMaxSize returns an Adjuster that validates if a trace is in the allowed max size
 //
-// foo
+// This adjuster calculates the size of the trace and compares it to the specified maximum size.
 //
 // Parameters:
 //   - maxSize: The maximum allowable trace size.

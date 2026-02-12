@@ -10,16 +10,16 @@ import (
 // StandardAdjusters returns a list of adjusters applied by the query service
 // before returning the data to the API clients.
 func StandardAdjusters(
-	maxClockSkewAdjust time.Duration,
 	maxTraceSize string,
+	maxClockSkewAdjust time.Duration,
 ) []Adjuster {
 	return []Adjuster{
 		DeduplicateClientServerSpanIDs(),
 		SortCollections(),
 		// DeduplicateSpans depends on SortCollections running first
 		DeduplicateSpans(),
-		CorrectClockSkew(maxClockSkewAdjust),
 		CorrectMaxSize(maxTraceSize),
+		CorrectClockSkew(maxClockSkewAdjust),
 		NormalizeIPAttributes(),
 		MoveLibraryAttributes(),
 		RemoveEmptySpanLinks(),
