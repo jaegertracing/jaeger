@@ -41,6 +41,8 @@ func (d dateOffsetNormalizer) normalizeTrace(td ptrace.Traces) {
 func (d dateOffsetNormalizer) normalizeTime(t pcommon.Timestamp) pcommon.Timestamp {
 	tm := t.AsTime()
 	offset := -1
+	// Apply a -2 day offset for any timestamp whose UTC date is 2017-01-25.
+	// All other timestamps use the default -1 day offset to preserve existing behavior.
 	yearOrig, monthOrig, dayOrig := tm.UTC().Date()
 	if yearOrig == 2017 && monthOrig == time.January && dayOrig == 25 {
 		offset = -2
