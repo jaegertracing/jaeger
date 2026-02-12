@@ -6,6 +6,7 @@ require (
 	github.com/golangci/golangci-lint/v2 v2.9.0
 	github.com/josephspurrier/goversioninfo v1.5.0
 	github.com/vektra/mockery/v3 v3.6.1
+	golang.org/x/vuln v1.1.4
 	mvdan.cc/gofumpt v0.9.2
 )
 
@@ -223,6 +224,7 @@ require (
 	golang.org/x/mod v0.33.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
+	golang.org/x/telemetry v0.0.0-20260209163413-e7419c687ee4 // indirect
 	golang.org/x/term v0.39.0 // indirect
 	golang.org/x/text v0.33.0 // indirect
 	golang.org/x/tools v0.42.0 // indirect

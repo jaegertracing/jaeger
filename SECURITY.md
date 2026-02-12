@@ -22,8 +22,9 @@ These evaluations vary from dependency to dependencies.
 
 Dependencies are also scheduled for removal if the project has been deprecated or if the project is no longer maintained. Additionally based on license changes we replace dependencies as necessary.
 
-CVEs in dependencies will be patched for all supported versions if the CVE is applicable and is assessed by Snyk to be
-of high or critical severity. Automation generates a new dependabot scan daily and alerts are addressed.
+CVEs in dependencies will be patched for all supported versions if the CVE is applicable and is assessed by our
+dependency scanning automation to be of high or critical severity. Automation generates a new dependabot scan daily
+and alerts are addressed.
 
 ## Reporting a Vulnerability
 
@@ -120,6 +121,17 @@ oF+qZY4uEvqFvYo8
 
 [mailing-list]: https://groups.google.com/forum/#!forum/jaeger-tracing
 [slack-room]: https://cloud-native.slack.com/archives/CGG7NFUJ3
+
+## Automated Security Scanners
+
+We do not accept raw, unanalyzed reports from automated security scanners. Most scanners are generic and produce a high volume of false positives, especially for Go and NPM dependencies.
+
+If you use a security scanner:
+
+1) Only report findings that are actually applicable to Jaeger, with an explanation of why.
+2) Verify Go dependency CVEs with [govulncheck](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck) run against the source code (not a binary). If the vulnerable code path is not reachable from Jaeger, it is not actionable.
+3) Check if we already track it. Jaeger uses Dependabot for automated dependency scanning (see [Dependency Policy](#dependency-policy)). Most dependency CVEs are already tracked.
+4) Use the proper reporting process described in [Reporting a Vulnerability](#reporting-a-vulnerability).
 
 
 ## Security Documentation
