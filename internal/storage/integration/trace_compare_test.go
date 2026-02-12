@@ -7,24 +7,15 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 func TestDedupeSpans(t *testing.T) {
-	trace := &model.Trace{
-		Spans: []*model.Span{
-			{
-				SpanID: 1,
-			},
-			{
-				SpanID: 1,
-			},
-			{
-				SpanID: 2,
-			},
-		},
-	}
+	trace := ptrace.NewTraces()
+	spans := trace.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+	spans.AppendEmpty().SetSpanID([8]byte{1})
+	spans.AppendEmpty().SetSpanID([8]byte{1})
+	spans.AppendEmpty().SetSpanID([8]byte{2})
 	dedupeSpans(trace)
-	assert.Len(t, trace.Spans, 2)
+	assert.Equal(t, 2, trace.SpanCount())
 }

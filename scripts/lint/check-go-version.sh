@@ -22,10 +22,9 @@ done
 # go_latest_version=$(curl -s https://go.dev/dl/?mode=json | jq -r '.[0].version' | awk -F'.' '{gsub("go", ""); print $1"."$2}')
 #
 # UPDATE: we don't use the logic above because it causes CI to fail when new version of Go is released,
-# which may create circular dependencies when other utilities need to be upgraded. Instead use the toolchain
+# which may create circular dependencies when other utilities need to be upgraded. Instead use the go
 # version declared in the main go.mod. Updates to that version will be handled by the bots.
-go_latest_version=$(grep toolchain go.mod | sed 's/^.*go\([0-9]\.[0-9]*\).*/\1/')
-go_previous_version="${go_latest_version%.*}.$((10#${go_latest_version#*.} - 1))"
+go_latest_version=$(grep "^go " go.mod | sed 's/^go \([0-9]\.[0-9]*\).*/\1/')
 
 files_to_update=0
 
@@ -81,10 +80,11 @@ function check() {
     printf "%-50s Go version: %s %s\n" "$file" "$go_version" "$mismatch"
 }
 
-# In the main go.mod file (and linter config) we want Go version N-1.
-# See README.md / Go Version Compatibility Guarantees.
-check go.mod "^go\s\+$version_regex" "$go_previous_version"
-check .golangci.yml "go:\s\+\"$version_regex\"" "$go_previous_version"
+# In the main go.mod file (and linter config) we want the same Go version N.
+# All importable code has been moved to internal packages, so there's no need
+# to maintain backward compatibility with older compilers.
+check go.mod "^go\s\+$version_regex" "$go_latest_version"
+check .golangci.yml "go:\s\+\"$version_regex\"" "$go_latest_version"
 
 # find all other go.mod files in the repository and check for latest Go version
 for file in $(find . -type f -name go.mod | grep -v '^./go.mod'); do
