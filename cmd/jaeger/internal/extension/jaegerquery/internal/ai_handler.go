@@ -12,13 +12,13 @@ import (
 
 // analyzeRequest is the JSON body for POST /api/ai/analyze.
 type analyzeRequest struct {
-	TraceID  string `json:"trace_id"`
+	TraceID  string `json:"traceID"`
 	Question string `json:"question"`
 }
 
 // analyzeResponse is returned inside structuredResponse.Data.
 type analyzeResponse struct {
-	TraceID string `json:"trace_id"`
+	TraceID string `json:"traceID"`
 	Answer  string `json:"answer"`
 }
 
@@ -38,7 +38,7 @@ func (aH *APIHandler) analyzeTraceAI(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.TraceID == "" {
-		aH.handleError(w, errors.New("trace_id is required"), http.StatusBadRequest)
+		aH.handleError(w, errors.New("traceID is required"), http.StatusBadRequest)
 		return
 	}
 
