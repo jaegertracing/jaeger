@@ -17,8 +17,11 @@ import (
 	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/jiter"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	es "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
@@ -250,7 +253,7 @@ func (s *ESStorageIntegration) testArchiveTrace(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 	tID := model.NewTraceID(uint64(11), uint64(22))
-	expected := &model.Trace{
+	expectedV1 := &model.Trace{
 		Spans: []*model.Span{
 			{
 				OperationName: "archive_span",
@@ -262,19 +265,22 @@ func (s *ESStorageIntegration) testArchiveTrace(t *testing.T) {
 			},
 		},
 	}
+	expected := v1adapter.V1TraceToOtelTrace(expectedV1)
+	require.NoError(t, s.ArchiveTraceWriter.WriteTraces(context.Background(), expected))
 
-	require.NoError(t, s.ArchiveTraceWriter.WriteTraces(context.Background(), v1adapter.V1TraceToOtelTrace(expected)))
-
-	var actual *model.Trace
+	var actual ptrace.Traces
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
-		var err error
 		iterTraces := s.ArchiveTraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: v1adapter.FromV1TraceID(tID)})
-		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
+		traces, err := jiter.CollectWithErrors(jptrace.AggregateTraces(iterTraces))
+		if err != nil {
+			t.Logf("Error loading trace: %v", err)
+			return false
+		}
 		if len(traces) == 0 {
 			return false
 		}
 		actual = traces[0]
-		return err == nil && len(actual.Spans) == 1
+		return actual.SpanCount() >= expected.SpanCount()
 	})
 	require.True(t, found)
 	CompareTraces(t, expected, actual)
