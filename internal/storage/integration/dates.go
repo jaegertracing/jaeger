@@ -16,10 +16,10 @@ import (
 // (year, month, day) with a fixed date computed using a day offset
 // from the current UTC date, while preserving the original time.
 // This is required in integration tests because the fixtures have
-// hardcoded start time and other time stamps and we need to make
-// recent to fetch from the reader. The offset is selected
-// as -1 for date 2017-01-26 and -2 for 2017-01-25. These offsets
-// are selected to keep the upgrade from v1 to v2 consistent.
+// hardcoded start time and other timestamps and we need to make them
+// recent to fetch from the reader. Timestamps whose original UTC date
+// is 2017-01-25 use a -2 day offset; all other timestamps use a -1 day
+// offset. These offsets are selected to keep the upgrade from v1 to v2 consistent.
 type dateOffsetNormalizer struct {
 	tm time.Time
 }
