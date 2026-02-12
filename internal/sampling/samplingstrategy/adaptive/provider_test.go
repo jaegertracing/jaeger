@@ -49,7 +49,7 @@ func TestProviderRunUpdateProbabilitiesLoop(t *testing.T) {
 	require.Nil(t, p.strategyResponses)
 	go p.runUpdateProbabilitiesLoop()
 
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		p.mu.RLock()
 		if p.probabilities != nil && p.strategyResponses != nil {
 			p.mu.RUnlock()
@@ -95,7 +95,7 @@ func TestProviderRealisticRunCalculationLoop(t *testing.T) {
 	s := NewProvider(cfg, logger, mockEP, mockStorage)
 	s.Start()
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		strategy, _ := s.GetSamplingStrategy(context.Background(), "svcA")
 		if len(strategy.OperationSampling.PerOperationStrategies) != 0 {
 			break

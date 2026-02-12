@@ -28,10 +28,6 @@ type Config struct {
 	cfg.Indices
 }
 
-func ptr[T any](v T) *T {
-	return &v
-}
-
 // AddFlags adds flags for TLS to the FlagSet.
 func (*Config) AddFlags(flags *flag.FlagSet) {
 	flags.Int(shards, 5, "Number of shards")
@@ -49,11 +45,11 @@ func (c *Config) InitFromViper(v *viper.Viper) {
 	c.Indices.Dependencies.Shards = v.GetInt64(shards)
 	c.Indices.Sampling.Shards = v.GetInt64(shards)
 
-	replicas := v.GetInt64(replicas)
-	c.Indices.Spans.Replicas = ptr(replicas)
-	c.Indices.Services.Replicas = ptr(replicas)
-	c.Indices.Dependencies.Replicas = ptr(replicas)
-	c.Indices.Sampling.Replicas = ptr(replicas)
+	repsPtr := new(v.GetInt64(replicas))
+	c.Indices.Spans.Replicas = repsPtr
+	c.Indices.Services.Replicas = repsPtr
+	c.Indices.Dependencies.Replicas = repsPtr
+	c.Indices.Sampling.Replicas = repsPtr
 
 	c.Indices.Spans.Priority = v.GetInt64(prioritySpanTemplate)
 	c.Indices.Services.Priority = v.GetInt64(priorityServiceTemplate)

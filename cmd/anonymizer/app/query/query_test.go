@@ -119,12 +119,10 @@ func newTestServer(t *testing.T) *testServer {
 
 	var started, exited sync.WaitGroup
 	started.Add(1)
-	exited.Add(1)
-	go func() {
+	exited.Go(func() {
 		started.Done()
 		assert.NoError(t, server.Serve(lis))
-		exited.Done()
-	}()
+	})
 	started.Wait()
 	t.Cleanup(func() {
 		server.Stop()

@@ -229,6 +229,12 @@ func TestFindTracesAttributesMatching(t *testing.T) {
 				return td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Events().AppendEmpty().Attributes()
 			},
 		},
+		{
+			name: "link-attributes",
+			attributes: func(td ptrace.Traces) pcommon.Map {
+				return td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Links().AppendEmpty().Attributes()
+			},
+		},
 	}
 	store, err := NewStore(Configuration{
 		MaxTraces: 10,
