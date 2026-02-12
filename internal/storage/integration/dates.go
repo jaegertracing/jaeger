@@ -1,0 +1,61 @@
+// Copyright (c) 2026 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
+package integration
+
+import (
+	"time"
+
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger/internal/jptrace"
+)
+
+// dateOffsetNormalizer normalizes timestamps by replacing their date
+// (year, month, day) with a fixed date computed using a day offset
+// from the current UTC date, while preserving the original time.
+// This is required in integration tests because the fixtures have
+// hardcoded start time and other time stamps and we need to make
+// recent to fetch from the reader. The offset is selected
+// as -1 for date 2017-01-26 and -2 for 2017-01-25. These offsets
+// are selected to keep the upgrade from v1 to v2 consistent.
+type dateOffsetNormalizer struct {
+	tm time.Time
+}
+
+func newDateOffsetNormalizer(tm time.Time) dateOffsetNormalizer {
+	return dateOffsetNormalizer{tm: tm}
+}
+
+func (d dateOffsetNormalizer) normalizeTrace(td ptrace.Traces) {
+	for _, span := range jptrace.SpanIter(td) {
+		span.SetStartTimestamp(d.normalizeTime(span.StartTimestamp()))
+		span.SetEndTimestamp(d.normalizeTime(span.EndTimestamp()))
+		for _, event := range span.Events().All() {
+			event.SetTimestamp(d.normalizeTime(event.Timestamp()))
+		}
+	}
+}
+
+func (d dateOffsetNormalizer) normalizeTime(t pcommon.Timestamp) pcommon.Timestamp {
+	tm := t.AsTime()
+	offset := -1
+	// This is the int64 of date (with time) 2017-01-25
+	var anotherTime int64 = 1485388591639875000
+	if t.AsTime().UnixNano() == anotherTime {
+		offset = -2
+	}
+	year, month, day := d.tm.UTC().AddDate(0, 0, offset).Date()
+	newTm := time.Date(
+		year,
+		month,
+		day,
+		tm.Hour(),
+		tm.Minute(),
+		tm.Second(),
+		tm.Nanosecond(),
+		tm.Location(),
+	)
+	return pcommon.NewTimestampFromTime(newTm)
+}

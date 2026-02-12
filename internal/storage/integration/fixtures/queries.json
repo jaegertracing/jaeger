@@ -16,7 +16,8 @@
       "DurationMax": 0,
       "NumTraces": 1000
     },
-    "ExpectedFixtures": ["span_tags_trace"]
+    "ExpectedFixtures": ["span_tags_trace"],
+    "IsOtelTrace":true
   },
   {
     "Caption": "Tags in one spot - Logs",

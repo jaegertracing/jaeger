@@ -123,6 +123,7 @@ type QueryFixtures struct {
 	Caption          string
 	Query            *Query
 	ExpectedFixtures []string
+	IsOtelTrace      bool
 }
 
 func (s *StorageIntegration) cleanUp(t *testing.T) {
@@ -375,7 +376,7 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 		for _, traceFixture := range queryTestCase.ExpectedFixtures {
 			trace, ok := allTraceFixtures[traceFixture]
 			if !ok {
-				trace = s.getTraceFixture(t, traceFixture)
+				trace = s.getTraceFixture(t, traceFixture, queryTestCase.IsOtelTrace)
 				s.writeTrace(t, trace)
 				allTraceFixtures[traceFixture] = trace
 			}
@@ -429,7 +430,7 @@ func (s *StorageIntegration) writeTrace(t *testing.T, trace ptrace.Traces) {
 }
 
 func (s *StorageIntegration) loadParseAndWriteExampleTrace(t *testing.T) ptrace.Traces {
-	trace := s.getTraceFixture(t, "example_trace")
+	trace := s.getTraceFixture(t, "example_trace", false)
 	s.writeTrace(t, trace)
 	return trace
 }
@@ -439,7 +440,7 @@ func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
 	totalCount int,
 	dupFreq int,
 ) ptrace.Traces {
-	trace := s.getTraceFixture(t, "example_trace")
+	trace := s.getTraceFixture(t, "example_trace", false)
 	repeatedResourceSpan := trace.ResourceSpans().At(0)
 	repeatedScopeSpan := repeatedResourceSpan.ScopeSpans().At(0)
 	repeatedSpans := repeatedScopeSpan.Spans()
@@ -472,12 +473,15 @@ func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
 	return newTrace
 }
 
-func (*StorageIntegration) getTraceFixture(t *testing.T, fixture string) ptrace.Traces {
+func (*StorageIntegration) getTraceFixture(t *testing.T, fixture string, isOtelTrace bool) ptrace.Traces {
 	fileName := fmt.Sprintf("fixtures/traces/%s.json", fixture)
-	return getTraceFixtureExact(t, fileName)
+	return getTraceFixtureExact(t, fileName, isOtelTrace)
 }
 
-func getTraceFixtureExact(t *testing.T, fileName string) ptrace.Traces {
+func getTraceFixtureExact(t *testing.T, fileName string, isOtelTrace bool) ptrace.Traces {
+	if isOtelTrace {
+		return loadAndGetTrace(t, fileName)
+	}
 	var trace model.Trace
 	loadAndParseJSONPB(t, fileName, &trace)
 	return v1adapter.V1TraceToOtelTrace(&trace)
@@ -489,6 +493,17 @@ func loadAndParseJSONPB(t *testing.T, path string, object proto.Message) {
 	require.NoError(t, err, "Not expecting error when loading fixture %s", path)
 	err = jsonpb.Unmarshal(bytes.NewReader(correctTime(inStr)), object)
 	require.NoError(t, err, "Not expecting error when unmarshaling fixture %s", path)
+}
+
+func loadAndGetTrace(t *testing.T, path string) ptrace.Traces {
+	// #nosec
+	inStr, err := fixtures.ReadFile(path)
+	require.NoError(t, err, "Not expecting error when loading fixture %s", path)
+	unmarshaller := ptrace.JSONUnmarshaler{}
+	td, err := unmarshaller.UnmarshalTraces(inStr)
+	require.NoError(t, err, "Not expecting error when unmarshaling fixture %s", path)
+	correctTimeForTrace(td)
+	return td
 }
 
 // LoadAndParseQueryTestCases loads and parses query test cases
@@ -515,6 +530,12 @@ func correctTime(jsonData []byte) []byte {
 	retString := strings.ReplaceAll(jsonString, "2017-01-26", yesterday)
 	retString = strings.ReplaceAll(retString, "2017-01-25", twoDaysAgo)
 	return []byte(retString)
+}
+
+func correctTimeForTrace(td ptrace.Traces) {
+	now := time.Now().UTC()
+	normalizer := newDateOffsetNormalizer(now)
+	normalizer.normalizeTrace(td)
 }
 
 func spanCount(traces []ptrace.Traces) int {
