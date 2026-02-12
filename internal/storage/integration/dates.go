@@ -41,9 +41,8 @@ func (d dateOffsetNormalizer) normalizeTrace(td ptrace.Traces) {
 func (d dateOffsetNormalizer) normalizeTime(t pcommon.Timestamp) pcommon.Timestamp {
 	tm := t.AsTime()
 	offset := -1
-	// This is the int64 of date (with time) 2017-01-25
-	var anotherTime int64 = 1485388591639875000
-	if t.AsTime().UnixNano() == anotherTime {
+	yearOrig, monthOrig, dayOrig := tm.UTC().Date()
+	if yearOrig == 2017 && monthOrig == time.January && dayOrig == 25 {
 		offset = -2
 	}
 	year, month, day := d.tm.UTC().AddDate(0, 0, offset).Date()
