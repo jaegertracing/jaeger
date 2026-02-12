@@ -31,7 +31,7 @@ type QueryServiceOptions struct {
 	// MaxClockSkewAdjust is the maximum duration by which to adjust a span.
 	MaxClockSkewAdjust time.Duration
 	// MaxTraceSize is the maximum trace size that jaeger-query could load.
-	MaxTraceSize int
+	MaxTraceSize string
 }
 
 // StorageCapabilities is a feature flag for query service
@@ -77,7 +77,7 @@ func NewQueryService(
 		dependencyReader: dependencyReader,
 		adjuster: adjuster.Sequence(
 			adjuster.StandardAdjusters(
-				options.MaxClockSkewAdjust, 
+				options.MaxClockSkewAdjust,
 				options.MaxTraceSize,
 			)...,
 		),

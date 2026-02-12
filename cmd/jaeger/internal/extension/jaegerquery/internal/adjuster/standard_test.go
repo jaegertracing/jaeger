@@ -12,7 +12,7 @@ import (
 
 func TestStandardAdjusters(t *testing.T) {
 	maxClockSkewAdjust := 10 * time.Second
-	maxTraceSize := 10
+	maxTraceSize := "512Mi"
 	adjusters := StandardAdjusters(maxClockSkewAdjust, maxTraceSize)
 
 	assert.Len(t, adjusters, 7, "Expected 7 adjusters")
