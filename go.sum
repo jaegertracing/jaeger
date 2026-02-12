@@ -480,6 +480,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersignal v0.
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersignal v0.145.0/go.mod h1:3KtYwUA5QBPUQXh4fHzTS/77mHGYj0VMEuYIKnXJ0oY=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils v0.145.0 h1:kkYdfEPM2bXJ39XjkactwejvyOpeJi2CSCLDLWg7p2c=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils v0.145.0/go.mod h1:rMuGftjQzHzesLgLUoy7NKeZ3Hsqw9rCSJizVXX2bPs=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/golden v0.145.0 h1:lbxy2bYh3v0YIyqd/JVttEwYlC7yU5o3JU2N/m5Qnq8=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/golden v0.145.0/go.mod h1:kGlLjX8CJSE+9SfLARgaXTFBuAvNadjLvPsHO7fcVeE=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/configkafka v0.145.0 h1:l/6j/BRqnKXmQfmDioatCXcWD6UYbyojKfNbbxSpD/8=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/configkafka v0.145.0/go.mod h1:YhwSi18oBSetWlVERhz3IWl+xT5Gs/D+kuekUJyvTQc=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/topic v0.145.0 h1:Tx55JiI9hyUwcMeGkQWCpl+1RcBYED4R2+9A6sIz00g=

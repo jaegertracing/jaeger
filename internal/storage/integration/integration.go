@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"embed"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -23,8 +24,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/jiter"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	samplemodel "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
@@ -195,14 +199,15 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 					StartTimeMin: time.Now().Add(-2 * time.Hour),
 					StartTimeMax: time.Now(),
 				})
-				traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
-				if err != nil {
-					t.Log(err)
-					continue
-				}
-				for _, trace := range traces {
-					for _, span := range trace.Spans {
-						t.Logf("span: Service: %s, TraceID: %s, Operation: %s", service, span.TraceID, span.OperationName)
+				for traces, err := range iterTraces {
+					if err != nil {
+						t.Log(err)
+						continue
+					}
+					for _, trace := range traces {
+						for _, span := range jptrace.SpanIter(trace) {
+							t.Logf("span: Service: %s, TraceID: %s, Operation: %s", service, span.TraceID(), span.Name())
+						}
 					}
 				}
 			}
@@ -221,7 +226,7 @@ func (s *StorageIntegration) helperTestGetTrace(
 	traceSize int,
 	duplicateCount int,
 	testName string,
-	validator func(t *testing.T, actual *model.Trace),
+	validator func(t *testing.T, actual ptrace.Traces),
 ) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
@@ -229,12 +234,12 @@ func (s *StorageIntegration) helperTestGetTrace(
 	t.Logf("Testing %s...", testName)
 
 	expected := s.writeLargeTraceWithDuplicateSpanIds(t, traceSize, duplicateCount)
-	expectedTraceID := v1adapter.FromV1TraceID(expected.Spans[0].TraceID)
+	expectedTraceID := expected.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 
-	actual := &model.Trace{} // no spans
+	actual := ptrace.NewTraces()
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
-		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
+		traces, err := jiter.CollectWithErrors(jptrace.AggregateTraces(iterTraces))
 		if err != nil {
 			t.Logf("Error loading trace: %v", err)
 			return false
@@ -242,12 +247,13 @@ func (s *StorageIntegration) helperTestGetTrace(
 		if len(traces) == 0 {
 			return false
 		}
+		require.Len(t, traces, 1)
 		actual = traces[0]
-		return len(actual.Spans) >= len(expected.Spans)
+		return actual.SpanCount() >= expected.SpanCount()
 	})
 
-	t.Logf("%-23s Loaded trace, expected=%d, actual=%d", time.Now().Format("2006-01-02 15:04:05.999"), len(expected.Spans), len(actual.Spans))
-	if !assert.True(t, found, "error loading trace, expected=%d, actual=%d", len(expected.Spans), len(actual.Spans)) {
+	t.Logf("%-23s Loaded trace, expected=%d, actual=%d", time.Now().Format("2006-01-02 15:04:05.999"), expected.SpanCount(), actual.SpanCount())
+	if !assert.True(t, found, "error loading trace, expected=%d, actual=%d", expected.SpanCount(), actual.SpanCount()) {
 		CompareTraces(t, expected, actual)
 		return
 	}
@@ -262,13 +268,12 @@ func (s *StorageIntegration) testGetLargeTrace(t *testing.T) {
 }
 
 func (s *StorageIntegration) testGetTraceWithDuplicates(t *testing.T) {
-	validator := func(t *testing.T, actual *model.Trace) {
+	validator := func(t *testing.T, actual ptrace.Traces) {
 		duplicateCount := 0
-		seenIDs := make(map[model.SpanID]int)
-
-		for _, span := range actual.Spans {
-			seenIDs[span.SpanID]++
-			if seenIDs[span.SpanID] > 1 {
+		seenIDs := make(map[pcommon.SpanID]int)
+		for _, span := range jptrace.SpanIter(actual) {
+			seenIDs[span.SpanID()]++
+			if seenIDs[span.SpanID()] > 1 {
 				duplicateCount++
 			}
 		}
@@ -324,12 +329,12 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	defer s.cleanUp(t)
 
 	expected := s.loadParseAndWriteExampleTrace(t)
-	expectedTraceID := v1adapter.FromV1TraceID(expected.Spans[0].TraceID)
+	expectedTraceID := expected.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 
-	actual := &model.Trace{} // no spans
+	actual := ptrace.Traces{} // no spans
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
-		traces, err := v1adapter.V1TracesFromSeq2(iterTraces)
+		traces, err := jiter.CollectWithErrors(jptrace.AggregateTraces(iterTraces))
 		if err != nil {
 			t.Log(err)
 			return false
@@ -337,8 +342,9 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 		if len(traces) == 0 {
 			return false
 		}
+		require.Len(t, traces, 1)
 		actual = traces[0]
-		return len(actual.Spans) == len(expected.Spans)
+		return actual.SpanCount() >= expected.SpanCount()
 	})
 	if !assert.True(t, found) {
 		CompareTraces(t, expected, actual)
@@ -362,10 +368,10 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 
 	// Each query test case only specifies matching traces, but does not provide counterexamples.
 	// To improve coverage we get all possible traces and store all of them before running queries.
-	allTraceFixtures := make(map[string]*model.Trace)
-	expectedTracesPerTestCase := make([][]*model.Trace, 0, len(s.Fixtures))
+	allTraceFixtures := make(map[string]ptrace.Traces)
+	expectedTracesPerTestCase := make([][]ptrace.Traces, 0, len(s.Fixtures))
 	for _, queryTestCase := range s.Fixtures {
-		var expected []*model.Trace
+		var expected []ptrace.Traces
 		for _, traceFixture := range queryTestCase.ExpectedFixtures {
 			trace, ok := allTraceFixtures[traceFixture]
 			if !ok {
@@ -382,17 +388,17 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 			s.skipIfNeeded(t)
 			expected := expectedTracesPerTestCase[i]
 			actual := s.findTracesByQuery(t, queryTestCase.Query.ToTraceQueryParams(t), expected)
-			CompareSliceOfTraces(t, expected, actual)
+			CompareTraceSlices(t, expected, actual)
 		})
 	}
 }
 
-func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.TraceQueryParams, expected []*model.Trace) []*model.Trace {
-	var traces []*model.Trace
+func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.TraceQueryParams, expected []ptrace.Traces) []ptrace.Traces {
+	var traces []ptrace.Traces
 	found := s.waitForCondition(t, func(t *testing.T) bool {
-		var err error
 		iterTraces := s.TraceReader.FindTraces(context.Background(), *query)
-		traces, err = v1adapter.V1TracesFromSeq2(iterTraces)
+		var err error
+		traces, err = jiter.CollectWithErrors(jptrace.AggregateTraces(iterTraces))
 		if err != nil {
 			t.Log(err)
 			return false
@@ -401,8 +407,9 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.T
 			t.Logf("Expecting certain number of traces: expected: %d, actual: %d", len(expected), len(traces))
 			return false
 		}
+
 		if spanCount(expected) != spanCount(traces) {
-			t.Logf("Excepting certain number of spans: expected: %d, actual: %d", spanCount(expected), spanCount(traces))
+			t.Logf("Expecting certain number of spans: expected: %d, actual: %d", spanCount(expected), spanCount(traces))
 			return false
 		}
 		return true
@@ -411,18 +418,17 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.T
 	return traces
 }
 
-func (s *StorageIntegration) writeTrace(t *testing.T, trace *model.Trace) {
-	t.Logf("%-23s Writing trace with %d spans", time.Now().Format("2006-01-02 15:04:05.999"), len(trace.Spans))
+func (s *StorageIntegration) writeTrace(t *testing.T, trace ptrace.Traces) {
+	t.Logf("%-23s Writing trace with %d spans", time.Now().Format("2006-01-02 15:04:05.999"), trace.SpanCount())
 	ctx, cx := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cx()
-	otelTraces := v1adapter.V1TraceToOtelTrace(trace)
-	err := s.TraceWriter.WriteTraces(ctx, otelTraces)
+	err := s.TraceWriter.WriteTraces(ctx, trace)
 	require.NoError(t, err, "Not expecting error when writing trace to storage")
 
-	t.Logf("%-23s Finished writing trace with %d spans", time.Now().Format("2006-01-02 15:04:05.999"), len(trace.Spans))
+	t.Logf("%-23s Finished writing trace with %d spans", time.Now().Format("2006-01-02 15:04:05.999"), trace.SpanCount())
 }
 
-func (s *StorageIntegration) loadParseAndWriteExampleTrace(t *testing.T) *model.Trace {
+func (s *StorageIntegration) loadParseAndWriteExampleTrace(t *testing.T) ptrace.Traces {
 	trace := s.getTraceFixture(t, "example_trace")
 	s.writeTrace(t, trace)
 	return trace
@@ -432,35 +438,49 @@ func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
 	t *testing.T,
 	totalCount int,
 	dupFreq int,
-) *model.Trace {
+) ptrace.Traces {
 	trace := s.getTraceFixture(t, "example_trace")
-	repeatedSpan := trace.Spans[0]
-	trace.Spans = make([]*model.Span, totalCount)
+	repeatedResourceSpan := trace.ResourceSpans().At(0)
+	repeatedScopeSpan := repeatedResourceSpan.ScopeSpans().At(0)
+	repeatedSpans := repeatedScopeSpan.Spans()
+	repeatedSpan := repeatedSpans.At(0)
+	newResourceSpan := ptrace.NewResourceSpans()
+	newScopeSpan := newResourceSpan.ScopeSpans().AppendEmpty()
+	repeatedResourceSpan.Resource().CopyTo(newResourceSpan.Resource())
+	repeatedScopeSpan.Scope().CopyTo(newScopeSpan.Scope())
+	newSpans := newScopeSpan.Spans()
+	newSpans.EnsureCapacity(totalCount)
 	for i := range totalCount {
-		newSpan := new(model.Span)
-		*newSpan = *repeatedSpan
+		newSpan := ptrace.NewSpan()
+		repeatedSpan.CopyTo(newSpan)
 		switch {
 		case dupFreq > 0 && i > 0 && i%dupFreq == 0:
-			newSpan.SpanID = repeatedSpan.SpanID
+			newSpan.SetSpanID(repeatedSpan.SpanID())
 		default:
-			newSpan.SpanID = model.SpanID(uint64(i) + 1) //nolint:gosec // G115
+			var spanId [8]byte
+			//nolint:gosec // G115 // i is always positive
+			binary.BigEndian.PutUint64(spanId[:], uint64(i+1))
+			newSpan.SetSpanID(spanId)
 		}
-		newSpan.StartTime = newSpan.StartTime.Add(time.Second * time.Duration(i+1))
-		trace.Spans[i] = newSpan
+		newSpan.SetStartTimestamp(pcommon.NewTimestampFromTime(newSpan.StartTimestamp().AsTime().Add(time.Second * time.Duration(i+1))))
+		newSpan.SetEndTimestamp(pcommon.NewTimestampFromTime(newSpan.EndTimestamp().AsTime().Add(time.Second * time.Duration(i+1))))
+		newSpan.CopyTo(newSpans.AppendEmpty())
 	}
-	s.writeTrace(t, trace)
-	return trace
+	newTrace := ptrace.NewTraces()
+	newResourceSpan.CopyTo(newTrace.ResourceSpans().AppendEmpty())
+	s.writeTrace(t, newTrace)
+	return newTrace
 }
 
-func (*StorageIntegration) getTraceFixture(t *testing.T, fixture string) *model.Trace {
+func (*StorageIntegration) getTraceFixture(t *testing.T, fixture string) ptrace.Traces {
 	fileName := fmt.Sprintf("fixtures/traces/%s.json", fixture)
 	return getTraceFixtureExact(t, fileName)
 }
 
-func getTraceFixtureExact(t *testing.T, fileName string) *model.Trace {
+func getTraceFixtureExact(t *testing.T, fileName string) ptrace.Traces {
 	var trace model.Trace
 	loadAndParseJSONPB(t, fileName, &trace)
-	return &trace
+	return v1adapter.V1TraceToOtelTrace(&trace)
 }
 
 func loadAndParseJSONPB(t *testing.T, path string, object proto.Message) {
@@ -497,10 +517,10 @@ func correctTime(jsonData []byte) []byte {
 	return []byte(retString)
 }
 
-func spanCount(traces []*model.Trace) int {
+func spanCount(traces []ptrace.Traces) int {
 	var count int
 	for _, trace := range traces {
-		count += len(trace.Spans)
+		count += trace.SpanCount()
 	}
 	return count
 }
