@@ -31,6 +31,7 @@ func Test_translateFixtureToOTLPTrace(t *testing.T) {
 			},
 			Tags:      model.KeyValues{},
 			StartTime: time.Now(),
+			Logs:      []model.Log{},
 		},
 	}}
 	var buf bytes.Buffer
