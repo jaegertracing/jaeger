@@ -134,7 +134,7 @@ func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, prefix st
 	require.NoError(t, err)
 
 	// Get ILM Policy Attached
-	settings, err := client.IndexGetSettings(expected...).FlatSettings(true).Do(context.Background())
+	settings, err := client.IndexGetSettings(expected...).FlatSettings(true).Do(t.Context())
 	require.NoError(t, err)
 	// Check ILM Policy is attached and Get rollover alias attached
 	for _, v := range settings {
@@ -165,16 +165,16 @@ func createILMPolicy(client *elastic.Client, policyName string) error {
 }
 
 func cleanES(t *testing.T, client *elastic.Client, policyName string) {
-	_, err := client.DeleteIndex("*").Do(context.Background())
+	_, err := client.DeleteIndex("*").Do(t.Context())
 	require.NoError(t, err)
 	esVersion, err := getVersion(client)
 	require.NoError(t, err)
 	if esVersion >= 7 {
-		_, err = client.XPackIlmDeleteLifecycle().Policy(policyName).Do(context.Background())
+		_, err = client.XPackIlmDeleteLifecycle().Policy(policyName).Do(t.Context())
 		if err != nil && !elastic.IsNotFound(err) {
 			assert.Fail(t, "Not able to clean up ILM Policy")
 		}
 	}
-	_, err = client.IndexDeleteTemplate("*").Do(context.Background())
+	_, err = client.IndexDeleteTemplate("*").Do(t.Context()) //nolint:staticcheck // SA1019 deprecated
 	require.NoError(t, err)
 }

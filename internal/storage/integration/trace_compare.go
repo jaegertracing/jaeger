@@ -154,11 +154,11 @@ func compareScopeSpans(a, b ptrace.ScopeSpans) int {
 // tests it is used for sorting spans only, not for span comparison. For span
 // comparison, ptracetest.CompareTraces is used.
 func compareSpans(a, b ptrace.Span) int {
-	if traceIdComp := compareTraceIDs(a.TraceID(), b.TraceID()); traceIdComp != 0 {
-		return traceIdComp
+	if traceIDComp := compareTraceIDs(a.TraceID(), b.TraceID()); traceIDComp != 0 {
+		return traceIDComp
 	}
-	if spanIdComp := compareSpanIDs(a.SpanID(), b.SpanID()); spanIdComp != 0 {
-		return spanIdComp
+	if spanIDComp := compareSpanIDs(a.SpanID(), b.SpanID()); spanIDComp != 0 {
+		return spanIDComp
 	}
 	if timeStampComp := compareTimestamps(a.StartTimestamp(), b.StartTimestamp()); timeStampComp != 0 {
 		return timeStampComp

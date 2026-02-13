@@ -5,7 +5,6 @@
 package integration
 
 import (
-	"context"
 	"os"
 	"testing"
 	"time"
@@ -14,10 +13,8 @@ import (
 	"go.opentelemetry.io/collector/config/configtls"
 
 	casconfig "github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	cassandrav1 "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/cassandra"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
@@ -40,7 +37,7 @@ func newCassandraStorageIntegration() *CassandraStorageIntegration {
 }
 
 func (s *CassandraStorageIntegration) cleanUp(t *testing.T) {
-	require.NoError(t, s.factory.Purge(context.Background()))
+	require.NoError(t, s.factory.Purge(t.Context()))
 }
 
 func (s *CassandraStorageIntegration) initializeCassandra(t *testing.T) {
@@ -97,12 +94,9 @@ func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(t *tes
 	require.NoError(t, err)
 	s.DependencyReader = dependencyReader
 
-	// TODO: Update this when the factory interface has CreateDependencyWriter
-	if dependencyWriter, ok := dependencyReader.(dependencystore.Writer); !ok {
-		t.Log("DependencyWriter not implemented ")
-	} else {
-		s.DependencyWriter = v1adapter.NewDependencyWriter(dependencyWriter)
-	}
+	dependencyWriter, err := f.CreateDependencyWriter()
+	require.NoError(t, err)
+	s.DependencyWriter = dependencyWriter
 }
 
 func TestCassandraStorage(t *testing.T) {

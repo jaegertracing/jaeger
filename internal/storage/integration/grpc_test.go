@@ -5,7 +5,6 @@
 package integration
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -29,7 +28,7 @@ func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 	s.remoteStorage = StartNewRemoteMemoryStorage(t, ports.RemoteStorageGRPC)
 
 	f, err := grpc.NewFactory(
-		context.Background(),
+		t.Context(),
 		grpc.Config{
 			ClientConfig: configgrpc.ClientConfig{
 				Endpoint: "localhost:17271",
