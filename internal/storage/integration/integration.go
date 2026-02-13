@@ -120,10 +120,9 @@ func (q *Query) ToTraceQueryParams(t *testing.T) *tracestore.TraceQueryParams {
 // Queries are not necessarily numbered, but since each query requires a service name,
 // the service name is formatted "query##-service".
 type QueryFixtures struct {
-	Caption             string
-	Query               *Query
-	ExpectedFixtures    []string
-	AllFixturesUpgraded bool
+	Caption          string
+	Query            *Query
+	ExpectedFixtures []string
 }
 
 func (s *StorageIntegration) cleanUp(t *testing.T) {
@@ -376,7 +375,7 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 		for _, traceFixture := range queryTestCase.ExpectedFixtures {
 			trace, ok := allTraceFixtures[traceFixture]
 			if !ok {
-				trace = s.getTraceFixture(t, traceFixture, queryTestCase.AllFixturesUpgraded)
+				trace = s.getTraceFixture(t, traceFixture)
 				s.writeTrace(t, trace)
 				allTraceFixtures[traceFixture] = trace
 			}
@@ -430,7 +429,7 @@ func (s *StorageIntegration) writeTrace(t *testing.T, trace ptrace.Traces) {
 }
 
 func (s *StorageIntegration) loadParseAndWriteExampleTrace(t *testing.T) ptrace.Traces {
-	trace := s.getTraceFixture(t, "example_trace", false)
+	trace := s.getTraceFixture(t, "example_trace")
 	s.writeTrace(t, trace)
 	return trace
 }
@@ -440,7 +439,7 @@ func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
 	totalCount int,
 	dupFreq int,
 ) ptrace.Traces {
-	trace := s.getTraceFixture(t, "example_trace", false)
+	trace := s.getTraceFixture(t, "example_trace")
 	repeatedResourceSpan := trace.ResourceSpans().At(0)
 	repeatedScopeSpan := repeatedResourceSpan.ScopeSpans().At(0)
 	repeatedSpans := repeatedScopeSpan.Spans()
@@ -473,13 +472,19 @@ func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
 	return newTrace
 }
 
-func (*StorageIntegration) getTraceFixture(t *testing.T, fixture string, isOtelTrace bool) ptrace.Traces {
+func (*StorageIntegration) getTraceFixture(t *testing.T, fixture string) ptrace.Traces {
 	fileName := fmt.Sprintf("fixtures/traces/%s.json", fixture)
-	return getTraceFixtureExact(t, fileName, isOtelTrace)
+	return getTraceFixtureExact(t, fileName)
 }
 
-func getTraceFixtureExact(t *testing.T, fileName string, isOtelTrace bool) ptrace.Traces {
-	if isOtelTrace {
+func getTraceFixtureExact(t *testing.T, fileName string) ptrace.Traces {
+	// #nosec
+	inStr, err := fixtures.ReadFile(fileName)
+	require.NoError(t, err, "Not expecting error when loading fixture %s", fileName)
+	var jsonMap map[string]any
+	err = json.Unmarshal(inStr, &jsonMap)
+	require.NoError(t, err)
+	if _, ok := jsonMap["resourceSpans"]; ok {
 		return loadAndGetTrace(t, fileName)
 	}
 	var trace model.Trace
