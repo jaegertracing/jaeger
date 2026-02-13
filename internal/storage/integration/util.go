@@ -66,6 +66,9 @@ func modelTraceFromOtelTrace(otelTrace ptrace.Traces) *model.Trace {
 			if span.Tags == nil {
 				span.Tags = []model.KeyValue{}
 			}
+			if span.Logs == nil {
+				span.Logs = []model.Log{}
+			}
 		}
 	}
 	return &model.Trace{Spans: spans}

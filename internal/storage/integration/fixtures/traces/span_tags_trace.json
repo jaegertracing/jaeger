@@ -19,8 +19,8 @@
               "traceId": "00000000000000000000000000000001",
               "spanId": "0000000000000002",
               "name": "some-operation",
-              "startTimeUnixNano": "1770828391639875000",
-              "endTimeUnixNano": "1770828391639882000",
+              "startTimeUnixNano": "1485449191639875000",
+              "endTimeUnixNano": "1485449191639882000",
               "attributes": [
                 {
                   "key": "sameplacetag1",
