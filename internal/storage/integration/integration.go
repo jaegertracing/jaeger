@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -485,28 +484,18 @@ func getTraceFixtureExact(t *testing.T, fileName string) ptrace.Traces {
 	err = json.Unmarshal(inStr, &jsonMap)
 	require.NoError(t, err)
 	if _, ok := jsonMap["resourceSpans"]; ok {
-		return loadOTLPTrace(t, fileName)
+		return loadOTLPTrace(t, inStr)
 	}
 	var trace model.Trace
-	loadAndParseJSONPB(t, fileName, &trace)
+	err = jsonpb.Unmarshal(bytes.NewReader(correctTime(inStr)), &trace)
+	require.NoError(t, err, "Not expecting error when unmarshaling fixture %s", fileName)
 	return v1adapter.V1TraceToOtelTrace(&trace)
 }
 
-func loadAndParseJSONPB(t *testing.T, path string, object proto.Message) {
-	// #nosec
-	inStr, err := fixtures.ReadFile(path)
-	require.NoError(t, err, "Not expecting error when loading fixture %s", path)
-	err = jsonpb.Unmarshal(bytes.NewReader(correctTime(inStr)), object)
-	require.NoError(t, err, "Not expecting error when unmarshaling fixture %s", path)
-}
-
-func loadOTLPTrace(t *testing.T, path string) ptrace.Traces {
-	// #nosec
-	inStr, err := fixtures.ReadFile(path)
-	require.NoError(t, err, "Not expecting error when loading fixture %s", path)
+func loadOTLPTrace(t *testing.T, inStr []byte) ptrace.Traces {
 	unmarshaller := ptrace.JSONUnmarshaler{}
 	td, err := unmarshaller.UnmarshalTraces(inStr)
-	require.NoError(t, err, "Not expecting error when unmarshaling fixture %s", path)
+	require.NoError(t, err)
 	correctTimeForTrace(td)
 	return td
 }
