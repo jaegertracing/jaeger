@@ -485,7 +485,7 @@ func getTraceFixtureExact(t *testing.T, fileName string) ptrace.Traces {
 	err = json.Unmarshal(inStr, &jsonMap)
 	require.NoError(t, err)
 	if _, ok := jsonMap["resourceSpans"]; ok {
-		return loadAndGetTrace(t, fileName)
+		return loadOTLPTrace(t, fileName)
 	}
 	var trace model.Trace
 	loadAndParseJSONPB(t, fileName, &trace)
@@ -500,7 +500,7 @@ func loadAndParseJSONPB(t *testing.T, path string, object proto.Message) {
 	require.NoError(t, err, "Not expecting error when unmarshaling fixture %s", path)
 }
 
-func loadAndGetTrace(t *testing.T, path string) ptrace.Traces {
+func loadOTLPTrace(t *testing.T, path string) ptrace.Traces {
 	// #nosec
 	inStr, err := fixtures.ReadFile(path)
 	require.NoError(t, err, "Not expecting error when loading fixture %s", path)
