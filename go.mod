@@ -1,6 +1,6 @@
 module github.com/jaegertracing/jaeger
 
-go 1.25.7
+go 1.26.0
 
 require (
 	github.com/ClickHouse/ch-go v0.71.0
