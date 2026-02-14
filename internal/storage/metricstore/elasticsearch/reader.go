@@ -17,6 +17,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/metricstore/elasticsearch/processor"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
 
@@ -100,7 +101,7 @@ func (r MetricsReader) GetLatencies(ctx context.Context, params *metricstore.Lat
 	}
 
 	// Process the raw aggregation value to calculate latencies (ms)
-	return ScaleAndRoundLatencies(rawMetricFamily), nil
+	return processor.ScaleAndRoundLatencies(rawMetricFamily), nil
 }
 
 // GetCallRates retrieves call rate metrics
@@ -129,7 +130,10 @@ func (r MetricsReader) GetCallRates(ctx context.Context, params *metricstore.Cal
 		return nil, err
 	}
 
-	return CalculateCallRates(rawMetricFamily, params.BaseQueryParameters, timeRange), nil
+	return processor.CalculateCallRates(rawMetricFamily, params.BaseQueryParameters, processor.TimeRange{
+		StartTimeMillis: timeRange.startTimeMillis,
+		EndTimeMillis:   timeRange.endTimeMillis,
+	}), nil
 }
 
 // GetErrorRates retrieves error rate metrics
@@ -163,7 +167,10 @@ func (r MetricsReader) GetErrorRates(ctx context.Context, params *metricstore.Er
 		return nil, err
 	}
 
-	return CalculateErrorRates(rawErrorsMetrics, callRateMetrics, params.BaseQueryParameters, timeRange), nil
+	return processor.CalculateErrorRates(rawErrorsMetrics, callRateMetrics, params.BaseQueryParameters, processor.TimeRange{
+		StartTimeMillis: timeRange.startTimeMillis,
+		EndTimeMillis:   timeRange.endTimeMillis,
+	}), nil
 }
 
 // GetMinStepDuration returns the minimum step duration.
