@@ -347,3 +347,55 @@ $ curl http://localhost:16686/api/metrics/minstep | jq .
 
 [spanmetricsconnector]: https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/connector/spanmetricsconnector
 [spanmetricsconnectorreadme]: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/connector/spanmetricsconnector/README.md
+
+# Configuring Prometheus Backend
+
+> **Note**: The configuration method differs between Jaeger v1 and v2. CLI flags like `--prometheus.server-url` are not supported. See below for the correct configuration approach for each version.
+
+## Jaeger v1 (deprecated, EOL December 31, 2025)
+
+Jaeger v1 uses **environment variables** to configure the Prometheus metrics backend:
+
+| Environment Variable | Description | Default |
+|---------------------|-------------|---------|
+| `METRICS_STORAGE_TYPE` | Set to `prometheus` to enable Prometheus backend | (disabled) |
+| `PROMETHEUS_SERVER_URL` | The Prometheus server URL | `http://localhost:9090` |
+| `PROMETHEUS_QUERY_NAMESPACE` | Metric namespace prefix | `traces_span_metrics` |
+| `PROMETHEUS_QUERY_DURATION_UNIT` | Duration unit (`ms` or `s`) | `ms` |
+| `PROMETHEUS_QUERY_NORMALIZE_CALLS` | Normalize call metric names | `false` |
+| `PROMETHEUS_QUERY_NORMALIZE_DURATION` | Normalize duration metric names | `false` |
+
+Example:
+
+```bash
+docker run --rm \
+  -e METRICS_STORAGE_TYPE=prometheus \
+  -e PROMETHEUS_SERVER_URL=http://prometheus:9090 \
+  -e PROMETHEUS_QUERY_NORMALIZE_CALLS=true \
+  jaegertracing/all-in-one:1.72.0
+```
+
+## Jaeger v2
+
+Jaeger v2 uses **YAML configuration** instead of environment variables or CLI flags. The Prometheus backend is configured in the `extensions.jaeger_storage.metric_backends` section:
+
+```yaml
+extensions:
+  jaeger_query:
+    storage:
+      traces: some_storage
+      metrics: prometheus_metrics
+  jaeger_storage:
+    backends:
+      some_storage:
+        memory:
+          max_traces: 100000
+    metric_backends:
+      prometheus_metrics:
+        prometheus:
+          endpoint: http://prometheus:9090
+          normalize_calls: true
+          normalize_duration: true
+```
+
+See [config-spm.yaml](./../../cmd/jaeger/config-spm.yaml) for a complete example configuration.
