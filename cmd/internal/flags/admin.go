@@ -125,7 +125,7 @@ func (s *AdminServer) serveWithListener(l net.Listener) (err error) {
 	s.server.ErrorLog = errorLog
 
 	s.logger.Info("Starting admin HTTP server")
-	var wg waitGroup
+	var wg sync.WaitGroup
 	s.stopped.Add(1)
 	wg.Go(func() {
 		defer s.stopped.Done()
@@ -157,17 +157,4 @@ func (s *AdminServer) Close() error {
 	err := s.server.Shutdown(context.Background())
 	s.stopped.Wait()
 	return err
-}
-
-// waitGroup is a wrapper around sync.WaitGroup with a Go method.
-type waitGroup struct {
-	sync.WaitGroup
-}
-
-func (w *waitGroup) Go(f func()) {
-	w.Add(1)
-	go func() {
-		defer w.Done()
-		f()
-	}()
 }

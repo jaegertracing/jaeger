@@ -635,7 +635,7 @@ func TestShutdownWithProviderError(t *testing.T) {
 
 		go srv.Serve(ln)
 
-		var wg waitGroup
+		var wg sync.WaitGroup
 
 		// Fire off a request that will still be running during shutdown
 		wg.Go(func() {
@@ -668,17 +668,4 @@ func (*mockFailingProvider) GetSamplingStrategy(_ context.Context, _ string) (*a
 
 func (*mockFailingProvider) Close() error {
 	return errors.New("mock provider close error")
-}
-
-// waitGroup is a wrapper around sync.WaitGroup with a Go method.
-type waitGroup struct {
-	sync.WaitGroup
-}
-
-func (w *waitGroup) Go(f func()) {
-	w.Add(1)
-	go func() {
-		defer w.Done()
-		f()
-	}()
 }
