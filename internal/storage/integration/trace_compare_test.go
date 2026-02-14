@@ -6,16 +6,25 @@ package integration
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 func TestDedupeSpans(t *testing.T) {
 	trace := ptrace.NewTraces()
 	spans := trace.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
-	spans.AppendEmpty().SetSpanID([8]byte{1})
-	spans.AppendEmpty().SetSpanID([8]byte{1})
-	spans.AppendEmpty().SetSpanID([8]byte{2})
+
+	span1 := spans.AppendEmpty()
+	span1.SetSpanID(pcommon.SpanID([8]byte{1}))
+
+	span2 := spans.AppendEmpty()
+	span2.SetSpanID(pcommon.SpanID([8]byte{1}))
+
+	span3 := spans.AppendEmpty()
+	span3.SetSpanID(pcommon.SpanID([8]byte{2}))
+
 	dedupeSpans(trace)
-	assert.Equal(t, 2, trace.SpanCount())
+	if trace.SpanCount() != 2 {
+		t.Errorf("Expected 2 spans, got %d", trace.SpanCount())
+	}
 }

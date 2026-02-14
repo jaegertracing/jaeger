@@ -4,7 +4,7 @@
 
 package integration
 
-import (
+import ( //nolint:depguard
 	"context"
 	"errors"
 	"net/http"
@@ -17,9 +17,9 @@ import (
 	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
@@ -27,7 +27,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	esv2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
@@ -105,8 +104,8 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, c *http.Client, allTag
 }
 
 func (s *ESStorageIntegration) esCleanUp(t *testing.T) {
-	require.NoError(t, s.factory.Purge(context.Background()))
-	require.NoError(t, s.archiveFactory.Purge(context.Background()))
+	require.NoError(t, s.factory.Purge(t.Context()))
+	require.NoError(t, s.archiveFactory.Purge(t.Context()))
 }
 
 func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool) {
@@ -120,7 +119,7 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	cfg.ServiceCacheTTL = 1 * time.Second
 	cfg.Indices.IndexPrefix = indexPrefix
 	var err error
-	f, err := esv2.NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
+	f, err := esv2.NewFactory(t.Context(), cfg, telemetry.NoopSettings(), nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, f.Close())
@@ -131,7 +130,7 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	acfg.UseReadWriteAliases = true
 	acfg.Tags.AllAsFields = allTagsAsFields
 	acfg.Indices.IndexPrefix = indexPrefix
-	af, err := esv2.NewFactory(context.Background(), acfg, telemetry.NoopSettings(), nil)
+	af, err := esv2.NewFactory(t.Context(), acfg, telemetry.NoopSettings(), nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, af.Close())
@@ -207,11 +206,24 @@ func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 	require.NoError(t, err)
 	// TODO abstract this into pkg/es/client.IndexManagementLifecycleAPI
 	if esVersion == 6 || esVersion == 7 {
-		serviceTemplateExists, err := s.client.IndexTemplateExists(indexPrefix + "-jaeger-service").Do(context.Background())
-		require.NoError(t, err)
+		resp, err := s.client.PerformRequest(t.Context(), elastic.PerformRequestOptions{
+			Method: "HEAD",
+			Path:   "/_template/" + indexPrefix + "-jaeger-service",
+		})
+		if err != nil && !elastic.IsNotFound(err) {
+			require.NoError(t, err)
+		}
+		serviceTemplateExists := err == nil && resp.StatusCode == http.StatusOK
 		assert.True(t, serviceTemplateExists)
-		spanTemplateExists, err := s.client.IndexTemplateExists(indexPrefix + "-jaeger-span").Do(context.Background())
-		require.NoError(t, err)
+
+		resp, err = s.client.PerformRequest(t.Context(), elastic.PerformRequestOptions{
+			Method: "HEAD",
+			Path:   "/_template/" + indexPrefix + "-jaeger-span",
+		})
+		if err != nil && !elastic.IsNotFound(err) {
+			require.NoError(t, err)
+		}
+		spanTemplateExists := err == nil && resp.StatusCode == http.StatusOK
 		assert.True(t, spanTemplateExists)
 	} else {
 		serviceTemplateExistsResponse, err := s.v8Client.API.Indices.ExistsIndexTemplate(indexPrefix + "-jaeger-service")
@@ -239,7 +251,10 @@ func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string
 		_, err = s.v8Client.Indices.DeleteIndexTemplate([]string{prefixWithSeparator + dependenciesTemplateName})
 		require.NoError(t, err)
 	} else {
-		_, err := s.client.IndexDeleteTemplate("*").Do(context.Background())
+		_, err := s.client.PerformRequest(t.Context(), elastic.PerformRequestOptions{
+			Method: "DELETE",
+			Path:   "/_template/*",
+		})
 		require.NoError(t, err)
 	}
 	return nil
@@ -252,25 +267,24 @@ func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string
 func (s *ESStorageIntegration) testArchiveTrace(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
-	tID := model.NewTraceID(uint64(11), uint64(22))
-	expectedV1 := &model.Trace{
-		Spans: []*model.Span{
-			{
-				OperationName: "archive_span",
-				StartTime:     time.Now().Add(-maxSpanAge * 5).Truncate(time.Microsecond),
-				TraceID:       tID,
-				SpanID:        model.NewSpanID(55),
-				References:    []model.SpanRef{},
-				Process:       model.NewProcess("archived_service", model.KeyValues{}),
-			},
-		},
-	}
-	expected := v1adapter.V1TraceToOtelTrace(expectedV1)
-	require.NoError(t, s.ArchiveTraceWriter.WriteTraces(context.Background(), expected))
+
+	tID := pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 0, 0, 0, 0, 22})
+	expected := ptrace.NewTraces()
+	rs := expected.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr("service.name", "archived_service")
+	ss := rs.ScopeSpans().AppendEmpty()
+	span := ss.Spans().AppendEmpty()
+	span.SetName("archive_span")
+	span.SetTraceID(tID)
+	span.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 55}))
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(-maxSpanAge * 5).Truncate(time.Microsecond)))
+	span.SetEndTimestamp(span.StartTimestamp())
+
+	require.NoError(t, s.ArchiveTraceWriter.WriteTraces(t.Context(), expected))
 
 	var actual ptrace.Traces
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
-		iterTraces := s.ArchiveTraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: v1adapter.FromV1TraceID(tID)})
+		iterTraces := s.ArchiveTraceReader.GetTraces(t.Context(), tracestore.GetTraceParams{TraceID: tID})
 		traces, err := jiter.CollectWithErrors(jptrace.AggregateTraces(iterTraces))
 		if err != nil {
 			t.Logf("Error loading trace: %v", err)

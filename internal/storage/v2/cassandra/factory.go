@@ -11,6 +11,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/distributedlock"
 	"github.com/jaegertracing/jaeger/internal/metrics"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	cspanstore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore"
@@ -74,6 +75,18 @@ func (f *Factory) CreateDependencyReader() (depstore.Reader, error) {
 		return nil, err
 	}
 	return v1adapter.NewDependencyReader(reader), nil
+}
+
+func (f *Factory) CreateDependencyWriter() (depstore.Writer, error) {
+	reader, err := f.v1Factory.CreateDependencyReader()
+	if err != nil {
+		return nil, err
+	}
+	// TODO: Update this when the v1 factory interface has CreateDependencyWriter
+	if writer, ok := reader.(dependencystore.Writer); ok {
+		return v1adapter.NewDependencyWriter(writer), nil
+	}
+	return nil, nil
 }
 
 func (f *Factory) CreateSamplingStore(maxBuckets int) (samplingstore.Store, error) {
