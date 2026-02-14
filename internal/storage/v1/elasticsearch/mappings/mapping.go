@@ -37,7 +37,6 @@ type MappingBuilder struct {
 	ILMPolicyName        string
 	EnableIngestPipeline bool
 	UseDataStream        bool
-	EnableLogsDB         bool
 }
 
 // templateParams holds parameters required to render an elasticsearch index template
@@ -50,7 +49,6 @@ type templateParams struct {
 	Priority             int64
 	EnableIngestPipeline bool
 	UseDataStream        bool
-	EnableLogsDB         bool
 }
 
 func (mb MappingBuilder) getMappingTemplateOptions(mappingType MappingType) templateParams {
@@ -59,7 +57,6 @@ func (mb MappingBuilder) getMappingTemplateOptions(mappingType MappingType) temp
 	mappingOpts.ILMPolicyName = mb.ILMPolicyName
 	mappingOpts.EnableIngestPipeline = mb.EnableIngestPipeline
 	mappingOpts.UseDataStream = mb.UseDataStream
-	mappingOpts.EnableLogsDB = mb.EnableLogsDB
 
 	switch mappingType {
 	case SpanMapping:

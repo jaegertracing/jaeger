@@ -52,39 +52,7 @@ func TestWriteService(t *testing.T) {
 	})
 }
 
-func TestWriteService_DataStream(t *testing.T) {
-	withSpanWriter(func(w *spanWriterTest) {
-		// Enable Data Stream usage
-		w.writer.serviceWriter = NewServiceOperationStorage(w.writer.client, w.writer.logger, 0, true).Write
-
-		indexService := &mocks.IndexService{}
-		indexName := "jaeger-service-ds"
-
-		// For Data Streams, we expect:
-		// 1. No Id() call (ES auto-generates)
-		// 2. OpType("create")
-		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
-		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
-		indexService.On("BodyJson", mock.AnythingOfType("dbmodel.Service")).Return(indexService)
-		// We expect "create" opType to be added
-		indexService.On("Add", "create").Return(indexService)
-
-		w.client.On("Index").Return(indexService)
-
-		jsonSpan := &dbmodel.Span{
-			OperationName: "operation",
-			Process: dbmodel.Process{
-				ServiceName: "service",
-			},
-		}
-
-		w.writer.writeService(indexName, jsonSpan)
-
-		indexService.AssertNumberOfCalls(t, "Add", 1)
-		// Ensure Id() was NOT called
-		indexService.AssertNotCalled(t, "Id")
-	})
-}
+// Services no longer use Data Streams per ADR-004 to maintain deduplication.
 
 func TestWriteServiceError(*testing.T) {
 	withSpanWriter(func(w *spanWriterTest) {

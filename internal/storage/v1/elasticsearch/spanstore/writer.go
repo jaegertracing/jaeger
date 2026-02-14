@@ -100,7 +100,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 	// We rely on factory to populate p.UseDataStream based on config or version detection.
 	useDataStream := p.UseDataStream
 
-	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheTTL, useDataStream)
+	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheTTL)
 	return &SpanWriter{
 		client:            p.Client,
 		logger:            p.Logger,
@@ -142,8 +142,8 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string, useDataStre
 	}
 
 	if useDataStream {
-		return func(_ time.Time) (string, string) {
-			return spanIndexPrefix, serviceIndexPrefix
+		return func(date time.Time) (string, string) {
+			return spanIndexPrefix, cfg.IndexWithDate(serviceIndexPrefix, p.ServiceIndex.DateLayout, date)
 		}
 	}
 

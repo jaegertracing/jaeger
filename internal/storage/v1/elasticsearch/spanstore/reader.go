@@ -181,7 +181,8 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 			if indexPrefix == spanIndexPrefix {
 				indices := []string{indexPrefix}
 				if readLegacyIndices.IsEnabled() {
-					indices = append(indices, cfg.GetDataStreamLegacyWildcard(indexPrefix))
+					legacyIndexPrefix := strings.TrimSuffix(indexPrefix, "-ds")
+					indices = append(indices, cfg.GetDataStreamLegacyWildcard(legacyIndexPrefix))
 				}
 				return indices
 			}
@@ -194,7 +195,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	return &SpanReader{
 		client:                  p.Client,
 		maxSpanAge:              maxSpanAge,
-		serviceOperationStorage: NewServiceOperationStorage(p.Client, p.Logger, 0, p.UseDataStream), // the decorator takes care of metrics
+		serviceOperationStorage: NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics
 		spanIndexPrefix:         spanIndexPrefix,
 		serviceIndexPrefix:      serviceIndexPrefix,
 		spanIndex:               p.SpanIndex,

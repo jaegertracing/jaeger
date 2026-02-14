@@ -70,6 +70,7 @@ func NewDependencyStore(p Params) *DependencyStore {
 // WriteDependencies write dependencies to Elasticsearch
 func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []dbmodel.DependencyLink) error {
 	indexName := s.getWriteIndex(ts)
+	// Note: explicit index creation is not needed as Elasticsearch creates indices on demand when a document is indexed.
 	s.writeDependenciesToIndex(indexName, ts, dependencies)
 	return nil
 }
@@ -89,22 +90,6 @@ func (s *DependencyStore) writeDependenciesToIndex(indexName string, ts time.Tim
 			Timestamp:    ts,
 			Dependencies: dependencies,
 		}).Add("")
-}
-
-func (s *DependencyStore) createIndex(indexName string) error {
-	ctx := context.Background()
-	if s.useReadWriteAliases {
-		return nil
-	}
-	exists, err := s.client().IndexExists(indexName).Do(ctx)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		_, err := s.client().CreateIndex(indexName).Do(ctx)
-		return err
-	}
-	return nil
 }
 
 func (s *DependencyStore) getWriteIndex(ts time.Time) string {

@@ -2,9 +2,6 @@
   "priority": {{ .Priority }},
   "index_patterns": [
     "{{ .IndexPrefix }}jaeger-span*"
-    {{- if .UseDataStream }},
-    "{{ .IndexPrefix }}jaeger.span*"
-    {{- end }}
   ],
   {{- if .UseDataStream }}
   "data_stream": {},
@@ -21,10 +18,7 @@
       "index.mapping.nested_fields.limit": 50,
       "index.requests.cache.enable": true
       {{- if .EnableIngestPipeline }},
-      "index.default_pipeline": "jaeger-ds-span-timestamp"
-      {{- end }}
-      {{- if .EnableLogsDB }},
-      "index.mode": "logsdb"
+      "index.default_pipeline": "{{ .IndexPrefix }}jaeger-ds-span-timestamp"
       {{- end }}
       {{- if .UseILM }},
       "lifecycle": {
