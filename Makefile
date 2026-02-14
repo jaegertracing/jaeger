@@ -194,8 +194,8 @@ lint-goleak:
 lint-go: $(LINT)
 	$(LINT) -v run
 
-.PHONY: vulncheck
-vulncheck: $(GOVULNCHECK)
+.PHONY: govulncheck
+govulncheck: $(GOVULNCHECK)
 	$(GOVULNCHECK) ./...
 
 .PHONY: lint-jaeger-idl-versions
