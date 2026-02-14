@@ -60,3 +60,7 @@ jobs:
 
     - name: Build platform binaries
       run: make build-binaries-${{ matrix.os }}-${{ matrix.arch }}
+      env:
+        # Skip debug binaries on PRs to save CI time (4+ min per arch)
+        # Debug binaries are still built on main branch and during releases
+        SKIP_DEBUG_BINARIES: ${{ github.event_name == 'pull_request' && '1' || '0' }}
