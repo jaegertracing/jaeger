@@ -7,7 +7,40 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/jaegertracing/jaeger/internal/metricstest"
 )
+
+func TestNewInfoMetrics(t *testing.T) {
+	// 1. Initialize the Jaeger-specific testing factory
+	// 0 means... we will snapshot it manually.
+	factory := metricstest.NewFactory(0)
+	defer factory.Stop()
+
+	// 2. Set some dummy values for the global build variables
+	commitSHA = "test-sha"
+	latestVersion = "v1.2.3"
+	date = "2026-02-03"
+
+	// 3. Execute the function under test
+	info := NewInfoMetrics(factory)
+
+	// 4. Assertions on the returned struct
+	require.NotNil(t, info)
+	assert.NotNil(t, info.BuildInfo)
+
+	// 5. Verification using the Factory Snapshot
+	_, gauges := factory.Snapshot()
+
+	// The key format for metricstest is "name|tag1=val1|tag2=val2"
+	// Note: The order of tags in the string depends on the internal map ordering.
+	expectedKey := "build_info|build_date=2026-02-03|revision=test-sha|version=v1.2.3"
+
+	val, ok := gauges[expectedKey]
+	assert.True(t, ok, "Metric not found in snapshot. Found keys: %v", gauges)
+	assert.Equal(t, int64(1), val, "The build_info gauge should be set to 1")
+}
 
 func TestGet(t *testing.T) {
 	commitSHA = "foobar"
