@@ -3,6 +3,8 @@ global:
 
 allInOne:
   enabled: true
+  image:
+    pullPolicy: Always
   extraEnv: []
   
 
@@ -22,15 +24,13 @@ hotrod:
     path: /
   extraEnv:
     - name: OTEL_EXPORTER_OTLP_ENDPOINT
-      value: http://jaeger-collector:4318
+      value: http://jaeger:4318
     - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
-      value: http://jaeger-collector:4318/v1/traces
+      value: http://jaeger:4318/v1/traces
     - name: OTEL_EXPORTER_OTLP_PROTOCOL
       value: http/protobuf
     - name: OTEL_SERVICE_NAME
-      value: hotrod
-    - name: OTEL_LOG_LEVEL
-      value: debug
+      value: hotrod-frontend
   
 
 query:
