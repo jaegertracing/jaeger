@@ -81,10 +81,11 @@ function check() {
     printf "%-50s Go version: %s %s\n" "$file" "$go_version" "$mismatch"
 }
 
-# In the main go.mod file (and linter config) we want Go version N-1.
-# See README.md / Go Version Compatibility Guarantees.
-check go.mod "^go\s\+$version_regex" "$go_previous_version"
-check .golangci.yml "go:\s\+\"$version_regex\"" "$go_previous_version"
+# In the main go.mod file (and linter config) we want the same Go version N.
+# All importable code has been moved to internal packages, so there's no need
+# to maintain backward compatibility with older compilers.
+check go.mod "^go\s\+$version_regex" "$go_latest_version"
+check .golangci.yml "go:\s\+\"$version_regex\"" "$go_latest_version"
 
 # find all other go.mod files in the repository and check for latest Go version
 for file in $(find . -type f -name go.mod | grep -v '^./go.mod'); do
