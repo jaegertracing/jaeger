@@ -3,7 +3,7 @@
 
 package integration
 
-import (
+import ( //nolint:depguard
 	"context"
 	"strconv"
 	"testing"
@@ -175,6 +175,9 @@ func cleanES(t *testing.T, client *elastic.Client, policyName string) {
 			assert.Fail(t, "Not able to clean up ILM Policy")
 		}
 	}
-	_, err = client.IndexDeleteTemplate("*").Do(t.Context()) //nolint:staticcheck // SA1019 deprecated
+	_, err = client.PerformRequest(t.Context(), elastic.PerformRequestOptions{
+		Method: "DELETE",
+		Path:   "/_template/*",
+	})
 	require.NoError(t, err)
 }

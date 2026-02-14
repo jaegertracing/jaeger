@@ -4,7 +4,7 @@
 
 package integration
 
-import (
+import ( //nolint:depguard
 	"context"
 	"errors"
 	"net/http"
@@ -206,11 +206,24 @@ func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 	require.NoError(t, err)
 	// TODO abstract this into pkg/es/client.IndexManagementLifecycleAPI
 	if esVersion == 6 || esVersion == 7 {
-		serviceTemplateExists, err := s.client.IndexTemplateExists(indexPrefix + "-jaeger-service").Do(t.Context()) //nolint:staticcheck // SA1019 deprecated
-		require.NoError(t, err)
+		resp, err := s.client.PerformRequest(t.Context(), elastic.PerformRequestOptions{
+			Method: "HEAD",
+			Path:   "/_template/" + indexPrefix + "-jaeger-service",
+		})
+		if err != nil && !elastic.IsNotFound(err) {
+			require.NoError(t, err)
+		}
+		serviceTemplateExists := err == nil && resp.StatusCode == http.StatusOK
 		assert.True(t, serviceTemplateExists)
-		spanTemplateExists, err := s.client.IndexTemplateExists(indexPrefix + "-jaeger-span").Do(t.Context()) //nolint:staticcheck // SA1019 deprecated
-		require.NoError(t, err)
+
+		resp, err = s.client.PerformRequest(t.Context(), elastic.PerformRequestOptions{
+			Method: "HEAD",
+			Path:   "/_template/" + indexPrefix + "-jaeger-span",
+		})
+		if err != nil && !elastic.IsNotFound(err) {
+			require.NoError(t, err)
+		}
+		spanTemplateExists := err == nil && resp.StatusCode == http.StatusOK
 		assert.True(t, spanTemplateExists)
 	} else {
 		serviceTemplateExistsResponse, err := s.v8Client.API.Indices.ExistsIndexTemplate(indexPrefix + "-jaeger-service")
@@ -238,7 +251,10 @@ func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string
 		_, err = s.v8Client.Indices.DeleteIndexTemplate([]string{prefixWithSeparator + dependenciesTemplateName})
 		require.NoError(t, err)
 	} else {
-		_, err := s.client.IndexDeleteTemplate("*").Do(t.Context()) //nolint:staticcheck // SA1019 deprecated
+		_, err := s.client.PerformRequest(t.Context(), elastic.PerformRequestOptions{
+			Method: "DELETE",
+			Path:   "/_template/*",
+		})
 		require.NoError(t, err)
 	}
 	return nil

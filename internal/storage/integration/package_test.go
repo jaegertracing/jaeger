@@ -4,11 +4,16 @@
 package integration
 
 import (
+	"os"
 	"testing"
 
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 func TestMain(m *testing.M) {
-	testutils.VerifyGoLeaks(m)
+	if os.Getenv("STORAGE") == "elasticsearch" || os.Getenv("STORAGE") == "opensearch" {
+		testutils.VerifyGoLeaksForES(m)
+	} else {
+		testutils.VerifyGoLeaks(m)
+	}
 }
