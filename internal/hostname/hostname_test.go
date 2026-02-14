@@ -18,7 +18,7 @@ func TestAsIdentifier(t *testing.T) {
 	var hostname1 string
 	var hostname2 string
 
-	wg := &waitGroup{wg: &sync.WaitGroup{}}
+	var wg waitGroup
 	wg.Go(func() {
 		var err error
 		hostname1, err = AsIdentifier()
@@ -42,17 +42,13 @@ func TestMain(m *testing.M) {
 
 // waitGroup is a wrapper around sync.WaitGroup with a Go method.
 type waitGroup struct {
-	wg *sync.WaitGroup
+	sync.WaitGroup
 }
 
 func (w *waitGroup) Go(f func()) {
-	w.wg.Add(1)
+	w.Add(1)
 	go func() {
-		defer w.wg.Done()
+		defer w.Done()
 		f()
 	}()
-}
-
-func (w *waitGroup) Wait() {
-	w.wg.Wait()
 }
