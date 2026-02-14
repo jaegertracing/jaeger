@@ -79,7 +79,8 @@ var (
 
 	_ CoreSpanReader = (*SpanReader)(nil) // check API conformance
 
-	disableLegacyIDs *featuregate.Gate
+	disableLegacyIDs  *featuregate.Gate
+	readLegacyIndices *featuregate.Gate
 )
 
 func init() {
@@ -90,6 +91,13 @@ func init() {
 		featuregate.WithRegisterToVersion("v2.8.0"),
 		featuregate.WithRegisterDescription("Legacy trace ids are the ids that used to be rendered with leading 0s omitted. Setting this gate to false will force the reader to search for the spans with trace ids having leading zeroes"),
 		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/1578"))
+
+	readLegacyIndices = featuregate.GlobalRegistry().MustRegister(
+		"jaeger.es.readLegacyWithDataStream",
+		featuregate.StageBeta,
+		featuregate.WithRegisterFromVersion("v2.6.0"),
+		featuregate.WithRegisterDescription("When enabled, the Elasticsearch reader will query both data streams and legacy indices for migration."),
+		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/pull/7768"))
 }
 
 // SpanReader can query for and load traces from ElasticSearch
@@ -123,6 +131,7 @@ type SpanReaderParams struct {
 	TagDotReplacement   string
 	ReadAliasSuffix     string
 	UseReadWriteAliases bool
+	UseDataStream       bool
 	RemoteReadClusters  []string
 	SpanReadAlias       string
 	ServiceReadAlias    string
@@ -135,11 +144,22 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	spanIndexPrefix := p.SpanReadAlias
 	serviceIndexPrefix := p.ServiceReadAlias
 
+	useDataStream := p.UseDataStream
+
 	if spanIndexPrefix == "" {
-		spanIndexPrefix = p.IndexPrefix.Apply(spanIndexBaseName)
+		spanIndexBase := spanIndexBaseName
+		if useDataStream {
+			spanIndexBase = "jaeger-span-ds"
+		}
+		spanIndexPrefix = p.IndexPrefix.Apply(spanIndexBase)
 	}
 	if serviceIndexPrefix == "" {
-		serviceIndexPrefix = p.IndexPrefix.Apply(serviceIndexBaseName)
+		serviceIndexBase := serviceIndexBaseName
+		if useDataStream {
+			// Services do not use Data Streams.
+			serviceIndexBase = serviceIndexBaseName
+		}
+		serviceIndexPrefix = p.IndexPrefix.Apply(serviceIndexBase)
 	}
 
 	maxSpanAge := p.MaxSpanAge
@@ -149,12 +169,26 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	}
 
 	var timeRangeFn TimeRangeIndexFn
-	if p.SpanReadAlias != "" && p.ServiceReadAlias != "" {
+	switch {
+	case p.SpanReadAlias != "" && p.ServiceReadAlias != "":
 		// When using explicit aliases, return them directly without any date logic
 		timeRangeFn = func(indexPrefix string, _ string, _ time.Time, _ time.Time, _ time.Duration) []string {
 			return []string{indexPrefix}
 		}
-	} else {
+	case useDataStream:
+		standardTimeRangeFn := TimeRangeIndicesFn(p.UseReadWriteAliases, p.ReadAliasSuffix, p.RemoteReadClusters)
+		timeRangeFn = func(indexPrefix string, layout string, start time.Time, end time.Time, lookback time.Duration) []string {
+			if indexPrefix == spanIndexPrefix {
+				indices := []string{indexPrefix}
+				if readLegacyIndices.IsEnabled() {
+					legacyIndexPrefix := strings.TrimSuffix(indexPrefix, "-ds")
+					indices = append(indices, cfg.GetDataStreamLegacyWildcard(legacyIndexPrefix))
+				}
+				return indices
+			}
+			return standardTimeRangeFn(indexPrefix, layout, start, end, lookback)
+		}
+	default:
 		timeRangeFn = TimeRangeIndicesFn(p.UseReadWriteAliases, p.ReadAliasSuffix, p.RemoteReadClusters)
 	}
 
@@ -248,14 +282,14 @@ func getSourceFn(maxDocCount int) sourceFn {
 // timeRangeIndices returns the array of indices that we need to query, based on query params
 func timeRangeIndices(indexName, indexDateLayout string, startTime time.Time, endTime time.Time, reduceDuration time.Duration) []string {
 	var indices []string
-	firstIndex := indexWithDate(indexName, indexDateLayout, startTime)
-	currentIndex := indexWithDate(indexName, indexDateLayout, endTime)
+	firstIndex := cfg.IndexWithDate(indexName, indexDateLayout, startTime)
+	currentIndex := cfg.IndexWithDate(indexName, indexDateLayout, endTime)
 	for currentIndex != firstIndex && endTime.After(startTime) {
 		if len(indices) == 0 || indices[len(indices)-1] != currentIndex {
 			indices = append(indices, currentIndex)
 		}
 		endTime = endTime.Add(reduceDuration)
-		currentIndex = indexWithDate(indexName, indexDateLayout, endTime)
+		currentIndex = cfg.IndexWithDate(indexName, indexDateLayout, endTime)
 	}
 	indices = append(indices, firstIndex)
 	return indices
