@@ -14,10 +14,8 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
-	"github.com/gorilla/mux"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -58,30 +56,29 @@ type HTTPGateway struct {
 	QueryService *querysvc.QueryService
 	Logger       *zap.Logger
 	Tracer       trace.TracerProvider
+	BasePath     string
 }
 
 // RegisterRoutes registers HTTP endpoints for APIv3 into provided mux.
-// The called can create a subrouter if it needs to prepend a base path.
-func (h *HTTPGateway) RegisterRoutes(router *mux.Router) {
-	h.addRoute(router, h.getTrace, routeGetTrace).Methods(http.MethodGet)
-	h.addRoute(router, h.findTraces, routeFindTraces).Methods(http.MethodGet)
-	h.addRoute(router, h.getServices, routeGetServices).Methods(http.MethodGet)
-	h.addRoute(router, h.getOperations, routeGetOperations).Methods(http.MethodGet)
-	h.addRoute(router, h.getDependencies, routeGetDependencies).Methods(http.MethodGet)
+func (h *HTTPGateway) RegisterRoutes(router *http.ServeMux) {
+	h.addRoute(router, h.getTrace, routeGetTrace, http.MethodGet)
+	h.addRoute(router, h.findTraces, routeFindTraces, http.MethodGet)
+	h.addRoute(router, h.getServices, routeGetServices, http.MethodGet)
+	h.addRoute(router, h.getOperations, routeGetOperations, http.MethodGet)
 }
 
 // addRoute adds a new endpoint to the router with given path and handler function.
-// This code is mostly copied from ../http_handler.
-func (*HTTPGateway) addRoute(
-	router *mux.Router,
+func (h *HTTPGateway) addRoute(
+	router *http.ServeMux,
 	f func(http.ResponseWriter, *http.Request),
 	route string,
-	_ ...any, /* args */
-) *mux.Route {
-	var handler http.Handler = http.HandlerFunc(f)
-	handler = otelhttp.WithRouteTag(route, handler)
-	handler = spanNameHandler(route, handler)
-	return router.HandleFunc(route, handler.ServeHTTP)
+	method string,
+) {
+	if h.BasePath != "" && h.BasePath != "/" {
+		route = h.BasePath + route
+	}
+	pattern := method + " " + route
+	router.HandleFunc(pattern, f)
 }
 
 // tryHandleError checks if the passed error is not nil and handles it by writing
@@ -125,7 +122,6 @@ func (h *HTTPGateway) returnTrace(td ptrace.Traces, w http.ResponseWriter) {
 }
 
 func (h *HTTPGateway) returnTraces(traces []ptrace.Traces, err error, w http.ResponseWriter) {
-	// TODO how do we distinguish internal error from bad parameters?
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}
@@ -158,8 +154,7 @@ func (*HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWrite
 }
 
 func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	traceIDVar := vars[paramTraceID]
+	traceIDVar := r.PathValue(paramTraceID)
 	traceID, err := model.TraceIDFromString(traceIDVar)
 	if h.tryParamError(w, err, paramTraceID) {
 		return
@@ -295,73 +290,14 @@ func (h *HTTPGateway) getOperations(w http.ResponseWriter, r *http.Request) {
 	}
 	apiOperations := make([]*api_v3.Operation, len(operations))
 	for i := range operations {
+		spanKind := operations[i].SpanKind
+		if spanKind == "" {
+			spanKind = string(model.SpanKindInternal)
+		}
 		apiOperations[i] = &api_v3.Operation{
 			Name:     operations[i].Name,
-			SpanKind: operations[i].SpanKind,
+			SpanKind: spanKind,
 		}
 	}
 	h.marshalResponse(&api_v3.GetOperationsResponse{Operations: apiOperations}, w)
-}
-
-func (h *HTTPGateway) getDependencies(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query()
-	endTimeStr := q.Get(paramEndTime)
-	lookbackStr := q.Get(paramLookback)
-
-	if endTimeStr == "" || lookbackStr == "" {
-		err := fmt.Errorf("%s and %s are required", paramEndTime, paramLookback)
-		h.tryHandleError(w, err, http.StatusBadRequest)
-		return
-	}
-
-	endTime, err := time.Parse(time.RFC3339Nano, endTimeStr)
-	if h.tryParamError(w, err, paramEndTime) {
-		return
-	}
-
-	lookback, err := time.ParseDuration(lookbackStr)
-	if h.tryParamError(w, err, paramLookback) {
-		return
-	}
-
-	dependencies, err := h.QueryService.GetDependencies(r.Context(), endTime, lookback)
-	if h.tryHandleError(w, err, http.StatusInternalServerError) {
-		return
-	}
-
-	// Return dependencies as JSON directly since api_v3 doesn't have GetDependencies proto yet
-	type dependencyLink struct {
-		Parent    string `json:"parent"`
-		Child     string `json:"child"`
-		CallCount uint64 `json:"callCount"`
-		Source    string `json:"source,omitempty"`
-	}
-
-	response := struct {
-		Dependencies []dependencyLink `json:"dependencies"`
-	}{
-		Dependencies: make([]dependencyLink, 0, len(dependencies)),
-	}
-
-	for _, dep := range dependencies {
-		response.Dependencies = append(response.Dependencies, dependencyLink{
-			Parent:    dep.Parent,
-			Child:     dep.Child,
-			CallCount: dep.CallCount,
-			Source:    dep.Source,
-		})
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		h.tryHandleError(w, fmt.Errorf("failed to encode dependencies response: %w", err), http.StatusInternalServerError)
-	}
-}
-
-func spanNameHandler(spanName string, handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		span := trace.SpanFromContext(r.Context())
-		span.SetName(spanName)
-		handler.ServeHTTP(w, r)
-	})
 }

@@ -33,7 +33,6 @@ ALL_SRC = $(shell find . -name '*.go' \
 				   -not -path './internal/tools/*' \
 				   -not -path './scripts/build/docker/debug/*' \
 				   -not -path '*/mocks/*' \
-				   -not -path '*/thrift-0.9.2/*' \
 				   -type f | \
 				sort)
 
@@ -194,6 +193,10 @@ lint-goleak:
 .PHONY: lint-go
 lint-go: $(LINT)
 	$(LINT) -v run
+
+.PHONY: govulncheck
+govulncheck: $(GOVULNCHECK)
+	$(GOVULNCHECK) ./...
 
 .PHONY: lint-jaeger-idl-versions
 lint-jaeger-idl-versions:

@@ -28,7 +28,7 @@ jobs:
 
     - uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
       with:
-        go-version: 1.25.x
+        go-version: 1.26.x
 
     - name: Print Jaeger version for no reason
       run: make echo-version
@@ -100,7 +100,7 @@ jobs:
 
     - uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
       with:
-        go-version: 1.25.x
+        go-version: 1.26.x
 
     - name: Verify Protobuf types are up to date
       run: make proto && { if git status --porcelain | grep '??'; then exit 1; else git diff --name-status --exit-code; fi }
@@ -145,7 +145,7 @@ jobs:
 
     - uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
       with:
-        go-version: 1.25.x
+        go-version: 1.26.x
 
     - name: Setup Node.js version
       uses: ./.github/actions/setup-node.js
