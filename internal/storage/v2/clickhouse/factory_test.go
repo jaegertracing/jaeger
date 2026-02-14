@@ -78,6 +78,12 @@ func TestFactory(t *testing.T) {
 }
 
 func TestNewFactory_Errors(t *testing.T) {
+	defaultSpansTable, err := loadTemplate("test", sql.CreateSpansTable, struct{ TTLSeconds int64 }{0})
+	require.NoError(t, err)
+
+	defaultTraceIDTsTable, err := loadTemplate("test_ts", sql.CreateTraceIDTimestampsTable, struct{ TTLSeconds int64 }{0})
+	require.NoError(t, err)
+
 	tests := []struct {
 		name          string
 		failureConfig clickhousetest.FailureConfig
@@ -93,7 +99,7 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "spans table creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateSpansTable: assert.AnError,
+				defaultSpansTable: assert.AnError,
 			},
 			expectedError: "failed to create spans table",
 		},
@@ -128,7 +134,7 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "trace id timestamps table creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateTraceIDTimestampsTable: assert.AnError,
+				defaultTraceIDTsTable: assert.AnError,
 			},
 			expectedError: "failed to create trace id timestamps table",
 		},
@@ -286,6 +292,48 @@ func TestGetProtocol(t *testing.T) {
 		t.Run(tt.protocol, func(t *testing.T) {
 			result := getProtocol(tt.protocol)
 			require.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestLoadTemplate(t *testing.T) {
+	tests := []struct {
+		name        string
+		tmplBody    string
+		data        any
+		expected    string
+		expectError bool
+	}{
+		{
+			name:        "valid template",
+			tmplBody:    "Hello {{ .Name }}",
+			data:        struct{ Name string }{Name: "Jaeger"},
+			expected:    "Hello Jaeger",
+			expectError: false,
+		},
+		{
+			name:        "parse error",
+			tmplBody:    "{{ bad syntax",
+			data:        nil,
+			expectError: true,
+		},
+		{
+			name:        "execution error",
+			tmplBody:    "Hello {{ .Name.Invalid }}",
+			data:        struct{ Name string }{Name: "Jaeger"},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := loadTemplate("test_tmpl", tt.tmplBody, tt.data)
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expected, res)
+			}
 		})
 	}
 }

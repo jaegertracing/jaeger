@@ -5,7 +5,9 @@ package clickhouse
 
 import (
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -91,4 +93,51 @@ func TestConfigurationApplyDefaults(t *testing.T) {
 	require.Equal(t, defaultDatabase, config.Database)
 	require.Equal(t, defaultSearchDepth, config.DefaultSearchDepth)
 	require.Equal(t, defaultMaxSearchDepth, config.MaxSearchDepth)
+}
+
+func TestConfiguration_Validate_TTL(t *testing.T) {
+	tests := []struct {
+		name        string
+		ttl         time.Duration
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "Zero TTL (Disabled) is valid",
+			ttl:         0,
+			expectError: false,
+		},
+		{
+			name:        "Positive TTL is valid",
+			ttl:         1 * time.Hour,
+			expectError: false,
+		},
+		{
+			name:        "Negative TTL is invalid",
+			ttl:         -1 * time.Hour,
+			expectError: true,
+		},
+		{
+			name:        "Sub-second TTL is invalid",
+			ttl:         500 * time.Millisecond,
+			expectError: true,
+			errorMsg:    "spans_ttl must be at least 1 second",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := &Configuration{
+				Addresses: []string{"localhost:9000"}, // Required field
+				SpansTTL:  test.ttl,
+			}
+			err := cfg.Validate()
+			if test.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), test.errorMsg)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
