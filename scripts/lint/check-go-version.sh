@@ -22,10 +22,9 @@ done
 # go_latest_version=$(curl -s https://go.dev/dl/?mode=json | jq -r '.[0].version' | awk -F'.' '{gsub("go", ""); print $1"."$2}')
 #
 # UPDATE: we don't use the logic above because it causes CI to fail when new version of Go is released,
-# which may create circular dependencies when other utilities need to be upgraded. Instead use the toolchain
+# which may create circular dependencies when other utilities need to be upgraded. Instead use the go
 # version declared in the main go.mod. Updates to that version will be handled by the bots.
-go_latest_version=$(grep toolchain go.mod | sed 's/^.*go\([0-9]\.[0-9]*\).*/\1/')
-go_previous_version="${go_latest_version%.*}.$((10#${go_latest_version#*.} - 1))"
+go_latest_version=$(grep "^go " go.mod | sed 's/^go \([0-9]\.[0-9]*\).*/\1/')
 
 files_to_update=0
 
