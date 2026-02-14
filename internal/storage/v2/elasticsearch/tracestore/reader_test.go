@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"iter"
+	"strings"
 	"testing"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 func TestTraceReader_GetServices(t *testing.T) {
@@ -152,7 +154,8 @@ func TestTraceReader_FindTraces(t *testing.T) {
 	dbTrace2 := dbmodel.Trace{Spans: []dbmodel.Span{span}}
 	coreReader.On("FindTraces", mock.Anything, mock.Anything).Return([]dbmodel.Trace{dbTrace, dbTrace2}, nil)
 	traces := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
-		Attributes: pcommon.NewMap(),
+		Attributes:         pcommon.NewMap(),
+		ResourceAttributes: pcommon.NewMap(),
 	})
 	for td, err := range traces {
 		require.NoError(t, err)
@@ -165,7 +168,8 @@ func TestTraceReader_FindTraces(t *testing.T) {
 func TestTraceReader_FindTraces_Errors(t *testing.T) {
 	testTraceReaderGetTracesAndFindTracesErrors(t, "FindTraces", func(r TraceReader) iter.Seq2[[]ptrace.Traces, error] {
 		return r.FindTraces(context.Background(), tracestore.TraceQueryParams{
-			Attributes: pcommon.NewMap(),
+			Attributes:         pcommon.NewMap(),
+			ResourceAttributes: pcommon.NewMap(),
 		})
 	})
 }
@@ -184,7 +188,8 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 	}
 	coreReader.On("FindTraceIDs", mock.Anything, mock.Anything).Return(dbTraceIDs, nil)
 	for traceIds, err := range reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
-		Attributes: pcommon.NewMap(),
+		Attributes:         pcommon.NewMap(),
+		ResourceAttributes: pcommon.NewMap(),
 	}) {
 		require.NoError(t, err)
 		require.Equal(t, expected, traceIds)
@@ -216,17 +221,19 @@ func TestTraceReader_FindTraceIDs_Error(t *testing.T) {
 			attrs.PutStr("key1", "val1")
 			ts := time.Now()
 			traceQueryParams := tracestore.TraceQueryParams{
-				Attributes:    attrs,
-				StartTimeMin:  ts,
-				ServiceName:   "testing-service-name",
-				OperationName: "testing-operation-name",
-				StartTimeMax:  ts.Add(1 * time.Hour),
-				DurationMin:   1 * time.Hour,
-				DurationMax:   1 * time.Hour,
-				SearchDepth:   10,
+				Attributes:         attrs,
+				ResourceAttributes: pcommon.NewMap(),
+				StartTimeMin:       ts,
+				ServiceName:        "testing-service-name",
+				OperationName:      "testing-operation-name",
+				StartTimeMax:       ts.Add(1 * time.Hour),
+				DurationMin:        1 * time.Hour,
+				DurationMax:        1 * time.Hour,
+				SearchDepth:        10,
 			}
 			dbTraceQueryParams := dbmodel.TraceQueryParameters{
 				Tags:          map[string]string{"key1": "val1"},
+				ProcessTags:   map[string]string{},
 				StartTimeMin:  ts,
 				ServiceName:   "testing-service-name",
 				OperationName: "testing-operation-name",
@@ -252,10 +259,147 @@ func Test_NewTraceReader(t *testing.T) {
 	assert.IsType(t, &spanstore.SpanReader{}, reader.spanReader)
 }
 
+func TestTraceReader_FindTraceIDs_OTLPQueryTranslation(t *testing.T) {
+	tests := []struct {
+		name        string
+		queryAttr   string
+		queryVal    string
+		expectedTag string
+		expectedVal string
+	}{
+		{
+			name:        "scope.name translation",
+			queryAttr:   "scope.name",
+			queryVal:    "my-scope",
+			expectedTag: otelsemconv.AttributeOtelScopeName,
+			expectedVal: "my-scope",
+		},
+		{
+			name:        "scope.version translation",
+			queryAttr:   "scope.version",
+			queryVal:    "1.0.0",
+			expectedTag: otelsemconv.AttributeOtelScopeVersion,
+			expectedVal: "1.0.0",
+		},
+		{
+			name:        "resource attribute translation",
+			queryAttr:   "resource.service.instance.id",
+			queryVal:    "instance-1",
+			expectedTag: "service.instance.id",
+			expectedVal: "instance-1",
+		},
+		{
+			name:        "scope attribute translation",
+			queryAttr:   "scope.custom.attr",
+			queryVal:    "custom-val",
+			expectedTag: "scope.custom.attr",
+			expectedVal: "custom-val",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			coreReader := &mocks.CoreSpanReader{}
+			reader := TraceReader{spanReader: coreReader}
+
+			traceQueryParams := tracestore.TraceQueryParams{
+				Attributes:         pcommon.NewMap(),
+				ResourceAttributes: pcommon.NewMap(),
+				// Add dummy time/duration to satisfy validation if any (V1 reader has defaults)
+				StartTimeMin: time.Now().Add(-1 * time.Hour),
+				StartTimeMax: time.Now(),
+			}
+
+			switch {
+			case tt.queryAttr == "scope.name":
+				traceQueryParams.Attributes.PutStr(otelsemconv.AttributeOtelScopeName, tt.queryVal)
+			case tt.queryAttr == "scope.version":
+				traceQueryParams.Attributes.PutStr(otelsemconv.AttributeOtelScopeVersion, tt.queryVal)
+			case strings.HasPrefix(tt.queryAttr, "resource."):
+				traceQueryParams.ResourceAttributes.PutStr(strings.TrimPrefix(tt.queryAttr, "resource."), tt.queryVal)
+			case strings.HasPrefix(tt.queryAttr, "scope."):
+				traceQueryParams.Attributes.PutStr("scope."+strings.TrimPrefix(tt.queryAttr, "scope."), tt.queryVal)
+			default:
+				traceQueryParams.Attributes.PutStr(tt.queryAttr, tt.queryVal)
+			}
+
+			expectedDBParams := mock.MatchedBy(func(p dbmodel.TraceQueryParameters) bool {
+				// For resource attributes, check ProcessTags
+				if strings.HasPrefix(tt.queryAttr, "resource.") {
+					if val, ok := p.ProcessTags[tt.expectedTag]; ok {
+						return val == tt.expectedVal
+					}
+					return false
+				}
+				// For other attributes, check Tags
+				if val, ok := p.Tags[tt.expectedTag]; ok {
+					return val == tt.expectedVal
+				}
+				if _, ok := p.Tags[tt.queryAttr]; ok {
+					return false
+				}
+				return false
+			})
+
+			coreReader.On("FindTraceIDs", mock.Anything, expectedDBParams).Return([]dbmodel.TraceID{}, nil)
+
+			for _, err := range reader.FindTraceIDs(context.Background(), traceQueryParams) {
+				require.NoError(t, err)
+			}
+
+			coreReader.AssertExpectations(t)
+		})
+	}
+}
+
 func fromDBTraceId(t *testing.T, traceID dbmodel.TraceID) tracestore.FoundTraceID {
 	traceId, err := convertTraceIDFromDB(traceID)
 	require.NoError(t, err)
 	return tracestore.FoundTraceID{
 		TraceID: traceId,
+	}
+}
+
+func TestTraceReader_FindTraces_WithAttributes(t *testing.T) {
+	coreReader := &mocks.CoreSpanReader{}
+	reader := TraceReader{spanReader: coreReader}
+
+	attrs := pcommon.NewMap()
+	attrs.PutStr("key1", "val1")
+
+	resAttrs := pcommon.NewMap()
+	resAttrs.PutStr("res1", "val1")
+
+	now := time.Now()
+	query := tracestore.TraceQueryParams{
+		ServiceName:        "service",
+		OperationName:      "operation",
+		Attributes:         attrs,
+		ResourceAttributes: resAttrs,
+		StartTimeMin:       now,
+		StartTimeMax:       now.Add(time.Hour),
+		DurationMin:        time.Minute,
+		DurationMax:        time.Hour,
+		SearchDepth:        100,
+	}
+
+	expectedDBParams := dbmodel.TraceQueryParameters{
+		ServiceName:   "service",
+		OperationName: "operation",
+		Tags:          map[string]string{"key1": "val1"},
+		ProcessTags:   map[string]string{"res1": "val1"},
+		StartTimeMin:  now,
+		StartTimeMax:  now.Add(time.Hour),
+		DurationMin:   time.Minute,
+		DurationMax:   time.Hour,
+		NumTraces:     100,
+	}
+
+	coreReader.On("FindTraces", mock.Anything, expectedDBParams).Return([]dbmodel.Trace{}, nil)
+
+	traces := reader.FindTraces(context.Background(), query)
+
+	for _, err := range traces {
+		require.NoError(t, err)
 	}
 }
