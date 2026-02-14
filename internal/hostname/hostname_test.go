@@ -18,20 +18,17 @@ func TestAsIdentifier(t *testing.T) {
 	var hostname1 string
 	var hostname2 string
 
-	wg := sync.WaitGroup{}
-	wg.Add(2)
-	go func() {
+	wg := &waitGroup{wg: &sync.WaitGroup{}}
+	wg.Go(func() {
 		var err error
 		hostname1, err = AsIdentifier()
 		assert.NoError(t, err)
-		wg.Done()
-	}()
-	go func() {
+	})
+	wg.Go(func() {
 		var err error
 		hostname2, err = AsIdentifier()
 		assert.NoError(t, err)
-		wg.Done()
-	}()
+	})
 	wg.Wait()
 
 	actualHostname, _ := os.Hostname()
@@ -41,4 +38,21 @@ func TestAsIdentifier(t *testing.T) {
 
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
+}
+
+// waitGroup is a wrapper around sync.WaitGroup with a Go method.
+type waitGroup struct {
+	wg *sync.WaitGroup
+}
+
+func (w *waitGroup) Go(f func()) {
+	w.wg.Add(1)
+	go func() {
+		defer w.wg.Done()
+		f()
+	}()
+}
+
+func (w *waitGroup) Wait() {
+	w.wg.Wait()
 }

@@ -143,19 +143,15 @@ func TestLRUCacheConcurrentAccess(*testing.T) {
 	}
 
 	start := make(chan struct{})
-	var wg sync.WaitGroup
+	wg := &waitGroup{wg: &sync.WaitGroup{}}
 	for i := 0; i < 20; i++ {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			<-start
 
 			for i := 0; i < 1000; i++ {
 				cache.Get("A")
 			}
-		}()
+		})
 	}
 
 	close(start)
@@ -234,4 +230,21 @@ func (c *simulatedClock) Elapse(d time.Duration) time.Time {
 
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
+}
+
+// waitGroup is a wrapper around sync.WaitGroup with a Go method.
+type waitGroup struct {
+	wg *sync.WaitGroup
+}
+
+func (w *waitGroup) Go(f func()) {
+	w.wg.Add(1)
+	go func() {
+		defer w.wg.Done()
+		f()
+	}()
+}
+
+func (w *waitGroup) Wait() {
+	w.wg.Wait()
 }
