@@ -48,3 +48,4 @@ resource.syso
 test-results.json
 .metrics/
 .mockery.log
+.test.log

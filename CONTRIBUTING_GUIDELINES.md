@@ -127,6 +127,18 @@ This policy exists to:
 - PRs that look like low-effort AI slop will be closed.
 - Repeated violators may be banned from the project.
 
+
+
+### Verification Workflow
+
+Before pushing your PR, run:
+
+```bash
+make verify-with-proof
+```
+
+Then push with `git push --force-with-lease`.
+
 ## Pull Request Limits for New Contributors
 
 To ensure high-quality code reviews and long-term codebase stability, we limit the number of simultaneous open PRs for new contributors.
