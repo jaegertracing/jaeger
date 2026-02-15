@@ -6,7 +6,6 @@ package customer
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -14,6 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/delay"
+	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/httperr"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/tracing"
 	"github.com/jaegertracing/jaeger/examples/hotrod/services/config"
@@ -85,5 +85,5 @@ func (d *database) Get(ctx context.Context, customerID int) (*Customer, error) {
 	if customer, ok := d.customers[customerID]; ok {
 		return customer, nil
 	}
-	return nil, errors.New("invalid customer ID")
+	return nil, httperr.NewBadRequest(fmt.Sprintf("invalid customer ID: %d", customerID))
 }

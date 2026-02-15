@@ -78,7 +78,7 @@ func (s *Server) customer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response, err := s.database.Get(ctx, customerID)
-	if httperr.HandleError(w, err, http.StatusInternalServerError) {
+	if httperr.HandleErrorAuto(w, err) {
 		s.logger.For(ctx).Error("request failed", zap.Error(err))
 		return
 	}
