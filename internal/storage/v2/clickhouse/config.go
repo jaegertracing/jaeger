@@ -9,6 +9,7 @@ import (
 	"github.com/asaskevich/govalidator"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension"
 	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/config/configtls"
 )
 
 const (
@@ -30,6 +31,8 @@ type Configuration struct {
 	Auth Authentication `mapstructure:"auth"`
 	// DialTimeout is the timeout for establishing a connection to ClickHouse.
 	DialTimeout time.Duration `mapstructure:"dial_timeout"`
+	// TLS contains the TLS configuration to connect to ClickHouse.
+	TLS configtls.ClientConfig `mapstructure:"tls"`
 	// CreateSchema, if set to true, will create the ClickHouse schema if it does not exist.
 	CreateSchema bool `mapstructure:"create_schema"`
 	// DefaultSearchDepth is the default search depth for queries.
@@ -64,5 +67,11 @@ func (cfg *Configuration) applyDefaults() {
 	}
 	if cfg.MaxSearchDepth == 0 {
 		cfg.MaxSearchDepth = defaultMaxSearchDepth
+	}
+	// By default, connections are insecure (plain text).
+	// To enable TLS, users must explicitly set tls.insecure: false
+	// or provide other TLS settings.
+	if cfg.TLS.CAFile == "" && cfg.TLS.CertFile == "" && cfg.TLS.KeyFile == "" && !cfg.TLS.InsecureSkipVerify {
+		cfg.TLS.Insecure = true
 	}
 }
