@@ -118,7 +118,7 @@ func TestEmptySpansAndProcess(t *testing.T) {
 	assert.Equal(t, 1, trace.ResourceSpans().Len())
 }
 
-func Test_jSpansToInternal_EmptySpans(t *testing.T) {
+func Test_dbSpansToSpans_EmptySpans(t *testing.T) {
 	spans := []dbmodel.Span{{}}
 	traceData := ptrace.NewTraces()
 	rss := traceData.ResourceSpans()
