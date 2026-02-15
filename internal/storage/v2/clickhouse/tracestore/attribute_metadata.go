@@ -14,12 +14,16 @@ import (
 )
 
 // attrTypes holds the value types for an attribute key at different levels.
-// These types are populated by the materialized view defined in
-// internal/storage/v2/clickhouse/sql/create_attribute_metadata_mv.sql
+// These types are populated by the materialized views defined in
+// internal/storage/v2/clickhouse/sql/create_attribute_metadata_mv.sql,
+// internal/storage/v2/clickhouse/sql/create_event_attribute_metadata_mv.sql, and
+// internal/storage/v2/clickhouse/sql/create_link_attribute_metadata_mv.sql
 type attrTypes struct {
 	resource []pcommon.ValueType
 	scope    []pcommon.ValueType
 	span     []pcommon.ValueType
+	event    []pcommon.ValueType
+	link     []pcommon.ValueType
 }
 
 // attributeMetadata maps attribute keys to their types per level.
@@ -80,6 +84,10 @@ func (r *Reader) getAttributeMetadata(ctx context.Context, attributes pcommon.Ma
 			levels.scope = append(levels.scope, jptrace.StringToValueType(attrMeta.Type))
 		case "span":
 			levels.span = append(levels.span, jptrace.StringToValueType(attrMeta.Type))
+		case "event":
+			levels.event = append(levels.event, jptrace.StringToValueType(attrMeta.Type))
+		case "link":
+			levels.link = append(levels.link, jptrace.StringToValueType(attrMeta.Type))
 		default:
 			return nil, fmt.Errorf("unknown attribute level %q", attrMeta.Level)
 		}

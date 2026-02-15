@@ -152,7 +152,7 @@ func initializeTestServerWithOptions(
 	traceReader := &tracestoremocks.Reader{}
 	dependencyStorage := &depsmocks.Reader{}
 	qs := querysvc.NewQueryService(traceReader, dependencyStorage, queryOptions)
-	r := NewRouter()
+	r := http.NewServeMux()
 	apiHandler := NewAPIHandler(qs, options...)
 	apiHandler.RegisterRoutes(r)
 	ts := &testServer{
@@ -683,6 +683,22 @@ func TestGetServicesSuccess(t *testing.T) {
 	assert.Equal(t, expectedServices, actualServices)
 }
 
+func TestGetServicesEmpty(t *testing.T) {
+	ts := initializeTestServer(t)
+	ts.traceReader.
+		On("GetServices", mock.Anything).
+		Return(nil, nil).
+		Once()
+
+	var response structuredResponse
+	err := getJSON(ts.server.URL+"/api/services", &response)
+	require.NoError(t, err)
+
+	require.NotNil(t, response.Data)
+	data := response.Data.([]any)
+	assert.Empty(t, data)
+}
+
 func TestGetServicesStorageFailure(t *testing.T) {
 	ts := initializeTestServer(t)
 	ts.traceReader.On("GetServices", mock.Anything).Return(nil, errStorage).Once()
@@ -897,7 +913,7 @@ func TestGetMetricsSuccess(t *testing.T) {
 			// Prepare
 			mr.On(
 				tc.mockedQueryMethod,
-				mock.AnythingOfType("*context.valueCtx"),
+				mock.Anything,
 				mock.AnythingOfType(tc.mockedQueryMethodParamType),
 			).Return(expectedMetricsQueryResponse, nil).Once()
 
@@ -970,7 +986,7 @@ func TestMetricsReaderError(t *testing.T) {
 			// Prepare
 			metricsReader.On(
 				tc.mockedQueryMethod,
-				mock.AnythingOfType("*context.valueCtx"),
+				mock.Anything,
 				mock.AnythingOfType(tc.mockedQueryMethodParamType),
 			).Return(tc.mockedResponse, errors.New(tc.wantErrorMessage)).Once()
 
@@ -1025,7 +1041,7 @@ func TestGetMinStep(t *testing.T) {
 	// Prepare
 	metricsReader.On(
 		"GetMinStepDuration",
-		mock.AnythingOfType("*context.valueCtx"),
+		mock.Anything,
 		mock.AnythingOfType("*metricstore.MinStepDurationQueryParameters"),
 	).Return(5*time.Millisecond, nil).Once()
 
