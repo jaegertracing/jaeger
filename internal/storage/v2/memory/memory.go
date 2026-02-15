@@ -106,7 +106,9 @@ func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryPara
 			return
 		}
 		for i := range traceAndIds {
-			if !yield([]ptrace.Traces{traceAndIds[i].trace}, nil) {
+			cp := ptrace.NewTraces()
+			traceAndIds[i].trace.CopyTo(cp)
+			if !yield([]ptrace.Traces{cp}, nil) {
 				return
 			}
 		}
