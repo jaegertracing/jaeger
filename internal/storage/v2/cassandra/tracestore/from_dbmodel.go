@@ -68,7 +68,7 @@ func dbSpanToSpan(dbspan *dbmodel.Span, span ptrace.Span) {
 	//nolint:gosec // G115 // we only care about bits, not the interpretation as integer, and this conversion is bitwise lossless
 	span.SetSpanID(idutils.UInt64ToSpanID(uint64(dbspan.SpanID)))
 	span.SetName(dbspan.OperationName)
-	//nolint:gosec // G115 // dbspan.Flags is guaranteed non-negative (epoch microseconds) by schema constraints
+	//nolint:gosec // G115 // dbspan.Flags is guaranteed non-negative by schema constraints
 	span.SetFlags(uint32(dbspan.Flags))
 	//nolint:gosec // G115 // dbspan.StartTime is guaranteed non-negative (epoch microseconds) by schema constraints
 	span.SetStartTimestamp(dbTimeStampToOTLPTimeStamp(uint64(dbspan.StartTime)))
@@ -77,7 +77,7 @@ func dbSpanToSpan(dbspan *dbmodel.Span, span ptrace.Span) {
 
 	parentSpanID := dbspan.ParentID
 	if parentSpanID != 0 {
-		//nolint:gosec // G115 // dbspan.ParentID is guaranteed non-negative (epoch microseconds) by schema constraints
+		//nolint:gosec // G115 // dbspan.ParentID is a span ID value guaranteed non-negative by schema constraints
 		span.SetParentSpanID(idutils.UInt64ToSpanID(uint64(parentSpanID)))
 	}
 
