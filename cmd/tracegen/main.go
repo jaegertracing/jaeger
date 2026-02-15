@@ -8,6 +8,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/go-logr/zapr"
@@ -71,13 +73,27 @@ func createTracers(cfg *tracegen.Config, logger *zap.Logger) ([]trace.Tracer, fu
 	}
 	var shutdown []func(context.Context) error
 	var tracers []trace.Tracer
+
+	var file *os.File
+	exporterType := cfg.TraceExporter
+
+	if strings.HasPrefix(cfg.TraceExporter, "file:") {
+		filename := strings.TrimPrefix(cfg.TraceExporter, "file:")
+		var err error
+		file, err = os.Create(filename)
+		if err != nil {
+			logger.Sugar().Fatalf("cannot create output file %s: %s", filename, err)
+		}
+		exporterType = "file"
+	}
+
 	for s := 0; s < cfg.Services; s++ {
 		svc := cfg.Service
 		if cfg.Services > 1 {
 			svc = fmt.Sprintf("%s-%02d", svc, s)
 		}
 
-		exp, err := createOtelExporter(cfg.TraceExporter)
+		exp, err := createOtelExporter(exporterType, file)
 		if err != nil {
 			logger.Sugar().Fatalf("cannot create trace exporter %s: %s", cfg.TraceExporter, err)
 		}
@@ -113,6 +129,13 @@ func createTracers(cfg *tracegen.Config, logger *zap.Logger) ([]trace.Tracer, fu
 		tracers = append(tracers, tp.Tracer(cfg.Service))
 		shutdown = append(shutdown, tp.Shutdown)
 	}
+
+	if file != nil {
+		shutdown = append(shutdown, func(_ context.Context) error {
+			return file.Close()
+		})
+	}
+
 	return tracers, func(ctx context.Context) error {
 		var errs []error
 		for _, f := range shutdown {
@@ -122,21 +145,21 @@ func createTracers(cfg *tracegen.Config, logger *zap.Logger) ([]trace.Tracer, fu
 	}
 }
 
-func createOtelExporter(exporterType string) (sdktrace.SpanExporter, error) {
+func createOtelExporter(exporterType string, fileWriter *os.File) (sdktrace.SpanExporter, error) {
 	var exporter sdktrace.SpanExporter
 	var err error
 	switch exporterType {
+	case "file":
+		return stdouttrace.New(
+			stdouttrace.WithWriter(fileWriter),
+		)
 	case "jaeger":
 		return nil, errors.New("jaeger exporter is no longer supported, please use otlp")
 	case "otlp", "otlp-http":
-		client := otlptracehttp.NewClient(
-			otlptracehttp.WithInsecure(),
-		)
+		client := otlptracehttp.NewClient(otlptracehttp.WithInsecure())
 		exporter, err = otlptrace.New(context.Background(), client)
 	case "otlp-grpc":
-		client := otlptracegrpc.NewClient(
-			otlptracegrpc.WithInsecure(),
-		)
+		client := otlptracegrpc.NewClient(otlptracegrpc.WithInsecure())
 		exporter, err = otlptrace.New(context.Background(), client)
 	case "stdout":
 		exporter, err = stdouttrace.New()
