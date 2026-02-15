@@ -65,7 +65,7 @@ func dbProcessToResource(process dbmodel.Process, resource pcommon.Resource) {
 
 func dbSpanToSpan(dbspan *dbmodel.Span, span ptrace.Span) {
 	span.SetTraceID(pcommon.TraceID(dbspan.TraceID))
-	//nolint:gosec // G115 // dbspan.SpanID is guaranteed non-negative by schema constraints
+	//nolint:gosec // G115 // we only care about bits, not the interpretation as integer, and this conversion is bitwise lossless
 	span.SetSpanID(idutils.UInt64ToSpanID(uint64(dbspan.SpanID)))
 	span.SetName(dbspan.OperationName)
 	//nolint:gosec // G115 // dbspan.Flags is guaranteed non-negative (epoch microseconds) by schema constraints
