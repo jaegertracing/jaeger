@@ -71,9 +71,9 @@ func dbSpanToSpan(dbspan *dbmodel.Span, span ptrace.Span) {
 	//nolint:gosec // G115 // dbspan.Flags is guaranteed non-negative (epoch microseconds) by schema constraints
 	span.SetFlags(uint32(dbspan.Flags))
 	//nolint:gosec // G115 // dbspan.StartTime is guaranteed non-negative (epoch microseconds) by schema constraints
-	span.SetStartTimestamp(pcommon.Timestamp(uint64(dbspan.StartTime)))
+	span.SetStartTimestamp(dbTimeStampToOTLPTimeStamp(uint64(dbspan.StartTime)))
 	//nolint:gosec // G115 // dbspan.StartTime and dbspan.Duration is guaranteed non-negative by schema constraints
-	span.SetEndTimestamp(pcommon.Timestamp(uint64(dbspan.StartTime + dbspan.Duration*1000)))
+	span.SetEndTimestamp(dbTimeStampToOTLPTimeStamp(uint64(dbspan.StartTime + dbspan.Duration)))
 
 	parentSpanID := dbspan.ParentID
 	if parentSpanID != 0 {
@@ -276,7 +276,7 @@ func dbLogsToSpanEvents(logs []dbmodel.Log, events ptrace.SpanEventSlice) {
 			event = events.AppendEmpty()
 		}
 		//nolint:gosec // G115 // dblog.Timestamp is guaranteed non-negative (epoch microseconds) by schema constraints
-		event.SetTimestamp(pcommon.Timestamp(uint64(log.Timestamp)))
+		event.SetTimestamp(dbTimeStampToOTLPTimeStamp(uint64(log.Timestamp)))
 		if len(log.Fields) == 0 {
 			continue
 		}
@@ -346,4 +346,10 @@ func dbRefTypeToAttribute(ref string) string {
 		return otelsemconv.AttributeOpentracingRefTypeChildOf
 	}
 	return otelsemconv.AttributeOpentracingRefTypeFollowsFrom
+}
+
+// dbTimeStampToOTLPTimeStamp converts the db timestamp which is in microseconds
+// to nanoseconds which is the OTLP standard.
+func dbTimeStampToOTLPTimeStamp(timestamp uint64) pcommon.Timestamp {
+	return pcommon.Timestamp(timestamp * 1000)
 }

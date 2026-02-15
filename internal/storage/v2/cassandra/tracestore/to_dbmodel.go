@@ -29,7 +29,7 @@ const (
 )
 
 // ToDBModel translates internal trace data into the DB Spans.
-// Returns slice of translated DB Spans and error if translation failed.
+// Returns a slice of translated DB Spans.
 func ToDBModel(td ptrace.Traces) []dbmodel.Span {
 	resourceSpans := td.ResourceSpans()
 
@@ -137,7 +137,7 @@ func spanToDbSpan(span ptrace.Span, scope pcommon.InstrumentationScope, process 
 		OperationName: span.Name(),
 		Refs:          dbReferences,
 		//nolint:gosec // G115 // span.StartTime is guaranteed non-negative by schema constraints
-		StartTime: int64(span.StartTimestamp()),
+		StartTime: int64(model.TimeAsEpochMicroseconds(startTime)),
 		//nolint:gosec // G115 // span.EndTime - span.StartTime is guaranteed non-negative by schema constraints
 		Duration: int64(model.DurationAsMicroseconds(span.EndTimestamp().AsTime().Sub(startTime))),
 		Tags:     getDbTags(span, scope),
@@ -203,7 +203,7 @@ func getDbTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmodel.K
 }
 
 func spanIDToDbSpanId(spanID pcommon.SpanID) int64 {
-	//nolint:gosec // G115 // pcommon.SpanID is guaranteed non-negative by schema constraints
+	//nolint:gosec // G115 // bit-preserving conversion between uint64 and int64 for opaque SpanID
 	return int64(binary.BigEndian.Uint64(spanID[:]))
 }
 
@@ -271,7 +271,7 @@ func spanEventsToDbLogs(events ptrace.SpanEventSlice) []dbmodel.Log {
 		fields = appendTagsFromAttributes(fields, event.Attributes())
 		logs = append(logs, dbmodel.Log{
 			//nolint:gosec // G115 // Timestamp is guaranteed non-negative by schema constraints
-			Timestamp: int64(event.Timestamp()),
+			Timestamp: int64(model.TimeAsEpochMicroseconds(event.Timestamp().AsTime())),
 			Fields:    fields,
 		})
 	}

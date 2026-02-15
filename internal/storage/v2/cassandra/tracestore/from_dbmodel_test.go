@@ -22,7 +22,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
-// Use timespamp with microsecond granularity to work well with jaeger thrift translation
+// Use timestamp with microsecond granularity to work well with jaeger thrift translation
 var testSpanEventTime = int64(1581452773000123)
 
 func TestCodeFromAttr(t *testing.T) {
@@ -126,7 +126,7 @@ func Test_jSpansToInternal_EmptySpans(t *testing.T) {
 	assert.Equal(t, 1, rss.Len())
 }
 
-func Test_jTagsToInternalAttributes(t *testing.T) {
+func Test_dbTagsToAttributes(t *testing.T) {
 	traceData := ptrace.NewTraces()
 	rss := traceData.ResourceSpans().AppendEmpty().Resource().Attributes()
 	kv := []dbmodel.KeyValue{{
@@ -223,7 +223,7 @@ func Test_jLogsToSpanEvents(t *testing.T) {
 	}
 	dbLogsToSpanEvents(logs, span.Events())
 	for i := 0; i < len(logs); i++ {
-		assert.Equal(t, testSpanEventTime, int64(span.Events().At(i).Timestamp()))
+		assert.Equal(t, testSpanEventTime, int64(span.Events().At(i).Timestamp()/1000))
 	}
 	assert.Equal(t, 1, span.Events().At(2).Attributes().Len())
 	assert.Empty(t, span.Events().At(2).Name())

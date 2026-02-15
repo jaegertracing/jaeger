@@ -295,8 +295,6 @@ func TestEdgeCases(t *testing.T) {
 			},
 			expected: true,
 			testFunc: func(traces ptrace.Traces) any {
-				traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
-				traces.ResourceSpans().At(0).ScopeSpans().At(0).Scope()
 				modelSpan := ToDBModel(traces)[0]
 				return len(modelSpan.Tags) == 0 && len(modelSpan.Process.Tags) == 0 && modelSpan.Process.ServiceName == noServiceName
 			},

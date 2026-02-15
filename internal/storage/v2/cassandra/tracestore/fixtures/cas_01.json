@@ -4,7 +4,7 @@
   "ParentID": 3,
   "OperationName": "test-general-conversion",
   "Flags": 1,
-  "StartTime": 1485467191639875000,
+  "StartTime": 1485467191639875,
   "Duration": 5,
   "Tags": [
     {
@@ -55,7 +55,7 @@
   ],
   "Logs": [
     {
-      "Timestamp": 1485467191639875000,
+      "Timestamp": 1485467191639875,
       "Fields": [
         {
           "Key": "event",
@@ -70,7 +70,7 @@
       ]
     },
     {
-      "Timestamp": 1485467191639875000,
+      "Timestamp": 1485467191639875,
       "Fields": [
         {
           "Key": "x",
