@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"path"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -112,6 +113,11 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 
 	// TODO distinguish between user errors (such as invalid customer ID) and server failures
 	response, err := s.bestETA.Get(ctx, customerID)
+	if err != nil && strings.Contains(err.Error(), "invalid customer ID") {
+		httperr.HandleError(w, err, http.StatusBadRequest)
+		s.logger.For(ctx).Error("bad request", zap.Error(err))
+		return
+	}
 	if httperr.HandleError(w, err, http.StatusInternalServerError) {
 		s.logger.For(ctx).Error("request failed", zap.Error(err))
 		return
