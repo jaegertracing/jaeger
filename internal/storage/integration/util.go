@@ -22,13 +22,12 @@ func translateFixtureToOTLPTrace(inPath, outPath string) error {
 		return err
 	}
 	var traceV1 model.Trace
-	err = jsonpb.Unmarshal(bytes.NewReader(inStr), &traceV1)
-	if err != nil {
+	if err := jsonpb.Unmarshal(bytes.NewReader(inStr), &traceV1); err != nil {
 		return err
 	}
 	trace := v1adapter.V1TraceToOtelTrace(&traceV1)
-	validationTrace := modelTraceFromOtelTrace(trace)
-	if err := validateTraces(&traceV1, validationTrace); err != nil {
+	expected := modelTraceFromOtelTrace(trace)
+	if err := validateTraces(expected, &traceV1); err != nil {
 		return err
 	}
 	marshaller := ptrace.JSONMarshaler{}
@@ -37,8 +36,7 @@ func translateFixtureToOTLPTrace(inPath, outPath string) error {
 		return err
 	}
 	var buf bytes.Buffer
-	err = json.Indent(&buf, outBytes, "", "  ")
-	if err != nil {
+	if err := json.Indent(&buf, outBytes, "", "  "); err != nil {
 		return err
 	}
 	return os.WriteFile(outPath, buf.Bytes(), 0o600)
