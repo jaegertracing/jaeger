@@ -788,8 +788,10 @@ func (c *Configuration) Validate() error {
 		return errors.New("both service_read_alias and service_write_alias must be set together")
 	}
 
-	if c.UseDataStream && c.UseReadWriteAliases && (hasSpanAliases || hasServiceAliases) {
-		return errors.New("UseDataStream cannot be enabled together with UseReadWriteAliases when explicit aliases are configured")
+	// Data streams are used for spans, so explicit span aliases are incompatible
+	// with UseDataStream. Service aliases remain valid since services don't use data streams.
+	if c.UseDataStream && hasSpanAliases {
+		return errors.New("UseDataStream cannot be enabled together with explicit span aliases (span_read_alias, span_write_alias)")
 	}
 
 	return nil
