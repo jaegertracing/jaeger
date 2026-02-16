@@ -54,7 +54,7 @@ func CreateTraceStorageFactory(
 	case backend.Memory != nil:
 		factory, err = memory.NewFactory(*backend.Memory, telset)
 	case backend.Badger != nil:
-		factory, err = badger.NewFactory(*backend.Badger, telset.Metrics, telset.Logger)
+		factory, err = badger.NewFactory(*backend.Badger, telset)
 	case backend.GRPC != nil:
 		factory, err = grpc.NewFactory(ctx, *backend.GRPC, telset)
 	case backend.Cassandra != nil:

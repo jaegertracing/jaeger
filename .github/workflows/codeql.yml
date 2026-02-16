@@ -51,17 +51,17 @@ jobs:
       if: matrix.language == 'go'
       uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
       with:
-        go-version: 1.25.x
+        go-version: 1.26.x
 
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@1b168cd39490f61582a9beae412bb7057a6b2c4e # v4.31.8
+      uses: github/codeql-action/init@b20883b0cd1f46c72ae0ba6d1090936928f9fa30 # v4.32.0
       with:
         languages: ${{ matrix.language }}
 
     # Use Autobuild for Python (it works fine for interpreted languages)
     - name: Autobuild (Python)
       if: matrix.language == 'python'
-      uses: github/codeql-action/autobuild@1b168cd39490f61582a9beae412bb7057a6b2c4e # v4.31.8
+      uses: github/codeql-action/autobuild@b20883b0cd1f46c72ae0ba6d1090936928f9fa30 # v4.32.0
 
     # Explicit build for Go - required for CodeQL to analyze compiled code
     - name: Build Go code
@@ -71,4 +71,4 @@ jobs:
         go build -v ./...
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@1b168cd39490f61582a9beae412bb7057a6b2c4e # v4.31.8
+      uses: github/codeql-action/analyze@b20883b0cd1f46c72ae0ba6d1090936928f9fa30 # v4.32.0

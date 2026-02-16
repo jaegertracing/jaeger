@@ -1,9 +1,13 @@
 global:
-  scrape_interval:     15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
-  evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
-  # scrape_timeout is set to the global default (10s).
+  
+  # Set low scrape and evaluation intervals to speed up e2e test 
+  scrape_interval:     5s # Default is every 15sec
+  evaluation_interval: 5s # Default is every 15sec
 
 scrape_configs:
   - job_name: aggregated-trace-metrics
     static_configs:
     - targets: ['spm_metrics_source:8889']
+  - job_name: jaeger-collector-metrics
+    static_configs:
+    - targets: [ 'spm_metrics_source:8888' ]
