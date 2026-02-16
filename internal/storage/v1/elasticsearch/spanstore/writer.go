@@ -100,7 +100,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 	// We rely on factory to populate p.UseDataStream based on config or version detection.
 	useDataStream := p.UseDataStream
 
-	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheTTL)
+	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheTTL, useDataStream)
 	return &SpanWriter{
 		client:            p.Client,
 		logger:            p.Logger,
