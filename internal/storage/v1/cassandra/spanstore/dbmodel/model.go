@@ -34,14 +34,13 @@ type Span struct {
 	OperationName string
 	Flags         int32
 	StartTime     int64 // microseconds since epoch
-	// Duration is the elapsed time expressed in microseconds since epoch
-	Duration    int64
-	Tags        []KeyValue
-	Logs        []Log
-	Refs        []SpanRef
-	Process     Process
-	ServiceName string
-	SpanHash    int64
+	Duration      int64 // microseconds
+	Tags          []KeyValue
+	Logs          []Log
+	Refs          []SpanRef
+	Process       Process
+	ServiceName   string
+	SpanHash      int64
 }
 
 // KeyValue is the UDT representation of a Jaeger KeyValue.
