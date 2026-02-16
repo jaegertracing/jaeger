@@ -1,22 +1,73 @@
 // Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package integration
+package main
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/spf13/cobra"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
 
-func translateFixtureToOTLPTrace(inPath, outPath string) error {
+const (
+	inFile      = "in-file"
+	outFile     = "out-file"
+	rootPath    = "root-path"
+	rootPathVal = "../../internal/storage/integration/fixtures/traces"
+)
+
+func main() {
+	if err := newRootCmd().Execute(); err != nil {
+		os.Exit(1)
+	}
+}
+
+func newRootCmd() *cobra.Command {
+	rootCmd := &cobra.Command{
+		Use:   "jaeger-trace-converter",
+		Short: "Jaeger trace-converter converts v1 trace fixtures to OTLP trace fixtures",
+		Long:  "Jaeger trace-converter converts v1 trace fixtures to OTLP trace fixtures",
+	}
+	flags := rootCmd.Flags()
+	flags.String(inFile, "", "The name of file to read from (where v1 fixtures are located)")
+	flags.String(outFile, "", "The name of file where otlp fixtures are needed to be written. If given empty, fixtures will be written to input file")
+	flags.String(rootPath, rootPathVal, "The root path to use to convert the traces to OTLP fixtures")
+	if err := rootCmd.MarkFlagRequired(inFile); err != nil {
+		panic(err)
+	}
+	rootCmd.RunE = func(cmd *cobra.Command, _ []string) error {
+		in, err := cmd.Flags().GetString(inFile)
+		if err != nil {
+			return err
+		}
+		out, err := cmd.Flags().GetString(outFile)
+		if err != nil {
+			return err
+		}
+		root, err := cmd.Flags().GetString(rootPath)
+		if err != nil {
+			return err
+		}
+		if out == "" {
+			out = in
+		}
+		return translateFixtureToOTLPTrace(root, in, out)
+	}
+	return rootCmd
+}
+
+func translateFixtureToOTLPTrace(root, in, out string) error {
+	inPath := filepath.Join(root, in)
+	outPath := filepath.Join(root, out)
 	inStr, err := os.ReadFile(inPath)
 	if err != nil {
 		return err
