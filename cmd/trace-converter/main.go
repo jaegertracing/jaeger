@@ -19,10 +19,10 @@ import (
 )
 
 const (
-	inFile      = "in-file"
-	outFile     = "out-file"
-	rootPath    = "root-path"
-	rootPathVal = "../../internal/storage/integration/fixtures/traces"
+	inFile     = "in-file"
+	outFile    = "out-file"
+	rootPath   = "root-path"
+	fileFormat = "%s.json"
 )
 
 func main() {
@@ -38,12 +38,10 @@ func newRootCmd() *cobra.Command {
 		Long:  "Jaeger trace-converter converts v1 trace fixtures to OTLP trace fixtures",
 	}
 	flags := rootCmd.Flags()
-	flags.String(inFile, "", "The name of file to read from (where v1 fixtures are located)")
-	flags.String(outFile, "", "The name of file where otlp fixtures are needed to be written. If given empty, fixtures will be written to input file")
-	flags.String(rootPath, rootPathVal, "The root path to use to convert the traces to OTLP fixtures")
-	if err := rootCmd.MarkFlagRequired(inFile); err != nil {
-		panic(err)
-	}
+	flags.String(inFile, "", "The name of file to read from (where v1 fixtures are located without .json)")
+	flags.String(outFile, "", "The name of file where otlp fixtures are needed to be written (without .json). If given empty, fixtures will be written to input file")
+	flags.String(rootPath, "", "The root path to use to convert the traces to OTLP fixtures")
+	rootCmd.MarkFlagsRequiredTogether(inFile, rootPath)
 	rootCmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		in, err := cmd.Flags().GetString(inFile)
 		if err != nil {
@@ -66,8 +64,8 @@ func newRootCmd() *cobra.Command {
 }
 
 func translateFixtureToOTLPTrace(root, in, out string) error {
-	inPath := filepath.Join(root, in)
-	outPath := filepath.Join(root, out)
+	inPath := filepath.Join(root, fmt.Sprintf(fileFormat, in))
+	outPath := filepath.Join(root, fmt.Sprintf(fileFormat, out))
 	inStr, err := os.ReadFile(inPath)
 	if err != nil {
 		return err

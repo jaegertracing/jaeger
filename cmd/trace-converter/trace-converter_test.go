@@ -5,6 +5,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -25,8 +26,9 @@ func TestMain(m *testing.M) {
 }
 
 func Test_translateFixtureToOTLPTrace(t *testing.T) {
-	tmpInFile := "v1-trace.json"
-	tmpInPath := filepath.Join(rootPathVal, tmpInFile)
+	dir := t.TempDir()
+	tmpInFile := "v1-trace"
+	tmpInPath := filepath.Join(dir, fmt.Sprintf(fileFormat, tmpInFile))
 	v1Trace := model.Trace{Spans: []*model.Span{
 		{
 			OperationName: "jaeger",
@@ -44,20 +46,15 @@ func Test_translateFixtureToOTLPTrace(t *testing.T) {
 	marshaler := jsonpb.Marshaler{}
 	require.NoError(t, marshaler.Marshal(&buf, &v1Trace))
 	require.NoError(t, os.WriteFile(tmpInPath, buf.Bytes(), 0o600))
-	t.Cleanup(func() {
-		require.NoError(t, os.Remove(tmpInPath))
-	})
-	tmpOutFile := "v2-trace.json"
-	tmpOutPath := filepath.Join(rootPathVal, tmpOutFile)
+	tmpOutFile := "v2-trace"
+	tmpOutPath := filepath.Join(dir, fmt.Sprintf(fileFormat, tmpOutFile))
 	rootCmd := newRootCmd()
 	rootCmd.SetArgs([]string{
 		"--in-file", tmpInFile,
 		"--out-file", tmpOutFile,
+		"--root-path", dir,
 	})
 	require.NoError(t, rootCmd.Execute())
-	t.Cleanup(func() {
-		require.NoError(t, os.Remove(tmpOutPath))
-	})
 	outBytes, err := os.ReadFile(tmpOutPath)
 	require.NoError(t, err)
 	unmarshaller := ptrace.JSONUnmarshaler{}
