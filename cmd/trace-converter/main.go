@@ -41,7 +41,12 @@ func newRootCmd() *cobra.Command {
 	flags.String(inFile, "", "The name of file to read from (where v1 fixtures are located without .json)")
 	flags.String(outFile, "", "The name of file where otlp fixtures are needed to be written (without .json). If given empty, fixtures will be written to input file")
 	flags.String(rootPath, "", "The root path to use to convert the traces to OTLP fixtures")
-	rootCmd.MarkFlagsRequiredTogether(inFile, rootPath)
+	if err := rootCmd.MarkFlagRequired(inFile); err != nil {
+		panic(err)
+	}
+	if err := rootCmd.MarkFlagRequired(rootPath); err != nil {
+		panic(err)
+	}
 	rootCmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		in, err := cmd.Flags().GetString(inFile)
 		if err != nil {
