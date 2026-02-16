@@ -94,7 +94,7 @@ func init() {
 
 	readLegacyIndices = featuregate.GlobalRegistry().MustRegister(
 		"jaeger.es.readLegacyWithDataStream",
-		featuregate.StageBeta,
+		featuregate.StageAlpha,
 		featuregate.WithRegisterFromVersion("v2.6.0"),
 		featuregate.WithRegisterDescription("When enabled, the Elasticsearch reader will query both data streams and legacy indices for migration."),
 		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/pull/7768"))
