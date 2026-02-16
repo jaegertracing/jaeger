@@ -1,31 +1,28 @@
-$schema: https://json-schema.org/draft/2020-12/schema
-$id: github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/remotesampling
-title: remotesampling package
 $defs:
-  AdaptiveConfig:
+  adaptive_config:
     type: object
     properties:
       sampling_store:
         description: SamplingStore is the name of the storage defined in the jaegerstorage extension.
         type: string
     allOf:
-      - $ref: github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive#/$defs/Options
-  Config:
+      - $ref: github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive.options
+  config:
     type: object
     properties:
       adaptive:
         x-optional: true
-        $ref: '#/$defs/AdaptiveConfig'
+        $ref: adaptive_config
       file:
         x-optional: true
-        $ref: '#/$defs/FileConfig'
+        $ref: file_config
       grpc:
         x-optional: true
-        $ref: go.opentelemetry.io/collector/config/configgrpc#/$defs/ServerConfig
+        $ref: go.opentelemetry.io/collector/config/configgrpc.server_config
       http:
         x-optional: true
-        $ref: go.opentelemetry.io/collector/config/confighttp#/$defs/ServerConfig
-  FileConfig:
+        $ref: go.opentelemetry.io/collector/config/confighttp.server_config
+  file_config:
     type: object
     properties:
       default_sampling_probability:

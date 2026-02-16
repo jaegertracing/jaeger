@@ -12,7 +12,7 @@ import (
 
 var _ xconfmap.Validator = (*Config)(nil)
 
-// Config represents the configuration for jaeger-query,
+// Config represents the configuration for jaeger-query.
 type Config struct {
 	queryapp.QueryOptions `mapstructure:",squash"`
 	// Storage holds configuration related to the various data stores that are to be queried.

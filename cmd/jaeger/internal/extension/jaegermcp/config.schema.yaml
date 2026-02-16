@@ -1,14 +1,11 @@
-$schema: https://json-schema.org/draft/2020-12/schema
-$id: github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp
-title: jaegermcp package
 $defs:
-  Config:
+  config:
     description: Config represents the configuration for the Jaeger MCP server extension.
     type: object
     properties:
       http:
         description: HTTP contains the HTTP server configuration for the MCP protocol endpoint.
-        $ref: go.opentelemetry.io/collector/config/confighttp#/$defs/ServerConfig
+        $ref: go.opentelemetry.io/collector/config/confighttp.server_config
       max_search_results:
         description: MaxSearchResults limits the number of trace search results.
         type: integer

@@ -1,8 +1,0 @@
-$schema: https://json-schema.org/draft/2020-12/schema
-$id: github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/expvar
-title: expvar package
-$defs:
-  Config:
-    type: object
-    allOf:
-      - $ref: go.opentelemetry.io/collector/config/confighttp#/$defs/ServerConfig
