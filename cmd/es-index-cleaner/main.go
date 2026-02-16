@@ -54,7 +54,9 @@ func main() {
 				return fmt.Errorf("could not parse NUM_OF_DAYS argument: %w", err)
 			}
 
-			cfg.InitFromViper(v)
+			if err := cfg.InitFromViper(v); err != nil {
+				return fmt.Errorf("failed to initialize config: %w", err)
+			}
 
 			ctx := context.Background()
 			tlscfg, err := cfg.TLSConfig.LoadTLSConfig(ctx)

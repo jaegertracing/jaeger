@@ -13,13 +13,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/extension/extensionauth"
-	"go.opentelemetry.io/otel/metric/noop"
-	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/metrics"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
@@ -31,12 +27,7 @@ import (
 )
 
 func getTelemetrySettings() telemetry.Settings {
-	return telemetry.Settings{
-		Logger:        zap.NewNop(),
-		Metrics:       metrics.NullFactory,
-		MeterProvider: noop.NewMeterProvider(),
-		Host:          componenttest.NewNopHost(),
-	}
+	return telemetry.NoopSettings()
 }
 
 func setupMockServer(t *testing.T, response []byte, statusCode int) *httptest.Server {

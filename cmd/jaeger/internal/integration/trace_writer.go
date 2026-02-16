@@ -11,8 +11,10 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter"
+	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -26,7 +28,13 @@ var (
 	_ tracestore.Writer = (*traceWriter)(nil)
 	_ io.Closer         = (*traceWriter)(nil)
 
-	MaxChunkSize = 35 // max chunk size otel kafka export can handle safely.
+	// MaxChunkSize defines the maximum number of spans per chunk that we send via the
+	// OTLP exporter in integration tests. This was reduced from 35 to 5 when the
+	// trace writer was refactored to construct ptrace.Traces directly, so that we
+	// explicitly control chunk boundaries instead of relying on upstream batching.
+	// Smaller chunks keep the OTEL Kafka export path safely under message-size limits
+	// while still exercising the chunking logic that the Jaeger v2 pipeline depends on.
+	MaxChunkSize = 5
 )
 
 // traceWriter utilizes the OTLP exporter to send span data to the Jaeger-v2 receiver
@@ -43,7 +51,8 @@ func createTraceWriter(logger *zap.Logger, port int) (*traceWriter, error) {
 	cfg.ClientConfig.Endpoint = fmt.Sprintf("localhost:%d", port)
 	cfg.TimeoutConfig.Timeout = 30 * time.Second
 	cfg.RetryConfig.Enabled = false
-	cfg.QueueConfig.Enabled = false
+	// Disable queue by setting it to None (no value present)
+	cfg.QueueConfig = configoptional.None[exporterhelper.QueueBatchConfig]()
 	cfg.ClientConfig.TLS = configtls.ClientConfig{
 		Insecure: true,
 	}

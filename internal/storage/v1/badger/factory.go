@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
@@ -35,13 +36,12 @@ const (
 )
 
 var ( // interface comformance checks
-	_ storage.Factory              = (*Factory)(nil)
 	_ io.Closer                    = (*Factory)(nil)
 	_ storage.Purger               = (*Factory)(nil)
 	_ storage.SamplingStoreFactory = (*Factory)(nil)
 )
 
-// Factory implements storage.Factory for Badger backend.
+// Factory for Badger backend.
 type Factory struct {
 	Config         *Config
 	store          *badger.DB
@@ -51,6 +51,7 @@ type Factory struct {
 
 	tmpDir          string
 	maintenanceDone chan bool
+	bgWg            sync.WaitGroup
 
 	// TODO initialize via reflection; convert comments to tag 'description'.
 	metrics struct {
@@ -76,7 +77,7 @@ func NewFactory() *Factory {
 	}
 }
 
-// Initialize implements storage.Factory
+// Initialize performs internal initialization of the factory.
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.logger = logger
 	f.metricsFactory = metricsFactory
@@ -121,8 +122,15 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 
 	f.registerBadgerExpvarMetrics(metricsFactory)
 
-	go f.maintenance()
-	go f.metricsCopier()
+	f.bgWg.Add(2)
+	go func() {
+		defer f.bgWg.Done()
+		f.maintenance()
+	}()
+	go func() {
+		defer f.bgWg.Done()
+		f.metricsCopier()
+	}()
 
 	logger.Info("Badger storage configuration", zap.Any("configuration", opts))
 
@@ -136,18 +144,18 @@ func initializeDir(path string) {
 	}
 }
 
-// CreateSpanReader implements storage.Factory
+// CreateSpanReader creates a spanstore.Reader.
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 	tr := badgerstore.NewTraceReader(f.store, f.cache, true)
 	return spanstoremetrics.NewReaderDecorator(tr, f.metricsFactory), nil
 }
 
-// CreateSpanWriter implements storage.Factory
+// CreateSpanWriter creates a spanstore.Writer.
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	return badgerstore.NewSpanWriter(f.store, f.cache, f.Config.TTL.Spans), nil
 }
 
-// CreateDependencyReader implements storage.Factory
+// CreateDependencyReader creates a dependencystore.Reader.
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	sr, _ := f.CreateSpanReader() // err is always nil
 	return depstore.NewDependencyStore(sr), nil
@@ -166,6 +174,7 @@ func (*Factory) CreateLock() (distributedlock.Lock, error) {
 // Close Implements io.Closer and closes the underlying storage
 func (f *Factory) Close() error {
 	close(f.maintenanceDone)
+	f.bgWg.Wait() // Wait for background goroutines to finish before closing store
 	if f.store == nil {
 		return nil
 	}
@@ -204,7 +213,7 @@ func (f *Factory) maintenance() {
 			}
 
 			f.metrics.LastMaintenanceRun.Update(t.UnixNano())
-			f.diskStatisticsUpdate()
+			_ = f.diskStatisticsUpdate()
 		}
 	}
 }
@@ -234,6 +243,8 @@ func (f *Factory) metricsCopier() {
 								}
 							}
 						})
+					default:
+						f.logger.Debug("skipping non-numeric badger expvar metric", zap.String("key", kv.Key))
 					}
 				}
 			})
@@ -259,6 +270,8 @@ func (f *Factory) registerBadgerExpvarMetrics(metricsFactory metrics.Factory) {
 						f.metrics.badgerMetrics[kv.Key] = g
 					}
 				})
+			default:
+				f.logger.Info("skipping non-numeric badger expvar metric", zap.String("key", kv.Key))
 			}
 		}
 	})

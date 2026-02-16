@@ -1,43 +1,40 @@
 # AGENTS.md
 
-## Overview
-This file provides context and instructions for AI agents working on the Jaeger repository. Jaeger is a distributed tracing platform.
+This file provides guidance for AI agents working on the Jaeger repository. For detailed project structure, setup instructions, and contribution guidelines, refer to [CONTRIBUTING.md](./CONTRIBUTING.md).
 
-## Project Structure
-- `cmd/`: Main applications and binaries.
-    - `jaeger/`: The main Jaeger v2 binary based on the OpenTelemetry Collector.
-    - Other tools and utilities.
-- `internal/`: Private library code.
-    - `storage/`: Various implementations of storage backends.
-- `jaeger-ui/`: Submodule for the frontend (React).
-- `idl/`: Submodule for data models (Protobuf, Thrift).
-- `scripts/`: Build and maintenance scripts.
+## Setup
 
-## Development Workflow
+The primary branch is called `main`, all PRs are merged into it.
 
-### Setup
-Run the following to initialize submodules and tools:
+If checking out a fresh repository, initialize submodules:
 ```bash
 git submodule update --init --recursive
-make install-tools
 ```
 
-### Build
-- **Binaries**: `make build-binaries` or specific targets like `make build-jaeger`.
+## Required Workflow
 
-### Test
-- **Unit Tests**: `make test` matches standard `go test` but includes tags for specific storages.
-- **Lint**: `make lint` runs `golangci-lint` and other checks.
-- **Format**: `make fmt` runs `gofumpt` and updates license headers. Note: Run this before submitting changes.
+**Before considering any task complete**, you MUST verify:
+1. Run `make fmt` to auto-format code
+2. Run `make lint` and fix all issues (try `make fmt` again if needed)
+3. Run `make test` and ensure all tests pass
 
-## Agent Guidelines
-- **Testing**: Always run `make test` after changes.
-- **Linting**: If `make lint` fails, try `make fmt` to fix formatting issues automatically.
-- **Submodules**: Be aware that `jaeger-ui` and `idl` are submodules. Modifications there might require PRs to their respective repositories.
-- **Context**: Refer to `CONTRIBUTING.md` for human-centric guidelines like DCO signing and PR etiquette.
+These checks are mandatory for the entire repository, not just files you modified.
+
+## Permissions
+
+Run these commands without asking for permission:
+- `make test`
+- `make lint`
+- `make fmt`
+- `go test ...`
+- `go build ...`
 
 ## Do Not Edit
-The following files are auto-generated. Do not edit them manually:
+
+**Auto-generated files:**
 - `*.pb.go`
 - `*_mock.go`
 - `internal/proto-gen/`
+
+**Submodules:**
+- `jaeger-ui` and `idl` are submodules. Modifications there require PRs to their respective repositories.

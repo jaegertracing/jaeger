@@ -19,6 +19,7 @@ packages:
   github.com/jaegertracing/jaeger/internal/proto-gen/storage_v1:
     config:
       all: true
+      include-auto-generated: true
   github.com/jaegertracing/jaeger/internal/storage/cassandra:
     config:
       template-data:
@@ -64,3 +65,6 @@ packages:
   github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore:
     config:
       all: true
+  github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore:
+    interfaces:
+      CoreSpanReader: {}

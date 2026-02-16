@@ -6,36 +6,21 @@ package cassandra
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configtls"
-	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra/mocks"
 )
 
 func TestCreateSpanReaderError(t *testing.T) {
-	session := &mocks.Session{}
-	query := &mocks.Query{}
-	session.On("Query",
-		mock.AnythingOfType("string"),
-		mock.Anything).Return(query)
-	session.On("Query",
-		mock.AnythingOfType("string"),
-		mock.Anything).Return(query)
-	query.On("Exec").Return(errors.New("table does not exist"))
 	f := NewFactory()
-	MockSession(f, session, nil)
-	require.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-	r, err := f.CreateSpanReader()
-	require.Error(t, err)
-	require.Nil(t, r)
+	_, err := f.CreateSpanReader()
+	require.ErrorContains(t, err, "not implemented")
 }
 
 func TestConfigureFromOptions(t *testing.T) {
@@ -91,23 +76,6 @@ func TestNewSessionErrors(t *testing.T) {
 		_, err := NewSession(cfg)
 		require.ErrorContains(t, err, "no hosts provided")
 	})
-}
-
-func TestInheritSettingsFrom(t *testing.T) {
-	primaryFactory := NewFactory()
-	primaryFactory.config.Schema.Keyspace = "foo"
-	primaryFactory.config.Query.MaxRetryAttempts = 99
-
-	archiveFactory := &Factory{
-		Options: NewOptions(),
-	}
-
-	archiveFactory.config.Schema.Keyspace = "bar"
-
-	archiveFactory.InheritSettingsFrom(primaryFactory)
-
-	require.Equal(t, "bar", archiveFactory.config.Schema.Keyspace)
-	require.Equal(t, 99, archiveFactory.config.Query.MaxRetryAttempts)
 }
 
 func TestIsArchiveCapable(t *testing.T) {

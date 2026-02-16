@@ -72,19 +72,13 @@ We are currently using `gofumpt`, which is installed automatically by `make inst
 ### Running local build with the UI
 
 ```
-$ make run-all-in-one
+$ go run ./cmd/jaeger --config ./cmd/jaeger/config.yaml
 ```
 
 #### What does this command do?
 
-The `jaeger-ui` submodule, which was added from the Pre-requisites step above, contains
-the source code for the UI assets (requires Node.js 6+).
-
-The assets must be compiled first with `make build-ui`, which runs Node.js build and then
-packages the assets into a Go file that is `.gitignore`-ed.
-
-`make run-all-in-one` essentially runs Jaeger all-in-one by combining both of the above
-steps into a single `make` command.
+The Jaeger binary runs with the default configuration file (config.yaml) that includes 
+the UI configuration via the `jaeger_query` extension. The `jaeger-ui` submodule, which was added from the Pre-requisites step above, contains the source code for the UI assets (requires Node.js 24+). The assets must be compiled first with `make build-ui`, which normally downloads them from the latest UI release, but can also build them from source.
 
 ## Project Structure
 
@@ -93,33 +87,28 @@ These are general guidelines on how to organize source code in this repository.
 ```
 github.com/jaegertracing/jaeger
   cmd/                      - All binaries go here
-    all-in-one/             - Jaeger all-in-one application, designed for quick local testing
-    jaeger/                 - Jaeger V2 binary
-    collector/              - Component to receive spans (from agents or directly from clients) and saves them in Trace Storage
-    ingester/               - Component to read spans from Kafka topic and save them to storage
-    query/                  - Component to serve Jaeger UI and an API that retrieves traces from storage
-    remote-storage/         - Component to enable sharing single-node storage implementations like memstore by implementing Remote Storage API
+    jaeger/                 - The main Jaeger binary (v2) that combines collector, query, and ingester
     anonymizer/             - Utility to anonymize traces from Jaeger query and save to file
     tracegen/               - Utility to generate a steady flow of simple traces
     es-index-cleaner/       - Utility to purge old indices from Elasticsearch
     es-rollover/            - Utility to manage Elastic Search indices
-  crossdock/                - Cross-repo integration test configuration
+    esmapping-generator/    - Utility to generate Elasticsearch mapping
+    remote-storage/         - Component to enable sharing single-node storage implementations via Remote Storage API v2
   examples/
-    grafana-integration/    - Demo application that combine Jaeger, Grafana, Loki, Prometheus to demonstrate logs, metrics and traces correlation
-    hotrod/                 - Demo application that demonstrates the use of tracing instrumentation
+    grafana-integration/    - Demo application combining Jaeger, Grafana, Loki, Prometheus
+    hotrod/                 - Demo application demonstrating tracing instrumentation
+    otel-demo/              - Demo application using OpenTelemetry Collector and Jaeger
   docker-compose/           - Docker-compose recipes to simulate different Jaeger deployments
-    kafka/                  - Jaeger depoyment utilizing collector-Kafka-injester pipeline
     monitor/                - Service Performance Monitoring (SPM) Development/Demo Environment
   idl/                      - (submodule) https://github.com/jaegertracing/jaeger-idl
   jaeger-ui/                - (submodule) https://github.com/jaegertracing/jaeger-ui
   internal/                 - Internal modules that make up Jaeger
-    storage/                - Define and implement Trace/Metrics Storage interface 
-      metricstore/          - Define and implement Metrics Storage interface
-        prometheus/         - Prometheus implementation of Metrics Storage
-      v1/                   - V1 Trace Storage interfaces and implementations
-        memory/             - In-memory implementation
-        elasticsearch/      - ElasticSearch implementation
-      v2/                   - V2 Trace Storage interfaces and implementation
+    storage/                - Trace/Metrics Storage interfaces and implementations
+      metricstore/          - Metrics Storage interface and implementations (e.g. Prometheus, Elasticsearch)
+      v1/                   - Trace Storage v1 interfaces and implementations (Cassandra, Elasticsearch, Badger, etc.)
+      v2/                   - Trace Storage v2 interfaces and implementations (gRPC, ClickHouse, etc.)
+  monitoring/               - Jaeger monitoring assets (e.g. jaeger-mixin)
+  ports/                    - Centralized port definitions
   scripts/                  - Miscellaneous project scripts, e.g. github action and license update script
   go.mod                    - Go module file to track dependencies
   Makefile                  - Define various recipes to automate build, test, and deployment tasks
@@ -148,6 +137,8 @@ import (
 ```
 
 ## Testing guidelines
+
+**Policy**: All new functionality must include tests. Bug fixes should include regression tests that would have caught the bug, where feasible. Pull requests without adequate test coverage will not be merged.
 
 We strive to maintain as high code coverage as possible. The current repository limit is set at 95%,
 with some exclusions discussed below.

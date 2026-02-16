@@ -14,6 +14,7 @@ concurrency:
 
 permissions:
   contents: read
+  packages: read  # This allows the runner to pull from GHCR
 
 jobs:
   all-in-one:
@@ -21,7 +22,7 @@ jobs:
     timeout-minutes: 30 # max + 3*std over the last 2600 runs
 
     steps:
-    - uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+    - uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -32,9 +33,16 @@ jobs:
     - name: Fetch git tags
       run: git fetch --prune --unshallow --tags
 
-    - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+    - uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
       with:
-        go-version: 1.25.x
+        go-version: 1.26.x
+
+    - name: Log in to GHCR
+      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
     - uses: ./.github/actions/setup-node.js
 
@@ -42,13 +50,13 @@ jobs:
 
     - run: make install-ci
 
-    - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+    - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
 
     - name: Define BUILD_FLAGS var if running on a Pull Request or Merge Queue
       run: |
         case ${GITHUB_EVENT_NAME} in
           pull_request|merge_group)
-            echo "BUILD_FLAGS=-l -D -p linux/$(go env GOARCH)" >> ${GITHUB_ENV}
+            echo "BUILD_FLAGS=-l -p linux/$(go env GOARCH)" >> ${GITHUB_ENV}
             ;;
           *)
             echo "BUILD_FLAGS=" >> ${GITHUB_ENV}

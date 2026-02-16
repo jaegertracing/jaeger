@@ -52,7 +52,7 @@ export VERSIONINFO
 .PHONY: _build_syso_once
 _build_syso_once:
 	echo $$VERSIONINFO
-	echo $$VERSIONINFO | $(GOVERSIONINFO) -o="$(PKGPATH)/$(SYSOFILE)" -
+	echo $$VERSIONINFO | $(GOVERSIONINFO) -64 -o="$(PKGPATH)/$(SYSOFILE)" -
 
 define _build_syso_macro
 	$(MAKE) _build_syso_once NAME="$(1)" PKGPATH="$(2)" SEMVER_MAJOR=$(SEMVER_MAJOR) SEMVER_MINOR=$(SEMVER_MINOR) SEMVER_PATCH=$(SEMVER_PATCH)

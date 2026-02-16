@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/extension"
 
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
@@ -34,23 +35,25 @@ func NewFactory() extension.Factory {
 
 func createDefaultConfig() component.Config {
 	return &Config{
-		HTTP: &confighttp.ServerConfig{
-			Endpoint: ports.PortToHostPort(ports.CollectorV2SamplingHTTP),
-		},
-		GRPC: &configgrpc.ServerConfig{
+		HTTP: configoptional.Default(confighttp.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  ports.PortToHostPort(ports.CollectorV2SamplingHTTP),
+				Transport: confignet.TransportTypeTCP,
+			},
+		}),
+		GRPC: configoptional.Default(configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{
 				Endpoint:  ports.PortToHostPort(ports.CollectorV2SamplingGRPC),
 				Transport: confignet.TransportTypeTCP,
 			},
-		},
-		File: &FileConfig{
-			Path:                       "", // path needs to be specified
+		}),
+		// use Default() to provide defaults when users specifyi file: or adaptive: in YAML, this will not violate mutual exclusivity
+		File: configoptional.Default(FileConfig{
 			DefaultSamplingProbability: file.DefaultSamplingProbability,
-		},
-		Adaptive: &AdaptiveConfig{
-			SamplingStore: "", // storage name needs to be specified
-			Options:       adaptive.DefaultOptions(),
-		},
+		}),
+		Adaptive: configoptional.Default(AdaptiveConfig{
+			Options: adaptive.DefaultOptions(),
+		}),
 	}
 }
 

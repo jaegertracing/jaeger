@@ -7,6 +7,10 @@ package dbmodel
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
+	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
@@ -21,9 +25,6 @@ const (
 	float64Type = "float64"
 	binaryType  = "binary"
 )
-
-// TraceID is a serializable form of model.TraceID
-type TraceID [16]byte
 
 // Span is the database representation of a span.
 type Span struct {
@@ -46,11 +47,101 @@ type Span struct {
 type KeyValue struct {
 	Key          string  `cql:"key"`
 	ValueType    string  `cql:"value_type"`
-	ValueString  string  `cql:"value_string"`
-	ValueBool    bool    `cql:"value_bool"`
-	ValueInt64   int64   `cql:"value_long"`   // using more natural column name for Cassandra
-	ValueFloat64 float64 `cql:"value_double"` // using more natural column name for Cassandra
-	ValueBinary  []byte  `cql:"value_binary"`
+	ValueString  string  `cql:"value_string" json:"value_string,omitempty"`
+	ValueBool    bool    `cql:"value_bool" json:"value_bool,omitempty"`
+	ValueInt64   int64   `cql:"value_long" json:"value_long,omitempty"`     // using more natural column name for Cassandra
+	ValueFloat64 float64 `cql:"value_double" json:"value_double,omitempty"` // using more natural column name for Cassandra
+	ValueBinary  []byte  `cql:"value_binary" json:"value_binary,omitempty"`
+}
+
+func (t *KeyValue) compareValues(that *KeyValue) int {
+	switch t.ValueType {
+	case stringType:
+		return strings.Compare(t.ValueString, that.ValueString)
+	case boolType:
+		if t.ValueBool != that.ValueBool {
+			if !t.ValueBool {
+				return -1
+			}
+			return 1
+		}
+	case int64Type:
+		return int(t.ValueInt64 - that.ValueInt64)
+	case float64Type:
+		if t.ValueFloat64 != that.ValueFloat64 {
+			if t.ValueFloat64 < that.ValueFloat64 {
+				return -1
+			}
+			return 1
+		}
+	case binaryType:
+		return bytes.Compare(t.ValueBinary, that.ValueBinary)
+	default:
+		return -1 // theoretical case, not stating them equal but placing the base pointer before other
+	}
+	return 0
+}
+
+func (t *KeyValue) Compare(that any) int {
+	if that == nil {
+		if t == nil {
+			return 0
+		}
+		return 1
+	}
+	that1, ok := that.(*KeyValue)
+	if !ok {
+		that2, ok := that.(KeyValue)
+		if !ok {
+			return 1
+		}
+		that1 = &that2
+	}
+	if that1 == nil {
+		if t == nil {
+			return 0
+		}
+		return 1
+	} else if t == nil {
+		return -1
+	}
+	if cmp := strings.Compare(t.Key, that1.Key); cmp != 0 {
+		return cmp
+	}
+	if cmp := strings.Compare(t.ValueType, that1.ValueType); cmp != 0 {
+		return cmp
+	}
+	return t.compareValues(that1)
+}
+
+func (t *KeyValue) Equal(that any) bool {
+	return t.Compare(that) == 0
+}
+
+func (t *KeyValue) AsString() string {
+	switch t.ValueType {
+	case stringType:
+		return t.ValueString
+	case boolType:
+		if t.ValueBool {
+			return "true"
+		}
+		return "false"
+	case int64Type:
+		return strconv.FormatInt(t.ValueInt64, 10)
+	case float64Type:
+		return strconv.FormatFloat(t.ValueFloat64, 'g', 10, 64)
+	case binaryType:
+		return hex.EncodeToString(t.ValueBinary)
+	default:
+		return "unknown type " + t.ValueType
+	}
+}
+
+func SortKVs(kvs []KeyValue) {
+	sort.Slice(kvs, func(i, j int) bool {
+		return kvs[i].Compare(kvs[j]) < 0
+	})
 }
 
 // Log is the UDT representation of a Jaeger Log.
@@ -96,16 +187,4 @@ func TraceIDFromDomain(traceID model.TraceID) TraceID {
 	binary.BigEndian.PutUint64(dbTraceID[:8], uint64(traceID.High))
 	binary.BigEndian.PutUint64(dbTraceID[8:], uint64(traceID.Low))
 	return dbTraceID
-}
-
-// ToDomain converts trace ID from db-serializable form to domain TradeID
-func (t TraceID) ToDomain() model.TraceID {
-	traceIDHigh := binary.BigEndian.Uint64(t[:8])
-	traceIDLow := binary.BigEndian.Uint64(t[8:])
-	return model.NewTraceID(traceIDHigh, traceIDLow)
-}
-
-// String returns hex string representation of the trace ID.
-func (t TraceID) String() string {
-	return t.ToDomain().String()
 }

@@ -124,37 +124,55 @@ type SpanReaderParams struct {
 	ReadAliasSuffix     string
 	UseReadWriteAliases bool
 	RemoteReadClusters  []string
+	SpanReadAlias       string
+	ServiceReadAlias    string
 	Logger              *zap.Logger
 	Tracer              trace.Tracer
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
 func NewSpanReader(p SpanReaderParams) *SpanReader {
+	spanIndexPrefix := p.SpanReadAlias
+	serviceIndexPrefix := p.ServiceReadAlias
+
+	if spanIndexPrefix == "" {
+		spanIndexPrefix = p.IndexPrefix.Apply(spanIndexBaseName)
+	}
+	if serviceIndexPrefix == "" {
+		serviceIndexPrefix = p.IndexPrefix.Apply(serviceIndexBaseName)
+	}
+
 	maxSpanAge := p.MaxSpanAge
 	// Setting the maxSpanAge to a large duration will ensure all spans in the "read" alias are accessible by queries (query window = [now - maxSpanAge, now]).
-	// When read/write aliases are enabled, which are required for index rollovers, only the "read" alias is queried and therefore should not affect performance.
 	if p.UseReadWriteAliases {
 		maxSpanAge = dawnOfTimeSpanAge
+	}
+
+	var timeRangeFn TimeRangeIndexFn
+	if p.SpanReadAlias != "" && p.ServiceReadAlias != "" {
+		// When using explicit aliases, return them directly without any date logic
+		timeRangeFn = func(indexPrefix string, _ string, _ time.Time, _ time.Time, _ time.Duration) []string {
+			return []string{indexPrefix}
+		}
+	} else {
+		timeRangeFn = TimeRangeIndicesFn(p.UseReadWriteAliases, p.ReadAliasSuffix, p.RemoteReadClusters)
 	}
 
 	return &SpanReader{
 		client:                  p.Client,
 		maxSpanAge:              maxSpanAge,
 		serviceOperationStorage: NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics
-		spanIndexPrefix:         p.IndexPrefix.Apply(spanIndexBaseName),
-		serviceIndexPrefix:      p.IndexPrefix.Apply(serviceIndexBaseName),
+		spanIndexPrefix:         spanIndexPrefix,
+		serviceIndexPrefix:      serviceIndexPrefix,
 		spanIndex:               p.SpanIndex,
 		serviceIndex:            p.ServiceIndex,
-		timeRangeIndices: LoggingTimeRangeIndexFn(
-			p.Logger,
-			TimeRangeIndicesFn(p.UseReadWriteAliases, p.ReadAliasSuffix, p.RemoteReadClusters),
-		),
-		sourceFn:            getSourceFn(p.MaxDocCount),
-		maxDocCount:         p.MaxDocCount,
-		useReadWriteAliases: p.UseReadWriteAliases,
-		logger:              p.Logger,
-		tracer:              p.Tracer,
-		dotReplacer:         dbmodel.NewDotReplacer(p.TagDotReplacement),
+		timeRangeIndices:        LoggingTimeRangeIndexFn(p.Logger, timeRangeFn),
+		sourceFn:                getSourceFn(p.MaxDocCount),
+		maxDocCount:             p.MaxDocCount,
+		useReadWriteAliases:     p.UseReadWriteAliases,
+		logger:                  p.Logger,
+		tracer:                  p.Tracer,
+		dotReplacer:             dbmodel.NewDotReplacer(p.TagDotReplacement),
 	}
 }
 
@@ -361,7 +379,7 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQ
 		traceQuery.NumTraces = defaultNumTraces
 	}
 
-	esTraceIDs, err := s.findTraceIDs(ctx, traceQuery)
+	esTraceIDs, err := s.findTraceIDsFromQuery(ctx, traceQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -492,7 +510,7 @@ func validateQuery(p dbmodel.TraceQueryParameters) error {
 	return nil
 }
 
-func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error) {
+func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error) {
 	ctx, childSpan := s.tracer.Start(ctx, "findTraceIDs")
 	defer childSpan.End()
 	//  Below is the JSON body to our HTTP GET request to ElasticSearch. This function creates this.

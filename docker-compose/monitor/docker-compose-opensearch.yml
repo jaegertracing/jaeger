@@ -1,6 +1,6 @@
 services:
   opensearch:
-    image: opensearchproject/opensearch:3.3.2@sha256:22fdee0d6db3f500a64cd27ddff3633f32244d0ea58b68ffb151cd2217f0bb0d
+    image: opensearchproject/opensearch:3.5.0@sha256:2f2244c7c0ad3a4a0d09977c2b519977b77bacc92e1eaf995c080c1d22f517b6
     networks:
       - backend
     environment:
@@ -27,6 +27,8 @@ services:
       - "./jaeger-ui.json:/etc/jaeger/jaeger-ui.json"
       - "../../cmd/jaeger/config-spm-opensearch.yaml:/etc/jaeger/config.yml"
     command: ["--config", "/etc/jaeger/config.yml"]
+    environment:
+      - SPANMETRICS_FLUSH_INTERVAL=${SPANMETRICS_FLUSH_INTERVAL:-60s}
     ports:
       - "16686:16686" # Jaeger UI http://localhost:16686
       - "8888:8888"
@@ -40,7 +42,7 @@ services:
   microsim:
     networks:
       - backend
-    image: yurishkuro/microsim:v0.5.0@sha256:b7ee2dee51d2c9fd94de08a80278cfbf5a144ad0f22efce50f3d3be15cbfa2c7
+    image: yurishkuro/microsim:v0.6.0@sha256:fd75a9b3dd1bb4d7d305a562edeac60051a7fec784b898ff7ab834eacc73f41e
     command: "-d 24h -s 500ms"
     environment:
       - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces

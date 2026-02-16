@@ -12,19 +12,18 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
 	"go.opentelemetry.io/otel/trace"
+	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
+	queryapp "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
-	queryapp "github.com/jaegertracing/jaeger/cmd/query/app"
-	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	v2querysvc "github.com/jaegertracing/jaeger/cmd/query/app/querysvc/v2/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jtracer"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
@@ -32,6 +31,7 @@ import (
 var (
 	_ extension.Extension             = (*server)(nil)
 	_ extensioncapabilities.Dependent = (*server)(nil)
+	_ Extension                       = (*server)(nil)
 )
 
 type server struct {
@@ -39,6 +39,7 @@ type server struct {
 	server      *queryapp.Server
 	telset      component.TelemetrySettings
 	closeTracer func(ctx context.Context) error
+	qs          *querysvc.QueryService
 }
 
 func newServer(config *Config, otel component.TelemetrySettings) *server {
@@ -55,24 +56,24 @@ func (*server) Dependencies() []component.ID {
 }
 
 func (s *server) Start(ctx context.Context, host component.Host) error {
-	var tp trace.TracerProvider
+	var tp trace.TracerProvider = nooptrace.NewTracerProvider()
 	success := false
-	tp = jtracer.NoOp().OTEL
 	if s.config.EnableTracing {
 		// TODO OTel-collector does not initialize the tracer currently
 		// https://github.com/open-telemetry/opentelemetry-collector/issues/7532
 		//nolint
-		tracerProvider, err := jtracer.New("jaeger")
+		tracerProvider, tracerCloser, err := jtracer.NewProvider(ctx, "jaeger")
 		if err != nil {
 			return fmt.Errorf("could not initialize a tracer: %w", err)
 		}
-		tp = tracerProvider.OTEL
-		// make sure to close the tracer if subsequent code exists with error
+		tp = tracerProvider
+		// Store closer for tracer if this function exists successfully,
+		// otherwise call the closer right away.
 		defer func(ctx context.Context) {
 			if success {
-				s.closeTracer = tracerProvider.Close
+				s.closeTracer = tracerCloser
 			} else {
-				tracerProvider.Close(ctx)
+				tracerCloser(ctx)
 			}
 		}(ctx)
 	}
@@ -103,14 +104,11 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	opts := querysvc.QueryServiceOptions{
 		MaxClockSkewAdjust: s.config.MaxClockSkewAdjust,
 	}
-	v2opts := v2querysvc.QueryServiceOptions{
-		MaxClockSkewAdjust: s.config.MaxClockSkewAdjust,
-	}
-	if err := s.addArchiveStorage(&opts, &v2opts, host); err != nil {
+	if err := s.addArchiveStorage(&opts, host); err != nil {
 		return err
 	}
 	qs := querysvc.NewQueryService(traceReader, depReader, opts)
-	v2qs := v2querysvc.NewQueryService(traceReader, depReader, v2opts)
+	s.qs = qs
 
 	mqs, err := s.createMetricReader(host)
 	if err != nil {
@@ -123,7 +121,6 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		ctx,
 		// TODO propagate healthcheck updates up to the collector's runtime
 		qs,
-		v2qs,
 		mqs,
 		&s.config.QueryOptions,
 		tm,
@@ -143,7 +140,6 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 
 func (s *server) addArchiveStorage(
 	opts *querysvc.QueryServiceOptions,
-	v2opts *v2querysvc.QueryServiceOptions,
 	host component.Host,
 ) error {
 	if s.config.Storage.TracesArchive == "" {
@@ -161,14 +157,8 @@ func (s *server) addArchiveStorage(
 		return nil
 	}
 
-	v2opts.ArchiveTraceReader = traceReader
-	v2opts.ArchiveTraceWriter = traceWriter
-
-	spanReader := v1adapter.GetV1Reader(traceReader)
-	spanWriter := v1adapter.GetV1Writer(traceWriter)
-
-	opts.ArchiveSpanReader = spanReader
-	opts.ArchiveSpanWriter = spanWriter
+	opts.ArchiveTraceReader = traceReader
+	opts.ArchiveTraceWriter = traceWriter
 
 	return nil
 }
@@ -215,4 +205,9 @@ func (s *server) Shutdown(ctx context.Context) error {
 		errs = append(errs, s.closeTracer(ctx))
 	}
 	return errors.Join(errs...)
+}
+
+// QueryService returns the v2 query service instance.
+func (s *server) QueryService() *querysvc.QueryService {
+	return s.qs
 }

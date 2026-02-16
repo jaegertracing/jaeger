@@ -22,11 +22,46 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger/internal/config"
-	"github.com/jaegertracing/jaeger/internal/healthcheck"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
 var testCertKeyLocation = "../../../internal/config/tlscfg/testdata"
+
+func TestAdminServerHealthCheck(t *testing.T) {
+	adminServer := NewAdminServer(":0")
+
+	v, _ := config.Viperize(adminServer.AddFlags)
+	zapCore, logs := observer.New(zap.InfoLevel)
+	logger := zap.New(zapCore)
+	require.NoError(t, adminServer.initFromViper(v, logger))
+	require.NoError(t, adminServer.Serve())
+	defer adminServer.Close()
+
+	// Get the actual address from the log
+	message := logs.FilterMessage("Admin server started")
+	require.Equal(t, 1, message.Len())
+	hostPort := message.All()[0].ContextMap()["http.host-port"].(string)
+
+	// Health check should initially be unavailable (503)
+	resp, err := http.Get(fmt.Sprintf("http://%s/", hostPort))
+	require.NoError(t, err)
+	resp.Body.Close()
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+
+	// Set to ready - should return 204
+	adminServer.Host().Ready()
+	resp, err = http.Get(fmt.Sprintf("http://%s/", hostPort))
+	require.NoError(t, err)
+	resp.Body.Close()
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+
+	// Set to unavailable - should return 503
+	adminServer.Host().SetUnavailable()
+	resp, err = http.Get(fmt.Sprintf("http://%s/", hostPort))
+	require.NoError(t, err)
+	resp.Body.Close()
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+}
 
 func TestAdminServerHandlesPortZero(t *testing.T) {
 	adminServer := NewAdminServer(":0")
@@ -48,41 +83,6 @@ func TestAdminServerHandlesPortZero(t *testing.T) {
 	hostPort := onlyEntry.ContextMap()["http.host-port"].(string)
 	port, _ := strconv.Atoi(strings.Split(hostPort, ":")[3])
 	assert.Positive(t, port)
-}
-
-func TestAdminHealthCheck(t *testing.T) {
-	adminServer := NewAdminServer(":0")
-	status := adminServer.HC().Get()
-	assert.Equal(t, healthcheck.Unavailable, status)
-}
-
-func TestAdminFailToServe(t *testing.T) {
-	l, err := net.Listen("tcp", ":0")
-	require.NoError(t, err)
-	l.Close() // forcing Serve on a closed connection
-
-	adminServer := NewAdminServer(":0")
-	v, command := config.Viperize(adminServer.AddFlags)
-	command.ParseFlags([]string{})
-	zapCore, logs := observer.New(zap.InfoLevel)
-	logger := zap.New(zapCore)
-
-	require.NoError(t, adminServer.initFromViper(v, logger))
-
-	adminServer.serveWithListener(l)
-	t.Cleanup(func() { assert.NoError(t, adminServer.Close()) })
-
-	waitForEqual(t, healthcheck.Broken, func() any { return adminServer.HC().Get() })
-
-	logEntries := logs.TakeAll()
-	var matchedEntry string
-	for _, log := range logEntries {
-		if strings.Contains(log.Message, "failed to serve") {
-			matchedEntry = log.Message
-			break
-		}
-	}
-	assert.Contains(t, matchedEntry, "failed to serve")
 }
 
 func TestAdminWithFailedFlags(t *testing.T) {

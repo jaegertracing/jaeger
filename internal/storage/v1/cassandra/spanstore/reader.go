@@ -21,6 +21,7 @@ import (
 	casmetrics "github.com/jaegertracing/jaeger/internal/storage/cassandra/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
@@ -82,7 +83,7 @@ var (
 
 type serviceNamesReader func() ([]string, error)
 
-type operationNamesReader func(query spanstore.OperationQueryParameters) ([]spanstore.Operation, error)
+type operationNamesReader func(query tracestore.OperationQueryParams) ([]tracestore.Operation, error)
 
 type spanReaderMetrics struct {
 	readTraces                 *casmetrics.Table
@@ -91,6 +92,15 @@ type spanReaderMetrics struct {
 	queryDurationIndex         *casmetrics.Table
 	queryServiceOperationIndex *casmetrics.Table
 	queryServiceNameIndex      *casmetrics.Table
+}
+
+type CoreSpanReader interface {
+	GetServices(ctx context.Context) ([]string, error)
+	GetOperations(ctx context.Context, query spanstore.OperationQueryParameters) ([]spanstore.Operation, error)
+	GetOperationsV2(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error)
+	GetTrace(ctx context.Context, query spanstore.GetTraceParameters) (*model.Trace, error)
+	FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error)
+	FindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]model.TraceID, error)
 }
 
 // SpanReader can query for and load traces from Cassandra.
@@ -139,10 +149,17 @@ func (s *SpanReader) GetServices(context.Context) ([]string, error) {
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
-func (s *SpanReader) GetOperations(
+func (*SpanReader) GetOperations(
 	_ context.Context,
-	query spanstore.OperationQueryParameters,
+	_ spanstore.OperationQueryParameters,
 ) ([]spanstore.Operation, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s *SpanReader) GetOperationsV2(
+	_ context.Context,
+	query tracestore.OperationQueryParams,
+) ([]tracestore.Operation, error) {
 	return s.operationNamesReader(query)
 }
 
@@ -257,7 +274,7 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 		traceQuery.NumTraces = defaultNumTraces
 	}
 
-	dbTraceIDs, err := s.findTraceIDs(ctx, traceQuery)
+	dbTraceIDs, err := s.findTraceIDsFromQuery(ctx, traceQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -272,7 +289,7 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	return traceIDs, nil
 }
 
-func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
+func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
 	// See docs/adr/cassandra-find-traces-duration.md for rationale: duration queries use the duration_index
 	// and are handled as a separate path. Other query parameters (like tags) are ignored when duration is specified.
 	if traceQuery.DurationMin != 0 || traceQuery.DurationMax != 0 {

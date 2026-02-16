@@ -61,6 +61,8 @@ type SpanWriterParams struct {
 	TagDotReplacement   string
 	UseReadWriteAliases bool
 	WriteAliasSuffix    string
+	SpanWriteAlias      string
+	ServiceWriteAlias   string
 	ServiceCacheTTL     time.Duration
 }
 
@@ -102,13 +104,23 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
 
 func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServiceIndexFn {
+	// If explicit write aliases are provided, use them directly without modification
+	if p.SpanWriteAlias != "" && p.ServiceWriteAlias != "" {
+		return func(_ time.Time) (string, string) {
+			return p.SpanWriteAlias, p.ServiceWriteAlias
+		}
+	}
+
+	// Otherwise, use the standard prefix + suffix approach
 	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
 	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
+
 	if p.UseReadWriteAliases {
 		return func(_ time.Time) (string, string) {
 			return spanIndexPrefix + writeAlias, serviceIndexPrefix + writeAlias
 		}
 	}
+
 	return func(date time.Time) (string, string) {
 		return indexWithDate(spanIndexPrefix, p.SpanIndex.DateLayout, date), indexWithDate(serviceIndexPrefix, p.ServiceIndex.DateLayout, date)
 	}
@@ -122,7 +134,7 @@ func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 	if serviceIndexName != "" {
 		s.writeService(serviceIndexName, span)
 	}
-	s.writeSpan(spanIndexName, span)
+	s.writeSpanToIndex(spanIndexName, span)
 	s.logger.Debug("Wrote span to ES index", zap.String("index", spanIndexName))
 }
 
@@ -152,7 +164,7 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
 	s.serviceWriter(indexName, jsonSpan)
 }
 
-func (s *SpanWriter) writeSpan(indexName string, jsonSpan *dbmodel.Span) {
+func (s *SpanWriter) writeSpanToIndex(indexName string, jsonSpan *dbmodel.Span) {
 	s.client().Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan).Add()
 }
 

@@ -136,7 +136,10 @@ func (f *Factory) initializeConnections(
 
 	createConn := func(telset component.TelemetrySettings, gcs *configgrpc.ClientConfig) (*grpc.ClientConn, error) {
 		opts := append(baseOpts, grpc.WithStatsHandler(
-			otelgrpc.NewClientHandler(otelgrpc.WithTracerProvider(telset.TracerProvider)),
+			otelgrpc.NewClientHandler(
+				otelgrpc.WithTracerProvider(telset.TracerProvider),
+				otelgrpc.WithMeterProvider(telset.MeterProvider),
+			),
 		))
 		return newClient(telset, gcs, opts...)
 	}
@@ -147,6 +150,7 @@ func (f *Factory) initializeConnections(
 	}
 	writerConn, err := createConn(writerTelset, writerConfig)
 	if err != nil {
+		_ = readerConn.Close()
 		return fmt.Errorf("error creating writer client connection: %w", err)
 	}
 
