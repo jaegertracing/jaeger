@@ -9,8 +9,8 @@ from prometheus_client.parser import text_string_to_metric_families
 import re
 
 # Configuration for transient labels that should be normalized during comparison.
-# 'GLOBAL' must be the first entry to ensure these patterns are applied
-# to all metrics before service-specific overrides.
+# 'GLOBAL' defines patterns applied to all metrics in addition to any
+# service-specific overrides; ordering in this dictionary does not affect behavior.
 TRANSIENT_LABEL_PATTERNS = {
     'GLOBAL': {
         'otel_scope_version': {
