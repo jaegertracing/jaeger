@@ -192,12 +192,8 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
 
 func (s *SpanWriter) writeSpanToIndex(indexName string, jsonSpan *dbmodel.Span) {
 	il := s.client().Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan)
-	opType := ""
-	// If we are using data streams, we must use "create" op_type.
-	if s.useDataStream {
-		opType = "create"
-	}
-	il.Add(opType)
+	// Use "create" op_type for all span writes to align with Elasticsearch 8+ best practices.
+	il.Add("create")
 }
 
 func (s *SpanWriter) splitElevatedTags(keyValues []dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any) {
