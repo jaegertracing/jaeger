@@ -5,10 +5,13 @@ package spanstore
 
 import (
 	"time"
+
+	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
-// returns index name with date
+// IndexWithDate returns index name with date
+//
+// Deprecated: use cfg.IndexWithDate instead
 func indexWithDate(indexPrefix, indexDateLayout string, date time.Time) string {
-	spanDate := date.UTC().Format(indexDateLayout)
-	return indexPrefix + spanDate
+	return cfg.IndexWithDate(indexPrefix, indexDateLayout, date)
 }

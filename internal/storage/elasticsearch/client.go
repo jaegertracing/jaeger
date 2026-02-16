@@ -52,7 +52,7 @@ type IndexService interface {
 	Type(typ string) IndexService
 	Id(id string) IndexService
 	BodyJson(body any) IndexService
-	Add()
+	Add(opType string)
 }
 
 // SearchService is an abstraction for elastic.SearchService

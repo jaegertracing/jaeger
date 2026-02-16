@@ -116,6 +116,7 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 		TagDotReplacement:   f.config.Tags.DotReplacement,
 		UseReadWriteAliases: f.config.UseReadWriteAliases,
 		ReadAliasSuffix:     f.config.ReadAliasSuffix,
+		UseDataStream:       f.config.UseDataStream,
 		RemoteReadClusters:  f.config.RemoteReadClusters,
 		SpanReadAlias:       f.config.SpanReadAlias,
 		ServiceReadAlias:    f.config.ServiceReadAlias,
@@ -135,6 +136,7 @@ func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
 		TagKeysAsFields:     f.tags,
 		TagDotReplacement:   f.config.Tags.DotReplacement,
 		UseReadWriteAliases: f.config.UseReadWriteAliases,
+		UseDataStream:       f.config.UseDataStream,
 		WriteAliasSuffix:    f.config.WriteAliasSuffix,
 		SpanWriteAlias:      f.config.SpanWriteAlias,
 		ServiceWriteAlias:   f.config.ServiceWriteAlias,
@@ -182,12 +184,17 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 	return store, nil
 }
 
+const defaultILMPolicyName = "jaeger-ilm-policy"
+
 func (f *FactoryBase) mappingBuilderFromConfig(cfg *config.Configuration) mappings.MappingBuilder {
 	return mappings.MappingBuilder{
-		TemplateBuilder: f.templateBuilder,
-		Indices:         cfg.Indices,
-		EsVersion:       cfg.Version,
-		UseILM:          cfg.UseILM,
+		TemplateBuilder:      f.templateBuilder,
+		Indices:              cfg.Indices,
+		EsVersion:            cfg.Version,
+		UseILM:               cfg.UseILM,
+		ILMPolicyName:        cfg.Indices.IndexPrefix.Apply(defaultILMPolicyName),
+		EnableIngestPipeline: cfg.EnableIngestPipeline,
+		UseDataStream:        cfg.UseDataStream,
 	}
 }
 

@@ -28,7 +28,7 @@ func TestWriteService(t *testing.T) {
 		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
 		indexService.On("Id", stringMatcher(serviceHash)).Return(indexService)
 		indexService.On("BodyJson", mock.AnythingOfType("dbmodel.Service")).Return(indexService)
-		indexService.On("Add")
+		indexService.On("Add", mock.Anything)
 
 		w.client.On("Index").Return(indexService)
 
@@ -52,6 +52,8 @@ func TestWriteService(t *testing.T) {
 	})
 }
 
+// Services no longer use Data Streams per ADR-004 to maintain deduplication.
+
 func TestWriteServiceError(*testing.T) {
 	withSpanWriter(func(w *spanWriterTest) {
 		indexService := &mocks.IndexService{}
@@ -63,7 +65,7 @@ func TestWriteServiceError(*testing.T) {
 		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
 		indexService.On("Id", stringMatcher(serviceHash)).Return(indexService)
 		indexService.On("BodyJson", mock.AnythingOfType("dbmodel.Service")).Return(indexService)
-		indexService.On("Add")
+		indexService.On("Add", mock.Anything)
 
 		w.client.On("Index").Return(indexService)
 
