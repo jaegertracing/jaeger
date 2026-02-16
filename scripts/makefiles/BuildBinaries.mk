@@ -72,7 +72,7 @@ build-es-rollover:
 
 .PHONY: build-trace-converter
 build-trace-converter:
-	$(call GOBUILD,esmapping-generator) -o ./cmd/trace-converter/trace-converter-$(GOOS)-$(GOARCH) ./cmd/trace-converter/
+	$(call GOBUILD,trace-converter) -o ./cmd/trace-converter/trace-converter-$(GOOS)-$(GOARCH) ./cmd/trace-converter/
 
 # Requires variables: $(BIN_NAME) $(BIN_PATH) $(GO_TAGS) $(DISABLE_OPTIMIZATIONS) $(SUFFIX) $(GOOS) $(GOARCH) $(BUILD_INFO)
 # Other targets can depend on this one but with a unique suffix to ensure it is always executed.
