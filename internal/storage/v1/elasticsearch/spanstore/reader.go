@@ -182,7 +182,20 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 				indices := []string{indexPrefix}
 				if readLegacyIndices.IsEnabled() {
 					legacyIndexPrefix := strings.TrimSuffix(indexPrefix, "-ds")
-					indices = append(indices, cfg.GetDataStreamLegacyWildcard(legacyIndexPrefix))
+					// If the legacy index prefix is still in data stream naming convention
+					// (dot-separated, e.g. "jaeger.span"), let GetDataStreamLegacyWildcard
+					// convert it to the legacy pattern. Otherwise, assume it is already in
+					// legacy dash format (and may include a prefix like "foo:-jaeger-span")
+					// and construct the wildcard directly.
+					if strings.Contains(legacyIndexPrefix, ".") {
+						indices = append(indices, cfg.GetDataStreamLegacyWildcard(legacyIndexPrefix))
+					} else {
+						prefix := legacyIndexPrefix
+						if !strings.HasSuffix(prefix, "-") {
+							prefix += "-"
+						}
+						indices = append(indices, prefix+"*")
+					}
 				}
 				return indices
 			}
