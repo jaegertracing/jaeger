@@ -186,9 +186,6 @@ type Configuration struct {
 
 	// EnableIngestPipeline enables the default ingest pipeline setting in index templates.
 	EnableIngestPipeline bool `mapstructure:"enable_ingest_pipeline"`
-	// IngestPipelineName specifies the name of the ingest pipeline to be used.
-	// This is only applicable if EnableIngestPipeline is true.
-	IngestPipelineName string `mapstructure:"ingest_pipeline_name"`
 
 	// Enabled, if set to true, enables the namespace for storage pointed to by this configuration.
 	Enabled bool `mapstructure:"-"`
