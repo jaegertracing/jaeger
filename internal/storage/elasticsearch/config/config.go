@@ -164,7 +164,9 @@ type Configuration struct {
 	// CreateIndexTemplates, if set to true, creates index templates at application startup.
 	// This configuration should be set to false when templates are installed manually.
 	CreateIndexTemplates bool `mapstructure:"create_mappings"`
-	// https://www.jaegertracing.io/docs/deployment/#enabling-ilm-support
+	// UseILM enables Elasticsearch Index Lifecycle Management (ILM) for Jaeger indices,
+	// delegating index rollover and deletion to ILM policies.
+	// See https://www.jaegertracing.io/docs/deployment/#enabling-ilm-support for details.
 	UseILM bool `mapstructure:"use_ilm"`
 
 	// UseDataStream, if set to true, enables the data stream support (ES 8+ or OpenSearch potentially).
