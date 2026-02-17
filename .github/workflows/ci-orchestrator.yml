@@ -11,10 +11,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-# See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
-permissions:
-  contents: read
-
 jobs:
   # ============================================================================
   # TIER 1: Cheap Checks (Linters, Static Analysis)
@@ -85,9 +81,6 @@ jobs:
     needs: [unit-tests]
     uses: ./.github/workflows/ci-docker-all-in-one.yml
     secrets: inherit
-    permissions:
-      contents: read
-      packages: read
 
   docker-hotrod:
     needs: [unit-tests]
