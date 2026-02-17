@@ -8,6 +8,7 @@
 # Source repository: https://github.com/actions/dependency-review-action
 name: 'Dependency Review'
 on:
+  workflow_call:
   pull_request:
   merge_group:
 

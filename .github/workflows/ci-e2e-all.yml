@@ -1,16 +1,13 @@
 name: E2E Tests
 
 on:
+  workflow_call:
   merge_group:
   push:
     branches: [main]
 
   pull_request:
     branches: [main]
-
-concurrency:
-  group: combined-cit-${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
-  cancel-in-progress: true
 
 permissions:
   contents: read

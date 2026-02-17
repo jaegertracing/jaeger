@@ -1,6 +1,7 @@
 name: "CodeQL"
 
 on:
+  workflow_call:
   merge_group:
   push:
     branches: [main]
@@ -10,10 +11,6 @@ on:
 
   schedule:
     - cron: '31 6 * * 1'
-
-concurrency:
-  group: ${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
-  cancel-in-progress: true
 
 # See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
 permissions:  # added using https://github.com/step-security/secure-workflows
