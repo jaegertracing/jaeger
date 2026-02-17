@@ -33,7 +33,6 @@ ALL_SRC = $(shell find . -name '*.go' \
 				   -not -path './internal/tools/*' \
 				   -not -path './scripts/build/docker/debug/*' \
 				   -not -path '*/mocks/*' \
-				   -not -path '*/thrift-0.9.2/*' \
 				   -type f | \
 				sort)
 
@@ -116,7 +115,7 @@ echo-all-srcs:
 clean:
 	rm -rf cover*.out .cover/ cover.html $(FMT_LOG) $(IMPORT_LOG) \
 		jaeger-ui/packages/jaeger-ui/build
-	find ./cmd/query/app/ui/actual -type f -name '*.gz' -delete
+	find ./cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual -type f -name '*.gz' -delete
 	GOCACHE=$(GOCACHE) go clean -cache -testcache
 	bash scripts/build/clean-binaries.sh
 
@@ -194,6 +193,10 @@ lint-goleak:
 .PHONY: lint-go
 lint-go: $(LINT)
 	$(LINT) -v run
+
+.PHONY: govulncheck
+govulncheck: $(GOVULNCHECK)
+	$(GOVULNCHECK) ./...
 
 .PHONY: lint-jaeger-idl-versions
 lint-jaeger-idl-versions:

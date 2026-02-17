@@ -48,9 +48,9 @@ jobs:
       run: |
         git fetch --prune --unshallow --tags
 
-    - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+    - uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
       with:
-        go-version: 1.25.x
+        go-version: 1.26.x
 
     - name: Setup Node.js version
       uses: ./.github/actions/setup-node.js
@@ -60,3 +60,7 @@ jobs:
 
     - name: Build platform binaries
       run: make build-binaries-${{ matrix.os }}-${{ matrix.arch }}
+      env:
+        # Skip debug binaries on PRs to save CI time (4+ min per arch)
+        # Debug binaries are still built on main branch and during releases
+        SKIP_DEBUG_BINARIES: ${{ github.event_name == 'pull_request' && '1' || '0' }}

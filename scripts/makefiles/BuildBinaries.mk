@@ -24,16 +24,16 @@ else
 endif
 
 .PHONY: build-ui
-build-ui: cmd/query/app/ui/actual/index.html.gz
+build-ui: cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual/index.html.gz
 
-cmd/query/app/ui/actual/index.html.gz: jaeger-ui/packages/jaeger-ui/build/index.html
+cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual/index.html.gz: jaeger-ui/packages/jaeger-ui/build/index.html
 	# do not delete dot-files
-	rm -rf cmd/query/app/ui/actual/*
-	cp -r jaeger-ui/packages/jaeger-ui/build/* cmd/query/app/ui/actual/
-	find cmd/query/app/ui/actual -type f | grep -v .gitignore | xargs gzip --no-name
+	rm -rf cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual/*
+	cp -r jaeger-ui/packages/jaeger-ui/build/* cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual/
+	find cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual -type f | grep -v .gitignore | xargs gzip --no-name
 	# copy the timestamp for index.html.gz from the original file
-	touch -t $$(date -r jaeger-ui/packages/jaeger-ui/build/index.html '+%Y%m%d%H%M.%S') cmd/query/app/ui/actual/index.html.gz
-	ls -lF cmd/query/app/ui/actual/
+	touch -t $$(date -r jaeger-ui/packages/jaeger-ui/build/index.html '+%Y%m%d%H%M.%S') cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual/index.html.gz
+	ls -lF cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual/
 
 jaeger-ui/packages/jaeger-ui/build/index.html:
 	$(MAKE) rebuild-ui
@@ -151,11 +151,14 @@ _build-platform-binaries: \
 		build-es-index-cleaner \
 		build-es-rollover
 # invoke make recursively such that DEBUG_BINARY=1 can take effect
-	$(MAKE) _build-platform-binaries-debug GOOS=$(GOOS) GOARCH=$(GOARCH) DEBUG_BINARY=1
+# skip debug builds if SKIP_DEBUG_BINARIES is set to 1 (e.g., during PRs to save CI time)
+ifneq ($(SKIP_DEBUG_BINARIES),1)
+	$(MAKE) _build-platform-binaries-debug GOOS=$(GOOS) GOARCH=$(GOARCH)
+endif
 
 # build binaries that support DEBUG release, for one specific platform GOOS/GOARCH
 .PHONY: _build-platform-binaries-debug
-_build-platform-binaries-debug:
+_build-platform-binaries-debug: DEBUG_BINARY=1
 _build-platform-binaries-debug: \
 	build-jaeger \
 	build-remote-storage

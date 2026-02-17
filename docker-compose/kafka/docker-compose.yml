@@ -1,35 +1,7 @@
-services:
-  zookeeper:
-    image: bitnami/zookeeper@sha256:95655e9d5653bd132b07eb3aaed2ba49bb5b175853df20e82fe1fcb0d4a28579
-    ports:
-      - 2181:2181
-    environment:
-      - ALLOW_ANONYMOUS_LOGIN=yes
-  kafka:
-    image: index.docker.io/bitnami/kafka@3.7.0
-    ports:
-      - '9092:9092'
-    environment:
-      - KAFKA_BROKER_ID=1
-      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
-      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
-      - ALLOW_PLAINTEXT_LISTENER=yes
-      - KAFKA_LISTENERS=INTERNAL://0.0.0.0:9092,OUTSIDE://0.0.0.0:9094
-      - KAFKA_ADVERTISED_LISTENERS=INTERNAL://kafka:9092,OUTSIDE://localhost:9094
-      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=INTERNAL:PLAINTEXT,OUTSIDE:PLAINTEXT
-      - KAFKA_INTER_BROKER_LISTENER_NAME=INTERNAL
-    restart: always
-    depends_on:
-      - zookeeper
-    links:
-      - zookeeper
-    healthcheck:
-      test: ["CMD-SHELL", "kafka-topics.sh --list --bootstrap-server 127.0.0.1:9092"]
-      interval: 5s
-      timeout: 5s
-      retries: 3
-      start_period: 5s
+include:
+  - path: v3/docker-compose.yml
 
+services:
   jaeger-remote-storage:
     image: cr.jaegertracing.io/jaegertracing/jaeger-remote-storage@sha256:e78c6093ac38f7cdccf0877750bb21f2cbcc08c2fd3e578966b5796a31f26643
     ports:
@@ -43,19 +15,20 @@ services:
       retries: 3
 
   jaeger-collector:
-    image: cr.jaegertracing.io/jaegertracing/jaeger:latest@sha256:d5e5fe1c2b2f663b07c28c6f7cc5a6e61aef076752dab8df8eeb6b0f5494c94b
+    image: cr.jaegertracing.io/jaegertracing/jaeger:2.15.1@sha256:a7dd965687d45507072676db81e6903706ba334dfc92f0c248125cfd9a70c483
     volumes:
       - ../../cmd/jaeger/config-kafka-collector.yaml:/etc/jaeger/config.yaml
     command:
       - "--config=/etc/jaeger/config.yaml"
     environment:
+      - KAFKA_BROKER=kafka:9092
       - KAFKA_TOPIC=jaeger-spans
       - KAFKA_ENCODING=otlp_proto
     ports:
       - 4318:4318
       - 14250:14250
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:14269/ || exit 1"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:13133/status || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 3
@@ -66,16 +39,17 @@ services:
       - kafka
 
   jaeger-ingester:
-    image: cr.jaegertracing.io/jaegertracing/jaeger:latest@sha256:d5e5fe1c2b2f663b07c28c6f7cc5a6e61aef076752dab8df8eeb6b0f5494c94b
+    image: cr.jaegertracing.io/jaegertracing/jaeger:2.15.1@sha256:a7dd965687d45507072676db81e6903706ba334dfc92f0c248125cfd9a70c483
     volumes:
       - ./jaeger-ingester-remote-storage.yaml:/etc/jaeger/config.yaml
     command:
       - "--config=/etc/jaeger/config.yaml"
     environment:
+      - KAFKA_BROKER=kafka:9092
       - KAFKA_TOPIC=jaeger-spans
       - KAFKA_ENCODING=otlp_proto
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:14133/ || exit 1"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:14133/status || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 3
@@ -91,7 +65,7 @@ services:
       - jaeger-remote-storage
 
   jaeger-query:
-    image: cr.jaegertracing.io/jaegertracing/jaeger:latest@sha256:d5e5fe1c2b2f663b07c28c6f7cc5a6e61aef076752dab8df8eeb6b0f5494c94b
+    image: cr.jaegertracing.io/jaegertracing/jaeger:2.15.1@sha256:a7dd965687d45507072676db81e6903706ba334dfc92f0c248125cfd9a70c483
     volumes:
       - ../../cmd/jaeger/config-query.yaml:/etc/jaeger/config.yaml
       - ../../cmd/jaeger/config-ui.json:/cmd/jaeger/config-ui.json:ro
@@ -104,7 +78,7 @@ services:
       - "16687"
     restart: on-failure
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:16687/ || exit 1"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:13133/status || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 3

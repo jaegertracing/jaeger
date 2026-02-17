@@ -226,14 +226,9 @@ func (ext *rsExtension) startHTTPServer(ctx context.Context, host component.Host
 			SamplingProvider: ext.strategyProvider,
 		},
 		MetricsFactory: mf,
-
-		// In v1 the sampling endpoint in the collector was at /api/sampling, because
-		// the collector reused the same port for multiple services. In v2, the extension
-		// always uses a separate port, making /api prefix unnecessary.
-		BasePath: "",
 	})
 	httpMux := http.NewServeMux()
-	handler.RegisterRoutesWithHTTP(httpMux)
+	handler.RegisterRoutes(httpMux)
 
 	httpCfg := ext.cfg.HTTP.Get()
 	var err error
@@ -243,7 +238,7 @@ func (ext *rsExtension) startHTTPServer(ctx context.Context, host component.Host
 
 	ext.telemetry.Logger.Info(
 		"Starting remote sampling HTTP server",
-		zap.String("endpoint", httpCfg.Endpoint),
+		zap.String("endpoint", httpCfg.NetAddr.Endpoint),
 	)
 	var hln net.Listener
 	if hln, err = httpCfg.ToListener(ctx); err != nil {

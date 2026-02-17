@@ -148,7 +148,10 @@ func TestStartHTTP(t *testing.T) {
 	})
 	cfg.Adaptive = configoptional.None[AdaptiveConfig]()
 	cfg.HTTP = configoptional.Some(confighttp.ServerConfig{
-		Endpoint: "0.0.0.0:12345",
+		NetAddr: confignet.AddrConfig{
+			Endpoint:  "0.0.0.0:12345",
+			Transport: confignet.TransportTypeTCP,
+		},
 	})
 	cfg.GRPC = configoptional.None[configgrpc.ServerConfig]()
 	require.NoError(t, cfg.Validate())
@@ -170,11 +173,13 @@ func TestStartHTTP(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
+	// The expected response uses ProtoJSON encoding of enums (strings, not numbers).
+	// Cf. https://github.com/jaegertracing/jaeger/pull/8014
 	expectedResponse := `{
         "probabilisticSampling": {
             "samplingRate": 0.8
         },
-        "strategyType": 0
+        "strategyType": "PROBABILISTIC"
     }`
 	require.JSONEq(t, expectedResponse, string(body))
 
@@ -327,15 +332,15 @@ type fakeStorageExtensionForTest struct {
 func (*fakeStorageExtensionForTest) Start(context.Context, component.Host) error { return nil }
 func (*fakeStorageExtensionForTest) Shutdown(context.Context) error              { return nil }
 
-func (f *fakeStorageExtensionForTest) TraceStorageFactory(name string) (tracestore.Factory, bool) {
+func (f *fakeStorageExtensionForTest) TraceStorageFactory(name string) (tracestore.Factory, error) {
 	if name == f.storageName {
-		return &fakeSamplingStoreFactory{failOn: f.failOn}, true
+		return &fakeSamplingStoreFactory{failOn: f.failOn}, nil
 	}
-	return nil, false
+	return nil, errors.New("storage not found")
 }
 
-func (*fakeStorageExtensionForTest) MetricStorageFactory(string) (storage.MetricStoreFactory, bool) {
-	return nil, false
+func (*fakeStorageExtensionForTest) MetricStorageFactory(string) (storage.MetricStoreFactory, error) {
+	return nil, errors.New("metric storage not found")
 }
 
 type fakeSamplingStoreFactory struct {
@@ -473,7 +478,10 @@ func TestServerStartupErrors(t *testing.T) {
 		cfg.File = configoptional.Some(FileConfig{Path: filepath.Join("..", "..", "..", "sampling-strategies.json")})
 		cfg.Adaptive = configoptional.None[AdaptiveConfig]()
 		cfg.HTTP = configoptional.Some(confighttp.ServerConfig{
-			Endpoint: "invalid://endpoint",
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  "invalid://endpoint",
+				Transport: confignet.TransportTypeTCP,
+			},
 		})
 		cfg.GRPC = configoptional.None[configgrpc.ServerConfig]()
 
@@ -521,7 +529,10 @@ func TestServerStartupErrors(t *testing.T) {
 		cfg.File = configoptional.Some(FileConfig{Path: filepath.Join("..", "..", "..", "sampling-strategies.json")})
 		cfg.Adaptive = configoptional.None[AdaptiveConfig]()
 		cfg.HTTP = configoptional.Some(confighttp.ServerConfig{
-			Endpoint: "localhost:0",
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  "localhost:0",
+				Transport: confignet.TransportTypeTCP,
+			},
 			Middlewares: []configmiddleware.Config{
 				{ID: component.MustNewIDWithName("nonexistent", "middleware")},
 			},
@@ -625,14 +636,12 @@ func TestShutdownWithProviderError(t *testing.T) {
 		go srv.Serve(ln)
 
 		var wg sync.WaitGroup
-		wg.Add(1)
 
 		// Fire off a request that will still be running during shutdown
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			client := &http.Client{Timeout: 200 * time.Millisecond}
 			_, _ = client.Get("http://" + ln.Addr().String())
-		}()
+		})
 
 		// Give the handler time to start processing the request
 		time.Sleep(10 * time.Millisecond)

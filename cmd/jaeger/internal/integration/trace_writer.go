@@ -28,7 +28,13 @@ var (
 	_ tracestore.Writer = (*traceWriter)(nil)
 	_ io.Closer         = (*traceWriter)(nil)
 
-	MaxChunkSize = 35 // max chunk size otel kafka export can handle safely.
+	// MaxChunkSize defines the maximum number of spans per chunk that we send via the
+	// OTLP exporter in integration tests. This was reduced from 35 to 5 when the
+	// trace writer was refactored to construct ptrace.Traces directly, so that we
+	// explicitly control chunk boundaries instead of relying on upstream batching.
+	// Smaller chunks keep the OTEL Kafka export path safely under message-size limits
+	// while still exercising the chunking logic that the Jaeger v2 pipeline depends on.
+	MaxChunkSize = 5
 )
 
 // traceWriter utilizes the OTLP exporter to send span data to the Jaeger-v2 receiver
