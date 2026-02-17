@@ -157,34 +157,7 @@
       "matchFileNames": [
         "docker-compose/opensearch/v3/docker-compose.yml",
         "docker-compose/monitor/docker-compose-opensearch.yml"
-      ],
-      "allowedVersions": "3.x"
-    },
-    {
-      "groupName": "OpenSearch 2.x docker images",
-      "matchDatasources": [
-        "docker"
-      ],
-      "matchPackageNames": [
-        "opensearchproject/opensearch"
-      ],
-      "matchFileNames": [
-        "docker-compose/opensearch/v2/docker-compose.yml"
-      ],
-      "allowedVersions": "2.x"
-    },
-    {
-      "groupName": "OpenSearch 1.x docker images",
-      "matchDatasources": [
-        "docker"
-      ],
-      "matchPackageNames": [
-        "opensearchproject/opensearch"
-      ],
-      "matchFileNames": [
-        "docker-compose/opensearch/v1/docker-compose.yml"
-      ],
-      "allowedVersions": "1.x"
+      ]
     },
     {
       "groupName": "Elasticsearch 9.x docker images",
@@ -197,47 +170,7 @@
       "matchFileNames": [
         "docker-compose/elasticsearch/v9/docker-compose.yml",
         "docker-compose/monitor/docker-compose-elasticsearch.yml"
-      ],
-      "allowedVersions": "9.x"
-    },
-    {
-      "groupName": "Elasticsearch 8.x docker images",
-      "matchDatasources": [
-        "docker"
-      ],
-      "matchPackageNames": [
-        "docker.elastic.co/elasticsearch/elasticsearch"
-      ],
-      "matchFileNames": [
-        "docker-compose/elasticsearch/v8/docker-compose.yml"
-      ],
-      "allowedVersions": "8.x"
-    },
-    {
-      "groupName": "Elasticsearch 7.x docker images",
-      "matchDatasources": [
-        "docker"
-      ],
-      "matchPackageNames": [
-        "docker.elastic.co/elasticsearch/elasticsearch"
-      ],
-      "matchFileNames": [
-        "docker-compose/elasticsearch/v7/docker-compose.yml"
-      ],
-      "allowedVersions": "7.x"
-    },
-    {
-      "groupName": "Elasticsearch 6.x docker images",
-      "matchDatasources": [
-        "docker"
-      ],
-      "matchPackageNames": [
-        "docker.elastic.co/elasticsearch/elasticsearch-oss"
-      ],
-      "matchFileNames": [
-        "docker-compose/elasticsearch/v6/docker-compose.yml"
-      ],
-      "allowedVersions": "6.x"
+      ]
     }
   ]
 }
