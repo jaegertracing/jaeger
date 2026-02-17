@@ -39,7 +39,7 @@ jobs:
   # TIER 2: Unit Tests (Depends on Tier 1)
   # ============================================================================
   unit-tests:
-    needs: [lint-checks, codeql, dependency-review, fossa]
+    needs: [lint-checks]
     uses: ./.github/workflows/ci-unit-tests.yml
     secrets: inherit
 
@@ -78,15 +78,56 @@ jobs:
     uses: ./.github/workflows/ci-e2e-all.yml
     secrets: inherit
 
-  e2e-spm:
-    needs: [unit-tests]
-    uses: ./.github/workflows/ci-e2e-spm.yml
-    secrets: inherit
+  # Upload PR number for metrics comparison workflow
+  upload_pr_number:
+    name: Save and Upload PR Number as Artifact
+    runs-on: ubuntu-latest
+    steps:
+      - name: Save PR number as artifact
+        if: github.event_name == 'pull_request'
+        run: echo "${{ github.event.number }}" > pr_number.txt
+      - name: Upload PR number artifact
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: pr_number
+          path: pr_number.txt
 
-  e2e-tailsampling:
+  # ============================================================================
+  # TIER GATEKEEPERS
+  # ============================================================================
+  tier-1-complete:
+    if: always()
+    needs: [lint-checks, codeql, dependency-review, fossa]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Tier 1 Status
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo "❌ One or more Tier 1 jobs failed or were cancelled."
+          exit 1
+
+  tier-2-complete:
+    if: always()
     needs: [unit-tests]
-    uses: ./.github/workflows/ci-e2e-tailsampling.yml
-    secrets: inherit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Tier 2 Status
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo "❌ Tier 2 job failed or was cancelled."
+          exit 1
+
+  tier-3-complete:
+    if: always()
+    needs: [build-binaries, docker-build, docker-all-in-one, docker-hotrod, e2e-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Tier 3 Status
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo "❌ One or more Tier 3 jobs failed or were cancelled."
+          exit 1
 
   # ============================================================================
   # FINAL GATEKEEPER: Use this job for Branch Protection
@@ -95,46 +136,10 @@ jobs:
     name: All CI Checks Passed
     runs-on: ubuntu-latest
     if: always()
-    needs:
-      # Tier 3 dependencies - all expensive checks must pass
-      - build-binaries
-      - docker-build
-      - docker-all-in-one
-      - docker-hotrod
-      - e2e-tests
-      - e2e-spm
-      - e2e-tailsampling
+    needs: [tier-1-complete, tier-2-complete, tier-3-complete]
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
-        with:
-          egress-policy: audit
-
       - name: Check Overall Status
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
         run: |
-          # Check if all jobs succeeded or were skipped
-          results=(
-            "${{ needs.build-binaries.result }}"
-            "${{ needs.docker-build.result }}"
-            "${{ needs.docker-all-in-one.result }}"
-            "${{ needs.docker-hotrod.result }}"
-            "${{ needs.e2e-tests.result }}"
-            "${{ needs.e2e-spm.result }}"
-            "${{ needs.e2e-tailsampling.result }}"
-          )
-          
-          failed=0
-          for result in "${results[@]}"; do
-            if [[ "$result" != "success" && "$result" != "skipped" ]]; then
-              echo "❌ Job failed or was cancelled: $result"
-              failed=1
-            fi
-          done
-          
-          if [ $failed -eq 0 ]; then
-            echo "✅ All CI tiers passed successfully!"
-            exit 0
-          else
-            echo "❌ CI failed in one or more tiers"
-            exit 1
-          fi
+          echo "❌ One or more upstream jobs failed or were cancelled."
+          exit 1

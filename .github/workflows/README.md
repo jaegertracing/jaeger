@@ -86,26 +86,6 @@ Individual E2E test workflows are called by `ci-e2e-all.yml`:
 
 These workflows use `workflow_call` only and don't have independent triggers.
 
-## Workflow Pattern
-
-All orchestrated workflows follow this pattern:
-
-```yaml
-name: Workflow Name
-
-on:
-  workflow_call:  # Called by orchestrator
-
-# No concurrency block - managed by orchestrator
-
-permissions:
-  contents: read  # Minimal permissions
-
-jobs:
-  job-name:
-    # ... job definition
-```
-
 ## Branch Protection
 
 To require CI checks before merging, configure branch protection to require:
