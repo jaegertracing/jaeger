@@ -35,6 +35,17 @@ jobs:
     uses: ./.github/workflows/fossa.yml
     secrets: inherit
 
+  tier-1-complete:
+    if: always()
+    needs: [lint-checks, codeql, dependency-review, fossa]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Tier 1 Status
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo "❌ One or more Tier 1 jobs failed or were cancelled."
+          exit 1
+
   # ============================================================================
   # TIER 2: Unit Tests (Depends on Tier 1)
   # ============================================================================
@@ -42,6 +53,17 @@ jobs:
     needs: [lint-checks]
     uses: ./.github/workflows/ci-unit-tests.yml
     secrets: inherit
+
+  tier-2-complete:
+    if: always()
+    needs: [unit-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Tier 2 Status
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo "❌ Tier 2 job failed or was cancelled."
+          exit 1
 
   # ============================================================================
   # TIER 3: Expensive Checks (E2E, Builds, Docker) - Depends on Tier 2
@@ -92,31 +114,6 @@ jobs:
         with:
           name: pr_number
           path: pr_number.txt
-
-  # ============================================================================
-  # TIER GATEKEEPERS
-  # ============================================================================
-  tier-1-complete:
-    if: always()
-    needs: [lint-checks, codeql, dependency-review, fossa]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check Tier 1 Status
-        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
-        run: |
-          echo "❌ One or more Tier 1 jobs failed or were cancelled."
-          exit 1
-
-  tier-2-complete:
-    if: always()
-    needs: [unit-tests]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check Tier 2 Status
-        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
-        run: |
-          echo "❌ Tier 2 job failed or was cancelled."
-          exit 1
 
   tier-3-complete:
     if: always()
