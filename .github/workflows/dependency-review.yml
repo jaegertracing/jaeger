@@ -9,8 +9,6 @@
 name: 'Dependency Review'
 on:
   workflow_call:
-  pull_request:
-  merge_group:
 
 permissions:
   contents: read

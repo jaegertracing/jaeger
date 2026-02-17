@@ -2,12 +2,6 @@ name: Build all-in-one
 
 on:
   workflow_call:
-  merge_group:
-  push:
-    branches: [main]
-
-  pull_request:
-    branches: [main]
 
 permissions:
   contents: read

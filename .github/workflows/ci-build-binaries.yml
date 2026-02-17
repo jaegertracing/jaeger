@@ -2,12 +2,6 @@ name: Build binaries
 
 on:
   workflow_call:
-  merge_group:
-  push:
-    branches: [main]
-
-  pull_request:
-    branches: [main]
 
 # See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
 permissions:
