@@ -48,6 +48,23 @@ concurrency:
 
 This allows a single "kill-switch" to cancel older runs when new commits are pushed to a PR.
 
+### Permissions Model
+
+The orchestrator uses `permissions: write-all` to allow maximum flexibility for child workflows:
+
+```yaml
+permissions: write-all
+```
+
+This grants broad permissions at the orchestrator level, allowing child workflows to request the specific permissions they need. Child workflows then apply the principle of least privilege by downgrading to only the permissions they require:
+
+- **codeql.yml**: `security-events: write`, `actions: read` (for security scanning)
+- **ci-unit-tests.yml**: `checks: write` (for reporting test results)
+- **ci-docker-all-in-one.yml**: `packages: read` (for pulling from GHCR)
+- Other workflows: typically `contents: read` only
+
+**Why write-all?** When using `workflow_call`, GitHub Actions requires the caller workflow to grant permissions that called workflows can then use or downgrade. Without `write-all`, child workflows would be restricted to `contents: read` only, causing failures for workflows that need additional permissions like CodeQL or test reporting.
+
 ## Independent Workflows
 
 The following workflows operate independently and are **not** part of the orchestrator:
