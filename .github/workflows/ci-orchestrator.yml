@@ -11,6 +11,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+# Grant all permissions to allow child workflows to request what they need
+# Child workflows can downgrade permissions as needed (principle of least privilege)
+permissions: write-all
+
 jobs:
   # ============================================================================
   # TIER 1: Cheap Checks (Linters, Static Analysis)
