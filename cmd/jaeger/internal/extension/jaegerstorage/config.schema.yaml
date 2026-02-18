@@ -1,0 +1,6 @@
+$defs:
+  config:
+    description: Config embeds the shared storage configuration.
+    type: object
+    allOf:
+      - $ref: github.com/jaegertracing/jaeger/cmd/internal/storageconfig.config

@@ -56,7 +56,7 @@ func NewServer(
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*Server, error) {
-	_, httpPort, err := net.SplitHostPort(options.HTTP.NetAddr.Endpoint)
+	_, httpPort, err := net.SplitHostPort(options.HTTP.Endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("invalid HTTP server host:port: %w", err)
 	}
@@ -279,7 +279,10 @@ func (s *Server) initListener(ctx context.Context) error {
 		return err
 	}
 
-	s.httpConn, err = s.queryOptions.HTTP.ToListener(ctx)
+	// We need to create the listener first to be able to get the actual port if it was 0.
+	// This replicates what confighttp.ServerConfig.ToListener() does, but we do it manually
+	// because we need to know the port before we start the server.
+	s.httpConn, err = net.Listen("tcp", s.queryOptions.HTTP.Endpoint)
 	if err != nil {
 		return err
 	}
@@ -298,34 +301,37 @@ func (s *Server) Start(ctx context.Context) error {
 		return fmt.Errorf("query server failed to initialize listener: %w", err)
 	}
 
-	var httpPort int
-	if port, err := getPortForAddr(s.httpConn.Addr()); err == nil {
-		httpPort = port
+	// If the port is 0, we need to pick a free port.
+	if _, port, err := net.SplitHostPort(s.queryOptions.HTTP.Endpoint); err == nil && port == "0" {
+		addr := s.httpConn.Addr().String()
+		_, port, err := net.SplitHostPort(addr)
+		if err != nil {
+			return fmt.Errorf("failed to get port from listener address %s: %w", addr, err)
+		}
+		host, _, _ := net.SplitHostPort(s.queryOptions.HTTP.Endpoint)
+		s.queryOptions.HTTP.Endpoint = net.JoinHostPort(host, port)
 	}
 
-	var grpcPort int
-	if port, err := getPortForAddr(s.grpcConn.Addr()); err == nil {
-		grpcPort = port
-	}
+	s.telset.Logger.Info("Query server started", zap.String("http_addr", s.queryOptions.HTTP.Endpoint), zap.String("grpc_addr", s.queryOptions.GRPC.NetAddr.Endpoint))
 
 	s.bgFinished.Add(1)
 	go func() {
 		defer s.bgFinished.Done()
-		s.telset.Logger.Info("Starting HTTP server", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTP.NetAddr.Endpoint))
+		s.telset.Logger.Info("Starting HTTP server", zap.String("addr", s.queryOptions.HTTP.Endpoint))
 		err := s.httpServer.Serve(s.httpConn)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			s.telset.Logger.Error("Could not start HTTP server", zap.Error(err))
 			s.telset.ReportStatus(componentstatus.NewFatalErrorEvent(err))
 			return
 		}
-		s.telset.Logger.Info("HTTP server stopped", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTP.NetAddr.Endpoint))
+		s.telset.Logger.Info("HTTP server stopped", zap.String("addr", s.queryOptions.HTTP.Endpoint))
 	}()
 
 	// Start GRPC server concurrently
 	s.bgFinished.Add(1)
 	go func() {
 		defer s.bgFinished.Done()
-		s.telset.Logger.Info("Starting GRPC server", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPC.NetAddr.Endpoint))
+		s.telset.Logger.Info("Starting GRPC server", zap.String("addr", s.queryOptions.GRPC.NetAddr.Endpoint))
 
 		err := s.grpcServer.Serve(s.grpcConn)
 		if err != nil {
@@ -333,7 +339,7 @@ func (s *Server) Start(ctx context.Context) error {
 			s.telset.ReportStatus(componentstatus.NewFatalErrorEvent(err))
 			return
 		}
-		s.telset.Logger.Info("GRPC server stopped", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPC.NetAddr.Endpoint))
+		s.telset.Logger.Info("GRPC server stopped", zap.String("addr", s.queryOptions.GRPC.NetAddr.Endpoint))
 	}()
 	return nil
 }

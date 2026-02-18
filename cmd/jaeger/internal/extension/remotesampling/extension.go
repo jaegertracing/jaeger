@@ -238,7 +238,7 @@ func (ext *rsExtension) startHTTPServer(ctx context.Context, host component.Host
 
 	ext.telemetry.Logger.Info(
 		"Starting remote sampling HTTP server",
-		zap.String("endpoint", httpCfg.NetAddr.Endpoint),
+		zap.String("endpoint", httpCfg.Endpoint),
 	)
 	var hln net.Listener
 	if hln, err = httpCfg.ToListener(ctx); err != nil {

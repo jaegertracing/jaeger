@@ -1,0 +1,39 @@
+$defs:
+  adaptive_config:
+    type: object
+    properties:
+      sampling_store:
+        description: SamplingStore is the name of the storage defined in the jaegerstorage extension.
+        type: string
+    allOf:
+      - $ref: github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive.options
+  config:
+    type: object
+    properties:
+      adaptive:
+        x-optional: true
+        $ref: adaptive_config
+      file:
+        x-optional: true
+        $ref: file_config
+      grpc:
+        x-optional: true
+        $ref: go.opentelemetry.io/collector/config/configgrpc.server_config
+      http:
+        x-optional: true
+        $ref: go.opentelemetry.io/collector/config/confighttp.server_config
+  file_config:
+    type: object
+    properties:
+      default_sampling_probability:
+        description: DefaultSamplingProbability is the sampling probability used by the Strategy Store for static sampling
+        type: number
+        x-customType: float64
+      path:
+        description: File specifies a local file as the source of sampling strategies.
+        type: string
+      reload_interval:
+        description: ReloadInterval is the time interval to check and reload sampling strategies file
+        type: string
+        x-customType: time.Duration
+        format: duration

@@ -238,6 +238,15 @@ generate-mocks: $(MOCKERY)
 	find . -path '*/mocks/*' -name '*.go' -type f -delete
 	$(MOCKERY) | tee .mockery.log
 
+.PHONY: generate-schemas
+generate-schemas: $(SCHEMAGEN)
+	@echo "Generating configuration schemas..."
+	@for ext in cmd/jaeger/internal/extension/*/; do \
+		echo "  Generating schema for $$ext"; \
+		$(SCHEMAGEN) $$ext; \
+	done
+	@echo "Schema generation complete."
+
 .PHONY: certs
 certs:
 	cd internal/config/tlscfg/testdata && ./gen-certs.sh
