@@ -34,7 +34,7 @@ type Span struct {
 	OperationName string
 	Flags         int32
 	StartTime     int64 // microseconds since epoch
-	// Duration is the elapsed time expressed in microseconds since epoch
+	// Duration is the elapsed time expressed in microseconds
 	Duration    int64
 	Tags        []KeyValue
 	Logs        []Log
