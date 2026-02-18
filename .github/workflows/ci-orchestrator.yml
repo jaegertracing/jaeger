@@ -1,0 +1,124 @@
+name: CI Orchestrator
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  merge_group:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Grant all permissions to allow child workflows to request what they need
+# Child workflows can downgrade permissions as needed (principle of least privilege)
+permissions: write-all
+
+jobs:
+  # ============================================================================
+  # TIER 1: Cheap Checks (Linters, Static Analysis)
+  # ============================================================================
+  lint-checks:
+    uses: ./.github/workflows/ci-lint-checks.yaml
+    secrets: inherit
+
+  codeql:
+    uses: ./.github/workflows/codeql.yml
+    secrets: inherit
+
+  dependency-review:
+    uses: ./.github/workflows/dependency-review.yml
+    secrets: inherit
+
+  fossa:
+    uses: ./.github/workflows/fossa.yml
+    secrets: inherit
+
+  tier-1-complete:
+    if: always()
+    needs: [lint-checks, codeql, dependency-review, fossa]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Tier 1 Status
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo "❌ One or more Tier 1 jobs failed or were cancelled."
+          exit 1
+
+  # ============================================================================
+  # TIER 2: Unit Tests (Depends on Tier 1)
+  # ============================================================================
+  unit-tests:
+    needs: [lint-checks]
+    uses: ./.github/workflows/ci-unit-tests.yml
+    secrets: inherit
+
+  tier-2-complete:
+    if: always()
+    needs: [unit-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Tier 2 Status
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo "❌ Tier 2 job failed or was cancelled."
+          exit 1
+
+  # ============================================================================
+  # TIER 3: Expensive Checks (E2E, Builds, Docker) - Depends on Tier 2
+  # ============================================================================
+  
+  # Binary builds
+  build-binaries:
+    needs: [unit-tests]
+    uses: ./.github/workflows/ci-build-binaries.yml
+    secrets: inherit
+
+  # Docker images
+  docker-build:
+    needs: [unit-tests]
+    uses: ./.github/workflows/ci-docker-build.yml
+    secrets: inherit
+
+  docker-all-in-one:
+    needs: [unit-tests]
+    uses: ./.github/workflows/ci-docker-all-in-one.yml
+    secrets: inherit
+
+  docker-hotrod:
+    needs: [unit-tests]
+    uses: ./.github/workflows/ci-docker-hotrod.yml
+    secrets: inherit
+
+  # E2E tests
+  e2e-tests:
+    needs: [unit-tests]
+    uses: ./.github/workflows/ci-e2e-all.yml
+    secrets: inherit
+
+  tier-3-complete:
+    if: always()
+    needs: [build-binaries, docker-build, docker-all-in-one, docker-hotrod, e2e-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Tier 3 Status
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo "❌ One or more Tier 3 jobs failed or were cancelled."
+          exit 1
+
+  # ============================================================================
+  # FINAL GATEKEEPER: Use this job for Branch Protection
+  # ============================================================================
+  ci-success:
+    name: All CI Checks Passed
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [tier-1-complete, tier-2-complete, tier-3-complete]
+    steps:
+      - name: Check Overall Status
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo "❌ One or more upstream jobs failed or were cancelled."
+          exit 1

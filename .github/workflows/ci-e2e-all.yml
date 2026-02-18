@@ -1,16 +1,7 @@
 name: E2E Tests
 
 on:
-  merge_group:
-  push:
-    branches: [main]
-
-  pull_request:
-    branches: [main]
-
-concurrency:
-  group: combined-cit-${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
-  cancel-in-progress: true
+  workflow_call:
 
 permissions:
   contents: read
@@ -42,6 +33,12 @@ jobs:
 
   clickhouse:
     uses: ./.github/workflows/ci-e2e-clickhouse.yml
+
+  spm:
+    uses: ./.github/workflows/ci-e2e-spm.yml
+
+  tailsampling:
+    uses: ./.github/workflows/ci-e2e-tailsampling.yml
 
   upload_pr_number:
     name: Save and Upload PR Number as Artifact
