@@ -82,8 +82,8 @@ func toDomainMetricPoints(promDps []model.SamplePair) []*metrics.MetricPoint {
 func toDomainTimestamp(timeMs model.Time) *types.Timestamp {
 	return &types.Timestamp{
 		Seconds: int64(timeMs / 1000),
-
-		Nanos: int32((timeMs % 1000) * 1_000_000),
+		//nolint:gosec // G115
+		Nanos: int32(timeMs%1000) * 1_000_000,
 	}
 }
 
