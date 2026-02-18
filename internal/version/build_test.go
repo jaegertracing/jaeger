@@ -13,29 +13,37 @@ import (
 )
 
 func TestNewInfoMetrics(t *testing.T) {
-	// 1. Initialize the Jaeger-specific testing factory
-	// 0 means... we will snapshot it manually.
+	// Initialize the Jaeger-specific testing factory
 	factory := metricstest.NewFactory(0)
 	defer factory.Stop()
 
-	// 2. Set some dummy values for the global build variables
-	commitSHA = "test-sha"
-	latestVersion = "v1.2.3"
-	date = "2026-02-03"
+	// Save original values and then Set some dummy values for the global build variables
+	origCommitSHA := commitSHA
+	origLatestVersion := latestVersion
+	origDate := date
 
-	// 3. Execute the function under test
+	// Schedule the restoration using defer
+	defer func() {
+		commitSHA = origCommitSHA
+		latestVersion = origLatestVersion
+		date = origDate
+	}()
+
+	commitSHA = "foobar"
+	latestVersion = "v1.2.3"
+	date = "2026-02-18"
+
+	// Execute the function under test
 	info := NewInfoMetrics(factory)
 
-	// 4. Assertions on the returned struct
+	// Assertions on the returned struct
 	require.NotNil(t, info)
 	assert.NotNil(t, info.BuildInfo)
 
-	// 5. Verification using the Factory Snapshot
+	// Verification using the Factory Snapshot
 	_, gauges := factory.Snapshot()
 
-	// The key format for metricstest is "name|tag1=val1|tag2=val2"
-	// Note: The order of tags in the string depends on the internal map ordering.
-	expectedKey := "build_info|build_date=2026-02-03|revision=test-sha|version=v1.2.3"
+	expectedKey := "build_info|build_date=2026-02-18|revision=foobar|version=v1.2.3"
 
 	val, ok := gauges[expectedKey]
 	assert.True(t, ok, "Metric not found in snapshot. Found keys: %v", gauges)
