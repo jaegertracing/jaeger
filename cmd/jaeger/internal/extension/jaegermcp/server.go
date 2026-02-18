@@ -53,7 +53,7 @@ func (*server) Dependencies() []component.ID {
 
 // Start initializes and starts the MCP server.
 func (s *server) Start(ctx context.Context, host component.Host) error {
-	s.telset.Logger.Info("Starting Jaeger MCP server", zap.String("endpoint", s.config.HTTP.NetAddr.Endpoint))
+	s.telset.Logger.Info("Starting Jaeger MCP server", zap.String("endpoint", s.config.HTTP.Endpoint))
 
 	// Get v2 QueryService from jaegerquery extension
 	queryExt, err := jaegerquery.GetExtension(host)
@@ -76,10 +76,13 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	s.registerTools()
 
 	// Set up TCP listener with context
-	lc := net.ListenConfig{}
-	listener, err := lc.Listen(ctx, "tcp", s.config.HTTP.NetAddr.Endpoint)
-	if err != nil {
-		return fmt.Errorf("failed to listen on %s: %w", s.config.HTTP.NetAddr.Endpoint, err)
+	var listener net.Listener
+	if s.config.HTTP.Endpoint != "" {
+		var err error
+		listener, err = s.config.HTTP.ToListener(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to listen on %s: %w", s.config.HTTP.Endpoint, err)
+		}
 	}
 	s.listener = listener
 
@@ -114,8 +117,8 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	}()
 
 	s.telset.Logger.Info("Jaeger MCP server started successfully",
-		zap.String("endpoint", s.config.HTTP.NetAddr.Endpoint),
-		zap.String("mcp_endpoint", "http://"+s.config.HTTP.NetAddr.Endpoint+"/mcp"))
+		zap.String("endpoint", s.config.HTTP.Endpoint),
+		zap.String("mcp_endpoint", "http://"+s.config.HTTP.Endpoint+"/mcp"))
 	return nil
 }
 

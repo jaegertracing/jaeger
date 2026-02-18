@@ -8,11 +8,9 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
-	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/extension"
 
 	"github.com/jaegertracing/jaeger/internal/version"
-	"github.com/jaegertracing/jaeger/ports"
 )
 
 // componentType is the name of this extension in configuration.
@@ -39,10 +37,7 @@ func createDefaultConfig() component.Config {
 	}
 	return &Config{
 		HTTP: confighttp.ServerConfig{
-			NetAddr: confignet.AddrConfig{
-				Endpoint:  ports.PortToHostPort(ports.MCPHTTP),
-				Transport: confignet.TransportTypeTCP,
-			},
+			Endpoint: "localhost:12345",
 		},
 		ServerName:               "jaeger",
 		ServerVersion:            ver,
