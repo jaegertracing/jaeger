@@ -24,14 +24,6 @@ func V1BatchesFromTraces(traces ptrace.Traces) []*model.Batch {
 	return batches
 }
 
-// ProtoFromTraces converts OpenTelemetry traces (ptrace.Traces)
-// to Jaeger model batches ([]*model.Batch).
-//
-// TODO remove this function in favor of V1BatchesFromTraces
-func ProtoFromTraces(traces ptrace.Traces) []*model.Batch {
-	return V1BatchesFromTraces(traces)
-}
-
 // V1BatchesToTraces converts Jaeger model batches ([]*model.Batch)
 // to OpenTelemetry traces (ptrace.Traces).
 func V1BatchesToTraces(batches []*model.Batch) ptrace.Traces {
