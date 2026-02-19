@@ -1,7 +1,7 @@
 // Copyright (c) 2025 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package elasticsearch
+package processor
 
 import (
 	"fmt"
@@ -15,6 +15,28 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
 
+// TimeRange represents a time range for metrics queries.
+type TimeRange struct {
+	StartTimeMillis int64
+	EndTimeMillis   int64
+	// ExtendedStartTimeMillis is an extended start time used for lookback periods
+	// in certain aggregations (e.g., cumulative sums or rate calculations)
+	// where data prior to StartTimeMillis is needed to compute metrics accurately
+	// within the primary time range. This typically accounts for a window of
+	// preceding data (e.g., 10 minutes) to ensure that the initial data
+	// points in the primary time range have enough historical context for calculation.
+	ExtendedStartTimeMillis int64
+}
+
+// toDomainMetricPointValue converts a float64 value to Jaeger's gauge metric point.
+func toDomainMetricPointValue(value float64) *metrics.MetricPoint_GaugeValue {
+	return &metrics.MetricPoint_GaugeValue{
+		GaugeValue: &metrics.GaugeValue{
+			Value: &metrics.GaugeValue_DoubleValue{DoubleValue: value},
+		},
+	}
+}
+
 // ScaleAndRoundLatencies processes raw latency metrics by applying scaling and rounding.
 func ScaleAndRoundLatencies(mf *metrics.MetricFamily) *metrics.MetricFamily {
 	const lookback = 1 // only current value
@@ -24,7 +46,7 @@ func ScaleAndRoundLatencies(mf *metrics.MetricFamily) *metrics.MetricFamily {
 // CalculateCallRates processes raw call rate metrics by calculating rates and trimming to time range.
 func CalculateCallRates(mf *metrics.MetricFamily, params metricstore.BaseQueryParameters, timeRange TimeRange) *metrics.MetricFamily {
 	processed := calcCallRate(mf, params)
-	return trimMetricPointsBefore(processed, timeRange.startTimeMillis)
+	return trimMetricPointsBefore(processed, timeRange.StartTimeMillis)
 }
 
 // CalculateErrorRates processes error rate metrics by computing error rates from errors and calls.

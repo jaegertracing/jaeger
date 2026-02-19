@@ -1,7 +1,7 @@
 // Copyright (c) 2025 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package elasticsearch
+package processor
 
 import (
 	"math"
@@ -73,7 +73,7 @@ func TestProcessCallRates(t *testing.T) {
 		Step:    ptr(time.Second * 10),
 		RatePer: ptr(time.Minute),
 	}
-	timeRange := TimeRange{startTimeMillis: now.Add(-time.Minute).UnixMilli()}
+	timeRange := TimeRange{StartTimeMillis: now.Add(-time.Minute).UnixMilli()}
 
 	tests := []struct {
 		name           string
@@ -122,7 +122,7 @@ func TestProcessErrorRates(t *testing.T) {
 		Step:    ptr(time.Minute),
 		RatePer: ptr(time.Minute),
 	}
-	timeRange := TimeRange{startTimeMillis: now.Add(-time.Minute).UnixMilli()}
+	timeRange := TimeRange{StartTimeMillis: now.Add(-time.Minute).UnixMilli()}
 
 	tests := []struct {
 		name         string
