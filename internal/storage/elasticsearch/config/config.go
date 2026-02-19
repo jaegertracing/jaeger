@@ -798,6 +798,9 @@ func (c *Configuration) Validate() error {
 
 // IndexWithDate returns the index name with date suffix.
 func IndexWithDate(indexName, dateLayout string, date time.Time) string {
+	if indexName == "" {
+		return date.UTC().Format(dateLayout)
+	}
 	if strings.HasSuffix(indexName, "-") {
 		return indexName + date.UTC().Format(dateLayout)
 	}

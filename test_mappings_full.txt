@@ -1,0 +1,122 @@
+=== RUN   TestCommandExecute
+--- PASS: TestCommandExecute (0.00s)
+=== RUN   TestCommandExecuteError
+Error: error generating mappings: invalid mapping type 'foobar': please pass either 'jaeger-service' or 'jaeger-span' as the mapping type invalid mapping type: foobar
+Usage:
+  elasticsearch-mappings [flags]
+
+Flags:
+      --es-version uint          The major Elasticsearch version (default 7)
+  -h, --help                     help for elasticsearch-mappings
+      --ilm-policy-name string   The name of the ILM policy to use if ILM is active (default "jaeger-ilm-policy")
+      --index-prefix string      Specifies index prefix
+      --mapping string           The index mapping the template will be applied to. Pass either jaeger-span or jaeger-service
+      --replicas int             The number of replicas per index in Elasticsearch (default 1)
+      --shards int               The number of shards per index in Elasticsearch (default 5)
+      --use-ilm string           Set to true to use ILM for managing lifecycle of jaeger indices (default "false")
+
+--- PASS: TestCommandExecuteError (0.00s)
+=== RUN   TestIsValidOption
+=== RUN   TestIsValidOption/span_mapping
+=== RUN   TestIsValidOption/service_mapping
+=== RUN   TestIsValidOption/Invalid_mapping
+--- PASS: TestIsValidOption (0.00s)
+    --- PASS: TestIsValidOption/span_mapping (0.00s)
+    --- PASS: TestIsValidOption/service_mapping (0.00s)
+    --- PASS: TestIsValidOption/Invalid_mapping (0.00s)
+=== RUN   Test_getMappingAsString
+=== RUN   Test_getMappingAsString/ES_version_7
+=== RUN   Test_getMappingAsString/Parse_Error_version_7
+=== RUN   Test_getMappingAsString/Parse_bool_error
+=== RUN   Test_getMappingAsString/Invalid_Mapping_type
+--- PASS: Test_getMappingAsString (0.00s)
+    --- PASS: Test_getMappingAsString/ES_version_7 (0.00s)
+    --- PASS: Test_getMappingAsString/Parse_Error_version_7 (0.00s)
+    --- PASS: Test_getMappingAsString/Parse_bool_error (0.00s)
+    --- PASS: Test_getMappingAsString/Invalid_Mapping_type (0.00s)
+=== RUN   TestGenerateMappings
+=== RUN   TestGenerateMappings/bad_ILM_setting
+=== RUN   TestGenerateMappings/valid_jaeger-span_mapping
+=== RUN   TestGenerateMappings/valid_jaeger-service_mapping
+=== RUN   TestGenerateMappings/invalid_mapping_type
+=== RUN   TestGenerateMappings/missing_mapping_flag
+--- PASS: TestGenerateMappings (0.00s)
+    --- PASS: TestGenerateMappings/bad_ILM_setting (0.00s)
+    --- PASS: TestGenerateMappings/valid_jaeger-span_mapping (0.00s)
+    --- PASS: TestGenerateMappings/valid_jaeger-service_mapping (0.00s)
+    --- PASS: TestGenerateMappings/invalid_mapping_type (0.00s)
+    --- PASS: TestGenerateMappings/missing_mapping_flag (0.00s)
+=== RUN   TestOptionsWithDefaultFlags
+--- PASS: TestOptionsWithDefaultFlags (0.00s)
+=== RUN   TestOptionsWithFlags
+--- PASS: TestOptionsWithFlags (0.00s)
+=== RUN   TestMappingBuilderGetMapping
+=== RUN   TestMappingBuilderGetMapping/jaeger-span
+=== RUN   TestMappingBuilderGetMapping/jaeger-span#01
+=== RUN   TestMappingBuilderGetMapping/jaeger-span#02
+=== RUN   TestMappingBuilderGetMapping/jaeger-service
+=== RUN   TestMappingBuilderGetMapping/jaeger-service#01
+=== RUN   TestMappingBuilderGetMapping/jaeger-service#02
+=== RUN   TestMappingBuilderGetMapping/jaeger-dependencies
+=== RUN   TestMappingBuilderGetMapping/jaeger-dependencies#01
+=== RUN   TestMappingBuilderGetMapping/jaeger-dependencies#02
+--- PASS: TestMappingBuilderGetMapping (0.00s)
+    --- PASS: TestMappingBuilderGetMapping/jaeger-span (0.00s)
+    --- PASS: TestMappingBuilderGetMapping/jaeger-span#01 (0.00s)
+    --- PASS: TestMappingBuilderGetMapping/jaeger-span#02 (0.00s)
+    --- PASS: TestMappingBuilderGetMapping/jaeger-service (0.00s)
+    --- PASS: TestMappingBuilderGetMapping/jaeger-service#01 (0.00s)
+    --- PASS: TestMappingBuilderGetMapping/jaeger-service#02 (0.00s)
+    --- PASS: TestMappingBuilderGetMapping/jaeger-dependencies (0.00s)
+    --- PASS: TestMappingBuilderGetMapping/jaeger-dependencies#01 (0.00s)
+    --- PASS: TestMappingBuilderGetMapping/jaeger-dependencies#02 (0.00s)
+=== RUN   TestMappingTypeFromString
+=== RUN   TestMappingTypeFromString/jaeger-span
+=== RUN   TestMappingTypeFromString/jaeger-service
+=== RUN   TestMappingTypeFromString/jaeger-dependencies
+=== RUN   TestMappingTypeFromString/jaeger-sampling
+=== RUN   TestMappingTypeFromString/invalid
+--- PASS: TestMappingTypeFromString (0.00s)
+    --- PASS: TestMappingTypeFromString/jaeger-span (0.00s)
+    --- PASS: TestMappingTypeFromString/jaeger-service (0.00s)
+    --- PASS: TestMappingTypeFromString/jaeger-dependencies (0.00s)
+    --- PASS: TestMappingTypeFromString/jaeger-sampling (0.00s)
+    --- PASS: TestMappingTypeFromString/invalid (0.00s)
+=== RUN   TestMappingBuilderLoadMapping
+    mapping_test.go:140: 
+        	Error Trace:	/media/soumya/DATA/open-source/jaeger/internal/storage/v1/elasticsearch/mappings/mapping_test.go:140
+        	Error:      	Received unexpected error:
+        	            	template: mapping:2: function "toJSON" not defined
+        	Test:       	TestMappingBuilderLoadMapping
+--- FAIL: TestMappingBuilderLoadMapping (0.00s)
+=== RUN   TestMappingBuilderFixMapping
+=== RUN   TestMappingBuilderFixMapping/templateRenderSuccess
+=== RUN   TestMappingBuilderFixMapping/templateRenderFailure
+=== RUN   TestMappingBuilderFixMapping/templateLoadError
+--- PASS: TestMappingBuilderFixMapping (0.00s)
+    --- PASS: TestMappingBuilderFixMapping/templateRenderSuccess (0.00s)
+    --- PASS: TestMappingBuilderFixMapping/templateRenderFailure (0.00s)
+    --- PASS: TestMappingBuilderFixMapping/templateLoadError (0.00s)
+=== RUN   TestMappingBuilderGetSpanServiceMappings
+=== RUN   TestMappingBuilderGetSpanServiceMappings/ES_Version_7
+=== RUN   TestMappingBuilderGetSpanServiceMappings/ES_Version_7_Service_Error
+=== RUN   TestMappingBuilderGetSpanServiceMappings/ES_Version_<_7
+=== RUN   TestMappingBuilderGetSpanServiceMappings/ES_Version_<_7_Service_Error
+=== RUN   TestMappingBuilderGetSpanServiceMappings/ES_Version_<_7_Span_Error
+=== RUN   TestMappingBuilderGetSpanServiceMappings/ES_Version__7_Span_Error
+--- PASS: TestMappingBuilderGetSpanServiceMappings (0.00s)
+    --- PASS: TestMappingBuilderGetSpanServiceMappings/ES_Version_7 (0.00s)
+    --- PASS: TestMappingBuilderGetSpanServiceMappings/ES_Version_7_Service_Error (0.00s)
+    --- PASS: TestMappingBuilderGetSpanServiceMappings/ES_Version_<_7 (0.00s)
+    --- PASS: TestMappingBuilderGetSpanServiceMappings/ES_Version_<_7_Service_Error (0.00s)
+    --- PASS: TestMappingBuilderGetSpanServiceMappings/ES_Version_<_7_Span_Error (0.00s)
+    --- PASS: TestMappingBuilderGetSpanServiceMappings/ES_Version__7_Span_Error (0.00s)
+=== RUN   TestMappingBuilderGetDependenciesMappings
+--- PASS: TestMappingBuilderGetDependenciesMappings (0.00s)
+=== RUN   TestMappingBuilderGetSamplingMappings
+--- PASS: TestMappingBuilderGetSamplingMappings (0.00s)
+=== RUN   TestGetMappingTemplateOptions_DefaultCase
+--- PASS: TestGetMappingTemplateOptions_DefaultCase (0.00s)
+FAIL
+FAIL	github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings	0.011s
+FAIL

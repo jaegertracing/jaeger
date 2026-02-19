@@ -197,6 +197,16 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 						indices = append(indices, prefix+"*")
 					}
 				}
+
+				if len(p.RemoteReadClusters) > 0 {
+					var remoteIndices []string
+					for _, jaegerIndex := range indices {
+						for _, remoteCluster := range p.RemoteReadClusters {
+							remoteIndices = append(remoteIndices, remoteCluster+":"+jaegerIndex)
+						}
+					}
+					indices = append(indices, remoteIndices...)
+				}
 				return indices
 			}
 			return standardTimeRangeFn(indexPrefix, layout, start, end, lookback)
