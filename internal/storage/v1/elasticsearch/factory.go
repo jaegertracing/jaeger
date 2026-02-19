@@ -184,7 +184,10 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 	return store, nil
 }
 
-const defaultILMPolicyName = "jaeger-ilm-policy"
+const (
+	defaultILMPolicyName      = "jaeger-ilm-policy"
+	defaultIngestPipelineName = "jaeger-trace-to-timestamp"
+)
 
 func (f *FactoryBase) mappingBuilderFromConfig(cfg *config.Configuration) mappings.MappingBuilder {
 	return mappings.MappingBuilder{
@@ -194,6 +197,7 @@ func (f *FactoryBase) mappingBuilderFromConfig(cfg *config.Configuration) mappin
 		UseILM:               cfg.UseILM,
 		ILMPolicyName:        cfg.Indices.IndexPrefix.Apply(defaultILMPolicyName),
 		EnableIngestPipeline: cfg.EnableIngestPipeline,
+		IngestPipelineName:   cfg.Indices.IndexPrefix.Apply(defaultIngestPipelineName),
 		UseDataStream:        cfg.UseDataStream,
 	}
 }

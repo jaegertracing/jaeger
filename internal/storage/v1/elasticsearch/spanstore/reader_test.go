@@ -338,7 +338,7 @@ func TestSpanReaderIndices(t *testing.T) {
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts,
 				UseDataStream: true,
 			},
-			indices:   []string{"jaeger-span-ds", "jaeger-span-*", serviceIndexBaseName + serviceDataLayoutFormat},
+			indices:   []string{"jaeger-span-ds", serviceIndexBaseName + serviceDataLayoutFormat},
 			esVersion: 8,
 		},
 		{
@@ -347,7 +347,7 @@ func TestSpanReaderIndices(t *testing.T) {
 				IndexPrefix:   "foo:",
 				UseDataStream: true,
 			},
-			indices:   []string{"foo:-jaeger-span-ds", "foo:-jaeger-span-*", "foo:-" + serviceIndexBaseName + serviceDataLayoutFormat},
+			indices:   []string{"foo:-jaeger-span-ds", "foo:-" + serviceIndexBaseName + serviceDataLayoutFormat},
 			esVersion: 8,
 		},
 	}
