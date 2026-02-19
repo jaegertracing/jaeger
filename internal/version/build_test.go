@@ -17,36 +17,43 @@ func TestNewInfoMetrics(t *testing.T) {
 	factory := metricstest.NewFactory(0)
 	defer factory.Stop()
 
-	// Save original values and then Set some dummy values for the global build variables
+	// 1. Save original values to prevent test pollution
 	origCommitSHA := commitSHA
 	origLatestVersion := latestVersion
 	origDate := date
 
-	// Schedule the restoration using defer
+	// 2. Restore values after test finishes
 	defer func() {
 		commitSHA = origCommitSHA
 		latestVersion = origLatestVersion
 		date = origDate
 	}()
 
+	// 3. Set test values
 	commitSHA = "foobar"
 	latestVersion = "v1.2.3"
 	date = "2026-02-18"
 
-	// Execute the function under test
+	// 4. Execute the function under test
 	info := NewInfoMetrics(factory)
 
-	// Assertions on the returned struct
+	// 5. Assertions on the returned struct
 	require.NotNil(t, info)
 	assert.NotNil(t, info.BuildInfo)
 
-	// Verification using the Factory Snapshot
+	// 6. Verification using GetKey (Option 2)
+	expectedTags := map[string]string{
+		"revision":   "foobar",
+		"version":    "v1.2.3",
+		"build_date": "2026-02-18",
+	}
+
+	expectedKey := metricstest.GetKey("build_info", expectedTags, "|", "=")
+
 	_, gauges := factory.Snapshot()
-
-	expectedKey := "build_info|build_date=2026-02-18|revision=foobar|version=v1.2.3"
-
 	val, ok := gauges[expectedKey]
-	assert.True(t, ok, "Metric not found in snapshot. Found keys: %v", gauges)
+
+	assert.True(t, ok, "Metric not found in snapshot. Expected key: %s", expectedKey)
 	assert.Equal(t, int64(1), val, "The build_info gauge should be set to 1")
 }
 
