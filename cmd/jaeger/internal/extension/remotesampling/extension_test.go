@@ -636,14 +636,12 @@ func TestShutdownWithProviderError(t *testing.T) {
 		go srv.Serve(ln)
 
 		var wg sync.WaitGroup
-		wg.Add(1)
 
 		// Fire off a request that will still be running during shutdown
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			client := &http.Client{Timeout: 200 * time.Millisecond}
 			_, _ = client.Get("http://" + ln.Addr().String())
-		}()
+		})
 
 		// Give the handler time to start processing the request
 		time.Sleep(10 * time.Millisecond)
