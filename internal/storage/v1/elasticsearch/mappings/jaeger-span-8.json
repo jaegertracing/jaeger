@@ -1,175 +1,197 @@
 {
-  "index_patterns": {{ .IndexPatterns | toJSON }},
-  "priority": {{ .Priority }},
-  "template": {
-    "settings": {
-      "index": {
-        "number_of_shards": {{ .Shards }},
-        "number_of_replicas": {{ .Replicas }},
-        "mapping": {
-          "total_fields": {
-            "limit": 3000
-          },
-          "nested_objects": {
-            "limit": 50
-          }
-        },
-        "default_pipeline": "{{ .IngestPipelineName }}"{{ if .UseILM }},
-        "lifecycle": {
-          "name": "{{ .ILMPolicyName }}"{{ if not .UseDataStream }},
-          "rollover_alias": "{{ .RolloverAlias }}"{{ end }}
-        }{{ end }}
-      }
+    "index_patterns": {
+        { .IndexPatterns | toJSON
+        }
     },
-    "mappings": {
-      "dynamic_templates": [
-        {
-          "span_tags_map": {
-            "path_match": "tag.*",
-            "mapping": {
-              "type": "keyword",
-              "ignore_above": 256
-            }
-          }
-        },
-        {
-          "process_tags_map": {
-            "path_match": "process.tag.*",
-            "mapping": {
-              "type": "keyword",
-              "ignore_above": 256
-            }
-          }
+    "priority": {
+        { .Priority
         }
-      ],
-      "properties": {
-        "traceID": {
-          "type": "keyword",
-          "ignore_above": 256
-        },
-        "spanID": {
-          "type": "keyword",
-          "ignore_above": 256
-        },
-        "operationName": {
-          "type": "keyword",
-          "ignore_above": 256
-        },
-        "parentSpanID": {
-          "type": "keyword",
-          "ignore_above": 256
-        },
-        "startTime": {
-          "type": "date",
-          "format": "epoch_millis"
-        },
-        "startTimeMillis": {
-          "type": "date",
-          "format": "epoch_millis"
-        },
-        "duration": {
-          "type": "long"
-        },
-        "flags": {
-          "type": "integer"
-        },
-        "logs": {
-          "type": "nested",
-          "dynamic": false,
-          "properties": {
-            "timestamp": {
-              "type": "date",
-              "format": "epoch_millis"
-            },
-            "fields": {
-              "type": "nested",
-              "dynamic": false,
-              "properties": {
-                "key": {
-                  "type": "keyword",
-                  "ignore_above": 256
+    },
+    "template": {
+        "settings": {
+            "index": {
+                "number_of_shards": {
+                    { .Shards
+                    }
                 },
-                "value": {
-                  "type": "keyword",
-                  "ignore_above": 256
+                "number_of_replicas": {
+                    { .Replicas
+                    }
                 },
-                "type": {
-                  "type": "keyword",
-                  "ignore_above": 256
+                "mapping": {
+                    "total_fields": {
+                        "limit": 3000
+                    },
+                    "nested_objects": {
+                        "limit": 50
+                    }
+                },
+                "default_pipeline": "{{ .IngestPipelineName }}"{
+                    { if .UseILM
+                    }
+                },
+                "lifecycle": {
+                    "name": "{{ .ILMPolicyName }}"{
+                        { if not .UseDataStream
+                        }
+                    },
+                    "rollover_alias": "{{ .RolloverAlias }}"{
+                        { end
+                        }
+                    }
+                }{
+                    { end
+                    }
                 }
-              }
             }
-          }
         },
-        "process": {
-          "properties": {
-            "serviceName": {
-              "type": "keyword",
-              "ignore_above": 256
-            },
-            "tag": {
-              "type": "object"
-            },
-            "tags": {
-              "type": "nested",
-              "dynamic": false,
-              "properties": {
-                "key": {
-                  "type": "keyword",
-                  "ignore_above": 256
+        "mappings": {
+            "dynamic_templates": [
+                {
+                    "span_tags_map": {
+                        "path_match": "tag.*",
+                        "mapping": {
+                            "type": "keyword",
+                            "ignore_above": 256
+                        }
+                    }
                 },
-                "value": {
-                  "type": "keyword",
-                  "ignore_above": 256
-                },
-                "type": {
-                  "type": "keyword",
-                  "ignore_above": 256
+                {
+                    "process_tags_map": {
+                        "path_match": "process.tag.*",
+                        "mapping": {
+                            "type": "keyword",
+                            "ignore_above": 256
+                        }
+                    }
                 }
-              }
+            ],
+            "properties": {
+                "traceID": {
+                    "type": "keyword",
+                    "ignore_above": 256
+                },
+                "spanID": {
+                    "type": "keyword",
+                    "ignore_above": 256
+                },
+                "operationName": {
+                    "type": "keyword",
+                    "ignore_above": 256
+                },
+                "parentSpanID": {
+                    "type": "keyword",
+                    "ignore_above": 256
+                },
+                "startTime": {
+                    "type": "long"
+                },
+                "startTimeMillis": {
+                    "type": "date",
+                    "format": "epoch_millis"
+                },
+                "duration": {
+                    "type": "long"
+                },
+                "flags": {
+                    "type": "integer"
+                },
+                "logs": {
+                    "type": "nested",
+                    "dynamic": false,
+                    "properties": {
+                        "timestamp": {
+                            "type": "long"
+                        },
+                        "fields": {
+                            "type": "nested",
+                            "dynamic": false,
+                            "properties": {
+                                "key": {
+                                    "type": "keyword",
+                                    "ignore_above": 256
+                                },
+                                "value": {
+                                    "type": "keyword",
+                                    "ignore_above": 256
+                                },
+                                "type": {
+                                    "type": "keyword",
+                                    "ignore_above": 256
+                                }
+                            }
+                        }
+                    }
+                },
+                "process": {
+                    "properties": {
+                        "serviceName": {
+                            "type": "keyword",
+                            "ignore_above": 256
+                        },
+                        "tag": {
+                            "type": "object"
+                        },
+                        "tags": {
+                            "type": "nested",
+                            "dynamic": false,
+                            "properties": {
+                                "key": {
+                                    "type": "keyword",
+                                    "ignore_above": 256
+                                },
+                                "value": {
+                                    "type": "keyword",
+                                    "ignore_above": 256
+                                },
+                                "type": {
+                                    "type": "keyword",
+                                    "ignore_above": 256
+                                }
+                            }
+                        }
+                    }
+                },
+                "references": {
+                    "type": "nested",
+                    "dynamic": false,
+                    "properties": {
+                        "refType": {
+                            "type": "keyword",
+                            "ignore_above": 256
+                        },
+                        "traceID": {
+                            "type": "keyword",
+                            "ignore_above": 256
+                        },
+                        "spanID": {
+                            "type": "keyword",
+                            "ignore_above": 256
+                        }
+                    }
+                },
+                "tag": {
+                    "type": "object"
+                },
+                "tags": {
+                    "type": "nested",
+                    "dynamic": false,
+                    "properties": {
+                        "key": {
+                            "type": "keyword",
+                            "ignore_above": 256
+                        },
+                        "value": {
+                            "type": "keyword",
+                            "ignore_above": 256
+                        },
+                        "type": {
+                            "type": "keyword",
+                            "ignore_above": 256
+                        }
+                    }
+                }
             }
-          }
-        },
-        "references": {
-          "type": "nested",
-          "dynamic": false,
-          "properties": {
-            "refType": {
-              "type": "keyword",
-              "ignore_above": 256
-            },
-            "traceID": {
-              "type": "keyword",
-              "ignore_above": 256
-            },
-            "spanID": {
-              "type": "keyword",
-              "ignore_above": 256
-            }
-          }
-        },
-        "tag": {
-          "type": "object"
-        },
-        "tags": {
-          "type": "nested",
-          "dynamic": false,
-          "properties": {
-            "key": {
-              "type": "keyword",
-              "ignore_above": 256
-            },
-            "value": {
-              "type": "keyword",
-              "ignore_above": 256
-            },
-            "type": {
-              "type": "keyword",
-              "ignore_above": 256
-            }
-          }
         }
-      }
     }
-  }
 }

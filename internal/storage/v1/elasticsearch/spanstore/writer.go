@@ -143,7 +143,11 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string, useDataStre
 
 	if useDataStream {
 		return func(date time.Time) (string, string) {
-			return spanIndexPrefix, cfg.IndexWithDate(serviceIndexPrefix, p.ServiceIndex.DateLayout, date)
+			serviceIndexName := cfg.IndexWithDate(serviceIndexPrefix, p.ServiceIndex.DateLayout, date)
+			if p.UseReadWriteAliases {
+				serviceIndexName = serviceIndexPrefix + writeAlias
+			}
+			return spanIndexPrefix, serviceIndexName
 		}
 	}
 
