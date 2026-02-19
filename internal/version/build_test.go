@@ -17,37 +17,38 @@ func TestNewInfoMetrics(t *testing.T) {
 	factory := metricstest.NewFactory(0)
 	defer factory.Stop()
 
-	// 1. Save original values to prevent test pollution
+	// Save original values to prevent test pollution
 	origCommitSHA := commitSHA
 	origLatestVersion := latestVersion
 	origDate := date
 
-	// 2. Restore values after test finishes
+	// Restore values after test finishes
 	defer func() {
 		commitSHA = origCommitSHA
 		latestVersion = origLatestVersion
 		date = origDate
 	}()
 
-	// 3. Set test values
+	// Set test values
 	commitSHA = "foobar"
 	latestVersion = "v1.2.3"
 	date = "2026-02-18"
 
-	// 4. Execute the function under test
+	// Execute the function under test
 	info := NewInfoMetrics(factory)
 
-	// 5. Assertions on the returned struct
+	// Assertions on the returned struct
 	require.NotNil(t, info)
 	assert.NotNil(t, info.BuildInfo)
 
-	// 6. Verification using GetKey (Option 2)
+	// Setting expected tags
 	expectedTags := map[string]string{
 		"revision":   "foobar",
 		"version":    "v1.2.3",
 		"build_date": "2026-02-18",
 	}
 
+	// Verification using GetKey
 	expectedKey := metricstest.GetKey("build_info", expectedTags, "|", "=")
 
 	_, gauges := factory.Snapshot()
