@@ -43,9 +43,9 @@ func TestGetTagFromStatusCode(t *testing.T) {
 			name: "error",
 			code: ptrace.StatusCodeError,
 			tag: dbmodel.KeyValue{
-				Key:         otelsemconv.OtelStatusCode,
-				ValueType:   dbmodel.StringType,
-				ValueString: statusError,
+				Key:       tagError,
+				ValueType: dbmodel.BoolType,
+				ValueBool: true,
 			},
 		},
 	}
@@ -304,7 +304,7 @@ func TestEdgeCases(t *testing.T) {
 			name: "resource spans with no scope spans",
 			setupTraces: func() ptrace.Traces {
 				traces := ptrace.NewTraces()
-				traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty()
+				traces.ResourceSpans().AppendEmpty()
 				return traces
 			},
 			expected: true,

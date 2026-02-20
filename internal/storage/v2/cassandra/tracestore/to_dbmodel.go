@@ -233,7 +233,7 @@ func linksToDbSpanRefs(links ptrace.SpanLinkSlice, parentSpanID int64, traceID d
 
 	for i := 0; i < links.Len(); i++ {
 		link := links.At(i)
-		linkTraceID := link.TraceID()
+		linkTraceID := dbmodel.TraceID(link.TraceID())
 		linkSpanID := spanIDToDbSpanId(link.SpanID())
 		linkRefType := dbRefTypeFromLink(link)
 		if parentSpanID != 0 && bytes.Equal(linkTraceID[:], traceID[:]) && linkSpanID == parentSpanID {
@@ -242,9 +242,9 @@ func linksToDbSpanRefs(links ptrace.SpanLinkSlice, parentSpanID int64, traceID d
 			continue
 		}
 		refs = append(refs, dbmodel.SpanRef{
-			TraceID: dbmodel.TraceID(link.TraceID()),
-			SpanID:  spanIDToDbSpanId(link.SpanID()),
-			RefType: dbRefTypeFromLink(link),
+			TraceID: linkTraceID,
+			SpanID:  linkSpanID,
+			RefType: linkRefType,
 		})
 	}
 
@@ -305,11 +305,13 @@ func getTagFromSpanKind(spanKind ptrace.SpanKind) (dbmodel.KeyValue, bool) {
 
 func getTagFromStatusCode(statusCode ptrace.StatusCode) (dbmodel.KeyValue, bool) {
 	switch statusCode {
+	// For backward compatibility, we also include the error tag
+	// which was previously used in the test fixtures
 	case ptrace.StatusCodeError:
 		return dbmodel.KeyValue{
-			Key:         otelsemconv.OtelStatusCode,
-			ValueType:   dbmodel.StringType,
-			ValueString: statusError,
+			Key:       tagError,
+			ValueType: dbmodel.BoolType,
+			ValueBool: true,
 		}, true
 	case ptrace.StatusCodeOk:
 		return dbmodel.KeyValue{

@@ -38,9 +38,9 @@
       "value_double": 72.5
     },
     {
-      "Key": "otel.status_code",
-      "ValueType": "string",
-      "value_string": "ERROR"
+      "Key": "error",
+      "ValueType": "bool",
+      "value_bool": true
     },
     {
       "Key": "otel.status_description",
