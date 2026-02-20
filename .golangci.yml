@@ -134,9 +134,9 @@ linters:
         # too pendantic
         - name: function-length
           disabled: true
-        # definitely a good one, needs cleanup first
         - name: argument-limit
-          disabled: true
+          arguments:
+            - 7
         # this is idiocy, promotes less readable code. Don't enable.
         - name: var-declaration
           disabled: true
