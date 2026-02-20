@@ -48,7 +48,7 @@ func TestAggregator(t *testing.T) {
 
 	a.Start()
 	defer a.Close()
-	for i := 0; i < 10000; i++ {
+	for range 10000 {
 		counters, _ := metricsFactory.Snapshot()
 		if _, ok := counters["sampling_operations"]; ok {
 			break
@@ -75,7 +75,7 @@ func TestIncrementThroughput(t *testing.T) {
 	a, err := NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
 	require.NoError(t, err)
 	// 20 different probabilities
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		a.RecordThroughput("A", http.MethodGet, model.SamplerTypeProbabilistic, 0.001*float64(i))
 	}
 	assert.Len(t, a.(*aggregator).currentThroughput["A"][http.MethodGet].Probabilities, 10)
@@ -83,7 +83,7 @@ func TestIncrementThroughput(t *testing.T) {
 	a, err = NewAggregator(testOpts, logger, metricsFactory, mockEP, mockStorage)
 	require.NoError(t, err)
 	// 20 of the same probabilities
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		a.RecordThroughput("A", http.MethodGet, model.SamplerTypeProbabilistic, 0.001)
 	}
 	assert.Len(t, a.(*aggregator).currentThroughput["A"][http.MethodGet].Probabilities, 1)

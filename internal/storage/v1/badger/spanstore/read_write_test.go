@@ -38,8 +38,8 @@ func TestWriteReadBack(t *testing.T) {
 			},
 		}
 
-		for i := 0; i < traces; i++ {
-			for j := 0; j < spans; j++ {
+		for i := range traces {
+			for j := range spans {
 				s := model.Span{
 					TraceID: model.TraceID{
 						Low:  uint64(i),
@@ -66,7 +66,7 @@ func TestWriteReadBack(t *testing.T) {
 			}
 		}
 
-		for i := 0; i < traces; i++ {
+		for i := range traces {
 			tr, err := sr.GetTrace(context.Background(), spanstore.GetTraceParameters{TraceID: model.TraceID{
 				Low:  uint64(i),
 				High: 1,
@@ -126,12 +126,12 @@ func TestIndexSeeks(t *testing.T) {
 
 		traceOrder := make([]uint64, traces)
 
-		for i := 0; i < traces; i++ {
+		for i := range traces {
 			lowId := rand.Uint64()
 			traceOrder[i] = lowId
 			tid = tid.Add(time.Duration(time.Millisecond * time.Duration(i)))
 
-			for j := 0; j < spans; j++ {
+			for j := range spans {
 				s := model.Span{
 					TraceID: model.TraceID{
 						Low:  lowId,
@@ -301,8 +301,8 @@ func TestWriteDuplicates(t *testing.T) {
 		tid := time.Now()
 		times := 40
 		spans := 3
-		for i := 0; i < times; i++ {
-			for j := 0; j < spans; j++ {
+		for i := range times {
+			for j := range spans {
 				s := model.Span{
 					TraceID: model.TraceID{
 						Low:  uint64(0),
@@ -329,8 +329,8 @@ func TestMenuSeeks(t *testing.T) {
 		traces := 40
 		services := 4
 		spans := 3
-		for i := 0; i < traces; i++ {
-			for j := 0; j < spans; j++ {
+		for i := range traces {
+			for j := range spans {
 				s := model.Span{
 					TraceID: model.TraceID{
 						Low:  uint64(i),
@@ -441,8 +441,8 @@ func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer,
 // Benchmarks intended for profiling
 
 func writeSpans(sw spanstore.Writer, tags []model.KeyValue, services, operations []string, traces, spans int, high uint64, tid time.Time) {
-	for i := 0; i < traces; i++ {
-		for j := 0; j < spans; j++ {
+	for i := range traces {
+		for j := range spans {
 			s := model.Span{
 				TraceID: model.TraceID{
 					Low:  uint64(i),
@@ -489,18 +489,18 @@ func BenchmarkWrites(b *testing.B) {
 
 func makeWriteSupports(tagsCount, spans int) (tags []model.KeyValue, services []string, operations []string) {
 	tags = make([]model.KeyValue, tagsCount)
-	for i := 0; i < tagsCount; i++ {
+	for i := range tagsCount {
 		tags[i] = model.KeyValue{
 			Key:  fmt.Sprintf("a%d", i),
 			VStr: fmt.Sprintf("b%d", i),
 		}
 	}
 	operations = make([]string, spans)
-	for j := 0; j < spans; j++ {
+	for j := range spans {
 		operations[j] = fmt.Sprintf("operation-%d", j)
 	}
 	services = make([]string, spans)
-	for i := 0; i < spans; i++ {
+	for i := range spans {
 		services[i] = fmt.Sprintf("service-%d", i)
 	}
 
@@ -523,7 +523,7 @@ func makeReadBenchmark(b *testing.B, _ time.Time, params *spanstore.TraceQueryPa
 		tagsCount := 64
 		tags, services, operations := makeWriteSupports(tagsCount, spans)
 
-		for h := 0; h < tracesTimes; h++ {
+		for h := range tracesTimes {
 			writeSpans(sw, tags, services, operations, traces, spans, uint64(h), tid)
 		}
 

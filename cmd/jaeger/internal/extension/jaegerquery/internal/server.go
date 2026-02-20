@@ -308,9 +308,7 @@ func (s *Server) Start(ctx context.Context) error {
 		grpcPort = port
 	}
 
-	s.bgFinished.Add(1)
-	go func() {
-		defer s.bgFinished.Done()
+	s.bgFinished.Go(func() {
 		s.telset.Logger.Info("Starting HTTP server", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTP.NetAddr.Endpoint))
 		err := s.httpServer.Serve(s.httpConn)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -319,12 +317,10 @@ func (s *Server) Start(ctx context.Context) error {
 			return
 		}
 		s.telset.Logger.Info("HTTP server stopped", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTP.NetAddr.Endpoint))
-	}()
+	})
 
 	// Start GRPC server concurrently
-	s.bgFinished.Add(1)
-	go func() {
-		defer s.bgFinished.Done()
+	s.bgFinished.Go(func() {
 		s.telset.Logger.Info("Starting GRPC server", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPC.NetAddr.Endpoint))
 
 		err := s.grpcServer.Serve(s.grpcConn)
@@ -334,7 +330,7 @@ func (s *Server) Start(ctx context.Context) error {
 			return
 		}
 		s.telset.Logger.Info("GRPC server stopped", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPC.NetAddr.Endpoint))
-	}()
+	})
 	return nil
 }
 

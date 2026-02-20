@@ -107,7 +107,7 @@ func TestMaintenanceCodecov(t *testing.T) {
 	defer f.Close()
 
 	waiter := func() {
-		for sleeps := 0; sleeps < 8; sleeps++ {
+		for range 8 {
 			// Wait for the scheduler
 			time.Sleep(time.Duration(50) * time.Millisecond)
 		}

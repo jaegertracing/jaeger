@@ -49,8 +49,8 @@ func TestDependencyReader(t *testing.T) {
 
 		traces := 40
 		spans := 3
-		for i := 0; i < traces; i++ {
-			for j := 0; j < spans; j++ {
+		for i := range traces {
+			for j := range spans {
 				s := model.Span{
 					TraceID: model.TraceID{
 						Low:  uint64(i),

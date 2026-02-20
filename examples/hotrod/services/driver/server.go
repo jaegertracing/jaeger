@@ -70,7 +70,7 @@ func (s *Server) FindNearest(ctx context.Context, location *DriverLocationReques
 	for i, driverID := range driverIDs {
 		var drv Driver
 		var err error
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			drv, err = s.redis.GetDriver(ctx, driverID)
 			if err == nil {
 				break

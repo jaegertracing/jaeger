@@ -26,7 +26,7 @@ func NewTraceWriter(p spanstore.SpanWriterParams) *TraceWriter {
 // WriteTraces convert the traces to ES Span model and write into the database
 func (t *TraceWriter) WriteTraces(_ context.Context, td ptrace.Traces) error {
 	dbSpans := ToDBModel(td)
-	for i := 0; i < len(dbSpans); i++ {
+	for i := range dbSpans {
 		span := &dbSpans[i]
 		t.spanWriter.WriteSpan(model.EpochMicrosecondsAsTime(span.StartTime), span)
 	}

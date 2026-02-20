@@ -222,7 +222,7 @@ func Test_jLogsToSpanEvents(t *testing.T) {
 		},
 	}
 	dbLogsToSpanEvents(logs, span.Events())
-	for i := 0; i < len(logs); i++ {
+	for i := range logs {
 		assert.Equal(t, testSpanEventTime, int64(span.Events().At(i).Timestamp()/1000))
 	}
 	assert.Equal(t, 1, span.Events().At(2).Attributes().Len())
