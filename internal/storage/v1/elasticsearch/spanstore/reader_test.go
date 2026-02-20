@@ -27,7 +27,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	"github.com/jaegertracing/jaeger/internal/testutils"
@@ -101,6 +101,7 @@ func tracerProvider(t *testing.T) (trace.TracerProvider, *tracetest.InMemoryExpo
 
 func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 	client := &mocks.Client{}
+	client.On("GetVersion").Return(uint(7))
 	tracer, exp, closer := tracerProvider(t)
 	defer closer()
 	logger, logBuffer := testutils.NewLogger()
@@ -123,6 +124,7 @@ func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 
 func withArchiveSpanReader(t *testing.T, readAlias bool, readAliasSuffix string, fn func(r *spanReaderTest)) {
 	client := &mocks.Client{}
+	client.On("GetVersion").Return(uint(7))
 	tracer, exp, closer := tracerProvider(t)
 	defer closer()
 	logger, logBuffer := testutils.NewLogger()
@@ -178,8 +180,13 @@ func TestNewSpanReader(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			client := &mocks.Client{}
+			client.On("GetVersion").Return(uint(7))
+
 			params := test.params
+			params.Client = func() es.Client { return client }
 			params.Logger = zaptest.NewLogger(t)
+
 			reader := NewSpanReader(params)
 			require.NotNil(t, reader)
 			assert.Equal(t, test.maxSpanAge, reader.maxSpanAge)
@@ -188,8 +195,6 @@ func TestNewSpanReader(t *testing.T) {
 }
 
 func TestSpanReaderIndices(t *testing.T) {
-	client := &mocks.Client{}
-	clientFn := func() es.Client { return client }
 	date := time.Date(2019, 10, 10, 5, 0, 0, 0, time.UTC)
 
 	spanDataLayout := "2006-01-02-15"
@@ -201,31 +206,35 @@ func TestSpanReaderIndices(t *testing.T) {
 	tracer, _, closer := tracerProvider(t)
 	defer closer()
 
-	spanIndexOpts := config.IndexOptions{DateLayout: spanDataLayout}
-	serviceIndexOpts := config.IndexOptions{DateLayout: serviceDataLayout}
+	spanIndexOpts := cfg.IndexOptions{DateLayout: spanDataLayout}
+	serviceIndexOpts := cfg.IndexOptions{DateLayout: serviceDataLayout}
 
 	testCases := []struct {
-		indices []string
-		params  SpanReaderParams
+		indices   []string
+		params    SpanReaderParams
+		esVersion uint
 	}{
 		{
 			params: SpanReaderParams{
 				SpanIndex:    spanIndexOpts,
 				ServiceIndex: serviceIndexOpts,
 			},
-			indices: []string{spanIndexBaseName + spanDataLayoutFormat, serviceIndexBaseName + serviceDataLayoutFormat},
+			indices:   []string{spanIndexBaseName + spanDataLayoutFormat, serviceIndexBaseName + serviceDataLayoutFormat},
+			esVersion: 7,
 		},
 		{
 			params: SpanReaderParams{
 				UseReadWriteAliases: true,
 			},
-			indices: []string{spanIndexBaseName + "read", serviceIndexBaseName + "read"},
+			indices:   []string{spanIndexBaseName + "read", serviceIndexBaseName + "read"},
+			esVersion: 7,
 		},
 		{
 			params: SpanReaderParams{
 				ReadAliasSuffix: "archive", // ignored because ReadWriteAliases is false
 			},
-			indices: []string{spanIndexBaseName, serviceIndexBaseName},
+			indices:   []string{spanIndexBaseName, serviceIndexBaseName},
+			esVersion: 7,
 		},
 		{
 			params: SpanReaderParams{
@@ -233,26 +242,30 @@ func TestSpanReaderIndices(t *testing.T) {
 				ServiceIndex: serviceIndexOpts,
 				IndexPrefix:  "foo:",
 			},
-			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + spanDataLayoutFormat, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + serviceDataLayoutFormat},
+			indices:   []string{"foo:" + cfg.IndexPrefixSeparator + spanIndexBaseName + spanDataLayoutFormat, "foo:" + cfg.IndexPrefixSeparator + serviceIndexBaseName + serviceDataLayoutFormat},
+			esVersion: 7,
 		},
 		{
 			params: SpanReaderParams{
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", UseReadWriteAliases: true,
 			},
-			indices: []string{"foo:-" + spanIndexBaseName + "read", "foo:-" + serviceIndexBaseName + "read"},
+			indices:   []string{"foo:-" + spanIndexBaseName + "read", "foo:-" + serviceIndexBaseName + "read"},
+			esVersion: 7,
 		},
 		{
 			params: SpanReaderParams{
 				ReadAliasSuffix:     "archive",
 				UseReadWriteAliases: true,
 			},
-			indices: []string{spanIndexBaseName + "archive", serviceIndexBaseName + "archive"},
+			indices:   []string{spanIndexBaseName + "archive", serviceIndexBaseName + "archive"},
+			esVersion: 7,
 		},
 		{
 			params: SpanReaderParams{
 				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", UseReadWriteAliases: true, ReadAliasSuffix: "archive",
 			},
-			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + "archive", "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + "archive"},
+			indices:   []string{"foo:" + cfg.IndexPrefixSeparator + spanIndexBaseName + "archive", "foo:" + cfg.IndexPrefixSeparator + serviceIndexBaseName + "archive"},
+			esVersion: 7,
 		},
 		{
 			params: SpanReaderParams{
@@ -261,7 +274,8 @@ func TestSpanReaderIndices(t *testing.T) {
 				SpanReadAlias:    "custom-span-read-alias",
 				ServiceReadAlias: "custom-service-read-alias",
 			},
-			indices: []string{"custom-span-read-alias", "custom-service-read-alias"},
+			indices:   []string{"custom-span-read-alias", "custom-service-read-alias"},
+			esVersion: 7,
 		},
 		{
 			params: SpanReaderParams{
@@ -272,7 +286,8 @@ func TestSpanReaderIndices(t *testing.T) {
 				SpanReadAlias:       "production-traces-read",
 				ServiceReadAlias:    "production-services-read",
 			},
-			indices: []string{"production-traces-read", "production-services-read"},
+			indices:   []string{"production-traces-read", "production-services-read"},
+			esVersion: 7,
 		},
 		{
 			params: SpanReaderParams{
@@ -288,6 +303,7 @@ func TestSpanReaderIndices(t *testing.T) {
 				"cluster_one:" + serviceIndexBaseName + serviceDataLayoutFormat,
 				"cluster_two:" + serviceIndexBaseName + serviceDataLayoutFormat,
 			},
+			esVersion: 7,
 		},
 		{
 			params: SpanReaderParams{
@@ -301,6 +317,7 @@ func TestSpanReaderIndices(t *testing.T) {
 				"cluster_one:" + serviceIndexBaseName + "archive",
 				"cluster_two:" + serviceIndexBaseName + "archive",
 			},
+			esVersion: 7,
 		},
 		{
 			params: SpanReaderParams{
@@ -314,10 +331,30 @@ func TestSpanReaderIndices(t *testing.T) {
 				"cluster_one:" + serviceIndexBaseName + "read",
 				"cluster_two:" + serviceIndexBaseName + "read",
 			},
+			esVersion: 7,
+		},
+		{
+			params: SpanReaderParams{
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts,
+				UseDataStream: true,
+			},
+			indices:   []string{"jaeger-span-ds", serviceIndexBaseName + serviceDataLayoutFormat},
+			esVersion: 8,
+		},
+		{
+			params: SpanReaderParams{
+				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts,
+				IndexPrefix:   "foo:",
+				UseDataStream: true,
+			},
+			indices:   []string{"foo:-jaeger-span-ds", "foo:-" + serviceIndexBaseName + serviceDataLayoutFormat},
+			esVersion: 8,
 		},
 	}
 	for _, testCase := range testCases {
-		testCase.params.Client = clientFn
+		client := &mocks.Client{}
+		client.On("GetVersion").Return(testCase.esVersion)
+		testCase.params.Client = func() es.Client { return client }
 		testCase.params.Logger = logger
 		testCase.params.Tracer = tracer.Tracer("test")
 		r := NewSpanReader(testCase.params)
@@ -611,24 +648,24 @@ func TestSpanReaderFindIndices(t *testing.T) {
 			startTime: today.Add(-time.Millisecond),
 			endTime:   today,
 			expected: []string{
-				indexWithDate(spanIndexBaseName, dateLayout, today),
+				cfg.IndexWithDate(spanIndexBaseName, dateLayout, today),
 			},
 		},
 		{
 			startTime: today.Add(-13 * time.Hour),
 			endTime:   today,
 			expected: []string{
-				indexWithDate(spanIndexBaseName, dateLayout, today),
-				indexWithDate(spanIndexBaseName, dateLayout, yesterday),
+				cfg.IndexWithDate(spanIndexBaseName, dateLayout, today),
+				cfg.IndexWithDate(spanIndexBaseName, dateLayout, yesterday),
 			},
 		},
 		{
 			startTime: today.Add(-48 * time.Hour),
 			endTime:   today,
 			expected: []string{
-				indexWithDate(spanIndexBaseName, dateLayout, today),
-				indexWithDate(spanIndexBaseName, dateLayout, yesterday),
-				indexWithDate(spanIndexBaseName, dateLayout, twoDaysAgo),
+				cfg.IndexWithDate(spanIndexBaseName, dateLayout, today),
+				cfg.IndexWithDate(spanIndexBaseName, dateLayout, yesterday),
+				cfg.IndexWithDate(spanIndexBaseName, dateLayout, twoDaysAgo),
 			},
 		},
 	}
@@ -640,9 +677,9 @@ func TestSpanReaderFindIndices(t *testing.T) {
 	})
 }
 
-func TestSpanReader_indexWithDate(t *testing.T) {
+func TestSpanReader_IndexWithDate(t *testing.T) {
 	withSpanReader(t, func(_ *spanReaderTest) {
-		actual := indexWithDate(spanIndexBaseName, "2006-01-02", time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
+		actual := cfg.IndexWithDate(spanIndexBaseName, "2006-01-02", time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
 		assert.Equal(t, "jaeger-span-1995-04-21", actual)
 	})
 }
@@ -1388,7 +1425,10 @@ func TestTagsMap(t *testing.T) {
 		{fieldTags: map[string]any{"binary:binary": []byte("foo")}, expected: dbmodel.KeyValue{Key: "binary.binary", Value: []byte("foo"), Type: dbmodel.BinaryType}},
 		{fieldTags: map[string]any{"unsupported": struct{}{}}, expected: dbmodel.KeyValue{Key: "unsupported", Value: fmt.Sprintf("invalid tag type in %+v", struct{}{}), Type: dbmodel.StringType}},
 	}
+	client := &mocks.Client{}
+	client.On("GetVersion").Return(uint(7))
 	reader := NewSpanReader(SpanReaderParams{
+		Client:            func() es.Client { return client },
 		TagDotReplacement: ":",
 		Logger:            zap.NewNop(),
 	})

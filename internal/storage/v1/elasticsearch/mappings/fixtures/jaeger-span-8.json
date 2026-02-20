@@ -1,38 +1,44 @@
 {
+  "index_patterns": ["test-jaeger-span*"],
   "priority": 500,
-  "index_patterns": "test-jaeger-span-*",
   "template": {
-    "aliases": {
-      "test-jaeger-span-read": {}
-    },
     "settings": {
-      "index.number_of_shards": 3,
-      "index.number_of_replicas": 3,
-      "index.mapping.nested_fields.limit": 50,
-      "index.requests.cache.enable": true,
-      "lifecycle": {
-        "name": "jaeger-test-policy",
-        "rollover_alias": "test-jaeger-span-write"
+      "index": {
+        "number_of_shards": 3,
+        "number_of_replicas": 3,
+        "mapping": {
+          "total_fields": {
+            "limit": 3000
+          },
+          "nested_objects": {
+            "limit": 50
+          }
+        },
+        "default_pipeline": "jaeger-trace-time-to-timestamp",
+        "lifecycle": {
+          "name": "jaeger-test-policy",
+          "rollover_alias": "test-jaeger-span-write"
+        }
       }
     },
     "mappings": {
       "dynamic_templates": [
         {
           "span_tags_map": {
+            "path_match": "tag.*",
             "mapping": {
               "type": "keyword",
               "ignore_above": 256
-            },
-            "path_match": "tag.*"
+            }
           }
         },
         {
           "process_tags_map": {
+            "path_match": "process.tag.*",
             "mapping": {
               "type": "keyword",
               "ignore_above": 256
-            },
-            "path_match": "process.tag.*"
+            }
           }
         }
       ],
@@ -41,15 +47,15 @@
           "type": "keyword",
           "ignore_above": 256
         },
-        "parentSpanID": {
-          "type": "keyword",
-          "ignore_above": 256
-        },
         "spanID": {
           "type": "keyword",
           "ignore_above": 256
         },
         "operationName": {
+          "type": "keyword",
+          "ignore_above": 256
+        },
+        "parentSpanID": {
           "type": "keyword",
           "ignore_above": 256
         },

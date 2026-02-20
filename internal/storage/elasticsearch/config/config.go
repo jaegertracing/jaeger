@@ -164,10 +164,13 @@ type Configuration struct {
 	// CreateIndexTemplates, if set to true, creates index templates at application startup.
 	// This configuration should be set to false when templates are installed manually.
 	CreateIndexTemplates bool `mapstructure:"create_mappings"`
-	// Option to enable Index Lifecycle Management (ILM) for Jaeger span and service indices.
-	// Read more about ILM at
-	// https://www.jaegertracing.io/docs/deployment/#enabling-ilm-support
+	// UseILM enables Elasticsearch Index Lifecycle Management (ILM) for Jaeger indices,
+	// delegating index rollover and deletion to ILM policies.
+	// See https://www.jaegertracing.io/docs/deployment/#enabling-ilm-support for details.
 	UseILM bool `mapstructure:"use_ilm"`
+
+	// UseDataStream, if set to true, enables the data stream support (ES 8+ or OpenSearch potentially).
+	UseDataStream bool `mapstructure:"use_data_stream"`
 
 	// ---- jaeger-specific configs ----
 	// MaxDocCount Defines maximum number of results to fetch from storage per query.
@@ -180,6 +183,10 @@ type Configuration struct {
 	// latest adaptive sampling probabilities.
 	AdaptiveSamplingLookback time.Duration `mapstructure:"adaptive_sampling_lookback"`
 	Tags                     TagsAsFields  `mapstructure:"tags_as_fields"`
+
+	// EnableIngestPipeline enables the default ingest pipeline setting in index templates.
+	EnableIngestPipeline bool `mapstructure:"enable_ingest_pipeline"`
+
 	// Enabled, if set to true, enables the namespace for storage pointed to by this configuration.
 	Enabled bool `mapstructure:"-"`
 }
@@ -780,5 +787,29 @@ func (c *Configuration) Validate() error {
 		return errors.New("both service_read_alias and service_write_alias must be set together")
 	}
 
+	// Data streams are used for spans, so explicit span aliases are incompatible
+	// with UseDataStream. Service aliases remain valid since services don't use data streams.
+	if c.UseDataStream && hasSpanAliases {
+		return errors.New("UseDataStream cannot be enabled together with explicit span aliases (span_read_alias, span_write_alias)")
+	}
+
 	return nil
+}
+
+// IndexWithDate returns the index name with date suffix.
+func IndexWithDate(indexName, dateLayout string, date time.Time) string {
+	if indexName == "" {
+		return date.UTC().Format(dateLayout)
+	}
+	if strings.HasSuffix(indexName, "-") {
+		return indexName + date.UTC().Format(dateLayout)
+	}
+	return indexName + "-" + date.UTC().Format(dateLayout)
+}
+
+// GetDataStreamLegacyWildcard returns the legacy wildcard pattern for a data stream.
+// It replaces the first dot with a dash and appends a wildcard.
+// Example: jaeger.span -> jaeger-span-*
+func GetDataStreamLegacyWildcard(dataStreamName string) string {
+	return strings.Replace(dataStreamName, ".", "-", 1) + "-*"
 }

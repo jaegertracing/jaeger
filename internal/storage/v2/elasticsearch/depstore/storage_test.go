@@ -90,7 +90,7 @@ func TestWriteDependencies(t *testing.T) {
 	for _, testCase := range testCases {
 		withDepStorage("", "2006-01-02", defaultMaxDocCount, func(r *depStorageTest) {
 			fixedTime := time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC)
-			indexName := indexWithDate("", "2006-01-02", fixedTime)
+			indexName := config.IndexWithDate("", "2006-01-02", fixedTime)
 			writeService := &mocks.IndexService{}
 
 			r.client.On("Index").Return(writeService)

@@ -69,8 +69,9 @@ func NewDependencyStore(p Params) *DependencyStore {
 
 // WriteDependencies write dependencies to Elasticsearch
 func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []dbmodel.DependencyLink) error {
-	writeIndexName := s.getWriteIndex(ts)
-	s.writeDependenciesToIndex(writeIndexName, ts, dependencies)
+	indexName := s.getWriteIndex(ts)
+	// Note: explicit index creation is not needed as Elasticsearch creates indices on demand when a document is indexed.
+	s.writeDependenciesToIndex(indexName, ts, dependencies)
 	return nil
 }
 
@@ -88,7 +89,14 @@ func (s *DependencyStore) writeDependenciesToIndex(indexName string, ts time.Tim
 		BodyJson(&dbmodel.TimeDependencies{
 			Timestamp:    ts,
 			Dependencies: dependencies,
-		}).Add()
+		}).Add("")
+}
+
+func (s *DependencyStore) getWriteIndex(ts time.Time) string {
+	if s.useReadWriteAliases {
+		return s.dependencyIndexPrefix + "write"
+	}
+	return config.IndexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts)
 }
 
 // GetDependencies returns all interservice dependencies
@@ -125,23 +133,12 @@ func (s *DependencyStore) getReadIndices(ts time.Time, lookback time.Duration) [
 		return []string{s.dependencyIndexPrefix + "read"}
 	}
 	var indices []string
-	firstIndex := indexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts.Add(-lookback))
-	currentIndex := indexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts)
+	firstIndex := config.IndexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts.Add(-lookback))
+	currentIndex := config.IndexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts)
 	for currentIndex != firstIndex {
 		indices = append(indices, currentIndex)
 		ts = ts.Add(-24 * time.Hour)
-		currentIndex = indexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts)
+		currentIndex = config.IndexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts)
 	}
 	return append(indices, firstIndex)
-}
-
-func indexWithDate(indexNamePrefix, indexDateLayout string, date time.Time) string {
-	return indexNamePrefix + date.UTC().Format(indexDateLayout)
-}
-
-func (s *DependencyStore) getWriteIndex(ts time.Time) string {
-	if s.useReadWriteAliases {
-		return s.dependencyIndexPrefix + "write"
-	}
-	return indexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts)
 }

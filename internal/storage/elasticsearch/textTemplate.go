@@ -4,6 +4,7 @@
 package elasticsearch
 
 import (
+	"encoding/json"
 	"io"
 	"text/template"
 )
@@ -24,5 +25,10 @@ type TextTemplateBuilder struct{}
 
 // Parse is a wrapper for template.Parse
 func (TextTemplateBuilder) Parse(tmpl string) (TemplateApplier, error) {
-	return template.New("mapping").Parse(tmpl)
+	return template.New("mapping").Funcs(template.FuncMap{
+		"toJSON": func(v any) (string, error) {
+			b, err := json.Marshal(v)
+			return string(b), err
+		},
+	}).Parse(tmpl)
 }

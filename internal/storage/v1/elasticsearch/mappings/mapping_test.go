@@ -10,7 +10,6 @@ import (
 	"io"
 	"os"
 	"testing"
-	"text/template"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -25,6 +24,7 @@ import (
 //go:embed fixtures/*.json
 var FIXTURES embed.FS
 
+// ptr returns a pointer to v
 func ptr[T any](v T) *T {
 	return &v
 }
@@ -68,15 +68,17 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 					Dependencies: dependenciesOps,
 					Sampling:     samplingOps,
 				},
-				EsVersion:     tt.esVersion,
-				UseILM:        true,
-				ILMPolicyName: "jaeger-test-policy",
+				EsVersion:          tt.esVersion,
+				UseILM:             true,
+				ILMPolicyName:      "jaeger-test-policy",
+				IngestPipelineName: "jaeger-trace-time-to-timestamp",
 			}
 			got, err := mb.GetMapping(tt.mapping)
 			require.NoError(t, err)
 			var wantbytes []byte
 			fileSuffix := fmt.Sprintf("-%d", tt.esVersion)
-			wantbytes, err = FIXTURES.ReadFile("fixtures/" + templateName + fileSuffix + ".json")
+			fixtureName := "fixtures/" + templateName + fileSuffix + ".json"
+			wantbytes, err = FIXTURES.ReadFile(fixtureName)
 			require.NoError(t, err)
 			want := string(wantbytes)
 			assert.Equal(t, want, got)
@@ -132,7 +134,8 @@ func TestMappingBuilderLoadMapping(t *testing.T) {
 		b, err := io.ReadAll(f)
 		require.NoError(t, err)
 		assert.Equal(t, string(b), mapping)
-		_, err = template.New("mapping").Parse(mapping)
+		tb := es.TextTemplateBuilder{}
+		_, err = tb.Parse(mapping)
 		require.NoError(t, err)
 	}
 }

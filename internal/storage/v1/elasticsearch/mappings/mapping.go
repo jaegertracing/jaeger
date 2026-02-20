@@ -33,23 +33,42 @@ type MappingBuilder struct {
 	Indices         config.Indices
 	EsVersion       uint
 	UseILM          bool
-	ILMPolicyName   string
+
+	ILMPolicyName        string
+	EnableIngestPipeline bool
+	UseDataStream        bool
+	IngestPipelineName   string
 }
 
 // templateParams holds parameters required to render an elasticsearch index template
 type templateParams struct {
-	UseILM        bool
-	ILMPolicyName string
-	IndexPrefix   string
-	Shards        int64
-	Replicas      int64
-	Priority      int64
+	UseILM               bool
+	ILMPolicyName        string
+	IngestPipelineName   string
+	RolloverAlias        string
+	IndexPrefix          string
+	IndexPatterns        []string
+	Shards               int64
+	Replicas             int64
+	Priority             int64
+	EnableIngestPipeline bool
+	UseDataStream        bool
 }
 
 func (mb MappingBuilder) getMappingTemplateOptions(mappingType MappingType) templateParams {
 	mappingOpts := templateParams{}
 	mappingOpts.UseILM = mb.UseILM
 	mappingOpts.ILMPolicyName = mb.ILMPolicyName
+	mappingOpts.EnableIngestPipeline = mb.EnableIngestPipeline
+	mappingOpts.UseDataStream = mb.UseDataStream
+	mappingOpts.IngestPipelineName = mb.IngestPipelineName
+
+	// Calculate RolloverAlias
+	// The rollover alias is typically the index prefix + mapping type + "-write"
+	// Example: "jaeger-span-write"
+	prefix := mb.Indices.IndexPrefix.Apply("")
+	mappingOpts.RolloverAlias = fmt.Sprintf("%s%s-write", prefix, mappingType.String())
+	mappingOpts.IndexPatterns = []string{fmt.Sprintf("%s%s*", prefix, mappingType.String())}
 
 	switch mappingType {
 	case SpanMapping:
