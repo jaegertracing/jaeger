@@ -767,8 +767,8 @@ go.opentelemetry.io/collector/exporter/nopexporter v0.146.1 h1:iDQVyc0CsJ5ndxTm5
 go.opentelemetry.io/collector/exporter/nopexporter v0.146.1/go.mod h1:hh8p7jXRkszYL4t+zEuAhVj7Vf6DponJvt7yS1hJpn4=
 go.opentelemetry.io/collector/exporter/otlpexporter v0.146.1 h1:Q6YiOcl5C2OI8AKA/hjAXXG5jDmEMbc6Z4xIInZSyRI=
 go.opentelemetry.io/collector/exporter/otlpexporter v0.146.1/go.mod h1:UjKy2j5bmlR4eRY9Biz0Ni3cmU1iv4TTrGDVJ9CBjgw=
-go.opentelemetry.io/collector/exporter/otlphttpexporter v0.145.0 h1:+zIcsnZwOUxeFm5j2vskcata9s+W1YPVqJ25JQBAhnM=
-go.opentelemetry.io/collector/exporter/otlphttpexporter v0.145.0/go.mod h1:UuJPGIrOBb8cB2iUkVPQQ4ioImxLF3Qd6aqVihA4DOM=
+go.opentelemetry.io/collector/exporter/otlphttpexporter v0.146.1 h1:93JK+3GSlyWfF3hXp95OhjjzGedAcHBbmddFh+jGLwg=
+go.opentelemetry.io/collector/exporter/otlphttpexporter v0.146.1/go.mod h1:ZirxokC/yyJ76PhVI4fVqq78ledzlg9OlLNPwmSVXuU=
 go.opentelemetry.io/collector/exporter/xexporter v0.146.1 h1:EP/j7UI5+W00NL2wL1VjRCA3tgSdnIq3mAhHHfotW58=
 go.opentelemetry.io/collector/exporter/xexporter v0.146.1/go.mod h1:Isu4I8eouDwQoL9NHTXGRbTFgGrfzmYbCALtVRuB970=
 go.opentelemetry.io/collector/extension v1.52.0 h1:ICPmYnAkFhaKOM/J8vai0za826ezgZZvVXc5sTQPbTg=

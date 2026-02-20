@@ -72,7 +72,7 @@ require (
 	go.opentelemetry.io/collector/exporter/exportertest v0.146.1
 	go.opentelemetry.io/collector/exporter/nopexporter v0.146.1
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.146.1
-	go.opentelemetry.io/collector/exporter/otlphttpexporter v0.145.0
+	go.opentelemetry.io/collector/exporter/otlphttpexporter v0.146.1
 	go.opentelemetry.io/collector/extension v1.52.0
 	go.opentelemetry.io/collector/extension/zpagesextension v0.146.1
 	go.opentelemetry.io/collector/featuregate v1.52.0
