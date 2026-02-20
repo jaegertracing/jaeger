@@ -246,7 +246,6 @@ func (ext *rsExtension) startHTTPServer(ctx context.Context, host component.Host
 	}
 
 	ext.shutdownWG.Go(func() {
-
 		err := ext.httpServer.Serve(hln)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(err))

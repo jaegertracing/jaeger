@@ -51,7 +51,6 @@ func (c *expvarExtension) Start(ctx context.Context, host component.Host) error 
 	}
 	c.telset.Logger.Info("Starting expvar server", zap.Stringer("addr", hln.Addr()))
 	c.shutdownWG.Go(func() {
-
 		if err := c.server.Serve(hln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			err = fmt.Errorf("error starting expvar server: %w", err)
 			componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(err))
