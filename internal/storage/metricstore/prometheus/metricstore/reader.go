@@ -321,14 +321,14 @@ func (m MetricsReader) buildPromQuery(metricsParams metricsQueryParams) string {
 // promqlDurationString formats the duration string to be promQL-compliant.
 // PromQL only accepts "single-unit" durations like "30s", "1m", "1h"; not "1h5s" or "1m0s".
 func promqlDurationString(d *time.Duration) string {
-	var b []byte
+	var b strings.Builder
 	for _, c := range d.String() {
-		b = append(b, byte(c))
+		_, _ = b.WriteRune(c)
 		if unicode.IsLetter(c) {
 			break
 		}
 	}
-	return string(b)
+	return b.String()
 }
 
 func startSpanForQuery(ctx context.Context, metricName, query string, tp trace.Tracer) (context.Context, trace.Span) {
