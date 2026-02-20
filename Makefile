@@ -194,6 +194,10 @@ lint-goleak:
 lint-go: $(LINT)
 	$(LINT) -v run
 
+.PHONY: govulncheck
+govulncheck: $(GOVULNCHECK)
+	$(GOVULNCHECK) ./...
+
 .PHONY: lint-jaeger-idl-versions
 lint-jaeger-idl-versions:
 	@echo "checking jaeger-idl version mismatch between git submodule and go.mod dependency"

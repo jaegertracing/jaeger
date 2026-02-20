@@ -7,7 +7,7 @@ Indices will be created depending on the spans timestamp. i.e., a span with
 a timestamp on 2017/04/21 will be stored in an index named `jaeger-2017-04-21`.
 
 It is common to only keep observability data for a limited time.
-However, Elasticsearch does no support expiring of old data via TTL.
+However, Elasticsearch does not support expiring of old data via TTL.
 To purge old Jaeger indices, use [jaeger-es-index-cleaner](../../../cmd/es-index-cleaner/).
 
 ### Timestamps
@@ -22,7 +22,7 @@ ElasticSearch creates a new document for every nested field, there is currently 
 
 ### Shards and Replicas
 Number of shards and replicas per index can be specified as parameters to the writer and/or through configs under
-`./pkg/es/config/config.go`. If not specified, it defaults to ElasticSearch defaults: 5 shards and 1 replica.
+`./internal/storage/elasticsearch/config/config.go`. If not specified, it defaults to ElasticSearch defaults: 5 shards and 1 replica.
 [This article](https://www.elastic.co/blog/how-many-shards-should-i-have-in-my-elasticsearch-cluster) goes into more information
 about choosing how many shards should be chosen for optimization.
 
