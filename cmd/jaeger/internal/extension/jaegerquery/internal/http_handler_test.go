@@ -212,7 +212,7 @@ func TestGetTraceDedupeSuccess(t *testing.T) {
 	scopes := resources.ScopeSpans().AppendEmpty()
 
 	// Add 4 spans (2 original + 2 duplicates)
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		span := scopes.Spans().AppendEmpty()
 		span.SetTraceID(v1adapter.FromV1TraceID(mockTraceID))
 		span.SetSpanID(v1adapter.FromV1SpanID(model.NewSpanID(uint64(i%2 + 1))))

@@ -163,7 +163,7 @@ func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
 
 func (*StorageIntegration) waitForCondition(t *testing.T, predicate func(t *testing.T) bool) bool {
 	const iterations = 100 // Will wait at most 100 seconds.
-	for i := 0; i < iterations; i++ {
+	for i := range iterations {
 		if predicate(t) {
 			return true
 		}

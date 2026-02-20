@@ -220,7 +220,7 @@ func TestGetSpanNamesOutput_EmptyArrayJSON(t *testing.T) {
 // generateOperations creates n operations for testing
 func generateOperations(n int) []tracestore.Operation {
 	ops := make([]tracestore.Operation, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		ops[i] = tracestore.Operation{
 			Name:     fmt.Sprintf("operation%03d", i),
 			SpanKind: "SERVER",
@@ -232,7 +232,7 @@ func generateOperations(n int) []tracestore.Operation {
 // generateSpanNameInfos creates n span name infos for testing
 func generateSpanNameInfos(n int) []types.SpanNameInfo {
 	infos := make([]types.SpanNameInfo, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		infos[i] = types.SpanNameInfo{
 			Name:     fmt.Sprintf("operation%03d", i),
 			SpanKind: "SERVER",
