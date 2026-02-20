@@ -29,30 +29,24 @@ def get_next_first_wednesday(last_date_str: str) -> str:
     return first_wednesday.strftime("%-d %B %Y")
 
 
-def increment_version(version_str: str) -> str:
-    # version_str e.g. "2.14.0"
-    parts = version_str.strip().split('.')
-    if len(parts) != 3:
-        return version_str # fallback
-
-    major, minor, patch = map(int, parts)
-    return f"{major}.{minor + 1}.0"
-
-
 def rotate_release_managers() -> None:
     with open('RELEASE.md', 'r') as f:
         content = f.read()
 
     # Find the release managers table
-    table_pattern = r'(\| Version \| Release Manager \| Tentative release date \|\n\|-+\|.*\|\n(?:\|.*\|.*\|\n)+)'
-    match = re.search(table_pattern, content, re.MULTILINE)
+    # Matches the header, separator, and all data rows.
+    # The last row might not have a trailing newline.
+    table_pattern = r'(\| Version \| Release Manager \| Tentative release date *\|\n\|-+\|.*\|\n(?:\|.*\|.*\|(?:\n|$))*)'
+    match = re.search(table_pattern, content)
 
     if not match:
         print("Error: Could not find release managers table", file=sys.stderr)
         sys.exit(1)
 
     table = match.group(0)
-    lines = table.strip().split('\n')
+    # Ensure we preserve the exact line endings by not stripping the match if we don't need to.
+    # But for rotation, we need the lines.
+    lines = table.splitlines()
 
     # skip header and separator
     header_plus_sep = lines[:2]
@@ -62,30 +56,50 @@ def rotate_release_managers() -> None:
         print("Error: No data lines found in release managers table", file=sys.stderr)
         sys.exit(1)
 
-    # Get the last row's version and date to calculate the next ones
-    last_row = data_lines[-1]
-    last_row_parts = [p.strip() for p in last_row.split('|') if p.strip()]
-    if len(last_row_parts) < 3:
-        print("Error: Could not parse last row of the table", file=sys.stderr)
+    # Find the maximum version currently in the table to determine the next one
+    max_major, max_minor, max_patch = -1, -1, -1
+    last_date_str = ""
+
+    for line in data_lines:
+        # Split and filter to get clean parts
+        parts = [p.strip() for p in line.split('|') if p.strip()]
+        if len(parts) >= 3:
+            v_str = parts[0]
+            d_str = parts[2]
+            v_parts = v_str.split('.')
+            if len(v_parts) == 3:
+                try:
+                    major, minor, patch = map(int, v_parts)
+                    if (major, minor, patch) > (max_major, max_minor, max_patch):
+                        max_major, max_minor, max_patch = major, minor, patch
+                        last_date_str = d_str
+                except ValueError:
+                    continue
+
+    if max_major == -1:
+        print("Error: Could not find any valid versions in the table", file=sys.stderr)
         sys.exit(1)
 
-    last_version = last_row_parts[0]
-    last_date_str = last_row_parts[2]
-
-    next_version = increment_version(last_version)
+    next_version = f"{max_major}.{max_minor + 1}.0"
     next_date = get_next_first_wednesday(last_date_str)
 
     # Get the first row (the one to be rotated)
     first_row = data_lines[0]
     first_row_parts = [p.strip() for p in first_row.split('|') if p.strip()]
+    if len(first_row_parts) < 2:
+        print(f"Error: First data row is malformed (expected at least 2 columns): {first_row}", file=sys.stderr)
+        sys.exit(1)
     manager = first_row_parts[1]
 
     # Create the new row for the bottom
-    new_bottom_row = f"| {next_version:<7} | {manager:<15} | {next_date:<17} |"
+    # Version (7) + Manager (15) + Date (25)
+    # Total width with spaces: (1+7+1) + (1+15+1) + (1+25+1) = 9 + 17 + 27 = 53 dashes/chars.
+    new_bottom_row = f"| {next_version:<7} | {manager:<15} | {next_date:<25} |"
 
     # Move first line to the end (rotation)
     rotated = data_lines[1:] + [new_bottom_row]
-    new_table = '\n'.join(header_plus_sep + rotated)
+    # Reconstruct the table with a trailing newline to avoid corruption when joining back
+    new_table = '\n'.join(header_plus_sep + rotated) + '\n'
     content = content[:match.start()] + new_table + content[match.end():]
 
     with open('RELEASE.md', 'w') as f:

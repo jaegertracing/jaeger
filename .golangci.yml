@@ -1,6 +1,6 @@
 version: "2"
 run:
-  go: "1.24"
+  go: "1.26"
 linters:
   enable:
     - asciicheck
@@ -184,7 +184,6 @@ linters:
     paths:
       - .*.pb.go$
       - mocks
-      - thrift-0.9.2
       - .*-gen
 issues:
   max-issues-per-linter: 0
@@ -203,5 +202,4 @@ formatters:
     paths:
       - .*.pb.go$
       - mocks
-      - thrift-0.9.2
       - .*-gen

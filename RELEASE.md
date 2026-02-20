@@ -26,7 +26,7 @@ https://github.com/jaegertracing/jaeger/issues/7757
 
 Follow the checklist in the created tracking issue. The high level steps are:
 
-1. Perform UI release according to https://github.com/jaegertracing/jaeger-ui/blob/main/RELEASE.md
+1. Perform UI release according to <https://github.com/jaegertracing/jaeger-ui/blob/main/RELEASE.md>
 2. Perform Backend release (see below)
 3. [Publish documentation](https://github.com/jaegertracing/documentation/blob/main/RELEASE.md) for the new version on `jaegertracing.io`.
 
@@ -35,14 +35,20 @@ Follow the checklist in the created tracking issue. The high level steps are:
 <!-- BEGIN_CHECKLIST -->
 
 1. Create a PR "Prepare release vX.Y.Z" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/6826)).
-  * **Automated**: `make prepare-release VERSION=X.Y.Z`
+  * **Automated**:
+    ```bash
+    make prepare-release VERSION=X.Y.Z
+    ```
     * Updates CHANGELOG.md (generates content via `make changelog`)
     * Upgrades jaeger-ui submodule to the corresponding version
     * Rotates release managers table
     * Creates PR with label `changelog:skip`
   * Manual: See [Manual release pull request](https://github.com/jaegertracing/jaeger/blob/main/RELEASE.md#manual-release-pull-request).
 2. After the PR is merged, create a release on Github:
-  * **Automated**:  `make draft-release`
+  * **Automated**:
+    ```bash
+    make draft-release
+    ```
   * Manual: See [Manual release](https://github.com/jaegertracing/jaeger/blob/main/RELEASE.md#manual-release).
 3. Once the release is created, the [Publish Release workflow](https://github.com/jaegertracing/jaeger/actions/workflows/ci-release.yml) will run to build artifacts.
   * Wait for the workflow to finish. For monitoring and troubleshooting, open the logs of the workflow run from above URL.
@@ -110,11 +116,11 @@ In order to ensure that knowledge about releasing Jaeger is spread among maintai
 
 Here are the release managers for future versions with the tentative release dates. The release dates are the first Wednesday of the month, and we might skip a release if not enough changes happened since the previous release. In such case, the next tentative release date is the first Wednesday of the subsequent month.
 
-| Version | Release Manager | Tentative release date |
-|---------|-----------------|------------------------|
-| 2.15.0  | @jkowall        | 4 February  2026       |
-| 2.16.0  | @mahadzaryab1   | 5 March     2026       |
-| 2.17.0  | @albertteoh     | 1 April     2026       |
-| 2.18.0  | @pavolloffay    | 6 May       2026       |
-| 2.19.0  | @joe-elliott    | 3 June      2026       |
-| 2.14.0  | @yurishkuro     | 7 July      2026       |
+| Version | Release Manager | Tentative release date    |
+|---------|-----------------|---------------------------|
+| 2.16.0  | @mahadzaryab1   | 4 March 2026              |
+| 2.17.0  | @albertteoh     | 1 April 2026              |
+| 2.18.0  | @pavolloffay    | 6 May 2026                |
+| 2.19.0  | @joe-elliott    | 3 June 2026               |
+| 2.20.0  | @yurishkuro     | 1 July 2026               |
+| 2.21.0  | @jkowall        | 5 August 2026             |
