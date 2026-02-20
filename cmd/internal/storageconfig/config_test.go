@@ -293,7 +293,6 @@ func TestMetricBackendUnmarshal(t *testing.T) {
 func getStorageKeys(t reflect.Type) []string {
 	var keys []string
 	for field := range t.Fields() {
-		field := field
 		tag := field.Tag.Get("mapstructure")
 		if tag != "" && tag != ",squash" {
 			keys = append(keys, tag)

@@ -300,8 +300,7 @@ func validSpan(resourceAttributes pcommon.Map, scope pcommon.InstrumentationScop
 			continue
 		}
 
-		if after, ok := strings.CutPrefix(key, "resource."); ok {
-			resourceKey := after
+		if resourceKey, ok := strings.CutPrefix(key, "resource."); ok {
 			if !matchAttributes(resourceKey, val, resourceAttributes) {
 				return false
 			}

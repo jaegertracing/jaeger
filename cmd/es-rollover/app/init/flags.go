@@ -28,11 +28,6 @@ type Config struct {
 	cfg.Indices
 }
 
-//go:fix inline
-func ptr[T any](v T) *T {
-	return new(v)
-}
-
 // AddFlags adds flags for TLS to the FlagSet.
 func (*Config) AddFlags(flags *flag.FlagSet) {
 	flags.Int(shards, 5, "Number of shards")

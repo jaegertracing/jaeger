@@ -27,13 +27,6 @@ type Options struct {
 	Config config.Configuration `mapstructure:",squash"`
 }
 
-// ptr returns a pointer to the given value.
-//
-//go:fix inline
-func ptr[T any](v T) *T {
-	return new(v)
-}
-
 func initDateLayout(rolloverFreq, sep string) string {
 	// default to daily format
 	indexLayout := "2006" + sep + "01" + sep + "02"

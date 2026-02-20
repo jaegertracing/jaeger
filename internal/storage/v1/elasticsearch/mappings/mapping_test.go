@@ -25,11 +25,6 @@ import (
 //go:embed fixtures/*.json
 var FIXTURES embed.FS
 
-//go:fix inline
-func ptr[T any](v T) *T {
-	return new(v)
-}
-
 func TestMappingBuilderGetMapping(t *testing.T) {
 	tests := []struct {
 		mapping   MappingType

@@ -86,11 +86,6 @@ func copyToTempFile(t *testing.T, pattern string, filename string) (file *os.Fil
 	return tempFile
 }
 
-//go:fix inline
-func int64Ptr(v int64) *int64 {
-	return new(v)
-}
-
 // basicAuth creates basic authentication component
 func basicAuth(username, password, passwordFilePath string) configoptional.Optional[BasicAuthentication] {
 	return configoptional.Some(BasicAuthentication{
@@ -668,17 +663,17 @@ func TestApplyDefaults(t *testing.T) {
 			IndexPrefix: "hello",
 			Spans: IndexOptions{
 				Shards:   5,
-				Replicas: int64Ptr(1),
+				Replicas: new(int64(1)),
 				Priority: 10,
 			},
 			Services: IndexOptions{
 				Shards:   5,
-				Replicas: int64Ptr(1),
+				Replicas: new(int64(1)),
 				Priority: 20,
 			},
 			Dependencies: IndexOptions{
 				Shards:   5,
-				Replicas: int64Ptr(1),
+				Replicas: new(int64(1)),
 				Priority: 30,
 			},
 			Sampling: IndexOptions{},
@@ -746,17 +741,17 @@ func TestApplyDefaults(t *testing.T) {
 					IndexPrefix: "hello",
 					Spans: IndexOptions{
 						Shards:   5,
-						Replicas: int64Ptr(1),
+						Replicas: new(int64(1)),
 						Priority: 10,
 					},
 					Services: IndexOptions{
 						Shards:   5,
-						Replicas: int64Ptr(1),
+						Replicas: new(int64(1)),
 						Priority: 20,
 					},
 					Dependencies: IndexOptions{
 						Shards:   5,
-						Replicas: int64Ptr(1),
+						Replicas: new(int64(1)),
 						Priority: 30,
 					},
 				},
@@ -789,17 +784,17 @@ func TestApplyDefaults(t *testing.T) {
 					IndexPrefix: "hello",
 					Spans: IndexOptions{
 						Shards:   5,
-						Replicas: int64Ptr(1),
+						Replicas: new(int64(1)),
 						Priority: 10,
 					},
 					Services: IndexOptions{
 						Shards:   5,
-						Replicas: int64Ptr(1),
+						Replicas: new(int64(1)),
 						Priority: 20,
 					},
 					Dependencies: IndexOptions{
 						Shards:   5,
-						Replicas: int64Ptr(1),
+						Replicas: new(int64(1)),
 						Priority: 30,
 					},
 				},
