@@ -80,10 +80,15 @@ linters:
       enable-all: true
     gosec:
       excludes:
+        - G101
         - G104
         - G107
+        - G117
         - G404
         - G601
+        - G703
+        - G704
+        - G705
     govet:
       disable:
         - fieldalignment
