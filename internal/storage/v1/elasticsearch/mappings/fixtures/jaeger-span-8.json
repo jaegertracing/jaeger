@@ -60,8 +60,7 @@
           "ignore_above": 256
         },
         "startTime": {
-          "type": "date",
-          "format": "epoch_millis"
+          "type": "long"
         },
         "startTimeMillis": {
           "type": "date",
@@ -78,8 +77,7 @@
           "dynamic": false,
           "properties": {
             "timestamp": {
-              "type": "date",
-              "format": "epoch_millis"
+              "type": "long"
             },
             "fields": {
               "type": "nested",
