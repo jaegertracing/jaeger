@@ -45,11 +45,11 @@ func (c *Config) InitFromViper(v *viper.Viper) {
 	c.Indices.Dependencies.Shards = v.GetInt64(shards)
 	c.Indices.Sampling.Shards = v.GetInt64(shards)
 
-	reps := v.GetInt64(replicas)
-	c.Indices.Spans.Replicas = new(reps)
-	c.Indices.Services.Replicas = new(reps)
-	c.Indices.Dependencies.Replicas = new(reps)
-	c.Indices.Sampling.Replicas = new(reps)
+	repsPtr := new(v.GetInt64(replicas))
+	c.Indices.Spans.Replicas = repsPtr
+	c.Indices.Services.Replicas = repsPtr
+	c.Indices.Dependencies.Replicas = repsPtr
+	c.Indices.Sampling.Replicas = repsPtr
 
 	c.Indices.Spans.Priority = v.GetInt64(prioritySpanTemplate)
 	c.Indices.Services.Priority = v.GetInt64(priorityServiceTemplate)
