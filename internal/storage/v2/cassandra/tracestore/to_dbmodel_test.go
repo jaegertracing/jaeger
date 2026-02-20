@@ -190,7 +190,7 @@ func TestGetTagFromSpanKind(t *testing.T) {
 	}
 }
 
-func TestAttributesToJaegerProtoTags(t *testing.T) {
+func TestAttributesToDbTags(t *testing.T) {
 	attributes := pcommon.NewMap()
 	attributes.PutBool("bool-val", true)
 	attributes.PutInt("int-val", 123)
@@ -250,7 +250,7 @@ func TestAttributesToJaegerProtoTags_MapType(t *testing.T) {
 	require.Equal(t, expected, got)
 }
 
-func BenchmarkInternalTracesToJaegerProto(b *testing.B) {
+func BenchmarkInternalTracesToDbModel(b *testing.B) {
 	unmarshaller := ptrace.JSONUnmarshaler{}
 	data, err := os.ReadFile("fixtures/otel_traces_01.json")
 	require.NoError(b, err)

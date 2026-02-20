@@ -126,19 +126,6 @@ func Test_dbSpansToSpans_EmptySpans(t *testing.T) {
 	assert.Equal(t, 1, rss.Len())
 }
 
-func Test_dbTagsToAttributes(t *testing.T) {
-	traceData := ptrace.NewTraces()
-	rss := traceData.ResourceSpans().AppendEmpty().Resource().Attributes()
-	kv := []dbmodel.KeyValue{{
-		Key:       "testing-key",
-		ValueType: "some random value",
-	}}
-	dbTagsToAttributes(kv, rss)
-	testingKey, testingKeyFound := rss.Get("testing-key")
-	assert.True(t, testingKeyFound)
-	assert.Equal(t, "<Unknown Jaeger TagType \"some random value\">", testingKey.AsString())
-}
-
 func TestGetStatusCodeFromHTTPStatusAttr(t *testing.T) {
 	tests := []struct {
 		name string
@@ -207,7 +194,7 @@ func TestGetStatusCodeFromHTTPStatusAttr(t *testing.T) {
 	}
 }
 
-func Test_jLogsToSpanEvents(t *testing.T) {
+func Test_dbLogsToSpanEvents(t *testing.T) {
 	traces := ptrace.NewTraces()
 	span := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
 	span.Events().AppendEmpty().SetName("event1")
@@ -229,7 +216,7 @@ func Test_jLogsToSpanEvents(t *testing.T) {
 	assert.Empty(t, span.Events().At(2).Name())
 }
 
-func TestJTagsToInternalAttributes(t *testing.T) {
+func Test_dbTagsToAttributes(t *testing.T) {
 	tags := []dbmodel.KeyValue{
 		{
 			Key:       "bool-val",
@@ -256,6 +243,10 @@ func TestJTagsToInternalAttributes(t *testing.T) {
 			ValueType:   dbmodel.BinaryType,
 			ValueBinary: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x64, 0x7D, 0x98},
 		},
+		{
+			Key:       "testing-key",
+			ValueType: "some random value",
+		},
 	}
 
 	expected := pcommon.NewMap()
@@ -264,6 +255,7 @@ func TestJTagsToInternalAttributes(t *testing.T) {
 	expected.PutStr("string-val", "abc")
 	expected.PutDouble("double-val", 1.23)
 	expected.PutEmptyBytes("binary-val").FromRaw([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x64, 0x7D, 0x98})
+	expected.PutStr("testing-key", "<Unknown Jaeger TagType \"some random value\">")
 
 	got := pcommon.NewMap()
 	dbTagsToAttributes(tags, got)
