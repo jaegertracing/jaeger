@@ -305,7 +305,7 @@ func dbReferencesToSpanLinks(refs []dbmodel.SpanRef, excludeParentID int64, span
 
 		link := spanLinks.AppendEmpty()
 		link.SetTraceID(pcommon.TraceID(ref.TraceID))
-		//nolint:gosec // G115 // dbspan.SpanID is guaranteed non-negative by schema constraints
+		//nolint:gosec // G115 // bit-preserving uint64<->int64 conversion for opaque IDs
 		link.SetSpanID(idutils.UInt64ToSpanID(uint64(ref.SpanID)))
 		link.Attributes().PutStr(otelsemconv.AttributeOpentracingRefType, dbRefTypeToAttribute(ref.RefType))
 	}
