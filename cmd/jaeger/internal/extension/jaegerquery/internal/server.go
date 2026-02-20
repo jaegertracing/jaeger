@@ -291,7 +291,6 @@ func (s *Server) initListener(ctx context.Context) error {
 	return nil
 }
 
-// Start http and gRPC servers concurrently
 func (s *Server) Start(ctx context.Context) error {
 	err := s.initListener(ctx)
 	if err != nil {
@@ -335,6 +334,7 @@ func (s *Server) Start(ctx context.Context) error {
 		}
 		s.telset.Logger.Info("GRPC server stopped", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPC.NetAddr.Endpoint))
 	}()
+
 	return nil
 }
 
@@ -361,5 +361,6 @@ func (s *Server) Close() error {
 	s.bgFinished.Wait()
 
 	s.telset.Logger.Info("Server stopped")
+
 	return errors.Join(errs...)
 }
