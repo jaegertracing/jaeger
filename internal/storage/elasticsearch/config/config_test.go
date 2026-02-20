@@ -86,8 +86,9 @@ func copyToTempFile(t *testing.T, pattern string, filename string) (file *os.Fil
 	return tempFile
 }
 
+//go:fix inline
 func int64Ptr(v int64) *int64 {
-	return &v
+	return new(v)
 }
 
 // basicAuth creates basic authentication component

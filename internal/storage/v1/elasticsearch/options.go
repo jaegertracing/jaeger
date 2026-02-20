@@ -14,7 +14,7 @@ var defaultIndexOptions = config.IndexOptions{
 	DateLayout:        initDateLayout("day", "-"),
 	RolloverFrequency: "day",
 	Shards:            5,
-	Replicas:          ptr(int64(1)),
+	Replicas:          new(int64(1)),
 	Priority:          0,
 }
 
@@ -28,8 +28,10 @@ type Options struct {
 }
 
 // ptr returns a pointer to the given value.
+//
+//go:fix inline
 func ptr[T any](v T) *T {
-	return &v
+	return new(v)
 }
 
 func initDateLayout(rolloverFreq, sep string) string {

@@ -25,8 +25,9 @@ import (
 //go:embed fixtures/*.json
 var FIXTURES embed.FS
 
+//go:fix inline
 func ptr[T any](v T) *T {
-	return &v
+	return new(v)
 }
 
 func TestMappingBuilderGetMapping(t *testing.T) {
@@ -51,7 +52,7 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 			defaultOpts := func(p int64) config.IndexOptions {
 				return config.IndexOptions{
 					Shards:   3,
-					Replicas: ptr(int64(3)),
+					Replicas: new(int64(3)),
 					Priority: p,
 				}
 			}
@@ -180,7 +181,7 @@ func TestMappingBuilderFixMapping(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			indexTemOps := config.IndexOptions{
 				Shards:   3,
-				Replicas: ptr(int64(5)),
+				Replicas: new(int64(5)),
 				Priority: 500,
 			}
 			mappingBuilder := MappingBuilder{
@@ -328,7 +329,7 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			indexTemOps := config.IndexOptions{
 				Shards:   3,
-				Replicas: ptr(int64(3)),
+				Replicas: new(int64(3)),
 			}
 
 			mappingBuilder := MappingBuilder{
@@ -363,7 +364,7 @@ func TestMappingBuilderGetDependenciesMappings(t *testing.T) {
 		TemplateBuilder: &tb,
 		Indices: config.Indices{
 			Dependencies: config.IndexOptions{
-				Replicas: ptr(int64(1)),
+				Replicas: new(int64(1)),
 				Shards:   3,
 				Priority: 10,
 			},
@@ -383,7 +384,7 @@ func TestMappingBuilderGetSamplingMappings(t *testing.T) {
 		TemplateBuilder: &tb,
 		Indices: config.Indices{
 			Sampling: config.IndexOptions{
-				Replicas: ptr(int64(1)),
+				Replicas: new(int64(1)),
 				Shards:   3,
 				Priority: 10,
 			},
@@ -398,7 +399,7 @@ func TestGetMappingTemplateOptions_DefaultCase(t *testing.T) {
 		Indices: config.Indices{
 			Spans: config.IndexOptions{
 				Shards:   2,
-				Replicas: ptr(int64(1)),
+				Replicas: new(int64(1)),
 				Priority: 10,
 			},
 		},

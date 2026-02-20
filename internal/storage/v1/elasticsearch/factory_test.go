@@ -275,12 +275,12 @@ func TestCreateTemplates(t *testing.T) {
 			IndexPrefix: test.indexPrefix,
 			Spans: escfg.IndexOptions{
 				Shards:   3,
-				Replicas: ptr(int64(1)),
+				Replicas: new(int64(1)),
 				Priority: 10,
 			},
 			Services: escfg.IndexOptions{
 				Shards:   3,
-				Replicas: ptr(int64(1)),
+				Replicas: new(int64(1)),
 				Priority: 10,
 			},
 		}}

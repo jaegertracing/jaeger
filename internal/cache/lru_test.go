@@ -144,11 +144,11 @@ func TestLRUCacheConcurrentAccess(*testing.T) {
 
 	start := make(chan struct{})
 	var wg sync.WaitGroup
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		wg.Go(func() {
 			<-start
 
-			for i := 0; i < 1000; i++ {
+			for range 1000 {
 				cache.Get("A")
 			}
 		})

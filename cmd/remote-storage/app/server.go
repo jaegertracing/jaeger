@@ -126,14 +126,12 @@ func (s *Server) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to listen on gRPC port: %w", err)
 	}
 	s.telset.Logger.Info("Starting GRPC server", zap.Stringer("addr", s.grpcConn.Addr()))
-	s.stopped.Add(1)
-	go func() {
-		defer s.stopped.Done()
+	s.stopped.Go(func() {
 		if err := s.grpcServer.Serve(s.grpcConn); err != nil {
 			s.telset.Logger.Error("GRPC server exited", zap.Error(err))
 			s.telset.ReportStatus(componentstatus.NewFatalErrorEvent(err))
 		}
-	}()
+	})
 
 	return nil
 }

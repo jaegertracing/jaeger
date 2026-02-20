@@ -107,7 +107,7 @@ func TestCachedFileTokenLoader_ZeroInterval(t *testing.T) {
 	assert.Equal(t, "initial-token", token, "Zero interval should disable reloading completely")
 
 	// Multiple calls should continue returning cached token
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		// Generate different content for each iteration
 		newContent := fmt.Sprintf("different-token-%d-%d\n", i, currentTime.Unix())
 		updateTokenFile(t, tokenFile, newContent)

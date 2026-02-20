@@ -4,12 +4,12 @@
 package grpc
 
 import (
+	context0 "context"
 	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/net/context"
 
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/internal/testutils"
@@ -17,7 +17,7 @@ import (
 
 type mockSamplingStore struct{}
 
-func (mockSamplingStore) GetSamplingStrategy(_ context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
+func (mockSamplingStore) GetSamplingStrategy(_ context0.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error) {
 	switch serviceName {
 	case "error":
 		return nil, errors.New("some error")
@@ -44,7 +44,7 @@ func TestNewGRPCHandler(t *testing.T) {
 	}
 	h := NewHandler(mockSamplingStore{})
 	for _, test := range tests {
-		resp, err := h.GetSamplingStrategy(context.Background(), test.req)
+		resp, err := h.GetSamplingStrategy(context0.Background(), test.req)
 		if test.err != "" {
 			require.EqualError(t, err, test.err)
 			require.Nil(t, resp)

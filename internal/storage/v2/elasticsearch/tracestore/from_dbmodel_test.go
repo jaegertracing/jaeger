@@ -180,7 +180,7 @@ func Test_SetSpanEventsFromDbSpanLogs(t *testing.T) {
 	}
 
 	dbSpanLogsToSpanEvents(logs, span.Events())
-	for i := 0; i < len(logs); i++ {
+	for i := range logs {
 		assert.Equal(t, testSpanEventTime, span.Events().At(i).Timestamp().AsTime())
 	}
 	assert.Equal(t, 1, span.Events().At(2).Attributes().Len())

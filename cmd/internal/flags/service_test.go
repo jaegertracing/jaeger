@@ -87,7 +87,7 @@ func TestStartErrors(t *testing.T) {
 }
 
 func waitForEqual(t *testing.T, expected any, getter func() any) {
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		value := getter()
 		if reflect.DeepEqual(value, expected) {
 			return

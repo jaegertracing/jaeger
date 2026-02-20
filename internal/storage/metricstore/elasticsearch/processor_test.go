@@ -282,6 +282,8 @@ func createMetricPoint(ts time.Time, value float64) *metrics.MetricPoint {
 }
 
 // ptr returns a pointer to the given time.Duration.
+//
+//go:fix inline
 func ptr(d time.Duration) *time.Duration {
-	return &d
+	return new(d)
 }

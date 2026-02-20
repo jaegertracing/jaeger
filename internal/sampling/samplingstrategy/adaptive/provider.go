@@ -66,11 +66,9 @@ func (p *Provider) Start() error {
 	p.loadProbabilities()
 	p.generateStrategyResponses()
 
-	p.bgFinished.Add(1)
-	go func() {
+	p.bgFinished.Go(func() {
 		p.runUpdateProbabilitiesLoop()
-		p.bgFinished.Done()
-	}()
+	})
 
 	return nil
 }
