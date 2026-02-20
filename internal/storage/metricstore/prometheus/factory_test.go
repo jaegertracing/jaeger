@@ -53,6 +53,8 @@ func TestWithDefaultConfiguration(t *testing.T) {
 
 	assert.Equal(t, "traces_span_metrics", f.options.MetricNamespace)
 	assert.Equal(t, "ms", f.options.LatencyUnit)
+	assert.False(t, f.options.NormalizeCalls)
+	assert.True(t, f.options.NormalizeDuration)
 }
 
 func TestWithConfiguration(t *testing.T) {
