@@ -34,7 +34,7 @@ func ToDBModel(td ptrace.Traces) []dbmodel.Span {
 	resourceSpans := td.ResourceSpans()
 
 	if resourceSpans.Len() == 0 {
-		return nil
+		return []dbmodel.Span{}
 	}
 
 	batches := make([]dbmodel.Span, 0, resourceSpans.Len())
