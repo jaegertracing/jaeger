@@ -20,7 +20,7 @@ func TestInitMetrics(t *testing.T) {
 	testMetrics := struct {
 		Gauge     metrics.Gauge     `metric:"gauge" tags:"1=one,2=two"`
 		Counter   metrics.Counter   `metric:"counter"`
-		Timer     metrics.Timer     `metric:"timer"`
+		Timer     metrics.Timer     `metric:"timer" buckets:"1ms,5ms,10ms,50ms"`
 		Histogram metrics.Histogram `metric:"histogram" buckets:"20,40,60,80"`
 	}{}
 
@@ -76,7 +76,7 @@ var (
 	}{}
 
 	badTimerBucket = struct {
-		BadTimerBucket metrics.Timer `metric:"timer" buckets:"1"`
+		BadTimerBucket metrics.Timer `metric:"timer" buckets:"invalid"`
 	}{}
 
 	invalidBuckets = struct {
@@ -97,7 +97,7 @@ func TestInitMetricsFailures(t *testing.T) {
 		"Field [BadHistogramBucket]: Bucket [a] could not be converted to float64 in 'buckets' string [1,2,a,4]")
 
 	require.EqualError(t, metrics.Init(&badTimerBucket, nil, nil),
-		"Field [BadTimerBucket]: Buckets are not currently initialized for timer metrics")
+		"Field [BadTimerBucket]: Bucket [invalid] could not be converted to time.Duration in 'buckets' string [invalid]")
 
 	require.EqualError(t, metrics.Init(&invalidBuckets, nil, nil),
 		"Field [InvalidBuckets]: Buckets should only be defined for Timer and Histogram metric types")
