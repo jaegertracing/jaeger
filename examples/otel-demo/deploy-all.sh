@@ -7,6 +7,14 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROLLOUT_TIMEOUT="${ROLLOUT_TIMEOUT:-600}"
 
+# Versions
+DEFAULT_OPENSEARCH_CHART_VERSION=3.3.2
+OPENSEARCH_CHART_VERSION="${OPENSEARCH_CHART_VERSION:-${DEFAULT_OPENSEARCH_CHART_VERSION}}"
+DEFAULT_OPENSEARCH_DASHBOARDS_CHART_VERSION=3.3.0
+OPENSEARCH_DASHBOARDS_CHART_VERSION="${OPENSEARCH_DASHBOARDS_CHART_VERSION:-${DEFAULT_OPENSEARCH_DASHBOARDS_CHART_VERSION}}"
+DEFAULT_JAEGER_CHART_VERSION=4.2.3
+JAEGER_CHART_VERSION="${JAEGER_CHART_VERSION:-${DEFAULT_JAEGER_CHART_VERSION}}"
+
 MODE="${1:-upgrade}"
 IMAGE_TAG="${2:-latest}"
 
@@ -21,6 +29,11 @@ case "$MODE" in
     echo "Modes:"
     echo "  upgrade  - Upgrade existing deployment or install if not present (default)"
     echo "  clean    - Clean install (removes existing deployment first)"
+    echo ""
+    echo "Environment Variables:"
+    echo "  OPENSEARCH_CHART_VERSION       - Version of OpenSearch Helm Chart (default: $DEFAULT_OPENSEARCH_CHART_VERSION)"
+    echo "  OPENSEARCH_DASHBOARDS_CHART_VERSION - Version of OpenSearch Dashboards Helm Chart ($DEFAULT_OPENSEARCH_DASHBORED_CHART_VERSION)"
+    echo "  JAEGER_CHART_VERSION           - Version of Jaeger Helm Chart (default: $DEFAULT_JAEGER_CHART_VERSION)"
     echo ""
     echo "Examples:"
     echo "  $0                    # Upgrade mode with latest tag"
@@ -206,32 +219,7 @@ deploy_ingress() {
   log " • https://shop.demo.jaegertracing.io"
 }
 
-# Clone Jaeger Helm chart and prepare dependencies
-clone_jaeger_v2() {
-  local dest="$SCRIPT_DIR/helm-charts"
-  if [[ ! -d "$dest" ]]; then
-    log "Cloning Jaeger Helm Charts..."
-    git clone https://github.com/jaegertracing/helm-charts.git "$dest"
-    (
-      cd "$dest"
-      log "Using v2 branch for Jaeger v2..."
-      git checkout v2
-      log "Adding required Helm repositories..."
-      helm repo add bitnami https://charts.bitnami.com/bitnami >/dev/null 2>&1 || true
-      helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
-      helm repo add incubator https://charts.helm.sh/incubator >/dev/null 2>&1 || true
-      helm repo update >/dev/null
-      helm dependency build ./charts/jaeger
-    )
-  else
-    log "Jaeger Helm Charts already exist. Skipping clone."
-    # Ensure required repos exist even if charts folder already exists
-    helm repo add bitnami https://charts.bitnami.com/bitnami >/dev/null 2>&1 || true
-    helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
-    helm repo add incubator https://charts.helm.sh/incubator >/dev/null 2>&1 || true
-    helm repo update >/dev/null
-  fi
-}
+
 
 
 
@@ -255,13 +243,12 @@ main() {
   helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts >/dev/null 2>&1 || true
   helm repo add jaegertracing https://jaegertracing.github.io/helm-charts >/dev/null 2>&1 || true
   helm repo update >/dev/null
-  clone_jaeger_v2
+
 
   log "Deploying OpenSearch"
   helm upgrade --install opensearch opensearch/opensearch \
     --namespace opensearch --create-namespace \
-    --version 2.19.0 \
-    --set image.tag=2.11.0 \
+    --version "${OPENSEARCH_CHART_VERSION}" \
     -f "$SCRIPT_DIR/opensearch-values.yaml" \
     --wait --timeout 10m
   wait_for_statefulset opensearch opensearch-cluster-single "${ROLLOUT_TIMEOUT}s"
@@ -269,13 +256,15 @@ main() {
   log "Deploying OpenSearch Dashboards"
   helm upgrade --install opensearch-dashboards opensearch/opensearch-dashboards \
     --namespace opensearch \
+    --version "${OPENSEARCH_DASHBOARDS_CHART_VERSION}" \
     -f "$SCRIPT_DIR/opensearch-dashboard-values.yaml" \
     --wait --timeout 10m
   wait_for_deployment opensearch opensearch-dashboards "${ROLLOUT_TIMEOUT}s"
 
   
   log "Deploying Jaeger (all-in-one, no storage)"
-  helm $HELM_JAEGER_CMD jaeger "$SCRIPT_DIR/helm-charts/charts/jaeger" \
+  helm $HELM_JAEGER_CMD jaeger jaegertracing/jaeger \
+    --version "${JAEGER_CHART_VERSION}" \
     --namespace jaeger --create-namespace \
     --set allInOne.enabled=true \
     --set storage.type=none \
@@ -286,13 +275,17 @@ main() {
     --wait --timeout 10m
   wait_for_deployment jaeger jaeger "${ROLLOUT_TIMEOUT}s"
 
+  log "Deploying HotROD app..."
+  kubectl apply -n jaeger -f "$SCRIPT_DIR/hotrod.yaml"
+  wait_for_deployment jaeger jaeger-hotrod "${ROLLOUT_TIMEOUT}s"
+
   
   log "Creating Jaeger query ClusterIP service..."
   kubectl apply -n jaeger -f "$SCRIPT_DIR/jaeger-query-service.yaml"
   log "Jaeger query ClusterIP service created"
 
   log "Ensuring Jaeger Collector service endpoints are ready before deploying the demo"
-  wait_for_service_endpoints jaeger jaeger-collector 180
+  wait_for_service_endpoints jaeger jaeger 180
 
   log "Ensuring HotROD service endpoints are ready"
   wait_for_service_endpoints jaeger jaeger-hotrod 180
@@ -316,8 +309,41 @@ main() {
   # Deploy HTTPS ingress
   deploy_ingress
 
-  log "🎉 Deployment complete! Stack is ready."
+  
 
+  # Deploy Spark Dependencies CronJob
+  log "Deploying Spark Dependencies CronJob"
+  if kubectl apply -f "$SCRIPT_DIR/spark-dependencies-cronjob-opensearch.yaml"; then
+    log "Spark Dependencies CronJob deployed"
+    
+    # Trigger the job immediately
+    log "Triggering initial Spark Dependencies job..."
+    JOB_NAME="init-spark-dep-$(date +%s)"
+    
+    # Create a manual job from the cronjob template
+    if kubectl create job --from=cronjob/jaeger-spark-dependencies "$JOB_NAME" -n jaeger; then
+      log "Initial job '$JOB_NAME' triggered successfully"
+      
+      log "Waiting for initial Spark Dependencies job to complete (timeout: ${ROLLOUT_TIMEOUT}s)..."
+      if kubectl wait --for=condition=complete "job/$JOB_NAME" -n jaeger --timeout="${ROLLOUT_TIMEOUT}s"; then
+        log "Initial job '$JOB_NAME' completed successfully"
+      else
+        log "Initial job '$JOB_NAME' failed to complete or timed out"
+        kubectl describe job "$JOB_NAME" -n jaeger || true
+        kubectl logs "job/$JOB_NAME" -n jaeger || true
+        exit 1
+      fi
+    else
+      log " Failed to trigger initial job"
+      exit 1
+    fi
+  else
+    log "Failed to deploy Spark Dependencies CronJob"
+  fi
+ 
+
+  log "🎉 Deployment complete! Stack is ready."
 }
+
 
 main
