@@ -457,8 +457,8 @@ func (s *StorageIntegration) writeLargeTraceWithDuplicateSpanIds(
 			newSpan.SetSpanID(repeatedSpan.SpanID())
 		default:
 			var spanId [8]byte
-			//nolint:gosec // G115 // i is always positive
-			binary.BigEndian.PutUint64(spanId[:], uint64(i+1))
+			//nolint:gosec // G115
+			binary.BigEndian.PutUint64(spanId[:], uint64(i)+1)
 			newSpan.SetSpanID(spanId)
 		}
 		newSpan.SetStartTimestamp(pcommon.NewTimestampFromTime(newSpan.StartTimestamp().AsTime().Add(time.Second * time.Duration(i+1))))
