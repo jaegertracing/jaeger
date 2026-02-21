@@ -256,3 +256,15 @@ repro-check:
 	$(MAKE) clean
 	$(MAKE) build-all-platforms
 	shasum -b -a 256 --strict --check ./sha256sum.combined.txt
+
+
+
+# Test with log capture
+.PHONY: test-with-log
+test-with-log:
+	@set -o pipefail; $(MAKE) test 2>&1 | tee .test.log
+
+# Verify PR with proof for AI policy compliance
+.PHONY: verify-with-proof
+verify-with-proof: lint test-with-log
+	@./scripts/verify-with-proof.sh
