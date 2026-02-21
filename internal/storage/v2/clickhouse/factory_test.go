@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/config/configtls"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
@@ -255,6 +256,63 @@ func TestPurge(t *testing.T) {
 
 			err = f.Purge(context.Background())
 			require.ErrorContains(t, err, tt.expectedError)
+		})
+	}
+}
+
+func TestNewFactory_TLS(t *testing.T) {
+	tests := []struct {
+		name          string
+		cfg           Configuration
+		expectedError string
+	}{
+		{
+			name: "plain text connection (insecure: true)",
+			cfg: Configuration{
+				Addresses: []string{"localhost:9000"},
+				TLS: configtls.ClientConfig{
+					Insecure: true,
+				},
+			},
+		},
+		{
+			name: "tls connection with insecure skip verify",
+			cfg: Configuration{
+				Addresses: []string{"localhost:9000"},
+				TLS: configtls.ClientConfig{
+					Insecure:           false,
+					InsecureSkipVerify: true,
+				},
+			},
+		},
+		{
+			name: "invalid tls config",
+			cfg: Configuration{
+				Addresses: []string{"localhost:9000"},
+				TLS: configtls.ClientConfig{
+					Insecure: false,
+					Config: configtls.Config{
+						CAFile: "/non/existent/path",
+					},
+				},
+			},
+			expectedError: "failed to load ClickHouse TLS configuration",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, err := NewFactory(context.Background(), tt.cfg, telemetry.Settings{})
+			if tt.expectedError != "" {
+				require.ErrorContains(t, err, tt.expectedError)
+				require.Nil(t, f)
+			} else {
+				// It will likely fail at Ping if no server is running,
+				// but that means it passed the TLS loading logic.
+				if err != nil {
+					require.ErrorContains(t, err, "failed to ping ClickHouse")
+				}
+			}
 		})
 	}
 }

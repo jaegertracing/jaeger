@@ -48,6 +48,13 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 		},
 		DialTimeout: f.config.DialTimeout,
 	}
+	if !f.config.TLS.Insecure {
+		tlsCfg, err := f.config.TLS.LoadTLSConfig(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load ClickHouse TLS configuration: %w", err)
+		}
+		opts.TLS = tlsCfg
+	}
 	basicAuth := f.config.Auth.Basic.Get()
 	if basicAuth != nil {
 		opts.Auth.Username = basicAuth.Username
