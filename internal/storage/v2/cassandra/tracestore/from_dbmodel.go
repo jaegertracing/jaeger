@@ -70,7 +70,7 @@ func dbSpanToSpan(dbspan *dbmodel.Span, span ptrace.Span) {
 	span.SetName(dbspan.OperationName)
 	//nolint:gosec // G115 // dbspan.Flags is guaranteed non-negative by schema constraints
 	span.SetFlags(uint32(dbspan.Flags))
-	//nolint:gosec // G115 // dbspan.StartTime is guaranteed non-negative (epoch microseconds) by schema constraints
+	//nolint:gosec // G115 // epoch microseconds are semantically non-negative, safe conversion to uint64
 	span.SetStartTimestamp(dbTimeStampToOTLPTimeStamp(uint64(dbspan.StartTime)))
 	//nolint:gosec // G115 // dbspan.StartTime and dbspan.Duration is guaranteed non-negative by schema constraints
 	span.SetEndTimestamp(dbTimeStampToOTLPTimeStamp(uint64(dbspan.StartTime + dbspan.Duration)))
