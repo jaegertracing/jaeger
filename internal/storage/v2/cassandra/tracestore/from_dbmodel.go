@@ -77,7 +77,7 @@ func dbSpanToSpan(dbspan *dbmodel.Span, span ptrace.Span) {
 
 	parentSpanID := dbspan.ParentID
 	if parentSpanID != 0 {
-		//nolint:gosec // G115 // dbspan.ParentID is a span ID value guaranteed non-negative by schema constraints
+		//nolint:gosec // G115 // bit-preserving uint64<->int64 conversion for opaque span ID
 		span.SetParentSpanID(idutils.UInt64ToSpanID(uint64(parentSpanID)))
 	}
 
