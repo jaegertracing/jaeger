@@ -143,7 +143,7 @@ func spanToDbSpan(span ptrace.Span, scope pcommon.InstrumentationScope, process 
 		Tags:     getDbTags(span, scope),
 		Logs:     spanEventsToDbLogs(span.Events()),
 		Process:  process,
-		//nolint:gosec // G115 // span.Flags is guaranteed non-negative by schema constraints
+		//nolint:gosec // G115 // span.Flags is uint32, converting to int32 for DB storage (semantically non-negative, fits in int32)
 		Flags:       int32(span.Flags()),
 		ServiceName: process.ServiceName,
 		ParentID:    spanIDToDbSpanId(span.ParentSpanID()),
