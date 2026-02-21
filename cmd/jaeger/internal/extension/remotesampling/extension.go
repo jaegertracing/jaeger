@@ -42,14 +42,14 @@ var _ extension.Extension = (*rsExtension)(nil)
 const defaultResourceName = "sampling_store_leader"
 
 type rsExtension struct {
-	cfg              *Config
-	telemetry        component.TelemetrySettings
-	httpServer       *http.Server
-	grpcServer       *grpc.Server
-	strategyProvider samplingstrategy.Provider // TODO we should rename this to Provider, not "store"
-	adaptiveStore    samplingstore.Store
-	distLock         *leaderelection.DistributedElectionParticipant
-	shutdownWG       sync.WaitGroup
+	cfg           *Config
+	telemetry     component.TelemetrySettings
+	httpServer    *http.Server
+	grpcServer    *grpc.Server
+	provider      samplingstrategy.Provider
+	adaptiveStore samplingstore.Store
+	distLock      *leaderelection.DistributedElectionParticipant
+	shutdownWG    sync.WaitGroup
 }
 
 func newExtension(cfg *Config, telemetry component.TelemetrySettings) *rsExtension {
@@ -153,8 +153,8 @@ func (ext *rsExtension) Shutdown(ctx context.Context) error {
 		errs = append(errs, ext.distLock.Close())
 	}
 
-	if ext.strategyProvider != nil {
-		errs = append(errs, ext.strategyProvider.Close())
+	if ext.provider != nil {
+		errs = append(errs, ext.provider.Close())
 	}
 	return errors.Join(errs...)
 }
@@ -173,7 +173,7 @@ func (ext *rsExtension) startFileBasedStrategyProvider(_ context.Context) error 
 		return fmt.Errorf("failed to create the local file strategy store: %w", err)
 	}
 
-	ext.strategyProvider = provider
+	ext.provider = provider
 	return nil
 }
 
@@ -214,7 +214,7 @@ func (ext *rsExtension) startAdaptiveStrategyProvider(host component.Host) error
 	if err := provider.Start(); err != nil {
 		return fmt.Errorf("failed to start the adaptive strategy store: %w", err)
 	}
-	ext.strategyProvider = provider
+	ext.provider = provider
 	return nil
 }
 
@@ -223,7 +223,7 @@ func (ext *rsExtension) startHTTPServer(ctx context.Context, host component.Host
 	mf = mf.Namespace(metrics.NSOptions{Name: "jaeger_remote_sampling"})
 	handler := samplinghttp.NewHandler(samplinghttp.HandlerParams{
 		ConfigManager: &samplinghttp.ConfigManager{
-			SamplingProvider: ext.strategyProvider,
+			SamplingProvider: ext.provider,
 		},
 		MetricsFactory: mf,
 	})
@@ -262,7 +262,7 @@ func (ext *rsExtension) startGRPCServer(ctx context.Context, host component.Host
 		return err
 	}
 
-	api_v2.RegisterSamplingManagerServer(ext.grpcServer, samplinggrpc.NewHandler(ext.strategyProvider))
+	api_v2.RegisterSamplingManagerServer(ext.grpcServer, samplinggrpc.NewHandler(ext.provider))
 
 	healthServer := health.NewServer() // support health checks on the gRPC server
 	healthServer.SetServingStatus("jaeger.api_v2.SamplingManager", grpc_health_v1.HealthCheckResponse_SERVING)
