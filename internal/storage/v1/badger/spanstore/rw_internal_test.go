@@ -98,9 +98,9 @@ func TestDuplicateTraceIDDetection(t *testing.T) {
 		origStartTime := testSpan.StartTime
 
 		traceCount := 128
-		for k := 0; k < traceCount; k++ {
+		for range traceCount {
 			testSpan.TraceID.Low = rand.Uint64()
-			for i := 0; i < 32; i++ {
+			for range 32 {
 				testSpan.SpanID = model.SpanID(rand.Uint64())
 				testSpan.StartTime = origStartTime.Add(time.Duration(rand.Int31n(8000)) * time.Millisecond)
 				err := sw.WriteSpan(context.Background(), &testSpan)
@@ -164,7 +164,7 @@ func TestMergeJoin(t *testing.T) {
 	left := make([][]byte, 16)
 	right := make([][]byte, 16)
 
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		left[i] = make([]byte, 4)
 		binary.BigEndian.PutUint32(left[i], uint32(i))
 

@@ -83,7 +83,7 @@ func TestRunAcquireLockLoopFollowerOnly(t *testing.T) {
 	go p.Start()
 
 	expectedErrorMsg := "Failed to acquire lock"
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		// match logs specific to acquireLockErrMsg.
 		if match, _ := testutils.LogMatcher(2, expectedErrorMsg, logBuffer.Lines()); match {
 			break

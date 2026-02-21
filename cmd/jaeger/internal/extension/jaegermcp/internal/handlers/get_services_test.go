@@ -175,7 +175,7 @@ func TestGetServicesHandler_Success_WithPatternAndLimit(t *testing.T) {
 func TestGetServicesHandler_Success_DefaultLimit(t *testing.T) {
 	// Create more than default limit services
 	testServices := make([]string, 150)
-	for i := 0; i < 150; i++ {
+	for i := range 150 {
 		testServices[i] = "service-" + string(rune('a'+i%26))
 	}
 

@@ -22,7 +22,7 @@ func applyTestDefaults(cfg *Config) {
 		cfg.Indices.Spans.Shards = 3
 	}
 	if cfg.Indices.Spans.Replicas == nil {
-		cfg.Indices.Spans.Replicas = ptr(int64(1))
+		cfg.Indices.Spans.Replicas = new(int64(1))
 	}
 	if cfg.Indices.Spans.Priority == 0 {
 		cfg.Indices.Spans.Priority = 10

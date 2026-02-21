@@ -38,7 +38,7 @@ func TestInitMetrics(t *testing.T) {
 	testMetrics.Histogram.Record(42)
 
 	// wait for metrics
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		c, _ := f.Snapshot()
 		if _, ok := c["counter"]; ok {
 			break
