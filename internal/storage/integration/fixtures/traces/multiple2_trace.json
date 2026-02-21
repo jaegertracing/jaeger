@@ -1,25 +1,36 @@
 {
-  "spans": [
+  "resourceSpans": [
     {
-      "traceId": "AAAAAAAAAAAAAAAAAAACIg==",
-      "spanId": "AAAAAAAAAAM=",
-      "operationName": "",
-      "references": [],
-      "startTime": "2017-01-26T16:46:31.639875Z",
-      "duration": "100000ns",
-      "tags": [],
-      "process": {
-        "serviceName": "query22-service",
-        "tags": []
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "query22-service"
+            }
+          }
+        ]
       },
-      "logs": [
+      "scopeSpans": [
         {
-          "timestamp": "2017-01-26T16:46:31.639875Z",
-          "fields": []
-        },
-        {
-          "timestamp": "2017-01-26T16:46:31.639875Z",
-          "fields": []
+          "scope": {},
+          "spans": [
+            {
+              "traceId": "00000000000000000000000000000222",
+              "spanId": "0000000000000003",
+              "startTimeUnixNano": "1485449191639875000",
+              "endTimeUnixNano": "1485449191639975000",
+              "events": [
+                {
+                  "timeUnixNano": "1485449191639875000"
+                },
+                {
+                  "timeUnixNano": "1485449191639875000"
+                }
+              ],
+              "status": {}
+            }
+          ]
         }
       ]
     }

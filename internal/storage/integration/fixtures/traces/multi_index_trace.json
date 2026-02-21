@@ -1,48 +1,53 @@
- {
-  "spans": [
+{
+  "resourceSpans": [
     {
-      "traceId": "AAAAAAAAAAAAAAAAAAAABQ==",
-      "spanId": "AAAAAAAAAAE=",
-      "operationName": "operation-list-test2",
-      "references": [],
-      "startTime": "2017-01-26T00:03:31.639875Z",
-      "duration": "5000ns",
-      "tags": [],
-      "process": {
-        "serviceName": "query05-service",
-        "tags": []
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "query05-service"
+            }
+          }
+        ]
       },
-      "logs": [
+      "scopeSpans": [
         {
-          "timestamp": "2017-01-26T16:46:31.639875Z",
-          "fields": []
-        },
-        {
-          "timestamp": "2017-01-26T16:46:31.639875Z",
-          "fields": []
-        }
-      ]
-    },
-    {
-      "traceId": "AAAAAAAAAAAAAAAAAAAABQ==",
-      "spanId": "AAAAAAAAAAI=",
-      "operationName": "operation-list-test3",
-      "references": [],
-      "startTime": "2017-01-25T23:56:31.639875Z",
-      "duration": "5000ns",
-      "tags": [],
-      "process": {
-        "serviceName": "query05-service",
-        "tags": []
-      },
-      "logs": [
-        {
-          "timestamp": "2017-01-26T16:46:31.639875Z",
-          "fields": []
-        },
-        {
-          "timestamp": "2017-01-26T16:46:31.639875Z",
-          "fields": []
+          "scope": {},
+          "spans": [
+            {
+              "traceId": "00000000000000000000000000000005",
+              "spanId": "0000000000000001",
+              "name": "operation-list-test2",
+              "startTimeUnixNano": "1485389011639875000",
+              "endTimeUnixNano": "1485389011639880000",
+              "events": [
+                {
+                  "timeUnixNano": "1485449191639875000"
+                },
+                {
+                  "timeUnixNano": "1485449191639875000"
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "00000000000000000000000000000005",
+              "spanId": "0000000000000002",
+              "name": "operation-list-test3",
+              "startTimeUnixNano": "1485388591639875000",
+              "endTimeUnixNano": "1485388591639880000",
+              "events": [
+                {
+                  "timeUnixNano": "1485449191639875000"
+                },
+                {
+                  "timeUnixNano": "1485449191639875000"
+                }
+              ],
+              "status": {}
+            }
+          ]
         }
       ]
     }
