@@ -41,9 +41,7 @@ func ToDBModel(td ptrace.Traces) []dbmodel.Span {
 	for i := 0; i < resourceSpans.Len(); i++ {
 		rs := resourceSpans.At(i)
 		batch := resourceSpansToDbSpans(rs)
-		if batch != nil {
-			batches = append(batches, batch...)
-		}
+		batches = append(batches, batch...)
 	}
 
 	return batches
