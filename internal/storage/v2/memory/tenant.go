@@ -150,7 +150,9 @@ func (t *Tenant) getTraces(traceIds ...tracestore.GetTraceParams) []ptrace.Trace
 	for i := range traceIds {
 		index, ok := t.ids[traceIds[i].TraceID]
 		if ok {
-			traces = append(traces, t.traces[index].trace)
+			cp := ptrace.NewTraces()
+			t.traces[index].trace.CopyTo(cp)
+			traces = append(traces, cp)
 		}
 	}
 	return traces
