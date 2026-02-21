@@ -1,98 +1,112 @@
 {
-  "spans": [
+  "TraceID": "AAAAAAAAAAEAAAAAAAAAAA==",
+  "SpanID": 2,
+  "ParentID": 3,
+  "OperationName": "test-general-conversion",
+  "Flags": 1,
+  "StartTime": 1485467191639875,
+  "Duration": 5,
+  "Tags": [
     {
-      "trace_id": "AAAAAAAAAAEAAAAAAAAAAA==",
-      "span_id": "AAAAAAAAAAI=",
-      "operation_name": "test-general-conversion",
-      "references": [
+      "Key": "otel.scope.name",
+      "ValueType": "string",
+      "value_string": "testing-library"
+    },
+    {
+      "Key": "otel.scope.version",
+      "ValueType": "string",
+      "value_string": "1.1.1"
+    },
+    {
+      "Key": "peer.service",
+      "ValueType": "string",
+      "value_string": "service-y"
+    },
+    {
+      "Key": "peer.ipv4",
+      "ValueType": "int64",
+      "value_long": 23456
+    },
+    {
+      "Key": "blob",
+      "ValueType": "binary",
+      "value_binary": "AAAwOQ=="
+    },
+    {
+      "Key": "temperature",
+      "ValueType": "float64",
+      "value_double": 72.5
+    },
+    {
+      "Key": "error",
+      "ValueType": "bool",
+      "value_bool": true
+    },
+    {
+      "Key": "otel.status_description",
+      "ValueType": "string",
+      "value_string": "random-message"
+    },
+    {
+      "Key": "w3c.tracestate",
+      "ValueType": "string",
+      "value_string": "some-state"
+    }
+  ],
+  "Logs": [
+    {
+      "Timestamp": 1485467191639875,
+      "Fields": [
         {
-          "trace_id": "AAAAAAAAAAEAAAAAAAAAAA==",
-          "span_id": "AAAAAAAAAAM="
+          "Key": "event",
+          "ValueType": "string",
+          "value_string": "testing-event"
         },
         {
-          "trace_id": "AAAAAAAAAAEAAAAAAAAAAA==",
-          "span_id": "AAAAAAAAAAQ=",
-          "ref_type": 1
-        },
-        {
-          "trace_id": "AAAAAAAAAP8AAAAAAAAAAA==",
-          "span_id": "AAAAAAAAAP8="
+          "Key": "event-x",
+          "ValueType": "string",
+          "value_string": "event-y"
         }
-      ],
-      "flags": 0,
-      "start_time": "2017-01-26T21:46:31.639875Z",
-      "duration": 5000,
-      "tags": [
+      ]
+    },
+    {
+      "Timestamp": 1485467191639875,
+      "Fields": [
         {
-          "key": "otel.scope.name",
-          "v_str": "testing-library"
-        },
-        {
-          "key": "otel.scope.version",
-          "v_str": "1.1.1"
-        },
-        {
-          "key": "peer.service",
-          "v_str": "service-y"
-        },
-        {
-          "key": "peer.ipv4",
-          "v_type": 2,
-          "v_int64": 23456
-        },
-        {
-          "key": "blob",
-          "v_type": 4,
-          "v_binary": "AAAwOQ=="
-        },
-        {
-          "key": "temperature",
-          "v_type": 3,
-          "v_float64": 72.5
-        },
-        {
-          "key": "otel.status_code",
-          "v_str": "ERROR"
-        },
-        {
-          "key": "error",
-          "v_type": 1,
-          "v_bool": true
-        }
-      ],
-      "logs": [
-        {
-          "timestamp": "2017-01-26T21:46:31.639875Z",
-          "fields": [
-            {
-              "key": "event",
-              "v_str": "testing-event"
-            },
-            {
-              "key": "event-x",
-              "v_str": "event-y"
-            }
-          ]
-        },
-        {
-          "timestamp": "2017-01-26T21:46:31.639875Z",
-          "fields": [
-            {
-              "key": "x",
-              "v_str": "y"
-            }
-          ]
+          "Key": "x",
+          "ValueType": "string",
+          "value_string": "y"
         }
       ]
     }
   ],
-  "process": {
-    "service_name": "service-x",
-    "tags": [
+  "Refs": [
+    {
+      "RefType": "child-of",
+      "TraceID": "AAAAAAAAAAEAAAAAAAAAAA==",
+      "SpanID": 3
+    },
+    {
+      "RefType": "follows-from",
+      "TraceID": "AAAAAAAAAAEAAAAAAAAAAA==",
+      "SpanID": 4
+    },
+    {
+      "RefType": "child-of",
+      "TraceID": "AAAAAAAAAP8AAAAAAAAAAA==",
+      "SpanID": 255
+    }
+  ],
+  "Process": {
+    "ServiceName": "service-x",
+    "Tags": [
       {
-        "key": "sdk.version",
-        "v_str": "1.2.1"
+        "Key": "sdk.version",
+        "ValueType": "string",
+        "value_string": "1.2.1"
       }
     ]
-  }
+  },
+  "ServiceName": "service-x",
+  "SpanHash": 0
 }
