@@ -5,7 +5,7 @@
 # Server configuration
 grpc:
   # Host:Port to listen on
-  endpoint: :17271
+  endpoint: 127.0.0.1:17271
 
 
 # Storage configuration using the same format as jaeger v2

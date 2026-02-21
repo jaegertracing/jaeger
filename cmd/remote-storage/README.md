@@ -17,7 +17,7 @@ Configure remote-storage using a YAML configuration file with the `--config-file
 ```yaml
 # Server configuration
 grpc:
-  endpoint: :17271  # gRPC endpoint for remote storage API
+  endpoint: 127.0.0.1:17271  # gRPC endpoint for remote storage API
 
 # Storage configuration
 storage:
@@ -93,7 +93,7 @@ To enable multi-tenancy:
 
 ```yaml
 grpc:
-  host-port: :17271
+  endpoint: 127.0.0.1:17271
 
 multi_tenancy:
   enabled: true
