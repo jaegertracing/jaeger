@@ -127,6 +127,8 @@ func modelTraceFromOtelTrace(otelTrace ptrace.Traces) *model.Trace {
 }
 
 func validateTraces(expected, actual *model.Trace) error {
+	model.SortTrace(expected)
+	model.SortTrace(actual)
 	expectedBytes, err := json.Marshal(expected)
 	if err != nil {
 		return err
