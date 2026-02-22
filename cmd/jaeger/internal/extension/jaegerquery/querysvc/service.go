@@ -262,38 +262,69 @@ func (qs QueryService) limitTraceSize(seq iter.Seq2[[]ptrace.Traces, error]) ite
 					continue
 				}
 
+				// Count spans per TraceID within this ptrace.Traces and
+				// remember a representative span for each TraceID for warnings.
+				traceSpanCounts := make(map[pcommon.TraceID]int)
+				firstSpanByTraceID := make(map[pcommon.TraceID]ptrace.Span)
+
 				resources := trace.ResourceSpans()
-				if resources.Len() == 0 {
-					continue
+				for i := 0; i < resources.Len(); i++ {
+					scopeSpans := resources.At(i).ScopeSpans()
+					for j := 0; j < scopeSpans.Len(); j++ {
+						spans := scopeSpans.At(j).Spans()
+						for k := 0; k < spans.Len(); k++ {
+							span := spans.At(k)
+							traceID := span.TraceID()
+							// Skip spans without a TraceID.
+							if traceID.IsEmpty() {
+								continue
+							}
+							traceSpanCounts[traceID]++
+							if _, ok := firstSpanByTraceID[traceID]; !ok {
+								firstSpanByTraceID[traceID] = span
+							}
+						}
+					}
 				}
-				scopeSpans := resources.At(0).ScopeSpans()
-				if scopeSpans.Len() == 0 {
-					continue
-				}
-				spans := scopeSpans.At(0).Spans()
-				if spans.Len() == 0 {
+
+				if len(traceSpanCounts) == 0 {
 					continue
 				}
 
-				traceID := spans.At(0).TraceID()
+				// Determine if at least one TraceID in this chunk is still under the limit.
+				hasNonExceededTrace := false
+				for traceID, countInChunk := range traceSpanCounts {
+					if exceeded[traceID] {
+						// This trace has already exceeded the limit; ignore further spans.
+						continue
+					}
 
-				if exceeded[traceID] {
-					continue
+					currentCount := spanCounts[traceID]
+					if currentCount+countInChunk > qs.options.MaxTraceSize {
+						exceeded[traceID] = true
+						// Attach a warning to the first span for this traceID in the chunk
+						spanToKeep, ok := firstSpanByTraceID[traceID]
+						if ok {
+							jptrace.AddWarnings(spanToKeep, "trace size exceeded maximum allowed size")
+							warnTrace := ptrace.NewTraces()
+							rs := warnTrace.ResourceSpans().AppendEmpty()
+							ss := rs.ScopeSpans().AppendEmpty()
+							spanToKeep.CopyTo(ss.Spans().AppendEmpty())
+							validTraces = append(validTraces, warnTrace)
+						}
+						continue
+					}
+
+					spanCounts[traceID] = currentCount + countInChunk
+					hasNonExceededTrace = true
 				}
 
-				currentCount := spanCounts[traceID]
-				if currentCount+trace.SpanCount() > qs.options.MaxTraceSize {
-					exceeded[traceID] = true
-					jptrace.AddWarnings(spans.At(0), "trace size exceeded maximum allowed size")
+				if hasNonExceededTrace {
+					validTraces = append(validTraces, trace)
 				}
-				spanCounts[traceID] += trace.SpanCount()
-				validTraces = append(validTraces, trace)
 			}
 
-			if len(validTraces) > 0 {
-				return yield(validTraces, nil)
-			}
-			return true
+			return yield(validTraces, nil)
 		})
 	}
 }
