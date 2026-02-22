@@ -30,6 +30,8 @@ type QueryServiceOptions struct {
 	ArchiveTraceWriter tracestore.Writer
 	// MaxClockSkewAdjust is the maximum duration by which to adjust a span.
 	MaxClockSkewAdjust time.Duration
+	// MaxTraceSize is the maximum number of spans to load per trace.
+	MaxTraceSize int
 }
 
 // StorageCapabilities is a feature flag for query service
@@ -100,7 +102,7 @@ func (qs QueryService) GetTraces(
 	ctx context.Context,
 	params GetTraceParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
-	getTracesIter := qs.traceReader.GetTraces(ctx, params.TraceIDs...)
+	getTracesIter := qs.limitTraceSize(qs.traceReader.GetTraces(ctx, params.TraceIDs...))
 	return func(yield func([]ptrace.Traces, error) bool) {
 		foundTraceIDs, proceed := qs.receiveTraces(getTracesIter, yield, params.RawTraces)
 		if proceed && qs.options.ArchiveTraceReader != nil {
@@ -149,7 +151,7 @@ func (qs QueryService) FindTraces(
 	query TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		tracesIter := qs.traceReader.FindTraces(ctx, query.TraceQueryParams)
+		tracesIter := qs.limitTraceSize(qs.traceReader.FindTraces(ctx, query.TraceQueryParams))
 		qs.receiveTraces(tracesIter, yield, query.RawTraces)
 	}
 }
@@ -240,4 +242,58 @@ func (qs QueryService) receiveTraces(
 	}
 
 	return foundTraceIDs, proceed
+}
+
+func (qs QueryService) limitTraceSize(seq iter.Seq2[[]ptrace.Traces, error]) iter.Seq2[[]ptrace.Traces, error] {
+	if qs.options.MaxTraceSize <= 0 {
+		return seq
+	}
+	return func(yield func([]ptrace.Traces, error) bool) {
+		spanCounts := make(map[pcommon.TraceID]int)
+		exceeded := make(map[pcommon.TraceID]bool)
+
+		seq(func(traces []ptrace.Traces, err error) bool {
+			if err != nil {
+				return yield(nil, err)
+			}
+			var validTraces []ptrace.Traces
+			for _, trace := range traces {
+				if trace.SpanCount() == 0 {
+					continue
+				}
+
+				resources := trace.ResourceSpans()
+				if resources.Len() == 0 {
+					continue
+				}
+				scopeSpans := resources.At(0).ScopeSpans()
+				if scopeSpans.Len() == 0 {
+					continue
+				}
+				spans := scopeSpans.At(0).Spans()
+				if spans.Len() == 0 {
+					continue
+				}
+
+				traceID := spans.At(0).TraceID()
+
+				if exceeded[traceID] {
+					continue
+				}
+
+				currentCount := spanCounts[traceID]
+				if currentCount+trace.SpanCount() > qs.options.MaxTraceSize {
+					exceeded[traceID] = true
+					jptrace.AddWarnings(spans.At(0), "trace size exceeded maximum allowed size")
+				}
+				spanCounts[traceID] += trace.SpanCount()
+				validTraces = append(validTraces, trace)
+			}
+
+			if len(validTraces) > 0 {
+				return yield(validTraces, nil)
+			}
+			return true
+		})
+	}
 }

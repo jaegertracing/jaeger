@@ -764,3 +764,128 @@ func TestQueryServiceGetServicesReturnsEmptySlice(t *testing.T) {
 	require.NotNil(t, services)
 	require.Empty(t, services)
 }
+
+func TestGetTracesMaxTraceSize(t *testing.T) {
+	tqs := initializeTestService()
+	tqs.queryService.options.MaxTraceSize = 3
+
+	params := GetTraceParams{
+		TraceIDs: []tracestore.GetTraceParams{{TraceID: testTraceID}},
+	}
+
+	tqs.traceReader.On("GetTraces", mock.Anything, params.TraceIDs).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			trace := ptrace.NewTraces()
+			resources := trace.ResourceSpans().AppendEmpty()
+			scopes := resources.ScopeSpans().AppendEmpty()
+
+			for i := 1; i <= 5; i++ {
+				span := scopes.Spans().AppendEmpty()
+				span.SetTraceID(testTraceID)
+				span.SetSpanID(pcommon.SpanID([8]byte{byte(i)}))
+				span.SetName(fmt.Sprintf("span-%d", i))
+			}
+			yield([]ptrace.Traces{trace}, nil)
+		})).Once()
+
+	getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
+
+	// Test the default aggregation route first (RawTraces = false)
+	gotTracesAggTemp, errAggTemp := jiter.FlattenWithErrors(getTracesIter)
+	require.NoError(t, errAggTemp)
+	require.Len(t, gotTracesAggTemp, 1)
+
+	// Now mock again for the RawTraces=true simulation
+	tqs.traceReader.ExpectedCalls = nil
+	tqs.traceReader.On("GetTraces", mock.Anything, params.TraceIDs).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			trace := ptrace.NewTraces()
+			resources := trace.ResourceSpans().AppendEmpty()
+			scopes := resources.ScopeSpans().AppendEmpty()
+
+			for i := 1; i <= 5; i++ {
+				span := scopes.Spans().AppendEmpty()
+				span.SetTraceID(testTraceID)
+				span.SetSpanID(pcommon.SpanID([8]byte{byte(i)}))
+				span.SetName(fmt.Sprintf("span-%d", i))
+			}
+			yield([]ptrace.Traces{trace}, nil)
+		})).Once()
+
+	// Set RawTraces explicitly to false to aggregate
+	getTracesIter = tqs.queryService.GetTraces(context.Background(), GetTraceParams{
+		TraceIDs:  []tracestore.GetTraceParams{{TraceID: testTraceID}},
+		RawTraces: true,
+	})
+
+	// Test the RawTraces=true route (where traces aren't aggregated by receiver, just wrapped)
+	gotTracesRaw, errRaw := jiter.FlattenWithErrors(getTracesIter)
+	require.NoError(t, errRaw)
+	require.Len(t, gotTracesRaw, 1)
+
+	gotSpansRaw := gotTracesRaw[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans()
+	require.Equal(t, 5, gotSpansRaw.Len(), "With RawTraces=true and a single chunk returned by mock, limitTraceSize doesn't slice the inner chunk, it drops SUBSEQUENT chunks.")
+
+	// In the single chunk, jptrace.AddWarnings should be applied to the first span
+	warnings, ok := gotSpansRaw.At(0).Attributes().Get("@jaeger@warnings")
+	require.True(t, ok)
+	require.Equal(t, "trace size exceeded maximum allowed size", warnings.Slice().At(0).Str())
+
+	// Now mock again for the multiple chunks simulation
+	tqs.traceReader.ExpectedCalls = nil
+	tqs.traceReader.On("GetTraces", mock.Anything, params.TraceIDs).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			// Chunk 1: 2 spans
+			trace1 := ptrace.NewTraces()
+			resources1 := trace1.ResourceSpans().AppendEmpty()
+			scopes1 := resources1.ScopeSpans().AppendEmpty()
+			for i := 1; i <= 2; i++ {
+				span := scopes1.Spans().AppendEmpty()
+				span.SetTraceID(testTraceID)
+				span.SetSpanID(pcommon.SpanID([8]byte{byte(i)}))
+			}
+			if !yield([]ptrace.Traces{trace1}, nil) {
+				return
+			}
+
+			// Chunk 2: 2 spans (exceeds limit 3!)
+			trace2 := ptrace.NewTraces()
+			resources2 := trace2.ResourceSpans().AppendEmpty()
+			scopes2 := resources2.ScopeSpans().AppendEmpty()
+			for i := 3; i <= 4; i++ {
+				span := scopes2.Spans().AppendEmpty()
+				span.SetTraceID(testTraceID)
+				span.SetSpanID(pcommon.SpanID([8]byte{byte(i)}))
+			}
+			if !yield([]ptrace.Traces{trace2}, nil) {
+				return
+			}
+
+			// Chunk 3: 1 span (should be totally discarded)
+			trace3 := ptrace.NewTraces()
+			resources3 := trace3.ResourceSpans().AppendEmpty()
+			scopes3 := resources3.ScopeSpans().AppendEmpty()
+			span := scopes3.Spans().AppendEmpty()
+			span.SetTraceID(testTraceID)
+			span.SetSpanID(pcommon.SpanID([8]byte{5}))
+			yield([]ptrace.Traces{trace3}, nil)
+
+		})).Once()
+
+	getTracesIterAgg := tqs.queryService.GetTraces(context.Background(), GetTraceParams{
+		TraceIDs:  []tracestore.GetTraceParams{{TraceID: testTraceID}},
+		RawTraces: false,
+	})
+
+	gotTracesAgg, errAgg := jiter.FlattenWithErrors(getTracesIterAgg)
+	require.NoError(t, errAgg)
+	require.Len(t, gotTracesAgg, 1, "Aggregated into a single trace")
+
+	require.Equal(t, 4, gotTracesAgg[0].SpanCount(), "Should only include chunk 1 and chunk 2. Chunk 3 is dropped because limit was exceeded in chunk 2.")
+
+	// Verify warning on the first span of chunk 2 where limit was triggered
+	gotSpansAggChunk2 := gotTracesAgg[0].ResourceSpans().At(1).ScopeSpans().At(0).Spans()
+	warningsAgg, ok := gotSpansAggChunk2.At(0).Attributes().Get("@jaeger@warnings")
+	require.True(t, ok)
+	require.Equal(t, "trace size exceeded maximum allowed size", warningsAgg.Slice().At(0).Str())
+}
