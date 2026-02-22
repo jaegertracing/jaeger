@@ -42,6 +42,8 @@ const (
 	paramDurationMin    = "query.duration_min"
 	paramDurationMax    = "query.duration_max"
 	paramQueryRawTraces = "query.raw_traces"
+	paramLimit          = "limit"
+	paramAttributes     = "attributes"
 
 	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
 	routeFindTraces    = "/api/v3/traces"
@@ -231,12 +233,44 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 	queryParams.StartTimeMin = timeMinParsed
 	queryParams.StartTimeMax = timeMaxParsed
 
+	// Validate that both numTraces and limit are not specified simultaneously
+	if q.Get(paramNumTraces) != "" && q.Get(paramLimit) != "" {
+		h.tryParamError(w, fmt.Errorf("cannot specify both %s and %s", paramNumTraces, paramLimit), paramLimit)
+		return nil, true
+	}
+
 	if n := q.Get(paramNumTraces); n != "" {
 		numTraces, err := strconv.Atoi(n)
 		if h.tryParamError(w, err, paramNumTraces) {
 			return nil, true
 		}
+		if numTraces <= 0 {
+			h.tryParamError(w, fmt.Errorf("must be strictly positive"), paramNumTraces)
+			return nil, true
+		}
 		queryParams.SearchDepth = numTraces
+	}
+	if l := q.Get(paramLimit); l != "" {
+		limit, err := strconv.Atoi(l)
+		if h.tryParamError(w, err, paramLimit) {
+			return nil, true
+		}
+		if limit <= 0 {
+			h.tryParamError(w, fmt.Errorf("must be strictly positive"), paramLimit)
+			return nil, true
+		}
+		queryParams.SearchDepth = limit
+	}
+	if attr := q.Get(paramAttributes); attr != "" {
+		var parsedAttr map[string]string
+		if err := json.Unmarshal([]byte(attr), &parsedAttr); err != nil {
+			if h.tryParamError(w, err, paramAttributes) {
+				return nil, true
+			}
+		}
+		for k, v := range parsedAttr {
+			queryParams.Attributes.PutStr(k, v)
+		}
 	}
 
 	if d := q.Get(paramDurationMin); d != "" {
