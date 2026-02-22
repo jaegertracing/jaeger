@@ -7,6 +7,7 @@ import (
 	"context"
 	"iter"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
@@ -116,15 +117,29 @@ func (t *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQu
 
 func toDBTraceQueryParams(query tracestore.TraceQueryParams) dbmodel.TraceQueryParameters {
 	tags := make(map[string]string)
-	for key, val := range query.Attributes.All() {
-		tags[key] = val.AsString()
+	processTags := make(map[string]string)
+
+	if query.Attributes != (pcommon.Map{}) && query.Attributes.Len() > 0 {
+		query.Attributes.Range(func(k string, v pcommon.Value) bool {
+			tags[k] = v.AsString()
+			return true
+		})
 	}
+
+	if query.ResourceAttributes != (pcommon.Map{}) && query.ResourceAttributes.Len() > 0 {
+		query.ResourceAttributes.Range(func(k string, v pcommon.Value) bool {
+			processTags[k] = v.AsString()
+			return true
+		})
+	}
+
 	return dbmodel.TraceQueryParameters{
 		ServiceName:   query.ServiceName,
 		OperationName: query.OperationName,
 		StartTimeMin:  query.StartTimeMin,
 		StartTimeMax:  query.StartTimeMax,
 		Tags:          tags,
+		ProcessTags:   processTags,
 		NumTraces:     query.SearchDepth,
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,

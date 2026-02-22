@@ -100,14 +100,15 @@ func (q *Query) ToTraceQueryParams(t *testing.T) *tracestore.TraceQueryParams {
 	}
 
 	return &tracestore.TraceQueryParams{
-		ServiceName:   q.ServiceName,
-		OperationName: q.OperationName,
-		Attributes:    attributes,
-		StartTimeMin:  q.StartTimeMin,
-		StartTimeMax:  q.StartTimeMax,
-		DurationMin:   q.DurationMin,
-		DurationMax:   q.DurationMax,
-		SearchDepth:   q.NumTraces,
+		ServiceName:        q.ServiceName,
+		OperationName:      q.OperationName,
+		Attributes:         attributes,
+		ResourceAttributes: pcommon.NewMap(),
+		StartTimeMin:       q.StartTimeMin,
+		StartTimeMax:       q.StartTimeMax,
+		DurationMin:        q.DurationMin,
+		DurationMax:        q.DurationMax,
+		SearchDepth:        q.NumTraces,
 	}
 }
 
@@ -194,9 +195,11 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 			t.Log("🛑 Found unexpected services!")
 			for _, service := range actual {
 				iterTraces := s.TraceReader.FindTraces(context.Background(), tracestore.TraceQueryParams{
-					ServiceName:  service,
-					StartTimeMin: time.Now().Add(-2 * time.Hour),
-					StartTimeMax: time.Now(),
+					ServiceName:        service,
+					Attributes:         pcommon.NewMap(),
+					ResourceAttributes: pcommon.NewMap(),
+					StartTimeMin:       time.Now().Add(-2 * time.Hour),
+					StartTimeMax:       time.Now(),
 				})
 				for traces, err := range iterTraces {
 					if err != nil {
