@@ -113,10 +113,13 @@ type TraceQueryParameters struct {
 	ServiceName   string
 	OperationName string
 	Tags          map[string]string
-	StartTimeMin  time.Time
-	StartTimeMax  time.Time
-	DurationMin   time.Duration
-	DurationMax   time.Duration
+	// ProcessTags are used to query resource-level attributes (e.g. resource.service.name)
+	// which are stored in Elasticsearch's process.tags / process.tag fields.
+	ProcessTags  map[string]string
+	StartTimeMin time.Time
+	StartTimeMax time.Time
+	DurationMin  time.Duration
+	DurationMax  time.Duration
 	// TODO: Rename NumTraces to SearchDepth
 	NumTraces int
 }
