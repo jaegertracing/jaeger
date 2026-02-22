@@ -42,6 +42,8 @@ const (
 	paramDurationMin    = "query.duration_min"
 	paramDurationMax    = "query.duration_max"
 	paramQueryRawTraces = "query.raw_traces"
+	paramLimit          = "limit"
+	paramAttributes     = "attributes"
 
 	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
 	routeFindTraces    = "/api/v3/traces"
@@ -237,6 +239,24 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 			return nil, true
 		}
 		queryParams.SearchDepth = numTraces
+	}
+	if l := q.Get(paramLimit); l != "" {
+		limit, err := strconv.Atoi(l)
+		if h.tryParamError(w, err, paramLimit) {
+			return nil, true
+		}
+		queryParams.SearchDepth = limit
+	}
+	if attr := q.Get(paramAttributes); attr != "" {
+		var parsedAttr map[string]string
+		if err := json.Unmarshal([]byte(attr), &parsedAttr); err != nil {
+			if h.tryParamError(w, err, paramAttributes) {
+				return nil, true
+			}
+		}
+		for k, v := range parsedAttr {
+			queryParams.Attributes.PutStr(k, v)
+		}
 	}
 
 	if d := q.Get(paramDurationMin); d != "" {
