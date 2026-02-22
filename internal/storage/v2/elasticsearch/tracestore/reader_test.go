@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"iter"
+	"strings"
 	"testing"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 func TestTraceReader_GetServices(t *testing.T) {
@@ -227,6 +229,7 @@ func TestTraceReader_FindTraceIDs_Error(t *testing.T) {
 			}
 			dbTraceQueryParams := dbmodel.TraceQueryParameters{
 				Tags:          map[string]string{"key1": "val1"},
+				ProcessTags:   map[string]string{},
 				StartTimeMin:  ts,
 				ServiceName:   "testing-service-name",
 				OperationName: "testing-operation-name",
@@ -252,10 +255,131 @@ func Test_NewTraceReader(t *testing.T) {
 	assert.IsType(t, &spanstore.SpanReader{}, reader.spanReader)
 }
 
+func TestTraceReader_FindTraceIDs_OTLPQueryTranslation(t *testing.T) {
+	tests := []struct {
+		name        string
+		queryAttr   string
+		queryVal    string
+		expectedTag string
+		expectedVal string
+	}{
+		{
+			name:        "scope.name translation",
+			queryAttr:   "scope.name",
+			queryVal:    "my-scope",
+			expectedTag: otelsemconv.AttributeOtelScopeName,
+			expectedVal: "my-scope",
+		},
+		{
+			name:        "scope.version translation",
+			queryAttr:   "scope.version",
+			queryVal:    "1.0.0",
+			expectedTag: otelsemconv.AttributeOtelScopeVersion,
+			expectedVal: "1.0.0",
+		},
+		{
+			name:        "resource attribute translation",
+			queryAttr:   "resource.service.instance.id",
+			queryVal:    "instance-1",
+			expectedTag: "service.instance.id",
+			expectedVal: "instance-1",
+		},
+		{
+			name:        "scope attribute translation",
+			queryAttr:   "scope.custom.attr",
+			queryVal:    "custom-val",
+			expectedTag: "scope.custom.attr",
+			expectedVal: "custom-val",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			coreReader := &mocks.CoreSpanReader{}
+			reader := TraceReader{spanReader: coreReader}
+
+			attrs := pcommon.NewMap()
+			// All query keys go into Attributes; resource.X prefix maps to ProcessTags internally
+			attrs.PutStr(tt.queryAttr, tt.queryVal)
+
+			traceQueryParams := tracestore.TraceQueryParams{
+				Attributes:   attrs,
+				StartTimeMin: time.Now().Add(-1 * time.Hour),
+				StartTimeMax: time.Now(),
+			}
+
+			expectedDBParams := mock.MatchedBy(func(p dbmodel.TraceQueryParameters) bool {
+				// For resource attributes, check ProcessTags
+				if strings.HasPrefix(tt.queryAttr, "resource.") {
+					if val, ok := p.ProcessTags[tt.expectedTag]; ok {
+						return val == tt.expectedVal
+					}
+					return false
+				}
+				// For other attributes, check Tags
+				if val, ok := p.Tags[tt.expectedTag]; ok {
+					return val == tt.expectedVal
+				}
+				return false
+			})
+
+			coreReader.On("FindTraceIDs", mock.Anything, expectedDBParams).Return([]dbmodel.TraceID{}, nil)
+
+			for _, err := range reader.FindTraceIDs(context.Background(), traceQueryParams) {
+				require.NoError(t, err)
+			}
+
+			coreReader.AssertExpectations(t)
+		})
+	}
+}
+
 func fromDBTraceId(t *testing.T, traceID dbmodel.TraceID) tracestore.FoundTraceID {
 	traceId, err := convertTraceIDFromDB(traceID)
 	require.NoError(t, err)
 	return tracestore.FoundTraceID{
 		TraceID: traceId,
+	}
+}
+
+func TestTraceReader_FindTraces_WithAttributes(t *testing.T) {
+	coreReader := &mocks.CoreSpanReader{}
+	reader := TraceReader{spanReader: coreReader}
+
+	attrs := pcommon.NewMap()
+	attrs.PutStr("key1", "val1")
+	// Resource attributes use resource. prefix
+	attrs.PutStr("resource.res1", "val1")
+
+	now := time.Now()
+	query := tracestore.TraceQueryParams{
+		ServiceName:   "service",
+		OperationName: "operation",
+		Attributes:    attrs,
+		StartTimeMin:  now,
+		StartTimeMax:  now.Add(time.Hour),
+		DurationMin:   time.Minute,
+		DurationMax:   time.Hour,
+		SearchDepth:   100,
+	}
+
+	expectedDBParams := dbmodel.TraceQueryParameters{
+		ServiceName:   "service",
+		OperationName: "operation",
+		Tags:          map[string]string{"key1": "val1"},
+		ProcessTags:   map[string]string{"res1": "val1"},
+		StartTimeMin:  now,
+		StartTimeMax:  now.Add(time.Hour),
+		DurationMin:   time.Minute,
+		DurationMax:   time.Hour,
+		NumTraces:     100,
+	}
+
+	coreReader.On("FindTraces", mock.Anything, expectedDBParams).Return([]dbmodel.Trace{}, nil)
+
+	traces := reader.FindTraces(context.Background(), query)
+
+	for _, err := range traces {
+		require.NoError(t, err)
 	}
 }
