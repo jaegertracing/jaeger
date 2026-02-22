@@ -8,8 +8,24 @@ from bisect import insort
 from prometheus_client.parser import text_string_to_metric_families
 import re
 
-# Configuration for transient labels that should be normalized during comparison
+# Configuration for transient labels that should be normalized during comparison.
+# 'GLOBAL' defines patterns applied to all metrics in addition to any
+# service-specific overrides; ordering in this dictionary does not affect behavior.
 TRANSIENT_LABEL_PATTERNS = {
+    'GLOBAL': {
+        'otel_scope_version': {
+            'pattern': r'.*',
+            'replacement': 'version'
+        },
+        'k8s_namespace_name': {
+            'pattern': r'.*',
+            'replacement': 'namespace'
+        },
+        'namespace': {
+            'pattern': r'.*',
+            'replacement': 'namespace'
+        }
+    },
     'kafka': {
         'topic': {
             'pattern': r'jaeger-spans-\d+',
@@ -17,13 +33,6 @@ TRANSIENT_LABEL_PATTERNS = {
         }
     },
     # Add more patterns here as needed
-    # Example:
-    # 'elasticsearch': {
-    #     'index': {
-    #         'pattern': r'jaeger-\d{4}-\d{2}-\d{2}',
-    #         'replacement': 'jaeger-YYYY-MM-DD'
-    #     }
-    # }
 }
 
 METRIC_EXCLUSION_RULES = {
@@ -72,7 +81,7 @@ def suppress_transient_labels(metric_name, labels):
     labels_copy = labels.copy()
     
     for service_pattern, label_configs in TRANSIENT_LABEL_PATTERNS.items():
-        if service_pattern in metric_name:
+        if service_pattern == 'GLOBAL' or service_pattern in metric_name:
             for label_name, pattern_config in label_configs.items():
                 if label_name in labels_copy:
                     pattern = pattern_config['pattern']
