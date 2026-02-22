@@ -15,6 +15,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	otelsemconv "github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 var errInvalidMaxTraces = errors.New("max traces must be greater than zero")
@@ -279,13 +280,13 @@ func validSpan(resourceAttributes pcommon.Map, scope pcommon.InstrumentationScop
 		}
 	}
 
-	if scopeNameAttr, ok := query.Attributes.Get("scope.name"); ok {
+	if scopeNameAttr, ok := query.Attributes.Get(otelsemconv.AttributeOtelScopeName); ok {
 		if scopeNameAttr.AsString() != scope.Name() {
 			return false
 		}
 	}
 
-	if scopeVersionAttr, ok := query.Attributes.Get("scope.version"); ok {
+	if scopeVersionAttr, ok := query.Attributes.Get(otelsemconv.AttributeOtelScopeVersion); ok {
 		if scopeVersionAttr.AsString() != scope.Version() {
 			return false
 		}
@@ -295,8 +296,8 @@ func validSpan(resourceAttributes pcommon.Map, scope pcommon.InstrumentationScop
 		if key == errorAttribute ||
 			key == "span.status" ||
 			key == "span.kind" ||
-			key == "scope.name" ||
-			key == "scope.version" {
+			key == otelsemconv.AttributeOtelScopeName ||
+			key == otelsemconv.AttributeOtelScopeVersion {
 			continue
 		}
 
