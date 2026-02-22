@@ -333,6 +333,16 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 			expErr: paramLimit,
 		},
 		{
+			name:   "bad limit strictly positive",
+			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramLimit: "0"},
+			expErr: paramLimit,
+		},
+		{
+			name:   "bad numTraces strictly positive",
+			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramNumTraces: "-5"},
+			expErr: paramNumTraces,
+		},
+		{
 			name:   "bad attributes",
 			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramAttributes: "foo"},
 			expErr: paramAttributes,
@@ -434,7 +444,6 @@ func TestHTTPGatewayGetServicesEmptyResponse(t *testing.T) {
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 	gw.router.ServeHTTP(w, r)
-	fmt.Println("RESPONSE BODY:", w.Body.String())
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.JSONEq(t, `{"services":[]}`, w.Body.String())
 	gw.reader.AssertExpectations(t)
