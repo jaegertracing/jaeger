@@ -323,10 +323,11 @@ func (s *SpanReader) GetOperations(
 	jaegerIndices := s.timeRangeIndices(
 		s.serviceIndexPrefix,
 		s.serviceIndex.DateLayout,
-		currentTime.Add(-s.maxSpanAge),
+		currentTime.Add(-dawnOfTimeSpanAge), // ✅ FIX
 		currentTime,
 		cfg.RolloverFrequencyAsNegativeDuration(s.serviceIndex.RolloverFrequency),
 	)
+
 	operations, err := s.serviceOperationStorage.getOperations(ctx, jaegerIndices, query.ServiceName, s.maxDocCount)
 	if err != nil {
 		return nil, err
