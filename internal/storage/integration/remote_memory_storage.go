@@ -52,9 +52,9 @@ func StartNewRemoteMemoryStorage(t *testing.T, port int) *RemoteMemoryStorage {
 	)
 	require.NoError(t, err)
 
-	server, err := app.NewServer(context.Background(), grpcCfg, traceFactory, traceFactory, tm, telset)
+	server, err := app.NewServer(t.Context(), grpcCfg, traceFactory, traceFactory, tm, telset)
 	require.NoError(t, err)
-	require.NoError(t, server.Start(context.Background()))
+	require.NoError(t, server.Start(t.Context()))
 
 	conn, err := grpc.NewClient(
 		grpcCfg.NetAddr.Endpoint,
@@ -65,7 +65,7 @@ func StartNewRemoteMemoryStorage(t *testing.T, port int) *RemoteMemoryStorage {
 	healthClient := grpc_health_v1.NewHealthClient(conn)
 	require.Eventually(t, func() bool {
 		req := &grpc_health_v1.HealthCheckRequest{}
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second*1)
 		defer cancel()
 		resp, err := healthClient.Check(ctx, req)
 		if err != nil {

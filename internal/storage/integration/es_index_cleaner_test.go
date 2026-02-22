@@ -37,7 +37,7 @@ func TestIndexCleaner_doNotFailOnEmptyStorage(t *testing.T) {
 	})
 	client, err := createESClient(t, getESHttpClient(t))
 	require.NoError(t, err)
-	_, err = client.DeleteIndex("*").Do(context.Background())
+	_, err = client.DeleteIndex("*").Do(t.Context())
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -68,7 +68,7 @@ func TestIndexCleaner_doNotFailOnFullStorage(t *testing.T) {
 		{envs: []string{"ARCHIVE=true"}},
 	}
 	for _, test := range tests {
-		_, err = client.DeleteIndex("*").Do(context.Background())
+		_, err = client.DeleteIndex("*").Do(t.Context())
 		require.NoError(t, err)
 		// Create Indices with adaptive sampling disabled (set to false).
 		err := createAllIndices(client, "", false)
@@ -148,7 +148,7 @@ func TestIndexCleaner(t *testing.T) {
 
 func runIndexCleanerTest(t *testing.T, client *elastic.Client, v8Client *elasticsearch8.Client, prefix string, expectedIndices, envVars []string, adaptiveSampling bool) {
 	// make sure ES is clean
-	_, err := client.DeleteIndex("*").Do(context.Background())
+	_, err := client.DeleteIndex("*").Do(t.Context())
 	require.NoError(t, err)
 	defer cleanESIndexTemplates(t, client, v8Client, prefix)
 	err = createAllIndices(client, prefix, adaptiveSampling)
