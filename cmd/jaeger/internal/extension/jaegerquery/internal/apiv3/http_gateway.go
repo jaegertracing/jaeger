@@ -238,11 +238,19 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 		if h.tryParamError(w, err, paramNumTraces) {
 			return nil, true
 		}
+		if numTraces <= 0 {
+			h.tryParamError(w, fmt.Errorf("must be strictly positive"), paramNumTraces)
+			return nil, true
+		}
 		queryParams.SearchDepth = numTraces
 	}
 	if l := q.Get(paramLimit); l != "" {
 		limit, err := strconv.Atoi(l)
 		if h.tryParamError(w, err, paramLimit) {
+			return nil, true
+		}
+		if limit <= 0 {
+			h.tryParamError(w, fmt.Errorf("must be strictly positive"), paramLimit)
 			return nil, true
 		}
 		queryParams.SearchDepth = limit
