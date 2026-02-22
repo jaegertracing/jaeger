@@ -103,6 +103,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 
 	opts := querysvc.QueryServiceOptions{
 		MaxClockSkewAdjust: s.config.MaxClockSkewAdjust,
+		MaxTraceSize:       s.config.MaxTraceSize,
 	}
 	if err := s.addArchiveStorage(&opts, host); err != nil {
 		return err

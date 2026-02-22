@@ -36,6 +36,8 @@ type QueryOptions struct {
 	Tenancy tenancy.Options `mapstructure:"multi_tenancy"`
 	// MaxClockSkewAdjust is the maximum duration by which jaeger-query will adjust a span.
 	MaxClockSkewAdjust time.Duration `mapstructure:"max_clock_skew_adjust"  valid:"optional"`
+	// MaxTraceSize is the maximum trace size that jaeger-query could load.
+	MaxTraceSize string `mapstructure:"max_trace_size"  valid:"optional"`
 	// EnableTracing determines whether traces will be emitted by jaeger-query.
 	EnableTracing bool `mapstructure:"enable_tracing"`
 	// HTTP holds the HTTP configuration that the query service uses to serve requests.
@@ -46,7 +48,8 @@ type QueryOptions struct {
 
 func DefaultQueryOptions() QueryOptions {
 	return QueryOptions{
-		MaxClockSkewAdjust: 0, // disabled by default
+		MaxClockSkewAdjust: 0,   // disabled by default
+		MaxTraceSize:       "0", // disabled by default
 		HTTP: confighttp.ServerConfig{
 			NetAddr: confignet.AddrConfig{
 				Endpoint:  ports.PortToHostPort(ports.QueryHTTP),
