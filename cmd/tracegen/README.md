@@ -9,7 +9,8 @@ The binary is available from the Releases page, as well as a Docker image:
 $ docker run jaegertracing/jaeger-tracegen -service abcd -traces 10
 ```
 
-The generator can be configured to export traces in different formats, via `-exporter` flag.
+The generator can be configured to export traces in different formats, via `-trace-exporter` flag.
+
 By default, the exporters send data to `localhost`. If running in a container, this refers
 to the networking namespace of the container itself, so to export to another container,
 the exporters need to be provided with appropriate location.
