@@ -343,6 +343,11 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 			expErr: paramNumTraces,
 		},
 		{
+			name:   "conflict limit and numTraces",
+			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramLimit: "10", paramNumTraces: "20"},
+			expErr: paramLimit,
+		},
+		{
 			name:   "bad attributes",
 			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramAttributes: "foo"},
 			expErr: paramAttributes,

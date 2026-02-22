@@ -233,6 +233,12 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 	queryParams.StartTimeMin = timeMinParsed
 	queryParams.StartTimeMax = timeMaxParsed
 
+	// Validate that both numTraces and limit are not specified simultaneously
+	if q.Get(paramNumTraces) != "" && q.Get(paramLimit) != "" {
+		h.tryParamError(w, fmt.Errorf("cannot specify both %s and %s", paramNumTraces, paramLimit), paramLimit)
+		return nil, true
+	}
+
 	if n := q.Get(paramNumTraces); n != "" {
 		numTraces, err := strconv.Atoi(n)
 		if h.tryParamError(w, err, paramNumTraces) {
