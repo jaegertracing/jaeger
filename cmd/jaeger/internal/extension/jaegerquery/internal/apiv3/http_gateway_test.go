@@ -98,6 +98,7 @@ func TestHTTPGatewayGetTrace(t *testing.T) {
 		name          string
 		params        map[string]string
 		expectedQuery tracestore.GetTraceParams
+		rawTraces     bool
 	}{
 		{
 			name:   "TestGetTrace",
@@ -117,6 +118,16 @@ func TestHTTPGatewayGetTrace(t *testing.T) {
 				Start:   time.Date(2000, time.January, 2, 12, 30, 8, 999999998, time.UTC),
 				End:     time.Date(2000, time.April, 5, 13, 55, 16, 999999992, time.UTC),
 			},
+		},
+		{
+			name: "TestGetTraceWithRawTraces",
+			params: map[string]string{
+				"raw_traces": "true",
+			},
+			expectedQuery: tracestore.GetTraceParams{
+				TraceID: traceID,
+			},
+			rawTraces: true,
 		},
 	}
 
@@ -180,6 +191,114 @@ func TestHTTPGatewayFindTracesEmptyResponse(t *testing.T) {
 	gw.router.ServeHTTP(w, r)
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	assert.Contains(t, w.Body.String(), "No traces found")
+}
+
+func TestHTTPGatewayFindTracesWithAttributes(t *testing.T) {
+	time1 := time.Now().UTC().Truncate(time.Nanosecond)
+	time2 := time1.Add(-time.Second).UTC().Truncate(time.Nanosecond)
+
+	q := url.Values{}
+	q.Set(paramServiceName, "test-service")
+	q.Set(paramTimeMin, time1.Format(time.RFC3339Nano))
+	q.Set(paramTimeMax, time2.Format(time.RFC3339Nano))
+	q.Set(paramAttributes, `{"http.status_code":"200","error":"true"}`)
+
+	expectedAttrs := pcommon.NewMap()
+	expectedAttrs.PutStr("http.status_code", "200")
+	expectedAttrs.PutStr("error", "true")
+
+	expectedParams := tracestore.TraceQueryParams{
+		ServiceName:  "test-service",
+		Attributes:   expectedAttrs,
+		StartTimeMin: time1,
+		StartTimeMax: time2,
+	}
+
+	gw := setupHTTPGatewayNoServer(t, "")
+	gw.reader.
+		On("FindTraces", matchContext, expectedParams).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{makeTestTrace()}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	gw.reader.AssertExpectations(t)
+}
+
+func TestHTTPGatewayFindTracesWithRawTraces(t *testing.T) {
+	time1 := time.Now().UTC().Truncate(time.Nanosecond)
+	time2 := time1.Add(-time.Second).UTC().Truncate(time.Nanosecond)
+
+	q := url.Values{}
+	q.Set(paramServiceName, "test-service")
+	q.Set(paramTimeMin, time1.Format(time.RFC3339Nano))
+	q.Set(paramTimeMax, time2.Format(time.RFC3339Nano))
+	q.Set(paramQueryRawTraces, "true")
+
+	expectedParams := tracestore.TraceQueryParams{
+		ServiceName:  "test-service",
+		Attributes:   pcommon.NewMap(),
+		StartTimeMin: time1,
+		StartTimeMax: time2,
+	}
+
+	gw := setupHTTPGatewayNoServer(t, "")
+	gw.reader.
+		On("FindTraces", matchContext, expectedParams).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{makeTestTrace()}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	gw.reader.AssertExpectations(t)
+}
+
+func TestHTTPGatewayFindTracesWithEmptyAttributeKey(t *testing.T) {
+	time1 := time.Now().UTC().Truncate(time.Nanosecond)
+	time2 := time1.Add(-time.Second).UTC().Truncate(time.Nanosecond)
+
+	q := url.Values{}
+	q.Set(paramServiceName, "test-service")
+	q.Set(paramTimeMin, time1.Format(time.RFC3339Nano))
+	q.Set(paramTimeMax, time2.Format(time.RFC3339Nano))
+	// Include an empty key which should be skipped
+	q.Set(paramAttributes, `{"":"ignored","valid.key":"value"}`)
+
+	// Only the valid key should be in the expected attributes
+	expectedAttrs := pcommon.NewMap()
+	expectedAttrs.PutStr("valid.key", "value")
+
+	expectedParams := tracestore.TraceQueryParams{
+		ServiceName:  "test-service",
+		Attributes:   expectedAttrs,
+		StartTimeMin: time1,
+		StartTimeMax: time2,
+	}
+
+	gw := setupHTTPGatewayNoServer(t, "")
+	gw.reader.
+		On("FindTraces", matchContext, expectedParams).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{makeTestTrace()}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	gw.reader.AssertExpectations(t)
 }
 
 func TestHTTPGatewayGetTraceMalformedInputErrors(t *testing.T) {
@@ -326,6 +445,15 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 				paramQueryRawTraces: "foobar",
 			},
 			expErr: paramQueryRawTraces,
+		},
+		{
+			name: "bad attributes",
+			params: map[string]string{
+				paramTimeMin:    goodTime,
+				paramTimeMax:    goodTime,
+				paramAttributes: "not-valid-json",
+			},
+			expErr: paramAttributes,
 		},
 	}
 	for _, tc := range testCases {
