@@ -73,7 +73,7 @@ func TestEmptySpanNameSanitizer_ReadOnly(t *testing.T) {
 	result := sanitizer(traces)
 
 	// The original read-only traces should still have an empty span name.
-	assert.Equal(t, "", traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Name())
+	assert.Empty(t, traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Name())
 	// The returned traces should have the placeholder span name.
 	assert.Equal(t, "empty-span-name", result.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Name())
 }
