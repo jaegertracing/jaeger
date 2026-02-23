@@ -24,7 +24,7 @@ import (
 )
 
 // Use timestamp with microsecond granularity to work well with jaeger thrift translation
-var testSpanEventTime = time.Date(2020, 2, 11, 20, 26, 13, 123000, time.UTC).UnixNano() / 1000
+var testSpanEventTime = time.Date(2020, 2, 11, 20, 26, 13, 123000, time.UTC).UnixMicro()
 
 func TestCodeFromAttr(t *testing.T) {
 	tests := []struct {

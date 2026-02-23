@@ -37,7 +37,7 @@ func ToDBModel(td ptrace.Traces) []dbmodel.Span {
 		return []dbmodel.Span{}
 	}
 
-	batches := make([]dbmodel.Span, 0, resourceSpans.Len())
+	batches := make([]dbmodel.Span, 0, td.SpanCount())
 	for i := 0; i < resourceSpans.Len(); i++ {
 		rs := resourceSpans.At(i)
 		batch := resourceSpansToDbSpans(rs)
@@ -366,7 +366,7 @@ func getTagsFromInstrumentationLibrary(scope pcommon.InstrumentationScope) ([]db
 		keyValues = append(keyValues, kv)
 	}
 
-	return keyValues, true
+	return keyValues, len(keyValues) > 0
 }
 
 func dbRefTypeFromLink(link ptrace.SpanLink) string {
