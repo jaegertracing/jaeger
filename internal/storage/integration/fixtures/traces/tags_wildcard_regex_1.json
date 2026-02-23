@@ -18,6 +18,7 @@
             {
               "traceId": "00000000000000000000000000000a12",
               "spanId": "0000000000000004",
+              "name": "query24-operation",
               "startTimeUnixNano": "1485449191639875000",
               "endTimeUnixNano": "1485449191639877000",
               "attributes": [
@@ -28,8 +29,7 @@
                   }
                 }
               ],
-              "status": {},
-              "name": "empty-span-name"
+              "status": {}
             }
           ]
         }

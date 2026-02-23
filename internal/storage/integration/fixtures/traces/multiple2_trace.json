@@ -18,7 +18,7 @@
             {
               "traceId": "00000000000000000000000000000222",
               "spanId": "0000000000000003",
-              "name": "empty-span-name",
+              "name": "query22-operation",
               "startTimeUnixNano": "1485449191639875000",
               "endTimeUnixNano": "1485449191639975000",
               "events": [

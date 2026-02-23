@@ -48,6 +48,7 @@
             {
               "traceId": "00000000000000000000000000000016",
               "spanId": "0000000000000005",
+              "name": "query16-operation",
               "startTimeUnixNano": "1485449191639875000",
               "endTimeUnixNano": "1485449191639876000",
               "events": [
@@ -58,8 +59,7 @@
                   "timeUnixNano": "1485449191639875000"
                 }
               ],
-              "status": {},
-              "name": "empty-span-name"
+              "status": {}
             }
           ]
         }
