@@ -37,7 +37,7 @@ type typedAttributeValue struct {
 
 func appendNewlineAndIndent(q *strings.Builder, indent int) {
 	q.WriteString("\n")
-	for i := 0; i < indent; i++ {
+	for range indent {
 		q.WriteString("\t")
 	}
 }

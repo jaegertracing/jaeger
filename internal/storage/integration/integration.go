@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -163,7 +162,7 @@ func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
 
 func (*StorageIntegration) waitForCondition(t *testing.T, predicate func(t *testing.T) bool) bool {
 	const iterations = 100 // Will wait at most 100 seconds.
-	for i := 0; i < iterations; i++ {
+	for i := range iterations {
 		if predicate(t) {
 			return true
 		}
@@ -478,17 +477,27 @@ func (*StorageIntegration) getTraceFixture(t *testing.T, fixture string) ptrace.
 }
 
 func getTraceFixtureExact(t *testing.T, fileName string) ptrace.Traces {
+	// #nosec
+	inStr, err := fixtures.ReadFile(fileName)
+	require.NoError(t, err, "Not expecting error when loading fixture %s", fileName)
+	var jsonMap map[string]any
+	err = json.Unmarshal(inStr, &jsonMap)
+	require.NoError(t, err)
+	if _, ok := jsonMap["resourceSpans"]; ok {
+		return loadOTLPTrace(t, inStr)
+	}
 	var trace model.Trace
-	loadAndParseJSONPB(t, fileName, &trace)
+	err = jsonpb.Unmarshal(bytes.NewReader(correctTime(inStr)), &trace)
+	require.NoError(t, err, "Not expecting error when unmarshaling fixture %s", fileName)
 	return v1adapter.V1TraceToOtelTrace(&trace)
 }
 
-func loadAndParseJSONPB(t *testing.T, path string, object proto.Message) {
-	// #nosec
-	inStr, err := fixtures.ReadFile(path)
-	require.NoError(t, err, "Not expecting error when loading fixture %s", path)
-	err = jsonpb.Unmarshal(bytes.NewReader(correctTime(inStr)), object)
-	require.NoError(t, err, "Not expecting error when unmarshaling fixture %s", path)
+func loadOTLPTrace(t *testing.T, inStr []byte) ptrace.Traces {
+	unmarshaller := ptrace.JSONUnmarshaler{}
+	td, err := unmarshaller.UnmarshalTraces(inStr)
+	require.NoError(t, err)
+	correctTimeForTrace(td)
+	return td
 }
 
 // LoadAndParseQueryTestCases loads and parses query test cases
@@ -515,6 +524,12 @@ func correctTime(jsonData []byte) []byte {
 	retString := strings.ReplaceAll(jsonString, "2017-01-26", yesterday)
 	retString = strings.ReplaceAll(retString, "2017-01-25", twoDaysAgo)
 	return []byte(retString)
+}
+
+func correctTimeForTrace(td ptrace.Traces) {
+	now := time.Now().UTC()
+	normalizer := newDateOffsetNormalizer(now)
+	normalizer.normalizeTrace(td)
 }
 
 func spanCount(traces []ptrace.Traces) int {

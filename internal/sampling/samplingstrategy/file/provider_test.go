@@ -368,7 +368,7 @@ func TestAutoUpdateStrategyWithFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(dstFile, []byte(newStr), 0o644))
 
 	// wait for reload timer
-	for i := 0; i < 1000; i++ { // wait up to 1sec
+	for range 1000 { // wait up to 1sec
 		s, err = provider.GetSamplingStrategy(context.Background(), "foo")
 		require.NoError(t, err)
 		if s.ProbabilisticSampling != nil && s.ProbabilisticSampling.SamplingRate == 0.9 {
@@ -409,7 +409,7 @@ func TestAutoUpdateStrategyWithURL(t *testing.T) {
 	}
 
 	// wait for reload timer
-	for i := 0; i < 1000; i++ { // wait up to 1sec
+	for range 1000 { // wait up to 1sec
 		s, err = provider.GetSamplingStrategy(context.Background(), "foo")
 		require.NoError(t, err)
 		if s.ProbabilisticSampling != nil && s.ProbabilisticSampling.SamplingRate == 0.9 {

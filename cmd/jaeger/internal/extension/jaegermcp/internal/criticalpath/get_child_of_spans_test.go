@@ -4,6 +4,7 @@
 package criticalpath
 
 import (
+	"maps"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -148,9 +149,7 @@ func TestGetChildOfSpans(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Make a copy to avoid modifying test data
 			inputCopy := make(map[pcommon.SpanID]CPSpan)
-			for k, v := range tt.input {
-				inputCopy[k] = v
-			}
+			maps.Copy(inputCopy, tt.input)
 
 			result := getChildOfSpans(inputCopy)
 			assert.Len(t, result, tt.expected, "unexpected number of spans after filtering")

@@ -154,7 +154,7 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 }
 
 func healthCheck(c *http.Client) error {
-	for i := 0; i < 200; i++ {
+	for range 200 {
 		if resp, err := c.Get(queryURL); err == nil {
 			return resp.Body.Close()
 		}

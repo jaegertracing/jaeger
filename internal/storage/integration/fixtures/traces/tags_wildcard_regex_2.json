@@ -1,25 +1,38 @@
 {
-  "spans": [
+  "resourceSpans": [
     {
-      "traceId": "AAAAAAAAAAAAAAAAAAASEg==",
-      "spanId": "AAAAAAAAAAQ=",
-      "operationName": "",
-      "references": [
-      ],
-      "tags": [
-        {
-          "key": "sameplacetag1",
-          "vType": "STRING",
-          "vStr": "sameplacevalue2"
-        }
-      ],
-      "startTime": "2017-01-26T16:46:31.639875Z",
-      "duration": "2000ns",
-      "process": {
-        "serviceName": "query24-service",
-        "tags": []
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "query24-service"
+            }
+          }
+        ]
       },
-      "logs": []
+      "scopeSpans": [
+        {
+          "scope": {},
+          "spans": [
+            {
+              "traceId": "00000000000000000000000000001212",
+              "spanId": "0000000000000004",
+              "startTimeUnixNano": "1485449191639875000",
+              "endTimeUnixNano": "1485449191639877000",
+              "attributes": [
+                {
+                  "key": "sameplacetag1",
+                  "value": {
+                    "stringValue": "sameplacevalue2"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
     }
   ]
 }
