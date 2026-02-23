@@ -319,9 +319,11 @@ func (qs QueryService) limitTraceSize(seq iter.Seq2[[]ptrace.Traces, error]) ite
 					hasNonExceededTrace = true
 				}
 
-				if hasNonExceededTrace {
-					validTraces = append(validTraces, trace)
+				if !hasNonExceededTrace {
+					continue
 				}
+
+				validTraces = append(validTraces, trace)
 			}
 
 			return yield(validTraces, nil)
