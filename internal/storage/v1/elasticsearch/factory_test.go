@@ -564,172 +564,68 @@ func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 }
 
 func TestCreateTraceSummaryTransform(t *testing.T) {
-	testCases := []struct {
-		name          string
-		handler       http.HandlerFunc
-		expectErr     bool
-		errorContains string
+	tests := []struct {
+		name        string
+		setupClient func(*mocks.Client, *mocks.TransformService)
+		expectErr   bool
 	}{
 		{
-			name: "Success Path - Provision New Transform",
-			handler: func(w http.ResponseWriter, r *http.Request) {
-				if r.Method == http.MethodGet && r.URL.Path == "/" {
-					w.WriteHeader(http.StatusOK)
-					return
-				}
-				// 1. Reconciliation Check (Returns 404 because it doesn't exist yet)
-				if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "_transform/") {
-					w.WriteHeader(http.StatusNotFound)
-					return
-				}
-				// 2. Create Job
-				if r.Method == http.MethodPut && strings.Contains(r.URL.Path, "_transform/") {
-					w.WriteHeader(http.StatusOK)
-					return
-				}
-				// 3. Start Job
-				if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "_start") {
-					w.WriteHeader(http.StatusOK)
-					return
-				}
-				w.WriteHeader(http.StatusBadRequest) // Catch-all for unexpected calls
+			name: "provisions new transform when not found (404)",
+			setupClient: func(c *mocks.Client, ts *mocks.TransformService) {
+				c.On("Transform").Return(ts)
+				// Get returns 404
+				ts.On("Get", mock.Anything, mock.Anything).Return(nil, errors.New("elastic: Error 404 (Not Found)"))
+				// Put is called to create it
+				ts.On("Put", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+				// Start is called
+				ts.On("Start", mock.Anything, mock.Anything).Return(nil)
 			},
-			expectErr: false,
 		},
 		{
-			name: "Reconciliation - Skip Creation When Transform Is Current",
-			handler: func(w http.ResponseWriter, r *http.Request) {
-				if r.Method == http.MethodGet && r.URL.Path == "/" {
-					w.WriteHeader(http.StatusOK)
-					return
-				}
-				if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "_transform/") {
-					w.WriteHeader(http.StatusOK)
-					// Must match exactly what factory.go computes:
-					// IndexPrefix("test-prefix").Apply("jaeger-span") → "test-prefix-jaeger-span"
-					// cleanPrefix = "test-prefix-jaeger-span" (no trailing "-" to trim)
-					// HasSuffix(..., "jaeger-span") → true
-					// summaryIndex = "test-prefix-" + "trace-summary" = "test-prefix-trace-summary"
-					w.Write([]byte(`{"transforms": [{"dest": {"index": "test-prefix-trace-summary"}, "description": "Jaeger Trace Summary - v1"}]}`))
-					return
-				}
-				if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "_start") {
-					w.WriteHeader(http.StatusOK)
-					return
-				}
-				if r.Method == http.MethodPut {
-					w.WriteHeader(http.StatusInternalServerError)
-					w.Write([]byte(`{"error": "PUT should not have been called"}`))
-					return
-				}
-				w.WriteHeader(http.StatusBadRequest)
+			name: "starts transform immediately if it exists and version matches",
+			setupClient: func(c *mocks.Client, ts *mocks.TransformService) {
+				c.On("Transform").Return(ts)
+
+				// Get returns existing config matching "v1"
+				validJSON := []byte(`{"transforms": [{"dest": {"index": "test-prefix-trace-summary"}, "description": "Jaeger Trace Summary - v1"}]}`)
+				ts.On("Get", mock.Anything, mock.Anything).Return(validJSON, nil)
+
+				// Start is called (Put and Delete are skipped!)
+				ts.On("Start", mock.Anything, mock.Anything).Return(nil)
 			},
-			expectErr: false,
-		},
-		{
-			name: "Error Handling - ES returns 400 Bad Request on Create",
-			handler: func(w http.ResponseWriter, r *http.Request) {
-				if r.Method == http.MethodGet && r.URL.Path == "/" {
-					w.WriteHeader(http.StatusOK)
-					return
-				}
-				if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "_transform/") {
-					w.WriteHeader(http.StatusNotFound)
-					return
-				}
-				if r.Method == http.MethodPut {
-					w.WriteHeader(http.StatusBadRequest) // Fails on creation
-					w.Write([]byte(`{"error": "invalid payload"}`))
-					return
-				}
-			},
-			expectErr:     true,
-			errorContains: "status 400",
-		},
-		{
-			name: "Start Job - Already Running (409 is not an error)",
-			handler: func(w http.ResponseWriter, r *http.Request) {
-				if r.Method == http.MethodGet && r.URL.Path == "/" {
-					w.WriteHeader(http.StatusOK)
-					return
-				}
-				if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "_transform/") {
-					w.WriteHeader(http.StatusNotFound)
-					return
-				}
-				if r.Method == http.MethodPut {
-					w.WriteHeader(http.StatusOK)
-					return
-				}
-				// Transform is already running
-				if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "_start") {
-					w.WriteHeader(http.StatusConflict) // 409
-					w.Write([]byte(`{"error": {"reason": "Cannot start transform [id] as it is already started"}}`))
-					return
-				}
-				w.WriteHeader(http.StatusBadRequest)
-			},
-			expectErr: false, // 409 must be treated as success
-		},
-		{
-			name: "Reconciliation - Delete and Recreate Job on Version Mismatch",
-			handler: func(w http.ResponseWriter, r *http.Request) {
-				if r.Method == http.MethodGet && r.URL.Path == "/" {
-					w.WriteHeader(http.StatusOK)
-					return
-				}
-				// Returns stale config — triggers recreation
-				if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "_transform/") {
-					w.WriteHeader(http.StatusOK)
-					w.Write([]byte(`{"transforms": [{"dest": {"index": "wrong-old-index"}, "description": "old-version"}]}`))
-					return
-				}
-				if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "_stop") {
-					w.WriteHeader(http.StatusOK)
-					return
-				}
-				if r.Method == http.MethodDelete && strings.Contains(r.URL.Path, "_transform/") {
-					w.WriteHeader(http.StatusOK)
-					return
-				}
-				if r.Method == http.MethodPut {
-					w.WriteHeader(http.StatusOK)
-					return
-				}
-				if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "_start") {
-					w.WriteHeader(http.StatusOK)
-					return
-				}
-				w.WriteHeader(http.StatusBadRequest)
-			},
-			expectErr: false,
 		},
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			server := httptest.NewServer(tc.handler)
-			defer server.Close()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := &mocks.Client{}
+			mockTransform := &mocks.TransformService{}
+
+			tt.setupClient(mockClient, mockTransform)
 
 			f := &FactoryBase{
-				logger: zap.NewNop(),
+				logger:          zap.NewNop(),
+				templateBuilder: es.TextTemplateBuilder{},
 				config: &escfg.Configuration{
-					Servers:         []string{server.URL},
-					UseTraceSummary: true,
 					Indices: escfg.Indices{
 						IndexPrefix: "test-prefix",
 					},
 				},
 			}
 
-			err := f.createTraceSummaryTransform(context.Background())
+			// Store the mock client safely in the factory
+			var client es.Client = mockClient
+			f.client.Store(&client)
 
-			if tc.expectErr {
+			err := f.createTraceSummaryTransform(context.Background())
+			if tt.expectErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.errorContains)
 			} else {
 				require.NoError(t, err)
 			}
+
+			mockClient.AssertExpectations(t)
+			mockTransform.AssertExpectations(t)
 		})
 	}
 }

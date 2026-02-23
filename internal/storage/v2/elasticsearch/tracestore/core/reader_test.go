@@ -1425,9 +1425,6 @@ func TestTagsMap(t *testing.T) {
 
 func TestSpanReader_SummaryOptimization(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		r.reader.useTraceSummary = true
-		r.reader.traceSummaryIndex = "jaeger-span-trace-summary"
-
 		now := time.Now()
 		startTime := now.Add(-time.Hour)
 		endTime := now
@@ -1496,8 +1493,6 @@ func TestSpanReader_SummaryOptimization(t *testing.T) {
 
 func TestSpanReader_MultiRead_NoSummaryOptimization(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		r.reader.useTraceSummary = false // explicit default
-
 		multiSearchService := &mocks.MultiSearchService{}
 		multiSearchService.On("Add", mock.Anything).Return(multiSearchService)
 		multiSearchService.On("Index", mock.Anything).Return(multiSearchService)
@@ -1508,11 +1503,12 @@ func TestSpanReader_MultiRead_NoSummaryOptimization(t *testing.T) {
 		}, nil)
 		r.client.On("MultiSearch").Return(multiSearchService)
 
+		now := time.Now()
 		traces, err := r.reader.multiRead(
 			context.Background(),
 			[]dbmodel.TraceID{"trace1"},
-			time.Now().Add(-time.Hour),
-			time.Now(),
+			now.Add(-time.Hour),
+			now,
 		)
 		require.NoError(t, err)
 		require.NotNil(t, traces)
@@ -1524,9 +1520,6 @@ func TestSpanReader_MultiRead_NoSummaryOptimization(t *testing.T) {
 
 func TestSpanReader_SummaryOptimization_SearchError_FallsBack(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		r.reader.useTraceSummary = true
-		r.reader.traceSummaryIndex = "jaeger-span-trace-summary"
-
 		searchService := &mocks.SearchService{}
 		searchService.On("Query", mock.Anything).Return(searchService)
 		searchService.On("IgnoreUnavailable", mock.AnythingOfType("bool")).Return(searchService)
@@ -1558,9 +1551,6 @@ func TestSpanReader_SummaryOptimization_SearchError_FallsBack(t *testing.T) {
 
 func TestSpanReader_SummaryOptimization_ZeroTimestamps_FallsBack(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		r.reader.useTraceSummary = true
-		r.reader.traceSummaryIndex = "jaeger-span-trace-summary"
-
 		hits := []*elastic.SearchHit{{
 			Source: []byte(`{"min_startTime": 0, "max_endTime": 0, "traceID": "trace1"}`),
 		}}
@@ -1600,9 +1590,6 @@ func TestSpanReader_SummaryOptimization_ZeroTimestamps_FallsBack(t *testing.T) {
 
 func TestSpanReader_SummaryOptimization_PartialCoverage(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		r.reader.useTraceSummary = true
-		r.reader.traceSummaryIndex = "jaeger-span-trace-summary"
-
 		// Only trace1 has a summary — trace2 does not
 		hits := []*elastic.SearchHit{{
 			Source: []byte(`{
@@ -1656,11 +1643,9 @@ func TestSpanReader_SummaryOptimization_PartialCoverage(t *testing.T) {
 
 func TestSpanReader_SummaryOptimization_DefaultIndexName(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		r.reader.useTraceSummary = true
-		r.reader.traceSummaryIndex = ""
 		r.reader.spanIndexPrefix = "jaeger-span"
 
-		expectedIndex := "trace-summary"
+		expectedIndex := "jaeger-trace-summary"
 		var capturedIndex string
 
 		searchService := &mocks.SearchService{}
@@ -1688,7 +1673,10 @@ func TestSpanReader_SummaryOptimization_DefaultIndexName(t *testing.T) {
 		r.client.On("MultiSearch").Return(multiSearchService)
 
 		now := time.Now()
-		r.reader.multiRead(context.Background(), []dbmodel.TraceID{"trace1"}, now.Add(-time.Hour), now)
+		traces, err := r.reader.multiRead(context.Background(), []dbmodel.TraceID{"trace1"}, now.Add(-time.Hour), now)
+
+		require.NoError(t, err)
+		assert.NotNil(t, traces)
 
 		// Verify the reader queries the same index the factory would have written to
 		assert.Equal(t, expectedIndex, capturedIndex,

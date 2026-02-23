@@ -1,7 +1,7 @@
 {
   "description": "Jaeger Trace Summary - {{.TraceSummaryVersion}}",
   "source": {
-    "index": "{{.SpanIndexPrefix}}-*",
+    "index": "*{{.IndexPrefix}}jaeger-span-*",
     "query": { "match_all": {} }
   },
   "dest": { "index": "{{.SummaryIndex}}" },

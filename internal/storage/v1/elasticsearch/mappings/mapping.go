@@ -162,12 +162,12 @@ func (mb *MappingBuilder) renderMapping(mapping string, options templateParams) 
 // transformParams holds parameters required to render the trace summary transform
 type transformParams struct {
 	TraceSummaryVersion string
-	SpanIndexPrefix     string
+	IndexPrefix         string
 	SummaryIndex        string
 }
 
 // GetTraceSummaryTransform returns the rendered trace summary transform JSON payload
-func (mb *MappingBuilder) GetTraceSummaryTransform(spanIndexPrefix, summaryIndex, version string) (string, error) {
+func (mb *MappingBuilder) GetTraceSummaryTransform(indexPrefix, summaryIndex, version string) (string, error) {
 	tmpl, err := mb.TemplateBuilder.Parse(loadMapping("jaeger-trace-summary.json"))
 	if err != nil {
 		return "", err
@@ -176,7 +176,7 @@ func (mb *MappingBuilder) GetTraceSummaryTransform(spanIndexPrefix, summaryIndex
 	writer := new(bytes.Buffer)
 	options := transformParams{
 		TraceSummaryVersion: version,
-		SpanIndexPrefix:     spanIndexPrefix,
+		IndexPrefix:         indexPrefix,
 		SummaryIndex:        summaryIndex,
 	}
 

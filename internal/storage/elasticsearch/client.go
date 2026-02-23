@@ -22,6 +22,7 @@ type Client interface {
 	DeleteIndex(index string) IndicesDeleteService
 	io.Closer
 	GetVersion() uint
+	Transform() TransformService
 }
 
 // IndicesExistsService is an abstraction for elastic.IndicesExistsService
@@ -69,4 +70,12 @@ type MultiSearchService interface {
 	Add(requests ...*elastic.SearchRequest) MultiSearchService
 	Index(indices ...string) MultiSearchService
 	Do(ctx context.Context) (*elastic.MultiSearchResult, error)
+}
+
+// TransformService is an abstraction for managing Elasticsearch Transforms
+type TransformService interface {
+	Get(ctx context.Context, id string) ([]byte, error)
+	Put(ctx context.Context, id string, body string) error
+	Start(ctx context.Context, id string) error
+	Delete(ctx context.Context, id string) error
 }
