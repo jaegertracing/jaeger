@@ -17,9 +17,9 @@ import (
 	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
@@ -27,7 +27,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	esv2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
@@ -252,25 +251,22 @@ func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string
 func (s *ESStorageIntegration) testArchiveTrace(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
-	tID := model.NewTraceID(uint64(11), uint64(22))
-	expectedV1 := &model.Trace{
-		Spans: []*model.Span{
-			{
-				OperationName: "archive_span",
-				StartTime:     time.Now().Add(-maxSpanAge * 5).Truncate(time.Microsecond),
-				TraceID:       tID,
-				SpanID:        model.NewSpanID(55),
-				References:    []model.SpanRef{},
-				Process:       model.NewProcess("archived_service", model.KeyValues{}),
-			},
-		},
-	}
-	expected := v1adapter.V1TraceToOtelTrace(expectedV1)
+	tID := pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 0, 0, 0, 0, 22})
+	expected := ptrace.NewTraces()
+	rs := expected.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr("service.name", "archived_service")
+	ss := rs.ScopeSpans().AppendEmpty()
+	span := ss.Spans().AppendEmpty()
+	span.SetName("archive_span")
+	span.SetTraceID(tID)
+	span.SetSpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 55})
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(-maxSpanAge * 5).Truncate(time.Microsecond)))
+	span.SetEndTimestamp(span.StartTimestamp())
 	require.NoError(t, s.ArchiveTraceWriter.WriteTraces(context.Background(), expected))
 
 	var actual ptrace.Traces
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
-		iterTraces := s.ArchiveTraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: v1adapter.FromV1TraceID(tID)})
+		iterTraces := s.ArchiveTraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: tID})
 		traces, err := jiter.CollectWithErrors(jptrace.AggregateTraces(iterTraces))
 		if err != nil {
 			t.Logf("Error loading trace: %v", err)
