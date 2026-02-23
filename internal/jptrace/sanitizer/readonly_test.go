@@ -35,6 +35,17 @@ func TestSanitizersWithReadOnlyTraces(t *testing.T) {
 			},
 		},
 		{
+			name:      "EmptySpanNameSanitizer",
+			sanitizer: NewEmptySpanNameSanitizer(),
+			setupFunc: func(traces ptrace.Traces) {
+				// Create a trace with an empty span name to trigger sanitization
+				rSpans := traces.ResourceSpans().AppendEmpty()
+				sSpans := rSpans.ScopeSpans().AppendEmpty()
+				span := sSpans.Spans().AppendEmpty()
+				span.SetName("")
+			},
+		},
+		{
 			name:      "UTF8Sanitizer",
 			sanitizer: NewUTF8Sanitizer(),
 			setupFunc: func(traces ptrace.Traces) {
@@ -97,6 +108,16 @@ func TestSanitizersWithReadOnlyTracesNoModification(t *testing.T) {
 				sSpans := rSpans.ScopeSpans().AppendEmpty()
 				span := sSpans.Spans().AppendEmpty()
 				span.SetName("test-span")
+			},
+		},
+		{
+			name:      "EmptySpanNameSanitizer_NoModification",
+			sanitizer: NewEmptySpanNameSanitizer(),
+			setupFunc: func(traces ptrace.Traces) {
+				rSpans := traces.ResourceSpans().AppendEmpty()
+				sSpans := rSpans.ScopeSpans().AppendEmpty()
+				span := sSpans.Spans().AppendEmpty()
+				span.SetName("valid-span")
 			},
 		},
 		{
