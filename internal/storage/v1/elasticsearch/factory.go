@@ -6,13 +6,16 @@ package elasticsearch
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/extension/extensionauth"
@@ -50,6 +53,15 @@ type FactoryBase struct {
 	templateBuilder es.TemplateBuilder
 
 	tags []string
+
+	authenticator extensionauth.HTTPClient
+}
+
+type scriptedMetric struct {
+	InitScript    string `json:"init_script"`
+	MapScript     string `json:"map_script"`
+	CombineScript string `json:"combine_script"`
+	ReduceScript  string `json:"reduce_script"`
 }
 
 func NewFactoryBase(
@@ -60,9 +72,10 @@ func NewFactoryBase(
 	httpAuth extensionauth.HTTPClient,
 ) (*FactoryBase, error) {
 	f := &FactoryBase{
-		config:      &cfg,
-		newClientFn: config.NewClient,
-		tracer:      otel.GetTracerProvider(),
+		config:        &cfg,
+		newClientFn:   config.NewClient,
+		tracer:        otel.GetTracerProvider(),
+		authenticator: httpAuth,
 	}
 	f.metricsFactory = metricsFactory
 	f.logger = logger
@@ -94,6 +107,14 @@ func NewFactoryBase(
 		return nil, err
 	}
 
+	err = f.createTraceSummaryTransform(ctx)
+	if err != nil {
+		f.logger.Warn(
+			"Failed to provision trace summary transform; optimization will fall back to global search until transform is available",
+			zap.Error(err),
+		)
+	}
+
 	return f, nil
 }
 
@@ -121,6 +142,8 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 		ServiceReadAlias:    f.config.ServiceReadAlias,
 		Logger:              f.logger,
 		Tracer:              f.tracer.Tracer("esspanstore.SpanReader"),
+		UseTraceSummary:     f.config.UseTraceSummary,
+		TraceSummaryIndex:   f.config.TraceSummaryIndex,
 	}
 }
 
@@ -267,4 +290,200 @@ func (f *FactoryBase) createTemplates(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func (f *FactoryBase) resolveTransformNames() (string, string, string) {
+	jaegerSpanIdx := f.config.Indices.IndexPrefix.Apply("jaeger-span")
+	summaryIndex := f.config.TraceSummaryIndex
+
+	if summaryIndex == "" {
+		cleanPrefix := strings.TrimSuffix(jaegerSpanIdx, "-")
+		if strings.HasSuffix(cleanPrefix, "jaeger-span") {
+			summaryIndex = strings.TrimSuffix(cleanPrefix, "jaeger-span") + "trace-summary"
+		} else {
+			summaryIndex = strings.Replace(cleanPrefix, "jaeger-span", "trace-summary", 1)
+		}
+	}
+
+	transformID := fmt.Sprintf("%s_%s", summaryIndex, "jaeger_trace_summary_job")
+	return jaegerSpanIdx, summaryIndex, transformID
+}
+
+func (f *FactoryBase) checkTransformStatus(ctx context.Context, client *http.Client, esURL, transformID, summaryIndex string) (bool, error) {
+	getURL := fmt.Sprintf("%s/_transform/%s", esURL, transformID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, getURL, nil)
+	if err != nil {
+		return false, err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		f.logger.Debug("Transform check failed (network), assuming non-existent", zap.Error(err))
+		return true, nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return false, fmt.Errorf("failed to read transform check response: %w", err)
+		}
+
+		var existingConfig struct {
+			Transforms []struct {
+				Description string `json:"description"`
+				Dest        struct {
+					Index string `json:"index"`
+				} `json:"dest"`
+			} `json:"transforms"`
+		}
+
+		if err := json.Unmarshal(bodyBytes, &existingConfig); err == nil && len(existingConfig.Transforms) > 0 {
+			t := existingConfig.Transforms[0]
+			if t.Dest.Index == summaryIndex && strings.Contains(t.Description, f.config.TraceSummaryVersion) {
+				return false, nil // Exists and is up-to-date, do not create
+			}
+			f.logger.Info("Transform version mismatch or config change. Recreating...", zap.String("id", transformID))
+			f.deleteTransformJob(ctx, client, esURL, transformID)
+			return true, nil // Needs to be recreated
+		}
+		return false, fmt.Errorf("failed to parse transform check response: %s", string(bodyBytes))
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		return true, nil // Doesn't exist, needs creation
+	}
+	return false, fmt.Errorf("unexpected status %d checking existing transform", resp.StatusCode)
+}
+
+func (f *FactoryBase) putTransformJob(ctx context.Context, client *http.Client, esURL, transformID, jaegerSpanIdx, summaryIndex string) error {
+	mappingBuilder := f.mappingBuilderFromConfig(f.config)
+
+	transformPayload, err := mappingBuilder.GetTraceSummaryTransform(
+		jaegerSpanIdx,
+		summaryIndex,
+		f.config.TraceSummaryVersion,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to render transform template: %w", err)
+	}
+
+	createURL := fmt.Sprintf("%s/_transform/%s", esURL, transformID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, createURL, strings.NewReader(transformPayload))
+	if err != nil {
+		return fmt.Errorf("failed to create transform request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to execute create request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 && resp.StatusCode != http.StatusConflict {
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("ES API error (status %d) and failed to read body: %w", resp.StatusCode, err)
+		}
+		return fmt.Errorf("ES API error (status %d): %s", resp.StatusCode, string(respBody))
+	}
+	io.Copy(io.Discard, resp.Body)
+	return nil
+}
+
+func (f *FactoryBase) createTraceSummaryTransform(ctx context.Context) error {
+	if !f.config.UseTraceSummary {
+		return nil
+	}
+
+	jaegerSpanIdx, summaryIndex, transformID := f.resolveTransformNames()
+
+	transport, err := config.GetHTTPRoundTripper(ctx, f.config, f.logger, f.authenticator)
+	if err != nil {
+		return fmt.Errorf("failed to create HTTP transport: %w", err)
+	}
+	client := &http.Client{Transport: transport, Timeout: 15 * time.Second}
+
+	if len(f.config.Servers) == 0 {
+		return errors.New("no elasticsearch servers configured")
+	}
+	esURL := strings.TrimRight(f.config.Servers[0], "/")
+
+	shouldCreate, err := f.checkTransformStatus(ctx, client, esURL, transformID, summaryIndex)
+	if err != nil {
+		return err
+	}
+
+	if shouldCreate {
+		if err := f.putTransformJob(ctx, client, esURL, transformID, jaegerSpanIdx, summaryIndex); err != nil {
+			return err
+		}
+	}
+
+	return f.startTransformJob(ctx, client, esURL, transformID)
+}
+
+func (f *FactoryBase) startTransformJob(ctx context.Context, client *http.Client, esURL, transformID string) error {
+	startURL := fmt.Sprintf("%s/_transform/%s/_start", esURL, transformID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, startURL, nil)
+	if err != nil {
+		return fmt.Errorf("failed to build start request: %w", err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusConflict {
+		// 409 means the transform is already running — this is expected and fine.
+		f.logger.Debug("Transform already running, skipping start", zap.String("id", transformID))
+		io.Copy(io.Discard, resp.Body)
+		return nil
+	}
+
+	if resp.StatusCode >= 300 {
+		bodyBytes, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return fmt.Errorf("failed to start transform %s (status %d): failed to read body: %w", transformID, resp.StatusCode, readErr)
+		}
+		return fmt.Errorf("failed to start transform %s (status %d): %s", transformID, resp.StatusCode, string(bodyBytes))
+	}
+
+	io.Copy(io.Discard, resp.Body)
+	return nil
+}
+
+func (f *FactoryBase) deleteTransformJob(ctx context.Context, client *http.Client, esURL, transformID string) {
+	runCommand := func(method, url string, ignore404 bool) {
+		req, err := http.NewRequestWithContext(ctx, method, url, nil)
+		if err != nil {
+			f.logger.Error("Failed to build cleanup request", zap.Error(err))
+			return
+		}
+
+		resp, err := client.Do(req)
+		if err != nil {
+			f.logger.Error("Network error during transform cleanup", zap.Error(err))
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode >= 400 {
+			if ignore404 && resp.StatusCode == http.StatusNotFound {
+				io.Copy(io.Discard, resp.Body)
+				return
+			}
+			f.logger.Warn("Elasticsearch rejected cleanup command", zap.Int("status", resp.StatusCode), zap.String("id", transformID))
+		}
+		io.Copy(io.Discard, resp.Body)
+	}
+
+	stopURL := fmt.Sprintf("%s/_transform/%s/_stop?force=true&wait_for_completion=true", esURL, transformID)
+	runCommand(http.MethodPost, stopURL, true)
+
+	delURL := fmt.Sprintf("%s/_transform/%s", esURL, transformID)
+	runCommand(http.MethodDelete, delURL, true)
 }
