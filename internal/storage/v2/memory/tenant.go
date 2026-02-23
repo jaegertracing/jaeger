@@ -332,6 +332,11 @@ func findKeyValInTrace(key string, val pcommon.Value, resourceAttributes pcommon
 			return true
 		}
 	}
+	for _, link := range span.Links().All() {
+		if matchAttributes(key, val, link.Attributes()) {
+			return true
+		}
+	}
 	return tagsMatched
 }
 
