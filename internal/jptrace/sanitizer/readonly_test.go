@@ -155,7 +155,7 @@ func TestSanitizersWithReadOnlyTracesNoModification(t *testing.T) {
 			result := tt.sanitizer(traces)
 			require.NotNil(t, result)
 
-			assert.NotNil(t, result, "Expected a valid result even for read-only traces with no modifications needed")
+			assert.True(t, result.IsReadOnly(), "Expected the result to remain read-only when no modification is needed")
 		})
 	}
 }

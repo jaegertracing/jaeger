@@ -58,7 +58,8 @@
                   "timeUnixNano": "1485449191639875000"
                 }
               ],
-              "status": {}
+              "status": {},
+              "name": "empty-span-name"
             }
           ]
         }

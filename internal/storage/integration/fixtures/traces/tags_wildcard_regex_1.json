@@ -28,7 +28,8 @@
                   }
                 }
               ],
-              "status": {}
+              "status": {},
+              "name": "empty-span-name"
             }
           ]
         }

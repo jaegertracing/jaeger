@@ -72,17 +72,10 @@ func TestEmptySpanNameSanitizer_ReadOnly(t *testing.T) {
 	sanitizer := NewEmptySpanNameSanitizer()
 	result := sanitizer(traces)
 
-	require.NotNil(t, result)
-	assert.NotSame(t, &traces, &result)
-
-	actualSpan := result.
-		ResourceSpans().
-		At(0).
-		ScopeSpans().
-		At(0).
-		Spans().
-		At(0)
-	assert.Equal(t, "empty-span-name", actualSpan.Name())
+	// The original read-only traces should still have an empty span name.
+	assert.Equal(t, "", traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Name())
+	// The returned traces should have the placeholder span name.
+	assert.Equal(t, "empty-span-name", result.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Name())
 }
 
 func TestEmptySpanNameSanitizer_NoModificationNeeded(t *testing.T) {
@@ -96,9 +89,11 @@ func TestEmptySpanNameSanitizer_NoModificationNeeded(t *testing.T) {
 		AppendEmpty()
 	span.SetName("valid-span")
 
+	traces.MarkReadOnly()
+
 	sanitizer := NewEmptySpanNameSanitizer()
 	result := sanitizer(traces)
 
-	require.NotNil(t, result)
 	assert.Equal(t, "valid-span", result.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Name())
+	assert.True(t, result.IsReadOnly())
 }
