@@ -12,6 +12,7 @@ import (
 	"os"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +24,7 @@ import (
 )
 
 // Use timestamp with microsecond granularity to work well with jaeger thrift translation
-var testSpanEventTime = int64(1581452773000123)
+var testSpanEventTime = time.Date(2020, 2, 11, 20, 26, 13, 123000, time.UTC).UnixNano() / 1000
 
 func TestCodeFromAttr(t *testing.T) {
 	tests := []struct {
