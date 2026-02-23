@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -110,6 +111,8 @@ type SpanReader struct {
 	logger                  *zap.Logger
 	tracer                  trace.Tracer
 	dotReplacer             dbmodel.DotReplacer
+	useTraceSummary         bool
+	traceSummaryIndex       string
 }
 
 // SpanReaderParams holds constructor params for NewSpanReader
@@ -128,6 +131,8 @@ type SpanReaderParams struct {
 	ServiceReadAlias    string
 	Logger              *zap.Logger
 	Tracer              trace.Tracer
+	UseTraceSummary     bool
+	TraceSummaryIndex   string
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
@@ -173,6 +178,8 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		logger:                  p.Logger,
 		tracer:                  p.Tracer,
 		dotReplacer:             dbmodel.NewDotReplacer(p.TagDotReplacement),
+		useTraceSummary:         p.UseTraceSummary,
+		traceSummaryIndex:       p.TraceSummaryIndex,
 	}
 }
 
@@ -390,7 +397,6 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQ
 func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, startTime, endTime time.Time) ([]dbmodel.Trace, error) {
 	ctx, childSpan := s.tracer.Start(ctx, "multiRead")
 	defer childSpan.End()
-
 	if childSpan.IsRecording() {
 		tracesIDs := make([]string, len(traceIDs))
 		for i, traceID := range traceIDs {
@@ -405,13 +411,110 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 		return traces, nil
 	}
 
-	// Add an hour in both directions so that traces that straddle two indexes are retrieved.
-	// i.e starts in one and ends in another.
+	isOptimized := false
+	if s.useTraceSummary {
+		resolvedSummaryIndex := s.traceSummaryIndex
+		if resolvedSummaryIndex == "" {
+			resolvedSummaryIndex = strings.Replace(s.spanIndexPrefix, "jaeger-span", "trace-summary", 1)
+		}
+
+		var traceIDVals []interface{}
+		for _, id := range traceIDs {
+			traceIDVals = append(traceIDVals, string(id))
+		}
+
+		summaryQuery := elastic.NewTermsQuery("traceID", traceIDVals...)
+		res, err := s.client().Search(resolvedSummaryIndex).
+			Query(summaryQuery).
+			Size(len(traceIDs)).
+			IgnoreUnavailable(true).
+			Do(ctx)
+
+		// Optimization: If any summaries are found, use their bounds to prune index searches.
+		// Traces within the transform sync delay (e.g., < 60s old) will fallback to a global search.
+		if err == nil && res != nil && res.Hits != nil {
+			s.logger.Debug("Summary index raw results",
+				zap.Int("total_hits", int(res.TotalHits())),
+				zap.Int("hits_length", len(res.Hits.Hits)))
+
+			earliestStart := int64(math.MaxInt64)
+			lastEnd := int64(0)
+			validSummaryCount := 0
+			var summarizedIDs []string
+			for _, hit := range res.Hits.Hits {
+				var summary struct {
+					MinStartTime float64 `json:"min_startTime"`
+					MaxEndTime   float64 `json:"max_endTime"`
+					TraceID      string  `json:"traceID"`
+				}
+
+				if hit.Source == nil {
+					continue
+				}
+
+				if err := json.Unmarshal(hit.Source, &summary); err != nil {
+					s.logger.Debug("Failed to unmarshal summary", zap.Error(err))
+					continue
+				}
+				// float64 has ~15-16 significant digits. For timestamps at this magnitude
+				// (~1.77e15 µs) the last digit may be imprecise, but the 10-minute safety buffer
+				// in the index window calculation absorbs any such rounding error.
+				minTime := int64(math.Round(summary.MinStartTime))
+				maxTime := int64(math.Round(summary.MaxEndTime))
+				if minTime == 0 || maxTime == 0 {
+					continue
+				}
+				if minTime < earliestStart {
+					earliestStart = minTime
+				}
+				if maxTime > lastEnd {
+					lastEnd = maxTime
+				}
+
+				summarizedIDs = append(summarizedIDs, summary.TraceID)
+				validSummaryCount++
+			}
+			if validSummaryCount > 0 && earliestStart != math.MaxInt64 && lastEnd != 0 {
+				optimizedStart := time.Unix(0, earliestStart*1000).Add(-10 * time.Minute)
+				optimizedEnd := time.Unix(0, lastEnd*1000).Add(10 * time.Minute)
+
+				if validSummaryCount == len(traceIDs) {
+					// Full coverage: safely narrow the search window.
+					startTime = optimizedStart
+					endTime = optimizedEnd
+					isOptimized = true
+					s.logger.Debug("All traces found in summary index; using pruned time bounds",
+						zap.Int("found", validSummaryCount),
+						zap.Int("requested", len(traceIDs)),
+						zap.Strings("summarized_ids", summarizedIDs),
+						zap.Time("start", startTime),
+						zap.Time("end", endTime),
+					)
+				} else {
+					// Partial coverage: extend window to cover summarized traces
+					// but do NOT shrink it, as unsummarized traces may lie outside.
+					if optimizedStart.Before(startTime) {
+						startTime = optimizedStart
+					}
+					if optimizedEnd.After(endTime) {
+						endTime = optimizedEnd
+					}
+					s.logger.Debug("Partial summary coverage; extending (not shrinking) time bounds")
+				}
+			}
+		}
+	}
+	indexStartTime := startTime
+	indexEndTime := endTime
+	if !isOptimized {
+		indexStartTime = indexStartTime.Add(-time.Hour)
+		indexEndTime = indexEndTime.Add(time.Hour)
+	}
 	indices := s.timeRangeIndices(
 		s.spanIndexPrefix,
 		s.spanIndex.DateLayout,
-		startTime.Add(-time.Hour),
-		endTime.Add(time.Hour),
+		indexStartTime,
+		indexEndTime,
 		cfg.RolloverFrequencyAsNegativeDuration(s.spanIndex.RolloverFrequency),
 	)
 	nextTime := model.TimeAsEpochMicroseconds(startTime.Add(-time.Hour))
@@ -441,6 +544,9 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 		}
 		// set traceIDs to empty
 		traceIDs = nil
+		s.logger.Debug("Executing multi-trace search",
+			zap.Strings("indices", indices),
+			zap.Int("request_count", len(searchRequests)))
 		results, err := s.client().MultiSearch().Add(searchRequests...).Index(indices...).Do(ctx)
 		if err != nil {
 			err = es.DetailedError(err)
