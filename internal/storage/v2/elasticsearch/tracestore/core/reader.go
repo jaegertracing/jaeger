@@ -113,6 +113,8 @@ type SpanReader struct {
 	logger                  *zap.Logger
 	tracer                  trace.Tracer
 	dotReplacer             dbmodel.DotReplacer
+	useTraceSummary         bool
+	traceSummaryIndex       string
 }
 
 // SpanReaderParams holds constructor params for NewSpanReader
@@ -131,6 +133,8 @@ type SpanReaderParams struct {
 	ServiceReadAlias    string
 	Logger              *zap.Logger
 	Tracer              trace.Tracer
+	UseTraceSummary     bool
+	TraceSummaryIndex   string
 }
 
 // TraceSummary represents the aggregated time boundaries for a specific trace,
@@ -196,6 +200,8 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		logger:                  p.Logger,
 		tracer:                  p.Tracer,
 		dotReplacer:             dbmodel.NewDotReplacer(p.TagDotReplacement),
+		useTraceSummary:         p.UseTraceSummary,
+		traceSummaryIndex:       p.TraceSummaryIndex,
 	}
 }
 
@@ -731,16 +737,25 @@ func logErrorToSpan(span trace.Span, err error) {
 }
 
 // optimizeTimeBounds queries the trace-summary index to find the exact start and end times for the requested traces.
-func (s *SpanReader) optimizeTimeBounds(ctx context.Context, traceIDs []dbmodel.TraceID, startTime, endTime time.Time) (time.Time, time.Time, bool) {
+func (s *SpanReader) optimizeTimeBounds(ctx context.Context, traceIDs []dbmodel.TraceID, startTime, endTime time.Time) (optStart time.Time, optEnd time.Time, isOptimized bool) {
+	if !s.useTraceSummary {
+		return startTime, endTime, false
+	}
 	if len(traceIDs) == 0 {
 		return startTime, endTime, false
 	}
 
-	// Always derive the index using standard Jaeger prefixing rules
-	resolvedSummaryIndex := strings.Replace(s.spanIndexPrefix, "jaeger-span", "jaeger-trace-summary", 1)
+	// resolvedSummaryIndex is derived from spanIndexPrefix using the same naming convention
+	// as the factory. Operators using custom prefixes or read aliases should set TraceSummaryIndex
+	// explicitly via SpanReaderParams to avoid derivation mismatches.
+	resolvedSummaryIndex := s.traceSummaryIndex
+	if resolvedSummaryIndex == "" {
+		basePrefix := strings.TrimSuffix(s.spanIndexPrefix, "jaeger-span")
+		resolvedSummaryIndex = basePrefix + "jaeger-trace-summary"
+	}
 
 	// NewTermsQuery requires []any
-	var traceIDVals []any
+	traceIDVals := make([]any, 0, len(traceIDs))
 	for _, id := range traceIDs {
 		traceIDVals = append(traceIDVals, string(id))
 	}
@@ -784,10 +799,16 @@ func (s *SpanReader) optimizeTimeBounds(ctx context.Context, traceIDs []dbmodel.
 	if validSummaryCount > 0 && earliestStart != math.MaxInt64 && lastEnd != 0 {
 		// Add a 10-minute safety buffer to account for potential clock skew
 		// and the delay in the Elasticsearch transform sync interval.
-		optimizedStart := time.Unix(0, earliestStart*1000).Add(-10 * time.Minute)
-		optimizedEnd := time.Unix(0, lastEnd*1000).Add(10 * time.Minute)
+		optimizedStart := time.UnixMicro(earliestStart).Add(-10 * time.Minute)
+		optimizedEnd := time.UnixMicro(lastEnd).Add(10 * time.Minute)
 
 		if validSummaryCount == len(traceIDs) {
+			if optimizedStart.Before(startTime) {
+				optimizedStart = startTime
+			}
+			if optimizedEnd.After(endTime) {
+				optimizedEnd = endTime
+			}
 			return optimizedStart, optimizedEnd, true
 		}
 

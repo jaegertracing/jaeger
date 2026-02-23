@@ -587,10 +587,25 @@ func TestCreateTraceSummaryTransform(t *testing.T) {
 				c.On("Transform").Return(ts)
 
 				// Get returns existing config matching "v1"
-				validJSON := []byte(`{"transforms": [{"dest": {"index": "test-prefix-trace-summary"}, "description": "Jaeger Trace Summary - v1"}]}`)
+				validJSON := []byte(`{"transforms": [{"dest": {"index": "test-prefix-jaeger-trace-summary"}, "description": "Jaeger Trace Summary - v1"}]}`)
 				ts.On("Get", mock.Anything, mock.Anything).Return(validJSON, nil)
 
 				// Start is called (Put and Delete are skipped!)
+				ts.On("Start", mock.Anything, mock.Anything).Return(nil)
+			},
+		},
+		{
+			name: "recreates transform if version mismatch",
+			setupClient: func(c *mocks.Client, ts *mocks.TransformService) {
+				c.On("Transform").Return(ts)
+
+				// Get returns an existing config, but with an OLD version ("v0" instead of "v1")
+				oldJSON := []byte(`{"transforms": [{"dest": {"index": "test-prefix-jaeger-trace-summary"}, "description": "Jaeger Trace Summary - v0"}]}`)
+				ts.On("Get", mock.Anything, mock.Anything).Return(oldJSON, nil)
+
+				// Because of the mismatch, it MUST call Delete, then Put, then Start
+				ts.On("Delete", mock.Anything, mock.Anything).Return(nil)
+				ts.On("Put", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 				ts.On("Start", mock.Anything, mock.Anything).Return(nil)
 			},
 		},

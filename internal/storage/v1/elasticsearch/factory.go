@@ -57,15 +57,8 @@ type FactoryBase struct {
 	authenticator extensionauth.HTTPClient
 }
 
-type scriptedMetric struct {
-	InitScript    string `json:"init_script"`
-	MapScript     string `json:"map_script"`
-	CombineScript string `json:"combine_script"`
-	ReduceScript  string `json:"reduce_script"`
-}
-
 // TransformConfigResponse represents the JSON structure returned by the ES _transform API.
-type TransformConfigResponse struct {
+type transformConfigResponse struct {
 	Transforms []struct {
 		Description string `json:"description"`
 		Dest        struct {
@@ -300,11 +293,10 @@ func (f *FactoryBase) createTemplates(ctx context.Context) error {
 	return nil
 }
 
-func (f *FactoryBase) resolveTransformNames() (string, string, string) {
-	indexPrefix := string(f.config.Indices.IndexPrefix)
-	jaegerSpanIdx := f.config.Indices.IndexPrefix.Apply("jaeger-span")
-	summaryIndex := resolveTraceSummaryIndex(jaegerSpanIdx, "")
-	transformID := fmt.Sprintf("%s_%s", summaryIndex, "jaeger_trace_summary_job")
+func (f *FactoryBase) resolveTransformNames() (indexPrefix string, summaryIndex string, transformID string) {
+	indexPrefix = strings.TrimSuffix(string(f.config.Indices.IndexPrefix), "-")
+	summaryIndex = f.config.Indices.IndexPrefix.Apply("jaeger-trace-summary")
+	transformID = fmt.Sprintf("%s_%s", summaryIndex, "jaeger_trace_summary_job")
 	return indexPrefix, summaryIndex, transformID
 }
 
@@ -314,20 +306,23 @@ func (f *FactoryBase) checkTransformStatus(ctx context.Context, esClient es.Clie
 		if strings.Contains(err.Error(), "404") {
 			return true, nil // Doesn't exist, needs creation
 		}
-		f.logger.Debug("Transform check failed, assuming non-existent", zap.Error(err))
-		return true, nil
+		return false, fmt.Errorf("failed to check transform status: %w", err)
 	}
 
-	var existingConfig TransformConfigResponse
+	var existingConfig transformConfigResponse
 	if err := json.Unmarshal(bodyBytes, &existingConfig); err == nil && len(existingConfig.Transforms) > 0 {
 		t := existingConfig.Transforms[0]
-		if t.Dest.Index == summaryIndex && strings.Contains(t.Description, traceSummaryVersion) {
+		expectedDescription := "Jaeger Trace Summary - " + traceSummaryVersion
+		if t.Dest.Index == summaryIndex && t.Description == expectedDescription {
 			return false, nil // Exists and is up-to-date, do not create
 		}
 		f.logger.Info("Transform version mismatch or config change. Recreating...", zap.String("id", transformID))
 		if err := esClient.Transform().Delete(ctx, transformID); err != nil {
+			// strings.Contains is used here intentionally: the elastic client wraps HTTP errors
+			// in a string message and does not expose a typed status code at this abstraction level.
+			// A structured error type in TransformService.Get is tracked as a follow-up improvement.
 			if strings.Contains(err.Error(), "404") {
-				return true, nil // Already absent, safe to recreate
+				return true, nil // Doesn't exist, needs creation
 			}
 			return false, fmt.Errorf("failed to delete outdated transform %q: %w", transformID, err)
 		}
@@ -366,11 +361,4 @@ func (f *FactoryBase) createTraceSummaryTransform(ctx context.Context) error {
 	}
 
 	return esClient.Transform().Start(ctx, transformID)
-}
-
-func resolveTraceSummaryIndex(spanIndexPrefix, configuredSummaryIndex string) string {
-	if configuredSummaryIndex != "" {
-		return configuredSummaryIndex
-	}
-	return strings.Replace(spanIndexPrefix, "jaeger-span", "jaeger-trace-summary", 1)
 }

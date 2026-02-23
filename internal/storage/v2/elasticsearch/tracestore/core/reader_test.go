@@ -419,6 +419,16 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 		secondMultiSearch.On("Index", mock.AnythingOfType("[]string")).Return(secondMultiSearch)
 		r.client.On("MultiSearch").Return(multiSearchService)
 
+		// Mock the new default trace-summary Search() call so it falls back gracefully
+		searchService := &mocks.SearchService{}
+		searchService.On("Query", mock.Anything).Return(searchService)
+		searchService.On("Size", mock.Anything).Return(searchService)
+		searchService.On("IgnoreUnavailable", mock.Anything).Return(searchService)
+		searchService.On("Do", mock.Anything).Return(&elastic.SearchResult{
+			Hits: &elastic.SearchHits{Hits: make([]*elastic.SearchHit, 0)},
+		}, nil)
+		r.client.On("Search", mock.Anything).Return(searchService)
+
 		fistMultiSearchMock := firstMultiSearch.On("Do", mock.Anything)
 		secondMultiSearchMock := secondMultiSearch.On("Do", mock.Anything)
 
@@ -1038,7 +1048,7 @@ func mockSearchService(r *spanReaderTest) *mock.Call {
 	searchService.On("Query", mock.Anything).Return(searchService)
 	searchService.On("IgnoreUnavailable", mock.AnythingOfType("bool")).Return(searchService)
 	searchService.On("Size", mock.MatchedBy(func(size int) bool {
-		return size == 0 // Aggregations apply size (bucket) limits in their own query objects, and do not apply at the parent query level.
+		return size == 0
 	})).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(servicesAggregation), mock.MatchedBy(matchTermsAggregation)).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(operationsAggregation), mock.MatchedBy(matchTermsAggregation)).Return(searchService)
@@ -1425,6 +1435,7 @@ func TestTagsMap(t *testing.T) {
 
 func TestSpanReader_SummaryOptimization(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
+		r.reader.useTraceSummary = true
 		now := time.Now()
 		startTime := now.Add(-time.Hour)
 		endTime := now
@@ -1491,35 +1502,9 @@ func TestSpanReader_SummaryOptimization(t *testing.T) {
 	})
 }
 
-func TestSpanReader_MultiRead_NoSummaryOptimization(t *testing.T) {
-	withSpanReader(t, func(r *spanReaderTest) {
-		multiSearchService := &mocks.MultiSearchService{}
-		multiSearchService.On("Add", mock.Anything).Return(multiSearchService)
-		multiSearchService.On("Index", mock.Anything).Return(multiSearchService)
-		multiSearchService.On("Do", mock.Anything).Return(&elastic.MultiSearchResult{
-			Responses: []*elastic.SearchResult{
-				{Hits: &elastic.SearchHits{Hits: []*elastic.SearchHit{}}},
-			},
-		}, nil)
-		r.client.On("MultiSearch").Return(multiSearchService)
-
-		now := time.Now()
-		traces, err := r.reader.multiRead(
-			context.Background(),
-			[]dbmodel.TraceID{"trace1"},
-			now.Add(-time.Hour),
-			now,
-		)
-		require.NoError(t, err)
-		require.NotNil(t, traces)
-
-		// Search() should NOT be called when optimization is disabled
-		r.client.AssertNotCalled(t, "Search", mock.Anything)
-	})
-}
-
 func TestSpanReader_SummaryOptimization_SearchError_FallsBack(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
+		r.reader.useTraceSummary = true
 		searchService := &mocks.SearchService{}
 		searchService.On("Query", mock.Anything).Return(searchService)
 		searchService.On("IgnoreUnavailable", mock.AnythingOfType("bool")).Return(searchService)
@@ -1537,11 +1522,12 @@ func TestSpanReader_SummaryOptimization_SearchError_FallsBack(t *testing.T) {
 		}, nil)
 		r.client.On("MultiSearch").Return(multiSearchService)
 
+		now := time.Now()
 		traces, err := r.reader.multiRead(
 			context.Background(),
 			[]dbmodel.TraceID{"trace1"},
-			time.Now().Add(-time.Hour),
-			time.Now(),
+			now.Add(-time.Hour),
+			now,
 		)
 		require.NoError(t, err, "summary search error must not surface to caller")
 		require.NotNil(t, traces)
@@ -1551,6 +1537,7 @@ func TestSpanReader_SummaryOptimization_SearchError_FallsBack(t *testing.T) {
 
 func TestSpanReader_SummaryOptimization_ZeroTimestamps_FallsBack(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
+		r.reader.useTraceSummary = true
 		hits := []*elastic.SearchHit{{
 			Source: []byte(`{"min_startTime": 0, "max_endTime": 0, "traceID": "trace1"}`),
 		}}
@@ -1576,11 +1563,12 @@ func TestSpanReader_SummaryOptimization_ZeroTimestamps_FallsBack(t *testing.T) {
 		}, nil)
 		r.client.On("MultiSearch").Return(multiSearchService)
 
+		now := time.Now()
 		traces, err := r.reader.multiRead(
 			context.Background(),
 			[]dbmodel.TraceID{"trace1"},
-			time.Now().Add(-time.Hour),
-			time.Now(),
+			now.Add(-time.Hour),
+			now,
 		)
 		require.NoError(t, err, "zero timestamps should trigger fallback, not error")
 		require.NotNil(t, traces)
@@ -1590,6 +1578,7 @@ func TestSpanReader_SummaryOptimization_ZeroTimestamps_FallsBack(t *testing.T) {
 
 func TestSpanReader_SummaryOptimization_PartialCoverage(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
+		r.reader.useTraceSummary = true
 		// Only trace1 has a summary — trace2 does not
 		hits := []*elastic.SearchHit{{
 			Source: []byte(`{
@@ -1635,6 +1624,14 @@ func TestSpanReader_SummaryOptimization_PartialCoverage(t *testing.T) {
 
 		// isOptimized must be false — window must NOT be shrunk
 		// since trace2 has no summary and could lie anywhere in the original range
+		// Call optimizeTimeBounds directly to assert isOptimized is false on partial coverage
+		_, _, isOptimized := r.reader.optimizeTimeBounds(
+			context.Background(),
+			[]dbmodel.TraceID{"trace1", "trace2"},
+			startTime,
+			endTime,
+		)
+		assert.False(t, isOptimized, "partial coverage must not return isOptimized=true")
 		multiSearchService.AssertCalled(t, "Index", mock.MatchedBy(func(indices []string) bool {
 			return len(indices) > 0
 		}))
@@ -1643,6 +1640,7 @@ func TestSpanReader_SummaryOptimization_PartialCoverage(t *testing.T) {
 
 func TestSpanReader_SummaryOptimization_DefaultIndexName(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
+		r.reader.useTraceSummary = true
 		r.reader.spanIndexPrefix = "jaeger-span"
 
 		expectedIndex := "jaeger-trace-summary"

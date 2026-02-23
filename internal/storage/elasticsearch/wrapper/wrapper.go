@@ -35,7 +35,8 @@ func (c ClientWrapper) GetVersion() uint {
 
 // Transform returns a wrapper around the underlying ES client's Transform APIs.
 func (c ClientWrapper) Transform() es.TransformService {
-	return WrapESTransformService(c.client)
+	isOS := c.client == nil
+	return WrapESTransformService(c.client, c.clientV8, isOS)
 }
 
 // WrapESClient creates a ESClient out of *elastic.Client.
@@ -300,19 +301,32 @@ func (s MultiSearchServiceWrapper) Do(ctx context.Context) (*elastic.MultiSearch
 
 // TransformServiceWrapper is a wrapper for managing Elasticsearch Transforms.
 type TransformServiceWrapper struct {
-	client *elastic.Client
+	client   *elastic.Client
+	clientV8 *esv8.Client
+	isOS     bool
 }
 
 // WrapESTransformService creates an ESTransformService out of *elastic.Client.
-func WrapESTransformService(client *elastic.Client) TransformServiceWrapper {
-	return TransformServiceWrapper{client: client}
+func WrapESTransformService(client *elastic.Client, clientV8 *esv8.Client, isOS bool) TransformServiceWrapper {
+	return TransformServiceWrapper{
+		client:   client,
+		clientV8: clientV8,
+		isOS:     isOS,
+	}
 }
 
-// Get calls the internal service.
+// transformPath routes the API request to the correct endpoint based on the backend.
+func (s TransformServiceWrapper) transformPath(id string) string {
+	if s.isOS {
+		return "/_plugins/_transform/" + url.PathEscape(id)
+	}
+	return "/_transform/" + url.PathEscape(id)
+}
+
 func (s TransformServiceWrapper) Get(ctx context.Context, id string) ([]byte, error) {
 	res, err := s.client.PerformRequest(ctx, elastic.PerformRequestOptions{
 		Method: http.MethodGet,
-		Path:   fmt.Sprintf("/_transform/%s", url.PathEscape(id)),
+		Path:   s.transformPath(id),
 	})
 	if err != nil {
 		return nil, err
@@ -324,7 +338,7 @@ func (s TransformServiceWrapper) Get(ctx context.Context, id string) ([]byte, er
 func (s TransformServiceWrapper) Put(ctx context.Context, id string, body string) error {
 	_, err := s.client.PerformRequest(ctx, elastic.PerformRequestOptions{
 		Method: http.MethodPut,
-		Path:   fmt.Sprintf("/_transform/%s", url.PathEscape(id)),
+		Path:   s.transformPath(id),
 		Body:   body,
 	})
 	return err
@@ -334,7 +348,7 @@ func (s TransformServiceWrapper) Put(ctx context.Context, id string, body string
 func (s TransformServiceWrapper) Start(ctx context.Context, id string) error {
 	_, err := s.client.PerformRequest(ctx, elastic.PerformRequestOptions{
 		Method: http.MethodPost,
-		Path:   fmt.Sprintf("/_transform/%s/_start", url.PathEscape(id)),
+		Path:   s.transformPath(id) + "/_start",
 	})
 	return err
 }
@@ -343,7 +357,7 @@ func (s TransformServiceWrapper) Start(ctx context.Context, id string) error {
 func (s TransformServiceWrapper) Delete(ctx context.Context, id string) error {
 	_, err := s.client.PerformRequest(ctx, elastic.PerformRequestOptions{
 		Method: http.MethodDelete,
-		Path:   fmt.Sprintf("/_transform/%s", url.PathEscape(id)),
+		Path:   s.transformPath(id),
 	})
 	return err
 }
