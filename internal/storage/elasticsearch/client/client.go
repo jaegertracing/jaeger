@@ -74,7 +74,7 @@ func (c *Client) request(esRequest elasticRequest) ([]byte, error) {
 	}
 	c.setAuthorization(r)
 	r.Header.Add("Content-Type", "application/json")
-	res, err := c.Client.Do(r)
+	res, err := c.Client.Do(r) //nolint:gosec // G704 - URL from config, not user input
 	if err != nil {
 		return []byte{}, err
 	}

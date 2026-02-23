@@ -75,8 +75,8 @@ func New(mappingFile string, options Options, logger *zap.Logger) *Anonymizer {
 		options: options,
 		cancel:  cancel,
 	}
-	if _, err := os.Stat(filepath.Clean(mappingFile)); err == nil {
-		dat, err := os.ReadFile(filepath.Clean(mappingFile))
+	if _, err := os.Stat(filepath.Clean(mappingFile)); err == nil { //nolint:gosec // G703 - mappingFile is from config, not user input
+		dat, err := os.ReadFile(filepath.Clean(mappingFile)) //nolint:gosec // G703 - mappingFile is from config
 		if err != nil {
 			logger.Fatal("Cannot load previous mapping", zap.Error(err))
 		}

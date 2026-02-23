@@ -144,7 +144,7 @@ func (w *FSWatcher) isModified(filePathName string, previousHash string) (bool, 
 
 // hashFile returns the SHA256 hash of the file.
 func hashFile(file string) (string, error) {
-	f, err := os.Open(filepath.Clean(file))
+	f, err := os.Open(filepath.Clean(file)) //nolint:gosec // G703 - path from config, not user input
 	if err != nil {
 		return "", err
 	}
