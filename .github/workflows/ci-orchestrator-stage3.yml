@@ -3,10 +3,6 @@ name: "CI Orchestrator: Stage 3 (Docker, E2E, Binaries, Static Analysis)"
 on:
   workflow_call:
 
-# Grant all permissions to allow child workflows to request what they need
-# Child workflows can downgrade permissions as needed (principle of least privilege)
-permissions: write-all
-
 jobs:
   build-binaries:
     uses: ./.github/workflows/ci-build-binaries.yml
