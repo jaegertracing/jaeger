@@ -30,7 +30,9 @@ type QueryServiceOptions struct {
 	ArchiveTraceWriter tracestore.Writer
 	// MaxClockSkewAdjust is the maximum duration by which to adjust a span.
 	MaxClockSkewAdjust time.Duration
-	// MaxTraceSize is the maximum number of spans to load per trace.
+	// MaxTraceSize is the maximum number of spans to load per trace. When a trace
+	// exceeds this limit, it is truncated and a warning span with attribute
+	// "@jaeger@warnings" is added. A value of 0 or negative disables the limit.
 	MaxTraceSize int
 }
 
