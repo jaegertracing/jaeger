@@ -1,13 +1,13 @@
 # CI Workflows
 
-This directory contains GitHub Actions workflows for the Jaeger project. The workflows are organized into a tiered architecture to optimize CI resource usage and provide fail-fast behavior.
+This directory contains GitHub Actions workflows for the Jaeger project. The workflows are organized into a staged architecture to optimize CI resource usage and provide fail-fast behavior.
 
 ## Architecture Overview
 
 The CI system uses a **Forked DAG (Directed Acyclic Graph)** orchestrated by `ci-orchestrator.yml`. The orchestrator supports two execution paths based on the context of the run:
 
-- **Sequential path (~30m)**: Default for external contributors. Tier 1 must pass before Tier 2, and Tier 2 must pass before Tier 3. Provides fail-fast behavior that saves resources when linting or unit tests fail.
-- **Parallel path (~10m)**: For trusted maintainers, merge queue, and main branch builds. All three tiers start simultaneously after a setup step.
+- **Sequential path (~30m)**: Default for external contributors. Stage 1 must pass before Stage 2, and Stage 2 must pass before Stage 3. Provides fail-fast behavior that saves resources when linting or unit tests fail.
+- **Parallel path (~10m)**: For trusted maintainers, merge queue, and main branch builds. All three stages start simultaneously after a setup step.
 
 ### CI Orchestrator
 
@@ -172,5 +172,5 @@ Individual workflows can still be triggered manually via the GitHub Actions UI f
 2. **Fail-Fast for External Contributors**: Expensive checks only run after cheaper ones pass, saving resources
 3. **Simplified Branch Protection**: Single `ci-success` check represents the entire CI pipeline
 4. **Centralized Concurrency Control**: Single kill-switch via `cancel-in-progress: true`
-5. **DRY Stage Workflows**: Both execution paths reuse the same stage-tier-*.yml workflows
+5. **DRY Stage Workflows**: Both execution paths reuse the same `ci-orchestrator-stage*.yml` workflows
 6. **Maintainability**: Individual child workflows remain decoupled and independently testable
