@@ -168,3 +168,11 @@ jobs:
             exit 1
           fi
           echo "✅ CI passed on parallel path."
+
+      - name: Validate execution path was determined
+        run: |
+          PARALLEL="${{ needs.setup.outputs.parallel }}"
+          if [[ "$PARALLEL" != "true" && "$PARALLEL" != "false" ]]; then
+            echo "❌ Invalid parallel mode: '$PARALLEL' (expected 'true' or 'false')"
+            exit 1
+          fi
