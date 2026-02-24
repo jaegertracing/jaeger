@@ -1,0 +1,40 @@
+name: "CI Stage: Tier 3 (Docker, E2E, Binaries)"
+
+on:
+  workflow_call:
+
+# Grant all permissions to allow child workflows to request what they need
+# Child workflows can downgrade permissions as needed (principle of least privilege)
+permissions: write-all
+
+jobs:
+  build-binaries:
+    uses: ./.github/workflows/ci-build-binaries.yml
+    secrets: inherit
+
+  docker-build:
+    uses: ./.github/workflows/ci-docker-build.yml
+    secrets: inherit
+
+  docker-all-in-one:
+    uses: ./.github/workflows/ci-docker-all-in-one.yml
+    secrets: inherit
+
+  docker-hotrod:
+    uses: ./.github/workflows/ci-docker-hotrod.yml
+    secrets: inherit
+
+  e2e-tests:
+    uses: ./.github/workflows/ci-e2e-all.yml
+    secrets: inherit
+
+  tier-3-complete:
+    if: always()
+    needs: [build-binaries, docker-build, docker-all-in-one, docker-hotrod, e2e-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Tier 3 Status
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo "❌ One or more Tier 3 jobs failed or were cancelled."
+          exit 1
