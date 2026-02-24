@@ -42,6 +42,12 @@ jobs:
             PARALLEL=true
           fi
 
+          # Parallel for known bots (dependency update automation)
+          if [[ "${{ github.actor }}" == "dependabot[bot]" || "${{ github.actor }}" == "renovate[bot]" ]]; then
+            echo "Parallel: bot actor (${{ github.actor }})"
+            PARALLEL=true
+          fi
+
           # PR-specific checks (author_association and labels are only present on pull_request events)
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             # Parallel for org members (MEMBER or OWNER author_association)

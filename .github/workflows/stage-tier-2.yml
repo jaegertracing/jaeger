@@ -11,14 +11,3 @@ jobs:
   unit-tests:
     uses: ./.github/workflows/ci-unit-tests.yml
     secrets: inherit
-
-  tier-2-complete:
-    if: always()
-    needs: [unit-tests]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check Tier 2 Status
-        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
-        run: |
-          echo "❌ Tier 2 job failed or was cancelled."
-          exit 1

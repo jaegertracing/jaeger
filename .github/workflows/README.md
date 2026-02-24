@@ -24,28 +24,26 @@ The `setup` job determines whether to use parallel execution based on these **OR
 | Push to `main` branch | Already merged, fully trusted |
 | `merge_group` event | Merge Queue entry, high confidence |
 | PR author is an org member (`MEMBER` or `OWNER`) | Trusted maintainer |
+| Actor is `dependabot[bot]` or `renovate[bot]` | Dependency automation bots |
 | PR has the `ci:parallel` label | Explicit opt-in |
 
 #### Stage Workflows (DRY Encapsulation)
 
 Each tier is encapsulated in a reusable "stage" workflow:
 
-- **stage-tier-1.yml** - Calls Tier 1 workflows (Linters & Static Analysis)
+- **stage-tier-1.yml** - Calls Tier 1 workflows (Linters only — fast fail-fast gate)
 - **stage-tier-2.yml** - Calls Tier 2 workflows (Unit Tests)
-- **stage-tier-3.yml** - Calls Tier 3 workflows (Docker, E2E, Binaries)
+- **stage-tier-3.yml** - Calls Tier 3 workflows (Docker, E2E, Binaries, Static Analysis)
 
 This avoids duplication: both the sequential and parallel paths call the same stage workflows.
 
-#### Tier 1: Cheap Checks (Linters & Static Analysis)
+#### Tier 1: Fast Gate (Linters only)
 - **ci-lint-checks.yaml** - Go linting, DCO checks, generated files validation, shell script linting
-- **codeql.yml** - Security scanning with CodeQL
-- **dependency-review.yml** - Dependency vulnerability checks
-- **fossa.yml** - License compliance scanning
 
 #### Tier 2: Unit Tests
 - **ci-unit-tests.yml** - Full unit test suite with coverage
 
-#### Tier 3: Expensive Checks
+#### Tier 3: Expensive Checks & Static Analysis
 Executes in parallel within the stage:
 - **ci-build-binaries.yml** - Multi-platform binary builds
 - **ci-docker-build.yml** - Docker images for all components
@@ -54,6 +52,9 @@ Executes in parallel within the stage:
 - **ci-e2e-all.yml** - E2E test suite orchestrator (calls individual E2E workflows)
 - **ci-e2e-spm.yml** - Service Performance Monitoring tests
 - **ci-e2e-tailsampling.yml** - Tail sampling processor tests
+- **codeql.yml** - Security scanning with CodeQL
+- **dependency-review.yml** - Dependency vulnerability checks
+- **fossa.yml** - License compliance scanning
 
 #### Gatekeeper Job
 The orchestrator includes a final **`ci-success`** job that:

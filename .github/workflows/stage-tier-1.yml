@@ -1,4 +1,4 @@
-name: "CI Stage: Tier 1 (Linters & Static Analysis)"
+name: "CI Stage: Tier 1 (Linters)"
 
 on:
   workflow_call:
@@ -11,26 +11,3 @@ jobs:
   lint-checks:
     uses: ./.github/workflows/ci-lint-checks.yaml
     secrets: inherit
-
-  codeql:
-    uses: ./.github/workflows/codeql.yml
-    secrets: inherit
-
-  dependency-review:
-    uses: ./.github/workflows/dependency-review.yml
-    secrets: inherit
-
-  fossa:
-    uses: ./.github/workflows/fossa.yml
-    secrets: inherit
-
-  tier-1-complete:
-    if: always()
-    needs: [lint-checks, codeql, dependency-review, fossa]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check Tier 1 Status
-        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
-        run: |
-          echo "❌ One or more Tier 1 jobs failed or were cancelled."
-          exit 1
