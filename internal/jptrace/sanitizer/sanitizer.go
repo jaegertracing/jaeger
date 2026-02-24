@@ -18,6 +18,7 @@ var Sanitize = NewChainedSanitizer(NewStandardSanitizers()...)
 func NewStandardSanitizers() []Func {
 	return []Func{
 		NewEmptyServiceNameSanitizer(),
+		NewEmptySpanNameSanitizer(),
 		NewUTF8Sanitizer(),
 		NewNegativeDurationSanitizer(),
 	}

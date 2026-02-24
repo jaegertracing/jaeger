@@ -5,6 +5,7 @@ go 1.26.0
 require (
 	github.com/golangci/golangci-lint/v2 v2.9.0
 	github.com/josephspurrier/goversioninfo v1.5.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/cmd/schemagen v0.146.0
 	github.com/vektra/mockery/v3 v3.6.1
 	golang.org/x/vuln v1.1.4
 	mvdan.cc/gofumpt v0.9.2
@@ -109,6 +110,7 @@ require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/hexops/gotextdiff v1.0.3 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
+	github.com/iancoleman/strcase v0.3.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jedib0t/go-pretty/v6 v6.6.7 // indirect
 	github.com/jgautheron/goconst v1.8.2 // indirect
