@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var envVars = map[string]string{ //nolint:gosec // G101 - not a credential, just an env var name
+var envVars = map[string]string{
 	"JAEGER_SERVICE_NAME":                           "",
 	"JAEGER_AGENT_HOST":                             "OTEL_EXPORTER_JAEGER_AGENT_HOST",
 	"JAEGER_AGENT_PORT":                             "OTEL_EXPORTER_JAEGER_AGENT_PORT",

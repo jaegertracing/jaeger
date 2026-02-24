@@ -31,7 +31,7 @@ type Config struct {
 	IndexPrefix      string
 	Archive          bool
 	Username         string
-	Password         string //nolint:gosec // G117 - field name matches pattern but is not a credential
+	Password         string
 	TLSEnabled       bool
 	ILMPolicyName    string
 	UseILM           bool
