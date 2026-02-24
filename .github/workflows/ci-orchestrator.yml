@@ -34,12 +34,16 @@ jobs:
           if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
             echo "Parallel: push to main"
             PARALLEL=true
+          else
+            echo "Not triggered by push to main (event=${{ github.event_name }}, ref=${{ github.ref }})"
           fi
 
           # Parallel for merge queue
           if [[ "${{ github.event_name }}" == "merge_group" ]]; then
             echo "Parallel: merge_group event"
             PARALLEL=true
+          else
+            echo "Not a merge_group event (event=${{ github.event_name }})"
           fi
 
           # PR-specific checks (author_association, labels, and actor are only meaningful on pull_request events)
@@ -49,19 +53,31 @@ jobs:
                   "${{ github.event.pull_request.author_association }}" == "OWNER" ]]; then
               echo "Parallel: org member (${{ github.event.pull_request.author_association }})"
               PARALLEL=true
+            else
+              echo "Not an org member (author_association=${{ github.event.pull_request.author_association }})"
             fi
 
             # Parallel for known bots (dependency update automation)
             if [[ "${{ github.actor }}" == "dependabot[bot]" || "${{ github.actor }}" == "renovate[bot]" ]]; then
               echo "Parallel: bot actor (${{ github.actor }})"
               PARALLEL=true
+            else
+              echo "Not a known bot (actor=${{ github.actor }})"
             fi
 
-            # Parallel if the ci:parallel label is applied to the PR
+            # Parallel if the ci:parallel label is applied to the PR.
+            # NOTE: re-running jobs does not refresh the event payload; a new run is needed
+            # to pick up labels added after the workflow was first triggered.
+            PR_LABELS="${{ join(github.event.pull_request.labels.*.name, ', ') }}"
+            echo "PR labels: ${PR_LABELS:-<none>}"
             if [[ "${{ contains(github.event.pull_request.labels.*.name, 'ci:parallel') }}" == "true" ]]; then
-              echo "Parallel: ci:parallel label"
+              echo "Parallel: ci:parallel label found"
               PARALLEL=true
+            else
+              echo "ci:parallel label not found in: ${PR_LABELS:-<none>}"
             fi
+          else
+            echo "Not a pull_request event — skipping PR-specific checks"
           fi
 
           echo "parallel=$PARALLEL" >> "$GITHUB_OUTPUT"
