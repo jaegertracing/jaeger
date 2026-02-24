@@ -42,18 +42,18 @@ jobs:
             PARALLEL=true
           fi
 
-          # Parallel for known bots (dependency update automation)
-          if [[ "${{ github.actor }}" == "dependabot[bot]" || "${{ github.actor }}" == "renovate[bot]" ]]; then
-            echo "Parallel: bot actor (${{ github.actor }})"
-            PARALLEL=true
-          fi
-
-          # PR-specific checks (author_association and labels are only present on pull_request events)
+          # PR-specific checks (author_association, labels, and actor are only meaningful on pull_request events)
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             # Parallel for org members (MEMBER or OWNER author_association)
             if [[ "${{ github.event.pull_request.author_association }}" == "MEMBER" || \
                   "${{ github.event.pull_request.author_association }}" == "OWNER" ]]; then
               echo "Parallel: org member (${{ github.event.pull_request.author_association }})"
+              PARALLEL=true
+            fi
+
+            # Parallel for known bots (dependency update automation)
+            if [[ "${{ github.actor }}" == "dependabot[bot]" || "${{ github.actor }}" == "renovate[bot]" ]]; then
+              echo "Parallel: bot actor (${{ github.actor }})"
               PARALLEL=true
             fi
 
@@ -69,48 +69,48 @@ jobs:
 
   # ============================================================================
   # SEQUENTIAL PATH (~30m): Default for external contributors.
-  # Tier 2 waits for Tier 1; Tier 3 waits for Tier 2.
+  # Stage 2 waits for Stage 1; Stage 3 waits for Stage 2.
   # Active when parallel == false.
   # ============================================================================
-  tier1-seq:
+  stage1-seq:
     needs: [setup]
     if: ${{ needs.setup.outputs.parallel == 'false' }}
-    uses: ./.github/workflows/stage-tier-1.yml
+    uses: ./.github/workflows/ci-orchestrator-stage1.yml
     secrets: inherit
 
-  tier2-seq:
-    needs: [setup, tier1-seq]
+  stage2-seq:
+    needs: [setup, stage1-seq]
     if: ${{ needs.setup.outputs.parallel == 'false' }}
-    uses: ./.github/workflows/stage-tier-2.yml
+    uses: ./.github/workflows/ci-orchestrator-stage2.yml
     secrets: inherit
 
-  tier3-seq:
-    needs: [setup, tier2-seq]
+  stage3-seq:
+    needs: [setup, stage2-seq]
     if: ${{ needs.setup.outputs.parallel == 'false' }}
-    uses: ./.github/workflows/stage-tier-3.yml
+    uses: ./.github/workflows/ci-orchestrator-stage3.yml
     secrets: inherit
 
   # ============================================================================
   # PARALLEL PATH (~10m): For trusted maintainers, merge queue, and main branch.
-  # All tiers start simultaneously after setup.
+  # All stages start simultaneously after setup.
   # Active when parallel == true.
   # ============================================================================
-  tier1-fast:
+  stage1-fast:
     needs: [setup]
     if: ${{ needs.setup.outputs.parallel == 'true' }}
-    uses: ./.github/workflows/stage-tier-1.yml
+    uses: ./.github/workflows/ci-orchestrator-stage1.yml
     secrets: inherit
 
-  tier2-fast:
+  stage2-fast:
     needs: [setup]
     if: ${{ needs.setup.outputs.parallel == 'true' }}
-    uses: ./.github/workflows/stage-tier-2.yml
+    uses: ./.github/workflows/ci-orchestrator-stage2.yml
     secrets: inherit
 
-  tier3-fast:
+  stage3-fast:
     needs: [setup]
     if: ${{ needs.setup.outputs.parallel == 'true' }}
-    uses: ./.github/workflows/stage-tier-3.yml
+    uses: ./.github/workflows/ci-orchestrator-stage3.yml
     secrets: inherit
 
   # ============================================================================
@@ -121,7 +121,7 @@ jobs:
     name: All CI Checks Passed
     runs-on: ubuntu-latest
     if: always()
-    needs: [setup, tier1-seq, tier2-seq, tier3-seq, tier1-fast, tier2-fast, tier3-fast]
+    needs: [setup, stage1-seq, stage2-seq, stage3-seq, stage1-fast, stage2-fast, stage3-fast]
     steps:
       - name: Check setup status
         if: ${{ needs.setup.result != 'success' }}
@@ -132,11 +132,11 @@ jobs:
       - name: Check sequential path
         if: ${{ needs.setup.outputs.parallel == 'false' }}
         run: |
-          T1="${{ needs.tier1-seq.result }}"
-          T2="${{ needs.tier2-seq.result }}"
-          T3="${{ needs.tier3-seq.result }}"
-          if [[ "$T1" != "success" || "$T2" != "success" || "$T3" != "success" ]]; then
-            echo "❌ CI failed on sequential path. Tier 1: $T1, Tier 2: $T2, Tier 3: $T3"
+          S1="${{ needs.stage1-seq.result }}"
+          S2="${{ needs.stage2-seq.result }}"
+          S3="${{ needs.stage3-seq.result }}"
+          if [[ "$S1" != "success" || "$S2" != "success" || "$S3" != "success" ]]; then
+            echo "❌ CI failed on sequential path. Stage 1: $S1, Stage 2: $S2, Stage 3: $S3"
             exit 1
           fi
           echo "✅ CI passed on sequential path."
@@ -144,11 +144,11 @@ jobs:
       - name: Check parallel path
         if: ${{ needs.setup.outputs.parallel == 'true' }}
         run: |
-          T1="${{ needs.tier1-fast.result }}"
-          T2="${{ needs.tier2-fast.result }}"
-          T3="${{ needs.tier3-fast.result }}"
-          if [[ "$T1" != "success" || "$T2" != "success" || "$T3" != "success" ]]; then
-            echo "❌ CI failed on parallel path. Tier 1: $T1, Tier 2: $T2, Tier 3: $T3"
+          S1="${{ needs.stage1-fast.result }}"
+          S2="${{ needs.stage2-fast.result }}"
+          S3="${{ needs.stage3-fast.result }}"
+          if [[ "$S1" != "success" || "$S2" != "success" || "$S3" != "success" ]]; then
+            echo "❌ CI failed on parallel path. Stage 1: $S1, Stage 2: $S2, Stage 3: $S3"
             exit 1
           fi
           echo "✅ CI passed on parallel path."

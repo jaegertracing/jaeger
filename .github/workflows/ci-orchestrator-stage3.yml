@@ -1,4 +1,4 @@
-name: "CI Stage: Tier 3 (Docker, E2E, Binaries, Static Analysis)"
+name: "CI Orchestrator: Stage 3 (Docker, E2E, Binaries, Static Analysis)"
 
 on:
   workflow_call:

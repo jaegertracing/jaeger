@@ -24,26 +24,26 @@ The `setup` job determines whether to use parallel execution based on these **OR
 | Push to `main` branch | Already merged, fully trusted |
 | `merge_group` event | Merge Queue entry, high confidence |
 | PR author is an org member (`MEMBER` or `OWNER`) | Trusted maintainer |
-| Actor is `dependabot[bot]` or `renovate[bot]` | Dependency automation bots |
+| PR actor is `dependabot[bot]` or `renovate[bot]` | Dependency automation bots |
 | PR has the `ci:parallel` label | Explicit opt-in |
 
 #### Stage Workflows (DRY Encapsulation)
 
-Each tier is encapsulated in a reusable "stage" workflow:
+Each stage is encapsulated in a reusable "stage" workflow:
 
-- **stage-tier-1.yml** - Calls Tier 1 workflows (Linters only — fast fail-fast gate)
-- **stage-tier-2.yml** - Calls Tier 2 workflows (Unit Tests)
-- **stage-tier-3.yml** - Calls Tier 3 workflows (Docker, E2E, Binaries, Static Analysis)
+- **ci-orchestrator-stage1.yml** - Stage 1 workflows (Linters only — fast fail-fast gate)
+- **ci-orchestrator-stage2.yml** - Stage 2 workflows (Unit Tests)
+- **ci-orchestrator-stage3.yml** - Stage 3 workflows (Docker, E2E, Binaries, Static Analysis)
 
 This avoids duplication: both the sequential and parallel paths call the same stage workflows.
 
-#### Tier 1: Fast Gate (Linters only)
+#### Stage 1: Fast Gate (Linters only)
 - **ci-lint-checks.yaml** - Go linting, DCO checks, generated files validation, shell script linting
 
-#### Tier 2: Unit Tests
+#### Stage 2: Unit Tests
 - **ci-unit-tests.yml** - Full unit test suite with coverage
 
-#### Tier 3: Expensive Checks & Static Analysis
+#### Stage 3: Expensive Checks & Static Analysis
 Executes in parallel within the stage:
 - **ci-build-binaries.yml** - Multi-platform binary builds
 - **ci-docker-build.yml** - Docker images for all components
@@ -58,7 +58,7 @@ Executes in parallel within the stage:
 
 #### Gatekeeper Job
 The orchestrator includes a final **`ci-success`** job that:
-- Runs after all tier jobs (regardless of which path was taken)
+- Runs after all stage jobs (regardless of which path was taken)
 - Determines which path was used and validates its results
 - Should be used as the required status check in GitHub branch protection rules
 
@@ -72,18 +72,18 @@ The orchestrator includes a final **`ci-success`** job that:
            ┌──────────────────┴──────────────────┐
            │  Sequential Path                     │  Parallel Path
            │                                      │
-      ┌────▼─────┐                    ┌───────────┼───────────┐
-      │ tier1-seq│                    │           │           │
-      └────┬─────┘               ┌───▼────┐ ┌───▼────┐ ┌───▼────┐
-           │                     │tier1-  │ │tier2-  │ │tier3-  │
-      ┌────▼─────┐               │ fast   │ │ fast   │ │ fast   │
-      │ tier2-seq│               └───┬────┘ └───┬────┘ └───┬────┘
-      └────┬─────┘                   │           │          │
-           │                         └───────────┴──────────┘
-      ┌────▼─────┐                              │
-      │ tier3-seq│                              │
-      └────┬─────┘                              │
-           └──────────────────┬─────────────────┘
+      ┌────▼──────┐                  ┌────────────┼────────────┐
+      │ stage1-seq│                  │            │            │
+      └────┬──────┘             ┌────▼───┐  ┌────▼───┐  ┌────▼───┐
+           │                    │stage1- │  │stage2- │  │stage3- │
+      ┌────▼──────┐             │  fast  │  │  fast  │  │  fast  │
+      │ stage2-seq│             └────┬───┘  └────┬───┘  └────┬───┘
+      └────┬──────┘                  │            │           │
+           │                         └────────────┴───────────┘
+      ┌────▼──────┐                              │
+      │ stage3-seq│                              │
+      └────┬──────┘                              │
+           └──────────────────┬──────────────────┘
                          ┌────▼────┐
                          │ci-success│
                          └─────────┘
