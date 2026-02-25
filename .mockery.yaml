@@ -68,3 +68,4 @@ packages:
   github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore:
     interfaces:
       CoreSpanReader: {}
+      CoreSpanWriter: {}
