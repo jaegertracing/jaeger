@@ -6,13 +6,15 @@ package tracestore
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/cassandra/mocks"
 	storemocks "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
@@ -20,7 +22,7 @@ import (
 var traceId = [16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
 
 func TestErrNewTraceWriter(t *testing.T) {
-	session := spanstore.GetSessionWithError(errors.New("test error"))
+	session := getSessionWithError(errors.New("test error"))
 	metricsFactory := metricstest.NewFactory(0)
 	logger, _ := testutils.NewLogger()
 	_, err := NewTraceWriter(session, 0, metricsFactory, logger)
@@ -47,4 +49,18 @@ func TestTraceWriterClose(t *testing.T) {
 	mockWriter.On("Close").Return(nil)
 	writer := TraceWriter{writer: mockWriter}
 	require.NoError(t, writer.Close())
+}
+
+func getSessionWithError(err error) *mocks.Session {
+	tableCheckStmt := "SELECT * from %s limit 1"
+	session := &mocks.Session{}
+	query := &mocks.Query{}
+	query.On("Exec").Return(err)
+	session.On("Query",
+		fmt.Sprintf(tableCheckStmt, "operation_names"),
+		mock.Anything).Return(query)
+	session.On("Query",
+		fmt.Sprintf(tableCheckStmt, "operation_names_v2"),
+		mock.Anything).Return(query)
+	return session
 }
