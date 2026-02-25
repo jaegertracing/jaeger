@@ -1,28 +1,50 @@
 # CI Workflows
 
-This directory contains GitHub Actions workflows for the Jaeger project. The workflows are organized into a tiered architecture to optimize CI resource usage and provide fail-fast behavior.
+This directory contains GitHub Actions workflows for the Jaeger project. The workflows are organized into a staged architecture to optimize CI resource usage and provide fail-fast behavior.
 
 ## Architecture Overview
 
-The CI system uses a **3-Tier Sequential Pipeline** orchestrated by `ci-orchestrator.yml`. This design ensures that expensive checks (builds, E2E tests) only run after cheaper checks (linting, unit tests) have passed, saving resources and providing faster feedback.
+The CI system uses a **Forked DAG (Directed Acyclic Graph)** orchestrated by `ci-orchestrator.yml`. The orchestrator supports two execution paths based on the context of the run:
+
+- **Sequential path (~30m)**: Default for external contributors. Stage 1 must pass before Stage 2, and Stage 2 must pass before Stage 3. Provides fail-fast behavior that saves resources when linting or unit tests fail.
+- **Parallel path (~10m)**: For trusted maintainers, merge queue, and main branch builds. All three stages start simultaneously after a setup step.
 
 ### CI Orchestrator
 
-The main entry point for PR and branch CI is **`ci-orchestrator.yml`**, which coordinates all CI checks in three tiers:
+The main entry point for PR and branch CI is **`ci-orchestrator.yml`**, which:
+1. Runs a **`setup`** job to determine the execution mode (parallel or sequential)
+2. Triggers either the sequential or parallel path based on the result
 
-#### Tier 1: Cheap Checks (Linters & Static Analysis)
-These run first and in parallel:
+#### Setup Job: Execution Mode Detection
+
+The `setup` job determines whether to use parallel execution based on these **OR** conditions:
+
+| Condition | Rationale |
+|-----------|-----------|
+| Push to `main` branch | Already merged, fully trusted |
+| `merge_group` event | Merge Queue entry, high confidence |
+| PR author is an org member (`MEMBER` or `OWNER`) | Trusted maintainer |
+| PR actor is `dependabot[bot]` or `renovate[bot]` | Dependency automation bots |
+| PR has the `ci:parallel` label | Explicit opt-in |
+
+#### Stage Workflows (DRY Encapsulation)
+
+Each stage is encapsulated in a reusable "stage" workflow:
+
+- **ci-orchestrator-stage1.yml** - Stage 1 workflows (Linters only — fast fail-fast gate)
+- **ci-orchestrator-stage2.yml** - Stage 2 workflows (Unit Tests)
+- **ci-orchestrator-stage3.yml** - Stage 3 workflows (Docker, E2E, Binaries, Static Analysis)
+
+This avoids duplication: both the sequential and parallel paths call the same stage workflows.
+
+#### Stage 1: Fast Gate (Linters only)
 - **ci-lint-checks.yaml** - Go linting, DCO checks, generated files validation, shell script linting
-- **codeql.yml** - Security scanning with CodeQL
-- **dependency-review.yml** - Dependency vulnerability checks
-- **fossa.yml** - License compliance scanning
 
-#### Tier 2: Unit Tests
-Runs only if Tier 1 passes:
+#### Stage 2: Unit Tests
 - **ci-unit-tests.yml** - Full unit test suite with coverage
 
-#### Tier 3: Expensive Checks
-Runs only if Tier 2 passes, executes in parallel:
+#### Stage 3: Expensive Checks & Static Analysis
+Executes in parallel within the stage:
 - **ci-build-binaries.yml** - Multi-platform binary builds
 - **ci-docker-build.yml** - Docker images for all components
 - **ci-docker-all-in-one.yml** - All-in-one Docker image
@@ -30,12 +52,42 @@ Runs only if Tier 2 passes, executes in parallel:
 - **ci-e2e-all.yml** - E2E test suite orchestrator (calls individual E2E workflows)
 - **ci-e2e-spm.yml** - Service Performance Monitoring tests
 - **ci-e2e-tailsampling.yml** - Tail sampling processor tests
+- **codeql.yml** - Security scanning with CodeQL
+- **dependency-review.yml** - Dependency vulnerability checks
+- **fossa.yml** - License compliance scanning
 
 #### Gatekeeper Job
 The orchestrator includes a final **`ci-success`** job that:
-- Waits for all Tier 3 jobs to complete
-- Reports overall CI status
+- Runs after all stage jobs (regardless of which path was taken)
+- Determines which path was used and validates its results
 - Should be used as the required status check in GitHub branch protection rules
+
+### Execution Flow Diagram
+
+```
+                         ┌─────────┐
+                         │  setup  │
+                         └────┬────┘
+              parallel=false  │  parallel=true
+           ┌──────────────────┴──────────────────┐
+           │  Sequential Path                     │  Parallel Path
+           │                                      │
+      ┌────▼──────┐                  ┌────────────┼────────────┐
+      │ stage1-seq│                  │            │            │
+      └────┬──────┘             ┌────▼───┐  ┌────▼───┐  ┌────▼───┐
+           │                    │stage1- │  │stage2- │  │stage3- │
+      ┌────▼──────┐             │  fast  │  │  fast  │  │  fast  │
+      │ stage2-seq│             └────┬───┘  └────┬───┘  └────┬───┘
+      └────┬──────┘                  │            │           │
+           │                         └────────────┴───────────┘
+      ┌────▼──────┐                              │
+      │ stage3-seq│                              │
+      └────┬──────┘                              │
+           └──────────────────┬──────────────────┘
+                         ┌────▼────┐
+                         │ci-success│
+                         └─────────┘
+```
 
 ### Concurrency Control
 
@@ -116,16 +168,9 @@ Individual workflows can still be triggered manually via the GitHub Actions UI f
 
 ## Benefits
 
-1. **Fail-Fast**: Expensive checks only run after cheaper ones pass
-2. **Resource Optimization**: Saves ~60-70% of CI time on PRs with basic issues
-3. **Simplified Branch Protection**: Single status check instead of 10+
-4. **Better Concurrency**: Centralized cancel-in-progress logic
-5. **Maintainability**: Individual workflows remain decoupled and testable
-
-## Migration Notes
-
-This architecture was introduced to address high CI resource usage from concurrent workflow execution. The change:
-- Preserves all existing workflow logic
-- Maintains all security and quality checks
-- Reduces redundant work through sequential tiering
-- Provides faster feedback for common issues (linting, unit tests)
+1. **Reduced Feedback Loop**: Trusted contributors get ~10m feedback instead of ~30m
+2. **Fail-Fast for External Contributors**: Expensive checks only run after cheaper ones pass, saving resources
+3. **Simplified Branch Protection**: Single `ci-success` check represents the entire CI pipeline
+4. **Centralized Concurrency Control**: Single kill-switch via `cancel-in-progress: true`
+5. **DRY Stage Workflows**: Both execution paths reuse the same `ci-orchestrator-stage*.yml` workflows
+6. **Maintainability**: Individual child workflows remain decoupled and independently testable
