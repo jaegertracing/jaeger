@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 func TestMaxTraceSizeAdjuster(t *testing.T) {
@@ -33,18 +32,25 @@ func TestMaxTraceSizeAdjuster(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			traces := ptrace.NewTraces()
-
-			rs := traces.ResourceSpans().AppendEmpty()
-			ss := rs.ScopeSpans().AppendEmpty()
-
+			spanProtos := make([]testSpan, tt.spanCount)
 			for i := 0; i < tt.spanCount; i++ {
-				span := ss.Spans().AppendEmpty()
-				span.SetName("test-span")
-				span.Attributes().PutStr("index", "value")
+				spanProtos[i] = testSpan{
+					id:        [8]byte{byte(i + 1)},
+					startTime: i,
+					duration:  10,
+				}
 			}
 
-			originalTraceID := ss.Spans().At(0).TraceID()
+			traces := makeTrace(spanProtos)
+
+			originalTraceID := traces.ResourceSpans().
+				At(0).
+				ScopeSpans().
+				At(0).
+				Spans().
+				At(0).
+				TraceID()
+
 			adjuster := CorrectMaxSize(tt.maxTraceSize)
 			adjuster.Adjust(traces)
 
