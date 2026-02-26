@@ -6,8 +6,8 @@ This directory contains GitHub Actions workflows for the Jaeger project. The wor
 
 The CI system uses a **Forked DAG (Directed Acyclic Graph)** orchestrated by `ci-orchestrator.yml`. The orchestrator supports two execution paths based on the context of the run:
 
-- **Sequential path (~30m)**: Default for first-time or unknown contributors. Stage 1 must pass before Stage 2, and Stage 2 must pass before Stage 3. Provides fail-fast behavior that saves resources when linting or unit tests fail.
-- **Parallel path (~10m)**: For trusted maintainers and contributors, merge queue, and main branch builds. All three stages start simultaneously after a setup step.
+- **Sequential path (~30m)**: Default for external contributors. Stage 1 must pass before Stage 2, and Stage 2 must pass before Stage 3. Provides fail-fast behavior that saves resources when linting or unit tests fail.
+- **Parallel path (~10m)**: For trusted maintainers, merge queue, and main branch builds. All three stages start simultaneously after a setup step.
 
 ### CI Orchestrator
 
@@ -23,7 +23,7 @@ The `setup` job determines whether to use parallel execution based on these **OR
 |-----------|-----------|
 | Push to `main` branch | Already merged, fully trusted |
 | `merge_group` event | Merge Queue entry, high confidence |
-| PR author is an org member or contributor (`MEMBER`, `OWNER`, or `CONTRIBUTOR`) | Trusted author |
+| PR author is an org member (`MEMBER` or `OWNER`) | Trusted maintainer |
 | PR author login is `dependabot[bot]` or `renovate-bot` | Dependency automation bots |
 | PR has the `ci:parallel` label | Explicit opt-in |
 

@@ -48,14 +48,13 @@ jobs:
 
           # PR-specific checks (author_association, labels, and PR author login are only meaningful on pull_request events)
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            # Parallel for org members and contributors (MEMBER, OWNER, or CONTRIBUTOR author_association)
+            # Parallel for org members (MEMBER or OWNER author_association)
             if [[ "${{ github.event.pull_request.author_association }}" == "MEMBER" || \
-                  "${{ github.event.pull_request.author_association }}" == "OWNER" || \
-                  "${{ github.event.pull_request.author_association }}" == "CONTRIBUTOR" ]]; then
-              echo "Parallel: trusted author (${{ github.event.pull_request.author_association }})"
+                  "${{ github.event.pull_request.author_association }}" == "OWNER" ]]; then
+              echo "Parallel: org member (${{ github.event.pull_request.author_association }})"
               PARALLEL=true
             else
-              echo "Not a trusted author (author_association=${{ github.event.pull_request.author_association }})"
+              echo "Not an org member (author_association=${{ github.event.pull_request.author_association }})"
             fi
 
             # Parallel for known bots (dependency update automation)
@@ -87,7 +86,7 @@ jobs:
           echo "Execution mode: parallel=$PARALLEL"
 
   # ============================================================================
-  # SEQUENTIAL PATH (~30m): Default for first-time or unknown contributors.
+  # SEQUENTIAL PATH (~30m): Default for external contributors.
   # Stage 2 waits for Stage 1; Stage 3 waits for Stage 2.
   # Active when parallel == false.
   # ============================================================================
