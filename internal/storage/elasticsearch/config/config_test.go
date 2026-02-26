@@ -1435,7 +1435,7 @@ func TestGetESOptions(t *testing.T) {
 					"http://localhost:9201",
 					"http://localhost:9202",
 				},
-				HealthCheckTimeOutStartup: 10 * time.Millisecond,
+				HealthCheckTimeoutStartup: 10 * time.Millisecond,
 				Sniffing: Sniffing{
 					Enabled:  true,
 					UseHTTPS: false,
