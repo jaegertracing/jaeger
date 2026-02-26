@@ -58,7 +58,7 @@ jobs:
             fi
 
             # Parallel for known bots (dependency update automation)
-            if [[ "${{ github.actor }}" == "dependabot[bot]" || "${{ github.actor }}" == "renovate[bot]" ]]; then
+            if [[ "${{ github.actor }}" == "dependabot" || "${{ github.actor }}" == "renovate-bot" ]]; then
               echo "Parallel: bot actor (${{ github.actor }})"
               PARALLEL=true
             else
