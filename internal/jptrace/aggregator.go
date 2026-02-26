@@ -41,7 +41,7 @@ func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSi
 				}
 				traceID := GetTraceID(trace)
 				if currentTraceID == traceID {
-					mergeTracesWithLimit(currentTrace, trace, maxSize, &spanCount)
+					spanCount = mergeTracesWithLimit(currentTrace, trace, maxSize, spanCount)
 				} else {
 					if currentTrace.SpanCount() > 0 {
 						if !yield(currentTrace, nil) {
@@ -69,29 +69,29 @@ func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSi
 	}
 }
 
-func mergeTracesWithLimit(dest, src ptrace.Traces, maxSize int, spanCount *int) bool {
+func mergeTracesWithLimit(dest, src ptrace.Traces, maxSize int, spanCount int) int {
 	// early exit if already at max
-	if maxSize > 0 && *spanCount >= maxSize {
+	if maxSize > 0 && spanCount >= maxSize {
 		markTraceTruncated(dest, maxSize)
-		return true
+		return spanCount
 	}
 
 	incomingCount := src.SpanCount()
 	// check if we can merge all spans without exceeding limit
-	if maxSize <= 0 || *spanCount+incomingCount <= maxSize {
+	if maxSize <= 0 || spanCount+incomingCount <= maxSize {
 		MergeTraces(dest, src)
-		*spanCount += incomingCount
-		return false
+		spanCount += incomingCount
+		return spanCount
 	}
 
 	// partial copy
-	remaining := maxSize - *spanCount
+	remaining := maxSize - spanCount
 	if remaining > 0 {
 		copySpansUpToLimit(dest, src, remaining)
-		*spanCount = maxSize
+		spanCount = maxSize
 	}
 	markTraceTruncated(dest, maxSize)
-	return true
+	return spanCount
 }
 
 func copySpansUpToLimit(dest, src ptrace.Traces, limit int) {
