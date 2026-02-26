@@ -18,6 +18,11 @@ func AggregateTraces(tracesSeq iter.Seq2[[]ptrace.Traces, error]) iter.Seq2[ptra
 	return AggregateTracesWithLimit(tracesSeq, 0)
 }
 
+// AggregateTracesWithLimit aggregates a sequence of trace batches into individual traces
+// but limits each trace size to maxSize spans. If maxSize is 0 or negative, there is no
+// limit and all spans will be included in the aggregated trace.
+//
+// The `tracesSeq` input must adhere to the chunking requirements of tracestore.Reader.GetTraces.
 func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSize int) iter.Seq2[ptrace.Traces, error] {
 	return func(yield func(trace ptrace.Traces, err error) bool) {
 		currentTrace := ptrace.NewTraces()
@@ -34,8 +39,7 @@ func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSi
 				if trace.SpanCount() == 0 {
 					continue
 				}
-				resources := trace.ResourceSpans()
-				traceID := resources.At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
+				traceID := GetTraceID(trace)
 				if currentTraceID == traceID {
 					mergeTracesWithLimit(currentTrace, trace, maxSize, &spanCount)
 				} else {
