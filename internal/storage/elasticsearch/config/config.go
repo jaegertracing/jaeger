@@ -108,7 +108,7 @@ type Configuration struct {
 	// Disable the Elasticsearch health check
 	DisableHealthCheck bool `mapstructure:"disable_health_check"`
 	// Set the Elasticsearch health check timeout startup
-	HealthCheckTimeOutStartUp time.Duration `mapstruct:"health_check_timeout_startup"`
+	HealthCheckTimeOutStartup time.Duration `mapstructure:"health_check_timeout_startup"`
 	// SendGetBodyAs is the HTTP verb to use for requests that contain a body.
 	SendGetBodyAs string `mapstructure:"send_get_body_as"`
 	// QueryTimeout contains the timeout used for queries. A timeout of zero means no timeout.
@@ -583,8 +583,8 @@ func (c *Configuration) getESOptions(disableHealthCheck bool) []elastic.ClientOp
 	options := []elastic.ClientOptionFunc{
 		elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffing.Enabled), elastic.SetHealthcheck(!disableHealthCheck),
 	}
-	if c.HealthCheckTimeOutStartUp > 0 {
-		options = append(options, elastic.SetHealthcheckTimeoutStartup(c.HealthCheckTimeOutStartUp))
+	if c.HealthCheckTimeOutStartup > 0 {
+		options = append(options, elastic.SetHealthcheckTimeoutStartup(c.HealthCheckTimeOutStartup))
 	}
 	if c.Sniffing.UseHTTPS {
 		options = append(options, elastic.SetScheme("https"))
