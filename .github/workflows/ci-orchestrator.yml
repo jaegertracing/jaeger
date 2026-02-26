@@ -48,21 +48,24 @@ jobs:
 
           # PR-specific checks (author_association, labels, and actor are only meaningful on pull_request events)
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            # Parallel for org members (MEMBER or OWNER author_association)
+            # Parallel for org members and contributors (MEMBER, OWNER, or CONTRIBUTOR author_association)
             if [[ "${{ github.event.pull_request.author_association }}" == "MEMBER" || \
-                  "${{ github.event.pull_request.author_association }}" == "OWNER" ]]; then
-              echo "Parallel: org member (${{ github.event.pull_request.author_association }})"
+                  "${{ github.event.pull_request.author_association }}" == "OWNER" || \
+                  "${{ github.event.pull_request.author_association }}" == "CONTRIBUTOR" ]]; then
+              echo "Parallel: trusted author (${{ github.event.pull_request.author_association }})"
               PARALLEL=true
             else
-              echo "Not an org member (author_association=${{ github.event.pull_request.author_association }})"
+              echo "Not a trusted author (author_association=${{ github.event.pull_request.author_association }})"
             fi
 
             # Parallel for known bots (dependency update automation)
-            if [[ "${{ github.actor }}" == "dependabot" || "${{ github.actor }}" == "renovate-bot" ]]; then
-              echo "Parallel: bot actor (${{ github.actor }})"
+            # Use github.event.pull_request.user.login to identify the PR author (not the latest commit author)
+            PR_AUTHOR="${{ github.event.pull_request.user.login }}"
+            if [[ "$PR_AUTHOR" == "dependabot[bot]" || "$PR_AUTHOR" == "renovate-bot" ]]; then
+              echo "Parallel: bot PR author ($PR_AUTHOR)"
               PARALLEL=true
             else
-              echo "Not a known bot (actor=${{ github.actor }})"
+              echo "Not a known bot (PR author=$PR_AUTHOR)"
             fi
 
             # Parallel if the ci:parallel label is applied to the PR.
@@ -84,7 +87,7 @@ jobs:
           echo "Execution mode: parallel=$PARALLEL"
 
   # ============================================================================
-  # SEQUENTIAL PATH (~30m): Default for external contributors.
+  # SEQUENTIAL PATH (~30m): Default for first-time or unknown contributors.
   # Stage 2 waits for Stage 1; Stage 3 waits for Stage 2.
   # Active when parallel == false.
   # ============================================================================
