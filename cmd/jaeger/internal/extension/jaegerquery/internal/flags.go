@@ -36,7 +36,7 @@ type QueryOptions struct {
 	Tenancy tenancy.Options `mapstructure:"multi_tenancy"`
 	// MaxClockSkewAdjust is the maximum duration by which jaeger-query will adjust a span.
 	MaxClockSkewAdjust time.Duration `mapstructure:"max_clock_skew_adjust"  valid:"optional"`
-	// MaxTraceSize is the max no. of spans allowed per trace.
+	// MaxTraceSize is the maximum number of spans allowed per trace.
 	// If a trace has more spans than this, it will be truncated and a warning will be added
 	MaxTraceSize int `mapstructure:"max_trace_size" valid:"optional"`
 	// EnableTracing determines whether traces will be emitted by jaeger-query.
