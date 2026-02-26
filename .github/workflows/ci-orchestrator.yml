@@ -46,7 +46,7 @@ jobs:
             echo "Not a merge_group event (event=${{ github.event_name }})"
           fi
 
-          # PR-specific checks (author_association, labels, and actor are only meaningful on pull_request events)
+          # PR-specific checks (author_association, labels, and PR author login are only meaningful on pull_request events)
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             # Parallel for org members and contributors (MEMBER, OWNER, or CONTRIBUTOR author_association)
             if [[ "${{ github.event.pull_request.author_association }}" == "MEMBER" || \
