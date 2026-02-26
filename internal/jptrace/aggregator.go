@@ -43,7 +43,7 @@ func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSi
 				if currentTraceID == traceID {
 					spanCount = mergeTracesWithLimit(currentTrace, trace, maxSize, spanCount)
 				} else {
-					if currentTrace.SpanCount() > 0 {
+					if spanCount > 0 {
 						if !yield(currentTrace, nil) {
 							cont = false
 							return false
@@ -63,7 +63,7 @@ func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSi
 			}
 			return true
 		})
-		if cont && currentTrace.SpanCount() > 0 {
+		if cont && spanCount > 0 {
 			yield(currentTrace, nil)
 		}
 	}
@@ -79,8 +79,7 @@ func mergeTracesWithLimit(dest, src ptrace.Traces, maxSize int, spanCount int) i
 	// check if we can merge all spans without exceeding limit
 	if maxSize <= 0 || spanCount+incomingCount <= maxSize {
 		MergeTraces(dest, src)
-		spanCount += incomingCount
-		return spanCount
+		return spanCount + incomingCount
 	}
 
 	// partial copy
@@ -105,14 +104,14 @@ func copySpansUpToLimit(dest, src ptrace.Traces, limit int) {
 
 		for _, srcScope := range srcResource.ScopeSpans().All() {
 			if copied >= limit {
-				break
+				return
 			}
 			var destScope ptrace.ScopeSpans
 			scopeAdded := false
 
 			for _, span := range srcScope.Spans().All() {
 				if copied >= limit {
-					break
+					return
 				}
 				// Lazily create resource and scope containers only when a span is actually copied,
 				// to avoid leaving empty container artifacts in dest.
@@ -146,9 +145,11 @@ func MergeTraces(dest, src ptrace.Traces) {
 }
 
 func markTraceTruncated(trace ptrace.Traces, maxSize int) {
-	SpanIter(trace)(func(_ SpanIterPos, span ptrace.Span) bool {
-		AddWarnings(span,
-			fmt.Sprintf("trace has more than %d spans, showing first %d spans only", maxSize, maxSize))
-		return false // stop after first span
-	})
+	for _, span := range SpanIter(trace) {
+		AddWarnings(
+			span,
+			fmt.Sprintf("trace has more than %d spans, showing first %d spans only", maxSize, maxSize),
+		)
+		return // stop after first span
+	}
 }
