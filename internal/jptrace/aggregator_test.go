@@ -199,6 +199,47 @@ func TestCopySpansUpToLimit(t *testing.T) {
 	assert.Equal(t, 3, dest.SpanCount())
 }
 
+func TestCopySpansUpToLimit_MultipleResourceSpans(t *testing.T) {
+	src := ptrace.NewTraces()
+	rs0 := src.ResourceSpans().AppendEmpty()
+	ss0 := rs0.ScopeSpans().AppendEmpty()
+	ss0.Spans().AppendEmpty().SetName("rs0-span0")
+	ss0.Spans().AppendEmpty().SetName("rs0-span1")
+	rs1 := src.ResourceSpans().AppendEmpty()
+	ss1 := rs1.ScopeSpans().AppendEmpty()
+	ss1.Spans().AppendEmpty().SetName("rs1-span0")
+	ss1.Spans().AppendEmpty().SetName("rs1-span1")
+
+	dest := ptrace.NewTraces()
+	copySpansUpToLimit(dest, src, 3)
+
+	require.Equal(t, 3, dest.SpanCount())
+	require.Equal(t, 2, dest.ResourceSpans().Len())
+	assert.Equal(t, 2, dest.ResourceSpans().At(0).ScopeSpans().At(0).Spans().Len())
+	assert.Equal(t, 1, dest.ResourceSpans().At(1).ScopeSpans().At(0).Spans().Len())
+}
+
+func TestCopySpansUpToLimit_MultipleScopeSpans(t *testing.T) {
+	src := ptrace.NewTraces()
+	rs := src.ResourceSpans().AppendEmpty()
+	ss0 := rs.ScopeSpans().AppendEmpty()
+	ss0.Spans().AppendEmpty().SetName("ss0-span0")
+	ss0.Spans().AppendEmpty().SetName("ss0-span1")
+	ss1 := rs.ScopeSpans().AppendEmpty()
+	ss1.Spans().AppendEmpty().SetName("ss1-span0")
+	ss1.Spans().AppendEmpty().SetName("ss1-span1")
+
+	dest := ptrace.NewTraces()
+	copySpansUpToLimit(dest, src, 3)
+
+	require.Equal(t, 3, dest.SpanCount())
+	require.Equal(t, 1, dest.ResourceSpans().Len())
+	destScopes := dest.ResourceSpans().At(0).ScopeSpans()
+	require.Equal(t, 2, destScopes.Len())
+	assert.Equal(t, 2, destScopes.At(0).Spans().Len())
+	assert.Equal(t, 1, destScopes.At(1).Spans().Len())
+}
+
 func TestCopySpansUpToLimit_NoEmptyContainers(t *testing.T) {
 	// src has two resources: the first has no scopes, the second has spans.
 	// copySpansUpToLimit should not create an empty ResourceSpans for the first resource.
@@ -253,6 +294,44 @@ func TestAggregateTracesWithLimit_MultiBatch(t *testing.T) {
 	firstSpan := result[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
 	warnings := GetWarnings(firstSpan)
 	assert.Len(t, warnings, 1, "should have exactly one truncation warning, not one per extra batch")
+	assert.Contains(t, warnings[0], fmt.Sprintf("trace has more than %d spans", 3))
+}
+
+// TestAggregateTracesWithLimit_ExactLimitThenOverflow specifically tests the scenario
+// where the first batch fills the trace to exactly maxSize (no warning yet), and a
+// subsequent batch then causes the first overflow and must trigger the truncation warning.
+func TestAggregateTracesWithLimit_ExactLimitThenOverflow(t *testing.T) {
+	createBatch := func(traceID byte, spanCount int) ptrace.Traces {
+		trace := ptrace.NewTraces()
+		spans := trace.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+		for i := 0; i < spanCount; i++ {
+			span := spans.AppendEmpty()
+			span.SetTraceID(pcommon.TraceID([16]byte{traceID}))
+		}
+		return trace
+	}
+
+	// Batch 1 has exactly maxSize spans — fits without truncation, no warning added yet.
+	// Batch 2 has 1 more span — must be dropped AND must trigger the warning.
+	tracesSeq := func(yield func([]ptrace.Traces, error) bool) {
+		if !yield([]ptrace.Traces{createBatch(1, 3)}, nil) {
+			return
+		}
+		yield([]ptrace.Traces{createBatch(1, 1)}, nil)
+	}
+
+	var result []ptrace.Traces
+	AggregateTracesWithLimit(tracesSeq, 3)(func(trace ptrace.Traces, _ error) bool {
+		result = append(result, trace)
+		return true
+	})
+
+	require.Len(t, result, 1)
+	assert.Equal(t, 3, result[0].SpanCount())
+
+	firstSpan := result[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+	warnings := GetWarnings(firstSpan)
+	assert.Len(t, warnings, 1, "overflow after exact-limit batch must produce exactly one truncation warning")
 	assert.Contains(t, warnings[0], fmt.Sprintf("trace has more than %d spans", 3))
 }
 
