@@ -252,6 +252,8 @@ func setValueToMap(m pcommon.Map, key string, av *storage.AnyValue) {
 			}
 			setValueToMap(mapVal, kv.Key, kv.Value)
 		}
+	default:
+		return // unreachable
 	}
 }
 
@@ -284,5 +286,7 @@ func setValueToSlice(slice pcommon.Slice, av *storage.AnyValue) {
 			}
 			setValueToMap(newMap, kv.Key, kv.Value)
 		}
+	default:
+		return // unreachable
 	}
 }

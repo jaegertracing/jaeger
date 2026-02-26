@@ -9,14 +9,17 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
-	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
 func TestNewFac(t *testing.T) {
-	f, err := NewFactory(*badger.DefaultConfig(), metrics.NullFactory, zaptest.NewLogger(t))
+	telset := telemetry.NoopSettings()
+	telset.Logger = zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
+	f, err := NewFactory(*badger.DefaultConfig(), telset)
 	require.NoError(t, err)
 
 	_, err = f.CreateTraceReader()
@@ -45,7 +48,7 @@ func TestNewFac(t *testing.T) {
 func TestBadgerStorageFactoryWithConfig(t *testing.T) {
 	t.Parallel()
 	cfg := badger.Config{}
-	_, err := NewFactory(cfg, metrics.NullFactory, zaptest.NewLogger(t))
+	_, err := NewFactory(cfg, telemetry.NoopSettings())
 	require.ErrorContains(t, err, "Error Creating Dir: \"\" err: mkdir : no such file or directory")
 
 	cfg = badger.Config{
@@ -53,7 +56,7 @@ func TestBadgerStorageFactoryWithConfig(t *testing.T) {
 		MaintenanceInterval:   5,
 		MetricsUpdateInterval: 10,
 	}
-	factory, err := NewFactory(cfg, metrics.NullFactory, zaptest.NewLogger(t))
+	factory, err := NewFactory(cfg, telemetry.NoopSettings())
 	require.NoError(t, err)
 	factory.Close()
 }

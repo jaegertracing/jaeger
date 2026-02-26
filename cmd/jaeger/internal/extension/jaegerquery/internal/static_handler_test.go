@@ -16,7 +16,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -42,7 +41,7 @@ func TestRegisterStaticHandlerPanic(t *testing.T) {
 	logger, buf := testutils.NewLogger()
 	assert.Panics(t, func() {
 		closer := RegisterStaticHandler(
-			mux.NewRouter(),
+			http.NewServeMux(),
 			logger,
 			&QueryOptions{
 				UIConfig: UIConfig{
@@ -105,10 +104,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run("basePath="+testCase.basePath, func(t *testing.T) {
 			logger, logBuf := testutils.NewLogger()
-			r := mux.NewRouter()
-			if testCase.subroute {
-				r = r.PathPrefix(testCase.basePath).Subrouter()
-			}
+			r := http.NewServeMux()
 			closer := RegisterStaticHandler(r, logger, &QueryOptions{
 				UIConfig: UIConfig{
 					ConfigFile: testCase.UIConfigPath,
@@ -340,7 +336,7 @@ func TestLoadIndexHTMLReadError(t *testing.T) {
 }
 
 func waitUntil(t *testing.T, f func() bool, iterations int, sleepInterval time.Duration, timeoutErrMsg string) {
-	for i := 0; i < iterations; i++ {
+	for range iterations {
 		if f() {
 			return
 		}

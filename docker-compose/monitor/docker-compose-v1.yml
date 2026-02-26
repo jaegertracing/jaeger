@@ -33,7 +33,7 @@ services:
   microsim:
     networks:
       - backend
-    image: yurishkuro/microsim:v0.5.0@sha256:b7ee2dee51d2c9fd94de08a80278cfbf5a144ad0f22efce50f3d3be15cbfa2c7
+    image: yurishkuro/microsim:v0.6.0@sha256:fd75a9b3dd1bb4d7d305a562edeac60051a7fec784b898ff7ab834eacc73f41e
     command: "-d 24h -s 500ms"
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel_collector:4318
@@ -44,7 +44,7 @@ services:
   prometheus:
     networks:
       - backend
-    image: prom/prometheus:v3.8.1@sha256:2b6f734e372c1b4717008f7d0a0152316aedd4d13ae17ef1e3268dbfaf68041b
+    image: prom/prometheus:v3.9.1@sha256:1f0f50f06acaceb0f5670d2c8a658a599affe7b0d8e78b898c1035653849a702
     volumes:
       - "./prometheus.yml:/etc/prometheus/prometheus.yml"
     ports:

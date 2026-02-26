@@ -43,7 +43,7 @@ jobs:
 
     - name: Send detailed Slack notification on failure
       if: failure()
-      uses: rtCamp/action-slack-notify@4e5fb42d249be6a45a298f3c9543b111b02f7907 # v2.15.0
+      uses: rtCamp/action-slack-notify@4e5fb42d249be6a45a298f3c9543b111b02f7907 # v2.3.0
       env:
         SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
         SLACK_CHANNEL: '#jaeger-operations'

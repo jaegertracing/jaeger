@@ -1,0 +1,30 @@
+# FOSSA Configuration File
+# https://github.com/fossas/fossa-cli/blob/master/docs/references/files/fossa-yml.md
+#
+# This configuration excludes development-only tooling from license scanning.
+# The excluded paths contain GPL-3.0 licensed tools (golangci-lint and its plugins)
+# that are used only during development and are NOT compiled into or distributed
+# with the final Jaeger binaries.
+#
+# These tools are in separate Go modules specifically to isolate them from
+# production dependencies. Using GPL-licensed development tools to build
+# Apache 2.0 licensed software does not create any license compliance issues.
+
+version: 3
+
+project:
+  id: git+github.com/jaegertracing/jaeger
+  name: jaeger
+
+paths:
+  exclude:
+    # Development tooling (golangci-lint and plugins) - GPL-3.0 licensed
+    # These are NOT part of the distributed binaries
+    - ./internal/tools
+
+    # Debug build utilities - only used for debugging, not distributed
+    - ./scripts/build/docker/debug
+
+    # Git submodules - scanned separately in their own repositories
+    - ./idl
+    - ./jaeger-ui

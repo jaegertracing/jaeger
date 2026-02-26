@@ -60,6 +60,6 @@ func NewFactoryWithConfig(
 		Configuration: cfg,
 	}
 	f.httpAuth = httpAuth
-	f.Initialize(telset)
-	return f, nil
+	err := f.Initialize(telset)
+	return f, err
 }

@@ -45,7 +45,7 @@ func TestInsertThroughtput(t *testing.T) {
 		ret, _ := samplingStore.GetThroughput(start, start.Add(time.Second*time.Duration(1)))
 		assert.Len(t, ret, 2)
 
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			in := []*model.Throughput{
 				{Service: fmt.Sprint("svc-", i), Operation: fmt.Sprint("op-", i)},
 			}

@@ -3,10 +3,6 @@ name: CIT Memory
 on:
   workflow_call:
 
-concurrency:
-  group: cit-memory-${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
-  cancel-in-progress: true
-
 # See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
 permissions:  # added using https://github.com/step-security/secure-workflows
   contents: read
@@ -24,7 +20,7 @@ jobs:
         
     - uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
       with:
-        go-version: 1.25.x
+        go-version: 1.26.x
 
     - name: Run Memory storage integration tests
       run: |

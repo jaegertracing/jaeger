@@ -5,7 +5,7 @@ package otelsemconv
 
 import (
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.39.0"
 )
 
 // We do not use a lot of semconv constants, and its annoying to keep
@@ -29,7 +29,7 @@ const (
 	DBSystemKey    = "db.system"
 
 	// Network
-	PeerServiceKey = string(semconv.PeerServiceKey)
+	PeerServiceKey = string(semconv.ServicePeerNameKey)
 
 	// HTTP
 	HTTPResponseStatusCodeKey = string(semconv.HTTPResponseStatusCodeKey)
@@ -61,7 +61,7 @@ func ServiceNameAttribute(value string) attribute.KeyValue {
 
 // PeerService creates a key-value pair for the peer service attribute.
 func PeerServiceAttribute(value string) attribute.KeyValue {
-	return semconv.PeerServiceKey.String(value)
+	return semconv.ServicePeerNameKey.String(value)
 }
 
 // DBSystem creates a key-value pair for the DB system attribute.

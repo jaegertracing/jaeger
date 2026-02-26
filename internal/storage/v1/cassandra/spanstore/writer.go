@@ -133,7 +133,7 @@ func (s *SpanWriter) Close() error {
 func (s *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	ds := dbmodel.FromDomain(span)
 	if s.storageMode&storeFlag == storeFlag {
-		if err := s.writeSpan(span, ds); err != nil {
+		if err := s.writeSpanToDB(span, ds); err != nil {
 			return err
 		}
 	}
@@ -145,7 +145,7 @@ func (s *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	return nil
 }
 
-func (s *SpanWriter) writeSpan(_ *model.Span, ds *dbmodel.Span) error {
+func (s *SpanWriter) writeSpanToDB(_ *model.Span, ds *dbmodel.Span) error {
 	mainQuery := s.session.Query(
 		insertSpan,
 		ds.TraceID,

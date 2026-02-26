@@ -70,8 +70,8 @@ func TestProcessLatencies(t *testing.T) {
 func TestProcessCallRates(t *testing.T) {
 	now := time.Now()
 	params := metricstore.BaseQueryParameters{
-		Step:    ptr(time.Second * 10),
-		RatePer: ptr(time.Minute),
+		Step:    new(time.Second * 10),
+		RatePer: new(time.Minute),
 	}
 	timeRange := TimeRange{startTimeMillis: now.Add(-time.Minute).UnixMilli()}
 
@@ -119,8 +119,8 @@ func TestProcessCallRates(t *testing.T) {
 func TestProcessErrorRates(t *testing.T) {
 	now := time.Now()
 	params := metricstore.BaseQueryParameters{
-		Step:    ptr(time.Minute),
-		RatePer: ptr(time.Minute),
+		Step:    new(time.Minute),
+		RatePer: new(time.Minute),
 	}
 	timeRange := TimeRange{startTimeMillis: now.Add(-time.Minute).UnixMilli()}
 
@@ -279,9 +279,4 @@ func createMetricPoint(ts time.Time, value float64) *metrics.MetricPoint {
 		Timestamp: timestamp,
 		Value:     toDomainMetricPointValue(value),
 	}
-}
-
-// ptr returns a pointer to the given time.Duration.
-func ptr(d time.Duration) *time.Duration {
-	return &d
 }

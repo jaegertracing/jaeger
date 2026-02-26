@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
@@ -50,6 +51,7 @@ type Factory struct {
 
 	tmpDir          string
 	maintenanceDone chan bool
+	bgWg            sync.WaitGroup
 
 	// TODO initialize via reflection; convert comments to tag 'description'.
 	metrics struct {
@@ -120,8 +122,15 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 
 	f.registerBadgerExpvarMetrics(metricsFactory)
 
-	go f.maintenance()
-	go f.metricsCopier()
+	f.bgWg.Add(2)
+	go func() {
+		defer f.bgWg.Done()
+		f.maintenance()
+	}()
+	go func() {
+		defer f.bgWg.Done()
+		f.metricsCopier()
+	}()
 
 	logger.Info("Badger storage configuration", zap.Any("configuration", opts))
 
@@ -165,6 +174,7 @@ func (*Factory) CreateLock() (distributedlock.Lock, error) {
 // Close Implements io.Closer and closes the underlying storage
 func (f *Factory) Close() error {
 	close(f.maintenanceDone)
+	f.bgWg.Wait() // Wait for background goroutines to finish before closing store
 	if f.store == nil {
 		return nil
 	}
@@ -203,7 +213,7 @@ func (f *Factory) maintenance() {
 			}
 
 			f.metrics.LastMaintenanceRun.Update(t.UnixNano())
-			f.diskStatisticsUpdate()
+			_ = f.diskStatisticsUpdate()
 		}
 	}
 }
@@ -233,6 +243,8 @@ func (f *Factory) metricsCopier() {
 								}
 							}
 						})
+					default:
+						f.logger.Debug("skipping non-numeric badger expvar metric", zap.String("key", kv.Key))
 					}
 				}
 			})
@@ -258,6 +270,8 @@ func (f *Factory) registerBadgerExpvarMetrics(metricsFactory metrics.Factory) {
 						f.metrics.badgerMetrics[kv.Key] = g
 					}
 				})
+			default:
+				f.logger.Info("skipping non-numeric badger expvar metric", zap.String("key", kv.Key))
 			}
 		}
 	})

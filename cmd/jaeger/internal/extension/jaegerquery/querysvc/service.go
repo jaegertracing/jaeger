@@ -122,7 +122,11 @@ func (qs QueryService) GetTraces(
 }
 
 func (qs QueryService) GetServices(ctx context.Context) ([]string, error) {
-	return qs.traceReader.GetServices(ctx)
+	services, err := qs.traceReader.GetServices(ctx)
+	if services == nil {
+		services = []string{}
+	}
+	return services, err
 }
 
 func (qs QueryService) GetOperations(

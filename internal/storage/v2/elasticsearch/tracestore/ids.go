@@ -11,7 +11,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 )
 
-func fromDbTraceId(dbTraceId dbmodel.TraceID) (pcommon.TraceID, error) {
+func convertTraceIDFromDB(dbTraceId dbmodel.TraceID) (pcommon.TraceID, error) {
 	var traceId [16]byte
 	traceBytes, err := hex.DecodeString(string(dbTraceId))
 	if err != nil {

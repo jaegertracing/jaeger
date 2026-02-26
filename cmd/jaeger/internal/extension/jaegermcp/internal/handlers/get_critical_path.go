@@ -76,7 +76,7 @@ func (h *getCriticalPathHandler) handle(
 	}
 
 	// Compute critical path
-	criticalPathSections, err := criticalpath.ComputeCriticalPath(trace)
+	criticalPathSections, err := criticalpath.ComputeCriticalPathFromTraces(trace)
 	if err != nil {
 		return nil, types.GetCriticalPathOutput{}, fmt.Errorf("failed to compute critical path: %w", err)
 	}
@@ -169,7 +169,7 @@ func (*getCriticalPathHandler) buildOutput(
 		segments = append(segments, types.CriticalPathSegment{
 			SpanID:        section.SpanID,
 			Service:       serviceName,
-			Operation:     span.Name(),
+			SpanName:      span.Name(),
 			SelfTimeUs:    selfTime,
 			StartOffsetUs: section.SectionStart - traceStartTime,
 			EndOffsetUs:   section.SectionEnd - traceStartTime,

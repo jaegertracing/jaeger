@@ -931,3 +931,72 @@ func TestServerHTTP_TracesRequest(t *testing.T) {
 		})
 	}
 }
+
+func TestServerAPINotFound(t *testing.T) {
+	querySvc := makeQuerySvc()
+
+	for _, basePath := range []string{"", "/jaeger"} {
+		t.Run("basePath="+basePath, func(t *testing.T) {
+			serverOptions := &QueryOptions{
+				HTTP: confighttp.ServerConfig{
+					NetAddr: confignet.AddrConfig{
+						Endpoint:  ":0",
+						Transport: confignet.TransportTypeTCP,
+					},
+				},
+				GRPC: configgrpc.ServerConfig{
+					NetAddr: confignet.AddrConfig{
+						Endpoint:  ":0",
+						Transport: confignet.TransportTypeTCP,
+					},
+				},
+				BasePath: basePath,
+			}
+			tenancyMgr := tenancy.NewManager(&serverOptions.Tenancy)
+			telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
+
+			server, err := NewServer(context.Background(), querySvc.qs, nil, serverOptions, tenancyMgr, telset)
+			require.NoError(t, err)
+			require.NoError(t, server.Start(context.Background()))
+			t.Cleanup(func() {
+				require.NoError(t, server.Close())
+			})
+
+			tests := []struct {
+				name           string
+				path           string
+				expectedStatus int
+			}{
+				{
+					name:           "existing API endpoint returns 200",
+					path:           basePath + "/api/services",
+					expectedStatus: http.StatusOK,
+				},
+				{
+					name:           "non-existent API endpoint returns 404",
+					path:           basePath + "/api/nonexistent",
+					expectedStatus: http.StatusNotFound,
+				},
+				{
+					name:           "root returns 200 (index.html)",
+					path:           basePath + "/",
+					expectedStatus: http.StatusOK,
+				},
+			}
+
+			for _, test := range tests {
+				t.Run(test.name, func(t *testing.T) {
+					req, err := http.NewRequest(http.MethodGet, "http://"+server.HTTPAddr()+test.path, http.NoBody)
+					require.NoError(t, err)
+
+					client := &http.Client{}
+					resp, err := client.Do(req)
+					require.NoError(t, err)
+					defer resp.Body.Close()
+
+					assert.Equal(t, test.expectedStatus, resp.StatusCode)
+				})
+			}
+		})
+	}
+}

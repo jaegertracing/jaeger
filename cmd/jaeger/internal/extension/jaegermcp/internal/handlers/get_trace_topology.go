@@ -127,7 +127,7 @@ func buildSpanNode(pos jptrace.SpanIterPos, span ptrace.Span) *types.SpanNode {
 		SpanID:     span.SpanID().String(),
 		ParentID:   parentSpanID,
 		Service:    serviceName,
-		Operation:  span.Name(),
+		SpanName:   span.Name(),
 		StartTime:  span.StartTimestamp().AsTime().Format(time.RFC3339Nano),
 		DurationUs: duration.Microseconds(),
 		Status:     span.Status().Code().String(),

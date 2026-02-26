@@ -33,6 +33,8 @@ func TestIPAttributeAdjuster(t *testing.T) {
 				span.Attributes().PutStr(key, v)
 			case float64:
 				span.Attributes().PutDouble(key, v)
+			default:
+				t.Fatalf("unsupported attribute type %T", v)
 			}
 		}
 	}
@@ -55,6 +57,8 @@ func TestIPAttributeAdjuster(t *testing.T) {
 			require.EqualValues(t, v, val.Int())
 		case string:
 			require.Equal(t, v, val.Str())
+		default:
+			t.Fatalf("unsupported expected type %T", v)
 		}
 	}
 

@@ -10,8 +10,10 @@ TOOLS_BIN_NAMES := $(addprefix $(TOOLS_BIN_DIR)/, $(notdir $(shell echo $(TOOLS_
 
 GOFUMPT       := $(TOOLS_BIN_DIR)/gofumpt
 GOVERSIONINFO := $(TOOLS_BIN_DIR)/goversioninfo
+GOVULNCHECK   := $(TOOLS_BIN_DIR)/govulncheck
 LINT          := $(TOOLS_BIN_DIR)/golangci-lint
 MOCKERY       := $(TOOLS_BIN_DIR)/mockery
+SCHEMAGEN     := $(TOOLS_BIN_DIR)/schemagen
 
 # this target is useful for setting up local workspace, but from CI we want to call more specific ones
 .PHONY: install-tools

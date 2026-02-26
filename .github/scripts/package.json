@@ -1,7 +1,7 @@
 {
-  "name": "pr-quota-manager",
+  "name": "jaeger-ci-scripts",
   "version": "1.0.0",
-  "description": "PR Quota Management System for limiting concurrent open PRs from new contributors",
+  "description": "Jaeger CI scripts for managing pull request quotas and other automation tasks.",
   "main": "pr-quota-manager.js",
   "scripts": {
     "test": "jest",
@@ -16,11 +16,14 @@
   ],
   "author": "Jaeger Team",
   "license": "Apache-2.0",
+  "engines": {
+    "node": ">=24"
+  },
   "dependencies": {
-    "@octokit/rest": "^20.0.0"
+    "@octokit/rest": "^22.0.0"
   },
   "devDependencies": {
-    "jest": "29.7.0"
+    "jest": "30.2.0"
   },
   "jest": {
     "testEnvironment": "node",

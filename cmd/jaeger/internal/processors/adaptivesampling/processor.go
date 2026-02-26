@@ -65,7 +65,7 @@ func (tp *traceProcessor) close(context.Context) error {
 }
 
 func (tp *traceProcessor) processTraces(_ context.Context, td ptrace.Traces) (ptrace.Traces, error) {
-	batches := v1adapter.ProtoFromTraces(td)
+	batches := v1adapter.V1BatchesFromTraces(td)
 	for _, batch := range batches {
 		for _, span := range batch.Spans {
 			if span.Process == nil {

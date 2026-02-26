@@ -254,6 +254,14 @@ WHERE
 GROUP BY name, span_kind
 `
 
+const SelectAttributeMetadata = `
+SELECT
+    attribute_key,
+    type,
+    level
+FROM
+    attribute_metadata`
+
 const TruncateSpans = `TRUNCATE TABLE spans`
 
 const TruncateServices = `TRUNCATE TABLE services`
@@ -290,3 +298,9 @@ var CreateAttributeMetadataTable string
 
 //go:embed create_attribute_metadata_mv.sql
 var CreateAttributeMetadataMaterializedView string
+
+//go:embed create_event_attribute_metadata_mv.sql
+var CreateEventAttributeMetadataMaterializedView string
+
+//go:embed create_link_attribute_metadata_mv.sql
+var CreateLinkAttributeMetadataMaterializedView string

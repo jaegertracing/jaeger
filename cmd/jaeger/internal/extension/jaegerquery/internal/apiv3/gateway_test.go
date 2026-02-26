@@ -16,7 +16,6 @@ import (
 
 	gogojsonpb "github.com/gogo/protobuf/jsonpb"
 	gogoproto "github.com/gogo/protobuf/proto"
-	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -45,7 +44,7 @@ var (
 type testGateway struct {
 	reader *tracestoremocks.Reader
 	url    string
-	router *mux.Router
+	router *http.ServeMux
 	// used to set a tenancy header when executing requests
 	setupRequest func(*http.Request)
 }
@@ -149,7 +148,7 @@ func (gw *testGateway) runGatewayGetTrace(t *testing.T) {
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 			yield([]ptrace.Traces{makeTestTrace()}, nil)
 		})).Once()
-	gw.getTracesAndVerify(t, "/api/v3/traces/1", traceID)
+	gw.verifyGetTraces(t, "/api/v3/traces/1", traceID)
 }
 
 func (gw *testGateway) runGatewayFindTraces(t *testing.T) {
@@ -158,10 +157,10 @@ func (gw *testGateway) runGatewayFindTraces(t *testing.T) {
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 			yield([]ptrace.Traces{makeTestTrace()}, nil)
 		})).Once()
-	gw.getTracesAndVerify(t, "/api/v3/traces?"+q.Encode(), traceID)
+	gw.verifyGetTraces(t, "/api/v3/traces?"+q.Encode(), traceID)
 }
 
-func (gw *testGateway) getTracesAndVerify(t *testing.T, url string, expectedTraceID pcommon.TraceID) {
+func (gw *testGateway) verifyGetTraces(t *testing.T, url string, expectedTraceID pcommon.TraceID) {
 	body, statusCode := gw.execRequest(t, url)
 	require.Equal(t, http.StatusOK, statusCode, "response=%s", string(body))
 	body = gw.verifySnapshot(t, body)

@@ -10,6 +10,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -317,7 +318,6 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 			}
 		}
 		logger.Info("Elasticsearch detected", zap.Int("version", esVersion))
-		//nolint:gosec // G115
 		c.Version = uint(esVersion)
 	}
 
@@ -532,9 +532,7 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	}
 	if c.CustomHeaders == nil && len(source.CustomHeaders) > 0 {
 		c.CustomHeaders = make(map[string]string)
-		for k, v := range source.CustomHeaders {
-			c.CustomHeaders[k] = v
-		}
+		maps.Copy(c.CustomHeaders, source.CustomHeaders)
 	}
 }
 

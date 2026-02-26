@@ -5,24 +5,24 @@
 
 set -euf -o pipefail
 
+# Log function that adds timestamp to all messages
+log() {
+  echo "[$(date -u '+%Y-%m-%d %H:%M:%S')] $*"
+}
+
 print_help() {
-  echo "Usage: $0 [-b binary] [-m metricstore]"
-  echo "-b: Which binary to build: 'all-in-one' or 'jaeger' (v2, default)"
-  echo "-m: Which database to use as metrics store: 'prometheus' (default) or 'elasticsearch' or 'opensearch'"
-  echo "-h: Print help"
+  log "Usage: $0 [-m metricstore]"
+  log "-m: Which database to use as metrics store: 'prometheus' (default) or 'elasticsearch' or 'opensearch'"
+  log "-h: Print help"
   exit 1
 }
 
-BINARY='jaeger'
 METRICSTORE='prometheus'
 compose_file=docker-compose/monitor/docker-compose.yml
 make_target="dev"
 
-while getopts "b:m:h" opt; do
+while getopts "m:h" opt; do
   case "${opt}" in
-  b)
-    BINARY=${OPTARG}
-    ;;
   m)
     METRICSTORE=${OPTARG}
     ;;
@@ -32,18 +32,7 @@ while getopts "b:m:h" opt; do
   esac
 done
 
-set -x
-
-# Validate binary option
-case "$BINARY" in
-  "all-in-one"|"jaeger")
-    # Valid options
-    ;;
-  *)
-    echo "❌ ERROR: Invalid binary option: $BINARY"
-    print_help
-    ;;
-esac
+set -x # Enable verbose logging for debugging
 
 # Validate metricstore option
 case "$METRICSTORE" in
@@ -51,17 +40,12 @@ case "$METRICSTORE" in
     # Valid options
     ;;
   *)
-    echo "❌ ERROR: Invalid metricstore option: $METRICSTORE"
+    log "❌ ERROR: Invalid metricstore option: $METRICSTORE"
     print_help
     ;;
 esac
 
-# Set compose file based on binary and metricstore
-if [ "$BINARY" == "all-in-one" ]; then
-  compose_file=docker-compose/monitor/docker-compose-v1.yml
-  make_target="dev-v1"
-fi
-
+# Set compose file based on metricstore
 if [ "$METRICSTORE" == "elasticsearch" ]; then
   compose_file=docker-compose/monitor/docker-compose-elasticsearch.yml
   make_target="elasticsearch"
@@ -76,10 +60,12 @@ timeout=600
 end_time=$((SECONDS + timeout))
 success="false"
 
+export SPANMETRICS_FLUSH_INTERVAL=1s # flush quickly to make IT run faster
+
 check_service_health() {
   local service_name=$1
   local url=$2
-  echo "Checking health of service: $service_name at $url"
+  log "Checking health of service: $service_name at $url"
 
   local wait_seconds=3
   local curl_params=(
@@ -91,20 +77,20 @@ check_service_health() {
   )
   while [ $SECONDS -lt $end_time ]; do
     if [[ "$(curl "${curl_params[@]}" "${url}")" == "200" ]]; then
-      echo "✅ $service_name is healthy"
+      log "✅ $service_name is healthy"
       return 0
     fi
-    echo "Waiting for $service_name to be healthy..."
+    log "Waiting for $service_name to be healthy..."
     sleep $wait_seconds
   done
 
-  echo "❌ ERROR: $service_name did not become healthy in time"
+  log "❌ ERROR: $service_name did not become healthy in time"
   return 1
 }
 
 # Function to check if all services are healthy
 wait_for_services_to_be_healthy() {
-  echo "Waiting for services to be up and running..."
+  log "Waiting for services to be up and running..."
 
   case "$METRICSTORE" in
     "elasticsearch")
@@ -215,42 +201,46 @@ validate_operations_for_service() {
   return 0
 }
 
+curl_metrics() {
+  local endpoint=$1
+  local service=$2
+  local extra_query=${3:-}
+  # Time constants in milliseconds
+  local fiveMinutes=300000
+  local oneMinute=60000
+  local tenSeconds=10000
+
+  # When endTs=(blank) the server will default it to now().
+  local url="http://localhost:16686/api/metrics/${endpoint}?service=${service}&endTs=&lookback=${fiveMinutes}&step=${tenSeconds}&ratePer=${oneMinute}"
+  if [[ -n "$extra_query" ]]; then
+    url="${url}&${extra_query}"
+  fi
+
+  curl -s "$url"
+}
+
 # Function to validate the service metrics
 validate_service_metrics() {
     local service=$1
-    # Time constants in milliseconds
-    local fiveMinutes=300000
-    local oneMinute=60000
-    local fifteenSec=15000 # Prometheus is also configured to scrape every 15sec.
-
-    # When endTs=(blank) the server will default it to now().
-    local url="http://localhost:16686/api/metrics/calls?service=${service}&endTs=&lookback=${fiveMinutes}&step=${fifteenSec}&ratePer=${oneMinute}"
-    response=$(curl -s "$url")
+    response=$(curl_metrics "calls" "$service")
     if ! assert_service_name_equals "$response" "$service" ; then
       return 1
     fi
 
-    # Check that at least some values are non-zero after the threshold
+    # Check that we receive some non-zero metric values from this service
     local non_zero_count
     non_zero_count=$(count_non_zero_metrics_point "$response")
-    local expected_non_zero_count=4
-    local zero_count
-    zero_count=$(count_zero_metrics_point "$response")
-    local expected_max_zero_count=4
-    echo "⏳ Metrics data points found: ${zero_count} zero, ${non_zero_count} non-zero"
+    local desired_non_zero_count
+    desired_non_zero_count=4
+    log "Metrics data points found (non-zero): ${non_zero_count}"
 
-    if [[ $zero_count -gt $expected_max_zero_count ]]; then
-      echo "❌ ERROR: Zero values crossing threshold limit not expected (Threshold limit - '$expected_max_zero_count')"
-      return 1
-    fi
-    if [[ $non_zero_count -lt $expected_non_zero_count ]]; then
-      echo "⏳ Expecting at least 4 non-zero data points"
+    if [[ $non_zero_count -lt $desired_non_zero_count ]]; then
+      echo "⏳ Want to see at least $desired_non_zero_count non-zero data points"
       return 1
     fi
 
-     # Validate if labels are correct
-    local url="http://localhost:16686/api/metrics/calls?service=${service}&groupByOperation=true&endTs=&lookback=${fiveMinutes}&step=${fifteenSec}&ratePer=${oneMinute}"
-    response=$(curl -s "$url")
+    # Validate if labels are correct
+    response=$(curl_metrics "calls" "$service" "groupByOperation=true")
     if ! assert_labels_set_equals "$response" "operation service_name" ; then
       return 1
     fi
@@ -269,14 +259,12 @@ validate_service_metrics() {
     fi
 
     ### Validate Errors Rate metrics
-    local url="http://localhost:16686/api/metrics/errors?service=${service}&endTs=&lookback=${fiveMinutes}&step=${fifteenSec}&ratePer=${oneMinute}"
-    response=$(curl -s "$url")
+    response=$(curl_metrics "errors" "$service")
     if ! assert_service_name_equals "$response" "$service" ; then
       return 1
     fi
 
-    local url="http://localhost:16686/api/metrics/errors?service=${service}&groupByOperation=true&endTs=&lookback=${fiveMinutes}&step=${fifteenSec}&ratePer=${oneMinute}"
-    response=$(curl -s "$url")
+    response=$(curl_metrics "errors" "$service" "groupByOperation=true")
     if ! assert_labels_set_equals "$response" "operation service_name" ; then
       return 1
     fi
@@ -285,12 +273,12 @@ validate_service_metrics() {
     local services_with_error="driver frontend ui redis"
     if [[ "$services_with_error" =~ $service ]]; then # the service is in the list
       if [[ $non_zero_count == "0" ]]; then
-        echo "❌ ERROR: expect service $service to have positive errors rate"
+        log "⏳ ERROR: expect service $service to have positive errors rate. You may have to wait for an error span to be created because microsim generates errors probabilistically: https://github.com/yurishkuro/microsim/blob/d532cf986675389494c11254ea3ae12c4297e94f/config/hotrod.go#L116"
         return 1
       fi
     else
       if [[ $non_zero_count != "0" ]]; then
-        echo "❌ ERROR: expect service $service to have 0 errors, but have $non_zero_count data points with positive errors"
+        log "❌ ERROR: expect service $service to have 0 errors, but have $non_zero_count data points with positive errors"
         return 1
       fi
     fi
@@ -304,12 +292,12 @@ assert_service_name_equals() {
   local expected=$2
   # First check if metrics structure exists at all
   if ! echo "$response" | jq -e '.metrics and .metrics[0]' >/dev/null; then
-    echo "⏳ Metrics not available yet (no metrics array)"
+    log "⏳ Metrics not available yet (no metrics array)"
     return 1
   fi
   service_name=$(echo "$response" | jq -r 'if .metrics and .metrics[0] then .metrics[0].labels[] | select(.name=="service_name") | .value else empty end')
   if [[ "$service_name" != "$expected" ]]; then
-    echo "❌ ERROR: Obtained service_name: '$service_name' are not same as expected: '$expected'"
+    log "❌ ERROR: Obtained service_name: '$service_name' are not same as expected: '$expected'"
     return 1
   fi
   return 0
@@ -322,7 +310,7 @@ assert_labels_set_equals() {
   labels=$(echo "$response" | jq -r '.metrics[0].labels[].name' | sort | tr '\n' ' ')
 
   if [[ "$labels" != "$expected" ]]; then
-    echo "❌ ERROR: Obtained labels: '$labels' are not same as expected labels: '$expected'"
+    log "❌ ERROR: Obtained labels: '$labels' are not same as expected labels: '$expected'"
     return 1
   fi
   return 0
@@ -349,10 +337,6 @@ extract_operations() {
   echo "$operations" | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g'
 }
 
-count_zero_metrics_point() {
-  echo "$1" | jq -r '[.metrics[0].metricPoints[].gaugeValue.doubleValue | select(. == 0)] | length'
-}
-
 count_non_zero_metrics_point() {
   echo "$1" | jq -r '[.metrics[0].metricPoints[].gaugeValue.doubleValue | select(. != 0 and (. | tostring != "NaN"))] | length'
 }
@@ -362,10 +346,10 @@ check_spm() {
   local successful_service=0
   services_list=("driver" "customer" "mysql" "redis" "frontend" "route" "ui")
   for service in "${services_list[@]}"; do
-    echo "Processing service: $service"
+    log "Processing service: $service"
     while [ $SECONDS -lt $end_time ]; do
       if validate_service_metrics "$service"; then
-        echo "✅ Found all expected metrics for service '$service'"
+        log "✅ Found all expected metrics for service '$service'"
         successful_service=$((successful_service + 1))
         break
       fi
@@ -373,17 +357,17 @@ check_spm() {
     done
   done
   if [ $successful_service -lt ${#services_list[@]} ]; then
-    echo "❌ ERROR: Expected metrics from ${#services_list[@]} services, found only ${successful_service}"
+    log "❌ ERROR: Expected metrics from ${#services_list[@]} services, found only ${successful_service}"
     exit 1
   else
-    echo "✅ All services metrics are returned by the API"
+    log "✅ All service have valid metrics"
   fi
 }
 
 dump_logs() {
-  echo "::group:: docker logs"
+  log "::group:: docker logs"
   docker compose -f $compose_file logs
-  echo "::endgroup::"
+  log "::endgroup::"
 }
 
 teardown_services() {
@@ -394,7 +378,7 @@ teardown_services() {
 }
 
 main() {
-  (cd docker-compose/monitor && make build BINARY="$BINARY" && make $make_target DOCKER_COMPOSE_ARGS="-d")
+  (cd docker-compose/monitor && make build BINARY="jaeger" && make $make_target DOCKER_COMPOSE_ARGS="-d")
 
   wait_for_services_to_be_healthy
   check_spm

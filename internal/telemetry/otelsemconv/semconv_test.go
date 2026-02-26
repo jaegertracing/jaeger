@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.39.0"
 )
 
 func TestServiceNameAttribute(t *testing.T) {
@@ -55,17 +55,17 @@ func TestPeerServiceAttribute(t *testing.T) {
 		{
 			name:     "valid peer service",
 			value:    "external-api",
-			expected: semconv.PeerServiceKey.String("external-api"),
+			expected: semconv.ServicePeerNameKey.String("external-api"),
 		},
 		{
 			name:     "empty peer service",
 			value:    "",
-			expected: semconv.PeerServiceKey.String(""),
+			expected: semconv.ServicePeerNameKey.String(""),
 		},
 		{
 			name:     "peer service with special characters",
 			value:    "api-service_v1.2",
-			expected: semconv.PeerServiceKey.String("api-service_v1.2"),
+			expected: semconv.ServicePeerNameKey.String("api-service_v1.2"),
 		},
 	}
 

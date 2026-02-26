@@ -17,7 +17,7 @@ func TestCommand(t *testing.T) {
 
 func TestCommand_Panic(t *testing.T) {
 	assert.PanicsWithValue(t, "could not find 'featuregate' command", func() {
-		command(func() *cobra.Command {
+		newCommand(func() *cobra.Command {
 			return &cobra.Command{}
 		})
 	})

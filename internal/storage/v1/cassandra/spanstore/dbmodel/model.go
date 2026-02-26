@@ -16,14 +16,14 @@ import (
 )
 
 const (
-	childOf     = "child-of"
-	followsFrom = "follows-from"
+	ChildOf     = "child-of"
+	FollowsFrom = "follows-from"
 
-	stringType  = "string"
-	boolType    = "bool"
-	int64Type   = "int64"
-	float64Type = "float64"
-	binaryType  = "binary"
+	StringType  = "string"
+	BoolType    = "bool"
+	Int64Type   = "int64"
+	Float64Type = "float64"
+	BinaryType  = "binary"
 )
 
 // Span is the database representation of a span.
@@ -56,25 +56,25 @@ type KeyValue struct {
 
 func (t *KeyValue) compareValues(that *KeyValue) int {
 	switch t.ValueType {
-	case stringType:
+	case StringType:
 		return strings.Compare(t.ValueString, that.ValueString)
-	case boolType:
+	case BoolType:
 		if t.ValueBool != that.ValueBool {
 			if !t.ValueBool {
 				return -1
 			}
 			return 1
 		}
-	case int64Type:
+	case Int64Type:
 		return int(t.ValueInt64 - that.ValueInt64)
-	case float64Type:
+	case Float64Type:
 		if t.ValueFloat64 != that.ValueFloat64 {
 			if t.ValueFloat64 < that.ValueFloat64 {
 				return -1
 			}
 			return 1
 		}
-	case binaryType:
+	case BinaryType:
 		return bytes.Compare(t.ValueBinary, that.ValueBinary)
 	default:
 		return -1 // theoretical case, not stating them equal but placing the base pointer before other
@@ -120,18 +120,18 @@ func (t *KeyValue) Equal(that any) bool {
 
 func (t *KeyValue) AsString() string {
 	switch t.ValueType {
-	case stringType:
+	case StringType:
 		return t.ValueString
-	case boolType:
+	case BoolType:
 		if t.ValueBool {
 			return "true"
 		}
 		return "false"
-	case int64Type:
+	case Int64Type:
 		return strconv.FormatInt(t.ValueInt64, 10)
-	case float64Type:
+	case Float64Type:
 		return strconv.FormatFloat(t.ValueFloat64, 'g', 10, 64)
-	case binaryType:
+	case BinaryType:
 		return hex.EncodeToString(t.ValueBinary)
 	default:
 		return "unknown type " + t.ValueType

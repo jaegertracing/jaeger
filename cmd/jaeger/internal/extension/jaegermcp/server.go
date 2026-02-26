@@ -142,6 +142,13 @@ func (s *server) registerTools() {
 		Description: "List available service names. Use this first to discover valid service names for search_traces.",
 	}, getServicesHandler)
 
+	// Get span names tool (required for search_traces with span name filter)
+	getSpanNamesHandler := handlers.NewGetSpanNamesHandler(s.queryAPI)
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "get_span_names",
+		Description: "List available span names for a service. Supports regex filtering and span kind filtering.",
+	}, getSpanNamesHandler)
+
 	// Health check tool
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "health",

@@ -35,7 +35,7 @@ func TestBindFlags(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	c.InitFromViper(v)
+	require.NoError(t, c.InitFromViper(v))
 	assert.Equal(t, "tenant1-", c.IndexPrefix)
 	assert.True(t, c.Archive)
 	assert.Equal(t, 150, c.Timeout)
@@ -44,4 +44,22 @@ func TestBindFlags(t *testing.T) {
 	assert.Equal(t, "jaeger-ilm", c.ILMPolicyName)
 	assert.True(t, c.SkipDependencies)
 	assert.True(t, c.AdaptiveSampling)
+}
+
+func TestInitFromViper_TLSError(t *testing.T) {
+	v := viper.New()
+	c := &Config{}
+	command := cobra.Command{}
+	flags := &flag.FlagSet{}
+	AddFlags(flags)
+	command.PersistentFlags().AddGoFlagSet(flags)
+	v.BindPFlags(command.PersistentFlags())
+
+	err := command.ParseFlags([]string{
+		"--es.tls.ca=/nonexistent/ca.crt",
+	})
+	require.NoError(t, err)
+
+	err = c.InitFromViper(v)
+	require.Error(t, err)
 }

@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gorilla/mux"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/extension"
@@ -58,11 +57,11 @@ func (c *storageCleaner) Start(_ context.Context, host component.Host) error {
 		w.Write([]byte("Purge request processed successfully"))
 	}
 
-	r := mux.NewRouter()
-	r.HandleFunc(URL, purgeHandler).Methods(http.MethodPost)
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST "+URL, purgeHandler)
 	c.server = &http.Server{
 		Addr:              ":" + c.config.Port,
-		Handler:           r,
+		Handler:           mux,
 		ReadHeaderTimeout: 3 * time.Second,
 	}
 	c.telset.Logger.Info("Starting storage cleaner server", zap.String("addr", c.server.Addr))

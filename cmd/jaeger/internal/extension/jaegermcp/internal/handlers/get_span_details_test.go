@@ -75,7 +75,7 @@ func TestGetSpanDetailsHandler_Handle_Success(t *testing.T) {
 	// Verify span details
 	var span1, span2 *types.SpanDetail
 	for i := range output.Spans {
-		switch output.Spans[i].Operation {
+		switch output.Spans[i].SpanName {
 		case "/api/test1":
 			span1 = &output.Spans[i]
 		case "/api/test2":
@@ -86,13 +86,13 @@ func TestGetSpanDetailsHandler_Handle_Success(t *testing.T) {
 	}
 
 	require.NotNil(t, span1)
-	assert.Equal(t, "/api/test1", span1.Operation)
+	assert.Equal(t, "/api/test1", span1.SpanName)
 	assert.Equal(t, "Ok", span1.Status.Code)
 	assert.Equal(t, "GET", span1.Attributes["http.method"])
 	assert.Equal(t, "/api/test1", span1.Attributes["http.url"])
 
 	require.NotNil(t, span2)
-	assert.Equal(t, "/api/test2", span2.Operation)
+	assert.Equal(t, "/api/test2", span2.SpanName)
 	assert.Equal(t, "Error", span2.Status.Code)
 	assert.Equal(t, "Test error", span2.Status.Message)
 	assert.Equal(t, "500", span2.Attributes["http.status_code"])
@@ -127,7 +127,7 @@ func TestGetSpanDetailsHandler_Handle_SingleSpan(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, traceID, output.TraceID)
 	assert.Len(t, output.Spans, 1)
-	assert.Equal(t, "/api/test", output.Spans[0].Operation)
+	assert.Equal(t, "/api/test", output.Spans[0].SpanName)
 }
 
 func TestGetSpanDetailsHandler_Handle_FiltersBySpanIDs(t *testing.T) {
@@ -157,7 +157,7 @@ func TestGetSpanDetailsHandler_Handle_FiltersBySpanIDs(t *testing.T) {
 
 	operations := make(map[string]bool)
 	for _, span := range output.Spans {
-		operations[span.Operation] = true
+		operations[span.SpanName] = true
 	}
 
 	assert.True(t, operations["/api/test1"])
@@ -400,7 +400,7 @@ func TestGetSpanDetailsHandler_Handle_PartialMissingSpans(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Len(t, output.Spans, 1)
-	assert.Equal(t, "/api/test", output.Spans[0].Operation)
+	assert.Equal(t, "/api/test", output.Spans[0].SpanName)
 
 	// Verify error field contains missing span ID
 	assert.Contains(t, output.Error, "spans not found")

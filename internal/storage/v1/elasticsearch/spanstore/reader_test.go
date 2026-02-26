@@ -470,7 +470,7 @@ func TestSpanReader_SearchAfter(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		var hits []*elastic.SearchHit
 
-		for i := 0; i < 10000; i++ {
+		for range 10000 {
 			hit := &elastic.SearchHit{Source: exampleESSpan}
 			hits = append(hits, hit)
 		}
@@ -723,7 +723,7 @@ func returnSearchFunc(typ string, r *spanReaderTest) (any, error) {
 			dbmodel.OperationQueryParameters{ServiceName: "someService"},
 		)
 	case traceIDAggregation:
-		return r.reader.findTraceIDs(context.Background(), dbmodel.TraceQueryParameters{})
+		return r.reader.findTraceIDsFromQuery(context.Background(), dbmodel.TraceQueryParameters{})
 	default:
 		return nil, errors.New("Specify services, operations, traceIDs only")
 	}
