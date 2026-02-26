@@ -49,15 +49,15 @@ func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSi
 							return false
 						}
 					}
-					currentTrace = trace
 					currentTraceID = traceID
-					spanCount = trace.SpanCount()
-					if maxSize > 0 && spanCount > maxSize {
+					if maxSize > 0 && trace.SpanCount() > maxSize {
 						currentTrace = ptrace.NewTraces()
-						spanCount = 0
 						copySpansUpToLimit(currentTrace, trace, maxSize)
 						spanCount = maxSize
 						markTraceTruncated(currentTrace, maxSize)
+					} else {
+						currentTrace = trace
+						spanCount = trace.SpanCount()
 					}
 				}
 			}
@@ -70,9 +70,8 @@ func AggregateTracesWithLimit(tracesSeq iter.Seq2[[]ptrace.Traces, error], maxSi
 }
 
 func mergeTracesWithLimit(dest, src ptrace.Traces, maxSize int, spanCount int) int {
-	// early exit if already at max
+	// early exit if already at max; trace was already marked truncated when the limit was first hit
 	if maxSize > 0 && spanCount >= maxSize {
-		markTraceTruncated(dest, maxSize)
 		return spanCount
 	}
 
@@ -101,21 +100,33 @@ func copySpansUpToLimit(dest, src ptrace.Traces, limit int) {
 		if copied >= limit {
 			return
 		}
-		destResource := dest.ResourceSpans().AppendEmpty()
-		srcResource.Resource().CopyTo(destResource.Resource())
-		destResource.SetSchemaUrl(srcResource.SchemaUrl())
+		var destResource ptrace.ResourceSpans
+		resourceAdded := false
 
 		for _, srcScope := range srcResource.ScopeSpans().All() {
 			if copied >= limit {
-				return
+				break
 			}
-			destScope := destResource.ScopeSpans().AppendEmpty()
-			srcScope.Scope().CopyTo(destScope.Scope())
-			destScope.SetSchemaUrl(srcScope.SchemaUrl())
+			var destScope ptrace.ScopeSpans
+			scopeAdded := false
 
 			for _, span := range srcScope.Spans().All() {
 				if copied >= limit {
-					return
+					break
+				}
+				// Lazily create resource and scope containers only when a span is actually copied,
+				// to avoid leaving empty container artifacts in dest.
+				if !resourceAdded {
+					destResource = dest.ResourceSpans().AppendEmpty()
+					srcResource.Resource().CopyTo(destResource.Resource())
+					destResource.SetSchemaUrl(srcResource.SchemaUrl())
+					resourceAdded = true
+				}
+				if !scopeAdded {
+					destScope = destResource.ScopeSpans().AppendEmpty()
+					srcScope.Scope().CopyTo(destScope.Scope())
+					destScope.SetSchemaUrl(srcScope.SchemaUrl())
+					scopeAdded = true
 				}
 				span.CopyTo(destScope.Spans().AppendEmpty())
 				copied++

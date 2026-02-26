@@ -199,6 +199,63 @@ func TestCopySpansUpToLimit(t *testing.T) {
 	assert.Equal(t, 3, dest.SpanCount())
 }
 
+func TestCopySpansUpToLimit_NoEmptyContainers(t *testing.T) {
+	// src has two resources: the first has no scopes, the second has spans.
+	// copySpansUpToLimit should not create an empty ResourceSpans for the first resource.
+	src := ptrace.NewTraces()
+	src.ResourceSpans().AppendEmpty() // empty resource, no scopes
+	spans := src.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+	for i := 0; i < 3; i++ {
+		spans.AppendEmpty().SetName("span")
+	}
+
+	dest := ptrace.NewTraces()
+	copySpansUpToLimit(dest, src, 2)
+
+	assert.Equal(t, 2, dest.SpanCount())
+	assert.Equal(t, 1, dest.ResourceSpans().Len(), "empty resource should not be copied")
+}
+
+func TestAggregateTracesWithLimit_MultiBatch(t *testing.T) {
+	// A trace that arrives in three batches should produce exactly one truncation
+	// warning even when subsequent batches arrive after the limit is already reached.
+	createBatch := func(traceID byte, spanCount int) ptrace.Traces {
+		trace := ptrace.NewTraces()
+		spans := trace.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+		for i := 0; i < spanCount; i++ {
+			span := spans.AppendEmpty()
+			span.SetTraceID(pcommon.TraceID([16]byte{traceID}))
+		}
+		return trace
+	}
+
+	// Limit is 3. Batch 1: 2 spans (under limit). Batch 2: 2 spans (partial copy, hits limit).
+	// Batch 3: 2 spans (already at limit, ignored).
+	tracesSeq := func(yield func([]ptrace.Traces, error) bool) {
+		if !yield([]ptrace.Traces{createBatch(1, 2)}, nil) {
+			return
+		}
+		if !yield([]ptrace.Traces{createBatch(1, 2)}, nil) {
+			return
+		}
+		yield([]ptrace.Traces{createBatch(1, 2)}, nil)
+	}
+
+	var result []ptrace.Traces
+	AggregateTracesWithLimit(tracesSeq, 3)(func(trace ptrace.Traces, _ error) bool {
+		result = append(result, trace)
+		return true
+	})
+
+	require.Len(t, result, 1)
+	assert.Equal(t, 3, result[0].SpanCount())
+
+	firstSpan := result[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+	warnings := GetWarnings(firstSpan)
+	assert.Len(t, warnings, 1, "should have exactly one truncation warning, not one per extra batch")
+	assert.Contains(t, warnings[0], fmt.Sprintf("trace has more than %d spans", 3))
+}
+
 func TestMarkAndCheckTruncated(t *testing.T) {
 	trace := ptrace.NewTraces()
 	firstSpan := trace.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
