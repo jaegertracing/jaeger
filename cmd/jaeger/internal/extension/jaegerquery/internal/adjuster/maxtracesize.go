@@ -7,57 +7,82 @@ import (
 	"strconv"
 
 	"github.com/docker/go-units"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-
-	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
 
 const (
-	warningMaxTraceSize = "trace reached the maximum allowed size of %s bytes; trace size is %s bytes"
+	traceSizeExceededSpanName = "trace-size-exceeded"
 )
 
-// CorrectMaxSize returns an Adjuster that validates if a trace is in the allowed max size
+// CorrectMaxSize returns an Adjuster that validates whether a trace size
+// is within the allowed maximum size limit.
 //
-// This adjuster calculates the size of the trace and compares it to the specified maximum size.
+// This adjuster calculates the serialized size of the trace and compares it
+// against the configured maximum size. If the trace exceeds the limit, it
+// replaces the trace with a minimal trace containing a single span that
+// indicates the trace was too large to process.
 //
 // Parameters:
-//   - maxSize: The maximum allowable trace size.
+//   - maxTraceSize: The maximum allowed trace size (e.g., "10MB", "512KB").
 func CorrectMaxSize(maxTraceSize string) Adjuster {
 	return Func(func(traces ptrace.Traces) {
 		maxTraceSizeBytes, err := units.RAMInBytes(maxTraceSize)
-		if err != nil {
-			return
-		}
-
-		// no limit
-		if maxTraceSizeBytes <= 0 {
+		if err != nil || maxTraceSizeBytes <= 0 {
 			return
 		}
 
 		marshaler := &ptrace.ProtoMarshaler{}
 		traceSizeBytes := int64(marshaler.TracesSize(traces))
-		if traceSizeBytes > maxTraceSizeBytes {
-			// TODO: not sure if this is the right approach to handle big traces
-			// should we drop the trace instead of adding warnings to all spans?
-			// or should we add a warning to the root span only?
-			// or should i drop some spans from the trace to fit the max size?
-			resources := traces.ResourceSpans()
-			for i := range resources.Len() {
-				resource := resources.At(i)
-				scopes := resource.ScopeSpans()
-				for j := range scopes.Len() {
-					spans := scopes.At(j).Spans()
-					for k := range spans.Len() {
-						span := spans.At(k)
-						jptrace.AddWarnings(
-							span,
-							warningMaxTraceSize,
-							strconv.FormatInt(maxTraceSizeBytes, 10),
-							strconv.FormatInt(traceSizeBytes, 10),
-						)
-					}
-				}
-			}
+
+		if traceSizeBytes <= maxTraceSizeBytes {
+			return
 		}
+
+		newTraces := ptrace.NewTraces()
+		rs := newTraces.ResourceSpans().AppendEmpty()
+		ss := rs.ScopeSpans().AppendEmpty()
+		span := ss.Spans().AppendEmpty()
+		span.SetName(traceSizeExceededSpanName)
+
+		traceID, found := extractTraceID(traces)
+		if found {
+			span.SetTraceID(traceID)
+		}
+
+		span.Attributes().PutStr(
+			"warning",
+			"Trace size exceeds max limit. Query underlying storage directly.",
+		)
+
+		span.Attributes().PutStr(
+			"max_allowed_bytes",
+			strconv.FormatInt(maxTraceSizeBytes, 10),
+		)
+
+		span.Attributes().PutStr(
+			"actual_trace_size_bytes",
+			strconv.FormatInt(traceSizeBytes, 10),
+		)
+
+		newTraces.MoveTo(traces)
 	})
+}
+
+func extractTraceID(traces ptrace.Traces) (pcommon.TraceID, bool) {
+	if traces.ResourceSpans().Len() == 0 {
+		return pcommon.TraceID{}, false
+	}
+
+	rs := traces.ResourceSpans().At(0)
+	if rs.ScopeSpans().Len() == 0 {
+		return pcommon.TraceID{}, false
+	}
+
+	ss := rs.ScopeSpans().At(0)
+	if ss.Spans().Len() == 0 {
+		return pcommon.TraceID{}, false
+	}
+
+	return ss.Spans().At(0).TraceID(), true
 }

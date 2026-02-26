@@ -5,37 +5,74 @@ package adjuster
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
-// TODO: add real test cases
 func TestMaxTraceSizeAdjuster(t *testing.T) {
-	testCases := []struct {
-		description  string
-		trace        []testSpan
-		err          string
-		maxAdjust    time.Duration
-		maxTraceSize string // max trace size in format "512Mi"
+	tests := []struct {
+		name          string
+		maxTraceSize  string
+		spanCount     int
+		expectWarning bool
 	}{
 		{
-			description: "foo",
-			trace: []testSpan{
-				{id: [8]byte{1}, parent: [8]byte{0}, startTime: 10, duration: 100, host: "a", adjusted: 10},
-			},
-			maxAdjust: time.Second,
+			name:          "trace within limit",
+			maxTraceSize:  "10MB",
+			spanCount:     1,
+			expectWarning: false,
+		},
+		{
+			name:          "trace exceeds limit",
+			maxTraceSize:  "1B",
+			spanCount:     10,
+			expectWarning: true,
 		},
 	}
 
-	for _, tt := range testCases {
-		testCase := tt
-		t.Run(testCase.description, func(t *testing.T) {
-			trace := makeTrace(testCase.trace)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			traces := ptrace.NewTraces()
+
+			rs := traces.ResourceSpans().AppendEmpty()
+			ss := rs.ScopeSpans().AppendEmpty()
+
+			for i := 0; i < tt.spanCount; i++ {
+				span := ss.Spans().AppendEmpty()
+				span.SetName("test-span")
+				span.Attributes().PutStr("index", "value")
+			}
+
+			originalTraceID := ss.Spans().At(0).TraceID()
 			adjuster := CorrectMaxSize(tt.maxTraceSize)
-			adjuster.Adjust(trace)
-			// some asserts
-			assert.Equal(t, 1, 1)
+			adjuster.Adjust(traces)
+
+			spans := traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans()
+
+			if tt.expectWarning {
+				assert.Equal(t, 1, spans.Len(), "should reduce trace to single warning span")
+
+				wSpan := spans.At(0)
+
+				assert.NotEqual(t, originalTraceID, wSpan.TraceID())
+				assert.Equal(t, traceSizeExceededSpanName, wSpan.Name())
+
+				warningAttr, ok := wSpan.Attributes().Get("warning")
+				assert.True(t, ok)
+				assert.NotEmpty(t, warningAttr.Str())
+
+				maxBytesAttr, ok := wSpan.Attributes().Get("max_allowed_bytes")
+				assert.True(t, ok)
+				assert.NotEmpty(t, maxBytesAttr.Str())
+
+				actualSizeAttr, ok := wSpan.Attributes().Get("actual_trace_size_bytes")
+				assert.True(t, ok)
+				assert.NotEmpty(t, actualSizeAttr.Str())
+			} else {
+				assert.GreaterOrEqual(t, spans.Len(), 1)
+				assert.NotEqual(t, traceSizeExceededSpanName, spans.At(0).Name())
+			}
 		})
 	}
 }
