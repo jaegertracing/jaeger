@@ -133,6 +133,21 @@ nocover:
 	@echo Verifying that all packages have test files to count in coverage
 	@scripts/lint/check-test-files.sh $(ALL_PKGS)
 
+.PHONY: generate-schemas
+generate-schemas: $(SCHEMAGEN)
+	@echo "Generating schemas for internal extensions..."
+	@for dir in \
+		cmd/jaeger/internal/extension/expvar \
+		cmd/jaeger/internal/extension/jaegermcp \
+		cmd/jaeger/internal/extension/jaegerquery \
+		cmd/jaeger/internal/extension/jaegerstorage \
+		cmd/jaeger/internal/extension/remotesampling \
+		cmd/jaeger/internal/extension/remotestorage; \
+	do \
+		echo "  Processing $$dir"; \
+		$(SCHEMAGEN) -c Config ./$$dir; \
+	done
+
 .PHONY: fmt
 fmt: $(GOFUMPT)
 	@echo Running import-order-cleanup on ALL_SRC ...

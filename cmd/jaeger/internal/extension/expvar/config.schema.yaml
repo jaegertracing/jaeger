@@ -1,0 +1,5 @@
+$defs:
+  config:
+    type: object
+    allOf:
+      - $ref: go.opentelemetry.io/collector/config/confighttp.server_config

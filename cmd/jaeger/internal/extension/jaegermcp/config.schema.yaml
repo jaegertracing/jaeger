@@ -1,0 +1,20 @@
+$defs:
+  config:
+    description: Config represents the configuration for the Jaeger MCP server extension.
+    type: object
+    properties:
+      http:
+        description: HTTP contains the HTTP server configuration for the MCP protocol endpoint.
+        $ref: go.opentelemetry.io/collector/config/confighttp.server_config
+      max_search_results:
+        description: MaxSearchResults limits the number of trace search results.
+        type: integer
+      max_span_details_per_request:
+        description: MaxSpanDetailsPerRequest limits the number of spans that can be fetched in a single request.
+        type: integer
+      server_name:
+        description: ServerName is the name of the MCP server for protocol identification.
+        type: string
+      server_version:
+        description: ServerVersion is the version of the MCP server.
+        type: string

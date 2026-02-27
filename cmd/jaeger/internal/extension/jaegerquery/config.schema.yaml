@@ -1,0 +1,22 @@
+$defs:
+  config:
+    description: Config represents the configuration for jaeger-query,
+    type: object
+    properties:
+      storage:
+        description: Storage holds configuration related to the various data stores that are to be queried.
+        $ref: storage
+    allOf:
+      - $ref: ./internal.query_options
+  storage:
+    type: object
+    properties:
+      metrics:
+        description: Metrics contains the name of the metric storage that is being queried.
+        type: string
+      traces:
+        description: TracesPrimary contains the name of the primary trace storage that is being queried.
+        type: string
+      traces_archive:
+        description: TracesArchive contains the name of the archive trace storage that is being queried.
+        type: string

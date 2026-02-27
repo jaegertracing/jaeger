@@ -1,0 +1,9 @@
+mappings:
+  time:
+    Duration:
+      schemaType: string
+      format: duration
+allowedRefs:
+  - go.opentelemetry.io/collector
+  - github.com/jaegertracing/jaeger
+  - github.com/open-telemetry/opentelemetry-collector-contrib
