@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
@@ -23,7 +24,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra/mocks"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/testutils"
@@ -128,27 +128,12 @@ func TestSpanReaderGetOperations(t *testing.T) {
 }
 
 func TestSpanReaderGetTrace(t *testing.T) {
-	badScan := func() any {
-		return matchOnceWithSideEffect(func(args []any) {
-			for _, arg := range args {
-				if v, ok := arg.(*[]dbmodel.KeyValue); ok {
-					*v = []dbmodel.KeyValue{
-						{
-							ValueType: "bad",
-						},
-					}
-				}
-			}
-		})
-	}
-
 	testCases := []struct {
 		scanner     any
 		closeErr    error
 		expectedErr string
 	}{
 		{scanner: matchOnce()},
-		{scanner: badScan(), expectedErr: "invalid ValueType in"},
 		{
 			scanner:     matchOnce(),
 			closeErr:    errors.New("error on close()"),
@@ -170,37 +155,18 @@ func TestSpanReaderGetTrace(t *testing.T) {
 
 				r.session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
 
-				trace, err := r.reader.GetTrace(context.Background(), spanstore.GetTraceParameters{})
+				trace, err := r.reader.GetTrace(context.Background(), tracestore.GetTraceParams{})
 				if testCase.expectedErr == "" {
 					require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 					require.NoError(t, err)
 					assert.NotNil(t, trace)
 				} else {
 					require.ErrorContains(t, err, testCase.expectedErr)
-					assert.Nil(t, trace)
+					assert.Empty(t, trace)
 				}
 			})
 		})
 	}
-}
-
-func TestSpanReaderGetTrace_TraceNotFound(t *testing.T) {
-	withSpanReader(t, func(r *spanReaderTest) {
-		iter := &mocks.Iterator{}
-		iter.On("Scan", mock.Anything).Return(false)
-		iter.On("Close").Return(nil)
-
-		query := &mocks.Query{}
-		query.On("Consistency", cassandra.One).Return(query)
-		query.On("Iter").Return(iter)
-
-		r.session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
-
-		trace, err := r.reader.GetTrace(context.Background(), spanstore.GetTraceParameters{})
-		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
-		assert.Nil(t, trace)
-		require.EqualError(t, err, "trace not found")
-	})
 }
 
 func TestSpanReaderFindTracesBadRequest(t *testing.T) {
@@ -401,17 +367,17 @@ func TestSpanReaderFindTraces(t *testing.T) {
 					stringMatcher("SELECT trace_id"),
 					mock.Anything).Return(makeLoadQuery())
 
-				queryParams := &spanstore.TraceQueryParameters{
+				queryParams := &tracestore.TraceQueryParams{
 					ServiceName:  "service-a",
-					NumTraces:    100,
+					SearchDepth:  100,
 					StartTimeMax: time.Now(),
 					StartTimeMin: time.Now().Add(-1 * time.Minute * 30),
 				}
 
-				queryParams.NumTraces = testCase.numTraces
+				queryParams.SearchDepth = testCase.numTraces
+				queryParams.Attributes = pcommon.NewMap()
 				if testCase.queryTags {
-					queryParams.Tags = make(map[string]string)
-					queryParams.Tags["x"] = "y"
+					queryParams.Attributes.PutStr("x", "y")
 				}
 				if testCase.queryOperation {
 					queryParams.OperationName = "operation-b"
@@ -440,11 +406,11 @@ func TestSpanReaderFindTraces(t *testing.T) {
 }
 
 func TestTraceQueryParameterValidation(t *testing.T) {
-	tsp := &spanstore.TraceQueryParameters{
+	attrs := pcommon.NewMap()
+	attrs.PutStr("michael", "jackson")
+	tsp := &tracestore.TraceQueryParams{
 		ServiceName: "",
-		Tags: map[string]string{
-			"michael": "jackson",
-		},
+		Attributes:  attrs,
 	}
 	err := validateQuery(tsp)
 	require.EqualError(t, err, ErrServiceNameNotSet.Error())
@@ -470,10 +436,4 @@ func TestTraceQueryParameterValidation(t *testing.T) {
 	tsp.StartTimeMax = time.Time{}
 	err = validateQuery(tsp)
 	require.EqualError(t, err, ErrStartAndEndTimeNotSet.Error())
-}
-
-func TestGetOperations(t *testing.T) {
-	reader := SpanReader{}
-	_, err := reader.GetOperations(context.Background(), spanstore.OperationQueryParameters{})
-	require.ErrorContains(t, err, "not implemented")
 }

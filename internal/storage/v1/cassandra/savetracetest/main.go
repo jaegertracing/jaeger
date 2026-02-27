@@ -8,15 +8,16 @@ import (
 	"context"
 	"time"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/jtracer"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	cascfg "github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	cspanstore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 var logger, _ = zap.NewDevelopment()
@@ -61,14 +62,21 @@ func main() {
 		logger.Info("Saved span", zap.String("spanID", getSomeSpan().SpanID.String()))
 	}
 	s := getSomeSpan()
-	trace, err := spanReader.GetTrace(ctx, spanstore.GetTraceParameters{TraceID: s.TraceID})
+	var tId []byte
+	_, err = s.TraceID.MarshalTo(tId)
+	if err != nil {
+		logger.Fatal("Failed to marshal traceID", zap.Error(err))
+	}
+	var traceID [16]byte
+	copy(traceID[:], tId)
+	trace, err := spanReader.GetTrace(ctx, tracestore.GetTraceParams{TraceID: traceID})
 	if err != nil {
 		logger.Fatal("Failed to read", zap.Error(err))
 	} else {
 		logger.Info("Loaded trace", zap.Any("trace", trace))
 	}
 
-	tqp := &spanstore.TraceQueryParameters{
+	tqp := &tracestore.TraceQueryParams{
 		ServiceName:  "someServiceName",
 		StartTimeMin: time.Now().Add(time.Hour * -1),
 		StartTimeMax: time.Now().Add(time.Hour),
@@ -80,20 +88,19 @@ func main() {
 	logger.Info("Check query with operation")
 	queryAndPrint(ctx, spanReader, tqp)
 
-	tqp.Tags = map[string]string{
-		"someKey": "someVal",
-	}
+	tqp.Attributes = pcommon.NewMap()
+	tqp.Attributes.PutStr("someKey", "someVal")
 	logger.Info("Check query with operation name and tags")
 	queryAndPrint(ctx, spanReader, tqp)
 
 	tqp.DurationMin = 0
 	tqp.DurationMax = time.Hour
-	tqp.Tags = map[string]string{}
+	tqp.Attributes = pcommon.NewMap()
 	logger.Info("check query with duration")
 	queryAndPrint(ctx, spanReader, tqp)
 }
 
-func queryAndPrint(ctx context.Context, spanReader *cspanstore.SpanReader, tqp *spanstore.TraceQueryParameters) {
+func queryAndPrint(ctx context.Context, spanReader *cspanstore.SpanReader, tqp *tracestore.TraceQueryParams) {
 	traces, err := spanReader.FindTraces(ctx, tqp)
 	if err != nil {
 		logger.Fatal("Failed to query", zap.Error(err))

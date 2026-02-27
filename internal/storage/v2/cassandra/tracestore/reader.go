@@ -7,22 +7,20 @@ import (
 	"context"
 	"iter"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
 
 type TraceReader struct {
-	reader   spanstore.CoreSpanReader
-	fallback tracestore.Reader
+	reader spanstore.CoreSpanReader
 }
 
 func NewTraceReader(reader spanstore.CoreSpanReader) *TraceReader {
 	return &TraceReader{
-		reader:   reader,
-		fallback: v1adapter.NewTraceReader(reader),
+		reader: reader,
 	}
 }
 
@@ -35,13 +33,50 @@ func (r *TraceReader) GetOperations(ctx context.Context, query tracestore.Operat
 }
 
 func (r *TraceReader) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
-	return r.fallback.GetTraces(ctx, traceIDs...)
+	return func(yield func([]ptrace.Traces, error) bool) {
+		for _, traceID := range traceIDs {
+			dbTrace, err := r.reader.GetTrace(ctx, traceID)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+			td := FromDBModel(dbTrace.Spans)
+			if !yield([]ptrace.Traces{td}, nil) {
+				return
+			}
+		}
+	}
 }
 
 func (r *TraceReader) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
-	return r.fallback.FindTraces(ctx, query)
+	return func(yield func([]ptrace.Traces, error) bool) {
+		dbTraces, err := r.reader.FindTraces(ctx, &query)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		for _, dbTrace := range dbTraces {
+			td := FromDBModel(dbTrace.Spans)
+			if !yield([]ptrace.Traces{td}, nil) {
+				return
+			}
+		}
+	}
 }
 
 func (r *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
-	return r.fallback.FindTraceIDs(ctx, query)
+	return func(yield func([]tracestore.FoundTraceID, error) bool) {
+		dbTraceIDs, err := r.reader.FindTraceIDs(ctx, &query)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		otelTraceIDs := make([]tracestore.FoundTraceID, len(dbTraceIDs))
+		for _, dbTraceID := range dbTraceIDs {
+			otelTraceIDs = append(otelTraceIDs, tracestore.FoundTraceID{
+				TraceID: pcommon.TraceID(dbTraceID),
+			})
+		}
+		yield(otelTraceIDs, nil)
+	}
 }
