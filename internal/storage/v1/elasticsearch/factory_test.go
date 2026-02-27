@@ -336,7 +336,7 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 
 func TestPasswordFromFile(t *testing.T) {
 	t.Cleanup(func() {
-		testutils.VerifyGoLeaksOnceForESClient(t)
+		testutils.VerifyGoLeaksOnce(t)
 	})
 	t.Run("primary client", func(t *testing.T) {
 		runPasswordFromFileTest(t)
@@ -389,7 +389,8 @@ func runPasswordFromFileTest(t *testing.T) {
 			}),
 		},
 		BulkProcessing: escfg.BulkProcessing{
-			MaxBytes: -1, // disable bulk; we want immediate flush
+			MaxBytes:   -1, // disable bulk
+			MaxActions: -1, // disable bulk; the test only validates auth headers
 		},
 	}
 	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nil)
@@ -447,7 +448,7 @@ func TestFactoryESClientsAreNil(t *testing.T) {
 }
 
 func TestPasswordFromFileErrors(t *testing.T) {
-	defer testutils.VerifyGoLeaksOnceForESClient(t)
+	defer testutils.VerifyGoLeaksOnce(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write(mockEsServerResponse)
 	}))
@@ -463,6 +464,10 @@ func TestPasswordFromFileErrors(t *testing.T) {
 			BasicAuthentication: configoptional.Some(escfg.BasicAuthentication{
 				PasswordFilePath: pwdFile,
 			}),
+		},
+		BulkProcessing: escfg.BulkProcessing{
+			MaxBytes:   -1, // disable bulk
+			MaxActions: -1, // disable bulk; the test only validates error paths
 		},
 	}
 
