@@ -23,12 +23,21 @@ runs:
     - name: Stage coverage files for artifact upload
       shell: bash
       run: |
+        set -x
         mkdir -p /tmp/coverage-staging
         IFS=',' read -ra FILES <<< "${{ inputs.files }}"
+        echo "Staging ${#FILES[@]} coverage file(s): ${{ inputs.files }}"
         for f in "${FILES[@]}"; do
           f=$(echo "$f" | xargs)  # trim whitespace
-          [ -f "$f" ] && cp "$f" /tmp/coverage-staging/
+          if [ -f "$f" ]; then
+            echo "Staging: $f"
+            cp "$f" /tmp/coverage-staging/
+          else
+            echo "Warning: coverage file not found, skipping: $f"
+          fi
         done
+        echo "Staged files:"
+        ls -la /tmp/coverage-staging/
 
     - name: Upload coverage profiles as artifact
       uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
