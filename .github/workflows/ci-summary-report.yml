@@ -191,29 +191,28 @@ jobs:
         id: coverage-gate
         run: |
           CURRENT="${{ steps.coverage.outputs.percentage }}"
-          if [ -z "$CURRENT" ]; then
-            echo "::error::Coverage percentage is empty; go tool cover may have failed"
-            exit 1
-          fi
           MINIMUM=95.0
+          BASELINE_MSG="(no baseline yet)"
           failure_reasons=()
 
-          # Gate 1: absolute minimum (matches codecov.yml target: 95%)
-          if (( $(echo "$CURRENT < $MINIMUM" | bc -l) )); then
-            failure_reasons+=("coverage ${CURRENT}% is below required minimum ${MINIMUM}%")
-          fi
+          if [ -z "$CURRENT" ]; then
+            failure_reasons+=("coverage percentage is empty; go tool cover may have failed")
+          else
+            # Gate 1: absolute minimum (matches codecov.yml target: 95%)
+            if (( $(echo "$CURRENT < $MINIMUM" | bc -l) )); then
+              failure_reasons+=("coverage ${CURRENT}% is below required minimum ${MINIMUM}%")
+            fi
 
-          # Gate 2: no regression vs main baseline
-          BASELINE_MSG="(no baseline yet)"
-          if [ -f .artifacts/baseline-coverage.txt ]; then
-            BASELINE=$(cat .artifacts/baseline-coverage.txt)
-            if [ -z "$BASELINE" ]; then
-              echo "::error::Baseline coverage file is empty; cannot perform regression check"
-              exit 1
-            else
-              BASELINE_MSG="(baseline ${BASELINE}%)"
-              if (( $(echo "$CURRENT < $BASELINE" | bc -l) )); then
-                failure_reasons+=("coverage dropped from ${BASELINE}% to ${CURRENT}%")
+            # Gate 2: no regression vs main baseline
+            if [ -f .artifacts/baseline-coverage.txt ]; then
+              BASELINE=$(cat .artifacts/baseline-coverage.txt)
+              if [ -z "$BASELINE" ]; then
+                failure_reasons+=("baseline coverage file is empty; cannot perform regression check")
+              else
+                BASELINE_MSG="(baseline ${BASELINE}%)"
+                if (( $(echo "$CURRENT < $BASELINE" | bc -l) )); then
+                  failure_reasons+=("coverage dropped from ${BASELINE}% to ${CURRENT}%")
+                fi
               fi
             fi
           fi
