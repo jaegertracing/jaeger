@@ -23,7 +23,7 @@ permissions:
 jobs:
   summary-report:
     name: Summary Report
-    if: ${{ github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.head_branch != 'main' }}
+    if: ${{ github.event.workflow_run.event == 'pull_request' || github.event.workflow_run.head_branch == 'main' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -105,8 +105,7 @@ jobs:
               console.log(`Found PR Number: ${prNumber}`);
               core.setOutput('pr_number', prNumber);
             } else {
-              console.log('Could not determine PR number. Skipping comment.');
-              core.setFailed('Could not determine PR number for commenting.');
+              console.log('Could not determine PR number; PR comment and check runs will be skipped.');
             }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -141,18 +140,20 @@ jobs:
       # =========================================================================
 
       - name: Set up Go for coverage tools
-        if: success() && steps.download-artifacts.outputs.pr_number
+        if: success()
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
         with:
           go-version: 1.26.x
-          cache-dependency-path: ./go.sum
+          cache-dependency-path: |
+            ./go.sum
+            ./internal/tools/go.sum
 
       - name: Install coverage tools
-        if: success() && steps.download-artifacts.outputs.pr_number
+        if: success()
         run: make install-coverage-tools
 
       - name: Merge coverage profiles
-        if: success() && steps.download-artifacts.outputs.pr_number
+        if: success()
         id: merge-coverage
         run: |
           mapfile -t COVER_FILES < <(find .artifacts -path "*/coverage-*/*.out" -type f)
@@ -166,7 +167,7 @@ jobs:
           fi
 
       - name: Calculate current coverage percentage
-        if: success() && steps.download-artifacts.outputs.pr_number && steps.merge-coverage.outputs.skipped == 'false'
+        if: success() && steps.merge-coverage.outputs.skipped == 'false'
         id: coverage
         run: |
           PCT=$(go tool cover -func=.artifacts/merged-coverage.out \
@@ -176,7 +177,7 @@ jobs:
           echo "Current coverage: ${PCT}%"
 
       - name: Restore baseline coverage from main
-        if: success() && steps.download-artifacts.outputs.pr_number && steps.merge-coverage.outputs.skipped == 'false'
+        if: success() && steps.merge-coverage.outputs.skipped == 'false'
         id: restore-baseline
         uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57
         with:
@@ -313,8 +314,6 @@ jobs:
 
       # Save baseline coverage on main-branch runs so PRs can compare against it.
       # Uses the same actions/cache pattern as .github/actions/verify-metrics-snapshot/action.yaml.
-      # This step is skipped for PR runs (head_branch != 'main') by the outer job condition,
-      # but we keep the branch check here for safety.
       - name: Save coverage baseline on main branch
         if: |
           github.event.workflow_run.head_branch == 'main' &&
