@@ -55,6 +55,20 @@ func ignoreHttpTransportReadLoopLeak() goleak.Option {
 	return goleak.IgnoreTopFunction("net/http.(*persistConn).readLoop")
 }
 
+// ignoreESBulkWorkerCommitLeak ignores goroutines where the olivere/elastic v7
+// BulkProcessor's worker is stuck in a retry loop during commit.
+// These leaks are from olivere client not from jaeger.
+func ignoreESBulkWorkerCommitLeak() goleak.Option {
+	return goleak.IgnoreAnyFunction("github.com/olivere/elastic/v7.(*bulkWorker).commit")
+}
+
+// ignoreESBulkProcessorCloseLeak ignores goroutines where the olivere/elastic v7
+// BulkProcessor's Close method is waiting for workers to finish.
+// These leaks are from olivere client not from jaeger.
+func ignoreESBulkProcessorCloseLeak() goleak.Option {
+	return goleak.IgnoreAnyFunction("github.com/olivere/elastic/v7.(*BulkProcessor).Close")
+}
+
 // VerifyGoLeaks verifies that unit tests do not leak any goroutines.
 // It should be called in TestMain.
 func VerifyGoLeaks(m *testing.M) {
@@ -69,6 +83,19 @@ func VerifyGoLeaks(m *testing.M) {
 //	defer testutils.VerifyGoLeaksOnce(t)
 func VerifyGoLeaksOnce(t *testing.T) {
 	goleak.VerifyNone(t, IgnoreGlogFlushDaemonLeak(), IgnoreOpenCensusWorkerLeak(), IgnoreGoMetricsMeterLeak())
+}
+
+// VerifyGoLeaksOnceForESClient is go leak check for tests that create olivere/elastic v7 clients.
+// It combines the standard leak ignores with known BulkProcessor goroutine leaks
+// from the olivere/elastic library that cannot be controlled by Jaeger code.
+func VerifyGoLeaksOnceForESClient(t *testing.T) {
+	goleak.VerifyNone(t,
+		IgnoreGlogFlushDaemonLeak(),
+		IgnoreOpenCensusWorkerLeak(),
+		IgnoreGoMetricsMeterLeak(),
+		ignoreESBulkWorkerCommitLeak(),
+		ignoreESBulkProcessorCloseLeak(),
+	)
 }
 
 // VerifyGoLeaksOnceForES is go leak check for ElasticSearch integration tests (v1)
