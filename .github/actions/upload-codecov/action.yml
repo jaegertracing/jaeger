@@ -7,13 +7,13 @@
 # We cannot define it as "secret" as we need it accessible from forks.
 
 name: 'Upload coverage to codecov'
-description: 'Uploads coverage to codecov with retries'
+description: 'Uploads coverage to codecov with retries and saves raw profiles as artifacts'
 inputs:
   files:
-    description: 'Coverage files to upload'
+    description: 'Coverage files to upload (comma-separated)'
     required: true
-  flags:
-    description: 'Flags for codecov'
+  flag:
+    description: 'Codecov flag for this upload; also used as the artifact name suffix (coverage-<flag>)'
     required: true
 runs:
   using: 'composite'
@@ -27,7 +27,23 @@ runs:
         action: codecov/codecov-action@7afa10ed9b269c561c2336fd862446844e0cbf71 # v4.2.0
         with: |
           files: ${{ inputs.files }}
-          flags: ${{ inputs.flags }}
+          flags: ${{ inputs.flag }}
           verbose: true
           fail_ci_if_error: true
           token: f457b710-93af-4191-8678-bcf51281f98c
+
+    - name: Stage coverage files for artifact upload
+      shell: bash
+      run: |
+        mkdir -p /tmp/coverage-staging
+        IFS=',' read -ra FILES <<< "${{ inputs.files }}"
+        for f in "${FILES[@]}"; do
+          [ -f "$f" ] && cp "$f" /tmp/coverage-staging/
+        done
+
+    - name: Upload coverage profiles as artifact
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      with:
+        name: coverage-${{ inputs.flag }}
+        path: /tmp/coverage-staging/
+        retention-days: 7
