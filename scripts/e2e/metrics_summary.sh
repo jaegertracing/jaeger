@@ -6,7 +6,7 @@
 # Enable debug tracing and exit on error
 set -exo pipefail
 
-METRICS_DIR="./.metrics"
+METRICS_DIR="${METRICS_DIR:-./.artifacts}"
 declare -a summary_files=()
 total_changes=0
 

@@ -53,30 +53,26 @@ Key design choices:
 
 ### Step 1: Extend `.github/actions/upload-codecov/action.yml`
 
-Add an optional `artifact-name` input. When provided, copy the coverage `.out` files to a staging directory and upload them as a GitHub Actions artifact:
+Rename the `flags` input to `flag` (singular — all callers pass exactly one value) and remove the separate `artifact-name` input, deriving the artifact name as `coverage-<flag>` internally. The staging and upload steps become unconditional:
 
 ```yaml
 inputs:
   files:
     description: 'Coverage files to upload (comma-separated)'
     required: true
-  flags:
-    description: 'Flags for codecov'
+  flag:
+    description: 'Codecov flag for this upload; also used as the artifact name suffix (coverage-<flag>)'
     required: true
-  artifact-name:
-    description: 'Artifact name for coverage upload; skip upload if empty'
-    required: false
-    default: ''
 runs:
   using: 'composite'
   steps:
     - name: Retry upload        # existing step, unchanged
       uses: Wandalen/wretry.action@...
-      with:
+      with: |
+        flags: ${{ inputs.flag }}
         ...
 
     - name: Stage coverage files for artifact upload
-      if: ${{ inputs.artifact-name != '' }}
       shell: bash
       run: |
         mkdir -p /tmp/coverage-staging
@@ -86,31 +82,30 @@ runs:
         done
 
     - name: Upload coverage profiles as artifact
-      if: ${{ inputs.artifact-name != '' }}
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ inputs.artifact-name }}
+        name: coverage-${{ inputs.flag }}
         path: /tmp/coverage-staging/
         retention-days: 7
 ```
 
-### Step 2: Pass `artifact-name` in all 11 callers
+### Step 2: Rename `flags` → `flag` in all 11 callers
 
-Add `artifact-name` to every call site:
+Replace `flags:` with `flag:` at every call site (no other change needed — artifact naming is derived automatically):
 
-| File | Change |
-|------|--------|
-| `ci-unit-tests.yml:39` | `artifact-name: coverage-unittests` |
-| `ci-e2e-badger.yaml:45` | `artifact-name: coverage-badger-${{ matrix.version }}` |
-| `ci-e2e-cassandra.yml` | `artifact-name: coverage-cassandra-${{ matrix.version.major }}-${{ matrix.jaeger-version }}-${{ matrix.create-schema }}` |
-| `ci-e2e-clickhouse.yml` | `artifact-name: coverage-clickhouse` |
-| `ci-e2e-elasticsearch.yml:63` | `artifact-name: coverage-elasticsearch-${{ matrix.version.major }}-${{ matrix.version.jaeger }}` |
-| `ci-e2e-grpc.yml` | `artifact-name: coverage-grpc-${{ matrix.version }}` |
-| `ci-e2e-kafka.yml` | `artifact-name: coverage-kafka-${{ matrix.kafka-version }}` |
-| `ci-e2e-memory.yaml` | `artifact-name: coverage-memory-v2` |
-| `ci-e2e-opensearch.yml` | `artifact-name: coverage-opensearch-${{ matrix.version.major }}-${{ matrix.version.jaeger }}` |
-| `ci-e2e-query.yml` | `artifact-name: coverage-query` |
-| `ci-e2e-tailsampling.yml` | `artifact-name: coverage-tailsampling` |
+| File | `flag` value |
+|------|-------------|
+| `ci-unit-tests.yml` | `unittests` |
+| `ci-e2e-badger.yaml` | `badger_${{ matrix.version }}` |
+| `ci-e2e-cassandra.yml` | `cassandra-${{ matrix.version.major }}-${{ matrix.jaeger-version }}-${{ matrix.create-schema }}` |
+| `ci-e2e-clickhouse.yml` | `clickhouse` |
+| `ci-e2e-elasticsearch.yml` | `${{ matrix.version.distribution }}-${{ matrix.version.major }}-${{ matrix.version.jaeger }}` |
+| `ci-e2e-grpc.yml` | `grpc_${{ matrix.version }}` |
+| `ci-e2e-kafka.yml` | `kafka-${{ matrix.kafka-version }}-v2` |
+| `ci-e2e-memory.yaml` | `memory_v2` |
+| `ci-e2e-opensearch.yml` | `${{ matrix.version.distribution }}-${{ matrix.version.major }}-${{ matrix.version.jaeger }}` |
+| `ci-e2e-query.yml` | `query` |
+| `ci-e2e-tailsampling.yml` | `tailsampling-processor` |
 
 ### Step 3: Add `gocovmerge` and `go-coverage-report` to `internal/tools/`
 
@@ -125,17 +120,18 @@ _ "github.com/fgrosse/go-coverage-report/cmd/go-coverage-report"
 
 2. Run `cd internal/tools && go get github.com/wadey/gocovmerge github.com/fgrosse/go-coverage-report` to add entries to `go.mod`/`go.sum`.
 
-3. Add named variables and a new target to `scripts/makefiles/Tools.mk`:
+3. Add a named variable and a new target to `scripts/makefiles/Tools.mk`:
 
 ```makefile
-GOCOVMERGE  := $(TOOLS_BIN_DIR)/gocovmerge
-GOCOVREPORT := $(TOOLS_BIN_DIR)/go-coverage-report
+GOCOVMERGE := $(TOOLS_BIN_DIR)/gocovmerge
 
 .PHONY: install-coverage-tools
-install-coverage-tools: $(GOCOVMERGE) $(GOCOVREPORT)
+install-coverage-tools: $(GOCOVMERGE)
 ```
 
-The generic build rule on `Tools.mk:37-38` automatically handles building these binaries from `internal/tools/go.mod`.
+The generic build rule on `Tools.mk:37-38` automatically handles building the binary from `internal/tools/go.mod`.
+
+**Note on `go-coverage-report`**: the `github.com/fgrosse/go-coverage-report` module declares `go 1.21` in its `go.mod`, which prevents blank-importing its `package main` command in Go 1.21+. Rather than work around this limitation, the per-file coverage report is generated using the `go tool cover -func` command that ships with the Go toolchain, requiring no additional dependency.
 
 ### Step 4: Rename and extend `ci-compare-metrics.yml` → `ci-summary-report.yml`
 
@@ -196,21 +192,32 @@ name: CI Summary Report
       id: coverage-gate
       if: steps.merge-coverage.outputs.skipped == 'false'
       run: |
-        CURRENT=${{ steps.coverage.outputs.percentage }}
-        THRESHOLD=0.1
-        if [ -f .metrics/baseline-coverage.txt ]; then
-          BASELINE=$(cat .metrics/baseline-coverage.txt)
-          DIFF=$(echo "$BASELINE - $CURRENT" | bc)
-          if (( $(echo "$DIFF > $THRESHOLD" | bc -l) )); then
-            echo "conclusion=failure" >> "$GITHUB_OUTPUT"
-            echo "summary=Coverage dropped by ${DIFF}% (${CURRENT}% vs baseline ${BASELINE}%)" >> "$GITHUB_OUTPUT"
-          else
-            echo "conclusion=success" >> "$GITHUB_OUTPUT"
-            echo "summary=Coverage ${CURRENT}% (baseline ${BASELINE}%, delta -${DIFF}%)" >> "$GITHUB_OUTPUT"
+        CURRENT="${{ steps.coverage.outputs.percentage }}"
+        MINIMUM=95.0
+        failure_reasons=()
+
+        # Gate 1: absolute minimum (matches .codecov.yml target: 95%)
+        if (( $(echo "$CURRENT < $MINIMUM" | bc -l) )); then
+          failure_reasons+=("coverage ${CURRENT}% is below required minimum ${MINIMUM}%")
+        fi
+
+        # Gate 2: no regression vs main baseline
+        BASELINE_MSG="(no baseline yet)"
+        if [ -f .artifacts/baseline-coverage.txt ]; then
+          BASELINE=$(cat .artifacts/baseline-coverage.txt)
+          BASELINE_MSG="(baseline ${BASELINE}%)"
+          if (( $(echo "$CURRENT < $BASELINE" | bc -l) )); then
+            failure_reasons+=("coverage dropped from ${BASELINE}% to ${CURRENT}%")
           fi
+        fi
+
+        if [ ${#failure_reasons[@]} -gt 0 ]; then
+          msg=$(IFS='; '; echo "${failure_reasons[*]}")
+          echo "conclusion=failure" >> "$GITHUB_OUTPUT"
+          echo "summary=${msg}" >> "$GITHUB_OUTPUT"
         else
           echo "conclusion=success" >> "$GITHUB_OUTPUT"
-          echo "summary=Coverage ${CURRENT}% (no baseline yet)" >> "$GITHUB_OUTPUT"
+          echo "summary=Coverage ${CURRENT}% ${BASELINE_MSG}" >> "$GITHUB_OUTPUT"
         fi
 
     - name: Save coverage baseline on main branch
@@ -227,11 +234,6 @@ name: CI Summary Report
         path: .metrics/baseline-coverage.txt
         key: coverage-baseline_${{ github.run_id }}
 
-    - name: Generate per-file coverage report
-      if: steps.merge-coverage.outputs.skipped == 'false'
-      run: |
-        ./.tools/go-coverage-report .metrics/merged-coverage.out > .metrics/coverage-report.md
-
     - name: Append coverage section to combined summary
       if: steps.merge-coverage.outputs.skipped == 'false'
       run: |
@@ -240,8 +242,6 @@ name: CI Summary Report
           echo "## Code Coverage"
           echo ""
           echo "${{ steps.coverage-gate.outputs.summary }}"
-          echo ""
-          cat .metrics/coverage-report.md
         } >> .metrics/combined_summary.md
 
     - name: Create check run for coverage gate
@@ -285,8 +285,8 @@ Add `Coverage Gate` to the required status checks in the repository's branch pro
 ### Negative
 
 - **Artifact storage cost**: `coverage-*` artifacts are ~1–5 MB each × ~20 matrix jobs = ~50–100 MB per CI run, retained 7 days. GitHub-hosted storage is generally within free-tier limits for open-source projects.
-- **Longer summary workflow**: `make install-coverage-tools`, gocovmerge, and go-coverage-report add steps to the fan-in job. These run sequentially after the existing metrics comparison.
-- **Two new tool dependencies**: `github.com/wadey/gocovmerge` and `github.com/fgrosse/go-coverage-report` must be added to `internal/tools/go.mod`. They are version-pinned there like all other tools, providing supply-chain guarantees consistent with the rest of the project.
+- **Longer summary workflow**: `make install-coverage-tools`, `gocovmerge`, and `go tool cover` add steps to the fan-in job. These run sequentially after the existing metrics comparison.
+- **One new tool dependency**: `github.com/wadey/gocovmerge` must be added to `internal/tools/go.mod`. It is version-pinned there like all other tools, providing supply-chain guarantees consistent with the rest of the project. Coverage reporting uses `go tool cover -func` from the standard Go toolchain (no extra binary needed).
 - **Trigger change latency**: triggering on `"CI Orchestrator"` instead of `"E2E Tests"` means the fan-in waits for all three stages. In sequential mode this is ~30 minutes after PR push (unchanged from current Codecov reporting, which also waits for all uploads). In parallel mode it is ~10 minutes.
 
 ### Neutral
@@ -297,7 +297,7 @@ Add `Coverage Gate` to the required status checks in the repository's branch pro
 ## References
 
 - Reusable coverage action: `.github/actions/upload-codecov/action.yml`
-- Metrics fan-in workflow (to be renamed): `.github/workflows/ci-compare-metrics.yml`
+- CI Summary Report workflow (renamed from `ci-compare-metrics.yml`): `.github/workflows/ci-summary-report.yml`
 - Metrics snapshot reusable action (cache pattern to reuse): `.github/actions/verify-metrics-snapshot/action.yaml`
 - Main CI orchestrator (new trigger target): `.github/workflows/ci-orchestrator.yml`
 - E2E aggregator workflow: `.github/workflows/ci-e2e-all.yml`
