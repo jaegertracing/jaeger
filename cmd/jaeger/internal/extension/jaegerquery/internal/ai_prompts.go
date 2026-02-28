@@ -48,3 +48,15 @@ User Request: "%s"
 
 Analyze the request and extract the parameters into JSON. Use standard open telemetry semantic conventions for tags if applicable.`, TraceQueryJSONSchema, question)
 }
+
+// buildContextualPrompt constructs the LLM prompt from the pruned trace and user question.
+func buildContextualPrompt(prunedTrace string, question string) string {
+	return fmt.Sprintf(`You are an expert distributed systems engineer and site reliability expert.
+Analyze the following critical path spans from a distributed trace carefully.
+
+%s
+
+User Question: %s
+
+Provide a concise, actionable analysis. Identify which service is likely at fault and what the error represents. Keep it brief. Do not hallucinate tags that aren't present.`, prunedTrace, question)
+}
