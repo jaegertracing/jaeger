@@ -5,7 +5,11 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+
+	"github.com/tmc/langchaingo/llms"
+	"github.com/tmc/langchaingo/llms/ollama"
 )
 
 // MCPClient defines the interface for communicating with the Jaeger MCP server.
@@ -36,11 +40,48 @@ type AIService struct {
 }
 
 // NewAIService creates a new AIService with the given MCP and LLM clients.
+// If llmClient is nil, it gracefully defaults to an Ollama LLM client for Phase 2.
 func NewAIService(mcpClient MCPClient, llmClient LLMClient) *AIService {
+	if llmClient == nil {
+		model := "phi3" // default small language model
+		llm, err := ollama.New(ollama.WithModel(model))
+		if err == nil {
+			llmClient = &OllamaLLMClient{llm: llm, model: model}
+		} else {
+			llmClient = &StubLLMClient{} // fallback to stub
+		}
+	}
+
 	return &AIService{
 		mcpClient: mcpClient,
 		llmClient: llmClient,
 	}
+}
+
+// ExtractedSearchParams represents the SLM's structured translation of a natural language search query.
+type ExtractedSearchParams struct {
+	Service     string            `json:"service"`
+	Operation   string            `json:"operation"`
+	Tags        map[string]string `json:"tags"`
+	MinDuration string            `json:"minDuration"`
+	MaxDuration string            `json:"maxDuration"`
+}
+
+// GenerateSearchParams takes a natural language query and uses the SLM to extract Jaeger search parameters safely.
+func (s *AIService) GenerateSearchParams(ctx context.Context, question string) (*ExtractedSearchParams, error) {
+	prompt := buildSearchAnalysisPrompt(question)
+	answer, err := s.llmClient.AnalyzeTrace(ctx, prompt)
+	if err != nil {
+		return nil, fmt.Errorf("SLM extraction failed: %w", err)
+	}
+
+	var params ExtractedSearchParams
+	// Act as a firewall: safely unmarshal only known fields, discarding hallucinations
+	if err := json.Unmarshal([]byte(answer), &params); err != nil {
+		return nil, fmt.Errorf("SLM returned invalid or unparseable JSON: %v. Raw Output: %s", err, answer)
+	}
+
+	return &params, nil
 }
 
 // AnalyzeTrace performs Level-1 single-trace Q&A:
@@ -98,6 +139,23 @@ func (*StubMCPClient) GetCriticalPath(_ context.Context, traceID string) (string
 		"api-gateway (12ms) -> order-service (45ms) -> payment-service (120ms) [total: 177ms] (trace: %s)",
 		traceID,
 	), nil
+}
+
+// OllamaLLMClient connects to a local Ollama instance using langchaingo.
+type OllamaLLMClient struct {
+	llm   *ollama.LLM
+	model string
+}
+
+// AnalyzeTrace sends the structured prompt to the local SLM via langchaingo.
+// We force JSON formatting across all Ollama requests to guarantee determinism.
+func (c *OllamaLLMClient) AnalyzeTrace(ctx context.Context, prompt string) (string, error) {
+	// Provide ollama.WithFormat("json") to strictly emit json for parsing constraints defined in #7832
+	completion, err := llms.GenerateFromSinglePrompt(ctx, c.llm, prompt, llms.WithJSONMode())
+	if err != nil {
+		return "", fmt.Errorf("Ollama SLM generation failed (ensure 'ollama run %s' is active): %w", c.model, err)
+	}
+	return completion, nil
 }
 
 // StubLLMClient returns a fixed analysis without calling a real LLM.
