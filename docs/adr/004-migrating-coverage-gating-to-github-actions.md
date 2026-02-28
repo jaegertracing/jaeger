@@ -49,9 +49,10 @@ Key design choices:
 
 - **Single job for both PR analysis and baseline updates**: the job runs for `pull_request` events and for pushes to `main`. PR-specific steps (metrics comparison, coverage gate, PR comment, check runs) are conditioned on `pr_number` being set; baseline-save steps are conditioned on `head_branch == 'main'`. Coverage computation runs unconditionally so both flows share the same merge-and-measure logic. This follows the same pattern as the existing metrics snapshot baseline.
 
-- **Coverage policy**: two gates matching `.codecov.yml`:
-  1. Absolute floor: fail if total coverage drops below 95%.
-  2. No regression: fail if total coverage dropped compared to the `main` baseline.
+- **Coverage policy**: two independent gates are applied to the filtered merged profile:
+  1. **Absolute floor**: total coverage must be ≥ 95%, matching the Codecov project target.
+  2. **No regression**: total coverage must not drop compared to the `main` baseline.
+  The merged profile is filtered before computing coverage using the same `ignore:` patterns from `.codecov.yml` (generated files, mocks, integration test infrastructure), read at runtime so both tools stay in sync from a single source of truth. Without this filtering, `go tool cover -func` on merged profiles yields ~42% because it counts all instrumented packages including generated code with zero coverage, far below the meaningful 95% Codecov reports per flag.
 
 ## Implementation
 

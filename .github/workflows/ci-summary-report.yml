@@ -23,7 +23,7 @@ permissions:
 jobs:
   summary-report:
     name: Summary Report
-    if: ${{ github.event.workflow_run.event == 'pull_request' || github.event.workflow_run.head_branch == 'main' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'pull_request' || github.event.workflow_run.head_branch == 'main') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -124,6 +124,7 @@ jobs:
           bash ./scripts/e2e/metrics_summary.sh
         env:
           LINK_TO_ARTIFACT: "https://github.com/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}"
+          SUMMARY_RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Upload metrics comparison report as artifact
         if: success() && steps.download-artifacts.outputs.pr_number
@@ -166,6 +167,15 @@ jobs:
             echo "skipped=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Filter excluded paths from merged coverage
+        if: success() && steps.merge-coverage.outputs.skipped == 'false'
+        run: |
+          # Applies the same exclusions as .codecov.yml (single source of truth).
+          python3 scripts/e2e/filter_coverage.py .artifacts/merged-coverage.out \
+            > .artifacts/merged-coverage-filtered.out
+          mv .artifacts/merged-coverage-filtered.out .artifacts/merged-coverage.out
+          echo "Coverage lines after filtering: $(wc -l < .artifacts/merged-coverage.out)"
+
       - name: Calculate current coverage percentage
         if: success() && steps.merge-coverage.outputs.skipped == 'false'
         id: coverage
@@ -191,16 +201,16 @@ jobs:
         id: coverage-gate
         run: |
           CURRENT="${{ steps.coverage.outputs.percentage }}"
-          MINIMUM=95.0
           BASELINE_MSG="(no baseline yet)"
           failure_reasons=()
 
           if [ -z "$CURRENT" ]; then
             failure_reasons+=("coverage percentage is empty; go tool cover may have failed")
           else
-            # Gate 1: absolute minimum (matches codecov.yml target: 95%)
+            # Gate 1: absolute minimum threshold
+            MINIMUM=95.0
             if (( $(echo "$CURRENT < $MINIMUM" | bc -l) )); then
-              failure_reasons+=("coverage ${CURRENT}% is below required minimum ${MINIMUM}%")
+              failure_reasons+=("coverage ${CURRENT}% is below minimum ${MINIMUM}%")
             fi
 
             # Gate 2: no regression vs main baseline
@@ -240,7 +250,6 @@ jobs:
       - name: Post PR comment with combined summary
         if: |
           (steps.compare-metrics.outputs.TOTAL_CHANGES != '0' ||
-           steps.compare-metrics.outputs.HAS_ERROR == 'true' ||
            steps.coverage-gate.outputs.conclusion == 'failure') &&
           steps.download-artifacts.outputs.pr_number
         uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3
@@ -258,23 +267,22 @@ jobs:
             const { owner, repo } = context.repo;
             const headSha = context.payload.workflow_run.head_sha;
             const totalChanges = parseInt('${{ steps.compare-metrics.outputs.TOTAL_CHANGES }}' || '0');
-            const hasError = '${{ steps.compare-metrics.outputs.HAS_ERROR }}' === 'true';
             const artifactLink = 'https://github.com/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}';
+            const summaryRunLink = 'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}';
+            const links = `➡️ [View CI artifacts](${artifactLink}) | [View Summary Report logs](${summaryRunLink})`;
 
-            let conclusion, summary, text;
+            const infraErrors = '${{ steps.compare-metrics.outputs.INFRA_ERRORS }}'.trim();
 
-            if (hasError) {
+            let conclusion, summary;
+            if (infraErrors) {
               conclusion = 'failure';
-              summary = '❌ Metrics comparison failed';
-              text = 'ERROR: No summary files were generated. Expected at least 8 diff files from CI.\n\nThis indicates a failure in the E2E test execution or metrics collection process.\n\n➡️ [View full metrics file](' + artifactLink + ')';
+              summary = `❌ Infrastructure error: diff artifacts missing for: ${infraErrors}`;
             } else if (totalChanges === 0) {
               conclusion = 'success';
               summary = '✅ No significant metric changes detected';
-              text = `Total changes across all snapshots: ${totalChanges}\n\n➡️ [View full metrics file](${artifactLink})`;
             } else {
               conclusion = 'failure';
               summary = `❌ ${totalChanges} metric changes detected`;
-              text = `Total changes across all snapshots: ${totalChanges}\n\n➡️ [View full metrics file](${artifactLink})`;
             }
 
             await github.rest.checks.create({
@@ -287,7 +295,7 @@ jobs:
               output: {
                 title: 'Metrics Comparison Result',
                 summary: summary,
-                text: text
+                text: `Total changes across all snapshots: ${totalChanges}\n\n${links}`
               }
             });
         env:
@@ -303,6 +311,7 @@ jobs:
             const conclusion = '${{ steps.coverage-gate.outputs.conclusion }}';
             const summary = '${{ steps.coverage-gate.outputs.summary }}';
             const artifactLink = 'https://github.com/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}';
+            const summaryRunLink = 'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}';
 
             await github.rest.checks.create({
               owner,
@@ -314,7 +323,7 @@ jobs:
               output: {
                 title: 'Coverage Gate',
                 summary: conclusion === 'success' ? `✅ ${summary}` : `❌ ${summary}`,
-                text: `➡️ [View CI run](${artifactLink})`
+                text: `➡️ [View CI artifacts](${artifactLink}) | [View Summary Report logs](${summaryRunLink})`
               }
             });
         env:
