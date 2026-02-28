@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -19,19 +20,13 @@ import (
 
 // --- Mock implementations ---
 
-type mockMCPClient struct {
-	topologyResponse     string
-	criticalPathResponse string
-	topologyErr          error
-	criticalPathErr      error
+type mockTraceReader struct {
+	trace *model.Trace
+	err   error
 }
 
-func (m *mockMCPClient) GetTraceTopology(_ context.Context, _ string) (string, error) {
-	return m.topologyResponse, m.topologyErr
-}
-
-func (m *mockMCPClient) GetCriticalPath(_ context.Context, _ string) (string, error) {
-	return m.criticalPathResponse, m.criticalPathErr
+func (m *mockTraceReader) GetTrace(_ context.Context, _ string) (*model.Trace, error) {
+	return m.trace, m.err
 }
 
 type mockLLMClient struct {
@@ -39,15 +34,19 @@ type mockLLMClient struct {
 	err      error
 }
 
-func (m *mockLLMClient) AnalyzeTrace(_ context.Context, _ string) (string, error) {
+func (m *mockLLMClient) ExtractParameters(_ context.Context, _ string) (string, error) {
+	return m.response, m.err
+}
+
+func (m *mockLLMClient) SummarizeTrace(_ context.Context, _ string) (string, error) {
 	return m.response, m.err
 }
 
 // --- Helper: create a minimal test server with AI wired up ---
 
-func initializeAITestServer(t *testing.T, mcpClient MCPClient, llmClient LLMClient) *httptest.Server {
+func initializeAITestServer(t *testing.T, traceReader TraceReader, llmClient LLMClient) *httptest.Server {
 	t.Helper()
-	aiSvc := NewAIService(mcpClient, llmClient)
+	aiSvc := NewAIService(traceReader, llmClient)
 	apiHandler := NewAPIHandler(nil,
 		HandlerOptions.Logger(zap.NewNop()),
 		HandlerOptions.AIService(aiSvc),
@@ -63,9 +62,8 @@ func initializeAITestServer(t *testing.T, mcpClient MCPClient, llmClient LLMClie
 
 func TestAIServiceAnalyzeTrace(t *testing.T) {
 	svc := NewAIService(
-		&mockMCPClient{
-			topologyResponse:     "A -> B -> C",
-			criticalPathResponse: "B (100ms) -> C (200ms)",
+		&mockTraceReader{
+			trace: &model.Trace{Spans: []*model.Span{{Tags: []model.KeyValue{{Key: "error", VType: model.ValueType_BOOL, VBool: true}}}}},
 		},
 		&mockLLMClient{response: "Service C is the bottleneck."},
 	)
@@ -75,52 +73,36 @@ func TestAIServiceAnalyzeTrace(t *testing.T) {
 	assert.Equal(t, "Service C is the bottleneck.", answer)
 }
 
-func TestAIServiceAnalyzeTraceMCPTopologyError(t *testing.T) {
+func TestAIServiceAnalyzeTraceTraceReaderError(t *testing.T) {
 	svc := NewAIService(
-		&mockMCPClient{topologyErr: errors.New("connection refused")},
+		&mockTraceReader{err: errors.New("connection refused")},
 		&mockLLMClient{response: "unused"},
 	)
 
 	_, err := svc.AnalyzeTrace(context.Background(), "abc123", "question")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get trace topology")
-}
-
-func TestAIServiceAnalyzeTraceMCPCriticalPathError(t *testing.T) {
-	svc := NewAIService(
-		&mockMCPClient{
-			topologyResponse: "A -> B",
-			criticalPathErr:  errors.New("timeout"),
-		},
-		&mockLLMClient{response: "unused"},
-	)
-
-	_, err := svc.AnalyzeTrace(context.Background(), "abc123", "question")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get critical path")
+	assert.Contains(t, err.Error(), "failed to fetch trace")
 }
 
 func TestAIServiceAnalyzeTraceLLMError(t *testing.T) {
 	svc := NewAIService(
-		&mockMCPClient{
-			topologyResponse:     "A -> B",
-			criticalPathResponse: "B (50ms)",
+		&mockTraceReader{
+			trace: &model.Trace{Spans: []*model.Span{{Tags: []model.KeyValue{{Key: "error", VType: model.ValueType_BOOL, VBool: true}}}}},
 		},
 		&mockLLMClient{err: errors.New("model not loaded")},
 	)
 
 	_, err := svc.AnalyzeTrace(context.Background(), "abc123", "question")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "LLM analysis failed")
+	assert.Contains(t, err.Error(), "LLM trace summarization failed")
 }
 
 // --- HTTP handler tests ---
 
 func TestAnalyzeTraceAISuccess(t *testing.T) {
 	ts := initializeAITestServer(t,
-		&mockMCPClient{
-			topologyResponse:     "frontend -> backend -> db",
-			criticalPathResponse: "backend (80ms) -> db (150ms)",
+		&mockTraceReader{
+			trace: &model.Trace{Spans: []*model.Span{{Tags: []model.KeyValue{{Key: "error", VType: model.ValueType_BOOL, VBool: true}}}}},
 		},
 		&mockLLMClient{
 			response: "The database query in the db service is the primary bottleneck.",
@@ -147,7 +129,7 @@ func TestAnalyzeTraceAISuccess(t *testing.T) {
 }
 
 func TestAnalyzeTraceAIInvalidJSON(t *testing.T) {
-	ts := initializeAITestServer(t, &StubMCPClient{}, &StubLLMClient{})
+	ts := initializeAITestServer(t, &StubTraceReader{}, &StubLLMClient{})
 
 	resp, err := http.Post(ts.URL+"/api/ai/analyze", "application/json", bytes.NewBufferString("not json"))
 	require.NoError(t, err)
@@ -157,7 +139,7 @@ func TestAnalyzeTraceAIInvalidJSON(t *testing.T) {
 }
 
 func TestAnalyzeTraceAIMissingTraceID(t *testing.T) {
-	ts := initializeAITestServer(t, &StubMCPClient{}, &StubLLMClient{})
+	ts := initializeAITestServer(t, &StubTraceReader{}, &StubLLMClient{})
 
 	body := `{"question": "Why is this slow?"}`
 	resp, err := http.Post(ts.URL+"/api/ai/analyze", "application/json", bytes.NewBufferString(body))
@@ -168,7 +150,7 @@ func TestAnalyzeTraceAIMissingTraceID(t *testing.T) {
 }
 
 func TestAnalyzeTraceAIMissingQuestion(t *testing.T) {
-	ts := initializeAITestServer(t, &StubMCPClient{}, &StubLLMClient{})
+	ts := initializeAITestServer(t, &StubTraceReader{}, &StubLLMClient{})
 
 	body := `{"traceID": "abc123"}`
 	resp, err := http.Post(ts.URL+"/api/ai/analyze", "application/json", bytes.NewBufferString(body))
@@ -180,7 +162,7 @@ func TestAnalyzeTraceAIMissingQuestion(t *testing.T) {
 
 func TestAnalyzeTraceAIInternalError(t *testing.T) {
 	ts := initializeAITestServer(t,
-		&mockMCPClient{topologyErr: errors.New("MCP server unreachable")},
+		&mockTraceReader{err: errors.New("Trace DB unreachable")},
 		&mockLLMClient{response: "unused"},
 	)
 
@@ -208,7 +190,7 @@ func TestAnalyzeTraceAINoAIService(t *testing.T) {
 }
 
 func TestAnalyzeTraceAIMethodNotAllowed(t *testing.T) {
-	ts := initializeAITestServer(t, &StubMCPClient{}, &StubLLMClient{})
+	ts := initializeAITestServer(t, &StubTraceReader{}, &StubLLMClient{})
 
 	resp, err := http.Get(ts.URL + "/api/ai/analyze")
 	require.NoError(t, err)
@@ -219,30 +201,24 @@ func TestAnalyzeTraceAIMethodNotAllowed(t *testing.T) {
 
 // --- Stub tests ---
 
-func TestStubMCPClient(t *testing.T) {
-	client := &StubMCPClient{}
+func TestStubTraceReader(t *testing.T) {
+	client := &StubTraceReader{}
 
-	topology, err := client.GetTraceTopology(context.Background(), "test-trace-1")
+	trace, err := client.GetTrace(context.Background(), "test-trace-1")
 	require.NoError(t, err)
-	assert.Contains(t, topology, "test-trace-1")
-
-	critPath, err := client.GetCriticalPath(context.Background(), "test-trace-1")
-	require.NoError(t, err)
-	assert.Contains(t, critPath, "test-trace-1")
+	assert.NotNil(t, trace)
 }
 
 func TestStubLLMClient(t *testing.T) {
 	client := &StubLLMClient{}
 
-	answer, err := client.AnalyzeTrace(context.Background(), "some prompt")
+	answer, err := client.SummarizeTrace(context.Background(), "some prompt")
 	require.NoError(t, err)
 	assert.NotEmpty(t, answer)
 }
 
-func TestBuildAnalysisPrompt(t *testing.T) {
-	prompt := buildAnalysisPrompt("trace-123", "A -> B", "B (100ms)", "Why slow?")
-	assert.Contains(t, prompt, "trace-123")
-	assert.Contains(t, prompt, "A -> B")
-	assert.Contains(t, prompt, "B (100ms)")
+func TestBuildContextualPrompt(t *testing.T) {
+	prompt := buildContextualPrompt("pruned trace 123", "Why slow?")
+	assert.Contains(t, prompt, "pruned trace 123")
 	assert.Contains(t, prompt, "Why slow?")
 }
