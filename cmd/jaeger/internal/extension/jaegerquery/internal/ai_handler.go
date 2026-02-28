@@ -22,6 +22,17 @@ type analyzeResponse struct {
 	Answer  string `json:"answer"`
 }
 
+// generateSearchRequest is the JSON body for POST /api/ai/search.
+type generateSearchRequest struct {
+	Question string `json:"question"`
+}
+
+// generateSearchResponse is returned inside structuredResponse.Data.
+type generateSearchResponse struct {
+	OriginalQuestion string                 `json:"originalQuestion"`
+	Parameters       *ExtractedSearchParams `json:"parameters"`
+}
+
 // analyzeTraceAI handles POST /api/ai/analyze requests.
 // It accepts a trace_id and question, orchestrates MCP + LLM calls via AIService,
 // and returns the analysis wrapped in the standard structuredResponse envelope.
@@ -61,6 +72,44 @@ func (aH *APIHandler) analyzeTraceAI(w http.ResponseWriter, r *http.Request) {
 		Data: analyzeResponse{
 			TraceID: req.TraceID,
 			Answer:  answer,
+		},
+		Total: 1,
+	}
+
+	aH.writeJSON(w, r, &resp)
+}
+
+// generateSearchParamsAI handles POST /api/ai/search requests.
+// It accepts a natural language question, relies on the local SLM via AIService
+// to translate it into Jaeger search parameters (JSON), and returns the ExtractedSearchParams.
+//
+// This fulfills the "Natural Language Search Mapping" objective of Issue #7832.
+func (aH *APIHandler) generateSearchParamsAI(w http.ResponseWriter, r *http.Request) {
+	var req generateSearchRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		aH.handleError(w, fmt.Errorf("invalid JSON request body: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	if req.Question == "" {
+		aH.handleError(w, errors.New("question is required"), http.StatusBadRequest)
+		return
+	}
+
+	if aH.aiService == nil {
+		aH.handleError(w, errors.New("AI service is not configured"), http.StatusNotImplemented)
+		return
+	}
+
+	params, err := aH.aiService.GenerateSearchParams(r.Context(), req.Question)
+	if aH.handleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+
+	resp := structuredResponse{
+		Data: generateSearchResponse{
+			OriginalQuestion: req.Question,
+			Parameters:       params,
 		},
 		Total: 1,
 	}

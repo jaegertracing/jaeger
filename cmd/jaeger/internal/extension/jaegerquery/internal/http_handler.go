@@ -124,6 +124,8 @@ func (aH *APIHandler) RegisterRoutes(router *http.ServeMux) {
 	aH.handleFunc(router, aH.getQualityMetrics, http.MethodGet, "/quality-metrics")
 	// AI-powered trace analysis (Level-1 PoC, #7832)
 	aH.handleFunc(router, aH.analyzeTraceAI, http.MethodPost, "/ai/analyze")
+	// AI-powered trace parameter generation (Phase 2, #7832)
+	aH.handleFunc(router, aH.generateSearchParamsAI, http.MethodPost, "/ai/search")
 }
 
 func (aH *APIHandler) handleFunc(
