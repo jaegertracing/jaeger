@@ -135,10 +135,13 @@ func (h *Handler) GetDependencies(ctx context.Context, request *api_v3.GetDepend
 	if startTime.IsZero() || endTime.IsZero() {
 		return nil, status.Error(codes.InvalidArgument, "missing start or end time")
 	}
+	if endTime.Before(startTime) {
+		return nil, status.Error(codes.InvalidArgument, "end_time must not be before start_time")
+	}
 
 	dependencies, err := h.QueryService.GetDependencies(ctx, endTime.UTC(), endTime.Sub(startTime))
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get dependencies: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to get dependencies")
 	}
 
 	var pbDependencies []*model.DependencyLink
@@ -160,7 +163,7 @@ func receiveTraces(
 			tracesData := jptrace.TracesData(trace)
 			if err := sendFn(&tracesData); err != nil {
 				return status.Error(codes.Internal,
-					fmt.Sprintf("failed to send response stream chunk to client: %v", err))
+				fmt.Sprintf("failed to send response stream chunk to client: %v", err))
 			}
 		}
 	}
