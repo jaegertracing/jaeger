@@ -9,6 +9,7 @@
 #   python3 scripts/e2e/filter_coverage.py <coverage.out> [path/to/.codecov.yml]
 
 import fnmatch
+import os
 import sys
 
 
@@ -31,19 +32,31 @@ def load_exclusions(codecov_path: str) -> list[str]:
     return patterns
 
 
+def read_module_path() -> str:
+    """
+    Read the Go module path so we can strip it from coverage import paths
+    to produce repo-relative paths that match the .codecov.yml patterns.
+    """
+    go_mod_path = os.path.join(os.path.dirname(codecov_path), 'go.mod')
+    with open(go_mod_path) as f:
+        for line in f:
+            if line.startswith('module '):
+                return line.split()[1].strip()
+    raise ValueError(f'no module directive found in {go_mod_path}')
+
+
 def should_exclude(path: str, patterns: list[str]) -> bool:
     """Return True if path matches any exclusion pattern.
 
-    Patterns with wildcards are matched via fnmatch (where * matches any
-    sequence of characters, including /). Patterns without wildcards are
-    treated as plain path substrings (directory prefixes).
+    Patterns with wildcards are matched via fnmatch. Patterns without
+    wildcards are treated as plain path prefixes.
     """
     for pattern in patterns:
         if '*' in pattern or '?' in pattern:
             if fnmatch.fnmatch(path, pattern):
                 return True
         else:
-            if pattern in path:
+            if path.startswith(pattern):
                 return True
     return False
 
@@ -62,6 +75,7 @@ def main() -> None:
         print(f'error: {codecov_path} not found', file=sys.stderr)
         sys.exit(1)
 
+    module_prefix = read_module_path(go_mod_path) + '/'
     kept = skipped = 0
     kept_lines = []
     with open(coverage_path) as f:
@@ -71,7 +85,12 @@ def main() -> None:
                 continue
             # Coverage lines: "github.com/.../file.go:line.col,line.col stmts count"
             # Extract the file path (everything before the first colon).
-            path = line.split(':')[0]
+            import_path = line.split(':')[0]
+            # Strip module prefix to get a repo-relative path for matching.
+            if import_path.startswith(module_prefix):
+                path = import_path[len(module_prefix):]
+            else:
+                path = import_path
             if should_exclude(path, exclusions):
                 skipped += 1
             else:
