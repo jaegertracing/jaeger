@@ -16,6 +16,11 @@ on:
   workflow_run:
     workflows: ["CI Orchestrator"]
     types: [completed]
+  workflow_dispatch:
+    inputs:
+      parent_run_id:
+        description: 'The Run ID of the CI workflow to pull artifacts from'
+        required: true
 permissions:
   contents: read
   pull-requests: write
@@ -23,13 +28,33 @@ permissions:
 jobs:
   summary-report:
     name: Summary Report
-    if: ${{ github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'pull_request' || github.event.workflow_run.head_branch == 'main') }}
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       (github.event.workflow_run.event == 'pull_request' || github.event.workflow_run.head_branch == 'main'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || github.event.repository.default_branch }}
+
+      - name: Resolve PR metadata from parent run
+        if: github.event_name == 'workflow_dispatch'
+        id: pr-metadata
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RUN_DATA=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.event.inputs.parent_run_id }})
+          PR_NUMBER=$(echo "$RUN_DATA" | jq -r '.pull_requests[0].number')
+          HEAD_SHA=$(echo "$RUN_DATA" | jq -r '.pull_requests[0].head.sha')
+          if [ "$PR_NUMBER" == "null" ]; then
+            echo "Error: Could not find an associated PR for run ${{ github.event.inputs.parent_run_id }}."
+            exit 1
+          fi
+          echo "Found PR #$PR_NUMBER at SHA $HEAD_SHA"
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          echo "head_sha=$HEAD_SHA" >> $GITHUB_OUTPUT
 
       - name: Install adm-zip
         run: npm install adm-zip
@@ -44,9 +69,14 @@ jobs:
         with:
           script: |
             const { owner, repo } = context.repo;
-            const workflowRunId = context.payload.workflow_run.id;
+            const isManual = context.eventName === 'workflow_dispatch';
+            const workflowRunId = isManual
+              ? parseInt('${{ github.event.inputs.parent_run_id }}', 10)
+              : context.payload.workflow_run.id;
 
-            // List all artifacts from the triggering workflow run
+            console.log(`Event: ${context.eventName}, Run ID for artifacts: ${workflowRunId}`);
+
+            // List all artifacts from the target workflow run
             const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
               owner,
               repo,
@@ -71,32 +101,36 @@ jobs:
               console.log(`Extracted artifact: ${artifact.name}`);
             }
 
-            // Extract PR number (adapted from PDF logic)
+            // ── Resolve PR number ──
             let prNumber = null;
-            const pullRequest = await github.rest.pulls.list({
-              owner,
-              repo,
-              head: `${context.payload.workflow_run.head_repository.full_name}:${context.payload.workflow_run.head_branch}`,
-            });
-
-            const prArtifactPath = path.join(process.env.GITHUB_WORKSPACE, '.artifacts', 'pr_number', 'pr_number.txt');
-            if (fs.existsSync(prArtifactPath)) {
-              prNumber = fs.readFileSync(prArtifactPath, 'utf8').trim();
-              console.log(`Found PR Number from artifact: ${prNumber}`);
+            if (isManual) {
+              prNumber = '${{ steps.pr-metadata.outputs.pr_number }}';
+              console.log(`Using PR number from resolved metadata: #${prNumber}`);
             } else {
-              if (pullRequest.data.length > 0) {
-                prNumber = pullRequest.data[0].number;
+              const pullRequest = await github.rest.pulls.list({
+                owner,
+                repo,
+                head: `${context.payload.workflow_run.head_repository.full_name}:${context.payload.workflow_run.head_branch}`,
+              });
+
+              const prArtifactPath = path.join(process.env.GITHUB_WORKSPACE, '.artifacts', 'pr_number', 'pr_number.txt');
+              if (fs.existsSync(prArtifactPath)) {
+                prNumber = fs.readFileSync(prArtifactPath, 'utf8').trim();
+                console.log(`Found PR Number from artifact: ${prNumber}`);
               } else {
-                // Fallback to commit SHA if needed
-                const commitSha = context.payload.workflow_run.head_sha;
-                const prsForCommit = await github.rest.repos.listPullRequestsAssociatedWithCommit({
-                  owner,
-                  repo,
-                  commit_sha: commitSha,
-                });
-                if (prsForCommit.data.length > 0) {
-                  prNumber = prsForCommit.data[0].number;
-                  console.log(`Found PR via commit SHA: #${prNumber}`);
+                if (pullRequest.data.length > 0) {
+                  prNumber = pullRequest.data[0].number;
+                } else {
+                  const commitSha = context.payload.workflow_run.head_sha;
+                  const prsForCommit = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                    owner,
+                    repo,
+                    commit_sha: commitSha,
+                  });
+                  if (prsForCommit.data.length > 0) {
+                    prNumber = prsForCommit.data[0].number;
+                    console.log(`Found PR via commit SHA: #${prNumber}`);
+                  }
                 }
               }
             }
@@ -107,6 +141,13 @@ jobs:
             } else {
               console.log('Could not determine PR number; PR comment and check runs will be skipped.');
             }
+
+            // ── Resolve head SHA for check-runs ──
+            const headSha = isManual
+              ? '${{ steps.pr-metadata.outputs.head_sha }}'
+              : context.payload.workflow_run.head_sha;
+            core.setOutput('head_sha', headSha);
+            core.setOutput('source_run_id', workflowRunId);
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -123,7 +164,7 @@ jobs:
         run: |
           bash ./scripts/e2e/metrics_summary.sh
         env:
-          LINK_TO_ARTIFACT: "https://github.com/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}"
+          LINK_TO_ARTIFACT: "https://github.com/${{ github.repository }}/actions/runs/${{ steps.download-artifacts.outputs.source_run_id }}"
           SUMMARY_RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Upload metrics comparison report as artifact
@@ -264,11 +305,11 @@ jobs:
         with:
           script: |
             const { owner, repo } = context.repo;
-            const headSha = context.payload.workflow_run.head_sha;
+            const headSha = '${{ steps.download-artifacts.outputs.head_sha }}';
             const conclusion = '${{ steps.compare-metrics.outputs.CONCLUSION }}';
             const summary = '${{ steps.compare-metrics.outputs.SUMMARY }}';
             const totalChanges = '${{ steps.compare-metrics.outputs.TOTAL_CHANGES }}' || '0';
-            const artifactLink = 'https://github.com/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}';
+            const artifactLink = 'https://github.com/${{ github.repository }}/actions/runs/${{ steps.download-artifacts.outputs.source_run_id }}';
             const summaryRunLink = 'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}';
 
             await github.rest.checks.create({
@@ -293,10 +334,10 @@ jobs:
         with:
           script: |
             const { owner, repo } = context.repo;
-            const headSha = context.payload.workflow_run.head_sha;
+            const headSha = '${{ steps.download-artifacts.outputs.head_sha }}';
             const conclusion = '${{ steps.coverage-gate.outputs.conclusion }}';
             const summary = '${{ steps.coverage-gate.outputs.summary }}';
-            const artifactLink = 'https://github.com/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}';
+            const artifactLink = 'https://github.com/${{ github.repository }}/actions/runs/${{ steps.download-artifacts.outputs.source_run_id }}';
             const summaryRunLink = 'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}';
 
             await github.rest.checks.create({
@@ -319,12 +360,14 @@ jobs:
       # Uses the same actions/cache pattern as .github/actions/verify-metrics-snapshot/action.yaml.
       - name: Save coverage baseline on main branch
         if: |
+          github.event_name == 'workflow_run' &&
           github.event.workflow_run.head_branch == 'main' &&
           steps.merge-coverage.outputs.skipped == 'false'
         run: cp .artifacts/current-coverage.txt .artifacts/baseline-coverage.txt
 
       - name: Cache coverage baseline
         if: |
+          github.event_name == 'workflow_run' &&
           github.event.workflow_run.head_branch == 'main' &&
           steps.merge-coverage.outputs.skipped == 'false'
         uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57
