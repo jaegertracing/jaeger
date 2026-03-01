@@ -39,136 +39,61 @@ jobs:
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || github.event.repository.default_branch }}
 
-      - name: Resolve PR metadata from parent run
-        if: github.event_name == 'workflow_dispatch'
-        id: pr-metadata
+      # Resolve the source run ID from either trigger, then fetch PR metadata.
+      # The run API includes associated PRs in .pull_requests[].
+      - name: Resolve source run
+        id: source-run
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          RUN_DATA=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.event.inputs.parent_run_id }})
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            RUN_ID="${{ github.event.inputs.parent_run_id }}"
+          else
+            RUN_ID="${{ github.event.workflow_run.id }}"
+          fi
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+          echo "source_run_url=https://github.com/${{ github.repository }}/actions/runs/$RUN_ID" >> $GITHUB_OUTPUT
+          echo "summary_run_url=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_OUTPUT
+
+          RUN_DATA=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID")
           PR_NUMBER=$(echo "$RUN_DATA" | jq -r '.pull_requests[0].number')
           HEAD_SHA=$(echo "$RUN_DATA" | jq -r '.pull_requests[0].head.sha')
-          if [ "$PR_NUMBER" == "null" ]; then
-            echo "Error: Could not find an associated PR for run ${{ github.event.inputs.parent_run_id }}."
-            exit 1
+
+          if [ "$PR_NUMBER" != "null" ]; then
+            echo "Found PR #$PR_NUMBER at SHA $HEAD_SHA"
+            echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+            echo "head_sha=$HEAD_SHA" >> $GITHUB_OUTPUT
+          else
+            echo "No associated PR found for run $RUN_ID; PR comment and check runs will be skipped."
           fi
-          echo "Found PR #$PR_NUMBER at SHA $HEAD_SHA"
-          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
-          echo "head_sha=$HEAD_SHA" >> $GITHUB_OUTPUT
 
-      - name: Install adm-zip
-        run: npm install adm-zip
-
-      # Downloads all artifacts from the triggering CI Orchestrator run.
-      # Coverage artifacts (coverage-*) are extracted alongside metrics artifacts,
-      # landing at .artifacts/coverage-<name>/ for later merging.
-      # See: docs/adr/004-migrating-coverage-gating-to-github-actions.md (Step 4b)
-      - name: Download all artifacts from triggering workflow
-        id: download-artifacts
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
-        with:
-          script: |
-            const { owner, repo } = context.repo;
-            const isManual = context.eventName === 'workflow_dispatch';
-            const workflowRunId = isManual
-              ? parseInt('${{ github.event.inputs.parent_run_id }}', 10)
-              : context.payload.workflow_run.id;
-
-            console.log(`Event: ${context.eventName}, Run ID for artifacts: ${workflowRunId}`);
-
-            // List all artifacts from the target workflow run
-            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
-              owner,
-              repo,
-              run_id: workflowRunId,
-            });
-
-            // Download and extract each artifact
-            const fs = require('fs');
-            const path = require('path');
-            const AdmZip = require('adm-zip');
-
-            for (const artifact of artifacts.data.artifacts) {
-              const download = await github.rest.actions.downloadArtifact({
-                owner,
-                repo,
-                artifact_id: artifact.id,
-                archive_format: 'zip',
-              });
-
-              const zip = new AdmZip(Buffer.from(download.data));
-              zip.extractAllTo(path.join(process.env.GITHUB_WORKSPACE, '.artifacts', artifact.name), true);
-              console.log(`Extracted artifact: ${artifact.name}`);
-            }
-
-            // ── Resolve PR number ──
-            let prNumber = null;
-            if (isManual) {
-              prNumber = '${{ steps.pr-metadata.outputs.pr_number }}';
-              console.log(`Using PR number from resolved metadata: #${prNumber}`);
-            } else {
-              const pullRequest = await github.rest.pulls.list({
-                owner,
-                repo,
-                head: `${context.payload.workflow_run.head_repository.full_name}:${context.payload.workflow_run.head_branch}`,
-              });
-
-              const prArtifactPath = path.join(process.env.GITHUB_WORKSPACE, '.artifacts', 'pr_number', 'pr_number.txt');
-              if (fs.existsSync(prArtifactPath)) {
-                prNumber = fs.readFileSync(prArtifactPath, 'utf8').trim();
-                console.log(`Found PR Number from artifact: ${prNumber}`);
-              } else {
-                if (pullRequest.data.length > 0) {
-                  prNumber = pullRequest.data[0].number;
-                } else {
-                  const commitSha = context.payload.workflow_run.head_sha;
-                  const prsForCommit = await github.rest.repos.listPullRequestsAssociatedWithCommit({
-                    owner,
-                    repo,
-                    commit_sha: commitSha,
-                  });
-                  if (prsForCommit.data.length > 0) {
-                    prNumber = prsForCommit.data[0].number;
-                    console.log(`Found PR via commit SHA: #${prNumber}`);
-                  }
-                }
-              }
-            }
-
-            if (prNumber) {
-              console.log(`Found PR Number: ${prNumber}`);
-              core.setOutput('pr_number', prNumber);
-            } else {
-              console.log('Could not determine PR number; PR comment and check runs will be skipped.');
-            }
-
-            // ── Resolve head SHA for check-runs ──
-            const headSha = isManual
-              ? '${{ steps.pr-metadata.outputs.head_sha }}'
-              : context.payload.workflow_run.head_sha;
-            core.setOutput('head_sha', headSha);
-            core.setOutput('source_run_id', workflowRunId);
+      # Download all artifacts from the source CI run.
+      # Each artifact is extracted into .artifacts/<artifact-name>/.
+      - name: Download all artifacts
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh run download "${{ steps.source-run.outputs.run_id }}" \
+            --repo "${{ github.repository }}" --dir .artifacts
 
       - name: Install dependencies
-        if: success() && steps.download-artifacts.outputs.pr_number
+        if: success() && steps.source-run.outputs.pr_number
         run: |
           python3 -m pip install prometheus-client
           npm install @actions/core @actions/github
 
       - name: Compare metrics and generate summary
-        if: success() && steps.download-artifacts.outputs.pr_number
+        if: success() && steps.source-run.outputs.pr_number
         id: compare-metrics
         shell: bash
         run: |
           bash ./scripts/e2e/metrics_summary.sh
         env:
-          LINK_TO_ARTIFACT: "https://github.com/${{ github.repository }}/actions/runs/${{ steps.download-artifacts.outputs.source_run_id }}"
-          SUMMARY_RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          LINK_TO_ARTIFACT: ${{ steps.source-run.outputs.source_run_url }}
+          SUMMARY_RUN_URL: ${{ steps.source-run.outputs.summary_run_url }}
 
       - name: Upload metrics comparison report as artifact
-        if: success() && steps.download-artifacts.outputs.pr_number
+        if: success() && steps.source-run.outputs.pr_number
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: metrics-comparison-report
@@ -237,7 +162,7 @@ jobs:
             coverage-baseline
 
       - name: Gate on coverage regression
-        if: success() && steps.download-artifacts.outputs.pr_number && steps.merge-coverage.outputs.skipped == 'false'
+        if: success() && steps.source-run.outputs.pr_number && steps.merge-coverage.outputs.skipped == 'false'
         id: coverage-gate
         run: |
           CURRENT="${{ steps.coverage.outputs.percentage }}"
@@ -278,7 +203,7 @@ jobs:
           fi
 
       - name: Append coverage section to combined summary
-        if: success() && steps.download-artifacts.outputs.pr_number && steps.merge-coverage.outputs.skipped == 'false'
+        if: success() && steps.source-run.outputs.pr_number && steps.merge-coverage.outputs.skipped == 'false'
         run: |
           {
             echo ""
@@ -291,68 +216,57 @@ jobs:
         if: |
           (steps.compare-metrics.outputs.TOTAL_CHANGES != '0' ||
            steps.coverage-gate.outputs.conclusion == 'failure') &&
-          steps.download-artifacts.outputs.pr_number
+          steps.source-run.outputs.pr_number
         uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3
         with:
           file-path: ./.artifacts/combined_summary.md
           github-token: '${{ secrets.GITHUB_TOKEN }}'
           comment-tag: "## CI Summary Report"
-          pr-number: ${{ steps.download-artifacts.outputs.pr_number }}
+          pr-number: ${{ steps.source-run.outputs.pr_number }}
 
-      - name: Create check run for metrics comparison
-        if: success() && steps.download-artifacts.outputs.pr_number
+      - name: Create check runs
+        if: success() && steps.source-run.outputs.pr_number
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
           script: |
             const { owner, repo } = context.repo;
-            const headSha = '${{ steps.download-artifacts.outputs.head_sha }}';
-            const conclusion = '${{ steps.compare-metrics.outputs.CONCLUSION }}';
-            const summary = '${{ steps.compare-metrics.outputs.SUMMARY }}';
-            const totalChanges = '${{ steps.compare-metrics.outputs.TOTAL_CHANGES }}' || '0';
-            const artifactLink = 'https://github.com/${{ github.repository }}/actions/runs/${{ steps.download-artifacts.outputs.source_run_id }}';
-            const summaryRunLink = 'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}';
+            const headSha = '${{ steps.source-run.outputs.head_sha }}';
+            const artifactLink = '${{ steps.source-run.outputs.source_run_url }}';
+            const summaryRunLink = '${{ steps.source-run.outputs.summary_run_url }}';
+            const links = `➡️ [View CI artifacts](${artifactLink}) | [View Summary Report logs](${summaryRunLink})`;
 
+            // Metrics comparison check
+            const metricsConclusion = '${{ steps.compare-metrics.outputs.CONCLUSION }}';
+            const metricsSummary = '${{ steps.compare-metrics.outputs.SUMMARY }}';
+            const totalChanges = '${{ steps.compare-metrics.outputs.TOTAL_CHANGES }}' || '0';
             await github.rest.checks.create({
-              owner,
-              repo,
+              owner, repo, head_sha: headSha,
               name: 'Metrics Comparison',
-              head_sha: headSha,
               status: 'completed',
-              conclusion: conclusion,
+              conclusion: metricsConclusion,
               output: {
                 title: 'Metrics Comparison Result',
-                summary: summary,
-                text: `Total changes across all snapshots: ${totalChanges}\n\n➡️ [View CI artifacts](${artifactLink}) | [View Summary Report logs](${summaryRunLink})`
+                summary: metricsSummary,
+                text: `Total changes across all snapshots: ${totalChanges}\n\n${links}`
               }
             });
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create check run for coverage gate
-        if: success() && steps.download-artifacts.outputs.pr_number && steps.merge-coverage.outputs.skipped == 'false'
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
-        with:
-          script: |
-            const { owner, repo } = context.repo;
-            const headSha = '${{ steps.download-artifacts.outputs.head_sha }}';
-            const conclusion = '${{ steps.coverage-gate.outputs.conclusion }}';
-            const summary = '${{ steps.coverage-gate.outputs.summary }}';
-            const artifactLink = 'https://github.com/${{ github.repository }}/actions/runs/${{ steps.download-artifacts.outputs.source_run_id }}';
-            const summaryRunLink = 'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}';
-
-            await github.rest.checks.create({
-              owner,
-              repo,
-              name: 'Coverage Gate',
-              head_sha: headSha,
-              status: 'completed',
-              conclusion: conclusion,
-              output: {
-                title: 'Coverage Gate',
-                summary: conclusion === 'success' ? `✅ ${summary}` : `❌ ${summary}`,
-                text: `➡️ [View CI artifacts](${artifactLink}) | [View Summary Report logs](${summaryRunLink})`
-              }
-            });
+            // Coverage gate check (only when coverage was collected)
+            if ('${{ steps.merge-coverage.outputs.skipped }}' === 'false') {
+              const coverageConclusion = '${{ steps.coverage-gate.outputs.conclusion }}';
+              const coverageSummary = '${{ steps.coverage-gate.outputs.summary }}';
+              await github.rest.checks.create({
+                owner, repo, head_sha: headSha,
+                name: 'Coverage Gate',
+                status: 'completed',
+                conclusion: coverageConclusion,
+                output: {
+                  title: 'Coverage Gate',
+                  summary: coverageConclusion === 'success' ? `✅ ${coverageSummary}` : `❌ ${coverageSummary}`,
+                  text: links
+                }
+              });
+            }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
