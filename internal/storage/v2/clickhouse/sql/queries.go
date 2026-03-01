@@ -218,8 +218,10 @@ WHERE 1=1`
 
 // SearchTraceIDs wraps a trace ID subquery with a JOIN to
 // trace_id_timestamps to retrieve the start and end times for each trace.
-// The %s placeholder is replaced with the complete inner subquery
-// (SearchTraceIDsBase + conditions + LIMIT).
+// The first %s placeholder is replaced with the complete inner subquery
+// (SearchTraceIDsBase + conditions + LIMIT). The second %s placeholder is
+// replaced with optional additional WHERE conditions on trace_id_timestamps
+// to push timestamp bounds into the JOIN, reducing the scan range.
 const SearchTraceIDs = `
 SELECT
     l.trace_id,
@@ -228,7 +230,7 @@ SELECT
 FROM (
 %s
 ) l
-LEFT JOIN trace_id_timestamps t ON l.trace_id = t.trace_id`
+LEFT JOIN (SELECT trace_id, start, end FROM trace_id_timestamps WHERE 1=1%s) t ON l.trace_id = t.trace_id`
 
 const SelectServices = `
 SELECT
