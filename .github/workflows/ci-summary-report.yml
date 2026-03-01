@@ -90,12 +90,12 @@ jobs:
             --repo "${{ github.repository }}" --dir .artifacts
 
       - name: Install dependencies
-        if: success() && steps.source-run.outputs.pr_number
+        if: success() && steps.source-run.outputs.head_sha
         run: |
           python3 -m pip install prometheus-client
 
       - name: Compare metrics and generate summary
-        if: success() && steps.source-run.outputs.pr_number
+        if: success() && steps.source-run.outputs.head_sha
         id: compare-metrics
         shell: bash
         run: |
@@ -105,7 +105,7 @@ jobs:
           SUMMARY_RUN_URL: ${{ steps.source-run.outputs.summary_run_url }}
 
       - name: Upload metrics comparison report as artifact
-        if: success() && steps.source-run.outputs.pr_number
+        if: success() && steps.source-run.outputs.head_sha
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: metrics-comparison-report
@@ -174,7 +174,7 @@ jobs:
             coverage-baseline
 
       - name: Gate on coverage regression
-        if: success() && steps.source-run.outputs.pr_number && steps.merge-coverage.outputs.skipped == 'false'
+        if: success() && steps.merge-coverage.outputs.skipped == 'false'
         id: coverage-gate
         run: |
           CURRENT="${{ steps.coverage.outputs.percentage }}"
@@ -215,7 +215,7 @@ jobs:
           fi
 
       - name: Append coverage section to combined summary
-        if: success() && steps.source-run.outputs.pr_number && steps.merge-coverage.outputs.skipped == 'false'
+        if: success() && steps.source-run.outputs.head_sha && steps.merge-coverage.outputs.skipped == 'false'
         run: |
           {
             echo ""
@@ -238,7 +238,7 @@ jobs:
           pr-number: ${{ steps.source-run.outputs.pr_number }}
 
       - name: Create check runs
-        if: success() && steps.source-run.outputs.pr_number
+        if: success() && steps.source-run.outputs.head_sha
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
           script: |

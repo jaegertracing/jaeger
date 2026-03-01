@@ -32,7 +32,7 @@ def load_exclusions(codecov_path: str) -> list[str]:
     return patterns
 
 
-def read_module_path() -> str:
+def read_module_path(codecov_path: str) -> str:
     """
     Read the Go module path so we can strip it from coverage import paths
     to produce repo-relative paths that match the .codecov.yml patterns.
@@ -75,7 +75,7 @@ def main() -> None:
         print(f'error: {codecov_path} not found', file=sys.stderr)
         sys.exit(1)
 
-    module_prefix = read_module_path(go_mod_path) + '/'
+    module_prefix = read_module_path(codecov_path) + '/'
     kept = skipped = 0
     kept_lines = []
     with open(coverage_path) as f:
