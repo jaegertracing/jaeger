@@ -318,6 +318,23 @@ func TestSearchTracesHandler_Handle_MissingServiceName(t *testing.T) {
 	assert.Contains(t, err.Error(), "service_name is required")
 }
 
+// Test that the handler rejects invalid time ranges where
+// start_time_max is earlier than start_time_min.
+func TestSearchTracesHandler_Handle_StartTimeMaxBeforeMin(t *testing.T) {
+	handler := NewSearchTracesHandler(nil)
+
+	input := types.SearchTracesInput{
+		StartTimeMin: "-1h",
+		StartTimeMax: "-2h", // earlier than min
+		ServiceName:  "test-service",
+	}
+
+	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "start_time_max must be after start_time_min")
+}
+
 func TestSearchTracesHandler_Handle_InvalidTimeFormat(t *testing.T) {
 	handler := NewSearchTracesHandler(nil)
 

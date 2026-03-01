@@ -115,6 +115,12 @@ func (*searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysvc.
 	} else {
 		maxStartTime = time.Now()
 	}
+	// Ensure the requested time window is valid.
+	// Reject queries where start_time_max is earlier than start_time_min.
+	if maxStartTime.Before(minStartTime) {
+		return querysvc.TraceQueryParams{},
+			errors.New("start_time_max must be after start_time_min")
+	}
 
 	if input.ServiceName == "" {
 		return querysvc.TraceQueryParams{}, errors.New("service_name is required")
