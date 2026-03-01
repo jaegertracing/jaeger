@@ -27,7 +27,7 @@ jobs:
         # Only fail if NOT merge_group, AND labels DO NOT contain 'changelog:'
         if: |
           github.event_name != 'merge_group' &&
-          contains(github.event.pull_request.labels.*.name, 'changelog:') == false
+          contains(join(github.event.pull_request.labels.*.name, ','), 'changelog:') == false
         run: |
           echo "::error::Pull request is missing a required 'changelog:' label. Found labels: ${{ join(github.event.pull_request.labels.*.name, ', ') }}"
           exit 1
