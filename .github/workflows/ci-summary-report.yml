@@ -30,8 +30,7 @@ jobs:
     name: Summary Report
     if: |
       github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       (github.event.workflow_run.event == 'pull_request' || github.event.workflow_run.head_branch == 'main'))
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -56,6 +55,14 @@ jobs:
           echo "summary_run_url=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_OUTPUT
 
           RUN_DATA=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID")
+
+          # Validate the parent run succeeded (guards against manual dispatch pointing at a failed run)
+          CONCLUSION=$(echo "$RUN_DATA" | jq -r '.conclusion')
+          if [ "$CONCLUSION" != "success" ]; then
+            echo "::error::Parent run $RUN_ID has conclusion '$CONCLUSION', expected 'success'."
+            exit 1
+          fi
+
           PR_NUMBER=$(echo "$RUN_DATA" | jq -r '.pull_requests[0].number')
           HEAD_SHA=$(echo "$RUN_DATA" | jq -r '.pull_requests[0].head.sha')
 
@@ -251,22 +258,24 @@ jobs:
               }
             });
 
-            // Coverage gate check (only when coverage was collected)
-            if ('${{ steps.merge-coverage.outputs.skipped }}' === 'false') {
-              const coverageConclusion = '${{ steps.coverage-gate.outputs.conclusion }}';
-              const coverageSummary = '${{ steps.coverage-gate.outputs.summary }}';
-              await github.rest.checks.create({
-                owner, repo, head_sha: headSha,
-                name: 'Coverage Gate',
-                status: 'completed',
-                conclusion: coverageConclusion,
-                output: {
-                  title: 'Coverage Gate',
-                  summary: coverageConclusion === 'success' ? `✅ ${coverageSummary}` : `❌ ${coverageSummary}`,
-                  text: links
-                }
-              });
-            }
+            // Coverage gate check — always created so it works as a required status check.
+            // When no coverage data was collected, report success with a "skipped" note.
+            const coverageSkipped = '${{ steps.merge-coverage.outputs.skipped }}' !== 'false';
+            const coverageConclusion = coverageSkipped ? 'success' : '${{ steps.coverage-gate.outputs.conclusion }}';
+            const coverageSummary = coverageSkipped
+              ? 'No coverage profiles found; coverage gate skipped.'
+              : '${{ steps.coverage-gate.outputs.summary }}';
+            await github.rest.checks.create({
+              owner, repo, head_sha: headSha,
+              name: 'Coverage Gate',
+              status: 'completed',
+              conclusion: coverageConclusion,
+              output: {
+                title: 'Coverage Gate',
+                summary: coverageSkipped ? `⏭️ ${coverageSummary}` : (coverageConclusion === 'success' ? `✅ ${coverageSummary}` : `❌ ${coverageSummary}`),
+                text: links
+              }
+            });
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
