@@ -18,8 +18,8 @@ on:
     types: [completed]
   workflow_dispatch:
     inputs:
-      parent_run_id:
-        description: 'The Run ID of the CI workflow to pull artifacts from'
+      pr_number:
+        description: 'PR number to generate summary report for'
         required: true
 permissions:
   contents: read
@@ -39,45 +39,44 @@ jobs:
           ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || github.event.repository.default_branch }}
 
       # Resolve the source run ID from either trigger, then fetch PR metadata.
-      # The run API includes associated PRs in .pull_requests[].
+      # For workflow_run events, PR metadata comes from the event payload
+      # (the REST API returns empty .pull_requests[] for cross-repo fork PRs).
       - name: Resolve source run
         id: source-run
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            RUN_ID="${{ github.event.inputs.parent_run_id }}"
+            PR_NUMBER="${{ github.event.inputs.pr_number }}"
+
+            # Get the PR's head SHA to find the CI Orchestrator run
+            HEAD_SHA=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER" --jq '.head.sha')
+
+            # Find the latest successful CI Orchestrator run for this commit
+            RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/ci-orchestrator.yml/runs?head_sha=$HEAD_SHA&status=success&per_page=1" \
+              --jq '.workflow_runs[0].id')
+
+            if [ -z "$RUN_ID" ] || [ "$RUN_ID" == "null" ]; then
+              echo "::error::No successful CI Orchestrator run found for PR #$PR_NUMBER (SHA $HEAD_SHA)."
+              exit 1
+            fi
+            echo "Found CI Orchestrator run $RUN_ID for PR #$PR_NUMBER"
           else
             RUN_ID="${{ github.event.workflow_run.id }}"
+            PR_NUMBER="${{ github.event.workflow_run.pull_requests[0].number }}"
+            HEAD_SHA="${{ github.event.workflow_run.pull_requests[0].head.sha || github.event.workflow_run.head_sha }}"
           fi
+
           echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
           echo "source_run_url=https://github.com/${{ github.repository }}/actions/runs/$RUN_ID" >> $GITHUB_OUTPUT
           echo "summary_run_url=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_OUTPUT
-
-          RUN_DATA=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID")
-
-          # Validate the parent run succeeded (guards against manual dispatch pointing at a failed run)
-          CONCLUSION=$(echo "$RUN_DATA" | jq -r '.conclusion')
-          if [ "$CONCLUSION" != "success" ]; then
-            echo "::error::Parent run $RUN_ID has conclusion '$CONCLUSION', expected 'success'."
-            exit 1
-          fi
-
-          PR_NUMBER=$(echo "$RUN_DATA" | jq -r '.pull_requests[0].number')
-          HEAD_SHA=$(echo "$RUN_DATA" | jq -r '.pull_requests[0].head.sha')
-
-          # For merge_group runs, .pull_requests[] may be empty; fall back to
-          # the run's own head_sha so check-runs attach to the correct commit.
-          if [ "$HEAD_SHA" == "null" ]; then
-            HEAD_SHA=$(echo "$RUN_DATA" | jq -r '.head_sha')
-          fi
           echo "head_sha=$HEAD_SHA" >> $GITHUB_OUTPUT
 
-          if [ "$PR_NUMBER" != "null" ]; then
+          if [ -n "$PR_NUMBER" ]; then
             echo "Found PR #$PR_NUMBER at SHA $HEAD_SHA"
             echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
           else
-            echo "No associated PR found for run $RUN_ID; PR comment and check runs will be skipped."
+            echo "No associated PR found for run $RUN_ID; PR comment will be skipped."
           fi
 
       # Download all artifacts from the source CI run.
