@@ -2,35 +2,18 @@
 # Copyright (c) 2026 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 #
-# Filters a Go coverage profile by applying the same exclusions defined in
-# .codecov.yml so coverage metrics stay in sync between this gate and Codecov.
+# Filters a Go coverage profile in-place by applying the same exclusions defined
+# in .codecov.yml so coverage metrics stay in sync between this gate and Codecov.
 #
 # Usage:
 #   python3 scripts/e2e/filter_coverage.py <coverage.out> [path/to/.codecov.yml]
-#
-# Writes the filtered profile to stdout; redirect to a file as needed.
 
-import re
+import fnmatch
 import sys
 
 
-def glob_to_regex(glob: str) -> re.Pattern:
-    """Convert a Codecov glob pattern to a compiled regex for substring matching."""
-    p = glob
-    # Remove leading **/ or **
-    p = re.sub(r'^\*\*/?', '', p)
-    # Escape dots before other substitutions
-    p = p.replace('.', r'\.')
-    # Remove trailing /* or /**  (directory wildcard suffix)
-    p = re.sub(r'/\*+$', '/', p)
-    # Replace remaining ** with .*
-    p = p.replace('**', '.*')
-    # Replace remaining * with [^/]* (single path-segment wildcard)
-    p = p.replace('*', r'[^/]*')
-    return re.compile(p)
-
-
-def load_exclusions(codecov_path: str) -> list[re.Pattern]:
+def load_exclusions(codecov_path: str) -> list[str]:
+    """Return raw glob patterns from the ignore: section of .codecov.yml."""
     patterns = []
     in_ignore = False
     with open(codecov_path) as f:
@@ -42,11 +25,27 @@ def load_exclusions(codecov_path: str) -> list[re.Pattern]:
                 if stripped.startswith('#'):
                     continue
                 if stripped.startswith('- '):
-                    raw = stripped[2:].strip('"').strip("'")
-                    patterns.append(glob_to_regex(raw))
+                    patterns.append(stripped[2:].strip('"').strip("'"))
                 elif stripped and not line[0].isspace():
                     in_ignore = False
     return patterns
+
+
+def should_exclude(path: str, patterns: list[str]) -> bool:
+    """Return True if path matches any exclusion pattern.
+
+    Patterns with wildcards are matched via fnmatch (where * matches any
+    sequence of characters, including /). Patterns without wildcards are
+    treated as plain path substrings (directory prefixes).
+    """
+    for pattern in patterns:
+        if '*' in pattern or '?' in pattern:
+            if fnmatch.fnmatch(path, pattern):
+                return True
+        else:
+            if pattern in path:
+                return True
+    return False
 
 
 def main() -> None:
@@ -64,17 +63,23 @@ def main() -> None:
         sys.exit(1)
 
     kept = skipped = 0
+    kept_lines = []
     with open(coverage_path) as f:
         for line in f:
-            # Always keep the mode header line
             if line.startswith('mode:'):
-                sys.stdout.write(line)
+                kept_lines.append(line)
                 continue
-            if any(p.search(line) for p in exclusions):
+            # Coverage lines: "github.com/.../file.go:line.col,line.col stmts count"
+            # Extract the file path (everything before the first colon).
+            path = line.split(':')[0]
+            if should_exclude(path, exclusions):
                 skipped += 1
             else:
-                sys.stdout.write(line)
+                kept_lines.append(line)
                 kept += 1
+
+    with open(coverage_path, 'w') as f:
+        f.writelines(kept_lines)
 
     print(f'filter_coverage: kept {kept}, excluded {skipped} lines', file=sys.stderr)
 

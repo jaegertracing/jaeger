@@ -19,8 +19,10 @@ ls -la "$METRICS_DIR" || echo "Metrics directory listing failed"
 # so a missing diff dir means that action never ran for that snapshot — an infra failure.
 echo "=== Checking for missing diff artifacts ==="
 declare -a missing_diffs=()
+found_any_snapshot=false
 for snapshot_dir in "$METRICS_DIR"/metrics_snapshot_*/; do
     [ -d "$snapshot_dir" ] || continue
+    found_any_snapshot=true
     name=$(basename "$snapshot_dir")
     if [ ! -d "$METRICS_DIR/diff_$name" ]; then
         echo "::error::Missing diff artifact for snapshot: $name"
@@ -29,6 +31,10 @@ for snapshot_dir in "$METRICS_DIR"/metrics_snapshot_*/; do
         echo "OK: diff_$name present"
     fi
 done
+if [ "$found_any_snapshot" = false ]; then
+    echo "::error::No metrics_snapshot_* artifacts found; E2E jobs may not have run"
+    missing_diffs+=("(no snapshot artifacts found)")
+fi
 if [ ${#missing_diffs[@]} -gt 0 ]; then
     echo "INFRA_ERRORS=${missing_diffs[*]}" >> "$GITHUB_OUTPUT"
 else
@@ -85,6 +91,19 @@ fi
 
 echo "Total changes across all snapshots: $total_changes"
 echo "TOTAL_CHANGES=$total_changes" >> "$GITHUB_OUTPUT"
+
+# Emit a single conclusion/summary so the workflow check run step
+# doesn't need to duplicate this decision logic.
+if [ ${#missing_diffs[@]} -gt 0 ]; then
+    echo "CONCLUSION=failure" >> "$GITHUB_OUTPUT"
+    echo "SUMMARY=❌ Infrastructure error: diff artifacts missing for: ${missing_diffs[*]}" >> "$GITHUB_OUTPUT"
+elif [ "$total_changes" -gt 0 ]; then
+    echo "CONCLUSION=failure" >> "$GITHUB_OUTPUT"
+    echo "SUMMARY=❌ ${total_changes} metric changes detected" >> "$GITHUB_OUTPUT"
+else
+    echo "CONCLUSION=success" >> "$GITHUB_OUTPUT"
+    echo "SUMMARY=✅ No significant metric changes detected" >> "$GITHUB_OUTPUT"
+fi
 
 # Always generate combined summary report
 combined_file="$METRICS_DIR/combined_summary.md"

@@ -171,9 +171,8 @@ jobs:
         if: success() && steps.merge-coverage.outputs.skipped == 'false'
         run: |
           # Applies the same exclusions as .codecov.yml (single source of truth).
-          python3 scripts/e2e/filter_coverage.py .artifacts/merged-coverage.out \
-            > .artifacts/merged-coverage-filtered.out
-          mv .artifacts/merged-coverage-filtered.out .artifacts/merged-coverage.out
+          # filter_coverage.py modifies the file in-place.
+          python3 scripts/e2e/filter_coverage.py .artifacts/merged-coverage.out
           echo "Coverage lines after filtering: $(wc -l < .artifacts/merged-coverage.out)"
 
       - name: Calculate current coverage percentage
@@ -266,24 +265,11 @@ jobs:
           script: |
             const { owner, repo } = context.repo;
             const headSha = context.payload.workflow_run.head_sha;
-            const totalChanges = parseInt('${{ steps.compare-metrics.outputs.TOTAL_CHANGES }}' || '0');
+            const conclusion = '${{ steps.compare-metrics.outputs.CONCLUSION }}';
+            const summary = '${{ steps.compare-metrics.outputs.SUMMARY }}';
+            const totalChanges = '${{ steps.compare-metrics.outputs.TOTAL_CHANGES }}' || '0';
             const artifactLink = 'https://github.com/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}';
             const summaryRunLink = 'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}';
-            const links = `➡️ [View CI artifacts](${artifactLink}) | [View Summary Report logs](${summaryRunLink})`;
-
-            const infraErrors = '${{ steps.compare-metrics.outputs.INFRA_ERRORS }}'.trim();
-
-            let conclusion, summary;
-            if (infraErrors) {
-              conclusion = 'failure';
-              summary = `❌ Infrastructure error: diff artifacts missing for: ${infraErrors}`;
-            } else if (totalChanges === 0) {
-              conclusion = 'success';
-              summary = '✅ No significant metric changes detected';
-            } else {
-              conclusion = 'failure';
-              summary = `❌ ${totalChanges} metric changes detected`;
-            }
 
             await github.rest.checks.create({
               owner,
@@ -295,7 +281,7 @@ jobs:
               output: {
                 title: 'Metrics Comparison Result',
                 summary: summary,
-                text: `Total changes across all snapshots: ${totalChanges}\n\n${links}`
+                text: `Total changes across all snapshots: ${totalChanges}\n\n➡️ [View CI artifacts](${artifactLink}) | [View Summary Report logs](${summaryRunLink})`
               }
             });
         env:
