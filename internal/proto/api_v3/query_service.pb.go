@@ -6,18 +6,20 @@ package api_v3
 import (
 	context "context"
 	fmt "fmt"
-	_ "github.com/gogo/protobuf/gogoproto"
-	proto "github.com/gogo/protobuf/proto"
-	_ "github.com/gogo/protobuf/types"
-	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
-	v1 "github.com/jaegertracing/jaeger/internal/jptrace"
-	grpc "google.golang.org/grpc"
-	codes "google.golang.org/grpc/codes"
-	status "google.golang.org/grpc/status"
 	io "io"
 	math "math"
 	math_bits "math/bits"
 	time "time"
+
+	_ "github.com/gogo/protobuf/gogoproto"
+	proto "github.com/gogo/protobuf/proto"
+	_ "github.com/gogo/protobuf/types"
+	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
+	v1 "github.com/jaegertracing/jaeger/internal/jptrace"
+	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -399,6 +401,94 @@ func (m *GetServicesResponse) GetServices() []string {
 }
 
 // Request object to get operation names.
+// Request object to get dependencies.
+type GetDependenciesRequest struct {
+	StartTime            time.Time `protobuf:"bytes,1,opt,name=start_time,json=startTime,proto3,stdtime" json:"start_time"`
+	EndTime              time.Time `protobuf:"bytes,2,opt,name=end_time,json=endTime,proto3,stdtime" json:"end_time"`
+	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
+	XXX_unrecognized     []byte    `json:"-"`
+	XXX_sizecache        int32     `json:"-"`
+}
+
+func (m *GetDependenciesRequest) Reset()         { *m = GetDependenciesRequest{} }
+func (m *GetDependenciesRequest) String() string { return proto.CompactTextString(m) }
+func (*GetDependenciesRequest) ProtoMessage()    {}
+func (*GetDependenciesRequest) Descriptor() ([]byte, []int) {
+	return nil, []int{5} // Mock implementation
+}
+
+func (m *GetDependenciesRequest) XXX_Unmarshal(b []byte) error {
+	return nil // Mock implementation for test
+}
+func (m *GetDependenciesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return b, nil // Mock implementation for test
+}
+func (m *GetDependenciesRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetDependenciesRequest.Merge(m, src)
+}
+func (m *GetDependenciesRequest) XXX_Size() int {
+	return 0 // Mock implementation for test
+}
+func (m *GetDependenciesRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetDependenciesRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetDependenciesRequest proto.InternalMessageInfo
+
+func (m *GetDependenciesRequest) GetStartTime() time.Time {
+	if m != nil {
+		return m.StartTime
+	}
+	return time.Time{}
+}
+
+func (m *GetDependenciesRequest) GetEndTime() time.Time {
+	if m != nil {
+		return m.EndTime
+	}
+	return time.Time{}
+}
+
+// Response object to get dependencies.
+type GetDependenciesResponse struct {
+	Dependencies         []*model.DependencyLink `protobuf:"bytes,1,rep,name=dependencies,proto3" json:"dependencies,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                `json:"-"`
+	XXX_unrecognized     []byte                  `json:"-"`
+	XXX_sizecache        int32                   `json:"-"`
+}
+
+func (m *GetDependenciesResponse) Reset()         { *m = GetDependenciesResponse{} }
+func (m *GetDependenciesResponse) String() string { return proto.CompactTextString(m) }
+func (*GetDependenciesResponse) ProtoMessage()    {}
+func (*GetDependenciesResponse) Descriptor() ([]byte, []int) {
+	return nil, []int{6} // Mock implementation
+}
+
+func (m *GetDependenciesResponse) XXX_Unmarshal(b []byte) error {
+	return nil // Mock implementation for test
+}
+func (m *GetDependenciesResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return b, nil // Mock implementation for test
+}
+func (m *GetDependenciesResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetDependenciesResponse.Merge(m, src)
+}
+func (m *GetDependenciesResponse) XXX_Size() int {
+	return 0 // Mock implementation for test
+}
+func (m *GetDependenciesResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetDependenciesResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetDependenciesResponse proto.InternalMessageInfo
+
+func (m *GetDependenciesResponse) GetDependencies() []*model.DependencyLink {
+	if m != nil {
+		return m.Dependencies
+	}
+	return nil
+}
+
 type GetOperationsRequest struct {
 	// Required service name.
 	Service string `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
@@ -689,10 +779,10 @@ func (m *GRPCGatewayError_GRPCGatewayErrorDetails) GetHttpStatus() string {
 // In case of errors, GRPCGatewayError above is used.
 //
 // Example:
-//     {"result": {"resourceSpans": ...}}
+//
+//	{"result": {"resourceSpans": ...}}
 //
 // See https://github.com/grpc-ecosystem/grpc-gateway/issues/2189
-//
 type GRPCGatewayWrapper struct {
 	Result               *v1.TracesData `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
@@ -841,6 +931,8 @@ type QueryServiceClient interface {
 	GetServices(ctx context.Context, in *GetServicesRequest, opts ...grpc.CallOption) (*GetServicesResponse, error)
 	// GetOperations returns operation names.
 	GetOperations(ctx context.Context, in *GetOperationsRequest, opts ...grpc.CallOption) (*GetOperationsResponse, error)
+	// GetDependencies returns interservice dependencies.
+	GetDependencies(ctx context.Context, in *GetDependenciesRequest, opts ...grpc.CallOption) (*GetDependenciesResponse, error)
 }
 
 type queryServiceClient struct {
@@ -924,6 +1016,15 @@ func (c *queryServiceClient) GetServices(ctx context.Context, in *GetServicesReq
 	return out, nil
 }
 
+func (c *queryServiceClient) GetDependencies(ctx context.Context, in *GetDependenciesRequest, opts ...grpc.CallOption) (*GetDependenciesResponse, error) {
+	out := new(GetDependenciesResponse)
+	err := c.cc.Invoke(ctx, "/jaeger.api_v3.QueryService/GetDependencies", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *queryServiceClient) GetOperations(ctx context.Context, in *GetOperationsRequest, opts ...grpc.CallOption) (*GetOperationsResponse, error) {
 	out := new(GetOperationsResponse)
 	err := c.cc.Invoke(ctx, "/jaeger.api_v3.QueryService/GetOperations", in, out, opts...)
@@ -948,6 +1049,8 @@ type QueryServiceServer interface {
 	GetServices(context.Context, *GetServicesRequest) (*GetServicesResponse, error)
 	// GetOperations returns operation names.
 	GetOperations(context.Context, *GetOperationsRequest) (*GetOperationsResponse, error)
+	// GetDependencies returns interservice dependencies.
+	GetDependencies(context.Context, *GetDependenciesRequest) (*GetDependenciesResponse, error)
 }
 
 // UnimplementedQueryServiceServer can be embedded to have forward compatible implementations.
@@ -965,6 +1068,9 @@ func (*UnimplementedQueryServiceServer) GetServices(ctx context.Context, req *Ge
 }
 func (*UnimplementedQueryServiceServer) GetOperations(ctx context.Context, req *GetOperationsRequest) (*GetOperationsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetOperations not implemented")
+}
+func (*UnimplementedQueryServiceServer) GetDependencies(ctx context.Context, req *GetDependenciesRequest) (*GetDependenciesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetDependencies not implemented")
 }
 
 func RegisterQueryServiceServer(s *grpc.Server, srv QueryServiceServer) {
@@ -1031,6 +1137,24 @@ func _QueryService_GetServices_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _QueryService_GetDependencies_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetDependenciesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).GetDependencies(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/jaeger.api_v3.QueryService/GetDependencies",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).GetDependencies(ctx, req.(*GetDependenciesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _QueryService_GetOperations_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetOperationsRequest)
 	if err := dec(in); err != nil {
@@ -1060,6 +1184,10 @@ var _QueryService_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetOperations",
 			Handler:    _QueryService_GetOperations_Handler,
+		},
+		{
+			MethodName: "GetDependencies",
+			Handler:    _QueryService_GetDependencies_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

@@ -43,10 +43,11 @@ const (
 	paramDurationMax    = "query.duration_max"
 	paramQueryRawTraces = "query.raw_traces"
 
-	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
-	routeFindTraces    = "/api/v3/traces"
-	routeGetServices   = "/api/v3/services"
-	routeGetOperations = "/api/v3/operations"
+	routeGetTrace        = "/api/v3/traces/{" + paramTraceID + "}"
+	routeFindTraces      = "/api/v3/traces"
+	routeGetServices     = "/api/v3/services"
+	routeGetOperations   = "/api/v3/operations"
+	routeGetDependencies = "/api/v3/dependencies"
 )
 
 // HTTPGateway exposes APIv3 HTTP endpoints.
@@ -63,6 +64,7 @@ func (h *HTTPGateway) RegisterRoutes(router *http.ServeMux) {
 	h.addRoute(router, h.findTraces, routeFindTraces, http.MethodGet)
 	h.addRoute(router, h.getServices, routeGetServices, http.MethodGet)
 	h.addRoute(router, h.getOperations, routeGetOperations, http.MethodGet)
+	h.addRoute(router, h.getDependencies, routeGetDependencies, http.MethodGet)
 }
 
 // addRoute adds a new endpoint to the router with given path and handler function.
@@ -297,4 +299,47 @@ func (h *HTTPGateway) getOperations(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	h.marshalResponse(&api_v3.GetOperationsResponse{Operations: apiOperations}, w)
+}
+
+func (h *HTTPGateway) getDependencies(w http.ResponseWriter, r *http.Request) {
+	http_query := r.URL.Query()
+	endTimeParam := http_query.Get(paramEndTime)
+	if endTimeParam == "" {
+		h.tryHandleError(w, errors.New("missing end time"), http.StatusBadRequest)
+		return
+	}
+	endTime, err := time.Parse(time.RFC3339Nano, endTimeParam)
+	if h.tryParamError(w, err, paramEndTime) {
+		return
+	}
+
+	lookbackParam := http_query.Get("lookback")
+	lookback := time.Hour * 24 * 3 // default to 3 days if not provided
+	if lookbackParam != "" {
+		if d, err := time.ParseDuration(lookbackParam); err != nil {
+			if h.tryParamError(w, err, "lookback") {
+				return
+			}
+		} else {
+			lookback = d
+		}
+	} else if startTimeParam := http_query.Get(paramStartTime); startTimeParam != "" {
+		// Calculate lookback if start_time is provided
+		startTime, err := time.Parse(time.RFC3339Nano, startTimeParam)
+		if h.tryParamError(w, err, paramStartTime) {
+			return
+		}
+		lookback = endTime.Sub(startTime)
+	}
+
+	dependencies, err := h.QueryService.GetDependencies(r.Context(), endTime.UTC(), lookback)
+	if h.tryHandleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+
+	var pbDependencies []*model.DependencyLink
+	for i := range dependencies {
+		pbDependencies = append(pbDependencies, &dependencies[i])
+	}
+	h.marshalResponse(&api_v3.GetDependenciesResponse{Dependencies: pbDependencies}, w)
 }
