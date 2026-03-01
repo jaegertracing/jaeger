@@ -1,7 +1,7 @@
 # Copyright (c) 2024 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-FROM cassandra:5.0.6@sha256:5e2c85d2d5db759c28c3efb50905f8d237f958321d6dfd8c176cb148700d9ade
+FROM cassandra:5.0.6@sha256:f56458c007cf111c663a23bd19d8e49a4228212b02a46c080f5384ded47ade6f
 
 COPY schema/* /cassandra-schema/
 
