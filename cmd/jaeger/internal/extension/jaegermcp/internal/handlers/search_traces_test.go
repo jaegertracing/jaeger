@@ -332,7 +332,7 @@ func TestSearchTracesHandler_Handle_StartTimeMaxBeforeMin(t *testing.T) {
 	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "start_time_max must be after start_time_min")
+	assert.Contains(t, err.Error(), "start_time_max must not be before start_time_min")
 }
 
 func TestSearchTracesHandler_Handle_InvalidTimeFormat(t *testing.T) {
