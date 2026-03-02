@@ -16,6 +16,16 @@ const LABEL_NAME = 'pr-quota-reached';
 const LABEL_COLOR = 'CFD3D7';
 
 /**
+ * Format open/limit counts as a bullet-point status block
+ * @param {number} openCount - Number of currently open PRs
+ * @param {number} quota - Allowed quota
+ * @returns {string} Formatted status string
+ */
+function formatStatus(openCount, quota) {
+  return `  * Open: ${openCount}\n  * Limit: ${quota}`;
+}
+
+/**
  * Calculate the quota for a user based on their merged PR count
  * @param {number} mergedCount - Number of merged PRs
  * @returns {number} The allowed quota
@@ -279,8 +289,7 @@ async function postBlockingComment(octokit, owner, repo, issueNumber, author, op
   }
 
   const message = `Hi @${author}, thanks for your contribution! To ensure quality reviews, we limit how many concurrent PRs new contributors can open:
-  * Open: ${openCount}
-  * Limit: ${quota}
+${formatStatus(openCount, quota)}
 
 This PR is currently **on hold**. We will automatically move this into the review queue once your existing PRs are merged or closed.
 
@@ -303,9 +312,12 @@ Please see our [Contributing Guidelines](https://github.com/jaegertracing/jaeger
  * Always posts when called - if PR was blocked again after being unblocked, user should be notified again
  */
 async function postUnblockingComment(octokit, owner, repo, issueNumber, author, openCount, quota, logger) {
-  const message = `PR quota unlocked! @${author}, this PR has been moved out of the waiting room and into the active review queue. Thank you for your patience.
+  const message = `PR quota unlocked!
 
-**Current Status:** ${openCount}/${quota} open.`;
+@${author}, this PR has been moved out of the waiting room and into the active review queue:
+${formatStatus(openCount, quota)}
+
+Thank you for your patience.`;
 
   try {
     await octokit.rest.issues.createComment({
@@ -399,6 +411,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = githubActionHandler;
   
   // Named exports for testing and direct usage
+  module.exports.formatStatus = formatStatus;
   module.exports.calculateQuota = calculateQuota;
   module.exports.fetchAuthorPRs = fetchAuthorPRs;
   module.exports.processQuotaForAuthor = processQuotaForAuthor;
