@@ -1,0 +1,180 @@
+name: CI Orchestrator
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  merge_group:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Grant all permissions to allow child workflows to request what they need
+# Child workflows can downgrade permissions as needed (principle of least privilege)
+permissions: write-all
+
+jobs:
+  # ============================================================================
+  # SETUP: Determine execution mode (sequential vs parallel)
+  # Parallel mode is used for trusted actors to reduce feedback loop from ~30m to ~10m.
+  # ============================================================================
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      parallel: ${{ steps.mode.outputs.parallel }}
+    steps:
+      - name: Determine execution mode
+        id: mode
+        run: |
+          PARALLEL=false
+
+          # Parallel for push to main
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "Parallel: push to main"
+            PARALLEL=true
+          else
+            echo "Not triggered by push to main (event=${{ github.event_name }}, ref=${{ github.ref }})"
+          fi
+
+          # Parallel for merge queue
+          if [[ "${{ github.event_name }}" == "merge_group" ]]; then
+            echo "Parallel: merge_group event"
+            PARALLEL=true
+          else
+            echo "Not a merge_group event (event=${{ github.event_name }})"
+          fi
+
+          # PR-specific checks (author_association, labels, and PR author login are only meaningful on pull_request events)
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            # Parallel for org members (MEMBER or OWNER author_association)
+            if [[ "${{ github.event.pull_request.author_association }}" == "MEMBER" || \
+                  "${{ github.event.pull_request.author_association }}" == "OWNER" ]]; then
+              echo "Parallel: org member (${{ github.event.pull_request.author_association }})"
+              PARALLEL=true
+            else
+              echo "Not an org member (author_association=${{ github.event.pull_request.author_association }})"
+            fi
+
+            # Parallel for known bots (dependency update automation)
+            # Use github.event.pull_request.user.login to identify the PR author (not the latest commit author)
+            PR_AUTHOR="${{ github.event.pull_request.user.login }}"
+            if [[ "$PR_AUTHOR" == "dependabot[bot]" || "$PR_AUTHOR" == "renovate-bot" ]]; then
+              echo "Parallel: bot PR author ($PR_AUTHOR)"
+              PARALLEL=true
+            else
+              echo "Not a known bot (PR author=$PR_AUTHOR)"
+            fi
+
+            # Parallel if the ci:parallel label is applied to the PR.
+            # NOTE: re-running jobs does not refresh the event payload; a new run is needed
+            # to pick up labels added after the workflow was first triggered.
+            PR_LABELS="${{ join(github.event.pull_request.labels.*.name, ', ') }}"
+            echo "PR labels: ${PR_LABELS:-<none>}"
+            if [[ "${{ contains(github.event.pull_request.labels.*.name, 'ci:parallel') }}" == "true" ]]; then
+              echo "Parallel: ci:parallel label found"
+              PARALLEL=true
+            else
+              echo "ci:parallel label not found in: ${PR_LABELS:-<none>}"
+            fi
+          else
+            echo "Not a pull_request event — skipping PR-specific checks"
+          fi
+
+          echo "parallel=$PARALLEL" >> "$GITHUB_OUTPUT"
+          echo "Execution mode: parallel=$PARALLEL"
+
+  # ============================================================================
+  # SEQUENTIAL PATH (~30m): Default for external contributors.
+  # Stage 2 waits for Stage 1; Stage 3 waits for Stage 2.
+  # Active when parallel == false.
+  # ============================================================================
+  stage1-seq:
+    needs: [setup]
+    if: ${{ needs.setup.outputs.parallel == 'false' }}
+    uses: ./.github/workflows/ci-orchestrator-stage1.yml
+    secrets: inherit
+
+  stage2-seq:
+    needs: [setup, stage1-seq]
+    if: ${{ needs.setup.outputs.parallel == 'false' }}
+    uses: ./.github/workflows/ci-orchestrator-stage2.yml
+    secrets: inherit
+
+  stage3-seq:
+    needs: [setup, stage2-seq]
+    if: ${{ needs.setup.outputs.parallel == 'false' }}
+    uses: ./.github/workflows/ci-orchestrator-stage3.yml
+    secrets: inherit
+
+  # ============================================================================
+  # PARALLEL PATH (~10m): For trusted maintainers, merge queue, and main branch.
+  # All stages start simultaneously after setup.
+  # Active when parallel == true.
+  # ============================================================================
+  stage1-fast:
+    needs: [setup]
+    if: ${{ needs.setup.outputs.parallel == 'true' }}
+    uses: ./.github/workflows/ci-orchestrator-stage1.yml
+    secrets: inherit
+
+  stage2-fast:
+    needs: [setup]
+    if: ${{ needs.setup.outputs.parallel == 'true' }}
+    uses: ./.github/workflows/ci-orchestrator-stage2.yml
+    secrets: inherit
+
+  stage3-fast:
+    needs: [setup]
+    if: ${{ needs.setup.outputs.parallel == 'true' }}
+    uses: ./.github/workflows/ci-orchestrator-stage3.yml
+    secrets: inherit
+
+  # ============================================================================
+  # FINAL GATEKEEPER: Use this job for Branch Protection.
+  # Validates whichever execution path was taken (sequential or parallel).
+  # ============================================================================
+  ci-success:
+    name: All CI Checks Passed
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [setup, stage1-seq, stage2-seq, stage3-seq, stage1-fast, stage2-fast, stage3-fast]
+    steps:
+      - name: Check setup status
+        if: ${{ needs.setup.result != 'success' }}
+        run: |
+          echo "❌ Setup job failed or was cancelled."
+          exit 1
+
+      - name: Check sequential path
+        if: ${{ needs.setup.outputs.parallel == 'false' }}
+        run: |
+          S1="${{ needs.stage1-seq.result }}"
+          S2="${{ needs.stage2-seq.result }}"
+          S3="${{ needs.stage3-seq.result }}"
+          if [[ "$S1" != "success" || "$S2" != "success" || "$S3" != "success" ]]; then
+            echo "❌ CI failed on sequential path. Stage 1: $S1, Stage 2: $S2, Stage 3: $S3"
+            exit 1
+          fi
+          echo "✅ CI passed on sequential path."
+
+      - name: Check parallel path
+        if: ${{ needs.setup.outputs.parallel == 'true' }}
+        run: |
+          S1="${{ needs.stage1-fast.result }}"
+          S2="${{ needs.stage2-fast.result }}"
+          S3="${{ needs.stage3-fast.result }}"
+          if [[ "$S1" != "success" || "$S2" != "success" || "$S3" != "success" ]]; then
+            echo "❌ CI failed on parallel path. Stage 1: $S1, Stage 2: $S2, Stage 3: $S3"
+            exit 1
+          fi
+          echo "✅ CI passed on parallel path."
+
+      - name: Validate execution path was determined
+        run: |
+          PARALLEL="${{ needs.setup.outputs.parallel }}"
+          if [[ "$PARALLEL" != "true" && "$PARALLEL" != "false" ]]; then
+            echo "❌ Invalid parallel mode: '$PARALLEL' (expected 'true' or 'false')"
+            exit 1
+          fi

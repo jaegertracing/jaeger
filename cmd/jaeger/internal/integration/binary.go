@@ -85,7 +85,7 @@ func (b *Binary) doHealthCheck(t *testing.T) bool {
 		t.Logf("HTTP request creation failed: %v", err)
 		return false
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req) //nolint:gosec // G704 - health check URL constructed from test config
 	if err != nil {
 		t.Logf("HTTP request failed: %v", err)
 		return false
@@ -126,7 +126,7 @@ const (
 
 func (b *Binary) dumpLogs(t *testing.T, outFile, errFile *os.File) {
 	fmt.Printf(githubBeginGroup+" 🚧 🚧 🚧 %s binary logs\n", b.Name)
-	outLogs, err := os.ReadFile(outFile.Name())
+	outLogs, err := os.ReadFile(outFile.Name()) //nolint:gosec // G703 - reading temp file created by this test
 	if err != nil {
 		t.Errorf("Failed to read output logs: %v", err)
 	} else {
@@ -135,7 +135,7 @@ func (b *Binary) dumpLogs(t *testing.T, outFile, errFile *os.File) {
 		fmt.Printf("⏹️⏹️⏹️ End %s output logs.\n", b.Name)
 	}
 
-	errLogs, err := os.ReadFile(errFile.Name())
+	errLogs, err := os.ReadFile(errFile.Name()) //nolint:gosec // G703 - reading temp file created by this test
 	if err != nil {
 		t.Errorf("Failed to read error logs: %v", err)
 	} else {

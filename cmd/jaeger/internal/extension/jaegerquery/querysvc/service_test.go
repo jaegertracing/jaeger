@@ -750,6 +750,130 @@ func TestGetCapabilities(t *testing.T) {
 	}
 }
 
+// Consolidate Underlimit, Overlimit and Exactly at limit tests
+func TestMaxTraceSize(t *testing.T) {
+	tests := []struct {
+		name           string
+		maxTraceSize   int
+		createTraces   func() []ptrace.Traces
+		expectedSpans  int
+		expectWarning  bool
+		warningPattern string
+	}{
+		{
+			name:         "under_limit",
+			maxTraceSize: 5,
+			createTraces: func() []ptrace.Traces {
+				trace := ptrace.NewTraces()
+				scopes := trace.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty()
+				for i := 0; i < 3; i++ {
+					span := scopes.Spans().AppendEmpty()
+					span.SetTraceID(testTraceID)
+					span.SetSpanID(pcommon.SpanID([8]byte{byte(i + 1)}))
+					span.SetName(fmt.Sprintf("span-%d", i))
+				}
+				return []ptrace.Traces{trace}
+			},
+			expectedSpans: 3,
+			expectWarning: false,
+		},
+		{
+			name:         "over_limit",
+			maxTraceSize: 3,
+			createTraces: func() []ptrace.Traces {
+				trace1 := ptrace.NewTraces()
+				scopes1 := trace1.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty()
+				for i := 0; i < 3; i++ {
+					span := scopes1.Spans().AppendEmpty()
+					span.SetTraceID(testTraceID)
+					span.SetSpanID(pcommon.SpanID([8]byte{byte(i + 1)}))
+					span.SetName(fmt.Sprintf("span-%d", i))
+				}
+
+				trace2 := ptrace.NewTraces()
+				scopes2 := trace2.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty()
+				for i := 3; i < 5; i++ {
+					span := scopes2.Spans().AppendEmpty()
+					span.SetTraceID(testTraceID)
+					span.SetSpanID(pcommon.SpanID([8]byte{byte(i + 1)}))
+					span.SetName(fmt.Sprintf("span-%d", i))
+				}
+				return []ptrace.Traces{trace1, trace2}
+			},
+			expectedSpans:  3,
+			expectWarning:  true,
+			warningPattern: "trace has more than 3 spans",
+		},
+		{
+			name:         "exactly_at_limit",
+			maxTraceSize: 3,
+			createTraces: func() []ptrace.Traces {
+				trace := ptrace.NewTraces()
+				scopes := trace.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty()
+				for i := 0; i < 3; i++ {
+					span := scopes.Spans().AppendEmpty()
+					span.SetTraceID(testTraceID)
+					span.SetSpanID(pcommon.SpanID([8]byte{byte(i + 1)}))
+					span.SetName(fmt.Sprintf("span-%d", i))
+				}
+				return []ptrace.Traces{trace}
+			},
+			expectedSpans: 3,
+			expectWarning: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			traces := tt.createTraces()
+			responseIter := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+				for _, trace := range traces {
+					if !yield([]ptrace.Traces{trace}, nil) {
+						return
+					}
+				}
+			})
+
+			traceReader := &tracestoremocks.Reader{}
+			dependencyStorage := &depstoremocks.Reader{}
+			options := QueryServiceOptions{
+				MaxTraceSize: tt.maxTraceSize,
+			}
+			tqs := &testQueryService{}
+			tqs.queryService = NewQueryService(traceReader, dependencyStorage, options)
+
+			params := GetTraceParams{
+				TraceIDs: []tracestore.GetTraceParams{{TraceID: testTraceID}},
+			}
+			traceReader.On("GetTraces", mock.Anything, params.TraceIDs).
+				Return(responseIter).Once()
+
+			getTracesIter := tqs.queryService.GetTraces(context.Background(), params)
+			gotTraces, err := jiter.FlattenWithErrors(getTracesIter)
+			require.NoError(t, err)
+			require.Len(t, gotTraces, 1)
+
+			// count total spans
+			actualSpans := gotTraces[0].SpanCount()
+			require.Equal(t, tt.expectedSpans, actualSpans)
+
+			// check warning
+			firstSpan := gotTraces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+			warningsAttr, hasWarning := firstSpan.Attributes().Get("@jaeger@warnings")
+
+			if tt.expectWarning {
+				require.True(t, hasWarning, "expected warning but none found")
+				require.Equal(t, pcommon.ValueTypeSlice, warningsAttr.Type())
+				warnings := warningsAttr.Slice()
+				require.Positive(t, warnings.Len())
+				require.Contains(t, warnings.At(warnings.Len()-1).Str(), tt.warningPattern)
+			} else {
+				require.False(t, hasWarning, "unexpected warning found")
+			}
+		})
+	}
+}
+
 func TestQueryServiceGetServicesReturnsEmptySlice(t *testing.T) {
 	reader := new(tracestoremocks.Reader)
 	reader.

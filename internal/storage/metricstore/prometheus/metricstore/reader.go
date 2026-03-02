@@ -323,7 +323,7 @@ func (m MetricsReader) buildPromQuery(metricsParams metricsQueryParams) string {
 func promqlDurationString(d *time.Duration) string {
 	var b []byte
 	for _, c := range d.String() {
-		b = append(b, byte(c))
+		b = append(b, byte(c)) //nolint:gosec // G115 - duration strings are ASCII
 		if unicode.IsLetter(c) {
 			break
 		}

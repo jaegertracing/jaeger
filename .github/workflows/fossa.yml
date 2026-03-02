@@ -1,16 +1,7 @@
 name: FOSSA
 
 on:
-  merge_group:
-  push:
-    branches: [main]
-
-  pull_request:
-    branches: [main]
-
-concurrency:
-  group: ${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
-  cancel-in-progress: true
+  workflow_call:
 
 # See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
 permissions:

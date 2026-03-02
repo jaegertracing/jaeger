@@ -300,8 +300,7 @@ func validSpan(resourceAttributes pcommon.Map, scope pcommon.InstrumentationScop
 			continue
 		}
 
-		if strings.HasPrefix(key, "resource.") {
-			resourceKey := strings.TrimPrefix(key, "resource.")
+		if resourceKey, ok := strings.CutPrefix(key, "resource."); ok {
 			if !matchAttributes(resourceKey, val, resourceAttributes) {
 				return false
 			}
@@ -330,6 +329,11 @@ func findKeyValInTrace(key string, val pcommon.Value, resourceAttributes pcommon
 	}
 	for _, event := range span.Events().All() {
 		if matchAttributes(key, val, event.Attributes()) {
+			return true
+		}
+	}
+	for _, link := range span.Links().All() {
+		if matchAttributes(key, val, link.Attributes()) {
 			return true
 		}
 	}

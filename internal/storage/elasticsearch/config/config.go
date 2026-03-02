@@ -10,6 +10,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -106,6 +107,8 @@ type Configuration struct {
 	Sniffing Sniffing               `mapstructure:"sniffing"`
 	// Disable the Elasticsearch health check
 	DisableHealthCheck bool `mapstructure:"disable_health_check"`
+	// Set the Elasticsearch health check timeout startup
+	HealthCheckTimeoutStartup time.Duration `mapstructure:"health_check_timeout_startup"`
 	// SendGetBodyAs is the HTTP verb to use for requests that contain a body.
 	SendGetBodyAs string `mapstructure:"send_get_body_as"`
 	// QueryTimeout contains the timeout used for queries. A timeout of zero means no timeout.
@@ -317,7 +320,6 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 			}
 		}
 		logger.Info("Elasticsearch detected", zap.Int("version", esVersion))
-		//nolint:gosec // G115
 		c.Version = uint(esVersion)
 	}
 
@@ -532,9 +534,7 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	}
 	if c.CustomHeaders == nil && len(source.CustomHeaders) > 0 {
 		c.CustomHeaders = make(map[string]string)
-		for k, v := range source.CustomHeaders {
-			c.CustomHeaders[k] = v
-		}
+		maps.Copy(c.CustomHeaders, source.CustomHeaders)
 	}
 }
 
@@ -581,6 +581,9 @@ func (c *Configuration) getESOptions(disableHealthCheck bool) []elastic.ClientOp
 	// Get base Elasticsearch options
 	options := []elastic.ClientOptionFunc{
 		elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffing.Enabled), elastic.SetHealthcheck(!disableHealthCheck),
+	}
+	if c.HealthCheckTimeoutStartup > 0 {
+		options = append(options, elastic.SetHealthcheckTimeoutStartup(c.HealthCheckTimeoutStartup))
 	}
 	if c.Sniffing.UseHTTPS {
 		options = append(options, elastic.SetScheme("https"))

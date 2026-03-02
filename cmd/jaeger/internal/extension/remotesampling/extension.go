@@ -245,15 +245,12 @@ func (ext *rsExtension) startHTTPServer(ctx context.Context, host component.Host
 		return err
 	}
 
-	ext.shutdownWG.Add(1)
-	go func() {
-		defer ext.shutdownWG.Done()
-
+	ext.shutdownWG.Go(func() {
 		err := ext.httpServer.Serve(hln)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(err))
 		}
-	}()
+	})
 
 	return nil
 }
@@ -280,13 +277,11 @@ func (ext *rsExtension) startGRPCServer(ctx context.Context, host component.Host
 		return err
 	}
 
-	ext.shutdownWG.Add(1)
-	go func() {
-		defer ext.shutdownWG.Done()
+	ext.shutdownWG.Go(func() {
 		if err := ext.grpcServer.Serve(gln); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
 			componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(err))
 		}
-	}()
+	})
 
 	return nil
 }

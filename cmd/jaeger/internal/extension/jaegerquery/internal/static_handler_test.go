@@ -336,7 +336,7 @@ func TestLoadIndexHTMLReadError(t *testing.T) {
 }
 
 func waitUntil(t *testing.T, f func() bool, iterations int, sleepInterval time.Duration, timeoutErrMsg string) {
-	for i := 0; i < iterations; i++ {
+	for range iterations {
 		if f() {
 			return
 		}

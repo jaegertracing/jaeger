@@ -14,7 +14,7 @@ type Pool struct {
 func New(workers int) *Pool {
 	jobs := make(chan func())
 	stop := make(chan struct{})
-	for i := 0; i < workers; i++ {
+	for range workers {
 		go func() {
 			for {
 				select {
