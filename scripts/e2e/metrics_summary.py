@@ -119,7 +119,7 @@ def generate_diff_summary(changes, raw_diff_sections, exclusion_count):
 
     # Added metrics
     if changes['added']:
-        summary.append("\n### 🆕 Added Metrics")
+        summary.append("\n#### 🆕 Added Metrics")
         for metric, samples in changes['added'].items():
             summary.append(f"- `{metric}` ({len(samples)} variants)")
             raw_samples = get_raw_diff_sample(raw_diff_sections.get(metric, []))
@@ -134,7 +134,7 @@ def generate_diff_summary(changes, raw_diff_sections, exclusion_count):
 
     # Removed metrics
     if changes['removed']:
-        summary.append("\n### ❌ Removed Metrics")
+        summary.append("\n#### ❌ Removed Metrics")
         for metric, samples in changes['removed'].items():
             summary.append(f"- `{metric}` ({len(samples)} variants)")
             raw_samples = get_raw_diff_sample(raw_diff_sections.get(metric, []))
@@ -149,7 +149,7 @@ def generate_diff_summary(changes, raw_diff_sections, exclusion_count):
 
     # Modified metrics
     if changes['modified']:
-        summary.append("\n### 🔄 Modified Metrics")
+        summary.append("\n#### 🔄 Modified Metrics")
         for metric, versions in changes['modified'].items():
             summary.append(f"- `{metric}`")
             summary.append(f"  - Added variants: {len(versions['added'])}")

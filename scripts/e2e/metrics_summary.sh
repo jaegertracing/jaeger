@@ -138,9 +138,9 @@ else
         echo "Appending $summary_file to combined summary"
         file_name=$(basename "$summary_file" .md)
         friendly_name=${file_name#summary_metrics_snapshot_}
-        # Title-case: replace underscores with spaces, capitalize first letter of each word
-        # shellcheck disable=SC2001
-        friendly_name=$(echo "${friendly_name//_/ }" | sed 's/\b\(.\)/\u\1/g')
+        # Title-case: replace underscores with spaces, capitalize first letter of each word.
+        # Uses awk because sed's \b is backspace (not word-boundary).
+        friendly_name=$(awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) substr($i,2)}1' <<< "${friendly_name//_/ }")
         {
           echo "### 📊 ${friendly_name}"
           echo "File Name: ${file_name}"
