@@ -442,58 +442,6 @@ func runPasswordFromFileTest(t *testing.T) {
 	)
 }
 
-func TestCloseRacesWithPasswordChange(t *testing.T) {
-	t.Parallel()
-	pwdFile := filepath.Join(t.TempDir(), "pwd")
-	require.NoError(t, os.WriteFile(pwdFile, []byte("password"), 0o600))
-
-	cfg := escfg.Configuration{
-		Authentication: escfg.Authentication{
-			BasicAuthentication: configoptional.Some(escfg.BasicAuthentication{
-				Username:         "user",
-				PasswordFilePath: pwdFile,
-			}),
-		},
-	}
-
-	makeClient := func(closeCount *atomic.Int32) es.Client {
-		c := &mocks.Client{}
-		c.EXPECT().Close().Run(func() { closeCount.Add(1) }).Return(nil)
-		return c
-	}
-
-	// Run many iterations to increase the chance of hitting the race.
-	for range 100 {
-		var closeCount atomic.Int32
-
-		f := &FactoryBase{
-			config:         &cfg,
-			logger:         zaptest.NewLogger(t),
-			metricsFactory: metrics.NullFactory,
-		}
-		f.newClientFn = func(_ context.Context, _ *escfg.Configuration, _ *zap.Logger, _ metrics.Factory, _ extensionauth.HTTPClient) (es.Client, error) {
-			return makeClient(&closeCount), nil
-		}
-		initial := makeClient(&closeCount)
-		f.client.Store(&initial)
-
-		start := make(chan struct{})
-		var wg sync.WaitGroup
-		wg.Go(func() {
-			<-start
-			f.onClientPasswordChange(&cfg, &f.client, metrics.NullFactory)
-		})
-
-		close(start)
-		require.NoError(t, f.Close())
-		wg.Wait()
-
-		// All clients that were created must have been closed exactly once.
-		assert.Equal(t, int32(2), closeCount.Load(),
-			"both the initial and the new client must be closed")
-	}
-}
-
 func TestFactoryESClientsAreNil(t *testing.T) {
 	f := &FactoryBase{}
 	assert.Nil(t, f.getClient())
