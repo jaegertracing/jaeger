@@ -7,17 +7,45 @@
 # We cannot define it as "secret" as we need it accessible from forks.
 
 name: 'Upload coverage to codecov'
-description: 'Uploads coverage to codecov with retries'
+description: 'Uploads coverage to codecov with retries and saves raw profiles as artifacts'
 inputs:
   files:
-    description: 'Coverage files to upload'
+    description: 'Coverage files to upload (comma-separated)'
     required: true
-  flags:
-    description: 'Flags for codecov'
+  flag:
+    description: 'Codecov flag for this upload; also used as the artifact name suffix (coverage-<flag>)'
     required: true
 runs:
   using: 'composite'
   steps:
+    # Upload raw profiles first so they are available to the fan-in workflow
+    # even if the Codecov upload below fails (e.g. rate-limit).
+    - name: Stage coverage files for artifact upload
+      shell: bash
+      run: |
+        set -x
+        mkdir -p /tmp/coverage-staging
+        IFS=',' read -ra FILES <<< "${{ inputs.files }}"
+        echo "Staging ${#FILES[@]} coverage file(s): ${{ inputs.files }}"
+        for f in "${FILES[@]}"; do
+          f=$(echo "$f" | xargs)  # trim whitespace
+          if [ -f "$f" ]; then
+            echo "Staging: $f"
+            cp "$f" /tmp/coverage-staging/
+          else
+            echo "Warning: coverage file not found, skipping: $f"
+          fi
+        done
+        echo "Staged files:"
+        ls -la /tmp/coverage-staging/
+
+    - name: Upload coverage profiles as artifact
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      with:
+        name: coverage-${{ inputs.flag }}
+        path: /tmp/coverage-staging/
+        retention-days: 7
+
     - name: Retry upload
       uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
       with:
@@ -27,7 +55,7 @@ runs:
         action: codecov/codecov-action@7afa10ed9b269c561c2336fd862446844e0cbf71 # v4.2.0
         with: |
           files: ${{ inputs.files }}
-          flags: ${{ inputs.flags }}
+          flags: ${{ inputs.flag }}
           verbose: true
-          fail_ci_if_error: true
+          fail_ci_if_error: false
           token: f457b710-93af-4191-8678-bcf51281f98c
