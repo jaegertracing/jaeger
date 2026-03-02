@@ -62,7 +62,7 @@ func main() {
 		logger.Info("Saved span", zap.String("spanID", getSomeSpan().SpanID.String()))
 	}
 	s := getSomeSpan()
-	var tId []byte
+	tId := make([]byte, 0, 16)
 	_, err = s.TraceID.MarshalTo(tId)
 	if err != nil {
 		logger.Fatal("Failed to marshal traceID", zap.Error(err))

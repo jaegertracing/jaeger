@@ -7,29 +7,44 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.uber.org/zap/zaptest"
 
+	"github.com/jaegertracing/jaeger/internal/metricstest"
+	casmocks "github.com/jaegertracing/jaeger/internal/storage/cassandra/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
-var traceId = [16]byte{1}
-
 func TestNewTraceReader(t *testing.T) {
-	reader := NewTraceReader(&mocks.CoreSpanReader{})
-	assert.NotNil(t, reader)
+	session := getSessionWithError(nil)
+	metricsFactory := metricstest.NewFactory(0)
+	logger := zaptest.NewLogger(t)
+	reader, err := NewTraceReader(session, metricsFactory, logger, telemetry.NoopSettings().TracerProvider.Tracer("testing"))
+	require.NoError(t, err)
 	traceids := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
 	assert.NotNil(t, traceids)
 	trace := reader.GetTraces(context.Background(), tracestore.GetTraceParams{})
 	assert.NotNil(t, trace)
 	traces := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{})
 	assert.NotNil(t, traces)
+}
+
+func TestNewTraceReader_Error(t *testing.T) {
+	session := getSessionWithError(errors.New("test error"))
+	metricsFactory := metricstest.NewFactory(0)
+	logger := zaptest.NewLogger(t)
+	reader, err := NewTraceReader(session, metricsFactory, logger, telemetry.NoopSettings().TracerProvider.Tracer("test"))
+	require.ErrorContains(t, err, "neither table operation_names_v2 nor operation_names exist")
+	assert.Nil(t, reader)
 }
 
 func TestGetServices(t *testing.T) {
@@ -83,7 +98,6 @@ func TestTraceReader_GetTraces(t *testing.T) {
 	var span dbmodel.Span
 	require.NoError(t, json.Unmarshal(spanStr, &span))
 	dbTrace := dbmodel.Trace{Spans: []dbmodel.Span{span}}
-	span.TraceID = traceId
 	coreReader.On("GetTrace", mock.Anything, mock.Anything).Return(dbTrace, nil)
 	traces := reader.GetTraces(context.Background(), tracestore.GetTraceParams{})
 	for td, err := range traces {
@@ -111,7 +125,6 @@ func TestTraceReader_FindTraces(t *testing.T) {
 	var span dbmodel.Span
 	require.NoError(t, json.Unmarshal(spanStr, &span))
 	dbTrace := dbmodel.Trace{Spans: []dbmodel.Span{span}}
-	span.TraceID = traceId
 	dbTrace2 := dbmodel.Trace{Spans: []dbmodel.Span{span}}
 	coreReader.On("FindTraces", mock.Anything, mock.Anything).Return([]dbmodel.Trace{dbTrace, dbTrace2}, nil)
 	traces := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
@@ -170,4 +183,18 @@ func TestTraceReader_FindTraceIDs_Error(t *testing.T) {
 		require.ErrorContains(t, err, "error")
 		require.Nil(t, traceIds)
 	}
+}
+
+func getSessionWithError(err error) *casmocks.Session {
+	tableCheckStmt := "SELECT * from %s limit 1"
+	session := &casmocks.Session{}
+	query := &casmocks.Query{}
+	query.On("Exec").Return(err)
+	session.On("Query",
+		fmt.Sprintf(tableCheckStmt, "operation_names"),
+		mock.Anything).Return(query)
+	session.On("Query",
+		fmt.Sprintf(tableCheckStmt, "operation_names_v2"),
+		mock.Anything).Return(query)
+	return session
 }

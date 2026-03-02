@@ -9,7 +9,11 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics"
+	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -18,10 +22,16 @@ type TraceReader struct {
 	reader spanstore.CoreSpanReader
 }
 
-func NewTraceReader(reader spanstore.CoreSpanReader) *TraceReader {
-	return &TraceReader{
-		reader: reader,
+func NewTraceReader(session cassandra.Session,
+	metricsFactory metrics.Factory,
+	logger *zap.Logger,
+	tracer trace.Tracer,
+) (*TraceReader, error) {
+	coreReader, err := spanstore.NewSpanReader(session, metricsFactory, logger, tracer)
+	if err != nil {
+		return nil, err
 	}
+	return &TraceReader{reader: coreReader}, nil
 }
 
 func (r *TraceReader) GetServices(ctx context.Context) ([]string, error) {
