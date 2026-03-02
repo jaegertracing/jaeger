@@ -107,8 +107,10 @@ type testDriver struct {
 func (t *testDriver) Query(_ context.Context, query string, _ ...any) (driver.Rows, error) {
 	t.recordedQueries = append(t.recordedQueries, query)
 
+	// Normalize whitespace so substring matching works regardless of indentation.
+	normalized := strings.Join(strings.Fields(query), " ")
 	for querySubstring, response := range t.queryResponses {
-		if strings.Contains(query, querySubstring) {
+		if strings.Contains(normalized, strings.Join(strings.Fields(querySubstring), " ")) {
 			return response.rows, response.err
 		}
 	}
