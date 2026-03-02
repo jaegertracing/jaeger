@@ -14,7 +14,7 @@ runs:
   using: 'composite'
   steps:
     - name: Upload current metrics snapshot
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: ${{ inputs.artifact_key }}
         path: ./.metrics/${{ inputs.snapshot }}.txt
@@ -74,7 +74,7 @@ runs:
     # Presence of this artifact in the fan-in proves this action ran for the snapshot.
     - name: Upload the diff artifact
       if: github.ref_name != 'main'
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: diff_${{ inputs.artifact_key }}
         path: ./.metrics/diff_${{ inputs.snapshot }}.txt
