@@ -136,8 +136,13 @@ else
 
     for summary_file in "${summary_files[@]}"; do
         echo "Appending $summary_file to combined summary"
+        file_name=$(basename "$summary_file" .md)
+        friendly_name=${file_name#summary_metrics_snapshot_}
+        # Title-case: replace underscores with spaces, capitalize first letter of each word
+        friendly_name=$(echo "${friendly_name//_/ }" | sed 's/\b\(.\)/\u\1/g')
         {
-          echo "### $(basename "$summary_file" .md)"
+          echo "### 📊 ${friendly_name}"
+          echo "File Name: ${file_name}"
           cat "$summary_file"
         } >> "$combined_file"
         echo "" >> "$combined_file"

@@ -104,7 +104,7 @@ def generate_diff_summary(changes, raw_diff_sections, exclusion_count):
     """
     Generates a markdown summary from the parsed diff changes with raw diff samples.
     """
-    summary = ["## 📊 Metrics Diff Summary\n"]
+    summary = []
 
     # Statistics header
     total_added = sum(len(v) for v in changes['added'].values())
