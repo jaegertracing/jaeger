@@ -706,6 +706,9 @@ func TestCORSPreflight(t *testing.T) {
 		},
 		ServerName:    "jaeger-test",
 		ServerVersion: "1.0.0",
+		CORS: CORSConfig{
+			AllowedOrigins: []string{"*"},
+		},
 	}
 
 	server := newServer(config, componenttest.NewNopTelemetrySettings())
@@ -727,6 +730,143 @@ func TestCORSPreflight(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	// AllowedOrigins:["*"] must produce the canonical wildcard form, not a
+	// reflected origin, so that HTTP caches can serve a single stored response.
 	assert.Equal(t, "*", resp.Header.Get("Access-Control-Allow-Origin"))
 	assert.Equal(t, "GET, POST, DELETE, OPTIONS", resp.Header.Get("Access-Control-Allow-Methods"))
+}
+
+func TestCORSConfigurableOrigins(t *testing.T) {
+	tests := []struct {
+		name           string
+		allowedOrigins []string
+		requestOrigin  string
+		expectedOrigin string
+	}{
+		{
+			// AllowedOrigins:["*"] → always return canonical "*", not reflected origin.
+			name:           "wildcard allows any origin",
+			allowedOrigins: []string{"*"},
+			requestOrigin:  "http://example.com",
+			expectedOrigin: "*",
+		},
+		{
+			name:           "exact match allowed",
+			allowedOrigins: []string{"http://localhost:3000"},
+			requestOrigin:  "http://localhost:3000",
+			expectedOrigin: "http://localhost:3000",
+		},
+		{
+			name:           "non-matching origin blocked",
+			allowedOrigins: []string{"http://localhost:3000"},
+			requestOrigin:  "http://evil.com",
+			expectedOrigin: "",
+		},
+		{
+			name:           "wildcard subdomain match",
+			allowedOrigins: []string{"http://*.example.com"},
+			requestOrigin:  "http://app.example.com",
+			expectedOrigin: "http://app.example.com",
+		},
+		{
+			name:           "wildcard subdomain no match",
+			allowedOrigins: []string{"http://*.example.com"},
+			requestOrigin:  "http://evil.com",
+			expectedOrigin: "",
+		},
+		{
+			name:           "multiple origins first match",
+			allowedOrigins: []string{"http://localhost:3000", "http://localhost:8080"},
+			requestOrigin:  "http://localhost:8080",
+			expectedOrigin: "http://localhost:8080",
+		},
+		{
+			name:           "empty origins blocks all",
+			allowedOrigins: []string{},
+			requestOrigin:  "http://localhost:3000",
+			expectedOrigin: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &Config{
+				HTTP: confighttp.ServerConfig{
+					NetAddr: confignet.AddrConfig{
+						Endpoint:  "localhost:0",
+						Transport: confignet.TransportTypeTCP,
+					},
+				},
+				ServerName:    "jaeger-test",
+				ServerVersion: "1.0.0",
+				CORS: CORSConfig{
+					AllowedOrigins: tt.allowedOrigins,
+				},
+			}
+
+			srv := newServer(config, componenttest.NewNopTelemetrySettings())
+			host := newMockHost()
+			err := srv.Start(context.Background(), host)
+			require.NoError(t, err)
+			defer srv.Shutdown(context.Background())
+
+			addr := srv.listener.Addr().String()
+			url := fmt.Sprintf("http://%s/mcp", addr)
+
+			req, err := http.NewRequest(http.MethodOptions, url, http.NoBody)
+			require.NoError(t, err)
+			req.Header.Set("Origin", tt.requestOrigin)
+			req.Header.Set("Access-Control-Request-Method", "POST")
+
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+			assert.Equal(t, tt.expectedOrigin, resp.Header.Get("Access-Control-Allow-Origin"))
+		})
+	}
+}
+
+func TestCORSCustomHeaders(t *testing.T) {
+	config := &Config{
+		HTTP: confighttp.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  "localhost:0",
+				Transport: confignet.TransportTypeTCP,
+			},
+		},
+		ServerName:    "jaeger-test",
+		ServerVersion: "1.0.0",
+		CORS: CORSConfig{
+			AllowedOrigins: []string{"*"},
+			AllowedHeaders: []string{"X-Custom-Header"},
+		},
+	}
+
+	srv := newServer(config, componenttest.NewNopTelemetrySettings())
+	host := newMockHost()
+	err := srv.Start(context.Background(), host)
+	require.NoError(t, err)
+	defer srv.Shutdown(context.Background())
+
+	addr := srv.listener.Addr().String()
+	url := fmt.Sprintf("http://%s/mcp", addr)
+
+	req, err := http.NewRequest(http.MethodOptions, url, http.NoBody)
+	require.NoError(t, err)
+	req.Header.Set("Origin", "http://localhost:3000")
+	req.Header.Set("Access-Control-Request-Method", "POST")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	allowHeaders := resp.Header.Get("Access-Control-Allow-Headers")
+	// MCP protocol headers must always be present
+	assert.Contains(t, allowHeaders, "Mcp-Session-Id")
+	assert.Contains(t, allowHeaders, "Mcp-Protocol-Version")
+	assert.Contains(t, allowHeaders, "Last-Event-ID")
+	// Custom header should be included
+	assert.Contains(t, allowHeaders, "X-Custom-Header")
 }
