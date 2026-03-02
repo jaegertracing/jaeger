@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"go.opentelemetry.io/collector/config/configoptional"
@@ -46,6 +47,10 @@ type FactoryBase struct {
 	client atomic.Pointer[es.Client]
 
 	pwdFileWatcher *fswatcher.FSWatcher
+
+	// closeWg tracks goroutines started to close old ES clients during password rotation.
+	// f.Close() waits on this WaitGroup to ensure all old clients are fully closed before returning.
+	closeWg sync.WaitGroup
 
 	templateBuilder es.TemplateBuilder
 
@@ -198,6 +203,7 @@ func (f *FactoryBase) Close() error {
 	if f.pwdFileWatcher != nil {
 		errs = append(errs, f.pwdFileWatcher.Close())
 	}
+	f.closeWg.Wait()
 	errs = append(errs, f.getClient().Close())
 
 	return errors.Join(errs...)
@@ -228,9 +234,13 @@ func (f *FactoryBase) onClientPasswordChange(cfg *config.Configuration, client *
 		return
 	}
 	if oldClient := *client.Swap(&newClient); oldClient != nil {
-		if err := oldClient.Close(); err != nil {
-			f.logger.Error("failed to close Elasticsearch client", zap.Error(err))
-		}
+		f.closeWg.Add(1)
+		go func() {
+			defer f.closeWg.Done()
+			if err := oldClient.Close(); err != nil {
+				f.logger.Error("failed to close Elasticsearch client", zap.Error(err))
+			}
+		}()
 	}
 }
 
