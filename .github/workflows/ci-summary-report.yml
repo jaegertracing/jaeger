@@ -38,6 +38,9 @@ jobs:
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || github.event.repository.default_branch }}
 
+      - name: Debug event payload
+        run: cat "$GITHUB_EVENT_PATH" | jq .
+
       # Resolve the source run ID from either trigger, then fetch PR metadata.
       # For workflow_run events, PR metadata comes from the event payload
       # (the REST API returns empty .pull_requests[] for cross-repo fork PRs).
