@@ -126,9 +126,8 @@ func (r *traceReader) FindTraces(
 				StartTimeMax:  query.StartTimeMax,
 				DurationMin:   query.DurationMin,
 				DurationMax:   query.DurationMax,
-				//nolint:gosec // G115
-				SearchDepth: int32(query.SearchDepth),
-				RawTraces:   true,
+				SearchDepth:   int32(query.SearchDepth), //nolint:gosec // G115 - bounds checked above
+				RawTraces:     true,
 			},
 		})
 		r.consumeTraces(yield, stream, err)

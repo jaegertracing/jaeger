@@ -55,6 +55,6 @@ jobs:
       uses: ./.github/actions/upload-codecov
       with:
         files: cover.out
-        flags: cassandra-${{ matrix.version.major }}-${{ matrix.jaeger-version }}-${{ matrix.create-schema }}
+        flag: cassandra-${{ matrix.version.major }}-${{ matrix.jaeger-version }}-${{ matrix.create-schema }}
     
     

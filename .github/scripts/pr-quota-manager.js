@@ -278,9 +278,11 @@ async function postBlockingComment(octokit, owner, repo, issueNumber, author, op
     return;
   }
 
-  const message = `Hi @${author}, thanks for your contribution! To ensure quality reviews, we limit how many concurrent open PRs new contributors can open.
+  const message = `Hi @${author}, thanks for your contribution! To ensure quality reviews, we limit how many concurrent PRs new contributors can open:
+  * Open: ${openCount}
+  * Limit: ${quota}
 
-This PR is currently **on hold** (Status: ${openCount}/${quota} open). We will automatically move this into the review queue once your existing PRs are merged or closed.
+This PR is currently **on hold**. We will automatically move this into the review queue once your existing PRs are merged or closed.
 
 Please see our [Contributing Guidelines](https://github.com/jaegertracing/jaeger/blob/main/CONTRIBUTING_GUIDELINES.md#pull-request-limits-for-new-contributors) for details on our tiered quota policy.`;
 

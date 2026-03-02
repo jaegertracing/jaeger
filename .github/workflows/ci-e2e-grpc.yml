@@ -47,4 +47,4 @@ jobs:
       uses: ./.github/actions/upload-codecov
       with:
         files: cover.out
-        flags: grpc_${{ matrix.version }}
+        flag: grpc_${{ matrix.version }}

@@ -389,7 +389,8 @@ func runPasswordFromFileTest(t *testing.T) {
 			}),
 		},
 		BulkProcessing: escfg.BulkProcessing{
-			MaxBytes: -1, // disable bulk; we want immediate flush
+			MaxBytes:   -1, // disable bulk
+			MaxActions: -1, // disable bulk; the test only validates auth headers
 		},
 	}
 	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nil)
@@ -463,6 +464,10 @@ func TestPasswordFromFileErrors(t *testing.T) {
 			BasicAuthentication: configoptional.Some(escfg.BasicAuthentication{
 				PasswordFilePath: pwdFile,
 			}),
+		},
+		BulkProcessing: escfg.BulkProcessing{
+			MaxBytes:   -1, // disable bulk
+			MaxActions: -1, // disable bulk; the test only validates error paths
 		},
 	}
 

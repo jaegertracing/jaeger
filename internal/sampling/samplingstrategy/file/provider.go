@@ -98,7 +98,7 @@ func (h *samplingProvider) downloadSamplingStrategies(samplingURL string) ([]byt
 	if err != nil {
 		return nil, fmt.Errorf("cannot construct HTTP request: %w", err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req) //nolint:gosec // G704 - URL from config
 	if err != nil {
 		return nil, fmt.Errorf("failed to download sampling strategies: %w", err)
 	}

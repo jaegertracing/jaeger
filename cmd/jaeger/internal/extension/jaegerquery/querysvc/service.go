@@ -30,6 +30,9 @@ type QueryServiceOptions struct {
 	ArchiveTraceWriter tracestore.Writer
 	// MaxClockSkewAdjust is the maximum duration by which to adjust a span.
 	MaxClockSkewAdjust time.Duration
+	// MaxTraceSize is the maximum number of spans allowed per trace. A value of 0 (default) means unlimited.
+	// If a trace has more spans than this limit, it will be truncated and a warning will be added.
+	MaxTraceSize int
 }
 
 // StorageCapabilities is a feature flag for query service
@@ -234,7 +237,7 @@ func (qs QueryService) receiveTraces(
 	if rawTraces {
 		seq(processTraces)
 	} else {
-		jptrace.AggregateTraces(seq)(func(trace ptrace.Traces, err error) bool {
+		jptrace.AggregateTracesWithLimit(seq, qs.options.MaxTraceSize)(func(trace ptrace.Traces, err error) bool {
 			return processTraces([]ptrace.Traces{trace}, err)
 		})
 	}

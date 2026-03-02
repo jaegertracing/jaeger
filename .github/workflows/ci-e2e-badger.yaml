@@ -46,4 +46,4 @@ jobs:
       uses: ./.github/actions/upload-codecov
       with:
         files: cover.out
-        flags: badger_${{ matrix.version }}
+        flag: badger_${{ matrix.version }}

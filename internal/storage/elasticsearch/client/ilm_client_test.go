@@ -15,6 +15,7 @@ import (
 )
 
 func TestExists(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		responseCode   int
@@ -41,6 +42,7 @@ func TestExists(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 				assert.True(t, strings.HasSuffix(req.URL.String(), "_ilm/policy/jaeger-ilm-policy"))
 				assert.Equal(t, http.MethodGet, req.Method)
@@ -68,6 +70,7 @@ func TestExists(t *testing.T) {
 }
 
 func TestExists_Retries(t *testing.T) {
+	t.Parallel()
 	var callCount int
 
 	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {

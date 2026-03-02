@@ -30,4 +30,4 @@ jobs:
       uses: ./.github/actions/upload-codecov
       with:
         files: cover.out
-        flags: query
+        flag: query
