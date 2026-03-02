@@ -26,7 +26,7 @@ func Test_SimulateTraces(t *testing.T) {
 		},
 		{
 			name:  "with pause",
-			pause: time.Second,
+			pause: time.Millisecond,
 		},
 	}
 
