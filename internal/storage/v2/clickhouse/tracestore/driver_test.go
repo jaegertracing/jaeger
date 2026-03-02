@@ -110,7 +110,8 @@ func (t *testDriver) Query(_ context.Context, query string, _ ...any) (driver.Ro
 	// Normalize whitespace so substring matching works regardless of indentation.
 	normalized := strings.Join(strings.Fields(query), " ")
 	for querySubstring, response := range t.queryResponses {
-		if strings.Contains(normalized, strings.Join(strings.Fields(querySubstring), " ")) {
+		normalizedQuerySubstring := strings.Join(strings.Fields(querySubstring), " ")
+		if strings.Contains(normalized, normalizedQuerySubstring) {
 			return response.rows, response.err
 		}
 	}
