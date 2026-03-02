@@ -52,6 +52,11 @@ type FactoryBase struct {
 	// f.Close() waits on this WaitGroup to ensure all old clients are fully closed before returning.
 	closeWg sync.WaitGroup
 
+	// closingMu and closing synchronize Close() and onClientPasswordChange() to prevent
+	// concurrent WaitGroup.Go calls during WaitGroup.Wait, which would cause a panic.
+	closingMu sync.Mutex
+	closing   bool
+
 	templateBuilder es.TemplateBuilder
 
 	tags []string
@@ -203,6 +208,11 @@ func (f *FactoryBase) Close() error {
 	if f.pwdFileWatcher != nil {
 		errs = append(errs, f.pwdFileWatcher.Close())
 	}
+	// Signal onClientPasswordChange to stop spawning new close goroutines,
+	// then wait for any already-started ones before closing the current client.
+	f.closingMu.Lock()
+	f.closing = true
+	f.closingMu.Unlock()
 	f.closeWg.Wait()
 	errs = append(errs, f.getClient().Close())
 
@@ -233,13 +243,27 @@ func (f *FactoryBase) onClientPasswordChange(cfg *config.Configuration, client *
 		f.logger.Error("failed to recreate Elasticsearch client with new password", zap.Error(err))
 		return
 	}
-	if oldClient := *client.Swap(&newClient); oldClient != nil {
+	// Hold closingMu while doing the swap and scheduling the async close, so that
+	// Close() cannot call closeWg.Wait() between the swap and the closeWg.Go call,
+	// which would violate WaitGroup semantics and potentially panic.
+	f.closingMu.Lock()
+	if f.closing {
+		f.closingMu.Unlock()
+		// FactoryBase is shutting down; discard the newly created client.
+		if err := newClient.Close(); err != nil {
+			f.logger.Error("failed to close Elasticsearch client", zap.Error(err))
+		}
+		return
+	}
+	oldClient := *client.Swap(&newClient)
+	if oldClient != nil {
 		f.closeWg.Go(func() {
 			if err := oldClient.Close(); err != nil {
 				f.logger.Error("failed to close Elasticsearch client", zap.Error(err))
 			}
 		})
 	}
+	f.closingMu.Unlock()
 }
 
 func (f *FactoryBase) Purge(ctx context.Context) error {
