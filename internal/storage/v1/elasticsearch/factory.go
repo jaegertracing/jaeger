@@ -234,13 +234,11 @@ func (f *FactoryBase) onClientPasswordChange(cfg *config.Configuration, client *
 		return
 	}
 	if oldClient := *client.Swap(&newClient); oldClient != nil {
-		f.closeWg.Add(1)
-		go func() {
-			defer f.closeWg.Done()
+		f.closeWg.Go(func() {
 			if err := oldClient.Close(); err != nil {
 				f.logger.Error("failed to close Elasticsearch client", zap.Error(err))
 			}
-		}()
+		})
 	}
 }
 
