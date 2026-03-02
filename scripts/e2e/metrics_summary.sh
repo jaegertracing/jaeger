@@ -139,6 +139,7 @@ else
         file_name=$(basename "$summary_file" .md)
         friendly_name=${file_name#summary_metrics_snapshot_}
         # Title-case: replace underscores with spaces, capitalize first letter of each word
+        # shellcheck disable=SC2001
         friendly_name=$(echo "${friendly_name//_/ }" | sed 's/\b\(.\)/\u\1/g')
         {
           echo "### 📊 ${friendly_name}"
