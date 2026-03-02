@@ -71,7 +71,7 @@ func (r *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQu
 			yield(nil, err)
 			return
 		}
-		otelTraceIDs := make([]tracestore.FoundTraceID, len(dbTraceIDs))
+		otelTraceIDs := make([]tracestore.FoundTraceID, 0, len(dbTraceIDs))
 		for _, dbTraceID := range dbTraceIDs {
 			otelTraceIDs = append(otelTraceIDs, tracestore.FoundTraceID{
 				TraceID: pcommon.TraceID(dbTraceID),

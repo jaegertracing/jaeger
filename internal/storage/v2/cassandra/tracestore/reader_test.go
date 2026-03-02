@@ -19,7 +19,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-var traceId [16]byte = [16]byte{1}
+var traceId = [16]byte{1}
 
 func TestNewTraceReader(t *testing.T) {
 	reader := NewTraceReader(&mocks.CoreSpanReader{})
@@ -94,6 +94,16 @@ func TestTraceReader_GetTraces(t *testing.T) {
 	}
 }
 
+func TestTraceReader_GetTraces_Error(t *testing.T) {
+	coreReader := &mocks.CoreSpanReader{}
+	reader := TraceReader{reader: coreReader}
+	coreReader.On("GetTrace", mock.Anything, mock.Anything).Return(dbmodel.Trace{}, errors.New("error"))
+	for traces, err := range reader.GetTraces(context.Background(), tracestore.GetTraceParams{}) {
+		require.ErrorContains(t, err, "error")
+		require.Nil(t, traces)
+	}
+}
+
 func TestTraceReader_FindTraces(t *testing.T) {
 	coreReader := &mocks.CoreSpanReader{}
 	reader := TraceReader{reader: coreReader}
@@ -112,6 +122,18 @@ func TestTraceReader_FindTraces(t *testing.T) {
 		assert.Len(t, td, 1)
 		testTraces(t, tracesStr, td[0])
 		break
+	}
+}
+
+func TestTraceReader_FindTraces_Error(t *testing.T) {
+	coreReader := &mocks.CoreSpanReader{}
+	reader := TraceReader{reader: coreReader}
+	coreReader.On("FindTraces", mock.Anything, mock.Anything).Return(nil, errors.New("error"))
+	for traces, err := range reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+	}) {
+		require.ErrorContains(t, err, "error")
+		require.Nil(t, traces)
 	}
 }
 
@@ -135,5 +157,17 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 	}) {
 		require.NoError(t, err)
 		require.Equal(t, expected, traceIds)
+	}
+}
+
+func TestTraceReader_FindTraceIDs_Error(t *testing.T) {
+	coreReader := &mocks.CoreSpanReader{}
+	reader := TraceReader{reader: coreReader}
+	coreReader.On("FindTraceIDs", mock.Anything, mock.Anything).Return(nil, errors.New("error"))
+	for traceIds, err := range reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+	}) {
+		require.ErrorContains(t, err, "error")
+		require.Nil(t, traceIds)
 	}
 }
