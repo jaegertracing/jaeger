@@ -12,6 +12,9 @@
 name: CI Summary Report
 on:
   workflow_call:
+permissions:
+  contents: read
+  actions: write  # required for actions/cache save and gh run download
 
 jobs:
   summary-report:
@@ -141,6 +144,7 @@ jobs:
         if: always()
         env:
           METRICS_CONCLUSION:    ${{ steps.compare-metrics.outputs.CONCLUSION }}
+          METRICS_OUTCOME:       ${{ steps.compare-metrics.outcome }}
           METRICS_TOTAL:         ${{ steps.compare-metrics.outputs.TOTAL_CHANGES }}
           METRICS_INFRA_ERRORS:  ${{ steps.compare-metrics.outputs.INFRA_ERRORS }}
           COVERAGE_SKIPPED:      ${{ steps.merge-coverage.outputs.skipped }}
@@ -151,9 +155,13 @@ jobs:
           python3 - <<'PYEOF'
           import json, os
 
-          metrics_conclusion = os.environ.get('METRICS_CONCLUSION') or 'skipped'
+          metrics_conclusion = os.environ.get('METRICS_CONCLUSION') or ''
+          if not metrics_conclusion:
+              # Step failed/cancelled before writing CONCLUSION output.
+              outcome = os.environ.get('METRICS_OUTCOME', '')
+              metrics_conclusion = 'failure' if outcome in ('failure', 'cancelled') else 'skipped'
           metrics_total      = int(os.environ.get('METRICS_TOTAL') or 0)
-          has_infra_errors   = bool(os.environ.get('METRICS_INFRA_ERRORS'))
+          has_infra_errors   = os.environ.get('METRICS_INFRA_ERRORS') == 'true'
 
           coverage_skipped    = os.environ.get('COVERAGE_SKIPPED') == 'true'
           coverage_conclusion = 'skipped' if coverage_skipped else (os.environ.get('COVERAGE_CONCLUSION') or 'skipped')

@@ -15,29 +15,27 @@
 #
 # Design: docs/adr/004-migrating-coverage-gating-to-github-actions.md
 #
-# ╔══════════════════════════════════════════════════════════════════════════════╗
-# ║  SECURITY WARNING — INJECTION RISK                                          ║
-# ║                                                                             ║
-# ║  This workflow runs in the BASE REPOSITORY context with write permissions   ║
-# ║  (pull-requests: write, checks: write). It downloads the ci-summary         ║
-# ║  artifact produced by a PR's CI run, which may originate from a FORK and    ║
-# ║  therefore contain UNTRUSTED content crafted by the PR author.              ║
-# ║                                                                             ║
-# ║  NEVER interpolate artifact content verbatim into PR comments, check run    ║
-# ║  summaries, or any GitHub API call. Doing so allows a malicious PR to       ║
-# ║  inject arbitrary Markdown or URLs into the repository's UI.                ║
-# ║                                                                             ║
-# ║  REQUIRED PATTERN:                                                          ║
-# ║    1. The ci-summary artifact must contain ONLY structured data             ║
-# ║       (numbers, booleans, and fixed enum strings like "success"/"failure"). ║
-# ║    2. All display text (PR comments, check summaries) must be constructed   ║
-# ║       entirely from trusted template strings defined in this file.          ║
-# ║    3. Numeric values from the artifact must be coerced with Number() and    ║
-# ║       validated with Number.isFinite() before use.                         ║
-# ║    4. Boolean values must be coerced with !!.                               ║
-# ║    5. String values from the artifact must ONLY be used in comparisons      ║
-# ║       (=== 'success'), never interpolated into output strings.              ║
-# ╚══════════════════════════════════════════════════════════════════════════════╝
+# SECURITY WARNING — INJECTION RISK
+#
+# This workflow runs in the BASE REPOSITORY context with write permissions
+# (pull-requests: write, checks: write). It downloads the ci-summary artifact
+# produced by a PR's CI run, which may originate from a FORK and therefore
+# contain UNTRUSTED content crafted by the PR author.
+#
+# NEVER interpolate artifact content verbatim into PR comments, check run
+# summaries, or any GitHub API call. Doing so allows a malicious PR to inject
+# arbitrary Markdown or URLs into the repository's UI.
+#
+# Required pattern:
+#   1. The ci-summary artifact must contain ONLY structured data
+#      (numbers, booleans, and fixed enum strings like "success"/"failure").
+#   2. All display text (PR comments, check summaries) must be constructed
+#      entirely from trusted template strings defined in this file.
+#   3. Numeric values from the artifact must be coerced with Number() and
+#      validated with Number.isFinite() before use.
+#   4. Boolean values must be coerced with !!.
+#   5. String values from the artifact must ONLY be used in comparisons
+#      (=== 'success'), never interpolated into output strings.
 
 name: CI Summary Report (Publish)
 on:
@@ -157,7 +155,9 @@ jobs:
             const safeInt = v => { const n = Math.trunc(Number(v)); return Number.isFinite(n) && n >= 0 ? n : null; };
             const safeNum = v => { const n = Number(v);             return Number.isFinite(n) && n >= 0 ? n : null; };
 
-            const metricsConclusion  = (s.metrics_conclusion === 'success') ? 'success' : 'failure';
+            // Derive conclusion from the same conditions that drive metricsText,
+            // not from s.metrics_conclusion, so the two are always consistent.
+            const metricsConclusion  = (hasInfraErrors || totalChanges === null || totalChanges > 0) ? 'failure' : 'success';
             const hasInfraErrors     = !!s.metrics_has_infra_errors;
             const totalChanges       = safeInt(s.metrics_total_changes);
             const coverageSkipped    = !!s.coverage_skipped || s.coverage_conclusion === 'skipped';

@@ -36,9 +36,9 @@ if [ "$found_any_snapshot" = false ]; then
     missing_diffs+=("(no snapshot artifacts found)")
 fi
 if [ ${#missing_diffs[@]} -gt 0 ]; then
-    echo "INFRA_ERRORS=${missing_diffs[*]}" >> "$GITHUB_OUTPUT"
+    echo "INFRA_ERRORS=true" >> "$GITHUB_OUTPUT"
 else
-    echo "INFRA_ERRORS=" >> "$GITHUB_OUTPUT"
+    echo "INFRA_ERRORS=false" >> "$GITHUB_OUTPUT"
 fi
 
 # Debug: List all diff files found
