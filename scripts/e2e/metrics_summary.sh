@@ -116,11 +116,8 @@ else
     echo ""
     for summary_file in "${summary_files[@]}"; do
         file_name=$(basename "$summary_file" .md)
-        friendly_name=${file_name#summary_metrics_snapshot_}
-        # Title-case: replace underscores with spaces, capitalize first letter of each word.
-        # Uses awk because sed's \b is backspace (not word-boundary).
-        friendly_name=$(awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) substr($i,2)}1' <<< "${friendly_name//_/ }")
-        echo "--- ${friendly_name} ---"
+        echo "--- ${file_name} ---"
+        echo ""
         cat "$summary_file"
         echo ""
     done
