@@ -389,7 +389,8 @@ func runPasswordFromFileTest(t *testing.T) {
 			}),
 		},
 		BulkProcessing: escfg.BulkProcessing{
-			MaxBytes: -1, // disable bulk; we want immediate flush
+			MaxBytes:   -1, // disable bulk
+			MaxActions: -1, // disable bulk; the test only validates auth headers
 		},
 	}
 	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nil)
@@ -464,6 +465,10 @@ func TestPasswordFromFileErrors(t *testing.T) {
 				PasswordFilePath: pwdFile,
 			}),
 		},
+		BulkProcessing: escfg.BulkProcessing{
+			MaxBytes:   -1, // disable bulk
+			MaxActions: -1, // disable bulk; the test only validates error paths
+		},
 	}
 
 	logger, buf := testutils.NewEchoLogger(t)
@@ -506,6 +511,10 @@ func TestElasticsearchFactoryBaseWithAuthenticator(t *testing.T) {
 	cfg := escfg.Configuration{
 		Servers:  []string{server.URL},
 		LogLevel: "debug",
+		BulkProcessing: escfg.BulkProcessing{
+			MaxBytes:   -1, // disable bulk
+			MaxActions: -1, // disable bulk; the test only validates authenticator setup
+		},
 	}
 
 	// Mock authenticator

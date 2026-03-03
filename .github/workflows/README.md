@@ -126,7 +126,7 @@ The following workflows operate independently and are **not** part of the orches
 - **ci-deploy-demo.yml** - Scheduled/manual deployment to demo environment
 
 ### Automated Checks
-- **ci-compare-metrics.yml** - Compares metrics from E2E tests (triggered by workflow_run)
+- **ci-summary-report.yml** - Fan-in workflow triggered after CI Orchestrator completes; posts a consolidated PR comment with performance metrics comparison and code coverage gating (see `docs/adr/004-migrating-coverage-gating-to-github-actions.md`)
 - **label-check.yml** - Verifies PR labels
 - **pr-quota-manager.yml** - PR management automation
 - **dco_merge_group.yml** - DCO verification for merge groups

@@ -35,4 +35,4 @@ jobs:
       uses: ./.github/actions/upload-codecov
       with:
         files: cover.out
-        flags: memory_v2
+        flag: memory_v2

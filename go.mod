@@ -16,7 +16,7 @@ require (
 	github.com/gorilla/handlers v1.5.2
 	github.com/jaegertracing/jaeger-idl v0.6.0
 	github.com/kr/pretty v0.3.1
-	github.com/modelcontextprotocol/go-sdk v1.3.0
+	github.com/modelcontextprotocol/go-sdk v1.3.1
 	github.com/olivere/elastic/v7 v7.0.32
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.146.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.146.0
@@ -138,6 +138,7 @@ require (
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
 	github.com/prometheus/prometheus v0.309.2-0.20260113170727-c7bc56cf6c8f // indirect
 	github.com/prometheus/sigv4 v0.3.0 // indirect
+	github.com/segmentio/encoding v0.5.3 // indirect
 	github.com/tg123/go-htpasswd v1.2.4 // indirect
 	github.com/twmb/franz-go/pkg/kadm v1.17.2 // indirect
 	github.com/xdg-go/scram v1.2.0 // indirect
