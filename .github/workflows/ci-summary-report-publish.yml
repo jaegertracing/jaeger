@@ -67,9 +67,14 @@ jobs:
         id: source-run
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             PR_NUMBER="${{ github.event.inputs.pr_number }}"
+            if ! [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
+              echo "::error::Invalid pr_number input: must be a positive integer, got: '$PR_NUMBER'"
+              exit 1
+            fi
 
             # Get the PR's head SHA to find the CI Orchestrator run
             HEAD_SHA=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER" --jq '.head.sha')
@@ -93,7 +98,7 @@ jobs:
             if [ -z "$PR_NUMBER" ] && [ "${{ github.event.workflow_run.event }}" == "pull_request" ]; then
               PR_NUMBER=$(gh pr list \
                 --repo "${{ github.repository }}" \
-                --search "head:${{ github.event.workflow_run.head_branch }}" \
+                --head "$HEAD_BRANCH" \
                 --json number,headRefOid \
                 --jq ".[] | select(.headRefOid == \"$HEAD_SHA\") | .number")
               echo "Resolved PR #$PR_NUMBER from head branch (fork PR fallback)"
@@ -155,11 +160,11 @@ jobs:
             const safeInt = v => { const n = Math.trunc(Number(v)); return Number.isFinite(n) && n >= 0 ? n : null; };
             const safeNum = v => { const n = Number(v);             return Number.isFinite(n) && n >= 0 ? n : null; };
 
+            const hasInfraErrors     = !!s.metrics_has_infra_errors;
+            const totalChanges       = safeInt(s.metrics_total_changes);
             // Derive conclusion from the same conditions that drive metricsText,
             // not from s.metrics_conclusion, so the two are always consistent.
             const metricsConclusion  = (hasInfraErrors || totalChanges === null || totalChanges > 0) ? 'failure' : 'success';
-            const hasInfraErrors     = !!s.metrics_has_infra_errors;
-            const totalChanges       = safeInt(s.metrics_total_changes);
             const coverageSkipped    = !!s.coverage_skipped || s.coverage_conclusion === 'skipped';
             const coverageConclusion = (coverageSkipped || s.coverage_conclusion === 'success') ? 'success' : 'failure';
             const coveragePct        = safeNum(s.coverage_percentage);
