@@ -1,138 +1,46 @@
 # Copyright (c) 2026 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-# CI Summary Report: fan-in workflow that posts a consolidated PR comment with
-# performance metrics comparison and code coverage gating.
+# CI Summary Report: reusable workflow (workflow_call) invoked by CI Orchestrator.
+# Computes metrics comparison and coverage gating, then uploads a ci-summary
+# artifact with the results. ci-summary-report-publish.yml (triggered by
+# workflow_run) reads that artifact to post PR comments and check runs, because
+# pull_request workflows from forks cannot write to the upstream repository.
 #
 # Design: docs/adr/004-migrating-coverage-gating-to-github-actions.md
-#
-# This workflow is triggered by workflow_run (on "CI Orchestrator" completion)
-# so that it can write PR comments from fork PRs while retaining write permissions.
-# The CI Orchestrator completes only after all stages (unit tests + E2E) finish,
-# ensuring all coverage-* artifacts are available when this job runs.
 
 name: CI Summary Report
 on:
-  workflow_run:
-    workflows: ["CI Orchestrator"]
-    types: [completed]
-  workflow_dispatch:
-    inputs:
-      pr_number:
-        description: 'PR number to generate summary report for'
-        required: true
-permissions:
-  contents: read
-  pull-requests: write
-  checks: write
+  workflow_call:
+
 jobs:
   summary-report:
     name: Summary Report
-    if: |
-      github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || github.event.repository.default_branch }}
+          ref: ${{ github.sha }}
 
-      - name: Debug event payload
-        run: cat "$GITHUB_EVENT_PATH" | jq .
-
-      # Resolve the source run ID from either trigger, then fetch PR metadata.
-      # For workflow_run events, PR metadata comes from the event payload
-      # (the REST API returns empty .pull_requests[] for cross-repo fork PRs).
-      - name: Resolve source run
-        id: source-run
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            PR_NUMBER="${{ github.event.inputs.pr_number }}"
-
-            # Get the PR's head SHA to find the CI Orchestrator run
-            HEAD_SHA=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER" --jq '.head.sha')
-
-            # Find the latest successful CI Orchestrator run for this commit
-            RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/ci-orchestrator.yml/runs?head_sha=$HEAD_SHA&status=success&per_page=1" \
-              --jq '.workflow_runs[0].id')
-
-            if [ -z "$RUN_ID" ] || [ "$RUN_ID" == "null" ]; then
-              echo "::error::No successful CI Orchestrator run found for PR #$PR_NUMBER (SHA $HEAD_SHA)."
-              exit 1
-            fi
-            echo "Found CI Orchestrator run $RUN_ID for PR #$PR_NUMBER"
-          else
-            RUN_ID="${{ github.event.workflow_run.id }}"
-            PR_NUMBER="${{ github.event.workflow_run.pull_requests[0].number }}"
-            HEAD_SHA="${{ github.event.workflow_run.pull_requests[0].head.sha || github.event.workflow_run.head_sha }}"
-
-            # workflow_run.pull_requests is empty for fork PRs (renovate-bot, dependabot, etc.).
-            # Fall back to searching for a PR matching the head branch.
-            if [ -z "$PR_NUMBER" ] && [ "${{ github.event.workflow_run.event }}" == "pull_request" ]; then
-              PR_NUMBER=$(gh pr list \
-                --repo "${{ github.repository }}" \
-                --search "head:${{ github.event.workflow_run.head_branch }}" \
-                --json number,headRefOid \
-                --jq ".[] | select(.headRefOid == \"$HEAD_SHA\") | .number")
-              echo "Resolved PR #$PR_NUMBER from head branch (fork PR fallback)"
-            fi
-          fi
-
-          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
-          echo "source_run_url=https://github.com/${{ github.repository }}/actions/runs/$RUN_ID" >> $GITHUB_OUTPUT
-          echo "summary_run_url=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_OUTPUT
-          echo "head_sha=$HEAD_SHA" >> $GITHUB_OUTPUT
-
-          if [ -n "$PR_NUMBER" ]; then
-            echo "Found PR #$PR_NUMBER at SHA $HEAD_SHA"
-            echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
-          else
-            echo "No associated PR found for run $RUN_ID; PR comment will be skipped."
-          fi
-
-      # Download all artifacts from the source CI run.
-      # Each artifact is extracted into .artifacts/<artifact-name>/.
+      # Download all artifacts uploaded by the calling (CI Orchestrator) run.
+      # This includes coverage-* and metrics_snapshot_* artifacts from all CI jobs.
       - name: Download all artifacts
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh run download "${{ steps.source-run.outputs.run_id }}" \
+          gh run download "${{ github.run_id }}" \
             --repo "${{ github.repository }}" --dir .artifacts
 
       - name: Install dependencies
-        if: success() && steps.source-run.outputs.head_sha
-        run: |
-          python3 -m pip install prometheus-client
+        run: python3 -m pip install prometheus-client
 
       - name: Compare metrics and generate summary
-        if: success() && steps.source-run.outputs.head_sha
         id: compare-metrics
         shell: bash
-        run: |
-          bash ./scripts/e2e/metrics_summary.sh
-        env:
-          LINK_TO_ARTIFACT: ${{ steps.source-run.outputs.source_run_url }}
-          SUMMARY_RUN_URL: ${{ steps.source-run.outputs.summary_run_url }}
-
-      - name: Upload metrics comparison report as artifact
-        if: success() && steps.source-run.outputs.head_sha
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
-        with:
-          name: metrics-comparison-report
-          path: ./.artifacts/combined_summary.md
-          retention-days: 30
-
-      # =========================================================================
-      # Coverage gating: merge all coverage-* profiles, compare against baseline,
-      # and fail the check if coverage drops beyond the threshold.
-      # See: docs/adr/004-migrating-coverage-gating-to-github-actions.md (Step 4c)
-      # =========================================================================
+        run: bash ./scripts/e2e/metrics_summary.sh
 
       - name: Set up Go for coverage tools
-        if: success()
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
         with:
           go-version: 1.26.x
@@ -141,11 +49,9 @@ jobs:
             ./internal/tools/go.sum
 
       - name: Install coverage tools
-        if: success()
         run: make install-coverage-tools
 
       - name: Merge coverage profiles
-        if: success()
         id: merge-coverage
         run: |
           mapfile -t COVER_FILES < <(find .artifacts -path "*/coverage-*/*.out" -type f)
@@ -227,92 +133,88 @@ jobs:
             echo "summary=Coverage ${CURRENT}% ${BASELINE_MSG}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Append coverage section to combined summary
-        if: success() && steps.source-run.outputs.head_sha && steps.merge-coverage.outputs.skipped == 'false'
-        run: |
-          {
-            echo ""
-            echo "## Code Coverage"
-            echo ""
-            echo "${{ steps.coverage-gate.outputs.summary }}"
-          } >> ./.artifacts/combined_summary.md
-
-      - name: Post PR comment with combined summary
-        if: |
-          (steps.compare-metrics.outputs.CONCLUSION == 'failure' ||
-           steps.compare-metrics.outputs.TOTAL_CHANGES != '0' ||
-           steps.coverage-gate.outputs.conclusion == 'failure') &&
-          steps.source-run.outputs.pr_number
-        uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3
-        with:
-          file-path: ./.artifacts/combined_summary.md
-          github-token: '${{ secrets.GITHUB_TOKEN }}'
-          comment-tag: "## CI Summary Report"
-          pr-number: ${{ steps.source-run.outputs.pr_number }}
-
-      - name: Create check runs
-        if: success() && steps.source-run.outputs.head_sha
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
-        with:
-          script: |
-            const { owner, repo } = context.repo;
-            const headSha = '${{ steps.source-run.outputs.head_sha }}';
-            const artifactLink = '${{ steps.source-run.outputs.source_run_url }}';
-            const summaryRunLink = '${{ steps.source-run.outputs.summary_run_url }}';
-            const links = `➡️ [View CI artifacts](${artifactLink}) | [View Summary Report logs](${summaryRunLink})`;
-
-            // Metrics comparison check
-            const metricsConclusion = '${{ steps.compare-metrics.outputs.CONCLUSION }}';
-            const metricsSummary = '${{ steps.compare-metrics.outputs.SUMMARY }}';
-            const totalChanges = '${{ steps.compare-metrics.outputs.TOTAL_CHANGES }}' || '0';
-            await github.rest.checks.create({
-              owner, repo, head_sha: headSha,
-              name: 'Metrics Comparison',
-              status: 'completed',
-              conclusion: metricsConclusion,
-              output: {
-                title: 'Metrics Comparison Result',
-                summary: metricsSummary,
-                text: `Total changes across all snapshots: ${totalChanges}\n\n${links}`
-              }
-            });
-
-            // Coverage gate check — always created so it works as a required status check.
-            // When no coverage data was collected, report success with a "skipped" note.
-            const coverageSkipped = '${{ steps.merge-coverage.outputs.skipped }}' !== 'false';
-            const coverageConclusion = coverageSkipped ? 'success' : '${{ steps.coverage-gate.outputs.conclusion }}';
-            const coverageSummary = coverageSkipped
-              ? 'No coverage profiles found; coverage gate skipped.'
-              : '${{ steps.coverage-gate.outputs.summary }}';
-            await github.rest.checks.create({
-              owner, repo, head_sha: headSha,
-              name: 'Coverage Gate',
-              status: 'completed',
-              conclusion: coverageConclusion,
-              output: {
-                title: 'Coverage Gate',
-                summary: coverageSkipped ? `⏭️ ${coverageSummary}` : (coverageConclusion === 'success' ? `✅ ${coverageSummary}` : `❌ ${coverageSummary}`),
-                text: links
-              }
-            });
+      # Serialize only strongly-typed values to JSON so ci-summary-report-publish.yml
+      # never handles free-form text from test output (which could contain injections).
+      # All display text is constructed from this structured data by trusted publish-
+      # workflow code running in the base repository context.
+      - name: Save conclusions for publish workflow
+        if: always()
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          METRICS_CONCLUSION:    ${{ steps.compare-metrics.outputs.CONCLUSION }}
+          METRICS_TOTAL:         ${{ steps.compare-metrics.outputs.TOTAL_CHANGES }}
+          METRICS_INFRA_ERRORS:  ${{ steps.compare-metrics.outputs.INFRA_ERRORS }}
+          COVERAGE_SKIPPED:      ${{ steps.merge-coverage.outputs.skipped }}
+          COVERAGE_CONCLUSION:   ${{ steps.coverage-gate.outputs.conclusion }}
+          COVERAGE_PCT:          ${{ steps.coverage.outputs.percentage }}
+        run: |
+          mkdir -p .artifacts
+          python3 - <<'PYEOF'
+          import json, os
+
+          metrics_conclusion = os.environ.get('METRICS_CONCLUSION') or 'skipped'
+          metrics_total      = int(os.environ.get('METRICS_TOTAL') or 0)
+          has_infra_errors   = bool(os.environ.get('METRICS_INFRA_ERRORS'))
+
+          coverage_skipped    = os.environ.get('COVERAGE_SKIPPED') == 'true'
+          coverage_conclusion = 'skipped' if coverage_skipped else (os.environ.get('COVERAGE_CONCLUSION') or 'skipped')
+
+          coverage_pct      = None
+          coverage_baseline = None
+          if not coverage_skipped:
+              try:
+                  coverage_pct = float(os.environ.get('COVERAGE_PCT') or '')
+              except (ValueError, TypeError):
+                  pass
+              try:
+                  with open('.artifacts/baseline-coverage.txt') as f:
+                      coverage_baseline = float(f.read().strip())
+              except (FileNotFoundError, ValueError):
+                  pass
+
+          data = {
+              'metrics_conclusion':      metrics_conclusion,
+              'metrics_total_changes':   metrics_total,
+              'metrics_has_infra_errors': has_infra_errors,
+              'coverage_conclusion':     coverage_conclusion,
+              'coverage_percentage':     coverage_pct,
+              'coverage_baseline':       coverage_baseline,
+              'coverage_skipped':        coverage_skipped,
+          }
+          with open('.artifacts/ci-summary.json', 'w') as f:
+              json.dump(data, f, indent=2)
+          print(json.dumps(data, indent=2))
+          PYEOF
+
+      - name: Upload CI summary artifact
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        with:
+          name: ci-summary
+          path: .artifacts/ci-summary.json
+          retention-days: 7
+          if-no-files-found: warn
 
       # Save baseline coverage on main-branch runs so PRs can compare against it.
-      # Uses the same actions/cache pattern as .github/actions/verify-metrics-snapshot/action.yaml.
       - name: Save coverage baseline on main branch
-        if: |
-          github.event_name == 'workflow_run' &&
-          github.event.workflow_run.head_branch == 'main' &&
-          steps.merge-coverage.outputs.skipped == 'false'
+        if: github.ref == 'refs/heads/main' && steps.merge-coverage.outputs.skipped == 'false'
         run: cp .artifacts/current-coverage.txt .artifacts/baseline-coverage.txt
 
       - name: Cache coverage baseline
-        if: |
-          github.event_name == 'workflow_run' &&
-          github.event.workflow_run.head_branch == 'main' &&
-          steps.merge-coverage.outputs.skipped == 'false'
+        if: github.ref == 'refs/heads/main' && steps.merge-coverage.outputs.skipped == 'false'
         uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57
         with:
           path: .artifacts/baseline-coverage.txt
           key: coverage-baseline_${{ github.run_id }}
+
+      # Fail the job (and the calling CI Orchestrator run) so the coverage/metrics
+      # regression is immediately visible in the PR Checks table.
+      # The ci-summary artifact is already uploaded above (if: always()), so
+      # ci-summary-report-publish.yml can still post the PR comment and check runs.
+      - name: Fail if coverage or metrics gate failed
+        if: |
+          steps.compare-metrics.outputs.CONCLUSION == 'failure' ||
+          steps.coverage-gate.outputs.conclusion == 'failure'
+        run: |
+          echo "Metrics: ${{ steps.compare-metrics.outputs.CONCLUSION }}"
+          echo "Coverage: ${{ steps.coverage-gate.outputs.conclusion }}"
+          exit 1

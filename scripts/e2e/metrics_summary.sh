@@ -92,67 +92,38 @@ fi
 echo "Total changes across all snapshots: $total_changes"
 echo "TOTAL_CHANGES=$total_changes" >> "$GITHUB_OUTPUT"
 
-# Emit a single conclusion/summary so the workflow check run step
-# doesn't need to duplicate this decision logic.
 if [ ${#missing_diffs[@]} -gt 0 ]; then
     echo "CONCLUSION=failure" >> "$GITHUB_OUTPUT"
-    echo "SUMMARY=❌ Infrastructure error: diff artifacts missing for: ${missing_diffs[*]}" >> "$GITHUB_OUTPUT"
 elif [ "$total_changes" -gt 0 ]; then
     echo "CONCLUSION=failure" >> "$GITHUB_OUTPUT"
-    echo "SUMMARY=❌ ${total_changes} metric changes detected" >> "$GITHUB_OUTPUT"
 else
     echo "CONCLUSION=success" >> "$GITHUB_OUTPUT"
-    echo "SUMMARY=✅ No significant metric changes detected" >> "$GITHUB_OUTPUT"
 fi
 
-# Always generate combined summary report
-combined_file="$METRICS_DIR/combined_summary.md"
-echo "## Metrics Comparison Summary" > "$combined_file"
+# Log the combined summary to the console (visible in CI run logs).
+# Structured conclusions are already emitted to $GITHUB_OUTPUT above.
+echo "=== Metrics Comparison Summary ==="
 
 if [ ${#missing_diffs[@]} -gt 0 ]; then
-    {
-      echo ""
-      echo "❌ **Infrastructure error**: diff artifacts missing for: ${missing_diffs[*]}"
-      echo "(These snapshots did not produce a diff artifact — the verify-metrics-snapshot action may not have run.)"
-      echo ""
-    } >> "$combined_file"
+    echo "❌ Infrastructure error: diff artifacts missing for: ${missing_diffs[*]}"
+    echo "(These snapshots did not produce a diff artifact — the verify-metrics-snapshot action may not have run.)"
 fi
 
 if [ ${#summary_files[@]} -eq 0 ]; then
-    {
-      echo ""
-      echo "✅ No metric changes detected."
-      echo ""
-    } >> "$combined_file"
+    echo "✅ No metric changes detected."
 else
-    {
-      echo ""
-      echo "Total changes across all snapshots: $total_changes"
-      echo ""
-      echo "<details>"
-      echo "<summary>Detailed changes per snapshot</summary>"
-      echo ""
-    } >> "$combined_file"
-
+    echo "Total changes across all snapshots: $total_changes"
+    echo ""
     for summary_file in "${summary_files[@]}"; do
-        echo "Appending $summary_file to combined summary"
         file_name=$(basename "$summary_file" .md)
         friendly_name=${file_name#summary_metrics_snapshot_}
         # Title-case: replace underscores with spaces, capitalize first letter of each word.
         # Uses awk because sed's \b is backspace (not word-boundary).
         friendly_name=$(awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) substr($i,2)}1' <<< "${friendly_name//_/ }")
-        {
-          echo "### 📊 ${friendly_name}"
-          echo "File Name: ${file_name}"
-          cat "$summary_file"
-        } >> "$combined_file"
-        echo "" >> "$combined_file"
+        echo "--- ${friendly_name} ---"
+        cat "$summary_file"
+        echo ""
     done
-
-    echo "</details>" >> "$combined_file"
 fi
-
-echo -e "\n\n➡️ [View CI artifacts]($LINK_TO_ARTIFACT) | [View Summary Report logs]($SUMMARY_RUN_URL)" >> "$combined_file"
-
 
 echo "Metrics diff processing completed"
