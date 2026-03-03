@@ -13,7 +13,7 @@ func TestBadgerStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, "badger")
 
 	s := &E2EStorageIntegration{
-		ConfigFile:      "../../config-badger.yaml",
+		ConfigFile:       "../../config-badger.yaml",
 		PropagateEnvVars: []string{"BADGER_METRICS_UPDATE_INTERVAL"},
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp: purge,
