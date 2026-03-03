@@ -151,6 +151,18 @@ jobs:
               s = JSON.parse(fs.readFileSync('.artifacts/ci-summary.json', 'utf8'));
             } catch (e) {
               core.warning(`ci-summary.json not found or unparseable: ${e.message}`);
+              // Post failing check runs so required status checks are never silently absent.
+              // All text here is a trusted, fixed string — no artifact content is used.
+              const errorSummary = 'ci-summary artifact missing or unparseable; check CI run logs.';
+              for (const name of ['Metrics Comparison', 'Coverage Gate']) {
+                await github.rest.checks.create({
+                  owner, repo, head_sha: headSha,
+                  name,
+                  status: 'completed',
+                  conclusion: 'failure',
+                  output: { title: name, summary: errorSummary, text: links },
+                });
+              }
               return;
             }
 
