@@ -213,17 +213,32 @@ func scanTraceIDFn() func(dest any, src []any) error {
 
 func TestGetTraces_Success(t *testing.T) {
 	tests := []struct {
-		name     string
-		data     []*dbmodel.SpanRow
-		expected []ptrace.Traces
+		name   string
+		params tracestore.GetTraceParams
+		data   []*dbmodel.SpanRow
 	}{
 		{
 			name: "single span",
+			params: tracestore.GetTraceParams{
+				TraceID: traceID,
+			},
 			data: singleSpan,
 		},
 		{
 			name: "multiple spans",
+			params: tracestore.GetTraceParams{
+				TraceID: traceID,
+			},
 			data: multipleSpans,
+		},
+		{
+			name: "with time range",
+			params: tracestore.GetTraceParams{
+				TraceID: traceID,
+				Start:   now.Add(-1 * time.Hour),
+				End:     now,
+			},
+			data: singleSpan,
 		},
 	}
 
@@ -243,9 +258,7 @@ func TestGetTraces_Success(t *testing.T) {
 			}
 
 			reader := NewReader(conn, testReaderConfig)
-			getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
-				TraceID: traceID,
-			})
+			getTracesIter := reader.GetTraces(context.Background(), tt.params)
 			traces, err := jiter.FlattenWithErrors(getTracesIter)
 
 			require.NoError(t, err)
