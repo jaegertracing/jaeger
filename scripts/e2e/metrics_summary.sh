@@ -59,10 +59,15 @@ while IFS= read -r -d '' diff_file; do
     fi
     echo "Processing diff file: $diff_file"
 
-    # Extract the base name (e.g., diff_metrics_snapshot_cassandra.txt -> metrics_snapshot_cassandra)
-    base_name=$(basename "$diff_file" .txt)
-    snapshot_name=${base_name#diff_}
+    # Derive the unique snapshot name from the artifact directory (e.g.,
+    # diff_metrics_snapshot_cassandras_4.x_v004_v2_manual -> metrics_snapshot_cassandras_4.x_v004_v2_manual).
+    # Using the directory rather than the file name is necessary because all matrix
+    # variants of the same backend share an identical file name inside their artifact
+    # (e.g., diff_metrics_snapshot_cassandra.txt), while the artifact directory name
+    # is always unique (it includes major version, schema, jaeger-version, etc.).
     dir=$(dirname "$diff_file")
+    snapshot_name=$(basename "$dir")
+    snapshot_name=${snapshot_name#diff_}
 
     # Generate summary for this diff
     summary_file="$dir/summary_$snapshot_name.md"
