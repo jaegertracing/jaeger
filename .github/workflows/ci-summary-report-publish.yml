@@ -51,6 +51,7 @@ permissions:
   contents: read
   pull-requests: write
   checks: write
+  actions: read
 jobs:
   publish:
     name: Post Summary
@@ -126,7 +127,7 @@ jobs:
             --repo "${{ github.repository }}" \
             --name ci-summary \
             --dir .artifacts \
-          || echo "::warning::ci-summary artifact not found; skipping post."
+          || echo "::warning::ci-summary artifact not found; proceeding without summary artifact (later checks may fail)."
 
       # All display text is constructed here from structured data, never from
       # free-form artifact content, to prevent injection via crafted test output.
