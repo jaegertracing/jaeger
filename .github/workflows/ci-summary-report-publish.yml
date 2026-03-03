@@ -33,7 +33,7 @@
 #      entirely from trusted template strings defined in this file.
 #   3. Numeric values from the artifact must be coerced with Number() and
 #      validated with Number.isFinite() before use.
-#   4. Boolean values must be coerced with !!.
+#   4. Boolean values must be compared with === true (not !! which coerces strings).
 #   5. String values from the artifact must ONLY be used in comparisons
 #      (=== 'success'), never interpolated into output strings.
 
@@ -157,15 +157,15 @@ jobs:
             // Coerce every field to its expected primitive type immediately.
             // String fields are used only for enum comparisons, never interpolated into output.
             // Numbers are validated with Number.isFinite(); invalid values fall back to null.
-            const safeInt = v => { const n = Math.trunc(Number(v)); return Number.isFinite(n) && n >= 0 ? n : null; };
-            const safeNum = v => { const n = Number(v);             return Number.isFinite(n) && n >= 0 ? n : null; };
+            const safeInt = v => { if (v === null || v === undefined) return null; const n = Math.trunc(Number(v)); return Number.isFinite(n) && n >= 0 ? n : null; };
+            const safeNum = v => { if (v === null || v === undefined) return null; const n = Number(v);             return Number.isFinite(n) && n >= 0 ? n : null; };
 
-            const hasInfraErrors     = !!s.metrics_has_infra_errors;
+            const hasInfraErrors     = s.metrics_has_infra_errors === true;
             const totalChanges       = safeInt(s.metrics_total_changes);
             // Derive conclusion from the same conditions that drive metricsText,
             // not from s.metrics_conclusion, so the two are always consistent.
             const metricsConclusion  = (hasInfraErrors || totalChanges === null || totalChanges > 0) ? 'failure' : 'success';
-            const coverageSkipped    = !!s.coverage_skipped || s.coverage_conclusion === 'skipped';
+            const coverageSkipped    = s.coverage_skipped === true || s.coverage_conclusion === 'skipped';
             const coverageConclusion = (coverageSkipped || s.coverage_conclusion === 'success') ? 'success' : 'failure';
             const coveragePct        = safeNum(s.coverage_percentage);
             const coverageBaseline   = safeNum(s.coverage_baseline);

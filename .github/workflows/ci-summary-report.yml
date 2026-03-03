@@ -160,7 +160,8 @@ jobs:
               # Step failed/cancelled before writing CONCLUSION output.
               outcome = os.environ.get('METRICS_OUTCOME', '')
               metrics_conclusion = 'failure' if outcome in ('failure', 'cancelled') else 'skipped'
-          metrics_total      = int(os.environ.get('METRICS_TOTAL') or 0)
+          metrics_total_env  = os.environ.get('METRICS_TOTAL')
+          metrics_total      = int(metrics_total_env) if metrics_total_env not in (None, '') else None
           has_infra_errors   = os.environ.get('METRICS_INFRA_ERRORS') == 'true'
 
           coverage_skipped    = os.environ.get('COVERAGE_SKIPPED') == 'true'
