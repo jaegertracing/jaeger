@@ -868,7 +868,7 @@ func TestFindTraceIDs(t *testing.T) {
 					scanFn: scanAttributeMetadataFn(),
 				},
 			},
-			sql.SearchTraceIDs: {
+			sql.SearchTraceIDsBase: {
 				rows: &testRows[[]any]{
 					data:   testTraceIDsData,
 					scanFn: scanTraceIDFn(),
@@ -910,7 +910,7 @@ func TestFindTraceIDs_SearchDepthExceedsMax(t *testing.T) {
 	driver := &testDriver{
 		t: t,
 		queryResponses: map[string]*testQueryResponse{
-			sql.SearchTraceIDs: {
+			sql.SearchTraceIDsBase: {
 				rows: &testRows[[]any]{
 					data: [][]any{
 						{
@@ -942,7 +942,7 @@ func TestFindTraceIDs_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	conn := &testDriver{
 		t: t,
 		queryResponses: map[string]*testQueryResponse{
-			sql.SearchTraceIDs: {
+			sql.SearchTraceIDsBase: {
 				rows: &testRows[[]any]{
 					data:   testTraceIDsData,
 					scanFn: scanTraceIDFn(),
@@ -988,7 +988,7 @@ func TestFindTraceIDs_ScanErrorContinues(t *testing.T) {
 	conn := &testDriver{
 		t: t,
 		queryResponses: map[string]*testQueryResponse{
-			sql.SearchTraceIDs: {
+			sql.SearchTraceIDsBase: {
 				rows: &testRows[[]any]{
 					data:   testTraceIDsData,
 					scanFn: scanFn,
@@ -1022,7 +1022,7 @@ func TestFindTraceIDs_DecodeErrorContinues(t *testing.T) {
 	conn := &testDriver{
 		t: t,
 		queryResponses: map[string]*testQueryResponse{
-			sql.SearchTraceIDs: {
+			sql.SearchTraceIDsBase: {
 				rows: &testRows[[]any]{
 					data: [][]any{
 						testTraceIDsData[0],
@@ -1088,7 +1088,7 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 			driver: &testDriver{
 				t: t,
 				queryResponses: map[string]*testQueryResponse{
-					sql.SearchTraceIDs: {
+					sql.SearchTraceIDsBase: {
 						rows: nil,
 						err:  assert.AnError,
 					},
@@ -1101,7 +1101,7 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 			driver: &testDriver{
 				t: t,
 				queryResponses: map[string]*testQueryResponse{
-					sql.SearchTraceIDs: {
+					sql.SearchTraceIDsBase: {
 						rows: &testRows[[]any]{
 							data:    testTraceIDsData,
 							scanErr: assert.AnError,
@@ -1117,7 +1117,7 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 			driver: &testDriver{
 				t: t,
 				queryResponses: map[string]*testQueryResponse{
-					sql.SearchTraceIDs: {
+					sql.SearchTraceIDsBase: {
 						rows: &testRows[[]any]{
 							data: [][]any{
 								{
