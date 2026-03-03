@@ -105,14 +105,14 @@ fi
 echo "=== Metrics Comparison Summary ==="
 
 if [ ${#missing_diffs[@]} -gt 0 ]; then
-    echo "❌ Infrastructure error: diff artifacts missing for: ${missing_diffs[*]}"
+    echo "::error::Infrastructure error: diff artifacts missing for: ${missing_diffs[*]}"
     echo "(These snapshots did not produce a diff artifact — the verify-metrics-snapshot action may not have run.)"
 fi
 
 if [ ${#summary_files[@]} -eq 0 ]; then
-    echo "✅ No metric changes detected."
+    echo "No metric changes detected."
 else
-    echo "Total changes across all snapshots: $total_changes"
+    echo "::error::${total_changes} metric change(s) detected across all snapshots"
     echo ""
     for summary_file in "${summary_files[@]}"; do
         file_name=$(basename "$summary_file" .md)
