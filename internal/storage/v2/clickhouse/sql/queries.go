@@ -228,7 +228,7 @@ SELECT
 FROM (
 %s
 ) l
-JOIN trace_id_timestamps t ON l.trace_id = t.trace_id`
+LEFT JOIN trace_id_timestamps t ON l.trace_id = t.trace_id`
 
 const SelectServices = `
 SELECT

@@ -177,7 +177,7 @@ WHERE s.trace_id IN (
 				)
 			LIMIT ?
 		) l
-		JOIN trace_id_timestamps t ON l.trace_id = t.trace_id
+		LEFT JOIN trace_id_timestamps t ON l.trace_id = t.trace_id
 	)
 )
 ORDER BY s.trace_id
