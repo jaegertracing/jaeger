@@ -14,6 +14,30 @@
 # for this workflow's separate approval step.
 #
 # Design: docs/adr/004-migrating-coverage-gating-to-github-actions.md
+#
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  SECURITY WARNING — INJECTION RISK                                          ║
+# ║                                                                             ║
+# ║  This workflow runs in the BASE REPOSITORY context with write permissions   ║
+# ║  (pull-requests: write, checks: write). It downloads the ci-summary         ║
+# ║  artifact produced by a PR's CI run, which may originate from a FORK and    ║
+# ║  therefore contain UNTRUSTED content crafted by the PR author.              ║
+# ║                                                                             ║
+# ║  NEVER interpolate artifact content verbatim into PR comments, check run    ║
+# ║  summaries, or any GitHub API call. Doing so allows a malicious PR to       ║
+# ║  inject arbitrary Markdown or URLs into the repository's UI.                ║
+# ║                                                                             ║
+# ║  REQUIRED PATTERN:                                                          ║
+# ║    1. The ci-summary artifact must contain ONLY structured data             ║
+# ║       (numbers, booleans, and fixed enum strings like "success"/"failure"). ║
+# ║    2. All display text (PR comments, check summaries) must be constructed   ║
+# ║       entirely from trusted template strings defined in this file.          ║
+# ║    3. Numeric values from the artifact must be coerced with Number() and    ║
+# ║       validated with Number.isFinite() before use.                         ║
+# ║    4. Boolean values must be coerced with !!.                               ║
+# ║    5. String values from the artifact must ONLY be used in comparisons      ║
+# ║       (=== 'success'), never interpolated into output strings.              ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 name: CI Summary Report (Publish)
 on:
@@ -111,6 +135,12 @@ jobs:
             const fs = require('fs');
             const { owner, repo } = context.repo;
 
+            const headSha     = '${{ steps.source-run.outputs.head_sha }}';
+            const prNumber    = parseInt('${{ steps.source-run.outputs.pr_number }}', 10) || null;
+            const ciRunUrl    = '${{ steps.source-run.outputs.source_run_url }}';
+            const publishUrl  = '${{ steps.source-run.outputs.summary_run_url }}';
+            const links       = `➡️ [View CI run](${ciRunUrl}) | [View publish logs](${publishUrl})`;
+
             // Read structured data written by ci-summary-report.yml.
             // All fields are primitives (enums, numbers, booleans) — no free-form text.
             let s;
@@ -121,32 +151,39 @@ jobs:
               return;
             }
 
-            const headSha     = '${{ steps.source-run.outputs.head_sha }}';
-            const prNumber    = parseInt('${{ steps.source-run.outputs.pr_number }}', 10) || null;
-            const ciRunUrl    = '${{ steps.source-run.outputs.source_run_url }}';
-            const publishUrl  = '${{ steps.source-run.outputs.summary_run_url }}';
-            const links       = `➡️ [View CI run](${ciRunUrl}) | [View publish logs](${publishUrl})`;
+            // Coerce every field to its expected primitive type immediately.
+            // String fields are used only for enum comparisons, never interpolated into output.
+            // Numbers are validated with Number.isFinite(); invalid values fall back to null.
+            const safeInt = v => { const n = Math.trunc(Number(v)); return Number.isFinite(n) && n >= 0 ? n : null; };
+            const safeNum = v => { const n = Number(v);             return Number.isFinite(n) && n >= 0 ? n : null; };
+
+            const metricsConclusion  = (s.metrics_conclusion === 'success') ? 'success' : 'failure';
+            const hasInfraErrors     = !!s.metrics_has_infra_errors;
+            const totalChanges       = safeInt(s.metrics_total_changes);
+            const coverageSkipped    = !!s.coverage_skipped || s.coverage_conclusion === 'skipped';
+            const coverageConclusion = (coverageSkipped || s.coverage_conclusion === 'success') ? 'success' : 'failure';
+            const coveragePct        = safeNum(s.coverage_percentage);
+            const coverageBaseline   = safeNum(s.coverage_baseline);
 
             // ── Metrics ──────────────────────────────────────────────────────────
-            const metricsConclusion = (s.metrics_conclusion === 'failure') ? 'failure' : 'success';
             let metricsText;
-            if (s.metrics_has_infra_errors) {
+            if (hasInfraErrors) {
               metricsText = '❌ Infrastructure error: missing diff artifacts';
-            } else if (s.metrics_total_changes > 0) {
-              metricsText = `❌ ${s.metrics_total_changes} metric change(s) detected`;
+            } else if (totalChanges === null) {
+              metricsText = '❌ Could not read metrics_total_changes from summary';
+            } else if (totalChanges > 0) {
+              metricsText = `❌ ${totalChanges} metric change(s) detected`;
             } else {
               metricsText = '✅ No significant metric changes';
             }
 
             // ── Coverage ─────────────────────────────────────────────────────────
-            const coverageSkipped    = s.coverage_skipped || s.coverage_conclusion === 'skipped';
-            const coverageConclusion = coverageSkipped ? 'success' : s.coverage_conclusion;
             let coverageText;
             if (coverageSkipped) {
               coverageText = '⏭️ No coverage profiles found; coverage gate skipped.';
             } else {
-              const pct      = s.coverage_percentage  !== null ? `${s.coverage_percentage}%`  : 'unknown';
-              const baseline = s.coverage_baseline    !== null ? ` (baseline ${s.coverage_baseline}%)` : ' (no baseline)';
+              const pct      = coveragePct      !== null ? `${coveragePct}%`      : 'unknown';
+              const baseline = coverageBaseline !== null ? ` (baseline ${coverageBaseline}%)` : ' (no baseline)';
               const icon     = coverageConclusion === 'success' ? '✅' : '❌';
               coverageText   = `${icon} Coverage ${pct}${baseline}`;
             }
@@ -160,7 +197,7 @@ jobs:
               output: {
                 title:   'Metrics Comparison Result',
                 summary: metricsText,
-                text:    `Total changes across all snapshots: ${s.metrics_total_changes}\n\n${links}`,
+                text:    `Total changes across all snapshots: ${totalChanges ?? 'unknown'}\n\n${links}`,
               },
             });
 
@@ -179,7 +216,7 @@ jobs:
 
             // ── PR comment (only when there is something to report) ───────────────
             const hasIssues = metricsConclusion === 'failure' || coverageConclusion === 'failure'
-                              || s.metrics_total_changes > 0;
+                              || totalChanges > 0;
             if (!prNumber || !hasIssues) return;
 
             const tag  = '<!-- ci-summary-report -->';
