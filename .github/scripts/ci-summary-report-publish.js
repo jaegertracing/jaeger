@@ -143,15 +143,18 @@ async function postCheckRun(github, owner, repo, headSha, name, conclusion, outp
 
 /**
  * Post or update the CI summary comment on a PR.
- * Finds an existing comment by COMMENT_TAG and updates it, or creates a new one.
+ * Always updates an existing comment (clears stale failure messages on green runs).
+ * Only creates a new comment when createNew is true.
  * @param {object} github - Octokit client
  * @param {string} owner
  * @param {string} repo
  * @param {number} prNumber
  * @param {string} body
  * @param {object} core - GitHub Actions core logger
+ * @param {object} [opts]
+ * @param {boolean} [opts.createNew=true] - create a comment if none exists
  */
-async function postOrUpdateComment(github, owner, repo, prNumber, body, core) {
+async function postOrUpdateComment(github, owner, repo, prNumber, body, core, { createNew = true } = {}) {
   core.info(`Searching for existing CI summary comment on PR #${prNumber}`);
   const existing = await github.paginate(github.rest.issues.listComments, {
     owner, repo, issue_number: prNumber,
@@ -163,12 +166,14 @@ async function postOrUpdateComment(github, owner, repo, prNumber, body, core) {
       owner, repo, comment_id: existing.id, body,
     });
     core.info(`Comment updated: url=${updated.html_url}`);
-  } else {
+  } else if (createNew) {
     core.info(`Creating new comment on PR #${prNumber}`);
     const { data: created } = await github.rest.issues.createComment({
       owner, repo, issue_number: prNumber, body,
     });
     core.info(`Comment created: id=${created.id} url=${created.html_url}`);
+  } else {
+    core.info('No existing comment and no issues to report; skipping PR comment.');
   }
 }
 
@@ -229,16 +234,17 @@ async function handler({ github, core, fs, inputs }) {
     text:    footer,
   }, core);
 
-  // ── PR comment (only when there is something to report) ──────────────────
-  const hasIssues = metrics.conclusion === 'failure' || coverage.conclusion === 'failure'
-                    || metrics.totalChanges > 0;
-  if (!prNumber || !hasIssues) {
-    core.info('No issues to report; skipping PR comment.');
-    return;
+  // ── PR comment ──
+  if (prNumber) {
+    // Always update an existing comment so stale failure messages don't linger
+    // after a green run.  Only create a new comment when there is something to report.
+    const hasIssues = metrics.conclusion === 'failure' || coverage.conclusion === 'failure'
+                      || metrics.totalChanges > 0;
+    const body = buildCommentBody(metrics.text, coverage.text, footer);
+    await postOrUpdateComment(github, owner, repo, prNumber, body, core, { createNew: hasIssues });
+  } else {
+    core.info('No PR number; skipping PR comment.');
   }
-
-  const body = buildCommentBody(metrics.text, coverage.text, footer);
-  await postOrUpdateComment(github, owner, repo, prNumber, body, core);
 }
 
 module.exports = handler;
