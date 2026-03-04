@@ -14,28 +14,7 @@
 # for this workflow's separate approval step.
 #
 # Design: docs/adr/004-migrating-coverage-gating-to-github-actions.md
-#
-# SECURITY WARNING — INJECTION RISK
-#
-# This workflow runs in the BASE REPOSITORY context with write permissions
-# (pull-requests: write, checks: write). It downloads the ci-summary artifact
-# produced by a PR's CI run, which may originate from a FORK and therefore
-# contain UNTRUSTED content crafted by the PR author.
-#
-# NEVER interpolate artifact content verbatim into PR comments, check run
-# summaries, or any GitHub API call. Doing so allows a malicious PR to inject
-# arbitrary Markdown or URLs into the repository's UI.
-#
-# Required pattern:
-#   1. The ci-summary artifact must contain ONLY structured data
-#      (numbers, booleans, and fixed enum strings like "success"/"failure").
-#   2. All display text (PR comments, check summaries) must be constructed
-#      entirely from trusted template strings defined in this file.
-#   3. Numeric values from the artifact must be coerced with Number() and
-#      validated with Number.isFinite() before use.
-#   4. Boolean values must be compared with === true (not !! which coerces strings).
-#   5. String values from the artifact must ONLY be used in comparisons
-#      (=== 'success'), never interpolated into output strings.
+# Security model: see .github/scripts/ci-summary-report-publish.js
 
 name: CI Summary Report (Publish)
 on:
@@ -120,6 +99,11 @@ jobs:
             echo "No associated PR found for run $RUN_ID; PR comment will be skipped."
           fi
 
+      # Checkout the base repo so that .github/scripts/ci-summary-report-publish.js
+      # is available for require() in the github-script step below.
+      # Do NOT checkout the PR head: this workflow must only run base-repo code.
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+
       # Download only the ci-summary artifact (pre-computed by ci-summary-report.yml).
       - name: Download CI summary artifact
         env:
@@ -131,136 +115,22 @@ jobs:
             --dir .artifacts \
           || echo "::warning::ci-summary artifact not found; proceeding without summary artifact (later checks may fail)."
 
-      # All display text is constructed here from structured data, never from
-      # free-form artifact content, to prevent injection via crafted test output.
       - name: Post PR comment and create check runs
         if: steps.source-run.outputs.head_sha
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
           script: |
-            const fs = require('fs');
-            const { owner, repo } = context.repo;
-
-            const headSha     = '${{ steps.source-run.outputs.head_sha }}';
-            const prNumber    = parseInt('${{ steps.source-run.outputs.pr_number }}', 10) || null;
-            const ciRunUrl    = '${{ steps.source-run.outputs.source_run_url }}';
-            const publishUrl  = '${{ steps.source-run.outputs.summary_run_url }}';
-            const links       = `➡️ [View CI run](${ciRunUrl}) | [View publish logs](${publishUrl})`;
-
-            // Read structured data written by ci-summary-report.yml.
-            // All fields are primitives (enums, numbers, booleans) — no free-form text.
-            let s;
-            try {
-              s = JSON.parse(fs.readFileSync('.artifacts/ci-summary.json', 'utf8'));
-            } catch (e) {
-              core.warning(`ci-summary.json not found or unparseable: ${e.message}`);
-              // Post failing check runs so required status checks are never silently absent.
-              // All text here is a trusted, fixed string — no artifact content is used.
-              const errorSummary = 'ci-summary artifact missing or unparseable; check CI run logs.';
-              for (const name of ['Metrics Comparison', 'Coverage Gate']) {
-                await github.rest.checks.create({
-                  owner, repo, head_sha: headSha,
-                  name,
-                  status: 'completed',
-                  conclusion: 'failure',
-                  output: { title: name, summary: errorSummary, text: links },
-                });
-              }
-              return;
-            }
-
-            // Coerce every field to its expected primitive type immediately.
-            // String fields are used only for enum comparisons, never interpolated into output.
-            // Numbers are validated with Number.isFinite(); invalid values fall back to null.
-            const safeInt = v => { if (v === null || v === undefined) return null; const n = Math.trunc(Number(v)); return Number.isFinite(n) && n >= 0 ? n : null; };
-            const safeNum = v => { if (v === null || v === undefined) return null; const n = Number(v);             return Number.isFinite(n) && n >= 0 ? n : null; };
-
-            const hasInfraErrors     = s.metrics_has_infra_errors === true;
-            const totalChanges       = safeInt(s.metrics_total_changes);
-            // Derive conclusion from the same conditions that drive metricsText,
-            // not from s.metrics_conclusion, so the two are always consistent.
-            const metricsConclusion  = (hasInfraErrors || totalChanges === null || totalChanges > 0) ? 'failure' : 'success';
-            const coverageSkipped    = s.coverage_skipped === true || s.coverage_conclusion === 'skipped';
-            const coverageConclusion = (coverageSkipped || s.coverage_conclusion === 'success') ? 'success' : 'failure';
-            const coveragePct        = safeNum(s.coverage_percentage);
-            const coverageBaseline   = safeNum(s.coverage_baseline);
-
-            // ── Metrics ──────────────────────────────────────────────────────────
-            let metricsText;
-            if (hasInfraErrors) {
-              metricsText = '❌ Infrastructure error: missing diff artifacts';
-            } else if (totalChanges === null) {
-              metricsText = '❌ Could not read metrics_total_changes from summary';
-            } else if (totalChanges > 0) {
-              metricsText = `❌ ${totalChanges} metric change(s) detected`;
-            } else {
-              metricsText = '✅ No significant metric changes';
-            }
-
-            // ── Coverage ─────────────────────────────────────────────────────────
-            let coverageText;
-            if (coverageSkipped) {
-              coverageText = '⏭️ No coverage profiles found; coverage gate skipped.';
-            } else {
-              const pct      = coveragePct      !== null ? `${coveragePct}%`      : 'unknown';
-              const baseline = coverageBaseline !== null ? ` (baseline ${coverageBaseline}%)` : ' (no baseline)';
-              const icon     = coverageConclusion === 'success' ? '✅' : '❌';
-              coverageText   = `${icon} Coverage ${pct}${baseline}`;
-            }
-
-            // ── Check runs ───────────────────────────────────────────────────────
-            await github.rest.checks.create({
-              owner, repo, head_sha: headSha,
-              name: 'Metrics Comparison',
-              status: 'completed',
-              conclusion: metricsConclusion,
-              output: {
-                title:   'Metrics Comparison Result',
-                summary: metricsText,
-                text:    `Total changes across all snapshots: ${totalChanges ?? 'unknown'}\n\n${links}`,
+            const handler = require('./.github/scripts/ci-summary-report-publish.js');
+            await handler({
+              github, core, fs: require('fs'),
+              inputs: {
+                owner:      context.repo.owner,
+                repo:       context.repo.repo,
+                headSha:    '${{ steps.source-run.outputs.head_sha }}',
+                prNumber:   '${{ steps.source-run.outputs.pr_number }}',
+                ciRunUrl:   '${{ steps.source-run.outputs.source_run_url }}',
+                publishUrl: '${{ steps.source-run.outputs.summary_run_url }}',
               },
             });
-
-            // Always created so it can be used as a required status check.
-            await github.rest.checks.create({
-              owner, repo, head_sha: headSha,
-              name: 'Coverage Gate',
-              status: 'completed',
-              conclusion: coverageConclusion,
-              output: {
-                title:   'Coverage Gate',
-                summary: coverageText,
-                text:    links,
-              },
-            });
-
-            // ── PR comment (only when there is something to report) ───────────────
-            const hasIssues = metricsConclusion === 'failure' || coverageConclusion === 'failure'
-                              || totalChanges > 0;
-            if (!prNumber || !hasIssues) return;
-
-            const tag  = '<!-- ci-summary-report -->';
-            const body = [
-              tag,
-              '## CI Summary Report',
-              '',
-              '### Metrics Comparison',
-              metricsText,
-              '',
-              '### Code Coverage',
-              coverageText,
-              '',
-              links,
-            ].join('\n');
-
-            const existing = await github.paginate(github.rest.issues.listComments, {
-              owner, repo, issue_number: prNumber,
-            }).then(cs => cs.find(c => c.body && c.body.startsWith(tag)));
-
-            if (existing) {
-              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
-            } else {
-              await github.rest.issues.createComment({ owner, repo, issue_number: prNumber, body });
-            }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

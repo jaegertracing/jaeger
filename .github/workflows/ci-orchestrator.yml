@@ -86,6 +86,24 @@ jobs:
           echo "Execution mode: parallel=$PARALLEL"
 
   # ============================================================================
+  # SCRIPTS UNIT TESTS: Fast, independent job for .github/scripts/ Jest suite.
+  # ============================================================================
+  ci-scripts:
+    name: CI Scripts Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: .github/scripts/package-lock.json
+      - run: npm ci
+        working-directory: .github/scripts
+      - run: npm test
+        working-directory: .github/scripts
+
+  # ============================================================================
   # SEQUENTIAL PATH (~30m): Default for external contributors.
   # Stage 2 waits for Stage 1; Stage 3 waits for Stage 2.
   # Active when parallel == false.
@@ -139,12 +157,18 @@ jobs:
     name: All CI Checks Passed
     runs-on: ubuntu-latest
     if: always()
-    needs: [setup, stage1-seq, stage2-seq, stage3-seq, stage1-fast, stage2-fast, stage3-fast]
+    needs: [setup, ci-scripts, stage1-seq, stage2-seq, stage3-seq, stage1-fast, stage2-fast, stage3-fast]
     steps:
       - name: Check setup status
         if: ${{ needs.setup.result != 'success' }}
         run: |
           echo "❌ Setup job failed or was cancelled."
+          exit 1
+
+      - name: Check CI scripts tests
+        if: ${{ needs.ci-scripts.result != 'success' }}
+        run: |
+          echo "❌ CI scripts unit tests failed or were cancelled."
           exit 1
 
       - name: Check sequential path
