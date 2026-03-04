@@ -189,6 +189,6 @@ jobs:
   summary:
     name: CI Summary Report
     needs: [ci-success]
-    if: needs.ci-success.result == 'success'
+    if: always() && needs.ci-success.result == 'success'
     uses: ./.github/workflows/ci-summary-report.yml
     secrets: inherit
