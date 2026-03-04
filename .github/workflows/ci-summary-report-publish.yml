@@ -72,7 +72,7 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             PR_NUMBER="${{ github.event.inputs.pr_number }}"
-            if ! [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
+            if ! [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
               echo "::error::Invalid pr_number input: must be a positive integer, got: '$PR_NUMBER'"
               exit 1
             fi
@@ -103,7 +103,7 @@ jobs:
                 --repo "${{ github.repository }}" \
                 --head "$HEAD_BRANCH" \
                 --json number,headRefOid \
-                --jq ".[] | select(.headRefOid == \"$HEAD_SHA\") | .number")
+                --jq "first(.[] | select(.headRefOid == \"$HEAD_SHA\") | .number)")
               echo "Resolved PR #$PR_NUMBER from head branch (fork PR fallback)"
             fi
           fi

@@ -124,6 +124,8 @@ if [ "$total_changes" -gt 0 ]; then
         cat "$summary_file"
         echo ""
     done
+elif [ ${#missing_diffs[@]} -gt 0 ]; then
+    echo "No metric changes in available diffs, but some diff artifacts were missing (see above)."
 else
     echo "No metric changes detected."
 fi

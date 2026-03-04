@@ -148,9 +148,10 @@ jobs:
           METRICS_OUTCOME:       ${{ steps.compare-metrics.outcome }}
           METRICS_TOTAL:         ${{ steps.compare-metrics.outputs.TOTAL_CHANGES }}
           METRICS_INFRA_ERRORS:  ${{ steps.compare-metrics.outputs.INFRA_ERRORS }}
-          COVERAGE_SKIPPED:      ${{ steps.merge-coverage.outputs.skipped }}
-          COVERAGE_CONCLUSION:   ${{ steps.coverage-gate.outputs.conclusion }}
-          COVERAGE_PCT:          ${{ steps.coverage.outputs.percentage }}
+          COVERAGE_MERGE_OUTCOME: ${{ steps.merge-coverage.outcome }}
+          COVERAGE_SKIPPED:       ${{ steps.merge-coverage.outputs.skipped }}
+          COVERAGE_CONCLUSION:    ${{ steps.coverage-gate.outputs.conclusion }}
+          COVERAGE_PCT:           ${{ steps.coverage.outputs.percentage }}
         run: |
           mkdir -p .artifacts
           python3 - <<'PYEOF'
@@ -165,8 +166,16 @@ jobs:
           metrics_total      = int(metrics_total_env) if metrics_total_env not in (None, '') else None
           has_infra_errors   = os.environ.get('METRICS_INFRA_ERRORS') == 'true'
 
-          coverage_skipped    = os.environ.get('COVERAGE_SKIPPED') == 'true'
-          coverage_conclusion = 'skipped' if coverage_skipped else (os.environ.get('COVERAGE_CONCLUSION') or 'skipped')
+          coverage_merge_outcome = os.environ.get('COVERAGE_MERGE_OUTCOME', '')
+          coverage_skipped       = os.environ.get('COVERAGE_SKIPPED') == 'true'
+          if coverage_merge_outcome in ('failure', 'cancelled'):
+              # merge-coverage failed before writing its skipped output; treat as failure
+              # so a pipeline error is not silently reported as coverage skipped/success.
+              coverage_conclusion = 'failure'
+          elif coverage_skipped:
+              coverage_conclusion = 'skipped'
+          else:
+              coverage_conclusion = os.environ.get('COVERAGE_CONCLUSION') or 'skipped'
 
           coverage_pct      = None
           coverage_baseline = None
