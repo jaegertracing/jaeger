@@ -26,6 +26,10 @@ jobs:
         go-version: 1.26.x
 
     - name: Run Badger storage integration tests
+      env:
+        # Short interval so metricsCopier fires within the test duration.
+        # Propagated to the Jaeger subprocess via PropagateEnvVars in badger_test.go.
+        BADGER_METRICS_UPDATE_INTERVAL: 1s
       run: |
         case ${{ matrix.version }} in
           v1)
