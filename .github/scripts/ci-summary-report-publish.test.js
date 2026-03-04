@@ -248,4 +248,39 @@ describe('postOrUpdateComment', () => {
     );
     expect(mockCore.info).toHaveBeenCalledWith(expect.stringContaining('Updating existing comment id=100'));
   });
+
+  test('skips creating a new comment when createNew is false and no existing comment', async () => {
+    const mockGithub = {
+      paginate: jest.fn().mockResolvedValue([{ id: 1, body: 'unrelated' }]),
+      rest: { issues: {
+        listComments: jest.fn(),
+        createComment: jest.fn(),
+      }},
+    };
+    const mockCore = { info: jest.fn() };
+
+    await postOrUpdateComment(mockGithub, owner, repo, prNumber, body, mockCore, { createNew: false });
+
+    expect(mockGithub.rest.issues.createComment).not.toHaveBeenCalled();
+    expect(mockCore.info).toHaveBeenCalledWith(expect.stringContaining('No existing comment'));
+  });
+
+  test('still updates existing comment when createNew is false', async () => {
+    const existingComment = { id: 100, body: `${COMMENT_TAG}\nold failure` };
+    const mockGithub = {
+      paginate: jest.fn().mockResolvedValue([existingComment]),
+      rest: { issues: {
+        listComments: jest.fn(),
+        updateComment: jest.fn().mockResolvedValue({ data: { html_url: 'https://example.com/comment/100' } }),
+      }},
+    };
+    const mockCore = { info: jest.fn() };
+
+    await postOrUpdateComment(mockGithub, owner, repo, prNumber, body, mockCore, { createNew: false });
+
+    expect(mockGithub.rest.issues.updateComment).toHaveBeenCalledWith(
+      expect.objectContaining({ owner, repo, comment_id: 100, body })
+    );
+    expect(mockCore.info).toHaveBeenCalledWith(expect.stringContaining('Updating existing comment id=100'));
+  });
 });
