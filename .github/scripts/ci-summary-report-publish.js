@@ -94,7 +94,9 @@ function computeCoverage(s) {
 
 /**
  * Build the PR comment body from pre-computed display strings.
- * All inputs must be trusted, fixed strings — no artifact content.
+ * Inputs are strings produced by computeMetrics/computeCoverage: all display text
+ * is constructed from trusted templates; artifact-derived values appear only as
+ * validated primitives (numbers) embedded by those functions, never as raw strings.
  * @param {string} metricsText
  * @param {string} coverageText
  * @param {string} footer - links + timestamp line

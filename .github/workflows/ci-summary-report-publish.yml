@@ -99,6 +99,11 @@ jobs:
             echo "No associated PR found for run $RUN_ID; PR comment will be skipped."
           fi
 
+      # Checkout the base repo so that .github/scripts/ci-summary-report-publish.js
+      # is available for require() in the github-script step below.
+      # Do NOT checkout the PR head: this workflow must only run base-repo code.
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+
       # Download only the ci-summary artifact (pre-computed by ci-summary-report.yml).
       - name: Download CI summary artifact
         env:
