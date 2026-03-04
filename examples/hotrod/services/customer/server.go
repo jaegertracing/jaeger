@@ -90,5 +90,5 @@ func (s *Server) customer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(data)
+	w.Write(data) //nolint:gosec // G705 - writing JSON response
 }

@@ -11,4 +11,4 @@ An Architecture Decision Record (ADR) is a document that captures an important a
 - [ADR-001: Cassandra FindTraceIDs Duration Query Behavior](001-cassandra-find-traces-duration.md) - Explains why duration queries in the Cassandra spanstore use a separate code path and cannot be efficiently combined with other query parameters.
 - [ADR-002: MCP Server Extension](002-mcp-server.md) - Design for implementing Model Context Protocol server as a Jaeger extension for LLM integration.
 - [ADR-003: Lazy Storage Factory Initialization](003-lazy-storage-factory-initialization.md) - Comparative analysis of approaches to defer storage backend initialization until actually needed.
-
+- [ADR-004: Migrate Coverage Gating from Codecov to GitHub Actions](004-migrating-coverage-gating-to-github-actions.md) - Design for replacing Codecov PR gating with a local fan-in workflow that merges coverage profiles, gates on regression, and consolidates reporting with the existing metrics summary.

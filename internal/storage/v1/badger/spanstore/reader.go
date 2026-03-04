@@ -301,7 +301,7 @@ func (r *TraceReader) indexSeeksToTraceIDs(plan *executionPlan, indexSeeks [][]b
 		// Same traceID can be returned multiple times, but always in sorted order so checking the previous key is enough
 		prevTraceID := []byte{}
 		innerIDs := make([][]byte, 0, len(indexSeeks))
-		for j := 0; j < len(indexResults); j++ {
+		for j := range indexResults {
 			traceID := indexResults[j]
 			if !bytes.Equal(prevTraceID, traceID) {
 				innerIDs = append(innerIDs, traceID)
@@ -340,7 +340,7 @@ func filterIDs(plan *executionPlan, innerIDs [][]byte) []model.TraceID {
 	traces := make([]model.TraceID, 0, plan.limit)
 
 	items := 0
-	for i := 0; i < len(innerIDs); i++ {
+	for i := range innerIDs {
 		trID := bytesToTraceID(innerIDs[i])
 
 		if _, found := plan.hashOuter[trID]; found {
@@ -368,7 +368,7 @@ func buildHash(plan *executionPlan, outerIDs [][]byte) map[model.TraceID]struct{
 	var empty struct{}
 
 	hashed := make(map[model.TraceID]struct{})
-	for i := 0; i < len(outerIDs); i++ {
+	for i := range outerIDs {
 		trID := bytesToTraceID(outerIDs[i])
 
 		if plan.hashOuter != nil {
