@@ -178,3 +178,17 @@ jobs:
             echo "❌ Invalid parallel mode: '$PARALLEL' (expected 'true' or 'false')"
             exit 1
           fi
+
+  # ============================================================================
+  # SUMMARY REPORT: Runs after all CI stages pass.
+  # Computes coverage gating and metrics comparison, uploads ci-summary artifact.
+  # Fails visibly in PR Checks if coverage drops or metrics regress.
+  # ci-summary-report-publish.yml (workflow_run) reads the artifact and posts
+  # the PR comment and check runs — even when this job fails.
+  # ============================================================================
+  summary:
+    name: CI Summary Report
+    needs: [ci-success]
+    if: always() && needs.ci-success.result == 'success'
+    uses: ./.github/workflows/ci-summary-report.yml
+    secrets: inherit
