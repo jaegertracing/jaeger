@@ -134,6 +134,7 @@ jobs:
           else
             echo "conclusion=success" >> "$GITHUB_OUTPUT"
             echo "summary=Coverage ${CURRENT}% ${BASELINE_MSG}" >> "$GITHUB_OUTPUT"
+            echo "Coverage ${CURRENT}% ${BASELINE_MSG}: OK"
           fi
 
       # Serialize only strongly-typed values to JSON so ci-summary-report-publish.yml

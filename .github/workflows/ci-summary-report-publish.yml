@@ -80,12 +80,14 @@ jobs:
             # Get the PR's head SHA to find the CI Orchestrator run
             HEAD_SHA=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER" --jq '.head.sha')
 
-            # Find the latest CI Orchestrator run for this commit (success or failure)
-            RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/ci-orchestrator.yml/runs?head_sha=$HEAD_SHA&per_page=1" \
+            # Find the latest completed CI Orchestrator run for this commit.
+            # Filtering to status=completed avoids picking up an in-progress or
+            # queued run whose ci-summary artifact does not yet exist.
+            RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/ci-orchestrator.yml/runs?head_sha=$HEAD_SHA&status=completed&per_page=1" \
               --jq '.workflow_runs[0].id')
 
             if [ -z "$RUN_ID" ] || [ "$RUN_ID" == "null" ]; then
-              echo "::error::No CI Orchestrator run found for PR #$PR_NUMBER (SHA $HEAD_SHA)."
+              echo "::error::No completed CI Orchestrator run found for PR #$PR_NUMBER (SHA $HEAD_SHA)."
               exit 1
             fi
             echo "Found CI Orchestrator run $RUN_ID for PR #$PR_NUMBER"

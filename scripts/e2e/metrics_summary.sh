@@ -114,9 +114,7 @@ if [ ${#missing_diffs[@]} -gt 0 ]; then
     echo "(These snapshots did not produce a diff artifact — the verify-metrics-snapshot action may not have run.)"
 fi
 
-if [ ${#summary_files[@]} -eq 0 ]; then
-    echo "No metric changes detected."
-else
+if [ "$total_changes" -gt 0 ]; then
     echo "::error::${total_changes} metric change(s) detected across all snapshots"
     echo ""
     for summary_file in "${summary_files[@]}"; do
@@ -126,6 +124,8 @@ else
         cat "$summary_file"
         echo ""
     done
+else
+    echo "No metric changes detected."
 fi
 
 echo "Metrics diff processing completed"
