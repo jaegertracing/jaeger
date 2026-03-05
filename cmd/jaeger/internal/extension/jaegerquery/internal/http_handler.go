@@ -76,6 +76,7 @@ type APIHandler struct {
 	apiPrefix           string
 	logger              *zap.Logger
 	tracer              trace.TracerProvider
+	aiService           *AIService
 }
 
 // NewAPIHandler returns an APIHandler
@@ -121,6 +122,10 @@ func (aH *APIHandler) RegisterRoutes(router *http.ServeMux) {
 	aH.handleFunc(router, aH.errors, http.MethodGet, "/metrics/errors")
 	aH.handleFunc(router, aH.minStep, http.MethodGet, "/metrics/minstep")
 	aH.handleFunc(router, aH.getQualityMetrics, http.MethodGet, "/quality-metrics")
+	// AI-powered trace analysis (Level-1 PoC, #7832)
+	aH.handleFunc(router, aH.analyzeTraceAI, http.MethodPost, "/ai/analyze")
+	// AI-powered trace parameter generation (Phase 2, #7832)
+	aH.handleFunc(router, aH.generateSearchParamsAI, http.MethodPost, "/ai/search")
 }
 
 func (aH *APIHandler) handleFunc(
