@@ -376,5 +376,22 @@
       "NumTraces": 1000
     },
     "ExpectedFixtures": ["multiple1_trace", "multiple2_trace", "multiple3_trace"]
+  },
+  {
+    "Caption": "Scope Name and Version",
+    "Query": {
+      "ServiceName": "query23-service",
+      "OperationName": "",
+      "Tags": {
+        "otel.scope.name":"testing-library",
+        "otel.scope.version":"1.1.1"
+      },
+      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "DurationMin": 0,
+      "DurationMax": 0,
+      "NumTraces": 1000
+    },
+    "ExpectedFixtures": ["scope_name_version_trace"]
   }
 ]
