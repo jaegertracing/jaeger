@@ -78,6 +78,10 @@ func (s *Server) customer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response, err := s.database.Get(ctx, customerID)
+	if err != nil && err.Error() == "invalid customer ID" {
+		httperr.HandleError(w, err, http.StatusBadRequest)
+		return
+	}
 	if httperr.HandleError(w, err, http.StatusInternalServerError) {
 		s.logger.For(ctx).Error("request failed", zap.Error(err))
 		return
