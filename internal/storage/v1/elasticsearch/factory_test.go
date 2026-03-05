@@ -511,6 +511,10 @@ func TestElasticsearchFactoryBaseWithAuthenticator(t *testing.T) {
 	cfg := escfg.Configuration{
 		Servers:  []string{server.URL},
 		LogLevel: "debug",
+		BulkProcessing: escfg.BulkProcessing{
+			MaxBytes:   -1, // disable bulk
+			MaxActions: -1, // disable bulk; the test only validates authenticator setup
+		},
 	}
 
 	// Mock authenticator
