@@ -6,7 +6,7 @@
 # Enable debug tracing and exit on error
 set -exo pipefail
 
-METRICS_DIR="./.metrics"
+METRICS_DIR="${METRICS_DIR:-./.artifacts}"
 declare -a summary_files=()
 total_changes=0
 
@@ -14,20 +14,60 @@ echo "Starting metrics diff processing in directory: $METRICS_DIR"
 echo "Directory structure:"
 ls -la "$METRICS_DIR" || echo "Metrics directory listing failed"
 
+# Verify 1-to-1: every metrics_snapshot_* artifact must have a diff_metrics_snapshot_* artifact.
+# verify-metrics-snapshot always uploads a diff artifact on PRs (empty stub if no baseline),
+# so a missing diff dir means that action never ran for that snapshot — an infra failure.
+echo "=== Checking for missing diff artifacts ==="
+declare -a missing_diffs=()
+found_any_snapshot=false
+for snapshot_dir in "$METRICS_DIR"/metrics_snapshot_*/; do
+    [ -d "$snapshot_dir" ] || continue
+    found_any_snapshot=true
+    name=$(basename "$snapshot_dir")
+    if [ ! -d "$METRICS_DIR/diff_$name" ]; then
+        echo "::error::Missing diff artifact for snapshot: $name"
+        missing_diffs+=("$name")
+    else
+        echo "OK: diff_$name present"
+    fi
+done
+if [ "$found_any_snapshot" = false ]; then
+    echo "::error::No metrics_snapshot_* artifacts found; E2E jobs may not have run"
+    missing_diffs+=("(no snapshot artifacts found)")
+fi
+if [ ${#missing_diffs[@]} -gt 0 ]; then
+    echo "INFRA_ERRORS=true" >> "$GITHUB_OUTPUT"
+else
+    echo "INFRA_ERRORS=false" >> "$GITHUB_OUTPUT"
+fi
+
 # Debug: List all diff files found
 echo "=== Searching for diff files ==="
 find "$METRICS_DIR" -type f -name "diff_*.txt" | while read -r file; do
     echo "Found diff file: $file"
 done
 
-# Process all diff files
+# Process all non-empty diff files.
+# Empty diff files are stubs uploaded by verify-metrics-snapshot when there is no
+# baseline or when compare_metrics.py found no differences (it only writes to the
+# output file when differences exist). The 1-to-1 directory check above already
+# verified the action ran; here we only want to summarise actual changes.
 while IFS= read -r -d '' diff_file; do
+    if [ ! -s "$diff_file" ]; then
+        echo "Skipping empty diff file (no changes or no baseline): $diff_file"
+        continue
+    fi
     echo "Processing diff file: $diff_file"
 
-    # Extract the base name (e.g., diff_metrics_snapshot_cassandra.txt -> metrics_snapshot_cassandra)
-    base_name=$(basename "$diff_file" .txt)
-    snapshot_name=${base_name#diff_}
+    # Derive the unique snapshot name from the artifact directory (e.g.,
+    # diff_metrics_snapshot_cassandras_4.x_v004_v2_manual -> metrics_snapshot_cassandras_4.x_v004_v2_manual).
+    # Using the directory rather than the file name is necessary because all matrix
+    # variants of the same backend share an identical file name inside their artifact
+    # (e.g., diff_metrics_snapshot_cassandra.txt), while the artifact directory name
+    # is always unique (it includes major version, schema, jaeger-version, etc.).
     dir=$(dirname "$diff_file")
+    snapshot_name=$(basename "$dir")
+    snapshot_name=${snapshot_name#diff_}
 
     # Generate summary for this diff
     summary_file="$dir/summary_$snapshot_name.md"
@@ -44,11 +84,9 @@ done < <(find "$METRICS_DIR" -type f -name "diff_*.txt" -print0)
 # Output results
 # Calculate total changes across all files
 total_changes=0
-has_error=false
 
 if [ ${#summary_files[@]} -eq 0 ]; then
-    echo "ERROR: No summary files were generated. Expected at least 8 diff files from CI." >&2
-    has_error=true
+    echo "No diff files found; all metrics are within baseline."
 else
     for summary_file in "${summary_files[@]}"; do
         changes=$(grep -F "**Total Changes:**" "$summary_file" | awk '{print $3}')
@@ -58,43 +96,38 @@ fi
 
 echo "Total changes across all snapshots: $total_changes"
 echo "TOTAL_CHANGES=$total_changes" >> "$GITHUB_OUTPUT"
-echo "HAS_ERROR=$has_error" >> "$GITHUB_OUTPUT"
 
-# Always generate combined summary report
-combined_file="$METRICS_DIR/combined_summary.md"
-echo "## Metrics Comparison Summary" > "$combined_file"
-
-if [ "$has_error" = true ]; then
-    {
-      echo ""
-      echo "❌ **ERROR: No summary files were generated. Expected at least 8 diff files from CI.**"
-      echo ""
-      echo "This indicates a failure in the E2E test execution or metrics collection process."
-      echo ""
-    } >> "$combined_file"
+if [ ${#missing_diffs[@]} -gt 0 ]; then
+    echo "CONCLUSION=failure" >> "$GITHUB_OUTPUT"
+elif [ "$total_changes" -gt 0 ]; then
+    echo "CONCLUSION=failure" >> "$GITHUB_OUTPUT"
 else
-    {
-      echo ""
-      echo "Total changes across all snapshots: $total_changes"
-      echo ""
-      echo "<details>"
-      echo "<summary>Detailed changes per snapshot</summary>"
-      echo ""
-    } >> "$combined_file"
-
-    for summary_file in "${summary_files[@]}"; do
-        echo "Appending $summary_file to combined summary"
-        {
-          echo "### $(basename "$summary_file" .md)"
-          cat "$summary_file"
-        } >> "$combined_file"
-        echo "" >> "$combined_file"
-    done
-
-    echo "</details>" >> "$combined_file"
+    echo "CONCLUSION=success" >> "$GITHUB_OUTPUT"
 fi
 
-echo -e "\n\n➡️ [View full metrics file]($LINK_TO_ARTIFACT)" >> "$combined_file"
+# Log the combined summary to the console (visible in CI run logs).
+# Structured conclusions are already emitted to $GITHUB_OUTPUT above.
+echo "=== Metrics Comparison Summary ==="
 
+if [ ${#missing_diffs[@]} -gt 0 ]; then
+    echo "::error::Infrastructure error: diff artifacts missing for: ${missing_diffs[*]}"
+    echo "(These snapshots did not produce a diff artifact — the verify-metrics-snapshot action may not have run.)"
+fi
+
+if [ "$total_changes" -gt 0 ]; then
+    echo "::error::${total_changes} metric change(s) detected across all snapshots"
+    echo ""
+    for summary_file in "${summary_files[@]}"; do
+        file_name=$(basename "$summary_file" .md)
+        echo "--- ${file_name} ---"
+        echo ""
+        cat "$summary_file"
+        echo ""
+    done
+elif [ ${#missing_diffs[@]} -gt 0 ]; then
+    echo "No metric changes in available diffs, but some diff artifacts were missing (see above)."
+else
+    echo "No metric changes detected."
+fi
 
 echo "Metrics diff processing completed"

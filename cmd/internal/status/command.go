@@ -31,7 +31,7 @@ func Command(v *viper.Viper, adminPort int) *cobra.Command {
 			ctx, cx := context.WithTimeout(context.Background(), time.Second)
 			defer cx()
 			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := http.DefaultClient.Do(req) //nolint:gosec // G704 - URL from internal config
 			if err != nil {
 				return err
 			}

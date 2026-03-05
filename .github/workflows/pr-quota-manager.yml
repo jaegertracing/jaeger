@@ -47,5 +47,5 @@ jobs:
             }
             const owner = context.repo.owner
             const repo = context.repo.repo
-            const dryRun = context.payload.inputs?.dryRun || false
+            const dryRun = context.payload.inputs?.dryRun === 'true'
             await handler({github, core, username, owner, repo, dryRun})

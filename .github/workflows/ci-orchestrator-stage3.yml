@@ -1,0 +1,37 @@
+name: "CI Orchestrator: Stage 3 (Docker, E2E, Binaries, Static Analysis)"
+
+on:
+  workflow_call:
+
+jobs:
+  build-binaries:
+    uses: ./.github/workflows/ci-build-binaries.yml
+    secrets: inherit
+
+  docker-build:
+    uses: ./.github/workflows/ci-docker-build.yml
+    secrets: inherit
+
+  docker-all-in-one:
+    uses: ./.github/workflows/ci-docker-all-in-one.yml
+    secrets: inherit
+
+  docker-hotrod:
+    uses: ./.github/workflows/ci-docker-hotrod.yml
+    secrets: inherit
+
+  e2e-tests:
+    uses: ./.github/workflows/ci-e2e-all.yml
+    secrets: inherit
+
+  codeql:
+    uses: ./.github/workflows/codeql.yml
+    secrets: inherit
+
+  dependency-review:
+    uses: ./.github/workflows/dependency-review.yml
+    secrets: inherit
+
+  fossa:
+    uses: ./.github/workflows/fossa.yml
+    secrets: inherit

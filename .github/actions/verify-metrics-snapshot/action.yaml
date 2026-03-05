@@ -14,7 +14,7 @@ runs:
   using: 'composite'
   steps:
     - name: Upload current metrics snapshot
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: ${{ inputs.artifact_key }}
         path: ./.metrics/${{ inputs.snapshot }}.txt
@@ -47,6 +47,15 @@ runs:
         restore-keys: |
           ${{ inputs.artifact_key }}
 
+    # Create an empty stub so the diff artifact is always uploaded on PRs.
+    # The fan-in uses 1-to-1 presence of diff artifacts to detect infra failures
+    # (a missing diff_* artifact means this action never ran for that snapshot).
+    # The stub is overwritten by the compare step when a baseline exists.
+    - name: Create diff file stub
+      if: github.ref_name != 'main'
+      shell: bash
+      run: touch ./.metrics/diff_${{ inputs.snapshot }}.txt
+
     - name: Calculate diff between the snapshots
       id: compare-snapshots
       if: ${{ (github.ref_name != 'main') && (steps.download-release-snapshot.outputs.cache-matched-key != '')  }}
@@ -61,9 +70,11 @@ runs:
           echo "has_diff=true" >> $GITHUB_OUTPUT
         fi
 
+    # Always upload the diff artifact on PRs (even when empty / no baseline yet).
+    # Presence of this artifact in the fan-in proves this action ran for the snapshot.
     - name: Upload the diff artifact
-      if: ${{ (github.ref_name != 'main') && (steps.compare-snapshots.outputs.has_diff == 'true') }}
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      if: github.ref_name != 'main'
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: diff_${{ inputs.artifact_key }}
         path: ./.metrics/diff_${{ inputs.snapshot }}.txt

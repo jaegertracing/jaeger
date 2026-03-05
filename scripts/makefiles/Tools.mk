@@ -14,6 +14,7 @@ GOVULNCHECK   := $(TOOLS_BIN_DIR)/govulncheck
 LINT          := $(TOOLS_BIN_DIR)/golangci-lint
 MOCKERY       := $(TOOLS_BIN_DIR)/mockery
 SCHEMAGEN     := $(TOOLS_BIN_DIR)/schemagen
+GOCOVMERGE    := $(TOOLS_BIN_DIR)/gocovmerge
 
 # this target is useful for setting up local workspace, but from CI we want to call more specific ones
 .PHONY: install-tools
@@ -21,6 +22,9 @@ install-tools: $(TOOLS_BIN_NAMES)
 
 .PHONY: install-test-tools
 install-test-tools: $(LINT) $(GOFUMPT)
+
+.PHONY: install-coverage-tools
+install-coverage-tools: $(GOCOVMERGE)
 
 .PHONY: install-ci
 install-ci: install-test-tools
