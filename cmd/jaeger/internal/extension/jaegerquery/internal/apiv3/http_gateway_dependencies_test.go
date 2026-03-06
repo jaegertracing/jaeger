@@ -73,7 +73,7 @@ func TestHTTPGatewayGetDependencies(t *testing.T) {
 		Dependencies []struct {
 			Parent    string `json:"parent"`
 			Child     string `json:"child"`
-			CallCount uint64 `json:"callCount"`
+			CallCount string `json:"callCount"`
 			Source    string `json:"source"`
 		} `json:"dependencies"`
 	}
@@ -84,7 +84,7 @@ func TestHTTPGatewayGetDependencies(t *testing.T) {
 	assert.Len(t, response.Dependencies, 2)
 	assert.Equal(t, "frontend", response.Dependencies[0].Parent)
 	assert.Equal(t, "backend", response.Dependencies[0].Child)
-	assert.Equal(t, uint64(100), response.Dependencies[0].CallCount)
+	assert.Equal(t, "100", response.Dependencies[0].CallCount)
 	assert.Equal(t, "traces", response.Dependencies[0].Source)
 }
 
@@ -132,6 +132,11 @@ func TestHTTPGatewayGetDependenciesErrors(t *testing.T) {
 			url:            "/api/v3/dependencies?end_time=2026-01-24T16:00:00Z&lookback=invalid",
 			expectedStatus: http.StatusBadRequest,
 		},
+		{
+			name:           "negative lookback",
+			url:            "/api/v3/dependencies?end_time=2026-01-24T16:00:00Z&lookback=-24h",
+			expectedStatus: http.StatusBadRequest,
+		},
 	}
 
 	for _, tt := range tests {
@@ -162,7 +167,7 @@ func TestHTTPGatewayGetDependencies_StorageError(t *testing.T) {
 		Tracer:       noop.NewTracerProvider(),
 	}
 
-	depReader.On("GetDependencies", mock.Anything, mock.Anything, mock.Anything).Return(nil, assert.AnError)
+	depReader.On("GetDependencies", mock.Anything, mock.Anything).Return(nil, assert.AnError)
 
 	router := mux.NewRouter()
 	gateway.RegisterRoutes(router)
