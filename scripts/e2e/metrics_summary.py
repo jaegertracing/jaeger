@@ -5,13 +5,16 @@ import argparse
 from collections import defaultdict
 from prometheus_client.parser import text_string_to_metric_families
 
+EXCLUDED_LABELS = {'service_instance_id', 'otel_scope_version'}
+
 def parse_metrics(content):
     metrics = []
     for family in text_string_to_metric_families(content):
         for sample in family.samples:
             labels = dict(sample.labels)
-            # Simply pop undesirable metric labels to match the diff generation
-            labels.pop('service_instance_id', None)
+            # Remove undesirable metric labels to match the diff generation
+            for label in EXCLUDED_LABELS:
+                labels.pop(label, None)
             label_pairs = sorted(labels.items(), key=lambda x: x[0])
             label_str = ','.join(f'{k}="{v}"' for k, v in label_pairs)
             metric = f"{family.name}{{{label_str}}}"
@@ -48,7 +51,7 @@ def parse_diff_file(diff_path):
         # Skip diff headers
         if stripped.startswith('+++') or stripped.startswith('---'):
             continue
-        # Check if this line contains a metric change    
+        # Check if this line contains a metric change
         if stripped.startswith('+') or stripped.startswith('-'):
             metric_name = extract_metric_name(stripped[1:].strip())
             if metric_name:
