@@ -3,23 +3,6 @@
 
 import argparse
 from collections import defaultdict
-from prometheus_client.parser import text_string_to_metric_families
-
-EXCLUDED_LABELS = {'service_instance_id', 'otel_scope_version'}
-
-def parse_metrics(content):
-    metrics = []
-    for family in text_string_to_metric_families(content):
-        for sample in family.samples:
-            labels = dict(sample.labels)
-            # Remove undesirable metric labels to match the diff generation
-            for label in EXCLUDED_LABELS:
-                labels.pop(label, None)
-            label_pairs = sorted(labels.items(), key=lambda x: x[0])
-            label_str = ','.join(f'{k}="{v}"' for k, v in label_pairs)
-            metric = f"{family.name}{{{label_str}}}"
-            metrics.append(metric)
-    return metrics
 
 def parse_diff_file(diff_path):
     """
