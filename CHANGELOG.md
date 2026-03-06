@@ -28,7 +28,7 @@ v2.16.0 (2026-03-06)
 
 #### ⛔ Breaking Changes
 
-* Enforce go version n across codebase, upgrade to 1.25.7 ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#8052](https://github.com/jaegertracing/jaeger/pull/8052))
+* Enforce Go version consistency across the codebase; require Go 1.25.7 ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#8052](https://github.com/jaegertracing/jaeger/pull/8052))
 * Remove legacy response format of remote sampling endpoint ([@yurishkuro](https://github.com/yurishkuro) in [#8014](https://github.com/jaegertracing/jaeger/pull/8014))
 
 #### ✨ New Features
@@ -75,7 +75,7 @@ v2.16.0 (2026-03-06)
 #### ⚙️ Refactoring
 
 * Apply `go fix ./...` ([@yurishkuro](https://github.com/yurishkuro) in [#8074](https://github.com/jaegertracing/jaeger/pull/8074))
-* Migrate http servers from gorilla mux to stdlib http.servemux ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#8013](https://github.com/jaegertracing/jaeger/pull/8013))
+* Migrate http servers from gorilla mux to stdlib http.ServeMux ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#8013](https://github.com/jaegertracing/jaeger/pull/8013))
 * Remove legacy sampling strategy marshaling code ([@yurishkuro](https://github.com/yurishkuro) in [#8017](https://github.com/jaegertracing/jaeger/pull/8017))
 
 #### 📖 Documentation
