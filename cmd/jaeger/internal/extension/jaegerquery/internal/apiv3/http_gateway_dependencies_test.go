@@ -53,7 +53,7 @@ func TestHTTPGatewayGetDependencies(t *testing.T) {
 		},
 	}
 
-	depReader.On("GetDependencies", mock.Anything, mock.Anything, mock.Anything).Return(expectedDeps, nil)
+	depReader.On("GetDependencies", mock.Anything, mock.Anything).Return(expectedDeps, nil)
 
 	router := mux.NewRouter()
 	gateway.RegisterRoutes(router)

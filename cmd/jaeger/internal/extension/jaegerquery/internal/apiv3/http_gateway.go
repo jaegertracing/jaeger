@@ -58,30 +58,34 @@ type HTTPGateway struct {
 	QueryService *querysvc.QueryService
 	Logger       *zap.Logger
 	Tracer       trace.TracerProvider
+	BasePath     string
 }
 
 // RegisterRoutes registers HTTP endpoints for APIv3 into provided mux.
-// The called can create a subrouter if it needs to prepend a base path.
-func (h *HTTPGateway) RegisterRoutes(router *mux.Router) {
-	h.addRoute(router, h.getTrace, routeGetTrace).Methods(http.MethodGet)
-	h.addRoute(router, h.findTraces, routeFindTraces).Methods(http.MethodGet)
-	h.addRoute(router, h.getServices, routeGetServices).Methods(http.MethodGet)
-	h.addRoute(router, h.getOperations, routeGetOperations).Methods(http.MethodGet)
-	h.addRoute(router, h.getDependencies, routeGetDependencies).Methods(http.MethodGet)
+// The caller can create a subrouter if it needs to prepend a base path.
+func (h *HTTPGateway) RegisterRoutes(router interface {
+	HandleFunc(pattern string, handler func(http.ResponseWriter, *http.Request))
+}) {
+	h.addRoute(router, h.getTrace, routeGetTrace)
+	h.addRoute(router, h.findTraces, routeFindTraces)
+	h.addRoute(router, h.getServices, routeGetServices)
+	h.addRoute(router, h.getOperations, routeGetOperations)
+	h.addRoute(router, h.getDependencies, routeGetDependencies)
 }
 
 // addRoute adds a new endpoint to the router with given path and handler function.
 // This code is mostly copied from ../http_handler.
 func (*HTTPGateway) addRoute(
-	router *mux.Router,
+	router interface {
+		HandleFunc(pattern string, handler func(http.ResponseWriter, *http.Request))
+	},
 	f func(http.ResponseWriter, *http.Request),
 	route string,
-	_ ...any, /* args */
-) *mux.Route {
+) {
 	var handler http.Handler = http.HandlerFunc(f)
-	handler = otelhttp.WithRouteTag(route, handler)
+	handler = otelhttp.NewHandler(handler, route)
 	handler = spanNameHandler(route, handler)
-	return router.HandleFunc(route, handler.ServeHTTP)
+	router.HandleFunc(route, handler.ServeHTTP)
 }
 
 // tryHandleError checks if the passed error is not nil and handles it by writing
@@ -153,8 +157,11 @@ func (h *HTTPGateway) returnTraces(traces []ptrace.Traces, err error, w http.Res
 	h.returnTrace(combinedTrace, w)
 }
 
-func (*HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWriter) {
-	_ = new(jsonpb.Marshaler).Marshal(w, response)
+func (h *HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := new(jsonpb.Marshaler).Marshal(w, response); err != nil {
+		h.Logger.Error("failed to marshal response", zap.Error(err))
+	}
 }
 
 func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
@@ -309,8 +316,7 @@ func (h *HTTPGateway) getDependencies(w http.ResponseWriter, r *http.Request) {
 	lookbackStr := q.Get(paramLookback)
 
 	if endTimeStr == "" || lookbackStr == "" {
-		err := fmt.Errorf("%s and %s are required", paramEndTime, paramLookback)
-		h.tryHandleError(w, err, http.StatusBadRequest)
+		h.tryHandleError(w, errors.New("both end_time and lookback are required"), http.StatusBadRequest)
 		return
 	}
 

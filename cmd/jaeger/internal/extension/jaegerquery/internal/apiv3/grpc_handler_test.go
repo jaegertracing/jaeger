@@ -28,7 +28,7 @@ import (
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
 
-var matchContext = mock.AnythingOfType("*context.valueCtx")
+var matchContext = mock.MatchedBy(func(ctx context.Context) bool { return true })
 
 func newGrpcServer(t *testing.T, handler *Handler) (*grpc.Server, net.Addr) {
 	server := grpc.NewServer()
