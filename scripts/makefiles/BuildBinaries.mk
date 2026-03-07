@@ -141,10 +141,6 @@ build-binaries-linux-ppc64le:
 
 # build all binaries for one specific platform GOOS/GOARCH
 .PHONY: _build-platform-binaries
-# skip debug builds if SKIP_DEBUG_BINARIES is set to 1 (e.g., during PRs to save CI time)
-ifneq ($(SKIP_DEBUG_BINARIES),1)
-_build-platform-binaries: _build-platform-binaries-debug
-endif
 _build-platform-binaries: \
 		build-jaeger \
 		build-remote-storage \
@@ -154,6 +150,10 @@ _build-platform-binaries: \
 		build-esmapping-generator \
 		build-es-index-cleaner \
 		build-es-rollover
+# skip debug builds if SKIP_DEBUG_BINARIES is set to 1 (e.g., during PRs to save CI time)
+ifneq ($(SKIP_DEBUG_BINARIES),1)
+_build-platform-binaries: _build-platform-binaries-debug
+endif
 
 # build binaries that support DEBUG release, for one specific platform GOOS/GOARCH
 # Uses recursive make calls so that DEBUG_BINARY=1 is set at parse time,
