@@ -99,7 +99,6 @@ func registerGRPCHandlers(
 
 	api_v2.RegisterQueryServiceServer(server, handler)
 	api_v3.RegisterQueryServiceServer(server, &apiv3.Handler{QueryService: querySvc})
-
 	healthServer.SetServingStatus("jaeger.api_v2.QueryService", grpc_health_v1.HealthCheckResponse_SERVING)
 	healthServer.SetServingStatus("jaeger.api_v2.metrics.MetricsQueryService", grpc_health_v1.HealthCheckResponse_SERVING)
 	healthServer.SetServingStatus("jaeger.api_v3.QueryService", grpc_health_v1.HealthCheckResponse_SERVING)
