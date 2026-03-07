@@ -161,8 +161,7 @@ endif
 # ensuring SUFFIX=-debug is correctly evaluated in the ifeq conditional at the top.
 .PHONY: _build-platform-binaries-debug
 _build-platform-binaries-debug:
-	$(MAKE) build-jaeger GOOS=$(GOOS) GOARCH=$(GOARCH) DEBUG_BINARY=1
-	$(MAKE) build-remote-storage GOOS=$(GOOS) GOARCH=$(GOARCH) DEBUG_BINARY=1
+	$(MAKE) build-jaeger build-remote-storage GOOS=$(GOOS) GOARCH=$(GOARCH) DEBUG_BINARY=1
 
 .PHONY: build-all-platforms
 build-all-platforms:
