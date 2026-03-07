@@ -141,6 +141,10 @@ build-binaries-linux-ppc64le:
 
 # build all binaries for one specific platform GOOS/GOARCH
 .PHONY: _build-platform-binaries
+# skip debug builds if SKIP_DEBUG_BINARIES is set to 1 (e.g., during PRs to save CI time)
+ifneq ($(SKIP_DEBUG_BINARIES),1)
+_build-platform-binaries: _build-platform-binaries-debug
+endif
 _build-platform-binaries: \
 		build-jaeger \
 		build-remote-storage \
@@ -150,18 +154,14 @@ _build-platform-binaries: \
 		build-esmapping-generator \
 		build-es-index-cleaner \
 		build-es-rollover
-# invoke make recursively with DEBUG_BINARY=1 so that the ifeq conditional at the
-# top of the file is re-evaluated in the child process and SUFFIX is set to -debug.
-# skip debug builds if SKIP_DEBUG_BINARIES is set to 1 (e.g., during PRs to save CI time)
-ifneq ($(SKIP_DEBUG_BINARIES),1)
-	$(MAKE) _build-platform-binaries-debug GOOS=$(GOOS) GOARCH=$(GOARCH) DEBUG_BINARY=1
-endif
 
 # build binaries that support DEBUG release, for one specific platform GOOS/GOARCH
+# Uses recursive make calls so that DEBUG_BINARY=1 is set at parse time,
+# ensuring SUFFIX=-debug is correctly evaluated in the ifeq conditional at the top.
 .PHONY: _build-platform-binaries-debug
-_build-platform-binaries-debug: \
-	build-jaeger \
-	build-remote-storage
+_build-platform-binaries-debug:
+	$(MAKE) build-jaeger GOOS=$(GOOS) GOARCH=$(GOARCH) DEBUG_BINARY=1
+	$(MAKE) build-remote-storage GOOS=$(GOOS) GOARCH=$(GOARCH) DEBUG_BINARY=1
 
 .PHONY: build-all-platforms
 build-all-platforms:
