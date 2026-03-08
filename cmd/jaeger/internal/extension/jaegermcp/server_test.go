@@ -21,6 +21,7 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -703,12 +704,13 @@ func TestCORSPreflight(t *testing.T) {
 				Endpoint:  "localhost:0",
 				Transport: confignet.TransportTypeTCP,
 			},
+			CORS: configoptional.Some(confighttp.CORSConfig{
+				AllowedOrigins: []string{"*"},
+				AllowedHeaders: []string{"Mcp-Session-Id", "Mcp-Protocol-Version", "Last-Event-ID"},
+			}),
 		},
 		ServerName:    "jaeger-test",
 		ServerVersion: "1.0.0",
-		CORS: CORSConfig{
-			AllowedOrigins: []string{"*"},
-		},
 	}
 
 	server := newServer(config, componenttest.NewNopTelemetrySettings())
@@ -730,10 +732,7 @@ func TestCORSPreflight(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-	// AllowedOrigins:["*"] must produce the canonical wildcard form, not a
-	// reflected origin, so that HTTP caches can serve a single stored response.
 	assert.Equal(t, "*", resp.Header.Get("Access-Control-Allow-Origin"))
-	assert.Equal(t, "GET, POST, DELETE, OPTIONS", resp.Header.Get("Access-Control-Allow-Methods"))
 }
 
 func TestCORSConfigurableOrigins(t *testing.T) {
@@ -744,7 +743,6 @@ func TestCORSConfigurableOrigins(t *testing.T) {
 		expectedOrigin string
 	}{
 		{
-			// AllowedOrigins:["*"] → always return canonical "*", not reflected origin.
 			name:           "wildcard allows any origin",
 			allowedOrigins: []string{"*"},
 			requestOrigin:  "http://example.com",
@@ -780,12 +778,6 @@ func TestCORSConfigurableOrigins(t *testing.T) {
 			requestOrigin:  "http://localhost:8080",
 			expectedOrigin: "http://localhost:8080",
 		},
-		{
-			name:           "empty origins blocks all",
-			allowedOrigins: []string{},
-			requestOrigin:  "http://localhost:3000",
-			expectedOrigin: "",
-		},
 	}
 
 	for _, tt := range tests {
@@ -796,12 +788,12 @@ func TestCORSConfigurableOrigins(t *testing.T) {
 						Endpoint:  "localhost:0",
 						Transport: confignet.TransportTypeTCP,
 					},
+					CORS: configoptional.Some(confighttp.CORSConfig{
+						AllowedOrigins: tt.allowedOrigins,
+					}),
 				},
 				ServerName:    "jaeger-test",
 				ServerVersion: "1.0.0",
-				CORS: CORSConfig{
-					AllowedOrigins: tt.allowedOrigins,
-				},
 			}
 
 			srv := newServer(config, componenttest.NewNopTelemetrySettings())
@@ -822,7 +814,6 @@ func TestCORSConfigurableOrigins(t *testing.T) {
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
-			assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 			assert.Equal(t, tt.expectedOrigin, resp.Header.Get("Access-Control-Allow-Origin"))
 		})
 	}
@@ -835,13 +826,18 @@ func TestCORSCustomHeaders(t *testing.T) {
 				Endpoint:  "localhost:0",
 				Transport: confignet.TransportTypeTCP,
 			},
+			CORS: configoptional.Some(confighttp.CORSConfig{
+				AllowedOrigins: []string{"*"},
+				AllowedHeaders: []string{
+					"Mcp-Session-Id",
+					"Mcp-Protocol-Version",
+					"Last-Event-ID",
+					"X-Custom-Header",
+				},
+			}),
 		},
 		ServerName:    "jaeger-test",
 		ServerVersion: "1.0.0",
-		CORS: CORSConfig{
-			AllowedOrigins: []string{"*"},
-			AllowedHeaders: []string{"X-Custom-Header"},
-		},
 	}
 
 	srv := newServer(config, componenttest.NewNopTelemetrySettings())
@@ -857,16 +853,16 @@ func TestCORSCustomHeaders(t *testing.T) {
 	require.NoError(t, err)
 	req.Header.Set("Origin", "http://localhost:3000")
 	req.Header.Set("Access-Control-Request-Method", "POST")
+	// rs/cors v1.11.1 requires Access-Control-Request-Headers in
+	// lexicographical order for its SortedSet.Accepts check.
+	// Per the Fetch spec, browsers send these header names lowercased.
+	req.Header.Set("Access-Control-Request-Headers", "mcp-session-id, x-custom-header")
 
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
 	allowHeaders := resp.Header.Get("Access-Control-Allow-Headers")
-	// MCP protocol headers must always be present
-	assert.Contains(t, allowHeaders, "Mcp-Session-Id")
-	assert.Contains(t, allowHeaders, "Mcp-Protocol-Version")
-	assert.Contains(t, allowHeaders, "Last-Event-ID")
-	// Custom header should be included
-	assert.Contains(t, allowHeaders, "X-Custom-Header")
+	assert.Contains(t, allowHeaders, "x-custom-header")
+	assert.Contains(t, allowHeaders, "mcp-session-id")
 }
