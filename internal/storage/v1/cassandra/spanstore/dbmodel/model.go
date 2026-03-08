@@ -26,6 +26,10 @@ const (
 	BinaryType  = "binary"
 )
 
+type Trace struct {
+	Spans []Span
+}
+
 // Span is the database representation of a span.
 type Span struct {
 	TraceID       TraceID

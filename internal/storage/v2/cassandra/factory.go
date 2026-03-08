@@ -13,7 +13,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
-	cspanstore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/tracestoremetrics"
@@ -45,19 +44,14 @@ func NewFactory(opts cassandra.Options, telset telemetry.Settings) (*Factory, er
 }
 
 func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
-	corereader, err := cspanstore.NewSpanReader(
-		f.v1Factory.GetSession(),
+	reader, err := ctracestore.NewTraceReader(f.v1Factory.GetSession(),
 		f.metricsFactory,
 		f.logger,
-		f.tracer.Tracer("cSpanStore.SpanReader"),
-	)
+		f.tracer.Tracer("ctracestore.TraceReader"))
 	if err != nil {
 		return nil, err
 	}
-	return tracestoremetrics.NewReaderDecorator(
-		ctracestore.NewTraceReader(corereader),
-		f.metricsFactory,
-	), nil
+	return tracestoremetrics.NewReaderDecorator(reader, f.metricsFactory), nil
 }
 
 func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
