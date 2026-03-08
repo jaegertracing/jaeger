@@ -327,6 +327,31 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 			},
 			expErr: paramQueryRawTraces,
 		},
+		{
+			name:   "bad limit",
+			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramLimit: "NaN"},
+			expErr: paramLimit,
+		},
+		{
+			name:   "bad limit strictly positive",
+			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramLimit: "0"},
+			expErr: paramLimit,
+		},
+		{
+			name:   "bad numTraces strictly positive",
+			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramNumTraces: "-5"},
+			expErr: paramNumTraces,
+		},
+		{
+			name:   "conflict limit and numTraces",
+			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramLimit: "10", paramNumTraces: "20"},
+			expErr: paramLimit,
+		},
+		{
+			name:   "bad attributes",
+			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramAttributes: "foo"},
+			expErr: paramAttributes,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -426,5 +451,40 @@ func TestHTTPGatewayGetServicesEmptyResponse(t *testing.T) {
 	gw.router.ServeHTTP(w, r)
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.JSONEq(t, `{"services":[]}`, w.Body.String())
+	gw.reader.AssertExpectations(t)
+}
+
+func TestHTTPGatewayFindTracesSuccess(t *testing.T) {
+	time1 := time.Now().UTC().Truncate(time.Nanosecond)
+	time2 := time1.Add(time.Second).UTC().Truncate(time.Nanosecond)
+
+	q := url.Values{}
+	q.Set(paramTimeMin, time1.Format(time.RFC3339Nano))
+	q.Set(paramTimeMax, time2.Format(time.RFC3339Nano))
+	q.Set(paramLimit, "50")
+	q.Set(paramAttributes, `{"http.status_code":"200","span.kind":"client"}`)
+
+	qp := tracestore.TraceQueryParams{
+		Attributes:   pcommon.NewMap(),
+		StartTimeMin: time1,
+		StartTimeMax: time2,
+		SearchDepth:  50,
+	}
+	qp.Attributes.PutStr("http.status_code", "200")
+	qp.Attributes.PutStr("span.kind", "client")
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+
+	gw := setupHTTPGatewayNoServer(t, "")
+	gw.reader.
+		On("FindTraces", matchContext, qp).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{makeTestTrace()}, nil)
+		})).Once()
+
+	gw.router.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusOK, w.Code)
 	gw.reader.AssertExpectations(t)
 }
