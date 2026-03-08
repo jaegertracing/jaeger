@@ -117,6 +117,10 @@ func (r *Reader) buildFindTraceIDsQuery(
 	// Build the inner subquery that finds distinct trace IDs from spans.
 	var inner strings.Builder
 	inner.WriteString(sql.SearchTraceIDsBase)
+	// rightQ accumulates additional WHERE conditions pushed into the
+	// trace_id_timestamps JOIN to reduce its scan range.
+	var rightQ strings.Builder
+	var rightArgs []any
 	args := []any{}
 
 	if query.ServiceName != "" {
@@ -138,10 +142,16 @@ func (r *Reader) buildFindTraceIDsQuery(
 	if !query.StartTimeMin.IsZero() {
 		appendAnd(&inner, "s.start_time >= ?")
 		args = append(args, query.StartTimeMin)
+		// Push the lower bound into trace_id_timestamps JOIN to limit its scan.
+		appendAnd(&rightQ, "start >= ?")
+		rightArgs = append(rightArgs, query.StartTimeMin)
 	}
 	if !query.StartTimeMax.IsZero() {
 		appendAnd(&inner, "s.start_time <= ?")
 		args = append(args, query.StartTimeMax)
+		// Push the upper bound into trace_id_timestamps JOIN to limit its scan.
+		appendAnd(&rightQ, "end <= ?")
+		rightArgs = append(rightArgs, query.StartTimeMax)
 	}
 
 	attributeMetadata, err := r.getAttributeMetadata(ctx, query.Attributes)
@@ -157,9 +167,11 @@ func (r *Reader) buildFindTraceIDsQuery(
 	inner.WriteString("\nLIMIT ?")
 	args = append(args, limit)
 
-	// Wrap the inner subquery with a JOIN to trace_id_timestamps
-	// to retrieve start/end times only for the limited set of trace IDs.
-	q := fmt.Sprintf(sql.SearchTraceIDs, indentBlock(inner.String()))
+	// Wrap the inner subquery with a JOIN to trace_id_timestamps.
+	// The second argument injects optional timestamp bounds into the JOIN
+	// to avoid scanning the full trace_id_timestamps table.
+	q := fmt.Sprintf(sql.SearchTraceIDs, indentBlock(inner.String()), rightQ.String())
+	args = append(args, rightArgs...)
 
 	return q, args, nil
 }
