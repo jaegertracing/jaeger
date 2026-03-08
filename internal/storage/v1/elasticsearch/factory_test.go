@@ -428,6 +428,12 @@ func runPasswordFromFileTest(t *testing.T) {
 		"expecting es.Client to change for the new password",
 	)
 
+	// Give the old client time to fully shut down its background goroutines
+	// (e.g., health checks) after being closed in onClientPasswordChange.
+	// This prevents flakiness where the old client might still make requests
+	// with the old password after the client has been swapped.
+	time.Sleep(100 * time.Millisecond)
+
 	span2 := &dbmodel.Span{
 		Process: dbmodel.Process{ServiceName: "foo"},
 	}
