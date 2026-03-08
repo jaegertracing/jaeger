@@ -168,7 +168,7 @@ storage:
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 	require.NotNil(t, cfg)
-	require.Equal(t, ":17271", cfg.GRPC.NetAddr.Endpoint)
+	require.Equal(t, "127.0.0.1:17271", cfg.GRPC.NetAddr.Endpoint)
 	require.Len(t, cfg.Storage.TraceBackends, 1)
 	require.NotNil(t, cfg.Storage.TraceBackends["memory"].Memory)
 	require.Equal(t, "memory", cfg.GetStorageName())

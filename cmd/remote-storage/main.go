@@ -37,7 +37,7 @@ const serviceName = "jaeger-remote-storage"
 func loadConfig(v *viper.Viper, logger *zap.Logger) (*app.Config, error) {
 	// If viper config is not provided, use defaults
 	if v.ConfigFileUsed() == "" {
-		logger.Info("No configuration file provided, using default configuration (memory storage on :17271)")
+		logger.Info("No configuration file provided, using default configuration (memory storage on 127.0.0.1:17271)")
 		return app.DefaultConfig(), nil
 	}
 
