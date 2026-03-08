@@ -9,6 +9,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/extension"
 
 	"github.com/jaegertracing/jaeger/internal/version"
@@ -43,6 +44,14 @@ func createDefaultConfig() component.Config {
 				Endpoint:  ports.PortToHostPort(ports.MCPHTTP),
 				Transport: confignet.TransportTypeTCP,
 			},
+			CORS: configoptional.Some(confighttp.CORSConfig{
+				AllowedOrigins: []string{"*"},
+				AllowedHeaders: []string{
+					"Mcp-Session-Id",
+					"Mcp-Protocol-Version",
+					"Last-Event-ID",
+				},
+			}),
 		},
 		ServerName:               "jaeger",
 		ServerVersion:            ver,

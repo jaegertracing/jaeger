@@ -75,9 +75,8 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	// Register MCP tools
 	s.registerTools()
 
-	// Set up TCP listener with context
-	lc := net.ListenConfig{}
-	listener, err := lc.Listen(ctx, "tcp", s.config.HTTP.NetAddr.Endpoint)
+	// Use confighttp.ServerConfig.ToListener for listener creation (supports TLS).
+	listener, err := s.config.HTTP.ToListener(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to listen on %s: %w", s.config.HTTP.NetAddr.Endpoint, err)
 	}
@@ -101,9 +100,18 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		w.Write([]byte("MCP server is running"))
 	})
 
-	s.httpServer = &http.Server{
-		Handler:           corsMiddleware(mux),
-		ReadHeaderTimeout: 30 * time.Second,
+	// Wrap mux with MCP-specific exposed headers before passing to confighttp.
+	// confighttp.ToServer applies CORS, OTel instrumentation, decompression, and auth.
+	handler := mcpExposeHeadersMiddleware(mux)
+
+	s.httpServer, err = s.config.HTTP.ToServer(
+		ctx,
+		host.GetExtensions(),
+		s.telset,
+		handler,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create HTTP server: %w", err)
 	}
 
 	// Start the server in a goroutine
@@ -212,21 +220,12 @@ func (s *server) healthTool(
 	}, nil
 }
 
-// corsMiddleware wraps an http.Handler to add CORS headers.
-// This is required for browser-based MCP clients like the MCP Inspector.
-func corsMiddleware(next http.Handler) http.Handler {
+// mcpExposeHeadersMiddleware adds the Access-Control-Expose-Headers header
+// for MCP protocol headers. confighttp's CORSConfig does not expose this
+// rs/cors option, so we handle it in a thin middleware.
+func mcpExposeHeadersMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Accept, Mcp-Session-Id, Mcp-Protocol-Version, Last-Event-ID")
 		w.Header().Set("Access-Control-Expose-Headers", "Mcp-Session-Id")
-
-		// Handle preflight requests
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-
 		next.ServeHTTP(w, r)
 	})
 }
