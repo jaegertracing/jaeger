@@ -549,3 +549,174 @@ func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 	return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
 }
+
+func TestCreateTraceSummaryTransform(t *testing.T) {
+	testCases := []struct {
+		name          string
+		handler       http.HandlerFunc
+		expectErr     bool
+		errorContains string
+	}{
+		{
+			name: "Success Path - Provision New Transform",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet && r.URL.Path == "/" {
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+				// 1. Reconciliation Check (Returns 404 because it doesn't exist yet)
+				if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "_transform/") {
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+				// 2. Create Job
+				if r.Method == http.MethodPut && strings.Contains(r.URL.Path, "_transform/") {
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+				// 3. Start Job
+				if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "_start") {
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+				w.WriteHeader(http.StatusBadRequest) // Catch-all for unexpected calls
+			},
+			expectErr: false,
+		},
+		{
+			name: "Reconciliation - Skip Creation When Transform Is Current",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet && r.URL.Path == "/" {
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+				if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "_transform/") {
+					w.WriteHeader(http.StatusOK)
+					// Must match exactly what factory.go computes:
+					// IndexPrefix("test-prefix").Apply("jaeger-span") → "test-prefix-jaeger-span"
+					// cleanPrefix = "test-prefix-jaeger-span" (no trailing "-" to trim)
+					// HasSuffix(..., "jaeger-span") → true
+					// summaryIndex = "test-prefix-" + "trace-summary" = "test-prefix-trace-summary"
+					w.Write([]byte(`{"transforms": [{"dest": {"index": "test-prefix-trace-summary"}, "description": "Jaeger Trace Summary - v1"}]}`))
+					return
+				}
+				if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "_start") {
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+				if r.Method == http.MethodPut {
+					w.WriteHeader(http.StatusInternalServerError)
+					w.Write([]byte(`{"error": "PUT should not have been called"}`))
+					return
+				}
+				w.WriteHeader(http.StatusBadRequest)
+			},
+			expectErr: false,
+		},
+		{
+			name: "Error Handling - ES returns 400 Bad Request on Create",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet && r.URL.Path == "/" {
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+				if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "_transform/") {
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+				if r.Method == http.MethodPut {
+					w.WriteHeader(http.StatusBadRequest) // Fails on creation
+					w.Write([]byte(`{"error": "invalid payload"}`))
+					return
+				}
+			},
+			expectErr:     true,
+			errorContains: "status 400",
+		},
+		{
+			name: "Start Job - Already Running (409 is not an error)",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet && r.URL.Path == "/" {
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+				if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "_transform/") {
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+				if r.Method == http.MethodPut {
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+				// Transform is already running
+				if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "_start") {
+					w.WriteHeader(http.StatusConflict) // 409
+					w.Write([]byte(`{"error": {"reason": "Cannot start transform [id] as it is already started"}}`))
+					return
+				}
+				w.WriteHeader(http.StatusBadRequest)
+			},
+			expectErr: false, // 409 must be treated as success
+		},
+		{
+			name: "Reconciliation - Delete and Recreate Job on Version Mismatch",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet && r.URL.Path == "/" {
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+				// Returns stale config — triggers recreation
+				if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "_transform/") {
+					w.WriteHeader(http.StatusOK)
+					w.Write([]byte(`{"transforms": [{"dest": {"index": "wrong-old-index"}, "description": "old-version"}]}`))
+					return
+				}
+				if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "_stop") {
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+				if r.Method == http.MethodDelete && strings.Contains(r.URL.Path, "_transform/") {
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+				if r.Method == http.MethodPut {
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+				if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "_start") {
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+				w.WriteHeader(http.StatusBadRequest)
+			},
+			expectErr: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(tc.handler)
+			defer server.Close()
+
+			f := &FactoryBase{
+				logger: zap.NewNop(),
+				config: &escfg.Configuration{
+					Servers:         []string{server.URL},
+					UseTraceSummary: true,
+					Indices: escfg.Indices{
+						IndexPrefix: "test-prefix",
+					},
+				},
+			}
+
+			err := f.createTraceSummaryTransform(context.Background())
+
+			if tc.expectErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.errorContains)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
