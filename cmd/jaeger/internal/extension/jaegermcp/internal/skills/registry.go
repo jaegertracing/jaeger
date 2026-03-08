@@ -1,3 +1,6 @@
+// Copyright (c) 2026 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package skills
 
 import (
@@ -21,7 +24,7 @@ func NewRegistry() *Registry {
 func (r *Registry) Register(skill Skill) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	
+
 	if skill.Name == "" {
 		return
 	}
@@ -32,7 +35,7 @@ func (r *Registry) Register(skill Skill) {
 func (r *Registry) Get(name string) (Skill, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	skill, ok := r.skills[name]
 	return skill, ok
 }
@@ -41,7 +44,7 @@ func (r *Registry) Get(name string) (Skill, bool) {
 func (r *Registry) List() []Skill {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	var skills []Skill
 	for _, skill := range r.skills {
 		skills = append(skills, skill)

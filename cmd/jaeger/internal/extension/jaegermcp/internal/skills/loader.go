@@ -1,3 +1,6 @@
+// Copyright (c) 2026 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package skills
 
 import (
@@ -11,6 +14,10 @@ import (
 // LoadSkills reads .yaml files from a configurable directory path,
 // validates required fields (Name, SystemPrompt), and returns []Skill.
 func LoadSkills(dir string, logger *zap.Logger) []Skill {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+
 	var skills []Skill
 
 	entries, err := os.ReadDir(dir)

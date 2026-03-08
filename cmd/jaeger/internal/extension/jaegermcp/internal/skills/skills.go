@@ -1,3 +1,6 @@
+// Copyright (c) 2026 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package skills
 
 // SkillTool represents a tool that a skill can use

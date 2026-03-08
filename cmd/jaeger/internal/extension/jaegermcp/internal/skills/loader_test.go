@@ -1,3 +1,6 @@
+// Copyright (c) 2026 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package skills
 
 import (
@@ -6,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
@@ -27,8 +31,8 @@ system_prompt: "You are a test."
 version: "1.0"
 author: "test"
 `
-		err := os.WriteFile(filepath.Join(tempDir, "test.yaml"), []byte(skillData), 0644)
-		assert.NoError(t, err)
+		err := os.WriteFile(filepath.Join(tempDir, "test.yaml"), []byte(skillData), 0o644)
+		require.NoError(t, err)
 
 		skills := LoadSkills(tempDir, logger)
 		assert.Len(t, skills, 1)
@@ -42,8 +46,8 @@ author: "test"
 description: "A test skill"
 system_prompt: "You are a test."
 `
-		err := os.WriteFile(filepath.Join(tempDir, "missing_name.yaml"), []byte(skillData), 0644)
-		assert.NoError(t, err)
+		err := os.WriteFile(filepath.Join(tempDir, "missing_name.yaml"), []byte(skillData), 0o644)
+		require.NoError(t, err)
 
 		skills := LoadSkills(tempDir, logger)
 		assert.Empty(t, skills)
@@ -55,8 +59,21 @@ system_prompt: "You are a test."
 name: test-skill
 description: "A test skill"
 `
-		err := os.WriteFile(filepath.Join(tempDir, "missing_prompt.yaml"), []byte(skillData), 0644)
-		assert.NoError(t, err)
+		err := os.WriteFile(filepath.Join(tempDir, "missing_prompt.yaml"), []byte(skillData), 0o644)
+		require.NoError(t, err)
+
+		skills := LoadSkills(tempDir, logger)
+		assert.Empty(t, skills)
+	})
+
+	t.Run("invalid yaml skipped", func(t *testing.T) {
+		tempDir := t.TempDir()
+		skillData := `
+name: test-skill
+[invalid yaml
+`
+		err := os.WriteFile(filepath.Join(tempDir, "invalid.yaml"), []byte(skillData), 0o644)
+		require.NoError(t, err)
 
 		skills := LoadSkills(tempDir, logger)
 		assert.Empty(t, skills)
