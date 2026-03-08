@@ -133,11 +133,18 @@ func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndI
 		traceById := t.traces[index]
 		if traceById.id.IsEmpty() {
 			// Finding an empty ID means we reached a gap in the ring buffer
-			// that has not yet been filled with traces.
+			// that has not yet filled with trace.
 			break
 		}
 		if validTrace(traceById.trace, query) {
-			traceAndIds = append(traceAndIds, traceById)
+			traceCopy := ptrace.NewTraces()
+			traceById.trace.CopyTo(traceCopy)
+			traceAndIds = append(traceAndIds, traceAndId{
+				id:        traceById.id,
+				trace:     traceCopy,
+				startTime: traceById.startTime,
+				endTime:   traceById.endTime,
+			})
 		}
 	}
 	return traceAndIds, nil
@@ -150,7 +157,9 @@ func (t *Tenant) getTraces(traceIds ...tracestore.GetTraceParams) []ptrace.Trace
 	for i := range traceIds {
 		index, ok := t.ids[traceIds[i].TraceID]
 		if ok {
-			traces = append(traces, t.traces[index].trace)
+			traceCopy := ptrace.NewTraces()
+			t.traces[index].trace.CopyTo(traceCopy)
+			traces = append(traces, traceCopy)
 		}
 	}
 	return traces
