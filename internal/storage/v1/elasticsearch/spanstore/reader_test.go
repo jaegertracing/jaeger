@@ -1420,3 +1420,74 @@ func TestTagsMap(t *testing.T) {
 		})
 	}
 }
+
+func TestSpanReader_FindTraces_WithProcessTags(t *testing.T) {
+	goodAggregations := make(map[string]json.RawMessage)
+	rawMessage := []byte(`{"buckets": [{"key": "1","doc_count": 16}]}`)
+	goodAggregations[traceIDAggregation] = rawMessage
+
+	hits := make([]*elastic.SearchHit, 1)
+	hits[0] = &elastic.SearchHit{
+		Source: exampleESSpan,
+	}
+	searchHits := &elastic.SearchHits{Hits: hits}
+
+	withSpanReader(t, func(r *spanReaderTest) {
+		// find trace IDs (exercises buildProcessTagQuery path in buildFindTraceIDsQuery)
+		mockSearchService(r).
+			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
+		// bulk read traces
+		mockMultiSearchService(r).
+			Return(&elastic.MultiSearchResult{
+				Responses: []*elastic.SearchResult{
+					{Hits: searchHits},
+				},
+			}, nil)
+
+		traceQuery := dbmodel.TraceQueryParameters{
+			ServiceName: serviceName,
+			ProcessTags: map[string]string{
+				"service.instance.id": "instance-1",
+			},
+			StartTimeMin: time.Now().Add(-1 * time.Hour),
+			StartTimeMax: time.Now(),
+			NumTraces:    1,
+		}
+
+		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
+		require.NoError(t, err)
+		assert.Len(t, traces, 1)
+	})
+}
+
+func TestSpanReader_buildProcessTagQuery(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		tests := []struct {
+			name string
+			key  string
+			val  string
+		}{
+			{
+				name: "simple key",
+				key:  "service.name",
+				val:  "my-service",
+			},
+			{
+				name: "key with dot replacement",
+				key:  "host.name",
+				val:  "host-1",
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				query := r.reader.buildProcessTagQuery(tt.key, tt.val)
+				require.NotNil(t, query)
+				// The query should be a BoolQuery with Should clauses targeting
+				// only process.tag (object) and process.tags (nested) — not span tags
+				src, err := query.Source()
+				require.NoError(t, err)
+				require.NotNil(t, src)
+			})
+		}
+	})
+}

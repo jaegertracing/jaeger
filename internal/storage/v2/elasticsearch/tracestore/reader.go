@@ -6,12 +6,14 @@ package tracestore
 import (
 	"context"
 	"iter"
+	"strings"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 // TraceReader is a wrapper around spanstore.CoreSpanReader which return the output parallel to OTLP Models
@@ -116,15 +118,31 @@ func (t *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQu
 
 func toDBTraceQueryParams(query tracestore.TraceQueryParams) dbmodel.TraceQueryParameters {
 	tags := make(map[string]string)
+	processTags := make(map[string]string)
+
 	for key, val := range query.Attributes.All() {
-		tags[key] = val.AsString()
+		switch {
+		case strings.HasPrefix(key, "resource."):
+			// resource.X keys map to process tags (ES stores resource attrs as process.tag/process.tags)
+			processTags[strings.TrimPrefix(key, "resource.")] = val.AsString()
+		case key == "scope.name":
+			// user-facing scope.name → stored as otel.scope.name span tag in ES
+			tags[otelsemconv.AttributeOtelScopeName] = val.AsString()
+		case key == "scope.version":
+			// user-facing scope.version → stored as otel.scope.version span tag in ES
+			tags[otelsemconv.AttributeOtelScopeVersion] = val.AsString()
+		default:
+			tags[key] = val.AsString()
+		}
 	}
+
 	return dbmodel.TraceQueryParameters{
 		ServiceName:   query.ServiceName,
 		OperationName: query.OperationName,
 		StartTimeMin:  query.StartTimeMin,
 		StartTimeMax:  query.StartTimeMax,
 		Tags:          tags,
+		ProcessTags:   processTags,
 		NumTraces:     query.SearchDepth,
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,
