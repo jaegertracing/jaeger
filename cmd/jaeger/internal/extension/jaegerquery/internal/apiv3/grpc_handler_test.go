@@ -296,3 +296,10 @@ func TestGetOperationsStorageError(t *testing.T) {
 	require.ErrorContains(t, err, assert.AnError.Error())
 	assert.Nil(t, response)
 }
+
+func TestGetDependenciesMissingTimeGRPC(t *testing.T) {
+	tsc := newTestServerClient(t)
+	_, err := tsc.client.GetDependencies(context.Background(), &api_v3.GetDependenciesRequest{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "missing start or end time")
+}

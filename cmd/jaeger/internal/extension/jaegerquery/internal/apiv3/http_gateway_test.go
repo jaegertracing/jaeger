@@ -4,6 +4,8 @@
 package apiv3
 
 import (
+	"github.com/jaegertracing/jaeger-idl/model/v1"
+
 	"errors"
 	"fmt"
 	"iter"
@@ -36,11 +38,12 @@ func setupHTTPGatewayNoServer(
 	basePath string,
 ) *testGateway {
 	gw := &testGateway{
-		reader: &tracestoremocks.Reader{},
+		reader:    &tracestoremocks.Reader{},
+		depReader: &dependencystoremocks.Reader{},
 	}
 
 	q := querysvc.NewQueryService(gw.reader,
-		&dependencystoremocks.Reader{},
+		gw.depReader,
 		querysvc.QueryServiceOptions{},
 	)
 
@@ -427,4 +430,46 @@ func TestHTTPGatewayGetServicesEmptyResponse(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.JSONEq(t, `{"services":[]}`, w.Body.String())
 	gw.reader.AssertExpectations(t)
+}
+
+func TestHTTPGatewayGetDependenciesSuccess(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+	gw.depReader.On("GetDependencies", mock.Anything, mock.Anything).
+		Return([]model.DependencyLink{{Parent: "a", Child: "b", CallCount: 1}}, nil)
+
+	req, err := http.NewRequest(http.MethodGet, "/api/v3/dependencies?end_time=2023-01-01T00:00:00Z&lookback=24h", nil)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"parent":"a"`)
+	require.Contains(t, w.Body.String(), `"child":"b"`)
+}
+
+func TestHTTPGatewayGetDependenciesFailure(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+	gw.depReader.On("GetDependencies", mock.Anything, mock.Anything).
+		Return(nil, errors.New("backend error"))
+
+	req, err := http.NewRequest(http.MethodGet, "/api/v3/dependencies?end_time=2023-01-01T00:00:00Z", nil)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestHTTPGatewayGetDependenciesMissingTime(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+	req, err := http.NewRequest(http.MethodGet, "/api/v3/dependencies", nil)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Contains(t, w.Body.String(), "missing end time")
 }
