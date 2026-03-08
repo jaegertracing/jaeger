@@ -167,8 +167,6 @@ func verifyGetTraceAPI(t *testing.T) {
 }
 
 func verifyGetSamplingStrategyAPI(t *testing.T) {
-	// TODO should we test refreshing the strategy file?
-
 	r, body := httpGet(t, samplingAddr+getSamplingStrategyURL)
 	t.Logf("Sampling strategy response: %s", string(body))
 	require.Equal(t, http.StatusOK, r.StatusCode)
@@ -178,6 +176,70 @@ func verifyGetSamplingStrategyAPI(t *testing.T) {
 
 	assert.NotNil(t, queryResponse.ProbabilisticSampling)
 	assert.InDelta(t, 1.0, queryResponse.ProbabilisticSampling.SamplingRate, 0.01)
+
+	t.Run("refreshing_strategy_file", verifyRefreshingSamplingStrategyFile)
+}
+
+func verifyRefreshingSamplingStrategyFile(t *testing.T) {
+	// This test verifies that the sampling strategy file is reloaded at runtime.
+	// It requires the server to be configured with file-based sampling strategies.
+	// If the server is using adaptive sampling instead, this test will be skipped.
+
+	// First, verify the initial strategy for "foo" service
+	r, body := httpGet(t, samplingAddr+"/api/sampling?service=foo")
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	var initialResponse api_v2.SamplingStrategyResponse
+	require.NoError(t, jsonpb.Unmarshal(bytes.NewReader(body), &initialResponse))
+
+	// The initial strategy for "foo" should be 0.8 (from sampling-strategies.json)
+	if initialResponse.ProbabilisticSampling == nil {
+		t.Skip("Server is not using file-based sampling strategies, skipping refresh test")
+	}
+
+	initialRate := initialResponse.ProbabilisticSampling.SamplingRate
+	t.Logf("Initial sampling rate for 'foo': %f", initialRate)
+
+	// Read the current sampling strategies file
+	strategiesFile := "./cmd/jaeger/sampling-strategies.json"
+	originalContent, err := os.ReadFile(strategiesFile)
+	if err != nil {
+		t.Skipf("Cannot read sampling strategies file %s, skipping refresh test: %v", strategiesFile, err)
+	}
+
+	// Modify the sampling rate for "foo" service
+	modifiedContent := strings.Replace(string(originalContent), `"param": 0.8`, `"param": 0.5`, 1)
+	require.NotEqual(t, string(originalContent), modifiedContent, "Failed to modify sampling strategies")
+
+	// Write the modified content back
+	err = os.WriteFile(strategiesFile, []byte(modifiedContent), 0o644)
+	require.NoError(t, err)
+
+	// Restore the original content after the test
+	t.Cleanup(func() {
+		err := os.WriteFile(strategiesFile, originalContent, 0o644)
+		if err != nil {
+			t.Logf("Failed to restore sampling strategies file: %v", err)
+		}
+	})
+
+	// Wait for the server to reload the strategy file (default reload interval is typically 5-10 seconds)
+	// We'll poll for up to 30 seconds to account for various reload intervals
+	var updatedResponse api_v2.SamplingStrategyResponse
+	require.Eventually(t, func() bool {
+		_, body := httpGet(t, samplingAddr+"/api/sampling?service=foo")
+		if err := jsonpb.Unmarshal(bytes.NewReader(body), &updatedResponse); err != nil {
+			return false
+		}
+		if updatedResponse.ProbabilisticSampling == nil {
+			return false
+		}
+		// Check if the sampling rate has been updated to 0.5
+		return updatedResponse.ProbabilisticSampling.SamplingRate == 0.5
+	}, 30*time.Second, 500*time.Millisecond, "Sampling strategy file was not reloaded within 30 seconds")
+
+	t.Logf("Updated sampling rate for 'foo': %f", updatedResponse.ProbabilisticSampling.SamplingRate)
+	assert.InDelta(t, 0.5, updatedResponse.ProbabilisticSampling.SamplingRate, 0.01)
 }
 
 func verifyGetServicesAPIV3(t *testing.T) {
