@@ -8,6 +8,8 @@ from bisect import insort
 from prometheus_client.parser import text_string_to_metric_families
 import re
 
+EXCLUDED_LABELS = {'service_instance_id', 'otel_scope_version'}
+
 # Configuration for transient labels that should be normalized during comparison
 TRANSIENT_LABEL_PATTERNS = {
     'kafka': {
@@ -96,7 +98,9 @@ def parse_metrics(content):
                 metrics_exclusion_count += 1
                 continue
 
-            labels.pop('service_instance_id', None)
+            # Remove undesirable metric labels to match the diff generation
+            for label in EXCLUDED_LABELS:
+                labels.pop(label, None)
             labels = suppress_transient_labels(sample.name, labels)
             
             label_pairs = sorted(labels.items(), key=lambda x: x[0])
