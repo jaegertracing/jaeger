@@ -142,15 +142,18 @@ func (r *Reader) buildFindTraceIDsQuery(
 	if !query.StartTimeMin.IsZero() {
 		appendAnd(&inner, "s.start_time >= ?")
 		args = append(args, query.StartTimeMin)
-		// Push the lower bound into trace_id_timestamps JOIN to limit its scan.
-		appendAnd(&rightQ, "start >= ?")
+		// Use overlap-safe bound: keep traces whose end (max span time) is at or
+		// after the window start so we don't drop traces that have matching spans
+		// but whose min(start_time) falls before the window.
+		appendAnd(&rightQ, "end >= ?")
 		rightArgs = append(rightArgs, query.StartTimeMin)
 	}
 	if !query.StartTimeMax.IsZero() {
 		appendAnd(&inner, "s.start_time <= ?")
 		args = append(args, query.StartTimeMax)
-		// Push the upper bound into trace_id_timestamps JOIN to limit its scan.
-		appendAnd(&rightQ, "end <= ?")
+		// Use overlap-safe bound: keep traces whose start (min span time) is at
+		// or before the window end.
+		appendAnd(&rightQ, "start <= ?")
 		rightArgs = append(rightArgs, query.StartTimeMax)
 	}
 

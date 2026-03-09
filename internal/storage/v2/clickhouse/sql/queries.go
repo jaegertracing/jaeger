@@ -218,10 +218,17 @@ WHERE 1=1`
 
 // SearchTraceIDs wraps a trace ID subquery with a JOIN to
 // trace_id_timestamps to retrieve the start and end times for each trace.
-// The first %s placeholder is replaced with the complete inner subquery
-// (SearchTraceIDsBase + conditions + LIMIT). The second %s placeholder is
-// replaced with optional additional WHERE conditions on trace_id_timestamps
-// to push timestamp bounds into the JOIN, reducing the scan range.
+//
+// This is NOT a standalone query — it must be used with an inner subquery
+// (SearchTraceIDsBase + conditions + LIMIT) as the first %s placeholder.
+// The second %s placeholder injects optional WHERE conditions directly into
+// the trace_id_timestamps subselect to narrow its scan range.
+//
+// IMPORTANT: Because trace_id_timestamps defines start = min(start_time) and
+// end = max(start_time) per trace, any injected time bounds must use
+// overlap-safe predicates (end >= windowStart, start <= windowEnd) rather
+// than containment predicates, to avoid excluding traces that have matching
+// spans but whose overall min/max extends outside the query window.
 const SearchTraceIDs = `
 SELECT
     l.trace_id,

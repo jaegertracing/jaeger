@@ -105,5 +105,5 @@ FROM (
 	LIMIT ?
 ) l
 LEFT JOIN (SELECT trace_id, start, end FROM trace_id_timestamps WHERE 1=1
-	AND start >= ?
-	AND end <= ?) t ON l.trace_id = t.trace_id
+	AND end >= ?
+	AND start <= ?) t ON l.trace_id = t.trace_id

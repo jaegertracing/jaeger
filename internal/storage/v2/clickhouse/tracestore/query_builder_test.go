@@ -6,6 +6,7 @@ package tracestore
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -116,6 +117,33 @@ func TestBuildStringAttributeCondition_Fallbacks(t *testing.T) {
 			assert.Len(t, args, 10)
 		})
 	}
+}
+
+func TestBuildFindTraceIDsQuery_OverlapSafeTimeBounds(t *testing.T) {
+	reader := NewReader(&testDriver{t: t}, testReaderConfig)
+	now := time.Now()
+
+	q, args, err := reader.buildFindTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{
+		StartTimeMin: now.Add(-time.Hour),
+		StartTimeMax: now,
+		Attributes:   pcommon.NewMap(),
+	})
+	require.NoError(t, err)
+
+	// The inner spans query should use exact bounds.
+	assert.Contains(t, q, "s.start_time >= ?")
+	assert.Contains(t, q, "s.start_time <= ?")
+
+	// The trace_id_timestamps JOIN should use overlap-safe bounds.
+	assert.Contains(t, q, "end >= ?")
+	assert.Contains(t, q, "start <= ?")
+	// Must NOT contain the containment-style predicates.
+	assert.NotContains(t, q, "start >= ?")
+	assert.NotContains(t, q, "end <= ?")
+
+	// 4 args: startTimeMin for spans, startTimeMax for spans, startTimeMin for end>=, startTimeMax for start<=
+	// plus 1 for the LIMIT
+	require.Len(t, args, 5)
 }
 
 func TestBuildStringAttributeCondition_MultipleTypes(t *testing.T) {
