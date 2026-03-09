@@ -36,9 +36,9 @@ if [ "$found_any_snapshot" = false ]; then
     missing_diffs+=("(no snapshot artifacts found)")
 fi
 if [ ${#missing_diffs[@]} -gt 0 ]; then
-    echo "INFRA_ERRORS=${missing_diffs[*]}" >> "$GITHUB_OUTPUT"
+    echo "INFRA_ERRORS=true" >> "$GITHUB_OUTPUT"
 else
-    echo "INFRA_ERRORS=" >> "$GITHUB_OUTPUT"
+    echo "INFRA_ERRORS=false" >> "$GITHUB_OUTPUT"
 fi
 
 # Debug: List all diff files found
@@ -59,10 +59,15 @@ while IFS= read -r -d '' diff_file; do
     fi
     echo "Processing diff file: $diff_file"
 
-    # Extract the base name (e.g., diff_metrics_snapshot_cassandra.txt -> metrics_snapshot_cassandra)
-    base_name=$(basename "$diff_file" .txt)
-    snapshot_name=${base_name#diff_}
+    # Derive the unique snapshot name from the artifact directory (e.g.,
+    # diff_metrics_snapshot_cassandras_4.x_v004_v2_manual -> metrics_snapshot_cassandras_4.x_v004_v2_manual).
+    # Using the directory rather than the file name is necessary because all matrix
+    # variants of the same backend share an identical file name inside their artifact
+    # (e.g., diff_metrics_snapshot_cassandra.txt), while the artifact directory name
+    # is always unique (it includes major version, schema, jaeger-version, etc.).
     dir=$(dirname "$diff_file")
+    snapshot_name=$(basename "$dir")
+    snapshot_name=${snapshot_name#diff_}
 
     # Generate summary for this diff
     summary_file="$dir/summary_$snapshot_name.md"
@@ -92,67 +97,37 @@ fi
 echo "Total changes across all snapshots: $total_changes"
 echo "TOTAL_CHANGES=$total_changes" >> "$GITHUB_OUTPUT"
 
-# Emit a single conclusion/summary so the workflow check run step
-# doesn't need to duplicate this decision logic.
 if [ ${#missing_diffs[@]} -gt 0 ]; then
     echo "CONCLUSION=failure" >> "$GITHUB_OUTPUT"
-    echo "SUMMARY=❌ Infrastructure error: diff artifacts missing for: ${missing_diffs[*]}" >> "$GITHUB_OUTPUT"
 elif [ "$total_changes" -gt 0 ]; then
     echo "CONCLUSION=failure" >> "$GITHUB_OUTPUT"
-    echo "SUMMARY=❌ ${total_changes} metric changes detected" >> "$GITHUB_OUTPUT"
 else
     echo "CONCLUSION=success" >> "$GITHUB_OUTPUT"
-    echo "SUMMARY=✅ No significant metric changes detected" >> "$GITHUB_OUTPUT"
 fi
 
-# Always generate combined summary report
-combined_file="$METRICS_DIR/combined_summary.md"
-echo "## Metrics Comparison Summary" > "$combined_file"
+# Log the combined summary to the console (visible in CI run logs).
+# Structured conclusions are already emitted to $GITHUB_OUTPUT above.
+echo "=== Metrics Comparison Summary ==="
 
 if [ ${#missing_diffs[@]} -gt 0 ]; then
-    {
-      echo ""
-      echo "❌ **Infrastructure error**: diff artifacts missing for: ${missing_diffs[*]}"
-      echo "(These snapshots did not produce a diff artifact — the verify-metrics-snapshot action may not have run.)"
-      echo ""
-    } >> "$combined_file"
+    echo "::error::Infrastructure error: diff artifacts missing for: ${missing_diffs[*]}"
+    echo "(These snapshots did not produce a diff artifact — the verify-metrics-snapshot action may not have run.)"
 fi
 
-if [ ${#summary_files[@]} -eq 0 ]; then
-    {
-      echo ""
-      echo "✅ No metric changes detected."
-      echo ""
-    } >> "$combined_file"
-else
-    {
-      echo ""
-      echo "Total changes across all snapshots: $total_changes"
-      echo ""
-      echo "<details>"
-      echo "<summary>Detailed changes per snapshot</summary>"
-      echo ""
-    } >> "$combined_file"
-
+if [ "$total_changes" -gt 0 ]; then
+    echo "::error::${total_changes} metric change(s) detected across all snapshots"
+    echo ""
     for summary_file in "${summary_files[@]}"; do
-        echo "Appending $summary_file to combined summary"
         file_name=$(basename "$summary_file" .md)
-        friendly_name=${file_name#summary_metrics_snapshot_}
-        # Title-case: replace underscores with spaces, capitalize first letter of each word.
-        # Uses awk because sed's \b is backspace (not word-boundary).
-        friendly_name=$(awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) substr($i,2)}1' <<< "${friendly_name//_/ }")
-        {
-          echo "### 📊 ${friendly_name}"
-          echo "File Name: ${file_name}"
-          cat "$summary_file"
-        } >> "$combined_file"
-        echo "" >> "$combined_file"
+        echo "--- ${file_name} ---"
+        echo ""
+        cat "$summary_file"
+        echo ""
     done
-
-    echo "</details>" >> "$combined_file"
+elif [ ${#missing_diffs[@]} -gt 0 ]; then
+    echo "No metric changes in available diffs, but some diff artifacts were missing (see above)."
+else
+    echo "No metric changes detected."
 fi
-
-echo -e "\n\n➡️ [View CI artifacts]($LINK_TO_ARTIFACT) | [View Summary Report logs]($SUMMARY_RUN_URL)" >> "$combined_file"
-
 
 echo "Metrics diff processing completed"

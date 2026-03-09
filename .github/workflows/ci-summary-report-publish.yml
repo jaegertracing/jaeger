@@ -1,0 +1,136 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# CI Summary Report (Publish): posts PR comments and check runs from the
+# pre-computed ci-summary artifact produced by ci-summary-report.yml.
+#
+# Triggered by workflow_run on CI Orchestrator completion (success OR failure).
+# pull_request workflows from forks run with read-only permissions regardless of
+# what the workflow file declares, so they cannot post PR comments or check runs.
+# workflow_run always executes in the base repository context and gets the
+# permissions declared here — that is why posting is split into this workflow.
+# The heavy computation runs inside the CI Orchestrator itself (ci-summary-report.yml),
+# making gate failures immediately visible in the PR Checks table without waiting
+# for this workflow's separate approval step.
+#
+# Design: docs/adr/004-migrating-coverage-gating-to-github-actions.md
+# Security model: see .github/scripts/ci-summary-report-publish.js
+
+name: CI Summary Report (Publish)
+on:
+  workflow_run:
+    workflows: ["CI Orchestrator"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to post summary report for'
+        required: true
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+  actions: read
+jobs:
+  publish:
+    name: Post Summary
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success' ||
+      github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      # Resolve the source CI Orchestrator run ID and PR metadata.
+      # For workflow_run events, PR metadata comes from the event payload
+      # (the REST API returns empty .pull_requests[] for cross-repo fork PRs).
+      - name: Resolve source run
+        id: source-run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            PR_NUMBER="${{ github.event.inputs.pr_number }}"
+            if ! [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+              echo "::error::Invalid pr_number input: must be a positive integer, got: '$PR_NUMBER'"
+              exit 1
+            fi
+
+            # Get the PR's head SHA to find the CI Orchestrator run
+            HEAD_SHA=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER" --jq '.head.sha')
+
+            # Find the latest completed CI Orchestrator run for this commit.
+            # Filtering to status=completed avoids picking up an in-progress or
+            # queued run whose ci-summary artifact does not yet exist.
+            RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/ci-orchestrator.yml/runs?head_sha=$HEAD_SHA&status=completed&per_page=1" \
+              --jq '.workflow_runs[0].id')
+
+            if [ -z "$RUN_ID" ] || [ "$RUN_ID" == "null" ]; then
+              echo "::error::No completed CI Orchestrator run found for PR #$PR_NUMBER (SHA $HEAD_SHA)."
+              exit 1
+            fi
+            echo "Found CI Orchestrator run $RUN_ID for PR #$PR_NUMBER"
+          else
+            RUN_ID="${{ github.event.workflow_run.id }}"
+            PR_NUMBER="${{ github.event.workflow_run.pull_requests[0].number }}"
+            HEAD_SHA="${{ github.event.workflow_run.pull_requests[0].head.sha || github.event.workflow_run.head_sha }}"
+
+            # workflow_run.pull_requests is empty for fork PRs (renovate-bot, dependabot, etc.).
+            # Fall back to searching for a PR matching the head branch.
+            if [ -z "$PR_NUMBER" ] && [ "${{ github.event.workflow_run.event }}" == "pull_request" ]; then
+              PR_NUMBER=$(gh pr list \
+                --repo "${{ github.repository }}" \
+                --head "$HEAD_BRANCH" \
+                --json number,headRefOid \
+                --jq "first(.[] | select(.headRefOid == \"$HEAD_SHA\") | .number)")
+              echo "Resolved PR #$PR_NUMBER from head branch (fork PR fallback)"
+            fi
+          fi
+
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+          echo "source_run_url=https://github.com/${{ github.repository }}/actions/runs/$RUN_ID" >> $GITHUB_OUTPUT
+          echo "summary_run_url=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_OUTPUT
+          echo "head_sha=$HEAD_SHA" >> $GITHUB_OUTPUT
+
+          if [ -n "$PR_NUMBER" ]; then
+            echo "Found PR #$PR_NUMBER at SHA $HEAD_SHA"
+            echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          else
+            echo "No associated PR found for run $RUN_ID; PR comment will be skipped."
+          fi
+
+      # Checkout the base repo so that .github/scripts/ci-summary-report-publish.js
+      # is available for require() in the github-script step below.
+      # Do NOT checkout the PR head: this workflow must only run base-repo code.
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+
+      # Download only the ci-summary artifact (pre-computed by ci-summary-report.yml).
+      - name: Download CI summary artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh run download "${{ steps.source-run.outputs.run_id }}" \
+            --repo "${{ github.repository }}" \
+            --name ci-summary \
+            --dir .artifacts \
+          || echo "::warning::ci-summary artifact not found; proceeding without summary artifact (later checks may fail)."
+
+      - name: Post PR comment and create check runs
+        if: steps.source-run.outputs.head_sha
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const handler = require('./.github/scripts/ci-summary-report-publish.js');
+            await handler({
+              github, core, fs: require('fs'),
+              inputs: {
+                owner:      context.repo.owner,
+                repo:       context.repo.repo,
+                headSha:    '${{ steps.source-run.outputs.head_sha }}',
+                prNumber:   '${{ steps.source-run.outputs.pr_number }}',
+                ciRunUrl:   '${{ steps.source-run.outputs.source_run_url }}',
+                publishUrl: '${{ steps.source-run.outputs.summary_run_url }}',
+              },
+            });
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
