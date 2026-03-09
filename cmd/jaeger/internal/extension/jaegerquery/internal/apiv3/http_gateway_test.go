@@ -4,8 +4,6 @@
 package apiv3
 
 import (
-	"github.com/jaegertracing/jaeger-idl/model/v1"
-
 	"errors"
 	"fmt"
 	"iter"
@@ -16,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -472,4 +471,16 @@ func TestHTTPGatewayGetDependenciesMissingTime(t *testing.T) {
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
 	require.Contains(t, w.Body.String(), "missing end time")
+}
+
+func TestHTTPGatewayGetDependenciesInvalidTimeRange(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+	req, err := http.NewRequest(http.MethodGet, "/api/v3/dependencies?end_time=2023-01-01T00:00:00Z&start_time=2023-01-02T00:00:00Z", nil)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Contains(t, w.Body.String(), "start_time must be before end_time")
 }

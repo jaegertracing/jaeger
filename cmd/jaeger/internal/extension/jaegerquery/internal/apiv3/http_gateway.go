@@ -42,6 +42,9 @@ const (
 	paramDurationMin    = "query.duration_min"
 	paramDurationMax    = "query.duration_max"
 	paramQueryRawTraces = "query.raw_traces"
+	paramLookback       = "lookback"
+
+	defaultDependenciesLookback = 3 * 24 * time.Hour
 
 	routeGetTrace        = "/api/v3/traces/{" + paramTraceID + "}"
 	routeFindTraces      = "/api/v3/traces"
@@ -302,8 +305,8 @@ func (h *HTTPGateway) getOperations(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPGateway) getDependencies(w http.ResponseWriter, r *http.Request) {
-	http_query := r.URL.Query()
-	endTimeParam := http_query.Get(paramEndTime)
+	httpQuery := r.URL.Query()
+	endTimeParam := httpQuery.Get(paramEndTime)
 	if endTimeParam == "" {
 		h.tryHandleError(w, errors.New("missing end time"), http.StatusBadRequest)
 		return
@@ -313,23 +316,24 @@ func (h *HTTPGateway) getDependencies(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lookbackParam := http_query.Get("lookback")
-	lookback := time.Hour * 24 * 3 // default to 3 days if not provided
+	lookbackParam := httpQuery.Get(paramLookback)
+	lookback := defaultDependenciesLookback
 	if lookbackParam != "" {
-		if d, err := time.ParseDuration(lookbackParam); err != nil {
-			if h.tryParamError(w, err, "lookback") {
-				return
-			}
-		} else {
-			lookback = d
+		d, err := time.ParseDuration(lookbackParam)
+		if h.tryParamError(w, err, paramLookback) {
+			return
 		}
-	} else if startTimeParam := http_query.Get(paramStartTime); startTimeParam != "" {
-		// Calculate lookback if start_time is provided
+		lookback = d
+	} else if startTimeParam := httpQuery.Get(paramStartTime); startTimeParam != "" {
 		startTime, err := time.Parse(time.RFC3339Nano, startTimeParam)
 		if h.tryParamError(w, err, paramStartTime) {
 			return
 		}
 		lookback = endTime.Sub(startTime)
+		if lookback < 0 {
+			h.tryHandleError(w, errors.New("start_time must be before end_time"), http.StatusBadRequest)
+			return
+		}
 	}
 
 	dependencies, err := h.QueryService.GetDependencies(r.Context(), endTime.UTC(), lookback)
