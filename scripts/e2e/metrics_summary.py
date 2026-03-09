@@ -3,20 +3,6 @@
 
 import argparse
 from collections import defaultdict
-from prometheus_client.parser import text_string_to_metric_families
-
-def parse_metrics(content):
-    metrics = []
-    for family in text_string_to_metric_families(content):
-        for sample in family.samples:
-            labels = dict(sample.labels)
-            # Simply pop undesirable metric labels to match the diff generation
-            labels.pop('service_instance_id', None)
-            label_pairs = sorted(labels.items(), key=lambda x: x[0])
-            label_str = ','.join(f'{k}="{v}"' for k, v in label_pairs)
-            metric = f"{family.name}{{{label_str}}}"
-            metrics.append(metric)
-    return metrics
 
 def parse_diff_file(diff_path):
     """
@@ -48,7 +34,7 @@ def parse_diff_file(diff_path):
         # Skip diff headers
         if stripped.startswith('+++') or stripped.startswith('---'):
             continue
-        # Check if this line contains a metric change    
+        # Check if this line contains a metric change
         if stripped.startswith('+') or stripped.startswith('-'):
             metric_name = extract_metric_name(stripped[1:].strip())
             if metric_name:
@@ -104,7 +90,7 @@ def generate_diff_summary(changes, raw_diff_sections, exclusion_count):
     """
     Generates a markdown summary from the parsed diff changes with raw diff samples.
     """
-    summary = ["## 📊 Metrics Diff Summary\n"]
+    summary = []
 
     # Statistics header
     total_added = sum(len(v) for v in changes['added'].values())
@@ -119,7 +105,7 @@ def generate_diff_summary(changes, raw_diff_sections, exclusion_count):
 
     # Added metrics
     if changes['added']:
-        summary.append("\n### 🆕 Added Metrics")
+        summary.append("\n#### 🆕 Added Metrics")
         for metric, samples in changes['added'].items():
             summary.append(f"- `{metric}` ({len(samples)} variants)")
             raw_samples = get_raw_diff_sample(raw_diff_sections.get(metric, []))
@@ -134,7 +120,7 @@ def generate_diff_summary(changes, raw_diff_sections, exclusion_count):
 
     # Removed metrics
     if changes['removed']:
-        summary.append("\n### ❌ Removed Metrics")
+        summary.append("\n#### ❌ Removed Metrics")
         for metric, samples in changes['removed'].items():
             summary.append(f"- `{metric}` ({len(samples)} variants)")
             raw_samples = get_raw_diff_sample(raw_diff_sections.get(metric, []))
@@ -149,7 +135,7 @@ def generate_diff_summary(changes, raw_diff_sections, exclusion_count):
 
     # Modified metrics
     if changes['modified']:
-        summary.append("\n### 🔄 Modified Metrics")
+        summary.append("\n#### 🔄 Modified Metrics")
         for metric, versions in changes['modified'].items():
             summary.append(f"- `{metric}`")
             summary.append(f"  - Added variants: {len(versions['added'])}")

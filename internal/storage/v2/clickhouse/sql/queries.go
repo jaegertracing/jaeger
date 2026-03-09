@@ -206,22 +206,29 @@ FROM
 
 const SelectSpansByTraceID = SelectSpansQuery + " WHERE s.trace_id = ?"
 
-// SearchTraceIDs is the base SQL fragment used by FindTraceIDs.
+// SearchTraceIDsBase is the inner SQL fragment for finding distinct trace IDs.
 //
 // The query begins with a no-op predicate (`WHERE 1=1`) so that additional
 // filters can be appended unconditionally using `AND` without needing to check
 // whether this is the first WHERE clause.
-//
-// The query joins with trace_id_timestamps to retrieve the start and end times
-// for each trace ID.
+const SearchTraceIDsBase = `SELECT DISTINCT
+    s.trace_id
+FROM spans s
+WHERE 1=1`
+
+// SearchTraceIDs wraps a trace ID subquery with a JOIN to
+// trace_id_timestamps to retrieve the start and end times for each trace.
+// The %s placeholder is replaced with the complete inner subquery
+// (SearchTraceIDsBase + conditions + LIMIT).
 const SearchTraceIDs = `
-SELECT DISTINCT
-    s.trace_id,
+SELECT
+    l.trace_id,
     t.start,
     t.end
-FROM spans s
-LEFT JOIN trace_id_timestamps t ON s.trace_id = t.trace_id
-WHERE 1=1`
+FROM (
+%s
+) l
+LEFT JOIN trace_id_timestamps t ON l.trace_id = t.trace_id`
 
 const SelectServices = `
 SELECT

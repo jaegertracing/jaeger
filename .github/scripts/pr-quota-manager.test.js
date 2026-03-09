@@ -4,6 +4,7 @@
 
 const prQuotaManager = require('./pr-quota-manager');
 const {
+  formatStatus,
   calculateQuota,
   fetchAuthorPRs,
   processQuotaForAuthor,
@@ -22,6 +23,12 @@ const mockLogger = {
   log: jest.fn(),
   error: jest.fn()
 };
+
+describe('formatStatus', () => {
+  test('formats open count and quota as bullet points', () => {
+    expect(formatStatus(3, 5)).toBe('  * Open: 3\n  * Limit: 5');
+  });
+});
 
 describe('calculateQuota', () => {
   test('returns 1 for 0 merged PRs', () => {
