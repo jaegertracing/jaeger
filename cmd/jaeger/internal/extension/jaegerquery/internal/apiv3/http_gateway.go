@@ -263,10 +263,8 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 	}
 	if attr := q.Get(paramAttributes); attr != "" {
 		var parsedAttr map[string]string
-		if err := json.Unmarshal([]byte(attr), &parsedAttr); err != nil {
-			if h.tryParamError(w, err, paramAttributes) {
-				return nil, true
-			}
+		if h.tryParamError(w, json.Unmarshal([]byte(attr), &parsedAttr), paramAttributes) {
+			return nil, true
 		}
 		for k, v := range parsedAttr {
 			queryParams.Attributes.PutStr(k, v)
