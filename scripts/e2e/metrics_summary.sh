@@ -111,23 +111,27 @@ fi
 
 # Merge per-snapshot JSON files into a single metrics_snapshots.json.
 # Each entry gets a "snapshot" field with the snapshot name.
+# Capped at 50 entries to match the publish workflow's MAX_SNAPSHOTS limit.
 # The trusted publish workflow validates this data before rendering.
-python3 - "${json_files[@]}" <<'PYEOF'
-import json, sys
+python3 - "$METRICS_DIR" "${json_files[@]}" <<'PYEOF'
+import json, os, sys
+metrics_dir = sys.argv[1]
+MAX_SNAPSHOTS = 50
 snapshots = []
-for path in sys.argv[1:]:
+for path in sys.argv[2:]:
+    if len(snapshots) >= MAX_SNAPSHOTS:
+        print(f"Warning: capped at {MAX_SNAPSHOTS} snapshots", file=sys.stderr)
+        break
     try:
         with open(path) as f:
             data = json.load(f)
-        # Derive snapshot name from filename: changes_<snapshot_name>.json
-        import os
         basename = os.path.basename(path)
         name = basename.replace('changes_', '').replace('.json', '')
         data['snapshot'] = name
         snapshots.append(data)
     except Exception as e:
         print(f"Warning: could not read {path}: {e}", file=sys.stderr)
-output_path = '.artifacts/metrics_snapshots.json'
+output_path = os.path.join(metrics_dir, 'metrics_snapshots.json')
 with open(output_path, 'w') as f:
     json.dump(snapshots, f, indent=2)
 print(f"Merged {len(snapshots)} snapshot(s) into {output_path}")

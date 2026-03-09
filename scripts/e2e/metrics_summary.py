@@ -154,28 +154,38 @@ def generate_diff_summary(changes, raw_diff_sections, exclusion_count):
 
     return "\n".join(summary)
 
+MAX_METRIC_NAMES = 200
+
 def generate_structured_json(changes):
     """
     Generates a structured JSON-serializable dict of metric change data.
     Contains only metric names (strings) and counts (ints) — no raw diff
     lines or free-form text — so it is safe to pass through ci-summary.json
     to the trusted publish workflow.
+
+    Counts use variant-level semantics (number of diff lines per category),
+    matching the TOTAL_CHANGES gate and the markdown summary.
     """
     added_names = sorted(changes['added'].keys())
     removed_names = sorted(changes['removed'].keys())
     modified_names = sorted(changes['modified'].keys())
 
-    # Union of all changed metric names, deduplicated and sorted
+    # Counts use variant-level semantics (same as generate_diff_summary)
+    # so that the detail breakdown is consistent with the headline count.
+    total_added = sum(len(v) for v in changes['added'].values())
+    total_removed = sum(len(v) for v in changes['removed'].values())
+    total_modified = len(changes['modified'])
+
+    # Union of all changed metric names, deduplicated, sorted, and capped
+    # to avoid unbounded artifact growth. The publish workflow enforces a
+    # matching cap (MAX_METRIC_NAMES_PER_SNAPSHOT).
     all_names = sorted(set(added_names) | set(removed_names) | set(modified_names))
 
     return {
-        'added': len(added_names),
-        'removed': len(removed_names),
-        'modified': len(modified_names),
-        'added_names': added_names,
-        'removed_names': removed_names,
-        'modified_names': modified_names,
-        'metric_names': all_names,
+        'added': total_added,
+        'removed': total_removed,
+        'modified': total_modified,
+        'metric_names': all_names[:MAX_METRIC_NAMES],
     }
 
 
