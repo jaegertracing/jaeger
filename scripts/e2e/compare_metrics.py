@@ -8,7 +8,7 @@ from bisect import insort
 from prometheus_client.parser import text_string_to_metric_families
 import re
 
-EXCLUDED_LABELS = {'service_instance_id', 'otel_scope_version'}
+EXCLUDED_LABELS = {'service_instance_id', 'otel_scope_version', 'otel_scope_schema_url'}
 
 # Configuration for transient labels that should be normalized during comparison
 TRANSIENT_LABEL_PATTERNS = {
