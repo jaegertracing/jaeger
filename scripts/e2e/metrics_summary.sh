@@ -132,6 +132,7 @@ for path in sys.argv[2:]:
     except Exception as e:
         print(f"Warning: could not read {path}: {e}", file=sys.stderr)
 output_path = os.path.join(metrics_dir, 'metrics_snapshots.json')
+snapshots.sort(key=lambda s: s.get('snapshot', ''))
 with open(output_path, 'w') as f:
     json.dump(snapshots, f, indent=2)
 print(f"Merged {len(snapshots)} snapshot(s) into {output_path}")

@@ -195,8 +195,8 @@ jobs:
                   pass
 
           # Load per-snapshot metric change data (produced by metrics_summary.sh).
-          # If the file is missing or malformed, omit the field — the publish
-          # workflow treats absence as "no detail available".
+          # If the file is missing or malformed, set to None — the publish
+          # workflow treats null/missing as "no detail available".
           metrics_snapshots = None
           try:
               with open('.artifacts/metrics_snapshots.json') as f:

@@ -177,12 +177,18 @@ def generate_structured_json(changes):
     # to avoid unbounded artifact growth. The publish workflow enforces a
     # matching cap (MAX_METRIC_NAMES_PER_SNAPSHOT).
     all_names = sorted(set(added_names) | set(removed_names) | set(modified_names))
+    capped = all_names[:MAX_METRIC_NAMES]
+
+    # Compute counts from the capped list so they match the displayed names.
+    added_set = set(added_names)
+    removed_set = set(removed_names)
+    modified_set = set(modified_names)
 
     return {
-        'added': len(added_names),
-        'removed': len(removed_names),
-        'modified': len(modified_names),
-        'metric_names': all_names[:MAX_METRIC_NAMES],
+        'added': sum(1 for n in capped if n in added_set),
+        'removed': sum(1 for n in capped if n in removed_set),
+        'modified': sum(1 for n in capped if n in modified_set),
+        'metric_names': capped,
     }
 
 

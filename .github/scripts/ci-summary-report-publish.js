@@ -74,8 +74,8 @@ function sanitizeMetricName(name) {
 function sanitizeSnapshots(raw) {
   if (!Array.isArray(raw)) return null;
   const result = [];
-  const entries = raw.slice(0, MAX_SNAPSHOTS);
-  for (const entry of entries) {
+  for (const entry of raw) {
+    if (result.length >= MAX_SNAPSHOTS) break;
     if (typeof entry !== 'object' || entry === null) continue;
     // Validate snapshot name
     const snapshot = typeof entry.snapshot === 'string'
@@ -88,10 +88,11 @@ function sanitizeSnapshots(raw) {
     const added    = safeNum(entry.added);
     const removed  = safeNum(entry.removed);
     const modified = safeNum(entry.modified);
-    // Validate metric_names array
+    // Validate metric_names array — collect up to cap valid names
     const names = [];
     if (Array.isArray(entry.metric_names)) {
-      for (const n of entry.metric_names.slice(0, MAX_METRIC_NAMES_PER_SNAPSHOT)) {
+      for (const n of entry.metric_names) {
+        if (names.length >= MAX_METRIC_NAMES_PER_SNAPSHOT) break;
         const clean = sanitizeMetricName(n);
         if (clean) names.push(clean);
       }
