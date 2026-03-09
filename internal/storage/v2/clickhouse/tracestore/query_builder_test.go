@@ -6,6 +6,7 @@ package tracestore
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -114,6 +115,60 @@ func TestBuildStringAttributeCondition_Fallbacks(t *testing.T) {
 			assert.Contains(t, query, "events")
 			assert.Contains(t, query, "links")
 			assert.Len(t, args, 10)
+		})
+	}
+}
+
+func TestBuildGetTracesQuery(t *testing.T) {
+	tests := []struct {
+		name         string
+		params       tracestore.GetTraceParams
+		expectedSQL  string
+		expectedArgs []any
+	}{
+		{
+			name: "without time range",
+			params: tracestore.GetTraceParams{
+				TraceID: traceID,
+			},
+			expectedSQL:  sql.SelectSpansByTraceID,
+			expectedArgs: []any{traceID},
+		},
+		{
+			name: "with both start and end",
+			params: tracestore.GetTraceParams{
+				TraceID: traceID,
+				Start:   now.Add(-1 * time.Hour),
+				End:     now,
+			},
+			expectedSQL:  sql.SelectSpansByTraceID + " AND s.start_time >= ? AND s.start_time <= ?",
+			expectedArgs: []any{traceID, now.Add(-1 * time.Hour), now},
+		},
+		{
+			name: "with only start time",
+			params: tracestore.GetTraceParams{
+				TraceID: traceID,
+				Start:   now.Add(-1 * time.Hour),
+			},
+			expectedSQL:  sql.SelectSpansByTraceID + " AND s.start_time >= ?",
+			expectedArgs: []any{traceID, now.Add(-1 * time.Hour)},
+		},
+		{
+			name: "with only end time",
+			params: tracestore.GetTraceParams{
+				TraceID: traceID,
+				End:     now,
+			},
+			expectedSQL:  sql.SelectSpansByTraceID + " AND s.start_time <= ?",
+			expectedArgs: []any{traceID, now},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			query, args := buildGetTracesQuery(tt.params)
+			require.Equal(t, tt.expectedSQL, query)
+			require.Equal(t, tt.expectedArgs, args)
 		})
 	}
 }
