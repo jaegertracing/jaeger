@@ -319,18 +319,18 @@ require (
 	go.opentelemetry.io/collector/receiver/xreceiver v0.147.0 // indirect
 	go.opentelemetry.io/collector/service v0.147.0
 	go.opentelemetry.io/collector/service/hostcapabilities v0.147.0 // indirect
-	go.opentelemetry.io/contrib/bridges/otelzap v0.15.0 // indirect
-	go.opentelemetry.io/contrib/otelconf v0.18.0 // indirect
-	go.opentelemetry.io/contrib/propagators/b3 v1.40.0 // indirect
-	go.opentelemetry.io/contrib/zpages v0.65.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.16.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.16.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.40.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.40.0 // indirect
-	go.opentelemetry.io/otel/exporters/stdout/stdoutlog v0.16.0 // indirect
-	go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.40.0 // indirect
-	go.opentelemetry.io/otel/log v0.16.0 // indirect
-	go.opentelemetry.io/otel/sdk/log v0.16.0 // indirect
+	go.opentelemetry.io/contrib/bridges/otelzap v0.17.0 // indirect
+	go.opentelemetry.io/contrib/otelconf v0.20.0 // indirect
+	go.opentelemetry.io/contrib/propagators/b3 v1.42.0 // indirect
+	go.opentelemetry.io/contrib/zpages v0.67.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.18.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.18.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.42.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.42.0 // indirect
+	go.opentelemetry.io/otel/exporters/stdout/stdoutlog v0.18.0 // indirect
+	go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.42.0 // indirect
+	go.opentelemetry.io/otel/log v0.18.0 // indirect
+	go.opentelemetry.io/otel/sdk/log v0.18.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.9.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
