@@ -44,7 +44,7 @@ Do not output ANY conversational text. Do not explain your reasoning. Output ONL
 Schema:
 %s
 
-User Request: "%s"
+User Request: %q
 
 Analyze the request and extract the parameters into JSON. Use standard open telemetry semantic conventions for tags if applicable.`, TraceQueryJSONSchema, question)
 }

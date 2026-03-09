@@ -7,6 +7,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"strings"
 
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/ollama"
@@ -48,7 +50,8 @@ func NewAIService(mcpClient MCPClient, llmClient LLMClient) *AIService {
 		if err == nil {
 			llmClient = &OllamaLLMClient{llm: llm, model: model}
 		} else {
-			llmClient = &StubLLMClient{} // fallback to stub
+			log.Printf("WARNING: failed to connect to Ollama (%v), falling back to stub LLM client", err)
+			llmClient = &StubLLMClient{}
 		}
 	}
 
@@ -76,9 +79,10 @@ func (s *AIService) GenerateSearchParams(ctx context.Context, question string) (
 	}
 
 	var params ExtractedSearchParams
-	// Act as a firewall: safely unmarshal only known fields, discarding hallucinations
-	if err := json.Unmarshal([]byte(answer), &params); err != nil {
-		return nil, fmt.Errorf("SLM returned invalid or unparseable JSON: %v. Raw Output: %s", err, answer)
+	dec := json.NewDecoder(strings.NewReader(answer))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&params); err != nil {
+		return nil, fmt.Errorf("SLM returned invalid JSON: %w", err)
 	}
 
 	return &params, nil
@@ -114,7 +118,7 @@ func buildAnalysisPrompt(traceID, topology, criticalPath, question string) strin
 			"Trace ID: %s\n\n"+
 			"Trace Topology:\n%s\n\n"+
 			"Critical Path:\n%s\n\n"+
-			"User Question: %s\n\n"+
+			"User Question: %q\n\n"+
 			"Provide a concise, actionable analysis.",
 		traceID, topology, criticalPath, question,
 	)
@@ -147,11 +151,15 @@ type OllamaLLMClient struct {
 	model string
 }
 
-// AnalyzeTrace sends the structured prompt to the local SLM via langchaingo.
-// We force JSON formatting across all Ollama requests to guarantee determinism.
+// AnalyzeTrace sends the prompt to the local SLM via langchaingo.
+// JSON mode is enabled only when the prompt explicitly requests JSON output,
+// so that /api/ai/analyze (which expects Markdown) is not forced into JSON.
 func (c *OllamaLLMClient) AnalyzeTrace(ctx context.Context, prompt string) (string, error) {
-	// Provide ollama.WithFormat("json") to strictly emit json for parsing constraints defined in #7832
-	completion, err := llms.GenerateFromSinglePrompt(ctx, c.llm, prompt, llms.WithJSONMode())
+	opts := []llms.CallOption{}
+	if strings.Contains(prompt, "Output ONLY valid JSON") {
+		opts = append(opts, llms.WithJSONMode())
+	}
+	completion, err := llms.GenerateFromSinglePrompt(ctx, c.llm, prompt, opts...)
 	if err != nil {
 		return "", fmt.Errorf("Ollama SLM generation failed (ensure 'ollama run %s' is active): %w", c.model, err)
 	}
@@ -161,8 +169,13 @@ func (c *OllamaLLMClient) AnalyzeTrace(ctx context.Context, prompt string) (stri
 // StubLLMClient returns a fixed analysis without calling a real LLM.
 type StubLLMClient struct{}
 
-// AnalyzeTrace returns a stub analysis string.
-func (*StubLLMClient) AnalyzeTrace(_ context.Context, _ string) (string, error) {
+// AnalyzeTrace returns a stub response. When the prompt requests JSON output
+// (i.e. the search extraction prompt), it returns valid JSON so GenerateSearchParams
+// can parse it. Otherwise it returns a natural-language analysis.
+func (*StubLLMClient) AnalyzeTrace(_ context.Context, prompt string) (string, error) {
+	if strings.Contains(prompt, "Output ONLY valid JSON") {
+		return `{"service":"frontend","operation":"","tags":{},"minDuration":"","maxDuration":""}`, nil
+	}
 	return "The trace shows the payment-service is the primary bottleneck, " +
 		"consuming 120ms (68% of the total 177ms critical path). " +
 		"Consider investigating the payment-service for slow database queries or external API calls.", nil

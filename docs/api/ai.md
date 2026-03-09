@@ -6,35 +6,46 @@
 
 ## Overview
 
-This endpoint provides Level-1 AI-powered trace analysis: a user asks a free-form question about a single trace, and the system returns a natural-language explanation.
+This API provides Level-1 AI-powered trace analysis via two endpoints:
 
-The architecture follows ADR-002 (MCP Server) and the GenAI roadmap:
+- **`POST /api/ai/analyze`** – Ask a free-form question about a single trace.
+- **`POST /api/ai/search`** – Translate a natural-language query into Jaeger search parameters.
+
+### Architecture
+
 ```
-User Question + Trace ID
-        |
-        v
-  jaegerquery         POST /api/ai/analyze
-  (AI Handler)
-        |  Fetches trace context
-        v
-  jaegermcp           MCP tools (port 16687)
-  (MCP Server)        - get_trace_topology
-                      - get_critical_path
-        |  Trace context returned
-        v
-  Local LLM           e.g. Ollama (port 11434)
-        |  Natural language answer
-        v
-  JSON Response
+User Question
+      |
+      v
+jaegerquery                POST /api/ai/analyze
+(AIHandler + AIService)    POST /api/ai/search
+      |                          |
+      |  /api/ai/analyze         |  /api/ai/search
+      v                          v
+ MCPClient (stub)          buildSearchAnalysisPrompt
+ - get_trace_topology      (JSON-schema constrained)
+ - get_critical_path             |
+      |                          v
+      +-------> LLMClient <------+
+                (Ollama / Stub)
+                    |
+                    v
+              JSON Response
 ```
 
-## Endpoint
+**LLM backend:** When Ollama is reachable (default model: `phi3`), requests are
+routed through `OllamaLLMClient` via LangChainGo. JSON mode is enabled
+automatically for `/api/ai/search` prompts. If Ollama is unavailable,
+the service falls back to `StubLLMClient`, which returns fixed responses.
+
+## Endpoints
 
 ### `POST /api/ai/analyze`
 
 Analyze a trace using AI. Accepts a trace ID and a natural-language question.
 
 #### Request
+
 ```json
 {
   "traceID": "abc123def456789",
@@ -42,12 +53,13 @@ Analyze a trace using AI. Accepts a trace ID and a natural-language question.
 }
 ```
 
-| Field      | Type   | Required | Description                              |
-|------------|--------|----------|------------------------------------------|
-| `traceID` | string | Yes      | The trace ID to analyze.                 |
-| `question` | string | Yes      | A natural-language question about the trace. |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `traceID` | string | Yes | The trace ID to analyze. |
+| `question` | string | Yes | A natural-language question about the trace. |
 
 #### Response (Success)
+
 ```json
 {
   "data": {
@@ -58,35 +70,70 @@ Analyze a trace using AI. Accepts a trace ID and a natural-language question.
 }
 ```
 
-#### Response (Error)
+### `POST /api/ai/search`
+
+Translate a natural-language question into structured Jaeger search parameters.
+
+#### Request
+
+```json
+{
+  "question": "Show me slow traces from the payment service over 2 seconds"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `question` | string | Yes | A natural-language search query. |
+
+#### Response (Success)
+
+```json
+{
+  "data": {
+    "originalQuestion": "Show me slow traces from the payment service over 2 seconds",
+    "parameters": {
+      "service": "payment-service",
+      "operation": "",
+      "tags": {},
+      "minDuration": "2s",
+      "maxDuration": ""
+    }
+  },
+  "total": 1
+}
+```
+
+### Error Responses
+
 ```json
 {
   "errors": [
     {
       "code": 400,
-      "msg": "traceID is required"
+      "msg": "question is required"
     }
   ]
 }
 ```
 
-| HTTP Status | When                                          |
-|-------------|-----------------------------------------------|
-| 200         | Analysis completed successfully.               |
-| 400         | Missing or invalid `traceID` or `question`.   |
-| 501         | AI service is not configured.                  |
-| 500         | MCP server or LLM unavailable / internal error.|
+| HTTP Status | When |
+|-------------|------|
+| 200 | Request completed successfully. |
+| 400 | Missing or invalid request fields. |
+| 501 | AI service is not configured. |
+| 500 | LLM unavailable or internal error. |
 
-## Current Status (PoC)
+## Current Status
 
-- **MCP client**: Stub returning fixed topology and critical path strings.
-- **LLM client**: Stub returning a fixed analysis.
+- **MCP client:** Stub returning fixed topology and critical path strings.
+- **LLM client:** Ollama integration via LangChainGo (`phi3` model). Falls back to stub when Ollama is unavailable.
+- **Search extraction:** Uses JSON-schema constrained prompting with `DisallowUnknownFields` validation.
 
 ## Future Work
 
 1. Real MCP integration via HTTP client on port 16687.
-2. Real LLM integration via Ollama/LangChainGo on port 11434.
-3. Streaming responses (SSE).
-4. Evidence linking (span IDs in answers).
-5. Benchmarks per #7827.
-6. UI integration.
+2. Streaming responses (SSE).
+3. Evidence linking (span IDs in answers).
+4. Benchmarks per #7827.
+5. UI integration.

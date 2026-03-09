@@ -246,3 +246,80 @@ func TestBuildAnalysisPrompt(t *testing.T) {
 	assert.Contains(t, prompt, "B (100ms)")
 	assert.Contains(t, prompt, "Why slow?")
 }
+
+// --- /api/ai/search handler tests ---
+
+func TestGenerateSearchParamsAISuccess(t *testing.T) {
+	ts := initializeAITestServer(t,
+		&StubMCPClient{},
+		&mockLLMClient{
+			response: `{"service":"frontend","operation":"/api/checkout","tags":{},"minDuration":"","maxDuration":""}`,
+		},
+	)
+
+	body := `{"question": "Show me traces from the frontend service for /api/checkout"}`
+	resp, err := http.Post(ts.URL+"/api/ai/search", "application/json", bytes.NewBufferString(body))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var result structuredResponse
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.Total)
+
+	data, ok := result.Data.(map[string]any)
+	require.True(t, ok, "expected Data to be a map")
+	assert.Contains(t, data["originalQuestion"], "frontend")
+}
+
+func TestGenerateSearchParamsAIInvalidJSON(t *testing.T) {
+	ts := initializeAITestServer(t, &StubMCPClient{}, &StubLLMClient{})
+
+	resp, err := http.Post(ts.URL+"/api/ai/search", "application/json", bytes.NewBufferString("not json"))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestGenerateSearchParamsAIMissingQuestion(t *testing.T) {
+	ts := initializeAITestServer(t, &StubMCPClient{}, &StubLLMClient{})
+
+	body := `{}`
+	resp, err := http.Post(ts.URL+"/api/ai/search", "application/json", bytes.NewBufferString(body))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestGenerateSearchParamsAINoAIService(t *testing.T) {
+	apiHandler := NewAPIHandler(nil, HandlerOptions.Logger(zap.NewNop()))
+	mux := http.NewServeMux()
+	apiHandler.RegisterRoutes(mux)
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+
+	body := `{"question": "Find slow traces"}`
+	resp, err := http.Post(ts.URL+"/api/ai/search", "application/json", bytes.NewBufferString(body))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusNotImplemented, resp.StatusCode)
+}
+
+func TestGenerateSearchParamsAILLMError(t *testing.T) {
+	ts := initializeAITestServer(t,
+		&StubMCPClient{},
+		&mockLLMClient{err: errors.New("model not loaded")},
+	)
+
+	body := `{"question": "Find slow traces"}`
+	resp, err := http.Post(ts.URL+"/api/ai/search", "application/json", bytes.NewBufferString(body))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+}
