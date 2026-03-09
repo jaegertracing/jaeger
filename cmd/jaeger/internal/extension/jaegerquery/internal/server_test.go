@@ -37,7 +37,9 @@ import (
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
+	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	depsmocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
@@ -679,6 +681,72 @@ func TestServerMetricsStorageDisabled(t *testing.T) {
 
 	htmlText := string(htmlBytes)
 	assert.Contains(t, htmlText, `"metricsStorage":false`, "Expected metricsStorage to be false for a disabled metrics reader.")
+}
+
+type fakeMetricsReader struct{}
+
+func (*fakeMetricsReader) GetCallRates(_ context.Context, _ *metricstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
+	return nil, nil
+}
+
+func (*fakeMetricsReader) GetErrorRates(_ context.Context, _ *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
+	return nil, nil
+}
+
+func (*fakeMetricsReader) GetLatencies(_ context.Context, _ *metricstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
+	return nil, nil
+}
+
+func (*fakeMetricsReader) GetMinStepDuration(_ context.Context, _ *metricstore.MinStepDurationQueryParameters) (time.Duration, error) {
+	return 0, nil
+}
+
+func TestServerMetricsStorageEnabled(t *testing.T) {
+	serverOptions := &QueryOptions{
+		HTTP: confighttp.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  ":0",
+				Transport: confignet.TransportTypeTCP,
+			},
+		},
+		GRPC: configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  ":0",
+				Transport: confignet.TransportTypeTCP,
+			},
+		},
+		UIConfig: UIConfig{
+			AssetsPath: "fixture",
+			ConfigFile: "fixture/ui-config.json",
+		},
+	}
+
+	logger := zaptest.NewLogger(t)
+	telset := initTelSet(logger, nooptrace.NewTracerProvider())
+	querySvc := makeQuerySvc()
+
+	// Use our dummy, non-disabled MetricsReader
+	fakeReader := &fakeMetricsReader{}
+
+	server, err := NewServer(context.Background(), querySvc.qs, fakeReader, serverOptions, tenancy.NewManager(&tenancy.Options{}), telset)
+	require.NoError(t, err)
+	require.NoError(t, server.Start(context.Background()))
+	defer server.Close()
+
+	client := &http.Client{}
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s/", server.HTTPAddr()), http.NoBody)
+	require.NoError(t, err)
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	htmlBytes, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	htmlText := string(htmlBytes)
+	assert.Contains(t, htmlText, `"metricsStorage":true`, "Expected metricsStorage to be true for an active metrics reader.")
 }
 
 func TestServerInUseHostPort(t *testing.T) {
