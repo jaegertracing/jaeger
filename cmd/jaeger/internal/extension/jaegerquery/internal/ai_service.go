@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/tmc/langchaingo/llms"
@@ -19,8 +20,8 @@ type TraceReader interface {
 }
 
 // LLMClient defines the interface for communicating with a local LLM.
-// In production, this will call Ollama (default port 11434) or similar local models.
-// TODO: Replace StubLLMClient with an Ollama/LangChainGo client.
+// The default implementation uses Ollama (port 11434) via LangChainGo.
+// StubLLMClient is provided for testing only.
 type LLMClient interface {
 	// ExtractParameters sends a prompt and forces JSON-formatted extraction.
 	ExtractParameters(ctx context.Context, prompt string) (string, error)
@@ -45,7 +46,8 @@ func NewAIService(traceReader TraceReader, llmClient LLMClient) *AIService {
 		if err == nil {
 			llmClient = &OllamaLLMClient{llm: llm, model: model}
 		} else {
-			llmClient = &StubLLMClient{} // fallback to stub
+			log.Printf("WARNING: failed to connect to Ollama (%v); falling back to stub LLM client — AI responses will be fabricated", err)
+			llmClient = &StubLLMClient{}
 		}
 	}
 
@@ -75,7 +77,7 @@ func (s *AIService) GenerateSearchParams(ctx context.Context, question string) (
 	var params ExtractedSearchParams
 	// Act as a firewall: safely unmarshal only known fields, discarding hallucinations
 	if err := json.Unmarshal([]byte(answer), &params); err != nil {
-		return nil, fmt.Errorf("SLM returned invalid or unparseable JSON: %v. Raw Output: %s", err, answer)
+		return nil, fmt.Errorf("SLM returned invalid or unparseable JSON: %w", err)
 	}
 
 	return &params, nil

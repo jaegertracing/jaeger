@@ -5,6 +5,7 @@ package app
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
@@ -24,6 +25,9 @@ func PruneTraceForLLM(trace *model.Trace) string {
 	errorSpanIDs := make(map[model.SpanID]struct{})
 
 	for _, span := range trace.Spans {
+		if span == nil {
+			continue
+		}
 		spanMap[span.SpanID] = span
 		if isErrorSpan(span) {
 			errorSpanIDs[span.SpanID] = struct{}{}
@@ -49,12 +53,21 @@ func PruneTraceForLLM(trace *model.Trace) string {
 		}
 	}
 
-	// 3. Format as a compact human-readable string
+	// 3. Sort by SpanID for deterministic output
+	sortedSpans := make([]*model.Span, 0, len(relevantSpans))
+	for _, span := range relevantSpans {
+		sortedSpans = append(sortedSpans, span)
+	}
+	sort.Slice(sortedSpans, func(i, j int) bool {
+		return sortedSpans[i].SpanID < sortedSpans[j].SpanID
+	})
+
+	// 4. Format as a compact human-readable string
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("Trace ID: %s\n", trace.Spans[0].TraceID.String()))
-	sb.WriteString("Critical Error Path Spans:\n")
+	sb.WriteString("Error Spans and Parents:\n")
 
-	for _, span := range relevantSpans {
+	for _, span := range sortedSpans {
 		sb.WriteString(fmt.Sprintf("\n- Span: %s (ID: %s) [Duration: %v]\n", span.OperationName, span.SpanID.String(), span.Duration))
 
 		isErr := isErrorSpan(span)

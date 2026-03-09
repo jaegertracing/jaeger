@@ -222,3 +222,83 @@ func TestBuildContextualPrompt(t *testing.T) {
 	assert.Contains(t, prompt, "pruned trace 123")
 	assert.Contains(t, prompt, "Why slow?")
 }
+
+// --- /api/ai/search handler tests ---
+
+func TestGenerateSearchParamsAISuccess(t *testing.T) {
+	ts := initializeAITestServer(t,
+		&StubTraceReader{},
+		&mockLLMClient{
+			response: `{"service": "payment-service", "operation": "checkout", "tags": {"error": "true"}}`,
+		},
+	)
+
+	body := `{"question": "Find slow checkout requests in payment-service"}`
+	resp, err := http.Post(ts.URL+"/api/ai/search", "application/json", bytes.NewBufferString(body))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var result structuredResponse
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.Total)
+
+	data, ok := result.Data.(map[string]any)
+	require.True(t, ok, "expected Data to be a map")
+	assert.Equal(t, "Find slow checkout requests in payment-service", data["originalQuestion"])
+	params, ok := data["parameters"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "payment-service", params["service"])
+}
+
+func TestGenerateSearchParamsAIInvalidJSON(t *testing.T) {
+	ts := initializeAITestServer(t, &StubTraceReader{}, &StubLLMClient{})
+
+	resp, err := http.Post(ts.URL+"/api/ai/search", "application/json", bytes.NewBufferString("not json"))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestGenerateSearchParamsAIMissingQuestion(t *testing.T) {
+	ts := initializeAITestServer(t, &StubTraceReader{}, &StubLLMClient{})
+
+	body := `{}`
+	resp, err := http.Post(ts.URL+"/api/ai/search", "application/json", bytes.NewBufferString(body))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestGenerateSearchParamsAINoAIService(t *testing.T) {
+	apiHandler := NewAPIHandler(nil, HandlerOptions.Logger(zap.NewNop()))
+	mux := http.NewServeMux()
+	apiHandler.RegisterRoutes(mux)
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+
+	body := `{"question": "Find errors"}`
+	resp, err := http.Post(ts.URL+"/api/ai/search", "application/json", bytes.NewBufferString(body))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusNotImplemented, resp.StatusCode)
+}
+
+func TestGenerateSearchParamsAILLMError(t *testing.T) {
+	ts := initializeAITestServer(t,
+		&StubTraceReader{},
+		&mockLLMClient{err: errors.New("model not loaded")},
+	)
+
+	body := `{"question": "Find errors"}`
+	resp, err := http.Post(ts.URL+"/api/ai/search", "application/json", bytes.NewBufferString(body))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+}

@@ -8,27 +8,25 @@
 
 This endpoint provides Level-1 AI-powered trace analysis: a user asks a free-form question about a single trace, and the system returns a natural-language explanation.
 
-The architecture follows ADR-002 (MCP Server) and the GenAI roadmap:
+The architecture follows the GenAI roadmap:
 ```
 User Question + Trace ID
         |
         v
   jaegerquery         POST /api/ai/analyze
-  (AI Handler)
-        |  Fetches trace context
+  (AI Handler)        POST /api/ai/search
+        |  Fetches trace via TraceReader
         v
-  jaegermcp           MCP tools (port 16687)
-  (MCP Server)        - get_trace_topology
-                      - get_critical_path
-        |  Trace context returned
+  AIService           Prunes trace for LLM context
+        |  Pruned trace + prompt
         v
-  Local LLM           e.g. Ollama (port 11434)
+  Local LLM           e.g. Ollama / phi3 (port 11434)
         |  Natural language answer
         v
   JSON Response
 ```
 
-## Endpoint
+## Endpoints
 
 ### `POST /api/ai/analyze`
 
@@ -44,7 +42,7 @@ Analyze a trace using AI. Accepts a trace ID and a natural-language question.
 
 | Field      | Type   | Required | Description                              |
 |------------|--------|----------|------------------------------------------|
-| `traceID` | string | Yes      | The trace ID to analyze.                 |
+| `traceID`  | string | Yes      | The trace ID to analyze.                 |
 | `question` | string | Yes      | A natural-language question about the trace. |
 
 #### Response (Success)
@@ -75,18 +73,57 @@ Analyze a trace using AI. Accepts a trace ID and a natural-language question.
 | 200         | Analysis completed successfully.               |
 | 400         | Missing or invalid `traceID` or `question`.   |
 | 501         | AI service is not configured.                  |
-| 500         | MCP server or LLM unavailable / internal error.|
+| 500         | LLM unavailable / internal error.              |
+
+### `POST /api/ai/search`
+
+Translate a natural language question into structured Jaeger search parameters using the local SLM.
+
+#### Request
+```json
+{
+  "question": "Find slow checkout requests in payment-service"
+}
+```
+
+| Field      | Type   | Required | Description                                   |
+|------------|--------|----------|-----------------------------------------------|
+| `question` | string | Yes      | A natural-language search query to translate.  |
+
+#### Response (Success)
+```json
+{
+  "data": {
+    "originalQuestion": "Find slow checkout requests in payment-service",
+    "parameters": {
+      "service": "payment-service",
+      "operation": "checkout",
+      "tags": { "error": "true" },
+      "minDuration": "",
+      "maxDuration": ""
+    }
+  },
+  "total": 1
+}
+```
+
+| HTTP Status | When                                          |
+|-------------|-----------------------------------------------|
+| 200         | Parameters extracted successfully.             |
+| 400         | Missing or invalid `question`.                 |
+| 501         | AI service is not configured.                  |
+| 500         | SLM extraction failed / internal error.        |
 
 ## Current Status (PoC)
 
-- **MCP client**: Stub returning fixed topology and critical path strings.
-- **LLM client**: Stub returning a fixed analysis.
+- **LLM client**: Ollama integration via LangChainGo (`phi3` model by default). Falls back to a stub client if Ollama is unavailable.
+- **Trace pruning**: Error spans and their immediate parents are extracted and formatted for the LLM context window.
+- **Search parameter extraction**: SLM translates natural language to structured Jaeger search JSON.
 
 ## Future Work
 
 1. Real MCP integration via HTTP client on port 16687.
-2. Real LLM integration via Ollama/LangChainGo on port 11434.
-3. Streaming responses (SSE).
-4. Evidence linking (span IDs in answers).
-5. Benchmarks per #7827.
-6. UI integration.
+2. Streaming responses (SSE).
+3. Evidence linking (span IDs in answers).
+4. Benchmarks per #7827.
+5. UI integration.
