@@ -39,6 +39,9 @@ type QueryServiceOptions struct {
 type StorageCapabilities struct {
 	ArchiveStorage bool `json:"archiveStorage"`
 	MetricsStorage bool `json:"metricsStorage"`
+	// Potential future extensions:
+	// SupportRegex     bool
+	// SupportTagFilter bool
 }
 
 // QueryService provides methods to query data from the storage.

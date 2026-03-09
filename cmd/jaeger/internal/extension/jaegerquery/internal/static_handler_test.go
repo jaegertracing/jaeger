@@ -62,6 +62,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 		subroute                    bool   // should we create a subroute?
 		baseURL                     string // expected URL prefix
 		archiveStorage              bool   // archive storage enabled?
+		metricsStorage              bool   // metrics storage enabled?
 		logAccess                   bool
 		expectedBaseHTML            string // substring to match in the home page
 		UIConfigPath                string // path to UI config
@@ -97,6 +98,16 @@ func TestRegisterStaticHandler(t *testing.T) {
 			expectedUIConfig:            "function UIConfig(){",
 			expectedStorageCapabilities: `JAEGER_STORAGE_CAPABILITIES = {"archiveStorage":true,"metricsStorage":false};`,
 		},
+		{
+			basePath:                    "/metrics",
+			baseURL:                     "/metrics/",
+			expectedBaseHTML:            `<base href="/metrics/"`,
+			subroute:                    true,
+			metricsStorage:              true,
+			UIConfigPath:                "fixture/ui-config.js",
+			expectedUIConfig:            "function UIConfig(){",
+			expectedStorageCapabilities: `JAEGER_STORAGE_CAPABILITIES = {"archiveStorage":false,"metricsStorage":true};`,
+		},
 	}
 	httpClient = &http.Client{
 		Timeout: 2 * time.Second,
@@ -113,7 +124,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 				},
 				BasePath: testCase.basePath,
 			},
-				querysvc.StorageCapabilities{ArchiveStorage: testCase.archiveStorage},
+				querysvc.StorageCapabilities{ArchiveStorage: testCase.archiveStorage, MetricsStorage: testCase.metricsStorage},
 			)
 			defer closer.Close()
 
