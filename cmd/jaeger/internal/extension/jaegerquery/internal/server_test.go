@@ -6,6 +6,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"io"
 	"iter"
 	"net"
 	"net/http"
@@ -36,6 +37,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
+	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
 	depsmocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
@@ -629,6 +631,54 @@ func TestServerBadHostPort(t *testing.T) {
 		telset)
 
 	require.Error(t, err)
+}
+
+func TestServerMetricsStorageDisabled(t *testing.T) {
+	serverOptions := &QueryOptions{
+		HTTP: confighttp.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  ":0",
+				Transport: confignet.TransportTypeTCP,
+			},
+		},
+		GRPC: configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  ":0",
+				Transport: confignet.TransportTypeTCP,
+			},
+		},
+		UIConfig: UIConfig{
+			AssetsPath: "fixture",
+			ConfigFile: "fixture/ui-config.json",
+		},
+	}
+
+	logger := zaptest.NewLogger(t)
+	telset := initTelSet(logger, nooptrace.NewTracerProvider())
+	querySvc := makeQuerySvc()
+
+	disabledMetricsReader, err := disabled.NewMetricsReader()
+	require.NoError(t, err)
+
+	server, err := NewServer(context.Background(), querySvc.qs, disabledMetricsReader, serverOptions, tenancy.NewManager(&tenancy.Options{}), telset)
+	require.NoError(t, err)
+	require.NoError(t, server.Start(context.Background()))
+	defer server.Close()
+
+	client := &http.Client{}
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s/", server.HTTPAddr()), http.NoBody)
+	require.NoError(t, err)
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	htmlBytes, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	htmlText := string(htmlBytes)
+	assert.Contains(t, htmlText, `"metricsStorage":false`, "Expected metricsStorage to be false for a disabled metrics reader.")
 }
 
 func TestServerInUseHostPort(t *testing.T) {

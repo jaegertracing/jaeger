@@ -31,6 +31,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/recoveryhandler"
+	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
@@ -192,7 +193,8 @@ func initRouter(
 	})
 
 	caps := querySvc.GetCapabilities()
-	caps.MetricsStorage = metricsQuerySvc != nil
+	_, disabledMetrics := metricsQuerySvc.(*disabled.MetricsReader)
+	caps.MetricsStorage = metricsQuerySvc != nil && !disabledMetrics
 	staticHandlerCloser := RegisterStaticHandler(r, telset.Logger, queryOpts, caps)
 
 	var handler http.Handler = r
