@@ -526,7 +526,3 @@ describe('postOrUpdateComment', () => {
     expect(mockCore.info).toHaveBeenCalledWith(expect.stringContaining('Updating existing comment id=100'));
   });
 });
-
-
-
-

@@ -105,7 +105,7 @@ function sanitizeSnapshots(raw) {
  * Derive metrics conclusion and display text from the parsed ci-summary artifact.
  * Uses === true for boolean fields to avoid misinterpreting JSON strings.
  * @param {object} s - Parsed ci-summary.json
- * @returns {{ hasInfraErrors: boolean, totalChanges: number|null, conclusion: string, text: string }}
+ * @returns {{ hasInfraErrors: boolean, totalChanges: number|null, snapshots: Array|null, conclusion: string, text: string }}
  */
 function computeMetrics(s) {
   const hasInfraErrors = s.metrics_has_infra_errors === true;

@@ -163,18 +163,15 @@ def generate_structured_json(changes):
     lines or free-form text — so it is safe to pass through ci-summary.json
     to the trusted publish workflow.
 
-    Counts use variant-level semantics (number of diff lines per category),
-    matching the TOTAL_CHANGES gate and the markdown summary.
+    Counts use metric-name semantics (number of unique metric names per
+    category) so that they match the displayed metric_names list.
+    Note: the TOTAL_CHANGES headline uses variant-level counts from the
+    markdown summary; the per-snapshot detail intentionally shows the
+    simpler metric-name-level view.
     """
     added_names = sorted(changes['added'].keys())
     removed_names = sorted(changes['removed'].keys())
     modified_names = sorted(changes['modified'].keys())
-
-    # Counts use variant-level semantics (same as generate_diff_summary)
-    # so that the detail breakdown is consistent with the headline count.
-    total_added = sum(len(v) for v in changes['added'].values())
-    total_removed = sum(len(v) for v in changes['removed'].values())
-    total_modified = len(changes['modified'])
 
     # Union of all changed metric names, deduplicated, sorted, and capped
     # to avoid unbounded artifact growth. The publish workflow enforces a
@@ -182,9 +179,9 @@ def generate_structured_json(changes):
     all_names = sorted(set(added_names) | set(removed_names) | set(modified_names))
 
     return {
-        'added': total_added,
-        'removed': total_removed,
-        'modified': total_modified,
+        'added': len(added_names),
+        'removed': len(removed_names),
+        'modified': len(modified_names),
         'metric_names': all_names[:MAX_METRIC_NAMES],
     }
 
