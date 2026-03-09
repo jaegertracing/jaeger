@@ -31,7 +31,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/recoveryhandler"
-	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
@@ -54,6 +53,7 @@ func NewServer(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	options *QueryOptions,
+	caps querysvc.StorageCapabilities,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*Server, error) {
@@ -76,7 +76,7 @@ func NewServer(
 		return nil, err
 	}
 	registerGRPCHandlers(grpcServer, querySvc, telset)
-	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, tm, telset)
+	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, caps, tm, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -158,6 +158,7 @@ func initRouter(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
+	caps querysvc.StorageCapabilities,
 	tenancyMgr *tenancy.Manager,
 	telset telemetry.Settings,
 ) (http.Handler, io.Closer) {
@@ -192,9 +193,6 @@ func initRouter(
 		http.Error(w, "404 page not found", http.StatusNotFound)
 	})
 
-	caps := querySvc.GetCapabilities()
-	_, disabledMetrics := metricsQuerySvc.(*disabled.MetricsReader)
-	caps.MetricsStorage = metricsQuerySvc != nil && !disabledMetrics
 	staticHandlerCloser := RegisterStaticHandler(r, telset.Logger, queryOpts, caps)
 
 	var handler http.Handler = r
@@ -213,10 +211,11 @@ func createHTTPServer(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
+	caps querysvc.StorageCapabilities,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*httpServer, error) {
-	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
+	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, caps, tm, telset)
 	handler = recoveryhandler.NewRecoveryHandler(telset.Logger, true)(handler)
 	var extensions map[component.ID]component.Component
 	if telset.Host != nil {

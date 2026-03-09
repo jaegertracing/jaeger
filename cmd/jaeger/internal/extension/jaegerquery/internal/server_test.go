@@ -6,7 +6,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"io"
 	"iter"
 	"net"
 	"net/http"
@@ -37,9 +36,6 @@ import (
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
-	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
-	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	depsmocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
@@ -92,6 +88,7 @@ func TestCreateTLSServerSinglePortError(t *testing.T) {
 			},
 			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8080", Transport: confignet.TransportTypeTCP}, TLS: configoptional.Some(tlsCfg)},
 		},
+		querysvc.StorageCapabilities{},
 		tenancy.NewManager(&tenancy.Options{}), telset)
 	require.Error(t, err)
 }
@@ -115,6 +112,7 @@ func TestCreateTLSGrpcServerError(t *testing.T) {
 			},
 			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8081", Transport: confignet.TransportTypeTCP}, TLS: configoptional.Some(tlsCfg)},
 		},
+		querysvc.StorageCapabilities{},
 		tenancy.NewManager(&tenancy.Options{}), telset)
 	require.Error(t, err)
 }
@@ -138,7 +136,9 @@ func TestStartTLSHttpServerError(t *testing.T) {
 				TLS: configoptional.Some(tlsCfg),
 			},
 			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8081", Transport: confignet.TransportTypeTCP}},
-		}, tenancy.NewManager(&tenancy.Options{}), telset)
+		},
+		querysvc.StorageCapabilities{},
+		tenancy.NewManager(&tenancy.Options{}), telset)
 	require.NoError(t, err)
 	require.Error(t, s.Start(context.Background()))
 	t.Cleanup(func() {
@@ -437,9 +437,9 @@ func TestServerHTTPTLS(t *testing.T) {
 			logger := zaptest.NewLogger(t)
 			telset := initTelSet(logger, nooptrace.NewTracerProvider())
 			querySvc := makeQuerySvc()
-			server, err := NewServer(context.Background(), querySvc.qs,
-				nil, serverOptions, tenancy.NewManager(&tenancy.Options{}),
-				telset)
+
+			server, err := NewServer(context.Background(), querySvc.qs, nil,
+				serverOptions, querysvc.StorageCapabilities{}, tenancy.NewManager(&tenancy.Options{}), telset)
 			require.NoError(t, err)
 			require.NoError(t, server.Start(context.Background()))
 			t.Cleanup(func() {
@@ -552,7 +552,7 @@ func TestServerGRPCTLS(t *testing.T) {
 			querySvc := makeQuerySvc()
 			telset := initTelSet(logger, nooptrace.NewTracerProvider())
 			server, err := NewServer(context.Background(), querySvc.qs,
-				nil, serverOptions, tenancy.NewManager(&tenancy.Options{}),
+				nil, serverOptions, querysvc.StorageCapabilities{}, tenancy.NewManager(&tenancy.Options{}),
 				telset)
 			require.NoError(t, err)
 			require.NoError(t, server.Start(context.Background()))
@@ -609,6 +609,7 @@ func TestServerBadHostPort(t *testing.T) {
 				},
 			},
 		},
+		querysvc.StorageCapabilities{},
 		tenancy.NewManager(&tenancy.Options{}),
 		telset)
 	require.Error(t, err)
@@ -629,124 +630,11 @@ func TestServerBadHostPort(t *testing.T) {
 				},
 			},
 		},
+		querysvc.StorageCapabilities{},
 		tenancy.NewManager(&tenancy.Options{}),
 		telset)
 
 	require.Error(t, err)
-}
-
-func TestServerMetricsStorageDisabled(t *testing.T) {
-	serverOptions := &QueryOptions{
-		HTTP: confighttp.ServerConfig{
-			NetAddr: confignet.AddrConfig{
-				Endpoint:  ":0",
-				Transport: confignet.TransportTypeTCP,
-			},
-		},
-		GRPC: configgrpc.ServerConfig{
-			NetAddr: confignet.AddrConfig{
-				Endpoint:  ":0",
-				Transport: confignet.TransportTypeTCP,
-			},
-		},
-		UIConfig: UIConfig{
-			AssetsPath: "fixture",
-			ConfigFile: "fixture/ui-config.json",
-		},
-	}
-
-	logger := zaptest.NewLogger(t)
-	telset := initTelSet(logger, nooptrace.NewTracerProvider())
-	querySvc := makeQuerySvc()
-
-	disabledMetricsReader, err := disabled.NewMetricsReader()
-	require.NoError(t, err)
-
-	server, err := NewServer(context.Background(), querySvc.qs, disabledMetricsReader, serverOptions, tenancy.NewManager(&tenancy.Options{}), telset)
-	require.NoError(t, err)
-	require.NoError(t, server.Start(context.Background()))
-	defer server.Close()
-
-	client := &http.Client{}
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s/", server.HTTPAddr()), http.NoBody)
-	require.NoError(t, err)
-	resp, err := client.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	htmlBytes, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-
-	htmlText := string(htmlBytes)
-	assert.Contains(t, htmlText, `"metricsStorage":false`, "Expected metricsStorage to be false for a disabled metrics reader.")
-}
-
-type fakeMetricsReader struct{}
-
-func (*fakeMetricsReader) GetCallRates(_ context.Context, _ *metricstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
-	return nil, nil
-}
-
-func (*fakeMetricsReader) GetErrorRates(_ context.Context, _ *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
-	return nil, nil
-}
-
-func (*fakeMetricsReader) GetLatencies(_ context.Context, _ *metricstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
-	return nil, nil
-}
-
-func (*fakeMetricsReader) GetMinStepDuration(_ context.Context, _ *metricstore.MinStepDurationQueryParameters) (time.Duration, error) {
-	return 0, nil
-}
-
-func TestServerMetricsStorageEnabled(t *testing.T) {
-	serverOptions := &QueryOptions{
-		HTTP: confighttp.ServerConfig{
-			NetAddr: confignet.AddrConfig{
-				Endpoint:  ":0",
-				Transport: confignet.TransportTypeTCP,
-			},
-		},
-		GRPC: configgrpc.ServerConfig{
-			NetAddr: confignet.AddrConfig{
-				Endpoint:  ":0",
-				Transport: confignet.TransportTypeTCP,
-			},
-		},
-		UIConfig: UIConfig{
-			AssetsPath: "fixture",
-			ConfigFile: "fixture/ui-config.json",
-		},
-	}
-
-	logger := zaptest.NewLogger(t)
-	telset := initTelSet(logger, nooptrace.NewTracerProvider())
-	querySvc := makeQuerySvc()
-
-	// Use our dummy, non-disabled MetricsReader
-	fakeReader := &fakeMetricsReader{}
-
-	server, err := NewServer(context.Background(), querySvc.qs, fakeReader, serverOptions, tenancy.NewManager(&tenancy.Options{}), telset)
-	require.NoError(t, err)
-	require.NoError(t, server.Start(context.Background()))
-	defer server.Close()
-
-	client := &http.Client{}
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s/", server.HTTPAddr()), http.NoBody)
-	require.NoError(t, err)
-	resp, err := client.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	htmlBytes, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-
-	htmlText := string(htmlBytes)
-	assert.Contains(t, htmlText, `"metricsStorage":true`, "Expected metricsStorage to be true for an active metrics reader.")
 }
 
 func TestServerInUseHostPort(t *testing.T) {
@@ -784,6 +672,7 @@ func TestServerInUseHostPort(t *testing.T) {
 						},
 					},
 				},
+				querysvc.StorageCapabilities{},
 				tenancy.NewManager(&tenancy.Options{}),
 				telset,
 			)
@@ -811,13 +700,9 @@ func TestServerGracefulExit(t *testing.T) {
 					Transport: confignet.TransportTypeTCP,
 				},
 			},
-			GRPC: configgrpc.ServerConfig{
-				NetAddr: confignet.AddrConfig{
-					Endpoint:  ":0",
-					Transport: confignet.TransportTypeTCP,
-				},
-			},
+			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":0", Transport: confignet.TransportTypeTCP}},
 		},
+		querysvc.StorageCapabilities{},
 		tenancy.NewManager(&tenancy.Options{}), telset)
 	require.NoError(t, err)
 	require.NoError(t, server.Start(context.Background()))
@@ -863,6 +748,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 				},
 			},
 		},
+		querysvc.StorageCapabilities{},
 		tenancy.NewManager(&tenancy.Options{}),
 		telset)
 	require.NoError(t, err)
@@ -925,7 +811,7 @@ func TestServerHTTPTenancy(t *testing.T) {
 		})).Once()
 	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
 	server, err := NewServer(context.Background(), querySvc.qs,
-		nil, serverOptions, tenancyMgr, telset)
+		nil, serverOptions, querysvc.StorageCapabilities{}, tenancyMgr, telset)
 	require.NoError(t, err)
 	require.NoError(t, server.Start(context.Background()))
 	t.Cleanup(func() {
@@ -1025,7 +911,7 @@ func TestServerHTTP_TracesRequest(t *testing.T) {
 			telset := initTelSet(zaptest.NewLogger(t), tracerProvider)
 
 			server, err := NewServer(context.Background(), querySvc.qs,
-				nil, serverOptions, tenancyMgr, telset)
+				nil, serverOptions, querysvc.StorageCapabilities{}, tenancyMgr, telset)
 			require.NoError(t, err)
 			require.NoError(t, server.Start(context.Background()))
 			t.Cleanup(func() {
@@ -1073,7 +959,7 @@ func TestServerAPINotFound(t *testing.T) {
 			tenancyMgr := tenancy.NewManager(&serverOptions.Tenancy)
 			telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
 
-			server, err := NewServer(context.Background(), querySvc.qs, nil, serverOptions, tenancyMgr, telset)
+			server, err := NewServer(context.Background(), querySvc.qs, nil, serverOptions, querysvc.StorageCapabilities{}, tenancyMgr, telset)
 			require.NoError(t, err)
 			require.NoError(t, server.Start(context.Background()))
 			t.Cleanup(func() {

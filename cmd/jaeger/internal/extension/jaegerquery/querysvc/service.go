@@ -199,16 +199,6 @@ func (qs QueryService) GetDependencies(ctx context.Context, endTs time.Time, loo
 	})
 }
 
-func (qs QueryService) GetCapabilities() StorageCapabilities {
-	return StorageCapabilities{
-		ArchiveStorage: qs.options.hasArchiveStorage(),
-	}
-}
-
-func (opts *QueryServiceOptions) hasArchiveStorage() bool {
-	return opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil
-}
-
 func (qs QueryService) receiveTraces(
 	seq iter.Seq2[[]ptrace.Traces, error],
 	yield func([]ptrace.Traces, error) bool,
