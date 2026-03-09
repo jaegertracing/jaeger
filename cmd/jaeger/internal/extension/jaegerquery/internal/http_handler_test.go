@@ -446,30 +446,6 @@ func TestGetTraceBadTimeWindow(t *testing.T) {
 	}
 }
 
-func TestGetTraceWithRawTracesParameter(t *testing.T) {
-	// TODO: extend the test cases to ensure raw traces are obtained
-	// when the flag is set once the differentiating logic has been implemented
-	tests := []struct {
-		rawTraces bool
-	}{
-		{rawTraces: true},
-		{rawTraces: false},
-	}
-	for _, test := range tests {
-		t.Run(fmt.Sprintf("rawTraces=%v", test.rawTraces), func(t *testing.T) {
-			ts := initializeTestServer(t)
-			ts.traceReader.On("GetTraces", mock.Anything, mock.MatchedBy(func(params []tracestore.GetTraceParams) bool {
-				return len(params) == 1 && params[0].TraceID == v1adapter.FromV1TraceID(mockTraceID)
-			})).Return(tracesIter(makeMockPTrace())).Once()
-
-			var response structuredResponse
-			err := getJSON(fmt.Sprintf("%s/api/traces/%s?raw=%v", ts.server.URL, mockTraceID.String(), test.rawTraces), &response)
-			require.NoError(t, err)
-			assert.Empty(t, response.Errors)
-		})
-	}
-}
-
 func TestGetTraceBadRawTracesFlag(t *testing.T) {
 	ts := initializeTestServer(t)
 	var response structuredResponse
