@@ -126,7 +126,7 @@ for path in sys.argv[2:]:
         with open(path) as f:
             data = json.load(f)
         basename = os.path.basename(path)
-        name = basename.replace('changes_', '').replace('.json', '')
+        name = basename.removeprefix('changes_').removesuffix('.json')
         data['snapshot'] = name
         snapshots.append(data)
     except Exception as e:
