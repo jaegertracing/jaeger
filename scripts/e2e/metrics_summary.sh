@@ -8,6 +8,7 @@ set -exo pipefail
 
 METRICS_DIR="${METRICS_DIR:-./.artifacts}"
 declare -a summary_files=()
+declare -a json_files=()
 total_changes=0
 
 echo "Starting metrics diff processing in directory: $METRICS_DIR"
@@ -71,13 +72,16 @@ while IFS= read -r -d '' diff_file; do
 
     # Generate summary for this diff
     summary_file="$dir/summary_$snapshot_name.md"
+    json_file="$dir/changes_$snapshot_name.json"
 
     echo "Generating summary for $snapshot_name"
     python3 ./scripts/e2e/metrics_summary.py \
         --diff "$diff_file" \
-        --output "$summary_file"
+        --output "$summary_file" \
+        --json-output "$json_file"
 
     summary_files+=("$summary_file")
+    json_files+=("$json_file")
     echo "Generated summary at: $summary_file"
 done < <(find "$METRICS_DIR" -type f -name "diff_*.txt" -print0)
 
@@ -104,6 +108,30 @@ elif [ "$total_changes" -gt 0 ]; then
 else
     echo "CONCLUSION=success" >> "$GITHUB_OUTPUT"
 fi
+
+# Merge per-snapshot JSON files into a single metrics_snapshots.json.
+# Each entry gets a "snapshot" field with the snapshot name.
+# The trusted publish workflow validates this data before rendering.
+python3 - "${json_files[@]}" <<'PYEOF'
+import json, sys
+snapshots = []
+for path in sys.argv[1:]:
+    try:
+        with open(path) as f:
+            data = json.load(f)
+        # Derive snapshot name from filename: changes_<snapshot_name>.json
+        import os
+        basename = os.path.basename(path)
+        name = basename.replace('changes_', '').replace('.json', '')
+        data['snapshot'] = name
+        snapshots.append(data)
+    except Exception as e:
+        print(f"Warning: could not read {path}: {e}", file=sys.stderr)
+output_path = '.artifacts/metrics_snapshots.json'
+with open(output_path, 'w') as f:
+    json.dump(snapshots, f, indent=2)
+print(f"Merged {len(snapshots)} snapshot(s) into {output_path}")
+PYEOF
 
 # Log the combined summary to the console (visible in CI run logs).
 # Structured conclusions are already emitted to $GITHUB_OUTPUT above.
