@@ -149,6 +149,10 @@ jobs:
       # never handles free-form text from test output (which could contain injections).
       # All display text is constructed from this structured data by trusted publish-
       # workflow code running in the base repository context.
+      #
+      # metrics_snapshots is an array of per-snapshot change data (metric names and
+      # counts) produced by metrics_summary.sh.  The publish workflow validates every
+      # field before rendering (see sanitizeSnapshots in ci-summary-report-publish.js).
       - name: Save conclusions for publish workflow
         if: always()
         env:
@@ -198,10 +202,21 @@ jobs:
               except (FileNotFoundError, ValueError):
                   pass
 
+          # Load per-snapshot metric change data (produced by metrics_summary.sh).
+          # If the file is missing or malformed, set to None — the publish
+          # workflow treats null/missing as "no detail available".
+          metrics_snapshots = None
+          try:
+              with open('.artifacts/metrics_snapshots.json') as f:
+                  metrics_snapshots = json.load(f)
+          except (FileNotFoundError, json.JSONDecodeError, ValueError):
+              pass
+
           data = {
               'metrics_conclusion':      metrics_conclusion,
               'metrics_total_changes':   metrics_total,
               'metrics_has_infra_errors': has_infra_errors,
+              'metrics_snapshots':       metrics_snapshots,
               'coverage_conclusion':     coverage_conclusion,
               'coverage_percentage':     coverage_pct,
               'coverage_baseline':       coverage_baseline,
