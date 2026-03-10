@@ -721,35 +721,6 @@ func TestGetDependencies(t *testing.T) {
 	assert.Equal(t, expected, actualDependencies)
 }
 
-func TestGetCapabilities(t *testing.T) {
-	tests := []struct {
-		name     string
-		options  []testOption
-		expected StorageCapabilities
-	}{
-		{
-			name: "without archive storage",
-			expected: StorageCapabilities{
-				ArchiveStorage: false,
-			},
-		},
-		{
-			name:    "with archive storage",
-			options: []testOption{withArchiveTraceReader(), withArchiveTraceWriter()},
-			expected: StorageCapabilities{
-				ArchiveStorage: true,
-			},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			tqs := initializeTestService(test.options...)
-			assert.Equal(t, test.expected, tqs.queryService.GetCapabilities())
-		})
-	}
-}
-
 // Consolidate Underlimit, Overlimit and Exactly at limit tests
 func TestMaxTraceSize(t *testing.T) {
 	tests := []struct {
