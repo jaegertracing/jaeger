@@ -91,12 +91,14 @@ jobs:
         uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57
         with:
           path: .artifacts/baseline-coverage.txt
-          # Use a unique key so the exact match never hits; the restore-keys
-          # prefix match always returns the most-recently-created cache entry
-          # (the latest main-branch run), avoiding any stale-cache hit.
+          # Exact match intentionally never hits (run IDs differ between runs).
+          # The restore-keys prefix coverage-baseline_ falls back to the most
+          # recently created cache entry from a main-branch run.  The trailing
+          # underscore avoids accidentally matching a plain "coverage-baseline"
+          # key if one were ever re-created.
           key: coverage-baseline_${{ github.run_id }}
           restore-keys: |
-            coverage-baseline
+            coverage-baseline_
 
       - name: Gate on coverage regression
         if: success() && steps.merge-coverage.outputs.skipped == 'false'
