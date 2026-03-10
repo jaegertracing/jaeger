@@ -92,10 +92,13 @@ jobs:
         with:
           path: .artifacts/baseline-coverage.txt
           # Exact match intentionally never hits (run IDs differ between runs).
-          # The restore-keys prefix coverage-baseline_ falls back to the most
-          # recently created cache entry from a main-branch run.  The trailing
-          # underscore avoids accidentally matching a plain "coverage-baseline"
-          # key if one were ever re-created.
+          # The restore-keys prefix coverage-baseline_ always falls back to the
+          # most recently created cache entry (GitHub returns the newest match
+          # for prefix lookups), which is the latest passing main-branch run.
+          # The trailing underscore avoids matching a plain "coverage-baseline"
+          # key if one were ever created.
+          # Storage is negligible: each entry is a single number (~10 B) and
+          # GitHub automatically evicts entries unused for 7 days.
           key: coverage-baseline_${{ github.run_id }}
           restore-keys: |
             coverage-baseline_
@@ -219,12 +222,20 @@ jobs:
           if-no-files-found: warn
 
       # Save baseline coverage on main-branch runs so PRs can compare against it.
+      # Only save when the coverage gate passes so a failing/partial run never
+      # overwrites a valid baseline with a bad value.
       - name: Save coverage baseline on main branch
-        if: github.ref == 'refs/heads/main' && steps.merge-coverage.outputs.skipped == 'false'
+        if: >-
+          github.ref == 'refs/heads/main' &&
+          steps.merge-coverage.outputs.skipped == 'false' &&
+          steps.coverage-gate.outputs.conclusion == 'success'
         run: cp .artifacts/current-coverage.txt .artifacts/baseline-coverage.txt
 
       - name: Cache coverage baseline
-        if: github.ref == 'refs/heads/main' && steps.merge-coverage.outputs.skipped == 'false'
+        if: >-
+          github.ref == 'refs/heads/main' &&
+          steps.merge-coverage.outputs.skipped == 'false' &&
+          steps.coverage-gate.outputs.conclusion == 'success'
         uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57
         with:
           path: .artifacts/baseline-coverage.txt
