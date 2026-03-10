@@ -30,7 +30,7 @@ Extend the existing `CI Summary Report` fan-in workflow to add coverage aggregat
 3. The merged profile must be filtered using the same exclusions as `.codecov.yml` (generated files, mocks, integration test infrastructure) so both tools report from a single source of truth.
 4. A `Coverage Gate` check-run must always be posted to the PR — even when no coverage data is available — so it can be used as a required status check in branch protection.
 5. The workflow must run for `pull_request`, `merge_group`, and `push` (to `main`) events triggered through the CI Orchestrator, as well as via manual `workflow_dispatch`.
-6. On `main`-branch runs, the coverage baseline must be persisted for future PR comparisons.
+6. On `main`-branch runs, the coverage baseline must be cached for future PR comparisons.
 
 ### Success Criteria
 
@@ -52,7 +52,7 @@ The single `summary-report` job:
 2. **Downloads all artifacts** — uses `gh run download` to fetch all artifacts from the source run.
 3. **Merges and gates coverage** — merges all `coverage-*/*.out` profiles with `gocovmerge`, filters excluded paths, and applies the two coverage gates.
 4. **Posts results** — creates `Metrics Comparison` and `Coverage Gate` check-runs on the PR. When no coverage data exists, `Coverage Gate` reports success with a "skipped" note to satisfy branch protection.
-5. **Saves baseline on `main`** — uploads the coverage percentage as a `coverage-baseline` artifact (90-day retention) so PR runs can download it from the most recent successful `main` run.
+5. **Saves baseline on `main`** — caches the coverage percentage for future PR comparisons.
 
 ### Key Files
 

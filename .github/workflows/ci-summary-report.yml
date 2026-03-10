@@ -14,7 +14,7 @@ on:
   workflow_call:
 permissions:
   contents: read
-  actions: write  # required for gh run download and actions/upload-artifact
+  actions: write  # required for actions/cache save and gh run download
 
 jobs:
   summary-report:
@@ -88,50 +88,15 @@ jobs:
       - name: Restore baseline coverage from main
         if: success() && steps.merge-coverage.outputs.skipped == 'false'
         id: restore-baseline
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Download the coverage-baseline artifact from the latest successful
-          # main-branch ci-orchestrator run.  Using an artifact (rather than
-          # actions/cache) guarantees we always get the most-recently uploaded
-          # value and avoids stale-cache issues caused by GitHub's cache eviction
-          # and prefix-match semantics.
-          RUN_ID=""
-          if ! RUN_ID=$(gh run list \
-            --repo "${{ github.repository }}" \
-            --workflow ci-orchestrator.yml \
-            --branch main \
-            --status success \
-            --limit 1 \
-            --json databaseId \
-            --jq '.[0].databaseId' 2>&1); then
-            echo "gh run list failed: $RUN_ID"
-            RUN_ID=""
-          fi
-          if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
-            echo "No successful main-branch ci-orchestrator run found; proceeding without baseline."
-          else
-            echo "Downloading coverage baseline from run $RUN_ID"
-            mkdir -p /tmp/coverage-baseline
-            if gh run download "$RUN_ID" \
-              --repo "${{ github.repository }}" \
-              --name coverage-baseline \
-              --dir /tmp/coverage-baseline 2>/dev/null; then
-              mapfile -t BASELINE_FILES < <(find /tmp/coverage-baseline -name "baseline-coverage.txt" -type f)
-              if [ ${#BASELINE_FILES[@]} -eq 0 ]; then
-                echo "baseline-coverage.txt not found in the downloaded artifact."
-              elif [ ${#BASELINE_FILES[@]} -gt 1 ]; then
-                echo "Warning: multiple baseline-coverage.txt files found; using the first one."
-                cp "${BASELINE_FILES[0]}" .artifacts/baseline-coverage.txt
-                echo "Baseline restored: $(cat .artifacts/baseline-coverage.txt)%"
-              else
-                cp "${BASELINE_FILES[0]}" .artifacts/baseline-coverage.txt
-                echo "Baseline restored: $(cat .artifacts/baseline-coverage.txt)%"
-              fi
-            else
-              echo "No coverage-baseline artifact in run $RUN_ID; proceeding without baseline."
-            fi
-          fi
+        uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57
+        with:
+          path: .artifacts/baseline-coverage.txt
+          # Use a unique key so the exact match never hits; the restore-keys
+          # prefix match always returns the most-recently-created cache entry
+          # (the latest main-branch run), avoiding any stale-cache hit.
+          key: coverage-baseline_${{ github.run_id }}
+          restore-keys: |
+            coverage-baseline
 
       - name: Gate on coverage regression
         if: success() && steps.merge-coverage.outputs.skipped == 'false'
@@ -256,14 +221,12 @@ jobs:
         if: github.ref == 'refs/heads/main' && steps.merge-coverage.outputs.skipped == 'false'
         run: cp .artifacts/current-coverage.txt .artifacts/baseline-coverage.txt
 
-      - name: Upload coverage baseline artifact
+      - name: Cache coverage baseline
         if: github.ref == 'refs/heads/main' && steps.merge-coverage.outputs.skipped == 'false'
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57
         with:
-          name: coverage-baseline
           path: .artifacts/baseline-coverage.txt
-          retention-days: 90
-          if-no-files-found: warn
+          key: coverage-baseline_${{ github.run_id }}
 
       # Fail the job (and the calling CI Orchestrator run) so the coverage/metrics
       # regression is immediately visible in the PR Checks table.
