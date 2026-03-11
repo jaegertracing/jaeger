@@ -268,8 +268,8 @@ jobs:
       # ci-summary-report-publish.yml can still post the PR comment and check runs.
       - name: Fail if coverage or metrics gate failed
         if: |
-          (github.event_name != 'pull_request' || github.event.pull_request.user.login != 'dependabot[bot]') &&
-          steps.compare-metrics.outputs.CONCLUSION == 'failure' ||
+          ((github.event_name != 'pull_request' || github.event.pull_request.user.login != 'dependabot[bot]') &&
+          steps.compare-metrics.outputs.CONCLUSION == 'failure') ||
           steps.coverage-gate.outputs.conclusion == 'failure'
         run: |
           echo "Metrics: ${{ steps.compare-metrics.outputs.CONCLUSION }}"
