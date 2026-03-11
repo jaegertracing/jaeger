@@ -156,10 +156,11 @@ jobs:
       - name: Save conclusions for publish workflow
         if: always()
         env:
-          METRICS_CONCLUSION:    ${{ steps.compare-metrics.outputs.CONCLUSION }}
-          METRICS_OUTCOME:       ${{ steps.compare-metrics.outcome }}
-          METRICS_TOTAL:         ${{ steps.compare-metrics.outputs.TOTAL_CHANGES }}
-          METRICS_INFRA_ERRORS:  ${{ steps.compare-metrics.outputs.INFRA_ERRORS }}
+          PR_NUMBER:              ${{ github.event.pull_request.number }}
+          METRICS_CONCLUSION:     ${{ steps.compare-metrics.outputs.CONCLUSION }}
+          METRICS_OUTCOME:        ${{ steps.compare-metrics.outcome }}
+          METRICS_TOTAL:          ${{ steps.compare-metrics.outputs.TOTAL_CHANGES }}
+          METRICS_INFRA_ERRORS:   ${{ steps.compare-metrics.outputs.INFRA_ERRORS }}
           COVERAGE_MERGE_OUTCOME: ${{ steps.merge-coverage.outcome }}
           COVERAGE_SKIPPED:       ${{ steps.merge-coverage.outputs.skipped }}
           COVERAGE_CONCLUSION:    ${{ steps.coverage-gate.outputs.conclusion }}
@@ -212,7 +213,11 @@ jobs:
           except (FileNotFoundError, json.JSONDecodeError, ValueError):
               pass
 
+          pr_number_env = os.environ.get('PR_NUMBER')
+          pr_number = int(pr_number_env) if pr_number_env else None
+
           data = {
+              'pr_number':               pr_number,
               'metrics_conclusion':      metrics_conclusion,
               'metrics_total_changes':   metrics_total,
               'metrics_has_infra_errors': has_infra_errors,
