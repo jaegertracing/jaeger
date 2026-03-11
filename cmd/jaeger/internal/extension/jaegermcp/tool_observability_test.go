@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -199,4 +200,110 @@ func TestInferResultCountFromTopologyOutput(t *testing.T) {
 	})
 	require.True(t, ok)
 	assert.Equal(t, 5, count)
+}
+
+func TestInstrumentToolNilObservabilityReturnsOriginalHandler(t *testing.T) {
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, input types.GetServicesInput) (*mcp.CallToolResult, types.GetServicesOutput, error) {
+		return nil, types.GetServicesOutput{Services: []string{input.Pattern}}, nil
+	}
+	wrapped := instrumentTool[types.GetServicesInput, types.GetServicesOutput](nil, "get_services", handler)
+
+	_, output, err := wrapped(context.Background(), nil, types.GetServicesInput{Pattern: "checkout"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"checkout"}, output.Services)
+}
+
+func TestInstrumentToolErrorFromResultObject(t *testing.T) {
+	core, observed := observer.New(zapcore.DebugLevel)
+	logger := zap.New(core)
+	metricsFactory := metricstest.NewFactory(0)
+	obs := newToolObservability(logger, metricsFactory)
+
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, struct{}, error) {
+		result := &mcp.CallToolResult{}
+		result.SetError(errors.New("invalid pattern"))
+		return result, struct{}{}, nil
+	}
+	wrapped := instrumentTool(obs, "get_services", handler)
+
+	result, _, err := wrapped(context.Background(), nil, struct{}{})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.True(t, result.IsError)
+
+	metricsFactory.AssertCounterMetrics(t, metricstest.ExpectedMetric{
+		Name:  "requests",
+		Tags:  map[string]string{"tool_name": "get_services", "status": "invalid_argument"},
+		Value: 1,
+	})
+
+	failedLogs := observed.FilterMessage("MCP tool invocation failed").All()
+	require.Len(t, failedLogs, 1)
+	assert.Equal(t, "invalid_argument", failedLogs[0].ContextMap()["status"])
+}
+
+func TestNewToolObservabilityDefaults(t *testing.T) {
+	obs := newToolObservability(nil, nil)
+	require.NotNil(t, obs.logger)
+	require.NotNil(t, obs.factory)
+}
+
+func TestToolMetricsStatusFallback(t *testing.T) {
+	obs := newToolObservability(zap.NewNop(), metricstest.NewFactory(0))
+	metricsForTool := obs.metricsForTool("health")
+	require.NotNil(t, metricsForTool.status(toolStatusError))
+	assert.NotNil(t, metricsForTool.status("not-a-valid-status"))
+}
+
+func TestSummarizeRequestEdgeCases(t *testing.T) {
+	nonStruct := summarizeRequest("not-struct")
+	assert.Equal(t, requestSummary{}, nonStruct)
+
+	summaryWithSpanIDs := summarizeRequest(types.GetSpanDetailsInput{
+		TraceID: "abc",
+		SpanIDs: []string{"1", "2", "3"},
+	})
+	assert.Equal(t, "abc", summaryWithSpanIDs.traceID)
+	assert.True(t, summaryWithSpanIDs.hasRequestedLimit)
+	assert.Equal(t, 3, summaryWithSpanIDs.requestedLimit)
+}
+
+func TestInferResultCountNonStruct(t *testing.T) {
+	count, ok := inferResultCount("invalid")
+	assert.False(t, ok)
+	assert.Zero(t, count)
+}
+
+func TestCountTreeNodesDefaultBranchAndNil(t *testing.T) {
+	assert.Zero(t, countTreeNodes(reflect.Value{}))
+	assert.Zero(t, countTreeNodes(reflect.ValueOf(123)))
+}
+
+func TestPayloadSizeMarshalError(t *testing.T) {
+	type invalidOutput struct {
+		Ch chan int `json:"ch"`
+	}
+	size, ok := payloadSize(invalidOutput{Ch: make(chan int)})
+	assert.False(t, ok)
+	assert.Zero(t, size)
+}
+
+func TestUnwrapAndFieldHelpersEdgeCases(t *testing.T) {
+	var input *types.GetServicesInput
+	assert.False(t, unwrapValue(reflect.ValueOf(input)).IsValid())
+
+	_, ok := fieldValue(reflect.ValueOf(10), "ServiceName")
+	assert.False(t, ok)
+
+	structVal := reflect.ValueOf(types.GetServicesOutput{})
+	_, ok = fieldValue(structVal, "DoesNotExist")
+	assert.False(t, ok)
+
+	assert.Empty(t, fieldString(structVal, "Services"))
+	_, ok = fieldPositiveInt(structVal, "Services")
+	assert.False(t, ok)
+	_, ok = fieldSliceLen(structVal, "Missing")
+	assert.False(t, ok)
+	_, ok = fieldNonEmptySliceLen(reflect.ValueOf(types.GetSpanDetailsInput{}), "SpanIDs")
+	assert.False(t, ok)
 }
