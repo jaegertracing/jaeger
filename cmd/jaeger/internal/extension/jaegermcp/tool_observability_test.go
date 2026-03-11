@@ -123,21 +123,6 @@ func TestNormalizeToolStatus(t *testing.T) {
 	}
 }
 
-func TestInferResultCountFromTopologyOutput(t *testing.T) {
-	root := &types.SpanNode{
-		SpanID: "root",
-		Children: []*types.SpanNode{
-			{SpanID: "child-a"},
-			{SpanID: "child-b", Children: []*types.SpanNode{{SpanID: "grandchild"}}},
-		},
-	}
-	orphans := []*types.SpanNode{{SpanID: "orphan"}}
-
-	count, ok := inferResultCount(types.GetTraceTopologyOutput{RootSpan: root, Orphans: orphans})
-	require.True(t, ok)
-	assert.Equal(t, 5, count)
-}
-
 func TestInstrumentToolNilObservabilityReturnsOriginalHandler(t *testing.T) {
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, input types.GetServicesInput) (*mcp.CallToolResult, types.GetServicesOutput, error) {
 		return nil, types.GetServicesOutput{Services: []string{input.Pattern}}, nil
@@ -210,35 +195,153 @@ func TestInstrumentToolPanic(t *testing.T) {
 	assert.True(t, hasPanicField)
 }
 
+func TestToolMetricsStatusFallback(t *testing.T) {
+	obs := newToolObservability(zap.NewNop(), metricstest.NewFactory(0))
+	first := obs.metricsForTool("health")
+	second := obs.metricsForTool("health")
+	require.Same(t, first, second)
+	require.NotNil(t, first.status(toolStatusError))
+	assert.NotNil(t, first.status("not-a-valid-status"))
+}
+
 func TestNewToolObservabilityDefaults(t *testing.T) {
 	obs := newToolObservability(nil, nil)
 	require.NotNil(t, obs.logger)
 	require.NotNil(t, obs.factory)
 }
 
-func TestToolMetricsStatusFallback(t *testing.T) {
-	obs := newToolObservability(zap.NewNop(), metricstest.NewFactory(0))
-	metricsForTool := obs.metricsForTool("health")
-	require.NotNil(t, metricsForTool.status(toolStatusError))
-	assert.NotNil(t, metricsForTool.status("not-a-valid-status"))
+func TestSummarizeRequestVariants(t *testing.T) {
+	servicesIn := types.GetServicesInput{Limit: 5}
+	spanNamesIn := types.GetSpanNamesInput{ServiceName: "checkout", Limit: 7}
+	searchIn := types.SearchTracesInput{ServiceName: "frontend", SearchDepth: 9}
+	topologyIn := types.GetTraceTopologyInput{TraceID: "t1", Depth: 2}
+	spanDetailsIn := types.GetSpanDetailsInput{TraceID: "t2", SpanIDs: []string{"s1", "s2"}}
+	traceErrorsIn := types.GetTraceErrorsInput{TraceID: "t3"}
+	criticalPathIn := types.GetCriticalPathInput{TraceID: "t4"}
+
+	tests := []struct {
+		name  string
+		input any
+		want  requestSummary
+	}{
+		{name: "services value", input: servicesIn, want: requestSummary{requestedLimit: 5, hasRequestedLimit: true}},
+		{name: "services ptr value", input: &servicesIn, want: requestSummary{requestedLimit: 5, hasRequestedLimit: true}},
+		{name: "services ptr nil", input: (*types.GetServicesInput)(nil), want: requestSummary{}},
+		{name: "span names value", input: spanNamesIn, want: requestSummary{serviceName: "checkout", requestedLimit: 7, hasRequestedLimit: true}},
+		{name: "span names ptr value", input: &spanNamesIn, want: requestSummary{serviceName: "checkout", requestedLimit: 7, hasRequestedLimit: true}},
+		{name: "span names ptr nil", input: (*types.GetSpanNamesInput)(nil), want: requestSummary{}},
+		{name: "search value", input: searchIn, want: requestSummary{serviceName: "frontend", requestedLimit: 9, hasRequestedLimit: true}},
+		{name: "search ptr value", input: &searchIn, want: requestSummary{serviceName: "frontend", requestedLimit: 9, hasRequestedLimit: true}},
+		{name: "search ptr nil", input: (*types.SearchTracesInput)(nil), want: requestSummary{}},
+		{name: "topology value", input: topologyIn, want: requestSummary{traceID: "t1", requestedLimit: 2, hasRequestedLimit: true}},
+		{name: "topology ptr value", input: &topologyIn, want: requestSummary{traceID: "t1", requestedLimit: 2, hasRequestedLimit: true}},
+		{name: "topology ptr nil", input: (*types.GetTraceTopologyInput)(nil), want: requestSummary{}},
+		{name: "span details value", input: spanDetailsIn, want: requestSummary{traceID: "t2", requestedLimit: 2, hasRequestedLimit: true}},
+		{name: "span details ptr value", input: &spanDetailsIn, want: requestSummary{traceID: "t2", requestedLimit: 2, hasRequestedLimit: true}},
+		{name: "span details ptr nil", input: (*types.GetSpanDetailsInput)(nil), want: requestSummary{}},
+		{name: "trace errors value", input: traceErrorsIn, want: requestSummary{traceID: "t3"}},
+		{name: "trace errors ptr value", input: &traceErrorsIn, want: requestSummary{traceID: "t3"}},
+		{name: "trace errors ptr nil", input: (*types.GetTraceErrorsInput)(nil), want: requestSummary{}},
+		{name: "critical path value", input: criticalPathIn, want: requestSummary{traceID: "t4"}},
+		{name: "critical path ptr value", input: &criticalPathIn, want: requestSummary{traceID: "t4"}},
+		{name: "critical path ptr nil", input: (*types.GetCriticalPathInput)(nil), want: requestSummary{}},
+		{name: "unsupported input", input: "invalid", want: requestSummary{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, summarizeRequest(tt.input))
+		})
+	}
 }
 
-func TestSummarizeRequestKnownInputs(t *testing.T) {
-	summary := summarizeRequest(types.GetSpanNamesInput{ServiceName: "checkout", Limit: 25})
-	assert.Equal(t, "checkout", summary.serviceName)
-	assert.True(t, summary.hasRequestedLimit)
-	assert.Equal(t, 25, summary.requestedLimit)
+func TestInferResultCountVariants(t *testing.T) {
+	servicesOut := types.GetServicesOutput{Services: []string{"a", "b"}}
+	spanNamesOut := types.GetSpanNamesOutput{SpanNames: []types.SpanNameInfo{{Name: "n1"}, {Name: "n2"}, {Name: "n3"}}}
+	searchOut := types.SearchTracesOutput{Traces: []types.TraceSummary{{TraceID: "t1"}}}
+	criticalOut := types.GetCriticalPathOutput{Segments: []types.CriticalPathSegment{{SpanID: "s1"}, {SpanID: "s2"}}}
+	spanDetailsOut := types.GetSpanDetailsOutput{Spans: []types.SpanDetail{{SpanID: "s1"}}}
+	traceErrorsOut := types.GetTraceErrorsOutput{Spans: []types.SpanDetail{{SpanID: "e1"}, {SpanID: "e2"}}}
+	topologyOut := types.GetTraceTopologyOutput{
+		RootSpan: types.SpanNode{SpanID: "root"},
+		Orphans:  []types.SpanNode{{SpanID: "orphan"}},
+	}
 
-	summaryWithSpanIDs := summarizeRequest(types.GetSpanDetailsInput{TraceID: "abc", SpanIDs: []string{"1", "2", "3"}})
-	assert.Equal(t, "abc", summaryWithSpanIDs.traceID)
-	assert.True(t, summaryWithSpanIDs.hasRequestedLimit)
-	assert.Equal(t, 3, summaryWithSpanIDs.requestedLimit)
+	tests := []struct {
+		name   string
+		output any
+		count  int
+		ok     bool
+	}{
+		{name: "services value", output: servicesOut, count: 2, ok: true},
+		{name: "services ptr value", output: &servicesOut, count: 2, ok: true},
+		{name: "services ptr nil", output: (*types.GetServicesOutput)(nil), count: 0, ok: false},
+		{name: "span names value", output: spanNamesOut, count: 3, ok: true},
+		{name: "span names ptr value", output: &spanNamesOut, count: 3, ok: true},
+		{name: "span names ptr nil", output: (*types.GetSpanNamesOutput)(nil), count: 0, ok: false},
+		{name: "search value", output: searchOut, count: 1, ok: true},
+		{name: "search ptr value", output: &searchOut, count: 1, ok: true},
+		{name: "search ptr nil", output: (*types.SearchTracesOutput)(nil), count: 0, ok: false},
+		{name: "critical path value", output: criticalOut, count: 2, ok: true},
+		{name: "critical path ptr value", output: &criticalOut, count: 2, ok: true},
+		{name: "critical path ptr nil", output: (*types.GetCriticalPathOutput)(nil), count: 0, ok: false},
+		{name: "span details value", output: spanDetailsOut, count: 1, ok: true},
+		{name: "span details ptr value", output: &spanDetailsOut, count: 1, ok: true},
+		{name: "span details ptr nil", output: (*types.GetSpanDetailsOutput)(nil), count: 0, ok: false},
+		{name: "trace errors value", output: traceErrorsOut, count: 2, ok: true},
+		{name: "trace errors ptr value", output: &traceErrorsOut, count: 2, ok: true},
+		{name: "trace errors ptr nil", output: (*types.GetTraceErrorsOutput)(nil), count: 0, ok: false},
+		{name: "topology value", output: topologyOut, count: 2, ok: true},
+		{name: "topology ptr value", output: &topologyOut, count: 2, ok: true},
+		{name: "topology ptr nil", output: (*types.GetTraceTopologyOutput)(nil), count: 0, ok: false},
+		{name: "unsupported output", output: "invalid", count: 0, ok: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := inferResultCount(tt.output)
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.count, got)
+		})
+	}
 }
 
-func TestInferResultCountNonSupportedOutput(t *testing.T) {
-	count, ok := inferResultCount("invalid")
-	assert.False(t, ok)
-	assert.Zero(t, count)
+func TestCountSpanHelpers(t *testing.T) {
+	node := &types.SpanNode{
+		SpanID:   "root",
+		Children: []*types.SpanNode{{SpanID: "child"}},
+	}
+	assert.Equal(t, 2, countSpanNode(node))
+	assert.Equal(t, 2, countSpanNodes([]*types.SpanNode{node}))
+	assert.Equal(t, 2, countSpanNodes([]types.SpanNode{{SpanID: "a"}, {SpanID: "b"}}))
+	assert.Zero(t, countSpanNode((*types.SpanNode)(nil)))
+	assert.Zero(t, countSpanNode("invalid"))
+	assert.Zero(t, countSpanNodes("invalid"))
+}
+
+func TestSummarizeResponseEdgeCases(t *testing.T) {
+	resp := summarizeResponse(types.GetServicesOutput{Services: []string{"a"}}, toolStatusError)
+	assert.False(t, resp.hasResultCount)
+	assert.Zero(t, resp.resultCount)
+
+	resp = summarizeResponse("unsupported", toolStatusOK)
+	assert.False(t, resp.hasResultCount)
+	assert.Zero(t, resp.resultCount)
+}
+
+func TestAddOTelToolLabelsWithoutLabeler(t *testing.T) {
+	assert.NotPanics(t, func() {
+		addOTelToolLabels(context.Background(), "tool", toolStatusOK)
+	})
+}
+
+func TestLogFailureErrorLevel(t *testing.T) {
+	core, observed := observer.New(zapcore.DebugLevel)
+	obs := newToolObservability(zap.New(core), metricstest.NewFactory(0))
+	obs.logFailure(toolStatusError, zap.String("tool_name", "x"))
+	entries := observed.FilterMessage("MCP tool invocation failed").All()
+	require.Len(t, entries, 1)
+	assert.Equal(t, zapcore.ErrorLevel, entries[0].Level)
 }
 
 func assertHasStringAttribute(t *testing.T, attrs []attribute.KeyValue, key, value string) {
