@@ -20,6 +20,8 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/handlers"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/metrics"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
 var (
@@ -29,12 +31,13 @@ var (
 
 // server implements the Jaeger MCP extension.
 type server struct {
-	config     *Config
-	telset     component.TelemetrySettings
-	httpServer *http.Server
-	listener   net.Listener
-	mcpServer  *mcp.Server
-	queryAPI   *querysvc.QueryService
+	config            *Config
+	telset            component.TelemetrySettings
+	httpServer        *http.Server
+	listener          net.Listener
+	mcpServer         *mcp.Server
+	queryAPI          *querysvc.QueryService
+	toolObservability *toolObservability
 }
 
 // newServer creates a new MCP server instance.
@@ -62,6 +65,11 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	}
 	s.queryAPI = queryExt.QueryService()
 	s.telset.Logger.Info("Successfully retrieved v2 QueryService from jaegerquery extension")
+	telset := telemetry.FromOtelComponent(s.telset, host)
+	mcpMetrics := telset.Metrics.
+		Namespace(metrics.NSOptions{Name: "jaeger"}).
+		Namespace(metrics.NSOptions{Name: "mcp"})
+	s.toolObservability = newToolObservability(telset.Logger, mcpMetrics)
 
 	// Initialize MCP server with implementation details
 	impl := &mcp.Implementation{
@@ -136,55 +144,56 @@ func (s *server) Shutdown(ctx context.Context) error {
 // registerTools registers all MCP tools with the server.
 func (s *server) registerTools() {
 	// Get services tool (at the top - required for search_traces)
-	getServicesHandler := handlers.NewGetServicesHandler(s.queryAPI)
+	getServicesHandler := instrumentTool(s.toolObservability, "get_services", handlers.NewGetServicesHandler(s.queryAPI))
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_services",
 		Description: "List available service names. Use this first to discover valid service names for search_traces.",
 	}, getServicesHandler)
 
 	// Get span names tool (required for search_traces with span name filter)
-	getSpanNamesHandler := handlers.NewGetSpanNamesHandler(s.queryAPI)
+	getSpanNamesHandler := instrumentTool(s.toolObservability, "get_span_names", handlers.NewGetSpanNamesHandler(s.queryAPI))
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_span_names",
 		Description: "List available span names for a service. Supports regex filtering and span kind filtering.",
 	}, getSpanNamesHandler)
 
 	// Health check tool
+	healthHandler := instrumentTool(s.toolObservability, "health", s.healthTool)
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "health",
 		Description: "Check if the Jaeger MCP server is running",
-	}, s.healthTool)
+	}, healthHandler)
 
 	// Search traces tool
-	searchTracesHandler := handlers.NewSearchTracesHandler(s.queryAPI)
+	searchTracesHandler := instrumentTool(s.toolObservability, "search_traces", handlers.NewSearchTracesHandler(s.queryAPI))
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "search_traces",
 		Description: "Find traces matching service, time, attributes, and duration criteria. Returns trace summary only.",
 	}, searchTracesHandler)
 
 	// Get span details tool
-	getSpanDetailsHandler := handlers.NewGetSpanDetailsHandler(s.queryAPI)
+	getSpanDetailsHandler := instrumentTool(s.toolObservability, "get_span_details", handlers.NewGetSpanDetailsHandler(s.queryAPI))
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_span_details",
 		Description: "Fetch full details (attributes, events, links, status) for specific spans.",
 	}, getSpanDetailsHandler)
 
 	// Get trace errors tool
-	getTraceErrorsHandler := handlers.NewGetTraceErrorsHandler(s.queryAPI)
+	getTraceErrorsHandler := instrumentTool(s.toolObservability, "get_trace_errors", handlers.NewGetTraceErrorsHandler(s.queryAPI))
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_trace_errors",
 		Description: "Get full details for all spans with error status.",
 	}, getTraceErrorsHandler)
 
 	// Get trace topology tool
-	getTraceTopologyHandler := handlers.NewGetTraceTopologyHandler(s.queryAPI)
+	getTraceTopologyHandler := instrumentTool(s.toolObservability, "get_trace_topology", handlers.NewGetTraceTopologyHandler(s.queryAPI))
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_trace_topology",
 		Description: "Get the structural tree of a trace showing parent-child relationships, timing, and error locations. Does NOT return attributes or logs.",
 	}, getTraceTopologyHandler)
 
 	// Get critical path tool
-	getCriticalPathHandler := handlers.NewGetCriticalPathHandler(s.queryAPI)
+	getCriticalPathHandler := instrumentTool(s.toolObservability, "get_critical_path", handlers.NewGetCriticalPathHandler(s.queryAPI))
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_critical_path",
 		Description: "Identify the sequence of spans forming the critical latency path (the blocking execution path).",
