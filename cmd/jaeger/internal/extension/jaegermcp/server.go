@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/handlers"
@@ -103,7 +104,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 
 	// Create HTTP server with MCP handler and health endpoint
 	mux := http.NewServeMux()
-	mux.Handle("/mcp", mcpHandler)
+	mux.Handle("/mcp", otelhttp.NewHandler(mcpHandler, "jaeger.mcp"))
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("MCP server is running"))

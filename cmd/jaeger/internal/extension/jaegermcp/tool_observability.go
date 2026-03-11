@@ -5,16 +5,17 @@ package jaegermcp
 
 import (
 	"context"
-	"encoding/json"
-	"reflect"
+	"errors"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/types"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 )
 
@@ -32,6 +33,8 @@ var allToolStatuses = []string{
 	toolStatusError,
 }
 
+var errToolHandlerPanic = errors.New("tool handler panicked")
+
 type toolObservability struct {
 	logger  *zap.Logger
 	factory metrics.Factory
@@ -41,16 +44,11 @@ type toolObservability struct {
 }
 
 type toolMetrics struct {
-	inFlightGauge metrics.Gauge
-	inFlightCount atomic.Int64
 	statusMetrics map[string]*toolStatusMetrics
 }
 
 type toolStatusMetrics struct {
-	Requests      metrics.Counter `metric:"requests"`
-	Latency       metrics.Timer   `metric:"latency"`
 	ResponseItems metrics.Counter `metric:"response_items"`
-	ResponseBytes metrics.Counter `metric:"response_bytes"`
 }
 
 type requestSummary struct {
@@ -61,10 +59,8 @@ type requestSummary struct {
 }
 
 type responseSummary struct {
-	resultCount       int
-	hasResultCount    bool
-	responseSizeBytes int
-	hasResponseSize   bool
+	resultCount    int
+	hasResultCount bool
 }
 
 func newToolObservability(logger *zap.Logger, factory metrics.Factory) *toolObservability {
@@ -89,63 +85,92 @@ func instrumentTool[In, Out any](
 	if obs == nil {
 		return handler
 	}
+	metricsForTool := obs.metricsForTool(toolName)
 
 	return func(ctx context.Context, req *mcp.CallToolRequest, input In) (result *mcp.CallToolResult, output Out, err error) {
-		metricsForTool := obs.metricsForTool(toolName)
-		reqSummary := summarizeRequest(input)
 		start := time.Now()
-
-		metricsForTool.inFlightGauge.Update(metricsForTool.inFlightCount.Add(1))
-		startFields := append([]zap.Field{zap.String("tool_name", toolName)}, reqSummary.logFields()...)
-		obs.logger.Debug("MCP tool invocation started", startFields...)
+		var reqSummary requestSummary
+		reqSummarySet := false
+		getReqSummary := func() requestSummary {
+			if !reqSummarySet {
+				reqSummary = summarizeRequest(input)
+				reqSummarySet = true
+			}
+			return reqSummary
+		}
 
 		defer func() {
-			metricsForTool.inFlightGauge.Update(metricsForTool.inFlightCount.Add(-1))
+			panicValue := recover()
+			if panicValue != nil {
+				err = errToolHandlerPanic
+			}
 
 			duration := time.Since(start)
 			status := normalizeToolStatus(err, result)
-			statusMetrics := metricsForTool.status(status)
-			statusMetrics.Requests.Inc(1)
-			statusMetrics.Latency.Record(duration)
+			addOTelToolLabels(ctx, toolName, status)
 
 			respSummary := summarizeResponse(output, status)
 			if respSummary.hasResultCount {
-				statusMetrics.ResponseItems.Inc(int64(respSummary.resultCount))
-			}
-			if respSummary.hasResponseSize {
-				statusMetrics.ResponseBytes.Inc(int64(respSummary.responseSizeBytes))
+				metricsForTool.status(status).ResponseItems.Inc(int64(respSummary.resultCount))
 			}
 
-			doneFields := []zap.Field{
-				zap.String("tool_name", toolName),
-				zap.String("status", status),
-				zap.Duration("duration", duration),
+			buildDoneFields := func() []zap.Field {
+				fields := []zap.Field{
+					zap.String("tool_name", toolName),
+					zap.String("status", status),
+					zap.Duration("duration", duration),
+				}
+				fields = append(fields, getReqSummary().logFields()...)
+				if respSummary.hasResultCount {
+					fields = append(fields, zap.Int("result_count", respSummary.resultCount))
+				}
+				return fields
 			}
-			doneFields = append(doneFields, reqSummary.logFields()...)
-			if respSummary.hasResultCount {
-				doneFields = append(doneFields, zap.Int("result_count", respSummary.resultCount))
-			}
-			if respSummary.hasResponseSize {
-				doneFields = append(doneFields, zap.Int("response_size_bytes", respSummary.responseSizeBytes))
+
+			if panicValue != nil {
+				obs.logger.Error("MCP tool invocation failed", append(buildDoneFields(), zap.Any("panic", panicValue), zap.Error(err))...)
+				return
 			}
 
 			if err != nil {
-				obs.logger.Error("MCP tool invocation failed", append(doneFields, zap.Error(err))...)
+				obs.logFailure(status, append(buildDoneFields(), zap.Error(err))...)
 				return
 			}
 			if result != nil && result.IsError {
-				resultErr := result.GetError()
-				if resultErr != nil {
-					doneFields = append(doneFields, zap.Error(resultErr))
+				fields := buildDoneFields()
+				if resultErr := result.GetError(); resultErr != nil {
+					fields = append(fields, zap.Error(resultErr))
 				}
-				obs.logger.Error("MCP tool invocation failed", doneFields...)
+				obs.logFailure(status, fields...)
 				return
 			}
-			obs.logger.Debug("MCP tool invocation completed", doneFields...)
+
+			if ce := obs.logger.Check(zap.DebugLevel, "MCP tool invocation completed"); ce != nil {
+				ce.Write(buildDoneFields()...)
+			}
 		}()
 
 		return handler(ctx, req, input)
 	}
+}
+
+func (o *toolObservability) logFailure(status string, fields ...zap.Field) {
+	if status == toolStatusInvalidArgument || status == toolStatusNotFound {
+		o.logger.Warn("MCP tool invocation failed", fields...)
+		return
+	}
+	o.logger.Error("MCP tool invocation failed", fields...)
+}
+
+func addOTelToolLabels(ctx context.Context, toolName, status string) {
+	labeler, ok := otelhttp.LabelerFromContext(ctx)
+	if !ok {
+		return
+	}
+	labeler.Add(
+		attribute.String("mcp.tool_name", toolName),
+		attribute.String("mcp.status", status),
+	)
 }
 
 func (o *toolObservability) metricsForTool(toolName string) *toolMetrics {
@@ -160,10 +185,7 @@ func (o *toolObservability) metricsForTool(toolName string) *toolMetrics {
 		Name: "",
 		Tags: map[string]string{"tool_name": toolName},
 	})
-	m := &toolMetrics{
-		inFlightGauge: toolScope.Gauge(metrics.Options{Name: "in_flight_requests"}),
-		statusMetrics: make(map[string]*toolStatusMetrics, len(allToolStatuses)),
-	}
+	m := &toolMetrics{statusMetrics: make(map[string]*toolStatusMetrics, len(allToolStatuses))}
 	for _, status := range allToolStatuses {
 		sm := &toolStatusMetrics{}
 		scoped := toolScope.Namespace(metrics.NSOptions{
@@ -215,25 +237,68 @@ func normalizeToolStatus(err error, result *mcp.CallToolResult) string {
 }
 
 func summarizeRequest(input any) requestSummary {
-	v := reflectValue(input)
-	if !v.IsValid() || v.Kind() != reflect.Struct {
+	switch v := input.(type) {
+	case types.GetServicesInput:
+		return summarizeRequestWithFields("", "", v.Limit)
+	case *types.GetServicesInput:
+		if v == nil {
+			return requestSummary{}
+		}
+		return summarizeRequestWithFields("", "", v.Limit)
+	case types.GetSpanNamesInput:
+		return summarizeRequestWithFields("", v.ServiceName, v.Limit)
+	case *types.GetSpanNamesInput:
+		if v == nil {
+			return requestSummary{}
+		}
+		return summarizeRequestWithFields("", v.ServiceName, v.Limit)
+	case types.SearchTracesInput:
+		return summarizeRequestWithFields("", v.ServiceName, v.SearchDepth)
+	case *types.SearchTracesInput:
+		if v == nil {
+			return requestSummary{}
+		}
+		return summarizeRequestWithFields("", v.ServiceName, v.SearchDepth)
+	case types.GetTraceTopologyInput:
+		return summarizeRequestWithFields(v.TraceID, "", v.Depth)
+	case *types.GetTraceTopologyInput:
+		if v == nil {
+			return requestSummary{}
+		}
+		return summarizeRequestWithFields(v.TraceID, "", v.Depth)
+	case types.GetSpanDetailsInput:
+		return summarizeRequestWithFields(v.TraceID, "", len(v.SpanIDs))
+	case *types.GetSpanDetailsInput:
+		if v == nil {
+			return requestSummary{}
+		}
+		return summarizeRequestWithFields(v.TraceID, "", len(v.SpanIDs))
+	case types.GetTraceErrorsInput:
+		return summarizeRequestWithFields(v.TraceID, "", 0)
+	case *types.GetTraceErrorsInput:
+		if v == nil {
+			return requestSummary{}
+		}
+		return summarizeRequestWithFields(v.TraceID, "", 0)
+	case types.GetCriticalPathInput:
+		return summarizeRequestWithFields(v.TraceID, "", 0)
+	case *types.GetCriticalPathInput:
+		if v == nil {
+			return requestSummary{}
+		}
+		return summarizeRequestWithFields(v.TraceID, "", 0)
+	default:
 		return requestSummary{}
 	}
+}
 
+func summarizeRequestWithFields(traceID, serviceName string, requestedLimit int) requestSummary {
 	summary := requestSummary{
-		traceID:     fieldString(v, "TraceID"),
-		serviceName: fieldString(v, "ServiceName"),
+		traceID:     traceID,
+		serviceName: serviceName,
 	}
-
-	for _, limitField := range []string{"Limit", "SearchDepth"} {
-		if limit, ok := fieldPositiveInt(v, limitField); ok {
-			summary.requestedLimit = limit
-			summary.hasRequestedLimit = true
-			return summary
-		}
-	}
-	if size, ok := fieldNonEmptySliceLen(v, "SpanIDs"); ok {
-		summary.requestedLimit = size
+	if requestedLimit > 0 {
+		summary.requestedLimit = requestedLimit
 		summary.hasRequestedLimit = true
 	}
 	return summary
@@ -244,57 +309,88 @@ func summarizeResponse(output any, status string) responseSummary {
 		return responseSummary{}
 	}
 
-	summary := responseSummary{}
-	if count, ok := inferResultCount(output); ok {
-		summary.resultCount = count
-		summary.hasResultCount = true
+	resultCount, ok := inferResultCount(output)
+	if !ok {
+		return responseSummary{}
 	}
-	if size, ok := payloadSize(output); ok {
-		summary.responseSizeBytes = size
-		summary.hasResponseSize = true
+	return responseSummary{
+		resultCount:    resultCount,
+		hasResultCount: true,
 	}
-	return summary
 }
 
 func inferResultCount(output any) (int, bool) {
-	v := reflectValue(output)
-	if !v.IsValid() || v.Kind() != reflect.Struct {
+	switch v := output.(type) {
+	case types.GetServicesOutput:
+		return len(v.Services), true
+	case *types.GetServicesOutput:
+		if v == nil {
+			return 0, false
+		}
+		return len(v.Services), true
+	case types.GetSpanNamesOutput:
+		return len(v.SpanNames), true
+	case *types.GetSpanNamesOutput:
+		if v == nil {
+			return 0, false
+		}
+		return len(v.SpanNames), true
+	case types.SearchTracesOutput:
+		return len(v.Traces), true
+	case *types.SearchTracesOutput:
+		if v == nil {
+			return 0, false
+		}
+		return len(v.Traces), true
+	case types.GetCriticalPathOutput:
+		return len(v.Segments), true
+	case *types.GetCriticalPathOutput:
+		if v == nil {
+			return 0, false
+		}
+		return len(v.Segments), true
+	case types.GetSpanDetailsOutput:
+		return len(v.Spans), true
+	case *types.GetSpanDetailsOutput:
+		if v == nil {
+			return 0, false
+		}
+		return len(v.Spans), true
+	case types.GetTraceErrorsOutput:
+		return len(v.Spans), true
+	case *types.GetTraceErrorsOutput:
+		if v == nil {
+			return 0, false
+		}
+		return len(v.Spans), true
+	case types.GetTraceTopologyOutput:
+		return countTopologyNodes(v), true
+	case *types.GetTraceTopologyOutput:
+		if v == nil {
+			return 0, false
+		}
+		return countTopologyNodes(*v), true
+	default:
 		return 0, false
 	}
-
-	for _, field := range []string{"Services", "SpanNames", "Traces", "Segments", "Spans"} {
-		if count, ok := fieldSliceLen(v, field); ok {
-			return count, true
-		}
-	}
-
-	rootSpan, rootExists := fieldValue(v, "RootSpan")
-	orphans, orphansExists := fieldValue(v, "Orphans")
-	if rootExists || orphansExists {
-		return countTreeNodes(rootSpan) + countTreeNodes(orphans), true
-	}
-
-	return 0, false
 }
 
-func countTreeNodes(value reflect.Value) int {
-	value = unwrapValue(value)
-	if !value.IsValid() {
-		return 0
-	}
+func countTopologyNodes(output types.GetTraceTopologyOutput) int {
+	return countSpanNode(output.RootSpan) + countSpanNodes(output.Orphans)
+}
 
-	switch value.Kind() {
-	case reflect.Slice, reflect.Array:
+func countSpanNodes(value any) int {
+	switch nodes := value.(type) {
+	case []*types.SpanNode:
 		total := 0
-		for i := 0; i < value.Len(); i++ {
-			total += countTreeNodes(value.Index(i))
+		for _, n := range nodes {
+			total += countSpanNode(n)
 		}
 		return total
-	case reflect.Struct:
-		total := 1
-		children, ok := fieldValue(value, "Children")
-		if ok {
-			total += countTreeNodes(children)
+	case []types.SpanNode:
+		total := 0
+		for i := range nodes {
+			total += countSpanNode(&nodes[i])
 		}
 		return total
 	default:
@@ -302,12 +398,23 @@ func countTreeNodes(value reflect.Value) int {
 	}
 }
 
-func payloadSize(output any) (int, bool) {
-	bytes, err := json.Marshal(output)
-	if err != nil {
-		return 0, false
+func countSpanNode(value any) int {
+	switch node := value.(type) {
+	case *types.SpanNode:
+		if node == nil {
+			return 0
+		}
+		total := 1
+		for _, child := range node.Children {
+			total += countSpanNode(child)
+		}
+		return total
+	case types.SpanNode:
+		n := node
+		return countSpanNode(&n)
+	default:
+		return 0
 	}
-	return len(bytes), true
 }
 
 func (s requestSummary) logFields() []zap.Field {
@@ -322,64 +429,4 @@ func (s requestSummary) logFields() []zap.Field {
 		fields = append(fields, zap.Int("requested_limit", s.requestedLimit))
 	}
 	return fields
-}
-
-func reflectValue(value any) reflect.Value {
-	return unwrapValue(reflect.ValueOf(value))
-}
-
-func unwrapValue(v reflect.Value) reflect.Value {
-	for v.IsValid() && (v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface) {
-		if v.IsNil() {
-			return reflect.Value{}
-		}
-		v = v.Elem()
-	}
-	return v
-}
-
-func fieldValue(v reflect.Value, name string) (reflect.Value, bool) {
-	if !v.IsValid() || v.Kind() != reflect.Struct {
-		return reflect.Value{}, false
-	}
-	f := v.FieldByName(name)
-	if !f.IsValid() {
-		return reflect.Value{}, false
-	}
-	return f, true
-}
-
-func fieldString(v reflect.Value, name string) string {
-	f, ok := fieldValue(v, name)
-	if !ok || f.Kind() != reflect.String {
-		return ""
-	}
-	return f.String()
-}
-
-func fieldPositiveInt(v reflect.Value, name string) (int, bool) {
-	f, ok := fieldValue(v, name)
-	if !ok || f.Kind() != reflect.Int {
-		return 0, false
-	}
-	if f.Int() <= 0 {
-		return 0, false
-	}
-	return int(f.Int()), true
-}
-
-func fieldSliceLen(v reflect.Value, name string) (int, bool) {
-	f, ok := fieldValue(v, name)
-	if !ok || (f.Kind() != reflect.Slice && f.Kind() != reflect.Array) {
-		return 0, false
-	}
-	return f.Len(), true
-}
-
-func fieldNonEmptySliceLen(v reflect.Value, name string) (int, bool) {
-	size, ok := fieldSliceLen(v, name)
-	if !ok || size == 0 {
-		return 0, false
-	}
-	return size, true
 }

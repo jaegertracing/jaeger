@@ -5,14 +5,14 @@ package jaegermcp
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"reflect"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
@@ -37,51 +37,25 @@ func TestInstrumentToolSuccess(t *testing.T) {
 	}
 	wrapped := instrumentTool(obs, "get_span_names", handler)
 
-	input := types.GetSpanNamesInput{
-		ServiceName: "checkout",
-		Limit:       25,
-	}
-	result, output, err := wrapped(context.Background(), nil, input)
+	input := types.GetSpanNamesInput{ServiceName: "checkout", Limit: 25}
+	labeler := &otelhttp.Labeler{}
+	ctx := otelhttp.ContextWithLabeler(context.Background(), labeler)
+
+	result, output, err := wrapped(ctx, nil, input)
 	require.NoError(t, err)
 	require.Nil(t, result)
 	require.Len(t, output.SpanNames, 2)
 
-	payload, err := json.Marshal(output)
-	require.NoError(t, err)
-
 	metricsFactory.AssertCounterMetrics(t,
-		metricstest.ExpectedMetric{
-			Name:  "requests",
-			Tags:  map[string]string{"tool_name": "get_span_names", "status": "ok"},
-			Value: 1,
-		},
 		metricstest.ExpectedMetric{
 			Name:  "response_items",
 			Tags:  map[string]string{"tool_name": "get_span_names", "status": "ok"},
 			Value: 2,
 		},
-		metricstest.ExpectedMetric{
-			Name:  "response_bytes",
-			Tags:  map[string]string{"tool_name": "get_span_names", "status": "ok"},
-			Value: len(payload),
-		},
 	)
-	metricsFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
-		Name:  "in_flight_requests",
-		Tags:  map[string]string{"tool_name": "get_span_names"},
-		Value: 0,
-	})
 
-	_, gauges := metricsFactory.Snapshot()
-	_, hasLatency := gauges["latency|status=ok|tool_name=get_span_names.P50"]
-	assert.True(t, hasLatency)
-
-	startLogs := observed.FilterMessage("MCP tool invocation started").All()
-	require.Len(t, startLogs, 1)
-	startContext := startLogs[0].ContextMap()
-	assert.Equal(t, "get_span_names", startContext["tool_name"])
-	assert.Equal(t, "checkout", startContext["service_name"])
-	assert.EqualValues(t, 25, startContext["requested_limit"])
+	assertHasStringAttribute(t, labeler.Get(), "mcp.tool_name", "get_span_names")
+	assertHasStringAttribute(t, labeler.Get(), "mcp.status", "ok")
 
 	doneLogs := observed.FilterMessage("MCP tool invocation completed").All()
 	require.Len(t, doneLogs, 1)
@@ -89,7 +63,6 @@ func TestInstrumentToolSuccess(t *testing.T) {
 	assert.Equal(t, "get_span_names", doneContext["tool_name"])
 	assert.Equal(t, "ok", doneContext["status"])
 	assert.EqualValues(t, 2, doneContext["result_count"])
-	assert.EqualValues(t, len(payload), doneContext["response_size_bytes"])
 	assert.Equal(t, "checkout", doneContext["service_name"])
 }
 
@@ -105,22 +78,18 @@ func TestInstrumentToolError(t *testing.T) {
 	}
 	wrapped := instrumentTool(obs, "get_trace_topology", handler)
 
-	_, _, err := wrapped(context.Background(), nil, types.GetTraceTopologyInput{TraceID: "deadbeef"})
+	labeler := &otelhttp.Labeler{}
+	ctx := otelhttp.ContextWithLabeler(context.Background(), labeler)
+
+	_, _, err := wrapped(ctx, nil, types.GetTraceTopologyInput{TraceID: "deadbeef"})
 	require.ErrorIs(t, err, expectedErr)
 
-	metricsFactory.AssertCounterMetrics(t, metricstest.ExpectedMetric{
-		Name:  "requests",
-		Tags:  map[string]string{"tool_name": "get_trace_topology", "status": "not_found"},
-		Value: 1,
-	})
-	metricsFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
-		Name:  "in_flight_requests",
-		Tags:  map[string]string{"tool_name": "get_trace_topology"},
-		Value: 0,
-	})
+	assertHasStringAttribute(t, labeler.Get(), "mcp.tool_name", "get_trace_topology")
+	assertHasStringAttribute(t, labeler.Get(), "mcp.status", "not_found")
 
 	failedLogs := observed.FilterMessage("MCP tool invocation failed").All()
 	require.Len(t, failedLogs, 1)
+	assert.Equal(t, zapcore.WarnLevel, failedLogs[0].Level)
 	failedContext := failedLogs[0].ContextMap()
 	assert.Equal(t, "get_trace_topology", failedContext["tool_name"])
 	assert.Equal(t, "not_found", failedContext["status"])
@@ -139,35 +108,12 @@ func TestNormalizeToolStatus(t *testing.T) {
 		result *mcp.CallToolResult
 		want   string
 	}{
-		{
-			name: "ok",
-			want: toolStatusOK,
-		},
-		{
-			name: "invalid argument",
-			err:  errors.New("service_name is required"),
-			want: toolStatusInvalidArgument,
-		},
-		{
-			name: "not found",
-			err:  errors.New("trace not found"),
-			want: toolStatusNotFound,
-		},
-		{
-			name: "generic error",
-			err:  errors.New("storage backend unavailable"),
-			want: toolStatusError,
-		},
-		{
-			name:   "result error not found",
-			result: resultWithNotFound,
-			want:   toolStatusNotFound,
-		},
-		{
-			name:   "result error generic",
-			result: &mcp.CallToolResult{IsError: true},
-			want:   toolStatusError,
-		},
+		{name: "ok", want: toolStatusOK},
+		{name: "invalid argument", err: errors.New("service_name is required"), want: toolStatusInvalidArgument},
+		{name: "not found", err: errors.New("trace not found"), want: toolStatusNotFound},
+		{name: "generic error", err: errors.New("storage backend unavailable"), want: toolStatusError},
+		{name: "result error not found", result: resultWithNotFound, want: toolStatusNotFound},
+		{name: "result error generic", result: &mcp.CallToolResult{IsError: true}, want: toolStatusError},
 	}
 
 	for _, tt := range tests {
@@ -182,22 +128,12 @@ func TestInferResultCountFromTopologyOutput(t *testing.T) {
 		SpanID: "root",
 		Children: []*types.SpanNode{
 			{SpanID: "child-a"},
-			{
-				SpanID: "child-b",
-				Children: []*types.SpanNode{
-					{SpanID: "grandchild"},
-				},
-			},
+			{SpanID: "child-b", Children: []*types.SpanNode{{SpanID: "grandchild"}}},
 		},
 	}
-	orphans := []*types.SpanNode{
-		{SpanID: "orphan"},
-	}
+	orphans := []*types.SpanNode{{SpanID: "orphan"}}
 
-	count, ok := inferResultCount(types.GetTraceTopologyOutput{
-		RootSpan: root,
-		Orphans:  orphans,
-	})
+	count, ok := inferResultCount(types.GetTraceTopologyOutput{RootSpan: root, Orphans: orphans})
 	require.True(t, ok)
 	assert.Equal(t, 5, count)
 }
@@ -226,20 +162,52 @@ func TestInstrumentToolErrorFromResultObject(t *testing.T) {
 	}
 	wrapped := instrumentTool(obs, "get_services", handler)
 
-	result, _, err := wrapped(context.Background(), nil, struct{}{})
+	labeler := &otelhttp.Labeler{}
+	ctx := otelhttp.ContextWithLabeler(context.Background(), labeler)
+
+	result, _, err := wrapped(ctx, nil, struct{}{})
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.True(t, result.IsError)
 
-	metricsFactory.AssertCounterMetrics(t, metricstest.ExpectedMetric{
-		Name:  "requests",
-		Tags:  map[string]string{"tool_name": "get_services", "status": "invalid_argument"},
-		Value: 1,
-	})
+	assertHasStringAttribute(t, labeler.Get(), "mcp.tool_name", "get_services")
+	assertHasStringAttribute(t, labeler.Get(), "mcp.status", "invalid_argument")
 
 	failedLogs := observed.FilterMessage("MCP tool invocation failed").All()
 	require.Len(t, failedLogs, 1)
+	assert.Equal(t, zapcore.WarnLevel, failedLogs[0].Level)
 	assert.Equal(t, "invalid_argument", failedLogs[0].ContextMap()["status"])
+}
+
+func TestInstrumentToolPanic(t *testing.T) {
+	core, observed := observer.New(zapcore.DebugLevel)
+	logger := zap.New(core)
+	metricsFactory := metricstest.NewFactory(0)
+	obs := newToolObservability(logger, metricsFactory)
+
+	handler := func(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, struct{}, error) {
+		panic("boom")
+	}
+	wrapped := instrumentTool(obs, "health", handler)
+
+	labeler := &otelhttp.Labeler{}
+	ctx := otelhttp.ContextWithLabeler(context.Background(), labeler)
+
+	result, _, err := wrapped(ctx, nil, struct{}{})
+	require.ErrorIs(t, err, errToolHandlerPanic)
+	require.Nil(t, result)
+
+	assertHasStringAttribute(t, labeler.Get(), "mcp.tool_name", "health")
+	assertHasStringAttribute(t, labeler.Get(), "mcp.status", "error")
+
+	failedLogs := observed.FilterMessage("MCP tool invocation failed").All()
+	require.Len(t, failedLogs, 1)
+	assert.Equal(t, zapcore.ErrorLevel, failedLogs[0].Level)
+	failedContext := failedLogs[0].ContextMap()
+	assert.Equal(t, "health", failedContext["tool_name"])
+	assert.Equal(t, "error", failedContext["status"])
+	_, hasPanicField := failedContext["panic"]
+	assert.True(t, hasPanicField)
 }
 
 func TestNewToolObservabilityDefaults(t *testing.T) {
@@ -255,55 +223,30 @@ func TestToolMetricsStatusFallback(t *testing.T) {
 	assert.NotNil(t, metricsForTool.status("not-a-valid-status"))
 }
 
-func TestSummarizeRequestEdgeCases(t *testing.T) {
-	nonStruct := summarizeRequest("not-struct")
-	assert.Equal(t, requestSummary{}, nonStruct)
+func TestSummarizeRequestKnownInputs(t *testing.T) {
+	summary := summarizeRequest(types.GetSpanNamesInput{ServiceName: "checkout", Limit: 25})
+	assert.Equal(t, "checkout", summary.serviceName)
+	assert.True(t, summary.hasRequestedLimit)
+	assert.Equal(t, 25, summary.requestedLimit)
 
-	summaryWithSpanIDs := summarizeRequest(types.GetSpanDetailsInput{
-		TraceID: "abc",
-		SpanIDs: []string{"1", "2", "3"},
-	})
+	summaryWithSpanIDs := summarizeRequest(types.GetSpanDetailsInput{TraceID: "abc", SpanIDs: []string{"1", "2", "3"}})
 	assert.Equal(t, "abc", summaryWithSpanIDs.traceID)
 	assert.True(t, summaryWithSpanIDs.hasRequestedLimit)
 	assert.Equal(t, 3, summaryWithSpanIDs.requestedLimit)
 }
 
-func TestInferResultCountNonStruct(t *testing.T) {
+func TestInferResultCountNonSupportedOutput(t *testing.T) {
 	count, ok := inferResultCount("invalid")
 	assert.False(t, ok)
 	assert.Zero(t, count)
 }
 
-func TestCountTreeNodesDefaultBranchAndNil(t *testing.T) {
-	assert.Zero(t, countTreeNodes(reflect.Value{}))
-	assert.Zero(t, countTreeNodes(reflect.ValueOf(123)))
-}
-
-func TestPayloadSizeMarshalError(t *testing.T) {
-	type invalidOutput struct {
-		Ch chan int `json:"ch"`
+func assertHasStringAttribute(t *testing.T, attrs []attribute.KeyValue, key, value string) {
+	t.Helper()
+	for _, attr := range attrs {
+		if string(attr.Key) == key && attr.Value.AsString() == value {
+			return
+		}
 	}
-	size, ok := payloadSize(invalidOutput{Ch: make(chan int)})
-	assert.False(t, ok)
-	assert.Zero(t, size)
-}
-
-func TestUnwrapAndFieldHelpersEdgeCases(t *testing.T) {
-	var input *types.GetServicesInput
-	assert.False(t, unwrapValue(reflect.ValueOf(input)).IsValid())
-
-	_, ok := fieldValue(reflect.ValueOf(10), "ServiceName")
-	assert.False(t, ok)
-
-	structVal := reflect.ValueOf(types.GetServicesOutput{})
-	_, ok = fieldValue(structVal, "DoesNotExist")
-	assert.False(t, ok)
-
-	assert.Empty(t, fieldString(structVal, "Services"))
-	_, ok = fieldPositiveInt(structVal, "Services")
-	assert.False(t, ok)
-	_, ok = fieldSliceLen(structVal, "Missing")
-	assert.False(t, ok)
-	_, ok = fieldNonEmptySliceLen(reflect.ValueOf(types.GetSpanDetailsInput{}), "SpanIDs")
-	assert.False(t, ok)
+	t.Fatalf("attribute %s=%s not found in %+v", key, value, attrs)
 }
