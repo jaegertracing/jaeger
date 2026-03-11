@@ -3,6 +3,12 @@ name: "CI Orchestrator: Stage 3 (Docker, E2E, Binaries, Static Analysis)"
 on:
   workflow_call:
 
+permissions:
+  contents: read
+  packages: read
+  security-events: write
+  actions: read
+
 jobs:
   build-binaries:
     uses: ./.github/workflows/ci-build-binaries.yml

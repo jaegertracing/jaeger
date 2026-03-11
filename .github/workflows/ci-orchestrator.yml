@@ -11,9 +11,8 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-# Grant all permissions to allow child workflows to request what they need
-# Child workflows can downgrade permissions as needed (principle of least privilege)
-permissions: write-all
+permissions:
+  contents: read
 
 jobs:
   # ============================================================================
@@ -117,12 +116,20 @@ jobs:
   stage2-seq:
     needs: [setup, stage1-seq]
     if: ${{ needs.setup.outputs.parallel == 'false' }}
+    permissions:
+      contents: read
+      checks: write
     uses: ./.github/workflows/ci-orchestrator-stage2.yml
     secrets: inherit
 
   stage3-seq:
     needs: [setup, stage2-seq]
     if: ${{ needs.setup.outputs.parallel == 'false' }}
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+      actions: read
     uses: ./.github/workflows/ci-orchestrator-stage3.yml
     secrets: inherit
 
@@ -140,12 +147,20 @@ jobs:
   stage2-fast:
     needs: [setup]
     if: ${{ needs.setup.outputs.parallel == 'true' }}
+    permissions:
+      contents: read
+      checks: write
     uses: ./.github/workflows/ci-orchestrator-stage2.yml
     secrets: inherit
 
   stage3-fast:
     needs: [setup]
     if: ${{ needs.setup.outputs.parallel == 'true' }}
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+      actions: read
     uses: ./.github/workflows/ci-orchestrator-stage3.yml
     secrets: inherit
 
