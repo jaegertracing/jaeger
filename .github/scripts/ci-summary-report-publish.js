@@ -42,15 +42,76 @@ function safeNum(v) {
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
+// Prometheus metric names: must start with [a-zA-Z_:], followed by [a-zA-Z0-9_:].
+const METRIC_NAME_RE = /^[a-zA-Z_:][a-zA-Z0-9_:]*$/;
+const MAX_METRIC_NAME_LEN = 200;
+const MAX_SNAPSHOT_NAME_LEN = 200;
+const MAX_SNAPSHOTS = 50;
+const MAX_METRIC_NAMES_PER_SNAPSHOT = 200;
+// Snapshot names come from artifact directory names (alphanumeric, underscores,
+// dots, hyphens).  We reject anything outside this character set.
+const SNAPSHOT_NAME_RE = /^[a-zA-Z0-9_.\-]+$/;
+
+/**
+ * Validate and sanitize a Prometheus metric name.
+ * Returns the name if valid, null otherwise.
+ * @param {*} name
+ * @returns {string|null}
+ */
+function sanitizeMetricName(name) {
+  if (typeof name !== 'string') return null;
+  if (name.length === 0 || name.length > MAX_METRIC_NAME_LEN) return null;
+  return METRIC_NAME_RE.test(name) ? name : null;
+}
+
+/**
+ * Validate and sanitize the metrics_snapshots array from ci-summary.json.
+ * Each entry is validated: counts go through safeNum(), metric names through
+ * sanitizeMetricName(). Invalid entries or fields are silently dropped.
+ * @param {*} raw - The raw metrics_snapshots value from the artifact
+ * @returns {Array|null} - Sanitized array, or null if input is missing/invalid
+ */
+function sanitizeSnapshots(raw) {
+  if (!Array.isArray(raw)) return null;
+  const result = [];
+  for (const entry of raw) {
+    if (result.length >= MAX_SNAPSHOTS) break;
+    if (typeof entry !== 'object' || entry === null) continue;
+    // Validate snapshot name
+    const snapshot = typeof entry.snapshot === 'string'
+      && entry.snapshot.length > 0
+      && entry.snapshot.length <= MAX_SNAPSHOT_NAME_LEN
+      && SNAPSHOT_NAME_RE.test(entry.snapshot)
+      ? entry.snapshot : null;
+    if (!snapshot) continue;
+    // Validate counts
+    const added    = safeNum(entry.added);
+    const removed  = safeNum(entry.removed);
+    const modified = safeNum(entry.modified);
+    // Validate metric_names array — collect up to cap valid names
+    const names = [];
+    if (Array.isArray(entry.metric_names)) {
+      for (const n of entry.metric_names) {
+        if (names.length >= MAX_METRIC_NAMES_PER_SNAPSHOT) break;
+        const clean = sanitizeMetricName(n);
+        if (clean) names.push(clean);
+      }
+    }
+    result.push({ snapshot, added, removed, modified, metric_names: names });
+  }
+  return result.length > 0 ? result : null;
+}
+
 /**
  * Derive metrics conclusion and display text from the parsed ci-summary artifact.
  * Uses === true for boolean fields to avoid misinterpreting JSON strings.
  * @param {object} s - Parsed ci-summary.json
- * @returns {{ hasInfraErrors: boolean, totalChanges: number|null, conclusion: string, text: string }}
+ * @returns {{ hasInfraErrors: boolean, totalChanges: number|null, snapshots: Array|null, conclusion: string, text: string }}
  */
 function computeMetrics(s) {
   const hasInfraErrors = s.metrics_has_infra_errors === true;
   const totalChanges   = safeNum(s.metrics_total_changes);
+  const snapshots      = sanitizeSnapshots(s.metrics_snapshots);
   // Derive conclusion from the same conditions that drive text so they are always consistent.
   const conclusion     = (hasInfraErrors || totalChanges === null || totalChanges > 0) ? 'failure' : 'success';
 
@@ -65,7 +126,7 @@ function computeMetrics(s) {
     text = '✅ No significant metric changes';
   }
 
-  return { hasInfraErrors, totalChanges, conclusion, text };
+  return { hasInfraErrors, totalChanges, snapshots, conclusion, text };
 }
 
 /**
@@ -93,6 +154,44 @@ function computeCoverage(s) {
 }
 
 /**
+ * Format a detail breakdown of per-snapshot metric changes.
+ * All text is built from trusted templates; metric names have been validated
+ * through sanitizeMetricName() and are rendered in backtick-code spans.
+ * @param {Array|null} snapshots - Sanitized snapshots from computeMetrics
+ * @returns {string} - Markdown detail block, or empty string if no data
+ */
+function formatMetricsDetail(snapshots) {
+  if (!snapshots || snapshots.length === 0) return '';
+
+  const lines = [
+    '',
+    '<details>',
+    '<summary>View changed metrics</summary>',
+    '',
+  ];
+
+  for (const snap of snapshots) {
+    lines.push(`**${snap.snapshot}**`);
+    const parts = [];
+    if (snap.added    !== null && snap.added    > 0) parts.push(`${snap.added} added`);
+    if (snap.removed  !== null && snap.removed  > 0) parts.push(`${snap.removed} removed`);
+    if (snap.modified !== null && snap.modified > 0) parts.push(`${snap.modified} modified`);
+    if (parts.length > 0) {
+      lines.push(parts.join(', '));
+    }
+    if (snap.metric_names.length > 0) {
+      for (const name of snap.metric_names) {
+        lines.push(`- \`${name}\``);
+      }
+    }
+    lines.push('');
+  }
+
+  lines.push('</details>');
+  return lines.join('\n');
+}
+
+/**
  * Build the PR comment body from pre-computed display strings.
  * Inputs are strings produced by computeMetrics/computeCoverage: all display text
  * is constructed from trusted templates; artifact-derived values appear only as
@@ -100,21 +199,31 @@ function computeCoverage(s) {
  * @param {string} metricsText
  * @param {string} coverageText
  * @param {string} footer - links + timestamp line
+ * @param {object} [opts]
+ * @param {Array|null} [opts.metricsSnapshots] - sanitized snapshot data for detail rendering
  * @returns {string}
  */
-function buildCommentBody(metricsText, coverageText, footer) {
-  return [
+function buildCommentBody(metricsText, coverageText, footer, { metricsSnapshots } = {}) {
+  const parts = [
     COMMENT_TAG,
     '## CI Summary Report',
     '',
     '### Metrics Comparison',
     metricsText,
-    '',
-    '### Code Coverage',
-    coverageText,
-    '',
-    footer,
-  ].join('\n');
+  ];
+
+  const detail = formatMetricsDetail(metricsSnapshots);
+  if (detail) {
+    parts.push(detail);
+  }
+
+  parts.push('');
+  parts.push('### Code Coverage');
+  parts.push(coverageText);
+  parts.push('');
+  parts.push(footer);
+
+  return parts.join('\n');
 }
 
 /**
@@ -143,15 +252,18 @@ async function postCheckRun(github, owner, repo, headSha, name, conclusion, outp
 
 /**
  * Post or update the CI summary comment on a PR.
- * Finds an existing comment by COMMENT_TAG and updates it, or creates a new one.
+ * Always updates an existing comment (clears stale failure messages on green runs).
+ * Only creates a new comment when createNew is true.
  * @param {object} github - Octokit client
  * @param {string} owner
  * @param {string} repo
  * @param {number} prNumber
  * @param {string} body
  * @param {object} core - GitHub Actions core logger
+ * @param {object} [opts]
+ * @param {boolean} [opts.createNew=true] - create a comment if none exists
  */
-async function postOrUpdateComment(github, owner, repo, prNumber, body, core) {
+async function postOrUpdateComment(github, owner, repo, prNumber, body, core, { createNew = true } = {}) {
   core.info(`Searching for existing CI summary comment on PR #${prNumber}`);
   const existing = await github.paginate(github.rest.issues.listComments, {
     owner, repo, issue_number: prNumber,
@@ -163,12 +275,14 @@ async function postOrUpdateComment(github, owner, repo, prNumber, body, core) {
       owner, repo, comment_id: existing.id, body,
     });
     core.info(`Comment updated: url=${updated.html_url}`);
-  } else {
+  } else if (createNew) {
     core.info(`Creating new comment on PR #${prNumber}`);
     const { data: created } = await github.rest.issues.createComment({
       owner, repo, issue_number: prNumber, body,
     });
     core.info(`Comment created: id=${created.id} url=${created.html_url}`);
+  } else {
+    core.info('No existing comment and no issues to report; skipping PR comment.');
   }
 }
 
@@ -229,23 +343,27 @@ async function handler({ github, core, fs, inputs }) {
     text:    footer,
   }, core);
 
-  // ── PR comment (only when there is something to report) ──────────────────
-  const hasIssues = metrics.conclusion === 'failure' || coverage.conclusion === 'failure'
-                    || metrics.totalChanges > 0;
-  if (!prNumber || !hasIssues) {
-    core.info('No issues to report; skipping PR comment.');
-    return;
+  // ── PR comment ──
+  if (prNumber) {
+    // Always update an existing comment so stale failure messages don't linger
+    // after a green run.  Only create a new comment when there is something to report.
+    const hasIssues = metrics.conclusion === 'failure' || coverage.conclusion === 'failure'
+                      || metrics.totalChanges > 0;
+    const body = buildCommentBody(metrics.text, coverage.text, footer, { metricsSnapshots: metrics.snapshots });
+    await postOrUpdateComment(github, owner, repo, prNumber, body, core, { createNew: hasIssues });
+  } else {
+    core.info('No PR number; skipping PR comment.');
   }
-
-  const body = buildCommentBody(metrics.text, coverage.text, footer);
-  await postOrUpdateComment(github, owner, repo, prNumber, body, core);
 }
 
 module.exports = handler;
-module.exports.safeNum            = safeNum;
-module.exports.computeMetrics     = computeMetrics;
-module.exports.computeCoverage    = computeCoverage;
-module.exports.buildCommentBody   = buildCommentBody;
-module.exports.postCheckRun       = postCheckRun;
-module.exports.postOrUpdateComment = postOrUpdateComment;
-module.exports.COMMENT_TAG        = COMMENT_TAG;
+module.exports.safeNum              = safeNum;
+module.exports.sanitizeMetricName   = sanitizeMetricName;
+module.exports.sanitizeSnapshots    = sanitizeSnapshots;
+module.exports.computeMetrics       = computeMetrics;
+module.exports.computeCoverage      = computeCoverage;
+module.exports.formatMetricsDetail  = formatMetricsDetail;
+module.exports.buildCommentBody     = buildCommentBody;
+module.exports.postCheckRun         = postCheckRun;
+module.exports.postOrUpdateComment  = postOrUpdateComment;
+module.exports.COMMENT_TAG          = COMMENT_TAG;

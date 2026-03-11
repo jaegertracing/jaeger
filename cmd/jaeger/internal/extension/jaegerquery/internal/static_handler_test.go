@@ -62,6 +62,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 		subroute                    bool   // should we create a subroute?
 		baseURL                     string // expected URL prefix
 		archiveStorage              bool   // archive storage enabled?
+		metricsStorage              bool   // metrics storage enabled?
 		logAccess                   bool
 		expectedBaseHTML            string // substring to match in the home page
 		UIConfigPath                string // path to UI config
@@ -76,7 +77,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			logAccess:                   true,
 			UIConfigPath:                "",
 			expectedUIConfig:            "JAEGER_CONFIG=DEFAULT_CONFIG;",
-			expectedStorageCapabilities: `JAEGER_STORAGE_CAPABILITIES = {"archiveStorage":false};`,
+			expectedStorageCapabilities: `JAEGER_STORAGE_CAPABILITIES = {"archiveStorage":false,"metricsStorage":false};`,
 		},
 		{
 			basePath:                    "/",
@@ -85,7 +86,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			expectedBaseHTML:            `<base href="/"`,
 			UIConfigPath:                "fixture/ui-config.json",
 			expectedUIConfig:            `JAEGER_CONFIG = {"x":"y"};`,
-			expectedStorageCapabilities: `JAEGER_STORAGE_CAPABILITIES = {"archiveStorage":false};`,
+			expectedStorageCapabilities: `JAEGER_STORAGE_CAPABILITIES = {"archiveStorage":false,"metricsStorage":false};`,
 		},
 		{
 			basePath:                    "/jaeger",
@@ -95,7 +96,17 @@ func TestRegisterStaticHandler(t *testing.T) {
 			archiveStorage:              true,
 			UIConfigPath:                "fixture/ui-config.js",
 			expectedUIConfig:            "function UIConfig(){",
-			expectedStorageCapabilities: `JAEGER_STORAGE_CAPABILITIES = {"archiveStorage":true};`,
+			expectedStorageCapabilities: `JAEGER_STORAGE_CAPABILITIES = {"archiveStorage":true,"metricsStorage":false};`,
+		},
+		{
+			basePath:                    "/metrics",
+			baseURL:                     "/metrics/",
+			expectedBaseHTML:            `<base href="/metrics/"`,
+			subroute:                    true,
+			metricsStorage:              true,
+			UIConfigPath:                "fixture/ui-config.js",
+			expectedUIConfig:            "function UIConfig(){",
+			expectedStorageCapabilities: `JAEGER_STORAGE_CAPABILITIES = {"archiveStorage":false,"metricsStorage":true};`,
 		},
 	}
 	httpClient = &http.Client{
@@ -113,7 +124,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 				},
 				BasePath: testCase.basePath,
 			},
-				querysvc.StorageCapabilities{ArchiveStorage: testCase.archiveStorage},
+				querysvc.StorageCapabilities{ArchiveStorage: testCase.archiveStorage, MetricsStorage: testCase.metricsStorage},
 			)
 			defer closer.Close()
 
