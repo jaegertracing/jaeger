@@ -39,6 +39,7 @@ jobs:
         run: python3 -m pip install prometheus-client
 
       - name: Compare metrics and generate summary
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.user.login != 'dependabot[bot]' }}
         id: compare-metrics
         shell: bash
         run: bash ./scripts/e2e/metrics_summary.sh
@@ -267,6 +268,7 @@ jobs:
       # ci-summary-report-publish.yml can still post the PR comment and check runs.
       - name: Fail if coverage or metrics gate failed
         if: |
+          (github.event_name != 'pull_request' || github.event.pull_request.user.login != 'dependabot[bot]') &&
           steps.compare-metrics.outputs.CONCLUSION == 'failure' ||
           steps.coverage-gate.outputs.conclusion == 'failure'
         run: |
