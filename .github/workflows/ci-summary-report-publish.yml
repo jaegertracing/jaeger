@@ -96,7 +96,7 @@ jobs:
         if: github.event_name != 'workflow_dispatch'
         run: |
           if [ -f .artifacts/ci-summary.json ]; then
-            PR_NUMBER=$(python3 -c "import json; d=json.load(open('.artifacts/ci-summary.json')); print(d.get('pr_number') or '')")
+            PR_NUMBER=$(jq -r '.pr_number // empty' .artifacts/ci-summary.json 2>/dev/null || true)
             if [ -n "$PR_NUMBER" ]; then
               echo "Found PR #$PR_NUMBER in ci-summary.json"
               echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
