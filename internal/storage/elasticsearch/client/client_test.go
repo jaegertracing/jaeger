@@ -1,6 +1,10 @@
+// Copyright (c) 2026 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package client
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +14,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type errorReadCloser struct{}
+
+func (e *errorReadCloser) Read(p []byte) (int, error) {
+	return 0, fmt.Errorf("read error")
+}
+
+func (e *errorReadCloser) Close() error {
+	return nil
+}
 
 func TestRequest(t *testing.T) {
 	tests := []struct {
@@ -108,7 +122,6 @@ func TestSetAuthorization(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-
 			req := httptest.NewRequest(http.MethodGet, "http://example.com", nil)
 
 			c := &Client{
@@ -130,19 +143,28 @@ func TestSetAuthorization(t *testing.T) {
 
 func TestHandleFailedRequest(t *testing.T) {
 	tests := []struct {
-		name       string
-		body       io.ReadCloser
-		statusCode int
+		name          string
+		body          io.ReadCloser
+		statusCode    int
+		expectedError string
 	}{
 		{
-			name:       "body present",
-			body:       io.NopCloser(strings.NewReader("failure")),
-			statusCode: http.StatusInternalServerError,
+			name:          "body present",
+			body:          io.NopCloser(strings.NewReader("failure")),
+			statusCode:    http.StatusInternalServerError,
+			expectedError: "request failed",
 		},
 		{
-			name:       "body nil",
-			body:       nil,
-			statusCode: http.StatusBadRequest,
+			name:          "body nil",
+			body:          nil,
+			statusCode:    http.StatusBadRequest,
+			expectedError: "request failed",
+		},
+		{
+			name:          "body read error",
+			body:          &errorReadCloser{},
+			statusCode:    http.StatusInternalServerError,
+			expectedError: "failed to read response body",
 		},
 	}
 
@@ -150,7 +172,6 @@ func TestHandleFailedRequest(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-
 			res := &http.Response{
 				StatusCode: test.statusCode,
 				Body:       test.body,
@@ -159,7 +180,7 @@ func TestHandleFailedRequest(t *testing.T) {
 			err := c.handleFailedRequest(res)
 
 			require.Error(t, err)
-			assert.Contains(t, err.Error(), "request failed")
+			assert.Contains(t, err.Error(), test.expectedError)
 		})
 	}
 }
