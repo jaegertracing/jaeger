@@ -20,6 +20,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/handlers"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 var (
@@ -61,6 +62,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("cannot get %s extension: %w", jaegerquery.ID, err)
 	}
 	s.queryAPI = queryExt.QueryService()
+	tenancyMgr := queryExt.TenancyManager()
 	s.telset.Logger.Info("Successfully retrieved v2 QueryService from jaegerquery extension")
 
 	// Initialize MCP server with implementation details
@@ -95,7 +97,8 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 
 	// Create HTTP server with MCP handler and health endpoint
 	mux := http.NewServeMux()
-	mux.Handle("/mcp", mcpHandler)
+	mcpHTTPHandler := tenancy.ExtractTenantHTTPHandler(tenancyMgr, mcpHandler)
+	mux.Handle("/mcp", mcpHTTPHandler)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("MCP server is running"))

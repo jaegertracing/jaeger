@@ -14,22 +14,28 @@ import (
 	"go.opentelemetry.io/collector/extension"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 // mockExtension implements Extension for testing
 type mockExtension struct {
 	extension.Extension
 	qs *querysvc.QueryService
+	tm *tenancy.Manager
 }
 
 func (m *mockExtension) QueryService() *querysvc.QueryService {
 	return m.qs
 }
 
+func (m *mockExtension) TenancyManager() *tenancy.Manager {
+	return m.tm
+}
+
 func TestGetExtension_Success(t *testing.T) {
 	// Create a mock QueryService
 	mockQS := &querysvc.QueryService{}
-	mockExt := &mockExtension{qs: mockQS}
+	mockExt := &mockExtension{qs: mockQS, tm: &tenancy.Manager{}}
 
 	// Create a mock host with the jaegerquery extension
 	host := &mockHost{
