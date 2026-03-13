@@ -59,7 +59,12 @@ jobs:
       uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1
 
     - name: Build, test, and publish hotrod image
+      if: github.event_name == 'push' && github.ref_name == 'main'
       run:  bash scripts/build/build-hotrod-image.sh ${{ env.BUILD_FLAGS }} -r ${{ matrix.runtime }}
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+
+    - name: Build and test hotrod image (no publish)
+      if: github.event_name != 'push' || github.ref_name != 'main'
+      run:  bash scripts/build/build-hotrod-image.sh ${{ env.BUILD_FLAGS }} -r ${{ matrix.runtime }}

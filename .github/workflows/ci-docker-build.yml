@@ -41,8 +41,13 @@ jobs:
       run: bash scripts/build/build-upload-docker-images.sh -D -p linux/amd64
 
     - name: Build and upload all container images
-      if: github.ref_name == 'main'
+      if: github.event_name == 'push' && github.ref_name == 'main'
       run: bash scripts/build/build-upload-docker-images.sh
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+
+    - name: Build all container images (no upload)
+      if: github.event_name != 'push' || github.ref_name != 'main'
+      # -D disables images with debugger
+      run: bash scripts/build/build-upload-docker-images.sh -D
