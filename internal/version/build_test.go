@@ -6,8 +6,8 @@ package version
 import (
 	"testing"
 
+	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGet(t *testing.T) {
@@ -36,20 +36,21 @@ func TestString(t *testing.T) {
 }
 
 func TestNewInfoMetrics(t *testing.T) {
-	oldCommit := commitSHA
-	oldVersion := latestVersion
-	oldDate := date
-
-	t.Cleanup(func() {
-		commitSHA = oldCommit
-		latestVersion = oldVersion
-		date = oldDate
-	})
-
 	commitSHA = "foobar"
 	latestVersion = "v1.2.3"
 	date = "2024-01-04"
 
-	infoMetrics := NewInfoMetrics(nil)
-	require.NotNil(t, infoMetrics)
+	f := metricstest.NewFactory(0)
+	defer f.Stop()
+
+	_ = NewInfoMetrics(f)
+
+	snapshot, _ := f.Snapshot()
+
+	key := "build_info|build_date=2024-01-04,revision=foobar,version=v1.2.3"
+	value, ok := snapshot[key]
+
+	if assert.True(t, ok, "expected build_info gauge with key %q", key) {
+		assert.EqualValues(t, 1, value)
+	}
 }
