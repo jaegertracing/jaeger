@@ -10,7 +10,7 @@ import (
 
 func AddWarnings(span ptrace.Span, warnings ...string) {
 	var w pcommon.Slice
-	if currWarnings, ok := span.Attributes().Get(WarningsAttribute); ok {
+	if currWarnings, ok := span.Attributes().Get(WarningsAttribute); ok && currWarnings.Type() == pcommon.ValueTypeSlice {
 		w = currWarnings.Slice()
 	} else {
 		w = span.Attributes().PutEmptySlice(WarningsAttribute)
