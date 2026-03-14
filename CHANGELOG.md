@@ -21,6 +21,89 @@ copy from UI changelog
 
 </details>
 
+v2.16.0 (2026-03-06)
+-------------------------------
+
+### Backend Changes
+
+#### ⛔ Breaking Changes
+
+* Enforce Go version consistency across the codebase; require Go 1.25.7 ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#8052](https://github.com/jaegertracing/jaeger/pull/8052))
+* Remove legacy response format of remote sampling endpoint ([@yurishkuro](https://github.com/yurishkuro) in [#8014](https://github.com/jaegertracing/jaeger/pull/8014))
+
+#### ✨ New Features
+
+* Feat: add schemagen for internal extensions (#6186) ([@SoumyaRaikwar](https://github.com/SoumyaRaikwar) in [#7947](https://github.com/jaegertracing/jaeger/pull/7947))
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* [kafka receiver config] replace traces.topic: with traces.topics: ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#8144](https://github.com/jaegertracing/jaeger/pull/8144))
+* Disable bulk processor in es authenticator test to prevent goroutine leaks ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#8124](https://github.com/jaegertracing/jaeger/pull/8124))
+* Add support for es health-check timeout at startup ([@ntdkhiem](https://github.com/ntdkhiem) in [#8096](https://github.com/jaegertracing/jaeger/pull/8096))
+* Support max trace size issue in the query service ([@yurishkuro](https://github.com/yurishkuro) in [#8098](https://github.com/jaegertracing/jaeger/pull/8098))
+* Add empty span name sanitizer ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#8086](https://github.com/jaegertracing/jaeger/pull/8086))
+* [memory] include link attributes when searching by tags ([@Manik2708](https://github.com/Manik2708) in [#8077](https://github.com/jaegertracing/jaeger/pull/8077))
+* Fix(ci): update upload-artifact to v6 in metrics comparison workflow ([@jkowall](https://github.com/jkowall) in [#8000](https://github.com/jaegertracing/jaeger/pull/8000))
+
+#### 🚧 Experimental Features
+
+* [clickhouse][perf] restructure clickhouse findtraceids query to improve performance ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#8125](https://github.com/jaegertracing/jaeger/pull/8125))
+* [cassandra][v2] refactor `fromdbmodel` and `todbmodel` to accept and return `dbmodel.span` ([@Manik2708](https://github.com/Manik2708) in [#7844](https://github.com/jaegertracing/jaeger/pull/7844))
+
+#### 👷 CI Improvements
+
+* Remove otel_scope_version label from metrics comparison ([@yurishkuro](https://github.com/yurishkuro) in [#8145](https://github.com/jaegertracing/jaeger/pull/8145))
+* Ci: always update summary report comment if present ([@yurishkuro](https://github.com/yurishkuro) in [#8135](https://github.com/jaegertracing/jaeger/pull/8135))
+* Ci: extract ci summary publish script to `.github/scripts/` with unit tests ([@yurishkuro](https://github.com/yurishkuro) in [#8134](https://github.com/jaegertracing/jaeger/pull/8134))
+* Ci: split ci summary report into compute + publish workflows ([@yurishkuro](https://github.com/yurishkuro) in [#8132](https://github.com/jaegertracing/jaeger/pull/8132))
+* Ci: use gh pr list to get pr number ([@yurishkuro](https://github.com/yurishkuro) in [#8123](https://github.com/jaegertracing/jaeger/pull/8123))
+* Ci: log trigger event for debugging ([@yurishkuro](https://github.com/yurishkuro) in [#8122](https://github.com/jaegertracing/jaeger/pull/8122))
+* Ci: fix summary report to be able to retrieve pr number ([@yurishkuro](https://github.com/yurishkuro) in [#8121](https://github.com/jaegertracing/jaeger/pull/8121))
+* Ci: migrate coverage gating from codecov to github actions ([@yurishkuro](https://github.com/yurishkuro) in [#8111](https://github.com/jaegertracing/jaeger/pull/8111))
+* Ci: migrate coverage gating from codecov to github actions ([@yurishkuro](https://github.com/yurishkuro) in [#8101](https://github.com/jaegertracing/jaeger/pull/8101))
+* Fix: correct bot detection in ci parallel mode ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#8097](https://github.com/jaegertracing/jaeger/pull/8097))
+* [chore] fix bot names ([@yurishkuro](https://github.com/yurishkuro) in [#8094](https://github.com/jaegertracing/jaeger/pull/8094))
+* Refactor(ci): implement forked dag orchestrator for conditional parallelism ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#8093](https://github.com/jaegertracing/jaeger/pull/8093))
+* [test] upgrade integration tests fixtures to otlp traces ([@Manik2708](https://github.com/Manik2708) in [#8079](https://github.com/jaegertracing/jaeger/pull/8079))
+* [test] upgrade `default.json` fixture to otlp traces ([@Manik2708](https://github.com/Manik2708) in [#8076](https://github.com/jaegertracing/jaeger/pull/8076))
+* [test] upgrade `span_tags_trace.json` from v1 model to `ptrace.traces` ([@Manik2708](https://github.com/Manik2708) in [#8044](https://github.com/jaegertracing/jaeger/pull/8044))
+* Reorganize ci into 3-tier sequential pipeline with fail-fast behavior ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#8060](https://github.com/jaegertracing/jaeger/pull/8060))
+* [test] refactor integration tests to directly write/read `ptrace.traces` ([@Manik2708](https://github.com/Manik2708) in [#7812](https://github.com/jaegertracing/jaeger/pull/7812))
+* Use ifneq instead of ifndef for skip_debug_binaries check ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#8039](https://github.com/jaegertracing/jaeger/pull/8039))
+* Fix release process issues: command copy buttons, documentation tagging, and release.md rotation ([@jkowall](https://github.com/jkowall) in [#7990](https://github.com/jaegertracing/jaeger/pull/7990))
+
+#### ⚙️ Refactoring
+
+* Apply `go fix ./...` ([@yurishkuro](https://github.com/yurishkuro) in [#8074](https://github.com/jaegertracing/jaeger/pull/8074))
+* Migrate http servers from gorilla mux to stdlib http.ServeMux ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#8013](https://github.com/jaegertracing/jaeger/pull/8013))
+* Remove legacy sampling strategy marshaling code ([@yurishkuro](https://github.com/yurishkuro) in [#8017](https://github.com/jaegertracing/jaeger/pull/8017))
+
+#### 📖 Documentation
+
+* Fix typos and outdated path in elasticsearch readme files ([@cluster2600](https://github.com/cluster2600) in [#8068](https://github.com/jaegertracing/jaeger/pull/8068))
+* [chore] add automated scanner policy and vulncheck target ([@xenonnn4w](https://github.com/xenonnn4w) in [#8043](https://github.com/jaegertracing/jaeger/pull/8043))
+
+### 📊 UI Changes
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Rename main package to @jaegertracing/jaeger-ui ([@yurishkuro](https://github.com/yurishkuro) in [#3560](https://github.com/jaegertracing/jaeger-ui/pull/3560))
+* Fix: white hover line overflow on critical path segments ([@Parship12](https://github.com/Parship12) in [#3550](https://github.com/jaegertracing/jaeger-ui/pull/3550))
+* Fix v3 api client ignoring base path prefix ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#3549](https://github.com/jaegertracing/jaeger-ui/pull/3549))
+* Fix spm metrics not fetched on initial load due to null check ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#3538](https://github.com/jaegertracing/jaeger-ui/pull/3538))
+
+#### 🚧 Experimental Features
+
+* [adr-0006] phase 1: layout mode state and toggle controls ([@yurishkuro](https://github.com/yurishkuro) in [#3558](https://github.com/jaegertracing/jaeger-ui/pull/3558))
+* Adr 006: span details in side panel ([@yurishkuro](https://github.com/yurishkuro) in [#3556](https://github.com/jaegertracing/jaeger-ui/pull/3556))
+
+#### ⚙️ Refactoring
+
+* Refactor(plexus): convert nodeslayer from class to functional component ([@thc1006](https://github.com/thc1006) in [#3413](https://github.com/jaegertracing/jaeger-ui/pull/3413))
+* Refactor(plexus): convert svglayer from class to functional component ([@thc1006](https://github.com/thc1006) in [#3410](https://github.com/jaegertracing/jaeger-ui/pull/3410))
+* Refactor(plexus): convert svglayersgroup from class to functional component ([@thc1006](https://github.com/thc1006) in [#3412](https://github.com/jaegertracing/jaeger-ui/pull/3412))
+* Refactor(plexus): migrate svgedge to functional component (#3396) ([@hharshhsaini](https://github.com/hharshhsaini) in [#3527](https://github.com/jaegertracing/jaeger-ui/pull/3527))
+
 v2.15.1 (2026-02-08)
 -------------------------------
 

@@ -12,3 +12,4 @@ An Architecture Decision Record (ADR) is a document that captures an important a
 - [ADR-002: MCP Server Extension](002-mcp-server.md) - Design for implementing Model Context Protocol server as a Jaeger extension for LLM integration.
 - [ADR-003: Lazy Storage Factory Initialization](003-lazy-storage-factory-initialization.md) - Comparative analysis of approaches to defer storage backend initialization until actually needed.
 - [ADR-004: Migrate Coverage Gating from Codecov to GitHub Actions](004-migrating-coverage-gating-to-github-actions.md) - Design for replacing Codecov PR gating with a local fan-in workflow that merges coverage profiles, gates on regression, and consolidates reporting with the existing metrics summary.
+- [ADR-005: Badger Storage Record Layouts](005-badger-storage-record-layouts.md) - Documents the key and value formats used to store spans, secondary indexes, and sampling data in the Badger embedded key-value store backend.

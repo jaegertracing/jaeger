@@ -22,12 +22,6 @@ dev: export JAEGER_VERSION = dev
 dev: 
 	docker compose up $(DOCKER_COMPOSE_ARGS)
 
-.PHONY: dev-v1
-dev-v1: export JAEGER_VERSION = dev
-dev-v1: export BINARY = all-in-one
-dev-v1: build
-	docker compose -f docker-compose-v1.yml up $(DOCKER_COMPOSE_ARGS)
-
 .PHONY: elasticsearch
 elasticsearch: export JAEGER_VERSION = dev
 elasticsearch:
@@ -45,7 +39,7 @@ clean-jaeger:
 
 .PHONY: clean-all
 clean-all: clean-jaeger
-	docker rmi -f jaegertracing/all-in-one:dev ; \
-	docker rmi -f jaegertracing/all-in-one:latest ; \
+	docker rmi -f jaegertracing/jaeger:dev ; \
+	docker rmi -f jaegertracing/jaeger:latest ; \
 	docker rmi -f otel/opentelemetry-collector-contrib:latest ; \
 	docker rmi -f prom/prometheus:latest ; \
