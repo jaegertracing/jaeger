@@ -45,12 +45,13 @@ func TestNewInfoMetrics(t *testing.T) {
 
 	_ = NewInfoMetrics(f)
 
-	snapshot, _ := f.Snapshot()
-
-	key := "build_info|build_date=2024-01-04,revision=foobar,version=v1.2.3"
-	value, ok := snapshot[key]
-
-	if assert.True(t, ok, "expected build_info gauge with key %q", key) {
-		assert.EqualValues(t, 1, value)
-	}
+	f.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
+		Name:  "build_info",
+		Value: 1,
+		Tags: map[string]string{
+			"build_date": "2024-01-04",
+			"revision":   "foobar",
+			"version":    "v1.2.3",
+		},
+	})
 }
