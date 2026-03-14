@@ -25,6 +25,15 @@ func TestValidate(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name: "Invalid MaxSpanDetailsPerRequest (too low)",
+			config: &Config{
+				ServerVersion:            "1.0.0",
+				MaxSpanDetailsPerRequest: 0,
+				MaxSearchResults:         100,
+			},
+			expectError: true,
+		},
+		{
 			name: "Invalid MaxSpanDetailsPerRequest (too high)",
 			config: &Config{
 				ServerVersion:            "1.0.0",

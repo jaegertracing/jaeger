@@ -4,6 +4,8 @@
 package jaegermcp
 
 import (
+	"fmt"
+
 	"github.com/asaskevich/govalidator"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
@@ -32,6 +34,10 @@ func (cfg *Config) Validate() error {
 	// if cfg.ServerVersion == "" {
 	// 	cfg.ServerVersion = version.Get().GitVersion
 	// }
+	if cfg.MaxSpanDetailsPerRequest < 1 {
+		return fmt.Errorf("max_span_details_per_request must be at least 1")
+	}
+
 	_, err := govalidator.ValidateStruct(cfg)
 	return err
 }

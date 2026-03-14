@@ -163,7 +163,7 @@ func (s *server) registerTools() {
 	}, searchTracesHandler)
 
 	// Get span details tool
-	getSpanDetailsHandler := handlers.NewGetSpanDetailsHandler(s.queryAPI)
+	getSpanDetailsHandler := handlers.NewGetSpanDetailsHandler(s.queryAPI, s.config.MaxSpanDetailsPerRequest)
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_span_details",
 		Description: "Fetch full details (attributes, events, links, status) for specific spans.",
