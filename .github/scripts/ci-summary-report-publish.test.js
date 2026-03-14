@@ -208,6 +208,19 @@ describe('computeMetrics', () => {
     expect(r.conclusion).toBe('failure');
     expect(r.text).toBe('❌ Could not read metrics_total_changes from summary');
     expect(r.totalChanges).toBeNull();
+    expect(r.skipped).toBe(false);
+  });
+
+  test('success when metrics comparison is explicitly skipped', () => {
+    const r = computeMetrics({
+      metrics_conclusion: 'skipped',
+      metrics_has_infra_errors: false,
+      metrics_total_changes: null,
+    });
+    expect(r.conclusion).toBe('success');
+    expect(r.text).toBe('⏭️ Metrics comparison skipped for this PR.');
+    expect(r.totalChanges).toBeNull();
+    expect(r.skipped).toBe(true);
   });
 
   test('infra errors take precedence over missing total_changes', () => {

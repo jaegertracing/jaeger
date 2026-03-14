@@ -106,12 +106,25 @@ function sanitizeSnapshots(raw) {
  * Derive metrics conclusion and display text from the parsed ci-summary artifact.
  * Uses === true for boolean fields to avoid misinterpreting JSON strings.
  * @param {object} s - Parsed ci-summary.json
- * @returns {{ hasInfraErrors: boolean, totalChanges: number|null, snapshots: Array|null, conclusion: string, text: string }}
+ * @returns {{ hasInfraErrors: boolean, totalChanges: number|null, snapshots: Array|null, skipped: boolean, conclusion: string, text: string }}
  */
 function computeMetrics(s) {
   const hasInfraErrors = s.metrics_has_infra_errors === true;
   const totalChanges   = safeNum(s.metrics_total_changes);
   const snapshots      = sanitizeSnapshots(s.metrics_snapshots);
+  const skipped        = s.metrics_conclusion === 'skipped';
+
+  if (skipped) {
+    return {
+      hasInfraErrors,
+      totalChanges,
+      snapshots,
+      skipped,
+      conclusion: 'success',
+      text: '⏭️ Metrics comparison skipped for this PR.',
+    };
+  }
+
   // Derive conclusion from the same conditions that drive text so they are always consistent.
   const conclusion     = (hasInfraErrors || totalChanges === null || totalChanges > 0) ? 'failure' : 'success';
 
@@ -126,7 +139,7 @@ function computeMetrics(s) {
     text = '✅ No significant metric changes';
   }
 
-  return { hasInfraErrors, totalChanges, snapshots, conclusion, text };
+  return { hasInfraErrors, totalChanges, snapshots, skipped, conclusion, text };
 }
 
 /**

@@ -39,6 +39,7 @@ jobs:
         run: python3 -m pip install prometheus-client
 
       - name: Compare metrics and generate summary
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.user.login != 'dependabot[bot]' }}
         id: compare-metrics
         shell: bash
         run: bash ./scripts/e2e/metrics_summary.sh
@@ -175,8 +176,15 @@ jobs:
               # Step failed/cancelled before writing CONCLUSION output.
               outcome = os.environ.get('METRICS_OUTCOME', '')
               metrics_conclusion = 'failure' if outcome in ('failure', 'cancelled') else 'skipped'
-          metrics_total_env  = os.environ.get('METRICS_TOTAL')
-          metrics_total      = int(metrics_total_env) if metrics_total_env not in (None, '') else None
+          metrics_total_env = os.environ.get('METRICS_TOTAL')
+          if metrics_total_env not in (None, ''):
+              metrics_total = int(metrics_total_env)
+          elif metrics_conclusion == 'skipped':
+              # Keep publisher check green for intentionally skipped metrics runs
+              # (for example, Dependabot PRs where compare-metrics is disabled).
+              metrics_total = 0
+          else:
+              metrics_total = None
           has_infra_errors   = os.environ.get('METRICS_INFRA_ERRORS') == 'true'
 
           coverage_merge_outcome = os.environ.get('COVERAGE_MERGE_OUTCOME', '')
@@ -267,7 +275,8 @@ jobs:
       # ci-summary-report-publish.yml can still post the PR comment and check runs.
       - name: Fail if coverage or metrics gate failed
         if: |
-          steps.compare-metrics.outputs.CONCLUSION == 'failure' ||
+          ((github.event_name != 'pull_request' || github.event.pull_request.user.login != 'dependabot[bot]') &&
+          steps.compare-metrics.outputs.CONCLUSION == 'failure') ||
           steps.coverage-gate.outputs.conclusion == 'failure'
         run: |
           echo "Metrics: ${{ steps.compare-metrics.outputs.CONCLUSION }}"
