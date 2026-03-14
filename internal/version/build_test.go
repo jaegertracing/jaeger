@@ -11,6 +11,16 @@ import (
 )
 
 func TestGet(t *testing.T) {
+	oldCommitSHA := commitSHA
+	oldLatestVersion := latestVersion
+	oldDate := date
+
+	t.Cleanup(func() {
+		commitSHA = oldCommitSHA
+		latestVersion = oldLatestVersion
+		date = oldDate
+	})
+
 	commitSHA = "foobar"
 	latestVersion = "v1.2.3"
 	date = "2024-01-04"
@@ -23,6 +33,16 @@ func TestGet(t *testing.T) {
 }
 
 func TestString(t *testing.T) {
+	oldCommitSHA := commitSHA
+	oldLatestVersion := latestVersion
+	oldDate := date
+
+	t.Cleanup(func() {
+		commitSHA = oldCommitSHA
+		latestVersion = oldLatestVersion
+		date = oldDate
+	})
+
 	commitSHA = "foobar"
 	latestVersion = "v1.2.3"
 	date = "2024-01-04"
@@ -36,6 +56,16 @@ func TestString(t *testing.T) {
 }
 
 func TestNewInfoMetrics(t *testing.T) {
+	oldCommitSHA := commitSHA
+	oldLatestVersion := latestVersion
+	oldDate := date
+
+	t.Cleanup(func() {
+		commitSHA = oldCommitSHA
+		latestVersion = oldLatestVersion
+		date = oldDate
+	})
+
 	commitSHA = "foobar"
 	latestVersion = "v1.2.3"
 	date = "2024-01-04"
