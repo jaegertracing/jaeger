@@ -23,7 +23,7 @@ type Config struct {
 	ServerVersion string `mapstructure:"server_version" valid:"required"`
 
 	// MaxSpanDetailsPerRequest limits the number of spans that can be fetched in a single request.
-	MaxSpanDetailsPerRequest int `mapstructure:"max_span_details_per_request" valid:"range(1|100)"`
+	MaxSpanDetailsPerRequest int `mapstructure:"max_span_details_per_request"`
 
 	// MaxSearchResults limits the number of trace search results.
 	MaxSearchResults int `mapstructure:"max_search_results" valid:"range(1|1000)"`
@@ -36,6 +36,9 @@ func (cfg *Config) Validate() error {
 	// }
 	if cfg.MaxSpanDetailsPerRequest < 1 {
 		return fmt.Errorf("max_span_details_per_request must be at least 1")
+	}
+	if cfg.MaxSpanDetailsPerRequest > 100 {
+		return fmt.Errorf("max_span_details_per_request must not exceed 100")
 	}
 
 	_, err := govalidator.ValidateStruct(cfg)
