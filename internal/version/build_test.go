@@ -43,7 +43,7 @@ func TestNewInfoMetrics(t *testing.T) {
 	f := metricstest.NewFactory(0)
 	defer f.Stop()
 
-	_ = NewInfoMetrics(f)
+	NewInfoMetrics(f)
 
 	f.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
 		Name:  "build_info",
