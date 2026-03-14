@@ -37,7 +37,7 @@ func (fd FromDomain) convertSpanInternal(span *model.Span) dbmodel.Span {
 		OperationName:   span.OperationName,
 		StartTime:       model.TimeAsEpochMicroseconds(span.StartTime),
 		StartTimeMillis: model.TimeAsEpochMicroseconds(span.StartTime) / 1000,
-		Duration:        model.DurationAsMicroseconds(span.Duration),
+		Duration:        model.DurationAsMicroseconds(max(0, span.Duration)),
 		Tags:            tags,
 		Logs:            fd.convertLogs(span.Logs),
 	}

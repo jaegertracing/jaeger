@@ -6,6 +6,7 @@ package dbmodel
 
 import (
 	"testing"
+	"time"
 
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
@@ -345,4 +346,15 @@ func TestFromDBTag_DefaultCase(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid ValueType")
 	assert.Equal(t, model.KeyValue{}, result)
+}
+
+// TestFromDomain_NegativeDuration verifies that a span with negative duration
+// (clock skew: endTime < startTime) does not overflow when stored.
+// Previously, uint64(negative_int64) wrapped to ~213503982 days (issue #8165).
+func TestFromDomain_NegativeDuration(t *testing.T) {
+	span := getTestJaegerSpan()
+	span.Duration = -time.Second // simulate clock skew
+	dbSpan := FromDomain(span)
+	// Duration must be 0 µs, not a huge wrapped int64.
+	assert.Equal(t, int64(0), dbSpan.Duration)
 }

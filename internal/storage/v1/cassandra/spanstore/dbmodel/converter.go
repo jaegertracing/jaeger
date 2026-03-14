@@ -67,7 +67,7 @@ func (c converter) fromDomain(span *model.Span) *Span {
 		OperationName: span.OperationName,
 		Flags:         int32(span.Flags),
 		StartTime:     int64(model.TimeAsEpochMicroseconds(span.StartTime)),
-		Duration:      int64(model.DurationAsMicroseconds(span.Duration)),
+		Duration:      int64(model.DurationAsMicroseconds(max(0, span.Duration))),
 		Tags:          tags,
 		Logs:          logs,
 		Refs:          refs,

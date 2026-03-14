@@ -136,8 +136,8 @@ func spanToDbSpan(span ptrace.Span, scope pcommon.InstrumentationScope, process 
 		Refs:          dbReferences,
 		//nolint:gosec // G115 // OTLP timestamp is nanoseconds since epoch (semantically non-negative), safe to convert to int64 microseconds
 		StartTime: int64(model.TimeAsEpochMicroseconds(startTime)),
-		//nolint:gosec // G115 // span.EndTime - span.StartTime is guaranteed non-negative by schema constraints
-		Duration: int64(model.DurationAsMicroseconds(span.EndTimestamp().AsTime().Sub(startTime))),
+		//nolint:gosec // G115 // clamped to ≥0 before conversion; safe to cast uint64→int64
+		Duration: int64(model.DurationAsMicroseconds(max(0, span.EndTimestamp().AsTime().Sub(startTime)))),
 		Tags:     getDbTags(span, scope),
 		Logs:     spanEventsToDbLogs(span.Events()),
 		Process:  process,

@@ -134,7 +134,7 @@ func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, pr
 		References:      linksToDbSpanRefs(span.Links(), parentSpanID, traceID),
 		StartTime:       model.TimeAsEpochMicroseconds(startTime),
 		StartTimeMillis: model.TimeAsEpochMicroseconds(startTime) / 1000,
-		Duration:        model.DurationAsMicroseconds(span.EndTimestamp().AsTime().Sub(startTime)),
+		Duration:        model.DurationAsMicroseconds(max(0, span.EndTimestamp().AsTime().Sub(startTime))),
 		Tags:            getDbSpanTags(span, libraryTags),
 		Logs:            spanEventsToDbSpanLogs(span.Events()),
 		Process:         process,

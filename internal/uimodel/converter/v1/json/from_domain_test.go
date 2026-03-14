@@ -188,3 +188,30 @@ func TestConvertKeyValues_DefaultValueType(t *testing.T) {
 	assert.Equal(t, "unknown type 999", result[0].Value)
 	assert.Equal(t, uimodel.ValueType("999"), result[0].Type)
 }
+
+// TestFromDomain_NegativeDuration reproduces the overflow reported in issue #8165:
+// a span with endTime < startTime (clock skew) results in a negative Duration,
+// which must be clamped to 0 rather than wrapped to a huge uint64 (~213503982 days).
+func TestFromDomain_NegativeDuration(t *testing.T) {
+	span := &model.Span{
+		TraceID:       model.TraceID{Low: 1},
+		SpanID:        model.SpanID(2),
+		OperationName: "op",
+		StartTime:     time.Now(),
+		Duration:      -time.Second, // clock-skew: endTime < startTime
+		Process: &model.Process{
+			ServiceName: "svc",
+		},
+	}
+	trace := &model.Trace{
+		Spans: []*model.Span{span},
+		ProcessMap: []model.Trace_ProcessMapping{
+			{ProcessID: "p1", Process: *span.Process},
+		},
+	}
+
+	uiTrace := FromDomain(trace)
+	require.Len(t, uiTrace.Spans, 1)
+	// Duration must be 0, not a massive wrapped uint64.
+	assert.Equal(t, uint64(0), uiTrace.Spans[0].Duration)
+}

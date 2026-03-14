@@ -65,7 +65,7 @@ func (fd fromDomain) convertSpanInternal(span *model.Span) uimodel.Span {
 		Flags:         uint32(span.Flags),
 		OperationName: span.OperationName,
 		StartTime:     model.TimeAsEpochMicroseconds(span.StartTime),
-		Duration:      model.DurationAsMicroseconds(span.Duration),
+		Duration:      model.DurationAsMicroseconds(max(0, span.Duration)),
 		Tags:          fd.convertKeyValuesFunc(span.Tags),
 		Logs:          fd.convertLogs(span.Logs),
 	}
