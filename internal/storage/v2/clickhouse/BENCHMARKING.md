@@ -1,24 +1,14 @@
 # ClickHouse Storage Backend — Benchmark Results
 
-## Overview
-
-This document presents benchmark results for Jaeger's native ClickHouse storage backend.
-The benchmarks measure insert throughput, compression efficiency, and query performance
-for the most common Jaeger operations: trace retrieval, span search, and metadata lookups.
-
-All benchmark scripts are available in the
-[clickhouse-benchmarking](https://github.com/mahadzaryab1/clickhouse-benchmarking) repository.
-
 ## Test Environment
 
 | Component | Details |
 | --- | --- |
-| **VM** | Oracle Cloud VM.Standard2.4 (4 OCPUs / 8 threads, Intel Xeon Platinum 8167M @ 2.0 GHz) |
+| **VM** | Oracle Cloud VM.Standard2.4 (4 OCPUs, Intel Xeon Platinum 8167M) |
 | **Memory** | 60 GB |
-| **Disk** | 30 GB block storage |
+| **Disk** | 47 GB block storage |
 | **OS** | Oracle Linux 9 |
-| **ClickHouse** | 25.2.1 (single-node, containerized via Podman) |
-| **Jaeger** | Built from source (all-in-one, native process) |
+| **ClickHouse** | 26 (single-node) |
 
 ## Dataset
 
@@ -30,30 +20,6 @@ All benchmark scripts are available in the
 | **Services** | 2 (`tracegen-00`, `tracegen-01`) |
 | **Partitions (days)** | 5 |
 | **Attributes per span** | 11 (across 97 distinct keys, 1000 distinct values) |
-| **Generator** | `jaeger-tracegen` via OTLP gRPC |
-
-## Schema
-
-The native schema uses a single [`spans`](sql/create_spans_table.sql) table with `Nested` arrays for attributes:
-
-```sql
-ENGINE = MergeTree
-PARTITION BY toDate(start_time)
-ORDER BY (trace_id)
-```
-
-**Skip indexes:**
-
-| Index | Type | Target Column |
-| --- | --- | --- |
-| `idx_service_name` | `set(500)` | `service_name` |
-| `idx_name` | `set(1000)` | `name` (operation) |
-| `idx_start_time` | `minmax` | `start_time` |
-| `idx_duration` | `minmax` | `duration` |
-| `idx_attributes_keys` | `bloom_filter` | `str_attributes.key` |
-| `idx_attributes_values` | `bloom_filter` | `str_attributes.value` |
-| `idx_resource_attributes_keys` | `bloom_filter` | `resource_str_attributes.key` |
-| `idx_resource_attributes_values` | `bloom_filter` | `resource_str_attributes.value` |
 
 ## Results
 
@@ -75,7 +41,7 @@ Script: [`table_compression_spans`](https://github.com/mahadzaryab1/clickhouse-b
 | **Total insert duration** | 308.4 s |
 | **Throughput (spans/sec)** | 32,422 |
 
-### Query Performance
+Script: [`schema_insert`](https://github.com/mahadzaryab1/clickhouse-benchmarking/blob/main/performance-retrieval-scripts/native-schema/schema_insert)
 
 Each query was run 3 times. The table shows averages across all runs.
 
