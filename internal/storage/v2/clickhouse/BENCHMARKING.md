@@ -1,4 +1,4 @@
-# ClickHouse Storage Backend — Benchmark Results
+# ClickHouse Storage Backend — Benchmarks
 
 ## Test Environment
 
