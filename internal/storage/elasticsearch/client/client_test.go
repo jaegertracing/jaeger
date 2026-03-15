@@ -228,7 +228,7 @@ func TestHandleFailedRequest(t *testing.T) {
 			body:                &errorReadCloser{},
 			statusCode:          http.StatusInternalServerError,
 			expectedError:       "failed to read response body",
-			expectResponseError: false,
+			expectResponseError: true,
 		},
 	}
 
