@@ -4,7 +4,7 @@
 package client
 
 import (
-	"fmt"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -17,12 +17,28 @@ import (
 
 type errorReadCloser struct{}
 
-func (e *errorReadCloser) Read(p []byte) (int, error) {
-	return 0, fmt.Errorf("read error")
+func (*errorReadCloser) Read(_ []byte) (int, error) {
+	return 0, errors.New("read error")
 }
 
-func (e *errorReadCloser) Close() error {
+func (*errorReadCloser) Close() error {
 	return nil
+}
+
+type errorRoundTripper struct{}
+
+func (*errorRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, errors.New("transport error")
+}
+
+type readErrorRoundTripper struct{}
+
+func (*readErrorRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       &errorReadCloser{},
+		Header:     make(http.Header),
+	}, nil
 }
 
 func TestRequest(t *testing.T) {
@@ -68,7 +84,7 @@ func TestRequest(t *testing.T) {
 
 				if test.checkBody {
 					body, err := io.ReadAll(r.Body)
-					require.NoError(t, err)
+					assert.NoError(t, err)
 					assert.Equal(t, string(test.body), string(body))
 				}
 
@@ -100,6 +116,50 @@ func TestRequest(t *testing.T) {
 			assert.Equal(t, test.responseBody, string(resp))
 		})
 	}
+
+	t.Run("client do error", func(t *testing.T) {
+		c := &Client{
+			Endpoint: "http://example.com",
+			Client: &http.Client{
+				Transport: &errorRoundTripper{},
+			},
+		}
+		req := elasticRequest{
+			method:   "GET",
+			endpoint: "/",
+		}
+		resp, err := c.request(req)
+		require.Error(t, err)
+		assert.Empty(t, resp)
+	})
+	t.Run("response body read error", func(t *testing.T) {
+		c := &Client{
+			Endpoint: "http://example.com",
+			Client: &http.Client{
+				Transport: &readErrorRoundTripper{},
+			},
+		}
+		req := elasticRequest{
+			method:   "GET",
+			endpoint: "/",
+		}
+		resp, err := c.request(req)
+		require.Error(t, err)
+		assert.Empty(t, resp)
+	})
+	t.Run("invalid endpoint url", func(t *testing.T) {
+		c := &Client{
+			Endpoint: "http:// invalid-url",
+			// use default HTTP client; request creation should fail before Do is called
+		}
+		req := elasticRequest{
+			method:   "GET",
+			endpoint: "/",
+		}
+		resp, err := c.request(req)
+		require.Error(t, err)
+		assert.Empty(t, resp)
+	})
 }
 
 func TestSetAuthorization(t *testing.T) {
@@ -122,7 +182,7 @@ func TestSetAuthorization(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "http://example.com", nil)
+			req := httptest.NewRequest(http.MethodGet, "http://example.com", http.NoBody)
 
 			c := &Client{
 				BasicAuth: test.basicAuth,
@@ -143,28 +203,32 @@ func TestSetAuthorization(t *testing.T) {
 
 func TestHandleFailedRequest(t *testing.T) {
 	tests := []struct {
-		name          string
-		body          io.ReadCloser
-		statusCode    int
-		expectedError string
+		name                string
+		body                io.ReadCloser
+		statusCode          int
+		expectedError       string
+		expectResponseError bool
 	}{
 		{
-			name:          "body present",
-			body:          io.NopCloser(strings.NewReader("failure")),
-			statusCode:    http.StatusInternalServerError,
-			expectedError: "request failed",
+			name:                "body present",
+			body:                io.NopCloser(strings.NewReader("failure")),
+			statusCode:          http.StatusInternalServerError,
+			expectedError:       "request failed",
+			expectResponseError: true,
 		},
 		{
-			name:          "body nil",
-			body:          nil,
-			statusCode:    http.StatusBadRequest,
-			expectedError: "request failed",
+			name:                "body nil",
+			body:                nil,
+			statusCode:          http.StatusBadRequest,
+			expectedError:       "request failed",
+			expectResponseError: true,
 		},
 		{
-			name:          "body read error",
-			body:          &errorReadCloser{},
-			statusCode:    http.StatusInternalServerError,
-			expectedError: "failed to read response body",
+			name:                "body read error",
+			body:                &errorReadCloser{},
+			statusCode:          http.StatusInternalServerError,
+			expectedError:       "failed to read response body",
+			expectResponseError: false,
 		},
 	}
 
@@ -179,8 +243,19 @@ func TestHandleFailedRequest(t *testing.T) {
 
 			err := c.handleFailedRequest(res)
 
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), test.expectedError)
+			require.ErrorContains(t, err, test.expectedError)
+
+			var respErr ResponseError
+			if test.expectResponseError {
+				require.ErrorAs(t, err, &respErr)
+				assert.Equal(t, test.statusCode, respErr.StatusCode)
+				if test.body == nil {
+					assert.Empty(t, respErr.Body)
+				} else if test.name == "body present" {
+					assert.Equal(t, []byte("failure"), respErr.Body)
+					assert.Contains(t, err.Error(), string(respErr.Body))
+				}
+			}
 		})
 	}
 }
