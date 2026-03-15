@@ -10,7 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func setupBuildForTest(t *testing.T, commit, version, buildDate string) {
+func setupBuildForTest(t *testing.T, commit, gitversion, buildDate string) {
+	t.Helper()
 	oldCommitSHA := commitSHA
 	oldLatestVersion := latestVersion
 	oldDate := date
@@ -22,7 +23,7 @@ func setupBuildForTest(t *testing.T, commit, version, buildDate string) {
 	})
 
 	commitSHA = commit
-	latestVersion = version
+	latestVersion = gitversion
 	date = buildDate
 }
 
