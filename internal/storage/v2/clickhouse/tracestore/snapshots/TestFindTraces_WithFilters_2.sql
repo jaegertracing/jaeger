@@ -73,8 +73,8 @@ WHERE s.trace_id IN (
 	SELECT trace_id FROM (
 		SELECT
 		    l.trace_id,
-		    t.start,
-		    t.end
+		    min(t.start) AS start,
+		    max(t.end) AS end
 		FROM (
 			SELECT DISTINCT
 			    s.trace_id
@@ -178,6 +178,7 @@ WHERE s.trace_id IN (
 			LIMIT ?
 		) l
 		LEFT JOIN trace_id_timestamps t ON l.trace_id = t.trace_id
+		GROUP BY l.trace_id
 	)
 )
 ORDER BY s.trace_id
