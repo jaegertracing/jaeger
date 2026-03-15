@@ -1,8 +1,7 @@
 # MCP Server Extension for Jaeger
 
-## Status
-
-Proposed
+* **Status**: Proposed
+* **Date**: 2026-01-23
 
 ## Context
 

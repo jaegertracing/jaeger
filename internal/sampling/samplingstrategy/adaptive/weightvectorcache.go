@@ -38,7 +38,7 @@ func (c *WeightVectorCache) GetWeights(length int) []float64 {
 		sum += w
 	}
 	// normalize
-	for i := 0; i < length; i++ {
+	for i := range length {
 		weights[i] /= sum
 	}
 	c.cache[length] = weights

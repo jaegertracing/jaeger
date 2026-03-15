@@ -1,0 +1,9 @@
+name: "CI Orchestrator: Stage 1 (Linters)"
+
+on:
+  workflow_call:
+
+jobs:
+  lint-checks:
+    uses: ./.github/workflows/ci-lint-checks.yaml
+    secrets: inherit

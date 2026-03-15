@@ -53,6 +53,7 @@ func NewServer(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	options *QueryOptions,
+	caps querysvc.StorageCapabilities,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*Server, error) {
@@ -75,7 +76,7 @@ func NewServer(
 		return nil, err
 	}
 	registerGRPCHandlers(grpcServer, querySvc, telset)
-	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, tm, telset)
+	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, caps, tm, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -157,6 +158,7 @@ func initRouter(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
+	caps querysvc.StorageCapabilities,
 	tenancyMgr *tenancy.Manager,
 	telset telemetry.Settings,
 ) (http.Handler, io.Closer) {
@@ -191,7 +193,7 @@ func initRouter(
 		http.Error(w, "404 page not found", http.StatusNotFound)
 	})
 
-	staticHandlerCloser := RegisterStaticHandler(r, telset.Logger, queryOpts, querySvc.GetCapabilities())
+	staticHandlerCloser := RegisterStaticHandler(r, telset.Logger, queryOpts, caps)
 
 	var handler http.Handler = r
 	if queryOpts.BearerTokenPropagation {
@@ -209,10 +211,11 @@ func createHTTPServer(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
+	caps querysvc.StorageCapabilities,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*httpServer, error) {
-	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
+	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, caps, tm, telset)
 	handler = recoveryhandler.NewRecoveryHandler(telset.Logger, true)(handler)
 	var extensions map[component.ID]component.Component
 	if telset.Host != nil {
@@ -308,9 +311,7 @@ func (s *Server) Start(ctx context.Context) error {
 		grpcPort = port
 	}
 
-	s.bgFinished.Add(1)
-	go func() {
-		defer s.bgFinished.Done()
+	s.bgFinished.Go(func() {
 		s.telset.Logger.Info("Starting HTTP server", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTP.NetAddr.Endpoint))
 		err := s.httpServer.Serve(s.httpConn)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -319,12 +320,10 @@ func (s *Server) Start(ctx context.Context) error {
 			return
 		}
 		s.telset.Logger.Info("HTTP server stopped", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTP.NetAddr.Endpoint))
-	}()
+	})
 
 	// Start GRPC server concurrently
-	s.bgFinished.Add(1)
-	go func() {
-		defer s.bgFinished.Done()
+	s.bgFinished.Go(func() {
 		s.telset.Logger.Info("Starting GRPC server", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPC.NetAddr.Endpoint))
 
 		err := s.grpcServer.Serve(s.grpcConn)
@@ -334,7 +333,7 @@ func (s *Server) Start(ctx context.Context) error {
 			return
 		}
 		s.telset.Logger.Info("GRPC server stopped", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPC.NetAddr.Endpoint))
-	}()
+	})
 	return nil
 }
 

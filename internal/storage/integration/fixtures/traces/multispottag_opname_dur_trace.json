@@ -1,52 +1,71 @@
 {
-  "spans": [
+  "resourceSpans": [
     {
-      "traceId": "AAAAAAAAAAAAAAAAAAAAGQ==",
-      "spanId": "AAAAAAAAAAU=",
-      "operationName": "query19-operation",
-      "references": [],
-      "startTime": "2017-01-26T16:46:31.639875Z",
-      "duration": "5000ns",
-      "tags": [
-        {
-          "key": "sameplacetag1",
-          "vType": "STRING",
-          "vStr": "sameplacevalue"
-        }
-      ],
-      "process": {
-        "serviceName": "query19-service",
-        "tags": [
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "query19-service"
+            }
+          },
           {
             "key": "sameplacetag4",
-            "vType": "BOOL",
-            "vBool": true
+            "value": {
+              "boolValue": true
+            }
           },
           {
             "key": "sameplacetag3",
-            "vType": "FLOAT64",
-            "vFloat64": 72.5
+            "value": {
+              "doubleValue": 72.5
+            }
           }
         ]
       },
-      "logs": [
+      "scopeSpans": [
         {
-          "timestamp": "2017-01-26T16:46:31.639875Z",
-          "fields": [
+          "scope": {},
+          "spans": [
             {
-              "key": "sameplacetag2",
-              "vType": "INT64",
-              "vInt64": 123
-            }
-          ]
-        },
-        {
-          "timestamp": "2017-01-26T16:46:31.639875Z",
-          "fields": [
-            {
-              "key": "blob",
-              "vType": "BINARY",
-              "vBinary": "AAAwOQ=="
+              "traceId": "00000000000000000000000000000019",
+              "spanId": "0000000000000005",
+              "name": "query19-operation",
+              "startTimeUnixNano": "1485449191639875000",
+              "endTimeUnixNano": "1485449191639880000",
+              "attributes": [
+                {
+                  "key": "sameplacetag1",
+                  "value": {
+                    "stringValue": "sameplacevalue"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1485449191639875000",
+                  "attributes": [
+                    {
+                      "key": "sameplacetag2",
+                      "value": {
+                        "intValue": "123"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1485449191639875000",
+                  "attributes": [
+                    {
+                      "key": "blob",
+                      "value": {
+                        "bytesValue": "AAAwOQ=="
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {}
             }
           ]
         }
