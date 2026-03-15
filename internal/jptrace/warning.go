@@ -10,8 +10,16 @@ import (
 
 func AddWarnings(span ptrace.Span, warnings ...string) {
 	var w pcommon.Slice
-	if currWarnings, ok := span.Attributes().Get(WarningsAttribute); ok && currWarnings.Type() == pcommon.ValueTypeSlice {
-		w = currWarnings.Slice()
+	if currWarnings, ok := span.Attributes().Get(WarningsAttribute); ok {
+		if currWarnings.Type() == pcommon.ValueTypeSlice {
+			w = currWarnings.Slice()
+		} else {
+			// Non-slice attribute (e.g. a plain string written by Elasticsearch or
+			// another backend): upgrade to a slice while preserving the existing value.
+			existingStr := currWarnings.AsString()
+			w = span.Attributes().PutEmptySlice(WarningsAttribute)
+			w.AppendEmpty().SetStr(existingStr)
+		}
 	} else {
 		w = span.Attributes().PutEmptySlice(WarningsAttribute)
 	}
