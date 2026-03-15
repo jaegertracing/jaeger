@@ -53,14 +53,14 @@ func TestRequest(t *testing.T) {
 	}{
 		{
 			name:         "success without body",
-			method:       "GET",
+			method:       http.MethodGet,
 			statusCode:   http.StatusOK,
 			responseBody: "OK",
 			expectError:  false,
 		},
 		{
 			name:         "success with body",
-			method:       "POST",
+			method:       http.MethodPost,
 			body:         []byte(`{"query": "test"}`),
 			statusCode:   http.StatusOK,
 			responseBody: "OK",
@@ -69,7 +69,7 @@ func TestRequest(t *testing.T) {
 		},
 		{
 			name:         "server error",
-			method:       "GET",
+			method:       http.MethodGet,
 			statusCode:   http.StatusInternalServerError,
 			responseBody: "error",
 			expectError:  true,
@@ -126,7 +126,7 @@ func TestRequest(t *testing.T) {
 		}
 		req := elasticRequest{
 			method:   "GET",
-			endpoint: "/",
+			endpoint: "",
 		}
 		resp, err := c.request(req)
 		require.Error(t, err)
@@ -141,7 +141,7 @@ func TestRequest(t *testing.T) {
 		}
 		req := elasticRequest{
 			method:   "GET",
-			endpoint: "/",
+			endpoint: "",
 		}
 		resp, err := c.request(req)
 		require.Error(t, err)
@@ -154,7 +154,7 @@ func TestRequest(t *testing.T) {
 		}
 		req := elasticRequest{
 			method:   "GET",
-			endpoint: "/",
+			endpoint: "",
 		}
 		resp, err := c.request(req)
 		require.Error(t, err)
@@ -254,6 +254,8 @@ func TestHandleFailedRequest(t *testing.T) {
 				} else if test.name == "body present" {
 					assert.Equal(t, []byte("failure"), respErr.Body)
 					assert.Contains(t, err.Error(), string(respErr.Body))
+				} else if test.name == "body read error" {
+					assert.Nil(t, respErr.Body)
 				}
 			}
 		})
