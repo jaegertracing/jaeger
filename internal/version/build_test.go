@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGet(t *testing.T) {
+func setupBuildForTest(t *testing.T, commit, version, buildDate string) {
 	oldCommitSHA := commitSHA
 	oldLatestVersion := latestVersion
 	oldDate := date
@@ -21,10 +21,13 @@ func TestGet(t *testing.T) {
 		date = oldDate
 	})
 
-	commitSHA = "foobar"
-	latestVersion = "v1.2.3"
-	date = "2024-01-04"
+	commitSHA = commit
+	latestVersion = version
+	date = buildDate
+}
 
+func TestGet(t *testing.T) {
+	setupBuildForTest(t, "foobar", "v1.2.3", "2024-01-01")
 	info := Get()
 
 	assert.Equal(t, commitSHA, info.GitCommit)
@@ -33,19 +36,7 @@ func TestGet(t *testing.T) {
 }
 
 func TestString(t *testing.T) {
-	oldCommitSHA := commitSHA
-	oldLatestVersion := latestVersion
-	oldDate := date
-
-	t.Cleanup(func() {
-		commitSHA = oldCommitSHA
-		latestVersion = oldLatestVersion
-		date = oldDate
-	})
-
-	commitSHA = "foobar"
-	latestVersion = "v1.2.3"
-	date = "2024-01-04"
+	setupBuildForTest(t, "foobar", "v1.2.3", "2024-01-01")
 	test := Info{
 		GitCommit:  commitSHA,
 		GitVersion: latestVersion,
@@ -56,20 +47,7 @@ func TestString(t *testing.T) {
 }
 
 func TestNewInfoMetrics(t *testing.T) {
-	oldCommitSHA := commitSHA
-	oldLatestVersion := latestVersion
-	oldDate := date
-
-	t.Cleanup(func() {
-		commitSHA = oldCommitSHA
-		latestVersion = oldLatestVersion
-		date = oldDate
-	})
-
-	commitSHA = "foobar"
-	latestVersion = "v1.2.3"
-	date = "2024-01-04"
-
+	setupBuildForTest(t, "foobar", "v1.2.3", "2024-01-01")
 	f := metricstest.NewFactory(0)
 	defer f.Stop()
 
