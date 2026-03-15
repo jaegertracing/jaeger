@@ -91,9 +91,17 @@ jobs:
         uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57
         with:
           path: .artifacts/baseline-coverage.txt
-          key: coverage-baseline
+          # Exact match intentionally never hits (run IDs differ between runs).
+          # The restore-keys prefix coverage-baseline_ always falls back to the
+          # most recently created cache entry (GitHub returns the newest match
+          # for prefix lookups), which is the latest passing main-branch run.
+          # The trailing underscore avoids matching a plain "coverage-baseline"
+          # key if one were ever created.
+          # Storage is negligible: each entry is a single number (~10 B) and
+          # GitHub automatically evicts entries unused for 7 days.
+          key: coverage-baseline_${{ github.run_id }}
           restore-keys: |
-            coverage-baseline
+            coverage-baseline_
 
       - name: Gate on coverage regression
         if: success() && steps.merge-coverage.outputs.skipped == 'false'
@@ -141,13 +149,17 @@ jobs:
       # never handles free-form text from test output (which could contain injections).
       # All display text is constructed from this structured data by trusted publish-
       # workflow code running in the base repository context.
+      #
+      # metrics_snapshots is an array of per-snapshot change data (metric names and
+      # counts) produced by metrics_summary.sh.  The publish workflow validates every
+      # field before rendering (see sanitizeSnapshots in ci-summary-report-publish.js).
       - name: Save conclusions for publish workflow
         if: always()
         env:
-          METRICS_CONCLUSION:    ${{ steps.compare-metrics.outputs.CONCLUSION }}
-          METRICS_OUTCOME:       ${{ steps.compare-metrics.outcome }}
-          METRICS_TOTAL:         ${{ steps.compare-metrics.outputs.TOTAL_CHANGES }}
-          METRICS_INFRA_ERRORS:  ${{ steps.compare-metrics.outputs.INFRA_ERRORS }}
+          PR_NUMBER:              ${{ github.event.pull_request.number }}
+          METRICS_CONCLUSION:     ${{ steps.compare-metrics.outputs.CONCLUSION }}
+          METRICS_TOTAL:          ${{ steps.compare-metrics.outputs.TOTAL_CHANGES }}
+          METRICS_INFRA_ERRORS:   ${{ steps.compare-metrics.outputs.INFRA_ERRORS }}
           COVERAGE_MERGE_OUTCOME: ${{ steps.merge-coverage.outcome }}
           COVERAGE_SKIPPED:       ${{ steps.merge-coverage.outputs.skipped }}
           COVERAGE_CONCLUSION:    ${{ steps.coverage-gate.outputs.conclusion }}
@@ -157,13 +169,12 @@ jobs:
           python3 - <<'PYEOF'
           import json, os
 
-          metrics_conclusion = os.environ.get('METRICS_CONCLUSION') or ''
-          if not metrics_conclusion:
-              # Step failed/cancelled before writing CONCLUSION output.
-              outcome = os.environ.get('METRICS_OUTCOME', '')
-              metrics_conclusion = 'failure' if outcome in ('failure', 'cancelled') else 'skipped'
-          metrics_total_env  = os.environ.get('METRICS_TOTAL')
-          metrics_total      = int(metrics_total_env) if metrics_total_env not in (None, '') else None
+          metrics_conclusion = os.environ.get('METRICS_CONCLUSION') or 'failure'
+          metrics_total_env = os.environ.get('METRICS_TOTAL')
+          if metrics_total_env not in (None, ''):
+              metrics_total = int(metrics_total_env)
+          else:
+              metrics_total = None
           has_infra_errors   = os.environ.get('METRICS_INFRA_ERRORS') == 'true'
 
           coverage_merge_outcome = os.environ.get('COVERAGE_MERGE_OUTCOME', '')
@@ -190,10 +201,25 @@ jobs:
               except (FileNotFoundError, ValueError):
                   pass
 
+          # Load per-snapshot metric change data (produced by metrics_summary.sh).
+          # If the file is missing or malformed, set to None — the publish
+          # workflow treats null/missing as "no detail available".
+          metrics_snapshots = None
+          try:
+              with open('.artifacts/metrics_snapshots.json') as f:
+                  metrics_snapshots = json.load(f)
+          except (FileNotFoundError, json.JSONDecodeError, ValueError):
+              pass
+
+          pr_number_env = os.environ.get('PR_NUMBER')
+          pr_number = int(pr_number_env) if pr_number_env else None
+
           data = {
+              'pr_number':               pr_number,
               'metrics_conclusion':      metrics_conclusion,
               'metrics_total_changes':   metrics_total,
               'metrics_has_infra_errors': has_infra_errors,
+              'metrics_snapshots':       metrics_snapshots,
               'coverage_conclusion':     coverage_conclusion,
               'coverage_percentage':     coverage_pct,
               'coverage_baseline':       coverage_baseline,
@@ -214,12 +240,20 @@ jobs:
           if-no-files-found: warn
 
       # Save baseline coverage on main-branch runs so PRs can compare against it.
+      # Only save when the coverage gate passes so a failing/partial run never
+      # overwrites a valid baseline with a bad value.
       - name: Save coverage baseline on main branch
-        if: github.ref == 'refs/heads/main' && steps.merge-coverage.outputs.skipped == 'false'
+        if: >-
+          github.ref == 'refs/heads/main' &&
+          steps.merge-coverage.outputs.skipped == 'false' &&
+          steps.coverage-gate.outputs.conclusion == 'success'
         run: cp .artifacts/current-coverage.txt .artifacts/baseline-coverage.txt
 
       - name: Cache coverage baseline
-        if: github.ref == 'refs/heads/main' && steps.merge-coverage.outputs.skipped == 'false'
+        if: >-
+          github.ref == 'refs/heads/main' &&
+          steps.merge-coverage.outputs.skipped == 'false' &&
+          steps.coverage-gate.outputs.conclusion == 'success'
         uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57
         with:
           path: .artifacts/baseline-coverage.txt

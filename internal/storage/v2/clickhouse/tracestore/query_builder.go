@@ -96,6 +96,23 @@ func appendStringAttributeFallback(q *strings.Builder, args []any, key string, a
 	return append(args, key, attr.Str(), key, attr.Str(), key, attr.Str(), key, attr.Str(), key, attr.Str())
 }
 
+func buildGetTracesQuery(params tracestore.GetTraceParams) (string, []any) {
+	var q strings.Builder
+	q.WriteString(sql.SelectSpansByTraceID)
+	args := []any{params.TraceID}
+
+	if !params.Start.IsZero() {
+		q.WriteString(" AND s.start_time >= ?")
+		args = append(args, params.Start)
+	}
+	if !params.End.IsZero() {
+		q.WriteString(" AND s.start_time <= ?")
+		args = append(args, params.End)
+	}
+
+	return q.String(), args
+}
+
 func buildFindTracesQuery(traceIDsQuery string) string {
 	inner := indentBlock("SELECT trace_id FROM (\n" + indentBlock(strings.TrimSpace(traceIDsQuery)) + "\n)")
 	base := strings.TrimRight(sql.SelectSpansQuery, "\n")

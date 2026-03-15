@@ -98,8 +98,31 @@ jobs:
           node-version: '24'
           cache: 'npm'
           cache-dependency-path: .github/scripts/package-lock.json
-      - run: npm ci
+      - name: Install Node dependencies (retry on transient registry failures)
         working-directory: .github/scripts
+        run: |
+          set -euo pipefail
+
+          npm config set fetch-retries 5
+          npm config set fetch-retry-mintimeout 20000
+          npm config set fetch-retry-maxtimeout 120000
+
+          attempts=3
+          for i in $(seq 1 "$attempts"); do
+            echo "npm ci attempt $i/$attempts"
+            if npm ci; then
+              exit 0
+            fi
+
+            if [ "$i" -lt "$attempts" ]; then
+              sleep_time=$((i * 15))
+              echo "npm ci failed, retrying in ${sleep_time}s"
+              sleep "$sleep_time"
+            fi
+          done
+
+          echo "npm ci failed after $attempts attempts"
+          exit 1
       - run: npm test
         working-directory: .github/scripts
 
