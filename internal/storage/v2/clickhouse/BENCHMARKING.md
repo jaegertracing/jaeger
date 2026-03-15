@@ -47,8 +47,6 @@ Each query was run 3 times. The table shows averages across all runs.
 
 #### Retrieval Queries
 
-These queries fetch already-known data (specific trace IDs, service lists).
-
 | Query | Avg Duration |
 | --- | --- |
 | [**Retrieve services**](https://github.com/mahadzaryab1/clickhouse-benchmarking/blob/main/setup/native/queries/retrieve_services.sql) | 3 ms |
@@ -57,8 +55,6 @@ These queries fetch already-known data (specific trace IDs, service lists).
 | [**Get trace by ID + time range**](https://github.com/mahadzaryab1/clickhouse-benchmarking/blob/main/setup/native/queries/retrieve_spans_by_trace_id_with_time_range.sql) | 27 ms |
 
 #### Search Queries
-
-These queries search across the spans table with `LIMIT 1000` on distinct trace IDs.
 
 | Query | Avg Duration |
 | --- | --- |
