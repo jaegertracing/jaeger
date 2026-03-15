@@ -80,7 +80,7 @@ func TestRequest(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, test.method, r.Method)
-				assert.Equal(t, "application/json", r.Header.Get("Content-type"))
+				assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 
 				if test.checkBody {
 					body, err := io.ReadAll(r.Body)
@@ -150,7 +150,7 @@ func TestRequest(t *testing.T) {
 	t.Run("invalid endpoint url", func(t *testing.T) {
 		c := &Client{
 			Endpoint: "http:// invalid-url",
-			// use default HTTP client; request creation should fail before Do is called
+			Client:   http.DefaultClient,
 		}
 		req := elasticRequest{
 			method:   "GET",
