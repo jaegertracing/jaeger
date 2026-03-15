@@ -6,6 +6,7 @@ services:
     image: ${REGISTRY:-}jaegertracing/jaeger:${JAEGER_VERSION:-latest}
     ports:
       - "16686:16686"
+      - "16687:16687"
       - "4317:4317"
       - "4318:4318"
     environment:

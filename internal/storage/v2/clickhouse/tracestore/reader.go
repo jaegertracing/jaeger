@@ -50,7 +50,8 @@ func (r *Reader) GetTraces(
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		for _, traceID := range traceIDs {
-			rows, err := r.conn.Query(ctx, sql.SelectSpansByTraceID, traceID.TraceID)
+			query, args := buildGetTracesQuery(traceID)
+			rows, err := r.conn.Query(ctx, query, args...)
 			if err != nil {
 				yield(nil, fmt.Errorf("failed to query trace: %w", err))
 				return

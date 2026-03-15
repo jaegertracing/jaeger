@@ -6,12 +6,11 @@
 set -exuf -o pipefail
 
 print_help() {
-  echo "Usage: $0 [-h] [-l] [-o] [-p platforms] [-v jaeger_version]"
+  echo "Usage: $0 [-h] [-l] [-o] [-p platforms] [-r runtime]"
   echo "-h: Print help"
   echo "-l: Enable local-only mode that only pushes images to local registry"
   echo "-o: overwrite image in the target remote repository even if the semver tag already exists"
   echo "-p: Comma-separated list of platforms to build for (default: all supported)"
-  echo "-v: Jaeger version to use for hotrod image (v1 or v2, default: v2)"
   echo "-r: Runtime to test with (docker|k8s, default: docker)"
   exit 1
 }
@@ -19,13 +18,12 @@ print_help() {
 docker_compose_file="./examples/hotrod/docker-compose.yml"
 platforms="$(make echo-linux-platforms)"
 current_platform="$(go env GOOS)/$(go env GOARCH)"
-jaeger_version="v2"
 binary="jaeger"
 FLAGS=()
 success="false"
 runtime="docker"
 
-while getopts "hlop:v:r:" opt; do
+while getopts "hlop:r:" opt; do
 	case "${opt}" in
 	l)
 		# in the local-only mode the images will only be pushed to local registry
@@ -36,9 +34,6 @@ while getopts "hlop:v:r:" opt; do
 		;;
 	p)
 		platforms=${OPTARG}
-		;;
-	v)
-		jaeger_version=${OPTARG}
 		;;
   r)
 		case "${OPTARG}" in
@@ -51,21 +46,6 @@ while getopts "hlop:v:r:" opt; do
 		;;
 	esac
 done
-
-case "$jaeger_version" in
-  v1)
-    docker_compose_file="./examples/hotrod/docker-compose-v1.yml"
-    binary="all-in-one"
-    ;;
-  v2)
-    docker_compose_file="./examples/hotrod/docker-compose.yml"
-    binary="jaeger"
-    ;;
-  *)
-    echo "Invalid Jaeger version provided: $jaeger_version"
-    print_help
-    ;;
-esac
 
 set -x
 
@@ -121,7 +101,7 @@ done
 # so we do not pass flags like -b and -t.
 bash scripts/build/build-upload-a-docker-image.sh -l -c example-hotrod -d examples/hotrod -p "${current_platform}"
 
-# Build all-in-one (for v1) or jaeger (for v2) image locally (-l) for integration test
+# Build jaeger image locally (-l) for integration test
 make build-${binary}
 bash scripts/build/build-upload-a-docker-image.sh -l -b -c "${binary}" -d cmd/"${binary}" -p "${current_platform}" -t release
 

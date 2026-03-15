@@ -292,8 +292,7 @@ func TestMetricBackendUnmarshal(t *testing.T) {
 
 func getStorageKeys(t reflect.Type) []string {
 	var keys []string
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
+	for field := range t.Fields() {
 		tag := field.Tag.Get("mapstructure")
 		if tag != "" && tag != ",squash" {
 			keys = append(keys, tag)
@@ -303,7 +302,7 @@ func getStorageKeys(t reflect.Type) []string {
 }
 
 func TestTraceBackendExclusive(t *testing.T) {
-	keys := getStorageKeys(reflect.TypeOf(TraceBackend{}))
+	keys := getStorageKeys(reflect.TypeFor[TraceBackend]())
 	for i := range keys {
 		for j := i + 1; j < len(keys); j++ {
 			key1 := keys[i]
@@ -326,8 +325,8 @@ func TestTraceBackendExclusive(t *testing.T) {
 }
 
 func TestMetricBackendExclusive(t *testing.T) {
-	keys := getStorageKeys(reflect.TypeOf(MetricBackend{}))
-	for i := 0; i < len(keys); i++ {
+	keys := getStorageKeys(reflect.TypeFor[MetricBackend]())
+	for i := range keys {
 		for j := i + 1; j < len(keys); j++ {
 			key1 := keys[i]
 			key2 := keys[j]

@@ -6,6 +6,7 @@ package jptrace
 import (
 	"iter"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
@@ -37,4 +38,11 @@ func SpanIter(traces ptrace.Traces) iter.Seq2[SpanIterPos, ptrace.Span] {
 			}
 		}
 	}
+}
+
+func GetTraceID(traces ptrace.Traces) pcommon.TraceID {
+	for _, span := range SpanIter(traces) {
+		return span.TraceID()
+	}
+	return pcommon.NewTraceIDEmpty()
 }

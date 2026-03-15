@@ -127,7 +127,7 @@ func (sH *StaticAssetsHandler) loadAndEnrichIndexHTML(open func(string) (http.Fi
 		if !strings.HasPrefix(sH.options.BasePath, "/") || strings.HasSuffix(sH.options.BasePath, "/") {
 			return nil, fmt.Errorf("invalid base path '%s'. Must start but not end with a slash '/', e.g. '/jaeger/ui'", sH.options.BasePath)
 		}
-		indexBytes = basePathPattern.ReplaceAll(indexBytes, []byte(fmt.Sprintf(`<base href="%s/"`, sH.options.BasePath)))
+		indexBytes = basePathPattern.ReplaceAll(indexBytes, fmt.Appendf(nil, `<base href="%s/"`, sH.options.BasePath))
 	}
 
 	return indexBytes, nil

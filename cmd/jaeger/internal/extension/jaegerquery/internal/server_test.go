@@ -88,6 +88,7 @@ func TestCreateTLSServerSinglePortError(t *testing.T) {
 			},
 			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8080", Transport: confignet.TransportTypeTCP}, TLS: configoptional.Some(tlsCfg)},
 		},
+		querysvc.StorageCapabilities{},
 		tenancy.NewManager(&tenancy.Options{}), telset)
 	require.Error(t, err)
 }
@@ -111,6 +112,7 @@ func TestCreateTLSGrpcServerError(t *testing.T) {
 			},
 			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8081", Transport: confignet.TransportTypeTCP}, TLS: configoptional.Some(tlsCfg)},
 		},
+		querysvc.StorageCapabilities{},
 		tenancy.NewManager(&tenancy.Options{}), telset)
 	require.Error(t, err)
 }
@@ -134,7 +136,9 @@ func TestStartTLSHttpServerError(t *testing.T) {
 				TLS: configoptional.Some(tlsCfg),
 			},
 			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8081", Transport: confignet.TransportTypeTCP}},
-		}, tenancy.NewManager(&tenancy.Options{}), telset)
+		},
+		querysvc.StorageCapabilities{},
+		tenancy.NewManager(&tenancy.Options{}), telset)
 	require.NoError(t, err)
 	require.Error(t, s.Start(context.Background()))
 	t.Cleanup(func() {
@@ -433,9 +437,9 @@ func TestServerHTTPTLS(t *testing.T) {
 			logger := zaptest.NewLogger(t)
 			telset := initTelSet(logger, nooptrace.NewTracerProvider())
 			querySvc := makeQuerySvc()
-			server, err := NewServer(context.Background(), querySvc.qs,
-				nil, serverOptions, tenancy.NewManager(&tenancy.Options{}),
-				telset)
+
+			server, err := NewServer(context.Background(), querySvc.qs, nil,
+				serverOptions, querysvc.StorageCapabilities{}, tenancy.NewManager(&tenancy.Options{}), telset)
 			require.NoError(t, err)
 			require.NoError(t, server.Start(context.Background()))
 			t.Cleanup(func() {
@@ -548,7 +552,7 @@ func TestServerGRPCTLS(t *testing.T) {
 			querySvc := makeQuerySvc()
 			telset := initTelSet(logger, nooptrace.NewTracerProvider())
 			server, err := NewServer(context.Background(), querySvc.qs,
-				nil, serverOptions, tenancy.NewManager(&tenancy.Options{}),
+				nil, serverOptions, querysvc.StorageCapabilities{}, tenancy.NewManager(&tenancy.Options{}),
 				telset)
 			require.NoError(t, err)
 			require.NoError(t, server.Start(context.Background()))
@@ -605,6 +609,7 @@ func TestServerBadHostPort(t *testing.T) {
 				},
 			},
 		},
+		querysvc.StorageCapabilities{},
 		tenancy.NewManager(&tenancy.Options{}),
 		telset)
 	require.Error(t, err)
@@ -625,6 +630,7 @@ func TestServerBadHostPort(t *testing.T) {
 				},
 			},
 		},
+		querysvc.StorageCapabilities{},
 		tenancy.NewManager(&tenancy.Options{}),
 		telset)
 
@@ -666,6 +672,7 @@ func TestServerInUseHostPort(t *testing.T) {
 						},
 					},
 				},
+				querysvc.StorageCapabilities{},
 				tenancy.NewManager(&tenancy.Options{}),
 				telset,
 			)
@@ -693,13 +700,9 @@ func TestServerGracefulExit(t *testing.T) {
 					Transport: confignet.TransportTypeTCP,
 				},
 			},
-			GRPC: configgrpc.ServerConfig{
-				NetAddr: confignet.AddrConfig{
-					Endpoint:  ":0",
-					Transport: confignet.TransportTypeTCP,
-				},
-			},
+			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":0", Transport: confignet.TransportTypeTCP}},
 		},
+		querysvc.StorageCapabilities{},
 		tenancy.NewManager(&tenancy.Options{}), telset)
 	require.NoError(t, err)
 	require.NoError(t, server.Start(context.Background()))
@@ -745,6 +748,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 				},
 			},
 		},
+		querysvc.StorageCapabilities{},
 		tenancy.NewManager(&tenancy.Options{}),
 		telset)
 	require.NoError(t, err)
@@ -807,7 +811,7 @@ func TestServerHTTPTenancy(t *testing.T) {
 		})).Once()
 	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
 	server, err := NewServer(context.Background(), querySvc.qs,
-		nil, serverOptions, tenancyMgr, telset)
+		nil, serverOptions, querysvc.StorageCapabilities{}, tenancyMgr, telset)
 	require.NoError(t, err)
 	require.NoError(t, server.Start(context.Background()))
 	t.Cleanup(func() {
@@ -907,7 +911,7 @@ func TestServerHTTP_TracesRequest(t *testing.T) {
 			telset := initTelSet(zaptest.NewLogger(t), tracerProvider)
 
 			server, err := NewServer(context.Background(), querySvc.qs,
-				nil, serverOptions, tenancyMgr, telset)
+				nil, serverOptions, querysvc.StorageCapabilities{}, tenancyMgr, telset)
 			require.NoError(t, err)
 			require.NoError(t, server.Start(context.Background()))
 			t.Cleanup(func() {
@@ -955,7 +959,7 @@ func TestServerAPINotFound(t *testing.T) {
 			tenancyMgr := tenancy.NewManager(&serverOptions.Tenancy)
 			telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
 
-			server, err := NewServer(context.Background(), querySvc.qs, nil, serverOptions, tenancyMgr, telset)
+			server, err := NewServer(context.Background(), querySvc.qs, nil, serverOptions, querysvc.StorageCapabilities{}, tenancyMgr, telset)
 			require.NoError(t, err)
 			require.NoError(t, server.Start(context.Background()))
 			t.Cleanup(func() {

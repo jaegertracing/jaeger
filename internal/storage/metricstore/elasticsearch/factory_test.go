@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -102,6 +103,7 @@ func TestNewFactory(t *testing.T) {
 			if tt.response != nil && tt.statusCode != 0 {
 				server := setupMockServer(t, tt.response, tt.statusCode)
 				tt.cfg.Servers = []string{server.URL}
+				tt.cfg.HealthCheckTimeoutStartup = 100 * time.Millisecond
 			}
 			f, err := NewFactory(context.Background(), tt.cfg, telemetry.NoopSettings(), nil)
 

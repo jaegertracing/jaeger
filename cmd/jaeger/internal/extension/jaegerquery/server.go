@@ -103,6 +103,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 
 	opts := querysvc.QueryServiceOptions{
 		MaxClockSkewAdjust: s.config.MaxClockSkewAdjust,
+		MaxTraceSize:       s.config.MaxTraceSize,
 	}
 	if err := s.addArchiveStorage(&opts, host); err != nil {
 		return err
@@ -117,12 +118,18 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 
 	tm := tenancy.NewManager(&s.config.Tenancy)
 
+	caps := querysvc.StorageCapabilities{
+		ArchiveStorage: opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil,
+		MetricsStorage: s.config.Storage.Metrics != "",
+	}
+
 	s.server, err = queryapp.NewServer(
 		ctx,
 		// TODO propagate healthcheck updates up to the collector's runtime
 		qs,
 		mqs,
 		&s.config.QueryOptions,
+		caps,
 		tm,
 		telset,
 	)

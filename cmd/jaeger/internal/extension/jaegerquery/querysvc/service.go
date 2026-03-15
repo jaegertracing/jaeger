@@ -30,12 +30,16 @@ type QueryServiceOptions struct {
 	ArchiveTraceWriter tracestore.Writer
 	// MaxClockSkewAdjust is the maximum duration by which to adjust a span.
 	MaxClockSkewAdjust time.Duration
+	// MaxTraceSize is the maximum number of spans allowed per trace. A value of 0 (default) means unlimited.
+	// If a trace has more spans than this limit, it will be truncated and a warning will be added.
+	MaxTraceSize int
 }
 
 // StorageCapabilities is a feature flag for query service
 type StorageCapabilities struct {
 	ArchiveStorage bool `json:"archiveStorage"`
-	// TODO: Maybe add metrics Storage here
+	MetricsStorage bool `json:"metricsStorage"`
+	// Potential future extensions:
 	// SupportRegex     bool
 	// SupportTagFilter bool
 }
@@ -195,16 +199,6 @@ func (qs QueryService) GetDependencies(ctx context.Context, endTs time.Time, loo
 	})
 }
 
-func (qs QueryService) GetCapabilities() StorageCapabilities {
-	return StorageCapabilities{
-		ArchiveStorage: qs.options.hasArchiveStorage(),
-	}
-}
-
-func (opts *QueryServiceOptions) hasArchiveStorage() bool {
-	return opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil
-}
-
 func (qs QueryService) receiveTraces(
 	seq iter.Seq2[[]ptrace.Traces, error],
 	yield func([]ptrace.Traces, error) bool,
@@ -234,7 +228,7 @@ func (qs QueryService) receiveTraces(
 	if rawTraces {
 		seq(processTraces)
 	} else {
-		jptrace.AggregateTraces(seq)(func(trace ptrace.Traces, err error) bool {
+		jptrace.AggregateTracesWithLimit(seq, qs.options.MaxTraceSize)(func(trace ptrace.Traces, err error) bool {
 			return processTraces([]ptrace.Traces{trace}, err)
 		})
 	}

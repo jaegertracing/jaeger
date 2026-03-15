@@ -37,7 +37,7 @@ type typedAttributeValue struct {
 
 func appendNewlineAndIndent(q *strings.Builder, indent int) {
 	q.WriteString("\n")
-	for i := 0; i < indent; i++ {
+	for range indent {
 		q.WriteString("\t")
 	}
 }
@@ -96,6 +96,23 @@ func appendStringAttributeFallback(q *strings.Builder, args []any, key string, a
 	return append(args, key, attr.Str(), key, attr.Str(), key, attr.Str(), key, attr.Str(), key, attr.Str())
 }
 
+func buildGetTracesQuery(params tracestore.GetTraceParams) (string, []any) {
+	var q strings.Builder
+	q.WriteString(sql.SelectSpansByTraceID)
+	args := []any{params.TraceID}
+
+	if !params.Start.IsZero() {
+		q.WriteString(" AND s.start_time >= ?")
+		args = append(args, params.Start)
+	}
+	if !params.End.IsZero() {
+		q.WriteString(" AND s.start_time <= ?")
+		args = append(args, params.End)
+	}
+
+	return q.String(), args
+}
+
 func buildFindTracesQuery(traceIDsQuery string) string {
 	inner := indentBlock("SELECT trace_id FROM (\n" + indentBlock(strings.TrimSpace(traceIDsQuery)) + "\n)")
 	base := strings.TrimRight(sql.SelectSpansQuery, "\n")
@@ -114,32 +131,33 @@ func (r *Reader) buildFindTraceIDsQuery(
 		return "", nil, fmt.Errorf("search depth %d exceeds maximum allowed %d", limit, r.config.MaxSearchDepth)
 	}
 
-	var q strings.Builder
-	q.WriteString(sql.SearchTraceIDs)
+	// Build the inner subquery that finds distinct trace IDs from spans.
+	var inner strings.Builder
+	inner.WriteString(sql.SearchTraceIDsBase)
 	args := []any{}
 
 	if query.ServiceName != "" {
-		appendAnd(&q, "s.service_name = ?")
+		appendAnd(&inner, "s.service_name = ?")
 		args = append(args, query.ServiceName)
 	}
 	if query.OperationName != "" {
-		appendAnd(&q, "s.name = ?")
+		appendAnd(&inner, "s.name = ?")
 		args = append(args, query.OperationName)
 	}
 	if query.DurationMin > 0 {
-		appendAnd(&q, "s.duration >= ?")
+		appendAnd(&inner, "s.duration >= ?")
 		args = append(args, query.DurationMin.Nanoseconds())
 	}
 	if query.DurationMax > 0 {
-		appendAnd(&q, "s.duration <= ?")
+		appendAnd(&inner, "s.duration <= ?")
 		args = append(args, query.DurationMax.Nanoseconds())
 	}
 	if !query.StartTimeMin.IsZero() {
-		appendAnd(&q, "s.start_time >= ?")
+		appendAnd(&inner, "s.start_time >= ?")
 		args = append(args, query.StartTimeMin)
 	}
 	if !query.StartTimeMax.IsZero() {
-		appendAnd(&q, "s.start_time <= ?")
+		appendAnd(&inner, "s.start_time <= ?")
 		args = append(args, query.StartTimeMax)
 	}
 
@@ -148,15 +166,19 @@ func (r *Reader) buildFindTraceIDsQuery(
 		return "", nil, fmt.Errorf("failed to get attribute metadata: %w", err)
 	}
 
-	args, err = buildAttributeConditions(&q, args, query.Attributes, attributeMetadata)
+	args, err = buildAttributeConditions(&inner, args, query.Attributes, attributeMetadata)
 	if err != nil {
 		return "", nil, err
 	}
 
-	q.WriteString("\nLIMIT ?")
+	inner.WriteString("\nLIMIT ?")
 	args = append(args, limit)
 
-	return q.String(), args, nil
+	// Wrap the inner subquery with a JOIN to trace_id_timestamps
+	// to retrieve start/end times only for the limited set of trace IDs.
+	q := fmt.Sprintf(sql.SearchTraceIDs, indentBlock(inner.String()))
+
+	return q, args, nil
 }
 
 func buildAttributeConditions(q *strings.Builder, args []any, attributes pcommon.Map, metadata attributeMetadata) ([]any, error) {
