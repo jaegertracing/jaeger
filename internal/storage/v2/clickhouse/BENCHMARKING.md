@@ -17,7 +17,7 @@
 | **Total traces** | 1,000,000 |
 | **Spans per trace** | 10 (1 parent + 9 children) |
 | **Total spans** | 10,000,000 |
-| **Services** | 2 (`tracegen-00`, `tracegen-01`) |
+| **Services** | 2 |
 | **Partitions (days)** | 5 |
 | **Attributes per span** | 11 (across 97 distinct keys, 1000 distinct values) |
 
