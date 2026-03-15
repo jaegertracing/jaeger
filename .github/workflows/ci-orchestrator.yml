@@ -55,18 +55,14 @@ jobs:
             # fails (e.g. insufficient token permissions for fork PRs).
             PR_AUTHOR="${{ github.event.pull_request.user.login }}"
             AUTHOR_ASSOC="${{ github.event.pull_request.author_association }}"
-            HTTP_CODE=$(gh api -i --silent "orgs/jaegertracing/members/$PR_AUTHOR" 2>/dev/null \
-                        | head -1 | awk '{print $2}') || true
-            if [[ "$HTTP_CODE" == "204" ]]; then
+            if gh api --silent "orgs/jaegertracing/members/$PR_AUTHOR" 2>/dev/null; then
               echo "Parallel: org member ($PR_AUTHOR, verified via API)"
               PARALLEL=true
-            elif [[ "$HTTP_CODE" == "404" ]]; then
-              echo "Not an org member ($PR_AUTHOR, verified via API)"
             elif [[ "$AUTHOR_ASSOC" == "MEMBER" || "$AUTHOR_ASSOC" == "OWNER" ]]; then
-              echo "Parallel: org member ($AUTHOR_ASSOC, API unavailable HTTP=$HTTP_CODE, fallback to author_association)"
+              echo "Parallel: org member ($PR_AUTHOR, author_association=$AUTHOR_ASSOC)"
               PARALLEL=true
             else
-              echo "Not an org member (author_association=$AUTHOR_ASSOC, API unavailable HTTP=$HTTP_CODE)"
+              echo "Not an org member ($PR_AUTHOR, author_association=$AUTHOR_ASSOC)"
             fi
 
             # Parallel for known bots (dependency update automation)
