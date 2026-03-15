@@ -158,7 +158,6 @@ jobs:
         env:
           PR_NUMBER:              ${{ github.event.pull_request.number }}
           METRICS_CONCLUSION:     ${{ steps.compare-metrics.outputs.CONCLUSION }}
-          METRICS_OUTCOME:        ${{ steps.compare-metrics.outcome }}
           METRICS_TOTAL:          ${{ steps.compare-metrics.outputs.TOTAL_CHANGES }}
           METRICS_INFRA_ERRORS:   ${{ steps.compare-metrics.outputs.INFRA_ERRORS }}
           COVERAGE_MERGE_OUTCOME: ${{ steps.merge-coverage.outcome }}
@@ -170,13 +169,12 @@ jobs:
           python3 - <<'PYEOF'
           import json, os
 
-          metrics_conclusion = os.environ.get('METRICS_CONCLUSION') or ''
-          if not metrics_conclusion:
-              # Step failed/cancelled before writing CONCLUSION output.
-              outcome = os.environ.get('METRICS_OUTCOME', '')
-              metrics_conclusion = 'failure' if outcome in ('failure', 'cancelled') else 'skipped'
-          metrics_total_env  = os.environ.get('METRICS_TOTAL')
-          metrics_total      = int(metrics_total_env) if metrics_total_env not in (None, '') else None
+          metrics_conclusion = os.environ.get('METRICS_CONCLUSION') or 'failure'
+          metrics_total_env = os.environ.get('METRICS_TOTAL')
+          if metrics_total_env not in (None, ''):
+              metrics_total = int(metrics_total_env)
+          else:
+              metrics_total = None
           has_infra_errors   = os.environ.get('METRICS_INFRA_ERRORS') == 'true'
 
           coverage_merge_outcome = os.environ.get('COVERAGE_MERGE_OUTCOME', '')
