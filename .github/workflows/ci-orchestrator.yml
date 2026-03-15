@@ -46,20 +46,26 @@ jobs:
             echo "Not a merge_group event (event=${{ github.event_name }})"
           fi
 
-          # PR-specific checks (author_association, labels, and PR author login are only meaningful on pull_request events)
+          # PR-specific checks (org membership, labels, and PR author login are only meaningful on pull_request events)
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            # Parallel for org members (MEMBER or OWNER author_association)
-            if [[ "${{ github.event.pull_request.author_association }}" == "MEMBER" || \
-                  "${{ github.event.pull_request.author_association }}" == "OWNER" ]]; then
-              echo "Parallel: org member (${{ github.event.pull_request.author_association }})"
+            # Parallel for org members.
+            # Use a live API call because author_association from the event payload is
+            # unreliable — it reports CONTRIBUTOR for org members who don't have direct
+            # repo access via a team.  Fall back to author_association when the API call
+            # fails (e.g. insufficient token permissions for fork PRs).
+            PR_AUTHOR="${{ github.event.pull_request.user.login }}"
+            AUTHOR_ASSOC="${{ github.event.pull_request.author_association }}"
+            if gh api --silent "orgs/jaegertracing/members/$PR_AUTHOR" 2>/dev/null; then
+              echo "Parallel: org member ($PR_AUTHOR, verified via API)"
+              PARALLEL=true
+            elif [[ "$AUTHOR_ASSOC" == "MEMBER" || "$AUTHOR_ASSOC" == "OWNER" ]]; then
+              echo "Parallel: org member ($PR_AUTHOR, author_association=$AUTHOR_ASSOC)"
               PARALLEL=true
             else
-              echo "Not an org member (author_association=${{ github.event.pull_request.author_association }})"
+              echo "Not an org member ($PR_AUTHOR, author_association=$AUTHOR_ASSOC)"
             fi
 
             # Parallel for known bots (dependency update automation)
-            # Use github.event.pull_request.user.login to identify the PR author (not the latest commit author)
-            PR_AUTHOR="${{ github.event.pull_request.user.login }}"
             if [[ "$PR_AUTHOR" == "dependabot[bot]" || "$PR_AUTHOR" == "renovate-bot" ]]; then
               echo "Parallel: bot PR author ($PR_AUTHOR)"
               PARALLEL=true
