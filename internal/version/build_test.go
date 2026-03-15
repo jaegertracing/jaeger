@@ -27,7 +27,7 @@ func setupBuildForTest(t *testing.T, commit, version, buildDate string) {
 }
 
 func TestGet(t *testing.T) {
-	setupBuildForTest(t, "foobar", "v1.2.3", "2024-01-01")
+	setupBuildForTest(t, "foobar", "v1.2.3", "2024-01-04")
 	info := Get()
 
 	assert.Equal(t, commitSHA, info.GitCommit)
@@ -36,7 +36,7 @@ func TestGet(t *testing.T) {
 }
 
 func TestString(t *testing.T) {
-	setupBuildForTest(t, "foobar", "v1.2.3", "2024-01-01")
+	setupBuildForTest(t, "foobar", "v1.2.3", "2024-01-04")
 	test := Info{
 		GitCommit:  commitSHA,
 		GitVersion: latestVersion,
@@ -47,7 +47,7 @@ func TestString(t *testing.T) {
 }
 
 func TestNewInfoMetrics(t *testing.T) {
-	setupBuildForTest(t, "foobar", "v1.2.3", "2024-01-01")
+	setupBuildForTest(t, "foobar", "v1.2.3", "2024-01-04")
 	f := metricstest.NewFactory(0)
 	defer f.Stop()
 
