@@ -31,7 +31,8 @@
       "/node_modules/"
     ],
     "collectCoverageFrom": [
-      "pr-quota-manager.js"
+      "pr-quota-manager.js",
+      "ci-summary-report-publish.js"
     ]
   }
 }

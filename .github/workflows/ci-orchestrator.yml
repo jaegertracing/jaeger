@@ -46,20 +46,26 @@ jobs:
             echo "Not a merge_group event (event=${{ github.event_name }})"
           fi
 
-          # PR-specific checks (author_association, labels, and PR author login are only meaningful on pull_request events)
+          # PR-specific checks (org membership, labels, and PR author login are only meaningful on pull_request events)
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            # Parallel for org members (MEMBER or OWNER author_association)
-            if [[ "${{ github.event.pull_request.author_association }}" == "MEMBER" || \
-                  "${{ github.event.pull_request.author_association }}" == "OWNER" ]]; then
-              echo "Parallel: org member (${{ github.event.pull_request.author_association }})"
+            # Parallel for org members.
+            # Use a live API call because author_association from the event payload is
+            # unreliable — it reports CONTRIBUTOR for org members who don't have direct
+            # repo access via a team.  Fall back to author_association when the API call
+            # fails (e.g. insufficient token permissions for fork PRs).
+            PR_AUTHOR="${{ github.event.pull_request.user.login }}"
+            AUTHOR_ASSOC="${{ github.event.pull_request.author_association }}"
+            if gh api --silent "orgs/jaegertracing/members/$PR_AUTHOR" 2>/dev/null; then
+              echo "Parallel: org member ($PR_AUTHOR, verified via API)"
+              PARALLEL=true
+            elif [[ "$AUTHOR_ASSOC" == "MEMBER" || "$AUTHOR_ASSOC" == "OWNER" ]]; then
+              echo "Parallel: org member ($PR_AUTHOR, author_association=$AUTHOR_ASSOC)"
               PARALLEL=true
             else
-              echo "Not an org member (author_association=${{ github.event.pull_request.author_association }})"
+              echo "Not an org member ($PR_AUTHOR, author_association=$AUTHOR_ASSOC)"
             fi
 
             # Parallel for known bots (dependency update automation)
-            # Use github.event.pull_request.user.login to identify the PR author (not the latest commit author)
-            PR_AUTHOR="${{ github.event.pull_request.user.login }}"
             if [[ "$PR_AUTHOR" == "dependabot[bot]" || "$PR_AUTHOR" == "renovate-bot" ]]; then
               echo "Parallel: bot PR author ($PR_AUTHOR)"
               PARALLEL=true
@@ -84,6 +90,47 @@ jobs:
 
           echo "parallel=$PARALLEL" >> "$GITHUB_OUTPUT"
           echo "Execution mode: parallel=$PARALLEL"
+
+  # ============================================================================
+  # SCRIPTS UNIT TESTS: Fast, independent job for .github/scripts/ Jest suite.
+  # ============================================================================
+  ci-scripts:
+    name: CI Scripts Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: .github/scripts/package-lock.json
+      - name: Install Node dependencies (retry on transient registry failures)
+        working-directory: .github/scripts
+        run: |
+          set -euo pipefail
+
+          npm config set fetch-retries 5
+          npm config set fetch-retry-mintimeout 20000
+          npm config set fetch-retry-maxtimeout 120000
+
+          attempts=3
+          for i in $(seq 1 "$attempts"); do
+            echo "npm ci attempt $i/$attempts"
+            if npm ci; then
+              exit 0
+            fi
+
+            if [ "$i" -lt "$attempts" ]; then
+              sleep_time=$((i * 15))
+              echo "npm ci failed, retrying in ${sleep_time}s"
+              sleep "$sleep_time"
+            fi
+          done
+
+          echo "npm ci failed after $attempts attempts"
+          exit 1
+      - run: npm test
+        working-directory: .github/scripts
 
   # ============================================================================
   # SEQUENTIAL PATH (~30m): Default for external contributors.
@@ -139,12 +186,18 @@ jobs:
     name: All CI Checks Passed
     runs-on: ubuntu-latest
     if: always()
-    needs: [setup, stage1-seq, stage2-seq, stage3-seq, stage1-fast, stage2-fast, stage3-fast]
+    needs: [setup, ci-scripts, stage1-seq, stage2-seq, stage3-seq, stage1-fast, stage2-fast, stage3-fast]
     steps:
       - name: Check setup status
         if: ${{ needs.setup.result != 'success' }}
         run: |
           echo "❌ Setup job failed or was cancelled."
+          exit 1
+
+      - name: Check CI scripts tests
+        if: ${{ needs.ci-scripts.result != 'success' }}
+        run: |
+          echo "❌ CI scripts unit tests failed or were cancelled."
           exit 1
 
       - name: Check sequential path
