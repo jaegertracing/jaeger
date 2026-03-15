@@ -24,6 +24,38 @@
               "name": "placeholder",
               "startTimeUnixNano": "1485449191639875000",
               "endTimeUnixNano": "1485449191639876000",
+              "attributes": [
+                {
+                  "key": "sameplacetag1",
+                  "value": {
+                    "stringValue": "sameplacevalue"
+                  }
+                },
+                {
+                  "key": "sameplacetag2",
+                  "value": {
+                    "intValue": "123"
+                  }
+                },
+                {
+                  "key": "sameplacetag4",
+                  "value": {
+                    "boolValue": true
+                  }
+                },
+                {
+                  "key": "sameplacetag3",
+                  "value": {
+                    "doubleValue": 72.5
+                  }
+                },
+                {
+                  "key": "blob",
+                  "value": {
+                    "bytesValue": "AAAwOQ=="
+                  }
+                }
+              ],
               "events": [
                 {
                   "timeUnixNano": "1485449191639875000"
