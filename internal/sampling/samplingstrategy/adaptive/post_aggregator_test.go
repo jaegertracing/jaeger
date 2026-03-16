@@ -714,3 +714,20 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	p.probabilities = probabilities
 	p.qps = qps
 }
+
+func TestAddJitter(t *testing.T) {
+	// zero duration: must not panic and must return 0
+	assert.Equal(t, 0*time.Nanosecond, addJitter(0))
+
+	// 1ns duration: jitterAmount/2 == 0, must not panic and must return 1ns
+	assert.Equal(t, time.Nanosecond, addJitter(time.Nanosecond))
+
+	// normal durations: result must be in [jitterAmount/2, jitterAmount)
+	for _, d := range []time.Duration{2 * time.Millisecond, time.Second, 20 * time.Second, 60 * time.Second} {
+		for range 100 {
+			got := addJitter(d)
+			assert.GreaterOrEqual(t, got, d/2, "addJitter(%v) below lower bound", d)
+			assert.Less(t, got, d, "addJitter(%v) at or above upper bound", d)
+		}
+	}
+}
