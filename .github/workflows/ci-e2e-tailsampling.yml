@@ -26,8 +26,14 @@ jobs:
       run: |
         make tail-sampling-integration-test
 
+    - uses: ./.github/actions/verify-metrics-snapshot
+      with:
+        snapshot: metrics_snapshot_tailsampling
+        artifact_key: metrics_snapshot_tailsampling
+
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:
         files: cover.out
         flag: tailsampling-processor
+

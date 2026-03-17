@@ -70,7 +70,7 @@ func TestTailSamplingProcessor_EnforcesPolicies(t *testing.T) {
 //  3. Read the stored services from the memory store
 //  4. Check that the sampled services match what is expected
 func (ts *TailSamplingIntegration) testTailSamplingProccessor(t *testing.T) {
-	ts.e2eInitialize(t, "memory")
+	ts.e2eInitialize(t, "tailsampling")
 	ts.generateTraces(t)
 
 	var actual []string
