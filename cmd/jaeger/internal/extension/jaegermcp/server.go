@@ -75,6 +75,9 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	// Register MCP tools
 	s.registerTools()
 
+	// Add MCP-level logging middleware.
+	s.mcpServer.AddReceivingMiddleware(createLoggingMiddleware())
+
 	// Set up TCP listener with context
 	lc := net.ListenConfig{}
 	listener, err := lc.Listen(ctx, "tcp", s.config.HTTP.NetAddr.Endpoint)
@@ -86,11 +89,12 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	// Create MCP streamable HTTP handler
 	mcpHandler := mcp.NewStreamableHTTPHandler(
 		func(_ *http.Request) *mcp.Server { return s.mcpServer },
-		&mcp.StreamableHTTPOptions{
-			JSONResponse:   false, // Use SSE for streamed events
-			Stateless:      false, // Session state management
-			SessionTimeout: 5 * time.Minute,
-		},
+		nil,
+		// &mcp.StreamableHTTPOptions{
+		// 	JSONResponse:   false, // Use SSE for streamed events
+		// 	Stateless:      false, // Session state management
+		// 	SessionTimeout: 5 * time.Minute,
+		// },
 	)
 
 	sseHandler := mcp.NewSSEHandler(
