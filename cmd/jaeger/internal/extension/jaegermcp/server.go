@@ -93,9 +93,15 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		},
 	)
 
-	// Create HTTP server with MCP handler and health endpoint
+	sseHandler := mcp.NewSSEHandler(
+		func(_ *http.Request) *mcp.Server { return s.mcpServer },
+		&mcp.SSEOptions{},
+	)
+
+	// Create HTTP server with MCP handlers and health endpoint
 	mux := http.NewServeMux()
 	mux.Handle("/mcp", mcpHandler)
+	mux.Handle("/sse", sseHandler)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("MCP server is running"))
