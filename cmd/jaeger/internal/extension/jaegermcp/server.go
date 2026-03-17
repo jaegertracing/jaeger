@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/collector/component"
@@ -76,11 +75,10 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	s.registerTools()
 
 	// Add MCP-level logging middleware.
-	s.mcpServer.AddReceivingMiddleware(createLoggingMiddleware())
+	s.mcpServer.AddReceivingMiddleware(createLoggingMiddleware(s.telset.Logger))
 
 	// Set up TCP listener with context
-	lc := net.ListenConfig{}
-	listener, err := lc.Listen(ctx, "tcp", s.config.HTTP.NetAddr.Endpoint)
+	listener, err := s.config.HTTP.ToListener(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to listen on %s: %w", s.config.HTTP.NetAddr.Endpoint, err)
 	}
@@ -97,24 +95,12 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		// },
 	)
 
-	sseHandler := mcp.NewSSEHandler(
-		func(_ *http.Request) *mcp.Server { return s.mcpServer },
-		&mcp.SSEOptions{},
+	s.httpServer, err = s.config.HTTP.ToServer(
+		ctx,
+		host.GetExtensions(),
+		s.telset,
+		corsMiddleware(mcpHandler),
 	)
-
-	// Create HTTP server with MCP handlers and health endpoint
-	mux := http.NewServeMux()
-	mux.Handle("/mcp", mcpHandler)
-	mux.Handle("/sse", sseHandler)
-	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("MCP server is running"))
-	})
-
-	s.httpServer = &http.Server{
-		Handler:           corsMiddleware(mux),
-		ReadHeaderTimeout: 30 * time.Second,
-	}
 
 	// Start the server in a goroutine
 	go func() {
@@ -152,53 +138,53 @@ func (s *server) registerTools() {
 		Description: "List available service names. Use this first to discover valid service names for search_traces.",
 	}, getServicesHandler)
 
-	// Get span names tool (required for search_traces with span name filter)
-	getSpanNamesHandler := handlers.NewGetSpanNamesHandler(s.queryAPI)
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "get_span_names",
-		Description: "List available span names for a service. Supports regex filtering and span kind filtering.",
-	}, getSpanNamesHandler)
+	// // Get span names tool (required for search_traces with span name filter)
+	// getSpanNamesHandler := handlers.NewGetSpanNamesHandler(s.queryAPI)
+	// mcp.AddTool(s.mcpServer, &mcp.Tool{
+	// 	Name:        "get_span_names",
+	// 	Description: "List available span names for a service. Supports regex filtering and span kind filtering.",
+	// }, getSpanNamesHandler)
 
-	// Health check tool
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "health",
-		Description: "Check if the Jaeger MCP server is running",
-	}, s.healthTool)
+	// // Health check tool
+	// mcp.AddTool(s.mcpServer, &mcp.Tool{
+	// 	Name:        "health",
+	// 	Description: "Check if the Jaeger MCP server is running",
+	// }, s.healthTool)
 
-	// Search traces tool
-	searchTracesHandler := handlers.NewSearchTracesHandler(s.queryAPI)
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "search_traces",
-		Description: "Find traces matching service, time, attributes, and duration criteria. Returns trace summary only.",
-	}, searchTracesHandler)
+	// // Search traces tool
+	// searchTracesHandler := handlers.NewSearchTracesHandler(s.queryAPI)
+	// mcp.AddTool(s.mcpServer, &mcp.Tool{
+	// 	Name:        "search_traces",
+	// 	Description: "Find traces matching service, time, attributes, and duration criteria. Returns trace summary only.",
+	// }, searchTracesHandler)
 
-	// Get span details tool
-	getSpanDetailsHandler := handlers.NewGetSpanDetailsHandler(s.queryAPI)
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "get_span_details",
-		Description: "Fetch full details (attributes, events, links, status) for specific spans.",
-	}, getSpanDetailsHandler)
+	// // Get span details tool
+	// getSpanDetailsHandler := handlers.NewGetSpanDetailsHandler(s.queryAPI)
+	// mcp.AddTool(s.mcpServer, &mcp.Tool{
+	// 	Name:        "get_span_details",
+	// 	Description: "Fetch full details (attributes, events, links, status) for specific spans.",
+	// }, getSpanDetailsHandler)
 
-	// Get trace errors tool
-	getTraceErrorsHandler := handlers.NewGetTraceErrorsHandler(s.queryAPI)
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "get_trace_errors",
-		Description: "Get full details for all spans with error status.",
-	}, getTraceErrorsHandler)
+	// // Get trace errors tool
+	// getTraceErrorsHandler := handlers.NewGetTraceErrorsHandler(s.queryAPI)
+	// mcp.AddTool(s.mcpServer, &mcp.Tool{
+	// 	Name:        "get_trace_errors",
+	// 	Description: "Get full details for all spans with error status.",
+	// }, getTraceErrorsHandler)
 
-	// Get trace topology tool
-	getTraceTopologyHandler := handlers.NewGetTraceTopologyHandler(s.queryAPI)
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "get_trace_topology",
-		Description: "Get the structural tree of a trace showing parent-child relationships, timing, and error locations. Does NOT return attributes or logs.",
-	}, getTraceTopologyHandler)
+	// // Get trace topology tool
+	// getTraceTopologyHandler := handlers.NewGetTraceTopologyHandler(s.queryAPI)
+	// mcp.AddTool(s.mcpServer, &mcp.Tool{
+	// 	Name:        "get_trace_topology",
+	// 	Description: "Get the structural tree of a trace showing parent-child relationships, timing, and error locations. Does NOT return attributes or logs.",
+	// }, getTraceTopologyHandler)
 
-	// Get critical path tool
-	getCriticalPathHandler := handlers.NewGetCriticalPathHandler(s.queryAPI)
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "get_critical_path",
-		Description: "Identify the sequence of spans forming the critical latency path (the blocking execution path).",
-	}, getCriticalPathHandler)
+	// // Get critical path tool
+	// getCriticalPathHandler := handlers.NewGetCriticalPathHandler(s.queryAPI)
+	// mcp.AddTool(s.mcpServer, &mcp.Tool{
+	// 	Name:        "get_critical_path",
+	// 	Description: "Identify the sequence of spans forming the critical latency path (the blocking execution path).",
+	// }, getCriticalPathHandler)
 }
 
 // HealthToolOutput is the strongly-typed output for the health tool.

@@ -1,19 +1,18 @@
-// Copyright 2025 The Go MCP SDK Authors. All rights reserved.
-// Use of this source code is governed by an MIT-style
-// license that can be found in the LICENSE file.
+// Copyright (c) 2026 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
 
 package jaegermcp
 
 import (
 	"context"
-	"log"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"go.uber.org/zap"
 )
 
 // createLoggingMiddleware creates an MCP middleware that logs method calls.
-func createLoggingMiddleware() mcp.Middleware {
+func createLoggingMiddleware(logger *zap.Logger) mcp.Middleware {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(
 			ctx context.Context,
@@ -24,9 +23,9 @@ func createLoggingMiddleware() mcp.Middleware {
 			sessionID := req.GetSession().ID()
 
 			// Log request details.
-			log.Printf("[REQUEST] Session: %s | Method: %s",
-				sessionID,
-				method)
+			logger.Info("MCP request",
+				zap.String("session_id", sessionID),
+				zap.String("method", method))
 
 			// Call the actual handler.
 			result, err := next(ctx, method, req)
@@ -35,16 +34,16 @@ func createLoggingMiddleware() mcp.Middleware {
 			duration := time.Since(start)
 
 			if err != nil {
-				log.Printf("[RESPONSE] Session: %s | Method: %s | Status: ERROR | Duration: %v | Error: %v",
-					sessionID,
-					method,
-					duration,
-					err)
+				logger.Error("MCP response",
+					zap.String("session_id", sessionID),
+					zap.String("method", method),
+					zap.Duration("duration", duration),
+					zap.Error(err))
 			} else {
-				log.Printf("[RESPONSE] Session: %s | Method: %s | Status: OK | Duration: %v",
-					sessionID,
-					method,
-					duration)
+				logger.Info("MCP response",
+					zap.String("session_id", sessionID),
+					zap.String("method", method),
+					zap.Duration("duration", duration))
 			}
 
 			return result, err
