@@ -79,9 +79,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	s.mcpServer.AddReceivingMiddleware(createLoggingMiddleware(s.telset.Logger))
 
 	// Set up TCP listener with context
-	// listener, err := s.config.HTTP.ToListener(ctx)
-	lc := net.ListenConfig{}
-	listener, err := lc.Listen(ctx, "tcp", s.config.HTTP.NetAddr.Endpoint)
+	listener, err := s.config.HTTP.ToListener(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to listen on %s: %w", s.config.HTTP.NetAddr.Endpoint, err)
 	}
@@ -152,27 +150,27 @@ func (s *server) registerTools() {
 	}, s.healthTool)
 
 	// // Search traces tool
-	// searchTracesHandler := handlers.NewSearchTracesHandler(s.queryAPI)
-	// mcp.AddTool(s.mcpServer, &mcp.Tool{
-	// 	Name:        "search_traces",
-	// 	Description: "Find traces matching service, time, attributes, and duration criteria. Returns trace summary only.",
-	// }, searchTracesHandler)
+	searchTracesHandler := handlers.NewSearchTracesHandler(s.queryAPI)
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "search_traces",
+		Description: "Find traces matching service, time, attributes, and duration criteria. Returns trace summary only.",
+	}, searchTracesHandler)
 
-	// // Get span details tool
-	// getSpanDetailsHandler := handlers.NewGetSpanDetailsHandler(s.queryAPI)
-	// mcp.AddTool(s.mcpServer, &mcp.Tool{
-	// 	Name:        "get_span_details",
-	// 	Description: "Fetch full details (attributes, events, links, status) for specific spans.",
-	// }, getSpanDetailsHandler)
+	// Get span details tool
+	getSpanDetailsHandler := handlers.NewGetSpanDetailsHandler(s.queryAPI)
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "get_span_details",
+		Description: "Fetch full details (attributes, events, links, status) for specific spans.",
+	}, getSpanDetailsHandler)
 
-	// // Get trace errors tool
-	// getTraceErrorsHandler := handlers.NewGetTraceErrorsHandler(s.queryAPI)
-	// mcp.AddTool(s.mcpServer, &mcp.Tool{
-	// 	Name:        "get_trace_errors",
-	// 	Description: "Get full details for all spans with error status.",
-	// }, getTraceErrorsHandler)
+	// Get trace errors tool
+	getTraceErrorsHandler := handlers.NewGetTraceErrorsHandler(s.queryAPI)
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "get_trace_errors",
+		Description: "Get full details for all spans with error status.",
+	}, getTraceErrorsHandler)
 
-	// // Get trace topology tool
+	// Get trace topology tool
 	// getTraceTopologyHandler := handlers.NewGetTraceTopologyHandler(s.queryAPI)
 	// mcp.AddTool(s.mcpServer, &mcp.Tool{
 	// 	Name:        "get_trace_topology",
