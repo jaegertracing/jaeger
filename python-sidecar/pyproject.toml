@@ -1,0 +1,11 @@
+[project]
+name = "python-sidecar"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "agent-client-protocol>=0.8.1",
+    "google-genai>=1.68.0",
+    "websockets>=16.0",
+]
