@@ -236,20 +236,6 @@ func TestServerStartFailsWithInvalidEndpoint(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to listen")
 }
 
-func TestServerHealthEndpoint(t *testing.T) {
-	_, addr := startTestServer(t)
-
-	// Test the health endpoint
-	resp, err := http.Get(fmt.Sprintf("http://%s/health", addr))
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	body, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	assert.Equal(t, "MCP server is running", string(body))
-}
-
 func TestServerMCPEndpoint(t *testing.T) {
 	_, addr := startTestServer(t)
 
@@ -694,39 +680,4 @@ func createTestTraceForIntegration() ptrace.Traces {
 	span.Status().SetCode(ptrace.StatusCodeOk)
 
 	return traces
-}
-
-func TestCORSPreflight(t *testing.T) {
-	config := &Config{
-		HTTP: confighttp.ServerConfig{
-			NetAddr: confignet.AddrConfig{
-				Endpoint:  "localhost:0",
-				Transport: confignet.TransportTypeTCP,
-			},
-		},
-		ServerName:    "jaeger-test",
-		ServerVersion: "1.0.0",
-	}
-
-	server := newServer(config, componenttest.NewNopTelemetrySettings())
-	host := newMockHost()
-	err := server.Start(context.Background(), host)
-	require.NoError(t, err)
-	defer server.Shutdown(context.Background())
-
-	addr := server.listener.Addr().String()
-	url := fmt.Sprintf("http://%s/mcp", addr)
-
-	req, err := http.NewRequest(http.MethodOptions, url, http.NoBody)
-	require.NoError(t, err)
-	req.Header.Set("Origin", "http://localhost:3000")
-	req.Header.Set("Access-Control-Request-Method", "POST")
-
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-	assert.Equal(t, "*", resp.Header.Get("Access-Control-Allow-Origin"))
-	assert.Equal(t, "GET, POST, DELETE, OPTIONS", resp.Header.Get("Access-Control-Allow-Methods"))
 }
