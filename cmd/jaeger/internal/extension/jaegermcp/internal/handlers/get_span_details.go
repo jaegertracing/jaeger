@@ -39,6 +39,9 @@ func NewGetSpanDetailsHandler(
 	queryService *querysvc.QueryService,
 	maxSpanDetailsPerRequest int,
 ) mcp.ToolHandlerFor[types.GetSpanDetailsInput, types.GetSpanDetailsOutput] {
+	if maxSpanDetailsPerRequest <= 0 {
+		panic("maxSpanDetailsPerRequest must be positive")
+	}
 	h := &getSpanDetailsHandler{
 		queryService:             queryService,
 		maxSpanDetailsPerRequest: maxSpanDetailsPerRequest,
