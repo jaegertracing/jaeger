@@ -141,12 +141,12 @@ func (s *server) registerTools() {
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "search_traces",
 		Description: "Find traces matching service, time, attributes, and duration criteria. Returns trace summary only.",
-	}, handlers.NewSearchTracesHandler(s.queryAPI))
+	}, handlers.NewSearchTracesHandler(s.queryAPI, s.config.MaxSearchResults))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_span_details",
 		Description: "Fetch full details (attributes, events, links, status) for specific spans.",
-	}, handlers.NewGetSpanDetailsHandler(s.queryAPI))
+	}, handlers.NewGetSpanDetailsHandler(s.queryAPI, s.config.MaxSpanDetailsPerRequest))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_trace_errors",
