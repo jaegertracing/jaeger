@@ -153,7 +153,7 @@ func (s *server) registerTools() {
 		Description: "Check if the Jaeger MCP server is running",
 	}, s.healthTool)
 
-	// // Search traces tool
+	// Search traces tool
 	searchTracesHandler := handlers.NewSearchTracesHandler(s.queryAPI)
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "search_traces",
