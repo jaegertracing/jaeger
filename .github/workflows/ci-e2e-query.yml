@@ -1,3 +1,10 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# E2E integration tests for a two-process deployment topology: a dedicated
+# jaeger_query instance reading from a separate collector via the gRPC remote
+# storage protocol, with in-memory storage on the collector side.
+
 name: CIT Query
 
 on:

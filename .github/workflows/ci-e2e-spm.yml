@@ -1,3 +1,10 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# E2E integration tests for Service Performance Monitoring (SPM), verifying
+# that span metrics are correctly derived and served via the metrics API,
+# with Prometheus, Elasticsearch, and OpenSearch as the metrics store.
+
 name: Test SPM
 
 on:

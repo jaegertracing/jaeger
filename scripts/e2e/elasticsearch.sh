@@ -11,10 +11,10 @@ db_is_up=
 success="false"
 
 usage() {
-  echo "Usage: $0 <backend> <backend_version> <jaeger_version>"
+  echo "Usage: $0 <backend> <backend_version> <storage_test>"
   echo "  backend:         elasticsearch | opensearch"
   echo "  backend_version: major version, e.g. 7.x"
-  echo "  jaeger_version:  major version, e.g. v1 | v2"
+  echo "  storage_test:    direct | e2e"
   exit 1
 }
 
@@ -122,20 +122,20 @@ main() {
   check_arg "$@"
   local distro=$1
   local es_version=$2
-  local j_version=$3
+  local storage_test=$3
 
   set -x
 
   bring_up_storage "${distro}" "${es_version}"
   build_local_img
-  if [[ "${j_version}" == "v2" ]]; then
+  if [[ "${storage_test}" == "e2e" ]]; then
     STORAGE=${distro} SPAN_STORAGE_TYPE=${distro} make jaeger-v2-storage-integration-test
-  elif [[ "${j_version}" == "v1" ]]; then
+  elif [[ "${storage_test}" == "direct" ]]; then
     STORAGE=${distro} make storage-integration-test
     make index-cleaner-integration-test
     make index-rollover-integration-test
   else
-    echo "ERROR: Invalid argument value jaeger_version=${j_version}, expecing v1/v2".
+    echo "ERROR: Invalid argument value storage_test=${storage_test}, expecting direct or e2e"
     exit 1
   fi
   success="true"
