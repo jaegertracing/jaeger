@@ -241,6 +241,10 @@ func TestServerStartFailsWithInvalidEndpoint(t *testing.T) {
 				Transport: confignet.TransportTypeTCP,
 			},
 		},
+		ServerName:               "jaeger",
+		ServerVersion:            "1.0.0",
+		MaxSpanDetailsPerRequest: 20,
+		MaxSearchResults:         100,
 	}
 
 	server := newServer(config, telset)
@@ -385,6 +389,10 @@ func TestServerServeFails(t *testing.T) {
 				Transport: confignet.TransportTypeTCP,
 			},
 		},
+		ServerName:               "jaeger",
+		ServerVersion:            "1.0.0",
+		MaxSpanDetailsPerRequest: 20,
+		MaxSearchResults:         100,
 	}
 	server := newServer(config, telset)
 	err := server.Start(context.Background(), host)
