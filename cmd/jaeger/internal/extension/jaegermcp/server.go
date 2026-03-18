@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/collector/component"
@@ -78,7 +79,9 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	s.mcpServer.AddReceivingMiddleware(createLoggingMiddleware(s.telset.Logger))
 
 	// Set up TCP listener with context
-	listener, err := s.config.HTTP.ToListener(ctx)
+	// listener, err := s.config.HTTP.ToListener(ctx)
+	lc := net.ListenConfig{}
+	listener, err := lc.Listen(ctx, "tcp", s.config.HTTP.NetAddr.Endpoint)
 	if err != nil {
 		return fmt.Errorf("failed to listen on %s: %w", s.config.HTTP.NetAddr.Endpoint, err)
 	}
@@ -87,12 +90,11 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	// Create MCP streamable HTTP handler
 	mcpHandler := mcp.NewStreamableHTTPHandler(
 		func(_ *http.Request) *mcp.Server { return s.mcpServer },
-		nil,
-		// &mcp.StreamableHTTPOptions{
-		// 	JSONResponse:   false, // Use SSE for streamed events
-		// 	Stateless:      false, // Session state management
-		// 	SessionTimeout: 5 * time.Minute,
-		// },
+		&mcp.StreamableHTTPOptions{
+			JSONResponse:   false, // Use SSE for streamed events
+			Stateless:      false, // Session state management
+			SessionTimeout: 5 * time.Minute,
+		},
 	)
 
 	s.httpServer, err = s.config.HTTP.ToServer(
@@ -101,10 +103,8 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		s.telset,
 		corsMiddleware(mcpHandler),
 	)
-
-	// Start the server in a goroutine
 	go func() {
-		if err := s.httpServer.Serve(s.listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := s.httpServer.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			s.telset.Logger.Error("MCP server error", zap.Error(err))
 		}
 	}()
@@ -138,18 +138,18 @@ func (s *server) registerTools() {
 		Description: "List available service names. Use this first to discover valid service names for search_traces.",
 	}, getServicesHandler)
 
-	// // Get span names tool (required for search_traces with span name filter)
-	// getSpanNamesHandler := handlers.NewGetSpanNamesHandler(s.queryAPI)
-	// mcp.AddTool(s.mcpServer, &mcp.Tool{
-	// 	Name:        "get_span_names",
-	// 	Description: "List available span names for a service. Supports regex filtering and span kind filtering.",
-	// }, getSpanNamesHandler)
+	// Get span names tool (required for search_traces with span name filter)
+	getSpanNamesHandler := handlers.NewGetSpanNamesHandler(s.queryAPI)
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "get_span_names",
+		Description: "List available span names for a service. Supports regex filtering and span kind filtering.",
+	}, getSpanNamesHandler)
 
-	// // Health check tool
-	// mcp.AddTool(s.mcpServer, &mcp.Tool{
-	// 	Name:        "health",
-	// 	Description: "Check if the Jaeger MCP server is running",
-	// }, s.healthTool)
+	// Health check tool
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "health",
+		Description: "Check if the Jaeger MCP server is running",
+	}, s.healthTool)
 
 	// // Search traces tool
 	// searchTracesHandler := handlers.NewSearchTracesHandler(s.queryAPI)
@@ -179,12 +179,12 @@ func (s *server) registerTools() {
 	// 	Description: "Get the structural tree of a trace showing parent-child relationships, timing, and error locations. Does NOT return attributes or logs.",
 	// }, getTraceTopologyHandler)
 
-	// // Get critical path tool
-	// getCriticalPathHandler := handlers.NewGetCriticalPathHandler(s.queryAPI)
-	// mcp.AddTool(s.mcpServer, &mcp.Tool{
-	// 	Name:        "get_critical_path",
-	// 	Description: "Identify the sequence of spans forming the critical latency path (the blocking execution path).",
-	// }, getCriticalPathHandler)
+	// Get critical path tool
+	getCriticalPathHandler := handlers.NewGetCriticalPathHandler(s.queryAPI)
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "get_critical_path",
+		Description: "Identify the sequence of spans forming the critical latency path (the blocking execution path).",
+	}, getCriticalPathHandler)
 }
 
 // HealthToolOutput is the strongly-typed output for the health tool.
