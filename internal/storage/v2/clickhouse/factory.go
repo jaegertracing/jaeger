@@ -4,11 +4,14 @@
 package clickhouse
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"text/template"
+	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
@@ -38,6 +41,10 @@ var (
 	_ storage.Purger     = (*Factory)(nil)
 )
 
+type schemaParams struct {
+	TTLSeconds int64
+}
+
 type Factory struct {
 	config Configuration
 	telset telemetry.Settings
@@ -65,6 +72,10 @@ The schema is subject to breaking changes in future releases.
 *******************************************************************************
 `)
 	cfg.applyDefaults()
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+	
 	f := &Factory{
 		config: cfg,
 		telset: telset,
@@ -94,16 +105,36 @@ The schema is subject to breaking changes in future releases.
 		)
 	}
 	if f.config.CreateSchema {
+		createSpansTableQuery, err := loadTemplate(
+			"create_spans_table",
+			sql.CreateSpansTable,
+			schemaParams{TTLSeconds: int64(f.config.TTL / time.Second)},
+		)
+		if err != nil {
+			conn.Close()
+			return nil, err
+		}
+
+		createTraceIDTsTableQuery, err := loadTemplate(
+			"create_trace_id_timestamps_table",
+			sql.CreateTraceIDTimestampsTable,
+			schemaParams{TTLSeconds: int64(f.config.TTL / time.Second)},
+		)
+		if err != nil {
+			conn.Close()
+			return nil, err
+		}
+
 		schemas := []struct {
 			name  string
 			query string
 		}{
-			{"spans table", sql.CreateSpansTable},
+			{"spans table", createSpansTableQuery},
 			{"services table", sql.CreateServicesTable},
 			{"services materialized view", sql.CreateServicesMaterializedView},
 			{"operations table", sql.CreateOperationsTable},
 			{"operations materialized view", sql.CreateOperationsMaterializedView},
-			{"trace id timestamps table", sql.CreateTraceIDTimestampsTable},
+			{"trace id timestamps table", createTraceIDTsTableQuery},
 			{"trace id timestamps materialized view", sql.CreateTraceIDTimestampsMaterializedView},
 			{"attribute metadata table", sql.CreateAttributeMetadataTable},
 			{"attribute metadata materialized view", sql.CreateAttributeMetadataMaterializedView},
@@ -167,4 +198,16 @@ func getProtocol(protocol string) clickhouse.Protocol {
 		return clickhouse.HTTP
 	}
 	return clickhouse.Native
+}
+
+func loadTemplate(name, tmplBody string, data any) (string, error) {
+	tmpl, err := template.New(name).Parse(tmplBody)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse %s template: %w", name, err)
+	}
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "", fmt.Errorf("failed to execute %s template: %w", name, err)
+	}
+	return buf.String(), nil
 }

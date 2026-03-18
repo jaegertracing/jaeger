@@ -52,3 +52,6 @@ CREATE TABLE
     ) ENGINE = MergeTree
 PARTITION BY toDate(start_time)
 ORDER BY (service_name, name, toDateTime(start_time))
+{{- if gt .TTLSeconds 0 }}
+TTL start_time + INTERVAL {{ .TTLSeconds }} SECOND DELETE
+{{- end }}

@@ -4,6 +4,7 @@
 package clickhouse
 
 import (
+	"errors"
 	"time"
 
 	"github.com/asaskevich/govalidator"
@@ -21,44 +22,37 @@ const (
 )
 
 type Configuration struct {
-	// Protocol is the protocol to use to connect to ClickHouse.
-	// Supported values are "native" and "http". Default is "native".
 	Protocol string `mapstructure:"protocol" valid:"in(native|http),optional"`
-	// Addresses contains a list of ClickHouse server addresses to connect to.
 	Addresses []string `mapstructure:"addresses" valid:"required"`
-	// Database is the ClickHouse database to connect to.
 	Database string `mapstructure:"database"`
-	// Auth contains the authentication configuration to connect to ClickHouse.
 	Auth Authentication `mapstructure:"auth"`
-	// DialTimeout is the timeout for establishing a connection to ClickHouse.
 	DialTimeout time.Duration `mapstructure:"dial_timeout"`
-	// CreateSchema, if set to true, will create the ClickHouse schema if it does not exist.
 	CreateSchema bool `mapstructure:"create_schema"`
-	// DefaultSearchDepth is the default search depth for queries.
-	// This is the maximum number of trace IDs that will be returned when searching for traces
-	// if a limit is not specified in the query.
 	DefaultSearchDepth int `mapstructure:"default_search_depth"`
-	// MaxSearchDepth is the maximum allowed search depth for queries.
-	// This limits the number of trace IDs that can be returned when searching for traces.
 	MaxSearchDepth int `mapstructure:"max_search_depth"`
-	// AttributeMetadataCacheTTL is the time-to-live for cached attribute metadata entries.
-	// Attribute metadata maps attribute keys to their stored types and levels,
-	// which is needed to build type-correct queries for querying attributes.
-	// Default is 1h.
 	AttributeMetadataCacheTTL time.Duration `mapstructure:"attribute_metadata_cache_ttl"`
-	// AttributeMetadataCacheMaxSize is the maximum number of entries in the attribute metadata cache.
-	// Default is 1000.
 	AttributeMetadataCacheMaxSize int `mapstructure:"attribute_metadata_cache_max_size"`
+	// SpansTTL is the Time-To-Live for spans in the database.
+	// Data older than this will be automatically deleted. 0 means disabled.
+	TTL time.Duration `mapstructure:"spans_ttl"`
 }
 
 type Authentication struct {
 	Basic configoptional.Optional[basicauthextension.ClientAuthSettings] `mapstructure:"basic"`
-	// TODO: add JWT
 }
 
 func (cfg *Configuration) Validate() error {
-	_, err := govalidator.ValidateStruct(cfg)
-	return err
+	if _, err := govalidator.ValidateStruct(cfg); err != nil {
+		return err
+	}
+	if cfg.TTL < 0 {
+		return errors.New("ttl must be a non-negative duration")
+	}
+	if cfg.TTL > 0 && cfg.TTL%time.Second != 0 {
+		return errors.New("ttl must be a whole number of seconds")
+	}
+
+	return nil
 }
 
 func (cfg *Configuration) applyDefaults() {

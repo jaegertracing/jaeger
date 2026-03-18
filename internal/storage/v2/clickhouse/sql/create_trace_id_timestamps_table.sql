@@ -1,8 +1,8 @@
 CREATE TABLE IF NOT EXISTS trace_id_timestamps
 (
     trace_id String,
-    start SimpleAggregateFunction(min, DateTime64(9)),
-    end SimpleAggregateFunction(max, DateTime64(9))
+    start DateTime64(9),
+    end DateTime64(9)
 )
-ENGINE = AggregatingMergeTree()
+ENGINE = MergeTree()
 ORDER BY (trace_id);

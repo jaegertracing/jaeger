@@ -79,6 +79,12 @@ func TestFactory(t *testing.T) {
 }
 
 func TestNewFactory_Errors(t *testing.T) {
+	createSpansTableQuery, err := loadTemplate("test", sql.CreateSpansTable, schemaParams{TTLSeconds: 0})
+	require.NoError(t, err)
+
+	createTraceIDTsTableQuery, err := loadTemplate("test_ts", sql.CreateTraceIDTimestampsTable, schemaParams{TTLSeconds: 0})
+	require.NoError(t, err)
+
 	tests := []struct {
 		name          string
 		failureConfig clickhousetest.FailureConfig
@@ -94,7 +100,7 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "spans table creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateSpansTable: assert.AnError,
+				createSpansTableQuery: assert.AnError,
 			},
 			expectedError: "failed to create spans table",
 		},
@@ -129,7 +135,7 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "trace id timestamps table creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateTraceIDTimestampsTable: assert.AnError,
+				createTraceIDTsTableQuery: assert.AnError,
 			},
 			expectedError: "failed to create trace id timestamps table",
 		},
@@ -299,4 +305,82 @@ func TestNewFactory_FeatureGateDisabled(t *testing.T) {
 	f, err := NewFactory(context.Background(), Configuration{}, telemetry.NoopSettings())
 	require.ErrorContains(t, err, "must be explicitly enabled")
 	require.Nil(t, f)
+}
+
+func TestLoadTemplate(t *testing.T) {
+	tests := []struct {
+		name     string
+		tmplBody string
+		data     any
+		expected string
+		errorMsg string
+	}{
+		{
+			name:     "valid template",
+			tmplBody: "Hello {{ .Name }}",
+			data:     struct{ Name string }{Name: "Jaeger"},
+			expected: "Hello Jaeger",
+		},
+		{
+			name:     "parse error",
+			tmplBody: "{{ bad syntax",
+			data:     nil,
+			errorMsg: "failed to parse",
+		},
+		{
+			name:     "execution error",
+			tmplBody: "Hello {{ .Name.Invalid }}",
+			data:     struct{ Name string }{Name: "Jaeger"},
+			errorMsg: "failed to execute",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := loadTemplate("test_tmpl", tt.tmplBody, tt.data)
+			if tt.errorMsg != "" {
+				require.ErrorContains(t, err, tt.errorMsg)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expected, res)
+			}
+		})
+	}
+}
+
+func TestCreateSpansTableTemplate(t *testing.T) {
+	t.Run("without TTL", func(t *testing.T) {
+		queryWithoutTTL, err := loadTemplate("test_no_ttl", sql.CreateSpansTable, schemaParams{TTLSeconds: 0})
+		require.NoError(t, err)
+		assert.NotContains(t, queryWithoutTTL, "TTL start_time")
+	})
+
+	t.Run("with TTL", func(t *testing.T) {
+		queryWithTTL, err := loadTemplate("test_ttl", sql.CreateSpansTable, schemaParams{TTLSeconds: 86400})
+		require.NoError(t, err)
+		assert.Contains(t, queryWithTTL, "TTL start_time + INTERVAL 86400 SECOND DELETE")
+	})
+}
+
+func TestCreateTraceIDTimestampsTableTemplate(t *testing.T) {
+	t.Run("without TTL", func(t *testing.T) {
+		queryWithoutTTL, err := loadTemplate("test_no_ttl_trace", sql.CreateTraceIDTimestampsTable, schemaParams{TTLSeconds: 0})
+		require.NoError(t, err)
+		assert.NotContains(t, queryWithoutTTL, "TTL end")
+	})
+
+	t.Run("with TTL", func(t *testing.T) {
+		queryWithTTL, err := loadTemplate("test_ttl_trace", sql.CreateTraceIDTimestampsTable, schemaParams{TTLSeconds: 86400})
+		require.NoError(t, err)
+		assert.Contains(t, queryWithTTL, "TTL end + INTERVAL 86400 SECOND DELETE")
+	})
+}
+
+func TestNewFactory_ValidationError(t *testing.T) {
+	cfg := Configuration{
+		TTL: -1 * time.Second,
+	}
+	factory, err := NewFactory(context.Background(), cfg, telemetry.Settings{})
+	require.ErrorContains(t, err, "ttl must be a non-negative duration")
+	assert.Nil(t, factory)
 }
