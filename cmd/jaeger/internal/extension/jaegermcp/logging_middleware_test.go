@@ -35,7 +35,8 @@ func TestLoggingMiddleware(t *testing.T) {
 	resp, err := http.DefaultClient.Do(httpReq)
 	require.NoError(t, err)
 	defer resp.Body.Close()
-	io.ReadAll(resp.Body) //nolint:errcheck
+	_, err = io.ReadAll(resp.Body)
+	require.NoError(t, err)
 
 	// Clean up the MCP session to avoid goroutine leaks.
 	sessionID := resp.Header.Get("Mcp-Session-Id")

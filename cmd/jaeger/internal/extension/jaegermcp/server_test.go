@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"iter"
-	"net"
 	"net/http"
 	"testing"
 	"time"
@@ -77,16 +76,16 @@ func (m *mockHost) GetExtensions() map[component.ID]component.Component {
 	}
 }
 
-// waitForServer blocks until the server at addr accepts TCP connections or the
-// test times out.
+// waitForServer blocks until the MCP endpoint at addr responds to an HTTP
+// request (any status code is fine — a response means the server is up).
 func waitForServer(t *testing.T, addr string) {
 	t.Helper()
 	require.Eventually(t, func() bool {
-		conn, err := net.DialTimeout("tcp", addr, 10*time.Millisecond)
+		resp, err := http.Get(fmt.Sprintf("http://%s/mcp", addr))
 		if err != nil {
 			return false
 		}
-		conn.Close()
+		require.NoError(t, resp.Body.Close())
 		return true
 	}, 1*time.Second, 10*time.Millisecond, "Server should be ready")
 }

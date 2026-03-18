@@ -61,31 +61,18 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("cannot get %s extension: %w", jaegerquery.ID, err)
 	}
 	s.queryAPI = queryExt.QueryService()
-	s.telset.Logger.Info("Successfully retrieved v2 QueryService from jaegerquery extension")
-
-	// Initialize MCP server with implementation details
-	impl := &mcp.Implementation{
-		Name:    s.config.ServerName,
-		Version: s.config.ServerVersion,
-	}
-	// Pass empty ServerOptions to use default settings.
-	// Custom options (e.g., logging, handlers) can be added in Phase 2 if needed.
-	s.mcpServer = mcp.NewServer(impl, &mcp.ServerOptions{})
-
-	// Register MCP tools
+	s.mcpServer = mcp.NewServer(
+		&mcp.Implementation{
+			Name:    s.config.ServerName,
+			Version: s.config.ServerVersion,
+		},
+		// Pass empty ServerOptions to use default settings.
+		// Custom options (e.g., logging, handlers) can be added later.
+		&mcp.ServerOptions{},
+	)
 	s.registerTools()
-
-	// Add MCP-level logging middleware.
 	s.mcpServer.AddReceivingMiddleware(createLoggingMiddleware(s.telset.Logger))
 
-	// Set up TCP listener with context
-	listener, err := s.config.HTTP.ToListener(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to listen on %s: %w", s.config.HTTP.NetAddr.Endpoint, err)
-	}
-	s.listener = listener
-
-	// Create MCP streamable HTTP handler
 	mcpHandler := mcp.NewStreamableHTTPHandler(
 		func(_ *http.Request) *mcp.Server { return s.mcpServer },
 		&mcp.StreamableHTTPOptions{
@@ -95,6 +82,11 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		},
 	)
 
+	s.listener, err = s.config.HTTP.ToListener(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to listen on %s: %w", s.config.HTTP.NetAddr.Endpoint, err)
+	}
+
 	s.httpServer, err = s.config.HTTP.ToServer(
 		ctx,
 		host.GetExtensions(),
@@ -102,17 +94,17 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		mcpHandler,
 	)
 	if err != nil {
+		s.listener.Close()
 		return fmt.Errorf("failed to create HTTP server: %w", err)
 	}
 
 	go func() {
-		if err := s.httpServer.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := s.httpServer.Serve(s.listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			s.telset.Logger.Error("MCP server error", zap.Error(err))
 		}
 	}()
 
 	s.telset.Logger.Info("Jaeger MCP server started successfully",
-		zap.String("endpoint", s.config.HTTP.NetAddr.Endpoint),
 		zap.String("mcp_endpoint", "http://"+s.config.HTTP.NetAddr.Endpoint+"/mcp"))
 	return nil
 }
@@ -121,14 +113,12 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 func (s *server) Shutdown(ctx context.Context) error {
 	s.telset.Logger.Info("Shutting down Jaeger MCP server")
 
-	var errs []error
 	if s.httpServer != nil {
 		if err := s.httpServer.Shutdown(ctx); err != nil {
-			errs = append(errs, fmt.Errorf("failed to shutdown HTTP server: %w", err))
+			return fmt.Errorf("failed to shutdown HTTP server: %w", err)
 		}
 	}
-
-	return errors.Join(errs...)
+	return nil
 }
 
 // registerTools registers all MCP tools with the server.
