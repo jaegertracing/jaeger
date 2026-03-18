@@ -41,7 +41,7 @@ func (c *HTTPClient) GetJSON(ctx context.Context, _ string /* endpoint */, url s
 		return err
 	}
 
-	res, err := c.Client.Do(req)
+	res, err := c.Client.Do(req) //nolint:gosec // G704 - URL from internal config
 	if err != nil {
 		return err
 	}

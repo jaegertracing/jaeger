@@ -35,8 +35,8 @@ type SearchTracesInput struct {
 	// SearchDepth defines the maximum search depth. Depending on the backend storage implementation,
 	// this may behave like an SQL LIMIT clause. However, some implementations might not support
 	// precise limits, and a larger value generally results in more traces being returned.
-	// Default: 10, max: 100.
-	SearchDepth int `json:"search_depth,omitempty" jsonschema:"Maximum search depth (default: 10 max: 100)"`
+	// Default: 10, maximum is controlled by server configuration (MaxSearchResults).
+	SearchDepth int `json:"search_depth,omitempty" jsonschema:"Maximum search depth (default: 10, max controlled by server config)"`
 }
 
 // SearchTracesOutput defines the output of the search_traces MCP tool.

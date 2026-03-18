@@ -24,6 +24,7 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
@@ -75,14 +76,32 @@ func (m *mockHost) GetExtensions() map[component.ID]component.Component {
 	}
 }
 
-// startTestServer creates and starts a test server with a random available port.
-// It waits for the server to be ready and registers shutdown via t.Cleanup().
-// Returns the started server and its address.
-func startTestServer(t *testing.T) (*server, string) {
+// waitForServer blocks until the MCP endpoint at addr responds to an HTTP
+// request (any status code is fine — a response means the server is up).
+func waitForServer(t *testing.T, addr string) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		resp, err := http.Get(fmt.Sprintf("http://%s/mcp", addr))
+		if err != nil {
+			return false
+		}
+		require.NoError(t, resp.Body.Close())
+		return true
+	}, 1*time.Second, 10*time.Millisecond, "Server should be ready")
+}
+
+// startTestServerWithQueryService creates and starts a test server using the
+// provided query service and logger. It registers shutdown via t.Cleanup() and
+// waits for the server to be ready. Returns the started server and its address.
+// Pass a nil logger to use the no-op logger from componenttest.
+func startTestServerWithQueryService(t *testing.T, svc *querysvc.QueryService, logger *zap.Logger) (*server, string) {
 	t.Helper()
 
-	host := newMockHost()
+	host := newMockHostWithQueryService(svc)
 	telset := componenttest.NewNopTelemetrySettings()
+	if logger != nil {
+		telset.Logger = logger
+	}
 
 	config := &Config{
 		HTTP: confighttp.ServerConfig{
@@ -101,26 +120,20 @@ func startTestServer(t *testing.T) (*server, string) {
 	err := server.Start(context.Background(), host)
 	require.NoError(t, err)
 
-	// Register cleanup
 	t.Cleanup(func() {
-		err := server.Shutdown(context.Background())
-		assert.NoError(t, err)
+		assert.NoError(t, server.Shutdown(context.Background()))
 	})
 
-	// Get the actual address the server is listening on
 	addr := server.listener.Addr().String()
-
-	// Wait for server to be ready
-	assert.Eventually(t, func() bool {
-		resp, err := http.Get(fmt.Sprintf("http://%s/health", addr))
-		if err != nil {
-			return false
-		}
-		defer resp.Body.Close()
-		return resp.StatusCode == http.StatusOK
-	}, 1*time.Second, 10*time.Millisecond, "Server should be ready")
-
+	waitForServer(t, addr)
 	return server, addr
+}
+
+// startTestServer creates and starts a test server with a default (no-op) query
+// service. It is a convenience wrapper around startTestServerWithQueryService.
+func startTestServer(t *testing.T) (*server, string) {
+	t.Helper()
+	return startTestServerWithQueryService(t, nil, nil)
 }
 
 func TestServerLifecycle(t *testing.T) {
@@ -228,26 +241,16 @@ func TestServerStartFailsWithInvalidEndpoint(t *testing.T) {
 				Transport: confignet.TransportTypeTCP,
 			},
 		},
+		ServerName:               "jaeger",
+		ServerVersion:            "1.0.0",
+		MaxSpanDetailsPerRequest: 20,
+		MaxSearchResults:         100,
 	}
 
 	server := newServer(config, telset)
 	err := server.Start(context.Background(), host)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to listen")
-}
-
-func TestServerHealthEndpoint(t *testing.T) {
-	_, addr := startTestServer(t)
-
-	// Test the health endpoint
-	resp, err := http.Get(fmt.Sprintf("http://%s/health", addr))
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	body, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	assert.Equal(t, "MCP server is running", string(body))
 }
 
 func TestServerMCPEndpoint(t *testing.T) {
@@ -386,6 +389,10 @@ func TestServerServeFails(t *testing.T) {
 				Transport: confignet.TransportTypeTCP,
 			},
 		},
+		ServerName:               "jaeger",
+		ServerVersion:            "1.0.0",
+		MaxSpanDetailsPerRequest: 20,
+		MaxSearchResults:         100,
 	}
 	server := newServer(config, telset)
 	err := server.Start(context.Background(), host)
@@ -467,42 +474,7 @@ func TestSearchTracesToolIntegration(t *testing.T) {
 
 	// Create query service with the mock reader
 	queryService := querysvc.NewQueryService(mockReader, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
-
-	// Create server with custom mock host
-	host := newMockHostWithQueryService(queryService)
-	telset := componenttest.NewNopTelemetrySettings()
-
-	config := &Config{
-		HTTP: confighttp.ServerConfig{
-			NetAddr: confignet.AddrConfig{
-				Endpoint:  "localhost:0",
-				Transport: confignet.TransportTypeTCP,
-			},
-		},
-		ServerName:               "jaeger-test",
-		ServerVersion:            "1.0.0",
-		MaxSpanDetailsPerRequest: 20,
-		MaxSearchResults:         100,
-	}
-
-	server := newServer(config, telset)
-	err := server.Start(context.Background(), host)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		server.Shutdown(context.Background())
-	})
-
-	addr := server.listener.Addr().String()
-
-	// Wait for server to be ready
-	require.Eventually(t, func() bool {
-		resp, err := http.Get(fmt.Sprintf("http://%s/health", addr))
-		if err != nil {
-			return false
-		}
-		defer resp.Body.Close()
-		return resp.StatusCode == http.StatusOK
-	}, 1*time.Second, 10*time.Millisecond)
+	_, addr := startTestServerWithQueryService(t, queryService, nil)
 
 	// Send MCP initialize request first
 	initReq := `{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0.0"}}}`
@@ -579,42 +551,7 @@ func TestSearchTracesToolEmptyResults(t *testing.T) {
 
 	// Create query service with the mock reader
 	queryService := querysvc.NewQueryService(mockReader, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
-
-	// Create server with custom mock host
-	host := newMockHostWithQueryService(queryService)
-	telset := componenttest.NewNopTelemetrySettings()
-
-	config := &Config{
-		HTTP: confighttp.ServerConfig{
-			NetAddr: confignet.AddrConfig{
-				Endpoint:  "localhost:0",
-				Transport: confignet.TransportTypeTCP,
-			},
-		},
-		ServerName:               "jaeger-test",
-		ServerVersion:            "1.0.0",
-		MaxSpanDetailsPerRequest: 20,
-		MaxSearchResults:         100,
-	}
-
-	server := newServer(config, telset)
-	err := server.Start(context.Background(), host)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		server.Shutdown(context.Background())
-	})
-
-	addr := server.listener.Addr().String()
-
-	// Wait for server to be ready
-	require.Eventually(t, func() bool {
-		resp, err := http.Get(fmt.Sprintf("http://%s/health", addr))
-		if err != nil {
-			return false
-		}
-		defer resp.Body.Close()
-		return resp.StatusCode == http.StatusOK
-	}, 1*time.Second, 10*time.Millisecond)
+	_, addr := startTestServerWithQueryService(t, queryService, nil)
 
 	// Initialize session
 	initReq := `{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0.0"}}}`
@@ -694,39 +631,4 @@ func createTestTraceForIntegration() ptrace.Traces {
 	span.Status().SetCode(ptrace.StatusCodeOk)
 
 	return traces
-}
-
-func TestCORSPreflight(t *testing.T) {
-	config := &Config{
-		HTTP: confighttp.ServerConfig{
-			NetAddr: confignet.AddrConfig{
-				Endpoint:  "localhost:0",
-				Transport: confignet.TransportTypeTCP,
-			},
-		},
-		ServerName:    "jaeger-test",
-		ServerVersion: "1.0.0",
-	}
-
-	server := newServer(config, componenttest.NewNopTelemetrySettings())
-	host := newMockHost()
-	err := server.Start(context.Background(), host)
-	require.NoError(t, err)
-	defer server.Shutdown(context.Background())
-
-	addr := server.listener.Addr().String()
-	url := fmt.Sprintf("http://%s/mcp", addr)
-
-	req, err := http.NewRequest(http.MethodOptions, url, http.NoBody)
-	require.NoError(t, err)
-	req.Header.Set("Origin", "http://localhost:3000")
-	req.Header.Set("Access-Control-Request-Method", "POST")
-
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-	assert.Equal(t, "*", resp.Header.Get("Access-Control-Allow-Origin"))
-	assert.Equal(t, "GET, POST, DELETE, OPTIONS", resp.Header.Get("Access-Control-Allow-Methods"))
 }

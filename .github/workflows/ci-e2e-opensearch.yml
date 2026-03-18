@@ -1,3 +1,10 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# Integration tests for OpenSearch storage backend, covering major versions 1.x through 3.x.
+# direct: classic tests at the storage API layer, directly instantiating the storage implementation.
+# e2e: multi-process E2E tests via the trace ingestion and query APIs.
+
 name: CIT OpenSearch
 
 on:
@@ -16,20 +23,20 @@ jobs:
         version:
         - major: 1.x
           distribution: opensearch
-          jaeger: v1
+          storage_test: direct
         - major: 2.x
           distribution: opensearch
-          jaeger: v1
+          storage_test: direct
         - major: 2.x
           distribution: opensearch
-          jaeger: v2
+          storage_test: e2e
         - major: 3.x
           distribution: opensearch
-          jaeger: v2
-    name: ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
+          storage_test: e2e
+    name: ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.storage_test }}
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+      uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -37,7 +44,7 @@ jobs:
       with:
         submodules: true
 
-    - uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
+    - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
       with:
         go-version: 1.26.x
 
@@ -45,10 +52,10 @@ jobs:
 
     - name: Run ${{ matrix.version.distribution }} integration tests
       id: test-execution
-      run: bash scripts/e2e/elasticsearch.sh ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
+      run: bash scripts/e2e/elasticsearch.sh ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.storage_test }}
 
     - uses: ./.github/actions/verify-metrics-snapshot
-      if: matrix.version.jaeger == 'v2'
+      if: matrix.version.storage_test == 'e2e'
       with:
         snapshot: metrics_snapshot_opensearch
         artifact_key: metrics_snapshot_opensearch_${{ matrix.version.major }}
@@ -57,4 +64,4 @@ jobs:
       uses: ./.github/actions/upload-codecov
       with:
         files: cover.out,cover-index-cleaner.out,cover-index-rollover.out
-        flags: ${{ matrix.version.distribution }}-${{ matrix.version.major }}-${{ matrix.version.jaeger }}
+        flag: ${{ matrix.version.distribution }}-${{ matrix.version.major }}-${{ matrix.version.storage_test }}
