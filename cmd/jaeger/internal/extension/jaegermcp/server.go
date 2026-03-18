@@ -101,6 +101,10 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		s.telset,
 		corsMiddleware(mcpHandler),
 	)
+	if err != nil {
+		return fmt.Errorf("failed to create HTTP server: %w", err)
+	}
+
 	go func() {
 		if err := s.httpServer.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			s.telset.Logger.Error("MCP server error", zap.Error(err))

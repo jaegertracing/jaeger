@@ -6,7 +6,6 @@ This extension implements a Model Context Protocol (MCP) server for Jaeger, enab
 
 The MCP server provides a structured way for AI agents to interact with Jaeger's trace data using progressive disclosure:
 - **Search** → Find traces matching specific criteria
-- **Map** → Visualize trace structure without loading full attribute data  
 - **Diagnose** → Identify critical execution paths that contributed to latency or errors
 - **Inspect** → Load full details only for specific, suspicious spans
 
@@ -16,21 +15,20 @@ This approach prevents context-window exhaustion in LLMs and enables more effici
 
 See [ADR-002](../../../../docs/adr/002-mcp-server.md) for full design details.
 
-## Available Endpoints
-
-* `/health`
-* `/mcp`
-
 ## Available Tools
 
 * `get_services`
 * `get_span_names`
 * `search_traces`
-* `get_trace_topology`
 * `get_trace_errors`
 * `get_span_details`
 * `get_critical_path`
 * `health`
+
+> **Note:** `get_trace_topology` is temporarily disabled. The MCP Go SDK does not
+> support recursive types in output schemas (`SpanNode.Children []*SpanNode` triggers
+> a cycle-detection error). Tracked in
+> https://github.com/modelcontextprotocol/go-sdk/issues/749.
 
 ## Configuration
 
@@ -83,4 +81,10 @@ curl -X POST http://localhost:16687/mcp \
   -H "Content-Type: application/json" \
   -H "Mcp-Session-Id: SAWYSMIJP3CA6P6PONC4QB3QLT" \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+```
+
+## Sample usage with Claude Code
+
+```
+claude mcp add -t http jaeger-mcp http://127.0.0.1:16687/mcp
 ```
