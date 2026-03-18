@@ -1,3 +1,12 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# E2E integration tests for a two-process deployment topology:
+#   - collector (config-remote-storage-backend.yaml): receives OTLP traces,
+#     writes to in-memory storage, exposes it via the remote_storage gRPC extension.
+#   - query (config-query.yaml): no ingestion pipeline, serves the query API
+#     by reading from the collector's remote_storage gRPC endpoint.
+
 name: CIT Query
 
 on:
