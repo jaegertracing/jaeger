@@ -170,7 +170,10 @@ func (s *server) registerTools() {
 		Description: "Get full details for all spans with error status.",
 	}, getTraceErrorsHandler)
 
-	// Get trace topology tool
+	// Get trace topology tool -- DISABLED
+	// The MCP Go SDK does not support recursive types used
+	// to represent the trace tree structure in the output of this tool.
+	// https://github.com/modelcontextprotocol/go-sdk/issues/749
 	// getTraceTopologyHandler := handlers.NewGetTraceTopologyHandler(s.queryAPI)
 	// mcp.AddTool(s.mcpServer, &mcp.Tool{
 	// 	Name:        "get_trace_topology",
