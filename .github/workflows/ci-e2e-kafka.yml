@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # E2E integration tests for Kafka as a span ingestion buffer (Jaeger v2),
-# verifying the collector→Kafka→ingester pipeline.
+# verifying the Collector → Kafka → Ingester pipeline.
 
 name: CIT Kafka
 
