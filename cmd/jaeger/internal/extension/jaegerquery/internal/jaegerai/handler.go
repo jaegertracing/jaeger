@@ -1,3 +1,6 @@
+// Copyright (c) 2026 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package jaegerai
 
 import (
@@ -10,10 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"go.opentelemetry.io/collector/pdata/ptrace"
-
 	"github.com/coder/acp-go-sdk"
 	"github.com/gorilla/websocket"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
@@ -120,7 +122,7 @@ func searchTracesToolResult(ctx context.Context, queryService *querysvc.QuerySer
 					spans := ss.At(j).Spans()
 					for k := 0; k < spans.Len(); k++ {
 						span := spans.At(k)
-						durationMs := (int64(span.EndTimestamp()) - int64(span.StartTimestamp())) / int64(time.Millisecond)
+						durationMs := span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime()).Milliseconds()
 						traces = append(traces, map[string]any{
 							"trace_id":    span.TraceID().String(),
 							"span_id":     span.SpanID().String(),
@@ -163,7 +165,7 @@ func parseSearchTracesQuery(path string) string {
 	return u.Query().Get("q")
 }
 
-func (c *streamingClient) RequestPermission(ctx context.Context, p acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error) {
+func (*streamingClient) RequestPermission(_ context.Context, p acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error) {
 	if len(p.Options) == 0 {
 		return acp.RequestPermissionResponse{
 			Outcome: acp.RequestPermissionOutcome{
@@ -178,7 +180,7 @@ func (c *streamingClient) RequestPermission(ctx context.Context, p acp.RequestPe
 	}, nil
 }
 
-func (c *streamingClient) SessionUpdate(ctx context.Context, n acp.SessionNotification) error {
+func (c *streamingClient) SessionUpdate(_ context.Context, n acp.SessionNotification) error {
 	u := n.Update
 	if u.AgentMessageChunk != nil {
 		content := u.AgentMessageChunk.Content
@@ -188,11 +190,11 @@ func (c *streamingClient) SessionUpdate(ctx context.Context, n acp.SessionNotifi
 		}
 	}
 	if u.ToolCall != nil {
-		c.w.Write([]byte(fmt.Sprintf("\n[tool_call] %s\n", u.ToolCall.Title)))
+		fmt.Fprintf(c.w, "\n[tool_call] %s\n", u.ToolCall.Title)
 		c.flusher.Flush()
 	}
 	if u.ToolCallUpdate != nil {
-		c.w.Write([]byte(fmt.Sprintf("\n[tool_result] id=%s status=%s\n", u.ToolCallUpdate.ToolCallId, valueOrUnknown(u.ToolCallUpdate.Status))))
+		fmt.Fprintf(c.w, "\n[tool_result] id=%s status=%s\n", u.ToolCallUpdate.ToolCallId, valueOrUnknown(u.ToolCallUpdate.Status))
 		c.flusher.Flush()
 	}
 	return nil
@@ -205,7 +207,7 @@ func valueOrUnknown(v *acp.ToolCallStatus) string {
 	return string(*v)
 }
 
-func (c *streamingClient) WriteTextFile(ctx context.Context, p acp.WriteTextFileRequest) (acp.WriteTextFileResponse, error) {
+func (*streamingClient) WriteTextFile(_ context.Context, _ acp.WriteTextFileRequest) (acp.WriteTextFileResponse, error) {
 	return acp.WriteTextFileResponse{}, nil
 }
 
@@ -215,26 +217,26 @@ func (c *streamingClient) ReadTextFile(ctx context.Context, p acp.ReadTextFileRe
 		return acp.ReadTextFileResponse{Content: searchTracesToolResult(ctx, c.queryService, query)}, nil
 	}
 
-	return acp.ReadTextFileResponse{Content: fmt.Sprintf("unsupported path: %s", p.Path)}, nil
+	return acp.ReadTextFileResponse{Content: "unsupported path: " + p.Path}, nil
 }
 
-func (c *streamingClient) CreateTerminal(ctx context.Context, p acp.CreateTerminalRequest) (acp.CreateTerminalResponse, error) {
+func (*streamingClient) CreateTerminal(_ context.Context, _ acp.CreateTerminalRequest) (acp.CreateTerminalResponse, error) {
 	return acp.CreateTerminalResponse{TerminalId: "t-1"}, nil
 }
 
-func (c *streamingClient) KillTerminalCommand(ctx context.Context, p acp.KillTerminalCommandRequest) (acp.KillTerminalCommandResponse, error) {
+func (*streamingClient) KillTerminalCommand(_ context.Context, _ acp.KillTerminalCommandRequest) (acp.KillTerminalCommandResponse, error) {
 	return acp.KillTerminalCommandResponse{}, nil
 }
 
-func (c *streamingClient) ReleaseTerminal(ctx context.Context, p acp.ReleaseTerminalRequest) (acp.ReleaseTerminalResponse, error) {
+func (*streamingClient) ReleaseTerminal(_ context.Context, _ acp.ReleaseTerminalRequest) (acp.ReleaseTerminalResponse, error) {
 	return acp.ReleaseTerminalResponse{}, nil
 }
 
-func (c *streamingClient) TerminalOutput(ctx context.Context, p acp.TerminalOutputRequest) (acp.TerminalOutputResponse, error) {
+func (*streamingClient) TerminalOutput(_ context.Context, _ acp.TerminalOutputRequest) (acp.TerminalOutputResponse, error) {
 	return acp.TerminalOutputResponse{Output: "ok", Truncated: false}, nil
 }
 
-func (c *streamingClient) WaitForTerminalExit(ctx context.Context, p acp.WaitForTerminalExitRequest) (acp.WaitForTerminalExitResponse, error) {
+func (*streamingClient) WaitForTerminalExit(_ context.Context, _ acp.WaitForTerminalExitRequest) (acp.WaitForTerminalExitResponse, error) {
 	return acp.WaitForTerminalExitResponse{}, nil
 }
 
@@ -262,7 +264,10 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
-	conn, _, err := dialer.DialContext(ctx, "ws://localhost:9000", nil)
+	conn, resp, err := dialer.DialContext(ctx, "ws://localhost:9000", nil)
+	if resp != nil && resp.Body != nil {
+		defer resp.Body.Close()
+	}
 	if err != nil {
 		h.Logger.Error("Failed to dial ACP sidecar", zap.Error(err))
 		http.Error(w, "Failed to connect to agent backend", http.StatusBadGateway)
@@ -303,7 +308,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		},
 	})
 	if err != nil {
-		w.Write([]byte(fmt.Sprintf("Error initializing agent: %v\n", err)))
+		fmt.Fprintf(w, "Error initializing agent: %v\n", err)
 		return
 	}
 
@@ -312,7 +317,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		McpServers: []acp.McpServer{},
 	})
 	if err != nil {
-		w.Write([]byte(fmt.Sprintf("Error creating session: %v\n", err)))
+		fmt.Fprintf(w, "Error creating session: %v\n", err)
 		return
 	}
 
@@ -322,7 +327,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Prompt:    []acp.ContentBlock{acp.TextBlock(req.Prompt)},
 	})
 	if err != nil {
-		w.Write([]byte(fmt.Sprintf("Error starting prompt: %v\n", err)))
+		fmt.Fprintf(w, "Error starting prompt: %v\n", err)
 		return
 	}
 }
