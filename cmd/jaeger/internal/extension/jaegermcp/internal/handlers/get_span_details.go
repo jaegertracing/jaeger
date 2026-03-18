@@ -39,9 +39,6 @@ func NewGetSpanDetailsHandler(
 	queryService *querysvc.QueryService,
 	maxSpanDetailsPerRequest int,
 ) mcp.ToolHandlerFor[types.GetSpanDetailsInput, types.GetSpanDetailsOutput] {
-	if maxSpanDetailsPerRequest <= 0 {
-		panic("maxSpanDetailsPerRequest must be positive")
-	}
 	h := &getSpanDetailsHandler{
 		queryService:             queryService,
 		maxSpanDetailsPerRequest: maxSpanDetailsPerRequest,
@@ -55,15 +52,6 @@ func (h *getSpanDetailsHandler) handle(
 	_ *mcp.CallToolRequest,
 	input types.GetSpanDetailsInput,
 ) (*mcp.CallToolResult, types.GetSpanDetailsOutput, error) {
-	// Validate span count against configured limit
-	if len(input.SpanIDs) > h.maxSpanDetailsPerRequest {
-		return nil, types.GetSpanDetailsOutput{}, fmt.Errorf(
-			"span_ids exceeds maximum limit: requested %d, max allowed %d",
-			len(input.SpanIDs),
-			h.maxSpanDetailsPerRequest,
-		)
-	}
-
 	// Build query parameters (includes validation)
 	params, err := h.buildQuery(input)
 	if err != nil {
@@ -138,6 +126,15 @@ func (h *getSpanDetailsHandler) buildQuery(input types.GetSpanDetailsInput) (que
 
 	if len(input.SpanIDs) == 0 {
 		return querysvc.GetTraceParams{}, errors.New("span_ids is required and must not be empty")
+	}
+
+	// Validate span count against configured limit
+	if len(input.SpanIDs) > h.maxSpanDetailsPerRequest {
+		return querysvc.GetTraceParams{}, fmt.Errorf(
+			"span_ids exceeds maximum limit: requested %d, max allowed %d",
+			len(input.SpanIDs),
+			h.maxSpanDetailsPerRequest,
+		)
 	}
 
 	traceID, err := parseTraceID(input.TraceID)
