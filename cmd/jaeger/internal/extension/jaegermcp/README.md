@@ -15,14 +15,18 @@ This approach prevents context-window exhaustion in LLMs and enables more effici
 
 See [ADR-002](../../../../docs/adr/002-mcp-server.md) for full design details.
 
+## Available Endpoints
+
+* `/mcp`
+
 ## Available Tools
 
 * `get_services`
 * `get_span_names`
 * `search_traces`
+* `get_trace_topology`
 * `get_trace_errors`
 * `get_span_details`
-* `get_trace_topology`
 * `get_critical_path`
 * `health`
 
