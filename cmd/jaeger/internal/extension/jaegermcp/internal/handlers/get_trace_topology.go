@@ -177,7 +177,7 @@ func (h *getTraceTopologyHandler) buildFlatTopology(spans []rawSpan, maxDepth in
 	}
 
 	// DFS from each root to produce the flat list
-	var result []types.TopologySpan
+	result := make([]types.TopologySpan, 0, len(spans))
 	for _, root := range roots {
 		// For orphans (has a parentID but parent not in trace), prepend the missing
 		// parent ID to the path so the caller can identify the attachment point.
