@@ -31,7 +31,7 @@ jobs:
           major: 5.x
           schema: v004
         exclude:
-        # Exclude direct as create schema on fly is available for e2e only
+        # Exclude direct as creating schema on startup is only available in e2e mode
         - storage_test: direct
           create-schema: auto
     name: ${{ matrix.version.distribution }}-${{ matrix.version.major }} ${{ matrix.storage_test }} schema=${{ matrix.create-schema }}
