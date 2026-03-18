@@ -18,7 +18,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 )
 
-// findSpan is a test helper that looks up a TopologySpan by its path suffix (last segment).
+// findSpanByName is a test helper that looks up a TopologySpan by its SpanName field.
 func findSpanByName(spans []types.TopologySpan, spanName string) *types.TopologySpan {
 	for i := range spans {
 		if spans[i].SpanName == spanName {

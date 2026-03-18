@@ -22,13 +22,9 @@ See [ADR-002](../../../../docs/adr/002-mcp-server.md) for full design details.
 * `search_traces`
 * `get_trace_errors`
 * `get_span_details`
+* `get_trace_topology`
 * `get_critical_path`
 * `health`
-
-> **Note:** `get_trace_topology` is temporarily disabled. The MCP Go SDK does not
-> support recursive types in output schemas (`SpanNode.Children []*SpanNode` triggers
-> a cycle-detection error). Tracked in
-> https://github.com/modelcontextprotocol/go-sdk/issues/749.
 
 ## Configuration
 

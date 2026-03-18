@@ -25,6 +25,7 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
@@ -91,13 +92,17 @@ func waitForServer(t *testing.T, addr string) {
 }
 
 // startTestServerWithQueryService creates and starts a test server using the
-// provided query service. It registers shutdown via t.Cleanup() and waits for
-// the server to be ready. Returns the started server and its address.
-func startTestServerWithQueryService(t *testing.T, svc *querysvc.QueryService) (*server, string) {
+// provided query service and logger. It registers shutdown via t.Cleanup() and
+// waits for the server to be ready. Returns the started server and its address.
+// Pass a nil logger to use the no-op logger from componenttest.
+func startTestServerWithQueryService(t *testing.T, svc *querysvc.QueryService, logger *zap.Logger) (*server, string) {
 	t.Helper()
 
 	host := newMockHostWithQueryService(svc)
 	telset := componenttest.NewNopTelemetrySettings()
+	if logger != nil {
+		telset.Logger = logger
+	}
 
 	config := &Config{
 		HTTP: confighttp.ServerConfig{
@@ -129,7 +134,7 @@ func startTestServerWithQueryService(t *testing.T, svc *querysvc.QueryService) (
 // service. It is a convenience wrapper around startTestServerWithQueryService.
 func startTestServer(t *testing.T) (*server, string) {
 	t.Helper()
-	return startTestServerWithQueryService(t, nil)
+	return startTestServerWithQueryService(t, nil, nil)
 }
 
 func TestServerLifecycle(t *testing.T) {
@@ -462,7 +467,7 @@ func TestSearchTracesToolIntegration(t *testing.T) {
 
 	// Create query service with the mock reader
 	queryService := querysvc.NewQueryService(mockReader, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
-	_, addr := startTestServerWithQueryService(t, queryService)
+	_, addr := startTestServerWithQueryService(t, queryService, nil)
 
 	// Send MCP initialize request first
 	initReq := `{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0.0"}}}`
@@ -539,7 +544,7 @@ func TestSearchTracesToolEmptyResults(t *testing.T) {
 
 	// Create query service with the mock reader
 	queryService := querysvc.NewQueryService(mockReader, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
-	_, addr := startTestServerWithQueryService(t, queryService)
+	_, addr := startTestServerWithQueryService(t, queryService, nil)
 
 	// Initialize session
 	initReq := `{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0.0"}}}`

@@ -117,7 +117,7 @@ func (*getTraceTopologyHandler) buildQuery(input types.GetTraceTopologyInput) (q
 
 // extractRawSpan extracts minimal span information needed for topology.
 func extractRawSpan(pos jptrace.SpanIterPos, span ptrace.Span) rawSpan {
-	// Get serviceName name from resource attributes
+	// Get service name from resource attributes
 	serviceName := ""
 	if svc, ok := pos.Resource.Resource().Attributes().Get("service.name"); ok {
 		serviceName = svc.Str()
@@ -232,8 +232,13 @@ func (h *getTraceTopologyHandler) dfs(
 }
 
 // sortByStartNano sorts a slice of rawSpan pointers by ascending start timestamp.
+// Spans with equal timestamps are further ordered by span ID to make the sort
+// deterministic regardless of the original collection order.
 func sortByStartNano(spans []*rawSpan) {
-	sort.Slice(spans, func(i, j int) bool {
-		return spans[i].startNano < spans[j].startNano
+	sort.SliceStable(spans, func(i, j int) bool {
+		if spans[i].startNano != spans[j].startNano {
+			return spans[i].startNano < spans[j].startNano
+		}
+		return spans[i].spanID < spans[j].spanID
 	})
 }
