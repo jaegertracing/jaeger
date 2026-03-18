@@ -14,29 +14,28 @@ type GetTraceTopologyInput struct {
 }
 
 // GetTraceTopologyOutput defines the output of the get_trace_topology MCP tool.
+// Spans is a flat, depth-first ordered list. The Path field on each span encodes
+// the tree structure as a slash-delimited sequence of span IDs from the root to
+// that span (e.g. "rootID/parentID/spanID").
 type GetTraceTopologyOutput struct {
-	TraceID string `json:"trace_id" jsonschema:"Unique identifier for the trace"`
-	// RootSpan is the root span of the trace tree. May be nil if trace has no root.
-	// Declared as 'any' instead of '*SpanNode' because the MCP SDK's JSON schema
-	// generator detects a cycle in the SpanNode type (due to Children []*SpanNode),
-	// even when fields are marked with jsonschema:"-". Using 'any' bypasses type
-	// analysis entirely while maintaining runtime type safety.
-	RootSpan any `json:"root_span,omitempty"`
-	// Orphans contains spans whose parent span is missing from the trace.
-	// Declared as 'any' instead of '[]*SpanNode' for the same reason as RootSpan.
-	Orphans any `json:"orphans,omitempty"`
+	TraceID string         `json:"trace_id" jsonschema:"Unique identifier for the trace"`
+	Spans   []TopologySpan `json:"spans"    jsonschema:"Flat depth-first list of spans; Path encodes parent-child relationships"`
 }
 
-// SpanNode represents a node in the trace tree structure.
+// TopologySpan represents a span in the flat trace topology output.
 // It contains minimal span information without attributes or events to keep the response compact.
-type SpanNode struct {
-	SpanID            string      `json:"span_id" jsonschema:"Unique identifier for the span"`
-	ParentID          string      `json:"parent_id,omitempty" jsonschema:"Parent span identifier"`
-	Service           string      `json:"service" jsonschema:"Service name from resource attributes"`
-	SpanName          string      `json:"span_name" jsonschema:"Span name"`
-	StartTime         string      `json:"start_time" jsonschema:"Span start time in RFC3339 format"`
-	DurationUs        int64       `json:"duration_us" jsonschema:"Span duration in microseconds"`
-	Status            string      `json:"status" jsonschema:"Span status (Unset Ok Error)"`
-	Children          []*SpanNode `json:"children,omitempty" jsonschema:"-"`
-	TruncatedChildren int         `json:"truncated_children,omitempty" jsonschema:"Number of children excluded due to depth limit"`
+// The Path field encodes the tree structure: it contains all span IDs from the root span down
+// to this span, separated by slashes.
+// Example: "rootSpanID/parentSpanID/thisSpanID"
+// For orphan spans (whose parent is not present in the trace) the missing parent ID is prepended
+// so the caller can identify the attachment point.
+type TopologySpan struct {
+	// Path is a slash-delimited sequence of span IDs from the root span to this span.
+	Path              string `json:"path"                         jsonschema:"Slash-delimited span IDs from root to this span"`
+	Service           string `json:"service"                      jsonschema:"Service name from resource attributes"`
+	SpanName          string `json:"span_name"                    jsonschema:"Span name"`
+	StartTime         string `json:"start_time"                   jsonschema:"Span start time in RFC3339 format"`
+	DurationUs        int64  `json:"duration_us"                  jsonschema:"Span duration in microseconds"`
+	Status            string `json:"status"                       jsonschema:"Span status (Unset Ok Error)"`
+	TruncatedChildren int    `json:"truncated_children,omitempty" jsonschema:"Number of direct children excluded due to depth limit"`
 }

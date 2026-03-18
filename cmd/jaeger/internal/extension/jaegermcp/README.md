@@ -18,7 +18,6 @@ See [ADR-002](../../../../docs/adr/002-mcp-server.md) for full design details.
 
 ## Available Endpoints
 
-* `/health`
 * `/mcp`
 
 ## Available Tools
@@ -83,4 +82,10 @@ curl -X POST http://localhost:16687/mcp \
   -H "Content-Type: application/json" \
   -H "Mcp-Session-Id: SAWYSMIJP3CA6P6PONC4QB3QLT" \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+```
+
+## Sample usage with Claude Code
+
+```
+claude mcp add -t http jaeger-mcp http://127.0.0.1:16687/mcp
 ```
