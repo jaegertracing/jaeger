@@ -20,6 +20,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/handlers"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 var (
@@ -61,6 +62,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("cannot get %s extension: %w", jaegerquery.ID, err)
 	}
 	s.queryAPI = queryExt.QueryService()
+	tenancyMgr := queryExt.TenancyManager()
 	s.mcpServer = mcp.NewServer(
 		&mcp.Implementation{
 			Name:    s.config.ServerName,
@@ -82,6 +84,8 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		},
 	)
 
+	handler := tenancy.ExtractTenantHTTPHandler(tenancyMgr, mcpHandler)
+
 	s.listener, err = s.config.HTTP.ToListener(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to listen on %s: %w", s.config.HTTP.NetAddr.Endpoint, err)
@@ -91,7 +95,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		ctx,
 		host.GetExtensions(),
 		s.telset,
-		mcpHandler,
+		handler,
 	)
 	if err != nil {
 		s.listener.Close()
