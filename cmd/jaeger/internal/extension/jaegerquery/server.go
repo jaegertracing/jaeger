@@ -35,11 +35,12 @@ var (
 )
 
 type server struct {
-	config      *Config
-	server      *queryapp.Server
-	telset      component.TelemetrySettings
-	closeTracer func(ctx context.Context) error
-	qs          *querysvc.QueryService
+	config         *Config
+	server         *queryapp.Server
+	telset         component.TelemetrySettings
+	closeTracer    func(ctx context.Context) error
+	qs             *querysvc.QueryService
+	tenancyManager *tenancy.Manager
 }
 
 func newServer(config *Config, otel component.TelemetrySettings) *server {
@@ -117,6 +118,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	}
 
 	tm := tenancy.NewManager(&s.config.Tenancy)
+	s.tenancyManager = tm
 
 	caps := querysvc.StorageCapabilities{
 		ArchiveStorage: opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil,
@@ -217,4 +219,9 @@ func (s *server) Shutdown(ctx context.Context) error {
 // QueryService returns the v2 query service instance.
 func (s *server) QueryService() *querysvc.QueryService {
 	return s.qs
+}
+
+// TenancyManager returns the tenancy manager used by query endpoints.
+func (s *server) TenancyManager() *tenancy.Manager {
+	return s.tenancyManager
 }

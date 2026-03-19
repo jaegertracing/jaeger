@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/collector/extension"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 // Extension is the interface that the jaegerquery extension implements.
@@ -18,6 +19,8 @@ type Extension interface {
 	extension.Extension
 	// QueryService returns the v2 query service.
 	QueryService() *querysvc.QueryService
+	// TenancyManager returns the tenancy manager used by query endpoints.
+	TenancyManager() *tenancy.Manager
 }
 
 // GetExtension retrieves the jaegerquery extension from the host.
