@@ -1,0 +1,99 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# Composite action: scrape /metrics, persist as artifact, diff against baseline.
+# Called from each e2e workflow after integration tests complete.
+
+name: 'Verify Metrics Snapshot'
+description: >-
+  Scrapes the Jaeger /metrics endpoint, saves the output as a GitHub artifact,
+  and diffs it against the stored baseline to detect breaking metric changes.
+
+inputs:
+  snapshot:
+    description: 'Baseline snapshot filename (without .txt) stored in testdata/metrics/'
+    required: true
+  artifact_key:
+    description: 'Key used when uploading the live snapshot as a GitHub artifact'
+    required: true
+  metrics_port:
+    description: 'Port on which Jaeger exposes /metrics'
+    required: false
+    default: '14269'
+  metrics_path:
+    description: 'HTTP path for the metrics endpoint'
+    required: false
+    default: '/metrics'
+
+runs:
+  using: composite
+  steps:
+    - name: Scrape live metrics
+      shell: bash
+      run: |
+        LIVE_SNAPSHOT="/tmp/${{ inputs.artifact_key }}.txt"
+        # Retry for up to 30 s in case Jaeger is still starting
+        for i in $(seq 1 30); do
+          if curl -sf "http://localhost:${{ inputs.metrics_port }}${{ inputs.metrics_path }}" \
+               -o "${LIVE_SNAPSHOT}" 2>/dev/null; then
+            echo "Metrics scraped successfully."
+            break
+          fi
+          echo "Waiting for metrics endpoint (attempt ${i}/30)..."
+          sleep 1
+        done
+        if [ ! -s "${LIVE_SNAPSHOT}" ]; then
+          echo "::error::Could not reach the metrics endpoint after 30 attempts."
+          exit 1
+        fi
+
+    - name: Upload snapshot artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact_key }}
+        path: /tmp/${{ inputs.artifact_key }}.txt
+        retention-days: 30
+
+    - name: Diff against baseline
+      shell: bash
+      run: |
+        BASELINE="./testdata/metrics/${{ inputs.snapshot }}.txt"
+        LIVE="/tmp/${{ inputs.artifact_key }}.txt"
+
+        if [ ! -f "${BASELINE}" ]; then
+          echo "::warning::No baseline snapshot found at ${BASELINE}."
+          echo "Copying live snapshot as the new baseline (first run)."
+          mkdir -p "$(dirname "${BASELINE}")"
+          cp "${LIVE}" "${BASELINE}"
+          echo "Please commit ${BASELINE} to establish the metrics baseline."
+          exit 0
+        fi
+
+        # Extract sorted metric names (strip labels and values)
+        extract_names() {
+          grep -E '^[a-zA-Z]' "$1" \
+            | grep -v '^#' \
+            | sed 's/[{ ].*//' \
+            | sort -u
+        }
+
+        extract_names "${BASELINE}" > /tmp/baseline_names.txt
+        extract_names "${LIVE}"     > /tmp/live_names.txt
+
+        REMOVED=$(comm -23 /tmp/baseline_names.txt /tmp/live_names.txt)
+        ADDED=$(comm -13 /tmp/baseline_names.txt /tmp/live_names.txt)
+
+        EXIT_CODE=0
+
+        if [ -n "${REMOVED}" ]; then
+          echo "::error::The following metrics were REMOVED (backwards-incompatible change):"
+          echo "${REMOVED}" | while read -r m; do echo "  - ${m}"; done
+          EXIT_CODE=1
+        fi
+
+        if [ -n "${ADDED}" ]; then
+          echo "::notice::The following metrics are NEW (backwards-compatible addition):"
+          echo "${ADDED}" | while read -r m; do echo "  + ${m}"; done
+        fi
+
+        exit ${EXIT_CODE}
