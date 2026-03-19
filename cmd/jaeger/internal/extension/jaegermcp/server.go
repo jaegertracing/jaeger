@@ -84,10 +84,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		},
 	)
 
-	var handler http.Handler = mcpHandler
-	if tenancyMgr.Enabled {
-		handler = tenancy.ExtractTenantHTTPHandler(tenancyMgr, mcpHandler)
-	}
+	handler := tenancy.ExtractTenantHTTPHandler(tenancyMgr, mcpHandler)
 
 	s.listener, err = s.config.HTTP.ToListener(ctx)
 	if err != nil {
