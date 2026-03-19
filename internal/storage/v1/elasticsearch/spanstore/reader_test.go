@@ -1079,25 +1079,17 @@ func TestTraceQueryParameterValidation(t *testing.T) {
 }
 
 func TestSpanReader_buildTraceIDAggregation(t *testing.T) {
-	expectedStr := `{ "terms":{
-            "field":"traceID",
-            "size":123,
-            "order":{
-               "startTime":"desc"
-            }
-         },
-         "aggregations": {
-            "startTime" : { "max": {"field": "startTime"}}
-         }}`
 	withSpanReader(t, func(r *spanReaderTest) {
 		traceIDAggregation := r.reader.buildTraceIDAggregation(123)
 		actual, err := traceIDAggregation.Source()
 		require.NoError(t, err)
 
-		expected := make(map[string]any)
-		json.Unmarshal([]byte(expectedStr), &expected)
-		expected["terms"].(map[string]any)["size"] = 123
-		expected["terms"].(map[string]any)["order"] = []any{map[string]string{"startTime": "desc"}}
+		expected := map[string]any{
+			"terms": map[string]any{
+				"field": "traceID",
+				"size":  123,
+			},
+		}
 		assert.EqualValues(t, expected, actual)
 	})
 }

@@ -600,17 +600,10 @@ func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmod
 	return bucketToStringArray[dbmodel.TraceID](traceIDBuckets)
 }
 
-func (s *SpanReader) buildTraceIDAggregation(numOfTraces int) elastic.Aggregation {
+func (*SpanReader) buildTraceIDAggregation(numOfTraces int) elastic.Aggregation {
 	return elastic.NewTermsAggregation().
 		Size(numOfTraces).
-		Field(traceIDField).
-		Order(startTimeField, false).
-		SubAggregation(startTimeField, s.buildTraceIDSubAggregation())
-}
-
-func (*SpanReader) buildTraceIDSubAggregation() elastic.Aggregation {
-	return elastic.NewMaxAggregation().
-		Field(startTimeField)
+		Field(traceIDField)
 }
 
 func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParameters) elastic.Query {
