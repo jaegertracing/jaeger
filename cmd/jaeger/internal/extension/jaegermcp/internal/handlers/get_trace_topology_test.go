@@ -18,26 +18,14 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 )
 
-// getRoot is a test helper to extract the RootSpan from GetTraceTopologyOutput
-func getRoot(t *testing.T, output types.GetTraceTopologyOutput) *types.SpanNode {
-	t.Helper()
-	if output.RootSpan == nil {
-		return nil
+// findSpanByName is a test helper that looks up a TopologySpan by its SpanName field.
+func findSpanByName(spans []types.TopologySpan, spanName string) *types.TopologySpan {
+	for i := range spans {
+		if spans[i].SpanName == spanName {
+			return &spans[i]
+		}
 	}
-	root, ok := output.RootSpan.(*types.SpanNode)
-	require.True(t, ok, "RootSpan should be a *SpanNode")
-	return root
-}
-
-// getOrphans is a test helper to extract orphans from GetTraceTopologyOutput
-func getOrphans(t *testing.T, output types.GetTraceTopologyOutput) []*types.SpanNode {
-	t.Helper()
-	if output.Orphans == nil {
-		return nil
-	}
-	orphans, ok := output.Orphans.([]*types.SpanNode)
-	require.True(t, ok, "Orphans should be []*SpanNode")
-	return orphans
+	return nil
 }
 
 func TestGetTraceTopologyHandler_Handle_Success(t *testing.T) {
@@ -69,37 +57,29 @@ func TestGetTraceTopologyHandler_Handle_Success(t *testing.T) {
 	}
 
 	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
-
 	mock := newMockYieldingTraces(testTrace)
-
 	handler := &getTraceTopologyHandler{queryService: mock}
 
-	input := types.GetTraceTopologyInput{
-		TraceID: traceID,
-		Depth:   0, // Full tree
-	}
-
+	input := types.GetTraceTopologyInput{TraceID: traceID, Depth: 0}
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
 	assert.Equal(t, traceID, output.TraceID)
-	root := getRoot(t, output)
+	require.Len(t, output.Spans, 3)
 
-	// Verify root span
-	assert.Equal(t, "/api/checkout", root.SpanName)
+	root := findSpanByName(output.Spans, "/api/checkout")
+	require.NotNil(t, root)
 	assert.Equal(t, "Ok", root.Status)
-	assert.Len(t, root.Children, 2)
 
-	// Verify children are present (order not guaranteed)
-	operations := make(map[string]*types.SpanNode)
-	for _, child := range root.Children {
-		operations[child.SpanName] = child
-	}
+	getCart := findSpanByName(output.Spans, "getCart")
+	require.NotNil(t, getCart)
+	assert.Equal(t, "Ok", getCart.Status)
+	assert.Equal(t, root.Path+"/"+spanIDToHex(child1SpanID), getCart.Path)
 
-	assert.Contains(t, operations, "getCart")
-	assert.Contains(t, operations, "processPayment")
-	assert.Equal(t, "Ok", operations["getCart"].Status)
-	assert.Equal(t, "Error", operations["processPayment"].Status)
+	payment := findSpanByName(output.Spans, "processPayment")
+	require.NotNil(t, payment)
+	assert.Equal(t, "Error", payment.Status)
+	assert.Equal(t, root.Path+"/"+spanIDToHex(child2SpanID), payment.Path)
 }
 
 func TestGetTraceTopologyHandler_Handle_DepthLimit(t *testing.T) {
@@ -109,70 +89,50 @@ func TestGetTraceTopologyHandler_Handle_DepthLimit(t *testing.T) {
 	grandchildSpanID := "gchild1"
 
 	spanConfigs := []spanConfig{
-		{
-			spanID:    rootSpanID,
-			operation: "/api/checkout",
-		},
-		{
-			spanID:       child1SpanID,
-			parentSpanID: rootSpanID,
-			operation:    "getCart",
-		},
-		{
-			spanID:       grandchildSpanID,
-			parentSpanID: child1SpanID,
-			operation:    "queryDB",
-		},
+		{spanID: rootSpanID, operation: "/api/checkout"},
+		{spanID: child1SpanID, parentSpanID: rootSpanID, operation: "getCart"},
+		{spanID: grandchildSpanID, parentSpanID: child1SpanID, operation: "queryDB"},
 	}
 
 	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
-
 	mock := newMockYieldingTraces(testTrace)
-
 	handler := &getTraceTopologyHandler{queryService: mock}
 
 	tests := []struct {
 		name                 string
 		depth                int
-		expectRoot           bool
-		expectChild          bool
-		expectGchild         bool
+		expectSpanNames      []string
+		dontExpectNames      []string
 		expectRootTruncated  int
 		expectChildTruncated int
 	}{
 		{
 			name:                 "depth 0 returns full tree",
 			depth:                0,
-			expectRoot:           true,
-			expectChild:          true,
-			expectGchild:         true,
+			expectSpanNames:      []string{"/api/checkout", "getCart", "queryDB"},
 			expectRootTruncated:  0,
 			expectChildTruncated: 0,
 		},
 		{
 			name:                 "depth 1 returns only root",
 			depth:                1,
-			expectRoot:           true,
-			expectChild:          false,
-			expectGchild:         false,
+			expectSpanNames:      []string{"/api/checkout"},
+			dontExpectNames:      []string{"getCart", "queryDB"},
 			expectRootTruncated:  1, // 1 child truncated at root
 			expectChildTruncated: 0,
 		},
 		{
 			name:                 "depth 2 returns root and children",
 			depth:                2,
-			expectRoot:           true,
-			expectChild:          true,
-			expectGchild:         false,
+			expectSpanNames:      []string{"/api/checkout", "getCart"},
+			dontExpectNames:      []string{"queryDB"},
 			expectRootTruncated:  0,
 			expectChildTruncated: 1, // 1 grandchild truncated at child level
 		},
 		{
 			name:                 "depth 3 returns full tree",
 			depth:                3,
-			expectRoot:           true,
-			expectChild:          true,
-			expectGchild:         true,
+			expectSpanNames:      []string{"/api/checkout", "getCart", "queryDB"},
 			expectRootTruncated:  0,
 			expectChildTruncated: 0,
 		},
@@ -180,39 +140,27 @@ func TestGetTraceTopologyHandler_Handle_DepthLimit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			input := types.GetTraceTopologyInput{
-				TraceID: traceID,
-				Depth:   tt.depth,
+			input := types.GetTraceTopologyInput{TraceID: traceID, Depth: tt.depth}
+			_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+			require.NoError(t, err)
+
+			byName := make(map[string]types.TopologySpan)
+			for _, s := range output.Spans {
+				byName[s.SpanName] = s
+			}
+			for _, name := range tt.expectSpanNames {
+				assert.Contains(t, byName, name, "expected span %q in output", name)
+			}
+			for _, name := range tt.dontExpectNames {
+				assert.NotContains(t, byName, name, "did not expect span %q in output", name)
 			}
 
-			_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
-
-			require.NoError(t, err)
-			root := getRoot(t, output)
-
-			// Check root
-			assert.Equal(t, "/api/checkout", root.SpanName)
-
-			// Check truncated children count at root level
-			assert.Equal(t, tt.expectRootTruncated, root.TruncatedChildren)
-
-			// Check children
-			if tt.expectChild {
-				assert.Len(t, root.Children, 1)
-				assert.Equal(t, "getCart", root.Children[0].SpanName)
-
-				// Check truncated children count at child level
-				assert.Equal(t, tt.expectChildTruncated, root.Children[0].TruncatedChildren)
-
-				// Check grandchildren
-				if tt.expectGchild {
-					assert.Len(t, root.Children[0].Children, 1)
-					assert.Equal(t, "queryDB", root.Children[0].Children[0].SpanName)
-				} else {
-					assert.Empty(t, root.Children[0].Children)
-				}
-			} else {
-				assert.Empty(t, root.Children)
+			// Verify TruncatedChildren counts
+			if root, ok := byName["/api/checkout"]; ok {
+				assert.Equal(t, tt.expectRootTruncated, root.TruncatedChildren)
+			}
+			if child, ok := byName["getCart"]; ok {
+				assert.Equal(t, tt.expectChildTruncated, child.TruncatedChildren)
 			}
 		})
 	}
@@ -222,61 +170,36 @@ func TestGetTraceTopologyHandler_Handle_MultipleChildren(t *testing.T) {
 	traceID := testTraceID
 	rootSpanID := "root001"
 
-	// Create a trace with one root and multiple children
 	spanConfigs := []spanConfig{
-		{
-			spanID:    rootSpanID,
-			operation: "root",
-		},
-		{
-			spanID:       "child01",
-			parentSpanID: rootSpanID,
-			operation:    "child1",
-		},
-		{
-			spanID:       "child02",
-			parentSpanID: rootSpanID,
-			operation:    "child2",
-		},
-		{
-			spanID:       "child03",
-			parentSpanID: rootSpanID,
-			operation:    "child3",
-		},
+		{spanID: rootSpanID, operation: "root"},
+		{spanID: "child01", parentSpanID: rootSpanID, operation: "child1"},
+		{spanID: "child02", parentSpanID: rootSpanID, operation: "child2"},
+		{spanID: "child03", parentSpanID: rootSpanID, operation: "child3"},
 	}
 
 	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
-
 	mock := newMockYieldingTraces(testTrace)
-
 	handler := &getTraceTopologyHandler{queryService: mock}
 
-	input := types.GetTraceTopologyInput{
-		TraceID: traceID,
-		Depth:   0,
-	}
-
+	input := types.GetTraceTopologyInput{TraceID: traceID, Depth: 0}
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
-	root := getRoot(t, output)
-	assert.Equal(t, "root", root.SpanName)
-	assert.Len(t, root.Children, 3)
+	require.Len(t, output.Spans, 4)
 
-	// Verify all children are present
-	operations := make(map[string]bool)
-	for _, child := range root.Children {
-		operations[child.SpanName] = true
+	names := make(map[string]bool)
+	for _, s := range output.Spans {
+		names[s.SpanName] = true
 	}
-	assert.True(t, operations["child1"])
-	assert.True(t, operations["child2"])
-	assert.True(t, operations["child3"])
+	assert.True(t, names["child1"])
+	assert.True(t, names["child2"])
+	assert.True(t, names["child3"])
 }
 
 func TestGetTraceTopologyHandler_Handle_ComplexTree(t *testing.T) {
 	traceID := testTraceID
 
-	// Create a more complex tree structure:
+	// Tree structure:
 	//     root
 	//    /    \
 	//   A      B
@@ -292,53 +215,74 @@ func TestGetTraceTopologyHandler_Handle_ComplexTree(t *testing.T) {
 	}
 
 	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
-
 	mock := newMockYieldingTraces(testTrace)
-
 	handler := &getTraceTopologyHandler{queryService: mock}
 
-	input := types.GetTraceTopologyInput{
-		TraceID: traceID,
-		Depth:   0,
-	}
-
+	input := types.GetTraceTopologyInput{TraceID: traceID, Depth: 0}
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
-	root := getRoot(t, output)
+	require.Len(t, output.Spans, 6)
 
-	// Verify structure
-	assert.Equal(t, "root", root.SpanName)
-	assert.Len(t, root.Children, 2)
+	// Verify paths encode parent-child relationships.
+	root := findSpanByName(output.Spans, "root")
+	require.NotNil(t, root)
 
-	// Find A and B
-	var nodeA, nodeB *types.SpanNode
-	for _, child := range root.Children {
-		switch child.SpanName {
-		case "A":
-			nodeA = child
-		case "B":
-			nodeB = child
-		default:
-			// ignore other operations
-		}
-	}
-
+	nodeA := findSpanByName(output.Spans, "A")
 	require.NotNil(t, nodeA)
+	assert.Equal(t, root.Path+"/"+spanIDToHex("spanAAA"), nodeA.Path)
+
+	nodeC := findSpanByName(output.Spans, "C")
+	require.NotNil(t, nodeC)
+	assert.Equal(t, nodeA.Path+"/"+spanIDToHex("spanCCC"), nodeC.Path)
+
+	nodeE := findSpanByName(output.Spans, "E")
+	require.NotNil(t, nodeE)
+	nodeB := findSpanByName(output.Spans, "B")
 	require.NotNil(t, nodeB)
+	assert.Equal(t, nodeB.Path+"/"+spanIDToHex("spanEEE"), nodeE.Path)
+}
 
-	// Verify A's children (C and D)
-	assert.Len(t, nodeA.Children, 2)
-	operations := make(map[string]bool)
-	for _, child := range nodeA.Children {
-		operations[child.SpanName] = true
+func TestGetTraceTopologyHandler_Handle_PathEncoding(t *testing.T) {
+	traceID := testTraceID
+	rootSpanID := "root001"
+	childSpanID := "child01"
+	grandchildSpanID := "gchild1"
+
+	spanConfigs := []spanConfig{
+		{spanID: rootSpanID, operation: "root"},
+		{spanID: childSpanID, parentSpanID: rootSpanID, operation: "child"},
+		{spanID: grandchildSpanID, parentSpanID: childSpanID, operation: "grandchild"},
 	}
-	assert.True(t, operations["C"])
-	assert.True(t, operations["D"])
 
-	// Verify B's child (E)
-	assert.Len(t, nodeB.Children, 1)
-	assert.Equal(t, "E", nodeB.Children[0].SpanName)
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+	handler := &getTraceTopologyHandler{queryService: mock}
+
+	input := types.GetTraceTopologyInput{TraceID: traceID, Depth: 0}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	require.Len(t, output.Spans, 3)
+
+	rootHex := spanIDToHex(rootSpanID)
+	childHex := spanIDToHex(childSpanID)
+	grandchildHex := spanIDToHex(grandchildSpanID)
+
+	// The root span's path is just its own hex-encoded span ID.
+	root := findSpanByName(output.Spans, "root")
+	require.NotNil(t, root)
+	assert.Equal(t, rootHex, root.Path)
+
+	// A child appends its hex ID.
+	child := findSpanByName(output.Spans, "child")
+	require.NotNil(t, child)
+	assert.Equal(t, rootHex+"/"+childHex, child.Path)
+
+	// A grandchild extends further.
+	grandchild := findSpanByName(output.Spans, "grandchild")
+	require.NotNil(t, grandchild)
+	assert.Equal(t, rootHex+"/"+childHex+"/"+grandchildHex, grandchild.Path)
 }
 
 func TestGetTraceTopologyHandler_Handle_SingleSpan(t *testing.T) {
@@ -346,37 +290,27 @@ func TestGetTraceTopologyHandler_Handle_SingleSpan(t *testing.T) {
 	rootSpanID := "root001"
 
 	spanConfigs := []spanConfig{
-		{
-			spanID:    rootSpanID,
-			operation: "/api/simple",
-		},
+		{spanID: rootSpanID, operation: "/api/simple"},
 	}
 
 	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
-
 	mock := newMockYieldingTraces(testTrace)
-
 	handler := &getTraceTopologyHandler{queryService: mock}
 
-	input := types.GetTraceTopologyInput{
-		TraceID: traceID,
-		Depth:   0,
-	}
-
+	input := types.GetTraceTopologyInput{TraceID: traceID, Depth: 0}
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
 	assert.Equal(t, traceID, output.TraceID)
-	root := getRoot(t, output)
-	assert.Equal(t, "/api/simple", root.SpanName)
-	assert.Empty(t, root.Children)
+	require.Len(t, output.Spans, 1)
+	assert.Equal(t, "/api/simple", output.Spans[0].SpanName)
+	assert.Equal(t, spanIDToHex(rootSpanID), output.Spans[0].Path)
 }
 
 func TestGetTraceTopologyHandler_Handle_NoAttributes(t *testing.T) {
 	traceID := testTraceID
 	rootSpanID := "root001"
 
-	// Create a span with attributes
 	spanConfigs := []spanConfig{
 		{
 			spanID:    rootSpanID,
@@ -390,33 +324,23 @@ func TestGetTraceTopologyHandler_Handle_NoAttributes(t *testing.T) {
 	}
 
 	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
-
 	mock := newMockYieldingTraces(testTrace)
-
 	handler := &getTraceTopologyHandler{queryService: mock}
 
-	input := types.GetTraceTopologyInput{
-		TraceID: traceID,
-		Depth:   0,
-	}
-
+	input := types.GetTraceTopologyInput{TraceID: traceID, Depth: 0}
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
-	root := getRoot(t, output)
-
-	// Verify that the SpanNode doesn't have an Attributes field
-	// This is ensured by the type definition, but we verify the structure is correct
-	assert.Equal(t, "/api/test", root.SpanName)
-	assert.Equal(t, "Ok", root.Status)
+	require.Len(t, output.Spans, 1)
+	// Verify that attributes are NOT included in TopologySpan (enforced by the type).
+	assert.Equal(t, "/api/test", output.Spans[0].SpanName)
+	assert.Equal(t, "Ok", output.Spans[0].Status)
 }
 
 func TestGetTraceTopologyHandler_Handle_MissingTraceID(t *testing.T) {
 	handler := NewGetTraceTopologyHandler(nil)
 
-	input := types.GetTraceTopologyInput{}
-
-	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
+	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, types.GetTraceTopologyInput{})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "trace_id is required")
@@ -425,10 +349,7 @@ func TestGetTraceTopologyHandler_Handle_MissingTraceID(t *testing.T) {
 func TestGetTraceTopologyHandler_Handle_InvalidTraceID(t *testing.T) {
 	handler := NewGetTraceTopologyHandler(nil)
 
-	input := types.GetTraceTopologyInput{
-		TraceID: "invalid-trace-id",
-	}
-
+	input := types.GetTraceTopologyInput{TraceID: "invalid-trace-id"}
 	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.Error(t, err)
@@ -437,13 +358,9 @@ func TestGetTraceTopologyHandler_Handle_InvalidTraceID(t *testing.T) {
 
 func TestGetTraceTopologyHandler_Handle_TraceNotFound(t *testing.T) {
 	mock := newMockYieldingEmpty()
-
 	handler := &getTraceTopologyHandler{queryService: mock}
 
-	input := types.GetTraceTopologyInput{
-		TraceID: testTraceID,
-	}
-
+	input := types.GetTraceTopologyInput{TraceID: testTraceID}
 	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.Error(t, err)
@@ -452,13 +369,9 @@ func TestGetTraceTopologyHandler_Handle_TraceNotFound(t *testing.T) {
 
 func TestGetTraceTopologyHandler_Handle_QueryError(t *testing.T) {
 	mock := newMockYieldingError(errors.New("database connection failed"))
-
 	handler := &getTraceTopologyHandler{queryService: mock}
 
-	input := types.GetTraceTopologyInput{
-		TraceID: testTraceID,
-	}
-
+	input := types.GetTraceTopologyInput{TraceID: testTraceID}
 	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.Error(t, err)
@@ -471,7 +384,6 @@ func TestGetTraceTopologyHandler_Handle_MultipleIterations(t *testing.T) {
 	rootSpanID := "root001"
 	childSpanID := "child01"
 
-	// Create traces with different spans that will be merged
 	testTrace1 := createTestTraceWithSpans(traceID, []spanConfig{
 		{spanID: rootSpanID, operation: "/api/root"},
 	})
@@ -482,7 +394,6 @@ func TestGetTraceTopologyHandler_Handle_MultipleIterations(t *testing.T) {
 	mock := &mockQueryService{
 		getTracesFunc: func(_ context.Context, _ querysvc.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
 			return func(yield func([]ptrace.Traces, error) bool) {
-				// Yield multiple batches successfully - they should be merged
 				yield([]ptrace.Traces{testTrace1}, nil)
 				yield([]ptrace.Traces{testTrace2}, nil)
 			}
@@ -491,59 +402,44 @@ func TestGetTraceTopologyHandler_Handle_MultipleIterations(t *testing.T) {
 
 	handler := &getTraceTopologyHandler{queryService: mock}
 
-	input := types.GetTraceTopologyInput{
-		TraceID: traceID,
-		Depth:   0,
-	}
-
+	input := types.GetTraceTopologyInput{TraceID: traceID, Depth: 0}
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
-	// Should succeed and build the complete tree
 	require.NoError(t, err)
-	root := getRoot(t, output)
-	assert.Equal(t, "/api/root", root.SpanName)
-	assert.Len(t, root.Children, 1)
-	assert.Equal(t, "/api/child", root.Children[0].SpanName)
+	require.Len(t, output.Spans, 2)
+
+	root := findSpanByName(output.Spans, "/api/root")
+	require.NotNil(t, root)
+
+	child := findSpanByName(output.Spans, "/api/child")
+	require.NotNil(t, child)
+	assert.Equal(t, spanIDToHex(rootSpanID)+"/"+spanIDToHex(childSpanID), child.Path)
 }
 
 func TestGetTraceTopologyHandler_Handle_NoRootSpan(t *testing.T) {
 	traceID := testTraceID
 
-	// Create a trace where all spans have parents (no root)
-	// This is an invalid trace, but we should handle it gracefully by returning orphans
+	// All spans reference a parent that is not in the trace (orphan scenario).
 	spanConfigs := []spanConfig{
 		{spanID: "child01", parentSpanID: "nonexistent", operation: "orphan1"},
 		{spanID: "child02", parentSpanID: "nonexistent", operation: "orphan2"},
 	}
 
 	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
-
 	mock := newMockYieldingTraces(testTrace)
-
 	handler := &getTraceTopologyHandler{queryService: mock}
 
-	input := types.GetTraceTopologyInput{
-		TraceID: traceID,
-		Depth:   0,
-	}
-
+	input := types.GetTraceTopologyInput{TraceID: traceID, Depth: 0}
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
-	rootSpan := getRoot(t, output)
-	assert.Nil(t, rootSpan, "Should have no root span")
+	require.Len(t, output.Spans, 2)
 
-	orphans := getOrphans(t, output)
-	require.NotNil(t, orphans)
-	assert.Len(t, orphans, 2, "Should have 2 orphans")
-
-	// Verify orphans are present
-	operations := make(map[string]bool)
-	for _, orphan := range orphans {
-		operations[orphan.SpanName] = true
+	// Orphan paths should include the missing parent hex ID as a prefix.
+	missingParentHex := spanIDToHex("nonexistent")
+	for _, s := range output.Spans {
+		assert.Contains(t, s.Path, missingParentHex+"/", "orphan path should start with missing parent ID")
 	}
-	assert.True(t, operations["orphan1"])
-	assert.True(t, operations["orphan2"])
 }
 
 func TestGetTraceTopologyHandler_Handle_WithOrphans(t *testing.T) {
@@ -553,47 +449,32 @@ func TestGetTraceTopologyHandler_Handle_WithOrphans(t *testing.T) {
 	orphanSpanID := "orphan01"
 
 	spanConfigs := []spanConfig{
-		{
-			spanID:    rootSpanID,
-			operation: "/api/root",
-		},
-		{
-			spanID:       childSpanID,
-			parentSpanID: rootSpanID,
-			operation:    "child",
-		},
-		{
-			spanID:       orphanSpanID,
-			parentSpanID: "nonexistent",
-			operation:    "orphan",
-		},
+		{spanID: rootSpanID, operation: "/api/root"},
+		{spanID: childSpanID, parentSpanID: rootSpanID, operation: "child"},
+		{spanID: orphanSpanID, parentSpanID: "nonexistent", operation: "orphan"},
 	}
 
 	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
-
 	mock := newMockYieldingTraces(testTrace)
-
 	handler := &getTraceTopologyHandler{queryService: mock}
 
-	input := types.GetTraceTopologyInput{
-		TraceID: traceID,
-		Depth:   0,
-	}
-
+	input := types.GetTraceTopologyInput{TraceID: traceID, Depth: 0}
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
-	rootSpan := getRoot(t, output)
-	require.NotNil(t, rootSpan)
-	assert.Equal(t, "/api/root", rootSpan.SpanName)
-	assert.Len(t, rootSpan.Children, 1)
-	assert.Equal(t, "child", rootSpan.Children[0].SpanName)
+	require.Len(t, output.Spans, 3)
 
-	// Verify orphan is present
-	orphans := getOrphans(t, output)
-	require.NotNil(t, orphans)
-	assert.Len(t, orphans, 1)
-	assert.Equal(t, "orphan", orphans[0].SpanName)
+	root := findSpanByName(output.Spans, "/api/root")
+	require.NotNil(t, root)
+	assert.Equal(t, spanIDToHex(rootSpanID), root.Path)
+
+	child := findSpanByName(output.Spans, "child")
+	require.NotNil(t, child)
+	assert.Equal(t, spanIDToHex(rootSpanID)+"/"+spanIDToHex(childSpanID), child.Path)
+
+	orphan := findSpanByName(output.Spans, "orphan")
+	require.NotNil(t, orphan)
+	assert.Equal(t, spanIDToHex("nonexistent")+"/"+spanIDToHex(orphanSpanID), orphan.Path)
 }
 
 func TestGetTraceTopologyHandler_Handle_ErrorStatus(t *testing.T) {
@@ -602,10 +483,7 @@ func TestGetTraceTopologyHandler_Handle_ErrorStatus(t *testing.T) {
 	errorSpanID := "error01"
 
 	spanConfigs := []spanConfig{
-		{
-			spanID:    rootSpanID,
-			operation: "/api/checkout",
-		},
+		{spanID: rootSpanID, operation: "/api/checkout"},
 		{
 			spanID:       errorSpanID,
 			parentSpanID: rootSpanID,
@@ -616,26 +494,18 @@ func TestGetTraceTopologyHandler_Handle_ErrorStatus(t *testing.T) {
 	}
 
 	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
-
 	mock := newMockYieldingTraces(testTrace)
-
 	handler := &getTraceTopologyHandler{queryService: mock}
 
-	input := types.GetTraceTopologyInput{
-		TraceID: traceID,
-		Depth:   0,
-	}
-
+	input := types.GetTraceTopologyInput{TraceID: traceID, Depth: 0}
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
-	root := getRoot(t, output)
+	require.Len(t, output.Spans, 2)
 
-	// Find the error span
-	assert.Len(t, root.Children, 1)
-	errorNode := root.Children[0]
-	assert.Equal(t, "processPayment", errorNode.SpanName)
-	assert.Equal(t, "Error", errorNode.Status)
+	errorSpan := findSpanByName(output.Spans, "processPayment")
+	require.NotNil(t, errorSpan)
+	assert.Equal(t, "Error", errorSpan.Status)
 }
 
 func TestGetTraceTopologyHandler_Handle_PreservesTimingInfo(t *testing.T) {
@@ -643,29 +513,59 @@ func TestGetTraceTopologyHandler_Handle_PreservesTimingInfo(t *testing.T) {
 	rootSpanID := "root001"
 
 	spanConfigs := []spanConfig{
-		{
-			spanID:    rootSpanID,
-			operation: "/api/test",
-		},
+		{spanID: rootSpanID, operation: "/api/test"},
 	}
 
 	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
-
 	mock := newMockYieldingTraces(testTrace)
-
 	handler := &getTraceTopologyHandler{queryService: mock}
 
-	input := types.GetTraceTopologyInput{
-		TraceID: traceID,
-		Depth:   0,
-	}
-
+	input := types.GetTraceTopologyInput{TraceID: traceID, Depth: 0}
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
-	root := getRoot(t, output)
+	require.Len(t, output.Spans, 1)
+	assert.NotEmpty(t, output.Spans[0].StartTime)
+	assert.NotZero(t, output.Spans[0].DurationUs)
+}
 
-	// Verify timing fields are present
-	assert.NotEmpty(t, root.StartTime)
-	assert.NotZero(t, root.DurationUs)
+func TestGetTraceTopologyHandler_Handle_DFSOrder(t *testing.T) {
+	traceID := testTraceID
+
+	// Tree:  root -> A -> C
+	//                 \-> D
+	//             \-> B -> E
+	// DFS order: root, A, C, D, B, E
+	spanConfigs := []spanConfig{
+		{spanID: "root001", operation: "root"},
+		{spanID: "spanAAA", parentSpanID: "root001", operation: "A"},
+		{spanID: "spanBBB", parentSpanID: "root001", operation: "B"},
+		{spanID: "spanCCC", parentSpanID: "spanAAA", operation: "C"},
+		{spanID: "spanDDD", parentSpanID: "spanAAA", operation: "D"},
+		{spanID: "spanEEE", parentSpanID: "spanBBB", operation: "E"},
+	}
+
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+	handler := &getTraceTopologyHandler{queryService: mock}
+
+	input := types.GetTraceTopologyInput{TraceID: traceID, Depth: 0}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	require.Len(t, output.Spans, 6)
+
+	// The root must come before its children; each parent before its children.
+	indexOf := make(map[string]int)
+	for i, s := range output.Spans {
+		indexOf[s.SpanName] = i
+	}
+	assert.Less(t, indexOf["root"], indexOf["A"])
+	assert.Less(t, indexOf["root"], indexOf["B"])
+	assert.Less(t, indexOf["A"], indexOf["C"])
+	assert.Less(t, indexOf["A"], indexOf["D"])
+	assert.Less(t, indexOf["B"], indexOf["E"])
+	// DFS: A and its subtree come before B.
+	assert.Less(t, indexOf["C"], indexOf["B"])
+	assert.Less(t, indexOf["D"], indexOf["B"])
 }

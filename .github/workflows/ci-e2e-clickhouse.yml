@@ -1,3 +1,8 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# E2E integration tests for ClickHouse storage backend (Jaeger v2 only).
+
 name: CIT ClickHouse
 
 on:

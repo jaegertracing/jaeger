@@ -60,7 +60,7 @@ func TestSearchTracesHandler_Handle_FullWorkflow(t *testing.T) {
 		},
 	}
 
-	handler := &searchTracesHandler{queryService: mock}
+	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
 
 	input := types.SearchTracesInput{
 		StartTimeMin: "-1h",
@@ -81,7 +81,7 @@ func TestSearchTracesHandler_Handle_WithStartTimeMax(t *testing.T) {
 
 	mock := newMockFindTraces(testTrace)
 
-	handler := &searchTracesHandler{queryService: mock}
+	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
 
 	input := types.SearchTracesInput{
 		StartTimeMin: "-2h",
@@ -108,7 +108,7 @@ func TestSearchTracesHandler_Handle_WithDurations(t *testing.T) {
 		},
 	}
 
-	handler := &searchTracesHandler{queryService: mock}
+	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
 
 	input := types.SearchTracesInput{
 		StartTimeMin: "-1h",
@@ -138,7 +138,7 @@ func TestSearchTracesHandler_Handle_WithAttributes(t *testing.T) {
 		},
 	}
 
-	handler := &searchTracesHandler{queryService: mock}
+	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
 
 	input := types.SearchTracesInput{
 		StartTimeMin: "-1h",
@@ -171,7 +171,7 @@ func TestSearchTracesHandler_Handle_WithErrorsFilter(t *testing.T) {
 		},
 	}
 
-	handler := &searchTracesHandler{queryService: mock}
+	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
 
 	input := types.SearchTracesInput{
 		StartTimeMin: "-1h",
@@ -199,7 +199,7 @@ func TestSearchTracesHandler_Handle_SearchDepthDefault(t *testing.T) {
 		},
 	}
 
-	handler := &searchTracesHandler{queryService: mock}
+	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
 
 	input := types.SearchTracesInput{
 		StartTimeMin: "-1h",
@@ -223,7 +223,7 @@ func TestSearchTracesHandler_Handle_SearchDepthMax(t *testing.T) {
 		},
 	}
 
-	handler := &searchTracesHandler{queryService: mock}
+	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
 
 	input := types.SearchTracesInput{
 		StartTimeMin: "-1h",
@@ -249,7 +249,7 @@ func TestSearchTracesHandler_Handle_QueryError(t *testing.T) {
 		},
 	}
 
-	handler := &searchTracesHandler{queryService: mock}
+	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
 
 	input := types.SearchTracesInput{
 		StartTimeMin: "-1h",
@@ -286,7 +286,7 @@ func TestSearchTracesHandler_Handle_PartialResults(t *testing.T) {
 		},
 	}
 
-	handler := &searchTracesHandler{queryService: mock}
+	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
 
 	input := types.SearchTracesInput{
 		StartTimeMin: "-1h",
@@ -305,7 +305,7 @@ func TestSearchTracesHandler_Handle_PartialResults(t *testing.T) {
 }
 
 func TestSearchTracesHandler_Handle_MissingServiceName(t *testing.T) {
-	handler := NewSearchTracesHandler(nil)
+	handler := NewSearchTracesHandler(nil, 100)
 
 	input := types.SearchTracesInput{
 		StartTimeMin: "-1h",
@@ -319,7 +319,7 @@ func TestSearchTracesHandler_Handle_MissingServiceName(t *testing.T) {
 }
 
 func TestSearchTracesHandler_Handle_InvalidTimeFormat(t *testing.T) {
-	handler := NewSearchTracesHandler(nil)
+	handler := NewSearchTracesHandler(nil, 100)
 
 	input := types.SearchTracesInput{
 		StartTimeMin: "invalid-time",
@@ -333,7 +333,7 @@ func TestSearchTracesHandler_Handle_InvalidTimeFormat(t *testing.T) {
 }
 
 func TestSearchTracesHandler_Handle_InvalidStartTimeMax(t *testing.T) {
-	handler := NewSearchTracesHandler(nil)
+	handler := NewSearchTracesHandler(nil, 100)
 
 	input := types.SearchTracesInput{
 		StartTimeMin: "-1h",
@@ -348,7 +348,7 @@ func TestSearchTracesHandler_Handle_InvalidStartTimeMax(t *testing.T) {
 }
 
 func TestSearchTracesHandler_Handle_InvalidDurationMin(t *testing.T) {
-	handler := NewSearchTracesHandler(nil)
+	handler := NewSearchTracesHandler(nil, 100)
 
 	input := types.SearchTracesInput{
 		StartTimeMin: "-1h",
@@ -363,7 +363,7 @@ func TestSearchTracesHandler_Handle_InvalidDurationMin(t *testing.T) {
 }
 
 func TestSearchTracesHandler_Handle_InvalidDurationMax(t *testing.T) {
-	handler := NewSearchTracesHandler(nil)
+	handler := NewSearchTracesHandler(nil, 100)
 
 	input := types.SearchTracesInput{
 		StartTimeMin: "-1h",
@@ -378,7 +378,7 @@ func TestSearchTracesHandler_Handle_InvalidDurationMax(t *testing.T) {
 }
 
 func TestSearchTracesHandler_Handle_DurationMaxLessThanMin(t *testing.T) {
-	handler := NewSearchTracesHandler(nil)
+	handler := NewSearchTracesHandler(nil, 100)
 
 	input := types.SearchTracesInput{
 		StartTimeMin: "-1h",
@@ -464,7 +464,7 @@ func TestSearchTracesHandler_Handle_DefaultStartTime(t *testing.T) {
 		},
 	}
 
-	handler := &searchTracesHandler{queryService: mock}
+	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
 
 	// Omit StartTimeMin to trigger default logic
 	input := types.SearchTracesInput{

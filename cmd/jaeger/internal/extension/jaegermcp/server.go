@@ -22,6 +22,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/handlers"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 var (
@@ -58,7 +59,7 @@ func (*server) Dependencies() []component.ID {
 func (s *server) Start(ctx context.Context, host component.Host) error {
 	s.telset.Logger.Info("Starting Jaeger MCP server", zap.String("endpoint", s.config.HTTP.NetAddr.Endpoint))
 
-	// Get v2 QueryService from jaegerquery extension
+	// Get v2 QueryService from jaegerquery extension.
 	queryExt, err := jaegerquery.GetExtension(host)
 	if err != nil {
 		return fmt.Errorf("cannot get %s extension: %w", jaegerquery.ID, err)
@@ -67,27 +68,19 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	s.telset.Logger.Info("Successfully retrieved v2 QueryService from jaegerquery extension")
 	s.toolObservability = newToolObservability(s.telset.Logger, otel.GetTracerProvider())
 
-	// Initialize MCP server with implementation details
-	impl := &mcp.Implementation{
-		Name:    s.config.ServerName,
-		Version: s.config.ServerVersion,
-	}
-	// Pass empty ServerOptions to use default settings.
-	// Custom options (e.g., logging, handlers) can be added in Phase 2 if needed.
-	s.mcpServer = mcp.NewServer(impl, &mcp.ServerOptions{})
-
-	// Register MCP tools
+	tenancyMgr := queryExt.TenancyManager()
+	s.mcpServer = mcp.NewServer(
+		&mcp.Implementation{
+			Name:    s.config.ServerName,
+			Version: s.config.ServerVersion,
+		},
+		// Pass empty ServerOptions to use default settings.
+		// Custom options (e.g., logging, handlers) can be added later.
+		&mcp.ServerOptions{},
+	)
 	s.registerTools()
+	s.mcpServer.AddReceivingMiddleware(createLoggingMiddleware(s.telset.Logger))
 
-	// Set up TCP listener with context
-	lc := net.ListenConfig{}
-	listener, err := lc.Listen(ctx, "tcp", s.config.HTTP.NetAddr.Endpoint)
-	if err != nil {
-		return fmt.Errorf("failed to listen on %s: %w", s.config.HTTP.NetAddr.Endpoint, err)
-	}
-	s.listener = listener
-
-	// Create MCP streamable HTTP handler
 	mcpHandler := mcp.NewStreamableHTTPHandler(
 		func(_ *http.Request) *mcp.Server { return s.mcpServer },
 		&mcp.StreamableHTTPOptions{
@@ -97,20 +90,24 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		},
 	)
 
-	// Create HTTP server with MCP handler and health endpoint
-	mux := http.NewServeMux()
-	mux.Handle("/mcp", otelhttp.NewHandler(mcpHandler, "jaeger.mcp"))
-	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("MCP server is running"))
-	})
+	handler := tenancy.ExtractTenantHTTPHandler(tenancyMgr, otelhttp.NewHandler(mcpHandler, "jaeger.mcp"))
 
-	s.httpServer = &http.Server{
-		Handler:           corsMiddleware(mux),
-		ReadHeaderTimeout: 30 * time.Second,
+	s.listener, err = s.config.HTTP.ToListener(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to listen on %s: %w", s.config.HTTP.NetAddr.Endpoint, err)
 	}
 
-	// Start the server in a goroutine
+	s.httpServer, err = s.config.HTTP.ToServer(
+		ctx,
+		host.GetExtensions(),
+		s.telset,
+		handler,
+	)
+	if err != nil {
+		s.listener.Close()
+		return fmt.Errorf("failed to create HTTP server: %w", err)
+	}
+
 	go func() {
 		if err := s.httpServer.Serve(s.listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			s.telset.Logger.Error("MCP server error", zap.Error(err))
@@ -118,7 +115,6 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	}()
 
 	s.telset.Logger.Info("Jaeger MCP server started successfully",
-		zap.String("endpoint", s.config.HTTP.NetAddr.Endpoint),
 		zap.String("mcp_endpoint", "http://"+s.config.HTTP.NetAddr.Endpoint+"/mcp"))
 	return nil
 }
@@ -127,68 +123,58 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 func (s *server) Shutdown(ctx context.Context) error {
 	s.telset.Logger.Info("Shutting down Jaeger MCP server")
 
-	var errs []error
 	if s.httpServer != nil {
 		if err := s.httpServer.Shutdown(ctx); err != nil {
-			errs = append(errs, fmt.Errorf("failed to shutdown HTTP server: %w", err))
+			return fmt.Errorf("failed to shutdown HTTP server: %w", err)
 		}
 	}
-
-	return errors.Join(errs...)
+	return nil
 }
 
 // registerTools registers all MCP tools with the server.
 func (s *server) registerTools() {
-	// Get services tool (at the top - required for search_traces)
-	getServicesHandler := instrumentTool(s.toolObservability, "get_services", handlers.NewGetServicesHandler(s.queryAPI))
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "get_services",
-		Description: "List available service names. Use this first to discover valid service names for search_traces.",
-	}, getServicesHandler)
-
-	// Get span names tool (required for search_traces with span name filter)
-	getSpanNamesHandler := instrumentTool(s.toolObservability, "get_span_names", handlers.NewGetSpanNamesHandler(s.queryAPI))
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "get_span_names",
-		Description: "List available span names for a service. Supports regex filtering and span kind filtering.",
-	}, getSpanNamesHandler)
-
-	// Health check tool
 	healthHandler := instrumentTool(s.toolObservability, "health", s.healthTool)
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "health",
 		Description: "Check if the Jaeger MCP server is running",
 	}, healthHandler)
 
-	// Search traces tool
-	searchTracesHandler := instrumentTool(s.toolObservability, "search_traces", handlers.NewSearchTracesHandler(s.queryAPI))
+	getServicesHandler := instrumentTool(s.toolObservability, "get_services", handlers.NewGetServicesHandler(s.queryAPI))
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "get_services",
+		Description: "List available service names. Use this first to discover valid service names for search_traces.",
+	}, getServicesHandler)
+
+	getSpanNamesHandler := instrumentTool(s.toolObservability, "get_span_names", handlers.NewGetSpanNamesHandler(s.queryAPI))
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "get_span_names",
+		Description: "List available span names for a service. Supports regex filtering and span kind filtering.",
+	}, getSpanNamesHandler)
+
+	searchTracesHandler := instrumentTool(s.toolObservability, "search_traces", handlers.NewSearchTracesHandler(s.queryAPI, s.config.MaxSearchResults))
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "search_traces",
 		Description: "Find traces matching service, time, attributes, and duration criteria. Returns trace summary only.",
 	}, searchTracesHandler)
 
-	// Get span details tool
-	getSpanDetailsHandler := instrumentTool(s.toolObservability, "get_span_details", handlers.NewGetSpanDetailsHandler(s.queryAPI))
+	getSpanDetailsHandler := instrumentTool(s.toolObservability, "get_span_details", handlers.NewGetSpanDetailsHandler(s.queryAPI, s.config.MaxSpanDetailsPerRequest))
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_span_details",
 		Description: "Fetch full details (attributes, events, links, status) for specific spans.",
 	}, getSpanDetailsHandler)
 
-	// Get trace errors tool
 	getTraceErrorsHandler := instrumentTool(s.toolObservability, "get_trace_errors", handlers.NewGetTraceErrorsHandler(s.queryAPI))
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_trace_errors",
 		Description: "Get full details for all spans with error status.",
 	}, getTraceErrorsHandler)
 
-	// Get trace topology tool
 	getTraceTopologyHandler := instrumentTool(s.toolObservability, "get_trace_topology", handlers.NewGetTraceTopologyHandler(s.queryAPI))
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_trace_topology",
-		Description: "Get the structural tree of a trace showing parent-child relationships, timing, and error locations. Does NOT return attributes or logs.",
+		Description: "Get the structural topology of a trace as a flat, depth-first list of spans. Each span's 'path' field encodes ancestry as slash-delimited span IDs (e.g. rootID/parentID/spanID). Does NOT return attributes or logs.",
 	}, getTraceTopologyHandler)
 
-	// Get critical path tool
 	getCriticalPathHandler := instrumentTool(s.toolObservability, "get_critical_path", handlers.NewGetCriticalPathHandler(s.queryAPI))
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_critical_path",
@@ -215,23 +201,4 @@ func (s *server) healthTool(
 		Server:  s.config.ServerName,
 		Version: s.config.ServerVersion,
 	}, nil
-}
-
-// corsMiddleware wraps an http.Handler to add CORS headers.
-// This is required for browser-based MCP clients like the MCP Inspector.
-func corsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Accept, Mcp-Session-Id, Mcp-Protocol-Version, Last-Event-ID")
-		w.Header().Set("Access-Control-Expose-Headers", "Mcp-Session-Id")
-
-		// Handle preflight requests
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
 }

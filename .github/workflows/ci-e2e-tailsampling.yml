@@ -1,3 +1,9 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# E2E integration tests for the tail-based sampling processor, verifying
+# that sampling decisions are applied correctly after collecting full traces.
+
 name: Test Tail Sampling Processor
 
 on:

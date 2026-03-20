@@ -192,6 +192,7 @@ func (a *clockSkewAdjuster) adjustTimestamps(n *node, skew clockSkew) {
 		return
 	}
 	n.span.SetStartTimestamp(pcommon.NewTimestampFromTime(n.span.StartTimestamp().AsTime().Add(skew.delta)))
+	n.span.SetEndTimestamp(pcommon.NewTimestampFromTime(n.span.EndTimestamp().AsTime().Add(skew.delta)))
 	jptrace.AddWarnings(n.span, fmt.Sprintf("This span's timestamps were adjusted by %v", skew.delta))
 	for i := 0; i < n.span.Events().Len(); i++ {
 		event := n.span.Events().At(i)
