@@ -30,15 +30,18 @@ type queryServiceGetTracesInterface interface {
 // This tool fetches full OTLP details (attributes, events, links, status) for specific spans
 // within a trace, allowing deep inspection of individual span data for debugging and analysis.
 type getSpanDetailsHandler struct {
-	queryService queryServiceGetTracesInterface
+	queryService             queryServiceGetTracesInterface
+	maxSpanDetailsPerRequest int
 }
 
 // NewGetSpanDetailsHandler creates a new get_span_details handler and returns the handler function.
 func NewGetSpanDetailsHandler(
 	queryService *querysvc.QueryService,
+	maxSpanDetailsPerRequest int,
 ) mcp.ToolHandlerFor[types.GetSpanDetailsInput, types.GetSpanDetailsOutput] {
 	h := &getSpanDetailsHandler{
-		queryService: queryService,
+		queryService:             queryService,
+		maxSpanDetailsPerRequest: maxSpanDetailsPerRequest,
 	}
 	return h.handle
 }
@@ -115,7 +118,7 @@ func (h *getSpanDetailsHandler) handle(
 }
 
 // buildQuery converts GetSpanDetailsInput to querysvc.GetTraceParams.
-func (*getSpanDetailsHandler) buildQuery(input types.GetSpanDetailsInput) (querysvc.GetTraceParams, error) {
+func (h *getSpanDetailsHandler) buildQuery(input types.GetSpanDetailsInput) (querysvc.GetTraceParams, error) {
 	// Validate input
 	if input.TraceID == "" {
 		return querysvc.GetTraceParams{}, errors.New("trace_id is required")
@@ -123,6 +126,15 @@ func (*getSpanDetailsHandler) buildQuery(input types.GetSpanDetailsInput) (query
 
 	if len(input.SpanIDs) == 0 {
 		return querysvc.GetTraceParams{}, errors.New("span_ids is required and must not be empty")
+	}
+
+	// Validate span count against configured limit
+	if len(input.SpanIDs) > h.maxSpanDetailsPerRequest {
+		return querysvc.GetTraceParams{}, fmt.Errorf(
+			"span_ids exceeds maximum limit: requested %d, max allowed %d",
+			len(input.SpanIDs),
+			h.maxSpanDetailsPerRequest,
+		)
 	}
 
 	traceID, err := parseTraceID(input.TraceID)
