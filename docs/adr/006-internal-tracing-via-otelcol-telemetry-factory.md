@@ -114,26 +114,22 @@ The noop used for receivers must be the same `noopNoContextTracerProvider` style
 
 ### Factory Wiring
 
-```go
-// cmd/jaeger/internal/components.go
-import (
-    "go.opentelemetry.io/collector/service/telemetry"
-    "go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
-    "github.com/jaegertracing/jaeger/cmd/jaeger/internal/jtracer"
-)
-
-Telemetry: telemetry.NewFactory(
-    otelconftelemetry.CreateDefaultConfig,
-    telemetry.WithCreateResource(otelconftelemetry.CreateResource),
-    telemetry.WithCreateLogger(otelconftelemetry.CreateLogger),
-    telemetry.WithCreateMeterProvider(otelconftelemetry.CreateMeterProvider),
-    telemetry.WithCreateTracerProvider(jtracer.CreateTracerProvider),
-),
-```
+`otelconftelemetry` only exports `NewFactory()` — all individual sub-functions are unexported. `WrapFactory` therefore embeds the complete `otelconftelemetry` factory as a delegate and overrides only `CreateTracerProvider`:
 
 ```go
+// cmd/jaeger/internal/telemetry.go
+func WrapFactory(delegate telemetry.Factory) telemetry.Factory {
+    return telemetry.NewFactory(
+        delegate.CreateDefaultConfig,
+        telemetry.WithCreateResource(delegate.CreateResource),
+        telemetry.WithCreateLogger(delegate.CreateLogger),
+        telemetry.WithCreateMeterProvider(delegate.CreateMeterProvider),
+        telemetry.WithCreateTracerProvider(createTracerProvider),
+    )
+}
+
 // cmd/jaeger/internal/components.go
-Telemetry: jtracer.WrapFactory(otelconftelemetry.NewFactory()),
+Telemetry: telemetry.WrapFactory(otelconftelemetry.NewFactory()),
 ```
 
 ### Validating the Attribute Injection
