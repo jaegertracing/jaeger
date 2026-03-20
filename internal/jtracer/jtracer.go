@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"go.opentelemetry.io/contrib/samplers/jaegerremote"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
@@ -29,17 +30,23 @@ func NewProvider(ctx context.Context, serviceName string) (trace.TracerProvider,
 func newProviderHelper(
 	ctx context.Context,
 	serviceName string,
-	tracerProvider func(ctx context.Context, svc string) (*sdktrace.TracerProvider, error),
+	tracerProvider func(ctx context.Context, svc string) (*sdktrace.TracerProvider, func(), error),
 ) (trace.TracerProvider, func(ctx context.Context) error, error) {
-	provider, err := tracerProvider(ctx, serviceName)
+	provider, closeSampler, err := tracerProvider(ctx, serviceName)
 	if err != nil {
 		return nil, nil, err
 	}
-	return provider, provider.Shutdown, nil
+	closer := func(ctx context.Context) error {
+		if closeSampler != nil {
+			closeSampler()
+		}
+		return provider.Shutdown(ctx)
+	}
+	return provider, closer, nil
 }
 
 // initOTEL initializes OTEL Tracer
-func initOTEL(ctx context.Context, svc string) (*sdktrace.TracerProvider, error) {
+func initOTEL(ctx context.Context, svc string) (*sdktrace.TracerProvider, func(), error) {
 	return initHelper(ctx, svc, otelExporter, otelResource)
 }
 
@@ -48,25 +55,34 @@ func initHelper(
 	svc string,
 	otelExporter func(_ context.Context) (sdktrace.SpanExporter, error),
 	otelResource func(_ context.Context, _ /* svc */ string) (*resource.Resource, error),
-) (*sdktrace.TracerProvider, error) {
+) (*sdktrace.TracerProvider, func(), error) {
 	res, err := otelResource(ctx, svc)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	traceExporter, err := otelExporter(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Register the trace exporter with a TracerProvider, using a batch
 	// span processor to aggregate spans before export.
 	bsp := sdktrace.NewBatchSpanProcessor(traceExporter)
 
-	tracerProvider := sdktrace.NewTracerProvider(
+	opts := []sdktrace.TracerProviderOption{
 		sdktrace.WithSpanProcessor(bsp),
 		sdktrace.WithResource(res),
-	)
+	}
+
+	var closeSampler func()
+	if strings.ToLower(os.Getenv("OTEL_TRACES_SAMPLER")) == "jaeger_remote" {
+		s := jaegerremote.New(svc)
+		opts = append(opts, sdktrace.WithSampler(s))
+		closeSampler = s.Close
+	}
+
+	tracerProvider := sdktrace.NewTracerProvider(opts...)
 
 	once.Do(func() {
 		otel.SetTextMapPropagator(
@@ -78,7 +94,7 @@ func initHelper(
 
 	otel.SetTracerProvider(tracerProvider)
 
-	return tracerProvider, nil
+	return tracerProvider, closeSampler, nil
 }
 
 func otelResource(ctx context.Context, svc string) (*resource.Resource, error) {
