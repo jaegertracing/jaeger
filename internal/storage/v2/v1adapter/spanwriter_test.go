@@ -15,13 +15,35 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
 
+type fakeSpanReader struct{}
+
+func (*fakeSpanReader) GetTrace(context.Context, spanstore.GetTraceParameters) (*model.Trace, error) {
+	return nil, nil
+}
+
+func (*fakeSpanReader) GetServices(context.Context) ([]string, error) {
+	return nil, nil
+}
+
+func (*fakeSpanReader) GetOperations(context.Context, spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
+	return nil, nil
+}
+
+func (*fakeSpanReader) FindTraces(context.Context, *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+	return nil, nil
+}
+
+func (*fakeSpanReader) FindTraceIDs(context.Context, *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+	return nil, nil
+}
+
 func TestGetV1Reader(t *testing.T) {
 	t.Run("wrapped v1 reader", func(t *testing.T) {
-		reader := new(spanstoremocks.Reader)
+		reader := &fakeSpanReader{}
 		traceReader := &TraceReader{
 			spanReader: reader,
 		}
