@@ -487,8 +487,8 @@ github.com/onsi/ginkgo/v2 v2.28.1 h1:S4hj+HbZp40fNKuLUQOYLDgZLwNUVn19N3Atb98NCyI
 github.com/onsi/ginkgo/v2 v2.28.1/go.mod h1:CLtbVInNckU3/+gC8LzkGUb9oF+e8W8TdUsxPwvdOgE=
 github.com/onsi/gomega v1.39.1 h1:1IJLAad4zjPn2PsnhH70V4DKRFlrCzGBNrNaru+Vf28=
 github.com/onsi/gomega v1.39.1/go.mod h1:hL6yVALoTOxeWudERyfppUcZXjMwIMLnuSfruD2lcfg=
-github.com/open-telemetry/opentelemetry-collector-contrib/cmd/schemagen v0.147.0 h1:0+UQLw0n243+NSXefYMA+8FDlzRh+drZ14zuGB+fdUQ=
-github.com/open-telemetry/opentelemetry-collector-contrib/cmd/schemagen v0.147.0/go.mod h1:OINT7fivIXPsH4oMYFjnkreLeHimo7uayD3NZn+SwY8=
+github.com/open-telemetry/opentelemetry-collector-contrib/cmd/schemagen v0.148.0 h1:sTp5O3RB6iW8GWFi9Csu5zv6PCxHqlpCdO5kVcW9hK4=
+github.com/open-telemetry/opentelemetry-collector-contrib/cmd/schemagen v0.148.0/go.mod h1:OINT7fivIXPsH4oMYFjnkreLeHimo7uayD3NZn+SwY8=
 github.com/otiai10/copy v1.2.0/go.mod h1:rrF5dJ5F0t/EWSYODDu4j9/vEeYHMkc8jt0zJChqQWw=
 github.com/otiai10/copy v1.14.0 h1:dCI/t1iTdYGtkvCuBG2BgR6KZa83PTclw4U5n2wAllU=
 github.com/otiai10/copy v1.14.0/go.mod h1:ECfuL02W+/FkTWZWgQqXPWZgW9oeKCSQ5qVfSc4qc4w=
