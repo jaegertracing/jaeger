@@ -1,12 +1,13 @@
 # Prometheus monitoring mixin for Jaeger
 
-The Prometheus monitoring mixin for Jaeger provides a starting point for people wanting to monitor Jaeger using Prometheus, Alertmanager, and Grafana. To use it, you'll need [`jsonnet`](https://github.com/google/go-jsonnet) and [`jb` (jsonnet-bundler)](https://github.com/jsonnet-bundler/jsonnet-bundler). They can be installed using `go get`, as follows:
+The Prometheus monitoring mixin for Jaeger provides a starting point for people wanting to monitor Jaeger using Prometheus, Alertmanager, and Grafana. To use it, you'll need [`jsonnet`](https://github.com/google/go-jsonnet) and [`jb` (jsonnet-bundler)](https://github.com/jsonnet-bundler/jsonnet-bundler). Both are Go programs and can be installed via `go install`:
 
 ```console
-mkdir -p ~/bin && curl -sL https://github.com/google/go-jsonnet/releases/download/v0.17.0/go-jsonnet_0.17.0_Linux_x86_64.tar.gz | tar -C ~/bin/ -xzf -
-curl -sLo ~/bin/jb https://github.com/jsonnet-bundler/jsonnet-bundler/releases/download/v0.4.0/jb-linux-amd64
-chmod +x ~/bin/jb
+go install github.com/google/go-jsonnet/cmd/jsonnet@latest
+go install github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb@latest
 ```
+
+This installs native binaries for your platform into `$(go env GOPATH)/bin`. Make sure that directory is on your `PATH`.
 
 Your monitoring mixin can then be initialized as follows:
 
