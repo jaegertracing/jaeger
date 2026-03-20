@@ -5,7 +5,7 @@ This folder contains the Python ACP sidecar used by the Jaeger AI gateway.
 The sidecar:
 - Listens on `ws://localhost:9000`
 - Runs a Gemini-backed ACP agent
-- Supports tool calls (for example `search_traces`) from Gemini through ACP
+- Uses Jaeger MCP tools from `http://127.0.0.1:16687/mcp`
 
 ## Prerequisites
 
@@ -22,6 +22,14 @@ export GEMINI_API_KEY="your_api_key_here"
 ```
 
 Without this key, the sidecar cannot create the Gemini client.
+
+Optional MCP endpoint override:
+
+```bash
+export JAEGER_MCP_URL="http://127.0.0.1:16687/mcp"
+```
+
+If unset, the sidecar defaults to `http://127.0.0.1:16687/mcp`.
 
 ## Install Dependencies
 

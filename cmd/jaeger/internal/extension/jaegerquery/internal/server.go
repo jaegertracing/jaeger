@@ -192,7 +192,7 @@ func initRouter(
 	}
 
 	// AI Gateway Endpoints
-	aiHandlerPath := "/api/chat"
+	aiHandlerPath := "/api/ai/chat"
 	if queryOpts.BasePath != "" && queryOpts.BasePath != "/" {
 		aiHandlerPath = queryOpts.BasePath + aiHandlerPath
 	}

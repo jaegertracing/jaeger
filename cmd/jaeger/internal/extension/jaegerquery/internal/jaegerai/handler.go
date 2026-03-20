@@ -9,18 +9,17 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
-	"strings"
+	"sync"
 	"time"
 
 	"github.com/coder/acp-go-sdk"
 	"github.com/gorilla/websocket"
-	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
+
+const endOfTurnMarker = "__END_OF_TURN__"
 
 // WsReadWriteCloser wraps a gorilla websocket to implement io.ReadWriteCloser
 type WsReadWriteCloser struct {
@@ -84,85 +83,73 @@ func NewChatHandler(logger *zap.Logger, queryService *querysvc.QueryService) *Ch
 
 // streamingClient implements acp.Client to handle callbacks and streaming text
 type streamingClient struct {
-	w            http.ResponseWriter
-	flusher      http.Flusher
-	queryService *querysvc.QueryService
+	requestCtx context.Context
+	w          http.ResponseWriter
+	flusher    http.Flusher
+	mu         sync.Mutex
+	closed     bool
+	doneCh     chan struct{}
+	doneOnce   sync.Once
 }
 
-func searchTracesToolResult(ctx context.Context, queryService *querysvc.QueryService, query string) string {
-	if queryService == nil {
-		return `{"tool":"search_traces","error":"query service is not configured"}`
-	}
-
-	params := querysvc.TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{
-			// For this PoC we route tool calls through FindTraces with a deterministic service.
-			ServiceName:   "dummy-service",
-			OperationName: query,
-		},
-		RawTraces: true,
-	}
-
-	traces := make([]map[string]any, 0, 8)
-	var iterErr error
-
-	queryService.FindTraces(ctx, params)(func(batches []ptrace.Traces, err error) bool {
-		if err != nil {
-			iterErr = err
-			return false
+func (c *streamingClient) signalDone() {
+	c.doneOnce.Do(func() {
+		if c.doneCh != nil {
+			close(c.doneCh)
 		}
-
-		for _, batch := range batches {
-			rs := batch.ResourceSpans()
-			for i := 0; i < rs.Len(); i++ {
-				resourceSpans := rs.At(i)
-				serviceName, _ := resourceSpans.Resource().Attributes().Get("service.name")
-				ss := resourceSpans.ScopeSpans()
-				for j := 0; j < ss.Len(); j++ {
-					spans := ss.At(j).Spans()
-					for k := 0; k < spans.Len(); k++ {
-						span := spans.At(k)
-						durationMs := span.EndTimestamp().AsTime().Sub(span.StartTimestamp().AsTime()).Milliseconds()
-						traces = append(traces, map[string]any{
-							"trace_id":    span.TraceID().String(),
-							"span_id":     span.SpanID().String(),
-							"service":     serviceName.Str(),
-							"operation":   span.Name(),
-							"duration_ms": durationMs,
-						})
-						if len(traces) >= 20 {
-							return false
-						}
-					}
-				}
-			}
-		}
-
-		return len(traces) < 20
 	})
-
-	if iterErr != nil {
-		return fmt.Sprintf(`{"tool":"search_traces","query":%q,"error":%q}`, query, iterErr.Error())
-	}
-
-	payload := map[string]any{
-		"tool":   "search_traces",
-		"query":  query,
-		"traces": traces,
-	}
-	b, err := json.Marshal(payload)
-	if err != nil {
-		return `{"tool":"search_traces","error":"failed to encode result"}`
-	}
-	return string(b)
 }
 
-func parseSearchTracesQuery(path string) string {
-	u, err := url.Parse(path)
-	if err != nil {
-		return ""
+func (c *streamingClient) writeAndFlush(text string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.closed {
+		return
 	}
-	return u.Query().Get("q")
+
+	if c.requestCtx != nil {
+		select {
+		case <-c.requestCtx.Done():
+			c.closed = true
+			c.signalDone()
+			return
+		default:
+		}
+	}
+
+	defer func() {
+		if recover() != nil {
+			c.closed = true
+			c.signalDone()
+		}
+	}()
+
+	if _, err := io.WriteString(c.w, text); err != nil {
+		c.closed = true
+		c.signalDone()
+		return
+	}
+
+	c.flusher.Flush()
+}
+
+func (c *streamingClient) waitForTurnCompletion(ctx context.Context, maxWait time.Duration) {
+	if maxWait <= 0 {
+		return
+	}
+
+	maxTimer := time.NewTimer(maxWait)
+	defer maxTimer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return
+	case <-maxTimer.C:
+		return
+	case <-c.doneCh:
+		return
+	}
 }
 
 func (*streamingClient) RequestPermission(_ context.Context, p acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error) {
@@ -185,17 +172,18 @@ func (c *streamingClient) SessionUpdate(_ context.Context, n acp.SessionNotifica
 	if u.AgentMessageChunk != nil {
 		content := u.AgentMessageChunk.Content
 		if content.Text != nil {
-			c.w.Write([]byte(content.Text.Text))
-			c.flusher.Flush()
+			if content.Text.Text == endOfTurnMarker {
+				c.signalDone()
+			} else {
+				c.writeAndFlush(content.Text.Text)
+			}
 		}
 	}
 	if u.ToolCall != nil {
-		fmt.Fprintf(c.w, "\n[tool_call] %s\n", u.ToolCall.Title)
-		c.flusher.Flush()
+		c.writeAndFlush(fmt.Sprintf("\n[tool_call] %s\n", u.ToolCall.Title))
 	}
 	if u.ToolCallUpdate != nil {
-		fmt.Fprintf(c.w, "\n[tool_result] id=%s status=%s\n", u.ToolCallUpdate.ToolCallId, valueOrUnknown(u.ToolCallUpdate.Status))
-		c.flusher.Flush()
+		c.writeAndFlush(fmt.Sprintf("\n[tool_result] id=%s status=%s\n", u.ToolCallUpdate.ToolCallId, valueOrUnknown(u.ToolCallUpdate.Status)))
 	}
 	return nil
 }
@@ -211,12 +199,7 @@ func (*streamingClient) WriteTextFile(_ context.Context, _ acp.WriteTextFileRequ
 	return acp.WriteTextFileResponse{}, nil
 }
 
-func (c *streamingClient) ReadTextFile(ctx context.Context, p acp.ReadTextFileRequest) (acp.ReadTextFileResponse, error) {
-	if strings.HasPrefix(p.Path, "acp://tool/search_traces") {
-		query := parseSearchTracesQuery(p.Path)
-		return acp.ReadTextFileResponse{Content: searchTracesToolResult(ctx, c.queryService, query)}, nil
-	}
-
+func (*streamingClient) ReadTextFile(_ context.Context, p acp.ReadTextFileRequest) (acp.ReadTextFileResponse, error) {
 	return acp.ReadTextFileResponse{Content: "unsupported path: " + p.Path}, nil
 }
 
@@ -278,9 +261,10 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	adapter := NewWsAdapter(conn)
 
 	clientImpl := &streamingClient{
-		w:            w,
-		flusher:      flusher,
-		queryService: h.QueryService,
+		requestCtx: ctx,
+		w:          w,
+		flusher:    flusher,
+		doneCh:     make(chan struct{}),
 	}
 	acpConn := acp.NewClientSideConnection(clientImpl, adapter, adapter)
 
@@ -288,18 +272,9 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	_, err = acpConn.Initialize(acpCtx, acp.InitializeRequest{
-		Meta: map[string]any{
-			"tools": []map[string]string{
-				{
-					"name":        "search_traces",
-					"description": "Returns traces from Jaeger for a query string",
-					"call":        "fs/read_text_file path=acp://tool/search_traces?q=<query>",
-				},
-			},
-		},
 		ProtocolVersion: acp.ProtocolVersionNumber,
 		ClientCapabilities: acp.ClientCapabilities{
-			Fs:       acp.FileSystemCapability{ReadTextFile: true, WriteTextFile: false},
+			Fs:       acp.FileSystemCapability{ReadTextFile: false, WriteTextFile: false},
 			Terminal: false,
 		},
 		ClientInfo: &acp.Implementation{
@@ -330,4 +305,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Error starting prompt: %v\n", err)
 		return
 	}
+
+	// Wait for explicit end-of-turn marker from the sidecar, with timeout fallback.
+	clientImpl.waitForTurnCompletion(acpCtx, 2*time.Second)
 }
