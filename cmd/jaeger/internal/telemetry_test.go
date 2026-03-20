@@ -11,6 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
+
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/consumer"
@@ -36,7 +39,7 @@ func TestFilteringTracerProvider_AllowedComponent(t *testing.T) {
 
 	ftp := &filteringTracerProvider{real: realTP, noop: noop}
 
-	for _, id := range []string{"jaeger_query", "jaeger_mcp"} {
+	for _, id := range []string{jaegerquery.ID.String(), jaegermcp.ID.String()} {
 		t.Run(id, func(t *testing.T) {
 			tr := ftp.Tracer("test", trace.WithInstrumentationAttributes(
 				attribute.String("otelcol.component.id", id),
@@ -137,8 +140,8 @@ func TestFilteringTracerProvider_FrameworkInjection(t *testing.T) {
 		),
 	)
 
-	// An extension with component ID "jaeger_query" that does the same.
-	extType := component.MustNewType("jaeger_query")
+	// An extension with component ID matching jaeger_query that does the same.
+	extType := jaegerquery.ID.Type()
 	extFactory := extension.NewFactory(
 		extType,
 		func() component.Config { return &struct{}{} },
