@@ -22,7 +22,7 @@ import (
 type fakeSpanReader struct{}
 
 func (*fakeSpanReader) GetTrace(context.Context, spanstore.GetTraceParameters) (*model.Trace, error) {
-	return nil, nil
+	return nil, spanstore.ErrTraceNotFound
 }
 
 func (*fakeSpanReader) GetServices(context.Context) ([]string, error) {
