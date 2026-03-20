@@ -5,11 +5,11 @@ package memory
 
 import (
 	"fmt"
-	"testing"
-	"time"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"runtime"
+	"testing"
+	"time"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 )
@@ -35,6 +35,9 @@ func withMemorySamplingStore(f func(samplingStore *SamplingStore)) {
 }
 
 func TestInsertThroughtput(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Timing issues on Windows")
+	}
 	withMemorySamplingStore(func(samplingStore *SamplingStore) {
 		start := time.Now()
 		throughputs := []*model.Throughput{

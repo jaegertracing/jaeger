@@ -6,6 +6,7 @@ package auth
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -250,6 +251,10 @@ func TestNewTokenProvider_WithZapLogger(t *testing.T) {
 
 // TestCachedFileTokenLoader_FilePermissions tests file permission errors
 func TestCachedFileTokenLoader_FilePermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("chmod permissions not enforced on Windows")
+	}
+
 	if os.Getuid() == 0 {
 		t.Skip("Running as root - file permission tests not meaningful")
 	}

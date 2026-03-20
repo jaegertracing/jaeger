@@ -5,6 +5,7 @@ package writer
 
 import (
 	"net/http"
+	"runtime"
 	"testing"
 	"time"
 
@@ -44,6 +45,10 @@ var span = &model.Span{
 }
 
 func TestNew(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file lock issues on Windows")
+	}
+
 	nopLogger := zap.NewNop()
 	tempDir := t.TempDir()
 
