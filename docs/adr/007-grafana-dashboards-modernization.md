@@ -1,8 +1,8 @@
 # ADR-007: Grafana Dashboard Modernization and SPM Example Validation
 
-* **Status:** Proposed
-* **Date:** 2026-03-20
-* **Related Issues:** [#5833](https://github.com/jaegertracing/jaeger/issues/5833)
+* **Status**: Proposed
+* **Date**: 2026-03-20
+* **Related Issues**: [#5833](https://github.com/jaegertracing/jaeger/issues/5833)
 
 ---
 
