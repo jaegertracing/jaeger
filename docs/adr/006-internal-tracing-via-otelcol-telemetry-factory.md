@@ -244,30 +244,38 @@ if !s.config.EnableTracing {
 
 This preserves the existing user-visible behaviour: `enable_tracing: false` disables query tracing regardless of what `OTEL_EXPORTER_OTLP_ENDPOINT` is set to. The same pattern applies to `jaeger_mcp` if it ever gains an equivalent config field.
 
-### What Changes for Users
+## User-Facing Changes
 
-| Scenario | Before | After |
-|---|---|---|
-| No OTEL config | Each extension traces if `enable_tracing: true` in its config | Same behaviour; tracing enabled by default for `jaeger_query` and `jaeger_mcp` |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` set | Traces exported from extensions | Same |
-| Jaeger is its own export destination | Loop risk for receivers | Loop prevented; receivers always get noop |
-| `enable_tracing: false` in jaeger_query | Noop provider used | Same — extension overrides to noop locally |
-| `service.telemetry.traces` YAML block | Ignored (overridden by jtracer) | Still ignored; OTEL env vars take precedence |
+This section is intended as the basis for release notes.
+
+**What is new:**
+
+- Internal tracing is now enabled by default for the query service and MCP server. Set `OTEL_EXPORTER_OTLP_ENDPOINT` (and optionally `OTEL_EXPORTER_OTLP_INSECURE=true`) to start receiving Jaeger's own internal spans. No other configuration is required.
+
+- Jaeger no longer creates a recursive self-tracing loop when its OTLP receiver is the export destination for internal telemetry. Receiver components are permanently excluded from tracing.
+
+- Per-operation sampling rates are now configurable for internal spans via the Jaeger remote sampler:
+  ```
+  OTEL_TRACES_SAMPLER=jaeger_remote
+  OTEL_TRACES_SAMPLER_ARG=endpoint=http://localhost:5778/sampling,pollingIntervalMs=5000,initialSamplingRate=0.001
+  ```
+  The remote sampling server can specify different rates for individual HTTP routes or gRPC methods within the query service or MCP server.
+
+- The standard `OTEL_TRACES_SAMPLER` / `OTEL_TRACES_SAMPLER_ARG` env vars are honoured for all built-in sampler types (`always_on`, `always_off`, `traceidratio`, `parentbased_*`). The default sampler is `parentbased_always_on`.
+
+**What is unchanged:**
+
+- `enable_tracing: false` in the `jaeger_query` config continues to disable query tracing.
+- All existing `OTEL_EXPORTER_OTLP_*` and `OTEL_TRACES_*` environment variables work as before.
+- The `service.telemetry.traces` YAML block has no effect on tracing; OTEL env vars take precedence.
 
 ## Consequences
 
-**Positive:**
-
 - Recursive self-tracing loop is closed by design, not by documentation.
 - Extensions no longer manage tracer lifecycle; the Collector framework owns it.
-- New extensions (e.g., MCP server) get internal tracing for free without any per-extension boilerplate.
-- User-facing configuration is unchanged: `OTEL_EXPORTER_OTLP_ENDPOINT` and related env vars continue to work.
-- The `TODO` comments referencing the now-closed issue #7532 are resolved.
-
-**Negative / Risks:**
-
-- The `otelcol.component.id` attribute injection by `tracerProviderWithAttributes` is in an internal (`internal/`) package of the Collector. It is observed behavior, not a contractual API. If the Collector changes this injection mechanism our filter degrades silently — either tracing receivers (loop risk) or not tracing extensions (loss of observability). This can be caught by a regular Go test using `service.New()` in-process (the same pattern used in the collector's own `service_test.go`): supply our `FilteringTracerProvider` via the custom `TelemetryFactory`, wire in mock receiver and extension components whose `Start()` methods record which TracerProvider they received, start the service, and assert the receiver got noop while the extension got the real provider. This exercises the full `componentattribute.TelemetrySettingsWithAttributes` injection path without running a subprocess.
-- Per-operation sampling (e.g., sample `GET /api/traces` at 10%) is achievable via `OTEL_TRACES_SAMPLER=jaeger_remote` as described in the Sampler section above. This ADR makes it possible; it is not deferred.
+- New extensions get internal tracing automatically once added to the allowlist — no per-extension boilerplate.
+- The `TODO` comments referencing the now-closed upstream issue #7532 are removed.
+- The `otelcol.component.id` attribute injection is observed behavior from an internal Collector package, not a contractual API. The in-process test described in **Validating the Attribute Injection** catches any upstream breakage at the next dependency bump.
 
 ## Alternatives Considered
 
