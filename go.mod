@@ -290,7 +290,7 @@ require (
 	go.opentelemetry.io/collector v0.148.0 // indirect
 	go.opentelemetry.io/collector/config/configcompression v1.54.0 // indirect
 	go.opentelemetry.io/collector/config/configmiddleware v1.54.0
-	go.opentelemetry.io/collector/config/configtelemetry v0.148.0 // indirect
+	go.opentelemetry.io/collector/config/configtelemetry v0.148.0
 	go.opentelemetry.io/collector/connector/connectortest v0.148.0 // indirect
 	go.opentelemetry.io/collector/connector/xconnector v0.148.0 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror v0.148.0 // indirect
@@ -310,7 +310,7 @@ require (
 	go.opentelemetry.io/collector/pdata/pprofile v0.148.0 // indirect
 	go.opentelemetry.io/collector/pdata/testdata v0.148.0 // indirect
 	go.opentelemetry.io/collector/pdata/xpdata v0.148.0
-	go.opentelemetry.io/collector/pipeline v1.54.0 // indirect
+	go.opentelemetry.io/collector/pipeline v1.54.0
 	go.opentelemetry.io/collector/pipeline/xpipeline v0.148.0 // indirect
 	go.opentelemetry.io/collector/processor/processorhelper/xprocessorhelper v0.148.0 // indirect
 	go.opentelemetry.io/collector/processor/xprocessor v0.148.0 // indirect
