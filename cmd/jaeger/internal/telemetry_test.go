@@ -11,9 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
-
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/consumer"
@@ -30,6 +27,9 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
+
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 )
 
 func TestFilteringTracerProvider_AllowedComponent(t *testing.T) {
