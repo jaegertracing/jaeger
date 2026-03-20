@@ -16,13 +16,12 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/handlers"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
-	"github.com/jaegertracing/jaeger/internal/metrics"
-	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
 var (
@@ -66,11 +65,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	}
 	s.queryAPI = queryExt.QueryService()
 	s.telset.Logger.Info("Successfully retrieved v2 QueryService from jaegerquery extension")
-	telset := telemetry.FromOtelComponent(s.telset, host)
-	mcpMetrics := telset.Metrics.
-		Namespace(metrics.NSOptions{Name: "jaeger"}).
-		Namespace(metrics.NSOptions{Name: "mcp"})
-	s.toolObservability = newToolObservability(telset.Logger, mcpMetrics)
+	s.toolObservability = newToolObservability(s.telset.Logger, otel.GetTracerProvider())
 
 	// Initialize MCP server with implementation details
 	impl := &mcp.Implementation{
