@@ -25,11 +25,12 @@
         "x": 0,
         "y": 0
       },
-      "id": 0,
+      "id": 1,
       "panels": []
     },
     {
       "type": "timeseries",
+      "id": 2,
       "targets": [
         {
           "expr": "sum(rate(otelcol_receiver_refused_spans_total[1m])) or vector(0)",
@@ -63,6 +64,7 @@
     },
     {
       "type": "timeseries",
+      "id": 3,
       "targets": [
         {
           "expr": "sum(rate(otelcol_receiver_refused_spans_total[1m])) by (receiver, transport) / (sum(rate(otelcol_receiver_accepted_spans_total[1m])) by (receiver, transport) + sum(rate(otelcol_receiver_refused_spans_total[1m])) by (receiver, transport)) or vector(0)",
@@ -102,11 +104,12 @@
         "x": 0,
         "y": 9
       },
-      "id": 0,
+      "id": 4,
       "panels": []
     },
     {
       "type": "timeseries",
+      "id": 5,
       "targets": [
         {
           "expr": "sum(rate(otelcol_exporter_send_failed_spans_total[1m])) or vector(0)",
@@ -140,6 +143,7 @@
     },
     {
       "type": "timeseries",
+      "id": 6,
       "targets": [
         {
           "expr": "(sum(rate(otelcol_exporter_sent_spans_total[1m])) by (exporter) / (sum(rate(otelcol_exporter_sent_spans_total[1m])) by (exporter) + sum(rate(otelcol_exporter_send_failed_spans_total[1m])) by (exporter))) * 100 or vector(0)",
@@ -179,11 +183,12 @@
         "x": 0,
         "y": 18
       },
-      "id": 0,
+      "id": 7,
       "panels": []
     },
     {
       "type": "timeseries",
+      "id": 8,
       "targets": [
         {
           "expr": "sum(rate(jaeger_storage_requests_total[1m])) by (operation, result)",
@@ -213,6 +218,7 @@
     },
     {
       "type": "timeseries",
+      "id": 9,
       "targets": [
         {
           "expr": "histogram_quantile(0.99, sum(rate(jaeger_storage_latency_seconds_bucket[1m])) by (le, operation))",
@@ -232,10 +238,7 @@
         "defaults": {
           "unit": "s",
           "custom": {
-            "fillOpacity": 10,
-            "stacking": {
-              "mode": "normal"
-            }
+            "fillOpacity": 10
           }
         },
         "overrides": []
@@ -251,11 +254,12 @@
         "x": 0,
         "y": 27
       },
-      "id": 0,
+      "id": 10,
       "panels": []
     },
     {
       "type": "timeseries",
+      "id": 11,
       "targets": [
         {
           "expr": "sum(rate(http_server_request_duration_seconds_count{http_route=\"/api/traces\"}[1m])) by (http_response_status_code)",
@@ -285,6 +289,7 @@
     },
     {
       "type": "timeseries",
+      "id": 12,
       "targets": [
         {
           "expr": "histogram_quantile(0.99, sum(rate(http_server_request_duration_seconds_bucket{http_route=\"/api/traces\"}[1m])) by (le))",
@@ -304,10 +309,7 @@
         "defaults": {
           "unit": "s",
           "custom": {
-            "fillOpacity": 10,
-            "stacking": {
-              "mode": "normal"
-            }
+            "fillOpacity": 10
           }
         },
         "overrides": []
@@ -323,11 +325,12 @@
         "x": 0,
         "y": 36
       },
-      "id": 0,
+      "id": 13,
       "panels": []
     },
     {
       "type": "timeseries",
+      "id": 14,
       "targets": [
         {
           "expr": "rate(otelcol_process_cpu_seconds_total[1m])",
@@ -347,10 +350,7 @@
         "defaults": {
           "unit": "percentunit",
           "custom": {
-            "fillOpacity": 10,
-            "stacking": {
-              "mode": "normal"
-            }
+            "fillOpacity": 10
           }
         },
         "overrides": []
@@ -358,6 +358,7 @@
     },
     {
       "type": "timeseries",
+      "id": 15,
       "targets": [
         {
           "expr": "otelcol_process_memory_rss_bytes",
@@ -377,16 +378,29 @@
         "defaults": {
           "unit": "bytes",
           "custom": {
-            "fillOpacity": 10,
-            "stacking": {
-              "mode": "normal"
-            }
+            "fillOpacity": 10
           }
         },
         "overrides": []
       }
     }
   ],
-  "templating": {},
+  "templating": {
+    "list": [
+      {
+        "type": "datasource",
+        "name": "datasource",
+        "label": "Data Source",
+        "skipUrlSync": false,
+        "query": "prometheus",
+        "multi": false,
+        "allowCustomValue": true,
+        "includeAll": false,
+        "auto": false,
+        "auto_min": "10s",
+        "auto_count": 30
+      }
+    ]
+  },
   "annotations": {}
 }
