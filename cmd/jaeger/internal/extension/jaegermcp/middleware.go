@@ -193,17 +193,15 @@ func sessionIDFromRequest(req mcp.Request) string {
 	if session == nil {
 		return ""
 	}
-	switch s := session.(type) {
-	case *mcp.ServerSession:
+	if s, ok := session.(*mcp.ServerSession); ok {
 		if s == nil {
 			return ""
 		}
-	case *mcp.ClientSession:
+	}
+	if s, ok := session.(*mcp.ClientSession); ok {
 		if s == nil {
 			return ""
 		}
-	default:
-		// For any non-MCP concrete session type, fall through to session.ID().
 	}
 	return session.ID()
 }

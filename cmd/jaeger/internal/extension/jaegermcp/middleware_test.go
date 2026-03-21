@@ -78,6 +78,32 @@ func TestLoggingMiddlewareTracesToolCallError(t *testing.T) {
 	assert.Equal(t, toolStatusNotFound, responseLogs[0].ContextMap()["status"])
 }
 
+func TestLoggingMiddlewareTracesToolCallGenericError(t *testing.T) {
+	core, observed := observer.New(zapcore.DebugLevel)
+	capture := newTraceCapture(t)
+	middleware := createLoggingMiddleware(zap.New(core), capture.provider)
+
+	expectedErr := errors.New("storage backend unavailable")
+	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
+		return nil, expectedErr
+	})
+
+	_, err := wrapped(context.Background(), mcpMethodToolsCall, newToolCallRequest("search_traces"))
+	require.ErrorIs(t, err, expectedErr)
+
+	spanData := capture.singleSpan(t)
+	assert.Equal(t, "mcp.tool.search_traces", spanData.Name)
+	assertHasStringAttribute(t, spanData.Attributes, "mcp.tool.name", "search_traces")
+	assertHasStringAttribute(t, spanData.Attributes, "mcp.status", toolStatusError)
+	assert.Equal(t, codes.Error, spanData.Status.Code)
+	assert.Equal(t, expectedErr.Error(), spanData.Status.Description)
+
+	responseLogs := observed.FilterMessage("MCP response").All()
+	require.Len(t, responseLogs, 1)
+	assert.Equal(t, zapcore.ErrorLevel, responseLogs[0].Level)
+	assert.Equal(t, toolStatusError, responseLogs[0].ContextMap()["status"])
+}
+
 func TestLoggingMiddlewareTracesToolCallResultError(t *testing.T) {
 	core, observed := observer.New(zapcore.DebugLevel)
 	capture := newTraceCapture(t)
@@ -108,7 +134,7 @@ func TestLoggingMiddlewareTracesToolCallResultError(t *testing.T) {
 
 func TestLoggingMiddlewareDoesNotTraceNonToolMethods(t *testing.T) {
 	capture := newTraceCapture(t)
-	middleware := createLoggingMiddleware(zap.NewNop(), capture.provider)
+	middleware := createLoggingMiddleware(nil, capture.provider)
 
 	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
 		return &mcp.CallToolResult{}, nil
@@ -160,6 +186,13 @@ func TestToolNameFromRequest(t *testing.T) {
 	assert.Empty(t, toolNameFromRequest(mcpMethodToolsCall, nil))
 }
 
+func TestToolNameFromRequestWrongParams(t *testing.T) {
+	req := &mcp.ServerRequest[*mcp.InitializeParams]{
+		Params: &mcp.InitializeParams{ProtocolVersion: "2025-03-26"},
+	}
+	assert.Empty(t, toolNameFromRequest(mcpMethodToolsCall, req))
+}
+
 func TestNormalizeToolStatus(t *testing.T) {
 	resultWithNotFound := &mcp.CallToolResult{}
 	resultWithNotFound.SetError(errors.New("service not found"))
@@ -189,6 +222,12 @@ func TestObserveToolInSpanWithoutRecordingSpan(t *testing.T) {
 	assert.NotPanics(t, func() {
 		observeToolInSpan(trace.SpanFromContext(context.Background()), toolStatusOK, nil)
 	})
+}
+
+func TestSpanErrorResultMarkedError(t *testing.T) {
+	result := &mcp.CallToolResult{IsError: true}
+	err := spanError(nil, result)
+	require.ErrorIs(t, err, errToolResultMarkedError)
 }
 
 func TestNewToolTracerDefaults(t *testing.T) {
@@ -245,6 +284,14 @@ func (c *traceCapture) waitForSpanCount(t *testing.T, want int) []tracetest.Span
 	spans := c.exporter.GetSpans()
 	require.Lenf(t, spans, want, "expected %d spans", want)
 	return spans
+}
+
+func TestSessionIDFromRequestTypedNil(t *testing.T) {
+	req := &mcp.ServerRequest[*mcp.CallToolParamsRaw]{
+		Session: (*mcp.ServerSession)(nil),
+		Params:  &mcp.CallToolParamsRaw{Name: "health"},
+	}
+	assert.Empty(t, sessionIDFromRequest(req))
 }
 
 func TestMiddlewareInitializeRequestLogging(t *testing.T) {
