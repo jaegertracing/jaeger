@@ -13,6 +13,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/types"
@@ -163,7 +164,8 @@ func TestSearchTracesHandler_Handle_WithErrorsFilter(t *testing.T) {
 			// Verify that error attribute filter is added
 			val, ok := query.Attributes.Get("error")
 			assert.True(t, ok)
-			assert.Equal(t, "true", val.Str())
+			assert.Equal(t, pcommon.ValueTypeBool, val.Type())
+			assert.True(t, val.Bool())
 
 			return func(yield func([]ptrace.Traces, error) bool) {
 				// Return only error traces (simulating storage filtering)
@@ -219,6 +221,7 @@ func TestSearchTracesHandler_Handle_WithErrorsFilter_UsingMemoryStore(t *testing
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
+	require.Len(t, output.Traces, 1)
 	assert.True(t, output.Traces[0].HasErrors)
 	assert.Equal(t, "test", output.Traces[0].RootService)
 	assert.Equal(t, "/error", output.Traces[0].RootSpanName)
