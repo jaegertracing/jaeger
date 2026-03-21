@@ -8,7 +8,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -139,8 +139,8 @@ func (t *KeyValue) AsString() string {
 }
 
 func SortKVs(kvs []KeyValue) {
-	sort.Slice(kvs, func(i, j int) bool {
-		return kvs[i].Compare(kvs[j]) < 0
+	slices.SortFunc(kvs, func(a, b KeyValue) int {
+		return a.Compare(b)
 	})
 }
 
