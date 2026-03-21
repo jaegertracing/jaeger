@@ -90,7 +90,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		},
 	)
 
-	handler := tenancy.ExtractTenantHTTPHandler(tenancyMgr, otelhttp.NewHandler(mcpHandler, "jaeger.mcp"))
+	handler := tenancy.ExtractTenantHTTPHandler(tenancyMgr, otelhttp.NewHandler(mcpHandler, "jaeger_mcp"))
 
 	s.listener, err = s.config.HTTP.ToListener(ctx)
 	if err != nil {
