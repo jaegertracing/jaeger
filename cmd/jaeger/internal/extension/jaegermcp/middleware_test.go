@@ -294,6 +294,22 @@ func TestSessionIDFromRequestTypedNil(t *testing.T) {
 	assert.Empty(t, sessionIDFromRequest(req))
 }
 
+func TestSessionIDFromRequestNilCases(t *testing.T) {
+	assert.Empty(t, sessionIDFromRequest(nil))
+
+	req := &mcp.ServerRequest[*mcp.CallToolParamsRaw]{
+		Session: nil,
+		Params:  &mcp.CallToolParamsRaw{Name: "health"},
+	}
+	assert.Empty(t, sessionIDFromRequest(req))
+
+	clientReq := &mcp.ClientRequest[*mcp.CallToolParamsRaw]{
+		Session: (*mcp.ClientSession)(nil),
+		Params:  &mcp.CallToolParamsRaw{Name: "health"},
+	}
+	assert.Empty(t, sessionIDFromRequest(clientReq))
+}
+
 func TestMiddlewareInitializeRequestLogging(t *testing.T) {
 	zapCore, logs := observer.New(zapcore.DebugLevel)
 	_, addr := startTestServerWithQueryService(t, nil, zap.New(zapCore))
