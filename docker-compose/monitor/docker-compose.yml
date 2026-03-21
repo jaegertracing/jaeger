@@ -38,5 +38,20 @@ services:
     ports:
       - "9090:9090"
 
+  grafana:
+    networks:
+      - backend
+    image: grafana/grafana:11.6.0
+    volumes:
+      - "./grafana/provisioning:/etc/grafana/provisioning"
+      - "../../monitoring/jaeger-mixin/dashboard-for-grafana.json:/etc/grafana/provisioning/dashboards/jaeger.json:ro"
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
 networks:
   backend:
