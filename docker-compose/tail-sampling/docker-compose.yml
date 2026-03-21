@@ -25,7 +25,7 @@ services:
   tracegen:
     networks:
       - backend
-    image: cr.jaegertracing.io/jaegertracing/jaeger-tracegen:2.15.1@sha256:8149733c9c54c2b272d2141388aa4f0ae95704c814df976b434fba162752a235
+    image: cr.jaegertracing.io/jaegertracing/jaeger-tracegen:2.16.0@sha256:b0e4632d6b26bae69fe4bbe62cbf1438816ca271343d383c4f214c553d112b3d
     environment:
       - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel_collector:4318/v1/traces
     command: ["-workers", "3", "-pause", "250ms", "-services", "5", "-duration", "10s"]
