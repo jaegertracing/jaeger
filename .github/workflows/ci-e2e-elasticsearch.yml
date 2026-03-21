@@ -56,7 +56,7 @@ jobs:
         date
         echo TZ="$TZ"
 
-    - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+    - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
     - name: Run ${{ matrix.version.distribution }} integration tests
       id: test-execution
       run: bash scripts/e2e/elasticsearch.sh ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.storage_test }}
