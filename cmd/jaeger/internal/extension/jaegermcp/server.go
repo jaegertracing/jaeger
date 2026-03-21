@@ -65,8 +65,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("cannot get %s extension: %w", jaegerquery.ID, err)
 	}
 	s.queryAPI = queryExt.QueryService()
-	s.telset.Logger.Info("Successfully retrieved v2 QueryService from jaegerquery extension")
-	s.toolObservability = newToolObservability(s.telset.Logger, otel.GetTracerProvider())
+	s.toolObservability = newToolObservability(otel.GetTracerProvider())
 
 	tenancyMgr := queryExt.TenancyManager()
 	s.mcpServer = mcp.NewServer(
@@ -133,53 +132,54 @@ func (s *server) Shutdown(ctx context.Context) error {
 
 // registerTools registers all MCP tools with the server.
 func (s *server) registerTools() {
-	healthHandler := instrumentTool(s.toolObservability, "health", s.healthTool)
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
+	addTool(s.mcpServer, s.toolObservability, &mcp.Tool{
 		Name:        "health",
 		Description: "Check if the Jaeger MCP server is running",
-	}, healthHandler)
+	}, s.healthTool)
 
-	getServicesHandler := instrumentTool(s.toolObservability, "get_services", handlers.NewGetServicesHandler(s.queryAPI))
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
+	addTool(s.mcpServer, s.toolObservability, &mcp.Tool{
 		Name:        "get_services",
 		Description: "List available service names. Use this first to discover valid service names for search_traces.",
-	}, getServicesHandler)
+	}, handlers.NewGetServicesHandler(s.queryAPI))
 
-	getSpanNamesHandler := instrumentTool(s.toolObservability, "get_span_names", handlers.NewGetSpanNamesHandler(s.queryAPI))
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
+	addTool(s.mcpServer, s.toolObservability, &mcp.Tool{
 		Name:        "get_span_names",
 		Description: "List available span names for a service. Supports regex filtering and span kind filtering.",
-	}, getSpanNamesHandler)
+	}, handlers.NewGetSpanNamesHandler(s.queryAPI))
 
-	searchTracesHandler := instrumentTool(s.toolObservability, "search_traces", handlers.NewSearchTracesHandler(s.queryAPI, s.config.MaxSearchResults))
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
+	addTool(s.mcpServer, s.toolObservability, &mcp.Tool{
 		Name:        "search_traces",
 		Description: "Find traces matching service, time, attributes, and duration criteria. Returns trace summary only.",
-	}, searchTracesHandler)
+	}, handlers.NewSearchTracesHandler(s.queryAPI, s.config.MaxSearchResults))
 
-	getSpanDetailsHandler := instrumentTool(s.toolObservability, "get_span_details", handlers.NewGetSpanDetailsHandler(s.queryAPI, s.config.MaxSpanDetailsPerRequest))
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
+	addTool(s.mcpServer, s.toolObservability, &mcp.Tool{
 		Name:        "get_span_details",
 		Description: "Fetch full details (attributes, events, links, status) for specific spans.",
-	}, getSpanDetailsHandler)
+	}, handlers.NewGetSpanDetailsHandler(s.queryAPI, s.config.MaxSpanDetailsPerRequest))
 
-	getTraceErrorsHandler := instrumentTool(s.toolObservability, "get_trace_errors", handlers.NewGetTraceErrorsHandler(s.queryAPI))
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
+	addTool(s.mcpServer, s.toolObservability, &mcp.Tool{
 		Name:        "get_trace_errors",
 		Description: "Get full details for all spans with error status.",
-	}, getTraceErrorsHandler)
+	}, handlers.NewGetTraceErrorsHandler(s.queryAPI))
 
-	getTraceTopologyHandler := instrumentTool(s.toolObservability, "get_trace_topology", handlers.NewGetTraceTopologyHandler(s.queryAPI))
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
+	addTool(s.mcpServer, s.toolObservability, &mcp.Tool{
 		Name:        "get_trace_topology",
 		Description: "Get the structural topology of a trace as a flat, depth-first list of spans. Each span's 'path' field encodes ancestry as slash-delimited span IDs (e.g. rootID/parentID/spanID). Does NOT return attributes or logs.",
-	}, getTraceTopologyHandler)
+	}, handlers.NewGetTraceTopologyHandler(s.queryAPI))
 
-	getCriticalPathHandler := instrumentTool(s.toolObservability, "get_critical_path", handlers.NewGetCriticalPathHandler(s.queryAPI))
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
+	addTool(s.mcpServer, s.toolObservability, &mcp.Tool{
 		Name:        "get_critical_path",
 		Description: "Identify the sequence of spans forming the critical latency path (the blocking execution path).",
-	}, getCriticalPathHandler)
+	}, handlers.NewGetCriticalPathHandler(s.queryAPI))
+}
+
+func addTool[In, Out any](
+	mcpServer *mcp.Server,
+	obs *toolObservability,
+	tool *mcp.Tool,
+	handler mcp.ToolHandlerFor[In, Out],
+) {
+	mcp.AddTool(mcpServer, tool, instrumentTool(obs, tool.Name, handler))
 }
 
 // HealthToolOutput is the strongly-typed output for the health tool.

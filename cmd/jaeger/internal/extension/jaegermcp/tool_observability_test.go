@@ -17,15 +17,11 @@ import (
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest/observer"
 )
 
 func TestInstrumentToolSuccess(t *testing.T) {
-	core, observed := observer.New(zapcore.DebugLevel)
 	capture := newTraceCapture(t)
-	obs := newToolObservability(zap.New(core), capture.provider)
+	obs := newToolObservability(capture.provider)
 
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, struct{}, error) {
 		return nil, struct{}{}, nil
@@ -42,18 +38,11 @@ func TestInstrumentToolSuccess(t *testing.T) {
 	assertHasStringAttribute(t, spanData.Attributes, "mcp.tool.name", "get_services")
 	assertHasStringAttribute(t, spanData.Attributes, "mcp.status", "ok")
 	assert.Equal(t, codes.Unset, spanData.Status.Code)
-
-	doneLogs := observed.FilterMessage("MCP tool invocation completed").All()
-	require.Len(t, doneLogs, 1)
-	doneContext := doneLogs[0].ContextMap()
-	assert.Equal(t, "get_services", doneContext["tool_name"])
-	assert.Equal(t, "ok", doneContext["status"])
 }
 
 func TestInstrumentToolError(t *testing.T) {
-	core, observed := observer.New(zapcore.DebugLevel)
 	capture := newTraceCapture(t)
-	obs := newToolObservability(zap.New(core), capture.provider)
+	obs := newToolObservability(capture.provider)
 
 	expectedErr := errors.New("trace not found")
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, struct{}, error) {
@@ -70,17 +59,11 @@ func TestInstrumentToolError(t *testing.T) {
 	assertHasStringAttribute(t, spanData.Attributes, "mcp.status", "not_found")
 	assert.Equal(t, codes.Error, spanData.Status.Code)
 	assert.Equal(t, expectedErr.Error(), spanData.Status.Description)
-
-	failedLogs := observed.FilterMessage("MCP tool invocation failed").All()
-	require.Len(t, failedLogs, 1)
-	assert.Equal(t, zapcore.WarnLevel, failedLogs[0].Level)
-	assert.Equal(t, "not_found", failedLogs[0].ContextMap()["status"])
 }
 
 func TestInstrumentToolErrorFromResultObject(t *testing.T) {
-	core, observed := observer.New(zapcore.DebugLevel)
 	capture := newTraceCapture(t)
-	obs := newToolObservability(zap.New(core), capture.provider)
+	obs := newToolObservability(capture.provider)
 
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, struct{}, error) {
 		result := &mcp.CallToolResult{}
@@ -100,15 +83,11 @@ func TestInstrumentToolErrorFromResultObject(t *testing.T) {
 	assertHasStringAttribute(t, spanData.Attributes, "mcp.status", "invalid_argument")
 	assert.Equal(t, codes.Error, spanData.Status.Code)
 	assert.Equal(t, "invalid pattern", spanData.Status.Description)
-
-	failedLogs := observed.FilterMessage("MCP tool invocation failed").All()
-	require.Len(t, failedLogs, 1)
-	assert.Equal(t, zapcore.WarnLevel, failedLogs[0].Level)
 }
 
 func TestInstrumentToolErrorFromResultObjectWithoutErrorValue(t *testing.T) {
 	capture := newTraceCapture(t)
-	obs := newToolObservability(zap.NewNop(), capture.provider)
+	obs := newToolObservability(capture.provider)
 
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, struct{}, error) {
 		return &mcp.CallToolResult{IsError: true}, struct{}{}, nil
@@ -126,9 +105,8 @@ func TestInstrumentToolErrorFromResultObjectWithoutErrorValue(t *testing.T) {
 }
 
 func TestInstrumentToolGenericError(t *testing.T) {
-	core, observed := observer.New(zapcore.DebugLevel)
 	capture := newTraceCapture(t)
-	obs := newToolObservability(zap.New(core), capture.provider)
+	obs := newToolObservability(capture.provider)
 
 	expectedErr := errors.New("storage backend unavailable")
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, struct{}, error) {
@@ -144,43 +122,11 @@ func TestInstrumentToolGenericError(t *testing.T) {
 	assertHasStringAttribute(t, spanData.Attributes, "mcp.status", "error")
 	assert.Equal(t, codes.Error, spanData.Status.Code)
 	assert.Equal(t, expectedErr.Error(), spanData.Status.Description)
-
-	failedLogs := observed.FilterMessage("MCP tool invocation failed").All()
-	require.Len(t, failedLogs, 1)
-	assert.Equal(t, zapcore.ErrorLevel, failedLogs[0].Level)
-}
-
-func TestInstrumentToolPanic(t *testing.T) {
-	core, observed := observer.New(zapcore.DebugLevel)
-	capture := newTraceCapture(t)
-	obs := newToolObservability(zap.New(core), capture.provider)
-
-	handler := func(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, struct{}, error) {
-		panic("boom")
-	}
-	wrapped := instrumentTool(obs, "health", handler)
-
-	result, _, err := wrapped(context.Background(), nil, struct{}{})
-
-	require.ErrorIs(t, err, errToolHandlerPanic)
-	require.Nil(t, result)
-
-	spanData := capture.singleSpan(t)
-	assertHasStringAttribute(t, spanData.Attributes, "mcp.tool.name", "health")
-	assertHasStringAttribute(t, spanData.Attributes, "mcp.status", "error")
-	assert.Equal(t, codes.Error, spanData.Status.Code)
-	assert.Equal(t, errToolHandlerPanic.Error(), spanData.Status.Description)
-
-	failedLogs := observed.FilterMessage("MCP tool invocation failed").All()
-	require.Len(t, failedLogs, 1)
-	assert.Equal(t, zapcore.ErrorLevel, failedLogs[0].Level)
-	_, hasPanicField := failedLogs[0].ContextMap()["panic"]
-	assert.True(t, hasPanicField)
 }
 
 func TestInstrumentToolCreatesChildSpanWhenParentExists(t *testing.T) {
 	capture := newTraceCapture(t)
-	obs := newToolObservability(zap.NewNop(), capture.provider)
+	obs := newToolObservability(capture.provider)
 
 	handler := func(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, struct{}, error) {
 		return nil, struct{}{}, nil
@@ -253,18 +199,8 @@ func TestObserveToolInSpanWithoutRecordingSpan(t *testing.T) {
 	})
 }
 
-func TestLogFailureErrorLevel(t *testing.T) {
-	core, observed := observer.New(zapcore.DebugLevel)
-	obs := newToolObservability(zap.New(core), nil)
-	obs.logFailure(toolStatusError, zap.String("tool_name", "x"))
-	entries := observed.FilterMessage("MCP tool invocation failed").All()
-	require.Len(t, entries, 1)
-	assert.Equal(t, zapcore.ErrorLevel, entries[0].Level)
-}
-
 func TestNewToolObservabilityDefaults(t *testing.T) {
-	obs := newToolObservability(nil, nil)
-	require.NotNil(t, obs.logger)
+	obs := newToolObservability(nil)
 	require.NotNil(t, obs.tracer)
 }
 
