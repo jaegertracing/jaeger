@@ -156,7 +156,7 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 
 	// If WithErrors is requested, add error attribute filter
 	if input.WithErrors {
-		attributes.PutStr("error", "true")
+		attributes.PutBool("error", true)
 	}
 
 	return querysvc.TraceQueryParams{

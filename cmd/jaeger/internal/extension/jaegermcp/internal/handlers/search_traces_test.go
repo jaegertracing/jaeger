@@ -17,6 +17,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/types"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
 )
 
 // mockQueryService and createTestTrace are defined in test_helpers.go
@@ -185,6 +186,43 @@ func TestSearchTracesHandler_Handle_WithErrorsFilter(t *testing.T) {
 	// Only error trace should be returned
 	require.Len(t, output.Traces, 1)
 	assert.True(t, output.Traces[0].HasErrors)
+}
+
+func TestSearchTracesHandler_Handle_WithErrorsFilter_UsingMemoryStore(t *testing.T) {
+	store, err := memory.NewStore(memory.Configuration{MaxTraces: 10})
+	require.NoError(t, err)
+
+	require.NoError(t, store.WriteTraces(context.Background(), createTestTrace(
+		"trace111",
+		"test",
+		"/ok",
+		false,
+	)))
+	require.NoError(t, store.WriteTraces(context.Background(), createTestTrace(
+		"trace222",
+		"test",
+		"/error",
+		true,
+	)))
+
+	handler := &searchTracesHandler{
+		queryService: querysvc.NewQueryService(store, store, querysvc.QueryServiceOptions{}),
+		maxResults:   100,
+	}
+
+	input := types.SearchTracesInput{
+		StartTimeMin: "-1h",
+		ServiceName:  "test",
+		WithErrors:   true,
+	}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	assert.True(t, output.Traces[0].HasErrors)
+	assert.Equal(t, "test", output.Traces[0].RootService)
+	assert.Equal(t, "/error", output.Traces[0].RootSpanName)
+	assert.Empty(t, output.Error)
 }
 
 func TestSearchTracesHandler_Handle_SearchDepthDefault(t *testing.T) {
