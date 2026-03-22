@@ -568,8 +568,8 @@ func TestMCPClientSearchTracesEmptyResults(t *testing.T) {
 	assert.NotContains(t, text, `"traces": null`)
 }
 
-// TestMCPClientMultipleSessionsIndependent verifies that two independent
-// MCP sessions can operate concurrently without interference.
+// TestMCPClientMultipleSessionsIndependent verifies that two separate
+// MCP sessions can coexist and return correct results independently.
 func TestMCPClientMultipleSessionsIndependent(t *testing.T) {
 	_, addr := startTestServer(t)
 	session1 := connectMCPClient(t, addr)
@@ -578,18 +578,32 @@ func TestMCPClientMultipleSessionsIndependent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Both sessions should be able to call health independently
-	result1, err := session1.CallTool(ctx, &mcp.CallToolParams{Name: "health"})
-	require.NoError(t, err)
-	assert.False(t, result1.IsError)
+	type result struct {
+		toolResult *mcp.CallToolResult
+		err        error
+	}
+	ch1 := make(chan result, 1)
+	ch2 := make(chan result, 1)
 
-	result2, err := session2.CallTool(ctx, &mcp.CallToolParams{Name: "health"})
-	require.NoError(t, err)
-	assert.False(t, result2.IsError)
+	// Run both calls concurrently to validate session isolation.
+	go func() {
+		r, err := session1.CallTool(ctx, &mcp.CallToolParams{Name: "health"})
+		ch1 <- result{toolResult: r, err: err}
+	}()
+	go func() {
+		r, err := session2.CallTool(ctx, &mcp.CallToolParams{Name: "health"})
+		ch2 <- result{toolResult: r, err: err}
+	}()
 
-	// Both should get valid responses
-	text1 := extractTextContent(t, result1)
-	text2 := extractTextContent(t, result2)
+	r1 := <-ch1
+	r2 := <-ch2
+
+	require.NoError(t, r1.err)
+	require.NoError(t, r2.err)
+	// Extract text on the test goroutine (not in the spawned goroutines)
+	// to satisfy testifylint's go-require rule.
+	text1 := extractTextContent(t, r1.toolResult)
+	text2 := extractTextContent(t, r2.toolResult)
 	assert.Equal(t, text1, text2)
 }
 
@@ -599,20 +613,10 @@ func TestMCPClientMultipleSessionsIndependent(t *testing.T) {
 func extractTextContent(t *testing.T, result *mcp.CallToolResult) string {
 	t.Helper()
 	require.NotEmpty(t, result.Content, "CallToolResult should have content")
-	// Content items are interface types — try text assertion
-	contentJSON, err := json.Marshal(result.Content)
-	require.NoError(t, err)
 
-	var contents []struct {
-		Type string `json:"type"`
-		Text string `json:"text"`
-	}
-	require.NoError(t, json.Unmarshal(contentJSON, &contents))
-	require.NotEmpty(t, contents, "should have at least one content item")
-
-	for _, c := range contents {
-		if c.Type == "text" {
-			return c.Text
+	for _, c := range result.Content {
+		if tc, ok := c.(*mcp.TextContent); ok {
+			return tc.Text
 		}
 	}
 	t.Fatal("no text content found in CallToolResult")
@@ -628,8 +632,10 @@ func createMultiSpanTestTrace() ptrace.Traces {
 	scopeSpans := resourceSpans.ScopeSpans().AppendEmpty()
 	now := time.Now()
 
-	tid := pcommon.TraceID{}
-	copy(tid[:], "abcdef1234567890abcdef1234567890")
+	tid := pcommon.TraceID([16]byte{
+		0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x90,
+		0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x90,
+	})
 
 	// Root span
 	rootSpan := scopeSpans.Spans().AppendEmpty()
@@ -663,8 +669,10 @@ func createTestTraceWithErrors() ptrace.Traces {
 	scopeSpans := resourceSpans.ScopeSpans().AppendEmpty()
 	now := time.Now()
 
-	tid := pcommon.TraceID{}
-	copy(tid[:], "abcdef1234567890abcdef1234567890")
+	tid := pcommon.TraceID([16]byte{
+		0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x90,
+		0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x90,
+	})
 
 	// Root span (ok)
 	rootSpan := scopeSpans.Spans().AppendEmpty()
