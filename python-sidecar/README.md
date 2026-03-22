@@ -61,7 +61,7 @@ Jaeger ACP Sidecar listening on ws://localhost:9000
 
 ## End-to-End Test
 
-1. Start Jaeger gateway (`jaeger-dev`) in another terminal.
+1. Start Jaeger CMD in another terminal.
 2. Start this sidecar.
 3. Send a chat prompt:
 

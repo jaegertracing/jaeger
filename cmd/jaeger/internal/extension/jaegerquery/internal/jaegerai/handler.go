@@ -18,7 +18,8 @@ import (
 )
 
 const (
-	endOfTurnMarker = "__END_OF_TURN__"
+	endOfTurnMarker        = "__END_OF_TURN__"
+	maxChatRequestBodySize = 1 << 20 // 1 MiB
 )
 
 // ChatRequest is the incoming payload
@@ -42,6 +43,10 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+
+	// Limit the size of the request body to prevent memory/CPU abuse.
+	r.Body = http.MaxBytesReader(w, r.Body, maxChatRequestBodySize)
+	defer r.Body.Close()
 
 	var req ChatRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -80,6 +85,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		flusher:    flusher,
 		doneCh:     make(chan struct{}),
 	}
+	// Build an ACP client-side connection over the websocket adapter.
 	acpConn := acp.NewClientSideConnection(clientImpl, adapter, adapter)
 
 	acpCtx, cancel := context.WithCancel(ctx)
@@ -97,7 +103,9 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		},
 	})
 	if err != nil {
-		fmt.Fprintf(w, "Error initializing agent: %v\n", err)
+		if _, writeErr := fmt.Fprintf(w, "Error initializing agent: %v\n", err); writeErr != nil {
+			h.Logger.Warn("Failed to write initialize error response", zap.Error(writeErr))
+		}
 		return
 	}
 
@@ -106,17 +114,21 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		McpServers: []acp.McpServer{},
 	})
 	if err != nil {
-		fmt.Fprintf(w, "Error creating session: %v\n", err)
+		if _, writeErr := fmt.Fprintf(w, "Error creating session: %v\n", err); writeErr != nil {
+			h.Logger.Warn("Failed to write new session error response", zap.Error(writeErr))
+		}
 		return
 	}
 
-	// This is blocking until the agent finishes processing the prompt
+	// This blocks until the sidecar completes the ACP prompt turn.
 	_, err = acpConn.Prompt(acpCtx, acp.PromptRequest{
 		SessionId: sess.SessionId,
 		Prompt:    []acp.ContentBlock{acp.TextBlock(req.Prompt)},
 	})
 	if err != nil {
-		fmt.Fprintf(w, "Error starting prompt: %v\n", err)
+		if _, writeErr := fmt.Fprintf(w, "Error starting prompt: %v\n", err); writeErr != nil {
+			h.Logger.Warn("Failed to write prompt error response", zap.Error(writeErr))
+		}
 		return
 	}
 

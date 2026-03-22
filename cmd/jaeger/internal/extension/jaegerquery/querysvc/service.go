@@ -153,34 +153,9 @@ func (qs QueryService) FindTraces(
 	query TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		if query.TraceQueryParams.ServiceName == "dummy-service" {
-			yield([]ptrace.Traces{dummyTrace(query.TraceQueryParams.OperationName)}, nil)
-			return
-		}
-
 		tracesIter := qs.traceReader.FindTraces(ctx, query.TraceQueryParams)
 		qs.receiveTraces(tracesIter, yield, query.RawTraces)
 	}
-}
-
-func dummyTrace(operationName string) ptrace.Traces {
-	if operationName == "" {
-		operationName = "dummy-operation"
-	}
-
-	td := ptrace.NewTraces()
-	rs := td.ResourceSpans().AppendEmpty()
-	rs.Resource().Attributes().PutStr("service.name", "dummy-service")
-	ss := rs.ScopeSpans().AppendEmpty()
-	span := ss.Spans().AppendEmpty()
-	span.SetName(operationName)
-	span.SetTraceID(pcommon.TraceID{0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11})
-	span.SetSpanID(pcommon.SpanID{0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x22})
-	span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(-42 * time.Millisecond)))
-	span.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now()))
-	span.Attributes().PutStr("dummy", "true")
-
-	return td
 }
 
 // ArchiveTrace archives a trace specified by the given query parameters.

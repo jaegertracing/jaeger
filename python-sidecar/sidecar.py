@@ -27,7 +27,6 @@ from acp.schema import (
     NewSessionResponse,
 )
 
-api_key = os.environ.get("GEMINI_API_KEY")
 END_OF_TURN_MARKER = "__END_OF_TURN__"
 
 
@@ -61,6 +60,7 @@ class JaegerMCPBridge:
         if self._initialized:
             return
 
+        # Discover available MCP tools once, then expose them to Gemini as function declarations.
         adk_tools = await self._toolset.get_tools()
         self._tools_by_name = {tool.name: tool for tool in adk_tools}
         print(f"Retrieved tools from MCP: {list(self._tools_by_name.keys())}")
@@ -96,6 +96,11 @@ class JaegerSidecarAgent(Agent):
     def __init__(self):
         super().__init__()
         self._conn: Client = None
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            raise RuntimeError(
+                "GEMINI_API_KEY environment variable is not set; cannot initialize Gemini client."
+            )
         self._gemini = genai.Client(api_key=api_key)
         self._mcp = JaegerMCPBridge(os.environ.get("JAEGER_MCP_URL", "http://127.0.0.1:16687/mcp"))
         self._next_session_id = 1
@@ -169,6 +174,7 @@ class JaegerSidecarAgent(Agent):
         print(f"Sending user message to Gemini: {user_text}")
         response = chat.send_message(user_text)
 
+        # Iterate model->tool->model until Gemini produces a final text response.
         for _ in range(6):
             function_calls = response.function_calls
             if not function_calls:
@@ -233,7 +239,7 @@ async def ws_to_client_writer(websocket, client_writer):
             if isinstance(message, str):
                 message = message.encode('utf-8')
             client_writer.write(message)
-            if b'\n' not in message:
+            if not message.endswith(b'\n'):
                 client_writer.write(b'\n')
             await client_writer.drain()
     except websockets.exceptions.ConnectionClosed:
@@ -259,7 +265,8 @@ async def client_reader_to_ws(websocket, client_reader):
 async def handle_websocket(websocket):
     print("New websocket connection from Jaeger AI Gateway")
     
-    # Create bidirectional streams using an in-memory socket pair to link acp_sdk to websocket
+    # Bridge ACP stdio-style streams to WebSocket transport used by the Go gateway.
+    # Socketpair avoids reimplementing ACP framing logic in this process.
     asock, csock = socket.socketpair()
     
     agent_reader, agent_writer = await asyncio.open_connection(sock=asock)
