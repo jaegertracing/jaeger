@@ -126,7 +126,7 @@ func (s *E2EStorageIntegration) scrapeMetrics(t *testing.T, storage string) {
 	require.NoError(t, err)
 
 	client := &http.Client{}
-	resp, err := client.Do(req) //nolint:gosec // G704 - metrics URL constructed from test config
+	resp, err := client.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -224,7 +224,7 @@ func purge(t *testing.T) {
 
 	client := &http.Client{}
 
-	resp, err := client.Do(r) //nolint:gosec // G704 - purge URL constructed from test config
+	resp, err := client.Do(r)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
