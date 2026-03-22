@@ -17,7 +17,9 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 )
 
-const endOfTurnMarker = "__END_OF_TURN__"
+const (
+	endOfTurnMarker = "__END_OF_TURN__"
+)
 
 // ChatRequest is the incoming payload
 type ChatRequest struct {
@@ -28,10 +30,11 @@ type ChatRequest struct {
 type ChatHandler struct {
 	Logger       *zap.Logger
 	QueryService *querysvc.QueryService
+	sidecarWSURL string
 }
 
-func NewChatHandler(logger *zap.Logger, queryService *querysvc.QueryService) *ChatHandler {
-	return &ChatHandler{Logger: logger, QueryService: queryService}
+func NewChatHandler(logger *zap.Logger, queryService *querysvc.QueryService, sidecarWSURL string) *ChatHandler {
+	return &ChatHandler{Logger: logger, QueryService: queryService, sidecarWSURL: sidecarWSURL}
 }
 
 func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -58,7 +61,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
-	conn, resp, err := dialer.DialContext(ctx, "ws://localhost:9000", nil)
+	conn, resp, err := dialer.DialContext(ctx, h.sidecarWSURL, nil)
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
 	}

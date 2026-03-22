@@ -24,6 +24,11 @@ type UIConfig struct {
 	LogAccess bool `mapstructure:"log_access" valid:"optional"`
 }
 
+type AIConfig struct {
+	// SidecarWSURL is the ACP WebSocket endpoint used by the query AI gateway.
+	SidecarWSURL string `mapstructure:"sidecar_ws_url" valid:"optional"`
+}
+
 // QueryOptions holds configuration for query service shared with jaeger-v2
 type QueryOptions struct {
 	// BasePath is the base path for all HTTP routes.
@@ -45,11 +50,16 @@ type QueryOptions struct {
 	HTTP confighttp.ServerConfig `mapstructure:"http"`
 	// GRPC holds the GRPC configuration that the query service uses to serve requests.
 	GRPC configgrpc.ServerConfig `mapstructure:"grpc"`
+	// AI holds configuration related to Jaeger AI gateway integration.
+	AI AIConfig `mapstructure:"ai"`
 }
 
 func DefaultQueryOptions() QueryOptions {
 	return QueryOptions{
 		MaxClockSkewAdjust: 0, // disabled by default
+		AI: AIConfig{
+			SidecarWSURL: "ws://localhost:9000",
+		},
 		HTTP: confighttp.ServerConfig{
 			NetAddr: confignet.AddrConfig{
 				Endpoint:  ports.PortToHostPort(ports.QueryHTTP),
