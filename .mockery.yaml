@@ -1,5 +1,5 @@
-dir: '{{.InterfaceDir}}/mocks/'
-structname: '{{.InterfaceName}}'
+dir: "{{.InterfaceDir}}/mocks/"
+structname: "{{.InterfaceName}}"
 pkgname: mocks
 template: testify
 filename: mocks.go
@@ -68,3 +68,4 @@ packages:
   github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore:
     interfaces:
       CoreSpanReader: {}
+      CoreSpanWriter: {}

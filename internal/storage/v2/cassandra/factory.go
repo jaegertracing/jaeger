@@ -5,6 +5,7 @@ package cassandra
 
 import (
 	"context"
+	"fmt"
 
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -61,11 +62,15 @@ func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
 }
 
 func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
-	writer, err := f.v1Factory.CreateSpanWriter()
+	w, err := f.v1Factory.CreateSpanWriter()
 	if err != nil {
 		return nil, err
 	}
-	return v1adapter.NewTraceWriter(writer), nil
+	spanWriter, ok := w.(*cspanstore.SpanWriter)
+	if !ok {
+		return nil, fmt.Errorf("cannot cast %T to *cspanstore.SpanWriter", w)
+	}
+	return ctracestore.NewTraceWriter(spanWriter), nil
 }
 
 func (f *Factory) CreateDependencyReader() (depstore.Reader, error) {
