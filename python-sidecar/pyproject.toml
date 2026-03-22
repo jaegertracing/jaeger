@@ -1,7 +1,7 @@
 [project]
 name = "python-sidecar"
 version = "0.1.0"
-description = "Add your description here"
+description = "Python sidecar that runs an Agent Client Protocol (ACP) agent backed by Google Gemini and exposes a Jaeger MCP bridge for observability and tooling integration."
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [

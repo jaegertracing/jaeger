@@ -132,6 +132,6 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Wait for explicit end-of-turn marker from the sidecar, with timeout fallback.
-	clientImpl.waitForTurnCompletion(acpCtx, 2*time.Second)
+	// Wait for explicit end-of-turn marker from the sidecar, with a 3 mins timeout fallback.
+	clientImpl.waitForTurnCompletion(acpCtx, 180*time.Second)
 }

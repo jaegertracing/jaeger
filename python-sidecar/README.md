@@ -44,12 +44,6 @@ uv sync
 You can start the same server using either entrypoint:
 
 ```bash
-uv run python sidecar.py
-```
-
-or
-
-```bash
 uv run python main.py
 ```
 
@@ -66,7 +60,7 @@ Jaeger ACP Sidecar listening on ws://localhost:9000
 3. Send a chat prompt:
 
 ```bash
-curl -N -X POST http://localhost:16686/api/chat \
+curl -N -X POST http://localhost:16686/api/ai/chat \
 	-H "Content-Type: application/json" \
 	-d '{"prompt":"can you search for trace with id 11111111111111111111111111111111"}'
 ```

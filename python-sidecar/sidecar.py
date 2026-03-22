@@ -3,12 +3,11 @@ import json
 import os
 import socket
 
-import websockets
-
 from google.adk.tools.mcp_tool import MCPToolset, StreamableHTTPConnectionParams
 from google import genai
 from google.genai import types
 from typing import Any
+from ws_commands import ws_to_client_writer, client_reader_to_ws
 
 from acp import (
     PROTOCOL_VERSION,
@@ -233,59 +232,31 @@ class JaegerSidecarAgent(Agent):
         return PromptResponse(stop_reason="end_turn")
 
 
-async def ws_to_client_writer(websocket, client_writer):
-    try:
-        async for message in websocket:
-            if isinstance(message, str):
-                message = message.encode('utf-8')
-            client_writer.write(message)
-            if not message.endswith(b'\n'):
-                client_writer.write(b'\n')
-            await client_writer.drain()
-    except websockets.exceptions.ConnectionClosed:
-        pass
-    except Exception as e:
-        print(f"Error in ws_to_client reads: {e}")
-    finally:
-        client_writer.close()
-
-async def client_reader_to_ws(websocket, client_reader):
-    try:
-        while True:
-            line = await client_reader.readline()
-            if not line:
-                break
-            await websocket.send(line.decode('utf-8'))
-    except websockets.exceptions.ConnectionClosed:
-        pass
-    except Exception as e:
-        print(f"Error in client_to_ws writes: {e}")
-
-
 async def handle_websocket(websocket):
     print("New websocket connection from Jaeger AI Gateway")
-    
+
     # Bridge ACP stdio-style streams to WebSocket transport used by the Go gateway.
     # Socketpair avoids reimplementing ACP framing logic in this process.
+
     asock, csock = socket.socketpair()
-    
+
     agent_reader, agent_writer = await asyncio.open_connection(sock=asock)
     client_reader, client_writer = await asyncio.open_connection(sock=csock)
-    
+
     # Start the ACP local agent linked to the agent ends of the socket pair
     agent = JaegerSidecarAgent()
     agent_task = asyncio.create_task(run_agent(agent, agent_writer, agent_reader), name="agent_task")
-    
+
     # Bridge the client ends of the socket pair up to the WebSocket
     ws_read_task = asyncio.create_task(ws_to_client_writer(websocket, client_writer), name="ws_read_task")
     ws_write_task = asyncio.create_task(client_reader_to_ws(websocket, client_reader), name="ws_write_task")
-    
+
     # Wait for the connection to end
     done, pending = await asyncio.wait(
         [agent_task, ws_read_task, ws_write_task],
-        return_when=asyncio.FIRST_COMPLETED
+        return_when=asyncio.FIRST_COMPLETED,
     )
-    
+
     for task in done:
         print(f"Task finished: {task.get_name()}")
         if task.exception():
@@ -293,5 +264,6 @@ async def handle_websocket(websocket):
 
     for task in pending:
         task.cancel()
-        
+
     print("Websocket connection closed")
+
