@@ -16,7 +16,6 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/handlers"
@@ -76,7 +75,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		&mcp.ServerOptions{},
 	)
 	s.registerTools()
-	s.mcpServer.AddReceivingMiddleware(createLoggingMiddleware(s.telset.Logger, otel.GetTracerProvider()))
+	s.mcpServer.AddReceivingMiddleware(createLoggingMiddleware(s.telset.Logger, s.telset.TracerProvider))
 
 	mcpHandler := mcp.NewStreamableHTTPHandler(
 		func(_ *http.Request) *mcp.Server { return s.mcpServer },
@@ -87,7 +86,12 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		},
 	)
 
-	handler := tenancy.ExtractTenantHTTPHandler(tenancyMgr, otelhttp.NewHandler(mcpHandler, "jaeger_mcp"))
+	tenantHandler := tenancy.ExtractTenantHTTPHandler(tenancyMgr, mcpHandler)
+	handler := otelhttp.NewHandler(
+		tenantHandler,
+		"jaeger_mcp",
+		otelhttp.WithTracerProvider(s.telset.TracerProvider),
+	)
 
 	s.listener, err = s.config.HTTP.ToListener(ctx)
 	if err != nil {

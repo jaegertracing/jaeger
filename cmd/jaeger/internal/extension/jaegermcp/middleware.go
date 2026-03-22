@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 )
 
@@ -106,7 +106,7 @@ func createLoggingMiddleware(logger *zap.Logger, tracerProvider trace.TracerProv
 
 func newToolTracer(tracerProvider trace.TracerProvider) trace.Tracer {
 	if tracerProvider == nil {
-		tracerProvider = otel.GetTracerProvider()
+		tracerProvider = noop.NewTracerProvider()
 	}
 	return tracerProvider.Tracer("jaeger.mcp")
 }
