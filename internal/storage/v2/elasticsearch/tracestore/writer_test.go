@@ -26,16 +26,25 @@ func TestTraceWriter_WriteTraces(t *testing.T) {
 	span := resourceSpans.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
 	span.SetName("op-1")
 	dbSpan := ToDBModel(td)
-	writer := TraceWriter{spanWriter: coreWriter}
+	writer := TraceWriter{spanWriter: coreWriter, logger: zap.NewNop()}
 	coreWriter.On("WriteSpan", model.EpochMicrosecondsAsTime(dbSpan[0].StartTime), &dbSpan[0])
 	err := writer.WriteTraces(context.Background(), td)
 	require.NoError(t, err)
 }
 
+func TestTraceWriter_WriteTraces_EmptyTraces(t *testing.T) {
+	coreWriter := &mocks.CoreSpanWriter{}
+	writer := TraceWriter{spanWriter: coreWriter, logger: zap.NewNop()}
+	td := ptrace.NewTraces()
+	err := writer.WriteTraces(context.Background(), td)
+	require.NoError(t, err)
+	coreWriter.AssertNotCalled(t, "WriteSpan")
+}
+
 func TestTraceWriter_Close(t *testing.T) {
 	coreWriter := &mocks.CoreSpanWriter{}
 	coreWriter.On("Close").Return(nil)
-	writer := TraceWriter{spanWriter: coreWriter}
+	writer := TraceWriter{spanWriter: coreWriter, logger: zap.NewNop()}
 	err := writer.Close()
 	require.NoError(t, err)
 }
