@@ -89,6 +89,39 @@ func TestExtractorTraceScanError(t *testing.T) {
 	require.ErrorContains(t, err, "failed when scanning the file")
 }
 
+func TestExtractorTruncatesOutputOnRerun(t *testing.T) {
+	// Regression test for https://github.com/jaegertracing/jaeger/issues/8231:
+	// a second run on the same output file must not leave stale bytes from the first run.
+	inputFile := "fixtures/trace_success.json"
+	outputFile := t.TempDir() + "/out.json"
+
+	runExtractor := func() {
+		reader, err := newSpanReader(inputFile, zap.NewNop())
+		require.NoError(t, err)
+		extractor, err := newExtractor(outputFile, "2be38093ead7a083", reader, zap.NewNop())
+		require.NoError(t, err)
+		require.NoError(t, extractor.Run())
+	}
+
+	// First run — writes normally.
+	runExtractor()
+	first, err := os.ReadFile(outputFile)
+	require.NoError(t, err)
+
+	// Overwrite the file with longer content to simulate a "large previous run".
+	require.NoError(t, os.WriteFile(outputFile, append(first, []byte("STALE_GARBAGE")...), 0o600))
+
+	// Second run — must truncate, leaving only fresh output.
+	runExtractor()
+	second, err := os.ReadFile(outputFile)
+	require.NoError(t, err)
+
+	require.Equal(t, first, second, "second run left stale bytes from the first run")
+
+	var trace UITrace
+	loadJSON(t, outputFile, &trace)
+}
+
 func loadJSON(t *testing.T, fileName string, i any) {
 	b, err := os.ReadFile(fileName)
 	require.NoError(t, err)

@@ -4,7 +4,9 @@
 package writer
 
 import (
+	"encoding/json"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
@@ -78,6 +80,53 @@ func TestNew(t *testing.T) {
 		_, err := New(config, nopLogger)
 		require.ErrorContains(t, err, "cannot create output file")
 	})
+}
+
+func TestWriterTruncatesOutputOnRerun(t *testing.T) {
+	// Regression test for https://github.com/jaegertracing/jaeger/issues/8231:
+	// a second Writer run on the same files must not leave stale bytes from the first run.
+	nopLogger := zap.NewNop()
+	tempDir := t.TempDir()
+	config := Config{
+		MaxSpansCount:  10,
+		CapturedFile:   tempDir + "/captured.json",
+		AnonymizedFile: tempDir + "/anonymized.json",
+		MappingFile:    tempDir + "/mapping.json",
+	}
+
+	// First run — write multiple spans.
+	w1, err := New(config, nopLogger)
+	require.NoError(t, err)
+	for range 5 {
+		require.NoError(t, w1.WriteSpan(span))
+	}
+	w1.Close()
+
+	firstCaptured, err := os.ReadFile(config.CapturedFile)
+	require.NoError(t, err)
+	firstAnonymized, err := os.ReadFile(config.AnonymizedFile)
+	require.NoError(t, err)
+
+	// Second run — write fewer spans; stale bytes must not remain.
+	w2, err := New(config, nopLogger)
+	require.NoError(t, err)
+	require.NoError(t, w2.WriteSpan(span))
+	w2.Close()
+
+	secondCaptured, err := os.ReadFile(config.CapturedFile)
+	require.NoError(t, err)
+	secondAnonymized, err := os.ReadFile(config.AnonymizedFile)
+	require.NoError(t, err)
+
+	require.Less(t, len(secondCaptured), len(firstCaptured),
+		"second run should produce fewer bytes (fewer spans)")
+	require.Less(t, len(secondAnonymized), len(firstAnonymized),
+		"second run should produce fewer bytes (fewer spans)")
+
+	// Both outputs must be valid JSON arrays.
+	var capArr, anonArr []any
+	require.NoError(t, json.Unmarshal(secondCaptured, &capArr), "captured file is not valid JSON")
+	require.NoError(t, json.Unmarshal(secondAnonymized, &anonArr), "anonymized file is not valid JSON")
 }
 
 func TestWriter_WriteSpan(t *testing.T) {

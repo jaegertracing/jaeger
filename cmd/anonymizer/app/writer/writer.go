@@ -48,25 +48,30 @@ func New(config Config, logger *zap.Logger) (*Writer, error) {
 	}
 	logger.Sugar().Infof("Current working dir is %s", wd)
 
-	cf, err := os.OpenFile(config.CapturedFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
+	cf, err := os.OpenFile(config.CapturedFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create output file: %w", err)
 	}
 	logger.Sugar().Infof("Writing captured spans to file %s", config.CapturedFile)
 
-	af, err := os.OpenFile(config.AnonymizedFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
+	af, err := os.OpenFile(config.AnonymizedFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
+		cf.Close()
 		return nil, fmt.Errorf("cannot create output file: %w", err)
 	}
 	logger.Sugar().Infof("Writing anonymized spans to file %s", config.AnonymizedFile)
 
 	_, err = cf.WriteString("[")
 	if err != nil {
-		return nil, fmt.Errorf("cannot write tp output file: %w", err)
+		cf.Close()
+		af.Close()
+		return nil, fmt.Errorf("cannot write to output file: %w", err)
 	}
 	_, err = af.WriteString("[")
 	if err != nil {
-		return nil, fmt.Errorf("cannot write tp output file: %w", err)
+		cf.Close()
+		af.Close()
+		return nil, fmt.Errorf("cannot write to output file: %w", err)
 	}
 
 	options := anonymizer.Options{
