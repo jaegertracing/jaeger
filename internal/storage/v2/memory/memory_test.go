@@ -261,6 +261,42 @@ func TestFindTraces_ErrorAttributeStringCompatibility(t *testing.T) {
 	}
 }
 
+func TestFindTraces_ErrorAttributeInvalidType(t *testing.T) {
+	store, err := NewStore(Configuration{
+		MaxTraces: 10,
+	})
+	require.NoError(t, err)
+
+	td := ptrace.NewTraces()
+	rs := td.ResourceSpans().AppendEmpty()
+	spans := rs.ScopeSpans().AppendEmpty().Spans()
+
+	spanOK := spans.AppendEmpty()
+	spanOK.SetTraceID(fromString(t, "00000000000000010000000000000000"))
+	spanOK.Status().SetCode(ptrace.StatusCodeOk)
+
+	spanError := spans.AppendEmpty()
+	spanError.SetTraceID(fromString(t, "00000000000000020000000000000000"))
+	spanError.Status().SetCode(ptrace.StatusCodeError)
+
+	err = store.WriteTraces(context.Background(), td)
+	require.NoError(t, err)
+
+	queryAttributes := pcommon.NewMap()
+	queryAttributes.PutInt(errorAttribute, 1)
+	iter := store.FindTraces(context.Background(), tracestore.TraceQueryParams{
+		Attributes:  queryAttributes,
+		SearchDepth: 10,
+	})
+
+	iterLength := 0
+	for _, err := range iter {
+		require.NoError(t, err)
+		iterLength++
+	}
+	assert.Equal(t, 0, iterLength)
+}
+
 func TestFindTracesAttributesMatching(t *testing.T) {
 	stringVal := "val"
 	tests := []struct {
