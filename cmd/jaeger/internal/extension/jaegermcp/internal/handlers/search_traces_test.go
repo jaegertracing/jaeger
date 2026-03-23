@@ -13,7 +13,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/types"
@@ -162,10 +161,9 @@ func TestSearchTracesHandler_Handle_WithErrorsFilter(t *testing.T) {
 	mock := &mockQueryService{
 		findTracesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
 			// Verify that error attribute filter is added
-			val, ok := query.Attributes.Get("error")
+			errorAttr, ok := query.Attributes.Get("error")
 			assert.True(t, ok)
-			assert.Equal(t, pcommon.ValueTypeBool, val.Type())
-			assert.True(t, val.Bool())
+			assert.Equal(t, "true", errorAttr.Str())
 
 			return func(yield func([]ptrace.Traces, error) bool) {
 				// Return only error traces (simulating storage filtering)
