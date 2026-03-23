@@ -56,6 +56,7 @@
       "repeatDirection": "h",
       "fieldConfig": {
         "defaults": {
+          "unit": "ops",
           "min": 0,
           "custom": {
             "fillOpacity": 10,
@@ -142,6 +143,7 @@
       "repeatDirection": "h",
       "fieldConfig": {
         "defaults": {
+          "unit": "ops",
           "min": 0,
           "custom": {
             "fillOpacity": 10,
@@ -224,6 +226,7 @@
       "repeatDirection": "h",
       "fieldConfig": {
         "defaults": {
+          "unit": "ops",
           "min": 0,
           "custom": {
             "fillOpacity": 10,
@@ -305,6 +308,7 @@
       "repeatDirection": "h",
       "fieldConfig": {
         "defaults": {
+          "unit": "ops",
           "min": 0,
           "custom": {
             "fillOpacity": 10,
@@ -434,7 +438,7 @@
       {
         "type": "datasource",
         "name": "datasource",
-        "label": "Data Source",
+        "label": "Data source",
         "skipUrlSync": false,
         "query": "prometheus",
         "multi": false,
@@ -446,5 +450,5 @@
       }
     ]
   },
-  "annotations": {}
+  "annotations": {"list": []}
 }

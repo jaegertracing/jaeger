@@ -8,13 +8,15 @@
 //
 // Usage:
 //
-//	go run ./monitoring/jaeger-mixin/generate > monitoring/jaeger-mixin/dashboard-for-grafana-v2.json
+//	cd monitoring/jaeger-mixin/generate
+//	go run . > ../dashboard-for-grafana-v2.json
 package main
 
 import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/grafana/grafana-foundation-sdk/go/common"
 	"github.com/grafana/grafana-foundation-sdk/go/dashboard"
@@ -31,7 +33,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("marshaling dashboard: %v", err)
 	}
-	fmt.Println(string(out))
+	// The SDK emits "annotations": {} because the List field has omitempty.
+	// Normalise to {"list": []} to match the standard Grafana dashboard schema.
+	result := strings.ReplaceAll(string(out), `"annotations": {}`, `"annotations": {"list": []}`)
+	fmt.Println(result)
 }
 
 func buildDashboard() (dashboard.Dashboard, error) {
@@ -46,7 +51,7 @@ func buildDashboard() (dashboard.Dashboard, error) {
 		// and other mixin dashboards in this repo.
 		WithVariable(
 			dashboard.NewDatasourceVariableBuilder("datasource").
-				Label("Data Source").
+				Label("Data source").
 				Type("prometheus"),
 		).
 
@@ -129,6 +134,7 @@ func promTarget(expr, legend string) *prometheus.DataqueryBuilder {
 
 func spanIngestRatePanel() *timeseries.PanelBuilder {
 	return stackedPanel(2, "Span Ingest Rate").
+		Unit("ops").
 		WithTarget(promTarget(
 			`sum(rate(otelcol_receiver_refused_spans_total[1m])) or vector(0)`,
 			"error",
@@ -158,6 +164,7 @@ func spansRefusedPctPanel() *timeseries.PanelBuilder {
 
 func spanExportRatePanel() *timeseries.PanelBuilder {
 	return stackedPanel(5, "Span Export Rate").
+		Unit("ops").
 		WithTarget(promTarget(
 			`sum(rate(otelcol_exporter_send_failed_spans_total[1m])) or vector(0)`,
 			"error",
@@ -187,6 +194,7 @@ func exportSuccessRatePanel() *timeseries.PanelBuilder {
 
 func storageRequestRatePanel() *timeseries.PanelBuilder {
 	return stackedPanel(8, "Storage Request Rate").
+		Unit("ops").
 		WithTarget(promTarget(
 			`sum(rate(jaeger_storage_requests_total[1m])) by (operation, result)`,
 			"{{operation}} - {{result}}",
@@ -207,6 +215,7 @@ func storageLatencyP99Panel() *timeseries.PanelBuilder {
 
 func queryRequestRatePanel() *timeseries.PanelBuilder {
 	return stackedPanel(11, "Query Request Rate").
+		Unit("ops").
 		WithTarget(promTarget(
 			`sum(rate(http_server_request_duration_seconds_count{http_route="/api/traces"}[1m])) by (http_response_status_code)`,
 			"status {{http_response_status_code}}",
