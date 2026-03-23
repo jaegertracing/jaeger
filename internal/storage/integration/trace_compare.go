@@ -6,7 +6,7 @@ package integration
 
 import (
 	"bytes"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 
@@ -191,10 +191,10 @@ func compareAttributes(a, b pcommon.Map) int {
 }
 
 func sortTracesByTraceID(traces []ptrace.Traces) {
-	sort.Slice(traces, func(i, j int) bool {
-		a := traces[i].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
-		b := traces[j].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
-		return compareTraceIDs(a, b) < 0
+	slices.SortFunc(traces, func(a, b ptrace.Traces) int {
+		aID := a.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
+		bID := b.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
+		return compareTraceIDs(aID, bID)
 	})
 }
 
@@ -206,7 +206,7 @@ func sortAttributes(attr pcommon.Map) {
 		keyVal[k] = v
 		return true
 	})
-	sort.Strings(keys)
+	slices.Sort(keys)
 	newMap := pcommon.NewMap()
 	for _, k := range keys {
 		val, _ := newMap.GetOrPutEmpty(k)
