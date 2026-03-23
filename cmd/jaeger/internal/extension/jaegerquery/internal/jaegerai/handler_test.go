@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -25,6 +26,10 @@ type mockACPAgent struct {
 	initializeReq *acp.InitializeRequest
 	newSessionReq *acp.NewSessionRequest
 	promptReq     *acp.PromptRequest
+
+	initializeErr error
+	newSessionErr error
+	promptErr     error
 }
 
 func (*mockACPAgent) Authenticate(context.Context, acp.AuthenticateRequest) (acp.AuthenticateResponse, error) {
@@ -32,6 +37,9 @@ func (*mockACPAgent) Authenticate(context.Context, acp.AuthenticateRequest) (acp
 }
 
 func (a *mockACPAgent) Initialize(_ context.Context, params acp.InitializeRequest) (acp.InitializeResponse, error) {
+	if a.initializeErr != nil {
+		return acp.InitializeResponse{}, a.initializeErr
+	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	cp := params
@@ -48,6 +56,9 @@ func (*mockACPAgent) Cancel(context.Context, acp.CancelNotification) error {
 }
 
 func (a *mockACPAgent) NewSession(_ context.Context, params acp.NewSessionRequest) (acp.NewSessionResponse, error) {
+	if a.newSessionErr != nil {
+		return acp.NewSessionResponse{}, a.newSessionErr
+	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	cp := params
@@ -56,6 +67,9 @@ func (a *mockACPAgent) NewSession(_ context.Context, params acp.NewSessionReques
 }
 
 func (a *mockACPAgent) Prompt(ctx context.Context, params acp.PromptRequest) (acp.PromptResponse, error) {
+	if a.promptErr != nil {
+		return acp.PromptResponse{}, a.promptErr
+	}
 	a.mu.Lock()
 	cp := params
 	a.promptReq = &cp
@@ -164,5 +178,211 @@ func TestChatHandlerSendsACPProtocolRequests(t *testing.T) {
 	}
 	if conn := rr.Header().Get("Connection"); conn != "keep-alive" {
 		t.Fatalf("connection header mismatch: got %q", conn)
+	}
+}
+
+type noFlusherResponseWriter struct {
+	header http.Header
+	body   bytes.Buffer
+	status int
+}
+
+type failingFlusherResponseWriter struct {
+	header http.Header
+	status int
+}
+
+func (w *noFlusherResponseWriter) Header() http.Header {
+	if w.header == nil {
+		w.header = make(http.Header)
+	}
+	return w.header
+}
+
+func (w *noFlusherResponseWriter) Write(p []byte) (int, error) {
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	return w.body.Write(p)
+}
+
+func (w *noFlusherResponseWriter) WriteHeader(statusCode int) {
+	w.status = statusCode
+}
+
+func (w *failingFlusherResponseWriter) Header() http.Header {
+	if w.header == nil {
+		w.header = make(http.Header)
+	}
+	return w.header
+}
+
+func (w *failingFlusherResponseWriter) Write([]byte) (int, error) {
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	return 0, errors.New("forced write failure")
+}
+
+func (w *failingFlusherResponseWriter) WriteHeader(statusCode int) {
+	w.status = statusCode
+}
+
+func (*failingFlusherResponseWriter) Flush() {}
+
+func TestChatHandlerMethodNotAllowed(t *testing.T) {
+	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1")
+	req := httptest.NewRequest(http.MethodGet, "/api/ai/chat", http.NoBody)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("unexpected status: got %d want %d", rr.Code, http.StatusMethodNotAllowed)
+	}
+}
+
+func TestChatHandlerBadRequest(t *testing.T) {
+	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1")
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", strings.NewReader("{"))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("unexpected status: got %d want %d", rr.Code, http.StatusBadRequest)
+	}
+}
+
+func TestChatHandlerStreamingUnsupported(t *testing.T) {
+	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1")
+	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
+	w := &noFlusherResponseWriter{}
+
+	handler.ServeHTTP(w, req)
+
+	if w.status != http.StatusInternalServerError {
+		t.Fatalf("unexpected status: got %d want %d", w.status, http.StatusInternalServerError)
+	}
+}
+
+func TestChatHandlerDialFailure(t *testing.T) {
+	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1")
+	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("unexpected status: got %d want %d", rr.Code, http.StatusBadGateway)
+	}
+}
+
+func TestChatHandlerInitializeError(t *testing.T) {
+	agent := &mockACPAgent{initializeErr: errors.New("initialize failed")}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL)
+	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("unexpected status: got %d want %d body=%q", rr.Code, http.StatusBadGateway, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "Error initializing agent") {
+		t.Fatalf("expected initialize error message, got %q", rr.Body.String())
+	}
+}
+
+func TestChatHandlerNewSessionError(t *testing.T) {
+	agent := &mockACPAgent{newSessionErr: errors.New("new session failed")}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL)
+	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("unexpected status: got %d want %d body=%q", rr.Code, http.StatusBadGateway, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "Error creating session") {
+		t.Fatalf("expected session error message, got %q", rr.Body.String())
+	}
+}
+
+func TestChatHandlerPromptError(t *testing.T) {
+	agent := &mockACPAgent{promptErr: errors.New("prompt failed")}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL)
+	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("unexpected status: got %d want %d body=%q", rr.Code, http.StatusBadGateway, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "Error starting prompt") {
+		t.Fatalf("expected prompt error message, got %q", rr.Body.String())
+	}
+}
+
+func TestChatHandlerErrorWriteFailurePaths(t *testing.T) {
+	tests := []struct {
+		name  string
+		agent *mockACPAgent
+	}{
+		{name: "initialize error write failure", agent: &mockACPAgent{initializeErr: errors.New("initialize failed")}},
+		{name: "new session error write failure", agent: &mockACPAgent{newSessionErr: errors.New("new session failed")}},
+		{name: "prompt error write failure", agent: &mockACPAgent{promptErr: errors.New("prompt failed")}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			wsURL, cleanup := startMockACPWebSocketServer(t, tc.agent)
+			defer cleanup()
+
+			handler := NewChatHandler(zap.NewNop(), nil, wsURL)
+			body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+			if err != nil {
+				t.Fatalf("marshal request: %v", err)
+			}
+			req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
+			w := &failingFlusherResponseWriter{}
+
+			handler.ServeHTTP(w, req)
+
+			if w.status != http.StatusBadGateway {
+				t.Fatalf("unexpected status: got %d want %d", w.status, http.StatusBadGateway)
+			}
+		})
 	}
 }
