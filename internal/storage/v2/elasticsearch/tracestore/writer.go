@@ -30,9 +30,13 @@ func NewTraceWriter(p spanstore.SpanWriterParams) *TraceWriter {
 func (t *TraceWriter) WriteTraces(_ context.Context, td ptrace.Traces) error {
 	dbSpans := ToDBModel(td)
 	if len(dbSpans) == 0 {
-		t.logger.Warn("no spans converted from trace data",
-			zap.Int("resource_spans", td.ResourceSpans().Len()),
-		)
+		if td.ResourceSpans().Len() > 0 {
+			t.logger.Warn("span conversion produced no spans from non-empty trace data",
+				zap.Int("resource_spans", td.ResourceSpans().Len()),
+			)
+		} else {
+			t.logger.Debug("skipping write of empty trace data")
+		}
 		return nil
 	}
 	for i := range dbSpans {
