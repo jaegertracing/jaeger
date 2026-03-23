@@ -39,9 +39,9 @@ func buildDashboard() (dashboard.Dashboard, error) {
 		Uid("jaeger-v2").
 		Tags([]string{"jaeger"}).
 		Editable().
-		Refresh("30s").
+		Refresh("10s").
 		Time("now-1h", "now").
-		Timezone(common.TimeZoneBrowser).
+		Timezone(common.TimeZoneUtc).
 		// Prometheus datasource selector — matches the original Jaeger dashboard
 		// and other mixin dashboards in this repo.
 		WithVariable(
@@ -78,8 +78,18 @@ func buildDashboard() (dashboard.Dashboard, error) {
 	return builder.Build()
 }
 
+// datasourceRef returns a DataSourceRef that binds a panel to the dashboard's
+// ${datasource} template variable, so the Grafana datasource selector affects
+// all panels.
+func datasourceRef() common.DataSourceRef {
+	uid := "${datasource}"
+	dsType := "prometheus"
+	return common.DataSourceRef{Uid: &uid, Type: &dsType}
+}
+
 // stackedPanel returns a timeseries panel pre-configured for stacked mode.
 // Use for rate/count panels where stacking multiple series is meaningful.
+// All panels are bound to the ${datasource} variable and have Min(0) set.
 func stackedPanel(id uint32, title string) *timeseries.PanelBuilder {
 	return timeseries.NewPanelBuilder().
 		Id(id).
@@ -87,6 +97,8 @@ func stackedPanel(id uint32, title string) *timeseries.PanelBuilder {
 		Span(12).
 		Height(8).
 		FillOpacity(10).
+		Min(0).
+		Datasource(datasourceRef()).
 		Stacking(common.NewStackingConfigBuilder().
 			Mode(common.StackingModeNormal))
 }
@@ -94,13 +106,16 @@ func stackedPanel(id uint32, title string) *timeseries.PanelBuilder {
 // timeseriesPanel returns a timeseries panel without stacking.
 // Use for latency percentiles and single-metric panels where stacking
 // would produce meaningless visualizations.
+// All panels are bound to the ${datasource} variable and have Min(0) set.
 func timeseriesPanel(id uint32, title string) *timeseries.PanelBuilder {
 	return timeseries.NewPanelBuilder().
 		Id(id).
 		Title(title).
 		Span(12).
 		Height(8).
-		FillOpacity(10)
+		FillOpacity(10).
+		Min(0).
+		Datasource(datasourceRef())
 }
 
 // promTarget is a shorthand for a Prometheus query with a legend.
@@ -125,7 +140,9 @@ func spanIngestRatePanel() *timeseries.PanelBuilder {
 }
 
 func spansRefusedPctPanel() *timeseries.PanelBuilder {
-	return stackedPanel(3, "% Spans Refused").
+	// Percentage metric — not stacked; stacking percentages can exceed 100%
+	// and produces misleading visualizations.
+	return timeseriesPanel(3, "% Spans Refused").
 		Unit("percentunit").
 		Max(1).
 		WithTarget(promTarget(
@@ -152,7 +169,9 @@ func spanExportRatePanel() *timeseries.PanelBuilder {
 }
 
 func exportSuccessRatePanel() *timeseries.PanelBuilder {
-	return stackedPanel(6, "Export Success Rate %").
+	// Success-rate percentage — not stacked; stacking per-exporter percentages
+	// can exceed 100% and makes the panel hard to interpret.
+	return timeseriesPanel(6, "Export Success Rate %").
 		Unit("percent").
 		Max(100).
 		WithTarget(promTarget(
