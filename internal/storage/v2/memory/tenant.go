@@ -258,14 +258,14 @@ func validSpan(resourceAttributes pcommon.Map, scope pcommon.InstrumentationScop
 	}
 
 	if errAttribute, ok := query.Attributes.Get(errorAttribute); ok {
-		errorQueryValue, valid := errorQueryValue(errAttribute)
+		errorVal, valid := errorQueryValue(errAttribute)
 		if !valid {
 			return false
 		}
-		if errorQueryValue && span.Status().Code() != ptrace.StatusCodeError {
+		if errorVal && span.Status().Code() != ptrace.StatusCodeError {
 			return false
 		}
-		if !errorQueryValue && span.Status().Code() != ptrace.StatusCodeOk {
+		if !errorVal && span.Status().Code() != ptrace.StatusCodeOk {
 			return false
 		}
 	}
