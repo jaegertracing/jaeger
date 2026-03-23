@@ -12,6 +12,7 @@ import (
 )
 
 // createLoggingMiddleware creates an MCP middleware that logs method calls.
+// For tools/call requests it also logs the tool name.
 func createLoggingMiddleware(logger *zap.Logger) mcp.Middleware {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(
@@ -22,31 +23,40 @@ func createLoggingMiddleware(logger *zap.Logger) mcp.Middleware {
 			start := time.Now()
 			sessionID := req.GetSession().ID()
 
-			// Log request details.
-			logger.Info("MCP request",
+			fields := []zap.Field{
 				zap.String("session_id", sessionID),
-				zap.String("method", method))
+				zap.String("method", method),
+			}
+			if toolName := extractToolName(method, req); toolName != "" {
+				fields = append(fields, zap.String("tool", toolName))
+			}
+
+			logger.Info("MCP request", fields...)
 
 			// Call the actual handler.
 			result, err := next(ctx, method, req)
 
 			// Log response details.
-			duration := time.Since(start)
-
+			fields = append(fields, zap.Duration("duration", time.Since(start)))
 			if err != nil {
-				logger.Error("MCP response",
-					zap.String("session_id", sessionID),
-					zap.String("method", method),
-					zap.Duration("duration", duration),
-					zap.Error(err))
+				fields = append(fields, zap.Error(err))
+				logger.Error("MCP response", fields...)
 			} else {
-				logger.Info("MCP response",
-					zap.String("session_id", sessionID),
-					zap.String("method", method),
-					zap.Duration("duration", duration))
+				logger.Info("MCP response", fields...)
 			}
 
 			return result, err
 		}
 	}
+}
+
+// extractToolName returns the tool name from a tools/call request, or empty string otherwise.
+func extractToolName(method string, req mcp.Request) string {
+	if method != "tools/call" {
+		return ""
+	}
+	if params, ok := req.GetParams().(*mcp.CallToolParamsRaw); ok {
+		return params.Name
+	}
+	return ""
 }
