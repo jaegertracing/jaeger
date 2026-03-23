@@ -196,7 +196,9 @@ func initRouter(
 	if queryOpts.BasePath != "" && queryOpts.BasePath != "/" {
 		aiHandlerPath = queryOpts.BasePath + aiHandlerPath
 	}
-	r.HandleFunc(aiHandlerPath, jaegerai.NewChatHandler(telset.Logger, querySvc, queryOpts.AI.SidecarWSURL).ServeHTTP)
+	if queryOpts.AI.SidecarWSURL != "" {
+		r.HandleFunc(aiHandlerPath, jaegerai.NewChatHandler(telset.Logger, querySvc, queryOpts.AI.SidecarWSURL).ServeHTTP)
+	}
 
 	r.HandleFunc(apiNotFoundPattern, func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "404 page not found", http.StatusNotFound)

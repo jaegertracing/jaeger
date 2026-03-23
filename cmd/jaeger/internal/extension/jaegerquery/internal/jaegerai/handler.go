@@ -103,6 +103,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		},
 	})
 	if err != nil {
+		w.WriteHeader(http.StatusBadGateway)
 		if _, writeErr := fmt.Fprintf(w, "Error initializing agent: %v\n", err); writeErr != nil {
 			h.Logger.Warn("Failed to write initialize error response", zap.Error(writeErr))
 		}
@@ -114,6 +115,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		McpServers: []acp.McpServer{},
 	})
 	if err != nil {
+		w.WriteHeader(http.StatusBadGateway)
 		if _, writeErr := fmt.Fprintf(w, "Error creating session: %v\n", err); writeErr != nil {
 			h.Logger.Warn("Failed to write new session error response", zap.Error(writeErr))
 		}
@@ -126,6 +128,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Prompt:    []acp.ContentBlock{acp.TextBlock(req.Prompt)},
 	})
 	if err != nil {
+		w.WriteHeader(http.StatusBadGateway)
 		if _, writeErr := fmt.Fprintf(w, "Error starting prompt: %v\n", err); writeErr != nil {
 			h.Logger.Warn("Failed to write prompt error response", zap.Error(writeErr))
 		}
