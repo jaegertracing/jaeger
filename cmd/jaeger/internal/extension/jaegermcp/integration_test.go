@@ -57,7 +57,9 @@ func (s *mcpSession) callTool(t *testing.T, name string, args map[string]any) st
 
 // connectMCPSession starts a test server backed by the given mock reader,
 // connects an MCP SDK client, and returns the session with a 5s context.
-// If mockReader is nil, a default no-op reader is used.
+// Pass nil for tests that only exercise protocol-level operations (initialize,
+// tools/list, health) which do not hit storage. Passing nil creates a
+// QueryService backed by empty mocks that will panic on unexpected storage calls.
 func connectMCPSession(t *testing.T, mockReader *tracestoremocks.Reader) *mcpSession {
 	t.Helper()
 	var svc *querysvc.QueryService
@@ -379,13 +381,12 @@ func TestMCPClientInvalidToolCall(t *testing.T) {
 
 func TestMCPClientSearchTracesMissingRequiredField(t *testing.T) {
 	s := connectMCPSession(t, nil)
-	result, err := s.CallTool(s.ctx, &mcp.CallToolParams{
+	_, err := s.CallTool(s.ctx, &mcp.CallToolParams{
 		Name:      "search_traces",
 		Arguments: map[string]any{"start_time_min": "-1h"},
 	})
-	if err == nil {
-		assert.True(t, result.IsError, "search_traces without service_name should return error")
-	}
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "service_name")
 }
 
 func TestMCPClientSearchTracesEmptyResults(t *testing.T) {
