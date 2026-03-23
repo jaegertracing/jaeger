@@ -4,11 +4,12 @@
 package client
 
 import (
+	"cmp"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -155,8 +156,8 @@ func TestClientGetIndices(t *testing.T) {
 				assert.Nil(t, indices)
 			} else {
 				require.NoError(t, err)
-				sort.Slice(indices, func(i, j int) bool {
-					return indices[i].Index < indices[j].Index
+				slices.SortFunc(indices, func(a, b Index) int {
+					return cmp.Compare(a.Index, b.Index)
 				})
 				assert.Equal(t, test.indices, indices)
 			}

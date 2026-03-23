@@ -5,7 +5,7 @@ package prometheus
 
 import (
 	"maps"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -293,7 +293,7 @@ func (*Factory) tagNames(tags map[string]string) []string {
 	for k := range tags {
 		ret = append(ret, k)
 	}
-	sort.Strings(ret)
+	slices.Sort(ret)
 	return ret
 }
 
