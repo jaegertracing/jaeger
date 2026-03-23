@@ -67,9 +67,11 @@ func TestTraceWriter_WriteTraces_NonEmptyResourceSpansZeroSpans(t *testing.T) {
 	coreWriter.AssertNotCalled(t, "WriteSpan")
 	require.Equal(t, 1, logs.Len())
 	logEntry := logs.All()[0]
-	assert.Equal(t, "span conversion produced no spans from non-empty trace data", logEntry.Message)
+	assert.Equal(t, "no spans converted from trace data", logEntry.Message)
 	assert.Equal(t, zapcore.WarnLevel, logEntry.Level)
 	assert.Equal(t, int64(1), logEntry.ContextMap()["resource_spans"])
+	assert.Equal(t, int64(1), logEntry.ContextMap()["scope_spans"])
+	assert.Equal(t, int64(0), logEntry.ContextMap()["spans"])
 }
 
 func TestTraceWriter_Close(t *testing.T) {
