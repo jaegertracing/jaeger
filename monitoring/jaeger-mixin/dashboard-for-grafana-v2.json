@@ -1,19 +1,10 @@
 {
-  "uid": "jaeger-v2",
-  "title": "Jaeger (v2)",
-  "tags": [
-    "jaeger"
-  ],
-  "timezone": "utc",
-  "editable": true,
-  "graphTooltip": 0,
-  "time": {
-    "from": "now-1h",
-    "to": "now"
+  "annotations": {
+    "list": []
   },
+  "editable": true,
   "fiscalYearStartMonth": 0,
-  "refresh": "10s",
-  "schemaVersion": 42,
+  "graphTooltip": 0,
   "panels": [
     {
       "type": "row",
@@ -433,6 +424,11 @@
       }
     }
   ],
+  "refresh": "10s",
+  "schemaVersion": 42,
+  "tags": [
+    "jaeger"
+  ],
   "templating": {
     "list": [
       {
@@ -450,5 +446,11 @@
       }
     ]
   },
-  "annotations": {"list": []}
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timezone": "utc",
+  "title": "Jaeger (v2)",
+  "uid": "jaeger-v2"
 }

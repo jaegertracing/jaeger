@@ -16,7 +16,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"strings"
 
 	"github.com/grafana/grafana-foundation-sdk/go/common"
 	"github.com/grafana/grafana-foundation-sdk/go/dashboard"
@@ -33,10 +32,25 @@ func main() {
 	if err != nil {
 		log.Fatalf("marshaling dashboard: %v", err)
 	}
-	// The SDK emits "annotations": {} because the List field has omitempty.
-	// Normalise to {"list": []} to match the standard Grafana dashboard schema.
-	result := strings.ReplaceAll(string(out), `"annotations": {}`, `"annotations": {"list": []}`)
-	fmt.Println(result)
+
+	// The SDK's AnnotationContainer.List carries omitempty, so it serialises to
+	// "annotations": {} instead of "annotations": {"list": []}.
+	// Unmarshal into a generic map, patch the annotations field to the correct
+	// shape, then re-marshal so the output stays consistently indented.
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(out, &raw); err != nil {
+		log.Fatalf("unmarshaling for annotation patch: %v", err)
+	}
+	annotationsWithList, err := json.Marshal(map[string]any{"list": []any{}})
+	if err != nil {
+		log.Fatalf("marshaling annotations patch: %v", err)
+	}
+	raw["annotations"] = annotationsWithList
+	patched, err := json.MarshalIndent(raw, "", "  ")
+	if err != nil {
+		log.Fatalf("re-marshaling patched dashboard: %v", err)
+	}
+	fmt.Println(string(patched))
 }
 
 func buildDashboard() (dashboard.Dashboard, error) {
