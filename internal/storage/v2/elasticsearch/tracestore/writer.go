@@ -20,9 +20,13 @@ type TraceWriter struct {
 
 // NewTraceWriter returns the TraceWriter for use
 func NewTraceWriter(p spanstore.SpanWriterParams) *TraceWriter {
+	logger := p.Logger
+	if logger == nil {
+		logger = zap.NewNop()
+	}
 	return &TraceWriter{
 		spanWriter: spanstore.NewSpanWriter(p),
-		logger:     p.Logger,
+		logger:     logger,
 	}
 }
 
