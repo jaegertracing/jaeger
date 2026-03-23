@@ -23,6 +23,7 @@ func NewTraceWriter(p spanstore.SpanWriterParams) *TraceWriter {
 	logger := p.Logger
 	if logger == nil {
 		logger = zap.NewNop()
+		p.Logger = logger
 	}
 	return &TraceWriter{
 		spanWriter: spanstore.NewSpanWriter(p),

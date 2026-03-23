@@ -90,3 +90,12 @@ func Test_NewTraceWriter(t *testing.T) {
 	writer := NewTraceWriter(params)
 	assert.NotNil(t, writer)
 }
+
+func Test_NewTraceWriter_NilLogger(t *testing.T) {
+	params := spanstore.SpanWriterParams{
+		MetricsFactory: metrics.NullFactory,
+	}
+	writer := NewTraceWriter(params)
+	assert.NotNil(t, writer)
+	assert.NotNil(t, writer.logger)
+}
