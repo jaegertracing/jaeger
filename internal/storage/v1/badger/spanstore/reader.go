@@ -11,7 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"sort"
+	"slices"
 
 	"github.com/dgraph-io/badger/v4"
 	"golang.org/x/exp/maps"
@@ -208,9 +208,9 @@ func (r *TraceReader) scanTimeRange(plan *executionPlan) ([]model.TraceID, error
 		return nil
 	})
 
-	sort.Slice(traceKeys, func(k, h int) bool {
+	slices.SortFunc(traceKeys, func(a, b []byte) int {
 		// This sorts by timestamp to descending order
-		return bytes.Compare(traceKeys[k][sizeOfTraceID+1:sizeOfTraceID+1+8], traceKeys[h][sizeOfTraceID+1:sizeOfTraceID+1+8]) > 0
+		return bytes.Compare(b[sizeOfTraceID+1:sizeOfTraceID+1+8], a[sizeOfTraceID+1:sizeOfTraceID+1+8])
 	})
 
 	sizeCount := len(traceKeys)
@@ -294,9 +294,7 @@ func (r *TraceReader) indexSeeksToTraceIDs(plan *executionPlan, indexSeeks [][]b
 			return nil, err
 		}
 
-		sort.Slice(indexResults, func(k, h int) bool {
-			return bytes.Compare(indexResults[k], indexResults[h]) < 0
-		})
+		slices.SortFunc(indexResults, bytes.Compare)
 
 		// Same traceID can be returned multiple times, but always in sorted order so checking the previous key is enough
 		prevTraceID := []byte{}

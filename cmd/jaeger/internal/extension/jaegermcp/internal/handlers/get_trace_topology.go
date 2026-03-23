@@ -4,10 +4,11 @@
 package handlers
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -235,10 +236,10 @@ func (h *getTraceTopologyHandler) dfs(
 // Spans with equal timestamps are further ordered by span ID to make the sort
 // deterministic regardless of the original collection order.
 func sortByStartNano(spans []*rawSpan) {
-	sort.SliceStable(spans, func(i, j int) bool {
-		if spans[i].startNano != spans[j].startNano {
-			return spans[i].startNano < spans[j].startNano
+	slices.SortStableFunc(spans, func(a, b *rawSpan) int {
+		if a.startNano != b.startNano {
+			return cmp.Compare(a.startNano, b.startNano)
 		}
-		return spans[i].spanID < spans[j].spanID
+		return cmp.Compare(a.spanID, b.spanID)
 	})
 }
