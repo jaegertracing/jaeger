@@ -42,7 +42,23 @@ func TestAgentCardHandler_NoMCPEndpoint(t *testing.T) {
 
 	var card AgentCard
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&card))
-	assert.Empty(t, card.MCPServers)
+	// MCPServers should be absent from JSON when no endpoint is configured.
+	assert.Nil(t, card.MCPServers)
+
+	// Confirm the field is truly omitted from raw JSON.
+	assert.NotContains(t, w.Body.String(), "mcpServers")
+}
+
+func TestAgentCardHandler_Head(t *testing.T) {
+	h := newAgentCardHandler("http://localhost:4320")
+
+	req := httptest.NewRequest(http.MethodHead, "/.well-known/agent.json", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+	assert.Empty(t, w.Body.String()) // HEAD must return no body
 }
 
 func TestAgentCardHandler_MethodNotAllowed(t *testing.T) {

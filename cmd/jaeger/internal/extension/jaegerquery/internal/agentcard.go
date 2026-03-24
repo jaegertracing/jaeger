@@ -22,36 +22,40 @@ type AgentCard struct {
 	// Skills lists the high-level analytical capabilities offered.
 	Skills []string `json:"skills"`
 	// MCPServers lists the MCP server URLs that back this agent's tools.
-	MCPServers []string `json:"mcpServers"`
+	// Omitted from the JSON response when no MCP endpoint is configured.
+	MCPServers []string `json:"mcpServers,omitempty"`
 }
 
-// agentCardHandler serves GET /.well-known/agent.json with a static AgentCard.
+// agentCardHandler serves GET and HEAD /.well-known/agent.json with a static AgentCard.
 type agentCardHandler struct {
-	card AgentCard
+	payload []byte // pre-encoded JSON, computed once at construction
 }
 
 func newAgentCardHandler(mcpEndpoint string) *agentCardHandler {
-	servers := []string{}
+	card := AgentCard{
+		Name:        "Jaeger Diagnostic Copilot",
+		Description: "Expert in distributed tracing and root cause analysis using Jaeger.",
+		Skills:      []string{"trace_analysis", "bottleneck_detection", "error_diagnosis"},
+	}
 	if mcpEndpoint != "" {
-		servers = append(servers, mcpEndpoint)
+		card.MCPServers = []string{mcpEndpoint}
 	}
-	return &agentCardHandler{
-		card: AgentCard{
-			Name:        "Jaeger Diagnostic Copilot",
-			Description: "Expert in distributed tracing and root cause analysis using Jaeger.",
-			Skills:      []string{"trace_analysis", "bottleneck_detection", "error_diagnosis"},
-			MCPServers:  servers,
-		},
+	payload, err := json.Marshal(card)
+	if err != nil {
+		// This can only happen if AgentCard contains un-marshalable types, which it does not.
+		panic("agentcard: failed to pre-encode agent card: " + err.Error())
 	}
+	return &agentCardHandler{payload: payload}
 }
 
 func (h *agentCardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(h.card); err != nil {
-		http.Error(w, "failed to encode agent card", http.StatusInternalServerError)
+	if r.Method == http.MethodHead {
+		return
 	}
+	_, _ = w.Write(h.payload)
 }
