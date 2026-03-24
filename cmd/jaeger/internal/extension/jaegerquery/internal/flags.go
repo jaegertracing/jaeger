@@ -24,6 +24,13 @@ type UIConfig struct {
 	LogAccess bool `mapstructure:"log_access" valid:"optional"`
 }
 
+// AIConfig holds configuration for the Jaeger AI gateway.
+type AIConfig struct {
+	// MCPEndpoint is the base URL of the Jaeger MCP server advertised in the agent card.
+	// Example: "http://localhost:4320". Leave empty to omit from the agent card.
+	MCPEndpoint string `mapstructure:"mcp_endpoint" valid:"optional"`
+}
+
 // QueryOptions holds configuration for query service shared with jaeger-v2
 type QueryOptions struct {
 	// BasePath is the base path for all HTTP routes.
@@ -41,6 +48,8 @@ type QueryOptions struct {
 	MaxTraceSize int `mapstructure:"max_trace_size" valid:"optional"`
 	// EnableTracing determines whether traces will be emitted by jaeger-query.
 	EnableTracing bool `mapstructure:"enable_tracing"`
+	// AI holds configuration related to the Jaeger AI gateway.
+	AI AIConfig `mapstructure:"ai"`
 	// HTTP holds the HTTP configuration that the query service uses to serve requests.
 	HTTP confighttp.ServerConfig `mapstructure:"http"`
 	// GRPC holds the GRPC configuration that the query service uses to serve requests.

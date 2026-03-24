@@ -183,6 +183,9 @@ func initRouter(
 
 	apiHandler.RegisterRoutes(r)
 
+	// Register the A2A agent discovery endpoint.
+	r.Handle("GET /.well-known/agent.json", newAgentCardHandler(queryOpts.AI.MCPEndpoint))
+
 	// Register a 404 handler for unmatched /api routes before the static catch-all handler.
 	// This prevents the static handler from serving index.html for non-existent API endpoints.
 	apiNotFoundPattern := "/api/"
