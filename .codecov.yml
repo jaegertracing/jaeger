@@ -14,6 +14,7 @@ ignore:
   - "internal/storage/integration"
   - "cmd/jaeger/internal/integration"
   - "internal/tools"
+  - "monitoring/jaeger-mixin/generate"
 
 coverage:
   precision: 2

@@ -45,6 +45,7 @@ services:
     volumes:
       - "./grafana/provisioning:/etc/grafana/provisioning"
       - "../../monitoring/jaeger-mixin/dashboard-for-grafana.json:/etc/grafana/provisioning/dashboards/jaeger.json:ro"
+      - "../../monitoring/jaeger-mixin/dashboard-for-grafana-v2.json:/etc/grafana/provisioning/dashboards/jaeger-v2.json:ro"
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
