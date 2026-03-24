@@ -44,4 +44,4 @@ _IMPORTANT_: the metrics that are used by default by the dashboard are compatibl
 
 ## Background
 
-* For more information about monitoring mixins, see this [ADR-007](https://github.com/jaegertracing/jaeger/blob/main/docs/adr/007-grafana-dashboards-modernization.md).
+* For background and historical context on the monitoring mixin, see [ADR-007](https://github.com/jaegertracing/jaeger/blob/main/docs/adr/007-grafana-dashboards-modernization.md). Note that the ADR describes an earlier Jsonnet-based approach and different filenames; the current implementation is the Go-based mixin and `dashboard-for-grafana.json` described above.
