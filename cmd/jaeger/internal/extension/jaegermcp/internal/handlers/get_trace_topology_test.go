@@ -338,7 +338,7 @@ func TestGetTraceTopologyHandler_Handle_NoAttributes(t *testing.T) {
 }
 
 func TestGetTraceTopologyHandler_Handle_MissingTraceID(t *testing.T) {
-	handler := NewGetTraceTopologyHandler(nil)
+	handler := NewGetTraceTopologyHandler(nil, 100)
 
 	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, types.GetTraceTopologyInput{})
 
@@ -347,7 +347,7 @@ func TestGetTraceTopologyHandler_Handle_MissingTraceID(t *testing.T) {
 }
 
 func TestGetTraceTopologyHandler_Handle_InvalidTraceID(t *testing.T) {
-	handler := NewGetTraceTopologyHandler(nil)
+	handler := NewGetTraceTopologyHandler(nil, 100)
 
 	input := types.GetTraceTopologyInput{TraceID: "invalid-trace-id"}
 	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)

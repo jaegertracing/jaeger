@@ -153,7 +153,7 @@ func TestGetTraceErrorsHandler_Handle_SingleError(t *testing.T) {
 }
 
 func TestGetTraceErrorsHandler_Handle_MissingTraceID(t *testing.T) {
-	handler := NewGetTraceErrorsHandler(nil)
+	handler := NewGetTraceErrorsHandler(nil, 100)
 
 	input := types.GetTraceErrorsInput{
 		TraceID: "",
@@ -166,7 +166,7 @@ func TestGetTraceErrorsHandler_Handle_MissingTraceID(t *testing.T) {
 }
 
 func TestGetTraceErrorsHandler_Handle_InvalidTraceID(t *testing.T) {
-	handler := NewGetTraceErrorsHandler(nil)
+	handler := NewGetTraceErrorsHandler(nil, 100)
 
 	input := types.GetTraceErrorsInput{
 		TraceID: "invalid-trace-id",

@@ -78,6 +78,9 @@ func (h *searchTracesHandler) handle(
 
 		summary := buildTraceSummary(trace)
 		summaries = append(summaries, summary)
+		if h.maxResults > 0 && len(summaries) >= h.maxResults {
+			break
+		}
 	}
 
 	output := types.SearchTracesOutput{Traces: summaries}

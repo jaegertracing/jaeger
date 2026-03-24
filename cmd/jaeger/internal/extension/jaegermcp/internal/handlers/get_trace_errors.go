@@ -21,15 +21,18 @@ import (
 // This tool retrieves all spans with error status from a specific trace, returning full
 // OTLP span details including attributes, events, and links for error analysis.
 type getTraceErrorsHandler struct {
-	queryService queryServiceGetTracesInterface
+	queryService             queryServiceGetTracesInterface
+	maxSpanDetailsPerRequest int
 }
 
 // NewGetTraceErrorsHandler creates a new get_trace_errors handler and returns the handler function.
 func NewGetTraceErrorsHandler(
 	queryService *querysvc.QueryService,
+	maxSpanDetailsPerRequest int,
 ) mcp.ToolHandlerFor[types.GetTraceErrorsInput, types.GetTraceErrorsOutput] {
 	h := &getTraceErrorsHandler{
-		queryService: queryService,
+		queryService:             queryService,
+		maxSpanDetailsPerRequest: maxSpanDetailsPerRequest,
 	}
 	return h.handle
 }
@@ -68,6 +71,9 @@ func (h *getTraceErrorsHandler) handle(
 			if span.Status().Code() == ptrace.StatusCodeError {
 				detail := buildSpanDetail(pos, span)
 				errorSpans = append(errorSpans, detail)
+				if h.maxSpanDetailsPerRequest > 0 && len(errorSpans) >= h.maxSpanDetailsPerRequest {
+					break
+				}
 			}
 		}
 	}
