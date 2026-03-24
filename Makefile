@@ -233,6 +233,10 @@ init-submodules:
 	git submodule update --init --recursive
 
 MOCKERY_FLAGS := --all --disable-version-string
+.PHONY: generate-dashboards
+generate-dashboards:
+	cd ./monitoring/jaeger-mixin/generate && go run . > ../dashboard-for-grafana.json
+
 .PHONY: generate-mocks
 generate-mocks: $(MOCKERY)
 	find . -path '*/mocks/*' -name '*.go' -type f -delete
