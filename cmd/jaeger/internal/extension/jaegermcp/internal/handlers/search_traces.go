@@ -78,6 +78,9 @@ func (h *searchTracesHandler) handle(
 
 		summary := buildTraceSummary(trace)
 		summaries = append(summaries, summary)
+		if h.maxResults > 0 && len(summaries) >= h.maxResults {
+			break
+		}
 	}
 
 	output := types.SearchTracesOutput{Traces: summaries}
@@ -144,7 +147,7 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 	if searchDepth <= 0 {
 		searchDepth = defaultSearchDepth
 	}
-	if searchDepth > h.maxResults {
+	if h.maxResults > 0 && searchDepth > h.maxResults {
 		searchDepth = h.maxResults
 	}
 
