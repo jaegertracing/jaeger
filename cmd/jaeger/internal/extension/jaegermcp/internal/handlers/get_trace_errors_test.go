@@ -372,3 +372,32 @@ func TestGetTraceErrorsHandler_Handle_ErrorSpanWithEvents(t *testing.T) {
 	assert.Equal(t, "RuntimeError", span.Events[0].Attributes["exception.type"])
 	assert.Equal(t, "Something went wrong", span.Events[0].Attributes["exception.message"])
 }
+
+func TestGetTraceErrorsHandler_Handle_LimitEnforced(t *testing.T) {
+	traceID := testTraceID
+
+	// Create 5 error spans
+	spanConfigs := []spanConfig{
+		{spanID: "span001", operation: "/api/error1", hasError: true, errorMessage: "err1"},
+		{spanID: "span002", operation: "/api/error2", hasError: true, errorMessage: "err2"},
+		{spanID: "span003", operation: "/api/error3", hasError: true, errorMessage: "err3"},
+		{spanID: "span004", operation: "/api/error4", hasError: true, errorMessage: "err4"},
+		{spanID: "span005", operation: "/api/error5", hasError: true, errorMessage: "err5"},
+	}
+
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+
+	// Set limit to 3 — should return at most 3 spans
+	handler := &getTraceErrorsHandler{
+		queryService:             mock,
+		maxSpanDetailsPerRequest: 3,
+	}
+
+	input := types.GetTraceErrorsInput{TraceID: traceID}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	assert.LessOrEqual(t, output.ErrorCount, 3)
+	assert.LessOrEqual(t, len(output.Spans), 3)
+}

@@ -569,3 +569,32 @@ func TestGetTraceTopologyHandler_Handle_DFSOrder(t *testing.T) {
 	assert.Less(t, indexOf["C"], indexOf["B"])
 	assert.Less(t, indexOf["D"], indexOf["B"])
 }
+
+func TestGetTraceTopologyHandler_Handle_LimitEnforced(t *testing.T) {
+	traceID := testTraceID
+
+	// Create a trace with 6 spans
+	spanConfigs := []spanConfig{
+		{spanID: "root001", operation: "root"},
+		{spanID: "span002", parentSpanID: "root001", operation: "child1"},
+		{spanID: "span003", parentSpanID: "root001", operation: "child2"},
+		{spanID: "span004", parentSpanID: "span002", operation: "grandchild1"},
+		{spanID: "span005", parentSpanID: "span002", operation: "grandchild2"},
+		{spanID: "span006", parentSpanID: "span003", operation: "grandchild3"},
+	}
+
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+
+	// Set limit to 3 — should collect at most 3 spans before building topology
+	handler := &getTraceTopologyHandler{
+		queryService:             mock,
+		maxSpanDetailsPerRequest: 3,
+	}
+
+	input := types.GetTraceTopologyInput{TraceID: traceID}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	assert.LessOrEqual(t, len(output.Spans), 3)
+}
