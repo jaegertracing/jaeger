@@ -398,6 +398,8 @@ func TestGetTraceErrorsHandler_Handle_LimitEnforced(t *testing.T) {
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
-	assert.LessOrEqual(t, output.ErrorCount, 3)
+	// ErrorCount reflects total errors in the trace, not the truncated count
+	assert.Equal(t, 5, output.ErrorCount)
+	// Returned spans are capped at the limit
 	assert.LessOrEqual(t, len(output.Spans), 3)
 }

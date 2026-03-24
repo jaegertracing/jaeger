@@ -56,6 +56,7 @@ func (h *getTraceErrorsHandler) handle(
 
 	// Collect spans with error status
 	var errorSpans []types.SpanDetail
+	totalErrors := 0
 	traceFound := false
 
 	for trace, err := range aggregatedIter {
@@ -69,10 +70,11 @@ func (h *getTraceErrorsHandler) handle(
 		for pos, span := range jptrace.SpanIter(trace) {
 			// Check if span has error status
 			if span.Status().Code() == ptrace.StatusCodeError {
-				detail := buildSpanDetail(pos, span)
-				errorSpans = append(errorSpans, detail)
-				if h.maxSpanDetailsPerRequest > 0 && len(errorSpans) >= h.maxSpanDetailsPerRequest {
-					break
+				totalErrors++
+				// Only build and collect detail up to the limit
+				if h.maxSpanDetailsPerRequest == 0 || len(errorSpans) < h.maxSpanDetailsPerRequest {
+					detail := buildSpanDetail(pos, span)
+					errorSpans = append(errorSpans, detail)
 				}
 			}
 		}
@@ -84,7 +86,7 @@ func (h *getTraceErrorsHandler) handle(
 
 	output := types.GetTraceErrorsOutput{
 		TraceID:    input.TraceID,
-		ErrorCount: len(errorSpans),
+		ErrorCount: totalErrors,
 		Spans:      errorSpans,
 	}
 
