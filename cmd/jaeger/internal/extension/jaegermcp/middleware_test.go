@@ -243,7 +243,7 @@ func TestNormalizeToolStatus(t *testing.T) {
 	}
 }
 
-func TestSpanErrorResultMarkedError(t *testing.T) {
+func TestSpanErrorResultMarkedErrorWithoutError(t *testing.T) {
 	result := &mcp.CallToolResult{IsError: true}
 	err := spanError(nil, result)
 	require.NoError(t, err)
