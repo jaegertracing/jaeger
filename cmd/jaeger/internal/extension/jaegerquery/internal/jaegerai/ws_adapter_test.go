@@ -4,7 +4,6 @@
 package jaegerai
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"net/http"
@@ -14,6 +13,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestWsReadWriteCloserRoundTrip(t *testing.T) {
@@ -37,30 +38,21 @@ func TestWsReadWriteCloserRoundTrip(t *testing.T) {
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 	conn, _, err := websocket.DefaultDialer.DialContext(context.Background(), wsURL, nil)
-	if err != nil {
-		t.Fatalf("dial websocket: %v", err)
-	}
+	require.NoError(t, err, "dial websocket")
 	defer conn.Close()
 
 	adapter := NewWsAdapter(conn)
 	original := []byte("hello from ws adapter")
 
 	n, err := adapter.Write(original)
-	if err != nil {
-		t.Fatalf("adapter write failed: %v", err)
-	}
-	if n != len(original) {
-		t.Fatalf("unexpected write count: got %d want %d", n, len(original))
-	}
+	require.NoError(t, err, "adapter write failed")
+	require.Equal(t, len(original), n, "unexpected write count")
 
 	buf := make([]byte, len(original))
-	if _, err := io.ReadFull(adapter, buf); err != nil {
-		t.Fatalf("adapter read failed: %v", err)
-	}
+	_, err = io.ReadFull(adapter, buf)
+	require.NoError(t, err, "adapter read failed")
 
-	if !bytes.Equal(buf, original) {
-		t.Fatalf("round-trip mismatch: got %q want %q", string(buf), string(original))
-	}
+	assert.Equal(t, original, buf, "round-trip mismatch: got %q want %q", string(buf), string(original))
 }
 
 func TestWsAdapterClose(t *testing.T) {
@@ -80,14 +72,10 @@ func TestWsAdapterClose(t *testing.T) {
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 	conn, _, err := websocket.DefaultDialer.DialContext(context.Background(), wsURL, nil)
-	if err != nil {
-		t.Fatalf("dial websocket: %v", err)
-	}
+	require.NoError(t, err, "dial websocket")
 
 	adapter := NewWsAdapter(conn)
-	if err := adapter.Close(); err != nil {
-		t.Fatalf("close failed: %v", err)
-	}
+	require.NoError(t, adapter.Close(), "close failed")
 }
 
 func TestWsAdapterReadAfterPeerClose(t *testing.T) {
@@ -111,17 +99,13 @@ func TestWsAdapterReadAfterPeerClose(t *testing.T) {
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 	conn, _, err := websocket.DefaultDialer.DialContext(context.Background(), wsURL, nil)
-	if err != nil {
-		t.Fatalf("dial websocket: %v", err)
-	}
+	require.NoError(t, err, "dial websocket")
 	defer conn.Close()
 
 	adapter := NewWsAdapter(conn)
 	buf := make([]byte, 16)
 	_, err = adapter.Read(buf)
-	if err == nil {
-		t.Fatal("expected read error after peer close")
-	}
+	require.Error(t, err, "expected read error after peer close")
 }
 
 func TestWsAdapterWriteError(t *testing.T) {
@@ -140,16 +124,12 @@ func TestWsAdapterWriteError(t *testing.T) {
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 	conn, _, err := websocket.DefaultDialer.DialContext(context.Background(), wsURL, nil)
-	if err != nil {
-		t.Fatalf("dial websocket: %v", err)
-	}
+	require.NoError(t, err, "dial websocket")
 	_ = conn.Close()
 
 	adapter := NewWsAdapter(conn)
 	_, err = adapter.Write([]byte("should fail"))
-	if err == nil {
-		t.Fatal("expected write error")
-	}
+	require.Error(t, err, "expected write error")
 }
 
 func TestWsAdapterReadReturnsBytesOnEOF(t *testing.T) {
@@ -169,22 +149,14 @@ func TestWsAdapterReadReturnsBytesOnEOF(t *testing.T) {
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 	conn, _, err := websocket.DefaultDialer.DialContext(context.Background(), wsURL, nil)
-	if err != nil {
-		t.Fatalf("dial websocket: %v", err)
-	}
+	require.NoError(t, err, "dial websocket")
 	defer conn.Close()
 
 	adapter := NewWsAdapter(conn)
 	buf := make([]byte, 16)
 
 	n, err := adapter.Read(buf)
-	if err != nil {
-		t.Fatalf("unexpected read error: %v", err)
-	}
-	if n != 2 {
-		t.Fatalf("unexpected read size: got %d want %d", n, 2)
-	}
-	if got := string(buf[:n]); got != "hi" {
-		t.Fatalf("unexpected read payload: got %q want %q", got, "hi")
-	}
+	require.NoError(t, err, "unexpected read error")
+	require.Equal(t, 2, n, "unexpected read size")
+	assert.Equal(t, "hi", string(buf[:n]), "unexpected read payload")
 }

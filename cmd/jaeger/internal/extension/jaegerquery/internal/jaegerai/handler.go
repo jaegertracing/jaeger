@@ -10,11 +10,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/coder/acp-go-sdk"
+	acp "github.com/coder/acp-go-sdk"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/version"
 )
 
 const (
@@ -91,6 +92,10 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	acpCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	clientVersion := version.Get().GitVersion
+	if clientVersion == "" {
+		clientVersion = "dev"
+	}
 	_, err = acpConn.Initialize(acpCtx, acp.InitializeRequest{
 		ProtocolVersion: acp.ProtocolVersionNumber,
 		ClientCapabilities: acp.ClientCapabilities{
@@ -99,7 +104,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		},
 		ClientInfo: &acp.Implementation{
 			Name:    "jaeger-ai-gateway",
-			Version: "0.1.0",
+			Version: clientVersion,
 		},
 	})
 	if err != nil {

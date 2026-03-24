@@ -196,8 +196,8 @@ func initRouter(
 	if queryOpts.BasePath != "" && queryOpts.BasePath != "/" {
 		aiHandlerPath = queryOpts.BasePath + aiHandlerPath
 	}
-	if queryOpts.AI.SidecarWSURL != "" {
-		r.HandleFunc(aiHandlerPath, jaegerai.NewChatHandler(telset.Logger, querySvc, queryOpts.AI.SidecarWSURL).ServeHTTP)
+	if aiCfg := queryOpts.AI.Get(); aiCfg != nil && aiCfg.AgentURL != "" {
+		r.HandleFunc(aiHandlerPath, jaegerai.NewChatHandler(telset.Logger, querySvc, aiCfg.AgentURL).ServeHTTP)
 	}
 
 	r.HandleFunc(apiNotFoundPattern, func(w http.ResponseWriter, _ *http.Request) {

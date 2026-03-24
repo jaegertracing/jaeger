@@ -62,7 +62,7 @@ Jaeger ACP Sidecar listening on ws://localhost:9000
 ```bash
 curl -N -X POST http://localhost:16686/api/ai/chat \
 	-H "Content-Type: application/json" \
-	-d '{"prompt":"can you search for trace with id 11111111111111111111111111111111"}'
+	-d '{"prompt":"can you search for trace with id 1"}'
 ```
 
 You should see streamed output and tool lifecycle updates (`tool_call` / `tool_result`) when Gemini decides to use tools.

@@ -17,7 +17,10 @@ import (
 
 	"github.com/coder/acp-go-sdk"
 	"github.com/gorilla/websocket"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/internal/version"
 )
 
 type mockACPAgent struct {
@@ -125,60 +128,41 @@ func TestChatHandlerSendsACPProtocolRequests(t *testing.T) {
 	handler := NewChatHandler(zap.NewNop(), nil, wsURL)
 
 	reqBody, err := json.Marshal(ChatRequest{Prompt: "trace for service checkout"})
-	if err != nil {
-		t.Fatalf("marshal request: %v", err)
-	}
+	require.NoError(t, err, "failed to marshal request")
 
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(reqBody))
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusOK {
-		t.Fatalf("unexpected status code: got %d want %d body=%q", rr.Code, http.StatusOK, rr.Body.String())
-	}
+	require.Equal(t, http.StatusOK, rr.Code, "unexpected status code, body=%q", rr.Body.String())
 
 	initReq, sessionReq, promptReq := agent.snapshot()
-	if initReq == nil || sessionReq == nil || promptReq == nil {
-		t.Fatalf("expected initialize/new session/prompt requests to be captured, got init=%v session=%v prompt=%v", initReq != nil, sessionReq != nil, promptReq != nil)
-	}
+	require.NotNil(t, initReq, "expected initialize request to be captured")
+	require.NotNil(t, sessionReq, "expected new session request to be captured")
+	require.NotNil(t, promptReq, "expected prompt request to be captured")
 
-	if initReq.ProtocolVersion != acp.ProtocolVersionNumber {
-		t.Fatalf("initialize protocol version mismatch: got %d want %d", initReq.ProtocolVersion, acp.ProtocolVersionNumber)
+	require.EqualValues(t, acp.ProtocolVersionNumber, initReq.ProtocolVersion, "initialize protocol version mismatch")
+	require.False(t, initReq.ClientCapabilities.Fs.ReadTextFile || initReq.ClientCapabilities.Fs.WriteTextFile || initReq.ClientCapabilities.Terminal, "unexpected client capabilities in initialize: %+v", initReq.ClientCapabilities)
+	require.NotNil(t, initReq.ClientInfo, "client info should not be nil")
+	require.Equal(t, "jaeger-ai-gateway", initReq.ClientInfo.Name, "client name mismatch")
+	expectedVersion := version.Get().GitVersion
+	if expectedVersion == "" {
+		expectedVersion = "dev"
 	}
-	if initReq.ClientCapabilities.Fs.ReadTextFile || initReq.ClientCapabilities.Fs.WriteTextFile || initReq.ClientCapabilities.Terminal {
-		t.Fatalf("unexpected client capabilities in initialize: %+v", initReq.ClientCapabilities)
-	}
-	if initReq.ClientInfo == nil || initReq.ClientInfo.Name != "jaeger-ai-gateway" || initReq.ClientInfo.Version != "0.1.0" {
-		t.Fatalf("unexpected client info in initialize: %+v", initReq.ClientInfo)
-	}
+	require.Equal(t, expectedVersion, initReq.ClientInfo.Version, "client version mismatch")
 
-	if sessionReq.Cwd != "/" {
-		t.Fatalf("session/new cwd mismatch: got %q want %q", sessionReq.Cwd, "/")
-	}
-	if len(sessionReq.McpServers) != 0 {
-		t.Fatalf("expected no MCP servers in session/new, got %d", len(sessionReq.McpServers))
-	}
+	require.Equal(t, "/", sessionReq.Cwd, "session/new cwd mismatch")
+	require.Empty(t, sessionReq.McpServers, "expected no MCP servers in session/new")
 
-	if promptReq.SessionId != "sess-test" {
-		t.Fatalf("prompt sessionId mismatch: got %q want %q", promptReq.SessionId, "sess-test")
-	}
-	if len(promptReq.Prompt) != 1 || promptReq.Prompt[0].Text == nil {
-		t.Fatalf("prompt content mismatch: %+v", promptReq.Prompt)
-	}
-	if got, want := promptReq.Prompt[0].Text.Text, "trace for service checkout"; got != want {
-		t.Fatalf("prompt text mismatch: got %q want %q", got, want)
-	}
+	require.EqualValues(t, "sess-test", promptReq.SessionId, "prompt sessionId mismatch")
+	require.Len(t, promptReq.Prompt, 1, "prompt content length mismatch")
+	require.NotNil(t, promptReq.Prompt[0].Text, "prompt text should not be nil")
+	require.Equal(t, "trace for service checkout", promptReq.Prompt[0].Text.Text, "prompt text mismatch")
 
-	if ct := rr.Header().Get("Content-Type"); ct != "text/plain; charset=utf-8" {
-		t.Fatalf("content type mismatch: got %q", ct)
-	}
-	if cc := rr.Header().Get("Cache-Control"); cc != "no-cache" {
-		t.Fatalf("cache-control mismatch: got %q", cc)
-	}
-	if conn := rr.Header().Get("Connection"); conn != "keep-alive" {
-		t.Fatalf("connection header mismatch: got %q", conn)
-	}
+	require.Equal(t, "text/plain; charset=utf-8", rr.Header().Get("Content-Type"), "content type mismatch")
+	require.Equal(t, "no-cache", rr.Header().Get("Cache-Control"), "cache-control mismatch")
+	require.Equal(t, "keep-alive", rr.Header().Get("Connection"), "connection header mismatch")
 }
 
 type noFlusherResponseWriter struct {
@@ -237,9 +221,7 @@ func TestChatHandlerMethodNotAllowed(t *testing.T) {
 
 	handler.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("unexpected status: got %d want %d", rr.Code, http.StatusMethodNotAllowed)
-	}
+	require.Equal(t, http.StatusMethodNotAllowed, rr.Code, "unexpected status code")
 }
 
 func TestChatHandlerBadRequest(t *testing.T) {
@@ -249,41 +231,31 @@ func TestChatHandlerBadRequest(t *testing.T) {
 
 	handler.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusBadRequest {
-		t.Fatalf("unexpected status: got %d want %d", rr.Code, http.StatusBadRequest)
-	}
+	require.Equal(t, http.StatusBadRequest, rr.Code, "unexpected status code")
 }
 
 func TestChatHandlerStreamingUnsupported(t *testing.T) {
 	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1")
 	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
-	if err != nil {
-		t.Fatalf("marshal request: %v", err)
-	}
+	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
 	w := &noFlusherResponseWriter{}
 
 	handler.ServeHTTP(w, req)
 
-	if w.status != http.StatusInternalServerError {
-		t.Fatalf("unexpected status: got %d want %d", w.status, http.StatusInternalServerError)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.status, "unexpected status code")
 }
 
 func TestChatHandlerDialFailure(t *testing.T) {
 	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1")
 	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
-	if err != nil {
-		t.Fatalf("marshal request: %v", err)
-	}
+	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusBadGateway {
-		t.Fatalf("unexpected status: got %d want %d", rr.Code, http.StatusBadGateway)
-	}
+	require.Equal(t, http.StatusBadGateway, rr.Code, "unexpected status code")
 }
 
 func TestChatHandlerInitializeError(t *testing.T) {
@@ -293,20 +265,14 @@ func TestChatHandlerInitializeError(t *testing.T) {
 
 	handler := NewChatHandler(zap.NewNop(), nil, wsURL)
 	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
-	if err != nil {
-		t.Fatalf("marshal request: %v", err)
-	}
+	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusBadGateway {
-		t.Fatalf("unexpected status: got %d want %d body=%q", rr.Code, http.StatusBadGateway, rr.Body.String())
-	}
-	if !strings.Contains(rr.Body.String(), "Error initializing agent") {
-		t.Fatalf("expected initialize error message, got %q", rr.Body.String())
-	}
+	require.Equal(t, http.StatusBadGateway, rr.Code, "unexpected status code, body=%q", rr.Body.String())
+	require.Contains(t, rr.Body.String(), "Error initializing agent", "expected initialize error message")
 }
 
 func TestChatHandlerNewSessionError(t *testing.T) {
@@ -316,20 +282,14 @@ func TestChatHandlerNewSessionError(t *testing.T) {
 
 	handler := NewChatHandler(zap.NewNop(), nil, wsURL)
 	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
-	if err != nil {
-		t.Fatalf("marshal request: %v", err)
-	}
+	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusBadGateway {
-		t.Fatalf("unexpected status: got %d want %d body=%q", rr.Code, http.StatusBadGateway, rr.Body.String())
-	}
-	if !strings.Contains(rr.Body.String(), "Error creating session") {
-		t.Fatalf("expected session error message, got %q", rr.Body.String())
-	}
+	require.Equal(t, http.StatusBadGateway, rr.Code, "unexpected status code, body=%q", rr.Body.String())
+	require.Contains(t, rr.Body.String(), "Error creating session", "expected session error message")
 }
 
 func TestChatHandlerPromptError(t *testing.T) {
@@ -339,20 +299,14 @@ func TestChatHandlerPromptError(t *testing.T) {
 
 	handler := NewChatHandler(zap.NewNop(), nil, wsURL)
 	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
-	if err != nil {
-		t.Fatalf("marshal request: %v", err)
-	}
+	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusBadGateway {
-		t.Fatalf("unexpected status: got %d want %d body=%q", rr.Code, http.StatusBadGateway, rr.Body.String())
-	}
-	if !strings.Contains(rr.Body.String(), "Error starting prompt") {
-		t.Fatalf("expected prompt error message, got %q", rr.Body.String())
-	}
+	require.Equal(t, http.StatusBadGateway, rr.Code, "unexpected status code, body=%q", rr.Body.String())
+	require.Contains(t, rr.Body.String(), "Error starting prompt", "expected prompt error message")
 }
 
 func TestChatHandlerErrorWriteFailurePaths(t *testing.T) {
@@ -372,17 +326,13 @@ func TestChatHandlerErrorWriteFailurePaths(t *testing.T) {
 
 			handler := NewChatHandler(zap.NewNop(), nil, wsURL)
 			body, err := json.Marshal(ChatRequest{Prompt: "hello"})
-			if err != nil {
-				t.Fatalf("marshal request: %v", err)
-			}
+			require.NoError(t, err, "failed to marshal request")
 			req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
 			w := &failingFlusherResponseWriter{}
 
 			handler.ServeHTTP(w, req)
 
-			if w.status != http.StatusBadGateway {
-				t.Fatalf("unexpected status: got %d want %d", w.status, http.StatusBadGateway)
-			}
+			require.Equal(t, http.StatusBadGateway, w.status, "unexpected status code")
 		})
 	}
 }

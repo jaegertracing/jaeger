@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configoptional"
 
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
@@ -25,8 +26,9 @@ type UIConfig struct {
 }
 
 type AIConfig struct {
-	// SidecarWSURL is the ACP WebSocket endpoint used by the query AI gateway.
-	SidecarWSURL string `mapstructure:"sidecar_ws_url" valid:"optional"`
+	// AgentURL is the WebSocket endpoint of an agent that supports ACP.
+	// See https://agentclientprotocol.com/
+	AgentURL string `mapstructure:"agent_url" valid:"required"`
 }
 
 // QueryOptions holds configuration for query service shared with jaeger-v2
@@ -51,15 +53,13 @@ type QueryOptions struct {
 	// GRPC holds the GRPC configuration that the query service uses to serve requests.
 	GRPC configgrpc.ServerConfig `mapstructure:"grpc"`
 	// AI holds configuration related to Jaeger AI gateway integration.
-	AI AIConfig `mapstructure:"ai"`
+	AI configoptional.Optional[AIConfig] `mapstructure:"ai"`
 }
 
 func DefaultQueryOptions() QueryOptions {
 	return QueryOptions{
 		MaxClockSkewAdjust: 0, // disabled by default
-		AI: AIConfig{
-			SidecarWSURL: "ws://localhost:9000",
-		},
+		AI:                 configoptional.Some(AIConfig{AgentURL: "ws://localhost:9000"}),
 		HTTP: confighttp.ServerConfig{
 			NetAddr: confignet.AddrConfig{
 				Endpoint:  ports.PortToHostPort(ports.QueryHTTP),
