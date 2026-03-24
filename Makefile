@@ -145,7 +145,11 @@ fmt: $(GOFUMPT)
 	@./scripts/lint/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC)
 
 .PHONY: lint
-lint: lint-fmt lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go
+lint: lint-fmt lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go lint-monitoring
+
+.PHONY: lint-monitoring
+lint-monitoring:
+	./scripts/lint/check-dashboard-sync.sh
 
 .PHONY: lint-license
 lint-license:
