@@ -75,7 +75,8 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		&mcp.ServerOptions{},
 	)
 	s.registerTools()
-	s.mcpServer.AddReceivingMiddleware(createLoggingMiddleware(s.telset.Logger, s.telset.TracerProvider))
+	s.mcpServer.AddReceivingMiddleware(createLoggingMiddleware(s.telset.Logger))
+	s.mcpServer.AddReceivingMiddleware(createTracingMiddleware(s.telset.TracerProvider))
 
 	mcpHandler := mcp.NewStreamableHTTPHandler(
 		func(_ *http.Request) *mcp.Server { return s.mcpServer },

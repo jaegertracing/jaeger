@@ -5,15 +5,12 @@ package jaegermcp
 
 import (
 	"context"
-	"errors"
 	"strings"
-	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	"go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 )
 
@@ -25,15 +22,11 @@ const (
 	mcpMethodToolsCall        = "tools/call"
 )
 
-var errToolResultMarkedError = errors.New("tool result marked as error")
-
-// createLoggingMiddleware creates an MCP middleware that handles request logging
-// and tool-level tracing observability.
-func createLoggingMiddleware(logger *zap.Logger, tracerProvider trace.TracerProvider) mcp.Middleware {
+// createLoggingMiddleware creates an MCP middleware that logs request/response details.
+func createLoggingMiddleware(logger *zap.Logger) mcp.Middleware {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
-	tracer := newToolTracer(tracerProvider)
 
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(
@@ -41,19 +34,8 @@ func createLoggingMiddleware(logger *zap.Logger, tracerProvider trace.TracerProv
 			method string,
 			req mcp.Request,
 		) (mcp.Result, error) {
-			start := time.Now()
 			sessionID := sessionIDFromRequest(req)
 			toolName := toolNameFromRequest(method, req)
-
-			var toolSpan trace.Span
-			if toolName != "" {
-				ctx, toolSpan = tracer.Start(
-					ctx,
-					"mcp.tool."+toolName,
-					trace.WithAttributes(attribute.String("mcp.tool.name", toolName)),
-				)
-				defer toolSpan.End()
-			}
 
 			requestFields := []zap.Field{
 				zap.String("session_id", sessionID),
@@ -66,11 +48,9 @@ func createLoggingMiddleware(logger *zap.Logger, tracerProvider trace.TracerProv
 
 			result, err := next(ctx, method, req)
 
-			duration := time.Since(start)
 			responseFields := []zap.Field{
 				zap.String("session_id", sessionID),
 				zap.String("method", method),
-				zap.Duration("duration", duration),
 			}
 			if toolName != "" {
 				responseFields = append(responseFields, zap.String("tool_name", toolName))
@@ -79,10 +59,9 @@ func createLoggingMiddleware(logger *zap.Logger, tracerProvider trace.TracerProv
 			status := ""
 			toolErr := error(nil)
 			if toolName != "" {
-				callResult := callToolResult(result)
+				callResult, _ := result.(*mcp.CallToolResult)
 				status = normalizeToolStatus(err, callResult)
 				toolErr = spanError(err, callResult)
-				observeToolInSpan(toolSpan, status, toolErr)
 				responseFields = append(responseFields, zap.String("status", status))
 			}
 
@@ -104,11 +83,38 @@ func createLoggingMiddleware(logger *zap.Logger, tracerProvider trace.TracerProv
 	}
 }
 
-func newToolTracer(tracerProvider trace.TracerProvider) trace.Tracer {
-	if tracerProvider == nil {
-		tracerProvider = noop.NewTracerProvider()
+// createTracingMiddleware creates an MCP middleware that emits tool-level spans.
+func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware {
+	tracer := tracerProvider.Tracer("jaeger.mcp")
+
+	return func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+			toolName := toolNameFromRequest(method, req)
+			if toolName == "" {
+				return next(ctx, method, req)
+			}
+
+			ctx, span := tracer.Start(
+				ctx,
+				"mcp.tool."+toolName,
+				trace.WithAttributes(attribute.String("mcp.tool.name", toolName)),
+			)
+			defer span.End()
+
+			result, err := next(ctx, method, req)
+
+			callResult, _ := result.(*mcp.CallToolResult)
+			status := normalizeToolStatus(err, callResult)
+			span.SetAttributes(attribute.String("mcp.status", status))
+
+			if toolErr := spanError(err, callResult); toolErr != nil {
+				span.RecordError(toolErr)
+				span.SetStatus(codes.Error, toolErr.Error())
+			}
+
+			return result, err
+		}
 	}
-	return tracerProvider.Tracer("jaeger.mcp")
 }
 
 func toolNameFromRequest(method string, req mcp.Request) string {
@@ -122,14 +128,6 @@ func toolNameFromRequest(method string, req mcp.Request) string {
 	return params.Name
 }
 
-func callToolResult(result mcp.Result) *mcp.CallToolResult {
-	r, ok := result.(*mcp.CallToolResult)
-	if !ok {
-		return nil
-	}
-	return r
-}
-
 func spanError(err error, result *mcp.CallToolResult) error {
 	if err != nil {
 		return err
@@ -137,23 +135,7 @@ func spanError(err error, result *mcp.CallToolResult) error {
 	if result == nil || !result.IsError {
 		return nil
 	}
-	if resultErr := result.GetError(); resultErr != nil {
-		return resultErr
-	}
-	return errToolResultMarkedError
-}
-
-func observeToolInSpan(span trace.Span, status string, err error) {
-	if !span.IsRecording() {
-		return
-	}
-
-	span.SetAttributes(attribute.String("mcp.status", status))
-
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-	}
+	return result.GetError()
 }
 
 func normalizeToolStatus(err error, result *mcp.CallToolResult) string {
