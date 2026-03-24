@@ -10,6 +10,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
@@ -94,10 +95,22 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 				return next(ctx, method, req)
 			}
 
+			sessionID := sessionIDFromRequest(req)
+			spanName := method + " " + toolName
+			attrs := []attribute.KeyValue{
+				semconv.McpMethodNameKey.String(method),
+				semconv.GenAIOperationNameExecuteTool,
+				semconv.GenAIToolName(toolName),
+			}
+			if sessionID != "" {
+				attrs = append(attrs, semconv.McpSessionID(sessionID))
+			}
+
 			ctx, span := tracer.Start(
 				ctx,
-				"mcp.tool."+toolName,
-				trace.WithAttributes(attribute.String("mcp.tool.name", toolName)),
+				spanName,
+				trace.WithSpanKind(trace.SpanKindServer),
+				trace.WithAttributes(attrs...),
 			)
 			defer span.End()
 
@@ -105,7 +118,9 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 
 			callResult, _ := result.(*mcp.CallToolResult)
 			status := normalizeToolStatus(err, callResult)
-			span.SetAttributes(attribute.String("mcp.status", status))
+			if status != toolStatusOK {
+				span.SetAttributes(semconv.ErrorTypeKey.String(status))
+			}
 
 			if toolErr := spanError(err, callResult); toolErr != nil {
 				span.RecordError(toolErr)

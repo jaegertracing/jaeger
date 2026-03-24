@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
@@ -42,9 +43,10 @@ func TestLoggingMiddlewareTracesToolCallSuccess(t *testing.T) {
 	require.NotNil(t, result)
 
 	spanData := capture.singleSpan(t)
-	assert.Equal(t, "mcp.tool.get_services", spanData.Name)
-	assertHasStringAttribute(t, spanData.Attributes, "mcp.tool.name", "get_services")
-	assertHasStringAttribute(t, spanData.Attributes, "mcp.status", toolStatusOK)
+	assert.Equal(t, mcpMethodToolsCall+" get_services", spanData.Name)
+	assertHasStringAttribute(t, spanData.Attributes, string(semconv.McpMethodNameKey), mcpMethodToolsCall)
+	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIToolNameKey), "get_services")
+	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIOperationNameKey), "execute_tool")
 	assert.Equal(t, codes.Unset, spanData.Status.Code)
 
 	responseLogs := observed.FilterMessage("MCP response").All()
@@ -71,9 +73,11 @@ func TestLoggingMiddlewareTracesToolCallError(t *testing.T) {
 	require.ErrorIs(t, err, expectedErr)
 
 	spanData := capture.singleSpan(t)
-	assert.Equal(t, "mcp.tool.get_trace_topology", spanData.Name)
-	assertHasStringAttribute(t, spanData.Attributes, "mcp.tool.name", "get_trace_topology")
-	assertHasStringAttribute(t, spanData.Attributes, "mcp.status", toolStatusNotFound)
+	assert.Equal(t, mcpMethodToolsCall+" get_trace_topology", spanData.Name)
+	assertHasStringAttribute(t, spanData.Attributes, string(semconv.McpMethodNameKey), mcpMethodToolsCall)
+	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIToolNameKey), "get_trace_topology")
+	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIOperationNameKey), "execute_tool")
+	assertHasStringAttribute(t, spanData.Attributes, string(semconv.ErrorTypeKey), toolStatusNotFound)
 	assert.Equal(t, codes.Error, spanData.Status.Code)
 	assert.Equal(t, expectedErr.Error(), spanData.Status.Description)
 
@@ -100,9 +104,11 @@ func TestLoggingMiddlewareTracesToolCallGenericError(t *testing.T) {
 	require.ErrorIs(t, err, expectedErr)
 
 	spanData := capture.singleSpan(t)
-	assert.Equal(t, "mcp.tool.search_traces", spanData.Name)
-	assertHasStringAttribute(t, spanData.Attributes, "mcp.tool.name", "search_traces")
-	assertHasStringAttribute(t, spanData.Attributes, "mcp.status", toolStatusError)
+	assert.Equal(t, mcpMethodToolsCall+" search_traces", spanData.Name)
+	assertHasStringAttribute(t, spanData.Attributes, string(semconv.McpMethodNameKey), mcpMethodToolsCall)
+	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIToolNameKey), "search_traces")
+	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIOperationNameKey), "execute_tool")
+	assertHasStringAttribute(t, spanData.Attributes, string(semconv.ErrorTypeKey), toolStatusError)
 	assert.Equal(t, codes.Error, spanData.Status.Code)
 	assert.Equal(t, expectedErr.Error(), spanData.Status.Description)
 
@@ -131,9 +137,11 @@ func TestLoggingMiddlewareTracesToolCallResultError(t *testing.T) {
 	require.NotNil(t, result)
 
 	spanData := capture.singleSpan(t)
-	assert.Equal(t, "mcp.tool.get_services", spanData.Name)
-	assertHasStringAttribute(t, spanData.Attributes, "mcp.tool.name", "get_services")
-	assertHasStringAttribute(t, spanData.Attributes, "mcp.status", toolStatusInvalidArgument)
+	assert.Equal(t, mcpMethodToolsCall+" get_services", spanData.Name)
+	assertHasStringAttribute(t, spanData.Attributes, string(semconv.McpMethodNameKey), mcpMethodToolsCall)
+	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIToolNameKey), "get_services")
+	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIOperationNameKey), "execute_tool")
+	assertHasStringAttribute(t, spanData.Attributes, string(semconv.ErrorTypeKey), toolStatusInvalidArgument)
 	assert.Equal(t, codes.Error, spanData.Status.Code)
 	assert.Equal(t, "invalid pattern", spanData.Status.Description)
 
@@ -185,7 +193,7 @@ func TestLoggingMiddlewareCreatesChildSpanWhenParentExists(t *testing.T) {
 	var childSpan tracetest.SpanStub
 	foundChild := false
 	for _, span := range spans {
-		if span.Name == "mcp.tool.health" {
+		if span.Name == mcpMethodToolsCall+" health" {
 			childSpan = span
 			foundChild = true
 			break
