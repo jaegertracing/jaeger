@@ -1,6 +1,6 @@
 # ADR-007: Grafana Dashboard Modernization and SPM Example Validation
 
-* **Status**: Proposed
+* **Status**: In progress
 * **Date**: 2026-03-20
 * **Related Issues**: [#5833](https://github.com/jaegertracing/jaeger/issues/5833)
 
@@ -73,9 +73,9 @@ There are three problems, addressed in the order below:
 
 We will work incrementally, establishing live validation first and replacing the toolchain along with fixing the dashboard content:
 
-1. **Restore Grafana to `docker-compose/monitor/`**, mounting `dashboard-for-grafana.json` directly from its canonical location. Grafana 11.x is used initially to tolerate the existing Angular panels.
+1. ✅ **Restore Grafana to `docker-compose/monitor/`**, mounting `dashboard-for-grafana.json` directly from its canonical location. Grafana 11.x is used initially to tolerate the existing Angular panels. _(Merged: [#8215](https://github.com/jaegertracing/jaeger/pull/8215))_
 2. **Migrate dashboard source to `grafana-foundation-sdk/go`**, done in two parts:
-   - **2a** — Write the Go generator, produce `dashboard-for-grafana-v2.json`, and mount both dashboards in Grafana for manual side-by-side comparison against live data.
+   - ✅ **2a** — Write the Go generator, produce `dashboard-for-grafana-v2.json`, and mount both dashboards in Grafana for manual side-by-side comparison against live data. _(Merged: [#8216](https://github.com/jaegertracing/jaeger/pull/8216))_
    - **2b** — After validation, delete the Jsonnet toolchain, promote the v2 file to `dashboard-for-grafana.json`, and upgrade Grafana to 12.x.
 3. **Add CI validation** to keep `dashboard-for-grafana.json` in sync with the Go source and lint its structure.
 
@@ -83,7 +83,7 @@ We will work incrementally, establishing live validation first and replacing the
 
 ## Implementation Plan
 
-### Step 1: Restore Grafana to the SPM docker-compose example
+### ✅ Step 1: Restore Grafana to the SPM docker-compose example _(Merged: [#8215](https://github.com/jaegertracing/jaeger/pull/8215))_
 
 This step restores visibility and validation capability. The dashboard loaded at this point will still have Angular panels, so Grafana 11.x is used — the last series with Angular support enabled by default.
 
@@ -144,7 +144,7 @@ This step restores visibility and validation capability. The dashboard loaded at
 
 **Validation:** Run `docker compose up` and confirm the Grafana dashboard loads and panels show data from microsim-generated traces. Angular deprecation warnings are expected at this stage.
 
-### Step 2a: Introduce the Go SDK generator alongside the existing dashboard
+### ✅ Step 2a: Introduce the Go SDK generator alongside the existing dashboard _(Merged: [#8216](https://github.com/jaegertracing/jaeger/pull/8216))_
 
 Write the Go generator and mount its output in Grafana alongside the existing Jsonnet-generated dashboard for side-by-side comparison. The Jsonnet source and `dashboard-for-grafana.json` are left untouched at this stage.
 
@@ -231,7 +231,7 @@ monitoring/jaeger-mixin/
 
 **Validation:** Run `docker compose up` with the single dashboard mount and Grafana 12.x. Confirm all panels render with no Angular deprecation warnings.
 
-### Step 3: Add CI validation
+### Step 3: Add CI validation _(In review: [#8240](https://github.com/jaegertracing/jaeger/pull/8240))_
 
 Create `scripts/lint/lint-monitoring.sh`:
 
