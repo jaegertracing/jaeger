@@ -402,5 +402,5 @@ func TestGetTraceErrorsHandler_Handle_LimitEnforced(t *testing.T) {
 	// so ErrorCount and len(Spans) are both bounded by maxSpanDetailsPerRequest.
 	assert.Equal(t, 3, output.ErrorCount)
 	// Returned spans are capped at exactly the limit (5 errors, limit=3 → exactly 3 spans)
-	assert.Equal(t, 3, len(output.Spans))
+	assert.Len(t, output.Spans, 3)
 }

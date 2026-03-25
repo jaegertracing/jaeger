@@ -511,5 +511,5 @@ func TestSearchTracesHandler_Handle_LimitEnforced(t *testing.T) {
 
 	require.NoError(t, err)
 	// Returned traces are capped at exactly the limit (5 traces, limit=3 → exactly 3 traces)
-	assert.Equal(t, 3, len(output.Traces))
+	assert.Len(t, output.Traces, 3)
 }
