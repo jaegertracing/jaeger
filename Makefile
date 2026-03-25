@@ -145,7 +145,13 @@ fmt: $(GOFUMPT)
 	@./scripts/lint/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC)
 
 .PHONY: lint
-lint: lint-fmt lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go
+lint: lint-fmt lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go lint-monitoring
+
+.PHONY: lint-monitoring
+lint-monitoring:
+	@cd ./monitoring/jaeger-mixin/generate && go run . | diff -q ../dashboard-for-grafana.json - > /dev/null || \
+		(echo "ERROR: dashboard-for-grafana.json is out of sync. Run 'make generate-dashboards'."; exit 1)
+	@echo "OK: dashboard-for-grafana.json is in sync."
 
 .PHONY: lint-license
 lint-license:
