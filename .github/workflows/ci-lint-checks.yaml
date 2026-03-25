@@ -100,7 +100,7 @@ jobs:
       run: make generate-mocks && { if git status --porcelain | grep '??'; then exit 1; else git diff --name-status --exit-code; fi }
 
     - name: Verify Grafana dashboard JSON is in sync with Go generator
-      run: make generate-dashboards && git diff --name-status --exit-code monitoring/jaeger-mixin/dashboard-for-grafana.json
+      run: make lint-monitoring
 
   lint-shell-scripts:
     runs-on: ubuntu-latest

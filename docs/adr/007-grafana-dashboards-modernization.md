@@ -233,30 +233,7 @@ monitoring/jaeger-mixin/
 
 ### ✅ Step 3: Add CI validation _([#8240](https://github.com/jaegertracing/jaeger/pull/8240))_
 
-Create `scripts/lint/lint-monitoring.sh`:
-
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-MIXIN_DIR="monitoring/jaeger-mixin"
-
-# Verify the pre-built JSON is in sync with the Go source
-GENERATED=$(go run ./$MIXIN_DIR/generate | python3 -m json.tool --sort-keys)
-COMMITTED=$(python3 -m json.tool --sort-keys "$MIXIN_DIR/dashboard-for-grafana.json")
-if [ "$GENERATED" != "$COMMITTED" ]; then
-  echo "ERROR: dashboard-for-grafana.json is out of sync with generate/main.go"
-  echo "Run 'make generate-dashboards' to regenerate."
-  exit 1
-fi
-
-# Run grafana/dashboard-linter
-docker run --rm \
-  -v "$(pwd)/$MIXIN_DIR/dashboard-for-grafana.json:/dashboard.json:ro" \
-  grafana/dashboard-linter lint /dashboard.json
-```
-
-Add `make lint-monitoring` target to the top-level `Makefile` and include it in CI (GitHub Actions).
+Add a `lint-monitoring` target to the top-level `Makefile` that regenerates the dashboard to a temp file, diffs against the committed JSON, and fails if they differ. The Go generator produces deterministic output, so no additional normalization is needed. Include the target in the top-level `lint` target and in the `generated-files-check` CI job.
 
 ---
 
