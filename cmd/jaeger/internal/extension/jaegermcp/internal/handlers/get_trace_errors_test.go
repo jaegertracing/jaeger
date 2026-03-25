@@ -398,9 +398,8 @@ func TestGetTraceErrorsHandler_Handle_LimitEnforced(t *testing.T) {
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
-	// AggregateTracesWithLimit caps the trace at limit spans before error counting,
-	// so ErrorCount and len(Spans) are both bounded by maxSpanDetailsPerRequest.
-	assert.Equal(t, 3, output.ErrorCount)
-	// Returned spans are capped at exactly the limit (5 errors, limit=3 → exactly 3 spans)
+	// ErrorCount reflects all error spans in the full trace (unbounded aggregation).
+	assert.Equal(t, 5, output.ErrorCount)
+	// Returned Spans are capped at exactly the limit (5 errors, limit=3 → exactly 3 spans).
 	assert.Len(t, output.Spans, 3)
 }

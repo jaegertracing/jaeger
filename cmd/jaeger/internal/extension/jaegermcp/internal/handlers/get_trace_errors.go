@@ -51,9 +51,9 @@ func (h *getTraceErrorsHandler) handle(
 
 	tracesIter := h.queryService.GetTraces(ctx, params)
 
-	// AggregateTracesWithLimit ensures a complete trace view while bounding server-side
-	// memory to maxSpanDetailsPerRequest spans, preventing unbounded work on large traces.
-	aggregatedIter := jptrace.AggregateTracesWithLimit(tracesIter, h.maxSpanDetailsPerRequest)
+	// AggregateTraces reassembles the full trace so ErrorCount reflects every error span.
+	// The Spans slice is capped inside the iteration loop below.
+	aggregatedIter := jptrace.AggregateTraces(tracesIter)
 
 	// Collect spans with error status
 	var errorSpans []types.SpanDetail
