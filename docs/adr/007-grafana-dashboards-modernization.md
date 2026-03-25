@@ -1,6 +1,6 @@
 # ADR-007: Grafana Dashboard Modernization and SPM Example Validation
 
-* **Status**: In progress
+* **Status**: Implemented
 * **Date**: 2026-03-20
 * **Related Issues**: [#5833](https://github.com/jaegertracing/jaeger/issues/5833)
 
@@ -76,8 +76,8 @@ We will work incrementally, establishing live validation first and replacing the
 1. ✅ **Restore Grafana to `docker-compose/monitor/`**, mounting `dashboard-for-grafana.json` directly from its canonical location. Grafana 11.x is used initially to tolerate the existing Angular panels. _(Merged: [#8215](https://github.com/jaegertracing/jaeger/pull/8215))_
 2. **Migrate dashboard source to `grafana-foundation-sdk/go`**, done in two parts:
    - ✅ **2a** — Write the Go generator, produce `dashboard-for-grafana-v2.json`, and mount both dashboards in Grafana for manual side-by-side comparison against live data. _(Merged: [#8216](https://github.com/jaegertracing/jaeger/pull/8216))_
-   - **2b** — After validation, delete the Jsonnet toolchain, promote the v2 file to `dashboard-for-grafana.json`, and upgrade Grafana to 12.x.
-3. **Add CI validation** to keep `dashboard-for-grafana.json` in sync with the Go source and lint its structure.
+   - ✅ **2b** — After validation, delete the Jsonnet toolchain, promote the v2 file to `dashboard-for-grafana.json`, and upgrade Grafana to 12.x. _(Merged: [#8241](https://github.com/jaegertracing/jaeger/pull/8241))_
+3. ✅ **Add CI validation** to keep `dashboard-for-grafana.json` in sync with the Go source and lint its structure. _([#8240](https://github.com/jaegertracing/jaeger/pull/8240))_
 
 ---
 
@@ -205,7 +205,7 @@ volumes:
 
 **Validation:** Run `docker compose up` and compare both dashboards in Grafana side-by-side against live microsim data. Confirm all panels in the v2 dashboard show data, use `timeseries` panel types, and match the content of the Jsonnet dashboard.
 
-### Step 2b: Cutover — remove Jsonnet toolchain and promote v2 dashboard
+### ✅ Step 2b: Cutover — remove Jsonnet toolchain and promote v2 dashboard _(Merged: [#8241](https://github.com/jaegertracing/jaeger/pull/8241))_
 
 Once side-by-side validation passes, complete the migration in a follow-up PR:
 
@@ -231,7 +231,7 @@ monitoring/jaeger-mixin/
 
 **Validation:** Run `docker compose up` with the single dashboard mount and Grafana 12.x. Confirm all panels render with no Angular deprecation warnings.
 
-### Step 3: Add CI validation _(In review: [#8240](https://github.com/jaegertracing/jaeger/pull/8240))_
+### ✅ Step 3: Add CI validation _([#8240](https://github.com/jaegertracing/jaeger/pull/8240))_
 
 Create `scripts/lint/lint-monitoring.sh`:
 

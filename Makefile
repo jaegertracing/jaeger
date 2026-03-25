@@ -149,7 +149,10 @@ lint: lint-fmt lint-license lint-imports lint-semconv lint-goversion lint-goleak
 
 .PHONY: lint-monitoring
 lint-monitoring:
-	./scripts/lint/check-dashboard-sync.sh
+	cd ./monitoring/jaeger-mixin/generate && go run . > ../dashboard-for-grafana.json.tmp
+	@diff monitoring/jaeger-mixin/dashboard-for-grafana.json monitoring/jaeger-mixin/dashboard-for-grafana.json.tmp > /dev/null 2>&1 || { echo "ERROR: dashboard-for-grafana.json is out of sync with generate/main.go. Run 'make generate-dashboards' and commit the result."; rm -f monitoring/jaeger-mixin/dashboard-for-grafana.json.tmp; exit 1; }
+	@rm -f monitoring/jaeger-mixin/dashboard-for-grafana.json.tmp
+	@echo "OK: dashboard-for-grafana.json is in sync with generate/main.go."
 
 .PHONY: lint-license
 lint-license:
