@@ -510,5 +510,6 @@ func TestSearchTracesHandler_Handle_LimitEnforced(t *testing.T) {
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
-	assert.LessOrEqual(t, len(output.Traces), 3)
+	// Returned traces are capped at exactly the limit (5 traces, limit=3 → exactly 3 traces)
+	assert.Equal(t, 3, len(output.Traces))
 }

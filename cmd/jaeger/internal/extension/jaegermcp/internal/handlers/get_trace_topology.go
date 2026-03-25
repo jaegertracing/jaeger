@@ -66,8 +66,9 @@ func (h *getTraceTopologyHandler) handle(
 
 	tracesIter := h.queryService.GetTraces(ctx, params)
 
-	// Wrap with AggregateTraces to ensure each ptrace.Traces contains a complete trace
-	aggregatedIter := jptrace.AggregateTraces(tracesIter)
+	// AggregateTracesWithLimit ensures a complete trace view while bounding server-side
+	// memory to maxSpanDetailsPerRequest spans, preventing unbounded work on large traces.
+	aggregatedIter := jptrace.AggregateTracesWithLimit(tracesIter, h.maxSpanDetailsPerRequest)
 
 	// Collect all spans from the trace
 	var spans []rawSpan

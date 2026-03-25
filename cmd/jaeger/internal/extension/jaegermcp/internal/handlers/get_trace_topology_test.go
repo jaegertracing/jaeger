@@ -596,5 +596,6 @@ func TestGetTraceTopologyHandler_Handle_LimitEnforced(t *testing.T) {
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
-	assert.LessOrEqual(t, len(output.Spans), 3)
+	// Exactly 3 spans returned — 6-span trace with limit=3 must truncate to exactly 3
+	assert.Equal(t, 3, len(output.Spans))
 }
