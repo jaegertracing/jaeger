@@ -1,7 +1,7 @@
 // Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-// Package main generates monitoring/jaeger-mixin/dashboard-for-grafana-v2.json
+// Package main generates monitoring/jaeger-mixin/dashboard-for-grafana.json
 // using the grafana-foundation-sdk Go builder API, producing native timeseries
 // panels (React-based) to replace the deprecated Angular "graph" panels emitted
 // by the old grafana-builder / Jsonnet toolchain.
@@ -9,7 +9,7 @@
 // Usage:
 //
 //	cd monitoring/jaeger-mixin/generate
-//	go run . > ../dashboard-for-grafana-v2.json
+//	go run . > ../dashboard-for-grafana.json
 package main
 
 import (
@@ -54,7 +54,7 @@ func main() {
 }
 
 func buildDashboard() (dashboard.Dashboard, error) {
-	builder := dashboard.NewDashboardBuilder("Jaeger (v2)").
+	builder := dashboard.NewDashboardBuilder("Jaeger v2").
 		Uid("jaeger-v2").
 		Tags([]string{"jaeger"}).
 		Editable().
