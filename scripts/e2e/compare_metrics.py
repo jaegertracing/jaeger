@@ -120,14 +120,35 @@ def generate_diff(file1_content, file2_content):
     metrics1,excluded_metrics_count1 = parse_metrics(file1_content)
     metrics2,excluded_metrics_count2 = parse_metrics(file2_content)
 
-    diff = unified_diff(metrics1, metrics2,lineterm='',n=0)
+    diff_lines = list(unified_diff(metrics1, metrics2,lineterm='',n=0))
+
+    # Check whether the diff contains any regression lines.
+    # In unified_diff(file1=current, file2=baseline), '+' lines (excluding the '+++'
+    # header) represent metrics that exist in the baseline but are missing from the
+    # current snapshot — i.e. metrics the PR has lost (regressions).
+    # '-' lines represent metrics that are new in the current snapshot but absent from
+    # the baseline; these can arise from a stale baseline after other PRs added new
+    # metrics, so they should not be treated as failures on their own.
+    has_regressions = any(
+        line.startswith('+') and not line.startswith('+++')
+        for line in diff_lines
+    )
+
+    if not has_regressions:
+        # No metrics are missing from the current snapshot compared to the baseline:
+        # either the snapshots are identical, or the current snapshot only has *new*
+        # metrics that the (potentially stale) baseline did not yet include.
+        # In both cases there is nothing actionable to report.
+        return ''
+
+    actual_diff = '\n'.join(diff_lines)
     total_excluded = excluded_metrics_count1 + excluded_metrics_count2
     
     exclusion_lines = ''
     if total_excluded > 0:
         exclusion_lines = f'\nMetrics excluded from A: {excluded_metrics_count1}\nMetrics excluded from B: {excluded_metrics_count2}'
     
-    return '\n'.join(diff) + exclusion_lines
+    return actual_diff + exclusion_lines
 
 def write_diff_file(diff_lines, output_path):
     

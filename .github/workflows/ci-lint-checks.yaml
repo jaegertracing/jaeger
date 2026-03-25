@@ -126,6 +126,11 @@ jobs:
       run: |
         SHUNIT2=.tools/shunit2 bash scripts/utils/run-tests.sh
 
+    - name: Run Python unit tests for e2e scripts
+      run: |
+        pip install prometheus-client
+        python3 -m unittest discover -s scripts/e2e -p '*_test.py' -v
+
   binary-size-check:
     runs-on: ubuntu-latest
     steps:
