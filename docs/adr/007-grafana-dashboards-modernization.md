@@ -77,7 +77,7 @@ We will work incrementally, establishing live validation first and replacing the
 2. **Migrate dashboard source to `grafana-foundation-sdk/go`**, done in two parts:
    - ✅ **2a** — Write the Go generator, produce `dashboard-for-grafana-v2.json`, and mount both dashboards in Grafana for manual side-by-side comparison against live data. _(Merged: [#8216](https://github.com/jaegertracing/jaeger/pull/8216))_
    - ✅ **2b** — After validation, delete the Jsonnet toolchain, promote the v2 file to `dashboard-for-grafana.json`, and upgrade Grafana to 12.x. _(Merged: [#8241](https://github.com/jaegertracing/jaeger/pull/8241))_
-3. ✅ **Add CI validation** to keep `dashboard-for-grafana.json` in sync with the Go source and lint its structure. _([#8240](https://github.com/jaegertracing/jaeger/pull/8240))_
+3. ✅ **Add CI validation** to keep `dashboard-for-grafana.json` in sync with the Go source. _([#8240](https://github.com/jaegertracing/jaeger/pull/8240))_
 
 ---
 
