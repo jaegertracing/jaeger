@@ -195,6 +195,8 @@ func TestMCPClientInitialize(t *testing.T) {
 	require.NotNil(t, initResult)
 	assert.Equal(t, "jaeger", initResult.ServerInfo.Name)
 	assert.Equal(t, "1.0.0", initResult.ServerInfo.Version)
+	assert.NotEmpty(t, initResult.Instructions, "server should return instructions for LLM clients")
+	assert.Contains(t, initResult.Instructions, "get_services")
 }
 
 func TestMCPClientToolsListDiscovery(t *testing.T) {
