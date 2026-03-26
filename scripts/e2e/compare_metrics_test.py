@@ -60,7 +60,7 @@ class TestGenerateDiff(unittest.TestCase):
         # The diff must contain a '+' line for the missing metric (counter_b)
         self.assertIn('+counter_b', result)
 
-    def test_new_metric_in_current_produces_diff(self):
+    def test_new_metric_in_current_snapshot_produces_diff(self):
         """Metric present in current snapshot but absent from baseline → diff is non-empty.
 
         Both directions of metric change are reported so the root cause can be
