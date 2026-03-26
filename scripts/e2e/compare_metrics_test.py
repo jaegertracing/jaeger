@@ -104,8 +104,8 @@ class TestGenerateDiff(unittest.TestCase):
         # current=excluded only, baseline=A+excluded → A is missing (regression)
         result = generate_diff(_METRIC_EXCLUDED_5XX, _METRIC_A + _METRIC_EXCLUDED_5XX)
         self.assertNotEqual(result, '')
-        self.assertIn('Metrics excluded from A:', result)
-        self.assertIn('Metrics excluded from B:', result)
+        self.assertIn('# Metrics excluded from A:', result)
+        self.assertIn('# Metrics excluded from B:', result)
 
     def test_no_exclusions_means_no_exclusion_summary(self):
         """When there are no excluded metrics, the exclusion summary is omitted."""
