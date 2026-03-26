@@ -77,11 +77,10 @@ class TestGenerateDiff(unittest.TestCase):
     def test_exclusion_count_difference_does_not_produce_diff(self):
         """Snapshots that differ only in excluded-metric counts produce no diff.
 
-        This is the Cassandra false-positive scenario: both snapshots have identical
-        non-excluded metrics, but differ in how many 5xx-error metrics were excluded
-        (e.g. a transient error occurred in one run but not the other).  The
-        exclusion-count header lines are informational metadata, not actual metric
-        differences, and must not make the diff non-empty on their own.
+        When both snapshots have identical non-excluded metrics but differ in how many
+        samples were excluded (e.g. a transient error occurred in one run but not the
+        other), the exclusion-count lines are informational metadata and must not make
+        the diff non-empty on their own.
         """
         # current has metric_a + one 5xx (excluded), baseline has metric_a + zero 5xx
         result = generate_diff(_METRIC_A_AND_EXCLUDED, _METRIC_A)

@@ -112,6 +112,30 @@ def parse_metrics(content):
 
 
 def generate_diff(file1_content, file2_content):
+    """Compare two Prometheus metrics snapshots and return a unified diff of metric names.
+
+    Inputs are the raw text content of metrics files scraped from the /metrics endpoint
+    (Prometheus text exposition format), e.g.:
+        # HELP http_requests_total The total number of HTTP requests.
+        # TYPE http_requests_total counter
+        http_requests_total{method="post",code="200"} 1027 1395066363000
+        http_requests_total{method="post",code="400"}    3 1395066363000
+
+    parse_metrics() drops metric values and timestamps, retaining only the metric name
+    and its normalised label set as a string like:
+        http_requests_total{code="200",method="post"}
+    Certain labels (e.g. service_instance_id) and entire samples (e.g. HTTP 5xx responses)
+    are excluded so that run-to-run noise does not pollute the diff.
+
+    The diff is performed on these sorted, value-free metric strings.  If the two snapshots
+    produce the same set of strings the diff is empty and this function returns ''.
+    When there are differences, the return value is a unified diff followed by optional
+    lines reporting how many metrics were excluded from each snapshot, e.g.:
+        Metrics excluded from A: 3
+        Metrics excluded from B: 5
+    The exclusion-count lines are appended only when the diff is non-empty; they are
+    informational context, not themselves a metric difference.
+    """
     if isinstance(file1_content, list):
         file1_content = ''.join(file1_content)
     if isinstance(file2_content, list):
@@ -120,17 +144,13 @@ def generate_diff(file1_content, file2_content):
     metrics1,excluded_metrics_count1 = parse_metrics(file1_content)
     metrics2,excluded_metrics_count2 = parse_metrics(file2_content)
 
-    diff = unified_diff(metrics1, metrics2,lineterm='',n=0)
-    actual_diff = '\n'.join(diff)
+    actual_diff = '\n'.join(unified_diff(metrics1, metrics2, lineterm='', n=0))
 
-    # Only include exclusion-count metadata when there is an actual metric difference.
-    # Exclusion counts represent how many metrics were dropped during parsing (e.g.
-    # HTTP 5xx responses) and are not meaningful on their own.  Without this guard,
-    # two snapshots that have identical non-excluded metrics but different numbers of
-    # excluded metrics would produce a non-empty diff file containing nothing but the
-    # exclusion-count header lines, causing the CI to report false-positive changes
-    # with zero actionable metric differences.
-    if not actual_diff:
+    # Exclusion counts are informational context appended to the diff output.
+    # They must not be written when the diff itself is empty: two snapshots with
+    # identical non-excluded metrics but different numbers of excluded samples
+    # would otherwise produce a non-empty output with no actionable differences.
+    if len(actual_diff) == 0:
         return ''
 
     total_excluded = excluded_metrics_count1 + excluded_metrics_count2
