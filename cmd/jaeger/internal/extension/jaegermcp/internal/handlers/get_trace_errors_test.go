@@ -153,7 +153,7 @@ func TestGetTraceErrorsHandler_Handle_SingleError(t *testing.T) {
 }
 
 func TestGetTraceErrorsHandler_Handle_MissingTraceID(t *testing.T) {
-	handler := NewGetTraceErrorsHandler(nil)
+	handler := NewGetTraceErrorsHandler(nil, 0)
 
 	input := types.GetTraceErrorsInput{
 		TraceID: "",
@@ -166,7 +166,7 @@ func TestGetTraceErrorsHandler_Handle_MissingTraceID(t *testing.T) {
 }
 
 func TestGetTraceErrorsHandler_Handle_InvalidTraceID(t *testing.T) {
-	handler := NewGetTraceErrorsHandler(nil)
+	handler := NewGetTraceErrorsHandler(nil, 0)
 
 	input := types.GetTraceErrorsInput{
 		TraceID: "invalid-trace-id",
@@ -371,4 +371,55 @@ func TestGetTraceErrorsHandler_Handle_ErrorSpanWithEvents(t *testing.T) {
 	assert.Equal(t, "exception", span.Events[0].Name)
 	assert.Equal(t, "RuntimeError", span.Events[0].Attributes["exception.type"])
 	assert.Equal(t, "Something went wrong", span.Events[0].Attributes["exception.message"])
+}
+
+func TestGetTraceErrorsHandler_Handle_MaxSpanDetailsEnforced(t *testing.T) {
+	traceID := testTraceID
+
+	spanConfigs := []spanConfig{
+		{spanID: "span001", operation: "/err1", hasError: true, errorMessage: "Error 1"},
+		{spanID: "span002", operation: "/err2", hasError: true, errorMessage: "Error 2"},
+		{spanID: "span003", operation: "/err3", hasError: true, errorMessage: "Error 3"},
+		{spanID: "span004", operation: "/err4", hasError: true, errorMessage: "Error 4"},
+		{spanID: "span005", operation: "/err5", hasError: true, errorMessage: "Error 5"},
+	}
+
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+
+	handler := &getTraceErrorsHandler{queryService: mock, maxSpanDetailsPerRequest: 3}
+
+	input := types.GetTraceErrorsInput{TraceID: traceID}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	assert.Equal(t, traceID, output.TraceID)
+	// ErrorCount reflects the true total, not the truncated slice length
+	assert.Equal(t, 5, output.ErrorCount)
+	assert.Len(t, output.Spans, 3)
+}
+
+func TestGetTraceErrorsHandler_Handle_UnlimitedWhenZero(t *testing.T) {
+	traceID := testTraceID
+
+	spanConfigs := []spanConfig{
+		{spanID: "span001", operation: "/err1", hasError: true, errorMessage: "Error 1"},
+		{spanID: "span002", operation: "/err2", hasError: true, errorMessage: "Error 2"},
+		{spanID: "span003", operation: "/err3", hasError: true, errorMessage: "Error 3"},
+	}
+
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+
+	// maxSpanDetailsPerRequest=0 means unlimited
+	handler := &getTraceErrorsHandler{queryService: mock, maxSpanDetailsPerRequest: 0}
+
+	input := types.GetTraceErrorsInput{TraceID: traceID}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	assert.Equal(t, 3, output.ErrorCount)
+	assert.Len(t, output.Spans, 3)
 }

@@ -21,15 +21,18 @@ import (
 // This tool retrieves all spans with error status from a specific trace, returning full
 // OTLP span details including attributes, events, and links for error analysis.
 type getTraceErrorsHandler struct {
-	queryService queryServiceGetTracesInterface
+	queryService             queryServiceGetTracesInterface
+	maxSpanDetailsPerRequest int
 }
 
 // NewGetTraceErrorsHandler creates a new get_trace_errors handler and returns the handler function.
 func NewGetTraceErrorsHandler(
 	queryService *querysvc.QueryService,
+	maxSpanDetailsPerRequest int,
 ) mcp.ToolHandlerFor[types.GetTraceErrorsInput, types.GetTraceErrorsOutput] {
 	h := &getTraceErrorsHandler{
-		queryService: queryService,
+		queryService:             queryService,
+		maxSpanDetailsPerRequest: maxSpanDetailsPerRequest,
 	}
 	return h.handle
 }
@@ -51,8 +54,11 @@ func (h *getTraceErrorsHandler) handle(
 	// Wrap with AggregateTraces to ensure each ptrace.Traces contains a complete trace
 	aggregatedIter := jptrace.AggregateTraces(tracesIter)
 
-	// Collect spans with error status
+	// Collect spans with error status.
+	// We always count every error span so ErrorCount reflects the true total,
+	// but we only collect full span details up to the configured limit.
 	var errorSpans []types.SpanDetail
+	totalErrors := 0
 	traceFound := false
 
 	for trace, err := range aggregatedIter {
@@ -62,12 +68,14 @@ func (h *getTraceErrorsHandler) handle(
 
 		traceFound = true
 
-		// Iterate through all spans in the trace
 		for pos, span := range jptrace.SpanIter(trace) {
-			// Check if span has error status
 			if span.Status().Code() == ptrace.StatusCodeError {
-				detail := buildSpanDetail(pos, span)
-				errorSpans = append(errorSpans, detail)
+				totalErrors++
+
+				limited := h.maxSpanDetailsPerRequest > 0 && len(errorSpans) >= h.maxSpanDetailsPerRequest
+				if !limited {
+					errorSpans = append(errorSpans, buildSpanDetail(pos, span))
+				}
 			}
 		}
 	}
@@ -78,7 +86,7 @@ func (h *getTraceErrorsHandler) handle(
 
 	output := types.GetTraceErrorsOutput{
 		TraceID:    input.TraceID,
-		ErrorCount: len(errorSpans),
+		ErrorCount: totalErrors,
 		Spans:      errorSpans,
 	}
 

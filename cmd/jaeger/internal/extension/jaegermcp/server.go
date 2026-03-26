@@ -155,12 +155,12 @@ func (s *server) registerTools() {
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_trace_errors",
 		Description: "Get full details for all spans with error status.",
-	}, handlers.NewGetTraceErrorsHandler(s.queryAPI))
+	}, handlers.NewGetTraceErrorsHandler(s.queryAPI, s.config.MaxSpanDetailsPerRequest))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_trace_topology",
 		Description: "Get the structural topology of a trace as a flat, depth-first list of spans. Each span's 'path' field encodes ancestry as slash-delimited span IDs (e.g. rootID/parentID/spanID). Does NOT return attributes or logs.",
-	}, handlers.NewGetTraceTopologyHandler(s.queryAPI))
+	}, handlers.NewGetTraceTopologyHandler(s.queryAPI, s.config.MaxSpanDetailsPerRequest))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_critical_path",

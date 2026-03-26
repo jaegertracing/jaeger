@@ -338,7 +338,7 @@ func TestGetTraceTopologyHandler_Handle_NoAttributes(t *testing.T) {
 }
 
 func TestGetTraceTopologyHandler_Handle_MissingTraceID(t *testing.T) {
-	handler := NewGetTraceTopologyHandler(nil)
+	handler := NewGetTraceTopologyHandler(nil, 0)
 
 	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, types.GetTraceTopologyInput{})
 
@@ -347,7 +347,7 @@ func TestGetTraceTopologyHandler_Handle_MissingTraceID(t *testing.T) {
 }
 
 func TestGetTraceTopologyHandler_Handle_InvalidTraceID(t *testing.T) {
-	handler := NewGetTraceTopologyHandler(nil)
+	handler := NewGetTraceTopologyHandler(nil, 0)
 
 	input := types.GetTraceTopologyInput{TraceID: "invalid-trace-id"}
 	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
@@ -568,4 +568,53 @@ func TestGetTraceTopologyHandler_Handle_DFSOrder(t *testing.T) {
 	// DFS: A and its subtree come before B.
 	assert.Less(t, indexOf["C"], indexOf["B"])
 	assert.Less(t, indexOf["D"], indexOf["B"])
+}
+
+func TestGetTraceTopologyHandler_Handle_MaxSpanDetailsEnforced(t *testing.T) {
+	traceID := testTraceID
+
+	// Create 5 spans, but set limit to 3
+	spanConfigs := []spanConfig{
+		{spanID: "span001", operation: "root"},
+		{spanID: "span002", operation: "child1", parentSpanID: "span001"},
+		{spanID: "span003", operation: "child2", parentSpanID: "span001"},
+		{spanID: "span004", operation: "child3", parentSpanID: "span001"},
+		{spanID: "span005", operation: "child4", parentSpanID: "span001"},
+	}
+
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+
+	handler := &getTraceTopologyHandler{queryService: mock, maxSpanDetailsPerRequest: 3}
+
+	input := types.GetTraceTopologyInput{TraceID: traceID, Depth: 0}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	// Topology is built from the collected spans, which should be capped at 3
+	assert.LessOrEqual(t, len(output.Spans), 3)
+}
+
+func TestGetTraceTopologyHandler_Handle_UnlimitedWhenZero(t *testing.T) {
+	traceID := testTraceID
+
+	spanConfigs := []spanConfig{
+		{spanID: "span001", operation: "root"},
+		{spanID: "span002", operation: "child1", parentSpanID: "span001"},
+		{spanID: "span003", operation: "child2", parentSpanID: "span001"},
+		{spanID: "span004", operation: "child3", parentSpanID: "span001"},
+		{spanID: "span005", operation: "child4", parentSpanID: "span001"},
+	}
+
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+
+	// maxSpanDetailsPerRequest=0 means unlimited
+	handler := &getTraceTopologyHandler{queryService: mock, maxSpanDetailsPerRequest: 0}
+
+	input := types.GetTraceTopologyInput{TraceID: traceID, Depth: 0}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	assert.Len(t, output.Spans, 5)
 }

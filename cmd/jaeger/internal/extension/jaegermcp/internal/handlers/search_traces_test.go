@@ -476,3 +476,57 @@ func TestSearchTracesHandler_Handle_DefaultStartTime(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, output.Traces, 1)
 }
+
+func TestSearchTracesHandler_Handle_MaxResultsEnforced(t *testing.T) {
+	trace1 := createTestTrace("trace001", "svc", "/a", false)
+	trace2 := createTestTrace("trace002", "svc", "/b", false)
+	trace3 := createTestTrace("trace003", "svc", "/c", false)
+
+	mock := &mockQueryService{
+		findTracesFunc: func(_ context.Context, _ querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+			return func(yield func([]ptrace.Traces, error) bool) {
+				yield([]ptrace.Traces{trace1}, nil)
+				yield([]ptrace.Traces{trace2}, nil)
+				yield([]ptrace.Traces{trace3}, nil)
+			}
+		},
+	}
+
+	handler := &searchTracesHandler{queryService: mock, maxResults: 2}
+
+	input := types.SearchTracesInput{
+		StartTimeMin: "-1h",
+		ServiceName:  "svc",
+	}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	assert.Len(t, output.Traces, 2)
+}
+
+func TestSearchTracesHandler_Handle_SearchDepthNotClampedWhenUnlimited(t *testing.T) {
+	testTrace := createTestTrace("trace001", "svc", "/a", false)
+
+	mock := &mockQueryService{
+		findTracesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+			// When maxResults=0 (unlimited), searchDepth should not be clamped to 0
+			assert.Equal(t, 50, query.SearchDepth)
+			return func(yield func([]ptrace.Traces, error) bool) {
+				yield([]ptrace.Traces{testTrace}, nil)
+			}
+		},
+	}
+
+	// maxResults=0 means unlimited — searchDepth must not be clamped
+	handler := &searchTracesHandler{queryService: mock, maxResults: 0}
+
+	input := types.SearchTracesInput{
+		StartTimeMin: "-1h",
+		ServiceName:  "svc",
+		SearchDepth:  50,
+	}
+
+	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+	require.NoError(t, err)
+}
