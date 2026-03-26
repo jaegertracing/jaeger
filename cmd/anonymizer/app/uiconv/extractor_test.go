@@ -89,6 +89,41 @@ func TestExtractorTraceScanError(t *testing.T) {
 	require.ErrorContains(t, err, "failed when scanning the file")
 }
 
+func TestExtractorOutputFileTruncated(t *testing.T) {
+	inputFile := "fixtures/trace_success.json"
+	outputFile := "fixtures/trace_truncation_test_ui_anonymized.json"
+	defer os.Remove(outputFile)
+
+	// Pre-populate the output file with content that is longer than what the extractor will write,
+	// simulating a previous run with a larger result. This verifies that stale data at the end of
+	// the file is removed when the new (shorter) output is written.
+	staleContent := `{"data": [{"traceID":"stale","spans":[],"processes":{}}], "stale": true}`
+	err := os.WriteFile(outputFile, []byte(staleContent), 0o644)
+	require.NoError(t, err)
+
+	reader, err := newSpanReader(inputFile, zap.NewNop())
+	require.NoError(t, err)
+
+	extractor, err := newExtractor(
+		outputFile,
+		"2be38093ead7a083",
+		reader,
+		zap.NewNop(),
+	)
+	require.NoError(t, err)
+
+	err = extractor.Run()
+	require.NoError(t, err)
+
+	// The output must be valid JSON with no stale trailing bytes.
+	var result map[string]any
+	loadJSON(t, outputFile, &result)
+
+	// Confirm stale key from the previous run is gone.
+	_, hasStale := result["stale"]
+	assert.False(t, hasStale, "output file should not contain stale data from a previous run")
+}
+
 func loadJSON(t *testing.T, fileName string, i any) {
 	b, err := os.ReadFile(fileName)
 	require.NoError(t, err)
