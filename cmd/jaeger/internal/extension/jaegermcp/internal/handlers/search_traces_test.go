@@ -476,3 +476,40 @@ func TestSearchTracesHandler_Handle_DefaultStartTime(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, output.Traces, 1)
 }
+
+func TestSearchTracesHandler_Handle_LimitEnforced(t *testing.T) {
+	// Create 5 distinct traces
+	traces := []ptrace.Traces{
+		createTestTrace("trace001", "svc", "/op1", false),
+		createTestTrace("trace002", "svc", "/op2", false),
+		createTestTrace("trace003", "svc", "/op3", false),
+		createTestTrace("trace004", "svc", "/op4", false),
+		createTestTrace("trace005", "svc", "/op5", false),
+	}
+
+	mock := &mockQueryService{
+		findTracesFunc: func(_ context.Context, _ querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+			return func(yield func([]ptrace.Traces, error) bool) {
+				for _, tr := range traces {
+					if !yield([]ptrace.Traces{tr}, nil) {
+						return
+					}
+				}
+			}
+		},
+	}
+
+	// Set maxResults to 3 — should return at most 3 traces
+	handler := &searchTracesHandler{queryService: mock, maxResults: 3}
+
+	input := types.SearchTracesInput{
+		StartTimeMin: "-1h",
+		ServiceName:  "svc",
+	}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	// Returned traces are capped at exactly the limit (5 traces, limit=3 → exactly 3 traces)
+	assert.Len(t, output.Traces, 3)
+}
