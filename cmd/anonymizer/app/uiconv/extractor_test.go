@@ -6,6 +6,7 @@ package uiconv
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -95,10 +96,11 @@ func TestExtractorOutputFileTruncated(t *testing.T) {
 	defer os.Remove(outputFile)
 
 	// Pre-populate the output file with content that is unambiguously larger than what the
-	// extractor will write (the real output for trace_success.json is ~835 bytes). Padding
-	// to 4 KB guarantees the stale tail is long enough to corrupt JSON if O_TRUNC is absent.
+	// extractor will write (the real output for trace_success.json is ~835 bytes). Use
+	// printable 'a' padding so the stale file stays valid JSON and is easy to read in
+	// failure output, while still guaranteeing the stale tail corrupts JSON if O_TRUNC is absent.
 	staleContent := `{"data": [{"traceID":"stale","spans":[],"processes":{}}], "stale": true, "padding": "` +
-		string(make([]byte, 4096)) + `"}`
+		strings.Repeat("a", 4096) + `"}`
 	err := os.WriteFile(outputFile, []byte(staleContent), 0o644)
 	require.NoError(t, err)
 
