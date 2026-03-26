@@ -120,28 +120,19 @@ def generate_diff(file1_content, file2_content):
     metrics1,excluded_metrics_count1 = parse_metrics(file1_content)
     metrics2,excluded_metrics_count2 = parse_metrics(file2_content)
 
-    diff_lines = list(unified_diff(metrics1, metrics2,lineterm='',n=0))
+    diff = unified_diff(metrics1, metrics2,lineterm='',n=0)
+    actual_diff = '\n'.join(diff)
 
-    # Check whether the diff contains any regression lines.
-    # In unified_diff(file1=current, file2=baseline), '+' lines (excluding the '+++'
-    # header) represent metrics that exist in the baseline but are missing from the
-    # current snapshot — i.e. metrics the PR has lost (regressions).
-    # '-' lines represent metrics that are new in the current snapshot but absent from
-    # the baseline; these can arise from a stale baseline after other PRs added new
-    # metrics, so they should not be treated as failures on their own.
-    has_regressions = any(
-        line.startswith('+') and not line.startswith('+++')
-        for line in diff_lines
-    )
-
-    if not has_regressions:
-        # No metrics are missing from the current snapshot compared to the baseline:
-        # either the snapshots are identical, or the current snapshot only has *new*
-        # metrics that the (potentially stale) baseline did not yet include.
-        # In both cases there is nothing actionable to report.
+    # Only include exclusion-count metadata when there is an actual metric difference.
+    # Exclusion counts represent how many metrics were dropped during parsing (e.g.
+    # HTTP 5xx responses) and are not meaningful on their own.  Without this guard,
+    # two snapshots that have identical non-excluded metrics but different numbers of
+    # excluded metrics would produce a non-empty diff file containing nothing but the
+    # exclusion-count header lines, causing the CI to report false-positive changes
+    # with zero actionable metric differences.
+    if not actual_diff:
         return ''
 
-    actual_diff = '\n'.join(diff_lines)
     total_excluded = excluded_metrics_count1 + excluded_metrics_count2
     
     exclusion_lines = ''

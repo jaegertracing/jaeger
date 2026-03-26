@@ -27,18 +27,19 @@ _METRIC_A_AND_EXCLUDED = _METRIC_A + _METRIC_EXCLUDED_5XX
 
 
 class TestGenerateDiff(unittest.TestCase):
-    """Tests for generate_diff() focusing on the two noise-reduction behaviours:
+    """Tests for generate_diff() covering the comparison rules:
 
-    1. Exclusion-count-only diffs (Cassandra issue):
+    1. Exclusion-count-only diffs (Cassandra noise issue):
        When the two snapshots contain the same non-excluded metrics but differ
        only in how many metrics were excluded (e.g. different numbers of 5xx
        responses captured), the diff must be empty — no false-positive report.
+       Exclusion-count metadata is only meaningful alongside an actual diff.
 
-    2. New-metrics-only diffs (Elasticsearch / stale-baseline issue):
-       When the current snapshot has metrics that the baseline does not, those
-       new metrics should NOT trigger a failure.  Only metrics that are present
-       in the baseline but *absent* from the current snapshot (regressions)
-       should cause a non-empty diff.
+    2. Real differences are always reported (both directions):
+       Both missing metrics (in baseline but absent from current snapshot) and
+       new metrics (in current snapshot but absent from baseline) are flagged.
+       This ensures regressions and unexpected metric churn are visible, so the
+       root cause can be identified and fixed rather than silently swallowed.
     """
 
     def test_identical_snapshots_returns_empty(self):
@@ -59,28 +60,28 @@ class TestGenerateDiff(unittest.TestCase):
         # The diff must contain a '+' line for the missing metric (counter_b)
         self.assertIn('+counter_b', result)
 
-    def test_new_metric_in_current_is_not_a_regression(self):
-        """Metric present in current snapshot but absent from baseline → no diff.
+    def test_new_metric_in_current_produces_diff(self):
+        """Metric present in current snapshot but absent from baseline → diff is non-empty.
 
-        This covers the 'stale baseline' scenario: other PRs merged to main added
-        new metrics after the last baseline was captured.  A PR that has those new
-        metrics should not be penalised.
+        Both directions of metric change are reported so the root cause can be
+        identified (e.g. stale baseline, newly added metric, or genuine flapping).
+        Silently ignoring new metrics would mask intermittent behaviour where a
+        metric alternates between appearing and disappearing across runs.
         """
-        # current=A+B, baseline=A only → B is new in current, baseline is stale
+        # current=A+B, baseline=A only → B is new in current
         result = generate_diff(_METRIC_A + _METRIC_B, _METRIC_A)
-        self.assertEqual(
-            result,
-            '',
-            'New metrics in current snapshot should not produce a diff',
-        )
+        self.assertNotEqual(result, '', 'New metrics in current snapshot should produce a diff')
+        # '-' line = in current but not in baseline
+        self.assertIn('-counter_b', result)
 
     def test_exclusion_count_difference_does_not_produce_diff(self):
         """Snapshots that differ only in excluded-metric counts produce no diff.
 
-        This covers the 'Cassandra false-positive' scenario: both snapshots have
-        identical non-excluded metrics, but differ in how many 5xx-error metrics
-        were excluded.  The exclusion-count header lines must not make the diff
-        non-empty.
+        This is the Cassandra false-positive scenario: both snapshots have identical
+        non-excluded metrics, but differ in how many 5xx-error metrics were excluded
+        (e.g. a transient error occurred in one run but not the other).  The
+        exclusion-count header lines are informational metadata, not actual metric
+        differences, and must not make the diff non-empty on their own.
         """
         # current has metric_a + one 5xx (excluded), baseline has metric_a + zero 5xx
         result = generate_diff(_METRIC_A_AND_EXCLUDED, _METRIC_A)
