@@ -94,11 +94,15 @@ func TestExtractorOutputFileTruncated(t *testing.T) {
 	outputFile := "fixtures/trace_truncation_test_ui_anonymized.json"
 	defer os.Remove(outputFile)
 
-	// Pre-populate the output file with content that is longer than what the extractor will write,
-	// simulating a previous run with a larger result. This verifies that stale data at the end of
-	// the file is removed when the new (shorter) output is written.
-	staleContent := `{"data": [{"traceID":"stale","spans":[],"processes":{}}], "stale": true}`
+	// Pre-populate the output file with content that is unambiguously larger than what the
+	// extractor will write (the real output for trace_success.json is ~835 bytes). Padding
+	// to 4 KB guarantees the stale tail is long enough to corrupt JSON if O_TRUNC is absent.
+	staleContent := `{"data": [{"traceID":"stale","spans":[],"processes":{}}], "stale": true, "padding": "` +
+		string(make([]byte, 4096)) + `"}`
 	err := os.WriteFile(outputFile, []byte(staleContent), 0o644)
+	require.NoError(t, err)
+
+	staleStat, err := os.Stat(outputFile)
 	require.NoError(t, err)
 
 	reader, err := newSpanReader(inputFile, zap.NewNop())
@@ -114,6 +118,13 @@ func TestExtractorOutputFileTruncated(t *testing.T) {
 
 	err = extractor.Run()
 	require.NoError(t, err)
+
+	finalStat, err := os.Stat(outputFile)
+	require.NoError(t, err)
+
+	// Confirm the file shrank, proving O_TRUNC actually exercised the truncation path.
+	require.Greater(t, staleStat.Size(), finalStat.Size(),
+		"stale file must be larger than extractor output for this test to be meaningful")
 
 	// The output must be valid JSON with no stale trailing bytes.
 	var result map[string]any
