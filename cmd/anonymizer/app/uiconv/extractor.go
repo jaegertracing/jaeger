@@ -24,9 +24,9 @@ type extractor struct {
 
 // newExtractor creates extractor.
 func newExtractor(uiFile string, traceID string, reader *spanReader, logger *zap.Logger) (*extractor, error) {
-	f, err := os.OpenFile(uiFile, os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	f, err := os.OpenFile(uiFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
-		return nil, fmt.Errorf("cannot create output file: %w", err)
+		return nil, fmt.Errorf("cannot create output file %q: %w", uiFile, err)
 	}
 	logger.Sugar().Infof("Writing spans to UI file %s", uiFile)
 
