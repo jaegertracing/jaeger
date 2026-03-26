@@ -513,3 +513,28 @@ func TestSearchTracesHandler_Handle_LimitEnforced(t *testing.T) {
 	// Returned traces are capped at exactly the limit (5 traces, limit=3 → exactly 3 traces)
 	assert.Len(t, output.Traces, 3)
 }
+
+func TestSearchTracesHandler_Handle_SearchDepthNotClampedWhenUnlimited(t *testing.T) {
+	testTrace := createTestTrace("trace001", "svc", "/a", false)
+
+	mock := &mockQueryService{
+		findTracesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+			// When maxResults=0 (unlimited), searchDepth must not be clamped to 0
+			assert.Equal(t, 50, query.SearchDepth)
+			return func(yield func([]ptrace.Traces, error) bool) {
+				yield([]ptrace.Traces{testTrace}, nil)
+			}
+		},
+	}
+
+	handler := &searchTracesHandler{queryService: mock, maxResults: 0}
+
+	input := types.SearchTracesInput{
+		StartTimeMin: "-1h",
+		ServiceName:  "svc",
+		SearchDepth:  50,
+	}
+
+	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+	require.NoError(t, err)
+}
