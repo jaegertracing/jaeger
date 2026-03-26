@@ -72,8 +72,7 @@ func TestWireCompatibility(t *testing.T) {
 func TestUseGogo(t *testing.T) {
 	assert.False(t, useGogo(nil))
 
-	var span model.Span
-	assert.True(t, useGogo(reflect.TypeOf(span)))
+	assert.True(t, useGogo(reflect.TypeFor[model.Span]()))
 }
 
 func BenchmarkCodecUnmarshal25Spans(b *testing.B) {
@@ -84,7 +83,7 @@ func BenchmarkCodecUnmarshal25Spans(b *testing.B) {
 	require.NoError(b, jsonpb.Unmarshal(jsonFile, &trace), fileName)
 	require.NotEmpty(b, trace.Spans)
 	spans := make([]*model.Span, 25)
-	for i := 0; i < len(spans); i++ {
+	for i := range spans {
 		spans[i] = trace.Spans[0]
 	}
 	trace.Spans = spans

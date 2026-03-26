@@ -5,7 +5,8 @@
 package app
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"testing"
 	"time"
 
@@ -142,31 +143,21 @@ func TestDeduplicateDependencies(t *testing.T) {
 
 	for _, test := range tests {
 		actual := handler.deduplicateDependencies(test.input)
-		sort.Sort(DependencyLinks(actual))
+		slices.SortFunc(actual, compareDependencyLinks)
 		expected := test.expected
-		sort.Sort(DependencyLinks(expected))
+		slices.SortFunc(expected, compareDependencyLinks)
 		assert.Equal(t, expected, actual, test.description)
 	}
 }
 
-type DependencyLinks []ui.DependencyLink
-
-func (slice DependencyLinks) Len() int {
-	return len(slice)
-}
-
-func (slice DependencyLinks) Less(i, j int) bool {
-	if slice[i].Parent != slice[j].Parent {
-		return slice[i].Parent < slice[j].Parent
+func compareDependencyLinks(a, b ui.DependencyLink) int {
+	if a.Parent != b.Parent {
+		return cmp.Compare(a.Parent, b.Parent)
 	}
-	if slice[i].Child != slice[j].Child {
-		return slice[i].Child < slice[j].Child
+	if a.Child != b.Child {
+		return cmp.Compare(a.Child, b.Child)
 	}
-	return slice[i].CallCount < slice[j].CallCount
-}
-
-func (slice DependencyLinks) Swap(i, j int) {
-	slice[i], slice[j] = slice[j], slice[i]
+	return cmp.Compare(a.CallCount, b.CallCount)
 }
 
 func TestFilterDependencies(t *testing.T) {

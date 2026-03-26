@@ -142,7 +142,11 @@ func (p *PostAggregator) isLeader() bool {
 // trying to acquire the lock. With jitter, we can reduce the average amount of time before a
 // new leader is elected. Furthermore, jitter can be used to spread out read load on storage.
 func addJitter(jitterAmount time.Duration) time.Duration {
-	return (jitterAmount / 2) + time.Duration(rand.Int63n(int64(jitterAmount/2)))
+	half := jitterAmount / 2
+	if half <= 0 {
+		return jitterAmount
+	}
+	return half + time.Duration(rand.Int63n(int64(half)))
 }
 
 func (p *PostAggregator) runCalculation() {
@@ -289,7 +293,7 @@ func (p *PostAggregator) calculateWeightedQPS(allQPS []float64) float64 {
 	}
 	weights := p.weightVectorCache.GetWeights(len(allQPS))
 	var qps float64
-	for i := 0; i < len(allQPS); i++ {
+	for i := range allQPS {
 		// #nosec G602 GetWeights always returns a slice of the same length as allQPS
 		qps += allQPS[i] * weights[i]
 	}

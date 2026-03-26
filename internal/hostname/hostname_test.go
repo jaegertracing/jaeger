@@ -18,20 +18,17 @@ func TestAsIdentifier(t *testing.T) {
 	var hostname1 string
 	var hostname2 string
 
-	wg := sync.WaitGroup{}
-	wg.Add(2)
-	go func() {
+	var wg sync.WaitGroup
+	wg.Go(func() {
 		var err error
 		hostname1, err = AsIdentifier()
 		assert.NoError(t, err)
-		wg.Done()
-	}()
-	go func() {
+	})
+	wg.Go(func() {
 		var err error
 		hostname2, err = AsIdentifier()
 		assert.NoError(t, err)
-		wg.Done()
-	}()
+	})
 	wg.Wait()
 
 	actualHostname, _ := os.Hostname()

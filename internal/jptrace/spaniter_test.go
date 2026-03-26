@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
@@ -91,4 +92,19 @@ func TestSpanIterStopIteration(t *testing.T) {
 
 	assert.Len(t, spans, 1)
 	assert.Equal(t, "span-1", spans[0].Name())
+}
+
+func TestGetTraceID(t *testing.T) {
+	t.Run("empty traces returns empty TraceID", func(t *testing.T) {
+		traces := ptrace.NewTraces()
+		assert.Equal(t, pcommon.NewTraceIDEmpty(), GetTraceID(traces))
+	})
+
+	t.Run("returns TraceID of first span", func(t *testing.T) {
+		traces := ptrace.NewTraces()
+		span := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		traceID := pcommon.TraceID([16]byte{1, 2, 3})
+		span.SetTraceID(traceID)
+		assert.Equal(t, traceID, GetTraceID(traces))
+	})
 }

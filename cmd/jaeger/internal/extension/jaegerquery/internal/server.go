@@ -53,6 +53,7 @@ func NewServer(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	options *QueryOptions,
+	caps querysvc.StorageCapabilities,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*Server, error) {
@@ -75,7 +76,7 @@ func NewServer(
 		return nil, err
 	}
 	registerGRPCHandlers(grpcServer, querySvc, telset)
-	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, tm, telset)
+	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, caps, tm, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -157,6 +158,7 @@ func initRouter(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
+	caps querysvc.StorageCapabilities,
 	tenancyMgr *tenancy.Manager,
 	telset telemetry.Settings,
 ) (http.Handler, io.Closer) {
@@ -164,24 +166,34 @@ func initRouter(
 		HandlerOptions.Logger(telset.Logger),
 		HandlerOptions.Tracer(telset.TracerProvider),
 		HandlerOptions.MetricsQueryService(metricsQuerySvc),
+		HandlerOptions.BasePath(queryOpts.BasePath),
 	}
 
 	apiHandler := NewAPIHandler(
 		querySvc,
 		apiHandlerOptions...)
-	r := NewRouter()
-	if queryOpts.BasePath != "/" {
-		r = r.PathPrefix(queryOpts.BasePath).Subrouter()
-	}
+	r := http.NewServeMux()
 
 	(&apiv3.HTTPGateway{
 		QueryService: querySvc,
 		Logger:       telset.Logger,
 		Tracer:       telset.TracerProvider,
+		BasePath:     queryOpts.BasePath,
 	}).RegisterRoutes(r)
 
 	apiHandler.RegisterRoutes(r)
-	staticHandlerCloser := RegisterStaticHandler(r, telset.Logger, queryOpts, querySvc.GetCapabilities())
+
+	// Register a 404 handler for unmatched /api routes before the static catch-all handler.
+	// This prevents the static handler from serving index.html for non-existent API endpoints.
+	apiNotFoundPattern := "/api/"
+	if queryOpts.BasePath != "" && queryOpts.BasePath != "/" {
+		apiNotFoundPattern = queryOpts.BasePath + apiNotFoundPattern
+	}
+	r.HandleFunc(apiNotFoundPattern, func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "404 page not found", http.StatusNotFound)
+	})
+
+	staticHandlerCloser := RegisterStaticHandler(r, telset.Logger, queryOpts, caps)
 
 	var handler http.Handler = r
 	if queryOpts.BearerTokenPropagation {
@@ -199,10 +211,11 @@ func createHTTPServer(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
+	caps querysvc.StorageCapabilities,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*httpServer, error) {
-	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
+	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, caps, tm, telset)
 	handler = recoveryhandler.NewRecoveryHandler(telset.Logger, true)(handler)
 	var extensions map[component.ID]component.Component
 	if telset.Host != nil {
@@ -221,6 +234,23 @@ func createHTTPServer(
 			otelhttp.WithFilter(func(r *http.Request) bool {
 				ignorePath := path.Join("/", queryOpts.BasePath, "static")
 				return !strings.HasPrefix(r.URL.Path, ignorePath)
+			}),
+			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+				// Use just the route pattern without the HTTP method prefix or basePath
+				// r.Pattern includes the method like "GET /jaeger/api/v3/traces/{trace_id}"
+				// We want to return just "/api/v3/traces/{trace_id}" (without basePath)
+				pattern := r.Pattern
+				if pattern != "" {
+					// Remove the method prefix (e.g., "GET ", "POST ", etc.)
+					if idx := strings.Index(pattern, " "); idx > 0 {
+						pattern = pattern[idx+1:]
+					}
+					// Remove basePath prefix if present
+					if queryOpts.BasePath != "" && queryOpts.BasePath != "/" {
+						pattern = strings.TrimPrefix(pattern, queryOpts.BasePath)
+					}
+				}
+				return pattern
 			}),
 		),
 	)
@@ -281,9 +311,7 @@ func (s *Server) Start(ctx context.Context) error {
 		grpcPort = port
 	}
 
-	s.bgFinished.Add(1)
-	go func() {
-		defer s.bgFinished.Done()
+	s.bgFinished.Go(func() {
 		s.telset.Logger.Info("Starting HTTP server", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTP.NetAddr.Endpoint))
 		err := s.httpServer.Serve(s.httpConn)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -292,12 +320,10 @@ func (s *Server) Start(ctx context.Context) error {
 			return
 		}
 		s.telset.Logger.Info("HTTP server stopped", zap.Int("port", httpPort), zap.String("addr", s.queryOptions.HTTP.NetAddr.Endpoint))
-	}()
+	})
 
 	// Start GRPC server concurrently
-	s.bgFinished.Add(1)
-	go func() {
-		defer s.bgFinished.Done()
+	s.bgFinished.Go(func() {
 		s.telset.Logger.Info("Starting GRPC server", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPC.NetAddr.Endpoint))
 
 		err := s.grpcServer.Serve(s.grpcConn)
@@ -307,7 +333,7 @@ func (s *Server) Start(ctx context.Context) error {
 			return
 		}
 		s.telset.Logger.Info("GRPC server stopped", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPC.NetAddr.Endpoint))
-	}()
+	})
 	return nil
 }
 

@@ -86,10 +86,6 @@ func copyToTempFile(t *testing.T, pattern string, filename string) (file *os.Fil
 	return tempFile
 }
 
-func int64Ptr(v int64) *int64 {
-	return &v
-}
-
 // basicAuth creates basic authentication component
 func basicAuth(username, password, passwordFilePath string) configoptional.Optional[BasicAuthentication] {
 	return configoptional.Some(BasicAuthentication{
@@ -667,17 +663,17 @@ func TestApplyDefaults(t *testing.T) {
 			IndexPrefix: "hello",
 			Spans: IndexOptions{
 				Shards:   5,
-				Replicas: int64Ptr(1),
+				Replicas: new(int64(1)),
 				Priority: 10,
 			},
 			Services: IndexOptions{
 				Shards:   5,
-				Replicas: int64Ptr(1),
+				Replicas: new(int64(1)),
 				Priority: 20,
 			},
 			Dependencies: IndexOptions{
 				Shards:   5,
-				Replicas: int64Ptr(1),
+				Replicas: new(int64(1)),
 				Priority: 30,
 			},
 			Sampling: IndexOptions{},
@@ -745,17 +741,17 @@ func TestApplyDefaults(t *testing.T) {
 					IndexPrefix: "hello",
 					Spans: IndexOptions{
 						Shards:   5,
-						Replicas: int64Ptr(1),
+						Replicas: new(int64(1)),
 						Priority: 10,
 					},
 					Services: IndexOptions{
 						Shards:   5,
-						Replicas: int64Ptr(1),
+						Replicas: new(int64(1)),
 						Priority: 20,
 					},
 					Dependencies: IndexOptions{
 						Shards:   5,
-						Replicas: int64Ptr(1),
+						Replicas: new(int64(1)),
 						Priority: 30,
 					},
 				},
@@ -788,17 +784,17 @@ func TestApplyDefaults(t *testing.T) {
 					IndexPrefix: "hello",
 					Spans: IndexOptions{
 						Shards:   5,
-						Replicas: int64Ptr(1),
+						Replicas: new(int64(1)),
 						Priority: 10,
 					},
 					Services: IndexOptions{
 						Shards:   5,
-						Replicas: int64Ptr(1),
+						Replicas: new(int64(1)),
 						Priority: 20,
 					},
 					Dependencies: IndexOptions{
 						Shards:   5,
-						Replicas: int64Ptr(1),
+						Replicas: new(int64(1)),
 						Priority: 30,
 					},
 				},
@@ -1439,6 +1435,7 @@ func TestGetESOptions(t *testing.T) {
 					"http://localhost:9201",
 					"http://localhost:9202",
 				},
+				HealthCheckTimeoutStartup: 10 * time.Millisecond,
 				Sniffing: Sniffing{
 					Enabled:  true,
 					UseHTTPS: false,

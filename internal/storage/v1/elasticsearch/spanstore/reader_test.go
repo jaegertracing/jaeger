@@ -470,7 +470,7 @@ func TestSpanReader_SearchAfter(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		var hits []*elastic.SearchHit
 
-		for i := 0; i < 10000; i++ {
+		for range 10000 {
 			hit := &elastic.SearchHit{Source: exampleESSpan}
 			hits = append(hits, hit)
 		}

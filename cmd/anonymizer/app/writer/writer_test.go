@@ -95,7 +95,7 @@ func TestWriter_WriteSpan(t *testing.T) {
 		require.NoError(t, err)
 		defer writer.Close()
 
-		for i := 0; i < 9; i++ {
+		for range 9 {
 			err = writer.WriteSpan(span)
 			require.NoError(t, err)
 		}

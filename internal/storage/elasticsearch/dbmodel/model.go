@@ -59,7 +59,7 @@ type Span struct {
 	// Alternative representation of tags for better kibana support
 	Tag     map[string]any `json:"tag,omitempty"`
 	Logs    []Log          `json:"logs"`
-	Process Process        `json:"process,omitempty"`
+	Process Process        `json:"process"`
 }
 
 // Reference is a reference from one span to another

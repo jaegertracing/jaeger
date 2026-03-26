@@ -16,7 +16,6 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/gorilla/mux"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/ui"
@@ -35,7 +34,7 @@ var (
 )
 
 // RegisterStaticHandler adds handler for static assets to the router.
-func RegisterStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *QueryOptions, qCapabilities querysvc.StorageCapabilities) io.Closer {
+func RegisterStaticHandler(r *http.ServeMux, logger *zap.Logger, qOpts *QueryOptions, qCapabilities querysvc.StorageCapabilities) io.Closer {
 	staticHandler, err := NewStaticAssetsHandler(qOpts.UIConfig.AssetsPath, StaticAssetsHandlerOptions{
 		UIConfig:            qOpts.UIConfig,
 		BasePath:            qOpts.BasePath,
@@ -128,7 +127,7 @@ func (sH *StaticAssetsHandler) loadAndEnrichIndexHTML(open func(string) (http.Fi
 		if !strings.HasPrefix(sH.options.BasePath, "/") || strings.HasSuffix(sH.options.BasePath, "/") {
 			return nil, fmt.Errorf("invalid base path '%s'. Must start but not end with a slash '/', e.g. '/jaeger/ui'", sH.options.BasePath)
 		}
-		indexBytes = basePathPattern.ReplaceAll(indexBytes, []byte(fmt.Sprintf(`<base href="%s/"`, sH.options.BasePath)))
+		indexBytes = basePathPattern.ReplaceAll(indexBytes, fmt.Appendf(nil, `<base href="%s/"`, sH.options.BasePath))
 	}
 
 	return indexBytes, nil
@@ -207,15 +206,37 @@ func (sH *StaticAssetsHandler) loggingHandler(handler http.Handler) http.Handler
 	})
 }
 
-// RegisterRoutes registers routes for this handler on the given router
-func (sH *StaticAssetsHandler) RegisterRoutes(router *mux.Router) {
-	fileServer := http.FileServer(sH.assetsFS)
-	if sH.options.BasePath != "/" {
-		fileServer = http.StripPrefix(sH.options.BasePath+"/", fileServer)
+// RegisterRoutes registers routes for this handler on the given router.
+func (sH *StaticAssetsHandler) RegisterRoutes(router *http.ServeMux) {
+	basePath := sH.options.BasePath
+	if basePath == "" {
+		basePath = "/"
 	}
-	router.PathPrefix("/static/").Handler(sH.loggingHandler(fileServer))
-	// index.html is served by notFound handler
-	router.NotFoundHandler = sH.loggingHandler(http.HandlerFunc(sH.notFound))
+
+	fileServer := http.FileServer(sH.assetsFS)
+	if basePath != "/" {
+		fileServer = http.StripPrefix(basePath+"/", fileServer)
+	}
+
+	// Register static files handler
+	var staticPattern string
+	if basePath == "/" {
+		staticPattern = "/static/"
+	} else {
+		staticPattern = basePath + "/static/"
+	}
+	router.Handle(staticPattern, sH.loggingHandler(fileServer))
+
+	// Register catch-all handler for SPA routing (serves index.html for all non-API routes).
+	// This must be registered last to act as a fallback.
+	// Note that the invalid /api/* routes return 404 directly.
+	var catchAllPattern string
+	if basePath == "/" {
+		catchAllPattern = "/"
+	} else {
+		catchAllPattern = basePath + "/"
+	}
+	router.Handle(catchAllPattern, sH.loggingHandler(http.HandlerFunc(sH.notFound)))
 }
 
 func (sH *StaticAssetsHandler) notFound(w http.ResponseWriter, _ *http.Request) {

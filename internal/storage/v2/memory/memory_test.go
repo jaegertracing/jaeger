@@ -5,12 +5,13 @@ package memory
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
-	"sort"
+	"slices"
 	"testing"
 	"time"
 
@@ -67,8 +68,8 @@ func TestNewStore_DefaultConfig(t *testing.T) {
 			SpanKind: "consumer",
 		},
 	}
-	sort.Slice(operations, func(i, j int) bool {
-		return operations[i].Name < operations[j].Name
+	slices.SortFunc(operations, func(a, b tracestore.Operation) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
 	assert.Equal(t, expectedOperations, operations)
 	expectedServices := []string{"service-x"}
@@ -227,6 +228,12 @@ func TestFindTracesAttributesMatching(t *testing.T) {
 			name: "event-attributes",
 			attributes: func(td ptrace.Traces) pcommon.Map {
 				return td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Events().AppendEmpty().Attributes()
+			},
+		},
+		{
+			name: "link-attributes",
+			attributes: func(td ptrace.Traces) pcommon.Map {
+				return td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Links().AppendEmpty().Attributes()
 			},
 		},
 	}

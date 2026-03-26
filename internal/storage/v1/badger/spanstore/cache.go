@@ -4,7 +4,7 @@
 package spanstore
 
 import (
-	"sort"
+	"slices"
 	"sync"
 	"time"
 
@@ -98,7 +98,7 @@ func (c *CacheStore) GetOperations(service string) ([]spanstore.Operation, error
 		}
 	}
 
-	sort.Strings(operations)
+	slices.Sort(operations)
 
 	// TODO: https://github.com/jaegertracing/jaeger/issues/1922
 	// 	- return the operations with actual spanKind
@@ -128,7 +128,7 @@ func (c *CacheStore) GetServices() ([]string, error) {
 	}
 	c.cacheLock.Unlock()
 
-	sort.Strings(services)
+	slices.Sort(services)
 
 	return services, nil
 }

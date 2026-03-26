@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -23,6 +23,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	dependencystoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -47,12 +48,10 @@ func setupHTTPGatewayNoServer(
 		QueryService: q,
 		Logger:       zap.NewNop(),
 		Tracer:       nooptrace.NewTracerProvider(),
+		BasePath:     basePath,
 	}
 
-	gw.router = &mux.Router{}
-	if basePath != "" && basePath != "/" {
-		gw.router = gw.router.PathPrefix(basePath).Subrouter()
-	}
+	gw.router = http.NewServeMux()
 	hgw.RegisterRoutes(gw.router)
 	return gw
 }
@@ -374,6 +373,30 @@ func TestHTTPGatewayGetServicesErrors(t *testing.T) {
 	w := httptest.NewRecorder()
 	gw.router.ServeHTTP(w, r)
 	assert.Contains(t, w.Body.String(), assert.AnError.Error())
+}
+
+func TestHTTPGatewayGetOperationsDefaultSpanKind(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	qp := tracestore.OperationQueryParams{ServiceName: "foo"}
+	gw.reader.
+		On("GetOperations", matchContext, qp).
+		Return([]tracestore.Operation{
+			{Name: "get_users", SpanKind: "server"},
+			{Name: "unspecified_op", SpanKind: ""},
+		}, nil).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/operations?service=foo", http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var response api_v3.GetOperationsResponse
+	require.NoError(t, jsonpb.Unmarshal(w.Body, &response))
+	require.Len(t, response.Operations, 2)
+	assert.Equal(t, "server", response.Operations[0].SpanKind)
+	assert.Equal(t, "internal", response.Operations[1].SpanKind, "empty SpanKind should default to 'internal'")
 }
 
 func TestHTTPGatewayGetOperationsErrors(t *testing.T) {

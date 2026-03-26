@@ -126,6 +126,7 @@ func (s *AdminServer) serveWithListener(l net.Listener) (err error) {
 
 	s.logger.Info("Starting admin HTTP server")
 	var wg sync.WaitGroup
+	//nolint:revive // not the same as wg.Go() which would call Done() on exit, not on start
 	wg.Add(1)
 	s.stopped.Add(1)
 	go func() {

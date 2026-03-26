@@ -33,7 +33,6 @@ ALL_SRC = $(shell find . -name '*.go' \
 				   -not -path './internal/tools/*' \
 				   -not -path './scripts/build/docker/debug/*' \
 				   -not -path '*/mocks/*' \
-				   -not -path '*/thrift-0.9.2/*' \
 				   -type f | \
 				sort)
 
@@ -146,7 +145,13 @@ fmt: $(GOFUMPT)
 	@./scripts/lint/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC)
 
 .PHONY: lint
-lint: lint-fmt lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go
+lint: lint-fmt lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go lint-monitoring
+
+.PHONY: lint-monitoring
+lint-monitoring:
+	@cd ./monitoring/jaeger-mixin/generate && go run . | diff -q ../dashboard-for-grafana.json - > /dev/null || \
+		(echo "ERROR: dashboard-for-grafana.json is out of sync. Run 'make generate-dashboards'."; exit 1)
+	@echo "OK: dashboard-for-grafana.json is in sync."
 
 .PHONY: lint-license
 lint-license:
@@ -195,6 +200,10 @@ lint-goleak:
 lint-go: $(LINT)
 	$(LINT) -v run
 
+.PHONY: govulncheck
+govulncheck: $(GOVULNCHECK)
+	$(GOVULNCHECK) ./...
+
 .PHONY: lint-jaeger-idl-versions
 lint-jaeger-idl-versions:
 	@echo "checking jaeger-idl version mismatch between git submodule and go.mod dependency"
@@ -230,6 +239,10 @@ init-submodules:
 	git submodule update --init --recursive
 
 MOCKERY_FLAGS := --all --disable-version-string
+.PHONY: generate-dashboards
+generate-dashboards:
+	cd ./monitoring/jaeger-mixin/generate && go run . > ../dashboard-for-grafana.json
+
 .PHONY: generate-mocks
 generate-mocks: $(MOCKERY)
 	find . -path '*/mocks/*' -name '*.go' -type f -delete

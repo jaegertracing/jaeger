@@ -1,16 +1,13 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# Fan-out workflow that invokes all individual E2E integration test workflows
+# for every supported storage backend and feature.
+
 name: E2E Tests
 
 on:
-  merge_group:
-  push:
-    branches: [main]
-
-  pull_request:
-    branches: [main]
-
-concurrency:
-  group: combined-cit-${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
-  cancel-in-progress: true
+  workflow_call:
 
 permissions:
   contents: read
@@ -43,16 +40,8 @@ jobs:
   clickhouse:
     uses: ./.github/workflows/ci-e2e-clickhouse.yml
 
-  upload_pr_number:
-    name: Save and Upload PR Number as Artifact
-    runs-on: ubuntu-latest
-    steps:
-      - name: Save PR number as artifact
-        if: github.event_name == 'pull_request'
-        run: echo "${{ github.event.number }}" > pr_number.txt
-      - name: Upload PR number artifact
-        if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
-        with:
-          name: pr_number
-          path: pr_number.txt
+  spm:
+    uses: ./.github/workflows/ci-e2e-spm.yml
+
+  tailsampling:
+    uses: ./.github/workflows/ci-e2e-tailsampling.yml

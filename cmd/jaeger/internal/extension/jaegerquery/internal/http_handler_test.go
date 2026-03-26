@@ -152,7 +152,7 @@ func initializeTestServerWithOptions(
 	traceReader := &tracestoremocks.Reader{}
 	dependencyStorage := &depsmocks.Reader{}
 	qs := querysvc.NewQueryService(traceReader, dependencyStorage, queryOptions)
-	r := NewRouter()
+	r := http.NewServeMux()
 	apiHandler := NewAPIHandler(qs, options...)
 	apiHandler.RegisterRoutes(r)
 	ts := &testServer{
@@ -212,7 +212,7 @@ func TestGetTraceDedupeSuccess(t *testing.T) {
 	scopes := resources.ScopeSpans().AppendEmpty()
 
 	// Add 4 spans (2 original + 2 duplicates)
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		span := scopes.Spans().AppendEmpty()
 		span.SetTraceID(v1adapter.FromV1TraceID(mockTraceID))
 		span.SetSpanID(v1adapter.FromV1SpanID(model.NewSpanID(uint64(i%2 + 1))))
@@ -686,7 +686,7 @@ func TestGetServicesSuccess(t *testing.T) {
 func TestGetServicesEmpty(t *testing.T) {
 	ts := initializeTestServer(t)
 	ts.traceReader.
-		On("GetServices", mock.AnythingOfType("*context.valueCtx")).
+		On("GetServices", mock.Anything).
 		Return(nil, nil).
 		Once()
 
@@ -913,7 +913,7 @@ func TestGetMetricsSuccess(t *testing.T) {
 			// Prepare
 			mr.On(
 				tc.mockedQueryMethod,
-				mock.AnythingOfType("*context.valueCtx"),
+				mock.Anything,
 				mock.AnythingOfType(tc.mockedQueryMethodParamType),
 			).Return(expectedMetricsQueryResponse, nil).Once()
 
@@ -986,7 +986,7 @@ func TestMetricsReaderError(t *testing.T) {
 			// Prepare
 			metricsReader.On(
 				tc.mockedQueryMethod,
-				mock.AnythingOfType("*context.valueCtx"),
+				mock.Anything,
 				mock.AnythingOfType(tc.mockedQueryMethodParamType),
 			).Return(tc.mockedResponse, errors.New(tc.wantErrorMessage)).Once()
 
@@ -1041,7 +1041,7 @@ func TestGetMinStep(t *testing.T) {
 	// Prepare
 	metricsReader.On(
 		"GetMinStepDuration",
-		mock.AnythingOfType("*context.valueCtx"),
+		mock.Anything,
 		mock.AnythingOfType("*metricstore.MinStepDurationQueryParameters"),
 	).Return(5*time.Millisecond, nil).Once()
 

@@ -9,12 +9,12 @@ ignore:
   - "**/mocks/*"
   - "proto-gen/*/*"
   - "thrift-gen/*/*"
-  - "**/thrift-0.9.2/*"
   - "**/main.go"
   - "examples/hotrod"
   - "internal/storage/integration"
   - "cmd/jaeger/internal/integration"
   - "internal/tools"
+  - "monitoring/jaeger-mixin/generate"
 
 coverage:
   precision: 2

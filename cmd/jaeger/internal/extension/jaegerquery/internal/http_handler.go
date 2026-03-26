@@ -16,9 +16,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/gorilla/mux"
 	"go.opentelemetry.io/collector/pdata/pcommon"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
@@ -52,7 +50,7 @@ const (
 
 // HTTPHandler handles http requests
 type HTTPHandler interface {
-	RegisterRoutes(router *mux.Router)
+	RegisterRoutes(router *http.ServeMux)
 }
 
 type structuredResponse struct {
@@ -67,11 +65,6 @@ type structuredError struct {
 	Code    int        `json:"code,omitempty"`
 	Msg     string     `json:"msg"`
 	TraceID ui.TraceID `json:"traceID,omitempty"`
-}
-
-// NewRouter creates and configures a Gorilla Router.
-func NewRouter() *mux.Router {
-	return mux.NewRouter().UseEncodedPath()
 }
 
 // APIHandler implements the query service public API by registering routes at httpPrefix
@@ -111,41 +104,44 @@ func NewAPIHandler(queryService *querysvc.QueryService, options ...HandlerOption
 }
 
 // RegisterRoutes registers routes for this handler on the given router
-func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
-	aH.handleFunc(router, aH.getTrace, "/traces/{%s}", traceIDParam).Methods(http.MethodGet)
-	aH.handleFunc(router, aH.archiveTrace, "/archive/{%s}", traceIDParam).Methods(http.MethodPost)
-	aH.handleFunc(router, aH.search, "/traces").Methods(http.MethodGet)
-	aH.handleFunc(router, aH.getServices, "/services").Methods(http.MethodGet)
+func (aH *APIHandler) RegisterRoutes(router *http.ServeMux) {
+	aH.handleFunc(router, aH.getTrace, http.MethodGet, "/traces/{%s}", traceIDParam)
+	aH.handleFunc(router, aH.archiveTrace, http.MethodPost, "/archive/{%s}", traceIDParam)
+	aH.handleFunc(router, aH.search, http.MethodGet, "/traces")
+	aH.handleFunc(router, aH.getServices, http.MethodGet, "/services")
 	// TODO change the UI to use this endpoint. Requires ?service= parameter.
-	aH.handleFunc(router, aH.getOperations, "/operations").Methods(http.MethodGet)
+	aH.handleFunc(router, aH.getOperations, http.MethodGet, "/operations")
 	// TODO - remove this when UI catches up
-	aH.handleFunc(router, aH.getOperationsLegacy, "/services/{%s}/operations", serviceParam).Methods(http.MethodGet)
-	aH.handleFunc(router, aH.transformOTLP, "/transform").Methods(http.MethodPost)
-	aH.handleFunc(router, aH.dependencies, "/dependencies").Methods(http.MethodGet)
-	aH.handleFunc(router, aH.deepDependencies, "/deep-dependencies").Methods(http.MethodGet)
-	aH.handleFunc(router, aH.latencies, "/metrics/latencies").Methods(http.MethodGet)
-	aH.handleFunc(router, aH.calls, "/metrics/calls").Methods(http.MethodGet)
-	aH.handleFunc(router, aH.errors, "/metrics/errors").Methods(http.MethodGet)
-	aH.handleFunc(router, aH.minStep, "/metrics/minstep").Methods(http.MethodGet)
-	aH.handleFunc(router, aH.getQualityMetrics, "/quality-metrics").Methods(http.MethodGet)
+	aH.handleFunc(router, aH.getOperationsLegacy, http.MethodGet, "/services/{%s}/operations", serviceParam)
+	aH.handleFunc(router, aH.transformOTLP, http.MethodPost, "/transform")
+	aH.handleFunc(router, aH.dependencies, http.MethodGet, "/dependencies")
+	aH.handleFunc(router, aH.deepDependencies, http.MethodGet, "/deep-dependencies")
+	aH.handleFunc(router, aH.latencies, http.MethodGet, "/metrics/latencies")
+	aH.handleFunc(router, aH.calls, http.MethodGet, "/metrics/calls")
+	aH.handleFunc(router, aH.errors, http.MethodGet, "/metrics/errors")
+	aH.handleFunc(router, aH.minStep, http.MethodGet, "/metrics/minstep")
+	aH.handleFunc(router, aH.getQualityMetrics, http.MethodGet, "/quality-metrics")
 }
 
 func (aH *APIHandler) handleFunc(
-	router *mux.Router,
+	router *http.ServeMux,
 	f func(http.ResponseWriter, *http.Request),
+	method string,
 	routeFmt string,
 	args ...any,
-) *mux.Route {
+) {
 	route := aH.formatRoute(routeFmt, args...)
-	var handler http.Handler = http.HandlerFunc(f)
-	handler = otelhttp.WithRouteTag(route, handler)
-	handler = spanNameHandler(route, handler)
-	return router.HandleFunc(route, handler.ServeHTTP)
+	pattern := method + " " + route
+	router.HandleFunc(pattern, f)
 }
 
 func (aH *APIHandler) formatRoute(route string, args ...any) string {
 	args = append([]any{aH.apiPrefix}, args...)
-	return fmt.Sprintf("/%s"+route, args...)
+	formattedRoute := fmt.Sprintf("/%s"+route, args...)
+	if aH.basePath != "" && aH.basePath != "/" {
+		formattedRoute = aH.basePath + formattedRoute
+	}
+	return formattedRoute
 }
 
 func (aH *APIHandler) getServices(w http.ResponseWriter, r *http.Request) {
@@ -166,9 +162,8 @@ func (aH *APIHandler) getServices(w http.ResponseWriter, r *http.Request) {
 }
 
 func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
 	// given how getOperationsLegacy is bound to URL route, serviceParam cannot be empty
-	service, _ := url.QueryUnescape(vars[serviceParam])
+	service, _ := url.QueryUnescape(r.PathValue(serviceParam))
 	// for backwards compatibility, we will retrieve operations with all span kind
 	operations, err := aH.queryService.GetOperations(r.Context(),
 		tracestore.OperationQueryParams{
@@ -205,13 +200,13 @@ func (aH *APIHandler) transformOTLP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (aH *APIHandler) getOperations(w http.ResponseWriter, r *http.Request) {
-	service := r.FormValue(serviceParam)
+	service := r.URL.Query().Get(serviceParam)
 	if service == "" {
 		if aH.handleError(w, errServiceParameterRequired, http.StatusBadRequest) {
 			return
 		}
 	}
-	spanKind := r.FormValue(spanKindParam)
+	spanKind := r.URL.Query().Get(spanKindParam)
 	operations, err := aH.queryService.GetOperations(
 		r.Context(),
 		tracestore.OperationQueryParams{ServiceName: service, SpanKind: spanKind},
@@ -334,7 +329,7 @@ func (aH *APIHandler) dependencies(w http.ResponseWriter, r *http.Request) {
 	if aH.handleError(w, err, http.StatusBadRequest) {
 		return
 	}
-	service := r.FormValue(serviceParam)
+	service := r.URL.Query().Get(serviceParam)
 
 	dependencies, err := aH.queryService.GetDependencies(r.Context(), dqp.endTs, dqp.lookback)
 	if aH.handleError(w, err, http.StatusInternalServerError) {
@@ -355,7 +350,7 @@ func (aH *APIHandler) deepDependencies(w http.ResponseWriter, r *http.Request) {
 }
 
 func (aH *APIHandler) latencies(w http.ResponseWriter, r *http.Request) {
-	q, err := strconv.ParseFloat(r.FormValue(quantileParam), 64)
+	q, err := strconv.ParseFloat(r.URL.Query().Get(quantileParam), 64)
 	if err != nil {
 		aH.handleError(w, newParseError(err, quantileParam), http.StatusBadRequest)
 		return
@@ -446,8 +441,7 @@ func (*APIHandler) filterDependenciesByService(
 
 // Parses trace ID from URL like /traces/{trace-id}
 func (aH *APIHandler) parseTraceID(w http.ResponseWriter, r *http.Request) (model.TraceID, bool) {
-	vars := mux.Vars(r)
-	traceIDVar := vars[traceIDParam]
+	traceIDVar := r.PathValue(traceIDParam)
 	traceID, err := model.TraceIDFromString(traceIDVar)
 	if aH.handleError(w, err, http.StatusBadRequest) {
 		return traceID, false
@@ -456,7 +450,7 @@ func (aH *APIHandler) parseTraceID(w http.ResponseWriter, r *http.Request) (mode
 }
 
 func (aH *APIHandler) parseMicroseconds(w http.ResponseWriter, r *http.Request, timeKey string) (time.Time, bool) {
-	if timeString := r.FormValue(timeKey); timeString != "" {
+	if timeString := r.URL.Query().Get(timeKey); timeString != "" {
 		t, err := aH.queryParser.parseTime(r, timeKey, time.Microsecond)
 		if aH.handleError(w, err, http.StatusBadRequest) {
 			return time.Time{}, false
@@ -468,7 +462,7 @@ func (aH *APIHandler) parseMicroseconds(w http.ResponseWriter, r *http.Request, 
 }
 
 func (aH *APIHandler) parseBool(w http.ResponseWriter, r *http.Request, boolKey string) (value bool, isValid bool) {
-	if boolString := r.FormValue(boolKey); boolString != "" {
+	if boolString := r.URL.Query().Get(boolKey); boolString != "" {
 		b, err := parseBool(r, boolKey)
 		if aH.handleError(w, err, http.StatusBadRequest) {
 			return false, false
@@ -579,7 +573,7 @@ func (aH *APIHandler) handleError(w http.ResponseWriter, err error, statusCode i
 }
 
 func (aH *APIHandler) writeJSON(w http.ResponseWriter, r *http.Request, response any) {
-	prettyPrintValue := r.FormValue(prettyPrintParam)
+	prettyPrintValue := r.URL.Query().Get(prettyPrintParam)
 	prettyPrint := prettyPrintValue != "" && prettyPrintValue != "false"
 
 	var marshal jsonMarshaler
@@ -594,14 +588,6 @@ func (aH *APIHandler) writeJSON(w http.ResponseWriter, r *http.Request, response
 	if err := marshal(w, response); err != nil {
 		aH.handleError(w, fmt.Errorf("failed writing HTTP response: %w", err), http.StatusInternalServerError)
 	}
-}
-
-func spanNameHandler(spanName string, handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		span := trace.SpanFromContext(r.Context())
-		span.SetName(spanName)
-		handler.ServeHTTP(w, r)
-	})
 }
 
 func (aH *APIHandler) getQualityMetrics(w http.ResponseWriter, r *http.Request) {

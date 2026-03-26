@@ -19,17 +19,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
         with:
           egress-policy: audit
 
       - name: Check PR label
-        if: ${{ github.event.pull_request.user.login != 'dependabot' && github.event_name != 'merge_group' }}
+        # Only fail if NOT merge_group, AND labels DO NOT contain 'changelog:'
+        if: |
+          github.event_name != 'merge_group' &&
+          contains(join(github.event.pull_request.labels.*.name, ','), 'changelog:') == false
         run: |
-          LABEL_NAME="changelog:"
-          if [[ $(curl -s "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" | jq -r '.labels[].name' | grep -c "^$LABEL_NAME") -eq 0 ]]; then
-            echo "Error: Pull request is missing a required label of the form '${LABEL_NAME}***'."
-            exit 1
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          echo "::error::Pull request is missing a required 'changelog:' label. Found labels: ${{ join(github.event.pull_request.labels.*.name, ', ') }}"
+          exit 1

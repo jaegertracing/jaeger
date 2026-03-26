@@ -35,6 +35,17 @@ func TestSanitizersWithReadOnlyTraces(t *testing.T) {
 			},
 		},
 		{
+			name:      "EmptySpanNameSanitizer",
+			sanitizer: NewEmptySpanNameSanitizer(),
+			setupFunc: func(traces ptrace.Traces) {
+				// Create a trace with an empty span name to trigger sanitization
+				rSpans := traces.ResourceSpans().AppendEmpty()
+				sSpans := rSpans.ScopeSpans().AppendEmpty()
+				span := sSpans.Spans().AppendEmpty()
+				span.SetName("")
+			},
+		},
+		{
 			name:      "UTF8Sanitizer",
 			sanitizer: NewUTF8Sanitizer(),
 			setupFunc: func(traces ptrace.Traces) {
@@ -100,6 +111,16 @@ func TestSanitizersWithReadOnlyTracesNoModification(t *testing.T) {
 			},
 		},
 		{
+			name:      "EmptySpanNameSanitizer_NoModification",
+			sanitizer: NewEmptySpanNameSanitizer(),
+			setupFunc: func(traces ptrace.Traces) {
+				rSpans := traces.ResourceSpans().AppendEmpty()
+				sSpans := rSpans.ScopeSpans().AppendEmpty()
+				span := sSpans.Spans().AppendEmpty()
+				span.SetName("valid-span")
+			},
+		},
+		{
 			name:      "UTF8Sanitizer_NoModification",
 			sanitizer: NewUTF8Sanitizer(),
 			setupFunc: func(traces ptrace.Traces) {
@@ -134,7 +155,7 @@ func TestSanitizersWithReadOnlyTracesNoModification(t *testing.T) {
 			result := tt.sanitizer(traces)
 			require.NotNil(t, result)
 
-			assert.NotNil(t, result, "Expected a valid result even for read-only traces with no modifications needed")
+			assert.True(t, result.IsReadOnly(), "Expected the result to remain read-only when no modification is needed")
 		})
 	}
 }
