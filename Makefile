@@ -123,7 +123,7 @@ test: $(GOTESTSUM)
 
 .PHONY: cover
 cover: nocover $(GOTESTSUM)
-	STORAGE=memory $(GOTESTSUM) $(GOTESTSUM_FLAGS) --rerun-fails --jsonfile test-results.json --packages ./... -- $(RACE) -timeout 5m -coverprofile $(COVEROUT)
+	STORAGE=memory $(GOTESTSUM) $(GOTESTSUM_FLAGS) --rerun-fails --packages ./... -- $(RACE) -timeout 5m -coverprofile $(COVEROUT)
 	go tool cover -html=cover.out -o cover.html
 
 .PHONY: nocover
