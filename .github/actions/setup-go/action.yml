@@ -1,0 +1,18 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+name: 'Setup Go'
+description: 'Setup Go toolchain with module cache keyed on both go.sum files'
+inputs:
+  go-version:
+    description: 'The Go version to install'
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache-dependency-path: |
+          ./go.sum
+          ./internal/tools/go.sum

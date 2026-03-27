@@ -93,7 +93,7 @@ docker compose -f docker-compose-opensearch.yml up
 - Let the application run for a couple of minutes to ensure there is enough time series data to plot in the dashboard.
 - Navigate to Jaeger UI at http://localhost:16686/ and inspect the Monitor tab. Select `redis` service from the dropdown to see more than one endpoint.
 - For the Prometheus option, visualize raw metrics in the Prometheus UI at http://localhost:9090/query (e.g., [example query for trace spans](http://localhost:9090/query?g0.expr=traces_span_metrics_calls_total&g0.tab=0&g0.range_input=5m)).
-- **Grafana** is available at http://localhost:3000 with the Jaeger mixin dashboard pre-loaded (no login required). It shows collector ingestion/export rates, storage latency, and query metrics. Note: panels may display Angular deprecation warnings — this is expected and will be resolved in a follow-up migration.
+- Grafana is available at http://localhost:3000 with the Jaeger mixin dashboard pre-loaded (no login required). It uses native `timeseries` panels and is compatible with Grafana 12.
 
 **Warning:** The included ` docker compose` files use the `latest` version of Jaeger and other components. If your local Docker registry already contains older versions, which may still be tagged as `latest`, you may want to delete those images before running the full set, to ensure consistent behavior:
 
