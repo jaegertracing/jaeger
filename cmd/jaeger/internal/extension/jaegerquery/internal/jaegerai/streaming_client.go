@@ -5,6 +5,7 @@ package jaegerai
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -23,6 +24,9 @@ type streamingClient struct {
 	closed     bool
 	doneCh     chan struct{}
 	doneOnce   sync.Once
+	runID      string
+	messageID  string
+	textOpen   bool
 }
 
 func (c *streamingClient) signalDone() {
@@ -67,6 +71,62 @@ func (c *streamingClient) writeAndFlush(text string) {
 	c.flusher.Flush()
 }
 
+func (c *streamingClient) writeSSEEvent(event map[string]any) {
+	payload, err := json.Marshal(event)
+	if err != nil {
+		return
+	}
+	c.writeAndFlush("data: " + string(payload) + "\n\n")
+}
+
+func (c *streamingClient) startRun() {
+	if c.runID == "" {
+		c.runID = fmt.Sprintf("run-%d", time.Now().UnixNano())
+	}
+	if c.messageID == "" {
+		c.messageID = fmt.Sprintf("msg-%d", time.Now().UnixNano())
+	}
+	c.writeSSEEvent(map[string]any{
+		"type":  "RUN_STARTED",
+		"runId": c.runID,
+	})
+}
+
+func (c *streamingClient) finishRun() {
+	if c.textOpen {
+		c.writeSSEEvent(map[string]any{
+			"type":      "TEXT_MESSAGE_END",
+			"runId":     c.runID,
+			"messageId": c.messageID,
+		})
+		c.textOpen = false
+	}
+	c.writeSSEEvent(map[string]any{
+		"type":  "RUN_FINISHED",
+		"runId": c.runID,
+	})
+}
+
+func (c *streamingClient) failRun(message string) {
+	c.writeSSEEvent(map[string]any{
+		"type":    "RUN_ERROR",
+		"runId":   c.runID,
+		"message": message,
+	})
+}
+
+func (c *streamingClient) ensureTextStart() {
+	if c.textOpen {
+		return
+	}
+	c.writeSSEEvent(map[string]any{
+		"type":      "TEXT_MESSAGE_START",
+		"runId":     c.runID,
+		"messageId": c.messageID,
+	})
+	c.textOpen = true
+}
+
 func (c *streamingClient) waitForTurnCompletion(ctx context.Context, maxWait time.Duration) {
 	if maxWait <= 0 {
 		return
@@ -106,17 +166,62 @@ func (c *streamingClient) SessionUpdate(_ context.Context, n acp.SessionNotifica
 		content := u.AgentMessageChunk.Content
 		if content.Text != nil {
 			if content.Text.Text == endOfTurnMarker {
+				c.finishRun()
 				c.signalDone()
 			} else {
-				c.writeAndFlush(content.Text.Text)
+				c.ensureTextStart()
+				c.writeSSEEvent(map[string]any{
+					"type":      "TEXT_MESSAGE_CONTENT",
+					"runId":     c.runID,
+					"messageId": c.messageID,
+					"delta":     content.Text.Text,
+				})
 			}
 		}
 	}
 	if u.ToolCall != nil {
-		c.writeAndFlush(fmt.Sprintf("\n[tool_call] %s\n", u.ToolCall.Title))
+		c.writeSSEEvent(map[string]any{
+			"type":       "TOOL_CALL_START",
+			"runId":      c.runID,
+			"toolCallId": u.ToolCall.ToolCallId,
+			"title":      u.ToolCall.Title,
+			"kind":       u.ToolCall.Kind,
+		})
+		if u.ToolCall.RawInput != nil {
+			c.writeSSEEvent(map[string]any{
+				"type":       "TOOL_CALL_ARGS",
+				"runId":      c.runID,
+				"toolCallId": u.ToolCall.ToolCallId,
+				"args":       u.ToolCall.RawInput,
+			})
+		}
 	}
 	if u.ToolCallUpdate != nil {
-		c.writeAndFlush(fmt.Sprintf("\n[tool_result] id=%s status=%s\n", u.ToolCallUpdate.ToolCallId, valueOrUnknown(u.ToolCallUpdate.Status)))
+		if u.ToolCallUpdate.RawInput != nil {
+			c.writeSSEEvent(map[string]any{
+				"type":       "TOOL_CALL_ARGS",
+				"runId":      c.runID,
+				"toolCallId": u.ToolCallUpdate.ToolCallId,
+				"args":       u.ToolCallUpdate.RawInput,
+			})
+		}
+		if u.ToolCallUpdate.RawOutput != nil {
+			c.writeSSEEvent(map[string]any{
+				"type":       "TOOL_CALL_RESULT",
+				"runId":      c.runID,
+				"toolCallId": u.ToolCallUpdate.ToolCallId,
+				"result":     u.ToolCallUpdate.RawOutput,
+			})
+		}
+		status := valueOrUnknown(u.ToolCallUpdate.Status)
+		if status == string(acp.ToolCallStatusCompleted) || status == string(acp.ToolCallStatusFailed) {
+			c.writeSSEEvent(map[string]any{
+				"type":       "TOOL_CALL_END",
+				"runId":      c.runID,
+				"toolCallId": u.ToolCallUpdate.ToolCallId,
+				"status":     status,
+			})
+		}
 	}
 	return nil
 }

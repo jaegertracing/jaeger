@@ -158,7 +158,8 @@ class JaegerSidecarAgent(Agent):
         system_instruction = (
             "You are a Jaeger tracing assistant. "
             "A tool named search_traces is available. "
-            "Call this tool whenever trace/span lookup data is needed before answering."
+            "Call this tool whenever trace/span lookup data is needed before answering. "
+            "If you need UI-specific actions or visualization capabilities, call list_contextual_tools first to discover current frontend tools."
         )
 
         mcp_tools = await self._mcp.get_gemini_tools()

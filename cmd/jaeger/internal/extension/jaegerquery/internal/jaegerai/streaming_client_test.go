@@ -65,12 +65,13 @@ func TestStreamingClientWriteAndFlushWritesText(t *testing.T) {
 		w:          rec,
 		flusher:    flusher,
 		doneCh:     make(chan struct{}),
+		runID:      "run-1",
 	}
 
-	c.writeAndFlush("hello")
+	c.writeSSEEvent(map[string]any{"type": "RUN_STARTED"})
 
-	if got, want := rec.Body.String(), "hello"; got != want {
-		t.Fatalf("unexpected body: got %q want %q", got, want)
+	if got := rec.Body.String(); !strings.Contains(got, "\"type\":\"RUN_STARTED\"") {
+		t.Fatalf("unexpected body: got %q", got)
 	}
 	if flusher.count != 1 {
 		t.Fatalf("expected one flush, got %d", flusher.count)
@@ -111,6 +112,7 @@ func TestStreamingClientWriteAndFlushWriteErrorSignalsDone(t *testing.T) {
 		w:          &errResponseWriter{},
 		flusher:    &countingFlusher{},
 		doneCh:     make(chan struct{}),
+		runID:      "run-1",
 	}
 
 	c.writeAndFlush("hello")
@@ -131,6 +133,7 @@ func TestStreamingClientWriteAndFlushRecoverSignalsDone(t *testing.T) {
 		w:          &panicResponseWriter{},
 		flusher:    &countingFlusher{},
 		doneCh:     make(chan struct{}),
+		runID:      "run-1",
 	}
 
 	c.writeAndFlush("hello")
@@ -154,6 +157,7 @@ func TestStreamingClientWriteAndFlushNoopWhenClosed(t *testing.T) {
 		flusher:    flusher,
 		closed:     true,
 		doneCh:     make(chan struct{}),
+		runID:      "run-1",
 	}
 
 	c.writeAndFlush("ignored")
@@ -241,14 +245,16 @@ func TestStreamingClientSessionUpdate(t *testing.T) {
 		w:          rec,
 		flusher:    flusher,
 		doneCh:     make(chan struct{}),
+		runID:      "run-1",
+		messageID:  "msg-1",
 	}
 
 	status := acp.ToolCallStatusCompleted
 	err := c.SessionUpdate(context.Background(), acp.SessionNotification{
 		Update: acp.SessionUpdate{
 			AgentMessageChunk: &acp.SessionUpdateAgentMessageChunk{Content: acp.TextBlock("chunk")},
-			ToolCall:          &acp.SessionUpdateToolCall{Title: "search traces"},
-			ToolCallUpdate:    &acp.SessionToolCallUpdate{ToolCallId: "tool-1", Status: &status},
+			ToolCall:          &acp.SessionUpdateToolCall{Title: "search traces", ToolCallId: "tool-1"},
+			ToolCallUpdate:    &acp.SessionToolCallUpdate{ToolCallId: "tool-1", Status: &status, RawOutput: map[string]any{"ok": true}},
 		},
 	})
 	if err != nil {
@@ -256,14 +262,20 @@ func TestStreamingClientSessionUpdate(t *testing.T) {
 	}
 
 	got := rec.Body.String()
-	if !strings.Contains(got, "chunk") {
-		t.Fatalf("expected chunk output, got %q", got)
+	if !strings.Contains(got, "\"type\":\"TEXT_MESSAGE_START\"") {
+		t.Fatalf("expected text start event, got %q", got)
 	}
-	if !strings.Contains(got, "[tool_call] search traces") {
-		t.Fatalf("expected tool call output, got %q", got)
+	if !strings.Contains(got, "\"type\":\"TEXT_MESSAGE_CONTENT\"") || !strings.Contains(got, "chunk") {
+		t.Fatalf("expected text content event, got %q", got)
 	}
-	if !strings.Contains(got, "[tool_result] id=tool-1 status=completed") {
-		t.Fatalf("expected tool result output, got %q", got)
+	if !strings.Contains(got, "\"type\":\"TOOL_CALL_START\"") || !strings.Contains(got, "search traces") {
+		t.Fatalf("expected tool call start event, got %q", got)
+	}
+	if !strings.Contains(got, "\"type\":\"TOOL_CALL_RESULT\"") || !strings.Contains(got, "\"ok\":true") {
+		t.Fatalf("expected tool call result event, got %q", got)
+	}
+	if !strings.Contains(got, "\"type\":\"TOOL_CALL_END\"") || !strings.Contains(got, "completed") {
+		t.Fatalf("expected tool call end event, got %q", got)
 	}
 
 	err = c.SessionUpdate(context.Background(), acp.SessionNotification{
@@ -273,6 +285,9 @@ func TestStreamingClientSessionUpdate(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("session update returned error: %v", err)
+	}
+	if !strings.Contains(rec.Body.String(), "\"type\":\"RUN_FINISHED\"") {
+		t.Fatalf("expected run finished event, got %q", rec.Body.String())
 	}
 	select {
 	case <-c.doneCh:

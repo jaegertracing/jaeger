@@ -1021,7 +1021,7 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 			require.NoError(t, closer.Close())
 		})
 
-		req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", strings.NewReader(`{"prompt":"hello"}`))
+		req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", strings.NewReader(`{"messages":[{"role":"user","content":"hello"}]}`))
 		rr := httptest.NewRecorder()
 		handler.ServeHTTP(rr, req)
 
@@ -1037,7 +1037,7 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 			require.NoError(t, closer.Close())
 		})
 
-		req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", strings.NewReader(`{"prompt":"hello"}`))
+		req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", strings.NewReader(`{"messages":[{"role":"user","content":"hello"}]}`))
 		rr := httptest.NewRecorder()
 		handler.ServeHTTP(rr, req)
 
@@ -1054,7 +1054,7 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 			require.NoError(t, closer.Close())
 		})
 
-		req := httptest.NewRequest(http.MethodPost, "/jaeger/api/ai/chat", strings.NewReader(`{"prompt":"hello"}`))
+		req := httptest.NewRequest(http.MethodPost, "/jaeger/api/ai/chat", strings.NewReader(`{"messages":[{"role":"user","content":"hello"}]}`))
 		rr := httptest.NewRecorder()
 		handler.ServeHTTP(rr, req)
 

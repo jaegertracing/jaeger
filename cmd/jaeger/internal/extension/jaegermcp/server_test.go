@@ -458,6 +458,54 @@ func TestHealthTool(t *testing.T) {
 	assert.Equal(t, "2.0.0", output.Version)
 }
 
+func TestListContextualToolsTool(t *testing.T) {
+	qsvc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	qsvc.SetContextualToolsForSession("sess-1", []json.RawMessage{
+		json.RawMessage(`{"name":"highlight_span","description":"Highlight span in UI"}`),
+		json.RawMessage(`{"name":"open_trace_panel","description":"Open trace panel"}`),
+	})
+
+	telset := componenttest.NewNopTelemetrySettings()
+	config := &Config{
+		ServerName:               "test-server",
+		ServerVersion:            "2.0.0",
+		MaxSpanDetailsPerRequest: 20,
+		MaxSearchResults:         100,
+	}
+
+	server := newServer(config, telset)
+	server.queryAPI = qsvc
+	result, output, err := server.listContextualToolsTool(context.Background(), nil, struct{}{})
+
+	require.NoError(t, err)
+	assert.Nil(t, result)
+	require.Len(t, output.Tools, 2)
+
+	first, ok := output.Tools[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "highlight_span", first["name"])
+}
+
+func TestListContextualToolsToolEmpty(t *testing.T) {
+	qsvc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+
+	telset := componenttest.NewNopTelemetrySettings()
+	config := &Config{
+		ServerName:               "test-server",
+		ServerVersion:            "2.0.0",
+		MaxSpanDetailsPerRequest: 20,
+		MaxSearchResults:         100,
+	}
+
+	server := newServer(config, telset)
+	server.queryAPI = qsvc
+	result, output, err := server.listContextualToolsTool(context.Background(), nil, struct{}{})
+
+	require.NoError(t, err)
+	assert.Nil(t, result)
+	require.Empty(t, output.Tools)
+}
+
 // TestSearchTracesToolIntegration tests calling the search_traces MCP tool
 // through the full HTTP stack with mocked trace data.
 func TestSearchTracesToolIntegration(t *testing.T) {

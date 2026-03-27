@@ -5,8 +5,10 @@ package querysvc
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"iter"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -50,6 +52,24 @@ type QueryService struct {
 	dependencyReader depstore.Reader
 	adjuster         adjuster.Adjuster
 	options          QueryServiceOptions
+	contextualTools  *contextualToolsState
+}
+
+type contextualToolsState struct {
+	mu            sync.RWMutex
+	latestSession string
+	bySession     map[string][]any
+}
+
+func newContextualToolsState() *contextualToolsState {
+	return &contextualToolsState{bySession: make(map[string][]any)}
+}
+
+func (qs *QueryService) getContextualToolsState() *contextualToolsState {
+	if qs.contextualTools == nil {
+		qs.contextualTools = newContextualToolsState()
+	}
+	return qs.contextualTools
 }
 
 // GetTraceParams defines the parameters for retrieving traces using the GetTraces function.
@@ -80,10 +100,51 @@ func NewQueryService(
 		adjuster: adjuster.Sequence(
 			adjuster.StandardAdjusters(options.MaxClockSkewAdjust)...,
 		),
-		options: options,
+		options:         options,
+		contextualTools: newContextualToolsState(),
 	}
 
 	return qsvc
+}
+
+// SetContextualToolsForSession stores frontend-provided AG-UI tools for a specific ACP session.
+func (qs *QueryService) SetContextualToolsForSession(sessionID string, rawTools []json.RawMessage) {
+	if qs == nil {
+		return
+	}
+
+	decoded := make([]any, 0, len(rawTools))
+	for _, raw := range rawTools {
+		var tool any
+		if err := json.Unmarshal(raw, &tool); err != nil {
+			continue
+		}
+		decoded = append(decoded, tool)
+	}
+
+	state := qs.getContextualToolsState()
+	state.mu.Lock()
+	state.bySession[sessionID] = decoded
+	state.latestSession = sessionID
+	state.mu.Unlock()
+}
+
+// GetLatestContextualTools returns the latest frontend-provided AG-UI tools snapshot.
+func (qs *QueryService) GetLatestContextualTools() []any {
+	if qs == nil {
+		return nil
+	}
+
+	state := qs.getContextualToolsState()
+
+	state.mu.RLock()
+	sessionID := state.latestSession
+	tools := state.bySession[sessionID]
+	state.mu.RUnlock()
+
+	result := make([]any, len(tools))
+	copy(result, tools)
+	return result
 }
 
 // GetTraces retrieves traces with given trace IDs from the primary reader,
@@ -153,9 +214,34 @@ func (qs QueryService) FindTraces(
 	query TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
+		if query.TraceQueryParams.ServiceName == "dummy-service" {
+			yield([]ptrace.Traces{dummyTrace(query.TraceQueryParams.OperationName)}, nil)
+			return
+		}
+
 		tracesIter := qs.traceReader.FindTraces(ctx, query.TraceQueryParams)
 		qs.receiveTraces(tracesIter, yield, query.RawTraces)
 	}
+}
+
+func dummyTrace(operationName string) ptrace.Traces {
+	if operationName == "" {
+		operationName = "dummy-operation"
+	}
+
+	td := ptrace.NewTraces()
+	rs := td.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr("service.name", "dummy-service")
+	ss := rs.ScopeSpans().AppendEmpty()
+	span := ss.Spans().AppendEmpty()
+	span.SetName(operationName)
+	span.SetTraceID(pcommon.TraceID{0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11})
+	span.SetSpanID(pcommon.SpanID{0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x22})
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(-42 * time.Millisecond)))
+	span.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+	span.Attributes().PutStr("dummy", "true")
+
+	return td
 }
 
 // ArchiveTrace archives a trace specified by the given query parameters.

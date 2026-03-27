@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	aguitypes "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types"
 	"github.com/coder/acp-go-sdk"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
@@ -127,7 +128,11 @@ func TestChatHandlerSendsACPProtocolRequests(t *testing.T) {
 
 	handler := NewChatHandler(zap.NewNop(), nil, wsURL)
 
-	reqBody, err := json.Marshal(ChatRequest{Prompt: "trace for service checkout"})
+	reqBody, err := json.Marshal(ChatRequest{
+		ThreadID: "thread-1",
+		RunID:    "run-1",
+		Messages: []aguitypes.Message{{Role: aguitypes.RoleUser, Content: "trace for service checkout"}},
+	})
 	require.NoError(t, err, "failed to marshal request")
 
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(reqBody))
@@ -160,9 +165,10 @@ func TestChatHandlerSendsACPProtocolRequests(t *testing.T) {
 	require.NotNil(t, promptReq.Prompt[0].Text, "prompt text should not be nil")
 	require.Equal(t, "trace for service checkout", promptReq.Prompt[0].Text.Text, "prompt text mismatch")
 
-	require.Equal(t, "text/plain; charset=utf-8", rr.Header().Get("Content-Type"), "content type mismatch")
+	require.Equal(t, "text/event-stream", rr.Header().Get("Content-Type"), "content type mismatch")
 	require.Equal(t, "no-cache", rr.Header().Get("Cache-Control"), "cache-control mismatch")
 	require.Equal(t, "keep-alive", rr.Header().Get("Connection"), "connection header mismatch")
+	require.Contains(t, rr.Body.String(), "\"type\":\"RUN_STARTED\"", "expected run started SSE event")
 }
 
 type noFlusherResponseWriter struct {
@@ -236,7 +242,7 @@ func TestChatHandlerBadRequest(t *testing.T) {
 
 func TestChatHandlerStreamingUnsupported(t *testing.T) {
 	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1")
-	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+	body, err := json.Marshal(ChatRequest{Messages: []aguitypes.Message{{Role: aguitypes.RoleUser, Content: "hello"}}})
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
 	w := &noFlusherResponseWriter{}
@@ -248,7 +254,7 @@ func TestChatHandlerStreamingUnsupported(t *testing.T) {
 
 func TestChatHandlerDialFailure(t *testing.T) {
 	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1")
-	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+	body, err := json.Marshal(ChatRequest{Messages: []aguitypes.Message{{Role: aguitypes.RoleUser, Content: "hello"}}})
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
@@ -264,14 +270,15 @@ func TestChatHandlerInitializeError(t *testing.T) {
 	defer cleanup()
 
 	handler := NewChatHandler(zap.NewNop(), nil, wsURL)
-	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+	body, err := json.Marshal(ChatRequest{RunID: "run-1", Messages: []aguitypes.Message{{Role: aguitypes.RoleUser, Content: "hello"}}})
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
 
-	require.Equal(t, http.StatusBadGateway, rr.Code, "unexpected status code, body=%q", rr.Body.String())
+	require.Equal(t, http.StatusOK, rr.Code, "unexpected status code, body=%q", rr.Body.String())
+	require.Contains(t, rr.Body.String(), "\"type\":\"RUN_ERROR\"", "expected RUN_ERROR event")
 	require.Contains(t, rr.Body.String(), "Error initializing agent", "expected initialize error message")
 }
 
@@ -281,14 +288,15 @@ func TestChatHandlerNewSessionError(t *testing.T) {
 	defer cleanup()
 
 	handler := NewChatHandler(zap.NewNop(), nil, wsURL)
-	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+	body, err := json.Marshal(ChatRequest{RunID: "run-1", Messages: []aguitypes.Message{{Role: aguitypes.RoleUser, Content: "hello"}}})
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
 
-	require.Equal(t, http.StatusBadGateway, rr.Code, "unexpected status code, body=%q", rr.Body.String())
+	require.Equal(t, http.StatusOK, rr.Code, "unexpected status code, body=%q", rr.Body.String())
+	require.Contains(t, rr.Body.String(), "\"type\":\"RUN_ERROR\"", "expected RUN_ERROR event")
 	require.Contains(t, rr.Body.String(), "Error creating session", "expected session error message")
 }
 
@@ -298,14 +306,15 @@ func TestChatHandlerPromptError(t *testing.T) {
 	defer cleanup()
 
 	handler := NewChatHandler(zap.NewNop(), nil, wsURL)
-	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+	body, err := json.Marshal(ChatRequest{RunID: "run-1", Messages: []aguitypes.Message{{Role: aguitypes.RoleUser, Content: "hello"}}})
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
 
-	require.Equal(t, http.StatusBadGateway, rr.Code, "unexpected status code, body=%q", rr.Body.String())
+	require.Equal(t, http.StatusOK, rr.Code, "unexpected status code, body=%q", rr.Body.String())
+	require.Contains(t, rr.Body.String(), "\"type\":\"RUN_ERROR\"", "expected RUN_ERROR event")
 	require.Contains(t, rr.Body.String(), "Error starting prompt", "expected prompt error message")
 }
 
@@ -325,14 +334,14 @@ func TestChatHandlerErrorWriteFailurePaths(t *testing.T) {
 			defer cleanup()
 
 			handler := NewChatHandler(zap.NewNop(), nil, wsURL)
-			body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+			body, err := json.Marshal(ChatRequest{Messages: []aguitypes.Message{{Role: aguitypes.RoleUser, Content: "hello"}}})
 			require.NoError(t, err, "failed to marshal request")
 			req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
 			w := &failingFlusherResponseWriter{}
 
 			handler.ServeHTTP(w, req)
 
-			require.Equal(t, http.StatusBadGateway, w.status, "unexpected status code")
+			require.Equal(t, http.StatusOK, w.status, "unexpected status code")
 		})
 	}
 }
