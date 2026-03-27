@@ -73,14 +73,16 @@ FMT_LOG=.fmt.log
 IMPORT_LOG=.import.log
 GOTESTSUM_FLAGS=--format pkgname-and-test-fails --format-icons hivis
 
- # import other Makefiles after the variables are defined
+# Import other Makefiles after the variables are defined.
+# The order is important as some Makefiles depend on variables
+# defined in this file and other includes.
 
+include scripts/makefiles/Tools.mk
 include scripts/makefiles/BuildBinaries.mk
 include scripts/makefiles/BuildInfo.mk
 include scripts/makefiles/Docker.mk
 include scripts/makefiles/IntegrationTests.mk
 include scripts/makefiles/Protobuf.mk
-include scripts/makefiles/Tools.mk
 include scripts/makefiles/Windows.mk
 
 
