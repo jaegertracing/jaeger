@@ -69,16 +69,15 @@ func (e *extractor) Run() error {
 		return fmt.Errorf("failed to marshal UI trace: %w", err)
 	}
 
-	// Build the payload in memory, then write to a temp file and atomically
-	// rename it into place. os.WriteFile handles create/write/sync/close in
-	// one call, which reduces the number of error paths that need testing.
+	// Build the payload in memory, then write to a temp file and rename it
+	// into place. This avoids corrupting the output if a write fails midway.
 	payload := make([]byte, 0, len(jsonBytes)+12)
 	payload = append(payload, `{"data": [`...)
 	payload = append(payload, jsonBytes...)
 	payload = append(payload, `]}`...)
 
 	tmpPath := e.uiFilePath + ".tmp"
-	if err := os.WriteFile(tmpPath, payload, 0o644); err != nil {
+	if err := os.WriteFile(tmpPath, payload, 0o600); err != nil {
 		os.Remove(tmpPath)
 		return fmt.Errorf("cannot write output file: %w", err)
 	}

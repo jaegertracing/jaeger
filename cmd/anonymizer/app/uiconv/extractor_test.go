@@ -144,7 +144,7 @@ func TestExtractorOutputFileTruncated(t *testing.T) {
 	finalStat, err := os.Stat(outputFile)
 	require.NoError(t, err)
 
-	// Confirm the file shrank, proving O_TRUNC actually exercised the truncation path.
+	// Confirm the file shrank, proving the atomic write replaced the stale content.
 	require.Greater(t, staleStat.Size(), finalStat.Size(),
 		"stale file must be larger than extractor output for this test to be meaningful")
 
