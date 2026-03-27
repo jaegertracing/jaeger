@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"go.uber.org/zap"
 
@@ -70,35 +69,21 @@ func (e *extractor) Run() error {
 		return fmt.Errorf("failed to marshal UI trace: %w", err)
 	}
 
-	// Write to a temp file in the same directory, then atomically rename it into
-	// place. This guarantees the previously valid output is preserved if any
-	// write or sync step fails (e.g. disk full, I/O error).
-	tmp, err := os.CreateTemp(filepath.Dir(e.uiFilePath), ".uiconv-*.tmp")
-	if err != nil {
-		return fmt.Errorf("cannot create output file: %w", err)
-	}
-	tmpName := tmp.Name()
-	defer func() {
-		tmp.Close()
-		os.Remove(tmpName) // no-op after a successful rename
-	}()
+	// Build the payload in memory, then write to a temp file and atomically
+	// rename it into place. os.WriteFile handles create/write/sync/close in
+	// one call, which reduces the number of error paths that need testing.
+	payload := make([]byte, 0, len(jsonBytes)+12)
+	payload = append(payload, `{"data": [`...)
+	payload = append(payload, jsonBytes...)
+	payload = append(payload, `]}`...)
 
-	if _, err := tmp.WriteString(`{"data": [`); err != nil {
-		return fmt.Errorf("failed to write to output file: %w", err)
+	tmpPath := e.uiFilePath + ".tmp"
+	if err := os.WriteFile(tmpPath, payload, 0o644); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("cannot write output file: %w", err)
 	}
-	if _, err := tmp.Write(jsonBytes); err != nil {
-		return fmt.Errorf("failed to write to output file: %w", err)
-	}
-	if _, err := tmp.WriteString(`]}`); err != nil {
-		return fmt.Errorf("failed to write to output file: %w", err)
-	}
-	if err := tmp.Sync(); err != nil {
-		return fmt.Errorf("failed to sync output file: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("failed to close output file: %w", err)
-	}
-	if err := os.Rename(tmpName, e.uiFilePath); err != nil {
+	if err := os.Rename(tmpPath, e.uiFilePath); err != nil {
+		os.Remove(tmpPath)
 		return fmt.Errorf("failed to finalize output file: %w", err)
 	}
 	e.logger.Sugar().Infof("Wrote spans to UI file %s", e.uiFilePath)

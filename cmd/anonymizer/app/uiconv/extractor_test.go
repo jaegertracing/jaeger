@@ -69,7 +69,27 @@ func TestExtractorTraceOutputFileError(t *testing.T) {
 	defer os.Chmod("fixtures", 0o755)
 
 	err = extractor.Run()
-	require.ErrorContains(t, err, "cannot create output file")
+	require.ErrorContains(t, err, "cannot write output file")
+}
+
+func TestExtractorRenameError(t *testing.T) {
+	inputFile := "fixtures/trace_success.json"
+
+	// Use a temp dir so we control the destination without touching fixtures/.
+	dir := t.TempDir()
+	outputFile := dir + "/output.json"
+
+	// Create a directory at the output path. rename(file → dir) always fails,
+	// which exercises the "failed to finalize output file" error path.
+	err := os.Mkdir(outputFile, 0o755)
+	require.NoError(t, err)
+
+	reader, err := newSpanReader(inputFile, zap.NewNop())
+	require.NoError(t, err)
+
+	extractor := newExtractor(outputFile, "2be38093ead7a083", reader, zap.NewNop())
+	err = extractor.Run()
+	require.ErrorContains(t, err, "failed to finalize output file")
 }
 
 func TestExtractorTraceScanError(t *testing.T) {

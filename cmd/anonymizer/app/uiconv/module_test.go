@@ -67,5 +67,5 @@ func TestModule_TraceOutputFileError(t *testing.T) {
 	defer os.Chmod("fixtures", 0o755)
 
 	err = Extract(config, zap.NewNop())
-	require.ErrorContains(t, err, "cannot create output file")
+	require.ErrorContains(t, err, "cannot write output file")
 }
