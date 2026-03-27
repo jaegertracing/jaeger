@@ -16,25 +16,20 @@ import (
 
 // extractor reads the spans from reader, filters by traceID, and stores as JSON into uiFile.
 type extractor struct {
-	uiFile  *os.File
-	traceID string
-	reader  *spanReader
-	logger  *zap.Logger
+	uiFilePath string
+	traceID    string
+	reader     *spanReader
+	logger     *zap.Logger
 }
 
 // newExtractor creates extractor.
 func newExtractor(uiFile string, traceID string, reader *spanReader, logger *zap.Logger) (*extractor, error) {
-	f, err := os.OpenFile(uiFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
-	if err != nil {
-		return nil, fmt.Errorf("cannot create output file: %w", err)
-	}
 	logger.Sugar().Infof("Writing spans to UI file %s", uiFile)
-
 	return &extractor{
-		uiFile:  f,
-		traceID: traceID,
-		reader:  reader,
-		logger:  logger,
+		uiFilePath: uiFile,
+		traceID:    traceID,
+		reader:     reader,
+		logger:     logger,
 	}, nil
 }
 
@@ -73,11 +68,19 @@ func (e *extractor) Run() error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal UI trace: %w", err)
 	}
-	e.uiFile.WriteString(`{"data": [`)
-	e.uiFile.Write(jsonBytes)
-	e.uiFile.WriteString(`]}`)
-	e.uiFile.Sync()
-	e.uiFile.Close()
-	e.logger.Sugar().Infof("Wrote spans to UI file %s", e.uiFile.Name())
+
+	// Open (and truncate) the output file only after all processing succeeds,
+	// so a previously valid output file is not destroyed if scanning or marshaling fails.
+	f, err := os.OpenFile(e.uiFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	if err != nil {
+		return fmt.Errorf("cannot create output file: %w", err)
+	}
+	defer f.Close()
+
+	f.WriteString(`{"data": [`)
+	f.Write(jsonBytes)
+	f.WriteString(`]}`)
+	f.Sync()
+	e.logger.Sugar().Infof("Wrote spans to UI file %s", e.uiFilePath)
 	return nil
 }

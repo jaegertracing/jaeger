@@ -57,16 +57,20 @@ func TestExtractorTraceOutputFileError(t *testing.T) {
 	reader, err := newSpanReader(inputFile, zap.NewNop())
 	require.NoError(t, err)
 
-	err = os.Chmod("fixtures", 0o000)
-	require.NoError(t, err)
-	defer os.Chmod("fixtures", 0o755)
-
-	_, err = newExtractor(
+	extractor, err := newExtractor(
 		outputFile,
 		"2be38093ead7a083",
 		reader,
 		zap.NewNop(),
 	)
+	require.NoError(t, err)
+
+	// The file is now opened lazily in Run, so the permission error surfaces there.
+	err = os.Chmod("fixtures", 0o000)
+	require.NoError(t, err)
+	defer os.Chmod("fixtures", 0o755)
+
+	err = extractor.Run()
 	require.ErrorContains(t, err, "cannot create output file")
 }
 
