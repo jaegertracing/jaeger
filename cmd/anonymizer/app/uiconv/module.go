@@ -21,9 +21,6 @@ func Extract(config Config, logger *zap.Logger) error {
 	if err != nil {
 		return err
 	}
-	ext, err := newExtractor(config.UIFile, config.TraceID, reader, logger)
-	if err != nil {
-		return err
-	}
+	ext := newExtractor(config.UIFile, config.TraceID, reader, logger)
 	return ext.Run()
 }

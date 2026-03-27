@@ -28,13 +28,12 @@ func TestExtractorTraceSuccess(t *testing.T) {
 	reader, err := newSpanReader(inputFile, zap.NewNop())
 	require.NoError(t, err)
 
-	extractor, err := newExtractor(
+	extractor := newExtractor(
 		outputFile,
 		"2be38093ead7a083",
 		reader,
 		zap.NewNop(),
 	)
-	require.NoError(t, err)
 
 	err = extractor.Run()
 	require.NoError(t, err)
@@ -57,15 +56,14 @@ func TestExtractorTraceOutputFileError(t *testing.T) {
 	reader, err := newSpanReader(inputFile, zap.NewNop())
 	require.NoError(t, err)
 
-	extractor, err := newExtractor(
+	extractor := newExtractor(
 		outputFile,
 		"2be38093ead7a083",
 		reader,
 		zap.NewNop(),
 	)
-	require.NoError(t, err)
 
-	// The file is now opened lazily in Run, so the permission error surfaces there.
+	// The file is opened lazily in Run, so the permission error surfaces there.
 	err = os.Chmod("fixtures", 0o000)
 	require.NoError(t, err)
 	defer os.Chmod("fixtures", 0o755)
@@ -82,13 +80,12 @@ func TestExtractorTraceScanError(t *testing.T) {
 	reader, err := newSpanReader(inputFile, zap.NewNop())
 	require.NoError(t, err)
 
-	extractor, err := newExtractor(
+	extractor := newExtractor(
 		outputFile,
 		"2be38093ead7a083",
 		reader,
 		zap.NewNop(),
 	)
-	require.NoError(t, err)
 
 	err = extractor.Run()
 	require.ErrorContains(t, err, "failed when scanning the file")
@@ -114,13 +111,12 @@ func TestExtractorOutputFileTruncated(t *testing.T) {
 	reader, err := newSpanReader(inputFile, zap.NewNop())
 	require.NoError(t, err)
 
-	extractor, err := newExtractor(
+	extractor := newExtractor(
 		outputFile,
 		"2be38093ead7a083",
 		reader,
 		zap.NewNop(),
 	)
-	require.NoError(t, err)
 
 	err = extractor.Run()
 	require.NoError(t, err)

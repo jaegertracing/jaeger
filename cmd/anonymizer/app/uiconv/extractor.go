@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"go.uber.org/zap"
 
@@ -23,14 +24,14 @@ type extractor struct {
 }
 
 // newExtractor creates extractor.
-func newExtractor(uiFile string, traceID string, reader *spanReader, logger *zap.Logger) (*extractor, error) {
+func newExtractor(uiFile string, traceID string, reader *spanReader, logger *zap.Logger) *extractor {
 	logger.Sugar().Infof("Writing spans to UI file %s", uiFile)
 	return &extractor{
 		uiFilePath: uiFile,
 		traceID:    traceID,
 		reader:     reader,
 		logger:     logger,
-	}, nil
+	}
 }
 
 // Run executes the extraction.
@@ -69,25 +70,36 @@ func (e *extractor) Run() error {
 		return fmt.Errorf("failed to marshal UI trace: %w", err)
 	}
 
-	// Open (and truncate) the output file only after all processing succeeds,
-	// so a previously valid output file is not destroyed if scanning or marshaling fails.
-	f, err := os.OpenFile(e.uiFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	// Write to a temp file in the same directory, then atomically rename it into
+	// place. This guarantees the previously valid output is preserved if any
+	// write or sync step fails (e.g. disk full, I/O error).
+	tmp, err := os.CreateTemp(filepath.Dir(e.uiFilePath), ".uiconv-*.tmp")
 	if err != nil {
 		return fmt.Errorf("cannot create output file: %w", err)
 	}
-	defer f.Close()
+	tmpName := tmp.Name()
+	defer func() {
+		tmp.Close()
+		os.Remove(tmpName) // no-op after a successful rename
+	}()
 
-	if _, err := f.WriteString(`{"data": [`); err != nil {
+	if _, err := tmp.WriteString(`{"data": [`); err != nil {
 		return fmt.Errorf("failed to write to output file: %w", err)
 	}
-	if _, err := f.Write(jsonBytes); err != nil {
+	if _, err := tmp.Write(jsonBytes); err != nil {
 		return fmt.Errorf("failed to write to output file: %w", err)
 	}
-	if _, err := f.WriteString(`]}`); err != nil {
+	if _, err := tmp.WriteString(`]}`); err != nil {
 		return fmt.Errorf("failed to write to output file: %w", err)
 	}
-	if err := f.Sync(); err != nil {
+	if err := tmp.Sync(); err != nil {
 		return fmt.Errorf("failed to sync output file: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("failed to close output file: %w", err)
+	}
+	if err := os.Rename(tmpName, e.uiFilePath); err != nil {
+		return fmt.Errorf("failed to finalize output file: %w", err)
 	}
 	e.logger.Sugar().Infof("Wrote spans to UI file %s", e.uiFilePath)
 	return nil
