@@ -77,10 +77,18 @@ func (e *extractor) Run() error {
 	}
 	defer f.Close()
 
-	f.WriteString(`{"data": [`)
-	f.Write(jsonBytes)
-	f.WriteString(`]}`)
-	f.Sync()
+	if _, err := f.WriteString(`{"data": [`); err != nil {
+		return fmt.Errorf("failed to write to output file: %w", err)
+	}
+	if _, err := f.Write(jsonBytes); err != nil {
+		return fmt.Errorf("failed to write to output file: %w", err)
+	}
+	if _, err := f.WriteString(`]}`); err != nil {
+		return fmt.Errorf("failed to write to output file: %w", err)
+	}
+	if err := f.Sync(); err != nil {
+		return fmt.Errorf("failed to sync output file: %w", err)
+	}
 	e.logger.Sugar().Infof("Wrote spans to UI file %s", e.uiFilePath)
 	return nil
 }
