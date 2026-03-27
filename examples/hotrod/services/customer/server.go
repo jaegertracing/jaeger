@@ -61,12 +61,7 @@ func (s *Server) createServeMux() http.Handler {
 func (s *Server) customer(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	s.logger.For(ctx).Info("HTTP request received", zap.String("method", r.Method), zap.Stringer("url", r.URL))
-	if err := r.ParseForm(); httperr.HandleError(w, err, http.StatusBadRequest) {
-		s.logger.For(ctx).Error("bad request", zap.Error(err))
-		return
-	}
-
-	customer := r.Form.Get("customer")
+	customer := r.URL.Query().Get("customer")
 	if customer == "" {
 		http.Error(w, "Missing required 'customer' parameter", http.StatusBadRequest)
 		return
@@ -90,5 +85,5 @@ func (s *Server) customer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(data) //nolint:gosec // G705 - writing JSON response
+	w.Write(data)
 }

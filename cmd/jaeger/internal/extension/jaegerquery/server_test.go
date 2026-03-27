@@ -433,7 +433,9 @@ func TestQueryService(t *testing.T) {
 		require.NoError(t, server.Shutdown(context.Background()))
 	}()
 
-	// Test QueryService method
 	qs := server.QueryService()
 	require.NotNil(t, qs, "QueryService should not be nil")
+
+	tm := server.TenancyManager()
+	require.NotNil(t, tm, "TenancyManager should not be nil")
 }
