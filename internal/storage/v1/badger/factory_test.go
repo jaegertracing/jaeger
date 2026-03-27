@@ -5,19 +5,23 @@ package badger
 
 import (
 	"expvar"
-	"os"
-	"testing"
-	"time"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"os"
+	"runtime"
+	"testing"
+	"time"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 )
 
 func TestInitializationErrors(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Path permissions work differently on Windows")
+	}
+
 	f := NewFactory()
 	dir := "/root/this_should_fail" // If this test fails, you have some issues in your system
 	f.Config.Ephemeral = false
@@ -30,6 +34,9 @@ func TestInitializationErrors(t *testing.T) {
 }
 
 func TestForCodecov(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("File lock issues on Windows")
+	}
 	// These tests are testing our vendor packages and are intended to satisfy Codecov.
 	f := NewFactory()
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())

@@ -6,6 +6,7 @@ package uiconv
 import (
 	"encoding/json"
 	"os"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -49,6 +50,11 @@ func TestExtractorTraceSuccess(t *testing.T) {
 }
 
 func TestExtractorTraceOutputFileError(t *testing.T) {
+
+	if runtime.GOOS == "windows" {
+		t.Skip("chmod read-only not enforced on Windows")
+	}
+
 	inputFile := "fixtures/trace_success.json"
 	outputFile := "fixtures/trace_success_ui_anonymized.json"
 	defer os.Remove(outputFile)

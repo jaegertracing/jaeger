@@ -1354,7 +1354,9 @@ func TestGetConfigOptions(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				if tt.wantErrContains != "" {
-					require.Contains(t, err.Error(), tt.wantErrContains)
+					require.Contains(t,
+						testutils.NormalizeErrorMessage(err.Error()),
+						tt.wantErrContains)
 				}
 			} else {
 				require.NoError(t, err)
@@ -1617,7 +1619,9 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 			rt, err := GetHTTPRoundTripper(tt.ctx, tt.cfg, logger, nil)
 			if tt.wantErrContains != "" {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErrContains)
+				assert.Contains(t,
+					testutils.NormalizeErrorMessage(err.Error()),
+					tt.wantErrContains)
 				assert.Nil(t, rt)
 			} else {
 				require.NoError(t, err)

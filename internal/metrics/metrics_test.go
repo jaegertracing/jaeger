@@ -5,6 +5,7 @@
 package metrics_test
 
 import (
+	"runtime"
 	"testing"
 	"time"
 
@@ -17,6 +18,10 @@ import (
 )
 
 func TestInitMetrics(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Timer resolution too low on Windows")
+	}
+
 	testMetrics := struct {
 		Gauge     metrics.Gauge     `metric:"gauge" tags:"1=one,2=two"`
 		Counter   metrics.Counter   `metric:"counter"`

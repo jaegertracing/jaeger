@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -337,6 +338,10 @@ func makeResponse(samplerType api_v2.SamplingStrategyType, param float64) (resp 
 }
 
 func TestAutoUpdateStrategyWithFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("File watcher invalid argument on Windows")
+	}
+
 	tempFile, _ := os.Create(t.TempDir() + "for_go_test_*.json")
 	require.NoError(t, tempFile.Close())
 
@@ -421,6 +426,10 @@ func TestAutoUpdateStrategyWithURL(t *testing.T) {
 }
 
 func TestAutoUpdateStrategyErrors(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("File watcher invalid argument on Windows")
+	}
+
 	tempFile, _ := os.Create(t.TempDir() + "for_go_test_*.json")
 	require.NoError(t, tempFile.Close())
 

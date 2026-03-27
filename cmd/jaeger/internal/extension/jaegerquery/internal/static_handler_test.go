@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -30,6 +31,10 @@ import (
 //go:generate mockery -all -dir ../../../internal/fswatcher
 
 func TestNotExistingUiConfig(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows path error messages differ")
+	}
+
 	handler, err := NewStaticAssetsHandler("/foo/bar", StaticAssetsHandlerOptions{
 		Logger: zap.NewNop(),
 	})
@@ -38,6 +43,10 @@ func TestNotExistingUiConfig(t *testing.T) {
 }
 
 func TestRegisterStaticHandlerPanic(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows path error messages differ")
+	}
+
 	logger, buf := testutils.NewLogger()
 	assert.Panics(t, func() {
 		closer := RegisterStaticHandler(
@@ -182,6 +191,10 @@ func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 }
 
 func TestHotReloadUIConfig(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("File lock issues on Windows")
+	}
+
 	dir := t.TempDir()
 
 	cfgFile, err := os.CreateTemp(dir, "*.json")
@@ -227,6 +240,10 @@ func TestHotReloadUIConfig(t *testing.T) {
 }
 
 func TestLoadUIConfig(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows path error messages differ")
+	}
+
 	type testCase struct {
 		configFile      string
 		expected        *loadedConfig

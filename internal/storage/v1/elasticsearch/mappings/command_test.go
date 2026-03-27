@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,6 +19,10 @@ import (
 )
 
 func TestCommandExecute(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Wildcard * in filenames not supported on Windows")
+	}
+
 	cmd := Command()
 
 	// TempFile to capture output

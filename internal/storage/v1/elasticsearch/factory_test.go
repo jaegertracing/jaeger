@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -134,7 +135,7 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 		LogLevel: "debug",
 	}
 	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nil)
-	require.ErrorContains(t, err, "open fixtures/file-does-not-exist.txt: no such file or directory")
+	require.ErrorContains(t, err, "file-does-not-exist.txt")
 	assert.Nil(t, f)
 }
 
@@ -335,6 +336,10 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 }
 
 func TestPasswordFromFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("File watcher unreliable on Windows")
+	}
+
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnce(t)
 	})

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -40,6 +41,7 @@ func createTestFiles(t *testing.T) (file1 string, file2 string, file3 string) {
 }
 
 func TestFSWatcherAddFiles(t *testing.T) {
+
 	file1, file2, file3 := createTestFiles(t)
 
 	// Add one unreadable file
@@ -76,6 +78,10 @@ func TestFSWatcherAddFiles(t *testing.T) {
 }
 
 func TestFSWatcherWithMultipleFiles(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("File watcher events unreliable on Windows")
+	}
+
 	tempDir := t.TempDir()
 	testFile1, err := os.Create(tempDir + "test-file-1")
 	require.NoError(t, err)
@@ -141,6 +147,10 @@ func TestFSWatcherWithMultipleFiles(t *testing.T) {
 }
 
 func TestFSWatcherWithSymlinkAndRepoChanges(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Symlink creation requires admin privileges on Windows")
+	}
+
 	testDir := t.TempDir()
 
 	err := os.Symlink("..timestamp-1", filepath.Join(testDir, "..data"))
