@@ -39,10 +39,9 @@ jobs:
 
     - name: Setup Go
       if: matrix.language == 'go'
-      uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+      uses: ./.github/actions/setup-go
       with:
         go-version: 1.26.x
-        cache-dependency-path: ./go.sum
 
     - name: Initialize CodeQL
       uses: github/codeql-action/init@38697555549f1db7851b81482ff19f1fa5c4fedc # v4.34.1
