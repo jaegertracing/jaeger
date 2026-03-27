@@ -73,6 +73,7 @@ COVEROUT=cover.out
 GOFMT=gofmt
 FMT_LOG=.fmt.log
 IMPORT_LOG=.import.log
+GOTESTSUM_FLAGS=--format pkgname-and-test-fails --format-icons hivis
 COLORIZE ?= | $(SED) 's/PASS/✅ PASS/g' | $(SED) 's/FAIL/❌ FAIL/g' | $(SED) 's/SKIP/🔕 SKIP/g'
 
  # import other Makefiles after the variables are defined
@@ -120,12 +121,12 @@ clean:
 	bash scripts/build/clean-binaries.sh
 
 .PHONY: test
-test:
-	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=memory_storage_integration ./... $(COLORIZE)"
+test: $(GOTESTSUM)
+	$(GOTESTSUM) $(GOTESTSUM_FLAGS) -- $(RACE) -tags=memory_storage_integration ./...
 
 .PHONY: cover
-cover: nocover
-	bash -c "set -e; set -o pipefail; STORAGE=memory $(GOTEST) -timeout 5m -coverprofile $(COVEROUT) ./... | tee test-results.json"
+cover: nocover $(GOTESTSUM)
+	STORAGE=memory $(GOTESTSUM) $(GOTESTSUM_FLAGS) --rerun-fails --jsonfile test-results.json --packages ./... -- $(RACE) -timeout 5m -coverprofile $(COVEROUT)
 	go tool cover -html=cover.out -o cover.html
 
 .PHONY: nocover
