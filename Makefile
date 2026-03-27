@@ -232,7 +232,6 @@ prepare-release:
 	bash ./scripts/release/prepare.sh $(VERSION)
 
 .PHONY: test-ci
-test-ci: GOTEST := $(GOTEST_QUIET)
 test-ci: build-examples cover
 
 .PHONY: init-submodules
