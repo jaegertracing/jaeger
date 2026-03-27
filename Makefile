@@ -67,14 +67,11 @@ else
 	SED=sed
 endif
 
-GOTEST_QUIET=$(GO) test $(RACE)
-GOTEST=$(GOTEST_QUIET) -v
 COVEROUT=cover.out
 GOFMT=gofmt
 FMT_LOG=.fmt.log
 IMPORT_LOG=.import.log
 GOTESTSUM_FLAGS=--format pkgname-and-test-fails --format-icons hivis
-COLORIZE ?= | $(SED) 's/PASS/✅ PASS/g' | $(SED) 's/FAIL/❌ FAIL/g' | $(SED) 's/SKIP/🔕 SKIP/g'
 
  # import other Makefiles after the variables are defined
 
