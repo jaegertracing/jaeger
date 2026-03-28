@@ -22,19 +22,19 @@ const (
 )
 
 type Configuration struct {
-	Protocol string `mapstructure:"protocol" valid:"in(native|http),optional"`
-	Addresses []string `mapstructure:"addresses" valid:"required"`
-	Database string `mapstructure:"database"`
-	Auth Authentication `mapstructure:"auth"`
-	DialTimeout time.Duration `mapstructure:"dial_timeout"`
-	CreateSchema bool `mapstructure:"create_schema"`
-	DefaultSearchDepth int `mapstructure:"default_search_depth"`
-	MaxSearchDepth int `mapstructure:"max_search_depth"`
-	AttributeMetadataCacheTTL time.Duration `mapstructure:"attribute_metadata_cache_ttl"`
-	AttributeMetadataCacheMaxSize int `mapstructure:"attribute_metadata_cache_max_size"`
-	// SpansTTL is the Time-To-Live for spans in the database.
+	Protocol                      string         `mapstructure:"protocol" valid:"in(native|http),optional"`
+	Addresses                     []string       `mapstructure:"addresses" valid:"required"`
+	Database                      string         `mapstructure:"database"`
+	Auth                          Authentication `mapstructure:"auth"`
+	DialTimeout                   time.Duration  `mapstructure:"dial_timeout"`
+	CreateSchema                  bool           `mapstructure:"create_schema"`
+	DefaultSearchDepth            int            `mapstructure:"default_search_depth"`
+	MaxSearchDepth                int            `mapstructure:"max_search_depth"`
+	AttributeMetadataCacheTTL     time.Duration  `mapstructure:"attribute_metadata_cache_ttl"`
+	AttributeMetadataCacheMaxSize int            `mapstructure:"attribute_metadata_cache_max_size"`
+	// TTL is the Time-To-Live for spans in the database.
 	// Data older than this will be automatically deleted. 0 means disabled.
-	TTL time.Duration `mapstructure:"spans_ttl"`
+	TTL time.Duration `mapstructure:"ttl"`
 }
 
 type Authentication struct {

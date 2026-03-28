@@ -75,7 +75,7 @@ The schema is subject to breaking changes in future releases.
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	
+
 	f := &Factory{
 		config: cfg,
 		telset: telset,

@@ -378,7 +378,8 @@ func TestCreateTraceIDTimestampsTableTemplate(t *testing.T) {
 
 func TestNewFactory_ValidationError(t *testing.T) {
 	cfg := Configuration{
-		TTL: -1 * time.Second,
+		Addresses: []string{"localhost:9000"},
+		TTL:       -1 * time.Second,
 	}
 	factory, err := NewFactory(context.Background(), cfg, telemetry.Settings{})
 	require.ErrorContains(t, err, "ttl must be a non-negative duration")
