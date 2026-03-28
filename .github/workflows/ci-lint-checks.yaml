@@ -17,7 +17,7 @@ jobs:
 
     - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
 
-    - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+    - uses: ./.github/actions/setup-go
       with:
         go-version: 1.26.x
 
@@ -89,7 +89,7 @@ jobs:
       with:
         submodules: recursive
 
-    - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+    - uses: ./.github/actions/setup-go
       with:
         go-version: 1.26.x
 
@@ -98,6 +98,9 @@ jobs:
 
     - name: Verify Mockery types are up to date
       run: make generate-mocks && { if git status --porcelain | grep '??'; then exit 1; else git diff --name-status --exit-code; fi }
+
+    - name: Verify Grafana dashboard JSON is in sync with Go generator
+      run: make lint-monitoring
 
   lint-shell-scripts:
     runs-on: ubuntu-latest
@@ -123,6 +126,11 @@ jobs:
       run: |
         SHUNIT2=.tools/shunit2 bash scripts/utils/run-tests.sh
 
+    - name: Run Python unit tests for e2e scripts
+      run: |
+        pip install prometheus-client
+        python3 -m unittest discover -s scripts/e2e -p '*_test.py' -v
+
   binary-size-check:
     runs-on: ubuntu-latest
     steps:
@@ -134,7 +142,7 @@ jobs:
       with:
         submodules: true
 
-    - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+    - uses: ./.github/actions/setup-go
       with:
         go-version: 1.26.x
 

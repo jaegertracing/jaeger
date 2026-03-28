@@ -28,7 +28,7 @@ def parse_diff_file(diff_path):
         original_line = line.rstrip('\n')
         stripped = original_line.strip()
 
-        if stripped.startswith('Metrics excluded from A: ') or stripped.startswith('Metrics excluded from B: '):
+        if stripped.startswith('# Metrics excluded from A: ') or stripped.startswith('# Metrics excluded from B: '):
             count_str = stripped.split(': ')[1]
             exclusion_count += int(count_str)
             continue
