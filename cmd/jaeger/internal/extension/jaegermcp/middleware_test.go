@@ -77,14 +77,14 @@ func TestLoggingMiddlewareTracesToolCallError(t *testing.T) {
 	assertHasStringAttribute(t, spanData.Attributes, string(semconv.McpMethodNameKey), mcpMethodToolsCall)
 	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIToolNameKey), "get_trace_topology")
 	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIOperationNameKey), "execute_tool")
-	assertHasStringAttribute(t, spanData.Attributes, string(semconv.ErrorTypeKey), toolStatusNotFound)
+	assertHasStringAttribute(t, spanData.Attributes, string(semconv.ErrorTypeKey), toolStatusError)
 	assert.Equal(t, codes.Error, spanData.Status.Code)
 	assert.Equal(t, expectedErr.Error(), spanData.Status.Description)
 
 	responseLogs := observed.FilterMessage("MCP response").All()
 	require.Len(t, responseLogs, 1)
-	assert.Equal(t, zapcore.WarnLevel, responseLogs[0].Level)
-	assert.Equal(t, toolStatusNotFound, responseLogs[0].ContextMap()["status"])
+	assert.Equal(t, zapcore.ErrorLevel, responseLogs[0].Level)
+	assert.Equal(t, toolStatusError, responseLogs[0].ContextMap()["status"])
 }
 
 func TestLoggingMiddlewareTracesToolCallGenericError(t *testing.T) {
@@ -141,20 +141,20 @@ func TestLoggingMiddlewareTracesToolCallResultError(t *testing.T) {
 	assertHasStringAttribute(t, spanData.Attributes, string(semconv.McpMethodNameKey), mcpMethodToolsCall)
 	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIToolNameKey), "get_services")
 	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIOperationNameKey), "execute_tool")
-	assertHasStringAttribute(t, spanData.Attributes, string(semconv.ErrorTypeKey), toolStatusInvalidArgument)
+	assertHasStringAttribute(t, spanData.Attributes, string(semconv.ErrorTypeKey), toolStatusError)
 	assert.Equal(t, codes.Error, spanData.Status.Code)
 	assert.Equal(t, "invalid pattern", spanData.Status.Description)
 
 	responseLogs := observed.FilterMessage("MCP response").All()
 	require.Len(t, responseLogs, 1)
-	assert.Equal(t, zapcore.WarnLevel, responseLogs[0].Level)
-	assert.Equal(t, toolStatusInvalidArgument, responseLogs[0].ContextMap()["status"])
+	assert.Equal(t, zapcore.InfoLevel, responseLogs[0].Level)
+	assert.Equal(t, toolStatusError, responseLogs[0].ContextMap()["status"])
 }
 
-func TestLoggingMiddlewareDoesNotTraceNonToolMethods(t *testing.T) {
+func TestLoggingMiddlewareTracesNonToolMethods(t *testing.T) {
 	capture := newTraceCapture(t)
 	middleware := chainMiddleware(
-		createLoggingMiddleware(nil),
+		createLoggingMiddleware(zap.NewNop()),
 		createTracingMiddleware(capture.provider),
 	)
 
@@ -165,8 +165,10 @@ func TestLoggingMiddlewareDoesNotTraceNonToolMethods(t *testing.T) {
 	_, err := wrapped(context.Background(), "initialize", newToolCallRequest("get_services"))
 	require.NoError(t, err)
 
-	spans := capture.waitForSpanCount(t, 0)
-	assert.Empty(t, spans)
+	spans := capture.waitForSpanCount(t, 1)
+	require.Len(t, spans, 1)
+	assert.Equal(t, "initialize", spans[0].Name)
+	assertHasStringAttribute(t, spans[0].Attributes, string(semconv.McpMethodNameKey), "initialize")
 }
 
 func TestLoggingMiddlewareCreatesChildSpanWhenParentExists(t *testing.T) {
@@ -219,9 +221,6 @@ func TestToolNameFromRequestWrongParams(t *testing.T) {
 }
 
 func TestNormalizeToolStatus(t *testing.T) {
-	resultWithNotFound := &mcp.CallToolResult{}
-	resultWithNotFound.SetError(errors.New("service not found"))
-
 	tests := []struct {
 		name   string
 		err    error
@@ -229,10 +228,9 @@ func TestNormalizeToolStatus(t *testing.T) {
 		want   string
 	}{
 		{name: "ok", want: toolStatusOK},
-		{name: "invalid argument", err: errors.New("service_name is required"), want: toolStatusInvalidArgument},
-		{name: "not found", err: errors.New("trace not found"), want: toolStatusNotFound},
+		{name: "invalid argument", err: errors.New("service_name is required"), want: toolStatusError},
+		{name: "not found", err: errors.New("trace not found"), want: toolStatusError},
 		{name: "generic error", err: errors.New("storage backend unavailable"), want: toolStatusError},
-		{name: "result error not found", result: resultWithNotFound, want: toolStatusNotFound},
 		{name: "result error generic", result: &mcp.CallToolResult{IsError: true}, want: toolStatusError},
 	}
 
