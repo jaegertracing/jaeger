@@ -51,7 +51,6 @@ func (cfg *Configuration) Validate() error {
 	if cfg.TTL > 0 && cfg.TTL%time.Second != 0 {
 		return errors.New("ttl must be a whole number of seconds")
 	}
-
 	return nil
 }
 

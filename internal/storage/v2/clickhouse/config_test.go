@@ -116,9 +116,9 @@ func TestConfiguration_Validate_TTL(t *testing.T) {
 			errorMsg: "ttl must be a positive duration",
 		},
 		{
-			name:     "Sub-second TTL is invalid",
-			ttl:      500 * time.Millisecond,
-			errorMsg: "ttl must be at least 1 second",
+			name:     "Sub-second fraction TTL is invalid",
+			ttl:      1500 * time.Millisecond,
+			errorMsg: "ttl must be a whole number of seconds",
 		},
 	}
 
