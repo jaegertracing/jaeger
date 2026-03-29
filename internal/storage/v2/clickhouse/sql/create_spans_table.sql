@@ -48,7 +48,6 @@ CREATE TABLE
         scope_str_attributes Nested (key String, value String),
         scope_complex_attributes Nested (key String, value String),
         INDEX idx_trace_id trace_id TYPE bloom_filter GRANULARITY 1,
-        INDEX idx_start_time start_time TYPE minmax GRANULARITY 1,
         INDEX idx_duration duration TYPE minmax GRANULARITY 1,
         INDEX idx_attributes_keys str_attributes.key TYPE bloom_filter GRANULARITY 1,
         INDEX idx_attributes_values str_attributes.value TYPE bloom_filter GRANULARITY 1,
