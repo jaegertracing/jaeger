@@ -1,17 +1,5 @@
-Jaeger is a distributed tracing backend. A trace is a tree of spans
-representing a single request flowing through multiple services. Each
-span records one unit of work with timing, status, and attributes.
+Jaeger is a distributed tracing backend. A trace is a tree of spans representing a request or workflow within layers or components of a system. Each span records a unit of work with timing, status, and metadata, using the OpenTelemetry data model.
 
-## Progressive Disclosure
+## Investigation Strategy
 
-These tools are designed for a drill-down workflow — start broad, then
-narrow. Always call `get_services` before `search_traces` to discover
-valid service names. Use `get_trace_topology` to understand trace
-structure before calling `get_span_details` on specific spans.
-
-## System Limits
-
-- `search_traces` and `get_span_details` enforce server-configured
-  limits on the number of results and span IDs per request.
-- `get_trace_errors` reports the true total `error_count` even when
-  the detailed spans list is truncated to the per-request limit.
+These tools support progressive disclosure to manage context density. While they can be called in any order based on available data, prefer starting with broad discovery (`get_services` or `search_traces`) or structural overviews (`get_trace_topology`) before requesting verbose OTLP details for specific spans.
