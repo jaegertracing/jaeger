@@ -312,12 +312,12 @@ func TestMCPClientGetTraceErrors(t *testing.T) {
 	text := s.callTool(t, "get_trace_errors", map[string]any{"trace_id": testTraceID.String()})
 
 	var output struct {
-		TraceID    string `json:"trace_id"`
-		ErrorCount int    `json:"error_count"`
+		TraceID         string `json:"trace_id"`
+		TotalErrorCount int    `json:"total_error_count"`
 	}
 	require.NoError(t, json.Unmarshal([]byte(text), &output))
 	assert.Equal(t, testTraceID.String(), output.TraceID)
-	assert.Equal(t, 1, output.ErrorCount)
+	assert.Equal(t, 1, output.TotalErrorCount)
 }
 
 func TestMCPClientGetCriticalPath(t *testing.T) {

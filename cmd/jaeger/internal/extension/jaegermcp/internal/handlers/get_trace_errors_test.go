@@ -61,7 +61,7 @@ func TestGetTraceErrorsHandler_Handle_Success(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, traceID, output.TraceID)
-	assert.Equal(t, 2, output.ErrorCount)
+	assert.Equal(t, 2, output.TotalErrorCount)
 	assert.Len(t, output.Spans, 2)
 
 	// Verify only error spans are returned
@@ -110,7 +110,7 @@ func TestGetTraceErrorsHandler_Handle_NoErrors(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, traceID, output.TraceID)
-	assert.Equal(t, 0, output.ErrorCount)
+	assert.Equal(t, 0, output.TotalErrorCount)
 	assert.Empty(t, output.Spans)
 }
 
@@ -145,7 +145,7 @@ func TestGetTraceErrorsHandler_Handle_SingleError(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, traceID, output.TraceID)
-	assert.Equal(t, 1, output.ErrorCount)
+	assert.Equal(t, 1, output.TotalErrorCount)
 	assert.Len(t, output.Spans, 1)
 	assert.Equal(t, "/api/error", output.Spans[0].SpanName)
 	assert.Equal(t, "Error", output.Spans[0].Status.Code)
@@ -240,7 +240,7 @@ func TestGetTraceErrorsHandler_Handle_MultipleIterations(t *testing.T) {
 
 	// Should succeed and return both error spans
 	require.NoError(t, err)
-	assert.Equal(t, 2, output.ErrorCount)
+	assert.Equal(t, 2, output.TotalErrorCount)
 	assert.Len(t, output.Spans, 2)
 }
 
@@ -282,7 +282,7 @@ func TestGetTraceErrorsHandler_Handle_AllSpansHaveErrors(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, traceID, output.TraceID)
-	assert.Equal(t, 3, output.ErrorCount)
+	assert.Equal(t, 3, output.TotalErrorCount)
 	assert.Len(t, output.Spans, 3)
 
 	// Verify all spans have error status
@@ -398,8 +398,8 @@ func TestGetTraceErrorsHandler_Handle_LimitEnforced(t *testing.T) {
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
-	// ErrorCount reflects all error spans in the full trace (unbounded aggregation).
-	assert.Equal(t, 5, output.ErrorCount)
+	// TotalErrorCount reflects all error spans in the full trace (unbounded aggregation).
+	assert.Equal(t, 5, output.TotalErrorCount)
 	// Returned Spans are capped at exactly the limit (5 errors, limit=3 → exactly 3 spans).
 	assert.Len(t, output.Spans, 3)
 }
