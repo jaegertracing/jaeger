@@ -338,7 +338,7 @@ func TestGetTraceTopologyHandler_Handle_NoAttributes(t *testing.T) {
 }
 
 func TestGetTraceTopologyHandler_Handle_MissingTraceID(t *testing.T) {
-	handler := NewGetTraceTopologyHandler(nil)
+	handler := NewGetTraceTopologyHandler(nil, 100)
 
 	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, types.GetTraceTopologyInput{})
 
@@ -347,7 +347,7 @@ func TestGetTraceTopologyHandler_Handle_MissingTraceID(t *testing.T) {
 }
 
 func TestGetTraceTopologyHandler_Handle_InvalidTraceID(t *testing.T) {
-	handler := NewGetTraceTopologyHandler(nil)
+	handler := NewGetTraceTopologyHandler(nil, 100)
 
 	input := types.GetTraceTopologyInput{TraceID: "invalid-trace-id"}
 	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
@@ -568,4 +568,34 @@ func TestGetTraceTopologyHandler_Handle_DFSOrder(t *testing.T) {
 	// DFS: A and its subtree come before B.
 	assert.Less(t, indexOf["C"], indexOf["B"])
 	assert.Less(t, indexOf["D"], indexOf["B"])
+}
+
+func TestGetTraceTopologyHandler_Handle_LimitEnforced(t *testing.T) {
+	traceID := testTraceID
+
+	// Create a trace with 6 spans
+	spanConfigs := []spanConfig{
+		{spanID: "root001", operation: "root"},
+		{spanID: "span002", parentSpanID: "root001", operation: "child1"},
+		{spanID: "span003", parentSpanID: "root001", operation: "child2"},
+		{spanID: "span004", parentSpanID: "span002", operation: "grandchild1"},
+		{spanID: "span005", parentSpanID: "span002", operation: "grandchild2"},
+		{spanID: "span006", parentSpanID: "span003", operation: "grandchild3"},
+	}
+
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+
+	// Set limit to 3 — should collect at most 3 spans before building topology
+	handler := &getTraceTopologyHandler{
+		queryService:             mock,
+		maxSpanDetailsPerRequest: 3,
+	}
+
+	input := types.GetTraceTopologyInput{TraceID: traceID}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	// Exactly 3 spans returned — 6-span trace with limit=3 must truncate to exactly 3
+	assert.Len(t, output.Spans, 3)
 }
