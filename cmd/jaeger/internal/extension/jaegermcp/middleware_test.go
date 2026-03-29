@@ -77,7 +77,7 @@ func TestLoggingMiddlewareTracesToolCallError(t *testing.T) {
 	assertHasStringAttribute(t, spanData.Attributes, string(semconv.McpMethodNameKey), mcpMethodToolsCall)
 	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIToolNameKey), "get_trace_topology")
 	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIOperationNameKey), "execute_tool")
-	assertHasStringAttribute(t, spanData.Attributes, string(semconv.ErrorTypeKey), toolStatusError)
+	assertHasStringAttribute(t, spanData.Attributes, string(semconv.ErrorTypeKey), errorTypeTransport)
 	assert.Equal(t, codes.Error, spanData.Status.Code)
 	assert.Equal(t, expectedErr.Error(), spanData.Status.Description)
 
@@ -108,7 +108,7 @@ func TestLoggingMiddlewareTracesToolCallGenericError(t *testing.T) {
 	assertHasStringAttribute(t, spanData.Attributes, string(semconv.McpMethodNameKey), mcpMethodToolsCall)
 	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIToolNameKey), "search_traces")
 	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIOperationNameKey), "execute_tool")
-	assertHasStringAttribute(t, spanData.Attributes, string(semconv.ErrorTypeKey), toolStatusError)
+	assertHasStringAttribute(t, spanData.Attributes, string(semconv.ErrorTypeKey), errorTypeTransport)
 	assert.Equal(t, codes.Error, spanData.Status.Code)
 	assert.Equal(t, expectedErr.Error(), spanData.Status.Description)
 
@@ -141,9 +141,8 @@ func TestLoggingMiddlewareTracesToolCallResultError(t *testing.T) {
 	assertHasStringAttribute(t, spanData.Attributes, string(semconv.McpMethodNameKey), mcpMethodToolsCall)
 	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIToolNameKey), "get_services")
 	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIOperationNameKey), "execute_tool")
-	assertHasStringAttribute(t, spanData.Attributes, string(semconv.ErrorTypeKey), toolStatusError)
-	assert.Equal(t, codes.Error, spanData.Status.Code)
-	assert.Equal(t, "invalid pattern", spanData.Status.Description)
+	assertHasStringAttribute(t, spanData.Attributes, string(semconv.ErrorTypeKey), errorTypeTool)
+	assert.Equal(t, codes.Unset, spanData.Status.Code)
 
 	responseLogs := observed.FilterMessage("MCP response").All()
 	require.Len(t, responseLogs, 1)

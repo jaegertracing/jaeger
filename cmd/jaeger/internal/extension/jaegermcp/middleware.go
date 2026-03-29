@@ -18,6 +18,8 @@ const (
 	toolStatusOK       = "ok"
 	toolStatusError    = "error"
 	mcpMethodToolsCall = "tools/call"
+	errorTypeTransport = "transport_error"
+	errorTypeTool      = "tool_error"
 )
 
 // createLoggingMiddleware creates an MCP middleware that logs request/response details.
@@ -107,11 +109,16 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 			result, err := next(ctx, method, req)
 
 			callResult, _ := result.(*mcp.CallToolResult)
-			if err != nil || (callResult != nil && callResult.IsError) {
-				span.SetAttributes(semconv.ErrorTypeKey.String(toolStatusError))
-				if toolErr := spanError(err, callResult); toolErr != nil {
+			if err != nil {
+				span.SetAttributes(semconv.ErrorTypeKey.String(errorTypeTransport))
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
+				return result, err
+			}
+			if callResult != nil && callResult.IsError {
+				span.SetAttributes(semconv.ErrorTypeKey.String(errorTypeTool))
+				if toolErr := spanError(nil, callResult); toolErr != nil {
 					span.RecordError(toolErr)
-					span.SetStatus(codes.Error, toolErr.Error())
 				}
 			}
 
