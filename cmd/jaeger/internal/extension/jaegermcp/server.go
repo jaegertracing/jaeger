@@ -5,6 +5,7 @@ package jaegermcp
 
 import (
 	"context"
+	_ "embed"
 	"errors"
 	"fmt"
 	"net"
@@ -22,6 +23,9 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
+
+//go:embed INSTRUCTIONS.md
+var serverInstructions string
 
 var (
 	_ extension.Extension             = (*server)(nil)
@@ -68,9 +72,9 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 			Name:    s.config.ServerName,
 			Version: s.config.ServerVersion,
 		},
-		// Pass empty ServerOptions to use default settings.
-		// Custom options (e.g., logging, handlers) can be added later.
-		&mcp.ServerOptions{},
+		&mcp.ServerOptions{
+			Instructions: serverInstructions,
+		},
 	)
 	s.registerTools()
 	s.mcpServer.AddReceivingMiddleware(createLoggingMiddleware(s.telset.Logger))

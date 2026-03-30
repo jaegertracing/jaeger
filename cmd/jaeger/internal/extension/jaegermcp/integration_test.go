@@ -195,6 +195,8 @@ func TestMCPClientInitialize(t *testing.T) {
 	require.NotNil(t, initResult)
 	assert.Equal(t, "jaeger", initResult.ServerInfo.Name)
 	assert.Equal(t, "1.0.0", initResult.ServerInfo.Version)
+	assert.NotEmpty(t, initResult.Instructions, "server should return instructions for LLM clients")
+	assert.Contains(t, initResult.Instructions, "get_services")
 }
 
 func TestMCPClientToolsListDiscovery(t *testing.T) {
@@ -310,12 +312,12 @@ func TestMCPClientGetTraceErrors(t *testing.T) {
 	text := s.callTool(t, "get_trace_errors", map[string]any{"trace_id": testTraceID.String()})
 
 	var output struct {
-		TraceID    string `json:"trace_id"`
-		ErrorCount int    `json:"error_count"`
+		TraceID         string `json:"trace_id"`
+		TotalErrorCount int    `json:"total_error_count"`
 	}
 	require.NoError(t, json.Unmarshal([]byte(text), &output))
 	assert.Equal(t, testTraceID.String(), output.TraceID)
-	assert.Equal(t, 1, output.ErrorCount)
+	assert.Equal(t, 1, output.TotalErrorCount)
 }
 
 func TestMCPClientGetCriticalPath(t *testing.T) {
