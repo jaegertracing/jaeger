@@ -9,8 +9,9 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 const (
@@ -27,18 +28,18 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 			toolName := toolNameFromRequest(method, req)
 			sessionID := sessionIDFromRequest(req)
 			spanName := method
-			attrs := []attribute.KeyValue{
-				semconv.McpMethodNameKey.String(method),
-			}
+			attrs := []attribute.KeyValue{}
 			if toolName != "" {
 				spanName = method + " " + toolName
 				attrs = append(attrs,
-					semconv.GenAIOperationNameExecuteTool,
-					semconv.GenAIToolName(toolName),
+					otelsemconv.GenAIOperationNameExecuteTool,
+					otelsemconv.GenAIToolName(toolName),
 				)
+			} else {
+				attrs = append(attrs, otelsemconv.McpMethodName(method))
 			}
 			if sessionID != "" {
-				attrs = append(attrs, semconv.McpSessionID(sessionID))
+				attrs = append(attrs, otelsemconv.McpSessionID(sessionID))
 			}
 
 			ctx, span := tracer.Start(
@@ -50,15 +51,13 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 			defer span.End()
 
 			result, err := next(ctx, method, req)
-
-			callResult, _ := result.(*mcp.CallToolResult)
 			if err != nil {
 				span.RecordError(err)
 				span.SetStatus(codes.Error, err.Error())
 				return result, err
 			}
 			if callResult, ok := result.(*mcp.CallToolResult); ok && callResult.IsError {
-				span.SetAttributes(semconv.ErrorTypeKey.String(errorTypeTool))
+				span.SetAttributes(otelsemconv.ErrorType(errorTypeTool))
 				if toolErr := spanError(nil, callResult); toolErr != nil {
 					span.RecordError(toolErr)
 				}

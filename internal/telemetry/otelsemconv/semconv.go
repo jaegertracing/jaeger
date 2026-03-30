@@ -43,6 +43,13 @@ const (
 	OtelStatusCode        = "otel.status_code"
 	OtelStatusDescription = "otel.status_description"
 
+	// MCP + GenAI
+	McpMethodNameKey      = string(semconv.McpMethodNameKey)
+	McpSessionIDKey       = string(semconv.McpSessionIDKey)
+	GenAIOperationNameKey = string(semconv.GenAIOperationNameKey)
+	GenAIToolNameKey      = string(semconv.GenAIToolNameKey)
+	ErrorTypeKey          = string(semconv.ErrorTypeKey)
+
 	// OpenTracing
 	AttributeOpentracingRefType            = "opentracing.ref_type"
 	AttributeOpentracingRefTypeChildOf     = "child_of"
@@ -76,3 +83,22 @@ func HTTPStatusCodeAttribute(value int) attribute.KeyValue {
 
 // This var provides the original semconv function variable for creating an int attribute.
 var HTTPResponseStatusCode = semconv.HTTPResponseStatusCode
+
+// MCP + GenAI helper values/functions.
+var GenAIOperationNameExecuteTool = semconv.GenAIOperationNameExecuteTool
+
+func McpMethodName(value string) attribute.KeyValue {
+	return semconv.McpMethodNameKey.String(value)
+}
+
+func McpSessionID(value string) attribute.KeyValue {
+	return semconv.McpSessionID(value)
+}
+
+func GenAIToolName(value string) attribute.KeyValue {
+	return semconv.GenAIToolName(value)
+}
+
+func ErrorType(value string) attribute.KeyValue {
+	return semconv.ErrorTypeKey.String(value)
+}

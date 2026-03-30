@@ -16,7 +16,8 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
+
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 func TestTracingMiddlewareToolCallSuccess(t *testing.T) {
@@ -33,9 +34,8 @@ func TestTracingMiddlewareToolCallSuccess(t *testing.T) {
 
 	spanData := capture.singleSpan(t)
 	assert.Equal(t, mcpMethodToolsCall+" get_services", spanData.Name)
-	assertHasStringAttribute(t, spanData.Attributes, string(semconv.McpMethodNameKey), mcpMethodToolsCall)
-	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIToolNameKey), "get_services")
-	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIOperationNameKey), "execute_tool")
+	assertHasStringAttribute(t, spanData.Attributes, otelsemconv.GenAIToolNameKey, "get_services")
+	assertHasStringAttribute(t, spanData.Attributes, otelsemconv.GenAIOperationNameKey, "execute_tool")
 	assert.Equal(t, codes.Unset, spanData.Status.Code)
 }
 
@@ -53,9 +53,8 @@ func TestTracingMiddlewareToolCallError(t *testing.T) {
 
 	spanData := capture.singleSpan(t)
 	assert.Equal(t, mcpMethodToolsCall+" get_trace_topology", spanData.Name)
-	assertHasStringAttribute(t, spanData.Attributes, string(semconv.McpMethodNameKey), mcpMethodToolsCall)
-	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIToolNameKey), "get_trace_topology")
-	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIOperationNameKey), "execute_tool")
+	assertHasStringAttribute(t, spanData.Attributes, otelsemconv.GenAIToolNameKey, "get_trace_topology")
+	assertHasStringAttribute(t, spanData.Attributes, otelsemconv.GenAIOperationNameKey, "execute_tool")
 	assert.Equal(t, codes.Error, spanData.Status.Code)
 	assert.Equal(t, expectedErr.Error(), spanData.Status.Description)
 }
@@ -74,9 +73,8 @@ func TestTracingMiddlewareToolCallGenericError(t *testing.T) {
 
 	spanData := capture.singleSpan(t)
 	assert.Equal(t, mcpMethodToolsCall+" search_traces", spanData.Name)
-	assertHasStringAttribute(t, spanData.Attributes, string(semconv.McpMethodNameKey), mcpMethodToolsCall)
-	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIToolNameKey), "search_traces")
-	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIOperationNameKey), "execute_tool")
+	assertHasStringAttribute(t, spanData.Attributes, otelsemconv.GenAIToolNameKey, "search_traces")
+	assertHasStringAttribute(t, spanData.Attributes, otelsemconv.GenAIOperationNameKey, "execute_tool")
 	assert.Equal(t, codes.Error, spanData.Status.Code)
 	assert.Equal(t, expectedErr.Error(), spanData.Status.Description)
 }
@@ -97,10 +95,9 @@ func TestTracingMiddlewareToolCallResultError(t *testing.T) {
 
 	spanData := capture.singleSpan(t)
 	assert.Equal(t, mcpMethodToolsCall+" get_services", spanData.Name)
-	assertHasStringAttribute(t, spanData.Attributes, string(semconv.McpMethodNameKey), mcpMethodToolsCall)
-	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIToolNameKey), "get_services")
-	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIOperationNameKey), "execute_tool")
-	assertHasStringAttribute(t, spanData.Attributes, string(semconv.ErrorTypeKey), errorTypeTool)
+	assertHasStringAttribute(t, spanData.Attributes, otelsemconv.GenAIToolNameKey, "get_services")
+	assertHasStringAttribute(t, spanData.Attributes, otelsemconv.GenAIOperationNameKey, "execute_tool")
+	assertHasStringAttribute(t, spanData.Attributes, otelsemconv.ErrorTypeKey, errorTypeTool)
 	assert.Equal(t, codes.Unset, spanData.Status.Code)
 }
 
@@ -118,7 +115,7 @@ func TestTracingMiddlewareTracesNonToolMethods(t *testing.T) {
 	spans := capture.waitForSpanCount(t, 1)
 	require.Len(t, spans, 1)
 	assert.Equal(t, "initialize", spans[0].Name)
-	assertHasStringAttribute(t, spans[0].Attributes, string(semconv.McpMethodNameKey), "initialize")
+	assertHasStringAttribute(t, spans[0].Attributes, otelsemconv.McpMethodNameKey, "initialize")
 }
 
 func TestTracingMiddlewareNonToolMethodError(t *testing.T) {
@@ -135,7 +132,7 @@ func TestTracingMiddlewareNonToolMethodError(t *testing.T) {
 
 	spanData := capture.singleSpan(t)
 	assert.Equal(t, "initialize", spanData.Name)
-	assertHasStringAttribute(t, spanData.Attributes, string(semconv.McpMethodNameKey), "initialize")
+	assertHasStringAttribute(t, spanData.Attributes, otelsemconv.McpMethodNameKey, "initialize")
 	assert.Equal(t, codes.Error, spanData.Status.Code)
 	assert.Equal(t, expectedErr.Error(), spanData.Status.Description)
 }
@@ -185,10 +182,9 @@ func TestTracingMiddlewareToolCallResultErrorWithoutConcreteError(t *testing.T) 
 
 	spanData := capture.singleSpan(t)
 	assert.Equal(t, mcpMethodToolsCall+" get_services", spanData.Name)
-	assertHasStringAttribute(t, spanData.Attributes, string(semconv.McpMethodNameKey), mcpMethodToolsCall)
-	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIToolNameKey), "get_services")
-	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIOperationNameKey), "execute_tool")
-	assertHasStringAttribute(t, spanData.Attributes, string(semconv.ErrorTypeKey), errorTypeTool)
+	assertHasStringAttribute(t, spanData.Attributes, otelsemconv.GenAIToolNameKey, "get_services")
+	assertHasStringAttribute(t, spanData.Attributes, otelsemconv.GenAIOperationNameKey, "execute_tool")
+	assertHasStringAttribute(t, spanData.Attributes, otelsemconv.ErrorTypeKey, errorTypeTool)
 	assert.Equal(t, codes.Unset, spanData.Status.Code)
 }
 
