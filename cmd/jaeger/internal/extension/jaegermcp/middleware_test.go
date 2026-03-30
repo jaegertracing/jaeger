@@ -4,12 +4,8 @@
 package jaegermcp
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"fmt"
-	"io"
-	"net/http"
 	"testing"
 	"time"
 
@@ -21,18 +17,11 @@ import (
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest/observer"
 )
 
-func TestLoggingMiddlewareTracesToolCallSuccess(t *testing.T) {
-	core, observed := observer.New(zapcore.DebugLevel)
+func TestTracingMiddlewareToolCallSuccess(t *testing.T) {
 	capture := newTraceCapture(t)
-	middleware := chainMiddleware(
-		createLoggingMiddleware(zap.New(core)),
-		createTracingMiddleware(capture.provider),
-	)
+	middleware := chainMiddleware(createTracingMiddleware(capture.provider))
 
 	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
 		return &mcp.CallToolResult{}, nil
@@ -48,21 +37,11 @@ func TestLoggingMiddlewareTracesToolCallSuccess(t *testing.T) {
 	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIToolNameKey), "get_services")
 	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIOperationNameKey), "execute_tool")
 	assert.Equal(t, codes.Unset, spanData.Status.Code)
-
-	responseLogs := observed.FilterMessage("MCP response").All()
-	require.Len(t, responseLogs, 1)
-	assert.Equal(t, zapcore.InfoLevel, responseLogs[0].Level)
-	assert.Equal(t, "get_services", responseLogs[0].ContextMap()["tool_name"])
-	assert.Equal(t, toolStatusOK, responseLogs[0].ContextMap()["status"])
 }
 
-func TestLoggingMiddlewareTracesToolCallError(t *testing.T) {
-	core, observed := observer.New(zapcore.DebugLevel)
+func TestTracingMiddlewareToolCallError(t *testing.T) {
 	capture := newTraceCapture(t)
-	middleware := chainMiddleware(
-		createLoggingMiddleware(zap.New(core)),
-		createTracingMiddleware(capture.provider),
-	)
+	middleware := chainMiddleware(createTracingMiddleware(capture.provider))
 
 	expectedErr := errors.New("trace not found")
 	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
@@ -77,23 +56,13 @@ func TestLoggingMiddlewareTracesToolCallError(t *testing.T) {
 	assertHasStringAttribute(t, spanData.Attributes, string(semconv.McpMethodNameKey), mcpMethodToolsCall)
 	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIToolNameKey), "get_trace_topology")
 	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIOperationNameKey), "execute_tool")
-	assertHasStringAttribute(t, spanData.Attributes, string(semconv.ErrorTypeKey), errorTypeTransport)
 	assert.Equal(t, codes.Error, spanData.Status.Code)
 	assert.Equal(t, expectedErr.Error(), spanData.Status.Description)
-
-	responseLogs := observed.FilterMessage("MCP response").All()
-	require.Len(t, responseLogs, 1)
-	assert.Equal(t, zapcore.ErrorLevel, responseLogs[0].Level)
-	assert.Equal(t, toolStatusError, responseLogs[0].ContextMap()["status"])
 }
 
-func TestLoggingMiddlewareTracesToolCallGenericError(t *testing.T) {
-	core, observed := observer.New(zapcore.DebugLevel)
+func TestTracingMiddlewareToolCallGenericError(t *testing.T) {
 	capture := newTraceCapture(t)
-	middleware := chainMiddleware(
-		createLoggingMiddleware(zap.New(core)),
-		createTracingMiddleware(capture.provider),
-	)
+	middleware := chainMiddleware(createTracingMiddleware(capture.provider))
 
 	expectedErr := errors.New("storage backend unavailable")
 	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
@@ -108,23 +77,13 @@ func TestLoggingMiddlewareTracesToolCallGenericError(t *testing.T) {
 	assertHasStringAttribute(t, spanData.Attributes, string(semconv.McpMethodNameKey), mcpMethodToolsCall)
 	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIToolNameKey), "search_traces")
 	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIOperationNameKey), "execute_tool")
-	assertHasStringAttribute(t, spanData.Attributes, string(semconv.ErrorTypeKey), errorTypeTransport)
 	assert.Equal(t, codes.Error, spanData.Status.Code)
 	assert.Equal(t, expectedErr.Error(), spanData.Status.Description)
-
-	responseLogs := observed.FilterMessage("MCP response").All()
-	require.Len(t, responseLogs, 1)
-	assert.Equal(t, zapcore.ErrorLevel, responseLogs[0].Level)
-	assert.Equal(t, toolStatusError, responseLogs[0].ContextMap()["status"])
 }
 
-func TestLoggingMiddlewareTracesToolCallResultError(t *testing.T) {
-	core, observed := observer.New(zapcore.DebugLevel)
+func TestTracingMiddlewareToolCallResultError(t *testing.T) {
 	capture := newTraceCapture(t)
-	middleware := chainMiddleware(
-		createLoggingMiddleware(zap.New(core)),
-		createTracingMiddleware(capture.provider),
-	)
+	middleware := chainMiddleware(createTracingMiddleware(capture.provider))
 
 	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
 		result := &mcp.CallToolResult{}
@@ -143,19 +102,11 @@ func TestLoggingMiddlewareTracesToolCallResultError(t *testing.T) {
 	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIOperationNameKey), "execute_tool")
 	assertHasStringAttribute(t, spanData.Attributes, string(semconv.ErrorTypeKey), errorTypeTool)
 	assert.Equal(t, codes.Unset, spanData.Status.Code)
-
-	responseLogs := observed.FilterMessage("MCP response").All()
-	require.Len(t, responseLogs, 1)
-	assert.Equal(t, zapcore.InfoLevel, responseLogs[0].Level)
-	assert.Equal(t, toolStatusError, responseLogs[0].ContextMap()["status"])
 }
 
-func TestLoggingMiddlewareTracesNonToolMethods(t *testing.T) {
+func TestTracingMiddlewareTracesNonToolMethods(t *testing.T) {
 	capture := newTraceCapture(t)
-	middleware := chainMiddleware(
-		createLoggingMiddleware(zap.NewNop()),
-		createTracingMiddleware(capture.provider),
-	)
+	middleware := chainMiddleware(createTracingMiddleware(capture.provider))
 
 	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
 		return &mcp.CallToolResult{}, nil
@@ -170,12 +121,28 @@ func TestLoggingMiddlewareTracesNonToolMethods(t *testing.T) {
 	assertHasStringAttribute(t, spans[0].Attributes, string(semconv.McpMethodNameKey), "initialize")
 }
 
-func TestLoggingMiddlewareCreatesChildSpanWhenParentExists(t *testing.T) {
+func TestTracingMiddlewareNonToolMethodError(t *testing.T) {
 	capture := newTraceCapture(t)
-	middleware := chainMiddleware(
-		createLoggingMiddleware(zap.NewNop()),
-		createTracingMiddleware(capture.provider),
-	)
+	middleware := chainMiddleware(createTracingMiddleware(capture.provider))
+
+	expectedErr := errors.New("initialize failed")
+	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
+		return nil, expectedErr
+	})
+
+	_, err := wrapped(context.Background(), "initialize", nil)
+	require.ErrorIs(t, err, expectedErr)
+
+	spanData := capture.singleSpan(t)
+	assert.Equal(t, "initialize", spanData.Name)
+	assertHasStringAttribute(t, spanData.Attributes, string(semconv.McpMethodNameKey), "initialize")
+	assert.Equal(t, codes.Error, spanData.Status.Code)
+	assert.Equal(t, expectedErr.Error(), spanData.Status.Description)
+}
+
+func TestTracingMiddlewareCreatesChildSpanWhenParentExists(t *testing.T) {
+	capture := newTraceCapture(t)
+	middleware := chainMiddleware(createTracingMiddleware(capture.provider))
 
 	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
 		return &mcp.CallToolResult{}, nil
@@ -205,6 +172,26 @@ func TestLoggingMiddlewareCreatesChildSpanWhenParentExists(t *testing.T) {
 	assert.Equal(t, parentTraceID, childSpan.SpanContext.TraceID())
 }
 
+func TestTracingMiddlewareToolCallResultErrorWithoutConcreteError(t *testing.T) {
+	capture := newTraceCapture(t)
+	middleware := chainMiddleware(createTracingMiddleware(capture.provider))
+
+	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
+		return &mcp.CallToolResult{IsError: true}, nil
+	})
+
+	_, err := wrapped(context.Background(), mcpMethodToolsCall, newToolCallRequest("get_services"))
+	require.NoError(t, err)
+
+	spanData := capture.singleSpan(t)
+	assert.Equal(t, mcpMethodToolsCall+" get_services", spanData.Name)
+	assertHasStringAttribute(t, spanData.Attributes, string(semconv.McpMethodNameKey), mcpMethodToolsCall)
+	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIToolNameKey), "get_services")
+	assertHasStringAttribute(t, spanData.Attributes, string(semconv.GenAIOperationNameKey), "execute_tool")
+	assertHasStringAttribute(t, spanData.Attributes, string(semconv.ErrorTypeKey), errorTypeTool)
+	assert.Equal(t, codes.Unset, spanData.Status.Code)
+}
+
 func TestToolNameFromRequest(t *testing.T) {
 	req := newToolCallRequest("search_traces")
 	assert.Equal(t, "search_traces", toolNameFromRequest(mcpMethodToolsCall, req))
@@ -219,29 +206,27 @@ func TestToolNameFromRequestWrongParams(t *testing.T) {
 	assert.Empty(t, toolNameFromRequest(mcpMethodToolsCall, req))
 }
 
-func TestNormalizeToolStatus(t *testing.T) {
-	tests := []struct {
-		name   string
-		err    error
-		result *mcp.CallToolResult
-		want   string
-	}{
-		{name: "ok", want: toolStatusOK},
-		{name: "invalid argument", err: errors.New("service_name is required"), want: toolStatusError},
-		{name: "not found", err: errors.New("trace not found"), want: toolStatusError},
-		{name: "generic error", err: errors.New("storage backend unavailable"), want: toolStatusError},
-		{name: "result error generic", result: &mcp.CallToolResult{IsError: true}, want: toolStatusError},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, normalizeToolStatus(tt.err, tt.result))
-		})
-	}
+func TestToolNameFromRequestNilParams(t *testing.T) {
+	req := &mcp.ServerRequest[*mcp.CallToolParamsRaw]{}
+	assert.Empty(t, toolNameFromRequest(mcpMethodToolsCall, req))
 }
 
 func TestSpanErrorResultMarkedErrorWithoutError(t *testing.T) {
 	result := &mcp.CallToolResult{IsError: true}
+	err := spanError(nil, result)
+	require.NoError(t, err)
+}
+
+func TestSpanErrorErrWins(t *testing.T) {
+	expectedErr := errors.New("transport")
+	result := &mcp.CallToolResult{}
+	result.SetError(errors.New("tool"))
+	err := spanError(expectedErr, result)
+	require.ErrorIs(t, err, expectedErr)
+}
+
+func TestSpanErrorNoResultError(t *testing.T) {
+	result := &mcp.CallToolResult{}
 	err := spanError(nil, result)
 	require.NoError(t, err)
 }
@@ -328,47 +313,4 @@ func TestSessionIDFromRequestNilCases(t *testing.T) {
 		Params:  &mcp.CallToolParamsRaw{Name: "health"},
 	}
 	assert.Empty(t, sessionIDFromRequest(clientReq))
-}
-
-func TestMiddlewareInitializeRequestLogging(t *testing.T) {
-	zapCore, logs := observer.New(zapcore.DebugLevel)
-	_, addr := startTestServerWithQueryService(t, nil, zap.New(zapCore))
-
-	initReq := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}`
-	httpReq, err := http.NewRequest(
-		http.MethodPost,
-		fmt.Sprintf("http://%s/mcp", addr),
-		bytes.NewReader([]byte(initReq)),
-	)
-	require.NoError(t, err)
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Accept", "application/json, text/event-stream")
-
-	resp, err := http.DefaultClient.Do(httpReq)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	_, err = io.ReadAll(resp.Body)
-	require.NoError(t, err)
-
-	sessionID := resp.Header.Get("Mcp-Session-Id")
-	if sessionID != "" {
-		delReq, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("http://%s/mcp", addr), http.NoBody)
-		require.NoError(t, err)
-		delReq.Header.Set("Mcp-Session-Id", sessionID)
-		resp2, err := http.DefaultClient.Do(delReq)
-		require.NoError(t, err)
-		resp2.Body.Close()
-	}
-
-	requestLogs := logs.FilterMessage("MCP request").All()
-	require.Len(t, requestLogs, 1)
-	reqFields := requestLogs[0].ContextMap()
-	assert.Equal(t, "initialize", reqFields["method"])
-	assert.NotEmpty(t, reqFields["session_id"])
-
-	responseLogs := logs.FilterMessage("MCP response").All()
-	require.Len(t, responseLogs, 1)
-	respFields := responseLogs[0].ContextMap()
-	assert.Equal(t, "initialize", respFields["method"])
-	assert.NotEmpty(t, respFields["session_id"])
 }

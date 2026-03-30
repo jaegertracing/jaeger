@@ -11,69 +11,12 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
 
 const (
-	toolStatusOK       = "ok"
-	toolStatusError    = "error"
 	mcpMethodToolsCall = "tools/call"
-	errorTypeTransport = "transport_error"
 	errorTypeTool      = "tool_error"
 )
-
-// createLoggingMiddleware creates an MCP middleware that logs request/response details.
-func createLoggingMiddleware(logger *zap.Logger) mcp.Middleware {
-	return func(next mcp.MethodHandler) mcp.MethodHandler {
-		return func(
-			ctx context.Context,
-			method string,
-			req mcp.Request,
-		) (mcp.Result, error) {
-			sessionID := sessionIDFromRequest(req)
-			toolName := toolNameFromRequest(method, req)
-
-			requestFields := []zap.Field{
-				zap.String("session_id", sessionID),
-				zap.String("method", method),
-			}
-			if toolName != "" {
-				requestFields = append(requestFields, zap.String("tool_name", toolName))
-			}
-			logger.Info("MCP request", requestFields...)
-
-			result, err := next(ctx, method, req)
-
-			responseFields := []zap.Field{
-				zap.String("session_id", sessionID),
-				zap.String("method", method),
-			}
-			if toolName != "" {
-				responseFields = append(responseFields, zap.String("tool_name", toolName))
-			}
-
-			callResult, _ := result.(*mcp.CallToolResult)
-			status := ""
-			if err != nil || callResult != nil {
-				status = normalizeToolStatus(err, callResult)
-				responseFields = append(responseFields, zap.String("status", status))
-			}
-			if err != nil {
-				responseFields = append(responseFields, zap.Error(err))
-				logger.Error("MCP response", responseFields...)
-				return result, err
-			}
-			if callResult != nil && callResult.IsError {
-				if toolErr := spanError(err, callResult); toolErr != nil {
-					responseFields = append(responseFields, zap.Error(toolErr))
-				}
-			}
-			logger.Info("MCP response", responseFields...)
-
-			return result, err
-		}
-	}
-}
 
 // createTracingMiddleware creates an MCP middleware that emits tool-level spans.
 func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware {
@@ -110,7 +53,6 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 
 			callResult, _ := result.(*mcp.CallToolResult)
 			if err != nil {
-				span.SetAttributes(semconv.ErrorTypeKey.String(errorTypeTransport))
 				span.RecordError(err)
 				span.SetStatus(codes.Error, err.Error())
 				return result, err
@@ -146,13 +88,6 @@ func spanError(err error, result *mcp.CallToolResult) error {
 		return nil
 	}
 	return result.GetError()
-}
-
-func normalizeToolStatus(err error, result *mcp.CallToolResult) string {
-	if err == nil && (result == nil || !result.IsError) {
-		return toolStatusOK
-	}
-	return toolStatusError
 }
 
 func sessionIDFromRequest(req mcp.Request) string {

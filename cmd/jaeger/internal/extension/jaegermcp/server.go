@@ -79,7 +79,6 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		},
 	)
 	s.registerTools()
-	s.mcpServer.AddReceivingMiddleware(createLoggingMiddleware(s.telset.Logger))
 	s.mcpServer.AddReceivingMiddleware(createTracingMiddleware(s.telset.TracerProvider))
 
 	mcpHandler := mcp.NewStreamableHTTPHandler(
