@@ -78,11 +78,6 @@ v2.17.0 (2026-03-30)
 * Adr-007: grafana dashboard modernization and spm example validation ([@yurishkuro](https://github.com/yurishkuro) in [#8214](https://github.com/jaegertracing/jaeger/pull/8214))
 * Add badger adr ([@yurishkuro](https://github.com/yurishkuro) in [#8166](https://github.com/jaegertracing/jaeger/pull/8166))
 
-### 💩💩💩 The following commits cannot be categorized (missing "changelog:*" labels):
-* Enhance readme with detailed mcp usage examples ([@yurishkuro](https://github.com/yurishkuro) in [c8561a4](https://github.com/jaegertracing/jaeger/commit/c8561a41a13f247269e66196ddd8bc2f6d5c9abb))
-### 💩💩💩 Please attach labels to these ^^^ PRs and rerun the script.
-### 💩💩💩 Do not include this section in the changelog.
-
 ### 📊 UI Changes
 
 #### ✨ New Features
