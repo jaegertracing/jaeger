@@ -57,7 +57,7 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 				span.SetStatus(codes.Error, err.Error())
 				return result, err
 			}
-			if callResult != nil && callResult.IsError {
+			if callResult, ok := result.(*mcp.CallToolResult); ok && callResult.IsError {
 				span.SetAttributes(semconv.ErrorTypeKey.String(errorTypeTool))
 				if toolErr := spanError(nil, callResult); toolErr != nil {
 					span.RecordError(toolErr)
