@@ -198,28 +198,28 @@ func TestMCPGenAIAttributes(t *testing.T) {
 		{
 			name:     "mcp method",
 			attr:     McpMethodName("tools/call"),
-			wantKey:  McpMethodNameKey,
+			wantKey:  string(semconv.McpMethodNameKey),
 			wantType: attribute.STRING,
 			wantVal:  "tools/call",
 		},
 		{
 			name:     "mcp session id",
 			attr:     McpSessionID("session-123"),
-			wantKey:  McpSessionIDKey,
+			wantKey:  string(semconv.McpSessionIDKey),
 			wantType: attribute.STRING,
 			wantVal:  "session-123",
 		},
 		{
 			name:     "gen ai tool",
 			attr:     GenAIToolName("search_traces"),
-			wantKey:  GenAIToolNameKey,
+			wantKey:  string(semconv.GenAIToolNameKey),
 			wantType: attribute.STRING,
 			wantVal:  "search_traces",
 		},
 		{
 			name:     "error type",
 			attr:     ErrorType("tool_error"),
-			wantKey:  ErrorTypeKey,
+			wantKey:  string(semconv.ErrorTypeKey),
 			wantType: attribute.STRING,
 			wantVal:  "tool_error",
 		},
@@ -241,8 +241,8 @@ func TestMCPGenAIAttributes(t *testing.T) {
 }
 
 func TestGenAIOperationNameExecuteTool(t *testing.T) {
-	if string(GenAIOperationNameExecuteTool.Key) != GenAIOperationNameKey {
-		t.Fatalf("expected key %s, got %s", GenAIOperationNameKey, GenAIOperationNameExecuteTool.Key)
+	if string(GenAIOperationNameExecuteTool.Key) != string(semconv.GenAIOperationNameKey) {
+		t.Fatalf("expected key %s, got %s", semconv.GenAIOperationNameKey, GenAIOperationNameExecuteTool.Key)
 	}
 	if GenAIOperationNameExecuteTool.Value.AsString() != "execute_tool" {
 		t.Fatalf("expected value execute_tool, got %s", GenAIOperationNameExecuteTool.Value.AsString())

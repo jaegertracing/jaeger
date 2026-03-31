@@ -5,6 +5,7 @@ package jaegermcp
 
 import (
 	"context"
+	"reflect"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/otel/attribute"
@@ -58,7 +59,7 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 			}
 			if callResult, ok := result.(*mcp.CallToolResult); ok && callResult.IsError {
 				span.SetAttributes(otelsemconv.ErrorType(errorTypeTool))
-				if toolErr := spanError(nil, callResult); toolErr != nil {
+				if toolErr := callResult.GetError(); toolErr != nil {
 					span.RecordError(toolErr)
 				}
 			}
@@ -79,16 +80,6 @@ func toolNameFromRequest(method string, req mcp.Request) string {
 	return params.Name
 }
 
-func spanError(err error, result *mcp.CallToolResult) error {
-	if err != nil {
-		return err
-	}
-	if result == nil || !result.IsError {
-		return nil
-	}
-	return result.GetError()
-}
-
 func sessionIDFromRequest(req mcp.Request) string {
 	if req == nil {
 		return ""
@@ -97,15 +88,18 @@ func sessionIDFromRequest(req mcp.Request) string {
 	if session == nil {
 		return ""
 	}
-	if s, ok := session.(*mcp.ServerSession); ok {
-		if s == nil {
-			return ""
-		}
-	}
-	if s, ok := session.(*mcp.ClientSession); ok {
-		if s == nil {
-			return ""
-		}
+	if isNilSession(session) {
+		return ""
 	}
 	return session.ID()
+}
+
+func isNilSession(session mcp.Session) bool {
+	v := reflect.ValueOf(session)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return v.IsNil()
+	default:
+		return false
+	}
 }

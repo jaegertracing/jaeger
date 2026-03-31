@@ -34,8 +34,8 @@ func TestTracingMiddlewareToolCallSuccess(t *testing.T) {
 
 	spanData := capture.singleSpan(t)
 	assert.Equal(t, mcpMethodToolsCall+" get_services", spanData.Name)
-	assertHasStringAttribute(t, spanData.Attributes, otelsemconv.GenAIToolNameKey, "get_services")
-	assertHasStringAttribute(t, spanData.Attributes, otelsemconv.GenAIOperationNameKey, "execute_tool")
+	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIToolName("").Key), "get_services")
+	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIOperationNameExecuteTool.Key), "execute_tool")
 	assert.Equal(t, codes.Unset, spanData.Status.Code)
 }
 
@@ -53,8 +53,8 @@ func TestTracingMiddlewareToolCallError(t *testing.T) {
 
 	spanData := capture.singleSpan(t)
 	assert.Equal(t, mcpMethodToolsCall+" get_trace_topology", spanData.Name)
-	assertHasStringAttribute(t, spanData.Attributes, otelsemconv.GenAIToolNameKey, "get_trace_topology")
-	assertHasStringAttribute(t, spanData.Attributes, otelsemconv.GenAIOperationNameKey, "execute_tool")
+	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIToolName("").Key), "get_trace_topology")
+	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIOperationNameExecuteTool.Key), "execute_tool")
 	assert.Equal(t, codes.Error, spanData.Status.Code)
 	assert.Equal(t, expectedErr.Error(), spanData.Status.Description)
 }
@@ -73,8 +73,8 @@ func TestTracingMiddlewareToolCallGenericError(t *testing.T) {
 
 	spanData := capture.singleSpan(t)
 	assert.Equal(t, mcpMethodToolsCall+" search_traces", spanData.Name)
-	assertHasStringAttribute(t, spanData.Attributes, otelsemconv.GenAIToolNameKey, "search_traces")
-	assertHasStringAttribute(t, spanData.Attributes, otelsemconv.GenAIOperationNameKey, "execute_tool")
+	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIToolName("").Key), "search_traces")
+	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIOperationNameExecuteTool.Key), "execute_tool")
 	assert.Equal(t, codes.Error, spanData.Status.Code)
 	assert.Equal(t, expectedErr.Error(), spanData.Status.Description)
 }
@@ -95,9 +95,9 @@ func TestTracingMiddlewareToolCallResultError(t *testing.T) {
 
 	spanData := capture.singleSpan(t)
 	assert.Equal(t, mcpMethodToolsCall+" get_services", spanData.Name)
-	assertHasStringAttribute(t, spanData.Attributes, otelsemconv.GenAIToolNameKey, "get_services")
-	assertHasStringAttribute(t, spanData.Attributes, otelsemconv.GenAIOperationNameKey, "execute_tool")
-	assertHasStringAttribute(t, spanData.Attributes, otelsemconv.ErrorTypeKey, errorTypeTool)
+	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIToolName("").Key), "get_services")
+	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIOperationNameExecuteTool.Key), "execute_tool")
+	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.ErrorType("").Key), errorTypeTool)
 	assert.Equal(t, codes.Unset, spanData.Status.Code)
 }
 
@@ -115,7 +115,7 @@ func TestTracingMiddlewareTracesNonToolMethods(t *testing.T) {
 	spans := capture.waitForSpanCount(t, 1)
 	require.Len(t, spans, 1)
 	assert.Equal(t, "initialize", spans[0].Name)
-	assertHasStringAttribute(t, spans[0].Attributes, otelsemconv.McpMethodNameKey, "initialize")
+	assertHasStringAttribute(t, spans[0].Attributes, string(otelsemconv.McpMethodName("").Key), "initialize")
 }
 
 func TestTracingMiddlewareNonToolMethodError(t *testing.T) {
@@ -132,7 +132,7 @@ func TestTracingMiddlewareNonToolMethodError(t *testing.T) {
 
 	spanData := capture.singleSpan(t)
 	assert.Equal(t, "initialize", spanData.Name)
-	assertHasStringAttribute(t, spanData.Attributes, otelsemconv.McpMethodNameKey, "initialize")
+	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.McpMethodName("").Key), "initialize")
 	assert.Equal(t, codes.Error, spanData.Status.Code)
 	assert.Equal(t, expectedErr.Error(), spanData.Status.Description)
 }
@@ -182,9 +182,9 @@ func TestTracingMiddlewareToolCallResultErrorWithoutConcreteError(t *testing.T) 
 
 	spanData := capture.singleSpan(t)
 	assert.Equal(t, mcpMethodToolsCall+" get_services", spanData.Name)
-	assertHasStringAttribute(t, spanData.Attributes, otelsemconv.GenAIToolNameKey, "get_services")
-	assertHasStringAttribute(t, spanData.Attributes, otelsemconv.GenAIOperationNameKey, "execute_tool")
-	assertHasStringAttribute(t, spanData.Attributes, otelsemconv.ErrorTypeKey, errorTypeTool)
+	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIToolName("").Key), "get_services")
+	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIOperationNameExecuteTool.Key), "execute_tool")
+	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.ErrorType("").Key), errorTypeTool)
 	assert.Equal(t, codes.Unset, spanData.Status.Code)
 }
 
@@ -205,26 +205,6 @@ func TestToolNameFromRequestWrongParams(t *testing.T) {
 func TestToolNameFromRequestNilParams(t *testing.T) {
 	req := &mcp.ServerRequest[*mcp.CallToolParamsRaw]{}
 	assert.Empty(t, toolNameFromRequest(mcpMethodToolsCall, req))
-}
-
-func TestSpanErrorResultMarkedErrorWithoutError(t *testing.T) {
-	result := &mcp.CallToolResult{IsError: true}
-	err := spanError(nil, result)
-	require.NoError(t, err)
-}
-
-func TestSpanErrorErrWins(t *testing.T) {
-	expectedErr := errors.New("transport")
-	result := &mcp.CallToolResult{}
-	result.SetError(errors.New("tool"))
-	err := spanError(expectedErr, result)
-	require.ErrorIs(t, err, expectedErr)
-}
-
-func TestSpanErrorNoResultError(t *testing.T) {
-	result := &mcp.CallToolResult{}
-	err := spanError(nil, result)
-	require.NoError(t, err)
 }
 
 func newToolCallRequest(toolName string) *mcp.ServerRequest[*mcp.CallToolParamsRaw] {
@@ -287,14 +267,6 @@ func chainMiddleware(middlewares ...mcp.Middleware) mcp.Middleware {
 	}
 }
 
-func TestSessionIDFromRequestTypedNil(t *testing.T) {
-	req := &mcp.ServerRequest[*mcp.CallToolParamsRaw]{
-		Session: (*mcp.ServerSession)(nil),
-		Params:  &mcp.CallToolParamsRaw{Name: "health"},
-	}
-	assert.Empty(t, sessionIDFromRequest(req))
-}
-
 func TestSessionIDFromRequestNilCases(t *testing.T) {
 	assert.Empty(t, sessionIDFromRequest(nil))
 
@@ -309,4 +281,15 @@ func TestSessionIDFromRequestNilCases(t *testing.T) {
 		Params:  &mcp.CallToolParamsRaw{Name: "health"},
 	}
 	assert.Empty(t, sessionIDFromRequest(clientReq))
+
+	serverReq := &mcp.ServerRequest[*mcp.CallToolParamsRaw]{
+		Session: (*mcp.ServerSession)(nil),
+		Params:  &mcp.CallToolParamsRaw{Name: "health"},
+	}
+	assert.Empty(t, sessionIDFromRequest(serverReq))
+}
+
+func TestIsNilSession(t *testing.T) {
+	assert.True(t, isNilSession((*mcp.ServerSession)(nil)))
+	assert.True(t, isNilSession((*mcp.ClientSession)(nil)))
 }

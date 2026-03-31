@@ -43,13 +43,6 @@ const (
 	OtelStatusCode        = "otel.status_code"
 	OtelStatusDescription = "otel.status_description"
 
-	// MCP + GenAI
-	McpMethodNameKey      = string(semconv.McpMethodNameKey)
-	McpSessionIDKey       = string(semconv.McpSessionIDKey)
-	GenAIOperationNameKey = string(semconv.GenAIOperationNameKey)
-	GenAIToolNameKey      = string(semconv.GenAIToolNameKey)
-	ErrorTypeKey          = string(semconv.ErrorTypeKey)
-
 	// OpenTracing
 	AttributeOpentracingRefType            = "opentracing.ref_type"
 	AttributeOpentracingRefTypeChildOf     = "child_of"
