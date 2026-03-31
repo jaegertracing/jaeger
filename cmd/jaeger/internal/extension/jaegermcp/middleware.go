@@ -46,7 +46,7 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 			ctx, span := tracer.Start(
 				ctx,
 				spanName,
-				trace.WithSpanKind(trace.SpanKindServer),
+				trace.WithSpanKind(trace.SpanKindInternal),
 				trace.WithAttributes(attrs...),
 			)
 			defer span.End()
