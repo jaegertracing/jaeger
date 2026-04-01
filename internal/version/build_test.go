@@ -6,14 +6,29 @@ package version
 import (
 	"testing"
 
+	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGet(t *testing.T) {
-	commitSHA = "foobar"
-	latestVersion = "v1.2.3"
-	date = "2024-01-04"
+func setupBuildForTest(t *testing.T, commit, gitversion, buildDate string) {
+	t.Helper()
+	oldCommitSHA := commitSHA
+	oldLatestVersion := latestVersion
+	oldDate := date
 
+	t.Cleanup(func() {
+		commitSHA = oldCommitSHA
+		latestVersion = oldLatestVersion
+		date = oldDate
+	})
+
+	commitSHA = commit
+	latestVersion = gitversion
+	date = buildDate
+}
+
+func TestGet(t *testing.T) {
+	setupBuildForTest(t, "foobar", "v1.2.3", "2024-01-04")
 	info := Get()
 
 	assert.Equal(t, commitSHA, info.GitCommit)
@@ -22,9 +37,7 @@ func TestGet(t *testing.T) {
 }
 
 func TestString(t *testing.T) {
-	commitSHA = "foobar"
-	latestVersion = "v1.2.3"
-	date = "2024-01-04"
+	setupBuildForTest(t, "foobar", "v1.2.3", "2024-01-04")
 	test := Info{
 		GitCommit:  commitSHA,
 		GitVersion: latestVersion,
@@ -32,4 +45,22 @@ func TestString(t *testing.T) {
 	}
 	expectedOutput := "git-commit=foobar, git-version=v1.2.3, build-date=2024-01-04"
 	assert.Equal(t, expectedOutput, test.String())
+}
+
+func TestNewInfoMetrics(t *testing.T) {
+	setupBuildForTest(t, "foobar", "v1.2.3", "2024-01-04")
+	f := metricstest.NewFactory(0)
+	defer f.Stop()
+
+	NewInfoMetrics(f)
+
+	f.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
+		Name:  "build_info",
+		Value: 1,
+		Tags: map[string]string{
+			"build_date": "2024-01-04",
+			"revision":   "foobar",
+			"version":    "v1.2.3",
+		},
+	})
 }
