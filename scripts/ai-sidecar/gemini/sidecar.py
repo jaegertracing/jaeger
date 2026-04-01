@@ -5,11 +5,12 @@ import asyncio
 import json
 import os
 import socket
+from dataclasses import dataclass
+from typing import Any, Callable
 
 from google.adk.tools.mcp_tool import MCPToolset, StreamableHTTPConnectionParams
 from google import genai
 from google.genai import types
-from typing import Any
 from ws_commands import ws_to_client_writer, client_reader_to_ws
 
 from acp import (
@@ -30,6 +31,13 @@ from acp.schema import (
 )
 
 END_OF_TURN_MARKER = "__END_OF_TURN__"
+DEFAULT_MCP_URL = "http://127.0.0.1:16687/mcp"
+
+
+@dataclass(frozen=True)
+class SidecarConfig:
+    gemini_api_key: str
+    mcp_url: str = DEFAULT_MCP_URL
 
 
 def _to_jsonable(value: Any) -> Any:
@@ -95,17 +103,28 @@ class JaegerMCPBridge:
 
 
 class JaegerSidecarAgent(Agent):
-    def __init__(self):
+    def __init__(self, config: SidecarConfig):
         super().__init__()
         self._conn: Client = None
-        api_key = os.environ.get("GEMINI_API_KEY")
-        if not api_key:
+        if not config.gemini_api_key:
             raise RuntimeError(
                 "GEMINI_API_KEY environment variable is not set; cannot initialize Gemini client."
             )
-        self._gemini = genai.Client(api_key=api_key)
-        self._mcp = JaegerMCPBridge(os.environ.get("JAEGER_MCP_URL", "http://127.0.0.1:16687/mcp"))
+        self._gemini = genai.Client(api_key=config.gemini_api_key)
+        self._mcp = JaegerMCPBridge(config.mcp_url)
         self._next_session_id = 1
+
+
+def build_config_from_env() -> SidecarConfig:
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "GEMINI_API_KEY environment variable is not set; cannot initialize Gemini client."
+        )
+    return SidecarConfig(
+        gemini_api_key=api_key,
+        mcp_url=os.environ.get("JAEGER_MCP_URL", DEFAULT_MCP_URL),
+    )
 
     def on_connect(self, conn: Client) -> None:
         self._conn = conn
@@ -158,7 +177,6 @@ class JaegerSidecarAgent(Agent):
             "You are a Jaeger tracing assistant. "
             "A tool named search_traces is available. "
             "Call this tool whenever trace/span lookup data is needed before answering. "
-            "If you need UI-specific actions or visualization capabilities, call list_contextual_tools first to discover current frontend tools."
         )
 
         mcp_tools = await self._mcp.get_gemini_tools()
@@ -235,7 +253,7 @@ class JaegerSidecarAgent(Agent):
         return PromptResponse(stop_reason="end_turn")
 
 
-async def handle_websocket(websocket):
+async def handle_websocket(websocket, agent_factory: Callable[[], Agent] | None = None):
     print("New websocket connection from Jaeger AI Gateway")
 
     # Bridge ACP stdio-style streams to WebSocket transport used by the Go gateway.
@@ -247,7 +265,11 @@ async def handle_websocket(websocket):
     client_reader, client_writer = await asyncio.open_connection(sock=csock)
 
     # Start the ACP local agent linked to the agent ends of the socket pair
-    agent = JaegerSidecarAgent()
+    if agent_factory is None:
+        config = build_config_from_env()
+        agent_factory = lambda: JaegerSidecarAgent(config)
+
+    agent = agent_factory()
     agent_task = asyncio.create_task(run_agent(agent, agent_writer, agent_reader), name="agent_task")
 
     # Bridge the client ends of the socket pair up to the WebSocket

@@ -16,6 +16,7 @@ async def ws_to_client_writer(websocket, client_writer):
         print(f"Error in ws_to_client reads: {e}")
     finally:
         client_writer.close()
+        await client_writer.wait_closed()
 
 
 async def client_reader_to_ws(websocket, client_reader):

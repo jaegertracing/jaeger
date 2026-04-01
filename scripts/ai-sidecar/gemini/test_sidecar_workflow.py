@@ -7,6 +7,7 @@ import asyncio
 import json
 from pathlib import Path
 from typing import Any
+from functools import partial
 
 import pytest
 import websockets
@@ -114,17 +115,21 @@ async def send_request(
 ) -> dict[str, Any]:
     request_id = pending.new_id()
     future = pending.register(request_id)
-    await websocket.send(
-        json.dumps(
-            {
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "method": method,
-                "params": params,
-            }
+    try:
+        await websocket.send(
+            json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "method": method,
+                    "params": params,
+                }
+            )
         )
-    )
-    return await future
+        return await asyncio.wait_for(future, timeout=10.0)
+    except asyncio.TimeoutError:
+        pending._futures.pop(request_id, None)
+        raise
 
 
 async def run_workflow_test(prompt: str, cwd: str) -> None:
@@ -132,10 +137,7 @@ async def run_workflow_test(prompt: str, cwd: str) -> None:
     received_messages: list[dict[str, Any]] = []
     stop_event = asyncio.Event()
 
-    monkeypatched_agent = sidecar.JaegerSidecarAgent
-    sidecar.JaegerSidecarAgent = FakeAgent  # type: ignore[assignment]
-    try:
-        async with websockets.serve(sidecar.handle_websocket, "127.0.0.1", 0) as server:
+    async with websockets.serve(partial(sidecar.handle_websocket, agent_factory=FakeAgent), "127.0.0.1", 0) as server:
             port = server.sockets[0].getsockname()[1]
             uri = f"ws://127.0.0.1:{port}"
 
@@ -200,13 +202,11 @@ async def run_workflow_test(prompt: str, cwd: str) -> None:
                     with pytest.raises(asyncio.CancelledError):
                         await receiver_task
 
-        fake_agent = FakeAgent.last_instance
-        assert fake_agent is not None
-        assert fake_agent.received_prompts == [("sess-test", prompt)]
-        assert any(END_OF_TURN_MARKER in json.dumps(message) for message in received_messages)
-        assert any("echo: " in json.dumps(message) for message in received_messages)
-    finally:
-        sidecar.JaegerSidecarAgent = monkeypatched_agent  # type: ignore[assignment]
+    fake_agent = FakeAgent.last_instance
+    assert fake_agent is not None
+    assert fake_agent.received_prompts == [("sess-test", prompt)]
+    assert any(END_OF_TURN_MARKER in json.dumps(message) for message in received_messages)
+    assert any("echo: " in json.dumps(message) for message in received_messages)
 
 
 def test_complete_acp_workflow_with_fake_agent() -> None:
