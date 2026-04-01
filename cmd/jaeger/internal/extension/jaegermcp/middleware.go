@@ -85,9 +85,6 @@ func sessionIDFromRequest(req mcp.Request) string {
 		return ""
 	}
 	session := req.GetSession()
-	if session == nil {
-		return ""
-	}
 	if isNilSession(session) {
 		return ""
 	}
@@ -95,11 +92,8 @@ func sessionIDFromRequest(req mcp.Request) string {
 }
 
 func isNilSession(session mcp.Session) bool {
-	v := reflect.ValueOf(session)
-	switch v.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return v.IsNil()
-	default:
-		return false
+	if session == nil {
+		return true
 	}
+	return reflect.ValueOf(session).IsNil()
 }

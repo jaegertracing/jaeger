@@ -289,7 +289,25 @@ func TestSessionIDFromRequestNilCases(t *testing.T) {
 	assert.Empty(t, sessionIDFromRequest(serverReq))
 }
 
+func TestSessionIDFromRequestWithNonNilSession(t *testing.T) {
+	clientReq := &mcp.ClientRequest[*mcp.CallToolParamsRaw]{
+		Session: &mcp.ClientSession{},
+		Params:  &mcp.CallToolParamsRaw{Name: "health"},
+	}
+	assert.Empty(t, sessionIDFromRequest(clientReq))
+
+	serverReq := &mcp.ServerRequest[*mcp.CallToolParamsRaw]{
+		Session: &mcp.ServerSession{},
+		Params:  &mcp.CallToolParamsRaw{Name: "health"},
+	}
+	assert.Empty(t, sessionIDFromRequest(serverReq))
+}
+
 func TestIsNilSession(t *testing.T) {
+	var nilSession mcp.Session
+	assert.True(t, isNilSession(nilSession))
 	assert.True(t, isNilSession((*mcp.ServerSession)(nil)))
 	assert.True(t, isNilSession((*mcp.ClientSession)(nil)))
+	assert.False(t, isNilSession(&mcp.ServerSession{}))
+	assert.False(t, isNilSession(&mcp.ClientSession{}))
 }
