@@ -39,6 +39,13 @@ extensions:
     # HTTP endpoint for MCP protocol (Streamable HTTP transport)
     http:
       endpoint: "0.0.0.0:16687"
+      # CORS is off by default and only needed for browser-based MCP clients.
+      # exposed_headers must include Mcp-Session-Id, otherwise browsers cannot
+      # read the session ID returned by the initialize response.
+      # cors:
+      #   allowed_origins: ["http://localhost:3000"]
+      #   allowed_headers: ["*"]
+      #   exposed_headers: ["Mcp-Session-Id"]
 
     # Server identification for MCP protocol
     server_name: "jaeger"

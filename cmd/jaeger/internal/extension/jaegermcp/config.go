@@ -12,6 +12,10 @@ import (
 // Config represents the configuration for the Jaeger MCP server extension.
 type Config struct {
 	// HTTP contains the HTTP server configuration for the MCP protocol endpoint.
+	// CORS is configured via HTTP.CORS using confighttp's built-in support.
+	// Browser-based MCP clients require cors::exposed_headers to include
+	// "Mcp-Session-Id", otherwise the browser cannot read the session ID
+	// from cross-origin responses.
 	HTTP confighttp.ServerConfig `mapstructure:"http"`
 
 	// ServerName is the name of the MCP server for protocol identification.
