@@ -11,6 +11,7 @@ import (
 	"io"
 	"iter"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -673,4 +675,249 @@ func TestServerMCPEndpointEnforcesTenancy(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	assert.Contains(t, string(body), "missing tenant header")
+}
+
+func TestCORSPreflight(t *testing.T) {
+	config := &Config{
+		HTTP: confighttp.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  "localhost:0",
+				Transport: confignet.TransportTypeTCP,
+			},
+			CORS: configoptional.Some(confighttp.CORSConfig{
+				AllowedOrigins: []string{"*"},
+			}),
+		},
+		ServerName:               "jaeger-test",
+		ServerVersion:            "1.0.0",
+		MaxSpanDetailsPerRequest: 20,
+		MaxSearchResults:         100,
+	}
+
+	server := newServer(config, componenttest.NewNopTelemetrySettings())
+	host := newMockHost()
+	err := server.Start(context.Background(), host)
+	require.NoError(t, err)
+
+	addr := server.listener.Addr().String()
+	t.Cleanup(func() {
+		assert.NoError(t, server.Shutdown(context.Background()))
+	})
+	waitForServer(t, addr)
+
+	url := fmt.Sprintf("http://%s/mcp", addr)
+
+	req, err := http.NewRequest(http.MethodOptions, url, http.NoBody)
+	require.NoError(t, err)
+	req.Header.Set("Origin", "http://localhost:3000")
+	req.Header.Set("Access-Control-Request-Method", "POST")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	assert.Equal(t, "*", resp.Header.Get("Access-Control-Allow-Origin"))
+	assert.Contains(t, resp.Header.Get("Access-Control-Allow-Methods"), "POST")
+}
+
+func TestCORSConfigurableOrigins(t *testing.T) {
+	tests := []struct {
+		name           string
+		allowedOrigins []string
+		requestOrigin  string
+		expectedOrigin string
+	}{
+		{
+			name:           "wildcard allows any origin",
+			allowedOrigins: []string{"*"},
+			requestOrigin:  "http://example.com",
+			expectedOrigin: "*",
+		},
+		{
+			name:           "exact match allowed",
+			allowedOrigins: []string{"http://localhost:3000"},
+			requestOrigin:  "http://localhost:3000",
+			expectedOrigin: "http://localhost:3000",
+		},
+		{
+			name:           "non-matching origin blocked",
+			allowedOrigins: []string{"http://localhost:3000"},
+			requestOrigin:  "http://evil.com",
+			expectedOrigin: "",
+		},
+		{
+			name:           "wildcard subdomain match",
+			allowedOrigins: []string{"http://*.example.com"},
+			requestOrigin:  "http://app.example.com",
+			expectedOrigin: "http://app.example.com",
+		},
+		{
+			name:           "wildcard subdomain no match",
+			allowedOrigins: []string{"http://*.example.com"},
+			requestOrigin:  "http://evil.com",
+			expectedOrigin: "",
+		},
+		{
+			name:           "multiple origins first match",
+			allowedOrigins: []string{"http://localhost:3000", "http://localhost:8080"},
+			requestOrigin:  "http://localhost:8080",
+			expectedOrigin: "http://localhost:8080",
+		},
+		{
+			name:           "nil origins blocks all",
+			allowedOrigins: nil,
+			requestOrigin:  "http://localhost:3000",
+			expectedOrigin: "",
+		},
+		{
+			name:           "empty origins blocks all",
+			allowedOrigins: []string{},
+			requestOrigin:  "http://localhost:3000",
+			expectedOrigin: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &Config{
+				HTTP: confighttp.ServerConfig{
+					NetAddr: confignet.AddrConfig{
+						Endpoint:  "localhost:0",
+						Transport: confignet.TransportTypeTCP,
+					},
+					CORS: configoptional.Some(confighttp.CORSConfig{
+						AllowedOrigins: tt.allowedOrigins,
+					}),
+				},
+				ServerName:               "jaeger-test",
+				ServerVersion:            "1.0.0",
+				MaxSpanDetailsPerRequest: 20,
+				MaxSearchResults:         100,
+			}
+
+			srv := newServer(config, componenttest.NewNopTelemetrySettings())
+			host := newMockHost()
+			err := srv.Start(context.Background(), host)
+			require.NoError(t, err)
+
+			addr := srv.listener.Addr().String()
+			t.Cleanup(func() {
+				assert.NoError(t, srv.Shutdown(context.Background()))
+			})
+			waitForServer(t, addr)
+
+			url := fmt.Sprintf("http://%s/mcp", addr)
+
+			req, err := http.NewRequest(http.MethodOptions, url, http.NoBody)
+			require.NoError(t, err)
+			req.Header.Set("Origin", tt.requestOrigin)
+			req.Header.Set("Access-Control-Request-Method", "POST")
+
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			assert.Equal(t, tt.expectedOrigin, resp.Header.Get("Access-Control-Allow-Origin"))
+		})
+	}
+}
+
+func TestCORSCustomHeaders(t *testing.T) {
+	// AllowedHeaders: ["*"] enables rs/cors auto-mirror, which echoes back all
+	// Access-Control-Request-Headers from the preflight. This verifies MCP
+	// protocol headers work alongside user-defined ones without being hardcoded.
+	config := &Config{
+		HTTP: confighttp.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  "localhost:0",
+				Transport: confignet.TransportTypeTCP,
+			},
+			CORS: configoptional.Some(confighttp.CORSConfig{
+				AllowedOrigins: []string{"*"},
+				AllowedHeaders: []string{"*"},
+			}),
+		},
+		ServerName:               "jaeger-test",
+		ServerVersion:            "1.0.0",
+		MaxSpanDetailsPerRequest: 20,
+		MaxSearchResults:         100,
+	}
+
+	srv := newServer(config, componenttest.NewNopTelemetrySettings())
+	host := newMockHost()
+	err := srv.Start(context.Background(), host)
+	require.NoError(t, err)
+
+	addr := srv.listener.Addr().String()
+	t.Cleanup(func() {
+		assert.NoError(t, srv.Shutdown(context.Background()))
+	})
+	waitForServer(t, addr)
+
+	url := fmt.Sprintf("http://%s/mcp", addr)
+
+	req, err := http.NewRequest(http.MethodOptions, url, http.NoBody)
+	require.NoError(t, err)
+	req.Header.Set("Origin", "http://localhost:3000")
+	req.Header.Set("Access-Control-Request-Method", "POST")
+	// Browsers send header names lowercased per the Fetch spec.
+	req.Header.Set("Access-Control-Request-Headers", "mcp-session-id, x-custom-header")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	allowHeaders := strings.ToLower(resp.Header.Get("Access-Control-Allow-Headers"))
+	assert.Contains(t, allowHeaders, "mcp-session-id")
+	assert.Contains(t, allowHeaders, "x-custom-header")
+}
+
+func TestCORSExposeHeadersMcpSessionID(t *testing.T) {
+	// Verify that a real (non-preflight) cross-origin request includes
+	// Access-Control-Expose-Headers: Mcp-Session-Id so browsers can read it.
+	config := &Config{
+		HTTP: confighttp.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  "localhost:0",
+				Transport: confignet.TransportTypeTCP,
+			},
+			CORS: configoptional.Some(confighttp.CORSConfig{
+				AllowedOrigins: []string{"*"},
+				AllowedHeaders: []string{"*"},
+			}),
+		},
+		ServerName:               "jaeger-test",
+		ServerVersion:            "1.0.0",
+		MaxSpanDetailsPerRequest: 20,
+		MaxSearchResults:         100,
+	}
+
+	srv := newServer(config, componenttest.NewNopTelemetrySettings())
+	host := newMockHost()
+	err := srv.Start(context.Background(), host)
+	require.NoError(t, err)
+
+	addr := srv.listener.Addr().String()
+	t.Cleanup(func() {
+		assert.NoError(t, srv.Shutdown(context.Background()))
+	})
+	waitForServer(t, addr)
+
+	url := fmt.Sprintf("http://%s/mcp", addr)
+
+	// Send a real POST (not OPTIONS preflight) with an Origin header
+	// to trigger the cross-origin response path.
+	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"initialize"}`))
+	require.NoError(t, err)
+	req.Header.Set("Origin", "http://localhost:3000")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	exposed := resp.Header.Get("Access-Control-Expose-Headers")
+	assert.Contains(t, exposed, "Mcp-Session-Id",
+		"middleware must expose Mcp-Session-Id so browsers can read it from cross-origin responses")
 }
