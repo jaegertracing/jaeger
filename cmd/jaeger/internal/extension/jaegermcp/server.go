@@ -5,6 +5,7 @@ package jaegermcp
 
 import (
 	"context"
+	_ "embed"
 	"errors"
 	"fmt"
 	"net"
@@ -22,6 +23,9 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
+
+//go:embed INSTRUCTIONS.md
+var serverInstructions string
 
 var (
 	_ extension.Extension             = (*server)(nil)
@@ -68,9 +72,9 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 			Name:    s.config.ServerName,
 			Version: s.config.ServerVersion,
 		},
-		// Pass empty ServerOptions to use default settings.
-		// Custom options (e.g., logging, handlers) can be added later.
-		&mcp.ServerOptions{},
+		&mcp.ServerOptions{
+			Instructions: serverInstructions,
+		},
 	)
 	s.registerTools()
 	s.mcpServer.AddReceivingMiddleware(createLoggingMiddleware(s.telset.Logger))
@@ -155,12 +159,12 @@ func (s *server) registerTools() {
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_trace_errors",
 		Description: "Get full details for all spans with error status.",
-	}, handlers.NewGetTraceErrorsHandler(s.queryAPI))
+	}, handlers.NewGetTraceErrorsHandler(s.queryAPI, s.config.MaxSpanDetailsPerRequest))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_trace_topology",
 		Description: "Get the structural topology of a trace as a flat, depth-first list of spans. Each span's 'path' field encodes ancestry as slash-delimited span IDs (e.g. rootID/parentID/spanID). Does NOT return attributes or logs.",
-	}, handlers.NewGetTraceTopologyHandler(s.queryAPI))
+	}, handlers.NewGetTraceTopologyHandler(s.queryAPI, s.config.MaxSpanDetailsPerRequest))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_critical_path",

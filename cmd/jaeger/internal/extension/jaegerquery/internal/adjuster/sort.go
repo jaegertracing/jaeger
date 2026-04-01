@@ -4,7 +4,8 @@
 package adjuster
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -62,8 +63,12 @@ func (SortAttributesAndEventsAdjuster) sortAttributes(attributes pcommon.Map) {
 		}{key: k, value: v})
 		return true
 	})
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].key < entries[j].key
+	slices.SortFunc(entries, func(a, b struct {
+		key   string
+		value pcommon.Value
+	},
+	) int {
+		return cmp.Compare(a.key, b.key)
 	})
 	newAttributes := pcommon.NewMap()
 	for _, entry := range entries {

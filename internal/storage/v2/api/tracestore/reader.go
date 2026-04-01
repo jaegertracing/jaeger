@@ -10,9 +10,6 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-
-	"github.com/jaegertracing/jaeger/internal/jptrace"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 )
 
 // Reader finds and loads traces and other data from storage.
@@ -103,19 +100,6 @@ type FoundTraceID struct {
 	TraceID pcommon.TraceID
 	Start   time.Time
 	End     time.Time
-}
-
-func (t *TraceQueryParams) ToSpanStoreQueryParameters() *spanstore.TraceQueryParameters {
-	return &spanstore.TraceQueryParameters{
-		ServiceName:   t.ServiceName,
-		OperationName: t.OperationName,
-		Tags:          jptrace.PcommonMapToPlainMap(t.Attributes),
-		StartTimeMin:  t.StartTimeMin,
-		StartTimeMax:  t.StartTimeMax,
-		DurationMin:   t.DurationMin,
-		DurationMax:   t.DurationMax,
-		NumTraces:     t.SearchDepth,
-	}
 }
 
 // OperationQueryParams contains parameters of query operations, empty spanKind means get operations for all kinds of span.

@@ -11,7 +11,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -912,7 +912,7 @@ func TestCreatePromClientWithExtraQueryParameters(t *testing.T) {
 	q := u.Query()
 
 	for k, v := range expParams {
-		sort.Strings(q[k])
+		slices.Sort(q[k])
 		require.Equal(t, v, q[k])
 	}
 }
