@@ -1,0 +1,4 @@
+websockets
+google-genai
+google-adk
+pytest

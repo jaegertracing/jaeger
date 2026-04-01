@@ -42,6 +42,7 @@ SCRIPTS_SRC = $(shell find . \( -name '*.sh' -o -name '*.py' -o -name '*.mk' -o 
 						-not -path './vendor/*' \
 						-not -path './idl/*' \
 						-not -path './jaeger-ui/*' \
+						-not -path './python-sidecar/*' \
 						-type f | \
 					sort)
 
